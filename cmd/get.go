@@ -38,7 +38,6 @@ func init() {
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:
 	// getCmd.PersistentFlags().String("foo", "", "A help for foo")
-	capabilitiesCmd.Flags().BoolVarP(&version, "version", "", false, "show gnmi version only")
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
 	// getCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
