@@ -16,12 +16,19 @@ package cmd
 
 import (
 	"fmt"
+	"math"
 	"os"
+	"time"
 
 	homedir "github.com/mitchellh/go-homedir"
-	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"golang.org/x/crypto/ssh/terminal"
+	"google.golang.org/grpc"
+)
+
+const (
+	defaultGrpcPort = "57400"
 )
 
 var cfgFile string
@@ -60,6 +67,7 @@ func init() {
 	rootCmd.PersistentFlags().Int32P("qos", "q", 20, "qos marking")
 	rootCmd.PersistentFlags().StringP("tls-cert", "", "", "tls certificate")
 	rootCmd.PersistentFlags().StringP("tls-key", "", "", "tls key")
+	rootCmd.PersistentFlags().StringP("timeout", "", "30s", "grpc timeout")
 
 	rootCmd.PersistentFlags().BoolP("debug", "d", false, "debug mode")
 	// Cobra also supports local flags, which will only run
@@ -72,6 +80,7 @@ func init() {
 	viper.BindPFlag("qos", rootCmd.PersistentFlags().Lookup("qos"))
 	viper.BindPFlag("tls-cert", rootCmd.PersistentFlags().Lookup("tls-cert"))
 	viper.BindPFlag("tls-key", rootCmd.PersistentFlags().Lookup("tls-key"))
+	viper.BindPFlag("timeout", rootCmd.PersistentFlags().Lookup("timeout"))
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -92,10 +101,49 @@ func initConfig() {
 		viper.SetConfigName(".gnmiClient")
 	}
 
-	viper.AutomaticEnv() // read in environment variables that match
+	//viper.AutomaticEnv() // read in environment variables that match
 
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {
 		fmt.Println("Using config file:", viper.ConfigFileUsed())
 	}
+}
+func readUsername() (string, error) {
+	var username string
+	fmt.Print("username: ")
+	_, err := fmt.Scan(&username)
+	if err != nil {
+		return "", err
+	}
+	return username, nil
+}
+func readPassword() (string, error) {
+	fmt.Print("password: ")
+	pass, err := terminal.ReadPassword(int(os.Stdin.Fd()))
+	if err != nil {
+		return "", err
+	}
+	fmt.Println()
+	return string(pass), nil
+}
+func createGrpcConn(address string) (*grpc.ClientConn, error) {
+	opts := []grpc.DialOption{}
+	timeout, err := time.ParseDuration(viper.GetString("timeout"))
+	if err != nil {
+		return nil, err
+	}
+	opts = append(opts, grpc.WithTimeout(timeout))
+	opts = append(opts, grpc.WithBlock())
+	opts = append(opts, grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(math.MaxInt32)))
+	if viper.GetBool("insecure") {
+		opts = append(opts, grpc.WithInsecure())
+	} else {
+		// TODO: secure connection
+	}
+	//opts = append(opts, grpc.WithPerRPCCredentials(target))
+	conn, err := grpc.Dial(address, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return conn, nil
 }

@@ -15,9 +15,17 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"log"
+	"net"
+	"strings"
+	"sync"
 
+	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+	"google.golang.org/grpc/metadata"
 )
 
 // getCmd represents the get command
@@ -25,8 +33,59 @@ var getCmd = &cobra.Command{
 	Use:   "get",
 	Short: "run gnmi get on targets",
 
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("get called")
+	RunE: func(cmd *cobra.Command, args []string) error {
+		var err error
+		addresses := viper.GetStringSlice("address")
+		username := viper.GetString("username")
+		if username == "" {
+			if username, err = readUsername(); err != nil {
+				return err
+			}
+		}
+		password := viper.GetString("password")
+		if password == "" {
+			if password, err = readPassword(); err != nil {
+				return err
+			}
+		}
+		wg := new(sync.WaitGroup)
+		wg.Add(len(addresses))
+		for _, addr := range addresses {
+			go func(address string) {
+				defer wg.Done()
+				ipa, _, err := net.SplitHostPort(address)
+				if err != nil {
+					if strings.Contains(err.Error(), "missing port in address") {
+						address = net.JoinHostPort(ipa, defaultGrpcPort)
+					} else {
+						log.Printf("error parsing address '%s': %v", address, err)
+						return
+					}
+				}
+				conn, err := createGrpcConn(address)
+				if err != nil {
+					log.Printf("connection to %s failed: %v", address, err)
+					return
+				}
+				client := gnmi.NewGNMIClient(conn)
+
+				// grpcQos := gnmi.QOSMarking{
+				// 	Marking: viper.GetUint32("qos"),
+				// }
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				ctx = metadata.AppendToOutgoingContext(ctx, "username", username, "password", password)
+				req := &gnmi.GetRequest{}
+				response, err := client.Get(ctx, req)
+				if err != nil {
+					log.Printf("error sending get request: %v", err)
+					return
+				}
+				fmt.Println(response)
+			}(addr)
+		}
+		wg.Wait()
+		return nil
 	},
 }
 
@@ -42,4 +101,5 @@ func init() {
 	// is called directly, e.g.:
 	// getCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 	getCmd.Flags().StringP("path", "p", "/", "show gnmi version only")
+	viper.BindPFlag("get-path", getCmd.Flags().Lookup("path"))
 }

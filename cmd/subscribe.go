@@ -22,8 +22,9 @@ import (
 
 // subscribeCmd represents the subscribe command
 var subscribeCmd = &cobra.Command{
-	Use:   "subscribe",
-	Short: "subscribe to gnmi updates on targets",
+	Use:     "subscribe",
+	Aliases: []string{"sub"},
+	Short:   "subscribe to gnmi updates on targets",
 
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("subscribe called")
