@@ -19,6 +19,7 @@ import (
 	"os"
 
 	homedir "github.com/mitchellh/go-homedir"
+	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -63,6 +64,14 @@ func init() {
 	rootCmd.PersistentFlags().BoolP("debug", "d", false, "debug mode")
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
+	viper.BindPFlag("address", rootCmd.PersistentFlags().Lookup("address"))
+	viper.BindPFlag("username", rootCmd.PersistentFlags().Lookup("username"))
+	viper.BindPFlag("password", rootCmd.PersistentFlags().Lookup("password"))
+	viper.BindPFlag("encoding", rootCmd.PersistentFlags().Lookup("encoding"))
+	viper.BindPFlag("insecure", rootCmd.PersistentFlags().Lookup("insecure"))
+	viper.BindPFlag("qos", rootCmd.PersistentFlags().Lookup("qos"))
+	viper.BindPFlag("tls-cert", rootCmd.PersistentFlags().Lookup("tls-cert"))
+	viper.BindPFlag("tls-key", rootCmd.PersistentFlags().Lookup("tls-key"))
 }
 
 // initConfig reads in config file and ENV variables if set.
