@@ -16,12 +16,15 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 
+	"github.com/google/gnxi/utils/xpath"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -35,6 +38,28 @@ var setCmd = &cobra.Command{
 
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var err error
+		deletePaths := viper.GetStringSlice("delete-path")
+		updatePaths := viper.GetStringSlice("update-path")
+		replacePaths := viper.GetStringSlice("replace-path")
+		updateValues := viper.GetStringSlice("update-value")
+		replaceValues := viper.GetStringSlice("replace-value")
+		updateValuesTypes := viper.GetStringSlice("update-value-types")
+		replaceValuesTypes := viper.GetStringSlice("replace-value-types")
+		if len(replacePaths) != len(replaceValues) {
+			return errors.New("missing or extra replace values")
+		}
+		if len(replaceValuesTypes) != len(replaceValues) {
+			return errors.New("missing or extra replace values")
+		}
+		if len(updatePaths) != len(updateValues) {
+			return errors.New("missing or extra replace values")
+		}
+		if len(updateValuesTypes) != len(updateValues) {
+			return errors.New("missing or extra replace values")
+		}
+		if len(deletePaths) == 0 && len(updatePaths) == 0 && len(replacePaths) == 0 {
+			return errors.New("no paths provided")
+		}
 		addresses := viper.GetStringSlice("address")
 		username := viper.GetString("username")
 		if username == "" {
@@ -47,6 +72,73 @@ var setCmd = &cobra.Command{
 			if password, err = readPassword(); err != nil {
 				return err
 			}
+		}
+		req := &gnmi.SetRequest{
+			Delete:  make([]*gnmi.Path, 0, len(deletePaths)),
+			Replace: make([]*gnmi.Update, 0, len(replacePaths)),
+			Update:  make([]*gnmi.Update, 0, len(updatePaths)),
+		}
+		for _, p := range deletePaths {
+			gnmiPath, err := xpath.ToGNMIPath(p)
+			if err != nil {
+				return fmt.Errorf("path parse error: %v", err)
+			}
+			req.Delete = append(req.Delete, gnmiPath)
+		}
+		for i, p := range replacePaths {
+			gnmiPath, err := xpath.ToGNMIPath(p)
+			if err != nil {
+				return fmt.Errorf("path parse error: %v", err)
+			}
+			upd := &gnmi.Update{
+				Path: gnmiPath,
+				Val:  &gnmi.TypedValue{},
+			}
+			switch replaceValuesTypes[i] {
+			case "":
+			}
+			req.Replace = append(req.Replace, upd)
+		}
+		for i, p := range updatePaths {
+			gnmiPath, err := xpath.ToGNMIPath(p)
+			if err != nil {
+				return fmt.Errorf("path parse error: %v", err)
+			}
+			upd := &gnmi.Update{
+				Path: gnmiPath,
+				Val:  &gnmi.TypedValue{},
+			}
+			switch updateValuesTypes[i] {
+			case "string":
+				upd.Val.Value = &gnmi.TypedValue_StringVal{StringVal: updateValues[i]}
+			case "int":
+				v, err := strconv.Atoi(updateValues[i])
+				if err != nil {
+					log.Printf("Err converting string to int: %v", err)
+					continue
+				}
+				upd.Val.Value = &gnmi.TypedValue_IntVal{IntVal: int64(v)}
+			case "uint":
+				v, err := strconv.Atoi(updateValues[i])
+				if err != nil {
+					log.Printf("Err converting string to uint: %v", err)
+					continue
+				}
+				upd.Val.Value = &gnmi.TypedValue_UintVal{UintVal: uint64(v)}
+			case "bool":
+				upd.Val.Value = &gnmi.TypedValue_BoolVal{BoolVal: updateValues[i] == "true"}
+			case "bytes":
+				upd.Val.Value = &gnmi.TypedValue_BytesVal{BytesVal: []byte{}}
+			case "float":
+			case "decimal":
+			case "leaflist":
+			case "any":
+			case "json":
+			case "json-ietf":
+			case "ascii":
+			case "protobytes":
+			}
+			req.Update = append(req.Update, upd)
 		}
 		wg := new(sync.WaitGroup)
 		wg.Add(len(addresses))
@@ -68,14 +160,9 @@ var setCmd = &cobra.Command{
 					return
 				}
 				client := gnmi.NewGNMIClient(conn)
-
-				// grpcQos := gnmi.QOSMarking{
-				// 	Marking: viper.GetUint32("qos"),
-				// }
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				ctx = metadata.AppendToOutgoingContext(ctx, "username", username, "password", password)
-				req := &gnmi.SetRequest{}
 				response, err := client.Set(ctx, req)
 				if err != nil {
 					log.Printf("error sending set request: %v", err)
@@ -101,4 +188,13 @@ func init() {
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
 	// setCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	setCmd.Flags().StringP("prefix", "", "", "set request prefix")
+	setCmd.Flags().StringSliceP("delete-path", "", []string{""}, "set request path to be deleted")
+	setCmd.Flags().StringSliceP("replace-path", "", []string{""}, "set request path to be replaced")
+	setCmd.Flags().StringSliceP("update-path", "", []string{""}, "set request path to be updated")
+	setCmd.Flags().StringSliceP("replace-value", "", []string{""}, "set request value to be replaced")
+	setCmd.Flags().StringSliceP("update-value", "", []string{""}, "set request value to be updated")
+	setCmd.Flags().StringSliceP("replace-value-type", "", []string{""}, "set request value type to be replaced")
+	setCmd.Flags().StringSliceP("update-value-type", "", []string{""}, "set request value type to be updated")
+
 }
