@@ -3,6 +3,7 @@ module github.com/karimra/gnmiClient
 go 1.13
 
 require (
+	github.com/google/gnxi v0.0.0-20191016182648-6697a080bc2d
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/openconfig/gnmi v0.0.0-20190823184014-89b2bf29312c

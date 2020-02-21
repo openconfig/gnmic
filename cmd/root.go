@@ -1,4 +1,4 @@
-// Copyright © 2020 NAME HERE <EMAIL ADDRESS>
+// Copyright © 2020 Karim Radhouani <medkarimrdi@gmail.com>
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,9 +18,11 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"strings"
 	"time"
 
 	homedir "github.com/mitchellh/go-homedir"
+	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"golang.org/x/crypto/ssh/terminal"
@@ -64,20 +66,16 @@ func init() {
 	rootCmd.PersistentFlags().StringP("password", "p", "", "password")
 	rootCmd.PersistentFlags().StringP("encoding", "e", "JSON", "one of: JSON, BYTES, PROTO, ASCII, JSON_IETF.")
 	rootCmd.PersistentFlags().BoolP("insecure", "", false, "insecure connection")
-	rootCmd.PersistentFlags().Int32P("qos", "q", 20, "qos marking")
 	rootCmd.PersistentFlags().StringP("tls-cert", "", "", "tls certificate")
 	rootCmd.PersistentFlags().StringP("tls-key", "", "", "tls key")
 	rootCmd.PersistentFlags().StringP("timeout", "", "30s", "grpc timeout")
-
 	rootCmd.PersistentFlags().BoolP("debug", "d", false, "debug mode")
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
+	//
 	viper.BindPFlag("address", rootCmd.PersistentFlags().Lookup("address"))
 	viper.BindPFlag("username", rootCmd.PersistentFlags().Lookup("username"))
 	viper.BindPFlag("password", rootCmd.PersistentFlags().Lookup("password"))
 	viper.BindPFlag("encoding", rootCmd.PersistentFlags().Lookup("encoding"))
 	viper.BindPFlag("insecure", rootCmd.PersistentFlags().Lookup("insecure"))
-	viper.BindPFlag("qos", rootCmd.PersistentFlags().Lookup("qos"))
 	viper.BindPFlag("tls-cert", rootCmd.PersistentFlags().Lookup("tls-cert"))
 	viper.BindPFlag("tls-key", rootCmd.PersistentFlags().Lookup("tls-key"))
 	viper.BindPFlag("timeout", rootCmd.PersistentFlags().Lookup("timeout"))
@@ -146,4 +144,23 @@ func createGrpcConn(address string) (*grpc.ClientConn, error) {
 		return nil, err
 	}
 	return conn, nil
+}
+func gnmiPathToXPath(p *gnmi.Path) string {
+	if p == nil {
+		return ""
+	}
+	pathElems := make([]string, 0, len(p.GetElem()))
+	for _, pe := range p.GetElem() {
+		elem := ""
+		if pe.GetName() != "" {
+			elem += pe.GetName()
+		}
+		if pe.GetKey() != nil {
+			for k, v := range pe.GetKey() {
+				elem += fmt.Sprintf("[%s=%s]", k, v)
+			}
+		}
+		pathElems = append(pathElems, elem)
+	}
+	return strings.Join(pathElems, "/")
 }

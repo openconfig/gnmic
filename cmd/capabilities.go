@@ -1,4 +1,4 @@
-// Copyright © 2020 NAME HERE <EMAIL ADDRESS>
+// Copyright © 2020 Karim Radhouani <medkarimrdi@gmail.com>
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -54,6 +54,7 @@ var capabilitiesCmd = &cobra.Command{
 		}
 		wg := new(sync.WaitGroup)
 		wg.Add(len(addresses))
+		req := &gnmi.CapabilityRequest{}
 		for _, addr := range addresses {
 			go func(address string) {
 				defer wg.Done()
@@ -79,7 +80,7 @@ var capabilitiesCmd = &cobra.Command{
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				ctx = metadata.AppendToOutgoingContext(ctx, "username", username, "password", password)
-				req := &gnmi.CapabilityRequest{}
+
 				response, err := client.Capabilities(ctx, req)
 				if err != nil {
 					log.Printf("error sending capabilities request: %v", err)
@@ -98,6 +99,7 @@ var capabilitiesCmd = &cobra.Command{
 				for _, se := range response.SupportedEncodings {
 					fmt.Printf("[%s]   - %s\n", address, se.String())
 				}
+				fmt.Println()
 			}(addr)
 		}
 		wg.Wait()
