@@ -43,8 +43,8 @@ var setCmd = &cobra.Command{
 		replacePaths := viper.GetStringSlice("replace-path")
 		updateValues := viper.GetStringSlice("update-value")
 		replaceValues := viper.GetStringSlice("replace-value")
-		updateValuesTypes := viper.GetStringSlice("update-value-types")
-		replaceValuesTypes := viper.GetStringSlice("replace-value-types")
+		updateValuesTypes := viper.GetStringSlice("update-value-type")
+		replaceValuesTypes := viper.GetStringSlice("replace-value-type")
 		if len(replacePaths) != len(replaceValues) {
 			return errors.New("missing or extra replace values")
 		}
@@ -57,7 +57,10 @@ var setCmd = &cobra.Command{
 		if len(updateValuesTypes) != len(updateValues) {
 			return errors.New("missing or extra replace values")
 		}
-		if len(deletePaths) == 0 && len(updatePaths) == 0 && len(replacePaths) == 0 {
+		fmt.Println(updatePaths)
+		fmt.Println(replacePaths)
+		fmt.Println(deletePaths)
+		if (len(deletePaths) + len(updatePaths) + len(replacePaths)) == 0 {
 			return errors.New("no paths provided")
 		}
 		addresses := viper.GetStringSlice("address")
@@ -95,9 +98,38 @@ var setCmd = &cobra.Command{
 				Val:  &gnmi.TypedValue{},
 			}
 			switch replaceValuesTypes[i] {
-			case "":
+			case "string":
+				upd.Val.Value = &gnmi.TypedValue_StringVal{StringVal: replaceValues[i]}
+			case "int":
+				v, err := strconv.Atoi(replaceValues[i])
+				if err != nil {
+					log.Printf("Err converting string to int: %v", err)
+					continue
+				}
+				upd.Val.Value = &gnmi.TypedValue_IntVal{IntVal: int64(v)}
+			case "uint":
+				v, err := strconv.Atoi(replaceValues[i])
+				if err != nil {
+					log.Printf("Err converting string to uint: %v", err)
+					continue
+				}
+				upd.Val.Value = &gnmi.TypedValue_UintVal{UintVal: uint64(v)}
+			case "bool":
+				upd.Val.Value = &gnmi.TypedValue_BoolVal{BoolVal: replaceValues[i] == "true"}
+			case "bytes":
+				upd.Val.Value = &gnmi.TypedValue_BytesVal{BytesVal: []byte{}}
+			case "float":
+			case "decimal":
+			case "leaflist":
+			case "any":
+			case "json":
+				upd.Val.Value = &gnmi.TypedValue_JsonVal{JsonVal: []byte(replaceValues[i])}
+			case "json-ietf":
+			case "ascii":
+			case "protobytes":
 			}
 			req.Replace = append(req.Replace, upd)
+
 		}
 		for i, p := range updatePaths {
 			gnmiPath, err := xpath.ToGNMIPath(p)
@@ -134,11 +166,13 @@ var setCmd = &cobra.Command{
 			case "leaflist":
 			case "any":
 			case "json":
+				upd.Val.Value = &gnmi.TypedValue_JsonVal{JsonVal: []byte(updateValues[i])}
 			case "json-ietf":
 			case "ascii":
 			case "protobytes":
 			}
 			req.Update = append(req.Update, upd)
+			fmt.Printf("upd: %s\n", upd)
 		}
 		wg := new(sync.WaitGroup)
 		wg.Add(len(addresses))
@@ -196,5 +230,14 @@ func init() {
 	setCmd.Flags().StringSliceP("update-value", "", []string{""}, "set request value to be updated")
 	setCmd.Flags().StringSliceP("replace-value-type", "", []string{""}, "set request value type to be replaced")
 	setCmd.Flags().StringSliceP("update-value-type", "", []string{""}, "set request value type to be updated")
+	viper.BindPFlag("set-prefix", setCmd.Flags().Lookup("prefix"))
+	viper.BindPFlag("delete-path", setCmd.Flags().Lookup("delete-path"))
+	viper.BindPFlag("replace-path", setCmd.Flags().Lookup("replace-path"))
+	viper.BindPFlag("update-path", setCmd.Flags().Lookup("update-path"))
 
+	viper.BindPFlag("replace-value", setCmd.Flags().Lookup("replace-value"))
+	viper.BindPFlag("update-value", setCmd.Flags().Lookup("update-value"))
+
+	viper.BindPFlag("replace-value-type", setCmd.Flags().Lookup("replace-value-type"))
+	viper.BindPFlag("update-value-type", setCmd.Flags().Lookup("update-value-type"))
 }
