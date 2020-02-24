@@ -15,7 +15,11 @@
 package cmd
 
 import (
+	"crypto/tls"
+	"crypto/x509"
+	"errors"
 	"fmt"
+	"io/ioutil"
 	"math"
 	"os"
 	"strings"
@@ -27,6 +31,7 @@ import (
 	"github.com/spf13/viper"
 	"golang.org/x/crypto/ssh/terminal"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 const (
@@ -66,19 +71,24 @@ func init() {
 	rootCmd.PersistentFlags().StringP("password", "p", "", "password")
 	rootCmd.PersistentFlags().StringP("encoding", "e", "JSON", "one of: JSON, BYTES, PROTO, ASCII, JSON_IETF.")
 	rootCmd.PersistentFlags().BoolP("insecure", "", false, "insecure connection")
+	rootCmd.PersistentFlags().StringP("tls-ca", "", "", "tls certificate authority")
 	rootCmd.PersistentFlags().StringP("tls-cert", "", "", "tls certificate")
 	rootCmd.PersistentFlags().StringP("tls-key", "", "", "tls key")
 	rootCmd.PersistentFlags().StringP("timeout", "", "30s", "grpc timeout")
 	rootCmd.PersistentFlags().BoolP("debug", "d", false, "debug mode")
+	rootCmd.PersistentFlags().BoolP("skip-verify", "", false, "skip verify tls connection")
 	//
 	viper.BindPFlag("address", rootCmd.PersistentFlags().Lookup("address"))
 	viper.BindPFlag("username", rootCmd.PersistentFlags().Lookup("username"))
 	viper.BindPFlag("password", rootCmd.PersistentFlags().Lookup("password"))
 	viper.BindPFlag("encoding", rootCmd.PersistentFlags().Lookup("encoding"))
 	viper.BindPFlag("insecure", rootCmd.PersistentFlags().Lookup("insecure"))
+	viper.BindPFlag("tls-ca", rootCmd.PersistentFlags().Lookup("tls-ca"))
 	viper.BindPFlag("tls-cert", rootCmd.PersistentFlags().Lookup("tls-cert"))
 	viper.BindPFlag("tls-key", rootCmd.PersistentFlags().Lookup("tls-key"))
 	viper.BindPFlag("timeout", rootCmd.PersistentFlags().Lookup("timeout"))
+	viper.BindPFlag("debug", rootCmd.PersistentFlags().Lookup("debug"))
+	viper.BindPFlag("skip-verify", rootCmd.PersistentFlags().Lookup("skip-verify"))
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -136,9 +146,19 @@ func createGrpcConn(address string) (*grpc.ClientConn, error) {
 	if viper.GetBool("insecure") {
 		opts = append(opts, grpc.WithInsecure())
 	} else {
-		// TODO: secure connection
+		tlsConfig := &tls.Config{}
+		if viper.GetBool("skip-verify") {
+			tlsConfig.InsecureSkipVerify = true
+		} else {
+			certificates, certPool, err := loadCerts()
+			if err != nil {
+				return nil, err
+			}
+			tlsConfig.Certificates = certificates
+			tlsConfig.RootCAs = certPool
+		}
+		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	}
-	//opts = append(opts, grpc.WithPerRPCCredentials(target))
 	conn, err := grpc.Dial(address, opts...)
 	if err != nil {
 		return nil, err
@@ -163,4 +183,26 @@ func gnmiPathToXPath(p *gnmi.Path) string {
 		pathElems = append(pathElems, elem)
 	}
 	return strings.Join(pathElems, "/")
+}
+func loadCerts() ([]tls.Certificate, *x509.CertPool, error) {
+	tlsCa := viper.GetString("tls-ca")
+	tlsCert := viper.GetString("tls-cert")
+	tlsKey := viper.GetString("tls-key")
+	certificate, err := tls.LoadX509KeyPair(tlsCert, tlsKey)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	certPool := x509.NewCertPool()
+	caFile, err := ioutil.ReadFile(tlsCa)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if ok := certPool.AppendCertsFromPEM(caFile); !ok {
+		return nil, nil, errors.New("failed to append certificate")
+	}
+
+	return []tls.Certificate{certificate}, certPool, nil
+
 }
