@@ -72,6 +72,13 @@ var subscribeCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		polledSubsChan := make(map[string]chan struct{})
+		waitChan := make(chan struct{})
+		if subscReq.GetSubscribe().Mode == gnmi.SubscriptionList_POLL {
+			for _, addr := range addresses {
+				polledSubsChan[addr] = make(chan struct{})
+			}
+		}
 		wg := new(sync.WaitGroup)
 		wg.Add(len(addresses))
 		for _, addr := range addresses {
@@ -112,67 +119,12 @@ var subscribeCmd = &cobra.Command{
 					for {
 						subscribeRsp, err := subscribeClient.Recv()
 						if err != nil {
-							log.Printf("rcv error: %v", err)
+							log.Printf("addr=%s rcv error: %v", address, err)
 							return
 						}
 						switch resp := subscribeRsp.Response.(type) {
 						case *gnmi.SubscribeResponse_Update:
-							fmt.Printf("%supdate received at %s\n", printPrefix, time.Now().Format(time.RFC3339Nano))
-							msg := new(msg)
-							msg.Timestamp = resp.Update.Timestamp
-							msg.Prefix = gnmiPathToXPath(resp.Update.Prefix)
-							for i, u := range resp.Update.Update {
-								pathElems := make([]string, 0, len(u.Path.Elem))
-								for _, pElem := range u.Path.Elem {
-									pathElems = append(pathElems, pElem.GetName())
-								}
-								var value interface{}
-								var jsondata []byte
-								switch val := u.Val.Value.(type) {
-								case *gnmi.TypedValue_AsciiVal:
-									value = val.AsciiVal
-								case *gnmi.TypedValue_BoolVal:
-									value = val.BoolVal
-								case *gnmi.TypedValue_BytesVal:
-									value = val.BytesVal
-								case *gnmi.TypedValue_DecimalVal:
-									value = val.DecimalVal
-								case *gnmi.TypedValue_FloatVal:
-									value = val.FloatVal
-								case *gnmi.TypedValue_IntVal:
-									value = val.IntVal
-								case *gnmi.TypedValue_StringVal:
-									value = val.StringVal
-								case *gnmi.TypedValue_UintVal:
-									value = val.UintVal
-								case *gnmi.TypedValue_JsonIetfVal:
-									jsondata = val.JsonIetfVal
-								case *gnmi.TypedValue_JsonVal:
-									jsondata = val.JsonVal
-								}
-								if value == nil {
-									err = json.Unmarshal(jsondata, &value)
-									if err != nil {
-										log.Printf("error unmarshling jsonVal '%s'", string(jsondata))
-										continue
-									}
-								}
-								msg.Updates = append(msg.Updates,
-									&update{
-										Path:   gnmiPathToXPath(u.Path),
-										Values: make(map[string]interface{}),
-									})
-								msg.Updates[i].Values[strings.Join(pathElems, "/")] = value
-							}
-							for _, del := range resp.Update.Delete {
-								msg.Deletes = append(msg.Deletes, gnmiPathToXPath(del))
-							}
-							dMsg, err := json.MarshalIndent(msg, printPrefix, "  ")
-							if err != nil {
-								log.Printf("error marshling json msg:%v", err)
-								continue
-							}
-							fmt.Printf("%s%s\n", printPrefix, string(dMsg))
+							printSubscribeResponse(printPrefix, resp)
 						case *gnmi.SubscribeResponse_SyncResponse:
 							fmt.Printf("%ssync response: %+v\n", printPrefix, resp.SyncResponse)
 							if subscReq.GetSubscribe().Mode == gnmi.SubscriptionList_ONCE {
@@ -183,23 +135,51 @@ var subscribeCmd = &cobra.Command{
 					}
 				case gnmi.SubscriptionList_POLL:
 					for {
+						<-polledSubsChan[address]
+						err = subscribeClient.Send(&gnmi.SubscribeRequest{
+							Request: &gnmi.SubscribeRequest_Poll{
+								Poll: &gnmi.Poll{},
+							},
+						})
+						if err != nil {
+							log.Printf("error sending poll request:%v", err)
+							waitChan <- struct{}{}
+							continue
+						}
 						subscribeRsp, err := subscribeClient.Recv()
 						if err != nil {
 							log.Printf("rcv error: %v", err)
-							return
+							waitChan <- struct{}{}
+							continue
 						}
 						switch resp := subscribeRsp.Response.(type) {
 						case *gnmi.SubscribeResponse_Update:
+							printSubscribeResponse(printPrefix, resp)
 						case *gnmi.SubscribeResponse_SyncResponse:
 							fmt.Printf("%ssync response: %+v\n", printPrefix, resp.SyncResponse)
 						}
-
+						waitChan <- struct{}{}
 					}
 				}
 			}(addr)
 		}
 		if subscReq.GetSubscribe().Mode == gnmi.SubscriptionList_POLL {
-
+			var address string
+			for {
+				fmt.Print("target to poll(ip:port): ")
+				_, err := fmt.Scan(&address)
+				if err != nil {
+					fmt.Printf("%v\n", err)
+					continue
+				}
+				c, ok := polledSubsChan[address]
+				if !ok {
+					fmt.Printf("unknown target: %s\n", address)
+					continue
+				}
+				c <- struct{}{}
+				<-waitChan
+			}
 		}
 		wg.Wait()
 		return nil
@@ -310,4 +290,63 @@ func createSubscribeRequest() (*gnmi.SubscribeRequest, error) {
 		},
 	}, nil
 
+}
+
+func printSubscribeResponse(printPrefix string, resp *gnmi.SubscribeResponse_Update) {
+	fmt.Printf("%supdate received at %s\n", printPrefix, time.Now().Format(time.RFC3339Nano))
+	msg := new(msg)
+	msg.Timestamp = resp.Update.Timestamp
+	msg.Prefix = gnmiPathToXPath(resp.Update.Prefix)
+	for i, u := range resp.Update.Update {
+		pathElems := make([]string, 0, len(u.Path.Elem))
+		for _, pElem := range u.Path.Elem {
+			pathElems = append(pathElems, pElem.GetName())
+		}
+		var value interface{}
+		var jsondata []byte
+		switch val := u.Val.Value.(type) {
+		case *gnmi.TypedValue_AsciiVal:
+			value = val.AsciiVal
+		case *gnmi.TypedValue_BoolVal:
+			value = val.BoolVal
+		case *gnmi.TypedValue_BytesVal:
+			value = val.BytesVal
+		case *gnmi.TypedValue_DecimalVal:
+			value = val.DecimalVal
+		case *gnmi.TypedValue_FloatVal:
+			value = val.FloatVal
+		case *gnmi.TypedValue_IntVal:
+			value = val.IntVal
+		case *gnmi.TypedValue_StringVal:
+			value = val.StringVal
+		case *gnmi.TypedValue_UintVal:
+			value = val.UintVal
+		case *gnmi.TypedValue_JsonIetfVal:
+			jsondata = val.JsonIetfVal
+		case *gnmi.TypedValue_JsonVal:
+			jsondata = val.JsonVal
+		}
+		if value == nil {
+			err := json.Unmarshal(jsondata, &value)
+			if err != nil {
+				log.Printf("error unmarshling jsonVal '%s'", string(jsondata))
+				continue
+			}
+		}
+		msg.Updates = append(msg.Updates,
+			&update{
+				Path:   gnmiPathToXPath(u.Path),
+				Values: make(map[string]interface{}),
+			})
+		msg.Updates[i].Values[strings.Join(pathElems, "/")] = value
+	}
+	for _, del := range resp.Update.Delete {
+		msg.Deletes = append(msg.Deletes, gnmiPathToXPath(del))
+	}
+	dMsg, err := json.MarshalIndent(msg, printPrefix, "  ")
+	if err != nil {
+		log.Printf("error marshling json msg:%v", err)
+		return
+	}
+	fmt.Printf("%s%s\n", printPrefix, string(dMsg))
 }
