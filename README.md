@@ -33,62 +33,61 @@ Flags:
       --tls-key string    tls key
   -u, --username string   username
 ```
-## Examples
-### Capabilities request
-#### single host
+## Examples:
+### 1. Capabilities request
+####   - single host
 ```
 $ gnmiClient -a <ip:port> capabilities --username <user> --password <password>
 $ gnmiClient -a <ip:port> cap
 ```
-
-#### multiple hosts
+####   - multiple hosts
 ```
 $ gnmiClient -a <ip:port>,<ip:port> capabilities
 $ gnmiClient -a <ip:port> -a <ip:port> cap
 ```
 
-### Get request
+### 2. Get request
 ```
 $ gnmiClient -a <ip:port> get --path /state/port[port-id=*]
 $ gnmiClient -a <ip:port> get --path /state/port[port-id=*] --path /state/router[router-name=*]/interface[interface-name=*]
 $ gnmiClient -a <ip:port> get --prefix /state --path port[port-id=*] --path router[router-name=*]/interface[interface-name=*]
 ```
-### Set Request
-#### update
-##### in-line value
+### 3. Set Request
+####  1. update
+#####   - in-line value
 ```
 $ gnmiClient -a <ip:port> set --update /configure/system/name --update-value <system_name>
 ```
-##### json file value
+#####   - json file value
 ```
 $ gnmiClient -a <ip:port> set --update /configure/system --update-file <jsonFile.json>
 $ cat jsonFile.json
 {"name": "router1"}
 ```
-#### replace
+####  2. replace
 ```
 $ gnmiClient -a <ip:port> set --replace /configure/router[router-name=Base]/interface[interface-name=interface1]/ipv4/primary --replace-file interface.json
 $ cat interface.json
 {"address": "1.1.1.1", "prefix-length": 32}
 ```
-#### delete
+####  3. delete
 ```
 $ gnmiClient -a <ip:port> set --delete /configure/router[router-name=Base]/interface[interface-name=interface1]
 ```
-### Subscribe request
-#### streaming, target-defined subscription
+### 4. Subscribe request
+####  1. streaming, target-defined subscription
 ```
 $ gnmiClient -a <ip:port> sub --path /state/port[port-id=*]/statistics
 ```
-#### streaming, sample, 30s interval subscription
+####  2. streaming, sample, 30s interval subscription
 ```
 $ gnmiClient -a <ip:port> sub --path /state/port[port-id=*]/statistics --stream-subscription-mode sample --sampling-interval 30s
 ```
-#### streaming, on-change, heartbeat interval 1min subscription
+####  3. streaming, on-change, heartbeat interval 1min subscription
 ```
 $ gnmiClient -a <ip:port> sub --path /state/port[port-id=*]/statistics --stream-subscription-mode on-change --heartbeat-interval 1m
 ```
-#### once subscription
+####  4. once subscription
 ```
 $ gnmiClient -a <ip:port> sub --path /state/port[port-id=*]/statistics --subscription-mode once
 ```
