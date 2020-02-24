@@ -183,6 +183,7 @@ var subscribeCmd = &cobra.Command{
 						case *gnmi.SubscribeResponse_SyncResponse:
 							fmt.Printf("%ssync response: %+v\n", printPrefix, resp.SyncResponse)
 						}
+
 					}
 				}
 			}(addr)
