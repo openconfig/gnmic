@@ -33,10 +33,14 @@ import (
 )
 
 type msg struct {
-	//Source    string                 `json:"source,omitempty"`
-	Timestamp int64                  `json:"timestamp,omitempty"`
-	Prefix    string                 `json:"prefix,omitempty"`
-	Values    map[string]interface{} `json:"values,omitempty"`
+	Timestamp int64     `json:"timestamp,omitempty"`
+	Prefix    string    `json:"prefix,omitempty"`
+	Updates   []*update `json:"updates,omitempty"`
+	Deletes   []string  `json:"deletes,omitempty"`
+}
+type update struct {
+	Path   string
+	Values map[string]interface{} `json:"values,omitempty"`
 }
 
 // subscribeCmd represents the subscribe command
@@ -113,13 +117,11 @@ var subscribeCmd = &cobra.Command{
 						}
 						switch resp := subscribeRsp.Response.(type) {
 						case *gnmi.SubscribeResponse_Update:
-							msg := &msg{
-								Values: make(map[string]interface{}),
-							}
 							fmt.Printf("%supdate received at %s\n", printPrefix, time.Now().Format(time.RFC3339Nano))
+							msg := new(msg)
 							msg.Timestamp = resp.Update.Timestamp
 							msg.Prefix = gnmiPathToXPath(resp.Update.Prefix)
-							for _, u := range resp.Update.Update {
+							for i, u := range resp.Update.Update {
 								pathElems := make([]string, 0, len(u.Path.Elem))
 								for _, pElem := range u.Path.Elem {
 									pathElems = append(pathElems, pElem.GetName())
@@ -155,7 +157,15 @@ var subscribeCmd = &cobra.Command{
 										continue
 									}
 								}
-								msg.Values[strings.Join(pathElems, "/")] = value
+								msg.Updates = append(msg.Updates,
+									&update{
+										Path:   gnmiPathToXPath(u.Path),
+										Values: make(map[string]interface{}),
+									})
+								msg.Updates[i].Values[strings.Join(pathElems, "/")] = value
+							}
+							for _, del := range resp.Update.Delete {
+								msg.Deletes = append(msg.Deletes, gnmiPathToXPath(del))
 							}
 							dMsg, err := json.MarshalIndent(msg, printPrefix, "  ")
 							if err != nil {
