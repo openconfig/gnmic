@@ -123,6 +123,9 @@ var getCmd = &cobra.Command{
 					fmt.Printf("%sprefix: %s\n", printPrefix, gnmiPathToXPath(notif.Prefix))
 					fmt.Printf("%salias: %s\n", printPrefix, notif.Alias)
 					for _, upd := range notif.Update {
+						if upd.Val == nil {
+							continue
+						}
 						var value interface{}
 						var jsondata []byte
 						switch val := upd.Val.Value.(type) {
