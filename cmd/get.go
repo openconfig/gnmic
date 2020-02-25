@@ -72,7 +72,6 @@ var getCmd = &cobra.Command{
 		}
 		paths := viper.GetStringSlice("get-path")
 		for _, p := range paths {
-			log.Printf("parsing path '%s'\n", p)
 			gnmiPath, err := xpath.ToGNMIPath(p)
 			if err != nil {
 				return fmt.Errorf("path parse error: %v", err)
@@ -87,7 +86,6 @@ var getCmd = &cobra.Command{
 			}
 			req.Type = gnmi.GetRequest_DataType(dti)
 		}
-		log.Printf("get request: %s", req)
 		wg := new(sync.WaitGroup)
 		wg.Add(len(addresses))
 		for _, addr := range addresses {
