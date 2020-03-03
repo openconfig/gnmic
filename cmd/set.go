@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -32,6 +33,8 @@ import (
 	"github.com/spf13/viper"
 	"google.golang.org/grpc/metadata"
 )
+
+var vTypes = []string{"json", "json_ietf", "string", "int", "uint", "bool", "decimal", "float", "bytes", "ascii"}
 
 // setCmd represents the set command
 var setCmd = &cobra.Command{
@@ -53,56 +56,76 @@ var setCmd = &cobra.Command{
 			return err
 		}
 		deletes := viper.GetStringSlice("delete")
-		updates := viper.GetStringSlice("update")
-		replaces := viper.GetStringSlice("replace")
+		updates := viper.GetString("update")
+		replaces := viper.GetString("replace")
+
+		updatePaths := viper.GetStringSlice("update-path")
+		replacePaths := viper.GetStringSlice("replace-path")
 		updateFiles := viper.GetStringSlice("update-file")
 		replaceFiles := viper.GetStringSlice("replace-file")
 		updateValues := viper.GetStringSlice("update-value")
 		replaceValues := viper.GetStringSlice("replace-value")
+		delimiter := viper.GetString("delimiter")
+		if (len(deletes)+len(updates)+len(replaces)) == 0 && (len(updatePaths)+len(replacePaths)) == 0 {
+			return errors.New("no paths provided")
+		}
+		inlineUpdates := len(updates) > 0
+		inlineReplaces := len(replaces) > 0
 		useUpdateFile := len(updateFiles) > 0 && len(updateValues) == 0
 		useReplaceFile := len(replaceFiles) > 0 && len(replaceValues) == 0
+		updateTypes := make([]string, 0)
+		replaceTypes := make([]string, 0)
+
 		if viper.GetBool("debug") {
 			log.Printf("deletes(%d)=%v\n", len(deletes), deletes)
 			log.Printf("updates(%d)=%v\n", len(updates), updates)
 			log.Printf("replaces(%d)=%v\n", len(replaces), replaces)
+			log.Printf("delimiter=%v\n", delimiter)
+			log.Printf("updates-paths(%d)=%v\n", len(updatePaths), updatePaths)
+			log.Printf("replaces-paths(%d)=%v\n", len(replacePaths), replacePaths)
 			log.Printf("updates-files(%d)=%v\n", len(updateFiles), updateFiles)
 			log.Printf("replaces-files(%d)=%v\n", len(replaceFiles), replaceFiles)
 			log.Printf("updates-values(%d)=%v\n", len(updateValues), updateValues)
 			log.Printf("replaces-values(%d)=%v\n", len(replaceValues), replaceValues)
 		}
-		if (len(deletes) + len(updates) + len(replaces)) == 0 {
-			return errors.New("no paths provided")
+		if inlineUpdates && !useUpdateFile {
+			updateSlice := strings.Split(updates, delimiter)
+			if len(updateSlice) < 3 {
+				return fmt.Errorf("'%s' invalid inline update format: %v", updates, err)
+			}
+			updatePaths = append(updatePaths, updateSlice[0])
+			updateTypes = append(updateTypes, updateSlice[1])
+			updateValues = append(updateValues, strings.Join(updateSlice[2:], delimiter))
 		}
-		if useUpdateFile {
-			if len(updates) != len(updateFiles) {
+		if inlineReplaces && !useReplaceFile {
+			replaceSlice := strings.Split(replaces, delimiter)
+			if len(replaceSlice) < 3 {
+				return fmt.Errorf("'%s' invalid inline replace format: %v", replaces, err)
+			}
+			replacePaths = append(replacePaths, replaceSlice[0])
+			replaceTypes = append(replaceTypes, replaceSlice[1])
+			replaceValues = append(replaceValues, strings.Join(replaceSlice[2:], delimiter))
+		}
+
+		if useUpdateFile && !inlineUpdates {
+			if len(updatePaths) != len(updateFiles) {
 				return errors.New("missing or extra update files")
 			}
 		} else {
-			if len(updates) != len(updateValues) && len(updates) > 0 {
+			if len(updatePaths) != len(updateValues) && len(updates) > 0 {
 				return errors.New("missing or extra update values")
 			}
 		}
-		if useReplaceFile {
-			if len(replaces) != len(replaceFiles) {
+		if useReplaceFile && !inlineReplaces {
+			if len(replacePaths) != len(replaceFiles) {
 				return errors.New("missing or extra replace files")
 			}
 		} else {
-			if len(replaces) != len(replaceValues) && len(replaces) > 0 {
+			if len(replacePaths) != len(replaceValues) && len(replaces) > 0 {
 				return errors.New("missing or extra replace values")
 			}
 		}
-		username := viper.GetString("username")
-		if username == "" {
-			if username, err = readUsername(); err != nil {
-				return err
-			}
-		}
-		password := viper.GetString("password")
-		if password == "" {
-			if password, err = readPassword(); err != nil {
-				return err
-			}
-		}
+
 		req := &gnmi.SetRequest{
 			Prefix:  gnmiPrefix,
 			Delete:  make([]*gnmi.Path, 0, len(deletes)),
@@ -117,63 +140,227 @@ var setCmd = &cobra.Command{
 			}
 			req.Delete = append(req.Delete, gnmiPath)
 		}
-		for i, p := range updates {
+
+		for i, p := range updatePaths {
 			gnmiPath, err := xpath.ToGNMIPath(p)
 			if err != nil {
 				log.Print(err)
 			}
-			var updateData []byte
+			value := new(gnmi.TypedValue)
 			if useUpdateFile {
+				var updateData []byte
 				updateData, err = ioutil.ReadFile(updateFiles[i])
 				if err != nil {
 					log.Printf("error reading data from file %v: skipping path '%s'", updateFiles[i], p)
 					continue
 				}
-			} else {
-				buff := new(bytes.Buffer)
-				err = json.NewEncoder(buff).Encode(strings.TrimRight(strings.TrimLeft(updateValues[i], "["), "]"))
-				if err != nil {
-					log.Printf("error encoding json value: %v", err)
-					continue
+				value.Value = &gnmi.TypedValue_JsonVal{
+					JsonVal: bytes.Trim(updateData, " \r\n\t"),
 				}
-				updateData = buff.Bytes()
+			} else {
+				var vType string
+				if inlineUpdates {
+					if len(updateTypes) > i {
+						vType = updateTypes[i]
+					} else {
+						vType = "json"
+					}
+				}
+				switch vType {
+				case "json":
+					buff := new(bytes.Buffer)
+					err = json.NewEncoder(buff).Encode(strings.TrimRight(strings.TrimLeft(updateValues[i], "["), "]"))
+					if err != nil {
+						return err
+					}
+					value.Value = &gnmi.TypedValue_JsonVal{
+						JsonVal: bytes.Trim(buff.Bytes(), " \r\n\t"),
+					}
+				case "json_ietf":
+					buff := new(bytes.Buffer)
+					err = json.NewEncoder(buff).Encode(strings.TrimRight(strings.TrimLeft(updateValues[i], "["), "]"))
+					if err != nil {
+						return err
+					}
+					value.Value = &gnmi.TypedValue_JsonIetfVal{
+						JsonIetfVal: bytes.Trim(buff.Bytes(), " \r\n\t"),
+					}
+				case "ascii":
+					value.Value = &gnmi.TypedValue_AsciiVal{
+						AsciiVal: updateValues[i],
+					}
+				case "bool":
+					bval, err := strconv.ParseBool(updateValues[i])
+					if err != nil {
+						return err
+					}
+					value.Value = &gnmi.TypedValue_BoolVal{
+						BoolVal: bval,
+					}
+				case "bytes":
+					value.Value = &gnmi.TypedValue_BytesVal{
+						BytesVal: []byte(updateValues[i]),
+					}
+				case "decimal":
+					dVal := &gnmi.Decimal64{}
+					value.Value = &gnmi.TypedValue_DecimalVal{
+						DecimalVal: dVal,
+					}
+					log.Println("decimal type not implemented")
+					return nil
+				case "float":
+					f, err := strconv.ParseFloat(updateValues[i], 32)
+					if err != nil {
+						return err
+					}
+					value.Value = &gnmi.TypedValue_FloatVal{
+						FloatVal: float32(f),
+					}
+				case "int":
+					k, err := strconv.ParseInt(updateValues[i], 10, 64)
+					if err != nil {
+						return err
+					}
+					value.Value = &gnmi.TypedValue_IntVal{
+						IntVal: k,
+					}
+				case "uint":
+					u, err := strconv.ParseUint(updateValues[i], 10, 64)
+					if err != nil {
+						return err
+					}
+					value.Value = &gnmi.TypedValue_UintVal{
+						UintVal: u,
+					}
+				case "string":
+					value.Value = &gnmi.TypedValue_StringVal{
+						StringVal: updateValues[i],
+					}
+				default:
+					return fmt.Errorf("unknown type '%s', must be one of: %v", vType, vTypes)
+				}
 			}
 			req.Update = append(req.Update, &gnmi.Update{
 				Path: gnmiPath,
-				Val: &gnmi.TypedValue{
-					Value: &gnmi.TypedValue_JsonVal{
-						JsonVal: bytes.Trim(updateData, " \r\n\t"),
-					}}})
+				Val:  value,
+			})
 		}
-		for i, p := range replaces {
+		for i, p := range replacePaths {
 			gnmiPath, err := xpath.ToGNMIPath(p)
 			if err != nil {
 				log.Print(err)
 			}
-			var replaceData []byte
+			value := new(gnmi.TypedValue)
 			if useReplaceFile {
+				var replaceData []byte
 				replaceData, err = ioutil.ReadFile(replaceFiles[i])
 				if err != nil {
 					log.Printf("error reading data from file %v: skipping path '%s'", replaceFiles[i], p)
 					continue
 				}
-			} else {
-				buff := new(bytes.Buffer)
-				err = json.NewEncoder(buff).Encode(strings.TrimRight(strings.TrimLeft(replaceValues[i], "["), "]"))
-				if err != nil {
-					log.Printf("error encoding json value: %v", err)
-					continue
+				value.Value = &gnmi.TypedValue_JsonVal{
+					JsonVal: bytes.Trim(replaceData, " \r\n\t"),
 				}
-				replaceData = buff.Bytes()
+			} else {
+				var vType string
+				if inlineReplaces {
+					if len(replaceTypes) > i {
+						vType = replaceTypes[i]
+					} else {
+						vType = "json"
+					}
+				}
+				switch vType {
+				case "json":
+					buff := new(bytes.Buffer)
+					err = json.NewEncoder(buff).Encode(strings.TrimRight(strings.TrimLeft(replaceValues[i], "["), "]"))
+					if err != nil {
+						return err
+					}
+					value.Value = &gnmi.TypedValue_JsonVal{
+						JsonVal: bytes.Trim(buff.Bytes(), " \r\n\t"),
+					}
+				case "json_ietf":
+					buff := new(bytes.Buffer)
+					err = json.NewEncoder(buff).Encode(strings.TrimRight(strings.TrimLeft(replaceValues[i], "["), "]"))
+					if err != nil {
+						return err
+					}
+					value.Value = &gnmi.TypedValue_JsonIetfVal{
+						JsonIetfVal: bytes.Trim(buff.Bytes(), " \r\n\t"),
+					}
+				case "ascii":
+					value.Value = &gnmi.TypedValue_AsciiVal{
+						AsciiVal: replaceValues[i],
+					}
+				case "bool":
+					bval, err := strconv.ParseBool(replaceValues[i])
+					if err != nil {
+						return err
+					}
+					value.Value = &gnmi.TypedValue_BoolVal{
+						BoolVal: bval,
+					}
+				case "bytes":
+					value.Value = &gnmi.TypedValue_BytesVal{
+						BytesVal: []byte(replaceValues[i]),
+					}
+				case "decimal":
+					dVal := &gnmi.Decimal64{}
+					value.Value = &gnmi.TypedValue_DecimalVal{
+						DecimalVal: dVal,
+					}
+					log.Println("decimal type not implemented")
+					return nil
+				case "float":
+					f, err := strconv.ParseFloat(replaceValues[i], 32)
+					if err != nil {
+						return err
+					}
+					value.Value = &gnmi.TypedValue_FloatVal{
+						FloatVal: float32(f),
+					}
+				case "int":
+					i, err := strconv.ParseInt(replaceValues[i], 10, 64)
+					if err != nil {
+						return err
+					}
+					value.Value = &gnmi.TypedValue_IntVal{
+						IntVal: i,
+					}
+				case "uint":
+					i, err := strconv.ParseUint(replaceValues[i], 10, 64)
+					if err != nil {
+						return err
+					}
+					value.Value = &gnmi.TypedValue_UintVal{
+						UintVal: i,
+					}
+				case "string":
+					value.Value = &gnmi.TypedValue_StringVal{
+						StringVal: replaceValues[i],
+					}
+				default:
+					return fmt.Errorf("unknown type '%s', must be one of: %v", vType, vTypes)
+				}
 			}
 			req.Replace = append(req.Replace, &gnmi.Update{
 				Path: gnmiPath,
-				Val: &gnmi.TypedValue{
-					Value: &gnmi.TypedValue_JsonVal{
-						JsonVal: bytes.Trim([]byte(replaceData), " \r\n\t"),
-					}}})
+				Val:  value,
+			})
 		}
-
+		username := viper.GetString("username")
+		if username == "" {
+			if username, err = readUsername(); err != nil {
+				return err
+			}
+		}
+		password := viper.GetString("password")
+		if password == "" {
+			if password, err = readPassword(); err != nil {
+				return err
+			}
+		}
 		wg := new(sync.WaitGroup)
 		wg.Add(len(addresses))
 		for _, addr := range addresses {
@@ -241,19 +428,29 @@ func init() {
 	rootCmd.AddCommand(setCmd)
 
 	setCmd.Flags().StringP("prefix", "", "", "set request prefix")
-	setCmd.Flags().StringSliceP("delete", "", []string{""}, "set request path to be deleted")
-	setCmd.Flags().StringSliceP("replace", "", []string{""}, "set request path to be replaced")
-	setCmd.Flags().StringSliceP("update", "", []string{""}, "set request path to be updated")
+
+	setCmd.Flags().StringSliceP("delete", "", []string{}, "set request path to be deleted")
+
+	setCmd.Flags().StringP("replace", "", "", fmt.Sprintf("set request path:::type:::value to be replaced, type must be one of %v", vTypes))
+	setCmd.Flags().StringP("update", "", "", fmt.Sprintf("set request path:::type:::value to be updated, type must be one of %v", vTypes))
+
+	setCmd.Flags().StringSliceP("replace-path", "", []string{""}, "set request path to be replaced")
+	setCmd.Flags().StringSliceP("update-path", "", []string{""}, "set request path to be updated")
 	setCmd.Flags().StringSliceP("update-file", "", []string{""}, "set update request value in json file")
 	setCmd.Flags().StringSliceP("replace-file", "", []string{""}, "set replace request value in json file")
 	setCmd.Flags().StringSliceP("update-value", "", []string{""}, "set update request value")
 	setCmd.Flags().StringSliceP("replace-value", "", []string{""}, "set replace request value")
+	setCmd.Flags().StringP("delimiter", "", ":::", "set update/replace delimiter between path,type,value")
+
 	viper.BindPFlag("set-prefix", setCmd.Flags().Lookup("prefix"))
 	viper.BindPFlag("delete", setCmd.Flags().Lookup("delete"))
 	viper.BindPFlag("replace", setCmd.Flags().Lookup("replace"))
 	viper.BindPFlag("update", setCmd.Flags().Lookup("update"))
+	viper.BindPFlag("update-path", setCmd.Flags().Lookup("update-path"))
+	viper.BindPFlag("replace-path", setCmd.Flags().Lookup("replace-path"))
 	viper.BindPFlag("update-file", setCmd.Flags().Lookup("update-file"))
 	viper.BindPFlag("replace-file", setCmd.Flags().Lookup("replace-file"))
 	viper.BindPFlag("update-value", setCmd.Flags().Lookup("update-value"))
 	viper.BindPFlag("replace-value", setCmd.Flags().Lookup("replace-value"))
+	viper.BindPFlag("delimiter", setCmd.Flags().Lookup("delimiter"))
 }
