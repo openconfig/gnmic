@@ -54,9 +54,14 @@ var getCmd = &cobra.Command{
 				return err
 			}
 		}
+		encodingVal, ok := gnmi.Encoding_value[strings.Replace(strings.ToUpper(viper.GetString("encoding")), "-", "_", -1)]
+		if !ok {
+			return fmt.Errorf("invalid encoding type '%s'", viper.GetString("encoding"))
+		}
 		req := &gnmi.GetRequest{
 			UseModels: make([]*gnmi.ModelData, 0),
 			Path:      make([]*gnmi.Path, 0),
+			Encoding:  gnmi.Encoding(encodingVal),
 		}
 		model := viper.GetString("get-model")
 		if model != "" {
@@ -88,6 +93,7 @@ var getCmd = &cobra.Command{
 		}
 		wg := new(sync.WaitGroup)
 		wg.Add(len(addresses))
+		lock := new(sync.Mutex)
 		for _, addr := range addresses {
 			go func(address string) {
 				defer wg.Done()
@@ -116,6 +122,7 @@ var getCmd = &cobra.Command{
 					return
 				}
 				printPrefix := fmt.Sprintf("[%s] ", address)
+				lock.Lock()
 				for _, notif := range response.Notification {
 					fmt.Printf("%stimestamp: %d\n", printPrefix, notif.Timestamp)
 					fmt.Printf("%sprefix: %s\n", printPrefix, gnmiPathToXPath(notif.Prefix))
@@ -166,6 +173,7 @@ var getCmd = &cobra.Command{
 					}
 				}
 				fmt.Println()
+				lock.Unlock()
 			}(addr)
 		}
 		wg.Wait()
