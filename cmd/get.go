@@ -36,6 +36,7 @@ var getCmd = &cobra.Command{
 	Short: "run gnmi get on targets",
 
 	RunE: func(cmd *cobra.Command, args []string) error {
+		debug := viper.GetBool("debug")
 		var err error
 		addresses := viper.GetStringSlice("address")
 		if len(addresses) == 0 {
@@ -128,7 +129,13 @@ var getCmd = &cobra.Command{
 					fmt.Printf("%sprefix: %s\n", printPrefix, gnmiPathToXPath(notif.Prefix))
 					fmt.Printf("%salias: %s\n", printPrefix, notif.Alias)
 					for _, upd := range notif.Update {
+						if debug {
+							log.Printf("DEBUG: update: %+v", upd)
+						}
 						if upd.Val == nil {
+							if debug {
+								log.Printf("DEBUG: got a nil val update: %+v", upd)
+							}
 							continue
 						}
 						var value interface{}
@@ -155,7 +162,12 @@ var getCmd = &cobra.Command{
 						case *gnmi.TypedValue_JsonVal:
 							jsondata = val.JsonVal
 						}
-						if jsondata != nil {
+						if debug {
+							log.Printf("DEBUG: value read from update msg")
+							log.Printf("DEBUG: value: (%T) %v", value, value)
+							log.Printf("DEBUG: jsonData: (%T) %v", jsondata, jsondata)
+						}
+						if len(jsondata) > 0 {
 							err = json.Unmarshal(jsondata, &value)
 							if err != nil {
 								log.Printf("error unmarshling jsonVal '%s'", string(jsondata))
