@@ -293,6 +293,7 @@ func createSubscribeRequest() (*gnmi.SubscribeRequest, error) {
 					Subscription: subscriptions,
 					UseModels:    models,
 					Qos:          qos,
+					UpdatesOnly:  viper.GetBool("updates-only"),
 				},
 			},
 		}, nil
@@ -306,7 +307,8 @@ func createSubscribeRequest() (*gnmi.SubscribeRequest, error) {
 				Encoding:     gnmi.Encoding(encodingVal),
 				Subscription: subscriptions,
 				//UseModels:    models,
-				Qos: qos,
+				Qos:         qos,
+				UpdatesOnly: viper.GetBool("updates-only"),
 			},
 		},
 	}, nil
