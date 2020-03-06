@@ -284,6 +284,19 @@ func createSubscribeRequest() (*gnmi.SubscribeRequest, error) {
 	models := make([]*gnmi.ModelData, 1)
 	if model != "" {
 		models[0] = &gnmi.ModelData{Name: model}
+		return &gnmi.SubscribeRequest{
+			Request: &gnmi.SubscribeRequest_Subscribe{
+				Subscribe: &gnmi.SubscriptionList{
+					Prefix:       gnmiPrefix,
+					Mode:         gnmi.SubscriptionList_Mode(modeVal),
+					Encoding:     gnmi.Encoding(encodingVal),
+					Subscription: subscriptions,
+					UseModels:    models,
+					Qos:          qos,
+				},
+			},
+		}, nil
+
 	}
 	return &gnmi.SubscribeRequest{
 		Request: &gnmi.SubscribeRequest_Subscribe{
@@ -292,8 +305,8 @@ func createSubscribeRequest() (*gnmi.SubscribeRequest, error) {
 				Mode:         gnmi.SubscriptionList_Mode(modeVal),
 				Encoding:     gnmi.Encoding(encodingVal),
 				Subscription: subscriptions,
-				UseModels:    models,
-				Qos:          qos,
+				//UseModels:    models,
+				Qos: qos,
 			},
 		},
 	}, nil
