@@ -164,8 +164,8 @@ var getCmd = &cobra.Command{
 						}
 						if debug {
 							log.Printf("DEBUG: value read from update msg")
-							log.Printf("DEBUG: value: (%T) %v", value, value)
-							log.Printf("DEBUG: jsonData: (%T) %v", jsondata, jsondata)
+							log.Printf("DEBUG: value: (%T) '%v'", value, value)
+							log.Printf("DEBUG: jsonData: (%T) '%v'", jsondata, jsondata)
 						}
 						if len(jsondata) > 0 {
 							err = json.Unmarshal(jsondata, &value)
