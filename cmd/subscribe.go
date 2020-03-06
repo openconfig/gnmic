@@ -208,6 +208,7 @@ func init() {
 		"sampling interval as a decimal number and a suffix unit, such as \"10s\" or \"1m30s\", minimum is 1s")
 	subscribeCmd.Flags().BoolP("suppress-redundant", "", false, "suppress redundant update if the subscribed value didnt not change")
 	subscribeCmd.Flags().StringP("heartbeat-interval", "", "0s", "heartbeat interval in case suppress-redundant is enabled")
+	subscribeCmd.Flags().StringP("model", "", "", "subscribe request used model")
 	//
 	viper.BindPFlag("sub-prefix", subscribeCmd.Flags().Lookup("prefix"))
 	viper.BindPFlag("sub-path", subscribeCmd.Flags().Lookup("path"))
@@ -218,6 +219,7 @@ func init() {
 	viper.BindPFlag("sampling-interval", subscribeCmd.Flags().Lookup("sampling-interval"))
 	viper.BindPFlag("suppress-redundant", subscribeCmd.Flags().Lookup("suppress-redundant"))
 	viper.BindPFlag("heartbeat-interval", subscribeCmd.Flags().Lookup("heartbeat-interval"))
+	viper.BindPFlag("sub-model", subscribeCmd.Flags().Lookup("model"))
 }
 
 func createSubscribeRequest() (*gnmi.SubscribeRequest, error) {
@@ -278,6 +280,11 @@ func createSubscribeRequest() (*gnmi.SubscribeRequest, error) {
 			}
 		}
 	}
+	model := viper.GetString("sub-model")
+	models := make([]*gnmi.ModelData, 1)
+	if model != "" {
+		models[0] = &gnmi.ModelData{Name: model}
+	}
 	return &gnmi.SubscribeRequest{
 		Request: &gnmi.SubscribeRequest_Subscribe{
 			Subscribe: &gnmi.SubscriptionList{
@@ -285,6 +292,7 @@ func createSubscribeRequest() (*gnmi.SubscribeRequest, error) {
 				Mode:         gnmi.SubscriptionList_Mode(modeVal),
 				Encoding:     gnmi.Encoding(encodingVal),
 				Subscription: subscriptions,
+				UseModels:    models,
 				Qos:          qos,
 			},
 		},
