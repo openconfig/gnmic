@@ -310,34 +310,34 @@ func printSubscribeResponse(printPrefix string, resp *gnmi.SubscribeResponse_Upd
 	msg := new(msg)
 	msg.Timestamp = resp.Update.Timestamp
 	msg.Prefix = gnmiPathToXPath(resp.Update.Prefix)
-	for i, u := range resp.Update.Update {
-		pathElems := make([]string, 0, len(u.Path.Elem))
-		for _, pElem := range u.Path.Elem {
+	for i, upd := range resp.Update.Update {
+		pathElems := make([]string, 0, len(upd.Path.Elem))
+		for _, pElem := range upd.Path.Elem {
 			pathElems = append(pathElems, pElem.GetName())
 		}
 		var value interface{}
 		var jsondata []byte
-		switch val := u.Val.Value.(type) {
+		switch upd.Val.Value.(type) {
 		case *gnmi.TypedValue_AsciiVal:
-			value = val.AsciiVal
+			value = upd.Val.GetAsciiVal()
 		case *gnmi.TypedValue_BoolVal:
-			value = val.BoolVal
+			value = upd.Val.GetBoolVal()
 		case *gnmi.TypedValue_BytesVal:
-			value = val.BytesVal
+			value = upd.Val.GetBytesVal()
 		case *gnmi.TypedValue_DecimalVal:
-			value = val.DecimalVal
+			value = upd.Val.GetDecimalVal()
 		case *gnmi.TypedValue_FloatVal:
-			value = val.FloatVal
+			value = upd.Val.GetFloatVal()
 		case *gnmi.TypedValue_IntVal:
-			value = val.IntVal
+			value = upd.Val.GetIntVal()
 		case *gnmi.TypedValue_StringVal:
-			value = val.StringVal
+			value = upd.Val.GetStringVal()
 		case *gnmi.TypedValue_UintVal:
-			value = val.UintVal
+			value = upd.Val.GetUintVal()
 		case *gnmi.TypedValue_JsonIetfVal:
-			jsondata = val.JsonIetfVal
+			jsondata = upd.Val.GetJsonIetfVal()
 		case *gnmi.TypedValue_JsonVal:
-			jsondata = val.JsonVal
+			jsondata = upd.Val.GetJsonVal()
 		}
 		if value == nil {
 			err := json.Unmarshal(jsondata, &value)
@@ -348,7 +348,7 @@ func printSubscribeResponse(printPrefix string, resp *gnmi.SubscribeResponse_Upd
 		}
 		msg.Updates = append(msg.Updates,
 			&update{
-				Path:   gnmiPathToXPath(u.Path),
+				Path:   gnmiPathToXPath(upd.Path),
 				Values: make(map[string]interface{}),
 			})
 		msg.Updates[i].Values[strings.Join(pathElems, "/")] = value

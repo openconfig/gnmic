@@ -92,6 +92,9 @@ var getCmd = &cobra.Command{
 			}
 			req.Type = gnmi.GetRequest_DataType(dti)
 		}
+		if debug {
+			log.Printf("DEBUG: request: %v", req)
+		}
 		wg := new(sync.WaitGroup)
 		wg.Add(len(addresses))
 		lock := new(sync.Mutex)
@@ -140,27 +143,27 @@ var getCmd = &cobra.Command{
 						}
 						var value interface{}
 						var jsondata []byte
-						switch val := upd.Val.Value.(type) {
+						switch upd.Val.Value.(type) {
 						case *gnmi.TypedValue_AsciiVal:
-							value = val.AsciiVal
+							value = upd.Val.GetAsciiVal()
 						case *gnmi.TypedValue_BoolVal:
-							value = val.BoolVal
+							value = upd.Val.GetBoolVal()
 						case *gnmi.TypedValue_BytesVal:
-							value = val.BytesVal
+							value = upd.Val.GetBytesVal()
 						case *gnmi.TypedValue_DecimalVal:
-							value = val.DecimalVal
+							value = upd.Val.GetDecimalVal()
 						case *gnmi.TypedValue_FloatVal:
-							value = val.FloatVal
+							value = upd.Val.GetFloatVal()
 						case *gnmi.TypedValue_IntVal:
-							value = val.IntVal
+							value = upd.Val.GetIntVal()
 						case *gnmi.TypedValue_StringVal:
-							value = val.StringVal
+							value = upd.Val.GetStringVal()
 						case *gnmi.TypedValue_UintVal:
-							value = val.UintVal
+							value = upd.Val.GetUintVal()
 						case *gnmi.TypedValue_JsonIetfVal:
-							jsondata = val.JsonIetfVal
+							jsondata = upd.Val.GetJsonIetfVal()
 						case *gnmi.TypedValue_JsonVal:
-							jsondata = val.JsonVal
+							jsondata = upd.Val.GetJsonVal()
 						}
 						if debug {
 							log.Printf("DEBUG: value read from update msg")
