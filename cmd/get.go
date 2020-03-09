@@ -65,9 +65,6 @@ var getCmd = &cobra.Command{
 			Encoding:  gnmi.Encoding(encodingVal),
 		}
 		model := viper.GetString("get-model")
-		if model != "" {
-			req.UseModels = append(req.UseModels, &gnmi.ModelData{Name: model})
-		}
 		prefix := viper.GetString("get-prefix")
 		if prefix != "" {
 			gnmiPrefix, err := xpath.ToGNMIPath(prefix)
@@ -86,7 +83,7 @@ var getCmd = &cobra.Command{
 		}
 		dataType := viper.GetString("get-type")
 		if dataType != "" {
-			dti, ok := gnmi.GetRequest_DataType_value[dataType]
+			dti, ok := gnmi.GetRequest_DataType_value[strings.ToUpper(dataType)]
 			if !ok {
 				return fmt.Errorf("unknown data type %s", dataType)
 			}
@@ -119,8 +116,35 @@ var getCmd = &cobra.Command{
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				ctx = metadata.AppendToOutgoingContext(ctx, "username", username, "password", password)
-
-				response, err := client.Get(ctx, req)
+				xreq := req
+				if model != "" {
+					capResp, err := client.Capabilities(ctx, &gnmi.CapabilityRequest{})
+					if err != nil {
+						log.Printf("%v", err)
+						return
+					}
+					var found bool
+					for _, m := range capResp.SupportedModels {
+						if m.Name == model {
+							if debug {
+								log.Printf("target %s: found model: %v\n", address, m)
+							}
+							xreq.UseModels = append(xreq.UseModels,
+								&gnmi.ModelData{
+									Name:         model,
+									Organization: m.Organization,
+									Version:      m.Version,
+								})
+							found = true
+							break
+						}
+					}
+					if !found {
+						log.Printf("model '%s' not supported by target %s", model, address)
+						return
+					}
+				}
+				response, err := client.Get(ctx, xreq)
 				if err != nil {
 					log.Printf("error sending get request: %v", err)
 					return
