@@ -56,17 +56,21 @@ $ gnmiClient -a <ip:port> get --prefix /state --path port[port-id=*] --path rout
 ####  1. update
 #####   - in-line value
 ```
-$ gnmiClient -a <ip:port> set --update /configure/system/name --update-value <system_name>
+$ gnmiClient -a <ip:port> set --update-path /configure/system/name --update-value <system_name>
 ```
 #####   - json file value
 ```
-$ gnmiClient -a <ip:port> set --update /configure/system --update-file <jsonFile.json>
+$ gnmiClient -a <ip:port> set --update-path /configure/system --update-file <jsonFile.json>
 $ cat jsonFile.json
 {"name": "router1"}
 ```
+#####   - specify value type
+```
+$ gnmiClient -a <ip:port> set --update /configure/system/name:::json:::router1
+```
 ####  2. replace
 ```
-$ gnmiClient -a <ip:port> set --replace /configure/router[router-name=Base]/interface[interface-name=interface1]/ipv4/primary --replace-file interface.json
+$ gnmiClient -a <ip:port> set --replace-path /configure/router[router-name=Base]/interface[interface-name=interface1]/ipv4/primary --replace-file interface.json
 $ cat interface.json
 {"address": "1.1.1.1", "prefix-length": 32}
 ```
