@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/google/gnxi/utils/xpath"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
@@ -307,6 +308,9 @@ func createSubscribeRequest() (*gnmi.SubscribeRequest, error) {
 
 func printSubscribeResponse(printPrefix string, resp *gnmi.SubscribeResponse_Update) {
 	fmt.Printf("%supdate received at %s\n", printPrefix, time.Now().Format(time.RFC3339Nano))
+	if viper.GetBool("debug") {
+		fmt.Printf("%s DEBUG: %s\n", printPrefix, spew.Sdump(resp))
+	}
 	msg := new(msg)
 	msg.Timestamp = resp.Update.Timestamp
 	msg.Prefix = gnmiPathToXPath(resp.Update.Prefix)
@@ -314,6 +318,9 @@ func printSubscribeResponse(printPrefix string, resp *gnmi.SubscribeResponse_Upd
 		pathElems := make([]string, 0, len(upd.Path.Elem))
 		for _, pElem := range upd.Path.Elem {
 			pathElems = append(pathElems, pElem.GetName())
+		}
+		if viper.GetBool("debug") {
+			fmt.Printf("%s DEBUG: %s\n", printPrefix, spew.Sdump(upd))
 		}
 		var value interface{}
 		var jsondata []byte
