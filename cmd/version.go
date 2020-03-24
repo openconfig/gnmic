@@ -20,7 +20,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var mv = ""
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+	gitURL  = ""
+)
 
 // versionCmd represents the version command
 var versionCmd = &cobra.Command{
@@ -28,7 +33,10 @@ var versionCmd = &cobra.Command{
 	Short: "show gnmiClient version",
 
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("%s\n", mv)
+		fmt.Printf("version : %s\n", version)
+		fmt.Printf(" commit : %s\n", commit)
+		fmt.Printf("   date : %s\n", date)
+		fmt.Printf(" gitURL : %s\n", gitURL)
 		return
 	},
 }

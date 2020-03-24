@@ -29,7 +29,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var version bool
+var printVersion bool
 
 // capabilitiesCmd represents the capabilities command
 var capabilitiesCmd = &cobra.Command{
@@ -115,7 +115,7 @@ func init() {
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:
 	// capabilitiesCmd.PersistentFlags().String("foo", "", "A help for foo")
-	capabilitiesCmd.Flags().BoolVarP(&version, "version", "", false, "show gnmi version only")
+	capabilitiesCmd.Flags().BoolVarP(&printVersion, "version", "", false, "show gnmi version only")
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
 	// capabilitiesCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")

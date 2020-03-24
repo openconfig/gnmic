@@ -1,0 +1,35 @@
+# This is an example goreleaser.yaml file with some sane defaults.
+# Make sure to check the documentation at http://goreleaser.com
+before:
+  hooks:
+    # You may remove this if you don't use go modules.
+    - go mod download
+    # you may remove this if you don't need go generate
+    - go generate ./...
+builds:
+- 
+  env:
+  - CGO_ENABLED=0
+  ldflags:
+  - -s -w -X github.com/karimra/gnmiClient/cmd.version={{.Version}} -X github.com/karimra/gnmiClient/cmd.commit={{.ShortCommit}} -X github.com/karimra/gnmiClient/cmd.date={{.Date}} -X github.com/karimra/gnmiClient/cmd.gitURL={{.GitURL}}
+  goos:
+  - linux
+  - darwin
+  - windows
+archives:
+- replacements:
+    darwin: Darwin
+    linux: Linux
+    windows: Windows
+    386: i386
+    amd64: x86_64
+checksum:
+  name_template: 'checksums.txt'
+snapshot:
+  name_template: "{{ .Tag }}"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+    - '^docs:'
+    - '^test:'
