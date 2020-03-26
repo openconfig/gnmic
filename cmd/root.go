@@ -15,6 +15,7 @@
 package cmd
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -205,4 +206,15 @@ func loadCerts() ([]tls.Certificate, *x509.CertPool, error) {
 
 	return []tls.Certificate{certificate}, certPool, nil
 
+}
+
+func printer(ctx context.Context, c chan string) {
+	for {
+		select {
+		case m := <-c:
+			fmt.Println(m)
+		case <-ctx.Done():
+			return
+		}
+	}
 }
