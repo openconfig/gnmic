@@ -149,7 +149,10 @@ var getCmd = &cobra.Command{
 					log.Printf("error sending get request: %v", err)
 					return
 				}
-				printPrefix := fmt.Sprintf("[%s] ", address)
+				printPrefix := ""
+				if len(addresses) > 1 && !viper.GetBool("no-prefix") {
+					printPrefix = fmt.Sprintf("[%s] ", address)
+				}
 				lock.Lock()
 				for _, notif := range response.Notification {
 					fmt.Printf("%stimestamp: %d\n", printPrefix, notif.Timestamp)
