@@ -1,11 +1,13 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
 
 	"github.com/google/gnxi/utils/xpath"
+	"github.com/manifoldco/promptui"
 	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -15,6 +17,7 @@ var file string
 var pathType string
 var module string
 var types bool
+var search bool
 
 // pathCmd represents the path command
 var pathCmd = &cobra.Command{
@@ -36,11 +39,37 @@ var pathCmd = &cobra.Command{
 		if !ok {
 			return fmt.Errorf("module %s not found", module)
 		}
-
-		for _, c := range mod.Container {
-			addContainerToPath("", c)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		out := make(chan string, 0)
+		defer close(out)
+		paths := make([]string, 0)
+		if search {
+			go gather(ctx, out, &paths)
+		} else {
+			go printer(ctx, out)
 		}
+		for _, c := range mod.Container {
+			addContainerToPath("", c, out)
+		}
+		if search {
+			p := promptui.Select{
+				Label:  "select path",
+				Items:  paths,
+				Size:   10,
+				Stdout: os.Stdout,
+				Searcher: func(input string, index int) bool {
+					return strings.Contains(paths[index], input)
+				},
+				StartInSearchMode: true,
+			}
 
+			_, selected, err := p.Run()
+			if err != nil {
+				return err
+			}
+			fmt.Println(selected)
+		}
 		return nil
 	},
 }
@@ -51,17 +80,18 @@ func init() {
 	pathCmd.Flags().StringVarP(&pathType, "path-type", "", "xpath", "path type xpath or gnmi")
 	pathCmd.Flags().StringVarP(&module, "module", "m", "nokia-state", "module name")
 	pathCmd.Flags().BoolVarP(&types, "types", "", false, "print leaf type")
+	pathCmd.Flags().BoolVarP(&search, "search", "", false, "search through path list")
 	viper.BindPFlag("file", pathCmd.Flags().Lookup("file"))
 	pathCmd.SilenceUsage = true
 }
 
-func addContainerToPath(prefix string, container *yang.Container) {
+func addContainerToPath(prefix string, container *yang.Container, out chan string) {
 	elementName := fmt.Sprintf("%s/%s", prefix, container.Name)
 	for _, c := range container.Container {
-		addContainerToPath(elementName, c)
+		addContainerToPath(elementName, c, out)
 	}
 	for _, ls := range container.List {
-		addListToPath(elementName, ls)
+		addListToPath(elementName, ls, out)
 	}
 	for _, lf := range container.Leaf {
 		path := fmt.Sprintf("%s/%s", elementName, lf.Name)
@@ -76,10 +106,10 @@ func addContainerToPath(prefix string, container *yang.Container) {
 		if types {
 			path = fmt.Sprintf("%s (type=%v)", path, lf.Type.Name)
 		}
-		fmt.Println(path)
+		out <- path
 	}
 }
-func addListToPath(prefix string, ls *yang.List) {
+func addListToPath(prefix string, ls *yang.List, out chan string) {
 	keys := strings.Split(ls.Key.Name, " ")
 	keyElem := ls.Name
 	for _, k := range keys {
@@ -87,14 +117,14 @@ func addListToPath(prefix string, ls *yang.List) {
 	}
 	elementName := fmt.Sprintf("%s/%s", prefix, keyElem)
 	for _, c := range ls.Container {
-		addContainerToPath(elementName, c)
+		addContainerToPath(elementName, c, out)
 	}
 	for _, lls := range ls.List {
-		addListToPath(elementName, lls)
+		addListToPath(elementName, lls, out)
 	}
 	for _, ch := range ls.Choice {
 		for _, ca := range ch.Case {
-			addCaseToPath(elementName, ca)
+			addCaseToPath(elementName, ca, out)
 		}
 	}
 	for _, lf := range ls.Leaf {
@@ -111,16 +141,16 @@ func addListToPath(prefix string, ls *yang.List) {
 			if types {
 				path = fmt.Sprintf("%s (type=%v)", path, lf.Type.Name)
 			}
-			fmt.Println(path)
+			out <- path
 		}
 	}
 }
-func addCaseToPath(prefix string, ca *yang.Case) {
+func addCaseToPath(prefix string, ca *yang.Case, out chan string) {
 	for _, cont := range ca.Container {
-		addContainerToPath(prefix, cont)
+		addContainerToPath(prefix, cont, out)
 	}
 	for _, ls := range ca.List {
-		addListToPath(prefix, ls)
+		addListToPath(prefix, ls, out)
 	}
 	for _, lf := range ca.Leaf {
 		path := fmt.Sprintf("%s/%s", prefix, lf.Name)
@@ -135,6 +165,6 @@ func addCaseToPath(prefix string, ca *yang.Case) {
 		if types {
 			path = fmt.Sprintf("%s (type=%v)", path, lf.Type.Name)
 		}
-		fmt.Println(path)
+		out <- path
 	}
 }

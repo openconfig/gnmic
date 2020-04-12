@@ -6,6 +6,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/google/gnxi v0.0.0-20191016182648-6697a080bc2d
 	github.com/kylelemons/godebug v1.1.0 // indirect
+	github.com/manifoldco/promptui v0.7.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/openconfig/gnmi v0.0.0-20190823184014-89b2bf29312c
 	github.com/openconfig/goyang v0.0.0-20200309174518-a00bece872fc

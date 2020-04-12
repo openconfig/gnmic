@@ -218,3 +218,13 @@ func printer(ctx context.Context, c chan string) {
 		}
 	}
 }
+func gather(ctx context.Context, c chan string, ls *[]string) {
+	for {
+		select {
+		case m := <-c:
+			*ls = append(*ls, m)
+		case <-ctx.Done():
+			return
+		}
+	}
+}
