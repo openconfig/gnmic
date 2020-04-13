@@ -13,6 +13,7 @@ Available Commands:
   capabilities query targets gnmi capabilities
   get          run gnmi get on targets
   help         Help about any command
+  path         generate gnmi or xpath style from yang file
   set          run gnmi set on targets
   subscribe    subscribe to gnmi updates on targets
 ```
@@ -34,16 +35,24 @@ Flags:
   -u, --username string   username
 ```
 ## Examples:
+### 0. Path Command
+####   - generate gnmi paths from a yang file
+```
+$ gnmiClient path -m <module-name> --file <yang-file> 
+e.g: 
+gnmiClient path -m nokia-state --file nokia-state-combined.yang
+
+```
 ### 1. Capabilities request
 ####   - single host
 ```
-$ gnmiClient -a <ip:port> capabilities --username <user> --password <password>
-$ gnmiClient -a <ip:port> cap
+$ gnmiClient -a <ip:port> capabilities --username <user> --password <password> --insecure
+$ gnmiClient -a <ip:port> cap --username <user> --password <password> --insecure
 ```
 ####   - multiple hosts
 ```
-$ gnmiClient -a <ip:port>,<ip:port> capabilities
-$ gnmiClient -a <ip:port> -a <ip:port> cap
+$ gnmiClient -a <ip:port>,<ip:port> capabilities --username <user> --password <password> --insecure
+$ gnmiClient -a <ip:port> -a <ip:port> cap --username <user> --password <password> --insecure
 ```
 
 ### 2. Get request
@@ -67,6 +76,7 @@ $ cat jsonFile.json
 #####   - specify value type
 ```
 $ gnmiClient -a <ip:port> set --update /configure/system/name:::json:::router1
+$ gnmiClient -a <ip:port> set --update /configure/system/name@json@router1 --delimiter @
 ```
 ####  2. replace
 ```
