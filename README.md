@@ -34,6 +34,13 @@ Flags:
       --tls-key string    tls key
   -u, --username string   username
 ```
+## Recordings:
+### Path search:
+
+### Capabilities:
+[![asciicast](https://asciinema.org/a/319561.svg)](https://asciinema.org/a/319561)
+### Get/Set Examples:
+<script id="asciicast-319562" src="https://asciinema.org/a/319562.js" async></script>
 ## Examples:
 ### 0. Path Command
 ####   - generate gnmi paths from a yang file
