@@ -54,16 +54,22 @@ var pathCmd = &cobra.Command{
 		}
 		if search {
 			p := promptui.Select{
-				Label:  "select path",
-				Items:  paths,
-				Size:   10,
-				Stdout: os.Stdout,
+				Label:        "select path",
+				Items:        paths,
+				Size:         10,
+				Stdout:       os.Stdout,
+				HideSelected: true,
 				Searcher: func(input string, index int) bool {
 					return strings.Contains(paths[index], input)
 				},
-				StartInSearchMode: true,
+				Keys: &promptui.SelectKeys{
+					Prev:     promptui.Key{Code: promptui.KeyPrev, Display: promptui.KeyPrevDisplay},
+					Next:     promptui.Key{Code: promptui.KeyNext, Display: promptui.KeyNextDisplay},
+					PageUp:   promptui.Key{Code: promptui.KeyBackward, Display: promptui.KeyBackwardDisplay},
+					PageDown: promptui.Key{Code: promptui.KeyForward, Display: promptui.KeyForwardDisplay},
+					Search:   promptui.Key{Code: ':', Display: ":"},
+				},
 			}
-
 			_, selected, err := p.Run()
 			if err != nil {
 				return err
