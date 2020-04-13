@@ -36,12 +36,14 @@ Flags:
 ```
 ## Recordings:
 ### Path search:
-
+[![asciicast](https://asciinema.org/a/319579.svg)](https://asciinema.org/a/319579)
 ### Capabilities:
 [![asciicast](https://asciinema.org/a/319561.svg)](https://asciinema.org/a/319561)
-### Get/Set Examples:
-<script id="asciicast-319562" src="https://asciinema.org/a/319562.js" async></script>
-## Examples:
+### Get/Set:
+[![asciicast](https://asciinema.org/a/319562.svg)](https://asciinema.org/a/319562)
+### Subscribtions:
+[![asciicast](https://asciinema.org/a/319608.svg)](https://asciinema.org/a/319608)
+## Command Examples:
 ### 0. Path Command
 ####   - generate gnmi paths from a yang file
 ```
