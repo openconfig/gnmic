@@ -34,14 +34,13 @@ Flags:
       --tls-key string    tls key
   -u, --username string   username
 ```
-## Recordings:
 ### Path search:
 [![asciicast](https://asciinema.org/a/319579.svg)](https://asciinema.org/a/319579)
 ### Capabilities:
 [![asciicast](https://asciinema.org/a/319561.svg)](https://asciinema.org/a/319561)
 ### Get/Set:
 [![asciicast](https://asciinema.org/a/319562.svg)](https://asciinema.org/a/319562)
-### Subscribtions:
+### Subscriptions:
 [![asciicast](https://asciinema.org/a/319608.svg)](https://asciinema.org/a/319608)
 ## Command Examples:
 ### 0. Path Command
