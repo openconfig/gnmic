@@ -94,7 +94,10 @@ var subscribeCmd = &cobra.Command{
 						return
 					}
 				}
-				printPrefix := fmt.Sprintf("[%s] ", address)
+				printPrefix := ""
+				if len(addresses) > 1 && !viper.GetBool("no-prefix") {
+					printPrefix = fmt.Sprintf("[%s] ", address)
+				}
 				conn, err := createGrpcConn(address)
 				if err != nil {
 					log.Printf("connection to %s failed: %v", address, err)

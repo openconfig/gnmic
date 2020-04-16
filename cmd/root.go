@@ -62,10 +62,6 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.gnmiClient.yaml)")
 	rootCmd.PersistentFlags().StringSliceP("address", "a", []string{}, "comma separated gnmi targets addresses")
 	rootCmd.PersistentFlags().StringP("username", "u", "", "username")
@@ -78,6 +74,7 @@ func init() {
 	rootCmd.PersistentFlags().StringP("timeout", "", "30s", "grpc timeout")
 	rootCmd.PersistentFlags().BoolP("debug", "d", false, "debug mode")
 	rootCmd.PersistentFlags().BoolP("skip-verify", "", false, "skip verify tls connection")
+	rootCmd.PersistentFlags().BoolP("no-prefix", "", false, "do not add [ip:port] prefix to print output in case of multiple targets")
 	//
 	viper.BindPFlag("address", rootCmd.PersistentFlags().Lookup("address"))
 	viper.BindPFlag("username", rootCmd.PersistentFlags().Lookup("username"))
@@ -90,6 +87,7 @@ func init() {
 	viper.BindPFlag("timeout", rootCmd.PersistentFlags().Lookup("timeout"))
 	viper.BindPFlag("debug", rootCmd.PersistentFlags().Lookup("debug"))
 	viper.BindPFlag("skip-verify", rootCmd.PersistentFlags().Lookup("skip-verify"))
+	viper.BindPFlag("no-prefix", rootCmd.PersistentFlags().Lookup("no-prefix"))
 }
 
 // initConfig reads in config file and ENV variables if set.

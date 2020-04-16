@@ -86,18 +86,21 @@ var capabilitiesCmd = &cobra.Command{
 					log.Printf("error sending capabilities request: %v", err)
 					return
 				}
-
-				fmt.Printf("[%s] gNMI_Version: %s\n", address, response.GNMIVersion)
+				printPrefix := ""
+				if len(addresses) > 1 && !viper.GetBool("no-prefix") {
+					printPrefix = fmt.Sprintf("[%s] ", address)
+				}
+				fmt.Printf("%sgNMI_Version: %s\n", printPrefix, response.GNMIVersion)
 				if viper.GetBool("version") {
 					return
 				}
-				fmt.Printf("[%s] supported models:\n", address)
+				fmt.Printf("%ssupported models:\n", printPrefix)
 				for _, sm := range response.SupportedModels {
-					fmt.Printf("[%s]   - %s, %s, %s\n", address, sm.GetName(), sm.GetOrganization(), sm.GetVersion())
+					fmt.Printf("%s  - %s, %s, %s\n", printPrefix, sm.GetName(), sm.GetOrganization(), sm.GetVersion())
 				}
-				fmt.Printf("[%s] supported encodings:\n", address)
+				fmt.Printf("%ssupported encodings:\n", printPrefix)
 				for _, se := range response.SupportedEncodings {
-					fmt.Printf("[%s]   - %s\n", address, se.String())
+					fmt.Printf("%s  - %s\n", printPrefix, se.String())
 				}
 				fmt.Println()
 			}(addr)
