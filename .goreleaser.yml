@@ -17,12 +17,14 @@ builds:
       - windows
     goarch:
       - amd64
+      - 386
 archives:
   - replacements:
       darwin: Darwin
       linux: Linux
       windows: Windows
       amd64: x86_64
+      386: i386
 checksum:
   name_template: "checksums.txt"
 snapshot:
