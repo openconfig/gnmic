@@ -226,7 +226,8 @@ var getCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(getCmd)
 
-	getCmd.Flags().StringSliceP("path", "", []string{"/"}, "get request paths")
+	getCmd.Flags().StringSliceP("path", "", []string{""}, "get request paths")
+	getCmd.MarkFlagRequired("path")
 	getCmd.Flags().StringP("prefix", "", "", "get request prefix")
 	getCmd.Flags().StringP("model", "", "", "get request model")
 	getCmd.Flags().StringP("type", "t", "ALL", "the type of data that is requested from the target. one of: ALL, CONFIG, STATE, OPERATIONAL")
