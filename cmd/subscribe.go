@@ -193,7 +193,8 @@ var subscribeCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(subscribeCmd)
 	subscribeCmd.Flags().StringP("prefix", "", "", "subscribe request prefix")
-	subscribeCmd.Flags().StringSliceP("path", "", []string{"/"}, "subscribe request paths")
+	subscribeCmd.Flags().StringSliceP("path", "", []string{""}, "subscribe request paths")
+	subscribeCmd.MarkFlagRequired("path")
 	subscribeCmd.Flags().Int32P("qos", "q", 20, "qos marking")
 	subscribeCmd.Flags().BoolP("updates-only", "", false, "only updates to current state should be sent")
 	subscribeCmd.Flags().StringP("subscription-mode", "", "stream", "one of: once, stream, poll")
