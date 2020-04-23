@@ -75,6 +75,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolP("debug", "d", false, "debug mode")
 	rootCmd.PersistentFlags().BoolP("skip-verify", "", false, "skip verify tls connection")
 	rootCmd.PersistentFlags().BoolP("no-prefix", "", false, "do not add [ip:port] prefix to print output in case of multiple targets")
+	rootCmd.PersistentFlags().BoolP("proxy-from-env", "", false, "use proxy from environment")
 	//
 	viper.BindPFlag("address", rootCmd.PersistentFlags().Lookup("address"))
 	viper.BindPFlag("username", rootCmd.PersistentFlags().Lookup("username"))
@@ -88,6 +89,7 @@ func init() {
 	viper.BindPFlag("debug", rootCmd.PersistentFlags().Lookup("debug"))
 	viper.BindPFlag("skip-verify", rootCmd.PersistentFlags().Lookup("skip-verify"))
 	viper.BindPFlag("no-prefix", rootCmd.PersistentFlags().Lookup("no-prefix"))
+	viper.BindPFlag("proxy-from-env", rootCmd.PersistentFlags().Lookup("proxy-from-env"))
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -142,6 +144,9 @@ func createGrpcConn(address string) (*grpc.ClientConn, error) {
 	opts = append(opts, grpc.WithTimeout(timeout))
 	opts = append(opts, grpc.WithBlock())
 	opts = append(opts, grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(math.MaxInt32)))
+	if !viper.GetBool("proxy-from-env") {
+		opts = append(opts, grpc.WithNoProxy())
+	}
 	if viper.GetBool("insecure") {
 		opts = append(opts, grpc.WithInsecure())
 	} else {
