@@ -89,19 +89,16 @@ var getCmd = &cobra.Command{
 			}
 			req.Type = gnmi.GetRequest_DataType(dti)
 		}
-		if debug {
-			log.Printf("DEBUG: request: %v", req)
-		}
 		wg := new(sync.WaitGroup)
 		wg.Add(len(addresses))
 		lock := new(sync.Mutex)
 		for _, addr := range addresses {
 			go func(address string) {
 				defer wg.Done()
-				ipa, _, err := net.SplitHostPort(address)
+				_, _, err := net.SplitHostPort(address)
 				if err != nil {
 					if strings.Contains(err.Error(), "missing port in address") {
-						address = net.JoinHostPort(ipa, defaultGrpcPort)
+						address = net.JoinHostPort(address, defaultGrpcPort)
 					} else {
 						log.Printf("error parsing address '%s': %v", address, err)
 						return
@@ -159,9 +156,6 @@ var getCmd = &cobra.Command{
 					fmt.Printf("%sprefix: %s\n", printPrefix, gnmiPathToXPath(notif.Prefix))
 					fmt.Printf("%salias: %s\n", printPrefix, notif.Alias)
 					for _, upd := range notif.Update {
-						if debug {
-							log.Printf("DEBUG: update: %+v", upd)
-						}
 						if upd.Val == nil {
 							if debug {
 								log.Printf("DEBUG: got a nil val update: %+v", upd)
@@ -193,9 +187,7 @@ var getCmd = &cobra.Command{
 							jsondata = upd.Val.GetJsonVal()
 						}
 						if debug {
-							log.Printf("DEBUG: value read from update msg")
-							log.Printf("DEBUG: value: (%T) '%v'", value, value)
-							log.Printf("DEBUG: jsonData: (%T) '%v'", jsondata, jsondata)
+							fmt.Printf("%supdate value type: %T\n", printPrefix, upd.Val.Value)
 						}
 						if len(jsondata) > 0 {
 							err = json.Unmarshal(jsondata, &value)
@@ -208,9 +200,9 @@ var getCmd = &cobra.Command{
 								log.Printf("error marshling jsonVal '%s'", value)
 								continue
 							}
-							fmt.Printf("%s%s: (%T) %s\n", printPrefix, gnmiPathToXPath(upd.Path), upd.Val.Value, data)
+							fmt.Printf("%s%s: %s\n", printPrefix, gnmiPathToXPath(upd.Path), data)
 						} else if value != nil {
-							fmt.Printf("%s%s: (%T) %s\n", printPrefix, gnmiPathToXPath(upd.Path), upd.Val.Value, value)
+							fmt.Printf("%s%s: %s\n", printPrefix, gnmiPathToXPath(upd.Path), value)
 						}
 					}
 				}

@@ -366,10 +366,10 @@ var setCmd = &cobra.Command{
 		for _, addr := range addresses {
 			go func(address string) {
 				defer wg.Done()
-				ipa, _, err := net.SplitHostPort(address)
+				_, _, err := net.SplitHostPort(address)
 				if err != nil {
 					if strings.Contains(err.Error(), "missing port in address") {
-						address = net.JoinHostPort(ipa, defaultGrpcPort)
+						address = net.JoinHostPort(address, defaultGrpcPort)
 					} else {
 						log.Printf("error parsing address '%s': %v", address, err)
 						return

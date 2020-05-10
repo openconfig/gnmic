@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"math"
 	"os"
 	"strings"
@@ -113,9 +114,11 @@ func initConfig() {
 	//viper.AutomaticEnv() // read in environment variables that match
 
 	// If a config file is found, read it in.
-	if err := viper.ReadInConfig(); err == nil {
-		fmt.Println("Using config file:", viper.ConfigFileUsed())
+	err := viper.ReadInConfig()
+	if err != nil {
+		log.Printf("failed reading config file '%s': %v", viper.ConfigFileUsed(), err)
 	}
+	log.Println("Using config file:", viper.ConfigFileUsed())
 }
 func readUsername() (string, error) {
 	var username string
@@ -208,7 +211,6 @@ func loadCerts() ([]tls.Certificate, *x509.CertPool, error) {
 	}
 
 	return []tls.Certificate{certificate}, certPool, nil
-
 }
 
 func printer(ctx context.Context, c chan string) {
