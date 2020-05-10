@@ -159,12 +159,10 @@ var setCmd = &cobra.Command{
 				}
 			} else {
 				var vType string
-				if inlineUpdates {
-					if len(updateTypes) > i {
-						vType = updateTypes[i]
-					} else {
-						vType = "json"
-					}
+				if len(updateTypes) > i {
+					vType = updateTypes[i]
+				} else {
+					vType = "json"
 				}
 				switch vType {
 				case "json":
@@ -263,12 +261,10 @@ var setCmd = &cobra.Command{
 				}
 			} else {
 				var vType string
-				if inlineReplaces {
-					if len(replaceTypes) > i {
-						vType = replaceTypes[i]
-					} else {
-						vType = "json"
-					}
+				if len(replaceTypes) > i {
+					vType = replaceTypes[i]
+				} else {
+					vType = "json"
 				}
 				switch vType {
 				case "json":
