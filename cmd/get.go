@@ -150,11 +150,14 @@ var getCmd = &cobra.Command{
 				if len(addresses) > 1 && !viper.GetBool("no-prefix") {
 					printPrefix = fmt.Sprintf("[%s] ", address)
 				}
+				valsOnly := viper.GetBool("get-values-only")
 				lock.Lock()
 				for _, notif := range response.Notification {
-					fmt.Printf("%stimestamp: %d\n", printPrefix, notif.Timestamp)
-					fmt.Printf("%sprefix: %s\n", printPrefix, gnmiPathToXPath(notif.Prefix))
-					fmt.Printf("%salias: %s\n", printPrefix, notif.Alias)
+					if !valsOnly {
+						fmt.Printf("%stimestamp: %d\n", printPrefix, notif.Timestamp)
+						fmt.Printf("%sprefix: %s\n", printPrefix, gnmiPathToXPath(notif.Prefix))
+						fmt.Printf("%salias: %s\n", printPrefix, notif.Alias)
+					}
 					for _, upd := range notif.Update {
 						if upd.Val == nil {
 							if debug {
@@ -186,7 +189,7 @@ var getCmd = &cobra.Command{
 						case *gnmi.TypedValue_JsonVal:
 							jsondata = upd.Val.GetJsonVal()
 						}
-						if debug {
+						if debug && !valsOnly {
 							fmt.Printf("%supdate value type: %T\n", printPrefix, upd.Val.Value)
 						}
 						if len(jsondata) > 0 {
@@ -200,9 +203,17 @@ var getCmd = &cobra.Command{
 								log.Printf("error marshling jsonVal '%s'", value)
 								continue
 							}
-							fmt.Printf("%s%s: %s\n", printPrefix, gnmiPathToXPath(upd.Path), data)
+							if !valsOnly {
+								fmt.Printf("%s%s: %s\n", printPrefix, gnmiPathToXPath(upd.Path), data)
+							} else {
+								fmt.Printf("%s\n", data)
+							}
 						} else if value != nil {
-							fmt.Printf("%s%s: %s\n", printPrefix, gnmiPathToXPath(upd.Path), value)
+							if !valsOnly {
+								fmt.Printf("%s%s: %s\n", printPrefix, gnmiPathToXPath(upd.Path), value)
+							} else {
+								fmt.Printf("%s\n", value)
+							}
 						}
 					}
 				}
@@ -223,8 +234,10 @@ func init() {
 	getCmd.Flags().StringP("prefix", "", "", "get request prefix")
 	getCmd.Flags().StringP("model", "", "", "get request model")
 	getCmd.Flags().StringP("type", "t", "ALL", "the type of data that is requested from the target. one of: ALL, CONFIG, STATE, OPERATIONAL")
+	getCmd.Flags().BoolP("values-only", "", false, "output returned values only, useful for file redirection")
 	viper.BindPFlag("get-path", getCmd.Flags().Lookup("path"))
 	viper.BindPFlag("get-prefix", getCmd.Flags().Lookup("prefix"))
 	viper.BindPFlag("get-model", getCmd.Flags().Lookup("model"))
 	viper.BindPFlag("get-type", getCmd.Flags().Lookup("type"))
+	viper.BindPFlag("get-values-only", getCmd.Flags().Lookup("values-only"))
 }
