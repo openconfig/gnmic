@@ -150,74 +150,9 @@ var getCmd = &cobra.Command{
 				if len(addresses) > 1 && !viper.GetBool("no-prefix") {
 					printPrefix = fmt.Sprintf("[%s] ", address)
 				}
-				valsOnly := viper.GetBool("get-values-only")
+				// valsOnly := viper.GetBool("get-values-only")
 				lock.Lock()
-				for _, notif := range response.Notification {
-					if !valsOnly {
-						fmt.Printf("%stimestamp: %d\n", printPrefix, notif.Timestamp)
-						fmt.Printf("%sprefix: %s\n", printPrefix, gnmiPathToXPath(notif.Prefix))
-						fmt.Printf("%salias: %s\n", printPrefix, notif.Alias)
-					}
-					for _, upd := range notif.Update {
-						if upd.Val == nil {
-							if debug {
-								log.Printf("DEBUG: got a nil val update: %+v", upd)
-							}
-							continue
-						}
-						var value interface{}
-						var jsondata []byte
-						switch upd.Val.Value.(type) {
-						case *gnmi.TypedValue_AsciiVal:
-							value = upd.Val.GetAsciiVal()
-						case *gnmi.TypedValue_BoolVal:
-							value = upd.Val.GetBoolVal()
-						case *gnmi.TypedValue_BytesVal:
-							value = upd.Val.GetBytesVal()
-						case *gnmi.TypedValue_DecimalVal:
-							value = upd.Val.GetDecimalVal()
-						case *gnmi.TypedValue_FloatVal:
-							value = upd.Val.GetFloatVal()
-						case *gnmi.TypedValue_IntVal:
-							value = upd.Val.GetIntVal()
-						case *gnmi.TypedValue_StringVal:
-							value = upd.Val.GetStringVal()
-						case *gnmi.TypedValue_UintVal:
-							value = upd.Val.GetUintVal()
-						case *gnmi.TypedValue_JsonIetfVal:
-							jsondata = upd.Val.GetJsonIetfVal()
-						case *gnmi.TypedValue_JsonVal:
-							jsondata = upd.Val.GetJsonVal()
-						}
-						if debug && !valsOnly {
-							fmt.Printf("%supdate value type: %T\n", printPrefix, upd.Val.Value)
-						}
-						if len(jsondata) > 0 {
-							err = json.Unmarshal(jsondata, &value)
-							if err != nil {
-								log.Printf("error unmarshling jsonVal '%s'", string(jsondata))
-								continue
-							}
-							data, err := json.MarshalIndent(value, printPrefix, "  ")
-							if err != nil {
-								log.Printf("error marshling jsonVal '%s'", value)
-								continue
-							}
-							if !valsOnly {
-								fmt.Printf("%s%s: %s\n", printPrefix, gnmiPathToXPath(upd.Path), data)
-							} else {
-								fmt.Printf("%s\n", data)
-							}
-						} else if value != nil {
-							if !valsOnly {
-								fmt.Printf("%s%s: %s\n", printPrefix, gnmiPathToXPath(upd.Path), value)
-							} else {
-								fmt.Printf("%s\n", value)
-							}
-						}
-					}
-				}
-				fmt.Println()
+				printGetResponse(printPrefix, response)
 				lock.Unlock()
 			}(addr)
 		}
@@ -240,4 +175,49 @@ func init() {
 	viper.BindPFlag("get-model", getCmd.Flags().Lookup("model"))
 	viper.BindPFlag("get-type", getCmd.Flags().Lookup("type"))
 	viper.BindPFlag("get-values-only", getCmd.Flags().Lookup("values-only"))
+}
+
+func printGetResponse(printPrefix string, response *gnmi.GetResponse) {
+	if viper.GetBool("raw") {
+		data, err := json.MarshalIndent(response, printPrefix, "  ")
+		if err != nil {
+			log.Println(err)
+		}
+		fmt.Printf("%s%s\n", printPrefix, string(data))
+		return
+	}
+	for _, notif := range response.Notification {
+		msg := new(msg)
+		msg.Timestamp = notif.Timestamp
+		msg.Prefix = gnmiPathToXPath(notif.Prefix)
+		for i, upd := range notif.Update {
+			if upd.Val == nil {
+				if viper.GetBool("debug") {
+					log.Printf("DEBUG: got a nil val update: %+v", upd)
+				}
+				continue
+			}
+			pathElems := make([]string, 0, len(upd.Path.Elem))
+			for _, pElem := range upd.Path.Elem {
+				pathElems = append(pathElems, pElem.GetName())
+			}
+			value, err := getValue(upd.Val)
+			if err != nil {
+				log.Println(err)
+			}
+			msg.Updates = append(msg.Updates,
+				&update{
+					Path:   gnmiPathToXPath(upd.Path),
+					Values: make(map[string]interface{}),
+				})
+			msg.Updates[i].Values[strings.Join(pathElems, "/")] = value
+		}
+		dMsg, err := json.MarshalIndent(msg, printPrefix, "  ")
+		if err != nil {
+			log.Printf("error marshling json msg:%v", err)
+			return
+		}
+		fmt.Printf("%s%s\n", printPrefix, string(dMsg))
+	}
+	fmt.Println()
 }

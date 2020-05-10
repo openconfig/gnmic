@@ -18,6 +18,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -77,6 +78,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolP("skip-verify", "", false, "skip verify tls connection")
 	rootCmd.PersistentFlags().BoolP("no-prefix", "", false, "do not add [ip:port] prefix to print output in case of multiple targets")
 	rootCmd.PersistentFlags().BoolP("proxy-from-env", "", false, "use proxy from environment")
+	rootCmd.PersistentFlags().BoolP("raw", "", false, "output messages as received")
 	//
 	viper.BindPFlag("address", rootCmd.PersistentFlags().Lookup("address"))
 	viper.BindPFlag("username", rootCmd.PersistentFlags().Lookup("username"))
@@ -91,6 +93,7 @@ func init() {
 	viper.BindPFlag("skip-verify", rootCmd.PersistentFlags().Lookup("skip-verify"))
 	viper.BindPFlag("no-prefix", rootCmd.PersistentFlags().Lookup("no-prefix"))
 	viper.BindPFlag("proxy-from-env", rootCmd.PersistentFlags().Lookup("proxy-from-env"))
+	viper.BindPFlag("raw", rootCmd.PersistentFlags().Lookup("raw"))
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -232,4 +235,44 @@ func gather(ctx context.Context, c chan string, ls *[]string) {
 			return
 		}
 	}
+}
+
+func getValue(updValue *gnmi.TypedValue) (interface{}, error) {
+	var value interface{}
+	var jsondata []byte
+	switch updValue.Value.(type) {
+	case *gnmi.TypedValue_AsciiVal:
+		value = updValue.GetAsciiVal()
+	case *gnmi.TypedValue_BoolVal:
+		value = updValue.GetBoolVal()
+	case *gnmi.TypedValue_BytesVal:
+		value = updValue.GetBytesVal()
+	case *gnmi.TypedValue_DecimalVal:
+		value = updValue.GetDecimalVal()
+	case *gnmi.TypedValue_FloatVal:
+		value = updValue.GetFloatVal()
+	case *gnmi.TypedValue_IntVal:
+		value = updValue.GetIntVal()
+	case *gnmi.TypedValue_StringVal:
+		value = updValue.GetStringVal()
+	case *gnmi.TypedValue_UintVal:
+		value = updValue.GetUintVal()
+	case *gnmi.TypedValue_JsonIetfVal:
+		jsondata = updValue.GetJsonIetfVal()
+	case *gnmi.TypedValue_JsonVal:
+		jsondata = updValue.GetJsonVal()
+	case *gnmi.TypedValue_LeaflistVal:
+		value = updValue.GetLeaflistVal()
+	case *gnmi.TypedValue_ProtoBytes:
+		value = updValue.GetProtoBytes()
+	case *gnmi.TypedValue_AnyVal:
+		value = updValue.GetAnyVal()
+	}
+	if value == nil {
+		err := json.Unmarshal(jsondata, &value)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return value, nil
 }
