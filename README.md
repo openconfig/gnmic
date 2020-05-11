@@ -1,5 +1,7 @@
-# gnmiClient
-gnmi rpc capabilities, get, set, subscribe from the terminal
+# gnmiClient 
+gnmi rpc capabilities, get, set, subscribe from the terminal 
+
+## [Documentation](https://gnmiclient.kmrd.dev)
 
 ## Usage
 ```
