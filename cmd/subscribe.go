@@ -307,7 +307,6 @@ func createSubscribeRequest() (*gnmi.SubscribeRequest, error) {
 			},
 		},
 	}, nil
-
 }
 
 func printSubscribeResponse(printPrefix string, resp *gnmi.SubscribeResponse_Update) {
