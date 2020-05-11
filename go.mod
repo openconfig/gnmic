@@ -3,7 +3,6 @@ module github.com/karimra/gnmiClient
 go 1.13
 
 require (
-	github.com/davecgh/go-spew v1.1.1
 	github.com/google/gnxi v0.0.0-20191016182648-6697a080bc2d
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/manifoldco/promptui v0.7.0
