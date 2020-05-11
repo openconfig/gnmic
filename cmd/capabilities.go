@@ -40,6 +40,10 @@ var capabilitiesCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var err error
 		addresses := viper.GetStringSlice("address")
+		if len(addresses) == 0 {
+			fmt.Println("no grpc server address specified")
+			return nil
+		}
 		username := viper.GetString("username")
 		if username == "" {
 			if username, err = readUsername(); err != nil {
@@ -58,10 +62,10 @@ var capabilitiesCmd = &cobra.Command{
 		for _, addr := range addresses {
 			go func(address string) {
 				defer wg.Done()
-				ipa, _, err := net.SplitHostPort(address)
+				_, _, err := net.SplitHostPort(address)
 				if err != nil {
 					if strings.Contains(err.Error(), "missing port in address") {
-						address = net.JoinHostPort(ipa, defaultGrpcPort)
+						address = net.JoinHostPort(address, defaultGrpcPort)
 					} else {
 						log.Printf("error parsing address '%s': %v", address, err)
 						return

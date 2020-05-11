@@ -141,9 +141,10 @@ var getCmd = &cobra.Command{
 						return
 					}
 				}
+				log.Printf("sending gnmi GetRequest '%+v' to %s", xreq, address)
 				response, err := client.Get(ctx, xreq)
 				if err != nil {
-					log.Printf("error sending get request: %v", err)
+					log.Printf("failed sending GetRequest to %s: %v", address, err)
 					return
 				}
 				printPrefix := ""
