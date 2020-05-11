@@ -25,7 +25,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/google/gnxi/utils/xpath"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
@@ -310,10 +309,15 @@ func createSubscribeRequest() (*gnmi.SubscribeRequest, error) {
 }
 
 func printSubscribeResponse(printPrefix string, resp *gnmi.SubscribeResponse_Update) {
-	fmt.Printf("%supdate received at %s\n", printPrefix, time.Now().Format(time.RFC3339Nano))
-	if viper.GetBool("debug") {
-		fmt.Printf("%s DEBUG: %s\n", printPrefix, spew.Sdump(resp))
+	if viper.GetBool("raw") {
+		data, err := json.MarshalIndent(resp.Update, printPrefix, "  ")
+		if err != nil {
+			log.Println(err)
+		}
+		fmt.Printf("%s%s\n", printPrefix, string(data))
+		return
 	}
+	fmt.Printf("%supdate received at %s\n", printPrefix, time.Now().Format(time.RFC3339Nano))
 	msg := new(msg)
 	msg.Timestamp = resp.Update.Timestamp
 	msg.Prefix = gnmiPathToXPath(resp.Update.Prefix)
@@ -322,40 +326,11 @@ func printSubscribeResponse(printPrefix string, resp *gnmi.SubscribeResponse_Upd
 		for _, pElem := range upd.Path.Elem {
 			pathElems = append(pathElems, pElem.GetName())
 		}
-		if viper.GetBool("debug") {
-			fmt.Printf("%s DEBUG: %s\n", printPrefix, spew.Sdump(upd))
+		value, err := getValue(upd.Val)
+		if err != nil {
+			log.Println(err)
 		}
-		var value interface{}
-		var jsondata []byte
-		switch upd.Val.Value.(type) {
-		case *gnmi.TypedValue_AsciiVal:
-			value = upd.Val.GetAsciiVal()
-		case *gnmi.TypedValue_BoolVal:
-			value = upd.Val.GetBoolVal()
-		case *gnmi.TypedValue_BytesVal:
-			value = upd.Val.GetBytesVal()
-		case *gnmi.TypedValue_DecimalVal:
-			value = upd.Val.GetDecimalVal()
-		case *gnmi.TypedValue_FloatVal:
-			value = upd.Val.GetFloatVal()
-		case *gnmi.TypedValue_IntVal:
-			value = upd.Val.GetIntVal()
-		case *gnmi.TypedValue_StringVal:
-			value = upd.Val.GetStringVal()
-		case *gnmi.TypedValue_UintVal:
-			value = upd.Val.GetUintVal()
-		case *gnmi.TypedValue_JsonIetfVal:
-			jsondata = upd.Val.GetJsonIetfVal()
-		case *gnmi.TypedValue_JsonVal:
-			jsondata = upd.Val.GetJsonVal()
-		}
-		if value == nil {
-			err := json.Unmarshal(jsondata, &value)
-			if err != nil {
-				log.Printf("error unmarshling jsonVal '%s'", string(jsondata))
-				continue
-			}
-		}
+
 		msg.Updates = append(msg.Updates,
 			&update{
 				Path:   gnmiPathToXPath(upd.Path),
