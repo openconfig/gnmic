@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"math"
@@ -42,15 +43,35 @@ const (
 )
 
 var cfgFile string
+var f io.WriteCloser
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "gnmiClient",
 	Short: "run gnmi rpcs from the terminal",
-
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
-	//	Run: func(cmd *cobra.Command, args []string) { },
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		if viper.GetBool("nolog") {
+			f = myWriteCloser{}
+			return
+		}
+		if viper.GetBool("logstdout") {
+			log.SetFlags(log.LstdFlags | log.Lmicroseconds)
+			f = os.Stdout
+			return
+		}
+		var err error
+		f, err = os.OpenFile(viper.GetString("log-file"), os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+		if err != nil {
+			log.Fatalf("error opening file: %v", err)
+		}
+		log.SetFlags(log.LstdFlags | log.Lmicroseconds)
+		log.SetOutput(f)
+	},
+	PersistentPostRun: func(cmd *cobra.Command, args []string) {
+		if !viper.GetBool("nolog") && !viper.GetBool("logstdout") {
+			f.Close()
+		}
+	},
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -79,6 +100,10 @@ func init() {
 	rootCmd.PersistentFlags().BoolP("no-prefix", "", false, "do not add [ip:port] prefix to print output in case of multiple targets")
 	rootCmd.PersistentFlags().BoolP("proxy-from-env", "", false, "use proxy from environment")
 	rootCmd.PersistentFlags().BoolP("raw", "", false, "output messages as received")
+	rootCmd.PersistentFlags().StringP("log-file", "", "./gnmiClient.log", "log file path")
+	rootCmd.PersistentFlags().BoolP("nolog", "", false, "do not generate logs")
+	rootCmd.PersistentFlags().BoolP("logstdout", "", false, "log to stdout")
+
 	//
 	viper.BindPFlag("address", rootCmd.PersistentFlags().Lookup("address"))
 	viper.BindPFlag("username", rootCmd.PersistentFlags().Lookup("username"))
@@ -94,6 +119,9 @@ func init() {
 	viper.BindPFlag("no-prefix", rootCmd.PersistentFlags().Lookup("no-prefix"))
 	viper.BindPFlag("proxy-from-env", rootCmd.PersistentFlags().Lookup("proxy-from-env"))
 	viper.BindPFlag("raw", rootCmd.PersistentFlags().Lookup("raw"))
+	viper.BindPFlag("log-file", rootCmd.PersistentFlags().Lookup("log-file"))
+	viper.BindPFlag("nolog", rootCmd.PersistentFlags().Lookup("nolog"))
+	viper.BindPFlag("logstdout", rootCmd.PersistentFlags().Lookup("logstdout"))
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -119,9 +147,9 @@ func initConfig() {
 	// If a config file is found, read it in.
 	err := viper.ReadInConfig()
 	if err != nil {
-		log.Printf("failed reading config file '%s': %v", viper.ConfigFileUsed(), err)
+		fmt.Printf("failed reading config file '%s': %v\n", viper.ConfigFileUsed(), err)
 	}
-	log.Println("Using config file:", viper.ConfigFileUsed())
+	// log.Println("Using config file:", viper.ConfigFileUsed())
 }
 func readUsername() (string, error) {
 	var username string
@@ -275,4 +303,12 @@ func getValue(updValue *gnmi.TypedValue) (interface{}, error) {
 		}
 	}
 	return value, nil
+}
+
+type myWriteCloser struct {
+	io.Writer
+}
+
+func (myWriteCloser) Close() error {
+	return nil
 }

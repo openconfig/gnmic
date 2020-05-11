@@ -142,7 +142,6 @@ var setCmd = &cobra.Command{
 			}
 			req.Delete = append(req.Delete, gnmiPath)
 		}
-
 		for i, p := range updatePaths {
 			gnmiPath, err := xpath.ToGNMIPath(p)
 			if err != nil {
