@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -32,6 +33,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc/metadata"
+	"gopkg.in/yaml.v2"
 )
 
 var vTypes = []string{"json", "json_ietf", "string", "int", "uint", "bool", "decimal", "float", "bytes", "ascii"}
@@ -149,9 +151,9 @@ var setCmd = &cobra.Command{
 			value := new(gnmi.TypedValue)
 			if useUpdateFile {
 				var updateData []byte
-				updateData, err = ioutil.ReadFile(updateFiles[i])
+				updateData, err = readFile(updateFiles[i])
 				if err != nil {
-					log.Printf("error reading data from file %v: skipping path '%s'", updateFiles[i], p)
+					log.Printf("error reading data from file '%s': %v", updateFiles[i], err)
 					continue
 				}
 				value.Value = &gnmi.TypedValue_JsonVal{
@@ -251,9 +253,9 @@ var setCmd = &cobra.Command{
 			value := new(gnmi.TypedValue)
 			if useReplaceFile {
 				var replaceData []byte
-				replaceData, err = ioutil.ReadFile(replaceFiles[i])
+				replaceData, err = readFile(replaceFiles[i])
 				if err != nil {
-					log.Printf("error reading data from file %v: skipping path '%s'", replaceFiles[i], p)
+					log.Printf("error reading data from file '%s': %v", replaceFiles[i], err)
 					continue
 				}
 				value.Value = &gnmi.TypedValue_JsonVal{
@@ -453,4 +455,46 @@ func init() {
 	viper.BindPFlag("update-value", setCmd.Flags().Lookup("update-value"))
 	viper.BindPFlag("replace-value", setCmd.Flags().Lookup("replace-value"))
 	viper.BindPFlag("delimiter", setCmd.Flags().Lookup("delimiter"))
+}
+
+// readFile reads a json or yaml file. the the file is .yaml, converts it to json and returns []byte and an error
+func readFile(name string) ([]byte, error) {
+	data, err := ioutil.ReadFile(name)
+	if err != nil {
+		return nil, err
+	}
+	switch filepath.Ext(name) {
+	case ".json":
+		return data, err
+	case ".yaml", ".yml":
+		var out interface{}
+		err = yaml.Unmarshal(data, &out)
+		if err != nil {
+			return nil, err
+		}
+		newStruct := convert(out)
+		newData, err := json.Marshal(newStruct)
+		if err != nil {
+			return nil, err
+		}
+		return newData, nil
+	default:
+		return nil, fmt.Errorf("unsupported file format %s", filepath.Ext(name))
+	}
+}
+
+func convert(i interface{}) interface{} {
+	switch x := i.(type) {
+	case map[interface{}]interface{}:
+		nm := map[string]interface{}{}
+		for k, v := range x {
+			nm[k.(string)] = convert(v)
+		}
+		return nm
+	case []interface{}:
+		for i, v := range x {
+			x[i] = convert(v)
+		}
+	}
+	return i
 }
