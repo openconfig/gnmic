@@ -60,7 +60,24 @@ var pathCmd = &cobra.Command{
 				Stdout:       os.Stdout,
 				HideSelected: true,
 				Searcher: func(input string, index int) bool {
-					return strings.Contains(paths[index], input)
+					kws := strings.Split(input, " ")
+					result := true
+					count := 0
+					for _, kw := range kws {
+						if strings.HasPrefix(kw, "!") {
+							kw = strings.TrimLeft(kw, "!")
+							if kw == "" {
+								continue
+							}
+							result = result && !strings.Contains(paths[index], kw)
+						} else {
+							result = result && strings.Contains(paths[index], kw)
+						}
+					}
+					if result {
+						count++
+					}
+					return result
 				},
 				Keys: &promptui.SelectKeys{
 					Prev:     promptui.Key{Code: promptui.KeyPrev, Display: promptui.KeyPrevDisplay},
