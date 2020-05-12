@@ -184,7 +184,9 @@ func createGrpcConn(address string) (*grpc.ClientConn, error) {
 	}
 	opts = append(opts, grpc.WithTimeout(timeout))
 	opts = append(opts, grpc.WithBlock())
-	opts = append(opts, grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(viper.GetInt("max-msg-size"))))
+	if viper.GetInt("max-msg-size") > 0 {
+		opts = append(opts, grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(viper.GetInt("max-msg-size"))))
+	}
 	if !viper.GetBool("proxy-from-env") {
 		opts = append(opts, grpc.WithNoProxy())
 	}
@@ -206,7 +208,6 @@ func createGrpcConn(address string) (*grpc.ClientConn, error) {
 			log.Printf("failed loading CA certificates: %v", err)
 		}
 		tlsConfig.RootCAs = certPool
-
 		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	}
 	conn, err := grpc.Dial(address, opts...)
