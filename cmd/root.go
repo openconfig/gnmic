@@ -41,6 +41,9 @@ import (
 const (
 	defaultGrpcPort = "57400"
 )
+const (
+	msgSize           = 512 * 1024 * 1024
+)
 
 var cfgFile string
 var f io.WriteCloser
@@ -112,8 +115,7 @@ func init() {
 	rootCmd.PersistentFlags().StringP("log-file", "", "", "log file path")
 	rootCmd.PersistentFlags().BoolP("nolog", "", false, "do not generate logs")
 	rootCmd.PersistentFlags().BoolP("logstdout", "", false, "log to stdout")
-	rootCmd.PersistentFlags().IntP("max-msg-size", "", 512, "max tls msg size")
-
+	rootCmd.PersistentFlags().IntP("max-msg-size", "", msgSize, "max grpc msg size")
 	//
 	viper.BindPFlag("address", rootCmd.PersistentFlags().Lookup("address"))
 	viper.BindPFlag("username", rootCmd.PersistentFlags().Lookup("username"))
@@ -208,7 +210,7 @@ func createGrpcConn(address string) (*grpc.ClientConn, error) {
 			log.Printf("failed loading CA certificates: %v", err)
 		}
 		tlsConfig.RootCAs = certPool
-		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+ 		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	}
 	conn, err := grpc.Dial(address, opts...)
 	if err != nil {
