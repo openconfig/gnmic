@@ -26,6 +26,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -44,6 +45,7 @@ const (
 
 var cfgFile string
 var f io.WriteCloser
+var re = regexp.MustCompile(`<\s.$`)
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -307,4 +309,13 @@ type myWriteCloser struct {
 
 func (myWriteCloser) Close() error {
 	return nil
+}
+
+func indent(prefix, s string) string {
+	if prefix == "" {
+		return s
+	}
+	prefix = "\n" + strings.TrimRight(prefix, "\n")
+	lines := strings.Split(s, "\n")
+	return strings.TrimLeft(fmt.Sprintf("%s%s", prefix, strings.Join(lines, prefix)), "\n")
 }

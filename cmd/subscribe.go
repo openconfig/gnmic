@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/google/gnxi/utils/xpath"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
@@ -127,7 +128,7 @@ var subscribeCmd = &cobra.Command{
 						}
 						switch resp := subscribeRsp.Response.(type) {
 						case *gnmi.SubscribeResponse_Update:
-							printSubscribeResponse(printPrefix, resp)
+							printSubscribeResponse(printPrefix, subscribeRsp)
 						case *gnmi.SubscribeResponse_SyncResponse:
 							fmt.Printf("%ssync response: %+v\n", printPrefix, resp.SyncResponse)
 							if subscReq.GetSubscribe().Mode == gnmi.SubscriptionList_ONCE {
@@ -157,7 +158,7 @@ var subscribeCmd = &cobra.Command{
 						}
 						switch resp := subscribeRsp.Response.(type) {
 						case *gnmi.SubscribeResponse_Update:
-							printSubscribeResponse(printPrefix, resp)
+							printSubscribeResponse(printPrefix, subscribeRsp)
 						case *gnmi.SubscribeResponse_SyncResponse:
 							fmt.Printf("%ssync response: %+v\n", printPrefix, resp.SyncResponse)
 						}
@@ -308,43 +309,42 @@ func createSubscribeRequest() (*gnmi.SubscribeRequest, error) {
 	}, nil
 }
 
-func printSubscribeResponse(printPrefix string, resp *gnmi.SubscribeResponse_Update) {
-	if viper.GetBool("raw") {
-		data, err := json.MarshalIndent(resp.Update, printPrefix, "  ")
-		if err != nil {
-			log.Println(err)
+func printSubscribeResponse(printPrefix string, subResp *gnmi.SubscribeResponse) {
+	switch resp := subResp.Response.(type) {
+	case *gnmi.SubscribeResponse_Update:
+		if viper.GetBool("raw") {
+			fmt.Printf("%s%s\n", printPrefix, proto.MarshalTextString(subResp))
+			return
 		}
-		fmt.Printf("%s%s\n", printPrefix, string(data))
-		return
-	}
-	fmt.Printf("%supdate received at %s\n", printPrefix, time.Now().Format(time.RFC3339Nano))
-	msg := new(msg)
-	msg.Timestamp = resp.Update.Timestamp
-	msg.Prefix = gnmiPathToXPath(resp.Update.Prefix)
-	for i, upd := range resp.Update.Update {
-		pathElems := make([]string, 0, len(upd.Path.Elem))
-		for _, pElem := range upd.Path.Elem {
-			pathElems = append(pathElems, pElem.GetName())
-		}
-		value, err := getValue(upd.Val)
-		if err != nil {
-			log.Println(err)
-		}
+		fmt.Printf("%supdate received at %s\n", printPrefix, time.Now().Format(time.RFC3339Nano))
+		msg := new(msg)
+		msg.Timestamp = resp.Update.Timestamp
+		msg.Prefix = gnmiPathToXPath(resp.Update.Prefix)
+		for i, upd := range resp.Update.Update {
+			pathElems := make([]string, 0, len(upd.Path.Elem))
+			for _, pElem := range upd.Path.Elem {
+				pathElems = append(pathElems, pElem.GetName())
+			}
+			value, err := getValue(upd.Val)
+			if err != nil {
+				log.Println(err)
+			}
 
-		msg.Updates = append(msg.Updates,
-			&update{
-				Path:   gnmiPathToXPath(upd.Path),
-				Values: make(map[string]interface{}),
-			})
-		msg.Updates[i].Values[strings.Join(pathElems, "/")] = value
+			msg.Updates = append(msg.Updates,
+				&update{
+					Path:   gnmiPathToXPath(upd.Path),
+					Values: make(map[string]interface{}),
+				})
+			msg.Updates[i].Values[strings.Join(pathElems, "/")] = value
+		}
+		for _, del := range resp.Update.Delete {
+			msg.Deletes = append(msg.Deletes, gnmiPathToXPath(del))
+		}
+		dMsg, err := json.MarshalIndent(msg, printPrefix, "  ")
+		if err != nil {
+			log.Printf("error marshling json msg:%v", err)
+			return
+		}
+		fmt.Printf("%s%s\n", printPrefix, string(dMsg))
 	}
-	for _, del := range resp.Update.Delete {
-		msg.Deletes = append(msg.Deletes, gnmiPathToXPath(del))
-	}
-	dMsg, err := json.MarshalIndent(msg, printPrefix, "  ")
-	if err != nil {
-		log.Printf("error marshling json msg:%v", err)
-		return
-	}
-	fmt.Printf("%s%s\n", printPrefix, string(dMsg))
 }
