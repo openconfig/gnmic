@@ -42,7 +42,7 @@ const (
 	defaultGrpcPort = "57400"
 )
 const (
-	msgSize           = 512 * 1024 * 1024
+	msgSize = 512 * 1024 * 1024
 )
 
 var cfgFile string
@@ -199,18 +199,19 @@ func createGrpcConn(address string) (*grpc.ClientConn, error) {
 			Renegotiation:      tls.RenegotiateNever,
 			InsecureSkipVerify: viper.GetBool("skip-verify"),
 		}
-		certificates, err := loadCerts()
+		err := loadCerts(tlsConfig)
 		if err != nil {
 			log.Printf("failed loading certificates: %v", err)
 		}
-		tlsConfig.Certificates = certificates
 
-		certPool, err := loadCACerts()
+		err = loadCACerts(tlsConfig)
 		if err != nil {
 			log.Printf("failed loading CA certificates: %v", err)
 		}
-		tlsConfig.RootCAs = certPool
- 		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+
+		opts = append(opts, grpc.WithMaxHeaderListSize(8192))
+		opts = append(opts, grpc.WithInitialWindowSize(4194304))
+		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	}
 	conn, err := grpc.Dial(address, opts...)
 	if err != nil {
@@ -237,7 +238,7 @@ func gnmiPathToXPath(p *gnmi.Path) string {
 	}
 	return strings.Join(pathElems, "/")
 }
-func loadCerts() ([]tls.Certificate, error) {
+func loadCerts(tlscfg *tls.Config) error {
 	tlsCert := viper.GetString("tls-cert")
 	tlsKey := viper.GetString("tls-key")
 	var certificate tls.Certificate
@@ -245,25 +246,27 @@ func loadCerts() ([]tls.Certificate, error) {
 	if tlsCert != "" && tlsKey != "" {
 		certificate, err = tls.LoadX509KeyPair(tlsCert, tlsKey)
 		if err != nil {
-			return nil, err
+			return err
 		}
+		tlscfg.Certificates = []tls.Certificate{certificate}
+		tlscfg.BuildNameToCertificate()
 	}
-	return []tls.Certificate{certificate}, nil
+	return nil
 }
-func loadCACerts() (*x509.CertPool, error) {
+func loadCACerts(tlscfg *tls.Config) error {
 	tlsCa := viper.GetString("tls-ca")
 	certPool := x509.NewCertPool()
 	if tlsCa != "" {
 		caFile, err := ioutil.ReadFile(tlsCa)
 		if err != nil {
-			return nil, err
+			return err
 		}
-
 		if ok := certPool.AppendCertsFromPEM(caFile); !ok {
-			return nil, errors.New("failed to append certificate")
+			return errors.New("failed to append certificate")
 		}
+		tlscfg.RootCAs = certPool
 	}
-	return certPool, nil
+	return nil
 }
 func printer(ctx context.Context, c chan string) {
 	for {
