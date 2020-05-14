@@ -37,6 +37,7 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/grpclog"
 )
 
 const (
@@ -54,20 +55,20 @@ var rootCmd = &cobra.Command{
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		if viper.GetBool("nolog") {
 			f = myWriteCloser{}
-			return
 		}
 		if viper.GetBool("logstdout") {
-			log.SetFlags(log.LstdFlags | log.Lmicroseconds)
 			f = os.Stdout
-			return
-		}
-		var err error
-		f, err = os.OpenFile(viper.GetString("log-file"), os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-		if err != nil {
-			log.Fatalf("error opening file: %v", err)
+		} else {
+			var err error
+			f, err = os.OpenFile(viper.GetString("log-file"), os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+			if err != nil {
+				log.Fatalf("error opening file: %v", err)
+			}
+			log.SetOutput(f)
 		}
 		log.SetFlags(log.LstdFlags | log.Lmicroseconds)
-		log.SetOutput(f)
+		logger := log.New(f, "", log.LstdFlags|log.Lmicroseconds)
+		grpclog.SetLogger(logger)
 	},
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {
 		if !viper.GetBool("nolog") && !viper.GetBool("logstdout") {
