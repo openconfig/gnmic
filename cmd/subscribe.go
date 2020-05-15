@@ -312,8 +312,8 @@ func createSubscribeRequest() (*gnmi.SubscribeRequest, error) {
 func printSubscribeResponse(printPrefix string, subResp *gnmi.SubscribeResponse) {
 	switch resp := subResp.Response.(type) {
 	case *gnmi.SubscribeResponse_Update:
-		if viper.GetBool("raw") {
-			fmt.Printf("%s%s\n", printPrefix, proto.MarshalTextString(subResp))
+		if viper.GetString("format") == "textproto" {
+			fmt.Printf("%s\n", indent(printPrefix, proto.MarshalTextString(subResp)))
 			return
 		}
 		fmt.Printf("%supdate received at %s\n", printPrefix, time.Now().Format(time.RFC3339Nano))

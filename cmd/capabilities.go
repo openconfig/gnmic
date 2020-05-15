@@ -92,7 +92,7 @@ var capabilitiesCmd = &cobra.Command{
 				if len(addresses) > 1 && !viper.GetBool("no-prefix") {
 					printPrefix = fmt.Sprintf("[%s] ", address)
 				}
-				if viper.GetBool("raw") {
+				if viper.GetString("format") == "textproto" {
 					rsp := proto.MarshalTextString(response)
 					fmt.Println(indent(printPrefix, rsp))
 					return

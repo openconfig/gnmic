@@ -28,6 +28,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/google/gnxi/utils/xpath"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
@@ -385,39 +386,41 @@ var setCmd = &cobra.Command{
 				if len(addresses) > 1 && !viper.GetBool("no-prefix") {
 					printPrefix = fmt.Sprintf("[%s] ", address)
 				}
-				fmt.Printf("%sgnmi set request :\n", printPrefix)
-				fmt.Printf("%sgnmi set request : prefix: %v\n", printPrefix, gnmiPathToXPath(req.Prefix))
-				if len(req.Delete) > 0 {
-					for _, del := range req.Delete {
-						fmt.Printf("%sgnmi set request : delete: %v\n", printPrefix, gnmiPathToXPath(del))
-					}
-				}
-				if len(req.Update) > 0 {
-					for _, upd := range req.Update {
-						fmt.Printf("%sgnmi set request : update path : %v\n", printPrefix, gnmiPathToXPath(upd.Path))
-						fmt.Printf("%sgnmi set request : update value: %v\n", printPrefix, upd.Val)
-					}
-				}
-				if len(req.Replace) > 0 {
-					for _, rep := range req.Replace {
-						fmt.Printf("%sgnmi set request : replace path : %v\n", printPrefix, gnmiPathToXPath(rep.Path))
-						fmt.Printf("%sgnmi set request : replace value: %v\n", printPrefix, rep.Val)
-					}
-				}
+				printSetRequest(printPrefix, req)
+				// fmt.Printf("%sgnmi set request :\n", printPrefix)
+				// fmt.Printf("%sgnmi set request : prefix: %v\n", printPrefix, gnmiPathToXPath(req.Prefix))
+				// if len(req.Delete) > 0 {
+				// 	for _, del := range req.Delete {
+				// 		fmt.Printf("%sgnmi set request : delete: %v\n", printPrefix, gnmiPathToXPath(del))
+				// 	}
+				// }
+				// if len(req.Update) > 0 {
+				// 	for _, upd := range req.Update {
+				// 		fmt.Printf("%sgnmi set request : update path : %v\n", printPrefix, gnmiPathToXPath(upd.Path))
+				// 		fmt.Printf("%sgnmi set request : update value: %v\n", printPrefix, upd.Val)
+				// 	}
+				// }
+				// if len(req.Replace) > 0 {
+				// 	for _, rep := range req.Replace {
+				// 		fmt.Printf("%sgnmi set request : replace path : %v\n", printPrefix, gnmiPathToXPath(rep.Path))
+				// 		fmt.Printf("%sgnmi set request : replace value: %v\n", printPrefix, rep.Val)
+				// 	}
+				// }
 				response, err := client.Set(ctx, req)
 				if err != nil {
 					log.Printf("error sending set request: %v", err)
 					return
 				}
-				fmt.Printf("%sgnmi set response:\n", printPrefix)
-				fmt.Printf("%sgnmi set response: timestamp: %v\n", printPrefix, response.Timestamp)
-				fmt.Printf("%sgnmi set response: prefix: %v\n", printPrefix, gnmiPathToXPath(response.Prefix))
-				if response.Message != nil {
-					fmt.Printf("%sgnmi set response: error: %v\n", printPrefix, response.Message.String())
-				}
-				for _, u := range response.Response {
-					fmt.Printf("%sgnmi set response: result: op=%v path=%v\n", printPrefix, u.Op, gnmiPathToXPath(u.Path))
-				}
+				printSetResponse(printPrefix, response)
+				// fmt.Printf("%sgnmi set response:\n", printPrefix)
+				// fmt.Printf("%sgnmi set response: timestamp: %v\n", printPrefix, response.Timestamp)
+				// fmt.Printf("%sgnmi set response: prefix: %v\n", printPrefix, gnmiPathToXPath(response.Prefix))
+				// if response.Message != nil {
+				// 	fmt.Printf("%sgnmi set response: error: %v\n", printPrefix, response.Message.String())
+				// }
+				// for _, u := range response.Response {
+				// 	fmt.Printf("%sgnmi set response: result: op=%v path=%v\n", printPrefix, u.Op, gnmiPathToXPath(u.Path))
+				// }
 			}(addr)
 		}
 		wg.Wait()
@@ -481,7 +484,6 @@ func readFile(name string) ([]byte, error) {
 		return nil, fmt.Errorf("unsupported file format %s", filepath.Ext(name))
 	}
 }
-
 func convert(i interface{}) interface{} {
 	switch x := i.(type) {
 	case map[interface{}]interface{}:
@@ -496,4 +498,48 @@ func convert(i interface{}) interface{} {
 		}
 	}
 	return i
+}
+func printSetRequest(printPrefix string, request *gnmi.SetRequest) {
+	fmt.Printf("%sRequest: \n", printPrefix)
+	if viper.GetString("format") == "textproto" {
+		fmt.Printf("%s\n", indent("  ", proto.MarshalTextString(request)))
+		return
+	}
+	fmt.Printf("%s  prefix: %v\n", printPrefix, gnmiPathToXPath(request.Prefix))
+	if len(request.Delete) > 0 {
+		fmt.Printf("%s    delete:\n", printPrefix)
+		for _, del := range request.Delete {
+			fmt.Printf("%s      delete: %s\n", printPrefix, gnmiPathToXPath(del))
+		}
+	}
+	if len(request.Replace) > 0 {
+		fmt.Printf("%s    replace\n", printPrefix)
+		for _, rep := range request.Replace {
+			fmt.Printf("%s      path : %v\n", printPrefix, gnmiPathToXPath(rep.Path))
+			fmt.Printf("%s      value: %v\n", printPrefix, rep.Val)
+		}
+	}
+	if len(request.Update) > 0 {
+		fmt.Printf("%s    update:\n", printPrefix)
+		for _, upd := range request.Update {
+			fmt.Printf("%s      path : %s\n", printPrefix, gnmiPathToXPath(upd.Path))
+			fmt.Printf("%s      value: %s\n", printPrefix, upd.Val)
+		}
+	}
+}
+func printSetResponse(printPrefix string, response *gnmi.SetResponse) {
+	fmt.Printf("%sResponse: \n", printPrefix)
+	if viper.GetString("format") == "textproto" {
+		fmt.Printf("%s\n", indent("  ", proto.MarshalTextString(response)))
+		return
+	}
+	fmt.Printf("%s  prefix: %v\n", printPrefix, gnmiPathToXPath(response.Prefix))
+	fmt.Printf("%s  timestamp: %d\n", printPrefix, response.Timestamp)
+	if response.Message != nil {
+		fmt.Printf("%s  error: %v\n", printPrefix, response.Message.String())
+	}
+	for _, u := range response.Response {
+		fmt.Printf("%s    operation: %s\n", printPrefix, u.Op)
+		fmt.Printf("%s    path     : %s\n", printPrefix, gnmiPathToXPath(u.Path))
+	}
 }

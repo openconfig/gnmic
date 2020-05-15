@@ -180,8 +180,8 @@ func init() {
 }
 
 func printGetResponse(printPrefix string, response *gnmi.GetResponse) {
-	if viper.GetBool("raw") {
-		fmt.Printf("%s%s\n", printPrefix, proto.MarshalTextString(response))
+	if viper.GetString("format") == "textproto" {
+		fmt.Printf("%s\n", indent(printPrefix, proto.MarshalTextString(response)))
 		return
 	}
 	for _, notif := range response.Notification {
