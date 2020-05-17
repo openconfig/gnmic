@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"strings"
 	"sync"
@@ -89,7 +88,7 @@ var subscribeCmd = &cobra.Command{
 					if strings.Contains(err.Error(), "missing port in address") {
 						address = net.JoinHostPort(address, defaultGrpcPort)
 					} else {
-						log.Printf("error parsing address '%s': %v", address, err)
+						logger.Printf("error parsing address '%s': %v", address, err)
 						return
 					}
 				}
@@ -99,7 +98,7 @@ var subscribeCmd = &cobra.Command{
 				}
 				conn, err := createGrpcConn(address)
 				if err != nil {
-					log.Printf("connection to %s failed: %v", address, err)
+					logger.Printf("connection to %s failed: %v", address, err)
 					return
 				}
 				client := gnmi.NewGNMIClient(conn)
@@ -109,12 +108,12 @@ var subscribeCmd = &cobra.Command{
 
 				subscribeClient, err := client.Subscribe(ctx)
 				if err != nil {
-					log.Printf("error creating subscribe client: %v", err)
+					logger.Printf("error creating subscribe client: %v", err)
 					return
 				}
 				err = subscribeClient.Send(subscReq)
 				if err != nil {
-					log.Printf("subscribe error: %v", err)
+					logger.Printf("subscribe error: %v", err)
 					return
 				}
 				switch subscReq.GetSubscribe().Mode {
@@ -122,7 +121,7 @@ var subscribeCmd = &cobra.Command{
 					for {
 						subscribeRsp, err := subscribeClient.Recv()
 						if err != nil {
-							log.Printf("addr=%s rcv error: %v", address, err)
+							logger.Printf("addr=%s rcv error: %v", address, err)
 							return
 						}
 						switch resp := subscribeRsp.Response.(type) {
@@ -145,13 +144,13 @@ var subscribeCmd = &cobra.Command{
 							},
 						})
 						if err != nil {
-							log.Printf("error sending poll request:%v", err)
+							logger.Printf("error sending poll request:%v", err)
 							waitChan <- struct{}{}
 							continue
 						}
 						subscribeRsp, err := subscribeClient.Recv()
 						if err != nil {
-							log.Printf("rcv error: %v", err)
+							logger.Printf("rcv error: %v", err)
 							waitChan <- struct{}{}
 							continue
 						}
@@ -312,7 +311,7 @@ func printSubscribeResponse(printPrefix string, resp *gnmi.SubscribeResponse_Upd
 	if viper.GetBool("raw") {
 		data, err := json.MarshalIndent(resp.Update, printPrefix, "  ")
 		if err != nil {
-			log.Println(err)
+			logger.Println(err)
 		}
 		fmt.Printf("%s%s\n", printPrefix, string(data))
 		return
@@ -328,7 +327,7 @@ func printSubscribeResponse(printPrefix string, resp *gnmi.SubscribeResponse_Upd
 		}
 		value, err := getValue(upd.Val)
 		if err != nil {
-			log.Println(err)
+			logger.Println(err)
 		}
 
 		msg.Updates = append(msg.Updates,
@@ -343,7 +342,7 @@ func printSubscribeResponse(printPrefix string, resp *gnmi.SubscribeResponse_Upd
 	}
 	dMsg, err := json.MarshalIndent(msg, printPrefix, "  ")
 	if err != nil {
-		log.Printf("error marshling json msg:%v", err)
+		logger.Printf("error marshling json msg:%v", err)
 		return
 	}
 	fmt.Printf("%s%s\n", printPrefix, string(dMsg))

@@ -17,7 +17,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"strings"
 	"sync"
@@ -67,13 +66,13 @@ var capabilitiesCmd = &cobra.Command{
 					if strings.Contains(err.Error(), "missing port in address") {
 						address = net.JoinHostPort(address, defaultGrpcPort)
 					} else {
-						log.Printf("error parsing address '%s': %v", address, err)
+						logger.Printf("error parsing address '%s': %v", address, err)
 						return
 					}
 				}
 				conn, err := createGrpcConn(address)
 				if err != nil {
-					log.Printf("connection to %s failed: %v", address, err)
+					logger.Printf("connection to %s failed: %v", address, err)
 					return
 				}
 				client := gnmi.NewGNMIClient(conn)
@@ -87,7 +86,7 @@ var capabilitiesCmd = &cobra.Command{
 
 				response, err := client.Capabilities(ctx, req)
 				if err != nil {
-					log.Printf("error sending capabilities request: %v", err)
+					logger.Printf("error sending capabilities request: %v", err)
 					return
 				}
 				printPrefix := ""

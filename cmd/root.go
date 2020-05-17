@@ -47,6 +47,7 @@ const (
 
 var cfgFile string
 var f io.WriteCloser
+var logger *log.Logger
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -55,6 +56,7 @@ var rootCmd = &cobra.Command{
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		if viper.GetBool("nolog") {
 			f = myWriteCloser{}
+			return
 		}
 		if viper.GetString("log-file") == "" {
 			f = os.Stderr
@@ -62,16 +64,17 @@ var rootCmd = &cobra.Command{
 			var err error
 			f, err = os.OpenFile(viper.GetString("log-file"), os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 			if err != nil {
-				log.Fatalf("error opening file: %v", err)
+				logger.Fatalf("error opening file: %v", err)
 			}
-			log.SetOutput(f)
 		}
-		log.SetFlags(log.LstdFlags | log.Lmicroseconds)
-		logger := log.New(f, "", log.LstdFlags|log.Lmicroseconds)
-		grpclog.SetLogger(logger)
+		logger = log.New(f, "", log.LstdFlags|log.Lmicroseconds)
+		logger.SetFlags(log.LstdFlags | log.Lmicroseconds)
+		if viper.GetBool("debug") {
+			grpclog.SetLogger(logger)
+		}
 	},
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {
-		if !viper.GetBool("nolog") && !viper.GetBool("logstdout") {
+		if !viper.GetBool("nolog") || viper.GetString("log-file") != "" {
 			f.Close()
 		}
 	},
@@ -192,16 +195,14 @@ func createGrpcConn(address string) (*grpc.ClientConn, error) {
 		}
 		err := loadCerts(tlsConfig)
 		if err != nil {
-			log.Printf("failed loading certificates: %v", err)
+			logger.Printf("failed loading certificates: %v", err)
 		}
 
 		err = loadCACerts(tlsConfig)
 		if err != nil {
-			log.Printf("failed loading CA certificates: %v", err)
+			logger.Printf("failed loading CA certificates: %v", err)
 		}
-
-		opts = append(opts, grpc.WithMaxHeaderListSize(8192))
-		opts = append(opts, grpc.WithInitialWindowSize(4194304))
+		opts = append(opts, grpc.WithDisableRetry())
 		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	}
 	conn, err := grpc.Dial(address, opts...)
@@ -279,7 +280,6 @@ func gather(ctx context.Context, c chan string, ls *[]string) {
 		}
 	}
 }
-
 func getValue(updValue *gnmi.TypedValue) (interface{}, error) {
 	var value interface{}
 	var jsondata []byte
