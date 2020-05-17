@@ -25,7 +25,6 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"regexp"
 	"strings"
 	"time"
 
@@ -108,7 +107,6 @@ func init() {
 	rootCmd.PersistentFlags().StringP("format", "", "json", "output format, one of: [textproto, json]")
 	rootCmd.PersistentFlags().StringP("log-file", "", "", "log file path")
 	rootCmd.PersistentFlags().BoolP("nolog", "", false, "do not generate logs")
-	//rootCmd.PersistentFlags().BoolP("logstdout", "", false, "log to stdout")
 	rootCmd.PersistentFlags().IntP("max-msg-size", "", msgSize, "max grpc msg size")
 	//
 	viper.BindPFlag("address", rootCmd.PersistentFlags().Lookup("address"))
@@ -127,7 +125,6 @@ func init() {
 	viper.BindPFlag("format", rootCmd.PersistentFlags().Lookup("format"))
 	viper.BindPFlag("log-file", rootCmd.PersistentFlags().Lookup("log-file"))
 	viper.BindPFlag("nolog", rootCmd.PersistentFlags().Lookup("nolog"))
-	//viper.BindPFlag("logstdout", rootCmd.PersistentFlags().Lookup("logstdout"))
 	viper.BindPFlag("max-msg-size", rootCmd.PersistentFlags().Lookup("max-msg-size"))
 }
 

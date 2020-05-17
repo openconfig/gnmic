@@ -326,7 +326,7 @@ func printSubscribeResponse(printPrefix string, subResp *gnmi.SubscribeResponse)
 			}
 			value, err := getValue(upd.Val)
 			if err != nil {
-				log.Println(err)
+				logger.Println(err)
 			}
 
 			msg.Updates = append(msg.Updates,
@@ -339,24 +339,11 @@ func printSubscribeResponse(printPrefix string, subResp *gnmi.SubscribeResponse)
 		for _, del := range resp.Update.Delete {
 			msg.Deletes = append(msg.Deletes, gnmiPathToXPath(del))
 		}
-		dMsg, err := json.MarshalIndent(msg, printPrefix, "  ")
+		data, err := json.MarshalIndent(msg, printPrefix, "  ")
 		if err != nil {
 			logger.Println(err)
 		}
 
-		msg.Updates = append(msg.Updates,
-			&update{
-				Path:   gnmiPathToXPath(upd.Path),
-				Values: make(map[string]interface{}),
-			})
-		msg.Updates[i].Values[strings.Join(pathElems, "/")] = value
-	}
-	for _, del := range resp.Update.Delete {
-		msg.Deletes = append(msg.Deletes, gnmiPathToXPath(del))
-	}
-	dMsg, err := json.MarshalIndent(msg, printPrefix, "  ")
-	if err != nil {
-		logger.Printf("error marshling json msg:%v", err)
-		return
+		fmt.Println(string(data))
 	}
 }
