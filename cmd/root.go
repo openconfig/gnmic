@@ -24,7 +24,6 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"math"
 	"os"
 	"regexp"
 	"strings"
@@ -43,10 +42,13 @@ import (
 const (
 	defaultGrpcPort = "57400"
 )
+const (
+	msgSize = 512 * 1024 * 1024
+)
 
 var cfgFile string
 var f io.WriteCloser
-var re = regexp.MustCompile(`<\s.$`)
+var logger *log.Logger
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -56,22 +58,23 @@ var rootCmd = &cobra.Command{
 		if viper.GetBool("nolog") {
 			f = myWriteCloser{}
 		}
-		if viper.GetBool("logstdout") {
-			f = os.Stdout
+		if viper.GetString("log-file") == "" {
+			f = os.Stderr
 		} else {
 			var err error
 			f, err = os.OpenFile(viper.GetString("log-file"), os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 			if err != nil {
-				log.Fatalf("error opening file: %v", err)
+				logger.Fatalf("error opening file: %v", err)
 			}
-			log.SetOutput(f)
 		}
-		log.SetFlags(log.LstdFlags | log.Lmicroseconds)
-		logger := log.New(f, "", log.LstdFlags|log.Lmicroseconds)
-		grpclog.SetLogger(logger)
+		logger = log.New(f, "", log.LstdFlags|log.Lmicroseconds)
+		logger.SetFlags(log.LstdFlags | log.Lmicroseconds)
+		if viper.GetBool("debug") {
+			grpclog.SetLogger(logger)
+		}
 	},
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {
-		if !viper.GetBool("nolog") && !viper.GetBool("logstdout") {
+		if !viper.GetBool("nolog") || viper.GetString("log-file") != "" {
 			f.Close()
 		}
 	},
@@ -103,10 +106,10 @@ func init() {
 	rootCmd.PersistentFlags().BoolP("no-prefix", "", false, "do not add [ip:port] prefix to print output in case of multiple targets")
 	rootCmd.PersistentFlags().BoolP("proxy-from-env", "", false, "use proxy from environment")
 	rootCmd.PersistentFlags().StringP("format", "", "json", "output format, one of: [textproto, json]")
-	rootCmd.PersistentFlags().StringP("log-file", "", "./gnmiClient.log", "log file path")
+	rootCmd.PersistentFlags().StringP("log-file", "", "", "log file path")
 	rootCmd.PersistentFlags().BoolP("nolog", "", false, "do not generate logs")
-	rootCmd.PersistentFlags().BoolP("logstdout", "", false, "log to stdout")
-
+	//rootCmd.PersistentFlags().BoolP("logstdout", "", false, "log to stdout")
+	rootCmd.PersistentFlags().IntP("max-msg-size", "", msgSize, "max grpc msg size")
 	//
 	viper.BindPFlag("address", rootCmd.PersistentFlags().Lookup("address"))
 	viper.BindPFlag("username", rootCmd.PersistentFlags().Lookup("username"))
@@ -124,7 +127,8 @@ func init() {
 	viper.BindPFlag("format", rootCmd.PersistentFlags().Lookup("format"))
 	viper.BindPFlag("log-file", rootCmd.PersistentFlags().Lookup("log-file"))
 	viper.BindPFlag("nolog", rootCmd.PersistentFlags().Lookup("nolog"))
-	viper.BindPFlag("logstdout", rootCmd.PersistentFlags().Lookup("logstdout"))
+	//viper.BindPFlag("logstdout", rootCmd.PersistentFlags().Lookup("logstdout"))
+	viper.BindPFlag("max-msg-size", rootCmd.PersistentFlags().Lookup("max-msg-size"))
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -176,24 +180,29 @@ func createGrpcConn(address string) (*grpc.ClientConn, error) {
 	}
 	opts = append(opts, grpc.WithTimeout(timeout))
 	opts = append(opts, grpc.WithBlock())
-	opts = append(opts, grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(math.MaxInt32)))
+	if viper.GetInt("max-msg-size") > 0 {
+		opts = append(opts, grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(viper.GetInt("max-msg-size"))))
+	}
 	if !viper.GetBool("proxy-from-env") {
 		opts = append(opts, grpc.WithNoProxy())
 	}
 	if viper.GetBool("insecure") {
 		opts = append(opts, grpc.WithInsecure())
 	} else {
-		tlsConfig := &tls.Config{}
-		if viper.GetBool("skip-verify") {
-			tlsConfig.InsecureSkipVerify = true
-		} else {
-			certificates, certPool, err := loadCerts()
-			if err != nil {
-				return nil, err
-			}
-			tlsConfig.Certificates = certificates
-			tlsConfig.RootCAs = certPool
+		tlsConfig := &tls.Config{
+			Renegotiation:      tls.RenegotiateNever,
+			InsecureSkipVerify: viper.GetBool("skip-verify"),
 		}
+		err := loadCerts(tlsConfig)
+		if err != nil {
+			logger.Printf("failed loading certificates: %v", err)
+		}
+
+		err = loadCACerts(tlsConfig)
+		if err != nil {
+			logger.Printf("failed loading CA certificates: %v", err)
+		}
+		opts = append(opts, grpc.WithDisableRetry())
 		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	}
 	conn, err := grpc.Dial(address, opts...)
@@ -221,28 +230,36 @@ func gnmiPathToXPath(p *gnmi.Path) string {
 	}
 	return strings.Join(pathElems, "/")
 }
-func loadCerts() ([]tls.Certificate, *x509.CertPool, error) {
-	tlsCa := viper.GetString("tls-ca")
+func loadCerts(tlscfg *tls.Config) error {
 	tlsCert := viper.GetString("tls-cert")
 	tlsKey := viper.GetString("tls-key")
-	certificate, err := tls.LoadX509KeyPair(tlsCert, tlsKey)
-	if err != nil {
-		return nil, nil, err
+	var certificate tls.Certificate
+	var err error
+	if tlsCert != "" && tlsKey != "" {
+		certificate, err = tls.LoadX509KeyPair(tlsCert, tlsKey)
+		if err != nil {
+			return err
+		}
+		tlscfg.Certificates = []tls.Certificate{certificate}
+		tlscfg.BuildNameToCertificate()
 	}
-
-	certPool := x509.NewCertPool()
-	caFile, err := ioutil.ReadFile(tlsCa)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if ok := certPool.AppendCertsFromPEM(caFile); !ok {
-		return nil, nil, errors.New("failed to append certificate")
-	}
-
-	return []tls.Certificate{certificate}, certPool, nil
+	return nil
 }
-
+func loadCACerts(tlscfg *tls.Config) error {
+	tlsCa := viper.GetString("tls-ca")
+	certPool := x509.NewCertPool()
+	if tlsCa != "" {
+		caFile, err := ioutil.ReadFile(tlsCa)
+		if err != nil {
+			return err
+		}
+		if ok := certPool.AppendCertsFromPEM(caFile); !ok {
+			return errors.New("failed to append certificate")
+		}
+		tlscfg.RootCAs = certPool
+	}
+	return nil
+}
 func printer(ctx context.Context, c chan string) {
 	for {
 		select {
@@ -263,7 +280,6 @@ func gather(ctx context.Context, c chan string, ls *[]string) {
 		}
 	}
 }
-
 func getValue(updValue *gnmi.TypedValue) (interface{}, error) {
 	var value interface{}
 	var jsondata []byte

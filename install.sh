@@ -1,7 +1,7 @@
 TAR_PREFIX=gnmiClient
 PLATFORM=$(uname)
 ARCH=$(uname -m)
-INSTALLED_VERSION=$(gnmiClient version | grep version | awk '{print $3}') || ""
+INSTALLED_VERSION=$(gnmiClient version 2>/dev/null | grep version | awk '{print $3}') || ""
 LATEST_URL=$(curl -s https://github.com/karimra/gnmiClient/releases/latest | cut -d '"' -f 2)
 LATEST_TAG=$(echo "${LATEST_URL: -6}")
 TAG_WO_VER=$(echo "${LATEST_URL: -6}" | cut -c 2-)

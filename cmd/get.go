@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net"
 	"strings"
 	"sync"
@@ -101,13 +100,13 @@ var getCmd = &cobra.Command{
 					if strings.Contains(err.Error(), "missing port in address") {
 						address = net.JoinHostPort(address, defaultGrpcPort)
 					} else {
-						log.Printf("error parsing address '%s': %v", address, err)
+						logger.Printf("error parsing address '%s': %v", address, err)
 						return
 					}
 				}
 				conn, err := createGrpcConn(address)
 				if err != nil {
-					log.Printf("connection to %s failed: %v", address, err)
+					logger.Printf("connection to %s failed: %v", address, err)
 					return
 				}
 				client := gnmi.NewGNMIClient(conn)
@@ -118,14 +117,14 @@ var getCmd = &cobra.Command{
 				if model != "" {
 					capResp, err := client.Capabilities(ctx, &gnmi.CapabilityRequest{})
 					if err != nil {
-						log.Printf("%v", err)
+						logger.Printf("%v", err)
 						return
 					}
 					var found bool
 					for _, m := range capResp.SupportedModels {
 						if m.Name == model {
 							if debug {
-								log.Printf("target %s: found model: %v\n", address, m)
+								logger.Printf("target %s: found model: %v\n", address, m)
 							}
 							xreq.UseModels = append(xreq.UseModels,
 								&gnmi.ModelData{
@@ -138,21 +137,20 @@ var getCmd = &cobra.Command{
 						}
 					}
 					if !found {
-						log.Printf("model '%s' not supported by target %s", model, address)
+						logger.Printf("model '%s' not supported by target %s", model, address)
 						return
 					}
 				}
-				log.Printf("sending gnmi GetRequest '%+v' to %s", xreq, address)
+				logger.Printf("sending gnmi GetRequest '%+v' to %s", xreq, address)
 				response, err := client.Get(ctx, xreq)
 				if err != nil {
-					log.Printf("failed sending GetRequest to %s: %v", address, err)
+					logger.Printf("failed sending GetRequest to %s: %v", address, err)
 					return
 				}
 				printPrefix := ""
 				if len(addresses) > 1 && !viper.GetBool("no-prefix") {
 					printPrefix = fmt.Sprintf("[%s] ", address)
 				}
-				// valsOnly := viper.GetBool("get-values-only")
 				lock.Lock()
 				printGetResponse(printPrefix, response)
 				lock.Unlock()
@@ -171,12 +169,10 @@ func init() {
 	getCmd.Flags().StringP("prefix", "", "", "get request prefix")
 	getCmd.Flags().StringP("model", "", "", "get request model")
 	getCmd.Flags().StringP("type", "t", "ALL", "the type of data that is requested from the target. one of: ALL, CONFIG, STATE, OPERATIONAL")
-	getCmd.Flags().BoolP("values-only", "", false, "output returned values only, useful for file redirection")
 	viper.BindPFlag("get-path", getCmd.Flags().Lookup("path"))
 	viper.BindPFlag("get-prefix", getCmd.Flags().Lookup("prefix"))
 	viper.BindPFlag("get-model", getCmd.Flags().Lookup("model"))
 	viper.BindPFlag("get-type", getCmd.Flags().Lookup("type"))
-	viper.BindPFlag("get-values-only", getCmd.Flags().Lookup("values-only"))
 }
 
 func printGetResponse(printPrefix string, response *gnmi.GetResponse) {
@@ -191,7 +187,7 @@ func printGetResponse(printPrefix string, response *gnmi.GetResponse) {
 		for i, upd := range notif.Update {
 			if upd.Val == nil {
 				if viper.GetBool("debug") {
-					log.Printf("DEBUG: got a nil val update: %+v", upd)
+					logger.Printf("DEBUG: got a nil val update: %+v", upd)
 				}
 				continue
 			}
@@ -201,7 +197,7 @@ func printGetResponse(printPrefix string, response *gnmi.GetResponse) {
 			}
 			value, err := getValue(upd.Val)
 			if err != nil {
-				log.Println(err)
+				logger.Println(err)
 			}
 			msg.Updates = append(msg.Updates,
 				&update{
@@ -212,7 +208,7 @@ func printGetResponse(printPrefix string, response *gnmi.GetResponse) {
 		}
 		dMsg, err := json.MarshalIndent(msg, printPrefix, "  ")
 		if err != nil {
-			log.Printf("error marshling json msg:%v", err)
+			logger.Printf("error marshling json msg:%v", err)
 			return
 		}
 		fmt.Printf("%s%s\n", printPrefix, string(dMsg))
