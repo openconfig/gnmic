@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net"
 	"path/filepath"
 	"strconv"
@@ -79,16 +78,16 @@ var setCmd = &cobra.Command{
 		replaceTypes := make([]string, 0)
 
 		if viper.GetBool("debug") {
-			log.Printf("deletes(%d)=%v\n", len(deletes), deletes)
-			log.Printf("updates(%d)=%v\n", len(updates), updates)
-			log.Printf("replaces(%d)=%v\n", len(replaces), replaces)
-			log.Printf("delimiter=%v\n", delimiter)
-			log.Printf("updates-paths(%d)=%v\n", len(updatePaths), updatePaths)
-			log.Printf("replaces-paths(%d)=%v\n", len(replacePaths), replacePaths)
-			log.Printf("updates-files(%d)=%v\n", len(updateFiles), updateFiles)
-			log.Printf("replaces-files(%d)=%v\n", len(replaceFiles), replaceFiles)
-			log.Printf("updates-values(%d)=%v\n", len(updateValues), updateValues)
-			log.Printf("replaces-values(%d)=%v\n", len(replaceValues), replaceValues)
+			logger.Printf("deletes(%d)=%v\n", len(deletes), deletes)
+			logger.Printf("updates(%d)=%v\n", len(updates), updates)
+			logger.Printf("replaces(%d)=%v\n", len(replaces), replaces)
+			logger.Printf("delimiter=%v\n", delimiter)
+			logger.Printf("updates-paths(%d)=%v\n", len(updatePaths), updatePaths)
+			logger.Printf("replaces-paths(%d)=%v\n", len(replacePaths), replacePaths)
+			logger.Printf("updates-files(%d)=%v\n", len(updateFiles), updateFiles)
+			logger.Printf("replaces-files(%d)=%v\n", len(replaceFiles), replaceFiles)
+			logger.Printf("updates-values(%d)=%v\n", len(updateValues), updateValues)
+			logger.Printf("replaces-values(%d)=%v\n", len(replaceValues), replaceValues)
 		}
 		if inlineUpdates && !useUpdateFile {
 			updateSlice := strings.Split(updates, delimiter)
@@ -137,7 +136,7 @@ var setCmd = &cobra.Command{
 		for _, p := range deletes {
 			gnmiPath, err := xpath.ToGNMIPath(p)
 			if err != nil {
-				log.Printf("path '%s' parse error: %v", p, err)
+				logger.Printf("path '%s' parse error: %v", p, err)
 				continue
 			}
 			req.Delete = append(req.Delete, gnmiPath)
@@ -145,14 +144,14 @@ var setCmd = &cobra.Command{
 		for i, p := range updatePaths {
 			gnmiPath, err := xpath.ToGNMIPath(p)
 			if err != nil {
-				log.Print(err)
+				logger.Print(err)
 			}
 			value := new(gnmi.TypedValue)
 			if useUpdateFile {
 				var updateData []byte
 				updateData, err = readFile(updateFiles[i])
 				if err != nil {
-					log.Printf("error reading data from file '%s': %v", updateFiles[i], err)
+					logger.Printf("error reading data from file '%s': %v", updateFiles[i], err)
 					continue
 				}
 				value.Value = &gnmi.TypedValue_JsonVal{
@@ -205,7 +204,7 @@ var setCmd = &cobra.Command{
 					value.Value = &gnmi.TypedValue_DecimalVal{
 						DecimalVal: dVal,
 					}
-					log.Println("decimal type not implemented")
+					logger.Println("decimal type not implemented")
 					return nil
 				case "float":
 					f, err := strconv.ParseFloat(updateValues[i], 32)
@@ -247,14 +246,14 @@ var setCmd = &cobra.Command{
 		for i, p := range replacePaths {
 			gnmiPath, err := xpath.ToGNMIPath(p)
 			if err != nil {
-				log.Print(err)
+				logger.Print(err)
 			}
 			value := new(gnmi.TypedValue)
 			if useReplaceFile {
 				var replaceData []byte
 				replaceData, err = readFile(replaceFiles[i])
 				if err != nil {
-					log.Printf("error reading data from file '%s': %v", replaceFiles[i], err)
+					logger.Printf("error reading data from file '%s': %v", replaceFiles[i], err)
 					continue
 				}
 				value.Value = &gnmi.TypedValue_JsonVal{
@@ -307,7 +306,7 @@ var setCmd = &cobra.Command{
 					value.Value = &gnmi.TypedValue_DecimalVal{
 						DecimalVal: dVal,
 					}
-					log.Println("decimal type not implemented")
+					logger.Println("decimal type not implemented")
 					return nil
 				case "float":
 					f, err := strconv.ParseFloat(replaceValues[i], 32)
@@ -368,13 +367,13 @@ var setCmd = &cobra.Command{
 					if strings.Contains(err.Error(), "missing port in address") {
 						address = net.JoinHostPort(address, defaultGrpcPort)
 					} else {
-						log.Printf("error parsing address '%s': %v", address, err)
+						logger.Printf("error parsing address '%s': %v", address, err)
 						return
 					}
 				}
 				conn, err := createGrpcConn(address)
 				if err != nil {
-					log.Printf("connection to %s failed: %v", address, err)
+					logger.Printf("connection to %s failed: %v", address, err)
 					return
 				}
 				client := gnmi.NewGNMIClient(conn)
@@ -406,7 +405,7 @@ var setCmd = &cobra.Command{
 				}
 				response, err := client.Set(ctx, req)
 				if err != nil {
-					log.Printf("error sending set request: %v", err)
+					logger.Printf("error sending set request: %v", err)
 					return
 				}
 				fmt.Printf("%sgnmi set response:\n", printPrefix)
