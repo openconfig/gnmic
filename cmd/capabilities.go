@@ -21,6 +21,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc/metadata"
@@ -77,9 +78,6 @@ var capabilitiesCmd = &cobra.Command{
 				}
 				client := gnmi.NewGNMIClient(conn)
 
-				// grpcQos := gnmi.QOSMarking{
-				// 	Marking: qos,
-				// }
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				ctx = metadata.AppendToOutgoingContext(ctx, "username", username, "password", password)
@@ -92,6 +90,11 @@ var capabilitiesCmd = &cobra.Command{
 				printPrefix := ""
 				if len(addresses) > 1 && !viper.GetBool("no-prefix") {
 					printPrefix = fmt.Sprintf("[%s] ", address)
+				}
+				if viper.GetString("format") == "textproto" {
+					rsp := proto.MarshalTextString(response)
+					fmt.Println(indent(printPrefix, rsp))
+					return
 				}
 				fmt.Printf("%sgNMI_Version: %s\n", printPrefix, response.GNMIVersion)
 				if viper.GetBool("version") {

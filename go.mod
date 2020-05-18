@@ -3,6 +3,8 @@ module github.com/karimra/gnmiClient
 go 1.13
 
 require (
+	github.com/gogo/protobuf v1.2.1
+	github.com/golang/protobuf v1.4.2
 	github.com/google/gnxi v0.0.0-20191016182648-6697a080bc2d
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/manifoldco/promptui v0.7.0

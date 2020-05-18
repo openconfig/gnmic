@@ -56,7 +56,6 @@ var rootCmd = &cobra.Command{
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		if viper.GetBool("nolog") {
 			f = myWriteCloser{}
-			return
 		}
 		if viper.GetString("log-file") == "" {
 			f = os.Stderr
@@ -105,10 +104,9 @@ func init() {
 	rootCmd.PersistentFlags().BoolP("skip-verify", "", false, "skip verify tls connection")
 	rootCmd.PersistentFlags().BoolP("no-prefix", "", false, "do not add [ip:port] prefix to print output in case of multiple targets")
 	rootCmd.PersistentFlags().BoolP("proxy-from-env", "", false, "use proxy from environment")
-	rootCmd.PersistentFlags().BoolP("raw", "", false, "output messages as received")
+	rootCmd.PersistentFlags().StringP("format", "", "json", "output format, one of: [textproto, json]")
 	rootCmd.PersistentFlags().StringP("log-file", "", "", "log file path")
 	rootCmd.PersistentFlags().BoolP("nolog", "", false, "do not generate logs")
-	rootCmd.PersistentFlags().BoolP("logstdout", "", false, "log to stdout")
 	rootCmd.PersistentFlags().IntP("max-msg-size", "", msgSize, "max grpc msg size")
 	//
 	viper.BindPFlag("address", rootCmd.PersistentFlags().Lookup("address"))
@@ -124,10 +122,9 @@ func init() {
 	viper.BindPFlag("skip-verify", rootCmd.PersistentFlags().Lookup("skip-verify"))
 	viper.BindPFlag("no-prefix", rootCmd.PersistentFlags().Lookup("no-prefix"))
 	viper.BindPFlag("proxy-from-env", rootCmd.PersistentFlags().Lookup("proxy-from-env"))
-	viper.BindPFlag("raw", rootCmd.PersistentFlags().Lookup("raw"))
+	viper.BindPFlag("format", rootCmd.PersistentFlags().Lookup("format"))
 	viper.BindPFlag("log-file", rootCmd.PersistentFlags().Lookup("log-file"))
 	viper.BindPFlag("nolog", rootCmd.PersistentFlags().Lookup("nolog"))
-	viper.BindPFlag("logstdout", rootCmd.PersistentFlags().Lookup("logstdout"))
 	viper.BindPFlag("max-msg-size", rootCmd.PersistentFlags().Lookup("max-msg-size"))
 }
 
@@ -326,4 +323,13 @@ type myWriteCloser struct {
 
 func (myWriteCloser) Close() error {
 	return nil
+}
+
+func indent(prefix, s string) string {
+	if prefix == "" {
+		return s
+	}
+	prefix = "\n" + strings.TrimRight(prefix, "\n")
+	lines := strings.Split(s, "\n")
+	return strings.TrimLeft(fmt.Sprintf("%s%s", prefix, strings.Join(lines, prefix)), "\n")
 }
