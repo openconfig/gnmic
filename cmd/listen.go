@@ -35,18 +35,29 @@ var listenCmd = &cobra.Command{
 
 	RunE: func(cmd *cobra.Command, args []string) error {
 		server := new(dialoutTelemetryServer)
-		address := viper.GetString("address")
+		address := viper.GetStringSlice("address")
+		if len(address) == 0 {
+			return fmt.Errorf("no address specified")
+		}
+		if len(address) > 1 {
+			fmt.Printf("multiple addresses specified, listening only on %s\n", address[0])
+		}
 		var err error
-		server.listener, err = net.Listen("tcp", address)
+		server.listener, err = net.Listen("tcp", address[0])
 		if err != nil {
 			return err
 		}
+		logger.Printf("waiting for connections on %s", address[0])
 		var opts []grpc.ServerOption
 		if viper.GetInt("max-msg-size") > 0 {
 			opts = append(opts, grpc.MaxRecvMsgSize(viper.GetInt("max-msg-size")))
 		}
+		opts = append(opts, grpc.MaxConcurrentStreams(viper.GetUint32("max-concurrent-streams")))
 		server.grpcServer = grpc.NewServer(opts...)
-		//
+		nokiasros.RegisterDialoutTelemetryServer(server.grpcServer, server)
+
+		server.grpcServer.Serve(server.listener)
+		defer server.grpcServer.Stop()
 		return nil
 	},
 }
@@ -54,6 +65,9 @@ var listenCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(listenCmd)
 
+	listenCmd.Flags().Uint32P("max-concurrent-streams", "", 256, "max concurrent streams gnmiClient can receive per transport")
+
+	viper.BindPFlag("max-concurrent-streams", listenCmd.Flags().Lookup("max-concurrent-streams"))
 }
 
 type dialoutTelemetryServer struct {
@@ -61,28 +75,26 @@ type dialoutTelemetryServer struct {
 	grpcServer *grpc.Server
 }
 
-func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_PublishServer) {
+func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_PublishServer) error {
+	peer, ok := peer.FromContext(stream.Context())
+	if ok {
+		logger.Printf("received dialout message from peer: %+v", peer)
+	}
+	md, ok := metadata.FromIncomingContext(stream.Context())
+	if ok {
+		logger.Printf("received dialout Publish:::metadata = %+v", md)
+	}
 	for {
-		peer, ok := peer.FromContext(stream.Context())
-		if ok {
-			logger.Printf("received dialout connection from peer: %+v", peer)
-		}
-		md, ok := metadata.FromIncomingContext(stream.Context())
-		if ok {
-			logger.Printf("received dialout Publish:::metadata = %+v", md)
-		}
-
 		subResp, err := stream.Recv()
-		logger.Printf("%+v", subResp)
 		if err != nil {
 			if err != io.EOF {
-				logger.Printf(fmt.Errorf("GRPC dialout receive error: %v", err))
+				logger.Printf("GRPC dialout receive error: %v", err)
 			}
 			break
 		}
 		err = stream.Send(&nokiasros.PublishResponse{})
 		if err != nil {
-			logger.Debugf("error sending publish response to server: %v", err)
+			logger.Printf("error sending publish response to server: %v", err)
 		}
 		subName := ""
 		if sn, ok := md["subscription-name"]; ok {
@@ -90,7 +102,12 @@ func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_Publi
 				subName = sn[0]
 			}
 		}
-		logger.Debugf("subscription-name: %v", subName)
-
+		systemName, ok := md["system-name"]
+		if !ok {
+			logger.Println("could not find system-name in http2 headers")
+		}
+		printPrefix := fmt.Sprintf("[%s/%s/%s] ", systemName[0], peer.Addr.String(), subName)
+		printSubscribeResponse(printPrefix, subResp)
 	}
+	return nil
 }

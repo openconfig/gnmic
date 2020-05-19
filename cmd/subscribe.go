@@ -344,6 +344,6 @@ func printSubscribeResponse(printPrefix string, subResp *gnmi.SubscribeResponse)
 			logger.Println(err)
 		}
 
-		fmt.Println(string(data))
+		fmt.Printf("%s%s\n", printPrefix, string(data))
 	}
 }
