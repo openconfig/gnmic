@@ -230,10 +230,8 @@ func gnmiPathToXPath(p *gnmi.Path) string {
 func loadCerts(tlscfg *tls.Config) error {
 	tlsCert := viper.GetString("tls-cert")
 	tlsKey := viper.GetString("tls-key")
-	var certificate tls.Certificate
-	var err error
 	if tlsCert != "" && tlsKey != "" {
-		certificate, err = tls.LoadX509KeyPair(tlsCert, tlsKey)
+		certificate, err := tls.LoadX509KeyPair(tlsCert, tlsKey)
 		if err != nil {
 			return err
 		}
@@ -316,7 +314,6 @@ func getValue(updValue *gnmi.TypedValue) (interface{}, error) {
 	}
 	return value, nil
 }
-
 type myWriteCloser struct {
 	io.Writer
 }

@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -95,19 +96,29 @@ type dialoutTelemetryServer struct {
 }
 
 func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_PublishServer) error {
-	peer, ok := peer.FromContext(stream.Context())
-	if ok {
-		logger.Printf("received dialout message from peer: %+v", peer)
-	}
-	md, ok := metadata.FromIncomingContext(stream.Context())
-	if ok {
-		logger.Printf("received dialout Publish:::metadata = %+v", md)
-	}
 	for {
+		peer, ok := peer.FromContext(stream.Context())
+		if ok && viper.GetBool("debug") {
+			b, err := json.Marshal(peer)
+			if err != nil {
+				logger.Printf("failed to marshal peer data: %v", err)
+			} else {
+				logger.Printf("received dialout message from peer=%s", string(b))
+			}
+		}
+		md, ok := metadata.FromIncomingContext(stream.Context())
+		if ok && viper.GetBool("debug") {
+			b, err := json.Marshal(md)
+			if err != nil {
+				logger.Printf("failed to marshal context metadata: %v", err)
+			} else {
+				logger.Printf("received metadata:%s", string(b))
+			}
+		}
 		subResp, err := stream.Recv()
 		if err != nil {
 			if err != io.EOF {
-				logger.Printf("GRPC dialout receive error: %v", err)
+				logger.Printf("gRPC dialout receive error: %v", err)
 			}
 			break
 		}
