@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
@@ -24,6 +25,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
 )
@@ -53,6 +55,23 @@ var listenCmd = &cobra.Command{
 			opts = append(opts, grpc.MaxRecvMsgSize(viper.GetInt("max-msg-size")))
 		}
 		opts = append(opts, grpc.MaxConcurrentStreams(viper.GetUint32("max-concurrent-streams")))
+		if viper.GetString("tls-key") != "" && viper.GetString("tls-cert") != "" {
+			tlsConfig := &tls.Config{
+				Renegotiation:      tls.RenegotiateNever,
+				InsecureSkipVerify: viper.GetBool("skip-verify"),
+			}
+			err := loadCerts(tlsConfig)
+			if err != nil {
+				logger.Printf("failed loading certificates: %v", err)
+			}
+
+			err = loadCACerts(tlsConfig)
+			if err != nil {
+				logger.Printf("failed loading CA certificates: %v", err)
+			}
+			opts = append(opts, grpc.Creds(credentials.NewTLS(tlsConfig)))
+		}
+
 		server.grpcServer = grpc.NewServer(opts...)
 		nokiasros.RegisterDialoutTelemetryServer(server.grpcServer, server)
 
