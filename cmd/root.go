@@ -55,9 +55,8 @@ var rootCmd = &cobra.Command{
 	Short: "run gnmi rpcs from the terminal",
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		if viper.GetBool("nolog") {
-			f = myWriteCloser{}
-		}
-		if viper.GetString("log-file") == "" {
+			f = myWriteCloser{ioutil.Discard}
+		} else if viper.GetString("log-file") == "" {
 			f = os.Stderr
 		} else {
 			var err error
@@ -314,6 +313,7 @@ func getValue(updValue *gnmi.TypedValue) (interface{}, error) {
 	}
 	return value, nil
 }
+
 type myWriteCloser struct {
 	io.Writer
 }
