@@ -33,10 +33,11 @@ import (
 )
 
 type msg struct {
-	Timestamp int64     `json:"timestamp,omitempty"`
-	Prefix    string    `json:"prefix,omitempty"`
-	Updates   []*update `json:"updates,omitempty"`
-	Deletes   []string  `json:"deletes,omitempty"`
+	Timestamp int64      `json:"timestamp,omitempty"`
+	Time      *time.Time `json:"time,omitempty"`
+	Prefix    string     `json:"prefix,omitempty"`
+	Updates   []*update  `json:"updates,omitempty"`
+	Deletes   []string   `json:"deletes,omitempty"`
 }
 type update struct {
 	Path   string
