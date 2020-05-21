@@ -96,25 +96,42 @@ type dialoutTelemetryServer struct {
 }
 
 func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_PublishServer) error {
+	peer, ok := peer.FromContext(stream.Context())
+	if ok && viper.GetBool("debug") {
+		b, err := json.Marshal(peer)
+		if err != nil {
+			logger.Printf("failed to marshal peer data: %v", err)
+		} else {
+			logger.Printf("received dialout message from peer=%s", string(b))
+		}
+	}
+	md, ok := metadata.FromIncomingContext(stream.Context())
+	if ok && viper.GetBool("debug") {
+		b, err := json.Marshal(md)
+		if err != nil {
+			logger.Printf("failed to marshal context metadata: %v", err)
+		} else {
+			logger.Printf("received http2_header=%s", string(b))
+		}
+	}
+	meta := make(map[string]interface{})
+	if sn, ok := md["subscription-name"]; ok {
+		if len(sn) > 0 {
+			meta["subscription-name"] = sn[0]
+		}
+	} else {
+		logger.Println("could not find subscription-name in http2 headers")
+	}
+	meta["source"] = peer.Addr.String()
+	if systemName, ok := md["system-name"]; ok {
+		if len(systemName) > 0 {
+			meta["system-name"] = systemName[0]
+		}
+	} else {
+		logger.Println("could not find system-name in http2 headers")
+	}
+
 	for {
-		peer, ok := peer.FromContext(stream.Context())
-		if ok && viper.GetBool("debug") {
-			b, err := json.Marshal(peer)
-			if err != nil {
-				logger.Printf("failed to marshal peer data: %v", err)
-			} else {
-				logger.Printf("received dialout message from peer=%s", string(b))
-			}
-		}
-		md, ok := metadata.FromIncomingContext(stream.Context())
-		if ok && viper.GetBool("debug") {
-			b, err := json.Marshal(md)
-			if err != nil {
-				logger.Printf("failed to marshal context metadata: %v", err)
-			} else {
-				logger.Printf("received metadata:%s", string(b))
-			}
-		}
 		subResp, err := stream.Recv()
 		if err != nil {
 			if err != io.EOF {
@@ -126,18 +143,8 @@ func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_Publi
 		if err != nil {
 			logger.Printf("error sending publish response to server: %v", err)
 		}
-		subName := ""
-		if sn, ok := md["subscription-name"]; ok {
-			if len(sn) > 0 {
-				subName = sn[0]
-			}
-		}
-		systemName, ok := md["system-name"]
-		if !ok {
-			logger.Println("could not find system-name in http2 headers")
-		}
-		printPrefix := fmt.Sprintf("[%s/%s/%s] ", systemName[0], peer.Addr.String(), subName)
-		printSubscribeResponse(printPrefix, subResp)
+
+		printSubscribeResponse(meta, subResp)
 	}
 	return nil
 }
