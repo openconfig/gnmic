@@ -132,7 +132,7 @@ var subscribeCmd = &cobra.Command{
 						}
 						switch resp := subscribeRsp.Response.(type) {
 						case *gnmi.SubscribeResponse_Update:
-							printSubscribeResponse(nil, subscribeRsp)
+							printSubscribeResponse(map[string]interface{}{"source": address}, subscribeRsp)
 						case *gnmi.SubscribeResponse_SyncResponse:
 							logger.Printf("received sync response=%+v from %s\n", resp.SyncResponse, address)
 							if subscReq.GetSubscribe().Mode == gnmi.SubscriptionList_ONCE {
@@ -162,7 +162,7 @@ var subscribeCmd = &cobra.Command{
 						}
 						switch resp := subscribeRsp.Response.(type) {
 						case *gnmi.SubscribeResponse_Update:
-							printSubscribeResponse(nil, subscribeRsp)
+							printSubscribeResponse(map[string]interface{}{"source": address}, subscribeRsp)
 						case *gnmi.SubscribeResponse_SyncResponse:
 							fmt.Printf("%ssync response: %+v\n", printPrefix, resp.SyncResponse)
 						}
