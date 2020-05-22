@@ -6,14 +6,14 @@ require (
 	github.com/gogo/protobuf v1.2.1
 	github.com/golang/protobuf v1.4.2
 	github.com/google/gnxi v0.0.0-20191016182648-6697a080bc2d
-	github.com/kylelemons/godebug v1.1.0 // indirect
+	github.com/karimra/sros-dialout v0.0.0-20200518085040-c759bf74063a
 	github.com/manifoldco/promptui v0.7.0
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/openconfig/gnmi v0.0.0-20190823184014-89b2bf29312c
+	github.com/openconfig/gnmi v0.0.0-20200508230933-d19cebf5e7be
 	github.com/openconfig/goyang v0.0.0-20200309174518-a00bece872fc
 	github.com/spf13/cobra v0.0.6
 	github.com/spf13/viper v1.6.2
-	golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2
+	golang.org/x/crypto v0.0.0-20200302210943-78000ba7a073
 	google.golang.org/grpc v1.29.1
 	gopkg.in/yaml.v2 v2.2.4
 )

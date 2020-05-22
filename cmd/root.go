@@ -55,9 +55,8 @@ var rootCmd = &cobra.Command{
 	Short: "run gnmi rpcs from the terminal",
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		if viper.GetBool("nolog") {
-			f = myWriteCloser{}
-		}
-		if viper.GetString("log-file") == "" {
+			f = myWriteCloser{ioutil.Discard}
+		} else if viper.GetString("log-file") == "" {
 			f = os.Stderr
 		} else {
 			var err error
@@ -230,10 +229,8 @@ func gnmiPathToXPath(p *gnmi.Path) string {
 func loadCerts(tlscfg *tls.Config) error {
 	tlsCert := viper.GetString("tls-cert")
 	tlsKey := viper.GetString("tls-key")
-	var certificate tls.Certificate
-	var err error
 	if tlsCert != "" && tlsKey != "" {
-		certificate, err = tls.LoadX509KeyPair(tlsCert, tlsKey)
+		certificate, err := tls.LoadX509KeyPair(tlsCert, tlsKey)
 		if err != nil {
 			return err
 		}

@@ -33,11 +33,15 @@ import (
 )
 
 type msg struct {
-	Timestamp int64      `json:"timestamp,omitempty"`
-	Time      *time.Time `json:"time,omitempty"`
-	Prefix    string     `json:"prefix,omitempty"`
-	Updates   []*update  `json:"updates,omitempty"`
-	Deletes   []string   `json:"deletes,omitempty"`
+	Meta             map[string]interface{} `json:"meta,omitempty"`
+	Source           string                 `json:"source,omitempty"`
+	SystemName       string                 `json:"system-name,omitempty"`
+	SubscriptionName string                 `json:"subscription-name,omitempty"`
+	Timestamp        int64                  `json:"timestamp,omitempty"`
+	Time             *time.Time             `json:"time,omitempty"`
+	Prefix           string                 `json:"prefix,omitempty"`
+	Updates          []*update              `json:"updates,omitempty"`
+	Deletes          []string               `json:"deletes,omitempty"`
 }
 type update struct {
 	Path   string
@@ -128,9 +132,9 @@ var subscribeCmd = &cobra.Command{
 						}
 						switch resp := subscribeRsp.Response.(type) {
 						case *gnmi.SubscribeResponse_Update:
-							printSubscribeResponse(printPrefix, subscribeRsp)
+							printSubscribeResponse(map[string]interface{}{"source": address}, subscribeRsp)
 						case *gnmi.SubscribeResponse_SyncResponse:
-							fmt.Printf("%ssync response: %+v\n", printPrefix, resp.SyncResponse)
+							logger.Printf("received sync response=%+v from %s\n", resp.SyncResponse, address)
 							if subscReq.GetSubscribe().Mode == gnmi.SubscriptionList_ONCE {
 								return
 							}
@@ -158,7 +162,7 @@ var subscribeCmd = &cobra.Command{
 						}
 						switch resp := subscribeRsp.Response.(type) {
 						case *gnmi.SubscribeResponse_Update:
-							printSubscribeResponse(printPrefix, subscribeRsp)
+							printSubscribeResponse(map[string]interface{}{"source": address}, subscribeRsp)
 						case *gnmi.SubscribeResponse_SyncResponse:
 							fmt.Printf("%ssync response: %+v\n", printPrefix, resp.SyncResponse)
 						}
@@ -309,17 +313,31 @@ func createSubscribeRequest() (*gnmi.SubscribeRequest, error) {
 	}, nil
 }
 
-func printSubscribeResponse(printPrefix string, subResp *gnmi.SubscribeResponse) {
+func printSubscribeResponse(meta map[string]interface{}, subResp *gnmi.SubscribeResponse) {
 	switch resp := subResp.Response.(type) {
 	case *gnmi.SubscribeResponse_Update:
 		if viper.GetString("format") == "textproto" {
-			fmt.Printf("%s\n", indent(printPrefix, proto.MarshalTextString(subResp)))
+			fmt.Printf("%s\n", proto.MarshalTextString(subResp))
 			return
 		}
-		fmt.Printf("%supdate received at %s\n", printPrefix, time.Now().Format(time.RFC3339Nano))
 		msg := new(msg)
 		msg.Timestamp = resp.Update.Timestamp
+		t := time.Unix(0, resp.Update.Timestamp)
+		msg.Time = &t
+		if meta == nil {
+			meta = make(map[string]interface{})
+		}
 		msg.Prefix = gnmiPathToXPath(resp.Update.Prefix)
+		var ok bool
+		if _, ok = meta["source"]; ok {
+			msg.Source = fmt.Sprintf("%s", meta["source"])
+		}
+		if _, ok = meta["system-name"]; ok {
+			msg.SystemName = fmt.Sprintf("%s", meta["system-name"])
+		}
+		if _, ok = meta["subscription-name"]; ok {
+			msg.SubscriptionName = fmt.Sprintf("%s", meta["subscription-name"])
+		}
 		for i, upd := range resp.Update.Update {
 			pathElems := make([]string, 0, len(upd.Path.Elem))
 			for _, pElem := range upd.Path.Elem {
@@ -340,11 +358,10 @@ func printSubscribeResponse(printPrefix string, subResp *gnmi.SubscribeResponse)
 		for _, del := range resp.Update.Delete {
 			msg.Deletes = append(msg.Deletes, gnmiPathToXPath(del))
 		}
-		data, err := json.MarshalIndent(msg, printPrefix, "  ")
+		data, err := json.MarshalIndent(msg, "", "  ")
 		if err != nil {
 			logger.Println(err)
 		}
-
-		fmt.Println(string(data))
+		fmt.Printf("%s\n", string(data))
 	}
 }
