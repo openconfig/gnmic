@@ -102,7 +102,7 @@ func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_Publi
 		if err != nil {
 			logger.Printf("failed to marshal peer data: %v", err)
 		} else {
-			logger.Printf("received dialout message from peer=%s", string(b))
+			logger.Printf("received Publish RPC from peer=%s", string(b))
 		}
 	}
 	md, ok := metadata.FromIncomingContext(stream.Context())
