@@ -15,7 +15,7 @@ echo "Downloading $FNAME..."
 tar -xzf /tmp/${FNAME} -C /tmp
 echo "Moving gnmiClient to /usr/local/bin"
 echo
-mv /tmp/gnmiClient /usr/local/bin
+mv -f /tmp/gnmiClient /usr/local/bin
 /usr/local/bin/gnmiClient version
 echo
 echo "Installation complete!"
