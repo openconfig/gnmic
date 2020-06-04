@@ -23,7 +23,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 	"github.com/google/gnxi/utils/xpath"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
@@ -178,7 +178,7 @@ func init() {
 
 func printGetResponse(printPrefix string, response *gnmi.GetResponse) {
 	if viper.GetString("format") == "textproto" {
-		fmt.Printf("%s\n", indent(printPrefix, proto.MarshalTextString(response)))
+		fmt.Printf("%s\n", proto.MarshalTextString(response))
 		return
 	}
 	for _, notif := range response.Notification {
