@@ -65,7 +65,7 @@ var getCmd = &cobra.Command{
 			Path:      make([]*gnmi.Path, 0),
 			Encoding:  gnmi.Encoding(encodingVal),
 		}
-		model := viper.GetString("get-model")
+		models := viper.GetStringSlice("get-model")
 		prefix := viper.GetString("get-prefix")
 		if prefix != "" {
 			gnmiPrefix, err := xpath.ToGNMIPath(prefix)
@@ -115,31 +115,27 @@ var getCmd = &cobra.Command{
 				defer cancel()
 				ctx = metadata.AppendToOutgoingContext(ctx, "username", username, "password", password)
 				xreq := req
-				if model != "" {
+				if len(models) > 0 {
 					capResp, err := client.Capabilities(ctx, &gnmi.CapabilityRequest{})
 					if err != nil {
 						logger.Printf("%v", err)
 						return
 					}
-					var found bool
+					notFoundModels := make(map[string]interface{})
+					for _, md := range models {
+						notFoundModels[md] = nil
+					}
 					for _, m := range capResp.SupportedModels {
-						if m.Name == model {
+						if stringInList(m.Name, models) {
 							if debug {
 								logger.Printf("target %s: found model: %v\n", address, m)
 							}
-							xreq.UseModels = append(xreq.UseModels,
-								&gnmi.ModelData{
-									Name:         model,
-									Organization: m.Organization,
-									Version:      m.Version,
-								})
-							found = true
-							break
+							xreq.UseModels = append(xreq.UseModels, m)
+							delete(notFoundModels, m.Name)
 						}
 					}
-					if !found {
-						logger.Printf("model '%s' not supported by target %s", model, address)
-						return
+					for md := range notFoundModels {
+						logger.Printf("model '%s' not supported by target %s", md, address)
 					}
 				}
 				logger.Printf("sending gnmi GetRequest '%+v' to %s", xreq, address)
@@ -168,7 +164,7 @@ func init() {
 	getCmd.Flags().StringSliceP("path", "", []string{""}, "get request paths")
 	getCmd.MarkFlagRequired("path")
 	getCmd.Flags().StringP("prefix", "", "", "get request prefix")
-	getCmd.Flags().StringP("model", "", "", "get request model")
+	getCmd.Flags().StringSliceP("model", "", []string{""}, "get request model(s)")
 	getCmd.Flags().StringP("type", "t", "ALL", "the type of data that is requested from the target. one of: ALL, CONFIG, STATE, OPERATIONAL")
 	viper.BindPFlag("get-path", getCmd.Flags().Lookup("path"))
 	viper.BindPFlag("get-prefix", getCmd.Flags().Lookup("prefix"))
@@ -217,4 +213,13 @@ func printGetResponse(printPrefix string, response *gnmi.GetResponse) {
 		fmt.Printf("%s%s\n", printPrefix, string(dMsg))
 	}
 	fmt.Println()
+}
+
+func stringInList(s string, l []string) bool {
+	for _, ss := range l {
+		if s == ss {
+			return true
+		}
+	}
+	return false
 }
