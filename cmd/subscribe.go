@@ -249,7 +249,7 @@ func createSubscribeRequest() (*gnmi.SubscribeRequest, error) {
 	}
 	subscriptions := make([]*gnmi.Subscription, len(paths))
 	for i, p := range paths {
-		gnmiPath, err := xpath.ToGNMIPath(p)
+		gnmiPath, err := xpath.ToGNMIPath(strings.TrimSpace(p))
 		if err != nil {
 			return nil, fmt.Errorf("path parse error: %v", err)
 		}

@@ -76,7 +76,7 @@ var getCmd = &cobra.Command{
 		}
 		paths := viper.GetStringSlice("get-path")
 		for _, p := range paths {
-			gnmiPath, err := xpath.ToGNMIPath(p)
+			gnmiPath, err := xpath.ToGNMIPath(strings.TrimSpace(p))
 			if err != nil {
 				return fmt.Errorf("path parse error: %v", err)
 			}
