@@ -59,6 +59,7 @@ var capabilitiesCmd = &cobra.Command{
 		wg := new(sync.WaitGroup)
 		wg.Add(len(addresses))
 		req := &gnmi.CapabilityRequest{}
+		lock := new(sync.Mutex)
 		for _, addr := range addresses {
 			go func(address string) {
 				defer wg.Done()
@@ -91,6 +92,8 @@ var capabilitiesCmd = &cobra.Command{
 				if len(addresses) > 1 && !viper.GetBool("no-prefix") {
 					printPrefix = fmt.Sprintf("[%s] ", address)
 				}
+				lock.Lock()
+				defer lock.Unlock()
 				if viper.GetString("format") == "textproto" {
 					rsp := proto.MarshalTextString(response)
 					fmt.Println(indent(printPrefix, rsp))

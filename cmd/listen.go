@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sync"
 
 	nokiasros "github.com/karimra/sros-dialout"
 	"github.com/spf13/cobra"
@@ -130,7 +131,7 @@ func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_Publi
 	} else {
 		logger.Println("could not find system-name in http2 headers")
 	}
-
+	lock := new(sync.Mutex)
 	for {
 		subResp, err := stream.Recv()
 		if err != nil {
@@ -143,8 +144,9 @@ func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_Publi
 		if err != nil {
 			logger.Printf("error sending publish response to server: %v", err)
 		}
-
+		lock.Lock()
 		printSubscribeResponse(meta, subResp)
+		lock.Unlock()
 	}
 	return nil
 }
