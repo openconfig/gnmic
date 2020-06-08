@@ -117,6 +117,8 @@ var subscribeCmd = &cobra.Command{
 					logger.Printf("error creating subscribe client: %v", err)
 					return
 				}
+				logger.Printf("sending gnmi SubscribeRequest: subscribe='%+v', mode='%+v', encoding='%+v', to %s",
+					subscReq, subscReq.GetSubscribe().GetMode(), subscReq.GetSubscribe().GetEncoding(), address)
 				err = subscribeClient.Send(subscReq)
 				if err != nil {
 					logger.Printf("subscribe error: %v", err)
