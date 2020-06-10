@@ -37,6 +37,9 @@ var getCmd = &cobra.Command{
 	Short: "run gnmi get on targets",
 
 	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		setupCloseHandler(cancel)
 		debug := viper.GetBool("debug")
 		var err error
 		addresses := viper.GetStringSlice("address")
@@ -111,12 +114,12 @@ var getCmd = &cobra.Command{
 					return
 				}
 				client := gnmi.NewGNMIClient(conn)
-				ctx, cancel := context.WithCancel(context.Background())
+				nctx, cancel := context.WithCancel(ctx)
 				defer cancel()
-				ctx = metadata.AppendToOutgoingContext(ctx, "username", username, "password", password)
+				nctx = metadata.AppendToOutgoingContext(nctx, "username", username, "password", password)
 				xreq := req
 				if model != "" {
-					capResp, err := client.Capabilities(ctx, &gnmi.CapabilityRequest{})
+					capResp, err := client.Capabilities(nctx, &gnmi.CapabilityRequest{})
 					if err != nil {
 						logger.Printf("%v", err)
 						return
@@ -143,7 +146,7 @@ var getCmd = &cobra.Command{
 					}
 				}
 				logger.Printf("sending gnmi GetRequest '%+v' to %s", xreq, address)
-				response, err := client.Get(ctx, xreq)
+				response, err := client.Get(nctx, xreq)
 				if err != nil {
 					logger.Printf("failed sending GetRequest to %s: %v", address, err)
 					return
