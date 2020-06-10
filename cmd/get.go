@@ -67,7 +67,6 @@ var getCmd = &cobra.Command{
 			Path:      make([]*gnmi.Path, 0),
 			Encoding:  gnmi.Encoding(encodingVal),
 		}
-		models := viper.GetStringSlice("get-model")
 		prefix := viper.GetString("get-prefix")
 		if prefix != "" {
 			gnmiPrefix, err := xpath.ToGNMIPath(prefix)
@@ -96,75 +95,66 @@ var getCmd = &cobra.Command{
 		wg.Add(len(addresses))
 		lock := new(sync.Mutex)
 		for _, addr := range addresses {
-			go func(address string) {
-				defer wg.Done()
-				_, _, err := net.SplitHostPort(address)
-				if err != nil {
-					if strings.Contains(err.Error(), "missing port in address") {
-						address = net.JoinHostPort(address, defaultGrpcPort)
-					} else {
-						logger.Printf("error parsing address '%s': %v", address, err)
-						return
-					}
-				}
-				conn, err := createGrpcConn(address)
-				if err != nil {
-					logger.Printf("connection to %s failed: %v", address, err)
-					return
-				}
-				client := gnmi.NewGNMIClient(conn)
-				nctx, cancel := context.WithCancel(ctx)
-				defer cancel()
-				nctx = metadata.AppendToOutgoingContext(nctx, "username", username, "password", password)
-				xreq := req
-				if len(models) > 0 {
-					spModels, unspModels, err := filterModels(ctx, client, models)
-					if err != nil {
-						logger.Printf("failed getting supported models from '%s': %v", address, err)
-						return
-					}
-					if len(unspModels) > 0 {
-						logger.Printf("found unsupported models for target '%s': %+v", address, unspModels)
-					}
-					for _, m := range spModels {
-						xreq.UseModels = append(xreq.UseModels, m)
-					}
-				}
-				logger.Printf("sending gNMI GetRequest: prefix='%v', path='%v', type='%v', encoding='%v', models='%+v', extension='%+v' to %s", xreq.Prefix, xreq.Path, xreq.Type, xreq.Encoding, xreq.UseModels, xreq.Extension, address)
-				response, err := client.Get(nctx, xreq)
-				if err != nil {
-					logger.Printf("failed sending GetRequest to %s: %v", address, err)
-					return
-				}
-				printPrefix := ""
-				if len(addresses) > 1 && !viper.GetBool("no-prefix") {
-					printPrefix = fmt.Sprintf("[%s] ", address)
-				}
-				lock.Lock()
-				printGetResponse(printPrefix, response)
-				lock.Unlock()
-			}(addr)
+			go reqGet(ctx, req, addr, username, password, wg, lock)
 		}
 		wg.Wait()
 		return nil
 	},
 }
 
-func init() {
-	rootCmd.AddCommand(getCmd)
+func reqGet(ctx context.Context, req *gnmi.GetRequest, address, username, password string, wg *sync.WaitGroup, lock *sync.Mutex) {
+	defer wg.Done()
+	_, _, err := net.SplitHostPort(address)
+	if err != nil {
+		if strings.Contains(err.Error(), "missing port in address") {
+			address = net.JoinHostPort(address, defaultGrpcPort)
+		} else {
+			logger.Printf("error parsing address '%s': %v", address, err)
+			return
+		}
+	}
+	conn, err := createGrpcConn(address)
+	if err != nil {
+		logger.Printf("connection to %s failed: %v", address, err)
+		return
+	}
+	client := gnmi.NewGNMIClient(conn)
+	nctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	nctx = metadata.AppendToOutgoingContext(nctx, "username", username, "password", password)
+	xreq := req
+	models := viper.GetStringSlice("get-model")
+	if len(models) > 0 {
+		spModels, unspModels, err := filterModels(ctx, client, models)
+		if err != nil {
+			logger.Printf("failed getting supported models from '%s': %v", address, err)
+			return
+		}
+		if len(unspModels) > 0 {
+			logger.Printf("found unsupported models for target '%s': %+v", address, unspModels)
+		}
+		for _, m := range spModels {
+			xreq.UseModels = append(xreq.UseModels, m)
+		}
+	}
+	logger.Printf("sending gNMI GetRequest: prefix='%v', path='%v', type='%v', encoding='%v', models='%+v', extension='%+v' to %s", xreq.Prefix, xreq.Path, xreq.Type, xreq.Encoding, xreq.UseModels, xreq.Extension, address)
+	response, err := client.Get(nctx, xreq)
+	if err != nil {
+		logger.Printf("failed sending GetRequest to %s: %v", address, err)
+		return
+	}
 
-	getCmd.Flags().StringSliceP("path", "", []string{""}, "get request paths")
-	getCmd.MarkFlagRequired("path")
-	getCmd.Flags().StringP("prefix", "", "", "get request prefix")
-	getCmd.Flags().StringSliceP("model", "", []string{""}, "get request model(s)")
-	getCmd.Flags().StringP("type", "t", "ALL", "the type of data that is requested from the target. one of: ALL, CONFIG, STATE, OPERATIONAL")
-	viper.BindPFlag("get-path", getCmd.Flags().Lookup("path"))
-	viper.BindPFlag("get-prefix", getCmd.Flags().Lookup("prefix"))
-	viper.BindPFlag("get-model", getCmd.Flags().Lookup("model"))
-	viper.BindPFlag("get-type", getCmd.Flags().Lookup("type"))
+	lock.Lock()
+	printGetResponse(address, response)
+	lock.Unlock()
 }
 
-func printGetResponse(printPrefix string, response *gnmi.GetResponse) {
+func printGetResponse(address string, response *gnmi.GetResponse) {
+	printPrefix := ""
+	addresses := viper.GetStringSlice("address")
+	if len(addresses) > 1 && !viper.GetBool("no-prefix") {
+		printPrefix = fmt.Sprintf("[%s] ", address)
+	}
 	if viper.GetString("format") == "textproto" {
 		fmt.Printf("%s\n", indent(printPrefix, prototext.Format(response)))
 		return
@@ -214,4 +204,18 @@ func stringInList(s string, l []string) bool {
 		}
 	}
 	return false
+}
+
+func init() {
+	rootCmd.AddCommand(getCmd)
+
+	getCmd.Flags().StringSliceP("path", "", []string{""}, "get request paths")
+	getCmd.MarkFlagRequired("path")
+	getCmd.Flags().StringP("prefix", "", "", "get request prefix")
+	getCmd.Flags().StringSliceP("model", "", []string{""}, "get request model(s)")
+	getCmd.Flags().StringP("type", "t", "ALL", "the type of data that is requested from the target. one of: ALL, CONFIG, STATE, OPERATIONAL")
+	viper.BindPFlag("get-path", getCmd.Flags().Lookup("path"))
+	viper.BindPFlag("get-prefix", getCmd.Flags().Lookup("prefix"))
+	viper.BindPFlag("get-model", getCmd.Flags().Lookup("model"))
+	viper.BindPFlag("get-type", getCmd.Flags().Lookup("type"))
 }
