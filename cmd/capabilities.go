@@ -61,78 +61,77 @@ var capabilitiesCmd = &cobra.Command{
 		}
 		wg := new(sync.WaitGroup)
 		wg.Add(len(addresses))
-		req := &gnmi.CapabilityRequest{}
 		lock := new(sync.Mutex)
 		for _, addr := range addresses {
-			go func(address string) {
-				defer wg.Done()
-				_, _, err := net.SplitHostPort(address)
-				if err != nil {
-					if strings.Contains(err.Error(), "missing port in address") {
-						address = net.JoinHostPort(address, defaultGrpcPort)
-					} else {
-						logger.Printf("error parsing address '%s': %v", address, err)
-						return
-					}
-				}
-				conn, err := createGrpcConn(address)
-				if err != nil {
-					logger.Printf("connection to %s failed: %v", address, err)
-					return
-				}
-				client := gnmi.NewGNMIClient(conn)
-
-				nctx, cancel := context.WithCancel(ctx)
-				defer cancel()
-				nctx = metadata.AppendToOutgoingContext(nctx, "username", username, "password", password)
-
-				response, err := client.Capabilities(nctx, req)
-				if err != nil {
-					logger.Printf("error sending capabilities request: %v", err)
-					return
-				}
-				printPrefix := ""
-				if len(addresses) > 1 && !viper.GetBool("no-prefix") {
-					printPrefix = fmt.Sprintf("[%s] ", address)
-				}
-				lock.Lock()
-				defer lock.Unlock()
-				if viper.GetString("format") == "textproto" {
-					rsp := proto.MarshalTextString(response)
-					fmt.Println(indent(printPrefix, rsp))
-					return
-				}
-				fmt.Printf("%sgNMI version: %s\n", printPrefix, response.GNMIVersion)
-				if viper.GetBool("version") {
-					return
-				}
-				fmt.Printf("%ssupported models:\n", printPrefix)
-				for _, sm := range response.SupportedModels {
-					fmt.Printf("%s  - %s, %s, %s\n", printPrefix, sm.GetName(), sm.GetOrganization(), sm.GetVersion())
-				}
-				fmt.Printf("%ssupported encodings:\n", printPrefix)
-				for _, se := range response.SupportedEncodings {
-					fmt.Printf("%s  - %s\n", printPrefix, se.String())
-				}
-				fmt.Println()
-			}(addr)
+			go reqCapability(ctx, addr, username, password, wg, lock)
 		}
 		wg.Wait()
 		return nil
 	},
 }
 
+func reqCapability(ctx context.Context, address, username, password string, wg *sync.WaitGroup, m *sync.Mutex) error {
+	defer wg.Done()
+	_, _, err := net.SplitHostPort(address)
+	if err != nil {
+		if strings.Contains(err.Error(), "missing port in address") {
+			address = net.JoinHostPort(address, defaultGrpcPort)
+		} else {
+			logger.Printf("error parsing address '%s': %v", address, err)
+			return err
+		}
+	}
+	conn, err := createGrpcConn(address)
+	if err != nil {
+		logger.Printf("connection to %s failed: %v", address, err)
+		return err
+	}
+	client := gnmi.NewGNMIClient(conn)
+
+	nctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	nctx = metadata.AppendToOutgoingContext(nctx, "username", username, "password", password)
+
+	req := &gnmi.CapabilityRequest{}
+	response, err := client.Capabilities(nctx, req)
+	if err != nil {
+		logger.Printf("error sending capabilities request: %v", err)
+		return err
+	}
+	m.Lock()
+	printCapResponse(response, address)
+	m.Unlock()
+	return nil
+}
+
+func printCapResponse(r *gnmi.CapabilityResponse, address string) {
+	printPrefix := ""
+	addresses := viper.GetStringSlice("address")
+	if len(addresses) > 1 && !viper.GetBool("no-prefix") {
+		printPrefix = fmt.Sprintf("[%s] ", address)
+	}
+	if viper.GetString("format") == "textproto" {
+		rsp := proto.MarshalTextString(r)
+		fmt.Println(indent(printPrefix, rsp))
+		return
+	}
+	fmt.Printf("%sgNMI version: %s\n", printPrefix, r.GNMIVersion)
+	if viper.GetBool("version") {
+		return
+	}
+	fmt.Printf("%ssupported models:\n", printPrefix)
+	for _, sm := range r.SupportedModels {
+		fmt.Printf("%s  - %s, %s, %s\n", printPrefix, sm.GetName(), sm.GetOrganization(), sm.GetVersion())
+	}
+	fmt.Printf("%ssupported encodings:\n", printPrefix)
+	for _, se := range r.SupportedEncodings {
+		fmt.Printf("%s  - %s\n", printPrefix, se.String())
+	}
+	fmt.Println()
+}
+
 func init() {
 	rootCmd.AddCommand(capabilitiesCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// capabilitiesCmd.PersistentFlags().String("foo", "", "A help for foo")
 	capabilitiesCmd.Flags().BoolVarP(&printVersion, "version", "", false, "show gnmi version only")
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// capabilitiesCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 	viper.BindPFlag("version", capabilitiesCmd.Flags().Lookup("version"))
 }
