@@ -96,7 +96,7 @@ var capabilitiesCmd = &cobra.Command{
 					fmt.Println(indent(printPrefix, rsp))
 					return
 				}
-				fmt.Printf("%sgNMI_Version: %s\n", printPrefix, response.GNMIVersion)
+				fmt.Printf("%sgNMI version: %s\n", printPrefix, response.GNMIVersion)
 				if viper.GetBool("version") {
 					return
 				}
