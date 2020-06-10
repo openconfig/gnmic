@@ -21,10 +21,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/encoding/prototext"
 
 	"github.com/spf13/cobra"
 )
@@ -93,6 +93,7 @@ func reqCapability(ctx context.Context, address, username, password string, wg *
 	nctx = metadata.AppendToOutgoingContext(nctx, "username", username, "password", password)
 
 	req := &gnmi.CapabilityRequest{}
+	logger.Printf("sending gNMI CapabilityRequest: gnmi_ext.Extension='%v' to %s", req.Extension, address)
 	response, err := client.Capabilities(nctx, req)
 	if err != nil {
 		logger.Printf("error sending capabilities request: %v", err)
@@ -111,8 +112,7 @@ func printCapResponse(r *gnmi.CapabilityResponse, address string) {
 		printPrefix = fmt.Sprintf("[%s] ", address)
 	}
 	if viper.GetString("format") == "textproto" {
-		rsp := proto.MarshalTextString(r)
-		fmt.Println(indent(printPrefix, rsp))
+		fmt.Printf("%s\n", indent(printPrefix, prototext.Format(r)))
 		return
 	}
 	fmt.Printf("%sgNMI version: %s\n", printPrefix, r.GNMIVersion)
