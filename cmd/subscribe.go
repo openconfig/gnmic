@@ -26,6 +26,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/google/gnxi/utils/xpath"
+	"github.com/manifoldco/promptui"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -80,8 +81,16 @@ var subscribeCmd = &cobra.Command{
 		polledSubsChan := make(map[string]chan struct{})
 		waitChan := make(chan struct{})
 		if subscReq.GetSubscribe().Mode == gnmi.SubscriptionList_POLL {
-			for _, addr := range addresses {
-				polledSubsChan[addr] = make(chan struct{})
+			for i := range addresses {
+				_, _, err := net.SplitHostPort(addresses[i])
+				if err != nil {
+					if strings.Contains(err.Error(), "missing port in address") {
+						addresses[i] = net.JoinHostPort(addresses[i], defaultGrpcPort)
+					} else {
+						continue
+					}
+				}
+				polledSubsChan[addresses[i]] = make(chan struct{})
 			}
 		}
 		wg := new(sync.WaitGroup)
@@ -146,49 +155,54 @@ var subscribeCmd = &cobra.Command{
 					}
 				case gnmi.SubscriptionList_POLL:
 					for {
-						<-polledSubsChan[address]
-						err = subscribeClient.Send(&gnmi.SubscribeRequest{
-							Request: &gnmi.SubscribeRequest_Poll{
-								Poll: &gnmi.Poll{},
-							},
-						})
-						if err != nil {
-							logger.Printf("error sending poll request:%v", err)
+						select {
+						case <-polledSubsChan[address]:
+							err = subscribeClient.Send(&gnmi.SubscribeRequest{
+								Request: &gnmi.SubscribeRequest_Poll{
+									Poll: &gnmi.Poll{},
+								},
+							})
+							if err != nil {
+								logger.Printf("error sending poll request:%v", err)
+								waitChan <- struct{}{}
+								continue
+							}
+							subscribeRsp, err := subscribeClient.Recv()
+							if err != nil {
+								logger.Printf("rcv error: %v", err)
+								waitChan <- struct{}{}
+								continue
+							}
+							switch resp := subscribeRsp.Response.(type) {
+							case *gnmi.SubscribeResponse_Update:
+								printSubscribeResponse(map[string]interface{}{"source": address}, subscribeRsp)
+							case *gnmi.SubscribeResponse_SyncResponse:
+								fmt.Printf("%ssync response: %+v\n", printPrefix, resp.SyncResponse)
+							}
 							waitChan <- struct{}{}
-							continue
 						}
-						subscribeRsp, err := subscribeClient.Recv()
-						if err != nil {
-							logger.Printf("rcv error: %v", err)
-							waitChan <- struct{}{}
-							continue
-						}
-						switch resp := subscribeRsp.Response.(type) {
-						case *gnmi.SubscribeResponse_Update:
-							printSubscribeResponse(map[string]interface{}{"source": address}, subscribeRsp)
-						case *gnmi.SubscribeResponse_SyncResponse:
-							fmt.Printf("%ssync response: %+v\n", printPrefix, resp.SyncResponse)
-						}
-						waitChan <- struct{}{}
 					}
 				}
 			}(addr)
 		}
 		if subscReq.GetSubscribe().Mode == gnmi.SubscriptionList_POLL {
-			var address string
 			for {
-				fmt.Print("target to poll(ip:port): ")
-				_, err := fmt.Scan(&address)
+				s := promptui.Select{
+					Label:        "select target to poll",
+					Items:        addresses,
+					HideSelected: true,
+				}
+				_, addr, err := s.Run()
 				if err != nil {
-					fmt.Printf("%v\n", err)
+					fmt.Printf("failed selecting target to poll: %v\n", err)
 					continue
 				}
-				c, ok := polledSubsChan[address]
-				if !ok {
-					fmt.Printf("unknown target: %s\n", address)
+				if _, ok := polledSubsChan[addr]; !ok {
+					fmt.Printf("unknown target: %s\n", addr)
 					continue
 				}
-				c <- struct{}{}
+				logger.Printf("polling address '%s'", addr)
+				polledSubsChan[addr] <- struct{}{}
 				<-waitChan
 			}
 		}
