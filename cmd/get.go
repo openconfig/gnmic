@@ -37,6 +37,10 @@ var getCmd = &cobra.Command{
 	Short: "run gnmi get on targets",
 
 	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		setupCloseHandler(cancel)
+		debug := viper.GetBool("debug")
 		var err error
 		addresses := viper.GetStringSlice("address")
 		if len(addresses) == 0 {
@@ -75,7 +79,7 @@ var getCmd = &cobra.Command{
 		}
 		paths := viper.GetStringSlice("get-path")
 		for _, p := range paths {
-			gnmiPath, err := xpath.ToGNMIPath(p)
+			gnmiPath, err := xpath.ToGNMIPath(strings.TrimSpace(p))
 			if err != nil {
 				return fmt.Errorf("path parse error: %v", err)
 			}
@@ -110,9 +114,9 @@ var getCmd = &cobra.Command{
 					return
 				}
 				client := gnmi.NewGNMIClient(conn)
-				ctx, cancel := context.WithCancel(context.Background())
+				nctx, cancel := context.WithCancel(ctx)
 				defer cancel()
-				ctx = metadata.AppendToOutgoingContext(ctx, "username", username, "password", password)
+				nctx = metadata.AppendToOutgoingContext(nctx, "username", username, "password", password)
 				xreq := req
 				if len(models) > 0 {
 					spModels, unspModels, err := filterModels(ctx, client, models)
@@ -128,7 +132,7 @@ var getCmd = &cobra.Command{
 					}
 				}
 				logger.Printf("sending gnmi GetRequest: prefix='%v', path='%v', encoding='%v', data-type='%v', models='%+v' to %s", xreq.Prefix, xreq.Path, xreq.Encoding, xreq.Type, xreq.UseModels, address)
-				response, err := client.Get(ctx, xreq)
+				response, err := client.Get(nctx, xreq)
 				if err != nil {
 					logger.Printf("failed sending GetRequest to %s: %v", address, err)
 					return

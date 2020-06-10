@@ -25,7 +25,9 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	homedir "github.com/mitchellh/go-homedir"
@@ -353,4 +355,14 @@ func filterModels(ctx context.Context, client gnmi.GNMIClient, modelsNames []str
 		}
 	}
 	return supportedModels, unsupportedModels, nil
+}
+func setupCloseHandler(cancelFn context.CancelFunc) {
+	c := make(chan os.Signal)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGINT, syscall.SIGKILL)
+	go func() {
+		sig := <-c
+		fmt.Printf("received signal '%s'. terminating...\n", sig.String())
+		cancelFn()
+		os.Exit(0)
+	}()
 }
