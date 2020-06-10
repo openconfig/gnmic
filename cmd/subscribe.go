@@ -84,6 +84,9 @@ var subscribeCmd = &cobra.Command{
 				polledSubsChan[addr] = make(chan struct{})
 			}
 		}
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		setupCloseHandler(cancel)
 		wg := new(sync.WaitGroup)
 		wg.Add(len(addresses))
 		for _, addr := range addresses {
@@ -108,7 +111,7 @@ var subscribeCmd = &cobra.Command{
 					return
 				}
 				client := gnmi.NewGNMIClient(conn)
-				ctx, cancel := context.WithCancel(context.Background())
+				ctx, cancel := context.WithCancel(ctx)
 				defer cancel()
 				ctx = metadata.AppendToOutgoingContext(ctx, "username", username, "password", password)
 

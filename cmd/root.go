@@ -25,7 +25,9 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	homedir "github.com/mitchellh/go-homedir"
@@ -329,4 +331,15 @@ func indent(prefix, s string) string {
 	prefix = "\n" + strings.TrimRight(prefix, "\n")
 	lines := strings.Split(s, "\n")
 	return strings.TrimLeft(fmt.Sprintf("%s%s", prefix, strings.Join(lines, prefix)), "\n")
+}
+
+func setupCloseHandler(cancelFn context.CancelFunc) {
+	c := make(chan os.Signal)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-c
+		fmt.Println("\r- Ctrl+C pressed in Terminal")
+		cancelFn()
+		os.Exit(0)
+	}()
 }
