@@ -135,7 +135,7 @@ var setCmd = &cobra.Command{
 			Update:  make([]*gnmi.Update, 0, len(updates)),
 		}
 		for _, p := range deletes {
-			gnmiPath, err := xpath.ToGNMIPath(p)
+			gnmiPath, err := xpath.ToGNMIPath(strings.TrimSpace(p))
 			if err != nil {
 				logger.Printf("path '%s' parse error: %v", p, err)
 				continue
@@ -143,7 +143,7 @@ var setCmd = &cobra.Command{
 			req.Delete = append(req.Delete, gnmiPath)
 		}
 		for i, p := range updatePaths {
-			gnmiPath, err := xpath.ToGNMIPath(p)
+			gnmiPath, err := xpath.ToGNMIPath(strings.TrimSpace(p))
 			if err != nil {
 				logger.Print(err)
 			}
@@ -245,7 +245,7 @@ var setCmd = &cobra.Command{
 			})
 		}
 		for i, p := range replacePaths {
-			gnmiPath, err := xpath.ToGNMIPath(p)
+			gnmiPath, err := xpath.ToGNMIPath(strings.TrimSpace(p))
 			if err != nil {
 				logger.Print(err)
 			}
