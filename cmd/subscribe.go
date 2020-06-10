@@ -24,12 +24,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/google/gnxi/utils/xpath"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/encoding/prototext"
 )
 
 type msg struct {
@@ -317,7 +317,7 @@ func printSubscribeResponse(meta map[string]interface{}, subResp *gnmi.Subscribe
 	switch resp := subResp.Response.(type) {
 	case *gnmi.SubscribeResponse_Update:
 		if viper.GetString("format") == "textproto" {
-			fmt.Printf("%s\n", proto.MarshalTextString(subResp))
+			fmt.Printf("%s\n", prototext.Format(subResp))
 			return
 		}
 		msg := new(msg)
