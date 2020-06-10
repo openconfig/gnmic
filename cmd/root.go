@@ -330,3 +330,27 @@ func indent(prefix, s string) string {
 	lines := strings.Split(s, "\n")
 	return strings.TrimLeft(fmt.Sprintf("%s%s", prefix, strings.Join(lines, prefix)), "\n")
 }
+
+func filterModels(ctx context.Context, client gnmi.GNMIClient, modelsNames []string) (map[string]*gnmi.ModelData, []string, error) {
+	capResp, err := client.Capabilities(ctx, &gnmi.CapabilityRequest{})
+	if err != nil {
+		return nil, nil, err
+	}
+	unsupportedModels := make([]string, 0)
+	supportedModels := make(map[string]*gnmi.ModelData)
+	var found bool
+	for _, m := range modelsNames {
+		found = false
+		for _, tModel := range capResp.SupportedModels {
+			if m == tModel.Name {
+				supportedModels[m] = tModel
+				found = true
+				break
+			}
+		}
+		if !found {
+			unsupportedModels = append(unsupportedModels, m)
+		}
+	}
+	return supportedModels, unsupportedModels, nil
+}

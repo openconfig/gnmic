@@ -37,7 +37,6 @@ var getCmd = &cobra.Command{
 	Short: "run gnmi get on targets",
 
 	RunE: func(cmd *cobra.Command, args []string) error {
-		debug := viper.GetBool("debug")
 		var err error
 		addresses := viper.GetStringSlice("address")
 		if len(addresses) == 0 {
@@ -116,29 +115,19 @@ var getCmd = &cobra.Command{
 				ctx = metadata.AppendToOutgoingContext(ctx, "username", username, "password", password)
 				xreq := req
 				if len(models) > 0 {
-					capResp, err := client.Capabilities(ctx, &gnmi.CapabilityRequest{})
+					spModels, unspModels, err := filterModels(ctx, client, models)
 					if err != nil {
-						logger.Printf("%v", err)
+						logger.Printf("failed getting supported models from '%s': %v", address, err)
 						return
 					}
-					notFoundModels := make(map[string]interface{})
-					for _, md := range models {
-						notFoundModels[md] = nil
+					if len(unspModels) > 0 {
+						logger.Printf("found unsupported models for target '%s': %+v", address, unspModels)
 					}
-					for _, m := range capResp.SupportedModels {
-						if stringInList(m.Name, models) {
-							if debug {
-								logger.Printf("target %s: found model: %v\n", address, m)
-							}
-							xreq.UseModels = append(xreq.UseModels, m)
-							delete(notFoundModels, m.Name)
-						}
-					}
-					for md := range notFoundModels {
-						logger.Printf("model '%s' not supported by target %s", md, address)
+					for _, m := range spModels {
+						xreq.UseModels = append(xreq.UseModels, m)
 					}
 				}
-				logger.Printf("sending gnmi GetRequest: prefix='%v', path='%v', encoding='%v', data-type='%v', models='%v' to %s", xreq.Prefix, xreq.Path, xreq.Encoding, xreq.Type, xreq.UseModels, address)
+				logger.Printf("sending gnmi GetRequest: prefix='%v', path='%v', encoding='%v', data-type='%v', models='%+v' to %s", xreq.Prefix, xreq.Path, xreq.Encoding, xreq.Type, xreq.UseModels, address)
 				response, err := client.Get(ctx, xreq)
 				if err != nil {
 					logger.Printf("failed sending GetRequest to %s: %v", address, err)

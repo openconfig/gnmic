@@ -111,20 +111,51 @@ var subscribeCmd = &cobra.Command{
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				ctx = metadata.AppendToOutgoingContext(ctx, "username", username, "password", password)
-
+				//
+				xsubscReq := subscReq
+				models := viper.GetStringSlice("sub-model")
+				if len(models) > 0 {
+					spModels, unspModels, err := filterModels(ctx, client, models)
+					if err != nil {
+						logger.Printf("failed getting supported models from '%s': %v", address, err)
+						return
+					}
+					if len(unspModels) > 0 {
+						logger.Printf("found unsupported models for target '%s': %+v", address, unspModels)
+					}
+					if len(spModels) > 0 {
+						modelsData := make([]*gnmi.ModelData, 0, len(spModels))
+						for _, m := range spModels {
+							modelsData = append(modelsData, m)
+						}
+						xsubscReq = &gnmi.SubscribeRequest{
+							Request: &gnmi.SubscribeRequest_Subscribe{
+								Subscribe: &gnmi.SubscriptionList{
+									Prefix:       subscReq.GetSubscribe().GetPrefix(),
+									Mode:         subscReq.GetSubscribe().GetMode(),
+									Encoding:     subscReq.GetSubscribe().GetEncoding(),
+									Subscription: subscReq.GetSubscribe().GetSubscription(),
+									UseModels:    modelsData,
+									Qos:          subscReq.GetSubscribe().GetQos(),
+									UpdatesOnly:  viper.GetBool("updates-only"),
+								},
+							},
+						}
+					}
+				}
 				subscribeClient, err := client.Subscribe(ctx)
 				if err != nil {
 					logger.Printf("error creating subscribe client: %v", err)
 					return
 				}
 				logger.Printf("sending gnmi SubscribeRequest: subscribe='%+v', mode='%+v', encoding='%+v', to %s",
-					subscReq, subscReq.GetSubscribe().GetMode(), subscReq.GetSubscribe().GetEncoding(), address)
-				err = subscribeClient.Send(subscReq)
+					xsubscReq, xsubscReq.GetSubscribe().GetMode(), xsubscReq.GetSubscribe().GetEncoding(), address)
+				err = subscribeClient.Send(xsubscReq)
 				if err != nil {
 					logger.Printf("subscribe error: %v", err)
 					return
 				}
-				switch subscReq.GetSubscribe().Mode {
+				switch xsubscReq.GetSubscribe().Mode {
 				case gnmi.SubscriptionList_ONCE, gnmi.SubscriptionList_STREAM:
 					for {
 						subscribeRsp, err := subscribeClient.Recv()
@@ -209,7 +240,7 @@ func init() {
 		"sampling interval as a decimal number and a suffix unit, such as \"10s\" or \"1m30s\", minimum is 1s")
 	subscribeCmd.Flags().BoolP("suppress-redundant", "", false, "suppress redundant update if the subscribed value didnt not change")
 	subscribeCmd.Flags().StringP("heartbeat-interval", "", "0s", "heartbeat interval in case suppress-redundant is enabled")
-	subscribeCmd.Flags().StringP("model", "", "", "subscribe request used model")
+	subscribeCmd.Flags().StringSliceP("model", "", []string{""}, "subscribe request used model(s)")
 	//
 	viper.BindPFlag("sub-prefix", subscribeCmd.Flags().Lookup("prefix"))
 	viper.BindPFlag("sub-path", subscribeCmd.Flags().Lookup("path"))
@@ -280,25 +311,6 @@ func createSubscribeRequest() (*gnmi.SubscribeRequest, error) {
 				}
 			}
 		}
-	}
-	model := viper.GetString("sub-model")
-	models := make([]*gnmi.ModelData, 1)
-	if model != "" {
-		models[0] = &gnmi.ModelData{Name: model}
-		return &gnmi.SubscribeRequest{
-			Request: &gnmi.SubscribeRequest_Subscribe{
-				Subscribe: &gnmi.SubscriptionList{
-					Prefix:       gnmiPrefix,
-					Mode:         gnmi.SubscriptionList_Mode(modeVal),
-					Encoding:     gnmi.Encoding(encodingVal),
-					Subscription: subscriptions,
-					UseModels:    models,
-					Qos:          qos,
-					UpdatesOnly:  viper.GetBool("updates-only"),
-				},
-			},
-		}, nil
-
 	}
 	return &gnmi.SubscribeRequest{
 		Request: &gnmi.SubscribeRequest_Subscribe{
