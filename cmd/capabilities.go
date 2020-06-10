@@ -38,6 +38,9 @@ var capabilitiesCmd = &cobra.Command{
 	Short:   "query targets gnmi capabilities",
 
 	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		setupCloseHandler(cancel)
 		var err error
 		addresses := viper.GetStringSlice("address")
 		if len(addresses) == 0 {
@@ -79,11 +82,11 @@ var capabilitiesCmd = &cobra.Command{
 				}
 				client := gnmi.NewGNMIClient(conn)
 
-				ctx, cancel := context.WithCancel(context.Background())
+				nctx, cancel := context.WithCancel(ctx)
 				defer cancel()
-				ctx = metadata.AppendToOutgoingContext(ctx, "username", username, "password", password)
+				nctx = metadata.AppendToOutgoingContext(nctx, "username", username, "password", password)
 
-				response, err := client.Capabilities(ctx, req)
+				response, err := client.Capabilities(nctx, req)
 				if err != nil {
 					logger.Printf("error sending capabilities request: %v", err)
 					return
@@ -99,7 +102,7 @@ var capabilitiesCmd = &cobra.Command{
 					fmt.Println(indent(printPrefix, rsp))
 					return
 				}
-				fmt.Printf("%sgNMI_Version: %s\n", printPrefix, response.GNMIVersion)
+				fmt.Printf("%sgNMI version: %s\n", printPrefix, response.GNMIVersion)
 				if viper.GetBool("version") {
 					return
 				}

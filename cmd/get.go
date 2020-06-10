@@ -37,7 +37,9 @@ var getCmd = &cobra.Command{
 	Short: "run gnmi get on targets",
 
 	RunE: func(cmd *cobra.Command, args []string) error {
-		debug := viper.GetBool("debug")
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		setupCloseHandler(cancel)
 		var err error
 		addresses := viper.GetStringSlice("address")
 		if len(addresses) == 0 {
@@ -65,7 +67,7 @@ var getCmd = &cobra.Command{
 			Path:      make([]*gnmi.Path, 0),
 			Encoding:  gnmi.Encoding(encodingVal),
 		}
-		model := viper.GetString("get-model")
+		models := viper.GetStringSlice("get-model")
 		prefix := viper.GetString("get-prefix")
 		if prefix != "" {
 			gnmiPrefix, err := xpath.ToGNMIPath(prefix)
@@ -76,7 +78,7 @@ var getCmd = &cobra.Command{
 		}
 		paths := viper.GetStringSlice("get-path")
 		for _, p := range paths {
-			gnmiPath, err := xpath.ToGNMIPath(p)
+			gnmiPath, err := xpath.ToGNMIPath(strings.TrimSpace(p))
 			if err != nil {
 				return fmt.Errorf("path parse error: %v", err)
 			}
@@ -111,39 +113,25 @@ var getCmd = &cobra.Command{
 					return
 				}
 				client := gnmi.NewGNMIClient(conn)
-				ctx, cancel := context.WithCancel(context.Background())
+				nctx, cancel := context.WithCancel(ctx)
 				defer cancel()
-				ctx = metadata.AppendToOutgoingContext(ctx, "username", username, "password", password)
+				nctx = metadata.AppendToOutgoingContext(nctx, "username", username, "password", password)
 				xreq := req
-				if model != "" {
-					capResp, err := client.Capabilities(ctx, &gnmi.CapabilityRequest{})
+				if len(models) > 0 {
+					spModels, unspModels, err := filterModels(ctx, client, models)
 					if err != nil {
-						logger.Printf("%v", err)
+						logger.Printf("failed getting supported models from '%s': %v", address, err)
 						return
 					}
-					var found bool
-					for _, m := range capResp.SupportedModels {
-						if m.Name == model {
-							if debug {
-								logger.Printf("target %s: found model: %v\n", address, m)
-							}
-							xreq.UseModels = append(xreq.UseModels,
-								&gnmi.ModelData{
-									Name:         model,
-									Organization: m.Organization,
-									Version:      m.Version,
-								})
-							found = true
-							break
-						}
+					if len(unspModels) > 0 {
+						logger.Printf("found unsupported models for target '%s': %+v", address, unspModels)
 					}
-					if !found {
-						logger.Printf("model '%s' not supported by target %s", model, address)
-						return
+					for _, m := range spModels {
+						xreq.UseModels = append(xreq.UseModels, m)
 					}
 				}
-				logger.Printf("sending gnmi GetRequest '%+v' to %s", xreq, address)
-				response, err := client.Get(ctx, xreq)
+				logger.Printf("sending gnmi GetRequest: prefix='%v', path='%v', encoding='%v', data-type='%v', models='%+v' to %s", xreq.Prefix, xreq.Path, xreq.Encoding, xreq.Type, xreq.UseModels, address)
+				response, err := client.Get(nctx, xreq)
 				if err != nil {
 					logger.Printf("failed sending GetRequest to %s: %v", address, err)
 					return
@@ -168,7 +156,7 @@ func init() {
 	getCmd.Flags().StringSliceP("path", "", []string{""}, "get request paths")
 	getCmd.MarkFlagRequired("path")
 	getCmd.Flags().StringP("prefix", "", "", "get request prefix")
-	getCmd.Flags().StringP("model", "", "", "get request model")
+	getCmd.Flags().StringSliceP("model", "", []string{""}, "get request model(s)")
 	getCmd.Flags().StringP("type", "t", "ALL", "the type of data that is requested from the target. one of: ALL, CONFIG, STATE, OPERATIONAL")
 	viper.BindPFlag("get-path", getCmd.Flags().Lookup("path"))
 	viper.BindPFlag("get-prefix", getCmd.Flags().Lookup("prefix"))
@@ -217,4 +205,13 @@ func printGetResponse(printPrefix string, response *gnmi.GetResponse) {
 		fmt.Printf("%s%s\n", printPrefix, string(dMsg))
 	}
 	fmt.Println()
+}
+
+func stringInList(s string, l []string) bool {
+	for _, ss := range l {
+		if s == ss {
+			return true
+		}
+	}
+	return false
 }

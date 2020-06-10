@@ -25,7 +25,9 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	homedir "github.com/mitchellh/go-homedir"
@@ -329,4 +331,38 @@ func indent(prefix, s string) string {
 	prefix = "\n" + strings.TrimRight(prefix, "\n")
 	lines := strings.Split(s, "\n")
 	return strings.TrimLeft(fmt.Sprintf("%s%s", prefix, strings.Join(lines, prefix)), "\n")
+}
+
+func filterModels(ctx context.Context, client gnmi.GNMIClient, modelsNames []string) (map[string]*gnmi.ModelData, []string, error) {
+	capResp, err := client.Capabilities(ctx, &gnmi.CapabilityRequest{})
+	if err != nil {
+		return nil, nil, err
+	}
+	unsupportedModels := make([]string, 0)
+	supportedModels := make(map[string]*gnmi.ModelData)
+	var found bool
+	for _, m := range modelsNames {
+		found = false
+		for _, tModel := range capResp.SupportedModels {
+			if m == tModel.Name {
+				supportedModels[m] = tModel
+				found = true
+				break
+			}
+		}
+		if !found {
+			unsupportedModels = append(unsupportedModels, m)
+		}
+	}
+	return supportedModels, unsupportedModels, nil
+}
+func setupCloseHandler(cancelFn context.CancelFunc) {
+	c := make(chan os.Signal)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGINT, syscall.SIGKILL)
+	go func() {
+		sig := <-c
+		fmt.Printf("received signal '%s'. terminating...\n", sig.String())
+		cancelFn()
+		os.Exit(0)
+	}()
 }

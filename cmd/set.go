@@ -44,6 +44,9 @@ var setCmd = &cobra.Command{
 	Short: "run gnmi set on targets",
 
 	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		setupCloseHandler(cancel)
 		var err error
 		addresses := viper.GetStringSlice("address")
 		if len(addresses) == 0 {
@@ -135,7 +138,7 @@ var setCmd = &cobra.Command{
 			Update:  make([]*gnmi.Update, 0, len(updates)),
 		}
 		for _, p := range deletes {
-			gnmiPath, err := xpath.ToGNMIPath(p)
+			gnmiPath, err := xpath.ToGNMIPath(strings.TrimSpace(p))
 			if err != nil {
 				logger.Printf("path '%s' parse error: %v", p, err)
 				continue
@@ -143,7 +146,7 @@ var setCmd = &cobra.Command{
 			req.Delete = append(req.Delete, gnmiPath)
 		}
 		for i, p := range updatePaths {
-			gnmiPath, err := xpath.ToGNMIPath(p)
+			gnmiPath, err := xpath.ToGNMIPath(strings.TrimSpace(p))
 			if err != nil {
 				logger.Print(err)
 			}
@@ -245,7 +248,7 @@ var setCmd = &cobra.Command{
 			})
 		}
 		for i, p := range replacePaths {
-			gnmiPath, err := xpath.ToGNMIPath(p)
+			gnmiPath, err := xpath.ToGNMIPath(strings.TrimSpace(p))
 			if err != nil {
 				logger.Print(err)
 			}
@@ -379,9 +382,9 @@ var setCmd = &cobra.Command{
 					return
 				}
 				client := gnmi.NewGNMIClient(conn)
-				ctx, cancel := context.WithCancel(context.Background())
+				nctx, cancel := context.WithCancel(ctx)
 				defer cancel()
-				ctx = metadata.AppendToOutgoingContext(ctx, "username", username, "password", password)
+				nctx = metadata.AppendToOutgoingContext(nctx, "username", username, "password", password)
 				printPrefix := ""
 				if len(addresses) > 1 && !viper.GetBool("no-prefix") {
 					printPrefix = fmt.Sprintf("[%s] ", address)
@@ -389,7 +392,7 @@ var setCmd = &cobra.Command{
 				lock.Lock()
 				defer lock.Unlock()
 				printSetRequest(printPrefix, req)
-				response, err := client.Set(ctx, req)
+				response, err := client.Set(nctx, req)
 				if err != nil {
 					logger.Printf("error sending set request: %v", err)
 					return
