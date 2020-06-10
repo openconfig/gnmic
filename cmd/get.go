@@ -130,7 +130,7 @@ var getCmd = &cobra.Command{
 						xreq.UseModels = append(xreq.UseModels, m)
 					}
 				}
-				logger.Printf("sending gnmi GetRequest: prefix='%v', path='%v', encoding='%v', data-type='%v', models='%+v' to %s", xreq.Prefix, xreq.Path, xreq.Encoding, xreq.Type, xreq.UseModels, address)
+				logger.Printf("sending gNMI GetRequest: prefix='%v', path='%v', type='%v', encoding='%v', models='%+v', extension='%+v' to %s", xreq.Prefix, xreq.Path, xreq.Type, xreq.Encoding, xreq.UseModels, xreq.Extension, address)
 				response, err := client.Get(nctx, xreq)
 				if err != nil {
 					logger.Printf("failed sending GetRequest to %s: %v", address, err)
