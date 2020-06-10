@@ -44,6 +44,9 @@ var setCmd = &cobra.Command{
 	Short: "run gnmi set on targets",
 
 	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		setupCloseHandler(cancel)
 		var err error
 		addresses := viper.GetStringSlice("address")
 		if len(addresses) == 0 {
@@ -378,48 +381,20 @@ var setCmd = &cobra.Command{
 					return
 				}
 				client := gnmi.NewGNMIClient(conn)
-				ctx, cancel := context.WithCancel(context.Background())
+				nctx, cancel := context.WithCancel(ctx)
 				defer cancel()
-				ctx = metadata.AppendToOutgoingContext(ctx, "username", username, "password", password)
+				nctx = metadata.AppendToOutgoingContext(nctx, "username", username, "password", password)
 				printPrefix := ""
 				if len(addresses) > 1 && !viper.GetBool("no-prefix") {
 					printPrefix = fmt.Sprintf("[%s] ", address)
 				}
 				printSetRequest(printPrefix, req)
-				// fmt.Printf("%sgnmi set request :\n", printPrefix)
-				// fmt.Printf("%sgnmi set request : prefix: %v\n", printPrefix, gnmiPathToXPath(req.Prefix))
-				// if len(req.Delete) > 0 {
-				// 	for _, del := range req.Delete {
-				// 		fmt.Printf("%sgnmi set request : delete: %v\n", printPrefix, gnmiPathToXPath(del))
-				// 	}
-				// }
-				// if len(req.Update) > 0 {
-				// 	for _, upd := range req.Update {
-				// 		fmt.Printf("%sgnmi set request : update path : %v\n", printPrefix, gnmiPathToXPath(upd.Path))
-				// 		fmt.Printf("%sgnmi set request : update value: %v\n", printPrefix, upd.Val)
-				// 	}
-				// }
-				// if len(req.Replace) > 0 {
-				// 	for _, rep := range req.Replace {
-				// 		fmt.Printf("%sgnmi set request : replace path : %v\n", printPrefix, gnmiPathToXPath(rep.Path))
-				// 		fmt.Printf("%sgnmi set request : replace value: %v\n", printPrefix, rep.Val)
-				// 	}
-				// }
-				response, err := client.Set(ctx, req)
+				response, err := client.Set(nctx, req)
 				if err != nil {
 					logger.Printf("error sending set request: %v", err)
 					return
 				}
 				printSetResponse(printPrefix, response)
-				// fmt.Printf("%sgnmi set response:\n", printPrefix)
-				// fmt.Printf("%sgnmi set response: timestamp: %v\n", printPrefix, response.Timestamp)
-				// fmt.Printf("%sgnmi set response: prefix: %v\n", printPrefix, gnmiPathToXPath(response.Prefix))
-				// if response.Message != nil {
-				// 	fmt.Printf("%sgnmi set response: error: %v\n", printPrefix, response.Message.String())
-				// }
-				// for _, u := range response.Response {
-				// 	fmt.Printf("%sgnmi set response: result: op=%v path=%v\n", printPrefix, u.Op, gnmiPathToXPath(u.Path))
-				// }
 			}(addr)
 		}
 		wg.Wait()

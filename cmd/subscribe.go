@@ -55,12 +55,15 @@ var subscribeCmd = &cobra.Command{
 	Short:   "subscribe to gnmi updates on targets",
 
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var err error
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		setupCloseHandler(cancel)
 		addresses := viper.GetStringSlice("address")
 		if len(addresses) == 0 {
 			fmt.Println("no grpc server address specified")
 			return nil
 		}
+		var err error
 		username := viper.GetString("username")
 		if username == "" {
 			if username, err = readUsername(); err != nil {
@@ -107,12 +110,13 @@ var subscribeCmd = &cobra.Command{
 					logger.Printf("connection to %s failed: %v", address, err)
 					return
 				}
-				client := gnmi.NewGNMIClient(conn)
-				ctx, cancel := context.WithCancel(context.Background())
-				defer cancel()
-				ctx = metadata.AppendToOutgoingContext(ctx, "username", username, "password", password)
 
-				subscribeClient, err := client.Subscribe(ctx)
+				client := gnmi.NewGNMIClient(conn)
+				nctx, cancel := context.WithCancel(ctx)
+				defer cancel()
+				nctx = metadata.AppendToOutgoingContext(nctx, "username", username, "password", password)
+
+				subscribeClient, err := client.Subscribe(nctx)
 				if err != nil {
 					logger.Printf("error creating subscribe client: %v", err)
 					return
