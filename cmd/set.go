@@ -363,6 +363,7 @@ var setCmd = &cobra.Command{
 		}
 		wg := new(sync.WaitGroup)
 		wg.Add(len(addresses))
+		lock := new(sync.Mutex)
 		for _, addr := range addresses {
 			go func(address string) {
 				defer wg.Done()
@@ -388,6 +389,8 @@ var setCmd = &cobra.Command{
 				if len(addresses) > 1 && !viper.GetBool("no-prefix") {
 					printPrefix = fmt.Sprintf("[%s] ", address)
 				}
+				lock.Lock()
+				defer lock.Unlock()
 				printSetRequest(printPrefix, req)
 				response, err := client.Set(nctx, req)
 				if err != nil {
