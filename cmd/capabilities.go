@@ -121,15 +121,6 @@ var capabilitiesCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(capabilitiesCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// capabilitiesCmd.PersistentFlags().String("foo", "", "A help for foo")
 	capabilitiesCmd.Flags().BoolVarP(&printVersion, "version", "", false, "show gnmi version only")
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// capabilitiesCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 	viper.BindPFlag("version", capabilitiesCmd.Flags().Lookup("version"))
 }
