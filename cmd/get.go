@@ -23,12 +23,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/google/gnxi/utils/xpath"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/encoding/prototext"
 )
 
 // getCmd represents the get command
@@ -166,7 +166,7 @@ func init() {
 
 func printGetResponse(printPrefix string, response *gnmi.GetResponse) {
 	if viper.GetString("format") == "textproto" {
-		fmt.Printf("%s\n", indent(printPrefix, proto.MarshalTextString(response)))
+		fmt.Printf("%s\n", indent(printPrefix, prototext.Format(response)))
 		return
 	}
 	for _, notif := range response.Notification {
