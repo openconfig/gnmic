@@ -114,12 +114,12 @@ var subscribeCmd = &cobra.Command{
 				client := gnmi.NewGNMIClient(conn)
 				nctx, cancel := context.WithCancel(ctx)
 				defer cancel()
-				ctx = metadata.AppendToOutgoingContext(ctx, "username", username, "password", password)
+				nctx = metadata.AppendToOutgoingContext(nctx, "username", username, "password", password)
 				//
 				xsubscReq := subscReq
 				models := viper.GetStringSlice("sub-model")
 				if len(models) > 0 {
-					spModels, unspModels, err := filterModels(ctx, client, models)
+					spModels, unspModels, err := filterModels(nctx, client, models)
 					if err != nil {
 						logger.Printf("failed getting supported models from '%s': %v", address, err)
 						return

@@ -40,7 +40,6 @@ var getCmd = &cobra.Command{
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		setupCloseHandler(cancel)
-		debug := viper.GetBool("debug")
 		var err error
 		addresses := viper.GetStringSlice("address")
 		if len(addresses) == 0 {
