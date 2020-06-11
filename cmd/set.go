@@ -400,7 +400,7 @@ func setRequest(ctx context.Context, req *gnmi.SetRequest, address, username, pa
 	}
 	lock.Lock()
 	defer lock.Unlock()
-	logger.Printf("sending gNMI SetRequest: '%s' to %s", prototext.MarshalOptions{Multiline: false}.Format(req), address)
+	logger.Printf("sending gNMI SetRequest: prefix='%v', delete='%v', replace='%v', update='%v', extension='%v' to %s", req.Prefix, req.Delete, req.Replace, req.Update, req.Extension, address)
 
 	printSetRequest(printPrefix, req)
 	response, err := client.Set(nctx, req)
