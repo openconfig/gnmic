@@ -365,14 +365,14 @@ var setCmd = &cobra.Command{
 		wg.Add(len(addresses))
 		lock := new(sync.Mutex)
 		for _, addr := range addresses {
-			go reqSet(ctx, req, addr, username, password, wg, lock)
+			go setRequest(ctx, req, addr, username, password, wg, lock)
 		}
 		wg.Wait()
 		return nil
 	},
 }
 
-func reqSet(ctx context.Context, req *gnmi.SetRequest, address, username, password string, wg *sync.WaitGroup, lock *sync.Mutex) {
+func setRequest(ctx context.Context, req *gnmi.SetRequest, address, username, password string, wg *sync.WaitGroup, lock *sync.Mutex) {
 	defer wg.Done()
 	_, _, err := net.SplitHostPort(address)
 	if err != nil {
