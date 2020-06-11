@@ -95,14 +95,14 @@ var getCmd = &cobra.Command{
 		wg.Add(len(addresses))
 		lock := new(sync.Mutex)
 		for _, addr := range addresses {
-			go reqGet(ctx, req, addr, username, password, wg, lock)
+			go getRequest(ctx, req, addr, username, password, wg, lock)
 		}
 		wg.Wait()
 		return nil
 	},
 }
 
-func reqGet(ctx context.Context, req *gnmi.GetRequest, address, username, password string, wg *sync.WaitGroup, lock *sync.Mutex) {
+func getRequest(ctx context.Context, req *gnmi.GetRequest, address, username, password string, wg *sync.WaitGroup, lock *sync.Mutex) {
 	defer wg.Done()
 	_, _, err := net.SplitHostPort(address)
 	if err != nil {
