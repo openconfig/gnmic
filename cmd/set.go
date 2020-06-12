@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/gnxi/utils/xpath"
 	"github.com/openconfig/gnmi/proto/gnmi"
@@ -401,14 +402,15 @@ func reqSet(ctx context.Context, req *gnmi.SetRequest, address, username, passwo
 	lock.Lock()
 	defer lock.Unlock()
 	logger.Printf("sending gNMI SetRequest: '%s' to %s", prototext.MarshalOptions{Multiline: false}.Format(req), address)
-
-	printSetRequest(printPrefix, req)
+	if viper.GetBool("print-request") {
+		printSetRequest(printPrefix, req)
+	}
 	response, err := client.Set(nctx, req)
 	if err != nil {
 		logger.Printf("error sending set request: %v", err)
 		return
 	}
-	printSetResponse(printPrefix, response)
+	printSetResponse(printPrefix, address, response)
 }
 
 // readFile reads a json or yaml file. the the file is .yaml, converts it to json and returns []byte and an error
@@ -479,21 +481,29 @@ func printSetRequest(printPrefix string, request *gnmi.SetRequest) {
 		}
 	}
 }
-func printSetResponse(printPrefix string, response *gnmi.SetResponse) {
-	fmt.Printf("%sResponse: \n", printPrefix)
+func printSetResponse(printPrefix, address string, response *gnmi.SetResponse) {
 	if viper.GetString("format") == "textproto" {
-		fmt.Printf("%s\n", indent("  ", prototext.Format(response)))
+		fmt.Printf("%s\n", indent(printPrefix, prototext.Format(response)))
 		return
 	}
-	fmt.Printf("%s  prefix: %v\n", printPrefix, gnmiPathToXPath(response.Prefix))
-	fmt.Printf("%s  timestamp: %d\n", printPrefix, response.Timestamp)
-	if response.Message != nil {
-		fmt.Printf("%s  error: %v\n", printPrefix, response.Message.String())
-	}
+	rsp := new(setRspMsg)
+	rsp.Prefix = gnmiPathToXPath(response.Prefix)
+	rsp.Timestamp = response.Timestamp
+	rsp.Time = time.Unix(0, response.Timestamp)
+	rsp.Results = make([]*result, 0, len(response.Response))
+	rsp.Source = address
 	for _, u := range response.Response {
-		fmt.Printf("%s    operation: %s\n", printPrefix, u.Op)
-		fmt.Printf("%s    path     : %s\n", printPrefix, gnmiPathToXPath(u.Path))
+		r := new(result)
+		r.Operation = u.Op.String()
+		r.Path = gnmiPathToXPath(u.Path)
+		rsp.Results = append(rsp.Results, r)
 	}
+	b, err := json.MarshalIndent(rsp, "", "  ")
+	if err != nil {
+		fmt.Printf("failed marshaling the set response from '%s': %v", address, err)
+		return
+	}
+	fmt.Println(string(b))
 }
 
 func init() {
@@ -513,6 +523,7 @@ func init() {
 	setCmd.Flags().StringSliceP("update-value", "", []string{""}, "set update request value")
 	setCmd.Flags().StringSliceP("replace-value", "", []string{""}, "set replace request value")
 	setCmd.Flags().StringP("delimiter", "", ":::", "set update/replace delimiter between path,type,value")
+	setCmd.Flags().BoolP("print-request", "", false, "print set request as well as the response")
 
 	viper.BindPFlag("set-prefix", setCmd.Flags().Lookup("prefix"))
 	viper.BindPFlag("delete", setCmd.Flags().Lookup("delete"))
@@ -525,4 +536,18 @@ func init() {
 	viper.BindPFlag("update-value", setCmd.Flags().Lookup("update-value"))
 	viper.BindPFlag("replace-value", setCmd.Flags().Lookup("replace-value"))
 	viper.BindPFlag("delimiter", setCmd.Flags().Lookup("delimiter"))
+	viper.BindPFlag("print-request", setCmd.Flags().Lookup("print-request"))
+}
+
+type setRspMsg struct {
+	Source    string    `json:"source,omitempty"`
+	Timestamp int64     `json:"timestamp,omitempty"`
+	Time      time.Time `json:"time,omitempty"`
+	Prefix    string    `json:"prefix,omitempty"`
+	Results   []*result `json:"results,omitempty"`
+}
+
+type result struct {
+	Operation string `json:"operation,omitempty"`
+	Path      string `json:"path,omitempty"`
 }
