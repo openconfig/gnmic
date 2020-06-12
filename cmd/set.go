@@ -26,17 +26,44 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/google/gnxi/utils/xpath"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/encoding/prototext"
 	"gopkg.in/yaml.v2"
 )
 
 var vTypes = []string{"json", "json_ietf", "string", "int", "uint", "bool", "decimal", "float", "bytes", "ascii"}
+
+type setRspMsg struct {
+	Source    string             `json:"source,omitempty"`
+	Timestamp int64              `json:"timestamp,omitempty"`
+	Time      time.Time          `json:"time,omitempty"`
+	Prefix    string             `json:"prefix,omitempty"`
+	Results   []*updateResultMsg `json:"results,omitempty"`
+}
+
+type updateResultMsg struct {
+	Operation string `json:"operation,omitempty"`
+	Path      string `json:"path,omitempty"`
+}
+
+type setReqMsg struct {
+	Prefix  string       `json:"prefix,omitempty"`
+	Delete  []string     `json:"delete,omitempty"`
+	Replace []*updateMsg `json:"replace,omitempty"`
+	Update  []*updateMsg `json:"update,omitempty"`
+	// extension is not implemented
+}
+
+type updateMsg struct {
+	Path string `json:"path,omitempty"`
+	Val  string `json:"val,omitempty"`
+}
 
 // setCmd represents the set command
 var setCmd = &cobra.Command{
@@ -365,75 +392,51 @@ var setCmd = &cobra.Command{
 		wg.Add(len(addresses))
 		lock := new(sync.Mutex)
 		for _, addr := range addresses {
-			go func(address string) {
-				defer wg.Done()
-				_, _, err := net.SplitHostPort(address)
-				if err != nil {
-					if strings.Contains(err.Error(), "missing port in address") {
-						address = net.JoinHostPort(address, defaultGrpcPort)
-					} else {
-						logger.Printf("error parsing address '%s': %v", address, err)
-						return
-					}
-				}
-				conn, err := createGrpcConn(address)
-				if err != nil {
-					logger.Printf("connection to %s failed: %v", address, err)
-					return
-				}
-				client := gnmi.NewGNMIClient(conn)
-				nctx, cancel := context.WithCancel(ctx)
-				defer cancel()
-				nctx = metadata.AppendToOutgoingContext(nctx, "username", username, "password", password)
-				printPrefix := ""
-				if len(addresses) > 1 && !viper.GetBool("no-prefix") {
-					printPrefix = fmt.Sprintf("[%s] ", address)
-				}
-				lock.Lock()
-				defer lock.Unlock()
-				printSetRequest(printPrefix, req)
-				response, err := client.Set(nctx, req)
-				if err != nil {
-					logger.Printf("error sending set request: %v", err)
-					return
-				}
-				printSetResponse(printPrefix, response)
-			}(addr)
+			go setRequest(ctx, req, addr, username, password, wg, lock)
 		}
 		wg.Wait()
 		return nil
 	},
 }
 
-func init() {
-	rootCmd.AddCommand(setCmd)
+func setRequest(ctx context.Context, req *gnmi.SetRequest, address, username, password string, wg *sync.WaitGroup, lock *sync.Mutex) {
+	defer wg.Done()
+	_, _, err := net.SplitHostPort(address)
+	if err != nil {
+		if strings.Contains(err.Error(), "missing port in address") {
+			address = net.JoinHostPort(address, defaultGrpcPort)
+		} else {
+			logger.Printf("error parsing address '%s': %v", address, err)
+			return
+		}
+	}
+	conn, err := createGrpcConn(address)
+	if err != nil {
+		logger.Printf("connection to %s failed: %v", address, err)
+		return
+	}
+	client := gnmi.NewGNMIClient(conn)
+	nctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	nctx = metadata.AppendToOutgoingContext(nctx, "username", username, "password", password)
 
-	setCmd.Flags().StringP("prefix", "", "", "set request prefix")
-
-	setCmd.Flags().StringSliceP("delete", "", []string{}, "set request path to be deleted")
-
-	setCmd.Flags().StringP("replace", "", "", fmt.Sprintf("set request path:::type:::value to be replaced, type must be one of %v", vTypes))
-	setCmd.Flags().StringP("update", "", "", fmt.Sprintf("set request path:::type:::value to be updated, type must be one of %v", vTypes))
-
-	setCmd.Flags().StringSliceP("replace-path", "", []string{""}, "set request path to be replaced")
-	setCmd.Flags().StringSliceP("update-path", "", []string{""}, "set request path to be updated")
-	setCmd.Flags().StringSliceP("update-file", "", []string{""}, "set update request value in json file")
-	setCmd.Flags().StringSliceP("replace-file", "", []string{""}, "set replace request value in json file")
-	setCmd.Flags().StringSliceP("update-value", "", []string{""}, "set update request value")
-	setCmd.Flags().StringSliceP("replace-value", "", []string{""}, "set replace request value")
-	setCmd.Flags().StringP("delimiter", "", ":::", "set update/replace delimiter between path,type,value")
-
-	viper.BindPFlag("set-prefix", setCmd.Flags().Lookup("prefix"))
-	viper.BindPFlag("delete", setCmd.Flags().Lookup("delete"))
-	viper.BindPFlag("replace", setCmd.Flags().Lookup("replace"))
-	viper.BindPFlag("update", setCmd.Flags().Lookup("update"))
-	viper.BindPFlag("update-path", setCmd.Flags().Lookup("update-path"))
-	viper.BindPFlag("replace-path", setCmd.Flags().Lookup("replace-path"))
-	viper.BindPFlag("update-file", setCmd.Flags().Lookup("update-file"))
-	viper.BindPFlag("replace-file", setCmd.Flags().Lookup("replace-file"))
-	viper.BindPFlag("update-value", setCmd.Flags().Lookup("update-value"))
-	viper.BindPFlag("replace-value", setCmd.Flags().Lookup("replace-value"))
-	viper.BindPFlag("delimiter", setCmd.Flags().Lookup("delimiter"))
+	addresses := viper.GetStringSlice("address")
+	printPrefix := ""
+	if len(addresses) > 1 && !viper.GetBool("no-prefix") {
+		printPrefix = fmt.Sprintf("[%s] ", address)
+	}
+	lock.Lock()
+	defer lock.Unlock()
+	if viper.GetBool("print-request") {
+		printSetRequest(printPrefix, req)
+	}
+	logger.Printf("sending gNMI SetRequest: prefix='%v', delete='%v', replace='%v', update='%v', extension='%v' to %s", req.Prefix, req.Delete, req.Replace, req.Update, req.Extension, address)
+	response, err := client.Set(nctx, req)
+	if err != nil {
+		logger.Printf("error sending set request: %v", err)
+		return
+	}
+	printSetResponse(printPrefix, address, response)
 }
 
 // readFile reads a json or yaml file. the the file is .yaml, converts it to json and returns []byte and an error
@@ -477,46 +480,97 @@ func convert(i interface{}) interface{} {
 	return i
 }
 func printSetRequest(printPrefix string, request *gnmi.SetRequest) {
-	fmt.Printf("%sRequest: \n", printPrefix)
 	if viper.GetString("format") == "textproto" {
-		fmt.Printf("%s\n", indent("  ", proto.MarshalTextString(request)))
+		fmt.Printf("%s\n", indent("  ", prototext.Format(request)))
 		return
 	}
-	fmt.Printf("%s  prefix: %v\n", printPrefix, gnmiPathToXPath(request.Prefix))
-	if len(request.Delete) > 0 {
-		fmt.Printf("%s    delete:\n", printPrefix)
-		for _, del := range request.Delete {
-			fmt.Printf("%s      delete: %s\n", printPrefix, gnmiPathToXPath(del))
-		}
+	fmt.Printf("%sSet Request: \n", printPrefix)
+	req := new(setReqMsg)
+	req.Prefix = gnmiPathToXPath(request.Prefix)
+	req.Delete = make([]string, 0, len(request.Delete))
+	req.Replace = make([]*updateMsg, 0, len(request.Replace))
+	req.Update = make([]*updateMsg, 0, len(request.Update))
+
+	for _, del := range request.Delete {
+		p := gnmiPathToXPath(del)
+		req.Delete = append(req.Delete, p)
 	}
-	if len(request.Replace) > 0 {
-		fmt.Printf("%s    replace\n", printPrefix)
-		for _, rep := range request.Replace {
-			fmt.Printf("%s      path : %v\n", printPrefix, gnmiPathToXPath(rep.Path))
-			fmt.Printf("%s      value: %v\n", printPrefix, rep.Val)
-		}
+
+	for _, upd := range request.Replace {
+		updMsg := new(updateMsg)
+		updMsg.Path = gnmiPathToXPath(upd.Path)
+		updMsg.Val = fmt.Sprintf("%s", upd.Val)
+		req.Replace = append(req.Replace, updMsg)
 	}
-	if len(request.Update) > 0 {
-		fmt.Printf("%s    update:\n", printPrefix)
-		for _, upd := range request.Update {
-			fmt.Printf("%s      path : %s\n", printPrefix, gnmiPathToXPath(upd.Path))
-			fmt.Printf("%s      value: %s\n", printPrefix, upd.Val)
-		}
+
+	for _, upd := range request.Update {
+		updMsg := new(updateMsg)
+		updMsg.Path = gnmiPathToXPath(upd.Path)
+		updMsg.Val = fmt.Sprintf("%s", upd.Val)
+		req.Update = append(req.Update, updMsg)
 	}
+
+	b, err := json.MarshalIndent(req, "", "  ")
+	if err != nil {
+		fmt.Println("failed marshaling the set request", err)
+		return
+	}
+	fmt.Println(string(b))
 }
-func printSetResponse(printPrefix string, response *gnmi.SetResponse) {
-	fmt.Printf("%sResponse: \n", printPrefix)
+func printSetResponse(printPrefix, address string, response *gnmi.SetResponse) {
 	if viper.GetString("format") == "textproto" {
-		fmt.Printf("%s\n", indent("  ", proto.MarshalTextString(response)))
+		fmt.Printf("%s\n", indent(printPrefix, prototext.Format(response)))
 		return
 	}
-	fmt.Printf("%s  prefix: %v\n", printPrefix, gnmiPathToXPath(response.Prefix))
-	fmt.Printf("%s  timestamp: %d\n", printPrefix, response.Timestamp)
-	if response.Message != nil {
-		fmt.Printf("%s  error: %v\n", printPrefix, response.Message.String())
-	}
+	rsp := new(setRspMsg)
+	rsp.Prefix = gnmiPathToXPath(response.Prefix)
+	rsp.Timestamp = response.Timestamp
+	rsp.Time = time.Unix(0, response.Timestamp)
+	rsp.Results = make([]*updateResultMsg, 0, len(response.Response))
+	rsp.Source = address
 	for _, u := range response.Response {
-		fmt.Printf("%s    operation: %s\n", printPrefix, u.Op)
-		fmt.Printf("%s    path     : %s\n", printPrefix, gnmiPathToXPath(u.Path))
+		r := new(updateResultMsg)
+		r.Operation = u.Op.String()
+		r.Path = gnmiPathToXPath(u.Path)
+		rsp.Results = append(rsp.Results, r)
 	}
+	b, err := json.MarshalIndent(rsp, "", "  ")
+	if err != nil {
+		fmt.Printf("failed marshaling the set response from '%s': %v", address, err)
+		return
+	}
+	fmt.Println(string(b))
+}
+
+func init() {
+	rootCmd.AddCommand(setCmd)
+
+	setCmd.Flags().StringP("prefix", "", "", "set request prefix")
+
+	setCmd.Flags().StringSliceP("delete", "", []string{}, "set request path to be deleted")
+
+	setCmd.Flags().StringP("replace", "", "", fmt.Sprintf("set request path:::type:::value to be replaced, type must be one of %v", vTypes))
+	setCmd.Flags().StringP("update", "", "", fmt.Sprintf("set request path:::type:::value to be updated, type must be one of %v", vTypes))
+
+	setCmd.Flags().StringSliceP("replace-path", "", []string{""}, "set request path to be replaced")
+	setCmd.Flags().StringSliceP("update-path", "", []string{""}, "set request path to be updated")
+	setCmd.Flags().StringSliceP("update-file", "", []string{""}, "set update request value in json file")
+	setCmd.Flags().StringSliceP("replace-file", "", []string{""}, "set replace request value in json file")
+	setCmd.Flags().StringSliceP("update-value", "", []string{""}, "set update request value")
+	setCmd.Flags().StringSliceP("replace-value", "", []string{""}, "set replace request value")
+	setCmd.Flags().StringP("delimiter", "", ":::", "set update/replace delimiter between path,type,value")
+	setCmd.Flags().BoolP("print-request", "", false, "print set request as well as the response")
+
+	viper.BindPFlag("set-prefix", setCmd.Flags().Lookup("prefix"))
+	viper.BindPFlag("delete", setCmd.Flags().Lookup("delete"))
+	viper.BindPFlag("replace", setCmd.Flags().Lookup("replace"))
+	viper.BindPFlag("update", setCmd.Flags().Lookup("update"))
+	viper.BindPFlag("update-path", setCmd.Flags().Lookup("update-path"))
+	viper.BindPFlag("replace-path", setCmd.Flags().Lookup("replace-path"))
+	viper.BindPFlag("update-file", setCmd.Flags().Lookup("update-file"))
+	viper.BindPFlag("replace-file", setCmd.Flags().Lookup("replace-file"))
+	viper.BindPFlag("update-value", setCmd.Flags().Lookup("update-value"))
+	viper.BindPFlag("replace-value", setCmd.Flags().Lookup("replace-value"))
+	viper.BindPFlag("delimiter", setCmd.Flags().Lookup("delimiter"))
+	viper.BindPFlag("print-request", setCmd.Flags().Lookup("print-request"))
 }
