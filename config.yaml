@@ -1,13 +1,16 @@
 username: admin
 password: sros
 port: 57400
+timeout: 5s
+skip-verify: true
+tls-key: /path/to/client.key
+tls-cert: /path/to/client.crt
 
 targets:
   172.17.0.100:
-    username: oper
-    password: dummy
+    username: grpc
+    password: grpc
   172.17.0.101:
-    username: readonly
   172.17.0.102:57000:
     password: sros123
     

@@ -9,6 +9,7 @@ require (
 	github.com/karimra/sros-dialout v0.0.0-20200518085040-c759bf74063a
 	github.com/manifoldco/promptui v0.7.0
 	github.com/mitchellh/go-homedir v1.1.0
+	github.com/mitchellh/mapstructure v1.1.2
 	github.com/openconfig/gnmi v0.0.0-20200508230933-d19cebf5e7be
 	github.com/openconfig/goyang v0.0.0-20200309174518-a00bece872fc
 	github.com/spf13/cobra v0.0.6
