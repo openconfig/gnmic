@@ -1,0 +1,13 @@
+username: admin
+password: sros
+port: 57400
+
+targets:
+  172.17.0.100:
+    username: oper
+    password: dummy
+  172.17.0.101:
+    username: readonly
+  172.17.0.102:57000:
+    password: sros123
+    
