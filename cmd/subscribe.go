@@ -99,128 +99,7 @@ var subscribeCmd = &cobra.Command{
 		wg := new(sync.WaitGroup)
 		wg.Add(len(addresses))
 		for _, addr := range addresses {
-			go func(address string) {
-				defer wg.Done()
-				_, _, err := net.SplitHostPort(address)
-				if err != nil {
-					if strings.Contains(err.Error(), "missing port in address") {
-						address = net.JoinHostPort(address, defaultGrpcPort)
-					} else {
-						logger.Printf("error parsing address '%s': %v", address, err)
-						return
-					}
-				}
-				printPrefix := ""
-				if len(addresses) > 1 && !viper.GetBool("no-prefix") {
-					printPrefix = fmt.Sprintf("[%s] ", address)
-				}
-				conn, err := createGrpcConn(address)
-				if err != nil {
-					logger.Printf("connection to %s failed: %v", address, err)
-					return
-				}
-
-				client := gnmi.NewGNMIClient(conn)
-				nctx, cancel := context.WithCancel(ctx)
-				defer cancel()
-				nctx = metadata.AppendToOutgoingContext(nctx, "username", username, "password", password)
-				//
-				xsubscReq := subscReq
-				models := viper.GetStringSlice("sub-model")
-				if len(models) > 0 {
-					spModels, unspModels, err := filterModels(nctx, client, models)
-					if err != nil {
-						logger.Printf("failed getting supported models from '%s': %v", address, err)
-						return
-					}
-					if len(unspModels) > 0 {
-						logger.Printf("found unsupported models for target '%s': %+v", address, unspModels)
-					}
-					if len(spModels) > 0 {
-						modelsData := make([]*gnmi.ModelData, 0, len(spModels))
-						for _, m := range spModels {
-							modelsData = append(modelsData, m)
-						}
-						xsubscReq = &gnmi.SubscribeRequest{
-							Request: &gnmi.SubscribeRequest_Subscribe{
-								Subscribe: &gnmi.SubscriptionList{
-									Prefix:       subscReq.GetSubscribe().GetPrefix(),
-									Mode:         subscReq.GetSubscribe().GetMode(),
-									Encoding:     subscReq.GetSubscribe().GetEncoding(),
-									Subscription: subscReq.GetSubscribe().GetSubscription(),
-									UseModels:    modelsData,
-									Qos:          subscReq.GetSubscribe().GetQos(),
-									UpdatesOnly:  viper.GetBool("updates-only"),
-								},
-							},
-						}
-					}
-				}
-				subscribeClient, err := client.Subscribe(nctx)
-				if err != nil {
-					logger.Printf("error creating subscribe client: %v", err)
-					return
-				}
-				logger.Printf("sending gnmi SubscribeRequest: subscribe='%+v', mode='%+v', encoding='%+v', to %s",
-					xsubscReq, xsubscReq.GetSubscribe().GetMode(), xsubscReq.GetSubscribe().GetEncoding(), address)
-				err = subscribeClient.Send(xsubscReq)
-				if err != nil {
-					logger.Printf("subscribe error: %v", err)
-					return
-				}
-				switch xsubscReq.GetSubscribe().Mode {
-				case gnmi.SubscriptionList_ONCE, gnmi.SubscriptionList_STREAM:
-					lock := new(sync.Mutex)
-					for {
-						subscribeRsp, err := subscribeClient.Recv()
-						if err != nil {
-							logger.Printf("addr=%s rcv error: %v", address, err)
-							return
-						}
-						switch resp := subscribeRsp.Response.(type) {
-						case *gnmi.SubscribeResponse_Update:
-							lock.Lock()
-							printSubscribeResponse(map[string]interface{}{"source": address}, subscribeRsp)
-							lock.Unlock()
-						case *gnmi.SubscribeResponse_SyncResponse:
-							logger.Printf("received sync response=%+v from %s\n", resp.SyncResponse, address)
-							if subscReq.GetSubscribe().Mode == gnmi.SubscriptionList_ONCE {
-								return
-							}
-						}
-						fmt.Println()
-					}
-				case gnmi.SubscriptionList_POLL:
-					for {
-						select {
-						case <-polledSubsChan[address]:
-							err = subscribeClient.Send(&gnmi.SubscribeRequest{
-								Request: &gnmi.SubscribeRequest_Poll{
-									Poll: &gnmi.Poll{},
-								},
-							})
-							if err != nil {
-								logger.Printf("error sending poll request:%v", err)
-								waitChan <- struct{}{}
-								continue
-							}
-							subscribeRsp, err := subscribeClient.Recv()
-							if err != nil {
-								logger.Printf("rcv error: %v", err)
-								waitChan <- struct{}{}
-								continue
-							}
-							switch resp := subscribeRsp.Response.(type) {
-							case *gnmi.SubscribeResponse_Update:
-								printSubscribeResponse(map[string]interface{}{"source": address}, subscribeRsp)
-							case *gnmi.SubscribeResponse_SyncResponse:
-								fmt.Printf("%ssync response: %+v\n", printPrefix, resp.SyncResponse)
-							}
-							waitChan <- struct{}{}
-						}
-					}
-				}
-			}(addr)
+			go subRequest(ctx, subscReq, addr, username, password, wg, polledSubsChan, waitChan)
 		}
 		if subscReq.GetSubscribe().Mode == gnmi.SubscriptionList_POLL {
 			for {
@@ -248,31 +127,128 @@ var subscribeCmd = &cobra.Command{
 	},
 }
 
-func init() {
-	rootCmd.AddCommand(subscribeCmd)
-	subscribeCmd.Flags().StringP("prefix", "", "", "subscribe request prefix")
-	subscribeCmd.Flags().StringSliceP("path", "", []string{""}, "subscribe request paths")
-	subscribeCmd.MarkFlagRequired("path")
-	subscribeCmd.Flags().Int32P("qos", "q", 20, "qos marking")
-	subscribeCmd.Flags().BoolP("updates-only", "", false, "only updates to current state should be sent")
-	subscribeCmd.Flags().StringP("subscription-mode", "", "stream", "one of: once, stream, poll")
-	subscribeCmd.Flags().StringP("stream-subscription-mode", "", "target-defined", "one of: on-change, sample, target-defined")
-	subscribeCmd.Flags().StringP("sampling-interval", "i", "10s",
-		"sampling interval as a decimal number and a suffix unit, such as \"10s\" or \"1m30s\", minimum is 1s")
-	subscribeCmd.Flags().BoolP("suppress-redundant", "", false, "suppress redundant update if the subscribed value didnt not change")
-	subscribeCmd.Flags().StringP("heartbeat-interval", "", "0s", "heartbeat interval in case suppress-redundant is enabled")
-	subscribeCmd.Flags().StringSliceP("model", "", []string{""}, "subscribe request used model(s)")
+func subRequest(ctx context.Context, req *gnmi.SubscribeRequest, address, username, password string, wg *sync.WaitGroup, polledSubsChan map[string]chan struct{}, waitChan chan struct{}) {
+	defer wg.Done()
+	_, _, err := net.SplitHostPort(address)
+	if err != nil {
+		if strings.Contains(err.Error(), "missing port in address") {
+			address = net.JoinHostPort(address, defaultGrpcPort)
+		} else {
+			logger.Printf("error parsing address '%s': %v", address, err)
+			return
+		}
+	}
+	addresses := viper.GetStringSlice("address")
+	printPrefix := ""
+	if len(addresses) > 1 && !viper.GetBool("no-prefix") {
+		printPrefix = fmt.Sprintf("[%s] ", address)
+	}
+	conn, err := createGrpcConn(address)
+	if err != nil {
+		logger.Printf("connection to %s failed: %v", address, err)
+		return
+	}
+
+	client := gnmi.NewGNMIClient(conn)
+	nctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	nctx = metadata.AppendToOutgoingContext(nctx, "username", username, "password", password)
 	//
-	viper.BindPFlag("sub-prefix", subscribeCmd.Flags().Lookup("prefix"))
-	viper.BindPFlag("sub-path", subscribeCmd.Flags().Lookup("path"))
-	viper.BindPFlag("qos", subscribeCmd.Flags().Lookup("qos"))
-	viper.BindPFlag("updates-only", subscribeCmd.Flags().Lookup("updates-only"))
-	viper.BindPFlag("subscription-mode", subscribeCmd.Flags().Lookup("subscription-mode"))
-	viper.BindPFlag("stream-subscription-mode", subscribeCmd.Flags().Lookup("stream-subscription-mode"))
-	viper.BindPFlag("sampling-interval", subscribeCmd.Flags().Lookup("sampling-interval"))
-	viper.BindPFlag("suppress-redundant", subscribeCmd.Flags().Lookup("suppress-redundant"))
-	viper.BindPFlag("heartbeat-interval", subscribeCmd.Flags().Lookup("heartbeat-interval"))
-	viper.BindPFlag("sub-model", subscribeCmd.Flags().Lookup("model"))
+	xsubscReq := req
+	models := viper.GetStringSlice("sub-model")
+	if len(models) > 0 {
+		spModels, unspModels, err := filterModels(nctx, client, models)
+		if err != nil {
+			logger.Printf("failed getting supported models from '%s': %v", address, err)
+			return
+		}
+		if len(unspModels) > 0 {
+			logger.Printf("found unsupported models for target '%s': %+v", address, unspModels)
+		}
+		if len(spModels) > 0 {
+			modelsData := make([]*gnmi.ModelData, 0, len(spModels))
+			for _, m := range spModels {
+				modelsData = append(modelsData, m)
+			}
+			xsubscReq = &gnmi.SubscribeRequest{
+				Request: &gnmi.SubscribeRequest_Subscribe{
+					Subscribe: &gnmi.SubscriptionList{
+						Prefix:       req.GetSubscribe().GetPrefix(),
+						Mode:         req.GetSubscribe().GetMode(),
+						Encoding:     req.GetSubscribe().GetEncoding(),
+						Subscription: req.GetSubscribe().GetSubscription(),
+						UseModels:    modelsData,
+						Qos:          req.GetSubscribe().GetQos(),
+						UpdatesOnly:  viper.GetBool("updates-only"),
+					},
+				},
+			}
+		}
+	}
+	subscribeClient, err := client.Subscribe(nctx)
+	if err != nil {
+		logger.Printf("error creating subscribe client: %v", err)
+		return
+	}
+	logger.Printf("sending gnmi SubscribeRequest: subscribe='%+v', mode='%+v', encoding='%+v', to %s",
+		xsubscReq, xsubscReq.GetSubscribe().GetMode(), xsubscReq.GetSubscribe().GetEncoding(), address)
+	err = subscribeClient.Send(xsubscReq)
+	if err != nil {
+		logger.Printf("subscribe error: %v", err)
+		return
+	}
+	switch xsubscReq.GetSubscribe().Mode {
+	case gnmi.SubscriptionList_ONCE, gnmi.SubscriptionList_STREAM:
+		lock := new(sync.Mutex)
+		for {
+			subscribeRsp, err := subscribeClient.Recv()
+			if err != nil {
+				logger.Printf("addr=%s rcv error: %v", address, err)
+				return
+			}
+			switch resp := subscribeRsp.Response.(type) {
+			case *gnmi.SubscribeResponse_Update:
+				lock.Lock()
+				printSubscribeResponse(map[string]interface{}{"source": address}, subscribeRsp)
+				lock.Unlock()
+			case *gnmi.SubscribeResponse_SyncResponse:
+				logger.Printf("received sync response=%+v from %s\n", resp.SyncResponse, address)
+				if req.GetSubscribe().Mode == gnmi.SubscriptionList_ONCE {
+					return
+				}
+			}
+			fmt.Println()
+		}
+	case gnmi.SubscriptionList_POLL:
+		for {
+			select {
+			case <-polledSubsChan[address]:
+				err = subscribeClient.Send(&gnmi.SubscribeRequest{
+					Request: &gnmi.SubscribeRequest_Poll{
+						Poll: &gnmi.Poll{},
+					},
+				})
+				if err != nil {
+					logger.Printf("error sending poll request:%v", err)
+					waitChan <- struct{}{}
+					continue
+				}
+				subscribeRsp, err := subscribeClient.Recv()
+				if err != nil {
+					logger.Printf("rcv error: %v", err)
+					waitChan <- struct{}{}
+					continue
+				}
+				switch resp := subscribeRsp.Response.(type) {
+				case *gnmi.SubscribeResponse_Update:
+					printSubscribeResponse(map[string]interface{}{"source": address}, subscribeRsp)
+				case *gnmi.SubscribeResponse_SyncResponse:
+					fmt.Printf("%ssync response: %+v\n", printPrefix, resp.SyncResponse)
+				}
+				waitChan <- struct{}{}
+			}
+		}
+	}
 }
 
 func createSubscribeRequest() (*gnmi.SubscribeRequest, error) {
@@ -340,9 +316,8 @@ func createSubscribeRequest() (*gnmi.SubscribeRequest, error) {
 				Mode:         gnmi.SubscriptionList_Mode(modeVal),
 				Encoding:     gnmi.Encoding(encodingVal),
 				Subscription: subscriptions,
-				//UseModels:    models,
-				Qos:         qos,
-				UpdatesOnly: viper.GetBool("updates-only"),
+				Qos:          qos,
+				UpdatesOnly:  viper.GetBool("updates-only"),
 			},
 		},
 	}, nil
@@ -399,4 +374,31 @@ func printSubscribeResponse(meta map[string]interface{}, subResp *gnmi.Subscribe
 		}
 		fmt.Printf("%s\n", string(data))
 	}
+}
+
+func init() {
+	rootCmd.AddCommand(subscribeCmd)
+	subscribeCmd.Flags().StringP("prefix", "", "", "subscribe request prefix")
+	subscribeCmd.Flags().StringSliceP("path", "", []string{""}, "subscribe request paths")
+	subscribeCmd.MarkFlagRequired("path")
+	subscribeCmd.Flags().Int32P("qos", "q", 20, "qos marking")
+	subscribeCmd.Flags().BoolP("updates-only", "", false, "only updates to current state should be sent")
+	subscribeCmd.Flags().StringP("subscription-mode", "", "stream", "one of: once, stream, poll")
+	subscribeCmd.Flags().StringP("stream-subscription-mode", "", "target-defined", "one of: on-change, sample, target-defined")
+	subscribeCmd.Flags().StringP("sampling-interval", "i", "10s",
+		"sampling interval as a decimal number and a suffix unit, such as \"10s\" or \"1m30s\", minimum is 1s")
+	subscribeCmd.Flags().BoolP("suppress-redundant", "", false, "suppress redundant update if the subscribed value didnt not change")
+	subscribeCmd.Flags().StringP("heartbeat-interval", "", "0s", "heartbeat interval in case suppress-redundant is enabled")
+	subscribeCmd.Flags().StringSliceP("model", "", []string{""}, "subscribe request used model(s)")
+	//
+	viper.BindPFlag("sub-prefix", subscribeCmd.Flags().Lookup("prefix"))
+	viper.BindPFlag("sub-path", subscribeCmd.Flags().Lookup("path"))
+	viper.BindPFlag("qos", subscribeCmd.Flags().Lookup("qos"))
+	viper.BindPFlag("updates-only", subscribeCmd.Flags().Lookup("updates-only"))
+	viper.BindPFlag("subscription-mode", subscribeCmd.Flags().Lookup("subscription-mode"))
+	viper.BindPFlag("stream-subscription-mode", subscribeCmd.Flags().Lookup("stream-subscription-mode"))
+	viper.BindPFlag("sampling-interval", subscribeCmd.Flags().Lookup("sampling-interval"))
+	viper.BindPFlag("suppress-redundant", subscribeCmd.Flags().Lookup("suppress-redundant"))
+	viper.BindPFlag("heartbeat-interval", subscribeCmd.Flags().Lookup("heartbeat-interval"))
+	viper.BindPFlag("sub-model", subscribeCmd.Flags().Lookup("model"))
 }
