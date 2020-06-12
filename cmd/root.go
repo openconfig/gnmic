@@ -100,7 +100,7 @@ func init() {
 	rootCmd.PersistentFlags().StringP("tls-ca", "", "", "tls certificate authority")
 	rootCmd.PersistentFlags().StringP("tls-cert", "", "", "tls certificate")
 	rootCmd.PersistentFlags().StringP("tls-key", "", "", "tls key")
-	rootCmd.PersistentFlags().StringP("timeout", "", "30s", "grpc timeout")
+	rootCmd.PersistentFlags().DurationP("timeout", "", 10*time.Second, "grpc timeout, valid formats: 10s, 1m30s, 1h")
 	rootCmd.PersistentFlags().BoolP("debug", "d", false, "debug mode")
 	rootCmd.PersistentFlags().BoolP("skip-verify", "", false, "skip verify tls connection")
 	rootCmd.PersistentFlags().BoolP("no-prefix", "", false, "do not add [ip:port] prefix to print output in case of multiple targets")
@@ -172,11 +172,7 @@ func readPassword() (string, error) {
 }
 func createGrpcConn(address string) (*grpc.ClientConn, error) {
 	opts := []grpc.DialOption{}
-	timeout, err := time.ParseDuration(viper.GetString("timeout"))
-	if err != nil {
-		return nil, err
-	}
-	opts = append(opts, grpc.WithTimeout(timeout))
+	opts = append(opts, grpc.WithTimeout(viper.GetDuration("timeout")))
 	opts = append(opts, grpc.WithBlock())
 	if viper.GetInt("max-msg-size") > 0 {
 		opts = append(opts, grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(viper.GetInt("max-msg-size"))))
