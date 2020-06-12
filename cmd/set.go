@@ -366,14 +366,14 @@ var setCmd = &cobra.Command{
 		wg.Add(len(addresses))
 		lock := new(sync.Mutex)
 		for _, addr := range addresses {
-			go reqSet(ctx, req, addr, username, password, wg, lock)
+			go setRequest(ctx, req, addr, username, password, wg, lock)
 		}
 		wg.Wait()
 		return nil
 	},
 }
 
-func reqSet(ctx context.Context, req *gnmi.SetRequest, address, username, password string, wg *sync.WaitGroup, lock *sync.Mutex) {
+func setRequest(ctx context.Context, req *gnmi.SetRequest, address, username, password string, wg *sync.WaitGroup, lock *sync.Mutex) {
 	defer wg.Done()
 	_, _, err := net.SplitHostPort(address)
 	if err != nil {
@@ -401,10 +401,9 @@ func reqSet(ctx context.Context, req *gnmi.SetRequest, address, username, passwo
 	}
 	lock.Lock()
 	defer lock.Unlock()
-	logger.Printf("sending gNMI SetRequest: '%s' to %s", prototext.MarshalOptions{Multiline: false}.Format(req), address)
-	if viper.GetBool("print-request") {
-		printSetRequest(printPrefix, req)
-	}
+	logger.Printf("sending gNMI SetRequest: prefix='%v', delete='%v', replace='%v', update='%v', extension='%v' to %s", req.Prefix, req.Delete, req.Replace, req.Update, req.Extension, address)
+
+	printSetRequest(printPrefix, req)
 	response, err := client.Set(nctx, req)
 	if err != nil {
 		logger.Printf("error sending set request: %v", err)
