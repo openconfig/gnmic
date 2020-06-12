@@ -125,7 +125,7 @@ func getRequest(ctx context.Context, req *gnmi.GetRequest, address, username, pa
 	xreq := req
 	models := viper.GetStringSlice("get-model")
 	if len(models) > 0 {
-		spModels, unspModels, err := filterModels(ctx, client, models)
+		spModels, unspModels, err := filterModels(nctx, client, models)
 		if err != nil {
 			logger.Printf("failed getting supported models from '%s': %v", address, err)
 			return
@@ -143,7 +143,6 @@ func getRequest(ctx context.Context, req *gnmi.GetRequest, address, username, pa
 		logger.Printf("failed sending GetRequest to %s: %v", address, err)
 		return
 	}
-
 	lock.Lock()
 	printGetResponse(address, response)
 	lock.Unlock()
