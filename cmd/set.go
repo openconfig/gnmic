@@ -480,11 +480,11 @@ func convert(i interface{}) interface{} {
 	return i
 }
 func printSetRequest(printPrefix string, request *gnmi.SetRequest) {
-	fmt.Printf("%sSet Request: \n", printPrefix)
 	if viper.GetString("format") == "textproto" {
 		fmt.Printf("%s\n", indent("  ", prototext.Format(request)))
 		return
 	}
+	fmt.Printf("%sSet Request: \n", printPrefix)
 	req := new(setReqMsg)
 	req.Prefix = gnmiPathToXPath(request.Prefix)
 
