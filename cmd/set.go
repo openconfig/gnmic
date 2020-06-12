@@ -487,29 +487,29 @@ func printSetRequest(printPrefix string, request *gnmi.SetRequest) {
 	fmt.Printf("%sSet Request: \n", printPrefix)
 	req := new(setReqMsg)
 	req.Prefix = gnmiPathToXPath(request.Prefix)
+	req.Delete = make([]string, 0, len(request.Delete))
+	req.Replace = make([]*updateMsg, 0, len(request.Replace))
+	req.Update = make([]*updateMsg, 0, len(request.Update))
 
-	if len(request.Delete) > 0 {
-		for _, del := range request.Delete {
-			p := gnmiPathToXPath(del)
-			req.Delete = append(req.Delete, p)
-		}
+	for _, del := range request.Delete {
+		p := gnmiPathToXPath(del)
+		req.Delete = append(req.Delete, p)
 	}
-	if len(request.Replace) > 0 {
-		for _, upd := range request.Replace {
-			updMsg := new(updateMsg)
-			updMsg.Path = gnmiPathToXPath(upd.Path)
-			updMsg.Val = fmt.Sprintf("%s", upd.Val)
-			req.Replace = append(req.Replace, updMsg)
-		}
+
+	for _, upd := range request.Replace {
+		updMsg := new(updateMsg)
+		updMsg.Path = gnmiPathToXPath(upd.Path)
+		updMsg.Val = fmt.Sprintf("%s", upd.Val)
+		req.Replace = append(req.Replace, updMsg)
 	}
-	if len(request.Update) > 0 {
-		for _, upd := range request.Update {
-			updMsg := new(updateMsg)
-			updMsg.Path = gnmiPathToXPath(upd.Path)
-			updMsg.Val = fmt.Sprintf("%s", upd.Val)
-			req.Update = append(req.Update, updMsg)
-		}
+
+	for _, upd := range request.Update {
+		updMsg := new(updateMsg)
+		updMsg.Path = gnmiPathToXPath(upd.Path)
+		updMsg.Val = fmt.Sprintf("%s", upd.Val)
+		req.Update = append(req.Update, updMsg)
 	}
+
 	b, err := json.MarshalIndent(req, "", "  ")
 	if err != nil {
 		fmt.Println("failed marshaling the set request", err)
