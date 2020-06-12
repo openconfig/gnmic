@@ -39,6 +39,32 @@ import (
 
 var vTypes = []string{"json", "json_ietf", "string", "int", "uint", "bool", "decimal", "float", "bytes", "ascii"}
 
+type setRspMsg struct {
+	Source    string             `json:"source,omitempty"`
+	Timestamp int64              `json:"timestamp,omitempty"`
+	Time      time.Time          `json:"time,omitempty"`
+	Prefix    string             `json:"prefix,omitempty"`
+	Results   []*updateResultMsg `json:"results,omitempty"`
+}
+
+type updateResultMsg struct {
+	Operation string `json:"operation,omitempty"`
+	Path      string `json:"path,omitempty"`
+}
+
+type setReqMsg struct {
+	Prefix  string       `json:"prefix,omitempty"`
+	Delete  []string     `json:"delete,omitempty"`
+	Replace []*updateMsg `json:"replace,omitempty"`
+	Update  []*updateMsg `json:"update,omitempty"`
+	// extension is not implemented
+}
+
+type updateMsg struct {
+	Path string `json:"path,omitempty"`
+	Val  string `json:"val,omitempty"`
+}
+
 // setCmd represents the set command
 var setCmd = &cobra.Command{
 	Use:   "set",
@@ -401,9 +427,10 @@ func setRequest(ctx context.Context, req *gnmi.SetRequest, address, username, pa
 	}
 	lock.Lock()
 	defer lock.Unlock()
+	if viper.GetBool("print-request") {
+		printSetRequest(printPrefix, req)
+	}
 	logger.Printf("sending gNMI SetRequest: prefix='%v', delete='%v', replace='%v', update='%v', extension='%v' to %s", req.Prefix, req.Delete, req.Replace, req.Update, req.Extension, address)
-
-	printSetRequest(printPrefix, req)
 	response, err := client.Set(nctx, req)
 	if err != nil {
 		logger.Printf("error sending set request: %v", err)
@@ -453,32 +480,42 @@ func convert(i interface{}) interface{} {
 	return i
 }
 func printSetRequest(printPrefix string, request *gnmi.SetRequest) {
-	fmt.Printf("%sRequest: \n", printPrefix)
+	fmt.Printf("%sSet Request: \n", printPrefix)
 	if viper.GetString("format") == "textproto" {
 		fmt.Printf("%s\n", indent("  ", prototext.Format(request)))
 		return
 	}
-	fmt.Printf("%s  prefix: %v\n", printPrefix, gnmiPathToXPath(request.Prefix))
+	req := new(setReqMsg)
+	req.Prefix = gnmiPathToXPath(request.Prefix)
+
 	if len(request.Delete) > 0 {
-		fmt.Printf("%s    delete:\n", printPrefix)
 		for _, del := range request.Delete {
-			fmt.Printf("%s      delete: %s\n", printPrefix, gnmiPathToXPath(del))
+			p := gnmiPathToXPath(del)
+			req.Delete = append(req.Delete, p)
 		}
 	}
 	if len(request.Replace) > 0 {
-		fmt.Printf("%s    replace\n", printPrefix)
-		for _, rep := range request.Replace {
-			fmt.Printf("%s      path : %v\n", printPrefix, gnmiPathToXPath(rep.Path))
-			fmt.Printf("%s      value: %v\n", printPrefix, rep.Val)
+		for _, upd := range request.Replace {
+			updMsg := new(updateMsg)
+			updMsg.Path = gnmiPathToXPath(upd.Path)
+			updMsg.Val = fmt.Sprintf("%s", upd.Val)
+			req.Replace = append(req.Replace, updMsg)
 		}
 	}
 	if len(request.Update) > 0 {
-		fmt.Printf("%s    update:\n", printPrefix)
 		for _, upd := range request.Update {
-			fmt.Printf("%s      path : %s\n", printPrefix, gnmiPathToXPath(upd.Path))
-			fmt.Printf("%s      value: %s\n", printPrefix, upd.Val)
+			updMsg := new(updateMsg)
+			updMsg.Path = gnmiPathToXPath(upd.Path)
+			updMsg.Val = fmt.Sprintf("%s", upd.Val)
+			req.Update = append(req.Update, updMsg)
 		}
 	}
+	b, err := json.MarshalIndent(req, "", "  ")
+	if err != nil {
+		fmt.Println("failed marshaling the set request", err)
+		return
+	}
+	fmt.Println(string(b))
 }
 func printSetResponse(printPrefix, address string, response *gnmi.SetResponse) {
 	if viper.GetString("format") == "textproto" {
@@ -489,10 +526,10 @@ func printSetResponse(printPrefix, address string, response *gnmi.SetResponse) {
 	rsp.Prefix = gnmiPathToXPath(response.Prefix)
 	rsp.Timestamp = response.Timestamp
 	rsp.Time = time.Unix(0, response.Timestamp)
-	rsp.Results = make([]*result, 0, len(response.Response))
+	rsp.Results = make([]*updateResultMsg, 0, len(response.Response))
 	rsp.Source = address
 	for _, u := range response.Response {
-		r := new(result)
+		r := new(updateResultMsg)
 		r.Operation = u.Op.String()
 		r.Path = gnmiPathToXPath(u.Path)
 		rsp.Results = append(rsp.Results, r)
@@ -536,17 +573,4 @@ func init() {
 	viper.BindPFlag("replace-value", setCmd.Flags().Lookup("replace-value"))
 	viper.BindPFlag("delimiter", setCmd.Flags().Lookup("delimiter"))
 	viper.BindPFlag("print-request", setCmd.Flags().Lookup("print-request"))
-}
-
-type setRspMsg struct {
-	Source    string    `json:"source,omitempty"`
-	Timestamp int64     `json:"timestamp,omitempty"`
-	Time      time.Time `json:"time,omitempty"`
-	Prefix    string    `json:"prefix,omitempty"`
-	Results   []*result `json:"results,omitempty"`
-}
-
-type result struct {
-	Operation string `json:"operation,omitempty"`
-	Path      string `json:"path,omitempty"`
 }
