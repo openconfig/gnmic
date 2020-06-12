@@ -381,7 +381,7 @@ func getTargets() ([]*target, error) {
 	defGrpcPort := viper.GetString("port")
 	defUsername := viper.GetString("username")
 	defPassword := viper.GetString("password")
-	if len(addresses) != 0 {
+	if len(addresses) > 0 {
 		if defUsername == "" {
 			if defUsername, err = readUsername(); err != nil {
 				return nil, err
@@ -413,10 +413,21 @@ func getTargets() ([]*target, error) {
 		})
 		return targets, nil
 	}
-	targetsMap := viper.GetStringMap("targets")
+	targetsInt := viper.Get("targets")
+	targetsMap := make(map[string]interface{})
+	switch targetsInt.(type) {
+	case string:
+		for _, addr := range strings.Split(targetsInt.(string), " ") {
+			targetsMap[addr] = nil
+		}
+	case map[string]interface{}:
+		targetsMap = targetsInt.(map[string]interface{})
+	default:
+		return nil, fmt.Errorf("unexpected targets format, got: %T", targetsInt)
+	}
 	ltm := len(targetsMap)
 	if ltm == 0 {
-		return nil, nil
+		return nil, fmt.Errorf("no targets found")
 	}
 	targets = make([]*target, 0, ltm)
 	for addr, t := range targetsMap {
@@ -430,10 +441,17 @@ func getTargets() ([]*target, error) {
 				return nil, fmt.Errorf("error parsing address '%s': %v", addr, err)
 			}
 		}
+
 		tg.Address = addr
-		err = mapstructure.Decode(t.(map[string]interface{}), tg)
-		if err != nil {
-			return nil, err
+		switch t.(type) {
+		case map[string]interface{}:
+			err = mapstructure.Decode(t.(map[string]interface{}), tg)
+			if err != nil {
+				return nil, err
+			}
+		case nil:
+		default:
+			return nil, fmt.Errorf("unexpected targets format, got a %T", t)
 		}
 		if tg.Username == "" {
 			tg.Username = defUsername
