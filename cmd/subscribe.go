@@ -102,25 +102,32 @@ var subscribeCmd = &cobra.Command{
 			go subRequest(ctx, subscReq, addr, username, password, wg, polledSubsChan, waitChan)
 		}
 		if subscReq.GetSubscribe().Mode == gnmi.SubscriptionList_POLL {
-			for {
-				s := promptui.Select{
-					Label:        "select target to poll",
-					Items:        addresses,
-					HideSelected: true,
-				}
-				_, addr, err := s.Run()
-				if err != nil {
-					fmt.Printf("failed selecting target to poll: %v\n", err)
-					continue
-				}
-				if _, ok := polledSubsChan[addr]; !ok {
-					fmt.Printf("unknown target: %s\n", addr)
-					continue
-				}
-				logger.Printf("polling address '%s'", addr)
-				polledSubsChan[addr] <- struct{}{}
-				<-waitChan
+			s := promptui.Select{
+				Label:        "select target to poll",
+				Items:        addresses,
+				HideSelected: true,
 			}
+			go func() {
+				for {
+					select {
+					case <-waitChan:
+						_, addr, err := s.Run()
+						if err != nil {
+							fmt.Printf("failed selecting target to poll: %v\n", err)
+							continue
+						}
+						if _, ok := polledSubsChan[addr]; !ok {
+							fmt.Printf("unknown target: %s\n", addr)
+							continue
+						}
+						logger.Printf("polling address '%s'", addr)
+						polledSubsChan[addr] <- struct{}{}
+					case <-ctx.Done():
+						break
+					}
+				}
+			}()
+			waitChan <- struct{}{}
 		}
 		wg.Wait()
 		return nil
@@ -246,6 +253,8 @@ func subRequest(ctx context.Context, req *gnmi.SubscribeRequest, address, userna
 					fmt.Printf("%ssync response: %+v\n", printPrefix, resp.SyncResponse)
 				}
 				waitChan <- struct{}{}
+			case <-ctx.Done():
+				return
 			}
 		}
 	}
