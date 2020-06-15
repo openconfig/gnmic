@@ -102,299 +102,9 @@ var setCmd = &cobra.Command{
 		if len(addresses) > 1 {
 			fmt.Println("[warning] running set command on multiple targets")
 		}
-		prefix := viper.GetString("set-prefix")
-		gnmiPrefix, err := xpath.ToGNMIPath(prefix)
+		req, err := createSetRequest()
 		if err != nil {
 			return err
-		}
-		deletes := viper.GetStringSlice("delete")
-		updates := viper.GetString("update")
-		replaces := viper.GetString("replace")
-
-		updatePaths := viper.GetStringSlice("update-path")
-		replacePaths := viper.GetStringSlice("replace-path")
-		updateFiles := viper.GetStringSlice("update-file")
-		replaceFiles := viper.GetStringSlice("replace-file")
-		updateValues := viper.GetStringSlice("update-value")
-		replaceValues := viper.GetStringSlice("replace-value")
-		delimiter := viper.GetString("delimiter")
-		if (len(deletes)+len(updates)+len(replaces)) == 0 && (len(updatePaths)+len(replacePaths)) == 0 {
-			return errors.New("no paths provided")
-		}
-		inlineUpdates := len(updates) > 0
-		inlineReplaces := len(replaces) > 0
-		useUpdateFile := len(updateFiles) > 0 && len(updateValues) == 0
-		useReplaceFile := len(replaceFiles) > 0 && len(replaceValues) == 0
-		updateTypes := make([]string, 0)
-		replaceTypes := make([]string, 0)
-
-		if viper.GetBool("debug") {
-			logger.Printf("deletes(%d)=%v\n", len(deletes), deletes)
-			logger.Printf("updates(%d)=%v\n", len(updates), updates)
-			logger.Printf("replaces(%d)=%v\n", len(replaces), replaces)
-			logger.Printf("delimiter=%v\n", delimiter)
-			logger.Printf("updates-paths(%d)=%v\n", len(updatePaths), updatePaths)
-			logger.Printf("replaces-paths(%d)=%v\n", len(replacePaths), replacePaths)
-			logger.Printf("updates-files(%d)=%v\n", len(updateFiles), updateFiles)
-			logger.Printf("replaces-files(%d)=%v\n", len(replaceFiles), replaceFiles)
-			logger.Printf("updates-values(%d)=%v\n", len(updateValues), updateValues)
-			logger.Printf("replaces-values(%d)=%v\n", len(replaceValues), replaceValues)
-		}
-		if inlineUpdates && !useUpdateFile {
-			updateSlice := strings.Split(updates, delimiter)
-			if len(updateSlice) < 3 {
-				return fmt.Errorf("'%s' invalid inline update format: %v", updates, err)
-			}
-			updatePaths = append(updatePaths, updateSlice[0])
-			updateTypes = append(updateTypes, updateSlice[1])
-			updateValues = append(updateValues, strings.Join(updateSlice[2:], delimiter))
-		}
-		if inlineReplaces && !useReplaceFile {
-			replaceSlice := strings.Split(replaces, delimiter)
-			if len(replaceSlice) < 3 {
-				return fmt.Errorf("'%s' invalid inline replace format: %v", replaces, err)
-			}
-			replacePaths = append(replacePaths, replaceSlice[0])
-			replaceTypes = append(replaceTypes, replaceSlice[1])
-			replaceValues = append(replaceValues, strings.Join(replaceSlice[2:], delimiter))
-		}
-
-		if useUpdateFile && !inlineUpdates {
-			if len(updatePaths) != len(updateFiles) {
-				return errors.New("missing or extra update files")
-			}
-		} else {
-			if len(updatePaths) != len(updateValues) && len(updates) > 0 {
-				return errors.New("missing or extra update values")
-			}
-		}
-		if useReplaceFile && !inlineReplaces {
-			if len(replacePaths) != len(replaceFiles) {
-				return errors.New("missing or extra replace files")
-			}
-		} else {
-			if len(replacePaths) != len(replaceValues) && len(replaces) > 0 {
-				return errors.New("missing or extra replace values")
-			}
-		}
-
-		req := &gnmi.SetRequest{
-			Prefix:  gnmiPrefix,
-			Delete:  make([]*gnmi.Path, 0, len(deletes)),
-			Replace: make([]*gnmi.Update, 0, len(replaces)),
-			Update:  make([]*gnmi.Update, 0, len(updates)),
-		}
-		for _, p := range deletes {
-			gnmiPath, err := xpath.ToGNMIPath(strings.TrimSpace(p))
-			if err != nil {
-				logger.Printf("path '%s' parse error: %v", p, err)
-				continue
-			}
-			req.Delete = append(req.Delete, gnmiPath)
-		}
-		for i, p := range updatePaths {
-			gnmiPath, err := xpath.ToGNMIPath(strings.TrimSpace(p))
-			if err != nil {
-				logger.Print(err)
-			}
-			value := new(gnmi.TypedValue)
-			if useUpdateFile {
-				var updateData []byte
-				updateData, err = readFile(updateFiles[i])
-				if err != nil {
-					logger.Printf("error reading data from file '%s': %v", updateFiles[i], err)
-					continue
-				}
-				value.Value = &gnmi.TypedValue_JsonVal{
-					JsonVal: bytes.Trim(updateData, " \r\n\t"),
-				}
-			} else {
-				var vType string
-				if len(updateTypes) > i {
-					vType = updateTypes[i]
-				} else {
-					vType = "json"
-				}
-				switch vType {
-				case "json":
-					buff := new(bytes.Buffer)
-					err = json.NewEncoder(buff).Encode(strings.TrimRight(strings.TrimLeft(updateValues[i], "["), "]"))
-					if err != nil {
-						return err
-					}
-					value.Value = &gnmi.TypedValue_JsonVal{
-						JsonVal: bytes.Trim(buff.Bytes(), " \r\n\t"),
-					}
-				case "json_ietf":
-					buff := new(bytes.Buffer)
-					err = json.NewEncoder(buff).Encode(strings.TrimRight(strings.TrimLeft(updateValues[i], "["), "]"))
-					if err != nil {
-						return err
-					}
-					value.Value = &gnmi.TypedValue_JsonIetfVal{
-						JsonIetfVal: bytes.Trim(buff.Bytes(), " \r\n\t"),
-					}
-				case "ascii":
-					value.Value = &gnmi.TypedValue_AsciiVal{
-						AsciiVal: updateValues[i],
-					}
-				case "bool":
-					bval, err := strconv.ParseBool(updateValues[i])
-					if err != nil {
-						return err
-					}
-					value.Value = &gnmi.TypedValue_BoolVal{
-						BoolVal: bval,
-					}
-				case "bytes":
-					value.Value = &gnmi.TypedValue_BytesVal{
-						BytesVal: []byte(updateValues[i]),
-					}
-				case "decimal":
-					dVal := &gnmi.Decimal64{}
-					value.Value = &gnmi.TypedValue_DecimalVal{
-						DecimalVal: dVal,
-					}
-					logger.Println("decimal type not implemented")
-					return nil
-				case "float":
-					f, err := strconv.ParseFloat(updateValues[i], 32)
-					if err != nil {
-						return err
-					}
-					value.Value = &gnmi.TypedValue_FloatVal{
-						FloatVal: float32(f),
-					}
-				case "int":
-					k, err := strconv.ParseInt(updateValues[i], 10, 64)
-					if err != nil {
-						return err
-					}
-					value.Value = &gnmi.TypedValue_IntVal{
-						IntVal: k,
-					}
-				case "uint":
-					u, err := strconv.ParseUint(updateValues[i], 10, 64)
-					if err != nil {
-						return err
-					}
-					value.Value = &gnmi.TypedValue_UintVal{
-						UintVal: u,
-					}
-				case "string":
-					value.Value = &gnmi.TypedValue_StringVal{
-						StringVal: updateValues[i],
-					}
-				default:
-					return fmt.Errorf("unknown type '%s', must be one of: %v", vType, vTypes)
-				}
-			}
-			req.Update = append(req.Update, &gnmi.Update{
-				Path: gnmiPath,
-				Val:  value,
-			})
-		}
-		for i, p := range replacePaths {
-			gnmiPath, err := xpath.ToGNMIPath(strings.TrimSpace(p))
-			if err != nil {
-				logger.Print(err)
-			}
-			value := new(gnmi.TypedValue)
-			if useReplaceFile {
-				var replaceData []byte
-				replaceData, err = readFile(replaceFiles[i])
-				if err != nil {
-					logger.Printf("error reading data from file '%s': %v", replaceFiles[i], err)
-					continue
-				}
-				value.Value = &gnmi.TypedValue_JsonVal{
-					JsonVal: bytes.Trim(replaceData, " \r\n\t"),
-				}
-			} else {
-				var vType string
-				if len(replaceTypes) > i {
-					vType = replaceTypes[i]
-				} else {
-					vType = "json"
-				}
-				switch vType {
-				case "json":
-					buff := new(bytes.Buffer)
-					err = json.NewEncoder(buff).Encode(strings.TrimRight(strings.TrimLeft(replaceValues[i], "["), "]"))
-					if err != nil {
-						return err
-					}
-					value.Value = &gnmi.TypedValue_JsonVal{
-						JsonVal: bytes.Trim(buff.Bytes(), " \r\n\t"),
-					}
-				case "json_ietf":
-					buff := new(bytes.Buffer)
-					err = json.NewEncoder(buff).Encode(strings.TrimRight(strings.TrimLeft(replaceValues[i], "["), "]"))
-					if err != nil {
-						return err
-					}
-					value.Value = &gnmi.TypedValue_JsonIetfVal{
-						JsonIetfVal: bytes.Trim(buff.Bytes(), " \r\n\t"),
-					}
-				case "ascii":
-					value.Value = &gnmi.TypedValue_AsciiVal{
-						AsciiVal: replaceValues[i],
-					}
-				case "bool":
-					bval, err := strconv.ParseBool(replaceValues[i])
-					if err != nil {
-						return err
-					}
-					value.Value = &gnmi.TypedValue_BoolVal{
-						BoolVal: bval,
-					}
-				case "bytes":
-					value.Value = &gnmi.TypedValue_BytesVal{
-						BytesVal: []byte(replaceValues[i]),
-					}
-				case "decimal":
-					dVal := &gnmi.Decimal64{}
-					value.Value = &gnmi.TypedValue_DecimalVal{
-						DecimalVal: dVal,
-					}
-					logger.Println("decimal type not implemented")
-					return nil
-				case "float":
-					f, err := strconv.ParseFloat(replaceValues[i], 32)
-					if err != nil {
-						return err
-					}
-					value.Value = &gnmi.TypedValue_FloatVal{
-						FloatVal: float32(f),
-					}
-				case "int":
-					i, err := strconv.ParseInt(replaceValues[i], 10, 64)
-					if err != nil {
-						return err
-					}
-					value.Value = &gnmi.TypedValue_IntVal{
-						IntVal: i,
-					}
-				case "uint":
-					i, err := strconv.ParseUint(replaceValues[i], 10, 64)
-					if err != nil {
-						return err
-					}
-					value.Value = &gnmi.TypedValue_UintVal{
-						UintVal: i,
-					}
-				case "string":
-					value.Value = &gnmi.TypedValue_StringVal{
-						StringVal: replaceValues[i],
-					}
-				default:
-					return fmt.Errorf("unknown type '%s', must be one of: %v", vType, vTypes)
-				}
-			}
-			req.Replace = append(req.Replace, &gnmi.Update{
-				Path: gnmiPath,
-				Val:  value,
-			})
 		}
 		username := viper.GetString("username")
 		if username == "" {
@@ -596,6 +306,11 @@ func init() {
 }
 
 func createSetRequest() (*gnmi.SetRequest, error) {
+	prefix := viper.GetString("set-prefix")
+	gnmiPrefix, err := xpath.ToGNMIPath(prefix)
+	if err != nil {
+		return nil, err
+	}
 	deletes := viper.GetStringSlice("delete")
 	updates := viper.GetStringSlice("update")
 	replaces := viper.GetStringSlice("replace")
@@ -626,13 +341,6 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 		return nil, errors.New("missing replace value/file or path")
 	}
 	//
-	prefix := viper.GetString("set-prefix")
-	gnmiPrefix, err := xpath.ToGNMIPath(prefix)
-	if err != nil {
-		return nil, err
-	}
-	inlineUpdates := len(updates) > 0
-	inlineReplaces := len(replaces) > 0
 	useUpdateFiles := len(updateFiles) > 0 && len(updateValues) == 0
 	useReplaceFiles := len(replaceFiles) > 0 && len(replaceValues) == 0
 	req := &gnmi.SetRequest{
@@ -648,33 +356,43 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 		}
 		req.Delete = append(req.Delete, gnmiPath)
 	}
-	updateTypes := make([]string, 0)
-	replaceTypes := make([]string, 0)
-	_ = delimiter
-	_ = inlineUpdates
-	_ = inlineReplaces
-	_ = useReplaceFiles
-	_ = useReplaceFiles
-	_ = updateTypes
-	_ = replaceTypes
-	sInput := new(setInput)
 	for _, u := range updates {
 		singleUpdate := strings.Split(u, delimiter)
 		if len(singleUpdate) < 3 {
 			return nil, fmt.Errorf("invalid inline update format: %s", updates)
 		}
-		sInput.Updates.Paths = append(sInput.Updates.Paths, singleUpdate[0])
-		sInput.Updates.Types = append(sInput.Updates.Types, singleUpdate[1])
-		sInput.Updates.Values = append(sInput.Updates.Values, strings.Join(singleUpdate[2:], delimiter))
+		gnmiPath, err := xpath.ToGNMIPath(strings.TrimSpace(singleUpdate[0]))
+		if err != nil {
+			return nil, err
+		}
+		value := new(gnmi.TypedValue)
+		err = setValue(value, singleUpdate[1], singleUpdate[2])
+		if err != nil {
+			return nil, err
+		}
+		req.Update = append(req.Update, &gnmi.Update{
+			Path: gnmiPath,
+			Val:  value,
+		})
 	}
 	for _, r := range replaces {
 		singleReplace := strings.Split(r, delimiter)
 		if len(singleReplace) < 3 {
 			return nil, fmt.Errorf("invalid inline replace format: %s", updates)
 		}
-		sInput.Replaces.Paths = append(sInput.Replaces.Paths, singleReplace[0])
-		sInput.Replaces.Types = append(sInput.Replaces.Types, singleReplace[1])
-		sInput.Replaces.Values = append(sInput.Replaces.Values, strings.Join(singleReplace[2:], delimiter))
+		gnmiPath, err := xpath.ToGNMIPath(strings.TrimSpace(singleReplace[0]))
+		if err != nil {
+			return nil, err
+		}
+		value := new(gnmi.TypedValue)
+		err = setValue(value, singleReplace[1], singleReplace[2])
+		if err != nil {
+			return nil, err
+		}
+		req.Replace = append(req.Update, &gnmi.Update{
+			Path: gnmiPath,
+			Val:  value,
+		})
 	}
 	for i, p := range updatePaths {
 		gnmiPath, err := xpath.ToGNMIPath(strings.TrimSpace(p))
@@ -693,13 +411,7 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 				JsonVal: bytes.Trim(updateData, " \r\n\t"),
 			}
 		} else {
-			var vType string
-			if len(updateTypes) > i {
-				vType = updateTypes[i]
-			} else {
-				vType = "json"
-			}
-			err = setValue(value, vType, updateValues[i])
+			err = setValue(value, "json", updateValues[i])
 			if err != nil {
 				return nil, err
 			}
@@ -709,7 +421,33 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 			Val:  value,
 		})
 	}
-
+	for i, p := range replacePaths {
+		gnmiPath, err := xpath.ToGNMIPath(strings.TrimSpace(p))
+		if err != nil {
+			return nil, err
+		}
+		value := new(gnmi.TypedValue)
+		if useReplaceFiles {
+			var replaceData []byte
+			replaceData, err = readFile(replaceFiles[i])
+			if err != nil {
+				logger.Printf("error reading data from file '%s': %v", replaceFiles[i], err)
+				continue
+			}
+			value.Value = &gnmi.TypedValue_JsonVal{
+				JsonVal: bytes.Trim(replaceData, " \r\n\t"),
+			}
+		} else {
+			err = setValue(value, "json", replaceValues[i])
+			if err != nil {
+				return nil, err
+			}
+		}
+		req.Replace = append(req.Replace, &gnmi.Update{
+			Path: gnmiPath,
+			Val:  value,
+		})
+	}
 	return req, nil
 }
 
