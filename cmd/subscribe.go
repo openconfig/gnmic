@@ -59,23 +59,9 @@ var subscribeCmd = &cobra.Command{
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		setupCloseHandler(cancel)
-		addresses := viper.GetStringSlice("address")
-		if len(addresses) == 0 {
-			fmt.Println("no grpc server address specified")
-			return nil
-		}
-		var err error
-		username := viper.GetString("username")
-		if username == "" {
-			if username, err = readUsername(); err != nil {
-				return err
-			}
-		}
-		password := viper.GetString("password")
-		if password == "" {
-			if password, err = readPassword(); err != nil {
-				return err
-			}
+		targets, err := getTargets()
+		if err != nil {
+			return err
 		}
 		subscReq, err := createSubscribeRequest()
 		if err != nil {
@@ -84,24 +70,28 @@ var subscribeCmd = &cobra.Command{
 		polledSubsChan := make(map[string]chan struct{})
 		waitChan := make(chan struct{})
 		if subscReq.GetSubscribe().Mode == gnmi.SubscriptionList_POLL {
-			for i := range addresses {
-				_, _, err := net.SplitHostPort(addresses[i])
+			for i := range targets {
+				_, _, err := net.SplitHostPort(targets[i].Address)
 				if err != nil {
 					if strings.Contains(err.Error(), "missing port in address") {
-						addresses[i] = net.JoinHostPort(addresses[i], defaultGrpcPort)
+						targets[i].Address = net.JoinHostPort(targets[i].Address, defaultGrpcPort)
 					} else {
 						continue
 					}
 				}
-				polledSubsChan[addresses[i]] = make(chan struct{})
+				polledSubsChan[targets[i].Address] = make(chan struct{})
 			}
 		}
 		wg := new(sync.WaitGroup)
-		wg.Add(len(addresses))
-		for _, addr := range addresses {
-			go subRequest(ctx, subscReq, addr, username, password, wg, polledSubsChan, waitChan)
+		wg.Add(len(targets))
+		for _, target := range targets {
+			go subRequest(ctx, subscReq, target, wg, polledSubsChan, waitChan)
 		}
 		if subscReq.GetSubscribe().Mode == gnmi.SubscriptionList_POLL {
+			addresses := make([]string, len(targets))
+			for i := range targets {
+				addresses[i] = targets[i].Address
+			}
 			s := promptui.Select{
 				Label:        "select target to poll",
 				Items:        addresses,
@@ -134,43 +124,29 @@ var subscribeCmd = &cobra.Command{
 	},
 }
 
-func subRequest(ctx context.Context, req *gnmi.SubscribeRequest, address, username, password string, wg *sync.WaitGroup, polledSubsChan map[string]chan struct{}, waitChan chan struct{}) {
+func subRequest(ctx context.Context, req *gnmi.SubscribeRequest, target *target, wg *sync.WaitGroup, polledSubsChan map[string]chan struct{}, waitChan chan struct{}) {
 	defer wg.Done()
-	_, _, err := net.SplitHostPort(address)
+	conn, err := createGrpcConn(target.Address)
 	if err != nil {
-		if strings.Contains(err.Error(), "missing port in address") {
-			address = net.JoinHostPort(address, defaultGrpcPort)
-		} else {
-			logger.Printf("error parsing address '%s': %v", address, err)
-			return
-		}
-	}
-	addresses := viper.GetStringSlice("address")
-	printPrefix := ""
-	if len(addresses) > 1 && !viper.GetBool("no-prefix") {
-		printPrefix = fmt.Sprintf("[%s] ", address)
-	}
-	conn, err := createGrpcConn(address)
-	if err != nil {
-		logger.Printf("connection to %s failed: %v", address, err)
+		logger.Printf("connection to %s failed: %v", target.Address, err)
 		return
 	}
 
 	client := gnmi.NewGNMIClient(conn)
 	nctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	nctx = metadata.AppendToOutgoingContext(nctx, "username", username, "password", password)
+	nctx = metadata.AppendToOutgoingContext(nctx, "username", target.Username, "password", target.Password)
 	//
 	xsubscReq := req
 	models := viper.GetStringSlice("sub-model")
 	if len(models) > 0 {
 		spModels, unspModels, err := filterModels(nctx, client, models)
 		if err != nil {
-			logger.Printf("failed getting supported models from '%s': %v", address, err)
+			logger.Printf("failed getting supported models from '%s': %v", target.Address, err)
 			return
 		}
 		if len(unspModels) > 0 {
-			logger.Printf("found unsupported models for target '%s': %+v", address, unspModels)
+			logger.Printf("found unsupported models for target '%s': %+v", target.Address, unspModels)
 		}
 		if len(spModels) > 0 {
 			modelsData := make([]*gnmi.ModelData, 0, len(spModels))
@@ -198,7 +174,7 @@ func subRequest(ctx context.Context, req *gnmi.SubscribeRequest, address, userna
 		return
 	}
 	logger.Printf("sending gnmi SubscribeRequest: subscribe='%+v', mode='%+v', encoding='%+v', to %s",
-		xsubscReq, xsubscReq.GetSubscribe().GetMode(), xsubscReq.GetSubscribe().GetEncoding(), address)
+		xsubscReq, xsubscReq.GetSubscribe().GetMode(), xsubscReq.GetSubscribe().GetEncoding(), target.Address)
 	err = subscribeClient.Send(xsubscReq)
 	if err != nil {
 		logger.Printf("subscribe error: %v", err)
@@ -210,16 +186,16 @@ func subRequest(ctx context.Context, req *gnmi.SubscribeRequest, address, userna
 		for {
 			subscribeRsp, err := subscribeClient.Recv()
 			if err != nil {
-				logger.Printf("addr=%s rcv error: %v", address, err)
+				logger.Printf("addr=%s rcv error: %v", target.Address, err)
 				return
 			}
 			switch resp := subscribeRsp.Response.(type) {
 			case *gnmi.SubscribeResponse_Update:
 				lock.Lock()
-				printSubscribeResponse(map[string]interface{}{"source": address}, subscribeRsp)
+				printSubscribeResponse(map[string]interface{}{"source": target.Address}, subscribeRsp)
 				lock.Unlock()
 			case *gnmi.SubscribeResponse_SyncResponse:
-				logger.Printf("received sync response=%+v from %s\n", resp.SyncResponse, address)
+				logger.Printf("received sync response=%+v from %s\n", resp.SyncResponse, target.Address)
 				if req.GetSubscribe().Mode == gnmi.SubscriptionList_ONCE {
 					return
 				}
@@ -229,7 +205,7 @@ func subRequest(ctx context.Context, req *gnmi.SubscribeRequest, address, userna
 	case gnmi.SubscriptionList_POLL:
 		for {
 			select {
-			case <-polledSubsChan[address]:
+			case <-polledSubsChan[target.Address]:
 				err = subscribeClient.Send(&gnmi.SubscribeRequest{
 					Request: &gnmi.SubscribeRequest_Poll{
 						Poll: &gnmi.Poll{},
@@ -248,9 +224,9 @@ func subRequest(ctx context.Context, req *gnmi.SubscribeRequest, address, userna
 				}
 				switch resp := subscribeRsp.Response.(type) {
 				case *gnmi.SubscribeResponse_Update:
-					printSubscribeResponse(map[string]interface{}{"source": address}, subscribeRsp)
+					printSubscribeResponse(map[string]interface{}{"source": target.Address}, subscribeRsp)
 				case *gnmi.SubscribeResponse_SyncResponse:
-					fmt.Printf("%ssync response: %+v\n", printPrefix, resp.SyncResponse)
+					fmt.Printf("sync response from %s: %+v\n", target.Address, resp.SyncResponse)
 				}
 				waitChan <- struct{}{}
 			case <-ctx.Done():
