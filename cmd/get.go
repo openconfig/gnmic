@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net"
 	"strings"
 	"sync"
 	"time"
@@ -40,111 +39,60 @@ var getCmd = &cobra.Command{
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		setupCloseHandler(cancel)
-		var err error
-		addresses := viper.GetStringSlice("address")
-		if len(addresses) == 0 {
-			fmt.Println("no grpc server address specified")
-			return nil
+		targets, err := getTargets()
+		if err != nil {
+			return err
 		}
-		username := viper.GetString("username")
-		if username == "" {
-			if username, err = readUsername(); err != nil {
-				return err
-			}
-		}
-		password := viper.GetString("password")
-		if password == "" {
-			if password, err = readPassword(); err != nil {
-				return err
-			}
-		}
-		encodingVal, ok := gnmi.Encoding_value[strings.Replace(strings.ToUpper(viper.GetString("encoding")), "-", "_", -1)]
-		if !ok {
-			return fmt.Errorf("invalid encoding type '%s'", viper.GetString("encoding"))
-		}
-		req := &gnmi.GetRequest{
-			UseModels: make([]*gnmi.ModelData, 0),
-			Path:      make([]*gnmi.Path, 0),
-			Encoding:  gnmi.Encoding(encodingVal),
-		}
-		prefix := viper.GetString("get-prefix")
-		if prefix != "" {
-			gnmiPrefix, err := xpath.ToGNMIPath(prefix)
-			if err != nil {
-				return fmt.Errorf("prefix parse error: %v", err)
-			}
-			req.Prefix = gnmiPrefix
-		}
-		paths := viper.GetStringSlice("get-path")
-		for _, p := range paths {
-			gnmiPath, err := xpath.ToGNMIPath(strings.TrimSpace(p))
-			if err != nil {
-				return fmt.Errorf("path parse error: %v", err)
-			}
-			req.Path = append(req.Path, gnmiPath)
-		}
-		dataType := viper.GetString("get-type")
-		if dataType != "" {
-			dti, ok := gnmi.GetRequest_DataType_value[strings.ToUpper(dataType)]
-			if !ok {
-				return fmt.Errorf("unknown data type %s", dataType)
-			}
-			req.Type = gnmi.GetRequest_DataType(dti)
+		req, err := createGetRequest()
+		if err != nil {
+			return err
 		}
 		wg := new(sync.WaitGroup)
-		wg.Add(len(addresses))
+		wg.Add(len(targets))
 		lock := new(sync.Mutex)
-		for _, addr := range addresses {
-			go getRequest(ctx, req, addr, username, password, wg, lock)
+		for _, target := range targets {
+			go getRequest(ctx, req, target, wg, lock)
 		}
 		wg.Wait()
 		return nil
 	},
 }
 
-func getRequest(ctx context.Context, req *gnmi.GetRequest, address, username, password string, wg *sync.WaitGroup, lock *sync.Mutex) {
+func getRequest(ctx context.Context, req *gnmi.GetRequest, target *target, wg *sync.WaitGroup, lock *sync.Mutex) {
 	defer wg.Done()
-	_, _, err := net.SplitHostPort(address)
+	conn, err := createGrpcConn(target.Address)
 	if err != nil {
-		if strings.Contains(err.Error(), "missing port in address") {
-			address = net.JoinHostPort(address, defaultGrpcPort)
-		} else {
-			logger.Printf("error parsing address '%s': %v", address, err)
-			return
-		}
-	}
-	conn, err := createGrpcConn(address)
-	if err != nil {
-		logger.Printf("connection to %s failed: %v", address, err)
+		logger.Printf("connection to %s failed: %v", target.Address, err)
 		return
 	}
 	client := gnmi.NewGNMIClient(conn)
 	nctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	nctx = metadata.AppendToOutgoingContext(nctx, "username", username, "password", password)
+	nctx = metadata.AppendToOutgoingContext(nctx, "username", target.Username, "password", target.Password)
 	xreq := req
 	models := viper.GetStringSlice("get-model")
 	if len(models) > 0 {
 		spModels, unspModels, err := filterModels(nctx, client, models)
 		if err != nil {
-			logger.Printf("failed getting supported models from '%s': %v", address, err)
+			logger.Printf("failed getting supported models from '%s': %v", target.Address, err)
 			return
 		}
 		if len(unspModels) > 0 {
-			logger.Printf("found unsupported models for target '%s': %+v", address, unspModels)
+			logger.Printf("found unsupported models for target '%s': %+v", target.Address, unspModels)
 		}
 		for _, m := range spModels {
 			xreq.UseModels = append(xreq.UseModels, m)
 		}
 	}
-	logger.Printf("sending gNMI GetRequest: prefix='%v', path='%v', type='%v', encoding='%v', models='%+v', extension='%+v' to %s", xreq.Prefix, xreq.Path, xreq.Type, xreq.Encoding, xreq.UseModels, xreq.Extension, address)
+	logger.Printf("sending gNMI GetRequest: prefix='%v', path='%v', type='%v', encoding='%v', models='%+v', extension='%+v' to %s",
+		xreq.Prefix, xreq.Path, xreq.Type, xreq.Encoding, xreq.UseModels, xreq.Extension, target.Address)
 	response, err := client.Get(nctx, xreq)
 	if err != nil {
-		logger.Printf("failed sending GetRequest to %s: %v", address, err)
+		logger.Printf("failed sending GetRequest to %s: %v", target.Address, err)
 		return
 	}
 	lock.Lock()
-	printGetResponse(address, response)
+	printGetResponse(target.Address, response)
 	lock.Unlock()
 }
 
@@ -160,6 +108,7 @@ func printGetResponse(address string, response *gnmi.GetResponse) {
 	}
 	for _, notif := range response.Notification {
 		msg := new(msg)
+		msg.Source = address
 		msg.Timestamp = notif.Timestamp
 		t := time.Unix(0, notif.Timestamp)
 		msg.Time = &t
@@ -217,4 +166,41 @@ func init() {
 	viper.BindPFlag("get-prefix", getCmd.Flags().Lookup("prefix"))
 	viper.BindPFlag("get-model", getCmd.Flags().Lookup("model"))
 	viper.BindPFlag("get-type", getCmd.Flags().Lookup("type"))
+}
+
+func createGetRequest() (*gnmi.GetRequest, error) {
+	encodingVal, ok := gnmi.Encoding_value[strings.Replace(strings.ToUpper(viper.GetString("encoding")), "-", "_", -1)]
+	if !ok {
+		return nil, fmt.Errorf("invalid encoding type '%s'", viper.GetString("encoding"))
+	}
+	paths := viper.GetStringSlice("get-path")
+	req := &gnmi.GetRequest{
+		UseModels: make([]*gnmi.ModelData, 0),
+		Path:      make([]*gnmi.Path, 0, len(paths)),
+		Encoding:  gnmi.Encoding(encodingVal),
+	}
+	prefix := viper.GetString("get-prefix")
+	if prefix != "" {
+		gnmiPrefix, err := xpath.ToGNMIPath(prefix)
+		if err != nil {
+			return nil, fmt.Errorf("prefix parse error: %v", err)
+		}
+		req.Prefix = gnmiPrefix
+	}
+	dataType := viper.GetString("get-type")
+	if dataType != "" {
+		dti, ok := gnmi.GetRequest_DataType_value[strings.ToUpper(dataType)]
+		if !ok {
+			return nil, fmt.Errorf("unknown data type %s", dataType)
+		}
+		req.Type = gnmi.GetRequest_DataType(dti)
+	}
+	for _, p := range paths {
+		gnmiPath, err := xpath.ToGNMIPath(strings.TrimSpace(p))
+		if err != nil {
+			return nil, fmt.Errorf("path parse error: %v", err)
+		}
+		req.Path = append(req.Path, gnmiPath)
+	}
+	return req, nil
 }
