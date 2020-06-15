@@ -357,7 +357,7 @@ func setupCloseHandler(cancelFn context.CancelFunc) {
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGINT, syscall.SIGKILL)
 	go func() {
 		sig := <-c
-		fmt.Printf("received signal '%s'. terminating...\n", sig.String())
+		fmt.Printf("\nreceived signal '%s'. terminating...\n", sig.String())
 		cancelFn()
 		os.Exit(0)
 	}()
