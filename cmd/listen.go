@@ -144,7 +144,12 @@ func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_Publi
 			logger.Printf("error sending publish response to server: %v", err)
 		}
 		lock.Lock()
-		printSubscribeResponse(meta, subResp)
+		b, err := formatSubscribeResponse(meta, subResp)
+		if err != nil {
+			logger.Printf("failed to format subscribe response: %v", err)
+			continue
+		}
+		fmt.Println(string(b))
 		lock.Unlock()
 	}
 	return nil

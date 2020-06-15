@@ -183,7 +183,12 @@ func subRequest(ctx context.Context, req *gnmi.SubscribeRequest, target *target,
 			switch resp := subscribeRsp.Response.(type) {
 			case *gnmi.SubscribeResponse_Update:
 				lock.Lock()
-				printSubscribeResponse(map[string]interface{}{"source": target.Address}, subscribeRsp)
+				b, err := formatSubscribeResponse(map[string]interface{}{"source": target.Address}, subscribeRsp)
+				if err != nil {
+					logger.Printf("failed to format subscribe response: %v", err)
+					return
+				}
+				fmt.Println(string(b))
 				lock.Unlock()
 			case *gnmi.SubscribeResponse_SyncResponse:
 				logger.Printf("received sync response=%+v from %s\n", resp.SyncResponse, target.Address)
@@ -215,7 +220,12 @@ func subRequest(ctx context.Context, req *gnmi.SubscribeRequest, target *target,
 				}
 				switch resp := subscribeRsp.Response.(type) {
 				case *gnmi.SubscribeResponse_Update:
-					printSubscribeResponse(map[string]interface{}{"source": target.Address}, subscribeRsp)
+					b, err := formatSubscribeResponse(map[string]interface{}{"source": target.Address}, subscribeRsp)
+					if err != nil {
+						logger.Printf("failed to format subscribe response: %v", err)
+						return
+					}
+					fmt.Println(string(b))
 				case *gnmi.SubscribeResponse_SyncResponse:
 					fmt.Printf("sync response from %s: %+v\n", target.Address, resp.SyncResponse)
 				}
@@ -299,12 +309,38 @@ func createSubscribeRequest() (*gnmi.SubscribeRequest, error) {
 	}, nil
 }
 
-func printSubscribeResponse(meta map[string]interface{}, subResp *gnmi.SubscribeResponse) {
+func init() {
+	rootCmd.AddCommand(subscribeCmd)
+	subscribeCmd.Flags().StringP("prefix", "", "", "subscribe request prefix")
+	subscribeCmd.Flags().StringSliceP("path", "", []string{""}, "subscribe request paths")
+	subscribeCmd.MarkFlagRequired("path")
+	subscribeCmd.Flags().Int32P("qos", "q", 20, "qos marking")
+	subscribeCmd.Flags().BoolP("updates-only", "", false, "only updates to current state should be sent")
+	subscribeCmd.Flags().StringP("subscription-mode", "", "stream", "one of: once, stream, poll")
+	subscribeCmd.Flags().StringP("stream-subscription-mode", "", "target-defined", "one of: on-change, sample, target-defined")
+	subscribeCmd.Flags().StringP("sampling-interval", "i", "10s",
+		"sampling interval as a decimal number and a suffix unit, such as \"10s\" or \"1m30s\", minimum is 1s")
+	subscribeCmd.Flags().BoolP("suppress-redundant", "", false, "suppress redundant update if the subscribed value didnt not change")
+	subscribeCmd.Flags().StringP("heartbeat-interval", "", "0s", "heartbeat interval in case suppress-redundant is enabled")
+	subscribeCmd.Flags().StringSliceP("model", "", []string{""}, "subscribe request used model(s)")
+	//
+	viper.BindPFlag("sub-prefix", subscribeCmd.Flags().Lookup("prefix"))
+	viper.BindPFlag("sub-path", subscribeCmd.Flags().Lookup("path"))
+	viper.BindPFlag("qos", subscribeCmd.Flags().Lookup("qos"))
+	viper.BindPFlag("updates-only", subscribeCmd.Flags().Lookup("updates-only"))
+	viper.BindPFlag("subscription-mode", subscribeCmd.Flags().Lookup("subscription-mode"))
+	viper.BindPFlag("stream-subscription-mode", subscribeCmd.Flags().Lookup("stream-subscription-mode"))
+	viper.BindPFlag("sampling-interval", subscribeCmd.Flags().Lookup("sampling-interval"))
+	viper.BindPFlag("suppress-redundant", subscribeCmd.Flags().Lookup("suppress-redundant"))
+	viper.BindPFlag("heartbeat-interval", subscribeCmd.Flags().Lookup("heartbeat-interval"))
+	viper.BindPFlag("sub-model", subscribeCmd.Flags().Lookup("model"))
+}
+
+func formatSubscribeResponse(meta map[string]interface{}, subResp *gnmi.SubscribeResponse) ([]byte, error) {
 	switch resp := subResp.Response.(type) {
 	case *gnmi.SubscribeResponse_Update:
 		if viper.GetString("format") == "textproto" {
-			fmt.Printf("%s\n", prototext.Format(subResp))
-			return
+			return []byte(prototext.Format(subResp)), nil
 		}
 		msg := new(msg)
 		msg.Timestamp = resp.Update.Timestamp
@@ -333,7 +369,6 @@ func printSubscribeResponse(meta map[string]interface{}, subResp *gnmi.Subscribe
 			if err != nil {
 				logger.Println(err)
 			}
-
 			msg.Updates = append(msg.Updates,
 				&update{
 					Path:   gnmiPathToXPath(upd.Path),
@@ -344,37 +379,11 @@ func printSubscribeResponse(meta map[string]interface{}, subResp *gnmi.Subscribe
 		for _, del := range resp.Update.Delete {
 			msg.Deletes = append(msg.Deletes, gnmiPathToXPath(del))
 		}
-		data, err := json.MarshalIndent(msg, "", "  ")
+		data, err := json.Marshal(msg)
 		if err != nil {
-			logger.Println(err)
+			return nil, err
 		}
-		fmt.Printf("%s\n", string(data))
+		return data, nil
 	}
-}
-
-func init() {
-	rootCmd.AddCommand(subscribeCmd)
-	subscribeCmd.Flags().StringP("prefix", "", "", "subscribe request prefix")
-	subscribeCmd.Flags().StringSliceP("path", "", []string{""}, "subscribe request paths")
-	subscribeCmd.MarkFlagRequired("path")
-	subscribeCmd.Flags().Int32P("qos", "q", 20, "qos marking")
-	subscribeCmd.Flags().BoolP("updates-only", "", false, "only updates to current state should be sent")
-	subscribeCmd.Flags().StringP("subscription-mode", "", "stream", "one of: once, stream, poll")
-	subscribeCmd.Flags().StringP("stream-subscription-mode", "", "target-defined", "one of: on-change, sample, target-defined")
-	subscribeCmd.Flags().StringP("sampling-interval", "i", "10s",
-		"sampling interval as a decimal number and a suffix unit, such as \"10s\" or \"1m30s\", minimum is 1s")
-	subscribeCmd.Flags().BoolP("suppress-redundant", "", false, "suppress redundant update if the subscribed value didnt not change")
-	subscribeCmd.Flags().StringP("heartbeat-interval", "", "0s", "heartbeat interval in case suppress-redundant is enabled")
-	subscribeCmd.Flags().StringSliceP("model", "", []string{""}, "subscribe request used model(s)")
-	//
-	viper.BindPFlag("sub-prefix", subscribeCmd.Flags().Lookup("prefix"))
-	viper.BindPFlag("sub-path", subscribeCmd.Flags().Lookup("path"))
-	viper.BindPFlag("qos", subscribeCmd.Flags().Lookup("qos"))
-	viper.BindPFlag("updates-only", subscribeCmd.Flags().Lookup("updates-only"))
-	viper.BindPFlag("subscription-mode", subscribeCmd.Flags().Lookup("subscription-mode"))
-	viper.BindPFlag("stream-subscription-mode", subscribeCmd.Flags().Lookup("stream-subscription-mode"))
-	viper.BindPFlag("sampling-interval", subscribeCmd.Flags().Lookup("sampling-interval"))
-	viper.BindPFlag("suppress-redundant", subscribeCmd.Flags().Lookup("suppress-redundant"))
-	viper.BindPFlag("heartbeat-interval", subscribeCmd.Flags().Lookup("heartbeat-interval"))
-	viper.BindPFlag("sub-model", subscribeCmd.Flags().Lookup("model"))
+	return nil, nil
 }
