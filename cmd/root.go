@@ -24,13 +24,16 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net"
 	"os"
 	"os/signal"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
 
 	homedir "github.com/mitchellh/go-homedir"
+	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -50,6 +53,12 @@ const (
 var cfgFile string
 var f io.WriteCloser
 var logger *log.Logger
+
+type target struct {
+	Address  string
+	Username string
+	Password string
+}
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -95,6 +104,7 @@ func init() {
 	rootCmd.PersistentFlags().StringSliceP("address", "a", []string{}, "comma separated gnmi targets addresses")
 	rootCmd.PersistentFlags().StringP("username", "u", "", "username")
 	rootCmd.PersistentFlags().StringP("password", "p", "", "password")
+	rootCmd.PersistentFlags().StringP("port", "", defaultGrpcPort, "gRPC port")
 	rootCmd.PersistentFlags().StringP("encoding", "e", "JSON", "one of: JSON, BYTES, PROTO, ASCII, JSON_IETF.")
 	rootCmd.PersistentFlags().BoolP("insecure", "", false, "insecure connection")
 	rootCmd.PersistentFlags().StringP("tls-ca", "", "", "tls certificate authority")
@@ -113,6 +123,7 @@ func init() {
 	viper.BindPFlag("address", rootCmd.PersistentFlags().Lookup("address"))
 	viper.BindPFlag("username", rootCmd.PersistentFlags().Lookup("username"))
 	viper.BindPFlag("password", rootCmd.PersistentFlags().Lookup("password"))
+	viper.BindPFlag("port", rootCmd.PersistentFlags().Lookup("port"))
 	viper.BindPFlag("encoding", rootCmd.PersistentFlags().Lookup("encoding"))
 	viper.BindPFlag("insecure", rootCmd.PersistentFlags().Lookup("insecure"))
 	viper.BindPFlag("tls-ca", rootCmd.PersistentFlags().Lookup("tls-ca"))
@@ -361,4 +372,97 @@ func setupCloseHandler(cancelFn context.CancelFunc) {
 		cancelFn()
 		os.Exit(0)
 	}()
+}
+
+func getTargets() ([]*target, error) {
+	var err error
+	addresses := viper.GetStringSlice("address")
+	targets := make([]*target, 0, len(addresses))
+	defGrpcPort := viper.GetString("port")
+	defUsername := viper.GetString("username")
+	defPassword := viper.GetString("password")
+	if len(addresses) > 0 {
+		if defUsername == "" {
+			if defUsername, err = readUsername(); err != nil {
+				return nil, err
+			}
+		}
+		if defPassword == "" {
+			if defPassword, err = readPassword(); err != nil {
+				return nil, err
+			}
+		}
+		for _, addr := range addresses {
+			tg := new(target)
+			_, _, err := net.SplitHostPort(addr)
+			if err != nil {
+				if strings.Contains(err.Error(), "missing port in address") {
+					addr = net.JoinHostPort(addr, defGrpcPort)
+				} else {
+					logger.Printf("error parsing address '%s': %v", addr, err)
+					return nil, fmt.Errorf("error parsing address '%s': %v", addr, err)
+				}
+			}
+			tg.Address = addr
+			tg.Username = defUsername
+			tg.Password = defPassword
+			targets = append(targets, tg)
+		}
+		sort.Slice(targets, func(i, j int) bool {
+			return targets[i].Address < targets[j].Address
+		})
+		return targets, nil
+	}
+	targetsInt := viper.Get("targets")
+	targetsMap := make(map[string]interface{})
+	switch targetsInt.(type) {
+	case string:
+		for _, addr := range strings.Split(targetsInt.(string), " ") {
+			targetsMap[addr] = nil
+		}
+	case map[string]interface{}:
+		targetsMap = targetsInt.(map[string]interface{})
+	default:
+		return nil, fmt.Errorf("unexpected targets format, got: %T", targetsInt)
+	}
+	ltm := len(targetsMap)
+	if ltm == 0 {
+		return nil, fmt.Errorf("no targets found")
+	}
+	targets = make([]*target, 0, ltm)
+	for addr, t := range targetsMap {
+		tg := new(target)
+		_, _, err := net.SplitHostPort(addr)
+		if err != nil {
+			if strings.Contains(err.Error(), "missing port in address") {
+				addr = net.JoinHostPort(addr, defGrpcPort)
+			} else {
+				logger.Printf("error parsing address '%s': %v", addr, err)
+				return nil, fmt.Errorf("error parsing address '%s': %v", addr, err)
+			}
+		}
+
+		tg.Address = addr
+		switch t.(type) {
+		case map[string]interface{}:
+			err = mapstructure.Decode(t.(map[string]interface{}), tg)
+			if err != nil {
+				return nil, err
+			}
+		case nil:
+		default:
+			return nil, fmt.Errorf("unexpected targets format, got a %T", t)
+		}
+		if tg.Username == "" {
+			tg.Username = defUsername
+		}
+		if tg.Password == "" {
+			tg.Password = defPassword
+		}
+		targets = append(targets, tg)
+	}
+	sort.Slice(targets, func(i, j int) bool {
+		return targets[i].Address < targets[j].Address
+	})
+	return targets, nil
 }

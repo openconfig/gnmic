@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -71,83 +70,60 @@ var setCmd = &cobra.Command{
 	Short: "run gnmi set on targets",
 
 	RunE: func(cmd *cobra.Command, args []string) error {
-		createSetRequest()
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		setupCloseHandler(cancel)
-		var err error
-		addresses := viper.GetStringSlice("address")
-		if len(addresses) == 0 {
-			return errors.New("no address provided")
+		targets, err := getTargets()
+		if err != nil {
+			return err
 		}
-		if len(addresses) > 1 {
+		if len(targets) > 1 {
 			fmt.Println("[warning] running set command on multiple targets")
 		}
 		req, err := createSetRequest()
 		if err != nil {
 			return err
 		}
-		username := viper.GetString("username")
-		if username == "" {
-			if username, err = readUsername(); err != nil {
-				return err
-			}
-		}
-		password := viper.GetString("password")
-		if password == "" {
-			if password, err = readPassword(); err != nil {
-				return err
-			}
-		}
 		wg := new(sync.WaitGroup)
-		wg.Add(len(addresses))
+		wg.Add(len(targets))
 		lock := new(sync.Mutex)
-		for _, addr := range addresses {
-			go setRequest(ctx, req, addr, username, password, wg, lock)
+		for _, target := range targets {
+			go setRequest(ctx, req, target, wg, lock)
 		}
 		wg.Wait()
 		return nil
 	},
 }
 
-func setRequest(ctx context.Context, req *gnmi.SetRequest, address, username, password string, wg *sync.WaitGroup, lock *sync.Mutex) {
+func setRequest(ctx context.Context, req *gnmi.SetRequest, target *target, wg *sync.WaitGroup, lock *sync.Mutex) {
 	defer wg.Done()
-	_, _, err := net.SplitHostPort(address)
+	conn, err := createGrpcConn(target.Address)
 	if err != nil {
-		if strings.Contains(err.Error(), "missing port in address") {
-			address = net.JoinHostPort(address, defaultGrpcPort)
-		} else {
-			logger.Printf("error parsing address '%s': %v", address, err)
-			return
-		}
-	}
-	conn, err := createGrpcConn(address)
-	if err != nil {
-		logger.Printf("connection to %s failed: %v", address, err)
+		logger.Printf("connection to %s failed: %v", target.Address, err)
 		return
 	}
 	client := gnmi.NewGNMIClient(conn)
 	nctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	nctx = metadata.AppendToOutgoingContext(nctx, "username", username, "password", password)
+	nctx = metadata.AppendToOutgoingContext(nctx, "username", target.Username, "password", target.Password)
 
 	addresses := viper.GetStringSlice("address")
 	printPrefix := ""
 	if len(addresses) > 1 && !viper.GetBool("no-prefix") {
-		printPrefix = fmt.Sprintf("[%s] ", address)
+		printPrefix = fmt.Sprintf("[%s] ", target.Address)
 	}
 	lock.Lock()
 	defer lock.Unlock()
 	if viper.GetBool("print-request") {
 		printSetRequest(printPrefix, req)
 	}
-	logger.Printf("sending gNMI SetRequest: prefix='%v', delete='%v', replace='%v', update='%v', extension='%v' to %s", req.Prefix, req.Delete, req.Replace, req.Update, req.Extension, address)
+	logger.Printf("sending gNMI SetRequest: prefix='%v', delete='%v', replace='%v', update='%v', extension='%v' to %s", req.Prefix, req.Delete, req.Replace, req.Update, req.Extension, target.Address)
 	response, err := client.Set(nctx, req)
 	if err != nil {
 		logger.Printf("error sending set request: %v", err)
 		return
 	}
-	printSetResponse(printPrefix, address, response)
+	printSetResponse(printPrefix, target.Address, response)
 }
 
 // readFile reads a json or yaml file. the the file is .yaml, converts it to json and returns []byte and an error

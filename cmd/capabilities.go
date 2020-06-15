@@ -17,8 +17,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"net"
-	"strings"
 	"sync"
 
 	"github.com/openconfig/gnmi/proto/gnmi"
@@ -41,66 +39,43 @@ var capabilitiesCmd = &cobra.Command{
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		setupCloseHandler(cancel)
-		var err error
-		addresses := viper.GetStringSlice("address")
-		if len(addresses) == 0 {
-			fmt.Println("no grpc server address specified")
-			return nil
-		}
-		username := viper.GetString("username")
-		if username == "" {
-			if username, err = readUsername(); err != nil {
-				return err
-			}
-		}
-		password := viper.GetString("password")
-		if password == "" {
-			if password, err = readPassword(); err != nil {
-				return err
-			}
+		targets, err := getTargets()
+		if err != nil {
+			return err
 		}
 		wg := new(sync.WaitGroup)
-		wg.Add(len(addresses))
+		wg.Add(len(targets))
 		lock := new(sync.Mutex)
-		for _, addr := range addresses {
-			go reqCapability(ctx, addr, username, password, wg, lock)
+		for _, target := range targets {
+			go reqCapability(ctx, target, wg, lock)
 		}
 		wg.Wait()
 		return nil
 	},
 }
 
-func reqCapability(ctx context.Context, address, username, password string, wg *sync.WaitGroup, m *sync.Mutex) error {
+func reqCapability(ctx context.Context, target *target, wg *sync.WaitGroup, m *sync.Mutex) error {
 	defer wg.Done()
-	_, _, err := net.SplitHostPort(address)
+	conn, err := createGrpcConn(target.Address)
 	if err != nil {
-		if strings.Contains(err.Error(), "missing port in address") {
-			address = net.JoinHostPort(address, defaultGrpcPort)
-		} else {
-			logger.Printf("error parsing address '%s': %v", address, err)
-			return err
-		}
-	}
-	conn, err := createGrpcConn(address)
-	if err != nil {
-		logger.Printf("connection to %s failed: %v", address, err)
+		logger.Printf("connection to %s failed: %v", target.Address, err)
 		return err
 	}
 	client := gnmi.NewGNMIClient(conn)
 
 	nctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	nctx = metadata.AppendToOutgoingContext(nctx, "username", username, "password", password)
+	nctx = metadata.AppendToOutgoingContext(nctx, "username", target.Username, "password", target.Password)
 
 	req := &gnmi.CapabilityRequest{}
-	logger.Printf("sending gNMI CapabilityRequest: gnmi_ext.Extension='%v' to %s", req.Extension, address)
+	logger.Printf("sending gNMI CapabilityRequest: gnmi_ext.Extension='%v' to %s", req.Extension, target.Address)
 	response, err := client.Capabilities(nctx, req)
 	if err != nil {
 		logger.Printf("error sending capabilities request: %v", err)
 		return err
 	}
 	m.Lock()
-	printCapResponse(response, address)
+	printCapResponse(response, target.Address)
 	m.Unlock()
 	return nil
 }
