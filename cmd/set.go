@@ -39,25 +39,6 @@ import (
 
 var vTypes = []string{"json", "json_ietf", "string", "int", "uint", "bool", "decimal", "float", "bytes", "ascii"}
 
-type setInput struct {
-	Deletes []string
-	Updates struct {
-		Paths  []string
-		Types  []string
-		Values []string
-
-		FilePaths []string
-		Files     [][]byte
-	}
-	Replaces struct {
-		Paths  []string
-		Types  []string
-		Values []string
-
-		FilePaths []string
-		Files     [][]byte
-	}
-}
 type setRspMsg struct {
 	Source    string             `json:"source,omitempty"`
 	Timestamp int64              `json:"timestamp,omitempty"`
