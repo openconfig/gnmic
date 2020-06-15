@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"strings"
 	"sync"
 	"time"
@@ -71,14 +70,6 @@ var subscribeCmd = &cobra.Command{
 		waitChan := make(chan struct{})
 		if subscReq.GetSubscribe().Mode == gnmi.SubscriptionList_POLL {
 			for i := range targets {
-				_, _, err := net.SplitHostPort(targets[i].Address)
-				if err != nil {
-					if strings.Contains(err.Error(), "missing port in address") {
-						targets[i].Address = net.JoinHostPort(targets[i].Address, defaultGrpcPort)
-					} else {
-						continue
-					}
-				}
 				polledSubsChan[targets[i].Address] = make(chan struct{})
 			}
 		}
