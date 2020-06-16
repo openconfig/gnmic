@@ -12,6 +12,24 @@ gNMI CLI client that provides full support for Capabilities, Get, Set and Subscr
 
 Documentation available at [https://gnmiclient.kmrd.dev](https://gnmiclient.kmrd.dev)
 
+## Features
+* **Full support for gNMI RPCs**  
+  Every gNMI RPC has a [corresponding command](https://gnmiclient.kmrd.dev/basic_usage/) with all of the RPC options configurable by means of the local and global flags.
+* **Multi-target operations**  
+  Commands can operate on multiple gNMI targets for bulk configuration/retrieval.
+* **File based configuration**  
+  gNMI Client understands configurations provided in a file. The configuration options are consistent with the CLI flags.
+* **Inspect gNMI messages**  
+  With the `textproto` output you can see the actual gNMI messages being sent/received. Its like having a gNMI looking glass!
+* **(In)secure gRPC connection**  
+  gNMI client supports both TLS and non-TLS transports so you can start using it in a lab environment without having to care about the PKI.
+* **Dial-out telemetry**  
+  The dial-out telemetry server is provided for Nokia SR OS.
+* **Pre-built multi-platform binaries**  
+  gNMI Client is available for major operating systems and the [installation](https://gnmiclient.kmrd.dev/install/) is a breeze.
+* **Extensive and friendly documentation**  
+  You won't be in need to dive into the source code to understand how to use the gNMI CLI client, our [documentation site](https://gnmiclient.kmrd.dev) has you covered.
+
 ## Usage
 ```
 $ gnmiClient --help
