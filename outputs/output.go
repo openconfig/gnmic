@@ -1,21 +1,15 @@
 package outputs
 
-import "github.com/karimra/gnmiClient/outputs/file"
-
 type Output interface {
-	Write() error
+	Initialize(map[string]interface{}) error
+	Write([]byte)
+	Start()
 	Close() error
 }
+type Initializer func() Output
 
-// NewOutput //
-func NewOutput(cfg interface{}) (Output, error) {
-	switch cfg.(type) {
-	case *file.Config:
-		o, err := file.NewOutput(cfg.(*file.Config))
-		if err != nil {
-			return nil, err
-		}
-		return o, nil
-	}
-	return nil, nil
+var Outputs = map[string]Initializer{}
+
+func Register(name string, initFn Initializer) {
+	Outputs[name] = initFn
 }
