@@ -1,13 +1,26 @@
 package file
 
 import (
+	"fmt"
 	"log"
 	"os"
+
+	"github.com/karimra/gnmiClient/outputs"
+	"github.com/mitchellh/mapstructure"
 )
 
-// Output //
-type Output struct {
-	cfg      *Config
+func init() {
+	fmt.Println("init file output")
+	outputs.Register("file", func() outputs.Output {
+		return &File{
+			Cfg: &Config{},
+		}
+	})
+}
+
+// File //
+type File struct {
+	Cfg      *Config
 	ch       chan []byte
 	file     *os.File
 	stopChan chan struct{}
@@ -19,19 +32,25 @@ type Config struct {
 	BufferSize int
 }
 
-// NewOutput //
-func NewOutput(c *Config) (*Output, error) {
-	f, err := os.OpenFile(c.FileName, os.O_RDONLY|os.O_CREATE, 0666)
+// Initialize //
+func (f *File) Initialize(cfg map[string]interface{}) error {
+	c := new(Config)
+	err := mapstructure.Decode(cfg, c)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return &Output{
-		cfg:  c,
-		ch:   make(chan []byte, c.BufferSize),
-		file: f,
-	}, nil
+	f.Cfg = c
+	file, err := os.OpenFile(f.Cfg.FileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		return err
+	}
+	f.file = file
+	f.ch = make(chan []byte, f.Cfg.BufferSize)
+	return nil
 }
-func (f *Output) Write() error {
+
+// Start //
+func (f *File) Start() {
 	for {
 		select {
 		case b := <-f.ch:
@@ -40,14 +59,25 @@ func (f *Output) Write() error {
 				log.Printf("failed to write to file '%s': %v", f.file.Name(), err)
 				continue
 			}
+			_, err = f.file.WriteString("\n")
 		case <-f.stopChan:
-			return nil
+			return
 		}
 	}
 }
 
+// Write //
+func (f *File) Write(b []byte) {
+	select {
+	default:
+		f.ch <- b
+	case <-f.stopChan:
+		return
+	}
+}
+
 // Close //
-func (f *Output) Close() error {
+func (f *File) Close() error {
 	close(f.ch)
 	close(f.stopChan)
 	return nil
