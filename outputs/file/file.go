@@ -19,15 +19,13 @@ func init() {
 // File //
 type File struct {
 	Cfg      *Config
-	ch       chan []byte
 	file     *os.File
 	stopChan chan struct{}
 }
 
 // Config //
 type Config struct {
-	FileName   string
-	BufferSize int
+	FileName string
 }
 
 // Initialize //
@@ -43,41 +41,21 @@ func (f *File) Initialize(cfg map[string]interface{}) error {
 		return err
 	}
 	f.file = file
-	f.ch = make(chan []byte, f.Cfg.BufferSize)
 	f.stopChan = make(chan struct{})
 	return nil
 }
 
-// Start //
-func (f *File) Start() {
-	for {
-		select {
-		case b := <-f.ch:
-			_, err := f.file.Write(b)
-			if err != nil {
-				log.Printf("failed to write to file '%s': %v", f.file.Name(), err)
-				continue
-			}
-			_, err = f.file.WriteString("\n")
-		case <-f.stopChan:
-			return
-		}
-	}
-}
-
 // Write //
 func (f *File) Write(b []byte) {
-	select {
-	default:
-		f.ch <- b
-	case <-f.stopChan:
+	_, err := f.file.Write(append(b, []byte("\n")...))
+	if err != nil {
+		log.Printf("failed to write to file '%s': %v", f.file.Name(), err)
 		return
 	}
 }
 
 // Close //
 func (f *File) Close() error {
-	close(f.ch)
 	close(f.stopChan)
 	return nil
 }
