@@ -53,9 +53,7 @@ var listenCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		for _, o := range server.Outputs {
-			go o.Start()
-		}
+
 		defer func() {
 			for _, o := range server.Outputs {
 				o.Close()

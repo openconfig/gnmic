@@ -80,9 +80,6 @@ var subscribeCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		for _, o := range outputs {
-			go o.Start()
-		}
 		wg := new(sync.WaitGroup)
 		wg.Add(len(targets))
 		for _, target := range targets {
