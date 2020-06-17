@@ -15,6 +15,7 @@
 package cmd
 
 import (
+	"bytes"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -22,7 +23,9 @@ import (
 	"net"
 	"sync"
 
+	"github.com/karimra/gnmiClient/outputs"
 	nokiasros "github.com/karimra/sros-dialout"
+	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
@@ -46,6 +49,18 @@ var listenCmd = &cobra.Command{
 			fmt.Printf("multiple addresses specified, listening only on %s\n", address[0])
 		}
 		var err error
+		server.Outputs, err = getOutputs()
+		if err != nil {
+			return err
+		}
+		for _, o := range server.Outputs {
+			go o.Start()
+		}
+		defer func() {
+			for _, o := range server.Outputs {
+				o.Close()
+			}
+		}()
 		server.listener, err = net.Listen("tcp", address[0])
 		if err != nil {
 			return err
@@ -93,6 +108,7 @@ func init() {
 type dialoutTelemetryServer struct {
 	listener   net.Listener
 	grpcServer *grpc.Server
+	Outputs    []outputs.Output
 }
 
 func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_PublishServer) error {
@@ -143,14 +159,28 @@ func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_Publi
 		if err != nil {
 			logger.Printf("error sending publish response to server: %v", err)
 		}
-		lock.Lock()
-		b, err := formatSubscribeResponse(meta, subResp)
-		if err != nil {
-			logger.Printf("failed to format subscribe response: %v", err)
-			continue
+		switch resp := subResp.Response.(type) {
+		case *gnmi.SubscribeResponse_Update:
+			b, err := formatSubscribeResponse(meta, subResp)
+			if err != nil {
+				logger.Printf("failed to format subscribe response: %v", err)
+				continue
+			}
+			for _, o := range s.Outputs {
+				go o.Write(b)
+			}
+			buff := new(bytes.Buffer)
+			err = json.Indent(buff, b, "", "  ")
+			if err != nil {
+				logger.Printf("failed to indent msg: err=%v, msg=%s", err, string(b))
+				continue
+			}
+			lock.Lock()
+			fmt.Println(buff.String())
+			lock.Unlock()
+		case *gnmi.SubscribeResponse_SyncResponse:
+			logger.Printf("received sync response=%+v from %s\n", resp.SyncResponse, meta["source"])
 		}
-		fmt.Println(string(b))
-		lock.Unlock()
 	}
 	return nil
 }
