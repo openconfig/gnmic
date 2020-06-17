@@ -15,6 +15,7 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -24,6 +25,8 @@ import (
 	"time"
 
 	"github.com/google/gnxi/utils/xpath"
+	"github.com/karimra/gnmiClient/outputs"
+	_ "github.com/karimra/gnmiClient/outputs/all"
 	"github.com/manifoldco/promptui"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
@@ -73,10 +76,17 @@ var subscribeCmd = &cobra.Command{
 				polledSubsChan[targets[i].Address] = make(chan struct{})
 			}
 		}
+		outputs, err := getOutputs()
+		if err != nil {
+			return err
+		}
+		for _, o := range outputs {
+			go o.Start()
+		}
 		wg := new(sync.WaitGroup)
 		wg.Add(len(targets))
 		for _, target := range targets {
-			go subRequest(ctx, subscReq, target, wg, polledSubsChan, waitChan)
+			go subRequest(ctx, subscReq, target, wg, polledSubsChan, waitChan, outputs)
 		}
 		if subscReq.GetSubscribe().Mode == gnmi.SubscriptionList_POLL {
 			addresses := make([]string, len(targets))
@@ -111,11 +121,20 @@ var subscribeCmd = &cobra.Command{
 			waitChan <- struct{}{}
 		}
 		wg.Wait()
+		for _, o := range outputs {
+			o.Close()
+		}
 		return nil
 	},
 }
 
-func subRequest(ctx context.Context, req *gnmi.SubscribeRequest, target *target, wg *sync.WaitGroup, polledSubsChan map[string]chan struct{}, waitChan chan struct{}) {
+func subRequest(ctx context.Context,
+	req *gnmi.SubscribeRequest,
+	target *target,
+	wg *sync.WaitGroup,
+	polledSubsChan map[string]chan struct{},
+	waitChan chan struct{},
+	outputs []outputs.Output) {
 	defer wg.Done()
 	conn, err := createGrpcConn(target.Address)
 	if err != nil {
@@ -182,13 +201,22 @@ func subRequest(ctx context.Context, req *gnmi.SubscribeRequest, target *target,
 			}
 			switch resp := subscribeRsp.Response.(type) {
 			case *gnmi.SubscribeResponse_Update:
-				lock.Lock()
 				b, err := formatSubscribeResponse(map[string]interface{}{"source": target.Address}, subscribeRsp)
 				if err != nil {
 					logger.Printf("failed to format subscribe response: %v", err)
 					return
 				}
-				fmt.Println(string(b))
+				for _, o := range outputs {
+					go o.Write(b)
+				}
+				buff := new(bytes.Buffer)
+				err = json.Indent(buff, b, "", "  ")
+				if err != nil {
+					logger.Printf("failed to indent msg: err=%v, msg=%s", err, string(b))
+					return
+				}
+				lock.Lock()
+				fmt.Println(buff.String())
 				lock.Unlock()
 			case *gnmi.SubscribeResponse_SyncResponse:
 				logger.Printf("received sync response=%+v from %s\n", resp.SyncResponse, target.Address)
@@ -223,9 +251,16 @@ func subRequest(ctx context.Context, req *gnmi.SubscribeRequest, target *target,
 					b, err := formatSubscribeResponse(map[string]interface{}{"source": target.Address}, subscribeRsp)
 					if err != nil {
 						logger.Printf("failed to format subscribe response: %v", err)
+						waitChan <- struct{}{}
+						continue
+					}
+					buff := new(bytes.Buffer)
+					err = json.Indent(buff, b, "", "  ")
+					if err != nil {
+						logger.Printf("failed to indent msg: err=%v : msg=%s", err, string(b))
 						return
 					}
-					fmt.Println(string(b))
+					fmt.Println(buff.String())
 				case *gnmi.SubscribeResponse_SyncResponse:
 					fmt.Printf("sync response from %s: %+v\n", target.Address, resp.SyncResponse)
 				}
@@ -386,4 +421,40 @@ func formatSubscribeResponse(meta map[string]interface{}, subResp *gnmi.Subscrib
 		return data, nil
 	}
 	return nil, nil
+}
+
+func getOutputs() ([]outputs.Output, error) {
+	outDef := viper.GetStringMap("outputs")
+	fmt.Println(outDef)
+	outputDestinations := make([]outputs.Output, 0)
+	for n, d := range outDef {
+		initalizer, ok := outputs.Outputs[n]
+		if !ok {
+			logger.Printf("unknown output type '%s'", n)
+			continue
+		}
+		dl := convert(d)
+		switch dl.(type) {
+		case []interface{}:
+			outs := d.([]interface{})
+			for _, ou := range outs {
+				fmt.Printf("ou: %T\n", ou)
+				switch ou.(type) {
+				case map[string]interface{}:
+					o := initalizer()
+					err := o.Initialize(ou.(map[string]interface{}))
+					if err != nil {
+						return nil, err
+					}
+					outputDestinations = append(outputDestinations, o)
+				default:
+					logger.Printf("unknown configuration format: %T : %v", d, d)
+				}
+			}
+		default:
+			logger.Printf("unknown configuration format: %T : %v", d, d)
+			return nil, fmt.Errorf("unknown configuration format: %T : %v", d, d)
+		}
+	}
+	return outputDestinations, nil
 }
