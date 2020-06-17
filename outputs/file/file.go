@@ -1,7 +1,6 @@
 package file
 
 import (
-	"fmt"
 	"log"
 	"os"
 
@@ -10,7 +9,6 @@ import (
 )
 
 func init() {
-	fmt.Println("init file output")
 	outputs.Register("file", func() outputs.Output {
 		return &File{
 			Cfg: &Config{},
