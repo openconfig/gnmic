@@ -17,12 +17,8 @@ targets:
 outputs:
   file:
     - filename: local.log
-      bufferSize: 1000
   nats:
-    - address:
-      cluster-name:
+    - address: localhost:4222
+      subject: telemetry
       username:
       password:
-      timeout:
-      pingInterval:
-      pingRetry:
