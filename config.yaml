@@ -13,4 +13,16 @@ targets:
   172.17.0.101:
   172.17.0.102:57000:
     password: sros123
-    
+
+outputs:
+  file:
+    - filename: local.log
+      bufferSize: 1000
+  nats:
+    - address:
+      cluster-name:
+      username:
+      password:
+      timeout:
+      pingInterval:
+      pingRetry:
