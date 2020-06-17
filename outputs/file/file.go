@@ -44,6 +44,7 @@ func (f *File) Initialize(cfg map[string]interface{}) error {
 	}
 	f.file = file
 	f.ch = make(chan []byte, f.Cfg.BufferSize)
+	f.stopChan = make(chan struct{})
 	return nil
 }
 
