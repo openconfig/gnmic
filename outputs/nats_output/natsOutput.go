@@ -2,18 +2,11 @@ package nats_output
 
 import (
 	"log"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/karimra/gnmiClient/outputs"
 	"github.com/mitchellh/mapstructure"
 	"github.com/nats-io/nats.go"
-)
-
-const (
-	natsDefaultTimeout      = 10 * time.Second
-	natsDefaultPingInterval = 5 * time.Second
-	natsDefaultPingRetry    = 2
 )
 
 func init() {
