@@ -1,4 +1,4 @@
-project_name: gnmiclient
+project_name: gnmic
 builds:
   - env:
       - CGO_ENABLED=0
