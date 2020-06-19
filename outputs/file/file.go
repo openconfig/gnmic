@@ -6,6 +6,7 @@ import (
 
 	"github.com/karimra/gnmiClient/outputs"
 	"github.com/mitchellh/mapstructure"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 func init() {
@@ -20,6 +21,8 @@ func init() {
 type File struct {
 	Cfg      *Config
 	file     *os.File
+	logger   *log.Logger
+	metrics  []prometheus.Collector
 	stopChan chan struct{}
 }
 
@@ -28,8 +31,8 @@ type Config struct {
 	FileName string
 }
 
-// Initialize //
-func (f *File) Initialize(cfg map[string]interface{}) error {
+// Init //
+func (f *File) Init(cfg map[string]interface{}, logger *log.Logger) error {
 	c := new(Config)
 	err := mapstructure.Decode(cfg, c)
 	if err != nil {
@@ -41,21 +44,34 @@ func (f *File) Initialize(cfg map[string]interface{}) error {
 		return err
 	}
 	f.file = file
+	f.logger = log.New(os.Stderr, "file_output ", log.LstdFlags|log.Lmicroseconds)
+	if logger != nil {
+		f.logger.SetOutput(logger.Writer())
+		f.logger.SetFlags(logger.Flags())
+	}
 	f.stopChan = make(chan struct{})
+	f.logger.Printf("output initialized with config: %+v", f.Cfg)
 	return nil
 }
 
 // Write //
 func (f *File) Write(b []byte) {
-	_, err := f.file.Write(append(b, []byte("\n")...))
+	NumberOfReceivedMsgs.WithLabelValues(f.file.Name()).Inc()
+	n, err := f.file.Write(append(b, []byte("\n")...))
 	if err != nil {
-		log.Printf("failed to write to file '%s': %v", f.file.Name(), err)
+		f.logger.Printf("failed to write to file '%s': %v", f.file.Name(), err)
 		return
 	}
+	NumberOfBytes.WithLabelValues(f.file.Name()).Add(float64(n))
+	NumberOfWrittenMsgs.WithLabelValues(f.file.Name()).Inc()
 }
 
 // Close //
 func (f *File) Close() error {
+	f.logger.Printf("closing file '%s' output", f.file.Name())
 	close(f.stopChan)
 	return nil
 }
+
+// Metrics //
+func (f *File) Metrics() []prometheus.Collector { return f.metrics }
