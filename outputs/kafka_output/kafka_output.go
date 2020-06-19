@@ -2,12 +2,14 @@ package kafka_output
 
 import (
 	"log"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/Shopify/sarama"
 	"github.com/karimra/gnmiClient/outputs"
 	"github.com/mitchellh/mapstructure"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -28,6 +30,8 @@ func init() {
 type KafkaOutput struct {
 	Cfg      *Config
 	producer sarama.SyncProducer
+	metrics  []prometheus.Collector
+	logger   sarama.StdLogger
 	stopChan chan struct{}
 }
 
@@ -39,8 +43,8 @@ type Config struct {
 	Timeout  int
 }
 
-// Initialize /
-func (k *KafkaOutput) Initialize(cfg map[string]interface{}) error {
+// Init /
+func (k *KafkaOutput) Init(cfg map[string]interface{}, logger *log.Logger) error {
 	err := mapstructure.Decode(cfg, k.Cfg)
 	if err != nil {
 		return err
@@ -54,12 +58,17 @@ func (k *KafkaOutput) Initialize(cfg map[string]interface{}) error {
 	if k.Cfg.Timeout == 0 {
 		k.Cfg.Timeout = defaultKafkaTimeout
 	}
+	if logger != nil {
+		sarama.Logger = log.New(logger.Writer(), "kafka_output ", logger.Flags())
+	} else {
+		sarama.Logger = log.New(os.Stderr, "kafka_output ", log.LstdFlags|log.Lmicroseconds)
+	}
+	k.logger = sarama.Logger
 	config := sarama.NewConfig()
 	config.Producer.Retry.Max = k.Cfg.MaxRetry
 	config.Producer.RequiredAcks = sarama.WaitForAll
 	config.Producer.Return.Successes = true
 	config.Producer.Timeout = time.Duration(k.Cfg.Timeout) * time.Second
-
 	k.producer, err = sarama.NewSyncProducer(strings.Split(k.Cfg.Address, ","), config)
 	return err
 }
@@ -75,8 +84,9 @@ func (k *KafkaOutput) Write(b []byte) {
 	}
 	_, _, err := k.producer.SendMessage(msg)
 	if err != nil {
-		log.Printf("failed to send a kafka msg to topic '%s': %v", k.Cfg.Topic, err)
+		k.logger.Printf("failed to send a kafka msg to topic '%s': %v", k.Cfg.Topic, err)
 	}
+	// 	k.logger.Printf("wrote %d bytes to kafka_topic=%s", len(b), k.Cfg.Topic)
 }
 
 // Close //
@@ -84,3 +94,6 @@ func (k *KafkaOutput) Close() error {
 	close(k.stopChan)
 	return k.producer.Close()
 }
+
+// Metrics //
+func (k *KafkaOutput) Metrics() []prometheus.Collector { return k.metrics }
