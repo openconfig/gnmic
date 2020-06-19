@@ -422,7 +422,10 @@ func formatSubscribeResponse(meta map[string]interface{}, subResp *gnmi.Subscrib
 
 func getOutputs() ([]outputs.Output, error) {
 	outDef := viper.GetStringMap("outputs")
-	logger.Printf("outputs: %+v", outDef)
+	if outDef == nil {
+		return nil, nil
+	}
+	logger.Printf("found outputs: %#v", outDef)
 	outputDestinations := make([]outputs.Output, 0)
 	for n, d := range outDef {
 		initalizer, ok := outputs.Outputs[n]
