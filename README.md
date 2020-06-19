@@ -1,4 +1,4 @@
-<p align=center><img src=https://gitlab.com/rdodin/pics/-/wikis/uploads/9fa21b0630653b9a938b1b85bb1439cb/gnmi-headline-1.svg?sanitize=true/></p>
+<p align=center><img src=https://gitlab.com/rdodin/pics/-/wikis/uploads/46e7d1631bd5569e9bf289be9dfa3812/gnmic-headline.svg?sanitize=true/></p>
 
 [![github release](https://img.shields.io/github/release/karimra/gnmiclient.svg?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://github.com/karimra/gnmiclient/releases/)
 [![Github all releases](https://img.shields.io/github/downloads/karimra/gnmiclient/total.svg?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://github.com/karimra/gnmiclient/releases/)
