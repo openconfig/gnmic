@@ -1,7 +1,9 @@
 package outputs
 
+import "log"
+
 type Output interface {
-	Initialize(map[string]interface{}) error
+	Init(map[string]interface{}, *log.Logger) error
 	Write([]byte)
 	Close() error
 }

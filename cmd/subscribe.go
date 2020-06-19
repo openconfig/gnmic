@@ -438,7 +438,7 @@ func getOutputs() ([]outputs.Output, error) {
 				switch ou.(type) {
 				case map[string]interface{}:
 					o := initalizer()
-					err := o.Initialize(ou.(map[string]interface{}))
+					err := o.Init(ou.(map[string]interface{}), logger)
 					if err != nil {
 						return nil, err
 					}
