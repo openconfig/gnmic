@@ -284,6 +284,9 @@ func gather(ctx context.Context, c chan string, ls *[]string) {
 	}
 }
 func getValue(updValue *gnmi.TypedValue) (interface{}, error) {
+	if updValue == nil {
+		return nil, nil
+	}
 	var value interface{}
 	var jsondata []byte
 	switch updValue.Value.(type) {
