@@ -4,6 +4,7 @@ go 1.13
 
 require (
 	github.com/Shopify/sarama v1.26.4
+	github.com/VividCortex/gohistogram v1.0.0 // indirect
 	github.com/gogo/protobuf v1.2.1
 	github.com/golang/protobuf v1.4.2
 	github.com/google/gnxi v0.0.0-20191016182648-6697a080bc2d
@@ -17,6 +18,7 @@ require (
 	github.com/nats-io/stan.go v0.6.0
 	github.com/openconfig/gnmi v0.0.0-20200508230933-d19cebf5e7be
 	github.com/openconfig/goyang v0.0.0-20200309174518-a00bece872fc
+	github.com/prometheus/client_golang v0.9.3
 	github.com/spf13/cobra v0.0.6
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.6.2

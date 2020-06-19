@@ -3,11 +3,13 @@ package stan_output
 import (
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/google/uuid"
 	"github.com/mitchellh/mapstructure"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/stan.go"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -20,6 +22,8 @@ const (
 type StanOutput struct {
 	Cfg      *Config
 	conn     stan.Conn
+	metrics  []prometheus.Collector
+	logger   *log.Logger
 	stopChan chan struct{}
 }
 
@@ -36,8 +40,8 @@ type Config struct {
 	PingRetry    int
 }
 
-// Initialize //
-func (s *StanOutput) Initialize(cfg map[string]interface{}) error {
+// Init //
+func (s *StanOutput) Init(cfg map[string]interface{}, logger *log.Logger) error {
 	err := mapstructure.Decode(cfg, s.Cfg)
 	if err != nil {
 		return err
@@ -52,6 +56,11 @@ func (s *StanOutput) Initialize(cfg map[string]interface{}) error {
 	if err != nil {
 		return err
 	}
+	s.logger = log.New(os.Stderr, "stan_output", log.LstdFlags|log.Lmicroseconds)
+	if logger != nil {
+		s.logger.SetOutput(logger.Writer())
+		s.logger.SetFlags(logger.Flags())
+	}
 	s.stopChan = make(chan struct{})
 	return nil
 }
@@ -63,7 +72,11 @@ func (s *StanOutput) Write(b []byte) {
 		log.Printf("failed to write to stan subject '%s': %v", s.Cfg.Subject, err)
 		return
 	}
+	// s.logger.Printf("wrote %d bytes to stan_subject=%s", len(b), s.Cfg.Subject)
 }
+
+// Metrics //
+func (s *StanOutput) Metrics() []prometheus.Collector { return s.metrics }
 
 // Close //
 func (s *StanOutput) Close() error {
