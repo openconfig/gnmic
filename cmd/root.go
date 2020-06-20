@@ -210,7 +210,7 @@ func createGrpcConn(ctx context.Context, address string) (*grpc.ClientConn, erro
 		opts = append(opts, grpc.WithDisableRetry())
 		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	}
-	timeoutCtx, _  := context.WithTimeout(ctx, viper.GetDuration("timeout"))
+	timeoutCtx, _ := context.WithTimeout(ctx, viper.GetDuration("timeout"))
 	conn, err := grpc.DialContext(timeoutCtx, address, opts...)
 	if err != nil {
 		return nil, err
@@ -419,13 +419,13 @@ func getTargets() ([]*target, error) {
 	}
 	targetsInt := viper.Get("targets")
 	targetsMap := make(map[string]interface{})
-	switch targetsInt.(type) {
+	switch targetsInt := targetsInt.(type) {
 	case string:
-		for _, addr := range strings.Split(targetsInt.(string), " ") {
+		for _, addr := range strings.Split(targetsInt, " ") {
 			targetsMap[addr] = nil
 		}
 	case map[string]interface{}:
-		targetsMap = targetsInt.(map[string]interface{})
+		targetsMap = targetsInt
 	default:
 		return nil, fmt.Errorf("unexpected targets format, got: %T", targetsInt)
 	}
@@ -447,9 +447,9 @@ func getTargets() ([]*target, error) {
 		}
 
 		tg.Address = addr
-		switch t.(type) {
+		switch t := t.(type) {
 		case map[string]interface{}:
-			err = mapstructure.Decode(t.(map[string]interface{}), tg)
+			err = mapstructure.Decode(t, tg)
 			if err != nil {
 				return nil, err
 			}
