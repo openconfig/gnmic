@@ -114,12 +114,6 @@ func printGetResponse(address string, response *gnmi.GetResponse) {
 		msg.Time = &t
 		msg.Prefix = gnmiPathToXPath(notif.Prefix)
 		for i, upd := range notif.Update {
-			if upd.Val == nil {
-				if viper.GetBool("debug") {
-					logger.Printf("DEBUG: got a nil val update: %+v", upd)
-				}
-				continue
-			}
 			pathElems := make([]string, 0, len(upd.Path.Elem))
 			for _, pElem := range upd.Path.Elem {
 				pathElems = append(pathElems, pElem.GetName())
