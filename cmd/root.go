@@ -181,9 +181,9 @@ func readPassword() (string, error) {
 	fmt.Println()
 	return string(pass), nil
 }
-func createGrpcConn(address string) (*grpc.ClientConn, error) {
+func createGrpcConn(ctx context.Context, address string) (*grpc.ClientConn, error) {
 	opts := []grpc.DialOption{}
-	opts = append(opts, grpc.WithTimeout(viper.GetDuration("timeout")))
+
 	opts = append(opts, grpc.WithBlock())
 	if viper.GetInt("max-msg-size") > 0 {
 		opts = append(opts, grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(viper.GetInt("max-msg-size"))))
@@ -210,7 +210,8 @@ func createGrpcConn(address string) (*grpc.ClientConn, error) {
 		opts = append(opts, grpc.WithDisableRetry())
 		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	}
-	conn, err := grpc.Dial(address, opts...)
+	timeoutCtx, _  := context.WithTimeout(ctx, viper.GetDuration("timeout"))
+	conn, err := grpc.DialContext(timeoutCtx, address, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -284,6 +285,9 @@ func gather(ctx context.Context, c chan string, ls *[]string) {
 	}
 }
 func getValue(updValue *gnmi.TypedValue) (interface{}, error) {
+	if updValue == nil {
+		return nil, nil
+	}
 	var value interface{}
 	var jsondata []byte
 	switch updValue.Value.(type) {
