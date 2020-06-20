@@ -38,7 +38,6 @@ var versionCmd = &cobra.Command{
 		fmt.Printf("   date : %s\n", date)
 		fmt.Printf(" gitURL : %s\n", gitURL)
 		fmt.Printf("   docs : https://gnmiclient.kmrd.dev\n")
-		return
 	},
 }
 
