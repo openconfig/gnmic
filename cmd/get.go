@@ -60,7 +60,7 @@ var getCmd = &cobra.Command{
 
 func getRequest(ctx context.Context, req *gnmi.GetRequest, target *target, wg *sync.WaitGroup, lock *sync.Mutex) {
 	defer wg.Done()
-	conn, err := createGrpcConn(target.Address)
+	conn, err := createGrpcConn(ctx, target.Address)
 	if err != nil {
 		logger.Printf("connection to %s failed: %v", target.Address, err)
 		return
@@ -137,15 +137,6 @@ func printGetResponse(address string, response *gnmi.GetResponse) {
 		fmt.Printf("%s%s\n", printPrefix, string(dMsg))
 	}
 	fmt.Println()
-}
-
-func stringInList(s string, l []string) bool {
-	for _, ss := range l {
-		if s == ss {
-			return true
-		}
-	}
-	return false
 }
 
 func init() {
