@@ -369,7 +369,7 @@ func filterModels(ctx context.Context, client gnmi.GNMIClient, modelsNames []str
 }
 func setupCloseHandler(cancelFn context.CancelFunc) {
 	c := make(chan os.Signal)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGINT, syscall.SIGKILL)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 	go func() {
 		sig := <-c
 		fmt.Printf("\nreceived signal '%s'. terminating...\n", sig.String())
