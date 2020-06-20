@@ -79,7 +79,7 @@ var rootCmd = &cobra.Command{
 		logger = log.New(f, "", log.LstdFlags|log.Lmicroseconds)
 		logger.SetFlags(log.LstdFlags | log.Lmicroseconds)
 		if viper.GetBool("debug") {
-			grpclog.SetLogger(logger)
+			grpclog.SetLogger(logger) //lint:ignore SA1019 see https://github.com/karimra/gnmiClient/issues/59
 		}
 	},
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {
