@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
+	"github.com/google/uuid"
 	"github.com/karimra/gnmiClient/outputs"
 	"github.com/mitchellh/mapstructure"
 	"github.com/prometheus/client_golang/prometheus"
@@ -39,6 +40,7 @@ type KafkaOutput struct {
 type Config struct {
 	Address  string
 	Topic    string
+	Name     string
 	MaxRetry int
 	Timeout  int
 }
@@ -65,6 +67,12 @@ func (k *KafkaOutput) Init(cfg map[string]interface{}, logger *log.Logger) error
 	}
 	k.logger = sarama.Logger
 	config := sarama.NewConfig()
+	if k.Cfg.Name != "" {
+		config.ClientID = k.Cfg.Name
+	} else {
+		config.ClientID = "gnmic-" + uuid.New().String()
+	}
+
 	config.Producer.Retry.Max = k.Cfg.MaxRetry
 	config.Producer.RequiredAcks = sarama.WaitForAll
 	config.Producer.Return.Successes = true
