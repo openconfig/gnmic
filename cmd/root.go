@@ -35,6 +35,7 @@ import (
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"golang.org/x/crypto/ssh/terminal"
@@ -210,7 +211,7 @@ func createGrpcConn(ctx context.Context, address string) (*grpc.ClientConn, erro
 		opts = append(opts, grpc.WithDisableRetry())
 		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	}
-	timeoutCtx, _  := context.WithTimeout(ctx, viper.GetDuration("timeout"))
+	timeoutCtx, _ := context.WithTimeout(ctx, viper.GetDuration("timeout"))
 	conn, err := grpc.DialContext(timeoutCtx, address, opts...)
 	if err != nil {
 		return nil, err
@@ -469,4 +470,8 @@ func getTargets() ([]*target, error) {
 		return targets[i].Address < targets[j].Address
 	})
 	return targets, nil
+}
+func newMetricsCollectors() []prometheus.Collector {
+	//numberOfActiveSubscriptions := prometheus.NewGaugeVec(prometheus.GaugeOpts{}, []string{"target"})
+	return nil
 }

@@ -13,6 +13,7 @@ require (
 	github.com/mitchellh/mapstructure v1.1.2
 	github.com/openconfig/gnmi v0.0.0-20200508230933-d19cebf5e7be
 	github.com/openconfig/goyang v0.0.0-20200309174518-a00bece872fc
+	github.com/prometheus/client_golang v0.9.3
 	github.com/spf13/cobra v0.0.6
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.6.2
