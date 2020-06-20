@@ -117,7 +117,7 @@ var subscribeCmd = &cobra.Command{
 
 func subRequest(ctx context.Context, req *gnmi.SubscribeRequest, target *target, wg *sync.WaitGroup, polledSubsChan map[string]chan struct{}, waitChan chan struct{}) {
 	defer wg.Done()
-	conn, err := createGrpcConn(target.Address)
+	conn, err := createGrpcConn(ctx, target.Address)
 	if err != nil {
 		logger.Printf("connection to %s failed: %v", target.Address, err)
 		return
