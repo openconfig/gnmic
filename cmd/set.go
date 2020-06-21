@@ -186,14 +186,14 @@ func printSetRequest(printPrefix string, request *gnmi.SetRequest) {
 	for _, upd := range request.Replace {
 		updMsg := new(updateMsg)
 		updMsg.Path = gnmiPathToXPath(upd.Path)
-		updMsg.Val = fmt.Sprintf("%s", upd.Val)
+		updMsg.Val = upd.Val.String()
 		req.Replace = append(req.Replace, updMsg)
 	}
 
 	for _, upd := range request.Update {
 		updMsg := new(updateMsg)
 		updMsg.Path = gnmiPathToXPath(upd.Path)
-		updMsg.Val = fmt.Sprintf("%s", upd.Val)
+		updMsg.Val = upd.Val.String()
 		req.Update = append(req.Update, updMsg)
 	}
 
