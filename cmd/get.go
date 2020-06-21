@@ -60,7 +60,7 @@ var getCmd = &cobra.Command{
 
 func getRequest(ctx context.Context, req *gnmi.GetRequest, target *target, wg *sync.WaitGroup, lock *sync.Mutex) {
 	defer wg.Done()
-	conn, err := createGrpcConn(ctx, target.Address)
+	conn, err := createGrpcConn(ctx, target.Address, nil)
 	if err != nil {
 		logger.Printf("connection to %s failed: %v", target.Address, err)
 		return

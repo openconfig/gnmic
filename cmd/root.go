@@ -32,6 +32,7 @@ import (
 	"syscall"
 	"time"
 
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmi/proto/gnmi"
@@ -120,6 +121,7 @@ func init() {
 	rootCmd.PersistentFlags().StringP("log-file", "", "", "log file path")
 	rootCmd.PersistentFlags().BoolP("nolog", "", false, "do not generate logs")
 	rootCmd.PersistentFlags().IntP("max-msg-size", "", msgSize, "max grpc msg size")
+	rootCmd.PersistentFlags().StringP("prometheus-address", "", "0.0.0.0:9094", "prometheus server address")
 	//
 	viper.BindPFlag("address", rootCmd.PersistentFlags().Lookup("address"))
 	viper.BindPFlag("username", rootCmd.PersistentFlags().Lookup("username"))
@@ -139,6 +141,7 @@ func init() {
 	viper.BindPFlag("log-file", rootCmd.PersistentFlags().Lookup("log-file"))
 	viper.BindPFlag("nolog", rootCmd.PersistentFlags().Lookup("nolog"))
 	viper.BindPFlag("max-msg-size", rootCmd.PersistentFlags().Lookup("max-msg-size"))
+	viper.BindPFlag("prometheus-address", rootCmd.PersistentFlags().Lookup("prometheus-address"))
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -182,9 +185,8 @@ func readPassword() (string, error) {
 	fmt.Println()
 	return string(pass), nil
 }
-func createGrpcConn(ctx context.Context, address string) (*grpc.ClientConn, error) {
+func createGrpcConn(ctx context.Context, address string, clientMetrics *grpc_prometheus.ClientMetrics) (*grpc.ClientConn, error) {
 	opts := []grpc.DialOption{}
-
 	opts = append(opts, grpc.WithBlock())
 	if viper.GetInt("max-msg-size") > 0 {
 		opts = append(opts, grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(viper.GetInt("max-msg-size"))))
@@ -210,6 +212,9 @@ func createGrpcConn(ctx context.Context, address string) (*grpc.ClientConn, erro
 		}
 		opts = append(opts, grpc.WithDisableRetry())
 		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+	}
+	if clientMetrics != nil {
+		opts = append(opts, grpc.WithStreamInterceptor(clientMetrics.StreamClientInterceptor()))
 	}
 	timeoutCtx, _ := context.WithTimeout(ctx, viper.GetDuration("timeout"))
 	conn, err := grpc.DialContext(timeoutCtx, address, opts...)
@@ -471,7 +476,28 @@ func getTargets() ([]*target, error) {
 	})
 	return targets, nil
 }
-func newMetricsCollectors() []prometheus.Collector {
-	//numberOfActiveSubscriptions := prometheus.NewGaugeVec(prometheus.GaugeOpts{}, []string{"target"})
-	return nil
+func newMetricsCollectors() map[string]prometheus.Collector {
+	return map[string]prometheus.Collector{
+		"number_of_active_targets": prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "number_of_active_targets",
+			Help: "Total number of active targets",
+		}),
+		"number_of_active_subscriptions": prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "number_of_active_subscriptions",
+			Help: "Total number of active subscriptions",
+		}, []string{"target"}),
+		"number_of_received_messages": prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "number_of_received_messages",
+			Help: "Total number of received messages",
+		}, []string{"target"}),
+		"number_of_received_subscribe_update_messages": prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "number_of_received_subscribe_update_messages",
+			Help: "Total number of received subscribe update messages",
+		}, []string{"target"}),
+		"number_of_received_subscribe_sync_messages": prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "number_of_received_subscribe_sync_messages",
+			Help: "Total number of received subscribe sync messages",
+		}, []string{"target"}),
+	}
+
 }

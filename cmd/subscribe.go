@@ -19,13 +19,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/gnxi/utils/xpath"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/manifoldco/promptui"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc/metadata"
@@ -73,10 +77,27 @@ var subscribeCmd = &cobra.Command{
 				polledSubsChan[targets[i].Address] = make(chan struct{})
 			}
 		}
+
+		reg := prometheus.NewRegistry()
+		reg.MustRegister(prometheus.NewGoCollector())
+		grpcMetrics := grpc_prometheus.NewClientMetrics()
+		grpcMetrics.EnableClientHandlingTimeHistogram()
+		reg.MustRegister(grpcMetrics)
+		httpServer := &http.Server{
+			Handler: promhttp.HandlerFor(reg, promhttp.HandlerOpts{}),
+			Addr:    viper.GetString("prometheus-address"),
+		}
+		go func() {
+			if err := httpServer.ListenAndServe(); err != nil {
+				logger.Printf("Unable to start prometheus http server.")
+			}
+		}()
+		defer httpServer.Close()
+
 		wg := new(sync.WaitGroup)
 		wg.Add(len(targets))
 		for _, target := range targets {
-			go subRequest(ctx, subscReq, target, wg, polledSubsChan, waitChan)
+			go subRequest(ctx, subscReq, target, wg, polledSubsChan, waitChan, grpcMetrics)
 		}
 		if subscReq.GetSubscribe().Mode == gnmi.SubscriptionList_POLL {
 			addresses := make([]string, len(targets))
@@ -88,7 +109,7 @@ var subscribeCmd = &cobra.Command{
 				Items:        addresses,
 				HideSelected: true,
 			}
-			go func() {	
+			go func() {
 				for {
 					select {
 					case <-waitChan:
@@ -115,9 +136,16 @@ var subscribeCmd = &cobra.Command{
 	},
 }
 
-func subRequest(ctx context.Context, req *gnmi.SubscribeRequest, target *target, wg *sync.WaitGroup, polledSubsChan map[string]chan struct{}, waitChan chan struct{}) {
+func subRequest(ctx context.Context,
+	req *gnmi.SubscribeRequest,
+	target *target,
+	wg *sync.WaitGroup,
+	polledSubsChan map[string]chan struct{},
+	waitChan chan struct{},
+	clientMetrics *grpc_prometheus.ClientMetrics,
+) {
 	defer wg.Done()
-	conn, err := createGrpcConn(ctx, target.Address)
+	conn, err := createGrpcConn(ctx, target.Address, clientMetrics)
 	if err != nil {
 		logger.Printf("connection to %s failed: %v", target.Address, err)
 		return

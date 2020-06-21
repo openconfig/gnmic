@@ -7,6 +7,7 @@ require (
 	github.com/gogo/protobuf v1.2.1
 	github.com/golang/protobuf v1.4.2
 	github.com/google/gnxi v0.0.0-20191016182648-6697a080bc2d
+	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/karimra/sros-dialout v0.0.0-20200518085040-c759bf74063a
 	github.com/manifoldco/promptui v0.7.0
 	github.com/mitchellh/go-homedir v1.1.0
