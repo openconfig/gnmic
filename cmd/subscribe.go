@@ -95,7 +95,7 @@ var subscribeCmd = &cobra.Command{
 				Items:        addresses,
 				HideSelected: true,
 			}
-			go func() {	
+			go func() {
 				for {
 					select {
 					case <-waitChan:
@@ -438,10 +438,10 @@ func getOutputs() ([]outputs.Output, error) {
 		case []interface{}:
 			outs := d.([]interface{})
 			for _, ou := range outs {
-				switch ou.(type) {
+				switch ou := ou.(type) {
 				case map[string]interface{}:
 					o := initalizer()
-					err := o.Init(ou.(map[string]interface{}), logger)
+					err := o.Init(ou, logger)
 					if err != nil {
 						return nil, err
 					}
