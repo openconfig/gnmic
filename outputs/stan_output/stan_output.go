@@ -114,7 +114,7 @@ func createSTANConn(c *Config) (stan.Conn, error) {
 			log.Fatalf("STAN connection lost, reason: %v", err)
 		}))
 	if err != nil {
-		return nil, fmt.Errorf("Can't connect to %s: %v", c.Address, err)
+		return nil, fmt.Errorf("cannot connect to %s: %v", c.Address, err)
 	}
 	return sc, nil
 }
