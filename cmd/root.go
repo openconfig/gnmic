@@ -36,7 +36,6 @@ import (
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmi/proto/gnmi"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"golang.org/x/crypto/ssh/terminal"
@@ -475,29 +474,4 @@ func getTargets() ([]*target, error) {
 		return targets[i].Address < targets[j].Address
 	})
 	return targets, nil
-}
-func newMetricsCollectors() map[string]prometheus.Collector {
-	return map[string]prometheus.Collector{
-		"number_of_active_targets": prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "number_of_active_targets",
-			Help: "Total number of active targets",
-		}),
-		"number_of_active_subscriptions": prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name: "number_of_active_subscriptions",
-			Help: "Total number of active subscriptions",
-		}, []string{"target"}),
-		"number_of_received_messages": prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: "number_of_received_messages",
-			Help: "Total number of received messages",
-		}, []string{"target"}),
-		"number_of_received_subscribe_update_messages": prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: "number_of_received_subscribe_update_messages",
-			Help: "Total number of received subscribe update messages",
-		}, []string{"target"}),
-		"number_of_received_subscribe_sync_messages": prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: "number_of_received_subscribe_sync_messages",
-			Help: "Total number of received subscribe sync messages",
-		}, []string{"target"}),
-	}
-
 }
