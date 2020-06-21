@@ -60,7 +60,7 @@ var getCmd = &cobra.Command{
 
 func getRequest(ctx context.Context, req *gnmi.GetRequest, target *target, wg *sync.WaitGroup, lock *sync.Mutex) {
 	defer wg.Done()
-	conn, err := createGrpcConn(target.Address)
+	conn, err := createGrpcConn(ctx, target.Address)
 	if err != nil {
 		logger.Printf("connection to %s failed: %v", target.Address, err)
 		return
@@ -114,12 +114,6 @@ func printGetResponse(address string, response *gnmi.GetResponse) {
 		msg.Time = &t
 		msg.Prefix = gnmiPathToXPath(notif.Prefix)
 		for i, upd := range notif.Update {
-			if upd.Val == nil {
-				if viper.GetBool("debug") {
-					logger.Printf("DEBUG: got a nil val update: %+v", upd)
-				}
-				continue
-			}
 			pathElems := make([]string, 0, len(upd.Path.Elem))
 			for _, pElem := range upd.Path.Elem {
 				pathElems = append(pathElems, pElem.GetName())
@@ -143,15 +137,6 @@ func printGetResponse(address string, response *gnmi.GetResponse) {
 		fmt.Printf("%s%s\n", printPrefix, string(dMsg))
 	}
 	fmt.Println()
-}
-
-func stringInList(s string, l []string) bool {
-	for _, ss := range l {
-		if s == ss {
-			return true
-		}
-	}
-	return false
 }
 
 func init() {

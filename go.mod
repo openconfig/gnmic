@@ -4,7 +4,6 @@ go 1.13
 
 require (
 	github.com/Shopify/sarama v1.26.4
-	github.com/VividCortex/gohistogram v1.0.0 // indirect
 	github.com/gogo/protobuf v1.2.1
 	github.com/golang/protobuf v1.4.2
 	github.com/google/gnxi v0.0.0-20191016182648-6697a080bc2d

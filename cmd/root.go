@@ -79,7 +79,7 @@ var rootCmd = &cobra.Command{
 		logger = log.New(f, "", log.LstdFlags|log.Lmicroseconds)
 		logger.SetFlags(log.LstdFlags | log.Lmicroseconds)
 		if viper.GetBool("debug") {
-			grpclog.SetLogger(logger)
+			grpclog.SetLogger(logger) //lint:ignore SA1019 see https://github.com/karimra/gnmiClient/issues/59
 		}
 	},
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {
@@ -181,9 +181,9 @@ func readPassword() (string, error) {
 	fmt.Println()
 	return string(pass), nil
 }
-func createGrpcConn(address string) (*grpc.ClientConn, error) {
+func createGrpcConn(ctx context.Context, address string) (*grpc.ClientConn, error) {
 	opts := []grpc.DialOption{}
-	opts = append(opts, grpc.WithTimeout(viper.GetDuration("timeout")))
+
 	opts = append(opts, grpc.WithBlock())
 	if viper.GetInt("max-msg-size") > 0 {
 		opts = append(opts, grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(viper.GetInt("max-msg-size"))))
@@ -210,7 +210,8 @@ func createGrpcConn(address string) (*grpc.ClientConn, error) {
 		opts = append(opts, grpc.WithDisableRetry())
 		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	}
-	conn, err := grpc.Dial(address, opts...)
+	timeoutCtx, _ := context.WithTimeout(ctx, viper.GetDuration("timeout"))
+	conn, err := grpc.DialContext(timeoutCtx, address, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -284,6 +285,9 @@ func gather(ctx context.Context, c chan string, ls *[]string) {
 	}
 }
 func getValue(updValue *gnmi.TypedValue) (interface{}, error) {
+	if updValue == nil {
+		return nil, nil
+	}
 	var value interface{}
 	var jsondata []byte
 	switch updValue.Value.(type) {
@@ -365,7 +369,7 @@ func filterModels(ctx context.Context, client gnmi.GNMIClient, modelsNames []str
 }
 func setupCloseHandler(cancelFn context.CancelFunc) {
 	c := make(chan os.Signal)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGINT, syscall.SIGKILL)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 	go func() {
 		sig := <-c
 		fmt.Printf("\nreceived signal '%s'. terminating...\n", sig.String())
@@ -415,13 +419,13 @@ func getTargets() ([]*target, error) {
 	}
 	targetsInt := viper.Get("targets")
 	targetsMap := make(map[string]interface{})
-	switch targetsInt.(type) {
+	switch targetsInt := targetsInt.(type) {
 	case string:
-		for _, addr := range strings.Split(targetsInt.(string), " ") {
+		for _, addr := range strings.Split(targetsInt, " ") {
 			targetsMap[addr] = nil
 		}
 	case map[string]interface{}:
-		targetsMap = targetsInt.(map[string]interface{})
+		targetsMap = targetsInt
 	default:
 		return nil, fmt.Errorf("unexpected targets format, got: %T", targetsInt)
 	}
@@ -443,9 +447,9 @@ func getTargets() ([]*target, error) {
 		}
 
 		tg.Address = addr
-		switch t.(type) {
+		switch t := t.(type) {
 		case map[string]interface{}:
-			err = mapstructure.Decode(t.(map[string]interface{}), tg)
+			err = mapstructure.Decode(t, tg)
 			if err != nil {
 				return nil, err
 			}

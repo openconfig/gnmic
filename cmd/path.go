@@ -55,7 +55,7 @@ var pathCmd = &cobra.Command{
 		}
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		out := make(chan string, 0)
+		out := make(chan string)
 		defer close(out)
 		paths := make([]string, 0)
 		if search {

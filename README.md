@@ -1,7 +1,34 @@
-# gnmiClient 
-gnmi rpc capabilities, get, set, subscribe from the terminal 
+<p align=center><img src=https://gitlab.com/rdodin/pics/-/wikis/uploads/46e7d1631bd5569e9bf289be9dfa3812/gnmic-headline.svg?sanitize=true/></p>
 
-## [Documentation](https://gnmiclient.kmrd.dev)
+[![github release](https://img.shields.io/github/release/karimra/gnmiclient.svg?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://github.com/karimra/gnmiclient/releases/)
+[![Github all releases](https://img.shields.io/github/downloads/karimra/gnmiclient/total.svg?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://github.com/karimra/gnmiclient/releases/)
+[![Go Report](https://img.shields.io/badge/go%20report-A%2B-blue?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://goreportcard.com/report/github.com/karimra/gnmiclient)
+[![Doc](https://img.shields.io/badge/Docs-gnmiclient.kmrd.dev-blue?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://gnmiclient.kmrd.dev)
+[![build](https://img.shields.io/github/workflow/status/karimra/gnmiclient/Test/master?style=flat-square&labelColor=bec8d2)](https://github.com/karimra/gnmiclient/releases/)
+
+---
+
+gNMI CLI client that provides full support for Capabilities, Get, Set and Subscribe RPCs.
+
+Documentation available at [https://gnmiclient.kmrd.dev](https://gnmiclient.kmrd.dev)
+
+## Features
+* **Full support for gNMI RPCs**  
+  Every gNMI RPC has a [corresponding command](https://gnmiclient.kmrd.dev/basic_usage/) with all of the RPC options configurable by means of the local and global flags.
+* **Multi-target operations**  
+  Commands can operate on multiple gNMI targets for bulk configuration/retrieval.
+* **File based configuration**  
+  gNMI Client understands configurations provided in a file. The configuration options are consistent with the CLI flags.
+* **Inspect gNMI messages**  
+  With the `textproto` output you can see the actual gNMI messages being sent/received. Its like having a gNMI looking glass!
+* **(In)secure gRPC connection**  
+  gNMI client supports both TLS and non-TLS transports so you can start using it in a lab environment without having to care about the PKI.
+* **Dial-out telemetry**  
+  The dial-out telemetry server is provided for Nokia SR OS.
+* **Pre-built multi-platform binaries**  
+  gNMI Client is available for major operating systems and the [installation](https://gnmiclient.kmrd.dev/install/) is a breeze.
+* **Extensive and friendly documentation**  
+  You won't be in need to dive into the source code to understand how to use the gNMI CLI client, our [documentation site](https://gnmiclient.kmrd.dev) has you covered.
 
 ## Usage
 ```
@@ -15,103 +42,9 @@ Available Commands:
   capabilities query targets gnmi capabilities
   get          run gnmi get on targets
   help         Help about any command
+  listen       listens for telemetry dialout updates from the node
   path         generate gnmi or xpath style from yang file
   set          run gnmi set on targets
   subscribe    subscribe to gnmi updates on targets
-```
-## Global flags
-```
-Flags:
-  -a, --address strings   comma separated gnmi targets addresses
-      --config string     config file (default is $HOME/.gnmiClient.yaml)
-  -d, --debug             debug mode
-  -e, --encoding string   one of: JSON, BYTES, PROTO, ASCII, JSON_IETF. (default "JSON")
-  -h, --help              help for gnmiClient
-      --insecure          insecure connection
-  -p, --password string   password
-      --skip-verify       skip verify tls connection
-      --timeout string    grpc timeout (default "30s")
-      --tls-ca string     tls certificate authority
-      --tls-cert string   tls certificate
-      --tls-key string    tls key
-  -u, --username string   username
-```
-### Path search:
-[![asciicast](https://asciinema.org/a/319579.svg)](https://asciinema.org/a/319579)
-### Capabilities:
-[![asciicast](https://asciinema.org/a/319561.svg)](https://asciinema.org/a/319561)
-### Get/Set:
-[![asciicast](https://asciinema.org/a/319562.svg)](https://asciinema.org/a/319562)
-### Subscriptions:
-[![asciicast](https://asciinema.org/a/319608.svg)](https://asciinema.org/a/319608)
-## Command Examples:
-### 0. Path Command
-####   - generate gnmi paths from a yang file
-```
-$ gnmiClient path -m <module-name> --file <yang-file> 
-e.g: 
-gnmiClient path -m nokia-state --file nokia-state-combined.yang
-
-```
-### 1. Capabilities request
-####   - single host
-```
-$ gnmiClient -a <ip:port> capabilities --username <user> --password <password> --insecure
-$ gnmiClient -a <ip:port> cap --username <user> --password <password> --insecure
-```
-####   - multiple hosts
-```
-$ gnmiClient -a <ip:port>,<ip:port> capabilities --username <user> --password <password> --insecure
-$ gnmiClient -a <ip:port> -a <ip:port> cap --username <user> --password <password> --insecure
-```
-
-### 2. Get request
-```
-$ gnmiClient -a <ip:port> get --path /state/port[port-id=*]
-$ gnmiClient -a <ip:port> get --path /state/port[port-id=*] --path /state/router[router-name=*]/interface[interface-name=*]
-$ gnmiClient -a <ip:port> get --prefix /state --path port[port-id=*] --path router[router-name=*]/interface[interface-name=*]
-```
-### 3. Set Request
-####  1. update
-#####   - in-line value
-```
-$ gnmiClient -a <ip:port> set --update-path /configure/system/name --update-value <system_name>
-```
-#####   - json file value
-```
-$ gnmiClient -a <ip:port> set --update-path /configure/system --update-file <jsonFile.json>
-$ cat jsonFile.json
-{"name": "router1"}
-```
-#####   - specify value type
-```
-$ gnmiClient -a <ip:port> set --update /configure/system/name:::json:::router1
-$ gnmiClient -a <ip:port> set --update /configure/system/name@json@router1 --delimiter @
-```
-####  2. replace
-```
-$ gnmiClient -a <ip:port> set --replace-path /configure/router[router-name=Base]/interface[interface-name=interface1]/ipv4/primary --replace-file interface.json
-$ cat interface.json
-{"address": "1.1.1.1", "prefix-length": 32}
-```
-####  3. delete
-```
-$ gnmiClient -a <ip:port> set --delete /configure/router[router-name=Base]/interface[interface-name=interface1]
-```
-### 4. Subscribe request
-####  1. streaming, target-defined subscription
-```
-$ gnmiClient -a <ip:port> sub --path /state/port[port-id=*]/statistics
-```
-####  2. streaming, sample, 30s interval subscription
-```
-$ gnmiClient -a <ip:port> sub --path /state/port[port-id=*]/statistics --stream-subscription-mode sample --sampling-interval 30s
-```
-####  3. streaming, on-change, heartbeat interval 1min subscription
-```
-$ gnmiClient -a <ip:port> sub --path /state/port[port-id=*]/statistics --stream-subscription-mode on-change --heartbeat-interval 1m
-```
-####  4. once subscription
-```
-$ gnmiClient -a <ip:port> sub --path /state/port[port-id=*]/statistics --subscription-mode once
+  version      show gnmiClient version
 ```
