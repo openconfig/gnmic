@@ -95,7 +95,7 @@ var subscribeCmd = &cobra.Command{
 				Items:        addresses,
 				HideSelected: true,
 			}
-			go func() {
+			go func() {	
 				for {
 					select {
 					case <-waitChan:
@@ -111,7 +111,7 @@ var subscribeCmd = &cobra.Command{
 						logger.Printf("polling address '%s'", addr)
 						polledSubsChan[addr] <- struct{}{}
 					case <-ctx.Done():
-						break
+						return
 					}
 				}
 			}()
@@ -133,7 +133,7 @@ func subRequest(ctx context.Context,
 	waitChan chan struct{},
 	outputs []outputs.Output) {
 	defer wg.Done()
-	conn, err := createGrpcConn(target.Address)
+	conn, err := createGrpcConn(ctx, target.Address)
 	if err != nil {
 		logger.Printf("connection to %s failed: %v", target.Address, err)
 		return
