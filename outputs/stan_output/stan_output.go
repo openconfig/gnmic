@@ -71,6 +71,7 @@ func (s *StanOutput) Init(cfg map[string]interface{}, logger *log.Logger) error 
 		s.logger.SetFlags(logger.Flags())
 	}
 	s.stopChan = make(chan struct{})
+	s.logger.Printf("initialized stan producer")
 	return nil
 }
 
@@ -81,7 +82,7 @@ func (s *StanOutput) Write(b []byte) {
 		log.Printf("failed to write to stan subject '%s': %v", s.Cfg.Subject, err)
 		return
 	}
-	// s.logger.Printf("wrote %d bytes to stan_subject=%s", len(b), s.Cfg.Subject)
+	//s.logger.Printf("wrote %d bytes to stan_subject=%s", len(b), s.Cfg.Subject)
 }
 
 // Metrics //
