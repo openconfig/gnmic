@@ -37,7 +37,7 @@ type Config struct {
 	Password string
 }
 
-// Initialize //
+// Init //
 func (n *NatsOutput) Init(cfg map[string]interface{}, logger *log.Logger) error {
 	err := mapstructure.Decode(cfg, n.Cfg)
 	if err != nil {
@@ -56,6 +56,7 @@ func (n *NatsOutput) Init(cfg map[string]interface{}, logger *log.Logger) error 
 		n.logger.SetFlags(logger.Flags())
 	}
 	n.stopChan = make(chan struct{})
+	n.logger.Printf("initialized nats producer")
 	return nil
 }
 
