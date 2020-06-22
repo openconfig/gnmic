@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/google/uuid"
+	"github.com/karimra/gnmiClient/outputs"
 	"github.com/mitchellh/mapstructure"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/stan.go"
@@ -17,6 +18,14 @@ const (
 	stanDefaultPingInterval = 5
 	stanDefaultPingRetry    = 2
 )
+
+func init() {
+	outputs.Register("stan", func() outputs.Output {
+		return &StanOutput{
+			Cfg: &Config{},
+		}
+	})
+}
 
 // StanOutput //
 type StanOutput struct {
