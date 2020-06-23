@@ -87,6 +87,9 @@ func createNATSConn(c *Config) (*nats.Conn, error) {
 	if c.Username != "" && c.Password != "" {
 		opts = append(opts, nats.UserInfo(c.Username, c.Password))
 	}
+	opts = append(opts, nats.ErrorHandler(func(_ *nats.Conn, _ *nats.Subscription, err error) {
+		log.Printf("nats error: %v", err)
+	}))
 	nc, err := nats.Connect(c.Address, opts...)
 	if err != nil {
 		return nil, err
