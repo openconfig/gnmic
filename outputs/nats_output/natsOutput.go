@@ -14,6 +14,14 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+const (
+	natsConnectTimeout = 5 * time.Second
+	natsConnectWait    = 2 * time.Second
+
+	natsReconnectBufferSize = 100 * 1024 * 1024
+	natsReconnectWait       = 2 * time.Second
+)
+
 func init() {
 	outputs.Register("nats", func() outputs.Output {
 		return &NatsOutput{
@@ -49,8 +57,9 @@ func (n *NatsOutput) Init(cfg map[string]interface{}, logger *log.Logger) error 
 	if err != nil {
 		return err
 	}
-	n.Cfg.ConnectTimeout = 10 * time.Second
-	n.Cfg.ConnectTimeWait = time.Second
+	n.Cfg.ConnectTimeout = natsConnectTimeout
+	n.Cfg.ConnectTimeWait = natsConnectWait
+	
 	n.logger = log.New(os.Stderr, "nats_output ", log.LstdFlags|log.Lmicroseconds)
 	if logger != nil {
 		n.logger.SetOutput(logger.Writer())
@@ -92,7 +101,8 @@ func (n *NatsOutput) createNATSConn(c *Config) (*nats.Conn, error) {
 	opts := []nats.Option{
 		nats.Name(c.Name),
 		nats.SetCustomDialer(n),
-		nats.ReconnectWait(2 * time.Second),
+		nats.ReconnectWait(natsReconnectWait),
+		nats.ReconnectBufSize(natsReconnectBufferSize),
 		nats.ErrorHandler(func(_ *nats.Conn, _ *nats.Subscription, err error) {
 			n.logger.Printf("nats error: %v", err)
 		}),
