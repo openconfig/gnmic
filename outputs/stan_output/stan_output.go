@@ -65,7 +65,7 @@ func (s *StanOutput) Init(cfg map[string]interface{}, logger *log.Logger) error 
 	if err != nil {
 		return err
 	}
-	s.logger = log.New(os.Stderr, "stan_output", log.LstdFlags|log.Lmicroseconds)
+	s.logger = log.New(os.Stderr, "stan_output ", log.LstdFlags|log.Lmicroseconds)
 	if logger != nil {
 		s.logger.SetOutput(logger.Writer())
 		s.logger.SetFlags(logger.Flags())
