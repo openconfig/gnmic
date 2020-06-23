@@ -62,7 +62,7 @@ type target struct {
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "gnmiClient",
+	Use:   "gnmic",
 	Short: "run gnmi rpcs from the terminal",
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		if viper.GetBool("nolog") {
@@ -100,7 +100,7 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.gnmiClient.yaml)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.gnmic.yaml)")
 	rootCmd.PersistentFlags().StringSliceP("address", "a", []string{}, "comma separated gnmi targets addresses")
 	rootCmd.PersistentFlags().StringP("username", "u", "", "username")
 	rootCmd.PersistentFlags().StringP("password", "p", "", "password")
@@ -153,9 +153,9 @@ func initConfig() {
 			os.Exit(1)
 		}
 
-		// Search config in home directory with name ".gnmiClient" (without extension).
+		// Search config in home directory with name ".gnmic" (without extension).
 		viper.AddConfigPath(home)
-		viper.SetConfigName(".gnmiClient")
+		viper.SetConfigName(".gnmic")
 	}
 
 	//viper.AutomaticEnv() // read in environment variables that match
