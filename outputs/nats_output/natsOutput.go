@@ -1,8 +1,11 @@
 package nats_output
 
 import (
+	"context"
 	"log"
+	"net"
 	"os"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/karimra/gnmiClient/outputs"
@@ -22,19 +25,22 @@ func init() {
 // NatsOutput //
 type NatsOutput struct {
 	Cfg      *Config
+	ctx      context.Context
+	cancelFn context.CancelFunc
 	conn     *nats.Conn
 	metrics  []prometheus.Collector
 	logger   *log.Logger
-	stopChan chan struct{}
 }
 
 // Config //
 type Config struct {
-	Name     string
-	Address  string
-	Subject  string
-	Username string
-	Password string
+	Name            string
+	Address         string
+	Subject         string
+	Username        string
+	Password        string
+	ConnectTimeout  time.Duration
+	ConnectTimeWait time.Duration
 }
 
 // Init //
@@ -43,19 +49,21 @@ func (n *NatsOutput) Init(cfg map[string]interface{}, logger *log.Logger) error 
 	if err != nil {
 		return err
 	}
-	if n.Cfg.Name == "" {
-		n.Cfg.Name = "gnmiclient-" + uuid.New().String()
-	}
-	n.conn, err = createNATSConn(n.Cfg)
-	if err != nil {
-		return err
-	}
+	n.Cfg.ConnectTimeout = 10 * time.Second
+	n.Cfg.ConnectTimeWait = time.Second
 	n.logger = log.New(os.Stderr, "nats_output ", log.LstdFlags|log.Lmicroseconds)
 	if logger != nil {
 		n.logger.SetOutput(logger.Writer())
 		n.logger.SetFlags(logger.Flags())
 	}
-	n.stopChan = make(chan struct{})
+	if n.Cfg.Name == "" {
+		n.Cfg.Name = "gnmiclient-" + uuid.New().String()
+	}
+	n.ctx, n.cancelFn = context.WithCancel(context.Background())
+	n.conn, err = n.createNATSConn(n.Cfg)
+	if err != nil {
+		return err
+	}
 	n.logger.Printf("initialized nats producer")
 	return nil
 }
@@ -72,7 +80,7 @@ func (n *NatsOutput) Write(b []byte) {
 
 // Close //
 func (n *NatsOutput) Close() error {
-	close(n.stopChan)
+	n.cancelFn()
 	n.conn.Close()
 	return nil
 }
@@ -80,19 +88,52 @@ func (n *NatsOutput) Close() error {
 // Metrics //
 func (n *NatsOutput) Metrics() []prometheus.Collector { return n.metrics }
 
-func createNATSConn(c *Config) (*nats.Conn, error) {
+func (n *NatsOutput) createNATSConn(c *Config) (*nats.Conn, error) {
 	opts := []nats.Option{
 		nats.Name(c.Name),
+		nats.SetCustomDialer(n),
+		nats.ReconnectWait(2 * time.Second),
+		nats.ErrorHandler(func(_ *nats.Conn, _ *nats.Subscription, err error) {
+			n.logger.Printf("nats error: %v", err)
+		}),
+		nats.DisconnectHandler(func(c *nats.Conn) {
+			n.logger.Println("disconnected from NATS")
+		}),
+		nats.ClosedHandler(func(c *nats.Conn) {
+			n.logger.Println("NATS connection is closed")
+		}),
 	}
 	if c.Username != "" && c.Password != "" {
 		opts = append(opts, nats.UserInfo(c.Username, c.Password))
 	}
-	opts = append(opts, nats.ErrorHandler(func(_ *nats.Conn, _ *nats.Subscription, err error) {
-		log.Printf("nats error: %v", err)
-	}))
 	nc, err := nats.Connect(c.Address, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return nc, nil
+}
+
+// Dial //
+func (n *NatsOutput) Dial(network, address string) (net.Conn, error) {
+	ctx, cancel := context.WithTimeout(n.ctx, n.Cfg.ConnectTimeout)
+	defer cancel()
+
+	for {
+		n.logger.Println("attempting to connect to", address)
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+
+		select {
+		case <-n.ctx.Done():
+			return nil, n.ctx.Err()
+		default:
+			d := &net.Dialer{}
+			if conn, err := d.DialContext(ctx, network, address); err == nil {
+				n.logger.Printf("successfully connected to NATS server %s", address)
+				return conn, nil
+			}
+			time.Sleep(n.Cfg.ConnectTimeWait)
+		}
+	}
 }
