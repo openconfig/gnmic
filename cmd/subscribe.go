@@ -206,22 +206,23 @@ func subRequest(ctx context.Context,
 				for _, o := range outputs {
 					go o.Write(b)
 				}
-				buff := new(bytes.Buffer)
-				err = json.Indent(buff, b, "", "  ")
-				if err != nil {
-					logger.Printf("failed to indent msg: err=%v, msg=%s", err, string(b))
-					return
+				if !viper.GetBool("quiet") {
+					buff := new(bytes.Buffer)
+					err = json.Indent(buff, b, "", "  ")
+					if err != nil {
+						logger.Printf("failed to indent msg: err=%v, msg=%s", err, string(b))
+						return
+					}
+					lock.Lock()
+					fmt.Println(buff.String())
+					lock.Unlock()
 				}
-				lock.Lock()
-				fmt.Println(buff.String())
-				lock.Unlock()
 			case *gnmi.SubscribeResponse_SyncResponse:
 				logger.Printf("received sync response=%+v from %s\n", resp.SyncResponse, target.Address)
 				if req.GetSubscribe().Mode == gnmi.SubscriptionList_ONCE {
 					return
 				}
 			}
-			fmt.Println()
 		}
 	case gnmi.SubscriptionList_POLL:
 		for {
@@ -355,6 +356,7 @@ func init() {
 	subscribeCmd.Flags().BoolP("suppress-redundant", "", false, "suppress redundant update if the subscribed value didnt not change")
 	subscribeCmd.Flags().StringP("heartbeat-interval", "", "0s", "heartbeat interval in case suppress-redundant is enabled")
 	subscribeCmd.Flags().StringSliceP("model", "", []string{""}, "subscribe request used model(s)")
+	subscribeCmd.Flags().BoolP("quiet", "", false, "suppress stdout printing")
 	//
 	viper.BindPFlag("sub-prefix", subscribeCmd.Flags().Lookup("prefix"))
 	viper.BindPFlag("sub-path", subscribeCmd.Flags().Lookup("path"))
@@ -366,6 +368,7 @@ func init() {
 	viper.BindPFlag("suppress-redundant", subscribeCmd.Flags().Lookup("suppress-redundant"))
 	viper.BindPFlag("heartbeat-interval", subscribeCmd.Flags().Lookup("heartbeat-interval"))
 	viper.BindPFlag("sub-model", subscribeCmd.Flags().Lookup("model"))
+	viper.BindPFlag("quiet", subscribeCmd.Flags().Lookup("quiet"))
 }
 
 func formatSubscribeResponse(meta map[string]interface{}, subResp *gnmi.SubscribeResponse) ([]byte, error) {
