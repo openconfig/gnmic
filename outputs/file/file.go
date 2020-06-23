@@ -13,6 +13,11 @@ func init() {
 	outputs.Register("file", func() outputs.Output {
 		return &File{
 			Cfg: &Config{},
+			metrics: []prometheus.Collector{
+				NumberOfWrittenBytes,
+				NumberOfReceivedMsgs,
+				NumberOfWrittenMsgs,
+			},
 		}
 	})
 }
@@ -62,7 +67,7 @@ func (f *File) Write(b []byte) {
 		f.logger.Printf("failed to write to file '%s': %v", f.file.Name(), err)
 		return
 	}
-	NumberOfBytes.WithLabelValues(f.file.Name()).Add(float64(n))
+	NumberOfWrittenBytes.WithLabelValues(f.file.Name()).Add(float64(n))
 	NumberOfWrittenMsgs.WithLabelValues(f.file.Name()).Inc()
 }
 
