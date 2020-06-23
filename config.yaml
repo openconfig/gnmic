@@ -23,7 +23,7 @@ outputs:
       username:
       password:
   stan:
-    - address: localhost:4222
+    - address: localhost:4223
       subject: telemetry
       username:
       password:
@@ -33,7 +33,7 @@ outputs:
       pingInterval:
       pingRetry:
   kafka:
-    - address:
-      topic: 
-      maxRetry:
+    - address: localhost:9092
+      topic: telemetry
+      maxRetry: 
       timeout:
