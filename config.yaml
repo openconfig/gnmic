@@ -10,9 +10,26 @@ targets:
   172.17.0.100:
     username: grpc
     password: grpc
+    subscriptions:
+      - sub1
   172.17.0.101:
+    subscriptions:
+      - sub1
+      - sub2
   172.17.0.102:57000:
     password: sros123
+
+subscriptions:
+  sub1:
+    paths:
+      - /configure/port[port-id=*]
+      - /state
+    mode: on_change # target-defined # sample
+  sub2:
+    paths:
+       - /configure/port[port-id=*]
+    mode: sample
+    sample-interval: 30s
 
 outputs:
   file:
