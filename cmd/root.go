@@ -182,7 +182,7 @@ func presetRequiredFlags(cmd *cobra.Command) {
 		if viper.IsSet(flagName) && viper.GetString(flagName) != "" {
 			err := cmd.LocalFlags().Set(f.Name, viper.GetString(flagName))
 			if err != nil {
-				logger.Println("failed setting flag '%s' from viper: %v", flagName, err)
+				logger.Printf("failed setting flag '%s' from viper: %v", flagName, err)
 			}
 		}
 	})
