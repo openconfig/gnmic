@@ -118,7 +118,11 @@ func init() {
 	pathCmd.Flags().StringVarP(&module, "module", "m", "nokia-state", "module name")
 	pathCmd.Flags().BoolVarP(&types, "types", "", false, "print leaf type")
 	pathCmd.Flags().BoolVarP(&search, "search", "", false, "search through path list")
-	viper.BindPFlag("file", pathCmd.Flags().Lookup("file"))
+	viper.BindPFlag("path-file", pathCmd.LocalFlags().Lookup("file"))
+	viper.BindPFlag("path-path-type", pathCmd.LocalFlags().Lookup("path-type"))
+	viper.BindPFlag("path-module", pathCmd.LocalFlags().Lookup("module"))
+	viper.BindPFlag("path-types", pathCmd.LocalFlags().Lookup("types"))
+	viper.BindPFlag("path-search", pathCmd.LocalFlags().Lookup("search"))
 	pathCmd.SilenceUsage = true
 }
 

@@ -36,6 +36,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"golang.org/x/crypto/ssh/terminal"
 	"google.golang.org/grpc"
@@ -162,7 +163,31 @@ func initConfig() {
 
 	// If a config file is found, read it in.
 	viper.ReadInConfig()
+
+	postInitCommands(rootCmd.Commands())
 }
+
+func postInitCommands(commands []*cobra.Command) {
+	for _, cmd := range commands {
+		presetRequiredFlags(cmd)
+		if cmd.HasSubCommands() {
+			postInitCommands(cmd.Commands())
+		}
+	}
+}
+
+func presetRequiredFlags(cmd *cobra.Command) {
+	cmd.LocalFlags().VisitAll(func(f *pflag.Flag) {
+		flagName := fmt.Sprintf("%s-%s", cmd.Name(), f.Name)
+		if viper.IsSet(flagName) && viper.GetString(flagName) != "" {
+			err := cmd.LocalFlags().Set(f.Name, viper.GetString(flagName))
+			if err != nil {
+				logger.Println("failed setting flag '%s' from viper: %v", flagName, err)
+			}
+		}
+	})
+}
+
 func readUsername() (string, error) {
 	var username string
 	fmt.Print("username: ")
