@@ -471,3 +471,18 @@ func getTargets() ([]*target, error) {
 	})
 	return targets, nil
 }
+
+func numTargets() int {
+	addressesLength := len(viper.GetStringSlice("address"))
+	if addressesLength > 0 {
+		return addressesLength
+	}
+	targets := viper.Get("targets")
+	switch targets := targets.(type) {
+	case string:
+		return len(strings.Split(targets, " "))
+	case map[string]interface{}:
+		return len(targets)
+	}
+	return 0
+}

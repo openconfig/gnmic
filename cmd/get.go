@@ -98,8 +98,8 @@ func getRequest(ctx context.Context, req *gnmi.GetRequest, target *target, wg *s
 
 func printGetResponse(address string, response *gnmi.GetResponse) {
 	printPrefix := ""
-	addresses := viper.GetStringSlice("address")
-	if len(addresses) > 1 && !viper.GetBool("no-prefix") {
+	//	addresses := viper.GetStringSlice("address")
+	if numTargets() > 1 && !viper.GetBool("no-prefix") {
 		printPrefix = fmt.Sprintf("[%s] ", address)
 	}
 	if viper.GetString("format") == "textproto" {
