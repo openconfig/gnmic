@@ -163,7 +163,6 @@ func initConfig() {
 
 	// If a config file is found, read it in.
 	viper.ReadInConfig()
-
 	postInitCommands(rootCmd.Commands())
 }
 
@@ -179,8 +178,21 @@ func postInitCommands(commands []*cobra.Command) {
 func presetRequiredFlags(cmd *cobra.Command) {
 	cmd.LocalFlags().VisitAll(func(f *pflag.Flag) {
 		flagName := fmt.Sprintf("%s-%s", cmd.Name(), f.Name)
-		if viper.IsSet(flagName) && viper.GetString(flagName) != "" {
-			err := cmd.LocalFlags().Set(f.Name, viper.GetString(flagName))
+		value := viper.Get(flagName)
+		if value != nil && viper.IsSet(flagName) {
+			var err error
+			switch value := value.(type) {
+			case string:
+				err = cmd.LocalFlags().Set(f.Name, value)
+			case []interface{}:
+				ls := make([]string, len(value))
+				for i := range value {
+					ls[i] = value[i].(string)
+				}
+				err = cmd.LocalFlags().Set(f.Name, strings.Join(ls, ","))
+			default:
+				logger.Printf("unexpected config value type, value=%s, type=%T", value, value)
+			}
 			if err != nil {
 				logger.Printf("failed setting flag '%s' from viper: %v", flagName, err)
 			}

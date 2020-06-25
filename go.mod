@@ -3,9 +3,7 @@ module github.com/karimra/gnmiClient
 go 1.13
 
 require (
-	github.com/Shopify/sarama v1.26.4
-	github.com/gogo/protobuf v1.2.1
-	github.com/golang/protobuf v1.4.2
+	github.com/Shopify/sarama v1.26.4 // indirect
 	github.com/google/gnxi v0.0.0-20191016182648-6697a080bc2d
 	github.com/karimra/sros-dialout v0.0.0-20200518085040-c759bf74063a
 	github.com/manifoldco/promptui v0.7.0
