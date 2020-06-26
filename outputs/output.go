@@ -8,7 +8,7 @@ import (
 
 type Output interface {
 	Init(map[string]interface{}, *log.Logger) error
-	Write([]byte)
+	Write([]byte, Meta)
 	Close() error
 	Metrics() []prometheus.Collector
 }
@@ -19,3 +19,5 @@ var Outputs = map[string]Initializer{}
 func Register(name string, initFn Initializer) {
 	Outputs[name] = initFn
 }
+
+type Meta map[string]interface{}
