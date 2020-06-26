@@ -128,15 +128,18 @@ func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_Publi
 			logger.Printf("received http2_header=%s", string(b))
 		}
 	}
+	outMeta := outputs.Meta{}
 	meta := make(map[string]interface{})
 	if sn, ok := md["subscription-name"]; ok {
 		if len(sn) > 0 {
 			meta["subscription-name"] = sn[0]
+			outMeta["subscription-name"] = sn[0]
 		}
 	} else {
 		logger.Println("could not find subscription-name in http2 headers")
 	}
 	meta["source"] = peer.Addr.String()
+	outMeta["source"] = peer.Addr.String()
 	if systemName, ok := md["system-name"]; ok {
 		if len(systemName) > 0 {
 			meta["system-name"] = systemName[0]
@@ -165,7 +168,7 @@ func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_Publi
 				continue
 			}
 			for _, o := range s.Outputs {
-				go o.Write(b)
+				go o.Write(b, outMeta)
 			}
 			buff := new(bytes.Buffer)
 			err = json.Indent(buff, b, "", "  ")

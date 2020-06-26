@@ -76,14 +76,14 @@ var subscribeCmd = &cobra.Command{
 				polledSubsChan[targets[i].Address] = make(chan struct{})
 			}
 		}
-		outputs, err := getOutputs()
+		outs, err := getOutputs()
 		if err != nil {
 			return err
 		}
 		wg := new(sync.WaitGroup)
 		wg.Add(len(targets))
 		for _, target := range targets {
-			go subRequest(ctx, subscReq, target, wg, polledSubsChan, waitChan, outputs)
+			go subRequest(ctx, subscReq, target, wg, polledSubsChan, waitChan, outs)
 		}
 		if subscReq.GetSubscribe().Mode == gnmi.SubscriptionList_POLL {
 			addresses := make([]string, len(targets))
@@ -118,7 +118,7 @@ var subscribeCmd = &cobra.Command{
 			waitChan <- struct{}{}
 		}
 		wg.Wait()
-		for _, o := range outputs {
+		for _, o := range outs {
 			o.Close()
 		}
 		return nil
@@ -131,7 +131,7 @@ func subRequest(ctx context.Context,
 	wg *sync.WaitGroup,
 	polledSubsChan map[string]chan struct{},
 	waitChan chan struct{},
-	outputs []outputs.Output) {
+	outs []outputs.Output) {
 	defer wg.Done()
 	conn, err := createGrpcConn(ctx, target.Address)
 	if err != nil {
@@ -203,8 +203,10 @@ func subRequest(ctx context.Context,
 					logger.Printf("failed to format subscribe response: %v", err)
 					return
 				}
-				for _, o := range outputs {
-					go o.Write(b)
+				m := outputs.Meta{}
+				m["source"] = target.Address
+				for _, o := range outs {
+					go o.Write(b, m)
 				}
 				if !viper.GetBool("quiet") {
 					buff := new(bytes.Buffer)
