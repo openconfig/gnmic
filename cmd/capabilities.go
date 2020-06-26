@@ -56,7 +56,7 @@ var capabilitiesCmd = &cobra.Command{
 
 func reqCapability(ctx context.Context, target *target, wg *sync.WaitGroup, m *sync.Mutex) error {
 	defer wg.Done()
-	conn, err := createGrpcConn(ctx, target.Address)
+	conn, err := createGrpcConn(ctx, target.Address, nil)
 	if err != nil {
 		logger.Printf("connection to %s failed: %v", target.Address, err)
 		return err

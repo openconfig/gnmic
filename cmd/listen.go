@@ -21,11 +21,14 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"sync"
 
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/karimra/gnmiClient/outputs"
 	nokiasros "github.com/karimra/sros-dialout"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
@@ -68,7 +71,10 @@ var listenCmd = &cobra.Command{
 		if viper.GetInt("max-msg-size") > 0 {
 			opts = append(opts, grpc.MaxRecvMsgSize(viper.GetInt("max-msg-size")))
 		}
-		opts = append(opts, grpc.MaxConcurrentStreams(viper.GetUint32("max-concurrent-streams")))
+		opts = append(opts,
+			grpc.MaxConcurrentStreams(viper.GetUint32("max-concurrent-streams")),
+			grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor))
+
 		if viper.GetString("tls-key") != "" && viper.GetString("tls-cert") != "" {
 			tlsConfig := &tls.Config{
 				Renegotiation:      tls.RenegotiateNever,
@@ -88,7 +94,18 @@ var listenCmd = &cobra.Command{
 
 		server.grpcServer = grpc.NewServer(opts...)
 		nokiasros.RegisterDialoutTelemetryServer(server.grpcServer, server)
+		grpc_prometheus.Register(server.grpcServer)
 
+		httpServer := &http.Server{
+			Handler: promhttp.Handler(),
+			Addr:    viper.GetString("prometheus-address"),
+		}
+		go func() {
+			if err := httpServer.ListenAndServe(); err != nil {
+				logger.Printf("Unable to start prometheus http server.")
+			}
+		}()
+		defer httpServer.Close()
 		server.grpcServer.Serve(server.listener)
 		defer server.grpcServer.Stop()
 		return nil

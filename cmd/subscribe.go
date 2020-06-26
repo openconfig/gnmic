@@ -20,15 +20,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/gnxi/utils/xpath"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/karimra/gnmiClient/outputs"
 	_ "github.com/karimra/gnmiClient/outputs/all"
 	"github.com/manifoldco/promptui"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc/metadata"
@@ -76,6 +80,22 @@ var subscribeCmd = &cobra.Command{
 				polledSubsChan[targets[i].Address] = make(chan struct{})
 			}
 		}
+
+		reg := prometheus.NewRegistry()
+		reg.MustRegister(prometheus.NewGoCollector())
+		grpcMetrics := grpc_prometheus.NewClientMetrics()
+		grpcMetrics.EnableClientHandlingTimeHistogram()
+		reg.MustRegister(grpcMetrics)
+		httpServer := &http.Server{
+			Handler: promhttp.HandlerFor(reg, promhttp.HandlerOpts{}),
+			Addr:    viper.GetString("prometheus-address"),
+		}
+		go func() {
+			if err := httpServer.ListenAndServe(); err != nil {
+				logger.Printf("Unable to start prometheus http server.")
+			}
+		}()
+		defer httpServer.Close()
 		outs, err := getOutputs()
 		if err != nil {
 			return err
@@ -83,7 +103,7 @@ var subscribeCmd = &cobra.Command{
 		wg := new(sync.WaitGroup)
 		wg.Add(len(targets))
 		for _, target := range targets {
-			go subRequest(ctx, subscReq, target, wg, polledSubsChan, waitChan, outs)
+			go subRequest(ctx, subscReq, target, wg, polledSubsChan, waitChan, grpcMetrics, outs)
 		}
 		if subscReq.GetSubscribe().Mode == gnmi.SubscriptionList_POLL {
 			addresses := make([]string, len(targets))
@@ -131,9 +151,11 @@ func subRequest(ctx context.Context,
 	wg *sync.WaitGroup,
 	polledSubsChan map[string]chan struct{},
 	waitChan chan struct{},
-	outs []outputs.Output) {
+	clientMetrics *grpc_prometheus.ClientMetrics,
+	outs []outputs.Output,
+) {
 	defer wg.Done()
-	conn, err := createGrpcConn(ctx, target.Address)
+	conn, err := createGrpcConn(ctx, target.Address, clientMetrics)
 	if err != nil {
 		logger.Printf("connection to %s failed: %v", target.Address, err)
 		return
@@ -355,7 +377,7 @@ func init() {
 	subscribeCmd.Flags().StringP("stream-subscription-mode", "", "target-defined", "one of: on-change, sample, target-defined")
 	subscribeCmd.Flags().StringP("sampling-interval", "i", "10s",
 		"sampling interval as a decimal number and a suffix unit, such as \"10s\" or \"1m30s\", minimum is 1s")
-	subscribeCmd.Flags().BoolP("suppress-redundant", "", false, "suppress redundant update if the subscribed value didnt not change")
+	subscribeCmd.Flags().BoolP("suppress-redundant", "", false, "suppress redundant update if the subscribed value didn't not change")
 	subscribeCmd.Flags().StringP("heartbeat-interval", "", "0s", "heartbeat interval in case suppress-redundant is enabled")
 	subscribeCmd.Flags().StringSliceP("model", "", []string{""}, "subscribe request used model(s)")
 	subscribeCmd.Flags().BoolP("quiet", "", false, "suppress stdout printing")
