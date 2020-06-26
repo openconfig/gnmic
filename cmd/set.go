@@ -248,18 +248,18 @@ func init() {
 	setCmd.Flags().StringP("delimiter", "", ":::", "set update/replace delimiter between path,type,value")
 	setCmd.Flags().BoolP("print-request", "", false, "print set request as well as the response")
 
-	viper.BindPFlag("set-prefix", setCmd.Flags().Lookup("prefix"))
-	viper.BindPFlag("delete", setCmd.Flags().Lookup("delete"))
-	viper.BindPFlag("replace", setCmd.Flags().Lookup("replace"))
-	viper.BindPFlag("update", setCmd.Flags().Lookup("update"))
-	viper.BindPFlag("update-path", setCmd.Flags().Lookup("update-path"))
-	viper.BindPFlag("replace-path", setCmd.Flags().Lookup("replace-path"))
-	viper.BindPFlag("update-file", setCmd.Flags().Lookup("update-file"))
-	viper.BindPFlag("replace-file", setCmd.Flags().Lookup("replace-file"))
-	viper.BindPFlag("update-value", setCmd.Flags().Lookup("update-value"))
-	viper.BindPFlag("replace-value", setCmd.Flags().Lookup("replace-value"))
-	viper.BindPFlag("delimiter", setCmd.Flags().Lookup("delimiter"))
-	viper.BindPFlag("print-request", setCmd.Flags().Lookup("print-request"))
+	viper.BindPFlag("set-prefix", setCmd.LocalFlags().Lookup("prefix"))
+	viper.BindPFlag("set-delete", setCmd.LocalFlags().Lookup("delete"))
+	viper.BindPFlag("set-replace", setCmd.LocalFlags().Lookup("replace"))
+	viper.BindPFlag("set-update", setCmd.LocalFlags().Lookup("update"))
+	viper.BindPFlag("set-update-path", setCmd.LocalFlags().Lookup("update-path"))
+	viper.BindPFlag("set-replace-path", setCmd.LocalFlags().Lookup("replace-path"))
+	viper.BindPFlag("set-update-file", setCmd.LocalFlags().Lookup("update-file"))
+	viper.BindPFlag("set-replace-file", setCmd.LocalFlags().Lookup("replace-file"))
+	viper.BindPFlag("set-update-value", setCmd.LocalFlags().Lookup("update-value"))
+	viper.BindPFlag("set-replace-value", setCmd.LocalFlags().Lookup("replace-value"))
+	viper.BindPFlag("set-delimiter", setCmd.LocalFlags().Lookup("delimiter"))
+	viper.BindPFlag("set-print-request", setCmd.LocalFlags().Lookup("print-request"))
 }
 
 func createSetRequest() (*gnmi.SetRequest, error) {
@@ -268,20 +268,20 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 	if err != nil {
 		return nil, err
 	}
-	deletes := viper.GetStringSlice("delete")
-	updates := viper.GetStringSlice("update")
-	replaces := viper.GetStringSlice("replace")
+	deletes := viper.GetStringSlice("set-delete")
+	updates := viper.GetStringSlice("set-update")
+	replaces := viper.GetStringSlice("set-replace")
 
-	updatePaths := viper.GetStringSlice("update-path")
-	replacePaths := viper.GetStringSlice("replace-path")
+	updatePaths := viper.GetStringSlice("set-update-path")
+	replacePaths := viper.GetStringSlice("set-replace-path")
 
-	updateFiles := viper.GetStringSlice("update-file")
-	replaceFiles := viper.GetStringSlice("replace-file")
+	updateFiles := viper.GetStringSlice("set-update-file")
+	replaceFiles := viper.GetStringSlice("set-replace-file")
 
-	updateValues := viper.GetStringSlice("update-value")
-	replaceValues := viper.GetStringSlice("replace-value")
+	updateValues := viper.GetStringSlice("set-update-value")
+	replaceValues := viper.GetStringSlice("set-replace-value")
 
-	delimiter := viper.GetString("delimiter")
+	delimiter := viper.GetString("set-delimiter")
 	if (len(deletes)+len(updates)+len(replaces)) == 0 && (len(updatePaths)+len(replacePaths)) == 0 {
 		return nil, errors.New("no paths provided")
 	}

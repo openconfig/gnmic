@@ -98,8 +98,8 @@ func getRequest(ctx context.Context, req *gnmi.GetRequest, target *target, wg *s
 
 func printGetResponse(address string, response *gnmi.GetResponse) {
 	printPrefix := ""
-	addresses := viper.GetStringSlice("address")
-	if len(addresses) > 1 && !viper.GetBool("no-prefix") {
+	//	addresses := viper.GetStringSlice("address")
+	if numTargets() > 1 && !viper.GetBool("no-prefix") {
 		printPrefix = fmt.Sprintf("[%s] ", address)
 	}
 	if viper.GetString("format") == "textproto" {
@@ -147,10 +147,10 @@ func init() {
 	getCmd.Flags().StringP("prefix", "", "", "get request prefix")
 	getCmd.Flags().StringSliceP("model", "", []string{""}, "get request model(s)")
 	getCmd.Flags().StringP("type", "t", "ALL", "the type of data that is requested from the target. one of: ALL, CONFIG, STATE, OPERATIONAL")
-	viper.BindPFlag("get-path", getCmd.Flags().Lookup("path"))
-	viper.BindPFlag("get-prefix", getCmd.Flags().Lookup("prefix"))
-	viper.BindPFlag("get-model", getCmd.Flags().Lookup("model"))
-	viper.BindPFlag("get-type", getCmd.Flags().Lookup("type"))
+	viper.BindPFlag("get-path", getCmd.LocalFlags().Lookup("path"))
+	viper.BindPFlag("get-prefix", getCmd.LocalFlags().Lookup("prefix"))
+	viper.BindPFlag("get-model", getCmd.LocalFlags().Lookup("model"))
+	viper.BindPFlag("get-type", getCmd.LocalFlags().Lookup("type"))
 }
 
 func createGetRequest() (*gnmi.GetRequest, error) {

@@ -15,6 +15,7 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -26,6 +27,8 @@ import (
 
 	"github.com/google/gnxi/utils/xpath"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/karimra/gnmiClient/outputs"
+	_ "github.com/karimra/gnmiClient/outputs/all"
 	"github.com/manifoldco/promptui"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus"
@@ -93,11 +96,14 @@ var subscribeCmd = &cobra.Command{
 			}
 		}()
 		defer httpServer.Close()
-
+		outs, err := getOutputs()
+		if err != nil {
+			return err
+		}
 		wg := new(sync.WaitGroup)
 		wg.Add(len(targets))
 		for _, target := range targets {
-			go subRequest(ctx, subscReq, target, wg, polledSubsChan, waitChan, grpcMetrics)
+			go subRequest(ctx, subscReq, target, wg, polledSubsChan, waitChan, grpcMetrics, outs)
 		}
 		if subscReq.GetSubscribe().Mode == gnmi.SubscriptionList_POLL {
 			addresses := make([]string, len(targets))
@@ -132,6 +138,9 @@ var subscribeCmd = &cobra.Command{
 			waitChan <- struct{}{}
 		}
 		wg.Wait()
+		for _, o := range outs {
+			o.Close()
+		}
 		return nil
 	},
 }
@@ -143,6 +152,7 @@ func subRequest(ctx context.Context,
 	polledSubsChan map[string]chan struct{},
 	waitChan chan struct{},
 	clientMetrics *grpc_prometheus.ClientMetrics,
+	outs []outputs.Output,
 ) {
 	defer wg.Done()
 	conn, err := createGrpcConn(ctx, target.Address, clientMetrics)
@@ -157,7 +167,7 @@ func subRequest(ctx context.Context,
 	nctx = metadata.AppendToOutgoingContext(nctx, "username", target.Username, "password", target.Password)
 	//
 	xsubscReq := req
-	models := viper.GetStringSlice("sub-model")
+	models := viper.GetStringSlice("subscribe-model")
 	if len(models) > 0 {
 		spModels, unspModels, err := filterModels(nctx, client, models)
 		if err != nil {
@@ -181,7 +191,7 @@ func subRequest(ctx context.Context,
 						Subscription: req.GetSubscribe().GetSubscription(),
 						UseModels:    modelsData,
 						Qos:          req.GetSubscribe().GetQos(),
-						UpdatesOnly:  viper.GetBool("updates-only"),
+						UpdatesOnly:  viper.GetBool("subscribe-updates-only"),
 					},
 				},
 			}
@@ -210,16 +220,33 @@ func subRequest(ctx context.Context,
 			}
 			switch resp := subscribeRsp.Response.(type) {
 			case *gnmi.SubscribeResponse_Update:
-				lock.Lock()
-				printSubscribeResponse(map[string]interface{}{"source": target.Address}, subscribeRsp)
-				lock.Unlock()
+				b, err := formatSubscribeResponse(map[string]interface{}{"source": target.Address}, subscribeRsp)
+				if err != nil {
+					logger.Printf("failed to format subscribe response: %v", err)
+					return
+				}
+				m := outputs.Meta{}
+				m["source"] = target.Address
+				for _, o := range outs {
+					go o.Write(b, m)
+				}
+				if !viper.GetBool("quiet") {
+					buff := new(bytes.Buffer)
+					err = json.Indent(buff, b, "", "  ")
+					if err != nil {
+						logger.Printf("failed to indent msg: err=%v, msg=%s", err, string(b))
+						return
+					}
+					lock.Lock()
+					fmt.Println(buff.String())
+					lock.Unlock()
+				}
 			case *gnmi.SubscribeResponse_SyncResponse:
 				logger.Printf("received sync response=%+v from %s\n", resp.SyncResponse, target.Address)
 				if req.GetSubscribe().Mode == gnmi.SubscriptionList_ONCE {
 					return
 				}
 			}
-			fmt.Println()
 		}
 	case gnmi.SubscriptionList_POLL:
 		for {
@@ -243,7 +270,19 @@ func subRequest(ctx context.Context,
 				}
 				switch resp := subscribeRsp.Response.(type) {
 				case *gnmi.SubscribeResponse_Update:
-					printSubscribeResponse(map[string]interface{}{"source": target.Address}, subscribeRsp)
+					b, err := formatSubscribeResponse(map[string]interface{}{"source": target.Address}, subscribeRsp)
+					if err != nil {
+						logger.Printf("failed to format subscribe response: %v", err)
+						waitChan <- struct{}{}
+						continue
+					}
+					buff := new(bytes.Buffer)
+					err = json.Indent(buff, b, "", "  ")
+					if err != nil {
+						logger.Printf("failed to indent msg: err=%v : msg=%s", err, string(b))
+						return
+					}
+					fmt.Println(buff.String())
 				case *gnmi.SubscribeResponse_SyncResponse:
 					fmt.Printf("sync response from %s: %+v\n", target.Address, resp.SyncResponse)
 				}
@@ -256,11 +295,11 @@ func subRequest(ctx context.Context,
 }
 
 func createSubscribeRequest() (*gnmi.SubscribeRequest, error) {
-	paths := viper.GetStringSlice("sub-path")
+	paths := viper.GetStringSlice("subscribe-path")
 	if len(paths) == 0 {
 		return nil, errors.New("no path provided")
 	}
-	gnmiPrefix, err := xpath.ToGNMIPath(viper.GetString("sub-prefix"))
+	gnmiPrefix, err := xpath.ToGNMIPath(viper.GetString("subscribe-prefix"))
 	if err != nil {
 		return nil, fmt.Errorf("prefix parse error: %v", err)
 	}
@@ -268,16 +307,16 @@ func createSubscribeRequest() (*gnmi.SubscribeRequest, error) {
 	if !ok {
 		return nil, fmt.Errorf("invalid encoding type '%s'", viper.GetString("encoding"))
 	}
-	modeVal, ok := gnmi.SubscriptionList_Mode_value[strings.ToUpper(viper.GetString("subscription-mode"))]
+	modeVal, ok := gnmi.SubscriptionList_Mode_value[strings.ToUpper(viper.GetString("subscribe-subscription-mode"))]
 	if !ok {
-		return nil, fmt.Errorf("invalid subscription list type '%s'", viper.GetString("subscription-mode"))
+		return nil, fmt.Errorf("invalid subscription list type '%s'", viper.GetString("subscribe-subscription-mode"))
 	}
 	qos := &gnmi.QOSMarking{Marking: viper.GetUint32("qos")}
-	samplingInterval, err := time.ParseDuration(viper.GetString("sampling-interval"))
+	samplingInterval, err := time.ParseDuration(viper.GetString("subscribe-sampling-interval"))
 	if err != nil {
 		return nil, err
 	}
-	heartbeatInterval, err := time.ParseDuration(viper.GetString("heartbeat-interval"))
+	heartbeatInterval, err := time.ParseDuration(viper.GetString("subscribe-heartbeat-interval"))
 	if err != nil {
 		return nil, err
 	}
@@ -290,9 +329,9 @@ func createSubscribeRequest() (*gnmi.SubscribeRequest, error) {
 		subscriptions[i] = &gnmi.Subscription{Path: gnmiPath}
 		switch gnmi.SubscriptionList_Mode(modeVal) {
 		case gnmi.SubscriptionList_STREAM:
-			mode, ok := gnmi.SubscriptionMode_value[strings.Replace(strings.ToUpper(viper.GetString("stream-subscription-mode")), "-", "_", -1)]
+			mode, ok := gnmi.SubscriptionMode_value[strings.Replace(strings.ToUpper(viper.GetString("subscribe-stream-subscription-mode")), "-", "_", -1)]
 			if !ok {
-				return nil, fmt.Errorf("invalid streamed subscription mode %s", viper.GetString("stream-subscription-mode"))
+				return nil, fmt.Errorf("invalid streamed subscription mode %s", viper.GetString("subscribe-stream-subscription-mode"))
 			}
 			subscriptions[i].Mode = gnmi.SubscriptionMode(mode)
 			switch gnmi.SubscriptionMode(mode) {
@@ -300,13 +339,13 @@ func createSubscribeRequest() (*gnmi.SubscribeRequest, error) {
 				subscriptions[i].HeartbeatInterval = uint64(heartbeatInterval.Nanoseconds())
 			case gnmi.SubscriptionMode_SAMPLE:
 				subscriptions[i].SampleInterval = uint64(samplingInterval.Nanoseconds())
-				subscriptions[i].SuppressRedundant = viper.GetBool("suppress-redundant")
+				subscriptions[i].SuppressRedundant = viper.GetBool("subscribe-suppress-redundant")
 				if subscriptions[i].SuppressRedundant {
 					subscriptions[i].HeartbeatInterval = uint64(heartbeatInterval.Nanoseconds())
 				}
 			case gnmi.SubscriptionMode_TARGET_DEFINED:
 				subscriptions[i].SampleInterval = uint64(samplingInterval.Nanoseconds())
-				subscriptions[i].SuppressRedundant = viper.GetBool("suppress-redundant")
+				subscriptions[i].SuppressRedundant = viper.GetBool("subscribe-suppress-redundant")
 				if subscriptions[i].SuppressRedundant {
 					subscriptions[i].HeartbeatInterval = uint64(heartbeatInterval.Nanoseconds())
 				}
@@ -321,18 +360,46 @@ func createSubscribeRequest() (*gnmi.SubscribeRequest, error) {
 				Encoding:     gnmi.Encoding(encodingVal),
 				Subscription: subscriptions,
 				Qos:          qos,
-				UpdatesOnly:  viper.GetBool("updates-only"),
+				UpdatesOnly:  viper.GetBool("subscribe-updates-only"),
 			},
 		},
 	}, nil
 }
 
-func printSubscribeResponse(meta map[string]interface{}, subResp *gnmi.SubscribeResponse) {
+func init() {
+	rootCmd.AddCommand(subscribeCmd)
+	subscribeCmd.Flags().StringP("prefix", "", "", "subscribe request prefix")
+	subscribeCmd.Flags().StringSliceP("path", "", []string{""}, "subscribe request paths")
+	subscribeCmd.MarkFlagRequired("path")
+	subscribeCmd.Flags().Int32P("qos", "q", 20, "qos marking")
+	subscribeCmd.Flags().BoolP("updates-only", "", false, "only updates to current state should be sent")
+	subscribeCmd.Flags().StringP("subscription-mode", "", "stream", "one of: once, stream, poll")
+	subscribeCmd.Flags().StringP("stream-subscription-mode", "", "target-defined", "one of: on-change, sample, target-defined")
+	subscribeCmd.Flags().StringP("sampling-interval", "i", "10s",
+		"sampling interval as a decimal number and a suffix unit, such as \"10s\" or \"1m30s\", minimum is 1s")
+	subscribeCmd.Flags().BoolP("suppress-redundant", "", false, "suppress redundant update if the subscribed value didnt not change")
+	subscribeCmd.Flags().StringP("heartbeat-interval", "", "0s", "heartbeat interval in case suppress-redundant is enabled")
+	subscribeCmd.Flags().StringSliceP("model", "", []string{""}, "subscribe request used model(s)")
+	subscribeCmd.Flags().BoolP("quiet", "", false, "suppress stdout printing")
+	//
+	viper.BindPFlag("subscribe-prefix", subscribeCmd.LocalFlags().Lookup("prefix"))
+	viper.BindPFlag("subscribe-path", subscribeCmd.LocalFlags().Lookup("path"))
+	viper.BindPFlag("subscribe-qos", subscribeCmd.LocalFlags().Lookup("qos"))
+	viper.BindPFlag("subscribe-updates-only", subscribeCmd.LocalFlags().Lookup("updates-only"))
+	viper.BindPFlag("subscribe-subscription-mode", subscribeCmd.LocalFlags().Lookup("subscription-mode"))
+	viper.BindPFlag("subscribe-stream-subscription-mode", subscribeCmd.LocalFlags().Lookup("stream-subscription-mode"))
+	viper.BindPFlag("subscribe-sampling-interval", subscribeCmd.LocalFlags().Lookup("sampling-interval"))
+	viper.BindPFlag("subscribe-suppress-redundant", subscribeCmd.LocalFlags().Lookup("suppress-redundant"))
+	viper.BindPFlag("subscribe-heartbeat-interval", subscribeCmd.LocalFlags().Lookup("heartbeat-interval"))
+	viper.BindPFlag("subscribe-sub-model", subscribeCmd.LocalFlags().Lookup("model"))
+	viper.BindPFlag("subscribe-quiet", subscribeCmd.LocalFlags().Lookup("quiet"))
+}
+
+func formatSubscribeResponse(meta map[string]interface{}, subResp *gnmi.SubscribeResponse) ([]byte, error) {
 	switch resp := subResp.Response.(type) {
 	case *gnmi.SubscribeResponse_Update:
 		if viper.GetString("format") == "textproto" {
-			fmt.Printf("%s\n", prototext.Format(subResp))
-			return
+			return []byte(prototext.Format(subResp)), nil
 		}
 		msg := new(msg)
 		msg.Timestamp = resp.Update.Timestamp
@@ -361,7 +428,6 @@ func printSubscribeResponse(meta map[string]interface{}, subResp *gnmi.Subscribe
 			if err != nil {
 				logger.Println(err)
 			}
-
 			msg.Updates = append(msg.Updates,
 				&update{
 					Path:   gnmiPathToXPath(upd.Path),
@@ -372,37 +438,49 @@ func printSubscribeResponse(meta map[string]interface{}, subResp *gnmi.Subscribe
 		for _, del := range resp.Update.Delete {
 			msg.Deletes = append(msg.Deletes, gnmiPathToXPath(del))
 		}
-		data, err := json.MarshalIndent(msg, "", "  ")
+		data, err := json.Marshal(msg)
 		if err != nil {
-			logger.Println(err)
+			return nil, err
 		}
-		fmt.Printf("%s\n", string(data))
+		return data, nil
 	}
+	return nil, nil
 }
 
-func init() {
-	rootCmd.AddCommand(subscribeCmd)
-	subscribeCmd.Flags().StringP("prefix", "", "", "subscribe request prefix")
-	subscribeCmd.Flags().StringSliceP("path", "", []string{""}, "subscribe request paths")
-	subscribeCmd.MarkFlagRequired("path")
-	subscribeCmd.Flags().Int32P("qos", "q", 20, "qos marking")
-	subscribeCmd.Flags().BoolP("updates-only", "", false, "only updates to current state should be sent")
-	subscribeCmd.Flags().StringP("subscription-mode", "", "stream", "one of: once, stream, poll")
-	subscribeCmd.Flags().StringP("stream-subscription-mode", "", "target-defined", "one of: on-change, sample, target-defined")
-	subscribeCmd.Flags().StringP("sampling-interval", "i", "10s",
-		"sampling interval as a decimal number and a suffix unit, such as \"10s\" or \"1m30s\", minimum is 1s")
-	subscribeCmd.Flags().BoolP("suppress-redundant", "", false, "suppress redundant update if the subscribed value didnt not change")
-	subscribeCmd.Flags().StringP("heartbeat-interval", "", "0s", "heartbeat interval in case suppress-redundant is enabled")
-	subscribeCmd.Flags().StringSliceP("model", "", []string{""}, "subscribe request used model(s)")
-	//
-	viper.BindPFlag("sub-prefix", subscribeCmd.Flags().Lookup("prefix"))
-	viper.BindPFlag("sub-path", subscribeCmd.Flags().Lookup("path"))
-	viper.BindPFlag("qos", subscribeCmd.Flags().Lookup("qos"))
-	viper.BindPFlag("updates-only", subscribeCmd.Flags().Lookup("updates-only"))
-	viper.BindPFlag("subscription-mode", subscribeCmd.Flags().Lookup("subscription-mode"))
-	viper.BindPFlag("stream-subscription-mode", subscribeCmd.Flags().Lookup("stream-subscription-mode"))
-	viper.BindPFlag("sampling-interval", subscribeCmd.Flags().Lookup("sampling-interval"))
-	viper.BindPFlag("suppress-redundant", subscribeCmd.Flags().Lookup("suppress-redundant"))
-	viper.BindPFlag("heartbeat-interval", subscribeCmd.Flags().Lookup("heartbeat-interval"))
-	viper.BindPFlag("sub-model", subscribeCmd.Flags().Lookup("model"))
+func getOutputs() ([]outputs.Output, error) {
+	outDef := viper.GetStringMap("outputs")
+	if outDef == nil {
+		return nil, nil
+	}
+	logger.Printf("found outputs: %#v", outDef)
+	outputDestinations := make([]outputs.Output, 0)
+	for n, d := range outDef {
+		initalizer, ok := outputs.Outputs[n]
+		if !ok {
+			logger.Printf("unknown output type '%s'", n)
+			continue
+		}
+		dl := convert(d)
+		switch dl.(type) {
+		case []interface{}:
+			outs := d.([]interface{})
+			for _, ou := range outs {
+				switch ou := ou.(type) {
+				case map[string]interface{}:
+					o := initalizer()
+					err := o.Init(ou, logger)
+					if err != nil {
+						return nil, err
+					}
+					outputDestinations = append(outputDestinations, o)
+				default:
+					logger.Printf("unknown configuration format: %T : %v", d, d)
+				}
+			}
+		default:
+			logger.Printf("unknown configuration format: %T : %v", d, d)
+			return nil, fmt.Errorf("unknown configuration format: %T : %v", d, d)
+		}
+	}
+	return outputDestinations, nil
 }

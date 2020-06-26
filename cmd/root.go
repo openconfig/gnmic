@@ -37,6 +37,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"golang.org/x/crypto/ssh/terminal"
 	"google.golang.org/grpc"
@@ -165,7 +166,45 @@ func initConfig() {
 
 	// If a config file is found, read it in.
 	viper.ReadInConfig()
+	postInitCommands(rootCmd.Commands())
 }
+
+func postInitCommands(commands []*cobra.Command) {
+	for _, cmd := range commands {
+		presetRequiredFlags(cmd)
+		if cmd.HasSubCommands() {
+			postInitCommands(cmd.Commands())
+		}
+	}
+}
+
+func presetRequiredFlags(cmd *cobra.Command) {
+	cmd.LocalFlags().VisitAll(func(f *pflag.Flag) {
+		flagName := fmt.Sprintf("%s-%s", cmd.Name(), f.Name)
+		value := viper.Get(flagName)
+		if value != nil && viper.IsSet(flagName) && !f.Changed {
+			var err error
+			switch value := value.(type) {
+			case string:
+				err = cmd.LocalFlags().Set(f.Name, value)
+			case []interface{}:
+				ls := make([]string, len(value))
+				for i := range value {
+					ls[i] = value[i].(string)
+				}
+				err = cmd.LocalFlags().Set(f.Name, strings.Join(ls, ","))
+			case []string:
+				err = cmd.LocalFlags().Set(f.Name, strings.Join(value, ","))
+			default:
+				fmt.Printf("unexpected config value type, value=%v, type=%T\n", value, value)
+			}
+			if err != nil {
+				fmt.Printf("failed setting flag '%s' from viper: %v\n", flagName, err)
+			}
+		}
+	})
+}
+
 func readUsername() (string, error) {
 	var username string
 	fmt.Print("username: ")
@@ -215,7 +254,8 @@ func createGrpcConn(ctx context.Context, address string, clientMetrics *grpc_pro
 	if clientMetrics != nil {
 		opts = append(opts, grpc.WithStreamInterceptor(clientMetrics.StreamClientInterceptor()))
 	}
-	timeoutCtx, _ := context.WithTimeout(ctx, viper.GetDuration("timeout"))
+	timeoutCtx, cancel  := context.WithTimeout(ctx, viper.GetDuration("timeout"))
+	defer cancel()
 	conn, err := grpc.DialContext(timeoutCtx, address, opts...)
 	if err != nil {
 		return nil, err
@@ -474,4 +514,19 @@ func getTargets() ([]*target, error) {
 		return targets[i].Address < targets[j].Address
 	})
 	return targets, nil
+}
+
+func numTargets() int {
+	addressesLength := len(viper.GetStringSlice("address"))
+	if addressesLength > 0 {
+		return addressesLength
+	}
+	targets := viper.Get("targets")
+	switch targets := targets.(type) {
+	case string:
+		return len(strings.Split(targets, " "))
+	case map[string]interface{}:
+		return len(targets)
+	}
+	return 0
 }
