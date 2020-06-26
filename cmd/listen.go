@@ -100,7 +100,7 @@ func init() {
 
 	listenCmd.Flags().Uint32P("max-concurrent-streams", "", 256, "max concurrent streams gnmiClient can receive per transport")
 
-	viper.BindPFlag("max-concurrent-streams", listenCmd.Flags().Lookup("max-concurrent-streams"))
+	viper.BindPFlag("listen-max-concurrent-streams", listenCmd.LocalFlags().Lookup("max-concurrent-streams"))
 }
 
 type dialoutTelemetryServer struct {

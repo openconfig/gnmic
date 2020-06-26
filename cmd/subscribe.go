@@ -145,7 +145,7 @@ func subRequest(ctx context.Context,
 	nctx = metadata.AppendToOutgoingContext(nctx, "username", target.Username, "password", target.Password)
 	//
 	xsubscReq := req
-	models := viper.GetStringSlice("sub-model")
+	models := viper.GetStringSlice("subscribe-model")
 	if len(models) > 0 {
 		spModels, unspModels, err := filterModels(nctx, client, models)
 		if err != nil {
@@ -169,7 +169,7 @@ func subRequest(ctx context.Context,
 						Subscription: req.GetSubscribe().GetSubscription(),
 						UseModels:    modelsData,
 						Qos:          req.GetSubscribe().GetQos(),
-						UpdatesOnly:  viper.GetBool("updates-only"),
+						UpdatesOnly:  viper.GetBool("subscribe-updates-only"),
 					},
 				},
 			}
@@ -273,11 +273,11 @@ func subRequest(ctx context.Context,
 }
 
 func createSubscribeRequest() (*gnmi.SubscribeRequest, error) {
-	paths := viper.GetStringSlice("sub-path")
+	paths := viper.GetStringSlice("subscribe-path")
 	if len(paths) == 0 {
 		return nil, errors.New("no path provided")
 	}
-	gnmiPrefix, err := xpath.ToGNMIPath(viper.GetString("sub-prefix"))
+	gnmiPrefix, err := xpath.ToGNMIPath(viper.GetString("subscribe-prefix"))
 	if err != nil {
 		return nil, fmt.Errorf("prefix parse error: %v", err)
 	}
@@ -285,16 +285,16 @@ func createSubscribeRequest() (*gnmi.SubscribeRequest, error) {
 	if !ok {
 		return nil, fmt.Errorf("invalid encoding type '%s'", viper.GetString("encoding"))
 	}
-	modeVal, ok := gnmi.SubscriptionList_Mode_value[strings.ToUpper(viper.GetString("subscription-mode"))]
+	modeVal, ok := gnmi.SubscriptionList_Mode_value[strings.ToUpper(viper.GetString("subscribe-subscription-mode"))]
 	if !ok {
-		return nil, fmt.Errorf("invalid subscription list type '%s'", viper.GetString("subscription-mode"))
+		return nil, fmt.Errorf("invalid subscription list type '%s'", viper.GetString("subscribe-subscription-mode"))
 	}
 	qos := &gnmi.QOSMarking{Marking: viper.GetUint32("qos")}
-	samplingInterval, err := time.ParseDuration(viper.GetString("sampling-interval"))
+	samplingInterval, err := time.ParseDuration(viper.GetString("subscribe-sampling-interval"))
 	if err != nil {
 		return nil, err
 	}
-	heartbeatInterval, err := time.ParseDuration(viper.GetString("heartbeat-interval"))
+	heartbeatInterval, err := time.ParseDuration(viper.GetString("subscribe-heartbeat-interval"))
 	if err != nil {
 		return nil, err
 	}
@@ -307,9 +307,9 @@ func createSubscribeRequest() (*gnmi.SubscribeRequest, error) {
 		subscriptions[i] = &gnmi.Subscription{Path: gnmiPath}
 		switch gnmi.SubscriptionList_Mode(modeVal) {
 		case gnmi.SubscriptionList_STREAM:
-			mode, ok := gnmi.SubscriptionMode_value[strings.Replace(strings.ToUpper(viper.GetString("stream-subscription-mode")), "-", "_", -1)]
+			mode, ok := gnmi.SubscriptionMode_value[strings.Replace(strings.ToUpper(viper.GetString("subscribe-stream-subscription-mode")), "-", "_", -1)]
 			if !ok {
-				return nil, fmt.Errorf("invalid streamed subscription mode %s", viper.GetString("stream-subscription-mode"))
+				return nil, fmt.Errorf("invalid streamed subscription mode %s", viper.GetString("subscribe-stream-subscription-mode"))
 			}
 			subscriptions[i].Mode = gnmi.SubscriptionMode(mode)
 			switch gnmi.SubscriptionMode(mode) {
@@ -317,13 +317,13 @@ func createSubscribeRequest() (*gnmi.SubscribeRequest, error) {
 				subscriptions[i].HeartbeatInterval = uint64(heartbeatInterval.Nanoseconds())
 			case gnmi.SubscriptionMode_SAMPLE:
 				subscriptions[i].SampleInterval = uint64(samplingInterval.Nanoseconds())
-				subscriptions[i].SuppressRedundant = viper.GetBool("suppress-redundant")
+				subscriptions[i].SuppressRedundant = viper.GetBool("subscribe-suppress-redundant")
 				if subscriptions[i].SuppressRedundant {
 					subscriptions[i].HeartbeatInterval = uint64(heartbeatInterval.Nanoseconds())
 				}
 			case gnmi.SubscriptionMode_TARGET_DEFINED:
 				subscriptions[i].SampleInterval = uint64(samplingInterval.Nanoseconds())
-				subscriptions[i].SuppressRedundant = viper.GetBool("suppress-redundant")
+				subscriptions[i].SuppressRedundant = viper.GetBool("subscribe-suppress-redundant")
 				if subscriptions[i].SuppressRedundant {
 					subscriptions[i].HeartbeatInterval = uint64(heartbeatInterval.Nanoseconds())
 				}
@@ -338,7 +338,7 @@ func createSubscribeRequest() (*gnmi.SubscribeRequest, error) {
 				Encoding:     gnmi.Encoding(encodingVal),
 				Subscription: subscriptions,
 				Qos:          qos,
-				UpdatesOnly:  viper.GetBool("updates-only"),
+				UpdatesOnly:  viper.GetBool("subscribe-updates-only"),
 			},
 		},
 	}, nil

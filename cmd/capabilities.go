@@ -108,5 +108,5 @@ func printCapResponse(r *gnmi.CapabilityResponse, address string) {
 func init() {
 	rootCmd.AddCommand(capabilitiesCmd)
 	capabilitiesCmd.Flags().BoolVarP(&printVersion, "version", "", false, "show gnmi version only")
-	viper.BindPFlag("version", capabilitiesCmd.Flags().Lookup("version"))
+	viper.BindPFlag("capabilities-version", capabilitiesCmd.LocalFlags().Lookup("version"))
 }

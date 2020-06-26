@@ -36,6 +36,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"golang.org/x/crypto/ssh/terminal"
 	"google.golang.org/grpc"
@@ -162,7 +163,43 @@ func initConfig() {
 
 	// If a config file is found, read it in.
 	viper.ReadInConfig()
+	postInitCommands(rootCmd.Commands())
 }
+
+func postInitCommands(commands []*cobra.Command) {
+	for _, cmd := range commands {
+		presetRequiredFlags(cmd)
+		if cmd.HasSubCommands() {
+			postInitCommands(cmd.Commands())
+		}
+	}
+}
+
+func presetRequiredFlags(cmd *cobra.Command) {
+	cmd.LocalFlags().VisitAll(func(f *pflag.Flag) {
+		flagName := fmt.Sprintf("%s-%s", cmd.Name(), f.Name)
+		value := viper.Get(flagName)
+		if value != nil && viper.IsSet(flagName) {
+			var err error
+			switch value := value.(type) {
+			case string:
+				err = cmd.LocalFlags().Set(f.Name, value)
+			case []interface{}:
+				ls := make([]string, len(value))
+				for i := range value {
+					ls[i] = value[i].(string)
+				}
+				err = cmd.LocalFlags().Set(f.Name, strings.Join(ls, ","))
+			default:
+				logger.Printf("unexpected config value type, value=%s, type=%T", value, value)
+			}
+			if err != nil {
+				logger.Printf("failed setting flag '%s' from viper: %v", flagName, err)
+			}
+		}
+	})
+}
+
 func readUsername() (string, error) {
 	var username string
 	fmt.Print("username: ")
