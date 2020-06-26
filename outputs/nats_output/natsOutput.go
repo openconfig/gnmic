@@ -2,6 +2,7 @@ package nats_output
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net"
 	"os"
@@ -44,7 +45,7 @@ type NatsOutput struct {
 type Config struct {
 	Name            string
 	Address         string
-	Subject         string
+	SubjectPrefix   string
 	Username        string
 	Password        string
 	ConnectTimeout  time.Duration
@@ -59,7 +60,7 @@ func (n *NatsOutput) Init(cfg map[string]interface{}, logger *log.Logger) error 
 	}
 	n.Cfg.ConnectTimeout = natsConnectTimeout
 	n.Cfg.ConnectTimeWait = natsConnectWait
-	
+
 	n.logger = log.New(os.Stderr, "nats_output ", log.LstdFlags|log.Lmicroseconds)
 	if logger != nil {
 		n.logger.SetOutput(logger.Writer())
@@ -78,10 +79,14 @@ func (n *NatsOutput) Init(cfg map[string]interface{}, logger *log.Logger) error 
 }
 
 // Write //
-func (n *NatsOutput) Write(b []byte) {
-	err := n.conn.Publish(n.Cfg.Subject, b)
+func (n *NatsOutput) Write(b []byte, meta outputs.Meta) {
+	subject := n.Cfg.SubjectPrefix
+	if s, ok := meta["source"]; ok {
+		subject += fmt.Sprintf(".%s", s)
+	}
+	err := n.conn.Publish(subject, b)
 	if err != nil {
-		log.Printf("failed to write to nats subject '%s': %v", n.Cfg.Subject, err)
+		log.Printf("failed to write to nats subject '%s': %v", subject, err)
 		return
 	}
 	// n.logger.Printf("wrote %d bytes to nats_subject=%s", len(b), n.Cfg.Subject)
