@@ -254,7 +254,7 @@ func createGrpcConn(ctx context.Context, address string, clientMetrics *grpc_pro
 	if clientMetrics != nil {
 		opts = append(opts, grpc.WithStreamInterceptor(clientMetrics.StreamClientInterceptor()))
 	}
-	timeoutCtx, cancel  := context.WithTimeout(ctx, viper.GetDuration("timeout"))
+	timeoutCtx, cancel := context.WithTimeout(ctx, viper.GetDuration("timeout"))
 	defer cancel()
 	conn, err := grpc.DialContext(timeoutCtx, address, opts...)
 	if err != nil {
