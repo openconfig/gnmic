@@ -1,0 +1,14 @@
+version: '2'
+
+networks:
+  stan-net:
+    driver: bridge
+
+services:
+  stan:
+    image: 'nats-streaming:latest'
+    networks:
+      - stan-net    
+    ports:
+      - "4223:4222"    
+      - "8223:8222"

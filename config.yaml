@@ -10,7 +10,47 @@ targets:
   172.17.0.100:
     username: grpc
     password: grpc
+    subscriptions:
+      - sub1
   172.17.0.101:
+    subscriptions:
+      - sub1
+      - sub2
   172.17.0.102:57000:
     password: sros123
-    
+
+subscriptions:
+  sub1:
+    paths:
+      - /configure/port[port-id=*]
+      - /state
+    mode: on_change # target-defined # sample
+  sub2:
+    paths:
+       - /configure/port[port-id=*]
+    mode: sample
+    sample-interval: 30s
+
+outputs:
+  file:
+    - filename: local.log
+  nats:
+    - address: localhost:4222
+      subject: telemetry
+      username:
+      password:
+  stan:
+    - address: localhost:4223
+      subject: telemetry
+      username:
+      password:
+      name:
+      clusterName:
+      timeout:
+      pingInterval:
+      pingRetry:
+  kafka:
+    - address: localhost:9092
+      topic: telemetry
+      maxRetry: 
+      timeout:
