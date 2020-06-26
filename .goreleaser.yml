@@ -3,7 +3,7 @@ builds:
   - env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X github.com/karimra/gnmiClient/cmd.version={{.Version}} -X github.com/karimra/gnmiClient/cmd.commit={{.ShortCommit}} -X github.com/karimra/gnmiClient/cmd.date={{.Date}} -X github.com/karimra/gnmiClient/cmd.gitURL={{.GitURL}}
+      - -s -w -X github.com/karimra/gnmic/cmd.version={{.Version}} -X github.com/karimra/gnmic/cmd.commit={{.ShortCommit}} -X github.com/karimra/gnmic/cmd.date={{.Date}} -X github.com/karimra/gnmic/cmd.gitURL={{.GitURL}}
     goos:
       - linux
       - darwin

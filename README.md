@@ -32,11 +32,11 @@ Documentation available at [https://gnmiclient.kmrd.dev](https://gnmiclient.kmrd
 
 ## Usage
 ```
-$ gnmiClient --help
+$ gnmic --help
 run gnmi rpcs from the terminal
 
 Usage:
-  gnmiClient [command]
+  gnmic [command]
 
 Available Commands:
   capabilities query targets gnmi capabilities
@@ -46,5 +46,5 @@ Available Commands:
   path         generate gnmi or xpath style from yang file
   set          run gnmi set on targets
   subscribe    subscribe to gnmi updates on targets
-  version      show gnmiClient version
+  version      show gnmic version
 ```

@@ -30,7 +30,7 @@ var (
 // versionCmd represents the version command
 var versionCmd = &cobra.Command{
 	Use:   "version",
-	Short: "show gnmiClient version",
+	Short: "show gnmic version",
 
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Printf("version : %s\n", version)

@@ -25,7 +25,7 @@ import (
 	"sync"
 
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
-	"github.com/karimra/gnmiClient/outputs"
+	"github.com/karimra/gnmic/outputs"
 	nokiasros "github.com/karimra/sros-dialout"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -115,7 +115,7 @@ var listenCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(listenCmd)
 
-	listenCmd.Flags().Uint32P("max-concurrent-streams", "", 256, "max concurrent streams gnmiClient can receive per transport")
+	listenCmd.Flags().Uint32P("max-concurrent-streams", "", 256, "max concurrent streams gnmic can receive per transport")
 
 	viper.BindPFlag("listen-max-concurrent-streams", listenCmd.LocalFlags().Lookup("max-concurrent-streams"))
 }
