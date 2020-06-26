@@ -160,7 +160,7 @@ func initConfig() {
 
 		// Search config in home directory with name ".gnmic" (without extension).
 		viper.AddConfigPath(home)
-		viper.SetConfigName(".gnmic")
+		viper.SetConfigName("gnmic")
 	}
 
 	//viper.AutomaticEnv() // read in environment variables that match
