@@ -360,17 +360,17 @@ func init() {
 	subscribeCmd.Flags().StringSliceP("model", "", []string{""}, "subscribe request used model(s)")
 	subscribeCmd.Flags().BoolP("quiet", "", false, "suppress stdout printing")
 	//
-	viper.BindPFlag("sub-prefix", subscribeCmd.Flags().Lookup("prefix"))
-	viper.BindPFlag("sub-path", subscribeCmd.Flags().Lookup("path"))
-	viper.BindPFlag("qos", subscribeCmd.Flags().Lookup("qos"))
-	viper.BindPFlag("updates-only", subscribeCmd.Flags().Lookup("updates-only"))
-	viper.BindPFlag("subscription-mode", subscribeCmd.Flags().Lookup("subscription-mode"))
-	viper.BindPFlag("stream-subscription-mode", subscribeCmd.Flags().Lookup("stream-subscription-mode"))
-	viper.BindPFlag("sampling-interval", subscribeCmd.Flags().Lookup("sampling-interval"))
-	viper.BindPFlag("suppress-redundant", subscribeCmd.Flags().Lookup("suppress-redundant"))
-	viper.BindPFlag("heartbeat-interval", subscribeCmd.Flags().Lookup("heartbeat-interval"))
-	viper.BindPFlag("sub-model", subscribeCmd.Flags().Lookup("model"))
-	viper.BindPFlag("quiet", subscribeCmd.Flags().Lookup("quiet"))
+	viper.BindPFlag("subscribe-prefix", subscribeCmd.LocalFlags().Lookup("prefix"))
+	viper.BindPFlag("subscribe-path", subscribeCmd.LocalFlags().Lookup("path"))
+	viper.BindPFlag("subscribe-qos", subscribeCmd.LocalFlags().Lookup("qos"))
+	viper.BindPFlag("subscribe-updates-only", subscribeCmd.LocalFlags().Lookup("updates-only"))
+	viper.BindPFlag("subscribe-subscription-mode", subscribeCmd.LocalFlags().Lookup("subscription-mode"))
+	viper.BindPFlag("subscribe-stream-subscription-mode", subscribeCmd.LocalFlags().Lookup("stream-subscription-mode"))
+	viper.BindPFlag("subscribe-sampling-interval", subscribeCmd.LocalFlags().Lookup("sampling-interval"))
+	viper.BindPFlag("subscribe-suppress-redundant", subscribeCmd.LocalFlags().Lookup("suppress-redundant"))
+	viper.BindPFlag("subscribe-heartbeat-interval", subscribeCmd.LocalFlags().Lookup("heartbeat-interval"))
+	viper.BindPFlag("subscribe-sub-model", subscribeCmd.LocalFlags().Lookup("model"))
+	viper.BindPFlag("subscribe-quiet", subscribeCmd.LocalFlags().Lookup("quiet"))
 }
 
 func formatSubscribeResponse(meta map[string]interface{}, subResp *gnmi.SubscribeResponse) ([]byte, error) {

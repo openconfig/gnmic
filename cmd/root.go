@@ -179,7 +179,7 @@ func presetRequiredFlags(cmd *cobra.Command) {
 	cmd.LocalFlags().VisitAll(func(f *pflag.Flag) {
 		flagName := fmt.Sprintf("%s-%s", cmd.Name(), f.Name)
 		value := viper.Get(flagName)
-		if value != nil && viper.IsSet(flagName) {
+		if value != nil && viper.IsSet(flagName) && !f.Changed {
 			var err error
 			switch value := value.(type) {
 			case string:
@@ -190,11 +190,13 @@ func presetRequiredFlags(cmd *cobra.Command) {
 					ls[i] = value[i].(string)
 				}
 				err = cmd.LocalFlags().Set(f.Name, strings.Join(ls, ","))
+			case []string:
+				err = cmd.LocalFlags().Set(f.Name, strings.Join(value, ","))
 			default:
-				logger.Printf("unexpected config value type, value=%s, type=%T", value, value)
+				fmt.Printf("unexpected config value type, value=%v, type=%T\n", value, value)
 			}
 			if err != nil {
-				logger.Printf("failed setting flag '%s' from viper: %v", flagName, err)
+				fmt.Printf("failed setting flag '%s' from viper: %v\n", flagName, err)
 			}
 		}
 	})
