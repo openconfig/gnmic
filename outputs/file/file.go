@@ -60,7 +60,7 @@ func (f *File) Init(cfg map[string]interface{}, logger *log.Logger) error {
 }
 
 // Write //
-func (f *File) Write(b []byte) {
+func (f *File) Write(b []byte, meta outputs.Meta) {
 	NumberOfReceivedMsgs.WithLabelValues(f.file.Name()).Inc()
 	n, err := f.file.Write(append(b, []byte("\n")...))
 	if err != nil {

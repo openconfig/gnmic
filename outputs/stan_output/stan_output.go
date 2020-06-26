@@ -76,7 +76,7 @@ func (s *StanOutput) Init(cfg map[string]interface{}, logger *log.Logger) error 
 }
 
 // Write //
-func (s *StanOutput) Write(b []byte) {
+func (s *StanOutput) Write(b []byte, meta outputs.Meta) {
 	err := s.conn.Publish(s.Cfg.Subject, b)
 	if err != nil {
 		log.Printf("failed to write to stan subject '%s': %v", s.Cfg.Subject, err)

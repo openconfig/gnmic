@@ -82,7 +82,7 @@ func (k *KafkaOutput) Init(cfg map[string]interface{}, logger *log.Logger) error
 }
 
 // Write //
-func (k *KafkaOutput) Write(b []byte) {
+func (k *KafkaOutput) Write(b []byte, meta outputs.Meta) {
 	if len(b) == 0 {
 		return
 	}
