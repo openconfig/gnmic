@@ -27,8 +27,8 @@ import (
 
 	"github.com/google/gnxi/utils/xpath"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
-	"github.com/karimra/gnmiClient/outputs"
-	_ "github.com/karimra/gnmiClient/outputs/all"
+	"github.com/karimra/gnmic/outputs"
+	_ "github.com/karimra/gnmic/outputs/all"
 	"github.com/manifoldco/promptui"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus"

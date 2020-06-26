@@ -4,7 +4,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/karimra/gnmiClient/outputs"
+	"github.com/karimra/gnmic/outputs"
 	"github.com/mitchellh/mapstructure"
 	"github.com/prometheus/client_golang/prometheus"
 )

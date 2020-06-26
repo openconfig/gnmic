@@ -52,6 +52,7 @@ const (
 	msgSize = 512 * 1024 * 1024
 )
 
+var encodings = []string{"json", "bytes", "proto", "ascii", "json_ietf"}
 var cfgFile string
 var f io.WriteCloser
 var logger *log.Logger
@@ -81,7 +82,7 @@ var rootCmd = &cobra.Command{
 		logger = log.New(f, "", log.LstdFlags|log.Lmicroseconds)
 		logger.SetFlags(log.LstdFlags | log.Lmicroseconds)
 		if viper.GetBool("debug") {
-			grpclog.SetLogger(logger) //lint:ignore SA1019 see https://github.com/karimra/gnmiClient/issues/59
+			grpclog.SetLogger(logger) //lint:ignore SA1019 see https://github.com/karimra/gnmic/issues/59
 		}
 	},
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {
@@ -102,12 +103,12 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.gnmic.yaml)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/gnmic.yaml)")
 	rootCmd.PersistentFlags().StringSliceP("address", "a", []string{}, "comma separated gnmi targets addresses")
 	rootCmd.PersistentFlags().StringP("username", "u", "", "username")
 	rootCmd.PersistentFlags().StringP("password", "p", "", "password")
 	rootCmd.PersistentFlags().StringP("port", "", defaultGrpcPort, "gRPC port")
-	rootCmd.PersistentFlags().StringP("encoding", "e", "JSON", "one of: JSON, BYTES, PROTO, ASCII, JSON_IETF.")
+	rootCmd.PersistentFlags().StringP("encoding", "e", "json", fmt.Sprintf("one of %+v. Case insensitive", encodings))
 	rootCmd.PersistentFlags().BoolP("insecure", "", false, "insecure connection")
 	rootCmd.PersistentFlags().StringP("tls-ca", "", "", "tls certificate authority")
 	rootCmd.PersistentFlags().StringP("tls-cert", "", "", "tls certificate")

@@ -14,7 +14,7 @@
 
 package main
 
-import "github.com/karimra/gnmiClient/cmd"
+import "github.com/karimra/gnmic/cmd"
 
 func main() {
 	cmd.Execute()
