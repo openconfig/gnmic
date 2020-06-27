@@ -391,8 +391,8 @@ func indent(prefix, s string) string {
 	return strings.TrimLeft(fmt.Sprintf("%s%s", prefix, strings.Join(lines, prefix)), "\n")
 }
 
-func filterModels(ctx context.Context, client gnmi.GNMIClient, modelsNames []string) (map[string]*gnmi.ModelData, []string, error) {
-	capResp, err := client.Capabilities(ctx, &gnmi.CapabilityRequest{})
+func filterModels(ctx context.Context, t *collector.Target, modelsNames []string) (map[string]*gnmi.ModelData, []string, error) {
+	capResp, err := t.Capabilities(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -540,10 +540,6 @@ func createTargets() ([]*collector.Target, error) {
 	defGrpcPort := viper.GetString("port")
 	defUsername := viper.GetString("username")
 	defPassword := viper.GetString("password")
-	defTimeout := viper.GetDuration("timeout")
-	tlsCert := viper.GetString("tls-cert")
-	tlsKey := viper.GetString("tls-key")
-	tlsCa := viper.GetString("tls-ca")
 	// case address is defined in config file
 	if len(addresses) > 0 {
 		if defUsername == "" {
@@ -568,14 +564,7 @@ func createTargets() ([]*collector.Target, error) {
 				}
 			}
 			tc.Address = addr
-			*tc.Username = defUsername
-			*tc.Password = defPassword
-			*tc.Insecure = viper.GetBool("insecure")
-			*tc.SkipVerify = viper.GetBool("skip-verify")
-			*tc.TLSCert = tlsCert
-			*tc.TLSKey = tlsKey
-			*tc.TLSCA = tlsCa
-			tc.Timeout = defTimeout
+			setTargetConfigDefaults(tc)
 			t, err := collector.NewTarget(tc)
 			if err != nil {
 				return nil, err
@@ -627,29 +616,68 @@ func createTargets() ([]*collector.Target, error) {
 			return nil, fmt.Errorf("unexpected targets format, got a %T", t)
 		}
 		tc.Address = addr
-		if tc.Name == "" {
-			tc.Name = tc.Address
+		setTargetConfigDefaults(tc)
+		if viper.GetBool("debug") {
+			logger.Printf("read target config: %s", tc)
 		}
-		if tc.Username == nil {
-			*tc.Username = defUsername
+		t, err := collector.NewTarget(tc)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create target: %v", err)
 		}
-		if tc.Password == nil {
-			*tc.Password = defPassword
-		}
-		if tc.Timeout == 0 {
-			tc.Timeout = defTimeout
-		}
-		if tc.Insecure == nil {
-			*tc.Insecure = viper.GetBool("insecure")
-		}
-		if tc.SkipVerify == nil {
-			*tc.SkipVerify = viper.GetBool("skip-verify")
-		}
-		if tc.SkipVerify == nil {
-			*tc.SkipVerify = viper.GetBool("skip-verify")
-		}
+		targets = append(targets, t)
 	}
-	return nil, nil
+	return targets, nil
 }
 
-func setTargetconfigDefaults() {}
+func setTargetConfigDefaults(tc *collector.TargetConfig) {
+	if tc.Name == "" {
+		tc.Name = tc.Address
+	}
+	if tc.Username == nil {
+		s := viper.GetString("username")
+		tc.Username = &s
+	}
+	if tc.Password == nil {
+		s := viper.GetString("password")
+		tc.Password = &s
+	}
+	if tc.Timeout == 0 {
+		tc.Timeout = viper.GetDuration("timeout")
+	}
+	if tc.Insecure == nil {
+		b := viper.GetBool("insecure")
+		tc.Insecure = &b
+	}
+	if tc.SkipVerify == nil {
+		b := viper.GetBool("skip-verify")
+		tc.SkipVerify = &b
+	}
+	if tc.Insecure != nil && *tc.Insecure == false {
+		if tc.TLSCA == nil {
+			s := viper.GetString("tls-ca")
+			if s != "" {
+				tc.TLSCA = &s
+			}
+		}
+		if tc.TLSCert == nil {
+			s := viper.GetString("tls-cert")
+			tc.TLSCert = &s
+		}
+		if tc.TLSKey == nil {
+			s := viper.GetString("tls-key")
+			tc.TLSKey = &s
+		}
+	}
+}
+
+func createCollectorDialOpts() []grpc.DialOption {
+	opts := []grpc.DialOption{}
+	opts = append(opts, grpc.WithBlock())
+	if viper.GetInt("max-msg-size") > 0 {
+		opts = append(opts, grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(viper.GetInt("max-msg-size"))))
+	}
+	if !viper.GetBool("proxy-from-env") {
+		opts = append(opts, grpc.WithNoProxy())
+	}
+	return opts
+}

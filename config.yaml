@@ -36,7 +36,7 @@ outputs:
     - filename: local.log
   nats:
     - address: localhost:4222
-      subject: telemetry
+      subjectPrefix: telemetry
       username:
       password:
   stan:

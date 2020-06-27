@@ -4,15 +4,16 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/google/gnxi/utils/xpath"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/gnmi/proto/gnmi_ext"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
@@ -20,9 +21,10 @@ import (
 
 // Target represents a gNMI enabled box
 type Target struct {
-	Config *TargetConfig
-	TLS    *tls.Config
-	Client gnmi.GNMIClient
+	Config   *TargetConfig
+	TLS      *tls.Config
+	Client   gnmi.GNMIClient
+	PollChan chan struct{}
 }
 type TargetConfig struct {
 	Name       string
@@ -37,22 +39,35 @@ type TargetConfig struct {
 	SkipVerify *bool
 }
 
+func (tc *TargetConfig) String() string {
+	b, err := json.Marshal(tc)
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
 // NewTarget //
 func NewTarget(c *TargetConfig) (*Target, error) {
 	tlsConfig, err := c.NewTLS()
 	if err != nil {
 		return nil, err
 	}
-	return &Target{
-		Config: c,
-		TLS:    tlsConfig,
-	}, nil
+	t := &Target{
+		Config:   c,
+		TLS:      tlsConfig,
+		PollChan: make(chan struct{}),
+	}
+	return t, nil
 
 }
 
 // NewTLS //
 func (c *TargetConfig) NewTLS() (*tls.Config, error) {
-	tlsConfig := new(tls.Config)
+	tlsConfig := &tls.Config{
+		Renegotiation:      tls.RenegotiateNever,
+		InsecureSkipVerify: *c.SkipVerify,
+	}
 	err := loadCerts(tlsConfig, c)
 	if err != nil {
 		return nil, err
@@ -81,12 +96,11 @@ func (t *Target) CreateGNMIClient(ctx context.Context, opts ...grpc.DialOption) 
 }
 
 // Capabilities sends a gnmi.CapabilitiesRequest to the target *t and returns a gnmi.CapabilitiesResponse and an error
-func (t *Target) Capabilities(ctx context.Context, wg *sync.WaitGroup) (*gnmi.CapabilityResponse, error) {
-	defer wg.Done()
+func (t *Target) Capabilities(ctx context.Context, ext ...*gnmi_ext.Extension) (*gnmi.CapabilityResponse, error) {
 	nctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 	defer cancel()
 	nctx = metadata.AppendToOutgoingContext(nctx, "username", *t.Config.Username, "password", *t.Config.Password)
-	response, err := t.Client.Capabilities(nctx, &gnmi.CapabilityRequest{})
+	response, err := t.Client.Capabilities(nctx, &gnmi.CapabilityRequest{Extension: ext})
 	if err != nil {
 		return nil, fmt.Errorf("failed sending capabilities request: %v", err)
 	}
@@ -94,8 +108,7 @@ func (t *Target) Capabilities(ctx context.Context, wg *sync.WaitGroup) (*gnmi.Ca
 }
 
 // Get sends a gnmi.GetRequest to the target *t and returns a gnmi.GetResponse and an error
-func (t *Target) Get(ctx context.Context, req *gnmi.GetRequest, wg *sync.WaitGroup) (*gnmi.GetResponse, error) {
-	defer wg.Done()
+func (t *Target) Get(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetResponse, error) {
 	nctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 	defer cancel()
 	nctx = metadata.AppendToOutgoingContext(nctx, "username", *t.Config.Username, "password", *t.Config.Password)
@@ -107,8 +120,7 @@ func (t *Target) Get(ctx context.Context, req *gnmi.GetRequest, wg *sync.WaitGro
 }
 
 // Set sends a gnmi.SetRequest to the target *t and returns a gnmi.SetResponse and an error
-func (t *Target) Set(ctx context.Context, req *gnmi.SetRequest, wg *sync.WaitGroup) (*gnmi.SetResponse, error) {
-	defer wg.Done()
+func (t *Target) Set(ctx context.Context, req *gnmi.SetRequest) (*gnmi.SetResponse, error) {
 	nctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 	defer cancel()
 	nctx = metadata.AppendToOutgoingContext(nctx, "username", *t.Config.Username, "password", *t.Config.Password)
@@ -120,55 +132,63 @@ func (t *Target) Set(ctx context.Context, req *gnmi.SetRequest, wg *sync.WaitGro
 }
 
 // Subscribe sends a gnmi.SubscribeRequest to the target *t and returns a chan of gnmi.SetResponse and an error
-func (t *Target) Subscribe(ctx context.Context, req *gnmi.SubscribeRequest, wg *sync.WaitGroup) (chan *gnmi.SubscribeResponse, chan error) {
-	defer wg.Done()
-	nctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
+func (t *Target) Subscribe(ctx context.Context, req *gnmi.SubscribeRequest, responseChan chan *gnmi.SubscribeResponse, errs chan error) {
+	nctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	defer close(responseChan)
+	defer close(errs)
 	nctx = metadata.AppendToOutgoingContext(nctx, "username", *t.Config.Username, "password", *t.Config.Password)
-	errs := make(chan error)
 	subscribeClient, err := t.Client.Subscribe(nctx)
 	if err != nil {
-		errs <- err
-		close(errs)
-		return nil, errs
+		errs <- fmt.Errorf("failed to create a subscribe client, target='%s': %v", t.Config.Name, err)
+		return
 	}
 	err = subscribeClient.Send(req)
 	if err != nil {
-		errs <- err
-		close(errs)
-		return nil, errs
+		errs <- fmt.Errorf("target '%s' send error: %v", t.Config.Name, err)
+		return
 	}
-	responseChan := make(chan *gnmi.SubscribeResponse)
-	go func() {
-		defer close(responseChan)
-		defer close(errs)
-		switch req.GetSubscribe().Mode {
-		case gnmi.SubscriptionList_ONCE, gnmi.SubscriptionList_STREAM:
-			for {
-				select {
-				default:
-					response, err := subscribeClient.Recv()
-					if err != nil {
-						errs <- err
-						return
-					}
-					responseChan <- response
-					if req.GetSubscribe().Mode == gnmi.SubscriptionList_ONCE {
-						switch response.Response.(type) {
-						case *gnmi.SubscribeResponse_SyncResponse:
-							return
-						}
-					}
-				case <-nctx.Done():
-					errs <- nctx.Err()
+	switch req.GetSubscribe().Mode {
+	case gnmi.SubscriptionList_ONCE, gnmi.SubscriptionList_STREAM:
+		for {
+			response, err := subscribeClient.Recv()
+			if err != nil {
+				errs <- fmt.Errorf("receive error: %v", err)
+				return
+			}
+			responseChan <- response
+			if req.GetSubscribe().Mode == gnmi.SubscriptionList_ONCE {
+				switch response.Response.(type) {
+				case *gnmi.SubscribeResponse_SyncResponse:
 					return
 				}
 			}
-		case gnmi.SubscriptionList_POLL:
-			// not implemented here
 		}
-	}()
-	return responseChan, nil
+	case gnmi.SubscriptionList_POLL:
+		for {
+			select {
+			case <-t.PollChan:
+				err = subscribeClient.Send(&gnmi.SubscribeRequest{
+					Request: &gnmi.SubscribeRequest_Poll{
+						Poll: &gnmi.Poll{},
+					},
+				})
+				if err != nil {
+					errs <- fmt.Errorf("failed to send PollRequest: %v", err)
+					continue
+				}
+				response, err := subscribeClient.Recv()
+				if err != nil {
+					errs <- fmt.Errorf("rcv error: %v", err)
+					continue
+				}
+				responseChan <- response
+			case <-ctx.Done():
+				return
+			}
+		}
+	}
+	return
 }
 
 // CreateGetRequest creates a *gnmi.GetRequest
@@ -207,7 +227,7 @@ func CreateGetRequest(prefix string, paths []string, dataType string, encoding s
 }
 
 func loadCerts(tlscfg *tls.Config, c *TargetConfig) error {
-	if c.TLSCert != nil && c.TLSKey != nil {
+	if *c.TLSCert != "" && *c.TLSKey != "" {
 		certificate, err := tls.LoadX509KeyPair(*c.TLSCert, *c.TLSKey)
 		if err != nil {
 			return err
@@ -215,7 +235,7 @@ func loadCerts(tlscfg *tls.Config, c *TargetConfig) error {
 		tlscfg.Certificates = []tls.Certificate{certificate}
 		tlscfg.BuildNameToCertificate()
 	}
-	if c.TLSCA != nil {
+	if c.TLSCA != nil && *c.TLSCA != "" {
 		certPool := x509.NewCertPool()
 		caFile, err := ioutil.ReadFile(*c.TLSCA)
 		if err != nil {
