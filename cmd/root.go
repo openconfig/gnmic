@@ -540,6 +540,7 @@ func createTargets() ([]*collector.Target, error) {
 	defGrpcPort := viper.GetString("port")
 	defUsername := viper.GetString("username")
 	defPassword := viper.GetString("password")
+	defTimeout := viper.GetDuration("timeout")
 	tlsCert := viper.GetString("tls-cert")
 	tlsKey := viper.GetString("tls-key")
 	tlsCa := viper.GetString("tls-ca")
@@ -567,14 +568,14 @@ func createTargets() ([]*collector.Target, error) {
 				}
 			}
 			tc.Address = addr
-			tc.Username = defUsername
-			tc.Password = defPassword
-			tc.Insecure = viper.GetBool("insecure")
-			tc.SkipVerify = viper.GetBool("skip-verify")
-			tc.TLSCert = tlsCert
-			tc.TLSKey = tlsKey
-			tc.TLSCA = tlsCa
-			tc.Timeout = viper.GetDuration("timeout")
+			*tc.Username = defUsername
+			*tc.Password = defPassword
+			*tc.Insecure = viper.GetBool("insecure")
+			*tc.SkipVerify = viper.GetBool("skip-verify")
+			*tc.TLSCert = tlsCert
+			*tc.TLSKey = tlsKey
+			*tc.TLSCA = tlsCa
+			tc.Timeout = defTimeout
 			t, err := collector.NewTarget(tc)
 			if err != nil {
 				return nil, err
@@ -615,8 +616,40 @@ func createTargets() ([]*collector.Target, error) {
 				return nil, fmt.Errorf("error parsing address '%s': %v", addr, err)
 			}
 		}
-
+		switch t := t.(type) {
+		case map[string]interface{}:
+			err = mapstructure.Decode(t, tc)
+			if err != nil {
+				return nil, err
+			}
+		case nil:
+		default:
+			return nil, fmt.Errorf("unexpected targets format, got a %T", t)
+		}
 		tc.Address = addr
+		if tc.Name == "" {
+			tc.Name = tc.Address
+		}
+		if tc.Username == nil {
+			*tc.Username = defUsername
+		}
+		if tc.Password == nil {
+			*tc.Password = defPassword
+		}
+		if tc.Timeout == 0 {
+			tc.Timeout = defTimeout
+		}
+		if tc.Insecure == nil {
+			*tc.Insecure = viper.GetBool("insecure")
+		}
+		if tc.SkipVerify == nil {
+			*tc.SkipVerify = viper.GetBool("skip-verify")
+		}
+		if tc.SkipVerify == nil {
+			*tc.SkipVerify = viper.GetBool("skip-verify")
+		}
 	}
 	return nil, nil
 }
+
+func setTargetconfigDefaults() {}
