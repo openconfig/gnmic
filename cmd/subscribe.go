@@ -326,7 +326,7 @@ func createSubscribeRequest() (*gnmi.SubscribeRequest, error) {
 		return nil, fmt.Errorf("invalid subscription list type '%s'", viper.GetString("subscribe-subscription-mode"))
 	}
 	qos := &gnmi.QOSMarking{Marking: viper.GetUint32("qos")}
-	samplingInterval, err := time.ParseDuration(viper.GetString("subscribe-sampling-interval"))
+	sampleInterval, err := time.ParseDuration(viper.GetString("subscribe-sample-interval"))
 	if err != nil {
 		return nil, err
 	}
@@ -352,13 +352,13 @@ func createSubscribeRequest() (*gnmi.SubscribeRequest, error) {
 			case gnmi.SubscriptionMode_ON_CHANGE:
 				subscriptions[i].HeartbeatInterval = uint64(heartbeatInterval.Nanoseconds())
 			case gnmi.SubscriptionMode_SAMPLE:
-				subscriptions[i].SampleInterval = uint64(samplingInterval.Nanoseconds())
+				subscriptions[i].SampleInterval = uint64(sampleInterval.Nanoseconds())
 				subscriptions[i].SuppressRedundant = viper.GetBool("subscribe-suppress-redundant")
 				if subscriptions[i].SuppressRedundant {
 					subscriptions[i].HeartbeatInterval = uint64(heartbeatInterval.Nanoseconds())
 				}
 			case gnmi.SubscriptionMode_TARGET_DEFINED:
-				subscriptions[i].SampleInterval = uint64(samplingInterval.Nanoseconds())
+				subscriptions[i].SampleInterval = uint64(sampleInterval.Nanoseconds())
 				subscriptions[i].SuppressRedundant = viper.GetBool("subscribe-suppress-redundant")
 				if subscriptions[i].SuppressRedundant {
 					subscriptions[i].HeartbeatInterval = uint64(heartbeatInterval.Nanoseconds())
@@ -389,8 +389,8 @@ func init() {
 	subscribeCmd.Flags().BoolP("updates-only", "", false, "only updates to current state should be sent")
 	subscribeCmd.Flags().StringP("subscription-mode", "", "stream", "one of: once, stream, poll")
 	subscribeCmd.Flags().StringP("stream-subscription-mode", "", "target-defined", "one of: on-change, sample, target-defined")
-	subscribeCmd.Flags().StringP("sampling-interval", "i", "10s",
-		"sampling interval as a decimal number and a suffix unit, such as \"10s\" or \"1m30s\", minimum is 1s")
+	subscribeCmd.Flags().StringP("sample-interval", "i", "10s",
+		"sample interval as a decimal number and a suffix unit, such as \"10s\" or \"1m30s\", minimum is 1s")
 	subscribeCmd.Flags().BoolP("suppress-redundant", "", false, "suppress redundant update if the subscribed value didn't not change")
 	subscribeCmd.Flags().StringP("heartbeat-interval", "", "0s", "heartbeat interval in case suppress-redundant is enabled")
 	subscribeCmd.Flags().StringSliceP("model", "", []string{""}, "subscribe request used model(s)")
@@ -402,7 +402,7 @@ func init() {
 	viper.BindPFlag("subscribe-updates-only", subscribeCmd.LocalFlags().Lookup("updates-only"))
 	viper.BindPFlag("subscribe-subscription-mode", subscribeCmd.LocalFlags().Lookup("subscription-mode"))
 	viper.BindPFlag("subscribe-stream-subscription-mode", subscribeCmd.LocalFlags().Lookup("stream-subscription-mode"))
-	viper.BindPFlag("subscribe-sampling-interval", subscribeCmd.LocalFlags().Lookup("sampling-interval"))
+	viper.BindPFlag("subscribe-sample-interval", subscribeCmd.LocalFlags().Lookup("sample-interval"))
 	viper.BindPFlag("subscribe-suppress-redundant", subscribeCmd.LocalFlags().Lookup("suppress-redundant"))
 	viper.BindPFlag("subscribe-heartbeat-interval", subscribeCmd.LocalFlags().Lookup("heartbeat-interval"))
 	viper.BindPFlag("subscribe-sub-model", subscribeCmd.LocalFlags().Lookup("model"))
