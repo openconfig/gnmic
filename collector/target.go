@@ -27,14 +27,14 @@ type Target struct {
 type TargetConfig struct {
 	Name       string
 	Address    string
-	Username   string
-	Password   string
+	Username   *string
+	Password   *string
 	Timeout    time.Duration
-	Insecure   bool
-	TLSCA      string
-	TLSCert    string
-	TLSKey     string
-	SkipVerify bool
+	Insecure   *bool
+	TLSCA      *string
+	TLSCert    *string
+	TLSKey     *string
+	SkipVerify *bool
 }
 
 // NewTarget //
@@ -65,7 +65,7 @@ func (t *Target) CreateGNMIClient(ctx context.Context, opts ...grpc.DialOption) 
 	if opts == nil {
 		opts = []grpc.DialOption{}
 	}
-	if t.Config.Insecure {
+	if *t.Config.Insecure {
 		opts = append(opts, grpc.WithInsecure())
 	} else {
 		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(t.TLS)))
@@ -85,7 +85,7 @@ func (t *Target) Capabilities(ctx context.Context, wg *sync.WaitGroup) (*gnmi.Ca
 	defer wg.Done()
 	nctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 	defer cancel()
-	nctx = metadata.AppendToOutgoingContext(nctx, "username", t.Config.Username, "password", t.Config.Password)
+	nctx = metadata.AppendToOutgoingContext(nctx, "username", *t.Config.Username, "password", *t.Config.Password)
 	response, err := t.Client.Capabilities(nctx, &gnmi.CapabilityRequest{})
 	if err != nil {
 		return nil, fmt.Errorf("failed sending capabilities request: %v", err)
@@ -98,7 +98,7 @@ func (t *Target) Get(ctx context.Context, req *gnmi.GetRequest, wg *sync.WaitGro
 	defer wg.Done()
 	nctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 	defer cancel()
-	nctx = metadata.AppendToOutgoingContext(nctx, "username", t.Config.Username, "password", t.Config.Password)
+	nctx = metadata.AppendToOutgoingContext(nctx, "username", *t.Config.Username, "password", *t.Config.Password)
 	response, err := t.Client.Get(nctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed sending GetRequest to '%s': %v", t.Config.Address, err)
@@ -111,7 +111,7 @@ func (t *Target) Set(ctx context.Context, req *gnmi.SetRequest, wg *sync.WaitGro
 	defer wg.Done()
 	nctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 	defer cancel()
-	nctx = metadata.AppendToOutgoingContext(nctx, "username", t.Config.Username, "password", t.Config.Password)
+	nctx = metadata.AppendToOutgoingContext(nctx, "username", *t.Config.Username, "password", *t.Config.Password)
 	response, err := t.Client.Set(nctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed sending SetRequest to '%s': %v", t.Config.Address, err)
@@ -124,7 +124,7 @@ func (t *Target) Subscribe(ctx context.Context, req *gnmi.SubscribeRequest, wg *
 	defer wg.Done()
 	nctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 	defer cancel()
-	nctx = metadata.AppendToOutgoingContext(nctx, "username", t.Config.Username, "password", t.Config.Password)
+	nctx = metadata.AppendToOutgoingContext(nctx, "username", *t.Config.Username, "password", *t.Config.Password)
 	errs := make(chan error)
 	subscribeClient, err := t.Client.Subscribe(nctx)
 	if err != nil {
@@ -207,17 +207,17 @@ func CreateGetRequest(prefix string, paths []string, dataType string, encoding s
 }
 
 func loadCerts(tlscfg *tls.Config, c *TargetConfig) error {
-	if c.TLSCert != "" && c.TLSKey != "" {
-		certificate, err := tls.LoadX509KeyPair(c.TLSCert, c.TLSKey)
+	if c.TLSCert != nil && c.TLSKey != nil {
+		certificate, err := tls.LoadX509KeyPair(*c.TLSCert, *c.TLSKey)
 		if err != nil {
 			return err
 		}
 		tlscfg.Certificates = []tls.Certificate{certificate}
 		tlscfg.BuildNameToCertificate()
 	}
-	if c.TLSCA != "" {
+	if c.TLSCA != nil {
 		certPool := x509.NewCertPool()
-		caFile, err := ioutil.ReadFile(c.TLSCA)
+		caFile, err := ioutil.ReadFile(*c.TLSCA)
 		if err != nil {
 			return err
 		}
