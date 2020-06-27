@@ -33,6 +33,7 @@ import (
 	"time"
 
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/karimra/gnmic/collector"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmi/proto/gnmi"
@@ -530,4 +531,92 @@ func numTargets() int {
 		return len(targets)
 	}
 	return 0
+}
+
+func createTargets() ([]*collector.Target, error) {
+	var err error
+	addresses := viper.GetStringSlice("address")
+	targets := make([]*collector.Target, 0, len(addresses))
+	defGrpcPort := viper.GetString("port")
+	defUsername := viper.GetString("username")
+	defPassword := viper.GetString("password")
+	tlsCert := viper.GetString("tls-cert")
+	tlsKey := viper.GetString("tls-key")
+	tlsCa := viper.GetString("tls-ca")
+	// case address is defined in config file
+	if len(addresses) > 0 {
+		if defUsername == "" {
+			if defUsername, err = readUsername(); err != nil {
+				return nil, err
+			}
+		}
+		if defPassword == "" {
+			if defPassword, err = readPassword(); err != nil {
+				return nil, err
+			}
+		}
+		for _, addr := range addresses {
+			tc := new(collector.TargetConfig)
+			_, _, err := net.SplitHostPort(addr)
+			if err != nil {
+				if strings.Contains(err.Error(), "missing port in address") {
+					addr = net.JoinHostPort(addr, defGrpcPort)
+				} else {
+					logger.Printf("error parsing address '%s': %v", addr, err)
+					return nil, fmt.Errorf("error parsing address '%s': %v", addr, err)
+				}
+			}
+			tc.Address = addr
+			tc.Username = defUsername
+			tc.Password = defPassword
+			tc.Insecure = viper.GetBool("insecure")
+			tc.SkipVerify = viper.GetBool("skip-verify")
+			tc.TLSCert = tlsCert
+			tc.TLSKey = tlsKey
+			tc.TLSCA = tlsCa
+			tc.Timeout = viper.GetDuration("timeout")
+			t, err := collector.NewTarget(tc)
+			if err != nil {
+				return nil, err
+			}
+			targets = append(targets, t)
+		}
+		sort.Slice(targets, func(i, j int) bool {
+			return targets[i].Config.Address < targets[j].Config.Address
+		})
+		return targets, nil
+	}
+	// case targets is defined in config file
+	targetsInt := viper.Get("targets")
+	targetsMap := make(map[string]interface{})
+	switch targetsInt := targetsInt.(type) {
+	case string:
+		for _, addr := range strings.Split(targetsInt, " ") {
+			targetsMap[addr] = nil
+		}
+	case map[string]interface{}:
+		targetsMap = targetsInt
+	default:
+		return nil, fmt.Errorf("unexpected targets format, got: %T", targetsInt)
+	}
+	ltm := len(targetsMap)
+	if ltm == 0 {
+		return nil, fmt.Errorf("no targets found")
+	}
+	targets = make([]*collector.Target, 0, ltm)
+	for addr, t := range targetsMap {
+		tc := new(collector.TargetConfig)
+		_, _, err := net.SplitHostPort(addr)
+		if err != nil {
+			if strings.Contains(err.Error(), "missing port in address") {
+				addr = net.JoinHostPort(addr, defGrpcPort)
+			} else {
+				logger.Printf("error parsing address '%s': %v", addr, err)
+				return nil, fmt.Errorf("error parsing address '%s': %v", addr, err)
+			}
+		}
+
+		tc.Address = addr
+	}
+	return nil, nil
 }
