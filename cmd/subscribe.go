@@ -232,10 +232,17 @@ func subRequest(ctx context.Context,
 				}
 				if !viper.GetBool("quiet") {
 					buff := new(bytes.Buffer)
-					err = json.Indent(buff, b, "", "  ")
-					if err != nil {
-						logger.Printf("failed to indent msg: err=%v, msg=%s", err, string(b))
-						return
+					if viper.GetString("format") == "textproto" {
+						_, err = buff.Write(b)
+						if err != nil {
+							logger.Printf("failed to write msg: err=%v, msg=%s", err, string(b))
+						}
+					} else {
+						err = json.Indent(buff, b, "", "  ")
+						if err != nil {
+							logger.Printf("failed to indent msg: err=%v, msg=%s", err, string(b))
+							return
+						}
 					}
 					lock.Lock()
 					fmt.Println(buff.String())
@@ -277,10 +284,17 @@ func subRequest(ctx context.Context,
 						continue
 					}
 					buff := new(bytes.Buffer)
-					err = json.Indent(buff, b, "", "  ")
-					if err != nil {
-						logger.Printf("failed to indent msg: err=%v : msg=%s", err, string(b))
-						return
+					if viper.GetString("format") == "textproto" {
+						_, err = buff.Write(b)
+						if err != nil {
+							logger.Printf("failed to write msg: err=%v, msg=%s", err, string(b))
+						}
+					} else {
+						err = json.Indent(buff, b, "", "  ")
+						if err != nil {
+							logger.Printf("failed to indent msg: err=%v : msg=%s", err, string(b))
+							return
+						}
 					}
 					fmt.Println(buff.String())
 				case *gnmi.SubscribeResponse_SyncResponse:
