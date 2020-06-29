@@ -8,10 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"strings"
+	"sync"
 	"time"
 
-	"github.com/google/gnxi/utils/xpath"
+	"github.com/karimra/gnmic/outputs"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
 	"google.golang.org/grpc"
@@ -21,22 +21,31 @@ import (
 
 // Target represents a gNMI enabled box
 type Target struct {
-	Config   *TargetConfig
-	TLS      *tls.Config
-	Client   gnmi.GNMIClient
-	PollChan chan struct{}
+	Config        *TargetConfig
+	Subscriptions []*SubscriptionConfig
+	Outputs       []outputs.Output
+
+	Client             gnmi.GNMIClient
+	// SubscribeClients   map[string]gnmi.GNMI_SubscribeClient // subscription name to subscribeClient
+	PollChan           chan string                          // subscription name to be polled
+	SubscribeResponses chan *SubscribeResponse
+	Errors             chan error
 }
+
+// TargetConfig //
 type TargetConfig struct {
-	Name       string
-	Address    string
-	Username   *string
-	Password   *string
-	Timeout    time.Duration
-	Insecure   *bool
-	TLSCA      *string
-	TLSCert    *string
-	TLSKey     *string
-	SkipVerify *bool
+	Name          string
+	Address       string
+	Username      *string
+	Password      *string
+	Timeout       time.Duration
+	Insecure      *bool
+	TLSCA         *string
+	TLSCert       *string
+	TLSKey        *string
+	SkipVerify    *bool
+	Subscriptions []string
+	Outputs       []string
 }
 
 func (tc *TargetConfig) String() string {
@@ -49,26 +58,25 @@ func (tc *TargetConfig) String() string {
 
 // NewTarget //
 func NewTarget(c *TargetConfig) (*Target, error) {
-	tlsConfig, err := c.NewTLS()
-	if err != nil {
-		return nil, err
-	}
 	t := &Target{
-		Config:   c,
-		TLS:      tlsConfig,
-		PollChan: make(chan struct{}),
+		Config:             c,
+		Subscriptions:      make([]*SubscriptionConfig, 0),
+		Outputs:            make([]outputs.Output, 0),
+		PollChan:           make(chan string),
+		SubscribeResponses: make(chan *SubscribeResponse),
+		Errors:             make(chan error),
 	}
 	return t, nil
 
 }
 
 // NewTLS //
-func (c *TargetConfig) NewTLS() (*tls.Config, error) {
+func (tc *TargetConfig) newTLS() (*tls.Config, error) {
 	tlsConfig := &tls.Config{
 		Renegotiation:      tls.RenegotiateNever,
-		InsecureSkipVerify: *c.SkipVerify,
+		InsecureSkipVerify: *tc.SkipVerify,
 	}
-	err := loadCerts(tlsConfig, c)
+	err := loadCerts(tlsConfig, tc)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +91,11 @@ func (t *Target) CreateGNMIClient(ctx context.Context, opts ...grpc.DialOption) 
 	if *t.Config.Insecure {
 		opts = append(opts, grpc.WithInsecure())
 	} else {
-		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(t.TLS)))
+		tlsConfig, err := t.Config.newTLS()
+		if err != nil {
+			return err
+		}
+		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	}
 	timeoutCtx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 	defer cancel()
@@ -131,21 +143,19 @@ func (t *Target) Set(ctx context.Context, req *gnmi.SetRequest) (*gnmi.SetRespon
 	return response, nil
 }
 
-// Subscribe sends a gnmi.SubscribeRequest to the target *t and returns a chan of gnmi.SetResponse and an error
-func (t *Target) Subscribe(ctx context.Context, req *gnmi.SubscribeRequest, responseChan chan *gnmi.SubscribeResponse, errs chan error) {
+// Subscribe sends a gnmi.SubscribeRequest to the target *t, responses and error are sent to the target channels
+func (t *Target) Subscribe(ctx context.Context, req *gnmi.SubscribeRequest, subscriptionName string) {
 	nctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	defer close(responseChan)
-	defer close(errs)
 	nctx = metadata.AppendToOutgoingContext(nctx, "username", *t.Config.Username, "password", *t.Config.Password)
 	subscribeClient, err := t.Client.Subscribe(nctx)
 	if err != nil {
-		errs <- fmt.Errorf("failed to create a subscribe client, target='%s': %v", t.Config.Name, err)
+		t.Errors <- fmt.Errorf("failed to create a subscribe client, target='%s': %v", t.Config.Name, err)
 		return
 	}
 	err = subscribeClient.Send(req)
 	if err != nil {
-		errs <- fmt.Errorf("target '%s' send error: %v", t.Config.Name, err)
+		t.Errors <- fmt.Errorf("target '%s' send error: %v", t.Config.Name, err)
 		return
 	}
 	switch req.GetSubscribe().Mode {
@@ -153,10 +163,10 @@ func (t *Target) Subscribe(ctx context.Context, req *gnmi.SubscribeRequest, resp
 		for {
 			response, err := subscribeClient.Recv()
 			if err != nil {
-				errs <- fmt.Errorf("receive error: %v", err)
+				t.Errors <- fmt.Errorf("receive error: %v", err)
 				return
 			}
-			responseChan <- response
+			t.SubscribeResponses <- &SubscribeResponse{Response: response, SubscriptionName: subscriptionName}
 			if req.GetSubscribe().Mode == gnmi.SubscriptionList_ONCE {
 				switch response.Response.(type) {
 				case *gnmi.SubscribeResponse_SyncResponse:
@@ -174,15 +184,15 @@ func (t *Target) Subscribe(ctx context.Context, req *gnmi.SubscribeRequest, resp
 					},
 				})
 				if err != nil {
-					errs <- fmt.Errorf("failed to send PollRequest: %v", err)
+					t.Errors <- fmt.Errorf("failed to send PollRequest: %v", err)
 					continue
 				}
 				response, err := subscribeClient.Recv()
 				if err != nil {
-					errs <- fmt.Errorf("rcv error: %v", err)
+					t.Errors <- fmt.Errorf("rcv error: %v", err)
 					continue
 				}
-				responseChan <- response
+				t.SubscribeResponses <- &SubscribeResponse{Response: response, SubscriptionName: subscriptionName}
 			case <-ctx.Done():
 				return
 			}
@@ -191,41 +201,25 @@ func (t *Target) Subscribe(ctx context.Context, req *gnmi.SubscribeRequest, resp
 	return
 }
 
-// CreateGetRequest creates a *gnmi.GetRequest
-func CreateGetRequest(prefix string, paths []string, dataType string, encoding string, models []string) (*gnmi.GetRequest, error) {
-	encodingVal, ok := gnmi.Encoding_value[strings.Replace(strings.ToUpper(encoding), "-", "_", -1)]
-	if !ok {
-		return nil, fmt.Errorf("invalid encoding type '%s'", encoding)
+// Export //
+func (t *Target) Export(msg []byte, m outputs.Meta) {
+	if len(msg) == 0 || len(t.Outputs) == 0 {
+		return
 	}
-	req := &gnmi.GetRequest{
-		UseModels: make([]*gnmi.ModelData, 0),
-		Path:      make([]*gnmi.Path, 0, len(paths)),
-		Encoding:  gnmi.Encoding(encodingVal),
+	wg := new(sync.WaitGroup)
+	wg.Add(len(t.Outputs))
+	for _, o := range t.Outputs {
+		go func(o outputs.Output) {
+			defer wg.Done()
+			o.Write(msg, m)
+		}(o)
 	}
-	if prefix != "" {
-		gnmiPrefix, err := xpath.ToGNMIPath(prefix)
-		if err != nil {
-			return nil, fmt.Errorf("prefix parse error: %v", err)
-		}
-		req.Prefix = gnmiPrefix
-	}
-	if dataType != "" {
-		dti, ok := gnmi.GetRequest_DataType_value[strings.ToUpper(dataType)]
-		if !ok {
-			return nil, fmt.Errorf("unknown data type %s", dataType)
-		}
-		req.Type = gnmi.GetRequest_DataType(dti)
-	}
-	for _, p := range paths {
-		gnmiPath, err := xpath.ToGNMIPath(strings.TrimSpace(p))
-		if err != nil {
-			return nil, fmt.Errorf("path parse error: %v", err)
-		}
-		req.Path = append(req.Path, gnmiPath)
-	}
-	return req, nil
+	wg.Wait()
 }
 
+func (t *Target) Stop() {
+
+}
 func loadCerts(tlscfg *tls.Config, c *TargetConfig) error {
 	if *c.TLSCert != "" && *c.TLSKey != "" {
 		certificate, err := tls.LoadX509KeyPair(*c.TLSCert, *c.TLSKey)
