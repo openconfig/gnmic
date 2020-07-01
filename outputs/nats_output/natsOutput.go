@@ -109,10 +109,10 @@ func (n *NatsOutput) createNATSConn(c *Config) (*nats.Conn, error) {
 		nats.ReconnectWait(natsReconnectWait),
 		nats.ReconnectBufSize(natsReconnectBufferSize),
 		nats.ErrorHandler(func(_ *nats.Conn, _ *nats.Subscription, err error) {
-			n.logger.Printf("nats error: %v", err)
+			n.logger.Printf("NATS error: %v", err)
 		}),
 		nats.DisconnectHandler(func(c *nats.Conn) {
-			n.logger.Println("disconnected from NATS")
+			n.logger.Println("Disconnected from NATS")
 		}),
 		nats.ClosedHandler(func(c *nats.Conn) {
 			n.logger.Println("NATS connection is closed")
