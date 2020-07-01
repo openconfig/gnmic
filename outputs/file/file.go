@@ -1,6 +1,8 @@
 package file
 
 import (
+	"bytes"
+	"encoding/json"
 	"log"
 	"os"
 
@@ -34,6 +36,7 @@ type File struct {
 // Config //
 type Config struct {
 	FileName string
+	FileType string
 }
 
 // Init //
@@ -44,9 +47,18 @@ func (f *File) Init(cfg map[string]interface{}, logger *log.Logger) error {
 		return err
 	}
 	f.Cfg = c
-	file, err := os.OpenFile(f.Cfg.FileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-	if err != nil {
-		return err
+
+	var file *os.File
+	switch f.Cfg.FileType {
+	case "stdout":
+		file = os.Stdout
+	case "stderr":
+		file = os.Stderr
+	default:
+		file, err = os.OpenFile(f.Cfg.FileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		if err != nil {
+			return err
+		}
 	}
 	f.file = file
 	f.logger = log.New(os.Stderr, "file_output ", log.LstdFlags|log.Lmicroseconds)
@@ -62,6 +74,15 @@ func (f *File) Init(cfg map[string]interface{}, logger *log.Logger) error {
 // Write //
 func (f *File) Write(b []byte, meta outputs.Meta) {
 	NumberOfReceivedMsgs.WithLabelValues(f.file.Name()).Inc()
+	if f.Cfg.FileType == "stdout" || f.Cfg.FileType == "stderr" {
+		dst := new(bytes.Buffer)
+		err := json.Indent(dst, b, "", "  ")
+		if err != nil {
+			f.logger.Printf("failed to write to '%s': %v", f.Cfg.FileType, err)
+			return
+		}
+		b = dst.Bytes()
+	}
 	n, err := f.file.Write(append(b, []byte("\n")...))
 	if err != nil {
 		f.logger.Printf("failed to write to file '%s': %v", f.file.Name(), err)
