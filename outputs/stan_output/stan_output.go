@@ -61,7 +61,7 @@ func (s *StanOutput) Init(cfg map[string]interface{}, logger *log.Logger) error 
 	if s.Cfg.ClusterName == "" {
 		return fmt.Errorf("clusterName is mandatory")
 	}
-	s.conn, err = createSTANConn(s.Cfg)
+	s.conn, err = s.createSTANConn(s.Cfg)
 	if err != nil {
 		return err
 	}
@@ -94,7 +94,7 @@ func (s *StanOutput) Close() error {
 	return s.conn.Close()
 }
 
-func createSTANConn(c *Config) (stan.Conn, error) {
+func (s *StanOutput) createSTANConn(c *Config) (stan.Conn, error) {
 	if c.Timeout == 0 {
 		c.Timeout = stanDefaultTimeout
 	}
@@ -122,7 +122,8 @@ func createSTANConn(c *Config) (stan.Conn, error) {
 		stan.Pings(c.PingInterval, c.PingRetry),
 		stan.SetConnectionLostHandler(func(_ stan.Conn, err error) {
 			log.Fatalf("STAN connection lost, reason: %v", err)
-		}))
+		}),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to %s: %v", c.Address, err)
 	}
