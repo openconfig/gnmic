@@ -1,10 +1,10 @@
 <p align=center><img src=https://gitlab.com/rdodin/pics/-/wikis/uploads/46e7d1631bd5569e9bf289be9dfa3812/gnmic-headline.svg?sanitize=true/></p>
 
-[![github release](https://img.shields.io/github/release/karimra/gnmiclient.svg?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://github.com/karimra/gnmiclient/releases/)
-[![Github all releases](https://img.shields.io/github/downloads/karimra/gnmiclient/total.svg?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://github.com/karimra/gnmiclient/releases/)
-[![Go Report](https://img.shields.io/badge/go%20report-A%2B-blue?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://goreportcard.com/report/github.com/karimra/gnmiclient)
-[![Doc](https://img.shields.io/badge/Docs-gnmiclient.kmrd.dev-blue?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://gnmiclient.kmrd.dev)
-[![build](https://img.shields.io/github/workflow/status/karimra/gnmiclient/Test/master?style=flat-square&labelColor=bec8d2)](https://github.com/karimra/gnmiclient/releases/)
+[![github release](https://img.shields.io/github/release/karimra/gnmic.svg?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://github.com/karimra/gnmic/releases/)
+[![Github all releases](https://img.shields.io/github/downloads/karimra/gnmic/total.svg?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://github.com/karimra/gnmic/releases/)
+[![Go Report](https://img.shields.io/badge/go%20report-A%2B-blue?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://goreportcard.com/report/github.com/karimra/gnmic)
+[![Doc](https://img.shields.io/badge/Docs-gnmiclient.kmrd.dev-blue?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://gnmic.kmrd.dev)
+[![build](https://img.shields.io/github/workflow/status/karimra/gnmic/Test/master?style=flat-square&labelColor=bec8d2)](https://github.com/karimra/gnmic/releases/)
 
 ---
 
