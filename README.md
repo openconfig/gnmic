@@ -3,14 +3,14 @@
 [![github release](https://img.shields.io/github/release/karimra/gnmic.svg?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://github.com/karimra/gnmic/releases/)
 [![Github all releases](https://img.shields.io/github/downloads/karimra/gnmic/total.svg?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://github.com/karimra/gnmic/releases/)
 [![Go Report](https://img.shields.io/badge/go%20report-A%2B-blue?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://goreportcard.com/report/github.com/karimra/gnmic)
-[![Doc](https://img.shields.io/badge/Docs-gnmiclient.kmrd.dev-blue?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://gnmic.kmrd.dev)
+[![Doc](https://img.shields.io/badge/Docs-gnmic.kmrd.dev-blue?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://gnmic.kmrd.dev)
 [![build](https://img.shields.io/github/workflow/status/karimra/gnmic/Test/master?style=flat-square&labelColor=bec8d2)](https://github.com/karimra/gnmic/releases/)
 
 ---
 
 gNMI CLI client that provides full support for Capabilities, Get, Set and Subscribe RPCs.
 
-Documentation available at [https://gnmiclient.kmrd.dev](https://gnmiclient.kmrd.dev)
+Documentation available at [https://gnmiclient.kmrd.dev](https://gnmic.kmrd.dev)
 
 ## Features
 * **Full support for gNMI RPCs**  
