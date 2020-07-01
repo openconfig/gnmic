@@ -123,7 +123,7 @@ func init() {
 type dialoutTelemetryServer struct {
 	listener   net.Listener
 	grpcServer *grpc.Server
-	Outputs    []outputs.Output
+	Outputs    map[string]outputs.Output
 }
 
 func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_PublishServer) error {
