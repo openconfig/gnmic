@@ -33,7 +33,6 @@ type KafkaOutput struct {
 	producer sarama.SyncProducer
 	metrics  []prometheus.Collector
 	logger   sarama.StdLogger
-	stopChan chan struct{}
 }
 
 // Config //
@@ -99,7 +98,6 @@ func (k *KafkaOutput) Write(b []byte, meta outputs.Meta) {
 
 // Close //
 func (k *KafkaOutput) Close() error {
-	close(k.stopChan)
 	return k.producer.Close()
 }
 
