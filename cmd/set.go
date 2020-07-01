@@ -87,8 +87,8 @@ var setCmd = &cobra.Command{
 		wg := new(sync.WaitGroup)
 		wg.Add(len(targets))
 		lock := new(sync.Mutex)
-		for _, target := range targets {
-			go setRequest(ctx, req, target, wg, lock)
+		for _, tc := range targets {
+			go setRequest(ctx, req, collector.NewTarget(tc), wg, lock)
 		}
 		wg.Wait()
 		return nil

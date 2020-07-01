@@ -47,8 +47,8 @@ var capabilitiesCmd = &cobra.Command{
 		wg := new(sync.WaitGroup)
 		wg.Add(len(targets))
 		lock := new(sync.Mutex)
-		for _, target := range targets {
-			go reqCapability(ctx, target, wg, lock)
+		for _, tc := range targets {
+			go reqCapability(ctx, collector.NewTarget(tc), wg, lock)
 		}
 		wg.Wait()
 		return nil

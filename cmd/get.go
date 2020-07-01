@@ -50,46 +50,46 @@ var getCmd = &cobra.Command{
 		wg := new(sync.WaitGroup)
 		wg.Add(len(targets))
 		lock := new(sync.Mutex)
-		for _, t := range targets {
-			go getRequest(ctx, req, t, wg, lock)
+		for _, tc := range targets {
+			go getRequest(ctx, req, collector.NewTarget(tc), wg, lock)
 		}
 		wg.Wait()
 		return nil
 	},
 }
 
-func getRequest(ctx context.Context, req *gnmi.GetRequest, t *collector.Target, wg *sync.WaitGroup, lock *sync.Mutex) {
+func getRequest(ctx context.Context, req *gnmi.GetRequest, target *collector.Target, wg *sync.WaitGroup, lock *sync.Mutex) {
 	defer wg.Done()
 	opts := createCollectorDialOpts()
-	err := t.CreateGNMIClient(ctx, opts...)
+	err := target.CreateGNMIClient(ctx, opts...)
 	if err != nil {
-		logger.Printf("failed to create a client for target '%s' : %v", t.Config.Name, err)
+		logger.Printf("failed to create a client for target '%s' : %v", target.Config.Name, err)
 		return
 	}
 	xreq := req
 	models := viper.GetStringSlice("get-model")
 	if len(models) > 0 {
-		spModels, unspModels, err := filterModels(ctx, t, models)
+		spModels, unspModels, err := filterModels(ctx, target, models)
 		if err != nil {
-			logger.Printf("failed getting supported models from '%s': %v", t.Config.Address, err)
+			logger.Printf("failed getting supported models from '%s': %v", target.Config.Address, err)
 			return
 		}
 		if len(unspModels) > 0 {
-			logger.Printf("found unsupported models for target '%s': %+v", t.Config.Address, unspModels)
+			logger.Printf("found unsupported models for target '%s': %+v", target.Config.Address, unspModels)
 		}
 		for _, m := range spModels {
 			xreq.UseModels = append(xreq.UseModels, m)
 		}
 	}
 	logger.Printf("sending gNMI GetRequest: prefix='%v', path='%v', type='%v', encoding='%v', models='%+v', extension='%+v' to %s",
-		xreq.Prefix, xreq.Path, xreq.Type, xreq.Encoding, xreq.UseModels, xreq.Extension, t.Config.Address)
-	response, err := t.Get(ctx, xreq)
+		xreq.Prefix, xreq.Path, xreq.Type, xreq.Encoding, xreq.UseModels, xreq.Extension, target.Config.Address)
+	response, err := target.Get(ctx, xreq)
 	if err != nil {
-		logger.Printf("failed sending GetRequest to %s: %v", t.Config.Address, err)
+		logger.Printf("failed sending GetRequest to %s: %v", target.Config.Address, err)
 		return
 	}
 	lock.Lock()
-	printGetResponse(t.Config.Name, response)
+	printGetResponse(target.Config.Name, response)
 	lock.Unlock()
 }
 
