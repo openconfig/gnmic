@@ -533,10 +533,10 @@ func numTargets() int {
 	return 0
 }
 
-func createTargets() ([]*collector.Target, error) {
+func createTargets() (map[string]*collector.TargetConfig, error) {
 	var err error
 	addresses := viper.GetStringSlice("address")
-	targets := make([]*collector.Target, 0, len(addresses))
+	targets := make(map[string]*collector.TargetConfig)
 	defGrpcPort := viper.GetString("port")
 	defUsername := viper.GetString("username")
 	defPassword := viper.GetString("password")
@@ -565,15 +565,8 @@ func createTargets() ([]*collector.Target, error) {
 			}
 			tc.Address = addr
 			setTargetConfigDefaults(tc)
-			t, err := collector.NewTarget(tc)
-			if err != nil {
-				return nil, err
-			}
-			targets = append(targets, t)
+			targets[tc.Name] = tc
 		}
-		sort.Slice(targets, func(i, j int) bool {
-			return targets[i].Config.Address < targets[j].Config.Address
-		})
 		return targets, nil
 	}
 	// case targets is defined in config file
@@ -589,11 +582,9 @@ func createTargets() ([]*collector.Target, error) {
 	default:
 		return nil, fmt.Errorf("unexpected targets format, got: %T", targetsInt)
 	}
-	ltm := len(targetsMap)
-	if ltm == 0 {
+	if len(targetsMap) == 0 {
 		return nil, fmt.Errorf("no targets found")
 	}
-	targets = make([]*collector.Target, 0, ltm)
 	for addr, t := range targetsMap {
 		tc := new(collector.TargetConfig)
 		_, _, err := net.SplitHostPort(addr)
@@ -620,11 +611,8 @@ func createTargets() ([]*collector.Target, error) {
 		if viper.GetBool("debug") {
 			logger.Printf("read target config: %s", tc)
 		}
-		t, err := collector.NewTarget(tc)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create target: %v", err)
-		}
-		targets = append(targets, t)
+
+		targets[tc.Name] = tc
 	}
 	return targets, nil
 }
