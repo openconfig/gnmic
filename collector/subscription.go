@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/gnxi/utils/xpath"
 	"github.com/openconfig/gnmi/proto/gnmi"
-	"github.com/spf13/viper"
 )
 
 // SubscriptionConfig //
@@ -22,6 +21,7 @@ type SubscriptionConfig struct {
 	SampleInterval    time.Duration
 	HeartbeatInterval time.Duration
 	SuppressRedundant bool
+	UpdatesOnly       bool
 }
 
 func (sc *SubscriptionConfig) setDefaults() error {
@@ -74,7 +74,7 @@ func (sc *SubscriptionConfig) CreateSubscribeRequest() (*gnmi.SubscribeRequest, 
 		subscriptions[i] = &gnmi.Subscription{Path: gnmiPath}
 		switch gnmi.SubscriptionList_Mode(modeVal) {
 		case gnmi.SubscriptionList_STREAM:
-			mode, ok := gnmi.SubscriptionMode_value[strings.Replace(strings.ToUpper(sc.Mode), "-", "_", -1)]
+			mode, ok := gnmi.SubscriptionMode_value[strings.Replace(strings.ToUpper(sc.StreamMode), "-", "_", -1)]
 			if !ok {
 				return nil, fmt.Errorf("invalid streamed subscription mode %s", sc.Mode)
 			}
@@ -99,7 +99,7 @@ func (sc *SubscriptionConfig) CreateSubscribeRequest() (*gnmi.SubscribeRequest, 
 				Encoding:     gnmi.Encoding(encodingVal),
 				Subscription: subscriptions,
 				Qos:          qos,
-				UpdatesOnly:  viper.GetBool("subscribe-updates-only"),
+				UpdatesOnly:  sc.UpdatesOnly,
 			},
 		},
 	}, nil

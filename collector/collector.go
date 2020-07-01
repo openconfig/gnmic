@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -30,12 +32,13 @@ type Collector struct {
 	Outputs       map[string]outputs.Output
 	DialOpts      []grpc.DialOption
 	//
-	m          *sync.Mutex
-	Targets    map[string]*Target
-	Logger     *log.Logger
-	httpServer *http.Server
-	ctx        context.Context
-	cancelFn   context.CancelFunc
+	m             *sync.Mutex
+	Targets       map[string]*Target
+	Logger        *log.Logger
+	httpServer    *http.Server
+	defaultOutput io.Writer
+	ctx           context.Context
+	cancelFn      context.CancelFunc
 }
 
 // NewCollector //
@@ -58,6 +61,7 @@ func NewCollector(ctx context.Context,
 		Addr:    config.PrometheusAddress,
 	}
 	c := &Collector{
+		Config:        config,
 		Subscriptions: subscriptions,
 		Outputs:       outputs,
 		DialOpts:      dialOpts,
@@ -65,6 +69,7 @@ func NewCollector(ctx context.Context,
 		Targets:       make(map[string]*Target),
 		Logger:        logger,
 		httpServer:    httpServer,
+		defaultOutput: os.Stdout,
 		ctx:           nctx,
 		cancelFn:      cancel,
 	}
@@ -87,26 +92,41 @@ func NewCollector(ctx context.Context,
 
 // InitTarget initializes a target based on *TargetConfig
 func (c *Collector) InitTarget(tc *TargetConfig) error {
-	t, err := NewTarget(tc)
-	if err != nil {
-		return err
-	}
+	t := NewTarget(tc)
+	//
+
 	t.Subscriptions = make([]*SubscriptionConfig, 0, len(tc.Subscriptions))
 	for _, subName := range tc.Subscriptions {
 		if sub, ok := c.Subscriptions[subName]; ok {
 			t.Subscriptions = append(t.Subscriptions, sub)
 		}
 	}
+	if len(t.Subscriptions) == 0 {
+		t.Subscriptions = make([]*SubscriptionConfig, 0, len(c.Subscriptions))
+		for _, sub := range c.Subscriptions {
+			t.Subscriptions = append(t.Subscriptions, sub)
+		}
+	}
+
+	//
 	t.Outputs = make([]outputs.Output, 0, len(tc.Outputs))
 	for _, outName := range tc.Outputs {
 		if o, ok := c.Outputs[outName]; ok {
 			t.Outputs = append(t.Outputs, o)
 		}
 	}
-	err = t.CreateGNMIClient(c.ctx, c.DialOpts...)
+	if len(t.Outputs) == 0 {
+		t.Outputs = make([]outputs.Output, 0, len(c.Outputs))
+		for _, o := range c.Outputs {
+			t.Outputs = append(t.Outputs, o)
+		}
+	}
+	//
+	err := t.CreateGNMIClient(c.ctx, c.DialOpts...)
 	if err != nil {
 		return err
 	}
+	t.ctx, t.cancelFn = context.WithCancel(c.ctx)
 	c.m.Lock()
 	defer c.m.Unlock()
 	c.Targets[t.Config.Name] = t
@@ -123,6 +143,7 @@ func (c *Collector) Subscribe(tName string) error {
 			}
 			go t.Subscribe(c.ctx, req, sc.Name)
 		}
+		return nil
 	}
 	return fmt.Errorf("unknown target name: %s", tName)
 }
@@ -136,6 +157,7 @@ func (c *Collector) Start() {
 		}
 	}()
 	wg := new(sync.WaitGroup)
+	wg.Add(len(c.Targets))
 	for _, t := range c.Targets {
 		go func(t *Target) {
 			defer wg.Done()
@@ -147,11 +169,12 @@ func (c *Collector) Start() {
 					b, err := c.FormatMsg(m, rsp.Response)
 					if err != nil {
 						c.Logger.Printf("failed formatting msg from target '%s': %v", t.Config.Name, err)
+						continue
 					}
 					go t.Export(b, outputs.Meta{"source": t.Config.Name})
 				case err := <-t.Errors:
 					c.Logger.Printf("target '%s' error: %v", t.Config.Name, err)
-				case <-c.ctx.Done():
+				case <-t.ctx.Done():
 					return
 				}
 			}
@@ -160,6 +183,7 @@ func (c *Collector) Start() {
 	wg.Wait()
 }
 
+// FormatMsg formats the gnmi.SubscribeResponse and returns a []byte and an error
 func (c *Collector) FormatMsg(meta map[string]interface{}, rsp *gnmi.SubscribeResponse) ([]byte, error) {
 	switch rsp := rsp.Response.(type) {
 	case *gnmi.SubscribeResponse_Update:

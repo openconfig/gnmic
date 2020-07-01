@@ -26,10 +26,13 @@ type Target struct {
 	Outputs       []outputs.Output
 
 	Client             gnmi.GNMIClient
-	// SubscribeClients   map[string]gnmi.GNMI_SubscribeClient // subscription name to subscribeClient
+	SubscribeClients   map[string]gnmi.GNMI_SubscribeClient // subscription name to subscribeClient
 	PollChan           chan string                          // subscription name to be polled
 	SubscribeResponses chan *SubscribeResponse
 	Errors             chan error
+
+	ctx      context.Context
+	cancelFn context.CancelFunc
 }
 
 // TargetConfig //
@@ -57,7 +60,7 @@ func (tc *TargetConfig) String() string {
 }
 
 // NewTarget //
-func NewTarget(c *TargetConfig) (*Target, error) {
+func NewTarget(c *TargetConfig) *Target {
 	t := &Target{
 		Config:             c,
 		Subscriptions:      make([]*SubscriptionConfig, 0),
@@ -66,7 +69,7 @@ func NewTarget(c *TargetConfig) (*Target, error) {
 		SubscribeResponses: make(chan *SubscribeResponse),
 		Errors:             make(chan error),
 	}
-	return t, nil
+	return t
 
 }
 
@@ -177,12 +180,13 @@ func (t *Target) Subscribe(ctx context.Context, req *gnmi.SubscribeRequest, subs
 	case gnmi.SubscriptionList_POLL:
 		for {
 			select {
-			case <-t.PollChan:
+			case subName := <-t.PollChan:
 				err = subscribeClient.Send(&gnmi.SubscribeRequest{
 					Request: &gnmi.SubscribeRequest_Poll{
 						Poll: &gnmi.Poll{},
 					},
 				})
+				_ = subName
 				if err != nil {
 					t.Errors <- fmt.Errorf("failed to send PollRequest: %v", err)
 					continue
@@ -193,7 +197,7 @@ func (t *Target) Subscribe(ctx context.Context, req *gnmi.SubscribeRequest, subs
 					continue
 				}
 				t.SubscribeResponses <- &SubscribeResponse{Response: response, SubscriptionName: subscriptionName}
-			case <-ctx.Done():
+			case <-nctx.Done():
 				return
 			}
 		}
@@ -217,9 +221,9 @@ func (t *Target) Export(msg []byte, m outputs.Meta) {
 	wg.Wait()
 }
 
-func (t *Target) Stop() {
+// Stop //
+func (t *Target) Stop() { t.cancelFn() }
 
-}
 func loadCerts(tlscfg *tls.Config, c *TargetConfig) error {
 	if *c.TLSCert != "" && *c.TLSKey != "" {
 		certificate, err := tls.LoadX509KeyPair(*c.TLSCert, *c.TLSKey)
