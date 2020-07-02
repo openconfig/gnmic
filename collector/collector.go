@@ -186,6 +186,10 @@ func (c *Collector) Start() {
 						}
 					}
 				case err := <-t.Errors:
+					if err == io.EOF {
+						c.Logger.Printf("target '%s' closed stream(EOF)", t.Config.Name)
+						return
+					}
 					c.Logger.Printf("target '%s' error: %v", t.Config.Name, err)
 				case <-t.ctx.Done():
 					return
@@ -266,11 +270,7 @@ func (c *Collector) TargetPoll(targetName, subscriptionName string) (*gnmi.Subsc
 				if err != nil {
 					return nil, err
 				}
-				subscribeRsp, err := subClient.Recv()
-				if err != nil {
-					return nil, err
-				}
-				return subscribeRsp, nil
+				return subClient.Recv()
 			}
 		}
 		return nil, fmt.Errorf("unknown target name '%s'", targetName)

@@ -173,6 +173,7 @@ func (t *Target) Subscribe(ctx context.Context, req *gnmi.SubscribeRequest, subs
 		for {
 			response, err := subscribeClient.Recv()
 			if err == io.EOF {
+				t.Errors <- err
 				return
 			}
 			if err != nil {
