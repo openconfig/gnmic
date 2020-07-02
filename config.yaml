@@ -30,11 +30,11 @@ subscriptions:
     paths:
       - /configure/port[port-id=*]
       - /state
-    mode: on_change # target-defined # sample
+    streamMode: on_change # target-defined # sample
   sub2:
     paths:
        - /configure/port[port-id=*]
-    mode: sample
+    streamMode: sample
     sample-interval: 30s
 
 outputs:
