@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 	"sync"
@@ -149,22 +150,34 @@ var subscribeCmd = &cobra.Command{
 							continue
 						}
 						response, err := coll.TargetPoll(name, subName)
-						if err != nil {
-							fmt.Printf("target '%s', subscription '%s': poll response error:%v", name, subName, err)
+						if err != nil && err != io.EOF {
+							fmt.Printf("target '%s', subscription '%s': poll response error:%v\n", name, subName, err)
+							continue
+						}
+						if response == nil {
+							fmt.Printf("received empty response from target '%s'\n", name)
+							continue
+						}
+						switch rsp := response.Response.(type) {
+						case *gnmi.SubscribeResponse_SyncResponse:
+							fmt.Printf("received sync response '%t' from '%s'\n", rsp.SyncResponse, name)
+							waitChan <- struct{}{}
 							continue
 						}
 						b, err := coll.FormatMsg(nil, response)
 						if err != nil {
-							fmt.Printf("target '%s', subscription '%s': poll response formatting error:%v", name, subName, err)
+							fmt.Printf("target '%s', subscription '%s': poll response formatting error:%v\n", name, subName, err)
 							continue
 						}
 						dst := new(bytes.Buffer)
 						err = json.Indent(dst, b, "", "  ")
 						if err != nil {
 							fmt.Printf("failed to indent poll response from '%s': %v\n", name, err)
+							fmt.Println(string(b))
+							waitChan <- struct{}{}
 							continue
 						}
-						fmt.Println(string(b))
+						fmt.Println(dst.String())
 						waitChan <- struct{}{}
 					case <-ctx.Done():
 						return
