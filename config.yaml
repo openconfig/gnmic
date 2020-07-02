@@ -8,11 +8,17 @@ tls-cert: /path/to/client.crt
 
 targets:
   172.17.0.100:
-    username: grpc
-    password: grpc
+    username: ""
+    password: ""
+    timeout: 2s
     subscriptions:
       - sub1
   172.17.0.101:
+    username: sros
+    password: sros
+    insecure: true
+    tls-key: dummy/path/file1
+    tls-cert: dummy/path/file2
     subscriptions:
       - sub1
       - sub2
@@ -32,15 +38,25 @@ subscriptions:
     sample-interval: 30s
 
 outputs:
-  file:
+  group1:
     - filename: local.log
-  nats:
-    - address: localhost:4222
+      type: file
+    - fileType: stdout
+      type: file
+  group2:
+    - type: file
+      filename: local.log
+      
+    - type: nats
+      address: localhost:4222
       subjectPrefix: telemetry
       username:
       password:
-  stan:
-    - address: localhost:4223
+    - type: file
+      filename: localFile.log
+  group3:
+    - type: stan
+      address: localhost:4223
       subject: telemetry
       username:
       password:
@@ -49,8 +65,9 @@ outputs:
       timeout:
       pingInterval:
       pingRetry:
-  kafka:
-    - address: localhost:9092
+  group4:
+    - type: kafka
+      address: localhost:9092
       topic: telemetry
       maxRetry: 
       timeout:

@@ -58,8 +58,10 @@ var listenCmd = &cobra.Command{
 		}
 
 		defer func() {
-			for _, o := range server.Outputs {
-				o.Close()
+			for _, outputs := range server.Outputs {
+				for _, o := range outputs {
+					o.Close()
+				}
 			}
 		}()
 		server.listener, err = net.Listen("tcp", address[0])
@@ -123,7 +125,7 @@ func init() {
 type dialoutTelemetryServer struct {
 	listener   net.Listener
 	grpcServer *grpc.Server
-	Outputs    map[string]outputs.Output
+	Outputs    map[string][]outputs.Output
 }
 
 func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_PublishServer) error {
@@ -184,8 +186,10 @@ func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_Publi
 				logger.Printf("failed to format subscribe response: %v", err)
 				continue
 			}
-			for _, o := range s.Outputs {
-				go o.Write(b, outMeta)
+			for _, outputs := range s.Outputs {
+				for _, o := range outputs {
+					go o.Write(b, outMeta)
+				}
 			}
 			buff := new(bytes.Buffer)
 			err = json.Indent(buff, b, "", "  ")

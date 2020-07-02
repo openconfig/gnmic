@@ -25,6 +25,7 @@ type Target struct {
 	Subscriptions []*SubscriptionConfig
 	Outputs       []outputs.Output
 
+	m                  *sync.Mutex
 	Client             gnmi.GNMIClient
 	SubscribeClients   map[string]gnmi.GNMI_SubscribeClient // subscription name to subscribeClient
 	PollChan           chan string                          // subscription name to be polled
@@ -65,6 +66,8 @@ func NewTarget(c *TargetConfig) *Target {
 		Config:             c,
 		Subscriptions:      make([]*SubscriptionConfig, 0),
 		Outputs:            make([]outputs.Output, 0),
+		m:                  new(sync.Mutex),
+		SubscribeClients:   make(map[string]gnmi.GNMI_SubscribeClient),
 		PollChan:           make(chan string),
 		SubscribeResponses: make(chan *SubscribeResponse),
 		Errors:             make(chan error),
@@ -156,6 +159,9 @@ func (t *Target) Subscribe(ctx context.Context, req *gnmi.SubscribeRequest, subs
 		t.Errors <- fmt.Errorf("failed to create a subscribe client, target='%s': %v", t.Config.Name, err)
 		return
 	}
+	t.m.Lock()
+	t.SubscribeClients[subscriptionName] = subscribeClient
+	t.m.Unlock()
 	err = subscribeClient.Send(req)
 	if err != nil {
 		t.Errors <- fmt.Errorf("target '%s' send error: %v", t.Config.Name, err)
@@ -181,12 +187,11 @@ func (t *Target) Subscribe(ctx context.Context, req *gnmi.SubscribeRequest, subs
 		for {
 			select {
 			case subName := <-t.PollChan:
-				err = subscribeClient.Send(&gnmi.SubscribeRequest{
+				err = t.SubscribeClients[subName].Send(&gnmi.SubscribeRequest{
 					Request: &gnmi.SubscribeRequest_Poll{
 						Poll: &gnmi.Poll{},
 					},
 				})
-				_ = subName
 				if err != nil {
 					t.Errors <- fmt.Errorf("failed to send PollRequest: %v", err)
 					continue

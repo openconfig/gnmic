@@ -20,6 +20,7 @@ import (
 	"google.golang.org/grpc"
 )
 
+// Config is the collector config
 type Config struct {
 	PrometheusAddress string
 	Debug             bool
@@ -29,7 +30,7 @@ type Config struct {
 type Collector struct {
 	Config        *Config
 	Subscriptions map[string]*SubscriptionConfig
-	Outputs       map[string]outputs.Output
+	Outputs       map[string][]outputs.Output
 	DialOpts      []grpc.DialOption
 	//
 	m             *sync.Mutex
@@ -46,7 +47,7 @@ func NewCollector(ctx context.Context,
 	config *Config,
 	targetConfigs map[string]*TargetConfig,
 	subscriptions map[string]*SubscriptionConfig,
-	outputs map[string]outputs.Output,
+	outputs map[string][]outputs.Output,
 	dialOpts []grpc.DialOption,
 	logger *log.Logger,
 ) *Collector {
@@ -111,14 +112,16 @@ func (c *Collector) InitTarget(tc *TargetConfig) error {
 	//
 	t.Outputs = make([]outputs.Output, 0, len(tc.Outputs))
 	for _, outName := range tc.Outputs {
-		if o, ok := c.Outputs[outName]; ok {
-			t.Outputs = append(t.Outputs, o)
+		if outs, ok := c.Outputs[outName]; ok {
+			for _, o := range outs {
+				t.Outputs = append(t.Outputs, o)
+			}
 		}
 	}
 	if len(t.Outputs) == 0 {
 		t.Outputs = make([]outputs.Output, 0, len(c.Outputs))
 		for _, o := range c.Outputs {
-			t.Outputs = append(t.Outputs, o)
+			t.Outputs = append(t.Outputs, o...)
 		}
 	}
 	//
