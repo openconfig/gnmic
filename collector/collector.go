@@ -235,3 +235,32 @@ func (c *Collector) FormatMsg(meta map[string]interface{}, rsp *gnmi.SubscribeRe
 	}
 	return nil, nil
 }
+
+// TargetPoll sends a gnmi.SubscribeRequest_Poll to targetName and returns the response and an error,
+// it uses the targetName and the subscriptionName strings to find the gnmi.GNMI_SubscribeClient
+func (c *Collector) TargetPoll(targetName, subscriptionName string) (*gnmi.SubscribeResponse, error) {
+	if sub, ok := c.Subscriptions[subscriptionName]; ok {
+		if strings.ToUpper(sub.Mode) != "POLL" {
+			return nil, fmt.Errorf("subscription '%s' is not a POLL subscription", subscriptionName)
+		}
+		if t, ok := c.Targets[targetName]; ok {
+			if subClient, ok := t.SubscribeClients[subscriptionName]; ok {
+				err := subClient.Send(&gnmi.SubscribeRequest{
+					Request: &gnmi.SubscribeRequest_Poll{
+						Poll: &gnmi.Poll{},
+					},
+				})
+				if err != nil {
+					return nil, err
+				}
+				subscribeRsp, err := subClient.Recv()
+				if err != nil {
+					return nil, err
+				}
+				return subscribeRsp, nil
+			}
+		}
+		return nil, fmt.Errorf("unknown target name '%s'", targetName)
+	}
+	return nil, fmt.Errorf("unknown subscription name '%s'", subscriptionName)
+}
