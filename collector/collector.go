@@ -162,6 +162,7 @@ func (c *Collector) Start() {
 	for _, t := range c.Targets {
 		go func(t *Target) {
 			defer wg.Done()
+			numSubscriptions := len(t.Subscriptions)
 			for {
 				select {
 				case rsp := <-t.SubscribeResponses:
@@ -173,7 +174,17 @@ func (c *Collector) Start() {
 						c.Logger.Printf("failed formatting msg from target '%s': %v", t.Config.Name, err)
 						continue
 					}
-					go t.Export(b, outputs.Meta{"source": t.Config.Name})
+					t.Export(b, outputs.Meta{"source": t.Config.Name})
+					if numSubscriptions == 1 {
+						switch rsp.Response.Response.(type) {
+						case *gnmi.SubscribeResponse_SyncResponse:
+							if sub, ok := c.Subscriptions[rsp.SubscriptionName]; ok {
+								if strings.ToUpper(sub.Mode) == "ONCE" {
+									return
+								}
+							}
+						}
+					}
 				case err := <-t.Errors:
 					c.Logger.Printf("target '%s' error: %v", t.Config.Name, err)
 				case <-t.ctx.Done():
