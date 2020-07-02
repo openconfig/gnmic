@@ -80,7 +80,7 @@ var rootCmd = &cobra.Command{
 				logger.Fatalf("error opening file: %v", err)
 			}
 		}
-		logger = log.New(f, "", log.LstdFlags|log.Lmicroseconds)
+		logger = log.New(f, "gnmic ", log.LstdFlags|log.Lmicroseconds)
 		logger.SetFlags(log.LstdFlags | log.Lmicroseconds)
 		if viper.GetBool("debug") {
 			grpclog.SetLogger(logger) //lint:ignore SA1019 see https://github.com/karimra/gnmic/issues/59
