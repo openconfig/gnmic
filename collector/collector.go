@@ -167,6 +167,7 @@ func (c *Collector) Start() {
 				case rsp := <-t.SubscribeResponses:
 					m := make(map[string]interface{})
 					m["subscription-name"] = rsp.SubscriptionName
+					m["source"] = t.Config.Name
 					b, err := c.FormatMsg(m, rsp.Response)
 					if err != nil {
 						c.Logger.Printf("failed formatting msg from target '%s': %v", t.Config.Name, err)
