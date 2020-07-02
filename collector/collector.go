@@ -198,6 +198,9 @@ func (c *Collector) Start() {
 
 // FormatMsg formats the gnmi.SubscribeResponse and returns a []byte and an error
 func (c *Collector) FormatMsg(meta map[string]interface{}, rsp *gnmi.SubscribeResponse) ([]byte, error) {
+	if rsp == nil {
+		return nil, nil
+	}
 	switch rsp := rsp.Response.(type) {
 	case *gnmi.SubscribeResponse_Update:
 		msg := new(msg)

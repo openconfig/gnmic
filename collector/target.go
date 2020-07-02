@@ -172,15 +172,15 @@ func (t *Target) Subscribe(ctx context.Context, req *gnmi.SubscribeRequest, subs
 	case gnmi.SubscriptionList_ONCE, gnmi.SubscriptionList_STREAM:
 		for {
 			response, err := subscribeClient.Recv()
-			if err != nil && err != io.EOF {
+			if err == io.EOF {
+				return
+			}
+			if err != nil {
 				t.Errors <- fmt.Errorf("receive error: %v", err)
 				return
 			}
 			t.SubscribeResponses <- &SubscribeResponse{Response: response, SubscriptionName: subscriptionName}
 			if req.GetSubscribe().Mode == gnmi.SubscriptionList_ONCE {
-				if err == io.EOF {
-					return
-				}
 				switch response.Response.(type) {
 				case *gnmi.SubscribeResponse_SyncResponse:
 					return
