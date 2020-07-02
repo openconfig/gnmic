@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -29,6 +30,7 @@ import (
 	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/outputs"
 	_ "github.com/karimra/gnmic/outputs/all"
+	"github.com/manifoldco/promptui"
 	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
@@ -69,14 +71,14 @@ var subscribeCmd = &cobra.Command{
 			return fmt.Errorf("failed getting targets config: %v", err)
 		}
 		if debug {
-			logger.Printf("targets: %+v", targetsConfig)
+			logger.Printf("targets: %s", targetsConfig)
 		}
 		subscriptionsConfig, err := getSubscriptions()
 		if err != nil {
 			return fmt.Errorf("failed getting subscriptions config: %v", err)
 		}
 		if debug {
-			logger.Printf("subscriptions: %+v", subscriptionsConfig)
+			logger.Printf("subscriptions: %s", subscriptionsConfig)
 		}
 		outs, err := getOutputs()
 		if err != nil {
@@ -99,14 +101,6 @@ var subscribeCmd = &cobra.Command{
 
 		coll := collector.NewCollector(ctx, cfg, targetsConfig, subscriptionsConfig, outs, createCollectorDialOpts(), logger)
 
-		// polledSubsChan := make(map[string]chan string)
-		// waitChan := make(chan struct{})
-		//if subscReq.GetSubscribe().Mode == gnmi.SubscriptionList_POLL {
-		// for i := range targets {
-		// 	polledSubsChan[targets[i].Address] = targets[i].PollChan
-		// }
-		// }
-
 		wg := new(sync.WaitGroup)
 		wg.Add(len(targetsConfig))
 		for tName := range coll.Targets {
@@ -118,47 +112,66 @@ var subscribeCmd = &cobra.Command{
 				}
 			}(tName)
 		}
-		for _, sub := range subscriptionsConfig {
-			if strings.ToUpper(sub.Mode) == "POLL" {
-
-			}
-		}
-		//if subscReq.GetSubscribe().Mode == gnmi.SubscriptionList_POLL {
-		// 	addresses := make([]string, 0, len(targets))
-		// 	for i := range targets {
-		// 		addresses = append(addresses, targets[i].Address)
-		// 	}
-		// 	sort.Slice(addresses, func(i, j int) bool {
-		// 		return addresses[i] < addresses[j]
-		// 	})
-		// 	s := promptui.Select{
-		// 		Label:        "select target to poll",
-		// 		Items:        addresses,
-		// 		HideSelected: true,
-		// 	}
-		// 	go func() {
-		// 		for {
-		// 			select {
-		// 			case <-waitChan:
-		// 				_, addr, err := s.Run()
-		// 				if err != nil {
-		// 					fmt.Printf("failed selecting target to poll: %v\n", err)
-		// 					continue
-		// 				}
-		// 				if _, ok := polledSubsChan[addr]; !ok {
-		// 					fmt.Printf("unknown target: %s\n", addr)
-		// 					continue
-		// 				}
-		// 				logger.Printf("polling address '%s'", addr)
-		// 				polledSubsChan[addr] <- ""
-		// 			case <-ctx.Done():
-		// 				return
-		// 			}
-		// 		}
-		// 	}()
-		// 	waitChan <- struct{}{}
-		//}
 		wg.Wait()
+		polledTargetsSubscriptions := coll.PolledSubscriptionsTargets()
+		if len(polledTargetsSubscriptions) > 0 {
+			pollTargets := make([]string, 0, len(polledTargetsSubscriptions))
+			for t := range polledTargetsSubscriptions {
+				pollTargets = append(pollTargets, t)
+			}
+			sort.Slice(pollTargets, func(i, j int) bool {
+				return pollTargets[i] < pollTargets[j]
+			})
+			s := promptui.Select{
+				Label:        "select target to poll",
+				Items:        pollTargets,
+				HideSelected: true,
+			}
+			waitChan := make(chan struct{}, 1)
+			waitChan <- struct{}{}
+			go func() {
+				for {
+					select {
+					case <-waitChan:
+						_, name, err := s.Run()
+						if err != nil {
+							fmt.Printf("failed selecting target to poll: %v\n", err)
+							continue
+						}
+						ss := promptui.Select{
+							Label:        "select subscription to poll",
+							Items:        polledTargetsSubscriptions[name],
+							HideSelected: true,
+						}
+						_, subName, err := ss.Run()
+						if err != nil {
+							fmt.Printf("failed selecting subscription to poll: %v\n", err)
+							continue
+						}
+						response, err := coll.TargetPoll(name, subName)
+						if err != nil {
+							fmt.Printf("target '%s', subscription '%s': poll response error:%v", name, subName, err)
+							continue
+						}
+						b, err := coll.FormatMsg(nil, response)
+						if err != nil {
+							fmt.Printf("target '%s', subscription '%s': poll response formatting error:%v", name, subName, err)
+							continue
+						}
+						dst := new(bytes.Buffer)
+						err = json.Indent(dst, b, "", "  ")
+						if err != nil {
+							fmt.Printf("failed to indent poll response from '%s': %v\n", name, err)
+							continue
+						}
+						fmt.Println(string(b))
+						waitChan <- struct{}{}
+					case <-ctx.Done():
+						return
+					}
+				}
+			}()
+		}
 		coll.Start()
 		return nil
 	},
@@ -449,7 +462,6 @@ func getOutputs() (map[string][]outputs.Output, error) {
 			return nil, fmt.Errorf("unknown configuration format: %T : %v", d, d)
 		}
 	}
-	fmt.Printf("%+v\n", outputDestinations)
 	if !viper.GetBool("quiet") {
 
 	}
@@ -461,6 +473,7 @@ func getSubscriptions() (map[string]*collector.SubscriptionConfig, error) {
 	paths := viper.GetStringSlice("subscribe-path")
 	if len(paths) > 0 {
 		sub := new(collector.SubscriptionConfig)
+		sub.Name = "default"
 		sub.Paths = paths
 		sub.Prefix = viper.GetString("subscribe-prefix")
 		sub.Mode = viper.GetString("subscribe-subscription-mode")

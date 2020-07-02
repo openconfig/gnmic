@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -22,6 +23,15 @@ type SubscriptionConfig struct {
 	HeartbeatInterval time.Duration
 	SuppressRedundant bool
 	UpdatesOnly       bool
+}
+
+// String //
+func (sc *SubscriptionConfig) String() string {
+	b, err := json.Marshal(sc)
+	if err != nil {
+		return ""
+	}
+	return string(b)
 }
 
 func (sc *SubscriptionConfig) setDefaults() error {

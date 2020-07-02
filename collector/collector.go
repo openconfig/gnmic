@@ -95,7 +95,6 @@ func NewCollector(ctx context.Context,
 func (c *Collector) InitTarget(tc *TargetConfig) error {
 	t := NewTarget(tc)
 	//
-
 	t.Subscriptions = make([]*SubscriptionConfig, 0, len(tc.Subscriptions))
 	for _, subName := range tc.Subscriptions {
 		if sub, ok := c.Subscriptions[subName]; ok {
@@ -108,7 +107,6 @@ func (c *Collector) InitTarget(tc *TargetConfig) error {
 			t.Subscriptions = append(t.Subscriptions, sub)
 		}
 	}
-
 	//
 	t.Outputs = make([]outputs.Output, 0, len(tc.Outputs))
 	for _, outName := range tc.Outputs {
@@ -263,4 +261,20 @@ func (c *Collector) TargetPoll(targetName, subscriptionName string) (*gnmi.Subsc
 		return nil, fmt.Errorf("unknown target name '%s'", targetName)
 	}
 	return nil, fmt.Errorf("unknown subscription name '%s'", subscriptionName)
+}
+
+// PolledSubscriptionsTargets returns a map of target name to a list of subscription names that have Mode == POLL
+func (c *Collector) PolledSubscriptionsTargets() map[string][]string {
+	result := make(map[string][]string)
+	for tn, target := range c.Targets {
+		for _, sub := range target.Subscriptions {
+			if strings.ToUpper(sub.Mode) == "POLL" {
+				if result[tn] == nil {
+					result[tn] = make([]string, 0)
+				}
+				result[tn] = append(result[tn], sub.Name)
+			}
+		}
+	}
+	return result
 }
