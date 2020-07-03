@@ -115,6 +115,7 @@ func (sc *SubscriptionConfig) CreateSubscribeRequest() (*gnmi.SubscribeRequest, 
 	}, nil
 }
 
+// SubscribeResponse //
 type SubscribeResponse struct {
 	SubscriptionName string
 	Response         *gnmi.SubscribeResponse
