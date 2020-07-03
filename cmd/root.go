@@ -586,7 +586,6 @@ func createTargets() (map[string]*collector.TargetConfig, error) {
 		return nil, fmt.Errorf("no targets found")
 	}
 	for addr, t := range targetsMap {
-		tc := new(collector.TargetConfig)
 		_, _, err := net.SplitHostPort(addr)
 		if err != nil {
 			if strings.Contains(err.Error(), "missing port in address") {
@@ -596,9 +595,19 @@ func createTargets() (map[string]*collector.TargetConfig, error) {
 				return nil, fmt.Errorf("error parsing address '%s': %v", addr, err)
 			}
 		}
+		tc := new(collector.TargetConfig)
 		switch t := t.(type) {
 		case map[string]interface{}:
-			err = mapstructure.Decode(t, tc)
+			decoder, err := mapstructure.NewDecoder(
+				&mapstructure.DecoderConfig{
+					DecodeHook: mapstructure.StringToTimeDurationHookFunc(),
+					Result:     tc,
+				},
+			)
+			if err != nil {
+				return nil, err
+			}
+			err = decoder.Decode(t)
 			if err != nil {
 				return nil, err
 			}
@@ -611,7 +620,6 @@ func createTargets() (map[string]*collector.TargetConfig, error) {
 		if viper.GetBool("debug") {
 			logger.Printf("read target config: %s", tc)
 		}
-
 		targets[tc.Name] = tc
 	}
 	return targets, nil
