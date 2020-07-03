@@ -8,8 +8,6 @@ tls-cert: /path/to/client.crt
 
 targets:
   172.17.0.100:
-    username: ""
-    password: ""
     timeout: 2s
     subscriptions:
       - sub1
@@ -17,13 +15,16 @@ targets:
     username: sros
     password: sros
     insecure: true
-    tls-key: dummy/path/file1
-    tls-cert: dummy/path/file2
     subscriptions:
       - sub1
       - sub2
+    outputs:
+      - group1
+      - group3
   172.17.0.102:57000:
     password: sros123
+    tls-key: dummy/path/file1
+    tls-cert: dummy/path/file2
 
 subscriptions:
   sub1:
@@ -39,14 +40,11 @@ subscriptions:
 
 outputs:
   group1:
-    - filename: local.log
-      type: file
     - fileType: stdout
       type: file
   group2:
     - type: file
       filename: local.log
-      
     - type: nats
       address: localhost:4222
       subjectPrefix: telemetry
@@ -60,8 +58,8 @@ outputs:
       subject: telemetry
       username:
       password:
-      name:
-      clusterName:
+      name: 
+      clusterName: test-cluster
       timeout:
       pingInterval:
       pingRetry:
