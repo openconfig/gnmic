@@ -27,12 +27,10 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"sort"
 	"strings"
 	"syscall"
 	"time"
 
-	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/karimra/gnmic/collector"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/mapstructure"
@@ -42,7 +40,6 @@ import (
 	"github.com/spf13/viper"
 	"golang.org/x/crypto/ssh/terminal"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/grpclog"
 )
 
@@ -225,45 +222,6 @@ func readPassword() (string, error) {
 	fmt.Println()
 	return string(pass), nil
 }
-func createGrpcConn(ctx context.Context, address string, clientMetrics *grpc_prometheus.ClientMetrics) (*grpc.ClientConn, error) {
-	opts := []grpc.DialOption{}
-	opts = append(opts, grpc.WithBlock())
-	if viper.GetInt("max-msg-size") > 0 {
-		opts = append(opts, grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(viper.GetInt("max-msg-size"))))
-	}
-	if !viper.GetBool("proxy-from-env") {
-		opts = append(opts, grpc.WithNoProxy())
-	}
-	if viper.GetBool("insecure") {
-		opts = append(opts, grpc.WithInsecure())
-	} else {
-		tlsConfig := &tls.Config{
-			Renegotiation:      tls.RenegotiateNever,
-			InsecureSkipVerify: viper.GetBool("skip-verify"),
-		}
-		err := loadCerts(tlsConfig)
-		if err != nil {
-			logger.Printf("failed loading certificates: %v", err)
-		}
-
-		err = loadCACerts(tlsConfig)
-		if err != nil {
-			logger.Printf("failed loading CA certificates: %v", err)
-		}
-		opts = append(opts, grpc.WithDisableRetry())
-		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
-	}
-	if clientMetrics != nil {
-		opts = append(opts, grpc.WithStreamInterceptor(clientMetrics.StreamClientInterceptor()))
-	}
-	timeoutCtx, cancel := context.WithTimeout(ctx, viper.GetDuration("timeout"))
-	defer cancel()
-	conn, err := grpc.DialContext(timeoutCtx, address, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return conn, nil
-}
 func gnmiPathToXPath(p *gnmi.Path) string {
 	if p == nil {
 		return ""
@@ -425,99 +383,6 @@ func setupCloseHandler(cancelFn context.CancelFunc) {
 	}()
 }
 
-func getTargets() ([]*target, error) {
-	var err error
-	addresses := viper.GetStringSlice("address")
-	targets := make([]*target, 0, len(addresses))
-	defGrpcPort := viper.GetString("port")
-	defUsername := viper.GetString("username")
-	defPassword := viper.GetString("password")
-	if len(addresses) > 0 {
-		if defUsername == "" {
-			if defUsername, err = readUsername(); err != nil {
-				return nil, err
-			}
-		}
-		if defPassword == "" {
-			if defPassword, err = readPassword(); err != nil {
-				return nil, err
-			}
-		}
-		for _, addr := range addresses {
-			tg := new(target)
-			_, _, err := net.SplitHostPort(addr)
-			if err != nil {
-				if strings.Contains(err.Error(), "missing port in address") {
-					addr = net.JoinHostPort(addr, defGrpcPort)
-				} else {
-					logger.Printf("error parsing address '%s': %v", addr, err)
-					return nil, fmt.Errorf("error parsing address '%s': %v", addr, err)
-				}
-			}
-			tg.Address = addr
-			tg.Username = defUsername
-			tg.Password = defPassword
-			targets = append(targets, tg)
-		}
-		sort.Slice(targets, func(i, j int) bool {
-			return targets[i].Address < targets[j].Address
-		})
-		return targets, nil
-	}
-	targetsInt := viper.Get("targets")
-	targetsMap := make(map[string]interface{})
-	switch targetsInt := targetsInt.(type) {
-	case string:
-		for _, addr := range strings.Split(targetsInt, " ") {
-			targetsMap[addr] = nil
-		}
-	case map[string]interface{}:
-		targetsMap = targetsInt
-	default:
-		return nil, fmt.Errorf("unexpected targets format, got: %T", targetsInt)
-	}
-	ltm := len(targetsMap)
-	if ltm == 0 {
-		return nil, fmt.Errorf("no targets found")
-	}
-	targets = make([]*target, 0, ltm)
-	for addr, t := range targetsMap {
-		tg := new(target)
-		_, _, err := net.SplitHostPort(addr)
-		if err != nil {
-			if strings.Contains(err.Error(), "missing port in address") {
-				addr = net.JoinHostPort(addr, defGrpcPort)
-			} else {
-				logger.Printf("error parsing address '%s': %v", addr, err)
-				return nil, fmt.Errorf("error parsing address '%s': %v", addr, err)
-			}
-		}
-
-		tg.Address = addr
-		switch t := t.(type) {
-		case map[string]interface{}:
-			err = mapstructure.Decode(t, tg)
-			if err != nil {
-				return nil, err
-			}
-		case nil:
-		default:
-			return nil, fmt.Errorf("unexpected targets format, got a %T", t)
-		}
-		if tg.Username == "" {
-			tg.Username = defUsername
-		}
-		if tg.Password == "" {
-			tg.Password = defPassword
-		}
-		targets = append(targets, tg)
-	}
-	sort.Slice(targets, func(i, j int) bool {
-		return targets[i].Address < targets[j].Address
-	})
-	return targets, nil
-}
-
 func numTargets() int {
 	addressesLength := len(viper.GetStringSlice("address"))
 	if addressesLength > 0 {
@@ -534,23 +399,24 @@ func numTargets() int {
 }
 
 func createTargets() (map[string]*collector.TargetConfig, error) {
-	var err error
 	addresses := viper.GetStringSlice("address")
 	targets := make(map[string]*collector.TargetConfig)
 	defGrpcPort := viper.GetString("port")
-	defUsername := viper.GetString("username")
-	defPassword := viper.GetString("password")
 	// case address is defined in config file
 	if len(addresses) > 0 {
-		if defUsername == "" {
-			if defUsername, err = readUsername(); err != nil {
+		if viper.GetString("username") == "" {
+			defUsername, err := readUsername()
+			if err != nil {
 				return nil, err
 			}
+			viper.Set("username", defUsername)
 		}
-		if defPassword == "" {
-			if defPassword, err = readPassword(); err != nil {
+		if viper.GetString("password") == "" {
+			defPassword, err := readPassword()
+			if err != nil {
 				return nil, err
 			}
+			viper.Set("password", defPassword)
 		}
 		for _, addr := range addresses {
 			tc := new(collector.TargetConfig)
@@ -648,7 +514,7 @@ func setTargetConfigDefaults(tc *collector.TargetConfig) {
 		b := viper.GetBool("skip-verify")
 		tc.SkipVerify = &b
 	}
-	if tc.Insecure != nil && *tc.Insecure == false {
+	if tc.Insecure != nil && !*tc.Insecure {
 		if tc.TLSCA == nil {
 			s := viper.GetString("tls-ca")
 			if s != "" {

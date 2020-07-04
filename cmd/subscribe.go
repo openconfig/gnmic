@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -26,8 +25,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/gnxi/utils/xpath"
-	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/outputs"
 	_ "github.com/karimra/gnmic/outputs/all"
@@ -36,7 +33,6 @@ import (
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/prototext"
 )
 
@@ -190,170 +186,6 @@ var subscribeCmd = &cobra.Command{
 	},
 }
 
-func subRequest(ctx context.Context,
-	req *gnmi.SubscribeRequest,
-	target *collector.Target,
-	wg *sync.WaitGroup,
-	polledSubsChan map[string]chan string,
-	waitChan chan struct{},
-	clientMetrics *grpc_prometheus.ClientMetrics,
-	outs []outputs.Output,
-) {
-	defer wg.Done()
-	opts := createCollectorDialOpts()
-	if clientMetrics != nil {
-		opts = append(opts, grpc.WithStreamInterceptor(clientMetrics.StreamClientInterceptor()))
-	}
-	err := target.CreateGNMIClient(ctx, opts...)
-	if err != nil {
-		logger.Printf("failed to create a client for target '%s' : %v", target.Config.Name, err)
-		return
-	}
-	xsubscReq := req
-	models := viper.GetStringSlice("subscribe-model")
-	if len(models) > 0 {
-		spModels, unspModels, err := filterModels(ctx, target, models)
-		if err != nil {
-			logger.Printf("failed getting supported models from '%s': %v", target.Config.Address, err)
-			return
-		}
-		if len(unspModels) > 0 {
-			logger.Printf("found unsupported models for target '%s': %+v", target.Config.Address, unspModels)
-		}
-		if len(spModels) > 0 {
-			modelsData := make([]*gnmi.ModelData, 0, len(spModels))
-			for _, m := range spModels {
-				modelsData = append(modelsData, m)
-			}
-			xsubscReq = &gnmi.SubscribeRequest{
-				Request: &gnmi.SubscribeRequest_Subscribe{
-					Subscribe: &gnmi.SubscriptionList{
-						Prefix:       req.GetSubscribe().GetPrefix(),
-						Mode:         req.GetSubscribe().GetMode(),
-						Encoding:     req.GetSubscribe().GetEncoding(),
-						Subscription: req.GetSubscribe().GetSubscription(),
-						UseModels:    modelsData,
-						Qos:          req.GetSubscribe().GetQos(),
-						UpdatesOnly:  viper.GetBool("subscribe-updates-only"),
-					},
-				},
-			}
-		}
-	}
-	go target.Subscribe(ctx, xsubscReq, "")
-	for {
-		lock := new(sync.Mutex)
-		select {
-		case subscribeResponse := <-target.SubscribeResponses:
-			switch resp := subscribeResponse.Response.Response.(type) {
-			case *gnmi.SubscribeResponse_Update:
-				b, err := formatSubscribeResponse(map[string]interface{}{"source": target.Config.Address}, subscribeResponse.Response)
-				if err != nil {
-					logger.Printf("failed to format subscribe response: %v", err)
-					return
-				}
-				m := outputs.Meta{}
-				m["source"] = target.Config.Address
-				for _, o := range outs {
-					go o.Write(b, m)
-				}
-				if !viper.GetBool("subscribe-quiet") && viper.GetString("format") != "textproto" {
-					buff := new(bytes.Buffer)
-					err = json.Indent(buff, b, "", "  ")
-					if err != nil {
-						logger.Printf("failed to indent msg: err=%v, msg=%s", err, string(b))
-						return
-					}
-					lock.Lock()
-					fmt.Println(buff.String())
-					lock.Unlock()
-				}
-			case *gnmi.SubscribeResponse_SyncResponse:
-				logger.Printf("received sync response=%+v from %s\n", resp.SyncResponse, target.Config.Address)
-				if req.GetSubscribe().Mode == gnmi.SubscriptionList_ONCE {
-					return
-				}
-			}
-		case err := <-target.Errors:
-			logger.Printf("subscription error: %v", err)
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
-func createSubscribeRequest() (*gnmi.SubscribeRequest, error) {
-	paths := viper.GetStringSlice("subscribe-path")
-	if len(paths) == 0 {
-		return nil, errors.New("no path provided")
-	}
-	gnmiPrefix, err := xpath.ToGNMIPath(viper.GetString("subscribe-prefix"))
-	if err != nil {
-		return nil, fmt.Errorf("prefix parse error: %v", err)
-	}
-	encodingVal, ok := gnmi.Encoding_value[strings.Replace(strings.ToUpper(viper.GetString("encoding")), "-", "_", -1)]
-	if !ok {
-		return nil, fmt.Errorf("invalid encoding type '%s'", viper.GetString("encoding"))
-	}
-	modeVal, ok := gnmi.SubscriptionList_Mode_value[strings.ToUpper(viper.GetString("subscribe-subscription-mode"))]
-	if !ok {
-		return nil, fmt.Errorf("invalid subscription list type '%s'", viper.GetString("subscribe-subscription-mode"))
-	}
-	qos := &gnmi.QOSMarking{Marking: viper.GetUint32("qos")}
-	samplingInterval, err := time.ParseDuration(viper.GetString("subscribe-sampling-interval"))
-	if err != nil {
-		return nil, err
-	}
-	heartbeatInterval, err := time.ParseDuration(viper.GetString("subscribe-heartbeat-interval"))
-	if err != nil {
-		return nil, err
-	}
-	subscriptions := make([]*gnmi.Subscription, len(paths))
-	for i, p := range paths {
-		gnmiPath, err := xpath.ToGNMIPath(strings.TrimSpace(p))
-		if err != nil {
-			return nil, fmt.Errorf("path parse error: %v", err)
-		}
-		subscriptions[i] = &gnmi.Subscription{Path: gnmiPath}
-		switch gnmi.SubscriptionList_Mode(modeVal) {
-		case gnmi.SubscriptionList_STREAM:
-			mode, ok := gnmi.SubscriptionMode_value[strings.Replace(strings.ToUpper(viper.GetString("subscribe-stream-subscription-mode")), "-", "_", -1)]
-			if !ok {
-				return nil, fmt.Errorf("invalid streamed subscription mode %s", viper.GetString("subscribe-stream-subscription-mode"))
-			}
-			subscriptions[i].Mode = gnmi.SubscriptionMode(mode)
-			switch gnmi.SubscriptionMode(mode) {
-			case gnmi.SubscriptionMode_ON_CHANGE:
-				subscriptions[i].HeartbeatInterval = uint64(heartbeatInterval.Nanoseconds())
-			case gnmi.SubscriptionMode_SAMPLE:
-				subscriptions[i].SampleInterval = uint64(samplingInterval.Nanoseconds())
-				subscriptions[i].SuppressRedundant = viper.GetBool("subscribe-suppress-redundant")
-				if subscriptions[i].SuppressRedundant {
-					subscriptions[i].HeartbeatInterval = uint64(heartbeatInterval.Nanoseconds())
-				}
-			case gnmi.SubscriptionMode_TARGET_DEFINED:
-				subscriptions[i].SampleInterval = uint64(samplingInterval.Nanoseconds())
-				subscriptions[i].SuppressRedundant = viper.GetBool("subscribe-suppress-redundant")
-				if subscriptions[i].SuppressRedundant {
-					subscriptions[i].HeartbeatInterval = uint64(heartbeatInterval.Nanoseconds())
-				}
-			}
-		}
-	}
-	return &gnmi.SubscribeRequest{
-		Request: &gnmi.SubscribeRequest_Subscribe{
-			Subscribe: &gnmi.SubscriptionList{
-				Prefix:       gnmiPrefix,
-				Mode:         gnmi.SubscriptionList_Mode(modeVal),
-				Encoding:     gnmi.Encoding(encodingVal),
-				Subscription: subscriptions,
-				Qos:          qos,
-				UpdatesOnly:  viper.GetBool("subscribe-updates-only"),
-			},
-		},
-	}, nil
-}
-
 func init() {
 	rootCmd.AddCommand(subscribeCmd)
 	subscribeCmd.Flags().StringP("prefix", "", "", "subscribe request prefix")
@@ -440,7 +272,7 @@ func getOutputs() (map[string][]outputs.Output, error) {
 	if outDef == nil {
 		return nil, nil
 	}
-	outputDestinations := make(map[string][]outputs.Output, 0)
+	outputDestinations := make(map[string][]outputs.Output)
 	for name, d := range outDef {
 		dl := convert(d)
 		switch outs := dl.(type) {
@@ -475,7 +307,7 @@ func getOutputs() (map[string][]outputs.Output, error) {
 		}
 	}
 	if !viper.GetBool("quiet") {
-
+		// TODO
 	}
 	return outputDestinations, nil
 }
@@ -500,7 +332,7 @@ func getSubscriptions() (map[string]*collector.SubscriptionConfig, error) {
 		return subscriptions, nil
 	}
 	subDef := viper.GetStringMap("subscriptions")
-	if subDef == nil || len(subDef) == 0 {
+	if len(subDef) == 0 {
 		return subscriptions, nil
 	}
 	var err error

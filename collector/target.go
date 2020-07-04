@@ -213,7 +213,6 @@ func (t *Target) Subscribe(ctx context.Context, req *gnmi.SubscribeRequest, subs
 			}
 		}
 	}
-	return
 }
 
 // Export //

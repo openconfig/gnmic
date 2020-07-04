@@ -77,7 +77,6 @@ func reqCapability(ctx context.Context, target *collector.Target, wg *sync.WaitG
 	m.Lock()
 	printCapResponse(response, target.Config.Address)
 	m.Unlock()
-	return
 }
 
 func printCapResponse(r *gnmi.CapabilityResponse, address string) {

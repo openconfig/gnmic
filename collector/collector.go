@@ -116,9 +116,7 @@ func (c *Collector) InitTarget(tc *TargetConfig) error {
 	t.Outputs = make([]outputs.Output, 0, len(tc.Outputs))
 	for _, outName := range tc.Outputs {
 		if outs, ok := c.Outputs[outName]; ok {
-			for _, o := range outs {
-				t.Outputs = append(t.Outputs, o)
-			}
+			t.Outputs = append(t.Outputs, outs...)
 		}
 	}
 	if len(t.Outputs) == 0 {
