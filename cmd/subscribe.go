@@ -440,7 +440,6 @@ func getOutputs() (map[string][]outputs.Output, error) {
 	if outDef == nil {
 		return nil, nil
 	}
-	logger.Printf("found outputs: %+v", outDef)
 	outputDestinations := make(map[string][]outputs.Output, 0)
 	for name, d := range outDef {
 		dl := convert(d)
@@ -505,7 +504,6 @@ func getSubscriptions() (map[string]*collector.SubscriptionConfig, error) {
 		return subscriptions, nil
 	}
 	var err error
-	logger.Println(subDef)
 	for sn, s := range subDef {
 		sub := new(collector.SubscriptionConfig)
 		decoder, err := mapstructure.NewDecoder(
