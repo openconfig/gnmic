@@ -61,6 +61,7 @@ func NewCollector(ctx context.Context,
 		Handler: promhttp.HandlerFor(reg, promhttp.HandlerOpts{}),
 		Addr:    config.PrometheusAddress,
 	}
+	dialOpts = append(dialOpts, grpc.WithStreamInterceptor(grpcMetrics.StreamClientInterceptor()))
 	c := &Collector{
 		Config:        config,
 		Subscriptions: subscriptions,
