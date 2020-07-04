@@ -1,0 +1,107 @@
+{
+  "username": "admin",
+  "password": "sros",
+  "port": 57400,
+  "timeout": "5s",
+  "skip-verify": true,
+  "tls-key": "/path/to/client.key",
+  "tls-cert": "/path/to/client.crt",
+  "tls-ca": "/path/to/ca.crt",
+  "targets": {
+    "172.17.0.100": {
+      "timeout": "2s",
+      "subscriptions": [
+        "sub1"
+      ],
+      "ouputs": [
+        "group1",
+        "group3"
+      ]
+    },
+    "172.17.0.101": {
+      "username": "sros",
+      "password": "sros",
+      "insecure": true,
+      "subscriptions": [
+        "sub2"
+      ],
+      "outputs": [
+        "group2",
+        "group3"
+      ]
+    },
+    "172.17.0.102:57000": {
+      "password": "sros123",
+      "tls-key": "/path/file1",
+      "tls-cert": "/path/file2"
+    },
+    "172.17.0.103": null
+  },
+  "subscriptions": {
+    "sub1": {
+      "paths": [
+        "/configure/port[port-id=*]",
+        "/state/port[port-id=*]"
+      ],
+      "streamMode": "on_change"
+    },
+    "sub2": {
+      "paths": [
+        "/configure/port[port-id=*]/statistics"
+      ],
+      "streamMode": "sample",
+      "sample-interval": "10s"
+    }
+  },
+  "outputs": {
+    "group1": [
+      {
+        "type": "file",
+        "fileType": "stdout"
+      }
+    ],
+    "group2": [
+      {
+        "type": "file",
+        "filename": "local.log"
+      },
+      {
+        "type": "nats",
+        "address": "localhost:4222",
+        "subjectPrefix": "telemetry",
+        "username": null,
+        "password": null
+      }
+    ],
+    "group3": [
+      {
+        "type": "stan",
+        "address": "localhost:4223",
+        "subject": "telemetry",
+        "username": null,
+        "password": null,
+        "name": null,
+        "clusterName": "test-cluster",
+        "timeout": null,
+        "pingInterval": null,
+        "pingRetry": null
+      }
+    ],
+    "group4": [
+      {
+        "type": "kafka",
+        "address": "localhost:9092",
+        "topic": "telemetry",
+        "maxRetry": null,
+        "timeout": null
+      },
+      {
+        "type": "nats",
+        "address": "localhost:4222",
+        "subjectPrefix": "telemetry",
+        "username": null,
+        "password": null
+      }
+    ]
+  }
+}

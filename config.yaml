@@ -5,43 +5,47 @@ timeout: 5s
 skip-verify: true
 tls-key: /path/to/client.key
 tls-cert: /path/to/client.crt
+tls-ca: /path/to/ca.crt
 
 targets:
   172.17.0.100:
     timeout: 2s
     subscriptions:
       - sub1
+    ouputs:
+      - group1
+      - group3
   172.17.0.101:
     username: sros
     password: sros
     insecure: true
     subscriptions:
-      - sub1
       - sub2
     outputs:
-      - group1
+      - group2
       - group3
   172.17.0.102:57000:
     password: sros123
-    tls-key: dummy/path/file1
-    tls-cert: dummy/path/file2
-
+    tls-key: /path/file1
+    tls-cert: /path/file2
+  172.17.0.103:
+    
 subscriptions:
   sub1:
     paths:
       - /configure/port[port-id=*]
-      - /state
+      - /state/port[port-id=*]
     streamMode: on_change # target-defined # sample
   sub2:
     paths:
-       - /configure/port[port-id=*]
+       - /configure/port[port-id=*]/statistics
     streamMode: sample
-    sample-interval: 30s
+    sample-interval: 10s
 
 outputs:
   group1:
-    - fileType: stdout
-      type: file
+    - type: file
+      fileType: stdout
   group2:
     - type: file
       filename: local.log
@@ -50,8 +54,6 @@ outputs:
       subjectPrefix: telemetry
       username:
       password:
-    - type: file
-      filename: localFile.log
   group3:
     - type: stan
       address: localhost:4223
@@ -69,3 +71,8 @@ outputs:
       topic: telemetry
       maxRetry: 
       timeout:
+    - type: nats
+      address: localhost:4222
+      subjectPrefix: telemetry
+      username:
+      password:
