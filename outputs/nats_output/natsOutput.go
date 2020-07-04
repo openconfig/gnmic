@@ -2,6 +2,7 @@ package nats_output
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
@@ -52,6 +53,14 @@ type Config struct {
 	ConnectTimeWait time.Duration
 }
 
+func (n *NatsOutput) String() string {
+	b, err := json.Marshal(n)
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
 // Init //
 func (n *NatsOutput) Init(cfg map[string]interface{}, logger *log.Logger) error {
 	err := mapstructure.Decode(cfg, n.Cfg)
@@ -67,14 +76,14 @@ func (n *NatsOutput) Init(cfg map[string]interface{}, logger *log.Logger) error 
 		n.logger.SetFlags(logger.Flags())
 	}
 	if n.Cfg.Name == "" {
-		n.Cfg.Name = "gnmiclient-" + uuid.New().String()
+		n.Cfg.Name = "gnmic-" + uuid.New().String()
 	}
 	n.ctx, n.cancelFn = context.WithCancel(context.Background())
 	n.conn, err = n.createNATSConn(n.Cfg)
 	if err != nil {
 		return err
 	}
-	n.logger.Printf("initialized nats producer")
+	n.logger.Printf("initialized nats producer: %s", n.String())
 	return nil
 }
 

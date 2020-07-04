@@ -39,6 +39,14 @@ type Config struct {
 	FileType string
 }
 
+func (f *File) String() string {
+	b, err := json.Marshal(f)
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
 // Init //
 func (f *File) Init(cfg map[string]interface{}, logger *log.Logger) error {
 	c := new(Config)
@@ -67,7 +75,7 @@ func (f *File) Init(cfg map[string]interface{}, logger *log.Logger) error {
 		f.logger.SetFlags(logger.Flags())
 	}
 	f.stopChan = make(chan struct{})
-	f.logger.Printf("output initialized with config: %+v", f.Cfg)
+	f.logger.Printf("initialized file output: %s", f.String())
 	return nil
 }
 

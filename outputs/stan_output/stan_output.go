@@ -1,6 +1,7 @@
 package stan_output
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -49,6 +50,14 @@ type Config struct {
 	PingRetry    int
 }
 
+func (s *StanOutput) String() string {
+	b, err := json.Marshal(s)
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
 // Init //
 func (s *StanOutput) Init(cfg map[string]interface{}, logger *log.Logger) error {
 	err := mapstructure.Decode(cfg, s.Cfg)
@@ -56,7 +65,7 @@ func (s *StanOutput) Init(cfg map[string]interface{}, logger *log.Logger) error 
 		return err
 	}
 	if s.Cfg.Name == "" {
-		s.Cfg.Name = "gnmiclient-" + uuid.New().String()
+		s.Cfg.Name = "gnmic-" + uuid.New().String()
 	}
 	if s.Cfg.ClusterName == "" {
 		return fmt.Errorf("clusterName is mandatory")
@@ -71,7 +80,7 @@ func (s *StanOutput) Init(cfg map[string]interface{}, logger *log.Logger) error 
 		s.logger.SetFlags(logger.Flags())
 	}
 	s.stopChan = make(chan struct{})
-	s.logger.Printf("initialized stan producer")
+	s.logger.Printf("initialized stan producer: %s", s.String())
 	return nil
 }
 

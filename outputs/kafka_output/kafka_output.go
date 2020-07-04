@@ -1,6 +1,7 @@
 package kafka_output
 
 import (
+	"encoding/json"
 	"log"
 	"os"
 	"strings"
@@ -44,6 +45,14 @@ type Config struct {
 	Timeout  int
 }
 
+func (k *KafkaOutput) String() string {
+	b, err := json.Marshal(k)
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
 // Init /
 func (k *KafkaOutput) Init(cfg map[string]interface{}, logger *log.Logger) error {
 	err := mapstructure.Decode(cfg, k.Cfg)
@@ -77,6 +86,10 @@ func (k *KafkaOutput) Init(cfg map[string]interface{}, logger *log.Logger) error
 	config.Producer.Return.Successes = true
 	config.Producer.Timeout = time.Duration(k.Cfg.Timeout) * time.Second
 	k.producer, err = sarama.NewSyncProducer(strings.Split(k.Cfg.Address, ","), config)
+	if err != nil {
+		return err
+	}
+	k.logger.Printf("initialized kafka producer: %s", k.String())
 	return err
 }
 
