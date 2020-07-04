@@ -55,12 +55,6 @@ var cfgFile string
 var f io.WriteCloser
 var logger *log.Logger
 
-type target struct {
-	Address  string
-	Username string
-	Password string
-}
-
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "gnmic",

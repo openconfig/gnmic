@@ -269,8 +269,14 @@ func formatSubscribeResponse(meta map[string]interface{}, subResp *gnmi.Subscrib
 
 func getOutputs() (map[string][]outputs.Output, error) {
 	outDef := viper.GetStringMap("outputs")
-	if outDef == nil {
-		return nil, nil
+	if len(outDef) == 0 && !viper.GetBool("quiet") {
+		stdoutConfig := map[string]interface{}{
+			"type":     "file",
+			"fileType": "stdout",
+		}
+		stdoutFile := make([]interface{}, 1)
+		stdoutFile[0] = stdoutConfig
+		outDef["stdout"] = stdoutFile
 	}
 	outputDestinations := make(map[string][]outputs.Output)
 	for name, d := range outDef {
@@ -298,16 +304,12 @@ func getOutputs() (map[string][]outputs.Output, error) {
 					}
 					logger.Printf("missing output 'type' under %v", ou)
 				default:
-					logger.Printf("unknown configuration format expecting a map[string]interface{}: %T : %v", d, d)
+					logger.Printf("unknown configuration format expecting a map[string]interface{}: got %T : %v", d, d)
 				}
 			}
 		default:
-			logger.Printf("unknown configuration format: %T : %v", d, d)
 			return nil, fmt.Errorf("unknown configuration format: %T : %v", d, d)
 		}
-	}
-	if !viper.GetBool("quiet") {
-		// TODO
 	}
 	return outputDestinations, nil
 }
