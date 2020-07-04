@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"strings"
 	"sync"
 	"time"
 
@@ -255,4 +256,14 @@ func loadCerts(tlscfg *tls.Config, c *TargetConfig) error {
 		tlscfg.RootCAs = certPool
 	}
 	return nil
+}
+
+func (t *Target) numberOfOnceSubscriptions() int {
+	num := 0
+	for _, sub := range t.Subscriptions {
+		if strings.ToUpper(sub.Mode) == "ONCE" {
+			num++
+		}
+	}
+	return num
 }
