@@ -162,6 +162,8 @@ func (c *Collector) Start() {
 	for _, t := range c.Targets {
 		go func(t *Target) {
 			defer wg.Done()
+			numOnceSubscriptions := t.numberOfOnceSubscriptions()
+			remainingOnceSubscriptions := numOnceSubscriptions
 			numSubscriptions := len(t.Subscriptions)
 			for {
 				select {
@@ -174,16 +176,17 @@ func (c *Collector) Start() {
 						c.Logger.Printf("failed formatting msg from target '%s': %v", t.Config.Name, err)
 						continue
 					}
-					t.Export(b, outputs.Meta{"source": t.Config.Name})
-					if numSubscriptions == 1 {
-						switch rsp.Response.Response.(type) {
-						case *gnmi.SubscribeResponse_SyncResponse:
-							if sub, ok := c.Subscriptions[rsp.SubscriptionName]; ok {
-								if strings.ToUpper(sub.Mode) == "ONCE" {
-									return
-								}
+					go t.Export(b, outputs.Meta{"source": t.Config.Name})
+					if remainingOnceSubscriptions > 0 {
+						if c.subscriptionMode(rsp.SubscriptionName) == "ONCE" {
+							switch rsp.Response.Response.(type) {
+							case *gnmi.SubscribeResponse_SyncResponse:
+								remainingOnceSubscriptions--
 							}
 						}
+					}
+					if remainingOnceSubscriptions == 0 && numSubscriptions == numOnceSubscriptions {
+						return
 					}
 				case err := <-t.Errors:
 					if err == io.EOF {
@@ -292,4 +295,11 @@ func (c *Collector) PolledSubscriptionsTargets() map[string][]string {
 		}
 	}
 	return result
+}
+
+func (c *Collector) subscriptionMode(name string) string {
+	if sub, ok := c.Subscriptions[name]; ok {
+		return strings.ToUpper(sub.Mode)
+	}
+	return ""
 }
