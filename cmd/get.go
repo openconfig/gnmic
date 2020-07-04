@@ -63,6 +63,10 @@ func getRequest(ctx context.Context, req *gnmi.GetRequest, target *collector.Tar
 	opts := createCollectorDialOpts()
 	err := target.CreateGNMIClient(ctx, opts...)
 	if err != nil {
+		if err == context.DeadlineExceeded {
+			logger.Printf("failed to create a gRPC client for target '%s' timeout (%s) reached: %v", target.Config.Name, target.Config.Timeout, err)
+			return
+		}
 		logger.Printf("failed to create a client for target '%s' : %v", target.Config.Name, err)
 		return
 	}
