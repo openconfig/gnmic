@@ -8,43 +8,53 @@
 
 ---
 
-gNMI CLI client that provides full support for Capabilities, Get, Set and Subscribe RPCs.
+`gnmic` (_pronoun.: gee·en·em·eye·see_) is a gNMI CLI client that provides full support for Capabilities, Get, Set and Subscribe RPCs with collector capabilities.
 
-Documentation available at [https://gnmiclient.kmrd.dev](https://gnmic.kmrd.dev)
+Documentation available at [https://gnmic.kmrd.dev](https://gnmic.kmrd.dev)
 
 ## Features
 * **Full support for gNMI RPCs**  
-  Every gNMI RPC has a [corresponding command](https://gnmiclient.kmrd.dev/basic_usage/) with all of the RPC options configurable by means of the local and global flags.
+  Every gNMI RPC has a [corresponding command](https://gnmic.kmrd.dev/basic_usage/) with all of the RPC options configurable by means of the local and global flags.
 * **Multi-target operations**  
-  Commands can operate on multiple gNMI targets for bulk configuration/retrieval.
+  Commands can operate on [multiple gNMI targets](https://gnmic.kmrd.dev/advanced/multi_target/) for bulk configuration/retrieval/subscription.
 * **File based configuration**  
-  gNMI Client understands configurations provided in a file. The configuration options are consistent with the CLI flags.
-* **Inspect gNMI messages**  
-  With the `textproto` output you can see the actual gNMI messages being sent/received. Its like having a gNMI looking glass!
+  gnmic supports [configurations provided in a file](https://gnmic.kmrd.dev/advanced/file_cfg/). The configuration options are consistent with the CLI flags.
+* **Inspect raw gNMI messages**  
+  With the `textproto` output format you can see the actual gNMI messages being sent/received. Its like having a gNMI looking glass!
 * **(In)secure gRPC connection**  
-  gNMI client supports both TLS and non-TLS transports so you can start using it in a lab environment without having to care about the PKI.
+  gNMI client supports both TLS and [non-TLS](https://gnmic.kmrd.dev/global_flags/#insecure) transports so you can start using it in a lab environment without having to care about the PKI.
 * **Dial-out telemetry**  
-  The dial-out telemetry server is provided for Nokia SR OS.
+  The [dial-out telemetry server](https://gnmic.kmrd.dev/cmd/listen/) is provided for Nokia SR OS.
 * **Pre-built multi-platform binaries**  
-  gNMI Client is available for major operating systems and the [installation](https://gnmiclient.kmrd.dev/install/) is a breeze.
+  Statically linked [binaries](https://github.com/karimra/gnmic/releases) made in our release pipeline are available for major operating systems and architectures. Making [installation](https://gnmic.kmrd.dev/install/) a breeze!
 * **Extensive and friendly documentation**  
-  You won't be in need to dive into the source code to understand how to use the gNMI CLI client, our [documentation site](https://gnmiclient.kmrd.dev) has you covered.
+  You won't be in need to dive into the source code to understand how `gnimc` works, our [documentation site](https://gnmic.kmrd.dev) has you covered.
 
-## Usage
+## Quick start guide
+### Installation
 ```
-$ gnmic --help
-run gnmi rpcs from the terminal
+curl -sL https://github.com/karimra/gnmic/raw/master/install.sh | sudo bash
+```
+### Capabilities request
+```
+gnmic -a 10.1.0.11:57400 -u admin -p admin --insecure capabilities
+```
 
-Usage:
-  gnmic [command]
+### Get request
+```
+gnmic -a 10.1.0.11:57400 -u admin -p admin --insecure \
+      get --path /state/system/platform
+```
 
-Available Commands:
-  capabilities query targets gnmi capabilities
-  get          run gnmi get on targets
-  help         Help about any command
-  listen       listens for telemetry dialout updates from the node
-  path         generate gnmi or xpath style from yang file
-  set          run gnmi set on targets
-  subscribe    subscribe to gnmi updates on targets
-  version      show gnmic version
+### Set request
+```
+gnmic -a 10.1.0.11:57400 -u admin -p admin --insecure \
+      set --update-path /configure/system/name \
+          --update-value gnmic_demo
+```
+
+### Subscribe request
+```
+gnmic -a 10.1.0.11:57400 -u admin -p admin --insecure \
+      sub --path "/state/port[port-id=1/1/c1/1]/statistics/in-packets"
 ```
