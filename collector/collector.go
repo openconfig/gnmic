@@ -130,7 +130,6 @@ func (c *Collector) InitTarget(tc *TargetConfig) error {
 	if err != nil {
 		return err
 	}
-	t.ctx, t.cancelFn = context.WithCancel(c.ctx)
 	c.m.Lock()
 	defer c.m.Unlock()
 	c.Targets[t.Config.Name] = t
@@ -197,8 +196,6 @@ func (c *Collector) Start() {
 						return
 					}
 					c.Logger.Printf("target '%s' error: %v", t.Config.Name, err)
-				case <-t.ctx.Done():
-					return
 				}
 			}
 		}(t)

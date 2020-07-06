@@ -33,9 +33,6 @@ type Target struct {
 	PollChan           chan string                          // subscription name to be polled
 	SubscribeResponses chan *SubscribeResponse
 	Errors             chan error
-
-	ctx      context.Context
-	cancelFn context.CancelFunc
 }
 
 // TargetConfig //
@@ -230,9 +227,6 @@ func (t *Target) Export(msg []byte, m outputs.Meta) {
 	}
 	wg.Wait()
 }
-
-// Stop //
-func (t *Target) Stop() { t.cancelFn() }
 
 func loadCerts(tlscfg *tls.Config, c *TargetConfig) error {
 	if *c.TLSCert != "" && *c.TLSKey != "" {
