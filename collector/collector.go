@@ -57,8 +57,10 @@ func NewCollector(ctx context.Context,
 	reg.MustRegister(prometheus.NewGoCollector())
 	grpcMetrics.EnableClientHandlingTimeHistogram()
 	reg.MustRegister(grpcMetrics)
+	handler := http.NewServeMux()
+	handler.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
 	httpServer := &http.Server{
-		Handler: promhttp.HandlerFor(reg, promhttp.HandlerOpts{}),
+		Handler: handler,
 		Addr:    config.PrometheusAddress,
 	}
 	dialOpts = append(dialOpts, grpc.WithStreamInterceptor(grpcMetrics.StreamClientInterceptor()))
