@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -33,13 +32,13 @@ type Collector struct {
 	Outputs       map[string][]outputs.Output
 	DialOpts      []grpc.DialOption
 	//
-	m             *sync.Mutex
-	Targets       map[string]*Target
-	Logger        *log.Logger
-	httpServer    *http.Server
-	defaultOutput io.Writer
-	ctx           context.Context
-	cancelFn      context.CancelFunc
+	m          *sync.Mutex
+	Targets    map[string]*Target
+	Logger     *log.Logger
+	httpServer *http.Server
+
+	ctx      context.Context
+	cancelFn context.CancelFunc
 }
 
 // NewCollector //
@@ -73,7 +72,6 @@ func NewCollector(ctx context.Context,
 		Targets:       make(map[string]*Target),
 		Logger:        logger,
 		httpServer:    httpServer,
-		defaultOutput: os.Stdout,
 		ctx:           nctx,
 		cancelFn:      cancel,
 	}
