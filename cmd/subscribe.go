@@ -195,8 +195,8 @@ func init() {
 	subscribeCmd.Flags().BoolP("updates-only", "", false, "only updates to current state should be sent")
 	subscribeCmd.Flags().StringP("subscription-mode", "", "stream", "one of: once, stream, poll")
 	subscribeCmd.Flags().StringP("stream-subscription-mode", "", "target-defined", "one of: on-change, sample, target-defined")
-	subscribeCmd.Flags().StringP("sampling-interval", "i", "10s",
-		"sampling interval as a decimal number and a suffix unit, such as \"10s\" or \"1m30s\", minimum is 1s")
+	subscribeCmd.Flags().StringP("sample-interval", "i", "10s",
+		"sample interval as a decimal number and a suffix unit, such as \"10s\" or \"1m30s\", minimum is 1s")
 	subscribeCmd.Flags().BoolP("suppress-redundant", "", false, "suppress redundant update if the subscribed value didn't not change")
 	subscribeCmd.Flags().StringP("heartbeat-interval", "", "0s", "heartbeat interval in case suppress-redundant is enabled")
 	subscribeCmd.Flags().StringSliceP("model", "", []string{""}, "subscribe request used model(s)")
@@ -208,7 +208,7 @@ func init() {
 	viper.BindPFlag("subscribe-updates-only", subscribeCmd.LocalFlags().Lookup("updates-only"))
 	viper.BindPFlag("subscribe-subscription-mode", subscribeCmd.LocalFlags().Lookup("subscription-mode"))
 	viper.BindPFlag("subscribe-stream-subscription-mode", subscribeCmd.LocalFlags().Lookup("stream-subscription-mode"))
-	viper.BindPFlag("subscribe-sampling-interval", subscribeCmd.LocalFlags().Lookup("sampling-interval"))
+	viper.BindPFlag("subscribe-sample-interval", subscribeCmd.LocalFlags().Lookup("sample-interval"))
 	viper.BindPFlag("subscribe-suppress-redundant", subscribeCmd.LocalFlags().Lookup("suppress-redundant"))
 	viper.BindPFlag("subscribe-heartbeat-interval", subscribeCmd.LocalFlags().Lookup("heartbeat-interval"))
 	viper.BindPFlag("subscribe-sub-model", subscribeCmd.LocalFlags().Lookup("model"))
@@ -327,7 +327,7 @@ func getSubscriptions() (map[string]*collector.SubscriptionConfig, error) {
 		sub.Qos = viper.GetUint32("qos")
 		sub.StreamMode = viper.GetString("subscribe-stream-subscription-mode")
 		sub.HeartbeatInterval = viper.GetDuration("subscribe-heartbeat-interval")
-		sub.SampleInterval = viper.GetDuration("subscribe-sampling-interval")
+		sub.SampleInterval = viper.GetDuration("subscribe-sample-interval")
 		sub.SuppressRedundant = viper.GetBool("subscribe-suppress-redundant")
 		sub.UpdatesOnly = viper.GetBool("subscribe-updates-only")
 		subscriptions["default"] = sub
