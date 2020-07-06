@@ -45,20 +45,20 @@ tls-ca = "/path/to/ca.crt"
     "/configure/port[port-id=*]",
     "/state/port[port-id=*]"
   ]
-  streamMode = "on_change"
+  stream-mode = "on_change"
 
   [subscriptions.sub2]
   paths = [
     "/configure/port[port-id=*]/statistics"
   ]
-  streamMode = "sample"
+  stream-mode = "sample"
   sample-interval = "10s"
 
 [outputs]
 
   [[outputs.group1]]
   type = "file"
-  fileType = "stdout"
+  file-type = "stdout"
 
   [[outputs.group2]]
   type = "file"
@@ -67,13 +67,13 @@ tls-ca = "/path/to/ca.crt"
   [[outputs.group2]]
   type = "nats"
   address = "localhost:4222"
-  subjectPrefix = "telemetry"
+  subject-prefix = "telemetry"
 
   [[outputs.group3]]
   type = "stan"
   address = "localhost:4223"
   subject = "telemetry"
-  clusterName = "test-cluster"
+  cluster-name = "test-cluster"
 
   [[outputs.group4]]
   type = "kafka"
@@ -83,4 +83,5 @@ tls-ca = "/path/to/ca.crt"
   [[outputs.group4]]
   type = "nats"
   address = "localhost:4222"
-  subjectPrefix = "telemetry"
+  subject-prefix = "telemetry"
+  
