@@ -58,7 +58,7 @@ var logger *log.Logger
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "gnmic",
-	Short: "run gnmi rpcs from the terminal",
+	Short: "run gnmi rpcs from the terminal (https://gnmic.kmrd.dev)",
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		if viper.GetBool("nolog") {
 			f = myWriteCloser{ioutil.Discard}
