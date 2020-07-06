@@ -12,7 +12,7 @@ targets:
     timeout: 2s
     subscriptions:
       - sub1
-    ouputs:
+    outputs:
       - group1
       - group3
   172.17.0.101:
@@ -35,23 +35,23 @@ subscriptions:
     paths:
       - /configure/port[port-id=*]
       - /state/port[port-id=*]
-    streamMode: on_change # target-defined # sample
+    stream-mode: on_change # target-defined # sample
   sub2:
     paths:
        - /configure/port[port-id=*]/statistics
-    streamMode: sample
+    stream-mode: sample
     sample-interval: 10s
 
 outputs:
   group1:
     - type: file
-      fileType: stdout
+      file-type: stdout
   group2:
     - type: file
       filename: local.log
     - type: nats
       address: localhost:4222
-      subjectPrefix: telemetry
+      subject-prefix: telemetry
       username:
       password:
   group3:
@@ -61,18 +61,18 @@ outputs:
       username:
       password:
       name: 
-      clusterName: test-cluster
+      cluster-name: test-cluster
       timeout:
-      pingInterval:
-      pingRetry:
+      ping-interval:
+      ping-retry:
   group4:
     - type: kafka
       address: localhost:9092
       topic: telemetry
-      maxRetry: 
+      max-retry: 
       timeout:
     - type: nats
       address: localhost:4222
-      subjectPrefix: telemetry
+      subject-prefix: telemetry
       username:
       password:

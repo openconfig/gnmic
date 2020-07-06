@@ -44,13 +44,13 @@ type NatsOutput struct {
 
 // Config //
 type Config struct {
-	Name            string
-	Address         string
-	SubjectPrefix   string
-	Username        string
-	Password        string
-	ConnectTimeout  time.Duration
-	ConnectTimeWait time.Duration
+	Name            string        `mapstructure:"name,omitempty"`
+	Address         string        `mapstructure:"address,omitempty"`
+	SubjectPrefix   string        `mapstructure:"subject-prefix,omitempty"`
+	Username        string        `mapstructure:"username,omitempty"`
+	Password        string        `mapstructure:"password,omitempty"`
+	ConnectTimeout  time.Duration `mapstructure:"connect-timeout,omitempty"`
+	ConnectTimeWait time.Duration `mapstructure:"connect-time-wait,omitempty"`
 }
 
 func (n *NatsOutput) String() string {

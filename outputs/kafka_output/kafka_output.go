@@ -38,11 +38,11 @@ type KafkaOutput struct {
 
 // Config //
 type Config struct {
-	Address  string
-	Topic    string
-	Name     string
-	MaxRetry int
-	Timeout  int
+	Address  string `mapstructure:"address,omitempty"`
+	Topic    string `mapstructure:"topic,omitempty"`
+	Name     string `mapstructure:"name,omitempty"`
+	MaxRetry int    `mapstructure:"max-retry,omitempty"`
+	Timeout  int    `mapstructure:"timeout,omitempty"`
 }
 
 func (k *KafkaOutput) String() string {

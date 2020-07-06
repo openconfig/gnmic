@@ -40,18 +40,18 @@ type Target struct {
 
 // TargetConfig //
 type TargetConfig struct {
-	Name          string
-	Address       string
-	Username      *string
-	Password      *string
-	Timeout       time.Duration
-	Insecure      *bool
-	TLSCA         *string
-	TLSCert       *string
-	TLSKey        *string
-	SkipVerify    *bool
-	Subscriptions []string
-	Outputs       []string
+	Name          string        `mapstructure:"name,omitempty"`
+	Address       string        `mapstructure:"address,omitempty"`
+	Username      *string       `mapstructure:"username,omitempty"`
+	Password      *string       `mapstructure:"password,omitempty"`
+	Timeout       time.Duration `mapstructure:"timeout,omitempty"`
+	Insecure      *bool         `mapstructure:"insecure,omitempty"`
+	TLSCA         *string       `mapstructure:"tls-ca,omitempty"`
+	TLSCert       *string       `mapstructure:"tls-cert,omitempty"`
+	TLSKey        *string       `mapstructure:"tls-key,omitempty"`
+	SkipVerify    *bool         `mapstructure:"skip-verify,omitempty"`
+	Subscriptions []string      `mapstructure:"subscriptions,omitempty"`
+	Outputs       []string      `mapstructure:"outputs,omitempty"`
 }
 
 func (tc *TargetConfig) String() string {

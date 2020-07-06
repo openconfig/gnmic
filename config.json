@@ -13,7 +13,7 @@
       "subscriptions": [
         "sub1"
       ],
-      "ouputs": [
+      "outputs": [
         "group1",
         "group3"
       ]
@@ -43,13 +43,13 @@
         "/configure/port[port-id=*]",
         "/state/port[port-id=*]"
       ],
-      "streamMode": "on_change"
+      "stream-mode": "on_change"
     },
     "sub2": {
       "paths": [
         "/configure/port[port-id=*]/statistics"
       ],
-      "streamMode": "sample",
+      "stream-mode": "sample",
       "sample-interval": "10s"
     }
   },
@@ -57,7 +57,7 @@
     "group1": [
       {
         "type": "file",
-        "fileType": "stdout"
+        "file-type": "stdout"
       }
     ],
     "group2": [
@@ -68,7 +68,7 @@
       {
         "type": "nats",
         "address": "localhost:4222",
-        "subjectPrefix": "telemetry",
+        "subject-prefix": "telemetry",
         "username": null,
         "password": null
       }
@@ -81,10 +81,10 @@
         "username": null,
         "password": null,
         "name": null,
-        "clusterName": "test-cluster",
+        "cluster-name": "test-cluster",
         "timeout": null,
-        "pingInterval": null,
-        "pingRetry": null
+        "ping-interval": null,
+        "ping-retry": null
       }
     ],
     "group4": [
@@ -92,13 +92,13 @@
         "type": "kafka",
         "address": "localhost:9092",
         "topic": "telemetry",
-        "maxRetry": null,
+        "max-retry": null,
         "timeout": null
       },
       {
         "type": "nats",
         "address": "localhost:4222",
-        "subjectPrefix": "telemetry",
+        "subject-prefix": "telemetry",
         "username": null,
         "password": null
       }

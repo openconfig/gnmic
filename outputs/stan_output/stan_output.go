@@ -39,15 +39,15 @@ type StanOutput struct {
 
 // Config //
 type Config struct {
-	Name         string
-	Address      string
-	Subject      string
-	Username     string
-	Password     string
-	ClusterName  string
-	Timeout      int
-	PingInterval int
-	PingRetry    int
+	Name         string `mapstructure:"name,omitempty"`
+	Address      string `mapstructure:"address,omitempty"`
+	Subject      string `mapstructure:"subject,omitempty"`
+	Username     string `mapstructure:"username,omitempty"`
+	Password     string `mapstructure:"password,omitempty"`
+	ClusterName  string `mapstructure:"cluster-name,omitempty"`
+	Timeout      int    `mapstructure:"timeout,omitempty"`
+	PingInterval int    `mapstructure:"ping-interval,omitempty"`
+	PingRetry    int    `mapstructure:"ping-retry,omitempty"`
 }
 
 func (s *StanOutput) String() string {

@@ -271,8 +271,8 @@ func getOutputs() (map[string][]outputs.Output, error) {
 	outDef := viper.GetStringMap("outputs")
 	if len(outDef) == 0 && !viper.GetBool("quiet") {
 		stdoutConfig := map[string]interface{}{
-			"type":     "file",
-			"fileType": "stdout",
+			"type":      "file",
+			"file-type": "stdout",
 		}
 		stdoutFile := make([]interface{}, 1)
 		stdoutFile[0] = stdoutConfig

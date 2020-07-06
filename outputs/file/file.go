@@ -35,8 +35,8 @@ type File struct {
 
 // Config //
 type Config struct {
-	FileName string
-	FileType string
+	FileName string `mapstructure:"filename,omitempty"`
+	FileType string `mapstructure:"file-type,omitempty"`
 }
 
 func (f *File) String() string {
