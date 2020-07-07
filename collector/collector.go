@@ -144,7 +144,7 @@ func (c *Collector) Subscribe(tName string) error {
 			if err != nil {
 				return err
 			}
-			c.Logger.Printf("sending gnmi SubscribeRequest: subscribe='%+v', mode='%+v', encoding='%+v', to %s",
+			c.Logger.Printf("sending gNMI SubscribeRequest: subscribe='%+v', mode='%+v', encoding='%+v', to %s",
 				req, req.GetSubscribe().GetMode(), req.GetSubscribe().GetEncoding(), t.Config.Name)
 			go t.Subscribe(c.ctx, req, sc.Name)
 		}
