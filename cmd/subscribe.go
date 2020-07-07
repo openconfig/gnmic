@@ -330,14 +330,14 @@ func getSubscriptions() (map[string]*collector.SubscriptionConfig, error) {
 		sub.SampleInterval = viper.GetDuration("subscribe-sample-interval")
 		sub.SuppressRedundant = viper.GetBool("subscribe-suppress-redundant")
 		sub.UpdatesOnly = viper.GetBool("subscribe-updates-only")
+		sub.Models = viper.GetStringSlice("models")
 		subscriptions["default"] = sub
 		return subscriptions, nil
 	}
 	subDef := viper.GetStringMap("subscriptions")
-	if len(subDef) == 0 {
-		return subscriptions, nil
+	if viper.GetBool("debug") {
+		logger.Printf("subscription map: %v+", subDef)
 	}
-	var err error
 	for sn, s := range subDef {
 		sub := new(collector.SubscriptionConfig)
 		decoder, err := mapstructure.NewDecoder(
@@ -355,5 +355,5 @@ func getSubscriptions() (map[string]*collector.SubscriptionConfig, error) {
 		sub.Name = sn
 		subscriptions[sn] = sub
 	}
-	return subscriptions, err
+	return subscriptions, nil
 }

@@ -13,6 +13,7 @@ import (
 // SubscriptionConfig //
 type SubscriptionConfig struct {
 	Name              string        `mapstructure:"name,omitempty"`
+	Models            []string      `mapstructure:"models,omitempty"`
 	Prefix            string        `mapstructure:"prefix,omitempty"`
 	Paths             []string      `mapstructure:"paths,omitempty"`
 	Mode              string        `mapstructure:"mode,omitempty"`
@@ -101,6 +102,10 @@ func (sc *SubscriptionConfig) CreateSubscribeRequest() (*gnmi.SubscribeRequest, 
 			}
 		}
 	}
+	models := make([]*gnmi.ModelData, 0, len(sc.Models))
+	for _, m := range sc.Models {
+		models = append(models, &gnmi.ModelData{Name: m})
+	}
 	return &gnmi.SubscribeRequest{
 		Request: &gnmi.SubscribeRequest_Subscribe{
 			Subscribe: &gnmi.SubscriptionList{
@@ -110,6 +115,7 @@ func (sc *SubscriptionConfig) CreateSubscribeRequest() (*gnmi.SubscribeRequest, 
 				Subscription: subscriptions,
 				Qos:          qos,
 				UpdatesOnly:  sc.UpdatesOnly,
+				UseModels:    models,
 			},
 		},
 	}, nil
