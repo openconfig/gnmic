@@ -84,12 +84,16 @@ func (f *File) Write(b []byte, meta outputs.Meta) {
 	NumberOfReceivedMsgs.WithLabelValues(f.file.Name()).Inc()
 	if f.Cfg.FileType == "stdout" || f.Cfg.FileType == "stderr" {
 		dst := new(bytes.Buffer)
-		err := json.Indent(dst, b, "", "  ")
-		if err != nil {
-			f.logger.Printf("failed to write to '%s': %v", f.Cfg.FileType, err)
-			return
+		if format, ok := meta["format"]; ok {
+			if format != "textproto" {
+				err := json.Indent(dst, b, "", "  ")
+				if err != nil {
+					f.logger.Printf("failed to write to '%s': %v", f.Cfg.FileType, err)
+					return
+				}
+				b = dst.Bytes()
+			}
 		}
-		b = dst.Bytes()
 	}
 	n, err := f.file.Write(append(b, []byte("\n")...))
 	if err != nil {

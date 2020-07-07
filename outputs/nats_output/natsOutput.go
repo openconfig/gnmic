@@ -89,6 +89,14 @@ func (n *NatsOutput) Init(cfg map[string]interface{}, logger *log.Logger) error 
 
 // Write //
 func (n *NatsOutput) Write(b []byte, meta outputs.Meta) {
+	if len(b) == 0 {
+		return
+	}
+	if format, ok := meta["format"]; ok {
+		if format == "textproto" {
+			return
+		}
+	}
 	subject := n.Cfg.SubjectPrefix
 	if s, ok := meta["source"]; ok {
 		subject += fmt.Sprintf(".%s", s)

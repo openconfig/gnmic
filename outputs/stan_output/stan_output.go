@@ -86,6 +86,14 @@ func (s *StanOutput) Init(cfg map[string]interface{}, logger *log.Logger) error 
 
 // Write //
 func (s *StanOutput) Write(b []byte, meta outputs.Meta) {
+	if len(b) == 0 {
+		return
+	}
+	if format, ok := meta["format"]; ok {
+		if format == "textproto" {
+			return
+		}
+	}
 	err := s.conn.Publish(s.Cfg.Subject, b)
 	if err != nil {
 		log.Printf("failed to write to stan subject '%s': %v", s.Cfg.Subject, err)

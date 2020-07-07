@@ -98,6 +98,11 @@ func (k *KafkaOutput) Write(b []byte, meta outputs.Meta) {
 	if len(b) == 0 {
 		return
 	}
+	if format, ok := meta["format"]; ok {
+		if format == "textproto" {
+			return
+		}
+	}
 	msg := &sarama.ProducerMessage{
 		Topic: k.Cfg.Topic,
 		Value: sarama.ByteEncoder(b),
