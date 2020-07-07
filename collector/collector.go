@@ -17,12 +17,14 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/encoding/prototext"
 )
 
 // Config is the collector config
 type Config struct {
 	PrometheusAddress string
 	Debug             bool
+	Format            string
 }
 
 // Collector //
@@ -180,7 +182,7 @@ func (c *Collector) Start() {
 						c.Logger.Printf("failed formatting msg from target '%s': %v", t.Config.Name, err)
 						continue
 					}
-					go t.Export(b, outputs.Meta{"source": t.Config.Name})
+					go t.Export(b, outputs.Meta{"source": t.Config.Name, "format": c.Config.Format})
 					if remainingOnceSubscriptions > 0 {
 						if c.subscriptionMode(rsp.SubscriptionName) == "ONCE" {
 							switch rsp.Response.Response.(type) {
@@ -209,6 +211,9 @@ func (c *Collector) Start() {
 func (c *Collector) FormatMsg(meta map[string]interface{}, rsp *gnmi.SubscribeResponse) ([]byte, error) {
 	if rsp == nil {
 		return nil, nil
+	}
+	if c.Config.Format == "textproto" {
+		return []byte(prototext.Format(rsp)), nil
 	}
 	switch rsp := rsp.Response.(type) {
 	case *gnmi.SubscribeResponse_Update:
