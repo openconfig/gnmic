@@ -94,6 +94,7 @@ var subscribeCmd = &cobra.Command{
 		cfg := &collector.Config{
 			PrometheusAddress: viper.GetString("prometheus-address"),
 			Debug:             viper.GetBool("debug"),
+			Format:            viper.GetString("format"),
 		}
 
 		coll := collector.NewCollector(ctx, cfg, targetsConfig, subscriptionsConfig, outs, createCollectorDialOpts(), logger)
