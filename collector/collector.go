@@ -192,7 +192,9 @@ func (c *Collector) Start() {
 			for {
 				select {
 				case rsp := <-t.SubscribeResponses:
-					c.Logger.Printf("received subscribe response: %+v", rsp)
+					if c.Config.Debug {
+						c.Logger.Printf("received subscribe response: %+v", rsp)
+					}
 					m := make(map[string]interface{})
 					m["subscription-name"] = rsp.SubscriptionName
 					m["source"] = t.Config.Name
