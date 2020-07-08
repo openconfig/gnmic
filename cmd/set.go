@@ -405,6 +405,10 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 			Val:  value,
 		})
 	}
+	if (len(req.Delete) == 0) && (len(req.Update) == 0) && (len(req.Replace) == 0) {
+		return nil, errors.New("no data to populate Set Request with")
+	}
+
 	return req, nil
 }
 
