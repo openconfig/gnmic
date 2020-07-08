@@ -26,11 +26,10 @@ func init() {
 
 // File //
 type File struct {
-	Cfg      *Config
-	file     *os.File
-	logger   *log.Logger
-	metrics  []prometheus.Collector
-	stopChan chan struct{}
+	Cfg     *Config
+	file    *os.File
+	logger  *log.Logger
+	metrics []prometheus.Collector
 }
 
 // Config //
@@ -74,7 +73,6 @@ func (f *File) Init(cfg map[string]interface{}, logger *log.Logger) error {
 		f.logger.SetOutput(logger.Writer())
 		f.logger.SetFlags(logger.Flags())
 	}
-	f.stopChan = make(chan struct{})
 	f.logger.Printf("initialized file output: %s", f.String())
 	return nil
 }
@@ -107,8 +105,7 @@ func (f *File) Write(b []byte, meta outputs.Meta) {
 // Close //
 func (f *File) Close() error {
 	f.logger.Printf("closing file '%s' output", f.file.Name())
-	close(f.stopChan)
-	return nil
+	return f.file.Close()
 }
 
 // Metrics //
