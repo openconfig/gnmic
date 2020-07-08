@@ -68,11 +68,12 @@ var rootCmd = &cobra.Command{
 	Use:   "gnmic",
 	Short: "run gnmi rpcs from the terminal",
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		if viper.GetBool("nolog") {
-			f = myWriteCloser{ioutil.Discard}
-		} else if viper.GetString("log-file") == "" {
+		switch {
+		case viper.GetBool("log") == true:
 			f = os.Stderr
-		} else {
+		case viper.GetBool("log") == false:
+			f = myWriteCloser{ioutil.Discard}
+		default:
 			var err error
 			f, err = os.OpenFile(viper.GetString("log-file"), os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 			if err != nil {
@@ -86,7 +87,7 @@ var rootCmd = &cobra.Command{
 		}
 	},
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {
-		if !viper.GetBool("nolog") || viper.GetString("log-file") != "" {
+		if !viper.GetBool("log") || viper.GetString("log-file") != "" {
 			f.Close()
 		}
 	},
@@ -120,7 +121,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolP("proxy-from-env", "", false, "use proxy from environment")
 	rootCmd.PersistentFlags().StringP("format", "", "json", "output format, one of: [textproto, json]")
 	rootCmd.PersistentFlags().StringP("log-file", "", "", "log file path")
-	rootCmd.PersistentFlags().BoolP("nolog", "", false, "do not generate logs")
+	rootCmd.PersistentFlags().BoolP("log", "", false, "show log messages in stderr")
 	rootCmd.PersistentFlags().IntP("max-msg-size", "", msgSize, "max grpc msg size")
 	rootCmd.PersistentFlags().StringP("prometheus-address", "", "0.0.0.0:9094", "prometheus server address")
 	//
@@ -140,7 +141,7 @@ func init() {
 	viper.BindPFlag("proxy-from-env", rootCmd.PersistentFlags().Lookup("proxy-from-env"))
 	viper.BindPFlag("format", rootCmd.PersistentFlags().Lookup("format"))
 	viper.BindPFlag("log-file", rootCmd.PersistentFlags().Lookup("log-file"))
-	viper.BindPFlag("nolog", rootCmd.PersistentFlags().Lookup("nolog"))
+	viper.BindPFlag("log", rootCmd.PersistentFlags().Lookup("log"))
 	viper.BindPFlag("max-msg-size", rootCmd.PersistentFlags().Lookup("max-msg-size"))
 	viper.BindPFlag("prometheus-address", rootCmd.PersistentFlags().Lookup("prometheus-address"))
 }
