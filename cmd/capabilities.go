@@ -16,6 +16,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -58,10 +59,9 @@ var capabilitiesCmd = &cobra.Command{
 func reqCapability(ctx context.Context, target *collector.Target, wg *sync.WaitGroup, m *sync.Mutex) {
 	defer wg.Done()
 	opts := createCollectorDialOpts()
-	err := target.CreateGNMIClient(ctx, opts...)
-	if err != nil {
-		if err == context.DeadlineExceeded {
-			logger.Printf("failed to create a gRPC client for target '%s' timeout (%s) reached: %v", target.Config.Name, target.Config.Timeout, err)
+	if err := target.CreateGNMIClient(ctx, opts...); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			logger.Printf("failed to create a gRPC client for target '%s', timeout (%s) reached", target.Config.Name, target.Config.Timeout)
 			return
 		}
 		logger.Printf("failed to create a gRPC client for target '%s' : %v", target.Config.Name, err)

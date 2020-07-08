@@ -3,6 +3,7 @@ package collector
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -91,12 +92,11 @@ func NewCollector(ctx context.Context,
 	for _, tc := range targetConfigs {
 		go func(tc *TargetConfig) {
 			defer wg.Done()
-			err := c.InitTarget(tc)
-			if err == context.DeadlineExceeded {
-				c.Logger.Printf("failed to initialize target '%s' timeout (%s) reached: %v", tc.Name, tc.Timeout, err)
-				return
-			}
-			if err != nil {
+			if err := c.InitTarget(tc); err != nil {
+				if errors.Is(err, context.DeadlineExceeded) {
+					c.Logger.Printf("failed to initialize target '%s' timeout (%s) reached", tc.Name, tc.Timeout)
+					return
+				}
 				c.Logger.Printf("failed to initialize target '%s': %v", tc.Name, err)
 				return
 			}

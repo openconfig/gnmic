@@ -98,10 +98,9 @@ var setCmd = &cobra.Command{
 func setRequest(ctx context.Context, req *gnmi.SetRequest, target *collector.Target, wg *sync.WaitGroup, lock *sync.Mutex) {
 	defer wg.Done()
 	opts := createCollectorDialOpts()
-	err := target.CreateGNMIClient(ctx, opts...)
-	if err != nil {
-		if err == context.DeadlineExceeded {
-			logger.Printf("failed to create a gRPC client for target '%s' timeout (%s) reached: %v", target.Config.Name, target.Config.Timeout, err)
+	if err := target.CreateGNMIClient(ctx, opts...); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			logger.Printf("failed to create a gRPC client for target '%s', timeout (%s) reached", target.Config.Name, target.Config.Timeout)
 			return
 		}
 		logger.Printf("failed to create a client for target '%s' : %v", target.Config.Name, err)
