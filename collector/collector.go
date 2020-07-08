@@ -163,6 +163,13 @@ func (c *Collector) Start() {
 			return
 		}
 	}()
+	defer func() {
+		for _, outputs := range c.Outputs {
+			for _, o := range outputs {
+				o.Close()
+			}
+		}
+	}()
 	wg := new(sync.WaitGroup)
 	wg.Add(len(c.Targets))
 	for _, t := range c.Targets {
@@ -174,6 +181,7 @@ func (c *Collector) Start() {
 			for {
 				select {
 				case rsp := <-t.SubscribeResponses:
+					c.Logger.Printf("received subscribe response: %+v", rsp)
 					m := make(map[string]interface{})
 					m["subscription-name"] = rsp.SubscriptionName
 					m["source"] = t.Config.Name
@@ -182,7 +190,11 @@ func (c *Collector) Start() {
 						c.Logger.Printf("failed formatting msg from target '%s': %v", t.Config.Name, err)
 						continue
 					}
-					go t.Export(b, outputs.Meta{"source": t.Config.Name, "format": c.Config.Format})
+					if c.subscriptionMode(rsp.SubscriptionName) == "ONCE" {
+						t.Export(b, outputs.Meta{"source": t.Config.Name, "format": c.Config.Format})
+					} else {
+						go t.Export(b, outputs.Meta{"source": t.Config.Name, "format": c.Config.Format})
+					}
 					if remainingOnceSubscriptions > 0 {
 						if c.subscriptionMode(rsp.SubscriptionName) == "ONCE" {
 							switch rsp.Response.Response.(type) {

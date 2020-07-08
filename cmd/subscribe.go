@@ -84,13 +84,7 @@ var subscribeCmd = &cobra.Command{
 		if debug {
 			logger.Printf("outputs: %+v", outs)
 		}
-		defer func() {
-			for _, outputs := range outs {
-				for _, o := range outputs {
-					o.Close()
-				}
-			}
-		}()
+
 		cfg := &collector.Config{
 			PrometheusAddress: viper.GetString("prometheus-address"),
 			Debug:             viper.GetBool("debug"),
@@ -100,7 +94,7 @@ var subscribeCmd = &cobra.Command{
 		coll := collector.NewCollector(ctx, cfg, targetsConfig, subscriptionsConfig, outs, createCollectorDialOpts(), logger)
 
 		wg := new(sync.WaitGroup)
-		wg.Add(len(targetsConfig))
+		wg.Add(len(coll.Targets))
 		for tName := range coll.Targets {
 			go func(tn string) {
 				defer wg.Done()
