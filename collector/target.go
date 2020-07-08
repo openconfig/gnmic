@@ -49,6 +49,7 @@ type TargetConfig struct {
 	SkipVerify    *bool         `mapstructure:"skip-verify,omitempty"`
 	Subscriptions []string      `mapstructure:"subscriptions,omitempty"`
 	Outputs       []string      `mapstructure:"outputs,omitempty"`
+	BufferSize    uint          `mapstructure:"buffer-size,omitempty"`
 }
 
 func (tc *TargetConfig) String() string {
@@ -68,7 +69,7 @@ func NewTarget(c *TargetConfig) *Target {
 		m:                  new(sync.Mutex),
 		SubscribeClients:   make(map[string]gnmi.GNMI_SubscribeClient),
 		PollChan:           make(chan string),
-		SubscribeResponses: make(chan *SubscribeResponse),
+		SubscribeResponses: make(chan *SubscribeResponse, c.BufferSize),
 		Errors:             make(chan error),
 	}
 	return t

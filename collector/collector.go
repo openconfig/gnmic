@@ -20,11 +20,16 @@ import (
 	"google.golang.org/protobuf/encoding/prototext"
 )
 
+const (
+	defaultTargetReceivebuffer = 1000
+)
+
 // Config is the collector config
 type Config struct {
-	PrometheusAddress string
-	Debug             bool
-	Format            string
+	PrometheusAddress   string
+	Debug               bool
+	Format              string
+	TargetReceiveBuffer uint
 }
 
 // Collector //
@@ -65,6 +70,9 @@ func NewCollector(ctx context.Context,
 		Addr:    config.PrometheusAddress,
 	}
 	dialOpts = append(dialOpts, grpc.WithStreamInterceptor(grpcMetrics.StreamClientInterceptor()))
+	if config.TargetReceiveBuffer == 0 {
+		config.TargetReceiveBuffer = defaultTargetReceivebuffer
+	}
 	c := &Collector{
 		Config:        config,
 		Subscriptions: subscriptions,
@@ -100,6 +108,9 @@ func NewCollector(ctx context.Context,
 
 // InitTarget initializes a target based on *TargetConfig
 func (c *Collector) InitTarget(tc *TargetConfig) error {
+	if tc.BufferSize == 0 {
+		tc.BufferSize = c.Config.TargetReceiveBuffer
+	}
 	t := NewTarget(tc)
 	//
 	t.Subscriptions = make([]*SubscriptionConfig, 0, len(tc.Subscriptions))
