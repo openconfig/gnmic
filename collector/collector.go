@@ -18,8 +18,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/prototext"
-
-	_ "net/http/pprof"
 )
 
 const (
@@ -63,6 +61,7 @@ func NewCollector(ctx context.Context,
 	grpcMetrics := grpc_prometheus.NewClientMetrics()
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(prometheus.NewGoCollector())
+	reg.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
 	grpcMetrics.EnableClientHandlingTimeHistogram()
 	reg.MustRegister(grpcMetrics)
 	handler := http.NewServeMux()
