@@ -18,6 +18,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/prototext"
+
+	_ "net/http/pprof"
 )
 
 const (
@@ -193,7 +195,7 @@ func (c *Collector) Start() {
 				select {
 				case rsp := <-t.SubscribeResponses:
 					if c.Config.Debug {
-						c.Logger.Printf("received subscribe response: %+v", rsp)
+						c.Logger.Printf("received gNMI Subscribe Response: %+v", rsp)
 					}
 					m := make(map[string]interface{})
 					m["subscription-name"] = rsp.SubscriptionName
