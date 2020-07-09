@@ -200,7 +200,7 @@ func init() {
 	subscribeCmd.Flags().BoolP("suppress-redundant", "", false, "suppress redundant update if the subscribed value didn't not change")
 	subscribeCmd.Flags().StringP("heartbeat-interval", "", "0s", "heartbeat interval in case suppress-redundant is enabled")
 	subscribeCmd.Flags().StringSliceP("model", "", []string{""}, "subscribe request used model(s)")
-	subscribeCmd.Flags().BoolP("quiet", "", false, "suppress stdout printing")
+	subscribeCmd.Flags().Bool("quiet", false, "suppress stdout printing")
 	//
 	viper.BindPFlag("subscribe-prefix", subscribeCmd.LocalFlags().Lookup("prefix"))
 	viper.BindPFlag("subscribe-path", subscribeCmd.LocalFlags().Lookup("path"))
