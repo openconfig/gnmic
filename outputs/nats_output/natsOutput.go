@@ -2,6 +2,7 @@ package nats_output
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
@@ -43,13 +44,21 @@ type NatsOutput struct {
 
 // Config //
 type Config struct {
-	Name            string
-	Address         string
-	SubjectPrefix   string
-	Username        string
-	Password        string
-	ConnectTimeout  time.Duration
-	ConnectTimeWait time.Duration
+	Name            string        `mapstructure:"name,omitempty"`
+	Address         string        `mapstructure:"address,omitempty"`
+	SubjectPrefix   string        `mapstructure:"subject-prefix,omitempty"`
+	Username        string        `mapstructure:"username,omitempty"`
+	Password        string        `mapstructure:"password,omitempty"`
+	ConnectTimeout  time.Duration `mapstructure:"connect-timeout,omitempty"`
+	ConnectTimeWait time.Duration `mapstructure:"connect-time-wait,omitempty"`
+}
+
+func (n *NatsOutput) String() string {
+	b, err := json.Marshal(n)
+	if err != nil {
+		return ""
+	}
+	return string(b)
 }
 
 // Init //
@@ -67,19 +76,27 @@ func (n *NatsOutput) Init(cfg map[string]interface{}, logger *log.Logger) error 
 		n.logger.SetFlags(logger.Flags())
 	}
 	if n.Cfg.Name == "" {
-		n.Cfg.Name = "gnmiclient-" + uuid.New().String()
+		n.Cfg.Name = "gnmic-" + uuid.New().String()
 	}
 	n.ctx, n.cancelFn = context.WithCancel(context.Background())
 	n.conn, err = n.createNATSConn(n.Cfg)
 	if err != nil {
 		return err
 	}
-	n.logger.Printf("initialized nats producer")
+	n.logger.Printf("initialized nats producer: %s", n.String())
 	return nil
 }
 
 // Write //
 func (n *NatsOutput) Write(b []byte, meta outputs.Meta) {
+	if len(b) == 0 {
+		return
+	}
+	if format, ok := meta["format"]; ok {
+		if format == "textproto" {
+			return
+		}
+	}
 	subject := n.Cfg.SubjectPrefix
 	if s, ok := meta["source"]; ok {
 		subject += fmt.Sprintf(".%s", s)
@@ -109,10 +126,10 @@ func (n *NatsOutput) createNATSConn(c *Config) (*nats.Conn, error) {
 		nats.ReconnectWait(natsReconnectWait),
 		nats.ReconnectBufSize(natsReconnectBufferSize),
 		nats.ErrorHandler(func(_ *nats.Conn, _ *nats.Subscription, err error) {
-			n.logger.Printf("nats error: %v", err)
+			n.logger.Printf("NATS error: %v", err)
 		}),
 		nats.DisconnectHandler(func(c *nats.Conn) {
-			n.logger.Println("disconnected from NATS")
+			n.logger.Println("Disconnected from NATS")
 		}),
 		nats.ClosedHandler(func(c *nats.Conn) {
 			n.logger.Println("NATS connection is closed")

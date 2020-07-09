@@ -1,6 +1,8 @@
 package file
 
 import (
+	"bytes"
+	"encoding/json"
 	"log"
 	"os"
 
@@ -24,16 +26,24 @@ func init() {
 
 // File //
 type File struct {
-	Cfg      *Config
-	file     *os.File
-	logger   *log.Logger
-	metrics  []prometheus.Collector
-	stopChan chan struct{}
+	Cfg     *Config
+	file    *os.File
+	logger  *log.Logger
+	metrics []prometheus.Collector
 }
 
 // Config //
 type Config struct {
-	FileName string
+	FileName string `mapstructure:"filename,omitempty"`
+	FileType string `mapstructure:"file-type,omitempty"`
+}
+
+func (f *File) String() string {
+	b, err := json.Marshal(f)
+	if err != nil {
+		return ""
+	}
+	return string(b)
 }
 
 // Init //
@@ -44,9 +54,18 @@ func (f *File) Init(cfg map[string]interface{}, logger *log.Logger) error {
 		return err
 	}
 	f.Cfg = c
-	file, err := os.OpenFile(f.Cfg.FileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-	if err != nil {
-		return err
+
+	var file *os.File
+	switch f.Cfg.FileType {
+	case "stdout":
+		file = os.Stdout
+	case "stderr":
+		file = os.Stderr
+	default:
+		file, err = os.OpenFile(f.Cfg.FileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		if err != nil {
+			return err
+		}
 	}
 	f.file = file
 	f.logger = log.New(os.Stderr, "file_output ", log.LstdFlags|log.Lmicroseconds)
@@ -54,14 +73,26 @@ func (f *File) Init(cfg map[string]interface{}, logger *log.Logger) error {
 		f.logger.SetOutput(logger.Writer())
 		f.logger.SetFlags(logger.Flags())
 	}
-	f.stopChan = make(chan struct{})
-	f.logger.Printf("output initialized with config: %+v", f.Cfg)
+	f.logger.Printf("initialized file output: %s", f.String())
 	return nil
 }
 
 // Write //
 func (f *File) Write(b []byte, meta outputs.Meta) {
 	NumberOfReceivedMsgs.WithLabelValues(f.file.Name()).Inc()
+	if f.Cfg.FileType == "stdout" || f.Cfg.FileType == "stderr" {
+		dst := new(bytes.Buffer)
+		if format, ok := meta["format"]; ok {
+			if format != "textproto" {
+				err := json.Indent(dst, b, "", "  ")
+				if err != nil {
+					f.logger.Printf("failed to write to '%s': %v", f.Cfg.FileType, err)
+					return
+				}
+				b = dst.Bytes()
+			}
+		}
+	}
 	n, err := f.file.Write(append(b, []byte("\n")...))
 	if err != nil {
 		f.logger.Printf("failed to write to file '%s': %v", f.file.Name(), err)
@@ -74,8 +105,7 @@ func (f *File) Write(b []byte, meta outputs.Meta) {
 // Close //
 func (f *File) Close() error {
 	f.logger.Printf("closing file '%s' output", f.file.Name())
-	close(f.stopChan)
-	return nil
+	return f.file.Close()
 }
 
 // Metrics //

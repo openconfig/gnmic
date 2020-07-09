@@ -28,10 +28,10 @@ import (
 	"time"
 
 	"github.com/google/gnxi/utils/xpath"
+	"github.com/karimra/gnmic/collector"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/encoding/prototext"
 	"gopkg.in/yaml.v2"
 )
@@ -73,7 +73,7 @@ var setCmd = &cobra.Command{
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		setupCloseHandler(cancel)
-		targets, err := getTargets()
+		targets, err := createTargets()
 		if err != nil {
 			return err
 		}
@@ -87,43 +87,43 @@ var setCmd = &cobra.Command{
 		wg := new(sync.WaitGroup)
 		wg.Add(len(targets))
 		lock := new(sync.Mutex)
-		for _, target := range targets {
-			go setRequest(ctx, req, target, wg, lock)
+		for _, tc := range targets {
+			go setRequest(ctx, req, collector.NewTarget(tc), wg, lock)
 		}
 		wg.Wait()
 		return nil
 	},
 }
 
-func setRequest(ctx context.Context, req *gnmi.SetRequest, target *target, wg *sync.WaitGroup, lock *sync.Mutex) {
+func setRequest(ctx context.Context, req *gnmi.SetRequest, target *collector.Target, wg *sync.WaitGroup, lock *sync.Mutex) {
 	defer wg.Done()
-	conn, err := createGrpcConn(ctx, target.Address, nil)
-	if err != nil {
-		logger.Printf("connection to %s failed: %v", target.Address, err)
+	opts := createCollectorDialOpts()
+	if err := target.CreateGNMIClient(ctx, opts...); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			logger.Printf("failed to create a gRPC client for target '%s', timeout (%s) reached", target.Config.Name, target.Config.Timeout)
+			return
+		}
+		logger.Printf("failed to create a client for target '%s' : %v", target.Config.Name, err)
 		return
 	}
-	client := gnmi.NewGNMIClient(conn)
-	nctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	nctx = metadata.AppendToOutgoingContext(nctx, "username", target.Username, "password", target.Password)
 
-	addresses := viper.GetStringSlice("address")
 	printPrefix := ""
-	if len(addresses) > 1 && !viper.GetBool("no-prefix") {
-		printPrefix = fmt.Sprintf("[%s] ", target.Address)
+	if numTargets() > 1 && !viper.GetBool("no-prefix") {
+		printPrefix = fmt.Sprintf("[%s] ", target.Config.Address)
 	}
 	lock.Lock()
 	defer lock.Unlock()
-	if viper.GetBool("print-request") {
+	if viper.GetBool("set-print-request") {
 		printSetRequest(printPrefix, req)
 	}
-	logger.Printf("sending gNMI SetRequest: prefix='%v', delete='%v', replace='%v', update='%v', extension='%v' to %s", req.Prefix, req.Delete, req.Replace, req.Update, req.Extension, target.Address)
-	response, err := client.Set(nctx, req)
+	logger.Printf("sending gNMI SetRequest: prefix='%v', delete='%v', replace='%v', update='%v', extension='%v' to %s",
+		req.Prefix, req.Delete, req.Replace, req.Update, req.Extension, target.Config.Address)
+	response, err := target.Set(ctx, req)
 	if err != nil {
 		logger.Printf("error sending set request: %v", err)
 		return
 	}
-	printSetResponse(printPrefix, target.Address, response)
+	printSetResponse(printPrefix, target.Config.Address, response)
 }
 
 // readFile reads a json or yaml file. the the file is .yaml, converts it to json and returns []byte and an error

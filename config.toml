@@ -1,0 +1,87 @@
+username = "admin"
+password = "sros"
+port = 57400
+timeout = "5s"
+skip-verify = true
+tls-key = "/path/to/client.key"
+tls-cert = "/path/to/client.crt"
+tls-ca = "/path/to/ca.crt"
+
+[targets]
+
+  [targets."172.17.0.100"]
+  timeout = "2s"
+  subscriptions = [
+    "sub1"
+  ]
+  ouputs = [
+    "group1",
+    "group3"
+  ]
+
+  [targets."172.17.0.101"]
+  username = "sros"
+  password = "sros"
+  insecure = true
+  subscriptions = [
+    "sub2"
+  ]
+  outputs = [
+    "group2",
+    "group3"
+  ]
+
+  [targets."172.17.0.102:57000"]
+  password = "sros123"
+  tls-key = "/path/file1"
+  tls-cert = "/path/file2"
+
+  [targets."172.17.0.103"]
+
+[subscriptions]
+
+  [subscriptions.sub1]
+  paths = [
+    "/configure/port[port-id=*]",
+    "/state/port[port-id=*]"
+  ]
+  stream-mode = "on_change"
+
+  [subscriptions.sub2]
+  paths = [
+    "/configure/port[port-id=*]/statistics"
+  ]
+  stream-mode = "sample"
+  sample-interval = "10s"
+
+[outputs]
+
+  [[outputs.group1]]
+  type = "file"
+  file-type = "stdout"
+
+  [[outputs.group2]]
+  type = "file"
+  filename = "local.log"
+
+  [[outputs.group2]]
+  type = "nats"
+  address = "localhost:4222"
+  subject-prefix = "telemetry"
+
+  [[outputs.group3]]
+  type = "stan"
+  address = "localhost:4223"
+  subject = "telemetry"
+  cluster-name = "test-cluster"
+
+  [[outputs.group4]]
+  type = "kafka"
+  address = "localhost:9092"
+  topic = "telemetry"
+
+  [[outputs.group4]]
+  type = "nats"
+  address = "localhost:4222"
+  subject-prefix = "telemetry"
+  

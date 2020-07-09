@@ -5,52 +5,74 @@ timeout: 5s
 skip-verify: true
 tls-key: /path/to/client.key
 tls-cert: /path/to/client.crt
+tls-ca: /path/to/ca.crt
 
 targets:
   172.17.0.100:
-    username: grpc
-    password: grpc
+    timeout: 2s
     subscriptions:
       - sub1
+    outputs:
+      - group1
+      - group3
   172.17.0.101:
+    username: sros
+    password: sros
+    insecure: true
     subscriptions:
-      - sub1
       - sub2
+    outputs:
+      - group2
+      - group3
   172.17.0.102:57000:
     password: sros123
-
+    tls-key: /path/file1
+    tls-cert: /path/file2
+  172.17.0.103:
+    
 subscriptions:
   sub1:
     paths:
       - /configure/port[port-id=*]
-      - /state
-    mode: on_change # target-defined # sample
+      - /state/port[port-id=*]
+    stream-mode: on_change # target-defined # sample
   sub2:
     paths:
-       - /configure/port[port-id=*]
-    mode: sample
-    sample-interval: 30s
+       - /configure/port[port-id=*]/statistics
+    stream-mode: sample
+    sample-interval: 10s
 
 outputs:
-  file:
-    - filename: local.log
-  nats:
-    - address: localhost:4222
+  group1:
+    - type: file
+      file-type: stdout
+  group2:
+    - type: file
+      filename: local.log
+    - type: nats
+      address: localhost:4222
+      subject-prefix: telemetry
+      username:
+      password:
+  group3:
+    - type: stan
+      address: localhost:4223
       subject: telemetry
       username:
       password:
-  stan:
-    - address: localhost:4223
-      subject: telemetry
-      username:
-      password:
-      name:
-      clusterName:
+      name: 
+      cluster-name: test-cluster
       timeout:
-      pingInterval:
-      pingRetry:
-  kafka:
-    - address: localhost:9092
+      ping-interval:
+      ping-retry:
+  group4:
+    - type: kafka
+      address: localhost:9092
       topic: telemetry
-      maxRetry: 
+      max-retry: 
       timeout:
+    - type: nats
+      address: localhost:4222
+      subject-prefix: telemetry
+      username:
+      password:

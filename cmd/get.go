@@ -17,16 +17,17 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/gnxi/utils/xpath"
+	"github.com/karimra/gnmic/collector"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/encoding/prototext"
 )
 
@@ -39,7 +40,7 @@ var getCmd = &cobra.Command{
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		setupCloseHandler(cancel)
-		targets, err := getTargets()
+		targets, err := createTargets()
 		if err != nil {
 			return err
 		}
@@ -50,49 +51,49 @@ var getCmd = &cobra.Command{
 		wg := new(sync.WaitGroup)
 		wg.Add(len(targets))
 		lock := new(sync.Mutex)
-		for _, target := range targets {
-			go getRequest(ctx, req, target, wg, lock)
+		for _, tc := range targets {
+			go getRequest(ctx, req, collector.NewTarget(tc), wg, lock)
 		}
 		wg.Wait()
 		return nil
 	},
 }
 
-func getRequest(ctx context.Context, req *gnmi.GetRequest, target *target, wg *sync.WaitGroup, lock *sync.Mutex) {
+func getRequest(ctx context.Context, req *gnmi.GetRequest, target *collector.Target, wg *sync.WaitGroup, lock *sync.Mutex) {
 	defer wg.Done()
-	conn, err := createGrpcConn(ctx, target.Address, nil)
-	if err != nil {
-		logger.Printf("connection to %s failed: %v", target.Address, err)
+	opts := createCollectorDialOpts()
+	if err := target.CreateGNMIClient(ctx, opts...); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			logger.Printf("failed to create a gRPC client for target '%s', timeout (%s) reached", target.Config.Name, target.Config.Timeout)
+			return
+		}
+		logger.Printf("failed to create a client for target '%s' : %v", target.Config.Name, err)
 		return
 	}
-	client := gnmi.NewGNMIClient(conn)
-	nctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	nctx = metadata.AppendToOutgoingContext(nctx, "username", target.Username, "password", target.Password)
 	xreq := req
 	models := viper.GetStringSlice("get-model")
 	if len(models) > 0 {
-		spModels, unspModels, err := filterModels(nctx, client, models)
+		spModels, unspModels, err := filterModels(ctx, target, models)
 		if err != nil {
-			logger.Printf("failed getting supported models from '%s': %v", target.Address, err)
+			logger.Printf("failed getting supported models from '%s': %v", target.Config.Address, err)
 			return
 		}
 		if len(unspModels) > 0 {
-			logger.Printf("found unsupported models for target '%s': %+v", target.Address, unspModels)
+			logger.Printf("found unsupported models for target '%s': %+v", target.Config.Address, unspModels)
 		}
 		for _, m := range spModels {
 			xreq.UseModels = append(xreq.UseModels, m)
 		}
 	}
 	logger.Printf("sending gNMI GetRequest: prefix='%v', path='%v', type='%v', encoding='%v', models='%+v', extension='%+v' to %s",
-		xreq.Prefix, xreq.Path, xreq.Type, xreq.Encoding, xreq.UseModels, xreq.Extension, target.Address)
-	response, err := client.Get(nctx, xreq)
+		xreq.Prefix, xreq.Path, xreq.Type, xreq.Encoding, xreq.UseModels, xreq.Extension, target.Config.Address)
+	response, err := target.Get(ctx, xreq)
 	if err != nil {
-		logger.Printf("failed sending GetRequest to %s: %v", target.Address, err)
+		logger.Printf("failed sending GetRequest to %s: %v", target.Config.Address, err)
 		return
 	}
 	lock.Lock()
-	printGetResponse(target.Address, response)
+	printGetResponse(target.Config.Name, response)
 	lock.Unlock()
 }
 

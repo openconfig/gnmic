@@ -11,6 +11,7 @@ type Output interface {
 	Write([]byte, Meta)
 	Close() error
 	Metrics() []prometheus.Collector
+	String() string
 }
 type Initializer func() Output
 

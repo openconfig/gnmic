@@ -1,6 +1,7 @@
 package kafka_output
 
 import (
+	"encoding/json"
 	"log"
 	"os"
 	"strings"
@@ -33,16 +34,23 @@ type KafkaOutput struct {
 	producer sarama.SyncProducer
 	metrics  []prometheus.Collector
 	logger   sarama.StdLogger
-	stopChan chan struct{}
 }
 
 // Config //
 type Config struct {
-	Address  string
-	Topic    string
-	Name     string
-	MaxRetry int
-	Timeout  int
+	Address  string `mapstructure:"address,omitempty"`
+	Topic    string `mapstructure:"topic,omitempty"`
+	Name     string `mapstructure:"name,omitempty"`
+	MaxRetry int    `mapstructure:"max-retry,omitempty"`
+	Timeout  int    `mapstructure:"timeout,omitempty"`
+}
+
+func (k *KafkaOutput) String() string {
+	b, err := json.Marshal(k)
+	if err != nil {
+		return ""
+	}
+	return string(b)
 }
 
 // Init /
@@ -78,6 +86,10 @@ func (k *KafkaOutput) Init(cfg map[string]interface{}, logger *log.Logger) error
 	config.Producer.Return.Successes = true
 	config.Producer.Timeout = time.Duration(k.Cfg.Timeout) * time.Second
 	k.producer, err = sarama.NewSyncProducer(strings.Split(k.Cfg.Address, ","), config)
+	if err != nil {
+		return err
+	}
+	k.logger.Printf("initialized kafka producer: %s", k.String())
 	return err
 }
 
@@ -85,6 +97,11 @@ func (k *KafkaOutput) Init(cfg map[string]interface{}, logger *log.Logger) error
 func (k *KafkaOutput) Write(b []byte, meta outputs.Meta) {
 	if len(b) == 0 {
 		return
+	}
+	if format, ok := meta["format"]; ok {
+		if format == "textproto" {
+			return
+		}
 	}
 	msg := &sarama.ProducerMessage{
 		Topic: k.Cfg.Topic,
@@ -99,7 +116,6 @@ func (k *KafkaOutput) Write(b []byte, meta outputs.Meta) {
 
 // Close //
 func (k *KafkaOutput) Close() error {
-	close(k.stopChan)
 	return k.producer.Close()
 }
 

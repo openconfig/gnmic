@@ -1,6 +1,7 @@
 package stan_output
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -38,15 +39,23 @@ type StanOutput struct {
 
 // Config //
 type Config struct {
-	Name         string
-	Address      string
-	Subject      string
-	Username     string
-	Password     string
-	ClusterName  string
-	Timeout      int
-	PingInterval int
-	PingRetry    int
+	Name         string `mapstructure:"name,omitempty"`
+	Address      string `mapstructure:"address,omitempty"`
+	Subject      string `mapstructure:"subject,omitempty"`
+	Username     string `mapstructure:"username,omitempty"`
+	Password     string `mapstructure:"password,omitempty"`
+	ClusterName  string `mapstructure:"cluster-name,omitempty"`
+	Timeout      int    `mapstructure:"timeout,omitempty"`
+	PingInterval int    `mapstructure:"ping-interval,omitempty"`
+	PingRetry    int    `mapstructure:"ping-retry,omitempty"`
+}
+
+func (s *StanOutput) String() string {
+	b, err := json.Marshal(s)
+	if err != nil {
+		return ""
+	}
+	return string(b)
 }
 
 // Init //
@@ -56,12 +65,12 @@ func (s *StanOutput) Init(cfg map[string]interface{}, logger *log.Logger) error 
 		return err
 	}
 	if s.Cfg.Name == "" {
-		s.Cfg.Name = "gnmiclient-" + uuid.New().String()
+		s.Cfg.Name = "gnmic-" + uuid.New().String()
 	}
 	if s.Cfg.ClusterName == "" {
 		return fmt.Errorf("clusterName is mandatory")
 	}
-	s.conn, err = createSTANConn(s.Cfg)
+	s.conn, err = s.createSTANConn(s.Cfg)
 	if err != nil {
 		return err
 	}
@@ -71,12 +80,20 @@ func (s *StanOutput) Init(cfg map[string]interface{}, logger *log.Logger) error 
 		s.logger.SetFlags(logger.Flags())
 	}
 	s.stopChan = make(chan struct{})
-	s.logger.Printf("initialized stan producer")
+	s.logger.Printf("initialized stan producer: %s", s.String())
 	return nil
 }
 
 // Write //
 func (s *StanOutput) Write(b []byte, meta outputs.Meta) {
+	if len(b) == 0 {
+		return
+	}
+	if format, ok := meta["format"]; ok {
+		if format == "textproto" {
+			return
+		}
+	}
 	err := s.conn.Publish(s.Cfg.Subject, b)
 	if err != nil {
 		log.Printf("failed to write to stan subject '%s': %v", s.Cfg.Subject, err)
@@ -94,7 +111,7 @@ func (s *StanOutput) Close() error {
 	return s.conn.Close()
 }
 
-func createSTANConn(c *Config) (stan.Conn, error) {
+func (s *StanOutput) createSTANConn(c *Config) (stan.Conn, error) {
 	if c.Timeout == 0 {
 		c.Timeout = stanDefaultTimeout
 	}
@@ -122,7 +139,8 @@ func createSTANConn(c *Config) (stan.Conn, error) {
 		stan.Pings(c.PingInterval, c.PingRetry),
 		stan.SetConnectionLostHandler(func(_ stan.Conn, err error) {
 			log.Fatalf("STAN connection lost, reason: %v", err)
-		}))
+		}),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to %s: %v", c.Address, err)
 	}

@@ -16,12 +16,14 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
+	"github.com/karimra/gnmic/collector"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/gnmi/proto/gnmi_ext"
 	"github.com/spf13/viper"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/encoding/prototext"
 
 	"github.com/spf13/cobra"
@@ -39,45 +41,42 @@ var capabilitiesCmd = &cobra.Command{
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		setupCloseHandler(cancel)
-		targets, err := getTargets()
+		targets, err := createTargets()
 		if err != nil {
 			return err
 		}
 		wg := new(sync.WaitGroup)
 		wg.Add(len(targets))
 		lock := new(sync.Mutex)
-		for _, target := range targets {
-			go reqCapability(ctx, target, wg, lock)
+		for _, tc := range targets {
+			go reqCapability(ctx, collector.NewTarget(tc), wg, lock)
 		}
 		wg.Wait()
 		return nil
 	},
 }
 
-func reqCapability(ctx context.Context, target *target, wg *sync.WaitGroup, m *sync.Mutex) error {
+func reqCapability(ctx context.Context, target *collector.Target, wg *sync.WaitGroup, m *sync.Mutex) {
 	defer wg.Done()
-	conn, err := createGrpcConn(ctx, target.Address, nil)
-	if err != nil {
-		logger.Printf("connection to %s failed: %v", target.Address, err)
-		return err
+	opts := createCollectorDialOpts()
+	if err := target.CreateGNMIClient(ctx, opts...); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			logger.Printf("failed to create a gRPC client for target '%s', timeout (%s) reached", target.Config.Name, target.Config.Timeout)
+			return
+		}
+		logger.Printf("failed to create a gRPC client for target '%s' : %v", target.Config.Name, err)
+		return
 	}
-	client := gnmi.NewGNMIClient(conn)
-
-	nctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	nctx = metadata.AppendToOutgoingContext(nctx, "username", target.Username, "password", target.Password)
-
-	req := &gnmi.CapabilityRequest{}
-	logger.Printf("sending gNMI CapabilityRequest: gnmi_ext.Extension='%v' to %s", req.Extension, target.Address)
-	response, err := client.Capabilities(nctx, req)
+	ext := make([]*gnmi_ext.Extension, 0) //
+	logger.Printf("sending gNMI CapabilityRequest: gnmi_ext.Extension='%v' to %s", ext, target.Config.Address)
+	response, err := target.Capabilities(ctx)
 	if err != nil {
 		logger.Printf("error sending capabilities request: %v", err)
-		return err
+		return
 	}
 	m.Lock()
-	printCapResponse(response, target.Address)
+	printCapResponse(response, target.Config.Address)
 	m.Unlock()
-	return nil
 }
 
 func printCapResponse(r *gnmi.CapabilityResponse, address string) {

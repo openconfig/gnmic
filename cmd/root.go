@@ -27,12 +27,11 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"sort"
 	"strings"
 	"syscall"
 	"time"
 
-	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/karimra/gnmic/collector"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmi/proto/gnmi"
@@ -41,7 +40,6 @@ import (
 	"github.com/spf13/viper"
 	"golang.org/x/crypto/ssh/terminal"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/grpclog"
 )
 
@@ -57,16 +55,10 @@ var cfgFile string
 var f io.WriteCloser
 var logger *log.Logger
 
-type target struct {
-	Address  string
-	Username string
-	Password string
-}
-
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "gnmic",
-	Short: "run gnmi rpcs from the terminal",
+	Short: "run gnmi rpcs from the terminal (https://gnmic.kmrd.dev)",
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		if viper.GetBool("nolog") {
 			f = myWriteCloser{ioutil.Discard}
@@ -79,7 +71,7 @@ var rootCmd = &cobra.Command{
 				logger.Fatalf("error opening file: %v", err)
 			}
 		}
-		logger = log.New(f, "", log.LstdFlags|log.Lmicroseconds)
+		logger = log.New(f, "gnmic ", log.LstdFlags|log.Lmicroseconds)
 		logger.SetFlags(log.LstdFlags | log.Lmicroseconds)
 		if viper.GetBool("debug") {
 			grpclog.SetLogger(logger) //lint:ignore SA1019 see https://github.com/karimra/gnmic/issues/59
@@ -224,45 +216,6 @@ func readPassword() (string, error) {
 	fmt.Println()
 	return string(pass), nil
 }
-func createGrpcConn(ctx context.Context, address string, clientMetrics *grpc_prometheus.ClientMetrics) (*grpc.ClientConn, error) {
-	opts := []grpc.DialOption{}
-	opts = append(opts, grpc.WithBlock())
-	if viper.GetInt("max-msg-size") > 0 {
-		opts = append(opts, grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(viper.GetInt("max-msg-size"))))
-	}
-	if !viper.GetBool("proxy-from-env") {
-		opts = append(opts, grpc.WithNoProxy())
-	}
-	if viper.GetBool("insecure") {
-		opts = append(opts, grpc.WithInsecure())
-	} else {
-		tlsConfig := &tls.Config{
-			Renegotiation:      tls.RenegotiateNever,
-			InsecureSkipVerify: viper.GetBool("skip-verify"),
-		}
-		err := loadCerts(tlsConfig)
-		if err != nil {
-			logger.Printf("failed loading certificates: %v", err)
-		}
-
-		err = loadCACerts(tlsConfig)
-		if err != nil {
-			logger.Printf("failed loading CA certificates: %v", err)
-		}
-		opts = append(opts, grpc.WithDisableRetry())
-		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
-	}
-	if clientMetrics != nil {
-		opts = append(opts, grpc.WithStreamInterceptor(clientMetrics.StreamClientInterceptor()))
-	}
-	timeoutCtx, cancel := context.WithTimeout(ctx, viper.GetDuration("timeout"))
-	defer cancel()
-	conn, err := grpc.DialContext(timeoutCtx, address, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return conn, nil
-}
 func gnmiPathToXPath(p *gnmi.Path) string {
 	if p == nil {
 		return ""
@@ -390,8 +343,8 @@ func indent(prefix, s string) string {
 	return strings.TrimLeft(fmt.Sprintf("%s%s", prefix, strings.Join(lines, prefix)), "\n")
 }
 
-func filterModels(ctx context.Context, client gnmi.GNMIClient, modelsNames []string) (map[string]*gnmi.ModelData, []string, error) {
-	capResp, err := client.Capabilities(ctx, &gnmi.CapabilityRequest{})
+func filterModels(ctx context.Context, t *collector.Target, modelsNames []string) (map[string]*gnmi.ModelData, []string, error) {
+	capResp, err := t.Capabilities(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -424,99 +377,6 @@ func setupCloseHandler(cancelFn context.CancelFunc) {
 	}()
 }
 
-func getTargets() ([]*target, error) {
-	var err error
-	addresses := viper.GetStringSlice("address")
-	targets := make([]*target, 0, len(addresses))
-	defGrpcPort := viper.GetString("port")
-	defUsername := viper.GetString("username")
-	defPassword := viper.GetString("password")
-	if len(addresses) > 0 {
-		if defUsername == "" {
-			if defUsername, err = readUsername(); err != nil {
-				return nil, err
-			}
-		}
-		if defPassword == "" {
-			if defPassword, err = readPassword(); err != nil {
-				return nil, err
-			}
-		}
-		for _, addr := range addresses {
-			tg := new(target)
-			_, _, err := net.SplitHostPort(addr)
-			if err != nil {
-				if strings.Contains(err.Error(), "missing port in address") {
-					addr = net.JoinHostPort(addr, defGrpcPort)
-				} else {
-					logger.Printf("error parsing address '%s': %v", addr, err)
-					return nil, fmt.Errorf("error parsing address '%s': %v", addr, err)
-				}
-			}
-			tg.Address = addr
-			tg.Username = defUsername
-			tg.Password = defPassword
-			targets = append(targets, tg)
-		}
-		sort.Slice(targets, func(i, j int) bool {
-			return targets[i].Address < targets[j].Address
-		})
-		return targets, nil
-	}
-	targetsInt := viper.Get("targets")
-	targetsMap := make(map[string]interface{})
-	switch targetsInt := targetsInt.(type) {
-	case string:
-		for _, addr := range strings.Split(targetsInt, " ") {
-			targetsMap[addr] = nil
-		}
-	case map[string]interface{}:
-		targetsMap = targetsInt
-	default:
-		return nil, fmt.Errorf("unexpected targets format, got: %T", targetsInt)
-	}
-	ltm := len(targetsMap)
-	if ltm == 0 {
-		return nil, fmt.Errorf("no targets found")
-	}
-	targets = make([]*target, 0, ltm)
-	for addr, t := range targetsMap {
-		tg := new(target)
-		_, _, err := net.SplitHostPort(addr)
-		if err != nil {
-			if strings.Contains(err.Error(), "missing port in address") {
-				addr = net.JoinHostPort(addr, defGrpcPort)
-			} else {
-				logger.Printf("error parsing address '%s': %v", addr, err)
-				return nil, fmt.Errorf("error parsing address '%s': %v", addr, err)
-			}
-		}
-
-		tg.Address = addr
-		switch t := t.(type) {
-		case map[string]interface{}:
-			err = mapstructure.Decode(t, tg)
-			if err != nil {
-				return nil, err
-			}
-		case nil:
-		default:
-			return nil, fmt.Errorf("unexpected targets format, got a %T", t)
-		}
-		if tg.Username == "" {
-			tg.Username = defUsername
-		}
-		if tg.Password == "" {
-			tg.Password = defPassword
-		}
-		targets = append(targets, tg)
-	}
-	sort.Slice(targets, func(i, j int) bool {
-		return targets[i].Address < targets[j].Address
-	})
-	return targets, nil
-}
-
 func numTargets() int {
 	addressesLength := len(viper.GetStringSlice("address"))
 	if addressesLength > 0 {
@@ -530,4 +390,150 @@ func numTargets() int {
 		return len(targets)
 	}
 	return 0
+}
+
+func createTargets() (map[string]*collector.TargetConfig, error) {
+	addresses := viper.GetStringSlice("address")
+	targets := make(map[string]*collector.TargetConfig)
+	defGrpcPort := viper.GetString("port")
+	// case address is defined in config file
+	if len(addresses) > 0 {
+		if viper.GetString("username") == "" {
+			defUsername, err := readUsername()
+			if err != nil {
+				return nil, err
+			}
+			viper.Set("username", defUsername)
+		}
+		if viper.GetString("password") == "" {
+			defPassword, err := readPassword()
+			if err != nil {
+				return nil, err
+			}
+			viper.Set("password", defPassword)
+		}
+		for _, addr := range addresses {
+			tc := new(collector.TargetConfig)
+			_, _, err := net.SplitHostPort(addr)
+			if err != nil {
+				if strings.Contains(err.Error(), "missing port in address") {
+					addr = net.JoinHostPort(addr, defGrpcPort)
+				} else {
+					logger.Printf("error parsing address '%s': %v", addr, err)
+					return nil, fmt.Errorf("error parsing address '%s': %v", addr, err)
+				}
+			}
+			tc.Address = addr
+			setTargetConfigDefaults(tc)
+			targets[tc.Name] = tc
+		}
+		return targets, nil
+	}
+	// case targets is defined in config file
+	targetsInt := viper.Get("targets")
+	targetsMap := make(map[string]interface{})
+	switch targetsInt := targetsInt.(type) {
+	case string:
+		for _, addr := range strings.Split(targetsInt, " ") {
+			targetsMap[addr] = nil
+		}
+	case map[string]interface{}:
+		targetsMap = targetsInt
+	default:
+		return nil, fmt.Errorf("unexpected targets format, got: %T", targetsInt)
+	}
+	if len(targetsMap) == 0 {
+		return nil, fmt.Errorf("no targets found")
+	}
+	for addr, t := range targetsMap {
+		_, _, err := net.SplitHostPort(addr)
+		if err != nil {
+			if strings.Contains(err.Error(), "missing port in address") {
+				addr = net.JoinHostPort(addr, defGrpcPort)
+			} else {
+				logger.Printf("error parsing address '%s': %v", addr, err)
+				return nil, fmt.Errorf("error parsing address '%s': %v", addr, err)
+			}
+		}
+		tc := new(collector.TargetConfig)
+		switch t := t.(type) {
+		case map[string]interface{}:
+			decoder, err := mapstructure.NewDecoder(
+				&mapstructure.DecoderConfig{
+					DecodeHook: mapstructure.StringToTimeDurationHookFunc(),
+					Result:     tc,
+				},
+			)
+			if err != nil {
+				return nil, err
+			}
+			err = decoder.Decode(t)
+			if err != nil {
+				return nil, err
+			}
+		case nil:
+		default:
+			return nil, fmt.Errorf("unexpected targets format, got a %T", t)
+		}
+		tc.Address = addr
+		setTargetConfigDefaults(tc)
+		if viper.GetBool("debug") {
+			logger.Printf("read target config: %s", tc)
+		}
+		targets[tc.Name] = tc
+	}
+	return targets, nil
+}
+
+func setTargetConfigDefaults(tc *collector.TargetConfig) {
+	if tc.Name == "" {
+		tc.Name = tc.Address
+	}
+	if tc.Username == nil {
+		s := viper.GetString("username")
+		tc.Username = &s
+	}
+	if tc.Password == nil {
+		s := viper.GetString("password")
+		tc.Password = &s
+	}
+	if tc.Timeout == 0 {
+		tc.Timeout = viper.GetDuration("timeout")
+	}
+	if tc.Insecure == nil {
+		b := viper.GetBool("insecure")
+		tc.Insecure = &b
+	}
+	if tc.SkipVerify == nil {
+		b := viper.GetBool("skip-verify")
+		tc.SkipVerify = &b
+	}
+	if tc.Insecure != nil && !*tc.Insecure {
+		if tc.TLSCA == nil {
+			s := viper.GetString("tls-ca")
+			if s != "" {
+				tc.TLSCA = &s
+			}
+		}
+		if tc.TLSCert == nil {
+			s := viper.GetString("tls-cert")
+			tc.TLSCert = &s
+		}
+		if tc.TLSKey == nil {
+			s := viper.GetString("tls-key")
+			tc.TLSKey = &s
+		}
+	}
+}
+
+func createCollectorDialOpts() []grpc.DialOption {
+	opts := []grpc.DialOption{}
+	opts = append(opts, grpc.WithBlock())
+	if viper.GetInt("max-msg-size") > 0 {
+		opts = append(opts, grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(viper.GetInt("max-msg-size"))))
+	}
+	if !viper.GetBool("proxy-from-env") {
+		opts = append(opts, grpc.WithNoProxy())
+	}
+	return opts
 }

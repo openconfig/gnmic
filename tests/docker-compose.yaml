@@ -5,6 +5,34 @@ networks:
     driver: bridge
 
 services:
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    networks:
+      - gnmic-net
+    volumes:
+    - grafana-storage:/var/lib/grafana
+
+  prometheus:
+    image: prom/prometheus:v2.1.0
+    container_name: prometheus
+    volumes:
+      - ./prometheus/:/etc/prometheus/
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--log.level=debug'
+    ports:
+      - 9090:9090
+    networks:
+      - gnmic-net
+    restart: always
+
   nats:
     image: 'nats:latest'
     networks:
@@ -43,3 +71,7 @@ services:
       - ALLOW_PLAINTEXT_LISTENER=yes
     depends_on:
       - zookeeper-server
+
+volumes:
+  prometheus_data:
+  grafana-storage:
