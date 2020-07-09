@@ -362,7 +362,7 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 			updateData, err = readFile(updateFiles[i])
 			if err != nil {
 				logger.Printf("error reading data from file '%s': %v", updateFiles[i], err)
-				continue
+				return nil, err
 			}
 			value.Value = &gnmi.TypedValue_JsonVal{
 				JsonVal: bytes.Trim(updateData, " \r\n\t"),
@@ -389,7 +389,7 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 			replaceData, err = readFile(replaceFiles[i])
 			if err != nil {
 				logger.Printf("error reading data from file '%s': %v", replaceFiles[i], err)
-				continue
+				return nil, err
 			}
 			value.Value = &gnmi.TypedValue_JsonVal{
 				JsonVal: bytes.Trim(replaceData, " \r\n\t"),
@@ -405,10 +405,6 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 			Val:  value,
 		})
 	}
-	if (len(req.Delete) == 0) && (len(req.Update) == 0) && (len(req.Replace) == 0) {
-		return nil, errors.New("no data to populate Set Request with")
-	}
-
 	return req, nil
 }
 
