@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -96,14 +97,17 @@ var subscribeCmd = &cobra.Command{
 
 		wg := new(sync.WaitGroup)
 		wg.Add(len(coll.Targets))
-		for tName := range coll.Targets {
+		for name := range coll.Targets {
 			go func(tn string) {
 				defer wg.Done()
-				err = coll.Subscribe(tn)
-				if err != nil {
-					logger.Printf("failed subscribing to target '%s': %v", tn, err)
+				if err = coll.Subscribe(tn); err != nil {
+					if errors.Is(err, context.DeadlineExceeded) {
+						logger.Printf("failed to initialize target '%s' timeout (%s) reached", tn, targetsConfig[tn].Timeout)
+						return
+					}
+					logger.Printf("failed to initialize target '%s': %v", tn, err)
 				}
-			}(tName)
+			}(name)
 		}
 		wg.Wait()
 		polledTargetsSubscriptions := coll.PolledSubscriptionsTargets()

@@ -3,7 +3,6 @@ package collector
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -87,28 +86,15 @@ func NewCollector(ctx context.Context,
 		ctx:           nctx,
 		cancelFn:      cancel,
 	}
-	wg := new(sync.WaitGroup)
-	wg.Add(len(targetConfigs))
+
 	for _, tc := range targetConfigs {
-		go func(tc *TargetConfig) {
-			defer wg.Done()
-			if err := c.InitTarget(tc); err != nil {
-				if errors.Is(err, context.DeadlineExceeded) {
-					c.Logger.Printf("failed to initialize target '%s' timeout (%s) reached", tc.Name, tc.Timeout)
-					return
-				}
-				c.Logger.Printf("failed to initialize target '%s': %v", tc.Name, err)
-				return
-			}
-			c.Logger.Printf("target '%s' initialized", tc.Name)
-		}(tc)
+		c.InitTarget(tc)
 	}
-	wg.Wait()
 	return c
 }
 
 // InitTarget initializes a target based on *TargetConfig
-func (c *Collector) InitTarget(tc *TargetConfig) error {
+func (c *Collector) InitTarget(tc *TargetConfig) {
 	if tc.BufferSize == 0 {
 		tc.BufferSize = c.Config.TargetReceiveBuffer
 	}
@@ -139,20 +125,18 @@ func (c *Collector) InitTarget(tc *TargetConfig) error {
 			t.Outputs = append(t.Outputs, o...)
 		}
 	}
-	//
-	err := t.CreateGNMIClient(c.ctx, c.DialOpts...)
-	if err != nil {
-		return err
-	}
 	c.m.Lock()
 	defer c.m.Unlock()
 	c.Targets[t.Config.Name] = t
-	return nil
 }
 
 // Subscribe //
 func (c *Collector) Subscribe(tName string) error {
 	if t, ok := c.Targets[tName]; ok {
+		if err := t.CreateGNMIClient(c.ctx, c.DialOpts...); err != nil {
+			return err
+		}
+		c.Logger.Printf("target '%s' gNMI client created", t.Config.Name)
 		for _, sc := range t.Subscriptions {
 			req, err := sc.CreateSubscribeRequest()
 			if err != nil {
