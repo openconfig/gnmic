@@ -68,12 +68,13 @@ var rootCmd = &cobra.Command{
 	Use:   "gnmic",
 	Short: "run gnmi rpcs from the terminal",
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		switch {
-		case viper.GetBool("log") == true:
+		switch viper.GetBool("log") {
+		case true:
 			f = os.Stderr
-		case viper.GetBool("log") == false:
+		case false:
 			f = myWriteCloser{ioutil.Discard}
-		default:
+		}
+		if viper.GetString("log-file") != "" {
 			var err error
 			f, err = os.OpenFile(viper.GetString("log-file"), os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 			if err != nil {
