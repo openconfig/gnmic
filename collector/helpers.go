@@ -9,9 +9,7 @@ func CreatePrefix(prefix, target string) (*gnmi.Path, error) {
 	if len(prefix)+len(target) == 0 {
 		return nil, nil
 	}
-	p := new(gnmi.Path)
-	var err error
-	p, err = xpath.ToGNMIPath(prefix)
+	p, err := xpath.ToGNMIPath(prefix)
 	if err != nil {
 		return nil, err
 	}
