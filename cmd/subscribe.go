@@ -324,6 +324,7 @@ func getSubscriptions() (map[string]*collector.SubscriptionConfig, error) {
 		sub.Name = "default"
 		sub.Paths = paths
 		sub.Prefix = viper.GetString("subscribe-prefix")
+		sub.Target = viper.GetString("subscribe-target")
 		sub.Mode = viper.GetString("subscribe-mode")
 		sub.Encoding = viper.GetString("encoding")
 		sub.Qos = viper.GetUint32("qos")
