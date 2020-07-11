@@ -223,20 +223,27 @@ func gnmiPathToXPath(p *gnmi.Path) string {
 	if p == nil {
 		return ""
 	}
-	pathElems := make([]string, 0, len(p.GetElem()))
-	for _, pe := range p.GetElem() {
-		elem := ""
-		if pe.GetName() != "" {
-			elem += pe.GetName()
-		}
-		if pe.GetKey() != nil {
-			for k, v := range pe.GetKey() {
-				elem += fmt.Sprintf("[%s=%s]", k, v)
-			}
-		}
-		pathElems = append(pathElems, elem)
+	sb := strings.Builder{}
+	if p.Origin != "" {
+		sb.WriteString(p.Origin)
+		sb.WriteString(":")
 	}
-	return strings.Join(pathElems, "/")
+	elems := p.GetElem()
+	numElems := len(elems)
+	for i, pe := range elems {
+		sb.WriteString(pe.GetName())
+		for k, v := range pe.GetKey() {
+			sb.WriteString("[")
+			sb.WriteString(k)
+			sb.WriteString("=")
+			sb.WriteString(v)
+			sb.WriteString("]")
+		}
+		if i+1 != numElems {
+			sb.WriteString("/")
+		}
+	}
+	return sb.String()
 }
 func loadCerts(tlscfg *tls.Config) error {
 	tlsCert := viper.GetString("tls-cert")
