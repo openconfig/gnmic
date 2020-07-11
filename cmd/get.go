@@ -167,20 +167,11 @@ func createGetRequest() (*gnmi.GetRequest, error) {
 		Path:      make([]*gnmi.Path, 0, len(paths)),
 		Encoding:  gnmi.Encoding(encodingVal),
 	}
-	prefix := viper.GetString("get-prefix")
-	target := viper.GetString("get-target")
-	if prefix != "" || target != "" {
-		gnmiPrefix, err := xpath.ToGNMIPath(prefix)
-		if err != nil {
-			return nil, fmt.Errorf("prefix parse error: %v", err)
-		}
-		if gnmiPrefix == nil && target != "" {
-			gnmiPrefix = new(gnmi.Path)
-			gnmiPrefix.Target = target
-		}
-		req.Prefix = gnmiPrefix
+	var err error
+	req.Prefix, err = collector.CreatePrefix(viper.GetString("get-prefix"), viper.GetString("get-target"))
+	if err != nil {
+		return nil, fmt.Errorf("prefix parse error: %v", err)
 	}
-
 	dataType := viper.GetString("get-type")
 	if dataType != "" {
 		dti, ok := gnmi.GetRequest_DataType_value[strings.ToUpper(dataType)]
