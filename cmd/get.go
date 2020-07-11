@@ -166,7 +166,7 @@ func createGetRequest() (*gnmi.GetRequest, error) {
 	}
 	prefix := viper.GetString("get-prefix")
 	if prefix != "" {
-		gnmiPrefix, err := parsePath(prefix)
+		gnmiPrefix, err := collector.ParsePath(prefix)
 		if err != nil {
 			return nil, fmt.Errorf("prefix parse error: %v", err)
 		}
@@ -181,7 +181,7 @@ func createGetRequest() (*gnmi.GetRequest, error) {
 		req.Type = gnmi.GetRequest_DataType(dti)
 	}
 	for _, p := range paths {
-		gnmiPath, err := parsePath(strings.TrimSpace(p))
+		gnmiPath, err := collector.ParsePath(strings.TrimSpace(p))
 		if err != nil {
 			return nil, fmt.Errorf("path parse error: %v", err)
 		}
