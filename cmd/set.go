@@ -265,10 +265,9 @@ func init() {
 }
 
 func createSetRequest() (*gnmi.SetRequest, error) {
-	prefix := viper.GetString("set-prefix")
-	gnmiPrefix, err := xpath.ToGNMIPath(prefix)
+	gnmiPrefix, err := collector.CreatePrefix(viper.GetString("set-prefix"), viper.GetString("set-target"))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("prefix parse error: %v", err)
 	}
 	deletes := viper.GetStringSlice("set-delete")
 	updates := viper.GetStringSlice("set-update")
