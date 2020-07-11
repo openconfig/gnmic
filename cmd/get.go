@@ -148,10 +148,12 @@ func init() {
 	getCmd.Flags().StringP("prefix", "", "", "get request prefix")
 	getCmd.Flags().StringSliceP("model", "", []string{""}, "get request model(s)")
 	getCmd.Flags().StringP("type", "t", "ALL", "the type of data that is requested from the target. one of: ALL, CONFIG, STATE, OPERATIONAL")
+	getCmd.Flags().StringP("target", "", "", "get request target")
 	viper.BindPFlag("get-path", getCmd.LocalFlags().Lookup("path"))
 	viper.BindPFlag("get-prefix", getCmd.LocalFlags().Lookup("prefix"))
 	viper.BindPFlag("get-model", getCmd.LocalFlags().Lookup("model"))
 	viper.BindPFlag("get-type", getCmd.LocalFlags().Lookup("type"))
+	viper.BindPFlag("get-target", getCmd.LocalFlags().Lookup("target"))
 }
 
 func createGetRequest() (*gnmi.GetRequest, error) {
@@ -166,13 +168,19 @@ func createGetRequest() (*gnmi.GetRequest, error) {
 		Encoding:  gnmi.Encoding(encodingVal),
 	}
 	prefix := viper.GetString("get-prefix")
-	if prefix != "" {
+	target := viper.GetString("get-target")
+	if prefix != "" || target != "" {
 		gnmiPrefix, err := xpath.ToGNMIPath(prefix)
 		if err != nil {
 			return nil, fmt.Errorf("prefix parse error: %v", err)
 		}
+		if gnmiPrefix == nil && target != "" {
+			gnmiPrefix = new(gnmi.Path)
+			gnmiPrefix.Target = target
+		}
 		req.Prefix = gnmiPrefix
 	}
+
 	dataType := viper.GetString("get-type")
 	if dataType != "" {
 		dti, ok := gnmi.GetRequest_DataType_value[strings.ToUpper(dataType)]
