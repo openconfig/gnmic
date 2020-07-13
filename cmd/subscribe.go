@@ -195,8 +195,8 @@ func init() {
 	subscribeCmd.Flags().BoolP("updates-only", "", false, "only updates to current state should be sent")
 	subscribeCmd.Flags().StringP("mode", "", "stream", "one of: once, stream, poll")
 	subscribeCmd.Flags().StringP("stream-mode", "", "target-defined", "one of: on-change, sample, target-defined")
-	subscribeCmd.Flags().StringP("sample-interval", "i", "10s",
-		"sample interval as a decimal number and a suffix unit, such as \"10s\" or \"1m30s\", minimum is 1s")
+	subscribeCmd.Flags().StringP("sample-interval", "i", "0s",
+		"sample interval as a decimal number and a suffix unit, such as \"10s\" or \"1m30s\"")
 	subscribeCmd.Flags().BoolP("suppress-redundant", "", false, "suppress redundant update if the subscribed value didn't not change")
 	subscribeCmd.Flags().StringP("heartbeat-interval", "", "0s", "heartbeat interval in case suppress-redundant is enabled")
 	subscribeCmd.Flags().StringSliceP("model", "", []string{""}, "subscribe request used model(s)")
@@ -353,6 +353,9 @@ func getSubscriptions() (map[string]*collector.SubscriptionConfig, error) {
 			return nil, err
 		}
 		sub.Name = sn
+		if sub.SampleInterval == 0 { // inherit global "subscribe-sample-interval" option if its not set (or set to 0) in a file
+			sub.SampleInterval = viper.GetDuration("subscribe-sample-interval")
+		}
 		subscriptions[sn] = sub
 	}
 	return subscriptions, nil

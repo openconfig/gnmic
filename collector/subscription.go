@@ -42,7 +42,7 @@ func (sc *SubscriptionConfig) setDefaults() error {
 	if sc.Mode == "" {
 		sc.Mode = "STREAM"
 	}
-	if sc.Mode == "STREAM" && sc.StreamMode == "" {
+	if strings.ToUpper(sc.Mode) == "STREAM" && sc.StreamMode == "" {
 		sc.StreamMode = "TARGET_DEFINED"
 	}
 	if sc.Encoding == "" {
@@ -50,9 +50,6 @@ func (sc *SubscriptionConfig) setDefaults() error {
 	}
 	if sc.Qos == 0 {
 		sc.Qos = 20
-	}
-	if sc.StreamMode == "SAMPLE" && sc.SampleInterval == 0 {
-		sc.SampleInterval = 10 * time.Second
 	}
 	return nil
 }
