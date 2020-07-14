@@ -12,18 +12,18 @@ import (
 
 // SubscriptionConfig //
 type SubscriptionConfig struct {
-	Name              string        `mapstructure:"name,omitempty"`
-	Models            []string      `mapstructure:"models,omitempty"`
-	Prefix            string        `mapstructure:"prefix,omitempty"`
-	Paths             []string      `mapstructure:"paths,omitempty"`
-	Mode              string        `mapstructure:"mode,omitempty"`
-	StreamMode        string        `mapstructure:"stream-mode,omitempty"`
-	Encoding          string        `mapstructure:"encoding,omitempty"`
-	Qos               uint32        `mapstructure:"qos,omitempty"`
-	SampleInterval    time.Duration `mapstructure:"sample-interval,omitempty"`
-	HeartbeatInterval time.Duration `mapstructure:"heartbeat-interval,omitempty"`
-	SuppressRedundant bool          `mapstructure:"suppress-redundant,omitempty"`
-	UpdatesOnly       bool          `mapstructure:"updates-only,omitempty"`
+	Name              string         `mapstructure:"name,omitempty"`
+	Models            []string       `mapstructure:"models,omitempty"`
+	Prefix            string         `mapstructure:"prefix,omitempty"`
+	Paths             []string       `mapstructure:"paths,omitempty"`
+	Mode              string         `mapstructure:"mode,omitempty"`
+	StreamMode        string         `mapstructure:"stream-mode,omitempty"`
+	Encoding          string         `mapstructure:"encoding,omitempty"`
+	Qos               uint32         `mapstructure:"qos,omitempty"`
+	SampleInterval    *time.Duration `mapstructure:"sample-interval,omitempty"`
+	HeartbeatInterval *time.Duration `mapstructure:"heartbeat-interval,omitempty"`
+	SuppressRedundant bool           `mapstructure:"suppress-redundant,omitempty"`
+	UpdatesOnly       bool           `mapstructure:"updates-only,omitempty"`
 }
 
 // String //

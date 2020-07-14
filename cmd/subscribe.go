@@ -317,6 +317,8 @@ func getOutputs() (map[string][]outputs.Output, error) {
 func getSubscriptions() (map[string]*collector.SubscriptionConfig, error) {
 	subscriptions := make(map[string]*collector.SubscriptionConfig)
 	paths := viper.GetStringSlice("subscribe-path")
+	hi := viper.GetDuration("subscribe-heartbeat-interval")
+	si := viper.GetDuration("subscribe-sample-interval")
 	if len(paths) > 0 {
 		sub := new(collector.SubscriptionConfig)
 		sub.Name = "default"
@@ -326,8 +328,8 @@ func getSubscriptions() (map[string]*collector.SubscriptionConfig, error) {
 		sub.Encoding = viper.GetString("encoding")
 		sub.Qos = viper.GetUint32("qos")
 		sub.StreamMode = viper.GetString("subscribe-stream-mode")
-		sub.HeartbeatInterval = viper.GetDuration("subscribe-heartbeat-interval")
-		sub.SampleInterval = viper.GetDuration("subscribe-sample-interval")
+		sub.HeartbeatInterval = &hi
+		sub.SampleInterval = &si
 		sub.SuppressRedundant = viper.GetBool("subscribe-suppress-redundant")
 		sub.UpdatesOnly = viper.GetBool("subscribe-updates-only")
 		sub.Models = viper.GetStringSlice("models")
@@ -353,8 +355,11 @@ func getSubscriptions() (map[string]*collector.SubscriptionConfig, error) {
 			return nil, err
 		}
 		sub.Name = sn
-		if sub.SampleInterval == 0 { // inherit global "subscribe-sample-interval" option if its not set (or set to 0) in a file
-			sub.SampleInterval = viper.GetDuration("subscribe-sample-interval")
+		if sub.SampleInterval == nil { // inherit global "subscribe-sample-interval" option if its not set
+			sub.SampleInterval = &si
+		}
+		if sub.HeartbeatInterval == nil { // inherit global "subscribe-heartbeat-interval" option if its not set
+			sub.HeartbeatInterval = &hi
 		}
 		subscriptions[sn] = sub
 	}
