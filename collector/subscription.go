@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/gnxi/utils/xpath"
 	"github.com/openconfig/gnmi/proto/gnmi"
 )
 
@@ -79,7 +78,7 @@ func (sc *SubscriptionConfig) CreateSubscribeRequest() (*gnmi.SubscribeRequest, 
 
 	subscriptions := make([]*gnmi.Subscription, len(sc.Paths))
 	for i, p := range sc.Paths {
-		gnmiPath, err := xpath.ToGNMIPath(strings.TrimSpace(p))
+		gnmiPath, err := ParsePath(strings.TrimSpace(p))
 		if err != nil {
 			return nil, fmt.Errorf("path '%s' parse error: %v", p, err)
 		}

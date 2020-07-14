@@ -23,7 +23,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/gnxi/utils/xpath"
 	"github.com/karimra/gnmic/collector"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
@@ -167,10 +166,13 @@ func createGetRequest() (*gnmi.GetRequest, error) {
 		Path:      make([]*gnmi.Path, 0, len(paths)),
 		Encoding:  gnmi.Encoding(encodingVal),
 	}
-	var err error
-	req.Prefix, err = collector.CreatePrefix(viper.GetString("get-prefix"), viper.GetString("get-target"))
-	if err != nil {
-		return nil, fmt.Errorf("prefix parse error: %v", err)
+	prefix := viper.GetString("get-prefix")
+	if prefix != "" {
+		gnmiPrefix, err := collector.ParsePath(prefix)
+		if err != nil {
+			return nil, fmt.Errorf("prefix parse error: %v", err)
+		}
+		req.Prefix = gnmiPrefix
 	}
 	dataType := viper.GetString("get-type")
 	if dataType != "" {
@@ -181,7 +183,7 @@ func createGetRequest() (*gnmi.GetRequest, error) {
 		req.Type = gnmi.GetRequest_DataType(dti)
 	}
 	for _, p := range paths {
-		gnmiPath, err := xpath.ToGNMIPath(strings.TrimSpace(p))
+		gnmiPath, err := collector.ParsePath(strings.TrimSpace(p))
 		if err != nil {
 			return nil, fmt.Errorf("path parse error: %v", err)
 		}
