@@ -1,3 +1,4 @@
+set -e
 TAR_PREFIX=gnmic
 PLATFORM=$(uname)
 ARCH=$(uname -m)
@@ -11,8 +12,8 @@ if [ "$INSTALLED_VERSION" == "$TAG_WO_VER" ]; then
 fi
 FNAME="${TAR_PREFIX}_${TAG_WO_VER}_${PLATFORM}_${ARCH}.tar.gz"
 echo "Downloading $FNAME..."
-(cd /tmp && curl -ksLO https://github.com/karimra/gnmic/releases/download/"$LATEST_TAG"/"$FNAME")
-tar -xzf /tmp/${FNAME} -C /tmp
+(cd /tmp && curl -ksLO https://github.com/karimra/gnmic/releases/download/"$LATEST_TAG"/"$FNAME" || (echo "Failed to download release!" && exit 1))
+tar -xzf /tmp/${FNAME} -C /tmp || (echo "Failed to unarchive!" && exit 1)
 echo "Moving gnmic to /usr/local/bin"
 echo
 mv -f /tmp/gnmic /usr/local/bin
