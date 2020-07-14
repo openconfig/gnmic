@@ -195,10 +195,10 @@ func init() {
 	subscribeCmd.Flags().BoolP("updates-only", "", false, "only updates to current state should be sent")
 	subscribeCmd.Flags().StringP("mode", "", "stream", "one of: once, stream, poll")
 	subscribeCmd.Flags().StringP("stream-mode", "", "target-defined", "one of: on-change, sample, target-defined")
-	subscribeCmd.Flags().StringP("sample-interval", "i", "0s",
+	subscribeCmd.Flags().DurationP("sample-interval", "i", 0,
 		"sample interval as a decimal number and a suffix unit, such as \"10s\" or \"1m30s\"")
 	subscribeCmd.Flags().BoolP("suppress-redundant", "", false, "suppress redundant update if the subscribed value didn't not change")
-	subscribeCmd.Flags().StringP("heartbeat-interval", "", "0s", "heartbeat interval in case suppress-redundant is enabled")
+	subscribeCmd.Flags().DurationP("heartbeat-interval", "", 0, "heartbeat interval in case suppress-redundant is enabled")
 	subscribeCmd.Flags().StringSliceP("model", "", []string{""}, "subscribe request used model(s)")
 	subscribeCmd.Flags().Bool("quiet", false, "suppress stdout printing")
 	//
