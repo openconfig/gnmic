@@ -27,7 +27,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/gnxi/utils/xpath"
 	"github.com/karimra/gnmic/collector"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
@@ -264,7 +263,7 @@ func init() {
 
 func createSetRequest() (*gnmi.SetRequest, error) {
 	prefix := viper.GetString("set-prefix")
-	gnmiPrefix, err := xpath.ToGNMIPath(prefix)
+	gnmiPrefix, err := collector.ParsePath(prefix)
 	if err != nil {
 		return nil, err
 	}
@@ -307,7 +306,7 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 		Update:  make([]*gnmi.Update, 0),
 	}
 	for _, p := range deletes {
-		gnmiPath, err := xpath.ToGNMIPath(strings.TrimSpace(p))
+		gnmiPath, err := collector.ParsePath(strings.TrimSpace(p))
 		if err != nil {
 			return nil, err
 		}
@@ -318,7 +317,7 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 		if len(singleUpdate) < 3 {
 			return nil, fmt.Errorf("invalid inline update format: %s", updates)
 		}
-		gnmiPath, err := xpath.ToGNMIPath(strings.TrimSpace(singleUpdate[0]))
+		gnmiPath, err := collector.ParsePath(strings.TrimSpace(singleUpdate[0]))
 		if err != nil {
 			return nil, err
 		}
@@ -337,7 +336,7 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 		if len(singleReplace) < 3 {
 			return nil, fmt.Errorf("invalid inline replace format: %s", updates)
 		}
-		gnmiPath, err := xpath.ToGNMIPath(strings.TrimSpace(singleReplace[0]))
+		gnmiPath, err := collector.ParsePath(strings.TrimSpace(singleReplace[0]))
 		if err != nil {
 			return nil, err
 		}
@@ -352,7 +351,7 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 		})
 	}
 	for i, p := range updatePaths {
-		gnmiPath, err := xpath.ToGNMIPath(strings.TrimSpace(p))
+		gnmiPath, err := collector.ParsePath(strings.TrimSpace(p))
 		if err != nil {
 			return nil, err
 		}
@@ -379,7 +378,7 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 		})
 	}
 	for i, p := range replacePaths {
-		gnmiPath, err := xpath.ToGNMIPath(strings.TrimSpace(p))
+		gnmiPath, err := collector.ParsePath(strings.TrimSpace(p))
 		if err != nil {
 			return nil, err
 		}
