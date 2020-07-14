@@ -74,8 +74,11 @@ var rootCmd = &cobra.Command{
 				f = myWriteCloser{ioutil.Discard}
 			}
 		}
-		logger = log.New(f, "gnmic ", log.LstdFlags|log.Lmicroseconds)
-		logger.SetFlags(log.LstdFlags | log.Lmicroseconds)
+		loggingFlags := log.LstdFlags | log.Lmicroseconds
+		if viper.GetBool("debug") {
+			loggingFlags |= log.Llongfile
+		}
+		logger = log.New(f, "gnmic ", loggingFlags)
 		if viper.GetBool("debug") {
 			grpclog.SetLogger(logger) //lint:ignore SA1019 see https://github.com/karimra/gnmic/issues/59
 		}
