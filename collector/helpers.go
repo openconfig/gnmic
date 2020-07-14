@@ -7,6 +7,21 @@ import (
 	"github.com/openconfig/gnmi/proto/gnmi"
 )
 
+// CreatePrefix //
+func CreatePrefix(prefix, target string) (*gnmi.Path, error) {
+	if len(prefix)+len(target) == 0 {
+		return nil, nil
+	}
+	p, err := ParsePath(prefix)
+	if err != nil {
+		return nil, err
+	}
+	if target != "" {
+		p.Target = target
+	}
+	return p, nil
+}
+
 // ParsePath creates a gnmi.Path out of a p string, check if the first element is prefixed by an origin,
 // removes it from the xpath and adds it to the returned gnmiPath
 func ParsePath(p string) (*gnmi.Path, error) {

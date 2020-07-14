@@ -14,6 +14,7 @@ type SubscriptionConfig struct {
 	Name              string        `mapstructure:"name,omitempty"`
 	Models            []string      `mapstructure:"models,omitempty"`
 	Prefix            string        `mapstructure:"prefix,omitempty"`
+	Target            string        `mapstructure:"target,omitempty"`
 	Paths             []string      `mapstructure:"paths,omitempty"`
 	Mode              string        `mapstructure:"mode,omitempty"`
 	StreamMode        string        `mapstructure:"stream-mode,omitempty"`
@@ -61,7 +62,7 @@ func (sc *SubscriptionConfig) CreateSubscribeRequest() (*gnmi.SubscribeRequest, 
 	if err := sc.setDefaults(); err != nil {
 		return nil, err
 	}
-	gnmiPrefix, err := ParsePath(sc.Prefix)
+	gnmiPrefix, err := CreatePrefix(sc.Prefix, sc.Target)
 	if err != nil {
 		return nil, fmt.Errorf("prefix parse error: %v", err)
 	}

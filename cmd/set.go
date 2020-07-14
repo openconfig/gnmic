@@ -246,6 +246,7 @@ func init() {
 	setCmd.Flags().StringSliceP("replace-value", "", []string{""}, "set replace request value")
 	setCmd.Flags().StringP("delimiter", "", ":::", "set update/replace delimiter between path,type,value")
 	setCmd.Flags().BoolP("print-request", "", false, "print set request as well as the response")
+	setCmd.Flags().StringP("target", "", "", "set request target")
 
 	viper.BindPFlag("set-prefix", setCmd.LocalFlags().Lookup("prefix"))
 	viper.BindPFlag("set-delete", setCmd.LocalFlags().Lookup("delete"))
@@ -259,13 +260,13 @@ func init() {
 	viper.BindPFlag("set-replace-value", setCmd.LocalFlags().Lookup("replace-value"))
 	viper.BindPFlag("set-delimiter", setCmd.LocalFlags().Lookup("delimiter"))
 	viper.BindPFlag("set-print-request", setCmd.LocalFlags().Lookup("print-request"))
+	viper.BindPFlag("set-target", setCmd.LocalFlags().Lookup("target"))
 }
 
 func createSetRequest() (*gnmi.SetRequest, error) {
-	prefix := viper.GetString("set-prefix")
-	gnmiPrefix, err := collector.ParsePath(prefix)
+	gnmiPrefix, err := collector.CreatePrefix(viper.GetString("set-prefix"), viper.GetString("set-target"))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("prefix parse error: %v", err)
 	}
 	deletes := viper.GetStringSlice("set-delete")
 	updates := viper.GetStringSlice("set-update")

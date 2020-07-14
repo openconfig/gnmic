@@ -201,6 +201,7 @@ func init() {
 	subscribeCmd.Flags().StringP("heartbeat-interval", "", "0s", "heartbeat interval in case suppress-redundant is enabled")
 	subscribeCmd.Flags().StringSliceP("model", "", []string{""}, "subscribe request used model(s)")
 	subscribeCmd.Flags().Bool("quiet", false, "suppress stdout printing")
+	subscribeCmd.Flags().StringP("target", "", "", "subscribe request target")
 	//
 	viper.BindPFlag("subscribe-prefix", subscribeCmd.LocalFlags().Lookup("prefix"))
 	viper.BindPFlag("subscribe-path", subscribeCmd.LocalFlags().Lookup("path"))
@@ -213,6 +214,7 @@ func init() {
 	viper.BindPFlag("subscribe-heartbeat-interval", subscribeCmd.LocalFlags().Lookup("heartbeat-interval"))
 	viper.BindPFlag("subscribe-sub-model", subscribeCmd.LocalFlags().Lookup("model"))
 	viper.BindPFlag("subscribe-quiet", subscribeCmd.LocalFlags().Lookup("quiet"))
+	viper.BindPFlag("subscribe-target", subscribeCmd.LocalFlags().Lookup("target"))
 }
 
 func formatSubscribeResponse(meta map[string]interface{}, subResp *gnmi.SubscribeResponse) ([]byte, error) {
@@ -322,6 +324,7 @@ func getSubscriptions() (map[string]*collector.SubscriptionConfig, error) {
 		sub.Name = "default"
 		sub.Paths = paths
 		sub.Prefix = viper.GetString("subscribe-prefix")
+		sub.Target = viper.GetString("subscribe-target")
 		sub.Mode = viper.GetString("subscribe-mode")
 		sub.Encoding = viper.GetString("encoding")
 		sub.Qos = viper.GetUint32("qos")

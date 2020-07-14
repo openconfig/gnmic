@@ -147,10 +147,12 @@ func init() {
 	getCmd.Flags().StringP("prefix", "", "", "get request prefix")
 	getCmd.Flags().StringSliceP("model", "", []string{""}, "get request model(s)")
 	getCmd.Flags().StringP("type", "t", "ALL", "the type of data that is requested from the target. one of: ALL, CONFIG, STATE, OPERATIONAL")
+	getCmd.Flags().StringP("target", "", "", "get request target")
 	viper.BindPFlag("get-path", getCmd.LocalFlags().Lookup("path"))
 	viper.BindPFlag("get-prefix", getCmd.LocalFlags().Lookup("prefix"))
 	viper.BindPFlag("get-model", getCmd.LocalFlags().Lookup("model"))
 	viper.BindPFlag("get-type", getCmd.LocalFlags().Lookup("type"))
+	viper.BindPFlag("get-target", getCmd.LocalFlags().Lookup("target"))
 }
 
 func createGetRequest() (*gnmi.GetRequest, error) {
