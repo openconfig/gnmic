@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,6 +23,8 @@ const (
 
 	natsReconnectBufferSize = 100 * 1024 * 1024
 	natsReconnectWait       = 2 * time.Second
+
+	defaultSubjectName = "gnmic-telemetry"
 )
 
 func init() {
@@ -47,9 +50,9 @@ type Config struct {
 	Name            string        `mapstructure:"name,omitempty"`
 	Address         string        `mapstructure:"address,omitempty"`
 	SubjectPrefix   string        `mapstructure:"subject-prefix,omitempty"`
+	Subject         string        `mapstructure:"subject,omitempty"`
 	Username        string        `mapstructure:"username,omitempty"`
 	Password        string        `mapstructure:"password,omitempty"`
-	ConnectTimeout  time.Duration `mapstructure:"connect-timeout,omitempty"`
 	ConnectTimeWait time.Duration `mapstructure:"connect-time-wait,omitempty"`
 }
 
@@ -67,9 +70,12 @@ func (n *NatsOutput) Init(cfg map[string]interface{}, logger *log.Logger) error 
 	if err != nil {
 		return err
 	}
-	n.Cfg.ConnectTimeout = natsConnectTimeout
-	n.Cfg.ConnectTimeWait = natsConnectWait
-
+	if n.Cfg.ConnectTimeWait == 0 {
+		n.Cfg.ConnectTimeWait = natsConnectWait
+	}
+	if n.Cfg.Subject == "" && n.Cfg.SubjectPrefix == "" {
+		n.Cfg.Subject = defaultSubjectName
+	}
 	n.logger = log.New(os.Stderr, "nats_output ", log.LstdFlags|log.Lmicroseconds)
 	if logger != nil {
 		n.logger.SetOutput(logger.Writer())
@@ -97,10 +103,22 @@ func (n *NatsOutput) Write(b []byte, meta outputs.Meta) {
 			return
 		}
 	}
-	subject := n.Cfg.SubjectPrefix
-	if s, ok := meta["source"]; ok {
-		subject += fmt.Sprintf(".%s", s)
+	ssb := strings.Builder{}
+	ssb.WriteString(n.Cfg.SubjectPrefix)
+	if n.Cfg.SubjectPrefix != "" {
+		if s, ok := meta["source"]; ok {
+			source := strings.ReplaceAll(fmt.Sprintf("%s", s), ".", "-")
+			ssb.WriteString(".")
+			ssb.WriteString(source)
+		}
+		if subname, ok := meta["subscription-name"]; ok {
+			ssb.WriteString(".")
+			ssb.WriteString(fmt.Sprintf("%s", subname))
+		}
+	} else if n.Cfg.Subject != "" {
+		ssb.WriteString(n.Cfg.Subject)
 	}
+	subject := ssb.String()
 	err := n.conn.Publish(subject, b)
 	if err != nil {
 		log.Printf("failed to write to nats subject '%s': %v", subject, err)
@@ -147,7 +165,7 @@ func (n *NatsOutput) createNATSConn(c *Config) (*nats.Conn, error) {
 
 // Dial //
 func (n *NatsOutput) Dial(network, address string) (net.Conn, error) {
-	ctx, cancel := context.WithTimeout(n.ctx, n.Cfg.ConnectTimeout)
+	ctx, cancel := context.WithCancel(n.ctx)
 	defer cancel()
 
 	for {
