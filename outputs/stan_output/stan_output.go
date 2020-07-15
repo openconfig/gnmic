@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/karimra/gnmic/outputs"
@@ -18,6 +19,8 @@ const (
 	stanDefaultTimeout      = 10
 	stanDefaultPingInterval = 5
 	stanDefaultPingRetry    = 2
+
+	defaultSubjectName = "gnmic-telemetry"
 )
 
 func init() {
@@ -39,15 +42,16 @@ type StanOutput struct {
 
 // Config //
 type Config struct {
-	Name         string `mapstructure:"name,omitempty"`
-	Address      string `mapstructure:"address,omitempty"`
-	Subject      string `mapstructure:"subject,omitempty"`
-	Username     string `mapstructure:"username,omitempty"`
-	Password     string `mapstructure:"password,omitempty"`
-	ClusterName  string `mapstructure:"cluster-name,omitempty"`
-	Timeout      int    `mapstructure:"timeout,omitempty"`
-	PingInterval int    `mapstructure:"ping-interval,omitempty"`
-	PingRetry    int    `mapstructure:"ping-retry,omitempty"`
+	Name          string `mapstructure:"name,omitempty"`
+	Address       string `mapstructure:"address,omitempty"`
+	SubjectPrefix string `mapstructure:"subject-prefix,omitempty"`
+	Subject       string `mapstructure:"subject,omitempty"`
+	Username      string `mapstructure:"username,omitempty"`
+	Password      string `mapstructure:"password,omitempty"`
+	ClusterName   string `mapstructure:"cluster-name,omitempty"`
+	Timeout       int    `mapstructure:"timeout,omitempty"`
+	PingInterval  int    `mapstructure:"ping-interval,omitempty"`
+	PingRetry     int    `mapstructure:"ping-retry,omitempty"`
 }
 
 func (s *StanOutput) String() string {
@@ -69,6 +73,9 @@ func (s *StanOutput) Init(cfg map[string]interface{}, logger *log.Logger) error 
 	}
 	if s.Cfg.ClusterName == "" {
 		return fmt.Errorf("clusterName is mandatory")
+	}
+	if s.Cfg.Subject == "" && s.Cfg.SubjectPrefix == "" {
+		s.Cfg.Subject = defaultSubjectName
 	}
 	s.conn, err = s.createSTANConn(s.Cfg)
 	if err != nil {
@@ -94,9 +101,25 @@ func (s *StanOutput) Write(b []byte, meta outputs.Meta) {
 			return
 		}
 	}
-	err := s.conn.Publish(s.Cfg.Subject, b)
+	ssb := strings.Builder{}
+	ssb.WriteString(s.Cfg.SubjectPrefix)
+	if s.Cfg.SubjectPrefix != "" {
+		if s, ok := meta["source"]; ok {
+			source := strings.ReplaceAll(fmt.Sprintf("%s", s), ".", "-")
+			ssb.WriteString(".")
+			ssb.WriteString(source)
+		}
+		if subname, ok := meta["subscription-name"]; ok {
+			ssb.WriteString(".")
+			ssb.WriteString(fmt.Sprintf("%s", subname))
+		}
+	} else if s.Cfg.Subject != "" {
+		ssb.WriteString(s.Cfg.Subject)
+	}
+	subject := ssb.String()
+	err := s.conn.Publish(subject, b)
 	if err != nil {
-		log.Printf("failed to write to stan subject '%s': %v", s.Cfg.Subject, err)
+		log.Printf("failed to write to stan subject '%s': %v", subject, err)
 		return
 	}
 	//s.logger.Printf("wrote %d bytes to stan_subject=%s", len(b), s.Cfg.Subject)
