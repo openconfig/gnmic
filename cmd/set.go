@@ -240,11 +240,11 @@ func init() {
 
 	setCmd.Flags().StringSliceP("replace-path", "", []string{""}, "set request path to be replaced")
 	setCmd.Flags().StringSliceP("update-path", "", []string{""}, "set request path to be updated")
-	setCmd.Flags().StringSliceP("update-file", "", []string{""}, "set update request value in json file")
-	setCmd.Flags().StringSliceP("replace-file", "", []string{""}, "set replace request value in json file")
+	setCmd.Flags().StringSliceP("update-file", "", []string{""}, "set update request value in json/yaml file")
+	setCmd.Flags().StringSliceP("replace-file", "", []string{""}, "set replace request value in json/yaml file")
 	setCmd.Flags().StringSliceP("update-value", "", []string{""}, "set update request value")
 	setCmd.Flags().StringSliceP("replace-value", "", []string{""}, "set replace request value")
-	setCmd.Flags().StringP("delimiter", "", ":::", "set update/replace delimiter between path,type,value")
+	setCmd.Flags().StringP("delimiter", "", ":::", "set update/replace delimiter between path, type, value")
 	setCmd.Flags().BoolP("print-request", "", false, "print set request as well as the response")
 	setCmd.Flags().StringP("target", "", "", "set request target")
 
