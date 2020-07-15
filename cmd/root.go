@@ -67,6 +67,9 @@ var rootCmd = &cobra.Command{
 				logger.Fatalf("error opening file: %v", err)
 			}
 		} else {
+			if viper.GetBool("debug") {
+				viper.Set("log", true)
+			}
 			switch viper.GetBool("log") {
 			case true:
 				f = os.Stderr
