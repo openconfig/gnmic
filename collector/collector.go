@@ -189,9 +189,9 @@ func (c *Collector) Start() {
 						continue
 					}
 					if c.subscriptionMode(rsp.SubscriptionName) == "ONCE" {
-						t.Export(b, outputs.Meta{"source": t.Config.Name, "format": c.Config.Format})
+						t.Export(b, outputs.Meta{"source": t.Config.Name, "format": c.Config.Format, "subscription-name": rsp.SubscriptionName})
 					} else {
-						go t.Export(b, outputs.Meta{"source": t.Config.Name, "format": c.Config.Format})
+						go t.Export(b, outputs.Meta{"source": t.Config.Name, "format": c.Config.Format, "subscription-name": rsp.SubscriptionName})
 					}
 					if remainingOnceSubscriptions > 0 {
 						if c.subscriptionMode(rsp.SubscriptionName) == "ONCE" {
