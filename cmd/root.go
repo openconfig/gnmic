@@ -74,8 +74,11 @@ var rootCmd = &cobra.Command{
 				f = myWriteCloser{ioutil.Discard}
 			}
 		}
-		logger = log.New(f, "gnmic ", log.LstdFlags|log.Lmicroseconds)
-		logger.SetFlags(log.LstdFlags | log.Lmicroseconds)
+		loggingFlags := log.LstdFlags | log.Lmicroseconds
+		if viper.GetBool("debug") {
+			loggingFlags |= log.Llongfile
+		}
+		logger = log.New(f, "gnmic ", loggingFlags)
 		if viper.GetBool("debug") {
 			grpclog.SetLogger(logger) //lint:ignore SA1019 see https://github.com/karimra/gnmic/issues/59
 		}
@@ -223,20 +226,30 @@ func gnmiPathToXPath(p *gnmi.Path) string {
 	if p == nil {
 		return ""
 	}
-	pathElems := make([]string, 0, len(p.GetElem()))
-	for _, pe := range p.GetElem() {
-		elem := ""
-		if pe.GetName() != "" {
-			elem += pe.GetName()
-		}
-		if pe.GetKey() != nil {
-			for k, v := range pe.GetKey() {
-				elem += fmt.Sprintf("[%s=%s]", k, v)
-			}
-		}
-		pathElems = append(pathElems, elem)
+	sb := strings.Builder{}
+	if p.Origin != "" {
+		sb.WriteString(p.Origin)
+		sb.WriteString(":")
 	}
-	return strings.Join(pathElems, "/")
+	elems := p.GetElem()
+	numElems := len(elems)
+	if numElems > 0 {
+		sb.WriteString("/")
+	}
+	for i, pe := range elems {
+		sb.WriteString(pe.GetName())
+		for k, v := range pe.GetKey() {
+			sb.WriteString("[")
+			sb.WriteString(k)
+			sb.WriteString("=")
+			sb.WriteString(v)
+			sb.WriteString("]")
+		}
+		if i+1 != numElems {
+			sb.WriteString("/")
+		}
+	}
+	return sb.String()
 }
 func loadCerts(tlscfg *tls.Config) error {
 	tlsCert := viper.GetString("tls-cert")
@@ -320,7 +333,7 @@ func getValue(updValue *gnmi.TypedValue) (interface{}, error) {
 	case *gnmi.TypedValue_AnyVal:
 		value = updValue.GetAnyVal()
 	}
-	if value == nil {
+	if value == nil && len(jsondata) != 0 {
 		err := json.Unmarshal(jsondata, &value)
 		if err != nil {
 			return nil, err

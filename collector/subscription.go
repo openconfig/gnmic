@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/gnxi/utils/xpath"
 	"github.com/openconfig/gnmi/proto/gnmi"
 )
 
@@ -15,6 +14,7 @@ type SubscriptionConfig struct {
 	Name              string         `mapstructure:"name,omitempty"`
 	Models            []string       `mapstructure:"models,omitempty"`
 	Prefix            string         `mapstructure:"prefix,omitempty"`
+	Target            string         `mapstructure:"target,omitempty"`
 	Paths             []string       `mapstructure:"paths,omitempty"`
 	Mode              string         `mapstructure:"mode,omitempty"`
 	StreamMode        string         `mapstructure:"stream-mode,omitempty"`
@@ -59,7 +59,7 @@ func (sc *SubscriptionConfig) CreateSubscribeRequest() (*gnmi.SubscribeRequest, 
 	if err := sc.setDefaults(); err != nil {
 		return nil, err
 	}
-	gnmiPrefix, err := xpath.ToGNMIPath(sc.Prefix)
+	gnmiPrefix, err := CreatePrefix(sc.Prefix, sc.Target)
 	if err != nil {
 		return nil, fmt.Errorf("prefix parse error: %v", err)
 	}
@@ -75,7 +75,7 @@ func (sc *SubscriptionConfig) CreateSubscribeRequest() (*gnmi.SubscribeRequest, 
 
 	subscriptions := make([]*gnmi.Subscription, len(sc.Paths))
 	for i, p := range sc.Paths {
-		gnmiPath, err := xpath.ToGNMIPath(strings.TrimSpace(p))
+		gnmiPath, err := ParsePath(strings.TrimSpace(p))
 		if err != nil {
 			return nil, fmt.Errorf("path '%s' parse error: %v", p, err)
 		}
