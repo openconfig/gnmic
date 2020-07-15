@@ -321,6 +321,7 @@ func getSubscriptions() (map[string]*collector.SubscriptionConfig, error) {
 	paths := viper.GetStringSlice("subscribe-path")
 	hi := viper.GetDuration("subscribe-heartbeat-interval")
 	si := viper.GetDuration("subscribe-sample-interval")
+	qos := viper.GetUint32("subscribe-qos")
 	if len(paths) > 0 {
 		sub := new(collector.SubscriptionConfig)
 		sub.Name = "default"
@@ -329,7 +330,7 @@ func getSubscriptions() (map[string]*collector.SubscriptionConfig, error) {
 		sub.Target = viper.GetString("subscribe-target")
 		sub.Mode = viper.GetString("subscribe-mode")
 		sub.Encoding = viper.GetString("encoding")
-		sub.Qos = viper.GetUint32("qos")
+		sub.Qos = &qos
 		sub.StreamMode = viper.GetString("subscribe-stream-mode")
 		sub.HeartbeatInterval = &hi
 		sub.SampleInterval = &si
@@ -358,11 +359,25 @@ func getSubscriptions() (map[string]*collector.SubscriptionConfig, error) {
 			return nil, err
 		}
 		sub.Name = sn
-		if sub.SampleInterval == nil { // inherit global "subscribe-sample-interval" option if its not set
+
+		// inherit global "subscribe-*" option if it's not set
+		if sub.SampleInterval == nil {
 			sub.SampleInterval = &si
 		}
-		if sub.HeartbeatInterval == nil { // inherit global "subscribe-heartbeat-interval" option if its not set
+		if sub.HeartbeatInterval == nil {
 			sub.HeartbeatInterval = &hi
+		}
+		if sub.Encoding == "" {
+			sub.Encoding = viper.GetString("encoding")
+		}
+		if sub.Mode == "" {
+			sub.Mode = viper.GetString("subscribe-mode")
+		}
+		if strings.ToUpper(sub.Mode) == "STREAM" && sub.StreamMode == "" {
+			sub.StreamMode = viper.GetString("subscribe-stream-mode")
+		}
+		if sub.Qos == nil {
+			sub.Qos = &qos
 		}
 		subscriptions[sn] = sub
 	}
