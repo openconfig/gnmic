@@ -22,7 +22,6 @@ const (
 	natsConnectWait    = 2 * time.Second
 
 	natsReconnectBufferSize = 100 * 1024 * 1024
-	natsReconnectWait       = 2 * time.Second
 
 	defaultSubjectName = "gnmic-telemetry"
 )
