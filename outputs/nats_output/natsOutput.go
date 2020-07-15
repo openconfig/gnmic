@@ -142,7 +142,7 @@ func (n *NatsOutput) createNATSConn(c *Config) (*nats.Conn, error) {
 	opts := []nats.Option{
 		nats.Name(c.Name),
 		nats.SetCustomDialer(n),
-		nats.ReconnectWait(natsReconnectWait),
+		nats.ReconnectWait(n.Cfg.ConnectTimeWait),
 		nats.ReconnectBufSize(natsReconnectBufferSize),
 		nats.ErrorHandler(func(_ *nats.Conn, _ *nats.Subscription, err error) {
 			n.logger.Printf("NATS error: %v", err)
