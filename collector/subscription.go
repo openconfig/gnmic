@@ -9,6 +9,13 @@ import (
 	"github.com/openconfig/gnmi/proto/gnmi"
 )
 
+const (
+	subscriptionDefaultMode       = "STREAM"
+	subscriptionDefaultStreamMode = "TARGET_DEFINED"
+	subscriptionDefaultEncoding   = "JSON"
+	subscriptionDefaultQos        = 20
+)
+
 // SubscriptionConfig //
 type SubscriptionConfig struct {
 	Name              string         `mapstructure:"name,omitempty"`
@@ -19,7 +26,7 @@ type SubscriptionConfig struct {
 	Mode              string         `mapstructure:"mode,omitempty"`
 	StreamMode        string         `mapstructure:"stream-mode,omitempty"`
 	Encoding          string         `mapstructure:"encoding,omitempty"`
-	Qos               uint32         `mapstructure:"qos,omitempty"`
+	Qos               *uint32        `mapstructure:"qos,omitempty"`
 	SampleInterval    *time.Duration `mapstructure:"sample-interval,omitempty"`
 	HeartbeatInterval *time.Duration `mapstructure:"heartbeat-interval,omitempty"`
 	SuppressRedundant bool           `mapstructure:"suppress-redundant,omitempty"`
@@ -40,16 +47,17 @@ func (sc *SubscriptionConfig) setDefaults() error {
 		return fmt.Errorf("missing path(s) in subscription '%s'", sc.Name)
 	}
 	if sc.Mode == "" {
-		sc.Mode = "STREAM"
+		sc.Mode = subscriptionDefaultMode
 	}
 	if strings.ToUpper(sc.Mode) == "STREAM" && sc.StreamMode == "" {
-		sc.StreamMode = "TARGET_DEFINED"
+		sc.StreamMode = subscriptionDefaultStreamMode
 	}
 	if sc.Encoding == "" {
-		sc.Encoding = "JSON"
+		sc.Encoding = subscriptionDefaultEncoding
 	}
-	if sc.Qos == 0 {
-		sc.Qos = 20
+	if sc.Qos == nil {
+		sc.Qos = new(uint32)
+		*sc.Qos = subscriptionDefaultQos
 	}
 	return nil
 }
@@ -71,7 +79,7 @@ func (sc *SubscriptionConfig) CreateSubscribeRequest() (*gnmi.SubscribeRequest, 
 	if !ok {
 		return nil, fmt.Errorf("subscription '%s' invalid subscription list type '%s'", sc.Name, sc.Mode)
 	}
-	qos := &gnmi.QOSMarking{Marking: sc.Qos}
+	qos := &gnmi.QOSMarking{Marking: *sc.Qos}
 
 	subscriptions := make([]*gnmi.Subscription, len(sc.Paths))
 	for i, p := range sc.Paths {
