@@ -321,7 +321,7 @@ func getSubscriptions() (map[string]*collector.SubscriptionConfig, error) {
 	paths := viper.GetStringSlice("subscribe-path")
 	hi := viper.GetDuration("subscribe-heartbeat-interval")
 	si := viper.GetDuration("subscribe-sample-interval")
-	qos := viper.GetUint32("qos")
+	qos := viper.GetUint32("subscribe-qos")
 	if len(paths) > 0 {
 		sub := new(collector.SubscriptionConfig)
 		sub.Name = "default"
