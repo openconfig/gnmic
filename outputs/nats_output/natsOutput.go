@@ -108,7 +108,7 @@ func (n *NatsOutput) Write(b []byte, meta outputs.Meta) {
 	if n.Cfg.SubjectPrefix != "" {
 		if s, ok := meta["source"]; ok {
 			source := strings.ReplaceAll(fmt.Sprintf("%s", s), ".", "-")
-			source = strings.ReplaceAll(fmt.Sprintf("%s", source), " ", "_")
+			source = strings.ReplaceAll(source, " ", "_")
 			ssb.WriteString(".")
 			ssb.WriteString(source)
 		}
