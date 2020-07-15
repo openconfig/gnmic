@@ -106,6 +106,7 @@ func (s *StanOutput) Write(b []byte, meta outputs.Meta) {
 	if s.Cfg.SubjectPrefix != "" {
 		if s, ok := meta["source"]; ok {
 			source := strings.ReplaceAll(fmt.Sprintf("%s", s), ".", "-")
+			source = strings.ReplaceAll(fmt.Sprintf("%s", source), " ", "_")
 			ssb.WriteString(".")
 			ssb.WriteString(source)
 		}
@@ -116,7 +117,7 @@ func (s *StanOutput) Write(b []byte, meta outputs.Meta) {
 	} else if s.Cfg.Subject != "" {
 		ssb.WriteString(s.Cfg.Subject)
 	}
-	subject := ssb.String()
+	subject := strings.ReplaceAll(ssb.String(), " ", "_")
 	err := s.conn.Publish(subject, b)
 	if err != nil {
 		log.Printf("failed to write to stan subject '%s': %v", subject, err)

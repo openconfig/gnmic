@@ -108,6 +108,7 @@ func (n *NatsOutput) Write(b []byte, meta outputs.Meta) {
 	if n.Cfg.SubjectPrefix != "" {
 		if s, ok := meta["source"]; ok {
 			source := strings.ReplaceAll(fmt.Sprintf("%s", s), ".", "-")
+			source = strings.ReplaceAll(fmt.Sprintf("%s", source), " ", "_")
 			ssb.WriteString(".")
 			ssb.WriteString(source)
 		}
@@ -118,7 +119,7 @@ func (n *NatsOutput) Write(b []byte, meta outputs.Meta) {
 	} else if n.Cfg.Subject != "" {
 		ssb.WriteString(n.Cfg.Subject)
 	}
-	subject := ssb.String()
+	subject := strings.ReplaceAll(ssb.String(), " ", "_")
 	err := n.conn.Publish(subject, b)
 	if err != nil {
 		log.Printf("failed to write to nats subject '%s': %v", subject, err)
