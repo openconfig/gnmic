@@ -364,8 +364,17 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 				logger.Printf("error reading data from file '%s': %v", updateFiles[i], err)
 				return nil, err
 			}
-			value.Value = &gnmi.TypedValue_JsonVal{
-				JsonVal: bytes.Trim(updateData, " \r\n\t"),
+			switch strings.ToUpper(viper.GetString("encoding")) {
+			case "JSON":
+				value.Value = &gnmi.TypedValue_JsonVal{
+					JsonVal: bytes.Trim(updateData, " \r\n\t"),
+				}
+			case "JSON_IETF":
+				value.Value = &gnmi.TypedValue_JsonIetfVal{
+					JsonIetfVal: bytes.Trim(updateData, " \r\n\t"),
+				}
+			default:
+				return nil, fmt.Errorf("encoding: %s not supported together with file values", viper.GetString("encoding"))
 			}
 		} else {
 			err = setValue(value, "json", updateValues[i])
@@ -391,8 +400,17 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 				logger.Printf("error reading data from file '%s': %v", replaceFiles[i], err)
 				return nil, err
 			}
-			value.Value = &gnmi.TypedValue_JsonVal{
-				JsonVal: bytes.Trim(replaceData, " \r\n\t"),
+			switch strings.ToUpper(viper.GetString("encoding")) {
+			case "JSON":
+				value.Value = &gnmi.TypedValue_JsonVal{
+					JsonVal: bytes.Trim(replaceData, " \r\n\t"),
+				}
+			case "JSON_IETF":
+				value.Value = &gnmi.TypedValue_JsonIetfVal{
+					JsonIetfVal: bytes.Trim(replaceData, " \r\n\t"),
+				}
+			default:
+				return nil, fmt.Errorf("encoding: %s not supported together with file values", viper.GetString("encoding"))
 			}
 		} else {
 			err = setValue(value, "json", replaceValues[i])
