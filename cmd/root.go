@@ -501,6 +501,13 @@ func createTargets() (map[string]*collector.TargetConfig, error) {
 		}
 		targets[tc.Name] = tc
 	}
+	subNames := viper.GetStringSlice("subscribe-name")
+	if len(subNames) == 0 {
+		return targets, nil
+	}
+	for n := range targets {
+		targets[n].Subscriptions = subNames
+	}
 	return targets, nil
 }
 
