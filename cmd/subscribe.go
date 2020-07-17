@@ -324,6 +324,10 @@ func getSubscriptions() (map[string]*collector.SubscriptionConfig, error) {
 	hi := viper.GetDuration("subscribe-heartbeat-interval")
 	si := viper.GetDuration("subscribe-sample-interval")
 	qos := viper.GetUint32("subscribe-qos")
+	subNames := viper.GetStringSlice("subscribe-name")
+	if len(paths) > 0 && len(subNames) > 0 {
+		return nil, fmt.Errorf("flags --path and --name cannot be mixed")
+	}
 	if len(paths) > 0 {
 		sub := new(collector.SubscriptionConfig)
 		sub.Name = "default"
@@ -383,7 +387,6 @@ func getSubscriptions() (map[string]*collector.SubscriptionConfig, error) {
 		}
 		subscriptions[sn] = sub
 	}
-	subNames := viper.GetStringSlice("subscribe-name")
 	if len(subNames) == 0 {
 		return subscriptions, nil
 	}
