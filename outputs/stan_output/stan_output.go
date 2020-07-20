@@ -8,11 +8,16 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/mitchellh/mapstructure"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/stan.go"
+	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 const (
@@ -52,6 +57,7 @@ type Config struct {
 	Timeout       int    `mapstructure:"timeout,omitempty"`
 	PingInterval  int    `mapstructure:"ping-interval,omitempty"`
 	PingRetry     int    `mapstructure:"ping-retry,omitempty"`
+	Format        string `mapstructure:"format,omitempty"`
 }
 
 func (s *StanOutput) String() string {
@@ -86,14 +92,20 @@ func (s *StanOutput) Init(cfg map[string]interface{}, logger *log.Logger) error 
 		s.logger.SetOutput(logger.Writer())
 		s.logger.SetFlags(logger.Flags())
 	}
+	if s.Cfg.Format == "" {
+		s.Cfg.Format = "event"
+	}
+	if !(s.Cfg.Format == "event" || s.Cfg.Format == "json" || s.Cfg.Format == "proto") {
+		return fmt.Errorf("unsupported output format: %s", s.Cfg.Format)
+	}
 	s.stopChan = make(chan struct{})
 	s.logger.Printf("initialized stan producer: %s", s.String())
 	return nil
 }
 
 // Write //
-func (s *StanOutput) Write(b []byte, meta outputs.Meta) {
-	if len(b) == 0 {
+func (s *StanOutput) Write(rsp protoreflect.ProtoMessage, meta outputs.Meta) {
+	if rsp == nil {
 		return
 	}
 	if format, ok := meta["format"]; ok {
@@ -118,7 +130,47 @@ func (s *StanOutput) Write(b []byte, meta outputs.Meta) {
 		ssb.WriteString(s.Cfg.Subject)
 	}
 	subject := strings.ReplaceAll(ssb.String(), " ", "_")
-	err := s.conn.Publish(subject, b)
+	b := make([]byte, 0)
+	var err error
+	switch s.Cfg.Format {
+	case "proto":
+		b, err = proto.Marshal(rsp)
+	case "json":
+		b, err = protojson.MarshalOptions{Multiline: true, Indent: "  "}.Marshal(rsp)
+	case "event":
+		switch sub := rsp.ProtoReflect().Interface().(type) {
+		case *gnmi.SubscribeResponse:
+			var subscriptionName string
+			var ok bool
+			if subscriptionName, ok = meta["subscription-name"]; !ok {
+				subscriptionName = "default"
+			}
+			switch sub.Response.(type) {
+			case *gnmi.SubscribeResponse_Update:
+				events, err := collector.ResponseToEventMsgs(subscriptionName, sub, meta)
+				if err != nil {
+					s.logger.Printf("failed converting response to events: %v", err)
+					return
+				}
+				b, err = json.MarshalIndent(events, "", "  ")
+				if err != nil {
+					s.logger.Printf("failed marshaling events: %v", err)
+					return
+				}
+			case *gnmi.SubscribeResponse_SyncResponse:
+				s.logger.Printf("received subscribe syncResponse with %v", meta)
+			case *gnmi.SubscribeResponse_Error:
+				gnmiErr := sub.GetError()
+				s.logger.Printf("received subscribe response error with %v, code=%d, message=%v, data=%v ",
+					meta, gnmiErr.Code, gnmiErr.Message, gnmiErr.Data)
+			}
+		}
+	}
+	if err != nil {
+		s.logger.Printf("failed marshaling event: %v", err)
+		return
+	}
+	err = s.conn.Publish(subject, b)
 	if err != nil {
 		log.Printf("failed to write to stan subject '%s': %v", subject, err)
 		return
