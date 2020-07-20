@@ -4,11 +4,12 @@ import (
 	"log"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/protobuf/proto"
 )
 
 type Output interface {
 	Init(map[string]interface{}, *log.Logger) error
-	Write([]byte, Meta)
+	Write(proto.Message, Meta)
 	Close() error
 	Metrics() []prometheus.Collector
 	String() string
@@ -21,4 +22,4 @@ func Register(name string, initFn Initializer) {
 	Outputs[name] = initFn
 }
 
-type Meta map[string]interface{}
+type Meta map[string]string
