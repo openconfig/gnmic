@@ -136,7 +136,7 @@ func (s *StanOutput) Write(rsp protoreflect.ProtoMessage, meta outputs.Meta) {
 	case "proto":
 		b, err = proto.Marshal(rsp)
 	case "json":
-		b, err = protojson.MarshalOptions{Multiline: true, Indent: "  "}.Marshal(rsp)
+		b, err = protojson.Marshal(rsp)
 	case "event":
 		switch sub := rsp.ProtoReflect().Interface().(type) {
 		case *gnmi.SubscribeResponse:
@@ -152,7 +152,7 @@ func (s *StanOutput) Write(rsp protoreflect.ProtoMessage, meta outputs.Meta) {
 					s.logger.Printf("failed converting response to events: %v", err)
 					return
 				}
-				b, err = json.MarshalIndent(events, "", "  ")
+				b, err = json.Marshal(events)
 				if err != nil {
 					s.logger.Printf("failed marshaling events: %v", err)
 					return
