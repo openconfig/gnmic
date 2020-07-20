@@ -180,18 +180,10 @@ func (c *Collector) Start() {
 					if c.Config.Debug {
 						c.Logger.Printf("received gNMI Subscribe Response: %+v", rsp)
 					}
-					m := make(map[string]interface{})
-					m["subscription-name"] = rsp.SubscriptionName
-					m["source"] = t.Config.Name
-					b, err := c.FormatMsg(m, rsp.Response)
-					if err != nil {
-						c.Logger.Printf("failed formatting msg from target '%s': %v", t.Config.Name, err)
-						continue
-					}
 					if c.subscriptionMode(rsp.SubscriptionName) == "ONCE" {
-						t.Export(b, outputs.Meta{"source": t.Config.Name, "format": c.Config.Format, "subscription-name": rsp.SubscriptionName})
+						t.Export(rsp.Response, outputs.Meta{"source": t.Config.Name, "format": c.Config.Format, "subscription-name": rsp.SubscriptionName})
 					} else {
-						go t.Export(b, outputs.Meta{"source": t.Config.Name, "format": c.Config.Format, "subscription-name": rsp.SubscriptionName})
+						go t.Export(rsp.Response, outputs.Meta{"source": t.Config.Name, "format": c.Config.Format, "subscription-name": rsp.SubscriptionName})
 					}
 					if remainingOnceSubscriptions > 0 {
 						if c.subscriptionMode(rsp.SubscriptionName) == "ONCE" {
