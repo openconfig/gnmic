@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/openconfig/gnmi/proto/gnmi"
 )
 
@@ -75,7 +74,6 @@ func TestResponseToEventMsgs(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	spew.Dump(evs)
 	t.Logf("%v", evs)
 	b, _ := json.MarshalIndent(evs, "", "  ")
 	fmt.Println(string(b))
