@@ -9,9 +9,13 @@ import (
 
 	"github.com/Shopify/sarama"
 	"github.com/google/uuid"
+	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/mitchellh/mapstructure"
+	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -43,6 +47,7 @@ type Config struct {
 	Name     string `mapstructure:"name,omitempty"`
 	MaxRetry int    `mapstructure:"max-retry,omitempty"`
 	Timeout  int    `mapstructure:"timeout,omitempty"`
+	Format   string `mapstructure:"format,omitempty"`
 }
 
 func (k *KafkaOutput) String() string {
@@ -94,8 +99,8 @@ func (k *KafkaOutput) Init(cfg map[string]interface{}, logger *log.Logger) error
 }
 
 // Write //
-func (k *KafkaOutput) Write(b []byte, meta outputs.Meta) {
-	if len(b) == 0 {
+func (k *KafkaOutput) Write(rsp proto.Message, meta outputs.Meta) {
+	if rsp == nil {
 		return
 	}
 	if format, ok := meta["format"]; ok {
@@ -103,11 +108,51 @@ func (k *KafkaOutput) Write(b []byte, meta outputs.Meta) {
 			return
 		}
 	}
+	b := make([]byte, 0)
+	var err error
+	switch k.Cfg.Format {
+	case "proto":
+		b, err = proto.Marshal(rsp)
+	case "json":
+		b, err = protojson.Marshal(rsp)
+	case "event":
+		switch sub := rsp.ProtoReflect().Interface().(type) {
+		case *gnmi.SubscribeResponse:
+			var subscriptionName string
+			var ok bool
+			if subscriptionName, ok = meta["subscription-name"]; !ok {
+				subscriptionName = "default"
+			}
+			switch sub.Response.(type) {
+			case *gnmi.SubscribeResponse_Update:
+				events, err := collector.ResponseToEventMsgs(subscriptionName, sub, meta)
+				if err != nil {
+					k.logger.Printf("failed converting response to events: %v", err)
+					return
+				}
+				b, err = json.Marshal(events)
+				if err != nil {
+					k.logger.Printf("failed marshaling events: %v", err)
+					return
+				}
+			case *gnmi.SubscribeResponse_SyncResponse:
+				k.logger.Printf("received subscribe syncResponse with %v", meta)
+			case *gnmi.SubscribeResponse_Error:
+				gnmiErr := sub.GetError()
+				k.logger.Printf("received subscribe response error with %v, code=%d, message=%v, data=%v ",
+					meta, gnmiErr.Code, gnmiErr.Message, gnmiErr.Data)
+			}
+		}
+	}
+	if err != nil {
+		k.logger.Printf("failed marshaling event: %v", err)
+		return
+	}
 	msg := &sarama.ProducerMessage{
 		Topic: k.Cfg.Topic,
 		Value: sarama.ByteEncoder(b),
 	}
-	_, _, err := k.producer.SendMessage(msg)
+	_, _, err = k.producer.SendMessage(msg)
 	if err != nil {
 		k.logger.Printf("failed to send a kafka msg to topic '%s': %v", k.Cfg.Topic, err)
 	}
