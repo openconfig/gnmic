@@ -11,10 +11,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/mitchellh/mapstructure"
 	"github.com/nats-io/nats.go"
+	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -25,6 +29,12 @@ const (
 
 	defaultSubjectName = "gnmic-telemetry"
 )
+
+type msg struct {
+	Tags     outputs.Meta  `json:"tags,omitempty"`
+	Msg      proto.Message `json:"msg,omitempty"`
+	MsgBytes []byte        `json:"msg_bytes,omitempty"`
+}
 
 func init() {
 	outputs.Register("nats", func() outputs.Output {
@@ -53,6 +63,7 @@ type Config struct {
 	Username        string        `mapstructure:"username,omitempty"`
 	Password        string        `mapstructure:"password,omitempty"`
 	ConnectTimeWait time.Duration `mapstructure:"connect-time-wait,omitempty"`
+	Format          string        `mapstructure:"format,omitempty"`
 }
 
 func (n *NatsOutput) String() string {
@@ -80,6 +91,12 @@ func (n *NatsOutput) Init(cfg map[string]interface{}, logger *log.Logger) error 
 		n.logger.SetOutput(logger.Writer())
 		n.logger.SetFlags(logger.Flags())
 	}
+	if n.Cfg.Format == "" {
+		n.Cfg.Format = "event"
+	}
+	if !(n.Cfg.Format == "event" || n.Cfg.Format == "json" || n.Cfg.Format == "proto") {
+		return fmt.Errorf("unsupported output format: %s", n.Cfg.Format)
+	}
 	if n.Cfg.Name == "" {
 		n.Cfg.Name = "gnmic-" + uuid.New().String()
 	}
@@ -93,8 +110,8 @@ func (n *NatsOutput) Init(cfg map[string]interface{}, logger *log.Logger) error 
 }
 
 // Write //
-func (n *NatsOutput) Write(b []byte, meta outputs.Meta) {
-	if len(b) == 0 {
+func (n *NatsOutput) Write(rsp proto.Message, meta outputs.Meta) {
+	if rsp == nil {
 		return
 	}
 	if format, ok := meta["format"]; ok {
@@ -119,7 +136,47 @@ func (n *NatsOutput) Write(b []byte, meta outputs.Meta) {
 		ssb.WriteString(n.Cfg.Subject)
 	}
 	subject := strings.ReplaceAll(ssb.String(), " ", "_")
-	err := n.conn.Publish(subject, b)
+	b := make([]byte, 0)
+	var err error
+	switch n.Cfg.Format {
+	case "proto":
+		b, err = proto.Marshal(rsp)
+	case "json":
+		b, err = protojson.MarshalOptions{Multiline: true, Indent: "  "}.Marshal(rsp)
+	case "event":
+		switch sub := rsp.ProtoReflect().Interface().(type) {
+		case *gnmi.SubscribeResponse:
+			var subscriptionName string
+			var ok bool
+			if subscriptionName, ok = meta["subscription-name"]; !ok {
+				subscriptionName = "default"
+			}
+			switch sub.Response.(type) {
+			case *gnmi.SubscribeResponse_Update:
+				events, err := collector.ResponseToEventMsgs(subscriptionName, sub, meta)
+				if err != nil {
+					n.logger.Printf("failed converting response to events: %v", err)
+					return
+				}
+				b, err = json.MarshalIndent(events, "", "  ")
+				if err != nil {
+					n.logger.Printf("failed marshaling events: %v", err)
+					return
+				}
+			case *gnmi.SubscribeResponse_SyncResponse:
+				n.logger.Printf("received subscribe syncResponse with %v", meta)
+			case *gnmi.SubscribeResponse_Error:
+				gnmiErr := sub.GetError()
+				n.logger.Printf("received subscribe response error with %v, code=%d, message=%v, data=%v ",
+					meta, gnmiErr.Code, gnmiErr.Message, gnmiErr.Data)
+			}
+		}
+	}
+	if err != nil {
+		n.logger.Printf("failed marshaling event: %v", err)
+		return
+	}
+	err = n.conn.Publish(subject, b)
 	if err != nil {
 		log.Printf("failed to write to nats subject '%s': %v", subject, err)
 		return
@@ -186,4 +243,9 @@ func (n *NatsOutput) Dial(network, address string) (net.Conn, error) {
 			time.Sleep(n.Cfg.ConnectTimeWait)
 		}
 	}
+}
+
+func (n *NatsOutput) marshal(rsp *gnmi.SubscribeResponse, meta outputs.Meta) ([]byte, error) {
+
+	return nil, nil
 }
