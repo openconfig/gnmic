@@ -214,8 +214,8 @@ func (t *Target) Subscribe(ctx context.Context, req *gnmi.SubscribeRequest, subs
 }
 
 // Export //
-func (t *Target) Export(msg []byte, m outputs.Meta) {
-	if len(msg) == 0 || len(t.Outputs) == 0 {
+func (t *Target) Export(rsp *gnmi.SubscribeResponse, m outputs.Meta) {
+	if rsp == nil || len(t.Outputs) == 0 {
 		return
 	}
 	wg := new(sync.WaitGroup)
@@ -223,7 +223,7 @@ func (t *Target) Export(msg []byte, m outputs.Meta) {
 	for _, o := range t.Outputs {
 		go func(o outputs.Output) {
 			defer wg.Done()
-			o.Write(msg, m)
+			o.Write(rsp, m)
 		}(o)
 	}
 	wg.Wait()
