@@ -15,14 +15,12 @@
 package cmd
 
 import (
-	"bytes"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
-	"sync"
 
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/karimra/gnmic/outputs"
@@ -166,7 +164,7 @@ func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_Publi
 	} else {
 		logger.Println("could not find system-name in http2 headers")
 	}
-	lock := new(sync.Mutex)
+	//lock := new(sync.Mutex)
 	for {
 		subResp, err := stream.Recv()
 		if err != nil {
@@ -181,25 +179,25 @@ func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_Publi
 		}
 		switch resp := subResp.Response.(type) {
 		case *gnmi.SubscribeResponse_Update:
-			b, err := formatSubscribeResponse(meta, subResp)
-			if err != nil {
-				logger.Printf("failed to format subscribe response: %v", err)
-				continue
-			}
+			// b, err := formatSubscribeResponse(meta, subResp)
+			// if err != nil {
+			// 	logger.Printf("failed to format subscribe response: %v", err)
+			// 	continue
+			// }
 			for _, outputs := range s.Outputs {
 				for _, o := range outputs {
-					go o.Write(b, outMeta)
+					go o.Write(subResp, outMeta)
 				}
 			}
-			buff := new(bytes.Buffer)
-			err = json.Indent(buff, b, "", "  ")
-			if err != nil {
-				logger.Printf("failed to indent msg: err=%v, msg=%s", err, string(b))
-				continue
-			}
-			lock.Lock()
-			fmt.Println(buff.String())
-			lock.Unlock()
+			// buff := new(bytes.Buffer)
+			// err = json.Indent(buff, b, "", "  ")
+			// if err != nil {
+			// 	logger.Printf("failed to indent msg: err=%v, msg=%s", err, string(b))
+			// 	continue
+			// }
+			// lock.Lock()
+			// fmt.Println(buff.String())
+			// lock.Unlock()
 		case *gnmi.SubscribeResponse_SyncResponse:
 			logger.Printf("received sync response=%+v from %s\n", resp.SyncResponse, meta["source"])
 		}
