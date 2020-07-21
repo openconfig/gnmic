@@ -17,7 +17,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/encoding/prototext"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -311,4 +313,51 @@ func (c *Collector) subscriptionMode(name string) string {
 		return strings.ToUpper(sub.Mode)
 	}
 	return ""
+}
+
+// Marshal //
+func Marshal(msg proto.Message, format string, meta map[string]string, multiline bool, indent string) ([]byte, error) {
+	b := make([]byte, 0)
+	var err error
+	switch format {
+	case "proto":
+		b, err = proto.Marshal(msg)
+	case "json":
+		b, err = protojson.Marshal(msg)
+	case "textproto":
+		b, err = prototext.MarshalOptions{Multiline: multiline, Indent: indent}.Marshal(msg)
+	case "event":
+		switch msg := msg.ProtoReflect().Interface().(type) {
+		case *gnmi.SubscribeResponse:
+			var subscriptionName string
+			var ok bool
+			if subscriptionName, ok = meta["subscription-name"]; !ok {
+				subscriptionName = "default"
+			}
+			switch msg.Response.(type) {
+			case *gnmi.SubscribeResponse_Update:
+				events, err := ResponseToEventMsgs(subscriptionName, msg, meta)
+				if err != nil {
+					return nil, fmt.Errorf("failed converting response to events: %v", err)
+				}
+				b, err = json.Marshal(events)
+				if err != nil {
+
+					return nil, fmt.Errorf("failed marshaling events: %v", err)
+				}
+			case *gnmi.SubscribeResponse_SyncResponse:
+				//c.Logger.Printf("received subscribe syncResponse with %v", meta)
+			case *gnmi.SubscribeResponse_Error:
+				gnmiErr := msg.GetError()
+				return nil, fmt.Errorf("received subscribe response error with %v, code=%d, message=%v, data=%v ",
+					meta, gnmiErr.Code, gnmiErr.Message, gnmiErr.Data)
+			}
+		}
+	}
+	if err != nil {
+
+		return nil, fmt.Errorf("failed marshaling event: %v", err)
+	}
+
+	return b, nil
 }
