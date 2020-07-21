@@ -35,9 +35,11 @@ type File struct {
 
 // Config //
 type Config struct {
-	FileName string `mapstructure:"filename,omitempty"`
-	FileType string `mapstructure:"file-type,omitempty"`
-	Format   string `mapstructure:"format,omitempty"`
+	FileName  string `mapstructure:"filename,omitempty"`
+	FileType  string `mapstructure:"file-type,omitempty"`
+	Format    string `mapstructure:"format,omitempty"`
+	Multiline bool   `mapstructure:"multiline,omitempty"`
+	Indent    string `mapstructure:"indent,omitempty"`
 }
 
 func (f *File) String() string {
@@ -78,6 +80,10 @@ func (f *File) Init(cfg map[string]interface{}, logger *log.Logger) error {
 	if f.Cfg.Format == "" {
 		f.Cfg.Format = "json"
 	}
+	if (f.Cfg.Format == "json" || f.Cfg.Format == "textproto") && (f.Cfg.FileType == "stdout" || f.Cfg.FileType == "stderr") {
+		f.Cfg.Indent = "  "
+		f.Cfg.Multiline = true
+	}
 	f.logger.Printf("initialized file output: %s", f.String())
 	return nil
 }
@@ -88,13 +94,7 @@ func (f *File) Write(rsp proto.Message, meta outputs.Meta) {
 		return
 	}
 	NumberOfReceivedMsgs.WithLabelValues(f.file.Name()).Inc()
-	var multiline bool
-	var indent string
-	if (f.Cfg.Format == "json" || f.Cfg.Format == "textproto") && (f.Cfg.FileType == "stdout" || f.Cfg.FileType == "stderr") {
-		indent = "  "
-		multiline = true
-	}
-	b, err := collector.Marshal(rsp, f.Cfg.Format, meta, multiline, indent)
+	b, err := collector.Marshal(rsp, f.Cfg.Format, meta, f.Cfg.Multiline, f.Cfg.Indent)
 	if err != nil {
 		f.logger.Printf("failed marshaling proto msg: %v", err)
 		return
