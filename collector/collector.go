@@ -212,57 +212,59 @@ func (c *Collector) Start() {
 }
 
 // FormatMsg formats the gnmi.SubscribeResponse and returns a []byte and an error
-func (c *Collector) FormatMsg(meta map[string]interface{}, rsp *gnmi.SubscribeResponse) ([]byte, error) {
+func FormatMsg(meta map[string]string, rsp proto.Message) ([]byte, error) {
 	if rsp == nil {
 		return nil, nil
 	}
-	if c.Config.Format == "textproto" {
-		return []byte(prototext.Format(rsp)), nil
-	}
-	switch rsp := rsp.Response.(type) {
-	case *gnmi.SubscribeResponse_Update:
-		msg := new(msg)
-		msg.Timestamp = rsp.Update.Timestamp
-		t := time.Unix(0, rsp.Update.Timestamp)
-		msg.Time = &t
-		if meta == nil {
-			meta = make(map[string]interface{})
-		}
-		msg.Prefix = gnmiPathToXPath(rsp.Update.Prefix)
-		var ok bool
-		if _, ok = meta["source"]; ok {
-			msg.Source = fmt.Sprintf("%s", meta["source"])
-		}
-		if _, ok = meta["system-name"]; ok {
-			msg.SystemName = fmt.Sprintf("%s", meta["system-name"])
-		}
-		if _, ok = meta["subscription-name"]; ok {
-			msg.SubscriptionName = fmt.Sprintf("%s", meta["subscription-name"])
-		}
-		for i, upd := range rsp.Update.Update {
-			pathElems := make([]string, 0, len(upd.Path.Elem))
-			for _, pElem := range upd.Path.Elem {
-				pathElems = append(pathElems, pElem.GetName())
+	// if c.Config.Format == "textproto" {
+	// 	return []byte(prototext.Format(rsp)), nil
+	// }
+	switch rsp := rsp.ProtoReflect().Interface().(type) {
+	case *gnmi.SubscribeResponse:
+		switch rsp := rsp.Response.(type) {
+		case *gnmi.SubscribeResponse_Update:
+			msg := new(msg)
+			msg.Timestamp = rsp.Update.Timestamp
+			t := time.Unix(0, rsp.Update.Timestamp)
+			msg.Time = &t
+			if meta == nil {
+				meta = make(map[string]string)
 			}
-			value, err := getValue(upd.Val)
+			msg.Prefix = gnmiPathToXPath(rsp.Update.Prefix)
+			if s, ok := meta["source"]; ok {
+				msg.Source = s
+			}
+			if s, ok := meta["system-name"]; ok {
+				msg.SystemName = s
+			}
+			if s, ok := meta["subscription-name"]; ok {
+				msg.SubscriptionName = s
+			}
+			for i, upd := range rsp.Update.Update {
+				pathElems := make([]string, 0, len(upd.Path.Elem))
+				for _, pElem := range upd.Path.Elem {
+					pathElems = append(pathElems, pElem.GetName())
+				}
+				value, err := getValue(upd.Val)
+				if err != nil {
+					return nil, err
+				}
+				msg.Updates = append(msg.Updates,
+					&update{
+						Path:   gnmiPathToXPath(upd.Path),
+						Values: make(map[string]interface{}),
+					})
+				msg.Updates[i].Values[strings.Join(pathElems, "/")] = value
+			}
+			for _, del := range rsp.Update.Delete {
+				msg.Deletes = append(msg.Deletes, gnmiPathToXPath(del))
+			}
+			data, err := json.Marshal(msg)
 			if err != nil {
-				c.Logger.Println(err)
+				return nil, err
 			}
-			msg.Updates = append(msg.Updates,
-				&update{
-					Path:   gnmiPathToXPath(upd.Path),
-					Values: make(map[string]interface{}),
-				})
-			msg.Updates[i].Values[strings.Join(pathElems, "/")] = value
+			return data, nil
 		}
-		for _, del := range rsp.Update.Delete {
-			msg.Deletes = append(msg.Deletes, gnmiPathToXPath(del))
-		}
-		data, err := json.Marshal(msg)
-		if err != nil {
-			return nil, err
-		}
-		return data, nil
 	}
 	return nil, nil
 }
@@ -320,11 +322,13 @@ func Marshal(msg proto.Message, format string, meta map[string]string, multiline
 	b := make([]byte, 0)
 	var err error
 	switch format {
+	case "json":
+		b, err = FormatMsg(meta, msg)
 	case "proto":
 		b, err = proto.Marshal(msg)
-	case "json":
+	case "protojson":
 		b, err = protojson.Marshal(msg)
-	case "textproto":
+	case "prototext":
 		b, err = prototext.MarshalOptions{Multiline: multiline, Indent: indent}.Marshal(msg)
 	case "event":
 		switch msg := msg.ProtoReflect().Interface().(type) {
