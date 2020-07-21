@@ -160,7 +160,7 @@ var subscribeCmd = &cobra.Command{
 							waitChan <- struct{}{}
 							continue
 						}
-						b, err := coll.FormatMsg(nil, response)
+						b, err := collector.FormatMsg(nil, response)
 						if err != nil {
 							fmt.Printf("target '%s', subscription '%s': poll response formatting error:%v\n", name, subName, err)
 							continue
