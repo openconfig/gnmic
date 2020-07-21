@@ -13,10 +13,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/stan.go"
-	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
@@ -130,44 +127,9 @@ func (s *StanOutput) Write(rsp protoreflect.ProtoMessage, meta outputs.Meta) {
 		ssb.WriteString(s.Cfg.Subject)
 	}
 	subject := strings.ReplaceAll(ssb.String(), " ", "_")
-	b := make([]byte, 0)
-	var err error
-	switch s.Cfg.Format {
-	case "proto":
-		b, err = proto.Marshal(rsp)
-	case "json":
-		b, err = protojson.Marshal(rsp)
-	case "event":
-		switch sub := rsp.ProtoReflect().Interface().(type) {
-		case *gnmi.SubscribeResponse:
-			var subscriptionName string
-			var ok bool
-			if subscriptionName, ok = meta["subscription-name"]; !ok {
-				subscriptionName = "default"
-			}
-			switch sub.Response.(type) {
-			case *gnmi.SubscribeResponse_Update:
-				events, err := collector.ResponseToEventMsgs(subscriptionName, sub, meta)
-				if err != nil {
-					s.logger.Printf("failed converting response to events: %v", err)
-					return
-				}
-				b, err = json.Marshal(events)
-				if err != nil {
-					s.logger.Printf("failed marshaling events: %v", err)
-					return
-				}
-			case *gnmi.SubscribeResponse_SyncResponse:
-				s.logger.Printf("received subscribe syncResponse with %v", meta)
-			case *gnmi.SubscribeResponse_Error:
-				gnmiErr := sub.GetError()
-				s.logger.Printf("received subscribe response error with %v, code=%d, message=%v, data=%v ",
-					meta, gnmiErr.Code, gnmiErr.Message, gnmiErr.Data)
-			}
-		}
-	}
+	b, err := collector.Marshal(rsp, s.Cfg.Format, meta, false, "")
 	if err != nil {
-		s.logger.Printf("failed marshaling event: %v", err)
+		s.logger.Printf("failed marshaling proto msg: %v", err)
 		return
 	}
 	err = s.conn.Publish(subject, b)
