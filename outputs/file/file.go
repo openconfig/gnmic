@@ -76,7 +76,7 @@ func (f *File) Init(cfg map[string]interface{}, logger *log.Logger) error {
 		f.logger.SetFlags(logger.Flags())
 	}
 	if f.Cfg.Format == "" {
-		f.Cfg.Format = "event"
+		f.Cfg.Format = "json"
 	}
 	f.logger.Printf("initialized file output: %s", f.String())
 	return nil

@@ -2,6 +2,7 @@ package kafka_output
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -61,6 +62,12 @@ func (k *KafkaOutput) Init(cfg map[string]interface{}, logger *log.Logger) error
 	err := mapstructure.Decode(cfg, k.Cfg)
 	if err != nil {
 		return err
+	}
+	if k.Cfg.Format == "" {
+		k.Cfg.Format = "event"
+	}
+	if !(k.Cfg.Format == "event" || k.Cfg.Format == "protojson" || k.Cfg.Format == "proto" || k.Cfg.Format == "json") {
+		return fmt.Errorf("unsupported output format: %s", k.Cfg.Format)
 	}
 	if k.Cfg.Topic == "" {
 		k.Cfg.Topic = defaultKafkaTopic

@@ -92,7 +92,7 @@ func (s *StanOutput) Init(cfg map[string]interface{}, logger *log.Logger) error 
 	if s.Cfg.Format == "" {
 		s.Cfg.Format = "event"
 	}
-	if !(s.Cfg.Format == "event" || s.Cfg.Format == "json" || s.Cfg.Format == "proto") {
+	if !(s.Cfg.Format == "event" || s.Cfg.Format == "protojson" || s.Cfg.Format == "proto" || s.Cfg.Format == "json") {
 		return fmt.Errorf("unsupported output format: %s", s.Cfg.Format)
 	}
 	s.stopChan = make(chan struct{})
@@ -104,11 +104,6 @@ func (s *StanOutput) Init(cfg map[string]interface{}, logger *log.Logger) error 
 func (s *StanOutput) Write(rsp protoreflect.ProtoMessage, meta outputs.Meta) {
 	if rsp == nil {
 		return
-	}
-	if format, ok := meta["format"]; ok {
-		if format == "textproto" {
-			return
-		}
 	}
 	ssb := strings.Builder{}
 	ssb.WriteString(s.Cfg.SubjectPrefix)
