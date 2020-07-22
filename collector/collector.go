@@ -349,13 +349,6 @@ func Marshal(msg proto.Message, format string, meta map[string]string, multiline
 				if err != nil {
 					return nil, fmt.Errorf("failed marshaling events: %v", err)
 				}
-
-			case *gnmi.SubscribeResponse_SyncResponse:
-				//c.Logger.Printf("received subscribe syncResponse with %v", meta)
-			case *gnmi.SubscribeResponse_Error:
-				gnmiErr := msg.GetError()
-				return nil, fmt.Errorf("received subscribe response error with %v, code=%d, message=%v, data=%v ",
-					meta, gnmiErr.Code, gnmiErr.Message, gnmiErr.Data)
 			}
 		}
 	}
