@@ -2,14 +2,22 @@ package file
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/mitchellh/mapstructure"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
+)
+
+const (
+	defaultFormat    = "json"
+	defaultSeparator = "\n"
+	defaultFileName  = "gnmic"
 )
 
 func init() {
@@ -40,6 +48,7 @@ type Config struct {
 	Format    string `mapstructure:"format,omitempty"`
 	Multiline bool   `mapstructure:"multiline,omitempty"`
 	Indent    string `mapstructure:"indent,omitempty"`
+	Separator string `mapstructure:"separator,omitempty"`
 }
 
 func (f *File) String() string {
@@ -52,13 +61,19 @@ func (f *File) String() string {
 
 // Init //
 func (f *File) Init(cfg map[string]interface{}, logger *log.Logger) error {
-	c := new(Config)
-	err := mapstructure.Decode(cfg, c)
+	err := mapstructure.Decode(cfg, f.Cfg)
 	if err != nil {
 		return err
 	}
-	f.Cfg = c
-
+	if f.Cfg.Format == "proto" {
+		return fmt.Errorf("proto format not supported in output type 'file'")
+	}
+	if f.Cfg.Separator == "" {
+		f.Cfg.Separator = "\n"
+	}
+	if f.Cfg.FileName == "" {
+		f.Cfg.FileName = fmt.Sprintf("%s-%s.log", defaultFileName, time.Now().Format("2006-01-02"))
+	}
 	var file *os.File
 	switch f.Cfg.FileType {
 	case "stdout":
@@ -80,8 +95,7 @@ func (f *File) Init(cfg map[string]interface{}, logger *log.Logger) error {
 	if f.Cfg.Format == "" {
 		f.Cfg.Format = "json"
 	}
-	if (f.Cfg.Format == "json" || f.Cfg.Format == "prototext" || f.Cfg.Format == "event" || f.Cfg.Format == "protojson") &&
-		(f.Cfg.FileType == "stdout" || f.Cfg.FileType == "stderr") {
+	if f.Cfg.FileType == "stdout" || f.Cfg.FileType == "stderr" {
 		f.Cfg.Indent = "  "
 		f.Cfg.Multiline = true
 	}
@@ -100,7 +114,7 @@ func (f *File) Write(rsp proto.Message, meta outputs.Meta) {
 		f.logger.Printf("failed marshaling proto msg: %v", err)
 		return
 	}
-	n, err := f.file.Write(append(b, []byte("\n")...))
+	n, err := f.file.Write(append(b, []byte(f.Cfg.Separator)...))
 	if err != nil {
 		f.logger.Printf("failed to write to file '%s': %v", f.file.Name(), err)
 		return
