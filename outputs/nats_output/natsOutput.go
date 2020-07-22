@@ -86,7 +86,7 @@ func (n *NatsOutput) Init(cfg map[string]interface{}, logger *log.Logger) error 
 		n.logger.SetFlags(logger.Flags())
 	}
 	if n.Cfg.Format == "" {
-		n.Cfg.Format = "json"
+		n.Cfg.Format = defaultFormat
 	}
 	if !(n.Cfg.Format == "event" || n.Cfg.Format == "protojson" || n.Cfg.Format == "proto" || n.Cfg.Format == "json") {
 		return fmt.Errorf("unsupported output format '%s' for output type NATS", n.Cfg.Format)

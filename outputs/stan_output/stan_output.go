@@ -92,7 +92,7 @@ func (s *StanOutput) Init(cfg map[string]interface{}, logger *log.Logger) error 
 		s.logger.SetFlags(logger.Flags())
 	}
 	if s.Cfg.Format == "" {
-		s.Cfg.Format = "json"
+		s.Cfg.Format = defaultFormat
 	}
 	if !(s.Cfg.Format == "event" || s.Cfg.Format == "protojson" || s.Cfg.Format == "proto" || s.Cfg.Format == "json") {
 		return fmt.Errorf("unsupported output format: '%s' for output type STAN", s.Cfg.Format)

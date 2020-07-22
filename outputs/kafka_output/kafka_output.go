@@ -66,7 +66,7 @@ func (k *KafkaOutput) Init(cfg map[string]interface{}, logger *log.Logger) error
 		return err
 	}
 	if k.Cfg.Format == "" {
-		k.Cfg.Format = "json"
+		k.Cfg.Format = defaultFormat
 	}
 	if !(k.Cfg.Format == "event" || k.Cfg.Format == "protojson" || k.Cfg.Format == "proto" || k.Cfg.Format == "json") {
 		return fmt.Errorf("unsupported output format '%s' for output type kafka", k.Cfg.Format)
