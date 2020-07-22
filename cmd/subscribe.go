@@ -188,6 +188,7 @@ var subscribeCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(subscribeCmd)
+	subscribeCmd.SilenceUsage = true
 	subscribeCmd.Flags().StringP("prefix", "", "", "subscribe request prefix")
 	subscribeCmd.Flags().StringSliceP("path", "", []string{""}, "subscribe request paths")
 	//subscribeCmd.MarkFlagRequired("path")
@@ -202,6 +203,7 @@ func init() {
 	subscribeCmd.Flags().StringSliceP("model", "", []string{""}, "subscribe request used model(s)")
 	subscribeCmd.Flags().Bool("quiet", false, "suppress stdout printing")
 	subscribeCmd.Flags().StringP("target", "", "", "subscribe request target")
+	subscribeCmd.Flags().StringSliceP("name", "n", []string{}, "reference subscriptions by name, must be defined in gnmic config file")
 	//
 	viper.BindPFlag("subscribe-prefix", subscribeCmd.LocalFlags().Lookup("prefix"))
 	viper.BindPFlag("subscribe-path", subscribeCmd.LocalFlags().Lookup("path"))
@@ -215,6 +217,7 @@ func init() {
 	viper.BindPFlag("subscribe-sub-model", subscribeCmd.LocalFlags().Lookup("model"))
 	viper.BindPFlag("subscribe-quiet", subscribeCmd.LocalFlags().Lookup("quiet"))
 	viper.BindPFlag("subscribe-target", subscribeCmd.LocalFlags().Lookup("target"))
+	viper.BindPFlag("subscribe-name", subscribeCmd.LocalFlags().Lookup("name"))
 }
 
 func formatSubscribeResponse(meta map[string]interface{}, subResp *gnmi.SubscribeResponse) ([]byte, error) {
@@ -322,6 +325,10 @@ func getSubscriptions() (map[string]*collector.SubscriptionConfig, error) {
 	hi := viper.GetDuration("subscribe-heartbeat-interval")
 	si := viper.GetDuration("subscribe-sample-interval")
 	qos := viper.GetUint32("subscribe-qos")
+	subNames := viper.GetStringSlice("subscribe-name")
+	if len(paths) > 0 && len(subNames) > 0 {
+		return nil, fmt.Errorf("flags --path and --name cannot be mixed")
+	}
 	if len(paths) > 0 {
 		sub := new(collector.SubscriptionConfig)
 		sub.Name = "default"
@@ -381,5 +388,20 @@ func getSubscriptions() (map[string]*collector.SubscriptionConfig, error) {
 		}
 		subscriptions[sn] = sub
 	}
-	return subscriptions, nil
+	if len(subNames) == 0 {
+		return subscriptions, nil
+	}
+	filteredSubscriptions := make(map[string]*collector.SubscriptionConfig)
+	notFound := make([]string, 0)
+	for _, name := range subNames {
+		if s, ok := subscriptions[name]; ok {
+			filteredSubscriptions[name] = s
+		} else {
+			notFound = append(notFound, name)
+		}
+	}
+	if len(notFound) > 0 {
+		return nil, fmt.Errorf("named subscription(s) not found in config file: %v", notFound)
+	}
+	return filteredSubscriptions, nil
 }
