@@ -80,7 +80,8 @@ func (f *File) Init(cfg map[string]interface{}, logger *log.Logger) error {
 	if f.Cfg.Format == "" {
 		f.Cfg.Format = "json"
 	}
-	if (f.Cfg.Format == "json" || f.Cfg.Format == "textproto") && (f.Cfg.FileType == "stdout" || f.Cfg.FileType == "stderr") {
+	if (f.Cfg.Format == "json" || f.Cfg.Format == "prototext" || f.Cfg.Format == "event" || f.Cfg.Format == "protojson") &&
+		(f.Cfg.FileType == "stdout" || f.Cfg.FileType == "stderr") {
 		f.Cfg.Indent = "  "
 		f.Cfg.Multiline = true
 	}

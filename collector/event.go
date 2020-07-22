@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/jeremywohl/flatten"
+	flattener "github.com/karimra/go-map-flattener"
 	"github.com/openconfig/gnmi/proto/gnmi"
 )
 
@@ -34,15 +34,16 @@ func ResponseToEventMsgs(name string, rsp *gnmi.SubscribeResponse, meta map[stri
 			}
 			tags[k] = v
 		}
-		e := &EventMsg{
-			Tags:   make(map[string]string),
-			Values: make(map[string]interface{}),
-		}
-		e.Timestamp = rsp.Update.Timestamp
-		e.Name = name
-		e.Tags = tags
-		e.Values = make(map[string]interface{})
+
 		for _, upd := range rsp.Update.Update {
+			e := &EventMsg{
+				Tags:   make(map[string]string),
+				Values: make(map[string]interface{}),
+			}
+			e.Timestamp = rsp.Update.Timestamp
+			e.Name = name
+			e.Tags = tags
+			e.Values = make(map[string]interface{})
 			pathName, pTags := TagsFromGNMIPath(upd.Path)
 			pathName = strings.TrimRight(namePrefix, "/") + "/" + strings.TrimLeft(pathName, "/")
 			for k, v := range pTags {
@@ -59,18 +60,19 @@ func ResponseToEventMsgs(name string, rsp *gnmi.SubscribeResponse, meta map[stri
 			for k, v := range vs {
 				e.Values[k] = v
 			}
-		}
-		for k, v := range meta {
-			if k == "format" {
-				continue
+			for k, v := range meta {
+				if k == "format" {
+					continue
+				}
+				if _, ok := e.Tags[k]; ok {
+					e.Tags["meta:"+k] = v
+					continue
+				}
+				e.Tags[k] = v
 			}
-			if _, ok := e.Tags[k]; ok {
-				e.Tags["meta:"+k] = v
-				continue
-			}
-			e.Tags[k] = v
+			evs = append(evs, e)
 		}
-		evs = append(evs, e)
+
 		if len(rsp.Update.Delete) > 0 {
 			e := &EventMsg{
 				Deletes: make([]string, 0, len(rsp.Update.Delete)),
@@ -99,6 +101,9 @@ func ResponseToEventMsgs(name string, rsp *gnmi.SubscribeResponse, meta map[stri
 
 // TagsFromGNMIPath //
 func TagsFromGNMIPath(p *gnmi.Path) (string, map[string]string) {
+	if p == nil {
+		return "", nil
+	}
 	tags := make(map[string]string)
 	sb := strings.Builder{}
 	if p.Origin != "" {
@@ -171,7 +176,8 @@ func getValueFlat(prefix string, updValue *gnmi.TypedValue) (map[string]interfac
 		}
 		switch value := value.(type) {
 		case map[string]interface{}:
-			values, err = flatten.Flatten(value, prefix, flatten.PathStyle)
+			f := flattener.NewFlattener()
+			values, err = f.Flatten(value)
 		default:
 			values[prefix] = value
 		}
