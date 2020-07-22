@@ -53,7 +53,7 @@ func ResponseToEventMsgs(name string, rsp *gnmi.SubscribeResponse, meta map[stri
 				}
 				e.Tags[k] = v
 			}
-			vs, err := parseUpdate(pathName, upd)
+			vs, err := getValueFlat(pathName, upd.GetVal())
 			if err != nil {
 				return nil, err
 			}
@@ -122,15 +122,6 @@ func TagsFromGNMIPath(p *gnmi.Path) (string, map[string]string) {
 		}
 	}
 	return sb.String(), tags
-}
-
-// parseUpdate //
-func parseUpdate(prefix string, upd *gnmi.Update) (map[string]interface{}, error) {
-	val, err := getValueFlat(prefix, upd.GetVal())
-	if err != nil {
-		return nil, err
-	}
-	return val, nil
 }
 
 func getValueFlat(prefix string, updValue *gnmi.TypedValue) (map[string]interface{}, error) {
