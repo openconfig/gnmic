@@ -15,7 +15,6 @@
 package cmd
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -160,20 +159,14 @@ var subscribeCmd = &cobra.Command{
 							waitChan <- struct{}{}
 							continue
 						}
-						b, err := collector.FormatMsg(nil, response)
+						b, err := collector.FormatMsg(nil, response, true, "  ")
 						if err != nil {
 							fmt.Printf("target '%s', subscription '%s': poll response formatting error:%v\n", name, subName, err)
-							continue
-						}
-						dst := new(bytes.Buffer)
-						err = json.Indent(dst, b, "", "  ")
-						if err != nil {
-							fmt.Printf("failed to indent poll response from '%s': %v\n", name, err)
 							fmt.Println(string(b))
 							waitChan <- struct{}{}
 							continue
 						}
-						fmt.Println(dst.String())
+						fmt.Println(string(b))
 						waitChan <- struct{}{}
 					case <-ctx.Done():
 						return

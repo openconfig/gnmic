@@ -212,7 +212,7 @@ func (c *Collector) Start() {
 }
 
 // FormatMsg formats the gnmi.SubscribeResponse and returns a []byte and an error
-func FormatMsg(meta map[string]string, rsp proto.Message) ([]byte, error) {
+func FormatMsg(meta map[string]string, rsp proto.Message, multiline bool, indent string) ([]byte, error) {
 	if rsp == nil {
 		return nil, nil
 	}
@@ -323,7 +323,7 @@ func Marshal(msg proto.Message, format string, meta map[string]string, multiline
 	var err error
 	switch format {
 	case "json":
-		b, err = FormatMsg(meta, msg)
+		b, err = FormatMsg(meta, msg, multiline, indent)
 	case "proto":
 		b, err = proto.Marshal(msg)
 	case "protojson":
