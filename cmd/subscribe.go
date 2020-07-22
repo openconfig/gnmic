@@ -181,6 +181,7 @@ var subscribeCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(subscribeCmd)
+	subscribeCmd.SilenceUsage = true
 	subscribeCmd.Flags().StringP("prefix", "", "", "subscribe request prefix")
 	subscribeCmd.Flags().StringSliceP("path", "", []string{""}, "subscribe request paths")
 	//subscribeCmd.MarkFlagRequired("path")
