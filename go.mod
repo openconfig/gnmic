@@ -8,6 +8,7 @@ require (
 	github.com/google/uuid v1.1.1
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/jeremywohl/flatten v1.0.1
+	github.com/karimra/go-map-flattener v0.0.0-20200722050030-b900ba59d8a5
 	github.com/karimra/sros-dialout v0.0.0-20200518085040-c759bf74063a
 	github.com/manifoldco/promptui v0.7.0
 	github.com/mitchellh/go-homedir v1.1.0

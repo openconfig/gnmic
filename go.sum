@@ -195,6 +195,8 @@ github.com/juju/ansiterm v0.0.0-20180109212912-720a0952cc2a/go.mod h1:UJSiEoRfvx
 github.com/julienschmidt/httprouter v1.2.0/go.mod h1:SYymIcj16QtmaHHD7aYtjjsJG7VTCxuUUipMqKk8s4w=
 github.com/karimra/gnmiClient v0.0.6 h1:YNB3WG8CxwF/l6tO8vmqCCJWo9r9RrZcfa4Ns7kBqfM=
 github.com/karimra/gnmiClient v0.0.6/go.mod h1:bbZcxou9j6SIhkno6YiOd/QKIAqwq00pgMm0GshTpyE=
+github.com/karimra/go-map-flattener v0.0.0-20200722050030-b900ba59d8a5 h1:KZYo3zRTDBIINaGev4S8ihxQt8Rg21UYpaDv8ItYaQQ=
+github.com/karimra/go-map-flattener v0.0.0-20200722050030-b900ba59d8a5/go.mod h1:qwSIH4cR7eD1dkmjx0S/rqsO33C6VYaTHLrdfntJQkM=
 github.com/karimra/sros-dialout v0.0.0-20200518085040-c759bf74063a h1:OLIlAOVZsQFJixMQFNMxIQb2tU8OCcEtDtSVbbeLWAM=
 github.com/karimra/sros-dialout v0.0.0-20200518085040-c759bf74063a/go.mod h1:KcjPi49Pbs+EF8Ykob5AzLcze653Qb4HFz+i2aFEEJU=
 github.com/kisielk/errcheck v1.1.0/go.mod h1:EZBBE59ingxPouuu3KfxchcWSUPOHkagtvWXihfKN4Q=

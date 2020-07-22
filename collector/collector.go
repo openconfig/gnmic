@@ -327,7 +327,7 @@ func Marshal(msg proto.Message, format string, meta map[string]string, multiline
 	case "proto":
 		b, err = proto.Marshal(msg)
 	case "protojson":
-		b, err = protojson.Marshal(msg)
+		b, err = protojson.MarshalOptions{Multiline: multiline, Indent: indent}.Marshal(msg)
 	case "prototext":
 		b, err = prototext.MarshalOptions{Multiline: multiline, Indent: indent}.Marshal(msg)
 	case "event":
@@ -363,9 +363,7 @@ func Marshal(msg proto.Message, format string, meta map[string]string, multiline
 		}
 	}
 	if err != nil {
-
 		return nil, fmt.Errorf("failed marshaling event: %v", err)
 	}
-
 	return b, nil
 }
