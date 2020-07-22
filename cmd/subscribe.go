@@ -16,7 +16,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -33,7 +32,6 @@ import (
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"google.golang.org/protobuf/encoding/prototext"
 )
 
 type msg struct {
@@ -209,58 +207,6 @@ func init() {
 	viper.BindPFlag("subscribe-sub-model", subscribeCmd.LocalFlags().Lookup("model"))
 	viper.BindPFlag("subscribe-quiet", subscribeCmd.LocalFlags().Lookup("quiet"))
 	viper.BindPFlag("subscribe-target", subscribeCmd.LocalFlags().Lookup("target"))
-}
-
-func formatSubscribeResponse(meta map[string]interface{}, subResp *gnmi.SubscribeResponse) ([]byte, error) {
-	switch resp := subResp.Response.(type) {
-	case *gnmi.SubscribeResponse_Update:
-		if viper.GetString("format") == "prototext" {
-			return []byte(prototext.Format(subResp)), nil
-		}
-		msg := new(msg)
-		msg.Timestamp = resp.Update.Timestamp
-		t := time.Unix(0, resp.Update.Timestamp)
-		msg.Time = &t
-		if meta == nil {
-			meta = make(map[string]interface{})
-		}
-		msg.Prefix = gnmiPathToXPath(resp.Update.Prefix)
-		var ok bool
-		if _, ok = meta["source"]; ok {
-			msg.Source = fmt.Sprintf("%s", meta["source"])
-		}
-		if _, ok = meta["system-name"]; ok {
-			msg.SystemName = fmt.Sprintf("%s", meta["system-name"])
-		}
-		if _, ok = meta["subscription-name"]; ok {
-			msg.SubscriptionName = fmt.Sprintf("%s", meta["subscription-name"])
-		}
-		for i, upd := range resp.Update.Update {
-			pathElems := make([]string, 0, len(upd.Path.Elem))
-			for _, pElem := range upd.Path.Elem {
-				pathElems = append(pathElems, pElem.GetName())
-			}
-			value, err := getValue(upd.Val)
-			if err != nil {
-				logger.Println(err)
-			}
-			msg.Updates = append(msg.Updates,
-				&update{
-					Path:   gnmiPathToXPath(upd.Path),
-					Values: make(map[string]interface{}),
-				})
-			msg.Updates[i].Values[strings.Join(pathElems, "/")] = value
-		}
-		for _, del := range resp.Update.Delete {
-			msg.Deletes = append(msg.Deletes, gnmiPathToXPath(del))
-		}
-		data, err := json.Marshal(msg)
-		if err != nil {
-			return nil, err
-		}
-		return data, nil
-	}
-	return nil, nil
 }
 
 func getOutputs() (map[string][]outputs.Output, error) {

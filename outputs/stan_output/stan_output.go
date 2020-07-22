@@ -109,14 +109,14 @@ func (s *StanOutput) Write(rsp protoreflect.ProtoMessage, meta outputs.Meta) {
 	ssb.WriteString(s.Cfg.SubjectPrefix)
 	if s.Cfg.SubjectPrefix != "" {
 		if s, ok := meta["source"]; ok {
-			source := strings.ReplaceAll(fmt.Sprintf("%s", s), ".", "-")
+			source := strings.ReplaceAll(s, ".", "-")
 			source = strings.ReplaceAll(source, " ", "_")
 			ssb.WriteString(".")
 			ssb.WriteString(source)
 		}
 		if subname, ok := meta["subscription-name"]; ok {
 			ssb.WriteString(".")
-			ssb.WriteString(fmt.Sprintf("%s", subname))
+			ssb.WriteString(subname)
 		}
 	} else if s.Cfg.Subject != "" {
 		ssb.WriteString(s.Cfg.Subject)

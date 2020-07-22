@@ -15,7 +15,6 @@ import (
 	"github.com/karimra/gnmic/outputs"
 	"github.com/mitchellh/mapstructure"
 	"github.com/nats-io/nats.go"
-	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
 )
@@ -28,12 +27,6 @@ const (
 
 	defaultSubjectName = "gnmic-telemetry"
 )
-
-type msg struct {
-	Tags     outputs.Meta  `json:"tags,omitempty"`
-	Msg      proto.Message `json:"msg,omitempty"`
-	MsgBytes []byte        `json:"msg_bytes,omitempty"`
-}
 
 func init() {
 	outputs.Register("nats", func() outputs.Output {
@@ -122,14 +115,14 @@ func (n *NatsOutput) Write(rsp proto.Message, meta outputs.Meta) {
 	ssb.WriteString(n.Cfg.SubjectPrefix)
 	if n.Cfg.SubjectPrefix != "" {
 		if s, ok := meta["source"]; ok {
-			source := strings.ReplaceAll(fmt.Sprintf("%s", s), ".", "-")
+			source := strings.ReplaceAll(s, ".", "-")
 			source = strings.ReplaceAll(source, " ", "_")
 			ssb.WriteString(".")
 			ssb.WriteString(source)
 		}
 		if subname, ok := meta["subscription-name"]; ok {
 			ssb.WriteString(".")
-			ssb.WriteString(fmt.Sprintf("%s", subname))
+			ssb.WriteString(subname)
 		}
 	} else if n.Cfg.Subject != "" {
 		ssb.WriteString(n.Cfg.Subject)
@@ -207,9 +200,4 @@ func (n *NatsOutput) Dial(network, address string) (net.Conn, error) {
 			time.Sleep(n.Cfg.ConnectTimeWait)
 		}
 	}
-}
-
-func (n *NatsOutput) marshal(rsp *gnmi.SubscribeResponse, meta outputs.Meta) ([]byte, error) {
-
-	return nil, nil
 }
