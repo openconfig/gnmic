@@ -94,7 +94,7 @@ func (n *NatsOutput) Init(cfg map[string]interface{}, logger *log.Logger) error 
 		n.Cfg.Format = "json"
 	}
 	if !(n.Cfg.Format == "event" || n.Cfg.Format == "protojson" || n.Cfg.Format == "proto" || n.Cfg.Format == "json") {
-		return fmt.Errorf("unsupported output format: %s", n.Cfg.Format)
+		return fmt.Errorf("unsupported output format '%s' for output type NATS", n.Cfg.Format)
 	}
 	if n.Cfg.Name == "" {
 		n.Cfg.Name = "gnmic-" + uuid.New().String()
