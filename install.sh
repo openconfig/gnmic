@@ -13,10 +13,13 @@ fi
 FNAME="${TAR_PREFIX}_${TAG_WO_VER}_${PLATFORM}_${ARCH}.tar.gz"
 echo "Downloading $FNAME..."
 (cd /tmp && curl -ksLO https://github.com/karimra/gnmic/releases/download/"$LATEST_TAG"/"$FNAME" || (echo "Failed to download release!" && exit 1))
-tar -xzf /tmp/${FNAME} -C /tmp || (echo "Failed to unarchive!" && exit 1)
+(mkdir -p /tmp/gnmic && tar -xzf /tmp/${FNAME} -C /tmp/gnmic) || (echo "Failed to unarchive!" && exit 1)
 echo "Moving gnmic to /usr/local/bin"
 echo
-mv -f /tmp/gnmic /usr/local/bin
+mv -f /tmp/gnmic/gnmic /usr/local/bin
 /usr/local/bin/gnmic version
 echo
+# clean up
+rm -rf /tmp/gnmic
+rm -f /tmp/$FNAME
 echo "Installation complete!"
