@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
 
 	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/outputs"
@@ -17,7 +16,6 @@ import (
 const (
 	defaultFormat    = "json"
 	defaultSeparator = "\n"
-	defaultFileName  = "gnmic"
 )
 
 func init() {
@@ -71,22 +69,20 @@ func (f *File) Init(cfg map[string]interface{}, logger *log.Logger) error {
 	if f.Cfg.Separator == "" {
 		f.Cfg.Separator = "\n"
 	}
-	if f.Cfg.FileName == "" {
-		f.Cfg.FileName = fmt.Sprintf("%s-%s.log", defaultFileName, time.Now().Format("2006-01-02"))
+	if f.Cfg.FileName == "" && f.Cfg.FileType == "" {
+		f.Cfg.FileType = "stdout"
 	}
-	var file *os.File
 	switch f.Cfg.FileType {
 	case "stdout":
-		file = os.Stdout
+		f.file = os.Stdout
 	case "stderr":
-		file = os.Stderr
+		f.file = os.Stderr
 	default:
-		file, err = os.OpenFile(f.Cfg.FileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		f.file, err = os.OpenFile(f.Cfg.FileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 		if err != nil {
 			return err
 		}
 	}
-	f.file = file
 	f.logger = log.New(os.Stderr, "file_output ", log.LstdFlags|log.Lmicroseconds)
 	if logger != nil {
 		f.logger.SetOutput(logger.Writer())
