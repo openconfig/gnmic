@@ -256,11 +256,10 @@ func FormatMsg(meta map[string]string, rsp proto.Message, multiline bool, indent
 			for _, del := range rsp.Update.Delete {
 				msg.Deletes = append(msg.Deletes, gnmiPathToXPath(del))
 			}
-			data, err := json.Marshal(msg)
-			if err != nil {
-				return nil, err
+			if multiline {
+				return json.MarshalIndent(msg, "", indent)
 			}
-			return data, nil
+			return json.Marshal(msg)
 		}
 	}
 	return nil, nil
