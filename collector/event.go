@@ -167,7 +167,6 @@ func getValueFlat(prefix string, updValue *gnmi.TypedValue) (map[string]interfac
 	case *gnmi.TypedValue_JsonVal:
 		jsondata = updValue.GetJsonVal()
 	}
-	//	fmt.Println(string(jsondata))
 	if len(jsondata) != 0 {
 		var value interface{}
 		err := json.Unmarshal(jsondata, &value)
