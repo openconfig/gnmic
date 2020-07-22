@@ -102,7 +102,7 @@ func printGetResponse(address string, response *gnmi.GetResponse) {
 	if numTargets() > 1 && !viper.GetBool("no-prefix") {
 		printPrefix = fmt.Sprintf("[%s] ", address)
 	}
-	if viper.GetString("format") == "textproto" {
+	if viper.GetString("format") == "prototext" {
 		fmt.Printf("%s\n", indent(printPrefix, prototext.Format(response)))
 		return
 	}

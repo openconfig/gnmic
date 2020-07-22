@@ -166,7 +166,7 @@ func convert(i interface{}) interface{} {
 	return i
 }
 func printSetRequest(printPrefix string, request *gnmi.SetRequest) {
-	if viper.GetString("format") == "textproto" {
+	if viper.GetString("format") == "prototext" {
 		fmt.Printf("%s\n", indent("  ", prototext.Format(request)))
 		return
 	}
@@ -204,7 +204,7 @@ func printSetRequest(printPrefix string, request *gnmi.SetRequest) {
 	fmt.Println(string(b))
 }
 func printSetResponse(printPrefix, address string, response *gnmi.SetResponse) {
-	if viper.GetString("format") == "textproto" {
+	if viper.GetString("format") == "prototext" {
 		fmt.Printf("%s\n", indent(printPrefix, prototext.Format(response)))
 		return
 	}

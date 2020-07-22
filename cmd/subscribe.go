@@ -213,7 +213,7 @@ func init() {
 func formatSubscribeResponse(meta map[string]interface{}, subResp *gnmi.SubscribeResponse) ([]byte, error) {
 	switch resp := subResp.Response.(type) {
 	case *gnmi.SubscribeResponse_Update:
-		if viper.GetString("format") == "textproto" {
+		if viper.GetString("format") == "prototext" {
 			return []byte(prototext.Format(subResp)), nil
 		}
 		msg := new(msg)

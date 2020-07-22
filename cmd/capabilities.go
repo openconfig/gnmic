@@ -85,7 +85,7 @@ func printCapResponse(r *gnmi.CapabilityResponse, address string) {
 	if len(addresses) > 1 && !viper.GetBool("no-prefix") {
 		printPrefix = fmt.Sprintf("[%s] ", address)
 	}
-	if viper.GetString("format") == "textproto" {
+	if viper.GetString("format") == "prototext" {
 		fmt.Printf("%s\n", indent(printPrefix, prototext.Format(r)))
 		return
 	}

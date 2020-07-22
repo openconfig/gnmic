@@ -114,7 +114,7 @@ func (n *NatsOutput) Write(rsp proto.Message, meta outputs.Meta) {
 		return
 	}
 	if format, ok := meta["format"]; ok {
-		if format == "textproto" {
+		if format == "prototext" {
 			return
 		}
 	}

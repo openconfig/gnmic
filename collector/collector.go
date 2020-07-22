@@ -216,9 +216,6 @@ func FormatMsg(meta map[string]string, rsp proto.Message, multiline bool, indent
 	if rsp == nil {
 		return nil, nil
 	}
-	// if c.Config.Format == "textproto" {
-	// 	return []byte(prototext.Format(rsp)), nil
-	// }
 	switch rsp := rsp.ProtoReflect().Interface().(type) {
 	case *gnmi.SubscribeResponse:
 		switch rsp := rsp.Response.(type) {
