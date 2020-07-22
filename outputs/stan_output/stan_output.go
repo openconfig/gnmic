@@ -23,6 +23,8 @@ const (
 	stanDefaultPingRetry    = 2
 
 	defaultSubjectName = "gnmic-telemetry"
+
+	defaultFormat = "json"
 )
 
 func init() {

@@ -26,6 +26,8 @@ const (
 	natsReconnectBufferSize = 100 * 1024 * 1024
 
 	defaultSubjectName = "gnmic-telemetry"
+
+	defaultFormat = "json"
 )
 
 func init() {

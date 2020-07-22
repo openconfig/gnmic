@@ -67,7 +67,7 @@ func (f *File) Init(cfg map[string]interface{}, logger *log.Logger) error {
 		return fmt.Errorf("proto format not supported in output type 'file'")
 	}
 	if f.Cfg.Separator == "" {
-		f.Cfg.Separator = "\n"
+		f.Cfg.Separator = defaultSeparator
 	}
 	if f.Cfg.FileName == "" && f.Cfg.FileType == "" {
 		f.Cfg.FileType = "stdout"
@@ -89,7 +89,7 @@ func (f *File) Init(cfg map[string]interface{}, logger *log.Logger) error {
 		f.logger.SetFlags(logger.Flags())
 	}
 	if f.Cfg.Format == "" {
-		f.Cfg.Format = "json"
+		f.Cfg.Format = defaultFormat
 	}
 	if f.Cfg.FileType == "stdout" || f.Cfg.FileType == "stderr" {
 		f.Cfg.Indent = "  "

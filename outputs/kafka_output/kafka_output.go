@@ -21,6 +21,8 @@ const (
 	defaultKafkaMaxRetry = 2
 	defaultKafkaTimeout  = 5
 	defaultKafkaTopic    = "telemetry"
+
+	defaultFormat = "json"
 )
 
 func init() {
