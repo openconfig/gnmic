@@ -217,9 +217,7 @@ func getOutputs() (map[string][]outputs.Output, error) {
 			"file-type": "stdout",
 			"format":    viper.GetString("format"),
 		}
-		stdoutFile := make([]interface{}, 1)
-		stdoutFile[0] = stdoutConfig
-		outDef["stdout"] = stdoutFile
+		outDef["stdout"] = []interface{}{stdoutConfig}
 	}
 	outputDestinations := make(map[string][]outputs.Output)
 	for name, d := range outDef {
@@ -231,6 +229,10 @@ func getOutputs() (map[string][]outputs.Output, error) {
 				case map[string]interface{}:
 					if outType, ok := ou["type"]; ok {
 						if initalizer, ok := outputs.Outputs[outType.(string)]; ok {
+							 format, ok := ou["format"]
+							 if !ok || (ok && format == "") {
+								ou["format"] = viper.GetString("format")
+							} 
 							o := initalizer()
 							err := o.Init(ou, logger)
 							if err != nil {
