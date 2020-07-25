@@ -212,7 +212,7 @@ func (c *Collector) Start() {
 }
 
 // FormatMsg formats the gnmi.SubscribeResponse and returns a []byte and an error
-func FormatMsg(meta map[string]string, rsp proto.Message, multiline bool, indent string) ([]byte, error) {
+func (o *MarshalOptions) FormatJSON(rsp proto.Message, meta map[string]string) ([]byte, error) {
 	if rsp == nil {
 		return nil, nil
 	}
@@ -220,7 +220,7 @@ func FormatMsg(meta map[string]string, rsp proto.Message, multiline bool, indent
 	case *gnmi.SubscribeResponse:
 		switch rsp := rsp.Response.(type) {
 		case *gnmi.SubscribeResponse_Update:
-			msg := new(msg)
+			msg := new(subscribeRspMsg)
 			msg.Timestamp = rsp.Update.Timestamp
 			t := time.Unix(0, rsp.Update.Timestamp)
 			msg.Time = &t
@@ -256,8 +256,8 @@ func FormatMsg(meta map[string]string, rsp proto.Message, multiline bool, indent
 			for _, del := range rsp.Update.Delete {
 				msg.Deletes = append(msg.Deletes, gnmiPathToXPath(del))
 			}
-			if multiline {
-				return json.MarshalIndent(msg, "", indent)
+			if o.Multiline {
+				return json.MarshalIndent(msg, o.Prefix, o.Indent)
 			}
 			return json.Marshal(msg)
 		}
@@ -314,18 +314,18 @@ func (c *Collector) subscriptionMode(name string) string {
 }
 
 // Marshal //
-func Marshal(msg proto.Message, format string, meta map[string]string, multiline bool, indent string) ([]byte, error) {
+func (o *MarshalOptions) Marshal(msg proto.Message, meta map[string]string) ([]byte, error) {
 	b := make([]byte, 0)
 	var err error
-	switch format {
-	case "json":
-		b, err = FormatMsg(meta, msg, multiline, indent)
+	switch o.Format {
+	default: // json
+		b, err = o.FormatJSON(msg, meta)
 	case "proto":
 		b, err = proto.Marshal(msg)
 	case "protojson":
-		b, err = protojson.MarshalOptions{Multiline: multiline, Indent: indent}.Marshal(msg)
+		b, err = protojson.MarshalOptions{Multiline: o.Multiline, Indent: o.Indent}.Marshal(msg)
 	case "prototext":
-		b, err = prototext.MarshalOptions{Multiline: multiline, Indent: indent}.Marshal(msg)
+		b, err = prototext.MarshalOptions{Multiline: o.Multiline, Indent: o.Indent}.Marshal(msg)
 	case "event":
 		switch msg := msg.ProtoReflect().Interface().(type) {
 		case *gnmi.SubscribeResponse:
@@ -340,8 +340,8 @@ func Marshal(msg proto.Message, format string, meta map[string]string, multiline
 				if err != nil {
 					return nil, fmt.Errorf("failed converting response to events: %v", err)
 				}
-				if multiline {
-					b, err = json.MarshalIndent(events, "", indent)
+				if o.Multiline {
+					b, err = json.MarshalIndent(events, "", o.Indent)
 				} else {
 					b, err = json.Marshal(events)
 				}
@@ -355,4 +355,11 @@ func Marshal(msg proto.Message, format string, meta map[string]string, multiline
 		return nil, fmt.Errorf("failed marshaling event: %v", err)
 	}
 	return b, nil
+}
+
+type MarshalOptions struct {
+	Multiline bool
+	Indent    string
+	Prefix    string
+	Format    string // TODO
 }
