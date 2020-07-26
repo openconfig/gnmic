@@ -64,7 +64,7 @@ verifySupported() {
 verifyOpenssl() {
     if [ $VERIFY_CHECKSUM == "true" ]; then
         if ! type "openssl" &>/dev/null; then
-            echo "openssl is not found. Either install openssl or provide '--skip-checksum' flag to the installer"
+            echo "openssl is not found. It is used to verify checksum of the downloaded archive.\nEither install openssl or provide '--skip-checksum' flag to the installer"
             exit 1
         fi
     fi
