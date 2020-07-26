@@ -22,7 +22,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/outputs"
@@ -33,22 +32,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
-
-type msg struct {
-	Meta             map[string]interface{} `json:"meta,omitempty"`
-	Source           string                 `json:"source,omitempty"`
-	SystemName       string                 `json:"system-name,omitempty"`
-	SubscriptionName string                 `json:"subscription-name,omitempty"`
-	Timestamp        int64                  `json:"timestamp,omitempty"`
-	Time             *time.Time             `json:"time,omitempty"`
-	Prefix           string                 `json:"prefix,omitempty"`
-	Updates          []*update              `json:"updates,omitempty"`
-	Deletes          []string               `json:"deletes,omitempty"`
-}
-type update struct {
-	Path   string
-	Values map[string]interface{} `json:"values,omitempty"`
-}
 
 // subscribeCmd represents the subscribe command
 var subscribeCmd = &cobra.Command{

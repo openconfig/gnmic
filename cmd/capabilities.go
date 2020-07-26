@@ -18,11 +18,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/karimra/gnmic/collector"
-	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
 	"github.com/spf13/viper"
 
@@ -75,64 +73,15 @@ func reqCapability(ctx context.Context, target *collector.Target, wg *sync.WaitG
 		return
 	}
 	m.Lock()
-	printCapResponse(response, target.Config.Address)
-	m.Unlock()
-}
+	defer m.Unlock()
+	err = printMsg(target.Config.Name, "Capabilities Response", response)
+	if err != nil {
+		logger.Printf("error marshaling capabilities response msg: %v", err)
+		if !viper.GetBool("log") {
+			fmt.Printf("error marshaling set capabilities msg: %v\n", err)
+		}
+	}
 
-func printCapResponse(r *gnmi.CapabilityResponse, address string) {
-	printPrefix := ""
-	addresses := viper.GetStringSlice("address")
-	if len(addresses) > 1 && !viper.GetBool("no-prefix") {
-		printPrefix = fmt.Sprintf("[%s] ", address)
-	}
-	format := viper.GetString("format")
-	if len(format) > 0 {
-		mo := collector.MarshalOptions{
-			Multiline: true,
-			Indent:    "  ",
-			Format:    viper.GetString("format"),
-		}
-		b, err := mo.Marshal(r, nil)
-		if err != nil {
-			logger.Printf("error marshaling msg: %v", err)
-			if !viper.GetBool("log") {
-				fmt.Printf("error marshaling msg: %v\n", err)
-			}
-			return
-		}
-		fmt.Printf("%s\n", indent(printPrefix, string(b)))
-		return
-	} else {
-		sb := strings.Builder{}
-		sb.WriteString(printPrefix)
-		sb.WriteString("gNMI version: ")
-		sb.WriteString(r.GNMIVersion)
-		sb.WriteString("\n")
-		if viper.GetBool("version") {
-			return
-		}
-		sb.WriteString(printPrefix)
-		sb.WriteString("supported models:\n")
-		for _, sm := range r.SupportedModels {
-			sb.WriteString(printPrefix)
-			sb.WriteString("  - ")
-			sb.WriteString(sm.GetName())
-			sb.WriteString(", ")
-			sb.WriteString(sm.GetOrganization())
-			sb.WriteString(", ")
-			sb.WriteString(sm.GetVersion())
-			sb.WriteString("\n")
-		}
-		sb.WriteString(printPrefix)
-		sb.WriteString("supported encodings:\n")
-		for _, se := range r.SupportedEncodings {
-			sb.WriteString(printPrefix)
-			sb.WriteString("  - ")
-			sb.WriteString(se.String())
-			sb.WriteString("\n")
-		}
-		fmt.Printf("%s\n", indent(printPrefix, sb.String()))
-	}
 }
 
 func init() {

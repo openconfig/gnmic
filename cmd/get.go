@@ -16,19 +16,15 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/karimra/gnmic/collector"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/encoding/prototext"
 )
 
 // getCmd represents the get command
@@ -93,67 +89,15 @@ func getRequest(ctx context.Context, req *gnmi.GetRequest, target *collector.Tar
 		return
 	}
 	lock.Lock()
-	printGetResponse(target.Config.Name, response)
-	lock.Unlock()
-}
-
-func printGetResponse(address string, response *gnmi.GetResponse) {
-	printPrefix := ""
-	//	addresses := viper.GetStringSlice("address")
-	if numTargets() > 1 && !viper.GetBool("no-prefix") {
-		printPrefix = fmt.Sprintf("[%s] ", address)
-	}
-	switch viper.GetString("format") {
-	case "protojson":
-		b, err := protojson.MarshalOptions{Multiline: true, Indent: "  "}.Marshal(response)
-		if err != nil {
-			logger.Printf("error marshaling protojson msg: %v", err)
-			if !viper.GetBool("log") {
-				fmt.Printf("error marshaling protojson msg: %v\n", err)
-			}
-			return
+	defer lock.Unlock()
+	err = printMsg(target.Config.Name, "Get Response", response)
+	if err != nil {
+		logger.Printf("error marshaling get response msg: %v", err)
+		if !viper.GetBool("log") {
+			fmt.Printf("error marshaling get response msg: %v\n", err)
 		}
-		fmt.Printf("%s\n", indent(printPrefix, string(b)))
-		return
-	case "prototext":
-		fmt.Printf("%s\n", indent(printPrefix, prototext.Format(response)))
-		return
-	case "json":
-		for _, notif := range response.Notification {
-			msg := new(msg)
-			msg.Source = address
-			msg.Timestamp = notif.Timestamp
-			t := time.Unix(0, notif.Timestamp)
-			msg.Time = &t
-			msg.Prefix = gnmiPathToXPath(notif.Prefix)
-			for i, upd := range notif.Update {
-				pathElems := make([]string, 0, len(upd.Path.Elem))
-				for _, pElem := range upd.Path.Elem {
-					pathElems = append(pathElems, pElem.GetName())
-				}
-				value, err := getValue(upd.Val)
-				if err != nil {
-					logger.Println(err)
-				}
-				msg.Updates = append(msg.Updates,
-					&update{
-						Path:   gnmiPathToXPath(upd.Path),
-						Values: make(map[string]interface{}),
-					})
-				msg.Updates[i].Values[strings.Join(pathElems, "/")] = value
-			}
-			dMsg, err := json.MarshalIndent(msg, printPrefix, "  ")
-			if err != nil {
-				logger.Printf("error marshling json msg:%v", err)
-				return
-			}
-			fmt.Printf("%s%s\n", printPrefix, string(dMsg))
-		}
-	case "event":
-		fmt.Println("event format is not implemented for get command")
-		return
 	}
-	fmt.Println()
+	//printGetResponse(target.Config.Name, response)
 }
 
 func init() {

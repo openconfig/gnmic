@@ -77,24 +77,33 @@ func setRequest(ctx context.Context, req *gnmi.SetRequest, target *collector.Tar
 		logger.Printf("failed to create a client for target '%s' : %v", target.Config.Name, err)
 		return
 	}
-
-	printPrefix := ""
-	if numTargets() > 1 && !viper.GetBool("no-prefix") {
-		printPrefix = fmt.Sprintf("[%s] ", target.Config.Address)
-	}
-	lock.Lock()
-	defer lock.Unlock()
-	if viper.GetBool("set-print-request") {
-		printSetRequest(printPrefix, req)
-	}
 	logger.Printf("sending gNMI SetRequest: prefix='%v', delete='%v', replace='%v', update='%v', extension='%v' to %s",
 		req.Prefix, req.Delete, req.Replace, req.Update, req.Extension, target.Config.Address)
+	if viper.GetBool("set-print-request") {
+		lock.Lock()
+		err := printMsg(target.Config.Name, "Set Request", req)
+		if err != nil {
+			logger.Printf("error marshaling set request msg: %v", err)
+			if !viper.GetBool("log") {
+				fmt.Printf("error marshaling set request msg: %v\n", err)
+			}
+		}
+		lock.Unlock()
+	}
 	response, err := target.Set(ctx, req)
 	if err != nil {
 		logger.Printf("error sending set request: %v", err)
 		return
 	}
-	printSetResponse(printPrefix, target.Config.Address, response)
+	lock.Lock()
+	defer lock.Unlock()
+	err = printMsg(target.Config.Name, "Set Response", response)
+	if err != nil {
+		logger.Printf("error marshaling set response msg: %v", err)
+		if !viper.GetBool("log") {
+			fmt.Printf("error marshaling set response msg: %v\n", err)
+		}
+	}
 }
 
 // readFile reads a json or yaml file. the the file is .yaml, converts it to json and returns []byte and an error
@@ -136,44 +145,6 @@ func convert(i interface{}) interface{} {
 		}
 	}
 	return i
-}
-func printSetRequest(printPrefix string, request *gnmi.SetRequest) {
-	mo := collector.MarshalOptions{
-		Multiline: true,
-		Indent:    "  ",
-		Format:    viper.GetString("format"),
-	}
-	b, err := mo.Marshal(request, nil)
-	if err != nil {
-		logger.Printf("error marshaling set request msg: %v", err)
-		if !viper.GetBool("log") {
-			fmt.Printf("error marshaling set request msg: %v\n", err)
-		}
-		return
-	}
-	sb := strings.Builder{}
-	sb.WriteString("Set Request:\n")
-	sb.Write(b)
-	fmt.Printf("%s\n", indent(printPrefix, sb.String()))
-}
-func printSetResponse(printPrefix, address string, response *gnmi.SetResponse) {
-	mo := collector.MarshalOptions{
-		Multiline: true,
-		Indent:    "  ",
-		Format:    viper.GetString("format"),
-	}
-	b, err := mo.Marshal(response, map[string]string{"address": address})
-	if err != nil {
-		logger.Printf("error marshaling set response msg: %v", err)
-		if !viper.GetBool("log") {
-			fmt.Printf("error marshaling set response msg: %v\n", err)
-		}
-		return
-	}
-	sb := strings.Builder{}
-	sb.WriteString("Set Response:\n")
-	sb.Write(b)
-	fmt.Printf("%s\n", indent(printPrefix, sb.String()))
 }
 
 func init() {
