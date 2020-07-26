@@ -16,17 +16,15 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/karimra/gnmic/collector"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
 	"github.com/spf13/viper"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/encoding/prototext"
 
 	"github.com/spf13/cobra"
 )
@@ -87,75 +85,57 @@ func printCapResponse(r *gnmi.CapabilityResponse, address string) {
 	if len(addresses) > 1 && !viper.GetBool("no-prefix") {
 		printPrefix = fmt.Sprintf("[%s] ", address)
 	}
-	switch viper.GetString("format") {
-	case "protojson":
-		b, err := protojson.MarshalOptions{Multiline: true, Indent: "  "}.Marshal(r)
+	format := viper.GetString("format")
+	if len(format) > 0 {
+		mo := collector.MarshalOptions{
+			Multiline: true,
+			Indent:    "  ",
+			Format:    viper.GetString("format"),
+		}
+		b, err := mo.Marshal(r, nil)
 		if err != nil {
-			logger.Printf("error marshaling protojson msg: %v", err)
+			logger.Printf("error marshaling msg: %v", err)
 			if !viper.GetBool("log") {
-				fmt.Printf("error marshaling protojson msg: %v\n", err)
+				fmt.Printf("error marshaling msg: %v\n", err)
 			}
-			return
 		}
 		fmt.Printf("%s\n", indent(printPrefix, string(b)))
 		return
-	case "prototext":
-		fmt.Printf("%s\n", indent(printPrefix, prototext.Format(r)))
-		return
-	case "json":
-		capRspMsg := capResponse{}
-
-		capRspMsg.Version = r.GetGNMIVersion()
-		for _, sm := range r.SupportedModels {
-			capRspMsg.SupportedModels = append(capRspMsg.SupportedModels,
-				supportedModels{
-					Name:         sm.GetName(),
-					Organization: sm.GetOrganization(),
-					Version:      sm.GetVersion(),
-				})
-		}
-		for _, se := range r.SupportedEncodings {
-			capRspMsg.Encodings = append(capRspMsg.Encodings, se.String())
-		}
-		b, err := json.MarshalIndent(capRspMsg, printPrefix, "  ")
-		if err != nil {
-			logger.Printf("failed to marshal capabilities response: %v", err)
-			if !viper.GetBool("log") {
-				fmt.Printf("failed to marshal capabilities response: %v", err)
-				return
-			}
-		}
-		fmt.Println(string(b))
-	default:
-		fmt.Printf("%sgNMI version: %s\n", printPrefix, r.GNMIVersion)
+	} else {
+		sb := strings.Builder{}
+		sb.WriteString(printPrefix)
+		sb.WriteString("gNMI version: ")
+		sb.WriteString(r.GNMIVersion)
+		sb.WriteString("\n")
 		if viper.GetBool("version") {
 			return
 		}
-		fmt.Printf("%ssupported models:\n", printPrefix)
+		sb.WriteString(printPrefix)
+		sb.WriteString("supported models:\n")
 		for _, sm := range r.SupportedModels {
-			fmt.Printf("%s  - %s, %s, %s\n", printPrefix, sm.GetName(), sm.GetOrganization(), sm.GetVersion())
+			sb.WriteString(printPrefix)
+			sb.WriteString("  - ")
+			sb.WriteString(sm.GetName())
+			sb.WriteString(", ")
+			sb.WriteString(sm.GetOrganization())
+			sb.WriteString(", ")
+			sb.WriteString(sm.GetVersion())
+			sb.WriteString("\n")
 		}
-		fmt.Printf("%ssupported encodings:\n", printPrefix)
+		sb.WriteString(printPrefix)
+		sb.WriteString("supported encodings:\n")
 		for _, se := range r.SupportedEncodings {
-			fmt.Printf("%s  - %s\n", printPrefix, se.String())
+			sb.WriteString(printPrefix)
+			sb.WriteString("  - ")
+			sb.WriteString(se.String())
+			sb.WriteString("\n")
 		}
+		fmt.Printf("%s\n", indent(printPrefix, sb.String()))
 	}
-	fmt.Println()
 }
 
 func init() {
 	rootCmd.AddCommand(capabilitiesCmd)
 	capabilitiesCmd.Flags().BoolVarP(&printVersion, "version", "", false, "show gnmi version only")
 	viper.BindPFlag("capabilities-version", capabilitiesCmd.LocalFlags().Lookup("version"))
-}
-
-type capResponse struct {
-	Version         string            `json:"version,omitempty"`
-	SupportedModels []supportedModels `json:"supported-models,omitempty"`
-	Encodings       []string          `json:"encodings,omitempty"`
-}
-type supportedModels struct {
-	Name         string `json:"name,omitempty"`
-	Organization string `json:"organization,omitempty"`
-	Version      string `json:"version,omitempty"`
 }
