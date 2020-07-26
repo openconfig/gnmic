@@ -172,9 +172,9 @@ fail_trap() {
 # testVersion tests the installed client to make sure it is working.
 testVersion() {
     set +e
-    HELM="$(command -v $BINARY_NAME)"
+    GNMIC="$($BINARY_NAME version)"
     if [ "$?" = "1" ]; then
-        echo "$BINARY_NAME not found. Is $GNMIC_INSTALL_DIR on your "'$PATH?'
+        echo "$BINARY_NAME not found. Is $GNMIC_INSTALL_DIR in your "'$PATH?'
         exit 1
     fi
     set -e
