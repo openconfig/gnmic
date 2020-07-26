@@ -2,14 +2,12 @@ package collector
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"strings"
 	"sync"
-	"time"
 
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/karimra/gnmic/outputs"
@@ -17,9 +15,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/encoding/prototext"
-	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -211,60 +206,6 @@ func (c *Collector) Start() {
 	wg.Wait()
 }
 
-// FormatMsg formats the gnmi.SubscribeResponse and returns a []byte and an error
-func (o *MarshalOptions) FormatJSON(rsp proto.Message, meta map[string]string) ([]byte, error) {
-	if rsp == nil {
-		return nil, nil
-	}
-	switch rsp := rsp.ProtoReflect().Interface().(type) {
-	case *gnmi.SubscribeResponse:
-		switch rsp := rsp.Response.(type) {
-		case *gnmi.SubscribeResponse_Update:
-			msg := new(subscribeRspMsg)
-			msg.Timestamp = rsp.Update.Timestamp
-			t := time.Unix(0, rsp.Update.Timestamp)
-			msg.Time = &t
-			if meta == nil {
-				meta = make(map[string]string)
-			}
-			msg.Prefix = gnmiPathToXPath(rsp.Update.Prefix)
-			if s, ok := meta["source"]; ok {
-				msg.Source = s
-			}
-			if s, ok := meta["system-name"]; ok {
-				msg.SystemName = s
-			}
-			if s, ok := meta["subscription-name"]; ok {
-				msg.SubscriptionName = s
-			}
-			for i, upd := range rsp.Update.Update {
-				pathElems := make([]string, 0, len(upd.Path.Elem))
-				for _, pElem := range upd.Path.Elem {
-					pathElems = append(pathElems, pElem.GetName())
-				}
-				value, err := getValue(upd.Val)
-				if err != nil {
-					return nil, err
-				}
-				msg.Updates = append(msg.Updates,
-					&update{
-						Path:   gnmiPathToXPath(upd.Path),
-						Values: make(map[string]interface{}),
-					})
-				msg.Updates[i].Values[strings.Join(pathElems, "/")] = value
-			}
-			for _, del := range rsp.Update.Delete {
-				msg.Deletes = append(msg.Deletes, gnmiPathToXPath(del))
-			}
-			if o.Multiline {
-				return json.MarshalIndent(msg, o.Prefix, o.Indent)
-			}
-			return json.Marshal(msg)
-		}
-	}
-	return nil, nil
-}
-
 // TargetPoll sends a gnmi.SubscribeRequest_Poll to targetName and returns the response and an error,
 // it uses the targetName and the subscriptionName strings to find the gnmi.GNMI_SubscribeClient
 func (c *Collector) TargetPoll(targetName, subscriptionName string) (*gnmi.SubscribeResponse, error) {
@@ -311,55 +252,4 @@ func (c *Collector) subscriptionMode(name string) string {
 		return strings.ToUpper(sub.Mode)
 	}
 	return ""
-}
-
-// Marshal //
-func (o *MarshalOptions) Marshal(msg proto.Message, meta map[string]string) ([]byte, error) {
-	b := make([]byte, 0)
-	var err error
-	switch o.Format {
-	default: // json
-		b, err = o.FormatJSON(msg, meta)
-	case "proto":
-		b, err = proto.Marshal(msg)
-	case "protojson":
-		b, err = protojson.MarshalOptions{Multiline: o.Multiline, Indent: o.Indent}.Marshal(msg)
-	case "prototext":
-		b, err = prototext.MarshalOptions{Multiline: o.Multiline, Indent: o.Indent}.Marshal(msg)
-	case "event":
-		switch msg := msg.ProtoReflect().Interface().(type) {
-		case *gnmi.SubscribeResponse:
-			var subscriptionName string
-			var ok bool
-			if subscriptionName, ok = meta["subscription-name"]; !ok {
-				subscriptionName = "default"
-			}
-			switch msg.Response.(type) {
-			case *gnmi.SubscribeResponse_Update:
-				events, err := ResponseToEventMsgs(subscriptionName, msg, meta)
-				if err != nil {
-					return nil, fmt.Errorf("failed converting response to events: %v", err)
-				}
-				if o.Multiline {
-					b, err = json.MarshalIndent(events, "", o.Indent)
-				} else {
-					b, err = json.Marshal(events)
-				}
-				if err != nil {
-					return nil, fmt.Errorf("failed marshaling events: %v", err)
-				}
-			}
-		}
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed marshaling event: %v", err)
-	}
-	return b, nil
-}
-
-type MarshalOptions struct {
-	Multiline bool
-	Indent    string
-	Prefix    string
-	Format    string // TODO
 }

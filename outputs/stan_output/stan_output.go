@@ -37,11 +37,11 @@ func init() {
 
 // StanOutput //
 type StanOutput struct {
-	Cfg      *Config
-	conn     stan.Conn
-	metrics  []prometheus.Collector
-	logger   *log.Logger
-	stopChan chan struct{}
+	Cfg     *Config
+	conn    stan.Conn
+	metrics []prometheus.Collector
+	logger  *log.Logger
+	mo      *collector.MarshalOptions
 }
 
 // Config //
@@ -97,7 +97,7 @@ func (s *StanOutput) Init(cfg map[string]interface{}, logger *log.Logger) error 
 	if !(s.Cfg.Format == "event" || s.Cfg.Format == "protojson" || s.Cfg.Format == "proto" || s.Cfg.Format == "json") {
 		return fmt.Errorf("unsupported output format: '%s' for output type STAN", s.Cfg.Format)
 	}
-	s.stopChan = make(chan struct{})
+	s.mo = &collector.MarshalOptions{Format: s.Cfg.Format}
 	s.logger.Printf("initialized stan producer: %s", s.String())
 	return nil
 }
@@ -124,7 +124,7 @@ func (s *StanOutput) Write(rsp protoreflect.ProtoMessage, meta outputs.Meta) {
 		ssb.WriteString(s.Cfg.Subject)
 	}
 	subject := strings.ReplaceAll(ssb.String(), " ", "_")
-	b, err := collector.Marshal(rsp, s.Cfg.Format, meta, false, "")
+	b, err := s.mo.Marshal(rsp, meta)
 	if err != nil {
 		s.logger.Printf("failed marshaling proto msg: %v", err)
 		return
@@ -142,7 +142,6 @@ func (s *StanOutput) Metrics() []prometheus.Collector { return s.metrics }
 
 // Close //
 func (s *StanOutput) Close() error {
-	close(s.stopChan)
 	return s.conn.Close()
 }
 

@@ -39,6 +39,7 @@ type KafkaOutput struct {
 	producer sarama.SyncProducer
 	metrics  []prometheus.Collector
 	logger   sarama.StdLogger
+	mo       *collector.MarshalOptions
 }
 
 // Config //
@@ -101,6 +102,7 @@ func (k *KafkaOutput) Init(cfg map[string]interface{}, logger *log.Logger) error
 	if err != nil {
 		return err
 	}
+	k.mo = &collector.MarshalOptions{Format: k.Cfg.Format}
 	k.logger.Printf("initialized kafka producer: %s", k.String())
 	return err
 }
@@ -115,7 +117,7 @@ func (k *KafkaOutput) Write(rsp proto.Message, meta outputs.Meta) {
 			return
 		}
 	}
-	b, err := collector.Marshal(rsp, k.Cfg.Format, meta, false, "")
+	b, err := k.mo.Marshal(rsp, meta)
 	if err != nil {
 		k.logger.Printf("failed marshaling proto msg: %v", err)
 		return

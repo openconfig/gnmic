@@ -46,6 +46,7 @@ type NatsOutput struct {
 	conn     *nats.Conn
 	metrics  []prometheus.Collector
 	logger   *log.Logger
+	mo       *collector.MarshalOptions
 }
 
 // Config //
@@ -100,6 +101,7 @@ func (n *NatsOutput) Init(cfg map[string]interface{}, logger *log.Logger) error 
 		return err
 	}
 	n.logger.Printf("initialized nats producer: %s", n.String())
+	n.mo = &collector.MarshalOptions{Format: n.Cfg.Format}
 	return nil
 }
 
@@ -130,7 +132,7 @@ func (n *NatsOutput) Write(rsp proto.Message, meta outputs.Meta) {
 		ssb.WriteString(n.Cfg.Subject)
 	}
 	subject := strings.ReplaceAll(ssb.String(), " ", "_")
-	b, err := collector.Marshal(rsp, n.Cfg.Format, meta, false, "")
+	b, err := n.mo.Marshal(rsp, meta)
 	if err != nil {
 		n.logger.Printf("failed marshaling proto msg: %v", err)
 		return

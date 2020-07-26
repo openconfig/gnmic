@@ -37,6 +37,7 @@ type File struct {
 	file    *os.File
 	logger  *log.Logger
 	metrics []prometheus.Collector
+	mo      *collector.MarshalOptions
 }
 
 // Config //
@@ -95,6 +96,10 @@ func (f *File) Init(cfg map[string]interface{}, logger *log.Logger) error {
 		f.Cfg.Indent = "  "
 		f.Cfg.Multiline = true
 	}
+	if f.Cfg.Multiline && f.Cfg.Indent == "" {
+		f.Cfg.Indent = "  "
+	}
+	f.mo = &collector.MarshalOptions{Multiline: f.Cfg.Multiline, Indent: f.Cfg.Indent, Format: f.Cfg.Format}
 	f.logger.Printf("initialized file output: %s", f.String())
 	return nil
 }
@@ -105,7 +110,7 @@ func (f *File) Write(rsp proto.Message, meta outputs.Meta) {
 		return
 	}
 	NumberOfReceivedMsgs.WithLabelValues(f.file.Name()).Inc()
-	b, err := collector.Marshal(rsp, f.Cfg.Format, meta, f.Cfg.Multiline, f.Cfg.Indent)
+	b, err := f.mo.Marshal(rsp, meta)
 	if err != nil {
 		f.logger.Printf("failed marshaling proto msg: %v", err)
 		return
