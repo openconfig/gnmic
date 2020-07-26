@@ -81,6 +81,17 @@ func getRequest(ctx context.Context, req *gnmi.GetRequest, target *collector.Tar
 			xreq.UseModels = append(xreq.UseModels, m)
 		}
 	}
+	if viper.GetBool("get-print-request") {
+		lock.Lock()
+		err := printMsg(target.Config.Name, "Get Request", req)
+		if err != nil {
+			logger.Printf("error marshaling get request msg: %v", err)
+			if !viper.GetBool("log") {
+				fmt.Printf("error marshaling get request msg: %v\n", err)
+			}
+		}
+		lock.Unlock()
+	}
 	logger.Printf("sending gNMI GetRequest: prefix='%v', path='%v', type='%v', encoding='%v', models='%+v', extension='%+v' to %s",
 		xreq.Prefix, xreq.Path, xreq.Type, xreq.Encoding, xreq.UseModels, xreq.Extension, target.Config.Address)
 	response, err := target.Get(ctx, xreq)
@@ -109,11 +120,14 @@ func init() {
 	getCmd.Flags().StringSliceP("model", "", []string{""}, "get request models")
 	getCmd.Flags().StringP("type", "t", "ALL", "data type requested from the target. one of: ALL, CONFIG, STATE, OPERATIONAL")
 	getCmd.Flags().StringP("target", "", "", "get request target")
+	getCmd.Flags().BoolP("print-request", "", false, "print get request as well as the response")
+
 	viper.BindPFlag("get-path", getCmd.LocalFlags().Lookup("path"))
 	viper.BindPFlag("get-prefix", getCmd.LocalFlags().Lookup("prefix"))
 	viper.BindPFlag("get-model", getCmd.LocalFlags().Lookup("model"))
 	viper.BindPFlag("get-type", getCmd.LocalFlags().Lookup("type"))
 	viper.BindPFlag("get-target", getCmd.LocalFlags().Lookup("target"))
+	viper.BindPFlag("get-print-request", getCmd.LocalFlags().Lookup("print-request"))
 }
 
 func createGetRequest() (*gnmi.GetRequest, error) {
