@@ -76,9 +76,9 @@ func reqCapability(ctx context.Context, target *collector.Target, wg *sync.WaitG
 	defer m.Unlock()
 	err = printMsg(target.Config.Name, "Capabilities Response", response)
 	if err != nil {
-		logger.Printf("error marshaling capabilities response msg: %v", err)
+		logger.Printf("error marshaling capabilities response from %s: %v", target.Config.Name, err)
 		if !viper.GetBool("log") {
-			fmt.Printf("error marshaling set capabilities msg: %v\n", err)
+			fmt.Printf("error marshaling capabilities response from %s: %v\n", target.Config.Name, err)
 		}
 	}
 

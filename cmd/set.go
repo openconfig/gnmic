@@ -99,9 +99,9 @@ func setRequest(ctx context.Context, req *gnmi.SetRequest, target *collector.Tar
 	defer lock.Unlock()
 	err = printMsg(target.Config.Name, "Set Response", response)
 	if err != nil {
-		logger.Printf("error marshaling set response msg: %v", err)
+		logger.Printf("error marshaling set response from %s: %v\n", target.Config.Name, err)
 		if !viper.GetBool("log") {
-			fmt.Printf("error marshaling set response msg: %v\n", err)
+			fmt.Printf("error marshaling set response from %s: %v\n", target.Config.Name, err)
 		}
 	}
 }
