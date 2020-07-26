@@ -15,7 +15,6 @@ import (
 type MarshalOptions struct {
 	Multiline bool // could get rid of this and deduct it from len(Indent)
 	Indent    string
-	Prefix    string
 	Format    string
 }
 
@@ -122,7 +121,7 @@ func (o *MarshalOptions) formatsubscribeRequest(m *gnmi.SubscribeRequest) ([]byt
 		}
 	}
 	if o.Multiline {
-		return json.MarshalIndent(msg, o.Prefix, o.Indent)
+		return json.MarshalIndent(msg, "", o.Indent)
 	}
 	return json.Marshal(msg)
 }
@@ -169,7 +168,7 @@ func (o *MarshalOptions) formatSubscribeResponse(m *gnmi.SubscribeResponse, meta
 			msg.Deletes = append(msg.Deletes, gnmiPathToXPath(del))
 		}
 		if o.Multiline {
-			return json.MarshalIndent(msg, o.Prefix, o.Indent)
+			return json.MarshalIndent(msg, "", o.Indent)
 		}
 		return json.Marshal(msg)
 	}
@@ -184,7 +183,7 @@ func (o *MarshalOptions) formatCapabilitiesRequest(m *gnmi.CapabilityRequest) ([
 		capReq.Extentions = append(capReq.Extentions, e.String())
 	}
 	if o.Multiline {
-		return json.MarshalIndent(capReq, o.Prefix, o.Indent)
+		return json.MarshalIndent(capReq, "", o.Indent)
 	}
 	return json.Marshal(capReq)
 }
@@ -204,7 +203,7 @@ func (o *MarshalOptions) formatCapabilitiesResponse(m *gnmi.CapabilityResponse) 
 		capRspMsg.Encodings = append(capRspMsg.Encodings, se.String())
 	}
 	if o.Multiline {
-		return json.MarshalIndent(capRspMsg, o.Prefix, o.Indent)
+		return json.MarshalIndent(capRspMsg, "", o.Indent)
 	}
 	return json.Marshal(capRspMsg)
 }
@@ -228,7 +227,7 @@ func (o *MarshalOptions) formatGetRequest(m *gnmi.GetRequest) ([]byte, error) {
 			})
 	}
 	if o.Multiline {
-		return json.MarshalIndent(msg, o.Prefix, o.Indent)
+		return json.MarshalIndent(msg, "", o.Indent)
 	}
 	return json.Marshal(msg)
 }
@@ -273,7 +272,7 @@ func (o *MarshalOptions) formatGetResponse(m *gnmi.GetResponse, meta map[string]
 		notifications = append(notifications, msg)
 	}
 	if o.Multiline {
-		return json.MarshalIndent(notifications, o.Prefix, o.Indent)
+		return json.MarshalIndent(notifications, "", o.Indent)
 	}
 	return json.Marshal(notifications)
 }
@@ -305,7 +304,7 @@ func (o *MarshalOptions) formatSetRequest(m *gnmi.SetRequest) ([]byte, error) {
 		})
 	}
 	if o.Multiline {
-		return json.MarshalIndent(req, o.Prefix, o.Indent)
+		return json.MarshalIndent(req, "", o.Indent)
 	}
 	return json.Marshal(req)
 }
@@ -329,7 +328,7 @@ func (o *MarshalOptions) formatSetResponse(m *gnmi.SetResponse, meta map[string]
 		})
 	}
 	if o.Multiline {
-		return json.MarshalIndent(msg, o.Prefix, o.Indent)
+		return json.MarshalIndent(msg, "", o.Indent)
 	}
 	return json.Marshal(msg)
 }
