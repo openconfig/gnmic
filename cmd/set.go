@@ -25,43 +25,15 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/karimra/gnmic/collector"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"google.golang.org/protobuf/encoding/prototext"
 	"gopkg.in/yaml.v2"
 )
 
 var vTypes = []string{"json", "json_ietf", "string", "int", "uint", "bool", "decimal", "float", "bytes", "ascii"}
-
-type setRspMsg struct {
-	Source    string             `json:"source,omitempty"`
-	Timestamp int64              `json:"timestamp,omitempty"`
-	Time      time.Time          `json:"time,omitempty"`
-	Prefix    string             `json:"prefix,omitempty"`
-	Results   []*updateResultMsg `json:"results,omitempty"`
-}
-
-type updateResultMsg struct {
-	Operation string `json:"operation,omitempty"`
-	Path      string `json:"path,omitempty"`
-}
-
-type setReqMsg struct {
-	Prefix  string       `json:"prefix,omitempty"`
-	Delete  []string     `json:"delete,omitempty"`
-	Replace []*updateMsg `json:"replace,omitempty"`
-	Update  []*updateMsg `json:"update,omitempty"`
-	// extension is not implemented
-}
-
-type updateMsg struct {
-	Path string `json:"path,omitempty"`
-	Val  string `json:"val,omitempty"`
-}
 
 // setCmd represents the set command
 var setCmd = &cobra.Command{
@@ -166,66 +138,42 @@ func convert(i interface{}) interface{} {
 	return i
 }
 func printSetRequest(printPrefix string, request *gnmi.SetRequest) {
-	if viper.GetString("format") == "prototext" {
-		fmt.Printf("%s\n", indent("  ", prototext.Format(request)))
-		return
+	mo := collector.MarshalOptions{
+		Multiline: true,
+		Indent:    "  ",
+		Format:    viper.GetString("format"),
 	}
-	fmt.Printf("%sSet Request: \n", printPrefix)
-	req := new(setReqMsg)
-	req.Prefix = gnmiPathToXPath(request.Prefix)
-	req.Delete = make([]string, 0, len(request.Delete))
-	req.Replace = make([]*updateMsg, 0, len(request.Replace))
-	req.Update = make([]*updateMsg, 0, len(request.Update))
-
-	for _, del := range request.Delete {
-		p := gnmiPathToXPath(del)
-		req.Delete = append(req.Delete, p)
-	}
-
-	for _, upd := range request.Replace {
-		updMsg := new(updateMsg)
-		updMsg.Path = gnmiPathToXPath(upd.Path)
-		updMsg.Val = upd.Val.String()
-		req.Replace = append(req.Replace, updMsg)
-	}
-
-	for _, upd := range request.Update {
-		updMsg := new(updateMsg)
-		updMsg.Path = gnmiPathToXPath(upd.Path)
-		updMsg.Val = upd.Val.String()
-		req.Update = append(req.Update, updMsg)
-	}
-
-	b, err := json.MarshalIndent(req, "", "  ")
+	b, err := mo.Marshal(request, nil)
 	if err != nil {
-		fmt.Println("failed marshaling the set request", err)
+		logger.Printf("error marshaling set request msg: %v", err)
+		if !viper.GetBool("log") {
+			fmt.Printf("error marshaling set request msg: %v\n", err)
+		}
 		return
 	}
-	fmt.Println(string(b))
+	sb := strings.Builder{}
+	sb.WriteString("Set Request:\n")
+	sb.Write(b)
+	fmt.Printf("%s\n", indent(printPrefix, sb.String()))
 }
 func printSetResponse(printPrefix, address string, response *gnmi.SetResponse) {
-	if viper.GetString("format") == "prototext" {
-		fmt.Printf("%s\n", indent(printPrefix, prototext.Format(response)))
-		return
+	mo := collector.MarshalOptions{
+		Multiline: true,
+		Indent:    "  ",
+		Format:    viper.GetString("format"),
 	}
-	rsp := new(setRspMsg)
-	rsp.Prefix = gnmiPathToXPath(response.Prefix)
-	rsp.Timestamp = response.Timestamp
-	rsp.Time = time.Unix(0, response.Timestamp)
-	rsp.Results = make([]*updateResultMsg, 0, len(response.Response))
-	rsp.Source = address
-	for _, u := range response.Response {
-		r := new(updateResultMsg)
-		r.Operation = u.Op.String()
-		r.Path = gnmiPathToXPath(u.Path)
-		rsp.Results = append(rsp.Results, r)
-	}
-	b, err := json.MarshalIndent(rsp, "", "  ")
+	b, err := mo.Marshal(response, map[string]string{"address": address})
 	if err != nil {
-		fmt.Printf("failed marshaling the set response from '%s': %v", address, err)
+		logger.Printf("error marshaling set response msg: %v", err)
+		if !viper.GetBool("log") {
+			fmt.Printf("error marshaling set response msg: %v\n", err)
+		}
 		return
 	}
-	fmt.Println(string(b))
+	sb := strings.Builder{}
+	sb.WriteString("Set Response:\n")
+	sb.Write(b)
+	fmt.Printf("%s\n", indent(printPrefix, sb.String()))
 }
 
 func init() {
