@@ -123,6 +123,10 @@ var subscribeCmd = &cobra.Command{
 			}
 			waitChan := make(chan struct{}, 1)
 			waitChan <- struct{}{}
+			mo := &collector.MarshalOptions{
+				Multiline: true,
+				Indent:    "  ",
+				Format:    viper.GetString("format")}
 			go func() {
 				for {
 					select {
@@ -157,7 +161,7 @@ var subscribeCmd = &cobra.Command{
 							waitChan <- struct{}{}
 							continue
 						}
-						b, err := collector.FormatMsg(nil, response, true, "  ")
+						b, err := mo.Marshal(response, nil)
 						if err != nil {
 							fmt.Printf("target '%s', subscription '%s': poll response formatting error:%v\n", name, subName, err)
 							fmt.Println(string(b))
@@ -229,10 +233,10 @@ func getOutputs() (map[string][]outputs.Output, error) {
 				case map[string]interface{}:
 					if outType, ok := ou["type"]; ok {
 						if initalizer, ok := outputs.Outputs[outType.(string)]; ok {
-							 format, ok := ou["format"]
-							 if !ok || (ok && format == "") {
+							format, ok := ou["format"]
+							if !ok || (ok && format == "") {
 								ou["format"] = viper.GetString("format")
-							} 
+							}
 							o := initalizer()
 							err := o.Init(ou, logger)
 							if err != nil {
