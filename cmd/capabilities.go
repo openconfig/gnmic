@@ -98,6 +98,7 @@ func printCapResponse(r *gnmi.CapabilityResponse, address string) {
 			if !viper.GetBool("log") {
 				fmt.Printf("error marshaling msg: %v\n", err)
 			}
+			return
 		}
 		fmt.Printf("%s\n", indent(printPrefix, string(b)))
 		return
