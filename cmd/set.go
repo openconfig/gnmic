@@ -335,7 +335,7 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 	for _, r := range replaces {
 		singleReplace := strings.Split(r, delimiter)
 		if len(singleReplace) < 3 {
-			return nil, fmt.Errorf("invalid inline replace format: %s", updates)
+			return nil, fmt.Errorf("invalid inline replace format: %s", replaces)
 		}
 		gnmiPath, err := collector.ParsePath(strings.TrimSpace(singleReplace[0]))
 		if err != nil {
@@ -346,7 +346,7 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 		if err != nil {
 			return nil, err
 		}
-		req.Replace = append(req.Update, &gnmi.Update{
+		req.Replace = append(req.Replace, &gnmi.Update{
 			Path: gnmiPath,
 			Val:  value,
 		})
