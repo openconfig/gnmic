@@ -99,7 +99,7 @@ checkGnmicInstalledVersion() {
     if [[ -f "${GNMIC_INSTALL_DIR}/${BINARY_NAME}" ]]; then
         local version=$("${GNMIC_INSTALL_DIR}/${BINARY_NAME}" version | head -1 | awk '{print $NF}')
         if [[ "v$version" == "$TAG" ]]; then
-            echo "gnmic is already ${DESIRED_VERSION:-latest}"
+            echo "gnmic is already at ${DESIRED_VERSION:-latest}" version. Exiting...
             return 0
         else
             echo "gnmic ${TAG_WO_VER} is available. Changing from version ${version}."
@@ -237,11 +237,11 @@ set +u
 initArch
 initOS
 verifySupported
-verifyOpenssl
 setDesiredVersion
 if ! checkGnmicInstalledVersion; then
+    verifyOpenssl
     downloadFile
     installFile
+    testVersion
+    cleanup
 fi
-testVersion
-cleanup
