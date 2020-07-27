@@ -99,7 +99,7 @@ checkGnmicInstalledVersion() {
     if [[ -f "${GNMIC_INSTALL_DIR}/${BINARY_NAME}" ]]; then
         local version=$("${GNMIC_INSTALL_DIR}/${BINARY_NAME}" version | head -1 | awk '{print $NF}')
         if [[ "v$version" == "$TAG" ]]; then
-            echo "gnmic is already at ${DESIRED_VERSION:-latest}" version. Exiting...
+            echo "gnmic is already at ${DESIRED_VERSION:-latest ($version)}" version
             return 0
         else
             echo "gnmic ${TAG_WO_VER} is available. Changing from version ${version}."
@@ -150,7 +150,7 @@ installFile() {
     GNMIC_TMP_BIN="$GNMIC_TMP/gnmic"
     echo "Preparing to install $BINARY_NAME ${TAG_WO_VER} into ${GNMIC_INSTALL_DIR}"
     runAsRoot cp "$GNMIC_TMP_BIN" "$GNMIC_INSTALL_DIR/$BINARY_NAME"
-    echo "$BINARY_NAME ${TAG_WO_VER} installed into $GNMIC_INSTALL_DIR/$BINARY_NAME"
+    echo "$BINARY_NAME installed into $GNMIC_INSTALL_DIR/$BINARY_NAME"
 }
 
 # fail_trap is executed if an error occurs.
@@ -172,7 +172,7 @@ fail_trap() {
 # testVersion tests the installed client to make sure it is working.
 testVersion() {
     set +e
-    GNMIC="$($GNMIC_INSTALL_DIR/$BINARY_NAME version)"
+    $GNMIC_INSTALL_DIR/$BINARY_NAME version
     if [ "$?" = "1" ]; then
         echo "$BINARY_NAME not found. Is $GNMIC_INSTALL_DIR in your "'$PATH?'
         exit 1
