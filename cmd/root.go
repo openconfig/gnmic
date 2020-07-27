@@ -495,35 +495,7 @@ func printMsg(address string, msg proto.Message) error {
 	switch msg := msg.ProtoReflect().Interface().(type) {
 	case *gnmi.CapabilityResponse:
 		if len(viper.GetString("format")) == 0 {
-			sb := strings.Builder{}
-			sb.WriteString(printPrefix)
-			sb.WriteString("gNMI version: ")
-			sb.WriteString(msg.GNMIVersion)
-			sb.WriteString("\n")
-			if viper.GetBool("version") {
-				return nil
-			}
-			sb.WriteString(printPrefix)
-			sb.WriteString("supported models:\n")
-			for _, sm := range msg.SupportedModels {
-				sb.WriteString(printPrefix)
-				sb.WriteString("  - ")
-				sb.WriteString(sm.GetName())
-				sb.WriteString(", ")
-				sb.WriteString(sm.GetOrganization())
-				sb.WriteString(", ")
-				sb.WriteString(sm.GetVersion())
-				sb.WriteString("\n")
-			}
-			sb.WriteString(printPrefix)
-			sb.WriteString("supported encodings:\n")
-			for _, se := range msg.SupportedEncodings {
-				sb.WriteString(printPrefix)
-				sb.WriteString("  - ")
-				sb.WriteString(se.String())
-				sb.WriteString("\n")
-			}
-			fmt.Printf("%s\n", indent(printPrefix, sb.String()))
+			printCapResponse(printPrefix, msg)
 			return nil
 		}
 	}
@@ -540,4 +512,36 @@ func printMsg(address string, msg proto.Message) error {
 	sb.Write(b)
 	fmt.Printf("%s\n", indent(printPrefix, sb.String()))
 	return nil
+}
+
+func printCapResponse(printPrefix string, msg *gnmi.CapabilityResponse) {
+	sb := strings.Builder{}
+	sb.WriteString(printPrefix)
+	sb.WriteString("gNMI version: ")
+	sb.WriteString(msg.GNMIVersion)
+	sb.WriteString("\n")
+	if viper.GetBool("version") {
+		return
+	}
+	sb.WriteString(printPrefix)
+	sb.WriteString("supported models:\n")
+	for _, sm := range msg.SupportedModels {
+		sb.WriteString(printPrefix)
+		sb.WriteString("  - ")
+		sb.WriteString(sm.GetName())
+		sb.WriteString(", ")
+		sb.WriteString(sm.GetOrganization())
+		sb.WriteString(", ")
+		sb.WriteString(sm.GetVersion())
+		sb.WriteString("\n")
+	}
+	sb.WriteString(printPrefix)
+	sb.WriteString("supported encodings:\n")
+	for _, se := range msg.SupportedEncodings {
+		sb.WriteString(printPrefix)
+		sb.WriteString("  - ")
+		sb.WriteString(se.String())
+		sb.WriteString("\n")
+	}
+	fmt.Printf("%s\n", indent(printPrefix, sb.String()))
 }
