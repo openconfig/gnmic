@@ -54,9 +54,10 @@ func (o *MarshalOptions) Marshal(msg proto.Message, meta map[string]string) ([]b
 				}
 			}
 			return b, nil
+		default:
+			return nil, fmt.Errorf("format 'event' not supported for msg type %T", msg.ProtoReflect().Interface())
 		}
 	}
-	return nil, nil
 }
 
 // FormatJSON formats a proto.Message and returns a []byte and an error
