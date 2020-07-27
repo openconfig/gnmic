@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/karimra/gnmic/collector"
@@ -74,7 +75,8 @@ func reqCapability(ctx context.Context, target *collector.Target, wg *sync.WaitG
 	}
 	m.Lock()
 	defer m.Unlock()
-	err = printMsg(target.Config.Name, "Capabilities Response", response)
+	fmt.Fprint(os.Stderr, "Capabilities Response:\n")
+	err = printMsg(target.Config.Name, response)
 	if err != nil {
 		logger.Printf("error marshaling capabilities response from %s: %v", target.Config.Name, err)
 		if !viper.GetBool("log") {

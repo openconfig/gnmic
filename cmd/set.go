@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -81,7 +82,8 @@ func setRequest(ctx context.Context, req *gnmi.SetRequest, target *collector.Tar
 		req.Prefix, req.Delete, req.Replace, req.Update, req.Extension, target.Config.Address)
 	if viper.GetBool("set-print-request") {
 		lock.Lock()
-		err := printMsg(target.Config.Name, "Set Request", req)
+		fmt.Fprint(os.Stderr, "Set Request:\n")
+		err := printMsg(target.Config.Name, req)
 		if err != nil {
 			logger.Printf("error marshaling set request msg: %v", err)
 			if !viper.GetBool("log") {
@@ -97,7 +99,8 @@ func setRequest(ctx context.Context, req *gnmi.SetRequest, target *collector.Tar
 	}
 	lock.Lock()
 	defer lock.Unlock()
-	err = printMsg(target.Config.Name, "Set Response", response)
+	fmt.Fprint(os.Stderr, "Set Response:\n")
+	err = printMsg(target.Config.Name, response)
 	if err != nil {
 		logger.Printf("error marshaling set response from %s: %v\n", target.Config.Name, err)
 		if !viper.GetBool("log") {

@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 
@@ -83,7 +84,8 @@ func getRequest(ctx context.Context, req *gnmi.GetRequest, target *collector.Tar
 	}
 	if viper.GetBool("get-print-request") {
 		lock.Lock()
-		err := printMsg(target.Config.Name, "Get Request", req)
+		fmt.Fprint(os.Stderr, "Get Request:\n")
+		err := printMsg(target.Config.Name, req)
 		if err != nil {
 			logger.Printf("error marshaling get request msg: %v", err)
 			if !viper.GetBool("log") {
@@ -101,7 +103,8 @@ func getRequest(ctx context.Context, req *gnmi.GetRequest, target *collector.Tar
 	}
 	lock.Lock()
 	defer lock.Unlock()
-	err = printMsg(target.Config.Name, "Get Response", response)
+	fmt.Fprint(os.Stderr, "Get Response:\n")
+	err = printMsg(target.Config.Name, response)
 	if err != nil {
 		logger.Printf("error marshaling get response from %s: %v\n", target.Config.Name, err)
 		if !viper.GetBool("log") {

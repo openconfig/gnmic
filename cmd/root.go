@@ -486,7 +486,7 @@ func createCollectorDialOpts() []grpc.DialOption {
 	return opts
 }
 
-func printMsg(address, annotation string, msg proto.Message) error {
+func printMsg(address string, msg proto.Message) error {
 	printPrefix := ""
 	if numTargets() > 1 && !viper.GetBool("no-prefix") {
 		printPrefix = fmt.Sprintf("[%s] ", address)
@@ -537,8 +537,6 @@ func printMsg(address, annotation string, msg proto.Message) error {
 		return err
 	}
 	sb := strings.Builder{}
-	sb.WriteString(annotation)
-	sb.WriteString(":\n")
 	sb.Write(b)
 	fmt.Printf("%s\n", indent(printPrefix, sb.String()))
 	return nil
