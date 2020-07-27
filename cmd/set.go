@@ -42,6 +42,9 @@ var setCmd = &cobra.Command{
 	Short: "run gnmi set on targets",
 
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if viper.GetString("format") == "event" {
+			return fmt.Errorf("format event not supported for Set RPC")
+		}
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		setupCloseHandler(cancel)
@@ -80,7 +83,7 @@ func setRequest(ctx context.Context, req *gnmi.SetRequest, target *collector.Tar
 	}
 	logger.Printf("sending gNMI SetRequest: prefix='%v', delete='%v', replace='%v', update='%v', extension='%v' to %s",
 		req.Prefix, req.Delete, req.Replace, req.Update, req.Extension, target.Config.Address)
-	if viper.GetBool("set-print-request") {
+	if viper.GetBool("print-request") {
 		lock.Lock()
 		fmt.Fprint(os.Stderr, "Set Request:\n")
 		err := printMsg(target.Config.Name, req)
@@ -152,7 +155,7 @@ func convert(i interface{}) interface{} {
 
 func init() {
 	rootCmd.AddCommand(setCmd)
-
+	setCmd.SilenceUsage = true
 	setCmd.Flags().StringP("prefix", "", "", "set request prefix")
 
 	setCmd.Flags().StringSliceP("delete", "", []string{}, "set request path to be deleted")
@@ -167,7 +170,6 @@ func init() {
 	setCmd.Flags().StringSliceP("update-value", "", []string{""}, "set update request value")
 	setCmd.Flags().StringSliceP("replace-value", "", []string{""}, "set replace request value")
 	setCmd.Flags().StringP("delimiter", "", ":::", "set update/replace delimiter between path, type, value")
-	setCmd.Flags().BoolP("print-request", "", false, "print set request as well as the response")
 	setCmd.Flags().StringP("target", "", "", "set request target")
 
 	viper.BindPFlag("set-prefix", setCmd.LocalFlags().Lookup("prefix"))
@@ -181,7 +183,6 @@ func init() {
 	viper.BindPFlag("set-update-value", setCmd.LocalFlags().Lookup("update-value"))
 	viper.BindPFlag("set-replace-value", setCmd.LocalFlags().Lookup("replace-value"))
 	viper.BindPFlag("set-delimiter", setCmd.LocalFlags().Lookup("delimiter"))
-	viper.BindPFlag("set-print-request", setCmd.LocalFlags().Lookup("print-request"))
 	viper.BindPFlag("set-target", setCmd.LocalFlags().Lookup("target"))
 }
 

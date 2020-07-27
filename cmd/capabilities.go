@@ -22,6 +22,7 @@ import (
 	"sync"
 
 	"github.com/karimra/gnmic/collector"
+	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
 	"github.com/spf13/viper"
 
@@ -37,6 +38,9 @@ var capabilitiesCmd = &cobra.Command{
 	Short:   "query targets gnmi capabilities",
 
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if viper.GetString("format") == "event" {
+			return fmt.Errorf("format event not supported for Capabilities RPC")
+		}
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		setupCloseHandler(cancel)
@@ -55,7 +59,7 @@ var capabilitiesCmd = &cobra.Command{
 	},
 }
 
-func reqCapability(ctx context.Context, target *collector.Target, wg *sync.WaitGroup, m *sync.Mutex) {
+func reqCapability(ctx context.Context, target *collector.Target, wg *sync.WaitGroup, lock *sync.Mutex) {
 	defer wg.Done()
 	opts := createCollectorDialOpts()
 	if err := target.CreateGNMIClient(ctx, opts...); err != nil {
@@ -67,14 +71,29 @@ func reqCapability(ctx context.Context, target *collector.Target, wg *sync.WaitG
 		return
 	}
 	ext := make([]*gnmi_ext.Extension, 0) //
+	if viper.GetBool("print-request") {
+		lock.Lock()
+		fmt.Fprint(os.Stderr, "Capabilities Request:\n")
+		err := printMsg(target.Config.Name, &gnmi.CapabilityRequest{
+			Extension: ext,
+		})
+		if err != nil {
+			logger.Printf("error marshaling capabilities request: %v", err)
+			if !viper.GetBool("log") {
+				fmt.Printf("error marshaling capabilities request: %v", err)
+			}
+		}
+		lock.Unlock()
+	}
+
 	logger.Printf("sending gNMI CapabilityRequest: gnmi_ext.Extension='%v' to %s", ext, target.Config.Address)
-	response, err := target.Capabilities(ctx)
+	response, err := target.Capabilities(ctx, ext...)
 	if err != nil {
 		logger.Printf("error sending capabilities request: %v", err)
 		return
 	}
-	m.Lock()
-	defer m.Unlock()
+	lock.Lock()
+	defer lock.Unlock()
 	fmt.Fprint(os.Stderr, "Capabilities Response:\n")
 	err = printMsg(target.Config.Name, response)
 	if err != nil {
@@ -88,6 +107,7 @@ func reqCapability(ctx context.Context, target *collector.Target, wg *sync.WaitG
 
 func init() {
 	rootCmd.AddCommand(capabilitiesCmd)
+	capabilitiesCmd.SilenceUsage = true
 	capabilitiesCmd.Flags().BoolVarP(&printVersion, "version", "", false, "show gnmi version only")
 	viper.BindPFlag("capabilities-version", capabilitiesCmd.LocalFlags().Lookup("version"))
 }

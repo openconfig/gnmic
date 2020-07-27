@@ -124,6 +124,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolP("log", "", false, "show log messages in stderr")
 	rootCmd.PersistentFlags().IntP("max-msg-size", "", msgSize, "max grpc msg size")
 	rootCmd.PersistentFlags().StringP("prometheus-address", "", "0.0.0.0:9094", "prometheus server address")
+	rootCmd.PersistentFlags().BoolP("print-request", "", false, "print request as well as the response(s)")
 	//
 	viper.BindPFlag("address", rootCmd.PersistentFlags().Lookup("address"))
 	viper.BindPFlag("username", rootCmd.PersistentFlags().Lookup("username"))
@@ -144,6 +145,7 @@ func init() {
 	viper.BindPFlag("log", rootCmd.PersistentFlags().Lookup("log"))
 	viper.BindPFlag("max-msg-size", rootCmd.PersistentFlags().Lookup("max-msg-size"))
 	viper.BindPFlag("prometheus-address", rootCmd.PersistentFlags().Lookup("prometheus-address"))
+	viper.BindPFlag("print-request", rootCmd.PersistentFlags().Lookup("print-request"))
 }
 
 // initConfig reads in config file and ENV variables if set.

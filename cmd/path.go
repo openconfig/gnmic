@@ -113,6 +113,7 @@ var pathCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(pathCmd)
+	pathCmd.SilenceUsage = true
 	pathCmd.Flags().StringVarP(&file, "file", "", "", "yang file")
 	pathCmd.Flags().StringVarP(&pathType, "path-type", "", "xpath", "path type xpath or gnmi")
 	pathCmd.Flags().StringVarP(&module, "module", "m", "nokia-state", "module name")

@@ -114,7 +114,7 @@ var listenCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(listenCmd)
-
+	listenCmd.SilenceUsage = true
 	listenCmd.Flags().Uint32P("max-concurrent-streams", "", 256, "max concurrent streams gnmic can receive per transport")
 
 	viper.BindPFlag("listen-max-concurrent-streams", listenCmd.LocalFlags().Lookup("max-concurrent-streams"))

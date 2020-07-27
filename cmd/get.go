@@ -34,6 +34,9 @@ var getCmd = &cobra.Command{
 	Short: "run gnmi get on targets",
 
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if viper.GetString("format") == "event" {
+			return fmt.Errorf("format event not supported for Get RPC")
+		}
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		setupCloseHandler(cancel)
@@ -82,7 +85,7 @@ func getRequest(ctx context.Context, req *gnmi.GetRequest, target *collector.Tar
 			xreq.UseModels = append(xreq.UseModels, m)
 		}
 	}
-	if viper.GetBool("get-print-request") {
+	if viper.GetBool("print-request") {
 		lock.Lock()
 		fmt.Fprint(os.Stderr, "Get Request:\n")
 		err := printMsg(target.Config.Name, req)
@@ -106,31 +109,28 @@ func getRequest(ctx context.Context, req *gnmi.GetRequest, target *collector.Tar
 	fmt.Fprint(os.Stderr, "Get Response:\n")
 	err = printMsg(target.Config.Name, response)
 	if err != nil {
-		logger.Printf("error marshaling get response from %s: %v\n", target.Config.Name, err)
+		logger.Printf("error marshaling get response from %s: %v", target.Config.Name, err)
 		if !viper.GetBool("log") {
 			fmt.Printf("error marshaling get response from %s: %v\n", target.Config.Name, err)
 		}
 	}
-	//printGetResponse(target.Config.Name, response)
 }
 
 func init() {
 	rootCmd.AddCommand(getCmd)
-
+	getCmd.SilenceUsage = true
 	getCmd.Flags().StringSliceP("path", "", []string{""}, "get request paths")
 	getCmd.MarkFlagRequired("path")
 	getCmd.Flags().StringP("prefix", "", "", "get request prefix")
 	getCmd.Flags().StringSliceP("model", "", []string{""}, "get request models")
 	getCmd.Flags().StringP("type", "t", "ALL", "data type requested from the target. one of: ALL, CONFIG, STATE, OPERATIONAL")
 	getCmd.Flags().StringP("target", "", "", "get request target")
-	getCmd.Flags().BoolP("print-request", "", false, "print get request as well as the response")
 
 	viper.BindPFlag("get-path", getCmd.LocalFlags().Lookup("path"))
 	viper.BindPFlag("get-prefix", getCmd.LocalFlags().Lookup("prefix"))
 	viper.BindPFlag("get-model", getCmd.LocalFlags().Lookup("model"))
 	viper.BindPFlag("get-type", getCmd.LocalFlags().Lookup("type"))
 	viper.BindPFlag("get-target", getCmd.LocalFlags().Lookup("target"))
-	viper.BindPFlag("get-print-request", getCmd.LocalFlags().Lookup("print-request"))
 }
 
 func createGetRequest() (*gnmi.GetRequest, error) {
