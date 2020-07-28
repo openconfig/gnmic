@@ -26,17 +26,7 @@ func ResponseToEventMsgs(name string, rsp *gnmi.SubscribeResponse, meta map[stri
 	evs := make([]*EventMsg, 0)
 	switch rsp := rsp.Response.(type) {
 	case *gnmi.SubscribeResponse_Update:
-		tags := make(map[string]string)
 		namePrefix, prefixTags := TagsFromGNMIPath(rsp.Update.Prefix)
-		for k, v := range prefixTags {
-			if vv, ok := tags[k]; ok {
-				if v != vv {
-					tags[namePrefix+":::"+k] = v
-				}
-				continue
-			}
-			tags[k] = v
-		}
 		for _, upd := range rsp.Update.Update {
 			e := &EventMsg{
 				Tags:   make(map[string]string),
@@ -44,7 +34,7 @@ func ResponseToEventMsgs(name string, rsp *gnmi.SubscribeResponse, meta map[stri
 			}
 			e.Timestamp = rsp.Update.Timestamp
 			e.Name = name
-			for k, v := range tags {
+			for k, v := range prefixTags {
 				e.Tags[k] = v
 			}
 			pathName, pTags := TagsFromGNMIPath(upd.Path)
@@ -81,7 +71,9 @@ func ResponseToEventMsgs(name string, rsp *gnmi.SubscribeResponse, meta map[stri
 			}
 			e.Timestamp = rsp.Update.Timestamp
 			e.Name = name
-			e.Tags = tags
+			for k, v := range prefixTags {
+				e.Tags[k] = v
+			}
 			for k, v := range meta {
 				if k == "format" {
 					continue
