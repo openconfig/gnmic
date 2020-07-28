@@ -44,7 +44,9 @@ func ResponseToEventMsgs(name string, rsp *gnmi.SubscribeResponse, meta map[stri
 			}
 			e.Timestamp = rsp.Update.Timestamp
 			e.Name = name
-			e.Tags = tags
+			for k, v := range tags {
+				e.Tags[k] = v
+			}
 			pathName, pTags := TagsFromGNMIPath(upd.Path)
 			pathName = strings.TrimRight(namePrefix, "/") + "/" + strings.TrimLeft(pathName, "/")
 			for k, v := range pTags {
@@ -167,6 +169,7 @@ func getValueFlat(prefix string, updValue *gnmi.TypedValue) (map[string]interfac
 		switch value := value.(type) {
 		case map[string]interface{}:
 			f := flattener.NewFlattener()
+			f.SetPrefix(prefix)
 			values, err = f.Flatten(value)
 		default:
 			values[prefix] = value
