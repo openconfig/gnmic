@@ -38,7 +38,7 @@ func (o *MarshalOptions) Marshal(msg proto.Message, meta map[string]string) ([]b
 				subscriptionName = "default"
 			}
 			b := make([]byte, 0)
-			switch msg.Response.(type) {
+			switch msg.GetResponse().(type) {
 			case *gnmi.SubscribeResponse_Update:
 				events, err := ResponseToEventMsgs(subscriptionName, msg, meta)
 				if err != nil {
@@ -90,9 +90,9 @@ func (o *MarshalOptions) formatsubscribeRequest(m *gnmi.SubscribeRequest) ([]byt
 	msg := subscribeReq{}
 	switch m := m.Request.(type) {
 	case *gnmi.SubscribeRequest_Subscribe:
-		msg.Subscribe.Prefix = gnmiPathToXPath(m.Subscribe.Prefix)
-		msg.Subscribe.Target = m.Subscribe.Prefix.Target
-		msg.Subscribe.Subscriptions = make([]subscription, 0, len(m.Subscribe.Subscription))
+		msg.Subscribe.Prefix = gnmiPathToXPath(m.Subscribe.GetPrefix())
+		msg.Subscribe.Target = m.Subscribe.GetPrefix().GetTarget()
+		msg.Subscribe.Subscriptions = make([]subscription, 0, len(m.Subscribe.GetSubscription()))
 		if m.Subscribe != nil {
 			msg.Subscribe.UseAliases = m.Subscribe.UseAliases
 			msg.Subscribe.AllowAggregation = m.Subscribe.AllowAggregation
@@ -100,7 +100,7 @@ func (o *MarshalOptions) formatsubscribeRequest(m *gnmi.SubscribeRequest) ([]byt
 			msg.Subscribe.Encoding = m.Subscribe.Encoding.String()
 			msg.Subscribe.Mode = m.Subscribe.Mode.String()
 			if m.Subscribe.Qos != nil {
-				msg.Subscribe.Qos = m.Subscribe.Qos.Marking
+				msg.Subscribe.Qos = m.Subscribe.GetQos().GetMarking()
 			}
 			for _, sub := range m.Subscribe.Subscription {
 				msg.Subscribe.Subscriptions = append(msg.Subscribe.Subscriptions,
@@ -138,8 +138,8 @@ func (o *MarshalOptions) formatSubscribeResponse(m *gnmi.SubscribeResponse, meta
 		if meta == nil {
 			meta = make(map[string]string)
 		}
-		msg.Prefix = gnmiPathToXPath(m.Update.Prefix)
-		msg.Target = m.Update.Prefix.Target
+		msg.Prefix = gnmiPathToXPath(m.Update.GetPrefix())
+		msg.Target = m.Update.Prefix.GetTarget()
 		if s, ok := meta["source"]; ok {
 			msg.Source = s
 		}
@@ -211,10 +211,10 @@ func (o *MarshalOptions) formatCapabilitiesResponse(m *gnmi.CapabilityResponse) 
 
 func (o *MarshalOptions) formatGetRequest(m *gnmi.GetRequest) ([]byte, error) {
 	msg := getRqMsg{
-		Prefix:   gnmiPathToXPath(m.Prefix),
+		Prefix:   gnmiPathToXPath(m.GetPrefix()),
 		Paths:    make([]string, 0, len(m.Path)),
-		Encoding: m.Encoding.String(),
-		DataType: m.Type.String(),
+		Encoding: m.GetEncoding().String(),
+		DataType: m.GetType().String(),
 	}
 	for _, p := range m.Path {
 		msg.Paths = append(msg.Paths, gnmiPathToXPath(p))
@@ -234,12 +234,12 @@ func (o *MarshalOptions) formatGetRequest(m *gnmi.GetRequest) ([]byte, error) {
 }
 
 func (o *MarshalOptions) formatGetResponse(m *gnmi.GetResponse, meta map[string]string) ([]byte, error) {
-	notifications := make([]NotificationRspMsg, 0, len(m.Notification))
-	for _, notif := range m.Notification {
+	notifications := make([]NotificationRspMsg, 0, len(m.GetNotification()))
+	for _, notif := range m.GetNotification() {
 		msg := NotificationRspMsg{
 			Prefix:  gnmiPathToXPath(notif.Prefix),
-			Updates: make([]update, 0, len(notif.Update)),
-			Deletes: make([]string, 0, len(notif.Delete)),
+			Updates: make([]update, 0, len(notif.GetUpdate())),
+			Deletes: make([]string, 0, len(notif.GetDelete())),
 		}
 		msg.Timestamp = notif.Timestamp
 		t := time.Unix(0, notif.Timestamp)
@@ -247,27 +247,27 @@ func (o *MarshalOptions) formatGetResponse(m *gnmi.GetResponse, meta map[string]
 		if meta == nil {
 			meta = make(map[string]string)
 		}
-		msg.Prefix = gnmiPathToXPath(notif.Prefix)
+		msg.Prefix = gnmiPathToXPath(notif.GetPrefix())
 		if s, ok := meta["source"]; ok {
 			msg.Source = s
 		}
-		for i, upd := range notif.Update {
-			pathElems := make([]string, 0, len(upd.Path.Elem))
-			for _, pElem := range upd.Path.Elem {
+		for i, upd := range notif.GetUpdate() {
+			pathElems := make([]string, 0, len(upd.GetPath().GetElem()))
+			for _, pElem := range upd.GetPath().GetElem() {
 				pathElems = append(pathElems, pElem.GetName())
 			}
-			value, err := getValue(upd.Val)
+			value, err := getValue(upd.GetVal())
 			if err != nil {
 				return nil, err
 			}
 			msg.Updates = append(msg.Updates,
 				update{
-					Path:   gnmiPathToXPath(upd.Path),
+					Path:   gnmiPathToXPath(upd.GetPath()),
 					Values: make(map[string]interface{}),
 				})
 			msg.Updates[i].Values[strings.Join(pathElems, "/")] = value
 		}
-		for _, del := range notif.Delete {
+		for _, del := range notif.GetDelete() {
 			msg.Deletes = append(msg.Deletes, gnmiPathToXPath(del))
 		}
 		notifications = append(notifications, msg)
@@ -281,24 +281,24 @@ func (o *MarshalOptions) formatGetResponse(m *gnmi.GetResponse, meta map[string]
 func (o *MarshalOptions) formatSetRequest(m *gnmi.SetRequest) ([]byte, error) {
 	req := setReqMsg{
 		Prefix:  gnmiPathToXPath(m.Prefix),
-		Delete:  make([]string, 0, len(m.Delete)),
-		Replace: make([]updateMsg, 0, len(m.Replace)),
-		Update:  make([]updateMsg, 0, len(m.Update)),
+		Delete:  make([]string, 0, len(m.GetDelete())),
+		Replace: make([]updateMsg, 0, len(m.GetReplace())),
+		Update:  make([]updateMsg, 0, len(m.GetUpdate())),
 	}
 
-	for _, del := range m.Delete {
+	for _, del := range m.GetDelete() {
 		p := gnmiPathToXPath(del)
 		req.Delete = append(req.Delete, p)
 	}
 
-	for _, upd := range m.Replace {
+	for _, upd := range m.GetReplace() {
 		req.Replace = append(req.Replace, updateMsg{
 			Path: gnmiPathToXPath(upd.Path),
 			Val:  upd.Val.String(),
 		})
 	}
 
-	for _, upd := range m.Update {
+	for _, upd := range m.GetUpdate() {
 		req.Update = append(req.Update, updateMsg{
 			Path: gnmiPathToXPath(upd.Path),
 			Val:  upd.Val.String(),
@@ -312,20 +312,20 @@ func (o *MarshalOptions) formatSetRequest(m *gnmi.SetRequest) ([]byte, error) {
 
 func (o *MarshalOptions) formatSetResponse(m *gnmi.SetResponse, meta map[string]string) ([]byte, error) {
 	msg := setRspMsg{}
-	msg.Prefix = gnmiPathToXPath(m.Prefix)
+	msg.Prefix = gnmiPathToXPath(m.GetPrefix())
 	msg.Timestamp = m.Timestamp
 	msg.Time = time.Unix(0, m.Timestamp)
 	if meta == nil {
 		meta = make(map[string]string)
 	}
-	msg.Results = make([]updateResultMsg, 0, len(m.Response))
+	msg.Results = make([]updateResultMsg, 0, len(m.GetResponse()))
 	if s, ok := meta["source"]; ok {
 		msg.Source = s
 	}
-	for _, u := range m.Response {
+	for _, u := range m.GetResponse() {
 		msg.Results = append(msg.Results, updateResultMsg{
 			Operation: u.Op.String(),
-			Path:      gnmiPathToXPath(u.Path),
+			Path:      gnmiPathToXPath(u.GetPath()),
 		})
 	}
 	if o.Multiline {
