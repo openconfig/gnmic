@@ -199,6 +199,8 @@ func (c *Collector) Start() {
 						return
 					}
 					c.Logger.Printf("target '%s' error: %v", t.Config.Name, err)
+				case <-c.ctx.Done():
+					c.cancelFn()
 				}
 			}
 		}(t)
