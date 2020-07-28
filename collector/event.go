@@ -115,6 +115,9 @@ func TagsFromGNMIPath(p *gnmi.Path) (string, map[string]string) {
 			}
 		}
 	}
+	if p.GetTarget() != "" {
+		tags["target"] = p.GetTarget()
+	}
 	return sb.String(), tags
 }
 
