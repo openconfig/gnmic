@@ -1,14 +1,21 @@
 package file
 
 import (
-	"bytes"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 
+	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/mitchellh/mapstructure"
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/protobuf/proto"
+)
+
+const (
+	defaultFormat    = "json"
+	defaultSeparator = "\n"
 )
 
 func init() {
@@ -30,12 +37,17 @@ type File struct {
 	file    *os.File
 	logger  *log.Logger
 	metrics []prometheus.Collector
+	mo      *collector.MarshalOptions
 }
 
 // Config //
 type Config struct {
-	FileName string `mapstructure:"filename,omitempty"`
-	FileType string `mapstructure:"file-type,omitempty"`
+	FileName  string `mapstructure:"filename,omitempty"`
+	FileType  string `mapstructure:"file-type,omitempty"`
+	Format    string `mapstructure:"format,omitempty"`
+	Multiline bool   `mapstructure:"multiline,omitempty"`
+	Indent    string `mapstructure:"indent,omitempty"`
+	Separator string `mapstructure:"separator,omitempty"`
 }
 
 func (f *File) String() string {
@@ -48,52 +60,62 @@ func (f *File) String() string {
 
 // Init //
 func (f *File) Init(cfg map[string]interface{}, logger *log.Logger) error {
-	c := new(Config)
-	err := mapstructure.Decode(cfg, c)
+	err := mapstructure.Decode(cfg, f.Cfg)
 	if err != nil {
 		return err
 	}
-	f.Cfg = c
-
-	var file *os.File
+	if f.Cfg.Format == "proto" {
+		return fmt.Errorf("proto format not supported in output type 'file'")
+	}
+	if f.Cfg.Separator == "" {
+		f.Cfg.Separator = defaultSeparator
+	}
+	if f.Cfg.FileName == "" && f.Cfg.FileType == "" {
+		f.Cfg.FileType = "stdout"
+	}
 	switch f.Cfg.FileType {
 	case "stdout":
-		file = os.Stdout
+		f.file = os.Stdout
 	case "stderr":
-		file = os.Stderr
+		f.file = os.Stderr
 	default:
-		file, err = os.OpenFile(f.Cfg.FileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		f.file, err = os.OpenFile(f.Cfg.FileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 		if err != nil {
 			return err
 		}
 	}
-	f.file = file
 	f.logger = log.New(os.Stderr, "file_output ", log.LstdFlags|log.Lmicroseconds)
 	if logger != nil {
 		f.logger.SetOutput(logger.Writer())
 		f.logger.SetFlags(logger.Flags())
 	}
+	if f.Cfg.Format == "" {
+		f.Cfg.Format = defaultFormat
+	}
+	if f.Cfg.FileType == "stdout" || f.Cfg.FileType == "stderr" {
+		f.Cfg.Indent = "  "
+		f.Cfg.Multiline = true
+	}
+	if f.Cfg.Multiline && f.Cfg.Indent == "" {
+		f.Cfg.Indent = "  "
+	}
+	f.mo = &collector.MarshalOptions{Multiline: f.Cfg.Multiline, Indent: f.Cfg.Indent, Format: f.Cfg.Format}
 	f.logger.Printf("initialized file output: %s", f.String())
 	return nil
 }
 
 // Write //
-func (f *File) Write(b []byte, meta outputs.Meta) {
-	NumberOfReceivedMsgs.WithLabelValues(f.file.Name()).Inc()
-	if f.Cfg.FileType == "stdout" || f.Cfg.FileType == "stderr" {
-		dst := new(bytes.Buffer)
-		if format, ok := meta["format"]; ok {
-			if format != "textproto" {
-				err := json.Indent(dst, b, "", "  ")
-				if err != nil {
-					f.logger.Printf("failed to write to '%s': %v", f.Cfg.FileType, err)
-					return
-				}
-				b = dst.Bytes()
-			}
-		}
+func (f *File) Write(rsp proto.Message, meta outputs.Meta) {
+	if rsp == nil {
+		return
 	}
-	n, err := f.file.Write(append(b, []byte("\n")...))
+	NumberOfReceivedMsgs.WithLabelValues(f.file.Name()).Inc()
+	b, err := f.mo.Marshal(rsp, meta)
+	if err != nil {
+		f.logger.Printf("failed marshaling proto msg: %v", err)
+		return
+	}
+	n, err := f.file.Write(append(b, []byte(f.Cfg.Separator)...))
 	if err != nil {
 		f.logger.Printf("failed to write to file '%s': %v", f.file.Name(), err)
 		return

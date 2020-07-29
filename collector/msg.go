@@ -2,14 +2,13 @@ package collector
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 	"time"
 
 	"github.com/openconfig/gnmi/proto/gnmi"
 )
 
-type msg struct {
+type NotificationRspMsg struct {
 	Meta             map[string]interface{} `json:"meta,omitempty"`
 	Source           string                 `json:"source,omitempty"`
 	SystemName       string                 `json:"system-name,omitempty"`
@@ -17,32 +16,113 @@ type msg struct {
 	Timestamp        int64                  `json:"timestamp,omitempty"`
 	Time             *time.Time             `json:"time,omitempty"`
 	Prefix           string                 `json:"prefix,omitempty"`
-	Updates          []*update              `json:"updates,omitempty"`
+	Target           string                 `json:"target,omitempty"`
+	Updates          []update               `json:"updates,omitempty"`
 	Deletes          []string               `json:"deletes,omitempty"`
 }
 type update struct {
 	Path   string
 	Values map[string]interface{} `json:"values,omitempty"`
 }
+type capRequest struct {
+	Extentions []string `json:"extentions,omitempty"`
+}
+type capResponse struct {
+	Version         string   `json:"version,omitempty"`
+	SupportedModels []model  `json:"supported-models,omitempty"`
+	Encodings       []string `json:"encodings,omitempty"`
+}
+type model struct {
+	Name         string `json:"name,omitempty"`
+	Organization string `json:"organization,omitempty"`
+	Version      string `json:"version,omitempty"`
+}
+
+type getRqMsg struct {
+	Prefix   string   `json:"prefix,omitempty"`
+	Paths    []string `json:"paths,omitempty"`
+	Encoding string   `json:"encoding,omitempty"`
+	DataType string   `json:"data-type,omitempty"`
+	Models   []model  `json:"models,omitempty"`
+}
+
+type setRspMsg struct {
+	Source    string            `json:"source,omitempty"`
+	Timestamp int64             `json:"timestamp,omitempty"`
+	Time      time.Time         `json:"time,omitempty"`
+	Prefix    string            `json:"prefix,omitempty"`
+	Results   []updateResultMsg `json:"results,omitempty"`
+}
+
+type updateResultMsg struct {
+	Operation string `json:"operation,omitempty"`
+	Path      string `json:"path,omitempty"`
+}
+
+type setReqMsg struct {
+	Prefix  string      `json:"prefix,omitempty"`
+	Delete  []string    `json:"delete,omitempty"`
+	Replace []updateMsg `json:"replace,omitempty"`
+	Update  []updateMsg `json:"update,omitempty"`
+	// extension is not implemented
+}
+
+type updateMsg struct {
+	Path string `json:"path,omitempty"`
+	Val  string `json:"val,omitempty"`
+}
+
+type subscribeReq struct {
+	Subscribe subscribe         `json:"subscribe,omitempty"`
+	Poll      *poll             `json:"poll,omitempty"`
+	Aliases   map[string]string `json:"aliases,omitempty"`
+}
+type poll struct{}
+type subscribe struct {
+	Target           string         `json:"target,omitempty"`
+	Prefix           string         `json:"prefix,omitempty"`
+	Subscriptions    []subscription `json:"subscriptions,omitempty"`
+	UseAliases       bool           `json:"use-aliases,omitempty"`
+	Qos              uint32         `json:"qos,omitempty"`
+	Mode             string         `json:"mode,omitempty"`
+	AllowAggregation bool           `json:"allow-aggregation,omitempty"`
+	UseModels        []model        `json:"use-models,omitempty"`
+	Encoding         string         `json:"encoding,omitempty"`
+	UpdatesOnly      bool           `json:"updates-only,omitempty"`
+}
+type subscription struct {
+	Path              string `json:"path,omitempty"`
+	Mode              string `json:"mode,omitempty"`
+	SampleInterval    uint64 `json:"sample-interval,omitempty"`
+	SuppressRedundant bool   `json:"suppress-redundant,omitempty"`
+	HeartbeatInterval uint64 `json:"heartbeat-interval,omitempty"`
+}
 
 func gnmiPathToXPath(p *gnmi.Path) string {
 	if p == nil {
 		return ""
 	}
-	pathElems := make([]string, 0, len(p.GetElem()))
-	for _, pe := range p.GetElem() {
-		elem := ""
-		if pe.GetName() != "" {
-			elem += pe.GetName()
-		}
-		if pe.GetKey() != nil {
-			for k, v := range pe.GetKey() {
-				elem += fmt.Sprintf("[%s=%s]", k, v)
-			}
-		}
-		pathElems = append(pathElems, elem)
+	sb := strings.Builder{}
+	if p.Origin != "" {
+		sb.WriteString(p.Origin)
+		sb.WriteString(":")
 	}
-	return strings.Join(pathElems, "/")
+	elems := p.GetElem()
+	numElems := len(elems)
+	for i, pe := range elems {
+		sb.WriteString(pe.GetName())
+		for k, v := range pe.GetKey() {
+			sb.WriteString("[")
+			sb.WriteString(k)
+			sb.WriteString("=")
+			sb.WriteString(v)
+			sb.WriteString("]")
+		}
+		if i+1 != numElems {
+			sb.WriteString("/")
+		}
+	}
+	return sb.String()
 }
 
 func getValue(updValue *gnmi.TypedValue) (interface{}, error) {

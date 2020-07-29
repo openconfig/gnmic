@@ -15,9 +15,11 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var (
@@ -33,11 +35,29 @@ var versionCmd = &cobra.Command{
 	Short: "show gnmic version",
 
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("version : %s\n", version)
-		fmt.Printf(" commit : %s\n", commit)
-		fmt.Printf("   date : %s\n", date)
-		fmt.Printf(" gitURL : %s\n", gitURL)
-		fmt.Printf("   docs : https://gnmic.kmrd.dev\n")
+		if viper.GetString("format") != "json" {
+			fmt.Printf("version : %s\n", version)
+			fmt.Printf(" commit : %s\n", commit)
+			fmt.Printf("   date : %s\n", date)
+			fmt.Printf(" gitURL : %s\n", gitURL)
+			fmt.Printf("   docs : https://gnmic.kmrd.dev\n")
+			return
+		}
+		b, err := json.Marshal(map[string]string{
+			"version": version,
+			"commit":  commit,
+			"date":    date,
+			"gitURL":  gitURL,
+			"docs":    "https://gnmic.kmrd.dev",
+		}) // need indent? use jq
+		if err != nil {
+			logger.Printf("failed: %v", err)
+			if !viper.GetBool("log") {
+				fmt.Printf("failed: %v\n", err)
+			}
+			return
+		}
+		fmt.Println(string(b))
 	},
 }
 

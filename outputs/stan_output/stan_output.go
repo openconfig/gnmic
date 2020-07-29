@@ -8,11 +8,13 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/mitchellh/mapstructure"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/stan.go"
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 const (
@@ -21,6 +23,8 @@ const (
 	stanDefaultPingRetry    = 2
 
 	defaultSubjectName = "gnmic-telemetry"
+
+	defaultFormat = "json"
 )
 
 func init() {
@@ -33,11 +37,11 @@ func init() {
 
 // StanOutput //
 type StanOutput struct {
-	Cfg      *Config
-	conn     stan.Conn
-	metrics  []prometheus.Collector
-	logger   *log.Logger
-	stopChan chan struct{}
+	Cfg     *Config
+	conn    stan.Conn
+	metrics []prometheus.Collector
+	logger  *log.Logger
+	mo      *collector.MarshalOptions
 }
 
 // Config //
@@ -52,6 +56,7 @@ type Config struct {
 	Timeout       int    `mapstructure:"timeout,omitempty"`
 	PingInterval  int    `mapstructure:"ping-interval,omitempty"`
 	PingRetry     int    `mapstructure:"ping-retry,omitempty"`
+	Format        string `mapstructure:"format,omitempty"`
 }
 
 func (s *StanOutput) String() string {
@@ -86,39 +91,45 @@ func (s *StanOutput) Init(cfg map[string]interface{}, logger *log.Logger) error 
 		s.logger.SetOutput(logger.Writer())
 		s.logger.SetFlags(logger.Flags())
 	}
-	s.stopChan = make(chan struct{})
+	if s.Cfg.Format == "" {
+		s.Cfg.Format = defaultFormat
+	}
+	if !(s.Cfg.Format == "event" || s.Cfg.Format == "protojson" || s.Cfg.Format == "proto" || s.Cfg.Format == "json") {
+		return fmt.Errorf("unsupported output format: '%s' for output type STAN", s.Cfg.Format)
+	}
+	s.mo = &collector.MarshalOptions{Format: s.Cfg.Format}
 	s.logger.Printf("initialized stan producer: %s", s.String())
 	return nil
 }
 
 // Write //
-func (s *StanOutput) Write(b []byte, meta outputs.Meta) {
-	if len(b) == 0 {
+func (s *StanOutput) Write(rsp protoreflect.ProtoMessage, meta outputs.Meta) {
+	if rsp == nil {
 		return
-	}
-	if format, ok := meta["format"]; ok {
-		if format == "textproto" {
-			return
-		}
 	}
 	ssb := strings.Builder{}
 	ssb.WriteString(s.Cfg.SubjectPrefix)
 	if s.Cfg.SubjectPrefix != "" {
 		if s, ok := meta["source"]; ok {
-			source := strings.ReplaceAll(fmt.Sprintf("%s", s), ".", "-")
+			source := strings.ReplaceAll(s, ".", "-")
 			source = strings.ReplaceAll(source, " ", "_")
 			ssb.WriteString(".")
 			ssb.WriteString(source)
 		}
 		if subname, ok := meta["subscription-name"]; ok {
 			ssb.WriteString(".")
-			ssb.WriteString(fmt.Sprintf("%s", subname))
+			ssb.WriteString(subname)
 		}
 	} else if s.Cfg.Subject != "" {
 		ssb.WriteString(s.Cfg.Subject)
 	}
 	subject := strings.ReplaceAll(ssb.String(), " ", "_")
-	err := s.conn.Publish(subject, b)
+	b, err := s.mo.Marshal(rsp, meta)
+	if err != nil {
+		s.logger.Printf("failed marshaling proto msg: %v", err)
+		return
+	}
+	err = s.conn.Publish(subject, b)
 	if err != nil {
 		log.Printf("failed to write to stan subject '%s': %v", subject, err)
 		return
@@ -131,7 +142,6 @@ func (s *StanOutput) Metrics() []prometheus.Collector { return s.metrics }
 
 // Close //
 func (s *StanOutput) Close() error {
-	close(s.stopChan)
 	return s.conn.Close()
 }
 

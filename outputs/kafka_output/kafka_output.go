@@ -2,6 +2,7 @@ package kafka_output
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -9,15 +10,19 @@ import (
 
 	"github.com/Shopify/sarama"
 	"github.com/google/uuid"
+	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/mitchellh/mapstructure"
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
 	defaultKafkaMaxRetry = 2
 	defaultKafkaTimeout  = 5
 	defaultKafkaTopic    = "telemetry"
+
+	defaultFormat = "json"
 )
 
 func init() {
@@ -34,6 +39,7 @@ type KafkaOutput struct {
 	producer sarama.SyncProducer
 	metrics  []prometheus.Collector
 	logger   sarama.StdLogger
+	mo       *collector.MarshalOptions
 }
 
 // Config //
@@ -43,6 +49,7 @@ type Config struct {
 	Name     string `mapstructure:"name,omitempty"`
 	MaxRetry int    `mapstructure:"max-retry,omitempty"`
 	Timeout  int    `mapstructure:"timeout,omitempty"`
+	Format   string `mapstructure:"format,omitempty"`
 }
 
 func (k *KafkaOutput) String() string {
@@ -58,6 +65,12 @@ func (k *KafkaOutput) Init(cfg map[string]interface{}, logger *log.Logger) error
 	err := mapstructure.Decode(cfg, k.Cfg)
 	if err != nil {
 		return err
+	}
+	if k.Cfg.Format == "" {
+		k.Cfg.Format = defaultFormat
+	}
+	if !(k.Cfg.Format == "event" || k.Cfg.Format == "protojson" || k.Cfg.Format == "proto" || k.Cfg.Format == "json") {
+		return fmt.Errorf("unsupported output format '%s' for output type kafka", k.Cfg.Format)
 	}
 	if k.Cfg.Topic == "" {
 		k.Cfg.Topic = defaultKafkaTopic
@@ -89,25 +102,31 @@ func (k *KafkaOutput) Init(cfg map[string]interface{}, logger *log.Logger) error
 	if err != nil {
 		return err
 	}
+	k.mo = &collector.MarshalOptions{Format: k.Cfg.Format}
 	k.logger.Printf("initialized kafka producer: %s", k.String())
 	return err
 }
 
 // Write //
-func (k *KafkaOutput) Write(b []byte, meta outputs.Meta) {
-	if len(b) == 0 {
+func (k *KafkaOutput) Write(rsp proto.Message, meta outputs.Meta) {
+	if rsp == nil {
 		return
 	}
 	if format, ok := meta["format"]; ok {
-		if format == "textproto" {
+		if format == "prototext" {
 			return
 		}
+	}
+	b, err := k.mo.Marshal(rsp, meta)
+	if err != nil {
+		k.logger.Printf("failed marshaling proto msg: %v", err)
+		return
 	}
 	msg := &sarama.ProducerMessage{
 		Topic: k.Cfg.Topic,
 		Value: sarama.ByteEncoder(b),
 	}
-	_, _, err := k.producer.SendMessage(msg)
+	_, _, err = k.producer.SendMessage(msg)
 	if err != nil {
 		k.logger.Printf("failed to send a kafka msg to topic '%s': %v", k.Cfg.Topic, err)
 	}

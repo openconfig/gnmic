@@ -11,10 +11,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/mitchellh/mapstructure"
 	"github.com/nats-io/nats.go"
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -24,6 +26,8 @@ const (
 	natsReconnectBufferSize = 100 * 1024 * 1024
 
 	defaultSubjectName = "gnmic-telemetry"
+
+	defaultFormat = "json"
 )
 
 func init() {
@@ -42,6 +46,7 @@ type NatsOutput struct {
 	conn     *nats.Conn
 	metrics  []prometheus.Collector
 	logger   *log.Logger
+	mo       *collector.MarshalOptions
 }
 
 // Config //
@@ -53,6 +58,7 @@ type Config struct {
 	Username        string        `mapstructure:"username,omitempty"`
 	Password        string        `mapstructure:"password,omitempty"`
 	ConnectTimeWait time.Duration `mapstructure:"connect-time-wait,omitempty"`
+	Format          string        `mapstructure:"format,omitempty"`
 }
 
 func (n *NatsOutput) String() string {
@@ -80,6 +86,12 @@ func (n *NatsOutput) Init(cfg map[string]interface{}, logger *log.Logger) error 
 		n.logger.SetOutput(logger.Writer())
 		n.logger.SetFlags(logger.Flags())
 	}
+	if n.Cfg.Format == "" {
+		n.Cfg.Format = defaultFormat
+	}
+	if !(n.Cfg.Format == "event" || n.Cfg.Format == "protojson" || n.Cfg.Format == "proto" || n.Cfg.Format == "json") {
+		return fmt.Errorf("unsupported output format '%s' for output type NATS", n.Cfg.Format)
+	}
 	if n.Cfg.Name == "" {
 		n.Cfg.Name = "gnmic-" + uuid.New().String()
 	}
@@ -89,16 +101,17 @@ func (n *NatsOutput) Init(cfg map[string]interface{}, logger *log.Logger) error 
 		return err
 	}
 	n.logger.Printf("initialized nats producer: %s", n.String())
+	n.mo = &collector.MarshalOptions{Format: n.Cfg.Format}
 	return nil
 }
 
 // Write //
-func (n *NatsOutput) Write(b []byte, meta outputs.Meta) {
-	if len(b) == 0 {
+func (n *NatsOutput) Write(rsp proto.Message, meta outputs.Meta) {
+	if rsp == nil {
 		return
 	}
 	if format, ok := meta["format"]; ok {
-		if format == "textproto" {
+		if format == "prototext" {
 			return
 		}
 	}
@@ -106,20 +119,25 @@ func (n *NatsOutput) Write(b []byte, meta outputs.Meta) {
 	ssb.WriteString(n.Cfg.SubjectPrefix)
 	if n.Cfg.SubjectPrefix != "" {
 		if s, ok := meta["source"]; ok {
-			source := strings.ReplaceAll(fmt.Sprintf("%s", s), ".", "-")
+			source := strings.ReplaceAll(s, ".", "-")
 			source = strings.ReplaceAll(source, " ", "_")
 			ssb.WriteString(".")
 			ssb.WriteString(source)
 		}
 		if subname, ok := meta["subscription-name"]; ok {
 			ssb.WriteString(".")
-			ssb.WriteString(fmt.Sprintf("%s", subname))
+			ssb.WriteString(subname)
 		}
 	} else if n.Cfg.Subject != "" {
 		ssb.WriteString(n.Cfg.Subject)
 	}
 	subject := strings.ReplaceAll(ssb.String(), " ", "_")
-	err := n.conn.Publish(subject, b)
+	b, err := n.mo.Marshal(rsp, meta)
+	if err != nil {
+		n.logger.Printf("failed marshaling proto msg: %v", err)
+		return
+	}
+	err = n.conn.Publish(subject, b)
 	if err != nil {
 		log.Printf("failed to write to nats subject '%s': %v", subject, err)
 		return

@@ -15,16 +15,13 @@
 package cmd
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"sort"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/outputs"
@@ -34,24 +31,7 @@ import (
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"google.golang.org/protobuf/encoding/prototext"
 )
-
-type msg struct {
-	Meta             map[string]interface{} `json:"meta,omitempty"`
-	Source           string                 `json:"source,omitempty"`
-	SystemName       string                 `json:"system-name,omitempty"`
-	SubscriptionName string                 `json:"subscription-name,omitempty"`
-	Timestamp        int64                  `json:"timestamp,omitempty"`
-	Time             *time.Time             `json:"time,omitempty"`
-	Prefix           string                 `json:"prefix,omitempty"`
-	Updates          []*update              `json:"updates,omitempty"`
-	Deletes          []string               `json:"deletes,omitempty"`
-}
-type update struct {
-	Path   string
-	Values map[string]interface{} `json:"values,omitempty"`
-}
 
 // subscribeCmd represents the subscribe command
 var subscribeCmd = &cobra.Command{
@@ -126,6 +106,10 @@ var subscribeCmd = &cobra.Command{
 			}
 			waitChan := make(chan struct{}, 1)
 			waitChan <- struct{}{}
+			mo := &collector.MarshalOptions{
+				Multiline: true,
+				Indent:    "  ",
+				Format:    viper.GetString("format")}
 			go func() {
 				for {
 					select {
@@ -160,20 +144,14 @@ var subscribeCmd = &cobra.Command{
 							waitChan <- struct{}{}
 							continue
 						}
-						b, err := coll.FormatMsg(nil, response)
+						b, err := mo.Marshal(response, nil)
 						if err != nil {
 							fmt.Printf("target '%s', subscription '%s': poll response formatting error:%v\n", name, subName, err)
-							continue
-						}
-						dst := new(bytes.Buffer)
-						err = json.Indent(dst, b, "", "  ")
-						if err != nil {
-							fmt.Printf("failed to indent poll response from '%s': %v\n", name, err)
 							fmt.Println(string(b))
 							waitChan <- struct{}{}
 							continue
 						}
-						fmt.Println(dst.String())
+						fmt.Println(string(b))
 						waitChan <- struct{}{}
 					case <-ctx.Done():
 						return
@@ -220,68 +198,15 @@ func init() {
 	viper.BindPFlag("subscribe-name", subscribeCmd.LocalFlags().Lookup("name"))
 }
 
-func formatSubscribeResponse(meta map[string]interface{}, subResp *gnmi.SubscribeResponse) ([]byte, error) {
-	switch resp := subResp.Response.(type) {
-	case *gnmi.SubscribeResponse_Update:
-		if viper.GetString("format") == "textproto" {
-			return []byte(prototext.Format(subResp)), nil
-		}
-		msg := new(msg)
-		msg.Timestamp = resp.Update.Timestamp
-		t := time.Unix(0, resp.Update.Timestamp)
-		msg.Time = &t
-		if meta == nil {
-			meta = make(map[string]interface{})
-		}
-		msg.Prefix = gnmiPathToXPath(resp.Update.Prefix)
-		var ok bool
-		if _, ok = meta["source"]; ok {
-			msg.Source = fmt.Sprintf("%s", meta["source"])
-		}
-		if _, ok = meta["system-name"]; ok {
-			msg.SystemName = fmt.Sprintf("%s", meta["system-name"])
-		}
-		if _, ok = meta["subscription-name"]; ok {
-			msg.SubscriptionName = fmt.Sprintf("%s", meta["subscription-name"])
-		}
-		for i, upd := range resp.Update.Update {
-			pathElems := make([]string, 0, len(upd.Path.Elem))
-			for _, pElem := range upd.Path.Elem {
-				pathElems = append(pathElems, pElem.GetName())
-			}
-			value, err := getValue(upd.Val)
-			if err != nil {
-				logger.Println(err)
-			}
-			msg.Updates = append(msg.Updates,
-				&update{
-					Path:   gnmiPathToXPath(upd.Path),
-					Values: make(map[string]interface{}),
-				})
-			msg.Updates[i].Values[strings.Join(pathElems, "/")] = value
-		}
-		for _, del := range resp.Update.Delete {
-			msg.Deletes = append(msg.Deletes, gnmiPathToXPath(del))
-		}
-		data, err := json.Marshal(msg)
-		if err != nil {
-			return nil, err
-		}
-		return data, nil
-	}
-	return nil, nil
-}
-
 func getOutputs() (map[string][]outputs.Output, error) {
 	outDef := viper.GetStringMap("outputs")
 	if len(outDef) == 0 && !viper.GetBool("quiet") {
 		stdoutConfig := map[string]interface{}{
 			"type":      "file",
 			"file-type": "stdout",
+			"format":    viper.GetString("format"),
 		}
-		stdoutFile := make([]interface{}, 1)
-		stdoutFile[0] = stdoutConfig
-		outDef["stdout"] = stdoutFile
+		outDef["stdout"] = []interface{}{stdoutConfig}
 	}
 	outputDestinations := make(map[string][]outputs.Output)
 	for name, d := range outDef {
@@ -293,6 +218,10 @@ func getOutputs() (map[string][]outputs.Output, error) {
 				case map[string]interface{}:
 					if outType, ok := ou["type"]; ok {
 						if initalizer, ok := outputs.Outputs[outType.(string)]; ok {
+							format, ok := ou["format"]
+							if !ok || (ok && format == "") {
+								ou["format"] = viper.GetString("format")
+							}
 							o := initalizer()
 							err := o.Init(ou, logger)
 							if err != nil {

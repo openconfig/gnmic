@@ -182,6 +182,8 @@ github.com/inconshreveable/mousetrap v1.0.0 h1:Z8tu5sraLXCXIcARxBp/8cbvlwVa7Z1NH
 github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANytuPF1OarO4DADm73n8=
 github.com/jcmturner/gofork v1.0.0 h1:J7uCkflzTEhUZ64xqKnkDxq3kzc96ajM1Gli5ktUem8=
 github.com/jcmturner/gofork v1.0.0/go.mod h1:MK8+TM0La+2rjBD4jE12Kj1pCCxK7d2LK/UM3ncEo0o=
+github.com/jeremywohl/flatten v1.0.1 h1:LrsxmB3hfwJuE+ptGOijix1PIfOoKLJ3Uee/mzbgtrs=
+github.com/jeremywohl/flatten v1.0.1/go.mod h1:4AmD/VxjWcI5SRB0n6szE2A6s2fsNHDLO0nAlMHgfLQ=
 github.com/jonboulle/clockwork v0.1.0/go.mod h1:Ii8DK3G1RaLaWxj9trq07+26W01tbo22gdxWY5EU2bo=
 github.com/json-iterator/go v1.1.6/go.mod h1:+SdeFBvtyEkXs7REEP0seUULqWtbJapLOCVDaaPEHmU=
 github.com/json-iterator/go v1.1.10/go.mod h1:KdQUCv79m/52Kvf8AW2vK1V8akMuk1QjK/uOdHXbAo4=
@@ -193,6 +195,10 @@ github.com/juju/ansiterm v0.0.0-20180109212912-720a0952cc2a/go.mod h1:UJSiEoRfvx
 github.com/julienschmidt/httprouter v1.2.0/go.mod h1:SYymIcj16QtmaHHD7aYtjjsJG7VTCxuUUipMqKk8s4w=
 github.com/karimra/gnmiClient v0.0.6 h1:YNB3WG8CxwF/l6tO8vmqCCJWo9r9RrZcfa4Ns7kBqfM=
 github.com/karimra/gnmiClient v0.0.6/go.mod h1:bbZcxou9j6SIhkno6YiOd/QKIAqwq00pgMm0GshTpyE=
+github.com/karimra/go-map-flattener v0.0.0-20200722050030-b900ba59d8a5 h1:KZYo3zRTDBIINaGev4S8ihxQt8Rg21UYpaDv8ItYaQQ=
+github.com/karimra/go-map-flattener v0.0.0-20200722050030-b900ba59d8a5/go.mod h1:qwSIH4cR7eD1dkmjx0S/rqsO33C6VYaTHLrdfntJQkM=
+github.com/karimra/go-map-flattener v0.0.0-20200728034653-b1473e58dae8 h1:drle12vIpTVckWi44El+2ukPs0wrpRMlyIwvdLD4dNw=
+github.com/karimra/go-map-flattener v0.0.0-20200728034653-b1473e58dae8/go.mod h1:qwSIH4cR7eD1dkmjx0S/rqsO33C6VYaTHLrdfntJQkM=
 github.com/karimra/sros-dialout v0.0.0-20200518085040-c759bf74063a h1:OLIlAOVZsQFJixMQFNMxIQb2tU8OCcEtDtSVbbeLWAM=
 github.com/karimra/sros-dialout v0.0.0-20200518085040-c759bf74063a/go.mod h1:KcjPi49Pbs+EF8Ykob5AzLcze653Qb4HFz+i2aFEEJU=
 github.com/kisielk/errcheck v1.1.0/go.mod h1:EZBBE59ingxPouuu3KfxchcWSUPOHkagtvWXihfKN4Q=

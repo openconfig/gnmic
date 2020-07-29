@@ -18,7 +18,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -41,6 +40,7 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -119,11 +119,12 @@ func init() {
 	rootCmd.PersistentFlags().BoolP("skip-verify", "", false, "skip verify tls connection")
 	rootCmd.PersistentFlags().BoolP("no-prefix", "", false, "do not add [ip:port] prefix to print output in case of multiple targets")
 	rootCmd.PersistentFlags().BoolP("proxy-from-env", "", false, "use proxy from environment")
-	rootCmd.PersistentFlags().StringP("format", "", "json", "output format, one of: [textproto, json]")
+	rootCmd.PersistentFlags().StringP("format", "", "", "output format, one of: [protojson, prototext, json, event]")
 	rootCmd.PersistentFlags().StringP("log-file", "", "", "log file path")
 	rootCmd.PersistentFlags().BoolP("log", "", false, "show log messages in stderr")
 	rootCmd.PersistentFlags().IntP("max-msg-size", "", msgSize, "max grpc msg size")
 	rootCmd.PersistentFlags().StringP("prometheus-address", "", "0.0.0.0:9094", "prometheus server address")
+	rootCmd.PersistentFlags().BoolP("print-request", "", false, "print request as well as the response(s)")
 	//
 	viper.BindPFlag("address", rootCmd.PersistentFlags().Lookup("address"))
 	viper.BindPFlag("username", rootCmd.PersistentFlags().Lookup("username"))
@@ -144,6 +145,7 @@ func init() {
 	viper.BindPFlag("log", rootCmd.PersistentFlags().Lookup("log"))
 	viper.BindPFlag("max-msg-size", rootCmd.PersistentFlags().Lookup("max-msg-size"))
 	viper.BindPFlag("prometheus-address", rootCmd.PersistentFlags().Lookup("prometheus-address"))
+	viper.BindPFlag("print-request", rootCmd.PersistentFlags().Lookup("print-request"))
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -225,35 +227,6 @@ func readPassword() (string, error) {
 	fmt.Println()
 	return string(pass), nil
 }
-func gnmiPathToXPath(p *gnmi.Path) string {
-	if p == nil {
-		return ""
-	}
-	sb := strings.Builder{}
-	if p.Origin != "" {
-		sb.WriteString(p.Origin)
-		sb.WriteString(":")
-	}
-	elems := p.GetElem()
-	numElems := len(elems)
-	if numElems > 0 {
-		sb.WriteString("/")
-	}
-	for i, pe := range elems {
-		sb.WriteString(pe.GetName())
-		for k, v := range pe.GetKey() {
-			sb.WriteString("[")
-			sb.WriteString(k)
-			sb.WriteString("=")
-			sb.WriteString(v)
-			sb.WriteString("]")
-		}
-		if i+1 != numElems {
-			sb.WriteString("/")
-		}
-	}
-	return sb.String()
-}
 func loadCerts(tlscfg *tls.Config) error {
 	tlsCert := viper.GetString("tls-cert")
 	tlsKey := viper.GetString("tls-key")
@@ -301,48 +274,6 @@ func gather(ctx context.Context, c chan string, ls *[]string) {
 			return
 		}
 	}
-}
-func getValue(updValue *gnmi.TypedValue) (interface{}, error) {
-	if updValue == nil {
-		return nil, nil
-	}
-	var value interface{}
-	var jsondata []byte
-	switch updValue.Value.(type) {
-	case *gnmi.TypedValue_AsciiVal:
-		value = updValue.GetAsciiVal()
-	case *gnmi.TypedValue_BoolVal:
-		value = updValue.GetBoolVal()
-	case *gnmi.TypedValue_BytesVal:
-		value = updValue.GetBytesVal()
-	case *gnmi.TypedValue_DecimalVal:
-		value = updValue.GetDecimalVal()
-	case *gnmi.TypedValue_FloatVal:
-		value = updValue.GetFloatVal()
-	case *gnmi.TypedValue_IntVal:
-		value = updValue.GetIntVal()
-	case *gnmi.TypedValue_StringVal:
-		value = updValue.GetStringVal()
-	case *gnmi.TypedValue_UintVal:
-		value = updValue.GetUintVal()
-	case *gnmi.TypedValue_JsonIetfVal:
-		jsondata = updValue.GetJsonIetfVal()
-	case *gnmi.TypedValue_JsonVal:
-		jsondata = updValue.GetJsonVal()
-	case *gnmi.TypedValue_LeaflistVal:
-		value = updValue.GetLeaflistVal()
-	case *gnmi.TypedValue_ProtoBytes:
-		value = updValue.GetProtoBytes()
-	case *gnmi.TypedValue_AnyVal:
-		value = updValue.GetAnyVal()
-	}
-	if value == nil && len(jsondata) != 0 {
-		err := json.Unmarshal(jsondata, &value)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return value, nil
 }
 
 type myWriteCloser struct {
@@ -562,4 +493,64 @@ func createCollectorDialOpts() []grpc.DialOption {
 		opts = append(opts, grpc.WithNoProxy())
 	}
 	return opts
+}
+
+func printMsg(address string, msg proto.Message) error {
+	printPrefix := ""
+	if numTargets() > 1 && !viper.GetBool("no-prefix") {
+		printPrefix = fmt.Sprintf("[%s] ", address)
+	}
+
+	switch msg := msg.ProtoReflect().Interface().(type) {
+	case *gnmi.CapabilityResponse:
+		if len(viper.GetString("format")) == 0 {
+			printCapResponse(printPrefix, msg)
+			return nil
+		}
+	}
+	mo := collector.MarshalOptions{
+		Multiline: true,
+		Indent:    "  ",
+		Format:    viper.GetString("format"),
+	}
+	b, err := mo.Marshal(msg, map[string]string{"address": address})
+	if err != nil {
+		return err
+	}
+	sb := strings.Builder{}
+	sb.Write(b)
+	fmt.Printf("%s\n", indent(printPrefix, sb.String()))
+	return nil
+}
+
+func printCapResponse(printPrefix string, msg *gnmi.CapabilityResponse) {
+	sb := strings.Builder{}
+	sb.WriteString(printPrefix)
+	sb.WriteString("gNMI version: ")
+	sb.WriteString(msg.GNMIVersion)
+	sb.WriteString("\n")
+	if viper.GetBool("version") {
+		return
+	}
+	sb.WriteString(printPrefix)
+	sb.WriteString("supported models:\n")
+	for _, sm := range msg.SupportedModels {
+		sb.WriteString(printPrefix)
+		sb.WriteString("  - ")
+		sb.WriteString(sm.GetName())
+		sb.WriteString(", ")
+		sb.WriteString(sm.GetOrganization())
+		sb.WriteString(", ")
+		sb.WriteString(sm.GetVersion())
+		sb.WriteString("\n")
+	}
+	sb.WriteString(printPrefix)
+	sb.WriteString("supported encodings:\n")
+	for _, se := range msg.SupportedEncodings {
+		sb.WriteString(printPrefix)
+		sb.WriteString("  - ")
+		sb.WriteString(se.String())
+		sb.WriteString("\n")
+	}
+	fmt.Printf("%s\n", indent(printPrefix, sb.String()))
 }

@@ -2,14 +2,12 @@ package collector
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"strings"
 	"sync"
-	"time"
 
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/karimra/gnmic/outputs"
@@ -17,7 +15,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
-	"google.golang.org/protobuf/encoding/prototext"
 )
 
 const (
@@ -180,18 +177,10 @@ func (c *Collector) Start() {
 					if c.Config.Debug {
 						c.Logger.Printf("received gNMI Subscribe Response: %+v", rsp)
 					}
-					m := make(map[string]interface{})
-					m["subscription-name"] = rsp.SubscriptionName
-					m["source"] = t.Config.Name
-					b, err := c.FormatMsg(m, rsp.Response)
-					if err != nil {
-						c.Logger.Printf("failed formatting msg from target '%s': %v", t.Config.Name, err)
-						continue
-					}
 					if c.subscriptionMode(rsp.SubscriptionName) == "ONCE" {
-						t.Export(b, outputs.Meta{"source": t.Config.Name, "format": c.Config.Format, "subscription-name": rsp.SubscriptionName})
+						t.Export(rsp.Response, outputs.Meta{"source": t.Config.Name, "format": c.Config.Format, "subscription-name": rsp.SubscriptionName})
 					} else {
-						go t.Export(b, outputs.Meta{"source": t.Config.Name, "format": c.Config.Format, "subscription-name": rsp.SubscriptionName})
+						go t.Export(rsp.Response, outputs.Meta{"source": t.Config.Name, "format": c.Config.Format, "subscription-name": rsp.SubscriptionName})
 					}
 					if remainingOnceSubscriptions > 0 {
 						if c.subscriptionMode(rsp.SubscriptionName) == "ONCE" {
@@ -210,67 +199,13 @@ func (c *Collector) Start() {
 						return
 					}
 					c.Logger.Printf("target '%s' error: %v", t.Config.Name, err)
+				case <-c.ctx.Done():
+					c.cancelFn()
 				}
 			}
 		}(t)
 	}
 	wg.Wait()
-}
-
-// FormatMsg formats the gnmi.SubscribeResponse and returns a []byte and an error
-func (c *Collector) FormatMsg(meta map[string]interface{}, rsp *gnmi.SubscribeResponse) ([]byte, error) {
-	if rsp == nil {
-		return nil, nil
-	}
-	if c.Config.Format == "textproto" {
-		return []byte(prototext.Format(rsp)), nil
-	}
-	switch rsp := rsp.Response.(type) {
-	case *gnmi.SubscribeResponse_Update:
-		msg := new(msg)
-		msg.Timestamp = rsp.Update.Timestamp
-		t := time.Unix(0, rsp.Update.Timestamp)
-		msg.Time = &t
-		if meta == nil {
-			meta = make(map[string]interface{})
-		}
-		msg.Prefix = gnmiPathToXPath(rsp.Update.Prefix)
-		var ok bool
-		if _, ok = meta["source"]; ok {
-			msg.Source = fmt.Sprintf("%s", meta["source"])
-		}
-		if _, ok = meta["system-name"]; ok {
-			msg.SystemName = fmt.Sprintf("%s", meta["system-name"])
-		}
-		if _, ok = meta["subscription-name"]; ok {
-			msg.SubscriptionName = fmt.Sprintf("%s", meta["subscription-name"])
-		}
-		for i, upd := range rsp.Update.Update {
-			pathElems := make([]string, 0, len(upd.Path.Elem))
-			for _, pElem := range upd.Path.Elem {
-				pathElems = append(pathElems, pElem.GetName())
-			}
-			value, err := getValue(upd.Val)
-			if err != nil {
-				c.Logger.Println(err)
-			}
-			msg.Updates = append(msg.Updates,
-				&update{
-					Path:   gnmiPathToXPath(upd.Path),
-					Values: make(map[string]interface{}),
-				})
-			msg.Updates[i].Values[strings.Join(pathElems, "/")] = value
-		}
-		for _, del := range rsp.Update.Delete {
-			msg.Deletes = append(msg.Deletes, gnmiPathToXPath(del))
-		}
-		data, err := json.Marshal(msg)
-		if err != nil {
-			return nil, err
-		}
-		return data, nil
-	}
-	return nil, nil
 }
 
 // TargetPoll sends a gnmi.SubscribeRequest_Poll to targetName and returns the response and an error,

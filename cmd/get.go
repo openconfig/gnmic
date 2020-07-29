@@ -16,18 +16,16 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/karimra/gnmic/collector"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"google.golang.org/protobuf/encoding/prototext"
 )
 
 // getCmd represents the get command
@@ -36,6 +34,9 @@ var getCmd = &cobra.Command{
 	Short: "run gnmi get on targets",
 
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if viper.GetString("format") == "event" {
+			return fmt.Errorf("format event not supported for Get RPC")
+		}
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		setupCloseHandler(cancel)
@@ -84,6 +85,18 @@ func getRequest(ctx context.Context, req *gnmi.GetRequest, target *collector.Tar
 			xreq.UseModels = append(xreq.UseModels, m)
 		}
 	}
+	if viper.GetBool("print-request") {
+		lock.Lock()
+		fmt.Fprint(os.Stderr, "Get Request:\n")
+		err := printMsg(target.Config.Name, req)
+		if err != nil {
+			logger.Printf("error marshaling get request msg: %v", err)
+			if !viper.GetBool("log") {
+				fmt.Printf("error marshaling get request msg: %v\n", err)
+			}
+		}
+		lock.Unlock()
+	}
 	logger.Printf("sending gNMI GetRequest: prefix='%v', path='%v', type='%v', encoding='%v', models='%+v', extension='%+v' to %s",
 		xreq.Prefix, xreq.Path, xreq.Type, xreq.Encoding, xreq.UseModels, xreq.Extension, target.Config.Address)
 	response, err := target.Get(ctx, xreq)
@@ -92,62 +105,27 @@ func getRequest(ctx context.Context, req *gnmi.GetRequest, target *collector.Tar
 		return
 	}
 	lock.Lock()
-	printGetResponse(target.Config.Name, response)
-	lock.Unlock()
-}
-
-func printGetResponse(address string, response *gnmi.GetResponse) {
-	printPrefix := ""
-	//	addresses := viper.GetStringSlice("address")
-	if numTargets() > 1 && !viper.GetBool("no-prefix") {
-		printPrefix = fmt.Sprintf("[%s] ", address)
-	}
-	if viper.GetString("format") == "textproto" {
-		fmt.Printf("%s\n", indent(printPrefix, prototext.Format(response)))
-		return
-	}
-	for _, notif := range response.Notification {
-		msg := new(msg)
-		msg.Source = address
-		msg.Timestamp = notif.Timestamp
-		t := time.Unix(0, notif.Timestamp)
-		msg.Time = &t
-		msg.Prefix = gnmiPathToXPath(notif.Prefix)
-		for i, upd := range notif.Update {
-			pathElems := make([]string, 0, len(upd.Path.Elem))
-			for _, pElem := range upd.Path.Elem {
-				pathElems = append(pathElems, pElem.GetName())
-			}
-			value, err := getValue(upd.Val)
-			if err != nil {
-				logger.Println(err)
-			}
-			msg.Updates = append(msg.Updates,
-				&update{
-					Path:   gnmiPathToXPath(upd.Path),
-					Values: make(map[string]interface{}),
-				})
-			msg.Updates[i].Values[strings.Join(pathElems, "/")] = value
+	defer lock.Unlock()
+	fmt.Fprint(os.Stderr, "Get Response:\n")
+	err = printMsg(target.Config.Name, response)
+	if err != nil {
+		logger.Printf("error marshaling get response from %s: %v", target.Config.Name, err)
+		if !viper.GetBool("log") {
+			fmt.Printf("error marshaling get response from %s: %v\n", target.Config.Name, err)
 		}
-		dMsg, err := json.MarshalIndent(msg, printPrefix, "  ")
-		if err != nil {
-			logger.Printf("error marshling json msg:%v", err)
-			return
-		}
-		fmt.Printf("%s%s\n", printPrefix, string(dMsg))
 	}
-	fmt.Println()
 }
 
 func init() {
 	rootCmd.AddCommand(getCmd)
-
+	getCmd.SilenceUsage = true
 	getCmd.Flags().StringSliceP("path", "", []string{""}, "get request paths")
 	getCmd.MarkFlagRequired("path")
 	getCmd.Flags().StringP("prefix", "", "", "get request prefix")
 	getCmd.Flags().StringSliceP("model", "", []string{""}, "get request models")
 	getCmd.Flags().StringP("type", "t", "ALL", "data type requested from the target. one of: ALL, CONFIG, STATE, OPERATIONAL")
 	getCmd.Flags().StringP("target", "", "", "get request target")
+
 	viper.BindPFlag("get-path", getCmd.LocalFlags().Lookup("path"))
 	viper.BindPFlag("get-prefix", getCmd.LocalFlags().Lookup("prefix"))
 	viper.BindPFlag("get-model", getCmd.LocalFlags().Lookup("model"))
