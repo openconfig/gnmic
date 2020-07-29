@@ -16,10 +16,6 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-const (
-	defaultRate = 1 * time.Microsecond
-)
-
 func init() {
 	outputs.Register("udp", func() outputs.Output {
 		return &UDPSock{
