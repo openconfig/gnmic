@@ -35,14 +35,23 @@ type UDPSock struct {
 }
 
 type Config struct {
-	Address    string // ip:port
-	Rate       time.Duration
-	BufferSize uint
-	Format     string
+	Address    string        `mapstructure:"address,omitempty"` // ip:port
+	Rate       time.Duration `mapstructure:"rate,omitempty"`
+	BufferSize uint          `mapstructure:"buffer-size,omitempty"`
+	Format     string        `mapstructure:"format,omitempty"`
 }
 
 func (u *UDPSock) Init(cfg map[string]interface{}, logger *log.Logger) error {
-	err := mapstructure.Decode(cfg, u.Cfg)
+	decoder, err := mapstructure.NewDecoder(
+		&mapstructure.DecoderConfig{
+			DecodeHook: mapstructure.StringToTimeDurationHookFunc(),
+			Result:     u.Cfg,
+		},
+	)
+	if err != nil {
+		return err
+	}
+	err = decoder.Decode(cfg)
 	if err != nil {
 		return err
 	}
