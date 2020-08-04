@@ -55,21 +55,24 @@ func NewCollector(ctx context.Context,
 	logger *log.Logger,
 ) *Collector {
 	nctx, cancel := context.WithCancel(ctx)
-	grpcMetrics := grpc_prometheus.NewClientMetrics()
-	reg := prometheus.NewRegistry()
-	reg.MustRegister(prometheus.NewGoCollector())
-	reg.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
-	grpcMetrics.EnableClientHandlingTimeHistogram()
-	reg.MustRegister(grpcMetrics)
-	handler := http.NewServeMux()
-	handler.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
-	httpServer := &http.Server{
-		Handler: handler,
-		Addr:    config.PrometheusAddress,
-	}
-	dialOpts = append(dialOpts, grpc.WithStreamInterceptor(grpcMetrics.StreamClientInterceptor()))
-	if config.TargetReceiveBuffer == 0 {
-		config.TargetReceiveBuffer = defaultTargetReceivebuffer
+	var httpServer *http.Server
+	if config.PrometheusAddress != "" {
+		grpcMetrics := grpc_prometheus.NewClientMetrics()
+		reg := prometheus.NewRegistry()
+		reg.MustRegister(prometheus.NewGoCollector())
+		reg.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
+		grpcMetrics.EnableClientHandlingTimeHistogram()
+		reg.MustRegister(grpcMetrics)
+		handler := http.NewServeMux()
+		handler.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
+		httpServer = &http.Server{
+			Handler: handler,
+			Addr:    config.PrometheusAddress,
+		}
+		dialOpts = append(dialOpts, grpc.WithStreamInterceptor(grpcMetrics.StreamClientInterceptor()))
+		if config.TargetReceiveBuffer == 0 {
+			config.TargetReceiveBuffer = defaultTargetReceivebuffer
+		}
 	}
 	c := &Collector{
 		Config:        config,
@@ -150,12 +153,14 @@ func (c *Collector) Subscribe(tName string) error {
 
 // Start start the prometheus server as well as a goroutine per target selecting on the response chan, the error chan and the ctx.Done() chan
 func (c *Collector) Start() {
-	go func() {
-		if err := c.httpServer.ListenAndServe(); err != nil {
-			c.Logger.Printf("Unable to start prometheus http server: %v", err)
-			return
-		}
-	}()
+	if c.httpServer != nil {
+		go func() {
+			if err := c.httpServer.ListenAndServe(); err != nil {
+				c.Logger.Printf("Unable to start prometheus http server: %v", err)
+				return
+			}
+		}()
+	}
 	defer func() {
 		for _, outputs := range c.Outputs {
 			for _, o := range outputs {
