@@ -123,7 +123,7 @@ func init() {
 	rootCmd.PersistentFlags().StringP("log-file", "", "", "log file path")
 	rootCmd.PersistentFlags().BoolP("log", "", false, "show log messages in stderr")
 	rootCmd.PersistentFlags().IntP("max-msg-size", "", msgSize, "max grpc msg size")
-	rootCmd.PersistentFlags().StringP("prometheus-address", "", "0.0.0.0:9094", "prometheus server address")
+	rootCmd.PersistentFlags().StringP("prometheus-address", "", "", "prometheus server address")
 	rootCmd.PersistentFlags().BoolP("print-request", "", false, "print request as well as the response(s)")
 	//
 	viper.BindPFlag("address", rootCmd.PersistentFlags().Lookup("address"))
