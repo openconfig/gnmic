@@ -20,7 +20,7 @@ Documentation available at [https://gnmic.kmrd.dev](https://gnmic.kmrd.dev)
 * **File based configuration**  
   gnmic supports [configurations provided in a file](https://gnmic.kmrd.dev/advanced/file_cfg/). The configuration options are consistent with the CLI flags.
 * **Inspect raw gNMI messages**  
-  With the `textproto` output format you can see the actual gNMI messages being sent/received. Its like having a gNMI looking glass!
+  With the `prototext` output format you can see the actual gNMI messages being sent/received. Its like having a gNMI looking glass!
 * **(In)secure gRPC connection**  
   gNMI client supports both TLS and [non-TLS](https://gnmic.kmrd.dev/global_flags/#insecure) transports so you can start using it in a lab environment without having to care about the PKI.
 * **Dial-out telemetry**  
