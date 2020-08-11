@@ -49,8 +49,7 @@ changelog:
       - "^test:"
 
 nfpms:
-  -
-    id: gnmic
+  - id: gnmic
     file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     replacements:
       amd64: x86_64
