@@ -25,8 +25,9 @@ func init() {
 }
 
 type UDPSock struct {
-	Cfg      *Config
-	ctx      context.Context
+	Cfg *Config
+
+	conn     *net.UDPConn
 	cancelFn context.CancelFunc
 	buffer   chan []byte
 	limiter  *time.Ticker
@@ -68,9 +69,18 @@ func (u *UDPSock) Init(cfg map[string]interface{}, logger *log.Logger) error {
 	if u.Cfg.Rate > 0 {
 		u.limiter = time.NewTicker(u.Cfg.Rate)
 	}
-	u.ctx, u.cancelFn = context.WithCancel(context.Background())
+	var ctx context.Context
+	ctx, u.cancelFn = context.WithCancel(context.Background())
 	u.mo = &collector.MarshalOptions{Format: u.Cfg.Format}
-	go u.start()
+	udpAddr, err := net.ResolveUDPAddr("udp", u.Cfg.Address)
+	if err != nil {
+		return err
+	}
+	u.conn, err = net.DialUDP("udp", nil, udpAddr)
+	if err != nil {
+		return err
+	}
+	go u.start(ctx)
 	return nil
 }
 func (u *UDPSock) Write(m proto.Message, meta outputs.Meta) {
@@ -98,38 +108,21 @@ func (u *UDPSock) String() string {
 	}
 	return string(b)
 }
-
-func (u *UDPSock) start() {
+func (u *UDPSock) start(ctx context.Context) {
 	var err error
 	defer u.Close()
 	for {
 		select {
-		case <-u.ctx.Done():
+		case <-ctx.Done():
 			return
 		case b := <-u.buffer:
 			if u.limiter != nil {
 				<-u.limiter.C
 			}
-			err = u.send(b)
+			_, err = u.conn.Write(b)
 			if err != nil {
 				u.logger.Printf("failed sending udp bytes: %v", err)
 			}
 		}
 	}
-}
-
-func (u *UDPSock) send(b []byte) error {
-	udpAddr, err := net.ResolveUDPAddr("udp", u.Cfg.Address)
-	if err != nil {
-		return err
-	}
-	conn, err := net.DialUDP("udp", nil, udpAddr)
-	if err != nil {
-		return err
-	}
-	_, err = conn.Write(b)
-	if err != nil {
-		return err
-	}
-	return nil
 }
