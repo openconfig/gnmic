@@ -364,13 +364,15 @@ func createTargets() (map[string]*collector.TargetConfig, error) {
 		}
 		for _, addr := range addresses {
 			tc := new(collector.TargetConfig)
-			_, _, err := net.SplitHostPort(addr)
-			if err != nil {
-				if strings.Contains(err.Error(), "missing port in address") {
-					addr = net.JoinHostPort(addr, defGrpcPort)
-				} else {
-					logger.Printf("error parsing address '%s': %v", addr, err)
-					return nil, fmt.Errorf("error parsing address '%s': %v", addr, err)
+			if !strings.HasPrefix(addr, "unix://") {
+				_, _, err := net.SplitHostPort(addr)
+				if err != nil {
+					if strings.Contains(err.Error(), "missing port in address") {
+						addr = net.JoinHostPort(addr, defGrpcPort)
+					} else {
+						logger.Printf("error parsing address '%s': %v", addr, err)
+						return nil, fmt.Errorf("error parsing address '%s': %v", addr, err)
+					}
 				}
 			}
 			tc.Address = addr
@@ -396,13 +398,15 @@ func createTargets() (map[string]*collector.TargetConfig, error) {
 		return nil, fmt.Errorf("no targets found")
 	}
 	for addr, t := range targetsMap {
-		_, _, err := net.SplitHostPort(addr)
-		if err != nil {
-			if strings.Contains(err.Error(), "missing port in address") {
-				addr = net.JoinHostPort(addr, defGrpcPort)
-			} else {
-				logger.Printf("error parsing address '%s': %v", addr, err)
-				return nil, fmt.Errorf("error parsing address '%s': %v", addr, err)
+		if !strings.HasPrefix(addr, "unix://") {
+			_, _, err := net.SplitHostPort(addr)
+			if err != nil {
+				if strings.Contains(err.Error(), "missing port in address") {
+					addr = net.JoinHostPort(addr, defGrpcPort)
+				} else {
+					logger.Printf("error parsing address '%s': %v", addr, err)
+					return nil, fmt.Errorf("error parsing address '%s': %v", addr, err)
+				}
 			}
 		}
 		tc := new(collector.TargetConfig)
