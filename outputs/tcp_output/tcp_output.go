@@ -16,6 +16,8 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+const defaultRetryTimer = 2 * time.Second
+
 func init() {
 	outputs.Register("tcp", func() outputs.Output {
 		return &TCPOutput{
@@ -36,11 +38,12 @@ type TCPOutput struct {
 }
 
 type Config struct {
-	Address    string        `mapstructure:"address,omitempty"` // ip:port
-	Rate       time.Duration `mapstructure:"rate,omitempty"`
-	BufferSize uint          `mapstructure:"buffer-size,omitempty"`
-	Format     string        `mapstructure:"format,omitempty"`
-	KeepAlive  time.Duration `mapstructure:"keep-alive,omitempty"`
+	Address       string        `mapstructure:"address,omitempty"` // ip:port
+	Rate          time.Duration `mapstructure:"rate,omitempty"`
+	BufferSize    uint          `mapstructure:"buffer-size,omitempty"`
+	Format        string        `mapstructure:"format,omitempty"`
+	KeepAlive     time.Duration `mapstructure:"keep-alive,omitempty"`
+	RetryInterval time.Duration `mapstructure:"retry-interval,omitempty"`
 }
 
 func (t *TCPOutput) Init(cfg map[string]interface{}, logger *log.Logger) error {
@@ -70,21 +73,13 @@ func (t *TCPOutput) Init(cfg map[string]interface{}, logger *log.Logger) error {
 	if t.Cfg.Rate > 0 {
 		t.limiter = time.NewTicker(t.Cfg.Rate)
 	}
+	if t.Cfg.RetryInterval == 0 {
+		t.Cfg.RetryInterval = defaultRetryTimer
+	}
+	t.mo = &collector.MarshalOptions{Format: t.Cfg.Format}
+
 	var ctx context.Context
 	ctx, t.cancelFn = context.WithCancel(context.Background())
-	t.mo = &collector.MarshalOptions{Format: t.Cfg.Format}
-	tcpAddr, err := net.ResolveTCPAddr("tcp", t.Cfg.Address)
-	if err != nil {
-		return err
-	}
-	t.conn, err = net.DialTCP("tcp", nil, tcpAddr)
-	if err != nil {
-		return err
-	}
-	if t.Cfg.KeepAlive > 0 {
-		t.conn.SetKeepAlive(true)
-		t.conn.SetKeepAlivePeriod(t.Cfg.KeepAlive)
-	}
 
 	go t.start(ctx)
 	return nil
@@ -115,7 +110,24 @@ func (t *TCPOutput) String() string {
 	return string(b)
 }
 func (t *TCPOutput) start(ctx context.Context) {
-	var err error
+START:
+	tcpAddr, err := net.ResolveTCPAddr("tcp", t.Cfg.Address)
+	if err != nil {
+		t.logger.Printf("failed to resolve address: %v", err)
+		time.Sleep(t.Cfg.RetryInterval)
+		goto START
+	}
+	t.conn, err = net.DialTCP("tcp", nil, tcpAddr)
+	if err != nil {
+		t.logger.Printf("failed to dial TCP: %v", err)
+		time.Sleep(t.Cfg.RetryInterval)
+		goto START
+	}
+	if t.Cfg.KeepAlive > 0 {
+		t.conn.SetKeepAlive(true)
+		t.conn.SetKeepAlivePeriod(t.Cfg.KeepAlive)
+	}
+
 	defer t.Close()
 	for {
 		select {
@@ -128,6 +140,8 @@ func (t *TCPOutput) start(ctx context.Context) {
 			_, err = t.conn.Write(b)
 			if err != nil {
 				t.logger.Printf("failed sending tcp bytes: %v", err)
+				time.Sleep(t.Cfg.RetryInterval)
+				goto START
 			}
 		}
 	}
