@@ -36,18 +36,22 @@ import (
 
 var vTypes = []string{"json", "json_ietf", "string", "int", "uint", "bool", "decimal", "float", "bytes", "ascii"}
 
-var deletes []string
-var updates []string
-var replaces []string
+type setCmdInput struct {
+	deletes  []string
+	updates  []string
+	replaces []string
 
-var updatePaths []string
-var replacePaths []string
+	updatePaths  []string
+	replacePaths []string
 
-var updateFiles []string
-var replaceFiles []string
+	updateFiles  []string
+	replaceFiles []string
 
-var updateValues []string
-var replaceValues []string
+	updateValues  []string
+	replaceValues []string
+}
+
+var setInput setCmdInput
 
 // setCmd represents the set command
 var setCmd = &cobra.Command{
@@ -171,17 +175,17 @@ func init() {
 	setCmd.SilenceUsage = true
 	setCmd.Flags().StringP("prefix", "", "", "set request prefix")
 
-	setCmd.Flags().StringArrayVarP(&deletes, "delete", "", []string{}, "set request path to be deleted")
+	setCmd.Flags().StringArrayVarP(&setInput.deletes, "delete", "", []string{}, "set request path to be deleted")
 
-	setCmd.Flags().StringArrayVarP(&replaces, "replace", "", []string{}, fmt.Sprintf("set request path:::type:::value to be replaced, type must be one of %v", vTypes))
-	setCmd.Flags().StringArrayVarP(&updates, "update", "", []string{}, fmt.Sprintf("set request path:::type:::value to be updated, type must be one of %v", vTypes))
+	setCmd.Flags().StringArrayVarP(&setInput.replaces, "replace", "", []string{}, fmt.Sprintf("set request path:::type:::value to be replaced, type must be one of %v", vTypes))
+	setCmd.Flags().StringArrayVarP(&setInput.updates, "update", "", []string{}, fmt.Sprintf("set request path:::type:::value to be updated, type must be one of %v", vTypes))
 
-	setCmd.Flags().StringArrayVarP(&replacePaths, "replace-path", "", []string{""}, "set request path to be replaced")
-	setCmd.Flags().StringArrayVarP(&updatePaths, "update-path", "", []string{""}, "set request path to be updated")
-	setCmd.Flags().StringArrayVarP(&updateFiles, "update-file", "", []string{""}, "set update request value in json/yaml file")
-	setCmd.Flags().StringArrayVarP(&replaceFiles, "replace-file", "", []string{""}, "set replace request value in json/yaml file")
-	setCmd.Flags().StringArrayVarP(&updateValues, "update-value", "", []string{""}, "set update request value")
-	setCmd.Flags().StringArrayVarP(&replaceValues, "replace-value", "", []string{""}, "set replace request value")
+	setCmd.Flags().StringArrayVarP(&setInput.replacePaths, "replace-path", "", []string{""}, "set request path to be replaced")
+	setCmd.Flags().StringArrayVarP(&setInput.updatePaths, "update-path", "", []string{""}, "set request path to be updated")
+	setCmd.Flags().StringArrayVarP(&setInput.updateFiles, "update-file", "", []string{""}, "set update request value in json/yaml file")
+	setCmd.Flags().StringArrayVarP(&setInput.replaceFiles, "replace-file", "", []string{""}, "set replace request value in json/yaml file")
+	setCmd.Flags().StringArrayVarP(&setInput.updateValues, "update-value", "", []string{""}, "set update request value")
+	setCmd.Flags().StringArrayVarP(&setInput.replaceValues, "replace-value", "", []string{""}, "set replace request value")
 	setCmd.Flags().StringP("delimiter", "", ":::", "set update/replace delimiter between path, type, value")
 	setCmd.Flags().StringP("target", "", "", "set request target")
 
@@ -195,43 +199,32 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 	if err != nil {
 		return nil, fmt.Errorf("prefix parse error: %v", err)
 	}
-
+	err = validateSetInput()
+	if err != nil {
+		return nil, err
+	}
 	delimiter := viper.GetString("set-delimiter")
-	if (len(deletes)+len(updates)+len(replaces)) == 0 && (len(updatePaths)+len(replacePaths)) == 0 {
-		return nil, errors.New("no paths provided")
-	}
-	if len(updateFiles) > 0 && len(updateValues) > 0 {
-		return nil, errors.New("set update from file and value are not supported in the same command")
-	}
-	if len(replaceFiles) > 0 && len(replaceValues) > 0 {
-		return nil, errors.New("set replace from file and value are not supported in the same command")
-	}
-	if len(updatePaths) != len(updateValues) && len(updatePaths) != len(updateFiles) {
-		return nil, errors.New("missing update value/file or path")
-	}
-	if len(replacePaths) != len(replaceValues) && len(replacePaths) != len(replaceFiles) {
-		return nil, errors.New("missing replace value/file or path")
-	}
+
 	//
-	useUpdateFiles := len(updateFiles) > 0 && len(updateValues) == 0
-	useReplaceFiles := len(replaceFiles) > 0 && len(replaceValues) == 0
+	useUpdateFiles := len(setInput.updateFiles) > 0 && len(setInput.updateValues) == 0
+	useReplaceFiles := len(setInput.replaceFiles) > 0 && len(setInput.replaceValues) == 0
 	req := &gnmi.SetRequest{
 		Prefix:  gnmiPrefix,
-		Delete:  make([]*gnmi.Path, 0, len(deletes)),
+		Delete:  make([]*gnmi.Path, 0, len(setInput.deletes)),
 		Replace: make([]*gnmi.Update, 0),
 		Update:  make([]*gnmi.Update, 0),
 	}
-	for _, p := range deletes {
+	for _, p := range setInput.deletes {
 		gnmiPath, err := collector.ParsePath(strings.TrimSpace(p))
 		if err != nil {
 			return nil, err
 		}
 		req.Delete = append(req.Delete, gnmiPath)
 	}
-	for _, u := range updates {
+	for _, u := range setInput.updates {
 		singleUpdate := strings.Split(u, delimiter)
 		if len(singleUpdate) < 3 {
-			return nil, fmt.Errorf("invalid inline update format: %s", updates)
+			return nil, fmt.Errorf("invalid inline update format: %s", setInput.updates)
 		}
 		gnmiPath, err := collector.ParsePath(strings.TrimSpace(singleUpdate[0]))
 		if err != nil {
@@ -247,10 +240,10 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 			Val:  value,
 		})
 	}
-	for _, r := range replaces {
+	for _, r := range setInput.replaces {
 		singleReplace := strings.Split(r, delimiter)
 		if len(singleReplace) < 3 {
-			return nil, fmt.Errorf("invalid inline replace format: %s", replaces)
+			return nil, fmt.Errorf("invalid inline replace format: %s", setInput.replaces)
 		}
 		gnmiPath, err := collector.ParsePath(strings.TrimSpace(singleReplace[0]))
 		if err != nil {
@@ -266,7 +259,7 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 			Val:  value,
 		})
 	}
-	for i, p := range updatePaths {
+	for i, p := range setInput.updatePaths {
 		gnmiPath, err := collector.ParsePath(strings.TrimSpace(p))
 		if err != nil {
 			return nil, err
@@ -274,9 +267,9 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 		value := new(gnmi.TypedValue)
 		if useUpdateFiles {
 			var updateData []byte
-			updateData, err = readFile(updateFiles[i])
+			updateData, err = readFile(setInput.updateFiles[i])
 			if err != nil {
-				logger.Printf("error reading data from file '%s': %v", updateFiles[i], err)
+				logger.Printf("error reading data from file '%s': %v", setInput.updateFiles[i], err)
 				return nil, err
 			}
 			switch strings.ToUpper(viper.GetString("encoding")) {
@@ -292,7 +285,7 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 				return nil, fmt.Errorf("encoding: %s not supported together with file values", viper.GetString("encoding"))
 			}
 		} else {
-			err = setValue(value, "json", updateValues[i])
+			err = setValue(value, "json", setInput.updateValues[i])
 			if err != nil {
 				return nil, err
 			}
@@ -302,7 +295,7 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 			Val:  value,
 		})
 	}
-	for i, p := range replacePaths {
+	for i, p := range setInput.replacePaths {
 		gnmiPath, err := collector.ParsePath(strings.TrimSpace(p))
 		if err != nil {
 			return nil, err
@@ -310,9 +303,9 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 		value := new(gnmi.TypedValue)
 		if useReplaceFiles {
 			var replaceData []byte
-			replaceData, err = readFile(replaceFiles[i])
+			replaceData, err = readFile(setInput.replaceFiles[i])
 			if err != nil {
-				logger.Printf("error reading data from file '%s': %v", replaceFiles[i], err)
+				logger.Printf("error reading data from file '%s': %v", setInput.replaceFiles[i], err)
 				return nil, err
 			}
 			switch strings.ToUpper(viper.GetString("encoding")) {
@@ -328,7 +321,7 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 				return nil, fmt.Errorf("encoding: %s not supported together with file values", viper.GetString("encoding"))
 			}
 		} else {
-			err = setValue(value, "json", replaceValues[i])
+			err = setValue(value, "json", setInput.replaceValues[i])
 			if err != nil {
 				return nil, err
 			}
@@ -414,6 +407,25 @@ func setValue(value *gnmi.TypedValue, typ, val string) error {
 		}
 	default:
 		return fmt.Errorf("unknown type '%s', must be one of: %v", typ, vTypes)
+	}
+	return nil
+}
+
+func validateSetInput() error {
+	if (len(setInput.deletes)+len(setInput.updates)+len(setInput.replaces)) == 0 && (len(setInput.updatePaths)+len(setInput.replacePaths)) == 0 {
+		return errors.New("no paths provided")
+	}
+	if len(setInput.updateFiles) > 0 && len(setInput.updateValues) > 0 {
+		return errors.New("set update from file and value are not supported in the same command")
+	}
+	if len(setInput.replaceFiles) > 0 && len(setInput.replaceValues) > 0 {
+		return errors.New("set replace from file and value are not supported in the same command")
+	}
+	if len(setInput.updatePaths) != len(setInput.updateValues) && len(setInput.updatePaths) != len(setInput.updateFiles) {
+		return errors.New("missing update value/file or path")
+	}
+	if len(setInput.replacePaths) != len(setInput.replaceValues) && len(setInput.replacePaths) != len(setInput.replaceFiles) {
+		return errors.New("missing replace value/file or path")
 	}
 	return nil
 }
