@@ -36,6 +36,19 @@ import (
 
 var vTypes = []string{"json", "json_ietf", "string", "int", "uint", "bool", "decimal", "float", "bytes", "ascii"}
 
+var deletes []string
+var updates []string
+var replaces []string
+
+var updatePaths []string
+var replacePaths []string
+
+var updateFiles []string
+var replaceFiles []string
+
+var updateValues []string
+var replaceValues []string
+
 // setCmd represents the set command
 var setCmd = &cobra.Command{
 	Use:   "set",
@@ -158,30 +171,21 @@ func init() {
 	setCmd.SilenceUsage = true
 	setCmd.Flags().StringP("prefix", "", "", "set request prefix")
 
-	setCmd.Flags().StringSliceP("delete", "", []string{}, "set request path to be deleted")
+	setCmd.Flags().StringArrayVarP(&deletes, "delete", "", []string{}, "set request path to be deleted")
 
-	setCmd.Flags().StringSliceP("replace", "", []string{}, fmt.Sprintf("set request path:::type:::value to be replaced, type must be one of %v", vTypes))
-	setCmd.Flags().StringSliceP("update", "", []string{}, fmt.Sprintf("set request path:::type:::value to be updated, type must be one of %v", vTypes))
+	setCmd.Flags().StringArrayVarP(&replaces, "replace", "", []string{}, fmt.Sprintf("set request path:::type:::value to be replaced, type must be one of %v", vTypes))
+	setCmd.Flags().StringArrayVarP(&updates, "update", "", []string{}, fmt.Sprintf("set request path:::type:::value to be updated, type must be one of %v", vTypes))
 
-	setCmd.Flags().StringSliceP("replace-path", "", []string{""}, "set request path to be replaced")
-	setCmd.Flags().StringSliceP("update-path", "", []string{""}, "set request path to be updated")
-	setCmd.Flags().StringSliceP("update-file", "", []string{""}, "set update request value in json/yaml file")
-	setCmd.Flags().StringSliceP("replace-file", "", []string{""}, "set replace request value in json/yaml file")
-	setCmd.Flags().StringSliceP("update-value", "", []string{""}, "set update request value")
-	setCmd.Flags().StringSliceP("replace-value", "", []string{""}, "set replace request value")
+	setCmd.Flags().StringArrayVarP(&replacePaths, "replace-path", "", []string{""}, "set request path to be replaced")
+	setCmd.Flags().StringArrayVarP(&updatePaths, "update-path", "", []string{""}, "set request path to be updated")
+	setCmd.Flags().StringArrayVarP(&updateFiles, "update-file", "", []string{""}, "set update request value in json/yaml file")
+	setCmd.Flags().StringArrayVarP(&replaceFiles, "replace-file", "", []string{""}, "set replace request value in json/yaml file")
+	setCmd.Flags().StringArrayVarP(&updateValues, "update-value", "", []string{""}, "set update request value")
+	setCmd.Flags().StringArrayVarP(&replaceValues, "replace-value", "", []string{""}, "set replace request value")
 	setCmd.Flags().StringP("delimiter", "", ":::", "set update/replace delimiter between path, type, value")
 	setCmd.Flags().StringP("target", "", "", "set request target")
 
 	viper.BindPFlag("set-prefix", setCmd.LocalFlags().Lookup("prefix"))
-	viper.BindPFlag("set-delete", setCmd.LocalFlags().Lookup("delete"))
-	viper.BindPFlag("set-replace", setCmd.LocalFlags().Lookup("replace"))
-	viper.BindPFlag("set-update", setCmd.LocalFlags().Lookup("update"))
-	viper.BindPFlag("set-update-path", setCmd.LocalFlags().Lookup("update-path"))
-	viper.BindPFlag("set-replace-path", setCmd.LocalFlags().Lookup("replace-path"))
-	viper.BindPFlag("set-update-file", setCmd.LocalFlags().Lookup("update-file"))
-	viper.BindPFlag("set-replace-file", setCmd.LocalFlags().Lookup("replace-file"))
-	viper.BindPFlag("set-update-value", setCmd.LocalFlags().Lookup("update-value"))
-	viper.BindPFlag("set-replace-value", setCmd.LocalFlags().Lookup("replace-value"))
 	viper.BindPFlag("set-delimiter", setCmd.LocalFlags().Lookup("delimiter"))
 	viper.BindPFlag("set-target", setCmd.LocalFlags().Lookup("target"))
 }
@@ -191,18 +195,6 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 	if err != nil {
 		return nil, fmt.Errorf("prefix parse error: %v", err)
 	}
-	deletes := viper.GetStringSlice("set-delete")
-	updates := viper.GetStringSlice("set-update")
-	replaces := viper.GetStringSlice("set-replace")
-
-	updatePaths := viper.GetStringSlice("set-update-path")
-	replacePaths := viper.GetStringSlice("set-replace-path")
-
-	updateFiles := viper.GetStringSlice("set-update-file")
-	replaceFiles := viper.GetStringSlice("set-replace-file")
-
-	updateValues := viper.GetStringSlice("set-update-value")
-	replaceValues := viper.GetStringSlice("set-replace-value")
 
 	delimiter := viper.GetString("set-delimiter")
 	if (len(deletes)+len(updates)+len(replaces)) == 0 && (len(updatePaths)+len(replacePaths)) == 0 {
