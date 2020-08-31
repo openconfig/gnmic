@@ -121,10 +121,10 @@ func getRequest(ctx context.Context, req *gnmi.GetRequest, target *collector.Tar
 func init() {
 	rootCmd.AddCommand(getCmd)
 	getCmd.SilenceUsage = true
-	getCmd.Flags().StringArrayVarP(&paths, "path", "", []string{""}, "get request paths")
+	getCmd.Flags().StringArrayVarP(&paths, "path", "", []string{}, "get request paths")
 	getCmd.MarkFlagRequired("path")
 	getCmd.Flags().StringP("prefix", "", "", "get request prefix")
-	getCmd.Flags().StringSliceP("model", "", []string{""}, "get request models")
+	getCmd.Flags().StringSliceP("model", "", []string{}, "get request models")
 	getCmd.Flags().StringP("type", "t", "ALL", "data type requested from the target. one of: ALL, CONFIG, STATE, OPERATIONAL")
 	getCmd.Flags().StringP("target", "", "", "get request target")
 

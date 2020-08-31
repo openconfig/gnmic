@@ -168,7 +168,7 @@ func init() {
 	rootCmd.AddCommand(subscribeCmd)
 	subscribeCmd.SilenceUsage = true
 	subscribeCmd.Flags().StringP("prefix", "", "", "subscribe request prefix")
-	subscribeCmd.Flags().StringArrayVarP(&paths, "path", "", []string{""}, "subscribe request paths")
+	subscribeCmd.Flags().StringArrayVarP(&paths, "path", "", []string{}, "subscribe request paths")
 	//subscribeCmd.MarkFlagRequired("path")
 	subscribeCmd.Flags().Int32P("qos", "q", 20, "qos marking")
 	subscribeCmd.Flags().BoolP("updates-only", "", false, "only updates to current state should be sent")
@@ -178,12 +178,13 @@ func init() {
 		"sample interval as a decimal number and a suffix unit, such as \"10s\" or \"1m30s\"")
 	subscribeCmd.Flags().BoolP("suppress-redundant", "", false, "suppress redundant update if the subscribed value didn't not change")
 	subscribeCmd.Flags().DurationP("heartbeat-interval", "", 0, "heartbeat interval in case suppress-redundant is enabled")
-	subscribeCmd.Flags().StringSliceP("model", "", []string{""}, "subscribe request used model(s)")
+	subscribeCmd.Flags().StringSliceP("model", "", []string{}, "subscribe request used model(s)")
 	subscribeCmd.Flags().Bool("quiet", false, "suppress stdout printing")
 	subscribeCmd.Flags().StringP("target", "", "", "subscribe request target")
 	subscribeCmd.Flags().StringSliceP("name", "n", []string{}, "reference subscriptions by name, must be defined in gnmic config file")
 	//
 	viper.BindPFlag("subscribe-prefix", subscribeCmd.LocalFlags().Lookup("prefix"))
+	viper.BindPFlag("subscribe-path", subscribeCmd.LocalFlags().Lookup("path"))
 	viper.BindPFlag("subscribe-qos", subscribeCmd.LocalFlags().Lookup("qos"))
 	viper.BindPFlag("subscribe-updates-only", subscribeCmd.LocalFlags().Lookup("updates-only"))
 	viper.BindPFlag("subscribe-mode", subscribeCmd.LocalFlags().Lookup("mode"))

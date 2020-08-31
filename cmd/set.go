@@ -180,16 +180,25 @@ func init() {
 	setCmd.Flags().StringArrayVarP(&setInput.replaces, "replace", "", []string{}, fmt.Sprintf("set request path:::type:::value to be replaced, type must be one of %v", vTypes))
 	setCmd.Flags().StringArrayVarP(&setInput.updates, "update", "", []string{}, fmt.Sprintf("set request path:::type:::value to be updated, type must be one of %v", vTypes))
 
-	setCmd.Flags().StringArrayVarP(&setInput.replacePaths, "replace-path", "", []string{""}, "set request path to be replaced")
-	setCmd.Flags().StringArrayVarP(&setInput.updatePaths, "update-path", "", []string{""}, "set request path to be updated")
-	setCmd.Flags().StringArrayVarP(&setInput.updateFiles, "update-file", "", []string{""}, "set update request value in json/yaml file")
-	setCmd.Flags().StringArrayVarP(&setInput.replaceFiles, "replace-file", "", []string{""}, "set replace request value in json/yaml file")
-	setCmd.Flags().StringArrayVarP(&setInput.updateValues, "update-value", "", []string{""}, "set update request value")
-	setCmd.Flags().StringArrayVarP(&setInput.replaceValues, "replace-value", "", []string{""}, "set replace request value")
+	setCmd.Flags().StringArrayVarP(&setInput.replacePaths, "replace-path", "", []string{}, "set request path to be replaced")
+	setCmd.Flags().StringArrayVarP(&setInput.updatePaths, "update-path", "", []string{}, "set request path to be updated")
+	setCmd.Flags().StringArrayVarP(&setInput.updateFiles, "update-file", "", []string{}, "set update request value in json/yaml file")
+	setCmd.Flags().StringArrayVarP(&setInput.replaceFiles, "replace-file", "", []string{}, "set replace request value in json/yaml file")
+	setCmd.Flags().StringArrayVarP(&setInput.updateValues, "update-value", "", []string{}, "set update request value")
+	setCmd.Flags().StringArrayVarP(&setInput.replaceValues, "replace-value", "", []string{}, "set replace request value")
 	setCmd.Flags().StringP("delimiter", "", ":::", "set update/replace delimiter between path, type, value")
 	setCmd.Flags().StringP("target", "", "", "set request target")
 
 	viper.BindPFlag("set-prefix", setCmd.LocalFlags().Lookup("prefix"))
+	viper.BindPFlag("set-delete", setCmd.LocalFlags().Lookup("delete"))
+	viper.BindPFlag("set-replace", setCmd.LocalFlags().Lookup("replace"))
+	viper.BindPFlag("set-update", setCmd.LocalFlags().Lookup("update"))
+	viper.BindPFlag("set-update-path", setCmd.LocalFlags().Lookup("update-path"))
+	viper.BindPFlag("set-replace-path", setCmd.LocalFlags().Lookup("replace-path"))
+	viper.BindPFlag("set-update-file", setCmd.LocalFlags().Lookup("update-file"))
+	viper.BindPFlag("set-replace-file", setCmd.LocalFlags().Lookup("replace-file"))
+	viper.BindPFlag("set-update-value", setCmd.LocalFlags().Lookup("update-value"))
+	viper.BindPFlag("set-replace-value", setCmd.LocalFlags().Lookup("replace-value"))
 	viper.BindPFlag("set-delimiter", setCmd.LocalFlags().Lookup("delimiter"))
 	viper.BindPFlag("set-target", setCmd.LocalFlags().Lookup("target"))
 }
@@ -199,6 +208,7 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 	if err != nil {
 		return nil, fmt.Errorf("prefix parse error: %v", err)
 	}
+	fmt.Printf("%+v\n", setInput)
 	err = validateSetInput()
 	if err != nil {
 		return nil, err
@@ -416,6 +426,8 @@ func validateSetInput() error {
 		return errors.New("no paths provided")
 	}
 	if len(setInput.updateFiles) > 0 && len(setInput.updateValues) > 0 {
+		fmt.Println(len(setInput.updateFiles))
+		fmt.Println(len(setInput.updateValues))
 		return errors.New("set update from file and value are not supported in the same command")
 	}
 	if len(setInput.replaceFiles) > 0 && len(setInput.replaceValues) > 0 {
