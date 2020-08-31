@@ -28,6 +28,8 @@ import (
 	"github.com/spf13/viper"
 )
 
+var paths []string
+
 // getCmd represents the get command
 var getCmd = &cobra.Command{
 	Use:   "get",
@@ -119,7 +121,7 @@ func getRequest(ctx context.Context, req *gnmi.GetRequest, target *collector.Tar
 func init() {
 	rootCmd.AddCommand(getCmd)
 	getCmd.SilenceUsage = true
-	getCmd.Flags().StringSliceP("path", "", []string{""}, "get request paths")
+	getCmd.Flags().StringArrayVarP(&paths, "path", "", []string{""}, "get request paths")
 	getCmd.MarkFlagRequired("path")
 	getCmd.Flags().StringP("prefix", "", "", "get request prefix")
 	getCmd.Flags().StringSliceP("model", "", []string{""}, "get request models")
@@ -138,7 +140,6 @@ func createGetRequest() (*gnmi.GetRequest, error) {
 	if !ok {
 		return nil, fmt.Errorf("invalid encoding type '%s'", viper.GetString("encoding"))
 	}
-	paths := viper.GetStringSlice("get-path")
 	req := &gnmi.GetRequest{
 		UseModels: make([]*gnmi.ModelData, 0),
 		Path:      make([]*gnmi.Path, 0, len(paths)),
