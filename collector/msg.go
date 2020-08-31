@@ -159,7 +159,7 @@ func getValue(updValue *gnmi.TypedValue) (interface{}, error) {
 	case *gnmi.TypedValue_AnyVal:
 		value = updValue.GetAnyVal()
 	}
-	if value == nil {
+	if value == nil && len(jsondata) != 0 {
 		err := json.Unmarshal(jsondata, &value)
 		if err != nil {
 			return nil, err
