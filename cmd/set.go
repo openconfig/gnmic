@@ -208,7 +208,9 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 	if err != nil {
 		return nil, fmt.Errorf("prefix parse error: %v", err)
 	}
-	fmt.Printf("%+v\n", setInput)
+	if viper.GetBool("debug") {
+		logger.Printf("setInput struct: %+v", setInput)
+	}
 	err = validateSetInput()
 	if err != nil {
 		return nil, err
