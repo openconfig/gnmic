@@ -13,7 +13,6 @@ const (
 	subscriptionDefaultMode       = "STREAM"
 	subscriptionDefaultStreamMode = "TARGET_DEFINED"
 	subscriptionDefaultEncoding   = "JSON"
-	subscriptionDefaultQos        = 20
 )
 
 // SubscriptionConfig //
@@ -55,10 +54,6 @@ func (sc *SubscriptionConfig) setDefaults() error {
 	if sc.Encoding == "" {
 		sc.Encoding = subscriptionDefaultEncoding
 	}
-	if sc.Qos == nil {
-		sc.Qos = new(uint32)
-		*sc.Qos = subscriptionDefaultQos
-	}
 	return nil
 }
 
@@ -79,7 +74,10 @@ func (sc *SubscriptionConfig) CreateSubscribeRequest() (*gnmi.SubscribeRequest, 
 	if !ok {
 		return nil, fmt.Errorf("subscription '%s' invalid subscription list type '%s'", sc.Name, sc.Mode)
 	}
-	qos := &gnmi.QOSMarking{Marking: *sc.Qos}
+	var qos *gnmi.QOSMarking
+	if sc.Qos != nil {
+		qos = &gnmi.QOSMarking{Marking: *sc.Qos}
+	}
 
 	subscriptions := make([]*gnmi.Subscription, len(sc.Paths))
 	for i, p := range sc.Paths {

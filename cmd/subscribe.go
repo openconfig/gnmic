@@ -170,7 +170,7 @@ func init() {
 	subscribeCmd.Flags().StringP("prefix", "", "", "subscribe request prefix")
 	subscribeCmd.Flags().StringArrayVarP(&paths, "path", "", []string{}, "subscribe request paths")
 	//subscribeCmd.MarkFlagRequired("path")
-	subscribeCmd.Flags().Int32P("qos", "q", 20, "qos marking")
+	subscribeCmd.Flags().Uint32P("qos", "q", 0, "qos marking")
 	subscribeCmd.Flags().BoolP("updates-only", "", false, "only updates to current state should be sent")
 	subscribeCmd.Flags().StringP("mode", "", "stream", "one of: once, stream, poll")
 	subscribeCmd.Flags().StringP("stream-mode", "", "target-defined", "one of: on-change, sample, target-defined")
@@ -252,7 +252,14 @@ func getSubscriptions() (map[string]*collector.SubscriptionConfig, error) {
 	subscriptions := make(map[string]*collector.SubscriptionConfig)
 	hi := viper.GetDuration("subscribe-heartbeat-interval")
 	si := viper.GetDuration("subscribe-sample-interval")
-	qos := viper.GetUint32("subscribe-qos")
+	var qos *uint32
+	// qos value is set to nil by default to enable targets which don't support qos marking
+	if viper.IsSet("subscribe-qos") {
+		fmt.Println("qos is set")
+		q := viper.GetUint32("subscribe-qos")
+		qos = &q
+	}
+
 	subNames := viper.GetStringSlice("subscribe-name")
 	if len(paths) > 0 && len(subNames) > 0 {
 		return nil, fmt.Errorf("flags --path and --name cannot be mixed")
@@ -265,7 +272,7 @@ func getSubscriptions() (map[string]*collector.SubscriptionConfig, error) {
 		sub.Target = viper.GetString("subscribe-target")
 		sub.Mode = viper.GetString("subscribe-mode")
 		sub.Encoding = viper.GetString("encoding")
-		sub.Qos = &qos
+		sub.Qos = qos
 		sub.StreamMode = viper.GetString("subscribe-stream-mode")
 		sub.HeartbeatInterval = &hi
 		sub.SampleInterval = &si
@@ -312,7 +319,7 @@ func getSubscriptions() (map[string]*collector.SubscriptionConfig, error) {
 			sub.StreamMode = viper.GetString("subscribe-stream-mode")
 		}
 		if sub.Qos == nil {
-			sub.Qos = &qos
+			sub.Qos = qos
 		}
 		subscriptions[sn] = sub
 	}
