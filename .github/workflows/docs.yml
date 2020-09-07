@@ -2,9 +2,8 @@ name: docs
 on:
   push:
     branches:
-      - master
-    paths:
-      - "docs/**"
+      - "refs/tags/v*"
+      - "docs-*"
 
 jobs:
   publish:
