@@ -1,0 +1,109 @@
+site_name: gNMIc
+nav:
+  - Home: index.md
+  - Getting started:
+      - Installation: install.md
+      - Basic usage: basic_usage.md
+      - Global flags: global_flags.md
+  - Advanced usage:
+      - File based configuration: advanced/file_cfg.md
+      - Multiple targets: advanced/multi_target.md
+      - Multiple subscriptions: advanced/subscriptions.md
+      - Multiple outputs:
+          - Introduction: advanced/multi_outputs/output_intro.md
+          - File: advanced/multi_outputs/file_output.md
+          - NATS: advanced/multi_outputs/nats_output.md
+          - STAN: advanced/multi_outputs/stan_output.md
+          - Kafka: advanced/multi_outputs/kafka_output.md
+
+  - Command reference:
+      - Capabilities: cmd/capabilities.md
+      - Get: cmd/get.md
+      - Set: cmd/set.md
+      - Subscribe: cmd/subscribe.md
+      - Listen: cmd/listen.md
+      - Path: cmd/path.md
+
+site_author: Karim Radhouani
+site_description: >-
+  gnmi client and collector command line interface
+# Repository
+repo_name: karimra/gnmic
+repo_url: https://github.com/karimra/gnmic
+edit_uri: ""
+theme:
+  name: material
+
+  # 404 page
+  static_templates:
+    - 404.html
+
+  # Don't include MkDocs' JavaScript
+  include_search_page: false
+  search_index_only: true
+
+  # Default values, taken from mkdocs_theme.yml
+  language: en
+  palette:
+    scheme: preference
+    primary: blue
+    accent: indigo
+  font:
+    text: Manrope
+    code: Fira Mono
+  icon:
+    logo: octicons/pulse-24
+  favicon: images/pulse.svg
+
+extra_css:
+  - stylesheets/extra.css
+
+# Plugins
+plugins:
+  - search
+  - minify:
+      minify_html: true
+
+# Customization
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/karimra
+
+# Extensions
+markdown_extensions:
+  - markdown.extensions.admonition
+  - markdown.extensions.attr_list
+  - markdown.extensions.codehilite:
+      guess_lang: false
+  - markdown.extensions.def_list
+  - markdown.extensions.footnotes
+  - markdown.extensions.meta
+  - markdown.extensions.toc:
+      permalink: "#"
+  - pymdownx.arithmatex
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.critic
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:materialx.emoji.twemoji
+      emoji_generator: !!python/name:materialx.emoji.to_svg
+  - pymdownx.highlight:
+      linenums_style: pymdownx-inline
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.magiclink:
+      repo_url_shorthand: true
+      user: squidfunk
+      repo: mkdocs-material
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.snippets:
+      check_paths: true
+  - pymdownx.superfences
+  - pymdownx.tabbed
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
