@@ -21,8 +21,10 @@ dockers:
     binaries:
       - gnmic
     image_templates:
-      - "gnmic/gnmic:latest"
-      - 'gnmic/gnmic:{{ replace .Version "v" ""}}'
+      - "docker.io/gnmic/gnmic:latest"
+      - 'docker.io/gnmic/gnmic:{{ replace .Version "v" ""}}'
+      - "ghcr.io/gnmic/gnmic:latest"
+      - 'ghcr.io/gnmic/gnmic:{{ replace .Version "v" ""}}'
     dockerfile: goreleaser.dockerfile
     skip_push: false
 archives:
