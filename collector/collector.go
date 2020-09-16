@@ -202,7 +202,7 @@ func (c *Collector) Start() {
 					if tErr.Err == io.EOF {
 						c.Logger.Printf("target '%s', subscription %s closed stream(EOF)", t.Config.Name, tErr.SubscriptionName)
 					} else {
-						c.Logger.Printf("target '%s', subscription %s error: %v", t.Config.Name, tErr.SubscriptionName, tErr.Err)
+						c.Logger.Printf("target '%s', subscription %s rcv error: %v", t.Config.Name, tErr.SubscriptionName, tErr.Err)
 					}
 					if remainingOnceSubscriptions > 0 {
 						if c.subscriptionMode(tErr.SubscriptionName) == "ONCE" {
