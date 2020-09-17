@@ -73,14 +73,14 @@ var subscribeCmd = &cobra.Command{
 			TargetReceiveBuffer: viper.GetUint("target-buffer-size"),
 		}
 
-		coll := collector.NewCollector(ctx, cfg, targetsConfig, subscriptionsConfig, outs, createCollectorDialOpts(), logger)
+		coll := collector.NewCollector(cfg, targetsConfig, subscriptionsConfig, outs, createCollectorDialOpts(), logger)
 
 		wg := new(sync.WaitGroup)
 		wg.Add(len(coll.Targets))
 		for name := range coll.Targets {
 			go func(tn string) {
 				defer wg.Done()
-				if err = coll.Subscribe(tn); err != nil {
+				if err = coll.Subscribe(ctx, tn); err != nil {
 					if errors.Is(err, context.DeadlineExceeded) {
 						logger.Printf("failed to initialize target '%s' timeout (%s) reached", tn, targetsConfig[tn].Timeout)
 						return
@@ -159,7 +159,7 @@ var subscribeCmd = &cobra.Command{
 				}
 			}()
 		}
-		coll.Start()
+		coll.Start(ctx)
 		return nil
 	},
 }

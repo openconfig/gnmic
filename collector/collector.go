@@ -40,13 +40,10 @@ type Collector struct {
 	Targets    map[string]*Target
 	Logger     *log.Logger
 	httpServer *http.Server
-
-	ctx      context.Context
-	cancelFn context.CancelFunc
 }
 
 // NewCollector //
-func NewCollector(ctx context.Context,
+func NewCollector(
 	config *Config,
 	targetConfigs map[string]*TargetConfig,
 	subscriptions map[string]*SubscriptionConfig,
@@ -54,7 +51,6 @@ func NewCollector(ctx context.Context,
 	dialOpts []grpc.DialOption,
 	logger *log.Logger,
 ) *Collector {
-	nctx, cancel := context.WithCancel(ctx)
 	var httpServer *http.Server
 	if config.PrometheusAddress != "" {
 		grpcMetrics := grpc_prometheus.NewClientMetrics()
@@ -83,8 +79,6 @@ func NewCollector(ctx context.Context,
 		Targets:       make(map[string]*Target),
 		Logger:        logger,
 		httpServer:    httpServer,
-		ctx:           nctx,
-		cancelFn:      cancel,
 	}
 
 	for _, tc := range targetConfigs {
@@ -131,9 +125,9 @@ func (c *Collector) InitTarget(tc *TargetConfig) {
 }
 
 // Subscribe //
-func (c *Collector) Subscribe(tName string) error {
+func (c *Collector) Subscribe(ctx context.Context, tName string) error {
 	if t, ok := c.Targets[tName]; ok {
-		if err := t.CreateGNMIClient(c.ctx, c.DialOpts...); err != nil {
+		if err := t.CreateGNMIClient(ctx, c.DialOpts...); err != nil {
 			return err
 		}
 		c.Logger.Printf("target '%s' gNMI client created", t.Config.Name)
@@ -144,7 +138,7 @@ func (c *Collector) Subscribe(tName string) error {
 			}
 			c.Logger.Printf("sending gNMI SubscribeRequest: subscribe='%+v', mode='%+v', encoding='%+v', to %s",
 				req, req.GetSubscribe().GetMode(), req.GetSubscribe().GetEncoding(), t.Config.Name)
-			go t.Subscribe(c.ctx, req, sc.Name)
+			go t.Subscribe(ctx, req, sc.Name)
 		}
 		return nil
 	}
@@ -152,7 +146,7 @@ func (c *Collector) Subscribe(tName string) error {
 }
 
 // Start start the prometheus server as well as a goroutine per target selecting on the response chan, the error chan and the ctx.Done() chan
-func (c *Collector) Start() {
+func (c *Collector) Start(ctx context.Context) {
 	if c.httpServer != nil {
 		go func() {
 			if err := c.httpServer.ListenAndServe(); err != nil {
@@ -212,8 +206,8 @@ func (c *Collector) Start() {
 					if remainingOnceSubscriptions == 0 && numSubscriptions == numOnceSubscriptions {
 						return
 					}
-				case <-c.ctx.Done():
-					c.cancelFn()
+				case <-ctx.Done():				
+					return
 				}
 			}
 		}(t)
