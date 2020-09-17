@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"strings"
 	"sync"
@@ -18,6 +19,10 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
+)
+
+const (
+	defaultRetryTimer = 10 * time.Second
 )
 
 type TargetError struct {
@@ -155,6 +160,7 @@ func (t *Target) Set(ctx context.Context, req *gnmi.SetRequest) (*gnmi.SetRespon
 
 // Subscribe sends a gnmi.SubscribeRequest to the target *t, responses and error are sent to the target channels
 func (t *Target) Subscribe(ctx context.Context, req *gnmi.SubscribeRequest, subscriptionName string) {
+SUBSC:
 	nctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	nctx = metadata.AppendToOutgoingContext(nctx, "username", *t.Config.Username, "password", *t.Config.Password)
@@ -162,9 +168,11 @@ func (t *Target) Subscribe(ctx context.Context, req *gnmi.SubscribeRequest, subs
 	if err != nil {
 		t.Errors <- &TargetError{
 			SubscriptionName: subscriptionName,
-			Err:              fmt.Errorf("failed to create a subscribe client, target='%s': %v", t.Config.Name, err),
+			Err:              fmt.Errorf("failed to create a subscribe client, target='%s', retry in %d. err=%v", t.Config.Name, defaultRetryTimer, err),
 		}
-		return
+		cancel()
+		time.Sleep(defaultRetryTimer)
+		goto SUBSC
 	}
 	t.m.Lock()
 	t.SubscribeClients[subscriptionName] = subscribeClient
@@ -173,12 +181,14 @@ func (t *Target) Subscribe(ctx context.Context, req *gnmi.SubscribeRequest, subs
 	if err != nil {
 		t.Errors <- &TargetError{
 			SubscriptionName: subscriptionName,
-			Err:              fmt.Errorf("target '%s' send error: %v", t.Config.Name, err),
+			Err:              fmt.Errorf("target '%s' send error, retry in %d. err=%v", t.Config.Name, defaultRetryTimer, err),
 		}
-		return
+		cancel()
+		time.Sleep(defaultRetryTimer)
+		goto SUBSC
 	}
 	switch req.GetSubscribe().Mode {
-	case gnmi.SubscriptionList_ONCE, gnmi.SubscriptionList_STREAM:
+	case gnmi.SubscriptionList_STREAM:
 		for {
 			response, err := subscribeClient.Recv()
 			if err != nil {
@@ -186,17 +196,46 @@ func (t *Target) Subscribe(ctx context.Context, req *gnmi.SubscribeRequest, subs
 					SubscriptionName: subscriptionName,
 					Err:              err,
 				}
-				return
+				t.Errors <- &TargetError{
+					SubscriptionName: subscriptionName,
+					Err:              fmt.Errorf("retrying in %d", defaultRetryTimer),
+				}
+				cancel()
+				time.Sleep(defaultRetryTimer)
+				goto SUBSC
 			}
 			t.SubscribeResponses <- &SubscribeResponse{
 				SubscriptionName: subscriptionName,
 				Response:         response,
 			}
-			if req.GetSubscribe().Mode == gnmi.SubscriptionList_ONCE {
-				switch response.Response.(type) {
-				case *gnmi.SubscribeResponse_SyncResponse:
-					return
+		}
+	case gnmi.SubscriptionList_ONCE:
+		for {
+			response, err := subscribeClient.Recv()
+			if err != nil {
+				t.Errors <- &TargetError{
+					SubscriptionName: subscriptionName,
+					Err:              err,
 				}
+				if err == io.EOF {
+					return
+				} else {
+					t.Errors <- &TargetError{
+						SubscriptionName: subscriptionName,
+						Err:              fmt.Errorf("retrying in %d", defaultRetryTimer),
+					}
+					cancel()
+					time.Sleep(defaultRetryTimer)
+					goto SUBSC
+				}
+			}
+			t.SubscribeResponses <- &SubscribeResponse{
+				SubscriptionName: subscriptionName,
+				Response:         response,
+			}
+			switch response.Response.(type) {
+			case *gnmi.SubscribeResponse_SyncResponse:
+				return
 			}
 		}
 	case gnmi.SubscriptionList_POLL:
