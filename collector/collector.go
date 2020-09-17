@@ -198,12 +198,20 @@ func (c *Collector) Start() {
 					if remainingOnceSubscriptions == 0 && numSubscriptions == numOnceSubscriptions {
 						return
 					}
-				case err := <-t.Errors:
-					if err == io.EOF {
-						c.Logger.Printf("target '%s' closed stream(EOF)", t.Config.Name)
+				case tErr := <-t.Errors:
+					if tErr.Err == io.EOF {
+						c.Logger.Printf("target '%s', subscription %s closed stream(EOF)", t.Config.Name, tErr.SubscriptionName)
+					} else {
+						c.Logger.Printf("target '%s', subscription %s rcv error: %v", t.Config.Name, tErr.SubscriptionName, tErr.Err)
+					}
+					if remainingOnceSubscriptions > 0 {
+						if c.subscriptionMode(tErr.SubscriptionName) == "ONCE" {
+							remainingOnceSubscriptions--
+						}
+					}
+					if remainingOnceSubscriptions == 0 && numSubscriptions == numOnceSubscriptions {
 						return
 					}
-					c.Logger.Printf("target '%s' error: %v", t.Config.Name, err)
 				case <-c.ctx.Done():
 					c.cancelFn()
 				}

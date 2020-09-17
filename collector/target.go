@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"strings"
 	"sync"
@@ -21,6 +20,11 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
+type TargetError struct {
+	SubscriptionName string
+	Err              error
+}
+
 // Target represents a gNMI enabled box
 type Target struct {
 	Config        *TargetConfig
@@ -32,7 +36,7 @@ type Target struct {
 	SubscribeClients   map[string]gnmi.GNMI_SubscribeClient // subscription name to subscribeClient
 	PollChan           chan string                          // subscription name to be polled
 	SubscribeResponses chan *SubscribeResponse
-	Errors             chan error
+	Errors             chan *TargetError
 }
 
 // TargetConfig //
@@ -70,7 +74,7 @@ func NewTarget(c *TargetConfig) *Target {
 		SubscribeClients:   make(map[string]gnmi.GNMI_SubscribeClient),
 		PollChan:           make(chan string),
 		SubscribeResponses: make(chan *SubscribeResponse, c.BufferSize),
-		Errors:             make(chan error),
+		Errors:             make(chan *TargetError),
 	}
 	return t
 
@@ -156,7 +160,10 @@ func (t *Target) Subscribe(ctx context.Context, req *gnmi.SubscribeRequest, subs
 	nctx = metadata.AppendToOutgoingContext(nctx, "username", *t.Config.Username, "password", *t.Config.Password)
 	subscribeClient, err := t.Client.Subscribe(nctx)
 	if err != nil {
-		t.Errors <- fmt.Errorf("failed to create a subscribe client, target='%s': %v", t.Config.Name, err)
+		t.Errors <- &TargetError{
+			SubscriptionName: subscriptionName,
+			Err:              fmt.Errorf("failed to create a subscribe client, target='%s': %v", t.Config.Name, err),
+		}
 		return
 	}
 	t.m.Lock()
@@ -164,22 +171,27 @@ func (t *Target) Subscribe(ctx context.Context, req *gnmi.SubscribeRequest, subs
 	t.m.Unlock()
 	err = subscribeClient.Send(req)
 	if err != nil {
-		t.Errors <- fmt.Errorf("target '%s' send error: %v", t.Config.Name, err)
+		t.Errors <- &TargetError{
+			SubscriptionName: subscriptionName,
+			Err:              fmt.Errorf("target '%s' send error: %v", t.Config.Name, err),
+		}
 		return
 	}
 	switch req.GetSubscribe().Mode {
 	case gnmi.SubscriptionList_ONCE, gnmi.SubscriptionList_STREAM:
 		for {
 			response, err := subscribeClient.Recv()
-			if err == io.EOF {
-				t.Errors <- err
-				return
-			}
 			if err != nil {
-				t.Errors <- fmt.Errorf("receive error: %v", err)
+				t.Errors <- &TargetError{
+					SubscriptionName: subscriptionName,
+					Err:              err,
+				}
 				return
 			}
-			t.SubscribeResponses <- &SubscribeResponse{Response: response, SubscriptionName: subscriptionName}
+			t.SubscribeResponses <- &SubscribeResponse{
+				SubscriptionName: subscriptionName,
+				Response:         response,
+			}
 			if req.GetSubscribe().Mode == gnmi.SubscriptionList_ONCE {
 				switch response.Response.(type) {
 				case *gnmi.SubscribeResponse_SyncResponse:
@@ -197,15 +209,24 @@ func (t *Target) Subscribe(ctx context.Context, req *gnmi.SubscribeRequest, subs
 					},
 				})
 				if err != nil {
-					t.Errors <- fmt.Errorf("failed to send PollRequest: %v", err)
+					t.Errors <- &TargetError{
+						SubscriptionName: subscriptionName,
+						Err:              fmt.Errorf("failed to send PollRequest: %v", err),
+					}
 					continue
 				}
 				response, err := subscribeClient.Recv()
 				if err != nil {
-					t.Errors <- fmt.Errorf("rcv error: %v", err)
+					t.Errors <- &TargetError{
+						SubscriptionName: subscriptionName,
+						Err:              err,
+					}
 					continue
 				}
-				t.SubscribeResponses <- &SubscribeResponse{Response: response, SubscriptionName: subscriptionName}
+				t.SubscribeResponses <- &SubscribeResponse{
+					SubscriptionName: subscriptionName,
+					Response:         response,
+				}
 			case <-nctx.Done():
 				return
 			}
