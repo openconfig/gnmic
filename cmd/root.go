@@ -85,6 +85,7 @@ var rootCmd = &cobra.Command{
 		logger = log.New(f, "gnmic ", loggingFlags)
 		if debug {
 			grpclog.SetLogger(logger) //lint:ignore SA1019 see https://github.com/karimra/gnmic/issues/59
+			log.Printf("version=%s, commit=%s, date=%s, gitURL=%s, docs=https://gnmic.kmrd.dev", version, commit, date, gitURL)
 		}
 		cfgFile := viper.ConfigFileUsed()
 		if len(cfgFile) != 0 {
