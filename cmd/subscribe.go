@@ -22,6 +22,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/outputs"
@@ -80,12 +81,17 @@ var subscribeCmd = &cobra.Command{
 		for name := range coll.Targets {
 			go func(tn string) {
 				defer wg.Done()
+			SUBSC:
 				if err = coll.Subscribe(ctx, tn); err != nil {
 					if errors.Is(err, context.DeadlineExceeded) {
 						logger.Printf("failed to initialize target '%s' timeout (%s) reached", tn, targetsConfig[tn].Timeout)
-						return
+						//return
+					} else {
+						logger.Printf("failed to initialize target '%s': %v", tn, err)
 					}
-					logger.Printf("failed to initialize target '%s': %v", tn, err)
+					logger.Printf("retrying target %s in %d", tn, 10*time.Second)
+					time.Sleep(10 * time.Second)
+					goto SUBSC
 				}
 			}(name)
 		}
