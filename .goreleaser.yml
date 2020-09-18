@@ -56,8 +56,8 @@ nfpms:
     replacements:
       amd64: x86_64
       386: i386
-      darwin: darwin
-      linux: linux
+      darwin: Darwin
+      linux: Linux
     vendor: gnmic
     homepage: https://gnmic.kmrd.dev
     maintainer: Karim Radhouani <medkarimrdi@gmail.com>, Roman Dodin <dodin.roman@gmail.com>
