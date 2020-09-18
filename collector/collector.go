@@ -2,12 +2,14 @@ package collector
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/karimra/gnmic/outputs"
@@ -27,6 +29,7 @@ type Config struct {
 	Debug               bool
 	Format              string
 	TargetReceiveBuffer uint
+	RetryTimer          time.Duration
 }
 
 // Collector //
@@ -69,6 +72,9 @@ func NewCollector(
 		if config.TargetReceiveBuffer == 0 {
 			config.TargetReceiveBuffer = defaultTargetReceivebuffer
 		}
+		if config.RetryTimer == 0 {
+			config.RetryTimer = defaultRetryTimer
+		}
 	}
 	c := &Collector{
 		Config:        config,
@@ -91,6 +97,9 @@ func NewCollector(
 func (c *Collector) InitTarget(tc *TargetConfig) {
 	if tc.BufferSize == 0 {
 		tc.BufferSize = c.Config.TargetReceiveBuffer
+	}
+	if tc.RetryTimer == 0 {
+		tc.RetryTimer = c.Config.RetryTimer
 	}
 	t := NewTarget(tc)
 	//
@@ -193,7 +202,7 @@ func (c *Collector) Start(ctx context.Context) {
 						return
 					}
 				case tErr := <-t.Errors:
-					if tErr.Err == io.EOF {
+					if errors.Is(tErr.Err, io.EOF) {
 						c.Logger.Printf("target '%s', subscription %s closed stream(EOF)", t.Config.Name, tErr.SubscriptionName)
 					} else {
 						c.Logger.Printf("target '%s', subscription %s rcv error: %v", t.Config.Name, tErr.SubscriptionName, tErr.Err)
@@ -206,7 +215,7 @@ func (c *Collector) Start(ctx context.Context) {
 					if remainingOnceSubscriptions == 0 && numSubscriptions == numOnceSubscriptions {
 						return
 					}
-				case <-ctx.Done():				
+				case <-ctx.Done():
 					return
 				}
 			}
