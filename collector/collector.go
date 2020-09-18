@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/karimra/gnmic/outputs"
@@ -28,6 +29,7 @@ type Config struct {
 	Debug               bool
 	Format              string
 	TargetReceiveBuffer uint
+	RetryTimer          time.Duration
 }
 
 // Collector //
@@ -70,6 +72,9 @@ func NewCollector(
 		if config.TargetReceiveBuffer == 0 {
 			config.TargetReceiveBuffer = defaultTargetReceivebuffer
 		}
+		if config.RetryTimer == 0 {
+			config.RetryTimer = defaultRetryTimer
+		}
 	}
 	c := &Collector{
 		Config:        config,
@@ -92,6 +97,9 @@ func NewCollector(
 func (c *Collector) InitTarget(tc *TargetConfig) {
 	if tc.BufferSize == 0 {
 		tc.BufferSize = c.Config.TargetReceiveBuffer
+	}
+	if tc.RetryTimer == 0 {
+		tc.RetryTimer = c.Config.RetryTimer
 	}
 	t := NewTarget(tc)
 	//

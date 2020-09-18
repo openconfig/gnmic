@@ -59,6 +59,7 @@ type TargetConfig struct {
 	Subscriptions []string      `mapstructure:"subscriptions,omitempty"`
 	Outputs       []string      `mapstructure:"outputs,omitempty"`
 	BufferSize    uint          `mapstructure:"buffer-size,omitempty"`
+	RetryTimer    time.Duration `mapstructure:"retry_timer,omitempty"`
 }
 
 func (tc *TargetConfig) String() string {
@@ -168,10 +169,10 @@ SUBSC:
 	if err != nil {
 		t.Errors <- &TargetError{
 			SubscriptionName: subscriptionName,
-			Err:              fmt.Errorf("failed to create a subscribe client, target='%s', retry in %d. err=%v", t.Config.Name, defaultRetryTimer, err),
+			Err:              fmt.Errorf("failed to create a subscribe client, target='%s', retry in %d. err=%v", t.Config.Name, t.Config.RetryTimer, err),
 		}
 		cancel()
-		time.Sleep(defaultRetryTimer)
+		time.Sleep(t.Config.RetryTimer)
 		goto SUBSC
 	}
 	t.m.Lock()
@@ -181,10 +182,10 @@ SUBSC:
 	if err != nil {
 		t.Errors <- &TargetError{
 			SubscriptionName: subscriptionName,
-			Err:              fmt.Errorf("target '%s' send error, retry in %d. err=%v", t.Config.Name, defaultRetryTimer, err),
+			Err:              fmt.Errorf("target '%s' send error, retry in %d. err=%v", t.Config.Name, t.Config.RetryTimer, err),
 		}
 		cancel()
-		time.Sleep(defaultRetryTimer)
+		time.Sleep(t.Config.RetryTimer)
 		goto SUBSC
 	}
 	switch req.GetSubscribe().Mode {
@@ -198,10 +199,10 @@ SUBSC:
 				}
 				t.Errors <- &TargetError{
 					SubscriptionName: subscriptionName,
-					Err:              fmt.Errorf("retrying in %d", defaultRetryTimer),
+					Err:              fmt.Errorf("retrying in %d", t.Config.RetryTimer),
 				}
 				cancel()
-				time.Sleep(defaultRetryTimer)
+				time.Sleep(t.Config.RetryTimer)
 				goto SUBSC
 			}
 			t.SubscribeResponses <- &SubscribeResponse{
@@ -222,10 +223,10 @@ SUBSC:
 				}
 				t.Errors <- &TargetError{
 					SubscriptionName: subscriptionName,
-					Err:              fmt.Errorf("retrying in %d", defaultRetryTimer),
+					Err:              fmt.Errorf("retrying in %d", t.Config.RetryTimer),
 				}
 				cancel()
-				time.Sleep(defaultRetryTimer)
+				time.Sleep(t.Config.RetryTimer)
 				goto SUBSC
 			}
 			t.SubscribeResponses <- &SubscribeResponse{
