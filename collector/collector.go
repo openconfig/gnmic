@@ -2,6 +2,7 @@ package collector
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -193,7 +194,7 @@ func (c *Collector) Start(ctx context.Context) {
 						return
 					}
 				case tErr := <-t.Errors:
-					if tErr.Err == io.EOF {
+					if errors.Is(tErr.Err, io.EOF) {
 						c.Logger.Printf("target '%s', subscription %s closed stream(EOF)", t.Config.Name, tErr.SubscriptionName)
 					} else {
 						c.Logger.Printf("target '%s', subscription %s rcv error: %v", t.Config.Name, tErr.SubscriptionName, tErr.Err)
@@ -206,7 +207,7 @@ func (c *Collector) Start(ctx context.Context) {
 					if remainingOnceSubscriptions == 0 && numSubscriptions == numOnceSubscriptions {
 						return
 					}
-				case <-ctx.Done():				
+				case <-ctx.Done():
 					return
 				}
 			}

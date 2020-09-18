@@ -217,17 +217,16 @@ SUBSC:
 					SubscriptionName: subscriptionName,
 					Err:              err,
 				}
-				if err == io.EOF {
+				if errors.Is(err, io.EOF) {
 					return
-				} else {
-					t.Errors <- &TargetError{
-						SubscriptionName: subscriptionName,
-						Err:              fmt.Errorf("retrying in %d", defaultRetryTimer),
-					}
-					cancel()
-					time.Sleep(defaultRetryTimer)
-					goto SUBSC
 				}
+				t.Errors <- &TargetError{
+					SubscriptionName: subscriptionName,
+					Err:              fmt.Errorf("retrying in %d", defaultRetryTimer),
+				}
+				cancel()
+				time.Sleep(defaultRetryTimer)
+				goto SUBSC
 			}
 			t.SubscribeResponses <- &SubscribeResponse{
 				SubscriptionName: subscriptionName,
