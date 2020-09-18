@@ -153,6 +153,11 @@ Note that in case multiple targets are used, all should use the same credentials
 ### proxy-from-env
 The proxy-from-env flag `[--proxy-from-env]` indicates that the gnmic should use the HTTP/HTTPS proxy addresses defined in the environment variables `http_proxy` and `https_proxy` to reach the targets specified using the `--address` flag.
 
+### retry
+The retry flag `[--retry] specifies the wait time before each retry.
+
+Valid formats: 10s, 1m30s, 1h.  Defaults to 10s
+
 ### skip-verify
 The skip verify flag `[--skip-verify]` indicates that the target should skip the signature verification steps, in case a secure connection is used.  
 
