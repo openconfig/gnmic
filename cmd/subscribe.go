@@ -34,6 +34,8 @@ import (
 	"github.com/spf13/viper"
 )
 
+const defaultRetryTimer = 10 * time.Second
+
 // subscribeCmd represents the subscribe command
 var subscribeCmd = &cobra.Command{
 	Use:     "subscribe",
@@ -81,17 +83,19 @@ var subscribeCmd = &cobra.Command{
 		for name := range coll.Targets {
 			go func(tn string) {
 				defer wg.Done()
-			SUBSC:
-				if err = coll.Subscribe(ctx, tn); err != nil {
-					if errors.Is(err, context.DeadlineExceeded) {
-						logger.Printf("failed to initialize target '%s' timeout (%s) reached", tn, targetsConfig[tn].Timeout)
-						//return
-					} else {
-						logger.Printf("failed to initialize target '%s': %v", tn, err)
+				for {
+					err = coll.Subscribe(ctx, tn)
+					if err != nil {
+						if errors.Is(err, context.DeadlineExceeded) {
+							logger.Printf("failed to initialize target '%s' timeout (%s) reached", tn, targetsConfig[tn].Timeout)
+						} else {
+							logger.Printf("failed to initialize target '%s': %v", tn, err)
+						}
+						logger.Printf("retrying target %s in %s", tn, defaultRetryTimer)
+						time.Sleep(defaultRetryTimer)
+						continue
 					}
-					logger.Printf("retrying target %s in %d", tn, 10*time.Second)
-					time.Sleep(10 * time.Second)
-					goto SUBSC
+					return
 				}
 			}(name)
 		}
