@@ -74,6 +74,7 @@ var subscribeCmd = &cobra.Command{
 			Debug:               viper.GetBool("debug"),
 			Format:              viper.GetString("format"),
 			TargetReceiveBuffer: viper.GetUint("target-buffer-size"),
+			RetryTimer:          viper.GetDuration("retry-timer"),
 		}
 
 		coll := collector.NewCollector(cfg, targetsConfig, subscriptionsConfig, outs, createCollectorDialOpts(), logger)
@@ -83,6 +84,7 @@ var subscribeCmd = &cobra.Command{
 		for name := range coll.Targets {
 			go func(tn string) {
 				defer wg.Done()
+				tRetryTimer := coll.Targets[tn].Config.RetryTimer
 				for {
 					err = coll.Subscribe(ctx, tn)
 					if err != nil {
@@ -91,8 +93,8 @@ var subscribeCmd = &cobra.Command{
 						} else {
 							logger.Printf("failed to initialize target '%s': %v", tn, err)
 						}
-						logger.Printf("retrying target %s in %s", tn, defaultRetryTimer)
-						time.Sleep(defaultRetryTimer)
+						logger.Printf("retrying target %s in %s", tn, tRetryTimer)
+						time.Sleep(tRetryTimer)
 						continue
 					}
 					return
