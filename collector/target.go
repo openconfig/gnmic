@@ -59,7 +59,7 @@ type TargetConfig struct {
 	Subscriptions []string      `mapstructure:"subscriptions,omitempty"`
 	Outputs       []string      `mapstructure:"outputs,omitempty"`
 	BufferSize    uint          `mapstructure:"buffer-size,omitempty"`
-	RetryTimer    time.Duration `mapstructure:"retry_timer,omitempty"`
+	RetryTimer    time.Duration `mapstructure:"retry,omitempty"`
 }
 
 func (tc *TargetConfig) String() string {
