@@ -501,6 +501,9 @@ func setTargetConfigDefaults(tc *collector.TargetConfig) {
 			tc.TLSKey = &s
 		}
 	}
+	if tc.RetryTimer == 0 {
+		tc.RetryTimer = viper.GetDuration("retry")
+	}
 }
 
 func createCollectorDialOpts() []grpc.DialOption {
