@@ -58,3 +58,12 @@ gnmic -a 10.1.0.11:57400 -u admin -p admin --insecure \
 gnmic -a 10.1.0.11:57400 -u admin -p admin --insecure \
       sub --path "/state/port[port-id=1/1/c1/1]/statistics/in-packets"
 ```
+
+
+
+go run $HOME/go/src/github.com/openconfig/ygot/generator/generator.go -compress_paths -path_structs_output_file path.go -generate_path_structs -include_model_data -generate_fakeroot -output_file $HOME/go/src/github.com/neoul/gnxi/gnmi/model/gostruct/generated.go -package_name gostruct -exclude_modules ietf-interfaces -path $HOME/go/src/github.com/neoul/gnxi/gnmi/model/yang $HOME/go/src/github.com/neoul/gnxi/gnmi/model/yang/openconfig-interfaces.yang $HOME/go/src/github.com/neoul/gnxi/gnmi/model/yang/openconfig-messages.yang $HOME/go/src/github.com/neoul/gnxi/gnmi/model/yang/iana-if-type@2017-01-19.yang $HOME/go/src/github.com/neoul/gnxi/gnmi/model/yang/openconfig-telemetry.yang
+
+gnmic --address localhost:57400 --tls-ca ../gnmi/tls/ca.crt --tls-cert ../gnmi/tls/client.crt --tls-key ../gnmi/tls/client.key --username neoul --password emfla
+
+./gnmic --address 192.168.77.110:57400 --tls-ca ../gnmi/tls/ca.crt --tls-cert ../gnmi/tls/client.crt --tls-key ../gnmi/tls/client.key --username root --password admin -d prompt-mode
+./gnmic --address 192.168.77.110:57400 --tls-ca ../gnmi/tls/ca.crt --tls-cert ../gnmi/tls/client.crt --tls-key ../gnmi/tls/client.key --username root --password admin -d path --dir ../gnmi/model/yang/ --file ../gnmi/model/yang/openconfig-interfaces.yang --types

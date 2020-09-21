@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/google/gnxi/utils/xpath"
@@ -27,10 +28,12 @@ import (
 	"github.com/spf13/viper"
 )
 
-var file string
+var files []string
+var excluded []string
+var dirs []string
 var pathType string
 var module string
-var types bool
+var printTypes bool
 var search bool
 
 // pathCmd represents the path command
@@ -40,19 +43,55 @@ var pathCmd = &cobra.Command{
 	Short:   "generate gnmi or xpath style from yang file",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if pathType != "xpath" && pathType != "gnmi" {
-			fmt.Println("path type must be one of 'xpath' or 'gnmi'")
-			return nil
-		}
-		ms := yang.NewModules()
-
-		if err := ms.Read(file); err != nil {
+			err := fmt.Errorf("path-type must be one of 'xpath' or 'gnmi'")
+			fmt.Fprintln(os.Stderr, err)
 			return err
 		}
-
-		mod, ok := ms.Modules[module]
-		if !ok {
-			return fmt.Errorf("module %s not found", module)
+		for _, dirpath := range dirs {
+			expanded, err := yang.PathsWithModules(dirpath)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				continue
+			}
+			yang.AddPath(expanded...)
 		}
+
+		ms := yang.NewModules()
+		for _, name := range files {
+			if err := ms.Read(name); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				continue
+			}
+		}
+		if errors := ms.Process(); len(errors) > 0 {
+			for _, err := range errors {
+				fmt.Fprintln(os.Stderr, err)
+			}
+			return fmt.Errorf("yang processing failed")
+		}
+		mods := map[string]*yang.Module{}
+		names := []string{}
+
+		for _, m := range ms.Modules {
+			if mods[m.Name] == nil {
+				mods[m.Name] = m
+				names = append(names, m.Name)
+			}
+		}
+		sort.Strings(names)
+		entries := make([]*yang.Entry, len(names))
+		for x, n := range names {
+			skip := false
+			for i := range excluded {
+				if excluded[i] == n {
+					skip = true
+				}
+			}
+			if !skip {
+				entries[x] = yang.ToEntry(mods[n])
+			}
+		}
+
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		out := make(chan string)
@@ -63,9 +102,14 @@ var pathCmd = &cobra.Command{
 		} else {
 			go printer(ctx, out)
 		}
-		for _, c := range mod.Container {
-			addContainerToPath("", c, out)
+		collected := make([]*yang.Entry, 0, 256)
+		for _, entry := range entries {
+			collected = append(collected, collectSchemaNodes(entry, true)...)
 		}
+		for _, entry := range collected {
+			out <- generatePath(entry, false)
+		}
+
 		if search {
 			p := promptui.Select{
 				Label:        "select path",
@@ -101,112 +145,186 @@ var pathCmd = &cobra.Command{
 					Search:   promptui.Key{Code: ':', Display: ":"},
 				},
 			}
-			_, selected, err := p.Run()
+			index, selected, err := p.Run()
 			if err != nil {
 				return err
 			}
 			fmt.Println(selected)
+			fmt.Println(generateEntryTyeInfo(collected[index]))
 		}
 		return nil
+	},
+	PostRun: func(cmd *cobra.Command, args []string) {
+		cmd.ResetFlags()
+		initPathFlags(cmd)
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(pathCmd)
 	pathCmd.SilenceUsage = true
-	pathCmd.Flags().StringVarP(&file, "file", "", "", "yang file")
-	pathCmd.Flags().StringVarP(&pathType, "path-type", "", "xpath", "path type xpath or gnmi")
-	pathCmd.Flags().StringVarP(&module, "module", "m", "nokia-state", "module name")
-	pathCmd.Flags().BoolVarP(&types, "types", "", false, "print leaf type")
-	pathCmd.Flags().BoolVarP(&search, "search", "", false, "search through path list")
-	viper.BindPFlag("path-file", pathCmd.LocalFlags().Lookup("file"))
-	viper.BindPFlag("path-path-type", pathCmd.LocalFlags().Lookup("path-type"))
-	viper.BindPFlag("path-module", pathCmd.LocalFlags().Lookup("module"))
-	viper.BindPFlag("path-types", pathCmd.LocalFlags().Lookup("types"))
-	viper.BindPFlag("path-search", pathCmd.LocalFlags().Lookup("search"))
-	pathCmd.SilenceUsage = true
+	initPathFlags(pathCmd)
 }
 
-func addContainerToPath(prefix string, container *yang.Container, out chan string) {
-	elementName := fmt.Sprintf("%s/%s", prefix, container.Name)
-	for _, c := range container.Container {
-		addContainerToPath(elementName, c, out)
-	}
-	for _, ls := range container.List {
-		addListToPath(elementName, ls, out)
-	}
-	for _, lf := range container.Leaf {
-		path := fmt.Sprintf("%s/%s", elementName, lf.Name)
-		if pathType == "gnmi" {
-			gnmiPath, err := xpath.ToGNMIPath(path)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "path: %s could not be changed to gnmi: %v\n", path, err)
-				continue
-			}
-			path = gnmiPath.String()
-		}
-		if types {
-			path = fmt.Sprintf("%s (type=%v)", path, lf.Type.Name)
-		}
-		out <- path
-	}
+// used to init or reset pathCmd flags for gnmic-prompt mode
+func initPathFlags(cmd *cobra.Command) {
+	cmd.Flags().StringArrayVarP(&files, "file", "", []string{}, "yang files to get the paths")
+	cmd.MarkFlagRequired("file")
+	cmd.Flags().StringArrayVarP(&excluded, "exclude", "", []string{}, "yang files to be excluded from path generation")
+	cmd.Flags().StringArrayVarP(&dirs, "dir", "", []string{}, "directories to search yang includes and imports")
+	cmd.Flags().StringVarP(&pathType, "path-type", "", "xpath", "path type xpath or gnmi")
+	cmd.Flags().StringVarP(&module, "module", "m", "", "module name")
+	cmd.Flags().BoolVarP(&printTypes, "types", "", false, "print leaf type")
+	cmd.Flags().BoolVarP(&search, "search", "", false, "search through path list")
+	viper.BindPFlag("path-file", cmd.LocalFlags().Lookup("file"))
+	viper.BindPFlag("path-dir", cmd.LocalFlags().Lookup("dir"))
+	viper.BindPFlag("path-path-type", cmd.LocalFlags().Lookup("path-type"))
+	viper.BindPFlag("path-module", cmd.LocalFlags().Lookup("module"))
+	viper.BindPFlag("path-types", cmd.LocalFlags().Lookup("types"))
+	viper.BindPFlag("path-search", cmd.LocalFlags().Lookup("search"))
+	yang.Path = []string{}
 }
-func addListToPath(prefix string, ls *yang.List, out chan string) {
-	keys := strings.Split(ls.Key.Name, " ")
-	keyElem := ls.Name
-	for _, k := range keys {
-		keyElem += fmt.Sprintf("[%s=*]", k)
+
+func collectSchemaNodes(e *yang.Entry, leafOnly bool) []*yang.Entry {
+	if e == nil {
+		return []*yang.Entry{}
 	}
-	elementName := fmt.Sprintf("%s/%s", prefix, keyElem)
-	for _, c := range ls.Container {
-		addContainerToPath(elementName, c, out)
+	collected := make([]*yang.Entry, 0, 128)
+	for _, child := range e.Dir {
+		collected = append(collected,
+			collectSchemaNodes(child, leafOnly)...)
 	}
-	for _, lls := range ls.List {
-		addListToPath(elementName, lls, out)
-	}
-	for _, ch := range ls.Choice {
-		for _, ca := range ch.Case {
-			addCaseToPath(elementName, ca, out)
+	if e.Parent != nil {
+		switch {
+		case e.Dir == nil && e.ListAttr != nil: // leaf-list
+			fallthrough
+		case e.Dir == nil: // leaf
+			collected = append(collected, e)
+		case e.ListAttr != nil: // list
+			fallthrough
+		default: // container
+			if !leafOnly {
+				collected = append(collected, e)
+			}
 		}
 	}
-	for _, lf := range ls.Leaf {
-		if lf.Name != ls.Key.Name {
-			path := fmt.Sprintf("%s/%s", prefix, lf.Name)
-			if pathType == "gnmi" {
-				gnmiPath, err := xpath.ToGNMIPath(path)
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "path: %s could not be changed to gnmi: %v\n", path, err)
-					continue
+	return collected
+}
+
+func generatePath(entry *yang.Entry, prefixTagging bool) string {
+	path := ""
+	for e := entry; e != nil && e.Parent != nil; e = e.Parent {
+		elementName := e.Name
+		if prefixTagging && e.Prefix != nil {
+			elementName = e.Prefix.Name + ":" + elementName
+		}
+		if e.Key != "" {
+			keylist := strings.Split(e.Key, " ")
+			for _, k := range keylist {
+				if prefixTagging && e.Prefix != nil {
+					k = e.Prefix.Name + ":" + k
 				}
-				path = gnmiPath.String()
+				elementName = fmt.Sprintf("%s[%s=*]", elementName, k)
 			}
-			if types {
-				path = fmt.Sprintf("%s (type=%v)", path, lf.Type.Name)
-			}
-			out <- path
 		}
+		path = fmt.Sprintf("/%s%s", elementName, path)
 	}
+	if pathType == "gnmi" {
+		gnmiPath, err := xpath.ToGNMIPath(path)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "path: %s could not be changed to gnmi: %v\n", path, err)
+		}
+		path = gnmiPath.String()
+	}
+	if printTypes {
+		path = fmt.Sprintf("%s (type=%s)", path, entry.Type.Name)
+	}
+	return path
 }
-func addCaseToPath(prefix string, ca *yang.Case, out chan string) {
-	for _, cont := range ca.Container {
-		addContainerToPath(prefix, cont, out)
+
+func generateEntryTyeInfo(e *yang.Entry) string {
+	if e == nil || e.Type == nil {
+		return "unknown type"
 	}
-	for _, ls := range ca.List {
-		addListToPath(prefix, ls, out)
+	t := e.Type
+	return generateTypeInfo(t, true)
+}
+
+func generateTypeInfo(t *yang.YangType, prefixTagging bool) string {
+	if t == nil {
+		return ""
 	}
-	for _, lf := range ca.Leaf {
-		path := fmt.Sprintf("%s/%s", prefix, lf.Name)
-		if pathType == "gnmi" {
-			gnmiPath, err := xpath.ToGNMIPath(path)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "path: %s could not be changed to gnmi: %v\n", path, err)
-				continue
+
+	rstr := fmt.Sprintf("- type: %s", t.Kind)
+	switch t.Kind {
+	case yang.Ybits:
+		nameMap := t.Bit.NameMap()
+		bitlist := make([]string, 0, len(nameMap))
+		for bitstr := range nameMap {
+			bitlist = append(bitlist, bitstr)
+		}
+		rstr += fmt.Sprintf(" %v", bitlist)
+	case yang.Yenum:
+		nameMap := t.Enum.NameMap()
+		enumlist := make([]string, 0, len(nameMap))
+		for enumstr := range nameMap {
+			enumlist = append(enumlist, enumstr)
+		}
+		rstr += fmt.Sprintf(" %v", enumlist)
+	case yang.Yleafref:
+		rstr += fmt.Sprintf(" %q", t.Path)
+	case yang.Yidentityref:
+		rstr += fmt.Sprintf(" %q", t.IdentityBase.Name)
+		identities := make([]string, 0, 64)
+		for i := range t.IdentityBase.Values {
+			if prefixTagging {
+				identities = append(identities, t.IdentityBase.Values[i].PrefixedName())
+			} else {
+				identities = append(identities, t.IdentityBase.Values[i].Name)
 			}
-			path = gnmiPath.String()
 		}
-		if types {
-			path = fmt.Sprintf("%s (type=%v)", path, lf.Type.Name)
+		rstr += fmt.Sprintf(" %v", identities)
+	case yang.Yunion:
+		unionlist := make([]string, 0, len(t.Type))
+		for i := range t.Type {
+			unionlist = append(unionlist, fmt.Sprintf("%s", t.Type[i].Name))
 		}
-		out <- path
+		rstr += fmt.Sprintf(" %v", unionlist)
+	default:
 	}
+	rstr += fmt.Sprintf("\n")
+	if t.Base != nil {
+		base := yang.Source(t.Base)
+		if base != "unknown" {
+			rstr += fmt.Sprintf("- typedef location: %s\n", base)
+		}
+	}
+
+	if t.Kind.String() != t.Root.Name {
+		rstr += fmt.Sprintf("- root-type: %s\n", t.Root.Name)
+	}
+	if t.Units != "" {
+		rstr += fmt.Sprintf("- units=%s\n", t.Units)
+	}
+	if t.Default != "" {
+		rstr += fmt.Sprintf("- default=%q\n", t.Default)
+	}
+	if t.FractionDigits != 0 {
+		rstr += fmt.Sprintf("- fraction-digits=%d\n", t.FractionDigits)
+	}
+	if len(t.Length) > 0 {
+		rstr += fmt.Sprintf("- length=%s\n", t.Length)
+	}
+	if t.Kind == yang.YinstanceIdentifier && !t.OptionalInstance {
+		rstr += fmt.Sprintf("- required\n")
+	}
+
+	if len(t.Pattern) > 0 {
+		rstr += fmt.Sprintf("- pattern=%s\n", strings.Join(t.Pattern, "|"))
+	}
+	b := yang.BaseTypedefs[t.Kind.String()].YangType
+	if len(t.Range) > 0 && !t.Range.Equal(b.Range) {
+		rstr += fmt.Sprintf("- range=%s\n", t.Range)
+	}
+	return rstr
 }

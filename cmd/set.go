@@ -85,6 +85,10 @@ var setCmd = &cobra.Command{
 		wg.Wait()
 		return nil
 	},
+	PostRun: func(cmd *cobra.Command, args []string) {
+		cmd.ResetFlags()
+		initSetFlags(cmd)
+	},
 }
 
 func setRequest(ctx context.Context, req *gnmi.SetRequest, target *collector.Target, wg *sync.WaitGroup, lock *sync.Mutex) {
@@ -173,34 +177,39 @@ func convert(i interface{}) interface{} {
 func init() {
 	rootCmd.AddCommand(setCmd)
 	setCmd.SilenceUsage = true
-	setCmd.Flags().StringP("prefix", "", "", "set request prefix")
+	initSetFlags(setCmd)
+}
 
-	setCmd.Flags().StringArrayVarP(&setInput.deletes, "delete", "", []string{}, "set request path to be deleted")
+// used to init or reset setCmd flags for gnmic-prompt mode
+func initSetFlags(cmd *cobra.Command) {
+	cmd.Flags().StringP("prefix", "", "", "set request prefix")
 
-	setCmd.Flags().StringArrayVarP(&setInput.replaces, "replace", "", []string{}, fmt.Sprintf("set request path:::type:::value to be replaced, type must be one of %v", vTypes))
-	setCmd.Flags().StringArrayVarP(&setInput.updates, "update", "", []string{}, fmt.Sprintf("set request path:::type:::value to be updated, type must be one of %v", vTypes))
+	cmd.Flags().StringArrayVarP(&setInput.deletes, "delete", "", []string{}, "set request path to be deleted")
 
-	setCmd.Flags().StringArrayVarP(&setInput.replacePaths, "replace-path", "", []string{}, "set request path to be replaced")
-	setCmd.Flags().StringArrayVarP(&setInput.updatePaths, "update-path", "", []string{}, "set request path to be updated")
-	setCmd.Flags().StringArrayVarP(&setInput.updateFiles, "update-file", "", []string{}, "set update request value in json/yaml file")
-	setCmd.Flags().StringArrayVarP(&setInput.replaceFiles, "replace-file", "", []string{}, "set replace request value in json/yaml file")
-	setCmd.Flags().StringArrayVarP(&setInput.updateValues, "update-value", "", []string{}, "set update request value")
-	setCmd.Flags().StringArrayVarP(&setInput.replaceValues, "replace-value", "", []string{}, "set replace request value")
-	setCmd.Flags().StringP("delimiter", "", ":::", "set update/replace delimiter between path, type, value")
-	setCmd.Flags().StringP("target", "", "", "set request target")
+	cmd.Flags().StringArrayVarP(&setInput.replaces, "replace", "", []string{}, fmt.Sprintf("set request path:::type:::value to be replaced, type must be one of %v", vTypes))
+	cmd.Flags().StringArrayVarP(&setInput.updates, "update", "", []string{}, fmt.Sprintf("set request path:::type:::value to be updated, type must be one of %v", vTypes))
 
-	viper.BindPFlag("set-prefix", setCmd.LocalFlags().Lookup("prefix"))
-	viper.BindPFlag("set-delete", setCmd.LocalFlags().Lookup("delete"))
-	viper.BindPFlag("set-replace", setCmd.LocalFlags().Lookup("replace"))
-	viper.BindPFlag("set-update", setCmd.LocalFlags().Lookup("update"))
-	viper.BindPFlag("set-update-path", setCmd.LocalFlags().Lookup("update-path"))
-	viper.BindPFlag("set-replace-path", setCmd.LocalFlags().Lookup("replace-path"))
-	viper.BindPFlag("set-update-file", setCmd.LocalFlags().Lookup("update-file"))
-	viper.BindPFlag("set-replace-file", setCmd.LocalFlags().Lookup("replace-file"))
-	viper.BindPFlag("set-update-value", setCmd.LocalFlags().Lookup("update-value"))
-	viper.BindPFlag("set-replace-value", setCmd.LocalFlags().Lookup("replace-value"))
-	viper.BindPFlag("set-delimiter", setCmd.LocalFlags().Lookup("delimiter"))
-	viper.BindPFlag("set-target", setCmd.LocalFlags().Lookup("target"))
+	cmd.Flags().StringArrayVarP(&setInput.replacePaths, "replace-path", "", []string{}, "set request path to be replaced")
+	cmd.Flags().StringArrayVarP(&setInput.updatePaths, "update-path", "", []string{}, "set request path to be updated")
+	cmd.Flags().StringArrayVarP(&setInput.updateFiles, "update-file", "", []string{}, "set update request value in json/yaml file")
+	cmd.Flags().StringArrayVarP(&setInput.replaceFiles, "replace-file", "", []string{}, "set replace request value in json/yaml file")
+	cmd.Flags().StringArrayVarP(&setInput.updateValues, "update-value", "", []string{}, "set update request value")
+	cmd.Flags().StringArrayVarP(&setInput.replaceValues, "replace-value", "", []string{}, "set replace request value")
+	cmd.Flags().StringP("delimiter", "", ":::", "set update/replace delimiter between path, type, value")
+	cmd.Flags().StringP("target", "", "", "set request target")
+
+	viper.BindPFlag("set-prefix", cmd.LocalFlags().Lookup("prefix"))
+	viper.BindPFlag("set-delete", cmd.LocalFlags().Lookup("delete"))
+	viper.BindPFlag("set-replace", cmd.LocalFlags().Lookup("replace"))
+	viper.BindPFlag("set-update", cmd.LocalFlags().Lookup("update"))
+	viper.BindPFlag("set-update-path", cmd.LocalFlags().Lookup("update-path"))
+	viper.BindPFlag("set-replace-path", cmd.LocalFlags().Lookup("replace-path"))
+	viper.BindPFlag("set-update-file", cmd.LocalFlags().Lookup("update-file"))
+	viper.BindPFlag("set-replace-file", cmd.LocalFlags().Lookup("replace-file"))
+	viper.BindPFlag("set-update-value", cmd.LocalFlags().Lookup("update-value"))
+	viper.BindPFlag("set-replace-value", cmd.LocalFlags().Lookup("replace-value"))
+	viper.BindPFlag("set-delimiter", cmd.LocalFlags().Lookup("delimiter"))
+	viper.BindPFlag("set-target", cmd.LocalFlags().Lookup("target"))
 }
 
 func createSetRequest() (*gnmi.SetRequest, error) {

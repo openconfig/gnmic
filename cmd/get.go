@@ -34,6 +34,9 @@ var paths []string
 var getCmd = &cobra.Command{
 	Use:   "get",
 	Short: "run gnmi get on targets",
+	Annotations: map[string]string{
+		"--path": "XPATH",
+	},
 
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if viper.GetString("format") == "event" {
@@ -58,6 +61,10 @@ var getCmd = &cobra.Command{
 		}
 		wg.Wait()
 		return nil
+	},
+	PostRun: func(cmd *cobra.Command, args []string) {
+		cmd.ResetFlags()
+		initGetFlags(cmd)
 	},
 }
 
@@ -121,18 +128,23 @@ func getRequest(ctx context.Context, req *gnmi.GetRequest, target *collector.Tar
 func init() {
 	rootCmd.AddCommand(getCmd)
 	getCmd.SilenceUsage = true
-	getCmd.Flags().StringArrayVarP(&paths, "path", "", []string{}, "get request paths")
-	getCmd.MarkFlagRequired("path")
-	getCmd.Flags().StringP("prefix", "", "", "get request prefix")
-	getCmd.Flags().StringSliceP("model", "", []string{}, "get request models")
-	getCmd.Flags().StringP("type", "t", "ALL", "data type requested from the target. one of: ALL, CONFIG, STATE, OPERATIONAL")
-	getCmd.Flags().StringP("target", "", "", "get request target")
+	initGetFlags(getCmd)
+}
 
-	viper.BindPFlag("get-path", getCmd.LocalFlags().Lookup("path"))
-	viper.BindPFlag("get-prefix", getCmd.LocalFlags().Lookup("prefix"))
-	viper.BindPFlag("get-model", getCmd.LocalFlags().Lookup("model"))
-	viper.BindPFlag("get-type", getCmd.LocalFlags().Lookup("type"))
-	viper.BindPFlag("get-target", getCmd.LocalFlags().Lookup("target"))
+// used to init or reset getCmd flags for gnmic-prompt mode
+func initGetFlags(cmd *cobra.Command) {
+	cmd.Flags().StringArrayVarP(&paths, "path", "", []string{}, "get request paths")
+	cmd.MarkFlagRequired("path")
+	cmd.Flags().StringP("prefix", "", "", "get request prefix")
+	cmd.Flags().StringSliceP("model", "", []string{}, "get request models")
+	cmd.Flags().StringP("type", "t", "ALL", "data type requested from the target. one of: ALL, CONFIG, STATE, OPERATIONAL")
+	cmd.Flags().StringP("target", "", "", "get request target")
+
+	viper.BindPFlag("get-path", cmd.LocalFlags().Lookup("path"))
+	viper.BindPFlag("get-prefix", cmd.LocalFlags().Lookup("prefix"))
+	viper.BindPFlag("get-model", cmd.LocalFlags().Lookup("model"))
+	viper.BindPFlag("get-type", cmd.LocalFlags().Lookup("type"))
+	viper.BindPFlag("get-target", cmd.LocalFlags().Lookup("target"))
 }
 
 func createGetRequest() (*gnmi.GetRequest, error) {
