@@ -11,7 +11,7 @@
             "mode": "auto",
             "program": "${fileDirname}",
             "env": {},
-            "args": ["path", "--module", "openconfig-interfaces", "--file", "../gnmi/model/yang/openconfig-interfaces.yang"]
+            "args": ["path", "--module", "openconfig-interfaces", "--file", "../gnmi/model/yang/openconfig-interfaces.yang", "--exclude", "ietf-interfaces", "--generate-schema"]
         },
         {
             "name": "gnmic set",

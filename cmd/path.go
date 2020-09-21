@@ -15,15 +15,20 @@
 package cmd
 
 import (
+	"compress/gzip"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"sort"
 	"strings"
 
 	"github.com/google/gnxi/utils/xpath"
 	"github.com/manifoldco/promptui"
+	homedir "github.com/mitchellh/go-homedir"
 	"github.com/openconfig/goyang/pkg/yang"
+	"github.com/openconfig/ygot/ygen"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -35,6 +40,7 @@ var pathType string
 var module string
 var printTypes bool
 var search bool
+var generateSchema bool
 
 // pathCmd represents the path command
 var pathCmd = &cobra.Command{
@@ -69,8 +75,10 @@ var pathCmd = &cobra.Command{
 			}
 			return fmt.Errorf("yang processing failed")
 		}
+		// Keep track of the top level modules we read in.
+		// Those are the only modules we want to print below.
 		mods := map[string]*yang.Module{}
-		names := []string{}
+		var names []string
 
 		for _, m := range ms.Modules {
 			if mods[m.Name] == nil {
@@ -81,15 +89,28 @@ var pathCmd = &cobra.Command{
 		sort.Strings(names)
 		entries := make([]*yang.Entry, len(names))
 		for x, n := range names {
+			entries[x] = yang.ToEntry(mods[n])
+		}
+
+		root := buildRootEntry()
+		for _, entry := range entries {
 			skip := false
 			for i := range excluded {
-				if excluded[i] == n {
+				if entry.Name == excluded[i] {
 					skip = true
 				}
 			}
 			if !skip {
-				entries[x] = yang.ToEntry(mods[n])
+				root.Dir[entry.Name] = entry
 			}
+		}
+		if generateSchema {
+			generateSchemaZip(root)
+			rroot, err := loadSchemaZip()
+			if err != nil {
+				return err
+			}
+			root = rroot
 		}
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -103,7 +124,7 @@ var pathCmd = &cobra.Command{
 			go printer(ctx, out)
 		}
 		collected := make([]*yang.Entry, 0, 256)
-		for _, entry := range entries {
+		for _, entry := range root.Dir {
 			collected = append(collected, collectSchemaNodes(entry, true)...)
 		}
 		for _, entry := range collected {
@@ -176,12 +197,15 @@ func initPathFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&module, "module", "m", "", "module name")
 	cmd.Flags().BoolVarP(&printTypes, "types", "", false, "print leaf type")
 	cmd.Flags().BoolVarP(&search, "search", "", false, "search through path list")
+	cmd.Flags().BoolVarP(&generateSchema, "generate-schema", "g", false, "generate schema ($HOME/.gnmic.schema) for tab compeletion")
 	viper.BindPFlag("path-file", cmd.LocalFlags().Lookup("file"))
+	viper.BindPFlag("path-exclude", cmd.LocalFlags().Lookup("exclude"))
 	viper.BindPFlag("path-dir", cmd.LocalFlags().Lookup("dir"))
 	viper.BindPFlag("path-path-type", cmd.LocalFlags().Lookup("path-type"))
 	viper.BindPFlag("path-module", cmd.LocalFlags().Lookup("module"))
 	viper.BindPFlag("path-types", cmd.LocalFlags().Lookup("types"))
 	viper.BindPFlag("path-search", cmd.LocalFlags().Lookup("search"))
+	viper.BindPFlag("path-generate-schema", cmd.LocalFlags().Lookup("generate-schema"))
 	yang.Path = []string{}
 }
 
@@ -327,4 +351,83 @@ func generateTypeInfo(t *yang.YangType, prefixTagging bool) string {
 		rstr += fmt.Sprintf("- range=%s\n", t.Range)
 	}
 	return rstr
+}
+
+func buildRootEntry() *yang.Entry {
+	rootEntry := &yang.Entry{
+		Dir:        map[string]*yang.Entry{},
+		Annotation: map[string]interface{}{},
+	}
+	rootEntry.Name = "root"
+	rootEntry.Annotation["schemapath"] = "/"
+	rootEntry.Kind = yang.DirectoryEntry
+	// Always annotate the root as a fake root, so that it is not treated
+	// as a path element in ytypes.
+	rootEntry.Annotation["root"] = true
+	return rootEntry
+}
+
+func generateSchemaZip(root *yang.Entry) error {
+	j, err := json.MarshalIndent(root, "", strings.Repeat(" ", 4))
+	if err != nil {
+		return fmt.Errorf("JSON marshalling error: %v", err)
+	}
+	if len(j) == 0 {
+		return nil
+	}
+
+	gotGzip, err := ygen.WriteGzippedByteSlice(j)
+	if err != nil {
+		return err
+	}
+	home, err := homedir.Dir()
+	if err != nil {
+		return err
+	}
+	f, err := os.OpenFile(home+"/.gnmic.schema", os.O_RDWR|os.O_CREATE, 0600)
+	if err != nil {
+		return err
+	}
+	f.Write(gotGzip)
+	f.Close()
+	return err
+}
+
+func updateSchemaTree(entry *yang.Entry) {
+	for _, child := range entry.Dir {
+		if child.Parent == nil {
+			child.Parent = entry
+		}
+		updateSchemaTree(child)
+	}
+}
+
+func loadSchemaZip() (*yang.Entry, error) {
+	home, err := homedir.Dir()
+	if err != nil {
+		return nil, err
+	}
+	f, err := os.Open(home + "/.gnmic.schema")
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	// gotGzip, err := ioutil.ReadAll(f)
+	gzr, err := gzip.NewReader(f)
+	if err != nil {
+		return nil, err
+	}
+	defer gzr.Close()
+	s, err := ioutil.ReadAll(gzr)
+	if err != nil {
+		return nil, err
+	}
+	root := &yang.Entry{}
+	if err := json.Unmarshal(s, &root); err != nil {
+		return nil, err
+	}
+	for _, eachModuleTop := range root.Dir {
+		updateSchemaTree(eachModuleTop)
+	}
+	return root, err
 }
