@@ -102,11 +102,12 @@ var pathCmd = &cobra.Command{
 				}
 			}
 			if !skip {
+				updateAnnotation(entry)
 				root.Dir[entry.Name] = entry
 			}
 		}
 		if generateSchema {
-			generateSchemaZip(root)
+			writeSchemaZip(root)
 			rroot, err := loadSchemaZip()
 			if err != nil {
 				return err
@@ -172,7 +173,7 @@ var pathCmd = &cobra.Command{
 				return err
 			}
 			fmt.Println(selected)
-			fmt.Println(generateEntryTyeInfo(collected[index]))
+			fmt.Println(generateTypeInfo(collected[index]))
 		}
 		return nil
 	},
@@ -268,48 +269,40 @@ func generatePath(entry *yang.Entry, prefixTagging bool) string {
 	return path
 }
 
-func generateEntryTyeInfo(e *yang.Entry) string {
+func generateTypeInfo(e *yang.Entry) string {
 	if e == nil || e.Type == nil {
 		return "unknown type"
 	}
 	t := e.Type
-	return generateTypeInfo(t, prefixRepresented)
-}
-
-func generateTypeInfo(t *yang.YangType, prefixTagging bool) string {
-	if t == nil {
-		return ""
-	}
-
 	rstr := fmt.Sprintf("- type: %s", t.Kind)
 	switch t.Kind {
 	case yang.Ybits:
-		nameMap := t.Bit.NameMap()
-		bitlist := make([]string, 0, len(nameMap))
-		for bitstr := range nameMap {
-			bitlist = append(bitlist, bitstr)
+		data := getAnnotation(e, "bits")
+		if data != nil {
+			rstr += fmt.Sprintf(" %v", data)
 		}
-		rstr += fmt.Sprintf(" %v", bitlist)
 	case yang.Yenum:
-		nameMap := t.Enum.NameMap()
-		enumlist := make([]string, 0, len(nameMap))
-		for enumstr := range nameMap {
-			enumlist = append(enumlist, enumstr)
+		data := getAnnotation(e, "enum")
+		if data != nil {
+			rstr += fmt.Sprintf(" %v", data)
 		}
-		rstr += fmt.Sprintf(" %v", enumlist)
 	case yang.Yleafref:
 		rstr += fmt.Sprintf(" %q", t.Path)
 	case yang.Yidentityref:
 		rstr += fmt.Sprintf(" %q", t.IdentityBase.Name)
-		identities := make([]string, 0, 64)
-		for i := range t.IdentityBase.Values {
-			if prefixTagging {
-				identities = append(identities, t.IdentityBase.Values[i].PrefixedName())
-			} else {
+		if prefixRepresented {
+			data := getAnnotation(e, "prefix-qualified-identities")
+			if data != nil {
+				rstr += fmt.Sprintf(" %v", data)
+			}
+		} else {
+			identities := make([]string, 0, 64)
+			for i := range t.IdentityBase.Values {
 				identities = append(identities, t.IdentityBase.Values[i].Name)
 			}
+			rstr += fmt.Sprintf(" %v", identities)
 		}
-		rstr += fmt.Sprintf(" %v", identities)
+
 	case yang.Yunion:
 		unionlist := make([]string, 0, len(t.Type))
 		for i := range t.Type {
@@ -321,8 +314,9 @@ func generateTypeInfo(t *yang.YangType, prefixTagging bool) string {
 	rstr += fmt.Sprintf("\n")
 
 	if t.Root != nil {
-		if t.Kind.String() != t.Root.Name {
-			rstr += fmt.Sprintf("- root.type: %s\n", t.Root.Name)
+		data := getAnnotation(e, "root.type")
+		if data != nil && t.Kind.String() != data.(string) {
+			rstr += fmt.Sprintf("- root.type: %v\n", data)
 		}
 	}
 	if t.Units != "" {
@@ -351,6 +345,55 @@ func generateTypeInfo(t *yang.YangType, prefixTagging bool) string {
 	return rstr
 }
 
+func getAnnotation(entry *yang.Entry, name string) interface{} {
+	if entry.Annotation != nil {
+		data, ok := entry.Annotation[name]
+		if ok {
+			return data
+		}
+	}
+	return nil
+}
+
+// updateAnnotation updates the schema info before enconding.
+func updateAnnotation(entry *yang.Entry) {
+	for _, child := range entry.Dir {
+		updateAnnotation(child)
+		child.Annotation = map[string]interface{}{}
+		t := child.Type
+		if t == nil {
+			continue
+		}
+
+		switch t.Kind {
+		case yang.Ybits:
+			nameMap := t.Bit.NameMap()
+			bits := make([]string, 0, len(nameMap))
+			for bitstr := range nameMap {
+				bits = append(bits, bitstr)
+			}
+			child.Annotation["bits"] = bits
+
+		case yang.Yenum:
+			nameMap := t.Enum.NameMap()
+			enum := make([]string, 0, len(nameMap))
+			for enumstr := range nameMap {
+				enum = append(enum, enumstr)
+			}
+			child.Annotation["enum"] = enum
+		case yang.Yidentityref:
+			identities := make([]string, 0, len(t.IdentityBase.Values))
+			for i := range t.IdentityBase.Values {
+				identities = append(identities, t.IdentityBase.Values[i].PrefixedName())
+			}
+			child.Annotation["prefix-qualified-identities"] = identities
+		}
+		if t.Root != nil {
+			child.Annotation["root.type"] = t.Root.Name
+		}
+	}
+}
+
 func buildRootEntry() *yang.Entry {
 	rootEntry := &yang.Entry{
 		Dir:        map[string]*yang.Entry{},
@@ -365,7 +408,7 @@ func buildRootEntry() *yang.Entry {
 	return rootEntry
 }
 
-func generateSchemaZip(root *yang.Entry) error {
+func writeSchemaZip(root *yang.Entry) error {
 	j, err := json.MarshalIndent(root, "", strings.Repeat(" ", 4))
 	if err != nil {
 		return fmt.Errorf("JSON marshalling error: %v", err)
@@ -373,6 +416,7 @@ func generateSchemaZip(root *yang.Entry) error {
 	if len(j) == 0 {
 		return nil
 	}
+	// fmt.Println(string(j))
 	gotGzip, err := ygen.WriteGzippedByteSlice(j)
 	if err != nil {
 		return err
@@ -385,37 +429,12 @@ func generateSchemaZip(root *yang.Entry) error {
 	return err
 }
 
-func updateSchemaTree(entry *yang.Entry) {
+func fixSchema(entry *yang.Entry) {
 	for _, child := range entry.Dir {
 		if child.Parent == nil {
 			child.Parent = entry
 		}
-		// if entry.Type != nil {
-		// 	t := entry.Type
-		// 	switch t.Kind {
-		// 	case yang.Ybits:
-		// 		nameMap := t.Bit.NameMap()
-		// 		bitlist := make([]string, 0, len(nameMap))
-		// 		for bitstr := range nameMap {
-		// 			bitlist = append(bitlist, bitstr)
-		// 		}
-		// 		entry.Annotation["bits"] = bitlist
-		// 	case yang.Yenum:
-		// 		nameMap := t.Enum.NameMap()
-		// 		enumlist := make([]string, 0, len(nameMap))
-		// 		for enumstr := range nameMap {
-		// 			enumlist = append(enumlist, enumstr)
-		// 		}
-		// 		entry.Annotation["enum"] = enumlist
-		// 	}
-		// 	if t.Root != nil {
-		// 		entry.Annotation["root.type"] = t.Root
-		// 	}
-		// 	if t.Base != nil {
-		// 		entry.Annotation["base.type"] = t.Base
-		// 	}
-		// }
-		updateSchemaTree(child)
+		fixSchema(child)
 	}
 }
 
@@ -444,7 +463,7 @@ func loadSchemaZip() (*yang.Entry, error) {
 		return nil, err
 	}
 	for _, eachModuleTop := range root.Dir {
-		updateSchemaTree(eachModuleTop)
+		fixSchema(eachModuleTop)
 	}
 	return root, err
 }
