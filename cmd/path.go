@@ -206,7 +206,6 @@ func initPathFlags(cmd *cobra.Command) {
 	viper.BindPFlag("path-types", cmd.LocalFlags().Lookup("types"))
 	viper.BindPFlag("path-search", cmd.LocalFlags().Lookup("search"))
 	viper.BindPFlag("path-generate-schema", cmd.LocalFlags().Lookup("generate-schema"))
-	yang.Path = []string{}
 }
 
 func collectSchemaNodes(e *yang.Entry, leafOnly bool) []*yang.Entry {
