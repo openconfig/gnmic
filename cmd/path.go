@@ -41,6 +41,7 @@ var module string
 var printTypes bool
 var search bool
 var generateSchema bool
+var prefixRepresented bool
 
 // pathCmd represents the path command
 var pathCmd = &cobra.Command{
@@ -128,7 +129,7 @@ var pathCmd = &cobra.Command{
 			collected = append(collected, collectSchemaNodes(entry, true)...)
 		}
 		for _, entry := range collected {
-			out <- generatePath(entry, false)
+			out <- generatePath(entry, prefixRepresented)
 		}
 
 		if search {
@@ -191,10 +192,11 @@ func init() {
 func initPathFlags(cmd *cobra.Command) {
 	cmd.Flags().StringArrayVarP(&files, "file", "", []string{}, "yang files to get the paths")
 	cmd.MarkFlagRequired("file")
-	cmd.Flags().StringArrayVarP(&excluded, "exclude", "", []string{}, "yang files to be excluded from path generation")
+	cmd.Flags().StringArrayVarP(&excluded, "exclude", "", []string{}, "yang modules to be excluded from path generation")
 	cmd.Flags().StringArrayVarP(&dirs, "dir", "", []string{}, "directories to search yang includes and imports")
 	cmd.Flags().StringVarP(&pathType, "path-type", "", "xpath", "path type xpath or gnmi")
 	cmd.Flags().StringVarP(&module, "module", "m", "", "module name")
+	cmd.Flags().BoolVarP(&prefixRepresented, "prefix-represented", "", false, "enable the yang prefix of the paths")
 	cmd.Flags().BoolVarP(&printTypes, "types", "", false, "print leaf type")
 	cmd.Flags().BoolVarP(&search, "search", "", false, "search through path list")
 	cmd.Flags().BoolVarP(&generateSchema, "generate-schema", "g", false, "generate schema ($HOME/.gnmic.schema) for tab compeletion")
@@ -271,7 +273,7 @@ func generateEntryTyeInfo(e *yang.Entry) string {
 		return "unknown type"
 	}
 	t := e.Type
-	return generateTypeInfo(t, true)
+	return generateTypeInfo(t, prefixRepresented)
 }
 
 func generateTypeInfo(t *yang.YangType, prefixTagging bool) string {
@@ -317,38 +319,34 @@ func generateTypeInfo(t *yang.YangType, prefixTagging bool) string {
 	default:
 	}
 	rstr += fmt.Sprintf("\n")
-	if t.Base != nil {
-		base := yang.Source(t.Base)
-		if base != "unknown" {
-			rstr += fmt.Sprintf("- typedef location: %s\n", base)
+
+	if t.Root != nil {
+		if t.Kind.String() != t.Root.Name {
+			rstr += fmt.Sprintf("- root.type: %s\n", t.Root.Name)
 		}
 	}
-
-	if t.Kind.String() != t.Root.Name {
-		rstr += fmt.Sprintf("- root-type: %s\n", t.Root.Name)
-	}
 	if t.Units != "" {
-		rstr += fmt.Sprintf("- units=%s\n", t.Units)
+		rstr += fmt.Sprintf("- units: %s\n", t.Units)
 	}
 	if t.Default != "" {
-		rstr += fmt.Sprintf("- default=%q\n", t.Default)
+		rstr += fmt.Sprintf("- default: %q\n", t.Default)
 	}
 	if t.FractionDigits != 0 {
-		rstr += fmt.Sprintf("- fraction-digits=%d\n", t.FractionDigits)
+		rstr += fmt.Sprintf("- fraction-digits: %d\n", t.FractionDigits)
 	}
 	if len(t.Length) > 0 {
-		rstr += fmt.Sprintf("- length=%s\n", t.Length)
+		rstr += fmt.Sprintf("- length: %s\n", t.Length)
 	}
 	if t.Kind == yang.YinstanceIdentifier && !t.OptionalInstance {
 		rstr += fmt.Sprintf("- required\n")
 	}
 
 	if len(t.Pattern) > 0 {
-		rstr += fmt.Sprintf("- pattern=%s\n", strings.Join(t.Pattern, "|"))
+		rstr += fmt.Sprintf("- pattern: %s\n", strings.Join(t.Pattern, "|"))
 	}
 	b := yang.BaseTypedefs[t.Kind.String()].YangType
 	if len(t.Range) > 0 && !t.Range.Equal(b.Range) {
-		rstr += fmt.Sprintf("- range=%s\n", t.Range)
+		rstr += fmt.Sprintf("- range: %s\n", t.Range)
 	}
 	return rstr
 }
@@ -375,7 +373,6 @@ func generateSchemaZip(root *yang.Entry) error {
 	if len(j) == 0 {
 		return nil
 	}
-
 	gotGzip, err := ygen.WriteGzippedByteSlice(j)
 	if err != nil {
 		return err
@@ -384,12 +381,7 @@ func generateSchemaZip(root *yang.Entry) error {
 	if err != nil {
 		return err
 	}
-	f, err := os.OpenFile(home+"/.gnmic.schema", os.O_RDWR|os.O_CREATE, 0600)
-	if err != nil {
-		return err
-	}
-	f.Write(gotGzip)
-	f.Close()
+	err = ioutil.WriteFile(home+"/.gnmic.schema", gotGzip, 0600)
 	return err
 }
 
@@ -398,6 +390,31 @@ func updateSchemaTree(entry *yang.Entry) {
 		if child.Parent == nil {
 			child.Parent = entry
 		}
+		// if entry.Type != nil {
+		// 	t := entry.Type
+		// 	switch t.Kind {
+		// 	case yang.Ybits:
+		// 		nameMap := t.Bit.NameMap()
+		// 		bitlist := make([]string, 0, len(nameMap))
+		// 		for bitstr := range nameMap {
+		// 			bitlist = append(bitlist, bitstr)
+		// 		}
+		// 		entry.Annotation["bits"] = bitlist
+		// 	case yang.Yenum:
+		// 		nameMap := t.Enum.NameMap()
+		// 		enumlist := make([]string, 0, len(nameMap))
+		// 		for enumstr := range nameMap {
+		// 			enumlist = append(enumlist, enumstr)
+		// 		}
+		// 		entry.Annotation["enum"] = enumlist
+		// 	}
+		// 	if t.Root != nil {
+		// 		entry.Annotation["root.type"] = t.Root
+		// 	}
+		// 	if t.Base != nil {
+		// 		entry.Annotation["base.type"] = t.Base
+		// 	}
+		// }
 		updateSchemaTree(child)
 	}
 }
