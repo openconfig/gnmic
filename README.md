@@ -67,3 +67,4 @@ gnmic --address localhost:57400 --tls-ca ../gnmi/tls/ca.crt --tls-cert ../gnmi/t
 
 ./gnmic --address 192.168.77.110:57400 --tls-ca ../gnmi/tls/ca.crt --tls-cert ../gnmi/tls/client.crt --tls-key ../gnmi/tls/client.key --username root --password admin -d prompt-mode
 ./gnmic --address 192.168.77.110:57400 --tls-ca ../gnmi/tls/ca.crt --tls-cert ../gnmi/tls/client.crt --tls-key ../gnmi/tls/client.key --username root --password admin -d path --dir ../gnmi/model/yang/ --file ../gnmi/model/yang/openconfig-interfaces.yang --types
+./gnmic --address 192.168.77.110:57400 --tls-ca ../gnmi/tls/ca.crt --tls-cert ../gnmi/tls/client.crt --tls-key ../gnmi/tls/client.key --username root --password admin -d path --dir ../gnmi/model/yang/ --file ../gnmi/model/yang/openconfig-interfaces.yang --file ../gnmi/model/yang/iana-if-type@2017-01-19.yang --exclude ietf-interfaces --generate-schema --search

@@ -9,12 +9,14 @@ import (
 	"time"
 
 	goprompt "github.com/c-bata/go-prompt"
+	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc/grpclog"
 )
 
+var schemaTree *yang.Entry
 var promptModeCmd = &cobra.Command{
 	Use:   "prompt-mode",
 	Short: "Run the interactive gnmic-prompt",
@@ -23,9 +25,30 @@ var promptModeCmd = &cobra.Command{
 	},
 }
 
-func handleDynamicSuggestions(annotation string, _ goprompt.Document) []goprompt.Suggest {
+func findMatchedXPATH(entry *yang.Entry, word string, cursor int) []goprompt.Suggest {
+	suggestions := make([]goprompt.Suggest, 0, 4)
+	cword := word[cursor:]
+	for name, child := range entry.Dir {
+		key := "/" + name
+		if strings.HasPrefix(key, cword) {
+			stext := fmt.Sprintf("%s%s", word[:cursor], key)
+			suggestions = append(suggestions, goprompt.Suggest{Text: stext, Description: child.Description})
+		} else if strings.HasPrefix(cword, key) {
+			suggestions = append(suggestions, findMatchedXPATH(child, word, cursor+len(key))...)
+		}
+	}
+	return suggestions
+}
+
+func handleDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt.Suggest {
 	switch annotation {
 	case "XPATH":
+		word := doc.GetWordBeforeCursor()
+		suggestions := make([]goprompt.Suggest, 0, 16)
+		for _, entry := range schemaTree.Dir {
+			suggestions = append(suggestions, findMatchedXPATH(entry, word, 0)...)
+		}
+		return suggestions
 	case "FILE":
 	}
 	return []goprompt.Suggest{}
@@ -158,6 +181,14 @@ func ExecutePrompt(dynamicSuggestionFunc func(annotation string, document goprom
 		os.Exit(1)
 	}
 
+	var err error
+	schemaTree, err = loadSchemaZip()
+	if err != nil {
+		schemaTree = buildRootEntry()
+	}
+
+	// goprompt.OptionHistory()
+
 	rootCmd.AddCommand(promptQuitCmd)
 	shell := &cmdPrompt{
 		RootCmd:                rootCmd,
@@ -221,15 +252,15 @@ func (co cmdPrompt) prepare() {
 	}
 }
 
-func findSuggestions(co cmdPrompt, d goprompt.Document) []goprompt.Suggest {
+func findSuggestions(co cmdPrompt, doc goprompt.Document) []goprompt.Suggest {
 	command := co.RootCmd
-	args := strings.Fields(d.CurrentLine())
+	args := strings.Fields(doc.CurrentLine())
 
 	if found, _, err := command.Find(args); err == nil {
 		command = found
 	}
 
-	var suggestions []goprompt.Suggest
+	suggestions := make([]goprompt.Suggest, 0, 32)
 	resetFlags, _ := command.Flags().GetBool("flags-no-reset")
 	addFlags := func(flag *pflag.Flag) {
 		if flag.Changed && !resetFlags {
@@ -238,9 +269,9 @@ func findSuggestions(co cmdPrompt, d goprompt.Document) []goprompt.Suggest {
 		if flag.Hidden {
 			return
 		}
-		if strings.HasPrefix(d.GetWordBeforeCursor(), "--") {
+		if strings.HasPrefix(doc.GetWordBeforeCursor(), "--") {
 			suggestions = append(suggestions, goprompt.Suggest{Text: "--" + flag.Name, Description: flag.Usage})
-		} else if strings.HasPrefix(d.GetWordBeforeCursor(), "-") && flag.Shorthand != "" {
+		} else if strings.HasPrefix(doc.GetWordBeforeCursor(), "-") && flag.Shorthand != "" {
 			suggestions = append(suggestions, goprompt.Suggest{Text: "-" + flag.Shorthand, Description: flag.Usage})
 		}
 	}
@@ -257,23 +288,22 @@ func findSuggestions(co cmdPrompt, d goprompt.Document) []goprompt.Suggest {
 			}
 		}
 	}
-	// line := d.CurrentLine()
-	// prevline := strings.TrimRight(line[:d.FindStartOfPreviousWord()], " ")
-	// if strings.HasSuffix(prevline, "--path") {
-	// 	fmt.Println("FOUND!")
-	// }
 
 	// check flag annotation for the suggestion
-	numArgs := len(args)
-	if numArgs > 0 {
-		annotation := command.Annotations[args[numArgs-1]]
-		if co.DynamicSuggestionsFunc != nil && annotation != "" {
-			suggestions = append(suggestions, co.DynamicSuggestionsFunc(annotation, d)...)
+	annotation := ""
+	argnum := len(args)
+	wordBefore := doc.GetWordBeforeCursor()
+	if wordBefore == "" {
+		if argnum >= 1 {
+			annotation = command.Annotations[args[argnum-1]]
+		}
+	} else {
+		if argnum >= 2 {
+			annotation = command.Annotations[args[argnum-2]]
 		}
 	}
-	// annotation := command.Annotations[CALLBACK_ANNOTATION]
-	// if co.DynamicSuggestionsFunc != nil && annotation != "" {
-	// 	suggestions = append(suggestions, co.DynamicSuggestionsFunc(annotation, d)...)
-	// }
-	return goprompt.FilterHasPrefix(suggestions, d.GetWordBeforeCursor(), true)
+	if co.DynamicSuggestionsFunc != nil && annotation != "" {
+		suggestions = append(suggestions, co.DynamicSuggestionsFunc(annotation, doc)...)
+	}
+	return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
 }

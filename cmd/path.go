@@ -107,12 +107,9 @@ var pathCmd = &cobra.Command{
 			}
 		}
 		if generateSchema {
-			writeSchemaZip(root)
-			rroot, err := loadSchemaZip()
-			if err != nil {
+			if err := writeSchemaZip(root); err != nil {
 				return err
 			}
-			root = rroot
 		}
 
 		ctx, cancel := context.WithCancel(context.Background())
