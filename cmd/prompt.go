@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/c-bata/go-prompt"
 	goprompt "github.com/c-bata/go-prompt"
 	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/spf13/cobra"
@@ -16,12 +17,17 @@ import (
 	"google.golang.org/grpc/grpclog"
 )
 
+var promptMode bool
 var schemaTree *yang.Entry
 var promptModeCmd = &cobra.Command{
 	Use:   "prompt-mode",
 	Short: "Run the interactive gnmic-prompt",
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if promptMode {
+			return fmt.Errorf("already entered to the prompt-mode")
+		}
 		ExecutePrompt(handleDynamicSuggestions)
+		return nil
 	},
 }
 
@@ -198,9 +204,10 @@ func ExecutePrompt(dynamicSuggestionFunc func(annotation string, document goprom
 			goprompt.OptionTitle("gnmic-prompt"),
 			goprompt.OptionPrefix("gnmic> "),
 			goprompt.OptionMaxSuggestion(5),
+			goprompt.OptionPrefixTextColor(prompt.Yellow),
 		},
 	}
-
+	promptMode = true
 	shell.Run()
 }
 
@@ -234,8 +241,9 @@ func (co cmdPrompt) Run() {
 		func(in string) {
 			promptArgs := strings.Fields(in)
 			os.Args = append([]string{os.Args[0]}, promptArgs...)
-			// fmt.Println(os.Args)
-			co.RootCmd.Execute()
+			if len(promptArgs) > 0 {
+				co.RootCmd.Execute()
+			}
 		},
 		func(d goprompt.Document) []goprompt.Suggest {
 			return findSuggestions(co, d)
