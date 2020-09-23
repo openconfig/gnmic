@@ -22,6 +22,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/outputs"
@@ -32,6 +33,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
+
+const defaultRetryTimer = 10 * time.Second
 
 // subscribeCmd represents the subscribe command
 var subscribeCmd = &cobra.Command{
@@ -71,6 +74,7 @@ var subscribeCmd = &cobra.Command{
 			Debug:               viper.GetBool("debug"),
 			Format:              viper.GetString("format"),
 			TargetReceiveBuffer: viper.GetUint("target-buffer-size"),
+			RetryTimer:          viper.GetDuration("retry-timer"),
 		}
 
 		coll := collector.NewCollector(cfg, targetsConfig, subscriptionsConfig, outs, createCollectorDialOpts(), logger)
@@ -80,12 +84,20 @@ var subscribeCmd = &cobra.Command{
 		for name := range coll.Targets {
 			go func(tn string) {
 				defer wg.Done()
-				if err = coll.Subscribe(ctx, tn); err != nil {
-					if errors.Is(err, context.DeadlineExceeded) {
-						logger.Printf("failed to initialize target '%s' timeout (%s) reached", tn, targetsConfig[tn].Timeout)
-						return
+				tRetryTimer := coll.Targets[tn].Config.RetryTimer
+				for {
+					err = coll.Subscribe(ctx, tn)
+					if err != nil {
+						if errors.Is(err, context.DeadlineExceeded) {
+							logger.Printf("failed to initialize target '%s' timeout (%s) reached", tn, targetsConfig[tn].Timeout)
+						} else {
+							logger.Printf("failed to initialize target '%s': %v", tn, err)
+						}
+						logger.Printf("retrying target %s in %s", tn, tRetryTimer)
+						time.Sleep(tRetryTimer)
+						continue
 					}
-					logger.Printf("failed to initialize target '%s': %v", tn, err)
+					return
 				}
 			}(name)
 		}

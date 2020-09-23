@@ -46,6 +46,26 @@ The target address is defined as the key under the `targets` section of the conf
 
 The target inherits the globally defined options if the matching options are not set on a target level. For example, if a target doesn't have a username defined, it will use the username value set on a global level.
 
+Target supported options:
+```yaml
+targets:
+  target1:
+    name:
+    address:
+    username:
+    password:
+    timeout:
+    insecure:
+    tls-ca:
+    tls-cert:
+    tls-key:
+    skip-verify:
+    subscriptions:
+    outputs:
+    buffer-size:
+    retry:
+```
+
 ### Example
 Whatever configuration option you choose, the multi-targeted operations will uniformly work across the commands that support them.
 
