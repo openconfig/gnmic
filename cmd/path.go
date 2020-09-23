@@ -45,9 +45,8 @@ var prefixRepresented bool
 
 // pathCmd represents the path command
 var pathCmd = &cobra.Command{
-	Use:     "path",
-	Aliases: []string{"p"},
-	Short:   "generate gnmi or xpath style from yang file",
+	Use:   "path",
+	Short: "generate gnmi or xpath style from yang file",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if pathType != "xpath" && pathType != "gnmi" {
 			err := fmt.Errorf("path-type must be one of 'xpath' or 'gnmi'")
@@ -178,11 +177,11 @@ var pathCmd = &cobra.Command{
 		cmd.ResetFlags()
 		initPathFlags(cmd)
 	},
+	SilenceUsage: true,
 }
 
 func init() {
 	rootCmd.AddCommand(pathCmd)
-	pathCmd.SilenceUsage = true
 	initPathFlags(pathCmd)
 }
 

@@ -39,7 +39,6 @@ import (
 var listenCmd = &cobra.Command{
 	Use:   "listen",
 	Short: "listens for telemetry dialout updates from the node",
-
 	RunE: func(cmd *cobra.Command, args []string) error {
 		server := new(dialoutTelemetryServer)
 		address := viper.GetStringSlice("address")
@@ -110,11 +109,11 @@ var listenCmd = &cobra.Command{
 		defer server.grpcServer.Stop()
 		return nil
 	},
+	SilenceUsage: true,
 }
 
 func init() {
 	rootCmd.AddCommand(listenCmd)
-	listenCmd.SilenceUsage = true
 	listenCmd.Flags().Uint32P("max-concurrent-streams", "", 256, "max concurrent streams gnmic can receive per transport")
 
 	viper.BindPFlag("listen-max-concurrent-streams", listenCmd.LocalFlags().Lookup("max-concurrent-streams"))

@@ -66,6 +66,7 @@ var getCmd = &cobra.Command{
 		cmd.ResetFlags()
 		initGetFlags(cmd)
 	},
+	SilenceUsage: true,
 }
 
 func getRequest(ctx context.Context, req *gnmi.GetRequest, target *collector.Target, wg *sync.WaitGroup, lock *sync.Mutex) {
@@ -127,7 +128,6 @@ func getRequest(ctx context.Context, req *gnmi.GetRequest, target *collector.Tar
 
 func init() {
 	rootCmd.AddCommand(getCmd)
-	getCmd.SilenceUsage = true
 	initGetFlags(getCmd)
 }
 

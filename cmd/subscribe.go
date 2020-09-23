@@ -166,11 +166,11 @@ var subscribeCmd = &cobra.Command{
 		cmd.ResetFlags()
 		initSubscribeFlags(cmd)
 	},
+	SilenceUsage: true,
 }
 
 func init() {
 	rootCmd.AddCommand(subscribeCmd)
-	subscribeCmd.SilenceUsage = true
 	initSubscribeFlags(subscribeCmd)
 }
 

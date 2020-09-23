@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/c-bata/go-prompt"
 	goprompt "github.com/c-bata/go-prompt"
 	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/spf13/cobra"
@@ -20,8 +19,9 @@ import (
 var promptMode bool
 var schemaTree *yang.Entry
 var promptModeCmd = &cobra.Command{
-	Use:   "prompt-mode",
-	Short: "Run the interactive gnmic-prompt",
+	Use:     "prompt-mode",
+	Aliases: []string{"prompt"},
+	Short:   "Run the interactive gnmic-prompt",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if promptMode {
 			return fmt.Errorf("already entered to the prompt-mode")
@@ -29,39 +29,7 @@ var promptModeCmd = &cobra.Command{
 		ExecutePrompt(handleDynamicSuggestions)
 		return nil
 	},
-}
-
-func findMatchedXPATH(entry *yang.Entry, word string, cursor int) []goprompt.Suggest {
-	suggestions := make([]goprompt.Suggest, 0, 4)
-	cword := word[cursor:]
-	for name, child := range entry.Dir {
-		key := "/" + name
-		if strings.HasPrefix(key, cword) {
-			stext := fmt.Sprintf("%s%s", word[:cursor], key)
-			suggestions = append(suggestions, goprompt.Suggest{Text: stext, Description: child.Description})
-		} else if strings.HasPrefix(cword, key) {
-			suggestions = append(suggestions, findMatchedXPATH(child, word, cursor+len(key))...)
-		}
-	}
-	return suggestions
-}
-
-func handleDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt.Suggest {
-	switch annotation {
-	case "XPATH":
-		word := doc.GetWordBeforeCursor()
-		suggestions := make([]goprompt.Suggest, 0, 16)
-		for _, entry := range schemaTree.Dir {
-			suggestions = append(suggestions, findMatchedXPATH(entry, word, 0)...)
-		}
-		return suggestions
-	case "FILE":
-	}
-	return []goprompt.Suggest{}
-}
-
-func init() {
-	rootCmd.AddCommand(promptModeCmd)
+	SilenceUsage: true,
 }
 
 // promptRootCmd represents the base command when called without any subcommands
@@ -134,6 +102,130 @@ var promptQuitCmd = &cobra.Command{
 	},
 }
 
+func init() {
+	rootCmd.AddCommand(promptModeCmd)
+}
+
+func findMatchedXPATH(entry *yang.Entry, word string, cursor int) []goprompt.Suggest {
+	suggestions := make([]goprompt.Suggest, 0, 4)
+	cword := word[cursor:]
+	for name, child := range entry.Dir {
+		pathelem := "/" + name
+		if strings.HasPrefix(pathelem, cword) {
+			node := fmt.Sprintf("%s%s", word[:cursor], pathelem)
+			suggestions = append(suggestions, goprompt.Suggest{Text: node, Description: child.Description})
+			if child.Key != "" { // list
+				keylist := strings.Split(child.Key, " ")
+				for _, key := range keylist {
+					node = fmt.Sprintf("%s[%s=*]", node, key)
+				}
+				suggestions = append(suggestions, goprompt.Suggest{Text: node, Description: child.Description})
+			}
+		} else if strings.HasPrefix(cword, pathelem) {
+			var prevC rune
+			var bracketCount int
+			var endIndex int = -1
+			var stop bool
+			for i, c := range cword {
+				switch c {
+				case '[':
+					bracketCount++
+				case ']':
+					if prevC != '\\' {
+						bracketCount--
+						endIndex = i
+					}
+				case '/':
+					if i != 0 && bracketCount == 0 {
+						endIndex = i
+						stop = true
+					}
+				}
+				if stop {
+					break
+				}
+				prevC = c
+			}
+			if bracketCount == 0 {
+				if endIndex >= 0 {
+					suggestions = append(suggestions, findMatchedXPATH(child, word, cursor+endIndex)...)
+				} else {
+					suggestions = append(suggestions, findMatchedXPATH(child, word, cursor+len(pathelem))...)
+				}
+			}
+		}
+	}
+	return suggestions
+}
+
+func handleDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt.Suggest {
+	switch annotation {
+	case "XPATH":
+		word := doc.GetWordBeforeCursor()
+		suggestions := make([]goprompt.Suggest, 0, 16)
+		for _, entry := range schemaTree.Dir {
+			suggestions = append(suggestions, findMatchedXPATH(entry, word, 0)...)
+		}
+		return suggestions
+	case "FILE":
+	}
+	return []goprompt.Suggest{}
+}
+
+func shortHelp(b *goprompt.Buffer) {
+	doc := b.Document()
+	command := rootCmd
+	args := strings.Fields(doc.CurrentLine())
+
+	if found, _, err := command.Find(args); err == nil {
+		command = found
+	}
+	// command.Commands()
+
+	suggestions := make([]goprompt.Suggest, 0, 32)
+	resetFlags, _ := command.Flags().GetBool("flags-no-reset")
+	addFlags := func(flag *pflag.Flag) {
+		if flag.Changed && !resetFlags {
+			flag.Value.Set(flag.DefValue)
+		}
+		if flag.Hidden {
+			return
+		}
+		if strings.HasPrefix(doc.GetWordBeforeCursor(), "--") {
+			suggestions = append(suggestions, goprompt.Suggest{Text: "--" + flag.Name, Description: flag.Usage})
+		} else if strings.HasPrefix(doc.GetWordBeforeCursor(), "-") && flag.Shorthand != "" {
+			suggestions = append(suggestions, goprompt.Suggest{Text: "-" + flag.Shorthand, Description: flag.Usage})
+		}
+	}
+
+	// load local flags of the command
+	command.LocalFlags().VisitAll(addFlags)
+	// parent flag is shown if run.
+	// command.InheritedFlags().VisitAll(addFlags)
+
+	if command.HasAvailableSubCommands() {
+		for _, c := range command.Commands() {
+			if c.Hidden {
+				continue
+			}
+			if wordBefore := doc.GetWordBeforeCursor(); strings.HasPrefix(c.Name(), wordBefore) {
+				suggestions = append(suggestions, goprompt.Suggest{Text: c.Name(), Description: c.Short})
+			}
+		}
+	}
+	// if err := termbox.Init(); err != nil {
+	// 	panic(err)
+	// }
+	// w, h := termbox.Size()
+	// termbox.Close()
+	fmt.Printf("\n")
+	// fmt.Println(w, h)
+	for i := range suggestions {
+		fmt.Printf("  %16s : %.64s\n", suggestions[i].Text, suggestions[i].Description)
+	}
+	fmt.Printf("\n")
+}
+
 // ExecutePrompt load and run gnmic-prompt mode.
 // This is called by main.main(). It only needs to happen once to the promptRootCmd.
 func ExecutePrompt(dynamicSuggestionFunc func(annotation string, document goprompt.Document) []goprompt.Suggest) {
@@ -194,7 +286,6 @@ func ExecutePrompt(dynamicSuggestionFunc func(annotation string, document goprom
 	}
 
 	// goprompt.OptionHistory()
-
 	rootCmd.AddCommand(promptQuitCmd)
 	shell := &cmdPrompt{
 		RootCmd:                rootCmd,
@@ -204,7 +295,20 @@ func ExecutePrompt(dynamicSuggestionFunc func(annotation string, document goprom
 			goprompt.OptionTitle("gnmic-prompt"),
 			goprompt.OptionPrefix("gnmic> "),
 			goprompt.OptionMaxSuggestion(5),
-			goprompt.OptionPrefixTextColor(prompt.Yellow),
+			goprompt.OptionPrefixTextColor(goprompt.Yellow),
+			// goprompt.OptionPreviewSuggestionTextColor(goprompt.Yellow),
+			goprompt.OptionPreviewSuggestionBGColor(goprompt.Black),
+			goprompt.OptionSuggestionTextColor(goprompt.White),
+			goprompt.OptionSuggestionBGColor(goprompt.Black),
+			goprompt.OptionSelectedSuggestionTextColor(goprompt.Black),
+			goprompt.OptionSelectedSuggestionBGColor(goprompt.White),
+			// goprompt.OptionDescriptionTextColor(goprompt.White),
+			goprompt.OptionDescriptionBGColor(goprompt.Yellow),
+			goprompt.OptionSelectedDescriptionTextColor(goprompt.Black),
+			goprompt.OptionSelectedDescriptionBGColor(goprompt.White),
+			goprompt.OptionScrollbarBGColor(goprompt.White),
+			goprompt.OptionAddASCIICodeBind(goprompt.ASCIICodeBind{
+				ASCIICode: []byte{0x3f}, Fn: shortHelp}),
 		},
 	}
 	promptMode = true
