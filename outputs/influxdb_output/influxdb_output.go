@@ -3,13 +3,15 @@ package influxdb_output
 import (
 	"encoding/json"
 	"log"
+	"os"
 	"time"
 
-	"github.com/Shopify/sarama"
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
+	"github.com/influxdata/influxdb-client-go/v2/api"
 	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/mitchellh/mapstructure"
+	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
 )
@@ -31,16 +33,16 @@ func init() {
 type InfluxDBOutput struct {
 	Cfg     *Config
 	client  influxdb2.Client
+	writer  api.WriteAPI
 	metrics []prometheus.Collector
-	logger  sarama.StdLogger
-	mo      *collector.MarshalOptions
+	logger  *log.Logger
 }
 type Config struct {
 	URL        string        `mapstructure:"url,omitempty"`
-	Username   string        `mapstructure:"username,omitempty"`
-	Password   string        `mapstructure:"password,omitempty"`
+	Org        string        `mapstructure:"org,omitempty"`
+	Bucket     string        `mapstructure:"bucket,omitempty"`
 	Token      string        `mapstructure:"token,omitempty"`
-	BatchSize  uint64        `mapstructure:"batch_size,omitempty"`
+	BatchSize  uint          `mapstructure:"batch_size,omitempty"`
 	FlushTimer time.Duration `mapstructure:"flush_timer,omitempty"`
 }
 
@@ -65,11 +67,48 @@ func (i *InfluxDBOutput) Init(cfg map[string]interface{}, logger *log.Logger) er
 	if i.Cfg.FlushTimer == 0 {
 		i.Cfg.FlushTimer = defaultFlushTimer
 	}
-	i.client = influxdb2.NewClient(i.Cfg.URL, "")
-
+	i.logger = log.New(os.Stderr, "influxdb_output ", log.LstdFlags|log.Lmicroseconds)
+	if logger != nil {
+		i.logger.SetOutput(logger.Writer())
+		i.logger.SetFlags(logger.Flags())
+	}
+	i.client = influxdb2.NewClientWithOptions(i.Cfg.URL, i.Cfg.Token,
+		influxdb2.DefaultOptions().
+			SetBatchSize(i.Cfg.BatchSize).
+			SetFlushInterval(uint(i.Cfg.FlushTimer.Milliseconds())))
+	i.writer = i.client.WriteAPI(i.Cfg.Org, i.Cfg.Bucket)
+	i.logger.Printf("initialized influxdb write API: %s", i.String())
+	go func() {
+		for err = range i.writer.Errors() {
+			i.logger.Printf("writeAPI error: %v", err)
+		}
+	}()
 	return nil
 }
 
-func (i *InfluxDBOutput) Write(rsp proto.Message, meta outputs.Meta) {}
-func (i *InfluxDBOutput) Close() error                               { return nil }
-func (i *InfluxDBOutput) Metrics() []prometheus.Collector            { return i.metrics }
+func (i *InfluxDBOutput) Write(rsp proto.Message, meta outputs.Meta) {
+	if rsp == nil {
+		return
+	}
+	switch rsp := rsp.(type) {
+	case *gnmi.SubscribeResponse:
+		events, err := collector.ResponseToEventMsgs(i.Cfg.Bucket, rsp, meta)
+		if err != nil {
+			i.logger.Printf("failed to convert message to event: %v", err)
+			return
+		}
+		for _, ev := range events {
+			i.writer.WritePoint(influxdb2.NewPoint(ev.Name, ev.Tags, ev.Values, time.Unix(0, ev.Timestamp)))
+		}
+	}
+}
+
+func (i *InfluxDBOutput) Close() error {
+	i.logger.Printf("flushing data...")
+	i.writer.Flush()
+	i.logger.Printf("closing client...")
+	i.client.Close()
+	i.logger.Printf("closed.")
+	return nil
+}
+func (i *InfluxDBOutput) Metrics() []prometheus.Collector { return i.metrics }
