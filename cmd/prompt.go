@@ -9,6 +9,7 @@ import (
 	"time"
 
 	goprompt "github.com/c-bata/go-prompt"
+	"github.com/nsf/termbox-go"
 	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -21,7 +22,7 @@ var schemaTree *yang.Entry
 var promptModeCmd = &cobra.Command{
 	Use:     "prompt-mode",
 	Aliases: []string{"prompt"},
-	Short:   "Run the interactive gnmic-prompt",
+	Short:   "enter the interactive gnmic prompt-mode",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if promptMode {
 			return fmt.Errorf("already entered to the prompt-mode")
@@ -77,14 +78,6 @@ var promptRootCmd = &cobra.Command{
 		}
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if len(args) > 0 {
-			for _, a := range args {
-				if a == "prompt-mode" {
-					return nil
-				}
-			}
-			return fmt.Errorf("unknown command %v", args)
-		}
 		return nil
 	},
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {
@@ -172,17 +165,34 @@ func handleDynamicSuggestions(annotation string, doc goprompt.Document) []goprom
 	return []goprompt.Suggest{}
 }
 
-func shortHelp(b *goprompt.Buffer) {
+func showCommandArguments(b *goprompt.Buffer) {
 	doc := b.Document()
+	showFlags := false
 	command := rootCmd
 	args := strings.Fields(doc.CurrentLine())
-
 	if found, _, err := command.Find(args); err == nil {
+		if command != found {
+			showFlags = true
+		}
 		command = found
 	}
-	// command.Commands()
-
+	maxNameLen := 0
 	suggestions := make([]goprompt.Suggest, 0, 32)
+
+	if command.HasAvailableSubCommands() {
+		for _, c := range command.Commands() {
+			if c.Hidden {
+				continue
+			}
+			length := len(c.Name())
+			if maxNameLen < length {
+				maxNameLen = length
+			}
+			if wordBefore := doc.GetWordBeforeCursor(); strings.HasPrefix(c.Name(), wordBefore) {
+				suggestions = append(suggestions, goprompt.Suggest{Text: c.Name(), Description: c.Short})
+			}
+		}
+	}
 	resetFlags, _ := command.Flags().GetBool("flags-no-reset")
 	addFlags := func(flag *pflag.Flag) {
 		if flag.Changed && !resetFlags {
@@ -191,11 +201,18 @@ func shortHelp(b *goprompt.Buffer) {
 		if flag.Hidden {
 			return
 		}
-		if strings.HasPrefix(doc.GetWordBeforeCursor(), "--") {
+		if showFlags {
+			length := len(flag.Name)
+			if maxNameLen < length+2 {
+				maxNameLen = length + 2
+			}
 			suggestions = append(suggestions, goprompt.Suggest{Text: "--" + flag.Name, Description: flag.Usage})
-		} else if strings.HasPrefix(doc.GetWordBeforeCursor(), "-") && flag.Shorthand != "" {
-			suggestions = append(suggestions, goprompt.Suggest{Text: "-" + flag.Shorthand, Description: flag.Usage})
 		}
+		// if strings.HasPrefix(doc.GetWordBeforeCursor(), "--") {
+		// 	suggestions = append(suggestions, goprompt.Suggest{Text: "--" + flag.Name, Description: flag.Usage})
+		// } else if strings.HasPrefix(doc.GetWordBeforeCursor(), "-") && flag.Shorthand != "" {
+		// 	suggestions = append(suggestions, goprompt.Suggest{Text: "-" + flag.Shorthand, Description: flag.Usage})
+		// }
 	}
 
 	// load local flags of the command
@@ -203,25 +220,21 @@ func shortHelp(b *goprompt.Buffer) {
 	// parent flag is shown if run.
 	// command.InheritedFlags().VisitAll(addFlags)
 
-	if command.HasAvailableSubCommands() {
-		for _, c := range command.Commands() {
-			if c.Hidden {
-				continue
-			}
-			if wordBefore := doc.GetWordBeforeCursor(); strings.HasPrefix(c.Name(), wordBefore) {
-				suggestions = append(suggestions, goprompt.Suggest{Text: c.Name(), Description: c.Short})
-			}
-		}
+	if err := termbox.Init(); err != nil {
+		panic(err)
 	}
-	// if err := termbox.Init(); err != nil {
-	// 	panic(err)
-	// }
-	// w, h := termbox.Size()
-	// termbox.Close()
+	w, _ := termbox.Size()
+	termbox.Close()
 	fmt.Printf("\n")
-	// fmt.Println(w, h)
+	maxDescLen := w - maxNameLen - 6
+	format := fmt.Sprintf("  %%-%ds : %%-%ds\n", maxNameLen, maxDescLen)
 	for i := range suggestions {
-		fmt.Printf("  %16s : %.64s\n", suggestions[i].Text, suggestions[i].Description)
+		length := len(suggestions[i].Description)
+		if length > maxDescLen {
+			fmt.Printf(format, suggestions[i].Text, suggestions[i].Description[:maxDescLen])
+		} else {
+			fmt.Printf(format, suggestions[i].Text, suggestions[i].Description)
+		}
 	}
 	fmt.Printf("\n")
 }
@@ -308,7 +321,7 @@ func ExecutePrompt(dynamicSuggestionFunc func(annotation string, document goprom
 			goprompt.OptionSelectedDescriptionBGColor(goprompt.White),
 			goprompt.OptionScrollbarBGColor(goprompt.White),
 			goprompt.OptionAddASCIICodeBind(goprompt.ASCIICodeBind{
-				ASCIICode: []byte{0x3f}, Fn: shortHelp}),
+				ASCIICode: []byte{0x3f}, Fn: showCommandArguments}),
 		},
 	}
 	promptMode = true
@@ -365,34 +378,17 @@ func (co cmdPrompt) prepare() {
 }
 
 func findSuggestions(co cmdPrompt, doc goprompt.Document) []goprompt.Suggest {
+	showFlags := false
 	command := co.RootCmd
 	args := strings.Fields(doc.CurrentLine())
-
 	if found, _, err := command.Find(args); err == nil {
+		if command != found {
+			showFlags = true
+		}
 		command = found
 	}
 
 	suggestions := make([]goprompt.Suggest, 0, 32)
-	resetFlags, _ := command.Flags().GetBool("flags-no-reset")
-	addFlags := func(flag *pflag.Flag) {
-		if flag.Changed && !resetFlags {
-			flag.Value.Set(flag.DefValue)
-		}
-		if flag.Hidden {
-			return
-		}
-		if strings.HasPrefix(doc.GetWordBeforeCursor(), "--") {
-			suggestions = append(suggestions, goprompt.Suggest{Text: "--" + flag.Name, Description: flag.Usage})
-		} else if strings.HasPrefix(doc.GetWordBeforeCursor(), "-") && flag.Shorthand != "" {
-			suggestions = append(suggestions, goprompt.Suggest{Text: "-" + flag.Shorthand, Description: flag.Usage})
-		}
-	}
-
-	// load local flags of the command
-	command.LocalFlags().VisitAll(addFlags)
-	// parent flag is shown if run.
-	// command.InheritedFlags().VisitAll(addFlags)
-
 	if command.HasAvailableSubCommands() {
 		for _, c := range command.Commands() {
 			if !c.Hidden {
@@ -401,7 +397,7 @@ func findSuggestions(co cmdPrompt, doc goprompt.Document) []goprompt.Suggest {
 		}
 	}
 
-	// check flag annotation for the suggestion
+	// check flag annotation for the dynamic suggestion
 	annotation := ""
 	argnum := len(args)
 	wordBefore := doc.GetWordBeforeCursor()
@@ -417,5 +413,24 @@ func findSuggestions(co cmdPrompt, doc goprompt.Document) []goprompt.Suggest {
 	if co.DynamicSuggestionsFunc != nil && annotation != "" {
 		suggestions = append(suggestions, co.DynamicSuggestionsFunc(annotation, doc)...)
 	}
+
+	resetFlags, _ := command.Flags().GetBool("flags-no-reset")
+	addFlags := func(flag *pflag.Flag) {
+		if flag.Changed && !resetFlags {
+			flag.Value.Set(flag.DefValue)
+		}
+		if flag.Hidden {
+			return
+		}
+		if showFlags {
+			suggestions = append(suggestions, goprompt.Suggest{Text: "--" + flag.Name, Description: flag.Usage})
+		}
+	}
+
+	// load local flags of the command
+	command.LocalFlags().VisitAll(addFlags)
+	// parent flag is shown if run.
+	// command.InheritedFlags().VisitAll(addFlags)
+
 	return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
 }
