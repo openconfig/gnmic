@@ -2,6 +2,7 @@ package influxdb_output
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"log"
 	"os"
@@ -48,6 +49,7 @@ type Config struct {
 	BatchSize         uint          `mapstructure:"batch_size,omitempty"`
 	FlushTimer        time.Duration `mapstructure:"flush_timer,omitempty"`
 	UseGzip           bool          `mapstructure:"use_gzip,omitempty"`
+	EnableTLS         bool          `mapstructure:"enable_tls,omitempty"`
 	HealthCheckPeriod time.Duration `mapstructure:"health_check_period,omitempty"`
 	Debug             bool          `mapstructure:"debug,omitempty"`
 }
@@ -87,6 +89,11 @@ func (i *InfluxDBOutput) Init(cfg map[string]interface{}, logger *log.Logger) er
 		SetUseGZip(i.Cfg.UseGzip).
 		SetBatchSize(i.Cfg.BatchSize).
 		SetFlushInterval(uint(i.Cfg.FlushTimer.Milliseconds()))
+	if i.Cfg.EnableTLS {
+		opts.SetTLSConfig(&tls.Config{
+			InsecureSkipVerify: true,
+		})
+	}
 	if i.Cfg.Debug {
 		opts.SetLogLevel(3)
 	}
@@ -152,12 +159,17 @@ func (i *InfluxDBOutput) healthCheck(ctx context.Context) {
 func (i *InfluxDBOutput) health(ctx context.Context) {
 	res, err := i.client.Health(ctx)
 	if err != nil {
-		i.logger.Printf("failed to initialize influxdb output: %v", err)
+		i.logger.Printf("failed health check: %v", err)
 		return
 	}
 	if res != nil {
-		i.logger.Printf("health check result: name=%s, version=%s, status=%s, message=%s, commit=%s, checks=%v",
-			res.Name, *res.Version, res.Status, *res.Message, *res.Commit, *res.Checks)
+		b, err := json.Marshal(res)
+		if err != nil {
+			i.logger.Printf("failed to marshal health check result: %v", err)
+			i.logger.Printf("health check result: %+v", res)
+			return
+		}
+		i.logger.Printf("health check result: %s", string(b))
 		return
 	}
 	i.logger.Print("health check result is nil")
