@@ -62,21 +62,21 @@ gnmic -a 10.1.0.11:57400 -u admin -p admin --insecure \
 ### Prompt mode
 
 The prompt mode is an interactive mode of the gnmic CLI client for user convenience.
-The gnmic subcommands such as capabilities, get, set and subscribe of the gNMI protocol can be used in the prompt mode.
-This prompt mode also supports the tab compeletion of the subcommands, their flags and the path of the YANG data model you defined.
+The gnmic subcommands such as capabilities, get, set and subscribe of the gNMI protocol can be used in the prompt mode with tab completion for their flags and the xpath of the YANG data models that you defined.
 
 ![gnmic prompt-mode](docs/images/gnmic.prompt-mode.demo.gif)
 
+> This prompt mode is still being developed. The following work items will be implemented.
 
 ### code changes for the prompt mode
 
-- Updated path command to generate a schema file for tab completion for prompt mode.
-- Separated flags initialization func to reset the used flags in the prompt mode.
+- Updated path command to generate a schema fil ($HOME/.gnmic.schema) for tab completion of the prompt mode.
+- Separated flags initialization func to reset the used subcommand flags in the prompt mode.
 - Added prompt-mode subcommand to root command.
 
 ### Jobs to do
 
-- add --dir, --file and --exclude flags to the prompt-mode for single step schema loading.
-- subcommand execution must return success or failure information to the terminal. (e.g. get doesn't any info upon get operation failure.)
-- Subscribe subcommand must be run in background on the prompt mode.
+- add --dir, --file and --exclude flags to the prompt mode for single step schema loading.
+- subcommand execution must return success or failure information to the terminal. (e.g. `get` doesn't any info upon `get` operation failure.)
+- `Subscribe` subcommand must be run in background on the prompt mode.
 - Add command history to the prompt mode
