@@ -43,6 +43,131 @@ var search bool
 var generateSchema bool
 var prefixRepresented bool
 
+func pathCmdRun(d, f, e []string, quitAfterGenerate bool) error {
+	if pathType != "xpath" && pathType != "gnmi" {
+		err := fmt.Errorf("path-type must be one of 'xpath' or 'gnmi'")
+		return err
+	}
+	for _, dirpath := range d {
+		expanded, err := yang.PathsWithModules(dirpath)
+		if err != nil {
+			return err
+		}
+		yang.AddPath(expanded...)
+	}
+
+	ms := yang.NewModules()
+	for _, name := range f {
+		if err := ms.Read(name); err != nil {
+			return err
+		}
+	}
+	if errors := ms.Process(); len(errors) > 0 {
+		return fmt.Errorf("yang processing failed %v", errors)
+	}
+	// Keep track of the top level modules we read in.
+	// Those are the only modules we want to print below.
+	mods := map[string]*yang.Module{}
+	var names []string
+
+	for _, m := range ms.Modules {
+		if mods[m.Name] == nil {
+			mods[m.Name] = m
+			names = append(names, m.Name)
+		}
+	}
+	sort.Strings(names)
+	entries := make([]*yang.Entry, len(names))
+	for x, n := range names {
+		entries[x] = yang.ToEntry(mods[n])
+	}
+
+	root := buildRootEntry()
+	for _, entry := range entries {
+		skip := false
+		for i := range e {
+			if entry.Name == e[i] {
+				skip = true
+			}
+		}
+		if !skip {
+			updateAnnotation(entry)
+			root.Dir[entry.Name] = entry
+		}
+	}
+	if generateSchema || quitAfterGenerate {
+		if err := writeSchemaZip(root); err != nil {
+			return err
+		}
+		logger.Printf("To generate schema ($HOME/.gnmic.schema) is succeed.")
+		if quitAfterGenerate {
+			return nil
+		}
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	out := make(chan string)
+	defer close(out)
+	paths := make([]string, 0)
+	if search {
+		go gather(ctx, out, &paths)
+	} else {
+		go printer(ctx, out)
+	}
+	collected := make([]*yang.Entry, 0, 256)
+	for _, entry := range root.Dir {
+		collected = append(collected, collectSchemaNodes(entry, true)...)
+	}
+	for _, entry := range collected {
+		out <- generatePath(entry, prefixRepresented)
+	}
+
+	if search {
+		p := promptui.Select{
+			Label:        "select path",
+			Items:        paths,
+			Size:         10,
+			Stdout:       os.Stdout,
+			HideSelected: true,
+			Searcher: func(input string, index int) bool {
+				kws := strings.Split(input, " ")
+				result := true
+				count := 0
+				for _, kw := range kws {
+					if strings.HasPrefix(kw, "!") {
+						kw = strings.TrimLeft(kw, "!")
+						if kw == "" {
+							continue
+						}
+						result = result && !strings.Contains(paths[index], kw)
+					} else {
+						result = result && strings.Contains(paths[index], kw)
+					}
+				}
+				if result {
+					count++
+				}
+				return result
+			},
+			Keys: &promptui.SelectKeys{
+				Prev:     promptui.Key{Code: promptui.KeyPrev, Display: promptui.KeyPrevDisplay},
+				Next:     promptui.Key{Code: promptui.KeyNext, Display: promptui.KeyNextDisplay},
+				PageUp:   promptui.Key{Code: promptui.KeyBackward, Display: promptui.KeyBackwardDisplay},
+				PageDown: promptui.Key{Code: promptui.KeyForward, Display: promptui.KeyForwardDisplay},
+				Search:   promptui.Key{Code: ':', Display: ":"},
+			},
+		}
+		index, selected, err := p.Run()
+		if err != nil {
+			return err
+		}
+		fmt.Println(selected)
+		fmt.Println(generateTypeInfo(collected[index]))
+	}
+	return nil
+}
+
 // pathCmd represents the path command
 var pathCmd = &cobra.Command{
 	Use:   "path",
@@ -52,130 +177,7 @@ var pathCmd = &cobra.Command{
 		"--dir":  "DIR",
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if pathType != "xpath" && pathType != "gnmi" {
-			err := fmt.Errorf("path-type must be one of 'xpath' or 'gnmi'")
-			fmt.Fprintln(os.Stderr, err)
-			return err
-		}
-		for _, dirpath := range dirs {
-			expanded, err := yang.PathsWithModules(dirpath)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				continue
-			}
-			yang.AddPath(expanded...)
-		}
-
-		ms := yang.NewModules()
-		for _, name := range files {
-			if err := ms.Read(name); err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				continue
-			}
-		}
-		if errors := ms.Process(); len(errors) > 0 {
-			for _, err := range errors {
-				fmt.Fprintln(os.Stderr, err)
-			}
-			return fmt.Errorf("yang processing failed")
-		}
-		// Keep track of the top level modules we read in.
-		// Those are the only modules we want to print below.
-		mods := map[string]*yang.Module{}
-		var names []string
-
-		for _, m := range ms.Modules {
-			if mods[m.Name] == nil {
-				mods[m.Name] = m
-				names = append(names, m.Name)
-			}
-		}
-		sort.Strings(names)
-		entries := make([]*yang.Entry, len(names))
-		for x, n := range names {
-			entries[x] = yang.ToEntry(mods[n])
-		}
-
-		root := buildRootEntry()
-		for _, entry := range entries {
-			skip := false
-			for i := range excluded {
-				if entry.Name == excluded[i] {
-					skip = true
-				}
-			}
-			if !skip {
-				updateAnnotation(entry)
-				root.Dir[entry.Name] = entry
-			}
-		}
-		if generateSchema {
-			if err := writeSchemaZip(root); err != nil {
-				return err
-			}
-		}
-
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		out := make(chan string)
-		defer close(out)
-		paths := make([]string, 0)
-		if search {
-			go gather(ctx, out, &paths)
-		} else {
-			go printer(ctx, out)
-		}
-		collected := make([]*yang.Entry, 0, 256)
-		for _, entry := range root.Dir {
-			collected = append(collected, collectSchemaNodes(entry, true)...)
-		}
-		for _, entry := range collected {
-			out <- generatePath(entry, prefixRepresented)
-		}
-
-		if search {
-			p := promptui.Select{
-				Label:        "select path",
-				Items:        paths,
-				Size:         10,
-				Stdout:       os.Stdout,
-				HideSelected: true,
-				Searcher: func(input string, index int) bool {
-					kws := strings.Split(input, " ")
-					result := true
-					count := 0
-					for _, kw := range kws {
-						if strings.HasPrefix(kw, "!") {
-							kw = strings.TrimLeft(kw, "!")
-							if kw == "" {
-								continue
-							}
-							result = result && !strings.Contains(paths[index], kw)
-						} else {
-							result = result && strings.Contains(paths[index], kw)
-						}
-					}
-					if result {
-						count++
-					}
-					return result
-				},
-				Keys: &promptui.SelectKeys{
-					Prev:     promptui.Key{Code: promptui.KeyPrev, Display: promptui.KeyPrevDisplay},
-					Next:     promptui.Key{Code: promptui.KeyNext, Display: promptui.KeyNextDisplay},
-					PageUp:   promptui.Key{Code: promptui.KeyBackward, Display: promptui.KeyBackwardDisplay},
-					PageDown: promptui.Key{Code: promptui.KeyForward, Display: promptui.KeyForwardDisplay},
-					Search:   promptui.Key{Code: ':', Display: ":"},
-				},
-			}
-			index, selected, err := p.Run()
-			if err != nil {
-				return err
-			}
-			fmt.Println(selected)
-			fmt.Println(generateTypeInfo(collected[index]))
-		}
-		return nil
+		return pathCmdRun(dirs, files, excluded, false)
 	},
 	PostRun: func(cmd *cobra.Command, args []string) {
 		cmd.ResetFlags()

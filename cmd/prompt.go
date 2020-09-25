@@ -11,6 +11,7 @@ import (
 	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
 )
 
 var promptMode bool
@@ -20,11 +21,15 @@ var promptModeCmd = &cobra.Command{
 	Aliases: []string{"prompt"},
 	Short:   "enter the interactive gnmic prompt-mode",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if promptMode {
-			return fmt.Errorf("already entered to the prompt-mode")
+		err := pathCmdRun(promptDirs, promptFiles, promptExcluded, true)
+		if err == nil {
+			promptMode = true
 		}
-		promptMode = true
-		return nil
+		return err
+	},
+	PostRun: func(cmd *cobra.Command, args []string) {
+		cmd.ResetFlags()
+		initPromptFlags(cmd)
 	},
 	SilenceUsage: true,
 }
@@ -39,6 +44,21 @@ var promptQuitCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(promptModeCmd)
+	initPromptFlags(promptModeCmd)
+}
+
+var promptFiles []string
+var promptExcluded []string
+var promptDirs []string
+
+// used to init or reset pathCmd flags for gnmic-prompt mode
+func initPromptFlags(cmd *cobra.Command) {
+	cmd.Flags().StringArrayVarP(&promptFiles, "file", "", []string{}, "yang files to get the paths")
+	cmd.Flags().StringArrayVarP(&promptExcluded, "exclude", "", []string{}, "yang modules to be excluded from path generation")
+	cmd.Flags().StringArrayVarP(&promptDirs, "dir", "", []string{}, "directories to search yang includes and imports")
+	viper.BindPFlag("prompt-file", cmd.LocalFlags().Lookup("file"))
+	viper.BindPFlag("prompt-exclude", cmd.LocalFlags().Lookup("exclude"))
+	viper.BindPFlag("prompt-dir", cmd.LocalFlags().Lookup("dir"))
 }
 
 func findMatchedXPATH(entry *yang.Entry, word string, cursor int) []goprompt.Suggest {

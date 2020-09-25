@@ -73,10 +73,10 @@ The gnmic subcommands such as capabilities, get, set and subscribe of the gNMI p
 - Updated path command to generate a schema fil ($HOME/.gnmic.schema) for tab completion of the prompt mode.
 - Separated flags initialization func to reset the used subcommand flags in the prompt mode.
 - Added prompt-mode subcommand to root command.
+- Added --dir, --file and --exclude flags to the prompt mode for single step schema loading.
 
 ### Jobs to do
 
-- add --dir, --file and --exclude flags to the prompt mode for single step schema loading.
 - subcommand execution must return success or failure information to the terminal. (e.g. `get` doesn't any info upon `get` operation failure.)
 - `Subscribe` subcommand must be run in background on the prompt mode.
 - Add command history to the prompt mode
