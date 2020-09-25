@@ -7,4 +7,5 @@ import (
 	_ "github.com/karimra/gnmic/outputs/stan_output"
 	_ "github.com/karimra/gnmic/outputs/tcp_output"
 	_ "github.com/karimra/gnmic/outputs/udp_output"
+	_ "github.com/karimra/gnmic/outputs/influxdb_output"
 )
