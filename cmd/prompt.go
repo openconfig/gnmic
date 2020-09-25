@@ -9,6 +9,7 @@ import (
 	"time"
 
 	goprompt "github.com/c-bata/go-prompt"
+	"github.com/c-bata/go-prompt/completer"
 	"github.com/nsf/termbox-go"
 	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/spf13/cobra"
@@ -105,8 +106,18 @@ func findMatchedXPATH(entry *yang.Entry, word string, cursor int) []goprompt.Sug
 	for name, child := range entry.Dir {
 		pathelem := "/" + name
 		if strings.HasPrefix(pathelem, cword) {
-			node := fmt.Sprintf("%s%s", word[:cursor], pathelem)
-			suggestions = append(suggestions, goprompt.Suggest{Text: node, Description: child.Description})
+			node := ""
+			if os.PathSeparator != '/' {
+				node = fmt.Sprintf("%s%s", word[:cursor], pathelem)
+				suggestions = append(suggestions, goprompt.Suggest{Text: node, Description: child.Description})
+			} else {
+				if len(cword) >= 1 && cword[0] == '/' {
+					node = name
+				} else {
+					node = pathelem
+				}
+				suggestions = append(suggestions, goprompt.Suggest{Text: node, Description: child.Description})
+			}
 			if child.Key != "" { // list
 				keylist := strings.Split(child.Key, " ")
 				for _, key := range keylist {
@@ -151,6 +162,29 @@ func findMatchedXPATH(entry *yang.Entry, word string, cursor int) []goprompt.Sug
 	return suggestions
 }
 
+var filePathCompleter = completer.FilePathCompleter{
+	IgnoreCase: true,
+	Filter: func(fi os.FileInfo) bool {
+		fmt.Println(fi.Name())
+		return fi.IsDir() || !strings.HasPrefix(fi.Name(), ".")
+	},
+}
+
+var yangPathCompleter = completer.FilePathCompleter{
+	IgnoreCase: true,
+	Filter: func(fi os.FileInfo) bool {
+		fmt.Println(fi.Name())
+		return fi.IsDir() || strings.HasSuffix(fi.Name(), ".yang")
+	},
+}
+
+var dirPathCompleter = completer.FilePathCompleter{
+	IgnoreCase: true,
+	Filter: func(fi os.FileInfo) bool {
+		return fi.IsDir()
+	},
+}
+
 func handleDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt.Suggest {
 	switch annotation {
 	case "XPATH":
@@ -161,6 +195,11 @@ func handleDynamicSuggestions(annotation string, doc goprompt.Document) []goprom
 		}
 		return suggestions
 	case "FILE":
+		return filePathCompleter.Complete(doc)
+	case "YANG":
+		return yangPathCompleter.Complete(doc)
+	case "DIR":
+		return dirPathCompleter.Complete(doc)
 	}
 	return []goprompt.Suggest{}
 }
@@ -322,6 +361,7 @@ func ExecutePrompt(dynamicSuggestionFunc func(annotation string, document goprom
 			goprompt.OptionScrollbarBGColor(goprompt.White),
 			goprompt.OptionAddASCIICodeBind(goprompt.ASCIICodeBind{
 				ASCIICode: []byte{0x3f}, Fn: showCommandArguments}),
+			goprompt.OptionCompletionWordSeparator(completer.FilePathCompletionSeparator),
 		},
 	}
 	promptMode = true
@@ -411,7 +451,7 @@ func findSuggestions(co cmdPrompt, doc goprompt.Document) []goprompt.Suggest {
 		}
 	}
 	if co.DynamicSuggestionsFunc != nil && annotation != "" {
-		suggestions = append(suggestions, co.DynamicSuggestionsFunc(annotation, doc)...)
+		return append(suggestions, co.DynamicSuggestionsFunc(annotation, doc)...)
 	}
 
 	resetFlags, _ := command.Flags().GetBool("flags-no-reset")

@@ -47,6 +47,10 @@ var prefixRepresented bool
 var pathCmd = &cobra.Command{
 	Use:   "path",
 	Short: "generate gnmi or xpath style from yang file",
+	Annotations: map[string]string{
+		"--file": "YANG",
+		"--dir":  "DIR",
+	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if pathType != "xpath" && pathType != "gnmi" {
 			err := fmt.Errorf("path-type must be one of 'xpath' or 'gnmi'")
