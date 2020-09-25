@@ -41,6 +41,10 @@ var subscribeCmd = &cobra.Command{
 	Use:     "subscribe",
 	Aliases: []string{"sub"},
 	Short:   "subscribe to gnmi updates on targets",
+	Annotations: map[string]string{
+		"--path":   "XPATH",
+		"--prefix": "XPATH",
+	},
 
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx, cancel := context.WithCancel(context.Background())

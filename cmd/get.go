@@ -35,7 +35,9 @@ var getCmd = &cobra.Command{
 	Use:   "get",
 	Short: "run gnmi get on targets",
 	Annotations: map[string]string{
-		"--path": "XPATH",
+		"--path":   "XPATH",
+		"--prefix": "XPATH",
+		"--model":  "MODEL",
 	},
 
 	RunE: func(cmd *cobra.Command, args []string) error {

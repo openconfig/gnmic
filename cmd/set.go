@@ -57,6 +57,16 @@ var setInput setCmdInput
 var setCmd = &cobra.Command{
 	Use:   "set",
 	Short: "run gnmi set on targets",
+	Annotations: map[string]string{
+		"--delete":       "XPATH",
+		"--prefix":       "XPATH",
+		"--replace":      "XPATH",
+		"--replace-file": "FILE",
+		"--replace-path": "PATH",
+		"--update":       "XPATH",
+		"--update-file":  "FILE",
+		"--update-path":  "PATH",
+	},
 
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if viper.GetString("format") == "event" {

@@ -198,6 +198,12 @@ func handleDynamicSuggestions(annotation string, doc goprompt.Document) []goprom
 		return filePathCompleter.Complete(doc)
 	case "YANG":
 		return yangPathCompleter.Complete(doc)
+	case "MODEL":
+		suggestions := make([]goprompt.Suggest, 0, len(schemaTree.Dir))
+		for name := range schemaTree.Dir {
+			suggestions = append(suggestions, goprompt.Suggest{Text: name})
+		}
+		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
 	case "DIR":
 		return dirPathCompleter.Complete(doc)
 	}

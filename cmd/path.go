@@ -372,7 +372,6 @@ func updateAnnotation(entry *yang.Entry) {
 				bits = append(bits, bitstr)
 			}
 			child.Annotation["bits"] = bits
-
 		case yang.Yenum:
 			nameMap := t.Enum.NameMap()
 			enum := make([]string, 0, len(nameMap))
