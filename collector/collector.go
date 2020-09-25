@@ -186,9 +186,9 @@ func (c *Collector) Start(ctx context.Context) {
 						c.Logger.Printf("received gNMI Subscribe Response: %+v", rsp)
 					}
 					if c.subscriptionMode(rsp.SubscriptionName) == "ONCE" {
-						t.Export(rsp.Response, outputs.Meta{"source": t.Config.Name, "format": c.Config.Format, "subscription-name": rsp.SubscriptionName})
+						t.Export(ctx, rsp.Response, outputs.Meta{"source": t.Config.Name, "format": c.Config.Format, "subscription-name": rsp.SubscriptionName})
 					} else {
-						go t.Export(rsp.Response, outputs.Meta{"source": t.Config.Name, "format": c.Config.Format, "subscription-name": rsp.SubscriptionName})
+						go t.Export(ctx, rsp.Response, outputs.Meta{"source": t.Config.Name, "format": c.Config.Format, "subscription-name": rsp.SubscriptionName})
 					}
 					if remainingOnceSubscriptions > 0 {
 						if c.subscriptionMode(rsp.SubscriptionName) == "ONCE" {
