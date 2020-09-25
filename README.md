@@ -68,8 +68,15 @@ This prompt mode also supports the tab compeletion of the subcommands, their fla
 ![gnmic prompt-mode](docs/images/gnmic.prompt-mode.demo.gif)
 
 
-./gnmic --address 192.168.77.110:57400 --tls-ca ../gnmi/tls/ca.crt --tls-cert ../gnmi/tls/client.crt --tls-key ../gnmi/tls/client.key --username root --password admin -d prompt-mode
-./gnmic --address 192.168.77.110:57400 --tls-ca ../gnmi/tls/ca.crt --tls-cert ../gnmi/tls/client.crt --tls-key ../gnmi/tls/client.key --username root --password admin -d path --dir ../gnmi/model/yang/ --file ../gnmi/model/yang/openconfig-interfaces.yang --types
-./gnmic --address 192.168.77.110:57400 --tls-ca ../gnmi/tls/ca.crt --tls-cert ../gnmi/tls/client.crt --tls-key ../gnmi/tls/client.key --username root --password admin -d path --dir ../gnmi/model/yang/ --file ../gnmi/model/yang/openconfig-interfaces.yang --file ../gnmi/model/yang/iana-if-type@2017-01-19.yang --exclude ietf-interfaces --generate-schema --search
+### code changes for the prompt mode
 
+- Updated path command to generate a schema file for tab completion for prompt mode.
+- Separated flags initialization func to reset the used flags in the prompt mode.
+- Added prompt-mode subcommand to root command.
 
+### Jobs to do
+
+- add --dir, --file and --exclude flags to the prompt-mode for single step schema loading.
+- subcommand execution must return success or failure information to the terminal. (e.g. get doesn't any info upon get operation failure.)
+- Subscribe subcommand must be run in background on the prompt mode.
+- Add command history to the prompt mode
