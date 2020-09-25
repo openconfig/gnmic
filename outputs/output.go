@@ -1,6 +1,7 @@
 package outputs
 
 import (
+	"context"
 	"log"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -8,8 +9,8 @@ import (
 )
 
 type Output interface {
-	Init(map[string]interface{}, *log.Logger) error
-	Write(proto.Message, Meta)
+	Init(context.Context, map[string]interface{}, *log.Logger) error
+	Write(context.Context, proto.Message, Meta)
 	Close() error
 	Metrics() []prometheus.Collector
 	String() string
