@@ -23,23 +23,27 @@ const (
 	defaultBatchSize         = 1000
 	defaultFlushTimer        = 10 * time.Second
 	defaultHealthCheckPeriod = 30 * time.Second
+
+	numWorkers = 1
 )
 
 func init() {
 	outputs.Register("influxdb", func() outputs.Output {
 		return &InfluxDBOutput{
-			Cfg: &Config{},
+			Cfg:       &Config{},
+			eventChan: make(chan *collector.EventMsg),
 		}
 	})
 }
 
 type InfluxDBOutput struct {
-	Cfg      *Config
-	client   influxdb2.Client
-	writer   api.WriteAPI
-	metrics  []prometheus.Collector
-	logger   *log.Logger
-	cancelFn context.CancelFunc
+	Cfg       *Config
+	client    influxdb2.Client
+	writer    api.WriteAPI
+	metrics   []prometheus.Collector
+	logger    *log.Logger
+	cancelFn  context.CancelFunc
+	eventChan chan *collector.EventMsg
 }
 type Config struct {
 	URL               string        `mapstructure:"url,omitempty"`
@@ -61,9 +65,8 @@ func (k *InfluxDBOutput) String() string {
 	}
 	return string(b)
 }
-func (i *InfluxDBOutput) Init(cfg map[string]interface{}, logger *log.Logger) error {
-	var ctx context.Context
-	ctx, i.cancelFn = context.WithCancel(context.Background())
+func (i *InfluxDBOutput) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger) error {
+	ctx, i.cancelFn = context.WithCancel(ctx)
 	err := mapstructure.Decode(cfg, i.Cfg)
 	if err != nil {
 		return err
@@ -104,14 +107,24 @@ func (i *InfluxDBOutput) Init(cfg map[string]interface{}, logger *log.Logger) er
 	i.logger.Printf("initialized influxdb write API: %s", i.String())
 	// start influxdb error logs
 	go func() {
-		for err = range i.writer.Errors() {
+		select {
+		case <-ctx.Done():
+			return
+		case err := <-i.writer.Errors():
 			i.logger.Printf("writeAPI error: %v", err)
 		}
+	}()
+	for k := 0; k < numWorkers; k++ {
+		go i.worker(ctx, k)
+	}
+	go func() {
+		<-ctx.Done()
+		i.Close()
 	}()
 	return nil
 }
 
-func (i *InfluxDBOutput) Write(rsp proto.Message, meta outputs.Meta) {
+func (i *InfluxDBOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) {
 	if rsp == nil {
 		return
 	}
@@ -127,7 +140,11 @@ func (i *InfluxDBOutput) Write(rsp proto.Message, meta outputs.Meta) {
 			return
 		}
 		for _, ev := range events {
-			i.writer.WritePoint(influxdb2.NewPoint(ev.Name, ev.Tags, ev.Values, time.Unix(0, ev.Timestamp)))
+			select {
+			case <-ctx.Done():
+				return
+			case i.eventChan <- ev:
+			}
 		}
 	}
 }
@@ -138,6 +155,7 @@ func (i *InfluxDBOutput) Close() error {
 	i.logger.Printf("closing client...")
 	i.client.Close()
 	i.cancelFn()
+	close(i.eventChan)
 	i.logger.Printf("closed.")
 	return nil
 }
@@ -173,4 +191,14 @@ func (i *InfluxDBOutput) health(ctx context.Context) {
 		return
 	}
 	i.logger.Print("health check result is nil")
+}
+
+func (i *InfluxDBOutput) worker(ctx context.Context, idx int) {
+	select {
+	case <-ctx.Done():
+		i.logger.Printf("worker-%d terminating...", idx)
+		return
+	case ev := <-i.eventChan:
+		i.writer.WritePoint(influxdb2.NewPoint(ev.Name, ev.Tags, ev.Values, time.Unix(0, ev.Timestamp)))
+	}
 }
