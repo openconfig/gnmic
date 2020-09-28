@@ -32,7 +32,6 @@ func init() {
 type TCPOutput struct {
 	Cfg *Config
 
-	conn     *net.TCPConn
 	cancelFn context.CancelFunc
 	buffer   chan []byte
 	limiter  *time.Ticker
@@ -130,16 +129,16 @@ START:
 		time.Sleep(t.Cfg.RetryInterval)
 		goto START
 	}
-	t.conn, err = net.DialTCP("tcp", nil, tcpAddr)
+	conn, err := net.DialTCP("tcp", nil, tcpAddr)
 	if err != nil {
 		t.logger.Printf("failed to dial TCP: %v", err)
 		time.Sleep(t.Cfg.RetryInterval)
 		goto START
 	}
-	defer t.conn.Close()
+	defer conn.Close()
 	if t.Cfg.KeepAlive > 0 {
-		t.conn.SetKeepAlive(true)
-		t.conn.SetKeepAlivePeriod(t.Cfg.KeepAlive)
+		conn.SetKeepAlive(true)
+		conn.SetKeepAlivePeriod(t.Cfg.KeepAlive)
 	}
 
 	defer t.Close()
@@ -151,10 +150,10 @@ START:
 			if t.limiter != nil {
 				<-t.limiter.C
 			}
-			_, err = t.conn.Write(b)
+			_, err = conn.Write(b)
 			if err != nil {
 				t.logger.Printf("failed sending tcp bytes: %v", err)
-				t.conn.Close()
+				conn.Close()
 				time.Sleep(t.Cfg.RetryInterval)
 				goto START
 			}
