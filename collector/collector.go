@@ -158,7 +158,9 @@ func (c *Collector) Subscribe(ctx context.Context, tName string) error {
 func (c *Collector) Start(ctx context.Context) {
 	if c.httpServer != nil {
 		go func() {
-			if err := c.httpServer.ListenAndServe(); err != nil {
+			c.Logger.Printf("starting prometheus server on %s", c.httpServer.Addr)
+			err := c.httpServer.ListenAndServe()
+			if err != nil {
 				c.Logger.Printf("Unable to start prometheus http server: %v", err)
 				return
 			}
