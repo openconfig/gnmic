@@ -194,11 +194,13 @@ func (i *InfluxDBOutput) health(ctx context.Context) {
 }
 
 func (i *InfluxDBOutput) worker(ctx context.Context, idx int) {
-	select {
-	case <-ctx.Done():
-		i.logger.Printf("worker-%d terminating...", idx)
-		return
-	case ev := <-i.eventChan:
-		i.writer.WritePoint(influxdb2.NewPoint(ev.Name, ev.Tags, ev.Values, time.Unix(0, ev.Timestamp)))
+	for {
+		select {
+		case <-ctx.Done():
+			i.logger.Printf("worker-%d terminating...", idx)
+			return
+		case ev := <-i.eventChan:
+			i.writer.WritePoint(influxdb2.NewPoint(ev.Name, ev.Tags, ev.Values, time.Unix(0, ev.Timestamp)))
+		}
 	}
 }
