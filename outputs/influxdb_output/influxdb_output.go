@@ -194,9 +194,13 @@ func (i *InfluxDBOutput) health(ctx context.Context) {
 }
 
 func (i *InfluxDBOutput) worker(ctx context.Context, idx int) {
+	i.logger.Printf("starting worker-%d", idx)
 	for {
 		select {
 		case <-ctx.Done():
+			if ctx.Err() != nil {
+				i.logger.Printf("worker-%d err=%v", idx, ctx.Err())
+			}
 			i.logger.Printf("worker-%d terminating...", idx)
 			return
 		case ev := <-i.eventChan:
