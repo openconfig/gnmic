@@ -70,7 +70,7 @@ func (n *NatsOutput) String() string {
 }
 
 // Init //
-func (n *NatsOutput) Init(cfg map[string]interface{}, logger *log.Logger) error {
+func (n *NatsOutput) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger) error {
 	err := mapstructure.Decode(cfg, n.Cfg)
 	if err != nil {
 		return err
@@ -95,18 +95,22 @@ func (n *NatsOutput) Init(cfg map[string]interface{}, logger *log.Logger) error 
 	if n.Cfg.Name == "" {
 		n.Cfg.Name = "gnmic-" + uuid.New().String()
 	}
-	n.ctx, n.cancelFn = context.WithCancel(context.Background())
+	n.ctx, n.cancelFn = context.WithCancel(ctx)
 	n.conn, err = n.createNATSConn(n.Cfg)
 	if err != nil {
 		return err
 	}
 	n.logger.Printf("initialized nats producer: %s", n.String())
 	n.mo = &collector.MarshalOptions{Format: n.Cfg.Format}
+	go func() {
+		<-ctx.Done()
+		n.Close()
+	}()
 	return nil
 }
 
 // Write //
-func (n *NatsOutput) Write(rsp proto.Message, meta outputs.Meta) {
+func (n *NatsOutput) Write(_ context.Context, rsp proto.Message, meta outputs.Meta) {
 	if rsp == nil {
 		return
 	}
@@ -147,7 +151,6 @@ func (n *NatsOutput) Write(rsp proto.Message, meta outputs.Meta) {
 
 // Close //
 func (n *NatsOutput) Close() error {
-	n.cancelFn()
 	n.conn.Close()
 	return nil
 }
@@ -187,7 +190,7 @@ func (n *NatsOutput) Dial(network, address string) (net.Conn, error) {
 	defer cancel()
 
 	for {
-		n.logger.Println("attempting to connect to", address)
+		n.logger.Printf("attempting to connect to %s", address)
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}

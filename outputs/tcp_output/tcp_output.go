@@ -16,7 +16,10 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-const defaultRetryTimer = 2 * time.Second
+const (
+	defaultRetryTimer = 2 * time.Second
+	numWorkers        = 1
+)
 
 func init() {
 	outputs.Register("tcp", func() outputs.Output {
@@ -29,7 +32,6 @@ func init() {
 type TCPOutput struct {
 	Cfg *Config
 
-	conn     *net.TCPConn
 	cancelFn context.CancelFunc
 	buffer   chan []byte
 	limiter  *time.Ticker
@@ -46,7 +48,7 @@ type Config struct {
 	RetryInterval time.Duration `mapstructure:"retry-interval,omitempty"`
 }
 
-func (t *TCPOutput) Init(cfg map[string]interface{}, logger *log.Logger) error {
+func (t *TCPOutput) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger) error {
 	decoder, err := mapstructure.NewDecoder(
 		&mapstructure.DecoderConfig{
 			DecodeHook: mapstructure.StringToTimeDurationHookFunc(),
@@ -77,28 +79,38 @@ func (t *TCPOutput) Init(cfg map[string]interface{}, logger *log.Logger) error {
 		t.Cfg.RetryInterval = defaultRetryTimer
 	}
 	t.mo = &collector.MarshalOptions{Format: t.Cfg.Format}
+	go func() {
+		<-ctx.Done()
+		t.Close()
+	}()
 
-	var ctx context.Context
-	ctx, t.cancelFn = context.WithCancel(context.Background())
-
-	go t.start(ctx)
+	ctx, t.cancelFn = context.WithCancel(ctx)
+	for i := 0; i < numWorkers; i++ {
+		go t.start(ctx)
+	}
 	return nil
 }
-func (t *TCPOutput) Write(m proto.Message, meta outputs.Meta) {
+func (t *TCPOutput) Write(ctx context.Context, m proto.Message, meta outputs.Meta) {
 	if m == nil {
 		return
 	}
-	b, err := t.mo.Marshal(m, meta)
-	if err != nil {
-		t.logger.Printf("failed marshaling proto msg: %v", err)
+	select {
+	case <-ctx.Done():
 		return
+	default:
+		b, err := t.mo.Marshal(m, meta)
+		if err != nil {
+			t.logger.Printf("failed marshaling proto msg: %v", err)
+			return
+		}
+		t.buffer <- b
 	}
-	t.buffer <- b
 }
 func (t *TCPOutput) Close() error {
 	t.cancelFn()
-	t.limiter.Stop()
-	close(t.buffer)
+	if t.limiter != nil {
+		t.limiter.Stop()
+	}
 	return nil
 }
 func (t *TCPOutput) Metrics() []prometheus.Collector { return nil }
@@ -117,15 +129,16 @@ START:
 		time.Sleep(t.Cfg.RetryInterval)
 		goto START
 	}
-	t.conn, err = net.DialTCP("tcp", nil, tcpAddr)
+	conn, err := net.DialTCP("tcp", nil, tcpAddr)
 	if err != nil {
 		t.logger.Printf("failed to dial TCP: %v", err)
 		time.Sleep(t.Cfg.RetryInterval)
 		goto START
 	}
+	defer conn.Close()
 	if t.Cfg.KeepAlive > 0 {
-		t.conn.SetKeepAlive(true)
-		t.conn.SetKeepAlivePeriod(t.Cfg.KeepAlive)
+		conn.SetKeepAlive(true)
+		conn.SetKeepAlivePeriod(t.Cfg.KeepAlive)
 	}
 
 	defer t.Close()
@@ -137,9 +150,10 @@ START:
 			if t.limiter != nil {
 				<-t.limiter.C
 			}
-			_, err = t.conn.Write(b)
+			_, err = conn.Write(b)
 			if err != nil {
 				t.logger.Printf("failed sending tcp bytes: %v", err)
+				conn.Close()
 				time.Sleep(t.Cfg.RetryInterval)
 				goto START
 			}

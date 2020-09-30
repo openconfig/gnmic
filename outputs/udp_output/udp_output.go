@@ -42,7 +42,7 @@ type Config struct {
 	Format     string        `mapstructure:"format,omitempty"`
 }
 
-func (u *UDPSock) Init(cfg map[string]interface{}, logger *log.Logger) error {
+func (u *UDPSock) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger) error {
 	decoder, err := mapstructure.NewDecoder(
 		&mapstructure.DecoderConfig{
 			DecodeHook: mapstructure.StringToTimeDurationHookFunc(),
@@ -69,8 +69,11 @@ func (u *UDPSock) Init(cfg map[string]interface{}, logger *log.Logger) error {
 	if u.Cfg.Rate > 0 {
 		u.limiter = time.NewTicker(u.Cfg.Rate)
 	}
-	var ctx context.Context
-	ctx, u.cancelFn = context.WithCancel(context.Background())
+	go func() {
+		<-ctx.Done()
+		u.Close()
+	}()
+	ctx, u.cancelFn = context.WithCancel(ctx)
 	u.mo = &collector.MarshalOptions{Format: u.Cfg.Format}
 	udpAddr, err := net.ResolveUDPAddr("udp", u.Cfg.Address)
 	if err != nil {
@@ -83,7 +86,7 @@ func (u *UDPSock) Init(cfg map[string]interface{}, logger *log.Logger) error {
 	go u.start(ctx)
 	return nil
 }
-func (u *UDPSock) Write(m proto.Message, meta outputs.Meta) {
+func (u *UDPSock) Write(ctx context.Context, m proto.Message, meta outputs.Meta) {
 	if m == nil {
 		return
 	}
@@ -96,8 +99,9 @@ func (u *UDPSock) Write(m proto.Message, meta outputs.Meta) {
 }
 func (u *UDPSock) Close() error {
 	u.cancelFn()
-	u.limiter.Stop()
-	close(u.buffer)
+	if u.limiter != nil {
+		u.limiter.Stop()
+	}
 	return nil
 }
 func (u *UDPSock) Metrics() []prometheus.Collector { return nil }
