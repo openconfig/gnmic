@@ -1,6 +1,7 @@
 package kafka_output
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -61,7 +62,7 @@ func (k *KafkaOutput) String() string {
 }
 
 // Init /
-func (k *KafkaOutput) Init(cfg map[string]interface{}, logger *log.Logger) error {
+func (k *KafkaOutput) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger) error {
 	err := mapstructure.Decode(cfg, k.Cfg)
 	if err != nil {
 		return err
@@ -104,11 +105,15 @@ func (k *KafkaOutput) Init(cfg map[string]interface{}, logger *log.Logger) error
 	}
 	k.mo = &collector.MarshalOptions{Format: k.Cfg.Format}
 	k.logger.Printf("initialized kafka producer: %s", k.String())
+	go func() {
+		<-ctx.Done()
+		k.Close()
+	}()
 	return err
 }
 
 // Write //
-func (k *KafkaOutput) Write(rsp proto.Message, meta outputs.Meta) {
+func (k *KafkaOutput) Write(_ context.Context, rsp proto.Message, meta outputs.Meta) {
 	if rsp == nil {
 		return
 	}

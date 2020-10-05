@@ -1,6 +1,7 @@
 package file
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -59,7 +60,7 @@ func (f *File) String() string {
 }
 
 // Init //
-func (f *File) Init(cfg map[string]interface{}, logger *log.Logger) error {
+func (f *File) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger) error {
 	err := mapstructure.Decode(cfg, f.Cfg)
 	if err != nil {
 		return err
@@ -101,11 +102,15 @@ func (f *File) Init(cfg map[string]interface{}, logger *log.Logger) error {
 	}
 	f.mo = &collector.MarshalOptions{Multiline: f.Cfg.Multiline, Indent: f.Cfg.Indent, Format: f.Cfg.Format}
 	f.logger.Printf("initialized file output: %s", f.String())
+	go func() {
+		<-ctx.Done()
+		f.Close()
+	}()
 	return nil
 }
 
 // Write //
-func (f *File) Write(rsp proto.Message, meta outputs.Meta) {
+func (f *File) Write(_ context.Context, rsp proto.Message, meta outputs.Meta) {
 	if rsp == nil {
 		return
 	}

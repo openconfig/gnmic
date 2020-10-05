@@ -65,7 +65,7 @@ var subscribeCmd = &cobra.Command{
 		if debug {
 			logger.Printf("subscriptions: %s", subscriptionsConfig)
 		}
-		outs, err := getOutputs()
+		outs, err := getOutputs(ctx)
 		if err != nil {
 			return err
 		}
@@ -223,7 +223,7 @@ func initSubscribeFlags(cmd *cobra.Command) {
 	viper.BindPFlag("subscribe-name", cmd.LocalFlags().Lookup("name"))
 }
 
-func getOutputs() (map[string][]outputs.Output, error) {
+func getOutputs(ctx context.Context) (map[string][]outputs.Output, error) {
 	outDef := viper.GetStringMap("outputs")
 	if len(outDef) == 0 && !viper.GetBool("quiet") {
 		stdoutConfig := map[string]interface{}{
@@ -248,7 +248,7 @@ func getOutputs() (map[string][]outputs.Output, error) {
 								ou["format"] = viper.GetString("format")
 							}
 							o := initalizer()
-							err := o.Init(ou, logger)
+							err := o.Init(ctx, ou, logger)
 							if err != nil {
 								return nil, err
 							}

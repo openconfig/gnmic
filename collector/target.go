@@ -274,7 +274,7 @@ SUBSC:
 }
 
 // Export //
-func (t *Target) Export(rsp *gnmi.SubscribeResponse, m outputs.Meta) {
+func (t *Target) Export(ctx context.Context, rsp *gnmi.SubscribeResponse, m outputs.Meta) {
 	if rsp == nil || len(t.Outputs) == 0 {
 		return
 	}
@@ -283,7 +283,7 @@ func (t *Target) Export(rsp *gnmi.SubscribeResponse, m outputs.Meta) {
 	for _, o := range t.Outputs {
 		go func(o outputs.Output) {
 			defer wg.Done()
-			o.Write(rsp, m)
+			o.Write(ctx, rsp, m)
 		}(o)
 	}
 	wg.Wait()

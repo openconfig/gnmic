@@ -1,6 +1,7 @@
 package stan_output
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -68,7 +69,7 @@ func (s *StanOutput) String() string {
 }
 
 // Init //
-func (s *StanOutput) Init(cfg map[string]interface{}, logger *log.Logger) error {
+func (s *StanOutput) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger) error {
 	err := mapstructure.Decode(cfg, s.Cfg)
 	if err != nil {
 		return err
@@ -99,11 +100,15 @@ func (s *StanOutput) Init(cfg map[string]interface{}, logger *log.Logger) error 
 	}
 	s.mo = &collector.MarshalOptions{Format: s.Cfg.Format}
 	s.logger.Printf("initialized stan producer: %s", s.String())
+	go func() {
+		<-ctx.Done()
+		s.Close()
+	}()
 	return nil
 }
 
 // Write //
-func (s *StanOutput) Write(rsp protoreflect.ProtoMessage, meta outputs.Meta) {
+func (s *StanOutput) Write(_ context.Context, rsp protoreflect.ProtoMessage, meta outputs.Meta) {
 	if rsp == nil {
 		return
 	}

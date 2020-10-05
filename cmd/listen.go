@@ -15,6 +15,7 @@
 package cmd
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -40,7 +41,10 @@ var listenCmd = &cobra.Command{
 	Use:   "listen",
 	Short: "listens for telemetry dialout updates from the node",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 		server := new(dialoutTelemetryServer)
+		server.ctx = ctx
 		address := viper.GetStringSlice("address")
 		if len(address) == 0 {
 			return fmt.Errorf("no address specified")
@@ -49,7 +53,7 @@ var listenCmd = &cobra.Command{
 			fmt.Printf("multiple addresses specified, listening only on %s\n", address[0])
 		}
 		var err error
-		server.Outputs, err = getOutputs()
+		server.Outputs, err = getOutputs(ctx)
 		if err != nil {
 			return err
 		}
@@ -123,6 +127,8 @@ type dialoutTelemetryServer struct {
 	listener   net.Listener
 	grpcServer *grpc.Server
 	Outputs    map[string][]outputs.Output
+
+	ctx context.Context
 }
 
 func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_PublishServer) error {
@@ -185,7 +191,7 @@ func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_Publi
 			// }
 			for _, outputs := range s.Outputs {
 				for _, o := range outputs {
-					go o.Write(subResp, outMeta)
+					go o.Write(s.ctx, subResp, outMeta)
 				}
 			}
 			// buff := new(bytes.Buffer)
