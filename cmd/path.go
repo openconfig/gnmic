@@ -44,6 +44,9 @@ var generateSchema bool
 var prefixRepresented bool
 
 func pathCmdRun(d, f, e []string, quitAfterGenerate bool) error {
+	if len(f) <= 0 {
+		return nil
+	}
 	if pathType != "xpath" && pathType != "gnmi" {
 		err := fmt.Errorf("path-type must be one of 'xpath' or 'gnmi'")
 		return err

@@ -2,11 +2,13 @@ package cmd
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"strings"
 
 	goprompt "github.com/c-bata/go-prompt"
 	"github.com/c-bata/go-prompt/completer"
+	homedir "github.com/mitchellh/go-homedir"
 	"github.com/nsf/termbox-go"
 	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/spf13/cobra"
@@ -15,6 +17,7 @@ import (
 )
 
 var promptMode bool
+var promptHistory []string
 var schemaTree *yang.Entry
 var promptModeCmd = &cobra.Command{
 	Use:     "prompt-mode",
@@ -24,6 +27,20 @@ var promptModeCmd = &cobra.Command{
 		err := pathCmdRun(promptDirs, promptFiles, promptExcluded, true)
 		if err == nil {
 			promptMode = true
+		}
+		// load history
+		promptHistory = make([]string, 0, 256)
+		home, err := homedir.Dir()
+		if err == nil {
+			content, err := ioutil.ReadFile(home + "/.gnmic.history")
+			if err == nil {
+				history := strings.Split(string(content), "\n")
+				for i := range history {
+					if history[i] != "" {
+						promptHistory = append(promptHistory, history[i])
+					}
+				}
+			}
 		}
 		return err
 	},
@@ -38,6 +55,21 @@ var promptQuitCmd = &cobra.Command{
 	Use:   "quit",
 	Short: "quit the gnmic-prompt",
 	Run: func(cmd *cobra.Command, args []string) {
+		// save history
+		home, err := homedir.Dir()
+		if err == nil {
+			f, err := os.Create(home + "/.gnmic.history")
+			if err == nil {
+				l := len(promptHistory)
+				if l > 128 {
+					promptHistory = promptHistory[l-128:]
+				}
+				for i := range promptHistory {
+					f.WriteString(promptHistory[i] + "\n")
+				}
+				f.Close()
+			}
+		}
 		os.Exit(0)
 	},
 }
@@ -239,7 +271,6 @@ func ExecutePrompt() {
 	if err != nil {
 		schemaTree = buildRootEntry()
 	}
-	// goprompt.OptionHistory()
 	rootCmd.AddCommand(promptQuitCmd)
 	rootCmd.RemoveCommand(promptModeCmd)
 	shell := &cmdPrompt{
@@ -247,6 +278,7 @@ func ExecutePrompt() {
 		GoPromptOptions: []goprompt.Option{
 			goprompt.OptionTitle("gnmic-prompt"),
 			goprompt.OptionPrefix("gnmic> "),
+			goprompt.OptionHistory(promptHistory),
 			goprompt.OptionMaxSuggestion(5),
 			goprompt.OptionPrefixTextColor(goprompt.Yellow),
 			// goprompt.OptionPreviewSuggestionTextColor(goprompt.Yellow),
@@ -287,7 +319,10 @@ func (co cmdPrompt) Run() {
 			promptArgs := strings.Fields(in)
 			os.Args = append([]string{os.Args[0]}, promptArgs...)
 			if len(promptArgs) > 0 {
-				co.RootCmd.Execute()
+				err := co.RootCmd.Execute()
+				if err == nil && in != "" {
+					promptHistory = append(promptHistory, in)
+				}
 			}
 		},
 		func(d goprompt.Document) []goprompt.Suggest {
