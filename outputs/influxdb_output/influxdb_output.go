@@ -100,8 +100,15 @@ func (i *InfluxDBOutput) Init(ctx context.Context, cfg map[string]interface{}, l
 	if i.Cfg.Debug {
 		opts.SetLogLevel(3)
 	}
+CRCLIENT:
 	i.client = influxdb2.NewClientWithOptions(i.Cfg.URL, i.Cfg.Token, opts)
 	// start influx health check
+	err = i.health(ctx)
+	if err != nil {
+		log.Printf("failed to check influxdb health: %v", err)
+		time.Sleep(10 * time.Second)
+		goto CRCLIENT
+	}
 	go i.healthCheck(ctx)
 	i.writer = i.client.WriteAPI(i.Cfg.Org, i.Cfg.Bucket)
 	i.logger.Printf("initialized influxdb write API: %s", i.String())
@@ -162,7 +169,6 @@ func (i *InfluxDBOutput) Close() error {
 func (i *InfluxDBOutput) Metrics() []prometheus.Collector { return i.metrics }
 
 func (i *InfluxDBOutput) healthCheck(ctx context.Context) {
-	i.health(ctx)
 	ticker := time.NewTicker(i.Cfg.HealthCheckPeriod)
 	for {
 		select {
@@ -174,23 +180,24 @@ func (i *InfluxDBOutput) healthCheck(ctx context.Context) {
 	}
 }
 
-func (i *InfluxDBOutput) health(ctx context.Context) {
+func (i *InfluxDBOutput) health(ctx context.Context) error {
 	res, err := i.client.Health(ctx)
 	if err != nil {
 		i.logger.Printf("failed health check: %v", err)
-		return
+		return err
 	}
 	if res != nil {
 		b, err := json.Marshal(res)
 		if err != nil {
 			i.logger.Printf("failed to marshal health check result: %v", err)
 			i.logger.Printf("health check result: %+v", res)
-			return
+			return err
 		}
 		i.logger.Printf("health check result: %s", string(b))
-		return
+		return nil
 	}
 	i.logger.Print("health check result is nil")
+	return nil
 }
 
 func (i *InfluxDBOutput) worker(ctx context.Context, idx int) {

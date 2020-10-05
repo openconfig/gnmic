@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/karimra/gnmic/collector"
@@ -169,19 +170,25 @@ func (s *StanOutput) createSTANConn(c *Config) (stan.Conn, error) {
 	if c.Username != "" && c.Password != "" {
 		opts = append(opts, nats.UserInfo(c.Username, c.Password))
 	}
+CRCONN:
 	nc, err := nats.Connect(c.Address, opts...)
 	if err != nil {
-		return nil, err
+		s.logger.Printf("failed to create connection: %v", err)
+		time.Sleep(10 * time.Second)
+		goto CRCONN
 	}
 	sc, err := stan.Connect(c.ClusterName, c.Name,
 		stan.NatsConn(nc),
 		stan.Pings(c.PingInterval, c.PingRetry),
 		stan.SetConnectionLostHandler(func(_ stan.Conn, err error) {
-			log.Fatalf("STAN connection lost, reason: %v", err)
+			log.Printf("STAN connection lost, reason: %v", err)
 		}),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("cannot connect to %s: %v", c.Address, err)
+		s.logger.Printf("failed to create connection: %v", err)
+		nc.Close()
+		time.Sleep(10 * time.Second)
+		goto CRCONN
 	}
 	return sc, nil
 }

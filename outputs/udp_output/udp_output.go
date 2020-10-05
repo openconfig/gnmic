@@ -75,13 +75,18 @@ func (u *UDPSock) Init(ctx context.Context, cfg map[string]interface{}, logger *
 	}()
 	ctx, u.cancelFn = context.WithCancel(ctx)
 	u.mo = &collector.MarshalOptions{Format: u.Cfg.Format}
+DIAL:
 	udpAddr, err := net.ResolveUDPAddr("udp", u.Cfg.Address)
 	if err != nil {
-		return err
+		u.logger.Printf("failed to dial udp: %v", err)
+		time.Sleep(10 * time.Second)
+		goto DIAL
 	}
 	u.conn, err = net.DialUDP("udp", nil, udpAddr)
 	if err != nil {
-		return err
+		u.logger.Printf("failed to dial udp: %v", err)
+		time.Sleep(10 * time.Second)
+		goto DIAL
 	}
 	go u.start(ctx)
 	return nil

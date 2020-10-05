@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/outputs"
@@ -74,22 +75,26 @@ func (f *File) Init(ctx context.Context, cfg map[string]interface{}, logger *log
 	if f.Cfg.FileName == "" && f.Cfg.FileType == "" {
 		f.Cfg.FileType = "stdout"
 	}
+	f.logger = log.New(os.Stderr, "file_output ", log.LstdFlags|log.Lmicroseconds)
+	if logger != nil {
+		f.logger.SetOutput(logger.Writer())
+		f.logger.SetFlags(logger.Flags())
+	}
 	switch f.Cfg.FileType {
 	case "stdout":
 		f.file = os.Stdout
 	case "stderr":
 		f.file = os.Stderr
 	default:
+	CRFILE:
 		f.file, err = os.OpenFile(f.Cfg.FileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 		if err != nil {
-			return err
+			f.logger.Printf("failed to create file: %v", err)
+			time.Sleep(10 * time.Second)
+			goto CRFILE
 		}
 	}
-	f.logger = log.New(os.Stderr, "file_output ", log.LstdFlags|log.Lmicroseconds)
-	if logger != nil {
-		f.logger.SetOutput(logger.Writer())
-		f.logger.SetFlags(logger.Flags())
-	}
+
 	if f.Cfg.Format == "" {
 		f.Cfg.Format = defaultFormat
 	}

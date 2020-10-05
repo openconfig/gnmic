@@ -96,9 +96,12 @@ func (n *NatsOutput) Init(ctx context.Context, cfg map[string]interface{}, logge
 		n.Cfg.Name = "gnmic-" + uuid.New().String()
 	}
 	n.ctx, n.cancelFn = context.WithCancel(ctx)
+CRCONN:
 	n.conn, err = n.createNATSConn(n.Cfg)
 	if err != nil {
-		return err
+		n.logger.Printf("failed to create connection: %v", err)
+		time.Sleep(10 * time.Second)
+		goto CRCONN
 	}
 	n.logger.Printf("initialized nats producer: %s", n.String())
 	n.mo = &collector.MarshalOptions{Format: n.Cfg.Format}

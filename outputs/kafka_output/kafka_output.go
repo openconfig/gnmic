@@ -99,9 +99,12 @@ func (k *KafkaOutput) Init(ctx context.Context, cfg map[string]interface{}, logg
 	config.Producer.RequiredAcks = sarama.WaitForAll
 	config.Producer.Return.Successes = true
 	config.Producer.Timeout = time.Duration(k.Cfg.Timeout) * time.Second
+CRPROD:
 	k.producer, err = sarama.NewSyncProducer(strings.Split(k.Cfg.Address, ","), config)
 	if err != nil {
-		return err
+		sarama.Logger.Printf("failed to create kafka producer: %v", err)
+		time.Sleep(10 * time.Second)
+		goto CRPROD
 	}
 	k.mo = &collector.MarshalOptions{Format: k.Cfg.Format}
 	k.logger.Printf("initialized kafka producer: %s", k.String())
