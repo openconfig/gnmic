@@ -31,15 +31,17 @@ var promptModeCmd = &cobra.Command{
 		// load history
 		promptHistory = make([]string, 0, 256)
 		home, err := homedir.Dir()
-		if err == nil {
-			content, err := ioutil.ReadFile(home + "/.gnmic.history")
-			if err == nil {
-				history := strings.Split(string(content), "\n")
-				for i := range history {
-					if history[i] != "" {
-						promptHistory = append(promptHistory, history[i])
-					}
-				}
+		if err != nil {
+			return err
+		}
+		content, err := ioutil.ReadFile(home + "/.gnmic.history")
+		if err != nil {
+			return err
+		}
+		history := strings.Split(string(content), "\n")
+		for i := range history {
+			if history[i] != "" {
+				promptHistory = append(promptHistory, history[i])
 			}
 		}
 		return err
@@ -57,19 +59,21 @@ var promptQuitCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		// save history
 		home, err := homedir.Dir()
-		if err == nil {
-			f, err := os.Create(home + "/.gnmic.history")
-			if err == nil {
-				l := len(promptHistory)
-				if l > 128 {
-					promptHistory = promptHistory[l-128:]
-				}
-				for i := range promptHistory {
-					f.WriteString(promptHistory[i] + "\n")
-				}
-				f.Close()
-			}
+		if err != nil {
+			os.Exit(0)
 		}
+		f, err := os.Create(home + "/.gnmic.history")
+		if err != nil {
+			os.Exit(0)
+		}
+		l := len(promptHistory)
+		if l > 128 {
+			promptHistory = promptHistory[l-128:]
+		}
+		for i := range promptHistory {
+			f.WriteString(promptHistory[i] + "\n")
+		}
+		f.Close()
 		os.Exit(0)
 	},
 }
