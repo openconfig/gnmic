@@ -48,8 +48,7 @@ func pathCmdRun(d, f, e []string, quitAfterGenerate bool) error {
 		return nil
 	}
 	if pathType != "xpath" && pathType != "gnmi" {
-		err := fmt.Errorf("path-type must be one of 'xpath' or 'gnmi'")
-		return err
+		return fmt.Errorf("path-type must be one of 'xpath' or 'gnmi'")
 	}
 	for _, dirpath := range d {
 		expanded, err := yang.PathsWithModules(dirpath)
