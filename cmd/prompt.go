@@ -20,9 +20,8 @@ var promptMode bool
 var promptHistory []string
 var schemaTree *yang.Entry
 var promptModeCmd = &cobra.Command{
-	Use:     "prompt-mode",
-	Aliases: []string{"prompt"},
-	Short:   "enter the interactive gnmic prompt-mode",
+	Use:   "prompt",
+	Short: "enter the interactive gnmic prompt mode",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		err := pathCmdRun(promptDirs, promptFiles, promptExcluded, true)
 		if err == nil {
