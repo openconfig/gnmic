@@ -41,6 +41,10 @@ var subscribeCmd = &cobra.Command{
 	Use:     "subscribe",
 	Aliases: []string{"sub"},
 	Short:   "subscribe to gnmi updates on targets",
+	Annotations: map[string]string{
+		"--path":   "XPATH",
+		"--prefix": "XPATH",
+	},
 
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx, cancel := context.WithCancel(context.Background())
@@ -174,40 +178,49 @@ var subscribeCmd = &cobra.Command{
 		coll.Start(ctx)
 		return nil
 	},
+	PostRun: func(cmd *cobra.Command, args []string) {
+		cmd.ResetFlags()
+		initSubscribeFlags(cmd)
+	},
+	SilenceUsage: true,
 }
 
 func init() {
 	rootCmd.AddCommand(subscribeCmd)
-	subscribeCmd.SilenceUsage = true
-	subscribeCmd.Flags().StringP("prefix", "", "", "subscribe request prefix")
-	subscribeCmd.Flags().StringArrayVarP(&paths, "path", "", []string{}, "subscribe request paths")
-	//subscribeCmd.MarkFlagRequired("path")
-	subscribeCmd.Flags().Uint32P("qos", "q", 0, "qos marking")
-	subscribeCmd.Flags().BoolP("updates-only", "", false, "only updates to current state should be sent")
-	subscribeCmd.Flags().StringP("mode", "", "stream", "one of: once, stream, poll")
-	subscribeCmd.Flags().StringP("stream-mode", "", "target-defined", "one of: on-change, sample, target-defined")
-	subscribeCmd.Flags().DurationP("sample-interval", "i", 0,
+	initSubscribeFlags(subscribeCmd)
+}
+
+// used to init or reset subscribeCmd flags for gnmic-prompt mode
+func initSubscribeFlags(cmd *cobra.Command) {
+	cmd.Flags().StringP("prefix", "", "", "subscribe request prefix")
+	cmd.Flags().StringArrayVarP(&paths, "path", "", []string{}, "subscribe request paths")
+	//cmd.MarkFlagRequired("path")
+	cmd.Flags().Uint32P("qos", "q", 0, "qos marking")
+	cmd.Flags().BoolP("updates-only", "", false, "only updates to current state should be sent")
+	cmd.Flags().StringP("mode", "", "stream", "one of: once, stream, poll")
+	cmd.Flags().StringP("stream-mode", "", "target-defined", "one of: on-change, sample, target-defined")
+	cmd.Flags().DurationP("sample-interval", "i", 0,
 		"sample interval as a decimal number and a suffix unit, such as \"10s\" or \"1m30s\"")
-	subscribeCmd.Flags().BoolP("suppress-redundant", "", false, "suppress redundant update if the subscribed value didn't not change")
-	subscribeCmd.Flags().DurationP("heartbeat-interval", "", 0, "heartbeat interval in case suppress-redundant is enabled")
-	subscribeCmd.Flags().StringSliceP("model", "", []string{}, "subscribe request used model(s)")
-	subscribeCmd.Flags().Bool("quiet", false, "suppress stdout printing")
-	subscribeCmd.Flags().StringP("target", "", "", "subscribe request target")
-	subscribeCmd.Flags().StringSliceP("name", "n", []string{}, "reference subscriptions by name, must be defined in gnmic config file")
+	cmd.Flags().BoolP("suppress-redundant", "", false, "suppress redundant update if the subscribed value didn't not change")
+	cmd.Flags().DurationP("heartbeat-interval", "", 0, "heartbeat interval in case suppress-redundant is enabled")
+	cmd.Flags().StringSliceP("model", "", []string{}, "subscribe request used model(s)")
+	cmd.Flags().Bool("quiet", false, "suppress stdout printing")
+	cmd.Flags().StringP("target", "", "", "subscribe request target")
+	cmd.Flags().StringSliceP("name", "n", []string{}, "reference subscriptions by name, must be defined in gnmic config file")
 	//
-	viper.BindPFlag("subscribe-prefix", subscribeCmd.LocalFlags().Lookup("prefix"))
-	viper.BindPFlag("subscribe-path", subscribeCmd.LocalFlags().Lookup("path"))
-	viper.BindPFlag("subscribe-qos", subscribeCmd.LocalFlags().Lookup("qos"))
-	viper.BindPFlag("subscribe-updates-only", subscribeCmd.LocalFlags().Lookup("updates-only"))
-	viper.BindPFlag("subscribe-mode", subscribeCmd.LocalFlags().Lookup("mode"))
-	viper.BindPFlag("subscribe-stream-mode", subscribeCmd.LocalFlags().Lookup("stream-mode"))
-	viper.BindPFlag("subscribe-sample-interval", subscribeCmd.LocalFlags().Lookup("sample-interval"))
-	viper.BindPFlag("subscribe-suppress-redundant", subscribeCmd.LocalFlags().Lookup("suppress-redundant"))
-	viper.BindPFlag("subscribe-heartbeat-interval", subscribeCmd.LocalFlags().Lookup("heartbeat-interval"))
-	viper.BindPFlag("subscribe-sub-model", subscribeCmd.LocalFlags().Lookup("model"))
-	viper.BindPFlag("subscribe-quiet", subscribeCmd.LocalFlags().Lookup("quiet"))
-	viper.BindPFlag("subscribe-target", subscribeCmd.LocalFlags().Lookup("target"))
-	viper.BindPFlag("subscribe-name", subscribeCmd.LocalFlags().Lookup("name"))
+	viper.BindPFlag("subscribe-prefix", cmd.LocalFlags().Lookup("prefix"))
+	viper.BindPFlag("subscribe-path", cmd.LocalFlags().Lookup("path"))
+	viper.BindPFlag("subscribe-qos", cmd.LocalFlags().Lookup("qos"))
+	viper.BindPFlag("subscribe-updates-only", cmd.LocalFlags().Lookup("updates-only"))
+	viper.BindPFlag("subscribe-mode", cmd.LocalFlags().Lookup("mode"))
+	viper.BindPFlag("subscribe-stream-mode", cmd.LocalFlags().Lookup("stream-mode"))
+	viper.BindPFlag("subscribe-sample-interval", cmd.LocalFlags().Lookup("sample-interval"))
+	viper.BindPFlag("subscribe-suppress-redundant", cmd.LocalFlags().Lookup("suppress-redundant"))
+	viper.BindPFlag("subscribe-heartbeat-interval", cmd.LocalFlags().Lookup("heartbeat-interval"))
+	viper.BindPFlag("subscribe-sub-model", cmd.LocalFlags().Lookup("model"))
+	viper.BindPFlag("subscribe-quiet", cmd.LocalFlags().Lookup("quiet"))
+	viper.BindPFlag("subscribe-target", cmd.LocalFlags().Lookup("target"))
+	viper.BindPFlag("subscribe-name", cmd.LocalFlags().Lookup("name"))
 }
 
 func getOutputs(ctx context.Context) (map[string][]outputs.Output, error) {

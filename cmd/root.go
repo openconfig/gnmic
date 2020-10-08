@@ -55,56 +55,60 @@ var cfgFile string
 var f io.WriteCloser
 var logger *log.Logger
 
+func rootCmdPersistentPreRun(cmd *cobra.Command, args []string) {
+	debug := viper.GetBool("debug")
+	if viper.GetString("log-file") != "" {
+		var err error
+		f, err = os.OpenFile(viper.GetString("log-file"), os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+		if err != nil {
+			logger.Fatalf("error opening file: %v", err)
+		}
+	} else {
+		if debug {
+			viper.Set("log", true)
+		}
+		switch viper.GetBool("log") {
+		case true:
+			f = os.Stderr
+		case false:
+			f = myWriteCloser{ioutil.Discard}
+		}
+	}
+	loggingFlags := log.LstdFlags | log.Lmicroseconds
+	if debug {
+		loggingFlags |= log.Llongfile
+	}
+	logger = log.New(f, "gnmic ", loggingFlags)
+	if debug {
+		grpclog.SetLogger(logger) //lint:ignore SA1019 see https://github.com/karimra/gnmic/issues/59
+		log.Printf("version=%s, commit=%s, date=%s, gitURL=%s, docs=https://gnmic.kmrd.dev", version, commit, date, gitURL)
+	}
+	cfgFile := viper.ConfigFileUsed()
+	if len(cfgFile) != 0 {
+		logger.Printf("using config file %s", cfgFile)
+		if debug {
+			b, err := ioutil.ReadFile(cfgFile)
+			if err != nil {
+				logger.Printf("failed reading config file %s: %v", cfgFile, err)
+				return
+			}
+			logger.Printf("config file:\n%s", string(b))
+		}
+	}
+}
+
+func rootCmdPersistentPostRun(cmd *cobra.Command, args []string) {
+	if !viper.GetBool("log") || viper.GetString("log-file") != "" {
+		f.Close()
+	}
+}
+
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "gnmic",
-	Short: "run gnmi rpcs from the terminal (https://gnmic.kmrd.dev)",
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		debug := viper.GetBool("debug")
-		if viper.GetString("log-file") != "" {
-			var err error
-			f, err = os.OpenFile(viper.GetString("log-file"), os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-			if err != nil {
-				logger.Fatalf("error opening file: %v", err)
-			}
-		} else {
-			if debug {
-				viper.Set("log", true)
-			}
-			switch viper.GetBool("log") {
-			case true:
-				f = os.Stderr
-			case false:
-				f = myWriteCloser{ioutil.Discard}
-			}
-		}
-		loggingFlags := log.LstdFlags | log.Lmicroseconds
-		if debug {
-			loggingFlags |= log.Llongfile
-		}
-		logger = log.New(f, "gnmic ", loggingFlags)
-		if debug {
-			grpclog.SetLogger(logger) //lint:ignore SA1019 see https://github.com/karimra/gnmic/issues/59
-			log.Printf("version=%s, commit=%s, date=%s, gitURL=%s, docs=https://gnmic.kmrd.dev", version, commit, date, gitURL)
-		}
-		cfgFile := viper.ConfigFileUsed()
-		if len(cfgFile) != 0 {
-			logger.Printf("using config file %s", cfgFile)
-			if debug {
-				b, err := ioutil.ReadFile(cfgFile)
-				if err != nil {
-					logger.Printf("failed reading config file %s: %v", cfgFile, err)
-					return
-				}
-				logger.Printf("config file:\n%s", string(b))
-			}
-		}
-	},
-	PersistentPostRun: func(cmd *cobra.Command, args []string) {
-		if !viper.GetBool("log") || viper.GetString("log-file") != "" {
-			f.Close()
-		}
-	},
+	Use:               "gnmic",
+	Short:             "run gnmi rpcs from the terminal (https://gnmic.kmrd.dev)",
+	PersistentPreRun:  rootCmdPersistentPreRun,
+	PersistentPostRun: rootCmdPersistentPostRun,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -113,6 +117,9 @@ func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		//fmt.Println(err)
 		os.Exit(1)
+	}
+	if promptMode {
+		ExecutePrompt()
 	}
 }
 

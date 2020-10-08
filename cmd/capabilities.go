@@ -34,9 +34,8 @@ var printVersion bool
 // capabilitiesCmd represents the capabilities command
 var capabilitiesCmd = &cobra.Command{
 	Use:     "capabilities",
-	Aliases: []string{"c", "cap"},
+	Aliases: []string{"cap"},
 	Short:   "query targets gnmi capabilities",
-
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if viper.GetString("format") == "event" {
 			return fmt.Errorf("format event not supported for Capabilities RPC")
@@ -57,6 +56,7 @@ var capabilitiesCmd = &cobra.Command{
 		wg.Wait()
 		return nil
 	},
+	SilenceUsage: true,
 }
 
 func reqCapability(ctx context.Context, target *collector.Target, wg *sync.WaitGroup, lock *sync.Mutex) {
@@ -107,7 +107,6 @@ func reqCapability(ctx context.Context, target *collector.Target, wg *sync.WaitG
 
 func init() {
 	rootCmd.AddCommand(capabilitiesCmd)
-	capabilitiesCmd.SilenceUsage = true
 	capabilitiesCmd.Flags().BoolVarP(&printVersion, "version", "", false, "show gnmi version only")
 	viper.BindPFlag("capabilities-version", capabilitiesCmd.LocalFlags().Lookup("version"))
 }

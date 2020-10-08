@@ -58,3 +58,10 @@ gnmic -a 10.1.0.11:57400 -u admin -p admin --insecure \
 gnmic -a 10.1.0.11:57400 -u admin -p admin --insecure \
       sub --path "/state/port[port-id=1/1/c1/1]/statistics/in-packets"
 ```
+
+### Prompt mode
+
+The prompt mode is an interactive mode of the gnmic CLI client for user convenience.
+The gnmic subcommands such as capabilities, get, set and subscribe of the gNMI protocol can be used in the prompt mode with tab completion for their flags and the xpath of the YANG data models that you defined.
+
+![gnmic prompt-mode](docs/images/gnmic.prompt-mode.demo.gif)
