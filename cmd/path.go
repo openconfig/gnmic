@@ -314,7 +314,7 @@ func generateTypeInfo(e *yang.Entry) string {
 		rstr += fmt.Sprintf(" %v", unionlist)
 	default:
 	}
-	rstr += fmt.Sprintf("\n")
+	rstr += "\n"
 
 	if t.Root != nil {
 		data := getAnnotation(e, "root.type")
@@ -335,7 +335,7 @@ func generateTypeInfo(e *yang.Entry) string {
 		rstr += fmt.Sprintf("- length: %s\n", t.Length)
 	}
 	if t.Kind == yang.YinstanceIdentifier && !t.OptionalInstance {
-		rstr += fmt.Sprintf("- required\n")
+		rstr += "- required\n"
 	}
 
 	if len(t.Pattern) > 0 {
