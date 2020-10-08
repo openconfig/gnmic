@@ -309,7 +309,7 @@ func generateTypeInfo(e *yang.Entry) string {
 	case yang.Yunion:
 		unionlist := make([]string, 0, len(t.Type))
 		for i := range t.Type {
-			unionlist = append(unionlist, fmt.Sprintf("%s", t.Type[i].Name))
+			unionlist = append(unionlist, t.Type[i].Name)
 		}
 		rstr += fmt.Sprintf(" %v", unionlist)
 	default:
