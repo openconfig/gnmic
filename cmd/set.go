@@ -62,10 +62,10 @@ var setCmd = &cobra.Command{
 		"--prefix":       "XPATH",
 		"--replace":      "XPATH",
 		"--replace-file": "FILE",
-		"--replace-path": "PATH",
+		"--replace-path": "XPATH",
 		"--update":       "XPATH",
 		"--update-file":  "FILE",
-		"--update-path":  "PATH",
+		"--update-path":  "XPATH",
 	},
 
 	RunE: func(cmd *cobra.Command, args []string) error {
