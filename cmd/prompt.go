@@ -47,7 +47,7 @@ var promptModeCmd = &cobra.Command{
 	},
 	PostRun: func(cmd *cobra.Command, args []string) {
 		cmd.ResetFlags()
-		initPromptFlags(cmd)
+		//initPromptFlags(cmd)
 	},
 	SilenceUsage: true,
 }
@@ -91,9 +91,11 @@ func initPromptFlags(cmd *cobra.Command) {
 	cmd.Flags().StringArrayVarP(&promptFiles, "file", "", []string{}, "yang files to get the paths")
 	cmd.Flags().StringArrayVarP(&promptExcluded, "exclude", "", []string{}, "yang modules to be excluded from path generation")
 	cmd.Flags().StringArrayVarP(&promptDirs, "dir", "", []string{}, "directories to search yang includes and imports")
+	cmd.Flags().Uint16("max-suggestions", 5, "terminal suggestion max list size")
 	viper.BindPFlag("prompt-file", cmd.LocalFlags().Lookup("file"))
 	viper.BindPFlag("prompt-exclude", cmd.LocalFlags().Lookup("exclude"))
 	viper.BindPFlag("prompt-dir", cmd.LocalFlags().Lookup("dir"))
+	viper.BindPFlag("prompt-max-suggestions", cmd.LocalFlags().Lookup("max-suggestions"))
 }
 
 func findMatchedXPATH(entry *yang.Entry, word string, cursor int) []goprompt.Suggest {
@@ -282,7 +284,7 @@ func ExecutePrompt() {
 			goprompt.OptionTitle("gnmic-prompt"),
 			goprompt.OptionPrefix("gnmic> "),
 			goprompt.OptionHistory(promptHistory),
-			goprompt.OptionMaxSuggestion(5),
+			goprompt.OptionMaxSuggestion(uint16(viper.GetUint("prompt-max-suggestions"))),
 			goprompt.OptionPrefixTextColor(goprompt.Yellow),
 			// goprompt.OptionPreviewSuggestionTextColor(goprompt.Yellow),
 			goprompt.OptionPreviewSuggestionBGColor(goprompt.Black),
