@@ -24,9 +24,12 @@ var promptModeCmd = &cobra.Command{
 	Short: "enter the interactive gnmic prompt mode",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		err := pathCmdRun(promptDirs, promptFiles, promptExcluded, true)
-		if err == nil {
-			promptMode = true
+		if err != nil {
+			if !viper.GetBool("log") {
+				fmt.Fprintf(os.Stderr, "ERR: failed to load paths from yang: %v\n", err)
+			}
 		}
+		promptMode = true
 		// load history
 		promptHistory = make([]string, 0, 256)
 		home, err := homedir.Dir()
