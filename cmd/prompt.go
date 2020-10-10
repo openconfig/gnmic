@@ -19,6 +19,41 @@ import (
 var promptMode bool
 var promptHistory []string
 var schemaTree *yang.Entry
+var colorMapping = map[string]goprompt.Color{
+	"black":      goprompt.Black,
+	"dark_red":   goprompt.DarkRed,
+	"darkg_reen": goprompt.DarkGreen,
+	"brown":      goprompt.Brown,
+	"dark_blue":  goprompt.DarkBlue,
+	"purple":     goprompt.Purple,
+	"cyan":       goprompt.Cyan,
+	"light_gray": goprompt.LightGray,
+	"dark_grey":  goprompt.DarkGray,
+	"red":        goprompt.Red,
+	"green":      goprompt.Green,
+	"yellow":     goprompt.Yellow,
+	"blue":       goprompt.Blue,
+	"fuchsia":    goprompt.Fuchsia,
+	"turquoise":  goprompt.Turquoise,
+	"white":      goprompt.White,
+}
+
+func getColor(flagName string) goprompt.Color {
+	if cgoprompt, ok := colorMapping[viper.GetString(flagName)]; ok {
+		return cgoprompt
+	}
+	defColor := "yellow"
+	promptModeCmd.Flags().VisitAll(
+		func(f *pflag.Flag) {
+			if f.Name == strings.Replace(flagName, "prompt-", "", 1) {
+				defColor = f.DefValue
+				return
+			}
+		},
+	)
+	return colorMapping[defColor]
+}
+
 var promptModeCmd = &cobra.Command{
 	Use:   "prompt",
 	Short: "enter the interactive gnmic prompt mode",
@@ -50,7 +85,7 @@ var promptModeCmd = &cobra.Command{
 	},
 	PostRun: func(cmd *cobra.Command, args []string) {
 		cmd.ResetFlags()
-		initPromptFlags(cmd)
+		//initPromptFlags(cmd)
 	},
 	SilenceUsage: true,
 }
@@ -94,9 +129,17 @@ func initPromptFlags(cmd *cobra.Command) {
 	cmd.Flags().StringArrayVarP(&promptFiles, "file", "", []string{}, "yang files to get the paths")
 	cmd.Flags().StringArrayVarP(&promptExcluded, "exclude", "", []string{}, "yang modules to be excluded from path generation")
 	cmd.Flags().StringArrayVarP(&promptDirs, "dir", "", []string{}, "directories to search yang includes and imports")
+	cmd.Flags().Uint16("max-suggestions", 5, "terminal suggestion max list size")
+	cmd.Flags().String("prefix-color", "yellow", "terminal prefix color")
+	cmd.Flags().String("suggestions-bg-color", "black", "suggestion box background color")
+	cmd.Flags().String("description-bg-color", "yellow", "description box background color")
 	viper.BindPFlag("prompt-file", cmd.LocalFlags().Lookup("file"))
 	viper.BindPFlag("prompt-exclude", cmd.LocalFlags().Lookup("exclude"))
 	viper.BindPFlag("prompt-dir", cmd.LocalFlags().Lookup("dir"))
+	viper.BindPFlag("prompt-max-suggestions", cmd.LocalFlags().Lookup("max-suggestions"))
+	viper.BindPFlag("prompt-prefix-color", cmd.LocalFlags().Lookup("prefix-color"))
+	viper.BindPFlag("prompt-suggestions-bg-color", cmd.LocalFlags().Lookup("suggestions-bg-color"))
+	viper.BindPFlag("prompt-description-bg-color", cmd.LocalFlags().Lookup("description-bg-color"))
 }
 
 func findMatchedXPATH(entry *yang.Entry, word string, cursor int) []goprompt.Suggest {
@@ -285,16 +328,16 @@ func ExecutePrompt() {
 			goprompt.OptionTitle("gnmic-prompt"),
 			goprompt.OptionPrefix("gnmic> "),
 			goprompt.OptionHistory(promptHistory),
-			goprompt.OptionMaxSuggestion(5),
-			goprompt.OptionPrefixTextColor(goprompt.Yellow),
+			goprompt.OptionMaxSuggestion(uint16(viper.GetUint("prompt-max-suggestions"))),
+			goprompt.OptionPrefixTextColor(getColor("prompt-prefix-color")),
 			// goprompt.OptionPreviewSuggestionTextColor(goprompt.Yellow),
 			goprompt.OptionPreviewSuggestionBGColor(goprompt.Black),
 			goprompt.OptionSuggestionTextColor(goprompt.White),
-			goprompt.OptionSuggestionBGColor(goprompt.Black),
+			goprompt.OptionSuggestionBGColor(getColor("prompt-suggestions-bg-color")),
 			goprompt.OptionSelectedSuggestionTextColor(goprompt.Black),
 			goprompt.OptionSelectedSuggestionBGColor(goprompt.White),
 			// goprompt.OptionDescriptionTextColor(goprompt.White),
-			goprompt.OptionDescriptionBGColor(goprompt.Yellow),
+			goprompt.OptionDescriptionBGColor(getColor("prompt-description-bg-color")),
 			goprompt.OptionSelectedDescriptionTextColor(goprompt.Black),
 			goprompt.OptionSelectedDescriptionBGColor(goprompt.White),
 			goprompt.OptionScrollbarBGColor(goprompt.White),
