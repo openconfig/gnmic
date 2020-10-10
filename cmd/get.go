@@ -38,6 +38,7 @@ var getCmd = &cobra.Command{
 		"--path":   "XPATH",
 		"--prefix": "XPATH",
 		"--model":  "MODEL",
+		"--type":   "STORE",
 	},
 
 	RunE: func(cmd *cobra.Command, args []string) error {
