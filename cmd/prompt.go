@@ -202,6 +202,12 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
 	case "DIR":
 		return dirPathCompleter.Complete(doc)
+	case "ENCODING":
+		suggestions := make([]goprompt.Suggest, 0, len(encodings))
+		for _, name := range encodings {
+			suggestions = append(suggestions, goprompt.Suggest{Text: name})
+		}
+		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
 	}
 	return []goprompt.Suggest{}
 }
