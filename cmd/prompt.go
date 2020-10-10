@@ -248,6 +248,36 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
 	case "DIR":
 		return dirPathCompleter.Complete(doc)
+	case "ENCODING":
+		suggestions := make([]goprompt.Suggest, 0, len(encodings))
+		for _, name := range encodings {
+			suggestions = append(suggestions, goprompt.Suggest{Text: name})
+		}
+		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
+	case "FORMAT":
+		suggestions := make([]goprompt.Suggest, 0, len(formats))
+		for _, name := range formats {
+			suggestions = append(suggestions, goprompt.Suggest{Text: name})
+		}
+		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
+	case "STORE":
+		suggestions := make([]goprompt.Suggest, 0, len(dataType))
+		for _, name := range dataType {
+			suggestions = append(suggestions, goprompt.Suggest{Text: name})
+		}
+		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
+	case "SUBSC_MODE":
+		suggestions := make([]goprompt.Suggest, 0, len(subscriptionModes))
+		for _, name := range subscriptionModes {
+			suggestions = append(suggestions, goprompt.Suggest{Text: name})
+		}
+		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
+	case "STREAM_MODE":
+		suggestions := make([]goprompt.Suggest, 0, len(streamSubscriptionModes))
+		for _, name := range streamSubscriptionModes {
+			suggestions = append(suggestions, goprompt.Suggest{Text: name})
+		}
+		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
 	}
 	return []goprompt.Suggest{}
 }
@@ -394,13 +424,6 @@ func findSuggestions(co cmdPrompt, doc goprompt.Document) []goprompt.Suggest {
 	}
 
 	suggestions := make([]goprompt.Suggest, 0, 32)
-	if command.HasAvailableSubCommands() {
-		for _, c := range command.Commands() {
-			if !c.Hidden {
-				suggestions = append(suggestions, goprompt.Suggest{Text: c.Name(), Description: c.Short})
-			}
-		}
-	}
 
 	// check flag annotation for the dynamic suggestion
 	annotation := ""
@@ -418,7 +441,14 @@ func findSuggestions(co cmdPrompt, doc goprompt.Document) []goprompt.Suggest {
 	if annotation != "" {
 		return append(suggestions, findDynamicSuggestions(annotation, doc)...)
 	}
-
+	// add sub commands suggestions if they exist
+	if command.HasAvailableSubCommands() {
+		for _, c := range command.Commands() {
+			if !c.Hidden {
+				suggestions = append(suggestions, goprompt.Suggest{Text: c.Name(), Description: c.Short})
+			}
+		}
+	}
 	if showLocalFlags {
 		// load local flags of the command
 		addFlags := func(flag *pflag.Flag) {
