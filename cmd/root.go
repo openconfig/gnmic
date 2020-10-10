@@ -51,6 +51,7 @@ const (
 )
 
 var encodings = []string{"json", "bytes", "proto", "ascii", "json_ietf"}
+var formats = []string{"json", "protojson", "prototext", "event", "proto"}
 var cfgFile string
 var f io.WriteCloser
 var logger *log.Logger
