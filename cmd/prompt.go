@@ -58,7 +58,7 @@ var promptModeCmd = &cobra.Command{
 	Use:   "prompt",
 	Short: "enter the interactive gnmic prompt mode",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		err := pathCmdRun(promptDirs, promptFiles, promptExcluded, true)
+		err := generateYangSchema(promptDirs, promptFiles, promptExcluded)
 		if err != nil {
 			if !viper.GetBool("log") {
 				fmt.Fprintf(os.Stderr, "ERR: failed to load paths from yang: %v\n", err)
@@ -345,11 +345,6 @@ func showCommandArguments(b *goprompt.Buffer) {
 
 // ExecutePrompt load and run gnmic-prompt mode.
 func ExecutePrompt() {
-	var err error
-	schemaTree, err = loadSchemaZip()
-	if err != nil {
-		schemaTree = buildRootEntry()
-	}
 	rootCmd.AddCommand(promptQuitCmd)
 	rootCmd.RemoveCommand(promptModeCmd)
 	shell := &cmdPrompt{
