@@ -42,8 +42,11 @@ var subscribeCmd = &cobra.Command{
 	Aliases: []string{"sub"},
 	Short:   "subscribe to gnmi updates on targets",
 	Annotations: map[string]string{
-		"--path":   "XPATH",
-		"--prefix": "XPATH",
+		"--path":        "XPATH",
+		"--prefix":      "XPATH",
+		"--model":       "MODEL",
+		"--mode":        "SUBSC_MODE",
+		"--stream-mode": "STREAM_MODE",
 	},
 
 	RunE: func(cmd *cobra.Command, args []string) error {
