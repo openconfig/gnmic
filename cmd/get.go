@@ -29,7 +29,7 @@ import (
 )
 
 var paths []string
-
+var dataType = []string{"all", "config", "state", "operational"}
 // getCmd represents the get command
 var getCmd = &cobra.Command{
 	Use:   "get",
