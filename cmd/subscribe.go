@@ -36,6 +36,9 @@ import (
 
 const defaultRetryTimer = 10 * time.Second
 
+var subscriptionModes = []string{"once", "stream", "poll"}
+var streamSubscriptionModes = []string{"target-defined", "sample", "on-change"}
+
 // subscribeCmd represents the subscribe command
 var subscribeCmd = &cobra.Command{
 	Use:     "subscribe",
