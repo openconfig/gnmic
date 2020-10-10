@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -57,9 +58,28 @@ func pathCmdRun(d, f, e []string, quitAfterGenerate bool) error {
 		}
 		yang.AddPath(expanded...)
 	}
+	yfiles := make([]string, 0, len(f))
+	for _, file := range f {
+		fi, err := os.Stat(file)
+		if err != nil {
+			return err
+		}
+		switch mode := fi.Mode(); {
+		case mode.IsDir():
+			fls, err := walkDir(file, ".yang")
+			if err != nil {
+				return err
+			}
+			yfiles = append(files, fls...)
+		case mode.IsRegular():
+			if filepath.Ext(file) == ".yang" {
+				yfiles = append(files, file)
+			}
+		}
+	}
 
 	ms := yang.NewModules()
-	for _, name := range f {
+	for _, name := range yfiles {
 		if err := ms.Read(name); err != nil {
 			return err
 		}
@@ -468,4 +488,51 @@ func loadSchemaZip() (*yang.Entry, error) {
 		fixSchema(eachModuleTop)
 	}
 	return root, err
+}
+
+func walkDir(path, ext string) ([]string, error) {
+	debug := viper.GetBool("debug")
+	fs := make([]string, 0)
+	filepath.Walk(path,
+		func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			fi, err := os.Stat(path)
+			if err != nil {
+				return err
+			}
+			switch mode := fi.Mode(); {
+			case mode.IsDir():
+				if debug {
+					fAbs, err := filepath.Abs(fi.Name())
+					if err != nil {
+						fAbs = fi.Name()
+					}
+					logger.Printf("walking directory %s for %s files", fAbs, ext)
+				}
+				ifs, err := walkDir(fi.Name(), ext)
+				if err != nil {
+					return err
+				}
+				for _, f := range ifs {
+					if filepath.Ext(f) == ext {
+						if debug {
+							logger.Printf("appending file %s", f)
+						}
+						fs = append(fs, f)
+					}
+				}
+			case mode.IsRegular():
+				if filepath.Ext(path) == ext {
+					if debug {
+						logger.Printf("appending file %s", path)
+					}
+					fs = append(fs, path)
+				}
+
+			}
+			return nil
+		})
+	return fs, nil
 }
