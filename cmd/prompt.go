@@ -354,13 +354,6 @@ func findSuggestions(co cmdPrompt, doc goprompt.Document) []goprompt.Suggest {
 	}
 
 	suggestions := make([]goprompt.Suggest, 0, 32)
-	if command.HasAvailableSubCommands() {
-		for _, c := range command.Commands() {
-			if !c.Hidden {
-				suggestions = append(suggestions, goprompt.Suggest{Text: c.Name(), Description: c.Short})
-			}
-		}
-	}
 
 	// check flag annotation for the dynamic suggestion
 	annotation := ""
@@ -378,7 +371,14 @@ func findSuggestions(co cmdPrompt, doc goprompt.Document) []goprompt.Suggest {
 	if annotation != "" {
 		return append(suggestions, findDynamicSuggestions(annotation, doc)...)
 	}
-
+	// add sub commands suggestions if they exist
+	if command.HasAvailableSubCommands() {
+		for _, c := range command.Commands() {
+			if !c.Hidden {
+				suggestions = append(suggestions, goprompt.Suggest{Text: c.Name(), Description: c.Short})
+			}
+		}
+	}
 	if showLocalFlags {
 		// load local flags of the command
 		addFlags := func(flag *pflag.Flag) {
