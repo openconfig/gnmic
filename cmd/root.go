@@ -105,8 +105,13 @@ func rootCmdPersistentPostRun(cmd *cobra.Command, args []string) {
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:               "gnmic",
-	Short:             "run gnmi rpcs from the terminal (https://gnmic.kmrd.dev)",
+	Use:   "gnmic",
+	Short: "run gnmi rpcs from the terminal (https://gnmic.kmrd.dev)",
+	Annotations: map[string]string{
+		"--encoding": "ENCODING",
+		"--config":   "FILE",
+		"--format":   "FORMAT",
+	},
 	PersistentPreRun:  rootCmdPersistentPreRun,
 	PersistentPostRun: rootCmdPersistentPostRun,
 }
