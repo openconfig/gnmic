@@ -15,11 +15,8 @@
 package cmd
 
 import (
-	"compress/gzip"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -27,9 +24,7 @@ import (
 
 	"github.com/google/gnxi/utils/xpath"
 	"github.com/manifoldco/promptui"
-	homedir "github.com/mitchellh/go-homedir"
 	"github.com/openconfig/goyang/pkg/yang"
-	"github.com/openconfig/ygot/ygen"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -41,11 +36,79 @@ var pathType string
 var module string
 var printTypes bool
 var search bool
-var generateSchema bool
 var prefixRepresented bool
 
 func pathCmdRun(d, f, e []string, quitAfterGenerate bool) error {
-	if len(f) <= 0 {
+	err := generateYangSchema(d, f, e)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	out := make(chan string)
+	defer close(out)
+	paths := make([]string, 0)
+	if search {
+		go gather(ctx, out, &paths)
+	} else {
+		go printer(ctx, out)
+	}
+	collected := make([]*yang.Entry, 0, 256)
+	for _, entry := range schemaTree.Dir {
+		collected = append(collected, collectSchemaNodes(entry, true)...)
+	}
+	for _, entry := range collected {
+		out <- generatePath(entry, prefixRepresented)
+	}
+
+	if search {
+		p := promptui.Select{
+			Label:        "select path",
+			Items:        paths,
+			Size:         10,
+			Stdout:       os.Stdout,
+			HideSelected: true,
+			Searcher: func(input string, index int) bool {
+				kws := strings.Split(input, " ")
+				result := true
+				count := 0
+				for _, kw := range kws {
+					if strings.HasPrefix(kw, "!") {
+						kw = strings.TrimLeft(kw, "!")
+						if kw == "" {
+							continue
+						}
+						result = result && !strings.Contains(paths[index], kw)
+					} else {
+						result = result && strings.Contains(paths[index], kw)
+					}
+				}
+				if result {
+					count++
+				}
+				return result
+			},
+			Keys: &promptui.SelectKeys{
+				Prev:     promptui.Key{Code: promptui.KeyPrev, Display: promptui.KeyPrevDisplay},
+				Next:     promptui.Key{Code: promptui.KeyNext, Display: promptui.KeyNextDisplay},
+				PageUp:   promptui.Key{Code: promptui.KeyBackward, Display: promptui.KeyBackwardDisplay},
+				PageDown: promptui.Key{Code: promptui.KeyForward, Display: promptui.KeyForwardDisplay},
+				Search:   promptui.Key{Code: ':', Display: ":"},
+			},
+		}
+		index, selected, err := p.Run()
+		if err != nil {
+			return err
+		}
+		fmt.Println(selected)
+		fmt.Println(generateTypeInfo(collected[index]))
+	}
+	return nil
+}
+
+func generateYangSchema(d, f, e []string) error {
+	if len(f) == 0 {
 		return nil
 	}
 	if pathType != "xpath" && pathType != "gnmi" {
@@ -104,7 +167,7 @@ func pathCmdRun(d, f, e []string, quitAfterGenerate bool) error {
 		entries[x] = yang.ToEntry(mods[n])
 	}
 
-	root := buildRootEntry()
+	schemaTree = buildRootEntry()
 	for _, entry := range entries {
 		skip := false
 		for i := range e {
@@ -114,78 +177,8 @@ func pathCmdRun(d, f, e []string, quitAfterGenerate bool) error {
 		}
 		if !skip {
 			updateAnnotation(entry)
-			root.Dir[entry.Name] = entry
+			schemaTree.Dir[entry.Name] = entry
 		}
-	}
-	if generateSchema || quitAfterGenerate {
-		if err := writeSchemaZip(root); err != nil {
-			return err
-		}
-		logger.Printf("To generate schema ($HOME/.gnmic.schema) is succeed.")
-		if quitAfterGenerate {
-			return nil
-		}
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	out := make(chan string)
-	defer close(out)
-	paths := make([]string, 0)
-	if search {
-		go gather(ctx, out, &paths)
-	} else {
-		go printer(ctx, out)
-	}
-	collected := make([]*yang.Entry, 0, 256)
-	for _, entry := range root.Dir {
-		collected = append(collected, collectSchemaNodes(entry, true)...)
-	}
-	for _, entry := range collected {
-		out <- generatePath(entry, prefixRepresented)
-	}
-
-	if search {
-		p := promptui.Select{
-			Label:        "select path",
-			Items:        paths,
-			Size:         10,
-			Stdout:       os.Stdout,
-			HideSelected: true,
-			Searcher: func(input string, index int) bool {
-				kws := strings.Split(input, " ")
-				result := true
-				count := 0
-				for _, kw := range kws {
-					if strings.HasPrefix(kw, "!") {
-						kw = strings.TrimLeft(kw, "!")
-						if kw == "" {
-							continue
-						}
-						result = result && !strings.Contains(paths[index], kw)
-					} else {
-						result = result && strings.Contains(paths[index], kw)
-					}
-				}
-				if result {
-					count++
-				}
-				return result
-			},
-			Keys: &promptui.SelectKeys{
-				Prev:     promptui.Key{Code: promptui.KeyPrev, Display: promptui.KeyPrevDisplay},
-				Next:     promptui.Key{Code: promptui.KeyNext, Display: promptui.KeyNextDisplay},
-				PageUp:   promptui.Key{Code: promptui.KeyBackward, Display: promptui.KeyBackwardDisplay},
-				PageDown: promptui.Key{Code: promptui.KeyForward, Display: promptui.KeyForwardDisplay},
-				Search:   promptui.Key{Code: ':', Display: ":"},
-			},
-		}
-		index, selected, err := p.Run()
-		if err != nil {
-			return err
-		}
-		fmt.Println(selected)
-		fmt.Println(generateTypeInfo(collected[index]))
 	}
 	return nil
 }
@@ -224,7 +217,6 @@ func initPathFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVarP(&prefixRepresented, "prefix-represented", "", false, "enable the yang prefix of the paths")
 	cmd.Flags().BoolVarP(&printTypes, "types", "", false, "print leaf type")
 	cmd.Flags().BoolVarP(&search, "search", "", false, "search through path list")
-	cmd.Flags().BoolVarP(&generateSchema, "generate-schema", "g", false, "generate schema ($HOME/.gnmic.schema) for tab compeletion")
 	viper.BindPFlag("path-file", cmd.LocalFlags().Lookup("file"))
 	viper.BindPFlag("path-exclude", cmd.LocalFlags().Lookup("exclude"))
 	viper.BindPFlag("path-dir", cmd.LocalFlags().Lookup("dir"))
@@ -232,7 +224,6 @@ func initPathFlags(cmd *cobra.Command) {
 	viper.BindPFlag("path-module", cmd.LocalFlags().Lookup("module"))
 	viper.BindPFlag("path-types", cmd.LocalFlags().Lookup("types"))
 	viper.BindPFlag("path-search", cmd.LocalFlags().Lookup("search"))
-	viper.BindPFlag("path-generate-schema", cmd.LocalFlags().Lookup("generate-schema"))
 }
 
 func collectSchemaNodes(e *yang.Entry, leafOnly bool) []*yang.Entry {
@@ -428,66 +419,6 @@ func buildRootEntry() *yang.Entry {
 	// as a path element in ytypes.
 	rootEntry.Annotation["root"] = true
 	return rootEntry
-}
-
-func writeSchemaZip(root *yang.Entry) error {
-	j, err := json.MarshalIndent(root, "", strings.Repeat(" ", 4))
-	if err != nil {
-		return fmt.Errorf("JSON marshalling error: %v", err)
-	}
-	if len(j) == 0 {
-		return nil
-	}
-	// fmt.Println(string(j))
-	gotGzip, err := ygen.WriteGzippedByteSlice(j)
-	if err != nil {
-		return err
-	}
-	home, err := homedir.Dir()
-	if err != nil {
-		return err
-	}
-	err = ioutil.WriteFile(home+"/.gnmic.schema", gotGzip, 0600)
-	return err
-}
-
-func fixSchema(entry *yang.Entry) {
-	for _, child := range entry.Dir {
-		if child.Parent == nil {
-			child.Parent = entry
-		}
-		fixSchema(child)
-	}
-}
-
-func loadSchemaZip() (*yang.Entry, error) {
-	home, err := homedir.Dir()
-	if err != nil {
-		return nil, err
-	}
-	f, err := os.Open(home + "/.gnmic.schema")
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	// gotGzip, err := ioutil.ReadAll(f)
-	gzr, err := gzip.NewReader(f)
-	if err != nil {
-		return nil, err
-	}
-	defer gzr.Close()
-	s, err := ioutil.ReadAll(gzr)
-	if err != nil {
-		return nil, err
-	}
-	root := &yang.Entry{}
-	if err := json.Unmarshal(s, &root); err != nil {
-		return nil, err
-	}
-	for _, eachModuleTop := range root.Dir {
-		fixSchema(eachModuleTop)
-	}
-	return root, err
 }
 
 func walkDir(path, ext string) ([]string, error) {
