@@ -51,10 +51,10 @@ const (
 )
 
 var encodings = [][2]string{
-	{"json", "indicates that the value is encoded as a JSON string,as specified in RFC7159"},
-	{"bytes", "contains a byte sequence whose semantics is opaque to the protocol"},
-	{"proto", "contains a serialised protobuf message using protobuf.Any"},
-	{"ascii", "an ASCII encoded string representing text formatted according to a target-defined convention"},
+	{"json", "JSON encodded string (RFC7159)"},
+	{"bytes", "byte sequence whose semantics is opaque to the protocol"},
+	{"proto", "serialised protobuf message using protobuf.Any"},
+	{"ascii", "ASCII encoded string representing text formatted according to a target-defined convention"},
 	{"json_ietf", "similar to `json` with aditional types defined"},
 }
 var formats = [][2]string{
