@@ -4,7 +4,7 @@ go 1.13
 
 require (
 	github.com/Shopify/sarama v1.26.4
-	github.com/c-bata/go-prompt v0.2.3
+	github.com/c-bata/go-prompt v0.2.5
 	github.com/google/gnxi v0.0.0-20200508145201-92c6d0d3ec3b
 	github.com/google/uuid v1.1.1
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
@@ -23,7 +23,7 @@ require (
 	github.com/openconfig/goyang v0.0.0-20200908203031-af27d3788542
 	github.com/openconfig/ygot v0.6.0
 	github.com/pborman/getopt v0.0.0-20190409184431-ee0cd42419d3
-	github.com/pkg/term v0.0.0-20180423043932-cda20d4ac917
+	github.com/pkg/term v1.1.0
 	github.com/prometheus/client_golang v1.7.1
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/pflag v1.0.5
