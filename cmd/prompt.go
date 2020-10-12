@@ -271,8 +271,8 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
 	case "STORE":
 		suggestions := make([]goprompt.Suggest, 0, len(dataType))
-		for _, name := range dataType {
-			suggestions = append(suggestions, goprompt.Suggest{Text: name})
+		for _, sugg := range dataType {
+			suggestions = append(suggestions, goprompt.Suggest{Text: sugg[0], Description: sugg[1]})
 		}
 		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
 	case "SUBSC_MODE":

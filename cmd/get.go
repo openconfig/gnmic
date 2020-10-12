@@ -29,7 +29,13 @@ import (
 )
 
 var paths []string
-var dataType = []string{"all", "config", "state", "operational"}
+var dataType = [][2]string{
+	{"all", "all config/state/operational data"},
+	{"config", "data that the target considers to be read/write"},
+	{"state", "read-only data on the target"},
+	{"operational", "read-only data on the target that is related to software processes operating on the device, or external interactions of the device"},
+}
+
 // getCmd represents the get command
 var getCmd = &cobra.Command{
 	Use:   "get",
