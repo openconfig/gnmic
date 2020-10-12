@@ -38,7 +38,7 @@ const defaultRetryTimer = 10 * time.Second
 
 var subscriptionModes = [][2]string{
 	{"once", "a single request/response channel. The target creates the relevant update messages, transmits them, and subsequently closes the RPC"},
-	{"stream", "long-lived subscriptions which continue to transmit updates relating to the set of paths that are covered within the subscription indefinitely."},
+	{"stream", "long-lived subscriptions which continue to transmit updates relating to the set of paths that are covered within the subscription indefinitely"},
 	{"poll", "used for on-demand retrieval of data items via long-lived RPCs"},
 }
 var streamSubscriptionModes = [][2]string{
