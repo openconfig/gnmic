@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"strings"
 
@@ -71,11 +72,17 @@ var promptModeCmd = &cobra.Command{
 		promptHistory = make([]string, 0, 256)
 		home, err := homedir.Dir()
 		if err != nil {
-			return err
+			if viper.GetBool("debug") {
+				log.Printf("failed to get home directory: %v", err)
+			}
+			return nil
 		}
 		content, err := ioutil.ReadFile(home + "/.gnmic.history")
 		if err != nil {
-			return err
+			if viper.GetBool("debug") {
+				log.Printf("failed to read history file: %v", err)
+			}
+			return nil
 		}
 		history := strings.Split(string(content), "\n")
 		for i := range history {
@@ -83,7 +90,7 @@ var promptModeCmd = &cobra.Command{
 				promptHistory = append(promptHistory, history[i])
 			}
 		}
-		return err
+		return nil
 	},
 	PostRun: func(cmd *cobra.Command, args []string) {
 		cmd.ResetFlags()
@@ -371,6 +378,7 @@ func ExecutePrompt() {
 			goprompt.OptionAddASCIICodeBind(goprompt.ASCIICodeBind{
 				ASCIICode: []byte{0x3f}, Fn: showCommandArguments}),
 			goprompt.OptionCompletionWordSeparator(completer.FilePathCompletionSeparator),
+			goprompt.OptionCompletionOnDown(),
 		},
 	}
 	shell.Run()
