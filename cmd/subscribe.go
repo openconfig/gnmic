@@ -41,7 +41,11 @@ var subscriptionModes = [][2]string{
 	{"stream", "long-lived subscriptions which continue to transmit updates relating to the set of paths that are covered within the subscription indefinitely."},
 	{"poll", "used for on-demand retrieval of data items via long-lived RPCs"},
 }
-var streamSubscriptionModes = []string{"target-defined", "sample", "on-change"}
+var streamSubscriptionModes = [][2]string{
+	{"target-defined", "the target MUST determine the best type of subscription to be created on a per-leaf basis"},
+	{"sample", "the value of the data item(s) MUST be sent once per sample interval to the client"},
+	{"on-change", "data updates are only sent when the value of the data item changes"},
+}
 
 // subscribeCmd represents the subscribe command
 var subscribeCmd = &cobra.Command{
