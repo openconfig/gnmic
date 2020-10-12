@@ -259,8 +259,8 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 		return dirPathCompleter.Complete(doc)
 	case "ENCODING":
 		suggestions := make([]goprompt.Suggest, 0, len(encodings))
-		for _, name := range encodings {
-			suggestions = append(suggestions, goprompt.Suggest{Text: name})
+		for _, sugg := range encodings {
+			suggestions = append(suggestions, goprompt.Suggest{Text: sugg[0], Description: sugg[1]})
 		}
 		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
 	case "FORMAT":
@@ -283,7 +283,7 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
 	case "STREAM_MODE":
 		suggestions := make([]goprompt.Suggest, 0, len(streamSubscriptionModes))
-		for _, sugg := range subscriptionModes {
+		for _, sugg := range streamSubscriptionModes {
 			suggestions = append(suggestions, goprompt.Suggest{Text: sugg[0], Description: sugg[1]})
 		}
 		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
