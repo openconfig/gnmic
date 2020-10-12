@@ -57,7 +57,13 @@ var encodings = [][2]string{
 	{"ascii", "an ASCII encoded string representing text formatted according to a target-defined convention"},
 	{"json_ietf", "similar to `json` with aditional types defined"},
 }
-var formats = []string{"json", "protojson", "prototext", "event", "proto"}
+var formats = [][2]string{
+	{"json", "similar to protojson but withg collapsed paths and decoded timestamps"},
+	{"protojson", "protocol buffer messages as JSON format"},
+	{"prototext", "protocol buffer messages as the textproto format"},
+	{"event", "protocol buffer message as a timestamped list of tags and values"},
+	{"proto", "protocol buffer message as the binary wire format"},
+}
 var cfgFile string
 var f io.WriteCloser
 var logger *log.Logger
