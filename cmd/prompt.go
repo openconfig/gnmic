@@ -374,6 +374,7 @@ func ExecutePrompt() {
 			goprompt.OptionAddASCIICodeBind(goprompt.ASCIICodeBind{
 				ASCIICode: []byte{0x3f}, Fn: showCommandArguments}),
 			goprompt.OptionCompletionWordSeparator(completer.FilePathCompletionSeparator),
+			goprompt.OptionCompletionOnDown(),
 		},
 	}
 	shell.Run()
