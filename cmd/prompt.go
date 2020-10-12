@@ -379,6 +379,7 @@ func ExecutePrompt() {
 				ASCIICode: []byte{0x3f}, Fn: showCommandArguments}),
 			goprompt.OptionCompletionWordSeparator(completer.FilePathCompletionSeparator),
 			goprompt.OptionCompletionOnDown(),
+			goprompt.OptionShowCompletionAtStart(),
 		},
 	}
 	shell.Run()
