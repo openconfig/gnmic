@@ -18,7 +18,9 @@ import (
 
 var promptMode bool
 var promptHistory []string
-var schemaTree *yang.Entry
+var schemaTree = &yang.Entry{
+	Dir: make(map[string]*yang.Entry),
+}
 var colorMapping = map[string]goprompt.Color{
 	"black":      goprompt.Black,
 	"dark_red":   goprompt.DarkRed,
