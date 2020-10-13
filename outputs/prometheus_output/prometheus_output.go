@@ -3,6 +3,7 @@ package prometheus_output
 import (
 	"context"
 	"encoding/json"
+	"hash/fnv"
 	"log"
 	"os"
 	"path/filepath"
@@ -27,8 +28,12 @@ type labelPair struct {
 	Value string
 }
 type promMetric struct {
-	
+	name   string
+	labels []labelPair
+	time   time.Time
+	value  float64
 }
+
 func init() {
 	outputs.Register("prometheus", func() outputs.Output {
 		return &PrometheusOutput{
@@ -46,7 +51,7 @@ type PrometheusOutput struct {
 	eventChan chan *collector.EventMsg
 
 	sync.Mutex
-	entries map[uint64]interface{}
+	entries map[uint64]*promMetric
 }
 type Config struct {
 	Listen        string
@@ -107,4 +112,16 @@ func (p *PrometheusOutput) getLabels(ev *collector.EventMsg) []labelPair {
 		}
 	}
 	return labels
+}
+
+func (p *promMetric) calculateKey() uint64 {
+	h := fnv.New64a()
+	h.Write([]byte(p.name))
+	for _, label := range p.labels {
+		h.Write([]byte(label.Name))
+		h.Write([]byte(":"))
+		h.Write([]byte(label.Value))
+		h.Write([]byte(":"))
+	}
+	return h.Sum64()
 }
