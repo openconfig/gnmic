@@ -148,7 +148,10 @@ func generateYangSchema(d, f, e []string) error {
 		}
 	}
 	if errors := ms.Process(); len(errors) > 0 {
-		return fmt.Errorf("yang processing failed %v", errors)
+		for _, e := range errors {
+			fmt.Fprintf(os.Stderr, "yang processing error: %v\n", e)
+		}
+		return fmt.Errorf("yang processing failed with %d errors", len(errors))
 	}
 	// Keep track of the top level modules we read in.
 	// Those are the only modules we want to print below.
