@@ -59,10 +59,10 @@ var encodings = [][2]string{
 }
 var formats = [][2]string{
 	{"json", "similar to protojson but with xpath style paths and decoded timestamps"},
-	{"protojson", "protocol buffer messages as JSON format"},
-	{"prototext", "protocol buffer messages as the textproto format"},
+	{"protojson", "protocol buffer messages in JSON format"},
+	{"prototext", "protocol buffer messages in textproto format"},
 	{"event", "protocol buffer messages as a timestamped list of tags and values"},
-	{"proto", "protocol buffer messages as the binary wire format"},
+	{"proto", "protocol buffer messages in binary wire format"},
 }
 var cfgFile string
 var f io.WriteCloser
