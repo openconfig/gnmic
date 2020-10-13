@@ -55,7 +55,7 @@ var encodings = [][2]string{
 	{"bytes", "byte sequence whose semantics is opaque to the protocol"},
 	{"proto", "serialised protobuf message using protobuf.Any"},
 	{"ascii", "ASCII encoded string representing text formatted according to a target-defined convention"},
-	{"json_ietf", "similar to `json` with aditional types defined"},
+	{"json_ietf", "JSON_IETF encoded string (RFC7951)"},
 }
 var formats = [][2]string{
 	{"json", "similar to protojson but with xpath style paths and decoded timestamps"},
