@@ -72,7 +72,6 @@ func pathCmdRun(d, f, e []string, quitAfterGenerate bool) error {
 			Searcher: func(input string, index int) bool {
 				kws := strings.Split(input, " ")
 				result := true
-				count := 0
 				for _, kw := range kws {
 					if strings.HasPrefix(kw, "!") {
 						kw = strings.TrimLeft(kw, "!")
@@ -83,9 +82,6 @@ func pathCmdRun(d, f, e []string, quitAfterGenerate bool) error {
 					} else {
 						result = result && strings.Contains(paths[index], kw)
 					}
-				}
-				if result {
-					count++
 				}
 				return result
 			},
