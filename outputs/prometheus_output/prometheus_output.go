@@ -51,6 +51,7 @@ func init() {
 		return &PrometheusOutput{
 			Cfg:       &Config{},
 			eventChan: make(chan *collector.EventMsg),
+			wg:        new(sync.WaitGroup),
 			entries:   make(map[uint64]*promMetric),
 		}
 	})
@@ -63,6 +64,7 @@ type PrometheusOutput struct {
 	cancelFn  context.CancelFunc
 	eventChan chan *collector.EventMsg
 
+	wg     *sync.WaitGroup
 	server *http.Server
 	sync.Mutex
 	entries map[uint64]*promMetric
@@ -137,8 +139,10 @@ func (p *PrometheusOutput) Init(ctx context.Context, cfg map[string]interface{},
 		return err
 	}
 	// start worker
+	p.wg.Add(2)
 	go p.worker(ctx)
 	go func() {
+		defer p.wg.Done()
 		err = p.server.Serve(listener)
 		if err != nil && err != http.ErrServerClosed {
 			p.logger.Printf("prometheus server error: %v", err)
@@ -174,8 +178,12 @@ func (p *PrometheusOutput) Write(ctx context.Context, rsp proto.Message, meta ou
 func (p *PrometheusOutput) Close() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	p.server.Shutdown(ctx)
+	err := p.server.Shutdown(ctx)
+	if err != nil {
+		p.logger.Printf("failed to shutdown http server: %v", err)
+	}
 	p.cancelFn()
+	p.wg.Wait()
 	return nil
 }
 func (p *PrometheusOutput) Metrics() []prometheus.Collector { return p.metrics }
@@ -207,6 +215,7 @@ func (p *PrometheusOutput) getLabels(ev *collector.EventMsg) []*labelPair {
 }
 
 func (p *PrometheusOutput) worker(ctx context.Context) {
+	defer p.wg.Done()
 	for {
 		select {
 		case <-ctx.Done():
