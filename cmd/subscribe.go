@@ -36,8 +36,16 @@ import (
 
 const defaultRetryTimer = 10 * time.Second
 
-var subscriptionModes = []string{"once", "stream", "poll"}
-var streamSubscriptionModes = []string{"target-defined", "sample", "on-change"}
+var subscriptionModes = [][2]string{
+	{"once", "a single request/response channel. The target creates the relevant update messages, transmits them, and subsequently closes the RPC"},
+	{"stream", "long-lived subscriptions which continue to transmit updates relating to the set of paths that are covered within the subscription indefinitely"},
+	{"poll", "on-demand retrieval of data items via long-lived RPCs"},
+}
+var streamSubscriptionModes = [][2]string{
+	{"target-defined", "the target MUST determine the best type of subscription to be created on a per-leaf basis"},
+	{"sample", "the value of the data item(s) MUST be sent once per sample interval to the client"},
+	{"on-change", "data updates are only sent when the value of the data item changes"},
+}
 
 // subscribeCmd represents the subscribe command
 var subscribeCmd = &cobra.Command{

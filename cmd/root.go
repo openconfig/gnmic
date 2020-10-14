@@ -50,8 +50,20 @@ const (
 	msgSize = 512 * 1024 * 1024
 )
 
-var encodings = []string{"json", "bytes", "proto", "ascii", "json_ietf"}
-var formats = []string{"json", "protojson", "prototext", "event", "proto"}
+var encodings = [][2]string{
+	{"json", "JSON encodded string (RFC7159)"},
+	{"bytes", "byte sequence whose semantics is opaque to the protocol"},
+	{"proto", "serialised protobuf message using protobuf.Any"},
+	{"ascii", "ASCII encoded string representing text formatted according to a target-defined convention"},
+	{"json_ietf", "JSON_IETF encoded string (RFC7951)"},
+}
+var formats = [][2]string{
+	{"json", "similar to protojson but with xpath style paths and decoded timestamps"},
+	{"protojson", "protocol buffer messages in JSON format"},
+	{"prototext", "protocol buffer messages in textproto format"},
+	{"event", "protocol buffer messages as a timestamped list of tags and values"},
+	{"proto", "protocol buffer messages in binary wire format"},
+}
 var cfgFile string
 var f io.WriteCloser
 var logger *log.Logger

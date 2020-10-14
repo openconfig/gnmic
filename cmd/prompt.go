@@ -251,7 +251,11 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 		return yangPathCompleter.Complete(doc)
 	case "MODEL":
 		suggestions := make([]goprompt.Suggest, 0, len(schemaTree.Dir))
-		for name := range schemaTree.Dir {
+		for name, dir := range schemaTree.Dir {
+			if dir != nil {
+				suggestions = append(suggestions, goprompt.Suggest{Text: name, Description: dir.Description})
+				continue
+			}
 			suggestions = append(suggestions, goprompt.Suggest{Text: name})
 		}
 		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
@@ -259,32 +263,32 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 		return dirPathCompleter.Complete(doc)
 	case "ENCODING":
 		suggestions := make([]goprompt.Suggest, 0, len(encodings))
-		for _, name := range encodings {
-			suggestions = append(suggestions, goprompt.Suggest{Text: name})
+		for _, sugg := range encodings {
+			suggestions = append(suggestions, goprompt.Suggest{Text: sugg[0], Description: sugg[1]})
 		}
 		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
 	case "FORMAT":
 		suggestions := make([]goprompt.Suggest, 0, len(formats))
-		for _, name := range formats {
-			suggestions = append(suggestions, goprompt.Suggest{Text: name})
+		for _, sugg := range formats {
+			suggestions = append(suggestions, goprompt.Suggest{Text: sugg[0], Description: sugg[1]})
 		}
 		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
 	case "STORE":
 		suggestions := make([]goprompt.Suggest, 0, len(dataType))
-		for _, name := range dataType {
-			suggestions = append(suggestions, goprompt.Suggest{Text: name})
+		for _, sugg := range dataType {
+			suggestions = append(suggestions, goprompt.Suggest{Text: sugg[0], Description: sugg[1]})
 		}
 		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
 	case "SUBSC_MODE":
 		suggestions := make([]goprompt.Suggest, 0, len(subscriptionModes))
-		for _, name := range subscriptionModes {
-			suggestions = append(suggestions, goprompt.Suggest{Text: name})
+		for _, sugg := range subscriptionModes {
+			suggestions = append(suggestions, goprompt.Suggest{Text: sugg[0], Description: sugg[1]})
 		}
 		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
 	case "STREAM_MODE":
 		suggestions := make([]goprompt.Suggest, 0, len(streamSubscriptionModes))
-		for _, name := range streamSubscriptionModes {
-			suggestions = append(suggestions, goprompt.Suggest{Text: name})
+		for _, sugg := range streamSubscriptionModes {
+			suggestions = append(suggestions, goprompt.Suggest{Text: sugg[0], Description: sugg[1]})
 		}
 		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
 	}
