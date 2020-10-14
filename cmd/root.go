@@ -68,13 +68,13 @@ var cfgFile string
 var f io.WriteCloser
 var logger *log.Logger
 
-func rootCmdPersistentPreRun(cmd *cobra.Command, args []string) {
+func rootCmdPersistentPreRunE(cmd *cobra.Command, args []string) error {
 	debug := viper.GetBool("debug")
 	if viper.GetString("log-file") != "" {
 		var err error
 		f, err = os.OpenFile(viper.GetString("log-file"), os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 		if err != nil {
-			logger.Fatalf("error opening file: %v", err)
+			return fmt.Errorf("error opening log file: %v", err)
 		}
 	} else {
 		if debug {
@@ -99,15 +99,18 @@ func rootCmdPersistentPreRun(cmd *cobra.Command, args []string) {
 	cfgFile := viper.ConfigFileUsed()
 	if len(cfgFile) != 0 {
 		logger.Printf("using config file %s", cfgFile)
-		if debug {
-			b, err := ioutil.ReadFile(cfgFile)
-			if err != nil {
-				logger.Printf("failed reading config file %s: %v", cfgFile, err)
-				return
+		b, err := ioutil.ReadFile(cfgFile)		
+		if err != nil {
+			if cmd.Flag("config").Changed {
+				return err
 			}
+			logger.Printf("failed reading config file: %v", err)
+		}
+		if debug {
 			logger.Printf("config file:\n%s", string(b))
 		}
 	}
+	return nil
 }
 
 func rootCmdPersistentPostRun(cmd *cobra.Command, args []string) {
@@ -125,8 +128,8 @@ var rootCmd = &cobra.Command{
 		"--config":   "FILE",
 		"--format":   "FORMAT",
 	},
-	PersistentPreRun:  rootCmdPersistentPreRun,
-	PersistentPostRun: rootCmdPersistentPostRun,
+	PersistentPostRunE: rootCmdPersistentPreRunE,
+	PersistentPostRun:  rootCmdPersistentPostRun,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
