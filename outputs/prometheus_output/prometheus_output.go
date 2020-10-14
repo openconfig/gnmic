@@ -231,10 +231,8 @@ func (p *PrometheusOutput) worker(ctx context.Context) {
 				if err != nil {
 					continue
 				}
-				metricName := strings.TrimRight(p.replacer.Replace(ev.Name), "_")
-				metricName += "_" + strings.TrimLeft(p.replacer.Replace(vName), "_")
 				pm := &promMetric{
-					name:   metricName,
+					name:   p.metricName(ev.Name, vName),
 					labels: labels,
 					time:   time.Unix(0, ev.Timestamp),
 					value:  v,
@@ -363,4 +361,12 @@ func getFloat(v interface{}) (float64, error) {
 	default:
 		return math.NaN(), errors.New("getFloat: unknown value is of incompatible type")
 	}
+}
+
+func (p *PrometheusOutput) metricName(measName, valueName string) string {
+	sb := strings.Builder{}
+	sb.WriteString(strings.TrimRight(p.replacer.Replace(measName), "_"))
+	sb.WriteString("_")
+	sb.WriteString(strings.TrimLeft(p.replacer.Replace(valueName), "_"))
+	return sb.String()
 }
