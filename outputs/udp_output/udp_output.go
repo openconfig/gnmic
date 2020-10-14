@@ -11,7 +11,6 @@ import (
 
 	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/outputs"
-	"github.com/mitchellh/mapstructure"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
 )
@@ -43,21 +42,14 @@ type Config struct {
 }
 
 func (u *UDPSock) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger) error {
-	decoder, err := mapstructure.NewDecoder(
-		&mapstructure.DecoderConfig{
-			DecodeHook: mapstructure.StringToTimeDurationHookFunc(),
-			Result:     u.Cfg,
-		},
-	)
+	err := outputs.DecodeConfig(cfg, u.Cfg)
 	if err != nil {
-		return err
-	}
-	err = decoder.Decode(cfg)
-	if err != nil {
+		logger.Printf("udp output config decode failed: %v", err)
 		return err
 	}
 	_, _, err = net.SplitHostPort(u.Cfg.Address)
 	if err != nil {
+		logger.Printf("udp output config validation failed: %v", err)
 		return fmt.Errorf("wrong address format: %v", err)
 	}
 	u.logger = log.New(os.Stderr, "udp_output ", log.LstdFlags|log.Lmicroseconds)
@@ -75,19 +67,6 @@ func (u *UDPSock) Init(ctx context.Context, cfg map[string]interface{}, logger *
 	}()
 	ctx, u.cancelFn = context.WithCancel(ctx)
 	u.mo = &collector.MarshalOptions{Format: u.Cfg.Format}
-DIAL:
-	udpAddr, err := net.ResolveUDPAddr("udp", u.Cfg.Address)
-	if err != nil {
-		u.logger.Printf("failed to dial udp: %v", err)
-		time.Sleep(10 * time.Second)
-		goto DIAL
-	}
-	u.conn, err = net.DialUDP("udp", nil, udpAddr)
-	if err != nil {
-		u.logger.Printf("failed to dial udp: %v", err)
-		time.Sleep(10 * time.Second)
-		goto DIAL
-	}
 	go u.start(ctx)
 	return nil
 }
@@ -118,8 +97,26 @@ func (u *UDPSock) String() string {
 	return string(b)
 }
 func (u *UDPSock) start(ctx context.Context) {
+	var udpAddr *net.UDPAddr
 	var err error
 	defer u.Close()
+DIAL:
+	if ctx.Err() != nil {
+		u.logger.Printf("context error: %v", ctx.Err())
+		return
+	}
+	udpAddr, err = net.ResolveUDPAddr("udp", u.Cfg.Address)
+	if err != nil {
+		u.logger.Printf("failed to dial udp: %v", err)
+		time.Sleep(10 * time.Second)
+		goto DIAL
+	}
+	u.conn, err = net.DialUDP("udp", nil, udpAddr)
+	if err != nil {
+		u.logger.Printf("failed to dial udp: %v", err)
+		time.Sleep(10 * time.Second)
+		goto DIAL
+	}
 	for {
 		select {
 		case <-ctx.Done():
@@ -131,6 +128,8 @@ func (u *UDPSock) start(ctx context.Context) {
 			_, err = u.conn.Write(b)
 			if err != nil {
 				u.logger.Printf("failed sending udp bytes: %v", err)
+				time.Sleep(10 * time.Second)
+				goto DIAL
 			}
 		}
 	}

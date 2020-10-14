@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/outputs"
-	"github.com/mitchellh/mapstructure"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
 )
@@ -63,8 +62,9 @@ func (k *KafkaOutput) String() string {
 
 // Init /
 func (k *KafkaOutput) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger) error {
-	err := mapstructure.Decode(cfg, k.Cfg)
+	err := outputs.DecodeConfig(cfg, k.Cfg)
 	if err != nil {
+		logger.Printf("kafka output config decode failed: %v", err)
 		return err
 	}
 	if k.Cfg.Format == "" {
@@ -112,7 +112,7 @@ CRPROD:
 		<-ctx.Done()
 		k.Close()
 	}()
-	return err
+	return nil
 }
 
 // Write //

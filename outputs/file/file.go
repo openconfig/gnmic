@@ -10,7 +10,6 @@ import (
 
 	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/outputs"
-	"github.com/mitchellh/mapstructure"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
 )
@@ -62,11 +61,13 @@ func (f *File) String() string {
 
 // Init //
 func (f *File) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger) error {
-	err := mapstructure.Decode(cfg, f.Cfg)
+	err := outputs.DecodeConfig(cfg, f.Cfg)
 	if err != nil {
+		logger.Printf("file output config decode failed: %v", err)
 		return err
 	}
 	if f.Cfg.Format == "proto" {
+		logger.Printf("proto format not supported in output type 'file'")
 		return fmt.Errorf("proto format not supported in output type 'file'")
 	}
 	if f.Cfg.Separator == "" {

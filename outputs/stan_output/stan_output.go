@@ -12,7 +12,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/outputs"
-	"github.com/mitchellh/mapstructure"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/stan.go"
 	"github.com/prometheus/client_golang/prometheus"
@@ -71,23 +70,22 @@ func (s *StanOutput) String() string {
 
 // Init //
 func (s *StanOutput) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger) error {
-	err := mapstructure.Decode(cfg, s.Cfg)
+	err := outputs.DecodeConfig(cfg, s.Cfg)
 	if err != nil {
+		logger.Printf("stan output config decode failed: %v", err)
 		return err
 	}
 	if s.Cfg.Name == "" {
 		s.Cfg.Name = "gnmic-" + uuid.New().String()
 	}
 	if s.Cfg.ClusterName == "" {
+		logger.Printf("stan output config validation failed: clusterName is mandatory")
 		return fmt.Errorf("clusterName is mandatory")
 	}
 	if s.Cfg.Subject == "" && s.Cfg.SubjectPrefix == "" {
 		s.Cfg.Subject = defaultSubjectName
 	}
-	s.conn, err = s.createSTANConn(s.Cfg)
-	if err != nil {
-		return err
-	}
+
 	s.logger = log.New(os.Stderr, "stan_output ", log.LstdFlags|log.Lmicroseconds)
 	if logger != nil {
 		s.logger.SetOutput(logger.Writer())
@@ -99,6 +97,8 @@ func (s *StanOutput) Init(ctx context.Context, cfg map[string]interface{}, logge
 	if !(s.Cfg.Format == "event" || s.Cfg.Format == "protojson" || s.Cfg.Format == "proto" || s.Cfg.Format == "json") {
 		return fmt.Errorf("unsupported output format: '%s' for output type STAN", s.Cfg.Format)
 	}
+	// this func retries until a connection is created successfully 
+	s.conn = s.createSTANConn(s.Cfg)
 	s.mo = &collector.MarshalOptions{Format: s.Cfg.Format}
 	s.logger.Printf("initialized stan producer: %s", s.String())
 	go func() {
@@ -151,7 +151,7 @@ func (s *StanOutput) Close() error {
 	return s.conn.Close()
 }
 
-func (s *StanOutput) createSTANConn(c *Config) (stan.Conn, error) {
+func (s *StanOutput) createSTANConn(c *Config) stan.Conn {
 	if c.Timeout == 0 {
 		c.Timeout = stanDefaultTimeout
 	}
@@ -170,18 +170,22 @@ func (s *StanOutput) createSTANConn(c *Config) (stan.Conn, error) {
 	if c.Username != "" && c.Password != "" {
 		opts = append(opts, nats.UserInfo(c.Username, c.Password))
 	}
+
+	var nc *nats.Conn
+	var sc stan.Conn
+	var err error
 CRCONN:
-	nc, err := nats.Connect(c.Address, opts...)
+	nc, err = nats.Connect(c.Address, opts...)
 	if err != nil {
 		s.logger.Printf("failed to create connection: %v", err)
 		time.Sleep(10 * time.Second)
 		goto CRCONN
 	}
-	sc, err := stan.Connect(c.ClusterName, c.Name,
+	sc, err = stan.Connect(c.ClusterName, c.Name,
 		stan.NatsConn(nc),
 		stan.Pings(c.PingInterval, c.PingRetry),
 		stan.SetConnectionLostHandler(func(_ stan.Conn, err error) {
-			log.Printf("STAN connection lost, reason: %v", err)
+			s.logger.Printf("STAN connection lost, reason: %v", err)
 		}),
 	)
 	if err != nil {
@@ -190,5 +194,5 @@ CRCONN:
 		time.Sleep(10 * time.Second)
 		goto CRCONN
 	}
-	return sc, nil
+	return sc
 }

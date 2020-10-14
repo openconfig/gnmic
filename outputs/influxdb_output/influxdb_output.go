@@ -12,7 +12,6 @@ import (
 	"github.com/influxdata/influxdb-client-go/v2/api"
 	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/outputs"
-	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
@@ -66,9 +65,9 @@ func (k *InfluxDBOutput) String() string {
 	return string(b)
 }
 func (i *InfluxDBOutput) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger) error {
-	ctx, i.cancelFn = context.WithCancel(ctx)
-	err := mapstructure.Decode(cfg, i.Cfg)
+	err := outputs.DecodeConfig(cfg, i.Cfg)
 	if err != nil {
+		logger.Printf("influxdb output config decode failed: %v", err)
 		return err
 	}
 	if i.Cfg.URL == "" {
@@ -100,6 +99,7 @@ func (i *InfluxDBOutput) Init(ctx context.Context, cfg map[string]interface{}, l
 	if i.Cfg.Debug {
 		opts.SetLogLevel(3)
 	}
+	ctx, i.cancelFn = context.WithCancel(ctx)
 CRCLIENT:
 	i.client = influxdb2.NewClientWithOptions(i.Cfg.URL, i.Cfg.Token, opts)
 	// start influx health check

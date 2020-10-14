@@ -11,7 +11,6 @@ import (
 
 	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/outputs"
-	"github.com/mitchellh/mapstructure"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
 )
@@ -49,21 +48,14 @@ type Config struct {
 }
 
 func (t *TCPOutput) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger) error {
-	decoder, err := mapstructure.NewDecoder(
-		&mapstructure.DecoderConfig{
-			DecodeHook: mapstructure.StringToTimeDurationHookFunc(),
-			Result:     t.Cfg,
-		},
-	)
+	err := outputs.DecodeConfig(cfg, t.Cfg)
 	if err != nil {
-		return err
-	}
-	err = decoder.Decode(cfg)
-	if err != nil {
+		logger.Printf("tcp output config decode failed: %v", err)
 		return err
 	}
 	_, _, err = net.SplitHostPort(t.Cfg.Address)
 	if err != nil {
+		logger.Printf("tcp output config validation failed: %v", err)
 		return fmt.Errorf("wrong address format: %v", err)
 	}
 	t.logger = log.New(os.Stderr, "tcp_output ", log.LstdFlags|log.Lmicroseconds)
