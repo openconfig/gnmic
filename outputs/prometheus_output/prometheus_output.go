@@ -289,16 +289,18 @@ func (p *promMetric) String() string {
 	sb.WriteString("name=")
 	sb.WriteString(p.name)
 	sb.WriteString(",")
-	if len(p.labels) > 0 {
-		sb.WriteString("[")
-		for _, lb := range p.labels {
-			sb.WriteString("[")
+	numLabels := len(p.labels)
+	if numLabels > 0 {
+		sb.WriteString("labels=[")
+		for i, lb := range p.labels {
 			sb.WriteString(lb.Name)
 			sb.WriteString("=")
 			sb.WriteString(lb.Value)
-			sb.WriteString(",")
+			if i < numLabels-1 {
+				sb.WriteString(",")
+			}
 		}
-		sb.WriteString("]")
+		sb.WriteString("],")
 	}
 	sb.WriteString(fmt.Sprintf("value=%f,", p.value))
 	sb.WriteString("time=")
