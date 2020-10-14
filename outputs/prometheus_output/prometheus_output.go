@@ -312,7 +312,7 @@ func (p *promMetric) Write(out *dto.Metric) error {
 	for _, lb := range p.labels {
 		out.Label = append(out.Label, &dto.LabelPair{Name: &lb.Name, Value: &lb.Value})
 	}
-	timestamp := p.time.UnixNano() / 1000
+	timestamp := p.time.UnixNano() / 1000000
 	out.TimestampMs = &timestamp
 	return nil
 }
