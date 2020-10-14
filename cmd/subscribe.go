@@ -262,10 +262,7 @@ func getOutputs(ctx context.Context) (map[string][]outputs.Output, error) {
 								ou["format"] = viper.GetString("format")
 							}
 							o := initalizer()
-							err := o.Init(ctx, ou, logger)
-							if err != nil {
-								return nil, err
-							}
+							go o.Init(ctx, ou, logger)
 							if outputDestinations[name] == nil {
 								outputDestinations[name] = make([]outputs.Output, 0)
 							}
