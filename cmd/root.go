@@ -128,7 +128,7 @@ var rootCmd = &cobra.Command{
 		"--config":   "FILE",
 		"--format":   "FORMAT",
 	},
-	PersistentPostRunE: rootCmdPersistentPreRunE,
+	PersistentPreRunE: rootCmdPersistentPreRunE,
 	PersistentPostRun:  rootCmdPersistentPostRun,
 }
 
