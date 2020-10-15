@@ -142,6 +142,7 @@ func initPromptFlags(cmd *cobra.Command) {
 	cmd.Flags().String("prefix-color", "yellow", "terminal prefix color")
 	cmd.Flags().String("suggestions-bg-color", "black", "suggestion box background color")
 	cmd.Flags().String("description-bg-color", "yellow", "description box background color")
+	cmd.Flags().Bool("suggest-all-flags", false, "suggest local as well as inherited flags of subcommands")
 	viper.BindPFlag("prompt-file", cmd.LocalFlags().Lookup("file"))
 	viper.BindPFlag("prompt-exclude", cmd.LocalFlags().Lookup("exclude"))
 	viper.BindPFlag("prompt-dir", cmd.LocalFlags().Lookup("dir"))
@@ -149,6 +150,7 @@ func initPromptFlags(cmd *cobra.Command) {
 	viper.BindPFlag("prompt-prefix-color", cmd.LocalFlags().Lookup("prefix-color"))
 	viper.BindPFlag("prompt-suggestions-bg-color", cmd.LocalFlags().Lookup("suggestions-bg-color"))
 	viper.BindPFlag("prompt-description-bg-color", cmd.LocalFlags().Lookup("description-bg-color"))
+	viper.BindPFlag("prompt-suggest-all-flags", cmd.LocalFlags().Lookup("suggest-all-flags"))
 }
 
 func findMatchedXPATH(entry *yang.Entry, word string, cursor int) []goprompt.Suggest {
@@ -423,13 +425,9 @@ func (co cmdPrompt) Run() {
 }
 
 func findSuggestions(co cmdPrompt, doc goprompt.Document) []goprompt.Suggest {
-	showLocalFlags := false
 	command := co.RootCmd
 	args := strings.Fields(doc.CurrentLine())
 	if found, _, err := command.Find(args); err == nil {
-		if command != found {
-			showLocalFlags = true
-		}
 		command = found
 	}
 
@@ -459,33 +457,18 @@ func findSuggestions(co cmdPrompt, doc goprompt.Document) []goprompt.Suggest {
 			}
 		}
 	}
-	if showLocalFlags {
-		// load local flags of the command
-		addFlags := func(flag *pflag.Flag) {
-			if flag.Hidden {
-				return
-			}
-			suggestions = append(suggestions, goprompt.Suggest{Text: "--" + flag.Name, Description: flag.Usage})
+	addFlags := func(flag *pflag.Flag) {
+		if flag.Hidden {
+			return
 		}
-		command.LocalFlags().VisitAll(addFlags)
-		// command.InheritedFlags().VisitAll(addFlags)
-	} else {
-
-		// persistent flags are shown if run.
-		addFlags := func(flag *pflag.Flag) {
-			if flag.Hidden {
-				return
-			}
-			// if strings.HasPrefix(doc.GetWordBeforeCursor(), "--") {
-			// 	suggestions = append(suggestions, goprompt.Suggest{Text: "--" + flag.Name, Description: flag.Usage})
-			// } else if strings.HasPrefix(doc.GetWordBeforeCursor(), "-") && flag.Shorthand != "" {
-			// 	suggestions = append(suggestions, goprompt.Suggest{Text: "-" + flag.Shorthand, Description: flag.Usage})
-			// }
-			if strings.HasPrefix(doc.GetWordBeforeCursor(), "-") {
-				suggestions = append(suggestions, goprompt.Suggest{Text: "--" + flag.Name, Description: flag.Usage})
-			}
-		}
-		command.LocalFlags().VisitAll(addFlags)
+		suggestions = append(suggestions, goprompt.Suggest{Text: "--" + flag.Name, Description: flag.Usage})
 	}
+	// load local flags
+	command.LocalFlags().VisitAll(addFlags)
+	if viper.GetBool("prompt-suggest-all-flags") {
+		// load inherited flags
+		command.InheritedFlags().VisitAll(addFlags)
+	}
+
 	return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
 }
