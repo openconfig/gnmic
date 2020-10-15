@@ -25,7 +25,7 @@ var schemaTree = &yang.Entry{
 var colorMapping = map[string]goprompt.Color{
 	"black":      goprompt.Black,
 	"dark_red":   goprompt.DarkRed,
-	"darkg_reen": goprompt.DarkGreen,
+	"dark_green": goprompt.DarkGreen,
 	"brown":      goprompt.Brown,
 	"dark_blue":  goprompt.DarkBlue,
 	"purple":     goprompt.Purple,
@@ -139,9 +139,9 @@ func initPromptFlags(cmd *cobra.Command) {
 	cmd.Flags().StringArrayVarP(&promptExcluded, "exclude", "", []string{}, "yang modules to be excluded from path generation")
 	cmd.Flags().StringArrayVarP(&promptDirs, "dir", "", []string{}, "directories to search yang includes and imports")
 	cmd.Flags().Uint16("max-suggestions", 5, "terminal suggestion max list size")
-	cmd.Flags().String("prefix-color", "yellow", "terminal prefix color")
-	cmd.Flags().String("suggestions-bg-color", "black", "suggestion box background color")
-	cmd.Flags().String("description-bg-color", "yellow", "description box background color")
+	cmd.Flags().String("prefix-color", "dark_blue", "terminal prefix color")
+	cmd.Flags().String("suggestions-bg-color", "blue", "suggestion box background color")
+	cmd.Flags().String("description-bg-color", "dark_blue", "description box background color")
 	cmd.Flags().Bool("suggest-all-flags", false, "suggest local as well as inherited flags of subcommands")
 	viper.BindPFlag("prompt-file", cmd.LocalFlags().Lookup("file"))
 	viper.BindPFlag("prompt-exclude", cmd.LocalFlags().Lookup("exclude"))
@@ -370,6 +370,7 @@ func ExecutePrompt() {
 			goprompt.OptionHistory(promptHistory),
 			goprompt.OptionMaxSuggestion(uint16(viper.GetUint("prompt-max-suggestions"))),
 			goprompt.OptionPrefixTextColor(getColor("prompt-prefix-color")),
+			// goprompt.OptionInputTextColor(goprompt.DarkRed), // TODO
 			// goprompt.OptionPreviewSuggestionTextColor(goprompt.Yellow),
 			goprompt.OptionPreviewSuggestionBGColor(goprompt.Black),
 			goprompt.OptionSuggestionTextColor(goprompt.White),
