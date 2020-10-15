@@ -31,7 +31,7 @@ var colorMapping = map[string]goprompt.Color{
 	"purple":     goprompt.Purple,
 	"cyan":       goprompt.Cyan,
 	"light_gray": goprompt.LightGray,
-	"dark_grey":  goprompt.DarkGray,
+	"dark_gray":  goprompt.DarkGray,
 	"red":        goprompt.Red,
 	"green":      goprompt.Green,
 	"yellow":     goprompt.Yellow,
@@ -140,8 +140,8 @@ func initPromptFlags(cmd *cobra.Command) {
 	cmd.Flags().StringArrayVarP(&promptDirs, "dir", "", []string{}, "directories to search yang includes and imports")
 	cmd.Flags().Uint16("max-suggestions", 5, "terminal suggestion max list size")
 	cmd.Flags().String("prefix-color", "dark_blue", "terminal prefix color")
-	cmd.Flags().String("suggestions-bg-color", "blue", "suggestion box background color")
-	cmd.Flags().String("description-bg-color", "dark_blue", "description box background color")
+	cmd.Flags().String("suggestions-bg-color", "dark_blue", "suggestion box background color")
+	cmd.Flags().String("description-bg-color", "dark_gray", "description box background color")
 	cmd.Flags().Bool("suggest-all-flags", false, "suggest local as well as inherited flags of subcommands")
 	viper.BindPFlag("prompt-file", cmd.LocalFlags().Lookup("file"))
 	viper.BindPFlag("prompt-exclude", cmd.LocalFlags().Lookup("exclude"))
@@ -370,18 +370,17 @@ func ExecutePrompt() {
 			goprompt.OptionHistory(promptHistory),
 			goprompt.OptionMaxSuggestion(uint16(viper.GetUint("prompt-max-suggestions"))),
 			goprompt.OptionPrefixTextColor(getColor("prompt-prefix-color")),
-			// goprompt.OptionInputTextColor(goprompt.DarkRed), // TODO
-			// goprompt.OptionPreviewSuggestionTextColor(goprompt.Yellow),
-			goprompt.OptionPreviewSuggestionBGColor(goprompt.Black),
+			goprompt.OptionPreviewSuggestionTextColor(goprompt.Cyan),
 			goprompt.OptionSuggestionTextColor(goprompt.White),
 			goprompt.OptionSuggestionBGColor(getColor("prompt-suggestions-bg-color")),
 			goprompt.OptionSelectedSuggestionTextColor(goprompt.Black),
 			goprompt.OptionSelectedSuggestionBGColor(goprompt.White),
-			// goprompt.OptionDescriptionTextColor(goprompt.White),
+			goprompt.OptionDescriptionTextColor(goprompt.LightGray),
 			goprompt.OptionDescriptionBGColor(getColor("prompt-description-bg-color")),
 			goprompt.OptionSelectedDescriptionTextColor(goprompt.Black),
 			goprompt.OptionSelectedDescriptionBGColor(goprompt.White),
-			goprompt.OptionScrollbarBGColor(goprompt.White),
+			goprompt.OptionScrollbarBGColor(goprompt.DarkGray),
+			goprompt.OptionScrollbarThumbColor(goprompt.Blue),
 			goprompt.OptionAddASCIICodeBind(goprompt.ASCIICodeBind{
 				ASCIICode: []byte{0x3f}, Fn: showCommandArguments}),
 			goprompt.OptionCompletionWordSeparator(completer.FilePathCompletionSeparator),
