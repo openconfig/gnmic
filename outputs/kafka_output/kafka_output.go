@@ -19,11 +19,12 @@ import (
 )
 
 const (
-	defaultKafkaMaxRetry = 2
-	defaultKafkaTimeout  = 5 * time.Second
-	defaultKafkaTopic    = "telemetry"
-	numWorkers           = 1
-	defaultFormat        = "json"
+	defaultKafkaMaxRetry    = 2
+	defaultKafkaTimeout     = 5 * time.Second
+	defaultKafkaTopic       = "telemetry"
+	numWorkers              = 1
+	defaultFormat           = "json"
+	defaultRecoveryWaitTime = 10 * time.Second
 )
 
 type protoMsg struct {
@@ -54,12 +55,13 @@ type KafkaOutput struct {
 
 // Config //
 type Config struct {
-	Address  string        `mapstructure:"address,omitempty"`
-	Topic    string        `mapstructure:"topic,omitempty"`
-	Name     string        `mapstructure:"name,omitempty"`
-	MaxRetry int           `mapstructure:"max-retry,omitempty"`
-	Timeout  time.Duration `mapstructure:"timeout,omitempty"`
-	Format   string        `mapstructure:"format,omitempty"`
+	Address          string        `mapstructure:"address,omitempty"`
+	Topic            string        `mapstructure:"topic,omitempty"`
+	Name             string        `mapstructure:"name,omitempty"`
+	MaxRetry         int           `mapstructure:"max-retry,omitempty"`
+	Timeout          time.Duration `mapstructure:"timeout,omitempty"`
+	RecoveryWaitTime time.Duration `mapstructure:"recovery-wait-time,omitempty"`
+	Format           string        `mapstructure:"format,omitempty"`
 }
 
 func (k *KafkaOutput) String() string {
@@ -91,6 +93,9 @@ func (k *KafkaOutput) Init(ctx context.Context, cfg map[string]interface{}, logg
 	}
 	if k.Cfg.Timeout == 0 {
 		k.Cfg.Timeout = defaultKafkaTimeout
+	}
+	if k.Cfg.RecoveryWaitTime == 0 {
+		k.Cfg.RecoveryWaitTime = defaultRecoveryWaitTime
 	}
 	if logger != nil {
 		sarama.Logger = log.New(logger.Writer(), "kafka_output ", logger.Flags())
@@ -154,7 +159,7 @@ CRPROD:
 	producer, err = sarama.NewSyncProducer(strings.Split(k.Cfg.Address, ","), config)
 	if err != nil {
 		sarama.Logger.Printf("worker-%d failed to create kafka producer: %v", idx, err)
-		time.Sleep(10 * time.Second)
+		time.Sleep(k.Cfg.RecoveryWaitTime)
 		goto CRPROD
 	}
 	defer producer.Close()
@@ -178,7 +183,7 @@ CRPROD:
 			if err != nil {
 				k.logger.Printf("worker-%d failed to send a kafka msg to topic '%s': %v", idx, k.Cfg.Topic, err)
 				producer.Close()
-				time.Sleep(10 * time.Second)
+				time.Sleep(k.Cfg.RecoveryWaitTime)
 				goto CRPROD
 			}
 		}

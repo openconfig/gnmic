@@ -25,7 +25,8 @@ const (
 
 	defaultSubjectName = "gnmic-telemetry"
 
-	defaultFormat = "json"
+	defaultFormat           = "json"
+	defaultRecoveryWaitTime = 10 * time.Second
 )
 
 func init() {
@@ -47,16 +48,17 @@ type StanOutput struct {
 
 // Config //
 type Config struct {
-	Name          string `mapstructure:"name,omitempty"`
-	Address       string `mapstructure:"address,omitempty"`
-	SubjectPrefix string `mapstructure:"subject-prefix,omitempty"`
-	Subject       string `mapstructure:"subject,omitempty"`
-	Username      string `mapstructure:"username,omitempty"`
-	Password      string `mapstructure:"password,omitempty"`
-	ClusterName   string `mapstructure:"cluster-name,omitempty"`
-	PingInterval  int    `mapstructure:"ping-interval,omitempty"`
-	PingRetry     int    `mapstructure:"ping-retry,omitempty"`
-	Format        string `mapstructure:"format,omitempty"`
+	Name             string        `mapstructure:"name,omitempty"`
+	Address          string        `mapstructure:"address,omitempty"`
+	SubjectPrefix    string        `mapstructure:"subject-prefix,omitempty"`
+	Subject          string        `mapstructure:"subject,omitempty"`
+	Username         string        `mapstructure:"username,omitempty"`
+	Password         string        `mapstructure:"password,omitempty"`
+	ClusterName      string        `mapstructure:"cluster-name,omitempty"`
+	PingInterval     int           `mapstructure:"ping-interval,omitempty"`
+	PingRetry        int           `mapstructure:"ping-retry,omitempty"`
+	Format           string        `mapstructure:"format,omitempty"`
+	RecoveryWaitTime time.Duration `mapstructure:"recovery-wait-time,omitempty"`
 }
 
 func (s *StanOutput) String() string {
@@ -84,7 +86,9 @@ func (s *StanOutput) Init(ctx context.Context, cfg map[string]interface{}, logge
 	if s.Cfg.Subject == "" && s.Cfg.SubjectPrefix == "" {
 		s.Cfg.Subject = defaultSubjectName
 	}
-
+	if s.Cfg.RecoveryWaitTime == 0 {
+		s.Cfg.RecoveryWaitTime = defaultRecoveryWaitTime
+	}
 	s.logger = log.New(os.Stderr, "stan_output ", log.LstdFlags|log.Lmicroseconds)
 	if logger != nil {
 		s.logger.SetOutput(logger.Writer())
@@ -176,7 +180,7 @@ CRCONN:
 	nc, err = nats.Connect(c.Address, opts...)
 	if err != nil {
 		s.logger.Printf("failed to create connection: %v", err)
-		time.Sleep(10 * time.Second)
+		time.Sleep(s.Cfg.RecoveryWaitTime)
 		goto CRCONN
 	}
 	sc, err = stan.Connect(c.ClusterName, c.Name,
@@ -192,7 +196,7 @@ CRCONN:
 	if err != nil {
 		s.logger.Printf("failed to create connection: %v", err)
 		nc.Close()
-		time.Sleep(10 * time.Second)
+		time.Sleep(s.Cfg.RecoveryWaitTime)
 		goto CRCONN
 	}
 	s.logger.Printf("successfully connected to STAN server %s", c.Address)

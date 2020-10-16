@@ -233,7 +233,6 @@ START:
 		case <-i.reset:
 			firstStart = false
 			i.logger.Printf("resetting worker-%d...", idx)
-			time.Sleep(10 * time.Second)
 			goto START
 		case err := <-writer.Errors():
 			i.logger.Printf("worker-%d write error: %v", idx, err)

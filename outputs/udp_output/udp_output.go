@@ -15,6 +15,8 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+const defaultRetryTimer = 2 * time.Second
+
 func init() {
 	outputs.Register("udp", func() outputs.Output {
 		return &UDPSock{
@@ -35,10 +37,11 @@ type UDPSock struct {
 }
 
 type Config struct {
-	Address    string        `mapstructure:"address,omitempty"` // ip:port
-	Rate       time.Duration `mapstructure:"rate,omitempty"`
-	BufferSize uint          `mapstructure:"buffer-size,omitempty"`
-	Format     string        `mapstructure:"format,omitempty"`
+	Address       string        `mapstructure:"address,omitempty"` // ip:port
+	Rate          time.Duration `mapstructure:"rate,omitempty"`
+	BufferSize    uint          `mapstructure:"buffer-size,omitempty"`
+	Format        string        `mapstructure:"format,omitempty"`
+	RetryInterval time.Duration `mapstructure:"retry-interval,omitempty"`
 }
 
 func (u *UDPSock) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger) error {
@@ -51,6 +54,9 @@ func (u *UDPSock) Init(ctx context.Context, cfg map[string]interface{}, logger *
 	if err != nil {
 		logger.Printf("udp output config validation failed: %v", err)
 		return fmt.Errorf("wrong address format: %v", err)
+	}
+	if u.Cfg.RetryInterval == 0 {
+		u.Cfg.RetryInterval = defaultRetryTimer
 	}
 	u.logger = log.New(os.Stderr, "udp_output ", log.LstdFlags|log.Lmicroseconds)
 	if logger != nil {
@@ -108,13 +114,13 @@ DIAL:
 	udpAddr, err = net.ResolveUDPAddr("udp", u.Cfg.Address)
 	if err != nil {
 		u.logger.Printf("failed to dial udp: %v", err)
-		time.Sleep(10 * time.Second)
+		time.Sleep(u.Cfg.RetryInterval)
 		goto DIAL
 	}
 	u.conn, err = net.DialUDP("udp", nil, udpAddr)
 	if err != nil {
 		u.logger.Printf("failed to dial udp: %v", err)
-		time.Sleep(10 * time.Second)
+		time.Sleep(u.Cfg.RetryInterval)
 		goto DIAL
 	}
 	for {
@@ -128,7 +134,7 @@ DIAL:
 			_, err = u.conn.Write(b)
 			if err != nil {
 				u.logger.Printf("failed sending udp bytes: %v", err)
-				time.Sleep(10 * time.Second)
+				time.Sleep(u.Cfg.RetryInterval)
 				goto DIAL
 			}
 		}
