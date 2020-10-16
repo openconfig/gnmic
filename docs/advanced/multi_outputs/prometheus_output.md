@@ -20,15 +20,22 @@ The metric name starts with the subscription name, followed by the path stripped
 
 Characters "`/`", "`:`" and "`-`" are replaced by a "`_`".
 
-For example, a gnmi update from subscription `interfaces-sub` with path:
+For example, a gnmi update from subscription `port-stats` with path:
 
-`/interfaces/interface[name=1/1/1]/subinterfaces/subinterface[index=0]/state/counters/in-octets` 
+```bash
+/interfaces/interface[name=1/1/1]/subinterfaces/subinterface[index=0]/state/counters/in-octets
+```
 
-is exposed as a metric named: `interfaces_sub_interfaces_interface_subinterfaces_subinterface_state_counters_in_octets`
+is exposed as a metric named: 
+```bash
+port_stats_interfaces_interface_subinterfaces_subinterface_state_counters_in_octets
+```
 
 ### Metric Labels
-The metrics labels are generated from the meta data sent by `gnmic` (at least `subscription-name` and `source`) and the keys present in the gnmi path elements.
+The metrics labels are generated from the subscripion metadata (e.g: `subscription-name` and `source`) and the keys present in the gnmi path elements.
 
 For the previous example the labels would be: 
 
-`{interface_name="1/1/1",subinterface_index=0,source="$routerIP:Port",subscription_name="interfaces-sub"}`
+```bash
+{interface_name="1/1/1",subinterface_index=0,source="$routerIP:Port",subscription_name="interfaces-sub"}
+```
