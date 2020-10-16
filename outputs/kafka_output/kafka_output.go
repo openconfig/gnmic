@@ -7,29 +7,37 @@ import (
 	"log"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Shopify/sarama"
 	"github.com/google/uuid"
 	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/outputs"
-	"github.com/mitchellh/mapstructure"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
 )
 
 const (
-	defaultKafkaMaxRetry = 2
-	defaultKafkaTimeout  = 5
-	defaultKafkaTopic    = "telemetry"
-
-	defaultFormat = "json"
+	defaultKafkaMaxRetry    = 2
+	defaultKafkaTimeout     = 5 * time.Second
+	defaultKafkaTopic       = "telemetry"
+	numWorkers              = 1
+	defaultFormat           = "json"
+	defaultRecoveryWaitTime = 10 * time.Second
 )
+
+type protoMsg struct {
+	m    proto.Message
+	meta outputs.Meta
+}
 
 func init() {
 	outputs.Register("kafka", func() outputs.Output {
 		return &KafkaOutput{
-			Cfg: &Config{},
+			Cfg:     &Config{},
+			msgChan: make(chan *protoMsg),
+			wg:      new(sync.WaitGroup),
 		}
 	})
 }
@@ -37,20 +45,23 @@ func init() {
 // KafkaOutput //
 type KafkaOutput struct {
 	Cfg      *Config
-	producer sarama.SyncProducer
 	metrics  []prometheus.Collector
 	logger   sarama.StdLogger
 	mo       *collector.MarshalOptions
+	cancelFn context.CancelFunc
+	msgChan  chan *protoMsg
+	wg       *sync.WaitGroup
 }
 
 // Config //
 type Config struct {
-	Address  string `mapstructure:"address,omitempty"`
-	Topic    string `mapstructure:"topic,omitempty"`
-	Name     string `mapstructure:"name,omitempty"`
-	MaxRetry int    `mapstructure:"max-retry,omitempty"`
-	Timeout  int    `mapstructure:"timeout,omitempty"`
-	Format   string `mapstructure:"format,omitempty"`
+	Address          string        `mapstructure:"address,omitempty"`
+	Topic            string        `mapstructure:"topic,omitempty"`
+	Name             string        `mapstructure:"name,omitempty"`
+	MaxRetry         int           `mapstructure:"max-retry,omitempty"`
+	Timeout          time.Duration `mapstructure:"timeout,omitempty"`
+	RecoveryWaitTime time.Duration `mapstructure:"recovery-wait-time,omitempty"`
+	Format           string        `mapstructure:"format,omitempty"`
 }
 
 func (k *KafkaOutput) String() string {
@@ -63,8 +74,9 @@ func (k *KafkaOutput) String() string {
 
 // Init /
 func (k *KafkaOutput) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger) error {
-	err := mapstructure.Decode(cfg, k.Cfg)
+	err := outputs.DecodeConfig(cfg, k.Cfg)
 	if err != nil {
+		logger.Printf("kafka output config decode failed: %v", err)
 		return err
 	}
 	if k.Cfg.Format == "" {
@@ -82,12 +94,17 @@ func (k *KafkaOutput) Init(ctx context.Context, cfg map[string]interface{}, logg
 	if k.Cfg.Timeout == 0 {
 		k.Cfg.Timeout = defaultKafkaTimeout
 	}
+	if k.Cfg.RecoveryWaitTime == 0 {
+		k.Cfg.RecoveryWaitTime = defaultRecoveryWaitTime
+	}
 	if logger != nil {
 		sarama.Logger = log.New(logger.Writer(), "kafka_output ", logger.Flags())
 	} else {
 		sarama.Logger = log.New(os.Stderr, "kafka_output ", log.LstdFlags|log.Lmicroseconds)
 	}
 	k.logger = sarama.Logger
+	k.mo = &collector.MarshalOptions{Format: k.Cfg.Format}
+
 	config := sarama.NewConfig()
 	if k.Cfg.Name != "" {
 		config.ClientID = k.Cfg.Name
@@ -98,50 +115,77 @@ func (k *KafkaOutput) Init(ctx context.Context, cfg map[string]interface{}, logg
 	config.Producer.Retry.Max = k.Cfg.MaxRetry
 	config.Producer.RequiredAcks = sarama.WaitForAll
 	config.Producer.Return.Successes = true
-	config.Producer.Timeout = time.Duration(k.Cfg.Timeout) * time.Second
-	k.producer, err = sarama.NewSyncProducer(strings.Split(k.Cfg.Address, ","), config)
-	if err != nil {
-		return err
+	config.Producer.Timeout = k.Cfg.Timeout
+
+	ctx, k.cancelFn = context.WithCancel(ctx)
+	k.wg.Add(numWorkers)
+	for i := 0; i < numWorkers; i++ {
+		go k.worker(ctx, i, config)
 	}
-	k.mo = &collector.MarshalOptions{Format: k.Cfg.Format}
-	k.logger.Printf("initialized kafka producer: %s", k.String())
 	go func() {
 		<-ctx.Done()
 		k.Close()
 	}()
-	return err
+	return nil
 }
 
 // Write //
-func (k *KafkaOutput) Write(_ context.Context, rsp proto.Message, meta outputs.Meta) {
+func (k *KafkaOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) {
 	if rsp == nil {
 		return
 	}
-	if format, ok := meta["format"]; ok {
-		if format == "prototext" {
-			return
-		}
-	}
-	b, err := k.mo.Marshal(rsp, meta)
-	if err != nil {
-		k.logger.Printf("failed marshaling proto msg: %v", err)
+	select {
+	case <-ctx.Done():
 		return
+	case k.msgChan <- &protoMsg{m: rsp, meta: meta}:
 	}
-	msg := &sarama.ProducerMessage{
-		Topic: k.Cfg.Topic,
-		Value: sarama.ByteEncoder(b),
-	}
-	_, _, err = k.producer.SendMessage(msg)
-	if err != nil {
-		k.logger.Printf("failed to send a kafka msg to topic '%s': %v", k.Cfg.Topic, err)
-	}
-	// 	k.logger.Printf("wrote %d bytes to kafka_topic=%s", len(b), k.Cfg.Topic)
 }
 
 // Close //
 func (k *KafkaOutput) Close() error {
-	return k.producer.Close()
+	k.cancelFn()
+	k.wg.Wait()
+	return nil
 }
 
 // Metrics //
 func (k *KafkaOutput) Metrics() []prometheus.Collector { return k.metrics }
+
+func (k *KafkaOutput) worker(ctx context.Context, idx int, config *sarama.Config) {
+	var producer sarama.SyncProducer
+	var err error
+	k.logger.Printf("starting worker id=%d", idx)
+CRPROD:
+	producer, err = sarama.NewSyncProducer(strings.Split(k.Cfg.Address, ","), config)
+	if err != nil {
+		sarama.Logger.Printf("worker-%d failed to create kafka producer: %v", idx, err)
+		time.Sleep(k.Cfg.RecoveryWaitTime)
+		goto CRPROD
+	}
+	defer producer.Close()
+	k.logger.Printf("worker-%d initialized kafka producer: %s", idx, k.String())
+	for {
+		select {
+		case <-ctx.Done():
+			k.logger.Printf("worker-%d shutting down", idx)
+			return
+		case m := <-k.msgChan:
+			b, err := k.mo.Marshal(m.m, m.meta)
+			if err != nil {
+				k.logger.Printf("worker-%d failed marshaling proto msg: %v", idx, err)
+				continue
+			}
+			msg := &sarama.ProducerMessage{
+				Topic: k.Cfg.Topic,
+				Value: sarama.ByteEncoder(b),
+			}
+			_, _, err = producer.SendMessage(msg)
+			if err != nil {
+				k.logger.Printf("worker-%d failed to send a kafka msg to topic '%s': %v", idx, k.Cfg.Topic, err)
+				producer.Close()
+				time.Sleep(k.Cfg.RecoveryWaitTime)
+				goto CRPROD
+			}
+		}
+	}
+}

@@ -13,15 +13,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/outputs"
-	"github.com/mitchellh/mapstructure"
 	"github.com/nats-io/nats.go"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
 )
 
 const (
-	natsConnectTimeout = 5 * time.Second
-	natsConnectWait    = 2 * time.Second
+	natsConnectWait = 2 * time.Second
 
 	natsReconnectBufferSize = 100 * 1024 * 1024
 
@@ -71,8 +69,9 @@ func (n *NatsOutput) String() string {
 
 // Init //
 func (n *NatsOutput) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger) error {
-	err := mapstructure.Decode(cfg, n.Cfg)
+	err := outputs.DecodeConfig(cfg, n.Cfg)
 	if err != nil {
+		logger.Printf("nats output config decode failed: %v", err)
 		return err
 	}
 	if n.Cfg.ConnectTimeWait == 0 {
@@ -90,15 +89,19 @@ func (n *NatsOutput) Init(ctx context.Context, cfg map[string]interface{}, logge
 		n.Cfg.Format = defaultFormat
 	}
 	if !(n.Cfg.Format == "event" || n.Cfg.Format == "protojson" || n.Cfg.Format == "proto" || n.Cfg.Format == "json") {
+		logger.Printf("unsupported output format '%s' for output type NATS, terminating...", n.Cfg.Format)
 		return fmt.Errorf("unsupported output format '%s' for output type NATS", n.Cfg.Format)
 	}
 	if n.Cfg.Name == "" {
 		n.Cfg.Name = "gnmic-" + uuid.New().String()
 	}
 	n.ctx, n.cancelFn = context.WithCancel(ctx)
+CRCONN:
 	n.conn, err = n.createNATSConn(n.Cfg)
 	if err != nil {
-		return err
+		n.logger.Printf("failed to create connection: %v", err)
+		time.Sleep(10 * time.Second)
+		goto CRCONN
 	}
 	n.logger.Printf("initialized nats producer: %s", n.String())
 	n.mo = &collector.MarshalOptions{Format: n.Cfg.Format}

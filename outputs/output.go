@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 
+	"github.com/mitchellh/mapstructure"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
 )
@@ -24,3 +25,16 @@ func Register(name string, initFn Initializer) {
 }
 
 type Meta map[string]string
+
+func DecodeConfig(src, dst interface{}) error {
+	decoder, err := mapstructure.NewDecoder(
+		&mapstructure.DecoderConfig{
+			DecodeHook: mapstructure.StringToTimeDurationHookFunc(),
+			Result:     dst,
+		},
+	)
+	if err != nil {
+		return err
+	}
+	return decoder.Decode(src)
+}
