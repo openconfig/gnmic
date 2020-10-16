@@ -4,8 +4,11 @@ In the context of gnmi subscriptions (on top of terminal output) `gnmic` support
 * [NATS messaging system](nats_output.md)
 * [NATS Streaming messaging bus (STAN)](stan_output.md)
 * [Kafka messaging bus](kafka_output.md)
-
-![outputs](../../images/outputs.png)
+* [InfluxDB Time Series Database](influxdb_output.md)
+* [Prometheus Server](prometheus_output.md)
+* [UDP Server](udp_output.md)
+* [TCP Server](tcp_output.md)
+![outputs](../../images/outputs.svg)
 
 These outputs can be mixed and matched at will with the different gnmi subscribe targets.
 
