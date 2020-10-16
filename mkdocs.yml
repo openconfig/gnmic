@@ -17,6 +17,7 @@ nav:
           - Kafka: advanced/multi_outputs/kafka_output.md
           - TCP: advanced/multi_outputs/tcp_output.md
           - UDP: advanced/multi_outputs/udp_output.md
+          - InfluxDB: advanced/multi_outputs/influxdb_output.md
 
   - Command reference:
       - Capabilities: cmd/capabilities.md
