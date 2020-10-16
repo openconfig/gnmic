@@ -111,7 +111,14 @@ func TagsFromGNMIPath(p *gnmi.Path) (string, map[string]string) {
 		}
 		if e.Key != nil {
 			for k, v := range e.Key {
-				tags[k] = v
+				if e.Name != "" {
+					elems := strings.Split(e.Name, ":")
+					if len(elems) > 0 {
+						tags[elems[len(elems)-1]+"_"+k] = v
+					}
+				} else {
+					tags[k] = v
+				}
 			}
 		}
 	}
