@@ -15,6 +15,7 @@ nav:
           - NATS: advanced/multi_outputs/nats_output.md
           - STAN: advanced/multi_outputs/stan_output.md
           - Kafka: advanced/multi_outputs/kafka_output.md
+          - UDP: advanced/multi_outputs/udp_output.md
 
   - Command reference:
       - Capabilities: cmd/capabilities.md
