@@ -8,6 +8,7 @@ In the context of gnmi subscriptions (on top of terminal output) `gnmic` support
 * [Prometheus Server](prometheus_output.md)
 * [UDP Server](udp_output.md)
 * [TCP Server](tcp_output.md)
+
 ![outputs](../../images/outputs.svg)
 
 These outputs can be mixed and matched at will with the different gnmi subscribe targets.
