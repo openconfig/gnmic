@@ -16,8 +16,10 @@ nav:
           - STAN: advanced/multi_outputs/stan_output.md
           - Kafka: advanced/multi_outputs/kafka_output.md
           - Prometheus: advanced/multi_outputs/prometheus_output.md
+          - TCP: advanced/multi_outputs/tcp_output.md
+          - UDP: advanced/multi_outputs/udp_output.md
 
-  - Command reference:
+- Command reference:
       - Capabilities: cmd/capabilities.md
       - Get: cmd/get.md
       - Set: cmd/set.md
