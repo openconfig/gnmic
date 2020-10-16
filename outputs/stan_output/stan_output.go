@@ -54,7 +54,6 @@ type Config struct {
 	Username      string `mapstructure:"username,omitempty"`
 	Password      string `mapstructure:"password,omitempty"`
 	ClusterName   string `mapstructure:"cluster-name,omitempty"`
-	Timeout       int    `mapstructure:"timeout,omitempty"`
 	PingInterval  int    `mapstructure:"ping-interval,omitempty"`
 	PingRetry     int    `mapstructure:"ping-retry,omitempty"`
 	Format        string `mapstructure:"format,omitempty"`
@@ -97,9 +96,15 @@ func (s *StanOutput) Init(ctx context.Context, cfg map[string]interface{}, logge
 	if !(s.Cfg.Format == "event" || s.Cfg.Format == "protojson" || s.Cfg.Format == "proto" || s.Cfg.Format == "json") {
 		return fmt.Errorf("unsupported output format: '%s' for output type STAN", s.Cfg.Format)
 	}
-	// this func retries until a connection is created successfully 
-	s.conn = s.createSTANConn(s.Cfg)
+	if s.Cfg.PingInterval == 0 {
+		s.Cfg.PingInterval = stanDefaultPingInterval
+	}
+	if s.Cfg.PingRetry == 0 {
+		s.Cfg.PingRetry = stanDefaultPingRetry
+	}
 	s.mo = &collector.MarshalOptions{Format: s.Cfg.Format}
+	// this func retries until a connection is created successfully
+	s.conn = s.createSTANConn(s.Cfg)
 	s.logger.Printf("initialized stan producer: %s", s.String())
 	go func() {
 		<-ctx.Done()
@@ -113,6 +118,10 @@ func (s *StanOutput) Write(_ context.Context, rsp protoreflect.ProtoMessage, met
 	if rsp == nil {
 		return
 	}
+	if s.conn == nil {
+		return
+	}
+
 	ssb := strings.Builder{}
 	ssb.WriteString(s.Cfg.SubjectPrefix)
 	if s.Cfg.SubjectPrefix != "" {
@@ -137,7 +146,7 @@ func (s *StanOutput) Write(_ context.Context, rsp protoreflect.ProtoMessage, met
 	}
 	err = s.conn.Publish(subject, b)
 	if err != nil {
-		log.Printf("failed to write to stan subject '%s': %v", subject, err)
+		s.logger.Printf("failed to write to stan subject '%s': %v", subject, err)
 		return
 	}
 	//s.logger.Printf("wrote %d bytes to stan_subject=%s", len(b), s.Cfg.Subject)
@@ -152,20 +161,8 @@ func (s *StanOutput) Close() error {
 }
 
 func (s *StanOutput) createSTANConn(c *Config) stan.Conn {
-	if c.Timeout == 0 {
-		c.Timeout = stanDefaultTimeout
-	}
-	if c.PingInterval == 0 {
-		c.PingInterval = stanDefaultPingInterval
-	}
-	if c.PingRetry == 0 {
-		c.PingRetry = stanDefaultPingRetry
-	}
 	opts := []nats.Option{
 		nats.Name(c.Name),
-		// nats.Timeout(time.Duration(c.Timeout) * time.Second),
-		// nats.PingInterval(time.Duration(c.PingInterval) * time.Second),
-		// nats.MaxPingsOutstanding(c.PingRetry),
 	}
 	if c.Username != "" && c.Password != "" {
 		opts = append(opts, nats.UserInfo(c.Username, c.Password))
@@ -175,6 +172,7 @@ func (s *StanOutput) createSTANConn(c *Config) stan.Conn {
 	var sc stan.Conn
 	var err error
 CRCONN:
+	s.logger.Printf("attempting to connect to %s", c.Address)
 	nc, err = nats.Connect(c.Address, opts...)
 	if err != nil {
 		s.logger.Printf("failed to create connection: %v", err)
@@ -186,6 +184,9 @@ CRCONN:
 		stan.Pings(c.PingInterval, c.PingRetry),
 		stan.SetConnectionLostHandler(func(_ stan.Conn, err error) {
 			s.logger.Printf("STAN connection lost, reason: %v", err)
+			s.conn = nil
+			s.logger.Printf("retryring...")
+			sc = s.createSTANConn(c)
 		}),
 	)
 	if err != nil {
@@ -194,5 +195,6 @@ CRCONN:
 		time.Sleep(10 * time.Second)
 		goto CRCONN
 	}
+	s.logger.Printf("successfully connected to STAN server %s", c.Address)
 	return sc
 }
