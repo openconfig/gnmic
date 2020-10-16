@@ -63,7 +63,7 @@ var promptModeCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		err := generateYangSchema(promptDirs, promptFiles, promptExcluded)
 		if err != nil {
-			if !viper.GetBool("log") {
+			if viper.GetBool("log") {
 				fmt.Fprintf(os.Stderr, "ERR: failed to load paths from yang: %v\n", err)
 			}
 		}
