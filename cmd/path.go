@@ -129,13 +129,14 @@ func generateYangSchema(d, f, e []string) error {
 			if err != nil {
 				return err
 			}
-			yfiles = append(files, fls...)
+			yfiles = append(yfiles, fls...)
 		case mode.IsRegular():
 			if filepath.Ext(file) == ".yang" {
-				yfiles = append(files, file)
+				yfiles = append(yfiles, file)
 			}
 		}
 	}
+	files = append(files, yfiles...)
 
 	ms := yang.NewModules()
 	for _, name := range yfiles {
