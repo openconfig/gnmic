@@ -19,7 +19,7 @@ nav:
           - TCP: advanced/multi_outputs/tcp_output.md
           - UDP: advanced/multi_outputs/udp_output.md
 
-- Command reference:
+  - Command reference:
       - Capabilities: cmd/capabilities.md
       - Get: cmd/get.md
       - Set: cmd/set.md
