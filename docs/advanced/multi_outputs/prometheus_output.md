@@ -18,7 +18,7 @@ outputs:
 
 The metric name starts with the subscription name, followed by the path stripped from keys if there are any, then the value name. The 3 sections are joined with an underscore "`_`"
 
-Characters "`/`", "`:`" and "`-`" are replaced by a "`_`".
+Characters "`/`", "`:`" and "`-`" are replaced with a "`_`".
 
 For example, a gnmi update from subscription `port-stats` with path:
 
@@ -37,5 +37,5 @@ The metrics labels are generated from the subscripion metadata (e.g: `subscripti
 For the previous example the labels would be: 
 
 ```bash
-{interface_name="1/1/1",subinterface_index=0,source="$routerIP:Port",subscription_name="interfaces-sub"}
+{interface_name="1/1/1",subinterface_index=0,source="$routerIP:Port",subscription_name="port-stats"}
 ```
