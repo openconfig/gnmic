@@ -20,7 +20,6 @@ import (
 
 	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/outputs"
-	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -61,7 +60,6 @@ type PrometheusOutput struct {
 	Cfg       *Config
 	metrics   []prometheus.Collector
 	logger    *log.Logger
-	cancelFn  context.CancelFunc
 	eventChan chan *collector.EventMsg
 
 	wg     *sync.WaitGroup
@@ -86,18 +84,9 @@ func (p *PrometheusOutput) String() string {
 	return string(b)
 }
 func (p *PrometheusOutput) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger) error {
-	ctx, p.cancelFn = context.WithCancel(ctx)
-	decoder, err := mapstructure.NewDecoder(
-		&mapstructure.DecoderConfig{
-			DecodeHook: mapstructure.StringToTimeDurationHookFunc(),
-			Result:     p.Cfg,
-		},
-	)
+	err := outputs.DecodeConfig(cfg, p.Cfg)
 	if err != nil {
-		return err
-	}
-	err = decoder.Decode(cfg)
-	if err != nil {
+		logger.Printf("prometheus output config decode failed: %v", err)
 		return err
 	}
 	if p.Cfg.Listen == "" {
@@ -149,6 +138,10 @@ func (p *PrometheusOutput) Init(ctx context.Context, cfg map[string]interface{},
 		}
 	}()
 	p.logger.Printf("initialized prometheus output: %s", p.String())
+	go func() {
+		<-ctx.Done()
+		p.Close()
+	}()
 	return nil
 }
 func (p *PrometheusOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) {
@@ -182,7 +175,6 @@ func (p *PrometheusOutput) Close() error {
 	if err != nil {
 		p.logger.Printf("failed to shutdown http server: %v", err)
 	}
-	p.cancelFn()
 	p.wg.Wait()
 	return nil
 }
