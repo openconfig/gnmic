@@ -357,6 +357,7 @@ func getFloat(v interface{}) (float64, error) {
 
 func (p *PrometheusOutput) metricName(measName, valueName string) string {
 	sb := strings.Builder{}
+	sb.WriteString("gnmic_")
 	sb.WriteString(strings.TrimRight(p.replacer.Replace(measName), "_"))
 	sb.WriteString("_")
 	sb.WriteString(strings.TrimLeft(p.replacer.Replace(valueName), "_"))
