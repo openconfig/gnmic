@@ -61,13 +61,14 @@ Outputs can be defined in groups to be able to match a target with multiple outp
 
 Different formats are supported for all outputs
 
-**Format/output** | **File**                           | **NATS / STAN**                   | **Kafka**
------------------ | ---------------------------------- | --------------------------------- | ---------:
-**proto**         | <span style="color:red">:x:</span> | <span>:heavy_check_mark:</span>   | <span>:heavy_check_mark:</span>
-**protojson**     | <span>:heavy_check_mark:</span>    | <span>:heavy_check_mark:</span>   | <span>:heavy_check_mark:</span>
-**prototext**     | <span>:heavy_check_mark:</span>    | <span style="color:red">:x:</span>| <span style="color:red">:x: </span>
-**json** (default)| <span>:heavy_check_mark:</span>    | <span>:heavy_check_mark:</span>   | <span>:heavy_check_mark:</span>
-**event**         | <span>:heavy_check_mark:</span>    | <span>:heavy_check_mark:</span>   | <span>:heavy_check_mark:</span>
+**Format/output** | **proto**                          | **protojson**                   |  **prototext**                      | **json**                       | **event**
+----------------- | ---------------------------------- | --------------------------------| ------------------------------------|--------------------------------|--------------------------------:
+**File**          | <span style="color:red">:x:</span> | <span>:heavy_check_mark:</span> | <span>:heavy_check_mark:</span>     |<span>:heavy_check_mark:</span> |<span>:heavy_check_mark:</span>
+**NATS / STAN**   | <span>:heavy_check_mark:</span>    | <span>:heavy_check_mark:</span> | <span style="color:red">:x: </span> |<span>:heavy_check_mark:</span> |<span>:heavy_check_mark:</span>
+**Kafka**         | <span>:heavy_check_mark:</span>    | <span>:heavy_check_mark:</span> | <span style="color:red">:x: </span> |<span>:heavy_check_mark:</span> |<span>:heavy_check_mark:</span>
+**UDP / TCP**     | <span>:heavy_check_mark:</span>    | <span>:heavy_check_mark:</span> | <span>:heavy_check_mark:</span>     |<span>:heavy_check_mark:</span> |<span>:heavy_check_mark:</span>
+**InfluxDB**      | <span>NA</span>                    | <span>NA</span>                 | <span>NA</span>                     |<span>NA</span>                 |<span>NA</span>                    
+**Prometheus**    | <span>NA</span>                    | <span>NA</span>                 | <span>NA</span>                     |<span>NA</span>                 |<span>NA</span>                    
 
 #### Formats examples
 
