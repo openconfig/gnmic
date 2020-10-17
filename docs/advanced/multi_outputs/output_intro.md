@@ -4,8 +4,12 @@ In the context of gnmi subscriptions (on top of terminal output) `gnmic` support
 * [NATS messaging system](nats_output.md)
 * [NATS Streaming messaging bus (STAN)](stan_output.md)
 * [Kafka messaging bus](kafka_output.md)
+* [InfluxDB Time Series Database](influxdb_output.md)
+* [Prometheus Server](prometheus_output.md)
+* [UDP Server](udp_output.md)
+* [TCP Server](tcp_output.md)
 
-![outputs](../../images/outputs.png)
+![outputs](../../images/outputs.svg)
 
 These outputs can be mixed and matched at will with the different gnmi subscribe targets.
 
@@ -57,13 +61,14 @@ Outputs can be defined in groups to be able to match a target with multiple outp
 
 Different formats are supported for all outputs
 
-**Format/output** | **File**                           | **NATS / STAN**                   | **Kafka**
------------------ | ---------------------------------- | --------------------------------- | ---------:
-**proto**         | <span style="color:red">:x:</span> | <span>:heavy_check_mark:</span>   | <span>:heavy_check_mark:</span>
-**protojson**     | <span>:heavy_check_mark:</span>    | <span>:heavy_check_mark:</span>   | <span>:heavy_check_mark:</span>
-**prototext**     | <span>:heavy_check_mark:</span>    | <span style="color:red">:x:</span>| <span style="color:red">:x: </span>
-**json** (default)| <span>:heavy_check_mark:</span>    | <span>:heavy_check_mark:</span>   | <span>:heavy_check_mark:</span>
-**event**         | <span>:heavy_check_mark:</span>    | <span>:heavy_check_mark:</span>   | <span>:heavy_check_mark:</span>
+**Format/output** | **proto**                          | **protojson**                   |  **prototext**                      | **json**                       | **event**
+----------------- | ---------------------------------- | --------------------------------| ------------------------------------|--------------------------------|--------------------------------:
+**File**          | <span style="color:red">:x:</span> | <span>:heavy_check_mark:</span> | <span>:heavy_check_mark:</span>     |<span>:heavy_check_mark:</span> |<span>:heavy_check_mark:</span>
+**NATS / STAN**   | <span>:heavy_check_mark:</span>    | <span>:heavy_check_mark:</span> | <span style="color:red">:x: </span> |<span>:heavy_check_mark:</span> |<span>:heavy_check_mark:</span>
+**Kafka**         | <span>:heavy_check_mark:</span>    | <span>:heavy_check_mark:</span> | <span style="color:red">:x: </span> |<span>:heavy_check_mark:</span> |<span>:heavy_check_mark:</span>
+**UDP / TCP**     | <span>:heavy_check_mark:</span>    | <span>:heavy_check_mark:</span> | <span>:heavy_check_mark:</span>     |<span>:heavy_check_mark:</span> |<span>:heavy_check_mark:</span>
+**InfluxDB**      | <span>NA</span>                    | <span>NA</span>                 | <span>NA</span>                     |<span>NA</span>                 |<span>NA</span>                    
+**Prometheus**    | <span>NA</span>                    | <span>NA</span>                 | <span>NA</span>                     |<span>NA</span>                 |<span>NA</span>                    
 
 #### Formats examples
 
