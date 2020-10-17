@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -32,6 +33,7 @@ const (
 	defaultPath       = "/metrics"
 	defaultExpiration = time.Minute
 	defaultMetricHelp = "gNMIc generated metric"
+	metricNameRegex   = "[^a-zA-Z0-9_]+"
 )
 
 type labelPair struct {
@@ -48,10 +50,11 @@ type promMetric struct {
 func init() {
 	outputs.Register("prometheus", func() outputs.Output {
 		return &PrometheusOutput{
-			Cfg:       &Config{},
-			eventChan: make(chan *collector.EventMsg),
-			wg:        new(sync.WaitGroup),
-			entries:   make(map[uint64]*promMetric),
+			Cfg:         &Config{},
+			eventChan:   make(chan *collector.EventMsg),
+			wg:          new(sync.WaitGroup),
+			entries:     make(map[uint64]*promMetric),
+			metricRegex: regexp.MustCompile(metricNameRegex),
 		}
 	})
 }
@@ -67,7 +70,7 @@ type PrometheusOutput struct {
 	sync.Mutex
 	entries map[uint64]*promMetric
 
-	replacer *strings.Replacer
+	metricRegex *regexp.Regexp
 }
 type Config struct {
 	Listen     string        `mapstructure:"listen,omitempty"`
@@ -103,7 +106,6 @@ func (p *PrometheusOutput) Init(ctx context.Context, cfg map[string]interface{},
 		p.logger.SetOutput(logger.Writer())
 		p.logger.SetFlags(logger.Flags())
 	}
-	p.replacer = strings.NewReplacer("-", "_", ":", "_", "/", "_")
 	// create prometheus registery
 	registry := prometheus.NewRegistry()
 
@@ -196,7 +198,7 @@ func (p *PrometheusOutput) getLabels(ev *collector.EventMsg) []*labelPair {
 	labels := make([]*labelPair, 0, len(ev.Tags))
 	addedLabels := make(map[string]struct{})
 	for k, v := range ev.Tags {
-		labelName := p.replacer.Replace(filepath.Base(k))
+		labelName := p.metricRegex.ReplaceAllString(filepath.Base(k), "_")
 		if _, ok := addedLabels[labelName]; ok {
 			continue
 		}
@@ -357,8 +359,9 @@ func getFloat(v interface{}) (float64, error) {
 
 func (p *PrometheusOutput) metricName(measName, valueName string) string {
 	sb := strings.Builder{}
-	sb.WriteString(strings.TrimRight(p.replacer.Replace(measName), "_"))
+	sb.WriteString("gnmic_")
+	sb.WriteString(strings.TrimRight(p.metricRegex.ReplaceAllString(measName, "_"), "_"))
 	sb.WriteString("_")
-	sb.WriteString(strings.TrimLeft(p.replacer.Replace(valueName), "_"))
+	sb.WriteString(strings.TrimLeft(p.metricRegex.ReplaceAllString(valueName, "_"), "_"))
 	return sb.String()
 }
