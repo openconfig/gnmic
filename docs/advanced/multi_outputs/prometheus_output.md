@@ -14,13 +14,22 @@ outputs:
 
 `gnmic` creates the prometheus metric name and its labels from the subscription name, the gnmic path and the value name.
 
+## Metric Generation
+
+The below diagram shows an example of a prometheus metric generation from a gnmi update
+
+![metric_generation](../../images/prometheus_transformation.svg)
+
 ### Metric Naming
 
-The metric name starts with the subscription name, followed by the path stripped from keys if there are any, then the value name. The 3 sections are joined with an underscore "`_`"
+The metric name starts with the string __gnmic__ then the __subscription name__ as specified in `gnmic` configuraiton file, followed by the gNMI __path__ stripped from its keys if there are any. 
 
-Characters "`/`", "`:`" and "`-`" are replaced with a "`_`".
+All non-alphanumeric characters are replaced with an underscore "`_`"
 
-For example, a gnmi update from subscription `port-stats` with path:
+The 3 strings are then joined with an underscore "`_`"
+
+
+For example, a gNMI update from subscription `port-stats` with path:
 
 ```bash
 /interfaces/interface[name=1/1/1]/subinterfaces/subinterface[index=0]/state/counters/in-octets
@@ -28,11 +37,11 @@ For example, a gnmi update from subscription `port-stats` with path:
 
 is exposed as a metric named: 
 ```bash
-port_stats_interfaces_interface_subinterfaces_subinterface_state_counters_in_octets
+gnmic_port_stats_interfaces_interface_subinterfaces_subinterface_state_counters_in_octets
 ```
 
 ### Metric Labels
-The metrics labels are generated from the subscripion metadata (e.g: `subscription-name` and `source`) and the keys present in the gnmi path elements.
+The metrics labels are generated from the subscripion metadata (e.g: `subscription-name` and `source`) and the keys present in the gNMI path elements.
 
 For the previous example the labels would be: 
 
