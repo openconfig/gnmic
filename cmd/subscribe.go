@@ -256,12 +256,12 @@ func getOutputs(ctx context.Context) (map[string][]outputs.Output, error) {
 				switch ou := ou.(type) {
 				case map[string]interface{}:
 					if outType, ok := ou["type"]; ok {
-						if initalizer, ok := outputs.Outputs[outType.(string)]; ok {
+						if initializer, ok := outputs.Outputs[outType.(string)]; ok {
 							format, ok := ou["format"]
 							if !ok || (ok && format == "") {
 								ou["format"] = viper.GetString("format")
 							}
-							o := initalizer()
+							o := initializer()
 							go o.Init(ctx, ou, logger)
 							if outputDestinations[name] == nil {
 								outputDestinations[name] = make([]outputs.Output, 0)
