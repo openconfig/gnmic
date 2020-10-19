@@ -95,7 +95,11 @@ var subscribeCmd = &cobra.Command{
 			RetryTimer:          viper.GetDuration("retry-timer"),
 		}
 
-		coll := collector.NewCollector(cfg, targetsConfig, subscriptionsConfig, outs, createCollectorDialOpts(), logger)
+		coll := collector.NewCollector(cfg, targetsConfig,
+			collector.WithDialOptions(createCollectorDialOpts()),
+			collector.WithSubscriptions(subscriptionsConfig),
+			collector.WithOutputs(outs),
+			collector.WithLogger(logger))
 
 		wg := new(sync.WaitGroup)
 		wg.Add(len(coll.Targets))
