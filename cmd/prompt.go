@@ -307,7 +307,6 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 		line := doc.CurrentLine()
 		word := doc.GetWordBeforeCursor()
 		suggestions := make([]goprompt.Suggest, 0, 16)
-		// if prefixPath != nil && *prefixPath != "" {
 		entries := []*yang.Entry{}
 		if index := strings.Index(line, "--prefix"); index >= 0 {
 			line = strings.TrimLeft(line[index+len("--prefix"):], " ")
