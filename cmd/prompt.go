@@ -136,9 +136,9 @@ var promptDirs []string
 
 // used to init or reset pathCmd flags for gnmic-prompt mode
 func initPromptFlags(cmd *cobra.Command) {
-	cmd.Flags().StringArrayVarP(&promptFiles, "file", "", []string{}, "yang files to get the paths")
-	cmd.Flags().StringArrayVarP(&promptExcluded, "exclude", "", []string{}, "yang modules to be excluded from path generation")
-	cmd.Flags().StringArrayVarP(&promptDirs, "dir", "", []string{}, "directories to search yang includes and imports")
+	cmd.Flags().StringArrayVarP(&promptFiles, "file", "", []string{}, "path to yang files to get auto-completions from")
+	cmd.Flags().StringArrayVarP(&promptExcluded, "exclude", "", []string{}, "yang module names to be excluded from auto-completion generation")
+	cmd.Flags().StringArrayVarP(&promptDirs, "dir", "", []string{}, "path to directory with yang files used as includes and/or imports")
 	cmd.Flags().Uint16("max-suggestions", 5, "terminal suggestion max list size")
 	cmd.Flags().String("prefix-color", "dark_blue", "terminal prefix color")
 	cmd.Flags().String("suggestions-bg-color", "dark_blue", "suggestion box background color")
