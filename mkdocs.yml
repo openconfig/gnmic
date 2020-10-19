@@ -23,6 +23,7 @@ nav:
       - Subscribe: cmd/subscribe.md
       - Listen: cmd/listen.md
       - Path: cmd/path.md
+      - Prompt: cmd/prompt.md
 
 site_author: Karim Radhouani
 site_description: >-

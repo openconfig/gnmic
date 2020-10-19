@@ -1,57 +1,56 @@
 ## Description
-The `[prompt]` command starts an interactive gnmic prompt in which the same gNMI commands (`capabilities`, `get`, `set`, `subscribe`) can be executed with some additional auto completion features:
+The `prompt` command starts `gnmic` in an interactive prompt mode with the following auto-completion features:
 
-* Auto-completion for all commands names and their flags.
-* Auto-completion for flags with xpath values ( `--path`, `--prefix`, `--model`,...). The xpaths are generated from models suplied using `prompt` command `--file` and `--dir` (optional) flags.
-* Auto-completion for flags with enum values `--format`, `--encoding`, ...
-* Auto-completion for flags taking file or directory values.
+* All `gnmic` commands names and their flags are suggested.
+* Values for the flags that rely on YANG-defined data (like `--path`, `--prefix`, `--model`,...) will be dynamically suggested.  
+The auto-completions are generated from the YANG modules d with the `--file` and `--dir` flags.
+* Flags with the fixed set of values (`--format`, `--encoding`, ...) will get their values suggested.
+* Flags that require a file path value will auto-suggest the available files as the user types.
 
 
 ### Usage
 
 `gnmic [global-flags] prompt [local-flags]`
 
-
-### Flags 
+### Flags
 
 #### file
-
-File or directories pointing to yang modules from which to generate gnmi paths.
+A path to a YANG file or a directory with YANG files which `gnnmic` will use to generate auto-completion for YANG-defined data (paths, models).
 
 Multiple `--file` flags can be supplied.
 
 #### dir
-
-Direcotries where to search for yang modules included and imported in modules under `--file`
+A path to a directory which `gnmic` would recursively traverse in search for the additional YANG files which may be required by YANG files specified with `--file` to build the YANG tree.
 
 Multiple `--dir` flags can be supplied.
 
 #### exclude
-
-The `--exclude` flag is used to specify the yang modules to be excluded from path generation
+The `--exclude` flag specifies the YANG modules to be excluded from the path generation. This is used in the situations when YANG modules names are clashed.
 
 Multiple `--exclude` flags can be supplied.
 
 #### max-suggestions
+The `--max-suggestions` flag limits the number of auto-suggestions lines displayed in the suggestion box.
 
-The `--max-suggestions` flag is used to limit the size the the terminal box showing command completion suggestions. (uint16)
+#### suggest-all-flags
+The `--suggest-all-flags` makes `gnmic` prompt to suggest both global and local flags for a sub-command.
 
-#### description-bg-color
-
-The `--description-bg-color` flag is used to change the background color of the description part of the suggestions descriptions
-
-#### prefix-color
-
-The `--prefix-color` flag is used to change the gnmic prompt prefix color `gnmic> `.
-
-Defaults to ??
+The default behavior (when this flag is not set) is to suggest global flags only on prompt start, and suggest only local flags for any typed sub-command.
 
 #### suggestions-bg-color
+The `--suggestions-bg-color` flag sets the background color of the left part of the suggestion box.
 
-The `--suggestions-bg-color` flag is used to change the suggestions background color.
+Defaults to dark blue.
 
-Defaults to ??
+#### description-bg-color
+The `--description-bg-color` flag sets the background color of the right part of the suggestion box.
+
+Defaults to dark gray.
+
+#### prefix-color
+The `--prefix-color` flag sets the gnmic prompt prefix color `gnmic> `.
+
+Defaults to dark blue.
 
 ### Examples
-
-
+WIP: will refer to a separate page with the examples.
