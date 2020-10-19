@@ -216,6 +216,68 @@ func findMatchedXPATH(entry *yang.Entry, word string, cursor int) []goprompt.Sug
 	return suggestions
 }
 
+func findMatchedSchema(entry *yang.Entry, word string, cursor int) []*yang.Entry {
+	schemaNodes := []*yang.Entry{}
+	cword := word[cursor:]
+	for name, child := range entry.Dir {
+		pathelem := "/" + name
+		if strings.HasPrefix(pathelem, cword) {
+			node := ""
+			if os.PathSeparator != '/' {
+				node = fmt.Sprintf("%s%s", word[:cursor], pathelem)
+				schemaNodes = append(schemaNodes, child)
+			} else {
+				if len(cword) >= 1 && cword[0] == '/' {
+					node = name
+				} else {
+					node = pathelem
+				}
+				schemaNodes = append(schemaNodes, child)
+			}
+			if child.Key != "" { // list
+				keylist := strings.Split(child.Key, " ")
+				for _, key := range keylist {
+					node = fmt.Sprintf("%s[%s=*]", node, key)
+				}
+				schemaNodes = append(schemaNodes, child)
+			}
+		} else if strings.HasPrefix(cword, pathelem) {
+			var prevC rune
+			var bracketCount int
+			var endIndex int = -1
+			var stop bool
+			for i, c := range cword {
+				switch c {
+				case '[':
+					bracketCount++
+				case ']':
+					if prevC != '\\' {
+						bracketCount--
+						endIndex = i
+					}
+				case '/':
+					if i != 0 && bracketCount == 0 {
+						endIndex = i
+						stop = true
+					}
+				}
+				if stop {
+					break
+				}
+				prevC = c
+			}
+			if bracketCount == 0 {
+				if endIndex >= 0 {
+					schemaNodes = append(schemaNodes, findMatchedSchema(child, word, cursor+endIndex)...)
+				} else {
+					schemaNodes = append(schemaNodes, findMatchedSchema(child, word, cursor+len(pathelem))...)
+				}
+			}
+		}
+	}
+	return schemaNodes
+}
+
 var filePathCompleter = completer.FilePathCompleter{
 	IgnoreCase: true,
 	Filter: func(fi os.FileInfo) bool {
@@ -242,6 +304,28 @@ var dirPathCompleter = completer.FilePathCompleter{
 func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt.Suggest {
 	switch annotation {
 	case "XPATH":
+		line := doc.CurrentLine()
+		word := doc.GetWordBeforeCursor()
+		suggestions := make([]goprompt.Suggest, 0, 16)
+		entries := []*yang.Entry{}
+		if index := strings.Index(line, "--prefix"); index >= 0 {
+			line = strings.TrimLeft(line[index+len("--prefix"):], " ")
+			end := strings.Index(line, " ")
+			if end >= 0 {
+				for _, entry := range schemaTree.Dir {
+					entries = append(entries, findMatchedSchema(entry, line[:end], 0)...)
+				}
+				for _, entry := range entries {
+					suggestions = append(suggestions, findMatchedXPATH(entry, word, 0)...)
+				}
+			}
+		} else {
+			for _, entry := range schemaTree.Dir {
+				suggestions = append(suggestions, findMatchedXPATH(entry, word, 0)...)
+			}
+		}
+		return suggestions
+	case "PREFIX":
 		word := doc.GetWordBeforeCursor()
 		suggestions := make([]goprompt.Suggest, 0, 16)
 		for _, entry := range schemaTree.Dir {

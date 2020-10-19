@@ -59,7 +59,7 @@ var setCmd = &cobra.Command{
 	Short: "run gnmi set on targets",
 	Annotations: map[string]string{
 		"--delete":       "XPATH",
-		"--prefix":       "XPATH",
+		"--prefix":       "PREFIX",
 		"--replace":      "XPATH",
 		"--replace-file": "FILE",
 		"--replace-path": "XPATH",

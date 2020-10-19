@@ -54,7 +54,7 @@ var subscribeCmd = &cobra.Command{
 	Short:   "subscribe to gnmi updates on targets",
 	Annotations: map[string]string{
 		"--path":        "XPATH",
-		"--prefix":      "XPATH",
+		"--prefix":      "PREFIX",
 		"--model":       "MODEL",
 		"--mode":        "SUBSC_MODE",
 		"--stream-mode": "STREAM_MODE",
