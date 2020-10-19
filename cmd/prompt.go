@@ -495,7 +495,6 @@ func (co cmdPrompt) Run() {
 			promptArgs := strings.Fields(in)
 			os.Args = append([]string{os.Args[0]}, promptArgs...)
 			if len(promptArgs) > 0 {
-				co.RootCmd.Execute()
 				err := co.RootCmd.Execute()
 				if err == nil && in != "" {
 					promptHistory = append(promptHistory, in)
