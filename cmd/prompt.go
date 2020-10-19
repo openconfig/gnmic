@@ -352,6 +352,9 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 			}
 			suggestions = append(suggestions, goprompt.Suggest{Text: name})
 		}
+		sort.Slice(suggestions, func(i, j int) bool {
+			return suggestions[i].Text < suggestions[j].Text
+		})
 		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
 	case "DIR":
 		return dirPathCompleter.Complete(doc)
