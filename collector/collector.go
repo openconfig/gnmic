@@ -41,20 +41,49 @@ type Collector struct {
 	//
 	m          *sync.Mutex
 	Targets    map[string]*Target
-	Logger     *log.Logger
+	logger     *log.Logger
 	httpServer *http.Server
 }
 
+type CollectorOption func(c *Collector)
+
+func WithLogger(logger *log.Logger) CollectorOption {
+	return func(c *Collector) {
+		c.logger = logger
+	}
+}
+
+func WithSubscriptions(subs map[string]*SubscriptionConfig) CollectorOption {
+	return func(c *Collector) {
+		c.Subscriptions = subs
+	}
+}
+
+func WithOutputs(outs map[string][]outputs.Output) CollectorOption {
+	return func(c *Collector) {
+		c.Outputs = outs
+	}
+}
+
+func WithDialOptions(dialOptions []grpc.DialOption) CollectorOption {
+	return func(c *Collector) {
+		c.DialOpts = dialOptions
+	}
+}
+
 // NewCollector //
-func NewCollector(
-	config *Config,
-	targetConfigs map[string]*TargetConfig,
-	subscriptions map[string]*SubscriptionConfig,
-	outputs map[string][]outputs.Output,
-	dialOpts []grpc.DialOption,
-	logger *log.Logger,
-) *Collector {
+func NewCollector(config *Config, targetConfigs map[string]*TargetConfig, opts ...CollectorOption) *Collector {
 	var httpServer *http.Server
+	c := &Collector{
+		Config:     config,
+		m:          new(sync.Mutex),
+		Targets:    make(map[string]*Target),
+		httpServer: httpServer,
+	}
+	for _, op := range opts {
+		op(c)
+	}
+
 	if config.PrometheusAddress != "" {
 		grpcMetrics := grpc_prometheus.NewClientMetrics()
 		reg := prometheus.NewRegistry()
@@ -64,27 +93,17 @@ func NewCollector(
 		reg.MustRegister(grpcMetrics)
 		handler := http.NewServeMux()
 		handler.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
-		httpServer = &http.Server{
+		c.httpServer = &http.Server{
 			Handler: handler,
 			Addr:    config.PrometheusAddress,
 		}
-		dialOpts = append(dialOpts, grpc.WithStreamInterceptor(grpcMetrics.StreamClientInterceptor()))
+		c.DialOpts = append(c.DialOpts, grpc.WithStreamInterceptor(grpcMetrics.StreamClientInterceptor()))
 		if config.TargetReceiveBuffer == 0 {
 			config.TargetReceiveBuffer = defaultTargetReceivebuffer
 		}
 		if config.RetryTimer == 0 {
 			config.RetryTimer = defaultRetryTimer
 		}
-	}
-	c := &Collector{
-		Config:        config,
-		Subscriptions: subscriptions,
-		Outputs:       outputs,
-		DialOpts:      dialOpts,
-		m:             new(sync.Mutex),
-		Targets:       make(map[string]*Target),
-		Logger:        logger,
-		httpServer:    httpServer,
 	}
 
 	for _, tc := range targetConfigs {
@@ -139,13 +158,13 @@ func (c *Collector) Subscribe(ctx context.Context, tName string) error {
 		if err := t.CreateGNMIClient(ctx, c.DialOpts...); err != nil {
 			return err
 		}
-		c.Logger.Printf("target '%s' gNMI client created", t.Config.Name)
+		c.logger.Printf("target '%s' gNMI client created", t.Config.Name)
 		for _, sc := range t.Subscriptions {
 			req, err := sc.CreateSubscribeRequest()
 			if err != nil {
 				return err
 			}
-			c.Logger.Printf("sending gNMI SubscribeRequest: subscribe='%+v', mode='%+v', encoding='%+v', to %s",
+			c.logger.Printf("sending gNMI SubscribeRequest: subscribe='%+v', mode='%+v', encoding='%+v', to %s",
 				req, req.GetSubscribe().GetMode(), req.GetSubscribe().GetEncoding(), t.Config.Name)
 			go t.Subscribe(ctx, req, sc.Name)
 		}
@@ -158,10 +177,10 @@ func (c *Collector) Subscribe(ctx context.Context, tName string) error {
 func (c *Collector) Start(ctx context.Context) {
 	if c.httpServer != nil {
 		go func() {
-			c.Logger.Printf("starting prometheus server on %s", c.httpServer.Addr)
+			c.logger.Printf("starting prometheus server on %s", c.httpServer.Addr)
 			err := c.httpServer.ListenAndServe()
 			if err != nil {
-				c.Logger.Printf("Unable to start prometheus http server: %v", err)
+				c.logger.Printf("Unable to start prometheus http server: %v", err)
 				return
 			}
 		}()
@@ -185,7 +204,7 @@ func (c *Collector) Start(ctx context.Context) {
 				select {
 				case rsp := <-t.SubscribeResponses:
 					if c.Config.Debug {
-						c.Logger.Printf("received gNMI Subscribe Response: %+v", rsp)
+						c.logger.Printf("received gNMI Subscribe Response: %+v", rsp)
 					}
 					if c.subscriptionMode(rsp.SubscriptionName) == "ONCE" {
 						t.Export(ctx, rsp.Response, outputs.Meta{"source": t.Config.Name, "format": c.Config.Format, "subscription-name": rsp.SubscriptionName})
@@ -205,9 +224,9 @@ func (c *Collector) Start(ctx context.Context) {
 					}
 				case tErr := <-t.Errors:
 					if errors.Is(tErr.Err, io.EOF) {
-						c.Logger.Printf("target '%s', subscription %s closed stream(EOF)", t.Config.Name, tErr.SubscriptionName)
+						c.logger.Printf("target '%s', subscription %s closed stream(EOF)", t.Config.Name, tErr.SubscriptionName)
 					} else {
-						c.Logger.Printf("target '%s', subscription %s rcv error: %v", t.Config.Name, tErr.SubscriptionName, tErr.Err)
+						c.logger.Printf("target '%s', subscription %s rcv error: %v", t.Config.Name, tErr.SubscriptionName, tErr.Err)
 					}
 					if remainingOnceSubscriptions > 0 {
 						if c.subscriptionMode(tErr.SubscriptionName) == "ONCE" {
