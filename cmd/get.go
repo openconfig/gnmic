@@ -42,7 +42,7 @@ var getCmd = &cobra.Command{
 	Short: "run gnmi get on targets",
 	Annotations: map[string]string{
 		"--path":   "XPATH",
-		"--prefix": "XPATH",
+		"--prefix": "PREFIX",
 		"--model":  "MODEL",
 		"--type":   "STORE",
 	},
