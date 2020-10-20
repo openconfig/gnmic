@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"sort"
 	"strings"
 
 	goprompt "github.com/c-bata/go-prompt"
@@ -324,6 +325,9 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 				suggestions = append(suggestions, findMatchedXPATH(entry, word, 0)...)
 			}
 		}
+		sort.Slice(suggestions, func(i, j int) bool {
+			return suggestions[i].Text < suggestions[j].Text
+		})
 		return suggestions
 	case "PREFIX":
 		word := doc.GetWordBeforeCursor()
@@ -331,6 +335,9 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 		for _, entry := range schemaTree.Dir {
 			suggestions = append(suggestions, findMatchedXPATH(entry, word, 0)...)
 		}
+		sort.Slice(suggestions, func(i, j int) bool {
+			return suggestions[i].Text < suggestions[j].Text
+		})
 		return suggestions
 	case "FILE":
 		return filePathCompleter.Complete(doc)
@@ -345,6 +352,9 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 			}
 			suggestions = append(suggestions, goprompt.Suggest{Text: name})
 		}
+		sort.Slice(suggestions, func(i, j int) bool {
+			return suggestions[i].Text < suggestions[j].Text
+		})
 		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
 	case "DIR":
 		return dirPathCompleter.Complete(doc)
