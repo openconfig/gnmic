@@ -36,7 +36,7 @@ var pathType string
 var module string
 var printTypes bool
 var search bool
-var prefixRepresented bool
+var withPrefix bool
 
 func pathCmdRun(d, f, e []string, quitAfterGenerate bool) error {
 	err := generateYangSchema(d, f, e)
@@ -59,7 +59,7 @@ func pathCmdRun(d, f, e []string, quitAfterGenerate bool) error {
 		collected = append(collected, collectSchemaNodes(entry, true)...)
 	}
 	for _, entry := range collected {
-		out <- generatePath(entry, prefixRepresented)
+		out <- generatePath(entry, withPrefix)
 	}
 
 	if search {
@@ -214,7 +214,7 @@ func initPathFlags(cmd *cobra.Command) {
 	cmd.Flags().StringArrayVarP(&dirs, "dir", "", []string{}, "directories to search yang includes and imports")
 	cmd.Flags().StringVarP(&pathType, "path-type", "", "xpath", "path type xpath or gnmi")
 	cmd.Flags().StringVarP(&module, "module", "m", "", "module name")
-	cmd.Flags().BoolVarP(&prefixRepresented, "prefix-represented", "", false, "enable the yang prefix of the paths")
+	cmd.Flags().BoolVarP(&withPrefix, "with-prefix", "", false, "include module/submodule prefix in path elements")
 	cmd.Flags().BoolVarP(&printTypes, "types", "", false, "print leaf type")
 	cmd.Flags().BoolVarP(&search, "search", "", false, "search through path list")
 	viper.BindPFlag("path-file", cmd.LocalFlags().Lookup("file"))
@@ -304,7 +304,7 @@ func generateTypeInfo(e *yang.Entry) string {
 		rstr += fmt.Sprintf(" %q", t.Path)
 	case yang.Yidentityref:
 		rstr += fmt.Sprintf(" %q", t.IdentityBase.Name)
-		if prefixRepresented {
+		if withPrefix {
 			data := getAnnotation(e, "prefix-qualified-identities")
 			if data != nil {
 				rstr += fmt.Sprintf(" %v", data)
