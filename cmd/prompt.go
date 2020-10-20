@@ -219,10 +219,15 @@ func findMatchedXPATH(entry *yang.Entry, word string, cursor int) []goprompt.Sug
 
 func buildXPATHDescription(entry *yang.Entry) string {
 	sb := strings.Builder{}
-	if entry.Dir != nil {
-		sb.WriteString("[+] ")
-	} else {
+	switch {
+	case entry.Dir == nil && entry.ListAttr != nil: // leaf-list
+		sb.WriteString("[⋯] ")
+	case entry.Dir == nil: // leaf
 		sb.WriteString("    ")
+	case entry.ListAttr != nil: // list
+		sb.WriteString("[+] ")
+	default: // container
+		sb.WriteString("[+] ")
 	}
 	sb.WriteString(getPermissions(entry))
 	sb.WriteString(" ")
