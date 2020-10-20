@@ -26,6 +26,12 @@ Can also point to a single YANG file instead of a directory.
 
 Multiple `--dir` flags can be supplied.
 
+#### description-with-prefix
+When set, the description field of the suggestion box will have a module prefix name before the element description.
+
+#### description-with-types
+When set, the description field of the suggestion box will have a YANG type information provided for the elements.
+
 #### exclude
 The `--exclude` flag specifies the YANG module __names__ to be excluded from the path generation when YANG modules names are clashed.
 
