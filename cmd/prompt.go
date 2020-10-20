@@ -493,6 +493,18 @@ func ExecutePrompt() {
 					Fn:        goprompt.GoRightWord,
 				},
 			),
+			goprompt.OptionAddKeyBind(
+				// bind Linux CTRL+Left key binding
+				goprompt.KeyBind{
+					Key: goprompt.ControlLeft,
+					Fn:  goprompt.GoLeftWord,
+				},
+				// bind Linux CTRL+Right key binding
+				goprompt.KeyBind{
+					Key: goprompt.ControlRight,
+					Fn:  goprompt.GoRightWord,
+				},
+			),
 			goprompt.OptionCompletionWordSeparator(completer.FilePathCompletionSeparator),
 			goprompt.OptionCompletionOnDown(),
 			goprompt.OptionShowCompletionAtStart(),
