@@ -476,8 +476,35 @@ func ExecutePrompt() {
 			goprompt.OptionSelectedDescriptionBGColor(goprompt.White),
 			goprompt.OptionScrollbarBGColor(goprompt.DarkGray),
 			goprompt.OptionScrollbarThumbColor(goprompt.Blue),
-			goprompt.OptionAddASCIICodeBind(goprompt.ASCIICodeBind{
-				ASCIICode: []byte{0x3f}, Fn: showCommandArguments}),
+			goprompt.OptionAddASCIICodeBind(
+				// bind '?' character to show cmd args
+				goprompt.ASCIICodeBind{
+					ASCIICode: []byte{0x3f},
+					Fn:        showCommandArguments,
+				},
+				// bind OS X Option+Left key binding
+				goprompt.ASCIICodeBind{
+					ASCIICode: []byte{0x1b, 0x62},
+					Fn:        goprompt.GoLeftWord,
+				},
+				// bind OS X Option+Right key binding
+				goprompt.ASCIICodeBind{
+					ASCIICode: []byte{0x1b, 0x66},
+					Fn:        goprompt.GoRightWord,
+				},
+			),
+			goprompt.OptionAddKeyBind(
+				// bind Linux CTRL+Left key binding
+				goprompt.KeyBind{
+					Key: goprompt.ControlLeft,
+					Fn:  goprompt.GoLeftWord,
+				},
+				// bind Linux CTRL+Right key binding
+				goprompt.KeyBind{
+					Key: goprompt.ControlRight,
+					Fn:  goprompt.GoRightWord,
+				},
+			),
 			goprompt.OptionCompletionWordSeparator(completer.FilePathCompletionSeparator),
 			goprompt.OptionCompletionOnDown(),
 			goprompt.OptionShowCompletionAtStart(),
