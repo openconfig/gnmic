@@ -506,7 +506,7 @@ func ExecutePrompt() {
 				},
 			),
 			goprompt.OptionCompletionWordSeparator(completer.FilePathCompletionSeparator),
-			goprompt.OptionCompletionOnDown(),
+			// goprompt.OptionCompletionOnDown(),
 			goprompt.OptionShowCompletionAtStart(),
 		},
 	}
