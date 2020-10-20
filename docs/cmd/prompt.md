@@ -27,7 +27,7 @@ Can also point to a single YANG file instead of a directory.
 Multiple `--dir` flags can be supplied.
 
 #### exclude
-The `--exclude` flag specifies the YANG modules to be excluded from the path generation. This is used in the situations when YANG modules names are clashed.
+The `--exclude` flag specifies the YANG module __names__ to be excluded from the path generation when YANG modules names are clashed.
 
 Multiple `--exclude` flags can be supplied.
 
