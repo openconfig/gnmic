@@ -326,6 +326,9 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 			}
 		}
 		sort.Slice(suggestions, func(i, j int) bool {
+			if suggestions[i].Text == suggestions[j].Text {
+				return suggestions[i].Description < suggestions[j].Description
+			}
 			return suggestions[i].Text < suggestions[j].Text
 		})
 		return suggestions
@@ -336,6 +339,9 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 			suggestions = append(suggestions, findMatchedXPATH(entry, word, 0)...)
 		}
 		sort.Slice(suggestions, func(i, j int) bool {
+			if suggestions[i].Text == suggestions[j].Text {
+				return suggestions[i].Description < suggestions[j].Description
+			}
 			return suggestions[i].Text < suggestions[j].Text
 		})
 		return suggestions
