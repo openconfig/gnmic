@@ -146,6 +146,7 @@ func initPromptFlags(cmd *cobra.Command) {
 	cmd.Flags().String("description-bg-color", "dark_gray", "description box background color")
 	cmd.Flags().Bool("suggest-all-flags", false, "suggest local as well as inherited flags of subcommands")
 	cmd.Flags().Bool("description-with-prefix", false, "show YANG module prefix in XPATH suggestion description")
+	cmd.Flags().Bool("description-with-types", false, "show YANG types in XPATH suggestion description")
 	viper.BindPFlag("prompt-file", cmd.LocalFlags().Lookup("file"))
 	viper.BindPFlag("prompt-exclude", cmd.LocalFlags().Lookup("exclude"))
 	viper.BindPFlag("prompt-dir", cmd.LocalFlags().Lookup("dir"))
@@ -155,6 +156,7 @@ func initPromptFlags(cmd *cobra.Command) {
 	viper.BindPFlag("prompt-description-bg-color", cmd.LocalFlags().Lookup("description-bg-color"))
 	viper.BindPFlag("prompt-suggest-all-flags", cmd.LocalFlags().Lookup("suggest-all-flags"))
 	viper.BindPFlag("prompt-description-with-prefix", cmd.LocalFlags().Lookup("description-with-prefix"))
+	viper.BindPFlag("prompt-description-with-types", cmd.LocalFlags().Lookup("description-with-types"))
 }
 
 func findMatchedXPATH(entry *yang.Entry, word string, cursor int) []goprompt.Suggest {
@@ -219,20 +221,36 @@ func findMatchedXPATH(entry *yang.Entry, word string, cursor int) []goprompt.Sug
 	return suggestions
 }
 
-func buildXPATHDescription(entry *yang.Entry) string {
-	sb := strings.Builder{}
+func getDescriptionPrefix(entry *yang.Entry) string {
 	switch {
 	case entry.Dir == nil && entry.ListAttr != nil: // leaf-list
-		sb.WriteString("[⋯] ")
+		return "[⋯]"
 	case entry.Dir == nil: // leaf
-		sb.WriteString("    ")
+		return "   "
 	case entry.ListAttr != nil: // list
-		sb.WriteString("[+] ")
+		return "[+]"
 	default: // container
-		sb.WriteString("[+] ")
+		return "[+]"
 	}
+}
+func getEntryType(entry *yang.Entry) string {
+	if entry.Type != nil {
+		return entry.Type.Kind.String()
+	}
+	return ""
+}
+func buildXPATHDescription(entry *yang.Entry) string {
+	sb := strings.Builder{}
+	sb.WriteString(getDescriptionPrefix(entry))
+	sb.WriteString(" ")
 	sb.WriteString(getPermissions(entry))
 	sb.WriteString(" ")
+	if viper.GetBool("prompt-description-with-types") {
+		n, _ := sb.WriteString(getEntryType(entry))
+		if n > 0 {
+			sb.WriteString(", ")
+		}
+	}
 	if viper.GetBool("prompt-description-with-prefix") {
 		if entry.Prefix != nil {
 			sb.WriteString(entry.Prefix.Name)
