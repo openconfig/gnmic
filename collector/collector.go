@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"strings"
@@ -49,7 +50,11 @@ type CollectorOption func(c *Collector)
 
 func WithLogger(logger *log.Logger) CollectorOption {
 	return func(c *Collector) {
-		c.logger = logger
+		if logger == nil {
+			c.logger = log.New(ioutil.Discard, "", 0)
+		} else {
+			c.logger = logger
+		}
 	}
 }
 
@@ -80,6 +85,7 @@ func NewCollector(config *Config, targetConfigs map[string]*TargetConfig, opts .
 	if config.RetryTimer == 0 {
 		config.RetryTimer = defaultRetryTimer
 	}
+
 	c := &Collector{
 		Config:     config,
 		m:          new(sync.Mutex),
@@ -89,7 +95,9 @@ func NewCollector(config *Config, targetConfigs map[string]*TargetConfig, opts .
 	for _, op := range opts {
 		op(c)
 	}
-
+	if config.Debug {
+		c.logger.Printf("starting collector with cfg=%+v", config)
+	}
 	if config.PrometheusAddress != "" {
 		grpcMetrics := grpc_prometheus.NewClientMetrics()
 		reg := prometheus.NewRegistry()
