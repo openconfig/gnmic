@@ -37,7 +37,7 @@ type Collector struct {
 	Config        *Config
 	Subscriptions map[string]*SubscriptionConfig
 	Outputs       map[string][]outputs.Output
-	DialOpts      []grpc.DialOption
+	dialOpts      []grpc.DialOption
 	//
 	m          *sync.Mutex
 	Targets    map[string]*Target
@@ -67,13 +67,19 @@ func WithOutputs(outs map[string][]outputs.Output) CollectorOption {
 
 func WithDialOptions(dialOptions []grpc.DialOption) CollectorOption {
 	return func(c *Collector) {
-		c.DialOpts = dialOptions
+		c.dialOpts = dialOptions
 	}
 }
 
 // NewCollector //
 func NewCollector(config *Config, targetConfigs map[string]*TargetConfig, opts ...CollectorOption) *Collector {
 	var httpServer *http.Server
+	if config.TargetReceiveBuffer == 0 {
+		config.TargetReceiveBuffer = defaultTargetReceivebuffer
+	}
+	if config.RetryTimer == 0 {
+		config.RetryTimer = defaultRetryTimer
+	}
 	c := &Collector{
 		Config:     config,
 		m:          new(sync.Mutex),
@@ -97,13 +103,7 @@ func NewCollector(config *Config, targetConfigs map[string]*TargetConfig, opts .
 			Handler: handler,
 			Addr:    config.PrometheusAddress,
 		}
-		c.DialOpts = append(c.DialOpts, grpc.WithStreamInterceptor(grpcMetrics.StreamClientInterceptor()))
-		if config.TargetReceiveBuffer == 0 {
-			config.TargetReceiveBuffer = defaultTargetReceivebuffer
-		}
-		if config.RetryTimer == 0 {
-			config.RetryTimer = defaultRetryTimer
-		}
+		c.dialOpts = append(c.dialOpts, grpc.WithStreamInterceptor(grpcMetrics.StreamClientInterceptor()))
 	}
 
 	for _, tc := range targetConfigs {
@@ -155,7 +155,7 @@ func (c *Collector) InitTarget(tc *TargetConfig) {
 // Subscribe //
 func (c *Collector) Subscribe(ctx context.Context, tName string) error {
 	if t, ok := c.Targets[tName]; ok {
-		if err := t.CreateGNMIClient(ctx, c.DialOpts...); err != nil {
+		if err := t.CreateGNMIClient(ctx, c.dialOpts...); err != nil {
 			return err
 		}
 		c.logger.Printf("target '%s' gNMI client created", t.Config.Name)
