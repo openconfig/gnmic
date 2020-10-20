@@ -32,7 +32,9 @@ The `--exclude` flag specifies the YANG module __names__ to be excluded from the
 Multiple `--exclude` flags can be supplied.
 
 #### max-suggestions
-The `--max-suggestions` flag limits the number of auto-suggestions lines displayed in the suggestion box.
+The `--max-suggestions` flag sets the number of lines that the suggestion box will display without scrolling.
+
+Defaults to 10.
 
 #### suggest-all-flags
 The `--suggest-all-flags` makes `gnmic` prompt to suggest both global and local flags for a sub-command.
