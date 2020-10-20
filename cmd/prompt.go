@@ -164,21 +164,21 @@ func findMatchedXPATH(entry *yang.Entry, word string, cursor int) []goprompt.Sug
 			node := ""
 			if os.PathSeparator != '/' {
 				node = fmt.Sprintf("%s%s", word[:cursor], pathelem)
-				suggestions = append(suggestions, goprompt.Suggest{Text: node, Description: child.Description})
+				suggestions = append(suggestions, goprompt.Suggest{Text: node, Description: buildXPATHDescription(child)})
 			} else {
 				if len(cword) >= 1 && cword[0] == '/' {
 					node = name
 				} else {
 					node = pathelem
 				}
-				suggestions = append(suggestions, goprompt.Suggest{Text: node, Description: child.Description})
+				suggestions = append(suggestions, goprompt.Suggest{Text: node, Description: buildXPATHDescription(child)})
 			}
 			if child.Key != "" { // list
 				keylist := strings.Split(child.Key, " ")
 				for _, key := range keylist {
 					node = fmt.Sprintf("%s[%s=*]", node, key)
 				}
-				suggestions = append(suggestions, goprompt.Suggest{Text: node, Description: child.Description})
+				suggestions = append(suggestions, goprompt.Suggest{Text: node, Description: buildXPATHDescription(child)})
 			}
 		} else if strings.HasPrefix(cword, pathelem) {
 			var prevC rune
@@ -215,6 +215,34 @@ func findMatchedXPATH(entry *yang.Entry, word string, cursor int) []goprompt.Sug
 		}
 	}
 	return suggestions
+}
+
+func buildXPATHDescription(entry *yang.Entry) string {
+	sb := strings.Builder{}
+	if entry.Dir != nil {
+		sb.WriteString("[+] ")
+	} else {
+		sb.WriteString("    ")
+	}
+	sb.WriteString(getPermissions(entry))
+	sb.WriteString(" ")
+	sb.WriteString(entry.Description)
+	return sb.String()
+}
+
+func getPermissions(entry *yang.Entry) string {
+	if entry == nil {
+		return "(rw)"
+	}
+	switch entry.Config {
+	case yang.TSTrue:
+		return "(rw)"
+	case yang.TSFalse:
+		return "(ro)"
+	case yang.TSUnset:
+		return getPermissions(entry.Parent)
+	}
+	return "(rw)"
 }
 
 func findMatchedSchema(entry *yang.Entry, word string, cursor int) []*yang.Entry {
