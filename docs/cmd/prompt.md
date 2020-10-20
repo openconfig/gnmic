@@ -22,6 +22,8 @@ Multiple `--file` flags can be supplied.
 #### dir
 A path to a directory which `gnmic` would recursively traverse in search for the additional YANG files which may be required by YANG files specified with `--file` to build the YANG tree.
 
+Can also point to a single YANG file instead of a directory.
+
 Multiple `--dir` flags can be supplied.
 
 #### exclude
