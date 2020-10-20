@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/c-bata/go-prompt"
 	goprompt "github.com/c-bata/go-prompt"
 	"github.com/c-bata/go-prompt/completer"
 	homedir "github.com/mitchellh/go-homedir"
@@ -486,7 +485,7 @@ func ExecutePrompt() {
 					ASCIICode: []byte{0x1b, 0x62},
 					Fn:        goprompt.GoLeftWord,
 				},
-				prompt.ASCIICodeBind{
+				goprompt.ASCIICodeBind{
 					ASCIICode: []byte{0x1b, 0x66},
 					Fn:        goprompt.GoRightWord,
 				},
