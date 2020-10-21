@@ -62,8 +62,17 @@ gnmic -a 10.1.0.11:57400 -u admin -p admin --insecure \
 ```
 
 ### Prompt mode
+The [prompt mode](https://gnmic.kmrd.dev/advanced/prompt_suggestions/) is an interactive mode of the gnmic CLI client for user convenience.
 
-The prompt mode is an interactive mode of the gnmic CLI client for user convenience.
-The gnmic subcommands such as capabilities, get, set and subscribe of the gNMI protocol can be used in the prompt mode with tab completion for their flags and the xpath of the YANG data models that you defined.
+```bash
+# clone repository with YANG models (Openconfig example)
+git clone https://github.com/openconfig/public
+cd public
 
-![gnmic prompt-mode](docs/images/gnmic.prompt-mode.demo.gif)
+# Start gnmic in prompt mode and read in all the modules:
+
+gnmic --file release/models \
+      --dir third_party \
+      --exclude ietf-interfaces \
+      prompt
+```
