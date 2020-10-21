@@ -572,6 +572,23 @@ func ExecutePrompt() {
 					Key: goprompt.ControlRight,
 					Fn:  goprompt.GoRightWord,
 				},
+				// bind CTRL+Z key to delete path elements
+				goprompt.KeyBind{
+					Key: goprompt.ControlZ,
+					Fn: func(buf *goprompt.Buffer) {
+						// If the last word before the cursor does not contain a "/" return. 
+						// This is needed to avoid deleting down to a previous flag value
+						if !strings.Contains(buf.Document().GetWordBeforeCursorWithSpace(), "/") {
+							return
+						}
+						// Check if the last rune is a PathSeparator and is not the path root then delete it
+						if buf.Document().GetCharRelativeToCursor(0) == os.PathSeparator && buf.Document().GetCharRelativeToCursor(-1) != ' ' {
+							buf.DeleteBeforeCursor(1)
+						}
+						// Delete down until the next "/"
+						buf.DeleteBeforeCursor(len([]rune(buf.Document().GetWordBeforeCursorUntilSeparator("/"))))
+					},
+				},
 			),
 			goprompt.OptionCompletionWordSeparator(completer.FilePathCompletionSeparator),
 			// goprompt.OptionCompletionOnDown(),
