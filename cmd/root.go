@@ -50,12 +50,26 @@ const (
 	msgSize = 512 * 1024 * 1024
 )
 
+var encodingNames = []string{
+	"json",
+	"bytes",
+	"proto",
+	"ascii",
+	"json_ietf",
+}
 var encodings = [][2]string{
-	{"json", "JSON encodded string (RFC7159)"},
+	{"json", "JSON encoded string (RFC7159)"},
 	{"bytes", "byte sequence whose semantics is opaque to the protocol"},
 	{"proto", "serialised protobuf message using protobuf.Any"},
 	{"ascii", "ASCII encoded string representing text formatted according to a target-defined convention"},
 	{"json_ietf", "JSON_IETF encoded string (RFC7951)"},
+}
+var formatNames = []string{
+	"json",
+	"protojson",
+	"prototext",
+	"event",
+	"proto",
 }
 var formats = [][2]string{
 	{"json", "similar to protojson but with xpath style paths and decoded timestamps"},
@@ -99,7 +113,7 @@ func rootCmdPersistentPreRunE(cmd *cobra.Command, args []string) error {
 	cfgFile := viper.ConfigFileUsed()
 	if len(cfgFile) != 0 {
 		logger.Printf("using config file %s", cfgFile)
-		b, err := ioutil.ReadFile(cfgFile)		
+		b, err := ioutil.ReadFile(cfgFile)
 		if err != nil {
 			if cmd.Flag("config").Changed {
 				return err
@@ -129,7 +143,7 @@ var rootCmd = &cobra.Command{
 		"--format":   "FORMAT",
 	},
 	PersistentPreRunE: rootCmdPersistentPreRunE,
-	PersistentPostRun:  rootCmdPersistentPostRun,
+	PersistentPostRun: rootCmdPersistentPostRun,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -151,7 +165,7 @@ func init() {
 	rootCmd.PersistentFlags().StringP("username", "u", "", "username")
 	rootCmd.PersistentFlags().StringP("password", "p", "", "password")
 	rootCmd.PersistentFlags().StringP("port", "", defaultGrpcPort, "gRPC port")
-	rootCmd.PersistentFlags().StringP("encoding", "e", "json", fmt.Sprintf("one of %+v. Case insensitive", encodings))
+	rootCmd.PersistentFlags().StringP("encoding", "e", "json", fmt.Sprintf("one of %q. Case insensitive", encodingNames))
 	rootCmd.PersistentFlags().BoolP("insecure", "", false, "insecure connection")
 	rootCmd.PersistentFlags().StringP("tls-ca", "", "", "tls certificate authority")
 	rootCmd.PersistentFlags().StringP("tls-cert", "", "", "tls certificate")
@@ -161,7 +175,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolP("skip-verify", "", false, "skip verify tls connection")
 	rootCmd.PersistentFlags().BoolP("no-prefix", "", false, "do not add [ip:port] prefix to print output in case of multiple targets")
 	rootCmd.PersistentFlags().BoolP("proxy-from-env", "", false, "use proxy from environment")
-	rootCmd.PersistentFlags().StringP("format", "", "", "output format, one of: [protojson, prototext, json, event]")
+	rootCmd.PersistentFlags().StringP("format", "", "", fmt.Sprintf("output format, one of: %q", formatNames))
 	rootCmd.PersistentFlags().StringP("log-file", "", "", "log file path")
 	rootCmd.PersistentFlags().BoolP("log", "", false, "show log messages in stderr")
 	rootCmd.PersistentFlags().IntP("max-msg-size", "", msgSize, "max grpc msg size")
