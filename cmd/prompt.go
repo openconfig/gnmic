@@ -341,7 +341,6 @@ func findMatchedSchema(entry *yang.Entry, word string, cursor int) []*yang.Entry
 var filePathCompleter = completer.FilePathCompleter{
 	IgnoreCase: true,
 	Filter: func(fi os.FileInfo) bool {
-		fmt.Println(fi.Name())
 		return fi.IsDir() || !strings.HasPrefix(fi.Name(), ".")
 	},
 }
@@ -349,7 +348,6 @@ var filePathCompleter = completer.FilePathCompleter{
 var yangPathCompleter = completer.FilePathCompleter{
 	IgnoreCase: true,
 	Filter: func(fi os.FileInfo) bool {
-		fmt.Println(fi.Name())
 		return fi.IsDir() || strings.HasSuffix(fi.Name(), ".yang")
 	},
 }
