@@ -58,7 +58,7 @@ var encodingNames = []string{
 	"json_ietf",
 }
 var encodings = [][2]string{
-	{"json", "JSON encodded string (RFC7159)"},
+	{"json", "JSON encoded string (RFC7159)"},
 	{"bytes", "byte sequence whose semantics is opaque to the protocol"},
 	{"proto", "serialised protobuf message using protobuf.Any"},
 	{"ascii", "ASCII encoded string representing text formatted according to a target-defined convention"},
