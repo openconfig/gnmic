@@ -15,6 +15,8 @@ Documentation available at [https://gnmic.kmrd.dev](https://gnmic.kmrd.dev)
 ## Features
 * **Full support for gNMI RPCs**  
   Every gNMI RPC has a [corresponding command](https://gnmic.kmrd.dev/basic_usage/) with all of the RPC options configurable by means of the local and global flags.
+* **YANG-based path suggestions**  
+  Your CLI magically becomes a YANG browser when `gnmic` is executed in [prompt](advanced/prompt_suggestions.md) mode. In this mode the flags that take XPATH values will get auto-suggestions based on the provided YANG modules. In other words - black magic :exploding_head:
 * **Multi-target operations**  
   Commands can operate on [multiple gNMI targets](https://gnmic.kmrd.dev/advanced/multi_target/) for bulk configuration/retrieval/subscription.
 * **File based configuration**  

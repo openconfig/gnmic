@@ -9,6 +9,7 @@ nav:
       - File based configuration: advanced/file_cfg.md
       - Multiple targets: advanced/multi_target.md
       - Multiple subscriptions: advanced/subscriptions.md
+      - Prompt mode and auto-suggestions: advanced/prompt_suggestions.md
       - Multiple outputs:
           - Introduction: advanced/multi_outputs/output_intro.md
           - File: advanced/multi_outputs/file_output.md
@@ -27,6 +28,7 @@ nav:
       - Subscribe: cmd/subscribe.md
       - Listen: cmd/listen.md
       - Path: cmd/path.md
+      - Prompt: cmd/prompt.md
 
 site_author: Karim Radhouani
 site_description: >-
