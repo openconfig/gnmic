@@ -27,10 +27,10 @@ Can also point to a single YANG file instead of a directory.
 Multiple `--dir` flags can be supplied.
 
 #### description-with-prefix
-When set, the description field of the suggestion box will have a module prefix name before the element description.
+When set, the description of the path elements in the suggestion box will contain module's prefix.
 
 #### description-with-types
-When set, the description field of the suggestion box will have a YANG type information provided for the elements.
+When set, the description of the path elements in the suggestion box will contain element's type information.
 
 #### exclude
 The `--exclude` flag specifies the YANG module __names__ to be excluded from the path generation when YANG modules names are clashed.
@@ -43,9 +43,9 @@ The `--max-suggestions` flag sets the number of lines that the suggestion box wi
 Defaults to 10.
 
 #### suggest-all-flags
-The `--suggest-all-flags` makes `gnmic` prompt to suggest both global and local flags for a sub-command.
+The `--suggest-all-flags` makes `gnmic` prompt suggest both global and local flags for a sub-command.
 
-The default behavior (when this flag is not set) is to suggest global flags only on prompt start, and suggest only local flags for any typed sub-command.
+The default behavior (when this flag is not set) is to suggest __only__ local flags for any typed sub-command.
 
 #### suggestions-bg-color
 The `--suggestions-bg-color` flag sets the background color of the left part of the suggestion box.

@@ -2,44 +2,44 @@ Starting with `gnmic v0.4.0` release the users can enjoy the interactive prompt 
 
 <script id="asciicast-QaJRqrLSOGvgcAavybsMRzD7c" data-autoplay="true" data-loop="true" src="https://asciinema.org/a/QaJRqrLSOGvgcAavybsMRzD7c.js" async></script>
 
-The prompt mode delivers the two major features:
+The prompt mode delivers two major features:
 
 - simplifies `gnmic` commands and flags navigation, as every option is suggested and auto-completed
-- provides interactive YANG path auto-suggestions for `get`, `set`, `subscribe` commands effectively making a terminal your YANG browser
+- provides interactive YANG path auto-suggestions for `get`, `set`, `subscribe` commands effectively making the terminal your YANG browser
 
 ## Using the prompt interface
-Within the prompt mode a so-called _suggestion box_ appears that a user can enter into by pressing the <kbd>TAB</kbd> key. The <kbd>↑</kbd> and <kbd>↓</kbd> keys can be used to navigate the suggestion list.
+Depending on the cursor position in the prompt line, a so-called _suggestion box_ pops up with contextual auto-completions. The user can enter the suggestion box by pressing the <kbd>TAB</kbd> key. The <kbd>↑</kbd> and <kbd>↓</kbd> keys can be used to navigate the suggestion list.
 
-Select the suggested menu item with <kbd>SPACE</kbd> key and commit your command with <kbd>ENTER</kbd>, its that easy!
+Select the suggested menu item with <kbd>SPACE</kbd> key or directly commit your command with <kbd>ENTER</kbd>, its that easy!
 
 The following most-common key bindings will work in the prompt mode:
 
-| Key combination                            | Description                                     |
-| ------------------------------------------ | ----------------------------------------------- |
-| <kbd>Option/Control</kbd> + <kbd>→/←</kbd> | move cursor a word right/left                   |
-| <kbd>Control</kbd> + <kbd>W</kbd>          | delete a word to the left                       |
-| <kbd>Control</kbd> + <kbd>A</kbd>          | move cursor to the beginning of a line          |
-| <kbd>Control</kbd> + <kbd>E</kbd>          | move cursor to the end of a line                |
-| <kbd>Control</kbd> + <kbd>C</kbd>          | discard the current line                        |
-| <kbd>Control</kbd> + <kbd>D</kbd>          | exit prompt                                     |
-| <kbd>Control</kbd> + <kbd>K</kbd>          | cut the line after the cursor to the clipboard  |
-| <kbd>Control</kbd> + <kbd>U</kbd>          | cut the line before the cursor to the clipboard |
-| <kbd>Control</kbd> + <kbd>L</kbd>          | clear screen                                    |
+| Key combination                            | Description                                        |
+| ------------------------------------------ | -------------------------------------------------- |
+| <kbd>Option/Control</kbd> + <kbd>→/←</kbd> | move cursor a word right/left                      |
+| <kbd>Control</kbd> + <kbd>W</kbd>          | delete a word to the left                          |
+| <kbd>Control</kbd> + <kbd>A</kbd>          | move cursor to the beginning of a line             |
+| <kbd>Control</kbd> + <kbd>E</kbd>          | move cursor to the end of a line                   |
+| <kbd>Control</kbd> + <kbd>C</kbd>          | discard the current line                           |
+| <kbd>Control</kbd> + <kbd>D</kbd>          | exit prompt                                        |
+| <kbd>Control</kbd> + <kbd>K</kbd>          | delete the line after the cursor to the clipboard  |
+| <kbd>Control</kbd> + <kbd>U</kbd>          | delete the line before the cursor to the clipboard |
+| <kbd>Control</kbd> + <kbd>L</kbd>          | clear screen                                       |
 
 ## Commands and flags suggestions
 To make `gnmic` configurable and flexible we introduced a considerable amount of flags and sub-commands.  
-To help the users navigate the sheer selection of `gnmic` configuration options, the prompt mode will intellectually auto-suggest the global flags, sub-commands and local flags of those sub-commands.
+To help the users navigate the sheer selection of `gnmic` configuration options, the prompt mode will auto-suggest the global flags, sub-commands and local flags of those sub-commands.
 
 When the prompt mode is launched, the suggestions will be shown for the top-level commands and all the global flags. Once the sub-command is typed into the terminal, the auto-suggestions will be provided for the commands nested under this command and its local flags.
 
 In the following demo we show how the command and flag suggestions work. As the prompt starts, the suggestion box immediately hints what commands and global flags are available for input as well as their description.
 
-The user starts with adding the global flags `--address, --insecure, --username` and then selects the `capability` command and commits it. This results in gNMI Capability RPC execution against a specified target.
+The user starts with adding the global flags `--address, --insecure, --username` and then selects the `capabilities` command and commits it. This results in gNMI Capability RPC execution against a specified target.
 
 <script id="asciicast-zsACIBIUiiyoeqgYQ82EjUCIM" src="https://asciinema.org/a/zsACIBIUiiyoeqgYQ82EjUCIM.js" async></script>
 
 ### Mixed mode
-Its perfectly fine to specify some flags outside of the prompt command and add more within the prompt mode. For example, the following is a valid invocation:
+Its perfectly fine to specify some global flags outside of the prompt command and add more within the prompt mode. For example, the following is a valid invocation:
 
 ```
 gnmic --insecure --username admin --password admin --address 10.1.0.11 prompt
@@ -71,7 +71,7 @@ gnmic --address 10.1.0.11 --insecure --username admin --password admin \
 
 In the background `gnmic` processed these YANG models to build the entire schema tree of the Nokia SR OS state and configuration datastores. With that in-mem stored information, `gnmic` was able to auto-suggest all the possible YANG paths when the user entered the `--path` flag which accepts gNMI paths.
 
-By using the auto-suggestion hints a user navigated the `/state` tree of a router and drilled down to the version-number leaf that was retrieved with gNMI Get RPC.
+By using the auto-suggestion hints, a user navigated the `/state` tree of a router and drilled down to the version-number leaf that, in the end, was retrieved with the gNMI Get RPC.
 
 !!! success "YANG-driven path suggestions"
     `gnmic` is now capable of reading and processing YANG modules to enable live path auto-suggestions
@@ -89,7 +89,7 @@ The `--dir` flag also points to a YANG file or a directory and indicates which a
 The [Examples](#examples) section provide some good practical examples on how these two flags can be used together to process the YANG models from different vendors.
 
 ### Understanding path suggestions
-When `gnmic` provides a user with the path suggestions it does it in a very unique and intellectual way.
+When `gnmic` provides a user with the path suggestions it does it in a smart and intuitive way.
 
 ![path suggestions](https://gitlab.com/rdodin/pics/-/wikis/uploads/d3815b474605765989d136753c0f9c87/image.png)
 
@@ -126,7 +126,7 @@ gnmic --file YANG/nokia-combined \
       prompt
 ```
 
-This will enable path auto-suggestions for the entire tree of the Nokia YANG models.
+This will enable path auto-suggestions for the entire tree of the Nokia SR OS YANG models.
 
 #### Openconfig
 YANG repo: [openconfig/public](https://github.com/openconfig/public)
@@ -232,6 +232,3 @@ gnmic --file EOS-4.23.2F/openconfig/public/release/models \
 Whenever a user needs to provide a file path in a prompt mode, the filepath suggestions will make the process interactive:
 
 <script id="asciicast-uJyTI4nnQ52lSpIw5Ec7INLe7" src="https://asciinema.org/a/uJyTI4nnQ52lSpIw5Ec7INLe7.js" async></script>
-
-## Known issues
-Sometimes the prompt glitches and breaks during the navigation. Since the case is not precisely reproducible, we can't address this issue at this time.
