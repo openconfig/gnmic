@@ -348,7 +348,6 @@ var filePathCompleter = completer.FilePathCompleter{
 var yangPathCompleter = completer.FilePathCompleter{
 	IgnoreCase: true,
 	Filter: func(fi os.FileInfo) bool {
-		fmt.Println(fi.Name())
 		return fi.IsDir() || strings.HasSuffix(fi.Name(), ".yang")
 	},
 }
