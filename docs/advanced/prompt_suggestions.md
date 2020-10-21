@@ -14,17 +14,18 @@ Select the suggested menu item with <kbd>SPACE</kbd> key or directly commit your
 
 The following most-common key bindings will work in the prompt mode:
 
-| Key combination                            | Description                                        |
-| ------------------------------------------ | -------------------------------------------------- |
-| <kbd>Option/Control</kbd> + <kbd>→/←</kbd> | move cursor a word right/left                      |
-| <kbd>Control</kbd> + <kbd>W</kbd>          | delete a word to the left                          |
-| <kbd>Control</kbd> + <kbd>A</kbd>          | move cursor to the beginning of a line             |
-| <kbd>Control</kbd> + <kbd>E</kbd>          | move cursor to the end of a line                   |
-| <kbd>Control</kbd> + <kbd>C</kbd>          | discard the current line                           |
-| <kbd>Control</kbd> + <kbd>D</kbd>          | exit prompt                                        |
-| <kbd>Control</kbd> + <kbd>K</kbd>          | delete the line after the cursor to the clipboard  |
-| <kbd>Control</kbd> + <kbd>U</kbd>          | delete the line before the cursor to the clipboard |
-| <kbd>Control</kbd> + <kbd>L</kbd>          | clear screen                                       |
+| Key combination                            | Description                                              |
+| ------------------------------------------ | -------------------------------------------------------- |
+| <kbd>Option/Control</kbd> + <kbd>→/←</kbd> | move cursor a word right/left                            |
+| <kbd>Control</kbd> + <kbd>W</kbd>          | delete a word to the left                                |
+| <kbd>Control</kbd> + <kbd>Z</kbd>          | delete a path element in the xpath string ([example][1]) |
+| <kbd>Control</kbd> + <kbd>A</kbd>          | move cursor to the beginning of a line                   |
+| <kbd>Control</kbd> + <kbd>E</kbd>          | move cursor to the end of a line                         |
+| <kbd>Control</kbd> + <kbd>C</kbd>          | discard the current line                                 |
+| <kbd>Control</kbd> + <kbd>D</kbd>          | exit prompt                                              |
+| <kbd>Control</kbd> + <kbd>K</kbd>          | delete the line after the cursor to the clipboard        |
+| <kbd>Control</kbd> + <kbd>U</kbd>          | delete the line before the cursor to the clipboard       |
+| <kbd>Control</kbd> + <kbd>L</kbd>          | clear screen                                             |
 
 ## Commands and flags suggestions
 To make `gnmic` configurable and flexible we introduced a considerable amount of flags and sub-commands.  
@@ -232,3 +233,5 @@ gnmic --file EOS-4.23.2F/openconfig/public/release/models \
 Whenever a user needs to provide a file path in a prompt mode, the filepath suggestions will make the process interactive:
 
 <script id="asciicast-uJyTI4nnQ52lSpIw5Ec7INLe7" src="https://asciinema.org/a/uJyTI4nnQ52lSpIw5Ec7INLe7.js" async></script>
+
+[1]: https://gitlab.com/rdodin/pics/-/wikis/uploads/cc97ef563e2b973da512951fedd1ddb8/CleanShot_2020-10-21_at_11.37.57.mp4
