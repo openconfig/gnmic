@@ -147,6 +147,7 @@ func initPromptFlags(cmd *cobra.Command) {
 	cmd.Flags().Bool("suggest-all-flags", false, "suggest local as well as inherited flags of subcommands")
 	cmd.Flags().Bool("description-with-prefix", false, "show YANG module prefix in XPATH suggestion description")
 	cmd.Flags().Bool("description-with-types", false, "show YANG types in XPATH suggestion description")
+	cmd.Flags().Bool("suggest-with-origin", false, "suggest XPATHs with origin prepended ")
 	viper.BindPFlag("prompt-file", cmd.LocalFlags().Lookup("file"))
 	viper.BindPFlag("prompt-exclude", cmd.LocalFlags().Lookup("exclude"))
 	viper.BindPFlag("prompt-dir", cmd.LocalFlags().Lookup("dir"))
@@ -157,26 +158,36 @@ func initPromptFlags(cmd *cobra.Command) {
 	viper.BindPFlag("prompt-suggest-all-flags", cmd.LocalFlags().Lookup("suggest-all-flags"))
 	viper.BindPFlag("prompt-description-with-prefix", cmd.LocalFlags().Lookup("description-with-prefix"))
 	viper.BindPFlag("prompt-description-with-types", cmd.LocalFlags().Lookup("description-with-types"))
+	viper.BindPFlag("prompt-suggest-with-origin", cmd.LocalFlags().Lookup("suggest-with-origin"))
 }
 
-func findMatchedXPATH(entry *yang.Entry, word string, cursor int) []goprompt.Suggest {
+func findMatchedXPATH(entry *yang.Entry, input string, prefixPresent bool) []goprompt.Suggest {
+	if strings.HasPrefix(input, ":") {
+		return nil
+	}
 	suggestions := make([]goprompt.Suggest, 0, 4)
-	cword := word[cursor:]
+	inputLen := len(input)
+	for i, c := range input {
+		if c == ':' && i+1 < inputLen {
+			input = input[i+1:]
+			inputLen -= (i + 1)
+			break
+		}
+	}
+
+	prependOrigin := viper.GetBool("prompt-suggest-with-origin") && !prefixPresent
 	for name, child := range entry.Dir {
 		pathelem := "/" + name
-		if strings.HasPrefix(pathelem, cword) {
+		if strings.HasPrefix(pathelem, input) {
 			node := ""
-			if os.PathSeparator != '/' {
-				node = fmt.Sprintf("%s%s", word[:cursor], pathelem)
-				suggestions = append(suggestions, goprompt.Suggest{Text: node, Description: buildXPATHDescription(child)})
+			if inputLen == 0 && prependOrigin {
+				node = fmt.Sprintf("%s:/%s", entry.Name, name)
+			} else if inputLen > 0 && input[0] == '/' {
+				node = name
 			} else {
-				if len(cword) >= 1 && cword[0] == '/' {
-					node = name
-				} else {
-					node = pathelem
-				}
-				suggestions = append(suggestions, goprompt.Suggest{Text: node, Description: buildXPATHDescription(child)})
+				node = pathelem
 			}
+			suggestions = append(suggestions, goprompt.Suggest{Text: node, Description: buildXPATHDescription(child)})
 			if child.Key != "" { // list
 				keylist := strings.Split(child.Key, " ")
 				for _, key := range keylist {
@@ -184,12 +195,12 @@ func findMatchedXPATH(entry *yang.Entry, word string, cursor int) []goprompt.Sug
 				}
 				suggestions = append(suggestions, goprompt.Suggest{Text: node, Description: buildXPATHDescription(child)})
 			}
-		} else if strings.HasPrefix(cword, pathelem) {
+		} else if strings.HasPrefix(input, pathelem) {
 			var prevC rune
 			var bracketCount int
 			var endIndex int = -1
 			var stop bool
-			for i, c := range cword {
+			for i, c := range input {
 				switch c {
 				case '[':
 					bracketCount++
@@ -211,9 +222,9 @@ func findMatchedXPATH(entry *yang.Entry, word string, cursor int) []goprompt.Sug
 			}
 			if bracketCount == 0 {
 				if endIndex >= 0 {
-					suggestions = append(suggestions, findMatchedXPATH(child, word, cursor+endIndex)...)
+					suggestions = append(suggestions, findMatchedXPATH(child, input[endIndex:], prefixPresent)...)
 				} else {
-					suggestions = append(suggestions, findMatchedXPATH(child, word, cursor+len(pathelem))...)
+					suggestions = append(suggestions, findMatchedXPATH(child, input[len(pathelem):], prefixPresent)...)
 				}
 			}
 		}
@@ -276,24 +287,19 @@ func getPermissions(entry *yang.Entry) string {
 	return "(rw)"
 }
 
-func findMatchedSchema(entry *yang.Entry, word string, cursor int) []*yang.Entry {
+func findMatchedSchema(entry *yang.Entry, input string) []*yang.Entry {
 	schemaNodes := []*yang.Entry{}
-	cword := word[cursor:]
+	inputLen := len(input)
 	for name, child := range entry.Dir {
 		pathelem := "/" + name
-		if strings.HasPrefix(pathelem, cword) {
+		if strings.HasPrefix(pathelem, input) {
 			node := ""
-			if os.PathSeparator != '/' {
-				node = fmt.Sprintf("%s%s", word[:cursor], pathelem)
-				schemaNodes = append(schemaNodes, child)
+			if inputLen > 0 && input[0] == '/' {
+				node = name
 			} else {
-				if len(cword) >= 1 && cword[0] == '/' {
-					node = name
-				} else {
-					node = pathelem
-				}
-				schemaNodes = append(schemaNodes, child)
+				node = pathelem
 			}
+			schemaNodes = append(schemaNodes, child)
 			if child.Key != "" { // list
 				keylist := strings.Split(child.Key, " ")
 				for _, key := range keylist {
@@ -301,12 +307,12 @@ func findMatchedSchema(entry *yang.Entry, word string, cursor int) []*yang.Entry
 				}
 				schemaNodes = append(schemaNodes, child)
 			}
-		} else if strings.HasPrefix(cword, pathelem) {
+		} else if strings.HasPrefix(input, pathelem) {
 			var prevC rune
 			var bracketCount int
 			var endIndex int = -1
 			var stop bool
-			for i, c := range cword {
+			for i, c := range input {
 				switch c {
 				case '[':
 					bracketCount++
@@ -328,9 +334,9 @@ func findMatchedSchema(entry *yang.Entry, word string, cursor int) []*yang.Entry
 			}
 			if bracketCount == 0 {
 				if endIndex >= 0 {
-					schemaNodes = append(schemaNodes, findMatchedSchema(child, word, cursor+endIndex)...)
+					schemaNodes = append(schemaNodes, findMatchedSchema(child, input[endIndex:])...)
 				} else {
-					schemaNodes = append(schemaNodes, findMatchedSchema(child, word, cursor+len(pathelem))...)
+					schemaNodes = append(schemaNodes, findMatchedSchema(child, input[len(pathelem):])...)
 				}
 			}
 		}
@@ -367,19 +373,31 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 		suggestions := make([]goprompt.Suggest, 0, 16)
 		entries := []*yang.Entry{}
 		if index := strings.Index(line, "--prefix"); index >= 0 {
-			line = strings.TrimLeft(line[index+len("--prefix"):], " ")
+			line = strings.TrimLeft(line[index+8:], " ") // 8 is len("--prefix")
 			end := strings.Index(line, " ")
 			if end >= 0 {
-				for _, entry := range schemaTree.Dir {
-					entries = append(entries, findMatchedSchema(entry, line[:end], 0)...)
+				line = line[:end]
+				lineLen := len(line)
+				// remove "origin:" from prefix if present
+				for i, c := range line {
+					if c == ':' && i+1 < lineLen {
+						line = line[i+1:]
+						break
+					}
 				}
+				// find yang entries matching the prefix
+				for _, entry := range schemaTree.Dir {
+					entries = append(entries, findMatchedSchema(entry, line)...)
+				}
+				// generate suggestions from matching entries
 				for _, entry := range entries {
-					suggestions = append(suggestions, findMatchedXPATH(entry, word, 0)...)
+					suggestions = append(suggestions, findMatchedXPATH(entry, word, true)...)
 				}
 			}
 		} else {
+			// generate suggestions from yang schema
 			for _, entry := range schemaTree.Dir {
-				suggestions = append(suggestions, findMatchedXPATH(entry, word, 0)...)
+				suggestions = append(suggestions, findMatchedXPATH(entry, word, false)...)
 			}
 		}
 		sort.Slice(suggestions, func(i, j int) bool {
@@ -393,7 +411,7 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 		word := doc.GetWordBeforeCursor()
 		suggestions := make([]goprompt.Suggest, 0, 16)
 		for _, entry := range schemaTree.Dir {
-			suggestions = append(suggestions, findMatchedXPATH(entry, word, 0)...)
+			suggestions = append(suggestions, findMatchedXPATH(entry, word, false)...)
 		}
 		sort.Slice(suggestions, func(i, j int) bool {
 			if suggestions[i].Text == suggestions[j].Text {
@@ -574,7 +592,7 @@ func ExecutePrompt() {
 				goprompt.KeyBind{
 					Key: goprompt.ControlZ,
 					Fn: func(buf *goprompt.Buffer) {
-						// If the last word before the cursor does not contain a "/" return. 
+						// If the last word before the cursor does not contain a "/" return.
 						// This is needed to avoid deleting down to a previous flag value
 						if !strings.Contains(buf.Document().GetWordBeforeCursorWithSpace(), "/") {
 							return
