@@ -147,6 +147,7 @@ func initPromptFlags(cmd *cobra.Command) {
 	cmd.Flags().Bool("suggest-all-flags", false, "suggest local as well as inherited flags of subcommands")
 	cmd.Flags().Bool("description-with-prefix", false, "show YANG module prefix in XPATH suggestion description")
 	cmd.Flags().Bool("description-with-types", false, "show YANG types in XPATH suggestion description")
+	cmd.Flags().Bool("suggest-with-origin", false, "suggest XPATHs with origin prepended ")
 	viper.BindPFlag("prompt-file", cmd.LocalFlags().Lookup("file"))
 	viper.BindPFlag("prompt-exclude", cmd.LocalFlags().Lookup("exclude"))
 	viper.BindPFlag("prompt-dir", cmd.LocalFlags().Lookup("dir"))
@@ -157,26 +158,35 @@ func initPromptFlags(cmd *cobra.Command) {
 	viper.BindPFlag("prompt-suggest-all-flags", cmd.LocalFlags().Lookup("suggest-all-flags"))
 	viper.BindPFlag("prompt-description-with-prefix", cmd.LocalFlags().Lookup("description-with-prefix"))
 	viper.BindPFlag("prompt-description-with-types", cmd.LocalFlags().Lookup("description-with-types"))
+	viper.BindPFlag("prompt-suggest-with-origin", cmd.LocalFlags().Lookup("suggest-with-origin"))
 }
 
 func findMatchedXPATH(entry *yang.Entry, word string, cursor int) []goprompt.Suggest {
+	if strings.HasPrefix(word, ":") {
+		return nil
+	}
 	suggestions := make([]goprompt.Suggest, 0, 4)
+	wLen := len(word)
+	for i, c := range word {
+		if c == ':' && i+1 < wLen {
+			word = word[i+1:]
+			break
+		}
+	}
 	cword := word[cursor:]
+	prependOrigin := viper.GetBool("prompt-suggest-with-origin")
 	for name, child := range entry.Dir {
 		pathelem := "/" + name
 		if strings.HasPrefix(pathelem, cword) {
 			node := ""
-			if os.PathSeparator != '/' {
-				node = fmt.Sprintf("%s%s", word[:cursor], pathelem)
-				suggestions = append(suggestions, goprompt.Suggest{Text: node, Description: buildXPATHDescription(child)})
+			if len(cword) == 0 && prependOrigin {
+				node = fmt.Sprintf("%s:/%s", entry.Name, name)
+			} else if len(cword) >= 1 && cword[0] == '/' {
+				node = name
 			} else {
-				if len(cword) >= 1 && cword[0] == '/' {
-					node = name
-				} else {
-					node = pathelem
-				}
-				suggestions = append(suggestions, goprompt.Suggest{Text: node, Description: buildXPATHDescription(child)})
+				node = pathelem
 			}
+			suggestions = append(suggestions, goprompt.Suggest{Text: node, Description: buildXPATHDescription(child)})
 			if child.Key != "" { // list
 				keylist := strings.Split(child.Key, " ")
 				for _, key := range keylist {
@@ -574,7 +584,7 @@ func ExecutePrompt() {
 				goprompt.KeyBind{
 					Key: goprompt.ControlZ,
 					Fn: func(buf *goprompt.Buffer) {
-						// If the last word before the cursor does not contain a "/" return. 
+						// If the last word before the cursor does not contain a "/" return.
 						// This is needed to avoid deleting down to a previous flag value
 						if !strings.Contains(buf.Document().GetWordBeforeCursorWithSpace(), "/") {
 							return
