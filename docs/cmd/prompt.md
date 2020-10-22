@@ -47,6 +47,11 @@ The `--suggest-all-flags` makes `gnmic` prompt suggest both global and local fla
 
 The default behavior (when this flag is not set) is to suggest __only__ local flags for any typed sub-command.
 
+#### suggest-with-origin
+The `--suggest-with-origin` flag prepends the suggested path with the module name to which this path belongs.
+
+The path becomes rendered as `<module_name>:/<suggested-container>`. The module name will be used as the [origin](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#222-paths) of the gNMI path.
+
 #### suggestions-bg-color
 The `--suggestions-bg-color` flag sets the background color of the left part of the suggestion box.
 

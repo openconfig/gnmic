@@ -129,6 +129,15 @@ gnmic --file YANG/nokia-combined \
 
 This will enable path auto-suggestions for the entire tree of the Nokia SR OS YANG models.
 
+The full command with the gNMI target specified could look like this:
+
+```
+gnmic --address 10.1.0.11 --insecure --username admin --password admin \
+      prompt \
+      --file ~/7x50_YangModels/YANG/nokia-combined \
+      --dir ~/7x50_YangModels/YANG
+```
+
 #### Openconfig
 YANG repo: [openconfig/public](https://github.com/openconfig/public)
 
@@ -178,6 +187,17 @@ gnmic --file vendor/cisco/xr/721/Cisco-IOS-XR-um-router-bgp-cfg.yang \
 !!! note
     We needed to include the `ietf/` directory by means of the `--dir` flag, since the Cisco's native modules rely on the IETF modules and these modules are not in the same directory as the BGP modules.
 
+The full command that you can against the real Cisco IOS-XR node must have a target defined, the encoding set and origin suggestions enabled. Here is what it can look like:
+
+```
+gnmic -a 10.10.30.5:57500 --insecure -e json_ietf -u admin -p Cisco123 \
+      prompt \
+      --file yang/vendor/cisco/xr/662/Cisco-IOS-XR-ipv4-bgp-cfg.yang \
+      --file yang/vendor/cisco/xr/662/Cisco-IOS-XR-ipv4-bgp-oper.yang \
+      --dir yang/standard/ietf \
+      --suggest-with-origin
+```
+
 ##### NX-OS
 Cisco NX-OS native modules, on the other hand, are aggregated in a single file, here is how you can generate the suggestions from it:
 
@@ -202,6 +222,11 @@ Start `gnmic` and generate path suggestions for the whole configuration tree of 
 ```
 gnmic --file junos/conf --dir common prompt
 ```
+
+!!! note
+    1. Juniper models are constructed in a way that a top-level container appears to be `/configuration`, that will not work with your gNMI Subscribe RPC. Instead, you should omit this top level container. So, for example, the suggested path `/configuration/interfaces/interface/state` should become `/interfaces/interface/state`.
+    2. Juniper vMX doesn't support gNMI Get RPC, if you plan to test it, use gNMI Subscribe RPC
+    3. With gNMI Subscribe, specify `-e proto` flag to enable protobuf encoding.
 
 #### Arista
 YANG repo: [aristanetworks/yang](https://github.com/aristanetworks/yang)
