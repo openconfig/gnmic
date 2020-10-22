@@ -161,27 +161,27 @@ func initPromptFlags(cmd *cobra.Command) {
 	viper.BindPFlag("prompt-suggest-with-origin", cmd.LocalFlags().Lookup("suggest-with-origin"))
 }
 
-func findMatchedXPATH(entry *yang.Entry, word string, cursor int) []goprompt.Suggest {
-	if strings.HasPrefix(word, ":") {
+func findMatchedXPATH(entry *yang.Entry, input string) []goprompt.Suggest {
+	if strings.HasPrefix(input, ":") {
 		return nil
 	}
 	suggestions := make([]goprompt.Suggest, 0, 4)
-	wLen := len(word)
-	for i, c := range word {
-		if c == ':' && i+1 < wLen {
-			word = word[i+1:]
+	inputLen := len(input)
+	for i, c := range input {
+		if c == ':' && i+1 < inputLen {
+			input = input[i+1:]
+			inputLen -= (i + 1)
 			break
 		}
 	}
-	cword := word[cursor:]
 	prependOrigin := viper.GetBool("prompt-suggest-with-origin")
 	for name, child := range entry.Dir {
 		pathelem := "/" + name
-		if strings.HasPrefix(pathelem, cword) {
+		if strings.HasPrefix(pathelem, input) {
 			node := ""
-			if len(cword) == 0 && prependOrigin {
+			if inputLen == 0 && prependOrigin {
 				node = fmt.Sprintf("%s:/%s", entry.Name, name)
-			} else if len(cword) >= 1 && cword[0] == '/' {
+			} else if inputLen > 0 && input[0] == '/' {
 				node = name
 			} else {
 				node = pathelem
@@ -194,12 +194,12 @@ func findMatchedXPATH(entry *yang.Entry, word string, cursor int) []goprompt.Sug
 				}
 				suggestions = append(suggestions, goprompt.Suggest{Text: node, Description: buildXPATHDescription(child)})
 			}
-		} else if strings.HasPrefix(cword, pathelem) {
+		} else if strings.HasPrefix(input, pathelem) {
 			var prevC rune
 			var bracketCount int
 			var endIndex int = -1
 			var stop bool
-			for i, c := range cword {
+			for i, c := range input {
 				switch c {
 				case '[':
 					bracketCount++
@@ -221,9 +221,9 @@ func findMatchedXPATH(entry *yang.Entry, word string, cursor int) []goprompt.Sug
 			}
 			if bracketCount == 0 {
 				if endIndex >= 0 {
-					suggestions = append(suggestions, findMatchedXPATH(child, word, cursor+endIndex)...)
+					suggestions = append(suggestions, findMatchedXPATH(child, input[endIndex:])...)
 				} else {
-					suggestions = append(suggestions, findMatchedXPATH(child, word, cursor+len(pathelem))...)
+					suggestions = append(suggestions, findMatchedXPATH(child, input[len(pathelem):])...)
 				}
 			}
 		}
@@ -384,12 +384,12 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 					entries = append(entries, findMatchedSchema(entry, line[:end], 0)...)
 				}
 				for _, entry := range entries {
-					suggestions = append(suggestions, findMatchedXPATH(entry, word, 0)...)
+					suggestions = append(suggestions, findMatchedXPATH(entry, word)...)
 				}
 			}
 		} else {
 			for _, entry := range schemaTree.Dir {
-				suggestions = append(suggestions, findMatchedXPATH(entry, word, 0)...)
+				suggestions = append(suggestions, findMatchedXPATH(entry, word)...)
 			}
 		}
 		sort.Slice(suggestions, func(i, j int) bool {
@@ -403,7 +403,7 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 		word := doc.GetWordBeforeCursor()
 		suggestions := make([]goprompt.Suggest, 0, 16)
 		for _, entry := range schemaTree.Dir {
-			suggestions = append(suggestions, findMatchedXPATH(entry, word, 0)...)
+			suggestions = append(suggestions, findMatchedXPATH(entry, word)...)
 		}
 		sort.Slice(suggestions, func(i, j int) bool {
 			if suggestions[i].Text == suggestions[j].Text {
