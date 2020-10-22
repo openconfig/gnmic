@@ -378,7 +378,7 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 			if end >= 0 {
 				line = line[:end]
 				lineLen := len(line)
-				// remove origin: from prefix if present
+				// remove "origin:" from prefix if present
 				for i, c := range line {
 					if c == ':' && i+1 < lineLen {
 						line = line[i+1:]
@@ -395,6 +395,7 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 				}
 			}
 		} else {
+			// generate suggestions from yang schema
 			for _, entry := range schemaTree.Dir {
 				suggestions = append(suggestions, findMatchedXPATH(entry, word, false)...)
 			}
