@@ -58,6 +58,7 @@ var subscribeCmd = &cobra.Command{
 		"--model":       "MODEL",
 		"--mode":        "SUBSC_MODE",
 		"--stream-mode": "STREAM_MODE",
+		"--name":        "SUBSCRIPTION",
 	},
 
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -379,4 +380,27 @@ func getSubscriptions() (map[string]*collector.SubscriptionConfig, error) {
 		return nil, fmt.Errorf("named subscription(s) not found in config file: %v", notFound)
 	}
 	return filteredSubscriptions, nil
+}
+
+func readSubscriptionsFromCfg() []*collector.SubscriptionConfig {
+	subDef := viper.GetStringMap("subscriptions")
+	subscriptions := make([]*collector.SubscriptionConfig, 0)
+	for sn, s := range subDef {
+		sub := new(collector.SubscriptionConfig)
+		decoder, err := mapstructure.NewDecoder(
+			&mapstructure.DecoderConfig{
+				DecodeHook: mapstructure.StringToTimeDurationHookFunc(),
+				Result:     sub,
+			})
+		if err != nil {
+			return nil
+		}
+		err = decoder.Decode(s)
+		if err != nil {
+			return nil
+		}
+		sub.Name = sn
+		subscriptions = append(subscriptions, sub)
+	}
+	return subscriptions
 }
