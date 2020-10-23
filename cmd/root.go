@@ -26,6 +26,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -141,6 +142,7 @@ var rootCmd = &cobra.Command{
 		"--encoding": "ENCODING",
 		"--config":   "FILE",
 		"--format":   "FORMAT",
+		"--address":  "TARGET",
 	},
 	PersistentPreRunE: rootCmdPersistentPreRunE,
 	PersistentPostRun: rootCmdPersistentPostRun,
@@ -618,4 +620,87 @@ func printCapResponse(printPrefix string, msg *gnmi.CapabilityResponse) {
 		sb.WriteString("\n")
 	}
 	fmt.Printf("%s\n", indent(printPrefix, sb.String()))
+}
+
+func readTargetsFromCfg() []*collector.TargetConfig {
+	addresses := viper.GetStringSlice("address")
+	targets := make([]*collector.TargetConfig, 0)
+	defGrpcPort := viper.GetString("port")
+	if len(addresses) > 0 {
+		for _, addr := range addresses {
+			tc := new(collector.TargetConfig)
+			if !strings.HasPrefix(addr, "unix://") {
+				_, _, err := net.SplitHostPort(addr)
+				if err != nil {
+					if strings.Contains(err.Error(), "missing port in address") {
+						addr = net.JoinHostPort(addr, defGrpcPort)
+					} else {
+						return nil
+					}
+				}
+			}
+			tc.Address = addr
+			setTargetConfigDefaults(tc)
+			targets = append(targets, tc)
+		}
+		return targets
+	}
+	// case targets is defined in config file
+	targetsInt := viper.Get("targets")
+	targetsMap := make(map[string]interface{})
+	switch targetsInt := targetsInt.(type) {
+	case string:
+		for _, addr := range strings.Split(targetsInt, " ") {
+			targetsMap[addr] = nil
+		}
+	case map[string]interface{}:
+		targetsMap = targetsInt
+	default:
+		return nil
+	}
+	if len(targetsMap) == 0 {
+		return nil
+	}
+	for addr, t := range targetsMap {
+		if !strings.HasPrefix(addr, "unix://") {
+			_, _, err := net.SplitHostPort(addr)
+			if err != nil {
+				if strings.Contains(err.Error(), "missing port in address") {
+					addr = net.JoinHostPort(addr, defGrpcPort)
+				} else {
+					return nil
+				}
+			}
+		}
+		tc := new(collector.TargetConfig)
+		switch t := t.(type) {
+		case map[string]interface{}:
+			decoder, err := mapstructure.NewDecoder(
+				&mapstructure.DecoderConfig{
+					DecodeHook: mapstructure.StringToTimeDurationHookFunc(),
+					Result:     tc,
+				},
+			)
+			if err != nil {
+				return nil
+			}
+			err = decoder.Decode(t)
+			if err != nil {
+				return nil
+			}
+		case nil:
+		default:
+			return nil
+		}
+		tc.Address = addr
+		setTargetConfigDefaults(tc)
+		if viper.GetBool("debug") {
+			logger.Printf("read target config: %s", tc)
+		}
+		targets = append(targets, tc)
+	}
+	sort.Slice(targets, func(i, j int) bool {
+		return targets[i].Name < targets[j].Name
+	})
+	return targets
 }
