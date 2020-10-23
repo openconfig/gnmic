@@ -472,6 +472,25 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 			suggestions = append(suggestions, goprompt.Suggest{Text: sugg[0], Description: sugg[1]})
 		}
 		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
+	case "TARGET":
+		targetsConfig := readTargetsFromCfg()
+		suggestions := make([]goprompt.Suggest, 0, len(targetsConfig))
+		for _, target := range targetsConfig {
+			sb := strings.Builder{}
+			if target.Name != target.Address {
+				sb.WriteString("address=")
+				sb.WriteString(target.Address)
+				sb.WriteString(", ")
+			}
+			sb.WriteString("secure=")
+			if *target.Insecure {
+				sb.WriteString("false")
+			} else {
+				sb.WriteString(fmt.Sprintf("%v", !(strings.Contains(doc.CurrentLine(), "--insecure"))))
+			}
+			suggestions = append(suggestions, goprompt.Suggest{Text: target.Name, Description: sb.String()})
+		}
+		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
 	}
 	return []goprompt.Suggest{}
 }
