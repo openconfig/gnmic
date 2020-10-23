@@ -62,10 +62,10 @@ func getColor(flagName string) goprompt.Color {
 var promptModeCmd = &cobra.Command{
 	Use:   "prompt",
 	Short: "enter the interactive gnmic prompt mode",
-	// PreRun checks is --max-suggesions is bigger that the terminal height and lowers it if it's the case.
+	// PreRun checks if --max-suggesions is bigger that the terminal height and lowers it if needed.
 	PreRun: func(cmd *cobra.Command, args []string) {
 		if err := termbox.Init(); err != nil {
-			return // silently continue cmd execution if termbox cannot be initialized
+			return // silently continue cmd execution if termbox fails to initialize
 		}
 		_, h := termbox.Size()
 		termbox.Close()
