@@ -472,6 +472,13 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 			suggestions = append(suggestions, goprompt.Suggest{Text: sugg[0], Description: sugg[1]})
 		}
 		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
+	case "SUBSCRIPTION":
+		subs := readSubscriptionsFromCfg()
+		suggestions := make([]goprompt.Suggest, 0, len(subs))
+		for _, s := range subs {
+			suggestions = append(suggestions, goprompt.Suggest{Text: s.Name})
+		}
+		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
 	}
 	return []goprompt.Suggest{}
 }
