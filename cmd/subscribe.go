@@ -296,7 +296,6 @@ func getSubscriptions() (map[string]*collector.SubscriptionConfig, error) {
 	var qos *uint32
 	// qos value is set to nil by default to enable targets which don't support qos marking
 	if viper.IsSet("subscribe-qos") {
-		fmt.Println("qos is set")
 		q := viper.GetUint32("subscribe-qos")
 		qos = &q
 	}
@@ -344,24 +343,7 @@ func getSubscriptions() (map[string]*collector.SubscriptionConfig, error) {
 		sub.Name = sn
 
 		// inherit global "subscribe-*" option if it's not set
-		if sub.SampleInterval == nil {
-			sub.SampleInterval = &si
-		}
-		if sub.HeartbeatInterval == nil {
-			sub.HeartbeatInterval = &hi
-		}
-		if sub.Encoding == "" {
-			sub.Encoding = viper.GetString("encoding")
-		}
-		if sub.Mode == "" {
-			sub.Mode = viper.GetString("subscribe-mode")
-		}
-		if strings.ToUpper(sub.Mode) == "STREAM" && sub.StreamMode == "" {
-			sub.StreamMode = viper.GetString("subscribe-stream-mode")
-		}
-		if sub.Qos == nil {
-			sub.Qos = qos
-		}
+		setSubscriptionDefaults(sub)
 		subscriptions[sn] = sub
 	}
 	if len(subNames) == 0 {
@@ -382,6 +364,29 @@ func getSubscriptions() (map[string]*collector.SubscriptionConfig, error) {
 	return filteredSubscriptions, nil
 }
 
+func setSubscriptionDefaults(sub *collector.SubscriptionConfig) {
+	hi := viper.GetDuration("subscribe-heartbeat-interval")
+	si := viper.GetDuration("subscribe-sample-interval")
+	if sub.SampleInterval == nil {
+		sub.SampleInterval = &si
+	}
+	if sub.HeartbeatInterval == nil {
+		sub.HeartbeatInterval = &hi
+	}
+	if sub.Encoding == "" {
+		sub.Encoding = viper.GetString("encoding")
+	}
+	if sub.Mode == "" {
+		sub.Mode = viper.GetString("subscribe-mode")
+	}
+	if strings.ToUpper(sub.Mode) == "STREAM" && sub.StreamMode == "" {
+		sub.StreamMode = viper.GetString("subscribe-stream-mode")
+	}
+	if sub.Qos == nil {
+		q := viper.GetUint32("subscribe-qos")
+		sub.Qos = &q
+	}
+}
 func readSubscriptionsFromCfg() []*collector.SubscriptionConfig {
 	subDef := viper.GetStringMap("subscriptions")
 	subscriptions := make([]*collector.SubscriptionConfig, 0)
@@ -400,7 +405,11 @@ func readSubscriptionsFromCfg() []*collector.SubscriptionConfig {
 			return nil
 		}
 		sub.Name = sn
+		setSubscriptionDefaults(sub)
 		subscriptions = append(subscriptions, sub)
 	}
+	sort.Slice(subscriptions, func(i, j int) bool {
+		return subscriptions[i].Name < subscriptions[j].Name
+	})
 	return subscriptions
 }

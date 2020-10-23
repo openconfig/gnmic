@@ -10,6 +10,7 @@ import (
 
 	goprompt "github.com/c-bata/go-prompt"
 	"github.com/c-bata/go-prompt/completer"
+	"github.com/karimra/gnmic/collector"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/nsf/termbox-go"
 	"github.com/openconfig/goyang/pkg/yang"
@@ -475,14 +476,40 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 	case "SUBSCRIPTION":
 		subs := readSubscriptionsFromCfg()
 		suggestions := make([]goprompt.Suggest, 0, len(subs))
-		for _, s := range subs {
-			suggestions = append(suggestions, goprompt.Suggest{Text: s.Name})
+		for _, sub := range subs {
+			suggestions = append(suggestions, goprompt.Suggest{Text: sub.Name, Description: subscriptionDescription(sub)})
 		}
 		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
 	}
 	return []goprompt.Suggest{}
 }
-
+func subscriptionDescription(sub *collector.SubscriptionConfig) string {
+	sb := strings.Builder{}
+	sb.WriteString("mode=")
+	sb.WriteString(sub.Mode)
+	sb.WriteString(", ")
+	if strings.ToLower(sub.Mode) == "stream" {
+		sb.WriteString("stream-mode=")
+		sb.WriteString(sub.StreamMode)
+		sb.WriteString(", ")
+		if strings.ToLower(sub.StreamMode) == "sample" {
+			sb.WriteString("sample-interval=")
+			sb.WriteString(sub.SampleInterval.String())
+			sb.WriteString(", ")
+		}
+	}
+	sb.WriteString("encoding=")
+	sb.WriteString(sub.Encoding)
+	sb.WriteString(", ")
+	if sub.Prefix != "" {
+		sb.WriteString("prefix=")
+		sb.WriteString(sub.Prefix)
+		sb.WriteString(", ")
+	}
+	sb.WriteString("path(s)=")
+	sb.WriteString(strings.Join(sub.Paths, ","))
+	return sb.String()
+}
 func showCommandArguments(b *goprompt.Buffer) {
 	doc := b.Document()
 	showLocalFlags := false
