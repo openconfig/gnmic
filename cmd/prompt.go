@@ -62,6 +62,18 @@ func getColor(flagName string) goprompt.Color {
 var promptModeCmd = &cobra.Command{
 	Use:   "prompt",
 	Short: "enter the interactive gnmic prompt mode",
+	// PreRun checks is --max-suggesions is bigger that the terminal height and lowers it if it's the case.
+	PreRun: func(cmd *cobra.Command, args []string) {
+		if err := termbox.Init(); err != nil {
+			return // silently continue cmd execution if termbox cannot be initialized
+		}
+		_, h := termbox.Size()
+		termbox.Close()
+		// set max suggestions to terminal height-1 if the supplied value is greater
+		if viper.GetUint("prompt-max-suggestions") > uint(h) {
+			viper.Set("prompt-max-suggestions", h-1)
+		}
+	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		err := generateYangSchema(promptDirs, promptFiles, promptExcluded)
 		if err != nil {
