@@ -40,7 +40,7 @@ Multiple `--exclude` flags can be supplied.
 #### max-suggestions
 The `--max-suggestions` flag sets the number of lines that the suggestion box will display without scrolling.
 
-Defaults to 10.
+Defaults to 10. Note, the terminal height might limit the number of suggestions. 
 
 #### suggest-all-flags
 The `--suggest-all-flags` makes `gnmic` prompt suggest both global and local flags for a sub-command.
