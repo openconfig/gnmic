@@ -153,7 +153,7 @@ func initPromptFlags(cmd *cobra.Command) {
 	cmd.Flags().StringArrayVarP(&promptFiles, "file", "", []string{}, "path to a yang file or a directory of them to get path auto-completions from")
 	cmd.Flags().StringArrayVarP(&promptExcluded, "exclude", "", []string{}, "yang module names to be excluded from path auto-completion generation")
 	cmd.Flags().StringArrayVarP(&promptDirs, "dir", "", []string{}, "path to a directory with yang modules used as includes and/or imports")
-	cmd.Flags().Uint16("max-suggestions", 5, "terminal suggestion max list size")
+	cmd.Flags().Uint16("max-suggestions", 10, "terminal suggestion max list size")
 	cmd.Flags().String("prefix-color", "dark_blue", "terminal prefix color")
 	cmd.Flags().String("suggestions-bg-color", "dark_blue", "suggestion box background color")
 	cmd.Flags().String("description-bg-color", "dark_gray", "description box background color")
