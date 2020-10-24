@@ -89,6 +89,11 @@ When the `[--updates-only]` flag is set to true, the target MUST not transmit th
 #### name
 The `[--name]` flag is used to trigger one or multiple subscriptions already defined in the configuration file see [defining subscriptions](../advanced/subscriptions.md)
 
+#### output
+The `[--output]` flag is used to select one or multiple output already defined in the configuration file. 
+
+Outputs defined under target take precedence over this flag, see [defining outputs](../advanced/multi_outputs/output_intro.md) and [defining targets](../advanced/multi_targets)
+
 ### Examples
 #### 1. streaming, target-defined, 10s interval
 ```bash
