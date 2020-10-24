@@ -71,7 +71,11 @@ var promptModeCmd = &cobra.Command{
 		termbox.Close()
 		// set max suggestions to terminal height-1 if the supplied value is greater
 		if viper.GetUint("prompt-max-suggestions") > uint(h) {
-			viper.Set("prompt-max-suggestions", h-1)
+			if h > 1 {
+				viper.Set("prompt-max-suggestions", h-2)
+			} else {
+				viper.Set("prompt-max-suggestions", 0)
+			}
 		}
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
