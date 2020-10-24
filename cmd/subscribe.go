@@ -432,3 +432,33 @@ func readSubscriptionsFromCfg() []*collector.SubscriptionConfig {
 	})
 	return subscriptions
 }
+
+type outputSuggestion struct {
+	name  string
+	types []string
+}
+
+func getOutputsFromCfg() []outputSuggestion {
+	outDef := viper.GetStringMap("outputs")
+	suggestions := make([]outputSuggestion, 0, len(outDef))
+	for name, d := range outDef {
+		dl := convert(d)
+		sug := outputSuggestion{name: name, types: make([]string, 0)}
+		switch outs := dl.(type) {
+		case []interface{}:
+			for _, ou := range outs {
+				switch ou := ou.(type) {
+				case map[string]interface{}:
+					if outType, ok := ou["type"]; ok {
+						sug.types = append(sug.types, outType.(string))
+					}
+				}
+			}
+		}
+		suggestions = append(suggestions, sug)
+	}
+	sort.Slice(suggestions, func(i, j int) bool {
+		return suggestions[i].name < suggestions[j].name
+	})
+	return suggestions
+}
