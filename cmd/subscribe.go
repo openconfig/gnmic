@@ -59,6 +59,7 @@ var subscribeCmd = &cobra.Command{
 		"--mode":        "SUBSC_MODE",
 		"--stream-mode": "STREAM_MODE",
 		"--name":        "SUBSCRIPTION",
+		"--output":      "OUTPUT",
 	},
 
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -226,6 +227,7 @@ func initSubscribeFlags(cmd *cobra.Command) {
 	cmd.Flags().Bool("quiet", false, "suppress stdout printing")
 	cmd.Flags().StringP("target", "", "", "subscribe request target")
 	cmd.Flags().StringSliceP("name", "n", []string{}, "reference subscriptions by name, must be defined in gnmic config file")
+	cmd.Flags().StringSliceP("output", "", []string{}, "reference to output groups by name, must be defined in gnmic config file")
 	//
 	viper.BindPFlag("subscribe-prefix", cmd.LocalFlags().Lookup("prefix"))
 	viper.BindPFlag("subscribe-path", cmd.LocalFlags().Lookup("path"))
@@ -240,6 +242,7 @@ func initSubscribeFlags(cmd *cobra.Command) {
 	viper.BindPFlag("subscribe-quiet", cmd.LocalFlags().Lookup("quiet"))
 	viper.BindPFlag("subscribe-target", cmd.LocalFlags().Lookup("target"))
 	viper.BindPFlag("subscribe-name", cmd.LocalFlags().Lookup("name"))
+	viper.BindPFlag("subscribe-output", cmd.LocalFlags().Lookup("output"))
 }
 
 func getOutputs(ctx context.Context) (map[string][]outputs.Output, error) {
@@ -286,7 +289,23 @@ func getOutputs(ctx context.Context) (map[string][]outputs.Output, error) {
 			return nil, fmt.Errorf("unknown configuration format: %T : %v", d, d)
 		}
 	}
-	return outputDestinations, nil
+	namedOutputs := viper.GetStringSlice("subscribe-output")
+	if len(namedOutputs) == 0 {
+		return outputDestinations, nil
+	}
+	filteredOutputs := make(map[string][]outputs.Output)
+	notFound := make([]string, 0)
+	for _, name := range namedOutputs {
+		if o, ok := outputDestinations[name]; ok {
+			filteredOutputs[name] = o
+		} else {
+			notFound = append(notFound, name)
+		}
+	}
+	if len(notFound) > 0 {
+		return nil, fmt.Errorf("named output(s) not found in config file: %v", notFound)
+	}
+	return filteredOutputs, nil
 }
 
 func getSubscriptions() (map[string]*collector.SubscriptionConfig, error) {
@@ -412,4 +431,34 @@ func readSubscriptionsFromCfg() []*collector.SubscriptionConfig {
 		return subscriptions[i].Name < subscriptions[j].Name
 	})
 	return subscriptions
+}
+
+type outputSuggestion struct {
+	name  string
+	types []string
+}
+
+func getOutputsFromCfg() []outputSuggestion {
+	outDef := viper.GetStringMap("outputs")
+	suggestions := make([]outputSuggestion, 0, len(outDef))
+	for name, d := range outDef {
+		dl := convert(d)
+		sug := outputSuggestion{name: name, types: make([]string, 0)}
+		switch outs := dl.(type) {
+		case []interface{}:
+			for _, ou := range outs {
+				switch ou := ou.(type) {
+				case map[string]interface{}:
+					if outType, ok := ou["type"]; ok {
+						sug.types = append(sug.types, outType.(string))
+					}
+				}
+			}
+		}
+		suggestions = append(suggestions, sug)
+	}
+	sort.Slice(suggestions, func(i, j int) bool {
+		return suggestions[i].name < suggestions[j].name
+	})
+	return suggestions
 }
