@@ -62,6 +62,22 @@ func getColor(flagName string) goprompt.Color {
 var promptModeCmd = &cobra.Command{
 	Use:   "prompt",
 	Short: "enter the interactive gnmic prompt mode",
+	// PreRun checks if --max-suggesions is bigger that the terminal height and lowers it if needed.
+	PreRun: func(cmd *cobra.Command, args []string) {
+		if err := termbox.Init(); err != nil {
+			return // silently continue cmd execution if termbox fails to initialize
+		}
+		_, h := termbox.Size()
+		termbox.Close()
+		// set max suggestions to terminal height-1 if the supplied value is greater
+		if viper.GetUint("prompt-max-suggestions") > uint(h) {
+			if h > 1 {
+				viper.Set("prompt-max-suggestions", h-2)
+			} else {
+				viper.Set("prompt-max-suggestions", 0)
+			}
+		}
+	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		err := generateYangSchema(promptDirs, promptFiles, promptExcluded)
 		if err != nil {
@@ -141,7 +157,7 @@ func initPromptFlags(cmd *cobra.Command) {
 	cmd.Flags().StringArrayVarP(&promptFiles, "file", "", []string{}, "path to a yang file or a directory of them to get path auto-completions from")
 	cmd.Flags().StringArrayVarP(&promptExcluded, "exclude", "", []string{}, "yang module names to be excluded from path auto-completion generation")
 	cmd.Flags().StringArrayVarP(&promptDirs, "dir", "", []string{}, "path to a directory with yang modules used as includes and/or imports")
-	cmd.Flags().Uint16("max-suggestions", 5, "terminal suggestion max list size")
+	cmd.Flags().Uint16("max-suggestions", 10, "terminal suggestion max list size")
 	cmd.Flags().String("prefix-color", "dark_blue", "terminal prefix color")
 	cmd.Flags().String("suggestions-bg-color", "dark_blue", "suggestion box background color")
 	cmd.Flags().String("description-bg-color", "dark_gray", "description box background color")
