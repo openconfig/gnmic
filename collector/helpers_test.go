@@ -35,51 +35,70 @@ var prefixSet = map[string]*gnmi.Path{
 	},
 }
 
-var pathsSet = map[string]*gnmi.Path{
-	"/": {},
-	"origin:e1/e2": {
-		Origin: "origin",
-		Elem: []*gnmi.PathElem{
-			{Name: "e1"},
-			{Name: "e2"},
+var pathsTable = map[string]struct {
+	strPath  string
+	gnmiPath *gnmi.Path
+}{
+	"test1": {
+		strPath:  "/",
+		gnmiPath: &gnmi.Path{},
+	},
+	"test2": {
+		strPath: "origin:e1/e2",
+		gnmiPath: &gnmi.Path{
+			Origin: "origin",
+			Elem: []*gnmi.PathElem{
+				{Name: "e1"},
+				{Name: "e2"},
+			},
 		},
 	},
-	"origin:/e1/e2": {
-		Origin: "origin",
-		Elem: []*gnmi.PathElem{
-			{Name: "e1"},
-			{Name: "e2"},
+	"test3": {
+		strPath: "origin:",
+		gnmiPath: &gnmi.Path{
+			Origin: "origin",
 		},
 	},
-	"origin:": {Origin: "origin"},
-	"e": {
-		Elem: []*gnmi.PathElem{
-			{Name: "e"},
+	"test4": {
+		strPath: "e",
+		gnmiPath: &gnmi.Path{
+			Elem: []*gnmi.PathElem{
+				{Name: "e"},
+			},
 		},
 	},
-	"/e1/e2": {
-		Elem: []*gnmi.PathElem{
-			{Name: "e1"},
-			{Name: "e2"},
+	"test5": {
+		strPath: "/e1/e2",
+		gnmiPath: &gnmi.Path{
+			Elem: []*gnmi.PathElem{
+				{Name: "e1"},
+				{Name: "e2"},
+			},
 		},
 	},
-	"/e1/e2[k=v]": {
-		Elem: []*gnmi.PathElem{
-			{Name: "e1"},
-			{Name: "e2",
-				Key: map[string]string{
-					"k": "v",
-				}},
+	"test6": {
+		strPath: "/e1/e2[k=v]",
+		gnmiPath: &gnmi.Path{
+			Elem: []*gnmi.PathElem{
+				{Name: "e1"},
+				{Name: "e2",
+					Key: map[string]string{
+						"k": "v",
+					}},
+			},
 		},
 	},
-	"origin:/e1/e2[k=v]": {
-		Origin: "origin",
-		Elem: []*gnmi.PathElem{
-			{Name: "e1"},
-			{Name: "e2",
-				Key: map[string]string{
-					"k": "v",
-				}},
+	"test7": {
+		strPath: "origin:/e1/e2[k=v]",
+		gnmiPath: &gnmi.Path{
+			Origin: "origin",
+			Elem: []*gnmi.PathElem{
+				{Name: "e1"},
+				{Name: "e2",
+					Key: map[string]string{
+						"k": "v",
+					}},
+			},
 		},
 	},
 }
@@ -107,13 +126,15 @@ func TestCreatePrefix(t *testing.T) {
 }
 
 func TestParsePath(t *testing.T) {
-	for p, g := range pathsSet {
-		pg, err := ParsePath(p)
-		if err != nil {
-			t.Error(err)
-		}
-		if !reflect.DeepEqual(g, pg) {
-			t.Errorf("ParsePath failed with path: %s", p)
-		}
+	for name, tc := range pathsTable {
+		t.Run(name, func(t *testing.T) {
+			p, err := ParsePath(tc.strPath)
+			if err != nil {
+				t.Error(err)
+			}
+			if !reflect.DeepEqual(p, tc.gnmiPath) {
+				t.Errorf("ParsePath failed with path: %s", tc.strPath)
+			}
+		})
 	}
 }
