@@ -316,7 +316,7 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 				return nil, fmt.Errorf("encoding: %s not supported together with file values", viper.GetString("encoding"))
 			}
 		} else {
-			err = setValue(value, "json", setInput.updateValues[i])
+			err = setValue(value, strings.ToLower(viper.GetString("encoding")), setInput.updateValues[i])
 			if err != nil {
 				return nil, err
 			}
@@ -352,7 +352,7 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 				return nil, fmt.Errorf("encoding: %s not supported together with file values", viper.GetString("encoding"))
 			}
 		} else {
-			err = setValue(value, "json", setInput.replaceValues[i])
+			err = setValue(value, strings.ToLower(viper.GetString("encoding")), setInput.replaceValues[i])
 			if err != nil {
 				return nil, err
 			}
