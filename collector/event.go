@@ -67,6 +67,7 @@ func ResponseToEventMsgs(name string, rsp *gnmi.SubscribeResponse, meta map[stri
 
 		if len(rsp.Update.Delete) > 0 {
 			e := &EventMsg{
+				Tags:    make(map[string]string),
 				Deletes: make([]string, 0, len(rsp.Update.Delete)),
 			}
 			e.Timestamp = rsp.Update.Timestamp
