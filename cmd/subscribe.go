@@ -81,7 +81,7 @@ var subscribeCmd = &cobra.Command{
 		if debug {
 			logger.Printf("subscriptions: %s", subscriptionsConfig)
 		}
-		outs, err := getOutputs(ctx)
+		outs, err := getOutputs()
 		if err != nil {
 			return err
 		}
@@ -100,7 +100,7 @@ var subscribeCmd = &cobra.Command{
 		coll := collector.NewCollector(cfg, targetsConfig,
 			collector.WithDialOptions(createCollectorDialOpts()),
 			collector.WithSubscriptions(subscriptionsConfig),
-			collector.WithOutputs(outs),
+			collector.WithOutputs(ctx, outs, logger),
 			collector.WithLogger(logger))
 
 		wg := new(sync.WaitGroup)
@@ -245,7 +245,7 @@ func initSubscribeFlags(cmd *cobra.Command) {
 	viper.BindPFlag("subscribe-output", cmd.LocalFlags().Lookup("output"))
 }
 
-func getOutputs(ctx context.Context) (map[string][]outputs.Output, error) {
+func getOutputs() (map[string]map[string]interface{}, error) {
 	outDef := viper.GetStringMap("outputs")
 	if len(outDef) == 0 && !viper.GetBool("quiet") {
 		stdoutConfig := map[string]interface{}{
@@ -253,50 +253,39 @@ func getOutputs(ctx context.Context) (map[string][]outputs.Output, error) {
 			"file-type": "stdout",
 			"format":    viper.GetString("format"),
 		}
-		outDef["stdout"] = []interface{}{stdoutConfig}
+		outDef["default-stdout"] = stdoutConfig
 	}
-	outputDestinations := make(map[string][]outputs.Output)
-	for name, d := range outDef {
-		dl := convert(d)
-		switch outs := dl.(type) {
-		case []interface{}:
-			for _, ou := range outs {
-				switch ou := ou.(type) {
-				case map[string]interface{}:
-					if outType, ok := ou["type"]; ok {
-						if initializer, ok := outputs.Outputs[outType.(string)]; ok {
-							format, ok := ou["format"]
-							if !ok || (ok && format == "") {
-								ou["format"] = viper.GetString("format")
-							}
-							o := initializer()
-							go o.Init(ctx, ou, logger)
-							if outputDestinations[name] == nil {
-								outputDestinations[name] = make([]outputs.Output, 0)
-							}
-							outputDestinations[name] = append(outputDestinations[name], o)
-							continue
-						}
-						logger.Printf("unknown output type '%s'", outType)
-						continue
+	outputsConfigs := make(map[string]map[string]interface{})
+	for name, outputCfg := range outDef {
+		outputCfgconv := convert(outputCfg)
+		switch outCfg := outputCfgconv.(type) {
+		case map[string]interface{}:
+			if outType, ok := outCfg["type"]; ok {
+				if _, ok := outputs.Outputs[outType.(string)]; ok {
+					format, ok := outCfg["format"]
+					if !ok || (ok && format == "") {
+						outCfg["format"] = viper.GetString("format")
 					}
-					logger.Printf("missing output 'type' under %v", ou)
-				default:
-					logger.Printf("unknown configuration format expecting a map[string]interface{}: got %T : %v", d, d)
+					outputsConfigs[name] = outCfg
+					continue
 				}
+				logger.Printf("unknown output type '%s'", outType)
+				continue
 			}
+			logger.Printf("missing output 'type' under %v", outCfg)
 		default:
-			return nil, fmt.Errorf("unknown configuration format: %T : %v", d, d)
+			logger.Printf("unknown configuration format expecting a map[string]interface{}: got %T : %v", outCfg, outCfg)
 		}
 	}
+
 	namedOutputs := viper.GetStringSlice("subscribe-output")
 	if len(namedOutputs) == 0 {
-		return outputDestinations, nil
+		return outputsConfigs, nil
 	}
-	filteredOutputs := make(map[string][]outputs.Output)
+	filteredOutputs := make(map[string]map[string]interface{})
 	notFound := make([]string, 0)
 	for _, name := range namedOutputs {
-		if o, ok := outputDestinations[name]; ok {
+		if o, ok := outputsConfigs[name]; ok {
 			filteredOutputs[name] = o
 		} else {
 			notFound = append(notFound, name)
