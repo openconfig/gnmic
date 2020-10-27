@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -771,4 +772,22 @@ func findSuggestions(co cmdPrompt, doc goprompt.Document) []goprompt.Suggest {
 	}
 
 	return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
+}
+
+func resolveGlobs(globs []string) ([]string, error) {
+	results := make([]string, 0, len(globs))
+	for _, pattern := range globs {
+		if strings.ContainsAny(pattern, `*?[`) {
+			// is a glob pattern
+			matches, err := filepath.Glob(pattern)
+			if err != nil {
+				return nil, err
+			}
+			results = append(results, matches...)
+		} else {
+			// is not a glob pattern ( file or dir )
+			results = append(results, pattern)
+		}
+	}
+	return results, nil
 }
