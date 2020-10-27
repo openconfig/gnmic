@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/karimra/gnmic/outputs"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
 	"google.golang.org/grpc"
@@ -33,8 +32,7 @@ type TargetError struct {
 // Target represents a gNMI enabled box
 type Target struct {
 	Config        *TargetConfig
-	Subscriptions []*SubscriptionConfig
-	Outputs       []outputs.Output
+	Subscriptions map[string]*SubscriptionConfig
 
 	m                  *sync.Mutex
 	Client             gnmi.GNMIClient
@@ -74,8 +72,7 @@ func (tc *TargetConfig) String() string {
 func NewTarget(c *TargetConfig) *Target {
 	t := &Target{
 		Config:             c,
-		Subscriptions:      make([]*SubscriptionConfig, 0),
-		Outputs:            make([]outputs.Output, 0),
+		Subscriptions:      make(map[string]*SubscriptionConfig),
 		m:                  new(sync.Mutex),
 		SubscribeClients:   make(map[string]gnmi.GNMI_SubscribeClient),
 		PollChan:           make(chan string),
@@ -83,7 +80,6 @@ func NewTarget(c *TargetConfig) *Target {
 		Errors:             make(chan *TargetError),
 	}
 	return t
-
 }
 
 // NewTLS //
@@ -271,22 +267,6 @@ SUBSC:
 			}
 		}
 	}
-}
-
-// Export //
-func (t *Target) Export(ctx context.Context, rsp *gnmi.SubscribeResponse, m outputs.Meta) {
-	if rsp == nil || len(t.Outputs) == 0 {
-		return
-	}
-	wg := new(sync.WaitGroup)
-	wg.Add(len(t.Outputs))
-	for _, o := range t.Outputs {
-		go func(o outputs.Output) {
-			defer wg.Done()
-			o.Write(ctx, rsp, m)
-		}(o)
-	}
-	wg.Wait()
 }
 
 func loadCerts(tlscfg *tls.Config, c *TargetConfig) error {
