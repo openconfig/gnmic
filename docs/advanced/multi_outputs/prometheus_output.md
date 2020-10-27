@@ -4,12 +4,12 @@ A Prometheus output can be defined using the below format in `gnmic` config file
 
 ```yaml
 outputs:
-  group1:
-    - type: prometheus # required
-      listen: :9804 # address to listen on for incoming scape requests
-      path: /metrics # path to query to get the metrics
-      expiration: 60s # maximum lifetime of metrics in the local cache
-      debug: false # enable debug for prometheus output
+  output1:
+    type: prometheus # required
+    listen: :9804 # address to listen on for incoming scape requests
+    path: /metrics # path to query to get the metrics
+    expiration: 60s # maximum lifetime of metrics in the local cache
+    debug: false # enable debug for prometheus output
 ```
 
 `gnmic` creates the prometheus metric name and its labels from the subscription name, the gnmic path and the value name.

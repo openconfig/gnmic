@@ -4,14 +4,14 @@ A [NATS](https://docs.nats.io/) output can be defined using the below format in 
 
 ```yaml
 outputs:
-  group1:
-    - type: nats # required
-      address: localhost:4222 # comma separated NATS servers
-      subject-prefix: telemetry # this prefix is used to to build the subject name for each target/subscription
-      subject: telemetry # if a subject-prefix is not specified, gnmic will publish all subscriptions updates to a single subject 'telemetry'
-      username: # NATS username
-      password: # NATS password  
-      connect-time-wait: # wait time before reconnection attempts
+  output1:
+    type: nats # required
+    address: localhost:4222 # comma separated NATS servers
+    subject-prefix: telemetry # this prefix is used to to build the subject name for each target/subscription
+    subject: telemetry # if a subject-prefix is not specified, gnmic will publish all subscriptions updates to a single subject 'telemetry'
+    username: # NATS username
+    password: # NATS password  
+    connect-time-wait: # wait time before reconnection attempts
 ```
 
 Using `subject` config value a user can specify the NATS subject to which to send all subscriptions updates for all targets
