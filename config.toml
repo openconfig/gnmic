@@ -8,80 +8,66 @@ tls-cert = "/path/to/client.crt"
 tls-ca = "/path/to/ca.crt"
 
 [targets]
-
   [targets."172.17.0.100"]
   timeout = "2s"
-  subscriptions = [
-    "sub1"
-  ]
-  ouputs = [
-    "group1",
-    "group3"
-  ]
+  subscriptions = [ "sub1" ]
+  outputs = [ 
+    "output1", 
+    "output3"
+    ]
 
   [targets."172.17.0.101"]
   username = "sros"
   password = "sros"
   insecure = true
-  subscriptions = [
-    "sub2"
-  ]
-  outputs = [
-    "group2",
-    "group3"
-  ]
+  subscriptions = [ "sub2" ]
+  outputs = [ 
+    "output2", 
+    "output3" 
+    ]
 
   [targets."172.17.0.102:57000"]
   password = "sros123"
   tls-key = "/path/file1"
   tls-cert = "/path/file2"
 
-  [targets."172.17.0.103"]
-
-[subscriptions]
-
-  [subscriptions.sub1]
-  paths = [
-    "/configure/port[port-id=*]",
-    "/state/port[port-id=*]"
+[subscriptions.sub1]
+paths = [ 
+  "/configure/port[port-id=*]", 
+  "/state/port[port-id=*]" 
   ]
-  stream-mode = "on_change"
+stream-mode = "on_change"
 
-  [subscriptions.sub2]
-  paths = [
-    "/configure/port[port-id=*]/statistics"
-  ]
-  stream-mode = "sample"
-  sample-interval = "10s"
+[subscriptions.sub2]
+paths = [ "/configure/port[port-id=*]/statistics" ]
+stream-mode = "sample"
+sample-interval = "10s"
 
-[outputs]
+[outputs.output1]
+type = "file"
+file-type = "stdout"
 
-  [[outputs.group1]]
-  type = "file"
-  file-type = "stdout"
+[outputs.output2]
+type = "file"
+filename = "local.log"
 
-  [[outputs.group2]]
-  type = "file"
-  filename = "local.log"
+[outputs.output3]
+type = "nats"
+address = "localhost:4222"
+subject-prefix = "telemetry"
 
-  [[outputs.group2]]
-  type = "nats"
-  address = "localhost:4222"
-  subject-prefix = "telemetry"
+[outputs.output4]
+type = "stan"
+address = "localhost:4223"
+subject = "telemetry"
+cluster-name = "test-cluster"
 
-  [[outputs.group3]]
-  type = "stan"
-  address = "localhost:4223"
-  subject = "telemetry"
-  cluster-name = "test-cluster"
+[outputs.output5]
+type = "kafka"
+address = "localhost:9092"
+topic = "telemetry"
 
-  [[outputs.group4]]
-  type = "kafka"
-  address = "localhost:9092"
-  topic = "telemetry"
-
-  [[outputs.group4]]
-  type = "nats"
-  address = "localhost:4222"
-  subject-prefix = "telemetry"
-  
+[outputs.output6]
+type = "nats"
+address = "localhost:4222"
+subject-prefix = "telemetry"

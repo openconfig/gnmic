@@ -13,8 +13,8 @@ targets:
     subscriptions:
       - sub1
     outputs:
-      - group1
-      - group3
+      - output1
+      - output3
   172.17.0.101:
     username: sros
     password: sros
@@ -22,8 +22,8 @@ targets:
     subscriptions:
       - sub2
     outputs:
-      - group2
-      - group3
+      - output2
+      - output3
   172.17.0.102:57000:
     password: sros123
     tls-key: /path/file1
@@ -43,36 +43,38 @@ subscriptions:
     sample-interval: 10s
 
 outputs:
-  group1:
-    - type: file
-      file-type: stdout
-  group2:
-    - type: file
-      filename: local.log
-    - type: nats
-      address: localhost:4222
-      subject-prefix: telemetry
-      username:
-      password:
-  group3:
-    - type: stan
-      address: localhost:4223
-      subject: telemetry
-      username:
-      password:
-      name: 
-      cluster-name: test-cluster
-      timeout:
-      ping-interval:
-      ping-retry:
-  group4:
-    - type: kafka
-      address: localhost:9092
-      topic: telemetry
-      max-retry: 
-      timeout:
-    - type: nats
-      address: localhost:4222
-      subject-prefix: telemetry
-      username:
-      password:
+  output1:
+    type: file
+    file-type: stdout
+  output2:
+    type: file
+    filename: local.log
+  output3:
+    type: nats
+    address: localhost:4222
+    subject-prefix: telemetry
+    username:
+    password:
+  output4:
+    type: stan
+    address: localhost:4223
+    subject: telemetry
+    username:
+    password:
+    name: 
+    cluster-name: test-cluster
+    timeout:
+    ping-interval:
+    ping-retry:
+  output5:
+    type: kafka
+    address: localhost:9092
+    topic: telemetry
+    max-retry: 
+    timeout:
+  output6:
+    type: nats
+    address: localhost:4222
+    subject-prefix: telemetry
+    username:
+    password:
