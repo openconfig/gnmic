@@ -154,6 +154,7 @@ func (k *KafkaOutput) Metrics() []prometheus.Collector { return k.metrics }
 func (k *KafkaOutput) worker(ctx context.Context, idx int, config *sarama.Config) {
 	var producer sarama.SyncProducer
 	var err error
+	defer k.wg.Done()
 	k.logger.Printf("starting worker id=%d", idx)
 CRPROD:
 	producer, err = sarama.NewSyncProducer(strings.Split(k.Cfg.Address, ","), config)
