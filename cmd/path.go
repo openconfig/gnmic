@@ -441,26 +441,6 @@ func walkDir(path, ext string) ([]string, error) {
 				return err
 			}
 			switch mode := fi.Mode(); {
-			case mode.IsDir():
-				if debug {
-					fAbs, err := filepath.Abs(fi.Name())
-					if err != nil {
-						fAbs = fi.Name()
-					}
-					logger.Printf("walking directory %s for %s files", fAbs, ext)
-				}
-				ifs, err := walkDir(fi.Name(), ext)
-				if err != nil {
-					return err
-				}
-				for _, f := range ifs {
-					if filepath.Ext(f) == ext {
-						if debug {
-							logger.Printf("appending file %s", f)
-						}
-						fs = append(fs, f)
-					}
-				}
 			case mode.IsRegular():
 				if filepath.Ext(path) == ext {
 					if debug {
