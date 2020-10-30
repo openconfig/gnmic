@@ -431,7 +431,8 @@ func buildRootEntry() *yang.Entry {
 func walkDir(path, ext string) ([]string, error) {
 	debug := viper.GetBool("debug")
 	fs := make([]string, 0)
-	filepath.Walk(path,
+	var err error
+	err = filepath.Walk(path,
 		func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
@@ -471,6 +472,9 @@ func walkDir(path, ext string) ([]string, error) {
 			}
 			return nil
 		})
+	if err != nil {
+		return nil, err
+	}
 	return fs, nil
 }
 
