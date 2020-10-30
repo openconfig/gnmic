@@ -74,6 +74,29 @@ var promptModeCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		for _, dirpath := range promptDirs {
+			expanded, err := yang.PathsWithModules(dirpath)
+			if err != nil {
+				return err
+			}
+			if viper.GetBool("debug") {
+				for _, fdir := range expanded {
+					logger.Printf("adding %s to yang Paths", fdir)
+				}
+			}
+			yang.AddPath(expanded...)
+		}
+		yfiles, err := findYangFiles(promptFiles)
+		if err != nil {
+			return err
+		}
+		promptFiles = make([]string, 0, len(yfiles))
+		promptFiles = append(promptFiles, yfiles...)
+		if viper.GetBool("debug") {
+			for _, file := range promptFiles {
+				logger.Printf("loading %s yang file", file)
+			}
+		}
 		err = termbox.Init()
 		if err != nil {
 			return fmt.Errorf("could not initialize a terminal box: %v", err)

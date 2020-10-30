@@ -38,12 +38,11 @@ var printTypes bool
 var search bool
 var withPrefix bool
 
-func pathCmdRun(d, f, e []string, quitAfterGenerate bool) error {
+func pathCmdRun(d, f, e []string) error {
 	err := generateYangSchema(d, f, e)
 	if err != nil {
 		return err
 	}
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	out := make(chan string)
@@ -107,39 +106,9 @@ func generateYangSchema(d, f, e []string) error {
 	if len(f) == 0 {
 		return nil
 	}
-	if pathType != "xpath" && pathType != "gnmi" {
-		return fmt.Errorf("path-type must be one of 'xpath' or 'gnmi'")
-	}
-	for _, dirpath := range d {
-		expanded, err := yang.PathsWithModules(dirpath)
-		if err != nil {
-			return err
-		}
-		yang.AddPath(expanded...)
-	}
-	yfiles := make([]string, 0, len(f))
-	for _, file := range f {
-		fi, err := os.Stat(file)
-		if err != nil {
-			return err
-		}
-		switch mode := fi.Mode(); {
-		case mode.IsDir():
-			fls, err := walkDir(file, ".yang")
-			if err != nil {
-				return err
-			}
-			yfiles = append(yfiles, fls...)
-		case mode.IsRegular():
-			if filepath.Ext(file) == ".yang" {
-				yfiles = append(yfiles, file)
-			}
-		}
-	}
-	files = append(files, yfiles...)
 
 	ms := yang.NewModules()
-	for _, name := range yfiles {
+	for _, name := range f {
 		if err := ms.Read(name); err != nil {
 			return err
 		}
@@ -191,8 +160,46 @@ var pathCmd = &cobra.Command{
 		"--file": "YANG",
 		"--dir":  "DIR",
 	},
+	PreRunE: func(cmd *cobra.Command, args []string) error {
+		if pathType != "xpath" && pathType != "gnmi" {
+			return fmt.Errorf("path-type must be one of 'xpath' or 'gnmi'")
+		}
+		var err error
+		dirs, err = resolveGlobs(dirs)
+		if err != nil {
+			return err
+		}
+		files, err = resolveGlobs(files)
+		if err != nil {
+			return err
+		}
+		for _, dirpath := range dirs {
+			expanded, err := yang.PathsWithModules(dirpath)
+			if err != nil {
+				return err
+			}
+			if viper.GetBool("debug") {
+				for _, fdir := range expanded {
+					logger.Printf("adding %s to yang Paths", fdir)
+				}
+			}
+			yang.AddPath(expanded...)
+		}
+		yfiles, err := findYangFiles(files)
+		if err != nil {
+			return err
+		}
+		files = make([]string, 0, len(yfiles))
+		files = append(files, yfiles...)
+		if viper.GetBool("debug") {
+			for _, file := range files {
+				logger.Printf("loading %s yang file", file)
+			}
+		}
+		return nil
+	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return pathCmdRun(dirs, files, excluded, false)
+		return pathCmdRun(dirs, files, excluded)
 	},
 	PostRun: func(cmd *cobra.Command, args []string) {
 		cmd.ResetFlags()
@@ -461,9 +468,31 @@ func walkDir(path, ext string) ([]string, error) {
 					}
 					fs = append(fs, path)
 				}
-
 			}
 			return nil
 		})
 	return fs, nil
+}
+
+func findYangFiles(files []string) ([]string, error) {
+	yfiles := make([]string, 0, len(files))
+	for _, file := range files {
+		fi, err := os.Stat(file)
+		if err != nil {
+			return nil, err
+		}
+		switch mode := fi.Mode(); {
+		case mode.IsDir():
+			fls, err := walkDir(file, ".yang")
+			if err != nil {
+				return nil, err
+			}
+			yfiles = append(yfiles, fls...)
+		case mode.IsRegular():
+			if filepath.Ext(file) == ".yang" {
+				yfiles = append(yfiles, file)
+			}
+		}
+	}
+	return yfiles, nil
 }
