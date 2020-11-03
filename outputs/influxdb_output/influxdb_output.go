@@ -154,11 +154,8 @@ func (i *InfluxDBOutput) Write(ctx context.Context, rsp proto.Message, meta outp
 }
 
 func (i *InfluxDBOutput) Close() error {
-	i.logger.Printf("flushing data...")
 	i.logger.Printf("closing client...")
-	i.client.Close()
 	i.cancelFn()
-	close(i.eventChan)
 	i.logger.Printf("closed.")
 	return nil
 }
@@ -219,7 +216,7 @@ START:
 	}
 	i.logger.Printf("starting worker-%d", idx)
 	writer := i.client.WriteAPI(i.Cfg.Org, i.Cfg.Bucket)
-	defer writer.Flush()
+	//defer writer.Flush()
 	for {
 		select {
 		case <-ctx.Done():

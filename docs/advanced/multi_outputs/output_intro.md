@@ -23,39 +23,40 @@ To define an output a user needs to create the `outputs` section in the configur
 ```yaml
 # part of ~/gnmic.yml config file
 outputs:
-  group1:
-    - type: file # output type
-      file-type: stdout # or stderr
-      format: json
-    - type: file
-      filename: /path/to/localFile.log  
-      format: protojson
-  group2:
-    - type: nats # output type
-      address: 127.0.0.1:4222 # comma separated nats servers addresses
-      subject-prefix: telemetry #
-      format: event
-    - type: file
-      filename: /path/to/localFile.log  
-      format: json
-  group3:
-    - type: stan # output type
-      address: 127.0.0.1:4223 # comma separated nats streaming servers addresses
-      subject: telemetry #
-      cluster-name: test-cluster #
-      format: proto
-  group4:
-    - type: kafka # output type
-      address: localhost:9092 # comma separated kafka brokers addresses
-      topic: telemetry # kafka topic
-      format: proto
-    - type: stan # output type
-      address: 127.0.0.1:4223 # comma separated nats streaming servers addresses
-      subject: telemetry
-      cluster-name: test-cluster
+  output1:
+    type: file # output type
+    file-type: stdout # or stderr
+    format: json
+  output2:
+    type: file
+    filename: /path/to/localFile.log  
+    format: protojson
+  output3:
+    type: nats # output type
+    address: 127.0.0.1:4222 # comma separated nats servers addresses
+    subject-prefix: telemetry #
+    format: event
+  output4:
+    type: file
+    filename: /path/to/localFile.log  
+    format: json
+  output5:
+    type: stan # output type
+    address: 127.0.0.1:4223 # comma separated nats streaming servers addresses
+    subject: telemetry #
+    cluster-name: test-cluster #
+    format: proto
+  output6:
+    type: kafka # output type
+    address: localhost:9092 # comma separated kafka brokers addresses
+    topic: telemetry # kafka topic
+    format: proto
+  output7:
+    type: stan # output type
+    address: 127.0.0.1:4223 # comma separated nats streaming servers addresses
+    subject: telemetry
+    cluster-name: test-cluster
 ```
-
-Outputs can be defined in groups to be able to match a target with multiple outputs at once,
 
 #### Output formats
 
@@ -174,13 +175,13 @@ targets:
     username: admin
     password: secret
     outputs:
-      - group1
-      - group3
+      - output1
+      - output3
   router2.lab.com:
     username: gnmi
     password: telemetry
     outputs:
-      - group2
-      - group3
-      - group4
+      - output2
+      - output3
+      - output4
 ```

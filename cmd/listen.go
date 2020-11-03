@@ -52,17 +52,24 @@ var listenCmd = &cobra.Command{
 		if len(address) > 1 {
 			fmt.Printf("multiple addresses specified, listening only on %s\n", address[0])
 		}
-		var err error
-		server.Outputs, err = getOutputs(ctx)
+		server.Outputs = make(map[string]outputs.Output)
+		outCfgs, err := getOutputs()
 		if err != nil {
 			return err
 		}
+		for name, outConf := range outCfgs {
+			if outType, ok := outConf["type"]; ok {
+				if initializer, ok := outputs.Outputs[outType.(string)]; ok {
+					out := initializer()
+					go out.Init(ctx, outConf, logger)
+					server.Outputs[name] = out
+				}
+			}
+		}
 
 		defer func() {
-			for _, outputs := range server.Outputs {
-				for _, o := range outputs {
-					o.Close()
-				}
+			for _, o := range server.Outputs {
+				o.Close()
 			}
 		}()
 		server.listener, err = net.Listen("tcp", address[0])
@@ -126,7 +133,7 @@ func init() {
 type dialoutTelemetryServer struct {
 	listener   net.Listener
 	grpcServer *grpc.Server
-	Outputs    map[string][]outputs.Output
+	Outputs    map[string]outputs.Output
 
 	ctx context.Context
 }
@@ -189,10 +196,8 @@ func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_Publi
 			// 	logger.Printf("failed to format subscribe response: %v", err)
 			// 	continue
 			// }
-			for _, outputs := range s.Outputs {
-				for _, o := range outputs {
-					go o.Write(s.ctx, subResp, outMeta)
-				}
+			for _, o := range s.Outputs {
+				go o.Write(s.ctx, subResp, outMeta)
 			}
 			// buff := new(bytes.Buffer)
 			// err = json.Indent(buff, b, "", "  ")

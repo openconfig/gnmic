@@ -131,13 +131,15 @@ func (p *PrometheusOutput) Init(ctx context.Context, cfg map[string]interface{},
 	}
 	// start worker
 	p.wg.Add(2)
-	go p.worker(ctx)
+	wctx, wcancel := context.WithCancel(ctx)
+	go p.worker(wctx)
 	go func() {
 		defer p.wg.Done()
 		err = p.server.Serve(listener)
 		if err != nil && err != http.ErrServerClosed {
 			p.logger.Printf("prometheus server error: %v", err)
 		}
+		wcancel()
 	}()
 	p.logger.Printf("initialized prometheus output: %s", p.String())
 	go func() {
@@ -177,6 +179,7 @@ func (p *PrometheusOutput) Close() error {
 	if err != nil {
 		p.logger.Printf("failed to shutdown http server: %v", err)
 	}
+	p.logger.Printf("closed.")
 	p.wg.Wait()
 	return nil
 }

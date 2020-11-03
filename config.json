@@ -1,107 +1,99 @@
 {
-  "username": "admin",
-  "password": "sros",
-  "port": 57400,
-  "timeout": "5s",
-  "skip-verify": true,
-  "tls-key": "/path/to/client.key",
-  "tls-cert": "/path/to/client.crt",
-  "tls-ca": "/path/to/ca.crt",
-  "targets": {
-    "172.17.0.100": {
-      "timeout": "2s",
-      "subscriptions": [
-        "sub1"
-      ],
-      "outputs": [
-        "group1",
-        "group3"
-      ]
+    "username": "admin",
+    "password": "sros",
+    "port": 57400,
+    "timeout": "5s",
+    "skip-verify": true,
+    "tls-key": "/path/to/client.key",
+    "tls-cert": "/path/to/client.crt",
+    "tls-ca": "/path/to/ca.crt",
+    "targets": {
+        "172.17.0.100": {
+            "timeout": "2s",
+            "subscriptions": [
+                "sub1"
+            ],
+            "outputs": [
+                "output1",
+                "output3"
+            ]
+        },
+        "172.17.0.101": {
+            "username": "sros",
+            "password": "sros",
+            "insecure": true,
+            "subscriptions": [
+                "sub2"
+            ],
+            "outputs": [
+                "output2",
+                "output3"
+            ]
+        },
+        "172.17.0.102:57000": {
+            "password": "sros123",
+            "tls-key": "/path/file1",
+            "tls-cert": "/path/file2"
+        },
+        "172.17.0.103": null
     },
-    "172.17.0.101": {
-      "username": "sros",
-      "password": "sros",
-      "insecure": true,
-      "subscriptions": [
-        "sub2"
-      ],
-      "outputs": [
-        "group2",
-        "group3"
-      ]
+    "subscriptions": {
+        "sub1": {
+            "paths": [
+                "/configure/port[port-id=*]",
+                "/state/port[port-id=*]"
+            ],
+            "stream-mode": "on_change"
+        },
+        "sub2": {
+            "paths": [
+                "/configure/port[port-id=*]/statistics"
+            ],
+            "stream-mode": "sample",
+            "sample-interval": "10s"
+        }
     },
-    "172.17.0.102:57000": {
-      "password": "sros123",
-      "tls-key": "/path/file1",
-      "tls-cert": "/path/file2"
-    },
-    "172.17.0.103": null
-  },
-  "subscriptions": {
-    "sub1": {
-      "paths": [
-        "/configure/port[port-id=*]",
-        "/state/port[port-id=*]"
-      ],
-      "stream-mode": "on_change"
-    },
-    "sub2": {
-      "paths": [
-        "/configure/port[port-id=*]/statistics"
-      ],
-      "stream-mode": "sample",
-      "sample-interval": "10s"
+    "outputs": {
+        "output1": {
+            "type": "file",
+            "file-type": "stdout"
+        },
+        "output2": {
+            "type": "file",
+            "filename": "local.log"
+        },
+        "output3": {
+            "type": "nats",
+            "address": "localhost:4222",
+            "subject-prefix": "telemetry",
+            "username": null,
+            "password": null
+        },
+        "output4": {
+            "type": "stan",
+            "address": "localhost:4223",
+            "subject": "telemetry",
+            "username": null,
+            "password": null,
+            "name": null,
+            "cluster-name": "test-cluster",
+            "timeout": null,
+            "ping-interval": null,
+            "ping-retry": null
+        },
+        "output5": {
+            "type": "kafka",
+            "address": "localhost:9092",
+            "topic": "telemetry",
+            "max-retry": null,
+            "timeout": null
+        },
+        "output6": {
+            "type": "nats",
+            "address": "localhost:4222",
+            "subject-prefix": "telemetry",
+            "username": null,
+            "password": null
+        }
     }
-  },
-  "outputs": {
-    "group1": [
-      {
-        "type": "file",
-        "file-type": "stdout"
-      }
-    ],
-    "group2": [
-      {
-        "type": "file",
-        "filename": "local.log"
-      },
-      {
-        "type": "nats",
-        "address": "localhost:4222",
-        "subject-prefix": "telemetry",
-        "username": null,
-        "password": null
-      }
-    ],
-    "group3": [
-      {
-        "type": "stan",
-        "address": "localhost:4223",
-        "subject": "telemetry",
-        "username": null,
-        "password": null,
-        "name": null,
-        "cluster-name": "test-cluster",
-        "timeout": null,
-        "ping-interval": null,
-        "ping-retry": null
-      }
-    ],
-    "group4": [
-      {
-        "type": "kafka",
-        "address": "localhost:9092",
-        "topic": "telemetry",
-        "max-retry": null,
-        "timeout": null
-      },
-      {
-        "type": "nats",
-        "address": "localhost:4222",
-        "subject-prefix": "telemetry",
-        "username": null,
-        "password": null
-      }
-    ]
-  }
 }

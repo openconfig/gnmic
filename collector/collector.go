@@ -35,15 +35,15 @@ type Config struct {
 
 // Collector //
 type Collector struct {
-	Config        *Config
-	Subscriptions map[string]*SubscriptionConfig
-	Outputs       map[string][]outputs.Output
-	dialOpts      []grpc.DialOption
+	Config   *Config
+	dialOpts []grpc.DialOption
 	//
-	m          *sync.Mutex
-	Targets    map[string]*Target
-	logger     *log.Logger
-	httpServer *http.Server
+	m             *sync.Mutex
+	Subscriptions map[string]*SubscriptionConfig
+	Outputs       map[string]outputs.Output
+	Targets       map[string]*Target
+	logger        *log.Logger
+	httpServer    *http.Server
 }
 
 type CollectorOption func(c *Collector)
@@ -64,9 +64,17 @@ func WithSubscriptions(subs map[string]*SubscriptionConfig) CollectorOption {
 	}
 }
 
-func WithOutputs(outs map[string][]outputs.Output) CollectorOption {
+func WithOutputs(ctx context.Context, outs map[string]map[string]interface{}, logger *log.Logger) CollectorOption {
 	return func(c *Collector) {
-		c.Outputs = outs
+		for outputName, outputCfg := range outs {
+			if outType, ok := outputCfg["type"]; ok {
+				if initializer, ok := outputs.Outputs[outType.(string)]; ok {
+					out := initializer()
+					go out.Init(ctx, outputCfg, logger)
+					c.Outputs[outputName] = out
+				}
+			}
+		}
 	}
 }
 
@@ -90,6 +98,7 @@ func NewCollector(config *Config, targetConfigs map[string]*TargetConfig, opts .
 		Config:     config,
 		m:          new(sync.Mutex),
 		Targets:    make(map[string]*Target),
+		Outputs:    make(map[string]outputs.Output),
 		httpServer: httpServer,
 	}
 	for _, op := range opts {
@@ -130,29 +139,15 @@ func (c *Collector) InitTarget(tc *TargetConfig) {
 	}
 	t := NewTarget(tc)
 	//
-	t.Subscriptions = make([]*SubscriptionConfig, 0, len(tc.Subscriptions))
+	t.Subscriptions = make(map[string]*SubscriptionConfig)
 	for _, subName := range tc.Subscriptions {
 		if sub, ok := c.Subscriptions[subName]; ok {
-			t.Subscriptions = append(t.Subscriptions, sub)
+			t.Subscriptions[subName] = sub
 		}
 	}
 	if len(t.Subscriptions) == 0 {
-		t.Subscriptions = make([]*SubscriptionConfig, 0, len(c.Subscriptions))
 		for _, sub := range c.Subscriptions {
-			t.Subscriptions = append(t.Subscriptions, sub)
-		}
-	}
-	//
-	t.Outputs = make([]outputs.Output, 0, len(tc.Outputs))
-	for _, outName := range tc.Outputs {
-		if outs, ok := c.Outputs[outName]; ok {
-			t.Outputs = append(t.Outputs, outs...)
-		}
-	}
-	if len(t.Outputs) == 0 {
-		t.Outputs = make([]outputs.Output, 0, len(c.Outputs))
-		for _, o := range c.Outputs {
-			t.Outputs = append(t.Outputs, o...)
+			t.Subscriptions[sub.Name] = sub
 		}
 	}
 	c.m.Lock()
@@ -194,10 +189,8 @@ func (c *Collector) Start(ctx context.Context) {
 		}()
 	}
 	defer func() {
-		for _, outputs := range c.Outputs {
-			for _, o := range outputs {
-				o.Close()
-			}
+		for _, o := range c.Outputs {
+			o.Close()
 		}
 	}()
 	wg := new(sync.WaitGroup)
@@ -214,10 +207,12 @@ func (c *Collector) Start(ctx context.Context) {
 					if c.Config.Debug {
 						c.logger.Printf("received gNMI Subscribe Response: %+v", rsp)
 					}
+					m := outputs.Meta{"source": t.Config.Name, "format": c.Config.Format, "subscription-name": rsp.SubscriptionName}
 					if c.subscriptionMode(rsp.SubscriptionName) == "ONCE" {
-						t.Export(ctx, rsp.Response, outputs.Meta{"source": t.Config.Name, "format": c.Config.Format, "subscription-name": rsp.SubscriptionName})
+						c.Export(ctx, rsp.Response, m, t.Config.Outputs...)
 					} else {
-						go t.Export(ctx, rsp.Response, outputs.Meta{"source": t.Config.Name, "format": c.Config.Format, "subscription-name": rsp.SubscriptionName})
+						//go t.Export(ctx, rsp.Response, outputs.Meta{"source": t.Config.Name, "format": c.Config.Format, "subscription-name": rsp.SubscriptionName})
+						go c.Export(ctx, rsp.Response, m, t.Config.Outputs...)
 					}
 					if remainingOnceSubscriptions > 0 {
 						if c.subscriptionMode(rsp.SubscriptionName) == "ONCE" {
@@ -299,4 +294,32 @@ func (c *Collector) subscriptionMode(name string) string {
 		return strings.ToUpper(sub.Mode)
 	}
 	return ""
+}
+
+func (c *Collector) Export(ctx context.Context, rsp *gnmi.SubscribeResponse, m outputs.Meta, outs ...string) {
+	if rsp == nil {
+		return
+	}
+	wg := new(sync.WaitGroup)
+	if len(outs) == 0 {
+		wg.Add(len(c.Outputs))
+		for _, o := range c.Outputs {
+			go func(o outputs.Output) {
+				defer wg.Done()
+				o.Write(ctx, rsp, m)
+			}(o)
+		}
+		wg.Wait()
+		return
+	}
+	for _, name := range outs {
+		if o, ok := c.Outputs[name]; ok {
+			wg.Add(1)
+			go func(o outputs.Output) {
+				defer wg.Done()
+				o.Write(ctx, rsp, m)
+			}(o)
+		}
+	}
+	wg.Wait()
 }
