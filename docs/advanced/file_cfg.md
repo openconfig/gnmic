@@ -81,8 +81,6 @@ insecure: true
 get-path:
     - /configure/system/name
     - /state/system/version
-# it is also possible to use comma separated paths
-# get-path: /configure/system/name,/state/system/version
 ```
 
 ### Options preference
