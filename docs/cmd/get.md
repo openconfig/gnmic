@@ -20,15 +20,7 @@ As per [path prefixes](https://github.com/openconfig/reference/blob/master/rpc/g
 
 The mandatory path flag `[--path]` is used to specify the [path(s)](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#222-paths) the client wants to receive a snapshot of.
 
-Multiple paths can be specified, either as a comma separated string:
-
-```bash
-gnmic -a <ip:port> --insecure \
-      get --path "/state/port[port-id=*],\
-                  /state/router[router-name=*]/interface[interface-name=*]"
-```
-
-Or by using multiple `--path` flags:
+Multiple paths can be specified by using multiple `--path` flags:
 
 ```bash
 gnmic -a <ip:port> --insecure \

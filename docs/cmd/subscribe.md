@@ -16,14 +16,7 @@ The `[--prefix]` flag sets a common [prefix](https://github.com/openconfig/refer
 #### path
 The path flag `[--path]` is used to specify the [path(s)](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#222-paths) to which the client wants to subscribe.
 
-Multiple paths can be specified, either as a comma separated string:
-
-```bash
-gnmic subscribe --path "/state/ports[port-id=*],\
-                       /state/router[router-name=*]/interface[interface-name=*]"
-```
-
-Or using repeated `--path` flags:
+Multiple paths can be specified by using repeated `--path` flags:
 
 ```bash
 gnmic sub --path "/state/ports[port-id=*]" \
