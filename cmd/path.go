@@ -180,7 +180,7 @@ var pathCmd = &cobra.Command{
 			}
 			if viper.GetBool("debug") {
 				for _, fdir := range expanded {
-					logger.Printf("adding %s to yang Paths", fdir)
+					logger.Printf("adding %s to YANG paths", fdir)
 				}
 			}
 			yang.AddPath(expanded...)
@@ -193,7 +193,7 @@ var pathCmd = &cobra.Command{
 		files = append(files, yfiles...)
 		if viper.GetBool("debug") {
 			for _, file := range files {
-				logger.Printf("loading %s yang file", file)
+				logger.Printf("loading %s file", file)
 			}
 		}
 		return nil
