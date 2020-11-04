@@ -429,7 +429,6 @@ func buildRootEntry() *yang.Entry {
 }
 
 func walkDir(path, ext string) ([]string, error) {
-	debug := viper.GetBool("debug")
 	fs := make([]string, 0)
 	err := filepath.Walk(path,
 		func(path string, info os.FileInfo, err error) error {
@@ -443,9 +442,6 @@ func walkDir(path, ext string) ([]string, error) {
 			switch mode := fi.Mode(); {
 			case mode.IsRegular():
 				if filepath.Ext(path) == ext {
-					if debug {
-						logger.Printf("appending file %s", path)
-					}
 					fs = append(fs, path)
 				}
 			}
