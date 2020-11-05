@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -62,10 +63,43 @@ func getColor(flagName string) goprompt.Color {
 var promptModeCmd = &cobra.Command{
 	Use:   "prompt",
 	Short: "enter the interactive gnmic prompt mode",
-	// PreRun checks if --max-suggesions is bigger that the terminal height and lowers it if needed.
-	PreRun: func(cmd *cobra.Command, args []string) {
-		if err := termbox.Init(); err != nil {
-			return // silently continue cmd execution if termbox fails to initialize
+	// PreRun resolve the glob patterns and checks if --max-suggesions is bigger that the terminal height and lowers it if needed.
+	PreRunE: func(cmd *cobra.Command, args []string) error {
+		var err error
+		promptDirs, err = resolveGlobs(promptDirs)
+		if err != nil {
+			return err
+		}
+		promptFiles, err = resolveGlobs(promptFiles)
+		if err != nil {
+			return err
+		}
+		for _, dirpath := range promptDirs {
+			expanded, err := yang.PathsWithModules(dirpath)
+			if err != nil {
+				return err
+			}
+			if viper.GetBool("debug") {
+				for _, fdir := range expanded {
+					logger.Printf("adding %s to yang Paths", fdir)
+				}
+			}
+			yang.AddPath(expanded...)
+		}
+		yfiles, err := findYangFiles(promptFiles)
+		if err != nil {
+			return err
+		}
+		promptFiles = make([]string, 0, len(yfiles))
+		promptFiles = append(promptFiles, yfiles...)
+		if viper.GetBool("debug") {
+			for _, file := range promptFiles {
+				logger.Printf("loading %s yang file", file)
+			}
+		}
+		err = termbox.Init()
+		if err != nil {
+			return fmt.Errorf("could not initialize a terminal box: %v", err)
 		}
 		_, h := termbox.Size()
 		termbox.Close()
@@ -77,6 +111,7 @@ var promptModeCmd = &cobra.Command{
 				viper.Set("prompt-max-suggestions", 0)
 			}
 		}
+		return nil
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		err := generateYangSchema(promptDirs, promptFiles, promptExcluded)
@@ -771,4 +806,22 @@ func findSuggestions(co cmdPrompt, doc goprompt.Document) []goprompt.Suggest {
 	}
 
 	return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
+}
+
+func resolveGlobs(globs []string) ([]string, error) {
+	results := make([]string, 0, len(globs))
+	for _, pattern := range globs {
+		if strings.ContainsAny(pattern, `*?[`) {
+			// is a glob pattern
+			matches, err := filepath.Glob(pattern)
+			if err != nil {
+				return nil, err
+			}
+			results = append(results, matches...)
+		} else {
+			// is not a glob pattern ( file or dir )
+			results = append(results, pattern)
+		}
+	}
+	return results, nil
 }
