@@ -262,6 +262,9 @@ func collectSchemaNodes(e *yang.Entry, leafOnly bool) []*yang.Entry {
 func generatePath(entry *yang.Entry, prefixTagging bool) string {
 	path := ""
 	for e := entry; e != nil && e.Parent != nil; e = e.Parent {
+		if e.IsCase() || e.IsChoice() {
+			continue
+		}
 		elementName := e.Name
 		if prefixTagging && e.Prefix != nil {
 			elementName = e.Prefix.Name + ":" + elementName
