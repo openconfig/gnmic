@@ -121,10 +121,8 @@ func (t *Target) CreateGNMIClient(ctx context.Context, opts ...grpc.DialOption) 
 
 // Capabilities sends a gnmi.CapabilitiesRequest to the target *t and returns a gnmi.CapabilitiesResponse and an error
 func (t *Target) Capabilities(ctx context.Context, ext ...*gnmi_ext.Extension) (*gnmi.CapabilityResponse, error) {
-	nctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
-	defer cancel()
-	nctx = metadata.AppendToOutgoingContext(nctx, "username", *t.Config.Username, "password", *t.Config.Password)
-	response, err := t.Client.Capabilities(nctx, &gnmi.CapabilityRequest{Extension: ext})
+	ctx = metadata.AppendToOutgoingContext(ctx, "username", *t.Config.Username, "password", *t.Config.Password)
+	response, err := t.Client.Capabilities(ctx, &gnmi.CapabilityRequest{Extension: ext})
 	if err != nil {
 		return nil, fmt.Errorf("failed sending capabilities request: %v", err)
 	}
@@ -133,10 +131,8 @@ func (t *Target) Capabilities(ctx context.Context, ext ...*gnmi_ext.Extension) (
 
 // Get sends a gnmi.GetRequest to the target *t and returns a gnmi.GetResponse and an error
 func (t *Target) Get(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetResponse, error) {
-	nctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
-	defer cancel()
-	nctx = metadata.AppendToOutgoingContext(nctx, "username", *t.Config.Username, "password", *t.Config.Password)
-	response, err := t.Client.Get(nctx, req)
+	ctx = metadata.AppendToOutgoingContext(ctx, "username", *t.Config.Username, "password", *t.Config.Password)
+	response, err := t.Client.Get(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed sending GetRequest to '%s': %v", t.Config.Address, err)
 	}
@@ -145,10 +141,8 @@ func (t *Target) Get(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetRespon
 
 // Set sends a gnmi.SetRequest to the target *t and returns a gnmi.SetResponse and an error
 func (t *Target) Set(ctx context.Context, req *gnmi.SetRequest) (*gnmi.SetResponse, error) {
-	nctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
-	defer cancel()
-	nctx = metadata.AppendToOutgoingContext(nctx, "username", *t.Config.Username, "password", *t.Config.Password)
-	response, err := t.Client.Set(nctx, req)
+	ctx = metadata.AppendToOutgoingContext(ctx, "username", *t.Config.Username, "password", *t.Config.Password)
+	response, err := t.Client.Set(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed sending SetRequest to '%s': %v", t.Config.Address, err)
 	}
