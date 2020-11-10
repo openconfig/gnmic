@@ -330,7 +330,10 @@ func (c *Collector) Capabilities(ctx context.Context, tName string, ext ...*gnmi
 		ctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 		defer cancel()
 		if err := t.CreateGNMIClient(ctx, c.dialOpts...); err != nil {
-			return nil, err
+			if errors.Is(err, context.DeadlineExceeded) {
+				return nil, fmt.Errorf("failed to create a gRPC client for target '%s', timeout (%s) reached", t.Config.Name, t.Config.Timeout)
+			}
+			return nil, fmt.Errorf("failed to create a gRPC client for target '%s' : %v", t.Config.Name, err)
 		}
 		return t.Capabilities(ctx, ext...)
 	}
@@ -342,7 +345,10 @@ func (c *Collector) Get(ctx context.Context, tName string, req *gnmi.GetRequest)
 		ctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 		defer cancel()
 		if err := t.CreateGNMIClient(ctx, c.dialOpts...); err != nil {
-			return nil, err
+			if errors.Is(err, context.DeadlineExceeded) {
+				return nil, fmt.Errorf("failed to create a gRPC client for target '%s', timeout (%s) reached", t.Config.Name, t.Config.Timeout)
+			}
+			return nil, fmt.Errorf("failed to create a gRPC client for target '%s' : %v", t.Config.Name, err)
 		}
 		return t.Get(ctx, req)
 	}
@@ -354,7 +360,10 @@ func (c *Collector) Set(ctx context.Context, tName string, req *gnmi.SetRequest)
 		ctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 		defer cancel()
 		if err := t.CreateGNMIClient(ctx, c.dialOpts...); err != nil {
-			return nil, err
+			if errors.Is(err, context.DeadlineExceeded) {
+				return nil, fmt.Errorf("failed to create a gRPC client for target '%s', timeout (%s) reached", t.Config.Name, t.Config.Timeout)
+			}
+			return nil, fmt.Errorf("failed to create a gRPC client for target '%s' : %v", t.Config.Name, err)
 		}
 		return t.Set(ctx, req)
 	}
