@@ -150,6 +150,9 @@ func (o *MarshalOptions) formatSubscribeResponse(m *gnmi.SubscribeResponse, meta
 			msg.SubscriptionName = s
 		}
 		for i, upd := range m.Update.Update {
+			if upd.Path == nil {
+				upd.Path = new(gnmi.Path)
+			}
 			pathElems := make([]string, 0, len(upd.Path.Elem))
 			for _, pElem := range upd.Path.Elem {
 				pathElems = append(pathElems, pElem.GetName())
