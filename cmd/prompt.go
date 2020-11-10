@@ -229,6 +229,12 @@ func findMatchedXPATH(entry *yang.Entry, input string, prefixPresent bool) []gop
 
 	prependOrigin := viper.GetBool("prompt-suggest-with-origin") && !prefixPresent
 	for name, child := range entry.Dir {
+		if child.IsCase() || child.IsChoice() {
+			for _, gchild := range child.Dir {
+				suggestions = append(suggestions, findMatchedXPATH(gchild, input, prefixPresent)...)
+			}
+			continue
+		}
 		pathelem := "/" + name
 		if strings.HasPrefix(pathelem, input) {
 			node := ""
