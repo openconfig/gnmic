@@ -314,7 +314,7 @@ func getSubscriptions() (map[string]*collector.SubscriptionConfig, error) {
 	}
 	if len(paths) > 0 {
 		sub := new(collector.SubscriptionConfig)
-		sub.Name = "default"
+		sub.Name = fmt.Sprintf("default-%d", time.Now().Unix())
 		sub.Paths = paths
 		sub.Prefix = viper.GetString("subscribe-prefix")
 		sub.Target = viper.GetString("subscribe-target")
