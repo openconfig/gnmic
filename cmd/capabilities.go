@@ -47,10 +47,8 @@ var capabilitiesCmd = &cobra.Command{
 			return err
 		}
 		cfg := &collector.Config{
-			PrometheusAddress:   viper.GetString("prometheus-address"),
 			Debug:               viper.GetBool("debug"),
 			Format:              viper.GetString("format"),
-			TargetReceiveBuffer: viper.GetUint("target-buffer-size"),
 			RetryTimer:          viper.GetDuration("retry-timer"),
 		}
 
