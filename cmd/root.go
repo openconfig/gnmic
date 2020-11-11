@@ -353,8 +353,8 @@ func indent(prefix, s string) string {
 	return strings.TrimLeft(fmt.Sprintf("%s%s", prefix, strings.Join(lines, prefix)), "\n")
 }
 
-func filterModels(ctx context.Context, t *collector.Target, modelsNames []string) (map[string]*gnmi.ModelData, []string, error) {
-	capResp, err := t.Capabilities(ctx)
+func filterModels(ctx context.Context, coll *collector.Collector, tName string, modelsNames []string) (map[string]*gnmi.ModelData, []string, error) {
+	supModels, err := coll.GetModels(ctx, tName)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -363,7 +363,7 @@ func filterModels(ctx context.Context, t *collector.Target, modelsNames []string
 	var found bool
 	for _, m := range modelsNames {
 		found = false
-		for _, tModel := range capResp.SupportedModels {
+		for _, tModel := range supModels {
 			if m == tModel.Name {
 				supportedModels[m] = tModel
 				found = true
