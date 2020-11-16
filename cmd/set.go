@@ -75,22 +75,30 @@ var setCmd = &cobra.Command{
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		setupCloseHandler(cancel)
-		targets, err := createTargets()
+		targetsConfig, err := createTargets()
 		if err != nil {
 			return err
 		}
-		if len(targets) > 1 {
+		if len(targetsConfig) > 1 {
 			fmt.Println("[warning] running set command on multiple targets")
 		}
+		cfg := &collector.Config{
+			Debug:               viper.GetBool("debug"),
+			Format:              viper.GetString("format"),
+			TargetReceiveBuffer: viper.GetUint("target-buffer-size"),
+			RetryTimer:          viper.GetDuration("retry-timer"),
+		}
+
+		coll := collector.NewCollector(cfg, targetsConfig, collector.WithDialOptions(createCollectorDialOpts()), collector.WithLogger(logger))
 		req, err := createSetRequest()
 		if err != nil {
 			return err
 		}
 		wg := new(sync.WaitGroup)
-		wg.Add(len(targets))
+		wg.Add(len(coll.Targets))
 		lock := new(sync.Mutex)
-		for _, tc := range targets {
-			go setRequest(ctx, req, collector.NewTarget(tc), wg, lock)
+		for tName := range coll.Targets {
+			go setRequest(ctx, coll, tName, req, wg, lock)
 		}
 		wg.Wait()
 		return nil
@@ -102,23 +110,14 @@ var setCmd = &cobra.Command{
 	SilenceUsage: true,
 }
 
-func setRequest(ctx context.Context, req *gnmi.SetRequest, target *collector.Target, wg *sync.WaitGroup, lock *sync.Mutex) {
+func setRequest(ctx context.Context, coll *collector.Collector, tName string, req *gnmi.SetRequest, wg *sync.WaitGroup, lock *sync.Mutex) {
 	defer wg.Done()
-	opts := createCollectorDialOpts()
-	if err := target.CreateGNMIClient(ctx, opts...); err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			logger.Printf("failed to create a gRPC client for target '%s', timeout (%s) reached", target.Config.Name, target.Config.Timeout)
-			return
-		}
-		logger.Printf("failed to create a client for target '%s' : %v", target.Config.Name, err)
-		return
-	}
 	logger.Printf("sending gNMI SetRequest: prefix='%v', delete='%v', replace='%v', update='%v', extension='%v' to %s",
-		req.Prefix, req.Delete, req.Replace, req.Update, req.Extension, target.Config.Address)
+		req.Prefix, req.Delete, req.Replace, req.Update, req.Extension, tName)
 	if viper.GetBool("print-request") {
 		lock.Lock()
 		fmt.Fprint(os.Stderr, "Set Request:\n")
-		err := printMsg(target.Config.Name, req)
+		err := printMsg(tName, req)
 		if err != nil {
 			logger.Printf("error marshaling set request msg: %v", err)
 			if !viper.GetBool("log") {
@@ -127,7 +126,7 @@ func setRequest(ctx context.Context, req *gnmi.SetRequest, target *collector.Tar
 		}
 		lock.Unlock()
 	}
-	response, err := target.Set(ctx, req)
+	response, err := coll.Set(ctx, tName, req)
 	if err != nil {
 		logger.Printf("error sending set request: %v", err)
 		return
@@ -135,11 +134,11 @@ func setRequest(ctx context.Context, req *gnmi.SetRequest, target *collector.Tar
 	lock.Lock()
 	defer lock.Unlock()
 	fmt.Fprint(os.Stderr, "Set Response:\n")
-	err = printMsg(target.Config.Name, response)
+	err = printMsg(tName, response)
 	if err != nil {
-		logger.Printf("error marshaling set response from %s: %v\n", target.Config.Name, err)
+		logger.Printf("error marshaling set response from %s: %v\n", tName, err)
 		if !viper.GetBool("log") {
-			fmt.Printf("error marshaling set response from %s: %v\n", target.Config.Name, err)
+			fmt.Printf("error marshaling set response from %s: %v\n", tName, err)
 		}
 	}
 }

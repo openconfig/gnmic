@@ -16,7 +16,6 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -54,19 +53,27 @@ var getCmd = &cobra.Command{
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		setupCloseHandler(cancel)
-		targets, err := createTargets()
+		targetsConfig, err := createTargets()
 		if err != nil {
 			return err
 		}
+		cfg := &collector.Config{
+			Debug:               viper.GetBool("debug"),
+			Format:              viper.GetString("format"),
+			TargetReceiveBuffer: viper.GetUint("target-buffer-size"),
+			RetryTimer:          viper.GetDuration("retry-timer"),
+		}
+
+		coll := collector.NewCollector(cfg, targetsConfig, collector.WithDialOptions(createCollectorDialOpts()), collector.WithLogger(logger))
 		req, err := createGetRequest()
 		if err != nil {
 			return err
 		}
 		wg := new(sync.WaitGroup)
-		wg.Add(len(targets))
+		wg.Add(len(targetsConfig))
 		lock := new(sync.Mutex)
-		for _, tc := range targets {
-			go getRequest(ctx, req, collector.NewTarget(tc), wg, lock)
+		for tName := range targetsConfig {
+			go getRequest(ctx, coll, tName, req, wg, lock)
 		}
 		wg.Wait()
 		return nil
@@ -78,27 +85,18 @@ var getCmd = &cobra.Command{
 	SilenceUsage: true,
 }
 
-func getRequest(ctx context.Context, req *gnmi.GetRequest, target *collector.Target, wg *sync.WaitGroup, lock *sync.Mutex) {
+func getRequest(ctx context.Context, coll *collector.Collector, tName string, req *gnmi.GetRequest, wg *sync.WaitGroup, lock *sync.Mutex) {
 	defer wg.Done()
-	opts := createCollectorDialOpts()
-	if err := target.CreateGNMIClient(ctx, opts...); err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			logger.Printf("failed to create a gRPC client for target '%s', timeout (%s) reached", target.Config.Name, target.Config.Timeout)
-			return
-		}
-		logger.Printf("failed to create a client for target '%s' : %v", target.Config.Name, err)
-		return
-	}
 	xreq := req
 	models := viper.GetStringSlice("get-model")
 	if len(models) > 0 {
-		spModels, unspModels, err := filterModels(ctx, target, models)
+		spModels, unspModels, err := filterModels(ctx, coll, tName, models)
 		if err != nil {
-			logger.Printf("failed getting supported models from '%s': %v", target.Config.Address, err)
+			logger.Printf("failed getting supported models from '%s': %v", tName, err)
 			return
 		}
 		if len(unspModels) > 0 {
-			logger.Printf("found unsupported models for target '%s': %+v", target.Config.Address, unspModels)
+			logger.Printf("found unsupported models for target '%s': %+v", tName, unspModels)
 		}
 		for _, m := range spModels {
 			xreq.UseModels = append(xreq.UseModels, m)
@@ -107,7 +105,7 @@ func getRequest(ctx context.Context, req *gnmi.GetRequest, target *collector.Tar
 	if viper.GetBool("print-request") {
 		lock.Lock()
 		fmt.Fprint(os.Stderr, "Get Request:\n")
-		err := printMsg(target.Config.Name, req)
+		err := printMsg(tName, req)
 		if err != nil {
 			logger.Printf("error marshaling get request msg: %v", err)
 			if !viper.GetBool("log") {
@@ -117,20 +115,20 @@ func getRequest(ctx context.Context, req *gnmi.GetRequest, target *collector.Tar
 		lock.Unlock()
 	}
 	logger.Printf("sending gNMI GetRequest: prefix='%v', path='%v', type='%v', encoding='%v', models='%+v', extension='%+v' to %s",
-		xreq.Prefix, xreq.Path, xreq.Type, xreq.Encoding, xreq.UseModels, xreq.Extension, target.Config.Address)
-	response, err := target.Get(ctx, xreq)
+		xreq.Prefix, xreq.Path, xreq.Type, xreq.Encoding, xreq.UseModels, xreq.Extension, tName)
+	response, err := coll.Get(ctx, tName, xreq)
 	if err != nil {
-		logger.Printf("failed sending GetRequest to %s: %v", target.Config.Address, err)
+		logger.Printf("failed sending GetRequest to %s: %v", tName, err)
 		return
 	}
 	lock.Lock()
 	defer lock.Unlock()
 	fmt.Fprint(os.Stderr, "Get Response:\n")
-	err = printMsg(target.Config.Name, response)
+	err = printMsg(tName, response)
 	if err != nil {
-		logger.Printf("error marshaling get response from %s: %v", target.Config.Name, err)
+		logger.Printf("error marshaling get response from %s: %v", tName, err)
 		if !viper.GetBool("log") {
-			fmt.Printf("error marshaling get response from %s: %v\n", target.Config.Name, err)
+			fmt.Printf("error marshaling get response from %s: %v\n", tName, err)
 		}
 	}
 }
