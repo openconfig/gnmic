@@ -6,7 +6,7 @@ A file output can be defined using the below format in `gnmic` config file under
 outputs:
   output1:
     type: file # required
-    file-name: /path/to/filename
+    filename: /path/to/filename
     file-type: stdout # or stderr
 ```
 
