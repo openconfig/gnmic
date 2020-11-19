@@ -90,6 +90,8 @@ func (tc *TargetConfig) newTLS() (*tls.Config, error) {
 	tlsConfig := &tls.Config{
 		Renegotiation:      tls.RenegotiateNever,
 		InsecureSkipVerify: *tc.SkipVerify,
+		MaxVersion:         tc.getTlsMaxVersion(),
+		MinVersion:         tc.getTlsMinVersion(),
 	}
 	err := loadCerts(tlsConfig, tc)
 	if err != nil {
@@ -297,4 +299,35 @@ func (t *Target) numberOfOnceSubscriptions() int {
 		}
 	}
 	return num
+}
+
+func (tc *TargetConfig) getTlsMinVersion() uint16 {
+	v := tlsVersionStringToUint(tc.TlsVersion)
+	if v > 0 {
+		return v
+	}
+	return tlsVersionStringToUint(tc.TlsMinVersion)
+}
+
+func (tc *TargetConfig) getTlsMaxVersion() uint16 {
+	v := tlsVersionStringToUint(tc.TlsVersion)
+	if v > 0 {
+		return v
+	}
+	return tlsVersionStringToUint(tc.TlsMaxVersion)
+}
+
+func tlsVersionStringToUint(v string) uint16 {
+	switch v {
+	default:
+		return 0
+	case "1.3":
+		return tls.VersionTLS13
+	case "1.2":
+		return tls.VersionTLS12
+	case "1.1":
+		return tls.VersionTLS11
+	case "1.0", "1":
+		return tls.VersionTLS10
+	}
 }
