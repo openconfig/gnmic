@@ -556,6 +556,15 @@ func setTargetConfigDefaults(tc *collector.TargetConfig) {
 	if tc.RetryTimer == 0 {
 		tc.RetryTimer = viper.GetDuration("retry")
 	}
+	if tc.TlsVersion == "" {
+		tc.TlsVersion = viper.GetString("tls-version")
+	}
+	if tc.TlsMinVersion == "" {
+		tc.TlsMinVersion = viper.GetString("tls-min-version")
+	}
+	if tc.TlsMaxVersion == "" {
+		tc.TlsMaxVersion = viper.GetString("tls-max-version")
+	}
 }
 
 func createCollectorDialOpts() []grpc.DialOption {
