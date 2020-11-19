@@ -175,5 +175,16 @@ The tls cert flag `[--tls-cert]` specifies the public key for the client encoded
 ### tls-key
 The tls key flag `[--tls-key]` specifies the private key for the client encoded in PEM format
 
+### tls-max-version
+The tls max version flag `[--tls-max-version]` specifies the maximum supported TLS version supported by gNMIc when creating a secure gRPC connection
+
+### tls-min-version
+The tls min version flag `[--tls-min-version]` specifies the minimum supported TLS version supported by gNMIc when creating a secure gRPC connection
+
+### tls-version
+The tls version flag `[--tls-version]` specifies a single supported TLS version gNMIc when creating a secure gRPC connection.
+
+This flag overwrites the previously listed flags `--tls-max-version` and `--tls-min-version`.
+
 ### username
 The username flag `[-u | --username]` is used to specify the target username as part of the user credentials. If omitted, the input prompt is used to provide the username.
