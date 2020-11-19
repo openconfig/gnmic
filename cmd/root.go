@@ -79,7 +79,7 @@ var formats = [][2]string{
 	{"event", "protocol buffer messages as a timestamped list of tags and values"},
 	{"proto", "protocol buffer messages in binary wire format"},
 }
-var tlsVersions = []string{"1.3", "1.2", "1.1", "1.0"}
+var tlsVersions = []string{"1.3", "1.2", "1.1", "1.0", "1"}
 
 var cfgFile string
 var f io.WriteCloser
@@ -186,9 +186,9 @@ func init() {
 	rootCmd.PersistentFlags().StringP("prometheus-address", "", "", "prometheus server address")
 	rootCmd.PersistentFlags().BoolP("print-request", "", false, "print request as well as the response(s)")
 	rootCmd.PersistentFlags().DurationP("retry", "", defaultRetryTimer, "retry timer for RPCs")
-	rootCmd.PersistentFlags().StringP("tls-min-version", "", "", fmt.Sprintf("minium TLS supported version, one of %v", tlsVersions))
-	rootCmd.PersistentFlags().StringP("tls-max-version", "", "", fmt.Sprintf("maximum TLS supported version, one of %v", tlsVersions))
-	rootCmd.PersistentFlags().StringP("tls-version", "", "", fmt.Sprintf("set TLS version, one of %v", tlsVersions))
+	rootCmd.PersistentFlags().StringP("tls-min-version", "", "", fmt.Sprintf("minium TLS supported version, one of %q", tlsVersions))
+	rootCmd.PersistentFlags().StringP("tls-max-version", "", "", fmt.Sprintf("maximum TLS supported version, one of %q", tlsVersions))
+	rootCmd.PersistentFlags().StringP("tls-version", "", "", fmt.Sprintf("set TLS version. Overwrites --tls-min-version and --tls-max-version, one of %q", tlsVersions))
 	//
 	viper.BindPFlag("address", rootCmd.PersistentFlags().Lookup("address"))
 	viper.BindPFlag("username", rootCmd.PersistentFlags().Lookup("username"))
