@@ -186,7 +186,7 @@ func init() {
 	rootCmd.PersistentFlags().StringP("prometheus-address", "", "", "prometheus server address")
 	rootCmd.PersistentFlags().BoolP("print-request", "", false, "print request as well as the response(s)")
 	rootCmd.PersistentFlags().DurationP("retry", "", defaultRetryTimer, "retry timer for RPCs")
-	rootCmd.PersistentFlags().StringP("tls-min-version", "", "", fmt.Sprintf("minium TLS supported version, one of %q", tlsVersions))
+	rootCmd.PersistentFlags().StringP("tls-min-version", "", "", fmt.Sprintf("minimum TLS supported version, one of %q", tlsVersions))
 	rootCmd.PersistentFlags().StringP("tls-max-version", "", "", fmt.Sprintf("maximum TLS supported version, one of %q", tlsVersions))
 	rootCmd.PersistentFlags().StringP("tls-version", "", "", fmt.Sprintf("set TLS version. Overwrites --tls-min-version and --tls-max-version, one of %q", tlsVersions))
 	//
