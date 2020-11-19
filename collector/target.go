@@ -58,6 +58,9 @@ type TargetConfig struct {
 	Outputs       []string      `mapstructure:"outputs,omitempty"`
 	BufferSize    uint          `mapstructure:"buffer-size,omitempty"`
 	RetryTimer    time.Duration `mapstructure:"retry,omitempty"`
+	TlsMinVersion string        `mapstructure:"tls-min-version,omitempty"`
+	TlsMaxVersion string        `mapstructure:"tls-max-version,omitempty"`
+	TlsVersion    string        `mapstructure:"tls-version,omitempty"`
 }
 
 func (tc *TargetConfig) String() string {
