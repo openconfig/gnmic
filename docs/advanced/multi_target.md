@@ -59,6 +59,9 @@ targets:
     tls-ca:
     tls-cert:
     tls-key:
+    tls-max-version:
+    tls-min-version:
+    tls-version:
     skip-verify:
     subscriptions:
     outputs:
