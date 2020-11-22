@@ -140,7 +140,7 @@ func parseXPathKeys(s string) (map[string]string, error) {
 	for i, r := range s {
 		switch r {
 		case '[':
-			if prevRune == rune('\\') {
+			if prevRune == '\\' {
 				prevRune = r
 				continue
 			}
@@ -150,7 +150,7 @@ func parseXPathKeys(s string) (map[string]string, error) {
 			inKey = true
 			start = i + 1
 		case ']':
-			if prevRune == rune('\\') {
+			if prevRune == '\\' {
 				prevRune = r
 				continue
 			}
