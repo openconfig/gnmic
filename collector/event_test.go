@@ -1,8 +1,6 @@
 package collector
 
 import (
-	"encoding/json"
-	"fmt"
 	"testing"
 	"time"
 
@@ -31,7 +29,7 @@ func TestGetValueFlat(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	fmt.Printf("%+v\n", v)
+	//fmt.Printf("%+v\n", v)
 	t.Logf("%v", v)
 }
 
@@ -75,6 +73,6 @@ func TestResponseToEventMsgs(t *testing.T) {
 		t.Error(err)
 	}
 	t.Logf("%v", evs)
-	b, _ := json.MarshalIndent(evs, "", "  ")
-	fmt.Println(string(b))
+	//b, _ := json.MarshalIndent(evs, "", "  ")
+	//fmt.Println(string(b))
 }

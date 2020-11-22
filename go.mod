@@ -6,6 +6,7 @@ require (
 	github.com/Shopify/sarama v1.26.4
 	github.com/c-bata/go-prompt v0.2.5
 	github.com/google/gnxi v0.0.0-20200508145201-92c6d0d3ec3b
+	github.com/google/go-cmp v0.5.0
 	github.com/google/uuid v1.1.1
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/influxdata/influxdb-client-go/v2 v2.0.1
