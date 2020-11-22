@@ -127,7 +127,7 @@ var pathsTable = map[string]struct {
 		},
 		isOK: true,
 	},
-	"path_with_only_origin": {
+	"path_with_origin_only": {
 		strPath: "origin:",
 		gnmiPath: &gnmi.Path{
 			Origin: "origin",
@@ -199,6 +199,32 @@ var pathsTable = map[string]struct {
 						"k1": "v2",
 					},
 				},
+			},
+		},
+		isOK: true,
+	},
+	"path_with_escaped_open_bracket": {
+		strPath: `/e1\[/e2[k=v]`,
+		gnmiPath: &gnmi.Path{
+			Elem: []*gnmi.PathElem{
+				{Name: `e1\[`},
+				{Name: "e2",
+					Key: map[string]string{
+						"k": "v",
+					}},
+			},
+		},
+		isOK: true,
+	},
+	"path_with_escaped_close_bracket": {
+		strPath: `/e1\]/e2[k=v]`,
+		gnmiPath: &gnmi.Path{
+			Elem: []*gnmi.PathElem{
+				{Name: `e1\]`},
+				{Name: "e2",
+					Key: map[string]string{
+						"k": "v",
+					}},
 			},
 		},
 		isOK: true,
@@ -376,13 +402,13 @@ func TestParseXPathKeys(t *testing.T) {
 func TestStringToPathElem(t *testing.T) {
 	for name, input := range pathElemSet {
 		t.Run(name, func(t *testing.T) {
-			gnmiPath, err := toPathElem(input.in)
-			if gnmiPath == nil || input.out.out == nil {
-				if gnmiPath != input.out.out {
-					t.Errorf("failed at '%s', expected %v, got %+v", name, input.out.out, gnmiPath)
+			gnmiPathElem, err := toPathElem(input.in)
+			if gnmiPathElem == nil || input.out.out == nil {
+				if gnmiPathElem != input.out.out {
+					t.Errorf("failed at '%s', expected %v, got %+v", name, input.out.out, gnmiPathElem)
 				}
-			} else if !cmp.Equal(gnmiPath.Key, input.out.out.Key) || gnmiPath.Name != input.out.out.Name {
-				t.Errorf("failed at '%s', expected %v, got %+v", name, input.out.out, gnmiPath)
+			} else if !cmp.Equal(gnmiPathElem.Key, input.out.out.Key) || gnmiPathElem.Name != input.out.out.Name {
+				t.Errorf("failed at '%s', expected %v, got %+v", name, input.out.out, gnmiPathElem)
 			}
 			if err != input.out.err {
 				t.Errorf("failed at '%s', expected error %+v, got %+v", name, input.out.err, err)
@@ -392,6 +418,12 @@ func TestStringToPathElem(t *testing.T) {
 }
 
 func gnmiPathsEqual(p1, p2 *gnmi.Path) bool {
+	if p1 == nil && p2 == nil {
+		return true
+	}
+	if p1 == nil || p2 == nil {
+		return false
+	}
 	if p1.Origin != p2.Origin {
 		return false
 	}
@@ -413,8 +445,12 @@ func gnmiPathsEqual(p1, p2 *gnmi.Path) bool {
 }
 
 func BenchmarkParsePath(b *testing.B) {
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		ParsePath("origin:e1/e2[k=v]/e3/")
+	for name, tc := range pathsTable {
+		b.Run(name, func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				ParsePath(tc.strPath)			
+			}
+		})
 	}
 }
