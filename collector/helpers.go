@@ -41,7 +41,7 @@ func ParsePath(p string) (*gnmi.Path, error) {
 		p = p[idx+1:]
 	}
 
-	pes, err := xpathtoPathElems(p)
+	pes, err := toPathElems(p)
 	if err != nil {
 		return nil, err
 	}
@@ -51,40 +51,47 @@ func ParsePath(p string) (*gnmi.Path, error) {
 	}, nil
 }
 
-func xpathtoPathElems(p string) ([]*gnmi.PathElem, error) {
-	pElems := make([]*gnmi.PathElem, 0)
+func toPathElems(p string) ([]*gnmi.PathElem, error) {
 	if !strings.HasSuffix(p, "/") {
 		p += "/"
 	}
 	buffer := make([]rune, 0)
 	null := rune(0)
+	prevC := rune(0)
 	// track if the loop is traversing a key
 	inKey := false
 	for _, r := range p {
 		switch r {
 		case '[':
-			if inKey {
+			if inKey && prevC != '\\' {
 				return nil, errMalformedXPath
 			}
-			inKey = true
+			if prevC != '\\' {
+				inKey = true
+			}
 		case ']':
-			if !inKey {
+			if !inKey && prevC != '\\' {
 				return nil, errMalformedXPath
 			}
-			inKey = false
+			if prevC != '\\' {
+				inKey = false
+			}
 		case '/':
 			if !inKey {
 				buffer = append(buffer, null)
+				prevC = r
 				continue
 			}
 		}
 		buffer = append(buffer, r)
+		prevC = r
 	}
 	if inKey {
 		return nil, errMalformedXPath
 	}
-
-	for _, s := range strings.Split(string(buffer), string(null)) {
+	stringElems := strings.Split(string(buffer), string(null))
+	pElems := make([]*gnmi.PathElem, 0, len(stringElems))
+	for _, s := range stringElems {
 		if s == "" {
 			continue
 		}
@@ -97,6 +104,7 @@ func xpathtoPathElems(p string) ([]*gnmi.PathElem, error) {
 	return pElems, nil
 }
 
+// toPathElem take a xpath formatted path element such as "elem1[k=v]" and returns the corresponding gnmi.PathElem
 func toPathElem(s string) (*gnmi.PathElem, error) {
 	idx := -1
 	prevC := rune(0)
@@ -119,6 +127,7 @@ func toPathElem(s string) (*gnmi.PathElem, error) {
 	return &gnmi.PathElem{Name: s, Key: kvs}, nil
 }
 
+// parseXPathKeys takes keys definition from an xpath, e.g [k1=v1][k2=v2] and return they keys and values as a map[string]string
 func parseXPathKeys(s string) (map[string]string, error) {
 	if len(s) == 0 {
 		return nil, nil
