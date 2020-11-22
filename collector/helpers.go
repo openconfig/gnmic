@@ -1,11 +1,16 @@
 package collector
 
 import (
+	"errors"
 	"strings"
 
-	"github.com/google/gnxi/utils/xpath"
 	"github.com/openconfig/gnmi/proto/gnmi"
 )
+
+var errMalformedXPath = errors.New("malformed xpath")
+var errMalformedXPathKey = errors.New("malformed xpath key")
+
+var escapedBracketsReplacer = strings.NewReplacer(`\]`, `]`, `\[`, `[`)
 
 // CreatePrefix //
 func CreatePrefix(prefix, target string) (*gnmi.Path, error) {
@@ -25,19 +30,138 @@ func CreatePrefix(prefix, target string) (*gnmi.Path, error) {
 // ParsePath creates a gnmi.Path out of a p string, check if the first element is prefixed by an origin,
 // removes it from the xpath and adds it to the returned gnmiPath
 func ParsePath(p string) (*gnmi.Path, error) {
-	var origin string
-	elems := strings.Split(p, "/")
-	if len(elems) > 0 {
-		f := strings.Split(elems[0], ":")
-		if len(f) > 1 {
-			origin = f[0]
-			elems[0] = strings.Join(f[1:], ":")
-		}
+	if len(p) == 0 {
+		return &gnmi.Path{}, nil
 	}
-	gnmiPath, err := xpath.ToGNMIPath(strings.Join(elems, "/"))
+	var origin string
+
+	idx := strings.Index(p, ":")
+	if idx >= 0 && p[0] != '/' {
+		origin = p[:idx]
+		p = p[idx+1:]
+	}
+
+	pes, err := xpathtoPathElems(p)
 	if err != nil {
 		return nil, err
 	}
-	gnmiPath.Origin = origin
-	return gnmiPath, nil
+	return &gnmi.Path{
+		Origin: origin,
+		Elem:   pes,
+	}, nil
+}
+
+func xpathtoPathElems(p string) ([]*gnmi.PathElem, error) {
+	pElems := make([]*gnmi.PathElem, 0)
+	if !strings.HasSuffix(p, "/") {
+		p += "/"
+	}
+	buffer := make([]rune, 0)
+	null := rune(0)
+	// track if the loop is traversing a key
+	inKey := false
+	for _, r := range p {
+		switch r {
+		case '[':
+			if inKey {
+				return nil, errMalformedXPath
+			}
+			inKey = true
+		case ']':
+			if !inKey {
+				return nil, errMalformedXPath
+			}
+			inKey = false
+		case '/':
+			if !inKey {
+				buffer = append(buffer, null)
+				continue
+			}
+		}
+		buffer = append(buffer, r)
+	}
+	if inKey {
+		return nil, errMalformedXPath
+	}
+
+	for _, s := range strings.Split(string(buffer), string(null)) {
+		if s == "" {
+			continue
+		}
+		pe, err := toPathElem(s)
+		if err != nil {
+			return nil, err
+		}
+		pElems = append(pElems, pe)
+	}
+	return pElems, nil
+}
+
+func toPathElem(s string) (*gnmi.PathElem, error) {
+	idx := -1
+	prevC := rune(0)
+	for i, r := range s {
+		if r == '[' && prevC != '\\' {
+			idx = i
+			break
+		}
+		prevC = r
+	}
+	var kvs map[string]string
+	if idx > 0 {
+		var err error
+		kvs, err = parseXPathKeys(s[idx:])
+		if err != nil {
+			return nil, err
+		}
+		s = s[:idx]
+	}
+	return &gnmi.PathElem{Name: s, Key: kvs}, nil
+}
+
+func parseXPathKeys(s string) (map[string]string, error) {
+	if len(s) == 0 {
+		return nil, nil
+	}
+	kvs := make(map[string]string)
+	inKey := false
+	start := 0
+	prevRune := rune(0)
+	for i, r := range s {
+		switch r {
+		case '[':
+			if prevRune == rune('\\') {
+				prevRune = r
+				continue
+			}
+			if inKey {
+				return nil, errMalformedXPathKey
+			}
+			inKey = true
+			start = i + 1
+		case ']':
+			if prevRune == rune('\\') {
+				prevRune = r
+				continue
+			}
+			if !inKey {
+				return nil, errMalformedXPathKey
+			}
+			eq := strings.Index(s[start:i], "=")
+			if eq < 0 {
+				return nil, errMalformedXPathKey
+			}
+			k, v := s[start:i][:eq], s[start:i][eq+1:]
+			if len(k) == 0 || len(v) == 0 {
+				return nil, errMalformedXPathKey
+			}
+			kvs[escapedBracketsReplacer.Replace(k)] = escapedBracketsReplacer.Replace(v)
+			inKey = false
+		}
+		prevRune = r
+	}
+	if inKey {
+		return nil, errMalformedXPathKey
+	}
+	return kvs, nil
 }
