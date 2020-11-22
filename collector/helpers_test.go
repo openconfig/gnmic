@@ -36,14 +36,16 @@ var prefixSet = map[string]*gnmi.Path{
 }
 
 var pathsTable = map[string]struct {
-	strPath  string
-	gnmiPath *gnmi.Path
-	isOK     bool
+	strPath     string
+	gnmiPath    *gnmi.Path
+	isOK        bool
+	expectedErr error
 }{
 	"empty_path": {
-		strPath:  "",
-		gnmiPath: &gnmi.Path{},
-		isOK:     true,
+		strPath:     "",
+		gnmiPath:    &gnmi.Path{},
+		isOK:        true,
+		expectedErr: nil,
 	},
 	"path_with_slash_only": {
 		strPath:  "/",
@@ -57,7 +59,8 @@ var pathsTable = map[string]struct {
 				{Name: "e"},
 			},
 		},
-		isOK: true,
+		isOK:        true,
+		expectedErr: nil,
 	},
 	"path_with_one_path_element_with_slash": {
 		strPath: "/e",
@@ -66,7 +69,8 @@ var pathsTable = map[string]struct {
 				{Name: "e"},
 			},
 		},
-		isOK: true,
+		isOK:        true,
+		expectedErr: nil,
 	},
 	"path_with_two_path_elements": {
 		strPath: "/e1/e2",
@@ -76,7 +80,8 @@ var pathsTable = map[string]struct {
 				{Name: "e2"},
 			},
 		},
-		isOK: true,
+		isOK:        true,
+		expectedErr: nil,
 	},
 	"path_with_two_path_elements_with_key": {
 		strPath: "/e1/e2[k=v]",
@@ -89,7 +94,8 @@ var pathsTable = map[string]struct {
 					}},
 			},
 		},
-		isOK: true,
+		isOK:        true,
+		expectedErr: nil,
 	},
 	"path_with_multiple_path_elements_and_multiple_keys": {
 		strPath: "/e1/e2[k1=v1][k2=v2]",
@@ -103,7 +109,8 @@ var pathsTable = map[string]struct {
 					}},
 			},
 		},
-		isOK: true,
+		isOK:        true,
+		expectedErr: nil,
 	},
 	"path_with_origin": {
 		strPath: "origin:e1/e2",
@@ -114,7 +121,8 @@ var pathsTable = map[string]struct {
 				{Name: "e2"},
 			},
 		},
-		isOK: true,
+		isOK:        true,
+		expectedErr: nil,
 	},
 	"path_with_origin_and_slash": {
 		strPath: "origin:/e1/e2",
@@ -125,7 +133,8 @@ var pathsTable = map[string]struct {
 				{Name: "e2"},
 			},
 		},
-		isOK: true,
+		isOK:        true,
+		expectedErr: nil,
 	},
 	"path_with_origin_only": {
 		strPath: "origin:",
@@ -146,7 +155,8 @@ var pathsTable = map[string]struct {
 					}},
 			},
 		},
-		isOK: true,
+		isOK:        true,
+		expectedErr: nil,
 	},
 	"path_with_origin_and_multiple_keys": {
 		strPath: "origin:/e1[name=object]/e2[addr=1.1.1.1/32]",
@@ -163,7 +173,8 @@ var pathsTable = map[string]struct {
 					}},
 			},
 		},
-		isOK: true,
+		isOK:        true,
+		expectedErr: nil,
 	},
 	"path_with_column_in_path_elem": {
 		strPath: "origin:/e1:e1[k=1.1.1.1/32]/e2[k1=v2]",
@@ -182,7 +193,8 @@ var pathsTable = map[string]struct {
 				},
 			},
 		},
-		isOK: true,
+		isOK:        true,
+		expectedErr: nil,
 	},
 	"path_with_column_in_2_path_elems": {
 		strPath: "origin:/e1:e1[k=1.1.1.1/32]/e2:e3[k1=v2]",
@@ -201,7 +213,8 @@ var pathsTable = map[string]struct {
 				},
 			},
 		},
-		isOK: true,
+		isOK:        true,
+		expectedErr: nil,
 	},
 	"path_with_escaped_open_bracket": {
 		strPath: `/e1\[/e2[k=v]`,
@@ -214,7 +227,8 @@ var pathsTable = map[string]struct {
 					}},
 			},
 		},
-		isOK: true,
+		isOK:        true,
+		expectedErr: nil,
 	},
 	"path_with_escaped_close_bracket": {
 		strPath: `/e1\]/e2[k=v]`,
@@ -227,7 +241,26 @@ var pathsTable = map[string]struct {
 					}},
 			},
 		},
-		isOK: true,
+		isOK:        true,
+		expectedErr: nil,
+	},
+	"path_with_missing_closing_bracket": {
+		strPath:     `/e1/e2[k=v`,
+		gnmiPath:    nil,
+		isOK:        false,
+		expectedErr: errMalformedXPath,
+	},
+	"path_with_missing_open_bracket": {
+		strPath:     `/e1/e2k=v]`,
+		gnmiPath:    nil,
+		isOK:        false,
+		expectedErr: errMalformedXPath,
+	},
+	"path_with_key_missing_equal_sign": {
+		strPath:     `/e1/e2[k]`,
+		gnmiPath:    nil,
+		isOK:        false,
+		expectedErr: errMalformedXPathKey,
 	},
 }
 
@@ -375,8 +408,14 @@ func TestParsePath(t *testing.T) {
 	for name, tc := range pathsTable {
 		t.Run(name, func(t *testing.T) {
 			p, err := ParsePath(tc.strPath)
-			if err != nil {
-				t.Error(err)
+			if err != nil && tc.isOK {
+				t.Fatal(err)
+			}
+			if !tc.isOK {
+				if err != tc.expectedErr {
+					t.Errorf("failed at '%s', expected error %+v, got %+v", name, tc.expectedErr, err)
+				}
+				return
 			}
 			if !gnmiPathsEqual(p, tc.gnmiPath) {
 				t.Errorf("failed at '%s', expected %v, got %+v", name, tc.gnmiPath, p)
@@ -449,7 +488,7 @@ func BenchmarkParsePath(b *testing.B) {
 		b.Run(name, func(b *testing.B) {
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				ParsePath(tc.strPath)			
+				ParsePath(tc.strPath)
 			}
 		})
 	}

@@ -51,6 +51,7 @@ func ParsePath(p string) (*gnmi.Path, error) {
 	}, nil
 }
 
+// toPathElems parses a xpath and returns a list of path elements
 func toPathElems(p string) ([]*gnmi.PathElem, error) {
 	if !strings.HasSuffix(p, "/") {
 		p += "/"
@@ -127,7 +128,7 @@ func toPathElem(s string) (*gnmi.PathElem, error) {
 	return &gnmi.PathElem{Name: s, Key: kvs}, nil
 }
 
-// parseXPathKeys takes keys definition from an xpath, e.g [k1=v1][k2=v2] and return they keys and values as a map[string]string
+// parseXPathKeys takes keys definition from an xpath, e.g [k1=v1][k2=v2] and return the keys and values as a map[string]string
 func parseXPathKeys(s string) (map[string]string, error) {
 	if len(s) == 0 {
 		return nil, nil
