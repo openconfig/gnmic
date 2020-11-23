@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -14,6 +17,7 @@ import (
 	"github.com/karimra/gnmic/collector"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/nsf/termbox-go"
+	"github.com/olekukonko/tablewriter"
 	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -43,6 +47,8 @@ var colorMapping = map[string]goprompt.Color{
 	"turquoise":  goprompt.Turquoise,
 	"white":      goprompt.White,
 }
+
+var details bool
 
 func getColor(flagName string) goprompt.Color {
 	if cgoprompt, ok := colorMapping[viper.GetString(flagName)]; ok {
@@ -144,6 +150,47 @@ var promptModeCmd = &cobra.Command{
 				promptHistory = append(promptHistory, history[i])
 			}
 		}
+		//
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		debug := viper.GetBool("debug")
+		targetsConfig, err := createTargets()
+		if err != nil {
+			return fmt.Errorf("failed getting targets config: %v", err)
+		}
+		if debug {
+			logger.Printf("targets: %s", targetsConfig)
+		}
+		subscriptionsConfig, err := getSubscriptions()
+		if err != nil {
+			return fmt.Errorf("failed getting subscriptions config: %v", err)
+		}
+		if debug {
+			logger.Printf("subscriptions: %s", subscriptionsConfig)
+		}
+		outs, err := getOutputs()
+		if err != nil {
+			return err
+		}
+		if debug {
+			logger.Printf("outputs: %+v", outs)
+		}
+		if coll == nil {
+			cfg := &collector.Config{
+				PrometheusAddress:   viper.GetString("prometheus-address"),
+				Debug:               viper.GetBool("debug"),
+				Format:              viper.GetString("format"),
+				TargetReceiveBuffer: viper.GetUint("target-buffer-size"),
+				RetryTimer:          viper.GetDuration("retry-timer"),
+			}
+
+			coll = collector.NewCollector(cfg, targetsConfig,
+				collector.WithDialOptions(createCollectorDialOpts()),
+				collector.WithSubscriptions(subscriptionsConfig),
+				collector.WithOutputs(ctx, outs, logger),
+				collector.WithLogger(logger),
+			)
+		}
 		return nil
 	},
 	PostRun: func(cmd *cobra.Command, args []string) {
@@ -178,6 +225,316 @@ var promptQuitCmd = &cobra.Command{
 	},
 }
 
+var targetCmd = &cobra.Command{
+	Use:   "target",
+	Short: "manipulate configured targets",
+}
+
+var targetListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "list configured targets",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if coll == nil {
+			return errors.New("collector not initialized")
+		}
+		if details {
+			b, err := json.MarshalIndent(coll.Targets, "", "  ")
+			if err != nil {
+				return err
+			}
+			fmt.Printf("%s\n", string(b))
+			return nil
+		}
+		tabData := targetTable()
+		table := tablewriter.NewWriter(os.Stdout)
+		header := []string{
+			"Name",
+			"Address",
+			"Username",
+			"Password",
+			"Insecure",
+			"Skip Verify",
+			"TLS CA",
+			"TLS Certificate",
+			"TLS Key",
+		}
+		table.SetHeader(header)
+
+		table.SetAutoFormatHeaders(false)
+		table.SetAutoWrapText(false)
+		table.AppendBulk(tabData)
+		table.Render()
+		return nil
+	},
+	PostRun: func(cmd *cobra.Command, args []string) {
+		details = false
+		name = ""
+	},
+}
+
+var targetShowCmd = &cobra.Command{
+	Use:   "show",
+	Short: "show a target details",
+	Annotations: map[string]string{
+		"--name": "TARGET",
+	},
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if name == "" {
+			fmt.Println("provide a target name with --name")
+			return nil
+		}
+		if coll == nil {
+			return errors.New("collector not initialized")
+		}
+		if details {
+			if target, ok := coll.Targets[name]; ok {
+				b, err := json.MarshalIndent(target, "", "  ")
+				if err != nil {
+					return err
+				}
+				fmt.Printf("%s\n", string(b))
+				return nil
+			}
+		}
+		tabData := targetTable(name)
+		table := tablewriter.NewWriter(os.Stdout)
+		header := []string{
+			"Param",
+			"Value",
+		}
+		table.SetHeader(header)
+		table.SetAlignment(tablewriter.ALIGN_LEFT)
+		table.SetAutoFormatHeaders(false)
+		table.SetAutoWrapText(false)
+		table.AppendBulk(tabData)
+		table.Render()
+		return nil
+	},
+	PostRun: func(cmd *cobra.Command, args []string) {
+		details = false
+		name = ""
+	},
+}
+
+var subscriptionCmd = &cobra.Command{
+	Use:   "subscription",
+	Short: "manipulate configured subscriptions",
+}
+
+var subscriptionListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "list configured subscriptions",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if coll == nil {
+			return errors.New("collector not initialized")
+		}
+		if details {
+			b, err := json.MarshalIndent(coll.Subscriptions, "", "  ")
+			if err != nil {
+				return err
+			}
+			fmt.Printf("%s\n", string(b))
+			return nil
+		}
+		tabData := subscriptionTable()
+		table := tablewriter.NewWriter(os.Stdout)
+		header := []string{
+			"Name",
+			"Mode",
+			"Prefix",
+			"Paths",
+			"Interval",
+			"Encoding",
+		}
+		table.SetHeader(header)
+
+		table.SetAutoFormatHeaders(false)
+		table.SetAutoWrapText(false)
+		table.AppendBulk(tabData)
+		table.Render()
+		return nil
+	},
+	PostRun: func(cmd *cobra.Command, args []string) {
+		details = false
+		name = ""
+	},
+}
+
+var subscriptionShowCmd = &cobra.Command{
+	Use:   "show",
+	Short: "show a subscription details",
+	Annotations: map[string]string{
+		"--name": "SUBSCRIPTION",
+	},
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if name == "" {
+			fmt.Println("provide a subscription name with --name")
+			return nil
+		}
+		if coll == nil {
+			return errors.New("collector not initialized")
+		}
+		if details {
+			if sub, ok := coll.Subscriptions[name]; ok {
+				b, err := json.MarshalIndent(sub, "", "  ")
+				if err != nil {
+					return err
+				}
+				fmt.Printf("%s\n", string(b))
+				return nil
+			}
+		}
+		tabData := subscriptionTable(name)
+		table := tablewriter.NewWriter(os.Stdout)
+		header := []string{
+			"Param",
+			"Value",
+		}
+		table.SetHeader(header)
+		table.SetAlignment(tablewriter.ALIGN_LEFT)
+		table.SetAutoFormatHeaders(false)
+		table.SetAutoWrapText(false)
+		table.AppendBulk(tabData)
+		table.Render()
+		return nil
+	},
+	PostRun: func(cmd *cobra.Command, args []string) {
+		details = false
+		name = ""
+	},
+}
+
+var outputCmd = &cobra.Command{
+	Use:   "output",
+	Short: "manipulate configured outputs",
+}
+
+var outputListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "list configured outputs",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if coll == nil {
+			return errors.New("collector not initialized")
+		}
+		tabData := outputTable()
+		table := tablewriter.NewWriter(os.Stdout)
+		header := []string{
+			"Name",
+			"Config",
+		}
+		table.SetHeader(header)
+
+		table.SetAutoFormatHeaders(false)
+		table.SetAutoWrapText(false)
+		table.AppendBulk(tabData)
+		table.Render()
+		return nil
+	},
+}
+
+func targetTable(names ...string) [][]string {
+	if len(names) == 0 {
+		tabData := make([][]string, 0, len(coll.Targets))
+		for _, target := range coll.Targets {
+			tabData = append(tabData, []string{
+				target.Config.Name,
+				target.Config.Address,
+				target.Config.UsernameString(),
+				target.Config.PasswordString(),
+				target.Config.InsecureString(),
+				target.Config.SkipVerifyString(),
+				target.Config.TLSCAString(),
+				target.Config.TLSCertString(),
+				target.Config.TLSKeyString(),
+			})
+		}
+		sort.Slice(tabData, func(i, j int) bool {
+			return tabData[i][0] < tabData[j][0]
+		})
+		return tabData
+	}
+
+	if target, ok := coll.Targets[names[0]]; ok {
+		subNames := make([]string, 0, len(target.Subscriptions))
+		for s := range target.Subscriptions {
+			subNames = append(subNames, s)
+		}
+		sort.Strings(subNames)
+		outputNames := make([]string, 0, len(coll.Outputs))
+		if len(target.Config.Outputs) == 0 {
+			for o := range coll.Outputs {
+				outputNames = append(outputNames, o)
+			}
+		} else {
+			outputNames = append(outputNames, target.Config.Outputs...)
+		}
+		sort.Strings(outputNames)
+		tabData := make([][]string, 0, 16)
+		tabData = append(tabData, []string{"Name", target.Config.Name})
+		tabData = append(tabData, []string{"Address", target.Config.Address})
+		tabData = append(tabData, []string{"Username", target.Config.UsernameString()})
+		tabData = append(tabData, []string{"Password", target.Config.PasswordString()})
+		tabData = append(tabData, []string{"Insecure", target.Config.InsecureString()})
+		tabData = append(tabData, []string{"Skip Verify", target.Config.SkipVerifyString()})
+		tabData = append(tabData, []string{"TLS CA", target.Config.TLSCAString()})
+		tabData = append(tabData, []string{"TLS Certificate", target.Config.TLSCertString()})
+		tabData = append(tabData, []string{"TLS Key", target.Config.TLSKeyString()})
+		tabData = append(tabData, []string{"Subscriptions", fmt.Sprintf("- %s", strings.Join(subNames, "\n- "))})
+		tabData = append(tabData, []string{"Outputs", fmt.Sprintf("- %s", strings.Join(outputNames, "\n- "))})
+		tabData = append(tabData, []string{"Buffer Size", target.Config.BufferSizeString()})
+		tabData = append(tabData, []string{"Retry Timer", target.Config.RetryTimer.String()})
+		return tabData
+	}
+	return [][]string{}
+}
+
+func subscriptionTable(names ...string) [][]string {
+	if len(names) == 0 {
+		tabData := make([][]string, 0, len(coll.Subscriptions))
+		for _, sub := range coll.Subscriptions {
+			tabData = append(tabData, []string{
+				sub.Name,
+				sub.ModeString(),
+				sub.PrefixString(),
+				sub.PathsString(),
+				sub.SampleIntervalString(),
+				sub.Encoding,
+			})
+		}
+		sort.Slice(tabData, func(i, j int) bool {
+			return tabData[i][0] < tabData[j][0]
+		})
+		return tabData
+	}
+	if sub, ok := coll.Subscriptions[names[0]]; ok {
+		tabData := make([][]string, 0, 8)
+		tabData = append(tabData, []string{"Name", sub.Name})
+		tabData = append(tabData, []string{"Mode", sub.ModeString()})
+		tabData = append(tabData, []string{"Prefix", sub.PrefixString()})
+		tabData = append(tabData, []string{"Paths", sub.PathsString()})
+		tabData = append(tabData, []string{"Sample Interval", sub.SampleIntervalString()})
+		tabData = append(tabData, []string{"Encoding", sub.Encoding})
+		tabData = append(tabData, []string{"Qos", sub.QosString()})
+		tabData = append(tabData, []string{"Heartbeat Interval", sub.HeartbeatIntervalString()})
+		return tabData
+	}
+	return [][]string{}
+}
+
+func outputTable() [][]string {
+	tabData := make([][]string, 0, len(coll.Outputs))
+	for name, sub := range coll.Outputs {
+		tabData = append(tabData, []string{
+			name,
+			sub.String(),
+		})
+	}
+	sort.Slice(tabData, func(i, j int) bool {
+		return tabData[i][0] < tabData[j][0]
+	})
+	return tabData
+}
+
 func init() {
 	rootCmd.AddCommand(promptModeCmd)
 	initPromptFlags(promptModeCmd)
@@ -186,6 +543,7 @@ func init() {
 var promptFiles []string
 var promptExcluded []string
 var promptDirs []string
+var name string
 
 // used to init or reset pathCmd flags for gnmic-prompt mode
 func initPromptFlags(cmd *cobra.Command) {
@@ -302,12 +660,14 @@ func getDescriptionPrefix(entry *yang.Entry) string {
 		return "[+]"
 	}
 }
+
 func getEntryType(entry *yang.Entry) string {
 	if entry.Type != nil {
 		return entry.Type.Kind.String()
 	}
 	return ""
 }
+
 func buildXPATHDescription(entry *yang.Entry) string {
 	sb := strings.Builder{}
 	sb.WriteString(getDescriptionPrefix(entry))
@@ -567,6 +927,7 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 	}
 	return []goprompt.Suggest{}
 }
+
 func subscriptionDescription(sub *collector.SubscriptionConfig) string {
 	sb := strings.Builder{}
 	sb.WriteString("mode=")
@@ -594,6 +955,7 @@ func subscriptionDescription(sub *collector.SubscriptionConfig) string {
 	sb.WriteString(strings.Join(sub.Paths, ","))
 	return sb.String()
 }
+
 func showCommandArguments(b *goprompt.Buffer) {
 	doc := b.Document()
 	showLocalFlags := false
@@ -657,8 +1019,7 @@ func showCommandArguments(b *goprompt.Buffer) {
 
 // ExecutePrompt load and run gnmic-prompt mode.
 func ExecutePrompt() {
-	rootCmd.AddCommand(promptQuitCmd)
-	rootCmd.RemoveCommand(promptModeCmd)
+	initPromptCmds()
 	shell := &cmdPrompt{
 		RootCmd: rootCmd,
 		GoPromptOptions: []goprompt.Option{
@@ -730,6 +1091,29 @@ func ExecutePrompt() {
 		},
 	}
 	shell.Run()
+}
+
+func initPromptCmds() {
+	rootCmd.AddCommand(promptQuitCmd)
+	rootCmd.AddCommand(targetCmd)
+	rootCmd.AddCommand(subscriptionCmd)
+	rootCmd.AddCommand(outputCmd)
+
+	targetCmd.AddCommand(targetListCmd)
+	targetListCmd.Flags().BoolVarP(&details, "details", "", false, "print json output")
+	targetCmd.AddCommand(targetShowCmd)
+	targetShowCmd.Flags().StringVarP(&name, "name", "", "", "target name")
+	targetShowCmd.Flags().BoolVarP(&details, "details", "", false, "print json output")
+
+	subscriptionCmd.AddCommand(subscriptionListCmd)
+	subscriptionCmd.AddCommand(subscriptionShowCmd)
+	subscriptionListCmd.Flags().BoolVarP(&details, "details", "", false, "print json output")
+	subscriptionShowCmd.Flags().StringVarP(&name, "name", "", "", "subscription name")
+	subscriptionShowCmd.Flags().BoolVarP(&details, "details", "", false, "print json output")
+
+	outputCmd.AddCommand(outputListCmd)
+
+	rootCmd.RemoveCommand(promptModeCmd)
 }
 
 // Reference: https://github.com/stromland/cobra-prompt

@@ -82,6 +82,7 @@ var formats = [][2]string{
 var cfgFile string
 var f io.WriteCloser
 var logger *log.Logger
+var coll *collector.Collector
 
 func rootCmdPersistentPreRunE(cmd *cobra.Command, args []string) error {
 	debug := viper.GetBool("debug")

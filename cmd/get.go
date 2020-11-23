@@ -57,14 +57,16 @@ var getCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		cfg := &collector.Config{
-			Debug:               viper.GetBool("debug"),
-			Format:              viper.GetString("format"),
-			TargetReceiveBuffer: viper.GetUint("target-buffer-size"),
-			RetryTimer:          viper.GetDuration("retry-timer"),
-		}
+		if coll == nil {
+			cfg := &collector.Config{
+				Debug:               viper.GetBool("debug"),
+				Format:              viper.GetString("format"),
+				TargetReceiveBuffer: viper.GetUint("target-buffer-size"),
+				RetryTimer:          viper.GetDuration("retry-timer"),
+			}
 
-		coll := collector.NewCollector(cfg, targetsConfig, collector.WithDialOptions(createCollectorDialOpts()), collector.WithLogger(logger))
+			coll = collector.NewCollector(cfg, targetsConfig, collector.WithDialOptions(createCollectorDialOpts()), collector.WithLogger(logger))
+		}
 		req, err := createGetRequest()
 		if err != nil {
 			return err
@@ -73,7 +75,7 @@ var getCmd = &cobra.Command{
 		wg.Add(len(targetsConfig))
 		lock := new(sync.Mutex)
 		for tName := range targetsConfig {
-			go getRequest(ctx, coll, tName, req, wg, lock)
+			go getRequest(ctx, tName, req, wg, lock)
 		}
 		wg.Wait()
 		return nil
@@ -85,7 +87,7 @@ var getCmd = &cobra.Command{
 	SilenceUsage: true,
 }
 
-func getRequest(ctx context.Context, coll *collector.Collector, tName string, req *gnmi.GetRequest, wg *sync.WaitGroup, lock *sync.Mutex) {
+func getRequest(ctx context.Context, tName string, req *gnmi.GetRequest, wg *sync.WaitGroup, lock *sync.Mutex) {
 	defer wg.Done()
 	xreq := req
 	models := viper.GetStringSlice("get-model")

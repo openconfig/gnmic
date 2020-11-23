@@ -204,7 +204,7 @@ func (c *Collector) Start(ctx context.Context) {
 			numSubscriptions := len(t.Subscriptions)
 			for {
 				select {
-				case rsp := <-t.SubscribeResponses:
+				case rsp := <-t.subscribeResponses:
 					if c.Config.Debug {
 						c.logger.Printf("received gNMI Subscribe Response: %+v", rsp)
 					}
@@ -226,7 +226,7 @@ func (c *Collector) Start(ctx context.Context) {
 					if remainingOnceSubscriptions == 0 && numSubscriptions == numOnceSubscriptions {
 						return
 					}
-				case tErr := <-t.Errors:
+				case tErr := <-t.errors:
 					if errors.Is(tErr.Err, io.EOF) {
 						c.logger.Printf("target '%s', subscription %s closed stream(EOF)", t.Config.Name, tErr.SubscriptionName)
 					} else {

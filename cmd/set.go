@@ -82,14 +82,16 @@ var setCmd = &cobra.Command{
 		if len(targetsConfig) > 1 {
 			fmt.Println("[warning] running set command on multiple targets")
 		}
-		cfg := &collector.Config{
-			Debug:               viper.GetBool("debug"),
-			Format:              viper.GetString("format"),
-			TargetReceiveBuffer: viper.GetUint("target-buffer-size"),
-			RetryTimer:          viper.GetDuration("retry-timer"),
-		}
+		if coll == nil {
+			cfg := &collector.Config{
+				Debug:               viper.GetBool("debug"),
+				Format:              viper.GetString("format"),
+				TargetReceiveBuffer: viper.GetUint("target-buffer-size"),
+				RetryTimer:          viper.GetDuration("retry-timer"),
+			}
 
-		coll := collector.NewCollector(cfg, targetsConfig, collector.WithDialOptions(createCollectorDialOpts()), collector.WithLogger(logger))
+			coll = collector.NewCollector(cfg, targetsConfig, collector.WithDialOptions(createCollectorDialOpts()), collector.WithLogger(logger))
+		}
 		req, err := createSetRequest()
 		if err != nil {
 			return err
@@ -98,7 +100,7 @@ var setCmd = &cobra.Command{
 		wg.Add(len(coll.Targets))
 		lock := new(sync.Mutex)
 		for tName := range coll.Targets {
-			go setRequest(ctx, coll, tName, req, wg, lock)
+			go setRequest(ctx, tName, req, wg, lock)
 		}
 		wg.Wait()
 		return nil
@@ -110,7 +112,7 @@ var setCmd = &cobra.Command{
 	SilenceUsage: true,
 }
 
-func setRequest(ctx context.Context, coll *collector.Collector, tName string, req *gnmi.SetRequest, wg *sync.WaitGroup, lock *sync.Mutex) {
+func setRequest(ctx context.Context, tName string, req *gnmi.SetRequest, wg *sync.WaitGroup, lock *sync.Mutex) {
 	defer wg.Done()
 	logger.Printf("sending gNMI SetRequest: prefix='%v', delete='%v', replace='%v', update='%v', extension='%v' to %s",
 		req.Prefix, req.Delete, req.Replace, req.Update, req.Extension, tName)

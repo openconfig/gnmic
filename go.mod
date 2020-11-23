@@ -18,6 +18,7 @@ require (
 	github.com/nats-io/nats.go v1.10.0
 	github.com/nats-io/stan.go v0.7.0
 	github.com/nsf/termbox-go v0.0.0-20200418040025-38ba6e5628f1
+	github.com/olekukonko/tablewriter v0.0.4
 	github.com/openconfig/gnmi v0.0.0-20200617225440-d2b4e6a45802
 	github.com/openconfig/goyang v0.0.0-20200908203031-af27d3788542
 	github.com/prometheus/client_golang v1.7.1

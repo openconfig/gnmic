@@ -88,21 +88,22 @@ var subscribeCmd = &cobra.Command{
 		if debug {
 			logger.Printf("outputs: %+v", outs)
 		}
+		if coll == nil {
+			cfg := &collector.Config{
+				PrometheusAddress:   viper.GetString("prometheus-address"),
+				Debug:               viper.GetBool("debug"),
+				Format:              viper.GetString("format"),
+				TargetReceiveBuffer: viper.GetUint("target-buffer-size"),
+				RetryTimer:          viper.GetDuration("retry-timer"),
+			}
 
-		cfg := &collector.Config{
-			PrometheusAddress:   viper.GetString("prometheus-address"),
-			Debug:               viper.GetBool("debug"),
-			Format:              viper.GetString("format"),
-			TargetReceiveBuffer: viper.GetUint("target-buffer-size"),
-			RetryTimer:          viper.GetDuration("retry-timer"),
+			coll = collector.NewCollector(cfg, targetsConfig,
+				collector.WithDialOptions(createCollectorDialOpts()),
+				collector.WithSubscriptions(subscriptionsConfig),
+				collector.WithOutputs(ctx, outs, logger),
+				collector.WithLogger(logger),
+			)
 		}
-
-		coll := collector.NewCollector(cfg, targetsConfig,
-			collector.WithDialOptions(createCollectorDialOpts()),
-			collector.WithSubscriptions(subscriptionsConfig),
-			collector.WithOutputs(ctx, outs, logger),
-			collector.WithLogger(logger))
-
 		wg := new(sync.WaitGroup)
 		wg.Add(len(coll.Targets))
 		for name := range coll.Targets {

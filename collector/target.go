@@ -31,33 +31,33 @@ type TargetError struct {
 
 // Target represents a gNMI enabled box
 type Target struct {
-	Config        *TargetConfig
-	Subscriptions map[string]*SubscriptionConfig
+	Config        *TargetConfig                  `json:"config,omitempty"`
+	Subscriptions map[string]*SubscriptionConfig `json:"subscriptions,omitempty"`
 
 	m                  *sync.Mutex
-	Client             gnmi.GNMIClient
-	SubscribeClients   map[string]gnmi.GNMI_SubscribeClient // subscription name to subscribeClient
-	PollChan           chan string                          // subscription name to be polled
-	SubscribeResponses chan *SubscribeResponse
-	Errors             chan *TargetError
+	Client             gnmi.GNMIClient                      `json:"-"`
+	SubscribeClients   map[string]gnmi.GNMI_SubscribeClient `json:"-"` // subscription name to subscribeClient
+	pollChan           chan string                          // subscription name to be polled
+	subscribeResponses chan *SubscribeResponse
+	errors             chan *TargetError
 }
 
 // TargetConfig //
 type TargetConfig struct {
-	Name          string        `mapstructure:"name,omitempty"`
-	Address       string        `mapstructure:"address,omitempty"`
-	Username      *string       `mapstructure:"username,omitempty"`
-	Password      *string       `mapstructure:"password,omitempty"`
-	Timeout       time.Duration `mapstructure:"timeout,omitempty"`
-	Insecure      *bool         `mapstructure:"insecure,omitempty"`
-	TLSCA         *string       `mapstructure:"tls-ca,omitempty"`
-	TLSCert       *string       `mapstructure:"tls-cert,omitempty"`
-	TLSKey        *string       `mapstructure:"tls-key,omitempty"`
-	SkipVerify    *bool         `mapstructure:"skip-verify,omitempty"`
-	Subscriptions []string      `mapstructure:"subscriptions,omitempty"`
-	Outputs       []string      `mapstructure:"outputs,omitempty"`
-	BufferSize    uint          `mapstructure:"buffer-size,omitempty"`
-	RetryTimer    time.Duration `mapstructure:"retry,omitempty"`
+	Name          string        `mapstructure:"name,omitempty" json:"name,omitempty"`
+	Address       string        `mapstructure:"address,omitempty" json:"address,omitempty"`
+	Username      *string       `mapstructure:"username,omitempty" json:"username,omitempty"`
+	Password      *string       `mapstructure:"password,omitempty" json:"password,omitempty"`
+	Timeout       time.Duration `mapstructure:"timeout,omitempty" json:"timeout,omitempty"`
+	Insecure      *bool         `mapstructure:"insecure,omitempty" json:"insecure,omitempty"`
+	TLSCA         *string       `mapstructure:"tls-ca,omitempty" json:"tls-ca,omitempty"`
+	TLSCert       *string       `mapstructure:"tls-cert,omitempty" json:"tls-cert,omitempty"`
+	TLSKey        *string       `mapstructure:"tls-key,omitempty" json:"tls-key,omitempty"`
+	SkipVerify    *bool         `mapstructure:"skip-verify,omitempty" json:"skip-verify,omitempty"`
+	Subscriptions []string      `mapstructure:"subscriptions,omitempty" json:"subscriptions,omitempty"`
+	Outputs       []string      `mapstructure:"outputs,omitempty" json:"outputs,omitempty"`
+	BufferSize    uint          `mapstructure:"buffer-size,omitempty" json:"buffer-size,omitempty"`
+	RetryTimer    time.Duration `mapstructure:"retry,omitempty" json:"retry-timer,omitempty"`
 }
 
 func (tc *TargetConfig) String() string {
@@ -75,9 +75,9 @@ func NewTarget(c *TargetConfig) *Target {
 		Subscriptions:      make(map[string]*SubscriptionConfig),
 		m:                  new(sync.Mutex),
 		SubscribeClients:   make(map[string]gnmi.GNMI_SubscribeClient),
-		PollChan:           make(chan string),
-		SubscribeResponses: make(chan *SubscribeResponse, c.BufferSize),
-		Errors:             make(chan *TargetError),
+		pollChan:           make(chan string),
+		subscribeResponses: make(chan *SubscribeResponse, c.BufferSize),
+		errors:             make(chan *TargetError),
 	}
 	return t
 }
@@ -157,7 +157,7 @@ SUBSC:
 	nctx = metadata.AppendToOutgoingContext(nctx, "username", *t.Config.Username, "password", *t.Config.Password)
 	subscribeClient, err := t.Client.Subscribe(nctx)
 	if err != nil {
-		t.Errors <- &TargetError{
+		t.errors <- &TargetError{
 			SubscriptionName: subscriptionName,
 			Err:              fmt.Errorf("failed to create a subscribe client, target='%s', retry in %d. err=%v", t.Config.Name, t.Config.RetryTimer, err),
 		}
@@ -170,7 +170,7 @@ SUBSC:
 	t.m.Unlock()
 	err = subscribeClient.Send(req)
 	if err != nil {
-		t.Errors <- &TargetError{
+		t.errors <- &TargetError{
 			SubscriptionName: subscriptionName,
 			Err:              fmt.Errorf("target '%s' send error, retry in %d. err=%v", t.Config.Name, t.Config.RetryTimer, err),
 		}
@@ -183,11 +183,11 @@ SUBSC:
 		for {
 			response, err := subscribeClient.Recv()
 			if err != nil {
-				t.Errors <- &TargetError{
+				t.errors <- &TargetError{
 					SubscriptionName: subscriptionName,
 					Err:              err,
 				}
-				t.Errors <- &TargetError{
+				t.errors <- &TargetError{
 					SubscriptionName: subscriptionName,
 					Err:              fmt.Errorf("retrying in %d", t.Config.RetryTimer),
 				}
@@ -195,7 +195,7 @@ SUBSC:
 				time.Sleep(t.Config.RetryTimer)
 				goto SUBSC
 			}
-			t.SubscribeResponses <- &SubscribeResponse{
+			t.subscribeResponses <- &SubscribeResponse{
 				SubscriptionName: subscriptionName,
 				Response:         response,
 			}
@@ -204,14 +204,14 @@ SUBSC:
 		for {
 			response, err := subscribeClient.Recv()
 			if err != nil {
-				t.Errors <- &TargetError{
+				t.errors <- &TargetError{
 					SubscriptionName: subscriptionName,
 					Err:              err,
 				}
 				if errors.Is(err, io.EOF) {
 					return
 				}
-				t.Errors <- &TargetError{
+				t.errors <- &TargetError{
 					SubscriptionName: subscriptionName,
 					Err:              fmt.Errorf("retrying in %d", t.Config.RetryTimer),
 				}
@@ -219,7 +219,7 @@ SUBSC:
 				time.Sleep(t.Config.RetryTimer)
 				goto SUBSC
 			}
-			t.SubscribeResponses <- &SubscribeResponse{
+			t.subscribeResponses <- &SubscribeResponse{
 				SubscriptionName: subscriptionName,
 				Response:         response,
 			}
@@ -231,14 +231,14 @@ SUBSC:
 	case gnmi.SubscriptionList_POLL:
 		for {
 			select {
-			case subName := <-t.PollChan:
+			case subName := <-t.pollChan:
 				err = t.SubscribeClients[subName].Send(&gnmi.SubscribeRequest{
 					Request: &gnmi.SubscribeRequest_Poll{
 						Poll: &gnmi.Poll{},
 					},
 				})
 				if err != nil {
-					t.Errors <- &TargetError{
+					t.errors <- &TargetError{
 						SubscriptionName: subscriptionName,
 						Err:              fmt.Errorf("failed to send PollRequest: %v", err),
 					}
@@ -246,13 +246,13 @@ SUBSC:
 				}
 				response, err := subscribeClient.Recv()
 				if err != nil {
-					t.Errors <- &TargetError{
+					t.errors <- &TargetError{
 						SubscriptionName: subscriptionName,
 						Err:              err,
 					}
 					continue
 				}
-				t.SubscribeResponses <- &SubscribeResponse{
+				t.subscribeResponses <- &SubscribeResponse{
 					SubscriptionName: subscriptionName,
 					Response:         response,
 				}
@@ -294,4 +294,64 @@ func (t *Target) numberOfOnceSubscriptions() int {
 		}
 	}
 	return num
+}
+
+func (tc *TargetConfig) UsernameString() string {
+	if tc.Username == nil {
+		return "NA"
+	}
+	return *tc.Username
+}
+
+func (tc *TargetConfig) PasswordString() string {
+	if tc.Password == nil {
+		return "NA"
+	}
+	return *tc.Password
+}
+func (tc *TargetConfig) InsecureString() string {
+	if tc.Insecure == nil {
+		return "NA"
+	}
+	return fmt.Sprintf("%t", *tc.Insecure)
+}
+
+func (tc *TargetConfig) TLSCAString() string {
+	if tc.TLSCA == nil || *tc.TLSCA == "" {
+		return "NA"
+	}
+	return *tc.TLSCA
+}
+
+func (tc *TargetConfig) TLSKeyString() string {
+	if tc.TLSKey == nil || *tc.TLSKey == "" {
+		return "NA"
+	}
+	return *tc.TLSKey
+}
+
+func (tc *TargetConfig) TLSCertString() string {
+	if tc.TLSCert == nil || *tc.TLSCert == "" {
+		return "NA"
+	}
+	return *tc.TLSCert
+}
+
+func (tc *TargetConfig) SkipVerifyString() string {
+	if tc.SkipVerify == nil {
+		return "NA"
+	}
+	return fmt.Sprintf("%t", *tc.SkipVerify)
+}
+
+func (tc *TargetConfig) SubscriptionString() string {
+	return fmt.Sprintf("- %s", strings.Join(tc.Subscriptions, "\n"))
+}
+
+func (tc *TargetConfig) OutputsString() string {
+	return strings.Join(tc.Outputs, "\n")
+}
+
+func (tc *TargetConfig) BufferSizeString() string {
+	return fmt.Sprintf("%d", tc.BufferSize)
 }
