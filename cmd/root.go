@@ -79,6 +79,8 @@ var formats = [][2]string{
 	{"event", "protocol buffer messages as a timestamped list of tags and values"},
 	{"proto", "protocol buffer messages in binary wire format"},
 }
+var tlsVersions = []string{"1.3", "1.2", "1.1", "1.0", "1"}
+
 var cfgFile string
 var f io.WriteCloser
 var logger *log.Logger
@@ -185,6 +187,9 @@ func init() {
 	rootCmd.PersistentFlags().StringP("prometheus-address", "", "", "prometheus server address")
 	rootCmd.PersistentFlags().BoolP("print-request", "", false, "print request as well as the response(s)")
 	rootCmd.PersistentFlags().DurationP("retry", "", defaultRetryTimer, "retry timer for RPCs")
+	rootCmd.PersistentFlags().StringP("tls-min-version", "", "", fmt.Sprintf("minimum TLS supported version, one of %q", tlsVersions))
+	rootCmd.PersistentFlags().StringP("tls-max-version", "", "", fmt.Sprintf("maximum TLS supported version, one of %q", tlsVersions))
+	rootCmd.PersistentFlags().StringP("tls-version", "", "", fmt.Sprintf("set TLS version. Overwrites --tls-min-version and --tls-max-version, one of %q", tlsVersions))
 	//
 	viper.BindPFlag("address", rootCmd.PersistentFlags().Lookup("address"))
 	viper.BindPFlag("username", rootCmd.PersistentFlags().Lookup("username"))
@@ -207,6 +212,9 @@ func init() {
 	viper.BindPFlag("prometheus-address", rootCmd.PersistentFlags().Lookup("prometheus-address"))
 	viper.BindPFlag("print-request", rootCmd.PersistentFlags().Lookup("print-request"))
 	viper.BindPFlag("retry", rootCmd.PersistentFlags().Lookup("retry"))
+	viper.BindPFlag("tls-min-version", rootCmd.PersistentFlags().Lookup("tls-min-version"))
+	viper.BindPFlag("tls-max-version", rootCmd.PersistentFlags().Lookup("tls-max-version"))
+	viper.BindPFlag("tls-version", rootCmd.PersistentFlags().Lookup("tls-version"))
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -548,6 +556,15 @@ func setTargetConfigDefaults(tc *collector.TargetConfig) {
 	}
 	if tc.RetryTimer == 0 {
 		tc.RetryTimer = viper.GetDuration("retry")
+	}
+	if tc.TLSVersion == "" {
+		tc.TLSVersion = viper.GetString("tls-version")
+	}
+	if tc.TLSMinVersion == "" {
+		tc.TLSMinVersion = viper.GetString("tls-min-version")
+	}
+	if tc.TLSMaxVersion == "" {
+		tc.TLSMaxVersion = viper.GetString("tls-max-version")
 	}
 }
 

@@ -58,6 +58,10 @@ type TargetConfig struct {
 	Outputs       []string      `mapstructure:"outputs,omitempty" json:"outputs,omitempty"`
 	BufferSize    uint          `mapstructure:"buffer-size,omitempty" json:"buffer-size,omitempty"`
 	RetryTimer    time.Duration `mapstructure:"retry,omitempty" json:"retry-timer,omitempty"`
+	TLSMinVersion string        `mapstructure:"tls-min-version,omitempty"`
+	TLSMaxVersion string        `mapstructure:"tls-max-version,omitempty"`
+	TLSVersion    string        `mapstructure:"tls-version,omitempty"`
+
 }
 
 func (tc *TargetConfig) String() string {
@@ -87,6 +91,8 @@ func (tc *TargetConfig) newTLS() (*tls.Config, error) {
 	tlsConfig := &tls.Config{
 		Renegotiation:      tls.RenegotiateNever,
 		InsecureSkipVerify: *tc.SkipVerify,
+		MaxVersion:         tc.getTLSMaxVersion(),
+		MinVersion:         tc.getTLSMinVersion(),
 	}
 	err := loadCerts(tlsConfig, tc)
 	if err != nil {
@@ -296,6 +302,7 @@ func (t *Target) numberOfOnceSubscriptions() int {
 	return num
 }
 
+
 func (tc *TargetConfig) UsernameString() string {
 	if tc.Username == nil {
 		return "NA"
@@ -354,4 +361,34 @@ func (tc *TargetConfig) OutputsString() string {
 
 func (tc *TargetConfig) BufferSizeString() string {
 	return fmt.Sprintf("%d", tc.BufferSize)
+
+func (tc *TargetConfig) getTLSMinVersion() uint16 {
+	v := tlsVersionStringToUint(tc.TLSVersion)
+	if v > 0 {
+		return v
+	}
+	return tlsVersionStringToUint(tc.TLSMinVersion)
+}
+
+func (tc *TargetConfig) getTLSMaxVersion() uint16 {
+	v := tlsVersionStringToUint(tc.TLSVersion)
+	if v > 0 {
+		return v
+	}
+	return tlsVersionStringToUint(tc.TLSMaxVersion)
+}
+
+func tlsVersionStringToUint(v string) uint16 {
+	switch v {
+	default:
+		return 0
+	case "1.3":
+		return tls.VersionTLS13
+	case "1.2":
+		return tls.VersionTLS12
+	case "1.1":
+		return tls.VersionTLS11
+	case "1.0", "1":
+		return tls.VersionTLS10
+	}
 }
