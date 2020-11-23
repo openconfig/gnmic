@@ -58,10 +58,9 @@ type TargetConfig struct {
 	Outputs       []string      `mapstructure:"outputs,omitempty" json:"outputs,omitempty"`
 	BufferSize    uint          `mapstructure:"buffer-size,omitempty" json:"buffer-size,omitempty"`
 	RetryTimer    time.Duration `mapstructure:"retry,omitempty" json:"retry-timer,omitempty"`
-	TLSMinVersion string        `mapstructure:"tls-min-version,omitempty"`
-	TLSMaxVersion string        `mapstructure:"tls-max-version,omitempty"`
-	TLSVersion    string        `mapstructure:"tls-version,omitempty"`
-
+	TLSMinVersion string        `mapstructure:"tls-min-version,omitempty" json:"tls-min-version,omitempty"`
+	TLSMaxVersion string        `mapstructure:"tls-max-version,omitempty" json:"tls-max-version,omitempty"`
+	TLSVersion    string        `mapstructure:"tls-version,omitempty" json:"tls-version,omitempty"`
 }
 
 func (tc *TargetConfig) String() string {
@@ -302,7 +301,6 @@ func (t *Target) numberOfOnceSubscriptions() int {
 	return num
 }
 
-
 func (tc *TargetConfig) UsernameString() string {
 	if tc.Username == nil {
 		return "NA"
@@ -361,7 +359,7 @@ func (tc *TargetConfig) OutputsString() string {
 
 func (tc *TargetConfig) BufferSizeString() string {
 	return fmt.Sprintf("%d", tc.BufferSize)
-
+}
 func (tc *TargetConfig) getTLSMinVersion() uint16 {
 	v := tlsVersionStringToUint(tc.TLSVersion)
 	if v > 0 {
