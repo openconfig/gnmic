@@ -1,11 +1,11 @@
 package collector
 
 import (
-	"fmt"
 	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/openconfig/gnmi/proto/gnmi"
 )
 
@@ -36,38 +36,43 @@ var prefixSet = map[string]*gnmi.Path{
 }
 
 var pathsTable = map[string]struct {
-	strPath  string
-	gnmiPath *gnmi.Path
+	strPath     string
+	gnmiPath    *gnmi.Path
+	isOK        bool
+	expectedErr error
 }{
-	"test1": {
+	"empty_path": {
+		strPath:     "",
+		gnmiPath:    &gnmi.Path{},
+		isOK:        true,
+		expectedErr: nil,
+	},
+	"path_with_slash_only": {
 		strPath:  "/",
 		gnmiPath: &gnmi.Path{},
+		isOK:     true,
 	},
-	"test2": {
-		strPath: "origin:e1/e2",
-		gnmiPath: &gnmi.Path{
-			Origin: "origin",
-			Elem: []*gnmi.PathElem{
-				{Name: "e1"},
-				{Name: "e2"},
-			},
-		},
-	},
-	"test3": {
-		strPath: "origin:",
-		gnmiPath: &gnmi.Path{
-			Origin: "origin",
-		},
-	},
-	"test4": {
+	"path_with_one_path_element": {
 		strPath: "e",
 		gnmiPath: &gnmi.Path{
 			Elem: []*gnmi.PathElem{
 				{Name: "e"},
 			},
 		},
+		isOK:        true,
+		expectedErr: nil,
 	},
-	"test5": {
+	"path_with_one_path_element_with_slash": {
+		strPath: "/e",
+		gnmiPath: &gnmi.Path{
+			Elem: []*gnmi.PathElem{
+				{Name: "e"},
+			},
+		},
+		isOK:        true,
+		expectedErr: nil,
+	},
+	"path_with_two_path_elements": {
 		strPath: "/e1/e2",
 		gnmiPath: &gnmi.Path{
 			Elem: []*gnmi.PathElem{
@@ -75,8 +80,10 @@ var pathsTable = map[string]struct {
 				{Name: "e2"},
 			},
 		},
+		isOK:        true,
+		expectedErr: nil,
 	},
-	"test6": {
+	"path_with_two_path_elements_with_key": {
 		strPath: "/e1/e2[k=v]",
 		gnmiPath: &gnmi.Path{
 			Elem: []*gnmi.PathElem{
@@ -87,8 +94,56 @@ var pathsTable = map[string]struct {
 					}},
 			},
 		},
+		isOK:        true,
+		expectedErr: nil,
 	},
-	"test7": {
+	"path_with_multiple_path_elements_and_multiple_keys": {
+		strPath: "/e1/e2[k1=v1][k2=v2]",
+		gnmiPath: &gnmi.Path{
+			Elem: []*gnmi.PathElem{
+				{Name: "e1"},
+				{Name: "e2",
+					Key: map[string]string{
+						"k1": "v1",
+						"k2": "v2",
+					}},
+			},
+		},
+		isOK:        true,
+		expectedErr: nil,
+	},
+	"path_with_origin": {
+		strPath: "origin:e1/e2",
+		gnmiPath: &gnmi.Path{
+			Origin: "origin",
+			Elem: []*gnmi.PathElem{
+				{Name: "e1"},
+				{Name: "e2"},
+			},
+		},
+		isOK:        true,
+		expectedErr: nil,
+	},
+	"path_with_origin_and_slash": {
+		strPath: "origin:/e1/e2",
+		gnmiPath: &gnmi.Path{
+			Origin: "origin",
+			Elem: []*gnmi.PathElem{
+				{Name: "e1"},
+				{Name: "e2"},
+			},
+		},
+		isOK:        true,
+		expectedErr: nil,
+	},
+	"path_with_origin_only": {
+		strPath: "origin:",
+		gnmiPath: &gnmi.Path{
+			Origin: "origin",
+		},
+		isOK: true,
+	},
+	"path_with_origin_and_key": {
 		strPath: "origin:/e1/e2[k=v]",
 		gnmiPath: &gnmi.Path{
 			Origin: "origin",
@@ -100,6 +155,230 @@ var pathsTable = map[string]struct {
 					}},
 			},
 		},
+		isOK:        true,
+		expectedErr: nil,
+	},
+	"path_with_origin_and_multiple_keys": {
+		strPath: "origin:/e1[name=object]/e2[addr=1.1.1.1/32]",
+		gnmiPath: &gnmi.Path{
+			Origin: "origin",
+			Elem: []*gnmi.PathElem{
+				{Name: "e1",
+					Key: map[string]string{
+						"name": "object",
+					}},
+				{Name: "e2",
+					Key: map[string]string{
+						"addr": "1.1.1.1/32",
+					}},
+			},
+		},
+		isOK:        true,
+		expectedErr: nil,
+	},
+	"path_with_column_in_path_elem": {
+		strPath: "origin:/e1:e1[k=1.1.1.1/32]/e2[k1=v2]",
+		gnmiPath: &gnmi.Path{
+			Origin: "origin",
+			Elem: []*gnmi.PathElem{
+				{Name: "e1:e1",
+					Key: map[string]string{
+						"k": "1.1.1.1/32",
+					},
+				},
+				{Name: "e2",
+					Key: map[string]string{
+						"k1": "v2",
+					},
+				},
+			},
+		},
+		isOK:        true,
+		expectedErr: nil,
+	},
+	"path_with_column_in_2_path_elems": {
+		strPath: "origin:/e1:e1[k=1.1.1.1/32]/e2:e3[k1=v2]",
+		gnmiPath: &gnmi.Path{
+			Origin: "origin",
+			Elem: []*gnmi.PathElem{
+				{Name: "e1:e1",
+					Key: map[string]string{
+						"k": "1.1.1.1/32",
+					},
+				},
+				{Name: "e2:e3",
+					Key: map[string]string{
+						"k1": "v2",
+					},
+				},
+			},
+		},
+		isOK:        true,
+		expectedErr: nil,
+	},
+	"path_with_escaped_open_bracket": {
+		strPath: `/e1\[/e2[k=v]`,
+		gnmiPath: &gnmi.Path{
+			Elem: []*gnmi.PathElem{
+				{Name: `e1\[`},
+				{Name: "e2",
+					Key: map[string]string{
+						"k": "v",
+					}},
+			},
+		},
+		isOK:        true,
+		expectedErr: nil,
+	},
+	"path_with_escaped_close_bracket": {
+		strPath: `/e1\]/e2[k=v]`,
+		gnmiPath: &gnmi.Path{
+			Elem: []*gnmi.PathElem{
+				{Name: `e1\]`},
+				{Name: "e2",
+					Key: map[string]string{
+						"k": "v",
+					}},
+			},
+		},
+		isOK:        true,
+		expectedErr: nil,
+	},
+	"path_with_missing_closing_bracket": {
+		strPath:     `/e1/e2[k=v`,
+		gnmiPath:    nil,
+		isOK:        false,
+		expectedErr: errMalformedXPath,
+	},
+	"path_with_missing_open_bracket": {
+		strPath:     `/e1/e2k=v]`,
+		gnmiPath:    nil,
+		isOK:        false,
+		expectedErr: errMalformedXPath,
+	},
+	"path_with_key_missing_equal_sign": {
+		strPath:     `/e1/e2[k]`,
+		gnmiPath:    nil,
+		isOK:        false,
+		expectedErr: errMalformedXPathKey,
+	},
+}
+
+type outKeysSet struct {
+	out map[string]string
+	err error
+}
+type outPathElemSet struct {
+	out *gnmi.PathElem
+	err error
+}
+
+var keysSet = map[string]struct {
+	in  string
+	exp outKeysSet
+}{
+	"no_key": {
+		in: "",
+		exp: outKeysSet{
+			out: nil,
+			err: nil,
+		},
+	},
+	"one_key": {
+		in: "[k=v]",
+		exp: outKeysSet{
+			out: map[string]string{"k": "v"},
+			err: nil,
+		},
+	},
+	"two_key": {
+		in: "[k1=v1][k2=1.1.1.1/30]",
+		exp: outKeysSet{
+			out: map[string]string{"k1": "v1", "k2": "1.1.1.1/30"},
+			err: nil,
+		},
+	},
+	"noval_key": {
+		in: "[k1=]",
+		exp: outKeysSet{
+			out: nil,
+			err: errMalformedXPathKey,
+		},
+	},
+	"nokey_with_val": {
+		in: "[=v]",
+		exp: outKeysSet{
+			out: nil,
+			err: errMalformedXPathKey,
+		},
+	},
+	"inKey_brackets": {
+		in: "[k=[v]",
+		exp: outKeysSet{
+			out: nil,
+			err: errMalformedXPathKey,
+		},
+	},
+	"inKey_escaped_open_bracket": {
+		in: `[k=\[v]`,
+		exp: outKeysSet{
+			out: map[string]string{"k": "[v"},
+			err: nil,
+		},
+	},
+	"inKey_escaped_close_bracket": {
+		in: `[k=\]v]`,
+		exp: outKeysSet{
+			out: map[string]string{"k": "]v"},
+			err: nil,
+		},
+	},
+	"inKey_escaped_brackets": {
+		in: `[\[k=\]v]`,
+		exp: outKeysSet{
+			out: map[string]string{"[k": "]v"},
+			err: nil,
+		},
+	},
+}
+var pathElemSet = map[string]struct {
+	in  string
+	out outPathElemSet
+}{
+	"no_key": {
+		in: "elem1",
+		out: outPathElemSet{
+			out: &gnmi.PathElem{Name: "elem1"},
+			err: nil,
+		},
+	},
+	"with_1_key": {
+		in: "elem1[k=v]",
+		out: outPathElemSet{
+			out: &gnmi.PathElem{Name: "elem1", Key: map[string]string{"k": "v"}},
+			err: nil,
+		},
+	},
+	"with_2_keys": {
+		in: "elem1[k1=v1][k2=v2]",
+		out: outPathElemSet{
+			out: &gnmi.PathElem{Name: "elem1", Key: map[string]string{"k1": "v1", "k2": "v2"}},
+			err: nil,
+		},
+	},
+	"with_1_key_malformed": {
+		in: "elem1[k1=v1",
+		out: outPathElemSet{
+			out: nil,
+			err: errMalformedXPathKey,
+		},
+	},
+	"elem_with_escaped_bracket": {
+		in: `elem1\[k1=v1`,
+		out: outPathElemSet{
+			out: &gnmi.PathElem{Name: `elem1\[k1=v1`},
+			err: nil,
+		},
 	},
 }
 
@@ -107,13 +386,13 @@ func TestCreatePrefix(t *testing.T) {
 	var target, prefix string
 	for e, p := range prefixSet {
 		val := strings.Split(e, "%%%")
-		fmt.Printf("%d: %v\n", len(val), val)
+		//fmt.Printf("%d: %v\n", len(val), val)
 		if len(val) == 2 {
 			target, prefix = val[0], val[1]
 		} else if len(val) == 1 {
 			target, prefix = "", val[0]
 		}
-		fmt.Println(target, prefix)
+		//fmt.Println(target, prefix)
 		gp, err := CreatePrefix(prefix, target)
 		if err != nil {
 			t.Error(err)
@@ -129,11 +408,87 @@ func TestParsePath(t *testing.T) {
 	for name, tc := range pathsTable {
 		t.Run(name, func(t *testing.T) {
 			p, err := ParsePath(tc.strPath)
-			if err != nil {
-				t.Error(err)
+			if err != nil && tc.isOK {
+				t.Fatal(err)
 			}
-			if !reflect.DeepEqual(p, tc.gnmiPath) {
-				t.Errorf("ParsePath failed with path: %s", tc.strPath)
+			if !tc.isOK {
+				if err != tc.expectedErr {
+					t.Errorf("failed at '%s', expected error %+v, got %+v", name, tc.expectedErr, err)
+				}
+				return
+			}
+			if !gnmiPathsEqual(p, tc.gnmiPath) {
+				t.Errorf("failed at '%s', expected %v, got %+v", name, tc.gnmiPath, p)
+			}
+		})
+	}
+}
+
+func TestParseXPathKeys(t *testing.T) {
+	for name, input := range keysSet {
+		t.Run(name, func(t *testing.T) {
+			keys, err := parseXPathKeys(input.in)
+			if !cmp.Equal(keys, input.exp.out) {
+				t.Errorf("failed at '%s', expected %v, got %+v", name, input.exp.out, keys)
+			}
+			if err != input.exp.err {
+				t.Errorf("failed at '%s', expected error %+v, got %+v", name, input.exp.err, err)
+			}
+		})
+	}
+}
+
+func TestStringToPathElem(t *testing.T) {
+	for name, input := range pathElemSet {
+		t.Run(name, func(t *testing.T) {
+			gnmiPathElem, err := toPathElem(input.in)
+			if gnmiPathElem == nil || input.out.out == nil {
+				if gnmiPathElem != input.out.out {
+					t.Errorf("failed at '%s', expected %v, got %+v", name, input.out.out, gnmiPathElem)
+				}
+			} else if !cmp.Equal(gnmiPathElem.Key, input.out.out.Key) || gnmiPathElem.Name != input.out.out.Name {
+				t.Errorf("failed at '%s', expected %v, got %+v", name, input.out.out, gnmiPathElem)
+			}
+			if err != input.out.err {
+				t.Errorf("failed at '%s', expected error %+v, got %+v", name, input.out.err, err)
+			}
+		})
+	}
+}
+
+func gnmiPathsEqual(p1, p2 *gnmi.Path) bool {
+	if p1 == nil && p2 == nil {
+		return true
+	}
+	if p1 == nil || p2 == nil {
+		return false
+	}
+	if p1.Origin != p2.Origin {
+		return false
+	}
+	if p1.Target != p2.Target {
+		return false
+	}
+	if len(p1.Elem) != len(p2.Elem) {
+		return false
+	}
+	for i, e := range p1.Elem {
+		if e.Name != p2.Elem[i].Name {
+			return false
+		}
+		if !cmp.Equal(e.Key, p2.Elem[i].Key) {
+			return false
+		}
+	}
+	return true
+}
+
+func BenchmarkParsePath(b *testing.B) {
+	for name, tc := range pathsTable {
+		b.Run(name, func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				ParsePath(tc.strPath)
 			}
 		})
 	}
