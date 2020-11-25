@@ -114,7 +114,7 @@ CRCONN:
 
 // Write //
 func (n *NatsOutput) Write(_ context.Context, rsp proto.Message, meta outputs.Meta) {
-	if rsp == nil {
+	if rsp == nil || n.mo == nil {
 		return
 	}
 	if format, ok := meta["format"]; ok {
