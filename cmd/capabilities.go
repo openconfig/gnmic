@@ -46,13 +46,15 @@ var capabilitiesCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		cfg := &collector.Config{
-			Debug:               viper.GetBool("debug"),
-			Format:              viper.GetString("format"),
-			RetryTimer:          viper.GetDuration("retry-timer"),
-		}
+		if coll == nil {
+			cfg := &collector.Config{
+				Debug:      viper.GetBool("debug"),
+				Format:     viper.GetString("format"),
+				RetryTimer: viper.GetDuration("retry-timer"),
+			}
 
-		coll := collector.NewCollector(cfg, targetsConfig, collector.WithDialOptions(createCollectorDialOpts()), collector.WithLogger(logger))
+			coll = collector.NewCollector(cfg, targetsConfig, collector.WithDialOptions(createCollectorDialOpts()), collector.WithLogger(logger))
+		}
 		wg := new(sync.WaitGroup)
 		wg.Add(len(coll.Targets))
 		lock := new(sync.Mutex)

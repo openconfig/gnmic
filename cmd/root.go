@@ -84,6 +84,7 @@ var tlsVersions = []string{"1.3", "1.2", "1.1", "1.0", "1"}
 var cfgFile string
 var f io.WriteCloser
 var logger *log.Logger
+var coll *collector.Collector
 
 func rootCmdPersistentPreRunE(cmd *cobra.Command, args []string) error {
 	debug := viper.GetBool("debug")
