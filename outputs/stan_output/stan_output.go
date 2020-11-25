@@ -119,7 +119,7 @@ func (s *StanOutput) Init(ctx context.Context, cfg map[string]interface{}, logge
 
 // Write //
 func (s *StanOutput) Write(_ context.Context, rsp protoreflect.ProtoMessage, meta outputs.Meta) {
-	if rsp == nil {
+	if rsp == nil || s.mo == nil {
 		return
 	}
 	if s.conn == nil {

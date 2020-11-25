@@ -138,6 +138,9 @@ func (k *KafkaOutput) Write(ctx context.Context, rsp proto.Message, meta outputs
 	case <-ctx.Done():
 		return
 	case k.msgChan <- &protoMsg{m: rsp, meta: meta}:
+	case <-time.After(k.Cfg.Timeout):
+		log.Printf("writing expired after %s, Kafka output might not be initialized", k.Cfg.Timeout)
+		return
 	}
 }
 
