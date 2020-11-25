@@ -63,10 +63,13 @@ get-path: /configure/system/name  # `get` command local flag
 
 Another example: the [`update-path`](../cmd/set.md#1-in-line-update-implicit-type) flag of a [`set`](../cmd/set.md) will be `set-update-path` in the configuration file.
 
+#### Targets
+It is possible to specify multiple targets with different configurations (credentials, timeout,...). This is described in [Multiple targets](multi_target.md) documentation article.
+
 #### Subscriptions
 It is possible to specify multiple subscriptions and associate them with multiple targets in a flexible way. This advanced technique is described in [Multiple subscriptions](subscriptions.md) documentation article.
 
-### Outputs
+#### Outputs
 The other mode `gnmic` supports (in contrast to CLI) is running as a daemon and exporting the data received with gNMI subscriptions to multiple outputs like stan/nats, kafka, file, etc.
 
 ### Repeated flags
