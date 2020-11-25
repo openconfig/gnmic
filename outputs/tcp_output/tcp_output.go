@@ -17,7 +17,7 @@ import (
 
 const (
 	defaultRetryTimer = 2 * time.Second
-	numWorkers        = 1
+	defaultNumWorkers = 1
 )
 
 func init() {
@@ -45,6 +45,7 @@ type Config struct {
 	Format        string        `mapstructure:"format,omitempty"`
 	KeepAlive     time.Duration `mapstructure:"keep-alive,omitempty"`
 	RetryInterval time.Duration `mapstructure:"retry-interval,omitempty"`
+	NumWorkers    int           `mapstructure:"num-workers,omitempty"`
 }
 
 func (t *TCPOutput) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger) error {
@@ -70,6 +71,9 @@ func (t *TCPOutput) Init(ctx context.Context, cfg map[string]interface{}, logger
 	if t.Cfg.RetryInterval == 0 {
 		t.Cfg.RetryInterval = defaultRetryTimer
 	}
+	if t.Cfg.NumWorkers < 1 {
+		t.Cfg.NumWorkers = defaultNumWorkers
+	}
 	t.mo = &collector.MarshalOptions{Format: t.Cfg.Format}
 	go func() {
 		<-ctx.Done()
@@ -77,8 +81,8 @@ func (t *TCPOutput) Init(ctx context.Context, cfg map[string]interface{}, logger
 	}()
 
 	ctx, t.cancelFn = context.WithCancel(ctx)
-	for i := 0; i < numWorkers; i++ {
-		go t.start(ctx)
+	for i := 0; i < t.Cfg.NumWorkers; i++ {
+		go t.start(ctx, i)
 	}
 	return nil
 }
@@ -113,17 +117,18 @@ func (t *TCPOutput) String() string {
 	}
 	return string(b)
 }
-func (t *TCPOutput) start(ctx context.Context) {
+func (t *TCPOutput) start(ctx context.Context, idx int) {
+	workerLogPrefix := fmt.Sprintf("worker-%d", idx)
 START:
 	tcpAddr, err := net.ResolveTCPAddr("tcp", t.Cfg.Address)
 	if err != nil {
-		t.logger.Printf("failed to resolve address: %v", err)
+		t.logger.Printf("%s failed to resolve address: %v", workerLogPrefix, err)
 		time.Sleep(t.Cfg.RetryInterval)
 		goto START
 	}
 	conn, err := net.DialTCP("tcp", nil, tcpAddr)
 	if err != nil {
-		t.logger.Printf("failed to dial TCP: %v", err)
+		t.logger.Printf("%s failed to dial TCP: %v", workerLogPrefix, err)
 		time.Sleep(t.Cfg.RetryInterval)
 		goto START
 	}
@@ -132,7 +137,6 @@ START:
 		conn.SetKeepAlive(true)
 		conn.SetKeepAlivePeriod(t.Cfg.KeepAlive)
 	}
-
 	defer t.Close()
 	for {
 		select {
@@ -144,7 +148,7 @@ START:
 			}
 			_, err = conn.Write(b)
 			if err != nil {
-				t.logger.Printf("failed sending tcp bytes: %v", err)
+				t.logger.Printf("%s failed sending tcp bytes: %v", workerLogPrefix, err)
 				conn.Close()
 				time.Sleep(t.Cfg.RetryInterval)
 				goto START
