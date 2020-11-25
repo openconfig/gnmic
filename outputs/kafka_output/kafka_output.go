@@ -22,7 +22,7 @@ const (
 	defaultKafkaMaxRetry    = 2
 	defaultKafkaTimeout     = 5 * time.Second
 	defaultKafkaTopic       = "telemetry"
-	numWorkers              = 1
+	defaultNumWorkers       = 1
 	defaultFormat           = "json"
 	defaultRecoveryWaitTime = 10 * time.Second
 )
@@ -62,6 +62,7 @@ type Config struct {
 	Timeout          time.Duration `mapstructure:"timeout,omitempty"`
 	RecoveryWaitTime time.Duration `mapstructure:"recovery-wait-time,omitempty"`
 	Format           string        `mapstructure:"format,omitempty"`
+	NumWorkers       int           `mapstructure:"num-workers,omitempty"`
 }
 
 func (k *KafkaOutput) String() string {
@@ -97,6 +98,9 @@ func (k *KafkaOutput) Init(ctx context.Context, cfg map[string]interface{}, logg
 	if k.Cfg.RecoveryWaitTime == 0 {
 		k.Cfg.RecoveryWaitTime = defaultRecoveryWaitTime
 	}
+	if k.Cfg.NumWorkers == 0 {
+		k.Cfg.NumWorkers = defaultNumWorkers
+	}
 	if logger != nil {
 		sarama.Logger = log.New(logger.Writer(), "kafka_output ", logger.Flags())
 	} else {
@@ -118,8 +122,8 @@ func (k *KafkaOutput) Init(ctx context.Context, cfg map[string]interface{}, logg
 	config.Producer.Timeout = k.Cfg.Timeout
 
 	ctx, k.cancelFn = context.WithCancel(ctx)
-	k.wg.Add(numWorkers)
-	for i := 0; i < numWorkers; i++ {
+	k.wg.Add(k.Cfg.NumWorkers)
+	for i := 0; i < k.Cfg.NumWorkers; i++ {
 		go k.worker(ctx, i, config)
 	}
 	go func() {
@@ -139,7 +143,7 @@ func (k *KafkaOutput) Write(ctx context.Context, rsp proto.Message, meta outputs
 		return
 	case k.msgChan <- &protoMsg{m: rsp, meta: meta}:
 	case <-time.After(k.Cfg.Timeout):
-		log.Printf("writing expired after %s, Kafka output might not be initialized", k.Cfg.Timeout)
+		k.logger.Printf("writing expired after %s, Kafka output might not be initialized", k.Cfg.Timeout)
 		return
 	}
 }
@@ -158,25 +162,26 @@ func (k *KafkaOutput) worker(ctx context.Context, idx int, config *sarama.Config
 	var producer sarama.SyncProducer
 	var err error
 	defer k.wg.Done()
-	k.logger.Printf("starting worker id=%d", idx)
+	workerLogPrefix := fmt.Sprintf("worker-%d", idx)
+	k.logger.Printf("%s starting", workerLogPrefix)
 CRPROD:
 	producer, err = sarama.NewSyncProducer(strings.Split(k.Cfg.Address, ","), config)
 	if err != nil {
-		sarama.Logger.Printf("worker-%d failed to create kafka producer: %v", idx, err)
+		sarama.Logger.Printf("%s failed to create kafka producer: %v", workerLogPrefix, err)
 		time.Sleep(k.Cfg.RecoveryWaitTime)
 		goto CRPROD
 	}
 	defer producer.Close()
-	k.logger.Printf("worker-%d initialized kafka producer: %s", idx, k.String())
+	k.logger.Printf("%s initialized kafka producer: %s", workerLogPrefix, k.String())
 	for {
 		select {
 		case <-ctx.Done():
-			k.logger.Printf("worker-%d shutting down", idx)
+			k.logger.Printf("%s shutting down", workerLogPrefix)
 			return
 		case m := <-k.msgChan:
 			b, err := k.mo.Marshal(m.m, m.meta)
 			if err != nil {
-				k.logger.Printf("worker-%d failed marshaling proto msg: %v", idx, err)
+				k.logger.Printf("%s failed marshaling proto msg: %v", workerLogPrefix, err)
 				continue
 			}
 			msg := &sarama.ProducerMessage{
@@ -185,7 +190,7 @@ CRPROD:
 			}
 			_, _, err = producer.SendMessage(msg)
 			if err != nil {
-				k.logger.Printf("worker-%d failed to send a kafka msg to topic '%s': %v", idx, k.Cfg.Topic, err)
+				k.logger.Printf("%s failed to send a kafka msg to topic '%s': %v", workerLogPrefix, k.Cfg.Topic, err)
 				producer.Close()
 				time.Sleep(k.Cfg.RecoveryWaitTime)
 				goto CRPROD
