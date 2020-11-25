@@ -150,6 +150,9 @@ The password flag `[-p | --password]` is used to specify the target password as 
 
 Note that in case multiple targets are used, all should use the same credentials.
 
+### prometheus-address
+The prometheus-address flag `[--prometheus-address]` allows starting a prometheus server that can be scraped by a prometheus client. It exposes metrics like memory, CPU and file descriptor usage.
+
 ### proxy-from-env
 The proxy-from-env flag `[--proxy-from-env]` indicates that the gnmic should use the HTTP/HTTPS proxy addresses defined in the environment variables `http_proxy` and `https_proxy` to reach the targets specified using the `--address` flag.
 
