@@ -151,8 +151,6 @@ var promptModeCmd = &cobra.Command{
 			}
 		}
 		//
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
 		debug := viper.GetBool("debug")
 		targetsConfig, err := createTargets()
 		if err != nil {
@@ -187,7 +185,7 @@ var promptModeCmd = &cobra.Command{
 			coll = collector.NewCollector(cfg, targetsConfig,
 				collector.WithDialOptions(createCollectorDialOpts()),
 				collector.WithSubscriptions(subscriptionsConfig),
-				collector.WithOutputs(ctx, outs, logger),
+				collector.WithOutputs(context.Background(), outs, logger),
 				collector.WithLogger(logger),
 			)
 		}
