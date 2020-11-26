@@ -154,6 +154,17 @@ func (c *Collector) AddTarget(tc *TargetConfig) error {
 	return nil
 }
 
+func (c *Collector) DeleteTarget(name string) error {
+	if _, ok := c.Targets[name]; !ok {
+		return fmt.Errorf("target '%s' does not exist", name)
+	}
+	c.m.Lock()
+	defer c.m.Unlock()
+	t := c.Targets[name]
+	t.Stop()
+	return nil
+}
+
 // AddOutput initializes an output called name, with config cfg if it does not already exist
 func (c *Collector) AddOutput(ctx context.Context, name string, cfg map[string]interface{}, logger *log.Logger) error {
 	if _, ok := c.Outputs[name]; ok {
@@ -171,6 +182,17 @@ func (c *Collector) AddOutput(ctx context.Context, name string, cfg map[string]i
 	return nil
 }
 
+func (c *Collector) DeleteOutput(name string) error {
+	if _, ok := c.Targets[name]; !ok {
+		return fmt.Errorf("output '%s' does not exist", name)
+	}
+	c.m.Lock()
+	defer c.m.Unlock()
+	o := c.Outputs[name]
+	o.Close()
+	return nil
+}
+
 // AddSubscriptionConfig adds a subscriptionConfig sc to Collector's map if it does not already exists
 func (c *Collector) AddSubscriptionConfig(sc *SubscriptionConfig) error {
 	if _, ok := c.Subscriptions[sc.Name]; ok {
@@ -179,6 +201,26 @@ func (c *Collector) AddSubscriptionConfig(sc *SubscriptionConfig) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 	c.Subscriptions[sc.Name] = sc
+	return nil
+}
+
+func (c *Collector) DeleteSubscription(name string) error {
+	if _, ok := c.Subscriptions[name]; !ok {
+		return fmt.Errorf("subscription '%s' does not exist", name)
+	}
+	c.m.Lock()
+	defer c.m.Unlock()
+	for _, t := range c.Targets {
+		if _, ok := t.SubscribeClients[name]; ok {
+			t.m.Lock()
+			t.subscribeCancelFn[name]()
+			delete(t.subscribeCancelFn, name)
+			delete(t.SubscribeClients, name)
+			delete(t.Subscriptions, name)
+			t.m.Unlock()
+		}
+	}
+	delete(c.Subscriptions, name)
 	return nil
 }
 
