@@ -68,13 +68,7 @@ func WithSubscriptions(subs map[string]*SubscriptionConfig) CollectorOption {
 func WithOutputs(ctx context.Context, outs map[string]map[string]interface{}, logger *log.Logger) CollectorOption {
 	return func(c *Collector) {
 		for outputName, outputCfg := range outs {
-			if outType, ok := outputCfg["type"]; ok {
-				if initializer, ok := outputs.Outputs[outType.(string)]; ok {
-					out := initializer()
-					go out.Init(ctx, outputCfg, logger)
-					c.Outputs[outputName] = out
-				}
-			}
+			c.AddOutput(ctx, outputName, outputCfg, logger)
 		}
 	}
 }
@@ -132,6 +126,10 @@ func NewCollector(config *Config, targetConfigs map[string]*TargetConfig, opts .
 
 // InitTarget initializes a target based on *TargetConfig
 func (c *Collector) InitTarget(tc *TargetConfig) {
+	if _, ok := c.Targets[tc.Name]; ok {
+		c.logger.Printf("target '%s' already exists, skipping", tc.Name)
+		return
+	}
 	if tc.BufferSize == 0 {
 		tc.BufferSize = c.Config.TargetReceiveBuffer
 	}
@@ -154,6 +152,34 @@ func (c *Collector) InitTarget(tc *TargetConfig) {
 	c.m.Lock()
 	defer c.m.Unlock()
 	c.Targets[t.Config.Name] = t
+}
+
+// AddOutput initializes an output called name, with config cfg if it does not already exist
+func (c *Collector) AddOutput(ctx context.Context, name string, cfg map[string]interface{}, logger *log.Logger) {
+	if _, ok := c.Outputs[name]; ok {
+		c.logger.Printf("output '%s' already exists, skipping", name)
+		return
+	}
+	if outType, ok := cfg["type"]; ok {
+		if initializer, ok := outputs.Outputs[outType.(string)]; ok {
+			out := initializer()
+			go out.Init(ctx, cfg, logger)
+			c.m.Lock()
+			defer c.m.Unlock()
+			c.Outputs[name] = out
+		}
+	}
+}
+
+// AddSubscriptionConfig adds a subscriptionConfig sc to Collector's map if it does not already exists
+func (c *Collector) AddSubscriptionConfig(sc *SubscriptionConfig) {
+	if _, ok := c.Subscriptions[sc.Name]; ok {
+		c.logger.Printf("subscription '%s' already exists, skipping", sc.Name)
+		return
+	}
+	c.m.Lock()
+	defer c.m.Unlock()
+	c.Subscriptions[sc.Name] = sc
 }
 
 // Subscribe //
