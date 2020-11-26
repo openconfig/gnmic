@@ -112,7 +112,7 @@ var subscribeCmd = &cobra.Command{
 				coll.AddSubscriptionConfig(sc)
 			}
 			for _, tc := range targetsConfig {
-				coll.InitTarget(tc)
+				coll.AddTarget(tc)
 			}
 		}
 		wg := new(sync.WaitGroup)

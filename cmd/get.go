@@ -69,7 +69,7 @@ var getCmd = &cobra.Command{
 		} else {
 			// prompt mode
 			for _, tc := range targetsConfig {
-				coll.InitTarget(tc)
+				coll.AddTarget(tc)
 			}
 		}
 		req, err := createGetRequest()

@@ -119,16 +119,15 @@ func NewCollector(config *Config, targetConfigs map[string]*TargetConfig, opts .
 	}
 
 	for _, tc := range targetConfigs {
-		c.InitTarget(tc)
+		c.AddTarget(tc)
 	}
 	return c
 }
 
-// InitTarget initializes a target based on *TargetConfig
-func (c *Collector) InitTarget(tc *TargetConfig) {
+// AddTarget initializes a target based on *TargetConfig
+func (c *Collector) AddTarget(tc *TargetConfig) error {
 	if _, ok := c.Targets[tc.Name]; ok {
-		c.logger.Printf("target '%s' already exists, skipping", tc.Name)
-		return
+		return fmt.Errorf("target '%s' already exists", tc.Name)
 	}
 	if tc.BufferSize == 0 {
 		tc.BufferSize = c.Config.TargetReceiveBuffer
@@ -152,13 +151,13 @@ func (c *Collector) InitTarget(tc *TargetConfig) {
 	c.m.Lock()
 	defer c.m.Unlock()
 	c.Targets[t.Config.Name] = t
+	return nil
 }
 
 // AddOutput initializes an output called name, with config cfg if it does not already exist
-func (c *Collector) AddOutput(ctx context.Context, name string, cfg map[string]interface{}, logger *log.Logger) {
+func (c *Collector) AddOutput(ctx context.Context, name string, cfg map[string]interface{}, logger *log.Logger) error {
 	if _, ok := c.Outputs[name]; ok {
-		c.logger.Printf("output '%s' already exists, skipping", name)
-		return
+		return fmt.Errorf("output '%s' already exists", name)
 	}
 	if outType, ok := cfg["type"]; ok {
 		if initializer, ok := outputs.Outputs[outType.(string)]; ok {
@@ -169,17 +168,18 @@ func (c *Collector) AddOutput(ctx context.Context, name string, cfg map[string]i
 			c.Outputs[name] = out
 		}
 	}
+	return nil
 }
 
 // AddSubscriptionConfig adds a subscriptionConfig sc to Collector's map if it does not already exists
-func (c *Collector) AddSubscriptionConfig(sc *SubscriptionConfig) {
+func (c *Collector) AddSubscriptionConfig(sc *SubscriptionConfig) error {
 	if _, ok := c.Subscriptions[sc.Name]; ok {
-		c.logger.Printf("subscription '%s' already exists, skipping", sc.Name)
-		return
+		return fmt.Errorf("subscription '%s' already exists", sc.Name)
 	}
 	c.m.Lock()
 	defer c.m.Unlock()
 	c.Subscriptions[sc.Name] = sc
+	return nil
 }
 
 // Subscribe //
