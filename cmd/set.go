@@ -91,6 +91,11 @@ var setCmd = &cobra.Command{
 			}
 
 			coll = collector.NewCollector(cfg, targetsConfig, collector.WithDialOptions(createCollectorDialOpts()), collector.WithLogger(logger))
+		} else {
+			// prompt mode
+			for _, tc := range targetsConfig {
+				coll.InitTarget(tc)
+			}
 		}
 		req, err := createSetRequest()
 		if err != nil {

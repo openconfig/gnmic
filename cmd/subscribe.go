@@ -103,6 +103,17 @@ var subscribeCmd = &cobra.Command{
 				collector.WithOutputs(ctx, outs, logger),
 				collector.WithLogger(logger),
 			)
+		} else {
+			// prompt mode
+			for name, outCfg := range outs {
+				coll.AddOutput(context.Background(), name, outCfg, logger)
+			}
+			for _, sc := range subscriptionsConfig {
+				coll.AddSubscriptionConfig(sc)
+			}
+			for _, tc := range targetsConfig {
+				coll.InitTarget(tc)
+			}
 		}
 		wg := new(sync.WaitGroup)
 		wg.Add(len(coll.Targets))

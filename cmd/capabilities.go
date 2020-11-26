@@ -54,7 +54,13 @@ var capabilitiesCmd = &cobra.Command{
 			}
 
 			coll = collector.NewCollector(cfg, targetsConfig, collector.WithDialOptions(createCollectorDialOpts()), collector.WithLogger(logger))
+		} else {
+			// prompt mode
+			for _, tc := range targetsConfig {
+				coll.InitTarget(tc)
+			}
 		}
+
 		wg := new(sync.WaitGroup)
 		wg.Add(len(coll.Targets))
 		lock := new(sync.Mutex)
