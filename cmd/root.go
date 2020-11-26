@@ -460,6 +460,8 @@ func createTargets() (map[string]*collector.TargetConfig, error) {
 		}
 	case map[string]interface{}:
 		targetsMap = targetsInt
+	case nil:
+		return nil, nil
 	default:
 		return nil, fmt.Errorf("unexpected targets format, got: %T", targetsInt)
 	}
