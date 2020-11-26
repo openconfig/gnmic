@@ -1204,16 +1204,18 @@ func findSuggestions(co cmdPrompt, doc goprompt.Document) []goprompt.Suggest {
 func resolveGlobs(globs []string) ([]string, error) {
 	results := make([]string, 0, len(globs))
 	for _, pattern := range globs {
-		if strings.ContainsAny(pattern, `*?[`) {
-			// is a glob pattern
-			matches, err := filepath.Glob(pattern)
-			if err != nil {
-				return nil, err
+		for _, p := range strings.Split(pattern, ",") {
+			if strings.ContainsAny(p, `*?[`) {
+				// is a glob pattern
+				matches, err := filepath.Glob(p)
+				if err != nil {
+					return nil, err
+				}
+				results = append(results, matches...)
+			} else {
+				// is not a glob pattern ( file or dir )
+				results = append(results, p)
 			}
-			results = append(results, matches...)
-		} else {
-			// is not a glob pattern ( file or dir )
-			results = append(results, pattern)
 		}
 	}
 	return results, nil
