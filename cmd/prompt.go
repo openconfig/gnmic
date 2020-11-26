@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,6 +24,9 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
+
+var gctx context.Context
+var gcancel context.CancelFunc
 
 var promptMode bool
 var promptHistory []string
@@ -74,6 +78,7 @@ var promptModeCmd = &cobra.Command{
 	Short: "enter the interactive gnmic prompt mode",
 	// PreRun resolve the glob patterns and checks if --max-suggesions is bigger that the terminal height and lowers it if needed.
 	PreRunE: func(cmd *cobra.Command, args []string) error {
+		gctx, gcancel = context.WithCancel(context.Background())
 		var err error
 		promptDirs, err = resolveGlobs(promptDirs)
 		if err != nil {
@@ -166,6 +171,8 @@ var promptQuitCmd = &cobra.Command{
 	Use:   "quit",
 	Short: "quit the gnmic-prompt",
 	Run: func(cmd *cobra.Command, args []string) {
+		// cancel gctx
+		gcancel()
 		// save history
 		home, err := homedir.Dir()
 		if err != nil {
@@ -324,7 +331,7 @@ var outputListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "list configured outputs",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if coll == nil {
+		if coll == nil || len(coll.Outputs) == 0 {
 			tabData := readOutputsConfig()
 			renderTable(tabData, []string{"Name", "Config"})
 			return nil
