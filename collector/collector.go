@@ -41,6 +41,7 @@ type Collector struct {
 	//
 	m             *sync.Mutex
 	Subscriptions map[string]*SubscriptionConfig
+	outputsConfig map[string]map[string]interface{}
 	Outputs       map[string]outputs.Output
 	Targets       map[string]*Target
 	logger        *log.Logger
@@ -65,10 +66,10 @@ func WithSubscriptions(subs map[string]*SubscriptionConfig) CollectorOption {
 	}
 }
 
-func WithOutputs(ctx context.Context, outs map[string]map[string]interface{}, logger *log.Logger) CollectorOption {
+func WithOutputs(outs map[string]map[string]interface{}) CollectorOption {
 	return func(c *Collector) {
 		for outputName, outputCfg := range outs {
-			c.AddOutput(ctx, outputName, outputCfg, logger)
+			c.AddOutput(outputName, outputCfg)
 		}
 	}
 }
@@ -126,6 +127,10 @@ func NewCollector(config *Config, targetConfigs map[string]*TargetConfig, opts .
 
 // AddTarget initializes a target based on *TargetConfig
 func (c *Collector) AddTarget(tc *TargetConfig) error {
+	c.logger.Printf("adding target %+v", tc)
+	if c.Targets == nil {
+		c.Targets = make(map[string]*Target)
+	}
 	if _, ok := c.Targets[tc.Name]; ok {
 		return fmt.Errorf("target '%s' already exists", tc.Name)
 	}
@@ -155,6 +160,9 @@ func (c *Collector) AddTarget(tc *TargetConfig) error {
 }
 
 func (c *Collector) DeleteTarget(name string) error {
+	if c.Targets == nil {
+		return nil
+	}
 	if _, ok := c.Targets[name]; !ok {
 		return fmt.Errorf("target '%s' does not exist", name)
 	}
@@ -166,24 +174,48 @@ func (c *Collector) DeleteTarget(name string) error {
 }
 
 // AddOutput initializes an output called name, with config cfg if it does not already exist
-func (c *Collector) AddOutput(ctx context.Context, name string, cfg map[string]interface{}, logger *log.Logger) error {
+func (c *Collector) AddOutput(name string, cfg map[string]interface{}) error {
+	if c.Outputs == nil {
+		c.Outputs = make(map[string]outputs.Output)
+	}
+	if c.outputsConfig == nil {
+		c.outputsConfig = make(map[string]map[string]interface{})
+	}
 	if _, ok := c.Outputs[name]; ok {
 		return fmt.Errorf("output '%s' already exists", name)
 	}
-	if outType, ok := cfg["type"]; ok {
-		if initializer, ok := outputs.Outputs[outType.(string)]; ok {
-			out := initializer()
-			go out.Init(ctx, cfg, logger)
-			c.m.Lock()
-			defer c.m.Unlock()
-			c.Outputs[name] = out
-		}
-	}
+	c.m.Lock()
+	defer c.m.Unlock()
+	c.outputsConfig[name] = cfg
 	return nil
 }
 
+func (c *Collector) InitOutput(ctx context.Context, name string) {
+	c.m.Lock()
+	defer c.m.Unlock()
+	if cfg, ok := c.outputsConfig[name]; ok {
+		if outType, ok := cfg["type"]; ok {
+			c.logger.Printf("starting output type %s", outType)
+			if initializer, ok := outputs.Outputs[outType.(string)]; ok {
+				out := initializer()
+				go out.Init(ctx, cfg, c.logger)
+				c.Outputs[name] = out
+			}
+		}
+	}
+}
+
+func (c *Collector) InitOutputs(ctx context.Context) {
+	for name := range c.outputsConfig {
+		c.InitOutput(ctx, name)
+	}
+}
+
 func (c *Collector) DeleteOutput(name string) error {
-	if _, ok := c.Targets[name]; !ok {
+	if c.Outputs == nil {
+		return nil
+	}
+	if _, ok := c.Outputs[name]; !ok {
 		return fmt.Errorf("output '%s' does not exist", name)
 	}
 	c.m.Lock()
@@ -195,6 +227,9 @@ func (c *Collector) DeleteOutput(name string) error {
 
 // AddSubscriptionConfig adds a subscriptionConfig sc to Collector's map if it does not already exists
 func (c *Collector) AddSubscriptionConfig(sc *SubscriptionConfig) error {
+	if c.Subscriptions == nil {
+		c.Subscriptions = make(map[string]*SubscriptionConfig)
+	}
 	if _, ok := c.Subscriptions[sc.Name]; ok {
 		return fmt.Errorf("subscription '%s' already exists", sc.Name)
 	}
@@ -231,6 +266,11 @@ func (c *Collector) Subscribe(ctx context.Context, tName string) error {
 			return err
 		}
 		c.logger.Printf("target '%s' gNMI client created", t.Config.Name)
+
+		if len(t.Subscriptions) == 0 {
+			t.Subscriptions = c.Subscriptions
+		}
+
 		for _, sc := range t.Subscriptions {
 			req, err := sc.CreateSubscribeRequest()
 			if err != nil {
