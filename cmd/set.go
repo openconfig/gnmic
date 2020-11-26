@@ -75,9 +75,27 @@ var setCmd = &cobra.Command{
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		setupCloseHandler(cancel)
+		debug := viper.GetBool("debug")
 		targetsConfig, err := createTargets()
 		if err != nil {
+			return fmt.Errorf("failed getting targets config: %v", err)
+		}
+		if debug {
+			logger.Printf("targets: %s", targetsConfig)
+		}
+		subscriptionsConfig, err := getSubscriptions()
+		if err != nil {
+			return fmt.Errorf("failed getting subscriptions config: %v", err)
+		}
+		if debug {
+			logger.Printf("subscriptions: %s", subscriptionsConfig)
+		}
+		outs, err := getOutputs()
+		if err != nil {
 			return err
+		}
+		if debug {
+			logger.Printf("outputs: %+v", outs)
 		}
 		if len(targetsConfig) > 1 {
 			fmt.Println("[warning] running set command on multiple targets")
@@ -90,7 +108,12 @@ var setCmd = &cobra.Command{
 				RetryTimer:          viper.GetDuration("retry-timer"),
 			}
 
-			coll = collector.NewCollector(cfg, targetsConfig, collector.WithDialOptions(createCollectorDialOpts()), collector.WithLogger(logger))
+			coll = collector.NewCollector(cfg, targetsConfig,
+				collector.WithDialOptions(createCollectorDialOpts()),
+				collector.WithSubscriptions(subscriptionsConfig),
+				collector.WithOutputs(outs),
+				collector.WithLogger(logger),
+			)
 		} else {
 			// prompt mode
 			for _, tc := range targetsConfig {
