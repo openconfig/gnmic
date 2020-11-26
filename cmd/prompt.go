@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +14,7 @@ import (
 	goprompt "github.com/c-bata/go-prompt"
 	"github.com/c-bata/go-prompt/completer"
 	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/outputs"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/nsf/termbox-go"
 	"github.com/olekukonko/tablewriter"
@@ -48,7 +48,10 @@ var colorMapping = map[string]goprompt.Color{
 	"white":      goprompt.White,
 }
 
-var details bool
+var targetListHeader = []string{
+	"Name", "Address", "Username", "Password", "Insecure", "Skip Verify", "TLS CA", "TLS Certificate", "TLS Key"}
+
+var subscriptionListHeader = []string{"Name", "Mode", "Prefix", "Paths", "Interval", "Encoding"}
 
 func getColor(flagName string) goprompt.Color {
 	if cgoprompt, ok := colorMapping[viper.GetString(flagName)]; ok {
@@ -150,45 +153,6 @@ var promptModeCmd = &cobra.Command{
 				promptHistory = append(promptHistory, history[i])
 			}
 		}
-		//
-		debug := viper.GetBool("debug")
-		targetsConfig, err := createTargets()
-		if err != nil {
-			return fmt.Errorf("failed getting targets config: %v", err)
-		}
-		if debug {
-			logger.Printf("targets: %s", targetsConfig)
-		}
-		subscriptionsConfig, err := getSubscriptions()
-		if err != nil {
-			return fmt.Errorf("failed getting subscriptions config: %v", err)
-		}
-		if debug {
-			logger.Printf("subscriptions: %s", subscriptionsConfig)
-		}
-		outs, err := getOutputs()
-		if err != nil {
-			return err
-		}
-		if debug {
-			logger.Printf("outputs: %+v", outs)
-		}
-		if coll == nil {
-			cfg := &collector.Config{
-				PrometheusAddress:   viper.GetString("prometheus-address"),
-				Debug:               viper.GetBool("debug"),
-				Format:              viper.GetString("format"),
-				TargetReceiveBuffer: viper.GetUint("target-buffer-size"),
-				RetryTimer:          viper.GetDuration("retry-timer"),
-			}
-
-			coll = collector.NewCollector(cfg, targetsConfig,
-				collector.WithDialOptions(createCollectorDialOpts()),
-				collector.WithSubscriptions(subscriptionsConfig),
-				collector.WithOutputs(context.Background(), outs, logger),
-				collector.WithLogger(logger),
-			)
-		}
 		return nil
 	},
 	PostRun: func(cmd *cobra.Command, args []string) {
@@ -233,39 +197,23 @@ var targetListCmd = &cobra.Command{
 	Short: "list configured targets",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if coll == nil {
-			return errors.New("collector not initialized")
-		}
-		if details {
-			b, err := json.MarshalIndent(coll.Targets, "", "  ")
+			targetsConfig, err := createTargets()
 			if err != nil {
 				return err
 			}
-			fmt.Printf("%s\n", string(b))
+			tabData := targetTable(targetsConfig, true)
+			renderTable(tabData, targetListHeader)
 			return nil
 		}
-		tabData := targetTable()
-		table := tablewriter.NewWriter(os.Stdout)
-		header := []string{
-			"Name",
-			"Address",
-			"Username",
-			"Password",
-			"Insecure",
-			"Skip Verify",
-			"TLS CA",
-			"TLS Certificate",
-			"TLS Key",
+		tcs := make(map[string]*collector.TargetConfig)
+		for _, t := range coll.Targets {
+			tcs[t.Config.Name] = t.Config
 		}
-		table.SetHeader(header)
-
-		table.SetAutoFormatHeaders(false)
-		table.SetAutoWrapText(false)
-		table.AppendBulk(tabData)
-		table.Render()
+		tabData := targetTable(tcs, true)
+		renderTable(tabData, targetListHeader)
 		return nil
 	},
 	PostRun: func(cmd *cobra.Command, args []string) {
-		details = false
 		name = ""
 	},
 }
@@ -282,34 +230,25 @@ var targetShowCmd = &cobra.Command{
 			return nil
 		}
 		if coll == nil {
-			return errors.New("collector not initialized")
-		}
-		if details {
-			if target, ok := coll.Targets[name]; ok {
-				b, err := json.MarshalIndent(target, "", "  ")
-				if err != nil {
-					return err
-				}
-				fmt.Printf("%s\n", string(b))
+			targetsConfig, err := createTargets()
+			if err != nil {
+				return err
+			}
+			if tc, ok := targetsConfig[name]; ok {
+				tabData := targetTable(map[string]*collector.TargetConfig{name: tc}, false)
+				renderTable(tabData, []string{"Param", "Value"})
 				return nil
 			}
+			return errors.New("unknown target")
 		}
-		tabData := targetTable(name)
-		table := tablewriter.NewWriter(os.Stdout)
-		header := []string{
-			"Param",
-			"Value",
+		if t, ok := coll.Targets[name]; ok {
+			tabData := targetTable(map[string]*collector.TargetConfig{name: t.Config}, false)
+			renderTable(tabData, []string{"Param", "Value"})
+			return nil
 		}
-		table.SetHeader(header)
-		table.SetAlignment(tablewriter.ALIGN_LEFT)
-		table.SetAutoFormatHeaders(false)
-		table.SetAutoWrapText(false)
-		table.AppendBulk(tabData)
-		table.Render()
-		return nil
+		return errors.New("unknown target")
 	},
 	PostRun: func(cmd *cobra.Command, args []string) {
-		details = false
 		name = ""
 	},
 }
@@ -324,36 +263,19 @@ var subscriptionListCmd = &cobra.Command{
 	Short: "list configured subscriptions",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if coll == nil {
-			return errors.New("collector not initialized")
-		}
-		if details {
-			b, err := json.MarshalIndent(coll.Subscriptions, "", "  ")
+			subs, err := getSubscriptions()
 			if err != nil {
 				return err
 			}
-			fmt.Printf("%s\n", string(b))
+			tabData := subscriptionTable(subs, true)
+			renderTable(tabData, subscriptionListHeader)
 			return nil
 		}
-		tabData := subscriptionTable()
-		table := tablewriter.NewWriter(os.Stdout)
-		header := []string{
-			"Name",
-			"Mode",
-			"Prefix",
-			"Paths",
-			"Interval",
-			"Encoding",
-		}
-		table.SetHeader(header)
-
-		table.SetAutoFormatHeaders(false)
-		table.SetAutoWrapText(false)
-		table.AppendBulk(tabData)
-		table.Render()
+		tabData := subscriptionTable(coll.Subscriptions, true)
+		renderTable(tabData, subscriptionListHeader)
 		return nil
 	},
 	PostRun: func(cmd *cobra.Command, args []string) {
-		details = false
 		name = ""
 	},
 }
@@ -370,34 +292,25 @@ var subscriptionShowCmd = &cobra.Command{
 			return nil
 		}
 		if coll == nil {
-			return errors.New("collector not initialized")
-		}
-		if details {
-			if sub, ok := coll.Subscriptions[name]; ok {
-				b, err := json.MarshalIndent(sub, "", "  ")
-				if err != nil {
-					return err
-				}
-				fmt.Printf("%s\n", string(b))
+			subs, err := getSubscriptions()
+			if err != nil {
+				return err
+			}
+			if s, ok := subs[name]; ok {
+				tabData := subscriptionTable(map[string]*collector.SubscriptionConfig{name: s}, false)
+				renderTable(tabData, []string{"Param", "Value"})
 				return nil
 			}
+			return errors.New("unknown subscription")
 		}
-		tabData := subscriptionTable(name)
-		table := tablewriter.NewWriter(os.Stdout)
-		header := []string{
-			"Param",
-			"Value",
+		if s, ok := coll.Subscriptions[name]; ok {
+			tabData := subscriptionTable(map[string]*collector.SubscriptionConfig{name: s}, false)
+			renderTable(tabData, []string{"Param", "Value"})
+			return nil
 		}
-		table.SetHeader(header)
-		table.SetAlignment(tablewriter.ALIGN_LEFT)
-		table.SetAutoFormatHeaders(false)
-		table.SetAutoWrapText(false)
-		table.AppendBulk(tabData)
-		table.Render()
-		return nil
+		return errors.New("unknown subscription")
 	},
 	PostRun: func(cmd *cobra.Command, args []string) {
-		details = false
 		name = ""
 	},
 }
@@ -412,38 +325,57 @@ var outputListCmd = &cobra.Command{
 	Short: "list configured outputs",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if coll == nil {
-			return errors.New("collector not initialized")
+			tabData := readOutputsConfig()
+			renderTable(tabData, []string{"Name", "Config"})
+			return nil
 		}
-		tabData := outputTable()
-		table := tablewriter.NewWriter(os.Stdout)
-		header := []string{
-			"Name",
-			"Config",
-		}
-		table.SetHeader(header)
-
-		table.SetAutoFormatHeaders(false)
-		table.SetAutoWrapText(false)
-		table.AppendBulk(tabData)
-		table.Render()
+		tabData := outputTable(coll.Outputs)
+		renderTable(tabData, []string{"Name", "Config"})
 		return nil
 	},
 }
 
-func targetTable(names ...string) [][]string {
-	if len(names) == 0 {
-		tabData := make([][]string, 0, len(coll.Targets))
-		for _, target := range coll.Targets {
+func renderTable(tabData [][]string, header []string) {
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetHeader(header)
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
+	table.SetAutoFormatHeaders(false)
+	table.SetAutoWrapText(false)
+	table.AppendBulk(tabData)
+	table.Render()
+}
+
+func readOutputsConfig() [][]string {
+	outDef := viper.GetStringMap("outputs")
+	if outDef == nil {
+		return nil
+	}
+	outList := make([][]string, 0, len(outDef))
+	for name, outputCfg := range outDef {
+		b, err := json.Marshal(outputCfg)
+		if err != nil {
+			logger.Printf("could not marshal output config: %v", err)
+			return nil
+		}
+		outList = append(outList, []string{name, string(b)})
+	}
+	return outList
+}
+
+func targetTable(targetConfigs map[string]*collector.TargetConfig, list bool) [][]string {
+	if list {
+		tabData := make([][]string, 0)
+		for _, tc := range targetConfigs {
 			tabData = append(tabData, []string{
-				target.Config.Name,
-				target.Config.Address,
-				target.Config.UsernameString(),
-				target.Config.PasswordString(),
-				target.Config.InsecureString(),
-				target.Config.SkipVerifyString(),
-				target.Config.TLSCAString(),
-				target.Config.TLSCertString(),
-				target.Config.TLSKeyString(),
+				tc.Name,
+				tc.Address,
+				tc.UsernameString(),
+				tc.PasswordString(),
+				tc.InsecureString(),
+				tc.SkipVerifyString(),
+				tc.TLSCAString(),
+				tc.TLSCertString(),
+				tc.TLSKeyString(),
 			})
 		}
 		sort.Slice(tabData, func(i, j int) bool {
@@ -451,48 +383,37 @@ func targetTable(names ...string) [][]string {
 		})
 		return tabData
 	}
-
-	if target, ok := coll.Targets[names[0]]; ok {
-		subNames := make([]string, 0, len(target.Subscriptions))
-		for s := range target.Subscriptions {
-			subNames = append(subNames, s)
-		}
-		sort.Strings(subNames)
-		outputNames := make([]string, 0, len(coll.Outputs))
-		if len(target.Config.Outputs) == 0 {
-			for o := range coll.Outputs {
-				outputNames = append(outputNames, o)
-			}
-		} else {
-			outputNames = append(outputNames, target.Config.Outputs...)
-		}
-		sort.Strings(outputNames)
+	if len(targetConfigs) > 1 {
+		logger.Printf("cannot show multiple targets")
+		return nil
+	}
+	for _, tc := range targetConfigs {
 		tabData := make([][]string, 0, 16)
-		tabData = append(tabData, []string{"Name", target.Config.Name})
-		tabData = append(tabData, []string{"Address", target.Config.Address})
-		tabData = append(tabData, []string{"Username", target.Config.UsernameString()})
-		tabData = append(tabData, []string{"Password", target.Config.PasswordString()})
-		tabData = append(tabData, []string{"Insecure", target.Config.InsecureString()})
-		tabData = append(tabData, []string{"Skip Verify", target.Config.SkipVerifyString()})
-		tabData = append(tabData, []string{"TLS CA", target.Config.TLSCAString()})
-		tabData = append(tabData, []string{"TLS Certificate", target.Config.TLSCertString()})
-		tabData = append(tabData, []string{"TLS Key", target.Config.TLSKeyString()})
-		tabData = append(tabData, []string{"TLS Min Version", target.Config.TLSMinVersion})
-		tabData = append(tabData, []string{"TLS Max Version", target.Config.TLSMaxVersion})
-		tabData = append(tabData, []string{"TLS Version", target.Config.TLSVersion})
-		tabData = append(tabData, []string{"Subscriptions", fmt.Sprintf("- %s", strings.Join(subNames, "\n- "))})
-		tabData = append(tabData, []string{"Outputs", fmt.Sprintf("- %s", strings.Join(outputNames, "\n- "))})
-		tabData = append(tabData, []string{"Buffer Size", target.Config.BufferSizeString()})
-		tabData = append(tabData, []string{"Retry Timer", target.Config.RetryTimer.String()})
+		tabData = append(tabData, []string{"Name", tc.Name})
+		tabData = append(tabData, []string{"Address", tc.Address})
+		tabData = append(tabData, []string{"Username", tc.UsernameString()})
+		tabData = append(tabData, []string{"Password", tc.PasswordString()})
+		tabData = append(tabData, []string{"Insecure", tc.InsecureString()})
+		tabData = append(tabData, []string{"Skip Verify", tc.SkipVerifyString()})
+		tabData = append(tabData, []string{"TLS CA", tc.TLSCAString()})
+		tabData = append(tabData, []string{"TLS Certificate", tc.TLSCertString()})
+		tabData = append(tabData, []string{"TLS Key", tc.TLSKeyString()})
+		tabData = append(tabData, []string{"TLS Min Version", tc.TLSMinVersion})
+		tabData = append(tabData, []string{"TLS Max Version", tc.TLSMaxVersion})
+		tabData = append(tabData, []string{"TLS Version", tc.TLSVersion})
+		tabData = append(tabData, []string{"Subscriptions", strings.Join(tc.Subscriptions, "\n")})
+		tabData = append(tabData, []string{"Outputs", strings.Join(tc.Outputs, "\n")})
+		tabData = append(tabData, []string{"Buffer Size", tc.BufferSizeString()})
+		tabData = append(tabData, []string{"Retry Timer", tc.RetryTimer.String()})
 		return tabData
 	}
 	return [][]string{}
 }
 
-func subscriptionTable(names ...string) [][]string {
-	if len(names) == 0 {
-		tabData := make([][]string, 0, len(coll.Subscriptions))
-		for _, sub := range coll.Subscriptions {
+func subscriptionTable(scs map[string]*collector.SubscriptionConfig, list bool) [][]string {
+	if list {
+		tabData := make([][]string, 0, len(scs))
+		for _, sub := range scs {
 			tabData = append(tabData, []string{
 				sub.Name,
 				sub.ModeString(),
@@ -507,7 +428,11 @@ func subscriptionTable(names ...string) [][]string {
 		})
 		return tabData
 	}
-	if sub, ok := coll.Subscriptions[names[0]]; ok {
+	if len(scs) > 1 {
+		logger.Printf("cannot show multiple subscriptions")
+		return nil
+	}
+	for _, sub := range scs {
 		tabData := make([][]string, 0, 8)
 		tabData = append(tabData, []string{"Name", sub.Name})
 		tabData = append(tabData, []string{"Mode", sub.ModeString()})
@@ -522,12 +447,12 @@ func subscriptionTable(names ...string) [][]string {
 	return [][]string{}
 }
 
-func outputTable() [][]string {
-	tabData := make([][]string, 0, len(coll.Outputs))
-	for name, sub := range coll.Outputs {
+func outputTable(outs map[string]outputs.Output) [][]string {
+	tabData := make([][]string, 0, len(outs))
+	for name, out := range outs {
 		tabData = append(tabData, []string{
 			name,
-			sub.String(),
+			out.String(),
 		})
 	}
 	sort.Slice(tabData, func(i, j int) bool {
@@ -1101,16 +1026,12 @@ func initPromptCmds() {
 	rootCmd.AddCommand(outputCmd)
 
 	targetCmd.AddCommand(targetListCmd)
-	targetListCmd.Flags().BoolVarP(&details, "details", "", false, "print json output")
 	targetCmd.AddCommand(targetShowCmd)
 	targetShowCmd.Flags().StringVarP(&name, "name", "", "", "target name")
-	targetShowCmd.Flags().BoolVarP(&details, "details", "", false, "print json output")
 
 	subscriptionCmd.AddCommand(subscriptionListCmd)
 	subscriptionCmd.AddCommand(subscriptionShowCmd)
-	subscriptionListCmd.Flags().BoolVarP(&details, "details", "", false, "print json output")
 	subscriptionShowCmd.Flags().StringVarP(&name, "name", "", "", "subscription name")
-	subscriptionShowCmd.Flags().BoolVarP(&details, "details", "", false, "print json output")
 
 	outputCmd.AddCommand(outputListCmd)
 
