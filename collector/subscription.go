@@ -31,6 +31,10 @@ type SubscriptionConfig struct {
 	SuppressRedundant bool           `mapstructure:"suppress-redundant,omitempty" json:"suppress-redundant,omitempty"`
 	UpdatesOnly       bool           `mapstructure:"updates-only,omitempty" json:"updates-only,omitempty"`
 }
+type subscriptionRequest struct {
+	name string
+	req  *gnmi.SubscribeRequest
+}
 
 // String //
 func (sc *SubscriptionConfig) String() string {
