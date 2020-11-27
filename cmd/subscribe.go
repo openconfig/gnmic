@@ -392,8 +392,10 @@ func setSubscriptionDefaults(sub *collector.SubscriptionConfig) {
 		sub.StreamMode = viper.GetString("subscribe-stream-mode")
 	}
 	if sub.Qos == nil {
-		q := viper.GetUint32("subscribe-qos")
-		sub.Qos = &q
+		if viper.IsSet("subscribe-qos") {
+			q := viper.GetUint32("subscribe-qos")
+			sub.Qos = &q
+		}
 	}
 }
 func readSubscriptionsFromCfg() []*collector.SubscriptionConfig {
