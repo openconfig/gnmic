@@ -37,7 +37,8 @@ type Target struct {
 	m                  *sync.Mutex
 	Client             gnmi.GNMIClient                      `json:"-"`
 	SubscribeClients   map[string]gnmi.GNMI_SubscribeClient `json:"-"` // subscription name to subscribeClient
-	pollChan           chan string                          // subscription name to be polled
+	subscribeCancelFn  map[string]context.CancelFunc
+	pollChan           chan string // subscription name to be polled
 	subscribeResponses chan *SubscribeResponse
 	errors             chan *TargetError
 }
@@ -78,6 +79,7 @@ func NewTarget(c *TargetConfig) *Target {
 		Subscriptions:      make(map[string]*SubscriptionConfig),
 		m:                  new(sync.Mutex),
 		SubscribeClients:   make(map[string]gnmi.GNMI_SubscribeClient),
+		subscribeCancelFn:  make(map[string]context.CancelFunc),
 		pollChan:           make(chan string),
 		subscribeResponses: make(chan *SubscribeResponse, c.BufferSize),
 		errors:             make(chan *TargetError),
@@ -172,6 +174,7 @@ SUBSC:
 	}
 	t.m.Lock()
 	t.SubscribeClients[subscriptionName] = subscribeClient
+	t.subscribeCancelFn[subscriptionName] = cancel
 	t.m.Unlock()
 	err = subscribeClient.Send(req)
 	if err != nil {
@@ -268,6 +271,17 @@ SUBSC:
 	}
 }
 
+func (t *Target) Stop() {
+	t.m.Lock()
+	for _, cfn := range t.subscribeCancelFn {
+		cfn()
+	}
+	close(t.subscribeResponses)
+	close(t.errors)
+	close(t.pollChan)
+	t.m.Unlock()
+}
+
 func loadCerts(tlscfg *tls.Config, c *TargetConfig) error {
 	if *c.TLSCert != "" && *c.TLSKey != "" {
 		certificate, err := tls.LoadX509KeyPair(*c.TLSCert, *c.TLSKey)
@@ -360,6 +374,7 @@ func (tc *TargetConfig) OutputsString() string {
 func (tc *TargetConfig) BufferSizeString() string {
 	return fmt.Sprintf("%d", tc.BufferSize)
 }
+
 func (tc *TargetConfig) getTLSMinVersion() uint16 {
 	v := tlsVersionStringToUint(tc.TLSVersion)
 	if v > 0 {

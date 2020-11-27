@@ -41,6 +41,7 @@ var subscriptionModes = [][2]string{
 	{"stream", "long-lived subscriptions which continue to transmit updates relating to the set of paths that are covered within the subscription indefinitely"},
 	{"poll", "on-demand retrieval of data items via long-lived RPCs"},
 }
+
 var streamSubscriptionModes = [][2]string{
 	{"target-defined", "the target MUST determine the best type of subscription to be created on a per-leaf basis"},
 	{"sample", "the value of the data item(s) MUST be sent once per sample interval to the client"},
@@ -63,9 +64,8 @@ var subscribeCmd = &cobra.Command{
 	},
 
 	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		setupCloseHandler(cancel)
+		gctx, gcancel = context.WithCancel(context.Background())
+		setupCloseHandler(gcancel)
 		debug := viper.GetBool("debug")
 		targetsConfig, err := createTargets()
 		if err != nil {
@@ -100,10 +100,24 @@ var subscribeCmd = &cobra.Command{
 			coll = collector.NewCollector(cfg, targetsConfig,
 				collector.WithDialOptions(createCollectorDialOpts()),
 				collector.WithSubscriptions(subscriptionsConfig),
-				collector.WithOutputs(ctx, outs, logger),
+				collector.WithOutputs(outs),
 				collector.WithLogger(logger),
 			)
+		} else {
+			// prompt mode
+			for name, outCfg := range outs {
+				coll.AddOutput(name, outCfg)
+			}
+			for _, sc := range subscriptionsConfig {
+				coll.AddSubscriptionConfig(sc)
+			}
+			for _, tc := range targetsConfig {
+				coll.AddTarget(tc)
+			}
 		}
+
+		coll.InitOutputs(gctx)
+
 		wg := new(sync.WaitGroup)
 		wg.Add(len(coll.Targets))
 		for name := range coll.Targets {
@@ -111,7 +125,7 @@ var subscribeCmd = &cobra.Command{
 				defer wg.Done()
 				tRetryTimer := coll.Targets[tn].Config.RetryTimer
 				for {
-					err = coll.Subscribe(ctx, tn)
+					err = coll.Subscribe(gctx, tn)
 					if err != nil {
 						if errors.Is(err, context.DeadlineExceeded) {
 							logger.Printf("failed to initialize target '%s' timeout (%s) reached", tn, targetsConfig[tn].Timeout)
@@ -190,13 +204,13 @@ var subscribeCmd = &cobra.Command{
 						}
 						fmt.Println(string(b))
 						waitChan <- struct{}{}
-					case <-ctx.Done():
+					case <-gctx.Done():
 						return
 					}
 				}
 			}()
 		}
-		coll.Start(ctx)
+		coll.Start(gctx)
 		return nil
 	},
 	PostRun: func(cmd *cobra.Command, args []string) {
@@ -398,6 +412,7 @@ func setSubscriptionDefaults(sub *collector.SubscriptionConfig) {
 		}
 	}
 }
+
 func readSubscriptionsFromCfg() []*collector.SubscriptionConfig {
 	subDef := viper.GetStringMap("subscriptions")
 	subscriptions := make([]*collector.SubscriptionConfig, 0)
