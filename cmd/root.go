@@ -18,6 +18,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -128,12 +129,34 @@ func rootCmdPersistentPreRunE(cmd *cobra.Command, args []string) error {
 			logger.Printf("config file:\n%s", string(b))
 		}
 	}
+	logConfigKeysValues()
 	return nil
 }
 
 func rootCmdPersistentPostRun(cmd *cobra.Command, args []string) {
 	if !viper.GetBool("log") || viper.GetString("log-file") != "" {
 		f.Close()
+	}
+}
+
+func logConfigKeysValues() {
+	if viper.GetBool("debug") {
+		b, err := json.MarshalIndent(viper.AllSettings(), "", "  ")
+		if err != nil {
+			logger.Printf("could not marshal viper settings: %v", err)
+		} else {
+			logger.Printf("set flags/config:\n%s\n", string(b))
+		}
+		keys := viper.AllKeys()
+		sort.Strings(keys)
+
+		for _, k := range keys {
+			if !viper.IsSet(k) {
+				continue
+			}
+			v := viper.Get(k)
+			logger.Printf("%s='%v'(%T)", k, v, v)
+		}
 	}
 }
 
