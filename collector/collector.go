@@ -262,23 +262,30 @@ func (c *Collector) DeleteSubscription(name string) error {
 // Subscribe //
 func (c *Collector) Subscribe(ctx context.Context, tName string) error {
 	if t, ok := c.Targets[tName]; ok {
+		subscriptionsConfigs := t.Subscriptions
+		if len(subscriptionsConfigs) == 0 {
+			subscriptionsConfigs = c.Subscriptions
+		}
+		if len(subscriptionsConfigs) == 0 {
+			return fmt.Errorf("target '%s' has no subscriptions defined", tName)
+		}
+		subRequests := make([]subscriptionRequest, 0)
+		for _, sc := range subscriptionsConfigs {
+			req, err := sc.CreateSubscribeRequest()
+			if err != nil {
+				return err
+			}
+			subRequests = append(subRequests, subscriptionRequest{name: sc.Name, req: req})
+		}
 		if err := t.CreateGNMIClient(ctx, c.dialOpts...); err != nil {
 			return err
 		}
 		c.logger.Printf("target '%s' gNMI client created", t.Config.Name)
 
-		if len(t.Subscriptions) == 0 {
-			t.Subscriptions = c.Subscriptions
-		}
-
-		for _, sc := range t.Subscriptions {
-			req, err := sc.CreateSubscribeRequest()
-			if err != nil {
-				return err
-			}
+		for _, sreq := range subRequests {
 			c.logger.Printf("sending gNMI SubscribeRequest: subscribe='%+v', mode='%+v', encoding='%+v', to %s",
-				req, req.GetSubscribe().GetMode(), req.GetSubscribe().GetEncoding(), t.Config.Name)
-			go t.Subscribe(ctx, req, sc.Name)
+				sreq.req, sreq.req.GetSubscribe().GetMode(), sreq.req.GetSubscribe().GetEncoding(), t.Config.Name)
+			go t.Subscribe(ctx, sreq.req, sreq.name)
 		}
 		return nil
 	}

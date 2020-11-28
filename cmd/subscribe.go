@@ -118,6 +118,8 @@ var subscribeCmd = &cobra.Command{
 
 		coll.InitOutputs(gctx)
 
+		go coll.Start(gctx)
+
 		wg := new(sync.WaitGroup)
 		wg.Add(len(coll.Targets))
 		for name := range coll.Targets {
@@ -210,7 +212,13 @@ var subscribeCmd = &cobra.Command{
 				}
 			}()
 		}
-		coll.Start(gctx)
+
+		if promptMode {
+			return nil
+		}
+		for range gctx.Done() {
+			return gctx.Err()
+		}
 		return nil
 	},
 	PostRun: func(cmd *cobra.Command, args []string) {
