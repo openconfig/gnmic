@@ -35,9 +35,8 @@ type protoMsg struct {
 func init() {
 	outputs.Register("kafka", func() outputs.Output {
 		return &KafkaOutput{
-			Cfg:     &Config{},
-			msgChan: make(chan *protoMsg),
-			wg:      new(sync.WaitGroup),
+			Cfg: &Config{},
+			wg:  new(sync.WaitGroup),
 		}
 	})
 }
@@ -63,6 +62,7 @@ type Config struct {
 	Format           string        `mapstructure:"format,omitempty"`
 	NumWorkers       int           `mapstructure:"num-workers,omitempty"`
 	Debug            bool          `mapstructure:"debug,omitempty"`
+	BufferSize       int           `mapstructure:"buffer-size,omitempty"`
 }
 
 func (k *KafkaOutput) String() string {
@@ -80,6 +80,7 @@ func (k *KafkaOutput) Init(ctx context.Context, cfg map[string]interface{}, logg
 		logger.Printf("kafka output config decode failed: %v", err)
 		return err
 	}
+	k.msgChan = make(chan *protoMsg, k.Cfg.BufferSize)
 	if k.Cfg.Format == "" {
 		k.Cfg.Format = defaultFormat
 	}
