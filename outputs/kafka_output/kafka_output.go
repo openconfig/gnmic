@@ -109,6 +109,7 @@ func (k *KafkaOutput) Init(ctx context.Context, cfg map[string]interface{}, logg
 	k.logger = sarama.Logger
 	k.mo = &collector.MarshalOptions{Format: k.Cfg.Format}
 
+	initMetrics()
 	config := sarama.NewConfig()
 	if k.Cfg.Name != "" {
 		config.ClientID = k.Cfg.Name
