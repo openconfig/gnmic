@@ -20,7 +20,7 @@ var KafkaNumberOfFailSendMsgs = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "gnmic",
 	Subsystem: "kafka_output",
 	Name:      "number_of_kafka_msgs_sent_fail_total",
-	Help:      "Number of failed msgs to be sent by gnmic kafka output",
+	Help:      "Number of failed msgs sent by gnmic kafka output",
 }, []string{"producer_id", "reason"})
 
 var KafkaSendDuration = prometheus.NewGaugeVec(prometheus.GaugeOpts{
