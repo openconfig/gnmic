@@ -125,7 +125,9 @@ func (k *KafkaOutput) Init(ctx context.Context, cfg map[string]interface{}, logg
 	ctx, k.cancelFn = context.WithCancel(ctx)
 	k.wg.Add(k.Cfg.NumWorkers)
 	for i := 0; i < k.Cfg.NumWorkers; i++ {
-		go k.worker(ctx, i, config)
+		cfg := *config
+		cfg.ClientID = fmt.Sprintf("%s-%d", config.ClientID, i)
+		go k.worker(ctx, i, &cfg)
 	}
 	go func() {
 		<-ctx.Done()
