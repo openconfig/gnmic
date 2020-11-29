@@ -5,8 +5,8 @@ import "github.com/prometheus/client_golang/prometheus"
 var KafkaNumberOfSentMsgs = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "gnmic",
 	Subsystem: "kafka_output",
-	Name:      "number_of_written_kafka_msgs_total",
-	Help:      "Number of msgs written by gnmic kafka output",
+	Name:      "number_of_kafka_msgs_sent_success_total",
+	Help:      "Number of msgs successfully sent by gnmic kafka output",
 }, []string{"producer_id"})
 
 var KafkaNumberOfSentBytes = prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -19,14 +19,14 @@ var KafkaNumberOfSentBytes = prometheus.NewCounterVec(prometheus.CounterOpts{
 var KafkaNumberOfFailSendMsgs = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "gnmic",
 	Subsystem: "kafka_output",
-	Name:      "number_of_failed_send_kafka_msgs_total",
+	Name:      "number_of_kafka_msgs_sent_fail_total",
 	Help:      "Number of failed msgs to be sent by gnmic kafka output",
 }, []string{"producer_id", "reason"})
 
 var KafkaSendDuration = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 	Namespace: "gnmic",
 	Subsystem: "kafka_output",
-	Name:      "write_duration_ns",
+	Name:      "msg_send_duration_ns",
 	Help:      "gnmic kafka output send duration in ns",
 }, []string{"producer_id"})
 
