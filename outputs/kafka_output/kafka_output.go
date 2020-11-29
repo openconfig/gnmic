@@ -80,11 +80,11 @@ func (k *KafkaOutput) Init(ctx context.Context, cfg map[string]interface{}, logg
 		logger.Printf("kafka output config decode failed: %v", err)
 		return err
 	}
-	k.msgChan = make(chan *protoMsg, k.Cfg.BufferSize)
+	k.msgChan = make(chan *protoMsg, uint(k.Cfg.BufferSize))
 	if k.Cfg.Format == "" {
 		k.Cfg.Format = defaultFormat
 	}
-	if !(k.Cfg.Format == "event" || k.Cfg.Format == "protojson" || k.Cfg.Format == "proto" || k.Cfg.Format == "json") {
+	if !(k.Cfg.Format == "event" || k.Cfg.Format == "protojson" || k.Cfg.Format == "prototext" || k.Cfg.Format == "proto" || k.Cfg.Format == "json") {
 		return fmt.Errorf("unsupported output format '%s' for output type kafka", k.Cfg.Format)
 	}
 	if k.Cfg.Topic == "" {
@@ -99,7 +99,7 @@ func (k *KafkaOutput) Init(ctx context.Context, cfg map[string]interface{}, logg
 	if k.Cfg.RecoveryWaitTime == 0 {
 		k.Cfg.RecoveryWaitTime = defaultRecoveryWaitTime
 	}
-	if k.Cfg.NumWorkers == 0 {
+	if k.Cfg.NumWorkers <= 0 {
 		k.Cfg.NumWorkers = defaultNumWorkers
 	}
 	if logger != nil {
