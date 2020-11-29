@@ -46,6 +46,7 @@ type Collector struct {
 	Targets       map[string]*Target
 	logger        *log.Logger
 	httpServer    *http.Server
+	reg           *prometheus.Registry
 }
 
 type CollectorOption func(c *Collector)
@@ -105,13 +106,13 @@ func NewCollector(config *Config, targetConfigs map[string]*TargetConfig, opts .
 	}
 	if config.PrometheusAddress != "" {
 		grpcMetrics := grpc_prometheus.NewClientMetrics()
-		reg := prometheus.NewRegistry()
-		reg.MustRegister(prometheus.NewGoCollector())
-		reg.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
+		c.reg = prometheus.NewRegistry()
+		c.reg.MustRegister(prometheus.NewGoCollector())
+		c.reg.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
 		grpcMetrics.EnableClientHandlingTimeHistogram()
-		reg.MustRegister(grpcMetrics)
+		c.reg.MustRegister(grpcMetrics)
 		handler := http.NewServeMux()
-		handler.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
+		handler.Handle("/metrics", promhttp.HandlerFor(c.reg, promhttp.HandlerOpts{}))
 		c.httpServer = &http.Server{
 			Handler: handler,
 			Addr:    config.PrometheusAddress,
@@ -198,6 +199,12 @@ func (c *Collector) InitOutput(ctx context.Context, name string) {
 			c.logger.Printf("starting output type %s", outType)
 			if initializer, ok := outputs.Outputs[outType.(string)]; ok {
 				out := initializer()
+				for _, m := range out.Metrics() {
+					err := c.reg.Register(m)
+					if err != nil {
+						c.logger.Printf("failed to register output '%s' metric : %v", name, err)
+					}
+				}
 				go out.Init(ctx, cfg, c.logger)
 				c.Outputs[name] = out
 			}
