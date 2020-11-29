@@ -159,7 +159,14 @@ func (k *KafkaOutput) Close() error {
 }
 
 // Metrics //
-func (k *KafkaOutput) Metrics() []prometheus.Collector { return k.metrics }
+func (k *KafkaOutput) Metrics() []prometheus.Collector {
+	return []prometheus.Collector{
+		KafkaNumberOfSentMsgs,
+		KafkaNumberOfSentBytes,
+		KafkaNumberOfFailSendMsgs,
+		KafkaSendDuration,
+	}
+}
 
 func (k *KafkaOutput) worker(ctx context.Context, idx int, config *sarama.Config) {
 	var producer sarama.SyncProducer
