@@ -45,7 +45,6 @@ func init() {
 // KafkaOutput //
 type KafkaOutput struct {
 	Cfg      *Config
-	metrics  []prometheus.Collector
 	logger   sarama.StdLogger
 	mo       *collector.MarshalOptions
 	cancelFn context.CancelFunc
@@ -63,6 +62,7 @@ type Config struct {
 	RecoveryWaitTime time.Duration `mapstructure:"recovery-wait-time,omitempty"`
 	Format           string        `mapstructure:"format,omitempty"`
 	NumWorkers       int           `mapstructure:"num-workers,omitempty"`
+	Debug            bool          `mapstructure:"debug,omitempty"`
 }
 
 func (k *KafkaOutput) String() string {
@@ -146,7 +146,10 @@ func (k *KafkaOutput) Write(ctx context.Context, rsp proto.Message, meta outputs
 		return
 	case k.msgChan <- &protoMsg{m: rsp, meta: meta}:
 	case <-time.After(k.Cfg.Timeout):
-		k.logger.Printf("writing expired after %s, Kafka output might not be initialized", k.Cfg.Timeout)
+		if k.Cfg.Debug {
+			k.logger.Printf("writing expired after %s, Kafka output might not be initialized", k.Cfg.Timeout)
+		}
+		KafkaNumberOfFailSendMsgs.WithLabelValues("gnmic_kafka", "timeout").Inc()
 		return
 	}
 }
@@ -191,20 +194,30 @@ CRPROD:
 		case m := <-k.msgChan:
 			b, err := k.mo.Marshal(m.m, m.meta)
 			if err != nil {
-				k.logger.Printf("%s failed marshaling proto msg: %v", workerLogPrefix, err)
+				if k.Cfg.Debug {
+					k.logger.Printf("%s failed marshaling proto msg: %v", workerLogPrefix, err)
+				}
+				KafkaNumberOfFailSendMsgs.WithLabelValues(config.ClientID, "marshal_error").Inc()
 				continue
 			}
 			msg := &sarama.ProducerMessage{
 				Topic: k.Cfg.Topic,
 				Value: sarama.ByteEncoder(b),
 			}
+			start := time.Now()
 			_, _, err = producer.SendMessage(msg)
 			if err != nil {
-				k.logger.Printf("%s failed to send a kafka msg to topic '%s': %v", workerLogPrefix, k.Cfg.Topic, err)
+				if k.Cfg.Debug {
+					k.logger.Printf("%s failed to send a kafka msg to topic '%s': %v", workerLogPrefix, k.Cfg.Topic, err)
+				}
+				KafkaNumberOfFailSendMsgs.WithLabelValues(config.ClientID, "send_error").Inc()
 				producer.Close()
 				time.Sleep(k.Cfg.RecoveryWaitTime)
 				goto CRPROD
 			}
+			KafkaSendDuration.WithLabelValues(config.ClientID).Set(float64(time.Since(start).Nanoseconds()))
+			KafkaNumberOfSentMsgs.WithLabelValues(config.ClientID).Inc()
+			KafkaNumberOfSentBytes.WithLabelValues(config.ClientID).Add(float64(len(b)))
 		}
 	}
 }
