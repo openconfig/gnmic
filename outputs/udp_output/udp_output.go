@@ -44,25 +44,29 @@ type Config struct {
 	RetryInterval time.Duration `mapstructure:"retry-interval,omitempty"`
 }
 
-func (u *UDPSock) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger) error {
+func (u *UDPSock) SetLogger(logger *log.Logger) {
+	if logger != nil {
+		u.logger = log.New(logger.Writer(), "udp_output ", logger.Flags())
+		return
+	}
+	u.logger = log.New(os.Stderr, "udp_output ", log.LstdFlags|log.Lmicroseconds)
+}
+
+func (u *UDPSock) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
 	err := outputs.DecodeConfig(cfg, u.Cfg)
 	if err != nil {
-		logger.Printf("udp output config decode failed: %v", err)
+		u.logger.Printf("udp output config decode failed: %v", err)
 		return err
 	}
 	_, _, err = net.SplitHostPort(u.Cfg.Address)
 	if err != nil {
-		logger.Printf("udp output config validation failed: %v", err)
+		u.logger.Printf("udp output config validation failed: %v", err)
 		return fmt.Errorf("wrong address format: %v", err)
 	}
 	if u.Cfg.RetryInterval == 0 {
 		u.Cfg.RetryInterval = defaultRetryTimer
 	}
-	u.logger = log.New(os.Stderr, "udp_output ", log.LstdFlags|log.Lmicroseconds)
-	if logger != nil {
-		u.logger.SetOutput(logger.Writer())
-		u.logger.SetFlags(logger.Flags())
-	}
+
 	u.buffer = make(chan []byte, u.Cfg.BufferSize)
 	if u.Cfg.Rate > 0 {
 		u.limiter = time.NewTicker(u.Cfg.Rate)
@@ -76,6 +80,7 @@ func (u *UDPSock) Init(ctx context.Context, cfg map[string]interface{}, logger *
 	go u.start(ctx)
 	return nil
 }
+
 func (u *UDPSock) Write(ctx context.Context, m proto.Message, meta outputs.Meta) {
 	if m == nil {
 		return
@@ -87,6 +92,7 @@ func (u *UDPSock) Write(ctx context.Context, m proto.Message, meta outputs.Meta)
 	}
 	u.buffer <- b
 }
+
 func (u *UDPSock) Close() error {
 	u.cancelFn()
 	if u.limiter != nil {
@@ -95,6 +101,7 @@ func (u *UDPSock) Close() error {
 	return nil
 }
 func (u *UDPSock) Metrics() []prometheus.Collector { return nil }
+
 func (u *UDPSock) String() string {
 	b, err := json.Marshal(u)
 	if err != nil {
@@ -102,6 +109,7 @@ func (u *UDPSock) String() string {
 	}
 	return string(b)
 }
+
 func (u *UDPSock) start(ctx context.Context) {
 	var udpAddr *net.UDPAddr
 	var err error

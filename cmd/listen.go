@@ -61,7 +61,7 @@ var listenCmd = &cobra.Command{
 			if outType, ok := outConf["type"]; ok {
 				if initializer, ok := outputs.Outputs[outType.(string)]; ok {
 					out := initializer()
-					go out.Init(ctx, outConf, logger)
+					go out.Init(ctx, outConf, outputs.WithLogger(logger))
 					server.Outputs[name] = out
 				}
 			}

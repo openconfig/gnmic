@@ -207,7 +207,7 @@ func (c *Collector) InitOutput(ctx context.Context, name string) {
 						}
 					}
 				}
-				go out.Init(ctx, cfg, c.logger)
+				go out.Init(ctx, cfg, outputs.WithLogger(c.logger))
 				c.Outputs[name] = out
 			}
 		}

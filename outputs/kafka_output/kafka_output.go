@@ -73,11 +73,23 @@ func (k *KafkaOutput) String() string {
 	return string(b)
 }
 
+func (k *KafkaOutput) SetLogger(logger *log.Logger) {
+	if logger != nil {
+		sarama.Logger = log.New(logger.Writer(), "kafka_output ", logger.Flags())
+	} else {
+		sarama.Logger = log.New(os.Stderr, "kafka_output ", log.LstdFlags|log.Lmicroseconds)
+	}
+	k.logger = sarama.Logger
+}
+
 // Init /
-func (k *KafkaOutput) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger) error {
+func (k *KafkaOutput) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
+	for _, opt := range opts {
+		opt(k)
+	}
 	err := outputs.DecodeConfig(cfg, k.Cfg)
 	if err != nil {
-		logger.Printf("kafka output config decode failed: %v", err)
+		k.logger.Printf("kafka output config decode failed: %v", err)
 		return err
 	}
 	k.msgChan = make(chan *protoMsg, uint(k.Cfg.BufferSize))
@@ -102,12 +114,7 @@ func (k *KafkaOutput) Init(ctx context.Context, cfg map[string]interface{}, logg
 	if k.Cfg.NumWorkers <= 0 {
 		k.Cfg.NumWorkers = defaultNumWorkers
 	}
-	if logger != nil {
-		sarama.Logger = log.New(logger.Writer(), "kafka_output ", logger.Flags())
-	} else {
-		sarama.Logger = log.New(os.Stderr, "kafka_output ", log.LstdFlags|log.Lmicroseconds)
-	}
-	k.logger = sarama.Logger
+
 	k.mo = &collector.MarshalOptions{Format: k.Cfg.Format}
 
 	initMetrics()

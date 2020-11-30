@@ -58,16 +58,26 @@ func (f *File) String() string {
 	}
 	return string(b)
 }
+func (f *File) SetLogger(logger *log.Logger) {
+	if logger != nil {
+		f.logger = log.New(logger.Writer(), "file_output ", logger.Flags())
+		return
+	}
+	f.logger = log.New(os.Stderr, "file_output ", log.LstdFlags|log.Lmicroseconds)
+}
 
 // Init //
-func (f *File) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger) error {
+func (f *File) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
+	for _, opt := range opts {
+		opt(f)
+	}
 	err := outputs.DecodeConfig(cfg, f.Cfg)
 	if err != nil {
-		logger.Printf("file output config decode failed: %v", err)
+		f.logger.Printf("file output config decode failed: %v", err)
 		return err
 	}
 	if f.Cfg.Format == "proto" {
-		logger.Printf("proto format not supported in output type 'file'")
+		f.logger.Printf("proto format not supported in output type 'file'")
 		return fmt.Errorf("proto format not supported in output type 'file'")
 	}
 	if f.Cfg.Separator == "" {
@@ -75,11 +85,6 @@ func (f *File) Init(ctx context.Context, cfg map[string]interface{}, logger *log
 	}
 	if f.Cfg.FileName == "" && f.Cfg.FileType == "" {
 		f.Cfg.FileType = "stdout"
-	}
-	f.logger = log.New(os.Stderr, "file_output ", log.LstdFlags|log.Lmicroseconds)
-	if logger != nil {
-		f.logger.SetOutput(logger.Writer())
-		f.logger.SetFlags(logger.Flags())
 	}
 	switch f.Cfg.FileType {
 	case "stdout":
