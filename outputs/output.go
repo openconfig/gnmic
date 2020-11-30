@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 
+	"github.com/karimra/gnmic/processors"
 	_ "github.com/karimra/gnmic/processors/all"
 	"github.com/mitchellh/mapstructure"
 	"github.com/prometheus/client_golang/prometheus"
@@ -48,4 +49,8 @@ func WithLogger(logger *log.Logger) Option {
 	return func(o Output) {
 		o.SetLogger(logger)
 	}
+}
+
+func WithEventProcessors(p []processors.EventProcessor) Option {
+	return func(o Output) {}
 }
