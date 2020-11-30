@@ -67,10 +67,21 @@ func (k *InfluxDBOutput) String() string {
 	}
 	return string(b)
 }
-func (i *InfluxDBOutput) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger) error {
+func (i *InfluxDBOutput) SetLogger(logger *log.Logger) {
+	i.logger = log.New(os.Stderr, "influxdb_output ", log.LstdFlags|log.Lmicroseconds)
+	if logger != nil {
+		i.logger.SetOutput(logger.Writer())
+		i.logger.SetFlags(logger.Flags())
+	}
+}
+
+func (i *InfluxDBOutput) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
+	for _, opt := range opts {
+		opt(i)
+	}
 	err := outputs.DecodeConfig(cfg, i.Cfg)
 	if err != nil {
-		logger.Printf("influxdb output config decode failed: %v", err)
+		i.logger.Printf("influxdb output config decode failed: %v", err)
 		return err
 	}
 	if i.Cfg.URL == "" {
@@ -85,26 +96,22 @@ func (i *InfluxDBOutput) Init(ctx context.Context, cfg map[string]interface{}, l
 	if i.Cfg.HealthCheckPeriod == 0 {
 		i.Cfg.HealthCheckPeriod = defaultHealthCheckPeriod
 	}
-	i.logger = log.New(os.Stderr, "influxdb_output ", log.LstdFlags|log.Lmicroseconds)
-	if logger != nil {
-		i.logger.SetOutput(logger.Writer())
-		i.logger.SetFlags(logger.Flags())
-	}
-	opts := influxdb2.DefaultOptions().
+
+	iopts := influxdb2.DefaultOptions().
 		SetUseGZip(i.Cfg.UseGzip).
 		SetBatchSize(i.Cfg.BatchSize).
 		SetFlushInterval(uint(i.Cfg.FlushTimer.Milliseconds()))
 	if i.Cfg.EnableTLS {
-		opts.SetTLSConfig(&tls.Config{
+		iopts.SetTLSConfig(&tls.Config{
 			InsecureSkipVerify: true,
 		})
 	}
 	if i.Cfg.Debug {
-		opts.SetLogLevel(3)
+		iopts.SetLogLevel(3)
 	}
 	ctx, i.cancelFn = context.WithCancel(ctx)
 CRCLIENT:
-	i.client = influxdb2.NewClientWithOptions(i.Cfg.URL, i.Cfg.Token, opts)
+	i.client = influxdb2.NewClientWithOptions(i.Cfg.URL, i.Cfg.Token, iopts)
 	// start influx health check
 	err = i.health(ctx)
 	if err != nil {

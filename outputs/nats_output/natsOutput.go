@@ -66,12 +66,22 @@ func (n *NatsOutput) String() string {
 	}
 	return string(b)
 }
+func (n *NatsOutput) SetLogger(logger *log.Logger) {
+	if logger != nil {
+		n.logger = log.New(logger.Writer(), "nats_output ", logger.Flags())
+	} else {
+		n.logger = log.New(os.Stderr, "nats_output ", log.LstdFlags|log.Lmicroseconds)
+	}
+}
 
 // Init //
-func (n *NatsOutput) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger) error {
+func (n *NatsOutput) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
+	for _, opt := range opts {
+		opt(n)
+	}
 	err := outputs.DecodeConfig(cfg, n.Cfg)
 	if err != nil {
-		logger.Printf("nats output config decode failed: %v", err)
+		n.logger.Printf("nats output config decode failed: %v", err)
 		return err
 	}
 	if n.Cfg.ConnectTimeWait == 0 {
@@ -80,16 +90,11 @@ func (n *NatsOutput) Init(ctx context.Context, cfg map[string]interface{}, logge
 	if n.Cfg.Subject == "" && n.Cfg.SubjectPrefix == "" {
 		n.Cfg.Subject = defaultSubjectName
 	}
-	n.logger = log.New(os.Stderr, "nats_output ", log.LstdFlags|log.Lmicroseconds)
-	if logger != nil {
-		n.logger.SetOutput(logger.Writer())
-		n.logger.SetFlags(logger.Flags())
-	}
 	if n.Cfg.Format == "" {
 		n.Cfg.Format = defaultFormat
 	}
 	if !(n.Cfg.Format == "event" || n.Cfg.Format == "protojson" || n.Cfg.Format == "proto" || n.Cfg.Format == "json") {
-		logger.Printf("unsupported output format '%s' for output type NATS, terminating...", n.Cfg.Format)
+		n.logger.Printf("unsupported output format '%s' for output type NATS, terminating...", n.Cfg.Format)
 		return fmt.Errorf("unsupported output format '%s' for output type NATS", n.Cfg.Format)
 	}
 	if n.Cfg.Name == "" {

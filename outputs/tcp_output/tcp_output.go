@@ -48,21 +48,27 @@ type Config struct {
 	NumWorkers    int           `mapstructure:"num-workers,omitempty"`
 }
 
-func (t *TCPOutput) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger) error {
+func (t *TCPOutput) SetLogger(logger *log.Logger) {
+	if logger != nil {
+		t.logger = log.New(logger.Writer(), "tcp_output ", logger.Flags())
+	} else {
+		t.logger = log.New(os.Stderr, "tcp_output ", log.LstdFlags|log.Lmicroseconds)
+	}
+}
+
+func (t *TCPOutput) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
+	for _, opt := range opts {
+		opt(t)
+	}
 	err := outputs.DecodeConfig(cfg, t.Cfg)
 	if err != nil {
-		logger.Printf("tcp output config decode failed: %v", err)
+		t.logger.Printf("tcp output config decode failed: %v", err)
 		return err
 	}
 	_, _, err = net.SplitHostPort(t.Cfg.Address)
 	if err != nil {
-		logger.Printf("tcp output config validation failed: %v", err)
+		t.logger.Printf("tcp output config validation failed: %v", err)
 		return fmt.Errorf("wrong address format: %v", err)
-	}
-	t.logger = log.New(os.Stderr, "tcp_output ", log.LstdFlags|log.Lmicroseconds)
-	if logger != nil {
-		t.logger.SetOutput(logger.Writer())
-		t.logger.SetFlags(logger.Flags())
 	}
 	t.buffer = make(chan []byte, t.Cfg.BufferSize)
 	if t.Cfg.Rate > 0 {

@@ -86,10 +86,21 @@ func (p *PrometheusOutput) String() string {
 	}
 	return string(b)
 }
-func (p *PrometheusOutput) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger) error {
+func (p *PrometheusOutput) SetLogger(logger *log.Logger) {
+	if logger != nil {
+		p.logger = log.New(logger.Writer(), "prometheus_output ", logger.Flags())
+	} else {
+		p.logger = log.New(os.Stderr, "prometheus_output ", log.LstdFlags|log.Lmicroseconds)
+	}
+}
+
+func (p *PrometheusOutput) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
+	for _, opt := range opts {
+		opt(p)
+	}
 	err := outputs.DecodeConfig(cfg, p.Cfg)
 	if err != nil {
-		logger.Printf("prometheus output config decode failed: %v", err)
+		p.logger.Printf("prometheus output config decode failed: %v", err)
 		return err
 	}
 	if p.Cfg.Listen == "" {
@@ -101,11 +112,7 @@ func (p *PrometheusOutput) Init(ctx context.Context, cfg map[string]interface{},
 	if p.Cfg.Expiration == 0 {
 		p.Cfg.Expiration = defaultExpiration
 	}
-	p.logger = log.New(os.Stderr, "prometheus_output ", log.LstdFlags|log.Lmicroseconds)
-	if logger != nil {
-		p.logger.SetOutput(logger.Writer())
-		p.logger.SetFlags(logger.Flags())
-	}
+
 	// create prometheus registery
 	registry := prometheus.NewRegistry()
 
