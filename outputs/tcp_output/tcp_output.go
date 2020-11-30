@@ -51,9 +51,9 @@ type Config struct {
 func (t *TCPOutput) SetLogger(logger *log.Logger) {
 	if logger != nil {
 		t.logger = log.New(logger.Writer(), "tcp_output ", logger.Flags())
-	} else {
-		t.logger = log.New(os.Stderr, "tcp_output ", log.LstdFlags|log.Lmicroseconds)
+		return
 	}
+	t.logger = log.New(os.Stderr, "tcp_output ", log.LstdFlags|log.Lmicroseconds)
 }
 
 func (t *TCPOutput) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {

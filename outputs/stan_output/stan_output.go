@@ -72,9 +72,9 @@ func (s *StanOutput) String() string {
 func (s *StanOutput) SetLogger(logger *log.Logger) {
 	if logger != nil {
 		s.logger = log.New(logger.Writer(), "stan_output ", logger.Flags())
-	} else {
-		s.logger = log.New(os.Stderr, "stan_output ", log.LstdFlags|log.Lmicroseconds)
+		return
 	}
+	s.logger = log.New(os.Stderr, "stan_output ", log.LstdFlags|log.Lmicroseconds)
 }
 
 // Init //

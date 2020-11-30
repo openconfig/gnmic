@@ -89,9 +89,9 @@ func (p *PrometheusOutput) String() string {
 func (p *PrometheusOutput) SetLogger(logger *log.Logger) {
 	if logger != nil {
 		p.logger = log.New(logger.Writer(), "prometheus_output ", logger.Flags())
-	} else {
-		p.logger = log.New(os.Stderr, "prometheus_output ", log.LstdFlags|log.Lmicroseconds)
+		return
 	}
+	p.logger = log.New(os.Stderr, "prometheus_output ", log.LstdFlags|log.Lmicroseconds)
 }
 
 func (p *PrometheusOutput) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {

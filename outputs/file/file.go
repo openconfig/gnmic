@@ -59,11 +59,11 @@ func (f *File) String() string {
 	return string(b)
 }
 func (f *File) SetLogger(logger *log.Logger) {
-	f.logger = log.New(os.Stderr, "file_output ", log.LstdFlags|log.Lmicroseconds)
 	if logger != nil {
-		f.logger.SetOutput(logger.Writer())
-		f.logger.SetFlags(logger.Flags())
+		f.logger = log.New(logger.Writer(), "file_output ", logger.Flags())
+		return
 	}
+	f.logger = log.New(os.Stderr, "file_output ", log.LstdFlags|log.Lmicroseconds)
 }
 
 // Init //

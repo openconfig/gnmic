@@ -47,9 +47,9 @@ type Config struct {
 func (u *UDPSock) SetLogger(logger *log.Logger) {
 	if logger != nil {
 		u.logger = log.New(logger.Writer(), "udp_output ", logger.Flags())
-	} else {
-		u.logger = log.New(os.Stderr, "udp_output ", log.LstdFlags|log.Lmicroseconds)
+		return
 	}
+	u.logger = log.New(os.Stderr, "udp_output ", log.LstdFlags|log.Lmicroseconds)
 }
 
 func (u *UDPSock) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {

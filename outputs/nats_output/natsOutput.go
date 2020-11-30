@@ -69,9 +69,9 @@ func (n *NatsOutput) String() string {
 func (n *NatsOutput) SetLogger(logger *log.Logger) {
 	if logger != nil {
 		n.logger = log.New(logger.Writer(), "nats_output ", logger.Flags())
-	} else {
-		n.logger = log.New(os.Stderr, "nats_output ", log.LstdFlags|log.Lmicroseconds)
+		return
 	}
+	n.logger = log.New(os.Stderr, "nats_output ", log.LstdFlags|log.Lmicroseconds)
 }
 
 // Init //

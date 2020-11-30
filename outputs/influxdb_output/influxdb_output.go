@@ -68,11 +68,11 @@ func (k *InfluxDBOutput) String() string {
 	return string(b)
 }
 func (i *InfluxDBOutput) SetLogger(logger *log.Logger) {
-	i.logger = log.New(os.Stderr, "influxdb_output ", log.LstdFlags|log.Lmicroseconds)
 	if logger != nil {
-		i.logger.SetOutput(logger.Writer())
-		i.logger.SetFlags(logger.Flags())
+		i.logger = log.New(logger.Writer(), "influxdb_output ", logger.Flags())
+		return
 	}
+	i.logger = log.New(os.Stderr, "influxdb_output ", log.LstdFlags|log.Lmicroseconds)
 }
 
 func (i *InfluxDBOutput) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
