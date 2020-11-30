@@ -10,11 +10,12 @@ import (
 )
 
 type Output interface {
-	Init(context.Context, map[string]interface{}, *log.Logger) error
+	Init(context.Context, map[string]interface{}, ...Option) error
 	Write(context.Context, proto.Message, Meta)
 	Close() error
 	Metrics() []prometheus.Collector
 	String() string
+	SetLogger(*log.Logger)
 }
 type Initializer func() Output
 
@@ -37,4 +38,12 @@ func DecodeConfig(src, dst interface{}) error {
 		return err
 	}
 	return decoder.Decode(src)
+}
+
+type Option func(Output)
+
+func WithLogger(logger *log.Logger) Option {
+	return func(o Output) {
+		o.SetLogger(logger)
+	}
 }
