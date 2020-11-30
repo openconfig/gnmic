@@ -35,9 +35,8 @@ type protoMsg struct {
 func init() {
 	outputs.Register("kafka", func() outputs.Output {
 		return &KafkaOutput{
-			Cfg:     &Config{},
-			msgChan: make(chan *protoMsg),
-			wg:      new(sync.WaitGroup),
+			Cfg: &Config{},
+			wg:  new(sync.WaitGroup),
 		}
 	})
 }
@@ -45,7 +44,6 @@ func init() {
 // KafkaOutput //
 type KafkaOutput struct {
 	Cfg      *Config
-	metrics  []prometheus.Collector
 	logger   sarama.StdLogger
 	mo       *collector.MarshalOptions
 	cancelFn context.CancelFunc
@@ -63,6 +61,8 @@ type Config struct {
 	RecoveryWaitTime time.Duration `mapstructure:"recovery-wait-time,omitempty"`
 	Format           string        `mapstructure:"format,omitempty"`
 	NumWorkers       int           `mapstructure:"num-workers,omitempty"`
+	Debug            bool          `mapstructure:"debug,omitempty"`
+	BufferSize       int           `mapstructure:"buffer-size,omitempty"`
 }
 
 func (k *KafkaOutput) String() string {
@@ -80,10 +80,11 @@ func (k *KafkaOutput) Init(ctx context.Context, cfg map[string]interface{}, logg
 		logger.Printf("kafka output config decode failed: %v", err)
 		return err
 	}
+	k.msgChan = make(chan *protoMsg, uint(k.Cfg.BufferSize))
 	if k.Cfg.Format == "" {
 		k.Cfg.Format = defaultFormat
 	}
-	if !(k.Cfg.Format == "event" || k.Cfg.Format == "protojson" || k.Cfg.Format == "proto" || k.Cfg.Format == "json") {
+	if !(k.Cfg.Format == "event" || k.Cfg.Format == "protojson" || k.Cfg.Format == "prototext" || k.Cfg.Format == "proto" || k.Cfg.Format == "json") {
 		return fmt.Errorf("unsupported output format '%s' for output type kafka", k.Cfg.Format)
 	}
 	if k.Cfg.Topic == "" {
@@ -98,7 +99,7 @@ func (k *KafkaOutput) Init(ctx context.Context, cfg map[string]interface{}, logg
 	if k.Cfg.RecoveryWaitTime == 0 {
 		k.Cfg.RecoveryWaitTime = defaultRecoveryWaitTime
 	}
-	if k.Cfg.NumWorkers == 0 {
+	if k.Cfg.NumWorkers <= 0 {
 		k.Cfg.NumWorkers = defaultNumWorkers
 	}
 	if logger != nil {
@@ -109,6 +110,7 @@ func (k *KafkaOutput) Init(ctx context.Context, cfg map[string]interface{}, logg
 	k.logger = sarama.Logger
 	k.mo = &collector.MarshalOptions{Format: k.Cfg.Format}
 
+	initMetrics()
 	config := sarama.NewConfig()
 	if k.Cfg.Name != "" {
 		config.ClientID = k.Cfg.Name
@@ -124,7 +126,9 @@ func (k *KafkaOutput) Init(ctx context.Context, cfg map[string]interface{}, logg
 	ctx, k.cancelFn = context.WithCancel(ctx)
 	k.wg.Add(k.Cfg.NumWorkers)
 	for i := 0; i < k.Cfg.NumWorkers; i++ {
-		go k.worker(ctx, i, config)
+		cfg := *config
+		cfg.ClientID = fmt.Sprintf("%s-%d", config.ClientID, i)
+		go k.worker(ctx, i, &cfg)
 	}
 	go func() {
 		<-ctx.Done()
@@ -143,7 +147,10 @@ func (k *KafkaOutput) Write(ctx context.Context, rsp proto.Message, meta outputs
 		return
 	case k.msgChan <- &protoMsg{m: rsp, meta: meta}:
 	case <-time.After(k.Cfg.Timeout):
-		k.logger.Printf("writing expired after %s, Kafka output might not be initialized", k.Cfg.Timeout)
+		if k.Cfg.Debug {
+			k.logger.Printf("writing expired after %s, Kafka output might not be initialized", k.Cfg.Timeout)
+		}
+		KafkaNumberOfFailSendMsgs.WithLabelValues("gnmic_kafka", "timeout").Inc()
 		return
 	}
 }
@@ -156,7 +163,14 @@ func (k *KafkaOutput) Close() error {
 }
 
 // Metrics //
-func (k *KafkaOutput) Metrics() []prometheus.Collector { return k.metrics }
+func (k *KafkaOutput) Metrics() []prometheus.Collector {
+	return []prometheus.Collector{
+		KafkaNumberOfSentMsgs,
+		KafkaNumberOfSentBytes,
+		KafkaNumberOfFailSendMsgs,
+		KafkaSendDuration,
+	}
+}
 
 func (k *KafkaOutput) worker(ctx context.Context, idx int, config *sarama.Config) {
 	var producer sarama.SyncProducer
@@ -181,20 +195,30 @@ CRPROD:
 		case m := <-k.msgChan:
 			b, err := k.mo.Marshal(m.m, m.meta)
 			if err != nil {
-				k.logger.Printf("%s failed marshaling proto msg: %v", workerLogPrefix, err)
+				if k.Cfg.Debug {
+					k.logger.Printf("%s failed marshaling proto msg: %v", workerLogPrefix, err)
+				}
+				KafkaNumberOfFailSendMsgs.WithLabelValues(config.ClientID, "marshal_error").Inc()
 				continue
 			}
 			msg := &sarama.ProducerMessage{
 				Topic: k.Cfg.Topic,
 				Value: sarama.ByteEncoder(b),
 			}
+			start := time.Now()
 			_, _, err = producer.SendMessage(msg)
 			if err != nil {
-				k.logger.Printf("%s failed to send a kafka msg to topic '%s': %v", workerLogPrefix, k.Cfg.Topic, err)
+				if k.Cfg.Debug {
+					k.logger.Printf("%s failed to send a kafka msg to topic '%s': %v", workerLogPrefix, k.Cfg.Topic, err)
+				}
+				KafkaNumberOfFailSendMsgs.WithLabelValues(config.ClientID, "send_error").Inc()
 				producer.Close()
 				time.Sleep(k.Cfg.RecoveryWaitTime)
 				goto CRPROD
 			}
+			KafkaSendDuration.WithLabelValues(config.ClientID).Set(float64(time.Since(start).Nanoseconds()))
+			KafkaNumberOfSentMsgs.WithLabelValues(config.ClientID).Inc()
+			KafkaNumberOfSentBytes.WithLabelValues(config.ClientID).Add(float64(len(b)))
 		}
 	}
 }
