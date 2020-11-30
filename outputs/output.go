@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 
+	_ "github.com/karimra/gnmic/processors/all"
 	"github.com/mitchellh/mapstructure"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
@@ -17,6 +18,7 @@ type Output interface {
 	String() string
 	SetLogger(*log.Logger)
 }
+
 type Initializer func() Output
 
 var Outputs = map[string]Initializer{}

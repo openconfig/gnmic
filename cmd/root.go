@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/formatters"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmi/proto/gnmi"
@@ -618,7 +619,7 @@ func printMsg(address string, msg proto.Message) error {
 			return nil
 		}
 	}
-	mo := collector.MarshalOptions{
+	mo := formatters.MarshalOptions{
 		Multiline: true,
 		Indent:    "  ",
 		Format:    viper.GetString("format"),

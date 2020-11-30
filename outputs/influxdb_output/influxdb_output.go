@@ -9,7 +9,7 @@ import (
 	"time"
 
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
-	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus"
@@ -29,7 +29,7 @@ func init() {
 	outputs.Register("influxdb", func() outputs.Output {
 		return &InfluxDBOutput{
 			Cfg:       &Config{},
-			eventChan: make(chan *collector.EventMsg),
+			eventChan: make(chan *formatters.EventMsg),
 			reset:     make(chan struct{}),
 			startSig:  make(chan struct{}),
 		}
@@ -42,7 +42,7 @@ type InfluxDBOutput struct {
 	metrics   []prometheus.Collector
 	logger    *log.Logger
 	cancelFn  context.CancelFunc
-	eventChan chan *collector.EventMsg
+	eventChan chan *formatters.EventMsg
 	reset     chan struct{}
 	startSig  chan struct{}
 	wasup     bool
@@ -143,7 +143,7 @@ func (i *InfluxDBOutput) Write(ctx context.Context, rsp proto.Message, meta outp
 		if subName, ok := meta["subscription-name"]; ok {
 			measName = subName
 		}
-		events, err := collector.ResponseToEventMsgs(measName, rsp, meta)
+		events, err := formatters.ResponseToEventMsgs(measName, rsp, meta)
 		if err != nil {
 			i.logger.Printf("failed to convert message to event: %v", err)
 			return

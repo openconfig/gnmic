@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/nats-io/nats.go"
 	"github.com/prometheus/client_golang/prometheus"
@@ -44,7 +44,7 @@ type NatsOutput struct {
 	conn     *nats.Conn
 	metrics  []prometheus.Collector
 	logger   *log.Logger
-	mo       *collector.MarshalOptions
+	mo       *formatters.MarshalOptions
 }
 
 // Config //
@@ -109,7 +109,7 @@ CRCONN:
 		goto CRCONN
 	}
 	n.logger.Printf("initialized nats producer: %s", n.String())
-	n.mo = &collector.MarshalOptions{Format: n.Cfg.Format}
+	n.mo = &formatters.MarshalOptions{Format: n.Cfg.Format}
 	go func() {
 		<-ctx.Done()
 		n.Close()

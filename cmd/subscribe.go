@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
 	_ "github.com/karimra/gnmic/outputs/all"
 	"github.com/manifoldco/promptui"
@@ -159,7 +160,7 @@ var subscribeCmd = &cobra.Command{
 			}
 			waitChan := make(chan struct{}, 1)
 			waitChan <- struct{}{}
-			mo := &collector.MarshalOptions{
+			mo := &formatters.MarshalOptions{
 				Multiline: true,
 				Indent:    "  ",
 				Format:    viper.GetString("format")}

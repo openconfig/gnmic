@@ -12,7 +12,7 @@ import (
 
 	"github.com/Shopify/sarama"
 	"github.com/google/uuid"
-	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
@@ -45,7 +45,7 @@ func init() {
 type KafkaOutput struct {
 	Cfg      *Config
 	logger   sarama.StdLogger
-	mo       *collector.MarshalOptions
+	mo       *formatters.MarshalOptions
 	cancelFn context.CancelFunc
 	msgChan  chan *protoMsg
 	wg       *sync.WaitGroup
@@ -115,7 +115,7 @@ func (k *KafkaOutput) Init(ctx context.Context, cfg map[string]interface{}, opts
 		k.Cfg.NumWorkers = defaultNumWorkers
 	}
 
-	k.mo = &collector.MarshalOptions{Format: k.Cfg.Format}
+	k.mo = &formatters.MarshalOptions{Format: k.Cfg.Format}
 
 	initMetrics()
 	config := sarama.NewConfig()

@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
@@ -38,7 +38,7 @@ type File struct {
 	file    *os.File
 	logger  *log.Logger
 	metrics []prometheus.Collector
-	mo      *collector.MarshalOptions
+	mo      *formatters.MarshalOptions
 }
 
 // Config //
@@ -111,7 +111,7 @@ func (f *File) Init(ctx context.Context, cfg map[string]interface{}, opts ...out
 	if f.Cfg.Multiline && f.Cfg.Indent == "" {
 		f.Cfg.Indent = "  "
 	}
-	f.mo = &collector.MarshalOptions{Multiline: f.Cfg.Multiline, Indent: f.Cfg.Indent, Format: f.Cfg.Format}
+	f.mo = &formatters.MarshalOptions{Multiline: f.Cfg.Multiline, Indent: f.Cfg.Indent, Format: f.Cfg.Format}
 	f.logger.Printf("initialized file output: %s", f.String())
 	go func() {
 		<-ctx.Done()

@@ -19,7 +19,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus"
@@ -51,7 +51,7 @@ func init() {
 	outputs.Register("prometheus", func() outputs.Output {
 		return &PrometheusOutput{
 			Cfg:         &Config{},
-			eventChan:   make(chan *collector.EventMsg),
+			eventChan:   make(chan *formatters.EventMsg),
 			wg:          new(sync.WaitGroup),
 			entries:     make(map[uint64]*promMetric),
 			metricRegex: regexp.MustCompile(metricNameRegex),
@@ -63,7 +63,7 @@ type PrometheusOutput struct {
 	Cfg       *Config
 	metrics   []prometheus.Collector
 	logger    *log.Logger
-	eventChan chan *collector.EventMsg
+	eventChan chan *formatters.EventMsg
 
 	wg     *sync.WaitGroup
 	server *http.Server
@@ -165,7 +165,7 @@ func (p *PrometheusOutput) Write(ctx context.Context, rsp proto.Message, meta ou
 		if subName, ok := meta["subscription-name"]; ok {
 			measName = subName
 		}
-		events, err := collector.ResponseToEventMsgs(measName, rsp, meta)
+		events, err := formatters.ResponseToEventMsgs(measName, rsp, meta)
 		if err != nil {
 			p.logger.Printf("failed to convert message to event: %v", err)
 			return
@@ -204,7 +204,7 @@ func (p *PrometheusOutput) Collect(ch chan<- prometheus.Metric) {
 	}
 }
 
-func (p *PrometheusOutput) getLabels(ev *collector.EventMsg) []*labelPair {
+func (p *PrometheusOutput) getLabels(ev *formatters.EventMsg) []*labelPair {
 	labels := make([]*labelPair, 0, len(ev.Tags))
 	addedLabels := make(map[string]struct{})
 	for k, v := range ev.Tags {

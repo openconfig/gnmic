@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/stan.go"
@@ -43,7 +43,7 @@ type StanOutput struct {
 	conn    stan.Conn
 	metrics []prometheus.Collector
 	logger  *log.Logger
-	mo      *collector.MarshalOptions
+	mo      *formatters.MarshalOptions
 }
 
 // Config //
@@ -113,7 +113,7 @@ func (s *StanOutput) Init(ctx context.Context, cfg map[string]interface{}, opts 
 	if s.Cfg.PingRetry == 0 {
 		s.Cfg.PingRetry = stanDefaultPingRetry
 	}
-	s.mo = &collector.MarshalOptions{Format: s.Cfg.Format}
+	s.mo = &formatters.MarshalOptions{Format: s.Cfg.Format}
 	// this func retries until a connection is created successfully
 	s.conn = s.createSTANConn(s.Cfg)
 	s.logger.Printf("initialized stan producer: %s", s.String())

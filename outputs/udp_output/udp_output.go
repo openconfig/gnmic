@@ -9,7 +9,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
@@ -33,7 +33,7 @@ type UDPSock struct {
 	buffer   chan []byte
 	limiter  *time.Ticker
 	logger   *log.Logger
-	mo       *collector.MarshalOptions
+	mo       *formatters.MarshalOptions
 }
 
 type Config struct {
@@ -76,7 +76,7 @@ func (u *UDPSock) Init(ctx context.Context, cfg map[string]interface{}, opts ...
 		u.Close()
 	}()
 	ctx, u.cancelFn = context.WithCancel(ctx)
-	u.mo = &collector.MarshalOptions{Format: u.Cfg.Format}
+	u.mo = &formatters.MarshalOptions{Format: u.Cfg.Format}
 	go u.start(ctx)
 	return nil
 }

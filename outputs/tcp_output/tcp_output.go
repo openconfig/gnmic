@@ -9,7 +9,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
@@ -35,7 +35,7 @@ type TCPOutput struct {
 	buffer   chan []byte
 	limiter  *time.Ticker
 	logger   *log.Logger
-	mo       *collector.MarshalOptions
+	mo       *formatters.MarshalOptions
 }
 
 type Config struct {
@@ -80,7 +80,7 @@ func (t *TCPOutput) Init(ctx context.Context, cfg map[string]interface{}, opts .
 	if t.Cfg.NumWorkers < 1 {
 		t.Cfg.NumWorkers = defaultNumWorkers
 	}
-	t.mo = &collector.MarshalOptions{Format: t.Cfg.Format}
+	t.mo = &formatters.MarshalOptions{Format: t.Cfg.Format}
 	go func() {
 		<-ctx.Done()
 		t.Close()
