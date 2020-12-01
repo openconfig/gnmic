@@ -1,9 +1,9 @@
 package event_convert
 
 import (
+	"reflect"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/processors"
 )
@@ -52,10 +52,42 @@ var testset = map[string]struct {
 			},
 			{
 				input: &formatters.EventMsg{
-					Values: map[string]interface{}{"number-also": int(100)},
+					Values: map[string]interface{}{"number": int(100)},
+					Tags:   map[string]string{"number": "name_tag"},
 				},
 				output: &formatters.EventMsg{
-					Values: map[string]interface{}{"number-also": int(100)},
+					Values: map[string]interface{}{"number": int(100)},
+					Tags:   map[string]string{"number": "name_tag"},
+				},
+			},
+			{
+				input: &formatters.EventMsg{
+					Values: map[string]interface{}{"number": uint(100)},
+					Tags:   map[string]string{"number": "name_tag"},
+				},
+				output: &formatters.EventMsg{
+					Values: map[string]interface{}{"number": int(100)},
+					Tags:   map[string]string{"number": "name_tag"},
+				},
+			},
+			{
+				input: &formatters.EventMsg{
+					Values: map[string]interface{}{"number": float64(100)},
+					Tags:   map[string]string{"number": "name_tag"},
+				},
+				output: &formatters.EventMsg{
+					Values: map[string]interface{}{"number": int(100)},
+					Tags:   map[string]string{"number": "name_tag"},
+				},
+			},
+			{
+				input: &formatters.EventMsg{
+					Values: map[string]interface{}{"number": true},
+					Tags:   map[string]string{"number": "name_tag"},
+				},
+				output: &formatters.EventMsg{
+					Values: map[string]interface{}{"number": true},
+					Tags:   map[string]string{"number": "name_tag"},
 				},
 			},
 		},
@@ -216,9 +248,12 @@ func TestEventConvert(t *testing.T) {
 						}
 						p.Apply(item.input)
 						t.Logf("input: %+v, changed: %+v", inputMsg, item.input)
-						if !cmp.Equal(item.input, item.output) {
+						if !reflect.DeepEqual(item.input, item.output) {
 							t.Errorf("failed at %s item %d, expected %+v, got: %+v", name, i, item.output, item.input)
 						}
+						// if !cmp.Equal(item.input, item.output) {
+						// 	t.Errorf("failed at %s item %d, expected %+v, got: %+v", name, i, item.output, item.input)
+						// }
 					})
 				}
 			}

@@ -1,7 +1,12 @@
 package event_convert
 
 import (
+	"errors"
+	"fmt"
+	"log"
+	"os"
 	"regexp"
+	"strconv"
 
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/processors"
@@ -48,9 +53,14 @@ func (c *Convert) Apply(e *formatters.EventMsg) {
 			if re.MatchString(k) {
 				switch c.TargetUnit {
 				case "int":
-					if iv, ok := v.(int); ok {
-						e.Values[k] = iv
+					iv, err := convertToInt(v)
+					if err != nil {
+						log.Printf("convert errors: %v", err)
+						return
 					}
+					e.Values[k] = iv
+					fmt.Fprintf(os.Stderr, "!!!!set %d %T\n", iv, iv)
+
 				case "uint":
 					if iv, ok := v.(uint); ok {
 						e.Values[k] = iv
@@ -67,5 +77,24 @@ func (c *Convert) Apply(e *formatters.EventMsg) {
 				break
 			}
 		}
+	}
+}
+
+func convertToInt(i interface{}) (int, error) {
+	switch i := i.(type) {
+	case string:
+		iv, err := strconv.Atoi(i)
+		if err != nil {
+			return 0, err
+		}
+		return iv, nil
+	case int:
+		return i, nil
+	case uint:
+		return int(i), nil
+	case float64:
+		return int(i), nil
+	default:
+		return 0, errors.New("unknown format")
 	}
 }
