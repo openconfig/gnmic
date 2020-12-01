@@ -2,6 +2,7 @@ package event_convert
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"regexp"
 	"strconv"
@@ -11,17 +12,14 @@ import (
 
 // Convert converts the value with path matching one of regexes to the specified Type
 type Convert struct {
-	Type       string   `mapstructure:"type,omitempty"`
 	Values     []string `mapstructure:"values,omitempty"`
-	TargetUnit string   `mapstructure:"target_unit,omitempty"`
+	TargetType string   `mapstructure:"target_type,omitempty"`
 	values     []*regexp.Regexp
 }
 
 func init() {
 	formatters.Register("event_convert", func() formatters.EventProcessor {
-		return &Convert{
-			//Type: "event_convert",
-		}
+		return &Convert{}
 	})
 }
 
@@ -48,7 +46,7 @@ func (c *Convert) Apply(e *formatters.EventMsg) {
 	for k, v := range e.Values {
 		for _, re := range c.values {
 			if re.MatchString(k) {
-				switch c.TargetUnit {
+				switch c.TargetType {
 				case "int":
 					iv, err := convertToInt(v)
 					if err != nil {
@@ -104,6 +102,7 @@ func convertToInt(i interface{}) (int, error) {
 }
 
 func convertToUint(i interface{}) (uint, error) {
+	fmt.Printf("value %d %T\n", i, i)
 	switch i := i.(type) {
 	case string:
 		iv, err := strconv.Atoi(i)
@@ -112,10 +111,16 @@ func convertToUint(i interface{}) (uint, error) {
 		}
 		return uint(iv), nil
 	case int:
-		return 0, nil
+		if i < 0 {
+			return 0, nil
+		}
+		return uint(i), nil
 	case uint:
 		return i, nil
 	case float64:
+		if i < 0 {
+			return 0, nil
+		}
 		return uint(i), nil
 	default:
 		return 0, errors.New("cannot convert to uint")
