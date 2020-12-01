@@ -8,25 +8,33 @@ import (
 
 // Drop Drops the msg if any of the Tags or Values regexes are matched
 type Drop struct {
-	Type   string
 	Tags   []*regexp.Regexp
 	Values []*regexp.Regexp
 }
 
-func (d *Drop) Apply(e *formatters.EventMsg) *formatters.EventMsg {
+func init() {
+	formatters.Register("event_drop", func() formatters.EventProcessor {
+		return &Drop{}
+	})
+}
+
+func (d *Drop) Init(cfg interface{}) error { return nil }
+
+func (d *Drop) Apply(e *formatters.EventMsg) {
 	for k := range e.Values {
 		for _, re := range d.Values {
 			if re.MatchString(k) {
-				return nil
+				d = nil
+				return
 			}
 		}
 	}
 	for k := range e.Tags {
 		for _, re := range d.Tags {
 			if re.MatchString(k) {
-				return nil
+				d = nil
+				return
 			}
 		}
 	}
-	return e
 }
