@@ -1,7 +1,6 @@
-package processors
+package formatters
 
 import (
-	"github.com/karimra/gnmic/formatters"
 	"github.com/mitchellh/mapstructure"
 )
 
@@ -15,7 +14,7 @@ func Register(name string, initFn Initializer) {
 
 type EventProcessor interface {
 	Init(interface{}) error
-	Apply(*formatters.EventMsg)
+	Apply(*EventMsg)
 }
 
 func DecodeConfig(src, dst interface{}) error {

@@ -2,9 +2,10 @@ package outputs
 
 import (
 	"context"
+	"fmt"
 	"log"
 
-	_ "github.com/karimra/gnmic/processors/all"
+	_ "github.com/karimra/gnmic/formatters/all"
 	"github.com/mitchellh/mapstructure"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
@@ -53,6 +54,7 @@ func WithLogger(logger *log.Logger) Option {
 
 func WithEventProcessors(eps map[string]map[string]interface{}) Option {
 	return func(o Output) {
+		fmt.Println("adding event processors to output:", eps)
 		o.SetEventProcessors(eps)
 	}
 }

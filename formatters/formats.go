@@ -19,7 +19,7 @@ type MarshalOptions struct {
 }
 
 // Marshal //
-func (o *MarshalOptions) Marshal(msg proto.Message, meta map[string]string) ([]byte, error) {
+func (o *MarshalOptions) Marshal(msg proto.Message, meta map[string]string, eps ...EventProcessor) ([]byte, error) {
 	switch o.Format {
 	default: // json
 		return o.FormatJSON(msg, meta)
@@ -43,6 +43,11 @@ func (o *MarshalOptions) Marshal(msg proto.Message, meta map[string]string) ([]b
 				events, err := ResponseToEventMsgs(subscriptionName, msg, meta)
 				if err != nil {
 					return nil, fmt.Errorf("failed converting response to events: %v", err)
+				}
+				for _, ev := range events {
+					for _, ep := range eps {
+						ep.Apply(ev)
+					}
 				}
 				if o.Multiline {
 					b, err = json.MarshalIndent(events, "", o.Indent)

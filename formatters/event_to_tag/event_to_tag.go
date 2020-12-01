@@ -4,7 +4,6 @@ import (
 	"regexp"
 
 	"github.com/karimra/gnmic/formatters"
-	"github.com/karimra/gnmic/processors"
 )
 
 type ToTag struct {
@@ -14,7 +13,7 @@ type ToTag struct {
 }
 
 func (t *ToTag) Init(cfg interface{}) error {
-	err := processors.DecodeConfig(cfg, t)
+	err := formatters.DecodeConfig(cfg, t)
 	if err != nil {
 		return err
 	}

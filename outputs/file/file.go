@@ -10,7 +10,6 @@ import (
 
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
-	"github.com/karimra/gnmic/processors"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
 )
@@ -40,7 +39,7 @@ type File struct {
 	logger  *log.Logger
 	metrics []prometheus.Collector
 	mo      *formatters.MarshalOptions
-	evps    []processors.EventProcessor
+	evps    []formatters.EventProcessor
 }
 
 // Config //
@@ -65,15 +64,22 @@ func (f *File) String() string {
 func (f *File) SetEventProcessors(ps map[string]map[string]interface{}) {
 	for _, epName := range f.Cfg.EventProcessors {
 		if epCfg, ok := ps[epName]; ok {
-			if typ, ok := epCfg["type"]; ok {
-				in := processors.EventProcessors[typ.(string)]
+			f.logger.Printf("adding event processor '%s' to file output", epName)
+			epType := ""
+			for k := range epCfg {
+				epType = k
+				break
+			}
+			f.logger.Printf("adding event processor '%s' of type=%s to file output", epName, epType)
+			if in, ok := formatters.EventProcessors[epType]; ok {
 				ep := in()
-				err := ep.Init(epCfg)
+				err := ep.Init(epCfg[epType])
 				if err != nil {
-					f.logger.Printf("failed initializing event processors '%s' of type '%s': %v", epName, typ, err)
+					f.logger.Printf("failed initializing event processors '%s' of type '%s': %v", epName, epType, err)
 					continue
 				}
 				f.evps = append(f.evps, ep)
+				f.logger.Printf("added event processor '%s' of type=%s to file output", epName, epType)
 			}
 		}
 	}
@@ -89,13 +95,13 @@ func (f *File) SetLogger(logger *log.Logger) {
 
 // Init //
 func (f *File) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
-	for _, opt := range opts {
-		opt(f)
-	}
 	err := outputs.DecodeConfig(cfg, f.Cfg)
 	if err != nil {
 		f.logger.Printf("file output config decode failed: %v", err)
 		return err
+	}
+	for _, opt := range opts {
+		opt(f)
 	}
 	if f.Cfg.Format == "proto" {
 		f.logger.Printf("proto format not supported in output type 'file'")
@@ -147,7 +153,7 @@ func (f *File) Write(_ context.Context, rsp proto.Message, meta outputs.Meta) {
 		return
 	}
 	NumberOfReceivedMsgs.WithLabelValues(f.file.Name()).Inc()
-	b, err := f.mo.Marshal(rsp, meta)
+	b, err := f.mo.Marshal(rsp, meta, f.evps...)
 	if err != nil {
 		f.logger.Printf("failed marshaling proto msg: %v", err)
 		return

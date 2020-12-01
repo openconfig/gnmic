@@ -7,7 +7,6 @@ import (
 	"strconv"
 
 	"github.com/karimra/gnmic/formatters"
-	"github.com/karimra/gnmic/processors"
 )
 
 // Convert converts the value with path matching one of regexes to the specified Type
@@ -19,15 +18,15 @@ type Convert struct {
 }
 
 func init() {
-	processors.Register("event_convert", func() processors.EventProcessor {
+	formatters.Register("event_convert", func() formatters.EventProcessor {
 		return &Convert{
-			Type: "event_convert",
+			//Type: "event_convert",
 		}
 	})
 }
 
 func (c *Convert) Init(cfg interface{}) error {
-	err := processors.DecodeConfig(cfg, c)
+	err := formatters.DecodeConfig(cfg, c)
 	if err != nil {
 		return err
 	}

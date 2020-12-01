@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/karimra/gnmic/formatters"
-	"github.com/karimra/gnmic/processors"
 )
 
 type item struct {
@@ -215,7 +214,7 @@ func TestEventConvert(t *testing.T) {
 	for name, ts := range testset {
 		if typ, ok := ts.processor["type"]; ok {
 			t.Log("found type")
-			if pi, ok := processors.EventProcessors[typ.(string)]; ok {
+			if pi, ok := formatters.EventProcessors[typ.(string)]; ok {
 				t.Log("found processor")
 				p := pi()
 				err := p.Init(ts.processor)

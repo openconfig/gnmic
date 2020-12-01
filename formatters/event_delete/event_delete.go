@@ -1,11 +1,9 @@
 package event_delete
 
 import (
-	"log"
 	"regexp"
 
 	"github.com/karimra/gnmic/formatters"
-	"github.com/karimra/gnmic/processors"
 )
 
 // Delete, deletes the tags or values matching one of the regexes
@@ -18,7 +16,7 @@ type Delete struct {
 }
 
 func init() {
-	processors.Register("event_delete", func() processors.EventProcessor {
+	formatters.Register("event_delete", func() formatters.EventProcessor {
 		return &Delete{
 			Type: "event_delete",
 		}
@@ -26,7 +24,7 @@ func init() {
 }
 
 func (d *Delete) Init(cfg interface{}) error {
-	err := processors.DecodeConfig(cfg, d)
+	err := formatters.DecodeConfig(cfg, d)
 	if err != nil {
 		return err
 	}
@@ -45,7 +43,6 @@ func (d *Delete) Init(cfg interface{}) error {
 		if err != nil {
 			return err
 		}
-		log.Printf("regex: %s is  %+v", reg, re)
 		d.values = append(d.values, re)
 	}
 	return nil
