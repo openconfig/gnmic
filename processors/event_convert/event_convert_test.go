@@ -95,7 +95,7 @@ var testset = map[string]struct {
 	"uint_convert": {
 		processor: map[string]interface{}{
 			"type":        "event_convert",
-			"values":      []string{"^name*bytes$"},
+			"values":      []string{"^name*"},
 			"target_unit": "uint",
 		},
 		tests: []item{
@@ -111,39 +111,27 @@ var testset = map[string]struct {
 			},
 			{
 				input: &formatters.EventMsg{
-					Values: map[string]interface{}{"name": 1, "toconvert": "value"}},
+					Values: map[string]interface{}{"name_value_bytes": "42"}},
 				output: &formatters.EventMsg{
-					Values: map[string]interface{}{"name": 1, "toconvert": "value"}},
+					Values: map[string]interface{}{"name_value_bytes": uint(42)}},
 			},
 			{
 				input: &formatters.EventMsg{
-					Values: map[string]interface{}{"name": 1},
-					Tags:   map[string]string{"name": "name_tag", "to_convert": "value"},
-				},
+					Values: map[string]interface{}{"name_value_bytes": uint(42)}},
 				output: &formatters.EventMsg{
-					Values: map[string]interface{}{"name": 1},
-					Tags:   map[string]string{},
-				},
+					Values: map[string]interface{}{"name_value_bytes": uint(42)}},
 			},
 			{
 				input: &formatters.EventMsg{
-					Values: map[string]interface{}{"name": 1},
-					Tags:   map[string]string{"name": "name_tag", "name-2": "name-2_tag"},
-				},
+					Values: map[string]interface{}{"name_value_bytes": -42}},
 				output: &formatters.EventMsg{
-					Values: map[string]interface{}{"name": 1},
-					Tags:   map[string]string{},
-				},
+					Values: map[string]interface{}{"name_value_bytes": uint(0)}},
 			},
 			{
 				input: &formatters.EventMsg{
-					Values: map[string]interface{}{"name": 1},
-					Tags:   map[string]string{"name": "name_tag", "-name": "name-2_tag"},
-				},
+					Values: map[string]interface{}{"name_value_bytes": true}},
 				output: &formatters.EventMsg{
-					Values: map[string]interface{}{"name": 1},
-					Tags:   map[string]string{"-name": "name-2_tag"},
-				},
+					Values: map[string]interface{}{"name_value_bytes": true}},
 			},
 		},
 	},
@@ -166,25 +154,34 @@ var testset = map[string]struct {
 			},
 			{
 				input: &formatters.EventMsg{
-					Values: map[string]interface{}{"deleteme": 1},
-					Tags:   map[string]string{"-name": "name-2_tag"},
-				},
+					Values: map[string]interface{}{"number": "1.1"}},
 				output: &formatters.EventMsg{
-					Values: map[string]interface{}{},
-					Tags:   map[string]string{"-name": "name-2_tag"}},
+					Values: map[string]interface{}{"number": float64(1.1)}},
 			},
 			{
 				input: &formatters.EventMsg{
-					Values: map[string]interface{}{"deleteme": 1, "dont-deleteme": 1}},
+					Values: map[string]interface{}{"number": uint(42)}},
 				output: &formatters.EventMsg{
-					Values: map[string]interface{}{}},
+					Values: map[string]interface{}{"number": float64(42)}},
+			},
+			{
+				input: &formatters.EventMsg{
+					Values: map[string]interface{}{"number": int(42)}},
+				output: &formatters.EventMsg{
+					Values: map[string]interface{}{"number": float64(42)}},
+			},
+			{
+				input: &formatters.EventMsg{
+					Values: map[string]interface{}{"number": true}},
+				output: &formatters.EventMsg{
+					Values: map[string]interface{}{"number": true}},
 			},
 		},
 	},
 	"string_convert": {
 		processor: map[string]interface{}{
 			"type":        "event_convert",
-			"values":      []string{".id$"},
+			"values":      []string{"id"},
 			"target_unit": "string",
 		},
 		tests: []item{
@@ -200,15 +197,15 @@ var testset = map[string]struct {
 			},
 			{
 				input: &formatters.EventMsg{
-					Values: map[string]interface{}{"deleteme": 1}},
+					Values: map[string]interface{}{"id": 1}},
 				output: &formatters.EventMsg{
-					Values: map[string]interface{}{}},
+					Values: map[string]interface{}{"id": string("1")}},
 			},
 			{
 				input: &formatters.EventMsg{
-					Values: map[string]interface{}{"deleteme": 1, "deleteme-too": 1}},
+					Values: map[string]interface{}{"id": -1}},
 				output: &formatters.EventMsg{
-					Values: map[string]interface{}{}},
+					Values: map[string]interface{}{"id": string("-1")}},
 			},
 		},
 	},

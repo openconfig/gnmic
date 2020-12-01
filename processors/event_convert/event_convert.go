@@ -2,9 +2,7 @@ package event_convert
 
 import (
 	"errors"
-	"fmt"
 	"log"
-	"os"
 	"regexp"
 	"strconv"
 
@@ -59,20 +57,27 @@ func (c *Convert) Apply(e *formatters.EventMsg) {
 						return
 					}
 					e.Values[k] = iv
-					fmt.Fprintf(os.Stderr, "!!!!set %d %T\n", iv, iv)
-
 				case "uint":
-					if iv, ok := v.(uint); ok {
-						e.Values[k] = iv
+					iv, err := convertToUint(v)
+					if err != nil {
+						log.Printf("convert errors: %v", err)
+						return
 					}
+					e.Values[k] = iv
 				case "string":
-					if iv, ok := v.(string); ok {
-						e.Values[k] = iv
+					iv, err := convertToString(v)
+					if err != nil {
+						log.Printf("convert errors: %v", err)
+						return
 					}
+					e.Values[k] = iv
 				case "float":
-					if iv, ok := v.(float64); ok {
-						e.Values[k] = iv
+					iv, err := convertToFloat(v)
+					if err != nil {
+						log.Printf("convert errors: %v", err)
+						return
 					}
+					e.Values[k] = iv
 				}
 				break
 			}
@@ -95,6 +100,59 @@ func convertToInt(i interface{}) (int, error) {
 	case float64:
 		return int(i), nil
 	default:
-		return 0, errors.New("unknown format")
+		return 0, errors.New("cannot convert to int")
+	}
+}
+
+func convertToUint(i interface{}) (uint, error) {
+	switch i := i.(type) {
+	case string:
+		iv, err := strconv.Atoi(i)
+		if err != nil {
+			return 0, err
+		}
+		return uint(iv), nil
+	case int:
+		return 0, nil
+	case uint:
+		return i, nil
+	case float64:
+		return uint(i), nil
+	default:
+		return 0, errors.New("cannot convert to uint")
+	}
+}
+
+func convertToFloat(i interface{}) (float64, error) {
+	switch i := i.(type) {
+	case string:
+		iv, err := strconv.ParseFloat(i, 64)
+		if err != nil {
+			return 0, err
+		}
+		return iv, nil
+	case int:
+		return float64(i), nil
+	case uint:
+		return float64(i), nil
+	case float64:
+		return i, nil
+	default:
+		return 0, errors.New("cannot convert to float64")
+	}
+}
+
+func convertToString(i interface{}) (string, error) {
+	switch i := i.(type) {
+	case string:
+		return i, nil
+	case int:
+		return strconv.Itoa(i), nil
+	case uint:
+		return strconv.Itoa(int(i)), nil
+	case float64:
+		return strconv.FormatFloat(i, 'f', 64, 64), nil
+	default:
+		return "", errors.New("cannot convert to float64")
 	}
 }
