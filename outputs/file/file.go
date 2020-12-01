@@ -10,6 +10,7 @@ import (
 
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
+	"github.com/karimra/gnmic/processors"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
 )
@@ -39,16 +40,18 @@ type File struct {
 	logger  *log.Logger
 	metrics []prometheus.Collector
 	mo      *formatters.MarshalOptions
+	evps    []processors.EventProcessor
 }
 
 // Config //
 type Config struct {
-	FileName  string `mapstructure:"filename,omitempty"`
-	FileType  string `mapstructure:"file-type,omitempty"`
-	Format    string `mapstructure:"format,omitempty"`
-	Multiline bool   `mapstructure:"multiline,omitempty"`
-	Indent    string `mapstructure:"indent,omitempty"`
-	Separator string `mapstructure:"separator,omitempty"`
+	FileName        string   `mapstructure:"filename,omitempty"`
+	FileType        string   `mapstructure:"file-type,omitempty"`
+	Format          string   `mapstructure:"format,omitempty"`
+	Multiline       bool     `mapstructure:"multiline,omitempty"`
+	Indent          string   `mapstructure:"indent,omitempty"`
+	Separator       string   `mapstructure:"separator,omitempty"`
+	EventProcessors []string `mapstructure:"event_processors,omitempty"`
 }
 
 func (f *File) String() string {
@@ -58,6 +61,24 @@ func (f *File) String() string {
 	}
 	return string(b)
 }
+
+func (f *File) SetEventProcessors(ps map[string]map[string]interface{}) {
+	for _, epName := range f.Cfg.EventProcessors {
+		if epCfg, ok := ps[epName]; ok {
+			if typ, ok := epCfg["type"]; ok {
+				in := processors.EventProcessors[typ.(string)]
+				ep := in()
+				err := ep.Init(epCfg)
+				if err != nil {
+					f.logger.Printf("failed initializing event processors '%s' of type '%s': %v", epName, typ, err)
+					continue
+				}
+				f.evps = append(f.evps, ep)
+			}
+		}
+	}
+}
+
 func (f *File) SetLogger(logger *log.Logger) {
 	if logger != nil {
 		f.logger = log.New(logger.Writer(), "file_output ", logger.Flags())

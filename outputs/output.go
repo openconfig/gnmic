@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 
-	"github.com/karimra/gnmic/processors"
 	_ "github.com/karimra/gnmic/processors/all"
 	"github.com/mitchellh/mapstructure"
 	"github.com/prometheus/client_golang/prometheus"
@@ -18,6 +17,7 @@ type Output interface {
 	Metrics() []prometheus.Collector
 	String() string
 	SetLogger(*log.Logger)
+	SetEventProcessors(map[string]map[string]interface{})
 }
 
 type Initializer func() Output
@@ -51,6 +51,8 @@ func WithLogger(logger *log.Logger) Option {
 	}
 }
 
-func WithEventProcessors(p []processors.EventProcessor) Option {
-	return func(o Output) {}
+func WithEventProcessors(eps map[string]map[string]interface{}) Option {
+	return func(o Output) {
+		o.SetEventProcessors(eps)
+	}
 }

@@ -39,14 +39,15 @@ type Collector struct {
 	Config   *Config
 	dialOpts []grpc.DialOption
 	//
-	m             *sync.Mutex
-	Subscriptions map[string]*SubscriptionConfig
-	outputsConfig map[string]map[string]interface{}
-	Outputs       map[string]outputs.Output
-	Targets       map[string]*Target
-	logger        *log.Logger
-	httpServer    *http.Server
-	reg           *prometheus.Registry
+	m                     *sync.Mutex
+	Subscriptions         map[string]*SubscriptionConfig
+	outputsConfig         map[string]map[string]interface{}
+	Outputs               map[string]outputs.Output
+	Targets               map[string]*Target
+	EventProcessorsConfig map[string]map[string]interface{}
+	logger                *log.Logger
+	httpServer            *http.Server
+	reg                   *prometheus.Registry
 }
 
 type CollectorOption func(c *Collector)
@@ -78,6 +79,12 @@ func WithOutputs(outs map[string]map[string]interface{}) CollectorOption {
 func WithDialOptions(dialOptions []grpc.DialOption) CollectorOption {
 	return func(c *Collector) {
 		c.dialOpts = dialOptions
+	}
+}
+
+func WithEventProcessors(eps map[string]map[string]interface{}) CollectorOption {
+	return func(c *Collector) {
+		c.EventProcessorsConfig = eps
 	}
 }
 
@@ -207,7 +214,7 @@ func (c *Collector) InitOutput(ctx context.Context, name string) {
 						}
 					}
 				}
-				go out.Init(ctx, cfg, outputs.WithLogger(c.logger))
+				go out.Init(ctx, cfg, outputs.WithLogger(c.logger), outputs.WithEventProcessors(c.EventProcessorsConfig))
 				c.Outputs[name] = out
 			}
 		}

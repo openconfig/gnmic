@@ -52,6 +52,10 @@ func (u *UDPSock) SetLogger(logger *log.Logger) {
 	u.logger = log.New(os.Stderr, "udp_output ", log.LstdFlags|log.Lmicroseconds)
 }
 
+func (u *UDPSock) SetEventProcessors(ps map[string]map[string]interface{}) {
+
+}
+
 func (u *UDPSock) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
 	err := outputs.DecodeConfig(cfg, u.Cfg)
 	if err != nil {

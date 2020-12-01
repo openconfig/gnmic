@@ -82,6 +82,10 @@ func (k *KafkaOutput) SetLogger(logger *log.Logger) {
 	k.logger = sarama.Logger
 }
 
+func (k *KafkaOutput) SetEventProcessors(ps map[string]map[string]interface{}) {
+
+}
+
 // Init /
 func (k *KafkaOutput) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
 	for _, opt := range opts {

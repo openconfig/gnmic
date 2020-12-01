@@ -56,6 +56,10 @@ func (t *TCPOutput) SetLogger(logger *log.Logger) {
 	t.logger = log.New(os.Stderr, "tcp_output ", log.LstdFlags|log.Lmicroseconds)
 }
 
+func (t *TCPOutput) SetEventProcessors(ps map[string]map[string]interface{}) {
+
+}
+
 func (t *TCPOutput) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
 	for _, opt := range opts {
 		opt(t)

@@ -75,6 +75,10 @@ func (i *InfluxDBOutput) SetLogger(logger *log.Logger) {
 	i.logger = log.New(os.Stderr, "influxdb_output ", log.LstdFlags|log.Lmicroseconds)
 }
 
+func (i *InfluxDBOutput) SetEventProcessors(ps map[string]map[string]interface{}) {
+
+}
+
 func (i *InfluxDBOutput) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
 	for _, opt := range opts {
 		opt(i)

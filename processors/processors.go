@@ -5,11 +5,17 @@ import (
 	"github.com/mitchellh/mapstructure"
 )
 
-var EventProcessors = map[string]EventProcessor{}
+var EventProcessors = map[string]Initializer{}
+
+type Initializer func() EventProcessor
+
+func Register(name string, initFn Initializer) {
+	EventProcessors[name] = initFn
+}
 
 type EventProcessor interface {
 	Init(interface{}) error
-	Apply(*formatters.EventMsg) *formatters.EventMsg
+	Apply(*formatters.EventMsg)
 }
 
 func DecodeConfig(src, dst interface{}) error {

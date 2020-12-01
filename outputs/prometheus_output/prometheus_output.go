@@ -94,6 +94,10 @@ func (p *PrometheusOutput) SetLogger(logger *log.Logger) {
 	p.logger = log.New(os.Stderr, "prometheus_output ", log.LstdFlags|log.Lmicroseconds)
 }
 
+func (p *PrometheusOutput) SetEventProcessors(ps map[string]map[string]interface{}) {
+
+}
+
 func (p *PrometheusOutput) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
 	for _, opt := range opts {
 		opt(p)

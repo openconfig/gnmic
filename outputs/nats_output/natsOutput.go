@@ -74,6 +74,10 @@ func (n *NatsOutput) SetLogger(logger *log.Logger) {
 	n.logger = log.New(os.Stderr, "nats_output ", log.LstdFlags|log.Lmicroseconds)
 }
 
+func (n *NatsOutput) SetEventProcessors(ps map[string]map[string]interface{}) {
+
+}
+
 // Init //
 func (n *NatsOutput) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
 	for _, opt := range opts {

@@ -77,6 +77,10 @@ func (s *StanOutput) SetLogger(logger *log.Logger) {
 	s.logger = log.New(os.Stderr, "stan_output ", log.LstdFlags|log.Lmicroseconds)
 }
 
+func (s *StanOutput) SetEventProcessors(ps map[string]map[string]interface{}) {
+
+}
+
 // Init //
 func (s *StanOutput) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
 	for _, opt := range opts {
