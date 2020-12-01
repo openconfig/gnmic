@@ -6,7 +6,7 @@ import (
 	"github.com/karimra/gnmic/formatters"
 )
 
-// Delete, deletes the tags or values matching one of the regexes
+// Delete, deletes ALL the tags or values matching one of the regexes
 type Delete struct {
 	Type   string   `json:"type,omitempty"`
 	Tags   []string `json:"tags,omitempty"`
@@ -17,9 +17,7 @@ type Delete struct {
 
 func init() {
 	formatters.Register("event_delete", func() formatters.EventProcessor {
-		return &Delete{
-			Type: "event_delete",
-		}
+		return &Delete{}
 	})
 }
 
@@ -56,7 +54,6 @@ func (d *Delete) Apply(e *formatters.EventMsg) {
 		for _, re := range d.values {
 			if re.MatchString(k) {
 				delete(e.Values, k)
-				break
 			}
 		}
 	}
@@ -64,7 +61,6 @@ func (d *Delete) Apply(e *formatters.EventMsg) {
 		for _, re := range d.tags {
 			if re.MatchString(k) {
 				delete(e.Tags, k)
-				break
 			}
 		}
 	}
