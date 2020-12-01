@@ -8,9 +8,9 @@ import (
 
 // Delete, deletes ALL the tags or values matching one of the regexes
 type Delete struct {
-	Type   string   `json:"type,omitempty"`
-	Tags   []string `json:"tags,omitempty"`
-	Values []string `json:"values,omitempty"`
+	Type   string   `mapstructure:"type,omitempty"`
+	Tags   []string `mapstructure:"tags,omitempty"`
+	Values []string `mapstructure:"values,omitempty"`
 	tags   []*regexp.Regexp
 	values []*regexp.Regexp
 }
