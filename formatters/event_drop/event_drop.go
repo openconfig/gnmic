@@ -6,7 +6,7 @@ import (
 	"github.com/karimra/gnmic/formatters"
 )
 
-// Drop Drops the msg if any of the Tags or Values regexes are matched
+// Drop Drops the msg if ANY of the Tags or Values regexes are matched
 type Drop struct {
 	Tags   []*regexp.Regexp
 	Values []*regexp.Regexp
