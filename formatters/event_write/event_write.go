@@ -1,8 +1,7 @@
-package event_print
+package event_write
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"os"
 	"regexp"
@@ -10,8 +9,7 @@ import (
 	"github.com/karimra/gnmic/formatters"
 )
 
-type Print struct {
-	Type   string   `mapstructure:"type,omitempty"`
+type Write struct {
 	Tags   []string `mapstructure:"tags,omitempty"`
 	Values []string `mapstructure:"values,omitempty"`
 	Dst    string   `mapstructure:"dst,omitempty"`
@@ -22,14 +20,12 @@ type Print struct {
 }
 
 func init() {
-	formatters.Register("event_print", func() formatters.EventProcessor {
-		return &Print{
-			//Type: "event_print",
-		}
+	formatters.Register("event_write", func() formatters.EventProcessor {
+		return &Write{}
 	})
 }
 
-func (p *Print) Init(cfg interface{}) error {
+func (p *Write) Init(cfg interface{}) error {
 	err := formatters.DecodeConfig(cfg, p)
 	if err != nil {
 		return err
@@ -51,16 +47,26 @@ func (p *Print) Init(cfg interface{}) error {
 		}
 		p.values = append(p.values, re)
 	}
+
 	switch p.Dst {
+	case "":
+		p.dst = os.Stdout
 	case "stderr":
 		p.dst = os.Stderr
 	default:
-		p.dst = os.Stdout
+		p.dst, err = os.OpenFile(p.Dst, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-func (p *Print) Apply(e *formatters.EventMsg) {
+func (p *Write) Apply(e *formatters.EventMsg) {
+	if e == nil {
+		p.dst.Write([]byte(""))
+		return
+	}
 	for k := range e.Values {
 		for _, re := range p.values {
 			if re.MatchString(k) {
@@ -68,7 +74,7 @@ func (p *Print) Apply(e *formatters.EventMsg) {
 				if err != nil {
 					break
 				}
-				fmt.Fprintf(p.dst, "%s\n", string(b))
+				p.dst.Write(b)
 				return
 			}
 		}
@@ -80,7 +86,7 @@ func (p *Print) Apply(e *formatters.EventMsg) {
 				if err != nil {
 					break
 				}
-				fmt.Fprintf(p.dst, "%s\n", string(b))
+				p.dst.Write(b)
 				return
 			}
 		}
