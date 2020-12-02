@@ -6,10 +6,18 @@ import (
 	"github.com/karimra/gnmic/formatters"
 )
 
+// ToTag moves ALL values matching any of the regex in .Values to the EventMsg.Tags map.
+// if .Keep is true, the matching values are not deleted from EventMsg.Tags
 type ToTag struct {
-	Type   string   `mapstructure:"type,omitempty"`
 	Values []string `mapstructure:"values,omitempty"`
-	paths  []*regexp.Regexp
+	Keep   bool     `mapstructure:"keep,omitempty"`
+	values []*regexp.Regexp
+}
+
+func init() {
+	formatters.Register("event_to_tag", func() formatters.EventProcessor {
+		return &ToTag{}
+	})
 }
 
 func (t *ToTag) Init(cfg interface{}) error {
@@ -17,26 +25,32 @@ func (t *ToTag) Init(cfg interface{}) error {
 	if err != nil {
 		return err
 	}
-	t.paths = make([]*regexp.Regexp, 0, len(t.Values))
+	t.values = make([]*regexp.Regexp, 0, len(t.Values))
 	for _, reg := range t.Values {
 		re, err := regexp.Compile(reg)
 		if err != nil {
 			return err
 		}
-		t.paths = append(t.paths, re)
+		t.values = append(t.values, re)
 	}
 	return nil
 }
 
-func (t *ToTag) Apply(e *formatters.EventMsg) *formatters.EventMsg {
+func (t *ToTag) Apply(e *formatters.EventMsg) {
+	if e == nil {
+		return
+	}
 	for k, v := range e.Values {
-		for _, re := range t.paths {
+		for _, re := range t.values {
 			if re.MatchString(k) {
+				if e.Tags == nil {
+					e.Tags = make(map[string]string)
+				}
 				e.Tags[k] = v.(string)
-				delete(e.Values, k)
-				break
+				if !t.Keep {
+					delete(e.Values, k)
+				}
 			}
 		}
 	}
-	return e
 }
