@@ -10,7 +10,7 @@ import (
 	"github.com/karimra/gnmic/formatters"
 )
 
-// Convert converts the value with path matching one of regexes to the specified Type
+// Convert converts the value with key matching one of regexes, to the specified Type
 type Convert struct {
 	Values     []string `mapstructure:"values,omitempty"`
 	TargetType string   `mapstructure:"target_type,omitempty"`
