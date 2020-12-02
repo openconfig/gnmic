@@ -46,7 +46,7 @@ func TestEventDateString(t *testing.T) {
 				p := pi()
 				err := p.Init(ts.processor)
 				if err != nil {
-					t.Errorf("failed to initialized processors: %v", err)
+					t.Errorf("failed to initialize processors: %v", err)
 					return
 				}
 				t.Logf("initialized for test %s: %+v", name, p)

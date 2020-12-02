@@ -218,7 +218,7 @@ func TestEventConvertToUint(t *testing.T) {
 		p := pi()
 		err := p.Init(ts.processor)
 		if err != nil {
-			t.Errorf("failed to initialized processors: %v", err)
+			t.Errorf("failed to initialize processors: %v", err)
 			return
 		}
 		t.Logf("processor: %+v", p)
@@ -261,7 +261,7 @@ func TestEventConvertToInt(t *testing.T) {
 		p := pi()
 		err := p.Init(ts.processor)
 		if err != nil {
-			t.Errorf("failed to initialized processors: %v", err)
+			t.Errorf("failed to initialize processors: %v", err)
 			return
 		}
 		for i, item := range ts.tests {
@@ -303,7 +303,7 @@ func TestEventConvertToString(t *testing.T) {
 		p := pi()
 		err := p.Init(ts.processor)
 		if err != nil {
-			t.Errorf("failed to initialized processors: %v", err)
+			t.Errorf("failed to initialize processors: %v", err)
 			return
 		}
 		for i, item := range ts.tests {
@@ -345,7 +345,7 @@ func TestEventConvertToFloat(t *testing.T) {
 		p := pi()
 		err := p.Init(ts.processor)
 		if err != nil {
-			t.Errorf("failed to initialized processors: %v", err)
+			t.Errorf("failed to initialize processors: %v", err)
 			return
 		}
 		for i, item := range ts.tests {
