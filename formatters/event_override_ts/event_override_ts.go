@@ -29,6 +29,9 @@ func (o *OverrideTS) Init(cfg interface{}) error {
 }
 
 func (o *OverrideTS) Apply(e *formatters.EventMsg) {
+	if e == nil {
+		return
+	}
 	now := time.Now()
 	switch o.Unit {
 	case "s":
