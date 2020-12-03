@@ -110,7 +110,7 @@ func (p *PrometheusOutput) SetEventProcessors(ps map[string]map[string]interface
 				ep := in()
 				err := ep.Init(epCfg[epType])
 				if err != nil {
-					p.logger.Printf("failed initializing event processors '%s' of type '%s': %v", epName, epType, err)
+					p.logger.Printf("failed initializing event processor '%s' of type='%s': %v", epName, epType, err)
 					continue
 				}
 				p.evps = append(p.evps, ep)

@@ -80,7 +80,6 @@ func (i *InfluxDBOutput) SetLogger(logger *log.Logger) {
 func (i *InfluxDBOutput) SetEventProcessors(ps map[string]map[string]interface{}) {
 	for _, epName := range i.Cfg.EventProcessors {
 		if epCfg, ok := ps[epName]; ok {
-			i.logger.Printf("adding event processor '%s' to file output", epName)
 			epType := ""
 			for k := range epCfg {
 				epType = k
@@ -91,7 +90,7 @@ func (i *InfluxDBOutput) SetEventProcessors(ps map[string]map[string]interface{}
 				ep := in()
 				err := ep.Init(epCfg[epType])
 				if err != nil {
-					i.logger.Printf("failed initializing event processors '%s' of type '%s': %v", epName, epType, err)
+					i.logger.Printf("failed initializing event processor '%s' of type='%s': %v", epName, epType, err)
 					continue
 				}
 				i.evps = append(i.evps, ep)

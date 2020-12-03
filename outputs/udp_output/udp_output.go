@@ -57,7 +57,6 @@ func (u *UDPSock) SetLogger(logger *log.Logger) {
 func (u *UDPSock) SetEventProcessors(ps map[string]map[string]interface{}) {
 	for _, epName := range u.Cfg.EventProcessors {
 		if epCfg, ok := ps[epName]; ok {
-			u.logger.Printf("adding event processor '%s' to file output", epName)
 			epType := ""
 			for k := range epCfg {
 				epType = k
@@ -68,7 +67,7 @@ func (u *UDPSock) SetEventProcessors(ps map[string]map[string]interface{}) {
 				ep := in()
 				err := ep.Init(epCfg[epType])
 				if err != nil {
-					u.logger.Printf("failed initializing event processors '%s' of type '%s': %v", epName, epType, err)
+					u.logger.Printf("failed initializing event processor '%s' of type='%s': %v", epName, epType, err)
 					continue
 				}
 				u.evps = append(u.evps, ep)

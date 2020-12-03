@@ -82,7 +82,6 @@ func (s *StanOutput) SetLogger(logger *log.Logger) {
 func (s *StanOutput) SetEventProcessors(ps map[string]map[string]interface{}) {
 	for _, epName := range s.Cfg.EventProcessors {
 		if epCfg, ok := ps[epName]; ok {
-			s.logger.Printf("adding event processor '%s' to file output", epName)
 			epType := ""
 			for k := range epCfg {
 				epType = k
@@ -93,7 +92,7 @@ func (s *StanOutput) SetEventProcessors(ps map[string]map[string]interface{}) {
 				ep := in()
 				err := ep.Init(epCfg[epType])
 				if err != nil {
-					s.logger.Printf("failed initializing event processors '%s' of type '%s': %v", epName, epType, err)
+					s.logger.Printf("failed initializing event processor '%s' of type='%s': %v", epName, epType, err)
 					continue
 				}
 				s.evps = append(s.evps, ep)
