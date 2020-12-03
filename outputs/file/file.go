@@ -3,7 +3,9 @@ package file
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"golang.org/x/sync/semaphore"
 	"log"
 	"os"
 	"time"
@@ -15,8 +17,9 @@ import (
 )
 
 const (
-	defaultFormat    = "json"
-	defaultSeparator = "\n"
+	defaultFormat           = "json"
+	defaultWriteConcurrency = 1000
+	defaultSeparator        = "\n"
 )
 
 func init() {
@@ -39,16 +42,18 @@ type File struct {
 	logger  *log.Logger
 	metrics []prometheus.Collector
 	mo      *collector.MarshalOptions
+	sem     *semaphore.Weighted
 }
 
 // Config //
 type Config struct {
-	FileName  string `mapstructure:"filename,omitempty"`
-	FileType  string `mapstructure:"file-type,omitempty"`
-	Format    string `mapstructure:"format,omitempty"`
-	Multiline bool   `mapstructure:"multiline,omitempty"`
-	Indent    string `mapstructure:"indent,omitempty"`
-	Separator string `mapstructure:"separator,omitempty"`
+	ConcurrencyLimit int    `mapstructure:"concurrency-limit,omitempty"`
+	FileName         string `mapstructure:"filename,omitempty"`
+	FileType         string `mapstructure:"file-type,omitempty"`
+	Format           string `mapstructure:"format,omitempty"`
+	Multiline        bool   `mapstructure:"multiline,omitempty"`
+	Indent           string `mapstructure:"indent,omitempty"`
+	Separator        string `mapstructure:"separator,omitempty"`
 }
 
 func (f *File) String() string {
@@ -111,6 +116,14 @@ func (f *File) Init(ctx context.Context, cfg map[string]interface{}, opts ...out
 	if f.Cfg.Multiline && f.Cfg.Indent == "" {
 		f.Cfg.Indent = "  "
 	}
+
+	if f.Cfg.ConcurrencyLimit > -1 {
+		if f.Cfg.ConcurrencyLimit == 0 {
+			f.Cfg.ConcurrencyLimit = defaultWriteConcurrency
+		}
+		f.sem = semaphore.NewWeighted(int64(f.Cfg.ConcurrencyLimit))
+	}
+
 	f.mo = &collector.MarshalOptions{Multiline: f.Cfg.Multiline, Indent: f.Cfg.Indent, Format: f.Cfg.Format}
 	f.logger.Printf("initialized file output: %s", f.String())
 	go func() {
@@ -121,7 +134,18 @@ func (f *File) Init(ctx context.Context, cfg map[string]interface{}, opts ...out
 }
 
 // Write //
-func (f *File) Write(_ context.Context, rsp proto.Message, meta outputs.Meta) {
+func (f *File) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) {
+	err := f.sem.Acquire(ctx, 1)
+	if errors.Is(err, context.Canceled) {
+		return
+	}
+
+	if err != nil {
+		f.logger.Printf("failed marshaling proto msg: %v", err)
+		return
+	}
+	defer f.sem.Release(1)
+
 	if rsp == nil {
 		return
 	}

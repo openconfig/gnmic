@@ -166,6 +166,8 @@ var subscribeCmd = &cobra.Command{
 			go func() {
 				for {
 					select {
+					case <-gctx.Done():
+						return
 					case <-waitChan:
 						_, name, err := s.Run()
 						if err != nil {
@@ -206,8 +208,6 @@ var subscribeCmd = &cobra.Command{
 						}
 						fmt.Println(string(b))
 						waitChan <- struct{}{}
-					case <-gctx.Done():
-						return
 					}
 				}
 			}()
