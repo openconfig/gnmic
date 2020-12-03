@@ -34,14 +34,16 @@ type UDPSock struct {
 	limiter  *time.Ticker
 	logger   *log.Logger
 	mo       *formatters.MarshalOptions
+	evps     []formatters.EventProcessor
 }
 
 type Config struct {
-	Address       string        `mapstructure:"address,omitempty"` // ip:port
-	Rate          time.Duration `mapstructure:"rate,omitempty"`
-	BufferSize    uint          `mapstructure:"buffer-size,omitempty"`
-	Format        string        `mapstructure:"format,omitempty"`
-	RetryInterval time.Duration `mapstructure:"retry-interval,omitempty"`
+	Address         string        `mapstructure:"address,omitempty"` // ip:port
+	Rate            time.Duration `mapstructure:"rate,omitempty"`
+	BufferSize      uint          `mapstructure:"buffer-size,omitempty"`
+	Format          string        `mapstructure:"format,omitempty"`
+	RetryInterval   time.Duration `mapstructure:"retry-interval,omitempty"`
+	EventProcessors []string      `mapstructure:"event_processors,omitempty"`
 }
 
 func (u *UDPSock) SetLogger(logger *log.Logger) {
@@ -53,7 +55,27 @@ func (u *UDPSock) SetLogger(logger *log.Logger) {
 }
 
 func (u *UDPSock) SetEventProcessors(ps map[string]map[string]interface{}) {
-
+	for _, epName := range u.Cfg.EventProcessors {
+		if epCfg, ok := ps[epName]; ok {
+			u.logger.Printf("adding event processor '%s' to file output", epName)
+			epType := ""
+			for k := range epCfg {
+				epType = k
+				break
+			}
+			u.logger.Printf("adding event processor '%s' of type=%s to file output", epName, epType)
+			if in, ok := formatters.EventProcessors[epType]; ok {
+				ep := in()
+				err := ep.Init(epCfg[epType])
+				if err != nil {
+					u.logger.Printf("failed initializing event processors '%s' of type '%s': %v", epName, epType, err)
+					continue
+				}
+				u.evps = append(u.evps, ep)
+				u.logger.Printf("added event processor '%s' of type=%s to file output", epName, epType)
+			}
+		}
+	}
 }
 
 func (u *UDPSock) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
@@ -89,7 +111,7 @@ func (u *UDPSock) Write(ctx context.Context, m proto.Message, meta outputs.Meta)
 	if m == nil {
 		return
 	}
-	b, err := u.mo.Marshal(m, meta)
+	b, err := u.mo.Marshal(m, meta, u.evps...)
 	if err != nil {
 		u.logger.Printf("failed marshaling proto msg: %v", err)
 		return

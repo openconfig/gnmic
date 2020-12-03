@@ -49,6 +49,7 @@ type KafkaOutput struct {
 	cancelFn context.CancelFunc
 	msgChan  chan *protoMsg
 	wg       *sync.WaitGroup
+	evps     []formatters.EventProcessor
 }
 
 // Config //
@@ -63,6 +64,7 @@ type Config struct {
 	NumWorkers       int           `mapstructure:"num-workers,omitempty"`
 	Debug            bool          `mapstructure:"debug,omitempty"`
 	BufferSize       int           `mapstructure:"buffer-size,omitempty"`
+	EventProcessors  []string      `mapstructure:"event_processors,omitempty"`
 }
 
 func (k *KafkaOutput) String() string {
@@ -83,7 +85,27 @@ func (k *KafkaOutput) SetLogger(logger *log.Logger) {
 }
 
 func (k *KafkaOutput) SetEventProcessors(ps map[string]map[string]interface{}) {
-
+	for _, epName := range k.Cfg.EventProcessors {
+		if epCfg, ok := ps[epName]; ok {
+			k.logger.Printf("adding event processor '%s' to file output", epName)
+			epType := ""
+			for k := range epCfg {
+				epType = k
+				break
+			}
+			k.logger.Printf("adding event processor '%s' of type=%s to file output", epName, epType)
+			if in, ok := formatters.EventProcessors[epType]; ok {
+				ep := in()
+				err := ep.Init(epCfg[epType])
+				if err != nil {
+					k.logger.Printf("failed initializing event processors '%s' of type '%s': %v", epName, epType, err)
+					continue
+				}
+				k.evps = append(k.evps, ep)
+				k.logger.Printf("added event processor '%s' of type=%s to file output", epName, epType)
+			}
+		}
+	}
 }
 
 // Init /
@@ -204,7 +226,7 @@ CRPROD:
 			k.logger.Printf("%s shutting down", workerLogPrefix)
 			return
 		case m := <-k.msgChan:
-			b, err := k.mo.Marshal(m.m, m.meta)
+			b, err := k.mo.Marshal(m.m, m.meta, k.evps...)
 			if err != nil {
 				if k.Cfg.Debug {
 					k.logger.Printf("%s failed marshaling proto msg: %v", workerLogPrefix, err)

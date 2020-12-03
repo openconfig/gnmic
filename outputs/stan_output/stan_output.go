@@ -44,6 +44,7 @@ type StanOutput struct {
 	metrics []prometheus.Collector
 	logger  *log.Logger
 	mo      *formatters.MarshalOptions
+	evps    []formatters.EventProcessor
 }
 
 // Config //
@@ -59,6 +60,7 @@ type Config struct {
 	PingRetry        int           `mapstructure:"ping-retry,omitempty"`
 	Format           string        `mapstructure:"format,omitempty"`
 	RecoveryWaitTime time.Duration `mapstructure:"recovery-wait-time,omitempty"`
+	EventProcessors  []string      `mapstructure:"event_processors,omitempty"`
 }
 
 func (s *StanOutput) String() string {
@@ -78,7 +80,27 @@ func (s *StanOutput) SetLogger(logger *log.Logger) {
 }
 
 func (s *StanOutput) SetEventProcessors(ps map[string]map[string]interface{}) {
-
+	for _, epName := range s.Cfg.EventProcessors {
+		if epCfg, ok := ps[epName]; ok {
+			s.logger.Printf("adding event processor '%s' to file output", epName)
+			epType := ""
+			for k := range epCfg {
+				epType = k
+				break
+			}
+			s.logger.Printf("adding event processor '%s' of type=%s to file output", epName, epType)
+			if in, ok := formatters.EventProcessors[epType]; ok {
+				ep := in()
+				err := ep.Init(epCfg[epType])
+				if err != nil {
+					s.logger.Printf("failed initializing event processors '%s' of type '%s': %v", epName, epType, err)
+					continue
+				}
+				s.evps = append(s.evps, ep)
+				s.logger.Printf("added event processor '%s' of type=%s to file output", epName, epType)
+			}
+		}
+	}
 }
 
 // Init //
@@ -154,7 +176,7 @@ func (s *StanOutput) Write(_ context.Context, rsp protoreflect.ProtoMessage, met
 		ssb.WriteString(s.Cfg.Subject)
 	}
 	subject := strings.ReplaceAll(ssb.String(), " ", "_")
-	b, err := s.mo.Marshal(rsp, meta)
+	b, err := s.mo.Marshal(rsp, meta, s.evps...)
 	if err != nil {
 		s.logger.Printf("failed marshaling proto msg: %v", err)
 		return

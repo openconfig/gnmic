@@ -46,6 +46,7 @@ type InfluxDBOutput struct {
 	reset     chan struct{}
 	startSig  chan struct{}
 	wasup     bool
+	evps      []formatters.EventProcessor
 }
 type Config struct {
 	URL               string        `mapstructure:"url,omitempty"`
@@ -58,6 +59,7 @@ type Config struct {
 	EnableTLS         bool          `mapstructure:"enable_tls,omitempty"`
 	HealthCheckPeriod time.Duration `mapstructure:"health_check_period,omitempty"`
 	Debug             bool          `mapstructure:"debug,omitempty"`
+	EventProcessors   []string      `mapstructure:"event_processors,omitempty"`
 }
 
 func (k *InfluxDBOutput) String() string {
@@ -76,17 +78,37 @@ func (i *InfluxDBOutput) SetLogger(logger *log.Logger) {
 }
 
 func (i *InfluxDBOutput) SetEventProcessors(ps map[string]map[string]interface{}) {
-
+	for _, epName := range i.Cfg.EventProcessors {
+		if epCfg, ok := ps[epName]; ok {
+			i.logger.Printf("adding event processor '%s' to file output", epName)
+			epType := ""
+			for k := range epCfg {
+				epType = k
+				break
+			}
+			i.logger.Printf("adding event processor '%s' of type=%s to file output", epName, epType)
+			if in, ok := formatters.EventProcessors[epType]; ok {
+				ep := in()
+				err := ep.Init(epCfg[epType])
+				if err != nil {
+					i.logger.Printf("failed initializing event processors '%s' of type '%s': %v", epName, epType, err)
+					continue
+				}
+				i.evps = append(i.evps, ep)
+				i.logger.Printf("added event processor '%s' of type=%s to file output", epName, epType)
+			}
+		}
+	}
 }
 
 func (i *InfluxDBOutput) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
-	for _, opt := range opts {
-		opt(i)
-	}
 	err := outputs.DecodeConfig(cfg, i.Cfg)
 	if err != nil {
 		i.logger.Printf("influxdb output config decode failed: %v", err)
 		return err
+	}
+	for _, opt := range opts {
+		opt(i)
 	}
 	if i.Cfg.URL == "" {
 		i.Cfg.URL = defaultURL
@@ -237,6 +259,9 @@ START:
 			i.logger.Printf("worker-%d terminating...", idx)
 			return
 		case ev := <-i.eventChan:
+			for _, ep := range i.evps {
+				ep.Apply(ev)
+			}
 			writer.WritePoint(influxdb2.NewPoint(ev.Name, ev.Tags, ev.Values, time.Unix(0, ev.Timestamp)))
 		case <-i.reset:
 			firstStart = false

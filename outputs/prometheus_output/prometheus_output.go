@@ -71,12 +71,14 @@ type PrometheusOutput struct {
 	entries map[uint64]*promMetric
 
 	metricRegex *regexp.Regexp
+	evps        []formatters.EventProcessor
 }
 type Config struct {
-	Listen     string        `mapstructure:"listen,omitempty"`
-	Path       string        `mapstructure:"path,omitempty"`
-	Expiration time.Duration `mapstructure:"expiration,omitempty"`
-	Debug      bool          `mapstructure:"debug,omitempty"`
+	Listen          string        `mapstructure:"listen,omitempty"`
+	Path            string        `mapstructure:"path,omitempty"`
+	Expiration      time.Duration `mapstructure:"expiration,omitempty"`
+	Debug           bool          `mapstructure:"debug,omitempty"`
+	EventProcessors []string      `mapstructure:"event_processors,omitempty"`
 }
 
 func (p *PrometheusOutput) String() string {
@@ -95,17 +97,37 @@ func (p *PrometheusOutput) SetLogger(logger *log.Logger) {
 }
 
 func (p *PrometheusOutput) SetEventProcessors(ps map[string]map[string]interface{}) {
-
+	for _, epName := range p.Cfg.EventProcessors {
+		if epCfg, ok := ps[epName]; ok {
+			p.logger.Printf("adding event processor '%s' to file output", epName)
+			epType := ""
+			for k := range epCfg {
+				epType = k
+				break
+			}
+			p.logger.Printf("adding event processor '%s' of type=%s to file output", epName, epType)
+			if in, ok := formatters.EventProcessors[epType]; ok {
+				ep := in()
+				err := ep.Init(epCfg[epType])
+				if err != nil {
+					p.logger.Printf("failed initializing event processors '%s' of type '%s': %v", epName, epType, err)
+					continue
+				}
+				p.evps = append(p.evps, ep)
+				p.logger.Printf("added event processor '%s' of type=%s to file output", epName, epType)
+			}
+		}
+	}
 }
 
 func (p *PrometheusOutput) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
-	for _, opt := range opts {
-		opt(p)
-	}
 	err := outputs.DecodeConfig(cfg, p.Cfg)
 	if err != nil {
 		p.logger.Printf("prometheus output config decode failed: %v", err)
 		return err
+	}
+	for _, opt := range opts {
+		opt(p)
 	}
 	if p.Cfg.Listen == "" {
 		p.Cfg.Listen = defaultListen
@@ -229,6 +251,9 @@ func (p *PrometheusOutput) worker(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case ev := <-p.eventChan:
+			for _, ep := range p.evps {
+				ep.Apply(ev)
+			}
 			if p.Cfg.Debug {
 				p.logger.Printf("got event to store: %+v", ev)
 			}

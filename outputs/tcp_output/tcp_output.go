@@ -36,16 +36,18 @@ type TCPOutput struct {
 	limiter  *time.Ticker
 	logger   *log.Logger
 	mo       *formatters.MarshalOptions
+	evps     []formatters.EventProcessor
 }
 
 type Config struct {
-	Address       string        `mapstructure:"address,omitempty"` // ip:port
-	Rate          time.Duration `mapstructure:"rate,omitempty"`
-	BufferSize    uint          `mapstructure:"buffer-size,omitempty"`
-	Format        string        `mapstructure:"format,omitempty"`
-	KeepAlive     time.Duration `mapstructure:"keep-alive,omitempty"`
-	RetryInterval time.Duration `mapstructure:"retry-interval,omitempty"`
-	NumWorkers    int           `mapstructure:"num-workers,omitempty"`
+	Address         string        `mapstructure:"address,omitempty"` // ip:port
+	Rate            time.Duration `mapstructure:"rate,omitempty"`
+	BufferSize      uint          `mapstructure:"buffer-size,omitempty"`
+	Format          string        `mapstructure:"format,omitempty"`
+	KeepAlive       time.Duration `mapstructure:"keep-alive,omitempty"`
+	RetryInterval   time.Duration `mapstructure:"retry-interval,omitempty"`
+	NumWorkers      int           `mapstructure:"num-workers,omitempty"`
+	EventProcessors []string      `mapstructure:"event_processors,omitempty"`
 }
 
 func (t *TCPOutput) SetLogger(logger *log.Logger) {
@@ -57,7 +59,27 @@ func (t *TCPOutput) SetLogger(logger *log.Logger) {
 }
 
 func (t *TCPOutput) SetEventProcessors(ps map[string]map[string]interface{}) {
-
+	for _, epName := range t.Cfg.EventProcessors {
+		if epCfg, ok := ps[epName]; ok {
+			t.logger.Printf("adding event processor '%s' to file output", epName)
+			epType := ""
+			for k := range epCfg {
+				epType = k
+				break
+			}
+			t.logger.Printf("adding event processor '%s' of type=%s to file output", epName, epType)
+			if in, ok := formatters.EventProcessors[epType]; ok {
+				ep := in()
+				err := ep.Init(epCfg[epType])
+				if err != nil {
+					t.logger.Printf("failed initializing event processors '%s' of type '%s': %v", epName, epType, err)
+					continue
+				}
+				t.evps = append(t.evps, ep)
+				t.logger.Printf("added event processor '%s' of type=%s to file output", epName, epType)
+			}
+		}
+	}
 }
 
 func (t *TCPOutput) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
@@ -104,7 +126,7 @@ func (t *TCPOutput) Write(ctx context.Context, m proto.Message, meta outputs.Met
 	case <-ctx.Done():
 		return
 	default:
-		b, err := t.mo.Marshal(m, meta)
+		b, err := t.mo.Marshal(m, meta, t.evps...)
 		if err != nil {
 			t.logger.Printf("failed marshaling proto msg: %v", err)
 			return

@@ -45,6 +45,7 @@ type NatsOutput struct {
 	metrics  []prometheus.Collector
 	logger   *log.Logger
 	mo       *formatters.MarshalOptions
+	evps     []formatters.EventProcessor
 }
 
 // Config //
@@ -57,6 +58,7 @@ type Config struct {
 	Password        string        `mapstructure:"password,omitempty"`
 	ConnectTimeWait time.Duration `mapstructure:"connect-time-wait,omitempty"`
 	Format          string        `mapstructure:"format,omitempty"`
+	EventProcessors []string      `mapstructure:"event_processors,omitempty"`
 }
 
 func (n *NatsOutput) String() string {
@@ -75,7 +77,27 @@ func (n *NatsOutput) SetLogger(logger *log.Logger) {
 }
 
 func (n *NatsOutput) SetEventProcessors(ps map[string]map[string]interface{}) {
-
+	for _, epName := range n.Cfg.EventProcessors {
+		if epCfg, ok := ps[epName]; ok {
+			n.logger.Printf("adding event processor '%s' to file output", epName)
+			epType := ""
+			for k := range epCfg {
+				epType = k
+				break
+			}
+			n.logger.Printf("adding event processor '%s' of type=%s to file output", epName, epType)
+			if in, ok := formatters.EventProcessors[epType]; ok {
+				ep := in()
+				err := ep.Init(epCfg[epType])
+				if err != nil {
+					n.logger.Printf("failed initializing event processors '%s' of type '%s': %v", epName, epType, err)
+					continue
+				}
+				n.evps = append(n.evps, ep)
+				n.logger.Printf("added event processor '%s' of type=%s to file output", epName, epType)
+			}
+		}
+	}
 }
 
 // Init //
@@ -148,7 +170,7 @@ func (n *NatsOutput) Write(_ context.Context, rsp proto.Message, meta outputs.Me
 		ssb.WriteString(n.Cfg.Subject)
 	}
 	subject := strings.ReplaceAll(ssb.String(), " ", "_")
-	b, err := n.mo.Marshal(rsp, meta)
+	b, err := n.mo.Marshal(rsp, meta, n.evps...)
 	if err != nil {
 		n.logger.Printf("failed marshaling proto msg: %v", err)
 		return
