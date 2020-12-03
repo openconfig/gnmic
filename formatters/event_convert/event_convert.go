@@ -2,7 +2,6 @@ package event_convert
 
 import (
 	"errors"
-	"fmt"
 	"log"
 	"regexp"
 	"strconv"
@@ -102,7 +101,6 @@ func convertToInt(i interface{}) (int, error) {
 }
 
 func convertToUint(i interface{}) (uint, error) {
-	fmt.Printf("value %d %T\n", i, i)
 	switch i := i.(type) {
 	case string:
 		iv, err := strconv.Atoi(i)
