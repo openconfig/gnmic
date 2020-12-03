@@ -20,7 +20,8 @@ var testset = map[string]struct {
 	"write_values_all": {
 		processorType: "event_write",
 		processor: map[string]interface{}{
-			"values": []string{"."},
+			"values":    []string{"."},
+			"separator": "sep",
 		},
 		tests: []item{
 			{
@@ -43,20 +44,21 @@ var testset = map[string]struct {
 				input: &formatters.EventMsg{
 					Tags:   map[string]string{},
 					Values: map[string]interface{}{"number": "42"}},
-				output: `{"values":{"number":"42"}}`,
+				output: `{"values":{"number":"42"}}sep`,
 			},
 			{
 				input: &formatters.EventMsg{
 					Tags:   map[string]string{"name": "foo"},
 					Values: map[string]interface{}{"number": "42"}},
-				output: `{"tags":{"name":"foo"},"values":{"number":"42"}}`,
+				output: `{"tags":{"name":"foo"},"values":{"number":"42"}}sep`,
 			},
 		},
 	},
 	"write_values_some": {
 		processorType: "event_write",
 		processor: map[string]interface{}{
-			"values": []string{"^number"},
+			"values":    []string{"^number"},
+			"separator": "sep",
 		},
 		tests: []item{
 			{
@@ -79,7 +81,7 @@ var testset = map[string]struct {
 				input: &formatters.EventMsg{
 					Tags:   map[string]string{},
 					Values: map[string]interface{}{"number": "42"}},
-				output: `{"values":{"number":"42"}}`,
+				output: `{"values":{"number":"42"}}sep`,
 			},
 			{
 				input: &formatters.EventMsg{
@@ -92,7 +94,8 @@ var testset = map[string]struct {
 	"write_tags_all": {
 		processorType: "event_write",
 		processor: map[string]interface{}{
-			"tags": []string{"."},
+			"tags":      []string{"."},
+			"separator": "sep",
 		},
 		tests: []item{
 			{
@@ -121,14 +124,15 @@ var testset = map[string]struct {
 				input: &formatters.EventMsg{
 					Tags:   map[string]string{"name": "foo"},
 					Values: map[string]interface{}{"number": "42"}},
-				output: `{"tags":{"name":"foo"},"values":{"number":"42"}}`,
+				output: `{"tags":{"name":"foo"},"values":{"number":"42"}}sep`,
 			},
 		},
 	},
 	"write_tags_some": {
 		processorType: "event_write",
 		processor: map[string]interface{}{
-			"tags": []string{"^name"},
+			"tags":      []string{"^name"},
+			"separator": "sep",
 		},
 		tests: []item{
 			{
@@ -157,7 +161,7 @@ var testset = map[string]struct {
 				input: &formatters.EventMsg{
 					Tags:   map[string]string{"name": "foo"},
 					Values: map[string]interface{}{"number": "42"}},
-				output: `{"tags":{"name":"foo"},"values":{"number":"42"}}`,
+				output: `{"tags":{"name":"foo"},"values":{"number":"42"}}sep`,
 			},
 		},
 	},

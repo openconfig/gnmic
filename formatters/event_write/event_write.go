@@ -10,13 +10,15 @@ import (
 )
 
 type Write struct {
-	Tags   []string `mapstructure:"tags,omitempty"`
-	Values []string `mapstructure:"values,omitempty"`
-	Dst    string   `mapstructure:"dst,omitempty"`
+	Tags      []string `mapstructure:"tags,omitempty"`
+	Values    []string `mapstructure:"values,omitempty"`
+	Dst       string   `mapstructure:"dst,omitempty"`
+	Separator string   `mapstructure:"separator,omitempty"`
 
 	tags   []*regexp.Regexp
 	values []*regexp.Regexp
 	dst    io.Writer
+	sep    []byte
 }
 
 func init() {
@@ -29,6 +31,11 @@ func (p *Write) Init(cfg interface{}) error {
 	err := formatters.DecodeConfig(cfg, p)
 	if err != nil {
 		return err
+	}
+	if p.Separator == "" {
+		p.sep = []byte("\n")
+	} else {
+		p.sep = []byte(p.Separator)
 	}
 	p.tags = make([]*regexp.Regexp, 0, len(p.Tags))
 	for _, reg := range p.Tags {
@@ -49,7 +56,7 @@ func (p *Write) Init(cfg interface{}) error {
 	}
 
 	switch p.Dst {
-	case "":
+	case "", "stdout":
 		p.dst = os.Stdout
 	case "stderr":
 		p.dst = os.Stderr
@@ -74,7 +81,7 @@ func (p *Write) Apply(e *formatters.EventMsg) {
 				if err != nil {
 					break
 				}
-				p.dst.Write(b)
+				p.dst.Write(append(b, p.sep...))
 				return
 			}
 		}
@@ -86,7 +93,7 @@ func (p *Write) Apply(e *formatters.EventMsg) {
 				if err != nil {
 					break
 				}
-				p.dst.Write(b)
+				p.dst.Write(append(b, p.sep...))
 				return
 			}
 		}
