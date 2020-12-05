@@ -59,7 +59,7 @@ func (d *Delete) Init(cfg interface{}) error {
 		}
 		d.values = append(d.values, re)
 	}
-	// init value Keys regex
+	// init values Keys regex
 	d.valueKeys = make([]*regexp.Regexp, 0, len(d.ValueKeys))
 	for _, reg := range d.ValueKeys {
 		re, err := regexp.Compile(reg)
