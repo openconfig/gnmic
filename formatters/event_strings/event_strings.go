@@ -195,9 +195,9 @@ func (t *transform) trimPrefix(k, v string) (string, string) {
 func (t *transform) trimSuffix(k, v string) (string, string) {
 	switch t.On {
 	case "key":
-		k = strings.TrimSuffix(k, t.Prefix)
+		k = strings.TrimSuffix(k, t.Suffix)
 	case "value":
-		v = strings.TrimSuffix(v, t.Prefix)
+		v = strings.TrimSuffix(v, t.Suffix)
 	}
 	return k, v
 }
@@ -205,9 +205,9 @@ func (t *transform) trimSuffix(k, v string) (string, string) {
 func (t *transform) toTitle(k, v string) (string, string) {
 	switch t.On {
 	case "key":
-		k = strings.ToTitle(k)
+		k = strings.Title(k)
 	case "value":
-		v = strings.ToTitle(v)
+		v = strings.Title(v)
 	}
 	return k, v
 }
