@@ -1,6 +1,8 @@
 package event_delete
 
 import (
+	"io/ioutil"
+	"log"
 	"regexp"
 
 	"github.com/karimra/gnmic/formatters"
@@ -8,17 +10,19 @@ import (
 
 // Delete, deletes ALL the tags or values matching one of the regexes
 type Delete struct {
-	Tags   []string `mapstructure:"tags,omitempty"`
-	Values []string `mapstructure:"values,omitempty"`
-
-	TagKeys   []string `mapstructure:"tag_keys,omitempty"`
-	ValueKeys []string `mapstructure:"value_keys,omitempty"`
+	Tags       []string `mapstructure:"tags,omitempty"`
+	Values     []string `mapstructure:"values,omitempty"`
+	TagNames   []string `mapstructure:"tag_names,omitempty"`
+	ValueNames []string `mapstructure:"value_names,omitempty"`
+	Debug      bool     `mapstructure:"debug,omitempty"`
 
 	tags   []*regexp.Regexp
 	values []*regexp.Regexp
 
-	tagKeys   []*regexp.Regexp
-	valueKeys []*regexp.Regexp
+	tagNames   []*regexp.Regexp
+	valueNames []*regexp.Regexp
+
+	logger *log.Logger
 }
 
 func init() {
@@ -27,7 +31,7 @@ func init() {
 	})
 }
 
-func (d *Delete) Init(cfg interface{}) error {
+func (d *Delete) Init(cfg interface{}, logger *log.Logger) error {
 	err := formatters.DecodeConfig(cfg, d)
 	if err != nil {
 		return err
@@ -41,14 +45,14 @@ func (d *Delete) Init(cfg interface{}) error {
 		}
 		d.tags = append(d.tags, re)
 	}
-	// init tag keys regex
-	d.tagKeys = make([]*regexp.Regexp, 0, len(d.TagKeys))
-	for _, reg := range d.TagKeys {
+	// init tag names regex
+	d.tagNames = make([]*regexp.Regexp, 0, len(d.TagNames))
+	for _, reg := range d.TagNames {
 		re, err := regexp.Compile(reg)
 		if err != nil {
 			return err
 		}
-		d.tagKeys = append(d.tagKeys, re)
+		d.tagNames = append(d.tagNames, re)
 	}
 	// init values regex
 	d.values = make([]*regexp.Regexp, 0, len(d.Values))
@@ -59,14 +63,19 @@ func (d *Delete) Init(cfg interface{}) error {
 		}
 		d.values = append(d.values, re)
 	}
-	// init values Keys regex
-	d.valueKeys = make([]*regexp.Regexp, 0, len(d.ValueKeys))
-	for _, reg := range d.ValueKeys {
+	// init values names regex
+	d.valueNames = make([]*regexp.Regexp, 0, len(d.ValueNames))
+	for _, reg := range d.ValueNames {
 		re, err := regexp.Compile(reg)
 		if err != nil {
 			return err
 		}
-		d.valueKeys = append(d.valueKeys, re)
+		d.valueNames = append(d.valueNames, re)
+	}
+	if d.Debug {
+		d.logger = log.New(logger.Writer(), "event_delete ", logger.Flags())
+	} else {
+		d.logger = log.New(ioutil.Discard, "", 0)
 	}
 	return nil
 }
@@ -76,27 +85,31 @@ func (d *Delete) Apply(e *formatters.EventMsg) {
 		return
 	}
 	for k, v := range e.Values {
-		for _, re := range d.valueKeys {
+		for _, re := range d.valueNames {
 			if re.MatchString(k) {
+				d.logger.Printf("key '%s' matched regex '%s'", k, re.String())
 				delete(e.Values, k)
 			}
 		}
 		for _, re := range d.values {
 			if vs, ok := v.(string); ok {
 				if re.MatchString(vs) {
+					d.logger.Printf("key '%s' matched regex '%s'", k, re.String())
 					delete(e.Values, k)
 				}
 			}
 		}
 	}
 	for k, v := range e.Tags {
-		for _, re := range d.tagKeys {
+		for _, re := range d.tagNames {
 			if re.MatchString(k) {
+				d.logger.Printf("key '%s' matched regex '%s'", k, re.String())
 				delete(e.Tags, k)
 			}
 		}
 		for _, re := range d.tags {
 			if re.MatchString(v) {
+				d.logger.Printf("key '%s' matched regex '%s'", k, re.String())
 				delete(e.Tags, k)
 			}
 		}

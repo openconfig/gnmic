@@ -96,7 +96,7 @@ func (p *PrometheusOutput) SetLogger(logger *log.Logger) {
 	p.logger = log.New(os.Stderr, "prometheus_output ", log.LstdFlags|log.Lmicroseconds)
 }
 
-func (p *PrometheusOutput) SetEventProcessors(ps map[string]map[string]interface{}) {
+func (p *PrometheusOutput) SetEventProcessors(ps map[string]map[string]interface{}, log *log.Logger) {
 	for _, epName := range p.Cfg.EventProcessors {
 		if epCfg, ok := ps[epName]; ok {
 			p.logger.Printf("adding event processor '%s' to file output", epName)
@@ -108,7 +108,7 @@ func (p *PrometheusOutput) SetEventProcessors(ps map[string]map[string]interface
 			p.logger.Printf("adding event processor '%s' of type=%s to file output", epName, epType)
 			if in, ok := formatters.EventProcessors[epType]; ok {
 				ep := in()
-				err := ep.Init(epCfg[epType])
+				err := ep.Init(epCfg[epType], log)
 				if err != nil {
 					p.logger.Printf("failed initializing event processor '%s' of type='%s': %v", epName, epType, err)
 					continue

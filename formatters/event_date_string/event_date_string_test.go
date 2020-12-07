@@ -20,9 +20,9 @@ var testset = map[string]struct {
 	"seconds_date_string": {
 		processorType: "event_date_string",
 		processor: map[string]interface{}{
-			"values":           []string{"timestamp"},
-			"timestamp_format": "s",
-			"location":         "Asia/Taipei",
+			"value_names":         []string{"timestamp"},
+			"timestamp_precision": "s",
+			"location":            "Asia/Taipei",
 		},
 		tests: []item{
 			{
@@ -54,7 +54,7 @@ func TestEventDateString(t *testing.T) {
 		if pi, ok := formatters.EventProcessors[ts.processorType]; ok {
 			t.Log("found processor")
 			p := pi()
-			err := p.Init(ts.processor)
+			err := p.Init(ts.processor, nil)
 			if err != nil {
 				t.Errorf("failed to initialize processors: %v", err)
 				return

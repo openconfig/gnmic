@@ -20,7 +20,7 @@ var testset = map[string]struct {
 	"drop_values": {
 		processorType: "event_drop",
 		processor: map[string]interface{}{
-			"values": []string{"^number$"},
+			"value_names": []string{"^number$"},
 		},
 		tests: []item{
 			{
@@ -43,7 +43,7 @@ var testset = map[string]struct {
 	"drop_tags": {
 		processorType: "event_drop",
 		processor: map[string]interface{}{
-			"tags": []string{"^name*"},
+			"tag_names": []string{"^name*"},
 		},
 		tests: []item{
 			{
@@ -69,7 +69,7 @@ func TestEventDrop(t *testing.T) {
 	for name, ts := range testset {
 		if pi, ok := formatters.EventProcessors[ts.processorType]; ok {
 			p := pi()
-			err := p.Init(ts.processor)
+			err := p.Init(ts.processor, nil)
 			if err != nil {
 				t.Errorf("failed to initialize processors: %v", err)
 				return

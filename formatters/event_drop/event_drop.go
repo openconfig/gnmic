@@ -1,8 +1,8 @@
 package event_drop
 
 import (
-	"fmt"
-	"os"
+	"io/ioutil"
+	"log"
 	"regexp"
 
 	"github.com/karimra/gnmic/formatters"
@@ -10,11 +10,18 @@ import (
 
 // Drop Drops the msg if ANY of the Tags or Values regexes are matched
 type Drop struct {
-	Tags   []string
-	Values []string
+	TagNames   []string `mapstructure:"tag_names,omitempty"`
+	ValueNames []string `mapstructure:"value_names,omitempty"`
+	Tags       []string `mapstructure:"tags,omitempty"`
+	Values     []string `mapstructure:"values,omitempty"`
+	Debug      bool     `mapstructure:"debug,omitempty"`
 
-	tags   []*regexp.Regexp
-	values []*regexp.Regexp
+	tagNames   []*regexp.Regexp
+	valueNames []*regexp.Regexp
+	tags       []*regexp.Regexp
+	values     []*regexp.Regexp
+
+	logger *log.Logger
 }
 
 func init() {
@@ -23,10 +30,19 @@ func init() {
 	})
 }
 
-func (d *Drop) Init(cfg interface{}) error {
+func (d *Drop) Init(cfg interface{}, logger *log.Logger) error {
 	err := formatters.DecodeConfig(cfg, d)
 	if err != nil {
 		return err
+	}
+	// init tag keys regex
+	d.tagNames = make([]*regexp.Regexp, 0, len(d.TagNames))
+	for _, reg := range d.TagNames {
+		re, err := regexp.Compile(reg)
+		if err != nil {
+			return err
+		}
+		d.tagNames = append(d.tagNames, re)
 	}
 	d.tags = make([]*regexp.Regexp, 0, len(d.Tags))
 	for _, reg := range d.Tags {
@@ -37,6 +53,15 @@ func (d *Drop) Init(cfg interface{}) error {
 		d.tags = append(d.tags, re)
 	}
 	//
+	d.valueNames = make([]*regexp.Regexp, 0, len(d.ValueNames))
+	for _, reg := range d.ValueNames {
+		re, err := regexp.Compile(reg)
+		if err != nil {
+			return err
+		}
+		d.valueNames = append(d.valueNames, re)
+	}
+
 	d.values = make([]*regexp.Regexp, 0, len(d.values))
 	for _, reg := range d.Values {
 		re, err := regexp.Compile(reg)
@@ -45,6 +70,11 @@ func (d *Drop) Init(cfg interface{}) error {
 		}
 		d.values = append(d.values, re)
 	}
+	if d.Debug {
+		d.logger = log.New(logger.Writer(), "event_drop ", logger.Flags())
+	} else {
+		d.logger = log.New(ioutil.Discard, "", 0)
+	}
 	return nil
 }
 
@@ -52,18 +82,35 @@ func (d *Drop) Apply(e *formatters.EventMsg) {
 	if e == nil {
 		return
 	}
-	for k := range e.Values {
-		for _, re := range d.values {
+	for k, v := range e.Values {
+		for _, re := range d.valueNames {
 			if re.MatchString(k) {
-				fmt.Fprintf(os.Stdout, "matched %s\n", k)
+				d.logger.Printf("value name '%s' matched regex '%s'", k, re.String())
 				*e = formatters.EventMsg{}
 				return
 			}
 		}
+		for _, re := range d.values {
+			if vs, ok := v.(string); ok {
+				if re.MatchString(vs) {
+					d.logger.Printf("value '%s' matched regex '%s'", v, re.String())
+					*e = formatters.EventMsg{}
+					return
+				}
+			}
+		}
 	}
-	for k := range e.Tags {
-		for _, re := range d.tags {
+	for k, v := range e.Tags {
+		for _, re := range d.tagNames {
 			if re.MatchString(k) {
+				d.logger.Printf("tag name '%s' matched regex '%s'", k, re.String())
+				*e = formatters.EventMsg{}
+				return
+			}
+		}
+		for _, re := range d.tags {
+			if re.MatchString(v) {
+				d.logger.Printf("tag '%s' matched regex '%s'", v, re.String())
 				*e = formatters.EventMsg{}
 				return
 			}

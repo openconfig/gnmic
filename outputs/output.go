@@ -18,7 +18,7 @@ type Output interface {
 	Metrics() []prometheus.Collector
 	String() string
 	SetLogger(*log.Logger)
-	SetEventProcessors(map[string]map[string]interface{})
+	SetEventProcessors(map[string]map[string]interface{}, *log.Logger)
 }
 
 type Initializer func() Output
@@ -52,9 +52,9 @@ func WithLogger(logger *log.Logger) Option {
 	}
 }
 
-func WithEventProcessors(eps map[string]map[string]interface{}) Option {
+func WithEventProcessors(eps map[string]map[string]interface{}, log *log.Logger) Option {
 	return func(o Output) {
 		fmt.Println("adding event processors to output:", eps)
-		o.SetEventProcessors(eps)
+		o.SetEventProcessors(eps, log)
 	}
 }

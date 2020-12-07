@@ -18,8 +18,65 @@ var testset = map[string]struct {
 	processor map[string]interface{}
 	tests     []item
 }{
-	"seconds_date_string": {
+	"ms": {
 		processor: map[string]interface{}{},
+		tests: []item{
+			{
+				input:  nil,
+				output: nil,
+			},
+			{
+				input: &formatters.EventMsg{},
+			},
+			{
+				input: &formatters.EventMsg{
+					Timestamp: now.UnixNano() / 1000000,
+				},
+			},
+		},
+	},
+	"ns": {
+		processor: map[string]interface{}{
+			"precision": "ns",
+		},
+		tests: []item{
+			{
+				input:  nil,
+				output: nil,
+			},
+			{
+				input: &formatters.EventMsg{},
+			},
+			{
+				input: &formatters.EventMsg{
+					Timestamp: now.UnixNano(),
+				},
+			},
+		},
+	},
+	"us": {
+		processor: map[string]interface{}{
+			"precision": "us",
+		},
+		tests: []item{
+			{
+				input:  nil,
+				output: nil,
+			},
+			{
+				input: &formatters.EventMsg{},
+			},
+			{
+				input: &formatters.EventMsg{
+					Timestamp: now.UnixNano() / 1000,
+				},
+			},
+		},
+	},
+	"s": {
+		processor: map[string]interface{}{
+			"precision": "s",
+		},
 		tests: []item{
 			{
 				input:  nil,
@@ -44,7 +101,7 @@ func TestEventDateString(t *testing.T) {
 			if pi, ok := formatters.EventProcessors[typ.(string)]; ok {
 				t.Log("found processor")
 				p := pi()
-				err := p.Init(ts.processor)
+				err := p.Init(ts.processor, nil)
 				if err != nil {
 					t.Errorf("failed to initialize processors: %v", err)
 					return

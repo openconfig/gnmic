@@ -76,7 +76,7 @@ func (n *NatsOutput) SetLogger(logger *log.Logger) {
 	n.logger = log.New(os.Stderr, "nats_output ", log.LstdFlags|log.Lmicroseconds)
 }
 
-func (n *NatsOutput) SetEventProcessors(ps map[string]map[string]interface{}) {
+func (n *NatsOutput) SetEventProcessors(ps map[string]map[string]interface{}, log *log.Logger) {
 	for _, epName := range n.Cfg.EventProcessors {
 		if epCfg, ok := ps[epName]; ok {
 			epType := ""
@@ -87,7 +87,7 @@ func (n *NatsOutput) SetEventProcessors(ps map[string]map[string]interface{}) {
 			n.logger.Printf("adding event processor '%s' of type=%s to file output", epName, epType)
 			if in, ok := formatters.EventProcessors[epType]; ok {
 				ep := in()
-				err := ep.Init(epCfg[epType])
+				err := ep.Init(epCfg[epType], log)
 				if err != nil {
 					n.logger.Printf("failed initializing event processor '%s' of type='%s': %v", epName, epType, err)
 					continue

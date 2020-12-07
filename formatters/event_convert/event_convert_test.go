@@ -20,8 +20,8 @@ var testset = map[string]struct {
 	"int_convert": {
 		processorType: "event_convert",
 		processor: map[string]interface{}{
-			"values":      []string{"^number*"},
-			"target_type": "int",
+			"value_names": []string{"^number*"},
+			"type":        "int",
 		},
 		tests: []item{
 			{
@@ -95,8 +95,8 @@ var testset = map[string]struct {
 	"uint_convert": {
 		processorType: "event_convert",
 		processor: map[string]interface{}{
-			"values":      []string{"^name.*"},
-			"target_type": "uint",
+			"value_names": []string{"^name.*"},
+			"type":        "uint",
 		},
 		tests: []item{
 			{
@@ -138,8 +138,8 @@ var testset = map[string]struct {
 	"float_convert": {
 		processorType: "event_convert",
 		processor: map[string]interface{}{
-			"values":      []string{"^number*"},
-			"target_type": "float",
+			"value_names": []string{"^number*"},
+			"type":        "float",
 		},
 		tests: []item{
 			{
@@ -181,8 +181,8 @@ var testset = map[string]struct {
 	"string_convert": {
 		processorType: "event_convert",
 		processor: map[string]interface{}{
-			"values":      []string{"id"},
-			"target_type": "string",
+			"value_names": []string{"id"},
+			"type":        "string",
 		},
 		tests: []item{
 			{
@@ -216,7 +216,7 @@ func TestEventConvertToUint(t *testing.T) {
 	if pi, ok := formatters.EventProcessors[ts.processorType]; ok {
 		t.Log("found processor")
 		p := pi()
-		err := p.Init(ts.processor)
+		err := p.Init(ts.processor, nil)
 		if err != nil {
 			t.Errorf("failed to initialize processors: %v", err)
 			return
@@ -259,7 +259,7 @@ func TestEventConvertToInt(t *testing.T) {
 	if pi, ok := formatters.EventProcessors[ts.processorType]; ok {
 		t.Log("found processor")
 		p := pi()
-		err := p.Init(ts.processor)
+		err := p.Init(ts.processor, nil)
 		if err != nil {
 			t.Errorf("failed to initialize processors: %v", err)
 			return
@@ -301,7 +301,7 @@ func TestEventConvertToString(t *testing.T) {
 	if pi, ok := formatters.EventProcessors[ts.processorType]; ok {
 		t.Log("found processor")
 		p := pi()
-		err := p.Init(ts.processor)
+		err := p.Init(ts.processor, nil)
 		if err != nil {
 			t.Errorf("failed to initialize processors: %v", err)
 			return
@@ -343,7 +343,7 @@ func TestEventConvertToFloat(t *testing.T) {
 	if pi, ok := formatters.EventProcessors[ts.processorType]; ok {
 		t.Log("found processor")
 		p := pi()
-		err := p.Init(ts.processor)
+		err := p.Init(ts.processor, nil)
 		if err != nil {
 			t.Errorf("failed to initialize processors: %v", err)
 			return

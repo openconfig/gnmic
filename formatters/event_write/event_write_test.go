@@ -20,8 +20,8 @@ var testset = map[string]struct {
 	"write_values_all": {
 		processorType: "event_write",
 		processor: map[string]interface{}{
-			"values":    []string{"."},
-			"separator": "sep",
+			"value_names": []string{"."},
+			"separator":   "sep",
 		},
 		tests: []item{
 			{
@@ -57,8 +57,8 @@ var testset = map[string]struct {
 	"write_values_some": {
 		processorType: "event_write",
 		processor: map[string]interface{}{
-			"values":    []string{"^number"},
-			"separator": "sep",
+			"value_names": []string{"^number"},
+			"separator":   "sep",
 		},
 		tests: []item{
 			{
@@ -94,7 +94,7 @@ var testset = map[string]struct {
 	"write_tags_all": {
 		processorType: "event_write",
 		processor: map[string]interface{}{
-			"tags":      []string{"."},
+			"tag_names": []string{"."},
 			"separator": "sep",
 		},
 		tests: []item{
@@ -131,7 +131,7 @@ var testset = map[string]struct {
 	"write_tags_some": {
 		processorType: "event_write",
 		processor: map[string]interface{}{
-			"tags":      []string{"^name"},
+			"tag_names": []string{"^name"},
 			"separator": "sep",
 		},
 		tests: []item{
@@ -170,7 +170,7 @@ var testset = map[string]struct {
 func TestEventWrite(t *testing.T) {
 	for name, ts := range testset {
 		p := new(Write)
-		err := p.Init(ts.processor)
+		err := p.Init(ts.processor, nil)
 		if err != nil {
 			t.Errorf("failed to initialize processors: %v", err)
 			return

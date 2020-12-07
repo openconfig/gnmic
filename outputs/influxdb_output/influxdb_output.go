@@ -77,7 +77,7 @@ func (i *InfluxDBOutput) SetLogger(logger *log.Logger) {
 	i.logger = log.New(os.Stderr, "influxdb_output ", log.LstdFlags|log.Lmicroseconds)
 }
 
-func (i *InfluxDBOutput) SetEventProcessors(ps map[string]map[string]interface{}) {
+func (i *InfluxDBOutput) SetEventProcessors(ps map[string]map[string]interface{}, log *log.Logger) {
 	for _, epName := range i.Cfg.EventProcessors {
 		if epCfg, ok := ps[epName]; ok {
 			epType := ""
@@ -88,7 +88,7 @@ func (i *InfluxDBOutput) SetEventProcessors(ps map[string]map[string]interface{}
 			i.logger.Printf("adding event processor '%s' of type=%s to file output", epName, epType)
 			if in, ok := formatters.EventProcessors[epType]; ok {
 				ep := in()
-				err := ep.Init(epCfg[epType])
+				err := ep.Init(epCfg[epType], log)
 				if err != nil {
 					i.logger.Printf("failed initializing event processor '%s' of type='%s': %v", epName, epType, err)
 					continue

@@ -84,7 +84,7 @@ func (k *KafkaOutput) SetLogger(logger *log.Logger) {
 	k.logger = sarama.Logger
 }
 
-func (k *KafkaOutput) SetEventProcessors(ps map[string]map[string]interface{}) {
+func (k *KafkaOutput) SetEventProcessors(ps map[string]map[string]interface{}, log *log.Logger) {
 	for _, epName := range k.Cfg.EventProcessors {
 		if epCfg, ok := ps[epName]; ok {
 			epType := ""
@@ -95,7 +95,7 @@ func (k *KafkaOutput) SetEventProcessors(ps map[string]map[string]interface{}) {
 			k.logger.Printf("adding event processor '%s' of type=%s to file output", epName, epType)
 			if in, ok := formatters.EventProcessors[epType]; ok {
 				ep := in()
-				err := ep.Init(epCfg[epType])
+				err := ep.Init(epCfg[epType], log)
 				if err != nil {
 					k.logger.Printf("failed initializing event processor '%s' of type='%s': %v", epName, epType, err)
 					continue

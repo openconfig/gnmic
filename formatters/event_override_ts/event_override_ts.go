@@ -1,6 +1,8 @@
 package event_override_ts
 
 import (
+	"io/ioutil"
+	"log"
 	"time"
 
 	"github.com/karimra/gnmic/formatters"
@@ -8,7 +10,10 @@ import (
 
 // OverrideTS Drops the msg if ANY of the Tags or Values regexes are matched
 type OverrideTS struct {
-	Unit string `mapstructure:"unit,omitempty"`
+	Precision string `mapstructure:"precision,omitempty"`
+	Debug     bool   `mapstructure:"debug,omitempty"`
+
+	logger *log.Logger
 }
 
 func init() {
@@ -17,13 +22,18 @@ func init() {
 	})
 }
 
-func (o *OverrideTS) Init(cfg interface{}) error {
+func (o *OverrideTS) Init(cfg interface{}, logger *log.Logger) error {
 	err := formatters.DecodeConfig(cfg, 0)
 	if err != nil {
 		return err
 	}
-	if o.Unit == "" {
-		o.Unit = "ms"
+	if o.Precision == "" {
+		o.Precision = "ns"
+	}
+	if o.Debug {
+		o.logger = log.New(logger.Writer(), "event_override_ts ", logger.Flags())
+	} else {
+		o.logger = log.New(ioutil.Discard, "", 0)
 	}
 	return nil
 }
@@ -33,7 +43,8 @@ func (o *OverrideTS) Apply(e *formatters.EventMsg) {
 		return
 	}
 	now := time.Now()
-	switch o.Unit {
+	o.logger.Printf("setting timestamp to %d with precision %s", now.UnixNano(), o.Precision)
+	switch o.Precision {
 	case "s":
 		e.Timestamp = now.Unix()
 	case "ms":

@@ -2,6 +2,7 @@ package event_convert
 
 import (
 	"errors"
+	"io/ioutil"
 	"log"
 	"regexp"
 	"strconv"
@@ -11,9 +12,12 @@ import (
 
 // Convert converts the value with key matching one of regexes, to the specified Type
 type Convert struct {
-	Values     []string `mapstructure:"values,omitempty"`
-	TargetType string   `mapstructure:"target_type,omitempty"`
-	values     []*regexp.Regexp
+	Values []string `mapstructure:"value_names,omitempty"`
+	Type   string   `mapstructure:"type,omitempty"`
+	Debug  bool     `mapstructure:"debug,omitempty"`
+
+	values []*regexp.Regexp
+	logger *log.Logger
 }
 
 func init() {
@@ -22,7 +26,7 @@ func init() {
 	})
 }
 
-func (c *Convert) Init(cfg interface{}) error {
+func (c *Convert) Init(cfg interface{}, logger *log.Logger) error {
 	err := formatters.DecodeConfig(cfg, c)
 	if err != nil {
 		return err
@@ -35,6 +39,11 @@ func (c *Convert) Init(cfg interface{}) error {
 		}
 		c.values = append(c.values, re)
 	}
+	if c.Debug {
+		c.logger = log.New(logger.Writer(), "event_convert ", logger.Flags())
+	} else {
+		c.logger = log.New(ioutil.Discard, "", 0)
+	}
 	return nil
 }
 
@@ -45,34 +54,39 @@ func (c *Convert) Apply(e *formatters.EventMsg) {
 	for k, v := range e.Values {
 		for _, re := range c.values {
 			if re.MatchString(k) {
-				switch c.TargetType {
+				c.logger.Printf("key '%s' matched regex '%s'", k, re.String())
+				switch c.Type {
 				case "int":
 					iv, err := convertToInt(v)
 					if err != nil {
-						log.Printf("convert errors: %v", err)
+						c.logger.Printf("convert error: %v", err)
 						return
 					}
+					c.logger.Printf("key '%s', value %v converted to %s: %d", k, v, c.Type, iv)
 					e.Values[k] = iv
 				case "uint":
 					iv, err := convertToUint(v)
 					if err != nil {
-						log.Printf("convert errors: %v", err)
+						c.logger.Printf("convert error: %v", err)
 						return
 					}
+					c.logger.Printf("key '%s', value %v converted to %s: %d", k, v, c.Type, iv)
 					e.Values[k] = iv
 				case "string":
 					iv, err := convertToString(v)
 					if err != nil {
-						log.Printf("convert errors: %v", err)
+						c.logger.Printf("convert error: %v", err)
 						return
 					}
+					c.logger.Printf("key '%s', value %v converted to %s: %s", k, v, c.Type, iv)
 					e.Values[k] = iv
 				case "float":
 					iv, err := convertToFloat(v)
 					if err != nil {
-						log.Printf("convert errors: %v", err)
+						c.logger.Printf("convert error: %v", err)
 						return
 					}
+					c.logger.Printf("key '%s', value %v converted to %s: %f", k, v, c.Type, iv)
 					e.Values[k] = iv
 				}
 				break

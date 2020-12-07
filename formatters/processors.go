@@ -1,6 +1,8 @@
 package formatters
 
 import (
+	"log"
+
 	"github.com/mitchellh/mapstructure"
 )
 
@@ -13,7 +15,7 @@ func Register(name string, initFn Initializer) {
 }
 
 type EventProcessor interface {
-	Init(interface{}) error
+	Init(interface{}, *log.Logger) error
 	Apply(*EventMsg)
 }
 

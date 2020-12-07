@@ -58,7 +58,7 @@ func (t *TCPOutput) SetLogger(logger *log.Logger) {
 	t.logger = log.New(os.Stderr, "tcp_output ", log.LstdFlags|log.Lmicroseconds)
 }
 
-func (t *TCPOutput) SetEventProcessors(ps map[string]map[string]interface{}) {
+func (t *TCPOutput) SetEventProcessors(ps map[string]map[string]interface{}, log *log.Logger) {
 	for _, epName := range t.Cfg.EventProcessors {
 		if epCfg, ok := ps[epName]; ok {
 			epType := ""
@@ -69,7 +69,7 @@ func (t *TCPOutput) SetEventProcessors(ps map[string]map[string]interface{}) {
 			t.logger.Printf("adding event processor '%s' of type=%s to file output", epName, epType)
 			if in, ok := formatters.EventProcessors[epType]; ok {
 				ep := in()
-				err := ep.Init(epCfg[epType])
+				err := ep.Init(epCfg[epType], log)
 				if err != nil {
 					t.logger.Printf("failed initializing event processor '%s' of type='%s': %v", epName, epType, err)
 					continue

@@ -20,7 +20,7 @@ var testset = map[string]struct {
 	"1_value_match": {
 		processorType: "event_to_tag",
 		processor: map[string]interface{}{
-			"values": []string{".*name$"},
+			"value_names": []string{".*name$"},
 		},
 		tests: []item{
 			{
@@ -45,8 +45,8 @@ var testset = map[string]struct {
 	"1_value_match_with_keep": {
 		processorType: "event_to_tag",
 		processor: map[string]interface{}{
-			"values": []string{".*name$"},
-			"keep":   true,
+			"value_names": []string{".*name$"},
+			"keep":        true,
 		},
 		tests: []item{
 			{
@@ -71,7 +71,7 @@ var testset = map[string]struct {
 	"2_value_match": {
 		processorType: "event_to_tag",
 		processor: map[string]interface{}{
-			"values": []string{".*name$"},
+			"value_names": []string{".*name$"},
 		},
 		tests: []item{
 			{
@@ -101,8 +101,8 @@ var testset = map[string]struct {
 	"2_value_match_with_keep": {
 		processorType: "event_to_tag",
 		processor: map[string]interface{}{
-			"values": []string{".*name$"},
-			"keep":   true,
+			"value_names": []string{".*name$"},
+			"keep":        true,
 		},
 		tests: []item{
 			{
@@ -138,7 +138,7 @@ func TestEventToTag(t *testing.T) {
 		if pi, ok := formatters.EventProcessors[ts.processorType]; ok {
 			t.Log("found processor")
 			p := pi()
-			err := p.Init(ts.processor)
+			err := p.Init(ts.processor, nil)
 			if err != nil {
 				t.Errorf("failed to initialize processors: %v", err)
 				return

@@ -17,10 +17,10 @@ var testset = map[string]struct {
 	processor     map[string]interface{}
 	tests         []item
 }{
-	"tag_keys_delete": {
+	"tag_names_delete": {
 		processorType: "event_delete",
 		processor: map[string]interface{}{
-			"tag_keys": []string{"^name*"},
+			"tag_names": []string{"^name*"},
 		},
 		tests: []item{
 			{
@@ -71,10 +71,10 @@ var testset = map[string]struct {
 			},
 		},
 	},
-	"2_tag_keys_delete": {
+	"2_tag_names_delete": {
 		processorType: "event_delete",
 		processor: map[string]interface{}{
-			"tag_keys": []string{"^name*", "to_delete"},
+			"tag_names": []string{"^name*", "to_delete"},
 		},
 		tests: []item{
 			{
@@ -125,10 +125,10 @@ var testset = map[string]struct {
 			},
 		},
 	},
-	"value_keys_delete": {
+	"value_names_delete": {
 		processorType: "event_delete",
 		processor: map[string]interface{}{
-			"value_keys": []string{"deleteme*"},
+			"value_names": []string{"deleteme*"},
 		},
 		tests: []item{
 			{
@@ -158,10 +158,10 @@ var testset = map[string]struct {
 			},
 		},
 	},
-	"2_value_keys_delete": {
+	"2_value_names_delete": {
 		processorType: "event_delete",
 		processor: map[string]interface{}{
-			"value_keys": []string{"deleteme", "deleteme-too"},
+			"value_names": []string{"deleteme", "deleteme-too"},
 		},
 		tests: []item{
 			{
@@ -188,11 +188,11 @@ var testset = map[string]struct {
 			},
 		},
 	},
-	"tag_keys_and_value_keys_delete": {
+	"tag_names_and_value_names_delete": {
 		processorType: "event_delete",
 		processor: map[string]interface{}{
-			"value_keys": []string{"deleteme-value*"},
-			"tag_keys":   []string{"deleteme-tag*"},
+			"value_names": []string{"deleteme-value*"},
+			"tag_names":   []string{"deleteme-tag*"},
 		},
 		tests: []item{
 			{
@@ -464,7 +464,7 @@ func TestEventDelete(t *testing.T) {
 		if pi, ok := formatters.EventProcessors[ts.processorType]; ok {
 			t.Log("found processor")
 			p := pi()
-			err := p.Init(ts.processor)
+			err := p.Init(ts.processor, nil)
 			if err != nil {
 				t.Errorf("failed to initialize processors: %v", err)
 				return
