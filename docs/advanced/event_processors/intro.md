@@ -30,4 +30,68 @@ The keys are build from a xpath representation of the gNMI path without the keys
 
 ### Defining an event processor
 
+Event processors are defined under the section `event_processors` in `gNMIc` configuration file.
+
+Each processors is identified by a name, under which we specify the processor type as well as field specific to each type. 
+
+All processors support a `debug` field that enables extra debug log messages to help troubleshoot the processor transformation.
+
+Below is an example of an `event_delete` processor, which deletes all values with a name containing `multicast` or `broadcast`
+
+```yaml
+event_processors:
+  # processor name
+  delete_processor:
+    # processor type
+    event_delete:
+      value_names:
+        - ".*multicast.*"
+        - ".*broadcast.*"
+```
 ### Linking an event processor to an output
+
+Once the needed event processors are defined under section `event_processors`, they can be linked to the desired output(s) in the same file.
+
+Each output can be configured with different event processors allowing flexiblity in the way the same data is written to different outputs.
+
+A list of event processors names can be added under an output configuration, the processors will apply in the order they are configured.
+
+In the below example, 3 event processors are configured and linked to `output1` of type `influxdb`.
+
+The first processor converts all value to `integer` if possible.
+
+The second deletes tags with name starting with `subscription-name`. 
+
+Finally the third deletes values with name ending with `out-unicast-packets`.
+
+```yaml
+outputs:
+  output1:
+    type: influxdb
+    url: http://localhost:8086
+    bucket: telemetry
+    token: srl:srl
+    batch_size: 1000
+    flush_timer: 10s
+    event_processors:
+      - proc_convert_integer
+      - proc_delete_tag_name
+      - proc_delete_value_name
+
+event_processors:
+  proc_convert_integer:
+    event_convert:
+      value_names:
+        - ".*"
+      type: int
+
+  proc_delete_tag_name:
+    event_delete:
+      tag_names:
+        - "^subscription-name"
+
+  proc_delete_value_name:
+    event_delete:
+      value_names:
+        - ".*out-unicast-packets"
+```
