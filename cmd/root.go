@@ -459,7 +459,8 @@ func createTargets() (map[string]*collector.TargetConfig, error) {
 			if !strings.HasPrefix(addr, "unix://") {
 				_, _, err := net.SplitHostPort(addr)
 				if err != nil {
-					if strings.Contains(err.Error(), "missing port in address") {
+					if strings.Contains(err.Error(), "missing port in address") ||
+						strings.Contains(err.Error(), "too many colons in address") {
 						addr = net.JoinHostPort(addr, defGrpcPort)
 					} else {
 						logger.Printf("error parsing address '%s': %v", addr, err)
@@ -495,7 +496,8 @@ func createTargets() (map[string]*collector.TargetConfig, error) {
 		if !strings.HasPrefix(addr, "unix://") {
 			_, _, err := net.SplitHostPort(addr)
 			if err != nil {
-				if strings.Contains(err.Error(), "missing port in address") {
+				if strings.Contains(err.Error(), "missing port in address") ||
+					strings.Contains(err.Error(), "too many colons in address") {
 					addr = net.JoinHostPort(addr, defGrpcPort)
 				} else {
 					logger.Printf("error parsing address '%s': %v", addr, err)
