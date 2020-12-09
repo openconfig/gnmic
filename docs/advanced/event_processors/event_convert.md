@@ -15,7 +15,7 @@ event_processors:
       type: int 
 ```
 
-=== "before"
+=== "Event format before"
     ```json
     {
       "name": "default",
@@ -30,7 +30,7 @@ event_processors:
       }
     }
     ```
-=== "after"
+=== "Event format after"
     ```json
     {
       "name": "default",

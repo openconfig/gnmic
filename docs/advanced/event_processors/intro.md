@@ -1,16 +1,16 @@
-The `event` format is used by `gNMIc` to write into `influxdb` and `prometheus` outputs.
+The event processors provide an easy way to configure a set of functions in order to transform an event message that will be be written to a specific output.
 
-It can also be used with any other output type.
+While the `event` format is the de facto format used by `gNMIc` in case the output is `influxdb` or `prometheus`,
+it can be used with any other output type.
 
-In certain cases, the gNMI updates received need to be changed or processed to make it easier to ingest by the target output.
+Transforming the received gNMI message is sometimes needed to accomodate the output system ( converting types, complying with name constraints,...), or simply filtering out values that you are not interested on.
+
+<!-- In certain cases, the gNMI updates received need to be changed or processed to make it easier to ingest by the target output.
 
 Some common use cases:
 
 * Customizing a value or a tag name.
-* Converting numbers received as a string to integer or float types.
-
-
-The event processors provide an easy way to configure a set of functions to transform the event message that will be be written to a specific output.
+* Converting numbers received as a string to integer or float types. -->
 
 ### The event format
 
