@@ -640,22 +640,12 @@ func getPermissions(entry *yang.Entry) string {
 
 func findMatchedSchema(entry *yang.Entry, input string) []*yang.Entry {
 	schemaNodes := []*yang.Entry{}
-	inputLen := len(input)
 	for name, child := range entry.Dir {
 		pathelem := "/" + name
 		if strings.HasPrefix(pathelem, input) {
-			node := ""
-			if inputLen > 0 && input[0] == '/' {
-				node = name
-			} else {
-				node = pathelem
-			}
 			schemaNodes = append(schemaNodes, child)
 			if child.Key != "" { // list
-				keylist := strings.Split(child.Key, " ")
-				for _, key := range keylist {
-					node = fmt.Sprintf("%s[%s=*]", node, key)
-				}
+
 				schemaNodes = append(schemaNodes, child)
 			}
 		} else if strings.HasPrefix(input, pathelem) {
