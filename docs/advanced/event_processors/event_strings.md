@@ -65,7 +65,7 @@ processors:
       transforms:
         # strings function name
         - replace:
-            on: "name"
+            apply-on: "name"
             old: "-"
             new: "_"
 ```
@@ -394,6 +394,81 @@ processors:
             "statistics_out-multicast-packets": "11",
             "statistics_out-octets": "64721394",
             "statistics_out-unicast-packets": "105876"
+        }
+    }
+    ```
+#### multiple transforms
+
+
+```yaml
+processors:
+  # processor name
+  sample-processor:
+    # processor type
+    event-strings:
+      value-names:
+        - ".*"
+      transforms:
+        # strings function name
+        - path-base:
+            apply-on: "name"
+        - title:
+            apply-on: "name"
+        - replace:
+            apply-on: "name"
+            old: "-"
+            new: "_"
+```
+
+=== "Event format before"
+    ```json
+    {
+        "name": "default",
+        "timestamp": 1607291271894072397,
+        "tags": {
+            "interface_name": "mgmt0",
+            "source": "172.23.23.2:57400",
+            "subscription-name": "default"
+        },
+        "values": {
+            "/srl_nokia-interfaces:interface/statistics/carrier-transitions": "1",
+            "/srl_nokia-interfaces:interface/statistics/in-broadcast-packets": "3797",
+            "/srl_nokia-interfaces:interface/statistics/in-error-packets": "0",
+            "/srl_nokia-interfaces:interface/statistics/in-fcs-error-packets": "0",
+            "/srl_nokia-interfaces:interface/statistics/in-multicast-packets": "288033",
+            "/srl_nokia-interfaces:interface/statistics/in-octets": "65382630",
+            "/srl_nokia-interfaces:interface/statistics/in-unicast-packets": "107154",
+            "/srl_nokia-interfaces:interface/statistics/out-broadcast-packets": "614",
+            "/srl_nokia-interfaces:interface/statistics/out-error-packets": "0",
+            "/srl_nokia-interfaces:interface/statistics/out-multicast-packets": "11",
+            "/srl_nokia-interfaces:interface/statistics/out-octets": "64721394",
+            "/srl_nokia-interfaces:interface/statistics/out-unicast-packets": "105876"
+        }
+    }
+    ```
+=== "Event format after"
+    ```json
+    {
+        "name": "default",
+        "timestamp": 1607291271894072397,
+        "tags": {
+            "interface_name": "mgmt0",
+            "source": "172.23.23.2:57400",
+            "subscription-name": "default"
+        },
+        "values": {
+            "Carrier_transitions": "1",
+            "In_broadcast_packets": "3797",
+            "In_error_packets": "0",
+            "In_fcs_error_packets": "0",
+            "In_multicast_packets": "288033",
+            "In_octets": "65382630",
+            "In_unicast_packets": "107154",
+            "Out_broadcast_packets": "614",
+            "Out_error_packets": "0",
+            "Out_multicast_packets": "11",
+            "Out_octets": "64721394",
+            "Out_unicast_packets": "105876"
         }
     }
     ```

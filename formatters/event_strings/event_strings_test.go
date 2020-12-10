@@ -21,7 +21,8 @@ var testset = map[string]struct {
 		processorType: processorType,
 		processor: map[string]interface{}{
 			"value-names": []string{"^name$"},
-			"tag-names":   []string{"tag"},
+			"tag-names":   []string{"^tag$"},
+			"debug":       true,
 			"transforms": []map[string]*transform{
 				{
 					"replace": &transform{
@@ -120,7 +121,7 @@ var testset = map[string]struct {
 			"value-names": []string{"_suffix$"},
 			"transforms": []map[string]*transform{
 				{
-					"trim_suffix": &transform{
+					"trim-suffix": &transform{
 						ApplyOn: "name",
 						Suffix:  "_suffix",
 					},

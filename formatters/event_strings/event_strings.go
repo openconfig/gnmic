@@ -3,6 +3,7 @@ package event_strings
 import (
 	"io/ioutil"
 	"log"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -66,8 +67,10 @@ func (s *Strings) Init(cfg interface{}, logger *log.Logger) error {
 	if err != nil {
 		return err
 	}
-	if s.Debug {
+	if s.Debug && logger != nil {
 		s.logger = log.New(logger.Writer(), processorType+" ", logger.Flags())
+	} else if s.Debug {
+		s.logger = log.New(os.Stderr, processorType+" ", log.LstdFlags|log.Lmicroseconds)
 	} else {
 		s.logger = log.New(ioutil.Discard, "", 0)
 	}

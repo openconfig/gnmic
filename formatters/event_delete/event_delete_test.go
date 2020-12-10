@@ -17,10 +17,10 @@ var testset = map[string]struct {
 	processor     map[string]interface{}
 	tests         []item
 }{
-	"tag_names_delete": {
-		processorType: "event_delete",
+	"tag-names_delete": {
+		processorType: processorType,
 		processor: map[string]interface{}{
-			"tag_names": []string{"^name*"},
+			"tag-names": []string{"^name*"},
 		},
 		tests: []item{
 			{
@@ -71,10 +71,10 @@ var testset = map[string]struct {
 			},
 		},
 	},
-	"2_tag_names_delete": {
-		processorType: "event_delete",
+	"2_tag-names_delete": {
+		processorType: processorType,
 		processor: map[string]interface{}{
-			"tag_names": []string{"^name*", "to_delete"},
+			"tag-names": []string{"^name*", "to_delete"},
 		},
 		tests: []item{
 			{
@@ -125,10 +125,10 @@ var testset = map[string]struct {
 			},
 		},
 	},
-	"value_names_delete": {
-		processorType: "event_delete",
+	"value-names_delete": {
+		processorType: processorType,
 		processor: map[string]interface{}{
-			"value_names": []string{"deleteme*"},
+			"value-names": []string{"deleteme*"},
 		},
 		tests: []item{
 			{
@@ -158,10 +158,10 @@ var testset = map[string]struct {
 			},
 		},
 	},
-	"2_value_names_delete": {
-		processorType: "event_delete",
+	"2_value-names_delete": {
+		processorType: processorType,
 		processor: map[string]interface{}{
-			"value_names": []string{"deleteme", "deleteme-too"},
+			"value-names": []string{"deleteme", "deleteme-too"},
 		},
 		tests: []item{
 			{
@@ -188,11 +188,11 @@ var testset = map[string]struct {
 			},
 		},
 	},
-	"tag_names_and_value_names_delete": {
-		processorType: "event_delete",
+	"tag-names_and_value-names_delete": {
+		processorType: processorType,
 		processor: map[string]interface{}{
-			"value_names": []string{"deleteme-value*"},
-			"tag_names":   []string{"deleteme-tag*"},
+			"value-names": []string{"deleteme-value*"},
+			"tag-names":   []string{"deleteme-tag*"},
 		},
 		tests: []item{
 			{
@@ -230,7 +230,7 @@ var testset = map[string]struct {
 		},
 	},
 	"tags_delete": {
-		processorType: "event_delete",
+		processorType: processorType,
 		processor: map[string]interface{}{
 			"tags": []string{"^name*"},
 		},
@@ -290,7 +290,7 @@ var testset = map[string]struct {
 		},
 	},
 	"2_tags_delete": {
-		processorType: "event_delete",
+		processorType: processorType,
 		processor: map[string]interface{}{
 			"tags": []string{"^name*", "to_delete"},
 		},
@@ -350,7 +350,7 @@ var testset = map[string]struct {
 		},
 	},
 	"values_delete": {
-		processorType: "event_delete",
+		processorType: processorType,
 		processor: map[string]interface{}{
 			"values": []string{"deleteme*"},
 		},
@@ -387,7 +387,7 @@ var testset = map[string]struct {
 		},
 	},
 	"2_values_delete": {
-		processorType: "event_delete",
+		processorType: processorType,
 		processor: map[string]interface{}{
 			"values": []string{"deleteme", "deleteme-too"},
 		},
@@ -417,7 +417,7 @@ var testset = map[string]struct {
 		},
 	},
 	"tags_and_values_delete": {
-		processorType: "event_delete",
+		processorType: processorType,
 		processor: map[string]interface{}{
 			"values": []string{"deleteme-value*"},
 			"tags":   []string{"deleteme-tag*"},

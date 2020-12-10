@@ -18,9 +18,9 @@ var testset = map[string]struct {
 	tests         []item
 }{
 	"write_values_all": {
-		processorType: "event_write",
+		processorType: processorType,
 		processor: map[string]interface{}{
-			"value_names": []string{"."},
+			"value-names": []string{"."},
 			"separator":   "sep",
 		},
 		tests: []item{
@@ -55,9 +55,9 @@ var testset = map[string]struct {
 		},
 	},
 	"write_values_some": {
-		processorType: "event_write",
+		processorType: processorType,
 		processor: map[string]interface{}{
-			"value_names": []string{"^number"},
+			"value-names": []string{"^number"},
 			"separator":   "sep",
 		},
 		tests: []item{
@@ -92,9 +92,9 @@ var testset = map[string]struct {
 		},
 	},
 	"write_tags_all": {
-		processorType: "event_write",
+		processorType: processorType,
 		processor: map[string]interface{}{
-			"tag_names": []string{"."},
+			"tag-names": []string{"."},
 			"separator": "sep",
 		},
 		tests: []item{
@@ -129,9 +129,9 @@ var testset = map[string]struct {
 		},
 	},
 	"write_tags_some": {
-		processorType: "event_write",
+		processorType: processorType,
 		processor: map[string]interface{}{
-			"tag_names": []string{"^name"},
+			"tag-names": []string{"^name"},
 			"separator": "sep",
 		},
 		tests: []item{

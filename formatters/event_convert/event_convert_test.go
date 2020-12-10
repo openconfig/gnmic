@@ -18,9 +18,9 @@ var testset = map[string]struct {
 	tests         []item
 }{
 	"int_convert": {
-		processorType: "event_convert",
+		processorType: processorType,
 		processor: map[string]interface{}{
-			"value_names": []string{"^number*"},
+			"value-names": []string{"^number*"},
 			"type":        "int",
 		},
 		tests: []item{
@@ -93,9 +93,9 @@ var testset = map[string]struct {
 		},
 	},
 	"uint_convert": {
-		processorType: "event_convert",
+		processorType: processorType,
 		processor: map[string]interface{}{
-			"value_names": []string{"^name.*"},
+			"value-names": []string{"^name.*"},
 			"type":        "uint",
 		},
 		tests: []item{
@@ -136,9 +136,9 @@ var testset = map[string]struct {
 		},
 	},
 	"float_convert": {
-		processorType: "event_convert",
+		processorType: processorType,
 		processor: map[string]interface{}{
-			"value_names": []string{"^number*"},
+			"value-names": []string{"^number*"},
 			"type":        "float",
 		},
 		tests: []item{
@@ -179,9 +179,9 @@ var testset = map[string]struct {
 		},
 	},
 	"string_convert": {
-		processorType: "event_convert",
+		processorType: processorType,
 		processor: map[string]interface{}{
-			"value_names": []string{"id"},
+			"value-names": []string{"id"},
 			"type":        "string",
 		},
 		tests: []item{

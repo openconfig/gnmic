@@ -18,11 +18,11 @@ var testset = map[string]struct {
 	tests         []item
 }{
 	"seconds_date_string": {
-		processorType: "event_date_string",
+		processorType: processorType,
 		processor: map[string]interface{}{
-			"value_names":         []string{"timestamp"},
-			"timestamp_precision": "s",
-			"location":            "Asia/Taipei",
+			"value-names": []string{"timestamp"},
+			"precision":   "s",
+			"location":    "Asia/Taipei",
 		},
 		tests: []item{
 			{

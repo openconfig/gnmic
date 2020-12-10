@@ -18,9 +18,9 @@ var testset = map[string]struct {
 	tests         []item
 }{
 	"1_value_match": {
-		processorType: "event_to_tag",
+		processorType: processorType,
 		processor: map[string]interface{}{
-			"value_names": []string{".*name$"},
+			"value-names": []string{".*name$"},
 		},
 		tests: []item{
 			{
@@ -43,9 +43,9 @@ var testset = map[string]struct {
 		},
 	},
 	"1_value_match_with_keep": {
-		processorType: "event_to_tag",
+		processorType: processorType,
 		processor: map[string]interface{}{
-			"value_names": []string{".*name$"},
+			"value-names": []string{".*name$"},
 			"keep":        true,
 		},
 		tests: []item{
@@ -69,9 +69,9 @@ var testset = map[string]struct {
 		},
 	},
 	"2_value_match": {
-		processorType: "event_to_tag",
+		processorType: processorType,
 		processor: map[string]interface{}{
-			"value_names": []string{".*name$"},
+			"value-names": []string{".*name$"},
 		},
 		tests: []item{
 			{
@@ -99,9 +99,9 @@ var testset = map[string]struct {
 		},
 	},
 	"2_value_match_with_keep": {
-		processorType: "event_to_tag",
+		processorType: processorType,
 		processor: map[string]interface{}{
-			"value_names": []string{".*name$"},
+			"value-names": []string{".*name$"},
 			"keep":        true,
 		},
 		tests: []item{
