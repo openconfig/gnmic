@@ -92,7 +92,6 @@ func (k *KafkaOutput) SetEventProcessors(ps map[string]map[string]interface{}, l
 				epType = k
 				break
 			}
-			k.logger.Printf("adding event processor '%s' of type=%s to file output", epName, epType)
 			if in, ok := formatters.EventProcessors[epType]; ok {
 				ep := in()
 				err := ep.Init(epCfg[epType], log)
@@ -101,7 +100,7 @@ func (k *KafkaOutput) SetEventProcessors(ps map[string]map[string]interface{}, l
 					continue
 				}
 				k.evps = append(k.evps, ep)
-				k.logger.Printf("added event processor '%s' of type=%s to file output", epName, epType)
+				k.logger.Printf("added event processor '%s' of type=%s to kafka output", epName, epType)
 			}
 		}
 	}

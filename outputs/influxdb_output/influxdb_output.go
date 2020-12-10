@@ -85,7 +85,6 @@ func (i *InfluxDBOutput) SetEventProcessors(ps map[string]map[string]interface{}
 				epType = k
 				break
 			}
-			i.logger.Printf("adding event processor '%s' of type=%s to file output", epName, epType)
 			if in, ok := formatters.EventProcessors[epType]; ok {
 				ep := in()
 				err := ep.Init(epCfg[epType], log)
@@ -94,7 +93,7 @@ func (i *InfluxDBOutput) SetEventProcessors(ps map[string]map[string]interface{}
 					continue
 				}
 				i.evps = append(i.evps, ep)
-				i.logger.Printf("added event processor '%s' of type=%s to file output", epName, epType)
+				i.logger.Printf("added event processor '%s' of type=%s to influxdb output", epName, epType)
 			}
 		}
 	}
@@ -168,7 +167,7 @@ func (i *InfluxDBOutput) Write(ctx context.Context, rsp proto.Message, meta outp
 		if subName, ok := meta["subscription-name"]; ok {
 			measName = subName
 		}
-		events, err := formatters.ResponseToEventMsgs(measName, rsp, meta)
+		events, err := formatters.ResponseToEventMsgs(measName, rsp, meta, i.evps...)
 		if err != nil {
 			i.logger.Printf("failed to convert message to event: %v", err)
 			return
@@ -258,9 +257,6 @@ START:
 			i.logger.Printf("worker-%d terminating...", idx)
 			return
 		case ev := <-i.eventChan:
-			for _, ep := range i.evps {
-				ep.Apply(ev)
-			}
 			writer.WritePoint(influxdb2.NewPoint(ev.Name, ev.Tags, ev.Values, time.Unix(0, ev.Timestamp)))
 		case <-i.reset:
 			firstStart = false

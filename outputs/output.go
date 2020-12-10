@@ -2,7 +2,6 @@ package outputs
 
 import (
 	"context"
-	"fmt"
 	"log"
 
 	_ "github.com/karimra/gnmic/formatters/all"
@@ -54,7 +53,6 @@ func WithLogger(logger *log.Logger) Option {
 
 func WithEventProcessors(eps map[string]map[string]interface{}, log *log.Logger) Option {
 	return func(o Output) {
-		fmt.Println("adding event processors to output:", eps)
 		o.SetEventProcessors(eps, log)
 	}
 }

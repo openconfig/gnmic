@@ -66,7 +66,6 @@ func (t *TCPOutput) SetEventProcessors(ps map[string]map[string]interface{}, log
 				epType = k
 				break
 			}
-			t.logger.Printf("adding event processor '%s' of type=%s to file output", epName, epType)
 			if in, ok := formatters.EventProcessors[epType]; ok {
 				ep := in()
 				err := ep.Init(epCfg[epType], log)
@@ -75,7 +74,7 @@ func (t *TCPOutput) SetEventProcessors(ps map[string]map[string]interface{}, log
 					continue
 				}
 				t.evps = append(t.evps, ep)
-				t.logger.Printf("added event processor '%s' of type=%s to file output", epName, epType)
+				t.logger.Printf("added event processor '%s' of type=%s to tcp output", epName, epType)
 			}
 		}
 	}

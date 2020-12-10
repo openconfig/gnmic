@@ -99,13 +99,11 @@ func (p *PrometheusOutput) SetLogger(logger *log.Logger) {
 func (p *PrometheusOutput) SetEventProcessors(ps map[string]map[string]interface{}, log *log.Logger) {
 	for _, epName := range p.Cfg.EventProcessors {
 		if epCfg, ok := ps[epName]; ok {
-			p.logger.Printf("adding event processor '%s' to file output", epName)
 			epType := ""
 			for k := range epCfg {
 				epType = k
 				break
 			}
-			p.logger.Printf("adding event processor '%s' of type=%s to file output", epName, epType)
 			if in, ok := formatters.EventProcessors[epType]; ok {
 				ep := in()
 				err := ep.Init(epCfg[epType], log)
@@ -114,7 +112,7 @@ func (p *PrometheusOutput) SetEventProcessors(ps map[string]map[string]interface
 					continue
 				}
 				p.evps = append(p.evps, ep)
-				p.logger.Printf("added event processor '%s' of type=%s to file output", epName, epType)
+				p.logger.Printf("added event processor '%s' of type=%s to prometheus output", epName, epType)
 			}
 		}
 	}
@@ -191,7 +189,7 @@ func (p *PrometheusOutput) Write(ctx context.Context, rsp proto.Message, meta ou
 		if subName, ok := meta["subscription-name"]; ok {
 			measName = subName
 		}
-		events, err := formatters.ResponseToEventMsgs(measName, rsp, meta)
+		events, err := formatters.ResponseToEventMsgs(measName, rsp, meta, p.evps...)
 		if err != nil {
 			p.logger.Printf("failed to convert message to event: %v", err)
 			return
@@ -251,9 +249,6 @@ func (p *PrometheusOutput) worker(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case ev := <-p.eventChan:
-			for _, ep := range p.evps {
-				ep.Apply(ev)
-			}
 			if p.Cfg.Debug {
 				p.logger.Printf("got event to store: %+v", ev)
 			}

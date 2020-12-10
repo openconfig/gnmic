@@ -87,7 +87,6 @@ func (s *StanOutput) SetEventProcessors(ps map[string]map[string]interface{}, lo
 				epType = k
 				break
 			}
-			s.logger.Printf("adding event processor '%s' of type=%s to file output", epName, epType)
 			if in, ok := formatters.EventProcessors[epType]; ok {
 				ep := in()
 				err := ep.Init(epCfg[epType], log)
@@ -96,7 +95,7 @@ func (s *StanOutput) SetEventProcessors(ps map[string]map[string]interface{}, lo
 					continue
 				}
 				s.evps = append(s.evps, ep)
-				s.logger.Printf("added event processor '%s' of type=%s to file output", epName, epType)
+				s.logger.Printf("added event processor '%s' of type=%s to stan output", epName, epType)
 			}
 		}
 	}

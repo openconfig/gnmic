@@ -50,7 +50,7 @@ type Config struct {
 	Multiline       bool     `mapstructure:"multiline,omitempty"`
 	Indent          string   `mapstructure:"indent,omitempty"`
 	Separator       string   `mapstructure:"separator,omitempty"`
-	EventProcessors []string `mapstructure:"event_processors,omitempty"`
+	EventProcessors []string `mapstructure:"event-processors,omitempty"`
 }
 
 func (f *File) String() string {
@@ -69,7 +69,6 @@ func (f *File) SetEventProcessors(ps map[string]map[string]interface{}, log *log
 				epType = k
 				break
 			}
-			f.logger.Printf("adding event processor '%s' of type=%s to file output", epName, epType)
 			if in, ok := formatters.EventProcessors[epType]; ok {
 				ep := in()
 				err := ep.Init(epCfg[epType], log)
