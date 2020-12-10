@@ -1,4 +1,4 @@
-package collector
+package formatters
 
 import (
 	"encoding/json"
@@ -19,7 +19,7 @@ type MarshalOptions struct {
 }
 
 // Marshal //
-func (o *MarshalOptions) Marshal(msg proto.Message, meta map[string]string) ([]byte, error) {
+func (o *MarshalOptions) Marshal(msg proto.Message, meta map[string]string, eps ...EventProcessor) ([]byte, error) {
 	switch o.Format {
 	default: // json
 		return o.FormatJSON(msg, meta)
@@ -40,7 +40,7 @@ func (o *MarshalOptions) Marshal(msg proto.Message, meta map[string]string) ([]b
 			b := make([]byte, 0)
 			switch msg.GetResponse().(type) {
 			case *gnmi.SubscribeResponse_Update:
-				events, err := ResponseToEventMsgs(subscriptionName, msg, meta)
+				events, err := ResponseToEventMsgs(subscriptionName, msg, meta, eps...)
 				if err != nil {
 					return nil, fmt.Errorf("failed converting response to events: %v", err)
 				}

@@ -9,7 +9,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
@@ -33,15 +33,17 @@ type UDPSock struct {
 	buffer   chan []byte
 	limiter  *time.Ticker
 	logger   *log.Logger
-	mo       *collector.MarshalOptions
+	mo       *formatters.MarshalOptions
+	evps     []formatters.EventProcessor
 }
 
 type Config struct {
-	Address       string        `mapstructure:"address,omitempty"` // ip:port
-	Rate          time.Duration `mapstructure:"rate,omitempty"`
-	BufferSize    uint          `mapstructure:"buffer-size,omitempty"`
-	Format        string        `mapstructure:"format,omitempty"`
-	RetryInterval time.Duration `mapstructure:"retry-interval,omitempty"`
+	Address         string        `mapstructure:"address,omitempty"` // ip:port
+	Rate            time.Duration `mapstructure:"rate,omitempty"`
+	BufferSize      uint          `mapstructure:"buffer-size,omitempty"`
+	Format          string        `mapstructure:"format,omitempty"`
+	RetryInterval   time.Duration `mapstructure:"retry-interval,omitempty"`
+	EventProcessors []string      `mapstructure:"event_processors,omitempty"`
 }
 
 func (u *UDPSock) SetLogger(logger *log.Logger) {
@@ -50,6 +52,28 @@ func (u *UDPSock) SetLogger(logger *log.Logger) {
 		return
 	}
 	u.logger = log.New(os.Stderr, "udp_output ", log.LstdFlags|log.Lmicroseconds)
+}
+
+func (u *UDPSock) SetEventProcessors(ps map[string]map[string]interface{}, log *log.Logger) {
+	for _, epName := range u.Cfg.EventProcessors {
+		if epCfg, ok := ps[epName]; ok {
+			epType := ""
+			for k := range epCfg {
+				epType = k
+				break
+			}
+			if in, ok := formatters.EventProcessors[epType]; ok {
+				ep := in()
+				err := ep.Init(epCfg[epType], log)
+				if err != nil {
+					u.logger.Printf("failed initializing event processor '%s' of type='%s': %v", epName, epType, err)
+					continue
+				}
+				u.evps = append(u.evps, ep)
+				u.logger.Printf("added event processor '%s' of type=%s to udp output", epName, epType)
+			}
+		}
+	}
 }
 
 func (u *UDPSock) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
@@ -76,7 +100,7 @@ func (u *UDPSock) Init(ctx context.Context, cfg map[string]interface{}, opts ...
 		u.Close()
 	}()
 	ctx, u.cancelFn = context.WithCancel(ctx)
-	u.mo = &collector.MarshalOptions{Format: u.Cfg.Format}
+	u.mo = &formatters.MarshalOptions{Format: u.Cfg.Format}
 	go u.start(ctx)
 	return nil
 }
@@ -85,7 +109,7 @@ func (u *UDPSock) Write(ctx context.Context, m proto.Message, meta outputs.Meta)
 	if m == nil {
 		return
 	}
-	b, err := u.mo.Marshal(m, meta)
+	b, err := u.mo.Marshal(m, meta, u.evps...)
 	if err != nil {
 		u.logger.Printf("failed marshaling proto msg: %v", err)
 		return

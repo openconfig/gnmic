@@ -20,7 +20,16 @@ nav:
           - TCP: advanced/multi_outputs/tcp_output.md
           - UDP: advanced/multi_outputs/udp_output.md
           - InfluxDB: advanced/multi_outputs/influxdb_output.md
-
+      - Processors: 
+          - Introduction: advanced/event_processors/intro.md
+          - Convert: advanced/event_processors/event_convert.md
+          - Date string: advanced/event_processors/event_date_string.md
+          - Delete: advanced/event_processors/event_delete.md
+          - Drop: advanced/event_processors/event_drop.md
+          - Override TS: advanced/event_processors/event_override_ts.md
+          - Strings: advanced/event_processors/event_strings.md
+          - To Tag: advanced/event_processors/event_to_tag.md
+          - Write: advanced/event_processors/event_write.md 
   - Command reference:
       - Capabilities: cmd/capabilities.md
       - Get: cmd/get.md

@@ -19,7 +19,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus"
@@ -51,7 +51,7 @@ func init() {
 	outputs.Register("prometheus", func() outputs.Output {
 		return &PrometheusOutput{
 			Cfg:         &Config{},
-			eventChan:   make(chan *collector.EventMsg),
+			eventChan:   make(chan *formatters.EventMsg),
 			wg:          new(sync.WaitGroup),
 			entries:     make(map[uint64]*promMetric),
 			metricRegex: regexp.MustCompile(metricNameRegex),
@@ -63,7 +63,7 @@ type PrometheusOutput struct {
 	Cfg       *Config
 	metrics   []prometheus.Collector
 	logger    *log.Logger
-	eventChan chan *collector.EventMsg
+	eventChan chan *formatters.EventMsg
 
 	wg     *sync.WaitGroup
 	server *http.Server
@@ -71,12 +71,14 @@ type PrometheusOutput struct {
 	entries map[uint64]*promMetric
 
 	metricRegex *regexp.Regexp
+	evps        []formatters.EventProcessor
 }
 type Config struct {
-	Listen     string        `mapstructure:"listen,omitempty"`
-	Path       string        `mapstructure:"path,omitempty"`
-	Expiration time.Duration `mapstructure:"expiration,omitempty"`
-	Debug      bool          `mapstructure:"debug,omitempty"`
+	Listen          string        `mapstructure:"listen,omitempty"`
+	Path            string        `mapstructure:"path,omitempty"`
+	Expiration      time.Duration `mapstructure:"expiration,omitempty"`
+	Debug           bool          `mapstructure:"debug,omitempty"`
+	EventProcessors []string      `mapstructure:"event_processors,omitempty"`
 }
 
 func (p *PrometheusOutput) String() string {
@@ -94,14 +96,36 @@ func (p *PrometheusOutput) SetLogger(logger *log.Logger) {
 	p.logger = log.New(os.Stderr, "prometheus_output ", log.LstdFlags|log.Lmicroseconds)
 }
 
-func (p *PrometheusOutput) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
-	for _, opt := range opts {
-		opt(p)
+func (p *PrometheusOutput) SetEventProcessors(ps map[string]map[string]interface{}, log *log.Logger) {
+	for _, epName := range p.Cfg.EventProcessors {
+		if epCfg, ok := ps[epName]; ok {
+			epType := ""
+			for k := range epCfg {
+				epType = k
+				break
+			}
+			if in, ok := formatters.EventProcessors[epType]; ok {
+				ep := in()
+				err := ep.Init(epCfg[epType], log)
+				if err != nil {
+					p.logger.Printf("failed initializing event processor '%s' of type='%s': %v", epName, epType, err)
+					continue
+				}
+				p.evps = append(p.evps, ep)
+				p.logger.Printf("added event processor '%s' of type=%s to prometheus output", epName, epType)
+			}
+		}
 	}
+}
+
+func (p *PrometheusOutput) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
 	err := outputs.DecodeConfig(cfg, p.Cfg)
 	if err != nil {
 		p.logger.Printf("prometheus output config decode failed: %v", err)
 		return err
+	}
+	for _, opt := range opts {
+		opt(p)
 	}
 	if p.Cfg.Listen == "" {
 		p.Cfg.Listen = defaultListen
@@ -165,7 +189,7 @@ func (p *PrometheusOutput) Write(ctx context.Context, rsp proto.Message, meta ou
 		if subName, ok := meta["subscription-name"]; ok {
 			measName = subName
 		}
-		events, err := collector.ResponseToEventMsgs(measName, rsp, meta)
+		events, err := formatters.ResponseToEventMsgs(measName, rsp, meta, p.evps...)
 		if err != nil {
 			p.logger.Printf("failed to convert message to event: %v", err)
 			return
@@ -204,7 +228,7 @@ func (p *PrometheusOutput) Collect(ch chan<- prometheus.Metric) {
 	}
 }
 
-func (p *PrometheusOutput) getLabels(ev *collector.EventMsg) []*labelPair {
+func (p *PrometheusOutput) getLabels(ev *formatters.EventMsg) []*labelPair {
 	labels := make([]*labelPair, 0, len(ev.Tags))
 	addedLabels := make(map[string]struct{})
 	for k, v := range ev.Tags {

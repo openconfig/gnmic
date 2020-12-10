@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
 	_ "github.com/karimra/gnmic/outputs/all"
 	"github.com/manifoldco/promptui"
@@ -74,6 +75,7 @@ var subscribeCmd = &cobra.Command{
 		if debug {
 			logger.Printf("targets: %s", targetsConfig)
 		}
+
 		subscriptionsConfig, err := getSubscriptions()
 		if err != nil {
 			return fmt.Errorf("failed getting subscriptions config: %v", err)
@@ -87,6 +89,13 @@ var subscribeCmd = &cobra.Command{
 		}
 		if debug {
 			logger.Printf("outputs: %+v", outs)
+		}
+		epconfig, err := readEventProcessors()
+		if err != nil {
+			return err
+		}
+		if debug {
+			logger.Printf("processors: %+v", epconfig)
 		}
 		if coll == nil {
 			cfg := &collector.Config{
@@ -102,6 +111,7 @@ var subscribeCmd = &cobra.Command{
 				collector.WithSubscriptions(subscriptionsConfig),
 				collector.WithOutputs(outs),
 				collector.WithLogger(logger),
+				collector.WithEventProcessors(epconfig),
 			)
 		} else {
 			// prompt mode
@@ -159,7 +169,7 @@ var subscribeCmd = &cobra.Command{
 			}
 			waitChan := make(chan struct{}, 1)
 			waitChan <- struct{}{}
-			mo := &collector.MarshalOptions{
+			mo := &formatters.MarshalOptions{
 				Multiline: true,
 				Indent:    "  ",
 				Format:    viper.GetString("format")}
@@ -476,4 +486,21 @@ func getOutputsFromCfg() []outputSuggestion {
 		return suggestions[i].name < suggestions[j].name
 	})
 	return suggestions
+}
+
+func readEventProcessors() (map[string]map[string]interface{}, error) {
+	eps := viper.GetStringMap("processors")
+	evpConfig := make(map[string]map[string]interface{})
+	for name, epc := range eps {
+		switch epc := epc.(type) {
+		case map[string]interface{}:
+			evpConfig[name] = epc
+		case nil:
+			return nil, nil
+		default:
+			logger.Printf("malformed processors config, %+v", epc)
+			return nil, fmt.Errorf("malformed processors config, got %T", epc)
+		}
+	}
+	return evpConfig, nil
 }

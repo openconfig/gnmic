@@ -12,7 +12,7 @@ import (
 
 	"github.com/Shopify/sarama"
 	"github.com/google/uuid"
-	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
@@ -45,10 +45,11 @@ func init() {
 type KafkaOutput struct {
 	Cfg      *Config
 	logger   sarama.StdLogger
-	mo       *collector.MarshalOptions
+	mo       *formatters.MarshalOptions
 	cancelFn context.CancelFunc
 	msgChan  chan *protoMsg
 	wg       *sync.WaitGroup
+	evps     []formatters.EventProcessor
 }
 
 // Config //
@@ -63,6 +64,7 @@ type Config struct {
 	NumWorkers       int           `mapstructure:"num-workers,omitempty"`
 	Debug            bool          `mapstructure:"debug,omitempty"`
 	BufferSize       int           `mapstructure:"buffer-size,omitempty"`
+	EventProcessors  []string      `mapstructure:"event_processors,omitempty"`
 }
 
 func (k *KafkaOutput) String() string {
@@ -80,6 +82,28 @@ func (k *KafkaOutput) SetLogger(logger *log.Logger) {
 		sarama.Logger = log.New(os.Stderr, "kafka_output ", log.LstdFlags|log.Lmicroseconds)
 	}
 	k.logger = sarama.Logger
+}
+
+func (k *KafkaOutput) SetEventProcessors(ps map[string]map[string]interface{}, log *log.Logger) {
+	for _, epName := range k.Cfg.EventProcessors {
+		if epCfg, ok := ps[epName]; ok {
+			epType := ""
+			for k := range epCfg {
+				epType = k
+				break
+			}
+			if in, ok := formatters.EventProcessors[epType]; ok {
+				ep := in()
+				err := ep.Init(epCfg[epType], log)
+				if err != nil {
+					k.logger.Printf("failed initializing event processor '%s' of type='%s': %v", epName, epType, err)
+					continue
+				}
+				k.evps = append(k.evps, ep)
+				k.logger.Printf("added event processor '%s' of type=%s to kafka output", epName, epType)
+			}
+		}
+	}
 }
 
 // Init /
@@ -115,7 +139,7 @@ func (k *KafkaOutput) Init(ctx context.Context, cfg map[string]interface{}, opts
 		k.Cfg.NumWorkers = defaultNumWorkers
 	}
 
-	k.mo = &collector.MarshalOptions{Format: k.Cfg.Format}
+	k.mo = &formatters.MarshalOptions{Format: k.Cfg.Format}
 
 	initMetrics()
 	config := sarama.NewConfig()
@@ -200,7 +224,7 @@ CRPROD:
 			k.logger.Printf("%s shutting down", workerLogPrefix)
 			return
 		case m := <-k.msgChan:
-			b, err := k.mo.Marshal(m.m, m.meta)
+			b, err := k.mo.Marshal(m.m, m.meta, k.evps...)
 			if err != nil {
 				if k.Cfg.Debug {
 					k.logger.Printf("%s failed marshaling proto msg: %v", workerLogPrefix, err)
