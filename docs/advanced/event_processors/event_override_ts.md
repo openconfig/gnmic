@@ -5,7 +5,7 @@ The `event_override_ts` processor, overrides the message timestamp with `time.No
 ```yaml
 event_processors:
   # processor name
-  delete_processor:
+  set_timestamp_processor:
     # processor type
     event_override_ts:
       # timestamp precision, s, ms, us, ns (default)

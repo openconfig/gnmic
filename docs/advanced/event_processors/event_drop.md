@@ -5,14 +5,14 @@ The `event_drop` processor, drops the whole message if a tag or a value name mat
 ```yaml
 event_processors:
   # processor name
-  delete_processor:
+  drop_processor:
     # processor type
     event_delete:
       tags:
         - "172.23.23.2*"
 ```
 
-=== "before"
+=== "Event format before"
     ```json
     {
         "name": "default",
@@ -38,7 +38,7 @@ event_processors:
         }
     }
     ```
-=== "after"
+=== "Event format after"
     ```json
     {
     }

@@ -13,7 +13,7 @@ event_processors:
         - ".*broadcast.*"
 ```
 
-=== "before"
+=== "Event format before"
     ```json
     {
         "name": "default",
@@ -39,7 +39,7 @@ event_processors:
         }
     }
     ```
-=== "after"
+=== "Event format after"
     ```json
     {
         "name": "default",

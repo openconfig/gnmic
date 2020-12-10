@@ -5,12 +5,65 @@ A custom separator (used between written messages) can be configured, it default
 ```yaml
 event_processors:
   # processor name
-  delete_processor:
+  write_processor:
     # processor type
     event_write:
       value_names:
-        - ".*-state"
-      dst: log-file.log
+        - "."
+      dst: file.log
       separator: "\n####\n"
       indent: "  "
+```
+
+
+``` bash
+$ cat file.log
+{
+  "name": "sub1",
+  "timestamp": 1607582483868459381,
+  "tags": {
+    "interface_name": "ethernet-1/1",
+    "source": "172.20.20.5:57400",
+    "subscription-name": "sub1"
+  },
+  "values": {
+    "/srl_nokia-interfaces:interface/statistics/carrier-transitions": "1",
+    "/srl_nokia-interfaces:interface/statistics/in-broadcast-packets": "22",
+    "/srl_nokia-interfaces:interface/statistics/in-error-packets": "0",
+    "/srl_nokia-interfaces:interface/statistics/in-fcs-error-packets": "0",
+    "/srl_nokia-interfaces:interface/statistics/in-multicast-packets": "8694",
+    "/srl_nokia-interfaces:interface/statistics/in-octets": "1740350",
+    "/srl_nokia-interfaces:interface/statistics/in-unicast-packets": "17",
+    "/srl_nokia-interfaces:interface/statistics/out-broadcast-packets": "22",
+    "/srl_nokia-interfaces:interface/statistics/out-error-packets": "0",
+    "/srl_nokia-interfaces:interface/statistics/out-multicast-packets": "8696",
+    "/srl_nokia-interfaces:interface/statistics/out-octets": "1723262",
+    "/srl_nokia-interfaces:interface/statistics/out-unicast-packets": "17"
+  }
+}
+####
+{
+  "name": "sub1",
+  "timestamp": 1607582483868459381,
+  "tags": {
+    "interface_name": "ethernet-1/1",
+    "source": "172.20.20.5:57400",
+    "subscription-name": "sub1"
+  },
+  "values": {
+    "/srl_nokia-interfaces:interface/statistics/carrier-transitions": "1",
+    "/srl_nokia-interfaces:interface/statistics/in-broadcast-packets": "22",
+    "/srl_nokia-interfaces:interface/statistics/in-error-packets": "0",
+    "/srl_nokia-interfaces:interface/statistics/in-fcs-error-packets": "0",
+    "/srl_nokia-interfaces:interface/statistics/in-multicast-packets": "8694",
+    "/srl_nokia-interfaces:interface/statistics/in-octets": "1740350",
+    "/srl_nokia-interfaces:interface/statistics/in-unicast-packets": "17",
+    "/srl_nokia-interfaces:interface/statistics/out-broadcast-packets": "22",
+    "/srl_nokia-interfaces:interface/statistics/out-error-packets": "0",
+    "/srl_nokia-interfaces:interface/statistics/out-multicast-packets": "8696",
+    "/srl_nokia-interfaces:interface/statistics/out-octets": "1723262",
+    "/srl_nokia-interfaces:interface/statistics/out-unicast-packets": "17"
+  }
+}
+####
 ```
