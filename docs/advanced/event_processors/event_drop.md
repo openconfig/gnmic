@@ -1,13 +1,13 @@
-The `event_drop` processor, drops the whole message if a tag or a value name matches one of the configured regular expression.
+The `event-drop` processor, drops the whole message if a tag or a value name matches one of the configured regular expression.
 
 ### Examples
 
 ```yaml
-event_processors:
+processors:
   # processor name
-  drop_processor:
+  drop-processor:
     # processor type
-    event_delete:
+    event-delete:
       tags:
         - "172.23.23.2*"
 ```

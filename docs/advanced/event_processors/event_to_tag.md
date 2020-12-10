@@ -1,15 +1,15 @@
-The `event_to_tag` processor, moves a value matching one of the regular expressions from the values section to the tags section.
+The `event-to-tag` processor, moves a value matching one of the regular expressions from the values section to the tags section.
 It's possible to keep the value under values section after moving it.
 
 ### Examples
 
 ```yaml
-event_processors:
+processors:
   # processor name
-  sample_processor:
+  sample-processor:
     # processor type
-    event_to_tag:
-      value_names:
+    event-to-tag:
+      value-names:
         - ".*-state$"
 ```
 

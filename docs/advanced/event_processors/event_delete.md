@@ -1,14 +1,14 @@
-The `event_delete` processor, deletes all tags or values matching a set of regular expressions from the event message.
+The `event-delete` processor, deletes all tags or values matching a set of regular expressions from the event message.
 
 ### Examples
 
 ```yaml
-event_processors:
+processors:
   # processor name
-  delete_processor:
+  delete-processor:
     # processor type
-    event_delete:
-      value_names:
+    event-delete:
+      value-names:
         - ".*multicast.*"
         - ".*broadcast.*"
 ```

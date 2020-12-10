@@ -8,10 +8,14 @@ import (
 	"github.com/karimra/gnmic/formatters"
 )
 
+const (
+	processorType = "event-drop"
+)
+
 // Drop Drops the msg if ANY of the Tags or Values regexes are matched
 type Drop struct {
-	TagNames   []string `mapstructure:"tag_names,omitempty"`
-	ValueNames []string `mapstructure:"value_names,omitempty"`
+	TagNames   []string `mapstructure:"tag-names,omitempty"`
+	ValueNames []string `mapstructure:"value-names,omitempty"`
 	Tags       []string `mapstructure:"tags,omitempty"`
 	Values     []string `mapstructure:"values,omitempty"`
 	Debug      bool     `mapstructure:"debug,omitempty"`
@@ -25,7 +29,7 @@ type Drop struct {
 }
 
 func init() {
-	formatters.Register("event_drop", func() formatters.EventProcessor {
+	formatters.Register(processorType, func() formatters.EventProcessor {
 		return &Drop{}
 	})
 }
@@ -71,7 +75,7 @@ func (d *Drop) Init(cfg interface{}, logger *log.Logger) error {
 		d.values = append(d.values, re)
 	}
 	if d.Debug {
-		d.logger = log.New(logger.Writer(), "event_drop ", logger.Flags())
+		d.logger = log.New(logger.Writer(), processorType+" ", logger.Flags())
 	} else {
 		d.logger = log.New(ioutil.Discard, "", 0)
 	}

@@ -11,16 +11,20 @@ import (
 	"github.com/karimra/gnmic/formatters"
 )
 
+const (
+	processorType = "event-date-string"
+)
+
 // DateString converts Tags and/or Values of unix timestamp to a human readable format.
 // Precision specifies the unit of the received timestamp, s, ms, us or ns.
 // DateTimeFormat is the desired datetime format, it defaults to RFC3339
 type DateString struct {
-	Tags               []string `mapstructure:"tag_names,omitempty"`
-	Values             []string `mapstructure:"value_names,omitempty"`
-	TimestampPrecision string   `mapstructure:"timestamp_precision,omitempty"`
-	DateTimeFormat     string   `mapstructure:"date_time_format,omitempty"`
-	Location           string   `mapstructure:"location,omitempty"`
-	Debug              bool     `mapstructure:"debug,omitempty"`
+	Tags      []string `mapstructure:"tag-names,omitempty"`
+	Values    []string `mapstructure:"value-names,omitempty"`
+	Precision string   `mapstructure:"precision,omitempty"`
+	Format    string   `mapstructure:"format,omitempty"`
+	Location  string   `mapstructure:"location,omitempty"`
+	Debug     bool     `mapstructure:"debug,omitempty"`
 
 	tags     []*regexp.Regexp
 	values   []*regexp.Regexp
@@ -29,7 +33,7 @@ type DateString struct {
 }
 
 func init() {
-	formatters.Register("event_date_string", func() formatters.EventProcessor {
+	formatters.Register(processorType, func() formatters.EventProcessor {
 		return &DateString{}
 	})
 }
@@ -67,7 +71,7 @@ func (d *DateString) Init(cfg interface{}, logger *log.Logger) error {
 		d.location = loc
 	}
 	if d.Debug {
-		d.logger = log.New(logger.Writer(), "event_date_string ", logger.Flags())
+		d.logger = log.New(logger.Writer(), processorType+" ", logger.Flags())
 	} else {
 		d.logger = log.New(ioutil.Discard, "", 0)
 	}
@@ -88,7 +92,7 @@ func (d *DateString) Apply(e *formatters.EventMsg) {
 					continue
 				}
 				var td time.Time
-				switch d.TimestampPrecision {
+				switch d.Precision {
 				case "s", "sec", "second":
 					td = time.Unix(int64(iv), 0)
 				case "ms", "millisecond":
@@ -98,10 +102,10 @@ func (d *DateString) Apply(e *formatters.EventMsg) {
 				case "ns", "nanosecond":
 					td = time.Unix(0, int64(iv))
 				}
-				if d.DateTimeFormat == "" {
-					d.DateTimeFormat = time.RFC3339
+				if d.Format == "" {
+					d.Format = time.RFC3339
 				}
-				e.Values[k] = td.In(d.location).Format(d.DateTimeFormat)
+				e.Values[k] = td.In(d.location).Format(d.Format)
 				break
 			}
 		}
@@ -115,7 +119,7 @@ func (d *DateString) Apply(e *formatters.EventMsg) {
 					log.Printf("failed to convert %s to int: %v", v, err)
 				}
 				var td time.Time
-				switch d.TimestampPrecision {
+				switch d.Precision {
 				case "s", "sec", "second":
 					td = time.Unix(int64(iv), 0)
 				case "ms", "millisecond":
@@ -125,10 +129,10 @@ func (d *DateString) Apply(e *formatters.EventMsg) {
 				case "ns", "nanosecond":
 					td = time.Unix(0, int64(iv))
 				}
-				if d.DateTimeFormat == "" {
-					d.DateTimeFormat = time.RFC3339
+				if d.Format == "" {
+					d.Format = time.RFC3339
 				}
-				e.Values[k] = td.Format(d.DateTimeFormat)
+				e.Values[k] = td.Format(d.Format)
 				break
 			}
 		}

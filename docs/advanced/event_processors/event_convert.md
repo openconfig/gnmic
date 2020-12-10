@@ -1,15 +1,15 @@
-The `event_convert` processor, converts the values matching one of the regular expressions to a specific type: `uint`, `int`, `string`, `float`
+The `event-convert` processor, converts the values matching one of the regular expressions to a specific type: `uint`, `int`, `string`, `float`
 
 ### Examples
 
 ```yaml
-event_processors:
+processors:
   # processor name
-  convert_int_processor:
+  convert-int-processor:
     # processor type
-    event_convert:
+    event-convert:
       # list of regex to be matched with the values names
-      value_names: 
+      value-names: 
         - ".*octets$"
       # the desired value type, one of int, uint, string, float
       type: int 

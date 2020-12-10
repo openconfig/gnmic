@@ -8,11 +8,15 @@ import (
 	"github.com/karimra/gnmic/formatters"
 )
 
+const (
+	processorType = "event-to-tag"
+)
+
 // ToTag moves ALL values matching any of the regex in .Values to the EventMsg.Tags map.
 // if .Keep is true, the matching values are not deleted from EventMsg.Tags
 type ToTag struct {
 	Values     []string `mapstructure:"values,omitempty"`
-	ValueNames []string `mapstructure:"value_names,omitempty"`
+	ValueNames []string `mapstructure:"value-names,omitempty"`
 	Keep       bool     `mapstructure:"keep,omitempty"`
 	Debug      bool     `mapstructure:"debug,omitempty"`
 	valueNames []*regexp.Regexp
@@ -22,7 +26,7 @@ type ToTag struct {
 }
 
 func init() {
-	formatters.Register("event_to_tag", func() formatters.EventProcessor {
+	formatters.Register(processorType, func() formatters.EventProcessor {
 		return &ToTag{}
 	})
 }
@@ -49,7 +53,7 @@ func (t *ToTag) Init(cfg interface{}, logger *log.Logger) error {
 		t.values = append(t.values, re)
 	}
 	if t.Debug {
-		t.logger = log.New(logger.Writer(), "event_to_tag ", logger.Flags())
+		t.logger = log.New(logger.Writer(), processorType+" ", logger.Flags())
 	} else {
 		t.logger = log.New(ioutil.Discard, "", 0)
 	}

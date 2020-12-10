@@ -10,14 +10,16 @@ import (
 	"github.com/karimra/gnmic/formatters"
 )
 
-// TODO
+const (
+	processorType = "event-strings"
+)
 
 // Strings provides some of Golang's strings functions to transform: tags, tag names, values and value names
 type Strings struct {
 	Tags       []string                `mapstructure:"tags,omitempty"`
 	Values     []string                `mapstructure:"values,omitempty"`
-	TagNames   []string                `mapstructure:"tag_names,omitempty"`
-	ValueNames []string                `mapstructure:"value_names,omitempty"`
+	TagNames   []string                `mapstructure:"tag-names,omitempty"`
+	ValueNames []string                `mapstructure:"value-names,omitempty"`
 	Debug      bool                    `mapstructure:"debug,omitempty"`
 	Transforms []map[string]*transform `mapstructure:"transforms,omitempty"`
 
@@ -32,7 +34,7 @@ type Strings struct {
 type transform struct {
 	op string
 	// apply the transformation on name or value
-	On string `mapstructure:"apply_on,omitempty"`
+	ApplyOn string `mapstructure:"apply-on,omitempty"`
 	// Keep the old value or not if the name changed
 	Keep bool `mapstructure:"keep,omitempty"`
 	// string to be replaced
@@ -44,17 +46,17 @@ type transform struct {
 	// Suffix to be trimmed
 	Suffix string `mapstructure:"suffix,omitempty"`
 	// charachter to split on
-	SplitOn string `mapstructure:"split_on,omitempty"`
+	SplitOn string `mapstructure:"split-on,omitempty"`
 	// charachter to join with
-	JoinWith string `mapstructure:"join_with,omitempty"`
+	JoinWith string `mapstructure:"join-with,omitempty"`
 	// number of first items to ignore when joining
-	IgnoreFirst int `mapstructure:"ignore_first,omitempty"`
+	IgnoreFirst int `mapstructure:"ignore-first,omitempty"`
 	// number of last items to ignore when joining
-	IgnoreLast int `mapstructure:"ignore_last,omitempty"`
+	IgnoreLast int `mapstructure:"ignore-last,omitempty"`
 }
 
 func init() {
-	formatters.Register("event_strings", func() formatters.EventProcessor {
+	formatters.Register(processorType, func() formatters.EventProcessor {
 		return &Strings{}
 	})
 }
@@ -65,7 +67,7 @@ func (s *Strings) Init(cfg interface{}, logger *log.Logger) error {
 		return err
 	}
 	if s.Debug {
-		s.logger = log.New(logger.Writer(), "event_strings ", logger.Flags())
+		s.logger = log.New(logger.Writer(), processorType+" ", logger.Flags())
 	} else {
 		s.logger = log.New(ioutil.Discard, "", 0)
 	}
@@ -183,26 +185,26 @@ func (t *transform) apply(k string, v interface{}) (string, interface{}) {
 	switch t.op {
 	case "replace":
 		return t.replace(k, v)
-	case "trim_prefix":
+	case "trim-prefix":
 		return t.trimPrefix(k, v)
-	case "trim_suffix":
+	case "trim-suffix":
 		return t.trimSuffix(k, v)
 	case "title":
 		return t.toTitle(k, v)
-	case "to_lower":
+	case "to-lower":
 		return t.toLower(k, v)
-	case "to_upper":
+	case "to-upper":
 		return t.toUpper(k, v)
 	case "split":
 		return t.split(k, v)
-	case "path_base":
+	case "path-base":
 		return t.pathBase(k, v)
 	}
 	return k, v
 }
 
 func (t *transform) replace(k string, v interface{}) (string, interface{}) {
-	switch t.On {
+	switch t.ApplyOn {
 	case "name":
 		k = strings.ReplaceAll(k, t.Old, t.New)
 	case "value":
@@ -214,7 +216,7 @@ func (t *transform) replace(k string, v interface{}) (string, interface{}) {
 }
 
 func (t *transform) trimPrefix(k string, v interface{}) (string, interface{}) {
-	switch t.On {
+	switch t.ApplyOn {
 	case "name":
 		k = strings.TrimPrefix(k, t.Prefix)
 	case "value":
@@ -226,7 +228,7 @@ func (t *transform) trimPrefix(k string, v interface{}) (string, interface{}) {
 }
 
 func (t *transform) trimSuffix(k string, v interface{}) (string, interface{}) {
-	switch t.On {
+	switch t.ApplyOn {
 	case "name":
 		k = strings.TrimSuffix(k, t.Suffix)
 	case "value":
@@ -238,7 +240,7 @@ func (t *transform) trimSuffix(k string, v interface{}) (string, interface{}) {
 }
 
 func (t *transform) toTitle(k string, v interface{}) (string, interface{}) {
-	switch t.On {
+	switch t.ApplyOn {
 	case "name":
 		k = strings.Title(k)
 	case "value":
@@ -250,7 +252,7 @@ func (t *transform) toTitle(k string, v interface{}) (string, interface{}) {
 }
 
 func (t *transform) toLower(k string, v interface{}) (string, interface{}) {
-	switch t.On {
+	switch t.ApplyOn {
 	case "name":
 		k = strings.ToLower(k)
 	case "value":
@@ -262,7 +264,7 @@ func (t *transform) toLower(k string, v interface{}) (string, interface{}) {
 }
 
 func (t *transform) toUpper(k string, v interface{}) (string, interface{}) {
-	switch t.On {
+	switch t.ApplyOn {
 	case "name":
 		k = strings.ToUpper(k)
 	case "value":
@@ -274,7 +276,7 @@ func (t *transform) toUpper(k string, v interface{}) (string, interface{}) {
 }
 
 func (t *transform) split(k string, v interface{}) (string, interface{}) {
-	switch t.On {
+	switch t.ApplyOn {
 	case "name":
 		items := strings.Split(k, t.SplitOn)
 		numItems := len(items)
@@ -296,7 +298,7 @@ func (t *transform) split(k string, v interface{}) (string, interface{}) {
 }
 
 func (t *transform) pathBase(k string, v interface{}) (string, interface{}) {
-	switch t.On {
+	switch t.ApplyOn {
 	case "name":
 		k = filepath.Base(k)
 	case "value":

@@ -1,14 +1,14 @@
-The `event_write` processor,  writes a message that has a value or a tag matching one of the configured regular expressions to `stdout`, `stderr` or to a file. 
+The `event-write` processor,  writes a message that has a value or a tag matching one of the configured regular expressions to `stdout`, `stderr` or to a file. 
 A custom separator (used between written messages) can be configured, it defaults to `\n`
 
 ### Examples
 ```yaml
-event_processors:
+processors:
   # processor name
-  write_processor:
+  write-processor:
     # processor type
-    event_write:
-      value_names:
+    event-write:
+      value-names:
         - "."
       dst: file.log
       separator: "\n####\n"

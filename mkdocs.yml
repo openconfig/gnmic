@@ -20,7 +20,7 @@ nav:
           - TCP: advanced/multi_outputs/tcp_output.md
           - UDP: advanced/multi_outputs/udp_output.md
           - InfluxDB: advanced/multi_outputs/influxdb_output.md
-      - Event Processors: 
+      - Processors: 
           - Introduction: advanced/event_processors/intro.md
           - Convert: advanced/event_processors/event_convert.md
           - Date string: advanced/event_processors/event_date_string.md

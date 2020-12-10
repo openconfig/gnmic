@@ -11,11 +11,15 @@ import (
 	"github.com/karimra/gnmic/formatters"
 )
 
+const (
+	processorType = "event-write"
+)
+
 type Write struct {
 	Tags       []string `mapstructure:"tags,omitempty"`
 	Values     []string `mapstructure:"values,omitempty"`
-	TagNames   []string `mapstructure:"tag_names,omitempty"`
-	ValueNames []string `mapstructure:"value_names,omitempty"`
+	TagNames   []string `mapstructure:"tag-names,omitempty"`
+	ValueNames []string `mapstructure:"value-names,omitempty"`
 	Dst        string   `mapstructure:"dst,omitempty"`
 	Separator  string   `mapstructure:"separator,omitempty"`
 	Indent     string   `mapstructure:"indent,omitempty"`
@@ -32,7 +36,7 @@ type Write struct {
 }
 
 func init() {
-	formatters.Register("event_write", func() formatters.EventProcessor {
+	formatters.Register(processorType, func() formatters.EventProcessor {
 		return &Write{}
 	})
 }
@@ -94,7 +98,7 @@ func (p *Write) Init(cfg interface{}, logger *log.Logger) error {
 		}
 	}
 	if p.Debug {
-		p.logger = log.New(logger.Writer(), "event_write ", logger.Flags())
+		p.logger = log.New(logger.Writer(), processorType+" ", logger.Flags())
 	} else {
 		p.logger = log.New(ioutil.Discard, "", 0)
 	}

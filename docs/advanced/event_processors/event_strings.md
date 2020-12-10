@@ -1,4 +1,4 @@
-The `event_strings` processor, exposes a few of Golang strings transformation functions, there functions can be applied to tags, tag names, values or value names. 
+The `event-strings` processor, exposes a few of Golang strings transformation functions, there functions can be applied to tags, tag names, values or value names. 
 
 Supported functions:
 
@@ -13,54 +13,54 @@ Supported functions:
 
 
 ```yaml
-event_processors:
+processors:
   # processor name
-  sample_processor:
+  sample-processor:
     # processor type
-    event_strings:
-      value_names: []
-      tag_names: []
+    event-strings:
+      value-names: []
+      tag-names: []
       values: []
       tags: []
       transforms:
         # strings function name
         - replace:
-            on:  # apply the transformation on name or value
+            apply-on:  # apply the transformation on name or value
             keep: # keep the old value or not if the name changed
             old: # string to be replaced
             new: #replacement string of old
-        - trim_prefix:
-            on: # apply the transformation on name or value
+        - trim-prefix:
+            apply-on: # apply the transformation on name or value
             prefix: # prefix to be trimmed
         - trim_suffix:
-            on: # apply the transformation on name or value
+            apply-on: # apply the transformation on name or value
             suffix: # suffix to be trimmed
         - title:
-            on: # apply the transformation on name or value
-        - to_upper:
-            on: # apply the transformation on name or value
-        - to_lower:
-            on: # apply the transformation on name or value
+            apply-on: # apply the transformation on name or value
+        - to-upper:
+            apply-on: # apply the transformation on name or value
+        - to-lower:
+            apply-on: # apply the transformation on name or value
         - split:
-            on: # apply the transformation on name or value
-            split_on: # charachter to split on
-            join_with: # charachter to join with
-            ignore_first: # number of first items to ignore when joining
-            ignore_last: # number of last items to ignore when joining
-        - path_base:
-            on: # apply the transformation on name or value 
+            apply-on: # apply the transformation on name or value
+            split-on: # charachter to split on
+            join-with: # charachter to join with
+            ignore-first: # number of first items to ignore when joining
+            ignore-last: # number of last items to ignore when joining
+        - path-base:
+            apply-on: # apply the transformation on name or value 
 ```
 ### Examples
 
 #### replace
 
 ```yaml
-event_processors:
+processors:
   # processor name
-  sample_processor:
+  sample-processor:
     # processor type
-    event_strings:
-      value_names:
+    event-strings:
+      value-names:
         - ".*"
       transforms:
         # strings function name
@@ -115,20 +115,20 @@ event_processors:
     }
     ```
 
-#### trim_prefix
+#### trim-prefix
 
 ```yaml
-event_processors:
+processors:
   # processor name
-  sample_processor:
+  sample-processor:
     # processor type
-    event_strings:
-      value_names:
+    event-strings:
+      value-names:
         - ".*"
       transforms:
         # strings function name
-        - trim_prefix:
-            on: "name"
+        - trim-prefix:
+            apply-on: "name"
             prefix: "/srl_nokia-interfaces:interface/statistics/"
 
 ```
@@ -186,21 +186,21 @@ event_processors:
     }
     ```
 
-#### to_upper
+#### to-upper
 
 ```yaml
-event_processors:
+processors:
   # processor name
-  sample_processor:
+  sample-processor:
     # processor type
-    event_strings:
-      tag_names:
+    event-strings:
+      tag-names:
         - "interface_name"
         - "subscription-name"
       transforms:
         # strings function name
-        - to_upper:
-            on: "value"
+        - to-upper:
+            apply-on: "value"
 
 ```
 
@@ -256,20 +256,20 @@ event_processors:
         }
     }
     ```
-#### path_base
+#### path-base
 
 ```yaml
-event_processors:
+processors:
   # processor name
-  sample_processor:
+  sample-processor:
     # processor type
-    event_strings:
-      value_names:
+    event-strings:
+      value-names:
         - ".*"
       transforms:
         # strings function name
-        - path_base:
-            On: "name
+        - path-base:
+            apply-on: "name
 ```
 
 === "Event format before"
@@ -328,20 +328,20 @@ event_processors:
 #### split
 
 ```yaml
-event_processors:
+processors:
   # processor name
-  sample_processor:
+  sample-processor:
     # processor type
-    event_strings:
-      value_names:
+    event-strings:
+      value-names:
         - ".*"
       transforms:
         # strings function name
         - split:
             on: "name"
-            split_on: "/"
-            join_with: "_"
-            ignore_first: 1
+            split-on: "/"
+            join-with: "_"
+            ignore-first: 1
 
 ```
 

@@ -8,6 +8,10 @@ import (
 	"github.com/karimra/gnmic/formatters"
 )
 
+const (
+	processorType = "event-override-ts"
+)
+
 // OverrideTS Drops the msg if ANY of the Tags or Values regexes are matched
 type OverrideTS struct {
 	Precision string `mapstructure:"precision,omitempty"`
@@ -17,7 +21,7 @@ type OverrideTS struct {
 }
 
 func init() {
-	formatters.Register("event_override_ts", func() formatters.EventProcessor {
+	formatters.Register(processorType, func() formatters.EventProcessor {
 		return &OverrideTS{}
 	})
 }
@@ -31,7 +35,7 @@ func (o *OverrideTS) Init(cfg interface{}, logger *log.Logger) error {
 		o.Precision = "ns"
 	}
 	if o.Debug {
-		o.logger = log.New(logger.Writer(), "event_override_ts ", logger.Flags())
+		o.logger = log.New(logger.Writer(), processorType+" ", logger.Flags())
 	} else {
 		o.logger = log.New(ioutil.Discard, "", 0)
 	}

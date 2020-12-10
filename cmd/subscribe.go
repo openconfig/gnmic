@@ -95,7 +95,7 @@ var subscribeCmd = &cobra.Command{
 			return err
 		}
 		if debug {
-			logger.Printf("event_processors: %+v", epconfig)
+			logger.Printf("processors: %+v", epconfig)
 		}
 		if coll == nil {
 			cfg := &collector.Config{
@@ -489,7 +489,7 @@ func getOutputsFromCfg() []outputSuggestion {
 }
 
 func readEventProcessors() (map[string]map[string]interface{}, error) {
-	eps := viper.GetStringMap("event_processors")
+	eps := viper.GetStringMap("processors")
 	evpConfig := make(map[string]map[string]interface{})
 	for name, epc := range eps {
 		switch epc := epc.(type) {
@@ -498,8 +498,8 @@ func readEventProcessors() (map[string]map[string]interface{}, error) {
 		case nil:
 			return nil, nil
 		default:
-			logger.Printf("malformed event processors config, %+v", epc)
-			return nil, fmt.Errorf("malformed event processors config, got %T", epc)
+			logger.Printf("malformed processors config, %+v", epc)
+			return nil, fmt.Errorf("malformed processors config, got %T", epc)
 		}
 	}
 	return evpConfig, nil

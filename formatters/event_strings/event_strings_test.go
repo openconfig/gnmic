@@ -18,23 +18,23 @@ var testset = map[string]struct {
 	tests         []item
 }{
 	"replace": {
-		processorType: "event_strings",
+		processorType: processorType,
 		processor: map[string]interface{}{
-			"value_names": []string{"^name$"},
-			"tag_names":   []string{"tag"},
+			"value-names": []string{"^name$"},
+			"tag-names":   []string{"tag"},
 			"transforms": []map[string]*transform{
 				{
 					"replace": &transform{
-						On:  "name",
-						Old: "name",
-						New: "new_name",
+						ApplyOn: "name",
+						Old:     "name",
+						New:     "new_name",
 					},
 				},
 				{
 					"replace": &transform{
-						On:  "name",
-						Old: "tag",
-						New: "new_tag",
+						ApplyOn: "name",
+						Old:     "tag",
+						New:     "new_tag",
 					},
 				},
 			},
@@ -73,14 +73,14 @@ var testset = map[string]struct {
 		},
 	},
 	"trim_prefix": {
-		processorType: "event_strings",
+		processorType: processorType,
 		processor: map[string]interface{}{
-			"value_names": []string{"^prefix_"},
+			"value-names": []string{"^prefix_"},
 			"transforms": []map[string]*transform{
 				{
-					"trim_prefix": &transform{
-						On:     "name",
-						Prefix: "prefix_",
+					"trim-prefix": &transform{
+						ApplyOn: "name",
+						Prefix:  "prefix_",
 					},
 				},
 			},
@@ -114,15 +114,15 @@ var testset = map[string]struct {
 			},
 		},
 	},
-	"trim_suffix": {
-		processorType: "event_strings",
+	"trim-suffix": {
+		processorType: processorType,
 		processor: map[string]interface{}{
-			"value_names": []string{"_suffix$"},
+			"value-names": []string{"_suffix$"},
 			"transforms": []map[string]*transform{
 				{
 					"trim_suffix": &transform{
-						On:     "name",
-						Suffix: "_suffix",
+						ApplyOn: "name",
+						Suffix:  "_suffix",
 					},
 				},
 			},
@@ -157,13 +157,13 @@ var testset = map[string]struct {
 		},
 	},
 	"title": {
-		processorType: "event_strings",
+		processorType: processorType,
 		processor: map[string]interface{}{
-			"value_names": []string{"title"},
+			"value-names": []string{"title"},
 			"transforms": []map[string]*transform{
 				{
 					"title": &transform{
-						On: "name",
+						ApplyOn: "name",
 					},
 				},
 			},
@@ -198,13 +198,13 @@ var testset = map[string]struct {
 		},
 	},
 	"to_upper": {
-		processorType: "event_strings",
+		processorType: processorType,
 		processor: map[string]interface{}{
-			"value_names": []string{"to_be_capitalized"},
+			"value-names": []string{"to_be_capitalized"},
 			"transforms": []map[string]*transform{
 				{
-					"to_upper": &transform{
-						On: "name",
+					"to-upper": &transform{
+						ApplyOn: "name",
 					},
 				},
 			},
@@ -239,13 +239,13 @@ var testset = map[string]struct {
 		},
 	},
 	"to_lower": {
-		processorType: "event_strings",
+		processorType: processorType,
 		processor: map[string]interface{}{
-			"value_names": []string{"TO_BE_LOWERED"},
+			"value-names": []string{"TO_BE_LOWERED"},
 			"transforms": []map[string]*transform{
 				{
-					"to_lower": &transform{
-						On: "name",
+					"to-lower": &transform{
+						ApplyOn: "name",
 					},
 				},
 			},
@@ -280,13 +280,13 @@ var testset = map[string]struct {
 		},
 	},
 	"split": {
-		processorType: "event_strings",
+		processorType: processorType,
 		processor: map[string]interface{}{
-			"value_names": []string{"path/to/a/resource"},
+			"value-names": []string{"path/to/a/resource"},
 			"transforms": []map[string]*transform{
 				{
 					"split": &transform{
-						On:          "name",
+						ApplyOn:     "name",
 						SplitOn:     "/",
 						JoinWith:    "_",
 						IgnoreFirst: 2,
@@ -324,13 +324,13 @@ var testset = map[string]struct {
 		},
 	},
 	"path_base": {
-		processorType: "event_strings",
+		processorType: processorType,
 		processor: map[string]interface{}{
-			"value_names": []string{"path/to/a/resource"},
+			"value-names": []string{"path/to/a/resource"},
 			"transforms": []map[string]*transform{
 				{
-					"path_base": &transform{
-						On: "name",
+					"path-base": &transform{
+						ApplyOn: "name",
 					},
 				},
 			},

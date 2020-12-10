@@ -10,9 +10,13 @@ import (
 	"github.com/karimra/gnmic/formatters"
 )
 
+const (
+	processorType = "event-convert"
+)
+
 // Convert converts the value with key matching one of regexes, to the specified Type
 type Convert struct {
-	Values []string `mapstructure:"value_names,omitempty"`
+	Values []string `mapstructure:"value-names,omitempty"`
 	Type   string   `mapstructure:"type,omitempty"`
 	Debug  bool     `mapstructure:"debug,omitempty"`
 
@@ -21,7 +25,7 @@ type Convert struct {
 }
 
 func init() {
-	formatters.Register("event_convert", func() formatters.EventProcessor {
+	formatters.Register(processorType, func() formatters.EventProcessor {
 		return &Convert{}
 	})
 }
@@ -40,7 +44,7 @@ func (c *Convert) Init(cfg interface{}, logger *log.Logger) error {
 		c.values = append(c.values, re)
 	}
 	if c.Debug {
-		c.logger = log.New(logger.Writer(), "event_convert ", logger.Flags())
+		c.logger = log.New(logger.Writer(), processorType+" ", logger.Flags())
 	} else {
 		c.logger = log.New(ioutil.Discard, "", 0)
 	}
