@@ -1,6 +1,7 @@
 package event_strings
 
 import (
+	"encoding/json"
 	"io/ioutil"
 	"log"
 	"os"
@@ -17,12 +18,12 @@ const (
 
 // Strings provides some of Golang's strings functions to transform: tags, tag names, values and value names
 type Strings struct {
-	Tags       []string                `mapstructure:"tags,omitempty"`
-	Values     []string                `mapstructure:"values,omitempty"`
-	TagNames   []string                `mapstructure:"tag-names,omitempty"`
-	ValueNames []string                `mapstructure:"value-names,omitempty"`
-	Debug      bool                    `mapstructure:"debug,omitempty"`
-	Transforms []map[string]*transform `mapstructure:"transforms,omitempty"`
+	Tags       []string                `mapstructure:"tags,omitempty" json:"tags,omitempty"`
+	Values     []string                `mapstructure:"values,omitempty" json:"values,omitempty"`
+	TagNames   []string                `mapstructure:"tag-names,omitempty" json:"tag-names,omitempty"`
+	ValueNames []string                `mapstructure:"value-names,omitempty" json:"value-names,omitempty"`
+	Debug      bool                    `mapstructure:"debug,omitempty" json:"debug,omitempty"`
+	Transforms []map[string]*transform `mapstructure:"transforms,omitempty" json:"transforms,omitempty"`
 
 	tags      []*regexp.Regexp
 	values    []*regexp.Regexp
@@ -35,25 +36,25 @@ type Strings struct {
 type transform struct {
 	op string
 	// apply the transformation on name or value
-	ApplyOn string `mapstructure:"apply-on,omitempty"`
+	ApplyOn string `mapstructure:"apply-on,omitempty" json:"apply-on,omitempty"`
 	// Keep the old value or not if the name changed
-	Keep bool `mapstructure:"keep,omitempty"`
+	Keep bool `mapstructure:"keep,omitempty" json:"keep,omitempty"`
 	// string to be replaced
-	Old string `mapstructure:"old,omitempty"`
+	Old string `mapstructure:"old,omitempty" json:"old,omitempty"`
 	// replacement string of Old
-	New string `mapstructure:"new,omitempty"`
+	New string `mapstructure:"new,omitempty" json:"new,omitempty"`
 	// Prefix to be trimmed
-	Prefix string `mapstructure:"prefix,omitempty"`
+	Prefix string `mapstructure:"prefix,omitempty" json:"prefix,omitempty"`
 	// Suffix to be trimmed
-	Suffix string `mapstructure:"suffix,omitempty"`
+	Suffix string `mapstructure:"suffix,omitempty" json:"suffix,omitempty"`
 	// charachter to split on
-	SplitOn string `mapstructure:"split-on,omitempty"`
+	SplitOn string `mapstructure:"split-on,omitempty" json:"split-on,omitempty"`
 	// charachter to join with
-	JoinWith string `mapstructure:"join-with,omitempty"`
+	JoinWith string `mapstructure:"join-with,omitempty" json:"join-with,omitempty"`
 	// number of first items to ignore when joining
-	IgnoreFirst int `mapstructure:"ignore-first,omitempty"`
+	IgnoreFirst int `mapstructure:"ignore-first,omitempty" json:"ignore-first,omitempty"`
 	// number of last items to ignore when joining
-	IgnoreLast int `mapstructure:"ignore-last,omitempty"`
+	IgnoreLast int `mapstructure:"ignore-last,omitempty" json:"ignore-last,omitempty"`
 }
 
 func init() {
@@ -114,6 +115,14 @@ func (s *Strings) Init(cfg interface{}, logger *log.Logger) error {
 			return err
 		}
 		s.valueKeys = append(s.valueKeys, re)
+	}
+	if s.logger.Writer() != ioutil.Discard {
+		b, err := json.Marshal(s)
+		if err != nil {
+			s.logger.Printf("initialized processor '%s': %+v", processorType, s)
+			return nil
+		}
+		s.logger.Printf("initialized processor '%s': %s", processorType, string(b))
 	}
 	return nil
 }

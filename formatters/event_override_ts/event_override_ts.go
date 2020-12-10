@@ -1,8 +1,10 @@
 package event_override_ts
 
 import (
+	"encoding/json"
 	"io/ioutil"
 	"log"
+	"os"
 	"time"
 
 	"github.com/karimra/gnmic/formatters"
@@ -14,8 +16,8 @@ const (
 
 // OverrideTS Drops the msg if ANY of the Tags or Values regexes are matched
 type OverrideTS struct {
-	Precision string `mapstructure:"precision,omitempty"`
-	Debug     bool   `mapstructure:"debug,omitempty"`
+	Precision string `mapstructure:"precision,omitempty" json:"precision,omitempty"`
+	Debug     bool   `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 
 	logger *log.Logger
 }
@@ -31,13 +33,23 @@ func (o *OverrideTS) Init(cfg interface{}, logger *log.Logger) error {
 	if err != nil {
 		return err
 	}
+	if o.Debug && logger != nil {
+		o.logger = log.New(logger.Writer(), processorType+" ", logger.Flags())
+	} else if o.Debug {
+		o.logger = log.New(os.Stderr, processorType+" ", log.LstdFlags|log.Lmicroseconds)
+	} else {
+		o.logger = log.New(ioutil.Discard, "", 0)
+	}
 	if o.Precision == "" {
 		o.Precision = "ns"
 	}
-	if o.Debug {
-		o.logger = log.New(logger.Writer(), processorType+" ", logger.Flags())
-	} else {
-		o.logger = log.New(ioutil.Discard, "", 0)
+	if o.logger.Writer() != ioutil.Discard {
+		b, err := json.Marshal(o)
+		if err != nil {
+			o.logger.Printf("initialized processor '%s': %+v", processorType, o)
+			return nil
+		}
+		o.logger.Printf("initialized processor '%s': %s", processorType, string(b))
 	}
 	return nil
 }

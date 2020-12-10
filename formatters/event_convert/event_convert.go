@@ -1,9 +1,11 @@
 package event_convert
 
 import (
+	"encoding/json"
 	"errors"
 	"io/ioutil"
 	"log"
+	"os"
 	"regexp"
 	"strconv"
 
@@ -16,9 +18,9 @@ const (
 
 // Convert converts the value with key matching one of regexes, to the specified Type
 type Convert struct {
-	Values []string `mapstructure:"value-names,omitempty"`
-	Type   string   `mapstructure:"type,omitempty"`
-	Debug  bool     `mapstructure:"debug,omitempty"`
+	Values []string `mapstructure:"value-names,omitempty" json:"value-names,omitempty"`
+	Type   string   `mapstructure:"type,omitempty" json:"type,omitempty"`
+	Debug  bool     `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 
 	values []*regexp.Regexp
 	logger *log.Logger
@@ -35,6 +37,13 @@ func (c *Convert) Init(cfg interface{}, logger *log.Logger) error {
 	if err != nil {
 		return err
 	}
+	if c.Debug && logger != nil {
+		c.logger = log.New(logger.Writer(), processorType+" ", logger.Flags())
+	} else if c.Debug {
+		c.logger = log.New(os.Stderr, processorType+" ", log.LstdFlags|log.Lmicroseconds)
+	} else {
+		c.logger = log.New(ioutil.Discard, "", 0)
+	}
 	c.values = make([]*regexp.Regexp, 0, len(c.Values))
 	for _, reg := range c.Values {
 		re, err := regexp.Compile(reg)
@@ -43,10 +52,13 @@ func (c *Convert) Init(cfg interface{}, logger *log.Logger) error {
 		}
 		c.values = append(c.values, re)
 	}
-	if c.Debug {
-		c.logger = log.New(logger.Writer(), processorType+" ", logger.Flags())
-	} else {
-		c.logger = log.New(ioutil.Discard, "", 0)
+	if c.logger.Writer() != ioutil.Discard {
+		b, err := json.Marshal(c)
+		if err != nil {
+			c.logger.Printf("initialized processor '%s': %+v", processorType, c)
+			return nil
+		}
+		c.logger.Printf("initialized processor '%s': %s", processorType, string(b))
 	}
 	return nil
 }

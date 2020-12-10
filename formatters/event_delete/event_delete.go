@@ -1,8 +1,10 @@
 package event_delete
 
 import (
+	"encoding/json"
 	"io/ioutil"
 	"log"
+	"os"
 	"regexp"
 
 	"github.com/karimra/gnmic/formatters"
@@ -14,11 +16,11 @@ const (
 
 // Delete, deletes ALL the tags or values matching one of the regexes
 type Delete struct {
-	Tags       []string `mapstructure:"tags,omitempty"`
-	Values     []string `mapstructure:"values,omitempty"`
-	TagNames   []string `mapstructure:"tag-names,omitempty"`
-	ValueNames []string `mapstructure:"value-names,omitempty"`
-	Debug      bool     `mapstructure:"debug,omitempty"`
+	Tags       []string `mapstructure:"tags,omitempty" json:"tags,omitempty"`
+	Values     []string `mapstructure:"values,omitempty" json:"values,omitempty"`
+	TagNames   []string `mapstructure:"tag-names,omitempty" json:"tag-names,omitempty"`
+	ValueNames []string `mapstructure:"value-names,omitempty" json:"value-names,omitempty"`
+	Debug      bool     `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 
 	tags   []*regexp.Regexp
 	values []*regexp.Regexp
@@ -39,6 +41,13 @@ func (d *Delete) Init(cfg interface{}, logger *log.Logger) error {
 	err := formatters.DecodeConfig(cfg, d)
 	if err != nil {
 		return err
+	}
+	if d.Debug && logger != nil {
+		d.logger = log.New(logger.Writer(), processorType+" ", logger.Flags())
+	} else if d.Debug {
+		d.logger = log.New(os.Stderr, processorType+" ", log.LstdFlags|log.Lmicroseconds)
+	} else {
+		d.logger = log.New(ioutil.Discard, "", 0)
 	}
 	// init tags regex
 	d.tags = make([]*regexp.Regexp, 0, len(d.Tags))
@@ -76,10 +85,13 @@ func (d *Delete) Init(cfg interface{}, logger *log.Logger) error {
 		}
 		d.valueNames = append(d.valueNames, re)
 	}
-	if d.Debug {
-		d.logger = log.New(logger.Writer(), processorType+" ", logger.Flags())
-	} else {
-		d.logger = log.New(ioutil.Discard, "", 0)
+	if d.logger.Writer() != ioutil.Discard {
+		b, err := json.Marshal(d)
+		if err != nil {
+			d.logger.Printf("initialized processor '%s': %+v", processorType, d)
+			return nil
+		}
+		d.logger.Printf("initialized processor '%s': %s", processorType, string(b))
 	}
 	return nil
 }

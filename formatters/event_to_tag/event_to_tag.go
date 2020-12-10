@@ -1,8 +1,10 @@
 package event_to_tag
 
 import (
+	"encoding/json"
 	"io/ioutil"
 	"log"
+	"os"
 	"regexp"
 
 	"github.com/karimra/gnmic/formatters"
@@ -15,10 +17,11 @@ const (
 // ToTag moves ALL values matching any of the regex in .Values to the EventMsg.Tags map.
 // if .Keep is true, the matching values are not deleted from EventMsg.Tags
 type ToTag struct {
-	Values     []string `mapstructure:"values,omitempty"`
-	ValueNames []string `mapstructure:"value-names,omitempty"`
-	Keep       bool     `mapstructure:"keep,omitempty"`
-	Debug      bool     `mapstructure:"debug,omitempty"`
+	Values     []string `mapstructure:"values,omitempty" json:"values,omitempty"`
+	ValueNames []string `mapstructure:"value-names,omitempty" json:"value-names,omitempty"`
+	Keep       bool     `mapstructure:"keep,omitempty" json:"keep,omitempty"`
+	Debug      bool     `mapstructure:"debug,omitempty" json:"debug,omitempty"`
+	
 	valueNames []*regexp.Regexp
 	values     []*regexp.Regexp
 
@@ -36,6 +39,13 @@ func (t *ToTag) Init(cfg interface{}, logger *log.Logger) error {
 	if err != nil {
 		return err
 	}
+	if t.Debug && logger != nil {
+		t.logger = log.New(logger.Writer(), processorType+" ", logger.Flags())
+	} else if t.Debug {
+		t.logger = log.New(os.Stderr, processorType+" ", log.LstdFlags|log.Lmicroseconds)
+	} else {
+		t.logger = log.New(ioutil.Discard, "", 0)
+	}
 	t.valueNames = make([]*regexp.Regexp, 0, len(t.ValueNames))
 	for _, reg := range t.ValueNames {
 		re, err := regexp.Compile(reg)
@@ -52,10 +62,13 @@ func (t *ToTag) Init(cfg interface{}, logger *log.Logger) error {
 		}
 		t.values = append(t.values, re)
 	}
-	if t.Debug {
-		t.logger = log.New(logger.Writer(), processorType+" ", logger.Flags())
-	} else {
-		t.logger = log.New(ioutil.Discard, "", 0)
+	if t.logger.Writer() != ioutil.Discard {
+		b, err := json.Marshal(t)
+		if err != nil {
+			t.logger.Printf("initialized processor '%s': %+v", processorType, t)
+			return nil
+		}
+		t.logger.Printf("initialized processor '%s': %s", processorType, string(b))
 	}
 	return nil
 }

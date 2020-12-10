@@ -16,14 +16,14 @@ const (
 )
 
 type Write struct {
-	Tags       []string `mapstructure:"tags,omitempty"`
-	Values     []string `mapstructure:"values,omitempty"`
-	TagNames   []string `mapstructure:"tag-names,omitempty"`
-	ValueNames []string `mapstructure:"value-names,omitempty"`
-	Dst        string   `mapstructure:"dst,omitempty"`
-	Separator  string   `mapstructure:"separator,omitempty"`
-	Indent     string   `mapstructure:"indent,omitempty"`
-	Debug      bool     `mapstructure:"debug,omitempty"`
+	Tags       []string `mapstructure:"tags,omitempty" json:"tags,omitempty"`
+	Values     []string `mapstructure:"values,omitempty" json:"values,omitempty"`
+	TagNames   []string `mapstructure:"tag-names,omitempty" json:"tag-names,omitempty"`
+	ValueNames []string `mapstructure:"value-names,omitempty" json:"value-names,omitempty"`
+	Dst        string   `mapstructure:"dst,omitempty" json:"dst,omitempty"`
+	Separator  string   `mapstructure:"separator,omitempty" json:"separator,omitempty"`
+	Indent     string   `mapstructure:"indent,omitempty" json:"indent,omitempty"`
+	Debug      bool     `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 
 	tags       []*regexp.Regexp
 	values     []*regexp.Regexp
@@ -45,6 +45,13 @@ func (p *Write) Init(cfg interface{}, logger *log.Logger) error {
 	err := formatters.DecodeConfig(cfg, p)
 	if err != nil {
 		return err
+	}
+	if p.Debug && logger != nil {
+		p.logger = log.New(logger.Writer(), processorType+" ", logger.Flags())
+	} else if p.Debug {
+		p.logger = log.New(os.Stderr, processorType+" ", log.LstdFlags|log.Lmicroseconds)
+	} else {
+		p.logger = log.New(ioutil.Discard, "", 0)
 	}
 	if p.Separator == "" {
 		p.sep = []byte("\n")
@@ -97,10 +104,13 @@ func (p *Write) Init(cfg interface{}, logger *log.Logger) error {
 			return err
 		}
 	}
-	if p.Debug {
-		p.logger = log.New(logger.Writer(), processorType+" ", logger.Flags())
-	} else {
-		p.logger = log.New(ioutil.Discard, "", 0)
+	if p.logger.Writer() != ioutil.Discard {
+		b, err := json.Marshal(p)
+		if err != nil {
+			p.logger.Printf("initialized processor '%s': %+v", processorType, p)
+			return nil
+		}
+		p.logger.Printf("initialized processor '%s': %s", processorType, string(b))
 	}
 	return nil
 }
@@ -116,7 +126,7 @@ func (p *Write) Apply(e *formatters.EventMsg) {
 				if re.MatchString(vs) {
 					err := p.write(e)
 					if err != nil {
-						// TODO add logger to processors
+						p.logger.Printf("failed to write to destination: %v", err)
 						return
 					}
 					return
@@ -127,7 +137,7 @@ func (p *Write) Apply(e *formatters.EventMsg) {
 			if re.MatchString(k) {
 				err := p.write(e)
 				if err != nil {
-					// TODO add logger to processors
+					p.logger.Printf("failed to write to destination: %v", err)
 					return
 				}
 				return
@@ -139,7 +149,7 @@ func (p *Write) Apply(e *formatters.EventMsg) {
 			if re.MatchString(k) {
 				err := p.write(e)
 				if err != nil {
-					// TODO add logger to processors
+					p.logger.Printf("failed to write to destination: %v", err)
 					return
 				}
 				return
@@ -149,7 +159,7 @@ func (p *Write) Apply(e *formatters.EventMsg) {
 			if re.MatchString(v) {
 				err := p.write(e)
 				if err != nil {
-					// TODO add logger to processors
+					p.logger.Printf("failed to write to destination: %v", err)
 					return
 				}
 				return

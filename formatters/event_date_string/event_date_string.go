@@ -1,9 +1,11 @@
 package event_date_string
 
 import (
+	"encoding/json"
 	"errors"
 	"io/ioutil"
 	"log"
+	"os"
 	"regexp"
 	"strconv"
 	"time"
@@ -19,12 +21,12 @@ const (
 // Precision specifies the unit of the received timestamp, s, ms, us or ns.
 // DateTimeFormat is the desired datetime format, it defaults to RFC3339
 type DateString struct {
-	Tags      []string `mapstructure:"tag-names,omitempty"`
-	Values    []string `mapstructure:"value-names,omitempty"`
-	Precision string   `mapstructure:"precision,omitempty"`
-	Format    string   `mapstructure:"format,omitempty"`
-	Location  string   `mapstructure:"location,omitempty"`
-	Debug     bool     `mapstructure:"debug,omitempty"`
+	Tags      []string `mapstructure:"tag-names,omitempty" json:"tag-names,omitempty"`
+	Values    []string `mapstructure:"value-names,omitempty" json:"value-names,omitempty"`
+	Precision string   `mapstructure:"precision,omitempty" json:"precision,omitempty"`
+	Format    string   `mapstructure:"format,omitempty" json:"format,omitempty"`
+	Location  string   `mapstructure:"location,omitempty" json:"location,omitempty"`
+	Debug     bool     `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 
 	tags     []*regexp.Regexp
 	values   []*regexp.Regexp
@@ -42,6 +44,13 @@ func (d *DateString) Init(cfg interface{}, logger *log.Logger) error {
 	err := formatters.DecodeConfig(cfg, d)
 	if err != nil {
 		return err
+	}
+	if d.Debug && logger != nil {
+		d.logger = log.New(logger.Writer(), processorType+" ", logger.Flags())
+	} else if d.Debug {
+		d.logger = log.New(os.Stderr, processorType+" ", log.LstdFlags|log.Lmicroseconds)
+	} else {
+		d.logger = log.New(ioutil.Discard, "", 0)
 	}
 	// init values regex
 	d.values = make([]*regexp.Regexp, 0, len(d.Values))
@@ -70,10 +79,13 @@ func (d *DateString) Init(cfg interface{}, logger *log.Logger) error {
 		}
 		d.location = loc
 	}
-	if d.Debug {
-		d.logger = log.New(logger.Writer(), processorType+" ", logger.Flags())
-	} else {
-		d.logger = log.New(ioutil.Discard, "", 0)
+	if d.logger.Writer() != ioutil.Discard {
+		b, err := json.Marshal(d)
+		if err != nil {
+			d.logger.Printf("initialized processor '%s': %+v", processorType, d)
+			return nil
+		}
+		d.logger.Printf("initialized processor '%s': %s", processorType, string(b))
 	}
 	return nil
 }
