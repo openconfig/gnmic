@@ -22,6 +22,7 @@ nav:
           - InfluxDB: advanced/multi_outputs/influxdb_output.md
       - Processors: 
           - Introduction: advanced/event_processors/intro.md
+          - Add Tag: advanced/event_processors/event_add_tag.md
           - Convert: advanced/event_processors/event_convert.md
           - Date string: advanced/event_processors/event_date_string.md
           - Delete: advanced/event_processors/event_delete.md
