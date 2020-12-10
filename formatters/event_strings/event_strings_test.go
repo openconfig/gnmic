@@ -362,6 +362,22 @@ var testset = map[string]struct {
 						"resource": "foo",
 					}},
 			},
+			{
+				input: &formatters.EventMsg{
+					Tags: map[string]string{
+						"path/to/a/resource": "foo",
+					},
+					Values: map[string]interface{}{
+						"path/to/a/resource": 0,
+					}},
+				output: &formatters.EventMsg{
+					Tags: map[string]string{
+						"path/to/a/resource": "foo",
+					},
+					Values: map[string]interface{}{
+						"resource": 0,
+					}},
+			},
 		},
 	},
 }

@@ -32,7 +32,7 @@ type Strings struct {
 type transform struct {
 	op string
 	// apply the transformation on name or value
-	On string `mapstructure:"on,omitempty"`
+	On string `mapstructure:"apply_on,omitempty"`
 	// Keep the old value or not if the name changed
 	Keep bool `mapstructure:"keep,omitempty"`
 	// string to be replaced
@@ -63,6 +63,11 @@ func (s *Strings) Init(cfg interface{}, logger *log.Logger) error {
 	err := formatters.DecodeConfig(cfg, s)
 	if err != nil {
 		return err
+	}
+	if s.Debug {
+		s.logger = log.New(logger.Writer(), "event_strings ", logger.Flags())
+	} else {
+		s.logger = log.New(ioutil.Discard, "", 0)
 	}
 	for i := range s.Transforms {
 		for k := range s.Transforms[i] {
@@ -105,11 +110,6 @@ func (s *Strings) Init(cfg interface{}, logger *log.Logger) error {
 		}
 		s.valueKeys = append(s.valueKeys, re)
 	}
-	if s.Debug {
-		s.logger = log.New(logger.Writer(), "event_strings ", logger.Flags())
-	} else {
-		s.logger = log.New(ioutil.Discard, "", 0)
-	}
 	return nil
 }
 
@@ -121,9 +121,8 @@ func (s *Strings) Apply(e *formatters.EventMsg) {
 		for _, re := range s.valueKeys {
 			if re.MatchString(k) {
 				s.logger.Printf("value name '%s' matched regex '%s'", k, re.String())
-				if vs, ok := v.(string); ok {
-					s.applyValueTransformations(e, k, vs)
-				}
+				s.applyValueTransformations(e, k, v)
+
 			}
 		}
 		for _, re := range s.values {
@@ -151,7 +150,7 @@ func (s *Strings) Apply(e *formatters.EventMsg) {
 	}
 }
 
-func (s *Strings) applyValueTransformations(e *formatters.EventMsg, k, v string) {
+func (s *Strings) applyValueTransformations(e *formatters.EventMsg, k string, v interface{}) {
 	for _, trans := range s.Transforms {
 		for _, t := range trans {
 			if !t.Keep {
@@ -169,13 +168,18 @@ func (s *Strings) applyTagTransformations(e *formatters.EventMsg, k, v string) {
 			if !t.Keep {
 				delete(e.Tags, k)
 			}
-			k, v = t.apply(k, v)
-			e.Tags[k] = v
+			var vi interface{}
+			k, vi = t.apply(k, v)
+			if vs, ok := vi.(string); ok {
+				e.Tags[k] = vs
+			} else {
+				s.logger.Printf("failed to assert %v type as string", vi)
+			}
 		}
 	}
 }
 
-func (t *transform) apply(k, v string) (string, string) {
+func (t *transform) apply(k string, v interface{}) (string, interface{}) {
 	switch t.op {
 	case "replace":
 		return t.replace(k, v)
@@ -197,67 +201,79 @@ func (t *transform) apply(k, v string) (string, string) {
 	return k, v
 }
 
-func (t *transform) replace(k, v string) (string, string) {
+func (t *transform) replace(k string, v interface{}) (string, interface{}) {
 	switch t.On {
 	case "name":
 		k = strings.ReplaceAll(k, t.Old, t.New)
 	case "value":
-		v = strings.ReplaceAll(v, t.Old, t.New)
+		if vs, ok := v.(string); ok {
+			v = strings.ReplaceAll(vs, t.Old, t.New)
+		}
 	}
 	return k, v
 }
 
-func (t *transform) trimPrefix(k, v string) (string, string) {
+func (t *transform) trimPrefix(k string, v interface{}) (string, interface{}) {
 	switch t.On {
 	case "name":
 		k = strings.TrimPrefix(k, t.Prefix)
 	case "value":
-		v = strings.TrimPrefix(v, t.Prefix)
+		if vs, ok := v.(string); ok {
+			v = strings.TrimPrefix(vs, t.Prefix)
+		}
 	}
 	return k, v
 }
 
-func (t *transform) trimSuffix(k, v string) (string, string) {
+func (t *transform) trimSuffix(k string, v interface{}) (string, interface{}) {
 	switch t.On {
 	case "name":
 		k = strings.TrimSuffix(k, t.Suffix)
 	case "value":
-		v = strings.TrimSuffix(v, t.Suffix)
+		if vs, ok := v.(string); ok {
+			v = strings.TrimSuffix(vs, t.Suffix)
+		}
 	}
 	return k, v
 }
 
-func (t *transform) toTitle(k, v string) (string, string) {
+func (t *transform) toTitle(k string, v interface{}) (string, interface{}) {
 	switch t.On {
 	case "name":
 		k = strings.Title(k)
 	case "value":
-		v = strings.Title(v)
+		if vs, ok := v.(string); ok {
+			v = strings.Title(vs)
+		}
 	}
 	return k, v
 }
 
-func (t *transform) toLower(k, v string) (string, string) {
+func (t *transform) toLower(k string, v interface{}) (string, interface{}) {
 	switch t.On {
 	case "name":
 		k = strings.ToLower(k)
 	case "value":
-		v = strings.ToLower(v)
+		if vs, ok := v.(string); ok {
+			v = strings.ToLower(vs)
+		}
 	}
 	return k, v
 }
 
-func (t *transform) toUpper(k, v string) (string, string) {
+func (t *transform) toUpper(k string, v interface{}) (string, interface{}) {
 	switch t.On {
 	case "name":
 		k = strings.ToUpper(k)
 	case "value":
-		v = strings.ToUpper(v)
+		if vs, ok := v.(string); ok {
+			v = strings.ToUpper(vs)
+		}
 	}
 	return k, v
 }
 
-func (t *transform) split(k, v string) (string, string) {
+func (t *transform) split(k string, v interface{}) (string, interface{}) {
 	switch t.On {
 	case "name":
 		items := strings.Split(k, t.SplitOn)
@@ -267,22 +283,26 @@ func (t *transform) split(k, v string) (string, string) {
 		}
 		k = strings.Join(items[t.IgnoreFirst:numItems-t.IgnoreLast], t.JoinWith)
 	case "value":
-		items := strings.Split(v, t.SplitOn)
-		numItems := len(items)
-		if numItems <= t.IgnoreFirst || numItems <= t.IgnoreLast || t.IgnoreFirst >= numItems-t.IgnoreLast {
-			return k, ""
+		if vs, ok := v.(string); ok {
+			items := strings.Split(vs, t.SplitOn)
+			numItems := len(items)
+			if numItems <= t.IgnoreFirst || numItems <= t.IgnoreLast || t.IgnoreFirst >= numItems-t.IgnoreLast {
+				return k, ""
+			}
+			v = strings.Join(items[t.IgnoreFirst:numItems-t.IgnoreLast], t.JoinWith)
 		}
-		v = strings.Join(items[t.IgnoreFirst:numItems-t.IgnoreLast], t.JoinWith)
 	}
 	return k, v
 }
 
-func (t *transform) pathBase(k, v string) (string, string) {
+func (t *transform) pathBase(k string, v interface{}) (string, interface{}) {
 	switch t.On {
 	case "name":
 		k = filepath.Base(k)
 	case "value":
-		v = filepath.Base(v)
+		if vs, ok := v.(string); ok {
+			v = filepath.Base(vs)
+		}
 	}
 	return k, v
 }
