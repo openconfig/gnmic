@@ -18,7 +18,7 @@ type EventMsg struct {
 }
 
 // ResponseToEventMsgs //
-func ResponseToEventMsgs(name string, rsp *gnmi.SubscribeResponse, meta map[string]string) ([]*EventMsg, error) {
+func ResponseToEventMsgs(name string, rsp *gnmi.SubscribeResponse, meta map[string]string, eps ...EventProcessor) ([]*EventMsg, error) {
 	if rsp == nil {
 		return nil, nil
 	}
@@ -62,7 +62,12 @@ func ResponseToEventMsgs(name string, rsp *gnmi.SubscribeResponse, meta map[stri
 				}
 				e.Tags[k] = v
 			}
-			evs = append(evs, e)
+			for _, ep := range eps {
+				ep.Apply(e)
+			}
+			if (e != nil && e != &EventMsg{}) {
+				evs = append(evs, e)
+			}
 		}
 
 		if len(rsp.Update.Delete) > 0 {
