@@ -1,6 +1,7 @@
 package all
 
 import (
+	_ "github.com/karimra/gnmic/formatters/event_add_tag"
 	_ "github.com/karimra/gnmic/formatters/event_convert"
 	_ "github.com/karimra/gnmic/formatters/event_date_string"
 	_ "github.com/karimra/gnmic/formatters/event_delete"
