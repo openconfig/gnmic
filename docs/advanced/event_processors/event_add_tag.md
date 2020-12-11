@@ -11,16 +11,57 @@ processors:
     # processor type
     event-add-tag:
       value-names:
-        - ".*-state$"
+        - "."
       add: 
         tag_name: tag_value
 ```
 
 === "Event format before"
     ```json
-    //PLACEHOLDER
+    {
+      "name": "sub1",
+      "timestamp": 1607678293684962443,
+      "tags": {
+        "interface_name": "mgmt0",
+        "source": "172.20.20.5:57400"
+      },
+      "values": {
+        "Carrier_Transitions": 1,
+        "In_Broadcast_Packets": 448,
+        "In_Error_Packets": 0,
+        "In_Fcs_Error_Packets": 0,
+        "In_Multicast_Packets": 47578,
+        "In_Octets": 15557349,
+        "In_Unicast_Packets": 6482,
+        "Out_Broadcast_Packets": 110,
+        "Out_Error_Packets": 0,
+        "Out_Multicast_Packets": 10,
+        "Out_Octets": 464766
+      }
+    }
     ```
 === "Event format after"
     ```json
-    //PLACEHOLDER
+    {
+      "name": "sub1",
+      "timestamp": 1607678293684962443,
+      "tags": {
+        "interface_name": "mgmt0",
+        "source": "172.20.20.5:57400",
+        "tag_name": "tag_value"
+    },
+      "values": {
+        "Carrier_Transitions": 1,
+        "In_Broadcast_Packets": 448,
+        "In_Error_Packets": 0,
+        "In_Fcs_Error_Packets": 0,
+        "In_Multicast_Packets": 47578,
+        "In_Octets": 15557349,
+        "In_Unicast_Packets": 6482,
+        "Out_Broadcast_Packets": 110,
+        "Out_Error_Packets": 0,
+        "Out_Multicast_Packets": 10,
+        "Out_Octets": 464766
+      }
+    }
     ```
