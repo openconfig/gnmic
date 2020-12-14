@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var downloadURL = "https://github.com/karimra/gnmic/raw/master/install.sh"
@@ -29,7 +30,14 @@ var upgradeCmd = &cobra.Command{
 			return err
 		}
 
-		c := exec.Command("bash", f.Name())
+		var c *exec.Cmd
+		switch viper.GetBool("upgrade-use-pkg") {
+		case true:
+			c = exec.Command("bash", f.Name(), "--use-pkg")
+		case false:
+			c = exec.Command("bash", f.Name())
+		}
+
 		c.Stdout = os.Stdout
 		c.Stderr = os.Stderr
 		err = c.Run()
@@ -60,4 +68,6 @@ func downloadFile(url string, file *os.File) error {
 
 func init() {
 	versionCmd.AddCommand(upgradeCmd)
+	upgradeCmd.Flags().Bool("use-pkg", false, "upgrade using package")
+	viper.BindPFlag("upgrade-use-pkg", upgradeCmd.LocalFlags().Lookup("use-pkg"))
 }
