@@ -196,10 +196,10 @@ func (i *InfluxDBOutput) healthCheck(ctx context.Context) {
 	ticker := time.NewTicker(i.Cfg.HealthCheckPeriod)
 	for {
 		select {
-		case <-ticker.C:
-			i.health(ctx)
 		case <-ctx.Done():
 			return
+		case <-ticker.C:
+			i.health(ctx)
 		}
 	}
 }
