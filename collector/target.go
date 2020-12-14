@@ -239,8 +239,6 @@ SUBSC:
 	case gnmi.SubscriptionList_POLL:
 		for {
 			select {
-			case <-nctx.Done():
-				return
 			case subName := <-t.pollChan:
 				err = t.SubscribeClients[subName].Send(&gnmi.SubscribeRequest{
 					Request: &gnmi.SubscribeRequest_Poll{
@@ -266,6 +264,8 @@ SUBSC:
 					SubscriptionName: subscriptionName,
 					Response:         response,
 				}
+			case <-nctx.Done():
+				return
 			}
 		}
 	}

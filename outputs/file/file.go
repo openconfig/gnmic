@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"golang.org/x/sync/semaphore"
 	"log"
 	"os"
 	"time"
+
+	"golang.org/x/sync/semaphore"
 
 	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/outputs"
@@ -47,13 +48,13 @@ type File struct {
 
 // Config //
 type Config struct {
-	ConcurrencyLimit int    `mapstructure:"concurrency-limit,omitempty"`
 	FileName         string `mapstructure:"filename,omitempty"`
 	FileType         string `mapstructure:"file-type,omitempty"`
 	Format           string `mapstructure:"format,omitempty"`
 	Multiline        bool   `mapstructure:"multiline,omitempty"`
 	Indent           string `mapstructure:"indent,omitempty"`
 	Separator        string `mapstructure:"separator,omitempty"`
+	ConcurrencyLimit int    `mapstructure:"concurrency-limit,omitempty"`
 }
 
 func (f *File) String() string {
@@ -117,12 +118,11 @@ func (f *File) Init(ctx context.Context, cfg map[string]interface{}, opts ...out
 		f.Cfg.Indent = "  "
 	}
 
-	if f.Cfg.ConcurrencyLimit > -1 {
-		if f.Cfg.ConcurrencyLimit == 0 {
-			f.Cfg.ConcurrencyLimit = defaultWriteConcurrency
-		}
-		f.sem = semaphore.NewWeighted(int64(f.Cfg.ConcurrencyLimit))
+	if f.Cfg.ConcurrencyLimit < 1 {
+		f.Cfg.ConcurrencyLimit = defaultWriteConcurrency
 	}
+
+	f.sem = semaphore.NewWeighted(int64(f.Cfg.ConcurrencyLimit))
 
 	f.mo = &collector.MarshalOptions{Multiline: f.Cfg.Multiline, Indent: f.Cfg.Indent, Format: f.Cfg.Format}
 	f.logger.Printf("initialized file output: %s", f.String())

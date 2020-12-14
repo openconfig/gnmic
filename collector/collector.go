@@ -328,8 +328,6 @@ func (c *Collector) Start(ctx context.Context) {
 			numSubscriptions := len(t.Subscriptions)
 			for {
 				select {
-				case <-ctx.Done():
-					return
 				case rsp := <-t.subscribeResponses:
 					if c.Config.Debug {
 						c.logger.Printf("received gNMI Subscribe Response: %+v", rsp)
@@ -366,6 +364,8 @@ func (c *Collector) Start(ctx context.Context) {
 					if remainingOnceSubscriptions == 0 && numSubscriptions == numOnceSubscriptions {
 						return
 					}
+				case <-ctx.Done():
+					return
 				}
 			}
 		}(t)

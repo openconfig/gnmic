@@ -350,20 +350,20 @@ func loadCACerts(tlscfg *tls.Config) error {
 func printer(ctx context.Context, c chan string) {
 	for {
 		select {
-		case <-ctx.Done():
-			return
 		case m := <-c:
 			fmt.Println(m)
+		case <-ctx.Done():
+			return
 		}
 	}
 }
 func gather(ctx context.Context, c chan string, ls *[]string) {
 	for {
 		select {
-		case <-ctx.Done():
-			return
 		case m := <-c:
 			*ls = append(*ls, m)
+		case <-ctx.Done():
+			return
 		}
 	}
 }
