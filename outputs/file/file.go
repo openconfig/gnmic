@@ -8,10 +8,10 @@ import (
 	"log"
 	"os"
 	"time"
-
 	"golang.org/x/sync/semaphore"
 
 	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
@@ -44,17 +44,19 @@ type File struct {
 	metrics []prometheus.Collector
 	mo      *collector.MarshalOptions
 	sem     *semaphore.Weighted
+	evps    []formatters.EventProcessor
 }
 
 // Config //
 type Config struct {
-	FileName         string `mapstructure:"filename,omitempty"`
-	FileType         string `mapstructure:"file-type,omitempty"`
-	Format           string `mapstructure:"format,omitempty"`
-	Multiline        bool   `mapstructure:"multiline,omitempty"`
-	Indent           string `mapstructure:"indent,omitempty"`
-	Separator        string `mapstructure:"separator,omitempty"`
-	ConcurrencyLimit int    `mapstructure:"concurrency-limit,omitempty"`
+	FileName        string   `mapstructure:"filename,omitempty"`
+	FileType        string   `mapstructure:"file-type,omitempty"`
+	Format          string   `mapstructure:"format,omitempty"`
+	Multiline       bool     `mapstructure:"multiline,omitempty"`
+	Indent          string   `mapstructure:"indent,omitempty"`
+	Separator       string   `mapstructure:"separator,omitempty"`
+	EventProcessors []string `mapstructure:"event-processors,omitempty"`
+  ConcurrencyLimit int    `mapstructure:"concurrency-limit,omitempty"`
 }
 
 func (f *File) String() string {
@@ -64,6 +66,29 @@ func (f *File) String() string {
 	}
 	return string(b)
 }
+
+func (f *File) SetEventProcessors(ps map[string]map[string]interface{}, log *log.Logger) {
+	for _, epName := range f.Cfg.EventProcessors {
+		if epCfg, ok := ps[epName]; ok {
+			epType := ""
+			for k := range epCfg {
+				epType = k
+				break
+			}
+			if in, ok := formatters.EventProcessors[epType]; ok {
+				ep := in()
+				err := ep.Init(epCfg[epType], log)
+				if err != nil {
+					f.logger.Printf("failed initializing event processor '%s' of type='%s': %v", epName, epType, err)
+					continue
+				}
+				f.evps = append(f.evps, ep)
+				f.logger.Printf("added event processor '%s' of type=%s to file output", epName, epType)
+			}
+		}
+	}
+}
+
 func (f *File) SetLogger(logger *log.Logger) {
 	if logger != nil {
 		f.logger = log.New(logger.Writer(), "file_output ", logger.Flags())
@@ -74,13 +99,13 @@ func (f *File) SetLogger(logger *log.Logger) {
 
 // Init //
 func (f *File) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
-	for _, opt := range opts {
-		opt(f)
-	}
 	err := outputs.DecodeConfig(cfg, f.Cfg)
 	if err != nil {
 		f.logger.Printf("file output config decode failed: %v", err)
 		return err
+	}
+	for _, opt := range opts {
+		opt(f)
 	}
 	if f.Cfg.Format == "proto" {
 		f.logger.Printf("proto format not supported in output type 'file'")
@@ -117,14 +142,14 @@ func (f *File) Init(ctx context.Context, cfg map[string]interface{}, opts ...out
 	if f.Cfg.Multiline && f.Cfg.Indent == "" {
 		f.Cfg.Indent = "  "
 	}
-
 	if f.Cfg.ConcurrencyLimit < 1 {
 		f.Cfg.ConcurrencyLimit = defaultWriteConcurrency
 	}
 
 	f.sem = semaphore.NewWeighted(int64(f.Cfg.ConcurrencyLimit))
 
-	f.mo = &collector.MarshalOptions{Multiline: f.Cfg.Multiline, Indent: f.Cfg.Indent, Format: f.Cfg.Format}
+	f.mo = &formatters.MarshalOptions{Multiline: f.Cfg.Multiline, Indent: f.Cfg.Indent, Format: f.Cfg.Format}
+
 	f.logger.Printf("initialized file output: %s", f.String())
 	go func() {
 		<-ctx.Done()
@@ -150,7 +175,7 @@ func (f *File) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) 
 		return
 	}
 	NumberOfReceivedMsgs.WithLabelValues(f.file.Name()).Inc()
-	b, err := f.mo.Marshal(rsp, meta)
+	b, err := f.mo.Marshal(rsp, meta, f.evps...)
 	if err != nil {
 		f.logger.Printf("failed marshaling proto msg: %v", err)
 		return

@@ -9,7 +9,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
@@ -35,17 +35,19 @@ type TCPOutput struct {
 	buffer   chan []byte
 	limiter  *time.Ticker
 	logger   *log.Logger
-	mo       *collector.MarshalOptions
+	mo       *formatters.MarshalOptions
+	evps     []formatters.EventProcessor
 }
 
 type Config struct {
-	Address       string        `mapstructure:"address,omitempty"` // ip:port
-	Rate          time.Duration `mapstructure:"rate,omitempty"`
-	BufferSize    uint          `mapstructure:"buffer-size,omitempty"`
-	Format        string        `mapstructure:"format,omitempty"`
-	KeepAlive     time.Duration `mapstructure:"keep-alive,omitempty"`
-	RetryInterval time.Duration `mapstructure:"retry-interval,omitempty"`
-	NumWorkers    int           `mapstructure:"num-workers,omitempty"`
+	Address         string        `mapstructure:"address,omitempty"` // ip:port
+	Rate            time.Duration `mapstructure:"rate,omitempty"`
+	BufferSize      uint          `mapstructure:"buffer-size,omitempty"`
+	Format          string        `mapstructure:"format,omitempty"`
+	KeepAlive       time.Duration `mapstructure:"keep-alive,omitempty"`
+	RetryInterval   time.Duration `mapstructure:"retry-interval,omitempty"`
+	NumWorkers      int           `mapstructure:"num-workers,omitempty"`
+	EventProcessors []string      `mapstructure:"event_processors,omitempty"`
 }
 
 func (t *TCPOutput) SetLogger(logger *log.Logger) {
@@ -54,6 +56,28 @@ func (t *TCPOutput) SetLogger(logger *log.Logger) {
 		return
 	}
 	t.logger = log.New(os.Stderr, "tcp_output ", log.LstdFlags|log.Lmicroseconds)
+}
+
+func (t *TCPOutput) SetEventProcessors(ps map[string]map[string]interface{}, log *log.Logger) {
+	for _, epName := range t.Cfg.EventProcessors {
+		if epCfg, ok := ps[epName]; ok {
+			epType := ""
+			for k := range epCfg {
+				epType = k
+				break
+			}
+			if in, ok := formatters.EventProcessors[epType]; ok {
+				ep := in()
+				err := ep.Init(epCfg[epType], log)
+				if err != nil {
+					t.logger.Printf("failed initializing event processor '%s' of type='%s': %v", epName, epType, err)
+					continue
+				}
+				t.evps = append(t.evps, ep)
+				t.logger.Printf("added event processor '%s' of type=%s to tcp output", epName, epType)
+			}
+		}
+	}
 }
 
 func (t *TCPOutput) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
@@ -80,7 +104,7 @@ func (t *TCPOutput) Init(ctx context.Context, cfg map[string]interface{}, opts .
 	if t.Cfg.NumWorkers < 1 {
 		t.Cfg.NumWorkers = defaultNumWorkers
 	}
-	t.mo = &collector.MarshalOptions{Format: t.Cfg.Format}
+	t.mo = &formatters.MarshalOptions{Format: t.Cfg.Format}
 	go func() {
 		<-ctx.Done()
 		t.Close()
@@ -100,7 +124,7 @@ func (t *TCPOutput) Write(ctx context.Context, m proto.Message, meta outputs.Met
 	case <-ctx.Done():
 		return
 	default:
-		b, err := t.mo.Marshal(m, meta)
+		b, err := t.mo.Marshal(m, meta, t.evps...)
 		if err != nil {
 			t.logger.Printf("failed marshaling proto msg: %v", err)
 			return

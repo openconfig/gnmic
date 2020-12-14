@@ -33,7 +33,8 @@ import (
 	"time"
 
 	"github.com/karimra/gnmic/collector"
-	"github.com/mitchellh/go-homedir"
+	"github.com/karimra/gnmic/formatters"
+	homedir "github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
@@ -459,7 +460,8 @@ func createTargets() (map[string]*collector.TargetConfig, error) {
 			if !strings.HasPrefix(addr, "unix://") {
 				_, _, err := net.SplitHostPort(addr)
 				if err != nil {
-					if strings.Contains(err.Error(), "missing port in address") {
+					if strings.Contains(err.Error(), "missing port in address") ||
+						strings.Contains(err.Error(), "too many colons in address") {
 						addr = net.JoinHostPort(addr, defGrpcPort)
 					} else {
 						logger.Printf("error parsing address '%s': %v", addr, err)
@@ -495,7 +497,8 @@ func createTargets() (map[string]*collector.TargetConfig, error) {
 		if !strings.HasPrefix(addr, "unix://") {
 			_, _, err := net.SplitHostPort(addr)
 			if err != nil {
-				if strings.Contains(err.Error(), "missing port in address") {
+				if strings.Contains(err.Error(), "missing port in address") ||
+					strings.Contains(err.Error(), "too many colons in address") {
 					addr = net.JoinHostPort(addr, defGrpcPort)
 				} else {
 					logger.Printf("error parsing address '%s': %v", addr, err)
@@ -618,7 +621,7 @@ func printMsg(address string, msg proto.Message) error {
 			return nil
 		}
 	}
-	mo := collector.MarshalOptions{
+	mo := formatters.MarshalOptions{
 		Multiline: true,
 		Indent:    "  ",
 		Format:    viper.GetString("format"),

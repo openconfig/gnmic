@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/stan.go"
@@ -43,7 +43,8 @@ type StanOutput struct {
 	conn    stan.Conn
 	metrics []prometheus.Collector
 	logger  *log.Logger
-	mo      *collector.MarshalOptions
+	mo      *formatters.MarshalOptions
+	evps    []formatters.EventProcessor
 }
 
 // Config //
@@ -59,6 +60,7 @@ type Config struct {
 	PingRetry        int           `mapstructure:"ping-retry,omitempty"`
 	Format           string        `mapstructure:"format,omitempty"`
 	RecoveryWaitTime time.Duration `mapstructure:"recovery-wait-time,omitempty"`
+	EventProcessors  []string      `mapstructure:"event_processors,omitempty"`
 }
 
 func (s *StanOutput) String() string {
@@ -75,6 +77,28 @@ func (s *StanOutput) SetLogger(logger *log.Logger) {
 		return
 	}
 	s.logger = log.New(os.Stderr, "stan_output ", log.LstdFlags|log.Lmicroseconds)
+}
+
+func (s *StanOutput) SetEventProcessors(ps map[string]map[string]interface{}, log *log.Logger) {
+	for _, epName := range s.Cfg.EventProcessors {
+		if epCfg, ok := ps[epName]; ok {
+			epType := ""
+			for k := range epCfg {
+				epType = k
+				break
+			}
+			if in, ok := formatters.EventProcessors[epType]; ok {
+				ep := in()
+				err := ep.Init(epCfg[epType], log)
+				if err != nil {
+					s.logger.Printf("failed initializing event processor '%s' of type='%s': %v", epName, epType, err)
+					continue
+				}
+				s.evps = append(s.evps, ep)
+				s.logger.Printf("added event processor '%s' of type=%s to stan output", epName, epType)
+			}
+		}
+	}
 }
 
 // Init //
@@ -113,7 +137,7 @@ func (s *StanOutput) Init(ctx context.Context, cfg map[string]interface{}, opts 
 	if s.Cfg.PingRetry == 0 {
 		s.Cfg.PingRetry = stanDefaultPingRetry
 	}
-	s.mo = &collector.MarshalOptions{Format: s.Cfg.Format}
+	s.mo = &formatters.MarshalOptions{Format: s.Cfg.Format}
 	// this func retries until a connection is created successfully
 	s.conn = s.createSTANConn(s.Cfg)
 	s.logger.Printf("initialized stan producer: %s", s.String())
@@ -150,7 +174,7 @@ func (s *StanOutput) Write(_ context.Context, rsp protoreflect.ProtoMessage, met
 		ssb.WriteString(s.Cfg.Subject)
 	}
 	subject := strings.ReplaceAll(ssb.String(), " ", "_")
-	b, err := s.mo.Marshal(rsp, meta)
+	b, err := s.mo.Marshal(rsp, meta, s.evps...)
 	if err != nil {
 		s.logger.Printf("failed marshaling proto msg: %v", err)
 		return

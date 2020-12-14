@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/nats-io/nats.go"
 	"github.com/prometheus/client_golang/prometheus"
@@ -44,7 +44,8 @@ type NatsOutput struct {
 	conn     *nats.Conn
 	metrics  []prometheus.Collector
 	logger   *log.Logger
-	mo       *collector.MarshalOptions
+	mo       *formatters.MarshalOptions
+	evps     []formatters.EventProcessor
 }
 
 // Config //
@@ -57,6 +58,7 @@ type Config struct {
 	Password        string        `mapstructure:"password,omitempty"`
 	ConnectTimeWait time.Duration `mapstructure:"connect-time-wait,omitempty"`
 	Format          string        `mapstructure:"format,omitempty"`
+	EventProcessors []string      `mapstructure:"event_processors,omitempty"`
 }
 
 func (n *NatsOutput) String() string {
@@ -72,6 +74,28 @@ func (n *NatsOutput) SetLogger(logger *log.Logger) {
 		return
 	}
 	n.logger = log.New(os.Stderr, "nats_output ", log.LstdFlags|log.Lmicroseconds)
+}
+
+func (n *NatsOutput) SetEventProcessors(ps map[string]map[string]interface{}, log *log.Logger) {
+	for _, epName := range n.Cfg.EventProcessors {
+		if epCfg, ok := ps[epName]; ok {
+			epType := ""
+			for k := range epCfg {
+				epType = k
+				break
+			}
+			if in, ok := formatters.EventProcessors[epType]; ok {
+				ep := in()
+				err := ep.Init(epCfg[epType], log)
+				if err != nil {
+					n.logger.Printf("failed initializing event processor '%s' of type='%s': %v", epName, epType, err)
+					continue
+				}
+				n.evps = append(n.evps, ep)
+				n.logger.Printf("added event processor '%s' of type=%s to nats output", epName, epType)
+			}
+		}
+	}
 }
 
 // Init //
@@ -109,7 +133,7 @@ CRCONN:
 		goto CRCONN
 	}
 	n.logger.Printf("initialized nats producer: %s", n.String())
-	n.mo = &collector.MarshalOptions{Format: n.Cfg.Format}
+	n.mo = &formatters.MarshalOptions{Format: n.Cfg.Format}
 	go func() {
 		<-ctx.Done()
 		n.Close()
@@ -144,7 +168,7 @@ func (n *NatsOutput) Write(_ context.Context, rsp proto.Message, meta outputs.Me
 		ssb.WriteString(n.Cfg.Subject)
 	}
 	subject := strings.ReplaceAll(ssb.String(), " ", "_")
-	b, err := n.mo.Marshal(rsp, meta)
+	b, err := n.mo.Marshal(rsp, meta, n.evps...)
 	if err != nil {
 		n.logger.Printf("failed marshaling proto msg: %v", err)
 		return
