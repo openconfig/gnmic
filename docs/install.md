@@ -21,7 +21,28 @@ version : 0.0.3
 Installation complete!
 ```
 
-To upgrade the tool run the installation script once again, it will perform the upgrade if a newer version is available.
+To install a specific version of `gnmic`, provide the version with `-v` flag to the installation script:
+```bash
+sudo curl -sL https://github.com/karimra/gnmic/raw/master/install.sh | sudo bash -s -- -v 0.5.0
+```
+
+#### Packages
+Linux users running distributives with support for `deb`/`rpm` packages can install `gnmic` using pre-built packages:
+
+```
+sudo curl -sL https://github.com/karimra/gnmic/raw/master/install.sh | sudo bash -s -- --use-pkg
+```
+
+#### Upgrade
+
+To upgrade `gnmic` to the latest version use the `upgrade` command:
+```bash
+# upgrade using binary file
+gnmic version upgrade
+
+# upgrade using package
+gnmic version upgrade --use-pkg
+```
 
 ### Windows
 Windows users should use [WSL](https://en.wikipedia.org/wiki/Windows_Subsystem_for_Linux) on Windows and install the linux version of the tool.
