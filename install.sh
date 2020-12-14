@@ -4,12 +4,17 @@
 # https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3
 
 : ${BINARY_NAME:="gnmic"}
+: ${PROJECT_NAME:="gnmic"} # if project name does not match binary name
 : ${USE_SUDO:="true"}
-: ${VERIFY_CHECKSUM:="true"}
-: ${GNMIC_INSTALL_DIR:="/usr/local/bin"}
+: ${USE_PKG:="false"} # default --use-pkg flag value. will use package installation by default unless the default is changed to false
+: ${VERIFY_CHECKSUM:="false"}
+: ${BIN_INSTALL_DIR:="/usr/local/bin"}
+: ${REPO_NAME:="karimra/gnmic"}
+: ${REPO_URL:="https://github.com/$REPO_NAME"}
+: ${PROJECT_URL:="https://gnmic.kmrd.dev"}
 
-# initArch discovers the architecture for this system.
-initArch() {
+# detectArch discovers the architecture for this system.
+detectArch() {
     ARCH=$(uname -m)
     # case $ARCH in
     # armv5*) ARCH="armv5" ;;
@@ -23,14 +28,20 @@ initArch() {
     # esac
 }
 
-# initOS discovers the operating system for this system.
-initOS() {
+# detectOS discovers the operating system for this system and its package format
+detectOS() {
     OS=$(echo $(uname) | tr '[:upper:]' '[:lower:]')
 
     case "$OS" in
     # Minimalist GNU for Windows
     mingw*) OS='windows' ;;
     esac
+
+    if type "rpm" &>/dev/null; then
+        PKG_FORMAT="rpm"
+    elif type "dpkg" &>/dev/null; then
+        PKG_FORMAT="deb"
+    fi
 }
 
 # runs the given command as root (detects if we are root already)
@@ -44,13 +55,12 @@ runAsRoot() {
     $CMD
 }
 
-# verifySupported checks that the os/arch combination is supported for
-# binary builds.
+# verifySupported checks that the os/arch combination is supported
 verifySupported() {
-    local supported="darwin-i386\ndarwin-x86_64\nlinux-i386\nlinux-x86_64\nlinux-armv7\nlinux-aarch64\nwindows-i386\nwindows-x86_64"
+    local supported="darwin-x86_64\nlinux-i386\nlinux-x86_64\nlinux-armv7\nlinux-aarch64"
     if ! echo "${supported}" | grep -q "${OS}-${ARCH}"; then
         echo "No prebuilt binary for ${OS}-${ARCH}."
-        echo "To build from source, go to https://github.com/karimra/gnmic"
+        echo "To build from source, go to ${REPO_URL}"
         exit 1
     fi
 
@@ -64,7 +74,7 @@ verifySupported() {
 verifyOpenssl() {
     if [ $VERIFY_CHECKSUM == "true" ]; then
         if ! type "openssl" &>/dev/null; then
-            echo "openssl is not found. It is used to verify checksum of the downloaded archive.\nEither install openssl or provide '--skip-checksum' flag to the installer"
+            echo "openssl is not found. It is used to verify checksum of the downloaded file."
             exit 1
         fi
     fi
@@ -77,13 +87,13 @@ setDesiredVersion() {
         # when desired version is not provided
         # get latest tag from the gh releases
         if type "curl" &>/dev/null; then
-            local latest_release_url=$(curl -s https://github.com/karimra/gnmic/releases/latest | cut -d '"' -f 2)
+            local latest_release_url=$(curl -s $REPO_URL/releases/latest | cut -d '"' -f 2)
             TAG=$(echo $latest_release_url | cut -d '"' -f 2 | awk -F "/" '{print $NF}')
             # tag with stripped `v` prefix
             TAG_WO_VER=$(echo "${TAG}" | cut -c 2-)
         elif type "wget" &>/dev/null; then
             # get latest release info and get 5th line out of the response to get the URL
-            local latest_release_url=$(wget -q https://api.github.com/repos/karimra/gnmic/releases/latest -O- | sed '5q;d' | cut -d '"' -f 4)
+            local latest_release_url=$(wget -q https://api.github.com/repos/$REPO_NAME/releases/latest -O- | sed '5q;d' | cut -d '"' -f 4)
             TAG=$(echo $latest_release_url | cut -d '"' -f 2 | awk -F "/" '{print $NF}')
             TAG_WO_VER=$(echo "${TAG}" | cut -c 2-)
         fi
@@ -93,16 +103,16 @@ setDesiredVersion() {
     fi
 }
 
-# checkGnmicInstalledVersion checks which version of gnmic is installed and
+# checkInstalledVersion checks which version is installed and
 # if it needs to be changed.
-checkGnmicInstalledVersion() {
-    if [[ -f "${GNMIC_INSTALL_DIR}/${BINARY_NAME}" ]]; then
-        local version=$("${GNMIC_INSTALL_DIR}/${BINARY_NAME}" version | head -1 | awk '{print $NF}')
+checkInstalledVersion() {
+    if [[ -f "${BIN_INSTALL_DIR}/${BINARY_NAME}" ]]; then
+        local version=$("${BIN_INSTALL_DIR}/${BINARY_NAME}" version | grep version | awk '{print $NF}')
         if [[ "v$version" == "$TAG" ]]; then
-            echo "gnmic is already at ${DESIRED_VERSION:-latest ($version)}" version
+            echo "${BINARY_NAME} is already at ${DESIRED_VERSION:-latest ($version)}" version
             return 0
         else
-            echo "gnmic ${TAG_WO_VER} is available. Changing from version ${version}."
+            echo "${BINARY_NAME} ${TAG_WO_VER} is available. Changing from version ${version}."
             return 1
         fi
     else
@@ -110,47 +120,66 @@ checkGnmicInstalledVersion() {
     fi
 }
 
-# downloadFile downloads the latest binary package and also the checksum
-# for that binary.
+# createTempDir creates temporary directory where we downloaded files
+createTempDir() {
+    TMP_ROOT="$(mktemp -d)"
+    TMP_BIN="$TMP_ROOT/$BINARY_NAME"
+}
+
+# downloadFile downloads the latest binary archive, the checksum file and performs the sum check
 downloadFile() {
-    GNMIC_DIST="${BINARY_NAME}_${TAG_WO_VER}_${OS}_${ARCH}.tar.gz"
-    DOWNLOAD_URL="https://github.com/karimra/gnmic/releases/download/${TAG}/${GNMIC_DIST}"
-    CHECKSUM_URL="https://github.com/karimra/gnmic/releases/download/${TAG}/checksums.txt"
-    GNMIC_TMP_ROOT="$(mktemp -d)"
-    GNMIC_TMP_FILE="$GNMIC_TMP_ROOT/$GNMIC_DIST"
-    GNMIC_SUM_FILE="$GNMIC_TMP_ROOT/checksums.txt"
+    EXT="tar.gz" # download file extension
+    if [ $USE_PKG == "true" ]; then
+        if [ -z $PKG_FORMAT ]; then
+            echo "Package for $OS-$ARCH is not available"
+            cleanup
+            exit 1
+        fi
+        EXT=$PKG_FORMAT
+    fi
+    ARCHIVE="${PROJECT_NAME}_${TAG_WO_VER}_${OS}_${ARCH}.${EXT}"
+    DOWNLOAD_URL="${REPO_URL}/releases/download/${TAG}/${ARCHIVE}"
+    CHECKSUM_URL="${REPO_URL}/releases/download/${TAG}/checksums.txt"
+    TMP_FILE="$TMP_ROOT/$ARCHIVE"
+    SUM_FILE="$TMP_ROOT/checksums.txt"
     echo "Downloading $DOWNLOAD_URL"
     if type "curl" &>/dev/null; then
-        curl -SsL "$CHECKSUM_URL" -o "$GNMIC_SUM_FILE"
+        curl -SsL "$CHECKSUM_URL" -o "$SUM_FILE"
+        curl -SsL "$DOWNLOAD_URL" -o "$TMP_FILE"
     elif type "wget" &>/dev/null; then
-        wget -q -O "$GNMIC_SUM_FILE" "$CHECKSUM_URL"
+        wget -q -O "$SUM_FILE" "$CHECKSUM_URL"
+        wget -q -O "$TMP_FILE" "$DOWNLOAD_URL"
     fi
-    if type "curl" &>/dev/null; then
-        curl -SsL "$DOWNLOAD_URL" -o "$GNMIC_TMP_FILE"
-    elif type "wget" &>/dev/null; then
-        wget -q -O "$GNMIC_TMP_FILE" "$DOWNLOAD_URL"
+
+    # verify downloaded file
+    if [ $VERIFY_CHECKSUM == "true" ]; then
+        local sum=$(openssl sha1 -sha256 ${TMP_FILE} | awk '{print $2}')
+        local expected_sum=$(cat ${SUM_FILE} | grep -i $ARCHIVE | awk '{print $1}')
+        if [ "$sum" != "$expected_sum" ]; then
+            echo "SHA sum of ${TMP_FILE} does not match. Aborting."
+            exit 1
+        fi
+        echo "Checksum verified"
     fi
 }
 
 # installFile verifies the SHA256 for the file, then unpacks and
-# installs it.
+# installs it. By default, the installation is done from .tar.gz archive, that can be overriden with --use-pkg flag
 installFile() {
-    GNMIC_TMP="$GNMIC_TMP_ROOT/$BINARY_NAME"
-    if [ $VERIFY_CHECKSUM == "true" ]; then
-        local sum=$(openssl sha1 -sha256 ${GNMIC_TMP_FILE} | awk '{print $2}')
-        local expected_sum=$(cat ${GNMIC_SUM_FILE} | grep -i $GNMIC_DIST | awk '{print $1}')
-        if [ "$sum" != "$expected_sum" ]; then
-            echo "SHA sum of ${GNMIC_TMP_FILE} does not match. Aborting."
-            exit 1
-        fi
-    fi
+    tar xf "$TMP_FILE" -C "$TMP_ROOT"
+    echo "Preparing to install $BINARY_NAME ${TAG_WO_VER} into ${BIN_INSTALL_DIR}"
+    runAsRoot cp "$TMP_ROOT/$BINARY_NAME" "$BIN_INSTALL_DIR/$BINARY_NAME"
+    echo "$BINARY_NAME installed into $BIN_INSTALL_DIR/$BINARY_NAME"
+}
 
-    mkdir -p "$GNMIC_TMP"
-    tar xf "$GNMIC_TMP_FILE" -C "$GNMIC_TMP"
-    GNMIC_TMP_BIN="$GNMIC_TMP/gnmic"
-    echo "Preparing to install $BINARY_NAME ${TAG_WO_VER} into ${GNMIC_INSTALL_DIR}"
-    runAsRoot cp "$GNMIC_TMP_BIN" "$GNMIC_INSTALL_DIR/$BINARY_NAME"
-    echo "$BINARY_NAME installed into $GNMIC_INSTALL_DIR/$BINARY_NAME"
+# installPkg installs the downloaded version of a package in a deb or rpm format
+installPkg() {
+    echo "Preparing to install $BINARY_NAME ${TAG_WO_VER} from package"
+    if [ $PKG_FORMAT == "deb" ]; then
+        runAsRoot dpkg -i $TMP_FILE
+    elif [ $PKG_FORMAT == "rpm" ]; then
+        runAsRoot rpm -U $TMP_FILE
+    fi
 }
 
 # fail_trap is executed if an error occurs.
@@ -163,7 +192,7 @@ fail_trap() {
         else
             echo "Failed to install $BINARY_NAME"
         fi
-        echo -e "\tFor support, go to https://github.com/karimra/gnmic"
+        echo -e "\tFor support, go to $REPO_URL/issues"
     fi
     cleanup
     exit $result
@@ -172,9 +201,9 @@ fail_trap() {
 # testVersion tests the installed client to make sure it is working.
 testVersion() {
     set +e
-    $GNMIC_INSTALL_DIR/$BINARY_NAME version
+    $BIN_INSTALL_DIR/$BINARY_NAME version
     if [ "$?" = "1" ]; then
-        echo "$BINARY_NAME not found. Is $GNMIC_INSTALL_DIR in your "'$PATH?'
+        echo "$BINARY_NAME not found. Is $BIN_INSTALL_DIR in your "'$PATH?'
         exit 1
     fi
     set -e
@@ -186,13 +215,15 @@ help() {
     echo -e "\t[--help|-h ] ->> prints this help"
     echo -e "\t[--version|-v <desired_version>] . When not defined it fetches the latest release from GitHub"
     echo -e "\te.g. --version v0.1.1"
+    echo -e "\t[--use-pkg]  ->> install from deb/rpm packages"
     echo -e "\t[--no-sudo]  ->> install without sudo"
-    echo -e "\t[--skip-checksum]  ->> disable automatic checksum verification"
+    echo -e "\t[--verify-checksum]  ->> verify checksum of the downloaded file"
 }
 
+# removes temporary directory used to download artefacts
 cleanup() {
-    if [[ -d "${GNMIC_TMP_ROOT:-}" ]]; then
-        rm -rf "$GNMIC_TMP_ROOT"
+    if [[ -d "${TMP_ROOT:-}" ]]; then
+        rm -rf "$TMP_ROOT"
     fi
 }
 
@@ -219,8 +250,11 @@ while [[ $# -gt 0 ]]; do
     '--no-sudo')
         USE_SUDO="false"
         ;;
-    '--skip-checksum')
-        VERIFY_CHECKSUM="false"
+    '--verify-checksum')
+        VERIFY_CHECKSUM="true"
+        ;;
+    '--use-pkg')
+        USE_PKG="true"
         ;;
     '--help' | -h)
         help
@@ -234,14 +268,19 @@ while [[ $# -gt 0 ]]; do
 done
 set +u
 
-initArch
-initOS
+detectArch
+detectOS
 verifySupported
 setDesiredVersion
-if ! checkGnmicInstalledVersion; then
+if ! checkInstalledVersion; then
+    createTempDir
     verifyOpenssl
     downloadFile
-    installFile
+    if [ $USE_PKG == "true" ]; then
+        installPkg
+    else
+        installFile
+    fi
     testVersion
     cleanup
 fi
