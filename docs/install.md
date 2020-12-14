@@ -27,13 +27,12 @@ To upgrade the tool run the installation script once again, it will perform the 
 It is highly recommended to use [WSL](https://en.wikipedia.org/wiki/Windows_Subsystem_for_Linux) on Windows, but if its not possible, use [releases page](https://github.com/karimra/gnmic/releases) to download the windows executable file.
 
 ### Docker
-The `gnmic` Dockerfile is [provided](https://github.com/karimra/gnmic/blob/master/Dockerfile) within the repository for a manual build process. Later the ready-made docker image will be part of the release pipeline and you will be able to pull the image from the docker hub.
-
-Alternatively you can install `gnmic` in docker container in an ad-hoc fashion:
+The `gnmic` container image can be pulled from Dockerhub or GitHub container registries. The tag of the image corresponds to the release version and `latest` tag points to the latest available release:
 
 ```bash
-# launch a docker container based with a libc (debian/rhel)
-docker run -it centos:7
-# install the gnmic
-sudo curl -sL https://github.com/karimra/gnmic/raw/master/install.sh | sudo bash
+# pull latest release from dockerhub
+docker pull gnmic/gnmic:latest
+
+# pull the specific release from github registry
+docker pull ghcr.io/karimra/gnmic:0.5.2
 ```
