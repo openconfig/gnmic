@@ -8,9 +8,9 @@ import (
 	"log"
 	"os"
 	"time"
+
 	"golang.org/x/sync/semaphore"
 
-	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/prometheus/client_golang/prometheus"
@@ -42,21 +42,21 @@ type File struct {
 	file    *os.File
 	logger  *log.Logger
 	metrics []prometheus.Collector
-	mo      *collector.MarshalOptions
+	mo      *formatters.MarshalOptions
 	sem     *semaphore.Weighted
 	evps    []formatters.EventProcessor
 }
 
 // Config //
 type Config struct {
-	FileName        string   `mapstructure:"filename,omitempty"`
-	FileType        string   `mapstructure:"file-type,omitempty"`
-	Format          string   `mapstructure:"format,omitempty"`
-	Multiline       bool     `mapstructure:"multiline,omitempty"`
-	Indent          string   `mapstructure:"indent,omitempty"`
-	Separator       string   `mapstructure:"separator,omitempty"`
-	EventProcessors []string `mapstructure:"event-processors,omitempty"`
-  ConcurrencyLimit int    `mapstructure:"concurrency-limit,omitempty"`
+	FileName         string   `mapstructure:"filename,omitempty"`
+	FileType         string   `mapstructure:"file-type,omitempty"`
+	Format           string   `mapstructure:"format,omitempty"`
+	Multiline        bool     `mapstructure:"multiline,omitempty"`
+	Indent           string   `mapstructure:"indent,omitempty"`
+	Separator        string   `mapstructure:"separator,omitempty"`
+	EventProcessors  []string `mapstructure:"event-processors,omitempty"`
+	ConcurrencyLimit int      `mapstructure:"concurrency-limit,omitempty"`
 }
 
 func (f *File) String() string {
