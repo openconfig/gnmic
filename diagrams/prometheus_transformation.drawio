@@ -1,4 +1,4 @@
-<mxfile host="app.diagrams.net" modified="2020-12-15T02:23:34.233Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36" etag="tZ8AIAdw0I6hEDF_IUvI" version="14.0.0" type="github">
+<mxfile host="app.diagrams.net" modified="2020-12-15T02:24:15.695Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36" etag="dMW3ae0hRtACky2arxUG" version="14.0.0" type="github">
   <diagram id="-_vcKVQJYOj5C2mMzbFM" name="Page-1">
     <mxGraphModel dx="1298" dy="799" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" background="none" math="0" shadow="0">
       <root>
@@ -34,7 +34,7 @@
         <mxCell id="uBCqvBMHd7ceN_jNnNRX-10" value="&lt;b&gt;value&lt;/b&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;labelBackgroundColor=none;fontColor=#000099;" vertex="1" parent="1">
           <mxGeometry x="878.5" y="73" width="110" height="20" as="geometry" />
         </mxCell>
-        <mxCell id="uBCqvBMHd7ceN_jNnNRX-11" value="/interfaces/interface/subinterfaces/subinterface/state/counters/in-octets" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;labelBackgroundColor=none;labelBorderColor=none;fontColor=#000099;" vertex="1" parent="1">
+        <mxCell id="uBCqvBMHd7ceN_jNnNRX-11" value="/interfaces/interface/subinterfaces/subinterface/state/counters/in-octets" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;labelBackgroundColor=#66B2FF;labelBorderColor=none;fontColor=#000099;" vertex="1" parent="1">
           <mxGeometry x="305" y="253" width="380" height="20" as="geometry" />
         </mxCell>
         <mxCell id="uBCqvBMHd7ceN_jNnNRX-12" value="" style="endArrow=classic;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;strokeColor=#66B2FF;fontColor=#000099;" edge="1" parent="1" source="uBCqvBMHd7ceN_jNnNRX-5" target="uBCqvBMHd7ceN_jNnNRX-23">
