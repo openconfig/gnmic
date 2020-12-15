@@ -1,4 +1,4 @@
-<mxfile host="app.diagrams.net" modified="2020-12-15T02:32:14.105Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36" etag="y6_6MBu8iBDaBwpWYdgx" version="14.0.0" type="github">
+<mxfile host="app.diagrams.net" modified="2020-12-15T02:32:49.486Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36" etag="OArOaAs1YzdWLgufoS90" version="14.0.0" type="github">
   <diagram id="-_vcKVQJYOj5C2mMzbFM" name="Page-1">
     <mxGraphModel dx="1298" dy="799" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" background="none" math="0" shadow="0">
       <root>
@@ -61,7 +61,7 @@
             <mxPoint x="934" y="543" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="uBCqvBMHd7ceN_jNnNRX-16" value="&lt;font color=&quot;#e6e6e6&quot;&gt;interfaces_interface_subinterfaces_subinterface_state_counters_in_octets&lt;/font&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;labelBackgroundColor=none;labelBorderColor=none;fontColor=#000099;" vertex="1" parent="1">
+        <mxCell id="uBCqvBMHd7ceN_jNnNRX-16" value="&lt;font color=&quot;#b3b3b3&quot;&gt;interfaces_interface_subinterfaces_subinterface_state_counters_in_octets&lt;/font&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;labelBackgroundColor=none;labelBorderColor=none;fontColor=#000099;" vertex="1" parent="1">
           <mxGeometry x="305" y="374" width="380" height="20" as="geometry" />
         </mxCell>
         <mxCell id="uBCqvBMHd7ceN_jNnNRX-17" value="interface_name=1/1/1, subinterface_index=1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;labelBackgroundColor=none;labelBorderColor=none;fontColor=#000099;" vertex="1" parent="1">
