@@ -36,83 +36,89 @@ var dataType = [][2]string{
 }
 
 // getCmd represents the get command
-var getCmd = &cobra.Command{
-	Use:   "get",
-	Short: "run gnmi get on targets",
-	Annotations: map[string]string{
-		"--path":   "XPATH",
-		"--prefix": "PREFIX",
-		"--model":  "MODEL",
-		"--type":   "STORE",
-	},
-
-	RunE: func(cmd *cobra.Command, args []string) error {
-		if viper.GetString("format") == "event" {
-			return fmt.Errorf("format event not supported for Get RPC")
-		}
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		setupCloseHandler(cancel)
-		debug := viper.GetBool("debug")
-		targetsConfig, err := createTargets()
-		if err != nil {
-			return fmt.Errorf("failed getting targets config: %v", err)
-		}
-		if debug {
-			logger.Printf("targets: %s", targetsConfig)
-		}
-		subscriptionsConfig, err := getSubscriptions()
-		if err != nil {
-			return fmt.Errorf("failed getting subscriptions config: %v", err)
-		}
-		if debug {
-			logger.Printf("subscriptions: %s", subscriptionsConfig)
-		}
-		outs, err := getOutputs()
-		if err != nil {
-			return err
-		}
-		if debug {
-			logger.Printf("outputs: %+v", outs)
-		}
-		if coll == nil {
-			cfg := &collector.Config{
-				Debug:               viper.GetBool("debug"),
-				Format:              viper.GetString("format"),
-				TargetReceiveBuffer: viper.GetUint("target-buffer-size"),
-				RetryTimer:          viper.GetDuration("retry-timer"),
+func newGetCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "get",
+		Short: "run gnmi get on targets",
+		Annotations: map[string]string{
+			"--path":   "XPATH",
+			"--prefix": "PREFIX",
+			"--model":  "MODEL",
+			"--type":   "STORE",
+		},
+		PreRun: func(cmd *cobra.Command, args []string) {
+			cfg.SetFlagsFromFile(cmd)
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if viper.GetString("format") == "event" {
+				return fmt.Errorf("format event not supported for Get RPC")
 			}
-
-			coll = collector.NewCollector(cfg, targetsConfig,
-				collector.WithDialOptions(createCollectorDialOpts()),
-				collector.WithSubscriptions(subscriptionsConfig),
-				collector.WithOutputs(outs),
-				collector.WithLogger(logger),
-			)
-		} else {
-			// prompt mode
-			for _, tc := range targetsConfig {
-				coll.AddTarget(tc)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			setupCloseHandler(cancel)
+			debug := viper.GetBool("debug")
+			targetsConfig, err := cfg.GetTargets()
+			if err != nil {
+				return fmt.Errorf("failed getting targets config: %v", err)
 			}
-		}
-		req, err := createGetRequest()
-		if err != nil {
-			return err
-		}
-		wg := new(sync.WaitGroup)
-		wg.Add(len(targetsConfig))
-		lock := new(sync.Mutex)
-		for tName := range targetsConfig {
-			go getRequest(ctx, tName, req, wg, lock)
-		}
-		wg.Wait()
-		return nil
-	},
-	PostRun: func(cmd *cobra.Command, args []string) {
-		cmd.ResetFlags()
-		initGetFlags(cmd)
-	},
-	SilenceUsage: true,
+			if debug {
+				logger.Printf("targets: %s", targetsConfig)
+			}
+			subscriptionsConfig, err := getSubscriptions()
+			if err != nil {
+				return fmt.Errorf("failed getting subscriptions config: %v", err)
+			}
+			if debug {
+				logger.Printf("subscriptions: %s", subscriptionsConfig)
+			}
+			outs, err := getOutputs()
+			if err != nil {
+				return err
+			}
+			if debug {
+				logger.Printf("outputs: %+v", outs)
+			}
+			if coll == nil {
+				cfg := &collector.Config{
+					Debug:               viper.GetBool("debug"),
+					Format:              viper.GetString("format"),
+					TargetReceiveBuffer: viper.GetUint("target-buffer-size"),
+					RetryTimer:          viper.GetDuration("retry-timer"),
+				}
+
+				coll = collector.NewCollector(cfg, targetsConfig,
+					collector.WithDialOptions(createCollectorDialOpts()),
+					collector.WithSubscriptions(subscriptionsConfig),
+					collector.WithOutputs(outs),
+					collector.WithLogger(logger),
+				)
+			} else {
+				// prompt mode
+				for _, tc := range targetsConfig {
+					coll.AddTarget(tc)
+				}
+			}
+			req, err := createGetRequest()
+			if err != nil {
+				return err
+			}
+			wg := new(sync.WaitGroup)
+			wg.Add(len(targetsConfig))
+			lock := new(sync.Mutex)
+			for tName := range targetsConfig {
+				go getRequest(ctx, tName, req, wg, lock)
+			}
+			wg.Wait()
+			return nil
+		},
+		PostRun: func(cmd *cobra.Command, args []string) {
+			cmd.ResetFlags()
+			initGetFlags(cmd)
+		},
+		SilenceUsage: true,
+	}
+	initGetFlags(cmd)
+	return cmd
 }
 
 func getRequest(ctx context.Context, tName string, req *gnmi.GetRequest, wg *sync.WaitGroup, lock *sync.Mutex) {
@@ -161,11 +167,6 @@ func getRequest(ctx context.Context, tName string, req *gnmi.GetRequest, wg *syn
 			fmt.Printf("error marshaling get response from %s: %v\n", tName, err)
 		}
 	}
-}
-
-func init() {
-	rootCmd.AddCommand(getCmd)
-	initGetFlags(getCmd)
 }
 
 // used to init or reset getCmd flags for gnmic-prompt mode

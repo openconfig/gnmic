@@ -153,64 +153,63 @@ func generateYangSchema(d, f, e []string) error {
 }
 
 // pathCmd represents the path command
-var pathCmd = &cobra.Command{
-	Use:   "path",
-	Short: "generate gnmi or xpath style from yang file",
-	Annotations: map[string]string{
-		"--file": "YANG",
-		"--dir":  "DIR",
-	},
-	PreRunE: func(cmd *cobra.Command, args []string) error {
-		if pathType != "xpath" && pathType != "gnmi" {
-			return fmt.Errorf("path-type must be one of 'xpath' or 'gnmi'")
-		}
-		var err error
-		dirs, err = resolveGlobs(dirs)
-		if err != nil {
-			return err
-		}
-		files, err = resolveGlobs(files)
-		if err != nil {
-			return err
-		}
-		for _, dirpath := range dirs {
-			expanded, err := yang.PathsWithModules(dirpath)
+func newPathCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "path",
+		Short: "generate gnmi or xpath style from yang file",
+		Annotations: map[string]string{
+			"--file": "YANG",
+			"--dir":  "DIR",
+		},
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			if pathType != "xpath" && pathType != "gnmi" {
+				return fmt.Errorf("path-type must be one of 'xpath' or 'gnmi'")
+			}
+			var err error
+			dirs, err = resolveGlobs(dirs)
 			if err != nil {
 				return err
 			}
+			files, err = resolveGlobs(files)
+			if err != nil {
+				return err
+			}
+			for _, dirpath := range dirs {
+				expanded, err := yang.PathsWithModules(dirpath)
+				if err != nil {
+					return err
+				}
+				if viper.GetBool("debug") {
+					for _, fdir := range expanded {
+						logger.Printf("adding %s to YANG paths", fdir)
+					}
+				}
+				yang.AddPath(expanded...)
+			}
+			yfiles, err := findYangFiles(files)
+			if err != nil {
+				return err
+			}
+			files = make([]string, 0, len(yfiles))
+			files = append(files, yfiles...)
 			if viper.GetBool("debug") {
-				for _, fdir := range expanded {
-					logger.Printf("adding %s to YANG paths", fdir)
+				for _, file := range files {
+					logger.Printf("loading %s file", file)
 				}
 			}
-			yang.AddPath(expanded...)
-		}
-		yfiles, err := findYangFiles(files)
-		if err != nil {
-			return err
-		}
-		files = make([]string, 0, len(yfiles))
-		files = append(files, yfiles...)
-		if viper.GetBool("debug") {
-			for _, file := range files {
-				logger.Printf("loading %s file", file)
-			}
-		}
-		return nil
-	},
-	RunE: func(cmd *cobra.Command, args []string) error {
-		return pathCmdRun(dirs, files, excluded)
-	},
-	PostRun: func(cmd *cobra.Command, args []string) {
-		cmd.ResetFlags()
-		initPathFlags(cmd)
-	},
-	SilenceUsage: true,
-}
-
-func init() {
-	rootCmd.AddCommand(pathCmd)
-	initPathFlags(pathCmd)
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return pathCmdRun(dirs, files, excluded)
+		},
+		PostRun: func(cmd *cobra.Command, args []string) {
+			cmd.ResetFlags()
+			initPathFlags(cmd)
+		},
+		SilenceUsage: true,
+	}
+	initPathFlags(cmd)
+	return cmd
 }
 
 // used to init or reset pathCmd flags for gnmic-prompt mode

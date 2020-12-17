@@ -73,98 +73,105 @@ func getColor(flagName string) goprompt.Color {
 	return colorMapping[defColor]
 }
 
-var promptModeCmd = &cobra.Command{
-	Use:   "prompt",
-	Short: "enter the interactive gnmic prompt mode",
-	// PreRun resolve the glob patterns and checks if --max-suggesions is bigger that the terminal height and lowers it if needed.
-	PreRunE: func(cmd *cobra.Command, args []string) error {
-		gctx, gcancel = context.WithCancel(context.Background())
-		var err error
-		promptDirs, err = resolveGlobs(promptDirs)
-		if err != nil {
-			return err
-		}
-		promptFiles, err = resolveGlobs(promptFiles)
-		if err != nil {
-			return err
-		}
-		for _, dirpath := range promptDirs {
-			expanded, err := yang.PathsWithModules(dirpath)
+var promptModeCmd *cobra.Command
+
+func newPromptCmd() *cobra.Command {
+	promptModeCmd = &cobra.Command{
+		Use:   "prompt",
+		Short: "enter the interactive gnmic prompt mode",
+		// PreRun resolve the glob patterns and checks if --max-suggesions is bigger that the terminal height and lowers it if needed.
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			cfg.SetFlagsFromFile(cmd)
+			gctx, gcancel = context.WithCancel(context.Background())
+			var err error
+			promptDirs, err = resolveGlobs(promptDirs)
 			if err != nil {
 				return err
 			}
+			promptFiles, err = resolveGlobs(promptFiles)
+			if err != nil {
+				return err
+			}
+			for _, dirpath := range promptDirs {
+				expanded, err := yang.PathsWithModules(dirpath)
+				if err != nil {
+					return err
+				}
+				if viper.GetBool("debug") {
+					for _, fdir := range expanded {
+						logger.Printf("adding %s to yang Paths", fdir)
+					}
+				}
+				yang.AddPath(expanded...)
+			}
+			yfiles, err := findYangFiles(promptFiles)
+			if err != nil {
+				return err
+			}
+			promptFiles = make([]string, 0, len(yfiles))
+			promptFiles = append(promptFiles, yfiles...)
 			if viper.GetBool("debug") {
-				for _, fdir := range expanded {
-					logger.Printf("adding %s to yang Paths", fdir)
+				for _, file := range promptFiles {
+					logger.Printf("loading %s yang file", file)
 				}
 			}
-			yang.AddPath(expanded...)
-		}
-		yfiles, err := findYangFiles(promptFiles)
-		if err != nil {
-			return err
-		}
-		promptFiles = make([]string, 0, len(yfiles))
-		promptFiles = append(promptFiles, yfiles...)
-		if viper.GetBool("debug") {
-			for _, file := range promptFiles {
-				logger.Printf("loading %s yang file", file)
+			err = termbox.Init()
+			if err != nil {
+				return fmt.Errorf("could not initialize a terminal box: %v", err)
 			}
-		}
-		err = termbox.Init()
-		if err != nil {
-			return fmt.Errorf("could not initialize a terminal box: %v", err)
-		}
-		_, h := termbox.Size()
-		termbox.Close()
-		// set max suggestions to terminal height-1 if the supplied value is greater
-		if viper.GetUint("prompt-max-suggestions") > uint(h) {
-			if h > 1 {
-				viper.Set("prompt-max-suggestions", h-2)
-			} else {
-				viper.Set("prompt-max-suggestions", 0)
-			}
-		}
-		return nil
-	},
-	RunE: func(cmd *cobra.Command, args []string) error {
-		err := generateYangSchema(promptDirs, promptFiles, promptExcluded)
-		if err != nil {
-			logger.Printf("failed to load paths from yang: %v", err)
-			if !viper.GetBool("log") {
-				fmt.Fprintf(os.Stderr, "ERR: failed to load paths from yang: %v\n", err)
-			}
-		}
-		promptMode = true
-		// load history
-		promptHistory = make([]string, 0, 256)
-		home, err := homedir.Dir()
-		if err != nil {
-			if viper.GetBool("debug") {
-				log.Printf("failed to get home directory: %v", err)
+			_, h := termbox.Size()
+			termbox.Close()
+			// set max suggestions to terminal height-1 if the supplied value is greater
+			if viper.GetUint("prompt-max-suggestions") > uint(h) {
+				if h > 1 {
+					viper.Set("prompt-max-suggestions", h-2)
+				} else {
+					viper.Set("prompt-max-suggestions", 0)
+				}
 			}
 			return nil
-		}
-		content, err := ioutil.ReadFile(home + "/.gnmic.history")
-		if err != nil {
-			if viper.GetBool("debug") {
-				log.Printf("failed to read history file: %v", err)
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			err := generateYangSchema(promptDirs, promptFiles, promptExcluded)
+			if err != nil {
+				logger.Printf("failed to load paths from yang: %v", err)
+				if !viper.GetBool("log") {
+					fmt.Fprintf(os.Stderr, "ERR: failed to load paths from yang: %v\n", err)
+				}
+			}
+			promptMode = true
+			// load history
+			promptHistory = make([]string, 0, 256)
+			home, err := homedir.Dir()
+			if err != nil {
+				if viper.GetBool("debug") {
+					log.Printf("failed to get home directory: %v", err)
+				}
+				return nil
+			}
+			content, err := ioutil.ReadFile(home + "/.gnmic.history")
+			if err != nil {
+				if viper.GetBool("debug") {
+					log.Printf("failed to read history file: %v", err)
+				}
+				return nil
+			}
+			history := strings.Split(string(content), "\n")
+			for i := range history {
+				if history[i] != "" {
+					promptHistory = append(promptHistory, history[i])
+				}
 			}
 			return nil
-		}
-		history := strings.Split(string(content), "\n")
-		for i := range history {
-			if history[i] != "" {
-				promptHistory = append(promptHistory, history[i])
-			}
-		}
-		return nil
-	},
-	PostRun: func(cmd *cobra.Command, args []string) {
-		cmd.ResetFlags()
-		//initPromptFlags(cmd)
-	},
-	SilenceUsage: true,
+		},
+		PostRun: func(cmd *cobra.Command, args []string) {
+			cmd.ResetFlags()
+			//initPromptFlags(cmd)
+		},
+		SilenceUsage: true,
+	}
+	initPromptFlags(promptModeCmd)
+	return promptModeCmd
 }
 
 var promptQuitCmd = &cobra.Command{
@@ -204,7 +211,7 @@ var targetListCmd = &cobra.Command{
 	Short: "list configured targets",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if coll == nil {
-			targetsConfig, err := createTargets()
+			targetsConfig, err := cfg.GetTargets()
 			if err != nil {
 				return err
 			}
@@ -237,7 +244,7 @@ var targetShowCmd = &cobra.Command{
 			return nil
 		}
 		if coll == nil {
-			targetsConfig, err := createTargets()
+			targetsConfig, err := cfg.GetTargets()
 			if err != nil {
 				return err
 			}
@@ -466,11 +473,6 @@ func outputTable(outs map[string]outputs.Output) [][]string {
 		return tabData[i][0] < tabData[j][0]
 	})
 	return tabData
-}
-
-func init() {
-	rootCmd.AddCommand(promptModeCmd)
-	initPromptFlags(promptModeCmd)
 }
 
 var promptFiles []string
@@ -821,7 +823,7 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 		}
 		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
 	case "TARGET":
-		targetsConfig := readTargetsFromCfg()
+		targetsConfig := cfg.TargetsList()
 		suggestions := make([]goprompt.Suggest, 0, len(targetsConfig))
 		for _, target := range targetsConfig {
 			sb := strings.Builder{}

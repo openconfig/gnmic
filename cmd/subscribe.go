@@ -50,197 +50,198 @@ var streamSubscriptionModes = [][2]string{
 }
 
 // subscribeCmd represents the subscribe command
-var subscribeCmd = &cobra.Command{
-	Use:     "subscribe",
-	Aliases: []string{"sub"},
-	Short:   "subscribe to gnmi updates on targets",
-	Annotations: map[string]string{
-		"--path":        "XPATH",
-		"--prefix":      "PREFIX",
-		"--model":       "MODEL",
-		"--mode":        "SUBSC_MODE",
-		"--stream-mode": "STREAM_MODE",
-		"--name":        "SUBSCRIPTION",
-		"--output":      "OUTPUT",
-	},
-
-	RunE: func(cmd *cobra.Command, args []string) error {
-		gctx, gcancel = context.WithCancel(context.Background())
-		setupCloseHandler(gcancel)
-		debug := viper.GetBool("debug")
-		targetsConfig, err := createTargets()
-		if err != nil {
-			return fmt.Errorf("failed getting targets config: %v", err)
-		}
-		if debug {
-			logger.Printf("targets: %s", targetsConfig)
-		}
-
-		subscriptionsConfig, err := getSubscriptions()
-		if err != nil {
-			return fmt.Errorf("failed getting subscriptions config: %v", err)
-		}
-		if debug {
-			logger.Printf("subscriptions: %s", subscriptionsConfig)
-		}
-		outs, err := getOutputs()
-		if err != nil {
-			return err
-		}
-		if debug {
-			logger.Printf("outputs: %+v", outs)
-		}
-		epconfig, err := readEventProcessors()
-		if err != nil {
-			return err
-		}
-		if debug {
-			logger.Printf("processors: %+v", epconfig)
-		}
-		if coll == nil {
-			cfg := &collector.Config{
-				PrometheusAddress:   viper.GetString("prometheus-address"),
-				Debug:               viper.GetBool("debug"),
-				Format:              viper.GetString("format"),
-				TargetReceiveBuffer: viper.GetUint("target-buffer-size"),
-				RetryTimer:          viper.GetDuration("retry-timer"),
+func newSubscribeCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "subscribe",
+		Aliases: []string{"sub"},
+		Short:   "subscribe to gnmi updates on targets",
+		Annotations: map[string]string{
+			"--path":        "XPATH",
+			"--prefix":      "PREFIX",
+			"--model":       "MODEL",
+			"--mode":        "SUBSC_MODE",
+			"--stream-mode": "STREAM_MODE",
+			"--name":        "SUBSCRIPTION",
+			"--output":      "OUTPUT",
+		},
+		PreRun: func(cmd *cobra.Command, args []string) {
+			cfg.SetFlagsFromFile(cmd)
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			gctx, gcancel = context.WithCancel(context.Background())
+			setupCloseHandler(gcancel)
+			debug := viper.GetBool("debug")
+			targetsConfig, err := cfg.GetTargets()
+			if err != nil {
+				return fmt.Errorf("failed getting targets config: %v", err)
+			}
+			if debug {
+				logger.Printf("targets: %s", targetsConfig)
 			}
 
-			coll = collector.NewCollector(cfg, targetsConfig,
-				collector.WithDialOptions(createCollectorDialOpts()),
-				collector.WithSubscriptions(subscriptionsConfig),
-				collector.WithOutputs(outs),
-				collector.WithLogger(logger),
-				collector.WithEventProcessors(epconfig),
-			)
-		} else {
-			// prompt mode
-			for name, outCfg := range outs {
-				coll.AddOutput(name, outCfg)
+			subscriptionsConfig, err := getSubscriptions()
+			if err != nil {
+				return fmt.Errorf("failed getting subscriptions config: %v", err)
 			}
-			for _, sc := range subscriptionsConfig {
-				coll.AddSubscriptionConfig(sc)
+			if debug {
+				logger.Printf("subscriptions: %s", subscriptionsConfig)
 			}
-			for _, tc := range targetsConfig {
-				coll.AddTarget(tc)
+			outs, err := getOutputs()
+			if err != nil {
+				return err
 			}
-		}
-
-		coll.InitOutputs(gctx)
-
-		go coll.Start(gctx)
-
-		wg := new(sync.WaitGroup)
-		wg.Add(len(coll.Targets))
-		for name := range coll.Targets {
-			go func(tn string) {
-				defer wg.Done()
-				tRetryTimer := coll.Targets[tn].Config.RetryTimer
-				for {
-					err = coll.Subscribe(gctx, tn)
-					if err != nil {
-						if errors.Is(err, context.DeadlineExceeded) {
-							logger.Printf("failed to initialize target '%s' timeout (%s) reached", tn, targetsConfig[tn].Timeout)
-						} else {
-							logger.Printf("failed to initialize target '%s': %v", tn, err)
-						}
-						logger.Printf("retrying target %s in %s", tn, tRetryTimer)
-						time.Sleep(tRetryTimer)
-						continue
-					}
-					return
+			if debug {
+				logger.Printf("outputs: %+v", outs)
+			}
+			epconfig, err := readEventProcessors()
+			if err != nil {
+				return err
+			}
+			if debug {
+				logger.Printf("processors: %+v", epconfig)
+			}
+			if coll == nil {
+				cfg := &collector.Config{
+					PrometheusAddress:   viper.GetString("prometheus-address"),
+					Debug:               viper.GetBool("debug"),
+					Format:              viper.GetString("format"),
+					TargetReceiveBuffer: viper.GetUint("target-buffer-size"),
+					RetryTimer:          viper.GetDuration("retry-timer"),
 				}
-			}(name)
-		}
-		wg.Wait()
-		polledTargetsSubscriptions := coll.PolledSubscriptionsTargets()
-		if len(polledTargetsSubscriptions) > 0 {
-			pollTargets := make([]string, 0, len(polledTargetsSubscriptions))
-			for t := range polledTargetsSubscriptions {
-				pollTargets = append(pollTargets, t)
+
+				coll = collector.NewCollector(cfg, targetsConfig,
+					collector.WithDialOptions(createCollectorDialOpts()),
+					collector.WithSubscriptions(subscriptionsConfig),
+					collector.WithOutputs(outs),
+					collector.WithLogger(logger),
+					collector.WithEventProcessors(epconfig),
+				)
+			} else {
+				// prompt mode
+				for name, outCfg := range outs {
+					coll.AddOutput(name, outCfg)
+				}
+				for _, sc := range subscriptionsConfig {
+					coll.AddSubscriptionConfig(sc)
+				}
+				for _, tc := range targetsConfig {
+					coll.AddTarget(tc)
+				}
 			}
-			sort.Slice(pollTargets, func(i, j int) bool {
-				return pollTargets[i] < pollTargets[j]
-			})
-			s := promptui.Select{
-				Label:        "select target to poll",
-				Items:        pollTargets,
-				HideSelected: true,
-			}
-			waitChan := make(chan struct{}, 1)
-			waitChan <- struct{}{}
-			mo := &formatters.MarshalOptions{
-				Multiline: true,
-				Indent:    "  ",
-				Format:    viper.GetString("format")}
-			go func() {
-				for {
-					select {
-					case <-waitChan:
-						_, name, err := s.Run()
+
+			coll.InitOutputs(gctx)
+
+			go coll.Start(gctx)
+
+			wg := new(sync.WaitGroup)
+			wg.Add(len(coll.Targets))
+			for name := range coll.Targets {
+				go func(tn string) {
+					defer wg.Done()
+					tRetryTimer := coll.Targets[tn].Config.RetryTimer
+					for {
+						err = coll.Subscribe(gctx, tn)
 						if err != nil {
-							fmt.Printf("failed selecting target to poll: %v\n", err)
+							if errors.Is(err, context.DeadlineExceeded) {
+								logger.Printf("failed to initialize target '%s' timeout (%s) reached", tn, targetsConfig[tn].Timeout)
+							} else {
+								logger.Printf("failed to initialize target '%s': %v", tn, err)
+							}
+							logger.Printf("retrying target %s in %s", tn, tRetryTimer)
+							time.Sleep(tRetryTimer)
 							continue
 						}
-						ss := promptui.Select{
-							Label:        "select subscription to poll",
-							Items:        polledTargetsSubscriptions[name],
-							HideSelected: true,
-						}
-						_, subName, err := ss.Run()
-						if err != nil {
-							fmt.Printf("failed selecting subscription to poll: %v\n", err)
-							continue
-						}
-						response, err := coll.TargetPoll(name, subName)
-						if err != nil && err != io.EOF {
-							fmt.Printf("target '%s', subscription '%s': poll response error:%v\n", name, subName, err)
-							continue
-						}
-						if response == nil {
-							fmt.Printf("received empty response from target '%s'\n", name)
-							continue
-						}
-						switch rsp := response.Response.(type) {
-						case *gnmi.SubscribeResponse_SyncResponse:
-							fmt.Printf("received sync response '%t' from '%s'\n", rsp.SyncResponse, name)
-							waitChan <- struct{}{}
-							continue
-						}
-						b, err := mo.Marshal(response, nil)
-						if err != nil {
-							fmt.Printf("target '%s', subscription '%s': poll response formatting error:%v\n", name, subName, err)
-							fmt.Println(string(b))
-							waitChan <- struct{}{}
-							continue
-						}
-						fmt.Println(string(b))
-						waitChan <- struct{}{}
-					case <-gctx.Done():
 						return
 					}
+				}(name)
+			}
+			wg.Wait()
+			polledTargetsSubscriptions := coll.PolledSubscriptionsTargets()
+			if len(polledTargetsSubscriptions) > 0 {
+				pollTargets := make([]string, 0, len(polledTargetsSubscriptions))
+				for t := range polledTargetsSubscriptions {
+					pollTargets = append(pollTargets, t)
 				}
-			}()
-		}
+				sort.Slice(pollTargets, func(i, j int) bool {
+					return pollTargets[i] < pollTargets[j]
+				})
+				s := promptui.Select{
+					Label:        "select target to poll",
+					Items:        pollTargets,
+					HideSelected: true,
+				}
+				waitChan := make(chan struct{}, 1)
+				waitChan <- struct{}{}
+				mo := &formatters.MarshalOptions{
+					Multiline: true,
+					Indent:    "  ",
+					Format:    viper.GetString("format")}
+				go func() {
+					for {
+						select {
+						case <-waitChan:
+							_, name, err := s.Run()
+							if err != nil {
+								fmt.Printf("failed selecting target to poll: %v\n", err)
+								continue
+							}
+							ss := promptui.Select{
+								Label:        "select subscription to poll",
+								Items:        polledTargetsSubscriptions[name],
+								HideSelected: true,
+							}
+							_, subName, err := ss.Run()
+							if err != nil {
+								fmt.Printf("failed selecting subscription to poll: %v\n", err)
+								continue
+							}
+							response, err := coll.TargetPoll(name, subName)
+							if err != nil && err != io.EOF {
+								fmt.Printf("target '%s', subscription '%s': poll response error:%v\n", name, subName, err)
+								continue
+							}
+							if response == nil {
+								fmt.Printf("received empty response from target '%s'\n", name)
+								continue
+							}
+							switch rsp := response.Response.(type) {
+							case *gnmi.SubscribeResponse_SyncResponse:
+								fmt.Printf("received sync response '%t' from '%s'\n", rsp.SyncResponse, name)
+								waitChan <- struct{}{}
+								continue
+							}
+							b, err := mo.Marshal(response, nil)
+							if err != nil {
+								fmt.Printf("target '%s', subscription '%s': poll response formatting error:%v\n", name, subName, err)
+								fmt.Println(string(b))
+								waitChan <- struct{}{}
+								continue
+							}
+							fmt.Println(string(b))
+							waitChan <- struct{}{}
+						case <-gctx.Done():
+							return
+						}
+					}
+				}()
+			}
 
-		if promptMode {
+			if promptMode {
+				return nil
+			}
+			for range gctx.Done() {
+				return gctx.Err()
+			}
 			return nil
-		}
-		for range gctx.Done() {
-			return gctx.Err()
-		}
-		return nil
-	},
-	PostRun: func(cmd *cobra.Command, args []string) {
-		cmd.ResetFlags()
-		initSubscribeFlags(cmd)
-	},
-	SilenceUsage: true,
-}
-
-func init() {
-	rootCmd.AddCommand(subscribeCmd)
-	initSubscribeFlags(subscribeCmd)
+		},
+		PostRun: func(cmd *cobra.Command, args []string) {
+			cmd.ResetFlags()
+			initSubscribeFlags(cmd)
+		},
+		SilenceUsage: true,
+	}
+	initSubscribeFlags(cmd)
+	return cmd
 }
 
 // used to init or reset subscribeCmd flags for gnmic-prompt mode

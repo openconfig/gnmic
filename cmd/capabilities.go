@@ -28,72 +28,81 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var printVersion bool
-
 // capabilitiesCmd represents the capabilities command
-var capabilitiesCmd = &cobra.Command{
-	Use:     "capabilities",
-	Aliases: []string{"cap"},
-	Short:   "query targets gnmi capabilities",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		if viper.GetString("format") == "event" {
-			return fmt.Errorf("format event not supported for Capabilities RPC")
-		}
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		setupCloseHandler(cancel)
-		debug := viper.GetBool("debug")
-		targetsConfig, err := createTargets()
-		if err != nil {
-			return fmt.Errorf("failed getting targets config: %v", err)
-		}
-		if debug {
-			logger.Printf("targets: %s", targetsConfig)
-		}
-		subscriptionsConfig, err := getSubscriptions()
-		if err != nil {
-			return fmt.Errorf("failed getting subscriptions config: %v", err)
-		}
-		if debug {
-			logger.Printf("subscriptions: %s", subscriptionsConfig)
-		}
-		outs, err := getOutputs()
-		if err != nil {
-			return err
-		}
-		if debug {
-			logger.Printf("outputs: %+v", outs)
-		}
-		if coll == nil {
-			cfg := &collector.Config{
-				Debug:      viper.GetBool("debug"),
-				Format:     viper.GetString("format"),
-				RetryTimer: viper.GetDuration("retry-timer"),
+func newCapabilitiesCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "capabilities",
+		Aliases: []string{"cap"},
+		Short:   "query targets gnmi capabilities",
+		PreRun: func(cmd *cobra.Command, args []string) {
+			cfg.SetFlagsFromFile(cmd)
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if viper.GetString("format") == "event" {
+				return fmt.Errorf("format event not supported for Capabilities RPC")
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			setupCloseHandler(cancel)
+			debug := viper.GetBool("debug")
+			targetsConfig, err := cfg.GetTargets()
+			if err != nil {
+				return fmt.Errorf("failed getting targets config: %v", err)
+			}
+			if debug {
+				logger.Printf("targets: %s", targetsConfig)
+			}
+			subscriptionsConfig, err := getSubscriptions()
+			if err != nil {
+				return fmt.Errorf("failed getting subscriptions config: %v", err)
+			}
+			if debug {
+				logger.Printf("subscriptions: %s", subscriptionsConfig)
+			}
+			outs, err := getOutputs()
+			if err != nil {
+				return err
+			}
+			if debug {
+				logger.Printf("outputs: %+v", outs)
+			}
+			if coll == nil {
+				cfg := &collector.Config{
+					Debug:      viper.GetBool("debug"),
+					Format:     viper.GetString("format"),
+					RetryTimer: viper.GetDuration("retry-timer"),
+				}
+
+				coll = collector.NewCollector(cfg, targetsConfig,
+					collector.WithDialOptions(createCollectorDialOpts()),
+					collector.WithSubscriptions(subscriptionsConfig),
+					collector.WithOutputs(outs),
+					collector.WithLogger(logger),
+				)
+			} else {
+				// prompt mode
+				for _, tc := range targetsConfig {
+					coll.AddTarget(tc)
+				}
 			}
 
-			coll = collector.NewCollector(cfg, targetsConfig,
-				collector.WithDialOptions(createCollectorDialOpts()),
-				collector.WithSubscriptions(subscriptionsConfig),
-				collector.WithOutputs(outs),
-				collector.WithLogger(logger),
-			)
-		} else {
-			// prompt mode
-			for _, tc := range targetsConfig {
-				coll.AddTarget(tc)
+			wg := new(sync.WaitGroup)
+			wg.Add(len(coll.Targets))
+			lock := new(sync.Mutex)
+			for tName := range coll.Targets {
+				go reqCapabilities(ctx, coll, tName, wg, lock)
 			}
-		}
-
-		wg := new(sync.WaitGroup)
-		wg.Add(len(coll.Targets))
-		lock := new(sync.Mutex)
-		for tName := range coll.Targets {
-			go reqCapabilities(ctx, coll, tName, wg, lock)
-		}
-		wg.Wait()
-		return nil
-	},
-	SilenceUsage: true,
+			wg.Wait()
+			return nil
+		},
+		PostRun: func(cmd *cobra.Command, args []string) {
+			cmd.ResetFlags()
+			initCapabilitiesFlags(cmd)
+		},
+		SilenceUsage: true,
+	}
+	initCapabilitiesFlags(cmd)
+	return cmd
 }
 
 func reqCapabilities(ctx context.Context, coll *collector.Collector, tName string, wg *sync.WaitGroup, lock *sync.Mutex) {
@@ -132,8 +141,7 @@ func reqCapabilities(ctx context.Context, coll *collector.Collector, tName strin
 	}
 }
 
-func init() {
-	rootCmd.AddCommand(capabilitiesCmd)
-	capabilitiesCmd.Flags().BoolVarP(&printVersion, "version", "", false, "show gnmi version only")
-	viper.BindPFlag("capabilities-version", capabilitiesCmd.LocalFlags().Lookup("version"))
+func initCapabilitiesFlags(cmd *cobra.Command) {
+	cmd.Flags().BoolVarP(&cfg.LocalFlags.CapabilitiesVersion, "version", "", false, "show gnmi version only")
+	viper.BindPFlag("capabilities-version", cmd.LocalFlags().Lookup("version"))
 }

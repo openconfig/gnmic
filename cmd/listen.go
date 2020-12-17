@@ -37,97 +37,97 @@ import (
 )
 
 // listenCmd represents the listen command
-var listenCmd = &cobra.Command{
-	Use:   "listen",
-	Short: "listens for telemetry dialout updates from the node",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		server := new(dialoutTelemetryServer)
-		server.ctx = ctx
-		address := viper.GetStringSlice("address")
-		if len(address) == 0 {
-			return fmt.Errorf("no address specified")
-		}
-		if len(address) > 1 {
-			fmt.Printf("multiple addresses specified, listening only on %s\n", address[0])
-		}
-		server.Outputs = make(map[string]outputs.Output)
-		outCfgs, err := getOutputs()
-		if err != nil {
-			return err
-		}
-		for name, outConf := range outCfgs {
-			if outType, ok := outConf["type"]; ok {
-				if initializer, ok := outputs.Outputs[outType.(string)]; ok {
-					out := initializer()
-					go out.Init(ctx, outConf, outputs.WithLogger(logger))
-					server.Outputs[name] = out
+func newListenCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "listen",
+		Short: "listens for telemetry dialout updates from the node",
+		PreRun: func(cmd *cobra.Command, args []string) {
+			cfg.SetFlagsFromFile(cmd)
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			server := new(dialoutTelemetryServer)
+			server.ctx = ctx
+			address := viper.GetStringSlice("address")
+			if len(address) == 0 {
+				return fmt.Errorf("no address specified")
+			}
+			if len(address) > 1 {
+				fmt.Printf("multiple addresses specified, listening only on %s\n", address[0])
+			}
+			server.Outputs = make(map[string]outputs.Output)
+			outCfgs, err := getOutputs()
+			if err != nil {
+				return err
+			}
+			for name, outConf := range outCfgs {
+				if outType, ok := outConf["type"]; ok {
+					if initializer, ok := outputs.Outputs[outType.(string)]; ok {
+						out := initializer()
+						go out.Init(ctx, outConf, outputs.WithLogger(logger))
+						server.Outputs[name] = out
+					}
 				}
 			}
-		}
 
-		defer func() {
-			for _, o := range server.Outputs {
-				o.Close()
-			}
-		}()
-		server.listener, err = net.Listen("tcp", address[0])
-		if err != nil {
-			return err
-		}
-		logger.Printf("waiting for connections on %s", address[0])
-		var opts []grpc.ServerOption
-		if viper.GetInt("max-msg-size") > 0 {
-			opts = append(opts, grpc.MaxRecvMsgSize(viper.GetInt("max-msg-size")))
-		}
-		opts = append(opts,
-			grpc.MaxConcurrentStreams(viper.GetUint32("max-concurrent-streams")),
-			grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor))
-
-		if viper.GetString("tls-key") != "" && viper.GetString("tls-cert") != "" {
-			tlsConfig := &tls.Config{
-				Renegotiation:      tls.RenegotiateNever,
-				InsecureSkipVerify: viper.GetBool("skip-verify"),
-			}
-			err := loadCerts(tlsConfig)
+			defer func() {
+				for _, o := range server.Outputs {
+					o.Close()
+				}
+			}()
+			server.listener, err = net.Listen("tcp", address[0])
 			if err != nil {
-				logger.Printf("failed loading certificates: %v", err)
+				return err
+			}
+			logger.Printf("waiting for connections on %s", address[0])
+			var opts []grpc.ServerOption
+			if viper.GetInt("max-msg-size") > 0 {
+				opts = append(opts, grpc.MaxRecvMsgSize(viper.GetInt("max-msg-size")))
+			}
+			opts = append(opts,
+				grpc.MaxConcurrentStreams(viper.GetUint32("max-concurrent-streams")),
+				grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor))
+
+			if viper.GetString("tls-key") != "" && viper.GetString("tls-cert") != "" {
+				tlsConfig := &tls.Config{
+					Renegotiation:      tls.RenegotiateNever,
+					InsecureSkipVerify: viper.GetBool("skip-verify"),
+				}
+				err := loadCerts(tlsConfig)
+				if err != nil {
+					logger.Printf("failed loading certificates: %v", err)
+				}
+
+				err = loadCACerts(tlsConfig)
+				if err != nil {
+					logger.Printf("failed loading CA certificates: %v", err)
+				}
+				opts = append(opts, grpc.Creds(credentials.NewTLS(tlsConfig)))
 			}
 
-			err = loadCACerts(tlsConfig)
-			if err != nil {
-				logger.Printf("failed loading CA certificates: %v", err)
+			server.grpcServer = grpc.NewServer(opts...)
+			nokiasros.RegisterDialoutTelemetryServer(server.grpcServer, server)
+			grpc_prometheus.Register(server.grpcServer)
+
+			httpServer := &http.Server{
+				Handler: promhttp.Handler(),
+				Addr:    viper.GetString("prometheus-address"),
 			}
-			opts = append(opts, grpc.Creds(credentials.NewTLS(tlsConfig)))
-		}
-
-		server.grpcServer = grpc.NewServer(opts...)
-		nokiasros.RegisterDialoutTelemetryServer(server.grpcServer, server)
-		grpc_prometheus.Register(server.grpcServer)
-
-		httpServer := &http.Server{
-			Handler: promhttp.Handler(),
-			Addr:    viper.GetString("prometheus-address"),
-		}
-		go func() {
-			if err := httpServer.ListenAndServe(); err != nil {
-				logger.Printf("Unable to start prometheus http server.")
-			}
-		}()
-		defer httpServer.Close()
-		server.grpcServer.Serve(server.listener)
-		defer server.grpcServer.Stop()
-		return nil
-	},
-	SilenceUsage: true,
-}
-
-func init() {
-	rootCmd.AddCommand(listenCmd)
-	listenCmd.Flags().Uint32P("max-concurrent-streams", "", 256, "max concurrent streams gnmic can receive per transport")
-
-	viper.BindPFlag("listen-max-concurrent-streams", listenCmd.LocalFlags().Lookup("max-concurrent-streams"))
+			go func() {
+				if err := httpServer.ListenAndServe(); err != nil {
+					logger.Printf("Unable to start prometheus http server.")
+				}
+			}()
+			defer httpServer.Close()
+			server.grpcServer.Serve(server.listener)
+			defer server.grpcServer.Stop()
+			return nil
+		},
+		SilenceUsage: true,
+	}
+	cmd.Flags().Uint32P("max-concurrent-streams", "", 256, "max concurrent streams gnmic can receive per transport")
+	return cmd
 }
 
 type dialoutTelemetryServer struct {
