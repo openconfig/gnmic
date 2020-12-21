@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 var downloadURL = "https://github.com/karimra/gnmic/raw/master/install.sh"
@@ -20,7 +19,7 @@ func newVersionUpgradeCmd() *cobra.Command {
 		Use:   "upgrade",
 		Short: "upgrade gnmic to latest available version",
 		PreRun: func(cmd *cobra.Command, args []string) {
-			cfg.SetFlagsFromFile(cmd)
+			cfg.SetLocalFlagsFromFile(cmd)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f, err := ioutil.TempFile("", "gnmic")
@@ -34,7 +33,7 @@ func newVersionUpgradeCmd() *cobra.Command {
 			}
 
 			var c *exec.Cmd
-			switch viper.GetBool("upgrade-use-pkg") {
+			switch cfg.LocalFlags.UpgradeUsePkg {
 			case true:
 				c = exec.Command("bash", f.Name(), "--use-pkg")
 			case false:
@@ -74,4 +73,5 @@ func downloadFile(url string, file *os.File) error {
 
 func initVersionUpgradeFlags(cmd *cobra.Command) {
 	cmd.Flags().Bool("use-pkg", false, "upgrade using package")
+	cfg.FileConfig.BindPFlag("update-use-pkg", cmd.Flags().Lookup("use-pkg"))
 }

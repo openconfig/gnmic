@@ -29,7 +29,6 @@ import (
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
@@ -42,22 +41,21 @@ func newListenCmd() *cobra.Command {
 		Use:   "listen",
 		Short: "listens for telemetry dialout updates from the node",
 		PreRun: func(cmd *cobra.Command, args []string) {
-			cfg.SetFlagsFromFile(cmd)
+			cfg.SetLocalFlagsFromFile(cmd)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			server := new(dialoutTelemetryServer)
 			server.ctx = ctx
-			address := viper.GetStringSlice("address")
-			if len(address) == 0 {
+			if len(cfg.Globals.Address) == 0 {
 				return fmt.Errorf("no address specified")
 			}
-			if len(address) > 1 {
-				fmt.Printf("multiple addresses specified, listening only on %s\n", address[0])
+			if len(cfg.Globals.Address) > 1 {
+				fmt.Printf("multiple addresses specified, listening only on %s\n", cfg.Globals.Address[0])
 			}
 			server.Outputs = make(map[string]outputs.Output)
-			outCfgs, err := getOutputs()
+			outCfgs, err := cfg.GetOutputs()
 			if err != nil {
 				return err
 			}
@@ -76,23 +74,23 @@ func newListenCmd() *cobra.Command {
 					o.Close()
 				}
 			}()
-			server.listener, err = net.Listen("tcp", address[0])
+			server.listener, err = net.Listen("tcp", cfg.Globals.Address[0])
 			if err != nil {
 				return err
 			}
-			logger.Printf("waiting for connections on %s", address[0])
+			logger.Printf("waiting for connections on %s", cfg.Globals.Address[0])
 			var opts []grpc.ServerOption
-			if viper.GetInt("max-msg-size") > 0 {
-				opts = append(opts, grpc.MaxRecvMsgSize(viper.GetInt("max-msg-size")))
+			if cfg.Globals.MaxMsgSize > 0 {
+				opts = append(opts, grpc.MaxRecvMsgSize(cfg.Globals.MaxMsgSize))
 			}
 			opts = append(opts,
-				grpc.MaxConcurrentStreams(viper.GetUint32("max-concurrent-streams")),
+				grpc.MaxConcurrentStreams(cfg.LocalFlags.ListenMaxConcurrentStreams),
 				grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor))
 
-			if viper.GetString("tls-key") != "" && viper.GetString("tls-cert") != "" {
+			if cfg.Globals.TLSKey != "" && cfg.Globals.TLSCert != "" {
 				tlsConfig := &tls.Config{
 					Renegotiation:      tls.RenegotiateNever,
-					InsecureSkipVerify: viper.GetBool("skip-verify"),
+					InsecureSkipVerify: cfg.Globals.SkipVerify,
 				}
 				err := loadCerts(tlsConfig)
 				if err != nil {
@@ -112,7 +110,7 @@ func newListenCmd() *cobra.Command {
 
 			httpServer := &http.Server{
 				Handler: promhttp.Handler(),
-				Addr:    viper.GetString("prometheus-address"),
+				Addr:    cfg.Globals.PrometheusAddress,
 			}
 			go func() {
 				if err := httpServer.ListenAndServe(); err != nil {
@@ -127,6 +125,7 @@ func newListenCmd() *cobra.Command {
 		SilenceUsage: true,
 	}
 	cmd.Flags().Uint32P("max-concurrent-streams", "", 256, "max concurrent streams gnmic can receive per transport")
+	cfg.FileConfig.BindPFlag("listen-max-concurrent-streams", cmd.LocalFlags().Lookup("max-concurrent-streams"))
 	return cmd
 }
 
@@ -140,7 +139,7 @@ type dialoutTelemetryServer struct {
 
 func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_PublishServer) error {
 	peer, ok := peer.FromContext(stream.Context())
-	if ok && viper.GetBool("debug") {
+	if ok && cfg.Globals.Debug {
 		b, err := json.Marshal(peer)
 		if err != nil {
 			logger.Printf("failed to marshal peer data: %v", err)
@@ -149,7 +148,7 @@ func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_Publi
 		}
 	}
 	md, ok := metadata.FromIncomingContext(stream.Context())
-	if ok && viper.GetBool("debug") {
+	if ok && cfg.Globals.Debug {
 		b, err := json.Marshal(md)
 		if err != nil {
 			logger.Printf("failed to marshal context metadata: %v", err)

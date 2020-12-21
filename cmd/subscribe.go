@@ -20,19 +20,15 @@ import (
 	"fmt"
 	"io"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/formatters"
-	"github.com/karimra/gnmic/outputs"
 	_ "github.com/karimra/gnmic/outputs/all"
 	"github.com/manifoldco/promptui"
-	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 const defaultRetryTimer = 10 * time.Second
@@ -65,48 +61,47 @@ func newSubscribeCmd() *cobra.Command {
 			"--output":      "OUTPUT",
 		},
 		PreRun: func(cmd *cobra.Command, args []string) {
-			cfg.SetFlagsFromFile(cmd)
+			cfg.SetLocalFlagsFromFile(cmd)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			gctx, gcancel = context.WithCancel(context.Background())
 			setupCloseHandler(gcancel)
-			debug := viper.GetBool("debug")
 			targetsConfig, err := cfg.GetTargets()
 			if err != nil {
 				return fmt.Errorf("failed getting targets config: %v", err)
 			}
-			if debug {
+			if cfg.Globals.Debug {
 				logger.Printf("targets: %s", targetsConfig)
 			}
 
-			subscriptionsConfig, err := getSubscriptions()
+			subscriptionsConfig, err := cfg.GetSubscriptions(cmd)
 			if err != nil {
 				return fmt.Errorf("failed getting subscriptions config: %v", err)
 			}
-			if debug {
+			if cfg.Globals.Debug {
 				logger.Printf("subscriptions: %s", subscriptionsConfig)
 			}
-			outs, err := getOutputs()
+			outs, err := cfg.GetOutputs()
 			if err != nil {
 				return err
 			}
-			if debug {
+			if cfg.Globals.Debug {
 				logger.Printf("outputs: %+v", outs)
 			}
-			epconfig, err := readEventProcessors()
+			epconfig, err := cfg.GetEventProcessors()
 			if err != nil {
 				return err
 			}
-			if debug {
+			if cfg.Globals.Debug {
 				logger.Printf("processors: %+v", epconfig)
 			}
 			if coll == nil {
 				cfg := &collector.Config{
-					PrometheusAddress:   viper.GetString("prometheus-address"),
-					Debug:               viper.GetBool("debug"),
-					Format:              viper.GetString("format"),
-					TargetReceiveBuffer: viper.GetUint("target-buffer-size"),
-					RetryTimer:          viper.GetDuration("retry-timer"),
+					PrometheusAddress:   cfg.Globals.PrometheusAddress,
+					Debug:               cfg.Globals.Debug,
+					Format:              cfg.Globals.Format,
+					TargetReceiveBuffer: cfg.Globals.TargetBufferSize,
+					RetryTimer:          cfg.Globals.Retry,
 				}
 
 				coll = collector.NewCollector(cfg, targetsConfig,
@@ -175,7 +170,8 @@ func newSubscribeCmd() *cobra.Command {
 				mo := &formatters.MarshalOptions{
 					Multiline: true,
 					Indent:    "  ",
-					Format:    viper.GetString("format")}
+					Format:    cfg.Globals.Format,
+				}
 				go func() {
 					for {
 						select {
@@ -246,262 +242,35 @@ func newSubscribeCmd() *cobra.Command {
 
 // used to init or reset subscribeCmd flags for gnmic-prompt mode
 func initSubscribeFlags(cmd *cobra.Command) {
-	cmd.Flags().StringP("prefix", "", "", "subscribe request prefix")
-	cmd.Flags().StringArrayVarP(&paths, "path", "", []string{}, "subscribe request paths")
+	cmd.Flags().StringVarP(&cfg.LocalFlags.SubscribePrefix, "prefix", "", "", "subscribe request prefix")
+	cmd.Flags().StringArrayVarP(&cfg.LocalFlags.SubscribePath, "path", "", []string{}, "subscribe request paths")
 	//cmd.MarkFlagRequired("path")
-	cmd.Flags().Uint32P("qos", "q", 0, "qos marking")
-	cmd.Flags().BoolP("updates-only", "", false, "only updates to current state should be sent")
-	cmd.Flags().StringP("mode", "", "stream", "one of: once, stream, poll")
-	cmd.Flags().StringP("stream-mode", "", "target-defined", "one of: on-change, sample, target-defined")
-	cmd.Flags().DurationP("sample-interval", "i", 0,
+	cmd.Flags().Uint32VarP(&cfg.LocalFlags.SubscribeQos, "qos", "q", 0, "qos marking")
+	cmd.Flags().BoolVarP(&cfg.LocalFlags.SubscribeUpdatesOnly, "updates-only", "", false, "only updates to current state should be sent")
+	cmd.Flags().StringVarP(&cfg.LocalFlags.SubscribeMode, "mode", "", "stream", "one of: once, stream, poll")
+	cmd.Flags().StringVarP(&cfg.LocalFlags.SubscribeStreamMode, "stream-mode", "", "target-defined", "one of: on-change, sample, target-defined")
+	cmd.Flags().DurationVarP(&cfg.LocalFlags.SubscribeSampleInteral, "sample-interval", "i", 0,
 		"sample interval as a decimal number and a suffix unit, such as \"10s\" or \"1m30s\"")
-	cmd.Flags().BoolP("suppress-redundant", "", false, "suppress redundant update if the subscribed value didn't not change")
-	cmd.Flags().DurationP("heartbeat-interval", "", 0, "heartbeat interval in case suppress-redundant is enabled")
-	cmd.Flags().StringSliceP("model", "", []string{}, "subscribe request used model(s)")
-	cmd.Flags().Bool("quiet", false, "suppress stdout printing")
-	cmd.Flags().StringP("target", "", "", "subscribe request target")
-	cmd.Flags().StringSliceP("name", "n", []string{}, "reference subscriptions by name, must be defined in gnmic config file")
-	cmd.Flags().StringSliceP("output", "", []string{}, "reference to output groups by name, must be defined in gnmic config file")
+	cmd.Flags().BoolVarP(&cfg.LocalFlags.SubscribeSuppressRedundant, "suppress-redundant", "", false, "suppress redundant update if the subscribed value didn't not change")
+	cmd.Flags().DurationVarP(&cfg.LocalFlags.SubscribeHeartbearInterval, "heartbeat-interval", "", 0, "heartbeat interval in case suppress-redundant is enabled")
+	cmd.Flags().StringSliceVarP(&cfg.LocalFlags.SubscribeModel, "model", "", []string{}, "subscribe request used model(s)")
+	cmd.Flags().BoolVar(&cfg.LocalFlags.SubscribeQuiet, "quiet", false, "suppress stdout printing")
+	cmd.Flags().StringVarP(&cfg.LocalFlags.SubscribeTarget, "target", "", "", "subscribe request target")
+	cmd.Flags().StringSliceVarP(&cfg.LocalFlags.SubscribeName, "name", "n", []string{}, "reference subscriptions by name, must be defined in gnmic config file")
+	cmd.Flags().StringSliceVarP(&cfg.LocalFlags.SubscribeOutput, "output", "", []string{}, "reference to output groups by name, must be defined in gnmic config file")
 	//
-	viper.BindPFlag("subscribe-prefix", cmd.LocalFlags().Lookup("prefix"))
-	viper.BindPFlag("subscribe-path", cmd.LocalFlags().Lookup("path"))
-	viper.BindPFlag("subscribe-qos", cmd.LocalFlags().Lookup("qos"))
-	viper.BindPFlag("subscribe-updates-only", cmd.LocalFlags().Lookup("updates-only"))
-	viper.BindPFlag("subscribe-mode", cmd.LocalFlags().Lookup("mode"))
-	viper.BindPFlag("subscribe-stream-mode", cmd.LocalFlags().Lookup("stream-mode"))
-	viper.BindPFlag("subscribe-sample-interval", cmd.LocalFlags().Lookup("sample-interval"))
-	viper.BindPFlag("subscribe-suppress-redundant", cmd.LocalFlags().Lookup("suppress-redundant"))
-	viper.BindPFlag("subscribe-heartbeat-interval", cmd.LocalFlags().Lookup("heartbeat-interval"))
-	viper.BindPFlag("subscribe-sub-model", cmd.LocalFlags().Lookup("model"))
-	viper.BindPFlag("subscribe-quiet", cmd.LocalFlags().Lookup("quiet"))
-	viper.BindPFlag("subscribe-target", cmd.LocalFlags().Lookup("target"))
-	viper.BindPFlag("subscribe-name", cmd.LocalFlags().Lookup("name"))
-	viper.BindPFlag("subscribe-output", cmd.LocalFlags().Lookup("output"))
-}
-
-func getOutputs() (map[string]map[string]interface{}, error) {
-	outDef := viper.GetStringMap("outputs")
-	if len(outDef) == 0 && !viper.GetBool("quiet") {
-		stdoutConfig := map[string]interface{}{
-			"type":      "file",
-			"file-type": "stdout",
-			"format":    viper.GetString("format"),
-		}
-		outDef["default-stdout"] = stdoutConfig
-	}
-	outputsConfigs := make(map[string]map[string]interface{})
-	for name, outputCfg := range outDef {
-		outputCfgconv := convert(outputCfg)
-		switch outCfg := outputCfgconv.(type) {
-		case map[string]interface{}:
-			if outType, ok := outCfg["type"]; ok {
-				if _, ok := outputs.Outputs[outType.(string)]; ok {
-					format, ok := outCfg["format"]
-					if !ok || (ok && format == "") {
-						outCfg["format"] = viper.GetString("format")
-					}
-					outputsConfigs[name] = outCfg
-					continue
-				}
-				logger.Printf("unknown output type '%s'", outType)
-				continue
-			}
-			logger.Printf("missing output 'type' under %v", outCfg)
-		default:
-			logger.Printf("unknown configuration format expecting a map[string]interface{}: got %T : %v", outCfg, outCfg)
-		}
-	}
-
-	namedOutputs := viper.GetStringSlice("subscribe-output")
-	if len(namedOutputs) == 0 {
-		return outputsConfigs, nil
-	}
-	filteredOutputs := make(map[string]map[string]interface{})
-	notFound := make([]string, 0)
-	for _, name := range namedOutputs {
-		if o, ok := outputsConfigs[name]; ok {
-			filteredOutputs[name] = o
-		} else {
-			notFound = append(notFound, name)
-		}
-	}
-	if len(notFound) > 0 {
-		return nil, fmt.Errorf("named output(s) not found in config file: %v", notFound)
-	}
-	return filteredOutputs, nil
-}
-
-func getSubscriptions() (map[string]*collector.SubscriptionConfig, error) {
-	subscriptions := make(map[string]*collector.SubscriptionConfig)
-	hi := viper.GetDuration("subscribe-heartbeat-interval")
-	si := viper.GetDuration("subscribe-sample-interval")
-	var qos *uint32
-	// qos value is set to nil by default to enable targets which don't support qos marking
-	if viper.IsSet("subscribe-qos") {
-		q := viper.GetUint32("subscribe-qos")
-		qos = &q
-	}
-
-	subNames := viper.GetStringSlice("subscribe-name")
-	if len(paths) > 0 && len(subNames) > 0 {
-		return nil, fmt.Errorf("flags --path and --name cannot be mixed")
-	}
-	if len(paths) > 0 {
-		sub := new(collector.SubscriptionConfig)
-		sub.Name = fmt.Sprintf("default-%d", time.Now().Unix())
-		sub.Paths = paths
-		sub.Prefix = viper.GetString("subscribe-prefix")
-		sub.Target = viper.GetString("subscribe-target")
-		sub.Mode = viper.GetString("subscribe-mode")
-		sub.Encoding = viper.GetString("encoding")
-		sub.Qos = qos
-		sub.StreamMode = viper.GetString("subscribe-stream-mode")
-		sub.HeartbeatInterval = &hi
-		sub.SampleInterval = &si
-		sub.SuppressRedundant = viper.GetBool("subscribe-suppress-redundant")
-		sub.UpdatesOnly = viper.GetBool("subscribe-updates-only")
-		sub.Models = viper.GetStringSlice("models")
-		subscriptions["default"] = sub
-		return subscriptions, nil
-	}
-	subDef := viper.GetStringMap("subscriptions")
-	if viper.GetBool("debug") {
-		logger.Printf("subscription map: %v+", subDef)
-	}
-	for sn, s := range subDef {
-		sub := new(collector.SubscriptionConfig)
-		decoder, err := mapstructure.NewDecoder(
-			&mapstructure.DecoderConfig{
-				DecodeHook: mapstructure.StringToTimeDurationHookFunc(),
-				Result:     sub,
-			})
-		if err != nil {
-			return nil, err
-		}
-		err = decoder.Decode(s)
-		if err != nil {
-			return nil, err
-		}
-		sub.Name = sn
-
-		// inherit global "subscribe-*" option if it's not set
-		setSubscriptionDefaults(sub)
-		subscriptions[sn] = sub
-	}
-	if len(subNames) == 0 {
-		return subscriptions, nil
-	}
-	filteredSubscriptions := make(map[string]*collector.SubscriptionConfig)
-	notFound := make([]string, 0)
-	for _, name := range subNames {
-		if s, ok := subscriptions[name]; ok {
-			filteredSubscriptions[name] = s
-		} else {
-			notFound = append(notFound, name)
-		}
-	}
-	if len(notFound) > 0 {
-		return nil, fmt.Errorf("named subscription(s) not found in config file: %v", notFound)
-	}
-	return filteredSubscriptions, nil
-}
-
-func setSubscriptionDefaults(sub *collector.SubscriptionConfig) {
-	hi := viper.GetDuration("subscribe-heartbeat-interval")
-	si := viper.GetDuration("subscribe-sample-interval")
-	if sub.SampleInterval == nil {
-		sub.SampleInterval = &si
-	}
-	if sub.HeartbeatInterval == nil {
-		sub.HeartbeatInterval = &hi
-	}
-	if sub.Encoding == "" {
-		sub.Encoding = viper.GetString("encoding")
-	}
-	if sub.Mode == "" {
-		sub.Mode = viper.GetString("subscribe-mode")
-	}
-	if strings.ToUpper(sub.Mode) == "STREAM" && sub.StreamMode == "" {
-		sub.StreamMode = viper.GetString("subscribe-stream-mode")
-	}
-	if sub.Qos == nil {
-		if viper.IsSet("subscribe-qos") {
-			q := viper.GetUint32("subscribe-qos")
-			sub.Qos = &q
-		}
-	}
-}
-
-func readSubscriptionsFromCfg() []*collector.SubscriptionConfig {
-	subDef := viper.GetStringMap("subscriptions")
-	subscriptions := make([]*collector.SubscriptionConfig, 0)
-	for sn, s := range subDef {
-		sub := new(collector.SubscriptionConfig)
-		decoder, err := mapstructure.NewDecoder(
-			&mapstructure.DecoderConfig{
-				DecodeHook: mapstructure.StringToTimeDurationHookFunc(),
-				Result:     sub,
-			})
-		if err != nil {
-			return nil
-		}
-		err = decoder.Decode(s)
-		if err != nil {
-			return nil
-		}
-		sub.Name = sn
-		setSubscriptionDefaults(sub)
-		subscriptions = append(subscriptions, sub)
-	}
-	sort.Slice(subscriptions, func(i, j int) bool {
-		return subscriptions[i].Name < subscriptions[j].Name
-	})
-	return subscriptions
-}
-
-type outputSuggestion struct {
-	name  string
-	types []string
-}
-
-func getOutputsFromCfg() []outputSuggestion {
-	outDef := viper.GetStringMap("outputs")
-	suggestions := make([]outputSuggestion, 0, len(outDef))
-	for name, d := range outDef {
-		dl := convert(d)
-		sug := outputSuggestion{name: name, types: make([]string, 0)}
-		switch outs := dl.(type) {
-		case []interface{}:
-			for _, ou := range outs {
-				switch ou := ou.(type) {
-				case map[string]interface{}:
-					if outType, ok := ou["type"]; ok {
-						sug.types = append(sug.types, outType.(string))
-					}
-				}
-			}
-		}
-		suggestions = append(suggestions, sug)
-	}
-	sort.Slice(suggestions, func(i, j int) bool {
-		return suggestions[i].name < suggestions[j].name
-	})
-	return suggestions
-}
-
-func readEventProcessors() (map[string]map[string]interface{}, error) {
-	eps := viper.GetStringMap("processors")
-	evpConfig := make(map[string]map[string]interface{})
-	for name, epc := range eps {
-		switch epc := epc.(type) {
-		case map[string]interface{}:
-			evpConfig[name] = epc
-		case nil:
-			return nil, nil
-		default:
-			logger.Printf("malformed processors config, %+v", epc)
-			return nil, fmt.Errorf("malformed processors config, got %T", epc)
-		}
-	}
-	return evpConfig, nil
+	cfg.FileConfig.BindPFlag("subscribe-prefix", cmd.LocalFlags().Lookup("prefix"))
+	cfg.FileConfig.BindPFlag("subscribe-path", cmd.LocalFlags().Lookup("path"))
+	cfg.FileConfig.BindPFlag("subscribe-qos", cmd.LocalFlags().Lookup("qos"))
+	cfg.FileConfig.BindPFlag("subscribe-updates-only", cmd.LocalFlags().Lookup("updates-only"))
+	cfg.FileConfig.BindPFlag("subscribe-mode", cmd.LocalFlags().Lookup("mode"))
+	cfg.FileConfig.BindPFlag("subscribe-stream-mode", cmd.LocalFlags().Lookup("stream-mode"))
+	cfg.FileConfig.BindPFlag("subscribe-sample-interval", cmd.LocalFlags().Lookup("sample-interval"))
+	cfg.FileConfig.BindPFlag("subscribe-suppress-redundant", cmd.LocalFlags().Lookup("suppress-redundant"))
+	cfg.FileConfig.BindPFlag("subscribe-heartbeat-interval", cmd.LocalFlags().Lookup("heartbeat-interval"))
+	cfg.FileConfig.BindPFlag("subscribe-sub-model", cmd.LocalFlags().Lookup("model"))
+	cfg.FileConfig.BindPFlag("subscribe-quiet", cmd.LocalFlags().Lookup("quiet"))
+	cfg.FileConfig.BindPFlag("subscribe-target", cmd.LocalFlags().Lookup("target"))
+	cfg.FileConfig.BindPFlag("subscribe-name", cmd.LocalFlags().Lookup("name"))
+	cfg.FileConfig.BindPFlag("subscribe-output", cmd.LocalFlags().Lookup("output"))
 }

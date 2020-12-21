@@ -30,28 +30,27 @@ import (
 	"github.com/karimra/gnmic/collector"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"gopkg.in/yaml.v2"
 )
 
 var vTypes = []string{"json", "json_ietf", "string", "int", "uint", "bool", "decimal", "float", "bytes", "ascii"}
 
-type setCmdInput struct {
-	deletes  []string
-	updates  []string
-	replaces []string
+// type setCmdInput struct {
+// 	deletes  []string
+// 	updates  []string
+// 	replaces []string
 
-	updatePaths  []string
-	replacePaths []string
+// 	updatePaths  []string
+// 	replacePaths []string
 
-	updateFiles  []string
-	replaceFiles []string
+// 	updateFiles  []string
+// 	replaceFiles []string
 
-	updateValues  []string
-	replaceValues []string
-}
+// 	updateValues  []string
+// 	replaceValues []string
+// }
 
-var setInput setCmdInput
+// var setInput setCmdInput
 
 // setCmd represents the set command
 func newSetCmd() *cobra.Command {
@@ -68,53 +67,37 @@ func newSetCmd() *cobra.Command {
 			"--update-file":  "FILE",
 			"--update-path":  "XPATH",
 		},
-		PreRun: func(cmd *cobra.Command, args []string) {
-			cfg.SetFlagsFromFile(cmd)
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			cfg.SetLocalFlagsFromFile(cmd)
+			return validateSetInput()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if viper.GetString("format") == "event" {
+			if cfg.Globals.Format == "event" {
 				return fmt.Errorf("format event not supported for Set RPC")
 			}
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			setupCloseHandler(cancel)
-			debug := viper.GetBool("debug")
 			targetsConfig, err := cfg.GetTargets()
 			if err != nil {
 				return fmt.Errorf("failed getting targets config: %v", err)
 			}
-			if debug {
+			if cfg.Globals.Debug {
 				logger.Printf("targets: %s", targetsConfig)
-			}
-			subscriptionsConfig, err := getSubscriptions()
-			if err != nil {
-				return fmt.Errorf("failed getting subscriptions config: %v", err)
-			}
-			if debug {
-				logger.Printf("subscriptions: %s", subscriptionsConfig)
-			}
-			outs, err := getOutputs()
-			if err != nil {
-				return err
-			}
-			if debug {
-				logger.Printf("outputs: %+v", outs)
 			}
 			if len(targetsConfig) > 1 {
 				fmt.Println("[warning] running set command on multiple targets")
 			}
 			if coll == nil {
 				cfg := &collector.Config{
-					Debug:               viper.GetBool("debug"),
-					Format:              viper.GetString("format"),
-					TargetReceiveBuffer: viper.GetUint("target-buffer-size"),
-					RetryTimer:          viper.GetDuration("retry-timer"),
+					Debug:               cfg.Globals.Debug,
+					Format:              cfg.Globals.Format,
+					TargetReceiveBuffer: cfg.Globals.TargetBufferSize,
+					RetryTimer:          cfg.Globals.Retry,
 				}
 
 				coll = collector.NewCollector(cfg, targetsConfig,
 					collector.WithDialOptions(createCollectorDialOpts()),
-					collector.WithSubscriptions(subscriptionsConfig),
-					collector.WithOutputs(outs),
 					collector.WithLogger(logger),
 				)
 			} else {
@@ -150,13 +133,13 @@ func setRequest(ctx context.Context, tName string, req *gnmi.SetRequest, wg *syn
 	defer wg.Done()
 	logger.Printf("sending gNMI SetRequest: prefix='%v', delete='%v', replace='%v', update='%v', extension='%v' to %s",
 		req.Prefix, req.Delete, req.Replace, req.Update, req.Extension, tName)
-	if viper.GetBool("print-request") {
+	if cfg.Globals.PrintRequest {
 		lock.Lock()
 		fmt.Fprint(os.Stderr, "Set Request:\n")
 		err := printMsg(tName, req)
 		if err != nil {
 			logger.Printf("error marshaling set request msg: %v", err)
-			if !viper.GetBool("log") {
+			if !cfg.Globals.Log {
 				fmt.Printf("error marshaling set request msg: %v\n", err)
 			}
 		}
@@ -173,7 +156,7 @@ func setRequest(ctx context.Context, tName string, req *gnmi.SetRequest, wg *syn
 	err = printMsg(tName, response)
 	if err != nil {
 		logger.Printf("error marshaling set response from %s: %v\n", tName, err)
-		if !viper.GetBool("log") {
+		if !cfg.Globals.Log {
 			fmt.Printf("error marshaling set response from %s: %v\n", tName, err)
 		}
 	}
@@ -224,68 +207,73 @@ func convert(i interface{}) interface{} {
 func initSetFlags(cmd *cobra.Command) {
 	cmd.Flags().StringP("prefix", "", "", "set request prefix")
 
-	cmd.Flags().StringArrayVarP(&setInput.deletes, "delete", "", []string{}, "set request path to be deleted")
+	cmd.Flags().StringArrayVarP(&cfg.LocalFlags.SetDelete, "delete", "", []string{}, "set request path to be deleted")
 
-	cmd.Flags().StringArrayVarP(&setInput.replaces, "replace", "", []string{}, fmt.Sprintf("set request path:::type:::value to be replaced, type must be one of %v", vTypes))
-	cmd.Flags().StringArrayVarP(&setInput.updates, "update", "", []string{}, fmt.Sprintf("set request path:::type:::value to be updated, type must be one of %v", vTypes))
+	cmd.Flags().StringArrayVarP(&cfg.LocalFlags.SetReplace, "replace", "", []string{}, fmt.Sprintf("set request path:::type:::value to be replaced, type must be one of %v", vTypes))
+	cmd.Flags().StringArrayVarP(&cfg.LocalFlags.SetUpdate, "update", "", []string{}, fmt.Sprintf("set request path:::type:::value to be updated, type must be one of %v", vTypes))
 
-	cmd.Flags().StringArrayVarP(&setInput.replacePaths, "replace-path", "", []string{}, "set request path to be replaced")
-	cmd.Flags().StringArrayVarP(&setInput.updatePaths, "update-path", "", []string{}, "set request path to be updated")
-	cmd.Flags().StringArrayVarP(&setInput.updateFiles, "update-file", "", []string{}, "set update request value in json/yaml file")
-	cmd.Flags().StringArrayVarP(&setInput.replaceFiles, "replace-file", "", []string{}, "set replace request value in json/yaml file")
-	cmd.Flags().StringArrayVarP(&setInput.updateValues, "update-value", "", []string{}, "set update request value")
-	cmd.Flags().StringArrayVarP(&setInput.replaceValues, "replace-value", "", []string{}, "set replace request value")
-	cmd.Flags().StringP("delimiter", "", ":::", "set update/replace delimiter between path, type, value")
-	cmd.Flags().StringP("target", "", "", "set request target")
+	cmd.Flags().StringArrayVarP(&cfg.LocalFlags.SetReplacePath, "replace-path", "", []string{}, "set request path to be replaced")
+	cmd.Flags().StringArrayVarP(&cfg.LocalFlags.SetUpdatePath, "update-path", "", []string{}, "set request path to be updated")
+	cmd.Flags().StringArrayVarP(&cfg.LocalFlags.SetUpdateFile, "update-file", "", []string{}, "set update request value in json/yaml file")
+	cmd.Flags().StringArrayVarP(&cfg.LocalFlags.SetReplaceFile, "replace-file", "", []string{}, "set replace request value in json/yaml file")
+	cmd.Flags().StringArrayVarP(&cfg.LocalFlags.SetUpdateValue, "update-value", "", []string{}, "set update request value")
+	cmd.Flags().StringArrayVarP(&cfg.LocalFlags.SetReplaceValue, "replace-value", "", []string{}, "set replace request value")
+	cmd.Flags().StringVarP(&cfg.LocalFlags.SetDelimiter, "delimiter", "", ":::", "set update/replace delimiter between path, type, value")
+	cmd.Flags().StringVarP(&cfg.LocalFlags.SetTarget, "target", "", "", "set request target")
 
-	viper.BindPFlag("set-prefix", cmd.LocalFlags().Lookup("prefix"))
-	viper.BindPFlag("set-delete", cmd.LocalFlags().Lookup("delete"))
-	viper.BindPFlag("set-replace", cmd.LocalFlags().Lookup("replace"))
-	viper.BindPFlag("set-update", cmd.LocalFlags().Lookup("update"))
-	viper.BindPFlag("set-update-path", cmd.LocalFlags().Lookup("update-path"))
-	viper.BindPFlag("set-replace-path", cmd.LocalFlags().Lookup("replace-path"))
-	viper.BindPFlag("set-update-file", cmd.LocalFlags().Lookup("update-file"))
-	viper.BindPFlag("set-replace-file", cmd.LocalFlags().Lookup("replace-file"))
-	viper.BindPFlag("set-update-value", cmd.LocalFlags().Lookup("update-value"))
-	viper.BindPFlag("set-replace-value", cmd.LocalFlags().Lookup("replace-value"))
-	viper.BindPFlag("set-delimiter", cmd.LocalFlags().Lookup("delimiter"))
-	viper.BindPFlag("set-target", cmd.LocalFlags().Lookup("target"))
+	cfg.FileConfig.BindPFlag("set-prefix", cmd.LocalFlags().Lookup("prefix"))
+	cfg.FileConfig.BindPFlag("set-delete", cmd.LocalFlags().Lookup("delete"))
+	cfg.FileConfig.BindPFlag("set-replace", cmd.LocalFlags().Lookup("replace"))
+	cfg.FileConfig.BindPFlag("set-update", cmd.LocalFlags().Lookup("update"))
+	cfg.FileConfig.BindPFlag("set-update-path", cmd.LocalFlags().Lookup("update-path"))
+	cfg.FileConfig.BindPFlag("set-replace-path", cmd.LocalFlags().Lookup("replace-path"))
+	cfg.FileConfig.BindPFlag("set-update-file", cmd.LocalFlags().Lookup("update-file"))
+	cfg.FileConfig.BindPFlag("set-replace-file", cmd.LocalFlags().Lookup("replace-file"))
+	cfg.FileConfig.BindPFlag("set-update-value", cmd.LocalFlags().Lookup("update-value"))
+	cfg.FileConfig.BindPFlag("set-replace-value", cmd.LocalFlags().Lookup("replace-value"))
+	cfg.FileConfig.BindPFlag("set-delimiter", cmd.LocalFlags().Lookup("delimiter"))
+	cfg.FileConfig.BindPFlag("set-target", cmd.LocalFlags().Lookup("target"))
 }
 
 func createSetRequest() (*gnmi.SetRequest, error) {
-	gnmiPrefix, err := collector.CreatePrefix(viper.GetString("set-prefix"), viper.GetString("set-target"))
+	gnmiPrefix, err := collector.CreatePrefix(cfg.LocalFlags.SetPrefix, cfg.LocalFlags.SetTarget)
 	if err != nil {
 		return nil, fmt.Errorf("prefix parse error: %v", err)
 	}
-	if viper.GetBool("debug") {
-		logger.Printf("setInput struct: %+v", setInput)
+	if cfg.Globals.Debug {
+		logger.Printf("Set input delete: %+v", &cfg.LocalFlags.SetDelete)
+
+		logger.Printf("Set input update: %+v", &cfg.LocalFlags.SetUpdate)
+		logger.Printf("Set input update path(s): %+v", &cfg.LocalFlags.SetUpdatePath)
+		logger.Printf("Set input update value(s): %+v", &cfg.LocalFlags.SetUpdateValue)
+		logger.Printf("Set input update file(s): %+v", &cfg.LocalFlags.SetUpdateFile)
+
+		logger.Printf("Set input replace: %+v", &cfg.LocalFlags.SetReplace)
+		logger.Printf("Set input replace path(s): %+v", &cfg.LocalFlags.SetReplacePath)
+		logger.Printf("Set input replace value(s): %+v", &cfg.LocalFlags.SetReplaceValue)
+		logger.Printf("Set input replace file(s): %+v", &cfg.LocalFlags.SetReplaceFile)
 	}
-	err = validateSetInput()
-	if err != nil {
-		return nil, err
-	}
-	delimiter := viper.GetString("set-delimiter")
 
 	//
-	useUpdateFiles := len(setInput.updateFiles) > 0 && len(setInput.updateValues) == 0
-	useReplaceFiles := len(setInput.replaceFiles) > 0 && len(setInput.replaceValues) == 0
+	useUpdateFiles := len(cfg.LocalFlags.SetUpdateFile) > 0 && len(cfg.LocalFlags.SetUpdateValue) == 0
+	useReplaceFiles := len(cfg.LocalFlags.SetReplaceFile) > 0 && len(cfg.LocalFlags.SetReplaceValue) == 0
 	req := &gnmi.SetRequest{
 		Prefix:  gnmiPrefix,
-		Delete:  make([]*gnmi.Path, 0, len(setInput.deletes)),
+		Delete:  make([]*gnmi.Path, 0, len(cfg.LocalFlags.SetDelete)),
 		Replace: make([]*gnmi.Update, 0),
 		Update:  make([]*gnmi.Update, 0),
 	}
-	for _, p := range setInput.deletes {
+	for _, p := range cfg.LocalFlags.SetDelete {
 		gnmiPath, err := collector.ParsePath(strings.TrimSpace(p))
 		if err != nil {
 			return nil, err
 		}
 		req.Delete = append(req.Delete, gnmiPath)
 	}
-	for _, u := range setInput.updates {
-		singleUpdate := strings.Split(u, delimiter)
+	for _, u := range cfg.LocalFlags.SetUpdate {
+		singleUpdate := strings.Split(u, cfg.LocalFlags.SetDelimiter)
 		if len(singleUpdate) < 3 {
-			return nil, fmt.Errorf("invalid inline update format: %s", setInput.updates)
+			return nil, fmt.Errorf("invalid inline update format: %s", cfg.LocalFlags.SetUpdate)
 		}
 		gnmiPath, err := collector.ParsePath(strings.TrimSpace(singleUpdate[0]))
 		if err != nil {
@@ -301,10 +289,10 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 			Val:  value,
 		})
 	}
-	for _, r := range setInput.replaces {
-		singleReplace := strings.Split(r, delimiter)
+	for _, r := range cfg.LocalFlags.SetReplace {
+		singleReplace := strings.Split(r, cfg.LocalFlags.SetDelimiter)
 		if len(singleReplace) < 3 {
-			return nil, fmt.Errorf("invalid inline replace format: %s", setInput.replaces)
+			return nil, fmt.Errorf("invalid inline replace format: %s", cfg.LocalFlags.SetReplace)
 		}
 		gnmiPath, err := collector.ParsePath(strings.TrimSpace(singleReplace[0]))
 		if err != nil {
@@ -320,7 +308,7 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 			Val:  value,
 		})
 	}
-	for i, p := range setInput.updatePaths {
+	for i, p := range cfg.LocalFlags.SetUpdatePath {
 		gnmiPath, err := collector.ParsePath(strings.TrimSpace(p))
 		if err != nil {
 			return nil, err
@@ -328,12 +316,12 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 		value := new(gnmi.TypedValue)
 		if useUpdateFiles {
 			var updateData []byte
-			updateData, err = readFile(setInput.updateFiles[i])
+			updateData, err = readFile(cfg.LocalFlags.SetUpdateFile[i])
 			if err != nil {
-				logger.Printf("error reading data from file '%s': %v", setInput.updateFiles[i], err)
+				logger.Printf("error reading data from file '%s': %v", cfg.LocalFlags.SetUpdateFile[i], err)
 				return nil, err
 			}
-			switch strings.ToUpper(viper.GetString("encoding")) {
+			switch strings.ToUpper(cfg.Globals.Encoding) {
 			case "JSON":
 				value.Value = &gnmi.TypedValue_JsonVal{
 					JsonVal: bytes.Trim(updateData, " \r\n\t"),
@@ -343,10 +331,10 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 					JsonIetfVal: bytes.Trim(updateData, " \r\n\t"),
 				}
 			default:
-				return nil, fmt.Errorf("encoding: %s not supported together with file values", viper.GetString("encoding"))
+				return nil, fmt.Errorf("encoding: %s not supported together with file values", cfg.Globals.Encoding)
 			}
 		} else {
-			err = setValue(value, strings.ToLower(viper.GetString("encoding")), setInput.updateValues[i])
+			err = setValue(value, strings.ToLower(cfg.Globals.Encoding), cfg.LocalFlags.SetUpdateValue[i])
 			if err != nil {
 				return nil, err
 			}
@@ -356,7 +344,7 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 			Val:  value,
 		})
 	}
-	for i, p := range setInput.replacePaths {
+	for i, p := range cfg.LocalFlags.SetReplacePath {
 		gnmiPath, err := collector.ParsePath(strings.TrimSpace(p))
 		if err != nil {
 			return nil, err
@@ -364,12 +352,12 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 		value := new(gnmi.TypedValue)
 		if useReplaceFiles {
 			var replaceData []byte
-			replaceData, err = readFile(setInput.replaceFiles[i])
+			replaceData, err = readFile(cfg.LocalFlags.SetReplaceFile[i])
 			if err != nil {
-				logger.Printf("error reading data from file '%s': %v", setInput.replaceFiles[i], err)
+				logger.Printf("error reading data from file '%s': %v", cfg.LocalFlags.SetReplaceFile[i], err)
 				return nil, err
 			}
-			switch strings.ToUpper(viper.GetString("encoding")) {
+			switch strings.ToUpper(cfg.Globals.Encoding) {
 			case "JSON":
 				value.Value = &gnmi.TypedValue_JsonVal{
 					JsonVal: bytes.Trim(replaceData, " \r\n\t"),
@@ -379,10 +367,10 @@ func createSetRequest() (*gnmi.SetRequest, error) {
 					JsonIetfVal: bytes.Trim(replaceData, " \r\n\t"),
 				}
 			default:
-				return nil, fmt.Errorf("encoding: %s not supported together with file values", viper.GetString("encoding"))
+				return nil, fmt.Errorf("encoding: %s not supported together with file values", cfg.Globals.Encoding)
 			}
 		} else {
-			err = setValue(value, strings.ToLower(viper.GetString("encoding")), setInput.replaceValues[i])
+			err = setValue(value, strings.ToLower(cfg.Globals.Encoding), cfg.LocalFlags.SetReplaceValue[i])
 			if err != nil {
 				return nil, err
 			}
@@ -473,21 +461,21 @@ func setValue(value *gnmi.TypedValue, typ, val string) error {
 }
 
 func validateSetInput() error {
-	if (len(setInput.deletes)+len(setInput.updates)+len(setInput.replaces)) == 0 && (len(setInput.updatePaths)+len(setInput.replacePaths)) == 0 {
+	if (len(cfg.LocalFlags.SetDelete)+len(cfg.LocalFlags.SetUpdate)+len(cfg.LocalFlags.SetReplace)) == 0 && (len(cfg.LocalFlags.SetUpdatePath)+len(cfg.LocalFlags.SetReplacePath)) == 0 {
 		return errors.New("no paths provided")
 	}
-	if len(setInput.updateFiles) > 0 && len(setInput.updateValues) > 0 {
-		fmt.Println(len(setInput.updateFiles))
-		fmt.Println(len(setInput.updateValues))
+	if len(cfg.LocalFlags.SetUpdateFile) > 0 && len(cfg.LocalFlags.SetUpdateValue) > 0 {
+		fmt.Println(len(cfg.LocalFlags.SetUpdateFile))
+		fmt.Println(len(cfg.LocalFlags.SetUpdateValue))
 		return errors.New("set update from file and value are not supported in the same command")
 	}
-	if len(setInput.replaceFiles) > 0 && len(setInput.replaceValues) > 0 {
+	if len(cfg.LocalFlags.SetReplaceFile) > 0 && len(cfg.LocalFlags.SetReplaceValue) > 0 {
 		return errors.New("set replace from file and value are not supported in the same command")
 	}
-	if len(setInput.updatePaths) != len(setInput.updateValues) && len(setInput.updatePaths) != len(setInput.updateFiles) {
+	if len(cfg.LocalFlags.SetUpdatePath) != len(cfg.LocalFlags.SetUpdateValue) && len(cfg.LocalFlags.SetUpdatePath) != len(cfg.LocalFlags.SetUpdateFile) {
 		return errors.New("missing update value/file or path")
 	}
-	if len(setInput.replacePaths) != len(setInput.replaceValues) && len(setInput.replacePaths) != len(setInput.replaceFiles) {
+	if len(cfg.LocalFlags.SetReplacePath) != len(cfg.LocalFlags.SetReplaceValue) && len(cfg.LocalFlags.SetReplacePath) != len(cfg.LocalFlags.SetReplaceFile) {
 		return errors.New("missing replace value/file or path")
 	}
 	return nil

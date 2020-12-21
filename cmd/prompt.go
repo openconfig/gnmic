@@ -22,7 +22,6 @@ import (
 	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"github.com/spf13/viper"
 )
 
 var gctx context.Context
@@ -58,13 +57,24 @@ var targetListHeader = []string{
 var subscriptionListHeader = []string{"Name", "Mode", "Prefix", "Paths", "Interval", "Encoding"}
 
 func getColor(flagName string) goprompt.Color {
-	if cgoprompt, ok := colorMapping[viper.GetString(flagName)]; ok {
-		return cgoprompt
+	switch flagName {
+	case "prefix-color":
+		if cgoprompt, ok := colorMapping[cfg.LocalFlags.PromptPrefixColor]; ok {
+			return cgoprompt
+		}
+	case "suggestions-bg-color":
+		if cgoprompt, ok := colorMapping[cfg.LocalFlags.PromptSuggestionsBGColor]; ok {
+			return cgoprompt
+		}
+	case "description-bg-color":
+		if cgoprompt, ok := colorMapping[cfg.LocalFlags.PromptDescriptionBGColor]; ok {
+			return cgoprompt
+		}
 	}
 	defColor := "yellow"
 	promptModeCmd.Flags().VisitAll(
 		func(f *pflag.Flag) {
-			if f.Name == strings.Replace(flagName, "prompt-", "", 1) {
+			if f.Name == flagName {
 				defColor = f.DefValue
 				return
 			}
@@ -75,43 +85,55 @@ func getColor(flagName string) goprompt.Color {
 
 var promptModeCmd *cobra.Command
 
+func sanitizeArrayFlagValue(ls []string) []string {
+	res := make([]string, 0, len(ls))
+	for i := range ls {
+		ls[i] = strings.Trim(ls[i], "[]")
+		res = append(res, strings.Split(ls[i], " ")...)
+	}
+	return res
+}
 func newPromptCmd() *cobra.Command {
 	promptModeCmd = &cobra.Command{
 		Use:   "prompt",
 		Short: "enter the interactive gnmic prompt mode",
 		// PreRun resolve the glob patterns and checks if --max-suggesions is bigger that the terminal height and lowers it if needed.
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			cfg.SetFlagsFromFile(cmd)
+			cfg.SetLocalFlagsFromFile(cmd)
+			cfg.LocalFlags.PromptDir = sanitizeArrayFlagValue(cfg.LocalFlags.PromptDir)
+			cfg.LocalFlags.PromptFile = sanitizeArrayFlagValue(cfg.LocalFlags.PromptFile)
+			cfg.LocalFlags.PromptExclude = sanitizeArrayFlagValue(cfg.LocalFlags.PromptExclude)
+
 			gctx, gcancel = context.WithCancel(context.Background())
 			var err error
-			promptDirs, err = resolveGlobs(promptDirs)
+			cfg.LocalFlags.PromptDir, err = resolveGlobs(cfg.LocalFlags.PromptDir)
 			if err != nil {
 				return err
 			}
-			promptFiles, err = resolveGlobs(promptFiles)
+			cfg.LocalFlags.PromptFile, err = resolveGlobs(cfg.LocalFlags.PromptFile)
 			if err != nil {
 				return err
 			}
-			for _, dirpath := range promptDirs {
+			for _, dirpath := range cfg.LocalFlags.PromptDir {
 				expanded, err := yang.PathsWithModules(dirpath)
 				if err != nil {
 					return err
 				}
-				if viper.GetBool("debug") {
+				if cfg.Globals.Debug {
 					for _, fdir := range expanded {
 						logger.Printf("adding %s to yang Paths", fdir)
 					}
 				}
 				yang.AddPath(expanded...)
 			}
-			yfiles, err := findYangFiles(promptFiles)
+			yfiles, err := findYangFiles(cfg.LocalFlags.PromptFile)
 			if err != nil {
 				return err
 			}
-			promptFiles = make([]string, 0, len(yfiles))
-			promptFiles = append(promptFiles, yfiles...)
-			if viper.GetBool("debug") {
-				for _, file := range promptFiles {
+			cfg.LocalFlags.PromptFile = make([]string, 0, len(yfiles))
+			cfg.LocalFlags.PromptFile = append(cfg.LocalFlags.PromptFile, yfiles...)
+			if cfg.Globals.Debug {
+				for _, file := range cfg.LocalFlags.PromptFile {
 					logger.Printf("loading %s yang file", file)
 				}
 			}
@@ -122,20 +144,20 @@ func newPromptCmd() *cobra.Command {
 			_, h := termbox.Size()
 			termbox.Close()
 			// set max suggestions to terminal height-1 if the supplied value is greater
-			if viper.GetUint("prompt-max-suggestions") > uint(h) {
+			if uint(cfg.LocalFlags.PromptMaxSuggestions) > uint(h) {
 				if h > 1 {
-					viper.Set("prompt-max-suggestions", h-2)
+					cfg.LocalFlags.PromptMaxSuggestions = uint16(h - 2)
 				} else {
-					viper.Set("prompt-max-suggestions", 0)
+					cfg.LocalFlags.PromptMaxSuggestions = 0
 				}
 			}
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := generateYangSchema(promptDirs, promptFiles, promptExcluded)
+			err := generateYangSchema(cfg.LocalFlags.PromptDir, cfg.LocalFlags.PromptFile, cfg.LocalFlags.PromptExclude)
 			if err != nil {
 				logger.Printf("failed to load paths from yang: %v", err)
-				if !viper.GetBool("log") {
+				if !cfg.Globals.Log {
 					fmt.Fprintf(os.Stderr, "ERR: failed to load paths from yang: %v\n", err)
 				}
 			}
@@ -144,14 +166,14 @@ func newPromptCmd() *cobra.Command {
 			promptHistory = make([]string, 0, 256)
 			home, err := homedir.Dir()
 			if err != nil {
-				if viper.GetBool("debug") {
+				if cfg.Globals.Debug {
 					log.Printf("failed to get home directory: %v", err)
 				}
 				return nil
 			}
 			content, err := ioutil.ReadFile(home + "/.gnmic.history")
 			if err != nil {
-				if viper.GetBool("debug") {
+				if cfg.Globals.Debug {
 					log.Printf("failed to read history file: %v", err)
 				}
 				return nil
@@ -277,7 +299,7 @@ var subscriptionListCmd = &cobra.Command{
 	Short: "list configured subscriptions",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if coll == nil {
-			subs, err := getSubscriptions()
+			subs, err := cfg.GetSubscriptions(nil)
 			if err != nil {
 				return err
 			}
@@ -306,7 +328,7 @@ var subscriptionShowCmd = &cobra.Command{
 			return nil
 		}
 		if coll == nil {
-			subs, err := getSubscriptions()
+			subs, err := cfg.GetSubscriptions(nil)
 			if err != nil {
 				return err
 			}
@@ -360,7 +382,7 @@ func renderTable(tabData [][]string, header []string) {
 }
 
 func readOutputsConfig() [][]string {
-	outDef := viper.GetStringMap("outputs")
+	outDef := cfg.FileConfig.GetStringMap("outputs")
 	if outDef == nil {
 		return nil
 	}
@@ -475,35 +497,32 @@ func outputTable(outs map[string]outputs.Output) [][]string {
 	return tabData
 }
 
-var promptFiles []string
-var promptExcluded []string
-var promptDirs []string
 var name string
 
 // used to init or reset pathCmd flags for gnmic-prompt mode
 func initPromptFlags(cmd *cobra.Command) {
-	cmd.Flags().StringArrayVarP(&promptFiles, "file", "", []string{}, "path to a yang file or a directory of them to get path auto-completions from")
-	cmd.Flags().StringArrayVarP(&promptExcluded, "exclude", "", []string{}, "yang module names to be excluded from path auto-completion generation")
-	cmd.Flags().StringArrayVarP(&promptDirs, "dir", "", []string{}, "path to a directory with yang modules used as includes and/or imports")
-	cmd.Flags().Uint16("max-suggestions", 10, "terminal suggestion max list size")
-	cmd.Flags().String("prefix-color", "dark_blue", "terminal prefix color")
-	cmd.Flags().String("suggestions-bg-color", "dark_blue", "suggestion box background color")
-	cmd.Flags().String("description-bg-color", "dark_gray", "description box background color")
-	cmd.Flags().Bool("suggest-all-flags", false, "suggest local as well as inherited flags of subcommands")
-	cmd.Flags().Bool("description-with-prefix", false, "show YANG module prefix in XPATH suggestion description")
-	cmd.Flags().Bool("description-with-types", false, "show YANG types in XPATH suggestion description")
-	cmd.Flags().Bool("suggest-with-origin", false, "suggest XPATHs with origin prepended ")
-	viper.BindPFlag("prompt-file", cmd.LocalFlags().Lookup("file"))
-	viper.BindPFlag("prompt-exclude", cmd.LocalFlags().Lookup("exclude"))
-	viper.BindPFlag("prompt-dir", cmd.LocalFlags().Lookup("dir"))
-	viper.BindPFlag("prompt-max-suggestions", cmd.LocalFlags().Lookup("max-suggestions"))
-	viper.BindPFlag("prompt-prefix-color", cmd.LocalFlags().Lookup("prefix-color"))
-	viper.BindPFlag("prompt-suggestions-bg-color", cmd.LocalFlags().Lookup("suggestions-bg-color"))
-	viper.BindPFlag("prompt-description-bg-color", cmd.LocalFlags().Lookup("description-bg-color"))
-	viper.BindPFlag("prompt-suggest-all-flags", cmd.LocalFlags().Lookup("suggest-all-flags"))
-	viper.BindPFlag("prompt-description-with-prefix", cmd.LocalFlags().Lookup("description-with-prefix"))
-	viper.BindPFlag("prompt-description-with-types", cmd.LocalFlags().Lookup("description-with-types"))
-	viper.BindPFlag("prompt-suggest-with-origin", cmd.LocalFlags().Lookup("suggest-with-origin"))
+	cmd.Flags().StringArrayVarP(&cfg.LocalFlags.PromptFile, "file", "", []string{}, "path to a yang file or a directory of them to get path auto-completions from")
+	cmd.Flags().StringArrayVarP(&cfg.LocalFlags.PromptExclude, "exclude", "", []string{}, "yang module names to be excluded from path auto-completion generation")
+	cmd.Flags().StringArrayVarP(&cfg.LocalFlags.PromptDir, "dir", "", []string{}, "path to a directory with yang modules used as includes and/or imports")
+	cmd.Flags().Uint16Var(&cfg.LocalFlags.PromptMaxSuggestions, "max-suggestions", 10, "terminal suggestion max list size")
+	cmd.Flags().StringVar(&cfg.LocalFlags.PromptPrefixColor, "prefix-color", "dark_blue", "terminal prefix color")
+	cmd.Flags().StringVar(&cfg.LocalFlags.PromptSuggestionsBGColor, "suggestions-bg-color", "dark_blue", "suggestion box background color")
+	cmd.Flags().StringVar(&cfg.LocalFlags.PromptDescriptionBGColor, "description-bg-color", "dark_gray", "description box background color")
+	cmd.Flags().BoolVar(&cfg.LocalFlags.PromptSuggestAllFlags, "suggest-all-flags", false, "suggest local as well as inherited flags of subcommands")
+	cmd.Flags().BoolVar(&cfg.LocalFlags.PromptDescriptionWithPrefix, "description-with-prefix", false, "show YANG module prefix in XPATH suggestion description")
+	cmd.Flags().BoolVar(&cfg.LocalFlags.PromptDescriptionWithTypes, "description-with-types", false, "show YANG types in XPATH suggestion description")
+	cmd.Flags().BoolVar(&cfg.LocalFlags.PromptSuggestWithOrigin, "suggest-with-origin", false, "suggest XPATHs with origin prepended ")
+	cfg.FileConfig.BindPFlag("prompt-file", cmd.LocalFlags().Lookup("file"))
+	cfg.FileConfig.BindPFlag("prompt-exclude", cmd.LocalFlags().Lookup("exclude"))
+	cfg.FileConfig.BindPFlag("prompt-dir", cmd.LocalFlags().Lookup("dir"))
+	cfg.FileConfig.BindPFlag("prompt-max-suggestions", cmd.LocalFlags().Lookup("max-suggestions"))
+	cfg.FileConfig.BindPFlag("prompt-prefix-color", cmd.LocalFlags().Lookup("prefix-color"))
+	cfg.FileConfig.BindPFlag("prompt-suggestions-bg-color", cmd.LocalFlags().Lookup("suggestions-bg-color"))
+	cfg.FileConfig.BindPFlag("prompt-description-bg-color", cmd.LocalFlags().Lookup("description-bg-color"))
+	cfg.FileConfig.BindPFlag("prompt-suggest-all-flags", cmd.LocalFlags().Lookup("suggest-all-flags"))
+	cfg.FileConfig.BindPFlag("prompt-description-with-prefix", cmd.LocalFlags().Lookup("description-with-prefix"))
+	cfg.FileConfig.BindPFlag("prompt-description-with-types", cmd.LocalFlags().Lookup("description-with-types"))
+	cfg.FileConfig.BindPFlag("prompt-suggest-with-origin", cmd.LocalFlags().Lookup("suggest-with-origin"))
 }
 
 func findMatchedXPATH(entry *yang.Entry, input string, prefixPresent bool) []goprompt.Suggest {
@@ -520,7 +539,7 @@ func findMatchedXPATH(entry *yang.Entry, input string, prefixPresent bool) []gop
 		}
 	}
 
-	prependOrigin := viper.GetBool("prompt-suggest-with-origin") && !prefixPresent
+	prependOrigin := cfg.LocalFlags.PromptSuggestWithOrigin && !prefixPresent
 	for name, child := range entry.Dir {
 		if child.IsCase() || child.IsChoice() {
 			for _, gchild := range child.Dir {
@@ -609,13 +628,13 @@ func buildXPATHDescription(entry *yang.Entry) string {
 	sb.WriteString(" ")
 	sb.WriteString(getPermissions(entry))
 	sb.WriteString(" ")
-	if viper.GetBool("prompt-description-with-types") {
+	if cfg.LocalFlags.PromptDescriptionWithTypes {
 		n, _ := sb.WriteString(getEntryType(entry))
 		if n > 0 {
 			sb.WriteString(", ")
 		}
 	}
-	if viper.GetBool("prompt-description-with-prefix") {
+	if cfg.LocalFlags.PromptDescriptionWithPrefix {
 		if entry.Prefix != nil {
 			sb.WriteString(entry.Prefix.Name)
 			sb.WriteString(": ")
@@ -816,7 +835,7 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 		}
 		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
 	case "SUBSCRIPTION":
-		subs := readSubscriptionsFromCfg()
+		subs := cfg.GetSubscriptionsFromFile()
 		suggestions := make([]goprompt.Suggest, 0, len(subs))
 		for _, sub := range subs {
 			suggestions = append(suggestions, goprompt.Suggest{Text: sub.Name, Description: subscriptionDescription(sub)})
@@ -842,11 +861,10 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 		}
 		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
 	case "OUTPUT":
-		outputGroups := getOutputsFromCfg()
-		fmt.Println()
+		outputGroups := cfg.GetOutputsSuggestions()
 		suggestions := make([]goprompt.Suggest, 0, len(outputGroups))
 		for _, sugg := range outputGroups {
-			suggestions = append(suggestions, goprompt.Suggest{Text: sugg.name, Description: strings.Join(sugg.types, ", ")})
+			suggestions = append(suggestions, goprompt.Suggest{Text: sugg.Name, Description: strings.Join(sugg.Types, ", ")})
 		}
 		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
 	}
@@ -951,15 +969,15 @@ func ExecutePrompt() {
 			goprompt.OptionTitle("gnmic-prompt"),
 			goprompt.OptionPrefix("gnmic> "),
 			goprompt.OptionHistory(promptHistory),
-			goprompt.OptionMaxSuggestion(uint16(viper.GetUint("prompt-max-suggestions"))),
-			goprompt.OptionPrefixTextColor(getColor("prompt-prefix-color")),
+			goprompt.OptionMaxSuggestion(cfg.LocalFlags.PromptMaxSuggestions),
+			goprompt.OptionPrefixTextColor(getColor("prefix-color")),
 			goprompt.OptionPreviewSuggestionTextColor(goprompt.Cyan),
 			goprompt.OptionSuggestionTextColor(goprompt.White),
-			goprompt.OptionSuggestionBGColor(getColor("prompt-suggestions-bg-color")),
+			goprompt.OptionSuggestionBGColor(getColor("suggestions-bg-color")),
 			goprompt.OptionSelectedSuggestionTextColor(goprompt.Black),
 			goprompt.OptionSelectedSuggestionBGColor(goprompt.White),
 			goprompt.OptionDescriptionTextColor(goprompt.LightGray),
-			goprompt.OptionDescriptionBGColor(getColor("prompt-description-bg-color")),
+			goprompt.OptionDescriptionBGColor(getColor("description-bg-color")),
 			goprompt.OptionSelectedDescriptionTextColor(goprompt.Black),
 			goprompt.OptionSelectedDescriptionBGColor(goprompt.White),
 			goprompt.OptionScrollbarBGColor(goprompt.DarkGray),
@@ -1111,7 +1129,7 @@ func findSuggestions(co cmdPrompt, doc goprompt.Document) []goprompt.Suggest {
 	}
 	// load local flags
 	command.LocalFlags().VisitAll(addFlags)
-	if viper.GetBool("prompt-suggest-all-flags") {
+	if cfg.LocalFlags.PromptSuggestAllFlags {
 		// load inherited flags
 		command.InheritedFlags().VisitAll(addFlags)
 	}

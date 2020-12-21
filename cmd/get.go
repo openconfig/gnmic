@@ -24,10 +24,9 @@ import (
 	"github.com/karimra/gnmic/collector"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
-var paths []string
+//var paths []string
 var dataType = [][2]string{
 	{"all", "all config/state/operational data"},
 	{"config", "data that the target considers to be read/write"},
@@ -47,49 +46,34 @@ func newGetCmd() *cobra.Command {
 			"--type":   "STORE",
 		},
 		PreRun: func(cmd *cobra.Command, args []string) {
-			cfg.SetFlagsFromFile(cmd)
+			cfg.SetLocalFlagsFromFile(cmd)
+			cfg.LocalFlags.GetPath = sanitizeArrayFlagValue(cfg.LocalFlags.GetPath)
+			cfg.LocalFlags.GetModel = sanitizeArrayFlagValue(cfg.LocalFlags.GetModel)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if viper.GetString("format") == "event" {
+			if cfg.Globals.Format == "event" {
 				return fmt.Errorf("format event not supported for Get RPC")
 			}
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			setupCloseHandler(cancel)
-			debug := viper.GetBool("debug")
 			targetsConfig, err := cfg.GetTargets()
 			if err != nil {
 				return fmt.Errorf("failed getting targets config: %v", err)
 			}
-			if debug {
+			if cfg.Globals.Debug {
 				logger.Printf("targets: %s", targetsConfig)
-			}
-			subscriptionsConfig, err := getSubscriptions()
-			if err != nil {
-				return fmt.Errorf("failed getting subscriptions config: %v", err)
-			}
-			if debug {
-				logger.Printf("subscriptions: %s", subscriptionsConfig)
-			}
-			outs, err := getOutputs()
-			if err != nil {
-				return err
-			}
-			if debug {
-				logger.Printf("outputs: %+v", outs)
 			}
 			if coll == nil {
 				cfg := &collector.Config{
-					Debug:               viper.GetBool("debug"),
-					Format:              viper.GetString("format"),
-					TargetReceiveBuffer: viper.GetUint("target-buffer-size"),
-					RetryTimer:          viper.GetDuration("retry-timer"),
+					Debug:               cfg.Globals.Debug,
+					Format:              cfg.Globals.Format,
+					TargetReceiveBuffer: cfg.Globals.TargetBufferSize,
+					RetryTimer:          cfg.Globals.Retry,
 				}
 
 				coll = collector.NewCollector(cfg, targetsConfig,
 					collector.WithDialOptions(createCollectorDialOpts()),
-					collector.WithSubscriptions(subscriptionsConfig),
-					collector.WithOutputs(outs),
 					collector.WithLogger(logger),
 				)
 			} else {
@@ -124,9 +108,8 @@ func newGetCmd() *cobra.Command {
 func getRequest(ctx context.Context, tName string, req *gnmi.GetRequest, wg *sync.WaitGroup, lock *sync.Mutex) {
 	defer wg.Done()
 	xreq := req
-	models := viper.GetStringSlice("get-model")
-	if len(models) > 0 {
-		spModels, unspModels, err := filterModels(ctx, coll, tName, models)
+	if len(cfg.LocalFlags.GetModel) > 0 {
+		spModels, unspModels, err := filterModels(ctx, coll, tName, cfg.LocalFlags.GetModel)
 		if err != nil {
 			logger.Printf("failed getting supported models from '%s': %v", tName, err)
 			return
@@ -138,13 +121,13 @@ func getRequest(ctx context.Context, tName string, req *gnmi.GetRequest, wg *syn
 			xreq.UseModels = append(xreq.UseModels, m)
 		}
 	}
-	if viper.GetBool("print-request") {
+	if cfg.Globals.PrintRequest {
 		lock.Lock()
 		fmt.Fprint(os.Stderr, "Get Request:\n")
 		err := printMsg(tName, req)
 		if err != nil {
 			logger.Printf("error marshaling get request msg: %v", err)
-			if !viper.GetBool("log") {
+			if !cfg.Globals.Log {
 				fmt.Printf("error marshaling get request msg: %v\n", err)
 			}
 		}
@@ -163,7 +146,7 @@ func getRequest(ctx context.Context, tName string, req *gnmi.GetRequest, wg *syn
 	err = printMsg(tName, response)
 	if err != nil {
 		logger.Printf("error marshaling get response from %s: %v", tName, err)
-		if !viper.GetBool("log") {
+		if !cfg.Globals.Log {
 			fmt.Printf("error marshaling get response from %s: %v\n", tName, err)
 		}
 	}
@@ -171,47 +154,45 @@ func getRequest(ctx context.Context, tName string, req *gnmi.GetRequest, wg *syn
 
 // used to init or reset getCmd flags for gnmic-prompt mode
 func initGetFlags(cmd *cobra.Command) {
-	cmd.Flags().StringArrayVarP(&paths, "path", "", []string{}, "get request paths")
+	cmd.Flags().StringArrayVarP(&cfg.LocalFlags.GetPath, "path", "", []string{}, "get request paths")
 	cmd.MarkFlagRequired("path")
 	cmd.Flags().StringP("prefix", "", "", "get request prefix")
 	cmd.Flags().StringSliceP("model", "", []string{}, "get request models")
 	cmd.Flags().StringP("type", "t", "ALL", "data type requested from the target. one of: ALL, CONFIG, STATE, OPERATIONAL")
 	cmd.Flags().StringP("target", "", "", "get request target")
 
-	viper.BindPFlag("get-path", cmd.LocalFlags().Lookup("path"))
-	viper.BindPFlag("get-prefix", cmd.LocalFlags().Lookup("prefix"))
-	viper.BindPFlag("get-model", cmd.LocalFlags().Lookup("model"))
-	viper.BindPFlag("get-type", cmd.LocalFlags().Lookup("type"))
-	viper.BindPFlag("get-target", cmd.LocalFlags().Lookup("target"))
+	cfg.FileConfig.BindPFlag("get-path", cmd.LocalFlags().Lookup("path"))
+	cfg.FileConfig.BindPFlag("get-prefix", cmd.LocalFlags().Lookup("prefix"))
+	cfg.FileConfig.BindPFlag("get-model", cmd.LocalFlags().Lookup("model"))
+	cfg.FileConfig.BindPFlag("get-type", cmd.LocalFlags().Lookup("type"))
+	cfg.FileConfig.BindPFlag("get-target", cmd.LocalFlags().Lookup("target"))
 }
 
 func createGetRequest() (*gnmi.GetRequest, error) {
-	encodingVal, ok := gnmi.Encoding_value[strings.Replace(strings.ToUpper(viper.GetString("encoding")), "-", "_", -1)]
+	encodingVal, ok := gnmi.Encoding_value[strings.Replace(strings.ToUpper(cfg.Globals.Encoding), "-", "_", -1)]
 	if !ok {
-		return nil, fmt.Errorf("invalid encoding type '%s'", viper.GetString("encoding"))
+		return nil, fmt.Errorf("invalid encoding type '%s'", cfg.Globals.Encoding)
 	}
 	req := &gnmi.GetRequest{
 		UseModels: make([]*gnmi.ModelData, 0),
-		Path:      make([]*gnmi.Path, 0, len(paths)),
+		Path:      make([]*gnmi.Path, 0, len(cfg.LocalFlags.GetPath)),
 		Encoding:  gnmi.Encoding(encodingVal),
 	}
-	prefix := viper.GetString("get-prefix")
-	if prefix != "" {
-		gnmiPrefix, err := collector.ParsePath(prefix)
+	if cfg.LocalFlags.GetPrefix != "" {
+		gnmiPrefix, err := collector.ParsePath(cfg.LocalFlags.GetPrefix)
 		if err != nil {
 			return nil, fmt.Errorf("prefix parse error: %v", err)
 		}
 		req.Prefix = gnmiPrefix
 	}
-	dataType := viper.GetString("get-type")
-	if dataType != "" {
-		dti, ok := gnmi.GetRequest_DataType_value[strings.ToUpper(dataType)]
+	if cfg.LocalFlags.GetType != "" {
+		dti, ok := gnmi.GetRequest_DataType_value[strings.ToUpper(cfg.LocalFlags.GetType)]
 		if !ok {
-			return nil, fmt.Errorf("unknown data type %s", dataType)
+			return nil, fmt.Errorf("unknown data type %s", cfg.LocalFlags.GetType)
 		}
 		req.Type = gnmi.GetRequest_DataType(dti)
 	}
-	for _, p := range paths {
+	for _, p := range cfg.LocalFlags.GetPath {
 		gnmiPath, err := collector.ParsePath(strings.TrimSpace(p))
 		if err != nil {
 			return nil, fmt.Errorf("path parse error: %v", err)

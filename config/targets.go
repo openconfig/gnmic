@@ -143,38 +143,31 @@ func (c *Config) setTargetConfigDefaults(tc *collector.TargetConfig) {
 		tc.Name = tc.Address
 	}
 	if tc.Username == nil {
-		s := c.Globals.Username
-		tc.Username = &s
+		tc.Username = &c.Globals.Username
 	}
 	if tc.Password == nil {
-		s := c.Globals.Password
-		tc.Password = &s
+		tc.Password = &c.Globals.Password
 	}
 	if tc.Timeout == 0 {
 		tc.Timeout = c.Globals.Timeout
 	}
 	if tc.Insecure == nil {
-		b := c.Globals.Insecure
-		tc.Insecure = &b
+		tc.Insecure = &c.Globals.Insecure
 	}
 	if tc.SkipVerify == nil {
-		b := c.Globals.SkipVerify
-		tc.SkipVerify = &b
+		tc.SkipVerify = &c.Globals.SkipVerify
 	}
 	if tc.Insecure != nil && !*tc.Insecure {
 		if tc.TLSCA == nil {
-			s := c.Globals.TLSCa
-			if s != "" {
-				tc.TLSCA = &s
+			if c.Globals.TLSCa != "" {
+				tc.TLSCA = &c.Globals.TLSCa
 			}
 		}
 		if tc.TLSCert == nil {
-			s := c.Globals.TLSCert
-			tc.TLSCert = &s
+			tc.TLSCert = &c.Globals.TLSCert
 		}
 		if tc.TLSKey == nil {
-			s := c.Globals.TLSKey
-			tc.TLSKey = &s
+			tc.TLSKey = &c.Globals.TLSKey
 		}
 	}
 	if tc.RetryTimer == 0 {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 	"time"
 
 	"github.com/mitchellh/go-homedir"
@@ -13,8 +14,9 @@ import (
 )
 
 const (
-	configPath = ""
-	configName = "gnmic"
+	configPath      = ""
+	configName      = "gnmic"
+	configLogPrefix = "config "
 )
 
 type Config struct {
@@ -76,20 +78,20 @@ type LocalFlags struct {
 	SetDelimiter    string   `mapstructure:"set-delimiter,omitempty" json:"set-delimiter,omitempty" yaml:"set-delimiter,omitempty"`
 	SetTarget       string   `mapstructure:"set-target,omitempty" json:"set-target,omitempty" yaml:"set-target,omitempty"`
 	// Sub
-	SubscribePrefix            string         `mapstructure:"subscribe-prefix,omitempty" json:"subscribe-prefix,omitempty" yaml:"subscribe-prefix,omitempty"`
-	SubscribePath              []string       `mapstructure:"subscribe-path,omitempty" json:"subscribe-path,omitempty" yaml:"subscribe-path,omitempty"`
-	SubscribeQos               *uint32        `mapstructure:"subscribe-qos,omitempty" json:"subscribe-qos,omitempty" yaml:"subscribe-qos,omitempty"`
-	SubscribeUpdatesOnly       bool           `mapstructure:"subscribe-updates-only,omitempty" json:"subscribe-updates-only,omitempty" yaml:"subscribe-updates-only,omitempty"`
-	SubscribeMode              string         `mapstructure:"subscribe-mode,omitempty" json:"subscribe-mode,omitempty" yaml:"subscribe-mode,omitempty"`
-	SubscribeStreamMode        string         `mapstructure:"subscribe-stream_mode,omitempty" json:"subscribe-stream-mode,omitempty" yaml:"subscribe-stream-mode,omitempty"`
-	SubscribeSampleInteral     *time.Duration `mapstructure:"subscribe-sample-interal,omitempty" json:"subscribe-sample-interal,omitempty" yaml:"subscribe-sample-interal,omitempty"`
-	SubscribeSuppressRedundant bool           `mapstructure:"subscribe-suppress-redundant,omitempty" json:"subscribe-suppress-redundant,omitempty" yaml:"subscribe-suppress-redundant,omitempty"`
-	SubscribeHeartbearInterval *time.Duration `mapstructure:"subscribe-heartbear-interval,omitempty" json:"subscribe-heartbear-interval,omitempty" yaml:"subscribe-heartbear-interval,omitempty"`
-	SubscribeModel             []string       `mapstructure:"subscribe-model,omitempty" json:"subscribe-model,omitempty" yaml:"subscribe-model,omitempty"`
-	SubscribeQuiet             bool           `mapstructure:"subscribe-quiet,omitempty" json:"subscribe-quiet,omitempty" yaml:"subscribe-quiet,omitempty"`
-	SubscribeTarget            string         `mapstructure:"subscribe-target,omitempty" json:"subscribe-target,omitempty" yaml:"subscribe-target,omitempty"`
-	SubscribeName              []string       `mapstructure:"subscribe-name,omitempty" json:"subscribe-name,omitempty" yaml:"subscribe-name,omitempty"`
-	SubscribeOutput            []string       `mapstructure:"subscribe-output,omitempty" json:"subscribe-output,omitempty" yaml:"subscribe-output,omitempty"`
+	SubscribePrefix            string        `mapstructure:"subscribe-prefix,omitempty" json:"subscribe-prefix,omitempty" yaml:"subscribe-prefix,omitempty"`
+	SubscribePath              []string      `mapstructure:"subscribe-path,omitempty" json:"subscribe-path,omitempty" yaml:"subscribe-path,omitempty"`
+	SubscribeQos               uint32        `mapstructure:"subscribe-qos,omitempty" json:"subscribe-qos,omitempty" yaml:"subscribe-qos,omitempty"`
+	SubscribeUpdatesOnly       bool          `mapstructure:"subscribe-updates-only,omitempty" json:"subscribe-updates-only,omitempty" yaml:"subscribe-updates-only,omitempty"`
+	SubscribeMode              string        `mapstructure:"subscribe-mode,omitempty" json:"subscribe-mode,omitempty" yaml:"subscribe-mode,omitempty"`
+	SubscribeStreamMode        string        `mapstructure:"subscribe-stream_mode,omitempty" json:"subscribe-stream-mode,omitempty" yaml:"subscribe-stream-mode,omitempty"`
+	SubscribeSampleInteral     time.Duration `mapstructure:"subscribe-sample-interal,omitempty" json:"subscribe-sample-interal,omitempty" yaml:"subscribe-sample-interal,omitempty"`
+	SubscribeSuppressRedundant bool          `mapstructure:"subscribe-suppress-redundant,omitempty" json:"subscribe-suppress-redundant,omitempty" yaml:"subscribe-suppress-redundant,omitempty"`
+	SubscribeHeartbearInterval time.Duration `mapstructure:"subscribe-heartbear-interval,omitempty" json:"subscribe-heartbear-interval,omitempty" yaml:"subscribe-heartbear-interval,omitempty"`
+	SubscribeModel             []string      `mapstructure:"subscribe-model,omitempty" json:"subscribe-model,omitempty" yaml:"subscribe-model,omitempty"`
+	SubscribeQuiet             bool          `mapstructure:"subscribe-quiet,omitempty" json:"subscribe-quiet,omitempty" yaml:"subscribe-quiet,omitempty"`
+	SubscribeTarget            string        `mapstructure:"subscribe-target,omitempty" json:"subscribe-target,omitempty" yaml:"subscribe-target,omitempty"`
+	SubscribeName              []string      `mapstructure:"subscribe-name,omitempty" json:"subscribe-name,omitempty" yaml:"subscribe-name,omitempty"`
+	SubscribeOutput            []string      `mapstructure:"subscribe-output,omitempty" json:"subscribe-output,omitempty" yaml:"subscribe-output,omitempty"`
 	// Path
 	PathFile       []string `mapstructure:"path-file,omitempty" json:"path-file,omitempty" yaml:"path-file,omitempty"`
 	PathExclude    []string `mapstructure:"path-exclude,omitempty" json:"path-exclude,omitempty" yaml:"path-exclude,omitempty"`
@@ -113,6 +115,8 @@ type LocalFlags struct {
 	PromptSuggestWithOrigin     bool     `mapstructure:"prompt-suggest-with-origin,omitempty" json:"prompt-suggest-with-origin,omitempty" yaml:"prompt-suggest-with-origin,omitempty"`
 	// Listen
 	ListenMaxConcurrentStreams uint32 `mapstructure:"listen-max-concurrent-streams,omitempty" json:"listen-max-concurrent-streams,omitempty" yaml:"listen-max-concurrent-streams,omitempty"`
+	// VersionUpgrade
+	UpgradeUsePkg bool `mapstructure:"upgrade-use-pkg" json:"upgrade-use-pkg,omitempty" yaml:"upgrade-use-pkg,omitempty"`
 }
 
 func New() *Config {
@@ -122,7 +126,7 @@ func New() *Config {
 		},
 		LocalFlags: &LocalFlags{},
 		FileConfig: viper.NewWithOptions(viper.KeyDelimiter("/")),
-		logger:     log.New(ioutil.Discard, "config ", log.LstdFlags|log.Lmicroseconds),
+		logger:     log.New(ioutil.Discard, configLogPrefix, log.LstdFlags|log.Lmicroseconds),
 	}
 }
 
@@ -151,10 +155,53 @@ func (c *Config) Load(file string) error {
 	return nil
 }
 
-func (c *Config) SetFlagsFromFile(cmd *cobra.Command) {
-	cmd.Flags().VisitAll(func(f *pflag.Flag) {
+func (c *Config) SetLogger() {
+	if c.Globals.LogFile != "" {
+		f, err := os.OpenFile(c.Globals.LogFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+		if err != nil {
+			return
+		}
+		c.logger.SetOutput(f)
+	} else {
+		if c.Globals.Debug {
+			c.Globals.Log = true
+		}
+		if c.Globals.Log {
+			c.logger.SetOutput(os.Stderr)
+		}
+	}
+	if c.Globals.Debug {
+		loggingFlags := c.logger.Flags() | log.Llongfile
+		c.logger.SetFlags(loggingFlags)
+	}
+}
+
+func (c *Config) SetPersistantFlagsFromFile(cmd *cobra.Command) {
+	cmd.PersistentFlags().VisitAll(func(f *pflag.Flag) {
+		if c.Globals.Debug {
+			c.logger.Printf("setting persistant flags from file: cmd=%s, flag=%s, is set: %v", cmd.Name(), f.Name, c.FileConfig.IsSet(f.Name))
+		}
 		if !f.Changed && c.FileConfig.IsSet(f.Name) {
+			if c.Globals.Debug {
+				c.logger.Printf("cmd %s, flag %s did not change and is set in file", cmd.Name(), f.Name)
+			}
 			val := c.FileConfig.Get(f.Name)
+			cmd.Flags().Set(f.Name, fmt.Sprintf("%v", val))
+		}
+	})
+}
+
+func (c *Config) SetLocalFlagsFromFile(cmd *cobra.Command) {
+	cmd.LocalFlags().VisitAll(func(f *pflag.Flag) {
+		flagName := fmt.Sprintf("%s-%s", cmd.Name(), f.Name)
+		if c.Globals.Debug {
+			c.logger.Printf("setting local flags from file: cmd=%s, flag=%s, is set in file: %v", cmd.Name(), flagName, c.FileConfig.IsSet(flagName))
+		}
+		if !f.Changed && c.FileConfig.IsSet(flagName) {
+			if c.Globals.Debug {
+				c.logger.Printf("cmd %s, flag %s did not change and is set in file", cmd.Name(), flagName)
+			}
+			val := c.FileConfig.Get(flagName)
 			cmd.Flags().Set(f.Name, fmt.Sprintf("%v", val))
 		}
 	})

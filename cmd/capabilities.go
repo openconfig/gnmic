@@ -23,7 +23,6 @@ import (
 	"github.com/karimra/gnmic/collector"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
-	"github.com/spf13/viper"
 
 	"github.com/spf13/cobra"
 )
@@ -35,48 +34,32 @@ func newCapabilitiesCmd() *cobra.Command {
 		Aliases: []string{"cap"},
 		Short:   "query targets gnmi capabilities",
 		PreRun: func(cmd *cobra.Command, args []string) {
-			cfg.SetFlagsFromFile(cmd)
+			cfg.SetLocalFlagsFromFile(cmd)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if viper.GetString("format") == "event" {
+			if cfg.Globals.Format == "event" {
 				return fmt.Errorf("format event not supported for Capabilities RPC")
 			}
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			setupCloseHandler(cancel)
-			debug := viper.GetBool("debug")
 			targetsConfig, err := cfg.GetTargets()
 			if err != nil {
 				return fmt.Errorf("failed getting targets config: %v", err)
 			}
-			if debug {
+			if cfg.Globals.Debug {
 				logger.Printf("targets: %s", targetsConfig)
-			}
-			subscriptionsConfig, err := getSubscriptions()
-			if err != nil {
-				return fmt.Errorf("failed getting subscriptions config: %v", err)
-			}
-			if debug {
-				logger.Printf("subscriptions: %s", subscriptionsConfig)
-			}
-			outs, err := getOutputs()
-			if err != nil {
-				return err
-			}
-			if debug {
-				logger.Printf("outputs: %+v", outs)
 			}
 			if coll == nil {
 				cfg := &collector.Config{
-					Debug:      viper.GetBool("debug"),
-					Format:     viper.GetString("format"),
-					RetryTimer: viper.GetDuration("retry-timer"),
+					Debug:               cfg.Globals.Debug,
+					Format:              cfg.Globals.Format,
+					TargetReceiveBuffer: cfg.Globals.TargetBufferSize,
+					RetryTimer:          cfg.Globals.Retry,
 				}
 
 				coll = collector.NewCollector(cfg, targetsConfig,
 					collector.WithDialOptions(createCollectorDialOpts()),
-					collector.WithSubscriptions(subscriptionsConfig),
-					collector.WithOutputs(outs),
 					collector.WithLogger(logger),
 				)
 			} else {
@@ -108,7 +91,7 @@ func newCapabilitiesCmd() *cobra.Command {
 func reqCapabilities(ctx context.Context, coll *collector.Collector, tName string, wg *sync.WaitGroup, lock *sync.Mutex) {
 	defer wg.Done()
 	ext := make([]*gnmi_ext.Extension, 0) //
-	if viper.GetBool("print-request") {
+	if cfg.Globals.PrintRequest {
 		lock.Lock()
 		fmt.Fprint(os.Stderr, "Capabilities Request:\n")
 		err := printMsg(tName, &gnmi.CapabilityRequest{
@@ -116,7 +99,7 @@ func reqCapabilities(ctx context.Context, coll *collector.Collector, tName strin
 		})
 		if err != nil {
 			logger.Printf("error marshaling capabilities request: %v", err)
-			if !viper.GetBool("log") {
+			if !cfg.Globals.Log {
 				fmt.Printf("error marshaling capabilities request: %v", err)
 			}
 		}
@@ -135,7 +118,7 @@ func reqCapabilities(ctx context.Context, coll *collector.Collector, tName strin
 	err = printMsg(tName, response)
 	if err != nil {
 		logger.Printf("error marshaling capabilities response from %s: %v", tName, err)
-		if !viper.GetBool("log") {
+		if !cfg.Globals.Log {
 			fmt.Printf("error marshaling capabilities response from %s: %v\n", tName, err)
 		}
 	}
@@ -143,5 +126,5 @@ func reqCapabilities(ctx context.Context, coll *collector.Collector, tName strin
 
 func initCapabilitiesFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVarP(&cfg.LocalFlags.CapabilitiesVersion, "version", "", false, "show gnmi version only")
-	viper.BindPFlag("capabilities-version", cmd.LocalFlags().Lookup("version"))
+	cfg.FileConfig.BindPFlag("capabilities-version", cmd.LocalFlags().Lookup("version"))
 }
