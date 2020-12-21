@@ -179,7 +179,7 @@ func (c *Config) SetLogger() {
 func (c *Config) SetPersistantFlagsFromFile(cmd *cobra.Command) {
 	cmd.PersistentFlags().VisitAll(func(f *pflag.Flag) {
 		if c.Globals.Debug {
-			c.logger.Printf("setting persistant flags from file: cmd=%s, flag=%s, is set: %v", cmd.Name(), f.Name, c.FileConfig.IsSet(f.Name))
+			c.logger.Printf("persistent-flag=%s cmd=%s, changed: %v, is set: %v", f.Name, cmd.Name(), f.Changed, c.FileConfig.IsSet(f.Name))
 		}
 		if !f.Changed && c.FileConfig.IsSet(f.Name) {
 			if c.Globals.Debug {
@@ -195,7 +195,7 @@ func (c *Config) SetLocalFlagsFromFile(cmd *cobra.Command) {
 	cmd.LocalFlags().VisitAll(func(f *pflag.Flag) {
 		flagName := fmt.Sprintf("%s-%s", cmd.Name(), f.Name)
 		if c.Globals.Debug {
-			c.logger.Printf("setting local flags from file: cmd=%s, flag=%s, is set in file: %v", cmd.Name(), flagName, c.FileConfig.IsSet(flagName))
+			c.logger.Printf("local-flag=%s, cmd=%s, changed=%v, is set: %v", flagName, cmd.Name(), f.Changed, c.FileConfig.IsSet(flagName))
 		}
 		if !f.Changed && c.FileConfig.IsSet(flagName) {
 			if c.Globals.Debug {

@@ -30,6 +30,7 @@ import (
 	"github.com/karimra/gnmic/collector"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"gopkg.in/yaml.v2"
 )
 
@@ -221,18 +222,9 @@ func initSetFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&cfg.LocalFlags.SetDelimiter, "delimiter", "", ":::", "set update/replace delimiter between path, type, value")
 	cmd.Flags().StringVarP(&cfg.LocalFlags.SetTarget, "target", "", "", "set request target")
 
-	cfg.FileConfig.BindPFlag("set-prefix", cmd.LocalFlags().Lookup("prefix"))
-	cfg.FileConfig.BindPFlag("set-delete", cmd.LocalFlags().Lookup("delete"))
-	cfg.FileConfig.BindPFlag("set-replace", cmd.LocalFlags().Lookup("replace"))
-	cfg.FileConfig.BindPFlag("set-update", cmd.LocalFlags().Lookup("update"))
-	cfg.FileConfig.BindPFlag("set-update-path", cmd.LocalFlags().Lookup("update-path"))
-	cfg.FileConfig.BindPFlag("set-replace-path", cmd.LocalFlags().Lookup("replace-path"))
-	cfg.FileConfig.BindPFlag("set-update-file", cmd.LocalFlags().Lookup("update-file"))
-	cfg.FileConfig.BindPFlag("set-replace-file", cmd.LocalFlags().Lookup("replace-file"))
-	cfg.FileConfig.BindPFlag("set-update-value", cmd.LocalFlags().Lookup("update-value"))
-	cfg.FileConfig.BindPFlag("set-replace-value", cmd.LocalFlags().Lookup("replace-value"))
-	cfg.FileConfig.BindPFlag("set-delimiter", cmd.LocalFlags().Lookup("delimiter"))
-	cfg.FileConfig.BindPFlag("set-target", cmd.LocalFlags().Lookup("target"))
+	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
+		cfg.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
+	})
 }
 
 func createSetRequest() (*gnmi.SetRequest, error) {

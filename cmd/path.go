@@ -26,6 +26,7 @@ import (
 	"github.com/manifoldco/promptui"
 	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 func pathCmdRun(d, f, e []string) error {
@@ -218,13 +219,9 @@ func initPathFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVarP(&cfg.LocalFlags.PathWithPrefix, "with-prefix", "", false, "include module/submodule prefix in path elements")
 	cmd.Flags().BoolVarP(&cfg.LocalFlags.PathTypes, "types", "", false, "print leaf type")
 	cmd.Flags().BoolVarP(&cfg.LocalFlags.PathSearch, "search", "", false, "search through path list")
-	cfg.FileConfig.BindPFlag("path-file", cmd.LocalFlags().Lookup("file"))
-	cfg.FileConfig.BindPFlag("path-exclude", cmd.LocalFlags().Lookup("exclude"))
-	cfg.FileConfig.BindPFlag("path-dir", cmd.LocalFlags().Lookup("dir"))
-	cfg.FileConfig.BindPFlag("path-path-type", cmd.LocalFlags().Lookup("path-type"))
-	cfg.FileConfig.BindPFlag("path-module", cmd.LocalFlags().Lookup("module"))
-	cfg.FileConfig.BindPFlag("path-types", cmd.LocalFlags().Lookup("types"))
-	cfg.FileConfig.BindPFlag("path-search", cmd.LocalFlags().Lookup("search"))
+	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
+		cfg.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
+	})
 }
 
 func collectSchemaNodes(e *yang.Entry, leafOnly bool) []*yang.Entry {

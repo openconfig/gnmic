@@ -35,6 +35,7 @@ import (
 	"github.com/karimra/gnmic/formatters"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/protobuf/proto"
@@ -194,56 +195,35 @@ func init() {
 }
 
 func initGlobalflags(cmd *cobra.Command, globals *config.GlobalFlags) {
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/gnmic.yaml)")
-	rootCmd.PersistentFlags().StringSliceVarP(&globals.Address, "address", "a", []string{}, "comma separated gnmi targets addresses")
-	rootCmd.PersistentFlags().StringVarP(&globals.Username, "username", "u", "", "username")
-	rootCmd.PersistentFlags().StringVarP(&globals.Password, "password", "p", "", "password")
-	rootCmd.PersistentFlags().StringVarP(&globals.Port, "port", "", defaultGrpcPort, "gRPC port")
-	rootCmd.PersistentFlags().StringVarP(&globals.Encoding, "encoding", "e", "json", fmt.Sprintf("one of %q. Case insensitive", encodingNames))
-	rootCmd.PersistentFlags().BoolVarP(&globals.Insecure, "insecure", "", false, "insecure connection")
-	rootCmd.PersistentFlags().StringVarP(&globals.TLSCa, "tls-ca", "", "", "tls certificate authority")
-	rootCmd.PersistentFlags().StringVarP(&globals.TLSCert, "tls-cert", "", "", "tls certificate")
-	rootCmd.PersistentFlags().StringVarP(&globals.TLSKey, "tls-key", "", "", "tls key")
-	rootCmd.PersistentFlags().DurationVarP(&globals.Timeout, "timeout", "", 10*time.Second, "grpc timeout, valid formats: 10s, 1m30s, 1h")
-	rootCmd.PersistentFlags().BoolVarP(&globals.Debug, "debug", "d", false, "debug mode")
-	rootCmd.PersistentFlags().BoolVarP(&globals.SkipVerify, "skip-verify", "", false, "skip verify tls connection")
-	rootCmd.PersistentFlags().BoolVarP(&globals.NoPrefix, "no-prefix", "", false, "do not add [ip:port] prefix to print output in case of multiple targets")
-	rootCmd.PersistentFlags().BoolVarP(&globals.ProxyFromEnv, "proxy-from-env", "", false, "use proxy from environment")
-	rootCmd.PersistentFlags().StringVarP(&globals.Format, "format", "", "", fmt.Sprintf("output format, one of: %q", formatNames))
-	rootCmd.PersistentFlags().StringVarP(&globals.LogFile, "log-file", "", "", "log file path")
-	rootCmd.PersistentFlags().BoolVarP(&globals.Log, "log", "", false, "show log messages in stderr")
-	rootCmd.PersistentFlags().IntVarP(&globals.MaxMsgSize, "max-msg-size", "", msgSize, "max grpc msg size")
-	rootCmd.PersistentFlags().StringVarP(&globals.PrometheusAddress, "prometheus-address", "", "", "prometheus server address")
-	rootCmd.PersistentFlags().BoolVarP(&globals.PrintRequest, "print-request", "", false, "print request as well as the response(s)")
-	rootCmd.PersistentFlags().DurationVarP(&globals.Retry, "retry", "", defaultRetryTimer, "retry timer for RPCs")
-	rootCmd.PersistentFlags().StringVarP(&globals.TLSMinVersion, "tls-min-version", "", "", fmt.Sprintf("minimum TLS supported version, one of %q", tlsVersions))
-	rootCmd.PersistentFlags().StringVarP(&globals.TLSMaxVersion, "tls-max-version", "", "", fmt.Sprintf("maximum TLS supported version, one of %q", tlsVersions))
-	rootCmd.PersistentFlags().StringVarP(&globals.TLSVersion, "tls-version", "", "", fmt.Sprintf("set TLS version. Overwrites --tls-min-version and --tls-max-version, one of %q", tlsVersions))
-	// to remove
-	cfg.FileConfig.BindPFlag("address", rootCmd.PersistentFlags().Lookup("address"))
-	cfg.FileConfig.BindPFlag("username", rootCmd.PersistentFlags().Lookup("username"))
-	cfg.FileConfig.BindPFlag("password", rootCmd.PersistentFlags().Lookup("password"))
-	cfg.FileConfig.BindPFlag("port", rootCmd.PersistentFlags().Lookup("port"))
-	cfg.FileConfig.BindPFlag("encoding", rootCmd.PersistentFlags().Lookup("encoding"))
-	cfg.FileConfig.BindPFlag("insecure", rootCmd.PersistentFlags().Lookup("insecure"))
-	cfg.FileConfig.BindPFlag("tls-ca", rootCmd.PersistentFlags().Lookup("tls-ca"))
-	cfg.FileConfig.BindPFlag("tls-cert", rootCmd.PersistentFlags().Lookup("tls-cert"))
-	cfg.FileConfig.BindPFlag("tls-key", rootCmd.PersistentFlags().Lookup("tls-key"))
-	cfg.FileConfig.BindPFlag("timeout", rootCmd.PersistentFlags().Lookup("timeout"))
-	cfg.FileConfig.BindPFlag("debug", rootCmd.PersistentFlags().Lookup("debug"))
-	cfg.FileConfig.BindPFlag("skip-verify", rootCmd.PersistentFlags().Lookup("skip-verify"))
-	cfg.FileConfig.BindPFlag("no-prefix", rootCmd.PersistentFlags().Lookup("no-prefix"))
-	cfg.FileConfig.BindPFlag("proxy-from-env", rootCmd.PersistentFlags().Lookup("proxy-from-env"))
-	cfg.FileConfig.BindPFlag("format", rootCmd.PersistentFlags().Lookup("format"))
-	cfg.FileConfig.BindPFlag("log-file", rootCmd.PersistentFlags().Lookup("log-file"))
-	cfg.FileConfig.BindPFlag("log", rootCmd.PersistentFlags().Lookup("log"))
-	cfg.FileConfig.BindPFlag("max-msg-size", rootCmd.PersistentFlags().Lookup("max-msg-size"))
-	cfg.FileConfig.BindPFlag("prometheus-address", rootCmd.PersistentFlags().Lookup("prometheus-address"))
-	cfg.FileConfig.BindPFlag("print-request", rootCmd.PersistentFlags().Lookup("print-request"))
-	cfg.FileConfig.BindPFlag("retry", rootCmd.PersistentFlags().Lookup("retry"))
-	cfg.FileConfig.BindPFlag("tls-min-version", rootCmd.PersistentFlags().Lookup("tls-min-version"))
-	cfg.FileConfig.BindPFlag("tls-max-version", rootCmd.PersistentFlags().Lookup("tls-max-version"))
-	cfg.FileConfig.BindPFlag("tls-version", rootCmd.PersistentFlags().Lookup("tls-version"))
+	cmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/gnmic.yaml)")
+	cmd.PersistentFlags().StringSliceVarP(&globals.Address, "address", "a", []string{}, "comma separated gnmi targets addresses")
+	cmd.PersistentFlags().StringVarP(&globals.Username, "username", "u", "", "username")
+	cmd.PersistentFlags().StringVarP(&globals.Password, "password", "p", "", "password")
+	cmd.PersistentFlags().StringVarP(&globals.Port, "port", "", defaultGrpcPort, "gRPC port")
+	cmd.PersistentFlags().StringVarP(&globals.Encoding, "encoding", "e", "json", fmt.Sprintf("one of %q. Case insensitive", encodingNames))
+	cmd.PersistentFlags().BoolVarP(&globals.Insecure, "insecure", "", false, "insecure connection")
+	cmd.PersistentFlags().StringVarP(&globals.TLSCa, "tls-ca", "", "", "tls certificate authority")
+	cmd.PersistentFlags().StringVarP(&globals.TLSCert, "tls-cert", "", "", "tls certificate")
+	cmd.PersistentFlags().StringVarP(&globals.TLSKey, "tls-key", "", "", "tls key")
+	cmd.PersistentFlags().DurationVarP(&globals.Timeout, "timeout", "", 10*time.Second, "grpc timeout, valid formats: 10s, 1m30s, 1h")
+	cmd.PersistentFlags().BoolVarP(&globals.Debug, "debug", "d", false, "debug mode")
+	cmd.PersistentFlags().BoolVarP(&globals.SkipVerify, "skip-verify", "", false, "skip verify tls connection")
+	cmd.PersistentFlags().BoolVarP(&globals.NoPrefix, "no-prefix", "", false, "do not add [ip:port] prefix to print output in case of multiple targets")
+	cmd.PersistentFlags().BoolVarP(&globals.ProxyFromEnv, "proxy-from-env", "", false, "use proxy from environment")
+	cmd.PersistentFlags().StringVarP(&globals.Format, "format", "", "", fmt.Sprintf("output format, one of: %q", formatNames))
+	cmd.PersistentFlags().StringVarP(&globals.LogFile, "log-file", "", "", "log file path")
+	cmd.PersistentFlags().BoolVarP(&globals.Log, "log", "", false, "show log messages in stderr")
+	cmd.PersistentFlags().IntVarP(&globals.MaxMsgSize, "max-msg-size", "", msgSize, "max grpc msg size")
+	cmd.PersistentFlags().StringVarP(&globals.PrometheusAddress, "prometheus-address", "", "", "prometheus server address")
+	cmd.PersistentFlags().BoolVarP(&globals.PrintRequest, "print-request", "", false, "print request as well as the response(s)")
+	cmd.PersistentFlags().DurationVarP(&globals.Retry, "retry", "", defaultRetryTimer, "retry timer for RPCs")
+	cmd.PersistentFlags().StringVarP(&globals.TLSMinVersion, "tls-min-version", "", "", fmt.Sprintf("minimum TLS supported version, one of %q", tlsVersions))
+	cmd.PersistentFlags().StringVarP(&globals.TLSMaxVersion, "tls-max-version", "", "", fmt.Sprintf("maximum TLS supported version, one of %q", tlsVersions))
+	cmd.PersistentFlags().StringVarP(&globals.TLSVersion, "tls-version", "", "", fmt.Sprintf("set TLS version. Overwrites --tls-min-version and --tls-max-version, one of %q", tlsVersions))
+
+	cmd.PersistentFlags().VisitAll(func(flag *pflag.Flag) {
+		cfg.FileConfig.BindPFlag(flag.Name, flag)
+	})
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -256,43 +236,6 @@ func initConfig() {
 	//cfg.SetPersistantFlagsFromFile(rootCmd)
 	//postInitCommands(rootCmd.Commands())
 }
-
-// func postInitCommands(commands []*cobra.Command) {
-// 	for _, cmd := range commands {
-// 		presetRequiredFlags(cmd)
-// 		if cmd.HasSubCommands() {
-// 			postInitCommands(cmd.Commands())
-// 		}
-// 	}
-// }
-
-// func presetRequiredFlags(cmd *cobra.Command) {
-// 	cmd.LocalFlags().VisitAll(func(f *pflag.Flag) {
-// 		flagName := fmt.Sprintf("%s-%s", cmd.Name(), f.Name)
-// 		value := viper.Get(flagName)
-// 		if value != nil && viper.IsSet(flagName) && !f.Changed {
-// 			var err error
-// 			switch value := value.(type) {
-// 			case string:
-// 				err = cmd.LocalFlags().Set(f.Name, value)
-// 			case []interface{}:
-// 				ls := make([]string, len(value))
-// 				for i := range value {
-// 					ls[i] = value[i].(string)
-// 				}
-// 				err = cmd.LocalFlags().Set(f.Name, strings.Join(ls, ","))
-// 			case []string:
-// 				err = cmd.LocalFlags().Set(f.Name, strings.Join(value, ","))
-// 			default:
-// 				fmt.Printf("unexpected config value type, value=%v, type=%T\n", value, value)
-// 			}
-// 			if err != nil {
-// 				fmt.Printf("failed setting flag '%s' from viper: %v\n", flagName, err)
-// 			}
-// 		}
-// 	})
-// }
-
 func loadCerts(tlscfg *tls.Config) error {
 	if cfg.Globals.TLSCert != "" && cfg.Globals.TLSKey != "" {
 		certificate, err := tls.LoadX509KeyPair(cfg.Globals.TLSCert, cfg.Globals.TLSKey)

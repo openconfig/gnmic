@@ -93,6 +93,7 @@ func sanitizeArrayFlagValue(ls []string) []string {
 	}
 	return res
 }
+
 func newPromptCmd() *cobra.Command {
 	promptModeCmd = &cobra.Command{
 		Use:   "prompt",
@@ -512,17 +513,9 @@ func initPromptFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&cfg.LocalFlags.PromptDescriptionWithPrefix, "description-with-prefix", false, "show YANG module prefix in XPATH suggestion description")
 	cmd.Flags().BoolVar(&cfg.LocalFlags.PromptDescriptionWithTypes, "description-with-types", false, "show YANG types in XPATH suggestion description")
 	cmd.Flags().BoolVar(&cfg.LocalFlags.PromptSuggestWithOrigin, "suggest-with-origin", false, "suggest XPATHs with origin prepended ")
-	cfg.FileConfig.BindPFlag("prompt-file", cmd.LocalFlags().Lookup("file"))
-	cfg.FileConfig.BindPFlag("prompt-exclude", cmd.LocalFlags().Lookup("exclude"))
-	cfg.FileConfig.BindPFlag("prompt-dir", cmd.LocalFlags().Lookup("dir"))
-	cfg.FileConfig.BindPFlag("prompt-max-suggestions", cmd.LocalFlags().Lookup("max-suggestions"))
-	cfg.FileConfig.BindPFlag("prompt-prefix-color", cmd.LocalFlags().Lookup("prefix-color"))
-	cfg.FileConfig.BindPFlag("prompt-suggestions-bg-color", cmd.LocalFlags().Lookup("suggestions-bg-color"))
-	cfg.FileConfig.BindPFlag("prompt-description-bg-color", cmd.LocalFlags().Lookup("description-bg-color"))
-	cfg.FileConfig.BindPFlag("prompt-suggest-all-flags", cmd.LocalFlags().Lookup("suggest-all-flags"))
-	cfg.FileConfig.BindPFlag("prompt-description-with-prefix", cmd.LocalFlags().Lookup("description-with-prefix"))
-	cfg.FileConfig.BindPFlag("prompt-description-with-types", cmd.LocalFlags().Lookup("description-with-types"))
-	cfg.FileConfig.BindPFlag("prompt-suggest-with-origin", cmd.LocalFlags().Lookup("suggest-with-origin"))
+	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
+		cfg.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
+	})
 }
 
 func findMatchedXPATH(entry *yang.Entry, input string, prefixPresent bool) []goprompt.Suggest {

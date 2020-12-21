@@ -24,6 +24,7 @@ import (
 	"github.com/karimra/gnmic/collector"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 //var paths []string
@@ -161,11 +162,9 @@ func initGetFlags(cmd *cobra.Command) {
 	cmd.Flags().StringP("type", "t", "ALL", "data type requested from the target. one of: ALL, CONFIG, STATE, OPERATIONAL")
 	cmd.Flags().StringP("target", "", "", "get request target")
 
-	cfg.FileConfig.BindPFlag("get-path", cmd.LocalFlags().Lookup("path"))
-	cfg.FileConfig.BindPFlag("get-prefix", cmd.LocalFlags().Lookup("prefix"))
-	cfg.FileConfig.BindPFlag("get-model", cmd.LocalFlags().Lookup("model"))
-	cfg.FileConfig.BindPFlag("get-type", cmd.LocalFlags().Lookup("type"))
-	cfg.FileConfig.BindPFlag("get-target", cmd.LocalFlags().Lookup("target"))
+	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
+		cfg.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
+	})
 }
 
 func createGetRequest() (*gnmi.GetRequest, error) {

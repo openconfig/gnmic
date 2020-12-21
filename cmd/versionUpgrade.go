@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 var downloadURL = "https://github.com/karimra/gnmic/raw/master/install.sh"
@@ -73,5 +75,7 @@ func downloadFile(url string, file *os.File) error {
 
 func initVersionUpgradeFlags(cmd *cobra.Command) {
 	cmd.Flags().Bool("use-pkg", false, "upgrade using package")
-	cfg.FileConfig.BindPFlag("update-use-pkg", cmd.Flags().Lookup("use-pkg"))
+	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
+		cfg.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
+	})
 }

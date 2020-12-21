@@ -29,6 +29,7 @@ import (
 	"github.com/manifoldco/promptui"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 const defaultRetryTimer = 10 * time.Second
@@ -259,18 +260,7 @@ func initSubscribeFlags(cmd *cobra.Command) {
 	cmd.Flags().StringSliceVarP(&cfg.LocalFlags.SubscribeName, "name", "n", []string{}, "reference subscriptions by name, must be defined in gnmic config file")
 	cmd.Flags().StringSliceVarP(&cfg.LocalFlags.SubscribeOutput, "output", "", []string{}, "reference to output groups by name, must be defined in gnmic config file")
 	//
-	cfg.FileConfig.BindPFlag("subscribe-prefix", cmd.LocalFlags().Lookup("prefix"))
-	cfg.FileConfig.BindPFlag("subscribe-path", cmd.LocalFlags().Lookup("path"))
-	cfg.FileConfig.BindPFlag("subscribe-qos", cmd.LocalFlags().Lookup("qos"))
-	cfg.FileConfig.BindPFlag("subscribe-updates-only", cmd.LocalFlags().Lookup("updates-only"))
-	cfg.FileConfig.BindPFlag("subscribe-mode", cmd.LocalFlags().Lookup("mode"))
-	cfg.FileConfig.BindPFlag("subscribe-stream-mode", cmd.LocalFlags().Lookup("stream-mode"))
-	cfg.FileConfig.BindPFlag("subscribe-sample-interval", cmd.LocalFlags().Lookup("sample-interval"))
-	cfg.FileConfig.BindPFlag("subscribe-suppress-redundant", cmd.LocalFlags().Lookup("suppress-redundant"))
-	cfg.FileConfig.BindPFlag("subscribe-heartbeat-interval", cmd.LocalFlags().Lookup("heartbeat-interval"))
-	cfg.FileConfig.BindPFlag("subscribe-sub-model", cmd.LocalFlags().Lookup("model"))
-	cfg.FileConfig.BindPFlag("subscribe-quiet", cmd.LocalFlags().Lookup("quiet"))
-	cfg.FileConfig.BindPFlag("subscribe-target", cmd.LocalFlags().Lookup("target"))
-	cfg.FileConfig.BindPFlag("subscribe-name", cmd.LocalFlags().Lookup("name"))
-	cfg.FileConfig.BindPFlag("subscribe-output", cmd.LocalFlags().Lookup("output"))
+	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
+		cfg.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
+	})
 }

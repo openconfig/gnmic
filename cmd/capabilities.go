@@ -25,6 +25,7 @@ import (
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 // capabilitiesCmd represents the capabilities command
@@ -126,5 +127,7 @@ func reqCapabilities(ctx context.Context, coll *collector.Collector, tName strin
 
 func initCapabilitiesFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVarP(&cfg.LocalFlags.CapabilitiesVersion, "version", "", false, "show gnmi version only")
-	cfg.FileConfig.BindPFlag("capabilities-version", cmd.LocalFlags().Lookup("version"))
+	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
+		cfg.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
+	})
 }
