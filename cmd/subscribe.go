@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"io"
 	"sort"
-	"sync"
 	"time"
 
 	"github.com/karimra/gnmic/collector"
@@ -161,29 +160,11 @@ func (c *CLI) subscribeRunE(cmd *cobra.Command, args []string) error {
 
 	go c.collector.Start(gctx)
 
-	wg := new(sync.WaitGroup)
-	wg.Add(len(c.collector.Targets))
-	for name := range c.collector.Targets {
-		go func(tn string) {
-			defer wg.Done()
-			tRetryTimer := c.collector.Targets[tn].Config.RetryTimer
-			for {
-				err = c.collector.Subscribe(gctx, tn)
-				if err != nil {
-					if errors.Is(err, context.DeadlineExceeded) {
-						c.logger.Printf("failed to initialize target '%s' timeout (%s) reached", tn, targetsConfig[tn].Timeout)
-					} else {
-						c.logger.Printf("failed to initialize target '%s': %v", tn, err)
-					}
-					c.logger.Printf("retrying target %s in %s", tn, tRetryTimer)
-					time.Sleep(tRetryTimer)
-					continue
-				}
-				return
-			}
-		}(name)
+	c.wg.Add(len(c.collector.Targets))
+	for _, target := range c.collector.Targets {
+		go c.subscribe(gctx, target.Config)
 	}
-	wg.Wait()
+	c.wg.Wait()
 	polledTargetsSubscriptions := c.collector.PolledSubscriptionsTargets()
 	if len(polledTargetsSubscriptions) > 0 {
 		pollTargets := make([]string, 0, len(polledTargetsSubscriptions))
@@ -262,4 +243,23 @@ func (c *CLI) subscribeRunE(cmd *cobra.Command, args []string) error {
 		return gctx.Err()
 	}
 	return nil
+}
+
+func (c *CLI) subscribe(ctx context.Context, tConf *collector.TargetConfig) {
+	defer c.wg.Done()
+	var err error
+	for {
+		err = c.collector.Subscribe(gctx, tConf.Name)
+		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				c.logger.Printf("failed to initialize target '%s' timeout (%s) reached", tConf.Name, tConf.Timeout)
+			} else {
+				c.logger.Printf("failed to initialize target '%s': %v", tConf.Name, err)
+			}
+			c.logger.Printf("retrying target %s in %s", tConf.Name, tConf.RetryTimer)
+			time.Sleep(tConf.RetryTimer)
+			continue
+		}
+		return
+	}
 }
