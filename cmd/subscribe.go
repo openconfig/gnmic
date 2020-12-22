@@ -255,7 +255,7 @@ func (c *CLI) subscribeRunE(cmd *cobra.Command, args []string) error {
 		}()
 	}
 
-	if promptMode {
+	if cli.promptMode {
 		return nil
 	}
 	for range gctx.Done() {

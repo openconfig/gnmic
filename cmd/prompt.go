@@ -26,11 +26,6 @@ import (
 var gctx context.Context
 var gcancel context.CancelFunc
 
-var promptMode bool
-var promptHistory []string
-var schemaTree = &yang.Entry{
-	Dir: make(map[string]*yang.Entry),
-}
 var colorMapping = map[string]goprompt.Color{
 	"black":      goprompt.Black,
 	"dark_red":   goprompt.DarkRed,
@@ -161,9 +156,9 @@ func newPromptCmd() *cobra.Command {
 					fmt.Fprintf(os.Stderr, "ERR: failed to load paths from yang: %v\n", err)
 				}
 			}
-			promptMode = true
+			cli.promptMode = true
 			// load history
-			promptHistory = make([]string, 0, 256)
+			cli.promptHistory = make([]string, 0, 256)
 			home, err := homedir.Dir()
 			if err != nil {
 				if cli.config.Globals.Debug {
@@ -181,7 +176,7 @@ func newPromptCmd() *cobra.Command {
 			history := strings.Split(string(content), "\n")
 			for i := range history {
 				if history[i] != "" {
-					promptHistory = append(promptHistory, history[i])
+					cli.promptHistory = append(cli.promptHistory, history[i])
 				}
 			}
 			return nil
@@ -211,12 +206,12 @@ var promptQuitCmd = &cobra.Command{
 		if err != nil {
 			os.Exit(0)
 		}
-		l := len(promptHistory)
+		l := len(cli.promptHistory)
 		if l > 128 {
-			promptHistory = promptHistory[l-128:]
+			cli.promptHistory = cli.promptHistory[l-128:]
 		}
-		for i := range promptHistory {
-			f.WriteString(promptHistory[i] + "\n")
+		for i := range cli.promptHistory {
+			f.WriteString(cli.promptHistory[i] + "\n")
 		}
 		f.Close()
 		os.Exit(0)
@@ -723,7 +718,7 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 					}
 				}
 				// find yang entries matching the prefix
-				for _, entry := range schemaTree.Dir {
+				for _, entry := range cli.schemaTree.Dir {
 					entries = append(entries, findMatchedSchema(entry, line)...)
 				}
 				// generate suggestions from matching entries
@@ -733,7 +728,7 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 			}
 		} else {
 			// generate suggestions from yang schema
-			for _, entry := range schemaTree.Dir {
+			for _, entry := range cli.schemaTree.Dir {
 				suggestions = append(suggestions, findMatchedXPATH(entry, word, false)...)
 			}
 		}
@@ -747,7 +742,7 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 	case "PREFIX":
 		word := doc.GetWordBeforeCursor()
 		suggestions := make([]goprompt.Suggest, 0, 16)
-		for _, entry := range schemaTree.Dir {
+		for _, entry := range cli.schemaTree.Dir {
 			suggestions = append(suggestions, findMatchedXPATH(entry, word, false)...)
 		}
 		sort.Slice(suggestions, func(i, j int) bool {
@@ -762,8 +757,8 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 	case "YANG":
 		return yangPathCompleter.Complete(doc)
 	case "MODEL":
-		suggestions := make([]goprompt.Suggest, 0, len(schemaTree.Dir))
-		for name, dir := range schemaTree.Dir {
+		suggestions := make([]goprompt.Suggest, 0, len(cli.schemaTree.Dir))
+		for name, dir := range cli.schemaTree.Dir {
 			if dir != nil {
 				suggestions = append(suggestions, goprompt.Suggest{Text: name, Description: dir.Description})
 				continue
@@ -943,7 +938,7 @@ func ExecutePrompt() {
 		GoPromptOptions: []goprompt.Option{
 			goprompt.OptionTitle("gnmic-prompt"),
 			goprompt.OptionPrefix("gnmic> "),
-			goprompt.OptionHistory(promptHistory),
+			goprompt.OptionHistory(cli.promptHistory),
 			goprompt.OptionMaxSuggestion(cli.config.LocalFlags.PromptMaxSuggestions),
 			goprompt.OptionPrefixTextColor(getColor("prefix-color")),
 			goprompt.OptionPreviewSuggestionTextColor(goprompt.Cyan),
@@ -1051,7 +1046,7 @@ func (co cmdPrompt) Run() {
 			if len(promptArgs) > 0 {
 				err := co.RootCmd.Execute()
 				if err == nil && in != "" {
-					promptHistory = append(promptHistory, in)
+					cli.promptHistory = append(cli.promptHistory, in)
 				}
 			}
 		},

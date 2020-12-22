@@ -45,7 +45,7 @@ func pathCmdRun(d, f, e []string) error {
 		go printer(ctx, out)
 	}
 	collected := make([]*yang.Entry, 0, 256)
-	for _, entry := range schemaTree.Dir {
+	for _, entry := range cli.schemaTree.Dir {
 		collected = append(collected, collectSchemaNodes(entry, true)...)
 	}
 	for _, entry := range collected {
@@ -127,7 +127,7 @@ func generateYangSchema(d, f, e []string) error {
 		entries[x] = yang.ToEntry(mods[n])
 	}
 
-	schemaTree = buildRootEntry()
+	cli.schemaTree = buildRootEntry()
 	for _, entry := range entries {
 		skip := false
 		for i := range e {
@@ -137,7 +137,7 @@ func generateYangSchema(d, f, e []string) error {
 		}
 		if !skip {
 			updateAnnotation(entry)
-			schemaTree.Dir[entry.Name] = entry
+			cli.schemaTree.Dir[entry.Name] = entry
 		}
 	}
 	return nil

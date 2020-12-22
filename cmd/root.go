@@ -35,6 +35,7 @@ import (
 	"github.com/karimra/gnmic/config"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"google.golang.org/grpc"
@@ -84,13 +85,22 @@ type CLI struct {
 	collector *collector.Collector
 	logger    *log.Logger
 
+	promptMode    bool
+	promptHistory []string
+	schemaTree    *yang.Entry
+
 	wg        *sync.WaitGroup
 	printLock *sync.Mutex
 }
 
 var cli = &CLI{
-	config:    config.New(),
-	logger:    log.New(ioutil.Discard, "", log.LstdFlags),
+	config:        config.New(),
+	logger:        log.New(ioutil.Discard, "", log.LstdFlags),
+	promptHistory: make([]string, 0, 128),
+	schemaTree: &yang.Entry{
+		Dir: make(map[string]*yang.Entry),
+	},
+
 	wg:        new(sync.WaitGroup),
 	printLock: new(sync.Mutex),
 }
@@ -199,7 +209,7 @@ func Execute() {
 		//fmt.Println(err)
 		os.Exit(1)
 	}
-	if promptMode {
+	if cli.promptMode {
 		ExecutePrompt()
 	}
 }

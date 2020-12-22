@@ -23,7 +23,6 @@ import (
 )
 
 const (
-	configPath      = ""
 	configName      = "gnmic"
 	configLogPrefix = "config "
 )
