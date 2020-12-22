@@ -34,10 +34,10 @@ func newVersionCmd() *cobra.Command {
 		Use:   "version",
 		Short: "show gnmic version",
 		PreRun: func(cmd *cobra.Command, args []string) {
-			cfg.SetLocalFlagsFromFile(cmd)
+			cli.config.SetLocalFlagsFromFile(cmd)
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			if cfg.Globals.Format != "json" {
+			if cli.config.Globals.Format != "json" {
 				fmt.Printf("version : %s\n", version)
 				fmt.Printf(" commit : %s\n", commit)
 				fmt.Printf("   date : %s\n", date)
@@ -53,8 +53,8 @@ func newVersionCmd() *cobra.Command {
 				"docs":    "https://gnmic.kmrd.dev",
 			}) // need indent? use jq
 			if err != nil {
-				logger.Printf("failed: %v", err)
-				if !cfg.Globals.Log {
+				cli.logger.Printf("failed: %v", err)
+				if !cli.config.Globals.Log {
 					fmt.Printf("failed: %v\n", err)
 				}
 				return

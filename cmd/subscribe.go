@@ -62,175 +62,9 @@ func newSubscribeCmd() *cobra.Command {
 			"--output":      "OUTPUT",
 		},
 		PreRun: func(cmd *cobra.Command, args []string) {
-			cfg.SetLocalFlagsFromFile(cmd)
+			cli.config.SetLocalFlagsFromFile(cmd)
 		},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			gctx, gcancel = context.WithCancel(context.Background())
-			setupCloseHandler(gcancel)
-			targetsConfig, err := cfg.GetTargets()
-			if err != nil {
-				return fmt.Errorf("failed getting targets config: %v", err)
-			}
-			if cfg.Globals.Debug {
-				logger.Printf("targets: %s", targetsConfig)
-			}
-
-			subscriptionsConfig, err := cfg.GetSubscriptions(cmd)
-			if err != nil {
-				return fmt.Errorf("failed getting subscriptions config: %v", err)
-			}
-			if cfg.Globals.Debug {
-				logger.Printf("subscriptions: %s", subscriptionsConfig)
-			}
-			outs, err := cfg.GetOutputs()
-			if err != nil {
-				return err
-			}
-			if cfg.Globals.Debug {
-				logger.Printf("outputs: %+v", outs)
-			}
-			epconfig, err := cfg.GetEventProcessors()
-			if err != nil {
-				return err
-			}
-			if cfg.Globals.Debug {
-				logger.Printf("processors: %+v", epconfig)
-			}
-			if coll == nil {
-				cfg := &collector.Config{
-					PrometheusAddress:   cfg.Globals.PrometheusAddress,
-					Debug:               cfg.Globals.Debug,
-					Format:              cfg.Globals.Format,
-					TargetReceiveBuffer: cfg.Globals.TargetBufferSize,
-					RetryTimer:          cfg.Globals.Retry,
-				}
-
-				coll = collector.NewCollector(cfg, targetsConfig,
-					collector.WithDialOptions(createCollectorDialOpts()),
-					collector.WithSubscriptions(subscriptionsConfig),
-					collector.WithOutputs(outs),
-					collector.WithLogger(logger),
-					collector.WithEventProcessors(epconfig),
-				)
-			} else {
-				// prompt mode
-				for name, outCfg := range outs {
-					coll.AddOutput(name, outCfg)
-				}
-				for _, sc := range subscriptionsConfig {
-					coll.AddSubscriptionConfig(sc)
-				}
-				for _, tc := range targetsConfig {
-					coll.AddTarget(tc)
-				}
-			}
-
-			coll.InitOutputs(gctx)
-
-			go coll.Start(gctx)
-
-			wg := new(sync.WaitGroup)
-			wg.Add(len(coll.Targets))
-			for name := range coll.Targets {
-				go func(tn string) {
-					defer wg.Done()
-					tRetryTimer := coll.Targets[tn].Config.RetryTimer
-					for {
-						err = coll.Subscribe(gctx, tn)
-						if err != nil {
-							if errors.Is(err, context.DeadlineExceeded) {
-								logger.Printf("failed to initialize target '%s' timeout (%s) reached", tn, targetsConfig[tn].Timeout)
-							} else {
-								logger.Printf("failed to initialize target '%s': %v", tn, err)
-							}
-							logger.Printf("retrying target %s in %s", tn, tRetryTimer)
-							time.Sleep(tRetryTimer)
-							continue
-						}
-						return
-					}
-				}(name)
-			}
-			wg.Wait()
-			polledTargetsSubscriptions := coll.PolledSubscriptionsTargets()
-			if len(polledTargetsSubscriptions) > 0 {
-				pollTargets := make([]string, 0, len(polledTargetsSubscriptions))
-				for t := range polledTargetsSubscriptions {
-					pollTargets = append(pollTargets, t)
-				}
-				sort.Slice(pollTargets, func(i, j int) bool {
-					return pollTargets[i] < pollTargets[j]
-				})
-				s := promptui.Select{
-					Label:        "select target to poll",
-					Items:        pollTargets,
-					HideSelected: true,
-				}
-				waitChan := make(chan struct{}, 1)
-				waitChan <- struct{}{}
-				mo := &formatters.MarshalOptions{
-					Multiline: true,
-					Indent:    "  ",
-					Format:    cfg.Globals.Format,
-				}
-				go func() {
-					for {
-						select {
-						case <-waitChan:
-							_, name, err := s.Run()
-							if err != nil {
-								fmt.Printf("failed selecting target to poll: %v\n", err)
-								continue
-							}
-							ss := promptui.Select{
-								Label:        "select subscription to poll",
-								Items:        polledTargetsSubscriptions[name],
-								HideSelected: true,
-							}
-							_, subName, err := ss.Run()
-							if err != nil {
-								fmt.Printf("failed selecting subscription to poll: %v\n", err)
-								continue
-							}
-							response, err := coll.TargetPoll(name, subName)
-							if err != nil && err != io.EOF {
-								fmt.Printf("target '%s', subscription '%s': poll response error:%v\n", name, subName, err)
-								continue
-							}
-							if response == nil {
-								fmt.Printf("received empty response from target '%s'\n", name)
-								continue
-							}
-							switch rsp := response.Response.(type) {
-							case *gnmi.SubscribeResponse_SyncResponse:
-								fmt.Printf("received sync response '%t' from '%s'\n", rsp.SyncResponse, name)
-								waitChan <- struct{}{}
-								continue
-							}
-							b, err := mo.Marshal(response, nil)
-							if err != nil {
-								fmt.Printf("target '%s', subscription '%s': poll response formatting error:%v\n", name, subName, err)
-								fmt.Println(string(b))
-								waitChan <- struct{}{}
-								continue
-							}
-							fmt.Println(string(b))
-							waitChan <- struct{}{}
-						case <-gctx.Done():
-							return
-						}
-					}
-				}()
-			}
-
-			if promptMode {
-				return nil
-			}
-			for range gctx.Done() {
-				return gctx.Err()
-			}
-			return nil
-		},
+		RunE: cli.subscribeRunE,
 		PostRun: func(cmd *cobra.Command, args []string) {
 			cmd.ResetFlags()
 			initSubscribeFlags(cmd)
@@ -243,24 +77,190 @@ func newSubscribeCmd() *cobra.Command {
 
 // used to init or reset subscribeCmd flags for gnmic-prompt mode
 func initSubscribeFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVarP(&cfg.LocalFlags.SubscribePrefix, "prefix", "", "", "subscribe request prefix")
-	cmd.Flags().StringArrayVarP(&cfg.LocalFlags.SubscribePath, "path", "", []string{}, "subscribe request paths")
+	cmd.Flags().StringVarP(&cli.config.LocalFlags.SubscribePrefix, "prefix", "", "", "subscribe request prefix")
+	cmd.Flags().StringArrayVarP(&cli.config.LocalFlags.SubscribePath, "path", "", []string{}, "subscribe request paths")
 	//cmd.MarkFlagRequired("path")
-	cmd.Flags().Uint32VarP(&cfg.LocalFlags.SubscribeQos, "qos", "q", 0, "qos marking")
-	cmd.Flags().BoolVarP(&cfg.LocalFlags.SubscribeUpdatesOnly, "updates-only", "", false, "only updates to current state should be sent")
-	cmd.Flags().StringVarP(&cfg.LocalFlags.SubscribeMode, "mode", "", "stream", "one of: once, stream, poll")
-	cmd.Flags().StringVarP(&cfg.LocalFlags.SubscribeStreamMode, "stream-mode", "", "target-defined", "one of: on-change, sample, target-defined")
-	cmd.Flags().DurationVarP(&cfg.LocalFlags.SubscribeSampleInteral, "sample-interval", "i", 0,
+	cmd.Flags().Uint32VarP(&cli.config.LocalFlags.SubscribeQos, "qos", "q", 0, "qos marking")
+	cmd.Flags().BoolVarP(&cli.config.LocalFlags.SubscribeUpdatesOnly, "updates-only", "", false, "only updates to current state should be sent")
+	cmd.Flags().StringVarP(&cli.config.LocalFlags.SubscribeMode, "mode", "", "stream", "one of: once, stream, poll")
+	cmd.Flags().StringVarP(&cli.config.LocalFlags.SubscribeStreamMode, "stream-mode", "", "target-defined", "one of: on-change, sample, target-defined")
+	cmd.Flags().DurationVarP(&cli.config.LocalFlags.SubscribeSampleInteral, "sample-interval", "i", 0,
 		"sample interval as a decimal number and a suffix unit, such as \"10s\" or \"1m30s\"")
-	cmd.Flags().BoolVarP(&cfg.LocalFlags.SubscribeSuppressRedundant, "suppress-redundant", "", false, "suppress redundant update if the subscribed value didn't not change")
-	cmd.Flags().DurationVarP(&cfg.LocalFlags.SubscribeHeartbearInterval, "heartbeat-interval", "", 0, "heartbeat interval in case suppress-redundant is enabled")
-	cmd.Flags().StringSliceVarP(&cfg.LocalFlags.SubscribeModel, "model", "", []string{}, "subscribe request used model(s)")
-	cmd.Flags().BoolVar(&cfg.LocalFlags.SubscribeQuiet, "quiet", false, "suppress stdout printing")
-	cmd.Flags().StringVarP(&cfg.LocalFlags.SubscribeTarget, "target", "", "", "subscribe request target")
-	cmd.Flags().StringSliceVarP(&cfg.LocalFlags.SubscribeName, "name", "n", []string{}, "reference subscriptions by name, must be defined in gnmic config file")
-	cmd.Flags().StringSliceVarP(&cfg.LocalFlags.SubscribeOutput, "output", "", []string{}, "reference to output groups by name, must be defined in gnmic config file")
+	cmd.Flags().BoolVarP(&cli.config.LocalFlags.SubscribeSuppressRedundant, "suppress-redundant", "", false, "suppress redundant update if the subscribed value didn't not change")
+	cmd.Flags().DurationVarP(&cli.config.LocalFlags.SubscribeHeartbearInterval, "heartbeat-interval", "", 0, "heartbeat interval in case suppress-redundant is enabled")
+	cmd.Flags().StringSliceVarP(&cli.config.LocalFlags.SubscribeModel, "model", "", []string{}, "subscribe request used model(s)")
+	cmd.Flags().BoolVar(&cli.config.LocalFlags.SubscribeQuiet, "quiet", false, "suppress stdout printing")
+	cmd.Flags().StringVarP(&cli.config.LocalFlags.SubscribeTarget, "target", "", "", "subscribe request target")
+	cmd.Flags().StringSliceVarP(&cli.config.LocalFlags.SubscribeName, "name", "n", []string{}, "reference subscriptions by name, must be defined in gnmic config file")
+	cmd.Flags().StringSliceVarP(&cli.config.LocalFlags.SubscribeOutput, "output", "", []string{}, "reference to output groups by name, must be defined in gnmic config file")
 	//
 	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
-		cfg.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
+		cli.config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
 	})
+}
+
+func (c *CLI) subscribeRunE(cmd *cobra.Command, args []string) error {
+	gctx, gcancel = context.WithCancel(context.Background())
+	setupCloseHandler(gcancel)
+	targetsConfig, err := c.config.GetTargets()
+	if err != nil {
+		return fmt.Errorf("failed getting targets config: %v", err)
+	}
+
+	subscriptionsConfig, err := c.config.GetSubscriptions(cmd)
+	if err != nil {
+		return fmt.Errorf("failed getting subscriptions config: %v", err)
+	}
+	outs, err := c.config.GetOutputs()
+	if err != nil {
+		return err
+	}
+	epconfig, err := c.config.GetEventProcessors()
+	if err != nil {
+		return err
+	}
+
+	if c.collector == nil {
+		cfg := &collector.Config{
+			PrometheusAddress:   c.config.Globals.PrometheusAddress,
+			Debug:               c.config.Globals.Debug,
+			Format:              c.config.Globals.Format,
+			TargetReceiveBuffer: c.config.Globals.TargetBufferSize,
+			RetryTimer:          c.config.Globals.Retry,
+		}
+
+		c.collector = collector.NewCollector(cfg, targetsConfig,
+			collector.WithDialOptions(createCollectorDialOpts()),
+			collector.WithSubscriptions(subscriptionsConfig),
+			collector.WithOutputs(outs),
+			collector.WithLogger(c.logger),
+			collector.WithEventProcessors(epconfig),
+		)
+	} else {
+		// prompt mode
+		for name, outCfg := range outs {
+			err = c.collector.AddOutput(name, outCfg)
+			if err != nil {
+				c.logger.Printf("%v", err)
+			}
+		}
+		for _, sc := range subscriptionsConfig {
+			err = c.collector.AddSubscriptionConfig(sc)
+			if err != nil {
+				c.logger.Printf("%v", err)
+			}
+		}
+		for _, tc := range targetsConfig {
+			c.collector.AddTarget(tc)
+			if err != nil {
+				c.logger.Printf("%v", err)
+			}
+		}
+	}
+
+	c.collector.InitOutputs(gctx)
+
+	go c.collector.Start(gctx)
+
+	wg := new(sync.WaitGroup)
+	wg.Add(len(c.collector.Targets))
+	for name := range c.collector.Targets {
+		go func(tn string) {
+			defer wg.Done()
+			tRetryTimer := c.collector.Targets[tn].Config.RetryTimer
+			for {
+				err = c.collector.Subscribe(gctx, tn)
+				if err != nil {
+					if errors.Is(err, context.DeadlineExceeded) {
+						c.logger.Printf("failed to initialize target '%s' timeout (%s) reached", tn, targetsConfig[tn].Timeout)
+					} else {
+						c.logger.Printf("failed to initialize target '%s': %v", tn, err)
+					}
+					c.logger.Printf("retrying target %s in %s", tn, tRetryTimer)
+					time.Sleep(tRetryTimer)
+					continue
+				}
+				return
+			}
+		}(name)
+	}
+	wg.Wait()
+	polledTargetsSubscriptions := c.collector.PolledSubscriptionsTargets()
+	if len(polledTargetsSubscriptions) > 0 {
+		pollTargets := make([]string, 0, len(polledTargetsSubscriptions))
+		for t := range polledTargetsSubscriptions {
+			pollTargets = append(pollTargets, t)
+		}
+		sort.Slice(pollTargets, func(i, j int) bool {
+			return pollTargets[i] < pollTargets[j]
+		})
+		s := promptui.Select{
+			Label:        "select target to poll",
+			Items:        pollTargets,
+			HideSelected: true,
+		}
+		waitChan := make(chan struct{}, 1)
+		waitChan <- struct{}{}
+		mo := &formatters.MarshalOptions{
+			Multiline: true,
+			Indent:    "  ",
+			Format:    cli.config.Globals.Format,
+		}
+		go func() {
+			for {
+				select {
+				case <-waitChan:
+					_, name, err := s.Run()
+					if err != nil {
+						fmt.Printf("failed selecting target to poll: %v\n", err)
+						continue
+					}
+					ss := promptui.Select{
+						Label:        "select subscription to poll",
+						Items:        polledTargetsSubscriptions[name],
+						HideSelected: true,
+					}
+					_, subName, err := ss.Run()
+					if err != nil {
+						fmt.Printf("failed selecting subscription to poll: %v\n", err)
+						continue
+					}
+					response, err := c.collector.TargetPoll(name, subName)
+					if err != nil && err != io.EOF {
+						fmt.Printf("target '%s', subscription '%s': poll response error:%v\n", name, subName, err)
+						continue
+					}
+					if response == nil {
+						fmt.Printf("received empty response from target '%s'\n", name)
+						continue
+					}
+					switch rsp := response.Response.(type) {
+					case *gnmi.SubscribeResponse_SyncResponse:
+						fmt.Printf("received sync response '%t' from '%s'\n", rsp.SyncResponse, name)
+						waitChan <- struct{}{}
+						continue
+					}
+					b, err := mo.Marshal(response, nil)
+					if err != nil {
+						fmt.Printf("target '%s', subscription '%s': poll response formatting error:%v\n", name, subName, err)
+						fmt.Println(string(b))
+						waitChan <- struct{}{}
+						continue
+					}
+					fmt.Println(string(b))
+					waitChan <- struct{}{}
+				case <-gctx.Done():
+					return
+				}
+			}
+		}()
+	}
+
+	if promptMode {
+		return nil
+	}
+	for range gctx.Done() {
+		return gctx.Err()
+	}
+	return nil
 }

@@ -27,6 +27,7 @@ import (
 	"os/signal"
 	"sort"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -78,50 +79,63 @@ var formats = [][2]string{
 }
 var tlsVersions = []string{"1.3", "1.2", "1.1", "1.0", "1"}
 
+type CLI struct {
+	config    *config.Config
+	collector *collector.Collector
+	logger    *log.Logger
+
+	wg        *sync.WaitGroup
+	printLock *sync.Mutex
+}
+
+var cli = &CLI{
+	config:    config.New(),
+	logger:    log.New(ioutil.Discard, "", log.LstdFlags),
+	wg:        new(sync.WaitGroup),
+	printLock: new(sync.Mutex),
+}
+
 var cfgFile string
-var logger *log.Logger
-var coll *collector.Collector
-var cfg = config.New()
 
 func rootCmdPersistentPreRunE(cmd *cobra.Command, args []string) error {
-	cfg.SetLogger()
-	cfg.SetPersistantFlagsFromFile(rootCmd)
-	cfg.Globals.Address = sanitizeArrayFlagValue(cfg.Globals.Address)
-	logger = log.New(ioutil.Discard, "gnmic ", log.LstdFlags|log.Lmicroseconds)
-	if cfg.Globals.LogFile != "" {
-		f, err := os.OpenFile(cfg.Globals.LogFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	cli.config.SetLogger()
+	cli.config.SetPersistantFlagsFromFile(rootCmd)
+	cli.config.Globals.Address = sanitizeArrayFlagValue(cli.config.Globals.Address)
+	cli.logger = log.New(ioutil.Discard, "gnmic ", log.LstdFlags|log.Lmicroseconds)
+	if cli.config.Globals.LogFile != "" {
+		f, err := os.OpenFile(cli.config.Globals.LogFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 		if err != nil {
 			return fmt.Errorf("error opening log file: %v", err)
 		}
-		logger.SetOutput(f)
+		cli.logger.SetOutput(f)
 	} else {
-		if cfg.Globals.Debug {
-			cfg.Globals.Log = true
+		if cli.config.Globals.Debug {
+			cli.config.Globals.Log = true
 		}
-		if cfg.Globals.Log {
-			logger.SetOutput(os.Stderr)
+		if cli.config.Globals.Log {
+			cli.logger.SetOutput(os.Stderr)
 		}
 	}
-	if cfg.Globals.Debug {
-		logger.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Llongfile)
+	if cli.config.Globals.Debug {
+		cli.logger.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Llongfile)
 	}
 
-	if cfg.Globals.Debug {
-		grpclog.SetLogger(logger) //lint:ignore SA1019 see https://github.com/karimra/gnmic/issues/59
-		logger.Printf("version=%s, commit=%s, date=%s, gitURL=%s, docs=https://gnmic.kmrd.dev", version, commit, date, gitURL)
+	if cli.config.Globals.Debug {
+		grpclog.SetLogger(cli.logger) //lint:ignore SA1019 see https://github.com/karimra/gnmic/issues/59
+		cli.logger.Printf("version=%s, commit=%s, date=%s, gitURL=%s, docs=https://gnmic.kmrd.dev", version, commit, date, gitURL)
 	}
-	cfgFile := cfg.FileConfig.ConfigFileUsed()
+	cfgFile := cli.config.FileConfig.ConfigFileUsed()
 	if len(cfgFile) != 0 {
-		logger.Printf("using config file %s", cfgFile)
+		cli.logger.Printf("using config file %s", cfgFile)
 		b, err := ioutil.ReadFile(cfgFile)
 		if err != nil {
 			if cmd.Flag("config").Changed {
 				return err
 			}
-			logger.Printf("failed reading config file: %v", err)
+			cli.logger.Printf("failed reading config file: %v", err)
 		}
-		if cfg.Globals.Debug {
-			logger.Printf("config file:\n%s", string(b))
+		if cli.config.Globals.Debug {
+			cli.logger.Printf("config file:\n%s", string(b))
 		}
 	}
 	logConfigKeysValues()
@@ -129,22 +143,22 @@ func rootCmdPersistentPreRunE(cmd *cobra.Command, args []string) error {
 }
 
 func logConfigKeysValues() {
-	if cfg.Globals.Debug {
-		b, err := json.MarshalIndent(cfg.FileConfig.AllSettings(), "", "  ")
+	if cli.config.Globals.Debug {
+		b, err := json.MarshalIndent(cli.config.FileConfig.AllSettings(), "", "  ")
 		if err != nil {
-			logger.Printf("could not marshal settings: %v", err)
+			cli.logger.Printf("could not marshal settings: %v", err)
 		} else {
-			logger.Printf("set flags/config:\n%s\n", string(b))
+			cli.logger.Printf("set flags/config:\n%s\n", string(b))
 		}
-		keys := cfg.FileConfig.AllKeys()
+		keys := cli.config.FileConfig.AllKeys()
 		sort.Strings(keys)
 
 		for _, k := range keys {
-			if !cfg.FileConfig.IsSet(k) {
+			if !cli.config.FileConfig.IsSet(k) {
 				continue
 			}
-			v := cfg.FileConfig.Get(k)
-			logger.Printf("%s='%v'(%T)", k, v, v)
+			v := cli.config.FileConfig.Get(k)
+			cli.logger.Printf("%s='%v'(%T)", k, v, v)
 		}
 	}
 }
@@ -164,7 +178,7 @@ func newRootCmd() *cobra.Command {
 		},
 		PersistentPreRunE: rootCmdPersistentPreRunE,
 	}
-	initGlobalflags(rootCmd, cfg.Globals)
+	initGlobalflags(rootCmd, cli.config.Globals)
 	rootCmd.AddCommand(newCapabilitiesCmd())
 	rootCmd.AddCommand(newGetCmd())
 	rootCmd.AddCommand(newListenCmd())
@@ -222,23 +236,20 @@ func initGlobalflags(cmd *cobra.Command, globals *config.GlobalFlags) {
 	cmd.PersistentFlags().StringVarP(&globals.TLSVersion, "tls-version", "", "", fmt.Sprintf("set TLS version. Overwrites --tls-min-version and --tls-max-version, one of %q", tlsVersions))
 
 	cmd.PersistentFlags().VisitAll(func(flag *pflag.Flag) {
-		cfg.FileConfig.BindPFlag(flag.Name, flag)
+		cli.config.FileConfig.BindPFlag(flag.Name, flag)
 	})
 }
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
-	err := cfg.Load(cfgFile)
+	err := cli.config.Load(cfgFile)
 	if err != nil {
 		fmt.Println("failed loading config: ", err)
 	}
-	// If a config file is found, read it in.
-	//cfg.SetPersistantFlagsFromFile(rootCmd)
-	//postInitCommands(rootCmd.Commands())
 }
 func loadCerts(tlscfg *tls.Config) error {
-	if cfg.Globals.TLSCert != "" && cfg.Globals.TLSKey != "" {
-		certificate, err := tls.LoadX509KeyPair(cfg.Globals.TLSCert, cfg.Globals.TLSKey)
+	if cli.config.Globals.TLSCert != "" && cli.config.Globals.TLSKey != "" {
+		certificate, err := tls.LoadX509KeyPair(cli.config.Globals.TLSCert, cli.config.Globals.TLSKey)
 		if err != nil {
 			return err
 		}
@@ -250,8 +261,8 @@ func loadCerts(tlscfg *tls.Config) error {
 
 func loadCACerts(tlscfg *tls.Config) error {
 	certPool := x509.NewCertPool()
-	if cfg.Globals.TLSCa != "" {
-		caFile, err := ioutil.ReadFile(cfg.Globals.TLSCa)
+	if cli.config.Globals.TLSCa != "" {
+		caFile, err := ioutil.ReadFile(cli.config.Globals.TLSCa)
 		if err != nil {
 			return err
 		}
@@ -294,7 +305,7 @@ func indent(prefix, s string) string {
 }
 
 func filterModels(ctx context.Context, coll *collector.Collector, tName string, modelsNames []string) (map[string]*gnmi.ModelData, []string, error) {
-	supModels, err := coll.GetModels(ctx, tName)
+	supModels, err := cli.collector.GetModels(ctx, tName)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -330,24 +341,28 @@ func setupCloseHandler(cancelFn context.CancelFunc) {
 func createCollectorDialOpts() []grpc.DialOption {
 	opts := []grpc.DialOption{}
 	opts = append(opts, grpc.WithBlock())
-	if cfg.Globals.MaxMsgSize > 0 {
-		opts = append(opts, grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(cfg.Globals.MaxMsgSize)))
+	if cli.config.Globals.MaxMsgSize > 0 {
+		opts = append(opts, grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(cli.config.Globals.MaxMsgSize)))
 	}
-	if !cfg.Globals.ProxyFromEnv {
+	if !cli.config.Globals.ProxyFromEnv {
 		opts = append(opts, grpc.WithNoProxy())
 	}
 	return opts
 }
 
-func printMsg(address string, msg proto.Message) error {
+func (c *CLI) printMsg(address string, msgName string, msg proto.Message) error {
+	c.printLock.Lock()
+	defer c.printLock.Unlock()
+	fmt.Fprint(os.Stderr, msgName)
+	fmt.Fprintln(os.Stderr, "")
 	printPrefix := ""
-	if len(cfg.TargetsList()) > 1 && !cfg.Globals.NoPrefix {
+	if len(cli.config.TargetsList()) > 1 && !cli.config.Globals.NoPrefix {
 		printPrefix = fmt.Sprintf("[%s] ", address)
 	}
 
 	switch msg := msg.ProtoReflect().Interface().(type) {
 	case *gnmi.CapabilityResponse:
-		if len(cfg.Globals.Format) == 0 {
+		if len(cli.config.Globals.Format) == 0 {
 			printCapResponse(printPrefix, msg)
 			return nil
 		}
@@ -355,10 +370,14 @@ func printMsg(address string, msg proto.Message) error {
 	mo := formatters.MarshalOptions{
 		Multiline: true,
 		Indent:    "  ",
-		Format:    cfg.Globals.Format,
+		Format:    cli.config.Globals.Format,
 	}
 	b, err := mo.Marshal(msg, map[string]string{"address": address})
 	if err != nil {
+		cli.logger.Printf("error marshaling capabilities request: %v", err)
+		if !cli.config.Globals.Log {
+			fmt.Printf("error marshaling capabilities request: %v", err)
+		}
 		return err
 	}
 	sb := strings.Builder{}
@@ -373,7 +392,7 @@ func printCapResponse(printPrefix string, msg *gnmi.CapabilityResponse) {
 	sb.WriteString("gNMI version: ")
 	sb.WriteString(msg.GNMIVersion)
 	sb.WriteString("\n")
-	if cfg.LocalFlags.CapabilitiesVersion {
+	if cli.config.LocalFlags.CapabilitiesVersion {
 		return
 	}
 	sb.WriteString(printPrefix)

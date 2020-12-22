@@ -39,7 +39,7 @@ func pathCmdRun(d, f, e []string) error {
 	out := make(chan string)
 	defer close(out)
 	paths := make([]string, 0)
-	if cfg.LocalFlags.PathSearch {
+	if cli.config.LocalFlags.PathSearch {
 		go gather(ctx, out, &paths)
 	} else {
 		go printer(ctx, out)
@@ -49,10 +49,10 @@ func pathCmdRun(d, f, e []string) error {
 		collected = append(collected, collectSchemaNodes(entry, true)...)
 	}
 	for _, entry := range collected {
-		out <- generatePath(entry, cfg.LocalFlags.PathWithPrefix)
+		out <- generatePath(entry, cli.config.LocalFlags.PathWithPrefix)
 	}
 
-	if cfg.LocalFlags.PathSearch {
+	if cli.config.LocalFlags.PathSearch {
 		p := promptui.Select{
 			Label:        "select path",
 			Items:        paths,
@@ -153,50 +153,50 @@ func newPathCmd() *cobra.Command {
 			"--dir":  "DIR",
 		},
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			cfg.SetLocalFlagsFromFile(cmd)
-			if cfg.LocalFlags.PathPathType != "xpath" && cfg.LocalFlags.PathPathType != "gnmi" {
+			cli.config.SetLocalFlagsFromFile(cmd)
+			if cli.config.LocalFlags.PathPathType != "xpath" && cli.config.LocalFlags.PathPathType != "gnmi" {
 				return fmt.Errorf("path-type must be one of 'xpath' or 'gnmi'")
 			}
-			cfg.LocalFlags.PathDir = sanitizeArrayFlagValue(cfg.LocalFlags.PathDir)
-			cfg.LocalFlags.PathFile = sanitizeArrayFlagValue(cfg.LocalFlags.PathFile)
-			cfg.LocalFlags.PathExclude = sanitizeArrayFlagValue(cfg.LocalFlags.PathExclude)
+			cli.config.LocalFlags.PathDir = sanitizeArrayFlagValue(cli.config.LocalFlags.PathDir)
+			cli.config.LocalFlags.PathFile = sanitizeArrayFlagValue(cli.config.LocalFlags.PathFile)
+			cli.config.LocalFlags.PathExclude = sanitizeArrayFlagValue(cli.config.LocalFlags.PathExclude)
 
 			var err error
-			cfg.LocalFlags.PathDir, err = resolveGlobs(cfg.LocalFlags.PathDir)
+			cli.config.LocalFlags.PathDir, err = resolveGlobs(cli.config.LocalFlags.PathDir)
 			if err != nil {
 				return err
 			}
-			cfg.LocalFlags.PathFile, err = resolveGlobs(cfg.LocalFlags.PathFile)
+			cli.config.LocalFlags.PathFile, err = resolveGlobs(cli.config.LocalFlags.PathFile)
 			if err != nil {
 				return err
 			}
-			for _, dirpath := range cfg.LocalFlags.PathDir {
+			for _, dirpath := range cli.config.LocalFlags.PathDir {
 				expanded, err := yang.PathsWithModules(dirpath)
 				if err != nil {
 					return err
 				}
-				if cfg.Globals.Debug {
+				if cli.config.Globals.Debug {
 					for _, fdir := range expanded {
-						logger.Printf("adding %s to YANG paths", fdir)
+						cli.logger.Printf("adding %s to YANG paths", fdir)
 					}
 				}
 				yang.AddPath(expanded...)
 			}
-			yfiles, err := findYangFiles(cfg.LocalFlags.PathFile)
+			yfiles, err := findYangFiles(cli.config.LocalFlags.PathFile)
 			if err != nil {
 				return err
 			}
-			cfg.LocalFlags.PathFile = make([]string, 0, len(yfiles))
-			cfg.LocalFlags.PathFile = append(cfg.LocalFlags.PathFile, yfiles...)
-			if cfg.Globals.Debug {
-				for _, file := range cfg.LocalFlags.PathFile {
-					logger.Printf("loading %s file", file)
+			cli.config.LocalFlags.PathFile = make([]string, 0, len(yfiles))
+			cli.config.LocalFlags.PathFile = append(cli.config.LocalFlags.PathFile, yfiles...)
+			if cli.config.Globals.Debug {
+				for _, file := range cli.config.LocalFlags.PathFile {
+					cli.logger.Printf("loading %s file", file)
 				}
 			}
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return pathCmdRun(cfg.LocalFlags.PathDir, cfg.LocalFlags.PathFile, cfg.LocalFlags.PathExclude)
+			return pathCmdRun(cli.config.LocalFlags.PathDir, cli.config.LocalFlags.PathFile, cli.config.LocalFlags.PathExclude)
 		},
 		PostRun: func(cmd *cobra.Command, args []string) {
 			cmd.ResetFlags()
@@ -210,17 +210,17 @@ func newPathCmd() *cobra.Command {
 
 // used to init or reset pathCmd flags for gnmic-prompt mode
 func initPathFlags(cmd *cobra.Command) {
-	cmd.Flags().StringArrayVarP(&cfg.LocalFlags.PathFile, "file", "", []string{}, "yang files to get the paths")
+	cmd.Flags().StringArrayVarP(&cli.config.LocalFlags.PathFile, "file", "", []string{}, "yang files to get the paths")
 	cmd.MarkFlagRequired("file")
-	cmd.Flags().StringArrayVarP(&cfg.LocalFlags.PathExclude, "exclude", "", []string{}, "yang modules to be excluded from path generation")
-	cmd.Flags().StringArrayVarP(&cfg.LocalFlags.PathDir, "dir", "", []string{}, "directories to search yang includes and imports")
-	cmd.Flags().StringVarP(&cfg.LocalFlags.PathPathType, "path-type", "", "xpath", "path type xpath or gnmi")
-	cmd.Flags().StringVarP(&cfg.LocalFlags.PathModule, "module", "m", "", "module name")
-	cmd.Flags().BoolVarP(&cfg.LocalFlags.PathWithPrefix, "with-prefix", "", false, "include module/submodule prefix in path elements")
-	cmd.Flags().BoolVarP(&cfg.LocalFlags.PathTypes, "types", "", false, "print leaf type")
-	cmd.Flags().BoolVarP(&cfg.LocalFlags.PathSearch, "search", "", false, "search through path list")
+	cmd.Flags().StringArrayVarP(&cli.config.LocalFlags.PathExclude, "exclude", "", []string{}, "yang modules to be excluded from path generation")
+	cmd.Flags().StringArrayVarP(&cli.config.LocalFlags.PathDir, "dir", "", []string{}, "directories to search yang includes and imports")
+	cmd.Flags().StringVarP(&cli.config.LocalFlags.PathPathType, "path-type", "", "xpath", "path type xpath or gnmi")
+	cmd.Flags().StringVarP(&cli.config.LocalFlags.PathModule, "module", "m", "", "module name")
+	cmd.Flags().BoolVarP(&cli.config.LocalFlags.PathWithPrefix, "with-prefix", "", false, "include module/submodule prefix in path elements")
+	cmd.Flags().BoolVarP(&cli.config.LocalFlags.PathTypes, "types", "", false, "print leaf type")
+	cmd.Flags().BoolVarP(&cli.config.LocalFlags.PathSearch, "search", "", false, "search through path list")
 	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
-		cfg.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
+		cli.config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
 	})
 }
 
@@ -271,14 +271,14 @@ func generatePath(entry *yang.Entry, prefixTagging bool) string {
 		}
 		path = fmt.Sprintf("/%s%s", elementName, path)
 	}
-	if cfg.LocalFlags.PathPathType == "gnmi" {
+	if cli.config.LocalFlags.PathPathType == "gnmi" {
 		gnmiPath, err := xpath.ToGNMIPath(path)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "path: %s could not be changed to gnmi: %v\n", path, err)
 		}
 		path = gnmiPath.String()
 	}
-	if cfg.LocalFlags.PathTypes {
+	if cli.config.LocalFlags.PathTypes {
 		path = fmt.Sprintf("%s (type=%s)", path, entry.Type.Name)
 	}
 	return path
@@ -305,7 +305,7 @@ func generateTypeInfo(e *yang.Entry) string {
 		rstr += fmt.Sprintf(" %q", t.Path)
 	case yang.Yidentityref:
 		rstr += fmt.Sprintf(" %q", t.IdentityBase.Name)
-		if cfg.LocalFlags.PathWithPrefix {
+		if cli.config.LocalFlags.PathWithPrefix {
 			data := getAnnotation(e, "prefix-qualified-identities")
 			if data != nil {
 				rstr += fmt.Sprintf(" %v", data)

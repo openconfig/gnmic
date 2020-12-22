@@ -21,7 +21,7 @@ func newVersionUpgradeCmd() *cobra.Command {
 		Use:   "upgrade",
 		Short: "upgrade gnmic to latest available version",
 		PreRun: func(cmd *cobra.Command, args []string) {
-			cfg.SetLocalFlagsFromFile(cmd)
+			cli.config.SetLocalFlagsFromFile(cmd)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f, err := ioutil.TempFile("", "gnmic")
@@ -35,7 +35,7 @@ func newVersionUpgradeCmd() *cobra.Command {
 			}
 
 			var c *exec.Cmd
-			switch cfg.LocalFlags.UpgradeUsePkg {
+			switch cli.config.LocalFlags.UpgradeUsePkg {
 			case true:
 				c = exec.Command("bash", f.Name(), "--use-pkg")
 			case false:
@@ -76,6 +76,6 @@ func downloadFile(url string, file *os.File) error {
 func initVersionUpgradeFlags(cmd *cobra.Command) {
 	cmd.Flags().Bool("use-pkg", false, "upgrade using package")
 	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
-		cfg.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
+		cli.config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
 	})
 }
