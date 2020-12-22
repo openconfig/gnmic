@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/karimra/gnmic/outputs"
+	_ "github.com/karimra/gnmic/outputs/all"
 )
 
 func (c *Config) GetOutputs() (map[string]map[string]interface{}, error) {

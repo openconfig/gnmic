@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -65,7 +66,7 @@ func (c *Config) GetTargets() (map[string]*collector.TargetConfig, error) {
 	case map[string]interface{}:
 		targetsMap = targetsInt
 	case nil:
-		return nil, nil
+		return nil, errors.New("no targets found")
 	default:
 		return nil, fmt.Errorf("unexpected targets format, got: %T", targetsInt)
 	}

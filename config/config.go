@@ -25,7 +25,7 @@ import (
 const (
 	configPath      = ""
 	configName      = "gnmic"
-	configLogPrefix = "c "
+	configLogPrefix = "config "
 )
 
 type Config struct {

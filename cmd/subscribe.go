@@ -25,7 +25,6 @@ import (
 
 	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/formatters"
-	_ "github.com/karimra/gnmic/outputs/all"
 	"github.com/manifoldco/promptui"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"

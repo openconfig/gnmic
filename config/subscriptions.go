@@ -45,7 +45,7 @@ func (c *Config) GetSubscriptions(cmd *cobra.Command) (map[string]*collector.Sub
 	}
 	subDef := c.FileConfig.GetStringMap("subscriptions")
 	if c.Globals.Debug {
-		c.logger.Printf("subscription map: %v+", subDef)
+		c.logger.Printf("subscriptions map: %v+", subDef)
 	}
 	for sn, s := range subDef {
 		sub := new(collector.SubscriptionConfig)
@@ -98,7 +98,9 @@ func (c *Config) setSubscriptionDefaults(sub *collector.SubscriptionConfig, cmd 
 		}
 	}
 	if sub.HeartbeatInterval == nil {
-		sub.HeartbeatInterval = &c.LocalFlags.SubscribeHeartbearInterval
+		if flagIsSet(cmd, "heartbeat-interval") {
+			sub.HeartbeatInterval = &c.LocalFlags.SubscribeHeartbearInterval
+		}
 	}
 	if sub.Encoding == "" {
 		sub.Encoding = c.Globals.Encoding
