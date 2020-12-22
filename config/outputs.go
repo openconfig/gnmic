@@ -1,11 +1,11 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 
 	"github.com/karimra/gnmic/outputs"
-	"github.com/spf13/viper"
 )
 
 func (c *Config) GetOutputs() (map[string]map[string]interface{}, error) {
@@ -43,6 +43,9 @@ func (c *Config) GetOutputs() (map[string]map[string]interface{}, error) {
 
 	namedOutputs := c.FileConfig.GetStringSlice("subscribe-output")
 	if len(namedOutputs) == 0 {
+		if c.Globals.Debug {
+			c.logger.Printf("outputs: %+v", outputsConfigs)
+		}
 		return outputsConfigs, nil
 	}
 	filteredOutputs := make(map[string]map[string]interface{})
@@ -56,6 +59,9 @@ func (c *Config) GetOutputs() (map[string]map[string]interface{}, error) {
 	}
 	if len(notFound) > 0 {
 		return nil, fmt.Errorf("named output(s) not found in config file: %v", notFound)
+	}
+	if c.Globals.Debug {
+		c.logger.Printf("outputs: %+v", filteredOutputs)
 	}
 	return filteredOutputs, nil
 }
@@ -82,7 +88,7 @@ type outputSuggestion struct {
 }
 
 func (c *Config) GetOutputsSuggestions() []outputSuggestion {
-	outDef := viper.GetStringMap("outputs")
+	outDef := c.FileConfig.GetStringMap("outputs")
 	suggestions := make([]outputSuggestion, 0, len(outDef))
 	for name, d := range outDef {
 		dl := convert(d)
@@ -104,4 +110,21 @@ func (c *Config) GetOutputsSuggestions() []outputSuggestion {
 		return suggestions[i].Name < suggestions[j].Name
 	})
 	return suggestions
+}
+
+func (c *Config) GetOutputsConfigs() [][]string {
+	outDef := c.FileConfig.GetStringMap("outputs")
+	if outDef == nil {
+		return nil
+	}
+	outList := make([][]string, 0, len(outDef))
+	for name, outputCfg := range outDef {
+		b, err := json.Marshal(outputCfg)
+		if err != nil {
+			c.logger.Printf("could not marshal output config: %v", err)
+			return nil
+		}
+		outList = append(outList, []string{name, string(b)})
+	}
+	return outList
 }

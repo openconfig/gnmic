@@ -9,7 +9,6 @@ import (
 	"github.com/karimra/gnmic/collector"
 	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 )
 
 func (c *Config) GetSubscriptions(cmd *cobra.Command) (map[string]*collector.SubscriptionConfig, error) {
@@ -39,6 +38,9 @@ func (c *Config) GetSubscriptions(cmd *cobra.Command) (map[string]*collector.Sub
 		sub.UpdatesOnly = c.LocalFlags.SubscribeUpdatesOnly
 		sub.Models = c.LocalFlags.SubscribeModel
 		subscriptions["default"] = sub
+		if c.Globals.Debug {
+			c.logger.Printf("subscriptions: %s", subscriptions)
+		}
 		return subscriptions, nil
 	}
 	subDef := c.FileConfig.GetStringMap("subscriptions")
@@ -66,6 +68,9 @@ func (c *Config) GetSubscriptions(cmd *cobra.Command) (map[string]*collector.Sub
 		subscriptions[sn] = sub
 	}
 	if len(c.LocalFlags.SubscribeName) == 0 {
+		if c.Globals.Debug {
+			c.logger.Printf("subscriptions: %s", subscriptions)
+		}
 		return subscriptions, nil
 	}
 	filteredSubscriptions := make(map[string]*collector.SubscriptionConfig)
@@ -79,6 +84,9 @@ func (c *Config) GetSubscriptions(cmd *cobra.Command) (map[string]*collector.Sub
 	}
 	if len(notFound) > 0 {
 		return nil, fmt.Errorf("named subscription(s) not found in config file: %v", notFound)
+	}
+	if c.Globals.Debug {
+		c.logger.Printf("subscriptions: %s", filteredSubscriptions)
 	}
 	return filteredSubscriptions, nil
 }
@@ -121,18 +129,4 @@ func (c *Config) GetSubscriptionsFromFile() []*collector.SubscriptionConfig {
 		return subscriptions[i].Name < subscriptions[j].Name
 	})
 	return subscriptions
-}
-
-func flagIsSet(cmd *cobra.Command, name string) bool {
-	if cmd == nil {
-		return false
-	}
-	var isSet bool
-	cmd.Flags().VisitAll(func(f *pflag.Flag) {
-		if f.Name == name && f.Changed {
-			isSet = true
-			return
-		}
-	})
-	return isSet
 }

@@ -49,6 +49,9 @@ func (c *Config) GetTargets() (map[string]*collector.TargetConfig, error) {
 			c.setTargetConfigDefaults(tc)
 			targets[tc.Name] = tc
 		}
+		if c.Globals.Debug {
+			c.logger.Printf("targets: %v", targets)
+		}
 		return targets, nil
 	}
 	// case targets is defined in config file
@@ -111,10 +114,16 @@ func (c *Config) GetTargets() (map[string]*collector.TargetConfig, error) {
 	}
 	subNames := c.FileConfig.GetStringSlice("subscribe-name")
 	if len(subNames) == 0 {
+		if c.Globals.Debug {
+			c.logger.Printf("targets: %v", targets)
+		}
 		return targets, nil
 	}
 	for n := range targets {
 		targets[n].Subscriptions = subNames
+	}
+	if c.Globals.Debug {
+		c.logger.Printf("targets: %v", targets)
 	}
 	return targets, nil
 }

@@ -16,5 +16,8 @@ func (c *Config) GetEventProcessors() (map[string]map[string]interface{}, error)
 			return nil, fmt.Errorf("malformed processors config, got %T", epc)
 		}
 	}
+	if c.Globals.Debug {
+		c.logger.Printf("processors: %+v", evpConfig)
+	}
 	return evpConfig, nil
 }

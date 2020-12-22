@@ -1,22 +1,31 @@
 package config
 
 import (
+	"bytes"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
+	"github.com/karimra/gnmic/collector"
 	"github.com/mitchellh/go-homedir"
+	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"gopkg.in/yaml.v2"
 )
 
 const (
 	configPath      = ""
 	configName      = "gnmic"
-	configLogPrefix = "config "
+	configLogPrefix = "c "
 )
 
 type Config struct {
@@ -26,6 +35,8 @@ type Config struct {
 
 	logger *log.Logger
 }
+
+var ValueTypes = []string{"json", "json_ietf", "string", "int", "uint", "bool", "decimal", "float", "bytes", "ascii"}
 
 type GlobalFlags struct {
 	Address           []string      `mapstructure:"address,omitempty" json:"address,omitempty" yaml:"address,omitempty"`
@@ -205,4 +216,345 @@ func (c *Config) SetLocalFlagsFromFile(cmd *cobra.Command) {
 			cmd.Flags().Set(f.Name, fmt.Sprintf("%v", val))
 		}
 	})
+}
+
+func flagIsSet(cmd *cobra.Command, name string) bool {
+	if cmd == nil {
+		return false
+	}
+	var isSet bool
+	cmd.Flags().VisitAll(func(f *pflag.Flag) {
+		if f.Name == name && f.Changed {
+			isSet = true
+			return
+		}
+	})
+	return isSet
+}
+
+func (c *Config) CreateGetRequest() (*gnmi.GetRequest, error) {
+	if c == nil || c.Globals == nil || c.LocalFlags == nil {
+		return nil, errors.New("invalid configuration")
+	}
+	encodingVal, ok := gnmi.Encoding_value[strings.Replace(strings.ToUpper(c.Globals.Encoding), "-", "_", -1)]
+	if !ok {
+		return nil, fmt.Errorf("invalid encoding type '%s'", c.Globals.Encoding)
+	}
+	req := &gnmi.GetRequest{
+		UseModels: make([]*gnmi.ModelData, 0),
+		Path:      make([]*gnmi.Path, 0, len(c.LocalFlags.GetPath)),
+		Encoding:  gnmi.Encoding(encodingVal),
+	}
+	if c.LocalFlags.GetPrefix != "" {
+		gnmiPrefix, err := collector.ParsePath(c.LocalFlags.GetPrefix)
+		if err != nil {
+			return nil, fmt.Errorf("prefix parse error: %v", err)
+		}
+		req.Prefix = gnmiPrefix
+	}
+	if c.LocalFlags.GetType != "" {
+		dti, ok := gnmi.GetRequest_DataType_value[strings.ToUpper(c.LocalFlags.GetType)]
+		if !ok {
+			return nil, fmt.Errorf("unknown data type %s", c.LocalFlags.GetType)
+		}
+		req.Type = gnmi.GetRequest_DataType(dti)
+	}
+	for _, p := range c.LocalFlags.GetPath {
+		gnmiPath, err := collector.ParsePath(strings.TrimSpace(p))
+		if err != nil {
+			return nil, fmt.Errorf("path parse error: %v", err)
+		}
+		req.Path = append(req.Path, gnmiPath)
+	}
+	return req, nil
+}
+
+func (c *Config) CreateSetRequest() (*gnmi.SetRequest, error) {
+	gnmiPrefix, err := collector.CreatePrefix(c.LocalFlags.SetPrefix, c.LocalFlags.SetTarget)
+	if err != nil {
+		return nil, fmt.Errorf("prefix parse error: %v", err)
+	}
+	if c.Globals.Debug {
+		c.logger.Printf("Set input delete: %+v", &c.LocalFlags.SetDelete)
+
+		c.logger.Printf("Set input update: %+v", &c.LocalFlags.SetUpdate)
+		c.logger.Printf("Set input update path(s): %+v", &c.LocalFlags.SetUpdatePath)
+		c.logger.Printf("Set input update value(s): %+v", &c.LocalFlags.SetUpdateValue)
+		c.logger.Printf("Set input update file(s): %+v", &c.LocalFlags.SetUpdateFile)
+
+		c.logger.Printf("Set input replace: %+v", &c.LocalFlags.SetReplace)
+		c.logger.Printf("Set input replace path(s): %+v", &c.LocalFlags.SetReplacePath)
+		c.logger.Printf("Set input replace value(s): %+v", &c.LocalFlags.SetReplaceValue)
+		c.logger.Printf("Set input replace file(s): %+v", &c.LocalFlags.SetReplaceFile)
+	}
+
+	//
+	useUpdateFiles := len(c.LocalFlags.SetUpdateFile) > 0 && len(c.LocalFlags.SetUpdateValue) == 0
+	useReplaceFiles := len(c.LocalFlags.SetReplaceFile) > 0 && len(c.LocalFlags.SetReplaceValue) == 0
+	req := &gnmi.SetRequest{
+		Prefix:  gnmiPrefix,
+		Delete:  make([]*gnmi.Path, 0, len(c.LocalFlags.SetDelete)),
+		Replace: make([]*gnmi.Update, 0),
+		Update:  make([]*gnmi.Update, 0),
+	}
+	for _, p := range c.LocalFlags.SetDelete {
+		gnmiPath, err := collector.ParsePath(strings.TrimSpace(p))
+		if err != nil {
+			return nil, err
+		}
+		req.Delete = append(req.Delete, gnmiPath)
+	}
+	for _, u := range c.LocalFlags.SetUpdate {
+		singleUpdate := strings.Split(u, c.LocalFlags.SetDelimiter)
+		if len(singleUpdate) < 3 {
+			return nil, fmt.Errorf("invalid inline update format: %s", c.LocalFlags.SetUpdate)
+		}
+		gnmiPath, err := collector.ParsePath(strings.TrimSpace(singleUpdate[0]))
+		if err != nil {
+			return nil, err
+		}
+		value := new(gnmi.TypedValue)
+		err = setValue(value, singleUpdate[1], singleUpdate[2])
+		if err != nil {
+			return nil, err
+		}
+		req.Update = append(req.Update, &gnmi.Update{
+			Path: gnmiPath,
+			Val:  value,
+		})
+	}
+	for _, r := range c.LocalFlags.SetReplace {
+		singleReplace := strings.Split(r, c.LocalFlags.SetDelimiter)
+		if len(singleReplace) < 3 {
+			return nil, fmt.Errorf("invalid inline replace format: %s", c.LocalFlags.SetReplace)
+		}
+		gnmiPath, err := collector.ParsePath(strings.TrimSpace(singleReplace[0]))
+		if err != nil {
+			return nil, err
+		}
+		value := new(gnmi.TypedValue)
+		err = setValue(value, singleReplace[1], singleReplace[2])
+		if err != nil {
+			return nil, err
+		}
+		req.Replace = append(req.Replace, &gnmi.Update{
+			Path: gnmiPath,
+			Val:  value,
+		})
+	}
+	for i, p := range c.LocalFlags.SetUpdatePath {
+		gnmiPath, err := collector.ParsePath(strings.TrimSpace(p))
+		if err != nil {
+			return nil, err
+		}
+		value := new(gnmi.TypedValue)
+		if useUpdateFiles {
+			var updateData []byte
+			updateData, err = readFile(c.LocalFlags.SetUpdateFile[i])
+			if err != nil {
+				c.logger.Printf("error reading data from file '%s': %v", c.LocalFlags.SetUpdateFile[i], err)
+				return nil, err
+			}
+			switch strings.ToUpper(c.Globals.Encoding) {
+			case "JSON":
+				value.Value = &gnmi.TypedValue_JsonVal{
+					JsonVal: bytes.Trim(updateData, " \r\n\t"),
+				}
+			case "JSON_IETF":
+				value.Value = &gnmi.TypedValue_JsonIetfVal{
+					JsonIetfVal: bytes.Trim(updateData, " \r\n\t"),
+				}
+			default:
+				return nil, fmt.Errorf("encoding: %s not supported together with file values", c.Globals.Encoding)
+			}
+		} else {
+			err = setValue(value, strings.ToLower(c.Globals.Encoding), c.LocalFlags.SetUpdateValue[i])
+			if err != nil {
+				return nil, err
+			}
+		}
+		req.Update = append(req.Update, &gnmi.Update{
+			Path: gnmiPath,
+			Val:  value,
+		})
+	}
+	for i, p := range c.LocalFlags.SetReplacePath {
+		gnmiPath, err := collector.ParsePath(strings.TrimSpace(p))
+		if err != nil {
+			return nil, err
+		}
+		value := new(gnmi.TypedValue)
+		if useReplaceFiles {
+			var replaceData []byte
+			replaceData, err = readFile(c.LocalFlags.SetReplaceFile[i])
+			if err != nil {
+				c.logger.Printf("error reading data from file '%s': %v", c.LocalFlags.SetReplaceFile[i], err)
+				return nil, err
+			}
+			switch strings.ToUpper(c.Globals.Encoding) {
+			case "JSON":
+				value.Value = &gnmi.TypedValue_JsonVal{
+					JsonVal: bytes.Trim(replaceData, " \r\n\t"),
+				}
+			case "JSON_IETF":
+				value.Value = &gnmi.TypedValue_JsonIetfVal{
+					JsonIetfVal: bytes.Trim(replaceData, " \r\n\t"),
+				}
+			default:
+				return nil, fmt.Errorf("encoding: %s not supported together with file values", c.Globals.Encoding)
+			}
+		} else {
+			err = setValue(value, strings.ToLower(c.Globals.Encoding), c.LocalFlags.SetReplaceValue[i])
+			if err != nil {
+				return nil, err
+			}
+		}
+		req.Replace = append(req.Replace, &gnmi.Update{
+			Path: gnmiPath,
+			Val:  value,
+		})
+	}
+	return req, nil
+}
+
+func setValue(value *gnmi.TypedValue, typ, val string) error {
+	var err error
+	switch typ {
+	case "json":
+		buff := new(bytes.Buffer)
+		err = json.NewEncoder(buff).Encode(strings.TrimRight(strings.TrimLeft(val, "["), "]"))
+		if err != nil {
+			return err
+		}
+		value.Value = &gnmi.TypedValue_JsonVal{
+			JsonVal: bytes.Trim(buff.Bytes(), " \r\n\t"),
+		}
+	case "json_ietf":
+		buff := new(bytes.Buffer)
+		err = json.NewEncoder(buff).Encode(strings.TrimRight(strings.TrimLeft(val, "["), "]"))
+		if err != nil {
+			return err
+		}
+		value.Value = &gnmi.TypedValue_JsonIetfVal{
+			JsonIetfVal: bytes.Trim(buff.Bytes(), " \r\n\t"),
+		}
+	case "ascii":
+		value.Value = &gnmi.TypedValue_AsciiVal{
+			AsciiVal: val,
+		}
+	case "bool":
+		bval, err := strconv.ParseBool(val)
+		if err != nil {
+			return err
+		}
+		value.Value = &gnmi.TypedValue_BoolVal{
+			BoolVal: bval,
+		}
+	case "bytes":
+		value.Value = &gnmi.TypedValue_BytesVal{
+			BytesVal: []byte(val),
+		}
+	case "decimal":
+		dVal := &gnmi.Decimal64{}
+		value.Value = &gnmi.TypedValue_DecimalVal{
+			DecimalVal: dVal,
+		}
+		return fmt.Errorf("decimal type not implemented")
+	case "float":
+		f, err := strconv.ParseFloat(val, 32)
+		if err != nil {
+			return err
+		}
+		value.Value = &gnmi.TypedValue_FloatVal{
+			FloatVal: float32(f),
+		}
+	case "int":
+		k, err := strconv.ParseInt(val, 10, 64)
+		if err != nil {
+			return err
+		}
+		value.Value = &gnmi.TypedValue_IntVal{
+			IntVal: k,
+		}
+	case "uint":
+		u, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			return err
+		}
+		value.Value = &gnmi.TypedValue_UintVal{
+			UintVal: u,
+		}
+	case "string":
+		value.Value = &gnmi.TypedValue_StringVal{
+			StringVal: val,
+		}
+	default:
+		return fmt.Errorf("unknown type '%s', must be one of: %v", typ, ValueTypes)
+	}
+	return nil
+}
+
+// readFile reads a json or yaml file. the the file is .yaml, converts it to json and returns []byte and an error
+func readFile(name string) ([]byte, error) {
+	data, err := ioutil.ReadFile(name)
+	if err != nil {
+		return nil, err
+	}
+	switch filepath.Ext(name) {
+	case ".json":
+		return data, err
+	case ".yaml", ".yml":
+		var out interface{}
+		err = yaml.Unmarshal(data, &out)
+		if err != nil {
+			return nil, err
+		}
+		newStruct := convert(out)
+		newData, err := json.Marshal(newStruct)
+		if err != nil {
+			return nil, err
+		}
+		return newData, nil
+	default:
+		return nil, fmt.Errorf("unsupported file format %s", filepath.Ext(name))
+	}
+}
+
+func sanitizeArrayFlagValue(ls []string) []string {
+	res := make([]string, 0, len(ls))
+	for i := range ls {
+		ls[i] = strings.Trim(ls[i], "[]")
+		res = append(res, strings.Split(ls[i], " ")...)
+	}
+	return res
+}
+
+func (c *Config) ValidateSetInput() error {
+	c.LocalFlags.SetDelete = sanitizeArrayFlagValue(c.LocalFlags.SetDelete)
+	c.LocalFlags.SetUpdate = sanitizeArrayFlagValue(c.LocalFlags.SetUpdate)
+	c.LocalFlags.SetReplace = sanitizeArrayFlagValue(c.LocalFlags.SetReplace)
+	c.LocalFlags.SetUpdatePath = sanitizeArrayFlagValue(c.LocalFlags.SetUpdatePath)
+	c.LocalFlags.SetReplacePath = sanitizeArrayFlagValue(c.LocalFlags.SetReplacePath)
+	c.LocalFlags.SetUpdateValue = sanitizeArrayFlagValue(c.LocalFlags.SetUpdateValue)
+	c.LocalFlags.SetReplaceValue = sanitizeArrayFlagValue(c.LocalFlags.SetReplaceValue)
+	c.LocalFlags.SetUpdateFile = sanitizeArrayFlagValue(c.LocalFlags.SetUpdateFile)
+	c.LocalFlags.SetReplaceFile = sanitizeArrayFlagValue(c.LocalFlags.SetReplaceFile)
+	if (len(c.LocalFlags.SetDelete)+len(c.LocalFlags.SetUpdate)+len(c.LocalFlags.SetReplace)) == 0 && (len(c.LocalFlags.SetUpdatePath)+len(c.LocalFlags.SetReplacePath)) == 0 {
+		return errors.New("no paths provided")
+	}
+	if len(c.LocalFlags.SetUpdateFile) > 0 && len(c.LocalFlags.SetUpdateValue) > 0 {
+		fmt.Println(len(c.LocalFlags.SetUpdateFile))
+		fmt.Println(len(c.LocalFlags.SetUpdateValue))
+		return errors.New("set update from file and value are not supported in the same command")
+	}
+	if len(c.LocalFlags.SetReplaceFile) > 0 && len(c.LocalFlags.SetReplaceValue) > 0 {
+		return errors.New("set replace from file and value are not supported in the same command")
+	}
+	if len(c.LocalFlags.SetUpdatePath) != len(c.LocalFlags.SetUpdateValue) && len(c.LocalFlags.SetUpdatePath) != len(c.LocalFlags.SetUpdateFile) {
+		return errors.New("missing update value/file or path")
+	}
+	if len(c.LocalFlags.SetReplacePath) != len(c.LocalFlags.SetReplaceValue) && len(c.LocalFlags.SetReplacePath) != len(c.LocalFlags.SetReplaceFile) {
+		return errors.New("missing replace value/file or path")
+	}
+	return nil
 }
