@@ -38,6 +38,7 @@ import (
 	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/protobuf/proto"
@@ -253,10 +254,14 @@ func initGlobalflags(cmd *cobra.Command, globals *config.GlobalFlags) {
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
 	err := cli.config.Load(cfgFile)
-	if err != nil {
-		fmt.Println("failed loading config: ", err)
+	if err == nil {
+		return
+	}
+	if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+		fmt.Printf("failed loading config file: %v\n", err)
 	}
 }
+
 func loadCerts(tlscfg *tls.Config) error {
 	if cli.config.Globals.TLSCert != "" && cli.config.Globals.TLSKey != "" {
 		certificate, err := tls.LoadX509KeyPair(cli.config.Globals.TLSCert, cli.config.Globals.TLSKey)
