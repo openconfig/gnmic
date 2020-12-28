@@ -159,7 +159,7 @@ func (c *Config) Load(file string) error {
 
 	err = c.FileConfig.Unmarshal(c.FileConfig)
 	if err != nil {
-		return nil
+		return err
 	}
 
 	return nil
