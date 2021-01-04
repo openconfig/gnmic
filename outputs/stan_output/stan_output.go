@@ -60,7 +60,7 @@ type Config struct {
 	PingRetry        int           `mapstructure:"ping-retry,omitempty"`
 	Format           string        `mapstructure:"format,omitempty"`
 	RecoveryWaitTime time.Duration `mapstructure:"recovery-wait-time,omitempty"`
-	EventProcessors  []string      `mapstructure:"event_processors,omitempty"`
+	EventProcessors  []string      `mapstructure:"event-processors,omitempty"`
 }
 
 func (s *StanOutput) String() string {

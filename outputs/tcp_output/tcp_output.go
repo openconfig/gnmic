@@ -47,7 +47,7 @@ type Config struct {
 	KeepAlive       time.Duration `mapstructure:"keep-alive,omitempty"`
 	RetryInterval   time.Duration `mapstructure:"retry-interval,omitempty"`
 	NumWorkers      int           `mapstructure:"num-workers,omitempty"`
-	EventProcessors []string      `mapstructure:"event_processors,omitempty"`
+	EventProcessors []string      `mapstructure:"event-processors,omitempty"`
 }
 
 func (t *TCPOutput) SetLogger(logger *log.Logger) {

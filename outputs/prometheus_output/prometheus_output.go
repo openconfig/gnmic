@@ -78,7 +78,7 @@ type Config struct {
 	Path            string        `mapstructure:"path,omitempty"`
 	Expiration      time.Duration `mapstructure:"expiration,omitempty"`
 	Debug           bool          `mapstructure:"debug,omitempty"`
-	EventProcessors []string      `mapstructure:"event_processors,omitempty"`
+	EventProcessors []string      `mapstructure:"event-processors,omitempty"`
 }
 
 func (p *PrometheusOutput) String() string {

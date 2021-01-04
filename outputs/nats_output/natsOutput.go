@@ -58,7 +58,7 @@ type Config struct {
 	Password        string        `mapstructure:"password,omitempty"`
 	ConnectTimeWait time.Duration `mapstructure:"connect-time-wait,omitempty"`
 	Format          string        `mapstructure:"format,omitempty"`
-	EventProcessors []string      `mapstructure:"event_processors,omitempty"`
+	EventProcessors []string      `mapstructure:"event-processors,omitempty"`
 }
 
 func (n *NatsOutput) String() string {

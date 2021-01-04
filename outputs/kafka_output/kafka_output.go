@@ -64,7 +64,7 @@ type Config struct {
 	NumWorkers       int           `mapstructure:"num-workers,omitempty"`
 	Debug            bool          `mapstructure:"debug,omitempty"`
 	BufferSize       int           `mapstructure:"buffer-size,omitempty"`
-	EventProcessors  []string      `mapstructure:"event_processors,omitempty"`
+	EventProcessors  []string      `mapstructure:"event-processors,omitempty"`
 }
 
 func (k *KafkaOutput) String() string {

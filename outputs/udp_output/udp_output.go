@@ -43,7 +43,7 @@ type Config struct {
 	BufferSize      uint          `mapstructure:"buffer-size,omitempty"`
 	Format          string        `mapstructure:"format,omitempty"`
 	RetryInterval   time.Duration `mapstructure:"retry-interval,omitempty"`
-	EventProcessors []string      `mapstructure:"event_processors,omitempty"`
+	EventProcessors []string      `mapstructure:"event-processors,omitempty"`
 }
 
 func (u *UDPSock) SetLogger(logger *log.Logger) {
