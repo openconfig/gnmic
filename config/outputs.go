@@ -25,6 +25,9 @@ func (c *Config) GetOutputs() (map[string]map[string]interface{}, error) {
 		switch outCfg := outputCfgconv.(type) {
 		case map[string]interface{}:
 			if outType, ok := outCfg["type"]; ok {
+				if !strInlist(outType.(string), outputs.OutputTypes) {
+					return nil, fmt.Errorf("unknown output type: %q", outType)
+				}
 				if _, ok := outputs.Outputs[outType.(string)]; ok {
 					format, ok := outCfg["format"]
 					if !ok || (ok && format == "") {
