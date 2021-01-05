@@ -104,10 +104,10 @@ func (c *CLI) getRequest(ctx context.Context, tName string, req *gnmi.GetRequest
 func initGetFlags(cmd *cobra.Command) {
 	cmd.Flags().StringArrayVarP(&cli.config.LocalFlags.GetPath, "path", "", []string{}, "get request paths")
 	cmd.MarkFlagRequired("path")
-	cmd.Flags().StringP("prefix", "", "", "get request prefix")
-	cmd.Flags().StringSliceP("model", "", []string{}, "get request models")
-	cmd.Flags().StringP("type", "t", "ALL", "data type requested from the target. one of: ALL, CONFIG, STATE, OPERATIONAL")
-	cmd.Flags().StringP("target", "", "", "get request target")
+	cmd.Flags().StringVarP(&cli.config.LocalFlags.GetPrefix, "prefix", "", "", "get request prefix")
+	cmd.Flags().StringSliceVarP(&cli.config.LocalFlags.GetModel, "model", "", []string{}, "get request models")
+	cmd.Flags().StringVarP(&cli.config.LocalFlags.GetType, "type", "t", "ALL", "data type requested from the target. one of: ALL, CONFIG, STATE, OPERATIONAL")
+	cmd.Flags().StringVarP(&cli.config.LocalFlags.GetTarget, "target", "", "", "get request target")
 
 	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
 		cli.config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
