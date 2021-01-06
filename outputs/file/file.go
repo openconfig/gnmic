@@ -9,11 +9,10 @@ import (
 	"os"
 	"time"
 
-	"golang.org/x/sync/semaphore"
-
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/sync/semaphore"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -99,13 +98,13 @@ func (f *File) SetLogger(logger *log.Logger) {
 
 // Init //
 func (f *File) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
+	for _, opt := range opts {
+		opt(f)
+	}
 	err := outputs.DecodeConfig(cfg, f.Cfg)
 	if err != nil {
 		f.logger.Printf("file output config decode failed: %v", err)
 		return err
-	}
-	for _, opt := range opts {
-		opt(f)
 	}
 	if f.Cfg.Format == "proto" {
 		f.logger.Printf("proto format not supported in output type 'file'")
