@@ -14,6 +14,7 @@ import (
 	goprompt "github.com/c-bata/go-prompt"
 	"github.com/c-bata/go-prompt/completer"
 	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/config"
 	"github.com/karimra/gnmic/outputs"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/nsf/termbox-go"
@@ -79,15 +80,6 @@ func getColor(flagName string) goprompt.Color {
 
 var promptModeCmd *cobra.Command
 
-func sanitizeArrayFlagValue(ls []string) []string {
-	res := make([]string, 0, len(ls))
-	for i := range ls {
-		ls[i] = strings.Trim(ls[i], "[]")
-		res = append(res, strings.Split(ls[i], " ")...)
-	}
-	return res
-}
-
 func newPromptCmd() *cobra.Command {
 	promptModeCmd = &cobra.Command{
 		Use:   "prompt",
@@ -95,9 +87,9 @@ func newPromptCmd() *cobra.Command {
 		// PreRun resolve the glob patterns and checks if --max-suggesions is bigger that the terminal height and lowers it if needed.
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			cli.config.SetLocalFlagsFromFile(cmd)
-			cli.config.LocalFlags.PromptDir = sanitizeArrayFlagValue(cli.config.LocalFlags.PromptDir)
-			cli.config.LocalFlags.PromptFile = sanitizeArrayFlagValue(cli.config.LocalFlags.PromptFile)
-			cli.config.LocalFlags.PromptExclude = sanitizeArrayFlagValue(cli.config.LocalFlags.PromptExclude)
+			cli.config.LocalFlags.PromptDir = config.SanitizeArrayFlagValue(cli.config.LocalFlags.PromptDir)
+			cli.config.LocalFlags.PromptFile = config.SanitizeArrayFlagValue(cli.config.LocalFlags.PromptFile)
+			cli.config.LocalFlags.PromptExclude = config.SanitizeArrayFlagValue(cli.config.LocalFlags.PromptExclude)
 
 			gctx, gcancel = context.WithCancel(context.Background())
 			var err error

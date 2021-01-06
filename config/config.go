@@ -518,26 +518,31 @@ func readFile(name string) ([]byte, error) {
 		return nil, fmt.Errorf("unsupported file format %s", filepath.Ext(name))
 	}
 }
-
-func sanitizeArrayFlagValue(ls []string) []string {
+// SanitizeArrayFlagValue trims trailing and leading brackets ([]), 
+// from each of ls elements only if both are present.
+func SanitizeArrayFlagValue(ls []string) []string {
 	res := make([]string, 0, len(ls))
 	for i := range ls {
-		ls[i] = strings.Trim(ls[i], "[]")
-		res = append(res, strings.Split(ls[i], " ")...)
+		if strings.HasPrefix(ls[i], "[") && strings.HasSuffix(ls[i], "]") {
+			ls[i] = strings.Trim(ls[i], "[]")
+			res = append(res, strings.Split(ls[i], " ")...)
+			continue
+		}
+		res = append(res, ls[i])
 	}
 	return res
 }
 
 func (c *Config) ValidateSetInput() error {
-	c.LocalFlags.SetDelete = sanitizeArrayFlagValue(c.LocalFlags.SetDelete)
-	c.LocalFlags.SetUpdate = sanitizeArrayFlagValue(c.LocalFlags.SetUpdate)
-	c.LocalFlags.SetReplace = sanitizeArrayFlagValue(c.LocalFlags.SetReplace)
-	c.LocalFlags.SetUpdatePath = sanitizeArrayFlagValue(c.LocalFlags.SetUpdatePath)
-	c.LocalFlags.SetReplacePath = sanitizeArrayFlagValue(c.LocalFlags.SetReplacePath)
-	c.LocalFlags.SetUpdateValue = sanitizeArrayFlagValue(c.LocalFlags.SetUpdateValue)
-	c.LocalFlags.SetReplaceValue = sanitizeArrayFlagValue(c.LocalFlags.SetReplaceValue)
-	c.LocalFlags.SetUpdateFile = sanitizeArrayFlagValue(c.LocalFlags.SetUpdateFile)
-	c.LocalFlags.SetReplaceFile = sanitizeArrayFlagValue(c.LocalFlags.SetReplaceFile)
+	c.LocalFlags.SetDelete = SanitizeArrayFlagValue(c.LocalFlags.SetDelete)
+	c.LocalFlags.SetUpdate = SanitizeArrayFlagValue(c.LocalFlags.SetUpdate)
+	c.LocalFlags.SetReplace = SanitizeArrayFlagValue(c.LocalFlags.SetReplace)
+	c.LocalFlags.SetUpdatePath = SanitizeArrayFlagValue(c.LocalFlags.SetUpdatePath)
+	c.LocalFlags.SetReplacePath = SanitizeArrayFlagValue(c.LocalFlags.SetReplacePath)
+	c.LocalFlags.SetUpdateValue = SanitizeArrayFlagValue(c.LocalFlags.SetUpdateValue)
+	c.LocalFlags.SetReplaceValue = SanitizeArrayFlagValue(c.LocalFlags.SetReplaceValue)
+	c.LocalFlags.SetUpdateFile = SanitizeArrayFlagValue(c.LocalFlags.SetUpdateFile)
+	c.LocalFlags.SetReplaceFile = SanitizeArrayFlagValue(c.LocalFlags.SetReplaceFile)
 	if (len(c.LocalFlags.SetDelete)+len(c.LocalFlags.SetUpdate)+len(c.LocalFlags.SetReplace)) == 0 && (len(c.LocalFlags.SetUpdatePath)+len(c.LocalFlags.SetReplacePath)) == 0 {
 		return errors.New("no paths provided")
 	}
