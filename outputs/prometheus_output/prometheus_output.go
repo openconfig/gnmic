@@ -124,7 +124,6 @@ func (p *PrometheusOutput) Init(ctx context.Context, cfg map[string]interface{},
 	}
 	err := outputs.DecodeConfig(cfg, p.Cfg)
 	if err != nil {
-		p.logger.Printf("prometheus output config decode failed: %v", err)
 		return err
 	}
 	if p.Cfg.Listen == "" {
