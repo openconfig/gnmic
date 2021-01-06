@@ -24,6 +24,17 @@ type Initializer func() Output
 
 var Outputs = map[string]Initializer{}
 
+var OutputTypes = []string{
+	"file",
+	"influxdb",
+	"kafka",
+	"nats",
+	"prometheus",
+	"stan",
+	"tcp",
+	"udp",
+}
+
 func Register(name string, initFn Initializer) {
 	Outputs[name] = initFn
 }

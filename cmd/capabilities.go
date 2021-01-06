@@ -17,123 +17,104 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
-	"sync"
 
 	"github.com/karimra/gnmic/collector"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
-	"github.com/spf13/viper"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
-var printVersion bool
-
 // capabilitiesCmd represents the capabilities command
-var capabilitiesCmd = &cobra.Command{
-	Use:     "capabilities",
-	Aliases: []string{"cap"},
-	Short:   "query targets gnmi capabilities",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		if viper.GetString("format") == "event" {
-			return fmt.Errorf("format event not supported for Capabilities RPC")
-		}
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		setupCloseHandler(cancel)
-		debug := viper.GetBool("debug")
-		targetsConfig, err := createTargets()
-		if err != nil {
-			return fmt.Errorf("failed getting targets config: %v", err)
-		}
-		if debug {
-			logger.Printf("targets: %s", targetsConfig)
-		}
-		subscriptionsConfig, err := getSubscriptions()
-		if err != nil {
-			return fmt.Errorf("failed getting subscriptions config: %v", err)
-		}
-		if debug {
-			logger.Printf("subscriptions: %s", subscriptionsConfig)
-		}
-		outs, err := getOutputs()
-		if err != nil {
-			return err
-		}
-		if debug {
-			logger.Printf("outputs: %+v", outs)
-		}
-		if coll == nil {
-			cfg := &collector.Config{
-				Debug:      viper.GetBool("debug"),
-				Format:     viper.GetString("format"),
-				RetryTimer: viper.GetDuration("retry-timer"),
-			}
-
-			coll = collector.NewCollector(cfg, targetsConfig,
-				collector.WithDialOptions(createCollectorDialOpts()),
-				collector.WithSubscriptions(subscriptionsConfig),
-				collector.WithOutputs(outs),
-				collector.WithLogger(logger),
-			)
-		} else {
-			// prompt mode
-			for _, tc := range targetsConfig {
-				coll.AddTarget(tc)
-			}
-		}
-
-		wg := new(sync.WaitGroup)
-		wg.Add(len(coll.Targets))
-		lock := new(sync.Mutex)
-		for tName := range coll.Targets {
-			go reqCapabilities(ctx, coll, tName, wg, lock)
-		}
-		wg.Wait()
-		return nil
-	},
-	SilenceUsage: true,
+func newCapabilitiesCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "capabilities",
+		Aliases: []string{"cap"},
+		Short:   "query targets gnmi capabilities",
+		PreRun: func(cmd *cobra.Command, args []string) {
+			cli.config.SetLocalFlagsFromFile(cmd)
+		},
+		RunE: cli.capabilitiesRunE,
+		PostRun: func(cmd *cobra.Command, args []string) {
+			cmd.ResetFlags()
+			initCapabilitiesFlags(cmd)
+		},
+		SilenceUsage: true,
+	}
+	initCapabilitiesFlags(cmd)
+	return cmd
 }
 
-func reqCapabilities(ctx context.Context, coll *collector.Collector, tName string, wg *sync.WaitGroup, lock *sync.Mutex) {
-	defer wg.Done()
+func (c *CLI) reqCapabilities(ctx context.Context, tName string) {
+	defer c.wg.Done()
 	ext := make([]*gnmi_ext.Extension, 0) //
-	if viper.GetBool("print-request") {
-		lock.Lock()
-		fmt.Fprint(os.Stderr, "Capabilities Request:\n")
-		err := printMsg(tName, &gnmi.CapabilityRequest{
+	if c.config.Globals.PrintRequest {
+		err := c.printMsg(tName, "Capabilities Request:", &gnmi.CapabilityRequest{
 			Extension: ext,
 		})
 		if err != nil {
-			logger.Printf("error marshaling capabilities request: %v", err)
-			if !viper.GetBool("log") {
-				fmt.Printf("error marshaling capabilities request: %v", err)
+			cli.logger.Printf("%v", err)
+			if !c.config.Globals.Log {
+				fmt.Printf("target %s: %v\n", tName, err)
 			}
 		}
-		lock.Unlock()
 	}
 
-	logger.Printf("sending gNMI CapabilityRequest: gnmi_ext.Extension='%v' to %s", ext, tName)
-	response, err := coll.Capabilities(ctx, tName, ext...)
+	c.logger.Printf("sending gNMI CapabilityRequest: gnmi_ext.Extension='%v' to %s", ext, tName)
+	response, err := c.collector.Capabilities(ctx, tName, ext...)
 	if err != nil {
-		logger.Printf("error sending capabilities request: %v", err)
+		c.logger.Printf("error sending capabilities request: %v", err)
 		return
 	}
-	lock.Lock()
-	defer lock.Unlock()
-	fmt.Fprint(os.Stderr, "Capabilities Response:\n")
-	err = printMsg(tName, response)
+
+	err = c.printMsg(tName, "Capabilities Response:", response)
 	if err != nil {
-		logger.Printf("error marshaling capabilities response from %s: %v", tName, err)
-		if !viper.GetBool("log") {
-			fmt.Printf("error marshaling capabilities response from %s: %v\n", tName, err)
-		}
+		cli.logger.Printf("target %s: %v", tName, err)
 	}
 }
 
-func init() {
-	rootCmd.AddCommand(capabilitiesCmd)
-	capabilitiesCmd.Flags().BoolVarP(&printVersion, "version", "", false, "show gnmi version only")
-	viper.BindPFlag("capabilities-version", capabilitiesCmd.LocalFlags().Lookup("version"))
+func initCapabilitiesFlags(cmd *cobra.Command) {
+	cmd.Flags().BoolVarP(&cli.config.LocalFlags.CapabilitiesVersion, "version", "", false, "show gnmi version only")
+	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
+		cli.config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
+	})
+}
+
+func (c *CLI) capabilitiesRunE(cmd *cobra.Command, args []string) error {
+	if c.config.Globals.Format == "event" {
+		return fmt.Errorf("format event not supported for Capabilities RPC")
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	setupCloseHandler(cancel)
+	targetsConfig, err := c.config.GetTargets()
+	if err != nil {
+		c.logger.Printf("failed getting targets config: %v", err)
+		return fmt.Errorf("failed getting targets config: %v", err)
+	}
+	if c.collector == nil {
+		cfg := &collector.Config{
+			Debug:               c.config.Globals.Debug,
+			Format:              c.config.Globals.Format,
+			TargetReceiveBuffer: c.config.Globals.TargetBufferSize,
+			RetryTimer:          c.config.Globals.Retry,
+		}
+
+		c.collector = collector.NewCollector(cfg, targetsConfig,
+			collector.WithDialOptions(createCollectorDialOpts()),
+			collector.WithLogger(c.logger),
+		)
+	} else {
+		// prompt mode
+		for _, tc := range targetsConfig {
+			c.collector.AddTarget(tc)
+		}
+	}
+	c.wg.Add(len(cli.collector.Targets))
+	for tName := range cli.collector.Targets {
+		go c.reqCapabilities(ctx, tName)
+	}
+	c.wg.Wait()
+	return nil
 }

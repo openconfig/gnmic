@@ -19,7 +19,6 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 var (
@@ -30,37 +29,38 @@ var (
 )
 
 // versionCmd represents the version command
-var versionCmd = &cobra.Command{
-	Use:   "version",
-	Short: "show gnmic version",
-
-	Run: func(cmd *cobra.Command, args []string) {
-		if viper.GetString("format") != "json" {
-			fmt.Printf("version : %s\n", version)
-			fmt.Printf(" commit : %s\n", commit)
-			fmt.Printf("   date : %s\n", date)
-			fmt.Printf(" gitURL : %s\n", gitURL)
-			fmt.Printf("   docs : https://gnmic.kmrd.dev\n")
-			return
-		}
-		b, err := json.Marshal(map[string]string{
-			"version": version,
-			"commit":  commit,
-			"date":    date,
-			"gitURL":  gitURL,
-			"docs":    "https://gnmic.kmrd.dev",
-		}) // need indent? use jq
-		if err != nil {
-			logger.Printf("failed: %v", err)
-			if !viper.GetBool("log") {
-				fmt.Printf("failed: %v\n", err)
+func newVersionCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "version",
+		Short: "show gnmic version",
+		PreRun: func(cmd *cobra.Command, args []string) {
+			cli.config.SetLocalFlagsFromFile(cmd)
+		},
+		Run: func(cmd *cobra.Command, args []string) {
+			if cli.config.Globals.Format != "json" {
+				fmt.Printf("version : %s\n", version)
+				fmt.Printf(" commit : %s\n", commit)
+				fmt.Printf("   date : %s\n", date)
+				fmt.Printf(" gitURL : %s\n", gitURL)
+				fmt.Printf("   docs : https://gnmic.kmrd.dev\n")
+				return
 			}
-			return
-		}
-		fmt.Println(string(b))
-	},
-}
-
-func init() {
-	rootCmd.AddCommand(versionCmd)
+			b, err := json.Marshal(map[string]string{
+				"version": version,
+				"commit":  commit,
+				"date":    date,
+				"gitURL":  gitURL,
+				"docs":    "https://gnmic.kmrd.dev",
+			}) // need indent? use jq
+			if err != nil {
+				cli.logger.Printf("failed: %v", err)
+				if !cli.config.Globals.Log {
+					fmt.Printf("failed: %v\n", err)
+				}
+				return
+			}
+			fmt.Println(string(b))
+		},
+	}
+	return cmd
 }

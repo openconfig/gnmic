@@ -26,17 +26,8 @@ import (
 	"github.com/manifoldco/promptui"
 	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
+	"github.com/spf13/pflag"
 )
-
-var files []string
-var excluded []string
-var dirs []string
-var pathType string
-var module string
-var printTypes bool
-var search bool
-var withPrefix bool
 
 func pathCmdRun(d, f, e []string) error {
 	err := generateYangSchema(d, f, e)
@@ -48,20 +39,20 @@ func pathCmdRun(d, f, e []string) error {
 	out := make(chan string)
 	defer close(out)
 	paths := make([]string, 0)
-	if search {
+	if cli.config.LocalFlags.PathSearch {
 		go gather(ctx, out, &paths)
 	} else {
 		go printer(ctx, out)
 	}
 	collected := make([]*yang.Entry, 0, 256)
-	for _, entry := range schemaTree.Dir {
+	for _, entry := range cli.schemaTree.Dir {
 		collected = append(collected, collectSchemaNodes(entry, true)...)
 	}
 	for _, entry := range collected {
-		out <- generatePath(entry, withPrefix)
+		out <- generatePath(entry, cli.config.LocalFlags.PathWithPrefix)
 	}
 
-	if search {
+	if cli.config.LocalFlags.PathSearch {
 		p := promptui.Select{
 			Label:        "select path",
 			Items:        paths,
@@ -136,7 +127,7 @@ func generateYangSchema(d, f, e []string) error {
 		entries[x] = yang.ToEntry(mods[n])
 	}
 
-	schemaTree = buildRootEntry()
+	cli.schemaTree = buildRootEntry()
 	for _, entry := range entries {
 		skip := false
 		for i := range e {
@@ -146,91 +137,91 @@ func generateYangSchema(d, f, e []string) error {
 		}
 		if !skip {
 			updateAnnotation(entry)
-			schemaTree.Dir[entry.Name] = entry
+			cli.schemaTree.Dir[entry.Name] = entry
 		}
 	}
 	return nil
 }
 
 // pathCmd represents the path command
-var pathCmd = &cobra.Command{
-	Use:   "path",
-	Short: "generate gnmi or xpath style from yang file",
-	Annotations: map[string]string{
-		"--file": "YANG",
-		"--dir":  "DIR",
-	},
-	PreRunE: func(cmd *cobra.Command, args []string) error {
-		if pathType != "xpath" && pathType != "gnmi" {
-			return fmt.Errorf("path-type must be one of 'xpath' or 'gnmi'")
-		}
-		var err error
-		dirs, err = resolveGlobs(dirs)
-		if err != nil {
-			return err
-		}
-		files, err = resolveGlobs(files)
-		if err != nil {
-			return err
-		}
-		for _, dirpath := range dirs {
-			expanded, err := yang.PathsWithModules(dirpath)
+func newPathCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "path",
+		Short: "generate gnmi or xpath style from yang file",
+		Annotations: map[string]string{
+			"--file": "YANG",
+			"--dir":  "DIR",
+		},
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			cli.config.SetLocalFlagsFromFile(cmd)
+			if cli.config.LocalFlags.PathPathType != "xpath" && cli.config.LocalFlags.PathPathType != "gnmi" {
+				return fmt.Errorf("path-type must be one of 'xpath' or 'gnmi'")
+			}
+			cli.config.LocalFlags.PathDir = sanitizeArrayFlagValue(cli.config.LocalFlags.PathDir)
+			cli.config.LocalFlags.PathFile = sanitizeArrayFlagValue(cli.config.LocalFlags.PathFile)
+			cli.config.LocalFlags.PathExclude = sanitizeArrayFlagValue(cli.config.LocalFlags.PathExclude)
+
+			var err error
+			cli.config.LocalFlags.PathDir, err = resolveGlobs(cli.config.LocalFlags.PathDir)
 			if err != nil {
 				return err
 			}
-			if viper.GetBool("debug") {
-				for _, fdir := range expanded {
-					logger.Printf("adding %s to YANG paths", fdir)
+			cli.config.LocalFlags.PathFile, err = resolveGlobs(cli.config.LocalFlags.PathFile)
+			if err != nil {
+				return err
+			}
+			for _, dirpath := range cli.config.LocalFlags.PathDir {
+				expanded, err := yang.PathsWithModules(dirpath)
+				if err != nil {
+					return err
+				}
+				if cli.config.Globals.Debug {
+					for _, fdir := range expanded {
+						cli.logger.Printf("adding %s to YANG paths", fdir)
+					}
+				}
+				yang.AddPath(expanded...)
+			}
+			yfiles, err := findYangFiles(cli.config.LocalFlags.PathFile)
+			if err != nil {
+				return err
+			}
+			cli.config.LocalFlags.PathFile = make([]string, 0, len(yfiles))
+			cli.config.LocalFlags.PathFile = append(cli.config.LocalFlags.PathFile, yfiles...)
+			if cli.config.Globals.Debug {
+				for _, file := range cli.config.LocalFlags.PathFile {
+					cli.logger.Printf("loading %s file", file)
 				}
 			}
-			yang.AddPath(expanded...)
-		}
-		yfiles, err := findYangFiles(files)
-		if err != nil {
-			return err
-		}
-		files = make([]string, 0, len(yfiles))
-		files = append(files, yfiles...)
-		if viper.GetBool("debug") {
-			for _, file := range files {
-				logger.Printf("loading %s file", file)
-			}
-		}
-		return nil
-	},
-	RunE: func(cmd *cobra.Command, args []string) error {
-		return pathCmdRun(dirs, files, excluded)
-	},
-	PostRun: func(cmd *cobra.Command, args []string) {
-		cmd.ResetFlags()
-		initPathFlags(cmd)
-	},
-	SilenceUsage: true,
-}
-
-func init() {
-	rootCmd.AddCommand(pathCmd)
-	initPathFlags(pathCmd)
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return pathCmdRun(cli.config.LocalFlags.PathDir, cli.config.LocalFlags.PathFile, cli.config.LocalFlags.PathExclude)
+		},
+		PostRun: func(cmd *cobra.Command, args []string) {
+			cmd.ResetFlags()
+			initPathFlags(cmd)
+		},
+		SilenceUsage: true,
+	}
+	initPathFlags(cmd)
+	return cmd
 }
 
 // used to init or reset pathCmd flags for gnmic-prompt mode
 func initPathFlags(cmd *cobra.Command) {
-	cmd.Flags().StringArrayVarP(&files, "file", "", []string{}, "yang files to get the paths")
+	cmd.Flags().StringArrayVarP(&cli.config.LocalFlags.PathFile, "file", "", []string{}, "yang files to get the paths")
 	cmd.MarkFlagRequired("file")
-	cmd.Flags().StringArrayVarP(&excluded, "exclude", "", []string{}, "yang modules to be excluded from path generation")
-	cmd.Flags().StringArrayVarP(&dirs, "dir", "", []string{}, "directories to search yang includes and imports")
-	cmd.Flags().StringVarP(&pathType, "path-type", "", "xpath", "path type xpath or gnmi")
-	cmd.Flags().StringVarP(&module, "module", "m", "", "module name")
-	cmd.Flags().BoolVarP(&withPrefix, "with-prefix", "", false, "include module/submodule prefix in path elements")
-	cmd.Flags().BoolVarP(&printTypes, "types", "", false, "print leaf type")
-	cmd.Flags().BoolVarP(&search, "search", "", false, "search through path list")
-	viper.BindPFlag("path-file", cmd.LocalFlags().Lookup("file"))
-	viper.BindPFlag("path-exclude", cmd.LocalFlags().Lookup("exclude"))
-	viper.BindPFlag("path-dir", cmd.LocalFlags().Lookup("dir"))
-	viper.BindPFlag("path-path-type", cmd.LocalFlags().Lookup("path-type"))
-	viper.BindPFlag("path-module", cmd.LocalFlags().Lookup("module"))
-	viper.BindPFlag("path-types", cmd.LocalFlags().Lookup("types"))
-	viper.BindPFlag("path-search", cmd.LocalFlags().Lookup("search"))
+	cmd.Flags().StringArrayVarP(&cli.config.LocalFlags.PathExclude, "exclude", "", []string{}, "yang modules to be excluded from path generation")
+	cmd.Flags().StringArrayVarP(&cli.config.LocalFlags.PathDir, "dir", "", []string{}, "directories to search yang includes and imports")
+	cmd.Flags().StringVarP(&cli.config.LocalFlags.PathPathType, "path-type", "", "xpath", "path type xpath or gnmi")
+	cmd.Flags().StringVarP(&cli.config.LocalFlags.PathModule, "module", "m", "", "module name")
+	cmd.Flags().BoolVarP(&cli.config.LocalFlags.PathWithPrefix, "with-prefix", "", false, "include module/submodule prefix in path elements")
+	cmd.Flags().BoolVarP(&cli.config.LocalFlags.PathTypes, "types", "", false, "print leaf type")
+	cmd.Flags().BoolVarP(&cli.config.LocalFlags.PathSearch, "search", "", false, "search through path list")
+	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
+		cli.config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
+	})
 }
 
 func collectSchemaNodes(e *yang.Entry, leafOnly bool) []*yang.Entry {
@@ -280,14 +271,14 @@ func generatePath(entry *yang.Entry, prefixTagging bool) string {
 		}
 		path = fmt.Sprintf("/%s%s", elementName, path)
 	}
-	if pathType == "gnmi" {
+	if cli.config.LocalFlags.PathPathType == "gnmi" {
 		gnmiPath, err := xpath.ToGNMIPath(path)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "path: %s could not be changed to gnmi: %v\n", path, err)
 		}
 		path = gnmiPath.String()
 	}
-	if printTypes {
+	if cli.config.LocalFlags.PathTypes {
 		path = fmt.Sprintf("%s (type=%s)", path, entry.Type.Name)
 	}
 	return path
@@ -314,7 +305,7 @@ func generateTypeInfo(e *yang.Entry) string {
 		rstr += fmt.Sprintf(" %q", t.Path)
 	case yang.Yidentityref:
 		rstr += fmt.Sprintf(" %q", t.IdentityBase.Name)
-		if withPrefix {
+		if cli.config.LocalFlags.PathWithPrefix {
 			data := getAnnotation(e, "prefix-qualified-identities")
 			if data != nil {
 				rstr += fmt.Sprintf(" %v", data)
