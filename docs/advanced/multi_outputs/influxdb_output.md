@@ -10,11 +10,11 @@ outputs:
     org: myOrg # empty if using influxdb1.8.x
     bucket: telemetry # string in the form database/retention-policy. Skip retention policy for the default on
     token: # influxdb 1.8.x use a string in the form: "username:password"
-    batch_size: 1000 # number of points to buffer before writing to the server
-    flush_timer: 10s # flush period after which the buffer is written to the server whether the batch_size is reached or not
-    use_gzip: false
-    enable_tls: false
-    health_check_period: 30s # server health check period, used to recover from server connectivity failure
+    batch-size: 1000 # number of points to buffer before writing to the server
+    flush-timer: 10s # flush period after which the buffer is written to the server whether the batch_size is reached or not
+    use-gzip: false
+    enable-tls: false
+    health-check_period: 30s # server health check period, used to recover from server connectivity failure
     debug: false # enable debug
 ```
 
