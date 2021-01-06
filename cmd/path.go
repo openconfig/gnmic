@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/google/gnxi/utils/xpath"
+	"github.com/karimra/gnmic/config"
 	"github.com/manifoldco/promptui"
 	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/spf13/cobra"
@@ -157,9 +158,9 @@ func newPathCmd() *cobra.Command {
 			if cli.config.LocalFlags.PathPathType != "xpath" && cli.config.LocalFlags.PathPathType != "gnmi" {
 				return fmt.Errorf("path-type must be one of 'xpath' or 'gnmi'")
 			}
-			cli.config.LocalFlags.PathDir = sanitizeArrayFlagValue(cli.config.LocalFlags.PathDir)
-			cli.config.LocalFlags.PathFile = sanitizeArrayFlagValue(cli.config.LocalFlags.PathFile)
-			cli.config.LocalFlags.PathExclude = sanitizeArrayFlagValue(cli.config.LocalFlags.PathExclude)
+			cli.config.LocalFlags.PathDir = config.SanitizeArrayFlagValue(cli.config.LocalFlags.PathDir)
+			cli.config.LocalFlags.PathFile = config.SanitizeArrayFlagValue(cli.config.LocalFlags.PathFile)
+			cli.config.LocalFlags.PathExclude = config.SanitizeArrayFlagValue(cli.config.LocalFlags.PathExclude)
 
 			var err error
 			cli.config.LocalFlags.PathDir, err = resolveGlobs(cli.config.LocalFlags.PathDir)

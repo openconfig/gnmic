@@ -19,6 +19,7 @@ import (
 	"fmt"
 
 	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/config"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -45,8 +46,8 @@ func newGetCmd() *cobra.Command {
 		},
 		PreRun: func(cmd *cobra.Command, args []string) {
 			cli.config.SetLocalFlagsFromFile(cmd)
-			cli.config.LocalFlags.GetPath = sanitizeArrayFlagValue(cli.config.LocalFlags.GetPath)
-			cli.config.LocalFlags.GetModel = sanitizeArrayFlagValue(cli.config.LocalFlags.GetModel)
+			cli.config.LocalFlags.GetPath = config.SanitizeArrayFlagValue(cli.config.LocalFlags.GetPath)
+			cli.config.LocalFlags.GetModel = config.SanitizeArrayFlagValue(cli.config.LocalFlags.GetModel)
 		},
 		RunE: cli.getRunE,
 		PostRun: func(cmd *cobra.Command, args []string) {
