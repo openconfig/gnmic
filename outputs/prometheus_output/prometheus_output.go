@@ -119,13 +119,13 @@ func (p *PrometheusOutput) SetEventProcessors(ps map[string]map[string]interface
 }
 
 func (p *PrometheusOutput) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
+	for _, opt := range opts {
+		opt(p)
+	}
 	err := outputs.DecodeConfig(cfg, p.Cfg)
 	if err != nil {
 		p.logger.Printf("prometheus output config decode failed: %v", err)
 		return err
-	}
-	for _, opt := range opts {
-		opt(p)
 	}
 	if p.Cfg.Listen == "" {
 		p.Cfg.Listen = defaultListen

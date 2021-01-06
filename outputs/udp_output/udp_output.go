@@ -77,6 +77,9 @@ func (u *UDPSock) SetEventProcessors(ps map[string]map[string]interface{}, log *
 }
 
 func (u *UDPSock) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
+	for _, opt := range opts {
+		opt(u)
+	}
 	err := outputs.DecodeConfig(cfg, u.Cfg)
 	if err != nil {
 		u.logger.Printf("udp output config decode failed: %v", err)
