@@ -78,8 +78,8 @@ outputs:
     url: http://localhost:8086
     bucket: telemetry
     token: srl:srl
-    batch_size: 1000
-    flush_timer: 10s
+    batch-size: 1000
+    flush-timer: 10s
     event-processors:
       - proc-convert-integer
       - proc-delete-tag-name
