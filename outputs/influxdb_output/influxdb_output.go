@@ -57,7 +57,7 @@ type Config struct {
 	FlushTimer        time.Duration `mapstructure:"flush-timer,omitempty"`
 	UseGzip           bool          `mapstructure:"use-gzip,omitempty"`
 	EnableTLS         bool          `mapstructure:"enable-tls,omitempty"`
-	HealthCheckPeriod time.Duration `mapstructure:"health-check_period,omitempty"`
+	HealthCheckPeriod time.Duration `mapstructure:"health-check-period,omitempty"`
 	Debug             bool          `mapstructure:"debug,omitempty"`
 	EventProcessors   []string      `mapstructure:"event-processors,omitempty"`
 }

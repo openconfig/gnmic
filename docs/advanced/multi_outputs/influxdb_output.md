@@ -14,7 +14,7 @@ outputs:
     flush-timer: 10s # flush period after which the buffer is written to the server whether the batch_size is reached or not
     use-gzip: false
     enable-tls: false
-    health-check_period: 30s # server health check period, used to recover from server connectivity failure
+    health-check-period: 30s # server health check period, used to recover from server connectivity failure
     debug: false # enable debug
 ```
 
