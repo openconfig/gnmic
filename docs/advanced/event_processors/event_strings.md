@@ -269,7 +269,7 @@ processors:
       transforms:
         # strings function name
         - path-base:
-            apply-on: "name
+            apply-on: "name"
 ```
 
 === "Event format before"
