@@ -108,13 +108,12 @@ func (k *KafkaOutput) SetEventProcessors(ps map[string]map[string]interface{}, l
 
 // Init /
 func (k *KafkaOutput) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
-	for _, opt := range opts {
-		opt(k)
-	}
 	err := outputs.DecodeConfig(cfg, k.Cfg)
 	if err != nil {
-		k.logger.Printf("kafka output config decode failed: %v", err)
 		return err
+	}
+	for _, opt := range opts {
+		opt(k)
 	}
 	k.msgChan = make(chan *protoMsg, uint(k.Cfg.BufferSize))
 	if k.Cfg.Format == "" {

@@ -214,7 +214,12 @@ func (c *Collector) InitOutput(ctx context.Context, name string) {
 						}
 					}
 				}
-				go out.Init(ctx, cfg, outputs.WithLogger(c.logger), outputs.WithEventProcessors(c.EventProcessorsConfig, c.logger))
+				go func() {
+					err := out.Init(ctx, cfg, outputs.WithLogger(c.logger), outputs.WithEventProcessors(c.EventProcessorsConfig, c.logger))
+					if err != nil {
+						c.logger.Printf("failed to init output type %q: %v", outType, err)
+					}
+				}()
 				c.Outputs[name] = out
 			}
 		}

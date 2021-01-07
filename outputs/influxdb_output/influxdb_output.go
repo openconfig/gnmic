@@ -100,13 +100,12 @@ func (i *InfluxDBOutput) SetEventProcessors(ps map[string]map[string]interface{}
 }
 
 func (i *InfluxDBOutput) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
-	for _, opt := range opts {
-		opt(i)
-	}
 	err := outputs.DecodeConfig(cfg, i.Cfg)
 	if err != nil {
-		i.logger.Printf("influxdb output config decode failed: %v", err)
 		return err
+	}
+	for _, opt := range opts {
+		opt(i)
 	}
 	if i.Cfg.URL == "" {
 		i.Cfg.URL = defaultURL
@@ -139,7 +138,7 @@ CRCLIENT:
 	// start influx health check
 	err = i.health(ctx)
 	if err != nil {
-		log.Printf("failed to check influxdb health: %v", err)
+		i.logger.Printf("failed to check influxdb health: %v", err)
 		time.Sleep(10 * time.Second)
 		goto CRCLIENT
 	}

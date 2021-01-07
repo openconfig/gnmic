@@ -100,13 +100,12 @@ func (n *NatsOutput) SetEventProcessors(ps map[string]map[string]interface{}, lo
 
 // Init //
 func (n *NatsOutput) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
-	for _, opt := range opts {
-		opt(n)
-	}
 	err := outputs.DecodeConfig(cfg, n.Cfg)
 	if err != nil {
-		n.logger.Printf("nats output config decode failed: %v", err)
 		return err
+	}
+	for _, opt := range opts {
+		opt(n)
 	}
 	if n.Cfg.ConnectTimeWait == 0 {
 		n.Cfg.ConnectTimeWait = natsConnectWait
@@ -118,7 +117,6 @@ func (n *NatsOutput) Init(ctx context.Context, cfg map[string]interface{}, opts 
 		n.Cfg.Format = defaultFormat
 	}
 	if !(n.Cfg.Format == "event" || n.Cfg.Format == "protojson" || n.Cfg.Format == "proto" || n.Cfg.Format == "json") {
-		n.logger.Printf("unsupported output format '%s' for output type NATS, terminating...", n.Cfg.Format)
 		return fmt.Errorf("unsupported output format '%s' for output type NATS", n.Cfg.Format)
 	}
 	if n.Cfg.Name == "" {

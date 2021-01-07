@@ -98,16 +98,14 @@ func (f *File) SetLogger(logger *log.Logger) {
 
 // Init //
 func (f *File) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
+	err := outputs.DecodeConfig(cfg, f.Cfg)
+	if err != nil {
+		return err
+	}
 	for _, opt := range opts {
 		opt(f)
 	}
-	err := outputs.DecodeConfig(cfg, f.Cfg)
-	if err != nil {
-		f.logger.Printf("file output config decode failed: %v", err)
-		return err
-	}
 	if f.Cfg.Format == "proto" {
-		f.logger.Printf("proto format not supported in output type 'file'")
 		return fmt.Errorf("proto format not supported in output type 'file'")
 	}
 	if f.Cfg.Separator == "" {

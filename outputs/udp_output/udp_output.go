@@ -77,17 +77,15 @@ func (u *UDPSock) SetEventProcessors(ps map[string]map[string]interface{}, log *
 }
 
 func (u *UDPSock) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
+	err := outputs.DecodeConfig(cfg, u.Cfg)
+	if err != nil {
+		return err
+	}
 	for _, opt := range opts {
 		opt(u)
 	}
-	err := outputs.DecodeConfig(cfg, u.Cfg)
-	if err != nil {
-		u.logger.Printf("udp output config decode failed: %v", err)
-		return err
-	}
 	_, _, err = net.SplitHostPort(u.Cfg.Address)
 	if err != nil {
-		u.logger.Printf("udp output config validation failed: %v", err)
 		return fmt.Errorf("wrong address format: %v", err)
 	}
 	if u.Cfg.RetryInterval == 0 {
