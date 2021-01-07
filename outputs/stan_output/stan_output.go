@@ -103,19 +103,17 @@ func (s *StanOutput) SetEventProcessors(ps map[string]map[string]interface{}, lo
 
 // Init //
 func (s *StanOutput) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
-	for _, opt := range opts {
-		opt(s)
-	}
 	err := outputs.DecodeConfig(cfg, s.Cfg)
 	if err != nil {
-		s.logger.Printf("stan output config decode failed: %v", err)
 		return err
+	}
+	for _, opt := range opts {
+		opt(s)
 	}
 	if s.Cfg.Name == "" {
 		s.Cfg.Name = "gnmic-" + uuid.New().String()
 	}
 	if s.Cfg.ClusterName == "" {
-		s.logger.Printf("stan output config validation failed: clusterName is mandatory")
 		return fmt.Errorf("clusterName is mandatory")
 	}
 	if s.Cfg.Subject == "" && s.Cfg.SubjectPrefix == "" {

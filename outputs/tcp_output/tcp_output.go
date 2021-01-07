@@ -81,17 +81,15 @@ func (t *TCPOutput) SetEventProcessors(ps map[string]map[string]interface{}, log
 }
 
 func (t *TCPOutput) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
+	err := outputs.DecodeConfig(cfg, t.Cfg)
+	if err != nil {
+		return err
+	}
 	for _, opt := range opts {
 		opt(t)
 	}
-	err := outputs.DecodeConfig(cfg, t.Cfg)
-	if err != nil {
-		t.logger.Printf("tcp output config decode failed: %v", err)
-		return err
-	}
 	_, _, err = net.SplitHostPort(t.Cfg.Address)
 	if err != nil {
-		t.logger.Printf("tcp output config validation failed: %v", err)
 		return fmt.Errorf("wrong address format: %v", err)
 	}
 	t.buffer = make(chan []byte, t.Cfg.BufferSize)
@@ -116,6 +114,7 @@ func (t *TCPOutput) Init(ctx context.Context, cfg map[string]interface{}, opts .
 	}
 	return nil
 }
+
 func (t *TCPOutput) Write(ctx context.Context, m proto.Message, meta outputs.Meta) {
 	if m == nil {
 		return
