@@ -118,7 +118,7 @@ func (p *AddTag) Apply(e *formatters.EventMsg) {
 						e.Tags[nk] = nv
 					}
 				}
-				return
+				break
 			}
 		}
 		for _, re := range p.values {
@@ -137,7 +137,7 @@ func (p *AddTag) Apply(e *formatters.EventMsg) {
 						}
 					}
 				}
-				return
+				break
 			}
 		}
 	}
@@ -156,7 +156,7 @@ func (p *AddTag) Apply(e *formatters.EventMsg) {
 						e.Tags[nk] = nv
 					}
 				}
-				return
+				break
 			}
 		}
 		for _, re := range p.tags {
@@ -174,8 +174,8 @@ func (p *AddTag) Apply(e *formatters.EventMsg) {
 						e.Tags[nk] = nv
 					}
 				}
+				break
 			}
-			return
 		}
 	}
 }

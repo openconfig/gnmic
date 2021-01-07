@@ -74,11 +74,13 @@ type PrometheusOutput struct {
 	evps        []formatters.EventProcessor
 }
 type Config struct {
-	Listen          string        `mapstructure:"listen,omitempty"`
-	Path            string        `mapstructure:"path,omitempty"`
-	Expiration      time.Duration `mapstructure:"expiration,omitempty"`
-	Debug           bool          `mapstructure:"debug,omitempty"`
-	EventProcessors []string      `mapstructure:"event-processors,omitempty"`
+	Listen                 string        `mapstructure:"listen,omitempty"`
+	Path                   string        `mapstructure:"path,omitempty"`
+	Expiration             time.Duration `mapstructure:"expiration,omitempty"`
+	MetricPrefix           string        `mapstructure:"metric-prefix,omitempty"`
+	AppendSubscriptionName bool          `mapstructure:"append-subscription-name,omitempty"`
+	Debug                  bool          `mapstructure:"debug,omitempty"`
+	EventProcessors        []string      `mapstructure:"event-processors,omitempty"`
 }
 
 func (p *PrometheusOutput) String() string {
@@ -179,6 +181,7 @@ func (p *PrometheusOutput) Init(ctx context.Context, cfg map[string]interface{},
 	}()
 	return nil
 }
+
 func (p *PrometheusOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) {
 	if rsp == nil {
 		return
@@ -203,6 +206,7 @@ func (p *PrometheusOutput) Write(ctx context.Context, rsp proto.Message, meta ou
 		}
 	}
 }
+
 func (p *PrometheusOutput) Close() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -214,6 +218,7 @@ func (p *PrometheusOutput) Close() error {
 	p.wg.Wait()
 	return nil
 }
+
 func (p *PrometheusOutput) Metrics() []prometheus.Collector { return p.metrics }
 
 ///
@@ -341,6 +346,7 @@ func (p *promMetric) Desc() *prometheus.Desc {
 
 	return prometheus.NewDesc(p.name, defaultMetricHelp, labelNames, nil)
 }
+
 func (p *promMetric) Write(out *dto.Metric) error {
 	out.Untyped = &dto.Untyped{
 		Value: &p.value,
@@ -393,9 +399,14 @@ func getFloat(v interface{}) (float64, error) {
 
 func (p *PrometheusOutput) metricName(measName, valueName string) string {
 	sb := strings.Builder{}
-	sb.WriteString("gnmic_")
-	sb.WriteString(strings.TrimRight(p.metricRegex.ReplaceAllString(measName, "_"), "_"))
-	sb.WriteString("_")
+	if p.Cfg.MetricPrefix != "" {
+		sb.WriteString(p.metricRegex.ReplaceAllString(p.Cfg.MetricPrefix, "_"))
+		sb.WriteString("_")
+	}
+	if p.Cfg.AppendSubscriptionName {
+		sb.WriteString(strings.TrimRight(p.metricRegex.ReplaceAllString(measName, "_"), "_"))
+		sb.WriteString("_")
+	}
 	sb.WriteString(strings.TrimLeft(p.metricRegex.ReplaceAllString(valueName, "_"), "_"))
 	return sb.String()
 }

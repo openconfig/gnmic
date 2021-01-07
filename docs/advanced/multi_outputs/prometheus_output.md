@@ -6,9 +6,11 @@ A Prometheus output can be defined using the below format in `gnmic` config file
 outputs:
   output1:
     type: prometheus # required
-    listen: :9804 # address to listen on for incoming scape requests
+    listen: :9804 # address to listen on for incoming scrape requests
     path: /metrics # path to query to get the metrics
     expiration: 60s # maximum lifetime of metrics in the local cache
+    metric-prefix: "" # a string to be used as the metric namespace
+    append-subscription-name: false # a boolean, if true the subscription name will be appended to the metric name after the prefix
     debug: false # enable debug for prometheus output
 ```
 
