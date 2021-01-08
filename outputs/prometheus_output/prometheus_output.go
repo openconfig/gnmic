@@ -226,10 +226,10 @@ func (p *PrometheusOutput) Close() error {
 
 func (p *PrometheusOutput) Metrics() []prometheus.Collector { return p.metrics }
 
-// Describe implements promethues.Collector
+// Describe implements prometheus.Collector
 func (p *PrometheusOutput) Describe(ch chan<- *prometheus.Desc) {}
 
-// Collect implements promethues.Collector
+// Collect implements prometheus.Collector
 func (p *PrometheusOutput) Collect(ch chan<- prometheus.Metric) {
 	p.Lock()
 	defer p.Unlock()
@@ -380,7 +380,7 @@ func (p *promMetric) String() string {
 	return sb.String()
 }
 
-// Desc implements promethues.Metric
+// Desc implements prometheus.Metric
 func (p *promMetric) Desc() *prometheus.Desc {
 	labelNames := make([]string, 0, len(p.labels))
 	for _, label := range p.labels {
@@ -390,7 +390,7 @@ func (p *promMetric) Desc() *prometheus.Desc {
 	return prometheus.NewDesc(p.name, defaultMetricHelp, labelNames, nil)
 }
 
-// Write implements promethues.Metric
+// Write implements prometheus.Metric
 func (p *promMetric) Write(out *dto.Metric) error {
 	out.Untyped = &dto.Untyped{
 		Value: &p.value,
