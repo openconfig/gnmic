@@ -11,6 +11,7 @@ outputs:
     expiration: 60s # maximum lifetime of metrics in the local cache
     metric-prefix: "" # a string to be used as the metric namespace
     append-subscription-name: false # a boolean, if true the subscription name will be appended to the metric name after the prefix
+    export-timestamps: false # a boolean, enables exporting timestamps as part of the metrics
     debug: false # enable debug for prometheus output
 ```
 

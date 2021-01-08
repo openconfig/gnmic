@@ -43,8 +43,11 @@ type labelPair struct {
 type promMetric struct {
 	name   string
 	labels []*labelPair
-	time   time.Time
+	time   *time.Time
 	value  float64
+	// addedAt is used to expire metrics if the time field is not initialized
+	// this happens when ExportTimestamp == false
+	addedAt time.Time
 }
 
 func init() {
@@ -79,6 +82,7 @@ type Config struct {
 	Expiration             time.Duration `mapstructure:"expiration,omitempty"`
 	MetricPrefix           string        `mapstructure:"metric-prefix,omitempty"`
 	AppendSubscriptionName bool          `mapstructure:"append-subscription-name,omitempty"`
+	ExportTimestamps       bool          `mapstructure:"export-timestamps,omitempty"`
 	Debug                  bool          `mapstructure:"debug,omitempty"`
 	EventProcessors        []string      `mapstructure:"event-processors,omitempty"`
 }
@@ -165,6 +169,7 @@ func (p *PrometheusOutput) Init(ctx context.Context, cfg map[string]interface{},
 	p.wg.Add(2)
 	wctx, wcancel := context.WithCancel(ctx)
 	go p.worker(wctx)
+	go p.expireMetricsPeriodic(wctx)
 	go func() {
 		defer p.wg.Done()
 		err = p.server.Serve(listener)
@@ -181,6 +186,7 @@ func (p *PrometheusOutput) Init(ctx context.Context, cfg map[string]interface{},
 	return nil
 }
 
+// Write implements the outputs.Output interface
 func (p *PrometheusOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) {
 	if rsp == nil {
 		return
@@ -220,13 +226,15 @@ func (p *PrometheusOutput) Close() error {
 
 func (p *PrometheusOutput) Metrics() []prometheus.Collector { return p.metrics }
 
-///
+// Describe implements promethues.Collector
 func (p *PrometheusOutput) Describe(ch chan<- *prometheus.Desc) {}
 
+// Collect implements promethues.Collector
 func (p *PrometheusOutput) Collect(ch chan<- prometheus.Metric) {
 	p.Lock()
 	defer p.Unlock()
-
+	// run expire before exporting metrics
+	p.expireMetrics()
 	for _, entry := range p.entries {
 		ch <- entry
 	}
@@ -257,6 +265,7 @@ func (p *PrometheusOutput) worker(ctx context.Context) {
 				p.logger.Printf("got event to store: %+v", ev)
 			}
 			p.Lock()
+			now := time.Now()
 			labels := p.getLabels(ev)
 			for vName, val := range ev.Values {
 				v, err := getFloat(val)
@@ -264,14 +273,18 @@ func (p *PrometheusOutput) worker(ctx context.Context) {
 					continue
 				}
 				pm := &promMetric{
-					name:   p.metricName(ev.Name, vName),
-					labels: labels,
-					time:   time.Unix(0, ev.Timestamp),
-					value:  v,
+					name:    p.metricName(ev.Name, vName),
+					labels:  labels,
+					value:   v,
+					addedAt: now,
+				}
+				if p.Cfg.ExportTimestamps {
+					tm := time.Unix(0, ev.Timestamp)
+					pm.time = &tm
 				}
 				key := pm.calculateKey()
-				if e, ok := p.entries[key]; ok {
-					if e.time.Before(pm.time) {
+				if e, ok := p.entries[key]; ok && pm.time != nil {
+					if e.time.Before(*pm.time) {
 						p.entries[key] = pm
 					}
 				} else {
@@ -281,13 +294,42 @@ func (p *PrometheusOutput) worker(ctx context.Context) {
 					p.logger.Printf("saved key=%d, metric: %+v", key, pm)
 				}
 			}
-			// expire entries
-			expiry := time.Now().Add(-p.Cfg.Expiration)
-			for k, e := range p.entries {
-				if e.time.Before(expiry) {
-					delete(p.entries, k)
-				}
+			p.Unlock()
+		}
+	}
+}
+
+func (p *PrometheusOutput) expireMetrics() {
+	if p.Cfg.Expiration <= 0 {
+		return
+	}
+	expiry := time.Now().Add(-p.Cfg.Expiration)
+	for k, e := range p.entries {
+		if p.Cfg.ExportTimestamps {
+			if e.time.Before(expiry) {
+				delete(p.entries, k)
 			}
+			continue
+		}
+		if e.addedAt.Before(expiry) {
+			delete(p.entries, k)
+		}
+	}
+}
+
+func (p *PrometheusOutput) expireMetricsPeriodic(ctx context.Context) {
+	if p.Cfg.Expiration <= 0 {
+		return
+	}
+	ticker := time.NewTicker(p.Cfg.Expiration)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			p.Lock()
+			p.expireMetrics()
 			p.Unlock()
 		}
 	}
@@ -337,6 +379,8 @@ func (p *promMetric) String() string {
 	sb.WriteString(p.time.String())
 	return sb.String()
 }
+
+// Desc implements promethues.Metric
 func (p *promMetric) Desc() *prometheus.Desc {
 	labelNames := make([]string, 0, len(p.labels))
 	for _, label := range p.labels {
@@ -346,6 +390,7 @@ func (p *promMetric) Desc() *prometheus.Desc {
 	return prometheus.NewDesc(p.name, defaultMetricHelp, labelNames, nil)
 }
 
+// Write implements promethues.Metric
 func (p *promMetric) Write(out *dto.Metric) error {
 	out.Untyped = &dto.Untyped{
 		Value: &p.value,
@@ -353,6 +398,9 @@ func (p *promMetric) Write(out *dto.Metric) error {
 	out.Label = make([]*dto.LabelPair, 0, len(p.labels))
 	for _, lb := range p.labels {
 		out.Label = append(out.Label, &dto.LabelPair{Name: &lb.Name, Value: &lb.Value})
+	}
+	if p.time == nil {
+		return nil
 	}
 	timestamp := p.time.UnixNano() / 1000000
 	out.TimestampMs = &timestamp
@@ -396,6 +444,9 @@ func getFloat(v interface{}) (float64, error) {
 	}
 }
 
+// metricName generates the prometheus metric name based on the output plugin,
+// the measurement name and the value name.
+// it makes sure the name matches the regex "[^a-zA-Z0-9_]+"
 func (p *PrometheusOutput) metricName(measName, valueName string) string {
 	sb := strings.Builder{}
 	if p.Cfg.MetricPrefix != "" {
