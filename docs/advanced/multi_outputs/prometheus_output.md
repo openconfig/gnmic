@@ -12,6 +12,7 @@ outputs:
     metric-prefix: "" # a string to be used as the metric namespace
     append-subscription-name: false # a boolean, if true the subscription name will be appended to the metric name after the prefix
     export-timestamps: false # a boolean, enables exporting timestamps received from the gNMI target as part of the metrics
+    strings-as-labels: false # a boolean, enables setting string type values as prometheus metric labels.
     debug: false # enable debug for prometheus output
 ```
 
