@@ -8,7 +8,7 @@ outputs:
     type: prometheus # required
     listen: :9804 # address to listen on for incoming scrape requests
     path: /metrics # path to query to get the metrics
-    expiration: 60s # maximum lifetime of metrics in the local cache
+    expiration: 60s # maximum lifetime of metrics in the local cache, a zero value defaults to 60s, a negative duration (e.g: -1s) disables the expiration
     metric-prefix: "" # a string to be used as the metric namespace
     append-subscription-name: false # a boolean, if true the subscription name will be appended to the metric name after the prefix
     export-timestamps: false # a boolean, enables exporting timestamps received from the gNMI target as part of the metrics
@@ -27,12 +27,17 @@ The below diagram shows an example of a prometheus metric generation from a gnmi
 
 ### Metric Naming
 
-The metric name starts with the string __gnmic__ then the __subscription name__ as specified in `gnmic` configuraiton file, followed by the gNMI __path__ stripped from its keys if there are any. 
+The metric name starts with the string configured under __metric-prefix__. 
+
+Then if __append-subscription-name__ is `true`, the __subscription-name__ as specified in `gnmic` configuraiton file is appended.
+
+The resulting string is followed by the gNMI __path__ stripped from its keys if there are any. 
 
 All non-alphanumeric characters are replaced with an underscore "`_`"
 
 The 3 strings are then joined with an underscore "`_`"
 
+If further customization of the metric name is required, the [processors](../event_processors/intro.md) can be used to transform the metric name.
 
 For example, a gNMI update from subscription `port-stats` with path:
 
