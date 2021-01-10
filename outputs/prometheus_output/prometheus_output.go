@@ -83,6 +83,7 @@ type Config struct {
 	MetricPrefix           string        `mapstructure:"metric-prefix,omitempty"`
 	AppendSubscriptionName bool          `mapstructure:"append-subscription-name,omitempty"`
 	ExportTimestamps       bool          `mapstructure:"export-timestamps,omitempty"`
+	StringsAsLabels        bool          `mapstructure:"strings-as-labels,omitempty"`
 	Debug                  bool          `mapstructure:"debug,omitempty"`
 	EventProcessors        []string      `mapstructure:"event-processors,omitempty"`
 }
@@ -250,6 +251,25 @@ func (p *PrometheusOutput) getLabels(ev *formatters.EventMsg) []*labelPair {
 		}
 		labels = append(labels, &labelPair{Name: labelName, Value: v})
 		addedLabels[labelName] = struct{}{}
+	}
+	if !p.Cfg.StringsAsLabels {
+		return labels
+	}
+
+	var err error
+	for k, v := range ev.Values {
+		_, err = getFloat(v)
+		if err == nil {
+			continue
+		}
+		if vs, ok := v.(string); ok {
+			labelName := p.metricRegex.ReplaceAllString(filepath.Base(k), "_")
+			if _, ok := addedLabels[labelName]; ok {
+				continue
+			}
+			labels = append(labels, &labelPair{Name: k, Value: vs})
+			delete(ev.Values, k)
+		}
 	}
 	return labels
 }
