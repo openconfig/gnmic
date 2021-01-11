@@ -11,10 +11,14 @@ outputs:
     subject: telemetry # if a subject-prefix is not specified, gnmic will publish all subscriptions updates to a single subject 'telemetry'
     username: # NATS username
     password: # NATS password  
-    connect-time-wait: # wait time before reconnection attempts
+    connect-time-wait: 2s # wait time before reconnection attempts
+    format: json # string, message marshaling format, one of: proto, prototext, protojson, json, event
+    num-workers: 10 # integer, number of nats publishers to be created
+    write-timeout: 10s # duration after which a message waiting to be handled by a worker gets discarded
+    debug: false # boolean, enables extra logging for the nats output
 ```
 
-Using `subject` config value a user can specify the NATS subject to which to send all subscriptions updates for all targets
+Using `subject` config value, a user can specify the NATS subject to which to send all subscriptions updates for all targets
 
 If a user wants to separate updates by targets and by subscriptions, `subject-prefix` can be used. if `subject-prefix` is specified `subject` is ignored.
 
