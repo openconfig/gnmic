@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,21 +20,26 @@ import (
 )
 
 const (
-	natsConnectWait = 2 * time.Second
-
+	natsConnectWait         = 2 * time.Second
 	natsReconnectBufferSize = 100 * 1024 * 1024
-
-	defaultSubjectName = "gnmic-telemetry"
-
-	defaultFormat = "json"
+	defaultSubjectName      = "gnmic-telemetry"
+	defaultFormat           = "json"
+	defaultNumWorkers       = 1
+	defaultWriteTimeout     = 10 * time.Second
 )
 
 func init() {
 	outputs.Register("nats", func() outputs.Output {
 		return &NatsOutput{
 			Cfg: &Config{},
+			wg:  new(sync.WaitGroup),
 		}
 	})
+}
+
+type protoMsg struct {
+	m    proto.Message
+	meta outputs.Meta
 }
 
 // NatsOutput //
@@ -41,8 +47,8 @@ type NatsOutput struct {
 	Cfg      *Config
 	ctx      context.Context
 	cancelFn context.CancelFunc
-	conn     *nats.Conn
-	metrics  []prometheus.Collector
+	msgChan  chan *protoMsg
+	wg       *sync.WaitGroup
 	logger   *log.Logger
 	mo       *formatters.MarshalOptions
 	evps     []formatters.EventProcessor
@@ -58,6 +64,9 @@ type Config struct {
 	Password        string        `mapstructure:"password,omitempty"`
 	ConnectTimeWait time.Duration `mapstructure:"connect-time-wait,omitempty"`
 	Format          string        `mapstructure:"format,omitempty"`
+	NumWorkers      int           `mapstructure:"num-workers,omitempty"`
+	WriteTimeout    time.Duration `mapstructure:"write-timeout,omitempty"`
+	Debug           bool          `mapstructure:"debug,omitempty"`
 	EventProcessors []string      `mapstructure:"event-processors,omitempty"`
 }
 
@@ -104,10 +113,33 @@ func (n *NatsOutput) Init(ctx context.Context, cfg map[string]interface{}, opts 
 	if err != nil {
 		return err
 	}
+	err = n.setDefaults()
+	if err != nil {
+		return err
+	}
 	for _, opt := range opts {
 		opt(n)
 	}
-	if n.Cfg.ConnectTimeWait == 0 {
+	n.msgChan = make(chan *protoMsg)
+	initMetrics()
+	n.mo = &formatters.MarshalOptions{Format: n.Cfg.Format}
+	n.ctx, n.cancelFn = context.WithCancel(ctx)
+	n.wg.Add(n.Cfg.NumWorkers)
+	for i := 0; i < n.Cfg.NumWorkers; i++ {
+		cfg := *n.Cfg
+		cfg.Name = fmt.Sprintf("%s-%d", cfg.Name, i)
+		go n.worker(ctx, i, &cfg)
+	}
+
+	go func() {
+		<-ctx.Done()
+		n.Close()
+	}()
+	return nil
+}
+
+func (n *NatsOutput) setDefaults() error {
+	if n.Cfg.ConnectTimeWait <= 0 {
 		n.Cfg.ConnectTimeWait = natsConnectWait
 	}
 	if n.Cfg.Subject == "" && n.Cfg.SubjectPrefix == "" {
@@ -122,71 +154,50 @@ func (n *NatsOutput) Init(ctx context.Context, cfg map[string]interface{}, opts 
 	if n.Cfg.Name == "" {
 		n.Cfg.Name = "gnmic-" + uuid.New().String()
 	}
-	n.ctx, n.cancelFn = context.WithCancel(ctx)
-CRCONN:
-	n.conn, err = n.createNATSConn(n.Cfg)
-	if err != nil {
-		n.logger.Printf("failed to create connection: %v", err)
-		time.Sleep(10 * time.Second)
-		goto CRCONN
+	if n.Cfg.NumWorkers <= 0 {
+		n.Cfg.NumWorkers = defaultNumWorkers
 	}
-	n.logger.Printf("initialized nats producer: %s", n.String())
-	n.mo = &formatters.MarshalOptions{Format: n.Cfg.Format}
-	go func() {
-		<-ctx.Done()
-		n.Close()
-	}()
+	if n.Cfg.WriteTimeout <= 0 {
+		n.Cfg.WriteTimeout = defaultWriteTimeout
+	}
 	return nil
 }
 
 // Write //
-func (n *NatsOutput) Write(_ context.Context, rsp proto.Message, meta outputs.Meta) {
+func (n *NatsOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) {
 	if rsp == nil || n.mo == nil {
 		return
 	}
-	if format, ok := meta["format"]; ok {
-		if format == "prototext" {
-			return
+	select {
+	case <-ctx.Done():
+		return
+	case n.msgChan <- &protoMsg{m: rsp, meta: meta}:
+	case <-time.After(n.Cfg.WriteTimeout):
+		if n.Cfg.Debug {
+			n.logger.Printf("writing expired after %s, NATS output might not be initialized", n.Cfg.WriteTimeout)
 		}
-	}
-	ssb := strings.Builder{}
-	ssb.WriteString(n.Cfg.SubjectPrefix)
-	if n.Cfg.SubjectPrefix != "" {
-		if s, ok := meta["source"]; ok {
-			source := strings.ReplaceAll(s, ".", "-")
-			source = strings.ReplaceAll(source, " ", "_")
-			ssb.WriteString(".")
-			ssb.WriteString(source)
-		}
-		if subname, ok := meta["subscription-name"]; ok {
-			ssb.WriteString(".")
-			ssb.WriteString(subname)
-		}
-	} else if n.Cfg.Subject != "" {
-		ssb.WriteString(n.Cfg.Subject)
-	}
-	subject := strings.ReplaceAll(ssb.String(), " ", "_")
-	b, err := n.mo.Marshal(rsp, meta, n.evps...)
-	if err != nil {
-		n.logger.Printf("failed marshaling proto msg: %v", err)
+		NatsNumberOfFailSendMsgs.WithLabelValues(n.Cfg.Name, "timeout").Inc()
 		return
 	}
-	err = n.conn.Publish(subject, b)
-	if err != nil {
-		log.Printf("failed to write to nats subject '%s': %v", subject, err)
-		return
-	}
-	// n.logger.Printf("wrote %d bytes to nats_subject=%s", len(b), n.Cfg.Subject)
 }
 
 // Close //
 func (n *NatsOutput) Close() error {
-	n.conn.Close()
+	//	n.conn.Close()
+	n.cancelFn()
+	n.wg.Wait()
 	return nil
 }
 
 // Metrics //
-func (n *NatsOutput) Metrics() []prometheus.Collector { return n.metrics }
+func (n *NatsOutput) Metrics() []prometheus.Collector {
+	return []prometheus.Collector{
+		NatsNumberOfSentMsgs,
+		NatsNumberOfSentBytes,
+		NatsNumberOfFailSendMsgs,
+		NatsSendDuration,
+	}
+}
 
 func (n *NatsOutput) createNATSConn(c *Config) (*nats.Conn, error) {
 	opts := []nats.Option{
@@ -237,4 +248,74 @@ func (n *NatsOutput) Dial(network, address string) (net.Conn, error) {
 			time.Sleep(n.Cfg.ConnectTimeWait)
 		}
 	}
+}
+
+func (n *NatsOutput) worker(ctx context.Context, i int, cfg *Config) {
+	defer n.wg.Done()
+	var natsConn *nats.Conn
+	var err error
+	workerLogPrefix := fmt.Sprintf("worker-%d", i)
+	n.logger.Printf("%s starting", workerLogPrefix)
+CRCONN:
+	natsConn, err = n.createNATSConn(cfg)
+	if err != nil {
+		n.logger.Printf("%s failed to create connection: %v", workerLogPrefix, err)
+		time.Sleep(10 * time.Second)
+		goto CRCONN
+	}
+	defer natsConn.Close()
+	n.logger.Printf("%s initialized nats producer: %+v", workerLogPrefix, cfg)
+	for {
+		select {
+		case <-ctx.Done():
+			n.logger.Printf("%s flushing", workerLogPrefix)
+			natsConn.FlushTimeout(time.Second)
+			n.logger.Printf("%s shutting down", workerLogPrefix)
+			return
+		case m := <-n.msgChan:
+			b, err := n.mo.Marshal(m.m, m.meta, n.evps...)
+			if err != nil {
+				if n.Cfg.Debug {
+					n.logger.Printf("%s failed marshaling proto msg: %v", workerLogPrefix, err)
+				}
+				NatsNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "marshal_error").Inc()
+				continue
+			}
+			subject := n.subjectName(cfg, m.meta)
+			start := time.Now()
+			err = natsConn.Publish(subject, b)
+			if err != nil {
+				if n.Cfg.Debug {
+					n.logger.Printf("%s failed to write to nats subject '%s': %v", workerLogPrefix, subject, err)
+				}
+				NatsNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "publish_error").Inc()
+				natsConn.Close()
+				time.Sleep(10 * time.Second)
+				goto CRCONN
+			}
+			NatsSendDuration.WithLabelValues(cfg.Name).Set(float64(time.Since(start).Nanoseconds()))
+			NatsNumberOfSentMsgs.WithLabelValues(cfg.Name, subject).Inc()
+			NatsNumberOfSentBytes.WithLabelValues(cfg.Name, subject).Add(float64(len(b)))
+		}
+	}
+}
+
+func (n *NatsOutput) subjectName(c *Config, meta outputs.Meta) string {
+	ssb := strings.Builder{}
+	ssb.WriteString(c.SubjectPrefix)
+	if n.Cfg.SubjectPrefix != "" {
+		if s, ok := meta["source"]; ok {
+			source := strings.ReplaceAll(s, ".", "-")
+			source = strings.ReplaceAll(source, " ", "_")
+			ssb.WriteString(".")
+			ssb.WriteString(source)
+		}
+		if subname, ok := meta["subscription-name"]; ok {
+			ssb.WriteString(".")
+			ssb.WriteString(subname)
+		}
+	} else if n.Cfg.Subject != "" {
+		ssb.WriteString(n.Cfg.Subject)
+	}
+	return strings.ReplaceAll(ssb.String(), " ", "_")
 }
