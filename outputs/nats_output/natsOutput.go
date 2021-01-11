@@ -301,9 +301,9 @@ CRCONN:
 }
 
 func (n *NatsOutput) subjectName(c *Config, meta outputs.Meta) string {
-	ssb := strings.Builder{}
-	ssb.WriteString(c.SubjectPrefix)
-	if n.Cfg.SubjectPrefix != "" {
+	if c.SubjectPrefix != "" {
+		ssb := strings.Builder{}
+		ssb.WriteString(n.Cfg.SubjectPrefix)
 		if s, ok := meta["source"]; ok {
 			source := strings.ReplaceAll(s, ".", "-")
 			source = strings.ReplaceAll(source, " ", "_")
@@ -314,8 +314,7 @@ func (n *NatsOutput) subjectName(c *Config, meta outputs.Meta) string {
 			ssb.WriteString(".")
 			ssb.WriteString(subname)
 		}
-	} else if n.Cfg.Subject != "" {
-		ssb.WriteString(n.Cfg.Subject)
+		return strings.ReplaceAll(ssb.String(), " ", "_")
 	}
-	return strings.ReplaceAll(ssb.String(), " ", "_")
+	return strings.ReplaceAll(n.Cfg.Subject, " ", "_")
 }
