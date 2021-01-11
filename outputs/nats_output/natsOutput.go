@@ -22,7 +22,7 @@ import (
 const (
 	natsConnectWait         = 2 * time.Second
 	natsReconnectBufferSize = 100 * 1024 * 1024
-	defaultSubjectName      = "gnmic-telemetry"
+	defaultSubjectName      = "telemetry"
 	defaultFormat           = "json"
 	defaultNumWorkers       = 1
 	defaultWriteTimeout     = 10 * time.Second
@@ -260,7 +260,7 @@ CRCONN:
 	natsConn, err = n.createNATSConn(cfg)
 	if err != nil {
 		n.logger.Printf("%s failed to create connection: %v", workerLogPrefix, err)
-		time.Sleep(10 * time.Second)
+		time.Sleep(n.Cfg.ConnectTimeWait)
 		goto CRCONN
 	}
 	defer natsConn.Close()
@@ -290,7 +290,7 @@ CRCONN:
 				}
 				NatsNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "publish_error").Inc()
 				natsConn.Close()
-				time.Sleep(10 * time.Second)
+				time.Sleep(cfg.ConnectTimeWait)
 				goto CRCONN
 			}
 			NatsSendDuration.WithLabelValues(cfg.Name).Set(float64(time.Since(start).Nanoseconds()))
