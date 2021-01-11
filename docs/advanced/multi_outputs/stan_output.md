@@ -13,9 +13,14 @@ outputs:
     password: # STAN password
     name: # client name
     cluster-name: test-cluster # cluster name
-    timeout: # connection timeout
     ping-interval: # STAN ping interval
     ping-retry: # STAN ping retry
+    format:  json # string, message marshaling format, one of: proto, prototext, protojson, json, event
+    recovery-wait-time: 2s # duration to wait before re establishing a lost conneciton to a stan server
+    num-workers: 1 # integer, number of nats publishers to be created
+    debug: false # boolean, enables extra logging for the STAN output
+    write-timeout: 10s # duration after which a message waiting to be handled by a worker gets discarded
+    event-processors: # list of event-processors names to apply on the received messages
 ```
 
 Using `subject` config value a user can specify the STAN subject to which to send all subscriptions updates for all targets

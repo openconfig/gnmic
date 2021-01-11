@@ -21,14 +21,13 @@ import (
 )
 
 const (
-	stanDefaultTimeout      = 10
 	stanDefaultPingInterval = 5
 	stanDefaultPingRetry    = 2
 
 	defaultSubjectName = "gnmic-telemetry"
 
 	defaultFormat           = "json"
-	defaultRecoveryWaitTime = 10 * time.Second
+	defaultRecoveryWaitTime = 2 * time.Second
 	defaultNumWorkers       = 1
 	defaultWriteTimeout     = 10 * time.Second
 )
