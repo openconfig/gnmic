@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,36 +16,45 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/stan.go"
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 const (
-	stanDefaultTimeout      = 10
 	stanDefaultPingInterval = 5
 	stanDefaultPingRetry    = 2
 
 	defaultSubjectName = "gnmic-telemetry"
 
 	defaultFormat           = "json"
-	defaultRecoveryWaitTime = 10 * time.Second
+	defaultRecoveryWaitTime = 2 * time.Second
+	defaultNumWorkers       = 1
+	defaultWriteTimeout     = 10 * time.Second
 )
 
 func init() {
 	outputs.Register("stan", func() outputs.Output {
 		return &StanOutput{
 			Cfg: &Config{},
+			wg:  new(sync.WaitGroup),
 		}
 	})
 }
 
+type protoMsg struct {
+	m    proto.Message
+	meta outputs.Meta
+}
+
 // StanOutput //
 type StanOutput struct {
-	Cfg     *Config
-	conn    stan.Conn
-	metrics []prometheus.Collector
-	logger  *log.Logger
-	mo      *formatters.MarshalOptions
-	evps    []formatters.EventProcessor
+	Cfg      *Config
+	cancelFn context.CancelFunc
+	logger   *log.Logger
+	msgChan  chan *protoMsg
+	wg       *sync.WaitGroup
+	mo       *formatters.MarshalOptions
+	evps     []formatters.EventProcessor
 }
 
 // Config //
@@ -60,6 +70,9 @@ type Config struct {
 	PingRetry        int           `mapstructure:"ping-retry,omitempty"`
 	Format           string        `mapstructure:"format,omitempty"`
 	RecoveryWaitTime time.Duration `mapstructure:"recovery-wait-time,omitempty"`
+	NumWorkers       int           `mapstructure:"num-workers,omitempty"`
+	Debug            bool          `mapstructure:"debug,omitempty"`
+	WriteTimeout     time.Duration `mapstructure:"write-timeout,omitempty"`
 	EventProcessors  []string      `mapstructure:"event-processors,omitempty"`
 }
 
@@ -107,9 +120,33 @@ func (s *StanOutput) Init(ctx context.Context, cfg map[string]interface{}, opts 
 	if err != nil {
 		return err
 	}
+	err = s.setDefaults()
+	if err != nil {
+		return err
+	}
 	for _, opt := range opts {
 		opt(s)
 	}
+	s.msgChan = make(chan *protoMsg)
+	initMetrics()
+	s.mo = &formatters.MarshalOptions{Format: s.Cfg.Format}
+	ctx, s.cancelFn = context.WithCancel(ctx)
+	s.wg.Add(s.Cfg.NumWorkers)
+	for i := 0; i < s.Cfg.NumWorkers; i++ {
+		cfg := *s.Cfg
+		cfg.Name = fmt.Sprintf("%s-%d", cfg.Name, i)
+		go s.worker(ctx, i, &cfg)
+	}
+
+	s.logger.Printf("initialized stan producer: %s", s.String())
+	go func() {
+		<-ctx.Done()
+		s.Close()
+	}()
+	return nil
+}
+
+func (s *StanOutput) setDefaults() error {
 	if s.Cfg.Name == "" {
 		s.Cfg.Name = "gnmic-" + uuid.New().String()
 	}
@@ -122,7 +159,12 @@ func (s *StanOutput) Init(ctx context.Context, cfg map[string]interface{}, opts 
 	if s.Cfg.RecoveryWaitTime == 0 {
 		s.Cfg.RecoveryWaitTime = defaultRecoveryWaitTime
 	}
-
+	if s.Cfg.WriteTimeout <= 0 {
+		s.Cfg.WriteTimeout = defaultWriteTimeout
+	}
+	if s.Cfg.NumWorkers <= 0 {
+		s.Cfg.NumWorkers = defaultNumWorkers
+	}
 	if s.Cfg.Format == "" {
 		s.Cfg.Format = defaultFormat
 	}
@@ -135,62 +177,43 @@ func (s *StanOutput) Init(ctx context.Context, cfg map[string]interface{}, opts 
 	if s.Cfg.PingRetry == 0 {
 		s.Cfg.PingRetry = stanDefaultPingRetry
 	}
-	s.mo = &formatters.MarshalOptions{Format: s.Cfg.Format}
-	// this func retries until a connection is created successfully
-	s.conn = s.createSTANConn(s.Cfg)
-	s.logger.Printf("initialized stan producer: %s", s.String())
-	go func() {
-		<-ctx.Done()
-		s.Close()
-	}()
 	return nil
 }
 
 // Write //
-func (s *StanOutput) Write(_ context.Context, rsp protoreflect.ProtoMessage, meta outputs.Meta) {
+func (s *StanOutput) Write(ctx context.Context, rsp protoreflect.ProtoMessage, meta outputs.Meta) {
 	if rsp == nil || s.mo == nil {
 		return
 	}
-	if s.conn == nil {
-		return
-	}
 
-	ssb := strings.Builder{}
-	ssb.WriteString(s.Cfg.SubjectPrefix)
-	if s.Cfg.SubjectPrefix != "" {
-		if s, ok := meta["source"]; ok {
-			source := strings.ReplaceAll(s, ".", "-")
-			source = strings.ReplaceAll(source, " ", "_")
-			ssb.WriteString(".")
-			ssb.WriteString(source)
+	select {
+	case <-ctx.Done():
+		return
+	case s.msgChan <- &protoMsg{m: rsp, meta: meta}:
+	case <-time.After(s.Cfg.WriteTimeout):
+		if s.Cfg.Debug {
+			s.logger.Printf("writing expired after %s, NATS output might not be initialized", s.Cfg.WriteTimeout)
 		}
-		if subname, ok := meta["subscription-name"]; ok {
-			ssb.WriteString(".")
-			ssb.WriteString(subname)
-		}
-	} else if s.Cfg.Subject != "" {
-		ssb.WriteString(s.Cfg.Subject)
-	}
-	subject := strings.ReplaceAll(ssb.String(), " ", "_")
-	b, err := s.mo.Marshal(rsp, meta, s.evps...)
-	if err != nil {
-		s.logger.Printf("failed marshaling proto msg: %v", err)
+		StanNumberOfFailSendMsgs.WithLabelValues(s.Cfg.Name, "timeout").Inc()
 		return
 	}
-	err = s.conn.Publish(subject, b)
-	if err != nil {
-		s.logger.Printf("failed to write to stan subject '%s': %v", subject, err)
-		return
-	}
-	//s.logger.Printf("wrote %d bytes to stan_subject=%s", len(b), s.Cfg.Subject)
 }
 
 // Metrics //
-func (s *StanOutput) Metrics() []prometheus.Collector { return s.metrics }
+func (s *StanOutput) Metrics() []prometheus.Collector {
+	return []prometheus.Collector{
+		StanNumberOfSentMsgs,
+		StanNumberOfSentBytes,
+		StanNumberOfFailSendMsgs,
+		StanSendDuration,
+	}
+}
 
 // Close //
 func (s *StanOutput) Close() error {
-	return s.conn.Close()
+	s.cancelFn()
+	s.wg.Wait()
+	return nil
 }
 
 func (s *StanOutput) createSTANConn(c *Config) stan.Conn {
@@ -217,9 +240,8 @@ CRCONN:
 		stan.Pings(c.PingInterval, c.PingRetry),
 		stan.SetConnectionLostHandler(func(_ stan.Conn, err error) {
 			s.logger.Printf("STAN connection lost, reason: %v", err)
-			s.conn = nil
 			s.logger.Printf("retryring...")
-			sc = s.createSTANConn(c)
+			//sc = s.createSTANConn(c)
 		}),
 	)
 	if err != nil {
@@ -230,4 +252,67 @@ CRCONN:
 	}
 	s.logger.Printf("successfully connected to STAN server %s", c.Address)
 	return sc
+}
+
+func (s *StanOutput) worker(ctx context.Context, i int, c *Config) {
+	defer s.wg.Done()
+	var stanConn stan.Conn
+	workerLogPrefix := fmt.Sprintf("worker-%d", i)
+	s.logger.Printf("%s starting", workerLogPrefix)
+CRCONN:
+	stanConn = s.createSTANConn(c)
+	s.logger.Printf("%s initialized stan producer: %s", workerLogPrefix, s.String())
+	defer stanConn.Close()
+	defer stanConn.NatsConn().Close()
+	for {
+		select {
+		case <-ctx.Done():
+			s.logger.Printf("%s shutting down", workerLogPrefix)
+			return
+		case m := <-s.msgChan:
+			b, err := s.mo.Marshal(m.m, m.meta, s.evps...)
+			if err != nil {
+				if s.Cfg.Debug {
+					s.logger.Printf("%s failed marshaling proto msg: %v", workerLogPrefix, err)
+				}
+				StanNumberOfFailSendMsgs.WithLabelValues(c.Name, "marshal_error").Inc()
+				continue
+			}
+			subject := s.subjectName(c, m.meta)
+			start := time.Now()
+			err = stanConn.Publish(subject, b)
+			if err != nil {
+				if s.Cfg.Debug {
+					s.logger.Printf("%s failed to write to STAN subject %q: %v", workerLogPrefix, subject, err)
+				}
+				StanNumberOfFailSendMsgs.WithLabelValues(c.Name, "publish_error").Inc()
+				stanConn.Close()
+				stanConn.NatsConn().Close()
+				time.Sleep(c.RecoveryWaitTime)
+				goto CRCONN
+			}
+			StanSendDuration.WithLabelValues(c.Name).Set(float64(time.Since(start).Nanoseconds()))
+			StanNumberOfSentMsgs.WithLabelValues(c.Name, subject).Inc()
+			StanNumberOfSentBytes.WithLabelValues(c.Name, subject).Add(float64(len(b)))
+		}
+	}
+}
+
+func (s *StanOutput) subjectName(c *Config, meta outputs.Meta) string {
+	if c.SubjectPrefix != "" {
+		ssb := strings.Builder{}
+		ssb.WriteString(s.Cfg.SubjectPrefix)
+		if s, ok := meta["source"]; ok {
+			source := strings.ReplaceAll(s, ".", "-")
+			source = strings.ReplaceAll(source, " ", "_")
+			ssb.WriteString(".")
+			ssb.WriteString(source)
+		}
+		if subname, ok := meta["subscription-name"]; ok {
+			ssb.WriteString(".")
+			ssb.WriteString(subname)
+		}
+		return strings.ReplaceAll(ssb.String(), " ", "_")
+	}
+	return strings.ReplaceAll(s.Cfg.Subject, " ", "_")
 }
