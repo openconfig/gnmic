@@ -4,8 +4,8 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"io/ioutil"
 	"log"
-	"os"
 	"time"
 
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
@@ -22,7 +22,8 @@ const (
 	defaultFlushTimer        = 10 * time.Second
 	defaultHealthCheckPeriod = 30 * time.Second
 
-	numWorkers = 1
+	numWorkers    = 1
+	loggingPrefix = "influxdb_output "
 )
 
 func init() {
@@ -32,6 +33,7 @@ func init() {
 			eventChan: make(chan *formatters.EventMsg),
 			reset:     make(chan struct{}),
 			startSig:  make(chan struct{}),
+			logger:    log.New(ioutil.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
 		}
 	})
 }
@@ -39,7 +41,6 @@ func init() {
 type InfluxDBOutput struct {
 	Cfg       *Config
 	client    influxdb2.Client
-	metrics   []prometheus.Collector
 	logger    *log.Logger
 	cancelFn  context.CancelFunc
 	eventChan chan *formatters.EventMsg
@@ -60,6 +61,7 @@ type Config struct {
 	HealthCheckPeriod time.Duration `mapstructure:"health-check-period,omitempty"`
 	Debug             bool          `mapstructure:"debug,omitempty"`
 	EventProcessors   []string      `mapstructure:"event-processors,omitempty"`
+	EnableMetrics     bool          `mapstructure:"enable-metrics,omitempty"`
 }
 
 func (k *InfluxDBOutput) String() string {
@@ -69,12 +71,12 @@ func (k *InfluxDBOutput) String() string {
 	}
 	return string(b)
 }
+
 func (i *InfluxDBOutput) SetLogger(logger *log.Logger) {
-	if logger != nil {
-		i.logger = log.New(logger.Writer(), "influxdb_output ", logger.Flags())
-		return
+	if logger != nil && i.logger != nil {
+		i.logger.SetOutput(logger.Writer())
+		i.logger.SetFlags(logger.Flags())
 	}
-	i.logger = log.New(os.Stderr, "influxdb_output ", log.LstdFlags|log.Lmicroseconds)
 }
 
 func (i *InfluxDBOutput) SetEventProcessors(ps map[string]map[string]interface{}, log *log.Logger) {
@@ -189,7 +191,7 @@ func (i *InfluxDBOutput) Close() error {
 	i.logger.Printf("closed.")
 	return nil
 }
-func (i *InfluxDBOutput) Metrics() []prometheus.Collector { return i.metrics }
+func (i *InfluxDBOutput) RegisterMetrics(reg *prometheus.Registry) {}
 
 func (i *InfluxDBOutput) healthCheck(ctx context.Context) {
 	ticker := time.NewTicker(i.Cfg.HealthCheckPeriod)

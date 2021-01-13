@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"time"
@@ -20,30 +21,26 @@ const (
 	defaultFormat           = "json"
 	defaultWriteConcurrency = 1000
 	defaultSeparator        = "\n"
+	loggingPrefix           = "file_output "
 )
 
 func init() {
 	outputs.Register("file", func() outputs.Output {
 		return &File{
-			Cfg: &Config{},
-			metrics: []prometheus.Collector{
-				NumberOfWrittenBytes,
-				NumberOfReceivedMsgs,
-				NumberOfWrittenMsgs,
-			},
+			Cfg:    &Config{},
+			logger: log.New(ioutil.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
 		}
 	})
 }
 
 // File //
 type File struct {
-	Cfg     *Config
-	file    *os.File
-	logger  *log.Logger
-	metrics []prometheus.Collector
-	mo      *formatters.MarshalOptions
-	sem     *semaphore.Weighted
-	evps    []formatters.EventProcessor
+	Cfg    *Config
+	file   *os.File
+	logger *log.Logger
+	mo     *formatters.MarshalOptions
+	sem    *semaphore.Weighted
+	evps   []formatters.EventProcessor
 }
 
 // Config //
@@ -56,6 +53,7 @@ type Config struct {
 	Separator        string   `mapstructure:"separator,omitempty"`
 	EventProcessors  []string `mapstructure:"event-processors,omitempty"`
 	ConcurrencyLimit int      `mapstructure:"concurrency-limit,omitempty"`
+	EnableMetrics    bool     `mapstructure:"enable-metrics,omitempty"`
 }
 
 func (f *File) String() string {
@@ -89,11 +87,10 @@ func (f *File) SetEventProcessors(ps map[string]map[string]interface{}, log *log
 }
 
 func (f *File) SetLogger(logger *log.Logger) {
-	if logger != nil {
-		f.logger = log.New(logger.Writer(), "file_output ", logger.Flags())
-		return
+	if logger != nil && f.logger != nil {
+		f.logger.SetOutput(logger.Writer())
+		f.logger.SetFlags(logger.Flags())
 	}
-	f.logger = log.New(os.Stderr, "file_output ", log.LstdFlags|log.Lmicroseconds)
 }
 
 // Init //
@@ -193,4 +190,4 @@ func (f *File) Close() error {
 }
 
 // Metrics //
-func (f *File) Metrics() []prometheus.Collector { return f.metrics }
+func (f *File) RegisterMetrics(reg *prometheus.Registry) {}

@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
-	"os"
 	"time"
 
 	"github.com/karimra/gnmic/formatters"
@@ -18,12 +18,14 @@ import (
 const (
 	defaultRetryTimer = 2 * time.Second
 	defaultNumWorkers = 1
+	loggingPrefix     = "tcp_output "
 )
 
 func init() {
 	outputs.Register("tcp", func() outputs.Output {
 		return &TCPOutput{
-			Cfg: &Config{},
+			Cfg:    &Config{},
+			logger: log.New(ioutil.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
 		}
 	})
 }
@@ -47,15 +49,15 @@ type Config struct {
 	KeepAlive       time.Duration `mapstructure:"keep-alive,omitempty"`
 	RetryInterval   time.Duration `mapstructure:"retry-interval,omitempty"`
 	NumWorkers      int           `mapstructure:"num-workers,omitempty"`
+	EnableMetrics   bool          `mapstructure:"enable-metrics,omitempty"`
 	EventProcessors []string      `mapstructure:"event-processors,omitempty"`
 }
 
 func (t *TCPOutput) SetLogger(logger *log.Logger) {
-	if logger != nil {
-		t.logger = log.New(logger.Writer(), "tcp_output ", logger.Flags())
-		return
+	if logger != nil && t.logger != nil {
+		t.logger.SetOutput(logger.Writer())
+		t.logger.SetFlags(logger.Flags())
 	}
-	t.logger = log.New(os.Stderr, "tcp_output ", log.LstdFlags|log.Lmicroseconds)
 }
 
 func (t *TCPOutput) SetEventProcessors(ps map[string]map[string]interface{}, log *log.Logger) {
@@ -138,7 +140,7 @@ func (t *TCPOutput) Close() error {
 	}
 	return nil
 }
-func (t *TCPOutput) Metrics() []prometheus.Collector { return nil }
+func (t *TCPOutput) RegisterMetrics(reg *prometheus.Registry) {}
 func (t *TCPOutput) String() string {
 	b, err := json.Marshal(t)
 	if err != nil {

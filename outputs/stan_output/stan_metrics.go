@@ -36,3 +36,21 @@ func initMetrics() {
 	StanNumberOfFailSendMsgs.WithLabelValues("", "").Add(0)
 	StanSendDuration.WithLabelValues("").Set(0)
 }
+
+func registerMetrics(reg *prometheus.Registry) error {
+	initMetrics()
+	var err error
+	if err = reg.Register(StanNumberOfSentMsgs); err != nil {
+		return err
+	}
+	if err = reg.Register(StanNumberOfSentBytes); err != nil {
+		return err
+	}
+	if err = reg.Register(StanNumberOfFailSendMsgs); err != nil {
+		return err
+	}
+	if err = reg.Register(StanSendDuration); err != nil {
+		return err
+	}
+	return nil
+}
