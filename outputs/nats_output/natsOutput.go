@@ -170,11 +170,15 @@ func (n *NatsOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.
 	if rsp == nil || n.mo == nil {
 		return
 	}
+
+	wctx, cancel := context.WithTimeout(ctx, n.Cfg.WriteTimeout)
+	defer cancel()
+
 	select {
 	case <-ctx.Done():
 		return
 	case n.msgChan <- &protoMsg{m: rsp, meta: meta}:
-	case <-time.After(n.Cfg.WriteTimeout):
+	case <-wctx.Done():
 		if n.Cfg.Debug {
 			n.logger.Printf("writing expired after %s, NATS output might not be initialized", n.Cfg.WriteTimeout)
 		}
