@@ -6,11 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"io/ioutil"
 	"log"
 	"math"
 	"net"
 	"net/http"
-	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -34,6 +34,7 @@ const (
 	defaultExpiration = time.Minute
 	defaultMetricHelp = "gNMIc generated metric"
 	metricNameRegex   = "[^a-zA-Z0-9_]+"
+	loggingPrefix     = "prometheus_output "
 )
 
 type labelPair struct {
@@ -58,13 +59,13 @@ func init() {
 			wg:          new(sync.WaitGroup),
 			entries:     make(map[uint64]*promMetric),
 			metricRegex: regexp.MustCompile(metricNameRegex),
+			logger:      log.New(ioutil.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
 		}
 	})
 }
 
 type PrometheusOutput struct {
 	Cfg       *Config
-	metrics   []prometheus.Collector
 	logger    *log.Logger
 	eventChan chan *formatters.EventMsg
 
@@ -95,12 +96,12 @@ func (p *PrometheusOutput) String() string {
 	}
 	return string(b)
 }
+
 func (p *PrometheusOutput) SetLogger(logger *log.Logger) {
-	if logger != nil {
-		p.logger = log.New(logger.Writer(), "prometheus_output ", logger.Flags())
-		return
+	if logger != nil && p.logger != nil {
+		p.logger.SetOutput(logger.Writer())
+		p.logger.SetFlags(logger.Flags())
 	}
-	p.logger = log.New(os.Stderr, "prometheus_output ", log.LstdFlags|log.Lmicroseconds)
 }
 
 func (p *PrometheusOutput) SetEventProcessors(ps map[string]map[string]interface{}, log *log.Logger) {
@@ -225,7 +226,7 @@ func (p *PrometheusOutput) Close() error {
 	return nil
 }
 
-func (p *PrometheusOutput) Metrics() []prometheus.Collector { return p.metrics }
+func (p *PrometheusOutput) RegisterMetrics(reg *prometheus.Registry) {}
 
 // Describe implements prometheus.Collector
 func (p *PrometheusOutput) Describe(ch chan<- *prometheus.Desc) {}

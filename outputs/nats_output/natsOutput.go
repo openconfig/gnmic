@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -26,13 +26,15 @@ const (
 	defaultFormat           = "json"
 	defaultNumWorkers       = 1
 	defaultWriteTimeout     = 10 * time.Second
+	loggingPrefix           = "nats_output "
 )
 
 func init() {
 	outputs.Register("nats", func() outputs.Output {
 		return &NatsOutput{
-			Cfg: &Config{},
-			wg:  new(sync.WaitGroup),
+			Cfg:    &Config{},
+			wg:     new(sync.WaitGroup),
+			logger: log.New(ioutil.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
 		}
 	})
 }
@@ -67,6 +69,7 @@ type Config struct {
 	NumWorkers      int           `mapstructure:"num-workers,omitempty"`
 	WriteTimeout    time.Duration `mapstructure:"write-timeout,omitempty"`
 	Debug           bool          `mapstructure:"debug,omitempty"`
+	EnableMetrics   bool          `mapstructure:"enable-metrics,omitempty"`
 	EventProcessors []string      `mapstructure:"event-processors,omitempty"`
 }
 
@@ -78,11 +81,10 @@ func (n *NatsOutput) String() string {
 	return string(b)
 }
 func (n *NatsOutput) SetLogger(logger *log.Logger) {
-	if logger != nil {
-		n.logger = log.New(logger.Writer(), "nats_output ", logger.Flags())
-		return
+	if logger != nil && n.logger != nil {
+		n.logger.SetOutput(logger.Writer())
+		n.logger.SetFlags(logger.Flags())
 	}
-	n.logger = log.New(os.Stderr, "nats_output ", log.LstdFlags|log.Lmicroseconds)
 }
 
 func (n *NatsOutput) SetEventProcessors(ps map[string]map[string]interface{}, log *log.Logger) {
@@ -176,7 +178,9 @@ func (n *NatsOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.
 		if n.Cfg.Debug {
 			n.logger.Printf("writing expired after %s, NATS output might not be initialized", n.Cfg.WriteTimeout)
 		}
-		NatsNumberOfFailSendMsgs.WithLabelValues(n.Cfg.Name, "timeout").Inc()
+		if n.Cfg.EnableMetrics {
+			NatsNumberOfFailSendMsgs.WithLabelValues(n.Cfg.Name, "timeout").Inc()
+		}
 		return
 	}
 }
@@ -190,12 +194,12 @@ func (n *NatsOutput) Close() error {
 }
 
 // Metrics //
-func (n *NatsOutput) Metrics() []prometheus.Collector {
-	return []prometheus.Collector{
-		NatsNumberOfSentMsgs,
-		NatsNumberOfSentBytes,
-		NatsNumberOfFailSendMsgs,
-		NatsSendDuration,
+func (n *NatsOutput) RegisterMetrics(reg *prometheus.Registry) {
+	if !n.Cfg.EnableMetrics {
+		return
+	}
+	if err := registerMetrics(reg); err != nil {
+		n.logger.Printf("failed to register metric: %+v", err)
 	}
 }
 
@@ -278,24 +282,33 @@ CRCONN:
 				if n.Cfg.Debug {
 					n.logger.Printf("%s failed marshaling proto msg: %v", workerLogPrefix, err)
 				}
-				NatsNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "marshal_error").Inc()
+				if n.Cfg.EnableMetrics {
+					NatsNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "marshal_error").Inc()
+				}
 				continue
 			}
 			subject := n.subjectName(cfg, m.meta)
-			start := time.Now()
+			var start time.Time
+			if n.Cfg.EnableMetrics {
+				start = time.Now()
+			}
 			err = natsConn.Publish(subject, b)
 			if err != nil {
 				if n.Cfg.Debug {
 					n.logger.Printf("%s failed to write to nats subject '%s': %v", workerLogPrefix, subject, err)
 				}
-				NatsNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "publish_error").Inc()
+				if n.Cfg.EnableMetrics {
+					NatsNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "publish_error").Inc()
+				}
 				natsConn.Close()
 				time.Sleep(cfg.ConnectTimeWait)
 				goto CRCONN
 			}
-			NatsSendDuration.WithLabelValues(cfg.Name).Set(float64(time.Since(start).Nanoseconds()))
-			NatsNumberOfSentMsgs.WithLabelValues(cfg.Name, subject).Inc()
-			NatsNumberOfSentBytes.WithLabelValues(cfg.Name, subject).Add(float64(len(b)))
+			if n.Cfg.EnableMetrics {
+				NatsSendDuration.WithLabelValues(cfg.Name).Set(float64(time.Since(start).Nanoseconds()))
+				NatsNumberOfSentMsgs.WithLabelValues(cfg.Name, subject).Inc()
+				NatsNumberOfSentBytes.WithLabelValues(cfg.Name, subject).Add(float64(len(b)))
+			}
 		}
 	}
 }

@@ -36,3 +36,21 @@ func initMetrics() {
 	NatsNumberOfFailSendMsgs.WithLabelValues("", "").Add(0)
 	NatsSendDuration.WithLabelValues("").Set(0)
 }
+
+func registerMetrics(reg *prometheus.Registry) error {
+	initMetrics()
+	var err error
+	if err = reg.Register(NatsNumberOfSentMsgs); err != nil {
+		return err
+	}
+	if err = reg.Register(NatsNumberOfSentBytes); err != nil {
+		return err
+	}
+	if err = reg.Register(NatsNumberOfFailSendMsgs); err != nil {
+		return err
+	}
+	if err = reg.Register(NatsSendDuration); err != nil {
+		return err
+	}
+	return nil
+}

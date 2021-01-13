@@ -36,3 +36,21 @@ func initMetrics() {
 	KafkaNumberOfFailSendMsgs.WithLabelValues("", "").Add(0)
 	KafkaSendDuration.WithLabelValues("").Set(0)
 }
+
+func registerMetrics(reg *prometheus.Registry) error {
+	initMetrics()
+	var err error
+	if err = reg.Register(KafkaNumberOfSentMsgs); err != nil {
+		return err
+	}
+	if err = reg.Register(KafkaNumberOfSentBytes); err != nil {
+		return err
+	}
+	if err = reg.Register(KafkaNumberOfFailSendMsgs); err != nil {
+		return err
+	}
+	if err = reg.Register(KafkaSendDuration); err != nil {
+		return err
+	}
+	return nil
+}

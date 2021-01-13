@@ -206,16 +206,12 @@ func (c *Collector) InitOutput(ctx context.Context, name string) {
 			c.logger.Printf("starting output type %s", outType)
 			if initializer, ok := outputs.Outputs[outType.(string)]; ok {
 				out := initializer()
-				if c.reg != nil {
-					for _, m := range out.Metrics() {
-						err := c.reg.Register(m)
-						if err != nil {
-							c.logger.Printf("failed to register output '%s' metric : %v", name, err)
-						}
-					}
-				}
 				go func() {
-					err := out.Init(ctx, cfg, outputs.WithLogger(c.logger), outputs.WithEventProcessors(c.EventProcessorsConfig, c.logger))
+					err := out.Init(ctx, cfg,
+						outputs.WithLogger(c.logger),
+						outputs.WithEventProcessors(c.EventProcessorsConfig, c.logger),
+						outputs.WithRegister(c.reg),
+					)
 					if err != nil {
 						c.logger.Printf("failed to init output type %q: %v", outType, err)
 					}

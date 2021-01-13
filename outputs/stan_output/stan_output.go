@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -30,13 +30,16 @@ const (
 	defaultRecoveryWaitTime = 2 * time.Second
 	defaultNumWorkers       = 1
 	defaultWriteTimeout     = 10 * time.Second
+
+	loggingPrefix = "stan_output "
 )
 
 func init() {
 	outputs.Register("stan", func() outputs.Output {
 		return &StanOutput{
-			Cfg: &Config{},
-			wg:  new(sync.WaitGroup),
+			Cfg:    &Config{},
+			wg:     new(sync.WaitGroup),
+			logger: log.New(ioutil.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
 		}
 	})
 }
@@ -73,6 +76,7 @@ type Config struct {
 	NumWorkers       int           `mapstructure:"num-workers,omitempty"`
 	Debug            bool          `mapstructure:"debug,omitempty"`
 	WriteTimeout     time.Duration `mapstructure:"write-timeout,omitempty"`
+	EnableMetrics    bool          `mapstructure:"enable-metrics,omitempty"`
 	EventProcessors  []string      `mapstructure:"event-processors,omitempty"`
 }
 
@@ -85,11 +89,10 @@ func (s *StanOutput) String() string {
 }
 
 func (s *StanOutput) SetLogger(logger *log.Logger) {
-	if logger != nil {
-		s.logger = log.New(logger.Writer(), "stan_output ", logger.Flags())
-		return
+	if logger != nil && s.logger != nil {
+		s.logger.SetOutput(logger.Writer())
+		s.logger.SetFlags(logger.Flags())
 	}
-	s.logger = log.New(os.Stderr, "stan_output ", log.LstdFlags|log.Lmicroseconds)
 }
 
 func (s *StanOutput) SetEventProcessors(ps map[string]map[string]interface{}, log *log.Logger) {
@@ -128,7 +131,7 @@ func (s *StanOutput) Init(ctx context.Context, cfg map[string]interface{}, opts 
 		opt(s)
 	}
 	s.msgChan = make(chan *protoMsg)
-	initMetrics()
+
 	s.mo = &formatters.MarshalOptions{Format: s.Cfg.Format}
 	ctx, s.cancelFn = context.WithCancel(ctx)
 	s.wg.Add(s.Cfg.NumWorkers)
@@ -192,20 +195,22 @@ func (s *StanOutput) Write(ctx context.Context, rsp protoreflect.ProtoMessage, m
 	case s.msgChan <- &protoMsg{m: rsp, meta: meta}:
 	case <-time.After(s.Cfg.WriteTimeout):
 		if s.Cfg.Debug {
-			s.logger.Printf("writing expired after %s, NATS output might not be initialized", s.Cfg.WriteTimeout)
+			s.logger.Printf("writing expired after %s, STAN output might not be initialized", s.Cfg.WriteTimeout)
 		}
-		StanNumberOfFailSendMsgs.WithLabelValues(s.Cfg.Name, "timeout").Inc()
+		if s.Cfg.EnableMetrics {
+			StanNumberOfFailSendMsgs.WithLabelValues(s.Cfg.Name, "timeout").Inc()
+		}
 		return
 	}
 }
 
 // Metrics //
-func (s *StanOutput) Metrics() []prometheus.Collector {
-	return []prometheus.Collector{
-		StanNumberOfSentMsgs,
-		StanNumberOfSentBytes,
-		StanNumberOfFailSendMsgs,
-		StanSendDuration,
+func (s *StanOutput) RegisterMetrics(reg *prometheus.Registry) {
+	if !s.Cfg.EnableMetrics {
+		return
+	}
+	if err := registerMetrics(reg); err != nil {
+		s.logger.Printf("failed to register metric: %+v", err)
 	}
 }
 
@@ -275,7 +280,9 @@ CRCONN:
 				if s.Cfg.Debug {
 					s.logger.Printf("%s failed marshaling proto msg: %v", workerLogPrefix, err)
 				}
-				StanNumberOfFailSendMsgs.WithLabelValues(c.Name, "marshal_error").Inc()
+				if s.Cfg.EnableMetrics {
+					StanNumberOfFailSendMsgs.WithLabelValues(c.Name, "marshal_error").Inc()
+				}
 				continue
 			}
 			subject := s.subjectName(c, m.meta)
@@ -285,15 +292,19 @@ CRCONN:
 				if s.Cfg.Debug {
 					s.logger.Printf("%s failed to write to STAN subject %q: %v", workerLogPrefix, subject, err)
 				}
-				StanNumberOfFailSendMsgs.WithLabelValues(c.Name, "publish_error").Inc()
+				if s.Cfg.EnableMetrics {
+					StanNumberOfFailSendMsgs.WithLabelValues(c.Name, "publish_error").Inc()
+				}
 				stanConn.Close()
 				stanConn.NatsConn().Close()
 				time.Sleep(c.RecoveryWaitTime)
 				goto CRCONN
 			}
-			StanSendDuration.WithLabelValues(c.Name).Set(float64(time.Since(start).Nanoseconds()))
-			StanNumberOfSentMsgs.WithLabelValues(c.Name, subject).Inc()
-			StanNumberOfSentBytes.WithLabelValues(c.Name, subject).Add(float64(len(b)))
+			if s.Cfg.EnableMetrics {
+				StanSendDuration.WithLabelValues(c.Name).Set(float64(time.Since(start).Nanoseconds()))
+				StanNumberOfSentMsgs.WithLabelValues(c.Name, subject).Inc()
+				StanNumberOfSentBytes.WithLabelValues(c.Name, subject).Add(float64(len(b)))
+			}
 		}
 	}
 }

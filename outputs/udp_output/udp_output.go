@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
-	"os"
 	"time"
 
 	"github.com/karimra/gnmic/formatters"
@@ -15,12 +15,16 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-const defaultRetryTimer = 2 * time.Second
+const (
+	defaultRetryTimer = 2 * time.Second
+	loggingPrefix     = "udp_output "
+)
 
 func init() {
 	outputs.Register("udp", func() outputs.Output {
 		return &UDPSock{
-			Cfg: &Config{},
+			Cfg:    &Config{},
+			logger: log.New(ioutil.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
 		}
 	})
 }
@@ -43,15 +47,15 @@ type Config struct {
 	BufferSize      uint          `mapstructure:"buffer-size,omitempty"`
 	Format          string        `mapstructure:"format,omitempty"`
 	RetryInterval   time.Duration `mapstructure:"retry-interval,omitempty"`
+	EnableMetrics   bool          `mapstructure:"enable-metrics,omitempty"`
 	EventProcessors []string      `mapstructure:"event-processors,omitempty"`
 }
 
 func (u *UDPSock) SetLogger(logger *log.Logger) {
-	if logger != nil {
-		u.logger = log.New(logger.Writer(), "udp_output ", logger.Flags())
-		return
+	if logger != nil && u.logger != nil {
+		u.logger.SetOutput(logger.Writer())
+		u.logger.SetFlags(logger.Flags())
 	}
-	u.logger = log.New(os.Stderr, "udp_output ", log.LstdFlags|log.Lmicroseconds)
 }
 
 func (u *UDPSock) SetEventProcessors(ps map[string]map[string]interface{}, log *log.Logger) {
@@ -125,7 +129,7 @@ func (u *UDPSock) Close() error {
 	}
 	return nil
 }
-func (u *UDPSock) Metrics() []prometheus.Collector { return nil }
+func (u *UDPSock) RegisterMetrics(reg *prometheus.Registry) {}
 
 func (u *UDPSock) String() string {
 	b, err := json.Marshal(u)

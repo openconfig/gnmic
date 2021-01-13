@@ -14,7 +14,7 @@ type Output interface {
 	Init(context.Context, map[string]interface{}, ...Option) error
 	Write(context.Context, proto.Message, Meta)
 	Close() error
-	Metrics() []prometheus.Collector
+	RegisterMetrics(*prometheus.Registry)
 	String() string
 	SetLogger(*log.Logger)
 	SetEventProcessors(map[string]map[string]interface{}, *log.Logger)
@@ -65,5 +65,11 @@ func WithLogger(logger *log.Logger) Option {
 func WithEventProcessors(eps map[string]map[string]interface{}, log *log.Logger) Option {
 	return func(o Output) {
 		o.SetEventProcessors(eps, log)
+	}
+}
+
+func WithRegister(reg *prometheus.Registry) Option {
+	return func(o Output) {
+		o.RegisterMetrics(reg)
 	}
 }
