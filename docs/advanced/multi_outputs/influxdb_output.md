@@ -16,6 +16,8 @@ outputs:
     enable-tls: false
     health-check-period: 30s # server health check period, used to recover from server connectivity failure
     debug: false # enable debug
+    enable-metrics: false # NOT IMPLEMENTED boolean, enables the collection and export (via prometheus) of output specific metrics
+    event-processors: # list of processors to apply on the mesage before writing
 ```
 
 `gnmic` uses the [`event`](../output_intro#formats-examples) format to generate the measurements written to influxdb

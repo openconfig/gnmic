@@ -20,7 +20,8 @@ outputs:
     num-workers: 1 # integer, number of nats publishers to be created
     debug: false # boolean, enables extra logging for the STAN output
     write-timeout: 10s # duration after which a message waiting to be handled by a worker gets discarded
-    event-processors: # list of event-processors names to apply on the received messages
+    enable-metrics: false # boolean, enables the collection and export (via prometheus) of output specific metrics
+    event-processors: # list of processors to apply on the mesage before writing
 ```
 
 Using `subject` config value a user can specify the STAN subject to which to send all subscriptions updates for all targets
