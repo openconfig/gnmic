@@ -189,11 +189,14 @@ func (s *StanOutput) Write(ctx context.Context, rsp protoreflect.ProtoMessage, m
 		return
 	}
 
+	wctx, cancel := context.WithTimeout(ctx, s.Cfg.WriteTimeout)
+	defer cancel()
+
 	select {
 	case <-ctx.Done():
 		return
 	case s.msgChan <- &protoMsg{m: rsp, meta: meta}:
-	case <-time.After(s.Cfg.WriteTimeout):
+	case <-wctx.Done():
 		if s.Cfg.Debug {
 			s.logger.Printf("writing expired after %s, STAN output might not be initialized", s.Cfg.WriteTimeout)
 		}

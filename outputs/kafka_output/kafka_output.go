@@ -177,11 +177,15 @@ func (k *KafkaOutput) Write(ctx context.Context, rsp proto.Message, meta outputs
 	if rsp == nil {
 		return
 	}
+
+	wctx, cancel := context.WithTimeout(ctx, k.Cfg.Timeout)
+	defer cancel()
+
 	select {
 	case <-ctx.Done():
 		return
 	case k.msgChan <- &protoMsg{m: rsp, meta: meta}:
-	case <-time.After(k.Cfg.Timeout):
+	case <-wctx.Done():
 		if k.Cfg.Debug {
 			k.logger.Printf("writing expired after %s, Kafka output might not be initialized", k.Cfg.Timeout)
 		}
