@@ -54,6 +54,7 @@ type Config struct {
 	EventProcessors  []string `mapstructure:"event-processors,omitempty"`
 	ConcurrencyLimit int      `mapstructure:"concurrency-limit,omitempty"`
 	EnableMetrics    bool     `mapstructure:"enable-metrics,omitempty"`
+	Debug            bool     `mapstructure:"debug,omitempty"`
 }
 
 func (f *File) String() string {
@@ -154,29 +155,34 @@ func (f *File) Init(ctx context.Context, cfg map[string]interface{}, opts ...out
 
 // Write //
 func (f *File) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) {
+	if rsp == nil {
+		return
+	}
 	err := f.sem.Acquire(ctx, 1)
 	if errors.Is(err, context.Canceled) {
 		return
 	}
-
 	if err != nil {
-		f.logger.Printf("failed marshaling proto msg: %v", err)
+		f.logger.Printf("failed acquiring semaphore: %v", err)
 		return
 	}
 	defer f.sem.Release(1)
 
-	if rsp == nil {
-		return
-	}
 	NumberOfReceivedMsgs.WithLabelValues(f.file.Name()).Inc()
 	b, err := f.mo.Marshal(rsp, meta, f.evps...)
 	if err != nil {
-		f.logger.Printf("failed marshaling proto msg: %v", err)
+		if f.Cfg.Debug {
+			f.logger.Printf("failed marshaling proto msg: %v", err)
+		}
+		NumberOfFailWriteMsgs.WithLabelValues(f.file.Name(), "marshal_error").Inc()
 		return
 	}
 	n, err := f.file.Write(append(b, []byte(f.Cfg.Separator)...))
 	if err != nil {
-		f.logger.Printf("failed to write to file '%s': %v", f.file.Name(), err)
+		if f.Cfg.Debug {
+			f.logger.Printf("failed to write to file '%s': %v", f.file.Name(), err)
+		}
+		NumberOfFailWriteMsgs.WithLabelValues(f.file.Name(), "write_error").Inc()
 		return
 	}
 	NumberOfWrittenBytes.WithLabelValues(f.file.Name()).Add(float64(n))
@@ -190,4 +196,11 @@ func (f *File) Close() error {
 }
 
 // Metrics //
-func (f *File) RegisterMetrics(reg *prometheus.Registry) {}
+func (f *File) RegisterMetrics(reg *prometheus.Registry) {
+	if !f.Cfg.EnableMetrics {
+		return
+	}
+	if err := registerMetrics(reg); err != nil {
+		f.logger.Printf("failed to register metric: %v", err)
+	}
+}

@@ -13,7 +13,7 @@ outputs:
     keep-alive: # enable TCP keepalive and specify the timer, e.g: 1s, 30s
     retry-interval: # time duration to wait before re-dial in case there is a failure
     enable-metrics: false # NOT IMPLEMENTED boolean, enables the collection and export (via prometheus) of output specific metrics
-    event-processors: # list of processors to apply on the mesage before writing
+    event-processors: # list of processors to apply on the message before writing
 ```
 
 A TCP output can be used to export data to an ELK stack, using [Logstash TCP input](https://www.elastic.co/guide/en/logstash/current/plugins-inputs-tcp.html)

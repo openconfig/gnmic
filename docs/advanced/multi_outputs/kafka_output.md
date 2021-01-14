@@ -16,7 +16,7 @@ outputs:
     debug: # (bool) enable debug
     buffer-size: # (int) number of messages to buffer before being picked up by the workers
     enable-metrics: false # boolean, enables the collection and export (via prometheus) of output specific metrics
-    event-processors: # list of processors to apply on the mesage before writing
+    event-processors: # list of processors to apply on the message before writing
 ```
 
 Currently all subscriptions updates (all targets and all subscriptions) are published to the defined topic name

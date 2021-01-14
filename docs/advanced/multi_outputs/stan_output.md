@@ -16,12 +16,12 @@ outputs:
     ping-interval: # STAN ping interval
     ping-retry: # STAN ping retry
     format:  json # string, message marshaling format, one of: proto, prototext, protojson, json, event
-    recovery-wait-time: 2s # duration to wait before re establishing a lost conneciton to a stan server
+    recovery-wait-time: 2s # duration to wait before re establishing a lost connection to a stan server
     num-workers: 1 # integer, number of nats publishers to be created
     debug: false # boolean, enables extra logging for the STAN output
     write-timeout: 10s # duration after which a message waiting to be handled by a worker gets discarded
     enable-metrics: false # boolean, enables the collection and export (via prometheus) of output specific metrics
-    event-processors: # list of processors to apply on the mesage before writing
+    event-processors: # list of processors to apply on the message before writing
 ```
 
 Using `subject` config value a user can specify the STAN subject to which to send all subscriptions updates for all targets

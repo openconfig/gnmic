@@ -22,7 +22,7 @@ Some common use cases:
 
 The event format is produced by `gNMIc` from the [gNMI Notification messages](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#21-reusable-notification-message-format) received within a gNMI subscribe response update, it contains 5 fields:
 
-* `name`: A `string` field populated by the subscription name, it is used as the measurment name in case of influxdb output or as a part of the metric name in case of prometheus output.
+* `name`: A `string` field populated by the subscription name, it is used as the measurement name in case of influxdb output or as a part of the metric name in case of prometheus output.
 * `timestamp`: An `int64` field containing the timestamp received within the gnmi Update.
 * `tags`: A map of string keys and string values. 
 The keys and values are extracted from the keys in the [gNMI PathElement](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-path-conventions.md#constructing-paths) keys. `gNMIc` adds the subscription name and the target name/address.
@@ -59,7 +59,7 @@ processors:
 
 Once the needed event processors are defined under section `processors`, they can be linked to the desired output(s) in the same file.
 
-Each output can be configured with different event processors allowing flexiblity in the way the same data is written to different outputs.
+Each output can be configured with different event processors allowing flexibility in the way the same data is written to different outputs.
 
 A list of event processors names can be added under an output configuration, the processors will apply in the order they are configured.
 

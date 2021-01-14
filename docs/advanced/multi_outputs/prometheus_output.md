@@ -52,7 +52,7 @@ gnmic_port_stats_interfaces_interface_subinterfaces_subinterface_state_counters_
 ```
 
 ### Metric Labels
-The metrics labels are generated from the subscripion metadata (e.g: `subscription-name` and `source`) and the keys present in the gNMI path elements.
+The metrics labels are generated from the subscription metadata (e.g: `subscription-name` and `source`) and the keys present in the gNMI path elements.
 
 For the previous example the labels would be: 
 

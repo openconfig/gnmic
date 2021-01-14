@@ -43,8 +43,8 @@ processors:
             apply-on: # apply the transformation on name or value
         - split:
             apply-on: # apply the transformation on name or value
-            split-on: # charachter to split on
-            join-with: # charachter to join with
+            split-on: # character to split on
+            join-with: # character to join with
             ignore-first: # number of first items to ignore when joining
             ignore-last: # number of last items to ignore when joining
         - path-base:
