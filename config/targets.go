@@ -13,6 +13,8 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
+var ErrNoTargetsFound = errors.New("no targets found")
+
 func (c *Config) GetTargets() (map[string]*collector.TargetConfig, error) {
 	targets := make(map[string]*collector.TargetConfig)
 	defGrpcPort := c.FileConfig.GetString("port")
@@ -66,12 +68,12 @@ func (c *Config) GetTargets() (map[string]*collector.TargetConfig, error) {
 	case map[string]interface{}:
 		targetsMap = targetsInt
 	case nil:
-		return nil, errors.New("no targets found")
+		return nil, ErrNoTargetsFound
 	default:
 		return nil, fmt.Errorf("unexpected targets format, got: %T", targetsInt)
 	}
 	if len(targetsMap) == 0 {
-		return nil, fmt.Errorf("no targets found")
+		return nil, ErrNoTargetsFound
 	}
 	for addr, t := range targetsMap {
 		if !strings.HasPrefix(addr, "unix://") {

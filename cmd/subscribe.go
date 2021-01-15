@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/config"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/manifoldco/promptui"
 	"github.com/openconfig/gnmi/proto/gnmi"
@@ -82,7 +83,7 @@ func initSubscribeFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVarP(&cli.config.LocalFlags.SubscribeUpdatesOnly, "updates-only", "", false, "only updates to current state should be sent")
 	cmd.Flags().StringVarP(&cli.config.LocalFlags.SubscribeMode, "mode", "", "stream", "one of: once, stream, poll")
 	cmd.Flags().StringVarP(&cli.config.LocalFlags.SubscribeStreamMode, "stream-mode", "", "target-defined", "one of: on-change, sample, target-defined")
-	cmd.Flags().DurationVarP(&cli.config.LocalFlags.SubscribeSampleInteral, "sample-interval", "i", 0,
+	cmd.Flags().DurationVarP(&cli.config.LocalFlags.SubscribeSampleInterval, "sample-interval", "i", 0,
 		"sample interval as a decimal number and a suffix unit, such as \"10s\" or \"1m30s\"")
 	cmd.Flags().BoolVarP(&cli.config.LocalFlags.SubscribeSuppressRedundant, "suppress-redundant", "", false, "suppress redundant update if the subscribed value didn't not change")
 	cmd.Flags().DurationVarP(&cli.config.LocalFlags.SubscribeHeartbearInterval, "heartbeat-interval", "", 0, "heartbeat interval in case suppress-redundant is enabled")
@@ -91,6 +92,7 @@ func initSubscribeFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&cli.config.LocalFlags.SubscribeTarget, "target", "", "", "subscribe request target")
 	cmd.Flags().StringSliceVarP(&cli.config.LocalFlags.SubscribeName, "name", "n", []string{}, "reference subscriptions by name, must be defined in gnmic config file")
 	cmd.Flags().StringSliceVarP(&cli.config.LocalFlags.SubscribeOutput, "output", "", []string{}, "reference to output groups by name, must be defined in gnmic config file")
+	cmd.Flags().BoolVarP(&cli.config.LocalFlags.SubscribeWatchConfig, "watch-config", "", false, "watch configuration changes, add or delete subscribe targets accordingly")
 	//
 	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
 		cli.config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
@@ -101,7 +103,8 @@ func (c *CLI) subscribeRunE(cmd *cobra.Command, args []string) error {
 	gctx, gcancel = context.WithCancel(context.Background())
 	setupCloseHandler(gcancel)
 	targetsConfig, err := c.config.GetTargets()
-	if err != nil {
+	if (errors.Is(err, config.ErrNoTargetsFound) && !c.config.LocalFlags.SubscribeWatchConfig) ||
+		(!errors.Is(err, config.ErrNoTargetsFound) && err != nil) {
 		return fmt.Errorf("failed getting targets config: %v", err)
 	}
 
@@ -234,6 +237,9 @@ func (c *CLI) subscribeRunE(cmd *cobra.Command, args []string) error {
 				}
 			}
 		}()
+	}
+	if c.config.LocalFlags.SubscribeWatchConfig {
+		go c.watchConfig()
 	}
 
 	if cli.promptMode {
