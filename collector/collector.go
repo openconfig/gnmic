@@ -335,12 +335,6 @@ func (c *Collector) Start(ctx context.Context) {
 		}
 	}()
 
-	go func() {
-		for _, t := range c.Targets {
-			c.targetsChan <- t
-		}
-	}()
-
 	for t := range c.targetsChan {
 		c.logger.Printf("starting target %q listener", t.Config.Name)
 		go func(t *Target) {
