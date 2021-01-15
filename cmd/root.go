@@ -447,17 +447,6 @@ func (c *CLI) loadTargets(e fsnotify.Event) {
 	defer c.m.Unlock()
 	switch e.Op {
 	case fsnotify.Write, fsnotify.Create:
-		err := c.config.FileConfig.ReadInConfig()
-		if err != nil {
-			c.logger.Printf("failed reading new config: %v", err)
-			return
-		}
-
-		err = c.config.FileConfig.Unmarshal(c.config.FileConfig)
-		if err != nil {
-			c.logger.Printf("failed to unmarshal new config: %v", err)
-			return
-		}
 		newTargets, err := c.config.GetTargets()
 		if err != nil && !errors.Is(err, config.ErrNoTargetsFound) {
 			c.logger.Printf("failed getting targets from new config: %v", err)
