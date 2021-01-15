@@ -104,21 +104,21 @@ func (tc *TargetConfig) newTLS() (*tls.Config, error) {
 
 // CreateGNMIClient //
 func (t *Target) CreateGNMIClient(ctx context.Context, opts ...grpc.DialOption) error {
-	if opts == nil {
-		opts = []grpc.DialOption{}
-	}
+	tOpts := make([]grpc.DialOption, 0, len(opts)+1)
+	tOpts = append(tOpts, opts...)
+
 	if *t.Config.Insecure {
-		opts = append(opts, grpc.WithInsecure())
+		tOpts = append(tOpts, grpc.WithInsecure())
 	} else {
 		tlsConfig, err := t.Config.newTLS()
 		if err != nil {
 			return err
 		}
-		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+		tOpts = append(tOpts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	}
 	timeoutCtx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 	defer cancel()
-	conn, err := grpc.DialContext(timeoutCtx, t.Config.Address, opts...)
+	conn, err := grpc.DialContext(timeoutCtx, t.Config.Address, tOpts...)
 	if err != nil {
 		return err
 	}
