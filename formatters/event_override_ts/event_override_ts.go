@@ -14,7 +14,7 @@ const (
 	processorType = "event-override-ts"
 )
 
-// OverrideTS Drops the msg if ANY of the Tags or Values regexes are matched
+// OverrideTS Overrides the message timestamp with the local time
 type OverrideTS struct {
 	Precision string `mapstructure:"precision,omitempty" json:"precision,omitempty"`
 	Debug     bool   `mapstructure:"debug,omitempty" json:"debug,omitempty"`
