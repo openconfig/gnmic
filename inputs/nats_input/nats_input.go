@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -25,6 +26,7 @@ const (
 	natsConnectWait         = 2 * time.Second
 	defaultFormat           = "event"
 	defaultSubject          = "telemetry"
+	defaultNumWorkers       = 1
 )
 
 func init() {
@@ -32,6 +34,7 @@ func init() {
 		return &NatsInput{
 			Cfg:    &Config{},
 			logger: log.New(ioutil.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			wg:     new(sync.WaitGroup),
 		}
 	})
 }
@@ -43,6 +46,7 @@ type NatsInput struct {
 	cfn    context.CancelFunc
 	logger *log.Logger
 
+	wg      *sync.WaitGroup
 	outputs []outputs.Output
 }
 
@@ -57,11 +61,12 @@ type Config struct {
 	ConnectTimeWait time.Duration `mapstructure:"connect-time-wait,omitempty"`
 	Format          string        `mapstructure:"format,omitempty"`
 	Debug           bool          `mapstructure:"debug,omitempty"`
+	NumWorkers      int           `mapstructure:"num-workers,omitempty"`
 	Outputs         []string      `mapstructure:"outputs,omitempty"`
 }
 
 // Init //
-func (n *NatsInput) Init(ctx context.Context, cfg map[string]interface{}, opts ...inputs.Option) error {
+func (n *NatsInput) Start(ctx context.Context, cfg map[string]interface{}, opts ...inputs.Option) error {
 	err := outputs.DecodeConfig(cfg, n.Cfg)
 	if err != nil {
 		return err
@@ -75,19 +80,25 @@ func (n *NatsInput) Init(ctx context.Context, cfg map[string]interface{}, opts .
 	}
 	n.ctx, n.cfn = context.WithCancel(ctx)
 	n.logger.Printf("input starting with config: %+v", n.Cfg)
-	go n.Start(ctx)
+	n.wg.Add(n.Cfg.NumWorkers)
+	for i := 0; i < n.Cfg.NumWorkers; i++ {
+		go n.worker(ctx, i)
+	}
 	return nil
 }
 
-// Start //
-func (n *NatsInput) Start(ctx context.Context) {
+func (n *NatsInput) worker(ctx context.Context, idx int) {
 	var nc *nats.Conn
 	var err error
 	var msgChan chan *nats.Msg
+	workerLogPrefix := fmt.Sprintf("worker-%d", idx)
+	n.logger.Printf("%s starting", workerLogPrefix)
+	cfg := *n.Cfg
+	cfg.Name = fmt.Sprintf("%s-%d", cfg.Name, idx)
 START:
-	nc, err = n.createNATSConn(n.Cfg)
+	nc, err = n.createNATSConn(&cfg)
 	if err != nil {
-		n.logger.Printf("failed to create NATS connection: %v", err)
+		n.logger.Printf("%s failed to create NATS connection: %v", workerLogPrefix, err)
 		time.Sleep(n.Cfg.ConnectTimeWait)
 		goto START
 	}
@@ -95,7 +106,7 @@ START:
 	msgChan = make(chan *nats.Msg)
 	sub, err := nc.ChanSubscribe(n.Cfg.Subject, msgChan)
 	if err != nil {
-		n.logger.Printf("failed to create NATS connection: %v", err)
+		n.logger.Printf("%s failed to create NATS connection: %v", workerLogPrefix, err)
 		time.Sleep(n.Cfg.ConnectTimeWait)
 		nc.Close()
 		goto START
@@ -109,7 +120,7 @@ START:
 			return
 		case m, ok := <-msgChan:
 			if !ok {
-				n.logger.Printf("channel closed, retrying...")
+				n.logger.Printf("%s channel closed, retrying...", workerLogPrefix)
 				time.Sleep(n.Cfg.ConnectTimeWait)
 				nc.Close()
 				goto START
@@ -123,10 +134,11 @@ START:
 				evMsgs := make([]*formatters.EventMsg, 1)
 				err = json.Unmarshal(m.Data, &evMsgs)
 				if err != nil {
-					n.logger.Printf("failed to unmarshal event msg: %v", err)
+					if n.Cfg.Debug {
+						n.logger.Printf("%s failed to unmarshal event msg: %v", workerLogPrefix, err)
+					}
 					continue
 				}
-				// TODO: get meta from subject name or not? should be done already in upstream
 				go func() {
 					for _, o := range n.outputs {
 						for _, ev := range evMsgs {
@@ -138,13 +150,20 @@ START:
 				var protoMsg proto.Message
 				err = proto.Unmarshal(m.Data, protoMsg)
 				if err != nil {
-					n.logger.Printf("failed to unmarshal proto msg: %v", err)
+					if n.Cfg.Debug {
+						n.logger.Printf("failed to unmarshal proto msg: %v", err)
+					}
 					continue
 				}
-				// TODO: get meta from subject name
+				meta := outputs.Meta{}
+				subjectSections := strings.SplitN(m.Subject, ".", 3)
+				if len(subjectSections) == 3 {
+					meta["source"] = strings.ReplaceAll(subjectSections[1], "-", ".")
+					meta["subscription-name"] = subjectSections[2]
+				}
 				go func() {
 					for _, o := range n.outputs {
-						o.Write(ctx, protoMsg, nil)
+						o.Write(ctx, protoMsg, meta)
 					}
 				}()
 			}
@@ -156,6 +175,7 @@ START:
 // Close //
 func (n *NatsInput) Close() error {
 	n.cfn()
+	n.wg.Wait()
 	return nil
 }
 
@@ -205,6 +225,9 @@ func (n *NatsInput) setDefaults() error {
 	}
 	if n.Cfg.Queue == "" {
 		n.Cfg.Queue = n.Cfg.Name
+	}
+	if n.Cfg.NumWorkers <= 0 {
+		n.Cfg.NumWorkers = defaultNumWorkers
 	}
 	return nil
 }

@@ -40,12 +40,12 @@ func (c *Collector) InitInput(ctx context.Context, name string, outs ...outputs.
 			if initializer, ok := inputs.Inputs[inputType.(string)]; ok {
 				input := initializer()
 				go func() {
-					err := input.Init(ctx, cfg,
+					err := input.Start(ctx, cfg,
 						inputs.WithLogger(c.logger),
 						inputs.WithOutputs(c.Outputs),
 					)
 					if err != nil {
-						c.logger.Printf("failed to init input type %q: %v", inputType, err)
+						c.logger.Printf("failed to start input type %q: %v", inputType, err)
 					}
 				}()
 				c.Inputs[name] = input

@@ -8,8 +8,7 @@ import (
 )
 
 type Input interface {
-	Init(context.Context, map[string]interface{}, ...Option) error
-	//Start(context.Context)
+	Start(context.Context, map[string]interface{}, ...Option) error
 	Close() error
 	SetLogger(*log.Logger)
 	SetOutputs(map[string]outputs.Output)
