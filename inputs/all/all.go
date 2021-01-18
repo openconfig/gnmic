@@ -1,3 +1,6 @@
 package all
 
-import _ "github.com/karimra/gnmic/inputs/nats_input"
+import (
+	_ "github.com/karimra/gnmic/inputs/nats_input"
+	_ "github.com/karimra/gnmic/inputs/stan_input"
+)
