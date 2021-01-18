@@ -144,7 +144,7 @@ func (p *PrometheusOutput) Init(ctx context.Context, cfg map[string]interface{},
 		p.Cfg.Expiration = defaultExpiration
 	}
 
-	// create prometheus registery
+	// create prometheus registry
 	registry := prometheus.NewRegistry()
 
 	err = registry.Register(p)
@@ -214,7 +214,13 @@ func (p *PrometheusOutput) Write(ctx context.Context, rsp proto.Message, meta ou
 	}
 }
 
-func (p *PrometheusOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {}
+func (p *PrometheusOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {
+	select {
+	case <-ctx.Done():
+		return
+	case p.eventChan <- ev:
+	}
+}
 
 func (p *PrometheusOutput) Close() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

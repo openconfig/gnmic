@@ -57,6 +57,7 @@ type Config struct {
 	ConnectTimeWait time.Duration `mapstructure:"connect-time-wait,omitempty"`
 	Format          string        `mapstructure:"format,omitempty"`
 	Debug           bool          `mapstructure:"debug,omitempty"`
+	Outputs         []string      `mapstructure:"outputs,omitempty"`
 }
 
 // Init //
@@ -73,6 +74,8 @@ func (n *NatsInput) Init(ctx context.Context, cfg map[string]interface{}, opts .
 		opt(n)
 	}
 	n.ctx, n.cfn = context.WithCancel(ctx)
+	n.logger.Printf("input starting with config: %+v", n.Cfg)
+	go n.Start(ctx)
 	return nil
 }
 
@@ -111,25 +114,31 @@ START:
 				nc.Close()
 				goto START
 			}
+			if n.Cfg.Debug {
+				n.logger.Printf("received msg, len=%d, data=%s", len(m.Data), string(m.Data))
+			}
+
 			switch n.Cfg.Format {
 			case "event":
-				evMsg := new(formatters.EventMsg)
-				err = json.Unmarshal(m.Data, evMsg)
+				evMsgs := make([]*formatters.EventMsg, 1)
+				err = json.Unmarshal(m.Data, &evMsgs)
 				if err != nil {
-					n.logger.Printf("failed to unmarshal event msg")
+					n.logger.Printf("failed to unmarshal event msg: %v", err)
 					continue
 				}
 				// TODO: get meta from subject name or not? should be done already in upstream
 				go func() {
 					for _, o := range n.outputs {
-						o.WriteEvent(ctx, evMsg)
+						for _, ev := range evMsgs {
+							o.WriteEvent(ctx, ev)
+						}
 					}
 				}()
 			case "proto":
 				var protoMsg proto.Message
 				err = proto.Unmarshal(m.Data, protoMsg)
 				if err != nil {
-					n.logger.Printf("failed to unmarshal proto msg")
+					n.logger.Printf("failed to unmarshal proto msg: %v", err)
 					continue
 				}
 				// TODO: get meta from subject name
@@ -139,7 +148,7 @@ START:
 					}
 				}()
 			}
-			n.logger.Printf("%s\n", string(m.Data))
+
 		}
 	}
 }
@@ -159,8 +168,18 @@ func (n *NatsInput) SetLogger(logger *log.Logger) {
 }
 
 // SetOutputs //
-func (n *NatsInput) SetOutputs(outs ...outputs.Output) {
-	n.outputs = outs
+func (n *NatsInput) SetOutputs(outs map[string]outputs.Output) {
+	if len(n.Cfg.Outputs) == 0 {
+		for _, o := range outs {
+			n.outputs = append(n.outputs, o)
+		}
+		return
+	}
+	for _, name := range n.Cfg.Outputs {
+		if o, ok := outs[name]; ok {
+			n.outputs = append(n.outputs, o)
+		}
+	}
 }
 
 // helper functions
@@ -172,6 +191,9 @@ func (n *NatsInput) setDefaults() error {
 	if !(strings.ToLower(n.Cfg.Format) == "event" || strings.ToLower(n.Cfg.Format) == "proto") {
 		return fmt.Errorf("unsupported input format")
 	}
+	if n.Cfg.Name == "" {
+		n.Cfg.Name = "gnmic-" + uuid.New().String()
+	}
 	if n.Cfg.Subject == "" {
 		n.Cfg.Subject = defaultSubject
 	}
@@ -182,7 +204,7 @@ func (n *NatsInput) setDefaults() error {
 		n.Cfg.ConnectTimeWait = natsConnectWait
 	}
 	if n.Cfg.Queue == "" {
-		n.Cfg.Queue = fmt.Sprintf("gnmic-nats-%s", uuid.New().String())
+		n.Cfg.Queue = n.Cfg.Name
 	}
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/karimra/gnmic/inputs"
+	_ "github.com/karimra/gnmic/inputs/all"
 )
 
 func (c *Config) GetInputs() (map[string]map[string]interface{}, error) {

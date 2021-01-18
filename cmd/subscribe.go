@@ -102,6 +102,10 @@ func initSubscribeFlags(cmd *cobra.Command) {
 func (c *CLI) subscribeRunE(cmd *cobra.Command, args []string) error {
 	gctx, gcancel = context.WithCancel(context.Background())
 	setupCloseHandler(gcancel)
+	inputsConfig, err := c.config.GetInputs()
+	if err != nil {
+		return fmt.Errorf("failed getting inputs config: %v", err)
+	}
 	targetsConfig, err := c.config.GetTargets()
 	if (errors.Is(err, config.ErrNoTargetsFound) && !c.config.LocalFlags.SubscribeWatchConfig) ||
 		(!errors.Is(err, config.ErrNoTargetsFound) && err != nil) {
@@ -136,6 +140,7 @@ func (c *CLI) subscribeRunE(cmd *cobra.Command, args []string) error {
 			collector.WithOutputs(outs),
 			collector.WithLogger(c.logger),
 			collector.WithEventProcessors(epconfig),
+			collector.WithInputs(inputsConfig),
 		)
 	} else {
 		// prompt mode
@@ -160,7 +165,7 @@ func (c *CLI) subscribeRunE(cmd *cobra.Command, args []string) error {
 	}
 
 	c.collector.InitOutputs(gctx)
-
+	c.collector.InitInputs(gctx)
 	go c.collector.Start(gctx)
 
 	c.wg.Add(len(c.collector.Targets))
