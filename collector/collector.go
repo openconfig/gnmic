@@ -108,12 +108,13 @@ func NewCollector(config *Config, targetConfigs map[string]*TargetConfig, opts .
 	}
 
 	c := &Collector{
-		Config:     config,
-		m:          new(sync.Mutex),
-		Targets:    make(map[string]*Target),
-		Outputs:    make(map[string]outputs.Output),
-		Inputs:     make(map[string]inputs.Input),
-		httpServer: httpServer,
+		Config:      config,
+		m:           new(sync.Mutex),
+		Targets:     make(map[string]*Target),
+		Outputs:     make(map[string]outputs.Output),
+		Inputs:      make(map[string]inputs.Input),
+		httpServer:  httpServer,
+		targetsChan: make(chan *Target),
 	}
 	for _, op := range opts {
 		op(c)
