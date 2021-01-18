@@ -87,6 +87,13 @@ The `[--output]` flag is used to select one or multiple output already defined i
 
 Outputs defined under target take precedence over this flag, see [defining outputs](../advanced/multi_outputs/output_intro.md) and [defining targets](../advanced/multi_targets)
 
+#### watch-config
+The `[--watch-config]` flag is used to enable automatic target loading from the configuration source at runtime. 
+
+On each configuration change, gnmic reloads the list of targets, subscribes to new targets and/or deletes subscriptions to the deleted ones.
+
+Only addition and deletion of targets are currently supported, changes in an existing target config are not possible.
+
 ### Examples
 #### 1. streaming, target-defined, 10s interval
 ```bash

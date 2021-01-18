@@ -41,6 +41,7 @@ type Target struct {
 	pollChan           chan string // subscription name to be polled
 	subscribeResponses chan *SubscribeResponse
 	errors             chan *TargetError
+	stopChan           chan struct{}
 }
 
 // TargetConfig //
@@ -83,6 +84,7 @@ func NewTarget(c *TargetConfig) *Target {
 		pollChan:           make(chan string),
 		subscribeResponses: make(chan *SubscribeResponse, c.BufferSize),
 		errors:             make(chan *TargetError),
+		stopChan:           make(chan struct{}),
 	}
 	return t
 }
@@ -189,6 +191,9 @@ SUBSC:
 	switch req.GetSubscribe().Mode {
 	case gnmi.SubscriptionList_STREAM:
 		for {
+			if nctx.Err() != nil {
+				return
+			}
 			response, err := subscribeClient.Recv()
 			if err != nil {
 				t.errors <- &TargetError{
@@ -197,7 +202,7 @@ SUBSC:
 				}
 				t.errors <- &TargetError{
 					SubscriptionName: subscriptionName,
-					Err:              fmt.Errorf("retrying in %d", t.Config.RetryTimer),
+					Err:              fmt.Errorf("retrying in %s", t.Config.RetryTimer),
 				}
 				cancel()
 				time.Sleep(t.Config.RetryTimer)
@@ -273,13 +278,11 @@ SUBSC:
 
 func (t *Target) Stop() {
 	t.m.Lock()
+	defer t.m.Unlock()
 	for _, cfn := range t.subscribeCancelFn {
 		cfn()
 	}
-	close(t.subscribeResponses)
-	close(t.errors)
-	close(t.pollChan)
-	t.m.Unlock()
+	close(t.stopChan)
 }
 
 func loadCerts(tlscfg *tls.Config, c *TargetConfig) error {
@@ -328,6 +331,7 @@ func (tc *TargetConfig) PasswordString() string {
 	}
 	return *tc.Password
 }
+
 func (tc *TargetConfig) InsecureString() string {
 	if tc.Insecure == nil {
 		return "NA"

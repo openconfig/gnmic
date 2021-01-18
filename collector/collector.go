@@ -48,6 +48,8 @@ type Collector struct {
 	logger                *log.Logger
 	httpServer            *http.Server
 	reg                   *prometheus.Registry
+
+	targetsChan chan *Target
 }
 
 type CollectorOption func(c *Collector)
@@ -99,11 +101,12 @@ func NewCollector(config *Config, targetConfigs map[string]*TargetConfig, opts .
 	}
 
 	c := &Collector{
-		Config:     config,
-		m:          new(sync.Mutex),
-		Targets:    make(map[string]*Target),
-		Outputs:    make(map[string]outputs.Output),
-		httpServer: httpServer,
+		Config:      config,
+		m:           new(sync.Mutex),
+		Targets:     make(map[string]*Target),
+		Outputs:     make(map[string]outputs.Output),
+		httpServer:  httpServer,
+		targetsChan: make(chan *Target),
 	}
 	for _, op := range opts {
 		op(c)
@@ -126,7 +129,6 @@ func NewCollector(config *Config, targetConfigs map[string]*TargetConfig, opts .
 		}
 		c.dialOpts = append(c.dialOpts, grpc.WithStreamInterceptor(grpcMetrics.StreamClientInterceptor()))
 	}
-
 	for _, tc := range targetConfigs {
 		c.AddTarget(tc)
 	}
@@ -164,6 +166,10 @@ func (c *Collector) AddTarget(tc *TargetConfig) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 	c.Targets[t.Config.Name] = t
+	go func() {
+		c.logger.Printf("queuing target %q", t.Config.Name)
+		c.targetsChan <- t
+	}()
 	return nil
 }
 
@@ -172,12 +178,14 @@ func (c *Collector) DeleteTarget(name string) error {
 		return nil
 	}
 	if _, ok := c.Targets[name]; !ok {
-		return fmt.Errorf("target '%s' does not exist", name)
+		return fmt.Errorf("target '%q' does not exist", name)
 	}
 	c.m.Lock()
 	defer c.m.Unlock()
+	c.logger.Printf("deleting target %q", name)
 	t := c.Targets[name]
 	t.Stop()
+	delete(c.Targets, name)
 	return nil
 }
 
@@ -326,11 +334,10 @@ func (c *Collector) Start(ctx context.Context) {
 			o.Close()
 		}
 	}()
-	wg := new(sync.WaitGroup)
-	wg.Add(len(c.Targets))
-	for _, t := range c.Targets {
+
+	for t := range c.targetsChan {
+		c.logger.Printf("starting target %q listener", t.Config.Name)
 		go func(t *Target) {
-			defer wg.Done()
 			numOnceSubscriptions := t.numberOfOnceSubscriptions()
 			remainingOnceSubscriptions := numOnceSubscriptions
 			numSubscriptions := len(t.Subscriptions)
@@ -372,13 +379,18 @@ func (c *Collector) Start(ctx context.Context) {
 					if remainingOnceSubscriptions == 0 && numSubscriptions == numOnceSubscriptions {
 						return
 					}
+				case <-t.stopChan:
+					c.logger.Printf("stopping target %q listener", t.Config.Name)
+					return
 				case <-ctx.Done():
 					return
 				}
 			}
 		}(t)
 	}
-	wg.Wait()
+	for range ctx.Done() {
+		return
+	}
 }
 
 // TargetPoll sends a gnmi.SubscribeRequest_Poll to targetName and returns the response and an error,

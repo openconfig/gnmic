@@ -31,6 +31,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/config"
 	"github.com/karimra/gnmic/formatters"
@@ -82,6 +83,7 @@ var formats = [][2]string{
 var tlsVersions = []string{"1.3", "1.2", "1.1", "1.0", "1"}
 
 type CLI struct {
+	m         *sync.Mutex
 	config    *config.Config
 	collector *collector.Collector
 	logger    *log.Logger
@@ -95,6 +97,7 @@ type CLI struct {
 }
 
 var cli = &CLI{
+	m:             new(sync.Mutex),
 	config:        config.New(),
 	logger:        log.New(ioutil.Discard, "", log.LstdFlags),
 	promptHistory: make([]string, 0, 128),
@@ -431,4 +434,45 @@ func printCapResponse(printPrefix string, msg *gnmi.CapabilityResponse) {
 		sb.WriteString("\n")
 	}
 	fmt.Printf("%s\n", indent(printPrefix, sb.String()))
+}
+
+func (c *CLI) watchConfig() {
+	c.config.FileConfig.OnConfigChange(c.loadTargets)
+	c.config.FileConfig.WatchConfig()
+}
+
+func (c *CLI) loadTargets(e fsnotify.Event) {
+	c.logger.Printf("got config change notification: %v", e)
+	c.m.Lock()
+	defer c.m.Unlock()
+	switch e.Op {
+	case fsnotify.Write, fsnotify.Create:
+		newTargets, err := c.config.GetTargets()
+		if err != nil && !errors.Is(err, config.ErrNoTargetsFound) {
+			c.logger.Printf("failed getting targets from new config: %v", err)
+			return
+		}
+		currentTargets := c.collector.Targets
+		// delete targets
+		for n := range currentTargets {
+			if _, ok := newTargets[n]; !ok {
+				err = c.collector.DeleteTarget(n)
+				if err != nil {
+					c.logger.Printf("failed to delete target %q: %v", n, err)
+				}
+			}
+		}
+		// add targets
+		for n, tc := range newTargets {
+			if _, ok := currentTargets[n]; !ok {
+				err = c.collector.AddTarget(tc)
+				if err != nil {
+					c.logger.Printf("failed adding target %q: %v", n, err)
+					continue
+				}
+				c.wg.Add(1)
+				go c.subscribe(gctx, tc)
+			}
+		}
+	}
 }

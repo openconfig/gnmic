@@ -32,7 +32,7 @@ func (c *Config) GetSubscriptions(cmd *cobra.Command) (map[string]*collector.Sub
 			sub.HeartbeatInterval = &c.LocalFlags.SubscribeHeartbearInterval
 		}
 		if flagIsSet(cmd, "sample-interval") {
-			sub.SampleInterval = &c.LocalFlags.SubscribeSampleInteral
+			sub.SampleInterval = &c.LocalFlags.SubscribeSampleInterval
 		}
 		sub.SuppressRedundant = c.LocalFlags.SubscribeSuppressRedundant
 		sub.UpdatesOnly = c.LocalFlags.SubscribeUpdatesOnly
@@ -94,7 +94,7 @@ func (c *Config) GetSubscriptions(cmd *cobra.Command) (map[string]*collector.Sub
 func (c *Config) setSubscriptionDefaults(sub *collector.SubscriptionConfig, cmd *cobra.Command) {
 	if sub.SampleInterval == nil {
 		if flagIsSet(cmd, "sample-interval") {
-			sub.SampleInterval = &c.LocalFlags.SubscribeSampleInteral
+			sub.SampleInterval = &c.LocalFlags.SubscribeSampleInterval
 		}
 	}
 	if sub.HeartbeatInterval == nil {
