@@ -17,6 +17,10 @@ type Input interface {
 
 type Initializer func() Input
 
+var InputTypes = []string{
+	"nats",
+}
+
 var Inputs = map[string]Initializer{}
 
 func Register(name string, initFn Initializer) {
