@@ -207,6 +207,8 @@ func (s *StanOutput) Write(ctx context.Context, rsp protoreflect.ProtoMessage, m
 	}
 }
 
+func (s *StanOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {}
+
 // Metrics //
 func (s *StanOutput) RegisterMetrics(reg *prometheus.Registry) {
 	if !s.Cfg.EnableMetrics {

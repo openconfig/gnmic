@@ -133,6 +133,9 @@ func (t *TCPOutput) Write(ctx context.Context, m proto.Message, meta outputs.Met
 		t.buffer <- b
 	}
 }
+
+func (t *TCPOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {}
+
 func (t *TCPOutput) Close() error {
 	t.cancelFn()
 	if t.limiter != nil {

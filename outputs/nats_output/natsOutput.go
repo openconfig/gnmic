@@ -80,6 +80,7 @@ func (n *NatsOutput) String() string {
 	}
 	return string(b)
 }
+
 func (n *NatsOutput) SetLogger(logger *log.Logger) {
 	if logger != nil && n.logger != nil {
 		n.logger.SetOutput(logger.Writer())
@@ -188,6 +189,8 @@ func (n *NatsOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.
 		return
 	}
 }
+
+func (n *NatsOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {}
 
 // Close //
 func (n *NatsOutput) Close() error {

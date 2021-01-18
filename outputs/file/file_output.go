@@ -189,6 +189,8 @@ func (f *File) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) 
 	NumberOfWrittenMsgs.WithLabelValues(f.file.Name()).Inc()
 }
 
+func (f *File) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {}
+
 // Close //
 func (f *File) Close() error {
 	f.logger.Printf("closing file '%s' output", f.file.Name())
