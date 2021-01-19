@@ -19,6 +19,7 @@ type Initializer func() Input
 var InputTypes = []string{
 	"nats",
 	"stan",
+	"kafka",
 }
 
 var Inputs = map[string]Initializer{}
