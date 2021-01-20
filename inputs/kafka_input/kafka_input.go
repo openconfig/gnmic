@@ -18,13 +18,15 @@ import (
 )
 
 const (
-	loggingPrefix         = "kafka_input "
-	defaultFormat         = "event"
-	defaultTopic          = "telemetry"
-	defaultNumWorkers     = 1
-	defaultSessionTimeout = 10 * time.Second
-	defaultAddress        = "localhost:9092"
-	defaultGroupID        = "gnmic-consumers"
+	loggingPrefix            = "kafka_input "
+	defaultFormat            = "event"
+	defaultTopic             = "telemetry"
+	defaultNumWorkers        = 1
+	defaultSessionTimeout    = 10 * time.Second
+	defaultHeartbeatInterval = 3 * time.Second
+	defaultRecoveryWaitTime  = 2 * time.Second
+	defaultAddress           = "localhost:9092"
+	defaultGroupID           = "gnmic-consumers"
 )
 
 var defaultVersion = sarama.V2_5_0_0
@@ -50,18 +52,18 @@ type KafkaInput struct {
 
 // Config //
 type Config struct {
-	Name             string        `mapstructure:"name,omitempty"`
-	Address          string        `mapstructure:"address,omitempty"`
-	Topic            string        `mapstructure:"topic,omitempty"`
-	GroupID          string        `mapstructure:"group-id,omitempty"`
-	MaxRetry         int           `mapstructure:"max-retry,omitempty"`
-	Timeout          time.Duration `mapstructure:"timeout,omitempty"`
-	RecoveryWaitTime time.Duration `mapstructure:"recovery-wait-time,omitempty"`
-	Version          string        `mapstructure:"version,omitempty"`
-	Format           string        `mapstructure:"format,omitempty"`
-	Debug            bool          `mapstructure:"debug,omitempty"`
-	NumWorkers       int           `mapstructure:"num-workers,omitempty"`
-	Outputs          []string      `mapstructure:"outputs,omitempty"`
+	Name              string        `mapstructure:"name,omitempty"`
+	Address           string        `mapstructure:"address,omitempty"`
+	Topic             string        `mapstructure:"topic,omitempty"`
+	GroupID           string        `mapstructure:"group-id,omitempty"`
+	SessionTimeout    time.Duration `mapstructure:"session-timeout,omitempty"`
+	HeartbeatInterval time.Duration `mapstructure:"heartbeat-interval,omitempty"`
+	RecoveryWaitTime  time.Duration `mapstructure:"recovery-wait-time,omitempty"`
+	Version           string        `mapstructure:"version,omitempty"`
+	Format            string        `mapstructure:"format,omitempty"`
+	Debug             bool          `mapstructure:"debug,omitempty"`
+	NumWorkers        int           `mapstructure:"num-workers,omitempty"`
+	Outputs           []string      `mapstructure:"outputs,omitempty"`
 
 	kafkaVersion sarama.KafkaVersion
 }
@@ -88,10 +90,11 @@ func (k *KafkaInput) Start(ctx context.Context, cfg map[string]interface{}, opts
 func (k *KafkaInput) worker(ctx context.Context, idx int) {
 	defer k.wg.Done()
 	config := sarama.NewConfig()
-	config.Version = sarama.V0_11_0_1
+	config.Version = k.Cfg.kafkaVersion
 	config.ClientID = fmt.Sprintf("%s-%d", k.Cfg.Name, idx)
 	config.Consumer.Return.Errors = true
-	config.Consumer.Group.Session.Timeout = k.Cfg.Timeout
+	config.Consumer.Group.Session.Timeout = k.Cfg.SessionTimeout
+	config.Consumer.Group.Heartbeat.Interval = k.Cfg.HeartbeatInterval
 	config.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRange
 	// TODO: finish kafka config
 
@@ -232,11 +235,17 @@ func (k *KafkaInput) setDefaults() error {
 	if k.Cfg.NumWorkers <= 0 {
 		k.Cfg.NumWorkers = defaultNumWorkers
 	}
-	if k.Cfg.Timeout <= 2*time.Millisecond {
-		k.Cfg.Timeout = defaultSessionTimeout
+	if k.Cfg.SessionTimeout <= 2*time.Millisecond {
+		k.Cfg.SessionTimeout = defaultSessionTimeout
+	}
+	if k.Cfg.HeartbeatInterval <= 1*time.Millisecond {
+		k.Cfg.HeartbeatInterval = defaultHeartbeatInterval
 	}
 	if k.Cfg.GroupID == "" {
 		k.Cfg.GroupID = defaultGroupID
+	}
+	if k.Cfg.RecoveryWaitTime <= 0 {
+		k.Cfg.RecoveryWaitTime = defaultRecoveryWaitTime
 	}
 	return nil
 }
