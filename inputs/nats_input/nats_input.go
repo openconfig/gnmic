@@ -104,9 +104,9 @@ START:
 	}
 	defer nc.Close()
 	msgChan = make(chan *nats.Msg)
-	sub, err := nc.ChanSubscribe(n.Cfg.Subject, msgChan)
+	sub, err := nc.ChanQueueSubscribe(n.Cfg.Subject, n.Cfg.Queue, msgChan)
 	if err != nil {
-		n.logger.Printf("%s failed to create NATS connection: %v", workerLogPrefix, err)
+		n.logger.Printf("%s failed to create NATS subscription: %v", workerLogPrefix, err)
 		time.Sleep(n.Cfg.ConnectTimeWait)
 		nc.Close()
 		goto START
