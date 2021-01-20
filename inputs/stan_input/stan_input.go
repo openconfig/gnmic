@@ -170,7 +170,7 @@ func (s *StanInput) setDefaults() error {
 	if s.Cfg.NumWorkers <= 0 {
 		s.Cfg.NumWorkers = defaultNumWorkers
 	}
-	if s.Cfg.PingInterval <= 0 {
+	if s.Cfg.PingInterval <= 1 {
 		s.Cfg.PingInterval = stanDefaultPingInterval
 	}
 	if s.Cfg.PingRetry <= 1 {
