@@ -54,7 +54,7 @@ type KafkaInput struct {
 type Config struct {
 	Name              string        `mapstructure:"name,omitempty"`
 	Address           string        `mapstructure:"address,omitempty"`
-	Topic             string        `mapstructure:"topic,omitempty"`
+	Topics            string        `mapstructure:"topics,omitempty"`
 	GroupID           string        `mapstructure:"group-id,omitempty"`
 	SessionTimeout    time.Duration `mapstructure:"session-timeout,omitempty"`
 	HeartbeatInterval time.Duration `mapstructure:"heartbeat-interval,omitempty"`
@@ -96,7 +96,7 @@ func (k *KafkaInput) worker(ctx context.Context, idx int) {
 	config.Consumer.Group.Session.Timeout = k.Cfg.SessionTimeout
 	config.Consumer.Group.Heartbeat.Interval = k.Cfg.HeartbeatInterval
 	config.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRange
-	// TODO: finish kafka config
+	// TODO: further customize kafka config
 
 	workerLogPrefix := fmt.Sprintf("worker-%d", idx)
 START:
@@ -119,10 +119,10 @@ START:
 			if ctx.Err() != nil {
 				return
 			}
-			err = consumerGrp.Consume(ctx, strings.Split(k.Cfg.Topic, ","), cons)
+			err = consumerGrp.Consume(ctx, strings.Split(k.Cfg.Topics, ","), cons)
 			if err != nil {
 				if k.Cfg.Debug {
-					k.logger.Printf("%s failed to start consumer, topics=%q, group=%q : %v", workerLogPrefix, k.Cfg.Topic, k.Cfg.GroupID, err)
+					k.logger.Printf("%s failed to start consumer, topics=%q, group=%q : %v", workerLogPrefix, k.Cfg.Topics, k.Cfg.GroupID, err)
 				}
 				continue
 			}
@@ -226,8 +226,8 @@ func (k *KafkaInput) setDefaults() error {
 	if !(strings.ToLower(k.Cfg.Format) == "event" || strings.ToLower(k.Cfg.Format) == "proto") {
 		return fmt.Errorf("unsupported input format")
 	}
-	if k.Cfg.Topic == "" {
-		k.Cfg.Topic = defaultTopic
+	if k.Cfg.Topics == "" {
+		k.Cfg.Topics = defaultTopic
 	}
 	if k.Cfg.Address == "" {
 		k.Cfg.Address = defaultAddress
