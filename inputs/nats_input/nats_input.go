@@ -125,6 +125,9 @@ START:
 				nc.Close()
 				goto START
 			}
+			if len(m.Data) == 0 {
+				continue
+			}
 			if n.Cfg.Debug {
 				n.logger.Printf("received msg, len=%d, data=%s", len(m.Data), string(m.Data))
 			}
