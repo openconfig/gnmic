@@ -27,6 +27,7 @@ const (
 	defaultFormat           = "event"
 	defaultSubject          = "telemetry"
 	defaultNumWorkers       = 1
+	defaultBufferSize       = 100
 )
 
 func init() {
@@ -62,6 +63,7 @@ type Config struct {
 	Format          string        `mapstructure:"format,omitempty"`
 	Debug           bool          `mapstructure:"debug,omitempty"`
 	NumWorkers      int           `mapstructure:"num-workers,omitempty"`
+	BufferSize      int           `mapstructure:"buffer-size,omitempty"`
 	Outputs         []string      `mapstructure:"outputs,omitempty"`
 }
 
@@ -103,7 +105,7 @@ START:
 		goto START
 	}
 	defer nc.Close()
-	msgChan = make(chan *nats.Msg)
+	msgChan = make(chan *nats.Msg, n.Cfg.BufferSize)
 	sub, err := nc.ChanQueueSubscribe(n.Cfg.Subject, n.Cfg.Queue, msgChan)
 	if err != nil {
 		n.logger.Printf("%s failed to create NATS subscription: %v", workerLogPrefix, err)
@@ -129,7 +131,7 @@ START:
 				continue
 			}
 			if n.Cfg.Debug {
-				n.logger.Printf("received msg, len=%d, data=%s", len(m.Data), string(m.Data))
+				n.logger.Printf("received msg, subject=%s, queue=%s, len=%d, data=%s", m.Subject, m.Sub.Queue, len(m.Data), string(m.Data))
 			}
 
 			switch n.Cfg.Format {
@@ -231,6 +233,9 @@ func (n *NatsInput) setDefaults() error {
 	}
 	if n.Cfg.NumWorkers <= 0 {
 		n.Cfg.NumWorkers = defaultNumWorkers
+	}
+	if n.Cfg.BufferSize <= 0 {
+		n.Cfg.BufferSize = defaultBufferSize
 	}
 	return nil
 }
