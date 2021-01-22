@@ -136,8 +136,11 @@ START:
 		case <-ctx.Done():
 			return
 		case m := <-cons.msgChan:
+			if len(m.Value) == 0 {
+				continue
+			}
 			if k.Cfg.Debug {
-				k.logger.Printf("%s client=%s received msg, topic=%s, partition=%d, key=%q, value=%s", workerLogPrefix, config.ClientID, m.Topic, m.Partition, string(m.Key), string(m.Value))
+				k.logger.Printf("%s client=%s received msg, topic=%s, partition=%d, key=%q, length=%d, value=%s", workerLogPrefix, config.ClientID, m.Topic, m.Partition, string(m.Key), len(m.Value), string(m.Value))
 			}
 			switch k.Cfg.Format {
 			case "event":

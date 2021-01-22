@@ -189,7 +189,6 @@ func (s *StanInput) createSTANConn(c *Config) stan.Conn {
 	if c.Username != "" && c.Password != "" {
 		opts = append(opts, nats.UserInfo(c.Username, c.Password))
 	}
-
 	var nc *nats.Conn
 	var sc stan.Conn
 	var err error
@@ -221,8 +220,11 @@ CRCONN:
 }
 
 func (s *StanInput) handleMsg(m *stan.Msg) {
+	if m == nil || len(m.Data) == 0 {
+		return
+	}
 	if s.Cfg.Debug {
-		s.logger.Printf("received msg, len=%d, data=%s", len(m.Data), string(m.Data))
+		s.logger.Printf("received msg, subject=%q, queue=%q, len=%d, data=%s", m.Subject, s.Cfg.Queue, len(m.Data), string(m.Data))
 	}
 	var err error
 	switch s.Cfg.Format {
