@@ -34,6 +34,10 @@ inputs:
     debug: false
     # integer, number of nats consumers to be created
     num-workers: 1
+    # integer, sets the size of the local buffer where received 
+    # NATS messages are stored before being sent to outputs.
+    # This value is set per worker. Defaults to 100 messages
+    buffer-size: 100
     # []string, list of named outputs to export data to. 
     # Must be configured under root level `outputs` section
     outputs: 
