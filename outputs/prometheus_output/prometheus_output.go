@@ -405,7 +405,13 @@ func (p *promMetric) String() string {
 	}
 	sb.WriteString(fmt.Sprintf("value=%f,", p.value))
 	sb.WriteString("time=")
-	sb.WriteString(p.time.String())
+	if p.time != nil {
+		sb.WriteString(p.time.String())
+	} else{
+		sb.WriteString("nil")
+	}
+	sb.WriteString(",addedAt=")
+	sb.WriteString(p.addedAt.String())
 	return sb.String()
 }
 
