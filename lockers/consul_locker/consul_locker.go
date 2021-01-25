@@ -2,6 +2,7 @@ package consul_locker
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -40,10 +41,11 @@ type ConsulLocker struct {
 }
 
 type config struct {
-	Address    string        `mapstructure:"address,omitempty"`
-	SessionTTL time.Duration `mapstructure:"session-ttl,omitempty"`
-	RetryTimer time.Duration `mapstructure:"retry-timer,omitempty"`
-	Debug      bool          `mapstructure:"debug,omitempty"`
+	Address     string        `mapstructure:"address,omitempty" json:"address,omitempty"`
+	SessionTTL  time.Duration `mapstructure:"session-ttl,omitempty" json:"session-ttl,omitempty"`
+	RetryTimer  time.Duration `mapstructure:"retry-timer,omitempty" json:"retry-timer,omitempty"`
+	RenewPeriod time.Duration `mapstructure:"renew-period,omitempty" json:"renew-period,omitempty"`
+	Debug       bool          `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 }
 
 type locks struct {
@@ -70,7 +72,7 @@ func (c *ConsulLocker) Init(ctx context.Context, cfg map[string]interface{}, opt
 	if err != nil {
 		return err
 	}
-	c.logger.Printf("initialized consul locker with cfg=%+v", c.Cfg)
+	c.logger.Printf("initialized consul locker with cfg=%s", c)
 	return nil
 }
 
@@ -104,7 +106,7 @@ func (c *ConsulLocker) Lock(ctx context.Context, key string) (bool, error) {
 
 		if acquired {
 			doneChan := make(chan struct{})
-			go c.client.Session().RenewPeriodic("5s", kvPair.Session, writeOpts, doneChan)
+			//go c.client.Session().RenewPeriodic("5s", kvPair.Session, writeOpts, doneChan)
 
 			c.m.Lock()
 			c.locks[key] = &locks{sessionID: kvPair.Session, doneChan: doneChan}
@@ -118,9 +120,10 @@ func (c *ConsulLocker) Lock(ctx context.Context, key string) (bool, error) {
 	}
 }
 
-func (c *ConsulLocker) KeepLock(ctx context.Context, key string, period time.Duration) (chan struct{}, chan error) {
+func (c *ConsulLocker) KeepLock(ctx context.Context, key string) (chan struct{}, chan error) {
 	writeOpts := new(api.WriteOptions)
 	writeOpts = writeOpts.WithContext(ctx)
+
 	c.m.Lock()
 	sessionID := ""
 	doneChan := make(chan struct{})
@@ -136,7 +139,7 @@ func (c *ConsulLocker) KeepLock(ctx context.Context, key string, period time.Dur
 			close(doneChan)
 			return
 		}
-		err := c.client.Session().RenewPeriodic(period.String(), sessionID, writeOpts, doneChan)
+		err := c.client.Session().RenewPeriodic(c.Cfg.RenewPeriod.String(), sessionID, writeOpts, doneChan)
 		if err != nil {
 			errChan <- err
 		}
@@ -189,5 +192,16 @@ func (c *ConsulLocker) setDefaults() error {
 	if c.Cfg.RetryTimer <= 0 {
 		c.Cfg.RetryTimer = defaultRetryTimer
 	}
+	if c.Cfg.RenewPeriod <= 0 || c.Cfg.RenewPeriod >= c.Cfg.SessionTTL {
+		c.Cfg.RenewPeriod = c.Cfg.SessionTTL / 2
+	}
 	return nil
+}
+
+func (c *ConsulLocker) String() string {
+	b, err := json.Marshal(c.Cfg)
+	if err != nil {
+		return ""
+	}
+	return string(b)
 }

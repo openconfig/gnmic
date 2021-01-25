@@ -33,3 +33,10 @@ func (c *Collector) InitLocker(ctx context.Context) error {
 	}
 	return errors.New("missing locker type field")
 }
+
+func (c *Collector) lockKey(s string) string {
+	if s == "" {
+		return s
+	}
+	return fmt.Sprintf("gnmic/%s/targets/%s", c.Config.ClusterName, s)
+}

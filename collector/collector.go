@@ -190,17 +190,17 @@ func (c *Collector) AddTarget(tc *TargetConfig) error {
 }
 
 func (c *Collector) InitTarget(ctx context.Context, name string) {
-	lockKey := fmt.Sprintf("gnmic/%s/targets/%s", c.Config.ClusterName, name)
+	lockKey := c.lockKey(name)
 START:
 	select {
 	case <-ctx.Done():
 		return
 	default:
-		move := make(chan struct{})
 		if c.locker != nil {
+			c.logger.Printf("acquiring lock for target %q", name)
 			ok, err := c.locker.Lock(ctx, lockKey)
 			if err != nil {
-				c.logger.Printf("failed to lock key %q: %v", lockKey, err)
+				c.logger.Printf("failed to lock target %q: %v", name, err)
 				time.Sleep(lockRetry)
 				goto START
 			}
@@ -208,11 +208,8 @@ START:
 				time.Sleep(lockRetry)
 				goto START
 			}
-			close(move)
-		} else {
-			close(move)
+			c.logger.Printf("acquired lock for target %q", name)
 		}
-		<-move
 		c.logger.Printf("queuing target %q", name)
 		c.targetsChan <- c.Targets[name]
 		c.logger.Printf("subscribing to target: %q", name)
@@ -224,15 +221,15 @@ START:
 			}
 		}()
 		if c.locker != nil {
-			doneChan, errChan := c.locker.KeepLock(ctx, lockKey, 5*time.Second)
+			doneChan, errChan := c.locker.KeepLock(ctx, lockKey)
 			for {
 				select {
 				case <-doneChan:
-					c.logger.Printf("lock %q removed", lockKey)
+					c.logger.Printf("target lock %q removed", name)
 					return
 				case err := <-errChan:
-					c.logger.Printf("failed to maintain %q lock: %v", lockKey, err)
-					c.DeleteTarget(name)
+					c.logger.Printf("failed to maintain target %q lock: %v", name, err)
+					c.StopTarget(name)
 					time.Sleep(lockRetry)
 					goto START
 				}
@@ -246,7 +243,7 @@ func (c *Collector) DeleteTarget(name string) error {
 		return nil
 	}
 	if _, ok := c.Targets[name]; !ok {
-		return fmt.Errorf("target '%q' does not exist", name)
+		return fmt.Errorf("target %q does not exist", name)
 	}
 	c.m.Lock()
 	defer c.m.Unlock()
@@ -257,7 +254,25 @@ func (c *Collector) DeleteTarget(name string) error {
 	if c.locker == nil {
 		return nil
 	}
-	return c.locker.Unlock(fmt.Sprintf("gnmic/%s/targets/%s", c.Config.ClusterName, name))
+	return c.locker.Unlock(c.lockKey(name))
+}
+
+func (c *Collector) StopTarget(name string) error {
+	if c.Targets == nil {
+		return nil
+	}
+	if _, ok := c.Targets[name]; !ok {
+		return fmt.Errorf("target %q does not exist", name)
+	}
+	c.m.Lock()
+	defer c.m.Unlock()
+	c.logger.Printf("stopping target %q", name)
+	t := c.Targets[name]
+	t.Stop()
+	if c.locker == nil {
+		return nil
+	}
+	return c.locker.Unlock(c.lockKey(name))
 }
 
 // AddOutput initializes an output called name, with config cfg if it does not already exist

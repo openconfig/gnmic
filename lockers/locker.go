@@ -3,7 +3,6 @@ package lockers
 import (
 	"context"
 	"log"
-	"time"
 
 	"github.com/mitchellh/mapstructure"
 )
@@ -11,7 +10,7 @@ import (
 type Locker interface {
 	Init(context.Context, map[string]interface{}, ...Option) error
 	Lock(context.Context, string) (bool, error)
-	KeepLock(context.Context, string, time.Duration) (chan struct{}, chan error)
+	KeepLock(context.Context, string) (chan struct{}, chan error)
 	Unlock(string) error
 	Stop() error
 	SetLogger(*log.Logger)

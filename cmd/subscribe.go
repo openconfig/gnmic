@@ -35,6 +35,8 @@ const (
 	defaultRetryTimer  = 10 * time.Second
 	defaultBackoff     = 100 * time.Millisecond
 	defaultClusterName = "default-cluster"
+
+	initLockerRetryTimer = 1 * time.Second
 )
 
 var subscriptionModes = [][2]string{
@@ -181,7 +183,7 @@ func (c *CLI) subscribeRunE(cmd *cobra.Command, args []string) error {
 		err := c.collector.InitLocker(gctx)
 		if err != nil {
 			c.logger.Printf("failed to init locker: %v", err)
-			time.Sleep(1 * time.Second)
+			time.Sleep(initLockerRetryTimer)
 			continue
 		}
 		break
@@ -193,7 +195,7 @@ func (c *CLI) subscribeRunE(cmd *cobra.Command, args []string) error {
 	if lockerConfig != nil && c.config.LocalFlags.SubscribeBackoff <= 0 {
 		c.config.LocalFlags.SubscribeBackoff = defaultBackoff
 	}
-	
+
 	var limiter *time.Ticker
 	if c.config.LocalFlags.SubscribeBackoff > 0 {
 		limiter = time.NewTicker(c.config.LocalFlags.SubscribeBackoff)
