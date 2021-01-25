@@ -1,6 +1,6 @@
-<mxfile host="app.diagrams.net" modified="2021-01-25T15:06:10.385Z" agent="5.0 (Macintosh; Intel Mac OS X 11_1_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.141 Safari/537.36" etag="HQRQ1j9On7G14_SBzgYa" version="14.0.1" type="github">
+<mxfile host="app.diagrams.net" modified="2021-01-25T15:07:03.652Z" agent="5.0 (Macintosh; Intel Mac OS X 11_1_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.141 Safari/537.36" etag="_CEwHFs2xrOZ-_6ihWJT" version="14.0.1" type="github">
   <diagram id="TBKng6sE-Jx8A-JH2uSp" name="Page-1">
-    <mxGraphModel dx="1188" dy="599" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="900" pageHeight="400" math="0" shadow="0">
+    <mxGraphModel dx="475" dy="240" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="900" pageHeight="400" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -193,7 +193,7 @@
         <mxCell id="OhbVSFWdRjhHsJU15Zuy-79" value="&lt;span style=&quot;color: rgb(51 , 51 , 255) ; font-family: &amp;#34;tahoma&amp;#34; ; text-align: left&quot;&gt;gNMIc-3&lt;/span&gt;" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;fillColor=none;top=0;left=0;bottom=0;right=0;overflow=hidden;" vertex="1" parent="OhbVSFWdRjhHsJU15Zuy-78">
           <mxGeometry width="54" height="28" as="geometry" />
         </mxCell>
-        <mxCell id="OhbVSFWdRjhHsJU15Zuy-80" value="&lt;meta charset=&quot;utf-8&quot;&gt;&lt;span style=&quot;color: rgb(51, 51, 255); font-family: tahoma; font-size: 12px; font-style: normal; font-weight: 400; letter-spacing: normal; text-align: left; text-indent: 0px; text-transform: none; word-spacing: 0px; background-color: rgb(248, 249, 250); display: inline; float: none;&quot;&gt;gnmic/default-cluster/targets/R5&lt;/span&gt;" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;fillColor=none;top=0;left=0;bottom=0;right=0;overflow=hidden;" vertex="1" parent="OhbVSFWdRjhHsJU15Zuy-78">
+        <mxCell id="OhbVSFWdRjhHsJU15Zuy-80" value="&lt;span style=&quot;color: rgb(51 , 51 , 255) ; font-family: &amp;#34;tahoma&amp;#34; ; text-align: left&quot;&gt;gnmic/default-cluster/targets/R5&lt;/span&gt;" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;fillColor=none;top=0;left=0;bottom=0;right=0;overflow=hidden;" vertex="1" parent="OhbVSFWdRjhHsJU15Zuy-78">
           <mxGeometry x="54" width="182" height="28" as="geometry" />
         </mxCell>
         <mxCell id="OhbVSFWdRjhHsJU15Zuy-81" value="&lt;span style=&quot;color: rgb(51 , 51 , 255)&quot;&gt;10s&lt;/span&gt;" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;fillColor=none;top=0;left=0;bottom=0;right=0;overflow=hidden;" vertex="1" parent="OhbVSFWdRjhHsJU15Zuy-78">
