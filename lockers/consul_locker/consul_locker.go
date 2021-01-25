@@ -3,8 +3,9 @@ package consul_locker
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io/ioutil"
 	"log"
-	"os"
 	"sync"
 	"time"
 
@@ -25,7 +26,7 @@ func init() {
 			Cfg:    &config{},
 			m:      new(sync.Mutex),
 			locks:  make(map[string]*locks),
-			logger: log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger: log.New(ioutil.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
 		}
 	})
 }
@@ -39,9 +40,10 @@ type ConsulLocker struct {
 }
 
 type config struct {
-	Address    string
-	SessionTTL time.Duration
-	RetryTimer time.Duration
+	Address    string        `mapstructure:"address,omitempty"`
+	SessionTTL time.Duration `mapstructure:"session-ttl,omitempty"`
+	RetryTimer time.Duration `mapstructure:"retry-timer,omitempty"`
+	Debug      bool          `mapstructure:"debug,omitempty"`
 }
 
 type locks struct {
@@ -49,10 +51,13 @@ type locks struct {
 	doneChan  chan struct{}
 }
 
-func (c *ConsulLocker) Init(ctx context.Context, cfg map[string]interface{}) error {
+func (c *ConsulLocker) Init(ctx context.Context, cfg map[string]interface{}, opts ...lockers.Option) error {
 	err := lockers.DecodeConfig(cfg, c.Cfg)
 	if err != nil {
 		return err
+	}
+	for _, opt := range opts {
+		opt(c)
 	}
 	err = c.setDefaults()
 	if err != nil {
@@ -80,7 +85,7 @@ func (c *ConsulLocker) Lock(ctx context.Context, key string) (bool, error) {
 		kvPair.Session, _, err = c.client.Session().Create(
 			&api.SessionEntry{
 				Behavior: "delete",
-				TTL:      c.Cfg.SessionTTL.String(), // is needed in order for other node to be able to acquire the leader key
+				TTL:      c.Cfg.SessionTTL.String(),
 			},
 			writeOpts,
 		)
@@ -89,13 +94,14 @@ func (c *ConsulLocker) Lock(ctx context.Context, key string) (bool, error) {
 			time.Sleep(c.Cfg.RetryTimer)
 			continue
 		}
-
+		//var wm *api.WriteMeta
 		acquired, _, err = c.client.KV().Acquire(kvPair, writeOpts)
 		if err != nil {
-			c.logger.Printf("failed acquiring KV: %v", err)
+			c.logger.Printf("failed acquiring lock to %q: %v", kvPair.Key, err)
 			time.Sleep(c.Cfg.RetryTimer)
 			continue
 		}
+
 		if acquired {
 			doneChan := make(chan struct{})
 			go c.client.Session().RenewPeriodic("5s", kvPair.Session, writeOpts, doneChan)
@@ -105,12 +111,39 @@ func (c *ConsulLocker) Lock(ctx context.Context, key string) (bool, error) {
 			c.m.Unlock()
 			return true, nil
 		}
-		c.logger.Printf("failed acquiring KV: already locked")
+		if c.Cfg.Debug {
+			c.logger.Printf("failed acquiring lock to %q: already locked", kvPair.Key)
+		}
 		time.Sleep(c.Cfg.RetryTimer)
 	}
 }
 
-func (c *ConsulLocker) LockMany(ctx context.Context, keys []string, locked chan string) {}
+func (c *ConsulLocker) KeepLock(ctx context.Context, key string, period time.Duration) (chan struct{}, chan error) {
+	writeOpts := new(api.WriteOptions)
+	writeOpts = writeOpts.WithContext(ctx)
+	c.m.Lock()
+	sessionID := ""
+	doneChan := make(chan struct{})
+	if l, ok := c.locks[key]; ok {
+		sessionID = l.sessionID
+		doneChan = l.doneChan
+	}
+	c.m.Unlock()
+	errChan := make(chan error)
+	go func() {
+		if sessionID == "" {
+			errChan <- fmt.Errorf("unknown key")
+			close(doneChan)
+			return
+		}
+		err := c.client.Session().RenewPeriodic(period.String(), sessionID, writeOpts, doneChan)
+		if err != nil {
+			errChan <- err
+		}
+	}()
+
+	return doneChan, errChan
+}
 
 func (c *ConsulLocker) Unlock(key string) error {
 	c.m.Lock()
@@ -125,6 +158,7 @@ func (c *ConsulLocker) Unlock(key string) error {
 		if err != nil {
 			return err
 		}
+		delete(c.locks, key)
 		return nil
 	}
 	return errors.New("unknown key")
@@ -137,6 +171,13 @@ func (c *ConsulLocker) Stop() error {
 		c.Unlock(k)
 	}
 	return nil
+}
+
+func (c *ConsulLocker) SetLogger(logger *log.Logger) {
+	if logger != nil && c.logger != nil {
+		c.logger.SetOutput(logger.Writer())
+		c.logger.SetFlags(logger.Flags())
+	}
 }
 
 // helpers

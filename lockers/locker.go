@@ -2,21 +2,32 @@ package lockers
 
 import (
 	"context"
+	"log"
+	"time"
 
 	"github.com/mitchellh/mapstructure"
 )
 
 type Locker interface {
-	Init(context.Context, map[string]interface{}) error
+	Init(context.Context, map[string]interface{}, ...Option) error
 	Lock(context.Context, string) (bool, error)
-	LockMany(context.Context, []string, chan string)
+	KeepLock(context.Context, string, time.Duration) (chan struct{}, chan error)
 	Unlock(string) error
 	Stop() error
+	SetLogger(*log.Logger)
 }
 
 type Initializer func() Locker
 
 var Lockers = map[string]Initializer{}
+
+type Option func(Locker)
+
+func WithLogger(logger *log.Logger) Option {
+	return func(i Locker) {
+		i.SetLogger(logger)
+	}
+}
 
 var LockerTypes = []string{
 	"consul",

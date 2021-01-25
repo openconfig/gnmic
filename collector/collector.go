@@ -14,6 +14,7 @@ import (
 
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/karimra/gnmic/inputs"
+	"github.com/karimra/gnmic/lockers"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
@@ -24,6 +25,8 @@ import (
 
 const (
 	defaultTargetReceivebuffer = 1000
+	defaultClusterName         = "default-cluster"
+	lockRetry                  = 1 * time.Second
 )
 
 // Config is the collector config
@@ -33,6 +36,7 @@ type Config struct {
 	Format              string
 	TargetReceiveBuffer uint
 	RetryTimer          time.Duration
+	ClusterName         string
 }
 
 // Collector //
@@ -49,6 +53,9 @@ type Collector struct {
 	inputsConfig map[string]map[string]interface{}
 	Inputs       map[string]inputs.Input
 
+	lockerConfig map[string]interface{}
+	locker       lockers.Locker
+
 	Targets map[string]*Target
 
 	EventProcessorsConfig map[string]map[string]interface{}
@@ -56,7 +63,8 @@ type Collector struct {
 	httpServer            *http.Server
 	reg                   *prometheus.Registry
 
-	targetsChan chan *Target
+	targetsChan   chan *Target
+	activeTargets map[string]struct{}
 }
 
 type CollectorOption func(c *Collector)
@@ -106,15 +114,18 @@ func NewCollector(config *Config, targetConfigs map[string]*TargetConfig, opts .
 	if config.RetryTimer == 0 {
 		config.RetryTimer = defaultRetryTimer
 	}
-
+	if config.ClusterName == "" {
+		config.ClusterName = defaultClusterName
+	}
 	c := &Collector{
-		Config:      config,
-		m:           new(sync.Mutex),
-		Targets:     make(map[string]*Target),
-		Outputs:     make(map[string]outputs.Output),
-		Inputs:      make(map[string]inputs.Input),
-		httpServer:  httpServer,
-		targetsChan: make(chan *Target),
+		Config:        config,
+		m:             new(sync.Mutex),
+		Targets:       make(map[string]*Target),
+		Outputs:       make(map[string]outputs.Output),
+		Inputs:        make(map[string]inputs.Input),
+		httpServer:    httpServer,
+		targetsChan:   make(chan *Target),
+		activeTargets: make(map[string]struct{}),
 	}
 	for _, op := range opts {
 		op(c)
@@ -137,6 +148,7 @@ func NewCollector(config *Config, targetConfigs map[string]*TargetConfig, opts .
 		}
 		c.dialOpts = append(c.dialOpts, grpc.WithStreamInterceptor(grpcMetrics.StreamClientInterceptor()))
 	}
+
 	for _, tc := range targetConfigs {
 		c.AddTarget(tc)
 	}
@@ -174,11 +186,59 @@ func (c *Collector) AddTarget(tc *TargetConfig) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 	c.Targets[t.Config.Name] = t
-	go func() {
-		c.logger.Printf("queuing target %q", t.Config.Name)
-		c.targetsChan <- t
-	}()
 	return nil
+}
+
+func (c *Collector) InitTarget(ctx context.Context, name string) {
+	lockKey := fmt.Sprintf("gnmic/%s/targets/%s", c.Config.ClusterName, name)
+START:
+	select {
+	case <-ctx.Done():
+		return
+	default:
+		move := make(chan struct{})
+		if c.locker != nil {
+			ok, err := c.locker.Lock(ctx, lockKey)
+			if err != nil {
+				c.logger.Printf("failed to lock key %q: %v", lockKey, err)
+				time.Sleep(lockRetry)
+				goto START
+			}
+			if !ok {
+				time.Sleep(lockRetry)
+				goto START
+			}
+			close(move)
+		} else {
+			close(move)
+		}
+		<-move
+		c.logger.Printf("queuing target %q", name)
+		c.targetsChan <- c.Targets[name]
+		c.logger.Printf("subscribing to target: %q", name)
+		go func() {
+			err := c.Subscribe(ctx, name)
+			if err != nil {
+				c.logger.Printf("failed to subscribe: %v", err)
+				return
+			}
+		}()
+		if c.locker != nil {
+			doneChan, errChan := c.locker.KeepLock(ctx, lockKey, 5*time.Second)
+			for {
+				select {
+				case <-doneChan:
+					c.logger.Printf("lock %q removed", lockKey)
+					return
+				case err := <-errChan:
+					c.logger.Printf("failed to maintain %q lock: %v", lockKey, err)
+					c.DeleteTarget(name)
+					time.Sleep(lockRetry)
+					goto START
+				}
+			}
+		}
+	}
 }
 
 func (c *Collector) DeleteTarget(name string) error {
@@ -194,7 +254,10 @@ func (c *Collector) DeleteTarget(name string) error {
 	t := c.Targets[name]
 	t.Stop()
 	delete(c.Targets, name)
-	return nil
+	if c.locker == nil {
+		return nil
+	}
+	return c.locker.Unlock(fmt.Sprintf("gnmic/%s/targets/%s", c.Config.ClusterName, name))
 }
 
 // AddOutput initializes an output called name, with config cfg if it does not already exist
@@ -310,15 +373,26 @@ func (c *Collector) Subscribe(ctx context.Context, tName string) error {
 			}
 			subRequests = append(subRequests, subscriptionRequest{name: sc.Name, req: req})
 		}
-		if err := t.CreateGNMIClient(ctx, c.dialOpts...); err != nil {
-			return err
+		gnmiCtx, cancel := context.WithCancel(ctx)
+		t.cfn = cancel
+	CRCLIENT:
+		if err := t.CreateGNMIClient(gnmiCtx, c.dialOpts...); err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				c.logger.Printf("failed to initialize target %q timeout (%s) reached", tName, t.Config.Timeout)
+			} else {
+				c.logger.Printf("failed to initialize target %q: %v", tName, err)
+			}
+			c.logger.Printf("retrying target %q in %s", tName, t.Config.RetryTimer)
+			time.Sleep(t.Config.RetryTimer)
+			goto CRCLIENT
+
 		}
 		c.logger.Printf("target '%s' gNMI client created", t.Config.Name)
 
 		for _, sreq := range subRequests {
 			c.logger.Printf("sending gNMI SubscribeRequest: subscribe='%+v', mode='%+v', encoding='%+v', to %s",
 				sreq.req, sreq.req.GetSubscribe().GetMode(), sreq.req.GetSubscribe().GetEncoding(), t.Config.Name)
-			go t.Subscribe(ctx, sreq.req, sreq.name)
+			go t.Subscribe(gnmiCtx, sreq.req, sreq.name)
 		}
 		return nil
 	}
@@ -344,6 +418,10 @@ func (c *Collector) Start(ctx context.Context) {
 	}()
 
 	for t := range c.targetsChan {
+		if _, ok := c.activeTargets[t.Config.Name]; ok {
+			continue
+		}
+		c.activeTargets[t.Config.Name] = struct{}{}
 		c.logger.Printf("starting target %q listener", t.Config.Name)
 		go func(t *Target) {
 			numOnceSubscriptions := t.numberOfOnceSubscriptions()
@@ -359,7 +437,6 @@ func (c *Collector) Start(ctx context.Context) {
 					if c.subscriptionMode(rsp.SubscriptionName) == "ONCE" {
 						c.Export(ctx, rsp.Response, m, t.Config.Outputs...)
 					} else {
-						//go t.Export(ctx, rsp.Response, outputs.Meta{"source": t.Config.Name, "format": c.Config.Format, "subscription-name": rsp.SubscriptionName})
 						go c.Export(ctx, rsp.Response, m, t.Config.Outputs...)
 					}
 					if remainingOnceSubscriptions > 0 {
@@ -371,6 +448,9 @@ func (c *Collector) Start(ctx context.Context) {
 						}
 					}
 					if remainingOnceSubscriptions == 0 && numSubscriptions == numOnceSubscriptions {
+						c.m.Lock()
+						delete(c.activeTargets, t.Config.Name)
+						c.m.Unlock()
 						return
 					}
 				case tErr := <-t.errors:
@@ -385,12 +465,21 @@ func (c *Collector) Start(ctx context.Context) {
 						}
 					}
 					if remainingOnceSubscriptions == 0 && numSubscriptions == numOnceSubscriptions {
+						c.m.Lock()
+						delete(c.activeTargets, t.Config.Name)
+						c.m.Unlock()
 						return
 					}
 				case <-t.stopChan:
 					c.logger.Printf("stopping target %q listener", t.Config.Name)
+					c.m.Lock()
+					delete(c.activeTargets, t.Config.Name)
+					c.m.Unlock()
 					return
 				case <-ctx.Done():
+					c.m.Lock()
+					delete(c.activeTargets, t.Config.Name)
+					c.m.Unlock()
 					return
 				}
 			}

@@ -9,7 +9,7 @@ import (
 
 func (c *Config) GetLocker() (map[string]interface{}, error) {
 	lockerCfg := c.FileConfig.GetStringMap("locker")
-	if lockerCfg == nil {
+	if len(lockerCfg) == 0 {
 		return nil, nil
 	}
 	if lockerType, ok := lockerCfg["type"]; ok {

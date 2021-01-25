@@ -34,6 +34,9 @@ func (c *Collector) AddInput(name string, cfg map[string]interface{}) error {
 func (c *Collector) InitInput(ctx context.Context, name string, outs ...outputs.Output) {
 	c.m.Lock()
 	defer c.m.Unlock()
+	if _, ok := c.Inputs[name]; ok {
+		return
+	}
 	if cfg, ok := c.inputsConfig[name]; ok {
 		if inputType, ok := cfg["type"]; ok {
 			c.logger.Printf("starting input type %q", inputType)
