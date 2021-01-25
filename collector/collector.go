@@ -26,7 +26,7 @@ import (
 const (
 	defaultTargetReceivebuffer = 1000
 	defaultClusterName         = "default-cluster"
-	lockRetry                  = 1 * time.Second
+	defaultLockRetry           = 5 * time.Second
 )
 
 // Config is the collector config
@@ -37,6 +37,7 @@ type Config struct {
 	TargetReceiveBuffer uint
 	RetryTimer          time.Duration
 	ClusterName         string
+	LockRetryTimer      time.Duration
 }
 
 // Collector //
@@ -116,6 +117,9 @@ func NewCollector(config *Config, targetConfigs map[string]*TargetConfig, opts .
 	}
 	if config.ClusterName == "" {
 		config.ClusterName = defaultClusterName
+	}
+	if config.LockRetryTimer <= 0 {
+		config.LockRetryTimer = defaultLockRetry
 	}
 	c := &Collector{
 		Config:        config,
@@ -201,11 +205,11 @@ START:
 			ok, err := c.locker.Lock(ctx, lockKey)
 			if err != nil {
 				c.logger.Printf("failed to lock target %q: %v", name, err)
-				time.Sleep(lockRetry)
+				time.Sleep(c.Config.LockRetryTimer)
 				goto START
 			}
 			if !ok {
-				time.Sleep(lockRetry)
+				time.Sleep(c.Config.LockRetryTimer)
 				goto START
 			}
 			c.logger.Printf("acquired lock for target %q", name)
@@ -230,7 +234,7 @@ START:
 				case err := <-errChan:
 					c.logger.Printf("failed to maintain target %q lock: %v", name, err)
 					c.StopTarget(name)
-					time.Sleep(lockRetry)
+					time.Sleep(c.Config.LockRetryTimer)
 					goto START
 				}
 			}

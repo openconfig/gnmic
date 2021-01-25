@@ -101,6 +101,7 @@ func initSubscribeFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVarP(&cli.config.LocalFlags.SubscribeWatchConfig, "watch-config", "", false, "watch configuration changes, add or delete subscribe targets accordingly")
 	cmd.Flags().DurationVarP(&cli.config.LocalFlags.SubscribeBackoff, "backoff", "", 0, "backoff time between subscribe requests")
 	cmd.Flags().StringVarP(&cli.config.LocalFlags.SubscribeClusterName, "cluster-name", "", defaultClusterName, "cluster name the gnmic instance belongs to, this is used for target loadsharing via a locker")
+	cmd.Flags().DurationVarP(&cli.config.LocalFlags.SubscribeLockRetry, "lock-retry", "", 5*time.Second, "time to wait between target lock attempts")
 	//
 	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
 		cli.config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
@@ -145,6 +146,7 @@ func (c *CLI) subscribeRunE(cmd *cobra.Command, args []string) error {
 			TargetReceiveBuffer: c.config.Globals.TargetBufferSize,
 			RetryTimer:          c.config.Globals.Retry,
 			ClusterName:         c.config.LocalFlags.SubscribeClusterName,
+			LockRetryTimer:      c.config.LocalFlags.SubscribeLockRetry,
 		}
 
 		c.collector = collector.NewCollector(cfg, targetsConfig,

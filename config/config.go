@@ -105,6 +105,7 @@ type LocalFlags struct {
 	SubscribeWatchConfig       bool          `mapstructure:"subscribe-watch-config,omitempty" json:"subscribe-watch-config,omitempty" yaml:"subscribe-watch-config,omitempty"`
 	SubscribeBackoff           time.Duration `mapstructure:"subscribe-backoff,omitempty" json:"subscribe-backoff,omitempty" yaml:"subscribe-backoff,omitempty"`
 	SubscribeClusterName       string        `mapstructure:"subscribe-cluster-name,omitempty" json:"subscribe-cluster-name,omitempty" yaml:"subscribe-cluster-name,omitempty"`
+	SubscribeLockRetry         time.Duration `mapstructure:"subscribe-lock-retry,omitempty" json:"subscribe-lock-retry,omitempty" yaml:"subscribe-lock-retry,omitempty"`
 	// Path
 	PathFile       []string `mapstructure:"path-file,omitempty" json:"path-file,omitempty" yaml:"path-file,omitempty"`
 	PathExclude    []string `mapstructure:"path-exclude,omitempty" json:"path-exclude,omitempty" yaml:"path-exclude,omitempty"`
