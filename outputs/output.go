@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 
+	"github.com/karimra/gnmic/formatters"
 	_ "github.com/karimra/gnmic/formatters/all"
 	"github.com/mitchellh/mapstructure"
 	"github.com/prometheus/client_golang/prometheus"
@@ -13,6 +14,7 @@ import (
 type Output interface {
 	Init(context.Context, map[string]interface{}, ...Option) error
 	Write(context.Context, proto.Message, Meta)
+	WriteEvent(context.Context, *formatters.EventMsg)
 	Close() error
 	RegisterMetrics(*prometheus.Registry)
 	String() string

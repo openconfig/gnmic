@@ -13,6 +13,7 @@ import (
 	"time"
 
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/karimra/gnmic/inputs"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
@@ -39,11 +40,17 @@ type Collector struct {
 	Config   *Config
 	dialOpts []grpc.DialOption
 	//
-	m                     *sync.Mutex
-	Subscriptions         map[string]*SubscriptionConfig
-	outputsConfig         map[string]map[string]interface{}
-	Outputs               map[string]outputs.Output
-	Targets               map[string]*Target
+	m             *sync.Mutex
+	Subscriptions map[string]*SubscriptionConfig
+
+	outputsConfig map[string]map[string]interface{}
+	Outputs       map[string]outputs.Output
+
+	inputsConfig map[string]map[string]interface{}
+	Inputs       map[string]inputs.Input
+
+	Targets map[string]*Target
+
 	EventProcessorsConfig map[string]map[string]interface{}
 	logger                *log.Logger
 	httpServer            *http.Server
@@ -105,6 +112,7 @@ func NewCollector(config *Config, targetConfigs map[string]*TargetConfig, opts .
 		m:           new(sync.Mutex),
 		Targets:     make(map[string]*Target),
 		Outputs:     make(map[string]outputs.Output),
+		Inputs:      make(map[string]inputs.Input),
 		httpServer:  httpServer,
 		targetsChan: make(chan *Target),
 	}

@@ -196,6 +196,8 @@ func (k *KafkaOutput) Write(ctx context.Context, rsp proto.Message, meta outputs
 	}
 }
 
+func (k *KafkaOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {}
+
 // Close //
 func (k *KafkaOutput) Close() error {
 	k.cancelFn()

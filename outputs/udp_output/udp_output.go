@@ -122,6 +122,8 @@ func (u *UDPSock) Write(ctx context.Context, m proto.Message, meta outputs.Meta)
 	u.buffer <- b
 }
 
+func (u *UDPSock) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {}
+
 func (u *UDPSock) Close() error {
 	u.cancelFn()
 	if u.limiter != nil {
@@ -129,6 +131,7 @@ func (u *UDPSock) Close() error {
 	}
 	return nil
 }
+
 func (u *UDPSock) RegisterMetrics(reg *prometheus.Registry) {}
 
 func (u *UDPSock) String() string {
