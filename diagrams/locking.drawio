@@ -1,4 +1,4 @@
-<mxfile host="app.diagrams.net" modified="2021-01-25T15:04:35.781Z" agent="5.0 (Macintosh; Intel Mac OS X 11_1_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.141 Safari/537.36" etag="d7R-yft4oSHzg8RHZVlY" version="14.0.1" type="github">
+<mxfile host="app.diagrams.net" modified="2021-01-25T15:06:10.385Z" agent="5.0 (Macintosh; Intel Mac OS X 11_1_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.141 Safari/537.36" etag="HQRQ1j9On7G14_SBzgYa" version="14.0.1" type="github">
   <diagram id="TBKng6sE-Jx8A-JH2uSp" name="Page-1">
     <mxGraphModel dx="1188" dy="599" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="900" pageHeight="400" math="0" shadow="0">
       <root>
@@ -100,7 +100,7 @@
         <mxCell id="OhbVSFWdRjhHsJU15Zuy-40" value="&lt;font color=&quot;#66b2ff&quot;&gt;gNMIc-3&lt;/font&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
           <mxGeometry x="254.27999999999997" y="268.56" width="48.72" height="20" as="geometry" />
         </mxCell>
-        <mxCell id="OhbVSFWdRjhHsJU15Zuy-41" value="&lt;font color=&quot;#3333ff&quot;&gt;KV Store&lt;/font&gt;" style="shape=table;html=1;whiteSpace=wrap;startSize=30;container=1;collapsible=0;childLayout=tableLayout;fontStyle=1;align=center;rounded=0;shadow=0;glass=0;labelBackgroundColor=none;sketch=0;strokeColor=#000000;fillColor=none;fontFamily=Tahoma;" vertex="1" parent="1">
+        <mxCell id="OhbVSFWdRjhHsJU15Zuy-41" value="&lt;font color=&quot;#3333ff&quot;&gt;KV Store&lt;/font&gt;" style="shape=table;html=1;whiteSpace=wrap;startSize=30;container=1;collapsible=0;childLayout=tableLayout;fontStyle=1;align=center;rounded=0;shadow=0;glass=0;labelBackgroundColor=none;sketch=0;fillColor=none;fontFamily=Tahoma;strokeColor=#7EA6E0;" vertex="1" parent="1">
           <mxGeometry x="504" y="92.68999999999998" width="292" height="239.26999999999998" as="geometry" />
         </mxCell>
         <mxCell id="OhbVSFWdRjhHsJU15Zuy-42" value="" style="shape=partialRectangle;html=1;whiteSpace=wrap;collapsible=0;dropTarget=0;pointerEvents=0;fillColor=none;top=0;left=0;bottom=0;right=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;" vertex="1" parent="OhbVSFWdRjhHsJU15Zuy-41">
