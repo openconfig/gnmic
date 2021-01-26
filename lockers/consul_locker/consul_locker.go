@@ -18,6 +18,7 @@ const (
 	defaultAddress    = "localhost:8500"
 	defaultSessionTTL = 10 * time.Second
 	defaultRetryTimer = 2 * time.Second
+	defaultDelay      = 15 * time.Second
 	loggingPrefix     = "consul_locker "
 )
 
@@ -43,6 +44,7 @@ type ConsulLocker struct {
 type config struct {
 	Address     string        `mapstructure:"address,omitempty" json:"address,omitempty"`
 	SessionTTL  time.Duration `mapstructure:"session-ttl,omitempty" json:"session-ttl,omitempty"`
+	Delay       time.Duration `mapstructure:"delay,omitempty" json:"delay,omitempty"`
 	RetryTimer  time.Duration `mapstructure:"retry-timer,omitempty" json:"retry-timer,omitempty"`
 	RenewPeriod time.Duration `mapstructure:"renew-period,omitempty" json:"renew-period,omitempty"`
 	Debug       bool          `mapstructure:"debug,omitempty" json:"debug,omitempty"`
@@ -86,8 +88,9 @@ func (c *ConsulLocker) Lock(ctx context.Context, key string, val []byte) (bool, 
 		acquired = false
 		kvPair.Session, _, err = c.client.Session().Create(
 			&api.SessionEntry{
-				Behavior: "delete",
-				TTL:      c.Cfg.SessionTTL.String(),
+				Behavior:  "delete",
+				TTL:       c.Cfg.SessionTTL.String(),
+				LockDelay: c.Cfg.Delay,
 			},
 			writeOpts,
 		)
@@ -194,6 +197,12 @@ func (c *ConsulLocker) setDefaults() error {
 	}
 	if c.Cfg.RenewPeriod <= 0 || c.Cfg.RenewPeriod >= c.Cfg.SessionTTL {
 		c.Cfg.RenewPeriod = c.Cfg.SessionTTL / 2
+	}
+	if c.Cfg.Delay < 0 {
+		c.Cfg.Delay = defaultDelay
+	}
+	if c.Cfg.Delay > 60*time.Second {
+		c.Cfg.Delay = 60 * time.Second
 	}
 	return nil
 }
