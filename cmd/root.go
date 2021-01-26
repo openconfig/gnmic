@@ -248,6 +248,7 @@ func initGlobalflags(cmd *cobra.Command, globals *config.GlobalFlags) {
 	cmd.PersistentFlags().StringVarP(&globals.TLSMinVersion, "tls-min-version", "", "", fmt.Sprintf("minimum TLS supported version, one of %q", tlsVersions))
 	cmd.PersistentFlags().StringVarP(&globals.TLSMaxVersion, "tls-max-version", "", "", fmt.Sprintf("maximum TLS supported version, one of %q", tlsVersions))
 	cmd.PersistentFlags().StringVarP(&globals.TLSVersion, "tls-version", "", "", fmt.Sprintf("set TLS version. Overwrites --tls-min-version and --tls-max-version, one of %q", tlsVersions))
+	cmd.PersistentFlags().StringVarP(&globals.InstanceName, "instance-name", "", "", "gnmic instance name")
 
 	cmd.PersistentFlags().VisitAll(func(flag *pflag.Flag) {
 		cli.config.FileConfig.BindPFlag(flag.Name, flag)

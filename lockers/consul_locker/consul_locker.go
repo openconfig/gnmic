@@ -76,12 +76,12 @@ func (c *ConsulLocker) Init(ctx context.Context, cfg map[string]interface{}, opt
 	return nil
 }
 
-func (c *ConsulLocker) Lock(ctx context.Context, key string) (bool, error) {
+func (c *ConsulLocker) Lock(ctx context.Context, key string, val []byte) (bool, error) {
 	var err error
 	var acquired = false
 	writeOpts := new(api.WriteOptions)
 	writeOpts = writeOpts.WithContext(ctx)
-	kvPair := &api.KVPair{Key: key}
+	kvPair := &api.KVPair{Key: key, Value: val}
 	for {
 		acquired = false
 		kvPair.Session, _, err = c.client.Session().Create(

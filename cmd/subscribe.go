@@ -140,6 +140,7 @@ func (c *CLI) subscribeRunE(cmd *cobra.Command, args []string) error {
 
 	if c.collector == nil {
 		cfg := &collector.Config{
+			Name:                c.config.Globals.InstanceName,
 			PrometheusAddress:   c.config.Globals.PrometheusAddress,
 			Debug:               c.config.Globals.Debug,
 			Format:              c.config.Globals.Format,

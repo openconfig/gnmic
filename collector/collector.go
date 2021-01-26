@@ -31,6 +31,7 @@ const (
 
 // Config is the collector config
 type Config struct {
+	Name                string
 	PrometheusAddress   string
 	Debug               bool
 	Format              string
@@ -202,7 +203,7 @@ START:
 	default:
 		if c.locker != nil {
 			c.logger.Printf("acquiring lock for target %q", name)
-			ok, err := c.locker.Lock(ctx, lockKey)
+			ok, err := c.locker.Lock(ctx, lockKey, []byte(c.Config.Name))
 			if err != nil {
 				c.logger.Printf("failed to lock target %q: %v", name, err)
 				time.Sleep(c.Config.LockRetryTimer)

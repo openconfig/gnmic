@@ -191,3 +191,6 @@ This flag overwrites the previously listed flags `--tls-max-version` and `--tls-
 
 ### username
 The username flag `[-u | --username]` is used to specify the target username as part of the user credentials. If omitted, the input prompt is used to provide the username.
+
+### instance-name
+The `[--instance-name]` flag is used to give a unique name to the running `gnmic` instance. This is useful when there are multiple instances of `gnmic` running at the same time, either for high-availability and/or scalability

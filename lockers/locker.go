@@ -9,7 +9,7 @@ import (
 
 type Locker interface {
 	Init(context.Context, map[string]interface{}, ...Option) error
-	Lock(context.Context, string) (bool, error)
+	Lock(context.Context, string, []byte) (bool, error)
 	KeepLock(context.Context, string) (chan struct{}, chan error)
 	Unlock(string) error
 	Stop() error
