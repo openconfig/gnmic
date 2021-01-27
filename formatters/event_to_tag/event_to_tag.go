@@ -12,6 +12,7 @@ import (
 
 const (
 	processorType = "event-to-tag"
+	loggingPrefix = "[" + processorType + "] "
 )
 
 // ToTag moves ALL values matching any of the regex in .Values to the EventMsg.Tags map.
@@ -21,7 +22,7 @@ type ToTag struct {
 	ValueNames []string `mapstructure:"value-names,omitempty" json:"value-names,omitempty"`
 	Keep       bool     `mapstructure:"keep,omitempty" json:"keep,omitempty"`
 	Debug      bool     `mapstructure:"debug,omitempty" json:"debug,omitempty"`
-	
+
 	valueNames []*regexp.Regexp
 	values     []*regexp.Regexp
 
@@ -40,9 +41,9 @@ func (t *ToTag) Init(cfg interface{}, logger *log.Logger) error {
 		return err
 	}
 	if t.Debug && logger != nil {
-		t.logger = log.New(logger.Writer(), processorType+" ", logger.Flags())
+		t.logger = log.New(logger.Writer(), loggingPrefix, logger.Flags())
 	} else if t.Debug {
-		t.logger = log.New(os.Stderr, processorType+" ", log.LstdFlags|log.Lmicroseconds)
+		t.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
 	} else {
 		t.logger = log.New(ioutil.Discard, "", 0)
 	}

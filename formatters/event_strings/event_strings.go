@@ -14,6 +14,7 @@ import (
 
 const (
 	processorType = "event-strings"
+	loggingPrefix = "[" + processorType + "] "
 )
 
 // Strings provides some of Golang's strings functions to transform: tags, tag names, values and value names
@@ -69,9 +70,9 @@ func (s *Strings) Init(cfg interface{}, logger *log.Logger) error {
 		return err
 	}
 	if s.Debug && logger != nil {
-		s.logger = log.New(logger.Writer(), processorType+" ", logger.Flags())
+		s.logger = log.New(logger.Writer(), loggingPrefix, logger.Flags())
 	} else if s.Debug {
-		s.logger = log.New(os.Stderr, processorType+" ", log.LstdFlags|log.Lmicroseconds)
+		s.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
 	} else {
 		s.logger = log.New(ioutil.Discard, "", 0)
 	}

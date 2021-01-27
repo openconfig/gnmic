@@ -34,7 +34,7 @@ const (
 	defaultExpiration = time.Minute
 	defaultMetricHelp = "gNMIc generated metric"
 	metricNameRegex   = "[^a-zA-Z0-9_]+"
-	loggingPrefix     = "prometheus_output "
+	loggingPrefix     = "[prometheus_output] "
 )
 
 type labelPair struct {

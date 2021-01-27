@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	loggingPrefix           = "stan_input "
+	loggingPrefix           = "[stan_input] "
 	defaultAddress          = "localhost:4222"
 	stanConnectWait         = 2 * time.Second
 	stanDefaultPingInterval = 5

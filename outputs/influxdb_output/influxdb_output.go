@@ -23,7 +23,7 @@ const (
 	defaultHealthCheckPeriod = 30 * time.Second
 
 	numWorkers    = 1
-	loggingPrefix = "influxdb_output "
+	loggingPrefix = "[influxdb_output] "
 )
 
 func init() {

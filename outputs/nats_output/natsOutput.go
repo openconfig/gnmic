@@ -27,7 +27,7 @@ const (
 	defaultNumWorkers       = 1
 	defaultWriteTimeout     = 5 * time.Second
 	defaultAddress          = "localhost:4222"
-	loggingPrefix           = "nats_output "
+	loggingPrefix           = "[nats_output] "
 )
 
 func init() {

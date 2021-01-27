@@ -18,7 +18,7 @@ import (
 const (
 	defaultRetryTimer = 2 * time.Second
 	defaultNumWorkers = 1
-	loggingPrefix     = "tcp_output "
+	loggingPrefix     = "[tcp_output] "
 )
 
 func init() {

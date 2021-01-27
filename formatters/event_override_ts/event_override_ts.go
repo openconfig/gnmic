@@ -12,6 +12,7 @@ import (
 
 const (
 	processorType = "event-override-ts"
+	loggingPrefix = "[" + processorType + "] "
 )
 
 // OverrideTS Overrides the message timestamp with the local time
@@ -34,9 +35,9 @@ func (o *OverrideTS) Init(cfg interface{}, logger *log.Logger) error {
 		return err
 	}
 	if o.Debug && logger != nil {
-		o.logger = log.New(logger.Writer(), processorType+" ", logger.Flags())
+		o.logger = log.New(logger.Writer(), loggingPrefix, logger.Flags())
 	} else if o.Debug {
-		o.logger = log.New(os.Stderr, processorType+" ", log.LstdFlags|log.Lmicroseconds)
+		o.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
 	} else {
 		o.logger = log.New(ioutil.Discard, "", 0)
 	}

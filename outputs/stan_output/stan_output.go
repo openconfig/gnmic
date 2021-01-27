@@ -31,7 +31,7 @@ const (
 	defaultAddress          = "localhost:4222"
 	defaultClusterName      = "test-cluster"
 
-	loggingPrefix = "stan_output "
+	loggingPrefix = "[stan_output] "
 )
 
 func init() {

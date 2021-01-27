@@ -17,7 +17,7 @@ import (
 
 const (
 	defaultRetryTimer = 2 * time.Second
-	loggingPrefix     = "udp_output "
+	loggingPrefix     = "[udp_output] "
 )
 
 func init() {

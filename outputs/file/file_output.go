@@ -21,7 +21,7 @@ const (
 	defaultFormat           = "json"
 	defaultWriteConcurrency = 1000
 	defaultSeparator        = "\n"
-	loggingPrefix           = "file_output "
+	loggingPrefix           = "[file_output] "
 )
 
 func init() {

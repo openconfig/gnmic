@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	loggingPrefix            = "kafka_input "
+	loggingPrefix            = "[kafka_input] "
 	defaultFormat            = "event"
 	defaultTopic             = "telemetry"
 	defaultNumWorkers        = 1

@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	loggingPrefix           = "nats_input "
+	loggingPrefix           = "[nats_input] "
 	natsReconnectBufferSize = 100 * 1024 * 1024
 	defaultAddress          = "localhost:4222"
 	natsConnectWait         = 2 * time.Second
