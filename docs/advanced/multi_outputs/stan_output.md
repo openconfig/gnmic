@@ -6,22 +6,38 @@ A STAN output can be defined using the below format in `gnmic` config file under
 outputs:
   output1:
     type: stan # required
-    address: localhost:4223 # comma separated STAN servers
-    subject: telemetry # stan subject
-    subject-prefix: telemetry # stan subject prefix, the subject prefix is built the same way as for NATS output
-    username: # STAN username
-    password: # STAN password
-    name: # client name
-    cluster-name: test-cluster # cluster name
-    ping-interval: # STAN ping interval
-    ping-retry: # STAN ping retry
-    format:  json # string, message marshaling format, one of: proto, prototext, protojson, json, event
-    recovery-wait-time: 2s # duration to wait before re establishing a lost connection to a stan server
-    num-workers: 1 # integer, number of nats publishers to be created
-    debug: false # boolean, enables extra logging for the STAN output
-    write-timeout: 10s # duration after which a message waiting to be handled by a worker gets discarded
-    enable-metrics: false # boolean, enables the collection and export (via prometheus) of output specific metrics
-    event-processors: # list of processors to apply on the message before writing
+    # comma separated STAN servers
+    address: localhost:4222
+    # stan subject
+    subject: telemetry 
+     # stan subject prefix, the subject prefix is built the same way as for NATS output
+    subject-prefix: telemetry
+    # STAN username
+    username:
+    # STAN password
+    password: 
+    # client name
+    name:
+    # cluster name, mandatory
+    cluster-name: test-cluster
+    # STAN ping interval
+    ping-interval: 5
+    # STAN ping retry
+    ping-retry: 2
+    # string, message marshaling format, one of: proto, prototext, protojson, json, event
+    format:  event 
+    # duration to wait before re establishing a lost connection to a stan server
+    recovery-wait-time: 2s
+    # integer, number of stan publishers to be created
+    num-workers: 1 
+    # boolean, enables extra logging for the STAN output
+    debug: false 
+    # duration after which a message waiting to be handled by a worker gets discarded
+    write-timeout: 10s 
+    # boolean, enables the collection and export (via prometheus) of output specific metrics
+    enable-metrics: false 
+    # list of processors to apply on the message before writing
+    event-processors: 
 ```
 
 Using `subject` config value a user can specify the STAN subject to which to send all subscriptions updates for all targets

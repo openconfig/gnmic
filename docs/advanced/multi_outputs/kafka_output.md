@@ -5,18 +5,30 @@ A Kafka output can be defined using the below format in `gnmic` config file unde
 ```yaml
 outputs:
   output1:
-    type: kafka # required
-    address: localhost:9092 # comma separated brokers addresses
-    topic: telemetry # topic name
-    max-retry: # max number of retries retry
-    timeout: # kafka connection timeout
-    recovery-wait-time: # wait time to reestablish the kafka producer connection after a failure
-    format: # msg formatting, json, protojson, prototext, proto, event
-    num-workers: # number of kafka producers to be created 
-    debug: # (bool) enable debug
-    buffer-size: # (int) number of messages to buffer before being picked up by the workers
-    enable-metrics: false # boolean, enables the collection and export (via prometheus) of output specific metrics
-    event-processors: # list of processors to apply on the message before writing
+    # required
+    type: kafka 
+    # Comma separated brokers addresses
+    address: localhost:9092 
+    # Kafka topic name
+    topic: telemetry 
+    # The total number of times to retry sending a message
+    max-retry: 2 
+    # Kafka connection timeout
+    timeout: 5s 
+    # Wait time to reestablish the kafka producer connection after a failure
+    recovery-wait-time: 10s 
+    # Exported msg format, json, protojson, prototext, proto, event
+    format: event 
+    # Number of kafka producers to be created 
+    num-workers: 1 
+    # (bool) enable debug
+    debug: false 
+    # (int) number of messages to buffer before being picked up by the workers
+    buffer-size: 0 
+    # (bool) enables the collection and export (via prometheus) of output specific metrics
+    enable-metrics: false 
+    # list of processors to apply on the message before writing
+    event-processors: 
 ```
 
 Currently all subscriptions updates (all targets and all subscriptions) are published to the defined topic name

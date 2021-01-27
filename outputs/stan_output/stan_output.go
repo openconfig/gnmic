@@ -23,13 +23,13 @@ import (
 const (
 	stanDefaultPingInterval = 5
 	stanDefaultPingRetry    = 2
-
-	defaultSubjectName = "gnmic-telemetry"
-
-	defaultFormat           = "json"
+	defaultSubjectName      = "telemetry"
+	defaultFormat           = "event"
 	defaultRecoveryWaitTime = 2 * time.Second
 	defaultNumWorkers       = 1
-	defaultWriteTimeout     = 10 * time.Second
+	defaultWriteTimeout     = 5 * time.Second
+	defaultAddress          = "localhost:4222"
+	defaultClusterName      = "test-cluster"
 
 	loggingPrefix = "stan_output "
 )
@@ -107,11 +107,11 @@ func (s *StanOutput) SetEventProcessors(ps map[string]map[string]interface{}, lo
 				ep := in()
 				err := ep.Init(epCfg[epType], log)
 				if err != nil {
-					s.logger.Printf("failed initializing event processor '%s' of type='%s': %v", epName, epType, err)
+					s.logger.Printf("failed initializing event processor %q of type=%q: %v", epName, epType, err)
 					continue
 				}
 				s.evps = append(s.evps, ep)
-				s.logger.Printf("added event processor '%s' of type=%s to stan output", epName, epType)
+				s.logger.Printf("added event processor %q of type=%s to stan output", epName, epType)
 			}
 		}
 	}
@@ -150,11 +150,20 @@ func (s *StanOutput) Init(ctx context.Context, cfg map[string]interface{}, opts 
 }
 
 func (s *StanOutput) setDefaults() error {
+	if s.Cfg.Format == "" {
+		s.Cfg.Format = defaultFormat
+	}
+	if !(s.Cfg.Format == "event" || s.Cfg.Format == "protojson" || s.Cfg.Format == "proto" || s.Cfg.Format == "json") {
+		return fmt.Errorf("unsupported output format: %q for output type STAN", s.Cfg.Format)
+	}
+	if s.Cfg.Address == "" {
+		s.Cfg.Address = defaultAddress
+	}
 	if s.Cfg.Name == "" {
 		s.Cfg.Name = "gnmic-" + uuid.New().String()
 	}
 	if s.Cfg.ClusterName == "" {
-		return fmt.Errorf("clusterName is mandatory")
+		s.Cfg.ClusterName = defaultClusterName
 	}
 	if s.Cfg.Subject == "" && s.Cfg.SubjectPrefix == "" {
 		s.Cfg.Subject = defaultSubjectName
@@ -167,12 +176,6 @@ func (s *StanOutput) setDefaults() error {
 	}
 	if s.Cfg.NumWorkers <= 0 {
 		s.Cfg.NumWorkers = defaultNumWorkers
-	}
-	if s.Cfg.Format == "" {
-		s.Cfg.Format = defaultFormat
-	}
-	if !(s.Cfg.Format == "event" || s.Cfg.Format == "protojson" || s.Cfg.Format == "proto" || s.Cfg.Format == "json") {
-		return fmt.Errorf("unsupported output format: '%s' for output type STAN", s.Cfg.Format)
 	}
 	if s.Cfg.PingInterval == 0 {
 		s.Cfg.PingInterval = stanDefaultPingInterval
