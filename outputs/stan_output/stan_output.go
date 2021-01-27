@@ -118,17 +118,20 @@ func (s *StanOutput) SetEventProcessors(ps map[string]map[string]interface{}, lo
 }
 
 // Init //
-func (s *StanOutput) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
+func (s *StanOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
 	err := outputs.DecodeConfig(cfg, s.Cfg)
 	if err != nil {
 		return err
 	}
-	err = s.setDefaults()
-	if err != nil {
-		return err
+	if s.Cfg.Name == "" {
+		s.Cfg.Name = name
 	}
 	for _, opt := range opts {
 		opt(s)
+	}
+	err = s.setDefaults()
+	if err != nil {
+		return err
 	}
 	s.msgChan = make(chan *protoMsg)
 
@@ -334,4 +337,15 @@ func (s *StanOutput) subjectName(c *Config, meta outputs.Meta) string {
 		return strings.ReplaceAll(ssb.String(), " ", "_")
 	}
 	return strings.ReplaceAll(s.Cfg.Subject, " ", "_")
+}
+
+func (s *StanOutput) SetName(name string) {
+	sb := strings.Builder{}
+	if name != "" {
+		sb.WriteString(name)
+		sb.WriteString("-")
+	}
+	sb.WriteString(s.Cfg.Name)
+	sb.WriteString("-stan-pub")
+	s.Cfg.Name = sb.String()
 }

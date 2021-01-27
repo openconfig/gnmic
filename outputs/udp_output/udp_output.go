@@ -80,7 +80,7 @@ func (u *UDPSock) SetEventProcessors(ps map[string]map[string]interface{}, log *
 	}
 }
 
-func (u *UDPSock) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
+func (u *UDPSock) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
 	err := outputs.DecodeConfig(cfg, u.Cfg)
 	if err != nil {
 		return err
@@ -180,3 +180,5 @@ DIAL:
 		}
 	}
 }
+
+func (u *UDPSock) SetName(name string) {}

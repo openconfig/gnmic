@@ -95,7 +95,7 @@ func (f *File) SetLogger(logger *log.Logger) {
 }
 
 // Init //
-func (f *File) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
+func (f *File) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
 	err := outputs.DecodeConfig(cfg, f.Cfg)
 	if err != nil {
 		return err
@@ -206,3 +206,5 @@ func (f *File) RegisterMetrics(reg *prometheus.Registry) {
 		f.logger.Printf("failed to register metric: %v", err)
 	}
 }
+
+func (f *File) SetName(name string) {}

@@ -12,9 +12,11 @@ inputs:
   input1:
     # string, required, specifies the type of input
     type: nats 
-    # string, NATS consumer name. 
-    # If left empty, a name in `gnmic-$uuid` format is generated
-    Name:
+    # NATS subscriber name
+    # If left empty, it will be populated with the string from flag --instance-name appended with `--nats-sub`.
+    # If --instance-name is also empty, a random name is generated in the format `gnmic-$uuid`
+    # note that each nats worker (subscriber) will get name=$name-$index
+    name: ""
     # string, comma separated NATS servers addresses
     address: localhost:4222
     # The subject name gnmic NATS consumers subscribe to.

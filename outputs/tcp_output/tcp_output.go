@@ -82,7 +82,7 @@ func (t *TCPOutput) SetEventProcessors(ps map[string]map[string]interface{}, log
 	}
 }
 
-func (t *TCPOutput) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
+func (t *TCPOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
 	err := outputs.DecodeConfig(cfg, t.Cfg)
 	if err != nil {
 		return err
@@ -144,6 +144,7 @@ func (t *TCPOutput) Close() error {
 	return nil
 }
 func (t *TCPOutput) RegisterMetrics(reg *prometheus.Registry) {}
+
 func (t *TCPOutput) String() string {
 	b, err := json.Marshal(t)
 	if err != nil {
@@ -151,6 +152,7 @@ func (t *TCPOutput) String() string {
 	}
 	return string(b)
 }
+
 func (t *TCPOutput) start(ctx context.Context, idx int) {
 	workerLogPrefix := fmt.Sprintf("worker-%d", idx)
 START:
@@ -190,3 +192,5 @@ START:
 		}
 	}
 }
+
+func (t *TCPOutput) SetName(name string) {}

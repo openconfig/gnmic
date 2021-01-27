@@ -306,10 +306,11 @@ func (c *Collector) InitOutput(ctx context.Context, name string) {
 			if initializer, ok := outputs.Outputs[outType.(string)]; ok {
 				out := initializer()
 				go func() {
-					err := out.Init(ctx, cfg,
+					err := out.Init(ctx, name, cfg,
 						outputs.WithLogger(c.logger),
 						outputs.WithEventProcessors(c.EventProcessorsConfig, c.logger),
 						outputs.WithRegister(c.reg),
+						outputs.WithName(c.Config.Name),
 					)
 					if err != nil {
 						c.logger.Printf("failed to init output type %q: %v", outType, err)

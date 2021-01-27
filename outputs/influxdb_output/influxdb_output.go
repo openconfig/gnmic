@@ -101,7 +101,7 @@ func (i *InfluxDBOutput) SetEventProcessors(ps map[string]map[string]interface{}
 	}
 }
 
-func (i *InfluxDBOutput) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
+func (i *InfluxDBOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
 	err := outputs.DecodeConfig(cfg, i.Cfg)
 	if err != nil {
 		return err
@@ -270,3 +270,5 @@ START:
 		}
 	}
 }
+
+func (i *InfluxDBOutput) SetName(name string) {}

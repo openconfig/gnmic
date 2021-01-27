@@ -68,17 +68,20 @@ type Config struct {
 }
 
 // Init //
-func (n *NatsInput) Start(ctx context.Context, cfg map[string]interface{}, opts ...inputs.Option) error {
+func (n *NatsInput) Start(ctx context.Context, name string, cfg map[string]interface{}, opts ...inputs.Option) error {
 	err := outputs.DecodeConfig(cfg, n.Cfg)
 	if err != nil {
 		return err
 	}
-	err = n.setDefaults()
-	if err != nil {
-		return err
+	if n.Cfg.Name == "" {
+		n.Cfg.Name = name
 	}
 	for _, opt := range opts {
 		opt(n)
+	}
+	err = n.setDefaults()
+	if err != nil {
+		return err
 	}
 	n.ctx, n.cfn = context.WithCancel(ctx)
 	n.logger.Printf("input starting with config: %+v", n.Cfg)
@@ -205,6 +208,17 @@ func (n *NatsInput) SetOutputs(outs map[string]outputs.Output) {
 			n.outputs = append(n.outputs, o)
 		}
 	}
+}
+
+func (n *NatsInput) SetName(name string) {
+	sb := strings.Builder{}
+	if name != "" {
+		sb.WriteString(name)
+		sb.WriteString("-")
+	}
+	sb.WriteString(n.Cfg.Name)
+	sb.WriteString("-nats-sub")
+	n.Cfg.Name = sb.String()
 }
 
 // helper functions

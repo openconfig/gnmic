@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/karimra/gnmic/inputs"
-	"github.com/karimra/gnmic/outputs"
 )
 
 func WithInputs(inputsConfig map[string]map[string]interface{}) CollectorOption {
@@ -31,7 +30,7 @@ func (c *Collector) AddInput(name string, cfg map[string]interface{}) error {
 	return nil
 }
 
-func (c *Collector) InitInput(ctx context.Context, name string, outs ...outputs.Output) {
+func (c *Collector) InitInput(ctx context.Context, name string) {
 	c.m.Lock()
 	defer c.m.Unlock()
 	if _, ok := c.Inputs[name]; ok {
@@ -43,9 +42,10 @@ func (c *Collector) InitInput(ctx context.Context, name string, outs ...outputs.
 			if initializer, ok := inputs.Inputs[inputType.(string)]; ok {
 				input := initializer()
 				go func() {
-					err := input.Start(ctx, cfg,
+					err := input.Start(ctx, name, cfg,
 						inputs.WithLogger(c.logger),
 						inputs.WithOutputs(c.Outputs),
+						inputs.WithName(c.Config.Name),
 					)
 					if err != nil {
 						c.logger.Printf("failed to start input type %q: %v", inputType, err)
@@ -58,11 +58,7 @@ func (c *Collector) InitInput(ctx context.Context, name string, outs ...outputs.
 }
 
 func (c *Collector) InitInputs(ctx context.Context) {
-	outs := make([]outputs.Output, 0, len(c.Outputs))
-	for _, o := range c.Outputs {
-		outs = append(outs, o)
-	}
 	for name := range c.inputsConfig {
-		c.InitInput(ctx, name, outs...)
+		c.InitInput(ctx, name)
 	}
 }

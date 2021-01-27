@@ -12,9 +12,11 @@ inputs:
   input1:
     # string, required, specifies the type of input
     type: kafka 
-    # string, Kafka consumer name. 
-    # If left empty, a name in `gnmic-$uuid` format is generated
-    Name:
+    # Kafka subscriber name
+    # If left empty, it will be populated with the string from flag --instance-name appended with `--kafka-cons`.
+    # If --instance-name is also empty, a random name is generated in the format `gnmic-$uuid`
+    # note that each kafka worker (consumer) will get name=$name-$index
+    name: ""
     # string, comma separated Kafka servers addresses
     address: localhost:9092
     # string, comma separated topics the Kafka consumer group consumes messages from.
