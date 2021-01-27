@@ -304,6 +304,9 @@ func (c *Collector) AddOutput(name string, cfg map[string]interface{}) error {
 func (c *Collector) InitOutput(ctx context.Context, name string) {
 	c.m.Lock()
 	defer c.m.Unlock()
+	if _, ok := c.Outputs[name]; ok {
+		return
+	}
 	if cfg, ok := c.outputsConfig[name]; ok {
 		if outType, ok := cfg["type"]; ok {
 			c.logger.Printf("starting output type %s", outType)
