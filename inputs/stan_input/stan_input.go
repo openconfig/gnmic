@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	loggingPrefix           = "stan_input "
+	loggingPrefix           = "[stan_input] "
 	defaultAddress          = "localhost:4222"
 	stanConnectWait         = 2 * time.Second
 	stanDefaultPingInterval = 5
@@ -70,17 +70,20 @@ type Config struct {
 	Outputs         []string      `mapstructure:"outputs,omitempty"`
 }
 
-func (s *StanInput) Start(ctx context.Context, cfg map[string]interface{}, opts ...inputs.Option) error {
+func (s *StanInput) Start(ctx context.Context, name string, cfg map[string]interface{}, opts ...inputs.Option) error {
 	err := outputs.DecodeConfig(cfg, s.Cfg)
 	if err != nil {
 		return err
 	}
-	err = s.setDefaults()
-	if err != nil {
-		return err
+	if s.Cfg.Name == "" {
+		s.Cfg.Name = name
 	}
 	for _, opt := range opts {
 		opt(s)
+	}
+	err = s.setDefaults()
+	if err != nil {
+		return err
 	}
 	s.ctx, s.cfn = context.WithCancel(ctx)
 	s.wg.Add(s.Cfg.NumWorkers)
@@ -141,6 +144,17 @@ func (s *StanInput) SetOutputs(outs map[string]outputs.Output) {
 			s.outputs = append(s.outputs, o)
 		}
 	}
+}
+
+func (s *StanInput) SetName(name string) {
+	sb := strings.Builder{}
+	if name != "" {
+		sb.WriteString(name)
+		sb.WriteString("-")
+	}
+	sb.WriteString(s.Cfg.Name)
+	sb.WriteString("-stan-sub")
+	s.Cfg.Name = sb.String()
 }
 
 // helper functions

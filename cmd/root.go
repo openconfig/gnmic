@@ -115,7 +115,7 @@ func rootCmdPersistentPreRunE(cmd *cobra.Command, args []string) error {
 	cli.config.SetLogger()
 	cli.config.SetPersistantFlagsFromFile(rootCmd)
 	cli.config.Globals.Address = config.SanitizeArrayFlagValue(cli.config.Globals.Address)
-	cli.logger = log.New(ioutil.Discard, "gnmic ", log.LstdFlags|log.Lmicroseconds)
+	cli.logger = log.New(ioutil.Discard, "[gnmic] ", log.LstdFlags|log.Lmicroseconds)
 	if cli.config.Globals.LogFile != "" {
 		f, err := os.OpenFile(cli.config.Globals.LogFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 		if err != nil {

@@ -7,6 +7,12 @@ outputs:
   output1:
     # required
     type: nats 
+    # NATS publisher name
+    # if left empty, this field is populated with the output name used as output ID (output1 in this example).
+    # the full name will be '$(name)-nats-pub'.
+    # If the flag --instance-name is not empty, the full name will be '$(instance-name)-$(name)-nats-pub.
+    # note that each nats worker (publisher) will get client name=$name-$index
+    name: ""
     # Comma separated NATS servers
     address: localhost:4222 
     # This prefix is used to to build the subject name for each target/subscription

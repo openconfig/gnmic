@@ -26,7 +26,7 @@ const (
 	defaultFormat           = "event"
 	defaultRecoveryWaitTime = 10 * time.Second
 	defaultAddress          = "localhost:9092"
-	loggingPrefix           = "kafka_output "
+	loggingPrefix           = "[kafka_output] "
 )
 
 type protoMsg struct {
@@ -109,17 +109,20 @@ func (k *KafkaOutput) SetEventProcessors(ps map[string]map[string]interface{}, l
 }
 
 // Init /
-func (k *KafkaOutput) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
+func (k *KafkaOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
 	err := outputs.DecodeConfig(cfg, k.Cfg)
 	if err != nil {
 		return err
 	}
-	err = k.setDefaults()
-	if err != nil {
-		return err
+	if k.Cfg.Name == "" {
+		k.Cfg.Name = name
 	}
 	for _, opt := range opts {
 		opt(k)
+	}
+	err = k.setDefaults()
+	if err != nil {
+		return err
 	}
 	k.msgChan = make(chan *protoMsg, uint(k.Cfg.BufferSize))
 	k.mo = &formatters.MarshalOptions{Format: k.Cfg.Format}
@@ -278,4 +281,15 @@ CRPROD:
 			}
 		}
 	}
+}
+
+func (k *KafkaOutput) SetName(name string) {
+	sb := strings.Builder{}
+	if name != "" {
+		sb.WriteString(name)
+		sb.WriteString("-")
+	}
+	sb.WriteString(k.Cfg.Name)
+	sb.WriteString("-kafka-prod")
+	k.Cfg.Name = sb.String()
 }

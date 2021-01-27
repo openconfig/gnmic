@@ -14,6 +14,7 @@ import (
 
 const (
 	processorType = "event-convert"
+	loggingPrefix = "[" + processorType + "] "
 )
 
 // Convert converts the value with key matching one of regexes, to the specified Type
@@ -38,9 +39,9 @@ func (c *Convert) Init(cfg interface{}, logger *log.Logger) error {
 		return err
 	}
 	if c.Debug && logger != nil {
-		c.logger = log.New(logger.Writer(), processorType+" ", logger.Flags())
+		c.logger = log.New(logger.Writer(), loggingPrefix, logger.Flags())
 	} else if c.Debug {
-		c.logger = log.New(os.Stderr, processorType+" ", log.LstdFlags|log.Lmicroseconds)
+		c.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
 	} else {
 		c.logger = log.New(ioutil.Discard, "", 0)
 	}

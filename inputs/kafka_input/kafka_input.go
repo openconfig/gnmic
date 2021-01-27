@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
+	"github.com/google/uuid"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/inputs"
 	"github.com/karimra/gnmic/outputs"
@@ -18,7 +19,7 @@ import (
 )
 
 const (
-	loggingPrefix            = "kafka_input "
+	loggingPrefix            = "[kafka_input] "
 	defaultFormat            = "event"
 	defaultTopic             = "telemetry"
 	defaultNumWorkers        = 1
@@ -68,17 +69,20 @@ type Config struct {
 	kafkaVersion sarama.KafkaVersion
 }
 
-func (k *KafkaInput) Start(ctx context.Context, cfg map[string]interface{}, opts ...inputs.Option) error {
+func (k *KafkaInput) Start(ctx context.Context, name string, cfg map[string]interface{}, opts ...inputs.Option) error {
 	err := outputs.DecodeConfig(cfg, k.Cfg)
 	if err != nil {
 		return err
 	}
-	err = k.setDefaults()
-	if err != nil {
-		return err
+	if k.Cfg.Name == "" {
+		k.Cfg.Name = name
 	}
 	for _, opt := range opts {
 		opt(k)
+	}
+	err = k.setDefaults()
+	if err != nil {
+		return err
 	}
 	k.wg.Add(k.Cfg.NumWorkers)
 	for i := 0; i < k.Cfg.NumWorkers; i++ {
@@ -210,6 +214,17 @@ func (k *KafkaInput) SetOutputs(outs map[string]outputs.Output) {
 	}
 }
 
+func (k *KafkaInput) SetName(name string) {
+	sb := strings.Builder{}
+	if name != "" {
+		sb.WriteString(name)
+		sb.WriteString("-")
+	}
+	sb.WriteString(k.Cfg.Name)
+	sb.WriteString("-kafka-cons")
+	k.Cfg.Name = sb.String()
+}
+
 // helper funcs
 
 func (k *KafkaInput) setDefaults() error {
@@ -249,6 +264,9 @@ func (k *KafkaInput) setDefaults() error {
 	}
 	if k.Cfg.RecoveryWaitTime <= 0 {
 		k.Cfg.RecoveryWaitTime = defaultRecoveryWaitTime
+	}
+	if k.Cfg.Name == "" {
+		k.Cfg.Name = "gnmic-" + uuid.New().String()
 	}
 	return nil
 }

@@ -16,8 +16,12 @@ outputs:
     username:
     # STAN password
     password: 
-    # client name
-    name:
+    # STAN publisher name
+    # if left empty, this field is populated with the output name used as output ID (output1 in this example).
+    # the full name will be '$(name)-stan-pub'.
+    # If the flag --instance-name is not empty, the full name will be '$(instance-name)-$(name)-stan-pub.
+    # note that each stan worker (publisher) will get client name=$name-$index
+    name: ""
     # cluster name, mandatory
     cluster-name: test-cluster
     # STAN ping interval

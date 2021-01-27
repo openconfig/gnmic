@@ -12,6 +12,7 @@ import (
 
 const (
 	processorType = "event-delete"
+	loggingPrefix = "[" + processorType + "] "
 )
 
 // Delete, deletes ALL the tags or values matching one of the regexes
@@ -43,9 +44,9 @@ func (d *Delete) Init(cfg interface{}, logger *log.Logger) error {
 		return err
 	}
 	if d.Debug && logger != nil {
-		d.logger = log.New(logger.Writer(), processorType+" ", logger.Flags())
+		d.logger = log.New(logger.Writer(), loggingPrefix, logger.Flags())
 	} else if d.Debug {
-		d.logger = log.New(os.Stderr, processorType+" ", log.LstdFlags|log.Lmicroseconds)
+		d.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
 	} else {
 		d.logger = log.New(ioutil.Discard, "", 0)
 	}

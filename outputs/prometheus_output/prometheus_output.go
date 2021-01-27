@@ -34,7 +34,7 @@ const (
 	defaultExpiration = time.Minute
 	defaultMetricHelp = "gNMIc generated metric"
 	metricNameRegex   = "[^a-zA-Z0-9_]+"
-	loggingPrefix     = "prometheus_output "
+	loggingPrefix     = "[prometheus_output] "
 )
 
 type labelPair struct {
@@ -126,7 +126,7 @@ func (p *PrometheusOutput) SetEventProcessors(ps map[string]map[string]interface
 	}
 }
 
-func (p *PrometheusOutput) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
+func (p *PrometheusOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
 	err := outputs.DecodeConfig(cfg, p.Cfg)
 	if err != nil {
 		return err
@@ -407,7 +407,7 @@ func (p *promMetric) String() string {
 	sb.WriteString("time=")
 	if p.time != nil {
 		sb.WriteString(p.time.String())
-	} else{
+	} else {
 		sb.WriteString("nil")
 	}
 	sb.WriteString(",addedAt=")
@@ -495,3 +495,5 @@ func (p *PrometheusOutput) metricName(measName, valueName string) string {
 	sb.WriteString(strings.TrimLeft(p.metricRegex.ReplaceAllString(valueName, "_"), "_"))
 	return sb.String()
 }
+
+func (p *PrometheusOutput) SetName(name string) {}

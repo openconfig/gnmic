@@ -27,7 +27,7 @@ const (
 	defaultNumWorkers       = 1
 	defaultWriteTimeout     = 5 * time.Second
 	defaultAddress          = "localhost:4222"
-	loggingPrefix           = "nats_output "
+	loggingPrefix           = "[nats_output] "
 )
 
 func init() {
@@ -112,17 +112,20 @@ func (n *NatsOutput) SetEventProcessors(ps map[string]map[string]interface{}, lo
 }
 
 // Init //
-func (n *NatsOutput) Init(ctx context.Context, cfg map[string]interface{}, opts ...outputs.Option) error {
+func (n *NatsOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
 	err := outputs.DecodeConfig(cfg, n.Cfg)
 	if err != nil {
 		return err
 	}
-	err = n.setDefaults()
-	if err != nil {
-		return err
+	if n.Cfg.Name == "" {
+		n.Cfg.Name = name
 	}
 	for _, opt := range opts {
 		opt(n)
+	}
+	err = n.setDefaults()
+	if err != nil {
+		return err
 	}
 	n.msgChan = make(chan *protoMsg)
 	initMetrics()
@@ -341,4 +344,15 @@ func (n *NatsOutput) subjectName(c *Config, meta outputs.Meta) string {
 		return strings.ReplaceAll(ssb.String(), " ", "_")
 	}
 	return strings.ReplaceAll(n.Cfg.Subject, " ", "_")
+}
+
+func (n *NatsOutput) SetName(name string) {
+	sb := strings.Builder{}
+	if name != "" {
+		sb.WriteString(name)
+		sb.WriteString("-")
+	}
+	sb.WriteString(n.Cfg.Name)
+	sb.WriteString("-nats-pub")
+	n.Cfg.Name = sb.String()
 }

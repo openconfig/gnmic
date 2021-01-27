@@ -63,7 +63,7 @@ func newListenCmd() *cobra.Command {
 				if outType, ok := outConf["type"]; ok {
 					if initializer, ok := outputs.Outputs[outType.(string)]; ok {
 						out := initializer()
-						go out.Init(ctx, outConf, outputs.WithLogger(cli.logger))
+						go out.Init(ctx, name, outConf, outputs.WithLogger(cli.logger))
 						server.Outputs[name] = out
 					}
 				}

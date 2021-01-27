@@ -7,6 +7,12 @@ outputs:
   output1:
     # required
     type: kafka 
+    # kafka client name. 
+    # if left empty, this field is populated with the output name used as output ID (output1 in this example).
+    # the full name will be '$(name)-kafka-prod'.
+    # If the flag --instance-name is not empty, the full name will be '$(instance-name)-$(name)-kafka-prod.
+    # note that each kafka worker (producer) will get client name=$name-$index
+    name: ""
     # Comma separated brokers addresses
     address: localhost:9092 
     # Kafka topic name

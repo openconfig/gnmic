@@ -12,6 +12,7 @@ import (
 
 const (
 	processorType = "event-add-tag"
+	loggingPrefix = "[" + processorType + "] "
 )
 
 // AddTag adds a set of tags to the event message if tag
@@ -44,9 +45,9 @@ func (p *AddTag) Init(cfg interface{}, logger *log.Logger) error {
 		return err
 	}
 	if p.Debug && logger != nil {
-		p.logger = log.New(logger.Writer(), processorType+" ", logger.Flags())
+		p.logger = log.New(logger.Writer(), loggingPrefix, logger.Flags())
 	} else if p.Debug {
-		p.logger = log.New(os.Stderr, processorType+" ", log.LstdFlags|log.Lmicroseconds)
+		p.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
 	} else {
 		p.logger = log.New(ioutil.Discard, "", 0)
 	}

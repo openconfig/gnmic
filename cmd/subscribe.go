@@ -149,7 +149,7 @@ func (c *CLI) subscribeRunE(cmd *cobra.Command, args []string) error {
 			ClusterName:         c.config.LocalFlags.SubscribeClusterName,
 			LockRetryTimer:      c.config.LocalFlags.SubscribeLockRetry,
 		}
-
+		c.logger.Printf("starting collector with config %+v", cfg)
 		c.collector = collector.NewCollector(cfg, targetsConfig,
 			collector.WithDialOptions(createCollectorDialOpts()),
 			collector.WithSubscriptions(subscriptionsConfig),
