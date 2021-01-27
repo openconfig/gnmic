@@ -2,9 +2,14 @@ package lockers
 
 import (
 	"context"
+	"errors"
 	"log"
 
 	"github.com/mitchellh/mapstructure"
+)
+
+var (
+	ErrCanceled = errors.New("canceled")
 )
 
 type Locker interface {

@@ -25,20 +25,22 @@ const (
 func init() {
 	lockers.Register("consul", func() lockers.Locker {
 		return &ConsulLocker{
-			Cfg:    &config{},
-			m:      new(sync.Mutex),
-			locks:  make(map[string]*locks),
-			logger: log.New(ioutil.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			Cfg:            &config{},
+			m:              new(sync.Mutex),
+			acquiredlocks:  make(map[string]*locks),
+			attemtinglocks: make(map[string]*locks),
+			logger:         log.New(ioutil.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
 		}
 	})
 }
 
 type ConsulLocker struct {
-	Cfg    *config
-	client *api.Client
-	logger *log.Logger
-	m      *sync.Mutex
-	locks  map[string]*locks
+	Cfg            *config
+	client         *api.Client
+	logger         *log.Logger
+	m              *sync.Mutex
+	acquiredlocks  map[string]*locks
+	attemtinglocks map[string]*locks
 }
 
 type config struct {
@@ -84,42 +86,54 @@ func (c *ConsulLocker) Lock(ctx context.Context, key string, val []byte) (bool, 
 	writeOpts := new(api.WriteOptions)
 	writeOpts = writeOpts.WithContext(ctx)
 	kvPair := &api.KVPair{Key: key, Value: val}
+	doneChan := make(chan struct{})
+	defer func() {
+		c.m.Lock()
+		defer c.m.Unlock()
+		delete(c.attemtinglocks, key)
+	}()
 	for {
-		acquired = false
-		kvPair.Session, _, err = c.client.Session().Create(
-			&api.SessionEntry{
-				Behavior:  "delete",
-				TTL:       c.Cfg.SessionTTL.String(),
-				LockDelay: c.Cfg.Delay,
-			},
-			writeOpts,
-		)
-		if err != nil {
-			c.logger.Printf("failed creating session: %v", err)
-			time.Sleep(c.Cfg.RetryTimer)
-			continue
-		}
-		//var wm *api.WriteMeta
-		acquired, _, err = c.client.KV().Acquire(kvPair, writeOpts)
-		if err != nil {
-			c.logger.Printf("failed acquiring lock to %q: %v", kvPair.Key, err)
-			time.Sleep(c.Cfg.RetryTimer)
-			continue
-		}
-
-		if acquired {
-			doneChan := make(chan struct{})
-			//go c.client.Session().RenewPeriodic("5s", kvPair.Session, writeOpts, doneChan)
-
+		select {
+		case <-ctx.Done():
+			return false, ctx.Err()
+		case <-doneChan:
+			return false, lockers.ErrCanceled
+		default:
+			acquired = false
+			kvPair.Session, _, err = c.client.Session().Create(
+				&api.SessionEntry{
+					Behavior:  "delete",
+					TTL:       c.Cfg.SessionTTL.String(),
+					LockDelay: c.Cfg.Delay,
+				},
+				writeOpts,
+			)
+			if err != nil {
+				c.logger.Printf("failed creating session: %v", err)
+				time.Sleep(c.Cfg.RetryTimer)
+				continue
+			}
 			c.m.Lock()
-			c.locks[key] = &locks{sessionID: kvPair.Session, doneChan: doneChan}
+			c.attemtinglocks[key] = &locks{sessionID: kvPair.Session, doneChan: doneChan}
 			c.m.Unlock()
-			return true, nil
+			acquired, _, err = c.client.KV().Acquire(kvPair, writeOpts)
+			if err != nil {
+				c.logger.Printf("failed acquiring lock to %q: %v", kvPair.Key, err)
+				time.Sleep(c.Cfg.RetryTimer)
+				continue
+			}
+
+			if acquired {
+				c.m.Lock()
+				c.acquiredlocks[key] = &locks{sessionID: kvPair.Session, doneChan: doneChan}
+				c.m.Unlock()
+				return true, nil
+			}
+			if c.Cfg.Debug {
+				c.logger.Printf("failed acquiring lock to %q: already locked", kvPair.Key)
+			}
+			time.Sleep(c.Cfg.RetryTimer)
 		}
-		if c.Cfg.Debug {
-			c.logger.Printf("failed acquiring lock to %q: already locked", kvPair.Key)
-		}
-		time.Sleep(c.Cfg.RetryTimer)
 	}
 }
 
@@ -130,7 +144,7 @@ func (c *ConsulLocker) KeepLock(ctx context.Context, key string) (chan struct{},
 	c.m.Lock()
 	sessionID := ""
 	doneChan := make(chan struct{})
-	if l, ok := c.locks[key]; ok {
+	if l, ok := c.acquiredlocks[key]; ok {
 		sessionID = l.sessionID
 		doneChan = l.doneChan
 	}
@@ -154,7 +168,7 @@ func (c *ConsulLocker) KeepLock(ctx context.Context, key string) (chan struct{},
 func (c *ConsulLocker) Unlock(key string) error {
 	c.m.Lock()
 	defer c.m.Unlock()
-	if lock, ok := c.locks[key]; ok {
+	if lock, ok := c.acquiredlocks[key]; ok {
 		close(lock.doneChan)
 		_, err := c.client.KV().Delete(key, nil)
 		if err != nil {
@@ -164,7 +178,16 @@ func (c *ConsulLocker) Unlock(key string) error {
 		if err != nil {
 			return err
 		}
-		delete(c.locks, key)
+		delete(c.acquiredlocks, key)
+		return nil
+	}
+	if lock, ok := c.attemtinglocks[key]; ok {
+		close(lock.doneChan)
+		_, err := c.client.Session().Destroy(lock.sessionID, nil)
+		if err != nil {
+			return err
+		}
+		delete(c.acquiredlocks, key)
 		return nil
 	}
 	return errors.New("unknown key")
@@ -173,7 +196,7 @@ func (c *ConsulLocker) Unlock(key string) error {
 func (c *ConsulLocker) Stop() error {
 	c.m.Lock()
 	defer c.m.Unlock()
-	for k := range c.locks {
+	for k := range c.acquiredlocks {
 		c.Unlock(k)
 	}
 	return nil
