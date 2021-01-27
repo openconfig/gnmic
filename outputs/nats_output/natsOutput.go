@@ -23,9 +23,10 @@ const (
 	natsConnectWait         = 2 * time.Second
 	natsReconnectBufferSize = 100 * 1024 * 1024
 	defaultSubjectName      = "telemetry"
-	defaultFormat           = "json"
+	defaultFormat           = "event"
 	defaultNumWorkers       = 1
-	defaultWriteTimeout     = 10 * time.Second
+	defaultWriteTimeout     = 5 * time.Second
+	defaultAddress          = "localhost:4222"
 	loggingPrefix           = "nats_output "
 )
 
@@ -142,17 +143,20 @@ func (n *NatsOutput) Init(ctx context.Context, cfg map[string]interface{}, opts 
 }
 
 func (n *NatsOutput) setDefaults() error {
-	if n.Cfg.ConnectTimeWait <= 0 {
-		n.Cfg.ConnectTimeWait = natsConnectWait
-	}
-	if n.Cfg.Subject == "" && n.Cfg.SubjectPrefix == "" {
-		n.Cfg.Subject = defaultSubjectName
-	}
 	if n.Cfg.Format == "" {
 		n.Cfg.Format = defaultFormat
 	}
 	if !(n.Cfg.Format == "event" || n.Cfg.Format == "protojson" || n.Cfg.Format == "proto" || n.Cfg.Format == "json") {
 		return fmt.Errorf("unsupported output format '%s' for output type NATS", n.Cfg.Format)
+	}
+	if n.Cfg.Address == "" {
+		n.Cfg.Address = defaultAddress
+	}
+	if n.Cfg.ConnectTimeWait <= 0 {
+		n.Cfg.ConnectTimeWait = natsConnectWait
+	}
+	if n.Cfg.Subject == "" && n.Cfg.SubjectPrefix == "" {
+		n.Cfg.Subject = defaultSubjectName
 	}
 	if n.Cfg.Name == "" {
 		n.Cfg.Name = "gnmic-" + uuid.New().String()

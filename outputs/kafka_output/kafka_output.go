@@ -23,8 +23,9 @@ const (
 	defaultKafkaTimeout     = 5 * time.Second
 	defaultKafkaTopic       = "telemetry"
 	defaultNumWorkers       = 1
-	defaultFormat           = "json"
+	defaultFormat           = "event"
 	defaultRecoveryWaitTime = 10 * time.Second
+	defaultAddress          = "localhost:9092"
 	loggingPrefix           = "kafka_output "
 )
 
@@ -150,6 +151,9 @@ func (k *KafkaOutput) setDefaults() error {
 	}
 	if !(k.Cfg.Format == "event" || k.Cfg.Format == "protojson" || k.Cfg.Format == "prototext" || k.Cfg.Format == "proto" || k.Cfg.Format == "json") {
 		return fmt.Errorf("unsupported output format '%s' for output type kafka", k.Cfg.Format)
+	}
+	if k.Cfg.Address == "" {
+		k.Cfg.Address = defaultAddress
 	}
 	if k.Cfg.Topic == "" {
 		k.Cfg.Topic = defaultKafkaTopic
