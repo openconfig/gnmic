@@ -42,6 +42,7 @@ type Target struct {
 	subscribeResponses chan *SubscribeResponse
 	errors             chan *TargetError
 	stopChan           chan struct{}
+	cfn                context.CancelFunc
 }
 
 // TargetConfig //
@@ -281,6 +282,9 @@ func (t *Target) Stop() {
 	defer t.m.Unlock()
 	for _, cfn := range t.subscribeCancelFn {
 		cfn()
+	}
+	if t.cfn != nil {
+		t.cfn()
 	}
 	close(t.stopChan)
 }

@@ -94,6 +94,21 @@ On each configuration change, gnmic reloads the list of targets, subscribes to n
 
 Only addition and deletion of targets are currently supported, changes in an existing target config are not possible.
 
+#### backoff
+The `[--backoff]` flag is used to specify a duration between consecutive subscription towards targets. It defaults to `0s`  meaning all subscription are started in parallel.
+
+If a locker is configured, the backoff timer is set to `100ms` by default.
+
+#### cluster-name
+The `[--cluster-name]` flag is used to specify the cluster name the `gnmic` instance will join. 
+
+The cluster name is used as part of the locked keys to share targets between multiple gnmic instances.
+
+Defaults to `default-cluster`
+
+#### lock-retry
+The `[--lock-retry]` flag is a duration used to set the wait time between consecutive lock attempts. Defaults to `5s`
+
 ### Examples
 #### 1. streaming, target-defined, 10s interval
 ```bash

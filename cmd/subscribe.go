@@ -31,7 +31,13 @@ import (
 	"github.com/spf13/pflag"
 )
 
-const defaultRetryTimer = 10 * time.Second
+const (
+	defaultRetryTimer  = 10 * time.Second
+	defaultBackoff     = 100 * time.Millisecond
+	defaultClusterName = "default-cluster"
+
+	initLockerRetryTimer = 1 * time.Second
+)
 
 var subscriptionModes = [][2]string{
 	{"once", "a single request/response channel. The target creates the relevant update messages, transmits them, and subsequently closes the RPC"},
@@ -93,6 +99,9 @@ func initSubscribeFlags(cmd *cobra.Command) {
 	cmd.Flags().StringSliceVarP(&cli.config.LocalFlags.SubscribeName, "name", "n", []string{}, "reference subscriptions by name, must be defined in gnmic config file")
 	cmd.Flags().StringSliceVarP(&cli.config.LocalFlags.SubscribeOutput, "output", "", []string{}, "reference to output groups by name, must be defined in gnmic config file")
 	cmd.Flags().BoolVarP(&cli.config.LocalFlags.SubscribeWatchConfig, "watch-config", "", false, "watch configuration changes, add or delete subscribe targets accordingly")
+	cmd.Flags().DurationVarP(&cli.config.LocalFlags.SubscribeBackoff, "backoff", "", 0, "backoff time between subscribe requests")
+	cmd.Flags().StringVarP(&cli.config.LocalFlags.SubscribeClusterName, "cluster-name", "", defaultClusterName, "cluster name the gnmic instance belongs to, this is used for target loadsharing via a locker")
+	cmd.Flags().DurationVarP(&cli.config.LocalFlags.SubscribeLockRetry, "lock-retry", "", 5*time.Second, "time to wait between target lock attempts")
 	//
 	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
 		cli.config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
@@ -124,14 +133,21 @@ func (c *CLI) subscribeRunE(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	lockerConfig, err := c.config.GetLocker()
+	if err != nil {
+		return err
+	}
 
 	if c.collector == nil {
 		cfg := &collector.Config{
+			Name:                c.config.Globals.InstanceName,
 			PrometheusAddress:   c.config.Globals.PrometheusAddress,
 			Debug:               c.config.Globals.Debug,
 			Format:              c.config.Globals.Format,
 			TargetReceiveBuffer: c.config.Globals.TargetBufferSize,
 			RetryTimer:          c.config.Globals.Retry,
+			ClusterName:         c.config.LocalFlags.SubscribeClusterName,
+			LockRetryTimer:      c.config.LocalFlags.SubscribeLockRetry,
 		}
 
 		c.collector = collector.NewCollector(cfg, targetsConfig,
@@ -141,7 +157,9 @@ func (c *CLI) subscribeRunE(cmd *cobra.Command, args []string) error {
 			collector.WithLogger(c.logger),
 			collector.WithEventProcessors(epconfig),
 			collector.WithInputs(inputsConfig),
+			collector.WithLocker(lockerConfig),
 		)
+		go c.collector.Start(gctx)
 	} else {
 		// prompt mode
 		for name, outCfg := range outs {
@@ -164,15 +182,40 @@ func (c *CLI) subscribeRunE(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	for {
+		err := c.collector.InitLocker(gctx)
+		if err != nil {
+			c.logger.Printf("failed to init locker: %v", err)
+			time.Sleep(initLockerRetryTimer)
+			continue
+		}
+		break
+	}
+
 	c.collector.InitOutputs(gctx)
 	c.collector.InitInputs(gctx)
-	go c.collector.Start(gctx)
+
+	if lockerConfig != nil && c.config.LocalFlags.SubscribeBackoff <= 0 {
+		c.config.LocalFlags.SubscribeBackoff = defaultBackoff
+	}
+
+	var limiter *time.Ticker
+	if c.config.LocalFlags.SubscribeBackoff > 0 {
+		limiter = time.NewTicker(c.config.LocalFlags.SubscribeBackoff)
+	}
 
 	c.wg.Add(len(c.collector.Targets))
-	for _, target := range c.collector.Targets {
-		go c.subscribe(gctx, target.Config)
+	for name := range c.collector.Targets {
+		go c.subscribe(gctx, name)
+		if limiter != nil {
+			<-limiter.C
+		}
+	}
+	if limiter != nil {
+		limiter.Stop()
 	}
 	c.wg.Wait()
+
 	polledTargetsSubscriptions := c.collector.PolledSubscriptionsTargets()
 	if len(polledTargetsSubscriptions) > 0 {
 		pollTargets := make([]string, 0, len(polledTargetsSubscriptions))
@@ -256,21 +299,7 @@ func (c *CLI) subscribeRunE(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func (c *CLI) subscribe(ctx context.Context, tConf *collector.TargetConfig) {
+func (c *CLI) subscribe(ctx context.Context, name string) {
 	defer c.wg.Done()
-	var err error
-	for {
-		err = c.collector.Subscribe(gctx, tConf.Name)
-		if err != nil {
-			if errors.Is(err, context.DeadlineExceeded) {
-				c.logger.Printf("failed to initialize target '%s' timeout (%s) reached", tConf.Name, tConf.Timeout)
-			} else {
-				c.logger.Printf("failed to initialize target '%s': %v", tConf.Name, err)
-			}
-			c.logger.Printf("retrying target %s in %s", tConf.Name, tConf.RetryTimer)
-			time.Sleep(tConf.RetryTimer)
-			continue
-		}
-		return
-	}
+	c.collector.InitTarget(ctx, name)
 }

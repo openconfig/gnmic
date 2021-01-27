@@ -7,15 +7,15 @@ nav:
       - Global flags: global_flags.md
   - Advanced usage:
       - File based configuration: advanced/file_cfg.md
-      - Multiple targets: advanced/multi_target.md
-      - Multiple subscriptions: advanced/subscriptions.md
+      - Targets: advanced/multi_target.md
+      - Subscriptions: advanced/subscriptions.md
       - Prompt mode and auto-suggestions: advanced/prompt_suggestions.md
       - Inputs:
          - Introduction: advanced/inputs/input_intro.md
          - NATS: advanced/inputs/nats_input.md
          - STAN: advanced/inputs/stan_input.md
          - Kafka: advanced/inputs/kafka_input.md
-      - Multiple outputs:
+      - Outputs:
           - Introduction: advanced/multi_outputs/output_intro.md
           - File: advanced/multi_outputs/file_output.md
           - NATS: advanced/multi_outputs/nats_output.md
@@ -35,7 +35,8 @@ nav:
           - Override TS: advanced/event_processors/event_override_ts.md
           - Strings: advanced/event_processors/event_strings.md
           - To Tag: advanced/event_processors/event_to_tag.md
-          - Write: advanced/event_processors/event_write.md 
+          - Write: advanced/event_processors/event_write.md
+      - High Availability & Scalability: advanced/HA.md
   - Command reference:
       - Capabilities: cmd/capabilities.md
       - Get: cmd/get.md
