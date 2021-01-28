@@ -459,6 +459,9 @@ func (c *CLI) loadTargets(e fsnotify.Event) {
 		// delete targets
 		for n := range currentTargets {
 			if _, ok := newTargets[n]; !ok {
+				if c.config.Globals.Debug {
+					c.logger.Printf("target %q deleted from config", n)
+				}
 				err = c.collector.DeleteTarget(n)
 				if err != nil {
 					c.logger.Printf("failed to delete target %q: %v", n, err)
@@ -468,6 +471,9 @@ func (c *CLI) loadTargets(e fsnotify.Event) {
 		// add targets
 		for n, tc := range newTargets {
 			if _, ok := currentTargets[n]; !ok {
+				if c.config.Globals.Debug {
+					c.logger.Printf("target %q added to config", n)
+				}
 				err = c.collector.AddTarget(tc)
 				if err != nil {
 					c.logger.Printf("failed adding target %q: %v", n, err)

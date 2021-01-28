@@ -204,6 +204,10 @@ START:
 		if c.locker != nil {
 			c.logger.Printf("acquiring lock for target %q", name)
 			ok, err := c.locker.Lock(ctx, lockKey, []byte(c.Config.Name))
+			if err == lockers.ErrCanceled {
+				c.logger.Printf("lock attempt for target %q canceled", name)
+				return
+			}
 			if err != nil {
 				c.logger.Printf("failed to lock target %q: %v", name, err)
 				time.Sleep(c.Config.LockRetryTimer)
@@ -300,6 +304,9 @@ func (c *Collector) AddOutput(name string, cfg map[string]interface{}) error {
 func (c *Collector) InitOutput(ctx context.Context, name string) {
 	c.m.Lock()
 	defer c.m.Unlock()
+	if _, ok := c.Outputs[name]; ok {
+		return
+	}
 	if cfg, ok := c.outputsConfig[name]; ok {
 		if outType, ok := cfg["type"]; ok {
 			c.logger.Printf("starting output type %s", outType)
@@ -440,6 +447,9 @@ func (c *Collector) Start(ctx context.Context) {
 
 	for t := range c.targetsChan {
 		if _, ok := c.activeTargets[t.Config.Name]; ok {
+			if c.Config.Debug {
+				c.logger.Printf("target %q listener already active", t.Config.Name)
+			}
 			continue
 		}
 		c.activeTargets[t.Config.Name] = struct{}{}
