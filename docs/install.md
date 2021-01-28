@@ -53,7 +53,39 @@ The `gnmic` container image can be pulled from Dockerhub or GitHub container reg
 ```bash
 # pull latest release from dockerhub
 docker pull gnmic/gnmic:latest
+# pull a specific release from dockerhub
+docker pull gnmic/gnmic:0.7.0
 
-# pull the specific release from github registry
+# pull latest release from github registry
+docker pull ghcr.io/karimra/gnmic:latest
+# pull a specific release from github registry
 docker pull ghcr.io/karimra/gnmic:0.5.2
+```
+
+Example running `gnmic get` command using the docker image:
+```bash
+docker run \
+       --network host \
+       --rm ghcr.io/karimra/gnmic get --log --username admin --password admin --insecure --address router1.local --path /interfaces
+```
+### Docker Compose
+
+`gnmic` docker-compose file example:
+
+```yaml
+version: '2'
+
+networks:
+  gnmic-net:
+    driver: bridge
+
+services:
+  gnmic-1:
+    image: ghcr.io/karimra/gnmic:latest
+    container_name: gnmic-1
+    networks:
+      - gnmic-net
+    volumes:
+      - ./gnmic.yaml:/app/gnmic.yaml
+    command: "subscribe --config /app/gnmic.yaml"
 ```
