@@ -44,6 +44,9 @@ inputs:
     debug: false
     # integer, number of stan consumers to be created
     num-workers: 1
+    # list of processors to apply on the message when received, 
+    # only applies if format is 'event'
+    event-processors: 
     # []string, list of named outputs to export data to. 
     # Must be configured under root level `outputs` section
     outputs: 

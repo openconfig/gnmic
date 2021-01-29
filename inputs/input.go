@@ -8,10 +8,11 @@ import (
 )
 
 type Input interface {
-	Start(context.Context, string,  map[string]interface{}, ...Option) error
+	Start(context.Context, string, map[string]interface{}, ...Option) error
 	Close() error
 	SetLogger(*log.Logger)
 	SetOutputs(map[string]outputs.Output)
+	SetEventProcessors(map[string]map[string]interface{}, *log.Logger)
 	SetName(string)
 }
 
@@ -46,5 +47,11 @@ func WithOutputs(outs map[string]outputs.Output) Option {
 func WithName(name string) Option {
 	return func(i Input) {
 		i.SetName(name)
+	}
+}
+
+func WithEventProcessors(eps map[string]map[string]interface{}, log *log.Logger) Option {
+	return func(i Input) {
+		i.SetEventProcessors(eps, log)
 	}
 }

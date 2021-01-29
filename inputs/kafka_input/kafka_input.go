@@ -49,6 +49,7 @@ type KafkaInput struct {
 	logger  sarama.StdLogger
 	wg      *sync.WaitGroup
 	outputs []outputs.Output
+	evps    []formatters.EventProcessor
 }
 
 // Config //
@@ -65,6 +66,7 @@ type Config struct {
 	Debug             bool          `mapstructure:"debug,omitempty"`
 	NumWorkers        int           `mapstructure:"num-workers,omitempty"`
 	Outputs           []string      `mapstructure:"outputs,omitempty"`
+	EventProcessors   []string      `mapstructure:"event-processors,omitempty"`
 
 	kafkaVersion sarama.KafkaVersion
 }
@@ -156,6 +158,13 @@ START:
 					}
 					continue
 				}
+
+				for _, p := range k.evps {
+					for _, ev := range evMsgs {
+						p.Apply(ev)
+					}
+				}
+
 				go func() {
 					for _, o := range k.outputs {
 						for _, ev := range evMsgs {
@@ -223,6 +232,28 @@ func (k *KafkaInput) SetName(name string) {
 	sb.WriteString(k.Cfg.Name)
 	sb.WriteString("-kafka-cons")
 	k.Cfg.Name = sb.String()
+}
+
+func (k *KafkaInput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger) {
+	for _, epName := range k.Cfg.EventProcessors {
+		if epCfg, ok := ps[epName]; ok {
+			epType := ""
+			for k := range epCfg {
+				epType = k
+				break
+			}
+			if in, ok := formatters.EventProcessors[epType]; ok {
+				ep := in()
+				err := ep.Init(epCfg[epType], logger)
+				if err != nil {
+					k.logger.Printf("failed initializing event processor %q of type=%q: %v", epName, epType, err)
+					continue
+				}
+				k.evps = append(k.evps, ep)
+				k.logger.Printf("added event processor %q of type=%q to kafka input", epName, epType)
+			}
+		}
+	}
 }
 
 // helper funcs
