@@ -50,6 +50,7 @@ type StanInput struct {
 
 	wg      *sync.WaitGroup
 	outputs []outputs.Output
+	evps    []formatters.EventProcessor
 }
 
 // Config //
@@ -68,6 +69,7 @@ type Config struct {
 	Debug           bool          `mapstructure:"debug,omitempty"`
 	NumWorkers      int           `mapstructure:"num-workers,omitempty"`
 	Outputs         []string      `mapstructure:"outputs,omitempty"`
+	EventProcessors []string      `mapstructure:"event-processors,omitempty"`
 }
 
 func (s *StanInput) Start(ctx context.Context, name string, cfg map[string]interface{}, opts ...inputs.Option) error {
@@ -155,6 +157,28 @@ func (s *StanInput) SetName(name string) {
 	sb.WriteString(s.Cfg.Name)
 	sb.WriteString("-stan-sub")
 	s.Cfg.Name = sb.String()
+}
+
+func (s *StanInput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger) {
+	for _, epName := range s.Cfg.EventProcessors {
+		if epCfg, ok := ps[epName]; ok {
+			epType := ""
+			for k := range epCfg {
+				epType = k
+				break
+			}
+			if in, ok := formatters.EventProcessors[epType]; ok {
+				ep := in()
+				err := ep.Init(epCfg[epType], logger)
+				if err != nil {
+					s.logger.Printf("failed initializing event processor %q of type=%q: %v", epName, epType, err)
+					continue
+				}
+				s.evps = append(s.evps, ep)
+				s.logger.Printf("added event processor %q of type=%q to stan input", epName, epType)
+			}
+		}
+	}
 }
 
 // helper functions
@@ -251,6 +275,13 @@ func (s *StanInput) handleMsg(m *stan.Msg) {
 			}
 			return
 		}
+
+		for _, p := range s.evps {
+			for _, ev := range evMsgs {
+				p.Apply(ev)
+			}
+		}
+
 		go func() {
 			for _, o := range s.outputs {
 				for _, ev := range evMsgs {

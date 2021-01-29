@@ -40,6 +40,9 @@ inputs:
     # NATS messages are stored before being sent to outputs.
     # This value is set per worker. Defaults to 100 messages
     buffer-size: 100
+    # list of processors to apply on the message when received, 
+    # only applies if format is 'event'
+    event-processors: 
     # []string, list of named outputs to export data to. 
     # Must be configured under root level `outputs` section
     outputs: 

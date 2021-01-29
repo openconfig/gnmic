@@ -49,6 +49,7 @@ type NatsInput struct {
 
 	wg      *sync.WaitGroup
 	outputs []outputs.Output
+	evps    []formatters.EventProcessor
 }
 
 // Config //
@@ -65,6 +66,7 @@ type Config struct {
 	NumWorkers      int           `mapstructure:"num-workers,omitempty"`
 	BufferSize      int           `mapstructure:"buffer-size,omitempty"`
 	Outputs         []string      `mapstructure:"outputs,omitempty"`
+	EventProcessors []string      `mapstructure:"event-processors,omitempty"`
 }
 
 // Init //
@@ -147,6 +149,13 @@ START:
 					}
 					continue
 				}
+
+				for _, p := range n.evps {
+					for _, ev := range evMsgs {
+						p.Apply(ev)
+					}
+				}
+
 				go func() {
 					for _, o := range n.outputs {
 						for _, ev := range evMsgs {
@@ -219,6 +228,28 @@ func (n *NatsInput) SetName(name string) {
 	sb.WriteString(n.Cfg.Name)
 	sb.WriteString("-nats-sub")
 	n.Cfg.Name = sb.String()
+}
+
+func (n *NatsInput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger) {
+	for _, epName := range n.Cfg.EventProcessors {
+		if epCfg, ok := ps[epName]; ok {
+			epType := ""
+			for k := range epCfg {
+				epType = k
+				break
+			}
+			if in, ok := formatters.EventProcessors[epType]; ok {
+				ep := in()
+				err := ep.Init(epCfg[epType], logger)
+				if err != nil {
+					n.logger.Printf("failed initializing event processor %q of type=%q: %v", epName, epType, err)
+					continue
+				}
+				n.evps = append(n.evps, ep)
+				n.logger.Printf("added event processor %q of type=%q to nats input", epName, epType)
+			}
+		}
+	}
 }
 
 // helper functions
