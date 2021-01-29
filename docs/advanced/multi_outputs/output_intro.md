@@ -9,7 +9,9 @@ In the context of gnmi subscriptions (on top of terminal output) `gnmic` support
 * [UDP Server](udp_output.md)
 * [TCP Server](tcp_output.md)
 
-![outputs](../../images/outputs.svg)
+<div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:12,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/karimra/gnmic/diagrams/diagrams/outputs.drawio&quot;}"></div>
+
+<script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2F/outputs.drawio" async></script>
 
 These outputs can be mixed and matched at will with the different gnmi subscribe targets.
 
