@@ -5,15 +5,49 @@ A Prometheus output can be defined using the below format in `gnmic` config file
 ```yaml
 outputs:
   output1:
-    type: prometheus # required
-    listen: :9804 # address to listen on for incoming scrape requests
-    path: /metrics # path to query to get the metrics
-    expiration: 60s # maximum lifetime of metrics in the local cache, a zero value defaults to 60s, a negative duration (e.g: -1s) disables the expiration
-    metric-prefix: "" # a string to be used as the metric namespace
-    append-subscription-name: false # a boolean, if true the subscription name will be appended to the metric name after the prefix
-    export-timestamps: false # a boolean, enables exporting timestamps received from the gNMI target as part of the metrics
-    strings-as-labels: false # a boolean, enables setting string type values as prometheus metric labels.
-    debug: false # enable debug for prometheus output
+    type: prometheus # require
+    # address to listen on for incoming scrape requests
+    listen: :9804 
+    # path to query to get the metrics
+    path: /metrics 
+    # maximum lifetime of metrics in the local cache, #
+    # a zero value defaults to 60s, a negative duration (e.g: -1s) disables the expiration
+    expiration: 60s 
+    # a string to be used as the metric namespace
+    metric-prefix: "" 
+    # a boolean, if true the subscription name will be appended to the metric name after the prefix
+    append-subscription-name: false 
+    # a boolean, enables exporting timestamps received from the gNMI target as part of the metrics
+    export-timestamps: false 
+    # a boolean, enables setting string type values as prometheus metric labels.
+    strings-as-labels: false 
+    # enable debug for prometheus output
+    debug: false 
+    # list of processors to apply on the message before writing
+    event-processors: 
+    # Enables Consul service registration
+    service-registration:
+      # Consul server address, default to localhost:8500
+      address:
+      # Consul Data center, defaults to dc1
+      datacenter: 
+      # Consul username, to be used as part of HTTP basicAuth
+      username:
+      # Consul password, to be used as part of HTTP basicAuth
+      password:
+      # Consul Token, is used to provide a per-request ACL token which overrides the agent's default token
+      token:
+      # Prometheus service check interval, for both http and TTL Consul checks,
+      # defaults to 5s
+      check-interval:
+      # Maximum number of failed checks before the service is deleted by Consul
+      # defaults to 3
+      max-fail:
+      # Consul service name
+      name:
+      # List of tags to be added to the service registration
+      tags:
+
 ```
 
 `gnmic` creates the prometheus metric name and its labels from the subscription name, the gnmic path and the value name.
@@ -59,3 +93,48 @@ For the previous example the labels would be:
 ```bash
 {interface_name="1/1/1",subinterface_index=0,source="$routerIP:Port",subscription_name="port-stats"}
 ```
+
+
+## Service Registration
+`gnmic` supports `prometheus_output` service registration via `Consul`. 
+It allows `prometheus` to dynamically discover new instances of `gnmic` exposing a server ready for scraping.
+
+If the configuration section `service-registration` is present under the output definition, `gnmic` will register the `prometheus_output` as a service is `Consul`.
+
+### Configuration Example
+The below configuration, registers a service name `gnmic-prom-srv` with `IP=10.1.1.1` and `port=9804`
+```yaml
+# gnmic.yaml
+outputs:
+  output1:
+    type: prometheus
+    listen: 10.1.1.1:9804
+    path: /metrics 
+    service-registration:
+      address: consul-agent.local:8500
+      name: gnmic-prom-srv
+```
+This allows running multiple instances of `gnmic` with minimal configuration changes by using `prometheus` [service discovery feature](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#consul_sd_config).
+
+Simplified scrape configuration in the prometheus client:
+```yaml
+# prometheus.yaml
+scrape_configs:
+  - job_name: 'gnmic'
+    scrape_interval: 10s
+    consul_sd_configs:
+      - server: $CONSUL_ADDRESS
+        services:
+          - $service_name
+```
+
+### Service Name
+The `$service_name` to be discovered by `prometheus` is configured under `outputs.$output_name.service-registration.name`.
+
+If the service registration name field is not present, it will be populated with `gnmic` instance-name (if present) and the `prometheus_output` name, joined with a `-`.
+
+### Service Checks
+`gnmic` registers the service in `Consul` with 2 checks enabled:
+
+* `http`: `Consul` periodically scrapes the prometheus server endpoint to check availability.
+* `ttl`: `gnmic` periodically updates the service definition in `Consul`. The goal, is to allow `Consul` to detect a same instance restarting with a different service name.

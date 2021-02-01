@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hashicorp/consul/api"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/openconfig/gnmi/proto/gnmi"
@@ -29,12 +30,15 @@ import (
 )
 
 const (
-	defaultListen     = ":9804"
-	defaultPath       = "/metrics"
-	defaultExpiration = time.Minute
-	defaultMetricHelp = "gNMIc generated metric"
-	metricNameRegex   = "[^a-zA-Z0-9_]+"
-	loggingPrefix     = "[prometheus_output] "
+	defaultListen                     = ":9804"
+	defaultPath                       = "/metrics"
+	defaultExpiration                 = time.Minute
+	defaultMetricHelp                 = "gNMIc generated metric"
+	defaultServiceRegistrationAddress = "localhost:8500"
+	defaultRegistrationCheckInterval  = 5 * time.Second
+	defaultMaxServiceFail             = 3
+	metricNameRegex                   = "[^a-zA-Z0-9_]+"
+	loggingPrefix                     = "[prometheus_output] "
 )
 
 type labelPair struct {
@@ -74,19 +78,39 @@ type PrometheusOutput struct {
 	sync.Mutex
 	entries map[uint64]*promMetric
 
-	metricRegex *regexp.Regexp
-	evps        []formatters.EventProcessor
+	metricRegex  *regexp.Regexp
+	evps         []formatters.EventProcessor
+	consulClient *api.Client
 }
 type Config struct {
-	Listen                 string        `mapstructure:"listen,omitempty"`
-	Path                   string        `mapstructure:"path,omitempty"`
-	Expiration             time.Duration `mapstructure:"expiration,omitempty"`
-	MetricPrefix           string        `mapstructure:"metric-prefix,omitempty"`
-	AppendSubscriptionName bool          `mapstructure:"append-subscription-name,omitempty"`
-	ExportTimestamps       bool          `mapstructure:"export-timestamps,omitempty"`
-	StringsAsLabels        bool          `mapstructure:"strings-as-labels,omitempty"`
-	Debug                  bool          `mapstructure:"debug,omitempty"`
-	EventProcessors        []string      `mapstructure:"event-processors,omitempty"`
+	Name                   string               `mapstructure:"name,omitempty"`
+	Listen                 string               `mapstructure:"listen,omitempty"`
+	Path                   string               `mapstructure:"path,omitempty"`
+	Expiration             time.Duration        `mapstructure:"expiration,omitempty"`
+	MetricPrefix           string               `mapstructure:"metric-prefix,omitempty"`
+	AppendSubscriptionName bool                 `mapstructure:"append-subscription-name,omitempty"`
+	ExportTimestamps       bool                 `mapstructure:"export-timestamps,omitempty"`
+	StringsAsLabels        bool                 `mapstructure:"strings-as-labels,omitempty"`
+	Debug                  bool                 `mapstructure:"debug,omitempty"`
+	EventProcessors        []string             `mapstructure:"event-processors,omitempty"`
+	ServiceRegistration    *ServiceRegistration `mapstructure:"service-registration,omitempty"`
+
+	address string
+	port    int
+}
+
+type ServiceRegistration struct {
+	Address       string        `mapstructure:"address,omitempty"`
+	Datacenter    string        `mapstructure:"datacenter,omitempty"`
+	Username      string        `mapstructure:"username,omitempty"`
+	Password      string        `mapstructure:"password,omitempty"`
+	Token         string        `mapstructure:"token,omitempty"`
+	CheckInterval time.Duration `mapstructure:"check-interval,omitempty"`
+	MaxFail       int           `mapstructure:"max-fail,omitempty"`
+	Name          string        `mapstructure:"name,omitempty"`
+	Tags          []string      `mapstructure:"tags,omitempty"`
+
+	deregisterAfter string
 }
 
 func (p *PrometheusOutput) String() string {
@@ -131,19 +155,17 @@ func (p *PrometheusOutput) Init(ctx context.Context, name string, cfg map[string
 	if err != nil {
 		return err
 	}
+	if p.Cfg.Name == "" {
+		p.Cfg.Name = name
+	}
 	for _, opt := range opts {
 		opt(p)
 	}
-	if p.Cfg.Listen == "" {
-		p.Cfg.Listen = defaultListen
-	}
-	if p.Cfg.Path == "" {
-		p.Cfg.Path = defaultPath
-	}
-	if p.Cfg.Expiration == 0 {
-		p.Cfg.Expiration = defaultExpiration
-	}
 
+	err = p.setDefaults()
+	if err != nil {
+		return err
+	}
 	// create prometheus registry
 	registry := prometheus.NewRegistry()
 
@@ -180,6 +202,7 @@ func (p *PrometheusOutput) Init(ctx context.Context, name string, cfg map[string
 		}
 		wcancel()
 	}()
+	p.registerService(wctx)
 	p.logger.Printf("initialized prometheus output: %s", p.String())
 	go func() {
 		<-ctx.Done()
@@ -223,9 +246,16 @@ func (p *PrometheusOutput) WriteEvent(ctx context.Context, ev *formatters.EventM
 }
 
 func (p *PrometheusOutput) Close() error {
+	var err error
+	if p.consulClient != nil {
+		err = p.consulClient.Agent().ServiceDeregister(p.Cfg.ServiceRegistration.Name)
+		if err != nil {
+			p.logger.Printf("failed to deregister consul service: %v", err)
+		}
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	err := p.server.Shutdown(ctx)
+	err = p.server.Shutdown(ctx)
 	if err != nil {
 		p.logger.Printf("failed to shutdown http server: %v", err)
 	}
@@ -364,6 +394,122 @@ func (p *PrometheusOutput) expireMetricsPeriodic(ctx context.Context) {
 	}
 }
 
+func (p *PrometheusOutput) setDefaults() error {
+	if p.Cfg.Listen == "" {
+		p.Cfg.Listen = defaultListen
+	}
+	if p.Cfg.Path == "" {
+		p.Cfg.Path = defaultPath
+	}
+	if p.Cfg.Expiration == 0 {
+		p.Cfg.Expiration = defaultExpiration
+	}
+	if p.Cfg.ServiceRegistration != nil {
+		if p.Cfg.ServiceRegistration.Address == "" {
+			p.Cfg.ServiceRegistration.Address = defaultServiceRegistrationAddress
+		}
+		if p.Cfg.ServiceRegistration.CheckInterval <= 0 {
+			p.Cfg.ServiceRegistration.CheckInterval = defaultRegistrationCheckInterval
+		}
+		if p.Cfg.ServiceRegistration.MaxFail <= 0 {
+			p.Cfg.ServiceRegistration.MaxFail = defaultMaxServiceFail
+		}
+		deregisterTimer := p.Cfg.ServiceRegistration.CheckInterval * time.Duration(p.Cfg.ServiceRegistration.MaxFail)
+		p.Cfg.ServiceRegistration.deregisterAfter = deregisterTimer.String()
+
+	}
+	var err error
+	var port string
+	p.Cfg.address, port, err = net.SplitHostPort(p.Cfg.Listen)
+	if err != nil {
+		p.logger.Printf("invalid 'listen' field format: %v", err)
+		return err
+	}
+	p.Cfg.port, err = strconv.Atoi(port)
+	if err != nil {
+		p.logger.Printf("invalid 'listen' field format: %v", err)
+		return err
+	}
+
+	return nil
+}
+
+func (p *PrometheusOutput) registerService(ctx context.Context) {
+	if p.Cfg.ServiceRegistration == nil {
+		return
+	}
+	var err error
+	clientConfig := &api.Config{
+		Address:    p.Cfg.ServiceRegistration.Address,
+		Scheme:     "http",
+		Datacenter: p.Cfg.ServiceRegistration.Datacenter,
+		Token:      p.Cfg.ServiceRegistration.Token,
+	}
+	if p.Cfg.ServiceRegistration.Username != "" && p.Cfg.ServiceRegistration.Password != "" {
+		clientConfig.HttpAuth = &api.HttpBasicAuth{
+			Username: p.Cfg.ServiceRegistration.Username,
+			Password: p.Cfg.ServiceRegistration.Password,
+		}
+	}
+INITCONSUL:
+	p.consulClient, err = api.NewClient(clientConfig)
+	if err != nil {
+		p.logger.Printf("failed to connect to consul: %v", err)
+		time.Sleep(1 * time.Second)
+		goto INITCONSUL
+	}
+
+	service := &api.AgentServiceRegistration{
+		ID:      p.Cfg.ServiceRegistration.Name,
+		Name:    p.Cfg.ServiceRegistration.Name,
+		Address: p.Cfg.address,
+		Port:    p.Cfg.port,
+		Tags:    p.Cfg.ServiceRegistration.Tags,
+		Checks: api.AgentServiceChecks{
+			{
+				TTL:                            p.Cfg.ServiceRegistration.CheckInterval.String(),
+				DeregisterCriticalServiceAfter: p.Cfg.ServiceRegistration.deregisterAfter,
+			},
+			{
+				HTTP:                           fmt.Sprintf("http://%s%s", p.Cfg.Listen, p.Cfg.Path),
+				Method:                         "GET",
+				Interval:                       p.Cfg.ServiceRegistration.CheckInterval.String(),
+				TLSSkipVerify:                  true,
+				DeregisterCriticalServiceAfter: p.Cfg.ServiceRegistration.deregisterAfter,
+			},
+		},
+	}
+	b, _ := json.Marshal(service)
+	p.logger.Printf("registering service: %s", string(b))
+	err = p.consulClient.Agent().ServiceRegister(service)
+	if err != nil {
+		p.logger.Printf("failed to register service in consul: %v", err)
+		time.Sleep(time.Second)
+		goto INITCONSUL
+	}
+	go func() {
+		ttlCheckID := "service:" + p.Cfg.ServiceRegistration.Name + ":1"
+		err = p.consulClient.Agent().PassTTL(ttlCheckID, "")
+		if err != nil {
+			p.logger.Printf("failed to pass TTL check: %v", err)
+		}
+		ticker := time.NewTicker(p.Cfg.ServiceRegistration.CheckInterval / 2)
+		for {
+			select {
+			case <-ticker.C:
+				err = p.consulClient.Agent().PassTTL(ttlCheckID, "")
+				if err != nil {
+					p.logger.Printf("failed to pass TTL check: %v", err)
+				}
+			case <-ctx.Done():
+				p.consulClient.Agent().FailTTL(ttlCheckID, ctx.Err().Error())
+				ticker.Stop()
+				return
+			}
+		}
+	}()
+}
+
 // Metric
 func (p *promMetric) calculateKey() uint64 {
 	h := fnv.New64a()
@@ -382,6 +528,7 @@ func (p *promMetric) calculateKey() uint64 {
 	}
 	return h.Sum64()
 }
+
 func (p *promMetric) String() string {
 	if p == nil {
 		return ""
@@ -496,4 +643,17 @@ func (p *PrometheusOutput) metricName(measName, valueName string) string {
 	return sb.String()
 }
 
-func (p *PrometheusOutput) SetName(name string) {}
+func (p *PrometheusOutput) SetName(name string) {
+	sb := strings.Builder{}
+	if name != "" {
+		sb.WriteString(name)
+		sb.WriteString("-")
+	}
+	if p.Cfg.Name != "" {
+		sb.WriteString(p.Cfg.Name)
+	}
+	p.Cfg.Name = sb.String()
+	if p.Cfg.ServiceRegistration != nil && p.Cfg.ServiceRegistration.Name == "" {
+		p.Cfg.ServiceRegistration.Name = p.Cfg.Name
+	}
+}
