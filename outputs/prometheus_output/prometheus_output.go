@@ -306,8 +306,7 @@ func (p *PrometheusOutput) getLabels(ev *formatters.EventMsg) []*labelPair {
 			if _, ok := addedLabels[labelName]; ok {
 				continue
 			}
-			labels = append(labels, &labelPair{Name: k, Value: vs})
-			delete(ev.Values, k)
+			labels = append(labels, &labelPair{Name: labelName, Value: vs})
 		}
 	}
 	return labels
@@ -329,7 +328,10 @@ func (p *PrometheusOutput) worker(ctx context.Context) {
 			for vName, val := range ev.Values {
 				v, err := getFloat(val)
 				if err != nil {
-					continue
+					if !p.Cfg.StringsAsLabels {
+						continue
+					}
+					v = 1.0
 				}
 				pm := &promMetric{
 					name:    p.metricName(ev.Name, vName),
