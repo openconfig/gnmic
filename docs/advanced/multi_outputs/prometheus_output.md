@@ -135,5 +135,6 @@ If the service registration name field is not present, it will be populated with
 
 ### Service Checks
 `gnmic` registers the service in `Consul` with 2 checks enabled:
-- `http` based: `Consul` periodically scrapes the prometheus server endpoint to check availability.
-- `ttl` based: `gnmic` periodically updates the service definition in `Consul`. The goal, is to allow `Consul` to detect a same instance restarting with a different service name.
+
+* `http`: `Consul` periodically scrapes the prometheus server endpoint to check availability.
+* `ttl`: `gnmic` periodically updates the service definition in `Consul`. The goal, is to allow `Consul` to detect a same instance restarting with a different service name.
