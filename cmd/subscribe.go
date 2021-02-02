@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"sort"
 	"time"
 
@@ -160,6 +161,17 @@ func (c *CLI) subscribeRunE(cmd *cobra.Command, args []string) error {
 			collector.WithLocker(lockerConfig),
 		)
 		go c.collector.Start(gctx)
+		c.routes()
+		s := &http.Server{
+			Addr:    ":7890",
+			Handler: c.router,
+		}
+		go func() {
+			err := s.ListenAndServe()
+			if err != nil {
+				c.logger.Fatal("ListenAndServe: ", err)
+			}
+		}()
 	} else {
 		// prompt mode
 		for name, outCfg := range outs {

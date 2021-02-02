@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/gorilla/mux"
 	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/config"
 	"github.com/karimra/gnmic/formatters"
@@ -86,6 +87,7 @@ type CLI struct {
 	m         *sync.Mutex
 	config    *config.Config
 	collector *collector.Collector
+	router    *mux.Router
 	logger    *log.Logger
 
 	promptMode    bool
@@ -99,6 +101,7 @@ type CLI struct {
 var cli = &CLI{
 	m:             new(sync.Mutex),
 	config:        config.New(),
+	router:        mux.NewRouter(),
 	logger:        log.New(ioutil.Discard, "", log.LstdFlags),
 	promptHistory: make([]string, 0, 128),
 	schemaTree: &yang.Entry{
