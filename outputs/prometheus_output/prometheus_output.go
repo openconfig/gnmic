@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/consul/api"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
@@ -111,6 +112,7 @@ type ServiceRegistration struct {
 	Tags          []string      `mapstructure:"tags,omitempty"`
 
 	deregisterAfter string
+	id              string
 }
 
 func (p *PrometheusOutput) String() string {
@@ -460,7 +462,7 @@ INITCONSUL:
 	}
 
 	service := &api.AgentServiceRegistration{
-		ID:      p.Cfg.ServiceRegistration.Name,
+		ID:      p.Cfg.ServiceRegistration.id,
 		Name:    p.Cfg.ServiceRegistration.Name,
 		Address: p.Cfg.address,
 		Port:    p.Cfg.port,
@@ -488,7 +490,7 @@ INITCONSUL:
 		goto INITCONSUL
 	}
 	go func() {
-		ttlCheckID := "service:" + p.Cfg.ServiceRegistration.Name + ":1"
+		ttlCheckID := "service:" + p.Cfg.ServiceRegistration.id + ":1"
 		err = p.consulClient.Agent().PassTTL(ttlCheckID, "")
 		if err != nil {
 			p.logger.Printf("failed to pass TTL check: %v", err)
@@ -653,7 +655,14 @@ func (p *PrometheusOutput) SetName(name string) {
 		sb.WriteString(p.Cfg.Name)
 	}
 	p.Cfg.Name = sb.String()
-	if p.Cfg.ServiceRegistration != nil && p.Cfg.ServiceRegistration.Name == "" {
-		p.Cfg.ServiceRegistration.Name = p.Cfg.Name
+	if p.Cfg.ServiceRegistration != nil {
+		if p.Cfg.ServiceRegistration.Name == "" {
+			p.Cfg.ServiceRegistration.Name = p.Cfg.Name
+		}
+		if name != "" {
+			p.Cfg.ServiceRegistration.id = p.Cfg.ServiceRegistration.Name + "-" + name
+			return
+		}
+		p.Cfg.ServiceRegistration.id = p.Cfg.ServiceRegistration.Name + "-" + uuid.New().String()
 	}
 }
