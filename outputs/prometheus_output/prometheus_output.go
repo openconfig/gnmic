@@ -31,15 +31,12 @@ import (
 )
 
 const (
-	defaultListen                     = ":9804"
-	defaultPath                       = "/metrics"
-	defaultExpiration                 = time.Minute
-	defaultMetricHelp                 = "gNMIc generated metric"
-	defaultServiceRegistrationAddress = "localhost:8500"
-	defaultRegistrationCheckInterval  = 5 * time.Second
-	defaultMaxServiceFail             = 3
-	metricNameRegex                   = "[^a-zA-Z0-9_]+"
-	loggingPrefix                     = "[prometheus_output] "
+	defaultListen     = ":9804"
+	defaultPath       = "/metrics"
+	defaultExpiration = time.Minute
+	defaultMetricHelp = "gNMIc generated metric"
+	metricNameRegex   = "[^a-zA-Z0-9_]+"
+	loggingPrefix     = "[prometheus_output] "
 )
 
 type labelPair struct {
@@ -98,21 +95,6 @@ type Config struct {
 
 	address string
 	port    int
-}
-
-type ServiceRegistration struct {
-	Address       string        `mapstructure:"address,omitempty"`
-	Datacenter    string        `mapstructure:"datacenter,omitempty"`
-	Username      string        `mapstructure:"username,omitempty"`
-	Password      string        `mapstructure:"password,omitempty"`
-	Token         string        `mapstructure:"token,omitempty"`
-	CheckInterval time.Duration `mapstructure:"check-interval,omitempty"`
-	MaxFail       int           `mapstructure:"max-fail,omitempty"`
-	Name          string        `mapstructure:"name,omitempty"`
-	Tags          []string      `mapstructure:"tags,omitempty"`
-
-	deregisterAfter string
-	id              string
 }
 
 func (p *PrometheusOutput) String() string {
@@ -408,20 +390,7 @@ func (p *PrometheusOutput) setDefaults() error {
 	if p.Cfg.Expiration == 0 {
 		p.Cfg.Expiration = defaultExpiration
 	}
-	if p.Cfg.ServiceRegistration != nil {
-		if p.Cfg.ServiceRegistration.Address == "" {
-			p.Cfg.ServiceRegistration.Address = defaultServiceRegistrationAddress
-		}
-		if p.Cfg.ServiceRegistration.CheckInterval <= 0 {
-			p.Cfg.ServiceRegistration.CheckInterval = defaultRegistrationCheckInterval
-		}
-		if p.Cfg.ServiceRegistration.MaxFail <= 0 {
-			p.Cfg.ServiceRegistration.MaxFail = defaultMaxServiceFail
-		}
-		deregisterTimer := p.Cfg.ServiceRegistration.CheckInterval * time.Duration(p.Cfg.ServiceRegistration.MaxFail)
-		p.Cfg.ServiceRegistration.deregisterAfter = deregisterTimer.String()
-
-	}
+	p.setServiceRegistrationDefaults()
 	var err error
 	var port string
 	p.Cfg.address, port, err = net.SplitHostPort(p.Cfg.Listen)
@@ -436,82 +405,6 @@ func (p *PrometheusOutput) setDefaults() error {
 	}
 
 	return nil
-}
-
-func (p *PrometheusOutput) registerService(ctx context.Context) {
-	if p.Cfg.ServiceRegistration == nil {
-		return
-	}
-	var err error
-	clientConfig := &api.Config{
-		Address:    p.Cfg.ServiceRegistration.Address,
-		Scheme:     "http",
-		Datacenter: p.Cfg.ServiceRegistration.Datacenter,
-		Token:      p.Cfg.ServiceRegistration.Token,
-	}
-	if p.Cfg.ServiceRegistration.Username != "" && p.Cfg.ServiceRegistration.Password != "" {
-		clientConfig.HttpAuth = &api.HttpBasicAuth{
-			Username: p.Cfg.ServiceRegistration.Username,
-			Password: p.Cfg.ServiceRegistration.Password,
-		}
-	}
-INITCONSUL:
-	p.consulClient, err = api.NewClient(clientConfig)
-	if err != nil {
-		p.logger.Printf("failed to connect to consul: %v", err)
-		time.Sleep(1 * time.Second)
-		goto INITCONSUL
-	}
-
-	service := &api.AgentServiceRegistration{
-		ID:      p.Cfg.ServiceRegistration.id,
-		Name:    p.Cfg.ServiceRegistration.Name,
-		Address: p.Cfg.address,
-		Port:    p.Cfg.port,
-		Tags:    p.Cfg.ServiceRegistration.Tags,
-		Checks: api.AgentServiceChecks{
-			{
-				TTL:                            p.Cfg.ServiceRegistration.CheckInterval.String(),
-				DeregisterCriticalServiceAfter: p.Cfg.ServiceRegistration.deregisterAfter,
-			},
-			{
-				HTTP:                           fmt.Sprintf("http://%s%s", p.Cfg.Listen, p.Cfg.Path),
-				Method:                         "GET",
-				Interval:                       p.Cfg.ServiceRegistration.CheckInterval.String(),
-				TLSSkipVerify:                  true,
-				DeregisterCriticalServiceAfter: p.Cfg.ServiceRegistration.deregisterAfter,
-			},
-		},
-	}
-	b, _ := json.Marshal(service)
-	p.logger.Printf("registering service: %s", string(b))
-	err = p.consulClient.Agent().ServiceRegister(service)
-	if err != nil {
-		p.logger.Printf("failed to register service in consul: %v", err)
-		time.Sleep(time.Second)
-		goto INITCONSUL
-	}
-	go func() {
-		ttlCheckID := "service:" + p.Cfg.ServiceRegistration.id + ":1"
-		err = p.consulClient.Agent().PassTTL(ttlCheckID, "")
-		if err != nil {
-			p.logger.Printf("failed to pass TTL check: %v", err)
-		}
-		ticker := time.NewTicker(p.Cfg.ServiceRegistration.CheckInterval / 2)
-		for {
-			select {
-			case <-ticker.C:
-				err = p.consulClient.Agent().PassTTL(ttlCheckID, "")
-				if err != nil {
-					p.logger.Printf("failed to pass TTL check: %v", err)
-				}
-			case <-ctx.Done():
-				p.consulClient.Agent().FailTTL(ttlCheckID, ctx.Err().Error())
-				ticker.Stop()
-				return
-			}
-		}
-	}()
 }
 
 // Metric
