@@ -47,7 +47,13 @@ outputs:
       name:
       # List of tags to be added to the service registration
       tags:
-
+      # bool, enables http service check on top of the TTL check
+      enable-http-check:
+      # string, if enable-http-check is true, this field can be used to specify the http endpoint to be used to the check
+      # if provided, this filed with be prepended with 'http://' (if not already present), 
+      # and appended with the value in 'path' field.
+      # if not specified, it will be derived from the fields 'listen' and 'path'
+      http-check-address:
 ```
 
 `gnmic` creates the prometheus metric name and its labels from the subscription name, the gnmic path and the value name.
@@ -96,10 +102,11 @@ For the previous example the labels would be:
 
 
 ## Service Registration
-`gnmic` supports `prometheus_output` service registration via `Consul`. 
-It allows `prometheus` to dynamically discover new instances of `gnmic` exposing a server ready for scraping.
+`gnmic` supports `prometheus_output` service registration via `Consul`.
 
-If the configuration section `service-registration` is present under the output definition, `gnmic` will register the `prometheus_output` as a service is `Consul`.
+It allows `prometheus` to dynamically discover new instances of `gnmic` exposing a prometheus server ready for scraping via its [service discovery feature](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#consul_sd_config).
+
+If the configuration section `service-registration` is present under the output definition, `gnmic` will register the `prometheus_output` service in `Consul`.
 
 ### Configuration Example
 The below configuration, registers a service name `gnmic-prom-srv` with `IP=10.1.1.1` and `port=9804`
@@ -134,7 +141,26 @@ The `$service_name` to be discovered by `prometheus` is configured under `output
 If the service registration name field is not present, it will be populated with `gnmic` instance-name (if present) and the `prometheus_output` name, joined with a `-`.
 
 ### Service Checks
-`gnmic` registers the service in `Consul` with 2 checks enabled:
+`gnmic` registers the service in `Consul` with a `ttl` check enabled by default:
 
-* `http`: `Consul` periodically scrapes the prometheus server endpoint to check availability.
-* `ttl`: `gnmic` periodically updates the service definition in `Consul`. The goal, is to allow `Consul` to detect a same instance restarting with a different service name.
+* `ttl`: `gnmic` periodically updates the service definition in `Consul`. The goal is to allow `Consul` to detect a same instance restarting with a different service name.
+
+If `service-registration.enable-http-check` is `true`, an `http` check is added:
+* `http`: `Consul` periodically scrapes the prometheus server endpoint to check its availability.
+
+```yaml
+# gnmic.yaml
+outputs:
+  output1:
+    type: prometheus
+    listen: 10.1.1.1:9804
+    path: /metrics 
+    service-registration:
+      address: consul-agent.local:8500
+      name: gnmic-prom-srv
+      enable-http-check: true
+```
+
+Note that for the `http` check to work properly, a routable address ( IP or name ) should be specified under `listen`.
+
+Otherwise, a routable address should be added under `service-registration.http-check-address`
