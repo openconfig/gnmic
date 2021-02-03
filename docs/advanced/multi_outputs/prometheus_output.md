@@ -45,7 +45,9 @@ outputs:
       max-fail:
       # Consul service name
       name:
-      # List of tags to be added to the service registration
+      # List of tags to be added to the service registration, 
+      # if available, the instance-name and cluster-name will be added as tags,
+      # in the format: gnmic-instance=$instance-name and gnmic-cluster=$cluster-name
       tags:
       # bool, enables http service check on top of the TTL check
       enable-http-check:

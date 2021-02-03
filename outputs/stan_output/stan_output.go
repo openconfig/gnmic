@@ -349,3 +349,5 @@ func (s *StanOutput) SetName(name string) {
 	sb.WriteString("-stan-pub")
 	s.Cfg.Name = sb.String()
 }
+
+func (s *StanOutput) SetClusterName(name string) {}

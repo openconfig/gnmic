@@ -271,4 +271,5 @@ START:
 	}
 }
 
-func (i *InfluxDBOutput) SetName(name string) {}
+func (i *InfluxDBOutput) SetName(name string)        {}
+func (i *InfluxDBOutput) SetClusterName(name string) {}

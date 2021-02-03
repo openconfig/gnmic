@@ -194,3 +194,4 @@ START:
 }
 
 func (t *TCPOutput) SetName(name string) {}
+func (t *TCPOutput) SetClusterName(name string) {}
