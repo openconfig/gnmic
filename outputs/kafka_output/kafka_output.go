@@ -293,3 +293,5 @@ func (k *KafkaOutput) SetName(name string) {
 	sb.WriteString("-kafka-prod")
 	k.Cfg.Name = sb.String()
 }
+
+func (k *KafkaOutput) SetClusterName(name string) {}

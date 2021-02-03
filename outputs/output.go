@@ -18,9 +18,11 @@ type Output interface {
 	Close() error
 	RegisterMetrics(*prometheus.Registry)
 	String() string
+
 	SetLogger(*log.Logger)
 	SetEventProcessors(map[string]map[string]interface{}, *log.Logger)
 	SetName(string)
+	SetClusterName(string)
 }
 
 type Initializer func() Output
@@ -57,28 +59,3 @@ func DecodeConfig(src, dst interface{}) error {
 	return decoder.Decode(src)
 }
 
-type Option func(Output)
-
-func WithLogger(logger *log.Logger) Option {
-	return func(o Output) {
-		o.SetLogger(logger)
-	}
-}
-
-func WithEventProcessors(eps map[string]map[string]interface{}, log *log.Logger) Option {
-	return func(o Output) {
-		o.SetEventProcessors(eps, log)
-	}
-}
-
-func WithRegister(reg *prometheus.Registry) Option {
-	return func(o Output) {
-		o.RegisterMetrics(reg)
-	}
-}
-
-func WithName(name string) Option {
-	return func(o Output) {
-		o.SetName(name)
-	}
-}

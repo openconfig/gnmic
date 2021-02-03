@@ -318,6 +318,7 @@ func (c *Collector) InitOutput(ctx context.Context, name string) {
 						outputs.WithEventProcessors(c.EventProcessorsConfig, c.logger),
 						outputs.WithRegister(c.reg),
 						outputs.WithName(c.Config.Name),
+						outputs.WithClusterName(c.Config.ClusterName),
 					)
 					if err != nil {
 						c.logger.Printf("failed to init output type %q: %v", outType, err)

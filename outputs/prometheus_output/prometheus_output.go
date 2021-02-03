@@ -93,8 +93,9 @@ type Config struct {
 	EventProcessors        []string             `mapstructure:"event-processors,omitempty"`
 	ServiceRegistration    *ServiceRegistration `mapstructure:"service-registration,omitempty"`
 
-	address string
-	port    int
+	clusterName string
+	address     string
+	port        int
 }
 
 func (p *PrometheusOutput) String() string {
@@ -556,8 +557,16 @@ func (p *PrometheusOutput) SetName(name string) {
 		}
 		if name != "" {
 			p.Cfg.ServiceRegistration.id = p.Cfg.ServiceRegistration.Name + "-" + name
+			p.Cfg.ServiceRegistration.Tags = append(p.Cfg.ServiceRegistration.Tags, fmt.Sprintf("gnmic-instance=%s", name))
 			return
 		}
 		p.Cfg.ServiceRegistration.id = p.Cfg.ServiceRegistration.Name + "-" + uuid.New().String()
+	}
+}
+
+func (p *PrometheusOutput) SetClusterName(name string) {
+	p.Cfg.clusterName = name
+	if p.Cfg.ServiceRegistration != nil {
+		p.Cfg.ServiceRegistration.Tags = append(p.Cfg.ServiceRegistration.Tags, fmt.Sprintf("gnmic-cluster=%s", name))
 	}
 }

@@ -356,3 +356,5 @@ func (n *NatsOutput) SetName(name string) {
 	sb.WriteString("-nats-pub")
 	n.Cfg.Name = sb.String()
 }
+
+func (n *NatsOutput) SetClusterName(name string) {}
