@@ -525,11 +525,11 @@ func (c *Collector) Start(ctx context.Context) {
 // TargetPoll sends a gnmi.SubscribeRequest_Poll to targetName and returns the response and an error,
 // it uses the targetName and the subscriptionName strings to find the gnmi.GNMI_SubscribeClient
 func (c *Collector) TargetPoll(targetName, subscriptionName string) (*gnmi.SubscribeResponse, error) {
-	if sub, ok := c.Subscriptions[subscriptionName]; ok {
-		if strings.ToUpper(sub.Mode) != "POLL" {
-			return nil, fmt.Errorf("subscription '%s' is not a POLL subscription", subscriptionName)
-		}
-		if t, ok := c.Targets[targetName]; ok {
+	if t, ok := c.Targets[targetName]; ok {
+		if sub, ok := t.Subscriptions[subscriptionName]; ok {
+			if strings.ToUpper(sub.Mode) != "POLL" {
+				return nil, fmt.Errorf("subscription '%s' is not a POLL subscription", subscriptionName)
+			}
 			if subClient, ok := t.SubscribeClients[subscriptionName]; ok {
 				err := subClient.Send(&gnmi.SubscribeRequest{
 					Request: &gnmi.SubscribeRequest_Poll{
@@ -541,10 +541,11 @@ func (c *Collector) TargetPoll(targetName, subscriptionName string) (*gnmi.Subsc
 				}
 				return subClient.Recv()
 			}
+			return nil, fmt.Errorf("subscribe-client not found '%s'", subscriptionName)
 		}
-		return nil, fmt.Errorf("unknown target name '%s'", targetName)
+		return nil, fmt.Errorf("unknown subscription name '%s'", subscriptionName)
 	}
-	return nil, fmt.Errorf("unknown subscription name '%s'", subscriptionName)
+	return nil, fmt.Errorf("unknown target name '%s'", targetName)
 }
 
 // PolledSubscriptionsTargets returns a map of target name to a list of subscription names that have Mode == POLL
