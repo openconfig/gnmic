@@ -40,20 +40,20 @@ func pathCmdRun(d, f, e []string) error {
 	out := make(chan string)
 	defer close(out)
 	paths := make([]string, 0)
-	if cli.config.LocalFlags.PathSearch {
+	if gApp.Config.LocalFlags.PathSearch {
 		go gather(ctx, out, &paths)
 	} else {
 		go printer(ctx, out)
 	}
 	collected := make([]*yang.Entry, 0, 256)
-	for _, entry := range cli.schemaTree.Dir {
+	for _, entry := range gApp.SchemaTree.Dir {
 		collected = append(collected, collectSchemaNodes(entry, true)...)
 	}
 	for _, entry := range collected {
-		out <- generatePath(entry, cli.config.LocalFlags.PathWithPrefix)
+		out <- generatePath(entry, gApp.Config.LocalFlags.PathWithPrefix)
 	}
 
-	if cli.config.LocalFlags.PathSearch {
+	if gApp.Config.LocalFlags.PathSearch {
 		p := promptui.Select{
 			Label:        "select path",
 			Items:        paths,
@@ -128,7 +128,7 @@ func generateYangSchema(d, f, e []string) error {
 		entries[x] = yang.ToEntry(mods[n])
 	}
 
-	cli.schemaTree = buildRootEntry()
+	gApp.SchemaTree = buildRootEntry()
 	for _, entry := range entries {
 		skip := false
 		for i := range e {
@@ -138,7 +138,7 @@ func generateYangSchema(d, f, e []string) error {
 		}
 		if !skip {
 			updateAnnotation(entry)
-			cli.schemaTree.Dir[entry.Name] = entry
+			gApp.SchemaTree.Dir[entry.Name] = entry
 		}
 	}
 	return nil
@@ -154,50 +154,50 @@ func newPathCmd() *cobra.Command {
 			"--dir":  "DIR",
 		},
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			cli.config.SetLocalFlagsFromFile(cmd)
-			if cli.config.LocalFlags.PathPathType != "xpath" && cli.config.LocalFlags.PathPathType != "gnmi" {
+			gApp.Config.SetLocalFlagsFromFile(cmd)
+			if gApp.Config.LocalFlags.PathPathType != "xpath" && gApp.Config.LocalFlags.PathPathType != "gnmi" {
 				return fmt.Errorf("path-type must be one of 'xpath' or 'gnmi'")
 			}
-			cli.config.LocalFlags.PathDir = config.SanitizeArrayFlagValue(cli.config.LocalFlags.PathDir)
-			cli.config.LocalFlags.PathFile = config.SanitizeArrayFlagValue(cli.config.LocalFlags.PathFile)
-			cli.config.LocalFlags.PathExclude = config.SanitizeArrayFlagValue(cli.config.LocalFlags.PathExclude)
+			gApp.Config.LocalFlags.PathDir = config.SanitizeArrayFlagValue(gApp.Config.LocalFlags.PathDir)
+			gApp.Config.LocalFlags.PathFile = config.SanitizeArrayFlagValue(gApp.Config.LocalFlags.PathFile)
+			gApp.Config.LocalFlags.PathExclude = config.SanitizeArrayFlagValue(gApp.Config.LocalFlags.PathExclude)
 
 			var err error
-			cli.config.LocalFlags.PathDir, err = resolveGlobs(cli.config.LocalFlags.PathDir)
+			gApp.Config.LocalFlags.PathDir, err = resolveGlobs(gApp.Config.LocalFlags.PathDir)
 			if err != nil {
 				return err
 			}
-			cli.config.LocalFlags.PathFile, err = resolveGlobs(cli.config.LocalFlags.PathFile)
+			gApp.Config.LocalFlags.PathFile, err = resolveGlobs(gApp.Config.LocalFlags.PathFile)
 			if err != nil {
 				return err
 			}
-			for _, dirpath := range cli.config.LocalFlags.PathDir {
+			for _, dirpath := range gApp.Config.LocalFlags.PathDir {
 				expanded, err := yang.PathsWithModules(dirpath)
 				if err != nil {
 					return err
 				}
-				if cli.config.Globals.Debug {
+				if gApp.Config.Globals.Debug {
 					for _, fdir := range expanded {
-						cli.logger.Printf("adding %s to YANG paths", fdir)
+						gApp.Logger.Printf("adding %s to YANG paths", fdir)
 					}
 				}
 				yang.AddPath(expanded...)
 			}
-			yfiles, err := findYangFiles(cli.config.LocalFlags.PathFile)
+			yfiles, err := findYangFiles(gApp.Config.LocalFlags.PathFile)
 			if err != nil {
 				return err
 			}
-			cli.config.LocalFlags.PathFile = make([]string, 0, len(yfiles))
-			cli.config.LocalFlags.PathFile = append(cli.config.LocalFlags.PathFile, yfiles...)
-			if cli.config.Globals.Debug {
-				for _, file := range cli.config.LocalFlags.PathFile {
-					cli.logger.Printf("loading %s file", file)
+			gApp.Config.LocalFlags.PathFile = make([]string, 0, len(yfiles))
+			gApp.Config.LocalFlags.PathFile = append(gApp.Config.LocalFlags.PathFile, yfiles...)
+			if gApp.Config.Globals.Debug {
+				for _, file := range gApp.Config.LocalFlags.PathFile {
+					gApp.Logger.Printf("loading %s file", file)
 				}
 			}
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return pathCmdRun(cli.config.LocalFlags.PathDir, cli.config.LocalFlags.PathFile, cli.config.LocalFlags.PathExclude)
+			return pathCmdRun(gApp.Config.LocalFlags.PathDir, gApp.Config.LocalFlags.PathFile, gApp.Config.LocalFlags.PathExclude)
 		},
 		PostRun: func(cmd *cobra.Command, args []string) {
 			cmd.ResetFlags()
@@ -211,17 +211,17 @@ func newPathCmd() *cobra.Command {
 
 // used to init or reset pathCmd flags for gnmic-prompt mode
 func initPathFlags(cmd *cobra.Command) {
-	cmd.Flags().StringArrayVarP(&cli.config.LocalFlags.PathFile, "file", "", []string{}, "yang files to get the paths")
+	cmd.Flags().StringArrayVarP(&gApp.Config.LocalFlags.PathFile, "file", "", []string{}, "yang files to get the paths")
 	cmd.MarkFlagRequired("file")
-	cmd.Flags().StringArrayVarP(&cli.config.LocalFlags.PathExclude, "exclude", "", []string{}, "yang modules to be excluded from path generation")
-	cmd.Flags().StringArrayVarP(&cli.config.LocalFlags.PathDir, "dir", "", []string{}, "directories to search yang includes and imports")
-	cmd.Flags().StringVarP(&cli.config.LocalFlags.PathPathType, "path-type", "", "xpath", "path type xpath or gnmi")
-	cmd.Flags().StringVarP(&cli.config.LocalFlags.PathModule, "module", "m", "", "module name")
-	cmd.Flags().BoolVarP(&cli.config.LocalFlags.PathWithPrefix, "with-prefix", "", false, "include module/submodule prefix in path elements")
-	cmd.Flags().BoolVarP(&cli.config.LocalFlags.PathTypes, "types", "", false, "print leaf type")
-	cmd.Flags().BoolVarP(&cli.config.LocalFlags.PathSearch, "search", "", false, "search through path list")
+	cmd.Flags().StringArrayVarP(&gApp.Config.LocalFlags.PathExclude, "exclude", "", []string{}, "yang modules to be excluded from path generation")
+	cmd.Flags().StringArrayVarP(&gApp.Config.LocalFlags.PathDir, "dir", "", []string{}, "directories to search yang includes and imports")
+	cmd.Flags().StringVarP(&gApp.Config.LocalFlags.PathPathType, "path-type", "", "xpath", "path type xpath or gnmi")
+	cmd.Flags().StringVarP(&gApp.Config.LocalFlags.PathModule, "module", "m", "", "module name")
+	cmd.Flags().BoolVarP(&gApp.Config.LocalFlags.PathWithPrefix, "with-prefix", "", false, "include module/submodule prefix in path elements")
+	cmd.Flags().BoolVarP(&gApp.Config.LocalFlags.PathTypes, "types", "", false, "print leaf type")
+	cmd.Flags().BoolVarP(&gApp.Config.LocalFlags.PathSearch, "search", "", false, "search through path list")
 	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
-		cli.config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
+		gApp.Config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
 	})
 }
 
@@ -272,14 +272,14 @@ func generatePath(entry *yang.Entry, prefixTagging bool) string {
 		}
 		path = fmt.Sprintf("/%s%s", elementName, path)
 	}
-	if cli.config.LocalFlags.PathPathType == "gnmi" {
+	if gApp.Config.LocalFlags.PathPathType == "gnmi" {
 		gnmiPath, err := xpath.ToGNMIPath(path)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "path: %s could not be changed to gnmi: %v\n", path, err)
 		}
 		path = gnmiPath.String()
 	}
-	if cli.config.LocalFlags.PathTypes {
+	if gApp.Config.LocalFlags.PathTypes {
 		path = fmt.Sprintf("%s (type=%s)", path, entry.Type.Name)
 	}
 	return path
@@ -306,7 +306,7 @@ func generateTypeInfo(e *yang.Entry) string {
 		rstr += fmt.Sprintf(" %q", t.Path)
 	case yang.Yidentityref:
 		rstr += fmt.Sprintf(" %q", t.IdentityBase.Name)
-		if cli.config.LocalFlags.PathWithPrefix {
+		if gApp.Config.LocalFlags.PathWithPrefix {
 			data := getAnnotation(e, "prefix-qualified-identities")
 			if data != nil {
 				rstr += fmt.Sprintf(" %v", data)
@@ -371,7 +371,7 @@ func getAnnotation(entry *yang.Entry, name string) interface{} {
 	return nil
 }
 
-// updateAnnotation updates the schema info before enconding.
+// updateAnnotation updates the schema info before encoding.
 func updateAnnotation(entry *yang.Entry) {
 	for _, child := range entry.Dir {
 		updateAnnotation(child)

@@ -37,7 +37,7 @@ func (c *Config) GetSubscriptions(cmd *cobra.Command) (map[string]*collector.Sub
 		sub.SuppressRedundant = c.LocalFlags.SubscribeSuppressRedundant
 		sub.UpdatesOnly = c.LocalFlags.SubscribeUpdatesOnly
 		sub.Models = c.LocalFlags.SubscribeModel
-		subscriptions["default"] = sub
+		subscriptions[sub.Name] = sub
 		if c.Globals.Debug {
 			c.logger.Printf("subscriptions: %s", subscriptions)
 		}

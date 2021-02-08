@@ -15,7 +15,6 @@ import (
 	"github.com/c-bata/go-prompt/completer"
 	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/config"
-	"github.com/karimra/gnmic/outputs"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/nsf/termbox-go"
 	"github.com/olekukonko/tablewriter"
@@ -24,7 +23,6 @@ import (
 	"github.com/spf13/pflag"
 )
 
-var gctx context.Context
 var gcancel context.CancelFunc
 
 var colorMapping = map[string]goprompt.Color{
@@ -54,15 +52,15 @@ var subscriptionListHeader = []string{"Name", "Mode", "Prefix", "Paths", "Interv
 func getColor(flagName string) goprompt.Color {
 	switch flagName {
 	case "prefix-color":
-		if cgoprompt, ok := colorMapping[cli.config.LocalFlags.PromptPrefixColor]; ok {
+		if cgoprompt, ok := colorMapping[gApp.Config.LocalFlags.PromptPrefixColor]; ok {
 			return cgoprompt
 		}
 	case "suggestions-bg-color":
-		if cgoprompt, ok := colorMapping[cli.config.LocalFlags.PromptSuggestionsBGColor]; ok {
+		if cgoprompt, ok := colorMapping[gApp.Config.LocalFlags.PromptSuggestionsBGColor]; ok {
 			return cgoprompt
 		}
 	case "description-bg-color":
-		if cgoprompt, ok := colorMapping[cli.config.LocalFlags.PromptDescriptionBGColor]; ok {
+		if cgoprompt, ok := colorMapping[gApp.Config.LocalFlags.PromptDescriptionBGColor]; ok {
 			return cgoprompt
 		}
 	}
@@ -86,42 +84,41 @@ func newPromptCmd() *cobra.Command {
 		Short: "enter the interactive gnmic prompt mode",
 		// PreRun resolve the glob patterns and checks if --max-suggesions is bigger that the terminal height and lowers it if needed.
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			cli.config.SetLocalFlagsFromFile(cmd)
-			cli.config.LocalFlags.PromptDir = config.SanitizeArrayFlagValue(cli.config.LocalFlags.PromptDir)
-			cli.config.LocalFlags.PromptFile = config.SanitizeArrayFlagValue(cli.config.LocalFlags.PromptFile)
-			cli.config.LocalFlags.PromptExclude = config.SanitizeArrayFlagValue(cli.config.LocalFlags.PromptExclude)
+			gApp.Config.SetLocalFlagsFromFile(cmd)
+			gApp.Config.LocalFlags.PromptDir = config.SanitizeArrayFlagValue(gApp.Config.LocalFlags.PromptDir)
+			gApp.Config.LocalFlags.PromptFile = config.SanitizeArrayFlagValue(gApp.Config.LocalFlags.PromptFile)
+			gApp.Config.LocalFlags.PromptExclude = config.SanitizeArrayFlagValue(gApp.Config.LocalFlags.PromptExclude)
 
-			gctx, gcancel = context.WithCancel(context.Background())
 			var err error
-			cli.config.LocalFlags.PromptDir, err = resolveGlobs(cli.config.LocalFlags.PromptDir)
+			gApp.Config.LocalFlags.PromptDir, err = resolveGlobs(gApp.Config.LocalFlags.PromptDir)
 			if err != nil {
 				return err
 			}
-			cli.config.LocalFlags.PromptFile, err = resolveGlobs(cli.config.LocalFlags.PromptFile)
+			gApp.Config.LocalFlags.PromptFile, err = resolveGlobs(gApp.Config.LocalFlags.PromptFile)
 			if err != nil {
 				return err
 			}
-			for _, dirpath := range cli.config.LocalFlags.PromptDir {
+			for _, dirpath := range gApp.Config.LocalFlags.PromptDir {
 				expanded, err := yang.PathsWithModules(dirpath)
 				if err != nil {
 					return err
 				}
-				if cli.config.Globals.Debug {
+				if gApp.Config.Globals.Debug {
 					for _, fdir := range expanded {
-						cli.logger.Printf("adding %s to yang Paths", fdir)
+						gApp.Logger.Printf("adding %s to yang Paths", fdir)
 					}
 				}
 				yang.AddPath(expanded...)
 			}
-			yfiles, err := findYangFiles(cli.config.LocalFlags.PromptFile)
+			yfiles, err := findYangFiles(gApp.Config.LocalFlags.PromptFile)
 			if err != nil {
 				return err
 			}
-			cli.config.LocalFlags.PromptFile = make([]string, 0, len(yfiles))
-			cli.config.LocalFlags.PromptFile = append(cli.config.LocalFlags.PromptFile, yfiles...)
-			if cli.config.Globals.Debug {
-				for _, file := range cli.config.LocalFlags.PromptFile {
-					cli.logger.Printf("loading %s yang file", file)
+			gApp.Config.LocalFlags.PromptFile = make([]string, 0, len(yfiles))
+			gApp.Config.LocalFlags.PromptFile = append(gApp.Config.LocalFlags.PromptFile, yfiles...)
+			if gApp.Config.Globals.Debug {
+				for _, file := range gApp.Config.LocalFlags.PromptFile {
+					gApp.Logger.Printf("loading %s yang file", file)
 				}
 			}
 			err = termbox.Init()
@@ -131,36 +128,36 @@ func newPromptCmd() *cobra.Command {
 			_, h := termbox.Size()
 			termbox.Close()
 			// set max suggestions to terminal height-1 if the supplied value is greater
-			if uint(cli.config.LocalFlags.PromptMaxSuggestions) > uint(h) {
+			if uint(gApp.Config.LocalFlags.PromptMaxSuggestions) > uint(h) {
 				if h > 1 {
-					cli.config.LocalFlags.PromptMaxSuggestions = uint16(h - 2)
+					gApp.Config.LocalFlags.PromptMaxSuggestions = uint16(h - 2)
 				} else {
-					cli.config.LocalFlags.PromptMaxSuggestions = 0
+					gApp.Config.LocalFlags.PromptMaxSuggestions = 0
 				}
 			}
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := generateYangSchema(cli.config.LocalFlags.PromptDir, cli.config.LocalFlags.PromptFile, cli.config.LocalFlags.PromptExclude)
+			err := generateYangSchema(gApp.Config.LocalFlags.PromptDir, gApp.Config.LocalFlags.PromptFile, gApp.Config.LocalFlags.PromptExclude)
 			if err != nil {
-				cli.logger.Printf("failed to load paths from yang: %v", err)
-				if !cli.config.Globals.Log {
+				gApp.Logger.Printf("failed to load paths from yang: %v", err)
+				if !gApp.Config.Globals.Log {
 					fmt.Fprintf(os.Stderr, "ERR: failed to load paths from yang: %v\n", err)
 				}
 			}
-			cli.promptMode = true
+			gApp.PromptMode = true
 			// load history
-			cli.promptHistory = make([]string, 0, 256)
+			gApp.PromptHistory = make([]string, 0, 256)
 			home, err := homedir.Dir()
 			if err != nil {
-				if cli.config.Globals.Debug {
+				if gApp.Config.Globals.Debug {
 					log.Printf("failed to get home directory: %v", err)
 				}
 				return nil
 			}
 			content, err := ioutil.ReadFile(home + "/.gnmic.history")
 			if err != nil {
-				if cli.config.Globals.Debug {
+				if gApp.Config.Globals.Debug {
 					log.Printf("failed to read history file: %v", err)
 				}
 				return nil
@@ -168,7 +165,7 @@ func newPromptCmd() *cobra.Command {
 			history := strings.Split(string(content), "\n")
 			for i := range history {
 				if history[i] != "" {
-					cli.promptHistory = append(cli.promptHistory, history[i])
+					gApp.PromptHistory = append(gApp.PromptHistory, history[i])
 				}
 			}
 			return nil
@@ -198,12 +195,12 @@ var promptQuitCmd = &cobra.Command{
 		if err != nil {
 			os.Exit(0)
 		}
-		l := len(cli.promptHistory)
+		l := len(gApp.PromptHistory)
 		if l > 128 {
-			cli.promptHistory = cli.promptHistory[l-128:]
+			gApp.PromptHistory = gApp.PromptHistory[l-128:]
 		}
-		for i := range cli.promptHistory {
-			f.WriteString(cli.promptHistory[i] + "\n")
+		for i := range gApp.PromptHistory {
+			f.WriteString(gApp.PromptHistory[i] + "\n")
 		}
 		f.Close()
 		os.Exit(0)
@@ -219,20 +216,11 @@ var targetListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "list configured targets",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if cli.collector == nil {
-			targetsConfig, err := cli.config.GetTargets()
-			if err != nil {
-				return err
-			}
-			tabData := targetTable(targetsConfig, true)
-			renderTable(tabData, targetListHeader)
-			return nil
+		targetsConfig, err := gApp.Config.GetTargets()
+		if err != nil {
+			return err
 		}
-		tcs := make(map[string]*collector.TargetConfig)
-		for _, t := range cli.collector.Targets {
-			tcs[t.Config.Name] = t.Config
-		}
-		tabData := targetTable(tcs, true)
+		tabData := targetTable(targetsConfig, true)
 		renderTable(tabData, targetListHeader)
 		return nil
 	},
@@ -252,20 +240,12 @@ var targetShowCmd = &cobra.Command{
 			fmt.Println("provide a target name with --name")
 			return nil
 		}
-		if cli.collector == nil {
-			targetsConfig, err := cli.config.GetTargets()
-			if err != nil {
-				return err
-			}
-			if tc, ok := targetsConfig[name]; ok {
-				tabData := targetTable(map[string]*collector.TargetConfig{name: tc}, false)
-				renderTable(tabData, []string{"Param", "Value"})
-				return nil
-			}
-			return errors.New("unknown target")
+		targetsConfig, err := gApp.Config.GetTargets()
+		if err != nil {
+			return err
 		}
-		if t, ok := cli.collector.Targets[name]; ok {
-			tabData := targetTable(map[string]*collector.TargetConfig{name: t.Config}, false)
+		if tc, ok := targetsConfig[name]; ok {
+			tabData := targetTable(map[string]*collector.TargetConfig{name: tc}, false)
 			renderTable(tabData, []string{"Param", "Value"})
 			return nil
 		}
@@ -285,16 +265,11 @@ var subscriptionListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "list configured subscriptions",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if cli.collector == nil {
-			subs, err := cli.config.GetSubscriptions(nil)
-			if err != nil {
-				return err
-			}
-			tabData := subscriptionTable(subs, true)
-			renderTable(tabData, subscriptionListHeader)
-			return nil
+		subs, err := gApp.Config.GetSubscriptions(nil)
+		if err != nil {
+			return err
 		}
-		tabData := subscriptionTable(cli.collector.Subscriptions, true)
+		tabData := subscriptionTable(subs, true)
 		renderTable(tabData, subscriptionListHeader)
 		return nil
 	},
@@ -314,19 +289,11 @@ var subscriptionShowCmd = &cobra.Command{
 			fmt.Println("provide a subscription name with --name")
 			return nil
 		}
-		if cli.collector == nil {
-			subs, err := cli.config.GetSubscriptions(nil)
-			if err != nil {
-				return err
-			}
-			if s, ok := subs[name]; ok {
-				tabData := subscriptionTable(map[string]*collector.SubscriptionConfig{name: s}, false)
-				renderTable(tabData, []string{"Param", "Value"})
-				return nil
-			}
-			return errors.New("unknown subscription")
+		subs, err := gApp.Config.GetSubscriptions(nil)
+		if err != nil {
+			return err
 		}
-		if s, ok := cli.collector.Subscriptions[name]; ok {
+		if s, ok := subs[name]; ok {
 			tabData := subscriptionTable(map[string]*collector.SubscriptionConfig{name: s}, false)
 			renderTable(tabData, []string{"Param", "Value"})
 			return nil
@@ -347,12 +314,7 @@ var outputListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "list configured outputs",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if cli.collector == nil || len(cli.collector.Outputs) == 0 {
-			tabData := cli.config.GetOutputsConfigs()
-			renderTable(tabData, []string{"Name", "Config"})
-			return nil
-		}
-		tabData := outputTable(cli.collector.Outputs)
+		tabData := gApp.Config.GetOutputsConfigs()
 		renderTable(tabData, []string{"Name", "Config"})
 		return nil
 	},
@@ -390,7 +352,7 @@ func targetTable(targetConfigs map[string]*collector.TargetConfig, list bool) []
 		return tabData
 	}
 	if len(targetConfigs) > 1 {
-		cli.logger.Printf("cannot show multiple targets")
+		gApp.Logger.Printf("cannot show multiple targets")
 		return nil
 	}
 	for _, tc := range targetConfigs {
@@ -435,7 +397,7 @@ func subscriptionTable(scs map[string]*collector.SubscriptionConfig, list bool) 
 		return tabData
 	}
 	if len(scs) > 1 {
-		cli.logger.Printf("cannot show multiple subscriptions")
+		gApp.Logger.Printf("cannot show multiple subscriptions")
 		return nil
 	}
 	for _, sub := range scs {
@@ -453,37 +415,23 @@ func subscriptionTable(scs map[string]*collector.SubscriptionConfig, list bool) 
 	return [][]string{}
 }
 
-func outputTable(outs map[string]outputs.Output) [][]string {
-	tabData := make([][]string, 0, len(outs))
-	for name, out := range outs {
-		tabData = append(tabData, []string{
-			name,
-			out.String(),
-		})
-	}
-	sort.Slice(tabData, func(i, j int) bool {
-		return tabData[i][0] < tabData[j][0]
-	})
-	return tabData
-}
-
 var name string
 
 // used to init or reset pathCmd flags for gnmic-prompt mode
 func initPromptFlags(cmd *cobra.Command) {
-	cmd.Flags().StringArrayVarP(&cli.config.LocalFlags.PromptFile, "file", "", []string{}, "path to a yang file or a directory of them to get path auto-completions from")
-	cmd.Flags().StringArrayVarP(&cli.config.LocalFlags.PromptExclude, "exclude", "", []string{}, "yang module names to be excluded from path auto-completion generation")
-	cmd.Flags().StringArrayVarP(&cli.config.LocalFlags.PromptDir, "dir", "", []string{}, "path to a directory with yang modules used as includes and/or imports")
-	cmd.Flags().Uint16Var(&cli.config.LocalFlags.PromptMaxSuggestions, "max-suggestions", 10, "terminal suggestion max list size")
-	cmd.Flags().StringVar(&cli.config.LocalFlags.PromptPrefixColor, "prefix-color", "dark_blue", "terminal prefix color")
-	cmd.Flags().StringVar(&cli.config.LocalFlags.PromptSuggestionsBGColor, "suggestions-bg-color", "dark_blue", "suggestion box background color")
-	cmd.Flags().StringVar(&cli.config.LocalFlags.PromptDescriptionBGColor, "description-bg-color", "dark_gray", "description box background color")
-	cmd.Flags().BoolVar(&cli.config.LocalFlags.PromptSuggestAllFlags, "suggest-all-flags", false, "suggest local as well as inherited flags of subcommands")
-	cmd.Flags().BoolVar(&cli.config.LocalFlags.PromptDescriptionWithPrefix, "description-with-prefix", false, "show YANG module prefix in XPATH suggestion description")
-	cmd.Flags().BoolVar(&cli.config.LocalFlags.PromptDescriptionWithTypes, "description-with-types", false, "show YANG types in XPATH suggestion description")
-	cmd.Flags().BoolVar(&cli.config.LocalFlags.PromptSuggestWithOrigin, "suggest-with-origin", false, "suggest XPATHs with origin prepended ")
+	cmd.Flags().StringArrayVarP(&gApp.Config.LocalFlags.PromptFile, "file", "", []string{}, "path to a yang file or a directory of them to get path auto-completions from")
+	cmd.Flags().StringArrayVarP(&gApp.Config.LocalFlags.PromptExclude, "exclude", "", []string{}, "yang module names to be excluded from path auto-completion generation")
+	cmd.Flags().StringArrayVarP(&gApp.Config.LocalFlags.PromptDir, "dir", "", []string{}, "path to a directory with yang modules used as includes and/or imports")
+	cmd.Flags().Uint16Var(&gApp.Config.LocalFlags.PromptMaxSuggestions, "max-suggestions", 10, "terminal suggestion max list size")
+	cmd.Flags().StringVar(&gApp.Config.LocalFlags.PromptPrefixColor, "prefix-color", "dark_blue", "terminal prefix color")
+	cmd.Flags().StringVar(&gApp.Config.LocalFlags.PromptSuggestionsBGColor, "suggestions-bg-color", "dark_blue", "suggestion box background color")
+	cmd.Flags().StringVar(&gApp.Config.LocalFlags.PromptDescriptionBGColor, "description-bg-color", "dark_gray", "description box background color")
+	cmd.Flags().BoolVar(&gApp.Config.LocalFlags.PromptSuggestAllFlags, "suggest-all-flags", false, "suggest local as well as inherited flags of subcommands")
+	cmd.Flags().BoolVar(&gApp.Config.LocalFlags.PromptDescriptionWithPrefix, "description-with-prefix", false, "show YANG module prefix in XPATH suggestion description")
+	cmd.Flags().BoolVar(&gApp.Config.LocalFlags.PromptDescriptionWithTypes, "description-with-types", false, "show YANG types in XPATH suggestion description")
+	cmd.Flags().BoolVar(&gApp.Config.LocalFlags.PromptSuggestWithOrigin, "suggest-with-origin", false, "suggest XPATHs with origin prepended ")
 	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
-		cli.config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
+		gApp.Config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
 	})
 }
 
@@ -501,7 +449,7 @@ func findMatchedXPATH(entry *yang.Entry, input string, prefixPresent bool) []gop
 		}
 	}
 
-	prependOrigin := cli.config.LocalFlags.PromptSuggestWithOrigin && !prefixPresent
+	prependOrigin := gApp.Config.LocalFlags.PromptSuggestWithOrigin && !prefixPresent
 	for name, child := range entry.Dir {
 		if child.IsCase() || child.IsChoice() {
 			for _, gchild := range child.Dir {
@@ -590,13 +538,13 @@ func buildXPATHDescription(entry *yang.Entry) string {
 	sb.WriteString(" ")
 	sb.WriteString(getPermissions(entry))
 	sb.WriteString(" ")
-	if cli.config.LocalFlags.PromptDescriptionWithTypes {
+	if gApp.Config.LocalFlags.PromptDescriptionWithTypes {
 		n, _ := sb.WriteString(getEntryType(entry))
 		if n > 0 {
 			sb.WriteString(", ")
 		}
 	}
-	if cli.config.LocalFlags.PromptDescriptionWithPrefix {
+	if gApp.Config.LocalFlags.PromptDescriptionWithPrefix {
 		if entry.Prefix != nil {
 			sb.WriteString(entry.Prefix.Name)
 			sb.WriteString(": ")
@@ -710,7 +658,7 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 					}
 				}
 				// find yang entries matching the prefix
-				for _, entry := range cli.schemaTree.Dir {
+				for _, entry := range gApp.SchemaTree.Dir {
 					entries = append(entries, findMatchedSchema(entry, line)...)
 				}
 				// generate suggestions from matching entries
@@ -720,7 +668,7 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 			}
 		} else {
 			// generate suggestions from yang schema
-			for _, entry := range cli.schemaTree.Dir {
+			for _, entry := range gApp.SchemaTree.Dir {
 				suggestions = append(suggestions, findMatchedXPATH(entry, word, false)...)
 			}
 		}
@@ -734,7 +682,7 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 	case "PREFIX":
 		word := doc.GetWordBeforeCursor()
 		suggestions := make([]goprompt.Suggest, 0, 16)
-		for _, entry := range cli.schemaTree.Dir {
+		for _, entry := range gApp.SchemaTree.Dir {
 			suggestions = append(suggestions, findMatchedXPATH(entry, word, false)...)
 		}
 		sort.Slice(suggestions, func(i, j int) bool {
@@ -749,8 +697,8 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 	case "YANG":
 		return yangPathCompleter.Complete(doc)
 	case "MODEL":
-		suggestions := make([]goprompt.Suggest, 0, len(cli.schemaTree.Dir))
-		for name, dir := range cli.schemaTree.Dir {
+		suggestions := make([]goprompt.Suggest, 0, len(gApp.SchemaTree.Dir))
+		for name, dir := range gApp.SchemaTree.Dir {
 			if dir != nil {
 				suggestions = append(suggestions, goprompt.Suggest{Text: name, Description: dir.Description})
 				continue
@@ -797,14 +745,14 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 		}
 		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
 	case "SUBSCRIPTION":
-		subs := cli.config.GetSubscriptionsFromFile()
+		subs := gApp.Config.GetSubscriptionsFromFile()
 		suggestions := make([]goprompt.Suggest, 0, len(subs))
 		for _, sub := range subs {
 			suggestions = append(suggestions, goprompt.Suggest{Text: sub.Name, Description: subscriptionDescription(sub)})
 		}
 		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
 	case "TARGET":
-		targetsConfig := cli.config.TargetsList()
+		targetsConfig := gApp.Config.TargetsList()
 		suggestions := make([]goprompt.Suggest, 0, len(targetsConfig))
 		for _, target := range targetsConfig {
 			sb := strings.Builder{}
@@ -823,7 +771,7 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 		}
 		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
 	case "OUTPUT":
-		outputGroups := cli.config.GetOutputsSuggestions()
+		outputGroups := gApp.Config.GetOutputsSuggestions()
 		suggestions := make([]goprompt.Suggest, 0, len(outputGroups))
 		for _, sugg := range outputGroups {
 			suggestions = append(suggestions, goprompt.Suggest{Text: sugg.Name, Description: strings.Join(sugg.Types, ", ")})
@@ -864,7 +812,7 @@ func subscriptionDescription(sub *collector.SubscriptionConfig) string {
 func showCommandArguments(b *goprompt.Buffer) {
 	doc := b.Document()
 	showLocalFlags := false
-	command := rootCmd
+	command := gApp.RootCmd
 	args := strings.Fields(doc.CurrentLine())
 	if found, _, err := command.Find(args); err == nil {
 		if command != found {
@@ -904,7 +852,7 @@ func showCommandArguments(b *goprompt.Buffer) {
 		return
 	}
 	if err := termbox.Init(); err != nil {
-		cli.logger.Fatalf("%v", err)
+		gApp.Logger.Fatalf("%v", err)
 	}
 	w, _ := termbox.Size()
 	termbox.Close()
@@ -926,12 +874,12 @@ func showCommandArguments(b *goprompt.Buffer) {
 func ExecutePrompt() {
 	initPromptCmds()
 	shell := &cmdPrompt{
-		RootCmd: rootCmd,
+		RootCmd: gApp.RootCmd,
 		GoPromptOptions: []goprompt.Option{
 			goprompt.OptionTitle("gnmic-prompt"),
 			goprompt.OptionPrefix("gnmic> "),
-			goprompt.OptionHistory(cli.promptHistory),
-			goprompt.OptionMaxSuggestion(cli.config.LocalFlags.PromptMaxSuggestions),
+			goprompt.OptionHistory(gApp.PromptHistory),
+			goprompt.OptionMaxSuggestion(gApp.Config.LocalFlags.PromptMaxSuggestions),
 			goprompt.OptionPrefixTextColor(getColor("prefix-color")),
 			goprompt.OptionPreviewSuggestionTextColor(goprompt.Cyan),
 			goprompt.OptionSuggestionTextColor(goprompt.White),
@@ -999,10 +947,10 @@ func ExecutePrompt() {
 }
 
 func initPromptCmds() {
-	rootCmd.AddCommand(promptQuitCmd)
-	rootCmd.AddCommand(targetCmd)
-	rootCmd.AddCommand(subscriptionCmd)
-	rootCmd.AddCommand(outputCmd)
+	gApp.RootCmd.AddCommand(promptQuitCmd)
+	gApp.RootCmd.AddCommand(targetCmd)
+	gApp.RootCmd.AddCommand(subscriptionCmd)
+	gApp.RootCmd.AddCommand(outputCmd)
 
 	targetCmd.AddCommand(targetListCmd)
 	targetCmd.AddCommand(targetShowCmd)
@@ -1014,7 +962,7 @@ func initPromptCmds() {
 
 	outputCmd.AddCommand(outputListCmd)
 
-	rootCmd.RemoveCommand(promptModeCmd)
+	gApp.RootCmd.RemoveCommand(promptModeCmd)
 }
 
 // Reference: https://github.com/stromland/cobra-prompt
@@ -1038,7 +986,7 @@ func (co cmdPrompt) Run() {
 			if len(promptArgs) > 0 {
 				err := co.RootCmd.Execute()
 				if err == nil && in != "" {
-					cli.promptHistory = append(cli.promptHistory, in)
+					gApp.PromptHistory = append(gApp.PromptHistory, in)
 				}
 			}
 		},
@@ -1091,7 +1039,7 @@ func findSuggestions(co cmdPrompt, doc goprompt.Document) []goprompt.Suggest {
 	}
 	// load local flags
 	command.LocalFlags().VisitAll(addFlags)
-	if cli.config.LocalFlags.PromptSuggestAllFlags {
+	if gApp.Config.LocalFlags.PromptSuggestAllFlags {
 		// load inherited flags
 		command.InheritedFlags().VisitAll(addFlags)
 	}

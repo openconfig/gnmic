@@ -32,6 +32,13 @@ type Config struct {
 	LocalFlags *LocalFlags
 	FileConfig *viper.Viper
 
+	Targets       map[string]*collector.TargetConfig
+	Subscriptions map[string]*collector.SubscriptionConfig
+	Outputs       map[string]map[string]interface{}
+	Inputs        map[string]map[string]interface{}
+	Processors    map[string]map[string]interface{}
+	Locker        map[string]interface{}
+
 	logger *log.Logger
 }
 
@@ -64,6 +71,7 @@ type GlobalFlags struct {
 	Retry             time.Duration `mapstructure:"retry,omitempty" json:"retry,omitempty" yaml:"retry,omitempty"`
 	TargetBufferSize  uint          `mapstructure:"target-buffer-size,omitempty" json:"target-buffer-size,omitempty" yaml:"target-buffer-size,omitempty"`
 	InstanceName      string        `mapstructure:"instance-name,omitempty" json:"instance-name,omitempty" yaml:"instance-name,omitempty"`
+	API               string        `mapstructure:"api,omitempty" json:"api,omitempty" yaml:"api,omitempty"`
 }
 
 type LocalFlags struct {
@@ -237,7 +245,7 @@ func flagIsSet(cmd *cobra.Command, name string) bool {
 }
 
 func (c *Config) CreateGetRequest() (*gnmi.GetRequest, error) {
-	if c == nil || c.Globals == nil || c.LocalFlags == nil {
+	if c == nil {
 		return nil, errors.New("invalid configuration")
 	}
 	encodingVal, ok := gnmi.Encoding_value[strings.Replace(strings.ToUpper(c.Globals.Encoding), "-", "_", -1)]
@@ -369,7 +377,7 @@ func (c *Config) CreateSetRequest() (*gnmi.SetRequest, error) {
 					JsonIetfVal: bytes.Trim(updateData, " \r\n\t"),
 				}
 			default:
-				return nil, fmt.Errorf("encoding: %s not supported together with file values", c.Globals.Encoding)
+				return nil, fmt.Errorf("encoding: %q not supported together with file values", c.Globals.Encoding)
 			}
 		} else {
 			err = setValue(value, strings.ToLower(c.Globals.Encoding), c.LocalFlags.SetUpdateValue[i])
@@ -405,7 +413,7 @@ func (c *Config) CreateSetRequest() (*gnmi.SetRequest, error) {
 					JsonIetfVal: bytes.Trim(replaceData, " \r\n\t"),
 				}
 			default:
-				return nil, fmt.Errorf("encoding: %s not supported together with file values", c.Globals.Encoding)
+				return nil, fmt.Errorf("encoding: %q not supported together with file values", c.Globals.Encoding)
 			}
 		} else {
 			err = setValue(value, strings.ToLower(c.Globals.Encoding), c.LocalFlags.SetReplaceValue[i])

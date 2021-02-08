@@ -78,6 +78,10 @@ func convert(i interface{}) interface{} {
 			nm[k.(string)] = convert(v)
 		}
 		return nm
+	case map[string]interface{}:
+		for k, v := range x {
+			x[k] = convert(v)
+		}
 	case []interface{}:
 		for i, v := range x {
 			x[i] = convert(v)
