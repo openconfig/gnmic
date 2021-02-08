@@ -106,7 +106,7 @@ func TestGetSubscriptions(t *testing.T) {
 	for name, data := range getSubscriptionsTestSet {
 		t.Run(name, func(t *testing.T) {
 			cfg := New()
-			cfg.Globals.Debug = true
+			cfg.Debug = true
 			cfg.SetLogger()
 			cfg.FileConfig.SetConfigType("yaml")
 			err := cfg.FileConfig.ReadConfig(bytes.NewBuffer(data.in))
@@ -114,18 +114,11 @@ func TestGetSubscriptions(t *testing.T) {
 				t.Logf("failed reading config: %v", err)
 				t.Fail()
 			}
-			err = cfg.FileConfig.Unmarshal(cfg.Globals)
+			err = cfg.FileConfig.Unmarshal(cfg)
 			if err != nil {
 				t.Logf("failed fileConfig.Unmarshal: %v", err)
 				t.Fail()
 			}
-			t.Logf("GlobalFlags: %+v", cfg.Globals)
-			err = cfg.FileConfig.Unmarshal(cfg.LocalFlags)
-			if err != nil {
-				t.Logf("failed fileConfig.Unmarshal: %v", err)
-				t.Fail()
-			}
-			t.Logf("LocalFlags: %+v", cfg.LocalFlags)
 			v := cfg.FileConfig.Get("subscriptions")
 			t.Logf("raw interface subscriptions: %+v", v)
 			outs, err := cfg.GetSubscriptions(nil)

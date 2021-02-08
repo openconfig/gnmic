@@ -8,7 +8,6 @@ import (
 
 func (c *Config) GetEventProcessors() (map[string]map[string]interface{}, error) {
 	eps := c.FileConfig.GetStringMap("processors")
-	evpConfig := make(map[string]map[string]interface{})
 	for name, epc := range eps {
 		switch epc := epc.(type) {
 		case map[string]interface{}:
@@ -17,7 +16,7 @@ func (c *Config) GetEventProcessors() (map[string]map[string]interface{}, error)
 			if err != nil {
 				return nil, err
 			}
-			evpConfig[name] = epc
+			c.Processors[name] = epc
 		case nil:
 			return nil, fmt.Errorf("empty processor %q config", name)
 		default:
@@ -25,16 +24,16 @@ func (c *Config) GetEventProcessors() (map[string]map[string]interface{}, error)
 			return nil, fmt.Errorf("malformed processors config, got %T", epc)
 		}
 	}
-	for n, es := range evpConfig {
+	for n, es := range c.Processors {
 		for nn, p := range es {
 			es[nn] = convert(p)
 		}
-		evpConfig[n] = es
+		c.Processors[n] = es
 	}
-	if c.Globals.Debug {
-		c.logger.Printf("processors: %+v", evpConfig)
+	if c.Debug {
+		c.logger.Printf("processors: %+v", c.Processors)
 	}
-	return evpConfig, nil
+	return c.Processors, nil
 }
 
 func (c *Config) validateProcessorConfig(pcfg map[string]interface{}) error {

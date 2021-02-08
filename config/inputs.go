@@ -9,7 +9,6 @@ import (
 
 func (c *Config) GetInputs() (map[string]map[string]interface{}, error) {
 	inputsDef := c.FileConfig.GetStringMap("inputs")
-	inputsConfigs := make(map[string]map[string]interface{})
 	for name, inputCfg := range inputsDef {
 		inputCfgconv := convert(inputCfg)
 		switch inputCfg := inputCfgconv.(type) {
@@ -23,7 +22,7 @@ func (c *Config) GetInputs() (map[string]map[string]interface{}, error) {
 					if !ok || (ok && format == "") {
 						inputCfg["format"] = c.FileConfig.GetString("format")
 					}
-					inputsConfigs[name] = inputCfg
+					c.Inputs[name] = inputCfg
 					continue
 				}
 				c.logger.Printf("unknown input type '%s'", outType)
@@ -35,8 +34,8 @@ func (c *Config) GetInputs() (map[string]map[string]interface{}, error) {
 		}
 	}
 
-	if c.Globals.Debug {
-		c.logger.Printf("inputs: %+v", inputsConfigs)
+	if c.Debug {
+		c.logger.Printf("inputs: %+v", c.Inputs)
 	}
-	return inputsConfigs, nil
+	return c.Inputs, nil
 }

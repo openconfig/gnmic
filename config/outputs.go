@@ -19,7 +19,6 @@ func (c *Config) GetOutputs() (map[string]map[string]interface{}, error) {
 		}
 		outDef["default-stdout"] = stdoutConfig
 	}
-	outputsConfigs := make(map[string]map[string]interface{})
 	for name, outputCfg := range outDef {
 		outputCfgconv := convert(outputCfg)
 		switch outCfg := outputCfgconv.(type) {
@@ -33,7 +32,7 @@ func (c *Config) GetOutputs() (map[string]map[string]interface{}, error) {
 					if !ok || (ok && format == "") {
 						outCfg["format"] = c.FileConfig.GetString("format")
 					}
-					outputsConfigs[name] = outCfg
+					c.Outputs[name] = outCfg
 					continue
 				}
 				c.logger.Printf("unknown output type '%s'", outType)
@@ -47,15 +46,15 @@ func (c *Config) GetOutputs() (map[string]map[string]interface{}, error) {
 
 	namedOutputs := c.FileConfig.GetStringSlice("subscribe-output")
 	if len(namedOutputs) == 0 {
-		if c.Globals.Debug {
-			c.logger.Printf("outputs: %+v", outputsConfigs)
+		if c.Debug {
+			c.logger.Printf("outputs: %+v", c.Outputs)
 		}
-		return outputsConfigs, nil
+		return c.Outputs, nil
 	}
 	filteredOutputs := make(map[string]map[string]interface{})
 	notFound := make([]string, 0)
 	for _, name := range namedOutputs {
-		if o, ok := outputsConfigs[name]; ok {
+		if o, ok := c.Outputs[name]; ok {
 			filteredOutputs[name] = o
 		} else {
 			notFound = append(notFound, name)
@@ -64,7 +63,7 @@ func (c *Config) GetOutputs() (map[string]map[string]interface{}, error) {
 	if len(notFound) > 0 {
 		return nil, fmt.Errorf("named output(s) not found in config file: %v", notFound)
 	}
-	if c.Globals.Debug {
+	if c.Debug {
 		c.logger.Printf("outputs: %+v", filteredOutputs)
 	}
 	return filteredOutputs, nil

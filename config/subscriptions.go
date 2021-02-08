@@ -12,7 +12,6 @@ import (
 )
 
 func (c *Config) GetSubscriptions(cmd *cobra.Command) (map[string]*collector.SubscriptionConfig, error) {
-	subscriptions := make(map[string]*collector.SubscriptionConfig)
 	if len(c.LocalFlags.SubscribePath) > 0 && len(c.LocalFlags.SubscribeName) > 0 {
 		return nil, fmt.Errorf("flags --path and --name cannot be mixed")
 	}
@@ -23,7 +22,7 @@ func (c *Config) GetSubscriptions(cmd *cobra.Command) (map[string]*collector.Sub
 		sub.Prefix = c.LocalFlags.SubscribePrefix
 		sub.Target = c.LocalFlags.SubscribeTarget
 		sub.Mode = c.LocalFlags.SubscribeMode
-		sub.Encoding = c.Globals.Encoding
+		sub.Encoding = c.Encoding
 		if flagIsSet(cmd, "qos") {
 			sub.Qos = &c.LocalFlags.SubscribeQos
 		}
@@ -37,14 +36,14 @@ func (c *Config) GetSubscriptions(cmd *cobra.Command) (map[string]*collector.Sub
 		sub.SuppressRedundant = c.LocalFlags.SubscribeSuppressRedundant
 		sub.UpdatesOnly = c.LocalFlags.SubscribeUpdatesOnly
 		sub.Models = c.LocalFlags.SubscribeModel
-		subscriptions[sub.Name] = sub
-		if c.Globals.Debug {
-			c.logger.Printf("subscriptions: %s", subscriptions)
+		c.Subscriptions[sub.Name] = sub
+		if c.Debug {
+			c.logger.Printf("subscriptions: %s", c.Subscriptions)
 		}
-		return subscriptions, nil
+		return c.Subscriptions, nil
 	}
 	subDef := c.FileConfig.GetStringMap("subscriptions")
-	if c.Globals.Debug {
+	if c.Debug {
 		c.logger.Printf("subscriptions map: %v+", subDef)
 	}
 	for sn, s := range subDef {
@@ -65,18 +64,18 @@ func (c *Config) GetSubscriptions(cmd *cobra.Command) (map[string]*collector.Sub
 
 		// inherit global "subscribe-*" option if it's not set
 		c.setSubscriptionDefaults(sub, cmd)
-		subscriptions[sn] = sub
+		c.Subscriptions[sn] = sub
 	}
 	if len(c.LocalFlags.SubscribeName) == 0 {
-		if c.Globals.Debug {
-			c.logger.Printf("subscriptions: %s", subscriptions)
+		if c.Debug {
+			c.logger.Printf("subscriptions: %s", c.Subscriptions)
 		}
-		return subscriptions, nil
+		return c.Subscriptions, nil
 	}
 	filteredSubscriptions := make(map[string]*collector.SubscriptionConfig)
 	notFound := make([]string, 0)
 	for _, name := range c.LocalFlags.SubscribeName {
-		if s, ok := subscriptions[name]; ok {
+		if s, ok := c.Subscriptions[name]; ok {
 			filteredSubscriptions[name] = s
 		} else {
 			notFound = append(notFound, name)
@@ -85,7 +84,7 @@ func (c *Config) GetSubscriptions(cmd *cobra.Command) (map[string]*collector.Sub
 	if len(notFound) > 0 {
 		return nil, fmt.Errorf("named subscription(s) not found in config file: %v", notFound)
 	}
-	if c.Globals.Debug {
+	if c.Debug {
 		c.logger.Printf("subscriptions: %s", filteredSubscriptions)
 	}
 	return filteredSubscriptions, nil
@@ -103,7 +102,7 @@ func (c *Config) setSubscriptionDefaults(sub *collector.SubscriptionConfig, cmd 
 		}
 	}
 	if sub.Encoding == "" {
-		sub.Encoding = c.Globals.Encoding
+		sub.Encoding = c.Encoding
 	}
 	if sub.Mode == "" {
 		sub.Mode = c.LocalFlags.SubscribeMode

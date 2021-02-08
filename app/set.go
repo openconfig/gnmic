@@ -10,7 +10,7 @@ import (
 )
 
 func (a *App) SetRun(cmd *cobra.Command, args []string) error {
-	if a.Config.Globals.Format == "event" {
+	if a.Config.Format == "event" {
 		return fmt.Errorf("format event not supported for Set RPC")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -25,10 +25,10 @@ func (a *App) SetRun(cmd *cobra.Command, args []string) error {
 	}
 	if a.collector == nil {
 		cfg := &collector.Config{
-			Debug:               a.Config.Globals.Debug,
-			Format:              a.Config.Globals.Format,
-			TargetReceiveBuffer: a.Config.Globals.TargetBufferSize,
-			RetryTimer:          a.Config.Globals.Retry,
+			Debug:               a.Config.Debug,
+			Format:              a.Config.Format,
+			TargetReceiveBuffer: a.Config.TargetBufferSize,
+			RetryTimer:          a.Config.Retry,
 		}
 
 		a.collector = collector.NewCollector(cfg, targetsConfig,
@@ -45,7 +45,7 @@ func (a *App) SetRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-
+	a.collector.InitTargets()
 	a.wg.Add(len(a.collector.Targets))
 	for tName := range a.collector.Targets {
 		go a.SetRequest(ctx, tName, req)
@@ -58,11 +58,11 @@ func (a *App) SetRequest(ctx context.Context, tName string, req *gnmi.SetRequest
 	defer a.wg.Done()
 	a.Logger.Printf("sending gNMI SetRequest: prefix='%v', delete='%v', replace='%v', update='%v', extension='%v' to %s",
 		req.Prefix, req.Delete, req.Replace, req.Update, req.Extension, tName)
-	if a.Config.Globals.PrintRequest {
+	if a.Config.PrintRequest {
 		err := a.Print(tName, "Set Request:", req)
 		if err != nil {
 			a.Logger.Printf("target %s: %v", tName, err)
-			if !a.Config.Globals.Log {
+			if !a.Config.Log {
 				fmt.Printf("target %s: %v\n", tName, err)
 			}
 		}
@@ -75,7 +75,7 @@ func (a *App) SetRequest(ctx context.Context, tName string, req *gnmi.SetRequest
 	err = a.Print(tName, "Set Response:", response)
 	if err != nil {
 		a.Logger.Printf("%v", err)
-		if !a.Config.Globals.Log {
+		if !a.Config.Log {
 			fmt.Printf("%v\n", err)
 		}
 	}

@@ -11,7 +11,7 @@ import (
 )
 
 func (a *App) CapRun(cmd *cobra.Command, args []string) error {
-	if a.Config.Globals.Format == "event" {
+	if a.Config.Format == "event" {
 		return fmt.Errorf("format event not supported for Capabilities RPC")
 	}
 	ctx, cancel := context.WithCancel(a.ctx)
@@ -23,10 +23,10 @@ func (a *App) CapRun(cmd *cobra.Command, args []string) error {
 	}
 	if a.collector == nil {
 		cfg := &collector.Config{
-			Debug:               a.Config.Globals.Debug,
-			Format:              a.Config.Globals.Format,
-			TargetReceiveBuffer: a.Config.Globals.TargetBufferSize,
-			RetryTimer:          a.Config.Globals.Retry,
+			Debug:               a.Config.Debug,
+			Format:              a.Config.Format,
+			TargetReceiveBuffer: a.Config.TargetBufferSize,
+			RetryTimer:          a.Config.Retry,
 		}
 
 		a.collector = collector.NewCollector(cfg, targetsConfig,
@@ -39,6 +39,7 @@ func (a *App) CapRun(cmd *cobra.Command, args []string) error {
 			a.collector.AddTarget(tc)
 		}
 	}
+	a.collector.InitTargets()
 	a.wg.Add(len(a.collector.Targets))
 	for tName := range a.collector.Targets {
 		go a.ReqCapabilities(ctx, tName)
@@ -50,13 +51,13 @@ func (a *App) CapRun(cmd *cobra.Command, args []string) error {
 func (a *App) ReqCapabilities(ctx context.Context, tName string) {
 	defer a.wg.Done()
 	ext := make([]*gnmi_ext.Extension, 0) //
-	if a.Config.Globals.PrintRequest {
+	if a.Config.PrintRequest {
 		err := a.Print(tName, "Capabilities Request:", &gnmi.CapabilityRequest{
 			Extension: ext,
 		})
 		if err != nil {
 			a.Logger.Printf("%v", err)
-			if !a.Config.Globals.Log {
+			if !a.Config.Log {
 				fmt.Printf("target %s: %v\n", tName, err)
 			}
 		}

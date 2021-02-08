@@ -54,12 +54,12 @@ func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
 
 	if a.collector == nil {
 		cfg := &collector.Config{
-			Name:                a.Config.Globals.InstanceName,
-			PrometheusAddress:   a.Config.Globals.PrometheusAddress,
-			Debug:               a.Config.Globals.Debug,
-			Format:              a.Config.Globals.Format,
-			TargetReceiveBuffer: a.Config.Globals.TargetBufferSize,
-			RetryTimer:          a.Config.Globals.Retry,
+			Name:                a.Config.InstanceName,
+			PrometheusAddress:   a.Config.PrometheusAddress,
+			Debug:               a.Config.Debug,
+			Format:              a.Config.Format,
+			TargetReceiveBuffer: a.Config.TargetBufferSize,
+			RetryTimer:          a.Config.Retry,
 			ClusterName:         a.Config.LocalFlags.SubscribeClusterName,
 			LockRetryTimer:      a.Config.LocalFlags.SubscribeLockRetry,
 		}
@@ -109,6 +109,7 @@ func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
 
 	a.collector.InitOutputs(a.ctx)
 	a.collector.InitInputs(a.ctx)
+	a.collector.InitTargets()
 
 	if lockerConfig != nil && a.Config.LocalFlags.SubscribeBackoff <= 0 {
 		a.Config.LocalFlags.SubscribeBackoff = defaultBackoff
@@ -150,7 +151,7 @@ func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
 		mo := &formatters.MarshalOptions{
 			Multiline: true,
 			Indent:    "  ",
-			Format:    a.Config.Globals.Format,
+			Format:    a.Config.Format,
 		}
 		go func() {
 			for {
@@ -216,5 +217,5 @@ func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
 
 func (a *App) Subscribe(ctx context.Context, name string) {
 	defer a.wg.Done()
-	a.collector.InitTarget(ctx, name)
+	a.collector.StartTarget(ctx, name)
 }

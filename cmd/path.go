@@ -176,7 +176,7 @@ func newPathCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				if gApp.Config.Globals.Debug {
+				if gApp.Config.Debug {
 					for _, fdir := range expanded {
 						gApp.Logger.Printf("adding %s to YANG paths", fdir)
 					}
@@ -189,7 +189,7 @@ func newPathCmd() *cobra.Command {
 			}
 			gApp.Config.LocalFlags.PathFile = make([]string, 0, len(yfiles))
 			gApp.Config.LocalFlags.PathFile = append(gApp.Config.LocalFlags.PathFile, yfiles...)
-			if gApp.Config.Globals.Debug {
+			if gApp.Config.Debug {
 				for _, file := range gApp.Config.LocalFlags.PathFile {
 					gApp.Logger.Printf("loading %s file", file)
 				}

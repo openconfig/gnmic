@@ -8,11 +8,11 @@ import (
 )
 
 func (c *Config) GetLocker() (map[string]interface{}, error) {
-	lockerCfg := c.FileConfig.GetStringMap("locker")
-	if len(lockerCfg) == 0 {
+	c.Locker = c.FileConfig.GetStringMap("locker")
+	if len(c.Locker) == 0 {
 		return nil, nil
 	}
-	if lockerType, ok := lockerCfg["type"]; ok {
+	if lockerType, ok := c.Locker["type"]; ok {
 		switch lockerType := lockerType.(type) {
 		case string:
 			if _, ok := lockers.Lockers[lockerType]; !ok {
@@ -21,7 +21,7 @@ func (c *Config) GetLocker() (map[string]interface{}, error) {
 		default:
 			return nil, errors.New("wrong locker type format")
 		}
-		return lockerCfg, nil
+		return c.Locker, nil
 	}
 	return nil, errors.New("missing locker type")
 }

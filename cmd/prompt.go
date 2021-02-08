@@ -103,7 +103,7 @@ func newPromptCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				if gApp.Config.Globals.Debug {
+				if gApp.Config.Debug {
 					for _, fdir := range expanded {
 						gApp.Logger.Printf("adding %s to yang Paths", fdir)
 					}
@@ -116,7 +116,7 @@ func newPromptCmd() *cobra.Command {
 			}
 			gApp.Config.LocalFlags.PromptFile = make([]string, 0, len(yfiles))
 			gApp.Config.LocalFlags.PromptFile = append(gApp.Config.LocalFlags.PromptFile, yfiles...)
-			if gApp.Config.Globals.Debug {
+			if gApp.Config.Debug {
 				for _, file := range gApp.Config.LocalFlags.PromptFile {
 					gApp.Logger.Printf("loading %s yang file", file)
 				}
@@ -141,7 +141,7 @@ func newPromptCmd() *cobra.Command {
 			err := generateYangSchema(gApp.Config.LocalFlags.PromptDir, gApp.Config.LocalFlags.PromptFile, gApp.Config.LocalFlags.PromptExclude)
 			if err != nil {
 				gApp.Logger.Printf("failed to load paths from yang: %v", err)
-				if !gApp.Config.Globals.Log {
+				if !gApp.Config.Log {
 					fmt.Fprintf(os.Stderr, "ERR: failed to load paths from yang: %v\n", err)
 				}
 			}
@@ -150,14 +150,14 @@ func newPromptCmd() *cobra.Command {
 			gApp.PromptHistory = make([]string, 0, 256)
 			home, err := homedir.Dir()
 			if err != nil {
-				if gApp.Config.Globals.Debug {
+				if gApp.Config.Debug {
 					log.Printf("failed to get home directory: %v", err)
 				}
 				return nil
 			}
 			content, err := ioutil.ReadFile(home + "/.gnmic.history")
 			if err != nil {
-				if gApp.Config.Globals.Debug {
+				if gApp.Config.Debug {
 					log.Printf("failed to read history file: %v", err)
 				}
 				return nil

@@ -87,7 +87,7 @@ func newRootCmd() *cobra.Command {
 		},
 		PersistentPreRunE: gApp.PreRun,
 	}
-	initGlobalflags(gApp.RootCmd, gApp.Config.Globals)
+	initGlobalflags(gApp.RootCmd, gApp.Config)
 	gApp.RootCmd.AddCommand(newCapabilitiesCmd())
 	gApp.RootCmd.AddCommand(newGetCmd())
 	gApp.RootCmd.AddCommand(newListenCmd())
@@ -118,7 +118,7 @@ func init() {
 	cobra.OnInitialize(initConfig)
 }
 
-func initGlobalflags(cmd *cobra.Command, globals *config.GlobalFlags) {
+func initGlobalflags(cmd *cobra.Command, globals *config.Config) {
 	cmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/gnmic.yaml)")
 	cmd.PersistentFlags().StringSliceVarP(&globals.Address, "address", "a", []string{}, "comma separated gnmi targets addresses")
 	cmd.PersistentFlags().StringVarP(&globals.Username, "username", "u", "", "username")
@@ -164,8 +164,8 @@ func initConfig() {
 }
 
 func loadCerts(tlscfg *tls.Config) error {
-	if gApp.Config.Globals.TLSCert != "" && gApp.Config.Globals.TLSKey != "" {
-		certificate, err := tls.LoadX509KeyPair(gApp.Config.Globals.TLSCert, gApp.Config.Globals.TLSKey)
+	if gApp.Config.TLSCert != "" && gApp.Config.TLSKey != "" {
+		certificate, err := tls.LoadX509KeyPair(gApp.Config.TLSCert, gApp.Config.TLSKey)
 		if err != nil {
 			return err
 		}
@@ -177,8 +177,8 @@ func loadCerts(tlscfg *tls.Config) error {
 
 func loadCACerts(tlscfg *tls.Config) error {
 	certPool := x509.NewCertPool()
-	if gApp.Config.Globals.TLSCa != "" {
-		caFile, err := ioutil.ReadFile(gApp.Config.Globals.TLSCa)
+	if gApp.Config.TLSCa != "" {
+		caFile, err := ioutil.ReadFile(gApp.Config.TLSCa)
 		if err != nil {
 			return err
 		}

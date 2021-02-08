@@ -10,7 +10,7 @@ import (
 )
 
 func (a *App) GetRun(cmd *cobra.Command, args []string) error {
-	if a.Config.Globals.Format == "event" {
+	if a.Config.Format == "event" {
 		return fmt.Errorf("format event not supported for Get RPC")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -23,10 +23,10 @@ func (a *App) GetRun(cmd *cobra.Command, args []string) error {
 
 	if a.collector == nil {
 		cfg := &collector.Config{
-			Debug:               a.Config.Globals.Debug,
-			Format:              a.Config.Globals.Format,
-			TargetReceiveBuffer: a.Config.Globals.TargetBufferSize,
-			RetryTimer:          a.Config.Globals.Retry,
+			Debug:               a.Config.Debug,
+			Format:              a.Config.Format,
+			TargetReceiveBuffer: a.Config.TargetBufferSize,
+			RetryTimer:          a.Config.Retry,
 		}
 
 		a.collector = collector.NewCollector(cfg, targetsConfig,
@@ -43,9 +43,9 @@ func (a *App) GetRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-
-	a.wg.Add(len(targetsConfig))
-	for tName := range targetsConfig {
+	a.collector.InitTargets()
+	a.wg.Add(len(a.collector.Targets))
+	for tName := range a.collector.Targets {
 		go a.GetRequest(ctx, tName, req)
 	}
 	a.wg.Wait()
@@ -68,11 +68,11 @@ func (a *App) GetRequest(ctx context.Context, tName string, req *gnmi.GetRequest
 			xreq.UseModels = append(xreq.UseModels, m)
 		}
 	}
-	if a.Config.Globals.PrintRequest {
+	if a.Config.PrintRequest {
 		err := a.Print(tName, "Get Request:", req)
 		if err != nil {
 			a.Logger.Printf("%v", err)
-			if !a.Config.Globals.Log {
+			if !a.Config.Log {
 				fmt.Printf("%v\n", err)
 			}
 		}
@@ -87,7 +87,7 @@ func (a *App) GetRequest(ctx context.Context, tName string, req *gnmi.GetRequest
 	err = a.Print(tName, "Get Response:", response)
 	if err != nil {
 		a.Logger.Printf("target %s: %v", tName, err)
-		if !a.Config.Globals.Log {
+		if !a.Config.Log {
 			fmt.Printf("target %s: %v\n", tName, err)
 		}
 	}

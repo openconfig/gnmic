@@ -58,7 +58,8 @@ type Collector struct {
 	lockerConfig map[string]interface{}
 	locker       lockers.Locker
 
-	Targets map[string]*Target
+	targetsConfig map[string]*TargetConfig
+	Targets       map[string]*Target
 
 	EventProcessorsConfig map[string]map[string]interface{}
 	logger                *log.Logger
@@ -125,6 +126,7 @@ func NewCollector(config *Config, targetConfigs map[string]*TargetConfig, opts .
 	c := &Collector{
 		Config:        config,
 		m:             new(sync.Mutex),
+		targetsConfig: make(map[string]*TargetConfig),
 		Targets:       make(map[string]*Target),
 		Outputs:       make(map[string]outputs.Output),
 		Inputs:        make(map[string]inputs.Input),
@@ -167,7 +169,7 @@ func (c *Collector) AddTarget(tc *TargetConfig) error {
 		c.Targets = make(map[string]*Target)
 	}
 	if _, ok := c.Targets[tc.Name]; ok {
-		return fmt.Errorf("target '%s' already exists", tc.Name)
+		return fmt.Errorf("target %q already exists", tc.Name)
 	}
 	if tc.BufferSize == 0 {
 		tc.BufferSize = c.Config.TargetReceiveBuffer
@@ -175,26 +177,54 @@ func (c *Collector) AddTarget(tc *TargetConfig) error {
 	if tc.RetryTimer == 0 {
 		tc.RetryTimer = c.Config.RetryTimer
 	}
-	t := NewTarget(tc)
-	//
-	t.Subscriptions = make(map[string]*SubscriptionConfig)
-	for _, subName := range tc.Subscriptions {
-		if sub, ok := c.Subscriptions[subName]; ok {
-			t.Subscriptions[subName] = sub
-		}
-	}
-	if len(t.Subscriptions) == 0 {
-		for _, sub := range c.Subscriptions {
-			t.Subscriptions[sub.Name] = sub
-		}
-	}
 	c.m.Lock()
 	defer c.m.Unlock()
-	c.Targets[t.Config.Name] = t
+	c.targetsConfig[tc.Name] = tc
 	return nil
 }
 
-func (c *Collector) InitTarget(ctx context.Context, name string) {
+func (c *Collector) InitTargets() error {
+	var err error
+	for n := range c.targetsConfig {
+		err = c.initTarget(n)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *Collector) initTarget(name string) error {
+	c.m.Lock()
+	defer c.m.Unlock()
+	if tc, ok := c.targetsConfig[name]; ok {
+		if _, ok := c.Targets[name]; !ok {
+			t := NewTarget(tc)
+			//
+			t.Subscriptions = make(map[string]*SubscriptionConfig)
+			for _, subName := range tc.Subscriptions {
+				if sub, ok := c.Subscriptions[subName]; ok {
+					t.Subscriptions[subName] = sub
+				}
+			}
+			if len(t.Subscriptions) == 0 {
+				for _, sub := range c.Subscriptions {
+					t.Subscriptions[sub.Name] = sub
+				}
+			}
+			c.Targets[t.Config.Name] = t
+		}
+		return nil
+	}
+	return fmt.Errorf("unknown target")
+}
+
+func (c *Collector) StartTarget(ctx context.Context, name string) {
+	err := c.initTarget(name)
+	if err != nil {
+		c.logger.Printf("failed to initialize target %q: %v", name, err)
+		return
+	}
 	lockKey := c.lockKey(name)
 START:
 	select {
@@ -238,7 +268,7 @@ START:
 					return
 				case err := <-errChan:
 					c.logger.Printf("failed to maintain target %q lock: %v", name, err)
-					c.StopTarget(name)
+					c.DeleteTarget(name)
 					time.Sleep(c.Config.LockRetryTimer)
 					goto START
 				}
@@ -260,6 +290,7 @@ func (c *Collector) DeleteTarget(name string) error {
 	t := c.Targets[name]
 	t.Stop()
 	delete(c.Targets, name)
+	delete(c.targetsConfig, name)
 	if c.locker == nil {
 		return nil
 	}
@@ -278,6 +309,7 @@ func (c *Collector) StopTarget(name string) error {
 	c.logger.Printf("stopping target %q", name)
 	t := c.Targets[name]
 	t.Stop()
+	delete(c.Targets, name)
 	if c.locker == nil {
 		return nil
 	}
@@ -599,6 +631,14 @@ func (c *Collector) Export(ctx context.Context, rsp *gnmi.SubscribeResponse, m o
 }
 
 func (c *Collector) Capabilities(ctx context.Context, tName string, ext ...*gnmi_ext.Extension) (*gnmi.CapabilityResponse, error) {
+	c.m.Lock()
+	defer c.m.Unlock()
+	if _, ok := c.Targets[tName]; !ok {
+		err := c.initTarget(tName)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if t, ok := c.Targets[tName]; ok {
 		ctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 		defer cancel()
@@ -616,6 +656,14 @@ func (c *Collector) Capabilities(ctx context.Context, tName string, ext ...*gnmi
 }
 
 func (c *Collector) Get(ctx context.Context, tName string, req *gnmi.GetRequest) (*gnmi.GetResponse, error) {
+	c.m.Lock()
+	defer c.m.Unlock()
+	if _, ok := c.Targets[tName]; !ok {
+		err := c.initTarget(tName)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if t, ok := c.Targets[tName]; ok {
 		ctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 		defer cancel()
@@ -633,6 +681,14 @@ func (c *Collector) Get(ctx context.Context, tName string, req *gnmi.GetRequest)
 }
 
 func (c *Collector) Set(ctx context.Context, tName string, req *gnmi.SetRequest) (*gnmi.SetResponse, error) {
+	c.m.Lock()
+	defer c.m.Unlock()
+	if _, ok := c.Targets[tName]; !ok {
+		err := c.initTarget(tName)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if t, ok := c.Targets[tName]; ok {
 		ctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 		defer cancel()

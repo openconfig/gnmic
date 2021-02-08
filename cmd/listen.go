@@ -48,11 +48,11 @@ func newListenCmd() *cobra.Command {
 			defer cancel()
 			server := new(dialoutTelemetryServer)
 			server.ctx = ctx
-			if len(gApp.Config.Globals.Address) == 0 {
+			if len(gApp.Config.Address) == 0 {
 				return fmt.Errorf("no address specified")
 			}
-			if len(gApp.Config.Globals.Address) > 1 {
-				fmt.Printf("multiple addresses specified, listening only on %s\n", gApp.Config.Globals.Address[0])
+			if len(gApp.Config.Address) > 1 {
+				fmt.Printf("multiple addresses specified, listening only on %s\n", gApp.Config.Address[0])
 			}
 			server.Outputs = make(map[string]outputs.Output)
 			outCfgs, err := gApp.Config.GetOutputs()
@@ -74,23 +74,23 @@ func newListenCmd() *cobra.Command {
 					o.Close()
 				}
 			}()
-			server.listener, err = net.Listen("tcp", gApp.Config.Globals.Address[0])
+			server.listener, err = net.Listen("tcp", gApp.Config.Address[0])
 			if err != nil {
 				return err
 			}
-			gApp.Logger.Printf("waiting for connections on %s", gApp.Config.Globals.Address[0])
+			gApp.Logger.Printf("waiting for connections on %s", gApp.Config.Address[0])
 			var opts []grpc.ServerOption
-			if gApp.Config.Globals.MaxMsgSize > 0 {
-				opts = append(opts, grpc.MaxRecvMsgSize(gApp.Config.Globals.MaxMsgSize))
+			if gApp.Config.MaxMsgSize > 0 {
+				opts = append(opts, grpc.MaxRecvMsgSize(gApp.Config.MaxMsgSize))
 			}
 			opts = append(opts,
 				grpc.MaxConcurrentStreams(gApp.Config.LocalFlags.ListenMaxConcurrentStreams),
 				grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor))
 
-			if gApp.Config.Globals.TLSKey != "" && gApp.Config.Globals.TLSCert != "" {
+			if gApp.Config.TLSKey != "" && gApp.Config.TLSCert != "" {
 				tlsConfig := &tls.Config{
 					Renegotiation:      tls.RenegotiateNever,
-					InsecureSkipVerify: gApp.Config.Globals.SkipVerify,
+					InsecureSkipVerify: gApp.Config.SkipVerify,
 				}
 				err := loadCerts(tlsConfig)
 				if err != nil {
@@ -110,7 +110,7 @@ func newListenCmd() *cobra.Command {
 
 			httpServer := &http.Server{
 				Handler: promhttp.Handler(),
-				Addr:    gApp.Config.Globals.PrometheusAddress,
+				Addr:    gApp.Config.PrometheusAddress,
 			}
 			go func() {
 				if err := httpServer.ListenAndServe(); err != nil {
@@ -139,7 +139,7 @@ type dialoutTelemetryServer struct {
 
 func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_PublishServer) error {
 	peer, ok := peer.FromContext(stream.Context())
-	if ok && gApp.Config.Globals.Debug {
+	if ok && gApp.Config.Debug {
 		b, err := json.Marshal(peer)
 		if err != nil {
 			gApp.Logger.Printf("failed to marshal peer data: %v", err)
@@ -148,7 +148,7 @@ func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_Publi
 		}
 	}
 	md, ok := metadata.FromIncomingContext(stream.Context())
-	if ok && gApp.Config.Globals.Debug {
+	if ok && gApp.Config.Debug {
 		b, err := json.Marshal(md)
 		if err != nil {
 			gApp.Logger.Printf("failed to marshal context metadata: %v", err)

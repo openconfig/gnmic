@@ -41,6 +41,7 @@ type Target struct {
 	pollChan           chan string // subscription name to be polled
 	subscribeResponses chan *SubscribeResponse
 	errors             chan *TargetError
+	stopped            bool
 	stopChan           chan struct{}
 	cfn                context.CancelFunc
 }
@@ -286,7 +287,10 @@ func (t *Target) Stop() {
 	if t.cfn != nil {
 		t.cfn()
 	}
-	close(t.stopChan)
+	if !t.stopped {
+		close(t.stopChan)
+	}
+	t.stopped = true
 }
 
 func loadCerts(tlscfg *tls.Config, c *TargetConfig) error {

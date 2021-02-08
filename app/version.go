@@ -23,7 +23,7 @@ var (
 var downloadURL = "https://github.com/karimra/gnmic/raw/master/install.sh"
 
 func (a *App) VersionRun(cmd *cobra.Command, args []string) {
-	if a.Config.Globals.Format != "json" {
+	if a.Config.Format != "json" {
 		fmt.Printf("version : %s\n", version)
 		fmt.Printf(" commit : %s\n", commit)
 		fmt.Printf("   date : %s\n", date)
@@ -40,7 +40,7 @@ func (a *App) VersionRun(cmd *cobra.Command, args []string) {
 	}) // need indent? use jq
 	if err != nil {
 		a.Logger.Printf("failed: %v", err)
-		if !a.Config.Globals.Log {
+		if !a.Config.Log {
 			fmt.Printf("failed: %v\n", err)
 		}
 		return
