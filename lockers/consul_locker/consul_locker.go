@@ -30,6 +30,7 @@ func init() {
 			acquiredlocks:  make(map[string]*locks),
 			attemtinglocks: make(map[string]*locks),
 			logger:         log.New(ioutil.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			services:       make(map[string]context.CancelFunc),
 		}
 	})
 }
@@ -41,6 +42,7 @@ type ConsulLocker struct {
 	m              *sync.Mutex
 	acquiredlocks  map[string]*locks
 	attemtinglocks map[string]*locks
+	services       map[string]context.CancelFunc
 }
 
 type config struct {

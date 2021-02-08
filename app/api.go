@@ -9,6 +9,7 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/config"
 )
 
 type APIErrors struct {
@@ -16,14 +17,19 @@ type APIErrors struct {
 }
 
 func (a *App) handleConfigTargetsGet(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
 	targets, err := a.Config.GetTargets()
-	if err != nil {
+	if err == config.ErrNoTargetsFound {
+		json.NewEncoder(w).Encode(nil)
+		return
+	}
+	if err != nil && err != config.ErrNoTargetsFound {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
-	vars := mux.Vars(r)
-	id := vars["id"]
+
 	if id == "" {
 		err = json.NewEncoder(w).Encode(targets)
 		if err != nil {

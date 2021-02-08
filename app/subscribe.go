@@ -51,7 +51,17 @@ func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-
+	//
+	for {
+		err := a.InitLocker(a.ctx, lockerConfig)
+		if err != nil {
+			a.Logger.Printf("failed to init locker: %v", err)
+			time.Sleep(initLockerRetryTimer)
+			continue
+		}
+		break
+	}
+	//
 	if a.collector == nil {
 		cfg := &collector.Config{
 			Name:                a.Config.InstanceName,

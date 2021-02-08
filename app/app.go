@@ -7,16 +7,20 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/gorilla/mux"
 	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/config"
 	"github.com/karimra/gnmic/formatters"
+	"github.com/karimra/gnmic/lockers"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/spf13/cobra"
@@ -30,10 +34,12 @@ type App struct {
 	Cfn     context.CancelFunc
 	RootCmd *cobra.Command
 
-	m             *sync.Mutex
-	Config        *config.Config
-	collector     *collector.Collector
-	router        *mux.Router
+	m         *sync.Mutex
+	Config    *config.Config
+	collector *collector.Collector
+	router    *mux.Router
+	locker    lockers.Locker
+
 	Logger        *log.Logger
 	out           io.Writer
 	PromptMode    bool
@@ -212,16 +218,54 @@ func (a *App) loadTargets(e fsnotify.Event) {
 }
 
 func (a *App) startAPI() {
-	if a.Config.API != "" {
-		a.routes()
-		s := &http.Server{
-			Addr:    a.Config.API,
-			Handler: a.router,
-		}
+	if a.Config.API == "" {
+		return
+	}
+	a.routes()
+	s := &http.Server{
+		Addr:    a.Config.API,
+		Handler: a.router,
+	}
+	go func() {
 		err := s.ListenAndServe()
 		if err != nil {
 			a.Logger.Printf("API server err: %v", err)
 			return
 		}
+	}()
+	if a.locker == nil {
+		return
+	}
+	// register api service
+	a.serviceRegistration()
+}
+
+func (a *App) serviceRegistration() {
+	addr, port, _ := net.SplitHostPort(a.Config.API)
+	p, _ := strconv.Atoi(port)
+	tags := make([]string, 0)
+	if a.Config.SubscribeClusterName != "" {
+		tags = append(tags, fmt.Sprintf("cluster-name=%s", a.Config.SubscribeClusterName))
+	}
+	if a.Config.InstanceName != "" {
+		tags = append(tags, fmt.Sprintf("instance-name=%s", a.Config.InstanceName))
+	}
+	serviceReg := &lockers.ServiceRegistration{
+		ID:      a.Config.InstanceName + "-api",
+		Name:    "gnmic-api",
+		Address: addr,
+		Port:    p,
+		Tags:    tags,
+		TTL:     5 * time.Second,
+	}
+	var err error
+	for {
+		err = a.locker.Register(a.ctx, serviceReg)
+		if err != nil {
+			a.Logger.Printf("api service registration failed: %v", err)
+			time.Sleep(2 * time.Second)
+			continue
+		}
+		break
 	}
 }
