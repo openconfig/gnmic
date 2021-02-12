@@ -65,6 +65,7 @@ type TargetConfig struct {
 	TLSMinVersion string        `mapstructure:"tls-min-version,omitempty" json:"tls-min-version,omitempty"`
 	TLSMaxVersion string        `mapstructure:"tls-max-version,omitempty" json:"tls-max-version,omitempty"`
 	TLSVersion    string        `mapstructure:"tls-version,omitempty" json:"tls-version,omitempty"`
+	Tags          []string      `mapstructure:"tags,omitempty" json:"tags,omitempty"`
 }
 
 func (tc *TargetConfig) String() string {

@@ -65,11 +65,11 @@ func (a *App) handleConfigTargetsPost(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
-	if _, ok := a.Config.Targets[tc.Name]; ok {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"target config already exists"}})
-		return
-	}
+	// if _, ok := a.Config.Targets[tc.Name]; ok {
+	// 	w.WriteHeader(http.StatusBadRequest)
+	// 	json.NewEncoder(w).Encode(APIErrors{Errors: []string{"target config already exists"}})
+	// 	return
+	// }
 	a.Config.Targets[tc.Name] = tc
 	err = a.collector.AddTarget(tc)
 	if err != nil {
