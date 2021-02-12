@@ -24,7 +24,7 @@ func (a *App) configRoutes() {
 	// config/processors
 	a.router.HandleFunc("/config/processors", a.handleConfigProcessors).Methods(http.MethodGet)
 	// config/locker
-	a.router.HandleFunc("/config/locker", a.handleConfigLocker).Methods(http.MethodGet)
+	a.router.HandleFunc("/config/clustering", a.handleConfigClustering).Methods(http.MethodGet)
 }
 
 func (a *App) targetRoutes() {

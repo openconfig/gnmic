@@ -7,10 +7,8 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"net"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -29,16 +27,23 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+const (
+	defaultHTTPClientTimeout = 5 * time.Second
+)
+
 type App struct {
 	ctx     context.Context
 	Cfn     context.CancelFunc
 	RootCmd *cobra.Command
 
-	m         *sync.Mutex
-	Config    *config.Config
-	collector *collector.Collector
-	router    *mux.Router
-	locker    lockers.Locker
+	m           *sync.Mutex
+	Config      *config.Config
+	collector   *collector.Collector
+	router      *mux.Router
+	locker      lockers.Locker
+	apiServices map[string]*lockers.Service
+
+	httpClient *http.Client
 
 	Logger        *log.Logger
 	out           io.Writer
@@ -53,12 +58,16 @@ type App struct {
 func New() *App {
 	ctx, cancel := context.WithCancel(context.Background())
 	a := &App{
-		ctx:           ctx,
-		Cfn:           cancel,
-		RootCmd:       new(cobra.Command),
-		m:             new(sync.Mutex),
-		Config:        config.New(),
-		router:        mux.NewRouter(),
+		ctx:         ctx,
+		Cfn:         cancel,
+		RootCmd:     new(cobra.Command),
+		m:           new(sync.Mutex),
+		Config:      config.New(),
+		router:      mux.NewRouter(),
+		apiServices: make(map[string]*lockers.Service),
+		httpClient: &http.Client{
+			Timeout: defaultHTTPClientTimeout,
+		},
 		Logger:        log.New(ioutil.Discard, "", log.LstdFlags),
 		out:           os.Stdout,
 		PromptHistory: make([]string, 0, 128),
@@ -193,7 +202,7 @@ func (a *App) loadTargets(e fsnotify.Event) {
 				if a.Config.Debug {
 					a.Logger.Printf("target %q deleted from config", n)
 				}
-				err = a.collector.DeleteTarget(n)
+				err = a.collector.DeleteTarget(a.ctx, n)
 				if err != nil {
 					a.Logger.Printf("failed to delete target %q: %v", n, err)
 				}
@@ -233,39 +242,9 @@ func (a *App) startAPI() {
 			return
 		}
 	}()
-	if a.locker == nil {
+	if a.Config.Clustering == nil {
 		return
 	}
 	// register api service
 	a.serviceRegistration()
-}
-
-func (a *App) serviceRegistration() {
-	addr, port, _ := net.SplitHostPort(a.Config.API)
-	p, _ := strconv.Atoi(port)
-	tags := make([]string, 0)
-	if a.Config.SubscribeClusterName != "" {
-		tags = append(tags, fmt.Sprintf("cluster-name=%s", a.Config.SubscribeClusterName))
-	}
-	if a.Config.InstanceName != "" {
-		tags = append(tags, fmt.Sprintf("instance-name=%s", a.Config.InstanceName))
-	}
-	serviceReg := &lockers.ServiceRegistration{
-		ID:      a.Config.InstanceName + "-api",
-		Name:    "gnmic-api",
-		Address: addr,
-		Port:    p,
-		Tags:    tags,
-		TTL:     5 * time.Second,
-	}
-	var err error
-	for {
-		err = a.locker.Register(a.ctx, serviceReg)
-		if err != nil {
-			a.Logger.Printf("api service registration failed: %v", err)
-			time.Sleep(2 * time.Second)
-			continue
-		}
-		break
-	}
 }

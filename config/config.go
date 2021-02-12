@@ -38,7 +38,7 @@ type Config struct {
 	Outputs       map[string]map[string]interface{}
 	Inputs        map[string]map[string]interface{}
 	Processors    map[string]map[string]interface{}
-	Locker        map[string]interface{}
+	Clustering    *clustering
 
 	logger *log.Logger
 }
@@ -153,7 +153,7 @@ func New() *Config {
 		make(map[string]map[string]interface{}),
 		make(map[string]map[string]interface{}),
 		make(map[string]map[string]interface{}),
-		make(map[string]interface{}),
+		nil,
 		log.New(ioutil.Discard, configLogPrefix, log.LstdFlags|log.Lmicroseconds),
 	}
 }
@@ -585,6 +585,7 @@ func (c *Config) ValidateSetInput() error {
 func (c *Config) LogOutput() io.Writer {
 	return c.logger.Writer()
 }
+
 func (c *Config) LogFlags() int {
 	return c.logger.Flags()
 }

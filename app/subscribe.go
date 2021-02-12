@@ -47,13 +47,14 @@ func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	lockerConfig, err := a.Config.GetLocker()
+	err = a.Config.GetClustering()
+	//lockerConfig, err := a.Config.GetLocker()
 	if err != nil {
 		return err
 	}
 	//
 	for {
-		err := a.InitLocker(a.ctx, lockerConfig)
+		err := a.InitLocker()
 		if err != nil {
 			a.Logger.Printf("failed to init locker: %v", err)
 			time.Sleep(initLockerRetryTimer)
@@ -61,6 +62,7 @@ func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
 		}
 		break
 	}
+
 	//
 	if a.collector == nil {
 		cfg := &collector.Config{
@@ -70,8 +72,10 @@ func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
 			Format:              a.Config.Format,
 			TargetReceiveBuffer: a.Config.TargetBufferSize,
 			RetryTimer:          a.Config.Retry,
-			ClusterName:         a.Config.LocalFlags.SubscribeClusterName,
 			LockRetryTimer:      a.Config.LocalFlags.SubscribeLockRetry,
+		}
+		if a.Config.Clustering != nil {
+			cfg.ClusterName = a.Config.Clustering.ClusterName
 		}
 		a.Logger.Printf("starting collector with config %+v", cfg)
 		a.collector = collector.NewCollector(cfg, targetsConfig,
@@ -81,10 +85,11 @@ func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
 			collector.WithLogger(a.Logger),
 			collector.WithEventProcessors(epconfig),
 			collector.WithInputs(inputsConfig),
-			collector.WithLocker(lockerConfig),
+			collector.WithLocker(a.locker),
 		)
 		go a.collector.Start(a.ctx)
 		go a.startAPI()
+
 	} else {
 		// prompt mode
 		for name, outCfg := range outs {
@@ -106,41 +111,46 @@ func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
 			}
 		}
 	}
-
-	for {
-		err := a.collector.InitLocker(a.ctx)
-		if err != nil {
-			a.Logger.Printf("failed to init locker: %v", err)
-			time.Sleep(initLockerRetryTimer)
-			continue
-		}
-		break
+	if a.Config.Clustering != nil {
+		go a.startCluster()
 	}
+
+	// for {
+	// 	err := a.collector.InitLocker(a.ctx)
+	// 	if err != nil {
+	// 		a.Logger.Printf("failed to init locker: %v", err)
+	// 		time.Sleep(initLockerRetryTimer)
+	// 		continue
+	// 	}
+	// 	break
+	// }
 
 	a.collector.InitOutputs(a.ctx)
 	a.collector.InitInputs(a.ctx)
 	a.collector.InitTargets()
 
-	if lockerConfig != nil && a.Config.LocalFlags.SubscribeBackoff <= 0 {
-		a.Config.LocalFlags.SubscribeBackoff = defaultBackoff
-	}
+	// if lockerConfig != nil && a.Config.LocalFlags.SubscribeBackoff <= 0 {
+	// 	a.Config.LocalFlags.SubscribeBackoff = defaultBackoff
+	// }
 
-	var limiter *time.Ticker
-	if a.Config.LocalFlags.SubscribeBackoff > 0 {
-		limiter = time.NewTicker(a.Config.LocalFlags.SubscribeBackoff)
-	}
-
-	a.wg.Add(len(a.collector.Targets))
-	for name := range a.collector.Targets {
-		go a.Subscribe(a.ctx, name)
-		if limiter != nil {
-			<-limiter.C
+	if a.Config.Clustering == nil {
+		var limiter *time.Ticker
+		if a.Config.LocalFlags.SubscribeBackoff > 0 {
+			limiter = time.NewTicker(a.Config.LocalFlags.SubscribeBackoff)
 		}
+
+		a.wg.Add(len(a.collector.Targets))
+		for name := range a.collector.Targets {
+			go a.Subscribe(a.ctx, name)
+			if limiter != nil {
+				<-limiter.C
+			}
+		}
+		if limiter != nil {
+			limiter.Stop()
+		}
+		a.wg.Wait()
 	}
-	if limiter != nil {
-		limiter.Stop()
-	}
-	a.wg.Wait()
 
 	polledTargetsSubscriptions := a.collector.PolledSubscriptionsTargets()
 	if len(polledTargetsSubscriptions) > 0 {

@@ -167,12 +167,13 @@ func (c *ConsulLocker) KeepLock(ctx context.Context, key string) (chan struct{},
 	return doneChan, errChan
 }
 
-func (c *ConsulLocker) Unlock(key string) error {
+func (c *ConsulLocker) Unlock(ctx context.Context, key string) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 	if lock, ok := c.acquiredlocks[key]; ok {
 		close(lock.doneChan)
-		_, err := c.client.KV().Delete(key, nil)
+		wrOpts := new(api.WriteOptions)
+		_, err := c.client.KV().Delete(key, wrOpts.WithContext(ctx))
 		if err != nil {
 			return err
 		}
@@ -198,8 +199,10 @@ func (c *ConsulLocker) Unlock(key string) error {
 func (c *ConsulLocker) Stop() error {
 	c.m.Lock()
 	defer c.m.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	for k := range c.acquiredlocks {
-		c.Unlock(k)
+		c.Unlock(ctx, k)
 	}
 	return nil
 }

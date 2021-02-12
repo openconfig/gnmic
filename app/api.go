@@ -82,7 +82,7 @@ func (a *App) handleConfigTargetsPost(w http.ResponseWriter, r *http.Request) {
 func (a *App) handleConfigTargetsDelete(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
-	a.collector.DeleteTarget(id)
+	a.collector.DeleteTarget(a.ctx, id)
 	delete(a.Config.Targets, id)
 }
 
@@ -116,14 +116,14 @@ func (a *App) handleConfigOutputs(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (a *App) handleConfigLocker(w http.ResponseWriter, r *http.Request) {
-	locker, err := a.Config.GetLocker()
+func (a *App) handleConfigClustering(w http.ResponseWriter, r *http.Request) {
+	err := a.Config.GetClustering()
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
-	err = json.NewEncoder(w).Encode(locker)
+	err = json.NewEncoder(w).Encode(a.Config.Clustering)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -229,7 +229,7 @@ func (a *App) handleTargetsDelete(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{fmt.Sprintf("target %q not found", id)}})
 		return
 	}
-	err := a.collector.DeleteTarget(id)
+	err := a.collector.DeleteTarget(a.ctx, id)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})

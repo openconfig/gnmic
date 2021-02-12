@@ -168,9 +168,9 @@ func (c *Collector) AddTarget(tc *TargetConfig) error {
 	if c.Targets == nil {
 		c.Targets = make(map[string]*Target)
 	}
-	if _, ok := c.Targets[tc.Name]; ok {
-		return fmt.Errorf("target %q already exists", tc.Name)
-	}
+	// if _, ok := c.Targets[tc.Name]; ok {
+	// 	return fmt.Errorf("target %q already exists", tc.Name)
+	// }
 	if tc.BufferSize == 0 {
 		tc.BufferSize = c.Config.TargetReceiveBuffer
 	}
@@ -220,13 +220,13 @@ func (c *Collector) initTarget(name string) error {
 }
 
 func (c *Collector) StartTarget(ctx context.Context, name string) {
+	lockKey := c.lockKey(name)
+START:
 	err := c.initTarget(name)
 	if err != nil {
 		c.logger.Printf("failed to initialize target %q: %v", name, err)
 		return
 	}
-	lockKey := c.lockKey(name)
-START:
 	select {
 	case <-ctx.Done():
 		return
@@ -250,6 +250,7 @@ START:
 			c.logger.Printf("acquired lock for target %q", name)
 		}
 		c.logger.Printf("queuing target %q", name)
+
 		c.targetsChan <- c.Targets[name]
 		c.logger.Printf("subscribing to target: %q", name)
 		go func() {
@@ -268,7 +269,7 @@ START:
 					return
 				case err := <-errChan:
 					c.logger.Printf("failed to maintain target %q lock: %v", name, err)
-					c.DeleteTarget(name)
+					c.StopTarget(ctx, name)
 					time.Sleep(c.Config.LockRetryTimer)
 					goto START
 				}
@@ -277,7 +278,7 @@ START:
 	}
 }
 
-func (c *Collector) DeleteTarget(name string) error {
+func (c *Collector) DeleteTarget(ctx context.Context, name string) error {
 	if c.Targets == nil {
 		return nil
 	}
@@ -294,10 +295,10 @@ func (c *Collector) DeleteTarget(name string) error {
 	if c.locker == nil {
 		return nil
 	}
-	return c.locker.Unlock(c.lockKey(name))
+	return c.locker.Unlock(ctx, c.lockKey(name))
 }
 
-func (c *Collector) StopTarget(name string) error {
+func (c *Collector) StopTarget(ctx context.Context, name string) error {
 	if c.Targets == nil {
 		return nil
 	}
@@ -313,7 +314,7 @@ func (c *Collector) StopTarget(name string) error {
 	if c.locker == nil {
 		return nil
 	}
-	return c.locker.Unlock(c.lockKey(name))
+	return c.locker.Unlock(ctx, c.lockKey(name))
 }
 
 // AddOutput initializes an output called name, with config cfg if it does not already exist
@@ -479,6 +480,9 @@ func (c *Collector) Start(ctx context.Context) {
 	}()
 
 	for t := range c.targetsChan {
+		//if c.Config.Debug {
+		c.logger.Printf("starting target %+v", t)
+		//}
 		if _, ok := c.activeTargets[t.Config.Name]; ok {
 			if c.Config.Debug {
 				c.logger.Printf("target %q listener already active", t.Config.Name)
