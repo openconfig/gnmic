@@ -17,10 +17,6 @@ import (
 )
 
 const (
-	defaultRetryTimer  = 10 * time.Second
-	defaultBackoff     = 100 * time.Millisecond
-	defaultClusterName = "default-cluster"
-
 	initLockerRetryTimer = 1 * time.Second
 )
 
@@ -48,7 +44,6 @@ func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	err = a.Config.GetClustering()
-	//lockerConfig, err := a.Config.GetLocker()
 	if err != nil {
 		return err
 	}
@@ -66,7 +61,7 @@ func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
 	//
 	if a.collector == nil {
 		cfg := &collector.Config{
-			Name:                a.Config.InstanceName,
+			Name:                a.Config.Clustering.InstanceName,
 			PrometheusAddress:   a.Config.PrometheusAddress,
 			Debug:               a.Config.Debug,
 			Format:              a.Config.Format,
@@ -88,8 +83,8 @@ func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
 			collector.WithLocker(a.locker),
 		)
 		go a.collector.Start(a.ctx)
-		go a.startAPI()
-
+		a.startAPI()
+		go a.startCluster()
 	} else {
 		// prompt mode
 		for name, outCfg := range outs {
@@ -111,27 +106,10 @@ func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
 			}
 		}
 	}
-	if a.Config.Clustering != nil {
-		go a.startCluster()
-	}
-
-	// for {
-	// 	err := a.collector.InitLocker(a.ctx)
-	// 	if err != nil {
-	// 		a.Logger.Printf("failed to init locker: %v", err)
-	// 		time.Sleep(initLockerRetryTimer)
-	// 		continue
-	// 	}
-	// 	break
-	// }
 
 	a.collector.InitOutputs(a.ctx)
 	a.collector.InitInputs(a.ctx)
 	a.collector.InitTargets()
-
-	// if lockerConfig != nil && a.Config.LocalFlags.SubscribeBackoff <= 0 {
-	// 	a.Config.LocalFlags.SubscribeBackoff = defaultBackoff
-	// }
 
 	if a.Config.Clustering == nil {
 		var limiter *time.Ticker

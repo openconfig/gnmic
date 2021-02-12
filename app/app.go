@@ -242,9 +242,4 @@ func (a *App) startAPI() {
 			return
 		}
 	}()
-	if a.Config.Clustering == nil {
-		return
-	}
-	// register api service
-	a.serviceRegistration()
 }

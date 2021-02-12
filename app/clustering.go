@@ -42,10 +42,6 @@ func (a *App) InitLocker() error {
 	return errors.New("missing locker type field")
 }
 
-func (a *App) startCluster() {
-	a.leaderElection()
-}
-
 func (a *App) leaderKey() string {
 	return fmt.Sprintf("gnmic/%s/leader", a.Config.Clustering.ClusterName)
 }
@@ -53,7 +49,7 @@ func (a *App) leaderKey() string {
 func (a *App) serviceRegistration() {
 	addr, port, _ := net.SplitHostPort(a.Config.API)
 	p, _ := strconv.Atoi(port)
-	tags := make([]string, 0)
+	tags := make([]string, 0, 2)
 	if a.Config.Clustering.ClusterName != "" {
 		tags = append(tags, fmt.Sprintf("cluster-name=%s", a.Config.Clustering.ClusterName))
 	}
@@ -71,20 +67,29 @@ func (a *App) serviceRegistration() {
 	var err error
 	a.Logger.Printf("registering service %+v", serviceReg)
 	for {
-		err = a.locker.Register(a.ctx, serviceReg)
-		if err != nil {
-			a.Logger.Printf("api service registration failed: %v", err)
-			time.Sleep(retryTimer)
-			continue
+		select {
+		case <-a.ctx.Done():
+			return
+		default:
+			err = a.locker.Register(a.ctx, serviceReg)
+			if err != nil {
+				a.Logger.Printf("api service registration failed: %v", err)
+				time.Sleep(retryTimer)
+				continue
+			}
+			return
 		}
-		break
 	}
 }
 
-func (a *App) leaderElection() {
-	if a.locker == nil {
+func (a *App) startCluster() {
+	if a.locker == nil || a.Config.Clustering == nil {
 		return
 	}
+
+	// register api service
+	go a.serviceRegistration()
+
 	leaderKey := a.leaderKey()
 	var ok bool
 	var err error
@@ -105,7 +110,7 @@ START:
 		a.Logger.Printf("%q is leader", a.Config.Clustering.InstanceName)
 		break
 	}
-
+	time.Sleep(a.Config.Clustering.LeaderWaitTimer)
 	ctx, cancel := context.WithCancel(a.ctx)
 	go a.watchMembers(ctx)
 	go a.dispatchTargets(ctx)
@@ -142,10 +147,10 @@ START:
 				}
 			}
 		}()
-		err := a.locker.WatchServices(a.ctx, "gnmic-api", nil, membersChan, 5*time.Second)
+		err := a.locker.WatchServices(a.ctx, "gnmic-api", nil, membersChan, a.Config.Clustering.ServicesWatchTimer) // TODO, fix timer
 		if err != nil {
 			a.Logger.Printf("failed getting services: %v", err)
-			time.Sleep(5 * time.Second)
+			time.Sleep(retryTimer)
 			goto START
 		}
 	}
@@ -204,7 +209,7 @@ func (a *App) dispatchTargets(ctx context.Context) {
 			return
 		default:
 			if len(a.apiServices) == 0 {
-				time.Sleep(retryTimer)
+				time.Sleep(a.Config.Clustering.TargetsWatchTimer)
 				continue
 			}
 			for _, tc := range a.Config.Targets {
@@ -242,7 +247,7 @@ func (a *App) dispatchTargets(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			default:
-				time.Sleep(retryTimer)
+				time.Sleep(a.Config.Clustering.TargetsWatchTimer)
 			}
 		}
 	}

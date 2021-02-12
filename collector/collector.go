@@ -25,7 +25,6 @@ import (
 
 const (
 	defaultTargetReceivebuffer = 1000
-	defaultClusterName         = "default-cluster"
 	defaultLockRetry           = 5 * time.Second
 )
 
@@ -55,8 +54,7 @@ type Collector struct {
 	inputsConfig map[string]map[string]interface{}
 	Inputs       map[string]inputs.Input
 
-	lockerConfig map[string]interface{}
-	locker       lockers.Locker
+	locker lockers.Locker
 
 	targetsConfig map[string]*TargetConfig
 	Targets       map[string]*Target
@@ -116,9 +114,6 @@ func NewCollector(config *Config, targetConfigs map[string]*TargetConfig, opts .
 	}
 	if config.RetryTimer == 0 {
 		config.RetryTimer = defaultRetryTimer
-	}
-	if config.ClusterName == "" {
-		config.ClusterName = defaultClusterName
 	}
 	if config.LockRetryTimer <= 0 {
 		config.LockRetryTimer = defaultLockRetry
@@ -480,9 +475,9 @@ func (c *Collector) Start(ctx context.Context) {
 	}()
 
 	for t := range c.targetsChan {
-		//if c.Config.Debug {
-		c.logger.Printf("starting target %+v", t)
-		//}
+		if c.Config.Debug {
+			c.logger.Printf("starting target %+v", t)
+		}
 		if _, ok := c.activeTargets[t.Config.Name]; ok {
 			if c.Config.Debug {
 				c.logger.Printf("target %q listener already active", t.Config.Name)

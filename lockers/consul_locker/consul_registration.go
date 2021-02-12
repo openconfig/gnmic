@@ -69,12 +69,12 @@ func (c *ConsulLocker) WatchServices(ctx context.Context, serviceName string, ta
 	if watchTimeout <= 0 {
 		watchTimeout = defaultWatchTimeout
 	}
+	var index uint64
 	qOpts := &api.QueryOptions{
-		WaitIndex: 0,
+		WaitIndex: index,
 		WaitTime:  watchTimeout,
 	}
 	var err error
-	var index uint64
 	// long blocking watch
 	ticker := time.NewTicker(watchTimeout)
 	defer ticker.Stop()
@@ -88,10 +88,24 @@ func (c *ConsulLocker) WatchServices(ctx context.Context, serviceName string, ta
 			if err != nil {
 				c.logger.Printf("service %q watch failed: %v", serviceName, err)
 			}
+			if index == 1 {
+				qOpts.WaitIndex = index
+				time.Sleep(2 * time.Second)
+				continue
+			}
 			if index > qOpts.WaitIndex {
 				qOpts.WaitIndex = index
 			}
-			<-ticker.C
+			// reset WaitIndex if the returned index decreases
+			// https://www.consul.io/api-docs/features/blocking#implementation-details
+			if index < qOpts.WaitIndex {
+				qOpts.WaitIndex = 0
+			}
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-ticker.C:
+			}
 		}
 	}
 }
@@ -107,6 +121,9 @@ func (c *ConsulLocker) watch(qOpts *api.QueryOptions, serviceName string, tags [
 	}
 	if err != nil {
 		return meta.LastIndex, err
+	}
+	if len(se) == 0 {
+		return 1, nil
 	}
 	newSrvs := make([]*lockers.Service, 0)
 	for _, srv := range se {
