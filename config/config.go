@@ -154,8 +154,8 @@ func (c *Config) Load(file string) error {
 		if err != nil {
 			return err
 		}
-		c.FileConfig.AddConfigPath(home)
 		c.FileConfig.AddConfigPath(".")
+		c.FileConfig.AddConfigPath(home)
 		c.FileConfig.AddConfigPath(xdg.ConfigHome)
 		c.FileConfig.AddConfigPath(xdg.ConfigHome + "/gnmic")
 		c.FileConfig.SetConfigName(configName)
@@ -173,7 +173,6 @@ func (c *Config) Load(file string) error {
 
 	return nil
 }
-
 
 func (c *Config) SetLogger() {
 	if c.Globals.LogFile != "" {
