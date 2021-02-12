@@ -13,17 +13,18 @@ import (
 	"strings"
 	"time"
 
+	"github.com/adrg/xdg"
 	"github.com/karimra/gnmic/collector"
 	"github.com/mitchellh/go-homedir"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v2"
 )
 
 const (
-	configName      = "gnmic"
+	configName      = ".gnmic"
 	configLogPrefix = "[config] "
 )
 
@@ -153,7 +154,10 @@ func (c *Config) Load(file string) error {
 		if err != nil {
 			return err
 		}
+		c.FileConfig.AddConfigPath(".")
 		c.FileConfig.AddConfigPath(home)
+		c.FileConfig.AddConfigPath(xdg.ConfigHome)
+		c.FileConfig.AddConfigPath(xdg.ConfigHome + "/gnmic")
 		c.FileConfig.SetConfigName(configName)
 	}
 
