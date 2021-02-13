@@ -64,8 +64,9 @@ type Collector struct {
 	httpServer            *http.Server
 	reg                   *prometheus.Registry
 
-	targetsChan   chan *Target
-	activeTargets map[string]struct{}
+	targetsChan    chan *Target
+	activeTargets  map[string]struct{}
+	targetsLocksFn map[string]context.CancelFunc
 }
 
 type CollectorOption func(c *Collector)
@@ -119,15 +120,16 @@ func NewCollector(config *Config, targetConfigs map[string]*TargetConfig, opts .
 		config.LockRetryTimer = defaultLockRetry
 	}
 	c := &Collector{
-		Config:        config,
-		m:             new(sync.Mutex),
-		targetsConfig: make(map[string]*TargetConfig),
-		Targets:       make(map[string]*Target),
-		Outputs:       make(map[string]outputs.Output),
-		Inputs:        make(map[string]inputs.Input),
-		httpServer:    httpServer,
-		targetsChan:   make(chan *Target),
-		activeTargets: make(map[string]struct{}),
+		Config:         config,
+		m:              new(sync.Mutex),
+		targetsConfig:  make(map[string]*TargetConfig),
+		Targets:        make(map[string]*Target),
+		Outputs:        make(map[string]outputs.Output),
+		Inputs:         make(map[string]inputs.Input),
+		httpServer:     httpServer,
+		targetsChan:    make(chan *Target),
+		activeTargets:  make(map[string]struct{}),
+		targetsLocksFn: make(map[string]context.CancelFunc),
 	}
 	for _, op := range opts {
 		op(c)
@@ -216,6 +218,10 @@ func (c *Collector) initTarget(name string) error {
 
 func (c *Collector) StartTarget(ctx context.Context, name string) {
 	lockKey := c.lockKey(name)
+	nctx, cancel := context.WithCancel(ctx)
+	c.m.Lock()
+	c.targetsLocksFn[name] = cancel
+	c.m.Unlock()
 START:
 	err := c.initTarget(name)
 	if err != nil {
@@ -223,12 +229,12 @@ START:
 		return
 	}
 	select {
-	case <-ctx.Done():
+	case <-nctx.Done():
 		return
 	default:
 		if c.locker != nil {
 			c.logger.Printf("acquiring lock for target %q", name)
-			ok, err := c.locker.Lock(ctx, lockKey, []byte(c.Config.Name))
+			ok, err := c.locker.Lock(nctx, lockKey, []byte(c.Config.Name))
 			if err == lockers.ErrCanceled {
 				c.logger.Printf("lock attempt for target %q canceled", name)
 				return
@@ -244,19 +250,22 @@ START:
 			}
 			c.logger.Printf("acquired lock for target %q", name)
 		}
-		c.logger.Printf("queuing target %q", name)
-
-		c.targetsChan <- c.Targets[name]
+		select {
+		case <-nctx.Done():
+			return
+		case c.targetsChan <- c.Targets[name]:
+			c.logger.Printf("queuing target %q", name)
+		}
 		c.logger.Printf("subscribing to target: %q", name)
 		go func() {
-			err := c.Subscribe(ctx, name)
+			err := c.Subscribe(nctx, name)
 			if err != nil {
 				c.logger.Printf("failed to subscribe: %v", err)
 				return
 			}
 		}()
 		if c.locker != nil {
-			doneChan, errChan := c.locker.KeepLock(ctx, lockKey)
+			doneChan, errChan := c.locker.KeepLock(nctx, lockKey)
 			for {
 				select {
 				case <-doneChan:
@@ -283,6 +292,9 @@ func (c *Collector) DeleteTarget(ctx context.Context, name string) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 	c.logger.Printf("deleting target %q", name)
+	if cfn, ok := c.targetsLocksFn[name]; ok {
+		cfn()
+	}
 	t := c.Targets[name]
 	t.Stop()
 	delete(c.Targets, name)
