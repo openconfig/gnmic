@@ -42,6 +42,7 @@ type App struct {
 	router      *mux.Router
 	locker      lockers.Locker
 	apiServices map[string]*lockers.Service
+	isLeader    bool
 
 	httpClient *http.Client
 
@@ -195,32 +196,67 @@ func (a *App) loadTargets(e fsnotify.Event) {
 			a.Logger.Printf("failed getting targets from new config: %v", err)
 			return
 		}
-		currentTargets := a.collector.Targets
-		// delete targets
-		for n := range currentTargets {
-			if _, ok := newTargets[n]; !ok {
-				if a.Config.Debug {
-					a.Logger.Printf("target %q deleted from config", n)
+		if !a.inCluster() {
+			currentTargets := a.collector.Targets
+			// delete targets
+			for n := range currentTargets {
+				if _, ok := newTargets[n]; !ok {
+					if a.Config.Debug {
+						a.Logger.Printf("target %q deleted from config", n)
+					}
+					err = a.collector.DeleteTarget(a.ctx, n)
+					if err != nil {
+						a.Logger.Printf("failed to delete target %q: %v", n, err)
+					}
 				}
-				err = a.collector.DeleteTarget(a.ctx, n)
+			}
+			// add targets
+			for n, tc := range newTargets {
+				if _, ok := currentTargets[n]; !ok {
+					if a.Config.Debug {
+						a.Logger.Printf("target %q added to config", n)
+					}
+					err = a.collector.AddTarget(tc)
+					if err != nil {
+						a.Logger.Printf("failed adding target %q: %v", n, err)
+						continue
+					}
+					a.wg.Add(1)
+					go a.collector.StartTarget(a.ctx, n)
+				}
+			}
+			return
+		}
+		// in a cluster
+		if !a.isLeader {
+			return
+		}
+		// in cluster && leader
+		dist, err := a.getTargetToInstanceMapping()
+		if err != nil {
+			a.Logger.Printf("failed to get target to instance mapping: %v", err)
+			return
+		}
+		// delete targets
+		for t := range dist {
+			if _, ok := newTargets[t]; !ok {
+				err = a.deleteTarget(t)
 				if err != nil {
-					a.Logger.Printf("failed to delete target %q: %v", n, err)
+					a.Logger.Printf("failed to delete target %q: %v", t, err)
+					continue
 				}
 			}
 		}
-		// add targets
-		for n, tc := range newTargets {
-			if _, ok := currentTargets[n]; !ok {
-				if a.Config.Debug {
-					a.Logger.Printf("target %q added to config", n)
-				}
-				err = a.collector.AddTarget(tc)
-				if err != nil {
-					a.Logger.Printf("failed adding target %q: %v", n, err)
-					continue
-				}
-				a.wg.Add(1)
-				go a.collector.StartTarget(a.ctx, n)
+		// add new targets to cluster
+		for _, tc := range newTargets {
+			if _, ok := dist[tc.Name]; !ok {
+				// this has to be a goroutine because of the mutex unlock
+				go func() {
+					err = a.dispatchTarget(a.ctx, tc)
+					if err != nil {
+						a.Logger.Printf("failed to add target %q: %v", tc.Name, err)
+					}
+				}()
 			}
 		}
 	}

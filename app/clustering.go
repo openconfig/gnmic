@@ -7,16 +7,20 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/lockers"
 )
 
 const (
-	retryTimer   = 2 * time.Second
-	dispatchPace = 100 * time.Millisecond
+	retryTimer     = 2 * time.Second
+	dispatchPace   = 100 * time.Millisecond
+	apiServiceName = "gnmic-api"
 )
 
 var (
@@ -52,6 +56,10 @@ func (a *App) leaderKey() string {
 	return fmt.Sprintf("gnmic/%s/leader", a.Config.Clustering.ClusterName)
 }
 
+func (a *App) inCluster() bool {
+	return !(a.Config.Clustering == nil)
+}
+
 func (a *App) serviceRegistration() {
 	addr, port, _ := net.SplitHostPort(a.Config.API)
 	p, _ := strconv.Atoi(port)
@@ -64,7 +72,7 @@ func (a *App) serviceRegistration() {
 	}
 	serviceReg := &lockers.ServiceRegistration{
 		ID:      a.Config.Clustering.InstanceName + "-api",
-		Name:    "gnmic-api",
+		Name:    apiServiceName,
 		Address: addr,
 		Port:    p,
 		Tags:    tags,
@@ -97,39 +105,45 @@ func (a *App) startCluster() {
 	go a.serviceRegistration()
 
 	leaderKey := a.leaderKey()
-	var ok bool
 	var err error
 START:
 	for {
-		ok = false
+		a.isLeader = false
 		err = nil
-		ok, err = a.locker.Lock(a.ctx, leaderKey, []byte(a.Config.Clustering.InstanceName))
+		a.isLeader, err = a.locker.Lock(a.ctx, leaderKey, []byte(a.Config.Clustering.InstanceName))
 		if err != nil {
 			a.Logger.Printf("failed to acquire leader lock: %v", err)
 			time.Sleep(retryTimer)
 			continue
 		}
-		if !ok {
+		if !a.isLeader {
 			time.Sleep(retryTimer)
 			continue
 		}
-		a.Logger.Printf("%q is leader", a.Config.Clustering.InstanceName)
+		a.isLeader = true
+		a.Logger.Printf("%q became the leader", a.Config.Clustering.InstanceName)
 		break
 	}
 	time.Sleep(a.Config.Clustering.LeaderWaitTimer)
 	ctx, cancel := context.WithCancel(a.ctx)
+	defer cancel()
 	go a.watchMembers(ctx)
 	go a.dispatchTargets(ctx)
 
 	doneCh, errCh := a.locker.KeepLock(a.ctx, leaderKey)
 	select {
 	case <-doneCh:
+		a.Logger.Printf("%q lost leader role", a.Config.Clustering.InstanceName)
 		cancel()
+		a.isLeader = false
 		goto START
 	case err := <-errCh:
-		a.Logger.Printf("failed to maintain leader key: %v", err)
+		a.Logger.Printf("%q failed to maintain the leader key: %v", a.Config.Clustering.InstanceName, err)
 		cancel()
+		a.isLeader = false
 		goto START
+	case <-a.ctx.Done():
+		return
 	}
 }
 
@@ -153,7 +167,7 @@ START:
 				}
 			}
 		}()
-		err := a.locker.WatchServices(a.ctx, "gnmic-api", nil, membersChan, a.Config.Clustering.ServicesWatchTimer) // TODO, fix timer
+		err := a.locker.WatchServices(a.ctx, apiServiceName, nil, membersChan, a.Config.Clustering.ServicesWatchTimer)
 		if err != nil {
 			a.Logger.Printf("failed getting services: %v", err)
 			time.Sleep(retryTimer)
@@ -167,22 +181,22 @@ func (a *App) updateServices(srvs []*lockers.Service) {
 	defer a.m.Unlock()
 
 	numNewSrv := len(srvs)
-	numCurrSrv := len(a.apiServices)
+	numCurrentSrv := len(a.apiServices)
 
-	a.Logger.Printf("service update with %d service(s)", numNewSrv)
+	a.Logger.Printf("received service update with %d service(s)", numNewSrv)
 	// no new services and no current services, continue
-	if numNewSrv == 0 && numCurrSrv == 0 {
+	if numNewSrv == 0 && numCurrentSrv == 0 {
 		return
 	}
 
 	// no new services and having some services, delete all
-	if numNewSrv == 0 && numCurrSrv != 0 {
+	if numNewSrv == 0 && numCurrentSrv != 0 {
 		a.Logger.Printf("deleting all services")
 		a.apiServices = make(map[string]*lockers.Service)
 		return
 	}
 	// no current services, add all new services
-	if numCurrSrv == 0 {
+	if numCurrentSrv == 0 {
 		for _, s := range srvs {
 			a.Logger.Printf("adding service id %q", s.ID)
 			a.apiServices[s.ID] = s
@@ -209,6 +223,7 @@ func (a *App) updateServices(srvs []*lockers.Service) {
 }
 
 func (a *App) dispatchTargets(ctx context.Context) {
+START:
 	for {
 		select {
 		case <-ctx.Done():
@@ -218,72 +233,23 @@ func (a *App) dispatchTargets(ctx context.Context) {
 				time.Sleep(a.Config.Clustering.TargetsWatchTimer)
 				continue
 			}
+			var err error
 			for _, tc := range a.Config.Targets {
-				locked, err := a.locker.IsLocked(ctx, fmt.Sprintf("gnmic/%s/targets/%s", a.Config.Clustering.ClusterName, tc.Name))
+				err = a.dispatchTarget(ctx, tc)
 				if err != nil {
-					a.Logger.Printf("failed to check if target %q is locked: %v", tc.Name, err)
-					continue
+					a.Logger.Printf("failed to dispatch target %q: %v", tc.Name, err)
 				}
-				if a.Config.Debug {
-					a.Logger.Printf("target %q is locked: %v", tc.Name, locked)
-				}
-				if locked {
-					continue
-				}
-				denied := make([]string, 0)
-			SELECTSERVICE:
-				service, err := a.selectService(tc.Tags, denied...)
 				if err == errNotFound {
-					a.Logger.Printf("services %v", err)
-					// no registered services, break from the targets loop
-					break
+					// no registered services,
+					// no need to continue with other targets,
+					// break from the targets loop
+					time.Sleep(a.Config.Clustering.TargetsWatchTimer)
+					continue START
 				}
 				if err == errNoMoreSuitableServices {
-					a.Logger.Printf("target %q: %v", tc.Name, err)
 					// target has no suitable matching services,
 					// continue to next target
 					continue
-				}
-				if err != nil {
-					// should not happen
-					a.Logger.Printf("failed selecting a service: %v", err)
-					continue
-				}
-				a.Logger.Printf("selected service %+v", service)
-
-				// encode target config
-				buffer := new(bytes.Buffer)
-				err = json.NewEncoder(buffer).Encode(tc)
-				if err != nil {
-					a.Logger.Printf("failed encoding target config: %v", err)
-					continue
-				}
-				resp, err := a.httpClient.Post("http://"+service.Address+"/config/targets", "application/json", buffer)
-				if err != nil {
-					a.Logger.Printf("failed to send target config to %s: %v", service.Address, err)
-					// add service to denied list and reselect
-					denied = append(denied, service.ID)
-					goto SELECTSERVICE
-				}
-				a.Logger.Printf("got response code=%d for target %q config add", resp.StatusCode, tc.Name)
-				if resp.StatusCode > 200 {
-					// add service to denied list and reselect
-					denied = append(denied, service.ID)
-					goto SELECTSERVICE
-				}
-				// send target start
-				resp, err = a.httpClient.Post("http://"+service.Address+"/targets/"+tc.Name, "", new(bytes.Buffer))
-				if err != nil {
-					a.Logger.Printf("failed to send target assignment to %s: %v", service.Address, err)
-					// add service to denied list and reselect
-					denied = append(denied, service.ID)
-					goto SELECTSERVICE
-				}
-				a.Logger.Printf("got response code=%d for target %q assignment", resp.StatusCode, tc.Name)
-				if resp.StatusCode > 200 {
-					// add service to denied list and reselect
-					denied = append(denied, service.ID)
-					goto SELECTSERVICE
 				}
 				time.Sleep(dispatchPace)
 			}
@@ -296,6 +262,75 @@ func (a *App) dispatchTargets(ctx context.Context) {
 			}
 		}
 	}
+}
+
+func (a *App) dispatchTarget(ctx context.Context, tc *collector.TargetConfig) error {
+	if a.Config.Debug {
+		a.Logger.Printf("dispatching target %q", tc.Name)
+	}
+	locked, err := a.locker.IsLocked(ctx, fmt.Sprintf("gnmic/%s/targets/%s", a.Config.Clustering.ClusterName, tc.Name))
+	if err != nil {
+		return err
+	}
+	if a.Config.Debug {
+		a.Logger.Printf("target %q is locked: %v", tc.Name, locked)
+	}
+	if locked {
+		return nil
+	}
+	denied := make([]string, 0)
+SELECTSERVICE:
+	service, err := a.selectService(tc.Tags, denied...)
+	if err == errNotFound {
+		//a.Logger.Printf("services %v", err)
+		return err
+	}
+	if err == errNoMoreSuitableServices {
+		//a.Logger.Printf("target %q: %v", tc.Name, err)
+		return err
+	}
+	if err != nil {
+		// should not happen
+		//a.Logger.Printf("failed selecting a service: %v", err)
+		return err
+	}
+	a.Logger.Printf("selected service %q", service)
+
+	// encode target config
+	buffer := new(bytes.Buffer)
+	err = json.NewEncoder(buffer).Encode(tc)
+	if err != nil {
+		a.Logger.Printf("failed encoding target config: %v", err)
+		return err
+	}
+	resp, err := a.httpClient.Post("http://"+service.Address+"/config/targets", "application/json", buffer)
+	if err != nil {
+		a.Logger.Printf("failed to send target config to %q: %v", service.Address, err)
+		// add service to denied list and reselect
+		denied = append(denied, service.ID)
+		goto SELECTSERVICE
+	}
+	a.Logger.Printf("got response code=%d for target %q config add from %q", resp.StatusCode, tc.Name, service.Address)
+	if resp.StatusCode > 200 {
+		// add service to denied list and reselect
+		denied = append(denied, service.ID)
+		goto SELECTSERVICE
+	}
+	// send target start
+	resp, err = a.httpClient.Post("http://"+service.Address+"/targets/"+tc.Name, "", new(bytes.Buffer))
+	if err != nil {
+		a.Logger.Printf("failed to send target assignment to %s: %v", service.Address, err)
+		// add service to denied list and reselect
+		denied = append(denied, service.ID)
+		goto SELECTSERVICE
+	}
+	a.Logger.Printf("got response code=%d for target %q assignment from %q", resp.StatusCode, tc.Name, service.Address)
+	if resp.StatusCode > 200 {
+		// add service to denied list and reselect
+		denied = append(denied, service.ID)
+		goto SELECTSERVICE
+	}
+	return nil
 }
 
 func (a *App) selectService(tags []string, denied ...string) (*lockers.Service, error) {
@@ -312,7 +347,7 @@ func (a *App) selectService(tags []string, denied ...string) (*lockers.Service, 
 		if err != nil {
 			return nil, err
 		}
-		a.Logger.Printf("current instances load: %v", load)
+		a.Logger.Printf("current instances load: %q", load)
 		// if there are no locks in place, return a random service
 		if len(load) == 0 {
 			for _, s := range a.apiServices {
@@ -323,7 +358,7 @@ func (a *App) selectService(tags []string, denied ...string) (*lockers.Service, 
 		for _, d := range denied {
 			delete(load, strings.TrimSuffix(d, "-api"))
 		}
-		a.Logger.Printf("current instances load after filtering: %v", load)
+		a.Logger.Printf("current instances load after filtering: %q", load)
 		// all services were denied
 		if len(load) == 0 {
 			return nil, errNoMoreSuitableServices
@@ -332,7 +367,9 @@ func (a *App) selectService(tags []string, denied ...string) (*lockers.Service, 
 		a.Logger.Printf("selected service name: %s", ss)
 		a.m.Lock()
 		defer a.m.Unlock()
-		return a.apiServices[ss+"-api"], nil
+		srv := a.apiServices[ss+"-api"]
+		a.Logger.Printf("returning service: %q", srv) // to remove
+		return srv, nil
 	}
 	return nil, nil
 }
@@ -367,7 +404,7 @@ func (a *App) getInstancesLoad() (map[string]int, error) {
 
 // loop through the current cluster load
 // find the instance with the lowest load
-func (A *App) getLowLoadInstance(load map[string]int) string {
+func (a *App) getLowLoadInstance(load map[string]int) string {
 	var ss string
 	var low = -1
 	for s, l := range load {
@@ -377,4 +414,35 @@ func (A *App) getLowLoadInstance(load map[string]int) string {
 		}
 	}
 	return ss
+}
+
+func (a *App) getTargetToInstanceMapping() (map[string]string, error) {
+	locks, err := a.locker.List(a.ctx, fmt.Sprintf("gnmic/%s/targets", a.Config.Clustering.ClusterName))
+	if err != nil {
+		return nil, err
+	}
+	if a.Config.Debug {
+		a.Logger.Println("current locks:", locks)
+	}
+	distribution := make(map[string]string)
+	for k, v := range locks {
+		distribution[filepath.Base(k)] = v
+	}
+	return distribution, nil
+}
+
+func (a *App) deleteTarget(name string) error {
+	for _, s := range a.apiServices {
+		url := fmt.Sprintf("http://%s/config/targets/%s", s.Address, name)
+		req, err := http.NewRequest("DELETE", url, nil)
+		if err != nil {
+			continue
+		}
+		rsp, err := a.httpClient.Do(req)
+		if err != nil {
+			continue
+		}
+		a.Logger.Printf("received response code=%d, for DELETE %s", rsp.StatusCode, url)
+	}
+	return nil
 }
