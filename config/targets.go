@@ -74,6 +74,8 @@ func (c *Config) GetTargets() (map[string]*collector.TargetConfig, error) {
 	if len(targetsMap) == 0 {
 		return nil, ErrNoTargetsFound
 	}
+
+	newTargetsConfig := make(map[string]*collector.TargetConfig)
 	for addr, t := range targetsMap {
 		if !strings.HasPrefix(addr, "unix://") {
 			_, _, err := net.SplitHostPort(addr)
@@ -112,8 +114,20 @@ func (c *Config) GetTargets() (map[string]*collector.TargetConfig, error) {
 		if c.Debug {
 			c.logger.Printf("read target config: %s", tc)
 		}
-		c.Targets[tc.Name] = tc
+		newTargetsConfig[tc.Name] = tc
 	}
+
+	for n := range c.Targets {
+		if _, ok := newTargetsConfig[n]; !ok {
+			delete(c.Targets, n)
+		}
+	}
+	for n, ntc := range newTargetsConfig {
+		if _, ok := c.Targets[n]; !ok {
+			c.Targets[n] = ntc
+		}
+	}
+
 	subNames := c.FileConfig.GetStringSlice("subscribe-name")
 	if len(subNames) == 0 {
 		if c.Debug {
