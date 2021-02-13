@@ -116,17 +116,7 @@ func (c *Config) GetTargets() (map[string]*collector.TargetConfig, error) {
 		}
 		newTargetsConfig[tc.Name] = tc
 	}
-
-	for n := range c.Targets {
-		if _, ok := newTargetsConfig[n]; !ok {
-			delete(c.Targets, n)
-		}
-	}
-	for n, ntc := range newTargetsConfig {
-		if _, ok := c.Targets[n]; !ok {
-			c.Targets[n] = ntc
-		}
-	}
+	c.Targets = newTargetsConfig
 
 	subNames := c.FileConfig.GetStringSlice("subscribe-name")
 	if len(subNames) == 0 {
