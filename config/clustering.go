@@ -9,12 +9,12 @@ const (
 )
 
 type clustering struct {
-	ClusterName        string                 `mapstructure:"cluster-name,omitempty"`
-	InstanceName       string                 `mapstructure:"instance-name,omitempty"`
-	ServicesWatchTimer time.Duration          `mapstructure:"services-watch-timer,omitempty"`
-	TargetsWatchTimer  time.Duration          `mapstructure:"targets-watch-timer,omitempty"`
-	LeaderWaitTimer    time.Duration          `mapstructure:"leader-wait-timer,omitempty"`
-	Locker             map[string]interface{} `mapstructure:"locker,omitempty"`
+	ClusterName        string                 `mapstructure:"cluster-name,omitempty" json:"cluster-name,omitempty" yaml:"cluster-name,omitempty"`
+	InstanceName       string                 `mapstructure:"instance-name,omitempty" json:"instance-name,omitempty" yaml:"instance-name,omitempty"`
+	ServicesWatchTimer time.Duration          `mapstructure:"services-watch-timer,omitempty" json:"services-watch-timer,omitempty" yaml:"services-watch-timer,omitempty"`
+	TargetsWatchTimer  time.Duration          `mapstructure:"targets-watch-timer,omitempty" json:"targets-watch-timer,omitempty" yaml:"targets-watch-timer,omitempty"`
+	LeaderWaitTimer    time.Duration          `mapstructure:"leader-wait-timer,omitempty" json:"leader-wait-timer,omitempty" yaml:"leader-wait-timer,omitempty"`
+	Locker             map[string]interface{} `mapstructure:"locker,omitempty" json:"locker,omitempty" yaml:"locker,omitempty"`
 }
 
 func (c *Config) GetClustering() error {

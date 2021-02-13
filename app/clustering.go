@@ -265,7 +265,6 @@ START:
 }
 
 func (a *App) dispatchTarget(ctx context.Context, tc *collector.TargetConfig) error {
-	a.Logger.Printf("dispatching target %q", tc.Name)
 	locked, err := a.locker.IsLocked(ctx, fmt.Sprintf("gnmic/%s/targets/%s", a.Config.Clustering.ClusterName, tc.Name))
 	if err != nil {
 		return err
@@ -276,6 +275,7 @@ func (a *App) dispatchTarget(ctx context.Context, tc *collector.TargetConfig) er
 	if locked {
 		return nil
 	}
+	a.Logger.Printf("dispatching target %q", tc.Name)
 	denied := make([]string, 0)
 SELECTSERVICE:
 	service, err := a.selectService(tc.Tags, denied...)

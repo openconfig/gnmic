@@ -38,7 +38,7 @@ type Config struct {
 	Outputs       map[string]map[string]interface{}
 	Inputs        map[string]map[string]interface{}
 	Processors    map[string]map[string]interface{}
-	Clustering    *clustering
+	Clustering    *clustering `mapstructure:"clustering,omitempty" json:"clustering,omitempty" yaml:"clustering,omitempty"`
 
 	logger *log.Logger
 }
