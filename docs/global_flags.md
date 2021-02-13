@@ -11,7 +11,14 @@ gnmic -a 192.168.113.11:57400 --address 192.168.113.12:57400
 ```
 
 ### config
-The `--config` flag specifies the location of a configuration file that `gnmic` will read. Defaults to `$HOME/gnmic.yaml`.
+The `--config` flag specifies the location of a configuration file that `gnmic` will read. 
+
+If not specified, gnmic searches for a file named `.gnmic` with extensions `yaml, yml, toml or json` in the following locations:
+
+* `$PWD`
+* `$HOME`
+* `$XDG_CONFIG_HOME`
+* `$XDG_CONFIG_HOME/gnmic`
 
 ### debug
 The debug flag `[-d | --debug]` enables the printing of extra information when sending/receiving an RPC

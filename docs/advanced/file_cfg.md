@@ -6,10 +6,22 @@ With a configuration file a user can specify all the command line flags by means
 
 ### File type, name and location
 Configuration file that `gnmic` reads must be in one of the following formats: JSON, YAML, TOML, HCL or Properties.  
-By default, `gnmic` will check if the file referenced by `$HOME/gnmic.[yml, toml, json]` path exists. The default path can be overridden with [`--config`](../global_flags.md#config) flag.
+
+By default, `gnmic` will search for a file named `.gnmic.[yml/yaml, toml, json]` in the following locations and will use the first file that exists:
+
+* `$PWD`
+* `$HOME`
+* `$XDG_CONFIG_HOME`
+* `$XDG_CONFIG_HOME/gnmic`
+
+The default path can be overridden with [`--config`](../global_flags.md#config) flag.
 
 ```bash
-# config file default path is ~/gnmic.[yml, toml, json]
+# config file default path is :
+# $PWD/.gnmic.[yml, toml, json], or
+# $HOME/.gnmic.[yml, toml, json], or
+# $XDG_CONFIG_HOME/.gnmic.[yml, toml, json], or
+# $XDG_CONFIG_HOME/gnmic/.gnmic.[yml, toml, json]
 gnmic capabilities
 
 # read `cfg.yml` file located in the current directory
