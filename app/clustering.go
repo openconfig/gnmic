@@ -265,9 +265,7 @@ START:
 }
 
 func (a *App) dispatchTarget(ctx context.Context, tc *collector.TargetConfig) error {
-	if a.Config.Debug {
-		a.Logger.Printf("dispatching target %q", tc.Name)
-	}
+	a.Logger.Printf("dispatching target %q", tc.Name)
 	locked, err := a.locker.IsLocked(ctx, fmt.Sprintf("gnmic/%s/targets/%s", a.Config.Clustering.ClusterName, tc.Name))
 	if err != nil {
 		return err
@@ -294,7 +292,7 @@ SELECTSERVICE:
 		//a.Logger.Printf("failed selecting a service: %v", err)
 		return err
 	}
-	a.Logger.Printf("selected service %q", service)
+	a.Logger.Printf("selected service %+v", service)
 
 	// encode target config
 	buffer := new(bytes.Buffer)
@@ -347,7 +345,7 @@ func (a *App) selectService(tags []string, denied ...string) (*lockers.Service, 
 		if err != nil {
 			return nil, err
 		}
-		a.Logger.Printf("current instances load: %q", load)
+		a.Logger.Printf("current instances load: %+v", load)
 		// if there are no locks in place, return a random service
 		if len(load) == 0 {
 			for _, s := range a.apiServices {
@@ -358,7 +356,7 @@ func (a *App) selectService(tags []string, denied ...string) (*lockers.Service, 
 		for _, d := range denied {
 			delete(load, strings.TrimSuffix(d, "-api"))
 		}
-		a.Logger.Printf("current instances load after filtering: %q", load)
+		a.Logger.Printf("current instances load after filtering: %+v", load)
 		// all services were denied
 		if len(load) == 0 {
 			return nil, errNoMoreSuitableServices
@@ -368,7 +366,6 @@ func (a *App) selectService(tags []string, denied ...string) (*lockers.Service, 
 		a.m.Lock()
 		defer a.m.Unlock()
 		srv := a.apiServices[ss+"-api"]
-		a.Logger.Printf("returning service: %q", srv) // to remove
 		return srv, nil
 	}
 	return nil, nil

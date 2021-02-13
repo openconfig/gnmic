@@ -218,64 +218,79 @@ func (c *Collector) initTarget(name string) error {
 
 func (c *Collector) StartTarget(ctx context.Context, name string) {
 	lockKey := c.lockKey(name)
+START:
 	nctx, cancel := context.WithCancel(ctx)
 	c.m.Lock()
+	if cfn, ok := c.targetsLocksFn[name]; ok {
+		cfn()
+	}
 	c.targetsLocksFn[name] = cancel
 	c.m.Unlock()
-START:
-	err := c.initTarget(name)
-	if err != nil {
-		c.logger.Printf("failed to initialize target %q: %v", name, err)
-		return
-	}
 	select {
+	// check if the context was canceled before retrying
 	case <-nctx.Done():
 		return
 	default:
-		if c.locker != nil {
-			c.logger.Printf("acquiring lock for target %q", name)
-			ok, err := c.locker.Lock(nctx, lockKey, []byte(c.Config.Name))
-			if err == lockers.ErrCanceled {
-				c.logger.Printf("lock attempt for target %q canceled", name)
-				return
-			}
-			if err != nil {
-				c.logger.Printf("failed to lock target %q: %v", name, err)
-				time.Sleep(c.Config.LockRetryTimer)
-				goto START
-			}
-			if !ok {
-				time.Sleep(c.Config.LockRetryTimer)
-				goto START
-			}
-			c.logger.Printf("acquired lock for target %q", name)
+		err := c.initTarget(name)
+		if err != nil {
+			c.logger.Printf("failed to initialize target %q: %v", name, err)
+			return
 		}
 		select {
 		case <-nctx.Done():
 			return
-		case c.targetsChan <- c.Targets[name]:
-			c.logger.Printf("queuing target %q", name)
-		}
-		c.logger.Printf("subscribing to target: %q", name)
-		go func() {
-			err := c.Subscribe(nctx, name)
-			if err != nil {
-				c.logger.Printf("failed to subscribe: %v", err)
-				return
-			}
-		}()
-		if c.locker != nil {
-			doneChan, errChan := c.locker.KeepLock(nctx, lockKey)
-			for {
-				select {
-				case <-doneChan:
-					c.logger.Printf("target lock %q removed", name)
+		default:
+			if c.locker != nil {
+				c.logger.Printf("acquiring lock for target %q", name)
+				ok, err := c.locker.Lock(nctx, lockKey, []byte(c.Config.Name))
+				if err == lockers.ErrCanceled {
+					c.logger.Printf("lock attempt for target %q canceled", name)
 					return
-				case err := <-errChan:
-					c.logger.Printf("failed to maintain target %q lock: %v", name, err)
-					c.StopTarget(ctx, name)
+				}
+				if err != nil {
+					c.logger.Printf("failed to lock target %q: %v", name, err)
 					time.Sleep(c.Config.LockRetryTimer)
 					goto START
+				}
+				if !ok {
+					time.Sleep(c.Config.LockRetryTimer)
+					goto START
+				}
+				c.logger.Printf("acquired lock for target %q", name)
+			}
+			select {
+			case <-nctx.Done():
+				return
+			case c.targetsChan <- c.Targets[name]:
+				c.logger.Printf("queuing target %q", name)
+			}
+			c.logger.Printf("subscribing to target: %q", name)
+			go func() {
+				err := c.Subscribe(nctx, name)
+				if err != nil {
+					c.logger.Printf("failed to subscribe: %v", err)
+					return
+				}
+			}()
+			if c.locker != nil {
+				doneChan, errChan := c.locker.KeepLock(nctx, lockKey)
+				for {
+					select {
+					case <-nctx.Done():
+						c.logger.Printf("target %q stopped: %v", name, ctx.Err())
+						return
+					case <-doneChan:
+						c.logger.Printf("target lock %q removed", name)
+						return
+					case err := <-errChan:
+						c.logger.Printf("failed to maintain target %q lock: %v", name, err)
+						c.StopTarget(ctx, name)
+						if errors.Is(err, context.Canceled) {
+							return
+						}
+						time.Sleep(c.Config.LockRetryTimer)
+						goto START
+					}
 				}
 			}
 		}
@@ -301,6 +316,9 @@ func (c *Collector) DeleteTarget(ctx context.Context, name string) error {
 	delete(c.targetsConfig, name)
 	if c.locker == nil {
 		return nil
+	}
+	if cfn, ok := c.targetsLocksFn[name]; ok {
+		cfn()
 	}
 	return c.locker.Unlock(ctx, c.lockKey(name))
 }
@@ -489,6 +507,9 @@ func (c *Collector) Start(ctx context.Context) {
 	for t := range c.targetsChan {
 		if c.Config.Debug {
 			c.logger.Printf("starting target %+v", t)
+		}
+		if t == nil {
+			continue
 		}
 		if _, ok := c.activeTargets[t.Config.Name]; ok {
 			if c.Config.Debug {

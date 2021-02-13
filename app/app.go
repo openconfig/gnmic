@@ -22,6 +22,7 @@ import (
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/spf13/cobra"
+	"golang.org/x/sync/semaphore"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/protobuf/proto"
@@ -35,6 +36,8 @@ type App struct {
 	ctx     context.Context
 	Cfn     context.CancelFunc
 	RootCmd *cobra.Command
+
+	sem *semaphore.Weighted
 
 	m           *sync.Mutex
 	Config      *config.Config
@@ -62,6 +65,7 @@ func New() *App {
 		ctx:         ctx,
 		Cfn:         cancel,
 		RootCmd:     new(cobra.Command),
+		sem:         semaphore.NewWeighted(1),
 		m:           new(sync.Mutex),
 		Config:      config.New(),
 		router:      mux.NewRouter(),
@@ -187,8 +191,14 @@ func (a *App) watchConfig() {
 
 func (a *App) loadTargets(e fsnotify.Event) {
 	a.Logger.Printf("got config change notification: %v", e)
-	a.m.Lock()
-	defer a.m.Unlock()
+	ctx, cancel := context.WithCancel(a.ctx)
+	defer cancel()
+	err := a.sem.Acquire(ctx, 1)
+	if err != nil {
+		a.Logger.Printf("failed to acquire target loading semaphore: %v", err)
+		return
+	}
+	defer a.sem.Release(1)
 	switch e.Op {
 	case fsnotify.Write, fsnotify.Create:
 		newTargets, err := a.Config.GetTargets()
@@ -250,13 +260,11 @@ func (a *App) loadTargets(e fsnotify.Event) {
 		// add new targets to cluster
 		for _, tc := range newTargets {
 			if _, ok := dist[tc.Name]; !ok {
-				// this has to be a goroutine because of the mutex unlock
-				go func() {
-					err = a.dispatchTarget(a.ctx, tc)
-					if err != nil {
-						a.Logger.Printf("failed to add target %q: %v", tc.Name, err)
-					}
-				}()
+				err = a.dispatchTarget(a.ctx, tc)
+				if err != nil {
+					a.Logger.Printf("failed to add target %q: %v", tc.Name, err)
+				}
+				time.Sleep(dispatchPace)
 			}
 		}
 	}
