@@ -167,7 +167,7 @@ START:
 				}
 			}
 		}()
-		err := a.locker.WatchServices(a.ctx, apiServiceName, nil, membersChan, a.Config.Clustering.ServicesWatchTimer)
+		err := a.locker.WatchServices(a.ctx, apiServiceName, []string{"cluster-name=" + a.Config.Clustering.ClusterName}, membersChan, a.Config.Clustering.ServicesWatchTimer)
 		if err != nil {
 			a.Logger.Printf("failed getting services: %v", err)
 			time.Sleep(retryTimer)
