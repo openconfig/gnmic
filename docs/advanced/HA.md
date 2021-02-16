@@ -74,6 +74,9 @@ clustering:
   # this wait time goal is to give more chances to other instances to register their API services 
   # before the target distribution starts
   leader-wait-timer: 5s
+  # list of strings to be added as tags during api service registration on top of
+  # `cluster-name=${cluster-name}` and `instance-name=${instance-name}`
+  tags: []
   # locker is used to configure the KV store used for 
   # the service registration, service discovery, leader election and targets locks
   locker:

@@ -18,6 +18,7 @@ type clustering struct {
 	ServicesWatchTimer time.Duration          `mapstructure:"services-watch-timer,omitempty" json:"services-watch-timer,omitempty" yaml:"services-watch-timer,omitempty"`
 	TargetsWatchTimer  time.Duration          `mapstructure:"targets-watch-timer,omitempty" json:"targets-watch-timer,omitempty" yaml:"targets-watch-timer,omitempty"`
 	LeaderWaitTimer    time.Duration          `mapstructure:"leader-wait-timer,omitempty" json:"leader-wait-timer,omitempty" yaml:"leader-wait-timer,omitempty"`
+	Tags               []string               `mapstructure:"tags,omitempty" json:"tags,omitempty" yaml:"tags,omitempty"`
 	Locker             map[string]interface{} `mapstructure:"locker,omitempty" json:"locker,omitempty" yaml:"locker,omitempty"`
 }
 
@@ -31,6 +32,7 @@ func (c *Config) GetClustering() error {
 	c.Clustering.TargetsWatchTimer = c.FileConfig.GetDuration("clustering/targets-watch-timer")
 	c.Clustering.ServicesWatchTimer = c.FileConfig.GetDuration("clustering/services-watch-timer")
 	c.Clustering.LeaderWaitTimer = c.FileConfig.GetDuration("clustering/leader-wait-timer")
+	c.Clustering.Tags = c.FileConfig.GetStringSlice("clustering/tags")
 	c.setClusteringDefaults()
 	return c.getLocker()
 }

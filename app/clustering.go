@@ -63,13 +63,12 @@ func (a *App) inCluster() bool {
 func (a *App) serviceRegistration() {
 	addr, port, _ := net.SplitHostPort(a.Config.API)
 	p, _ := strconv.Atoi(port)
-	tags := make([]string, 0, 2)
-	if a.Config.Clustering.ClusterName != "" {
-		tags = append(tags, fmt.Sprintf("cluster-name=%s", a.Config.Clustering.ClusterName))
-	}
-	if a.Config.Clustering.InstanceName != "" {
-		tags = append(tags, fmt.Sprintf("instance-name=%s", a.Config.Clustering.InstanceName))
-	}
+
+	tags := make([]string, 0, 2+len(a.Config.Clustering.Tags))
+	tags = append(tags, fmt.Sprintf("cluster-name=%s", a.Config.Clustering.ClusterName))
+	tags = append(tags, fmt.Sprintf("instance-name=%s", a.Config.Clustering.InstanceName))
+	tags = append(tags, a.Config.Clustering.Tags...)
+
 	serviceReg := &lockers.ServiceRegistration{
 		ID:      a.Config.Clustering.InstanceName + "-api",
 		Name:    apiServiceName,
