@@ -124,10 +124,10 @@ START:
 		a.Logger.Printf("%q became the leader", a.Config.Clustering.InstanceName)
 		break
 	}
-	time.Sleep(a.Config.Clustering.LeaderWaitTimer)
 	ctx, cancel := context.WithCancel(a.ctx)
 	defer cancel()
 	go a.watchMembers(ctx)
+	time.Sleep(a.Config.Clustering.LeaderWaitTimer)
 	go a.dispatchTargets(ctx)
 
 	doneCh, errCh := a.locker.KeepLock(a.ctx, leaderKey)
@@ -230,6 +230,7 @@ START:
 			return
 		default:
 			if len(a.apiServices) == 0 {
+				a.Logger.Printf("no services found, waiting...")
 				time.Sleep(a.Config.Clustering.TargetsWatchTimer)
 				continue
 			}
@@ -248,7 +249,7 @@ START:
 				}
 				if err == errNoMoreSuitableServices {
 					// target has no suitable matching services,
-					// continue to next target
+					// continue to next target without wait
 					continue
 				}
 				time.Sleep(dispatchPace)
@@ -279,17 +280,7 @@ func (a *App) dispatchTarget(ctx context.Context, tc *collector.TargetConfig) er
 	denied := make([]string, 0)
 SELECTSERVICE:
 	service, err := a.selectService(tc.Tags, denied...)
-	if err == errNotFound {
-		//a.Logger.Printf("services %v", err)
-		return err
-	}
-	if err == errNoMoreSuitableServices {
-		//a.Logger.Printf("target %q: %v", tc.Name, err)
-		return err
-	}
 	if err != nil {
-		// should not happen
-		//a.Logger.Printf("failed selecting a service: %v", err)
 		return err
 	}
 	a.Logger.Printf("selected service %+v", service)
@@ -301,7 +292,12 @@ SELECTSERVICE:
 		a.Logger.Printf("failed encoding target config: %v", err)
 		return err
 	}
-	resp, err := a.httpClient.Post("http://"+service.Address+"/config/targets", "application/json", buffer)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://"+service.Address+"/config/targets", buffer)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := a.httpClient.Do(req.WithContext(ctx))
 	if err != nil {
 		a.Logger.Printf("failed to send target config to %q: %v", service.Address, err)
 		// add service to denied list and reselect
@@ -315,7 +311,11 @@ SELECTSERVICE:
 		goto SELECTSERVICE
 	}
 	// send target start
-	resp, err = a.httpClient.Post("http://"+service.Address+"/targets/"+tc.Name, "", new(bytes.Buffer))
+	req, err = http.NewRequestWithContext(ctx, http.MethodPost, "http://"+service.Address+"/targets/"+tc.Name, new(bytes.Buffer))
+	if err != nil {
+		return err
+	}
+	resp, err = a.httpClient.Do(req.WithContext(ctx))
 	if err != nil {
 		a.Logger.Printf("failed to send target assignment to %s: %v", service.Address, err)
 		// add service to denied list and reselect
@@ -421,20 +421,20 @@ func (a *App) getTargetToInstanceMapping() (map[string]string, error) {
 	if a.Config.Debug {
 		a.Logger.Println("current locks:", locks)
 	}
-	distribution := make(map[string]string)
 	for k, v := range locks {
-		distribution[filepath.Base(k)] = v
+		locks[filepath.Base(k)] = v
 	}
-	return distribution, nil
+	return locks, nil
 }
 
 func (a *App) deleteTarget(name string) error {
 	for _, s := range a.apiServices {
 		url := fmt.Sprintf("http://%s/config/targets/%s", s.Address, name)
-		req, err := http.NewRequest("DELETE", url, nil)
+		req, err := http.NewRequestWithContext(a.ctx, "DELETE", url, nil)
 		if err != nil {
 			continue
 		}
+
 		rsp, err := a.httpClient.Do(req)
 		if err != nil {
 			continue

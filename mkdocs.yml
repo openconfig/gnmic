@@ -36,7 +36,7 @@ nav:
           - Strings: advanced/event_processors/event_strings.md
           - To Tag: advanced/event_processors/event_to_tag.md
           - Write: advanced/event_processors/event_write.md
-      - High Availability & Scalability: advanced/HA.md
+      - Clustering & Scalability: advanced/HA.md
   - Command reference:
       - Capabilities: cmd/capabilities.md
       - Get: cmd/get.md

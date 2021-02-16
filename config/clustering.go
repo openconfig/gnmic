@@ -1,6 +1,10 @@
 package config
 
-import "time"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 const (
 	defaultTargetWatchTimer   = 10 * time.Second
@@ -36,7 +40,11 @@ func (c *Config) setClusteringDefaults() {
 		c.Clustering.ClusterName = c.LocalFlags.SubscribeClusterName
 	}
 	if c.Clustering.InstanceName == "" {
-		c.Clustering.InstanceName = c.GlobalFlags.InstanceName
+		if c.GlobalFlags.InstanceName != "" {
+			c.Clustering.InstanceName = c.GlobalFlags.InstanceName
+		} else {
+			c.Clustering.InstanceName = "gnmic-" + uuid.New().String()
+		}
 	}
 	if c.Clustering.TargetsWatchTimer <= 0 {
 		c.Clustering.TargetsWatchTimer = defaultTargetWatchTimer

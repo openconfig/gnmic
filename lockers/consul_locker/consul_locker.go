@@ -18,7 +18,7 @@ const (
 	defaultAddress    = "localhost:8500"
 	defaultSessionTTL = 10 * time.Second
 	defaultRetryTimer = 2 * time.Second
-	defaultDelay      = 15 * time.Second
+	defaultDelay      = 5 * time.Second
 	loggingPrefix     = "[consul_locker] "
 )
 

@@ -1,44 +1,128 @@
-## High Availability
+## Clustering
 
-`gnmic` can run in high availability mode to protect against gNMI connections loss. 
-This is achieved by running multiple instances of `gnmic` loaded with the same configuration. 
-In order to loadshare the targets connections between the different instances, each `gnmic` instance uses ephemeral key locks in a configured KV store ( such as [`Consul`](https://www.consul.io/)) to declare ownership over a specific target.
+`gnmic` can be run in clustered mode in order to load share the targets connections between multiple instances and protect against failures.
 
-The Locker configuration is as simple as:
+The cluster mode allows `gnmic` to scale and be highly available at the same time
+
+To achieve its goals of scalability and high-availability `gnmic` uses a combination of:
+
+* Service Registration 
+* Service Discovery
+* Leader Elections
+* Distributed Semaphore
+* Restful API calls
+
+### Clustering process
+
+At startup, all instances belonging to a cluster:
+  
+* Enter an election process in order to become the cluster leader.
+* Register their API service `gnmic-api` in a configured service discovery system (such as `Consul`)
+
+Upon becoming the leader:
+
+* The `gnmic` instance starts watching the registered `gnmic-api` services, 
+and maintains a local cache of the active ones. These are essentially the instances restAPI addresses.
+* The leader then waits for `clustering/leader-wait-timer` to allow the other instances to register their API services as well. 
+This is useful in case an instance is slow to boot, which leaves it out of the initial load sharing process.
+* The leader then enters a "target watch loop", 
+at each iteration the leader tries to determine if all configured targets are handled by an instance of the cluster, 
+this is done by checking if there is a lock maintained for each configured target.
+
+The instances which failed to become the leader, continue to try to acquire the leader lock.
+### Target distribution process
+
+If the leader detects that a target does not have a lock, it triggers the target distribution process:
+
+* Query all the targets keys from the KV store and calculate each instance load (number of maintained gNMI targets).
+* Select the least loaded instance to handle the target's subscriptions.
+* Retrieve the selected instance API address from the local services cache.
+* Send both the target configuration as well as a target activation action to the selected instance.
+  
+When a cluster instance gets assigned a target (target activation):
+
+* Acquire a key lock for that specific target
+* Create the configured gNMI subscriptions.
+* Maintain the target lock for the duration of the gNMI subscription.
+
+The whole target distribution process is repeated for each target lacking a lock
+
+### Configuration
+
+The cluster configuration is as simple as:
 
 ```yaml
-locker:
-  # type of locker, only consul is supported currently
-  type: consul
-  # address of the locker server
-  address: localhost:8500
-  # session-ttl, session time-to-live after which a session is considered 
-  # invalid if not renewed
-  session-ttl: 10s
-  # delay, a time duration (0s to 60s), in the event of  a session invalidation 
-  # consul will prevent the lock from being acquired for this duration.
-  # The purpose is to allow a gnmic instance to stop active subscriptions before another one takes over.
-  delay: 15s
-  # retry-timer, wait period between retries to acquire a lock 
-  # in the event of client failure, key is already locked or lock lost.
-  retry-timer: 2s
-  # renew-period, session renew period, must be lower that session-ttl. 
-  # if the value is greater or equal than session-ttl, is will be set to half of session-ttl
-  renew-period: 5s
-  # debug, enable extra logging messages
-  debug: false
+clustering:
+  # the cluster name, tells with instances belong to the same cluster
+  # it is used as part of the leader key lock, and the targets key locks
+  # if no value is configured, the value from flag --cluster-name is used.
+  # if the flag has the empty string as value, "default-cluster" is used.
+  cluster-name: default-cluster
+  # unique instance name within the cluster,
+  # used as the value in the target locks,
+  # used as the value in the leader lock.
+  # if no value is configured, the value from flag --instance-name is used.
+  # if the flag has the empty string as value, a value is generated in the format `gnmic-$UUID`
+  instance-name: ""
+  # gnmic instances API service watch timer
+  # this is a long timer used by the cluster leader 
+  # in a consul long-blocking query: https://www.consul.io/api-docs/features/blocking#implementation-details
+  services-watch-timer: 60s
+  # targets watch timer, the frequency at which the leader checks if all targets have a locked value
+  targets-watch-timer: 10s
+  # leader wait timer, allows to configure a wait time after an instance acquires the leader key.
+  # this wait time goal is to give more chances to other instances to register their API services 
+  # before the target distribution starts
+  leader-wait-timer: 5s
+  # locker is used to configure the KV store used for 
+  # the service registration, service discovery, leader election and targets locks
+  locker:
+    # type of locker, only consul is supported currently
+    type: consul
+    # address of the locker server
+    address: localhost:8500
+    # session-ttl, session time-to-live after which a session is considered 
+    # invalid if not renewed
+    # upon session invalidation, all services and locks created using this session
+    # are considered invalid.
+    session-ttl: 10s
+    # delay, a time duration (0s to 60s), in the event of  a session invalidation 
+    # consul will prevent the lock from being acquired for this duration.
+    # The purpose is to allow a gnmic instance to stop active subscriptions before another one takes over.
+    delay: 5s
+    # retry-timer, wait period between retries to acquire a lock 
+    # in the event of client failure, key is already locked or lock lost.
+    retry-timer: 2s
+    # renew-period, session renew period, must be lower that session-ttl. 
+    # if the value is greater or equal than session-ttl, is will be set to half of session-ttl
+    renew-period: 5s
+    # debug, enable extra logging messages
+    debug: false
 ```
 
 A `gnmic` instance creates gNMI subscriptions only towards targets for which it acquired locks. It is also responsible for maintaining that lock for the duration of the subscription.
-In the event of connection loss, the ephemeral lock expires leaving the opportunity for another `gnmic` instance to acquire the lock and re-create the gNMI subscription.
+
 
 <div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:12,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/karimra/gnmic/diagrams/diagrams//locking.drawio&quot;}"></div>
 
 <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2F/locking.drawio" async></script>
 
+
+### Instance failure
+
+In the event of an instance failure, its maintained targets locks expire, which on the next `clustering/targets-watch-timer` interval will be detected by the cluster leader.
+
+The leader then performs the same target distribution process for those targets without a lock.
+
+### Leader reelection
+
+If a cluster leader fails, one of the other instances in the cluster eventually acquires the leader lock and becomes the cluster leader.
+
+It then, proceeds with the targets distribution process to assign the unhandled targets to an instance in the cluster.
+
 ## Scalability
 
-Using the same above-mentioned locking mechanism, `gnmic` can horizontally scale the number of supported gNMI connections distributed across multiple `gnmic` instances.
+Using the same above-mentioned clustering mechanism, `gnmic` can horizontally scale the number of supported gNMI connections distributed across multiple `gnmic` instances.
 
 The collected gNMI data can then be aggregated and made available through any of the running `gnmic` instances, regardless of whether that instance collected the data from the target or not.
 
