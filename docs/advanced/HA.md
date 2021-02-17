@@ -35,17 +35,19 @@ The instances which failed to become the leader, continue to try to acquire the 
 If the leader detects that a target does not have a lock, it triggers the target distribution process:
 
 * Query all the targets keys from the KV store and calculate each instance load (number of maintained gNMI targets).
-* Select the least loaded instance to handle the target's subscriptions.
+* If the target configuration includes `tags`, the leader selects the instance with the most matching tags (in order). 
+If multiple instances have the same matching tags, the one with the lowest load is selected.
+* If the target doesn't have configured tags, the leader simply select the least loaded instance to handle the target's subscriptions.
 * Retrieve the selected instance API address from the local services cache.
 * Send both the target configuration as well as a target activation action to the selected instance.
   
 When a cluster instance gets assigned a target (target activation):
 
-* Acquire a key lock for that specific target
-* Create the configured gNMI subscriptions.
+* Acquire a key lock for that specific target.
+* Once the lock is acquired, create the configured gNMI subscriptions.
 * Maintain the target lock for the duration of the gNMI subscription.
 
-The whole target distribution process is repeated for each target lacking a lock
+The whole target distribution process is repeated for each target missing a lock.
 
 ### Configuration
 
@@ -74,7 +76,7 @@ clustering:
   # this wait time goal is to give more chances to other instances to register their API services 
   # before the target distribution starts
   leader-wait-timer: 5s
-  # list of strings to be added as tags during api service registration on top of
+  # ordered list of strings to be added as tags during api service registration on top of
   # `cluster-name=${cluster-name}` and `instance-name=${instance-name}`
   tags: []
   # locker is used to configure the KV store used for 

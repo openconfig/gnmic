@@ -57,6 +57,9 @@ func (a *App) leaderKey() string {
 }
 
 func (a *App) inCluster() bool {
+	if a.Config == nil {
+		return false
+	}
 	return !(a.Config.Clustering == nil)
 }
 
@@ -282,6 +285,9 @@ SELECTSERVICE:
 	if err != nil {
 		return err
 	}
+	if service == nil {
+		goto SELECTSERVICE
+	}
 	a.Logger.Printf("selected service %+v", service)
 
 	// encode target config
@@ -331,6 +337,8 @@ SELECTSERVICE:
 }
 
 func (a *App) selectService(tags []string, denied ...string) (*lockers.Service, error) {
+	a.m.Lock()
+	defer a.m.Unlock()
 	numServices := len(a.apiServices)
 	switch numServices {
 	case 0:
@@ -340,16 +348,31 @@ func (a *App) selectService(tags []string, denied ...string) (*lockers.Service, 
 			return s, nil
 		}
 	default:
-		load, err := a.getInstancesLoad()
+		// select instance by tags
+		matchingInstances := make([]string, 0)
+		tagCount := a.getInstancesTagsMatches(tags)
+		if len(tagCount) > 0 {
+			matchingInstances = a.getHighestTagsMatches(tagCount)
+			a.Logger.Printf("current instances with tags=%v: %+v", tags, matchingInstances)
+		} else {
+			for n := range a.apiServices {
+				matchingInstances = append(matchingInstances, strings.TrimSuffix(n, "-api"))
+			}
+		}
+		if len(matchingInstances) == 1 {
+			return a.apiServices[matchingInstances[0]+"-api"], nil
+		}
+		// select instance by load
+		load, err := a.getInstancesLoad(matchingInstances...)
 		if err != nil {
 			return nil, err
 		}
 		a.Logger.Printf("current instances load: %+v", load)
 		// if there are no locks in place, return a random service
 		if len(load) == 0 {
-			for _, s := range a.apiServices {
-				a.Logger.Printf("selected service name: %s", s.ID)
-				return s, nil
+			for _, n := range matchingInstances {
+				a.Logger.Printf("selected service name: %s", n)
+				return a.apiServices[n+"-api"], nil
 			}
 		}
 		for _, d := range denied {
@@ -362,15 +385,13 @@ func (a *App) selectService(tags []string, denied ...string) (*lockers.Service, 
 		}
 		ss := a.getLowLoadInstance(load)
 		a.Logger.Printf("selected service name: %s", ss)
-		a.m.Lock()
-		defer a.m.Unlock()
 		srv := a.apiServices[ss+"-api"]
 		return srv, nil
 	}
-	return nil, nil
+	return nil, errNotFound
 }
 
-func (a *App) getInstancesLoad() (map[string]int, error) {
+func (a *App) getInstancesLoad(instances ...string) (map[string]int, error) {
 	// read all current locks held by the cluster
 	locks, err := a.locker.List(a.ctx, fmt.Sprintf("gnmic/%s/targets", a.Config.Clustering.ClusterName))
 	if err != nil {
@@ -394,6 +415,17 @@ func (a *App) getInstancesLoad() (map[string]int, error) {
 		if _, ok := load[instance]; !ok {
 			load[instance] = 0
 		}
+	}
+	if len(instances) > 0 {
+		filteredLoad := make(map[string]int)
+		for _, instance := range instances {
+			if l, ok := load[instance]; ok {
+				filteredLoad[instance] = l
+			} else {
+				filteredLoad[instance] = 0
+			}
+		}
+		return filteredLoad, nil
 	}
 	return load, nil
 }
@@ -421,9 +453,49 @@ func (a *App) getTargetToInstanceMapping() (map[string]string, error) {
 		a.Logger.Println("current locks:", locks)
 	}
 	for k, v := range locks {
+		delete(locks, k)
 		locks[filepath.Base(k)] = v
 	}
 	return locks, nil
+}
+
+func (a *App) getInstancesTagsMatches(tags []string) map[string]int {
+	maxMatch := make(map[string]int)
+	numTags := len(tags)
+	if numTags == 0 {
+		return maxMatch
+	}
+	for name, s := range a.apiServices {
+		name = strings.TrimSuffix(name, "-api")
+		maxMatch[name] = 0
+		for i, tag := range s.Tags {
+			if i+1 > numTags {
+				break
+			}
+			if tag == tags[i] {
+				maxMatch[name]++
+				continue
+			}
+			break
+		}
+	}
+	return maxMatch
+}
+
+func (a *App) getHighestTagsMatches(tagsCount map[string]int) []string {
+	var ss = make([]string, 0)
+	var high = -1
+	for s, c := range tagsCount {
+		if high < 0 || c > high {
+			ss = []string{strings.TrimSuffix(s, "-api")}
+			high = c
+			continue
+		}
+		if high == c {
+			ss = append(ss, strings.TrimSuffix(s, "-api"))
+		}
+	}
+	return ss
 }
 
 func (a *App) deleteTarget(name string) error {

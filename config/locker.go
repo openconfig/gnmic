@@ -8,9 +8,12 @@ import (
 )
 
 func (c *Config) getLocker() error {
+	if !c.FileConfig.IsSet("clustering/locker") {
+		return errors.New("missing locker config")
+	}
 	c.Clustering.Locker = c.FileConfig.GetStringMap("clustering/locker")
 	if len(c.Clustering.Locker) == 0 {
-		return nil
+		return errors.New("missing locker config")
 	}
 	if lockerType, ok := c.Clustering.Locker["type"]; ok {
 		switch lockerType := lockerType.(type) {
