@@ -25,7 +25,6 @@ import (
 
 const (
 	defaultTargetReceivebuffer = 1000
-	defaultClusterName         = "default-cluster"
 	defaultLockRetry           = 5 * time.Second
 )
 
@@ -55,18 +54,19 @@ type Collector struct {
 	inputsConfig map[string]map[string]interface{}
 	Inputs       map[string]inputs.Input
 
-	lockerConfig map[string]interface{}
-	locker       lockers.Locker
+	locker lockers.Locker
 
-	Targets map[string]*Target
+	targetsConfig map[string]*TargetConfig
+	Targets       map[string]*Target
 
 	EventProcessorsConfig map[string]map[string]interface{}
 	logger                *log.Logger
 	httpServer            *http.Server
 	reg                   *prometheus.Registry
 
-	targetsChan   chan *Target
-	activeTargets map[string]struct{}
+	targetsChan    chan *Target
+	activeTargets  map[string]struct{}
+	targetsLocksFn map[string]context.CancelFunc
 }
 
 type CollectorOption func(c *Collector)
@@ -116,21 +116,20 @@ func NewCollector(config *Config, targetConfigs map[string]*TargetConfig, opts .
 	if config.RetryTimer == 0 {
 		config.RetryTimer = defaultRetryTimer
 	}
-	if config.ClusterName == "" {
-		config.ClusterName = defaultClusterName
-	}
 	if config.LockRetryTimer <= 0 {
 		config.LockRetryTimer = defaultLockRetry
 	}
 	c := &Collector{
-		Config:        config,
-		m:             new(sync.Mutex),
-		Targets:       make(map[string]*Target),
-		Outputs:       make(map[string]outputs.Output),
-		Inputs:        make(map[string]inputs.Input),
-		httpServer:    httpServer,
-		targetsChan:   make(chan *Target),
-		activeTargets: make(map[string]struct{}),
+		Config:         config,
+		m:              new(sync.Mutex),
+		targetsConfig:  make(map[string]*TargetConfig),
+		Targets:        make(map[string]*Target),
+		Outputs:        make(map[string]outputs.Output),
+		Inputs:         make(map[string]inputs.Input),
+		httpServer:     httpServer,
+		targetsChan:    make(chan *Target),
+		activeTargets:  make(map[string]struct{}),
+		targetsLocksFn: make(map[string]context.CancelFunc),
 	}
 	for _, op := range opts {
 		op(c)
@@ -166,88 +165,139 @@ func (c *Collector) AddTarget(tc *TargetConfig) error {
 	if c.Targets == nil {
 		c.Targets = make(map[string]*Target)
 	}
-	if _, ok := c.Targets[tc.Name]; ok {
-		return fmt.Errorf("target '%s' already exists", tc.Name)
-	}
+	// if _, ok := c.Targets[tc.Name]; ok {
+	// 	return fmt.Errorf("target %q already exists", tc.Name)
+	// }
 	if tc.BufferSize == 0 {
 		tc.BufferSize = c.Config.TargetReceiveBuffer
 	}
 	if tc.RetryTimer == 0 {
 		tc.RetryTimer = c.Config.RetryTimer
 	}
-	t := NewTarget(tc)
-	//
-	t.Subscriptions = make(map[string]*SubscriptionConfig)
-	for _, subName := range tc.Subscriptions {
-		if sub, ok := c.Subscriptions[subName]; ok {
-			t.Subscriptions[subName] = sub
-		}
-	}
-	if len(t.Subscriptions) == 0 {
-		for _, sub := range c.Subscriptions {
-			t.Subscriptions[sub.Name] = sub
-		}
-	}
 	c.m.Lock()
 	defer c.m.Unlock()
-	c.Targets[t.Config.Name] = t
+	c.targetsConfig[tc.Name] = tc
 	return nil
 }
 
-func (c *Collector) InitTarget(ctx context.Context, name string) {
+func (c *Collector) InitTargets() error {
+	var err error
+	for n := range c.targetsConfig {
+		err = c.initTarget(n)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *Collector) initTarget(name string) error {
+	c.m.Lock()
+	defer c.m.Unlock()
+	if tc, ok := c.targetsConfig[name]; ok {
+		if _, ok := c.Targets[name]; !ok {
+			t := NewTarget(tc)
+			//
+			t.Subscriptions = make(map[string]*SubscriptionConfig)
+			for _, subName := range tc.Subscriptions {
+				if sub, ok := c.Subscriptions[subName]; ok {
+					t.Subscriptions[subName] = sub
+				}
+			}
+			if len(t.Subscriptions) == 0 {
+				for _, sub := range c.Subscriptions {
+					t.Subscriptions[sub.Name] = sub
+				}
+			}
+			c.Targets[t.Config.Name] = t
+		}
+		return nil
+	}
+	return fmt.Errorf("unknown target")
+}
+
+func (c *Collector) StartTarget(ctx context.Context, name string) {
 	lockKey := c.lockKey(name)
 START:
+	nctx, cancel := context.WithCancel(ctx)
+	c.m.Lock()
+	if cfn, ok := c.targetsLocksFn[name]; ok {
+		cfn()
+	}
+	c.targetsLocksFn[name] = cancel
+	c.m.Unlock()
 	select {
-	case <-ctx.Done():
+	// check if the context was canceled before retrying
+	case <-nctx.Done():
 		return
 	default:
-		if c.locker != nil {
-			c.logger.Printf("acquiring lock for target %q", name)
-			ok, err := c.locker.Lock(ctx, lockKey, []byte(c.Config.Name))
-			if err == lockers.ErrCanceled {
-				c.logger.Printf("lock attempt for target %q canceled", name)
-				return
-			}
-			if err != nil {
-				c.logger.Printf("failed to lock target %q: %v", name, err)
-				time.Sleep(c.Config.LockRetryTimer)
-				goto START
-			}
-			if !ok {
-				time.Sleep(c.Config.LockRetryTimer)
-				goto START
-			}
-			c.logger.Printf("acquired lock for target %q", name)
+		err := c.initTarget(name)
+		if err != nil {
+			c.logger.Printf("failed to initialize target %q: %v", name, err)
+			return
 		}
-		c.logger.Printf("queuing target %q", name)
-		c.targetsChan <- c.Targets[name]
-		c.logger.Printf("subscribing to target: %q", name)
-		go func() {
-			err := c.Subscribe(ctx, name)
-			if err != nil {
-				c.logger.Printf("failed to subscribe: %v", err)
-				return
-			}
-		}()
-		if c.locker != nil {
-			doneChan, errChan := c.locker.KeepLock(ctx, lockKey)
-			for {
-				select {
-				case <-doneChan:
-					c.logger.Printf("target lock %q removed", name)
+		select {
+		case <-nctx.Done():
+			return
+		default:
+			if c.locker != nil {
+				c.logger.Printf("acquiring lock for target %q", name)
+				ok, err := c.locker.Lock(nctx, lockKey, []byte(c.Config.Name))
+				if err == lockers.ErrCanceled {
+					c.logger.Printf("lock attempt for target %q canceled", name)
 					return
-				case err := <-errChan:
-					c.logger.Printf("failed to maintain target %q lock: %v", name, err)
-					c.StopTarget(name)
+				}
+				if err != nil {
+					c.logger.Printf("failed to lock target %q: %v", name, err)
 					time.Sleep(c.Config.LockRetryTimer)
 					goto START
+				}
+				if !ok {
+					time.Sleep(c.Config.LockRetryTimer)
+					goto START
+				}
+				c.logger.Printf("acquired lock for target %q", name)
+			}
+			select {
+			case <-nctx.Done():
+				return
+			case c.targetsChan <- c.Targets[name]:
+				c.logger.Printf("queuing target %q", name)
+			}
+			c.logger.Printf("subscribing to target: %q", name)
+			go func() {
+				err := c.Subscribe(nctx, name)
+				if err != nil {
+					c.logger.Printf("failed to subscribe: %v", err)
+					return
+				}
+			}()
+			if c.locker != nil {
+				doneChan, errChan := c.locker.KeepLock(nctx, lockKey)
+				for {
+					select {
+					case <-nctx.Done():
+						c.logger.Printf("target %q stopped: %v", name, ctx.Err())
+						return
+					case <-doneChan:
+						c.logger.Printf("target lock %q removed", name)
+						return
+					case err := <-errChan:
+						c.logger.Printf("failed to maintain target %q lock: %v", name, err)
+						c.StopTarget(ctx, name)
+						if errors.Is(err, context.Canceled) {
+							return
+						}
+						time.Sleep(c.Config.LockRetryTimer)
+						goto START
+					}
 				}
 			}
 		}
 	}
 }
 
-func (c *Collector) DeleteTarget(name string) error {
+func (c *Collector) DeleteTarget(ctx context.Context, name string) error {
 	if c.Targets == nil {
 		return nil
 	}
@@ -257,16 +307,23 @@ func (c *Collector) DeleteTarget(name string) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 	c.logger.Printf("deleting target %q", name)
+	if cfn, ok := c.targetsLocksFn[name]; ok {
+		cfn()
+	}
 	t := c.Targets[name]
 	t.Stop()
 	delete(c.Targets, name)
+	delete(c.targetsConfig, name)
 	if c.locker == nil {
 		return nil
 	}
-	return c.locker.Unlock(c.lockKey(name))
+	if cfn, ok := c.targetsLocksFn[name]; ok {
+		cfn()
+	}
+	return c.locker.Unlock(ctx, c.lockKey(name))
 }
 
-func (c *Collector) StopTarget(name string) error {
+func (c *Collector) StopTarget(ctx context.Context, name string) error {
 	if c.Targets == nil {
 		return nil
 	}
@@ -278,10 +335,11 @@ func (c *Collector) StopTarget(name string) error {
 	c.logger.Printf("stopping target %q", name)
 	t := c.Targets[name]
 	t.Stop()
+	delete(c.Targets, name)
 	if c.locker == nil {
 		return nil
 	}
-	return c.locker.Unlock(c.lockKey(name))
+	return c.locker.Unlock(ctx, c.lockKey(name))
 }
 
 // AddOutput initializes an output called name, with config cfg if it does not already exist
@@ -447,6 +505,12 @@ func (c *Collector) Start(ctx context.Context) {
 	}()
 
 	for t := range c.targetsChan {
+		if c.Config.Debug {
+			c.logger.Printf("starting target %+v", t)
+		}
+		if t == nil {
+			continue
+		}
 		if _, ok := c.activeTargets[t.Config.Name]; ok {
 			if c.Config.Debug {
 				c.logger.Printf("target %q listener already active", t.Config.Name)
@@ -600,6 +664,14 @@ func (c *Collector) Export(ctx context.Context, rsp *gnmi.SubscribeResponse, m o
 }
 
 func (c *Collector) Capabilities(ctx context.Context, tName string, ext ...*gnmi_ext.Extension) (*gnmi.CapabilityResponse, error) {
+	c.m.Lock()
+	defer c.m.Unlock()
+	if _, ok := c.Targets[tName]; !ok {
+		err := c.initTarget(tName)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if t, ok := c.Targets[tName]; ok {
 		ctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 		defer cancel()
@@ -617,6 +689,14 @@ func (c *Collector) Capabilities(ctx context.Context, tName string, ext ...*gnmi
 }
 
 func (c *Collector) Get(ctx context.Context, tName string, req *gnmi.GetRequest) (*gnmi.GetResponse, error) {
+	c.m.Lock()
+	defer c.m.Unlock()
+	if _, ok := c.Targets[tName]; !ok {
+		err := c.initTarget(tName)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if t, ok := c.Targets[tName]; ok {
 		ctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 		defer cancel()
@@ -634,6 +714,14 @@ func (c *Collector) Get(ctx context.Context, tName string, req *gnmi.GetRequest)
 }
 
 func (c *Collector) Set(ctx context.Context, tName string, req *gnmi.SetRequest) (*gnmi.SetResponse, error) {
+	c.m.Lock()
+	defer c.m.Unlock()
+	if _, ok := c.Targets[tName]; !ok {
+		err := c.initTarget(tName)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if t, ok := c.Targets[tName]; ok {
 		ctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 		defer cancel()

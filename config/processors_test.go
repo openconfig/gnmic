@@ -54,7 +54,7 @@ func TestGetProcessors(t *testing.T) {
 	for name, data := range getProcessorsTestSet {
 		t.Run(name, func(t *testing.T) {
 			cfg := New()
-			cfg.Globals.Debug = true
+			cfg.Debug = true
 			cfg.SetLogger()
 			cfg.FileConfig.SetConfigType("yaml")
 			err := cfg.FileConfig.ReadConfig(bytes.NewBuffer(data.in))

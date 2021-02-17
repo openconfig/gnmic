@@ -15,17 +15,7 @@
 package cmd
 
 import (
-	"encoding/json"
-	"fmt"
-
 	"github.com/spf13/cobra"
-)
-
-var (
-	version = "dev"
-	commit  = "none"
-	date    = "unknown"
-	gitURL  = ""
 )
 
 // versionCmd represents the version command
@@ -34,33 +24,9 @@ func newVersionCmd() *cobra.Command {
 		Use:   "version",
 		Short: "show gnmic version",
 		PreRun: func(cmd *cobra.Command, args []string) {
-			cli.config.SetLocalFlagsFromFile(cmd)
+			gApp.Config.SetLocalFlagsFromFile(cmd)
 		},
-		Run: func(cmd *cobra.Command, args []string) {
-			if cli.config.Globals.Format != "json" {
-				fmt.Printf("version : %s\n", version)
-				fmt.Printf(" commit : %s\n", commit)
-				fmt.Printf("   date : %s\n", date)
-				fmt.Printf(" gitURL : %s\n", gitURL)
-				fmt.Printf("   docs : https://gnmic.kmrd.dev\n")
-				return
-			}
-			b, err := json.Marshal(map[string]string{
-				"version": version,
-				"commit":  commit,
-				"date":    date,
-				"gitURL":  gitURL,
-				"docs":    "https://gnmic.kmrd.dev",
-			}) // need indent? use jq
-			if err != nil {
-				cli.logger.Printf("failed: %v", err)
-				if !cli.config.Globals.Log {
-					fmt.Printf("failed: %v\n", err)
-				}
-				return
-			}
-			fmt.Println(string(b))
-		},
+		Run: gApp.VersionRun,
 	}
 	return cmd
 }

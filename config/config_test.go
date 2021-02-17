@@ -21,59 +21,64 @@ var createGetRequestTestSet = map[string]struct {
 	},
 	"unknown_encoding_type": {
 		in: &Config{
-			Globals: &GlobalFlags{
+			GlobalFlags{
 				Encoding: "dummy",
 			},
-			LocalFlags: &LocalFlags{},
+			LocalFlags{},
+			nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: nil,
 		err: errors.New("invalid encoding type"),
 	},
 	"invalid_prefix": {
 		in: &Config{
-			Globals: &GlobalFlags{
+			GlobalFlags{
 				Encoding: "json",
 			},
-			LocalFlags: &LocalFlags{
+			LocalFlags{
 				GetPrefix: "/invalid/]prefix",
 			},
+			nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: nil,
 		err: errors.New("prefix parse error"),
 	},
 	"invalid_path": {
 		in: &Config{
-			Globals: &GlobalFlags{
+			GlobalFlags{
 				Encoding: "json",
 			},
-			LocalFlags: &LocalFlags{
+			LocalFlags{
 				GetPrefix: "/invalid/]path",
 			},
+			nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: nil,
 		err: errors.New("prefix parse error"),
 	},
 	"unknown_data_type": {
 		in: &Config{
-			Globals: &GlobalFlags{
+			GlobalFlags{
 				Encoding: "json",
 			},
-			LocalFlags: &LocalFlags{
+			LocalFlags{
 				GetPrefix: "/valid/path",
 				GetType:   "dummy",
 			},
+			nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: nil,
 		err: errors.New("unknown data type"),
 	},
 	"basic_get_request": {
 		in: &Config{
-			Globals: &GlobalFlags{
+			GlobalFlags{
 				Encoding: "json",
 			},
-			LocalFlags: &LocalFlags{
+			LocalFlags{
 				GetPath: []string{"/valid/path"},
 			},
+			nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: &gnmi.GetRequest{
 			Path: []*gnmi.Path{
@@ -89,13 +94,14 @@ var createGetRequestTestSet = map[string]struct {
 	},
 	"get_request_with_type": {
 		in: &Config{
-			Globals: &GlobalFlags{
+			GlobalFlags{
 				Encoding: "json",
 			},
-			LocalFlags: &LocalFlags{
+			LocalFlags{
 				GetPath: []string{"/valid/path"},
 				GetType: "state",
 			},
+			nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: &gnmi.GetRequest{
 			Path: []*gnmi.Path{
@@ -112,12 +118,13 @@ var createGetRequestTestSet = map[string]struct {
 	},
 	"get_request_with_encoding": {
 		in: &Config{
-			Globals: &GlobalFlags{
+			GlobalFlags{
 				Encoding: "proto",
 			},
-			LocalFlags: &LocalFlags{
+			LocalFlags{
 				GetPath: []string{"/valid/path"},
 			},
+			nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: &gnmi.GetRequest{
 			Path: []*gnmi.Path{
@@ -134,13 +141,14 @@ var createGetRequestTestSet = map[string]struct {
 	},
 	"get_request_with_prefix": {
 		in: &Config{
-			Globals: &GlobalFlags{
+			GlobalFlags{
 				Encoding: "proto",
 			},
-			LocalFlags: &LocalFlags{
+			LocalFlags{
 				GetPrefix: "/valid/prefix",
 				GetPath:   []string{"/valid/path"},
 			},
+			nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: &gnmi.GetRequest{
 			Prefix: &gnmi.Path{
@@ -163,15 +171,16 @@ var createGetRequestTestSet = map[string]struct {
 	},
 	"get_request_with_2_paths": {
 		in: &Config{
-			Globals: &GlobalFlags{
+			GlobalFlags{
 				Encoding: "json",
 			},
-			LocalFlags: &LocalFlags{
+			LocalFlags{
 				GetPath: []string{
 					"/valid/path1",
 					"/valid/path2",
 				},
 			},
+			nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: &gnmi.GetRequest{
 			Path: []*gnmi.Path{
@@ -201,11 +210,12 @@ var createSetRequestTestSet = map[string]struct {
 
 	"set_update_request": {
 		in: &Config{
-			Globals: &GlobalFlags{},
-			LocalFlags: &LocalFlags{
+			GlobalFlags{},
+			LocalFlags{
 				SetDelimiter: ":::",
 				SetUpdate:    []string{"/valid/path:::json:::value"},
 			},
+			nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: &gnmi.SetRequest{
 			Update: []*gnmi.Update{
@@ -228,11 +238,12 @@ var createSetRequestTestSet = map[string]struct {
 	},
 	"set_replace_request": {
 		in: &Config{
-			Globals: &GlobalFlags{},
-			LocalFlags: &LocalFlags{
+			GlobalFlags{},
+			LocalFlags{
 				SetDelimiter: ":::",
 				SetReplace:   []string{"/valid/path:::json:::value"},
 			},
+			nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: &gnmi.SetRequest{
 			Replace: []*gnmi.Update{
@@ -255,10 +266,11 @@ var createSetRequestTestSet = map[string]struct {
 	},
 	"set_delete_request": {
 		in: &Config{
-			Globals: &GlobalFlags{},
-			LocalFlags: &LocalFlags{
+			GlobalFlags{},
+			LocalFlags{
 				SetDelete: []string{"/valid/path"},
 			},
+			nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: &gnmi.SetRequest{
 			Delete: []*gnmi.Path{
@@ -274,14 +286,15 @@ var createSetRequestTestSet = map[string]struct {
 	},
 	"set_multiple_update_request": {
 		in: &Config{
-			Globals: &GlobalFlags{},
-			LocalFlags: &LocalFlags{
+			GlobalFlags{},
+			LocalFlags{
 				SetDelimiter: ":::",
 				SetUpdate: []string{
 					"/valid/path1:::json:::value1",
 					"/valid/path2:::json_ietf:::value2",
 				},
 			},
+			nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: &gnmi.SetRequest{
 			Update: []*gnmi.Update{
@@ -317,14 +330,15 @@ var createSetRequestTestSet = map[string]struct {
 	},
 	"set_multiple_replace_request": {
 		in: &Config{
-			Globals: &GlobalFlags{},
-			LocalFlags: &LocalFlags{
+			GlobalFlags{},
+			LocalFlags{
 				SetDelimiter: ":::",
 				SetReplace: []string{
 					"/valid/path1:::json:::value1",
 					"/valid/path2:::json_ietf:::value2",
 				},
 			},
+			nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: &gnmi.SetRequest{
 			Replace: []*gnmi.Update{
@@ -360,13 +374,14 @@ var createSetRequestTestSet = map[string]struct {
 	},
 	"set_multiple_delete_request": {
 		in: &Config{
-			Globals: &GlobalFlags{},
-			LocalFlags: &LocalFlags{
+			GlobalFlags{},
+			LocalFlags{
 				SetDelete: []string{
 					"/valid/path1",
 					"/valid/path2",
 				},
 			},
+			nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: &gnmi.SetRequest{
 			Delete: []*gnmi.Path{
@@ -388,13 +403,14 @@ var createSetRequestTestSet = map[string]struct {
 	},
 	"set_combined_request": {
 		in: &Config{
-			Globals: &GlobalFlags{},
-			LocalFlags: &LocalFlags{
+			GlobalFlags{},
+			LocalFlags{
 				SetDelimiter: ":::",
 				SetUpdate:    []string{"/valid/path1:::json:::value1"},
 				SetReplace:   []string{"/valid/path2:::json:::value2"},
 				SetDelete:    []string{"/valid/path"},
 			},
+			nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: &gnmi.SetRequest{
 			Update: []*gnmi.Update{
@@ -440,13 +456,14 @@ var createSetRequestTestSet = map[string]struct {
 	},
 	"set_update_path_request": {
 		in: &Config{
-			Globals: &GlobalFlags{
+			GlobalFlags{
 				Encoding: "json",
 			},
-			LocalFlags: &LocalFlags{
+			LocalFlags{
 				SetUpdatePath:  []string{"/valid/path"},
 				SetUpdateValue: []string{"value"},
 			},
+			nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: &gnmi.SetRequest{
 			Update: []*gnmi.Update{
@@ -469,13 +486,14 @@ var createSetRequestTestSet = map[string]struct {
 	},
 	"set_replace_path_request": {
 		in: &Config{
-			Globals: &GlobalFlags{
+			GlobalFlags{
 				Encoding: "json",
 			},
-			LocalFlags: &LocalFlags{
+			LocalFlags{
 				SetReplacePath:  []string{"/valid/path"},
 				SetReplaceValue: []string{"value"},
 			},
+			nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: &gnmi.SetRequest{
 			Replace: []*gnmi.Update{

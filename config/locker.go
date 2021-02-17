@@ -7,21 +7,24 @@ import (
 	_ "github.com/karimra/gnmic/lockers/all"
 )
 
-func (c *Config) GetLocker() (map[string]interface{}, error) {
-	lockerCfg := c.FileConfig.GetStringMap("locker")
-	if len(lockerCfg) == 0 {
-		return nil, nil
+func (c *Config) getLocker() error {
+	if !c.FileConfig.IsSet("clustering/locker") {
+		return errors.New("missing locker config")
 	}
-	if lockerType, ok := lockerCfg["type"]; ok {
+	c.Clustering.Locker = c.FileConfig.GetStringMap("clustering/locker")
+	if len(c.Clustering.Locker) == 0 {
+		return errors.New("missing locker config")
+	}
+	if lockerType, ok := c.Clustering.Locker["type"]; ok {
 		switch lockerType := lockerType.(type) {
 		case string:
 			if _, ok := lockers.Lockers[lockerType]; !ok {
-				return nil, errors.New("unknown locker type")
+				return errors.New("unknown locker type")
 			}
 		default:
-			return nil, errors.New("wrong locker type format")
+			return errors.New("wrong locker type format")
 		}
-		return lockerCfg, nil
+		return nil
 	}
-	return nil, errors.New("missing locker type")
+	return errors.New("missing locker type")
 }

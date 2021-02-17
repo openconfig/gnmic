@@ -41,6 +41,7 @@ type Target struct {
 	pollChan           chan string // subscription name to be polled
 	subscribeResponses chan *SubscribeResponse
 	errors             chan *TargetError
+	stopped            bool
 	stopChan           chan struct{}
 	cfn                context.CancelFunc
 }
@@ -64,6 +65,7 @@ type TargetConfig struct {
 	TLSMinVersion string        `mapstructure:"tls-min-version,omitempty" json:"tls-min-version,omitempty"`
 	TLSMaxVersion string        `mapstructure:"tls-max-version,omitempty" json:"tls-max-version,omitempty"`
 	TLSVersion    string        `mapstructure:"tls-version,omitempty" json:"tls-version,omitempty"`
+	Tags          []string      `mapstructure:"tags,omitempty" json:"tags,omitempty"`
 }
 
 func (tc *TargetConfig) String() string {
@@ -286,7 +288,10 @@ func (t *Target) Stop() {
 	if t.cfn != nil {
 		t.cfn()
 	}
-	close(t.stopChan)
+	if !t.stopped {
+		close(t.stopChan)
+	}
+	t.stopped = true
 }
 
 func loadCerts(tlscfg *tls.Config, c *TargetConfig) error {

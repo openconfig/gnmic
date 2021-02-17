@@ -18,7 +18,7 @@ const (
 	defaultAddress    = "localhost:8500"
 	defaultSessionTTL = 10 * time.Second
 	defaultRetryTimer = 2 * time.Second
-	defaultDelay      = 15 * time.Second
+	defaultDelay      = 5 * time.Second
 	loggingPrefix     = "[consul_locker] "
 )
 
@@ -30,6 +30,7 @@ func init() {
 			acquiredlocks:  make(map[string]*locks),
 			attemtinglocks: make(map[string]*locks),
 			logger:         log.New(ioutil.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			services:       make(map[string]context.CancelFunc),
 		}
 	})
 }
@@ -41,10 +42,15 @@ type ConsulLocker struct {
 	m              *sync.Mutex
 	acquiredlocks  map[string]*locks
 	attemtinglocks map[string]*locks
+	services       map[string]context.CancelFunc
 }
 
 type config struct {
 	Address     string        `mapstructure:"address,omitempty" json:"address,omitempty"`
+	Datacenter  string        `mapstructure:"datacenter,omitempty" json:"datacenter,omitempty"`
+	Username    string        `mapstructure:"username,omitempty" json:"username,omitempty"`
+	Password    string        `mapstructure:"password,omitempty" json:"password,omitempty"`
+	Token       string        `mapstructure:"token,omitempty" json:"token,omitempty"`
 	SessionTTL  time.Duration `mapstructure:"session-ttl,omitempty" json:"session-ttl,omitempty"`
 	Delay       time.Duration `mapstructure:"delay,omitempty" json:"delay,omitempty"`
 	RetryTimer  time.Duration `mapstructure:"retry-timer,omitempty" json:"retry-timer,omitempty"`
@@ -69,10 +75,19 @@ func (c *ConsulLocker) Init(ctx context.Context, cfg map[string]interface{}, opt
 	if err != nil {
 		return err
 	}
-	c.client, err = api.NewClient(&api.Config{
-		Address: c.Cfg.Address,
-		Scheme:  "http",
-	})
+	clientConfig := &api.Config{
+		Address:    c.Cfg.Address,
+		Scheme:     "http",
+		Datacenter: c.Cfg.Datacenter,
+		Token:      c.Cfg.Token,
+	}
+	if c.Cfg.Username != "" && c.Cfg.Password != "" {
+		clientConfig.HttpAuth = &api.HttpBasicAuth{
+			Username: c.Cfg.Username,
+			Password: c.Cfg.Password,
+		}
+	}
+	c.client, err = api.NewClient(clientConfig)
 	if err != nil {
 		return err
 	}
@@ -165,12 +180,13 @@ func (c *ConsulLocker) KeepLock(ctx context.Context, key string) (chan struct{},
 	return doneChan, errChan
 }
 
-func (c *ConsulLocker) Unlock(key string) error {
+func (c *ConsulLocker) Unlock(ctx context.Context, key string) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 	if lock, ok := c.acquiredlocks[key]; ok {
 		close(lock.doneChan)
-		_, err := c.client.KV().Delete(key, nil)
+		wrOpts := new(api.WriteOptions)
+		_, err := c.client.KV().Delete(key, wrOpts.WithContext(ctx))
 		if err != nil {
 			return err
 		}
@@ -196,8 +212,10 @@ func (c *ConsulLocker) Unlock(key string) error {
 func (c *ConsulLocker) Stop() error {
 	c.m.Lock()
 	defer c.m.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	for k := range c.acquiredlocks {
-		c.Unlock(k)
+		c.Unlock(ctx, k)
 	}
 	return nil
 }

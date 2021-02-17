@@ -16,25 +16,24 @@ import (
 var ErrNoTargetsFound = errors.New("no targets found")
 
 func (c *Config) GetTargets() (map[string]*collector.TargetConfig, error) {
-	targets := make(map[string]*collector.TargetConfig)
 	defGrpcPort := c.FileConfig.GetString("port")
 	// case address is defined in .Address
-	if len(c.Globals.Address) > 0 {
-		if c.Globals.Username == "" {
+	if len(c.Address) > 0 {
+		if c.Username == "" {
 			defUsername, err := readUsername()
 			if err != nil {
 				return nil, err
 			}
-			c.Globals.Username = defUsername
+			c.Username = defUsername
 		}
-		if c.Globals.Password == "" {
+		if c.Password == "" {
 			defPassword, err := readPassword()
 			if err != nil {
 				return nil, err
 			}
-			c.Globals.Password = defPassword
+			c.Password = defPassword
 		}
-		for _, addr := range c.Globals.Address {
+		for _, addr := range c.Address {
 			tc := new(collector.TargetConfig)
 			if !strings.HasPrefix(addr, "unix://") {
 				_, _, err := net.SplitHostPort(addr)
@@ -50,12 +49,12 @@ func (c *Config) GetTargets() (map[string]*collector.TargetConfig, error) {
 			}
 			tc.Address = addr
 			c.setTargetConfigDefaults(tc)
-			targets[tc.Name] = tc
+			c.Targets[tc.Name] = tc
 		}
-		if c.Globals.Debug {
-			c.logger.Printf("targets: %v", targets)
+		if c.Debug {
+			c.logger.Printf("targets: %v", c.Targets)
 		}
-		return targets, nil
+		return c.Targets, nil
 	}
 	// case targets is defined in config file
 	targetsInt := c.FileConfig.Get("targets")
@@ -75,6 +74,8 @@ func (c *Config) GetTargets() (map[string]*collector.TargetConfig, error) {
 	if len(targetsMap) == 0 {
 		return nil, ErrNoTargetsFound
 	}
+
+	newTargetsConfig := make(map[string]*collector.TargetConfig)
 	for addr, t := range targetsMap {
 		if !strings.HasPrefix(addr, "unix://") {
 			_, _, err := net.SplitHostPort(addr)
@@ -110,25 +111,27 @@ func (c *Config) GetTargets() (map[string]*collector.TargetConfig, error) {
 		}
 		tc.Address = addr
 		c.setTargetConfigDefaults(tc)
-		if c.Globals.Debug {
+		if c.Debug {
 			c.logger.Printf("read target config: %s", tc)
 		}
-		targets[tc.Name] = tc
+		newTargetsConfig[tc.Name] = tc
 	}
+	c.Targets = newTargetsConfig
+
 	subNames := c.FileConfig.GetStringSlice("subscribe-name")
 	if len(subNames) == 0 {
-		if c.Globals.Debug {
-			c.logger.Printf("targets: %v", targets)
+		if c.Debug {
+			c.logger.Printf("targets: %v", c.Targets)
 		}
-		return targets, nil
+		return c.Targets, nil
 	}
-	for n := range targets {
-		targets[n].Subscriptions = subNames
+	for n := range c.Targets {
+		c.Targets[n].Subscriptions = subNames
 	}
-	if c.Globals.Debug {
-		c.logger.Printf("targets: %v", targets)
+	if c.Debug {
+		c.logger.Printf("targets: %v", c.Targets)
 	}
-	return targets, nil
+	return c.Targets, nil
 }
 
 func readUsername() (string, error) {
@@ -155,44 +158,44 @@ func (c *Config) setTargetConfigDefaults(tc *collector.TargetConfig) {
 		tc.Name = tc.Address
 	}
 	if tc.Username == nil {
-		tc.Username = &c.Globals.Username
+		tc.Username = &c.Username
 	}
 	if tc.Password == nil {
-		tc.Password = &c.Globals.Password
+		tc.Password = &c.Password
 	}
 	if tc.Timeout == 0 {
-		tc.Timeout = c.Globals.Timeout
+		tc.Timeout = c.Timeout
 	}
 	if tc.Insecure == nil {
-		tc.Insecure = &c.Globals.Insecure
+		tc.Insecure = &c.Insecure
 	}
 	if tc.SkipVerify == nil {
-		tc.SkipVerify = &c.Globals.SkipVerify
+		tc.SkipVerify = &c.SkipVerify
 	}
 	if tc.Insecure != nil && !*tc.Insecure {
 		if tc.TLSCA == nil {
-			if c.Globals.TLSCa != "" {
-				tc.TLSCA = &c.Globals.TLSCa
+			if c.TLSCa != "" {
+				tc.TLSCA = &c.TLSCa
 			}
 		}
 		if tc.TLSCert == nil {
-			tc.TLSCert = &c.Globals.TLSCert
+			tc.TLSCert = &c.TLSCert
 		}
 		if tc.TLSKey == nil {
-			tc.TLSKey = &c.Globals.TLSKey
+			tc.TLSKey = &c.TLSKey
 		}
 	}
 	if tc.RetryTimer == 0 {
-		tc.RetryTimer = c.Globals.Retry
+		tc.RetryTimer = c.Retry
 	}
 	if tc.TLSVersion == "" {
-		tc.TLSVersion = c.Globals.TLSVersion
+		tc.TLSVersion = c.TLSVersion
 	}
 	if tc.TLSMinVersion == "" {
-		tc.TLSMinVersion = c.Globals.TLSMinVersion
+		tc.TLSMinVersion = c.TLSMinVersion
 	}
 	if tc.TLSMaxVersion == "" {
-		tc.TLSMaxVersion = c.Globals.TLSMaxVersion
+		tc.TLSMaxVersion = c.TLSMaxVersion
 	}
 }
 

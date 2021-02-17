@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -29,9 +30,16 @@ const (
 )
 
 type Config struct {
-	Globals    *GlobalFlags
-	LocalFlags *LocalFlags
-	FileConfig *viper.Viper
+	GlobalFlags `mapstructure:",squash"`
+	LocalFlags  `mapstructure:",squash"`
+	FileConfig  *viper.Viper `mapstructure:"-" json:"-" yaml:"-" `
+
+	Targets       map[string]*collector.TargetConfig
+	Subscriptions map[string]*collector.SubscriptionConfig
+	Outputs       map[string]map[string]interface{}
+	Inputs        map[string]map[string]interface{}
+	Processors    map[string]map[string]interface{}
+	Clustering    *clustering `mapstructure:"clustering,omitempty" json:"clustering,omitempty" yaml:"clustering,omitempty"`
 
 	logger *log.Logger
 }
@@ -65,6 +73,7 @@ type GlobalFlags struct {
 	Retry             time.Duration `mapstructure:"retry,omitempty" json:"retry,omitempty" yaml:"retry,omitempty"`
 	TargetBufferSize  uint          `mapstructure:"target-buffer-size,omitempty" json:"target-buffer-size,omitempty" yaml:"target-buffer-size,omitempty"`
 	InstanceName      string        `mapstructure:"instance-name,omitempty" json:"instance-name,omitempty" yaml:"instance-name,omitempty"`
+	API               string        `mapstructure:"api,omitempty" json:"api,omitempty" yaml:"api,omitempty"`
 }
 
 type LocalFlags struct {
@@ -137,12 +146,16 @@ type LocalFlags struct {
 
 func New() *Config {
 	return &Config{
-		Globals: &GlobalFlags{
-			Address: make([]string, 0),
-		},
-		LocalFlags: &LocalFlags{},
-		FileConfig: viper.NewWithOptions(viper.KeyDelimiter("/")),
-		logger:     log.New(ioutil.Discard, configLogPrefix, log.LstdFlags|log.Lmicroseconds),
+		GlobalFlags{},
+		LocalFlags{},
+		viper.NewWithOptions(viper.KeyDelimiter("/")),
+		make(map[string]*collector.TargetConfig),
+		make(map[string]*collector.SubscriptionConfig),
+		make(map[string]map[string]interface{}),
+		make(map[string]map[string]interface{}),
+		make(map[string]map[string]interface{}),
+		nil,
+		log.New(ioutil.Discard, configLogPrefix, log.LstdFlags|log.Lmicroseconds),
 	}
 }
 
@@ -175,21 +188,21 @@ func (c *Config) Load(file string) error {
 }
 
 func (c *Config) SetLogger() {
-	if c.Globals.LogFile != "" {
-		f, err := os.OpenFile(c.Globals.LogFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	if c.LogFile != "" {
+		f, err := os.OpenFile(c.LogFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 		if err != nil {
 			return
 		}
 		c.logger.SetOutput(f)
 	} else {
-		if c.Globals.Debug {
-			c.Globals.Log = true
+		if c.Debug {
+			c.Log = true
 		}
-		if c.Globals.Log {
+		if c.Log {
 			c.logger.SetOutput(os.Stderr)
 		}
 	}
-	if c.Globals.Debug {
+	if c.Debug {
 		loggingFlags := c.logger.Flags() | log.Llongfile
 		c.logger.SetFlags(loggingFlags)
 	}
@@ -197,11 +210,11 @@ func (c *Config) SetLogger() {
 
 func (c *Config) SetPersistantFlagsFromFile(cmd *cobra.Command) {
 	cmd.PersistentFlags().VisitAll(func(f *pflag.Flag) {
-		if c.Globals.Debug {
+		if c.Debug {
 			c.logger.Printf("persistent-flag=%s cmd=%s, changed: %v, is set: %v", f.Name, cmd.Name(), f.Changed, c.FileConfig.IsSet(f.Name))
 		}
 		if !f.Changed && c.FileConfig.IsSet(f.Name) {
-			if c.Globals.Debug {
+			if c.Debug {
 				c.logger.Printf("cmd %s, flag %s did not change and is set in file", cmd.Name(), f.Name)
 			}
 			val := c.FileConfig.Get(f.Name)
@@ -213,11 +226,11 @@ func (c *Config) SetPersistantFlagsFromFile(cmd *cobra.Command) {
 func (c *Config) SetLocalFlagsFromFile(cmd *cobra.Command) {
 	cmd.LocalFlags().VisitAll(func(f *pflag.Flag) {
 		flagName := fmt.Sprintf("%s-%s", cmd.Name(), f.Name)
-		if c.Globals.Debug {
+		if c.Debug {
 			c.logger.Printf("local-flag=%s, cmd=%s, changed=%v, is set: %v", flagName, cmd.Name(), f.Changed, c.FileConfig.IsSet(flagName))
 		}
 		if !f.Changed && c.FileConfig.IsSet(flagName) {
-			if c.Globals.Debug {
+			if c.Debug {
 				c.logger.Printf("cmd %s, flag %s did not change and is set in file", cmd.Name(), flagName)
 			}
 			val := c.FileConfig.Get(flagName)
@@ -241,12 +254,12 @@ func flagIsSet(cmd *cobra.Command, name string) bool {
 }
 
 func (c *Config) CreateGetRequest() (*gnmi.GetRequest, error) {
-	if c == nil || c.Globals == nil || c.LocalFlags == nil {
+	if c == nil {
 		return nil, errors.New("invalid configuration")
 	}
-	encodingVal, ok := gnmi.Encoding_value[strings.Replace(strings.ToUpper(c.Globals.Encoding), "-", "_", -1)]
+	encodingVal, ok := gnmi.Encoding_value[strings.Replace(strings.ToUpper(c.Encoding), "-", "_", -1)]
 	if !ok {
-		return nil, fmt.Errorf("invalid encoding type '%s'", c.Globals.Encoding)
+		return nil, fmt.Errorf("invalid encoding type '%s'", c.Encoding)
 	}
 	req := &gnmi.GetRequest{
 		UseModels: make([]*gnmi.ModelData, 0),
@@ -282,7 +295,7 @@ func (c *Config) CreateSetRequest() (*gnmi.SetRequest, error) {
 	if err != nil {
 		return nil, fmt.Errorf("prefix parse error: %v", err)
 	}
-	if c.Globals.Debug {
+	if c.Debug {
 		c.logger.Printf("Set input delete: %+v", &c.LocalFlags.SetDelete)
 
 		c.logger.Printf("Set input update: %+v", &c.LocalFlags.SetUpdate)
@@ -363,7 +376,7 @@ func (c *Config) CreateSetRequest() (*gnmi.SetRequest, error) {
 				c.logger.Printf("error reading data from file '%s': %v", c.LocalFlags.SetUpdateFile[i], err)
 				return nil, err
 			}
-			switch strings.ToUpper(c.Globals.Encoding) {
+			switch strings.ToUpper(c.Encoding) {
 			case "JSON":
 				value.Value = &gnmi.TypedValue_JsonVal{
 					JsonVal: bytes.Trim(updateData, " \r\n\t"),
@@ -373,10 +386,10 @@ func (c *Config) CreateSetRequest() (*gnmi.SetRequest, error) {
 					JsonIetfVal: bytes.Trim(updateData, " \r\n\t"),
 				}
 			default:
-				return nil, fmt.Errorf("encoding: %s not supported together with file values", c.Globals.Encoding)
+				return nil, fmt.Errorf("encoding: %q not supported together with file values", c.Encoding)
 			}
 		} else {
-			err = setValue(value, strings.ToLower(c.Globals.Encoding), c.LocalFlags.SetUpdateValue[i])
+			err = setValue(value, strings.ToLower(c.Encoding), c.LocalFlags.SetUpdateValue[i])
 			if err != nil {
 				return nil, err
 			}
@@ -399,7 +412,7 @@ func (c *Config) CreateSetRequest() (*gnmi.SetRequest, error) {
 				c.logger.Printf("error reading data from file '%s': %v", c.LocalFlags.SetReplaceFile[i], err)
 				return nil, err
 			}
-			switch strings.ToUpper(c.Globals.Encoding) {
+			switch strings.ToUpper(c.Encoding) {
 			case "JSON":
 				value.Value = &gnmi.TypedValue_JsonVal{
 					JsonVal: bytes.Trim(replaceData, " \r\n\t"),
@@ -409,10 +422,10 @@ func (c *Config) CreateSetRequest() (*gnmi.SetRequest, error) {
 					JsonIetfVal: bytes.Trim(replaceData, " \r\n\t"),
 				}
 			default:
-				return nil, fmt.Errorf("encoding: %s not supported together with file values", c.Globals.Encoding)
+				return nil, fmt.Errorf("encoding: %q not supported together with file values", c.Encoding)
 			}
 		} else {
-			err = setValue(value, strings.ToLower(c.Globals.Encoding), c.LocalFlags.SetReplaceValue[i])
+			err = setValue(value, strings.ToLower(c.Encoding), c.LocalFlags.SetReplaceValue[i])
 			if err != nil {
 				return nil, err
 			}
@@ -571,4 +584,12 @@ func (c *Config) ValidateSetInput() error {
 		return errors.New("missing replace value/file or path")
 	}
 	return nil
+}
+
+func (c *Config) LogOutput() io.Writer {
+	return c.logger.Writer()
+}
+
+func (c *Config) LogFlags() int {
+	return c.logger.Flags()
 }

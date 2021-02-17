@@ -15,18 +15,9 @@
 package cmd
 
 import (
-	"context"
-	"errors"
 	"fmt"
-	"io"
-	"sort"
 	"time"
 
-	"github.com/karimra/gnmic/collector"
-	"github.com/karimra/gnmic/config"
-	"github.com/karimra/gnmic/formatters"
-	"github.com/manifoldco/promptui"
-	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -35,8 +26,6 @@ const (
 	defaultRetryTimer  = 10 * time.Second
 	defaultBackoff     = 100 * time.Millisecond
 	defaultClusterName = "default-cluster"
-
-	initLockerRetryTimer = 1 * time.Second
 )
 
 var subscriptionModes = [][2]string{
@@ -67,9 +56,9 @@ func newSubscribeCmd() *cobra.Command {
 			"--output":      "OUTPUT",
 		},
 		PreRun: func(cmd *cobra.Command, args []string) {
-			cli.config.SetLocalFlagsFromFile(cmd)
+			gApp.Config.SetLocalFlagsFromFile(cmd)
 		},
-		RunE: cli.subscribeRunE,
+		RunE: gApp.SubscribeRun,
 		PostRun: func(cmd *cobra.Command, args []string) {
 			cmd.ResetFlags()
 			initSubscribeFlags(cmd)
@@ -82,224 +71,28 @@ func newSubscribeCmd() *cobra.Command {
 
 // used to init or reset subscribeCmd flags for gnmic-prompt mode
 func initSubscribeFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVarP(&cli.config.LocalFlags.SubscribePrefix, "prefix", "", "", "subscribe request prefix")
-	cmd.Flags().StringArrayVarP(&cli.config.LocalFlags.SubscribePath, "path", "", []string{}, "subscribe request paths")
+	cmd.Flags().StringVarP(&gApp.Config.LocalFlags.SubscribePrefix, "prefix", "", "", "subscribe request prefix")
+	cmd.Flags().StringArrayVarP(&gApp.Config.LocalFlags.SubscribePath, "path", "", []string{}, "subscribe request paths")
 	//cmd.MarkFlagRequired("path")
-	cmd.Flags().Uint32VarP(&cli.config.LocalFlags.SubscribeQos, "qos", "q", 0, "qos marking")
-	cmd.Flags().BoolVarP(&cli.config.LocalFlags.SubscribeUpdatesOnly, "updates-only", "", false, "only updates to current state should be sent")
-	cmd.Flags().StringVarP(&cli.config.LocalFlags.SubscribeMode, "mode", "", "stream", "one of: once, stream, poll")
-	cmd.Flags().StringVarP(&cli.config.LocalFlags.SubscribeStreamMode, "stream-mode", "", "target-defined", "one of: on-change, sample, target-defined")
-	cmd.Flags().DurationVarP(&cli.config.LocalFlags.SubscribeSampleInterval, "sample-interval", "i", 0,
+	cmd.Flags().Uint32VarP(&gApp.Config.LocalFlags.SubscribeQos, "qos", "q", 0, "qos marking")
+	cmd.Flags().BoolVarP(&gApp.Config.LocalFlags.SubscribeUpdatesOnly, "updates-only", "", false, "only updates to current state should be sent")
+	cmd.Flags().StringVarP(&gApp.Config.LocalFlags.SubscribeMode, "mode", "", "stream", "one of: once, stream, poll")
+	cmd.Flags().StringVarP(&gApp.Config.LocalFlags.SubscribeStreamMode, "stream-mode", "", "target-defined", "one of: on-change, sample, target-defined")
+	cmd.Flags().DurationVarP(&gApp.Config.LocalFlags.SubscribeSampleInterval, "sample-interval", "i", 0,
 		"sample interval as a decimal number and a suffix unit, such as \"10s\" or \"1m30s\"")
-	cmd.Flags().BoolVarP(&cli.config.LocalFlags.SubscribeSuppressRedundant, "suppress-redundant", "", false, "suppress redundant update if the subscribed value didn't not change")
-	cmd.Flags().DurationVarP(&cli.config.LocalFlags.SubscribeHeartbearInterval, "heartbeat-interval", "", 0, "heartbeat interval in case suppress-redundant is enabled")
-	cmd.Flags().StringSliceVarP(&cli.config.LocalFlags.SubscribeModel, "model", "", []string{}, "subscribe request used model(s)")
-	cmd.Flags().BoolVar(&cli.config.LocalFlags.SubscribeQuiet, "quiet", false, "suppress stdout printing")
-	cmd.Flags().StringVarP(&cli.config.LocalFlags.SubscribeTarget, "target", "", "", "subscribe request target")
-	cmd.Flags().StringSliceVarP(&cli.config.LocalFlags.SubscribeName, "name", "n", []string{}, "reference subscriptions by name, must be defined in gnmic config file")
-	cmd.Flags().StringSliceVarP(&cli.config.LocalFlags.SubscribeOutput, "output", "", []string{}, "reference to output groups by name, must be defined in gnmic config file")
-	cmd.Flags().BoolVarP(&cli.config.LocalFlags.SubscribeWatchConfig, "watch-config", "", false, "watch configuration changes, add or delete subscribe targets accordingly")
-	cmd.Flags().DurationVarP(&cli.config.LocalFlags.SubscribeBackoff, "backoff", "", 0, "backoff time between subscribe requests")
-	cmd.Flags().StringVarP(&cli.config.LocalFlags.SubscribeClusterName, "cluster-name", "", defaultClusterName, "cluster name the gnmic instance belongs to, this is used for target loadsharing via a locker")
-	cmd.Flags().DurationVarP(&cli.config.LocalFlags.SubscribeLockRetry, "lock-retry", "", 5*time.Second, "time to wait between target lock attempts")
+	cmd.Flags().BoolVarP(&gApp.Config.LocalFlags.SubscribeSuppressRedundant, "suppress-redundant", "", false, "suppress redundant update if the subscribed value didn't not change")
+	cmd.Flags().DurationVarP(&gApp.Config.LocalFlags.SubscribeHeartbearInterval, "heartbeat-interval", "", 0, "heartbeat interval in case suppress-redundant is enabled")
+	cmd.Flags().StringSliceVarP(&gApp.Config.LocalFlags.SubscribeModel, "model", "", []string{}, "subscribe request used model(s)")
+	cmd.Flags().BoolVar(&gApp.Config.LocalFlags.SubscribeQuiet, "quiet", false, "suppress stdout printing")
+	cmd.Flags().StringVarP(&gApp.Config.LocalFlags.SubscribeTarget, "target", "", "", "subscribe request target")
+	cmd.Flags().StringSliceVarP(&gApp.Config.LocalFlags.SubscribeName, "name", "n", []string{}, "reference subscriptions by name, must be defined in gnmic config file")
+	cmd.Flags().StringSliceVarP(&gApp.Config.LocalFlags.SubscribeOutput, "output", "", []string{}, "reference to output groups by name, must be defined in gnmic config file")
+	cmd.Flags().BoolVarP(&gApp.Config.LocalFlags.SubscribeWatchConfig, "watch-config", "", false, "watch configuration changes, add or delete subscribe targets accordingly")
+	cmd.Flags().DurationVarP(&gApp.Config.LocalFlags.SubscribeBackoff, "backoff", "", 0, "backoff time between subscribe requests")
+	cmd.Flags().StringVarP(&gApp.Config.LocalFlags.SubscribeClusterName, "cluster-name", "", defaultClusterName, "cluster name the gnmic instance belongs to, this is used for target loadsharing via a locker")
+	cmd.Flags().DurationVarP(&gApp.Config.LocalFlags.SubscribeLockRetry, "lock-retry", "", 5*time.Second, "time to wait between target lock attempts")
 	//
 	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
-		cli.config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
+		gApp.Config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
 	})
-}
-
-func (c *CLI) subscribeRunE(cmd *cobra.Command, args []string) error {
-	gctx, gcancel = context.WithCancel(context.Background())
-	setupCloseHandler(gcancel)
-	inputsConfig, err := c.config.GetInputs()
-	if err != nil {
-		return fmt.Errorf("failed getting inputs config: %v", err)
-	}
-	targetsConfig, err := c.config.GetTargets()
-	if (errors.Is(err, config.ErrNoTargetsFound) && !c.config.LocalFlags.SubscribeWatchConfig) ||
-		(!errors.Is(err, config.ErrNoTargetsFound) && err != nil) {
-		return fmt.Errorf("failed getting targets config: %v", err)
-	}
-
-	subscriptionsConfig, err := c.config.GetSubscriptions(cmd)
-	if err != nil {
-		return fmt.Errorf("failed getting subscriptions config: %v", err)
-	}
-	outs, err := c.config.GetOutputs()
-	if err != nil {
-		return err
-	}
-	epconfig, err := c.config.GetEventProcessors()
-	if err != nil {
-		return err
-	}
-	lockerConfig, err := c.config.GetLocker()
-	if err != nil {
-		return err
-	}
-
-	if c.collector == nil {
-		cfg := &collector.Config{
-			Name:                c.config.Globals.InstanceName,
-			PrometheusAddress:   c.config.Globals.PrometheusAddress,
-			Debug:               c.config.Globals.Debug,
-			Format:              c.config.Globals.Format,
-			TargetReceiveBuffer: c.config.Globals.TargetBufferSize,
-			RetryTimer:          c.config.Globals.Retry,
-			ClusterName:         c.config.LocalFlags.SubscribeClusterName,
-			LockRetryTimer:      c.config.LocalFlags.SubscribeLockRetry,
-		}
-		c.logger.Printf("starting collector with config %+v", cfg)
-		c.collector = collector.NewCollector(cfg, targetsConfig,
-			collector.WithDialOptions(createCollectorDialOpts()),
-			collector.WithSubscriptions(subscriptionsConfig),
-			collector.WithOutputs(outs),
-			collector.WithLogger(c.logger),
-			collector.WithEventProcessors(epconfig),
-			collector.WithInputs(inputsConfig),
-			collector.WithLocker(lockerConfig),
-		)
-		go c.collector.Start(gctx)
-	} else {
-		// prompt mode
-		for name, outCfg := range outs {
-			err = c.collector.AddOutput(name, outCfg)
-			if err != nil {
-				c.logger.Printf("%v", err)
-			}
-		}
-		for _, sc := range subscriptionsConfig {
-			err = c.collector.AddSubscriptionConfig(sc)
-			if err != nil {
-				c.logger.Printf("%v", err)
-			}
-		}
-		for _, tc := range targetsConfig {
-			c.collector.AddTarget(tc)
-			if err != nil {
-				c.logger.Printf("%v", err)
-			}
-		}
-	}
-
-	for {
-		err := c.collector.InitLocker(gctx)
-		if err != nil {
-			c.logger.Printf("failed to init locker: %v", err)
-			time.Sleep(initLockerRetryTimer)
-			continue
-		}
-		break
-	}
-
-	c.collector.InitOutputs(gctx)
-	c.collector.InitInputs(gctx)
-
-	if lockerConfig != nil && c.config.LocalFlags.SubscribeBackoff <= 0 {
-		c.config.LocalFlags.SubscribeBackoff = defaultBackoff
-	}
-
-	var limiter *time.Ticker
-	if c.config.LocalFlags.SubscribeBackoff > 0 {
-		limiter = time.NewTicker(c.config.LocalFlags.SubscribeBackoff)
-	}
-
-	c.wg.Add(len(c.collector.Targets))
-	for name := range c.collector.Targets {
-		go c.subscribe(gctx, name)
-		if limiter != nil {
-			<-limiter.C
-		}
-	}
-	if limiter != nil {
-		limiter.Stop()
-	}
-	c.wg.Wait()
-
-	polledTargetsSubscriptions := c.collector.PolledSubscriptionsTargets()
-	if len(polledTargetsSubscriptions) > 0 {
-		pollTargets := make([]string, 0, len(polledTargetsSubscriptions))
-		for t := range polledTargetsSubscriptions {
-			pollTargets = append(pollTargets, t)
-		}
-		sort.Slice(pollTargets, func(i, j int) bool {
-			return pollTargets[i] < pollTargets[j]
-		})
-		s := promptui.Select{
-			Label:        "select target to poll",
-			Items:        pollTargets,
-			HideSelected: true,
-		}
-		waitChan := make(chan struct{}, 1)
-		waitChan <- struct{}{}
-		mo := &formatters.MarshalOptions{
-			Multiline: true,
-			Indent:    "  ",
-			Format:    cli.config.Globals.Format,
-		}
-		go func() {
-			for {
-				select {
-				case <-waitChan:
-					_, name, err := s.Run()
-					if err != nil {
-						fmt.Printf("failed selecting target to poll: %v\n", err)
-						continue
-					}
-					ss := promptui.Select{
-						Label:        "select subscription to poll",
-						Items:        polledTargetsSubscriptions[name],
-						HideSelected: true,
-					}
-					_, subName, err := ss.Run()
-					if err != nil {
-						fmt.Printf("failed selecting subscription to poll: %v\n", err)
-						continue
-					}
-					response, err := c.collector.TargetPoll(name, subName)
-					if err != nil && err != io.EOF {
-						fmt.Printf("target '%s', subscription '%s': poll response error:%v\n", name, subName, err)
-						continue
-					}
-					if response == nil {
-						fmt.Printf("received empty response from target '%s'\n", name)
-						continue
-					}
-					switch rsp := response.Response.(type) {
-					case *gnmi.SubscribeResponse_SyncResponse:
-						fmt.Printf("received sync response '%t' from '%s'\n", rsp.SyncResponse, name)
-						waitChan <- struct{}{}
-						continue
-					}
-					b, err := mo.Marshal(response, nil)
-					if err != nil {
-						fmt.Printf("target '%s', subscription '%s': poll response formatting error:%v\n", name, subName, err)
-						fmt.Println(string(b))
-						waitChan <- struct{}{}
-						continue
-					}
-					fmt.Println(string(b))
-					waitChan <- struct{}{}
-				case <-gctx.Done():
-					return
-				}
-			}
-		}()
-	}
-	if c.config.LocalFlags.SubscribeWatchConfig {
-		go c.watchConfig()
-	}
-
-	if cli.promptMode {
-		return nil
-	}
-	for range gctx.Done() {
-		return gctx.Err()
-	}
-	return nil
-}
-
-func (c *CLI) subscribe(ctx context.Context, name string) {
-	defer c.wg.Done()
-	c.collector.InitTarget(ctx, name)
 }

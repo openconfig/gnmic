@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"time"
 
 	"github.com/mitchellh/mapstructure"
 )
@@ -14,9 +15,18 @@ var (
 
 type Locker interface {
 	Init(context.Context, map[string]interface{}, ...Option) error
+
 	Lock(context.Context, string, []byte) (bool, error)
 	KeepLock(context.Context, string) (chan struct{}, chan error)
-	Unlock(string) error
+	IsLocked(context.Context, string) (bool, error)
+	Unlock(context.Context, string) error
+
+	Register(context.Context, *ServiceRegistration) error
+	Deregister(string) error
+
+	List(context.Context, string) (map[string]string, error)
+	WatchServices(context.Context, string, []string, chan<- []*Service, time.Duration) error
+
 	Stop() error
 	SetLogger(*log.Logger)
 }
@@ -52,4 +62,19 @@ func DecodeConfig(src, dst interface{}) error {
 		return err
 	}
 	return decoder.Decode(src)
+}
+
+type ServiceRegistration struct {
+	ID      string
+	Name    string
+	Address string
+	Port    int
+	Tags    []string
+	TTL     time.Duration
+}
+
+type Service struct {
+	ID      string
+	Address string
+	Tags    []string
 }

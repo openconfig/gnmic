@@ -152,7 +152,7 @@ func TestGetTargets(t *testing.T) {
 	for name, data := range getTargetsTestSet {
 		t.Run(name, func(t *testing.T) {
 			cfg := New()
-			cfg.Globals.Debug = true
+			cfg.Debug = true
 			cfg.SetLogger()
 			cfg.FileConfig.SetConfigType("yaml")
 			err := cfg.FileConfig.ReadConfig(bytes.NewBuffer(data.in))
@@ -160,12 +160,11 @@ func TestGetTargets(t *testing.T) {
 				t.Logf("failed reading config: %v", err)
 				t.Fail()
 			}
-			err = cfg.FileConfig.Unmarshal(cfg.Globals)
+			err = cfg.FileConfig.Unmarshal(cfg)
 			if err != nil {
 				t.Logf("failed fileConfig.Unmarshal: %v", err)
 				t.Fail()
 			}
-
 			v := cfg.FileConfig.Get("targets")
 			t.Logf("raw interface targets: %+v", v)
 			outs, err := cfg.GetTargets()
