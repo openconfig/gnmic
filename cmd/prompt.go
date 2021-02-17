@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -22,8 +21,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
-
-var gcancel context.CancelFunc
 
 var colorMapping = map[string]goprompt.Color{
 	"black":      goprompt.Black,
@@ -185,7 +182,7 @@ var promptQuitCmd = &cobra.Command{
 	Short: "quit the gnmic-prompt",
 	Run: func(cmd *cobra.Command, args []string) {
 		// cancel gctx
-		gcancel()
+		gApp.Cfn()
 		// save history
 		home, err := homedir.Dir()
 		if err != nil {
