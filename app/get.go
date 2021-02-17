@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/karimra/gnmic/collector"
@@ -44,21 +45,35 @@ func (a *App) GetRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	a.collector.InitTargets()
-	a.wg.Add(len(a.collector.Targets))
+	numTargets := len(a.collector.Targets)
+	errCh := make(chan error, numTargets*2)
+	a.wg.Add(numTargets)
 	for tName := range a.collector.Targets {
-		go a.GetRequest(ctx, tName, req)
+		go a.GetRequest(ctx, tName, req, errCh)
 	}
 	a.wg.Wait()
-	return nil
+	close(errCh)
+	errs := make([]error, 0, numTargets*2)
+	for err := range errCh {
+		errs = append(errs, err)
+	}
+	if len(errs) == 0 {
+		return nil
+	}
+	for _, err := range errs {
+		fmt.Println(err)
+	}
+	return errors.New("one or more get requests failed")
 }
 
-func (a *App) GetRequest(ctx context.Context, tName string, req *gnmi.GetRequest) {
+func (a *App) GetRequest(ctx context.Context, tName string, req *gnmi.GetRequest, errCh chan error) {
 	defer a.wg.Done()
 	xreq := req
 	if len(a.Config.LocalFlags.GetModel) > 0 {
 		spModels, unspModels, err := a.filterModels(ctx, tName, a.Config.LocalFlags.GetModel)
 		if err != nil {
 			a.Logger.Printf("failed getting supported models from '%s': %v", tName, err)
+			errCh <- err
 			return
 		}
 		if len(unspModels) > 0 {
@@ -72,6 +87,7 @@ func (a *App) GetRequest(ctx context.Context, tName string, req *gnmi.GetRequest
 		err := a.Print(tName, "Get Request:", req)
 		if err != nil {
 			a.Logger.Printf("%v", err)
+			errCh <- err
 			if !a.Config.Log {
 				fmt.Printf("%v\n", err)
 			}
@@ -81,14 +97,19 @@ func (a *App) GetRequest(ctx context.Context, tName string, req *gnmi.GetRequest
 		xreq.Prefix, xreq.Path, xreq.Type, xreq.Encoding, xreq.UseModels, xreq.Extension, tName)
 	response, err := a.collector.Get(ctx, tName, xreq)
 	if err != nil {
-		a.Logger.Printf("failed sending GetRequest to %s: %v", tName, err)
+		errCh <- err
+		a.Logger.Printf("GetRequest to %q failed: %v", tName, err)
+		if !a.Config.Log {
+			fmt.Printf("target %q: %v\n", tName, err)
+		}
 		return
 	}
 	err = a.Print(tName, "Get Response:", response)
 	if err != nil {
-		a.Logger.Printf("target %s: %v", tName, err)
+		errCh <- err
+		a.Logger.Printf("target %q: %v", tName, err)
 		if !a.Config.Log {
-			fmt.Printf("target %s: %v\n", tName, err)
+			fmt.Printf("target %q: %v\n", tName, err)
 		}
 	}
 }

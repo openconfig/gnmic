@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/karimra/gnmic/collector"
@@ -40,15 +41,28 @@ func (a *App) CapRun(cmd *cobra.Command, args []string) error {
 		}
 	}
 	a.collector.InitTargets()
-	a.wg.Add(len(a.collector.Targets))
+	numTargets := len(a.collector.Targets)
+	errCh := make(chan error, numTargets*2)
+	a.wg.Add(numTargets)
 	for tName := range a.collector.Targets {
-		go a.ReqCapabilities(ctx, tName)
+		go a.ReqCapabilities(ctx, tName, errCh)
 	}
 	a.wg.Wait()
-	return nil
+	close(errCh)
+	errs := make([]error, 0, numTargets*2)
+	for err := range errCh {
+		errs = append(errs, err)
+	}
+	if len(errs) == 0 {
+		return nil
+	}
+	for _, err := range errs {
+		fmt.Println(err)
+	}
+	return errors.New("one or more capabilities requests failed")
 }
 
-func (a *App) ReqCapabilities(ctx context.Context, tName string) {
+func (a *App) ReqCapabilities(ctx context.Context, tName string, errCh chan error) {
 	defer a.wg.Done()
 	ext := make([]*gnmi_ext.Extension, 0) //
 	if a.Config.PrintRequest {
@@ -56,6 +70,7 @@ func (a *App) ReqCapabilities(ctx context.Context, tName string) {
 			Extension: ext,
 		})
 		if err != nil {
+			errCh <- err
 			a.Logger.Printf("%v", err)
 			if !a.Config.Log {
 				fmt.Printf("target %s: %v\n", tName, err)
@@ -66,12 +81,14 @@ func (a *App) ReqCapabilities(ctx context.Context, tName string) {
 	a.Logger.Printf("sending gNMI CapabilityRequest: gnmi_ext.Extension='%v' to %s", ext, tName)
 	response, err := a.collector.Capabilities(ctx, tName, ext...)
 	if err != nil {
+		errCh <- err
 		a.Logger.Printf("error sending capabilities request: %v", err)
 		return
 	}
 
 	err = a.Print(tName, "Capabilities Response:", response)
 	if err != nil {
+		errCh <- err
 		a.Logger.Printf("target %s: %v", tName, err)
 	}
 }

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/karimra/gnmic/collector"
@@ -46,21 +47,35 @@ func (a *App) SetRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	a.collector.InitTargets()
-	a.wg.Add(len(a.collector.Targets))
+	numTargets := len(a.collector.Targets)
+	errCh := make(chan error, numTargets*2)
+	a.wg.Add(numTargets)
 	for tName := range a.collector.Targets {
-		go a.SetRequest(ctx, tName, req)
+		go a.SetRequest(ctx, tName, req, errCh)
 	}
 	a.wg.Wait()
-	return nil
+	close(errCh)
+	errs := make([]error, 0, numTargets*2)
+	for err := range errCh {
+		errs = append(errs, err)
+	}
+	if len(errs) == 0 {
+		return nil
+	}
+	for _, err := range errs {
+		fmt.Println(err)
+	}
+	return errors.New("one or more set requests failed")
 }
 
-func (a *App) SetRequest(ctx context.Context, tName string, req *gnmi.SetRequest) {
+func (a *App) SetRequest(ctx context.Context, tName string, req *gnmi.SetRequest, errCh chan error) {
 	defer a.wg.Done()
 	a.Logger.Printf("sending gNMI SetRequest: prefix='%v', delete='%v', replace='%v', update='%v', extension='%v' to %s",
 		req.Prefix, req.Delete, req.Replace, req.Update, req.Extension, tName)
 	if a.Config.PrintRequest {
 		err := a.Print(tName, "Set Request:", req)
 		if err != nil {
+			errCh <- err
 			a.Logger.Printf("target %s: %v", tName, err)
 			if !a.Config.Log {
 				fmt.Printf("target %s: %v\n", tName, err)
@@ -69,11 +84,16 @@ func (a *App) SetRequest(ctx context.Context, tName string, req *gnmi.SetRequest
 	}
 	response, err := a.collector.Set(ctx, tName, req)
 	if err != nil {
-		a.Logger.Printf("error sending set request: %v", err)
+		errCh <- err
+		a.Logger.Printf("SetRequest to %q failed: %v", tName, err)
+		if !a.Config.Log {
+			fmt.Printf("%v\n", err)
+		}
 		return
 	}
 	err = a.Print(tName, "Set Response:", response)
 	if err != nil {
+		errCh <- err
 		a.Logger.Printf("%v", err)
 		if !a.Config.Log {
 			fmt.Printf("%v\n", err)
