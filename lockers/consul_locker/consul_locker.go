@@ -47,6 +47,10 @@ type ConsulLocker struct {
 
 type config struct {
 	Address     string        `mapstructure:"address,omitempty" json:"address,omitempty"`
+	Datacenter  string        `mapstructure:"datacenter,omitempty" json:"datacenter,omitempty"`
+	Username    string        `mapstructure:"username,omitempty" json:"username,omitempty"`
+	Password    string        `mapstructure:"password,omitempty" json:"password,omitempty"`
+	Token       string        `mapstructure:"token,omitempty" json:"token,omitempty"`
 	SessionTTL  time.Duration `mapstructure:"session-ttl,omitempty" json:"session-ttl,omitempty"`
 	Delay       time.Duration `mapstructure:"delay,omitempty" json:"delay,omitempty"`
 	RetryTimer  time.Duration `mapstructure:"retry-timer,omitempty" json:"retry-timer,omitempty"`
@@ -71,10 +75,19 @@ func (c *ConsulLocker) Init(ctx context.Context, cfg map[string]interface{}, opt
 	if err != nil {
 		return err
 	}
-	c.client, err = api.NewClient(&api.Config{
-		Address: c.Cfg.Address,
-		Scheme:  "http",
-	})
+	clientConfig := &api.Config{
+		Address:    c.Cfg.Address,
+		Scheme:     "http",
+		Datacenter: c.Cfg.Datacenter,
+		Token:      c.Cfg.Token,
+	}
+	if c.Cfg.Username != "" && c.Cfg.Password != "" {
+		clientConfig.HttpAuth = &api.HttpBasicAuth{
+			Username: c.Cfg.Username,
+			Password: c.Cfg.Password,
+		}
+	}
+	c.client, err = api.NewClient(clientConfig)
 	if err != nil {
 		return err
 	}
