@@ -80,12 +80,20 @@ clustering:
   # `cluster-name=${cluster-name}` and `instance-name=${instance-name}`
   tags: []
   # locker is used to configure the KV store used for 
-  # the service registration, service discovery, leader election and targets locks
+  # service registration, service discovery, leader election and targets locks
   locker:
     # type of locker, only consul is supported currently
     type: consul
     # address of the locker server
     address: localhost:8500
+    # Consul Data center, defaults to dc1
+    datacenter: 
+    # Consul username, to be used as part of HTTP basicAuth
+    username:
+    # Consul password, to be used as part of HTTP basicAuth
+    password:
+    # Consul Token, is used to provide a per-request ACL token which overrides the agent's default token
+    token:
     # session-ttl, session time-to-live after which a session is considered 
     # invalid if not renewed
     # upon session invalidation, all services and locks created using this session
