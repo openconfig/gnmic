@@ -159,9 +159,9 @@ func (a *App) Print(address string, msgName string, msg proto.Message) error {
 	}
 	b, err := mo.Marshal(msg, map[string]string{"address": address})
 	if err != nil {
-		a.Logger.Printf("error marshaling capabilities request: %v", err)
+		a.Logger.Printf("error marshaling message: %v", err)
 		if !a.Config.Log {
-			fmt.Printf("error marshaling capabilities request: %v", err)
+			fmt.Printf("error marshaling message: %v", err)
 		}
 		return err
 	}

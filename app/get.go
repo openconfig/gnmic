@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/karimra/gnmic/collector"
 	"github.com/openconfig/gnmi/proto/gnmi"
@@ -61,7 +62,7 @@ func (a *App) GetRun(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 	for _, err := range errs {
-		fmt.Println(err)
+		fmt.Fprintln(os.Stderr, err)
 	}
 	return errors.New("one or more get requests failed")
 }
@@ -72,12 +73,18 @@ func (a *App) GetRequest(ctx context.Context, tName string, req *gnmi.GetRequest
 	if len(a.Config.LocalFlags.GetModel) > 0 {
 		spModels, unspModels, err := a.filterModels(ctx, tName, a.Config.LocalFlags.GetModel)
 		if err != nil {
-			a.Logger.Printf("failed getting supported models from '%s': %v", tName, err)
+			a.Logger.Printf("failed getting supported models from %q: %v", tName, err)
+			if !a.Config.Log {
+				fmt.Fprintf(os.Stderr, "failed getting supported models from %q: %v\n", tName, err)
+			}
 			errCh <- err
 			return
 		}
 		if len(unspModels) > 0 {
-			a.Logger.Printf("found unsupported models for target '%s': %+v", tName, unspModels)
+			a.Logger.Printf("found unsupported models for target %q: %+v", tName, unspModels)
+			if !a.Config.Log {
+				fmt.Fprintf(os.Stderr, "found unsupported models for target %q: %v\n", tName, err)
+			}
 		}
 		for _, m := range spModels {
 			xreq.UseModels = append(xreq.UseModels, m)
@@ -86,10 +93,10 @@ func (a *App) GetRequest(ctx context.Context, tName string, req *gnmi.GetRequest
 	if a.Config.PrintRequest {
 		err := a.Print(tName, "Get Request:", req)
 		if err != nil {
-			a.Logger.Printf("%v", err)
+			a.Logger.Printf("target %q Get Request printing failed: %v", tName, err)
 			errCh <- err
 			if !a.Config.Log {
-				fmt.Printf("%v\n", err)
+				fmt.Fprintf(os.Stderr, "target %q Get Request printing failed: %v\n", tName, err)
 			}
 		}
 	}
@@ -98,9 +105,9 @@ func (a *App) GetRequest(ctx context.Context, tName string, req *gnmi.GetRequest
 	response, err := a.collector.Get(ctx, tName, xreq)
 	if err != nil {
 		errCh <- err
-		a.Logger.Printf("GetRequest to %q failed: %v", tName, err)
+		a.Logger.Printf("target %q get request failed: %v", tName, err)
 		if !a.Config.Log {
-			fmt.Printf("target %q: %v\n", tName, err)
+			fmt.Fprintf(os.Stderr, "target %q get request failed: %v\n", tName, err)
 		}
 		return
 	}
@@ -109,7 +116,7 @@ func (a *App) GetRequest(ctx context.Context, tName string, req *gnmi.GetRequest
 		errCh <- err
 		a.Logger.Printf("target %q: %v", tName, err)
 		if !a.Config.Log {
-			fmt.Printf("target %q: %v\n", tName, err)
+			fmt.Fprintf(os.Stderr, "target %q: %v\n", tName, err)
 		}
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/karimra/gnmic/collector"
 	"github.com/openconfig/gnmi/proto/gnmi"
@@ -76,27 +77,27 @@ func (a *App) SetRequest(ctx context.Context, tName string, req *gnmi.SetRequest
 		err := a.Print(tName, "Set Request:", req)
 		if err != nil {
 			errCh <- err
-			a.Logger.Printf("target %s: %v", tName, err)
+			a.Logger.Printf("target %q: %v", tName, err)
 			if !a.Config.Log {
-				fmt.Printf("target %s: %v\n", tName, err)
+				fmt.Fprintf(os.Stderr, "target %q: %v\n", tName, err)
 			}
 		}
 	}
 	response, err := a.collector.Set(ctx, tName, req)
 	if err != nil {
 		errCh <- err
-		a.Logger.Printf("SetRequest to %q failed: %v", tName, err)
+		a.Logger.Printf("target %q set request failed: %v", tName, err)
 		if !a.Config.Log {
-			fmt.Printf("%v\n", err)
+			fmt.Fprintf(os.Stderr, "target %q set request failed: %v\n", tName, err)
 		}
 		return
 	}
 	err = a.Print(tName, "Set Response:", response)
 	if err != nil {
 		errCh <- err
-		a.Logger.Printf("%v", err)
+		a.Logger.Printf("target %q: %v", tName, err)
 		if !a.Config.Log {
-			fmt.Printf("%v\n", err)
+			fmt.Fprintf(os.Stderr, "target %q: %v\n", tName, err)
 		}
 	}
 }

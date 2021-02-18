@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/karimra/gnmic/collector"
 	"github.com/openconfig/gnmi/proto/gnmi"
@@ -57,7 +58,7 @@ func (a *App) CapRun(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 	for _, err := range errs {
-		fmt.Println(err)
+		fmt.Fprintln(os.Stderr, err)
 	}
 	return errors.New("one or more capabilities requests failed")
 }
@@ -71,9 +72,9 @@ func (a *App) ReqCapabilities(ctx context.Context, tName string, errCh chan erro
 		})
 		if err != nil {
 			errCh <- err
-			a.Logger.Printf("%v", err)
+			a.Logger.Printf("target %q: %v", tName, err)
 			if !a.Config.Log {
-				fmt.Printf("target %s: %v\n", tName, err)
+				fmt.Fprintf(os.Stderr, "target %q: %v\n", tName, err)
 			}
 		}
 	}
@@ -82,13 +83,19 @@ func (a *App) ReqCapabilities(ctx context.Context, tName string, errCh chan erro
 	response, err := a.collector.Capabilities(ctx, tName, ext...)
 	if err != nil {
 		errCh <- err
-		a.Logger.Printf("error sending capabilities request: %v", err)
+		a.Logger.Printf("target %q, capabilities request failed: %v", tName, err)
+		if !a.Config.Log {
+			fmt.Fprintf(os.Stderr, "target %q, capabilities request failed: %v\n", tName, err)
+		}
 		return
 	}
 
 	err = a.Print(tName, "Capabilities Response:", response)
 	if err != nil {
 		errCh <- err
-		a.Logger.Printf("target %s: %v", tName, err)
+		a.Logger.Printf("target %q: %v", tName, err)
+		if !a.Config.Log {
+			fmt.Fprintf(os.Stderr, "target %q: %v\n", tName, err)
+		}
 	}
 }
