@@ -235,7 +235,6 @@ func (a *App) collectorConfig() *collector.Config {
 
 func (a *App) handlePolledSubscriptions() {
 	polledTargetsSubscriptions := a.collector.PolledSubscriptionsTargets()
-	fmt.Println(polledTargetsSubscriptions)
 	if len(polledTargetsSubscriptions) > 0 {
 		pollTargets := make([]string, 0, len(polledTargetsSubscriptions))
 		for t := range polledTargetsSubscriptions {
