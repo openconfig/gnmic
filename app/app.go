@@ -57,6 +57,7 @@ type App struct {
 
 	wg        *sync.WaitGroup
 	printLock *sync.Mutex
+	errCh     chan error
 }
 
 func New() *App {
@@ -135,7 +136,7 @@ func (a *App) PreRun(_ *cobra.Command, args []string) error {
 	return nil
 }
 
-func (a *App) Print(address string, msgName string, msg proto.Message) error {
+func (a *App) PrintMsg(address string, msgName string, msg proto.Message) error {
 	a.printLock.Lock()
 	defer a.printLock.Unlock()
 	fmt.Fprint(os.Stderr, msgName)

@@ -2,9 +2,7 @@ package app
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"os"
 
 	"github.com/karimra/gnmic/collector"
 	"github.com/openconfig/gnmi/proto/gnmi"
@@ -49,55 +47,32 @@ func (a *App) SetRun(cmd *cobra.Command, args []string) error {
 	}
 	a.collector.InitTargets()
 	numTargets := len(a.collector.Targets)
-	errCh := make(chan error, numTargets*2)
+	a.errCh = make(chan error, numTargets*2)
 	a.wg.Add(numTargets)
 	for tName := range a.collector.Targets {
-		go a.SetRequest(ctx, tName, req, errCh)
+		go a.SetRequest(ctx, tName, req)
 	}
 	a.wg.Wait()
-	close(errCh)
-	errs := make([]error, 0, numTargets*2)
-	for err := range errCh {
-		errs = append(errs, err)
-	}
-	if len(errs) == 0 {
-		return nil
-	}
-	for _, err := range errs {
-		fmt.Println(err)
-	}
-	return errors.New("one or more set requests failed")
+	return a.checkErrors()
 }
 
-func (a *App) SetRequest(ctx context.Context, tName string, req *gnmi.SetRequest, errCh chan error) {
+func (a *App) SetRequest(ctx context.Context, tName string, req *gnmi.SetRequest) {
 	defer a.wg.Done()
 	a.Logger.Printf("sending gNMI SetRequest: prefix='%v', delete='%v', replace='%v', update='%v', extension='%v' to %s",
 		req.Prefix, req.Delete, req.Replace, req.Update, req.Extension, tName)
 	if a.Config.PrintRequest {
-		err := a.Print(tName, "Set Request:", req)
+		err := a.PrintMsg(tName, "Set Request:", req)
 		if err != nil {
-			errCh <- err
-			a.Logger.Printf("target %q: %v", tName, err)
-			if !a.Config.Log {
-				fmt.Fprintf(os.Stderr, "target %q: %v\n", tName, err)
-			}
+			a.logError(fmt.Errorf("target %q: %v", tName, err))
 		}
 	}
 	response, err := a.collector.Set(ctx, tName, req)
 	if err != nil {
-		errCh <- err
-		a.Logger.Printf("target %q set request failed: %v", tName, err)
-		if !a.Config.Log {
-			fmt.Fprintf(os.Stderr, "target %q set request failed: %v\n", tName, err)
-		}
+		a.logError(fmt.Errorf("target %q set request failed: %v", tName, err))
 		return
 	}
-	err = a.Print(tName, "Set Response:", response)
+	err = a.PrintMsg(tName, "Set Response:", response)
 	if err != nil {
-		errCh <- err
-		a.Logger.Printf("target %q: %v", tName, err)
-		if !a.Config.Log {
-			fmt.Fprintf(os.Stderr, "target %q: %v\n", tName, err)
-		}
+		a.logError(fmt.Errorf("target %q: %v", tName, err))
 	}
 }

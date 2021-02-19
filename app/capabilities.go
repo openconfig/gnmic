@@ -2,9 +2,7 @@ package app
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"os"
 
 	"github.com/karimra/gnmic/collector"
 	"github.com/openconfig/gnmi/proto/gnmi"
@@ -43,59 +41,36 @@ func (a *App) CapRun(cmd *cobra.Command, args []string) error {
 	}
 	a.collector.InitTargets()
 	numTargets := len(a.collector.Targets)
-	errCh := make(chan error, numTargets*2)
+	a.errCh = make(chan error, numTargets*2)
 	a.wg.Add(numTargets)
 	for tName := range a.collector.Targets {
-		go a.ReqCapabilities(ctx, tName, errCh)
+		go a.ReqCapabilities(ctx, tName)
 	}
 	a.wg.Wait()
-	close(errCh)
-	errs := make([]error, 0, numTargets*2)
-	for err := range errCh {
-		errs = append(errs, err)
-	}
-	if len(errs) == 0 {
-		return nil
-	}
-	for _, err := range errs {
-		fmt.Fprintln(os.Stderr, err)
-	}
-	return errors.New("one or more capabilities requests failed")
+	return a.checkErrors()
 }
 
-func (a *App) ReqCapabilities(ctx context.Context, tName string, errCh chan error) {
+func (a *App) ReqCapabilities(ctx context.Context, tName string) {
 	defer a.wg.Done()
 	ext := make([]*gnmi_ext.Extension, 0) //
 	if a.Config.PrintRequest {
-		err := a.Print(tName, "Capabilities Request:", &gnmi.CapabilityRequest{
+		err := a.PrintMsg(tName, "Capabilities Request:", &gnmi.CapabilityRequest{
 			Extension: ext,
 		})
 		if err != nil {
-			errCh <- err
-			a.Logger.Printf("target %q: %v", tName, err)
-			if !a.Config.Log {
-				fmt.Fprintf(os.Stderr, "target %q: %v\n", tName, err)
-			}
+			a.logError(fmt.Errorf("target %q: %v", tName, err))
 		}
 	}
 
 	a.Logger.Printf("sending gNMI CapabilityRequest: gnmi_ext.Extension='%v' to %s", ext, tName)
 	response, err := a.collector.Capabilities(ctx, tName, ext...)
 	if err != nil {
-		errCh <- err
-		a.Logger.Printf("target %q, capabilities request failed: %v", tName, err)
-		if !a.Config.Log {
-			fmt.Fprintf(os.Stderr, "target %q, capabilities request failed: %v\n", tName, err)
-		}
+		a.logError(fmt.Errorf("target %q, capabilities request failed: %v", tName, err))
 		return
 	}
 
-	err = a.Print(tName, "Capabilities Response:", response)
+	err = a.PrintMsg(tName, "Capabilities Response:", response)
 	if err != nil {
-		errCh <- err
-		a.Logger.Printf("target %q: %v", tName, err)
-		if !a.Config.Log {
-			fmt.Fprintf(os.Stderr, "target %q: %v\n", tName, err)
-		}
+		a.logError(fmt.Errorf("target %q: %v", tName, err))
 	}
 }
