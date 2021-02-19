@@ -232,7 +232,7 @@ func (a *App) loadTargets(e fsnotify.Event) {
 						continue
 					}
 					a.wg.Add(1)
-					go a.collector.StartTarget(a.ctx, n)
+					go a.collector.TargetSubscribeStream(a.ctx, n)
 				}
 			}
 			return

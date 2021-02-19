@@ -214,7 +214,7 @@ func (a *App) handleTargetsPost(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{fmt.Sprintf("target %q not found", id)}})
 		return
 	}
-	go a.collector.StartTarget(a.ctx, id)
+	go a.collector.TargetSubscribeStream(a.ctx, id)
 }
 
 func (a *App) handleTargetsDelete(w http.ResponseWriter, r *http.Request) {
