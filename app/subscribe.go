@@ -21,29 +21,10 @@ const (
 )
 
 func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
-	inputsConfig, err := a.Config.GetInputs()
-	if err != nil {
-		return fmt.Errorf("failed getting inputs config: %v", err)
+	if a.PromptMode {
+		return a.SubscribeRunPrompt(cmd, args)
 	}
-	targetsConfig, err := a.Config.GetTargets()
-	if (errors.Is(err, config.ErrNoTargetsFound) && !a.Config.LocalFlags.SubscribeWatchConfig) ||
-		(!errors.Is(err, config.ErrNoTargetsFound) && err != nil) {
-		return fmt.Errorf("failed getting targets config: %v", err)
-	}
-
-	subscriptionsConfig, err := a.Config.GetSubscriptions(cmd)
-	if err != nil {
-		return fmt.Errorf("failed getting subscriptions config: %v", err)
-	}
-	outs, err := a.Config.GetOutputs()
-	if err != nil {
-		return err
-	}
-	epconfig, err := a.Config.GetEventProcessors()
-	if err != nil {
-		return err
-	}
-	err = a.Config.GetClustering()
+	err := a.Config.GetClustering()
 	if err != nil {
 		return err
 	}
@@ -57,31 +38,60 @@ func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
 		}
 		break
 	}
+	targetsConfig, err := a.Config.GetTargets()
+	if (errors.Is(err, config.ErrNoTargetsFound) && !a.Config.LocalFlags.SubscribeWatchConfig) ||
+		(!errors.Is(err, config.ErrNoTargetsFound) && err != nil) {
+		return fmt.Errorf("failed reading targets config: %v", err)
+	}
 
+	cOpts, err := a.createCollectorOpts(cmd)
+	if err != nil {
+		return err
+	}
+	//
+	a.collector = collector.NewCollector(a.collectorConfig(), targetsConfig, cOpts...)
+
+	a.startAPI()
+	go a.startCluster()
+	a.startIO()
+
+	a.handlePolledSubscriptions()
+	if a.Config.LocalFlags.SubscribeWatchConfig {
+		go a.watchConfig()
+	}
+
+	for range a.ctx.Done() {
+		return a.ctx.Err()
+	}
+	return nil
+}
+
+func (a *App) Subscribe(ctx context.Context, name string) {
+	defer a.wg.Done()
+	a.collector.StartTarget(ctx, name)
+}
+
+func (a *App) SubscribeRunPrompt(cmd *cobra.Command, args []string) error {
+	targetsConfig, err := a.Config.GetTargets()
+	if err != nil {
+		return fmt.Errorf("failed reading targets config: %v", err)
+	}
+
+	subscriptionsConfig, err := a.Config.GetSubscriptions(cmd)
+	if err != nil {
+		return fmt.Errorf("failed reading subscriptions config: %v", err)
+	}
+	outs, err := a.Config.GetOutputs()
+	if err != nil {
+		return fmt.Errorf("failed reading outputs config: %v", err)
+	}
+	cOpts, err := a.createCollectorOpts(cmd)
+	if err != nil {
+		return err
+	}
 	//
 	if a.collector == nil {
-		cfg := &collector.Config{
-			Name:                a.Config.Clustering.InstanceName,
-			PrometheusAddress:   a.Config.PrometheusAddress,
-			Debug:               a.Config.Debug,
-			Format:              a.Config.Format,
-			TargetReceiveBuffer: a.Config.TargetBufferSize,
-			RetryTimer:          a.Config.Retry,
-			LockRetryTimer:      a.Config.LocalFlags.SubscribeLockRetry,
-		}
-		if a.Config.Clustering != nil {
-			cfg.ClusterName = a.Config.Clustering.ClusterName
-		}
-		a.Logger.Printf("starting collector with config %+v", cfg)
-		a.collector = collector.NewCollector(cfg, targetsConfig,
-			collector.WithDialOptions(a.createCollectorDialOpts()),
-			collector.WithSubscriptions(subscriptionsConfig),
-			collector.WithOutputs(outs),
-			collector.WithLogger(a.Logger),
-			collector.WithEventProcessors(epconfig),
-			collector.WithInputs(inputsConfig),
-			collector.WithLocker(a.locker),
-		)
+		a.collector = collector.NewCollector(a.collectorConfig(), targetsConfig, cOpts...)
 		go a.collector.Start(a.ctx)
 		a.startAPI()
 		go a.startCluster()
@@ -111,25 +121,80 @@ func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
 	a.collector.InitInputs(a.ctx)
 	a.collector.InitTargets()
 
-	if a.Config.Clustering == nil {
-		var limiter *time.Ticker
-		if a.Config.LocalFlags.SubscribeBackoff > 0 {
-			limiter = time.NewTicker(a.Config.LocalFlags.SubscribeBackoff)
-		}
-
-		a.wg.Add(len(a.collector.Targets))
-		for name := range a.collector.Targets {
-			go a.Subscribe(a.ctx, name)
-			if limiter != nil {
-				<-limiter.C
-			}
-		}
-		if limiter != nil {
-			limiter.Stop()
-		}
-		a.wg.Wait()
+	var limiter *time.Ticker
+	if a.Config.LocalFlags.SubscribeBackoff > 0 {
+		limiter = time.NewTicker(a.Config.LocalFlags.SubscribeBackoff)
 	}
 
+	a.wg.Add(len(a.collector.Targets))
+	for name := range a.collector.Targets {
+		go a.Subscribe(a.ctx, name)
+		if limiter != nil {
+			<-limiter.C
+		}
+	}
+	if limiter != nil {
+		limiter.Stop()
+	}
+	a.wg.Wait()
+
+	a.handlePolledSubscriptions()
+	return nil
+}
+
+func (a *App) createCollectorOpts(cmd *cobra.Command) ([]collector.CollectorOption, error) {
+	inputsConfig, err := a.Config.GetInputs()
+	if err != nil {
+		return nil, fmt.Errorf("failed reading inputs config: %v", err)
+	}
+	subscriptionsConfig, err := a.Config.GetSubscriptions(cmd)
+	if err != nil {
+		return nil, fmt.Errorf("failed reading subscriptions config: %v", err)
+	}
+	outs, err := a.Config.GetOutputs()
+	if err != nil {
+		return nil, fmt.Errorf("failed reading outputs config: %v", err)
+	}
+	epConfig, err := a.Config.GetEventProcessors()
+	if err != nil {
+		return nil, fmt.Errorf("failed reading event processors config: %v", err)
+	}
+
+	return []collector.CollectorOption{
+		collector.WithDialOptions(a.createCollectorDialOpts()),
+		collector.WithSubscriptions(subscriptionsConfig),
+		collector.WithOutputs(outs),
+		collector.WithLogger(a.Logger),
+		collector.WithEventProcessors(epConfig),
+		collector.WithInputs(inputsConfig),
+		collector.WithLocker(a.locker),
+	}, nil
+}
+
+func (a *App) collectorConfig() *collector.Config {
+	cfg := &collector.Config{
+		PrometheusAddress:   a.Config.PrometheusAddress,
+		Debug:               a.Config.Debug,
+		Format:              a.Config.Format,
+		TargetReceiveBuffer: a.Config.TargetBufferSize,
+		RetryTimer:          a.Config.Retry,
+		LockRetryTimer:      a.Config.LocalFlags.SubscribeLockRetry,
+	}
+	if a.Config.Clustering != nil {
+		cfg.ClusterName = a.Config.Clustering.ClusterName
+		cfg.Name = a.Config.Clustering.InstanceName
+	}
+	if cfg.ClusterName == "" {
+		cfg.ClusterName = a.Config.SubscribeClusterName
+	}
+	if cfg.Name == "" {
+		cfg.Name = a.Config.GlobalFlags.InstanceName
+	}
+	a.Logger.Printf("starting collector with config %+v", cfg)
+	return cfg
+}
+
+func (a *App) handlePolledSubscriptions() {
 	polledTargetsSubscriptions := a.collector.PolledSubscriptionsTargets()
 	if len(polledTargetsSubscriptions) > 0 {
 		pollTargets := make([]string, 0, len(polledTargetsSubscriptions))
@@ -200,20 +265,29 @@ func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
 			}
 		}()
 	}
-	if a.Config.LocalFlags.SubscribeWatchConfig {
-		go a.watchConfig()
-	}
-
-	if a.PromptMode {
-		return nil
-	}
-	for range a.ctx.Done() {
-		return a.ctx.Err()
-	}
-	return nil
 }
 
-func (a *App) Subscribe(ctx context.Context, name string) {
-	defer a.wg.Done()
-	a.collector.StartTarget(ctx, name)
+func (a *App) startIO() {
+	go a.collector.Start(a.ctx)
+	a.collector.InitOutputs(a.ctx)
+	a.collector.InitInputs(a.ctx)
+	a.collector.InitTargets()
+	if !a.inCluster() {
+		var limiter *time.Ticker
+		if a.Config.LocalFlags.SubscribeBackoff > 0 {
+			limiter = time.NewTicker(a.Config.LocalFlags.SubscribeBackoff)
+		}
+
+		a.wg.Add(len(a.collector.Targets))
+		for name := range a.collector.Targets {
+			go a.Subscribe(a.ctx, name)
+			if limiter != nil {
+				<-limiter.C
+			}
+		}
+		if limiter != nil {
+			limiter.Stop()
+		}
+		a.wg.Wait()
+	}
 }
