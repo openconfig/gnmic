@@ -44,12 +44,14 @@ func (a *App) GetRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	a.collector.InitTargets()
-	a.wg.Add(len(a.collector.Targets))
+	numTargets := len(a.collector.Targets)
+	a.errCh = make(chan error, numTargets*3)
+	a.wg.Add(numTargets)
 	for tName := range a.collector.Targets {
 		go a.GetRequest(ctx, tName, req)
 	}
 	a.wg.Wait()
-	return nil
+	return a.checkErrors()
 }
 
 func (a *App) GetRequest(ctx context.Context, tName string, req *gnmi.GetRequest) {
@@ -58,38 +60,32 @@ func (a *App) GetRequest(ctx context.Context, tName string, req *gnmi.GetRequest
 	if len(a.Config.LocalFlags.GetModel) > 0 {
 		spModels, unspModels, err := a.filterModels(ctx, tName, a.Config.LocalFlags.GetModel)
 		if err != nil {
-			a.Logger.Printf("failed getting supported models from '%s': %v", tName, err)
+			a.logError(fmt.Errorf("failed getting supported models from %q: %v", tName, err))
 			return
 		}
 		if len(unspModels) > 0 {
-			a.Logger.Printf("found unsupported models for target '%s': %+v", tName, unspModels)
+			a.logError(fmt.Errorf("found unsupported models for target %q: %+v", tName, unspModels))
 		}
 		for _, m := range spModels {
 			xreq.UseModels = append(xreq.UseModels, m)
 		}
 	}
 	if a.Config.PrintRequest {
-		err := a.Print(tName, "Get Request:", req)
+		err := a.PrintMsg(tName, "Get Request:", req)
 		if err != nil {
-			a.Logger.Printf("%v", err)
-			if !a.Config.Log {
-				fmt.Printf("%v\n", err)
-			}
+			a.logError(fmt.Errorf("target %q Get Request printing failed: %v", tName, err))
 		}
 	}
 	a.Logger.Printf("sending gNMI GetRequest: prefix='%v', path='%v', type='%v', encoding='%v', models='%+v', extension='%+v' to %s",
 		xreq.Prefix, xreq.Path, xreq.Type, xreq.Encoding, xreq.UseModels, xreq.Extension, tName)
 	response, err := a.collector.Get(ctx, tName, xreq)
 	if err != nil {
-		a.Logger.Printf("failed sending GetRequest to %s: %v", tName, err)
+		a.logError(fmt.Errorf("target %q get request failed: %v", tName, err))
 		return
 	}
-	err = a.Print(tName, "Get Response:", response)
+	err = a.PrintMsg(tName, "Get Response:", response)
 	if err != nil {
-		a.Logger.Printf("target %s: %v", tName, err)
-		if !a.Config.Log {
-			fmt.Printf("target %s: %v\n", tName, err)
-		}
+		a.logError(fmt.Errorf("target %q: %v", tName, err))
 	}
 }
 

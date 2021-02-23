@@ -46,12 +46,14 @@ func (a *App) SetRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	a.collector.InitTargets()
-	a.wg.Add(len(a.collector.Targets))
+	numTargets := len(a.collector.Targets)
+	a.errCh = make(chan error, numTargets*2)
+	a.wg.Add(numTargets)
 	for tName := range a.collector.Targets {
 		go a.SetRequest(ctx, tName, req)
 	}
 	a.wg.Wait()
-	return nil
+	return a.checkErrors()
 }
 
 func (a *App) SetRequest(ctx context.Context, tName string, req *gnmi.SetRequest) {
@@ -59,24 +61,18 @@ func (a *App) SetRequest(ctx context.Context, tName string, req *gnmi.SetRequest
 	a.Logger.Printf("sending gNMI SetRequest: prefix='%v', delete='%v', replace='%v', update='%v', extension='%v' to %s",
 		req.Prefix, req.Delete, req.Replace, req.Update, req.Extension, tName)
 	if a.Config.PrintRequest {
-		err := a.Print(tName, "Set Request:", req)
+		err := a.PrintMsg(tName, "Set Request:", req)
 		if err != nil {
-			a.Logger.Printf("target %s: %v", tName, err)
-			if !a.Config.Log {
-				fmt.Printf("target %s: %v\n", tName, err)
-			}
+			a.logError(fmt.Errorf("target %q: %v", tName, err))
 		}
 	}
 	response, err := a.collector.Set(ctx, tName, req)
 	if err != nil {
-		a.Logger.Printf("error sending set request: %v", err)
+		a.logError(fmt.Errorf("target %q set request failed: %v", tName, err))
 		return
 	}
-	err = a.Print(tName, "Set Response:", response)
+	err = a.PrintMsg(tName, "Set Response:", response)
 	if err != nil {
-		a.Logger.Printf("%v", err)
-		if !a.Config.Log {
-			fmt.Printf("%v\n", err)
-		}
+		a.logError(fmt.Errorf("target %q: %v", tName, err))
 	}
 }

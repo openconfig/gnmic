@@ -40,38 +40,37 @@ func (a *App) CapRun(cmd *cobra.Command, args []string) error {
 		}
 	}
 	a.collector.InitTargets()
-	a.wg.Add(len(a.collector.Targets))
+	numTargets := len(a.collector.Targets)
+	a.errCh = make(chan error, numTargets*2)
+	a.wg.Add(numTargets)
 	for tName := range a.collector.Targets {
 		go a.ReqCapabilities(ctx, tName)
 	}
 	a.wg.Wait()
-	return nil
+	return a.checkErrors()
 }
 
 func (a *App) ReqCapabilities(ctx context.Context, tName string) {
 	defer a.wg.Done()
 	ext := make([]*gnmi_ext.Extension, 0) //
 	if a.Config.PrintRequest {
-		err := a.Print(tName, "Capabilities Request:", &gnmi.CapabilityRequest{
+		err := a.PrintMsg(tName, "Capabilities Request:", &gnmi.CapabilityRequest{
 			Extension: ext,
 		})
 		if err != nil {
-			a.Logger.Printf("%v", err)
-			if !a.Config.Log {
-				fmt.Printf("target %s: %v\n", tName, err)
-			}
+			a.logError(fmt.Errorf("target %q: %v", tName, err))
 		}
 	}
 
 	a.Logger.Printf("sending gNMI CapabilityRequest: gnmi_ext.Extension='%v' to %s", ext, tName)
 	response, err := a.collector.Capabilities(ctx, tName, ext...)
 	if err != nil {
-		a.Logger.Printf("error sending capabilities request: %v", err)
+		a.logError(fmt.Errorf("target %q, capabilities request failed: %v", tName, err))
 		return
 	}
 
-	err = a.Print(tName, "Capabilities Response:", response)
+	err = a.PrintMsg(tName, "Capabilities Response:", response)
 	if err != nil {
-		a.Logger.Printf("target %s: %v", tName, err)
+		a.logError(fmt.Errorf("target %q: %v", tName, err))
 	}
 }
