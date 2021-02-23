@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/karimra/gnmic/collector"
@@ -21,10 +22,28 @@ const (
 )
 
 func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
+	// prompt mode
 	if a.PromptMode {
 		return a.SubscribeRunPrompt(cmd, args)
 	}
-	err := a.Config.GetClustering()
+	//
+	subCfg, err := a.Config.GetSubscriptions(cmd)
+	if err != nil {
+		return fmt.Errorf("failed reading subscriptions config: %v", err)
+	}
+	if len(subCfg) == 0 {
+		return errors.New("no subscriptions configuration found")
+	}
+	// only once mode subscriptions requested
+	if allSubscriptionsModeOnce(subCfg) {
+		return a.SubscribeRunONCE(cmd, args)
+	}
+	// only poll mode subscriptions requested
+	if allSubscriptionsModePoll(subCfg) {
+		return a.SubscribeRunPoll(cmd, args)
+	}
+	// stream subscriptions
+	err = a.Config.GetClustering()
 	if err != nil {
 		return err
 	}
@@ -55,7 +74,7 @@ func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
 	go a.startCluster()
 	a.startIO()
 
-	a.handlePolledSubscriptions()
+	//a.handlePolledSubscriptions()
 	if a.Config.LocalFlags.SubscribeWatchConfig {
 		go a.watchConfig()
 	}
@@ -66,9 +85,21 @@ func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func (a *App) Subscribe(ctx context.Context, name string) {
+//
+
+func (a *App) subscribeStream(ctx context.Context, name string) {
 	defer a.wg.Done()
-	a.collector.StartTarget(ctx, name)
+	a.collector.TargetSubscribeStream(ctx, name)
+}
+
+func (a *App) subscribeOnce(ctx context.Context, name string) {
+	defer a.wg.Done()
+	a.collector.TargetSubscribeOnce(ctx, name)
+}
+
+func (a *App) subscribePoll(ctx context.Context, name string) {
+	defer a.wg.Done()
+	a.collector.TargetSubscribePoll(ctx, name)
 }
 
 func (a *App) SubscribeRunPrompt(cmd *cobra.Command, args []string) error {
@@ -77,10 +108,19 @@ func (a *App) SubscribeRunPrompt(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed reading targets config: %v", err)
 	}
 
-	subscriptionsConfig, err := a.Config.GetSubscriptions(cmd)
+	subCfg, err := a.Config.GetSubscriptions(cmd)
 	if err != nil {
 		return fmt.Errorf("failed reading subscriptions config: %v", err)
 	}
+	// only once mode subscriptions requested
+	if allSubscriptionsModeOnce(subCfg) {
+		return a.SubscribeRunONCE(cmd, args)
+	}
+	// only poll mode subscriptions requested
+	if allSubscriptionsModePoll(subCfg) {
+		return a.SubscribeRunPoll(cmd, args)
+	}
+	// stream+once mode subscriptions
 	outs, err := a.Config.GetOutputs()
 	if err != nil {
 		return fmt.Errorf("failed reading outputs config: %v", err)
@@ -103,7 +143,7 @@ func (a *App) SubscribeRunPrompt(cmd *cobra.Command, args []string) error {
 				a.Logger.Printf("%v", err)
 			}
 		}
-		for _, sc := range subscriptionsConfig {
+		for _, sc := range subCfg {
 			err = a.collector.AddSubscriptionConfig(sc)
 			if err != nil {
 				a.Logger.Printf("%v", err)
@@ -128,7 +168,7 @@ func (a *App) SubscribeRunPrompt(cmd *cobra.Command, args []string) error {
 
 	a.wg.Add(len(a.collector.Targets))
 	for name := range a.collector.Targets {
-		go a.Subscribe(a.ctx, name)
+		go a.subscribeStream(a.ctx, name)
 		if limiter != nil {
 			<-limiter.C
 		}
@@ -138,7 +178,6 @@ func (a *App) SubscribeRunPrompt(cmd *cobra.Command, args []string) error {
 	}
 	a.wg.Wait()
 
-	a.handlePolledSubscriptions()
 	return nil
 }
 
@@ -216,54 +255,54 @@ func (a *App) handlePolledSubscriptions() {
 			Indent:    "  ",
 			Format:    a.Config.Format,
 		}
-		go func() {
-			for {
-				select {
-				case <-waitChan:
-					_, name, err := s.Run()
-					if err != nil {
-						fmt.Printf("failed selecting target to poll: %v\n", err)
-						continue
-					}
-					ss := promptui.Select{
-						Label:        "select subscription to poll",
-						Items:        polledTargetsSubscriptions[name],
-						HideSelected: true,
-					}
-					_, subName, err := ss.Run()
-					if err != nil {
-						fmt.Printf("failed selecting subscription to poll: %v\n", err)
-						continue
-					}
-					response, err := a.collector.TargetPoll(name, subName)
-					if err != nil && err != io.EOF {
-						fmt.Printf("target '%s', subscription '%s': poll response error:%v\n", name, subName, err)
-						continue
-					}
-					if response == nil {
-						fmt.Printf("received empty response from target '%s'\n", name)
-						continue
-					}
-					switch rsp := response.Response.(type) {
-					case *gnmi.SubscribeResponse_SyncResponse:
-						fmt.Printf("received sync response '%t' from '%s'\n", rsp.SyncResponse, name)
-						waitChan <- struct{}{}
-						continue
-					}
-					b, err := mo.Marshal(response, nil)
-					if err != nil {
-						fmt.Printf("target '%s', subscription '%s': poll response formatting error:%v\n", name, subName, err)
-						fmt.Println(string(b))
-						waitChan <- struct{}{}
-						continue
-					}
+
+		for {
+			select {
+			case <-waitChan:
+				_, name, err := s.Run()
+				if err != nil {
+					fmt.Printf("failed selecting target to poll: %v\n", err)
+					continue
+				}
+				ss := promptui.Select{
+					Label:        "select subscription to poll",
+					Items:        polledTargetsSubscriptions[name],
+					HideSelected: true,
+				}
+				_, subName, err := ss.Run()
+				if err != nil {
+					fmt.Printf("failed selecting subscription to poll: %v\n", err)
+					continue
+				}
+				response, err := a.collector.TargetPoll(name, subName)
+				if err != nil && err != io.EOF {
+					fmt.Printf("target '%s', subscription '%s': poll response error:%v\n", name, subName, err)
+					continue
+				}
+				if response == nil {
+					fmt.Printf("received empty response from target '%s'\n", name)
+					continue
+				}
+				switch rsp := response.Response.(type) {
+				case *gnmi.SubscribeResponse_SyncResponse:
+					fmt.Printf("received sync response '%t' from '%s'\n", rsp.SyncResponse, name)
+					waitChan <- struct{}{}
+					continue
+				}
+				b, err := mo.Marshal(response, nil)
+				if err != nil {
+					fmt.Printf("target '%s', subscription '%s': poll response formatting error:%v\n", name, subName, err)
 					fmt.Println(string(b))
 					waitChan <- struct{}{}
-				case <-a.ctx.Done():
-					return
+					continue
 				}
+				fmt.Println(string(b))
+				waitChan <- struct{}{}
+			case <-a.ctx.Done():
+				return
 			}
-		}()
+		}
+
 	}
 }
 
@@ -280,7 +319,7 @@ func (a *App) startIO() {
 
 		a.wg.Add(len(a.collector.Targets))
 		for name := range a.collector.Targets {
-			go a.Subscribe(a.ctx, name)
+			go a.subscribeStream(a.ctx, name)
 			if limiter != nil {
 				<-limiter.C
 			}
@@ -290,4 +329,84 @@ func (a *App) startIO() {
 		}
 		a.wg.Wait()
 	}
+}
+
+func (a *App) SubscribeRunONCE(cmd *cobra.Command, args []string) error {
+	targetsConfig, err := a.Config.GetTargets()
+	if err != nil {
+		return fmt.Errorf("failed reading targets config: %v", err)
+	}
+
+	cOpts, err := a.createCollectorOpts(cmd)
+	if err != nil {
+		return err
+	}
+	//
+	a.collector = collector.NewCollector(a.collectorConfig(), targetsConfig, cOpts...)
+
+	go a.collector.Start(a.ctx)
+	a.collector.InitOutputs(a.ctx)
+	a.collector.InitTargets()
+
+	var limiter *time.Ticker
+	if a.Config.LocalFlags.SubscribeBackoff > 0 {
+		limiter = time.NewTicker(a.Config.LocalFlags.SubscribeBackoff)
+	}
+
+	a.wg.Add(len(a.collector.Targets))
+	for name := range a.collector.Targets {
+		go a.subscribeOnce(a.ctx, name)
+		if limiter != nil {
+			<-limiter.C
+		}
+	}
+	if limiter != nil {
+		limiter.Stop()
+	}
+	a.wg.Wait()
+	return nil
+}
+
+func (a *App) SubscribeRunPoll(cmd *cobra.Command, args []string) error {
+	targetsConfig, err := a.Config.GetTargets()
+	if err != nil {
+		return fmt.Errorf("failed reading targets config: %v", err)
+	}
+
+	cOpts, err := a.createCollectorOpts(cmd)
+	if err != nil {
+		return err
+	}
+	//
+	a.collector = collector.NewCollector(a.collectorConfig(), targetsConfig, cOpts...)
+
+	go a.collector.Start(a.ctx)
+	// a.collector.InitOutputs(a.ctx)
+	a.collector.InitTargets()
+
+	a.wg.Add(len(a.collector.Targets))
+	for name := range a.collector.Targets {
+		go a.subscribePoll(a.ctx, name)
+	}
+	a.wg.Wait()
+	a.handlePolledSubscriptions()
+	return nil
+}
+
+func allSubscriptionsModeOnce(sc map[string]*collector.SubscriptionConfig) bool {
+	for _, sub := range sc {
+		if strings.ToUpper(sub.Mode) != "ONCE" {
+			return false
+		}
+	}
+	return true
+}
+
+func allSubscriptionsModePoll(sc map[string]*collector.SubscriptionConfig) bool {
+	for _, sub := range sc {
+		if strings.ToUpper(sub.Mode) != "POLL" {
+			return false
+		}
+	}
+	return true
 }

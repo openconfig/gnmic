@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -70,6 +71,10 @@ func (c *Config) GetSubscriptions(cmd *cobra.Command) (map[string]*collector.Sub
 		if c.Debug {
 			c.logger.Printf("subscriptions: %s", c.Subscriptions)
 		}
+		err := validateSubscriptionsConfig(c.Subscriptions)
+		if err != nil {
+			return nil, err
+		}
 		return c.Subscriptions, nil
 	}
 	filteredSubscriptions := make(map[string]*collector.SubscriptionConfig)
@@ -86,6 +91,10 @@ func (c *Config) GetSubscriptions(cmd *cobra.Command) (map[string]*collector.Sub
 	}
 	if c.Debug {
 		c.logger.Printf("subscriptions: %s", filteredSubscriptions)
+	}
+	err := validateSubscriptionsConfig(filteredSubscriptions)
+	if err != nil {
+		return nil, err
 	}
 	return filteredSubscriptions, nil
 }
@@ -130,4 +139,24 @@ func (c *Config) GetSubscriptionsFromFile() []*collector.SubscriptionConfig {
 		return subscriptions[i].Name < subscriptions[j].Name
 	})
 	return subscriptions
+}
+
+func validateSubscriptionsConfig(subs map[string]*collector.SubscriptionConfig) error {
+	var hasPoll bool
+	var hasOnce bool
+	var hasStream bool
+	for _, sc := range subs {
+		switch strings.ToUpper(sc.Mode) {
+		case "POLL":
+			hasPoll = true
+		case "ONCE":
+			hasOnce = true
+		case "STREAM":
+			hasStream = true
+		}
+	}
+	if hasPoll && hasOnce || hasPoll && hasStream {
+		return errors.New("subscriptions with mode Poll cannot be mixed with Stream or Once")
+	}
+	return nil
 }

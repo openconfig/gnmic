@@ -216,7 +216,7 @@ func (c *Collector) initTarget(name string) error {
 	return fmt.Errorf("unknown target")
 }
 
-func (c *Collector) StartTarget(ctx context.Context, name string) {
+func (c *Collector) TargetSubscribeStream(ctx context.Context, name string) {
 	lockKey := c.lockKey(name)
 START:
 	nctx, cancel := context.WithCancel(ctx)
@@ -295,6 +295,57 @@ START:
 			}
 		}
 	}
+}
+
+func (c *Collector) TargetSubscribeOnce(ctx context.Context, name string) {
+	nctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	err := c.initTarget(name)
+	if err != nil {
+		c.logger.Printf("failed to initialize target %q: %v", name, err)
+		return
+	}
+	select {
+	case <-nctx.Done():
+		return
+	case c.targetsChan <- c.Targets[name]:
+		c.logger.Printf("queuing target %q", name)
+	}
+	c.logger.Printf("subscribing to target: %q", name)
+	err = c.SubscribeOnce(nctx, name)
+	if err != nil {
+		c.logger.Printf("failed to subscribe: %v", err)
+		return
+	}
+}
+
+func (c *Collector) TargetSubscribePoll(ctx context.Context, name string) {
+	nctx, cancel := context.WithCancel(ctx)
+	c.m.Lock()
+	if cfn, ok := c.targetsLocksFn[name]; ok {
+		cfn()
+	}
+	c.targetsLocksFn[name] = cancel
+	c.m.Unlock()
+	err := c.initTarget(name)
+	if err != nil {
+		c.logger.Printf("failed to initialize target %q: %v", name, err)
+		return
+	}
+	select {
+	case <-nctx.Done():
+		return
+	case c.targetsChan <- c.Targets[name]:
+		c.logger.Printf("queuing target %q", name)
+	}
+	c.logger.Printf("subscribing to target: %q", name)
+	go func() {
+		err := c.Subscribe(nctx, name)
+		if err != nil {
+			c.logger.Printf("failed to subscribe: %v", err)
+			return
+		}
+	}()
 }
 
 func (c *Collector) DeleteTarget(ctx context.Context, name string) error {
@@ -480,6 +531,49 @@ func (c *Collector) Subscribe(ctx context.Context, tName string) error {
 			c.logger.Printf("sending gNMI SubscribeRequest: subscribe='%+v', mode='%+v', encoding='%+v', to %s",
 				sreq.req, sreq.req.GetSubscribe().GetMode(), sreq.req.GetSubscribe().GetEncoding(), t.Config.Name)
 			go t.Subscribe(gnmiCtx, sreq.req, sreq.name)
+		}
+		return nil
+	}
+	return fmt.Errorf("unknown target name: %s", tName)
+}
+
+func (c *Collector) SubscribeOnce(ctx context.Context, tName string) error {
+	if t, ok := c.Targets[tName]; ok {
+		subscriptionsConfigs := t.Subscriptions
+		if len(subscriptionsConfigs) == 0 {
+			subscriptionsConfigs = c.Subscriptions
+		}
+		if len(subscriptionsConfigs) == 0 {
+			return fmt.Errorf("target '%s' has no subscriptions defined", tName)
+		}
+		subRequests := make([]subscriptionRequest, 0)
+		for _, sc := range subscriptionsConfigs {
+			req, err := sc.CreateSubscribeRequest()
+			if err != nil {
+				return err
+			}
+			subRequests = append(subRequests, subscriptionRequest{name: sc.Name, req: req})
+		}
+		gnmiCtx, cancel := context.WithCancel(ctx)
+		t.cfn = cancel
+	CRCLIENT:
+		if err := t.CreateGNMIClient(gnmiCtx, c.dialOpts...); err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				c.logger.Printf("failed to initialize target %q timeout (%s) reached", tName, t.Config.Timeout)
+			} else {
+				c.logger.Printf("failed to initialize target %q: %v", tName, err)
+			}
+			c.logger.Printf("retrying target %q in %s", tName, t.Config.RetryTimer)
+			time.Sleep(t.Config.RetryTimer)
+			goto CRCLIENT
+
+		}
+		c.logger.Printf("target '%s' gNMI client created", t.Config.Name)
+
+		for _, sreq := range subRequests {
+			c.logger.Printf("sending gNMI SubscribeRequest: subscribe='%+v', mode='%+v', encoding='%+v', to %s",
+				sreq.req, sreq.req.GetSubscribe().GetMode(), sreq.req.GetSubscribe().GetEncoding(), t.Config.Name)
+			t.Subscribe(gnmiCtx, sreq.req, sreq.name)
 		}
 		return nil
 	}
