@@ -139,8 +139,10 @@ func (a *App) PreRun(_ *cobra.Command, args []string) error {
 func (a *App) PrintMsg(address string, msgName string, msg proto.Message) error {
 	a.printLock.Lock()
 	defer a.printLock.Unlock()
-	fmt.Fprint(os.Stderr, msgName)
-	fmt.Fprintln(os.Stderr, "")
+	if a.Config.PrintRequest {
+		fmt.Fprint(os.Stderr, msgName)
+		fmt.Fprintln(os.Stderr, "")
+	}
 	printPrefix := ""
 	if len(a.Config.TargetsList()) > 1 && !a.Config.NoPrefix {
 		printPrefix = fmt.Sprintf("[%s] ", address)
