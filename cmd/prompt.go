@@ -1061,5 +1061,5 @@ func resolveGlobs(globs []string) ([]string, error) {
 			}
 		}
 	}
-	return results, nil
+	return config.ExpandOSPaths(results)
 }
