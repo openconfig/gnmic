@@ -54,6 +54,9 @@ The whole target distribution process is repeated for each target missing a lock
 The cluster configuration is as simple as:
 
 ```yaml
+# rest api address, format "address:port"
+api: ""
+# clustering related configuration fields
 clustering:
   # the cluster name, tells with instances belong to the same cluster
   # it is used as part of the leader key lock, and the targets key locks
@@ -66,6 +69,9 @@ clustering:
   # if no value is configured, the value from flag --instance-name is used.
   # if the flag has the empty string as value, a value is generated in the format `gnmic-$UUID`
   instance-name: ""
+  # service address to be registered in the locker(Consul)
+  # if not defined, it defaults to the address part of the API address:port
+  service-address: ""
   # gnmic instances API service watch timer
   # this is a long timer used by the cluster leader 
   # in a consul long-blocking query: https://www.consul.io/api-docs/features/blocking#implementation-details

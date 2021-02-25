@@ -15,6 +15,7 @@ const (
 type clustering struct {
 	ClusterName        string                 `mapstructure:"cluster-name,omitempty" json:"cluster-name,omitempty" yaml:"cluster-name,omitempty"`
 	InstanceName       string                 `mapstructure:"instance-name,omitempty" json:"instance-name,omitempty" yaml:"instance-name,omitempty"`
+	ServiceAddress     string                 `mapstructure:"service-address,omitempty" json:"service-address,omitempty" yaml:"service-address,omitempty"`
 	ServicesWatchTimer time.Duration          `mapstructure:"services-watch-timer,omitempty" json:"services-watch-timer,omitempty" yaml:"services-watch-timer,omitempty"`
 	TargetsWatchTimer  time.Duration          `mapstructure:"targets-watch-timer,omitempty" json:"targets-watch-timer,omitempty" yaml:"targets-watch-timer,omitempty"`
 	LeaderWaitTimer    time.Duration          `mapstructure:"leader-wait-timer,omitempty" json:"leader-wait-timer,omitempty" yaml:"leader-wait-timer,omitempty"`
@@ -29,6 +30,7 @@ func (c *Config) GetClustering() error {
 	c.Clustering = new(clustering)
 	c.Clustering.ClusterName = c.FileConfig.GetString("clustering/cluster-name")
 	c.Clustering.InstanceName = c.FileConfig.GetString("clustering/instance-name")
+	c.Clustering.ServiceAddress = c.FileConfig.GetString("clustering/service-address")
 	c.Clustering.TargetsWatchTimer = c.FileConfig.GetDuration("clustering/targets-watch-timer")
 	c.Clustering.ServicesWatchTimer = c.FileConfig.GetDuration("clustering/services-watch-timer")
 	c.Clustering.LeaderWaitTimer = c.FileConfig.GetDuration("clustering/leader-wait-timer")
