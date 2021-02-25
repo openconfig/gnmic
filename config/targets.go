@@ -222,21 +222,21 @@ func (c *Config) TargetsList() []*collector.TargetConfig {
 func expandCertPaths(tc *collector.TargetConfig) error {
 	if tc.Insecure != nil && !*tc.Insecure {
 		var err error
-		if tc.TLSCA != nil {
+		if tc.TLSCA != nil && *tc.TLSCA != "" {
 			*tc.TLSCA, err = expandOSPath(*tc.TLSCA)
 			if err != nil {
 				return err
 			}
 
 		}
-		if tc.TLSCert != nil {
+		if tc.TLSCert != nil && *tc.TLSCert != "" {
 			*tc.TLSCert, err = expandOSPath(*tc.TLSCert)
 			if err != nil {
 				return err
 			}
 
 		}
-		if tc.TLSKey != nil {
+		if tc.TLSKey != nil && *tc.TLSKey != "" {
 			*tc.TLSKey, err = expandOSPath(*tc.TLSKey)
 			if err != nil {
 				return err
