@@ -29,6 +29,8 @@ const (
 	configLogPrefix = "[config] "
 )
 
+var osPathFlags = []string{"tls-ca", "tls-cert", "tls-key"}
+
 type Config struct {
 	GlobalFlags `mapstructure:",squash"`
 	LocalFlags  `mapstructure:",squash"`
@@ -183,8 +185,7 @@ func (c *Config) Load(file string) error {
 	if err != nil {
 		return err
 	}
-
-	return nil
+	return c.expandOSPathFlagValues()
 }
 
 func (c *Config) SetLogger() {
@@ -557,6 +558,7 @@ func SanitizeArrayFlagValue(ls []string) []string {
 }
 
 func (c *Config) ValidateSetInput() error {
+	var err error
 	c.LocalFlags.SetDelete = SanitizeArrayFlagValue(c.LocalFlags.SetDelete)
 	c.LocalFlags.SetUpdate = SanitizeArrayFlagValue(c.LocalFlags.SetUpdate)
 	c.LocalFlags.SetReplace = SanitizeArrayFlagValue(c.LocalFlags.SetReplace)
@@ -566,6 +568,15 @@ func (c *Config) ValidateSetInput() error {
 	c.LocalFlags.SetReplaceValue = SanitizeArrayFlagValue(c.LocalFlags.SetReplaceValue)
 	c.LocalFlags.SetUpdateFile = SanitizeArrayFlagValue(c.LocalFlags.SetUpdateFile)
 	c.LocalFlags.SetReplaceFile = SanitizeArrayFlagValue(c.LocalFlags.SetReplaceFile)
+
+	c.LocalFlags.SetUpdateFile, err = ExpandOSPaths(c.LocalFlags.SetUpdateFile)
+	if err != nil {
+		return err
+	}
+	c.LocalFlags.SetReplaceFile, err = ExpandOSPaths(c.LocalFlags.SetReplaceFile)
+	if err != nil {
+		return err
+	}
 	if (len(c.LocalFlags.SetDelete)+len(c.LocalFlags.SetUpdate)+len(c.LocalFlags.SetReplace)) == 0 && (len(c.LocalFlags.SetUpdatePath)+len(c.LocalFlags.SetReplacePath)) == 0 {
 		return errors.New("no paths provided")
 	}
@@ -592,4 +603,47 @@ func (c *Config) LogOutput() io.Writer {
 
 func (c *Config) LogFlags() int {
 	return c.logger.Flags()
+}
+
+func ExpandOSPaths(paths []string) ([]string, error) {
+	var err error
+	for i := range paths {
+		paths[i], err = expandOSPath(paths[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return paths, nil
+}
+
+func expandOSPath(p string) (string, error) {
+	np, err := homedir.Expand(p)
+	if err != nil {
+		return "", fmt.Errorf("path %q: %v", p, err)
+	}
+	if !filepath.IsAbs(np) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return "", fmt.Errorf("path %q: %v", p, err)
+		}
+		np = filepath.Join(cwd, np)
+	}
+	_, err = os.Stat(np)
+	if err != nil {
+		return "", err
+	}
+	return np, nil
+}
+
+func (c *Config) expandOSPathFlagValues() error {
+	for _, flagName := range osPathFlags {
+		if c.FileConfig.IsSet(flagName) {
+			expandedPath, err := expandOSPath(c.FileConfig.GetString(flagName))
+			if err != nil {
+				return err
+			}
+			c.FileConfig.Set(flagName, expandedPath)
+		}
+	}
+	return nil
 }

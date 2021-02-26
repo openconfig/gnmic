@@ -159,7 +159,7 @@ func initConfig() {
 		return
 	}
 	if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-		fmt.Printf("failed loading config file: %v\n", err)
+		fmt.Fprintf(os.Stderr, "failed loading config file: %v\n", err)
 	}
 }
 
@@ -200,6 +200,7 @@ func printer(ctx context.Context, c chan string) {
 		}
 	}
 }
+
 func gather(ctx context.Context, c chan string, ls *[]string) {
 	for {
 		select {

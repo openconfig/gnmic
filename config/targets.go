@@ -75,10 +75,11 @@ func (c *Config) GetTargets() (map[string]*collector.TargetConfig, error) {
 		return nil, ErrNoTargetsFound
 	}
 
+	var err error
 	newTargetsConfig := make(map[string]*collector.TargetConfig)
 	for addr, t := range targetsMap {
 		if !strings.HasPrefix(addr, "unix://") {
-			_, _, err := net.SplitHostPort(addr)
+			_, _, err = net.SplitHostPort(addr)
 			if err != nil {
 				if strings.Contains(err.Error(), "missing port in address") ||
 					strings.Contains(err.Error(), "too many colons in address") {
@@ -113,6 +114,10 @@ func (c *Config) GetTargets() (map[string]*collector.TargetConfig, error) {
 		c.setTargetConfigDefaults(tc)
 		if c.Debug {
 			c.logger.Printf("read target config: %s", tc)
+		}
+		err = expandCertPaths(tc)
+		if err != nil {
+			return nil, err
 		}
 		newTargetsConfig[tc.Name] = tc
 	}
@@ -212,4 +217,32 @@ func (c *Config) TargetsList() []*collector.TargetConfig {
 		return targets[i].Name < targets[j].Name
 	})
 	return targets
+}
+
+func expandCertPaths(tc *collector.TargetConfig) error {
+	if tc.Insecure != nil && !*tc.Insecure {
+		var err error
+		if tc.TLSCA != nil && *tc.TLSCA != "" {
+			*tc.TLSCA, err = expandOSPath(*tc.TLSCA)
+			if err != nil {
+				return err
+			}
+
+		}
+		if tc.TLSCert != nil && *tc.TLSCert != "" {
+			*tc.TLSCert, err = expandOSPath(*tc.TLSCert)
+			if err != nil {
+				return err
+			}
+
+		}
+		if tc.TLSKey != nil && *tc.TLSKey != "" {
+			*tc.TLSKey, err = expandOSPath(*tc.TLSKey)
+			if err != nil {
+				return err
+			}
+
+		}
+	}
+	return nil
 }
