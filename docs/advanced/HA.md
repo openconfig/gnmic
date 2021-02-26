@@ -76,8 +76,11 @@ clustering:
   # this is a long timer used by the cluster leader 
   # in a consul long-blocking query: https://www.consul.io/api-docs/features/blocking#implementation-details
   services-watch-timer: 60s
-  # targets watch timer, the frequency at which the leader checks if all targets have a locked value
-  targets-watch-timer: 10s
+  # targets-watch-timer, targets watch timer, duration the leader waits between consecutive targets distributions
+  targets-watch-timer: 20s
+  # target-assignment-timeout, max time a leader waits for an instance to lock an assigned target.
+  # if the timeout is reached the leader unassigns the target and reselects a different instance.
+  target-assignment-timeout: 10s
   # leader wait timer, allows to configure a wait time after an instance acquires the leader key.
   # this wait time goal is to give more chances to other instances to register their API services 
   # before the target distribution starts

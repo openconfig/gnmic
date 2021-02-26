@@ -18,10 +18,9 @@ import (
 )
 
 const (
-	retryTimer          = 2 * time.Second
-	lockWaitTime        = 100 * time.Millisecond
-	maxLockWatchRetries = 20
-	apiServiceName      = "gnmic-api"
+	retryTimer     = 2 * time.Second
+	lockWaitTime   = 100 * time.Millisecond
+	apiServiceName = "gnmic-api"
 )
 
 var (
@@ -229,7 +228,6 @@ func (a *App) updateServices(srvs []*lockers.Service) {
 }
 
 func (a *App) dispatchTargets(ctx context.Context) {
-START:
 	for {
 		select {
 		case <-ctx.Done():
@@ -250,8 +248,7 @@ START:
 					// no registered services,
 					// no need to continue with other targets,
 					// break from the targets loop
-					time.Sleep(a.Config.Clustering.TargetsWatchTimer)
-					continue START
+					break
 				}
 				if err == errNoMoreSuitableServices {
 					// target has no suitable matching services,
@@ -320,7 +317,7 @@ WAIT:
 	}
 	if len(values) == 0 {
 		retries++
-		if retries >= maxLockWatchRetries {
+		if (retries+1)*int(lockWaitTime) >= int(a.Config.Clustering.TargetAssignmentTimeout) {
 			a.Logger.Printf("cluster leader, max retries reached for target %q and service %q, reselecting...", tc.Name, service.ID)
 			err = a.unassignTarget(tc.Name, service.ID)
 			if err != nil {
@@ -338,7 +335,7 @@ WAIT:
 		}
 	}
 	retries++
-	if retries >= maxLockWatchRetries {
+	if (retries+1)*int(lockWaitTime) >= int(a.Config.Clustering.TargetAssignmentTimeout) {
 		a.Logger.Printf("cluster leader, max retries reached for target %q and service %q, reselecting...", tc.Name, service.ID)
 		err = a.unassignTarget(tc.Name, service.ID)
 		if err != nil {
