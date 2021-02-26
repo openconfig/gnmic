@@ -75,10 +75,13 @@ func (a *App) serviceRegistration() {
 	serviceReg := &lockers.ServiceRegistration{
 		ID:      a.Config.Clustering.InstanceName + "-api",
 		Name:    apiServiceName,
-		Address: addr,
+		Address: a.Config.Clustering.ServiceAddress,
 		Port:    p,
 		Tags:    tags,
 		TTL:     5 * time.Second,
+	}
+	if serviceReg.Address == "" {
+		serviceReg.Address = addr
 	}
 	var err error
 	a.Logger.Printf("registering service %+v", serviceReg)
