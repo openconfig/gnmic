@@ -13,7 +13,7 @@ import (
 )
 
 type APIErrors struct {
-	Errors []string
+	Errors []string `json:"errors,omitempty"`
 }
 
 func (a *App) handleConfigTargetsGet(w http.ResponseWriter, r *http.Request) {
@@ -21,7 +21,8 @@ func (a *App) handleConfigTargetsGet(w http.ResponseWriter, r *http.Request) {
 	id := vars["id"]
 	targets, err := a.Config.GetTargets()
 	if err == config.ErrNoTargetsFound {
-		json.NewEncoder(w).Encode(nil)
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 	if err != nil && err != config.ErrNoTargetsFound {
@@ -193,6 +194,7 @@ func (a *App) handleTargetsGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNotFound)
+	json.NewEncoder(w).Encode(APIErrors{Errors: []string{"no targets found"}})
 }
 
 func (a *App) handleTargetsPost(w http.ResponseWriter, r *http.Request) {
