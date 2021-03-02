@@ -37,6 +37,10 @@ nav:
           - To Tag: advanced/event_processors/event_to_tag.md
           - Write: advanced/event_processors/event_write.md
       - Clustering & Scalability: advanced/HA.md
+      - API: 
+          - Introduction: advanced/api/api_intro.md
+          - Configuration: advanced/api/configuration.md
+          - Targets: advanced/api/targets.md
   - Command reference:
       - Capabilities: cmd/capabilities.md
       - Get: cmd/get.md
