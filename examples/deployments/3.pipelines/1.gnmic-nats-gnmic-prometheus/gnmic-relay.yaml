@@ -1,0 +1,20 @@
+username: admin
+password: admin
+insecure: true
+encoding: json_ietf
+log: true
+
+inputs:
+  nats-input:
+    type: input
+    address: nats:4222
+    subject: telemetry
+    outputs:
+      - prom-output
+
+outputs:
+  prom-output:
+    type: prometheus
+    listen: ":9804"
+    service-registration:
+      address: consul-agent:8500

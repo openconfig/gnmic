@@ -1,0 +1,67 @@
+version: '3' 
+
+networks:
+  gnmic-net:
+    driver: bridge
+
+services:
+  gnmic1: &gnmic
+    image: ghcr.io/karimra/gnmic:0.8.0
+    container_name: gnmic1
+    volumes:
+      - ./gnmic1.yaml:/app/gnmic.yaml
+    command: "subscribe --config /app/gnmic.yaml"
+    networks:
+      - gnmic-net
+    ports:
+      - 7890:7890
+      - 9804:9804
+    depends_on:
+      - consul-agent
+      - influxdb
+
+  gnmic2:
+    <<: *gnmic
+    container_name: gnmic2
+    volumes:
+      - ./gnmic2.yaml:/app/gnmic.yaml
+    ports:
+      - 7891:7891
+      - 9805:9805
+
+  gnmic3:
+    <<: *gnmic
+    container_name: gnmic3
+    volumes:
+      - ./gnmic3.yaml:/app/gnmic.yaml
+    ports:
+      - 7892:7892
+      - 9806:9806
+
+  consul-agent:
+    image: consul:latest
+    container_name: consul
+    networks:
+      - gnmic-net
+    ports:
+      - 8500:8500
+      - 8600:8600/udp
+    command: agent -server -ui -node=server-1 -bootstrap-expect=1 -client=0.0.0.0    
+
+  influxdb:
+    image: influxdb:latest
+    container_name: influxdb
+    networks:
+      - gnmic-net
+    ports:
+      - "8083:8083"
+      - "8086:8086"
+      - "8090:8090"
+    environment:
+      - INFLUXDB_DATA_ENGINE=tsm1
+      - INFLUXDB_REPORTING_DISABLED=false
+    volumes:
+      - influx-storage:/var/lib/influxdb
+
+volumes:
+  influx-storage:

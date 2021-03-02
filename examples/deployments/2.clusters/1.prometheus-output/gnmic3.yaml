@@ -1,0 +1,40 @@
+username: admin
+password: admin
+insecure: true
+encoding: json_ietf
+log: true
+api: ":7892"
+
+# clustering config
+clustering:
+  cluster-name: cluster1
+  instance-name: gnmic3
+  service-address: gnmic3
+  targets-watch-timer: 5s
+  locker:
+    type: consul
+    address: consul-agent:8500
+
+targets:
+  # Add targets configuration here
+  # eg:
+  # 192.168.1.131:57400:
+  #   username: gnmic
+  #   password: secret_password
+
+
+subscriptions:
+  # Add subscriptions configuration here
+  # e.g:
+  # sub1:
+  #   paths:
+  #     - /interface/statistics
+  #   stream-mode: sample
+  #   sample-interval: 1s
+
+outputs:
+  prom-output:
+    type: prometheus
+    listen: ":9806"
+    service-registration:
+      address: consul-agent:8500
