@@ -75,7 +75,7 @@ targets:
 The named subscriptions are put under the `subscriptions` section of a target container. As shown in the example above, it is allowed to add multiple named subscriptions under a single target; in that case each named subscription will result in a separate Subscription Request towards a target.
 
 !!! note
-    If a target is not explicitely associated with any subscription, the client will subscribe to all defined subscriptions in the file.
+    If a target is not explicitly associated with any subscription, the client will subscribe to all defined subscriptions in the file.
     
 The full configuration with the subscriptions defined and associated with targets will look like this:
 ```yaml

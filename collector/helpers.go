@@ -38,6 +38,7 @@ func ParsePath(p string) (*gnmi.Path, error) {
 
 	idx := strings.Index(p, ":")
 	if idx >= 0 && p[0] != '/' && !strings.Contains(p[:idx], "/") &&
+		// path == origin:/ || path == origin:
 		((idx+1 < lp && p[idx+1] == '/') || (lp == idx+1)) {
 		origin = p[:idx]
 		p = p[idx+1:]

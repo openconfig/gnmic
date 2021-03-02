@@ -138,6 +138,16 @@ var pathsTable = map[string]struct {
 		},
 		isOK: true,
 	},
+	"path_with_empty_origin": {
+		strPath:  ":",
+		gnmiPath: &gnmi.Path{},
+		isOK:     true,
+	},
+	"path_with_empty_origin_and_slash_only": {
+		strPath:  ":/",
+		gnmiPath: &gnmi.Path{},
+		isOK:     true,
+	},
 	"path_with_origin_and_key": {
 		strPath: "origin:/e1/e2[k=v]",
 		gnmiPath: &gnmi.Path{
