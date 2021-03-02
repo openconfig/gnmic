@@ -30,13 +30,15 @@ func CreatePrefix(prefix, target string) (*gnmi.Path, error) {
 // ParsePath creates a gnmi.Path out of a p string, check if the first element is prefixed by an origin,
 // removes it from the xpath and adds it to the returned gnmiPath
 func ParsePath(p string) (*gnmi.Path, error) {
-	if len(p) == 0 {
+	lp := len(p)
+	if lp == 0 {
 		return &gnmi.Path{}, nil
 	}
 	var origin string
 
 	idx := strings.Index(p, ":")
-	if idx >= 0 && p[0] != '/' {
+	if idx >= 0 && p[0] != '/' && !strings.Contains(p[:idx], "/") &&
+		((idx+1 < lp && p[idx+1] == '/') || (lp == idx+1)) {
 		origin = p[:idx]
 		p = p[idx+1:]
 	}

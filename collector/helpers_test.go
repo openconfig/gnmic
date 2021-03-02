@@ -113,18 +113,6 @@ var pathsTable = map[string]struct {
 		expectedErr: nil,
 	},
 	"path_with_origin": {
-		strPath: "origin:e1/e2",
-		gnmiPath: &gnmi.Path{
-			Origin: "origin",
-			Elem: []*gnmi.PathElem{
-				{Name: "e1"},
-				{Name: "e2"},
-			},
-		},
-		isOK:        true,
-		expectedErr: nil,
-	},
-	"path_with_origin_and_slash": {
 		strPath: "origin:/e1/e2",
 		gnmiPath: &gnmi.Path{
 			Origin: "origin",
@@ -138,6 +126,13 @@ var pathsTable = map[string]struct {
 	},
 	"path_with_origin_only": {
 		strPath: "origin:",
+		gnmiPath: &gnmi.Path{
+			Origin: "origin",
+		},
+		isOK: true,
+	},
+	"path_with_origin_and_slash_only": {
+		strPath: "origin:/",
 		gnmiPath: &gnmi.Path{
 			Origin: "origin",
 		},
@@ -238,6 +233,93 @@ var pathsTable = map[string]struct {
 				{Name: "e2",
 					Key: map[string]string{
 						"k": "v",
+					}},
+			},
+		},
+		isOK:        true,
+		expectedErr: nil,
+	},
+	"path_with_column_in_first_path_elem": {
+		strPath: `e1:e2/e3[k=v]`,
+		gnmiPath: &gnmi.Path{
+			Elem: []*gnmi.PathElem{
+				{Name: "e1:e2"},
+				{Name: "e3",
+					Key: map[string]string{
+						"k": "v",
+					}},
+			},
+		},
+		isOK:        true,
+		expectedErr: nil,
+	},
+	"path_with_column_in_key_value": {
+		strPath: `/e1/e2[k=v:1]`,
+		gnmiPath: &gnmi.Path{
+			Elem: []*gnmi.PathElem{
+				{Name: "e1"},
+				{Name: "e2",
+					Key: map[string]string{
+						"k": "v:1",
+					}},
+			},
+		},
+		isOK:        true,
+		expectedErr: nil,
+	},
+	"path_without_origin_with_column_in_path_elem": {
+		strPath: `e1/e2:e3[k=v:1]`,
+		gnmiPath: &gnmi.Path{
+			Elem: []*gnmi.PathElem{
+				{Name: "e1"},
+				{Name: "e2:e3",
+					Key: map[string]string{
+						"k": "v:1",
+					}},
+			},
+		},
+		isOK:        true,
+		expectedErr: nil,
+	},
+	"path_with_origin_and_column_in_key_value": {
+		strPath: `origin:/e1/e2[k=v:1]`,
+		gnmiPath: &gnmi.Path{
+			Origin: "origin",
+			Elem: []*gnmi.PathElem{
+				{Name: "e1"},
+				{Name: "e2",
+					Key: map[string]string{
+						"k": "v:1",
+					}},
+			},
+		},
+		isOK:        true,
+		expectedErr: nil,
+	},
+	"path_with_origin_and_column_space_in_key_value": {
+		strPath: `origin:/e1/e2[k=v a:1]`,
+		gnmiPath: &gnmi.Path{
+			Origin: "origin",
+			Elem: []*gnmi.PathElem{
+				{Name: "e1"},
+				{Name: "e2",
+					Key: map[string]string{
+						"k": `v a:1`,
+					}},
+			},
+		},
+		isOK:        true,
+		expectedErr: nil,
+	},
+	"path_with_origin_and_column_space_in_key_value_double_quoted_value": {
+		strPath: `origin:/e1/e2[k="v a:1"]`,
+		gnmiPath: &gnmi.Path{
+			Origin: "origin",
+			Elem: []*gnmi.PathElem{
+				{Name: "e1"},
+				{Name: "e2",
+					Key: map[string]string{
+						"k": `"v a:1"`,
 					}},
 			},
 		},
