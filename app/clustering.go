@@ -19,7 +19,7 @@ import (
 
 const (
 	retryTimer     = 2 * time.Second
-	dispatchPace   = 100 * time.Millisecond
+	lockWaitTime   = 100 * time.Millisecond
 	apiServiceName = "gnmic-api"
 )
 
@@ -228,7 +228,6 @@ func (a *App) updateServices(srvs []*lockers.Service) {
 }
 
 func (a *App) dispatchTargets(ctx context.Context) {
-START:
 	for {
 		select {
 		case <-ctx.Done():
@@ -249,15 +248,13 @@ START:
 					// no registered services,
 					// no need to continue with other targets,
 					// break from the targets loop
-					time.Sleep(a.Config.Clustering.TargetsWatchTimer)
-					continue START
+					break
 				}
 				if err == errNoMoreSuitableServices {
 					// target has no suitable matching services,
 					// continue to next target without wait
 					continue
 				}
-				time.Sleep(dispatchPace)
 			}
 
 			select {
@@ -292,51 +289,62 @@ SELECTSERVICE:
 		goto SELECTSERVICE
 	}
 	a.Logger.Printf("selected service %+v", service)
-
-	// encode target config
-	buffer := new(bytes.Buffer)
-	err = json.NewEncoder(buffer).Encode(tc)
+	// assign target to selected service
+	err = a.assignTarget(ctx, tc, service)
 	if err != nil {
-		a.Logger.Printf("failed encoding target config: %v", err)
-		return err
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://"+service.Address+"/config/targets", buffer)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := a.httpClient.Do(req.WithContext(ctx))
-	if err != nil {
-		a.Logger.Printf("failed to send target config to %q: %v", service.Address, err)
 		// add service to denied list and reselect
+		a.Logger.Printf("failed assigning target %q to service %q", tc.Name, service.ID)
 		denied = append(denied, service.ID)
 		goto SELECTSERVICE
 	}
-	a.Logger.Printf("got response code=%d for target %q config add from %q", resp.StatusCode, tc.Name, service.Address)
-	if resp.StatusCode > 200 {
-		// add service to denied list and reselect
-		denied = append(denied, service.ID)
-		goto SELECTSERVICE
+	// wait for lock to be acquired
+	instanceName := ""
+	for _, tag := range service.Tags {
+		splitTag := strings.Split(tag, "=")
+		if len(splitTag) == 2 && splitTag[0] == "instance-name" {
+			instanceName = splitTag[1]
+		}
 	}
-	// send target start
-	req, err = http.NewRequestWithContext(ctx, http.MethodPost, "http://"+service.Address+"/targets/"+tc.Name, new(bytes.Buffer))
+	key := fmt.Sprintf("gnmic/%s/targets/%s", a.Config.Clustering.ClusterName, tc.Name)
+	a.Logger.Printf("cluster leader, waiting for lock %q to be acquired by %q", key, instanceName)
+	retries := 0
+WAIT:
+	values, err := a.locker.List(ctx, key)
 	if err != nil {
-		return err
+		a.Logger.Printf("failed getting value of %q: %v", key, err)
+		time.Sleep(lockWaitTime)
+		goto WAIT
 	}
-	resp, err = a.httpClient.Do(req.WithContext(ctx))
-	if err != nil {
-		a.Logger.Printf("failed to send target assignment to %s: %v", service.Address, err)
-		// add service to denied list and reselect
-		denied = append(denied, service.ID)
+	if len(values) == 0 {
+		retries++
+		if (retries+1)*int(lockWaitTime) >= int(a.Config.Clustering.TargetAssignmentTimeout) {
+			a.Logger.Printf("cluster leader, max retries reached for target %q and service %q, reselecting...", tc.Name, service.ID)
+			err = a.unassignTarget(tc.Name, service.ID)
+			if err != nil {
+				a.Logger.Printf("failed to unassign target %q from %q", tc.Name, service.ID)
+			}
+			goto SELECTSERVICE
+		}
+		time.Sleep(lockWaitTime)
+		goto WAIT
+	}
+	if instance, ok := values[key]; ok {
+		if instance == instanceName {
+			a.Logger.Printf("cluster leader, lock %q acquired by %q", key, instanceName)
+			return nil
+		}
+	}
+	retries++
+	if (retries+1)*int(lockWaitTime) >= int(a.Config.Clustering.TargetAssignmentTimeout) {
+		a.Logger.Printf("cluster leader, max retries reached for target %q and service %q, reselecting...", tc.Name, service.ID)
+		err = a.unassignTarget(tc.Name, service.ID)
+		if err != nil {
+			a.Logger.Printf("failed to unassign target %q from %q", tc.Name, service.ID)
+		}
 		goto SELECTSERVICE
 	}
-	a.Logger.Printf("got response code=%d for target %q assignment from %q", resp.StatusCode, tc.Name, service.Address)
-	if resp.StatusCode > 200 {
-		// add service to denied list and reselect
-		denied = append(denied, service.ID)
-		goto SELECTSERVICE
-	}
-	return nil
+	time.Sleep(lockWaitTime)
+	goto WAIT
 }
 
 func (a *App) selectService(tags []string, denied ...string) (*lockers.Service, error) {
@@ -514,6 +522,65 @@ func (a *App) deleteTarget(name string) error {
 			continue
 		}
 		a.Logger.Printf("received response code=%d, for DELETE %s", rsp.StatusCode, url)
+	}
+	return nil
+}
+
+func (a *App) assignTarget(ctx context.Context, tc *collector.TargetConfig, service *lockers.Service) error {
+	// encode target config
+	var err error
+	buffer := new(bytes.Buffer)
+	err = json.NewEncoder(buffer).Encode(tc)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest(http.MethodPost, "http://"+service.Address+"/config/targets", buffer)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := a.httpClient.Do(req.WithContext(ctx))
+	if err != nil {
+		return err
+	}
+	a.Logger.Printf("got response code=%d for target %q config add from %q", resp.StatusCode, tc.Name, service.Address)
+	if resp.StatusCode > 200 {
+		return fmt.Errorf("status code=%d", resp.StatusCode)
+	}
+	// send target start
+	req, err = http.NewRequest(http.MethodPost, "http://"+service.Address+"/targets/"+tc.Name, new(bytes.Buffer))
+	if err != nil {
+		return err
+	}
+	resp, err = a.httpClient.Do(req.WithContext(ctx))
+	if err != nil {
+		return err
+	}
+	a.Logger.Printf("got response code=%d for target %q assignment from %q", resp.StatusCode, tc.Name, service.Address)
+	if resp.StatusCode > 200 {
+		return fmt.Errorf("status code=%d", resp.StatusCode)
+	}
+	return nil
+}
+
+func (a *App) unassignTarget(name string, serviceID string) error {
+	for _, s := range a.apiServices {
+		if s.ID != serviceID {
+			continue
+		}
+		url := fmt.Sprintf("http://%s/targets/%s", s.Address, name)
+		ctx, cancel := context.WithTimeout(a.ctx, 500*time.Millisecond)
+		defer cancel()
+		req, err := http.NewRequestWithContext(ctx, "DELETE", url, nil)
+		if err != nil {
+			continue
+		}
+		rsp, err := a.httpClient.Do(req)
+		if err != nil {
+			continue
+		}
+		a.Logger.Printf("received response code=%d, for DELETE %s", rsp.StatusCode, url)
+		break
 	}
 	return nil
 }

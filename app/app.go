@@ -267,7 +267,6 @@ func (a *App) loadTargets(e fsnotify.Event) {
 				if err != nil {
 					a.Logger.Printf("failed to add target %q: %v", tc.Name, err)
 				}
-				time.Sleep(dispatchPace)
 			}
 		}
 	}
