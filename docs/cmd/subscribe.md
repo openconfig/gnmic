@@ -25,8 +25,11 @@ gnmic sub --path "/state/ports[port-id=*]" \
 
 If a user needs to provide [origin](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#222-paths) information to the Path message, the following pattern should be used for the path string: `"origin:path"`:
 
+!!! note
+    The path after the origin value has to start with a `/`
+
 ```
-gnmic sub --path "openconfig-interfaces:interfaces/interface"
+gnmic sub --path "openconfig-interfaces:/interfaces/interface"
 ```
 
 #### target
