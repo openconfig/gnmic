@@ -15,11 +15,8 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/karimra/gnmic/config"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 )
 
 //var paths []string
@@ -46,27 +43,9 @@ func newGetCmd() *cobra.Command {
 			gApp.Config.LocalFlags.GetPath = config.SanitizeArrayFlagValue(gApp.Config.LocalFlags.GetPath)
 			gApp.Config.LocalFlags.GetModel = config.SanitizeArrayFlagValue(gApp.Config.LocalFlags.GetModel)
 		},
-		RunE: gApp.GetRun,
-		PostRun: func(cmd *cobra.Command, args []string) {
-			cmd.ResetFlags()
-			initGetFlags(cmd)
-		},
+		RunE:         gApp.GetRun,
 		SilenceUsage: true,
 	}
-	initGetFlags(cmd)
+	gApp.InitGetFlags(cmd)
 	return cmd
-}
-
-// used to init or reset getCmd flags for gnmic-prompt mode
-func initGetFlags(cmd *cobra.Command) {
-	cmd.Flags().StringArrayVarP(&gApp.Config.LocalFlags.GetPath, "path", "", []string{}, "get request paths")
-	cmd.MarkFlagRequired("path")
-	cmd.Flags().StringVarP(&gApp.Config.LocalFlags.GetPrefix, "prefix", "", "", "get request prefix")
-	cmd.Flags().StringSliceVarP(&gApp.Config.LocalFlags.GetModel, "model", "", []string{}, "get request models")
-	cmd.Flags().StringVarP(&gApp.Config.LocalFlags.GetType, "type", "t", "ALL", "data type requested from the target. one of: ALL, CONFIG, STATE, OPERATIONAL")
-	cmd.Flags().StringVarP(&gApp.Config.LocalFlags.GetTarget, "target", "", "", "get request target")
-
-	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
-		gApp.Config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
-	})
 }

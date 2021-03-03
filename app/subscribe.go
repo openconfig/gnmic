@@ -15,6 +15,7 @@ import (
 	"github.com/manifoldco/promptui"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 const (
@@ -22,6 +23,8 @@ const (
 )
 
 func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
+	defer a.InitSubscribeFlags(cmd)
+
 	// prompt mode
 	if a.PromptMode {
 		return a.SubscribeRunPrompt(cmd, args)
@@ -179,6 +182,36 @@ func (a *App) SubscribeRunPrompt(cmd *cobra.Command, args []string) error {
 	a.wg.Wait()
 
 	return nil
+}
+
+// InitSubscribeFlags used to init or reset subscribeCmd flags for gnmic-prompt mode
+func (a *App) InitSubscribeFlags(cmd *cobra.Command) {
+	cmd.ResetFlags()
+
+	cmd.Flags().StringVarP(&a.Config.LocalFlags.SubscribePrefix, "prefix", "", "", "subscribe request prefix")
+	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.SubscribePath, "path", "", []string{}, "subscribe request paths")
+	//cmd.MarkFlagRequired("path")
+	cmd.Flags().Uint32VarP(&a.Config.LocalFlags.SubscribeQos, "qos", "q", 0, "qos marking")
+	cmd.Flags().BoolVarP(&a.Config.LocalFlags.SubscribeUpdatesOnly, "updates-only", "", false, "only updates to current state should be sent")
+	cmd.Flags().StringVarP(&a.Config.LocalFlags.SubscribeMode, "mode", "", "stream", "one of: once, stream, poll")
+	cmd.Flags().StringVarP(&a.Config.LocalFlags.SubscribeStreamMode, "stream-mode", "", "target-defined", "one of: on-change, sample, target-defined")
+	cmd.Flags().DurationVarP(&a.Config.LocalFlags.SubscribeSampleInterval, "sample-interval", "i", 0,
+		"sample interval as a decimal number and a suffix unit, such as \"10s\" or \"1m30s\"")
+	cmd.Flags().BoolVarP(&a.Config.LocalFlags.SubscribeSuppressRedundant, "suppress-redundant", "", false, "suppress redundant update if the subscribed value didn't not change")
+	cmd.Flags().DurationVarP(&a.Config.LocalFlags.SubscribeHeartbearInterval, "heartbeat-interval", "", 0, "heartbeat interval in case suppress-redundant is enabled")
+	cmd.Flags().StringSliceVarP(&a.Config.LocalFlags.SubscribeModel, "model", "", []string{}, "subscribe request used model(s)")
+	cmd.Flags().BoolVar(&a.Config.LocalFlags.SubscribeQuiet, "quiet", false, "suppress stdout printing")
+	cmd.Flags().StringVarP(&a.Config.LocalFlags.SubscribeTarget, "target", "", "", "subscribe request target")
+	cmd.Flags().StringSliceVarP(&a.Config.LocalFlags.SubscribeName, "name", "n", []string{}, "reference subscriptions by name, must be defined in gnmic config file")
+	cmd.Flags().StringSliceVarP(&a.Config.LocalFlags.SubscribeOutput, "output", "", []string{}, "reference to output groups by name, must be defined in gnmic config file")
+	cmd.Flags().BoolVarP(&a.Config.LocalFlags.SubscribeWatchConfig, "watch-config", "", false, "watch configuration changes, add or delete subscribe targets accordingly")
+	cmd.Flags().DurationVarP(&a.Config.LocalFlags.SubscribeBackoff, "backoff", "", 0, "backoff time between subscribe requests")
+	cmd.Flags().StringVarP(&a.Config.LocalFlags.SubscribeClusterName, "cluster-name", "", defaultClusterName, "cluster name the gnmic instance belongs to, this is used for target loadsharing via a locker")
+	cmd.Flags().DurationVarP(&a.Config.LocalFlags.SubscribeLockRetry, "lock-retry", "", 5*time.Second, "time to wait between target lock attempts")
+	//
+	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
+		a.Config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
+	})
 }
 
 func (a *App) createCollectorOpts(cmd *cobra.Command) ([]collector.CollectorOption, error) {

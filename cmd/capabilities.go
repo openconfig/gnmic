@@ -15,10 +15,7 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 )
 
 // capabilitiesCmd represents the capabilities command
@@ -30,20 +27,9 @@ func newCapabilitiesCmd() *cobra.Command {
 		PreRun: func(cmd *cobra.Command, args []string) {
 			gApp.Config.SetLocalFlagsFromFile(cmd)
 		},
-		RunE: gApp.CapRun,
-		PostRun: func(cmd *cobra.Command, args []string) {
-			cmd.ResetFlags()
-			initCapabilitiesFlags(cmd)
-		},
+		RunE:         gApp.CapRun,
 		SilenceUsage: true,
 	}
-	initCapabilitiesFlags(cmd)
+	gApp.InitCapabilitiesFlags(cmd)
 	return cmd
-}
-
-func initCapabilitiesFlags(cmd *cobra.Command) {
-	cmd.Flags().BoolVarP(&gApp.Config.LocalFlags.CapabilitiesVersion, "version", "", false, "show gnmi version only")
-	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
-		gApp.Config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
-	})
 }
