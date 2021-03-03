@@ -18,9 +18,10 @@ import (
 )
 
 const (
-	retryTimer     = 2 * time.Second
-	lockWaitTime   = 100 * time.Millisecond
-	apiServiceName = "gnmic-api"
+	defaultClusterName = "default-cluster"
+	retryTimer         = 2 * time.Second
+	lockWaitTime       = 100 * time.Millisecond
+	apiServiceName     = "gnmic-api"
 )
 
 var (

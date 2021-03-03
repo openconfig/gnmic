@@ -8,9 +8,12 @@ import (
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 func (a *App) CapRun(cmd *cobra.Command, args []string) error {
+	defer a.InitCapabilitiesFlags(cmd)
+
 	if a.Config.Format == "event" {
 		return fmt.Errorf("format event not supported for Capabilities RPC")
 	}
@@ -73,4 +76,13 @@ func (a *App) ReqCapabilities(ctx context.Context, tName string) {
 	if err != nil {
 		a.logError(fmt.Errorf("target %q: %v", tName, err))
 	}
+}
+
+func (a *App) InitCapabilitiesFlags(cmd *cobra.Command) {
+	cmd.ResetFlags()
+	
+	cmd.Flags().BoolVarP(&a.Config.LocalFlags.CapabilitiesVersion, "version", "", false, "show gnmi version only")
+	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
+		a.Config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
+	})
 }

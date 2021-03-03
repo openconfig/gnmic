@@ -5,11 +5,15 @@ import (
 	"fmt"
 
 	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/config"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 func (a *App) SetRun(cmd *cobra.Command, args []string) error {
+	defer a.InitSetFlags(cmd)
+
 	if a.Config.Format == "event" {
 		return fmt.Errorf("format event not supported for Set RPC")
 	}
@@ -75,4 +79,29 @@ func (a *App) SetRequest(ctx context.Context, tName string, req *gnmi.SetRequest
 	if err != nil {
 		a.logError(fmt.Errorf("target %q: %v", tName, err))
 	}
+}
+
+// InitSetFlags used to init or reset setCmd flags for gnmic-prompt mode
+func (a *App) InitSetFlags(cmd *cobra.Command) {
+	cmd.ResetFlags()
+
+	cmd.Flags().StringP("prefix", "", "", "set request prefix")
+
+	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.SetDelete, "delete", "", []string{}, "set request path to be deleted")
+
+	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.SetReplace, "replace", "", []string{}, fmt.Sprintf("set request path:::type:::value to be replaced, type must be one of %v", config.ValueTypes))
+	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.SetUpdate, "update", "", []string{}, fmt.Sprintf("set request path:::type:::value to be updated, type must be one of %v", config.ValueTypes))
+
+	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.SetReplacePath, "replace-path", "", []string{}, "set request path to be replaced")
+	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.SetUpdatePath, "update-path", "", []string{}, "set request path to be updated")
+	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.SetUpdateFile, "update-file", "", []string{}, "set update request value in json/yaml file")
+	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.SetReplaceFile, "replace-file", "", []string{}, "set replace request value in json/yaml file")
+	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.SetUpdateValue, "update-value", "", []string{}, "set update request value")
+	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.SetReplaceValue, "replace-value", "", []string{}, "set replace request value")
+	cmd.Flags().StringVarP(&a.Config.LocalFlags.SetDelimiter, "delimiter", "", ":::", "set update/replace delimiter between path, type, value")
+	cmd.Flags().StringVarP(&a.Config.LocalFlags.SetTarget, "target", "", "", "set request target")
+
+	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
+		a.Config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
+	})
 }

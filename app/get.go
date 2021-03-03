@@ -7,9 +7,12 @@ import (
 	"github.com/karimra/gnmic/collector"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 func (a *App) GetRun(cmd *cobra.Command, args []string) error {
+	defer a.InitGetFlags(cmd)
+
 	if a.Config.Format == "event" {
 		return fmt.Errorf("format event not supported for Get RPC")
 	}
@@ -111,4 +114,20 @@ func (a *App) filterModels(ctx context.Context, tName string, modelsNames []stri
 		}
 	}
 	return supportedModels, unsupportedModels, nil
+}
+
+// InitGetFlags used to init or reset getCmd flags for gnmic-prompt mode
+func (a *App) InitGetFlags(cmd *cobra.Command) {
+	cmd.ResetFlags()
+	
+	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.GetPath, "path", "", []string{}, "get request paths")
+	cmd.MarkFlagRequired("path")
+	cmd.Flags().StringVarP(&a.Config.LocalFlags.GetPrefix, "prefix", "", "", "get request prefix")
+	cmd.Flags().StringSliceVarP(&a.Config.LocalFlags.GetModel, "model", "", []string{}, "get request models")
+	cmd.Flags().StringVarP(&a.Config.LocalFlags.GetType, "type", "t", "ALL", "data type requested from the target. one of: ALL, CONFIG, STATE, OPERATIONAL")
+	cmd.Flags().StringVarP(&a.Config.LocalFlags.GetTarget, "target", "", "", "get request target")
+
+	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
+		a.Config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
+	})
 }
