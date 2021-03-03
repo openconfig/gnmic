@@ -28,9 +28,9 @@ services:
     environment:
       - INFLUXDB_DATA_ENGINE=tsm1
       - INFLUXDB_REPORTING_DISABLED=false
-      # - INFLUXDB_INIT_USERNAME=gnmic
-      # - INFLUXDB_INIT_PASSWORD=gnmic
-      # - INFLUXDB_INIT_BUCKET=telemetry
+      - INFLUXDB_USER=gnmic
+      - INFLUXDB_USER_PASSWORD=gnmic
+      - INFLUXDB_DB=telemetry
     volumes:
       - influx-storage:/var/lib/influxdb
 

@@ -3,6 +3,17 @@ password: admin
 insecure: true
 encoding: json_ietf
 log: true
+api: ":7890"
+
+# clustering config
+clustering:
+  cluster-name: cluster1
+  instance-name: gnmic1
+  service-address: gnmic1
+  targets-watch-timer: 5s
+  locker:
+    type: consul
+    address: consul-agent:8500
 
 targets:
   # Add targets configuration here

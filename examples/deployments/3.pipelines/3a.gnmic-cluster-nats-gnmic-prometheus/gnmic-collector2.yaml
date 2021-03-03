@@ -3,13 +3,14 @@ password: admin
 insecure: true
 encoding: json_ietf
 log: true
-api: ":7890"
+
+api: ":7891"
 
 # clustering config
 clustering:
   cluster-name: cluster1
-  instance-name: gnmic1
-  service-address: gnmic1
+  instance-name: gnmic-collector2
+  service-address: gnmic-collector2
   targets-watch-timer: 5s
   locker:
     type: consul
@@ -32,10 +33,9 @@ subscriptions:
   #   stream-mode: sample
   #   sample-interval: 1s
 
+
 outputs:
-  influxdb-output:
-    url: http://influxdb:8086
-    bucket: telemetry # db name
-    token: gnmic:gnmic # username:password
-    batch-size: 1000
-    flush-timer: 10s
+  nats-output:
+    type: nats
+    address: nats:4222
+    subject: telemetry

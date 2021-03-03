@@ -21,7 +21,8 @@ targets:
   # 192.168.1.131:57400:
   #   username: gnmic
   #   password: secret_password
-
+  #   outputs:
+  #     - nats-output
 
 subscriptions:
   # Add subscriptions configuration here
@@ -32,6 +33,13 @@ subscriptions:
   #   stream-mode: sample
   #   sample-interval: 1s
 
+inputs:
+  nats-input:
+    type: input
+    address: nats:4222
+    subject: telemetry
+    outputs:
+      - prom-output
 
 outputs:
   nats-output:

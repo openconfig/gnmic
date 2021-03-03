@@ -1,7 +1,3 @@
-username: admin
-password: admin
-insecure: true
-encoding: json_ietf
 log: true
 
 inputs:
@@ -14,6 +10,7 @@ inputs:
 
 outputs:
   influxdb-output:
+    type: influxdb
     url: http://influxdb:8086
     bucket: telemetry # db name
     token: gnmic:gnmic # username:password

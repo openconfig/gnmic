@@ -15,6 +15,7 @@ services:
       - gnmic-net
     depends_on:
       - nats
+      - influxdb
 
   gnmic-relay:
     <<: *gnmic
@@ -37,6 +38,9 @@ services:
     environment:
       - INFLUXDB_DATA_ENGINE=tsm1
       - INFLUXDB_REPORTING_DISABLED=false
+      - INFLUXDB_USER=gnmic
+      - INFLUXDB_USER_PASSWORD=gnmic
+      - INFLUXDB_DB=telemetry
     volumes:
       - influx-storage:/var/lib/influxdb
   

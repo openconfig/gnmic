@@ -15,7 +15,6 @@ services:
       - gnmic-net
     ports:
       - 7890:7890
-      - 9804:9804
     depends_on:
       - consul-agent
       - influxdb
@@ -27,7 +26,6 @@ services:
       - ./gnmic2.yaml:/app/gnmic.yaml
     ports:
       - 7891:7891
-      - 9805:9805
 
   gnmic3:
     <<: *gnmic
@@ -36,7 +34,6 @@ services:
       - ./gnmic3.yaml:/app/gnmic.yaml
     ports:
       - 7892:7892
-      - 9806:9806
 
   consul-agent:
     image: consul:latest
@@ -60,6 +57,9 @@ services:
     environment:
       - INFLUXDB_DATA_ENGINE=tsm1
       - INFLUXDB_REPORTING_DISABLED=false
+      - INFLUXDB_USER=gnmic
+      - INFLUXDB_USER_PASSWORD=gnmic
+      - INFLUXDB_DB=telemetry
     volumes:
       - influx-storage:/var/lib/influxdb
 
