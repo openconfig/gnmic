@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -871,7 +872,8 @@ func showCommandArguments(b *goprompt.Buffer) {
 func ExecutePrompt() {
 	initPromptCmds()
 	shell := &cmdPrompt{
-		RootCmd: gApp.RootCmd,
+		parseRegex: regexp.MustCompile("'.+'|\".+\"|\\S+"),
+		RootCmd:    gApp.RootCmd,
 		GoPromptOptions: []goprompt.Option{
 			goprompt.OptionTitle("gnmic-prompt"),
 			goprompt.OptionPrefix("gnmic> "),
@@ -971,6 +973,9 @@ type cmdPrompt struct {
 	// GoPromptOptions is for customize go-prompt
 	// see https://github.com/c-bata/go-prompt/blob/master/option.go
 	GoPromptOptions []goprompt.Option
+
+	// regex used to split the prompt args
+	parseRegex *regexp.Regexp
 }
 
 // Run will automatically generate suggestions for all cobra commands
@@ -978,7 +983,7 @@ type cmdPrompt struct {
 func (co cmdPrompt) Run() {
 	p := goprompt.New(
 		func(in string) {
-			promptArgs := strings.Fields(in)
+			promptArgs := co.parseRegex.FindAllString(in, -1)
 			os.Args = append([]string{os.Args[0]}, promptArgs...)
 			if len(promptArgs) > 0 {
 				err := co.RootCmd.Execute()
