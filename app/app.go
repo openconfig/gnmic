@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -132,8 +134,29 @@ func (a *App) PreRun(_ *cobra.Command, args []string) error {
 			a.Logger.Printf("config file:\n%s", string(b))
 		}
 	}
-	// logConfig
+	a.logConfigKVs()
 	return nil
+}
+
+func (a *App) logConfigKVs() {
+	if a.Config.Debug {
+		b, err := json.MarshalIndent(a.Config.FileConfig.AllSettings(), "", "  ")
+		if err != nil {
+			a.Logger.Printf("could not marshal settings: %v", err)
+		} else {
+			a.Logger.Printf("set flags/config:\n%s\n", string(b))
+		}
+		keys := a.Config.FileConfig.AllKeys()
+		sort.Strings(keys)
+
+		for _, k := range keys {
+			if !a.Config.FileConfig.IsSet(k) {
+				continue
+			}
+			v := a.Config.FileConfig.Get(k)
+			a.Logger.Printf("%s='%v'(%T)", k, v, v)
+		}
+	}
 }
 
 func (a *App) PrintMsg(address string, msgName string, msg proto.Message) error {
