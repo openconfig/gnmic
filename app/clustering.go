@@ -294,7 +294,7 @@ SELECTSERVICE:
 	err = a.assignTarget(ctx, tc, service)
 	if err != nil {
 		// add service to denied list and reselect
-		a.Logger.Printf("failed assigning target %q to service %q", tc.Name, service.ID)
+		a.Logger.Printf("failed assigning target %q to service %q: %v", tc.Name, service.ID, err)
 		denied = append(denied, service.ID)
 		goto SELECTSERVICE
 	}
