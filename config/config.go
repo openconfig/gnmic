@@ -76,6 +76,8 @@ type GlobalFlags struct {
 	TargetBufferSize  uint          `mapstructure:"target-buffer-size,omitempty" json:"target-buffer-size,omitempty" yaml:"target-buffer-size,omitempty"`
 	InstanceName      string        `mapstructure:"instance-name,omitempty" json:"instance-name,omitempty" yaml:"instance-name,omitempty"`
 	API               string        `mapstructure:"api,omitempty" json:"api,omitempty" yaml:"api,omitempty"`
+	ProtoFile         []string      `mapstructure:"proto-file,omitempty" json:"proto-file,omitempty" yaml:"proto-file,omitempty"`
+	ProtoDir          []string      `mapstructure:"proto-dir,omitempty" json:"proto-dir,omitempty" yaml:"proto-dir,omitempty"`
 }
 
 type LocalFlags struct {
