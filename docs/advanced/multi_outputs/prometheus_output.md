@@ -56,6 +56,10 @@ outputs:
       # and appended with the value in 'path' field.
       # if not specified, it will be derived from the fields 'listen' and 'path'
       http-check-address:
+      # if set to true, the gnmic instance will try to ac quire a lock before registering the prometheus output in consul.
+      # this allows to register a single instance of the cluster in consul.
+      # if the instance which acquired the lock fails, one of the remaining ones will take over.
+      use-lock: false
 ```
 
 `gnmic` creates the prometheus metric name and its labels from the subscription name, the gnmic path and the value name.

@@ -187,7 +187,7 @@ func (p *PrometheusOutput) Init(ctx context.Context, name string, cfg map[string
 		}
 		wcancel()
 	}()
-	p.registerService(wctx)
+	go p.registerService(wctx)
 	p.logger.Printf("initialized prometheus output: %s", p.String())
 	go func() {
 		<-ctx.Done()
