@@ -15,15 +15,7 @@
 package cmd
 
 import (
-	"time"
-
 	"github.com/spf13/cobra"
-)
-
-const (
-	defaultRetryTimer  = 10 * time.Second
-	defaultBackoff     = 100 * time.Millisecond
-	defaultClusterName = "default-cluster"
 )
 
 var subscriptionModes = [][2]string{
