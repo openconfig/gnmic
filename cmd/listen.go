@@ -23,7 +23,10 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/fullstorydev/grpcurl"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/jhump/protoreflect/desc"
+	"github.com/jhump/protoreflect/dynamic"
 	"github.com/karimra/gnmic/outputs"
 	nokiasros "github.com/karimra/sros-dialout"
 	"github.com/openconfig/gnmi/proto/gnmi"
@@ -53,6 +56,20 @@ func newListenCmd() *cobra.Command {
 			}
 			if len(gApp.Config.Address) > 1 {
 				fmt.Printf("multiple addresses specified, listening only on %s\n", gApp.Config.Address[0])
+			}
+			if len(gApp.Config.ProtoFile) > 0 {
+				gApp.Logger.Printf("loading proto files...")
+				descSource, err := grpcurl.DescriptorSourceFromProtoFiles(gApp.Config.ProtoDir, gApp.Config.ProtoFile...)
+				if err != nil {
+					gApp.Logger.Printf("failed to load proto files: %v", err)
+					return err
+				}
+				server.rootDesc, err = descSource.FindSymbol("Nokia.SROS.root")
+				if err != nil {
+					gApp.Logger.Printf("could not get symbol 'Nokia.SROS.root': %v", err)
+					return err
+				}
+				gApp.Logger.Printf("loaded proto files")
 			}
 			server.Outputs = make(map[string]outputs.Output)
 			outCfgs, err := gApp.Config.GetOutputs()
@@ -106,18 +123,22 @@ func newListenCmd() *cobra.Command {
 
 			server.grpcServer = grpc.NewServer(opts...)
 			nokiasros.RegisterDialoutTelemetryServer(server.grpcServer, server)
-			grpc_prometheus.Register(server.grpcServer)
 
-			httpServer := &http.Server{
-				Handler: promhttp.Handler(),
-				Addr:    gApp.Config.PrometheusAddress,
-			}
-			go func() {
-				if err := httpServer.ListenAndServe(); err != nil {
-					gApp.Logger.Printf("Unable to start prometheus http server.")
+			if gApp.Config.PrometheusAddress != "" {
+				grpc_prometheus.Register(server.grpcServer)
+
+				httpServer := &http.Server{
+					Handler: promhttp.Handler(),
+					Addr:    gApp.Config.PrometheusAddress,
 				}
-			}()
-			defer httpServer.Close()
+				go func() {
+					if err := httpServer.ListenAndServe(); err != nil {
+						gApp.Logger.Printf("Unable to start prometheus http server.")
+					}
+				}()
+				defer httpServer.Close()
+			}
+			
 			server.grpcServer.Serve(server.listener)
 			defer server.grpcServer.Stop()
 			return nil
@@ -132,7 +153,9 @@ func newListenCmd() *cobra.Command {
 type dialoutTelemetryServer struct {
 	listener   net.Listener
 	grpcServer *grpc.Server
-	Outputs    map[string]outputs.Output
+	rootDesc   desc.Descriptor
+
+	Outputs map[string]outputs.Output
 
 	ctx context.Context
 }
@@ -175,7 +198,6 @@ func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_Publi
 	} else {
 		gApp.Logger.Println("could not find system-name in http2 headers")
 	}
-	//lock := new(sync.Mutex)
 	for {
 		subResp, err := stream.Recv()
 		if err != nil {
@@ -190,23 +212,31 @@ func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_Publi
 		}
 		switch resp := subResp.Response.(type) {
 		case *gnmi.SubscribeResponse_Update:
-			// b, err := formatSubscribeResponse(meta, subResp)
-			// if err != nil {
-			// 	gApp.Logger.Printf("failed to format subscribe response: %v", err)
-			// 	continue
-			// }
+			if s.rootDesc != nil {
+				for _, update := range resp.Update.Update {
+					switch update.Val.Value.(type) {
+					case *gnmi.TypedValue_ProtoBytes:
+						m := dynamic.NewMessage(s.rootDesc.GetFile().FindMessage("Nokia.SROS.root"))
+						err := m.Unmarshal(update.Val.GetProtoBytes())
+						if err != nil {
+							gApp.Logger.Printf("failed to unmarshal m: %v", err)
+						}
+						jsondata, err := m.MarshalJSON()
+						if err != nil {
+							gApp.Logger.Printf("failed to marshal dynamic proto msg: %v", err)
+							continue
+						}
+						if gApp.Config.Debug {
+							gApp.Logger.Printf("json format=%s", string(jsondata))
+						}
+						update.Val.Value = &gnmi.TypedValue_JsonVal{JsonVal: jsondata}
+					}
+				}
+			}
 			for _, o := range s.Outputs {
 				go o.Write(s.ctx, subResp, outMeta)
 			}
-			// buff := new(bytes.Buffer)
-			// err = json.Indent(buff, b, "", "  ")
-			// if err != nil {
-			// 	gApp.Logger.Printf("failed to indent msg: err=%v, msg=%s", err, string(b))
-			// 	continue
-			// }
-			// lock.Lock()
-			// fmt.Println(buff.String())
-			// lock.Unlock()
+
 		case *gnmi.SubscribeResponse_SyncResponse:
 			gApp.Logger.Printf("received sync response=%+v from %s\n", resp.SyncResponse, meta["source"])
 		}

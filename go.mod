@@ -7,6 +7,7 @@ require (
 	github.com/adrg/xdg v0.3.0
 	github.com/c-bata/go-prompt v0.2.5
 	github.com/fsnotify/fsnotify v1.4.7
+	github.com/fullstorydev/grpcurl v1.8.0
 	github.com/google/gnxi v0.0.0-20200508145201-92c6d0d3ec3b
 	github.com/google/go-cmp v0.5.0
 	github.com/google/uuid v1.1.1
@@ -15,6 +16,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/hashicorp/consul/api v1.1.0
 	github.com/influxdata/influxdb-client-go/v2 v2.0.1
+	github.com/jhump/protoreflect v1.6.1
 	github.com/karimra/go-map-flattener v0.0.0-20200728034653-b1473e58dae8
 	github.com/karimra/sros-dialout v0.0.0-20200518085040-c759bf74063a
 	github.com/manifoldco/promptui v0.7.0
@@ -33,7 +35,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.7.0
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
-	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
+	golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a
 	google.golang.org/grpc v1.30.0
 	google.golang.org/protobuf v1.25.0
 	gopkg.in/yaml.v2 v2.3.0
