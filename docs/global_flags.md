@@ -201,3 +201,9 @@ The username flag `[-u | --username]` is used to specify the target username as 
 
 ### instance-name
 The `[--instance-name]` flag is used to give a unique name to the running `gnmic` instance. This is useful when there are multiple instances of `gnmic` running at the same time, either for high-availability and/or scalability
+
+### proto-file
+The `[----proto-file]` flag is used to specify a list of proto file names that `gnmic` will use to decode ProtoBytes values. only Nokia SROS proto is currently supported.
+
+### proto-dir
+The `[----proto-dir]` flag is used to specify a list of directories where `gnmic` will search for the proto file names specified with `--proto-file`.
