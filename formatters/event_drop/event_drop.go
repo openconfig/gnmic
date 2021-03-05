@@ -95,42 +95,45 @@ func (d *Drop) Init(cfg interface{}, logger *log.Logger) error {
 	return nil
 }
 
-func (d *Drop) Apply(e *formatters.EventMsg) {
-	if e == nil {
-		return
-	}
-	for k, v := range e.Values {
-		for _, re := range d.valueNames {
-			if re.MatchString(k) {
-				d.logger.Printf("value name '%s' matched regex '%s'", k, re.String())
-				*e = formatters.EventMsg{}
-				return
+func (d *Drop) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
+	for _, e := range es {
+		if e == nil {
+			continue
+		}
+		for k, v := range e.Values {
+			for _, re := range d.valueNames {
+				if re.MatchString(k) {
+					d.logger.Printf("value name '%s' matched regex '%s'", k, re.String())
+					*e = formatters.EventMsg{}
+					break
+				}
+			}
+			for _, re := range d.values {
+				if vs, ok := v.(string); ok {
+					if re.MatchString(vs) {
+						d.logger.Printf("value '%s' matched regex '%s'", v, re.String())
+						*e = formatters.EventMsg{}
+						break
+					}
+				}
 			}
 		}
-		for _, re := range d.values {
-			if vs, ok := v.(string); ok {
-				if re.MatchString(vs) {
-					d.logger.Printf("value '%s' matched regex '%s'", v, re.String())
+		for k, v := range e.Tags {
+			for _, re := range d.tagNames {
+				if re.MatchString(k) {
+					d.logger.Printf("tag name '%s' matched regex '%s'", k, re.String())
 					*e = formatters.EventMsg{}
-					return
+					break
+				}
+			}
+			for _, re := range d.tags {
+				if re.MatchString(v) {
+					d.logger.Printf("tag '%s' matched regex '%s'", v, re.String())
+					*e = formatters.EventMsg{}
+					break
 				}
 			}
 		}
 	}
-	for k, v := range e.Tags {
-		for _, re := range d.tagNames {
-			if re.MatchString(k) {
-				d.logger.Printf("tag name '%s' matched regex '%s'", k, re.String())
-				*e = formatters.EventMsg{}
-				return
-			}
-		}
-		for _, re := range d.tags {
-			if re.MatchString(v) {
-				d.logger.Printf("tag '%s' matched regex '%s'", v, re.String())
-				*e = formatters.EventMsg{}
-				return
-			}
-		}
-	}
+	return es
 }

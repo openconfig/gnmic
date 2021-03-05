@@ -100,31 +100,14 @@ func (p *AddTag) Init(cfg interface{}, logger *log.Logger) error {
 	return nil
 }
 
-func (p *AddTag) Apply(e *formatters.EventMsg) {
-	if e == nil {
-		return
-	}
-	for k, v := range e.Values {
-		for _, re := range p.valueNames {
-			if re.MatchString(k) {
-				if e.Tags == nil {
-					e.Tags = make(map[string]string)
-				}
-				for nk, nv := range p.Add {
-					if p.Overwrite {
-						e.Tags[nk] = nv
-						continue
-					}
-					if _, ok := e.Tags[nk]; !ok {
-						e.Tags[nk] = nv
-					}
-				}
-				break
-			}
+func (p *AddTag) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
+	for _, e := range es {
+		if e == nil {
+			continue
 		}
-		for _, re := range p.values {
-			if vs, ok := v.(string); ok {
-				if re.MatchString(vs) {
+		for k, v := range e.Values {
+			for _, re := range p.valueNames {
+				if re.MatchString(k) {
 					if e.Tags == nil {
 						e.Tags = make(map[string]string)
 					}
@@ -137,46 +120,66 @@ func (p *AddTag) Apply(e *formatters.EventMsg) {
 							e.Tags[nk] = nv
 						}
 					}
+					break
 				}
-				break
+			}
+			for _, re := range p.values {
+				if vs, ok := v.(string); ok {
+					if re.MatchString(vs) {
+						if e.Tags == nil {
+							e.Tags = make(map[string]string)
+						}
+						for nk, nv := range p.Add {
+							if p.Overwrite {
+								e.Tags[nk] = nv
+								continue
+							}
+							if _, ok := e.Tags[nk]; !ok {
+								e.Tags[nk] = nv
+							}
+						}
+					}
+					break
+				}
+			}
+		}
+		for k, v := range e.Tags {
+			for _, re := range p.tagNames {
+				if re.MatchString(k) {
+					if e.Tags == nil {
+						e.Tags = make(map[string]string)
+					}
+					for nk, nv := range p.Add {
+						if p.Overwrite {
+							e.Tags[nk] = nv
+							continue
+						}
+						if _, ok := e.Tags[nk]; !ok {
+							e.Tags[nk] = nv
+						}
+					}
+					break
+				}
+			}
+			for _, re := range p.tags {
+				if re.MatchString(v) {
+					p.logger.Println("match", v)
+					if e.Tags == nil {
+						e.Tags = make(map[string]string)
+					}
+					for nk, nv := range p.Add {
+						if p.Overwrite {
+							e.Tags[nk] = nv
+							continue
+						}
+						if _, ok := e.Tags[nk]; !ok {
+							e.Tags[nk] = nv
+						}
+					}
+					break
+				}
 			}
 		}
 	}
-	for k, v := range e.Tags {
-		for _, re := range p.tagNames {
-			if re.MatchString(k) {
-				if e.Tags == nil {
-					e.Tags = make(map[string]string)
-				}
-				for nk, nv := range p.Add {
-					if p.Overwrite {
-						e.Tags[nk] = nv
-						continue
-					}
-					if _, ok := e.Tags[nk]; !ok {
-						e.Tags[nk] = nv
-					}
-				}
-				break
-			}
-		}
-		for _, re := range p.tags {
-			if re.MatchString(v) {
-				p.logger.Println("match", v)
-				if e.Tags == nil {
-					e.Tags = make(map[string]string)
-				}
-				for nk, nv := range p.Add {
-					if p.Overwrite {
-						e.Tags[nk] = nv
-						continue
-					}
-					if _, ok := e.Tags[nk]; !ok {
-						e.Tags[nk] = nv
-					}
-				}
-				break
-			}
-		}
-	}
+	return es
 }

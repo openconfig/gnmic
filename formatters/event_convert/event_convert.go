@@ -64,52 +64,55 @@ func (c *Convert) Init(cfg interface{}, logger *log.Logger) error {
 	return nil
 }
 
-func (c *Convert) Apply(e *formatters.EventMsg) {
-	if e == nil {
-		return
-	}
-	for k, v := range e.Values {
-		for _, re := range c.values {
-			if re.MatchString(k) {
-				c.logger.Printf("key '%s' matched regex '%s'", k, re.String())
-				switch c.Type {
-				case "int":
-					iv, err := convertToInt(v)
-					if err != nil {
-						c.logger.Printf("convert error: %v", err)
-						return
+func (c *Convert) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
+	for _, e := range es {
+		if e == nil {
+			continue
+		}
+		for k, v := range e.Values {
+			for _, re := range c.values {
+				if re.MatchString(k) {
+					c.logger.Printf("key '%s' matched regex '%s'", k, re.String())
+					switch c.Type {
+					case "int":
+						iv, err := convertToInt(v)
+						if err != nil {
+							c.logger.Printf("convert error: %v", err)
+							break
+						}
+						c.logger.Printf("key '%s', value %v converted to %s: %d", k, v, c.Type, iv)
+						e.Values[k] = iv
+					case "uint":
+						iv, err := convertToUint(v)
+						if err != nil {
+							c.logger.Printf("convert error: %v", err)
+							break
+						}
+						c.logger.Printf("key '%s', value %v converted to %s: %d", k, v, c.Type, iv)
+						e.Values[k] = iv
+					case "string":
+						iv, err := convertToString(v)
+						if err != nil {
+							c.logger.Printf("convert error: %v", err)
+							break
+						}
+						c.logger.Printf("key '%s', value %v converted to %s: %s", k, v, c.Type, iv)
+						e.Values[k] = iv
+					case "float":
+						iv, err := convertToFloat(v)
+						if err != nil {
+							c.logger.Printf("convert error: %v", err)
+							break
+						}
+						c.logger.Printf("key '%s', value %v converted to %s: %f", k, v, c.Type, iv)
+						e.Values[k] = iv
 					}
-					c.logger.Printf("key '%s', value %v converted to %s: %d", k, v, c.Type, iv)
-					e.Values[k] = iv
-				case "uint":
-					iv, err := convertToUint(v)
-					if err != nil {
-						c.logger.Printf("convert error: %v", err)
-						return
-					}
-					c.logger.Printf("key '%s', value %v converted to %s: %d", k, v, c.Type, iv)
-					e.Values[k] = iv
-				case "string":
-					iv, err := convertToString(v)
-					if err != nil {
-						c.logger.Printf("convert error: %v", err)
-						return
-					}
-					c.logger.Printf("key '%s', value %v converted to %s: %s", k, v, c.Type, iv)
-					e.Values[k] = iv
-				case "float":
-					iv, err := convertToFloat(v)
-					if err != nil {
-						c.logger.Printf("convert error: %v", err)
-						return
-					}
-					c.logger.Printf("key '%s', value %v converted to %s: %f", k, v, c.Type, iv)
-					e.Values[k] = iv
+					break
 				}
-				break
 			}
 		}
 	}
+	return es
 }
 
 func convertToInt(i interface{}) (int, error) {

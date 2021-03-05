@@ -128,41 +128,43 @@ func (s *Strings) Init(cfg interface{}, logger *log.Logger) error {
 	return nil
 }
 
-func (s *Strings) Apply(e *formatters.EventMsg) {
-	if e == nil {
-		return
-	}
-	for k, v := range e.Values {
-		for _, re := range s.valueKeys {
-			if re.MatchString(k) {
-				s.logger.Printf("value name '%s' matched regex '%s'", k, re.String())
-				s.applyValueTransformations(e, k, v)
-
+func (s *Strings) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
+	for _, e := range es {
+		if e == nil {
+			continue
+		}
+		for k, v := range e.Values {
+			for _, re := range s.valueKeys {
+				if re.MatchString(k) {
+					s.logger.Printf("value name '%s' matched regex '%s'", k, re.String())
+					s.applyValueTransformations(e, k, v)
+				}
+			}
+			for _, re := range s.values {
+				if vs, ok := v.(string); ok {
+					if re.MatchString(vs) {
+						s.logger.Printf("value '%s' matched regex '%s'", vs, re.String())
+						s.applyValueTransformations(e, k, vs)
+					}
+				}
 			}
 		}
-		for _, re := range s.values {
-			if vs, ok := v.(string); ok {
-				if re.MatchString(vs) {
-					s.logger.Printf("value '%s' matched regex '%s'", vs, re.String())
-					s.applyValueTransformations(e, k, vs)
+		for k, v := range e.Tags {
+			for _, re := range s.tagKeys {
+				if re.MatchString(k) {
+					s.logger.Printf("tag name '%s' matched regex '%s'", k, re.String())
+					s.applyTagTransformations(e, k, v)
+				}
+			}
+			for _, re := range s.tags {
+				if re.MatchString(v) {
+					s.logger.Printf("tag '%s' matched regex '%s'", k, re.String())
+					s.applyTagTransformations(e, k, v)
 				}
 			}
 		}
 	}
-	for k, v := range e.Tags {
-		for _, re := range s.tagKeys {
-			if re.MatchString(k) {
-				s.logger.Printf("tag name '%s' matched regex '%s'", k, re.String())
-				s.applyTagTransformations(e, k, v)
-			}
-		}
-		for _, re := range s.tags {
-			if re.MatchString(v) {
-				s.logger.Printf("tag '%s' matched regex '%s'", k, re.String())
-				s.applyTagTransformations(e, k, v)
-			}
-		}
-	}
+	return es
 }
 
 func (s *Strings) applyValueTransformations(e *formatters.EventMsg, k string, v interface{}) {

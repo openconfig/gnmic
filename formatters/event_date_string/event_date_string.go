@@ -91,65 +91,68 @@ func (d *DateString) Init(cfg interface{}, logger *log.Logger) error {
 	return nil
 }
 
-func (d *DateString) Apply(e *formatters.EventMsg) {
-	if e == nil {
-		return
-	}
-	for k, v := range e.Values {
-		for _, re := range d.values {
-			if re.MatchString(k) {
-				d.logger.Printf("key '%s' matched regex '%s'", k, re.String())
-				iv, err := convertToInt(v)
-				if err != nil {
-					d.logger.Printf("failed to convert '%v' to date string: %v", v, err)
-					continue
+func (d *DateString) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
+	for _, e := range es {
+		if e == nil {
+			continue
+		}
+		for k, v := range e.Values {
+			for _, re := range d.values {
+				if re.MatchString(k) {
+					d.logger.Printf("key '%s' matched regex '%s'", k, re.String())
+					iv, err := convertToInt(v)
+					if err != nil {
+						d.logger.Printf("failed to convert '%v' to date string: %v", v, err)
+						continue
+					}
+					var td time.Time
+					switch d.Precision {
+					case "s", "sec", "second":
+						td = time.Unix(int64(iv), 0)
+					case "ms", "millisecond":
+						td = time.Unix(0, int64(iv)*1000000)
+					case "us", "microsecond":
+						td = time.Unix(0, int64(iv)*1000)
+					case "ns", "nanosecond":
+						td = time.Unix(0, int64(iv))
+					}
+					if d.Format == "" {
+						d.Format = time.RFC3339
+					}
+					e.Values[k] = td.In(d.location).Format(d.Format)
+					break
 				}
-				var td time.Time
-				switch d.Precision {
-				case "s", "sec", "second":
-					td = time.Unix(int64(iv), 0)
-				case "ms", "millisecond":
-					td = time.Unix(0, int64(iv)*1000000)
-				case "us", "microsecond":
-					td = time.Unix(0, int64(iv)*1000)
-				case "ns", "nanosecond":
-					td = time.Unix(0, int64(iv))
+			}
+		}
+		for k, v := range e.Tags {
+			for _, re := range d.tags {
+				if re.MatchString(k) {
+					d.logger.Printf("key '%s' matched regex '%s'", k, re.String())
+					iv, err := strconv.Atoi(v)
+					if err != nil {
+						log.Printf("failed to convert %s to int: %v", v, err)
+					}
+					var td time.Time
+					switch d.Precision {
+					case "s", "sec", "second":
+						td = time.Unix(int64(iv), 0)
+					case "ms", "millisecond":
+						td = time.Unix(0, int64(iv)*1000000)
+					case "us", "microsecond":
+						td = time.Unix(0, int64(iv)*1000)
+					case "ns", "nanosecond":
+						td = time.Unix(0, int64(iv))
+					}
+					if d.Format == "" {
+						d.Format = time.RFC3339
+					}
+					e.Values[k] = td.Format(d.Format)
+					break
 				}
-				if d.Format == "" {
-					d.Format = time.RFC3339
-				}
-				e.Values[k] = td.In(d.location).Format(d.Format)
-				break
 			}
 		}
 	}
-	for k, v := range e.Tags {
-		for _, re := range d.tags {
-			if re.MatchString(k) {
-				d.logger.Printf("key '%s' matched regex '%s'", k, re.String())
-				iv, err := strconv.Atoi(v)
-				if err != nil {
-					log.Printf("failed to convert %s to int: %v", v, err)
-				}
-				var td time.Time
-				switch d.Precision {
-				case "s", "sec", "second":
-					td = time.Unix(int64(iv), 0)
-				case "ms", "millisecond":
-					td = time.Unix(0, int64(iv)*1000000)
-				case "us", "microsecond":
-					td = time.Unix(0, int64(iv)*1000)
-				case "ns", "nanosecond":
-					td = time.Unix(0, int64(iv))
-				}
-				if d.Format == "" {
-					d.Format = time.RFC3339
-				}
-				e.Values[k] = td.Format(d.Format)
-				break
-			}
-		}
-	}
+	return es
 }
 
 func convertToInt(i interface{}) (int, error) {
