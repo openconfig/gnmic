@@ -46,6 +46,7 @@ nav:
           - Targets: advanced/api/targets.md
   
   - Deployment examples:
+      - Introduction: deployments/deployments_intro.md
       - Single Instance: 
           - NATS output: deployments/single-instance/nats-output.md
           - Kafka output: deployments/single-instance/kafka-output.md
