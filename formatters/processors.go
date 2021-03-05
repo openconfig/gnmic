@@ -28,7 +28,7 @@ func Register(name string, initFn Initializer) {
 
 type EventProcessor interface {
 	Init(interface{}, *log.Logger) error
-	Apply(*EventMsg)
+	Apply(...*EventMsg) []*EventMsg
 }
 
 func DecodeConfig(src, dst interface{}) error {
