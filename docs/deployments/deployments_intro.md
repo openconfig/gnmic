@@ -18,6 +18,6 @@
 ### Pipelines
 
 - [NATS to Prometheus](pipelines/nats_prometheus.md)
-- [Nats to InfluxDB](pipelines/nats_influxdb.md)
+- [NATS to InfluxDB](pipelines/nats_influxdb.md)
 - [Clustered pipeline](pipelines/gnmic_cluster_nats_prometheus.md)
 - [Forked pipeline](pipelines/forked_pipeline.md)
