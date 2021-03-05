@@ -6,7 +6,7 @@ networks:
 
 services:
   gnmic-collector: &gnmic
-    image: ghcr.io/karimra/gnmic:0.8.0
+    image: ghcr.io/karimra/gnmic:latest
     container_name: gnmic-collector
     volumes:
       - ./gnmic-collector.yaml:/app/gnmic.yaml

@@ -6,7 +6,7 @@ networks:
 
 services:
   gnmic1: &gnmic
-    image: ghcr.io/karimra/gnmic:0.8.0
+    image: ghcr.io/karimra/gnmic:latest
     container_name: gnmic1
     volumes:
       - ./gnmic1.yaml:/app/gnmic.yaml

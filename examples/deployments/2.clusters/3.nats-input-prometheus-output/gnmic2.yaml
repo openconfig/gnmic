@@ -52,3 +52,4 @@ outputs:
     listen: ":9804"
     service-registration:
       address: consul-agent:8500
+      use-lock: true

@@ -6,7 +6,7 @@ networks:
 
 services:
   gnmic-collector1: &gnmic
-    image: ghcr.io/karimra/gnmic:0.8.0
+    image: ghcr.io/karimra/gnmic:latest
     container_name: gnmic-collector
     volumes:
       - ./gnmic-collector1.yaml:/app/gnmic.yaml
@@ -19,7 +19,7 @@ services:
       - nats
 
   gnmic-collector2: &gnmic
-    image: ghcr.io/karimra/gnmic:0.8.0
+    image: ghcr.io/karimra/gnmic:latest
     container_name: gnmic-collector
     volumes:
       - ./gnmic-collector2.yaml:/app/gnmic.yaml
@@ -32,7 +32,7 @@ services:
       - nats
 
   gnmic-collector3: &gnmic
-    image: ghcr.io/karimra/gnmic:0.8.0
+    image: ghcr.io/karimra/gnmic:latest
     container_name: gnmic-collector
     volumes:
       - ./gnmic-collector3.yaml:/app/gnmic.yaml
