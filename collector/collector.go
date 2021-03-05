@@ -12,7 +12,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fullstorydev/grpcurl"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/jhump/protoreflect/desc"
 	"github.com/karimra/gnmic/inputs"
 	"github.com/karimra/gnmic/lockers"
 	"github.com/karimra/gnmic/outputs"
@@ -67,6 +69,8 @@ type Collector struct {
 	targetsChan    chan *Target
 	activeTargets  map[string]struct{}
 	targetsLocksFn map[string]context.CancelFunc
+
+	rootDesc desc.Descriptor
 }
 
 type CollectorOption func(c *Collector)
@@ -104,6 +108,12 @@ func WithDialOptions(dialOptions []grpc.DialOption) CollectorOption {
 func WithEventProcessors(eps map[string]map[string]interface{}) CollectorOption {
 	return func(c *Collector) {
 		c.EventProcessorsConfig = eps
+	}
+}
+
+func WithProtoDescriptor(d desc.Descriptor) CollectorOption {
+	return func(c *Collector) {
+		c.rootDesc = d
 	}
 }
 
@@ -208,6 +218,10 @@ func (c *Collector) initTarget(name string) error {
 				for _, sub := range c.Subscriptions {
 					t.Subscriptions[sub.Name] = sub
 				}
+			}
+			err := c.parseProtoFiles(t)
+			if err != nil {
+				return err
 			}
 			c.Targets[t.Config.Name] = t
 		}
@@ -623,6 +637,11 @@ func (c *Collector) Start(ctx context.Context) {
 					if c.Config.Debug {
 						c.logger.Printf("received gNMI Subscribe Response: %+v", rsp)
 					}
+					err := t.decodeProtoBytes(rsp.Response)
+					if err != nil {
+						c.logger.Printf("target %q, failed to decode proto bytes: %v", t.Config.Name, err)
+						continue
+					}
 					m := outputs.Meta{"source": t.Config.Name, "format": c.Config.Format, "subscription-name": rsp.SubscriptionName}
 					if c.subscriptionMode(rsp.SubscriptionName) == "ONCE" {
 						c.Export(ctx, rsp.Response, m, t.Config.Outputs...)
@@ -645,9 +664,9 @@ func (c *Collector) Start(ctx context.Context) {
 					}
 				case tErr := <-t.errors:
 					if errors.Is(tErr.Err, io.EOF) {
-						c.logger.Printf("target '%s', subscription %s closed stream(EOF)", t.Config.Name, tErr.SubscriptionName)
+						c.logger.Printf("target %q, subscription %s closed stream(EOF)", t.Config.Name, tErr.SubscriptionName)
 					} else {
-						c.logger.Printf("target '%s', subscription %s rcv error: %v", t.Config.Name, tErr.SubscriptionName, tErr.Err)
+						c.logger.Printf("target %q, subscription %s rcv error: %v", t.Config.Name, tErr.SubscriptionName, tErr.Err)
 					}
 					if remainingOnceSubscriptions > 0 {
 						if c.subscriptionMode(tErr.SubscriptionName) == "ONCE" {
@@ -838,4 +857,24 @@ func (c *Collector) GetModels(ctx context.Context, tName string) ([]*gnmi.ModelD
 		return nil, err
 	}
 	return capRsp.GetSupportedModels(), nil
+}
+
+func (c *Collector) parseProtoFiles(t *Target) error {
+	if len(t.Config.ProtoFiles) == 0 {
+		t.rootDesc = c.rootDesc
+		return nil
+	}
+	c.logger.Printf("target %q loading proto files...", t.Config.Name)
+	descSource, err := grpcurl.DescriptorSourceFromProtoFiles(t.Config.ProtoDirs, t.Config.ProtoFiles...)
+	if err != nil {
+		c.logger.Printf("failed to load proto files: %v", err)
+		return err
+	}
+	t.rootDesc, err = descSource.FindSymbol("Nokia.SROS.root")
+	if err != nil {
+		c.logger.Printf("target %q could not get symbol 'Nokia.SROS.root': %v", t.Config.Name, err)
+		return err
+	}
+	c.logger.Printf("target %q loaded proto files", t.Config.Name)
+	return nil
 }
