@@ -11,6 +11,6 @@ inputs:
 outputs:
   prom-output:
     type: prometheus
-    listen: ":9804"
+    listen: "gnmic-relay:9804"
     service-registration:
       address: consul-agent:8500

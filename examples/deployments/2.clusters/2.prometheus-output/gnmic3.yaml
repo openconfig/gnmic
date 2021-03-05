@@ -35,6 +35,6 @@ subscriptions:
 outputs:
   prom-output:
     type: prometheus
-    listen: ":9806"
+    listen: "gnmic3:9806"
     service-registration:
       address: consul-agent:8500

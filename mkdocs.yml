@@ -51,6 +51,7 @@ nav:
           - Kafka output: deployments/single-instance/kafka-output.md
           - InfluxDB output: deployments/single-instance/influxdb-output.md
           - Prometheus output: deployments/single-instance/prometheus-output.md
+          - Multiple outputs:  deployments/single-instance/multiple-outputs.md
 
       - Clusters: 
           - InfluxDB output: deployments/clusters/cluster_with_influxdb_output.md
@@ -61,6 +62,7 @@ nav:
           - NATS to Prometheus: deployments/pipelines/nats_prometheus.md
           - NATS to InfluxDB: deployments/pipelines/nats_influxdb.md
           - Clustered pipeline: deployments/pipelines/gnmic_cluster_nats_prometheus.md
+          - Forked pipeline: deployments/pipelines/forked_pipeline.md
   
   - Command reference:
       - Capabilities: cmd/capabilities.md

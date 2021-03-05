@@ -49,7 +49,7 @@ outputs:
 
   prom-output:
     type: prometheus
-    listen: ":9804"
+    listen: "gnmic2:9805"
     service-registration:
       address: consul-agent:8500
       use-lock: true

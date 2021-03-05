@@ -3,21 +3,10 @@ password: admin
 insecure: true
 encoding: json_ietf
 log: true
-api: ":7890"
-
-# clustering config
-clustering:
-  cluster-name: cluster1
-  instance-name: gnmic1
-  service-address: gnmic1
-  targets-watch-timer: 5s
-  locker:
-    type: consul
-    address: consul-agent:8500
 
 targets:
   # Add targets configuration here
-  # e.g:
+  # eg:
   # 192.168.1.131:57400:
   #   username: gnmic
   #   password: secret_password
@@ -32,9 +21,9 @@ subscriptions:
   #   stream-mode: sample
   #   sample-interval: 1s
 
+
 outputs:
-  prom-output:
-    type: prometheus
-    listen: "gnmic1:9804"
-    service-registration:
-      address: consul-agent:8500
+  nats-output:
+    type: nats
+    address: nats:4222
+    subject: telemetry

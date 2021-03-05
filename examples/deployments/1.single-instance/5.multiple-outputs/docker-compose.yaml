@@ -5,7 +5,7 @@ networks:
     driver: bridge
 
 services:
-  gnmic1: &gnmic
+  gnmic1:
     image: ghcr.io/karimra/gnmic:latest
     container_name: gnmic1
     volumes:
@@ -14,29 +14,9 @@ services:
     networks:
       - gnmic-net
     ports:
-      - 7890:7890
       - 9804:9804
     depends_on:
-      - consul-agent
-      - nats
-
-  gnmic2:
-    <<: *gnmic
-    container_name: gnmic2
-    volumes:
-      - ./gnmic2.yaml:/app/gnmic.yaml
-    ports:
-      - 7891:7891
-      - 9805:9805
-
-  gnmic3:
-    <<: *gnmic
-    container_name: gnmic3
-    volumes:
-      - ./gnmic3.yaml:/app/gnmic.yaml
-    ports:
-      - 7892:7892
-      - 9806:9806
+      - consul-agent 
 
   consul-agent:
     image: consul:latest
@@ -64,7 +44,7 @@ services:
       - 9090:9090
     networks:
       - gnmic-net
-
+  
   nats:
     image: 'nats:latest'
     container_name: nats
@@ -74,6 +54,51 @@ services:
       - "4222:4222"
       - "6222:6222"
       - "8222:8222"
-      
+
+  kafka-server:
+    image: 'bitnami/kafka:latest'
+    container_name: kafka-server
+    networks:
+      - gnmic-net
+    ports:
+      - "9092:9092"
+      - "9000:9000"
+    environment:
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper-server:2181
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka-server:9092
+      - ALLOW_PLAINTEXT_LISTENER=yes
+      - JMX_PORT=9000
+    depends_on:
+      - zookeeper-server
+
+  zookeeper-server:
+    image: 'bitnami/zookeeper:latest'
+    container_name: zk-server
+    networks:
+      - gnmic-net
+    ports:
+      - "2181:2181"
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+
+  influxdb:
+    image: influxdb:latest
+    container_name: influxdb
+    networks:
+      - gnmic-net
+    ports:
+      - "8083:8083"
+      - "8086:8086"
+      - "8090:8090"
+    environment:
+      - INFLUXDB_DATA_ENGINE=tsm1
+      - INFLUXDB_REPORTING_DISABLED=false
+      - INFLUXDB_USER=gnmic
+      - INFLUXDB_USER_PASSWORD=gnmic
+      - INFLUXDB_DB=telemetry
+    volumes:
+      - influx-storage:/var/lib/influxdb
+
 volumes:
   prometheus-data:
+  influx-storage:
