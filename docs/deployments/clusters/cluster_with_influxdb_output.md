@@ -14,11 +14,11 @@ The leader election and target distribution is done with the help of a [Consul s
 
 Deployment files:
 
-- [docker compose](https://github.com/karimra/gnmic/blob/deployments/examples/deployments/2.clusters/1.influxdb-output/docker-compose.yaml)
+- [docker compose](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/1.influxdb-output/docker-compose.yaml)
 
-- [gnmic1 config](https://github.com/karimra/gnmic/blob/deployments/examples/deployments/2.clusters/1.influxdb-output/gnmic1.yaml)
-- [gnmic2 config](https://github.com/karimra/gnmic/blob/deployments/examples/deployments/2.clusters/1.influxdb-output/gnmic2.yaml)
-- [gnmic3 config](https://github.com/karimra/gnmic/blob/deployments/examples/deployments/2.clusters/1.influxdb-output/gnmic3.yaml)
+- [gnmic1 config](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/1.influxdb-output/gnmic1.yaml)
+- [gnmic2 config](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/1.influxdb-output/gnmic2.yaml)
+- [gnmic3 config](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/1.influxdb-output/gnmic3.yaml)
 
 Download the files, update the `gnmic` config files with the desired subscriptions and targets.
 

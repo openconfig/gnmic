@@ -18,10 +18,10 @@ This deployment enables a few use cases:
 
 Deployment files:
 
-- [docker compose](https://github.com/karimra/gnmic/blob/deployments/examples/deployments/3.pipelines/2.gnmic-nats-gnmic-influxdb/docker-compose.yaml)
+- [docker compose](https://github.com/karimra/gnmic/blob/master/examples/deployments/3.pipelines/2.gnmic-nats-gnmic-influxdb/docker-compose.yaml)
 
-- [gnmic collector config](https://github.com/karimra/gnmic/blob/deployments/examples/deployments/3.pipelines/2.gnmic-nats-gnmic-influxdb/gnmic-collector.yaml)
-- [gnmic relay config](https://github.com/karimra/gnmic/blob/deployments/examples/deployments/3.pipelines/2.gnmic-nats-gnmic-influxdb/gnmic-relay.yaml)
+- [gnmic collector config](https://github.com/karimra/gnmic/blob/master/examples/deployments/3.pipelines/2.gnmic-nats-gnmic-influxdb/gnmic-collector.yaml)
+- [gnmic relay config](https://github.com/karimra/gnmic/blob/master/examples/deployments/3.pipelines/2.gnmic-nats-gnmic-influxdb/gnmic-relay.yaml)
 
 Download the files, update the `gnmic` collector config files with the desired subscriptions and targets.
 

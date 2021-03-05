@@ -20,11 +20,11 @@ This deployment enables a few use cases:
 
 Deployment files:
 
-- [docker compose](https://github.com/karimra/gnmic/blob/deployments/examples/deployments/3.pipelines/4.gnmic-nats-gnmic-prometheus-gnmic-influxdb/docker-compose.yaml)
+- [docker compose](https://github.com/karimra/gnmic/blob/master/examples/deployments/3.pipelines/4.gnmic-nats-gnmic-prometheus-gnmic-influxdb/docker-compose.yaml)
 
-- [gnmic collector config](https://github.com/karimra/gnmic/blob/deployments/examples/deployments/3.pipelines/4.gnmic-nats-gnmic-prometheus-gnmic-influxdb/gnmic-collector.yaml)
-- [gnmic relay1 config](https://github.com/karimra/gnmic/blob/deployments/examples/deployments/3.pipelines/4.gnmic-nats-gnmic-prometheus-gnmic-influxdb/gnmic-relay1.yaml)
-- [gnmic relay2 config](https://github.com/karimra/gnmic/blob/deployments/examples/deployments/3.pipelines/4.gnmic-nats-gnmic-prometheus-gnmic-influxdb/gnmic-relay2.yaml)
+- [gnmic collector config](https://github.com/karimra/gnmic/blob/master/examples/deployments/3.pipelines/4.gnmic-nats-gnmic-prometheus-gnmic-influxdb/gnmic-collector.yaml)
+- [gnmic relay1 config](https://github.com/karimra/gnmic/blob/master/examples/deployments/3.pipelines/4.gnmic-nats-gnmic-prometheus-gnmic-influxdb/gnmic-relay1.yaml)
+- [gnmic relay2 config](https://github.com/karimra/gnmic/blob/master/examples/deployments/3.pipelines/4.gnmic-nats-gnmic-prometheus-gnmic-influxdb/gnmic-relay2.yaml)
 - 
 Download the files, update the `gnmic` collector config files with the desired subscriptions and targets.
 
