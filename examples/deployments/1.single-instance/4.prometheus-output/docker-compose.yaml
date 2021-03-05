@@ -1,0 +1,49 @@
+version: '3' 
+
+networks:
+  gnmic-net:
+    driver: bridge
+
+services:
+  gnmic1:
+    image: ghcr.io/karimra/gnmic:latest
+    container_name: gnmic1
+    volumes:
+      - ./gnmic1.yaml:/app/gnmic.yaml
+    command: "subscribe --config /app/gnmic.yaml"
+    networks:
+      - gnmic-net
+    ports:
+      - 9804:9804
+    depends_on:
+      - consul-agent 
+
+  consul-agent:
+    image: consul:latest
+    container_name: consul
+    networks:
+      - gnmic-net
+    ports:
+      - 8500:8500
+      - 8600:8600/udp
+    command: agent -server -ui -node=server-1 -bootstrap-expect=1 -client=0.0.0.0    
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    volumes:
+      - ./prometheus/:/etc/prometheus/
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yaml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--log.level=debug'
+    ports:
+      - 9090:9090
+    networks:
+      - gnmic-net
+
+volumes:
+  prometheus-data:

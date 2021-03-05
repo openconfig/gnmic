@@ -1,0 +1,30 @@
+username: admin
+password: admin
+insecure: true
+encoding: json_ietf
+log: true
+
+targets:
+  # Add targets configuration here
+  # e.g:
+  # 192.168.1.131:57400:
+  #   username: gnmic
+  #   password: secret_password
+  #   outputs:
+  #     - nats-output
+
+
+subscriptions:
+  # Add subscriptions configuration here
+  # e.g:
+  # sub1:
+  #   paths:
+  #     - /interface/statistics
+  #   stream-mode: sample
+  #   sample-interval: 1s
+
+outputs:
+  kafka-output:
+    type: kafka
+    address: kafka-server:9092
+    topic: telemetry

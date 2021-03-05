@@ -1,0 +1,29 @@
+username: admin
+password: admin
+insecure: true
+encoding: json_ietf
+log: true
+
+targets:
+  # Add targets configuration here
+  # eg:
+  # 192.168.1.131:57400:
+  #   username: gnmic
+  #   password: secret_password
+
+
+subscriptions:
+  # Add subscriptions configuration here
+  # e.g:
+  # sub1:
+  #   paths:
+  #     - /interface/statistics
+  #   stream-mode: sample
+  #   sample-interval: 1s
+
+
+outputs:
+  nats-output:
+    type: nats
+    address: nats:4222
+    subject: telemetry

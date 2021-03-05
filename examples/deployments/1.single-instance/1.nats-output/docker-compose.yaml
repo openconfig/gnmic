@@ -1,0 +1,28 @@
+version: '3' 
+
+networks:
+  gnmic-net:
+    driver: bridge
+
+services:
+  gnmic1:
+    image: ghcr.io/karimra/gnmic:latest
+    container_name: gnmic1
+    volumes:
+      - ./gnmic1.yaml:/app/gnmic.yaml
+    command: "subscribe --config /app/gnmic.yaml"
+    networks:
+      - gnmic-net
+    depends_on:
+      - nats
+      
+  nats:
+    image: 'nats:latest'
+    container_name: nats
+    networks:
+      - gnmic-net    
+    ports:
+      - "4222:4222"
+      - "6222:6222"
+      - "8222:8222"
+      

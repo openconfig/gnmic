@@ -1,0 +1,44 @@
+version: '3' 
+
+networks:
+  gnmic-net:
+    driver: bridge
+
+services:
+  gnmic1:
+    image: ghcr.io/karimra/gnmic:latest
+    container_name: gnmic1
+    volumes:
+      - ./gnmic1.yaml:/app/gnmic.yaml
+    command: "subscribe --config /app/gnmic.yaml"
+    networks:
+      - gnmic-net
+    depends_on:
+      - kafka-server
+      
+  kafka-server:
+    image: 'bitnami/kafka:latest'
+    container_name: kafka-server
+    networks:
+      - gnmic-net
+    ports:
+      - "9092:9092"
+      - "9000:9000"
+    environment:
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper-server:2181
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka-server:9092
+      - ALLOW_PLAINTEXT_LISTENER=yes
+      - JMX_PORT=9000
+    depends_on:
+      - zookeeper-server
+
+  zookeeper-server:
+    image: 'bitnami/zookeeper:latest'
+    container_name: zk-server
+    networks:
+      - gnmic-net
+    ports:
+      - "2181:2181"
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+      

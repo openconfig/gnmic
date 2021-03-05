@@ -1,0 +1,18 @@
+log: true
+
+inputs:
+  nats-input:
+    type: input
+    address: nats:4222
+    subject: telemetry
+    outputs:
+      - influxdb-output
+
+outputs:
+  influxdb-output:
+    type: influxdb
+    url: http://influxdb:8086
+    bucket: telemetry # db name
+    token: gnmic:gnmic # username:password
+    batch-size: 1000
+    flush-timer: 10s

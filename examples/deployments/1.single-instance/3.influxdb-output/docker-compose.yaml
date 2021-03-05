@@ -1,0 +1,38 @@
+version: '3' 
+
+networks:
+  gnmic-net:
+    driver: bridge
+
+services:
+  gnmic1:
+    image: ghcr.io/karimra/gnmic:latest
+    container_name: gnmic1
+    volumes:
+      - ./gnmic1.yaml:/app/gnmic.yaml
+    command: "subscribe --config /app/gnmic.yaml"
+    networks:
+      - gnmic-net
+    depends_on:
+      - influxdb
+
+  influxdb:
+    image: influxdb:latest
+    container_name: influxdb
+    networks:
+      - gnmic-net
+    ports:
+      - "8083:8083"
+      - "8086:8086"
+      - "8090:8090"
+    environment:
+      - INFLUXDB_DATA_ENGINE=tsm1
+      - INFLUXDB_REPORTING_DISABLED=false
+      - INFLUXDB_USER=gnmic
+      - INFLUXDB_USER_PASSWORD=gnmic
+      - INFLUXDB_DB=telemetry
+    volumes:
+      - influx-storage:/var/lib/influxdb
+
+volumes:
+  influx-storage:

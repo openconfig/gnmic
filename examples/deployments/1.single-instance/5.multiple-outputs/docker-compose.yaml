@@ -1,0 +1,104 @@
+version: '3' 
+
+networks:
+  gnmic-net:
+    driver: bridge
+
+services:
+  gnmic1:
+    image: ghcr.io/karimra/gnmic:latest
+    container_name: gnmic1
+    volumes:
+      - ./gnmic1.yaml:/app/gnmic.yaml
+    command: "subscribe --config /app/gnmic.yaml"
+    networks:
+      - gnmic-net
+    ports:
+      - 9804:9804
+    depends_on:
+      - consul-agent 
+
+  consul-agent:
+    image: consul:latest
+    container_name: consul
+    networks:
+      - gnmic-net
+    ports:
+      - 8500:8500
+      - 8600:8600/udp
+    command: agent -server -ui -node=server-1 -bootstrap-expect=1 -client=0.0.0.0    
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    volumes:
+      - ./prometheus/:/etc/prometheus/
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yaml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--log.level=debug'
+    ports:
+      - 9090:9090
+    networks:
+      - gnmic-net
+  
+  nats:
+    image: 'nats:latest'
+    container_name: nats
+    networks:
+      - gnmic-net    
+    ports:
+      - "4222:4222"
+      - "6222:6222"
+      - "8222:8222"
+
+  kafka-server:
+    image: 'bitnami/kafka:latest'
+    container_name: kafka-server
+    networks:
+      - gnmic-net
+    ports:
+      - "9092:9092"
+      - "9000:9000"
+    environment:
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper-server:2181
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka-server:9092
+      - ALLOW_PLAINTEXT_LISTENER=yes
+      - JMX_PORT=9000
+    depends_on:
+      - zookeeper-server
+
+  zookeeper-server:
+    image: 'bitnami/zookeeper:latest'
+    container_name: zk-server
+    networks:
+      - gnmic-net
+    ports:
+      - "2181:2181"
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+
+  influxdb:
+    image: influxdb:latest
+    container_name: influxdb
+    networks:
+      - gnmic-net
+    ports:
+      - "8083:8083"
+      - "8086:8086"
+      - "8090:8090"
+    environment:
+      - INFLUXDB_DATA_ENGINE=tsm1
+      - INFLUXDB_REPORTING_DISABLED=false
+      - INFLUXDB_USER=gnmic
+      - INFLUXDB_USER_PASSWORD=gnmic
+      - INFLUXDB_DB=telemetry
+    volumes:
+      - influx-storage:/var/lib/influxdb
+
+volumes:
+  prometheus-data:
+  influx-storage:

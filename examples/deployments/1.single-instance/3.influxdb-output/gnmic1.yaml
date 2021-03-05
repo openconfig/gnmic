@@ -1,0 +1,31 @@
+username: admin
+password: admin
+insecure: true
+encoding: json_ietf
+log: true
+
+targets:
+  # Add targets configuration here
+  # eg:
+  # 192.168.1.131:57400:
+  #   username: gnmic
+  #   password: secret_password
+
+
+subscriptions:
+  # Add subscriptions configuration here
+  # e.g:
+  # sub1:
+  #   paths:
+  #     - /interface/statistics
+  #   stream-mode: sample
+  #   sample-interval: 1s
+
+outputs:
+  influxdb-output:
+    type: influxdb
+    url: http://influxdb:8086
+    bucket: telemetry # db name
+    token: gnmic:gnmic # username:password
+    batch-size: 1000
+    flush-timer: 10s

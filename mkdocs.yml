@@ -9,7 +9,7 @@ nav:
       - File based configuration: advanced/file_cfg.md
       - Targets: advanced/multi_target.md
       - Subscriptions: advanced/subscriptions.md
-      - Prompt mode and auto-suggestions: advanced/prompt_suggestions.md
+      
       - Inputs:
          - Introduction: advanced/inputs/input_intro.md
          - NATS: advanced/inputs/nats_input.md
@@ -36,11 +36,35 @@ nav:
           - Strings: advanced/event_processors/event_strings.md
           - To Tag: advanced/event_processors/event_to_tag.md
           - Write: advanced/event_processors/event_write.md
+      
+      - Prompt mode and auto-suggestions: advanced/prompt_suggestions.md
+
       - Clustering & Scalability: advanced/HA.md
       - API: 
           - Introduction: advanced/api/api_intro.md
           - Configuration: advanced/api/configuration.md
           - Targets: advanced/api/targets.md
+  
+  - Deployment examples:
+      - Introduction: deployments/deployments_intro.md
+      - Single Instance: 
+          - NATS output: deployments/single-instance/nats-output.md
+          - Kafka output: deployments/single-instance/kafka-output.md
+          - InfluxDB output: deployments/single-instance/influxdb-output.md
+          - Prometheus output: deployments/single-instance/prometheus-output.md
+          - Multiple outputs:  deployments/single-instance/multiple-outputs.md
+
+      - Clusters: 
+          - InfluxDB output: deployments/clusters/cluster_with_influxdb_output.md
+          - Prometheus output: deployments/clusters/cluster_with_prometheus_output.md
+          - Prometheus output with data replication: deployments/clusters/cluster_with_nats_input_and_prometheus_output.md
+
+      - Pipelines:  
+          - NATS to Prometheus: deployments/pipelines/nats_prometheus.md
+          - NATS to InfluxDB: deployments/pipelines/nats_influxdb.md
+          - Clustered pipeline: deployments/pipelines/gnmic_cluster_nats_prometheus.md
+          - Forked pipeline: deployments/pipelines/forked_pipeline.md
+  
   - Command reference:
       - Capabilities: cmd/capabilities.md
       - Get: cmd/get.md

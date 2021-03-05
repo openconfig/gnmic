@@ -1,0 +1,16 @@
+log: true
+
+inputs:
+  nats-input:
+    type: input
+    address: nats:4222
+    subject: telemetry
+    outputs:
+      - prom-output
+
+outputs:
+  prom-output:
+    type: prometheus
+    listen: "gnmic-relay1:9804"
+    service-registration:
+      address: consul-agent:8500
