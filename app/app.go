@@ -94,10 +94,10 @@ func New() *App {
 	return a
 }
 
-func (a *App) InitGlobalFlags(cfgFile string) {
+func (a *App) InitGlobalFlags() {
 	a.RootCmd.ResetFlags()
 
-	a.RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/gnmic.yaml)")
+	a.RootCmd.PersistentFlags().StringVar(&a.Config.CfgFile, "config", "", "config file (default is $HOME/gnmic.yaml)")
 	a.RootCmd.PersistentFlags().StringSliceVarP(&a.Config.GlobalFlags.Address, "address", "a", []string{}, "comma separated gnmi targets addresses")
 	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.Username, "username", "u", "", "username")
 	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.Password, "password", "p", "", "password")
