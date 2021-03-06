@@ -60,6 +60,8 @@ type Config struct {
 	Address          string        `mapstructure:"address,omitempty"`
 	Topic            string        `mapstructure:"topic,omitempty"`
 	Name             string        `mapstructure:"name,omitempty"`
+	User             string        `mapstructure:"user,omitempty"`
+	Password         string        `mapstructure:"password,omitempty"`
 	MaxRetry         int           `mapstructure:"max-retry,omitempty"`
 	Timeout          time.Duration `mapstructure:"timeout,omitempty"`
 	RecoveryWaitTime time.Duration `mapstructure:"recovery-wait-time,omitempty"`
@@ -129,6 +131,12 @@ func (k *KafkaOutput) Init(ctx context.Context, name string, cfg map[string]inte
 
 	config := sarama.NewConfig()
 	config.ClientID = k.Cfg.Name
+	if len(k.Cfg.User) > 0 {
+		config.Net.SASL.Enable = true
+		config.Net.SASL.User = k.Cfg.User
+		config.Net.SASL.Password = k.Cfg.Password
+	}
+
 	config.Producer.Retry.Max = k.Cfg.MaxRetry
 	config.Producer.RequiredAcks = sarama.WaitForAll
 	config.Producer.Return.Successes = true
