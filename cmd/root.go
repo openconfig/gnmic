@@ -45,8 +45,6 @@ var formats = [][2]string{
 	{"proto", "protocol buffer messages in binary wire format"},
 }
 
-var cfgFile string
-
 var gApp = app.New()
 
 func newRootCmd() *cobra.Command {
@@ -61,7 +59,7 @@ func newRootCmd() *cobra.Command {
 		},
 		PersistentPreRunE: gApp.PreRun,
 	}
-	gApp.InitGlobalFlags(cfgFile)
+	gApp.InitGlobalFlags()
 	gApp.RootCmd.AddCommand(newCapabilitiesCmd())
 	gApp.RootCmd.AddCommand(newGetCmd())
 	gApp.RootCmd.AddCommand(newListenCmd())
@@ -94,7 +92,7 @@ func init() {
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
-	err := gApp.Config.Load(cfgFile)
+	err := gApp.Config.Load()
 	if err == nil {
 		return
 	}

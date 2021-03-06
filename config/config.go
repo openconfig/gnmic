@@ -49,6 +49,7 @@ type Config struct {
 var ValueTypes = []string{"json", "json_ietf", "string", "int", "uint", "bool", "decimal", "float", "bytes", "ascii"}
 
 type GlobalFlags struct {
+	CfgFile           string
 	Address           []string      `mapstructure:"address,omitempty" json:"address,omitempty" yaml:"address,omitempty"`
 	Username          string        `mapstructure:"username,omitempty" json:"username,omitempty" yaml:"username,omitempty"`
 	Password          string        `mapstructure:"password,omitempty" json:"password,omitempty" yaml:"password,omitempty"`
@@ -163,9 +164,9 @@ func New() *Config {
 	}
 }
 
-func (c *Config) Load(file string) error {
-	if file != "" {
-		c.FileConfig.SetConfigFile(file)
+func (c *Config) Load() error {
+	if c.GlobalFlags.CfgFile != "" {
+		c.FileConfig.SetConfigFile(c.GlobalFlags.CfgFile)
 	} else {
 		home, err := homedir.Dir()
 		if err != nil {
