@@ -16,7 +16,9 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/fullstorydev/grpcurl"
 	"github.com/gorilla/mux"
+	"github.com/jhump/protoreflect/desc"
 	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/config"
 	"github.com/karimra/gnmic/formatters"
@@ -350,4 +352,23 @@ func (a *App) startAPI() {
 			return
 		}
 	}()
+}
+
+func (a *App) LoadProtoFiles() (desc.Descriptor, error) {
+	if len(a.Config.ProtoFile) == 0 {
+		return nil, nil
+	}
+	a.Logger.Printf("loading proto files...")
+	descSource, err := grpcurl.DescriptorSourceFromProtoFiles(a.Config.ProtoDir, a.Config.ProtoFile...)
+	if err != nil {
+		a.Logger.Printf("failed to load proto files: %v", err)
+		return nil, err
+	}
+	rootDesc, err := descSource.FindSymbol("Nokia.SROS.root")
+	if err != nil {
+		a.Logger.Printf("could not get symbol 'Nokia.SROS.root': %v", err)
+		return nil, err
+	}
+	a.Logger.Printf("loaded proto files")
+	return rootDesc, nil
 }

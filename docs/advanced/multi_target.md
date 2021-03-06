@@ -49,24 +49,55 @@ The target inherits the globally defined options if the matching options are not
 Target supported options:
 ```yaml
 targets:
+  # target address, IP or DNS name.
+  # can include a port number or not,
+  # if a port is not included, the default gRPC port will be added
   target1:
+    # target name, will default to address if not specified
     name:
+    # target address
     address:
+    # target username
     username:
+    # target password
     password:
+    # target RPC timeout
     timeout:
+    # establish an insecure connection
     insecure:
+    # path to tls ca file
     tls-ca:
+    # path to tls certificate
     tls-cert:
+    # path to tls key
     tls-key:
+    # max tls version to use during negotiation
     tls-max-version:
+    # min tls version to use during negotiation
     tls-min-version:
+    # preferred tls version to use during negotiation
     tls-version:
+    # do not verify the target certificate when using tls
     skip-verify:
+    # list of subscription names to establish for this target.
+    # if empty it defaults to all subscriptions defined under
+    # the main level `subscriptions` field
     subscriptions:
+    # list of output names to which the gnmi data will be written.
+    # if empty if defaults to all outputs defined under
+    # the main level `outputs` field
     outputs:
+    # number of subscribe responses to keep in buffer before writing
+    # the target outputs
     buffer-size:
+    # target retry period
     retry:
+    # list of tags, relevant when clustering is enabled.
+    tags:
+    # list of proto file names to decode protoBytes values
+    proto-files:
+    # list of directories to look for the proto files
+    proto-dirs:
 ```
 
 ### Example

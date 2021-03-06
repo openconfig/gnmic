@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jhump/protoreflect/desc"
+	"github.com/jhump/protoreflect/dynamic"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
 	"google.golang.org/grpc"
@@ -44,6 +46,8 @@ type Target struct {
 	stopped            bool
 	stopChan           chan struct{}
 	cfn                context.CancelFunc
+
+	rootDesc desc.Descriptor
 }
 
 // TargetConfig //
@@ -65,6 +69,8 @@ type TargetConfig struct {
 	TLSMinVersion string        `mapstructure:"tls-min-version,omitempty" json:"tls-min-version,omitempty"`
 	TLSMaxVersion string        `mapstructure:"tls-max-version,omitempty" json:"tls-max-version,omitempty"`
 	TLSVersion    string        `mapstructure:"tls-version,omitempty" json:"tls-version,omitempty"`
+	ProtoFiles    []string      `mapstructure:"proto-files,omitempty" json:"proto-files,omitempty"`
+	ProtoDirs     []string      `mapstructure:"proto-dirs,omitempty" json:"proto-dirs,omitempty"`
 	Tags          []string      `mapstructure:"tags,omitempty" json:"tags,omitempty"`
 }
 
@@ -417,4 +423,29 @@ func tlsVersionStringToUint(v string) uint16 {
 	case "1.0", "1":
 		return tls.VersionTLS10
 	}
+}
+
+func (t *Target) decodeProtoBytes(resp *gnmi.SubscribeResponse) error {
+	if t.rootDesc == nil {
+		return nil
+	}
+	switch resp := resp.Response.(type) {
+	case *gnmi.SubscribeResponse_Update:
+		for _, update := range resp.Update.Update {
+			switch update.Val.Value.(type) {
+			case *gnmi.TypedValue_ProtoBytes:
+				m := dynamic.NewMessage(t.rootDesc.GetFile().FindMessage("Nokia.SROS.root"))
+				err := m.Unmarshal(update.Val.GetProtoBytes())
+				if err != nil {
+					return err
+				}
+				jsondata, err := m.MarshalJSON()
+				if err != nil {
+					return err
+				}
+				update.Val.Value = &gnmi.TypedValue_JsonVal{JsonVal: jsondata}
+			}
+		}
+	}
+	return nil
 }

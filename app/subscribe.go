@@ -231,7 +231,10 @@ func (a *App) createCollectorOpts(cmd *cobra.Command) ([]collector.CollectorOpti
 	if err != nil {
 		return nil, fmt.Errorf("failed reading event processors config: %v", err)
 	}
-
+	rootDesc, err := a.LoadProtoFiles()
+	if err != nil {
+		return nil, fmt.Errorf("failed loading proto files: %v", err)
+	}
 	return []collector.CollectorOption{
 		collector.WithDialOptions(a.createCollectorDialOpts()),
 		collector.WithSubscriptions(subscriptionsConfig),
@@ -240,6 +243,7 @@ func (a *App) createCollectorOpts(cmd *cobra.Command) ([]collector.CollectorOpti
 		collector.WithEventProcessors(epConfig),
 		collector.WithInputs(inputsConfig),
 		collector.WithLocker(a.locker),
+		collector.WithProtoDescriptor(rootDesc),
 	}, nil
 }
 
