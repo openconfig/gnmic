@@ -277,9 +277,7 @@ func (s *StanInput) handleMsg(m *stan.Msg) {
 		}
 
 		for _, p := range s.evps {
-			for _, ev := range evMsgs {
-				p.Apply(ev)
-			}
+			evMsgs = p.Apply(evMsgs...)
 		}
 
 		go func() {

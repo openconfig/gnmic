@@ -62,12 +62,12 @@ func ResponseToEventMsgs(name string, rsp *gnmi.SubscribeResponse, meta map[stri
 				}
 				e.Tags[k] = v
 			}
-			for _, ep := range eps {
-				ep.Apply(e)
-			}
 			if (e != nil && e != &EventMsg{}) {
 				evs = append(evs, e)
 			}
+		}
+		for _, ep := range eps {
+			evs = ep.Apply(evs...)
 		}
 
 		if len(rsp.Update.Delete) > 0 {
