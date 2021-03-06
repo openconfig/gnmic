@@ -313,7 +313,7 @@ func (k *KafkaOutput) createConfig() (*sarama.Config, error) {
 		switch cfg.Net.SASL.Mechanism {
 		case sarama.SASLTypeSCRAMSHA256:
 			cfg.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient {
-				return &XDGSCRAMClient{HashGeneratorFcn: SHA512}
+				return &XDGSCRAMClient{HashGeneratorFcn: SHA256}
 			}
 		case sarama.SASLTypeSCRAMSHA512:
 			cfg.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient {
