@@ -24,14 +24,17 @@ var testset = map[string]struct {
 			"type":        "int",
 		},
 		tests: []item{
+			// nil msg
 			{
 				input:  nil,
 				output: nil,
 			},
+			// empty msg
 			{
 				input:  make([]*formatters.EventMsg, 0),
 				output: make([]*formatters.EventMsg, 0),
 			},
+			// non matching values
 			{
 				input: []*formatters.EventMsg{
 					{
@@ -44,6 +47,7 @@ var testset = map[string]struct {
 					},
 				},
 			},
+			// matching values and tags
 			{
 				input: []*formatters.EventMsg{
 					{
@@ -58,6 +62,7 @@ var testset = map[string]struct {
 					},
 				},
 			},
+			// 2 msgs, with matching values
 			{
 				input: []*formatters.EventMsg{
 					{
@@ -80,10 +85,11 @@ var testset = map[string]struct {
 					},
 				},
 			},
+			// 2 msgs, second with matching values
 			{
 				input: []*formatters.EventMsg{
 					{
-						Tags:   map[string]string{"number": "name_tag"},
+						Tags: map[string]string{"number": "name_tag"},
 					},
 					{
 						Values: map[string]interface{}{"number": "200"},
@@ -92,7 +98,7 @@ var testset = map[string]struct {
 				},
 				output: []*formatters.EventMsg{
 					{
-						Tags:   map[string]string{"number": "name_tag"},
+						Tags: map[string]string{"number": "name_tag"},
 					},
 					{
 						Values: map[string]interface{}{"number": int(200)},
@@ -100,6 +106,7 @@ var testset = map[string]struct {
 					},
 				},
 			},
+			// matching value, already an int
 			{
 				input: []*formatters.EventMsg{
 					{
@@ -114,6 +121,7 @@ var testset = map[string]struct {
 					},
 				},
 			},
+			// matching value, uint
 			{
 				input: []*formatters.EventMsg{
 					{
@@ -128,6 +136,7 @@ var testset = map[string]struct {
 					},
 				},
 			},
+			// matching value, float64
 			{
 				input: []*formatters.EventMsg{
 					{
@@ -142,6 +151,7 @@ var testset = map[string]struct {
 					},
 				},
 			},
+			// matching value, bool
 			{
 				input: []*formatters.EventMsg{
 					{

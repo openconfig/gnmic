@@ -8,8 +8,8 @@ import (
 )
 
 type item struct {
-	input  *formatters.EventMsg
-	output *formatters.EventMsg
+	input  []*formatters.EventMsg
+	output []*formatters.EventMsg
 }
 
 var testset = map[string]struct {
@@ -28,15 +28,21 @@ var testset = map[string]struct {
 				output: nil,
 			},
 			{
-				input: &formatters.EventMsg{
-					Values: map[string]interface{}{}},
-				output: &formatters.EventMsg{
-					Values: map[string]interface{}{}},
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{}},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{}},
+				},
 			},
 			{
-				input: &formatters.EventMsg{
-					Values: map[string]interface{}{"number": 1}},
-				output: &formatters.EventMsg{},
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"number": 1}},
+				},
+				output: []*formatters.EventMsg{},
 			},
 		},
 	},
@@ -51,15 +57,21 @@ var testset = map[string]struct {
 				output: nil,
 			},
 			{
-				input: &formatters.EventMsg{
-					Tags: map[string]string{}},
-				output: &formatters.EventMsg{
-					Tags: map[string]string{}},
+				input: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{}},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{}},
+				},
 			},
 			{
-				input: &formatters.EventMsg{
-					Tags: map[string]string{"name": "dummy"}},
-				output: &formatters.EventMsg{},
+				input: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{"name": "dummy"}},
+				},
+				output: []*formatters.EventMsg{},
 			},
 		},
 	},
@@ -78,29 +90,14 @@ func TestEventDrop(t *testing.T) {
 			for i, item := range ts.tests {
 				t.Run(name, func(t *testing.T) {
 					t.Logf("running test item %d", i)
-					var inputMsg *formatters.EventMsg
-					if item.input != nil {
-						inputMsg = &formatters.EventMsg{
-							Name:      item.input.Name,
-							Timestamp: item.input.Timestamp,
-							Tags:      make(map[string]string),
-							Values:    make(map[string]interface{}),
-							Deletes:   item.input.Deletes,
+					outs := p.Apply(item.input...)
+					for j := range outs {
+						if !reflect.DeepEqual(outs[j], item.output[j]) {
+							t.Logf("failed at event drop, item %d, index %d", i, j)
+							t.Logf("expected: %#v", item.output[j])
+							t.Logf("     got: %#v", outs[j])
+							t.Fail()
 						}
-						for k, v := range item.input.Tags {
-							inputMsg.Tags[k] = v
-						}
-						for k, v := range item.input.Values {
-							inputMsg.Values[k] = v
-						}
-					}
-					p.Apply(item.input)
-					t.Logf("input: %+v, changed: %+v", inputMsg, item.input)
-					if !reflect.DeepEqual(item.input, item.output) {
-						t.Logf("failed at %s item %d", name, i)
-						t.Logf("expected: %#v", item.output)
-						t.Logf("     got: %#v", item.input)
-						t.Fail()
 					}
 				})
 			}
