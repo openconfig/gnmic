@@ -3,6 +3,7 @@ package kafka_output
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -135,11 +136,7 @@ func (k *KafkaOutput) Init(ctx context.Context, name string, cfg map[string]inte
 	k.msgChan = make(chan *protoMsg, uint(k.Cfg.BufferSize))
 	k.mo = &formatters.MarshalOptions{Format: k.Cfg.Format}
 
-	config, err := k.createConfig()
-	if err != nil {
-		return err
-	}
-
+	config := k.createConfig()
 	ctx, k.cancelFn = context.WithCancel(ctx)
 	k.wg.Add(k.Cfg.NumWorkers)
 	for i := 0; i < k.Cfg.NumWorkers; i++ {
@@ -181,6 +178,18 @@ func (k *KafkaOutput) setDefaults() error {
 	}
 	if k.Cfg.Name == "" {
 		k.Cfg.Name = "gnmic-" + uuid.New().String()
+	}
+	if k.Cfg.SASL == nil {
+		return nil
+	}
+	k.Cfg.SASL.Mechanism = strings.ToUpper(k.Cfg.SASL.Mechanism)
+	switch k.Cfg.SASL.Mechanism {
+	case "":
+		k.Cfg.SASL.Mechanism = "PLAIN"
+	case "OAUTHBEARER":
+		if k.Cfg.SASL.TokenURL == "" {
+			return errors.New("missing token-url for kafka SASL mechanism OAUTHBEARER")
+		}
 	}
 	return nil
 }
@@ -302,7 +311,7 @@ func (k *KafkaOutput) SetName(name string) {
 
 func (k *KafkaOutput) SetClusterName(name string) {}
 
-func (k *KafkaOutput) createConfig() (*sarama.Config, error) {
+func (k *KafkaOutput) createConfig() *sarama.Config {
 	cfg := sarama.NewConfig()
 	cfg.ClientID = k.Cfg.Name
 	if k.Cfg.SASL != nil {
@@ -329,5 +338,5 @@ func (k *KafkaOutput) createConfig() (*sarama.Config, error) {
 	cfg.Producer.Return.Successes = true
 	cfg.Producer.Timeout = k.Cfg.Timeout
 
-	return cfg, nil
+	return cfg
 }
