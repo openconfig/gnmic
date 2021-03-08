@@ -1,6 +1,6 @@
 Sometimes it is needed to perform an operation on multiple devices; be it getting the same leaf value from a given set of the network elements or setting a certain configuration element to some value.
 
-For cases like that `gnmic` offers support for multiple targets operations which a user can configure both via CLI flags as well as with the [file-based configuration](file_cfg.md).
+For cases like that `gnmic` offers support for multiple targets operations which a user can configure both via CLI flags as well as with the [file-based configuration](configuration_file.md).
 
 ### CLI configuration
 Specifying multiple targets in the CLI is as easy as repeating the [`--address`](../global_flags.md#address) flag.

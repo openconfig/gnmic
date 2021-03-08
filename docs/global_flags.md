@@ -31,7 +31,7 @@ It is case insensitive and must be one of: JSON, BYTES, PROTO, ASCII, JSON_IETF
 ### format
 Five output formats can be configured by means of the `--format` flag. `[proto, protojson, prototext, json, event]` The default format is `json`.
 
-The `proto` format outputs the gnmi message as raw bytes, this value is not allowed when the output type is file (file system, stdout or stderr) see [outputs](advanced/multi_outputs/output_intro.md)
+The `proto` format outputs the gnmi message as raw bytes, this value is not allowed when the output type is file (file system, stdout or stderr) see [outputs](user_guide/outputs/output_intro.md)
 
 The `prototext` and `protojson` formats are the message representation as defined in [prototext](https://godoc.org/google.golang.org/protobuf/encoding/prototext) and [protojson](https://godoc.org/google.golang.org/protobuf/encoding/protojson)
 
@@ -199,6 +199,12 @@ This flag overwrites the previously listed flags `--tls-max-version` and `--tls-
 ### username
 The username flag `[-u | --username]` is used to specify the target username as part of the user credentials. If omitted, the input prompt is used to provide the username.
 
+#### cluster-name
+The `[--cluster-name]` flag is used to specify the cluster name the `gnmic` instance will join. 
+
+The cluster name is used as part of the locked keys to share targets between multiple gnmic instances.
+
+Defaults to `default-cluster`
 ### instance-name
 The `[--instance-name]` flag is used to give a unique name to the running `gnmic` instance. This is useful when there are multiple instances of `gnmic` running at the same time, either for high-availability and/or scalability
 

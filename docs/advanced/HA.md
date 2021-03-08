@@ -148,7 +148,7 @@ Using the same above-mentioned clustering mechanism, `gnmic` can horizontally sc
 
 The collected gNMI data can then be aggregated and made available through any of the running `gnmic` instances, regardless of whether that instance collected the data from the target or not.
 
-The data aggregation is done by chaining `gnmic` [outputs](multi_outputs/output_intro.md) and [inputs](inputs/input_intro.md) to build a gNMI data pipeline.
+The data aggregation is done by chaining `gnmic` [outputs](../user_guide/outputs/output_intro.md) and [inputs](../user_guide/inputs/input_intro.md) to build a gNMI data pipeline.
 
 In the diagram below, the `gnmic` instances on the left and right side of NATS server can be identical.
 

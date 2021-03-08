@@ -4,34 +4,6 @@ With lots of configuration options that `gnmic` supports it might get tedious to
 
 With a configuration file a user can specify all the command line flags by means of a single file. `gnmic` will read this file and retrieve the configuration options from it.
 
-### File type, name and location
-Configuration file that `gnmic` reads must be in one of the following formats: JSON, YAML, TOML, HCL or Properties.  
-
-By default, `gnmic` will search for a file named `.gnmic.[yml/yaml, toml, json]` in the following locations and will use the first file that exists:
-
-* `$PWD`
-* `$HOME`
-* `$XDG_CONFIG_HOME`
-* `$XDG_CONFIG_HOME/gnmic`
-
-The default path can be overridden with [`--config`](../global_flags.md#config) flag.
-
-```bash
-# config file default path is :
-# $PWD/.gnmic.[yml, toml, json], or
-# $HOME/.gnmic.[yml, toml, json], or
-# $XDG_CONFIG_HOME/.gnmic.[yml, toml, json], or
-# $XDG_CONFIG_HOME/gnmic/.gnmic.[yml, toml, json]
-gnmic capabilities
-
-# read `cfg.yml` file located in the current directory
-gnmic --config ./cfg.yml capabilities
-```
-
-If the file referenced by `--config` flag is not present, the default path won't be tried.
-
-Example of the `gnmic` config files are provided in the following formats: [YAML](https://github.com/karimra/gnmic/blob/master/config.yaml), [JSON](https://github.com/karimra/gnmic/blob/master/config.json), [TOML](https://github.com/karimra/gnmic/blob/master/config.toml).
-
 ### What options can be in a file?
 Configuration file allows a user to specify everything that can be supplied over the CLI and more.
 #### Global flags
@@ -76,13 +48,16 @@ get-path: /configure/system/name  # `get` command local flag
 Another example: the [`update-path`](../cmd/set.md#1-in-line-update-implicit-type) flag of a [`set`](../cmd/set.md) will be `set-update-path` in the configuration file.
 
 #### Targets
-It is possible to specify multiple targets with different configurations (credentials, timeout,...). This is described in [Multiple targets](multi_target.md) documentation article.
+It is possible to specify multiple targets with different configurations (credentials, timeout,...). This is described in [Multiple targets](targets.md) documentation article.
 
 #### Subscriptions
-It is possible to specify multiple subscriptions and associate them with multiple targets in a flexible way. This advanced technique is described in [Multiple subscriptions](subscriptions.md) documentation article.
+It is possible to specify multiple subscriptions and associate them with different targets in a flexible way. This configuration option is described in [Multiple subscriptions](subscriptions.md) documentation article.
 
 #### Outputs
-The other mode `gnmic` supports (in contrast to CLI) is running as a daemon and exporting the data received with gNMI subscriptions to multiple outputs like stan/nats, kafka, file, etc.
+The other mode `gnmic` supports (in contrast to CLI) is running as a daemon and exporting the data received from gNMI subscriptions to [multiple outputs](outputs/output_intro.md) like stan/nats, kafka, file, prometheus, influxdb, etc...
+
+#### Inputs
+`gnmic` supports reading gNMI data from a set of [inputs](inputs/input_intro.md) and export the data to any of the configured outputs. This is used when building data pipelines with `gnmic`
 
 ### Repeated flags
 If a flag can appear more than once on the CLI, it can be represented as a list in the file.
@@ -99,4 +74,4 @@ get-path:
 ```
 
 ### Options preference
-Configuration passed via CLI flags takes precedence over the file config.
+Configuration passed via CLI flags and Env variables take precedence over the file config.

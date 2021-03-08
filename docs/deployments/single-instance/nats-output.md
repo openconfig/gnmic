@@ -2,7 +2,7 @@ The purpose of this deployment is to collect gNMI data and write it to a `NATS` 
 
 Multiple 3rd Party systems (acting as a NATS clients) can then read the data from the `NATS` server for further processing.
 
-This deployment example includes a single `gnmic` instance and a single [NATS output](../../advanced/multi_outputs/nats_output.md)
+This deployment example includes a single `gnmic` instance and a single [NATS output](../../user_guide/outputs/nats_output.md)
 
 
 <div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:12,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/karimra/gnmic/diagrams/diagrams/single_instance_nats.drawio&quot;}"></div>
@@ -23,4 +23,4 @@ Deploy it with:
 sudo docker-compose up -d
 ```
 
-Check the [NATS Output](../../advanced/multi_outputs/nats_output.md) documentation page for more configuration options
+Check the [NATS Output](../../user_guide/outputs/nats_output.md) documentation page for more configuration options

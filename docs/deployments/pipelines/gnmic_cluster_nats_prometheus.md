@@ -33,7 +33,7 @@ Deploy it with:
 sudo docker-compose up -d
 ```
 
-Check the [Prometheus Output](../../advanced/multi_outputs/prometheus_output.md) and [NATS Input](../../advanced/inputs/nats_input.md) documentation page for more configuration options
+Check the [Prometheus Output](../../user_guide/outputs/prometheus_output.md) and [NATS Input](../../user_guide/inputs/nats_input.md) documentation page for more configuration options
 
 ### Clustered collectors and clustered relays
 
@@ -62,4 +62,4 @@ Deploy it with:
 sudo docker-compose up -d
 ```
 
-Check the [Prometheus Output](../../advanced/multi_outputs/prometheus_output.md) and [NATS Input](../../advanced/inputs/nats_input.md) documentation page for more configuration options
+Check the [Prometheus Output](../../user_guide/outputs/prometheus_output.md) and [NATS Input](../../user_guide/inputs/nats_input.md) documentation page for more configuration options
