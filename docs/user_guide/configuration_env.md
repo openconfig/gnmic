@@ -1,4 +1,4 @@
-All global and local flags as well as file based configuration elements can be set via environment variables, `gnmic` will read the environment variables starting with `GNMIC_`.
+`gnmic` can be configured using environment variables, it will read the environment variables starting with `GNMIC_`.
 
 The Env variable names are inline with the flag names as well as the configuration hierarchy.
 
@@ -6,7 +6,7 @@ For e.g to set the gNMI username, the env variable `GNMIC_USERNAME` should be se
 
 Global flags to env variable name mapping:
 
-| Flag name                  | Env variable name              |
+| **Flag name**              | **ENV variable name**          |
 | ---------------------------|--------------------------------|
 | --address                  | GNMIC_ADDRESS                  |
 | --encoding                 | GNMIC_ENCODING                 |

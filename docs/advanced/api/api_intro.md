@@ -6,6 +6,7 @@ Enabling the API server can be done via a command line flag:
 ```bash
 gnmic --config gnmic.yaml subscribe --api ":7890"
 ```
+via ENV variable: `GNMIC_API=':7890'`
 
 Or via file configuration, by adding the below line to the config file:
 

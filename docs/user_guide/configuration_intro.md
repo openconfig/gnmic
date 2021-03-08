@@ -13,10 +13,11 @@ See [here](configuration_flags.md) for a complete list of the supported global a
 
 ## Environment variables
 
-All global and local flags as well as file based configuration elements can be set via environment variables, `gnmic` will read the environment variables starting with `GNMIC_`.
+`gnmic` can also be configured using environment variables, it will read the environment variables starting with `GNMIC_`.
 
 The Env variable names are inline with the flag names as well as the configuration hierarchy.
 
+See [here](configuration_env.md) for more details on environment variables.
 ## File configuration
 Configuration file that `gnmic` reads must be in one of the following formats: JSON, YAML, TOML, HCL or Properties.  
 
