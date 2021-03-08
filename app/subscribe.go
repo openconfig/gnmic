@@ -347,6 +347,7 @@ func (a *App) startIO() {
 	a.collector.InitOutputs(a.ctx)
 	a.collector.InitInputs(a.ctx)
 	a.collector.InitTargets()
+	a.startLoader()
 	if !a.inCluster() {
 		var limiter *time.Ticker
 		if a.Config.LocalFlags.SubscribeBackoff > 0 {
