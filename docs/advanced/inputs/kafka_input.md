@@ -17,6 +17,16 @@ inputs:
     # If --instance-name is also empty, a random name is generated in the format `gnmic-$uuid`
     # note that each kafka worker (consumer) will get name=$name-$index
     name: ""
+    # Kafka SASL configuration
+    sasl:
+      # SASL user name
+      user:
+      # SASL password
+      password:
+      # SASL mechanism: PLAIN, SCRAM-SHA-256, SCRAM-SHA-512 and OAUTHBEARER are supported
+      mechanism:
+      # token url for OAUTHBEARER SASL mechanism
+      token-url:
     # string, comma separated Kafka servers addresses
     address: localhost:9092
     # string, comma separated topics the Kafka consumer group consumes messages from.
