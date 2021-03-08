@@ -97,38 +97,41 @@ func (d *Delete) Init(cfg interface{}, logger *log.Logger) error {
 	return nil
 }
 
-func (d *Delete) Apply(e *formatters.EventMsg) {
-	if e == nil {
-		return
-	}
-	for k, v := range e.Values {
-		for _, re := range d.valueNames {
-			if re.MatchString(k) {
-				d.logger.Printf("key '%s' matched regex '%s'", k, re.String())
-				delete(e.Values, k)
-			}
+func (d *Delete) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
+	for _, e := range es {
+		if e == nil {
+			continue
 		}
-		for _, re := range d.values {
-			if vs, ok := v.(string); ok {
-				if re.MatchString(vs) {
+		for k, v := range e.Values {
+			for _, re := range d.valueNames {
+				if re.MatchString(k) {
 					d.logger.Printf("key '%s' matched regex '%s'", k, re.String())
 					delete(e.Values, k)
 				}
 			}
-		}
-	}
-	for k, v := range e.Tags {
-		for _, re := range d.tagNames {
-			if re.MatchString(k) {
-				d.logger.Printf("key '%s' matched regex '%s'", k, re.String())
-				delete(e.Tags, k)
+			for _, re := range d.values {
+				if vs, ok := v.(string); ok {
+					if re.MatchString(vs) {
+						d.logger.Printf("key '%s' matched regex '%s'", k, re.String())
+						delete(e.Values, k)
+					}
+				}
 			}
 		}
-		for _, re := range d.tags {
-			if re.MatchString(v) {
-				d.logger.Printf("key '%s' matched regex '%s'", k, re.String())
-				delete(e.Tags, k)
+		for k, v := range e.Tags {
+			for _, re := range d.tagNames {
+				if re.MatchString(k) {
+					d.logger.Printf("key '%s' matched regex '%s'", k, re.String())
+					delete(e.Tags, k)
+				}
+			}
+			for _, re := range d.tags {
+				if re.MatchString(v) {
+					d.logger.Printf("key '%s' matched regex '%s'", k, re.String())
+					delete(e.Tags, k)
+				}
 			}
 		}
 	}
+	return es
 }

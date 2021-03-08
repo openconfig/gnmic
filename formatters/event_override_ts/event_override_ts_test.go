@@ -1,6 +1,7 @@
 package event_override_ts
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
@@ -8,8 +9,8 @@ import (
 )
 
 type item struct {
-	input  *formatters.EventMsg
-	output *formatters.EventMsg
+	input  []*formatters.EventMsg
+	output []*formatters.EventMsg
 }
 
 var now = time.Now()
@@ -26,11 +27,13 @@ var testset = map[string]struct {
 				output: nil,
 			},
 			{
-				input: &formatters.EventMsg{},
+				input: []*formatters.EventMsg{},
 			},
 			{
-				input: &formatters.EventMsg{
-					Timestamp: now.UnixNano() / 1000000,
+				input: []*formatters.EventMsg{
+					{
+						Timestamp: now.UnixNano() / 1000000,
+					},
 				},
 			},
 		},
@@ -45,11 +48,13 @@ var testset = map[string]struct {
 				output: nil,
 			},
 			{
-				input: &formatters.EventMsg{},
+				input: []*formatters.EventMsg{},
 			},
 			{
-				input: &formatters.EventMsg{
-					Timestamp: now.UnixNano(),
+				input: []*formatters.EventMsg{
+					{
+						Timestamp: now.UnixNano(),
+					},
 				},
 			},
 		},
@@ -64,11 +69,13 @@ var testset = map[string]struct {
 				output: nil,
 			},
 			{
-				input: &formatters.EventMsg{},
+				input: []*formatters.EventMsg{},
 			},
 			{
-				input: &formatters.EventMsg{
-					Timestamp: now.UnixNano() / 1000,
+				input: []*formatters.EventMsg{
+					{
+						Timestamp: now.UnixNano() / 1000,
+					},
 				},
 			},
 		},
@@ -83,11 +90,13 @@ var testset = map[string]struct {
 				output: nil,
 			},
 			{
-				input: &formatters.EventMsg{},
+				input: []*formatters.EventMsg{},
 			},
 			{
-				input: &formatters.EventMsg{
-					Timestamp: now.Unix(),
+				input: []*formatters.EventMsg{
+					{
+						Timestamp: now.Unix(),
+					},
 				},
 			},
 		},
@@ -110,36 +119,14 @@ func TestEventDateString(t *testing.T) {
 				for i, item := range ts.tests {
 					t.Run(name, func(t *testing.T) {
 						t.Logf("running test item %d", i)
-						var inputMsg *formatters.EventMsg
-						if item.input != nil {
-							inputMsg = &formatters.EventMsg{
-								Name:      item.input.Name,
-								Timestamp: item.input.Timestamp,
-								Tags:      make(map[string]string),
-								Values:    make(map[string]interface{}),
-								Deletes:   item.input.Deletes,
+						outs := p.Apply(item.input...)
+						for j := range outs {
+							if !reflect.DeepEqual(outs[j], item.output[j]) {
+								t.Logf("failed at event override_ts, item %d, index %d", i, j)
+								t.Logf("expected: %#v", item.output[j])
+								t.Logf("     got: %#v", outs[j])
+								t.Fail()
 							}
-							for k, v := range item.input.Tags {
-								inputMsg.Tags[k] = v
-							}
-							for k, v := range item.input.Values {
-								inputMsg.Values[k] = v
-							}
-						}
-
-						p.Apply(item.input)
-						if inputMsg == nil && item.input != nil {
-							t.Errorf("failed at %s item %d", name, i)
-							t.Fail()
-							return
-						} else if inputMsg != nil && item.input == nil {
-							t.Errorf("failed at %s item %d", name, i)
-							t.Fail()
-							return
-						}
-						if item.input.Timestamp >= inputMsg.Timestamp {
-							t.Errorf("failed at %s item %d", name, i)
-							t.Fail()
 						}
 					})
 				}

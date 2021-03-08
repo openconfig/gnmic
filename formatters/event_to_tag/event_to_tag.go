@@ -74,34 +74,37 @@ func (t *ToTag) Init(cfg interface{}, logger *log.Logger) error {
 	return nil
 }
 
-func (t *ToTag) Apply(e *formatters.EventMsg) {
-	if e == nil {
-		return
-	}
-	for k, v := range e.Values {
-		for _, re := range t.valueNames {
-			if re.MatchString(k) {
-				if e.Tags == nil {
-					e.Tags = make(map[string]string)
-				}
-				e.Tags[k] = v.(string)
-				if !t.Keep {
-					delete(e.Values, k)
-				}
-			}
+func (t *ToTag) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
+	for _, e := range es {
+		if e == nil {
+			continue
 		}
-		for _, re := range t.values {
-			if vs, ok := v.(string); ok {
-				if re.MatchString(vs) {
+		for k, v := range e.Values {
+			for _, re := range t.valueNames {
+				if re.MatchString(k) {
 					if e.Tags == nil {
 						e.Tags = make(map[string]string)
 					}
-					e.Tags[k] = vs
+					e.Tags[k] = v.(string)
 					if !t.Keep {
 						delete(e.Values, k)
 					}
 				}
 			}
+			for _, re := range t.values {
+				if vs, ok := v.(string); ok {
+					if re.MatchString(vs) {
+						if e.Tags == nil {
+							e.Tags = make(map[string]string)
+						}
+						e.Tags[k] = vs
+						if !t.Keep {
+							delete(e.Values, k)
+						}
+					}
+				}
+			}
 		}
 	}
+	return es
 }

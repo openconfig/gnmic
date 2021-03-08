@@ -116,57 +116,61 @@ func (p *Write) Init(cfg interface{}, logger *log.Logger) error {
 	return nil
 }
 
-func (p *Write) Apply(e *formatters.EventMsg) {
-	if e == nil {
-		p.dst.Write([]byte(""))
-		return
-	}
-	for k, v := range e.Values {
-		for _, re := range p.values {
-			if vs, ok := v.(string); ok {
-				if re.MatchString(vs) {
+func (p *Write) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
+OUTER:
+	for _, e := range es {
+		if e == nil {
+			p.dst.Write([]byte(""))
+			continue
+		}
+		for k, v := range e.Values {
+			for _, re := range p.values {
+				if vs, ok := v.(string); ok {
+					if re.MatchString(vs) {
+						err := p.write(e)
+						if err != nil {
+							p.logger.Printf("failed to write to destination: %v", err)
+							continue OUTER
+						}
+						continue OUTER
+					}
+				}
+			}
+			for _, re := range p.valueNames {
+				if re.MatchString(k) {
 					err := p.write(e)
 					if err != nil {
 						p.logger.Printf("failed to write to destination: %v", err)
-						return
+						continue OUTER
 					}
-					return
+					continue OUTER
 				}
 			}
 		}
-		for _, re := range p.valueNames {
-			if re.MatchString(k) {
-				err := p.write(e)
-				if err != nil {
-					p.logger.Printf("failed to write to destination: %v", err)
-					return
+		for k, v := range e.Tags {
+			for _, re := range p.tagNames {
+				if re.MatchString(k) {
+					err := p.write(e)
+					if err != nil {
+						p.logger.Printf("failed to write to destination: %v", err)
+						continue OUTER
+					}
+					continue OUTER
 				}
-				return
+			}
+			for _, re := range p.tags {
+				if re.MatchString(v) {
+					err := p.write(e)
+					if err != nil {
+						p.logger.Printf("failed to write to destination: %v", err)
+						continue OUTER
+					}
+					continue OUTER
+				}
 			}
 		}
 	}
-	for k, v := range e.Tags {
-		for _, re := range p.tagNames {
-			if re.MatchString(k) {
-				err := p.write(e)
-				if err != nil {
-					p.logger.Printf("failed to write to destination: %v", err)
-					return
-				}
-				return
-			}
-		}
-		for _, re := range p.tags {
-			if re.MatchString(v) {
-				err := p.write(e)
-				if err != nil {
-					p.logger.Printf("failed to write to destination: %v", err)
-					return
-				}
-				return
-			}
-		}
-	}
+	return es
 }
 
 func (p *Write) write(e *formatters.EventMsg) error {

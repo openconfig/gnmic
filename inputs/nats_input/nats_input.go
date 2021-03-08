@@ -151,9 +151,7 @@ START:
 				}
 
 				for _, p := range n.evps {
-					for _, ev := range evMsgs {
-						p.Apply(ev)
-					}
+					evMsgs = p.Apply(evMsgs...)
 				}
 
 				go func() {

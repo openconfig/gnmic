@@ -8,8 +8,8 @@ import (
 )
 
 type item struct {
-	input  *formatters.EventMsg
-	output *formatters.EventMsg
+	input  []*formatters.EventMsg
+	output []*formatters.EventMsg
 }
 
 var testset = map[string]struct {
@@ -30,25 +30,33 @@ var testset = map[string]struct {
 				output: nil,
 			},
 			{
-				input:  &formatters.EventMsg{},
-				output: &formatters.EventMsg{},
+				input:  make([]*formatters.EventMsg, 0),
+				output: make([]*formatters.EventMsg, 0),
 			},
 			{
-				input: &formatters.EventMsg{
-					Values: map[string]interface{}{"value": 1},
-					Tags:   map[string]string{"tag1": "1"},
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"value": 1},
+						Tags:   map[string]string{"tag1": "1"},
+					},
 				},
-				output: &formatters.EventMsg{
-					Values: map[string]interface{}{"value": 1},
-					Tags:   map[string]string{"tag1": "1"},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"value": 1},
+						Tags:   map[string]string{"tag1": "1"},
+					},
 				},
 			},
 			{
-				input: &formatters.EventMsg{
-					Values: map[string]interface{}{"name": 1},
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"name": 1},
+					},
 				},
-				output: &formatters.EventMsg{
-					Values: map[string]interface{}{"name": 1},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"name": 1},
+					},
 				},
 			},
 		},
@@ -68,25 +76,61 @@ var testset = map[string]struct {
 				output: nil,
 			},
 			{
-				input:  &formatters.EventMsg{},
-				output: &formatters.EventMsg{},
+				input:  make([]*formatters.EventMsg, 0),
+				output: make([]*formatters.EventMsg, 0),
 			},
 			{
-				input: &formatters.EventMsg{
-					Values: map[string]interface{}{"value": 1},
-					Tags:   map[string]string{"tag1": "1"},
+				input: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{"tag1": "1"},
+					},
+					{
+						Values: map[string]interface{}{"value": 2},
+						Tags:   map[string]string{"tag1": "2"},
+					},
 				},
-				output: &formatters.EventMsg{
-					Values: map[string]interface{}{"value": 1},
-					Tags:   map[string]string{"tag1": "new_tag"},
+				output: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{"tag1": "1"},
+					},
+					{
+						Values: map[string]interface{}{"value": 2},
+						Tags:   map[string]string{"tag1": "new_tag"},
+					},
 				},
 			},
 			{
-				input: &formatters.EventMsg{
-					Values: map[string]interface{}{"name": 1},
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"value": 1},
+						Tags:   map[string]string{"tag1": "1"},
+					},
+					{
+						Values: map[string]interface{}{"value": 2},
+						Tags:   map[string]string{"tag1": "2"},
+					},
 				},
-				output: &formatters.EventMsg{
-					Values: map[string]interface{}{"name": 1},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"value": 1},
+						Tags:   map[string]string{"tag1": "new_tag"},
+					},
+					{
+						Values: map[string]interface{}{"value": 2},
+						Tags:   map[string]string{"tag1": "new_tag"},
+					},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"name": 1},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"name": 1},
+					},
 				},
 			},
 		},
@@ -106,30 +150,38 @@ var testset = map[string]struct {
 				output: nil,
 			},
 			{
-				input:  &formatters.EventMsg{},
-				output: &formatters.EventMsg{},
+				input:  make([]*formatters.EventMsg, 0),
+				output: make([]*formatters.EventMsg, 0),
 			},
 			{
-				input: &formatters.EventMsg{
-					Values: map[string]interface{}{"value": 1},
-					Tags: map[string]string{
-						"tag1": "1",
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"value": 1},
+						Tags: map[string]string{
+							"tag1": "1",
+						},
 					},
 				},
-				output: &formatters.EventMsg{
-					Values: map[string]interface{}{"value": 1},
-					Tags: map[string]string{
-						"tag1": "1",
-						"tag2": "new_tag2",
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"value": 1},
+						Tags: map[string]string{
+							"tag1": "1",
+							"tag2": "new_tag2",
+						},
 					},
 				},
 			},
 			{
-				input: &formatters.EventMsg{
-					Values: map[string]interface{}{"name": 1},
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"name": 1},
+					},
 				},
-				output: &formatters.EventMsg{
-					Values: map[string]interface{}{"name": 1},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"name": 1},
+					},
 				},
 			},
 		},
@@ -150,30 +202,38 @@ var testset = map[string]struct {
 				output: nil,
 			},
 			{
-				input:  &formatters.EventMsg{},
-				output: &formatters.EventMsg{},
+				input:  make([]*formatters.EventMsg, 0),
+				output: make([]*formatters.EventMsg, 0),
 			},
 			{
-				input: &formatters.EventMsg{
-					Values: map[string]interface{}{"value": 1},
-					Tags: map[string]string{
-						"tag1": "1",
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"value": 1},
+						Tags: map[string]string{
+							"tag1": "1",
+						},
 					},
 				},
-				output: &formatters.EventMsg{
-					Values: map[string]interface{}{"value": 1},
-					Tags: map[string]string{
-						"tag1": "new_tag",
-						"tag2": "new_tag2",
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"value": 1},
+						Tags: map[string]string{
+							"tag1": "new_tag",
+							"tag2": "new_tag2",
+						},
 					},
 				},
 			},
 			{
-				input: &formatters.EventMsg{
-					Values: map[string]interface{}{"name": 1},
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"name": 1},
+					},
 				},
-				output: &formatters.EventMsg{
-					Values: map[string]interface{}{"name": 1},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"name": 1},
+					},
 				},
 			},
 		},
@@ -191,25 +251,33 @@ var testset = map[string]struct {
 				output: nil,
 			},
 			{
-				input:  &formatters.EventMsg{},
-				output: &formatters.EventMsg{},
+				input:  make([]*formatters.EventMsg, 0),
+				output: make([]*formatters.EventMsg, 0),
 			},
 			{
-				input: &formatters.EventMsg{
-					Values: map[string]interface{}{"v": "value"},
-					Tags:   map[string]string{"tag1": "1"},
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"v": "value"},
+						Tags:   map[string]string{"tag1": "1"},
+					},
 				},
-				output: &formatters.EventMsg{
-					Values: map[string]interface{}{"v": "value"},
-					Tags:   map[string]string{"tag1": "1"},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"v": "value"},
+						Tags:   map[string]string{"tag1": "1"},
+					},
 				},
 			},
 			{
-				input: &formatters.EventMsg{
-					Values: map[string]interface{}{"name": 1},
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"name": 1},
+					},
 				},
-				output: &formatters.EventMsg{
-					Values: map[string]interface{}{"name": 1},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"name": 1},
+					},
 				},
 			},
 		},
@@ -229,25 +297,33 @@ var testset = map[string]struct {
 				output: nil,
 			},
 			{
-				input:  &formatters.EventMsg{},
-				output: &formatters.EventMsg{},
+				input:  make([]*formatters.EventMsg, 0),
+				output: make([]*formatters.EventMsg, 0),
 			},
 			{
-				input: &formatters.EventMsg{
-					Values: map[string]interface{}{"value": "value"},
-					Tags:   map[string]string{"tag1": "1"},
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"value": "value"},
+						Tags:   map[string]string{"tag1": "1"},
+					},
 				},
-				output: &formatters.EventMsg{
-					Values: map[string]interface{}{"value": "value"},
-					Tags:   map[string]string{"tag1": "new_tag"},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"value": "value"},
+						Tags:   map[string]string{"tag1": "new_tag"},
+					},
 				},
 			},
 			{
-				input: &formatters.EventMsg{
-					Values: map[string]interface{}{"name": 1},
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"name": 1},
+					},
 				},
-				output: &formatters.EventMsg{
-					Values: map[string]interface{}{"name": 1},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"name": 1},
+					},
 				},
 			},
 		},
@@ -267,30 +343,38 @@ var testset = map[string]struct {
 				output: nil,
 			},
 			{
-				input:  &formatters.EventMsg{},
-				output: &formatters.EventMsg{},
+				input:  make([]*formatters.EventMsg, 0),
+				output: make([]*formatters.EventMsg, 0),
 			},
 			{
-				input: &formatters.EventMsg{
-					Values: map[string]interface{}{"value": "value"},
-					Tags: map[string]string{
-						"tag1": "1",
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"value": "value"},
+						Tags: map[string]string{
+							"tag1": "1",
+						},
 					},
 				},
-				output: &formatters.EventMsg{
-					Values: map[string]interface{}{"value": "value"},
-					Tags: map[string]string{
-						"tag1": "1",
-						"tag2": "new_tag2",
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"value": "value"},
+						Tags: map[string]string{
+							"tag1": "1",
+							"tag2": "new_tag2",
+						},
 					},
 				},
 			},
 			{
-				input: &formatters.EventMsg{
-					Values: map[string]interface{}{"name": 1},
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"name": 1},
+					},
 				},
-				output: &formatters.EventMsg{
-					Values: map[string]interface{}{"name": 1},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"name": 1},
+					},
 				},
 			},
 		},
@@ -311,30 +395,38 @@ var testset = map[string]struct {
 				output: nil,
 			},
 			{
-				input:  &formatters.EventMsg{},
-				output: &formatters.EventMsg{},
+				input:  make([]*formatters.EventMsg, 0),
+				output: make([]*formatters.EventMsg, 0),
 			},
 			{
-				input: &formatters.EventMsg{
-					Values: map[string]interface{}{"value": "value"},
-					Tags: map[string]string{
-						"tag1": "1",
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"value": "value"},
+						Tags: map[string]string{
+							"tag1": "1",
+						},
 					},
 				},
-				output: &formatters.EventMsg{
-					Values: map[string]interface{}{"value": "value"},
-					Tags: map[string]string{
-						"tag1": "new_tag",
-						"tag2": "new_tag2",
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"value": "value"},
+						Tags: map[string]string{
+							"tag1": "new_tag",
+							"tag2": "new_tag2",
+						},
 					},
 				},
 			},
 			{
-				input: &formatters.EventMsg{
-					Values: map[string]interface{}{"name": 1},
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"name": 1},
+					},
 				},
-				output: &formatters.EventMsg{
-					Values: map[string]interface{}{"name": 1},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"name": 1},
+					},
 				},
 			},
 		},
@@ -352,15 +444,19 @@ var testset = map[string]struct {
 				output: nil,
 			},
 			{
-				input:  &formatters.EventMsg{},
-				output: &formatters.EventMsg{},
+				input:  make([]*formatters.EventMsg, 0),
+				output: make([]*formatters.EventMsg, 0),
 			},
 			{
-				input: &formatters.EventMsg{
-					Tags: map[string]string{"tag1": "1"},
+				input: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{"tag1": "1"},
+					},
 				},
-				output: &formatters.EventMsg{
-					Tags: map[string]string{"tag1": "1"},
+				output: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{"tag1": "1"},
+					},
 				},
 			},
 		},
@@ -380,15 +476,19 @@ var testset = map[string]struct {
 				output: nil,
 			},
 			{
-				input:  &formatters.EventMsg{},
-				output: &formatters.EventMsg{},
+				input:  make([]*formatters.EventMsg, 0),
+				output: make([]*formatters.EventMsg, 0),
 			},
 			{
-				input: &formatters.EventMsg{
-					Tags: map[string]string{"tag1": "1"},
+				input: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{"tag1": "1"},
+					},
 				},
-				output: &formatters.EventMsg{
-					Tags: map[string]string{"tag1": "new_tag"},
+				output: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{"tag1": "new_tag"},
+					},
 				},
 			},
 		},
@@ -408,20 +508,23 @@ var testset = map[string]struct {
 				output: nil,
 			},
 			{
-				input:  &formatters.EventMsg{},
-				output: &formatters.EventMsg{},
+				input:  make([]*formatters.EventMsg, 0),
+				output: make([]*formatters.EventMsg, 0),
 			},
 			{
-				input: &formatters.EventMsg{
-
-					Tags: map[string]string{
-						"tag1": "1",
+				input: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{
+							"tag1": "1",
+						},
 					},
 				},
-				output: &formatters.EventMsg{
-					Tags: map[string]string{
-						"tag1": "1",
-						"tag2": "new_tag2",
+				output: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{
+							"tag1": "1",
+							"tag2": "new_tag2",
+						},
 					},
 				},
 			},
@@ -443,19 +546,23 @@ var testset = map[string]struct {
 				output: nil,
 			},
 			{
-				input:  &formatters.EventMsg{},
-				output: &formatters.EventMsg{},
+				input:  make([]*formatters.EventMsg, 0),
+				output: make([]*formatters.EventMsg, 0),
 			},
 			{
-				input: &formatters.EventMsg{
-					Tags: map[string]string{
-						"tag1": "1",
+				input: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{
+							"tag1": "1",
+						},
 					},
 				},
-				output: &formatters.EventMsg{
-					Tags: map[string]string{
-						"tag1": "new_tag",
-						"tag2": "new_tag2",
+				output: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{
+							"tag1": "new_tag",
+							"tag2": "new_tag2",
+						},
 					},
 				},
 			},
@@ -474,31 +581,39 @@ var testset = map[string]struct {
 				output: nil,
 			},
 			{
-				input:  &formatters.EventMsg{},
-				output: &formatters.EventMsg{},
+				input:  make([]*formatters.EventMsg, 0),
+				output: make([]*formatters.EventMsg, 0),
 			},
 			{
-				input: &formatters.EventMsg{
-					Tags: map[string]string{"old_tag": "tag_value"},
+				input: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{"old_tag": "tag_value"},
+					},
 				},
-				output: &formatters.EventMsg{
-					Tags: map[string]string{
-						"old_tag": "tag_value",
-						"tag1":    "new_tag",
+				output: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{
+							"old_tag": "tag_value",
+							"tag1":    "new_tag",
+						},
 					},
 				},
 			},
 			{
-				input: &formatters.EventMsg{
-					Tags: map[string]string{
-						"old_tag": "tag_value",
-						"tag1":    "old_value",
+				input: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{
+							"old_tag": "tag_value",
+							"tag1":    "old_value",
+						},
 					},
 				},
-				output: &formatters.EventMsg{
-					Tags: map[string]string{
-						"old_tag": "tag_value",
-						"tag1":    "old_value",
+				output: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{
+							"old_tag": "tag_value",
+							"tag1":    "old_value",
+						},
 					},
 				},
 			},
@@ -519,28 +634,36 @@ var testset = map[string]struct {
 				output: nil,
 			},
 			{
-				input:  &formatters.EventMsg{},
-				output: &formatters.EventMsg{},
+				input:  make([]*formatters.EventMsg, 0),
+				output: make([]*formatters.EventMsg, 0),
 			},
 			{
-				input: &formatters.EventMsg{
-					Tags: map[string]string{"tag1": "tag_value"},
-				},
-				output: &formatters.EventMsg{
-					Tags: map[string]string{"tag1": "new_tag"},
-				},
-			},
-			{
-				input: &formatters.EventMsg{
-					Tags: map[string]string{
-						"old_tag": "tag_value",
-						"tag1":    "old_value",
+				input: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{"tag1": "tag_value"},
 					},
 				},
-				output: &formatters.EventMsg{
-					Tags: map[string]string{
-						"old_tag": "tag_value",
-						"tag1":    "new_tag",
+				output: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{"tag1": "new_tag"},
+					},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{
+							"old_tag": "tag_value",
+							"tag1":    "old_value",
+						},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{
+							"old_tag": "tag_value",
+							"tag1":    "new_tag",
+						},
 					},
 				},
 			},
@@ -561,20 +684,23 @@ var testset = map[string]struct {
 				output: nil,
 			},
 			{
-				input:  &formatters.EventMsg{},
-				output: &formatters.EventMsg{},
+				input:  make([]*formatters.EventMsg, 0),
+				output: make([]*formatters.EventMsg, 0),
 			},
 			{
-				input: &formatters.EventMsg{
-
-					Tags: map[string]string{
-						"tag1": "1",
+				input: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{
+							"tag1": "1",
+						},
 					},
 				},
-				output: &formatters.EventMsg{
-					Tags: map[string]string{
-						"tag1": "1",
-						"tag2": "new_tag2",
+				output: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{
+							"tag1": "1",
+							"tag2": "new_tag2",
+						},
 					},
 				},
 			},
@@ -596,19 +722,23 @@ var testset = map[string]struct {
 				output: nil,
 			},
 			{
-				input:  &formatters.EventMsg{},
-				output: &formatters.EventMsg{},
+				input:  make([]*formatters.EventMsg, 0),
+				output: make([]*formatters.EventMsg, 0),
 			},
 			{
-				input: &formatters.EventMsg{
-					Tags: map[string]string{
-						"tag1": "1",
+				input: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{
+							"tag1": "1",
+						},
 					},
 				},
-				output: &formatters.EventMsg{
-					Tags: map[string]string{
-						"tag1": "new_tag",
-						"tag2": "new_tag2",
+				output: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{
+							"tag1": "new_tag",
+							"tag2": "new_tag2",
+						},
 					},
 				},
 			},
@@ -630,26 +760,11 @@ func TestEventAddTag(t *testing.T) {
 			for i, item := range ts.tests {
 				t.Run(name, func(t *testing.T) {
 					t.Logf("running test item %d", i)
-					var inputMsg *formatters.EventMsg
-					if item.input != nil {
-						inputMsg = &formatters.EventMsg{
-							Name:      item.input.Name,
-							Timestamp: item.input.Timestamp,
-							Tags:      make(map[string]string),
-							Values:    make(map[string]interface{}),
-							Deletes:   item.input.Deletes,
+					outs := p.Apply(item.input...)
+					for j := range outs {
+						if !reflect.DeepEqual(outs[j], item.output[j]) {
+							t.Errorf("failed at %s item %d, index %d, expected %+v, got: %+v", name, i, j, item.output[j], outs[j])
 						}
-						for k, v := range item.input.Tags {
-							inputMsg.Tags[k] = v
-						}
-						for k, v := range item.input.Values {
-							inputMsg.Values[k] = v
-						}
-					}
-					p.Apply(item.input)
-					t.Logf("input: %+v, changed: %+v", inputMsg, item.input)
-					if !reflect.DeepEqual(item.input, item.output) {
-						t.Errorf("failed at %s item %d, expected %+v, got: %+v", name, i, item.output, item.input)
 					}
 				})
 			}
