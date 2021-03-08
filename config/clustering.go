@@ -44,7 +44,7 @@ func (c *Config) GetClustering() error {
 
 func (c *Config) setClusteringDefaults() {
 	if c.Clustering.ClusterName == "" {
-		c.Clustering.ClusterName = c.LocalFlags.SubscribeClusterName
+		c.Clustering.ClusterName = c.GlobalFlags.ClusterName
 	}
 	if c.Clustering.InstanceName == "" {
 		if c.GlobalFlags.InstanceName != "" {

@@ -206,7 +206,6 @@ func (a *App) InitSubscribeFlags(cmd *cobra.Command) {
 	cmd.Flags().StringSliceVarP(&a.Config.LocalFlags.SubscribeOutput, "output", "", []string{}, "reference to output groups by name, must be defined in gnmic config file")
 	cmd.Flags().BoolVarP(&a.Config.LocalFlags.SubscribeWatchConfig, "watch-config", "", false, "watch configuration changes, add or delete subscribe targets accordingly")
 	cmd.Flags().DurationVarP(&a.Config.LocalFlags.SubscribeBackoff, "backoff", "", 0, "backoff time between subscribe requests")
-	cmd.Flags().StringVarP(&a.Config.LocalFlags.SubscribeClusterName, "cluster-name", "", defaultClusterName, "cluster name the gnmic instance belongs to, this is used for target loadsharing via a locker")
 	cmd.Flags().DurationVarP(&a.Config.LocalFlags.SubscribeLockRetry, "lock-retry", "", 5*time.Second, "time to wait between target lock attempts")
 	//
 	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
@@ -261,7 +260,7 @@ func (a *App) collectorConfig() *collector.Config {
 		cfg.Name = a.Config.Clustering.InstanceName
 	}
 	if cfg.ClusterName == "" {
-		cfg.ClusterName = a.Config.SubscribeClusterName
+		cfg.ClusterName = a.Config.ClusterName
 	}
 	if cfg.Name == "" {
 		cfg.Name = a.Config.GlobalFlags.InstanceName
