@@ -27,6 +27,7 @@ import (
 const (
 	configName      = ".gnmic"
 	configLogPrefix = "[config] "
+	envPrefix       = "GNMIC"
 )
 
 var osPathFlags = []string{"tls-ca", "tls-cert", "tls-key"}
@@ -165,6 +166,10 @@ func New() *Config {
 }
 
 func (c *Config) Load() error {
+	c.FileConfig.AutomaticEnv()
+	c.FileConfig.SetEnvPrefix(envPrefix)
+	c.FileConfig.SetEnvKeyReplacer(strings.NewReplacer("/", "_", "-", "_"))
+
 	if c.GlobalFlags.CfgFile != "" {
 		c.FileConfig.SetConfigFile(c.GlobalFlags.CfgFile)
 	} else {
