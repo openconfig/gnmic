@@ -7,7 +7,7 @@ The example includes 2 `gnmic` instances.
 
 This deployment enables a few use cases:
 
-- Apply different [processors](../../advanced/event_processors/intro.md) by the collector and relay.
+- Apply different [processors](../../user_guide/event_processors/intro.md) by the collector and relay.
 - Scale the collector and relay separately, see this [example](gnmic_cluster_nats_prometheus.md) for a scaled-out version.
 - Fork the data into a separate pipeline for a different use case.
 
@@ -31,4 +31,4 @@ Deploy it with:
 sudo docker-compose up -d
 ```
 
-Check the [InfluxDB Output](../../advanced/multi_outputs/influxdb_output.md) and [NATS Input](../../advanced/inputs/nats_input.md) documentation page for more configuration options
+Check the [InfluxDB Output](../../user_guide/outputs/influxdb_output.md) and [NATS Input](../../user_guide/inputs/nats_input.md) documentation page for more configuration options

@@ -1,6 +1,6 @@
 Defining subscriptions with [`subscribe`](../cmd/subscribe.md) command's CLI flags is a quick&easy way to work with gNMI subscriptions. A downside of that approach though is that its not flexible enough.
 
-With the multiple subscriptions defined in the [configuration file](file_cfg.md) we make a complex task of managing multiple subscriptions for multiple targets easy. The idea behind the multiple subscriptions is to define the subscriptions separately and then bind them to the targets.
+With the multiple subscriptions defined in the [configuration file](configuration_file.md) we make a complex task of managing multiple subscriptions for multiple targets easy. The idea behind the multiple subscriptions is to define the subscriptions separately and then bind them to the targets.
 
 ### Defining subscriptions
 To define a subscription a user needs to create the `subscriptions` container in the configuration file:

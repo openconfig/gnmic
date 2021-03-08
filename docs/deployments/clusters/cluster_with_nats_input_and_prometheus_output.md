@@ -7,8 +7,8 @@ The data replication is achieved using a `NATS` server acting as both a gnmic in
 This deployment example includes a:
 
 - 3 instances [`gnmic` cluster](../../advanced/HA.md), 
-- A NATS [input](../../advanced/inputs/nats_input.md) and [output](../../advanced/multi_outputs/nats_output.md) 
-- A [Prometheus output](../../advanced/multi_outputs/prometheus_output.md)
+- A NATS [input](../../user_guide/inputs/nats_input.md) and [output](../../user_guide/outputs/nats_output.md) 
+- A [Prometheus output](../../user_guide/outputs/prometheus_output.md)
 
 The leader election and target distribution is done with the help of a [Consul server](https://www.consul.io/docs/introhttps://www.consul.io/docs/intro)
 
@@ -55,4 +55,4 @@ Deploy it with:
 sudo docker-compose up -d
 ```
 
-Check the  [NATS Output](../../advanced/multi_outputs/nats_output.md), [NATS Input](../../advanced/inputs/nats_input.md) and  [Prometheus Output](../../advanced/multi_outputs/influxdb_output.md) documentation pages for more configuration options
+Check the  [NATS Output](../../user_guide/outputs/nats_output.md), [NATS Input](../../user_guide/inputs/nats_input.md) and  [Prometheus Output](../../user_guide/outputs/influxdb_output.md) documentation pages for more configuration options

@@ -89,3 +89,5 @@ services:
       - ./gnmic.yaml:/app/gnmic.yaml
     command: "subscribe --config /app/gnmic.yaml"
 ```
+
+See [here](deployments/../index.md) for more deployment options

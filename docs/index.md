@@ -16,9 +16,9 @@
 * **Multi-target operations**  
   Commands can operate on [multiple gNMI targets](https://gnmic.kmrd.dev/advanced/multi_target/) for bulk configuration/retrieval/subscription.
 * **File based configuration**  
-  gnmic supports [configurations provided in a file](https://gnmic.kmrd.dev/advanced/file_cfg/). The configuration options are consistent with the CLI flags.
+  gnmic supports [configurations provided in a file](https://gnmic.kmrd.dev/user_guide/configuration_file/). The configuration options are consistent with the CLI flags.
 * **Multiple subscriptions**  
-  With file based configuration it is possible to define and configure [multiple subscriptions](advanced/subscriptions.md) which can be independently associated with gNMI targets.
+  With file based configuration it is possible to define and configure [multiple subscriptions](https://gnmic.kmrd.dev/user_guide/subscriptions/) which can be independently associated with gNMI targets.
 * **Inspect gNMI messages**  
   With the `textproto` output format and the logging capabilities of `gnmic` you can see the actual gNMI messages being sent/received. Its like having a gNMI looking glass!
 * **Configurable TLS enforcement**  

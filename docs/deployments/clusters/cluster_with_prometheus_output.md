@@ -3,7 +3,7 @@ The purpose of this deployment is to achieve __redundancy__, __high-availability
 This deployment example includes:
 
 - A 3 instances [`gnmic` cluster](../../advanced/HA.md),
-- A single [Prometheus output](../../advanced/multi_outputs/prometheus_output.md)
+- A single [Prometheus output](../../user_guide/outputs/prometheus_output.md)
 
 The leader election and target distribution is done with the help of a [Consul server](https://www.consul.io/docs/introhttps://www.consul.io/docs/intro)
 
@@ -30,4 +30,4 @@ Deploy it with:
 sudo docker-compose up -d
 ```
 
-Check the [Prometheus Output](../../advanced/multi_outputs/prometheus_output.md) documentation page for more configuration options
+Check the [Prometheus Output](../../user_guide/outputs/prometheus_output.md) documentation page for more configuration options

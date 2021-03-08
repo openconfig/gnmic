@@ -15,7 +15,7 @@ In the context of gnmi subscriptions (on top of terminal output) `gnmic` support
 
 These outputs can be mixed and matched at will with the different gnmi subscribe targets.
 
-With multiple outputs defined in the [configuration file](../file_cfg.md) you can collect once 
+With multiple outputs defined in the [configuration file](../configuration_file.md) you can collect once 
 and export the subscriptions updates to multiple locations formatted differently.
 
 ### Defining outputs

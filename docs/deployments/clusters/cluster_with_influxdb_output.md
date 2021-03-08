@@ -3,7 +3,7 @@ The purpose of this deployment is to achieve __redundancy__, __high-availability
 This deployment example includes:
 
 - A 3 instances [`gnmic` cluster](../../advanced/HA.md),
-- A single [InfluxDB output](../../advanced/multi_outputs/influxdb_output.md)
+- A single [InfluxDB output](../../user_guide/outputs/influxdb_output.md)
 
 The leader election and target distribution is done with the help of a [Consul server](https://www.consul.io/docs/introhttps://www.consul.io/docs/intro)
 
@@ -28,4 +28,4 @@ Deploy it with:
 sudo docker-compose up -d
 ```
 
-Check the [InfluxDB Output](../../advanced/multi_outputs/influxdb_output.md) documentation page for more configuration options
+Check the [InfluxDB Output](../../user_guide/outputs/influxdb_output.md) documentation page for more configuration options
