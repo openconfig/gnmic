@@ -100,7 +100,7 @@ Consul Target loader configuration:
 ```yaml
 loader:
   type: consul
-  # address of the locker server
+  # address of the loader server
   address: localhost:8500
   # Consul Data center, defaults to dc1
   datacenter: dc1
