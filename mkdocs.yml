@@ -36,6 +36,7 @@ nav:
               - Date string: user_guide/event_processors/event_date_string.md
               - Delete: user_guide/event_processors/event_delete.md
               - Drop: user_guide/event_processors/event_drop.md
+              - Merge: user_guide/event_processors/event_merge.md
               - Override TS: user_guide/event_processors/event_override_ts.md
               - Strings: user_guide/event_processors/event_strings.md
               - To Tag: user_guide/event_processors/event_to_tag.md
