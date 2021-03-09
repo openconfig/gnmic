@@ -2,8 +2,8 @@ package consul_loader
 
 import (
 	"context"
+	"io/ioutil"
 	"log"
-	"os"
 	"sync"
 	"time"
 
@@ -26,7 +26,7 @@ func init() {
 			cfg:         &cfg{},
 			m:           new(sync.Mutex),
 			lastTargets: make(map[string]*collector.TargetConfig),
-			logger:      log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger:      log.New(ioutil.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
 		}
 	})
 }
@@ -49,7 +49,7 @@ type cfg struct {
 	KeyPrefix string `mapstructure:"key-prefix,omitempty" json:"key-prefix,omitempty"`
 }
 
-func (c *ConsulLoader) Init(ctx context.Context, cfg map[string]interface{}) error {
+func (c *ConsulLoader) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger) error {
 	err := loaders.DecodeConfig(cfg, c.cfg)
 	if err != nil {
 		return err
@@ -57,6 +57,10 @@ func (c *ConsulLoader) Init(ctx context.Context, cfg map[string]interface{}) err
 	err = c.setDefaults()
 	if err != nil {
 		return err
+	}
+	if logger != nil {
+		c.logger.SetOutput(logger.Writer())
+		c.logger.SetFlags(logger.Flags())
 	}
 	c.logger.Printf("intialized consul loader: %+v", c.cfg)
 	return nil

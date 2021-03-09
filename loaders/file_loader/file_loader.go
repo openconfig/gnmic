@@ -25,7 +25,7 @@ func init() {
 		return &FileLoader{
 			cfg:         &cfg{},
 			lastTargets: make(map[string]*collector.TargetConfig),
-			logger:      log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger:      log.New(ioutil.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
 		}
 	})
 }
@@ -41,7 +41,7 @@ type cfg struct {
 	Interval time.Duration `json:"interval,omitempty" mapstructure:"interval,omitempty"`
 }
 
-func (f *FileLoader) Init(ctx context.Context, cfg map[string]interface{}) error {
+func (f *FileLoader) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger) error {
 	err := loaders.DecodeConfig(cfg, f.cfg)
 	if err != nil {
 		return err
@@ -51,6 +51,10 @@ func (f *FileLoader) Init(ctx context.Context, cfg map[string]interface{}) error
 	}
 	if f.cfg.Interval <= 0 {
 		f.cfg.Interval = watchInterval
+	}
+	if logger != nil {
+		f.logger.SetOutput(logger.Writer())
+		f.logger.SetFlags(logger.Flags())
 	}
 	return nil
 }

@@ -2,13 +2,14 @@ package loaders
 
 import (
 	"context"
+	"log"
 
 	"github.com/karimra/gnmic/collector"
 	"github.com/mitchellh/mapstructure"
 )
 
 type TargetLoader interface {
-	Init(context.Context, map[string]interface{}) error
+	Init(context.Context, map[string]interface{}, *log.Logger) error
 	Start(context.Context) chan *TargetOperation
 }
 
