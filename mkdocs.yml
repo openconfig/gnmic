@@ -41,6 +41,7 @@ nav:
               - To Tag: user_guide/event_processors/event_to_tag.md
               - Write: user_guide/event_processors/event_write.md
           - Clustering: user_guide/clustering.md
+          - Target loaders: user_guide/target_loaders.md
           
   - Advanced usage:
       - Prompt mode and auto-suggestions: advanced/prompt_suggestions.md
