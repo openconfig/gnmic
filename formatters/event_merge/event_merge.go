@@ -97,4 +97,7 @@ func merge(e1, e2 *formatters.EventMsg) {
 		e1.Values[n] = v
 	}
 	e1.Deletes = append(e1.Deletes, e2.Deletes...)
+	if e2.Timestamp > e1.Timestamp {
+		e1.Timestamp = e2.Timestamp
+	}
 }
