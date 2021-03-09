@@ -64,6 +64,8 @@ START:
 				goto START
 			}
 		}
+		a.Logger.Printf("unknown loader type %q", ldTypeS)
+		return
 	}
 	a.Logger.Printf("missing type field under loader config")
 }
