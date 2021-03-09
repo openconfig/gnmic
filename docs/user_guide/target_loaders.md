@@ -10,18 +10,22 @@ Two types of target loaders are supported, from file or from a Consul KV store
 
 A file targets loader can be configured in a couple of ways:
 
-- Via flag `--targets-file`:
+- using the `--targets-file` flag:
 
 ``` bash
 gnmic --targets-file ./targets-config.yaml subscribe
 ```
 
-- Via the main configuration file:
+- using the main configuration file:
   
 ``` yaml
 loader:
   type: file
+  # path to the file
   file: ./targets-config.yaml
+  # watch interval at which the file
+  # is read again to determine if a target was added or deleted.
+  interval: 5s
 ```
 
 The `--targets-file` flag takes precedence over the `loader` configuration section.
