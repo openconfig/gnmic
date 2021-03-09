@@ -16,7 +16,7 @@ import (
 var ErrNoTargetsFound = errors.New("no targets found")
 
 func (c *Config) GetTargets() (map[string]*collector.TargetConfig, error) {
-	defGrpcPort := c.FileConfig.GetString("port")
+	var err error
 	// case address is defined in .Address
 	if len(c.Address) > 0 {
 		if c.Username == "" {
@@ -33,22 +33,14 @@ func (c *Config) GetTargets() (map[string]*collector.TargetConfig, error) {
 			}
 			c.Password = defPassword
 		}
+
 		for _, addr := range c.Address {
 			tc := new(collector.TargetConfig)
-			if !strings.HasPrefix(addr, "unix://") {
-				_, _, err := net.SplitHostPort(addr)
-				if err != nil {
-					if strings.Contains(err.Error(), "missing port in address") ||
-						strings.Contains(err.Error(), "too many colons in address") {
-						addr = net.JoinHostPort(addr, defGrpcPort)
-					} else {
-						c.logger.Printf("error parsing address '%s': %v", addr, err)
-						return nil, fmt.Errorf("error parsing address '%s': %v", addr, err)
-					}
-				}
-			}
 			tc.Address = addr
-			c.setTargetConfigDefaults(tc)
+			err = c.SetTargetConfigDefaults(tc)
+			if err != nil {
+				return nil, err
+			}
 			c.Targets[tc.Name] = tc
 		}
 		if c.Debug {
@@ -75,21 +67,8 @@ func (c *Config) GetTargets() (map[string]*collector.TargetConfig, error) {
 		return nil, ErrNoTargetsFound
 	}
 
-	var err error
 	newTargetsConfig := make(map[string]*collector.TargetConfig)
 	for addr, t := range targetsMap {
-		if !strings.HasPrefix(addr, "unix://") {
-			_, _, err = net.SplitHostPort(addr)
-			if err != nil {
-				if strings.Contains(err.Error(), "missing port in address") ||
-					strings.Contains(err.Error(), "too many colons in address") {
-					addr = net.JoinHostPort(addr, defGrpcPort)
-				} else {
-					c.logger.Printf("error parsing address '%s': %v", addr, err)
-					return nil, fmt.Errorf("error parsing address '%s': %v", addr, err)
-				}
-			}
-		}
 		tc := new(collector.TargetConfig)
 		switch t := t.(type) {
 		case map[string]interface{}:
@@ -110,8 +89,13 @@ func (c *Config) GetTargets() (map[string]*collector.TargetConfig, error) {
 		default:
 			return nil, fmt.Errorf("unexpected targets format, got a %T", t)
 		}
-		tc.Address = addr
-		c.setTargetConfigDefaults(tc)
+		if tc.Address == "" {
+			tc.Address = addr
+		}
+		err = c.SetTargetConfigDefaults(tc)
+		if err != nil {
+			return nil, err
+		}
 		if c.Debug {
 			c.logger.Printf("read target config: %s", tc)
 		}
@@ -158,7 +142,20 @@ func readPassword() (string, error) {
 	return string(pass), nil
 }
 
-func (c *Config) setTargetConfigDefaults(tc *collector.TargetConfig) {
+func (c *Config) SetTargetConfigDefaults(tc *collector.TargetConfig) error {
+	defGrpcPort := c.FileConfig.GetString("port")
+	if !strings.HasPrefix(tc.Address, "unix://") {
+		_, _, err := net.SplitHostPort(tc.Address)
+		if err != nil {
+			if strings.Contains(err.Error(), "missing port in address") ||
+				strings.Contains(err.Error(), "too many colons in address") {
+				tc.Address = net.JoinHostPort(tc.Address, defGrpcPort)
+			} else {
+				c.logger.Printf("error parsing address '%s': %v", tc.Address, err)
+				return fmt.Errorf("error parsing address '%s': %v", tc.Address, err)
+			}
+		}
+	}
 	if tc.Name == "" {
 		tc.Name = tc.Address
 	}
@@ -202,6 +199,7 @@ func (c *Config) setTargetConfigDefaults(tc *collector.TargetConfig) {
 	if tc.TLSMaxVersion == "" {
 		tc.TLSMaxVersion = c.TLSMaxVersion
 	}
+	return nil
 }
 
 func (c *Config) TargetsList() []*collector.TargetConfig {

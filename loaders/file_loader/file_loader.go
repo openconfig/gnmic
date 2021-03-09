@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io/ioutil"
 	"log"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -22,8 +23,9 @@ const (
 func init() {
 	loaders.Register("file", func() loaders.TargetLoader {
 		return &FileLoader{
-			cfg:    &cfg{},
-			logger: log.New(ioutil.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			cfg:         &cfg{},
+			lastTargets: make(map[string]*collector.TargetConfig),
+			logger:      log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
 		}
 	})
 }
@@ -55,8 +57,8 @@ func (f *FileLoader) Init(ctx context.Context, cfg map[string]interface{}) error
 
 func (f *FileLoader) Start(ctx context.Context) chan *loaders.TargetOperation {
 	opChan := make(chan *loaders.TargetOperation)
-	defer close(opChan)
 	go func() {
+		defer close(opChan)
 		for {
 			select {
 			case <-ctx.Done():
@@ -98,39 +100,33 @@ func (f *FileLoader) readFile() (map[string]*collector.TargetConfig, error) {
 			return nil, err
 		}
 	}
-
+	for n, t := range readTargets {
+		if t == nil {
+			readTargets[n] = &collector.TargetConfig{
+				Name:    n,
+				Address: n,
+			}
+			continue
+		}
+		if t.Name == "" {
+			t.Name = n
+		}
+		if t.Address == "" {
+			t.Address = n
+		}
+	}
 	return readTargets, nil
 }
 
 func (f *FileLoader) diff(m map[string]*collector.TargetConfig) *loaders.TargetOperation {
-	result := &loaders.TargetOperation{
-		Add: make([]*collector.TargetConfig, 0),
-		Del: make([]string, 0),
-	}
-	if len(f.lastTargets) == 0 {
-		f.lastTargets = m
-		for _, t := range m {
-			result.Add = append(result.Add, t)
-		}
-		return result
-	}
-	if len(m) == 0 {
-		for name := range f.lastTargets {
-			result.Del = append(result.Del, name)
-		}
-		f.lastTargets = make(map[string]*collector.TargetConfig)
-		return result
-	}
-	for n, t := range m {
-		if _, ok := f.lastTargets[n]; !ok {
-			f.lastTargets[n] = t
-			result.Add = append(result.Add, t)
+	result := loaders.Diff(f.lastTargets, m)
+	for _, t := range result.Add {
+		if _, ok := f.lastTargets[t.Name]; !ok {
+			f.lastTargets[t.Name] = t
 		}
 	}
-	for n := range f.lastTargets {
-		if _, ok := m[n]; !ok {
-			result.Del = append(result.Del, n)
-		}
+	for _, n := range result.Del {
+		delete(f.lastTargets, n)
 	}
 	return result
 }
