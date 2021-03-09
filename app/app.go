@@ -326,6 +326,7 @@ func (a *App) loadTargets(e fsnotify.Event) {
 			}
 		}
 		// add new targets to cluster
+		a.m.Lock()
 		for _, tc := range newTargets {
 			if _, ok := dist[tc.Name]; !ok {
 				err = a.dispatchTarget(a.ctx, tc)
@@ -334,6 +335,7 @@ func (a *App) loadTargets(e fsnotify.Event) {
 				}
 			}
 		}
+		a.m.Unlock()
 	}
 }
 

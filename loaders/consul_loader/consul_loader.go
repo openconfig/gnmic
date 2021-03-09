@@ -17,6 +17,7 @@ const (
 	loggingPrefix  = "[consul_loader] "
 	watchInterval  = 5 * time.Second
 	defaultAddress = "localhost:8500"
+	defaultPrefix  = "gnmic/config/targets"
 )
 
 func init() {
@@ -93,13 +94,14 @@ func (c *ConsulLoader) Start(ctx context.Context) chan *loaders.TargetOperation 
 			case <-ctx.Done():
 				return
 			case err := <-errCh:
-				c.logger.Printf("received consul error: %v", err)
+				c.logger.Printf("loader error: %v", err)
 				continue
 			case upd := <-updateCh:
-				c.logger.Printf("received consul update: %+v", upd)
+				c.logger.Printf("loader update: %+v", upd)
 				rs, ok := upd.(*map[string]*collector.TargetConfig)
 				if !ok {
 					c.logger.Printf("unexpected update format: %T", upd)
+					continue
 				}
 				for n, t := range *rs {
 					if t == nil {
@@ -140,7 +142,7 @@ func (c *ConsulLoader) setDefaults() error {
 		c.cfg.Datacenter = "dc1"
 	}
 	if c.cfg.KeyPrefix == "" {
-		c.cfg.KeyPrefix = "gnmic/config/targets"
+		c.cfg.KeyPrefix = defaultPrefix
 	}
 	return nil
 }

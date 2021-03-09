@@ -8,6 +8,16 @@ import (
 )
 
 func (a *App) startLoader(ctx context.Context) {
+	if a.inCluster() {
+		ticker := time.NewTicker(time.Second)
+		// wait for instance to become the leader
+		for range ticker.C {
+			if a.isLeader {
+				ticker.Stop()
+				break
+			}
+		}
+	}
 START:
 	ldCfg, _ := a.Config.GetLoader()
 	if ldType, ok := ldCfg["type"]; ok {
@@ -16,19 +26,6 @@ START:
 			a.Logger.Printf("field 'type' not a string, found a %T", ldType)
 			return
 		}
-		ticker := time.NewTicker(10 * time.Second)
-		if !a.inCluster() {
-			ticker.Stop()
-			goto INIT
-		}
-		// wait for instance to become the leader
-		for range ticker.C {
-			if a.isLeader {
-				ticker.Stop()
-				break
-			}
-		}
-	INIT:
 		a.Logger.Printf("initializing loader type %q", ldTypeS)
 		if in, ok := loaders.Loaders[ldTypeS]; ok {
 			ld := in()
@@ -39,21 +36,43 @@ START:
 			}
 			a.Logger.Printf("starting loader type %q", ldTypeS)
 			for targetOp := range ld.Start(ctx) {
+				for _, del := range targetOp.Del {
+					// not clustered, delete local target
+					if !a.inCluster() {
+						err = a.collector.DeleteTarget(ctx, del)
+						if err != nil {
+							a.Logger.Printf("failed deleting target %q: %v", del, err)
+						}
+						continue
+					}
+					// clustered, delete target in all instances of the cluster
+					err = a.deleteTarget(del)
+					if err != nil {
+						a.Logger.Printf("failed to delete target %q: %v", del, err)
+					}
+				}
 				for _, add := range targetOp.Add {
 					a.Config.SetTargetConfigDefaults(add)
-					err = a.collector.AddTarget(add)
-					if err != nil {
-						a.Logger.Printf("failed adding target %q: %v", add.Name, err)
+					// not clustered, add target and subscribe
+					if !a.inCluster() {
+						a.Config.Targets[add.Name] = add
+						err = a.collector.AddTarget(add)
+						if err != nil {
+							a.Logger.Printf("failed adding target %q: %v", add.Name, err)
+							continue
+						}
+						a.wg.Add(1)
+						go a.collector.TargetSubscribeStream(ctx, add.Name)
 						continue
 					}
-					go a.collector.TargetSubscribeStream(ctx, add.Name)
-				}
-				for _, del := range targetOp.Del {
-					err = a.collector.DeleteTarget(ctx, del)
+					// clustered, dispatch
+					a.m.Lock()
+					a.Config.Targets[add.Name] = add
+					err = a.dispatchTarget(a.ctx, add)
 					if err != nil {
-						a.Logger.Printf("failed deleting target %q: %v", del, err)
-						continue
+						a.Logger.Printf("failed dispatching target %q: %v", add.Name, err)
 					}
+					a.m.Unlock()
 				}
 			}
 			a.Logger.Printf("target loader stopped")
