@@ -65,6 +65,10 @@ func (f *FileLoader) Start(ctx context.Context) chan *loaders.TargetOperation {
 				return
 			default:
 				readTargets, err := f.readFile()
+				if _, ok := err.(*os.PathError); ok {
+					time.Sleep(f.cfg.Interval)
+					continue
+				}
 				if err != nil {
 					f.logger.Printf("failed to read targets file: %v", err)
 					time.Sleep(f.cfg.Interval)
@@ -83,6 +87,10 @@ func (f *FileLoader) Start(ctx context.Context) chan *loaders.TargetOperation {
 }
 
 func (f *FileLoader) readFile() (map[string]*collector.TargetConfig, error) {
+	_, err := os.Stat(f.cfg.File)
+	if err != nil {
+		return nil, err
+	}
 	b, err := ioutil.ReadFile(f.cfg.File)
 	if err != nil {
 		return nil, err
