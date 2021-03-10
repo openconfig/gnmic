@@ -6,6 +6,7 @@ require (
 	github.com/Shopify/sarama v1.26.4
 	github.com/adrg/xdg v0.3.0
 	github.com/c-bata/go-prompt v0.2.5
+	github.com/damiannolan/sasl v1.0.0
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/fsnotify/fsnotify v1.4.7
 	github.com/fullstorydev/grpcurl v1.8.0
@@ -37,6 +38,7 @@ require (
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.7.0
+	github.com/xdg/scram v0.0.0-20180814205039-7eeb5667e42c
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
 	golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a
 	google.golang.org/grpc v1.30.0

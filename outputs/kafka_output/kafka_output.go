@@ -3,6 +3,7 @@ package kafka_output
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
+	"github.com/damiannolan/sasl/oauthbearer"
 	"github.com/google/uuid"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
@@ -60,6 +62,7 @@ type Config struct {
 	Address          string        `mapstructure:"address,omitempty"`
 	Topic            string        `mapstructure:"topic,omitempty"`
 	Name             string        `mapstructure:"name,omitempty"`
+	SASL             *sasl         `mapstructure:"sasl,omitempty"`
 	MaxRetry         int           `mapstructure:"max-retry,omitempty"`
 	Timeout          time.Duration `mapstructure:"timeout,omitempty"`
 	RecoveryWaitTime time.Duration `mapstructure:"recovery-wait-time,omitempty"`
@@ -69,6 +72,12 @@ type Config struct {
 	BufferSize       int           `mapstructure:"buffer-size,omitempty"`
 	EnableMetrics    bool          `mapstructure:"enable-metrics,omitempty"`
 	EventProcessors  []string      `mapstructure:"event-processors,omitempty"`
+}
+type sasl struct {
+	User      string `mapstructure:"user,omitempty"`
+	Password  string `mapstructure:"password,omitempty"`
+	Mechanism string `mapstructure:"mechanism,omitempty"`
+	TokenURL  string `mapstructure:"token-url,omitempty"`
 }
 
 func (k *KafkaOutput) String() string {
@@ -127,13 +136,7 @@ func (k *KafkaOutput) Init(ctx context.Context, name string, cfg map[string]inte
 	k.msgChan = make(chan *protoMsg, uint(k.Cfg.BufferSize))
 	k.mo = &formatters.MarshalOptions{Format: k.Cfg.Format}
 
-	config := sarama.NewConfig()
-	config.ClientID = k.Cfg.Name
-	config.Producer.Retry.Max = k.Cfg.MaxRetry
-	config.Producer.RequiredAcks = sarama.WaitForAll
-	config.Producer.Return.Successes = true
-	config.Producer.Timeout = k.Cfg.Timeout
-
+	config := k.createConfig()
 	ctx, k.cancelFn = context.WithCancel(ctx)
 	k.wg.Add(k.Cfg.NumWorkers)
 	for i := 0; i < k.Cfg.NumWorkers; i++ {
@@ -175,6 +178,18 @@ func (k *KafkaOutput) setDefaults() error {
 	}
 	if k.Cfg.Name == "" {
 		k.Cfg.Name = "gnmic-" + uuid.New().String()
+	}
+	if k.Cfg.SASL == nil {
+		return nil
+	}
+	k.Cfg.SASL.Mechanism = strings.ToUpper(k.Cfg.SASL.Mechanism)
+	switch k.Cfg.SASL.Mechanism {
+	case "":
+		k.Cfg.SASL.Mechanism = "PLAIN"
+	case "OAUTHBEARER":
+		if k.Cfg.SASL.TokenURL == "" {
+			return errors.New("missing token-url for kafka SASL mechanism OAUTHBEARER")
+		}
 	}
 	return nil
 }
@@ -295,3 +310,33 @@ func (k *KafkaOutput) SetName(name string) {
 }
 
 func (k *KafkaOutput) SetClusterName(name string) {}
+
+func (k *KafkaOutput) createConfig() *sarama.Config {
+	cfg := sarama.NewConfig()
+	cfg.ClientID = k.Cfg.Name
+	if k.Cfg.SASL != nil {
+		cfg.Net.SASL.Enable = true
+		cfg.Net.SASL.User = k.Cfg.SASL.User
+		cfg.Net.SASL.Password = k.Cfg.SASL.Password
+		cfg.Net.SASL.Mechanism = sarama.SASLMechanism(k.Cfg.SASL.Mechanism)
+		switch cfg.Net.SASL.Mechanism {
+		case sarama.SASLTypeSCRAMSHA256:
+			cfg.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient {
+				return &XDGSCRAMClient{HashGeneratorFcn: SHA256}
+			}
+		case sarama.SASLTypeSCRAMSHA512:
+			cfg.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient {
+				return &XDGSCRAMClient{HashGeneratorFcn: SHA512}
+			}
+		case sarama.SASLTypeOAuth:
+			cfg.Net.SASL.TokenProvider = oauthbearer.NewTokenProvider(cfg.Net.SASL.User, cfg.Net.SASL.Password, k.Cfg.SASL.TokenURL)
+		}
+	}
+	//
+	cfg.Producer.Retry.Max = k.Cfg.MaxRetry
+	cfg.Producer.RequiredAcks = sarama.WaitForAll
+	cfg.Producer.Return.Successes = true
+	cfg.Producer.Timeout = k.Cfg.Timeout
+
+	return cfg
+}

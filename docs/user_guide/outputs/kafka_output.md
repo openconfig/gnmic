@@ -17,6 +17,16 @@ outputs:
     address: localhost:9092 
     # Kafka topic name
     topic: telemetry 
+    # Kafka SASL configuration
+    sasl:
+      # SASL user name
+      user:
+      # SASL password
+      password:
+      # SASL mechanism: PLAIN, SCRAM-SHA-256, SCRAM-SHA-512 and OAUTHBEARER are supported
+      mechanism:
+      # token url for OAUTHBEARER SASL mechanism
+      token-url:
     # The total number of times to retry sending a message
     max-retry: 2 
     # Kafka connection timeout

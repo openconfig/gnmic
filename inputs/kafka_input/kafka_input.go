@@ -3,6 +3,7 @@ package kafka_input
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
+	"github.com/damiannolan/sasl/oauthbearer"
 	"github.com/google/uuid"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/inputs"
@@ -57,6 +59,7 @@ type Config struct {
 	Name              string        `mapstructure:"name,omitempty"`
 	Address           string        `mapstructure:"address,omitempty"`
 	Topics            string        `mapstructure:"topics,omitempty"`
+	SASL              *sasl         `mapstructure:"sasl,omitempty"`
 	GroupID           string        `mapstructure:"group-id,omitempty"`
 	SessionTimeout    time.Duration `mapstructure:"session-timeout,omitempty"`
 	HeartbeatInterval time.Duration `mapstructure:"heartbeat-interval,omitempty"`
@@ -69,6 +72,13 @@ type Config struct {
 	EventProcessors   []string      `mapstructure:"event-processors,omitempty"`
 
 	kafkaVersion sarama.KafkaVersion
+}
+
+type sasl struct {
+	User      string `mapstructure:"user,omitempty"`
+	Password  string `mapstructure:"password,omitempty"`
+	Mechanism string `mapstructure:"mechanism,omitempty"`
+	TokenURL  string `mapstructure:"token-url,omitempty"`
 }
 
 func (k *KafkaInput) Start(ctx context.Context, name string, cfg map[string]interface{}, opts ...inputs.Option) error {
@@ -95,15 +105,8 @@ func (k *KafkaInput) Start(ctx context.Context, name string, cfg map[string]inte
 
 func (k *KafkaInput) worker(ctx context.Context, idx int) {
 	defer k.wg.Done()
-	config := sarama.NewConfig()
-	config.Version = k.Cfg.kafkaVersion
-	config.ClientID = fmt.Sprintf("%s-%d", k.Cfg.Name, idx)
-	config.Consumer.Return.Errors = true
-	config.Consumer.Group.Session.Timeout = k.Cfg.SessionTimeout
-	config.Consumer.Group.Heartbeat.Interval = k.Cfg.HeartbeatInterval
-	config.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRange
-	// TODO: further customize kafka config
 
+	config := k.createConfig(idx)
 	workerLogPrefix := fmt.Sprintf("worker-%d", idx)
 START:
 	k.logger.Printf("%s starting consumer group %s", workerLogPrefix, k.Cfg.GroupID)
@@ -297,7 +300,48 @@ func (k *KafkaInput) setDefaults() error {
 	if k.Cfg.Name == "" {
 		k.Cfg.Name = "gnmic-" + uuid.New().String()
 	}
+	if k.Cfg.SASL == nil {
+		return nil
+	}
+	k.Cfg.SASL.Mechanism = strings.ToUpper(k.Cfg.SASL.Mechanism)
+	switch k.Cfg.SASL.Mechanism {
+	case "":
+		k.Cfg.SASL.Mechanism = "PLAIN"
+	case "OAUTHBEARER":
+		if k.Cfg.SASL.TokenURL == "" {
+			return errors.New("missing token-url for kafka SASL mechanism OAUTHBEARER")
+		}
+	}
 	return nil
+}
+
+func (k *KafkaInput) createConfig(idx int) *sarama.Config {
+	cfg := sarama.NewConfig()
+	cfg.Version = k.Cfg.kafkaVersion
+	cfg.ClientID = fmt.Sprintf("%s-%d", k.Cfg.Name, idx)
+	cfg.Consumer.Return.Errors = true
+	cfg.Consumer.Group.Session.Timeout = k.Cfg.SessionTimeout
+	cfg.Consumer.Group.Heartbeat.Interval = k.Cfg.HeartbeatInterval
+	cfg.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRange
+	if k.Cfg.SASL != nil {
+		cfg.Net.SASL.Enable = true
+		cfg.Net.SASL.User = k.Cfg.SASL.User
+		cfg.Net.SASL.Password = k.Cfg.SASL.Password
+		cfg.Net.SASL.Mechanism = sarama.SASLMechanism(k.Cfg.SASL.Mechanism)
+		switch cfg.Net.SASL.Mechanism {
+		case sarama.SASLTypeSCRAMSHA256:
+			cfg.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient {
+				return &XDGSCRAMClient{HashGeneratorFcn: SHA256}
+			}
+		case sarama.SASLTypeSCRAMSHA512:
+			cfg.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient {
+				return &XDGSCRAMClient{HashGeneratorFcn: SHA512}
+			}
+		case sarama.SASLTypeOAuth:
+			cfg.Net.SASL.TokenProvider = oauthbearer.NewTokenProvider(cfg.Net.SASL.User, cfg.Net.SASL.Password, k.Cfg.SASL.TokenURL)
+		}
+	}
+	return cfg
 }
 
 // consumer
