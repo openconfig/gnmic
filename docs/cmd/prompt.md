@@ -1,11 +1,11 @@
 ## Description
 The `prompt` command starts `gnmic` in an interactive prompt mode with the following auto-completion features:
 
-* All `gnmic` [commands names and their flags are suggested](../advanced/prompt_suggestions.md#commands-and-flags-suggestions).
-* Values for the flags that rely on YANG-defined data (like `--path`, `--prefix`, `--model`,...) will be dynamically suggested, we call this feature [YANG-completions](../advanced/prompt_suggestions.md#yang-completions).  
+* All `gnmic` [commands names and their flags are suggested](../user_guide/prompt_suggestions.md#commands-and-flags-suggestions).
+* Values for the flags that rely on YANG-defined data (like `--path`, `--prefix`, `--model`,...) will be dynamically suggested, we call this feature [YANG-completions](../user_guide/prompt_suggestions.md#yang-completions).  
 The auto-completions are generated from the YANG modules d with the `--file` and `--dir` flags.
-* Flags with the fixed set of values (`--format`, `--encoding`, ...) will get their [values suggested](../advanced/prompt_suggestions.md#enumeration-suggestions).
-* Flags that require a [file path value will auto-suggest](../advanced/prompt_suggestions.md#file-path-completions) the available files as the user types.
+* Flags with the fixed set of values (`--format`, `--encoding`, ...) will get their [values suggested](../user_guide/prompt_suggestions.md#enumeration-suggestions).
+* Flags that require a [file path value will auto-suggest](../user_guide/prompt_suggestions.md#file-path-completions) the available files as the user types.
 
 
 ### Usage
@@ -68,4 +68,4 @@ The `--prefix-color` flag sets the gnmic prompt prefix color `gnmic> `.
 Defaults to dark blue.
 
 ### Examples
-The detailed explanation of the prompt command the the YANG-completions is provided on the [Prompt mode and auto-suggestions](../advanced/prompt_suggestions.md) page.
+The detailed explanation of the prompt command the the YANG-completions is provided on the [Prompt mode and auto-suggestions](../user_guide/prompt_suggestions.md) page.

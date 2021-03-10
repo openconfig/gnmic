@@ -199,7 +199,7 @@ This flag overwrites the previously listed flags `--tls-max-version` and `--tls-
 ### username
 The username flag `[-u | --username]` is used to specify the target username as part of the user credentials. If omitted, the input prompt is used to provide the username.
 
-#### cluster-name
+### cluster-name
 The `[--cluster-name]` flag is used to specify the cluster name the `gnmic` instance will join. 
 
 The cluster name is used as part of the locked keys to share targets between multiple gnmic instances.

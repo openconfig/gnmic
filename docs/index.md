@@ -11,12 +11,19 @@
 ## Features
 * **Full support for gNMI RPCs**  
   Every gNMI RPC has a [corresponding command](https://gnmic.kmrd.dev/basic_usage/) with all of the RPC options configurable by means of the local and global flags.
+* **Flexible collector deployment**  
+  `gnmic` can be deployed as a gNMI collector that supports multiple output types ([NATS](user_guide/outputs/nats_output.md), [Kafka](user_guide/outputs/kafka_output.md), [Prometheus](user_guide/outputs/prometheus_output.md), [InfluxDB](user_guide/outputs/influxdb_output.md),...).  
+  The collector can be deployed either as a [single instance](deployments/deployments_intro/#single-instance), as part of a [cluster](user_guide/HA/), or used to form [data pipelines](deployments/deployments_intro/#pipelines).
+* **gNMI data manipulation**   
+  `gnmic` collector supports [data transformation](user_guide/event_processors/intro/) capabilities that can be used to adapt the collected data to your specific use case.
+* **Dynamic targets loading**  
+  `gnmic` support [target loading at runtime](user_guide/target_loaders.md) based on input from external systems. 
 * **YANG-based path suggestions**  
-  Your CLI magically becomes a YANG browser when `gnmic` is executed in [prompt](advanced/prompt_suggestions.md) mode. In this mode the flags that take XPATH values will get auto-suggestions based on the provided YANG modules. In other words - voodoo magic :exploding_head:
+  Your CLI magically becomes a YANG browser when `gnmic` is executed in [prompt](user_guide/prompt_suggestions.md) mode. In this mode the flags that take XPATH values will get auto-suggestions based on the provided YANG modules. In other words - voodoo magic :exploding_head:
+* **Multiple configuration sources**  
+  gnmic supports [flags](user_guide/configuration_flags), [environment variables](user_guide/configuration_env/) as well as [file based]((https://gnmic.kmrd.dev/user_guide/configuration_file/)) configurations.
 * **Multi-target operations**  
-  Commands can operate on [multiple gNMI targets](https://gnmic.kmrd.dev/advanced/multi_target/) for bulk configuration/retrieval/subscription.
-* **File based configuration**  
-  gnmic supports [configurations provided in a file](https://gnmic.kmrd.dev/user_guide/configuration_file/). The configuration options are consistent with the CLI flags.
+  Commands can operate on [multiple gNMI targets](https://gnmic.kmrd.dev/user_guide/targets/) for bulk configuration/retrieval/subscription.
 * **Multiple subscriptions**  
   With file based configuration it is possible to define and configure [multiple subscriptions](https://gnmic.kmrd.dev/user_guide/subscriptions/) which can be independently associated with gNMI targets.
 * **Inspect gNMI messages**  

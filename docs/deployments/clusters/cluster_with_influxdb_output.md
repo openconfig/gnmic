@@ -2,7 +2,7 @@ The purpose of this deployment is to achieve __redundancy__, __high-availability
 
 This deployment example includes:
 
-- A 3 instances [`gnmic` cluster](../../advanced/HA.md),
+- A 3 instances [`gnmic` cluster](../../user_guide/HA.md),
 - A single [InfluxDB output](../../user_guide/outputs/influxdb_output.md)
 
 The leader election and target distribution is done with the help of a [Consul server](https://www.consul.io/docs/introhttps://www.consul.io/docs/intro)
