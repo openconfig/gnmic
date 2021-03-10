@@ -240,6 +240,7 @@ func (a *App) dispatchTargets(ctx context.Context) {
 				continue
 			}
 			var err error
+			a.m.Lock()
 			for _, tc := range a.Config.Targets {
 				err = a.dispatchTarget(ctx, tc)
 				if err != nil {
@@ -257,6 +258,7 @@ func (a *App) dispatchTargets(ctx context.Context) {
 					continue
 				}
 			}
+			a.m.Unlock()
 
 			select {
 			case <-ctx.Done():
@@ -511,20 +513,28 @@ func (a *App) getHighestTagsMatches(tagsCount map[string]int) []string {
 }
 
 func (a *App) deleteTarget(name string) error {
+	errs := make([]error, 0, len(a.apiServices))
 	for _, s := range a.apiServices {
 		url := fmt.Sprintf("http://%s/config/targets/%s", s.Address, name)
 		req, err := http.NewRequestWithContext(a.ctx, "DELETE", url, nil)
 		if err != nil {
+			a.Logger.Printf("failed to create a delete request: %v", err)
+			errs = append(errs, err)
 			continue
 		}
 
 		rsp, err := a.httpClient.Do(req)
 		if err != nil {
+			a.Logger.Printf("failed deleting target %q: %v", name, err)
+			errs = append(errs, err)
 			continue
 		}
 		a.Logger.Printf("received response code=%d, for DELETE %s", rsp.StatusCode, url)
 	}
-	return nil
+	if len(errs) == 0 {
+		return nil
+	}
+	return fmt.Errorf("there was %d error(s) while deleting target %q", len(errs), name)
 }
 
 func (a *App) assignTarget(ctx context.Context, tc *collector.TargetConfig, service *lockers.Service) error {

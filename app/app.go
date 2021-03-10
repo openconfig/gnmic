@@ -127,6 +127,7 @@ func (a *App) InitGlobalFlags() {
 	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.API, "api", "", "", "gnmic api address")
 	a.RootCmd.PersistentFlags().StringArrayVarP(&a.Config.GlobalFlags.ProtoFile, "proto-file", "", nil, "proto file(s) name(s)")
 	a.RootCmd.PersistentFlags().StringArrayVarP(&a.Config.GlobalFlags.ProtoDir, "proto-dir", "", nil, "directory to look for proto files specified with --proto-file")
+	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.TargetsFile, "targets-file", "", "", "path to file with targets configuration")
 
 	a.RootCmd.PersistentFlags().VisitAll(func(flag *pflag.Flag) {
 		a.Config.FileConfig.BindPFlag(flag.Name, flag)
@@ -326,6 +327,7 @@ func (a *App) loadTargets(e fsnotify.Event) {
 			}
 		}
 		// add new targets to cluster
+		a.m.Lock()
 		for _, tc := range newTargets {
 			if _, ok := dist[tc.Name]; !ok {
 				err = a.dispatchTarget(a.ctx, tc)
@@ -334,6 +336,7 @@ func (a *App) loadTargets(e fsnotify.Event) {
 				}
 			}
 		}
+		a.m.Unlock()
 	}
 }
 
