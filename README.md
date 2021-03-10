@@ -16,12 +16,12 @@ Documentation available at [https://gnmic.kmrd.dev](https://gnmic.kmrd.dev)
 * **Full support for gNMI RPCs**  
   Every gNMI RPC has a [corresponding command](https://gnmic.kmrd.dev/basic_usage/) with all of the RPC options configurable by means of the local and global flags.
 * **Flexible collector deployment**  
-  `gnmic` can be deployed as a gNMI collector that supports multiple output types ([NATS](https://gnmic.kmrd.dev/user_guide/outputs/nats_output.md), [Kafka](https://gnmic.kmrd.dev/user_guide/outputs/kafka_output.md), [Prometheus](https://gnmic.kmrd.dev/user_guide/outputs/prometheus_output.md), [InfluxDB](https://gnmic.kmrd.dev/user_guide/outputs/influxdb_output.md),...).  
+  `gnmic` can be deployed as a gNMI collector that supports multiple output types ([NATS](https://gnmic.kmrd.dev/user_guide/outputs/nats_output/), [Kafka](https://gnmic.kmrd.dev/user_guide/outputs/kafka_output/), [Prometheus](https://gnmic.kmrd.dev/user_guide/outputs/prometheus_output/), [InfluxDB](https://gnmic.kmrd.dev/user_guide/outputs/influxdb_output/),...).  
   The collector can be deployed either as a [single instance](https://gnmic.kmrd.dev/deployments/deployments_intro/#single-instance), as part of a [cluster](https://gnmic.kmrd.dev/user_guide/HA/), or used to form [data pipelines](https://gnmic.kmrd.dev/deployments/deployments_intro/#pipelines).
 * **gNMI data manipulation**   
   `gnmic` collector has [data transformation](https://gnmic.kmrd.dev/user_guide/event_processors/intro/) capabilities that can be used to adapt the collected data to your specific use case.
 * **Dynamic targets loading**  
-  `gnmic` support [target loading at runtime](https://gnmic.kmrd.dev/user_guide/target_loaders.md) based on input from external systems. 
+  `gnmic` support [target loading at runtime](https://gnmic.kmrd.dev/user_guide/target_loaders/) based on input from external systems. 
 * **YANG-based path suggestions**  
   Your CLI magically becomes a YANG browser when `gnmic` is executed in [prompt](https://gnmic.kmrd.dev/user_guide/prompt_suggestions/) mode. In this mode the flags that take XPATH values will get auto-suggestions based on the provided YANG modules. In other words - voodoo magic :exploding_head:
 * **Multi-target operations**  
