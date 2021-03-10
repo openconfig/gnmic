@@ -15,12 +15,19 @@ Documentation available at [https://gnmic.kmrd.dev](https://gnmic.kmrd.dev)
 ## Features
 * **Full support for gNMI RPCs**  
   Every gNMI RPC has a [corresponding command](https://gnmic.kmrd.dev/basic_usage/) with all of the RPC options configurable by means of the local and global flags.
+* **Flexible collector deployment**  
+  `gnmic` can be deployed as a gNMI collector that supports multiple output types ([NATS](https://gnmic.kmrd.dev/user_guide/outputs/nats_output.md), [Kafka](https://gnmic.kmrd.dev/user_guide/outputs/kafka_output.md), [Prometheus](https://gnmic.kmrd.dev/user_guide/outputs/prometheus_output.md), [InfluxDB](https://gnmic.kmrd.dev/user_guide/outputs/influxdb_output.md),...).  
+  The collector can be deployed either as a [single instance](https://gnmic.kmrd.dev/deployments/deployments_intro/#single-instance), as part of a [cluster](https://gnmic.kmrd.dev/user_guide/HA/), or used to form [data pipelines](https://gnmic.kmrd.dev/deployments/deployments_intro/#pipelines).
+* **gNMI data manipulation**   
+  `gnmic` collector has [data transformation](https://gnmic.kmrd.dev/user_guide/event_processors/intro/) capabilities that can be used to adapt the collected data to your specific use case.
+* **Dynamic targets loading**  
+  `gnmic` support [target loading at runtime](https://gnmic.kmrd.dev/user_guide/target_loaders.md) based on input from external systems. 
 * **YANG-based path suggestions**  
-  Your CLI magically becomes a YANG browser when `gnmic` is executed in [prompt](https://gnmic.kmrd.dev/advanced/prompt_suggestions/) mode. In this mode the flags that take XPATH values will get auto-suggestions based on the provided YANG modules. In other words - voodoo magic :exploding_head:
+  Your CLI magically becomes a YANG browser when `gnmic` is executed in [prompt](https://gnmic.kmrd.dev/user_guide/prompt_suggestions/) mode. In this mode the flags that take XPATH values will get auto-suggestions based on the provided YANG modules. In other words - voodoo magic :exploding_head:
 * **Multi-target operations**  
-  Commands can operate on [multiple gNMI targets](https://gnmic.kmrd.dev/advanced/multi_target/) for bulk configuration/retrieval/subscription.
-* **File based configuration**  
-  gnmic supports [configurations provided in a file](https://gnmic.kmrd.dev/advanced/file_cfg/). The configuration options are consistent with the CLI flags.
+  Commands can operate on [multiple gNMI targets](https://gnmic.kmrd.dev/user_guide/multi_target/) for bulk configuration/retrieval/subscription.
+* **Multiple configuration sources**  
+  gnmic supports [flags](https://gnmic.kmrd.dev/user_guide/configuration_flags), [environment variables](https://gnmic.kmrd.dev/user_guide/configuration_env/) as well as [file based]((https://gnmic.kmrd.dev/user_guide/configuration_file/)) configurations.
 * **Inspect raw gNMI messages**  
   With the `prototext` output format you can see the actual gNMI messages being sent/received. Its like having a gNMI looking glass!
 * **(In)secure gRPC connection**  
@@ -62,7 +69,7 @@ gnmic -a 10.1.0.11:57400 -u admin -p admin --insecure \
 ```
 
 ### Prompt mode
-The [prompt mode](https://gnmic.kmrd.dev/advanced/prompt_suggestions/) is an interactive mode of the gnmic CLI client for user convenience.
+The [prompt mode](https://gnmic.kmrd.dev/user_guide/prompt_suggestions/) is an interactive mode of the gnmic CLI client for user convenience.
 
 ```bash
 # clone repository with YANG models (Openconfig example)

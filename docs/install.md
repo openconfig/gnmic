@@ -90,4 +90,4 @@ services:
     command: "subscribe --config /app/gnmic.yaml"
 ```
 
-See [here](deployments/../index.md) for more deployment options
+See [here](deployments/deployments_intro.md) for more deployment options

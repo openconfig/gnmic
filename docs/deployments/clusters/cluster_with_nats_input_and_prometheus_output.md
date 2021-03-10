@@ -6,7 +6,7 @@ The data replication is achieved using a `NATS` server acting as both a gnmic in
 
 This deployment example includes a:
 
-- 3 instances [`gnmic` cluster](../../advanced/HA.md), 
+- 3 instances [`gnmic` cluster](../../user_guide/HA.md), 
 - A NATS [input](../../user_guide/inputs/nats_input.md) and [output](../../user_guide/outputs/nats_output.md) 
 - A [Prometheus output](../../user_guide/outputs/prometheus_output.md)
 
