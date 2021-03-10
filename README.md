@@ -25,7 +25,7 @@ Documentation available at [https://gnmic.kmrd.dev](https://gnmic.kmrd.dev)
 * **YANG-based path suggestions**  
   Your CLI magically becomes a YANG browser when `gnmic` is executed in [prompt](https://gnmic.kmrd.dev/user_guide/prompt_suggestions/) mode. In this mode the flags that take XPATH values will get auto-suggestions based on the provided YANG modules. In other words - voodoo magic :exploding_head:
 * **Multi-target operations**  
-  Commands can operate on [multiple gNMI targets](https://gnmic.kmrd.dev/user_guide/multi_target/) for bulk configuration/retrieval/subscription.
+  Commands can operate on [multiple gNMI targets](https://gnmic.kmrd.dev/user_guide/targets/) for bulk configuration/retrieval/subscription.
 * **Multiple configuration sources**  
   gnmic supports [flags](https://gnmic.kmrd.dev/user_guide/configuration_flags), [environment variables](https://gnmic.kmrd.dev/user_guide/configuration_env/) as well as [file based]((https://gnmic.kmrd.dev/user_guide/configuration_file/)) configurations.
 * **Inspect raw gNMI messages**  
