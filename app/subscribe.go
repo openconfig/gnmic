@@ -61,8 +61,11 @@ func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
 		break
 	}
 	targetsConfig, err := a.Config.GetTargets()
-	if (errors.Is(err, config.ErrNoTargetsFound) && !a.Config.LocalFlags.SubscribeWatchConfig) ||
-		(!errors.Is(err, config.ErrNoTargetsFound) && err != nil) {
+	if errors.Is(err, config.ErrNoTargetsFound) {
+		if !a.Config.LocalFlags.SubscribeWatchConfig && a.Config.FileConfig.GetStringMap("loader") == nil {
+			return fmt.Errorf("failed reading targets config: %v", err)
+		}
+	} else if err != nil {
 		return fmt.Errorf("failed reading targets config: %v", err)
 	}
 
@@ -347,6 +350,8 @@ func (a *App) startIO() {
 	a.collector.InitOutputs(a.ctx)
 	a.collector.InitInputs(a.ctx)
 	a.collector.InitTargets()
+	go a.startLoader(a.ctx)
+
 	if !a.inCluster() {
 		var limiter *time.Ticker
 		if a.Config.LocalFlags.SubscribeBackoff > 0 {

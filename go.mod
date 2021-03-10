@@ -7,6 +7,7 @@ require (
 	github.com/adrg/xdg v0.3.0
 	github.com/c-bata/go-prompt v0.2.5
 	github.com/damiannolan/sasl v1.0.0
+	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/fsnotify/fsnotify v1.4.7
 	github.com/fullstorydev/grpcurl v1.8.0
 	github.com/google/gnxi v0.0.0-20200508145201-92c6d0d3ec3b
@@ -21,6 +22,8 @@ require (
 	github.com/karimra/go-map-flattener v0.0.0-20200728034653-b1473e58dae8
 	github.com/karimra/sros-dialout v0.0.0-20200518085040-c759bf74063a
 	github.com/manifoldco/promptui v0.7.0
+	github.com/mitchellh/consulstructure v0.0.0-20190329231841-56fdc4d2da54
+	github.com/mitchellh/copystructure v1.1.1 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/mapstructure v1.3.2
 	github.com/nats-io/nats-streaming-server v0.18.0 // indirect
