@@ -21,7 +21,7 @@ func (a *App) startLoader(ctx context.Context) {
 START:
 	ldCfg, err := a.Config.GetLoader()
 	if err != nil {
-		a.Logger.Printf("failed getting loader config")
+		a.Logger.Printf("failed getting loader config: %v", err)
 	}
 	if ldCfg == nil {
 		return

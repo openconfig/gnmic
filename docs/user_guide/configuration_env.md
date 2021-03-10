@@ -46,3 +46,19 @@ clustering:
 
 the env variable `GNMIC_CLUSTERING_LOCKER_ADDRESS` should be set
 
+**Limitations:**
+
+- Configuration items of type list cannot be set using env vars.
+- Intermediate configuration keys should not contain `_` or `-`.
+
+Example:
+
+```yaml
+outputs:
+  output1:  # <-- should not contain `_` or `-`
+    type: prometheus
+    listen: :9804
+```
+Is equivalent to:  
+`GNMIC_OUTPUTS_OUTPUT1_TYPE=prometheus`  
+`GNMIC_OUTPUTS_OUTPUT1_LISTEN=:9804`

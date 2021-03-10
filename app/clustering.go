@@ -351,8 +351,6 @@ WAIT:
 }
 
 func (a *App) selectService(tags []string, denied ...string) (*lockers.Service, error) {
-	a.m.Lock()
-	defer a.m.Unlock()
 	numServices := len(a.apiServices)
 	switch numServices {
 	case 0:
