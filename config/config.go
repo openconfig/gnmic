@@ -168,10 +168,9 @@ func New() *Config {
 }
 
 func (c *Config) Load() error {
-	c.FileConfig.AutomaticEnv()
 	c.FileConfig.SetEnvPrefix(envPrefix)
 	c.FileConfig.SetEnvKeyReplacer(strings.NewReplacer("/", "_", "-", "_"))
-
+	c.FileConfig.AutomaticEnv()
 	if c.GlobalFlags.CfgFile != "" {
 		c.FileConfig.SetConfigFile(c.GlobalFlags.CfgFile)
 	} else {
@@ -195,6 +194,7 @@ func (c *Config) Load() error {
 	if err != nil {
 		return err
 	}
+	c.mergeEnvVars()
 	return c.expandOSPathFlagValues()
 }
 

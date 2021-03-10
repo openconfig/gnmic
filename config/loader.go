@@ -16,7 +16,7 @@ func (c *Config) GetLoader() (map[string]interface{}, error) {
 		}, nil
 	}
 	ldCfg := c.FileConfig.GetStringMap("loader")
-	if ldCfg == nil {
+	if len(ldCfg) == 0 {
 		return nil, nil
 	}
 	if _, ok := ldCfg["type"]; !ok {
