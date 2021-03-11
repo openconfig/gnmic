@@ -21,7 +21,7 @@
 * **YANG-based path suggestions**  
   Your CLI magically becomes a YANG browser when `gnmic` is executed in [prompt](user_guide/prompt_suggestions.md) mode. In this mode the flags that take XPATH values will get auto-suggestions based on the provided YANG modules. In other words - voodoo magic :exploding_head:
 * **Multiple configuration sources**  
-  gnmic supports [flags](user_guide/configuration_flags), [environment variables](user_guide/configuration_env/) as well as [file based]((https://gnmic.kmrd.dev/user_guide/configuration_file/)) configurations.
+  gnmic supports [flags](user_guide/configuration_flags), [environment variables](user_guide/configuration_env/) as well as [file based](https://gnmic.kmrd.dev/user_guide/configuration_file/) configurations.
 * **Multi-target operations**  
   Commands can operate on [multiple gNMI targets](https://gnmic.kmrd.dev/user_guide/targets/) for bulk configuration/retrieval/subscription.
 * **Multiple subscriptions**  
