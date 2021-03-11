@@ -6,8 +6,8 @@ require (
 	github.com/Shopify/sarama v1.26.4
 	github.com/adrg/xdg v0.3.0
 	github.com/c-bata/go-prompt v0.2.5
-	github.com/damiannolan/sasl v1.0.0
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
+	github.com/damiannolan/sasl v1.0.0
 	github.com/fsnotify/fsnotify v1.4.7
 	github.com/fullstorydev/grpcurl v1.8.0
 	github.com/google/gnxi v0.0.0-20200508145201-92c6d0d3ec3b
@@ -44,4 +44,5 @@ require (
 	google.golang.org/grpc v1.30.0
 	google.golang.org/protobuf v1.25.0
 	gopkg.in/yaml.v2 v2.3.0
+	gotest.tools v2.2.0+incompatible
 )
