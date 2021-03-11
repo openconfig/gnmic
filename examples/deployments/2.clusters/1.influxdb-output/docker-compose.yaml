@@ -12,9 +12,9 @@ services:
       - ./gnmic.yaml:/app/gnmic.yaml
     command: "subscribe --config /app/gnmic.yaml"
     environment:
-      - GNMIC_API=":7890"
-      - GNMIC_CLUSTERING_INSTANCE_NAME="gnmic1"
-      - GNMIC_CLUSTERING_SERVICE_ADDRESS="gnmic1"
+      - GNMIC_API=:7890
+      - GNMIC_CLUSTERING_INSTANCE_NAME=gnmic1
+      - GNMIC_CLUSTERING_SERVICE_ADDRESS=gnmic1
     networks:
       - gnmic-net
     ports:
@@ -27,9 +27,9 @@ services:
     <<: *gnmic
     container_name: gnmic2
     environment:
-      - GNMIC_API=":7891"
-      - GNMIC_CLUSTERING_INSTANCE_NAME="gnmic2"
-      - GNMIC_CLUSTERING_SERVICE_ADDRESS="gnmic2"
+      - GNMIC_API=:7891
+      - GNMIC_CLUSTERING_INSTANCE_NAME=gnmic2
+      - GNMIC_CLUSTERING_SERVICE_ADDRESS=gnmic2
     ports:
       - 7891:7891
 
@@ -37,9 +37,9 @@ services:
     <<: *gnmic
     container_name: gnmic3
     environment:
-      - GNMIC_API=":7892"
-      - GNMIC_CLUSTERING_INSTANCE_NAME="gnmic3"
-      - GNMIC_CLUSTERING_SERVICE_ADDRESS="gnmic3"
+      - GNMIC_API=:7892
+      - GNMIC_CLUSTERING_INSTANCE_NAME=gnmic3
+      - GNMIC_CLUSTERING_SERVICE_ADDRESS=gnmic3
     ports:
       - 7892:7892
 
