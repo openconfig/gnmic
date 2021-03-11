@@ -4,14 +4,10 @@ insecure: true
 encoding: json_ietf
 log: true
 
-api: ":7891"
-
 # clustering config
 clustering:
   cluster-name: cluster1
-  instance-name: gnmic-collector2
-  service-address: gnmic-collector2
-  targets-watch-timer: 5s
+  targets-watch-timer: 30s
   locker:
     type: consul
     address: consul-agent:8500

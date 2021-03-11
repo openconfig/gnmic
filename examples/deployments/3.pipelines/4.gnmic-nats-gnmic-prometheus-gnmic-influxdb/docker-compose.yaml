@@ -18,7 +18,7 @@ services:
 
   gnmic-relay1:
     <<: *gnmic
-    container_name: gnmic-relay
+    container_name: gnmic-relay1
     volumes:
       - ./gnmic-relay1.yaml:/app/gnmic.yaml
     ports:
@@ -29,7 +29,7 @@ services:
 
   gnmic-relay2:
     <<: *gnmic
-    container_name: gnmic-relay
+    container_name: gnmic-relay2
     volumes:
       - ./gnmic-relay2.yaml:/app/gnmic.yaml
     depends_on:
