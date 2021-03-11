@@ -3,21 +3,18 @@ password: admin
 insecure: true
 encoding: json_ietf
 log: true
-api: ":7890"
 
 # clustering config
 clustering:
   cluster-name: cluster1
-  instance-name: gnmic1
-  service-address: gnmic1
-  targets-watch-timer: 5s
+  targets-watch-timer: 30s
   locker:
     type: consul
     address: consul-agent:8500
 
 targets:
   # Add targets configuration here
-  # e.g:
+  # eg:
   # 192.168.1.131:57400:
   #   username: gnmic
   #   password: secret_password
@@ -33,8 +30,10 @@ subscriptions:
   #   sample-interval: 1s
 
 outputs:
-  prom-output:
-    type: prometheus
-    listen: "gnmic1:9804"
-    service-registration:
-      address: consul-agent:8500
+  influxdb-output:
+    type: influxdb
+    url: http://influxdb:8086
+    bucket: telemetry # db name
+    token: gnmic:gnmic # username:password
+    batch-size: 1000
+    flush-timer: 10s

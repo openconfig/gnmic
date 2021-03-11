@@ -16,9 +16,7 @@ Deployment files:
 
 - [docker compose](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/1.influxdb-output/docker-compose.yaml)
 
-- [gnmic1 config](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/1.influxdb-output/gnmic1.yaml)
-- [gnmic2 config](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/1.influxdb-output/gnmic2.yaml)
-- [gnmic3 config](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/1.influxdb-output/gnmic3.yaml)
+- [gnmic config](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/1.influxdb-output/gnmic.yaml)
 
 Download the files, update the `gnmic` config files with the desired subscriptions and targets.
 
