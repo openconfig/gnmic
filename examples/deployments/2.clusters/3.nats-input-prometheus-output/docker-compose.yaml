@@ -9,7 +9,7 @@ services:
     image: ghcr.io/karimra/gnmic:latest
     container_name: gnmic1
     volumes:
-      - ./gnmic1.yaml:/app/gnmic.yaml
+      - ./gnmic.yaml:/app/gnmic.yaml
     command: "subscribe --config /app/gnmic.yaml"
     environment:
       - GNMIC_API=:7890

@@ -33,7 +33,7 @@ subscriptions:
 
 inputs:
   nats-input:
-    type: input
+    type: nats
     address: nats:4222
     subject: telemetry
     outputs:
