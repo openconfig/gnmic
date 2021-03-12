@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"time"
 
 	"github.com/google/uuid"
@@ -30,9 +31,9 @@ func (c *Config) GetClustering() error {
 		return nil
 	}
 	c.Clustering = new(clustering)
-	c.Clustering.ClusterName = c.FileConfig.GetString("clustering/cluster-name")
-	c.Clustering.InstanceName = c.FileConfig.GetString("clustering/instance-name")
-	c.Clustering.ServiceAddress = c.FileConfig.GetString("clustering/service-address")
+	c.Clustering.ClusterName = os.ExpandEnv(c.FileConfig.GetString("clustering/cluster-name"))
+	c.Clustering.InstanceName = os.ExpandEnv(c.FileConfig.GetString("clustering/instance-name"))
+	c.Clustering.ServiceAddress = os.ExpandEnv(c.FileConfig.GetString("clustering/service-address"))
 	c.Clustering.TargetsWatchTimer = c.FileConfig.GetDuration("clustering/targets-watch-timer")
 	c.Clustering.TargetAssignmentTimeout = c.FileConfig.GetDuration("clustering/target-assignment-timeout")
 	c.Clustering.ServicesWatchTimer = c.FileConfig.GetDuration("clustering/services-watch-timer")

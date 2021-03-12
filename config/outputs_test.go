@@ -2,13 +2,16 @@ package config
 
 import (
 	"bytes"
+	"os"
 	"reflect"
+	"strings"
 	"testing"
 )
 
 var getOutputsTestSet = map[string]struct {
-	in  []byte
-	out map[string]map[string]interface{}
+	envs []string
+	in   []byte
+	out  map[string]map[string]interface{}
 }{
 	"basic_outputs": {
 		in: []byte(`
@@ -31,11 +34,41 @@ outputs:
 			},
 		},
 	},
+	"basic_outputs_env": {
+		envs: []string{
+			"NATS_ADDRESS=1.1.1.1",
+		},
+		in: []byte(`
+outputs:
+  output1:
+    type: file
+    file-type: stdout
+  output2:
+    type: nats
+    address: ${NATS_ADDRESS}:1123
+`),
+		out: map[string]map[string]interface{}{
+			"output1": {
+				"type":      "file",
+				"file-type": "stdout",
+				"format":    "",
+			},
+			"output2": {
+				"type":    "nats",
+				"format":  "",
+				"address": "1.1.1.1:1123",
+			},
+		},
+	},
 }
 
 func TestGetOutputs(t *testing.T) {
 	for name, data := range getOutputsTestSet {
 		t.Run(name, func(t *testing.T) {
+			for _, e := range data.envs {
+				p := strings.SplitN(e, "=", 2)
+				os.Setenv(p[0], p[1])
+			}
 			cfg := New()
 			cfg.Debug = true
 			cfg.SetLogger()

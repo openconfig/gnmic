@@ -2,13 +2,16 @@ package config
 
 import (
 	"bytes"
+	"os"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/karimra/gnmic/collector"
 )
 
 var getTargetsTestSet = map[string]struct {
+	envs   []string
 	in     []byte
 	out    map[string]*collector.TargetConfig
 	outErr error
@@ -146,11 +149,51 @@ targets:
 		},
 		outErr: nil,
 	},
+	"with_envs": {
+		envs: []string{
+			"SUB_NAME=sub1",
+			"OUT_NAME=o1",
+		},
+		in: []byte(`
+skip-verify: true
+targets:
+  10.1.1.1:57400:
+    username: admin
+    password: admin
+    outputs:
+      - ${OUT_NAME}
+    subscriptions:
+      - ${SUB_NAME}
+`),
+		out: map[string]*collector.TargetConfig{
+			"10.1.1.1:57400": {
+				Address:    "10.1.1.1:57400",
+				Name:       "10.1.1.1:57400",
+				Password:   &adminStr,
+				Username:   &adminStr,
+				TLSCert:    &emptyStr,
+				TLSKey:     &emptyStr,
+				Insecure:   &falseBool,
+				SkipVerify: &trueBool,
+				Subscriptions: []string{
+					"sub1",
+				},
+				Outputs: []string{
+					"o1",
+				},
+			},
+		},
+		outErr: nil,
+	},
 }
 
 func TestGetTargets(t *testing.T) {
 	for name, data := range getTargetsTestSet {
 		t.Run(name, func(t *testing.T) {
+			for _, e := range data.envs {
+				p := strings.SplitN(e, "=", 2)
+				os.Setenv(p[0], p[1])
+			}
 			cfg := New()
 			cfg.Debug = true
 			cfg.SetLogger()

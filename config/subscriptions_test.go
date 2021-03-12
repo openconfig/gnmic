@@ -2,13 +2,16 @@ package config
 
 import (
 	"bytes"
+	"os"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/karimra/gnmic/collector"
 )
 
 var getSubscriptionsTestSet = map[string]struct {
+	envs   []string
 	in     []byte
 	out    map[string]*collector.SubscriptionConfig
 	outErr error
@@ -100,11 +103,48 @@ subscriptions:
 		},
 		outErr: nil,
 	},
+	"3_subs_with_env": {
+		envs: []string{
+			"SUB1_PATH=/valid/path",
+			"SUB2_PATH=/valid/path2",
+		},
+		in: []byte(`
+encoding: proto
+subscriptions:
+  sub1:
+    paths: 
+      - ${SUB1_PATH}
+  sub2:
+    paths: 
+      - ${SUB2_PATH}
+    mode: stream
+    stream-mode: on_change
+`),
+		out: map[string]*collector.SubscriptionConfig{
+			"sub1": {
+				Name:     "sub1",
+				Paths:    []string{"/valid/path"},
+				Encoding: "proto",
+			},
+			"sub2": {
+				Name:       "sub2",
+				Paths:      []string{"/valid/path2"},
+				Mode:       "stream",
+				StreamMode: "on_change",
+				Encoding:   "proto",
+			},
+		},
+		outErr: nil,
+	},
 }
 
 func TestGetSubscriptions(t *testing.T) {
 	for name, data := range getSubscriptionsTestSet {
 		t.Run(name, func(t *testing.T) {
+			for _, e := range data.envs {
+				p := strings.SplitN(e, "=", 2)
+				os.Setenv(p[0], p[1])
+			}
 			cfg := New()
 			cfg.Debug = true
 			cfg.SetLogger()

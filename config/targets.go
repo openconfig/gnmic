@@ -103,6 +103,7 @@ func (c *Config) GetTargets() (map[string]*collector.TargetConfig, error) {
 		if err != nil {
 			return nil, err
 		}
+		expandTargetEnv(tc)
 		newTargetsConfig[tc.Name] = tc
 	}
 	c.Targets = newTargetsConfig
@@ -243,4 +244,42 @@ func expandCertPaths(tc *collector.TargetConfig) error {
 		}
 	}
 	return nil
+}
+
+func expandTargetEnv(tc *collector.TargetConfig) {
+	tc.Name = os.ExpandEnv(tc.Name)
+	tc.Address = os.ExpandEnv(tc.Address)
+	if tc.Username != nil {
+		*tc.Username = os.ExpandEnv(*tc.Username)
+	}
+	if tc.Password != nil {
+		*tc.Password = os.ExpandEnv(*tc.Password)
+	}
+	if tc.TLSCA != nil {
+		*tc.TLSCA = os.ExpandEnv(*tc.TLSCA)
+	}
+	if tc.TLSCert != nil {
+		*tc.TLSCert = os.ExpandEnv(*tc.TLSCert)
+	}
+	if tc.TLSKey != nil {
+		*tc.TLSKey = os.ExpandEnv(*tc.TLSKey)
+	}
+	for i := range tc.Subscriptions {
+		tc.Subscriptions[i] = os.ExpandEnv(tc.Subscriptions[i])
+	}
+	for i := range tc.Outputs {
+		tc.Outputs[i] = os.ExpandEnv(tc.Outputs[i])
+	}
+	tc.TLSMinVersion = os.ExpandEnv(tc.TLSMinVersion)
+	tc.TLSMaxVersion = os.ExpandEnv(tc.TLSMaxVersion)
+	tc.TLSVersion = os.ExpandEnv(tc.TLSVersion)
+	for i := range tc.ProtoFiles {
+		tc.ProtoFiles[i] = os.ExpandEnv(tc.ProtoFiles[i])
+	}
+	for i := range tc.ProtoDirs {
+		tc.ProtoDirs[i] = os.ExpandEnv(tc.ProtoDirs[i])
+	}
+	for i := range tc.Tags {
+		tc.Tags[i] = os.ExpandEnv(tc.Tags[i])
+	}
 }
