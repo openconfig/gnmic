@@ -39,6 +39,9 @@ func (c *Config) GetClustering() error {
 	c.Clustering.ServicesWatchTimer = c.FileConfig.GetDuration("clustering/services-watch-timer")
 	c.Clustering.LeaderWaitTimer = c.FileConfig.GetDuration("clustering/leader-wait-timer")
 	c.Clustering.Tags = c.FileConfig.GetStringSlice("clustering/tags")
+	for i := range c.Clustering.Tags {
+		c.Clustering.Tags[i] = os.ExpandEnv(c.Clustering.Tags[i])
+	}
 	c.setClusteringDefaults()
 	return c.getLocker()
 }
