@@ -43,7 +43,9 @@ func (c *Config) GetOutputs() (map[string]map[string]interface{}, error) {
 			c.logger.Printf("unknown configuration format expecting a map[string]interface{}: got %T : %v", outCfg, outCfg)
 		}
 	}
-
+	for n := range c.Outputs {
+		expandMapEnv(c.Outputs[n])
+	}
 	namedOutputs := c.FileConfig.GetStringSlice("subscribe-output")
 	if len(namedOutputs) == 0 {
 		if c.Debug {

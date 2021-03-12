@@ -25,6 +25,7 @@ func (c *Config) GetLoader() (map[string]interface{}, error) {
 	if lds, ok := ldCfg["type"].(string); ok {
 		for _, lt := range loaders.LoadersTypes {
 			if lt == lds {
+				expandMapEnv(ldCfg)
 				return ldCfg, nil
 			}
 		}

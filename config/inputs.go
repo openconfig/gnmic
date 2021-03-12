@@ -8,6 +8,7 @@ import (
 )
 
 func (c *Config) GetInputs() (map[string]map[string]interface{}, error) {
+	errs := make([]error, 0)
 	inputsDef := c.FileConfig.GetStringMap("inputs")
 	for name, inputCfg := range inputsDef {
 		inputCfgconv := convert(inputCfg)
@@ -25,15 +26,25 @@ func (c *Config) GetInputs() (map[string]map[string]interface{}, error) {
 					c.Inputs[name] = inputCfg
 					continue
 				}
-				c.logger.Printf("unknown input type '%s'", outType)
+				err := fmt.Errorf("unknown input type '%s'", outType)
+				c.logger.Print(err)
+				errs = append(errs, err)
 				continue
 			}
-			c.logger.Printf("missing input 'type' under %v", inputCfg)
+			err := fmt.Errorf("missing input 'type' under %v", inputCfg)
+			c.logger.Print(err)
+			errs = append(errs, err)
 		default:
 			c.logger.Printf("unknown configuration format expecting a map[string]interface{}: got %T : %v", inputCfg, inputCfg)
+			return nil, fmt.Errorf("unexpected inputs configuration format")
 		}
 	}
-
+	if len(errs) > 0 {
+		return nil, fmt.Errorf("there was %d error(s) when getting inputs configuration", len(errs))
+	}
+	for n := range c.Inputs {
+		expandMapEnv(c.Inputs[n])
+	}
 	if c.Debug {
 		c.logger.Printf("inputs: %+v", c.Inputs)
 	}

@@ -75,3 +75,13 @@ get-path:
 
 ### Options preference
 Configuration passed via CLI flags and Env variables take precedence over the file config.
+
+### Environment variables in file
+Environment variables can be used in the configuration file and will be expanded at the time the configuration is read.
+
+```yaml
+outputs:
+  output1:
+    type: nats
+    address: ${NATS_IP}:4222
+```

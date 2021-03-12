@@ -30,6 +30,9 @@ func (c *Config) GetEventProcessors() (map[string]map[string]interface{}, error)
 		}
 		c.Processors[n] = es
 	}
+	for n := range c.Processors {
+		expandMapEnv(c.Processors[n])
+	}
 	if c.Debug {
 		c.logger.Printf("processors: %+v", c.Processors)
 	}

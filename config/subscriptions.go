@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -65,6 +66,7 @@ func (c *Config) GetSubscriptions(cmd *cobra.Command) (map[string]*collector.Sub
 
 		// inherit global "subscribe-*" option if it's not set
 		c.setSubscriptionDefaults(sub, cmd)
+		expandSubscriptionEnv(sub)
 		c.Subscriptions[sn] = sub
 	}
 	if len(c.LocalFlags.SubscribeName) == 0 {
@@ -159,4 +161,19 @@ func validateSubscriptionsConfig(subs map[string]*collector.SubscriptionConfig) 
 		return errors.New("subscriptions with mode Poll cannot be mixed with Stream or Once")
 	}
 	return nil
+}
+
+func expandSubscriptionEnv(sc *collector.SubscriptionConfig) {
+	sc.Name = os.ExpandEnv(sc.Name)
+	for i := range sc.Models {
+		sc.Models[i] = os.ExpandEnv(sc.Models[i])
+	}
+	sc.Prefix = os.ExpandEnv(sc.Prefix)
+	sc.Target = os.ExpandEnv(sc.Target)
+	for i := range sc.Paths {
+		sc.Paths[i] = os.ExpandEnv(sc.Paths[i])
+	}
+	sc.Mode = os.ExpandEnv(sc.Mode)
+	sc.StreamMode = os.ExpandEnv(sc.StreamMode)
+	sc.Encoding = os.ExpandEnv(sc.Encoding)
 }
