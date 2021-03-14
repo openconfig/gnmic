@@ -42,11 +42,10 @@ func (a *App) CapRun(cmd *cobra.Command, args []string) error {
 			a.collector.AddTarget(tc)
 		}
 	}
-	a.collector.InitTargets()
 	numTargets := len(a.collector.Targets)
 	a.errCh = make(chan error, numTargets*2)
 	a.wg.Add(numTargets)
-	for tName := range a.collector.Targets {
+	for tName := range a.Config.Targets {
 		go a.ReqCapabilities(ctx, tName)
 	}
 	a.wg.Wait()

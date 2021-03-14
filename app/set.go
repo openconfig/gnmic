@@ -49,11 +49,10 @@ func (a *App) SetRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	a.collector.InitTargets()
-	numTargets := len(a.collector.Targets)
+	numTargets := len(a.Config.Targets)
 	a.errCh = make(chan error, numTargets*2)
 	a.wg.Add(numTargets)
-	for tName := range a.collector.Targets {
+	for tName := range a.Config.Targets {
 		go a.SetRequest(ctx, tName, req)
 	}
 	a.wg.Wait()

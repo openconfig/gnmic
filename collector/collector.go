@@ -190,17 +190,6 @@ func (c *Collector) AddTarget(tc *TargetConfig) error {
 	return nil
 }
 
-func (c *Collector) InitTargets() error {
-	var err error
-	for n := range c.targetsConfig {
-		err = c.initTarget(n)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (c *Collector) initTarget(name string) error {
 	c.m.Lock()
 	defer c.m.Unlock()
@@ -311,26 +300,21 @@ START:
 	}
 }
 
-func (c *Collector) TargetSubscribeOnce(ctx context.Context, name string) {
+func (c *Collector) TargetSubscribeOnce(ctx context.Context, name string) error {
 	nctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	err := c.initTarget(name)
 	if err != nil {
 		c.logger.Printf("failed to initialize target %q: %v", name, err)
-		return
-	}
-	select {
-	case <-nctx.Done():
-		return
-	case c.targetsChan <- c.Targets[name]:
-		c.logger.Printf("queuing target %q", name)
+		return err
 	}
 	c.logger.Printf("subscribing to target: %q", name)
 	err = c.SubscribeOnce(nctx, name)
 	if err != nil {
 		c.logger.Printf("failed to subscribe: %v", err)
-		return
+		return err
 	}
+	return nil
 }
 
 func (c *Collector) TargetSubscribePoll(ctx context.Context, name string) {
@@ -583,11 +567,32 @@ func (c *Collector) SubscribeOnce(ctx context.Context, tName string) error {
 
 		}
 		c.logger.Printf("target '%s' gNMI client created", t.Config.Name)
-
+	OUTER:
 		for _, sreq := range subRequests {
 			c.logger.Printf("sending gNMI SubscribeRequest: subscribe='%+v', mode='%+v', encoding='%+v', to %s",
 				sreq.req, sreq.req.GetSubscribe().GetMode(), sreq.req.GetSubscribe().GetEncoding(), t.Config.Name)
-			t.Subscribe(gnmiCtx, sreq.req, sreq.name)
+			rspCh, errCh := t.SubscribeOnce(gnmiCtx, sreq.req, sreq.name)
+			for {
+				select {
+				case err := <-errCh:
+					if errors.Is(err, io.EOF) {
+						c.logger.Printf("target %q, subscription %q closed stream(EOF)", t.Config.Name, sreq.name)
+						close(rspCh)
+						// next subscription or end
+						continue OUTER
+					}
+					return err
+				case rsp := <-rspCh:
+					switch rsp.Response.(type) {
+					case *gnmi.SubscribeResponse_SyncResponse:
+						c.logger.Printf("target %q, subscription %q received sync response", t.Config.Name, sreq.name)
+						return nil
+					default:
+						m := outputs.Meta{"source": t.Config.Name, "format": c.Config.Format, "subscription-name": sreq.name}
+						c.Export(ctx, rsp, m, t.Config.Outputs...)
+					}
+				}
+			}
 		}
 		return nil
 	}
@@ -777,14 +782,14 @@ func (c *Collector) Export(ctx context.Context, rsp *gnmi.SubscribeResponse, m o
 }
 
 func (c *Collector) Capabilities(ctx context.Context, tName string, ext ...*gnmi_ext.Extension) (*gnmi.CapabilityResponse, error) {
-	c.m.Lock()
-	defer c.m.Unlock()
 	if _, ok := c.Targets[tName]; !ok {
 		err := c.initTarget(tName)
 		if err != nil {
 			return nil, err
 		}
 	}
+	c.m.Lock()
+	defer c.m.Unlock()
 	if t, ok := c.Targets[tName]; ok {
 		ctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 		defer cancel()
@@ -802,14 +807,14 @@ func (c *Collector) Capabilities(ctx context.Context, tName string, ext ...*gnmi
 }
 
 func (c *Collector) Get(ctx context.Context, tName string, req *gnmi.GetRequest) (*gnmi.GetResponse, error) {
-	c.m.Lock()
-	defer c.m.Unlock()
 	if _, ok := c.Targets[tName]; !ok {
 		err := c.initTarget(tName)
 		if err != nil {
 			return nil, err
 		}
 	}
+	c.m.Lock()
+	defer c.m.Unlock()
 	if t, ok := c.Targets[tName]; ok {
 		ctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 		defer cancel()
@@ -827,14 +832,14 @@ func (c *Collector) Get(ctx context.Context, tName string, req *gnmi.GetRequest)
 }
 
 func (c *Collector) Set(ctx context.Context, tName string, req *gnmi.SetRequest) (*gnmi.SetResponse, error) {
-	c.m.Lock()
-	defer c.m.Unlock()
 	if _, ok := c.Targets[tName]; !ok {
 		err := c.initTarget(tName)
 		if err != nil {
 			return nil, err
 		}
 	}
+	c.m.Lock()
+	defer c.m.Unlock()
 	if t, ok := c.Targets[tName]; ok {
 		ctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 		defer cancel()

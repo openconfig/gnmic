@@ -46,11 +46,10 @@ func (a *App) GetRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	a.collector.InitTargets()
-	numTargets := len(a.collector.Targets)
+	numTargets := len(a.Config.Targets)
 	a.errCh = make(chan error, numTargets*3)
 	a.wg.Add(numTargets)
-	for tName := range a.collector.Targets {
+	for tName := range a.Config.Targets {
 		go a.GetRequest(ctx, tName, req)
 	}
 	a.wg.Wait()
@@ -119,7 +118,7 @@ func (a *App) filterModels(ctx context.Context, tName string, modelsNames []stri
 // InitGetFlags used to init or reset getCmd flags for gnmic-prompt mode
 func (a *App) InitGetFlags(cmd *cobra.Command) {
 	cmd.ResetFlags()
-	
+
 	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.GetPath, "path", "", []string{}, "get request paths")
 	cmd.MarkFlagRequired("path")
 	cmd.Flags().StringVarP(&a.Config.LocalFlags.GetPrefix, "prefix", "", "", "get request prefix")
