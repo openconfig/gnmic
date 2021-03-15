@@ -285,6 +285,37 @@ SUBSC:
 	}
 }
 
+func (t *Target) SubscribeOnce(ctx context.Context, req *gnmi.SubscribeRequest, subscriptionName string) (chan *gnmi.SubscribeResponse, chan error) {
+	responseCh := make(chan *gnmi.SubscribeResponse)
+	errCh := make(chan error)
+	go func() {
+		nctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		nctx = metadata.AppendToOutgoingContext(nctx, "username", *t.Config.Username, "password", *t.Config.Password)
+		subscribeClient, err := t.Client.Subscribe(nctx)
+		if err != nil {
+			errCh <- err
+			return
+		}
+		err = subscribeClient.Send(req)
+		if err != nil {
+			errCh <- err
+			return
+		}
+		for {
+			response, err := subscribeClient.Recv()
+			if err != nil {
+				errCh <- err
+				return
+			}
+			responseCh <- response
+		}
+	}()
+
+	return responseCh, errCh
+}
+
 func (t *Target) Stop() {
 	t.m.Lock()
 	defer t.m.Unlock()

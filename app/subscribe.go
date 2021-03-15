@@ -100,7 +100,10 @@ func (a *App) subscribeStream(ctx context.Context, name string) {
 
 func (a *App) subscribeOnce(ctx context.Context, name string) {
 	defer a.wg.Done()
-	a.collector.TargetSubscribeOnce(ctx, name)
+	err := a.collector.TargetSubscribeOnce(ctx, name)
+	if err != nil {
+		a.logError(err)
+	}
 }
 
 func (a *App) subscribePoll(ctx context.Context, name string) {
@@ -165,7 +168,7 @@ func (a *App) SubscribeRunPrompt(cmd *cobra.Command, args []string) error {
 
 	a.collector.InitOutputs(a.ctx)
 	a.collector.InitInputs(a.ctx)
-	a.collector.InitTargets()
+	// a.collector.InitTargets()
 
 	var limiter *time.Ticker
 	if a.Config.LocalFlags.SubscribeBackoff > 0 {
@@ -173,7 +176,7 @@ func (a *App) SubscribeRunPrompt(cmd *cobra.Command, args []string) error {
 	}
 
 	a.wg.Add(len(a.collector.Targets))
-	for name := range a.collector.Targets {
+	for name := range a.Config.Targets {
 		go a.subscribeStream(a.ctx, name)
 		if limiter != nil {
 			<-limiter.C
@@ -349,7 +352,7 @@ func (a *App) startIO() {
 	go a.collector.Start(a.ctx)
 	a.collector.InitOutputs(a.ctx)
 	a.collector.InitInputs(a.ctx)
-	a.collector.InitTargets()
+	//a.collector.InitTargets()
 	go a.startLoader(a.ctx)
 
 	if !a.inCluster() {
@@ -358,8 +361,8 @@ func (a *App) startIO() {
 			limiter = time.NewTicker(a.Config.LocalFlags.SubscribeBackoff)
 		}
 
-		a.wg.Add(len(a.collector.Targets))
-		for name := range a.collector.Targets {
+		a.wg.Add(len(a.Config.Targets))
+		for name := range a.Config.Targets {
 			go a.subscribeStream(a.ctx, name)
 			if limiter != nil {
 				<-limiter.C
@@ -384,18 +387,16 @@ func (a *App) SubscribeRunONCE(cmd *cobra.Command, args []string) error {
 	}
 	//
 	a.collector = collector.NewCollector(a.collectorConfig(), targetsConfig, cOpts...)
-
-	go a.collector.Start(a.ctx)
 	a.collector.InitOutputs(a.ctx)
-	a.collector.InitTargets()
 
 	var limiter *time.Ticker
 	if a.Config.LocalFlags.SubscribeBackoff > 0 {
 		limiter = time.NewTicker(a.Config.LocalFlags.SubscribeBackoff)
 	}
-
-	a.wg.Add(len(a.collector.Targets))
-	for name := range a.collector.Targets {
+	numTargets := len(a.Config.Targets)
+	a.errCh = make(chan error, numTargets)
+	a.wg.Add(numTargets)
+	for name := range a.Config.Targets {
 		go a.subscribeOnce(a.ctx, name)
 		if limiter != nil {
 			<-limiter.C
@@ -405,7 +406,7 @@ func (a *App) SubscribeRunONCE(cmd *cobra.Command, args []string) error {
 		limiter.Stop()
 	}
 	a.wg.Wait()
-	return nil
+	return a.checkErrors()
 }
 
 func (a *App) SubscribeRunPoll(cmd *cobra.Command, args []string) error {
@@ -423,10 +424,10 @@ func (a *App) SubscribeRunPoll(cmd *cobra.Command, args []string) error {
 
 	go a.collector.Start(a.ctx)
 	// a.collector.InitOutputs(a.ctx)
-	a.collector.InitTargets()
+	// a.collector.InitTargets()
 
-	a.wg.Add(len(a.collector.Targets))
-	for name := range a.collector.Targets {
+	a.wg.Add(len(a.Config.Targets))
+	for name := range a.Config.Targets {
 		go a.subscribePoll(a.ctx, name)
 	}
 	a.wg.Wait()
