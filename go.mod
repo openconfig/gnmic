@@ -5,6 +5,7 @@ go 1.13
 require (
 	github.com/Shopify/sarama v1.26.4
 	github.com/adrg/xdg v0.3.0
+	github.com/antonmedv/expr v1.8.9
 	github.com/c-bata/go-prompt v0.2.5
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/damiannolan/sasl v1.0.0
