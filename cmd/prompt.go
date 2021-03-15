@@ -7,9 +7,9 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
+	"unicode"
 
 	goprompt "github.com/c-bata/go-prompt"
 	"github.com/c-bata/go-prompt/completer"
@@ -872,8 +872,7 @@ func showCommandArguments(b *goprompt.Buffer) {
 func ExecutePrompt() {
 	initPromptCmds()
 	shell := &cmdPrompt{
-		parseRegex: regexp.MustCompile("'.+'|\".+\"|\\S+"),
-		RootCmd:    gApp.RootCmd,
+		RootCmd: gApp.RootCmd,
 		GoPromptOptions: []goprompt.Option{
 			goprompt.OptionTitle("gnmic-prompt"),
 			goprompt.OptionPrefix("gnmic> "),
@@ -973,9 +972,6 @@ type cmdPrompt struct {
 	// GoPromptOptions is for customize go-prompt
 	// see https://github.com/c-bata/go-prompt/blob/master/option.go
 	GoPromptOptions []goprompt.Option
-
-	// regex used to split the prompt args
-	parseRegex *regexp.Regexp
 }
 
 // Run will automatically generate suggestions for all cobra commands
@@ -983,7 +979,11 @@ type cmdPrompt struct {
 func (co cmdPrompt) Run() {
 	p := goprompt.New(
 		func(in string) {
-			promptArgs := co.parseRegex.FindAllString(in, -1)
+			promptArgs, err := parsePromptArgs(in)
+			if err != nil {
+				fmt.Fprint(os.Stderr, err)
+				return
+			}
 			os.Args = append([]string{os.Args[0]}, promptArgs...)
 			if len(promptArgs) > 0 {
 				err := co.RootCmd.Execute()
@@ -998,6 +998,54 @@ func (co cmdPrompt) Run() {
 		co.GoPromptOptions...,
 	)
 	p.Run()
+}
+
+func parsePromptArgs(in string) ([]string, error) {
+	var m = []string{}
+	var s string
+
+	// space suffix ensures the last string is appended
+	in = strings.TrimSpace(in) + " "
+
+	lastQuote := rune(0)
+	isSpace := false
+	for _, c := range in {
+		switch {
+		// ending a quoted item, break out, skip this character and reset lastQuote
+		case c == lastQuote:
+			lastQuote = rune(0)
+
+		// in a quoted item, include this character
+		case lastQuote != rune(0):
+			s += string(c)
+
+		// starting a quoted item, set lastQuote
+		case unicode.In(c, unicode.Quotation_Mark):
+			isSpace = false
+			lastQuote = c
+
+		// a space, append the string to the list
+		// if it was not already added (previous char was a space)
+		// and reset string s
+		case unicode.IsSpace(c):
+			if isSpace {
+				continue
+			}
+			isSpace = true
+			m = append(m, s)
+			s = ""
+		// add the char to the string
+		default:
+			isSpace = false
+			s += string(c)
+		}
+	}
+
+	if lastQuote != rune(0) {
+		return nil, fmt.Errorf("quotes not closed")
+	}
+
+	return m, nil
 }
 
 func findSuggestions(co cmdPrompt, doc goprompt.Document) []goprompt.Suggest {
