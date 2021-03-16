@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"time"
 
 	"github.com/antonmedv/expr"
 	"github.com/antonmedv/expr/vm"
@@ -22,12 +23,16 @@ const (
 
 // Trigger triggers an action when certain conditions are met
 type Trigger struct {
-	Expression string                 `mapstructure:"expression,omitempty"`
-	Action     map[string]interface{} `mapstructure:"action,omitempty"`
-	Debug      bool                   `mapstructure:"debug,omitempty"`
+	Expression     string                 `mapstructure:"expression,omitempty"`
+	MaxOccurrences int                    `mapstructure:"max-occurrences,omitempty"`
+	Window         time.Duration          `mapstructure:"window,omitempty"`
+	Action         map[string]interface{} `mapstructure:"action,omitempty"`
+	Debug          bool                   `mapstructure:"debug,omitempty"`
 
-	prg    *vm.Program
-	action actions.Action
+	numOccurrences int
+	lastOccurrence time.Time
+	prg            *vm.Program
+	action         actions.Action
 
 	logger *log.Logger
 }
@@ -59,11 +64,16 @@ func (p *Trigger) Init(cfg interface{}, logger *log.Logger) error {
 	if err != nil {
 		return err
 	}
+	err = p.setDefaults()
+	if err != nil {
+		return err
+	}
 	p.logger.Printf("%q initalized: %+v", processorType, p)
 	return nil
 }
 
 func (p *Trigger) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
+	now := time.Now()
 	for _, e := range es {
 		if e == nil {
 			continue
@@ -87,13 +97,26 @@ func (p *Trigger) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		switch res := res.(type) {
 		case bool:
 			if res {
-				go func() {
-					res, err := p.action.Run(e)
-					if err != nil {
-						return
+				p.numOccurrences++
+				// within the window
+				if p.lastOccurrence.Add(p.Window).After(now) {
+					// max occurrences reached
+					if p.MaxOccurrences <= p.numOccurrences {
+						// reset numOccurrences
+						p.numOccurrences = 0
+						// run the action
+						go func() {
+							res, err := p.action.Run(e)
+							if err != nil {
+								p.logger.Printf("trigger action failed: %+v", err)
+								return
+							}
+							p.logger.Printf("result: %+v", res)
+						}()
 					}
-					p.logger.Printf("result: %+v", res)
-				}()
+					continue
+				}
+				p.lastOccurrence = now
 			}
 		}
 	}
@@ -129,4 +152,11 @@ func (p *Trigger) String() string {
 		return ""
 	}
 	return string(b)
+}
+
+func (p *Trigger) setDefaults() error {
+	if p.MaxOccurrences <= 0 {
+		p.MaxOccurrences = 1
+	}
+	return nil
 }
