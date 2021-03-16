@@ -65,7 +65,7 @@ func (f *File) String() string {
 	return string(b)
 }
 
-func (f *File) SetEventProcessors(ps map[string]map[string]interface{}, log *log.Logger) {
+func (f *File) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger) {
 	for _, epName := range f.Cfg.EventProcessors {
 		if epCfg, ok := ps[epName]; ok {
 			epType := ""
@@ -75,7 +75,7 @@ func (f *File) SetEventProcessors(ps map[string]map[string]interface{}, log *log
 			}
 			if in, ok := formatters.EventProcessors[epType]; ok {
 				ep := in()
-				err := ep.Init(epCfg[epType], log)
+				err := ep.Init(epCfg[epType], formatters.WithLogger(logger))
 				if err != nil {
 					f.logger.Printf("failed initializing event processor '%s' of type='%s': %v", epName, epType, err)
 					continue

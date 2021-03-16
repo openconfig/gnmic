@@ -17,6 +17,8 @@ const (
 
 // Drop Drops the msg if ANY of the Tags or Values regexes are matched
 type Drop struct {
+	formatters.EventProcessor
+
 	TagNames   []string `mapstructure:"tag-names,omitempty" json:"tag-names,omitempty"`
 	ValueNames []string `mapstructure:"value-names,omitempty" json:"value-names,omitempty"`
 	Tags       []string `mapstructure:"tags,omitempty" json:"tags,omitempty"`
@@ -37,17 +39,13 @@ func init() {
 	})
 }
 
-func (d *Drop) Init(cfg interface{}, logger *log.Logger) error {
+func (d *Drop) Init(cfg interface{}, opts ...formatters.Option) error {
 	err := formatters.DecodeConfig(cfg, d)
 	if err != nil {
 		return err
 	}
-	if d.Debug && logger != nil {
-		d.logger = log.New(logger.Writer(), loggingPrefix, logger.Flags())
-	} else if d.Debug {
-		d.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
-	} else {
-		d.logger = log.New(ioutil.Discard, "", 0)
+	for _, opt := range opts {
+		opt(d)
 	}
 	// init tag keys regex
 	d.tagNames = make([]*regexp.Regexp, 0, len(d.TagNames))
@@ -136,4 +134,12 @@ func (d *Drop) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		}
 	}
 	return es
+}
+
+func (d *Drop) WithLogger(l *log.Logger) {
+	if d.Debug && l != nil {
+		d.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
+	} else if d.Debug {
+		d.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
+	}
 }

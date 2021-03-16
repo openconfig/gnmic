@@ -27,9 +27,13 @@ func Register(name string, initFn Initializer) {
 	EventProcessors[name] = initFn
 }
 
+type Option func(EventProcessor)
 type EventProcessor interface {
-	Init(interface{}, *log.Logger) error
+	Init(interface{}, ...Option) error
 	Apply(...*EventMsg) []*EventMsg
+
+	WithTargets(map[string]interface{})
+	WithLogger(l *log.Logger)
 }
 
 func DecodeConfig(src, dst interface{}) error {
@@ -43,4 +47,14 @@ func DecodeConfig(src, dst interface{}) error {
 		return err
 	}
 	return decoder.Decode(src)
+}
+func WithLogger(l *log.Logger) Option {
+	return func(p EventProcessor) {
+		p.WithLogger(l)
+	}
+}
+func WithTargets(tcs map[string]interface{}) Option {
+	return func(p EventProcessor) {
+		p.WithTargets(tcs)
+	}
 }

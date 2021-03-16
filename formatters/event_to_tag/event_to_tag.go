@@ -18,6 +18,8 @@ const (
 // ToTag moves ALL values matching any of the regex in .Values to the EventMsg.Tags map.
 // if .Keep is true, the matching values are not deleted from EventMsg.Tags
 type ToTag struct {
+	formatters.EventProcessor
+
 	Values     []string `mapstructure:"values,omitempty" json:"values,omitempty"`
 	ValueNames []string `mapstructure:"value-names,omitempty" json:"value-names,omitempty"`
 	Keep       bool     `mapstructure:"keep,omitempty" json:"keep,omitempty"`
@@ -35,17 +37,13 @@ func init() {
 	})
 }
 
-func (t *ToTag) Init(cfg interface{}, logger *log.Logger) error {
+func (t *ToTag) Init(cfg interface{}, opts ...formatters.Option) error {
 	err := formatters.DecodeConfig(cfg, t)
 	if err != nil {
 		return err
 	}
-	if t.Debug && logger != nil {
-		t.logger = log.New(logger.Writer(), loggingPrefix, logger.Flags())
-	} else if t.Debug {
-		t.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
-	} else {
-		t.logger = log.New(ioutil.Discard, "", 0)
+	for _, opt := range opts {
+		opt(t)
 	}
 	t.valueNames = make([]*regexp.Regexp, 0, len(t.ValueNames))
 	for _, reg := range t.ValueNames {
@@ -107,4 +105,12 @@ func (t *ToTag) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		}
 	}
 	return es
+}
+
+func (t *ToTag) WithLogger(l *log.Logger) {
+	if t.Debug && l != nil {
+		t.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
+	} else if t.Debug {
+		t.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
+	}
 }

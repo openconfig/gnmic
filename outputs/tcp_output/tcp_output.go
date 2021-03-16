@@ -60,7 +60,7 @@ func (t *TCPOutput) SetLogger(logger *log.Logger) {
 	}
 }
 
-func (t *TCPOutput) SetEventProcessors(ps map[string]map[string]interface{}, log *log.Logger) {
+func (t *TCPOutput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger) {
 	for _, epName := range t.Cfg.EventProcessors {
 		if epCfg, ok := ps[epName]; ok {
 			epType := ""
@@ -70,7 +70,7 @@ func (t *TCPOutput) SetEventProcessors(ps map[string]map[string]interface{}, log
 			}
 			if in, ok := formatters.EventProcessors[epType]; ok {
 				ep := in()
-				err := ep.Init(epCfg[epType], log)
+				err := ep.Init(epCfg[epType], formatters.WithLogger(logger))
 				if err != nil {
 					t.logger.Printf("failed initializing event processor '%s' of type='%s': %v", epName, epType, err)
 					continue
@@ -193,5 +193,5 @@ START:
 	}
 }
 
-func (t *TCPOutput) SetName(name string) {}
+func (t *TCPOutput) SetName(name string)        {}
 func (t *TCPOutput) SetClusterName(name string) {}

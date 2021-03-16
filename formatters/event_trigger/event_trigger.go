@@ -23,6 +23,8 @@ const (
 
 // Trigger triggers an action when certain conditions are met
 type Trigger struct {
+	formatters.EventProcessor
+
 	Expression     string                 `mapstructure:"expression,omitempty"`
 	MaxOccurrences int                    `mapstructure:"max-occurrences,omitempty"`
 	Window         time.Duration          `mapstructure:"window,omitempty"`
@@ -34,7 +36,8 @@ type Trigger struct {
 	prg            *vm.Program
 	action         actions.Action
 
-	logger *log.Logger
+	targets map[string]interface{}
+	logger  *log.Logger
 }
 
 func init() {
@@ -45,15 +48,13 @@ func init() {
 	})
 }
 
-func (p *Trigger) Init(cfg interface{}, logger *log.Logger) error {
+func (p *Trigger) Init(cfg interface{}, opts ...formatters.Option) error {
 	err := formatters.DecodeConfig(cfg, p)
 	if err != nil {
 		return err
 	}
-	if p.Debug && logger != nil {
-		p.logger = log.New(logger.Writer(), loggingPrefix, logger.Flags())
-	} else if p.Debug {
-		p.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
+	for _, opt := range opts {
+		opt(p)
 	}
 
 	p.prg, err = expr.Compile(p.Expression)
@@ -123,6 +124,18 @@ func (p *Trigger) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	return nil
 }
 
+func (p *Trigger) WithLogger(l *log.Logger) {
+	if p.Debug && l != nil {
+		p.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
+	} else if p.Debug {
+		p.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
+	}
+}
+
+func (p *Trigger) WithTargets(tcs map[string]interface{}) {
+	p.targets = tcs
+}
+
 func (p *Trigger) initializeAction(cfg map[string]interface{}) error {
 	if len(cfg) == 0 {
 		return errors.New("missing action definition")
@@ -132,7 +145,7 @@ func (p *Trigger) initializeAction(cfg map[string]interface{}) error {
 		case string:
 			if in, ok := actions.Actions[actType]; ok {
 				p.action = in()
-				err := p.action.Init(cfg, p.logger)
+				err := p.action.Init(cfg, actions.WithLogger(p.logger))
 				if err != nil {
 					return err
 				}
