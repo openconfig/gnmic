@@ -8,9 +8,14 @@ import (
 )
 
 type Action interface {
-	Init(map[string]interface{}, *log.Logger) error
+	Init(map[string]interface{}, ...Option) error
 	Run(*formatters.EventMsg) (interface{}, error)
+
+	WithTargets(map[string]interface{})
+	WithLogger(*log.Logger)
 }
+
+type Option func(Action)
 
 var Actions = map[string]Initializer{}
 
@@ -31,4 +36,16 @@ func DecodeConfig(src, dst interface{}) error {
 		return err
 	}
 	return decoder.Decode(src)
+}
+
+func WithTargets(tcs map[string]interface{}) Option {
+	return func(a Action) {
+		a.WithTargets(tcs)
+	}
+}
+
+func WithLogger(l *log.Logger) Option {
+	return func(a Action) {
+		a.WithLogger(l)
+	}
 }
