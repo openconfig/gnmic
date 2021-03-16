@@ -18,7 +18,7 @@ import (
 
 type item struct {
 	input  *formatters.EventMsg
-	output map[string]interface{}
+	output interface{}
 }
 
 var testset = map[string]struct {
@@ -50,14 +50,109 @@ var testset = map[string]struct {
 			},
 		},
 	},
+	"with_simple_exp": {
+		actionType: actionType,
+		action: map[string]interface{}{
+			"type":       "http",
+			"url":        "http://localhost:8080",
+			"expression": `event.Name`,
+			"debug":      true,
+		},
+		tests: []item{
+			{
+				input: &formatters.EventMsg{
+					Name: "sub1",
+					Tags: map[string]string{
+						"tag1": "1",
+					},
+				},
+				output: "sub1",
+			},
+			{
+				input: &formatters.EventMsg{
+					Name: "sub2",
+				},
+				output: "sub2",
+			},
+		},
+	},
+	"select_tags": {
+		actionType: actionType,
+		action: map[string]interface{}{
+			"type":       "http",
+			"url":        "http://localhost:8080",
+			"expression": "event.Tags",
+			"debug":      true,
+		},
+		tests: []item{
+			{
+				input: &formatters.EventMsg{
+					Name: "sub1",
+					Tags: map[string]string{
+						"tag1": "1",
+					},
+				},
+				output: map[string]interface{}{
+					"tag1": "1",
+				},
+			},
+			{
+				input: &formatters.EventMsg{
+					Name: "sub1",
+					Tags: map[string]string{
+						"tag1": "1",
+						"tag2": "2",
+					},
+				},
+				output: map[string]interface{}{
+					"tag1": "1",
+					"tag2": "2",
+				},
+			},
+		},
+	},
+	"select_values": {
+		actionType: actionType,
+		action: map[string]interface{}{
+			"type":       "http",
+			"url":        "http://localhost:8080",
+			"expression": `event.Values`,
+			"debug":      true,
+		},
+		tests: []item{
+			{
+				input: &formatters.EventMsg{
+					Name: "sub1",
+					Tags: map[string]string{
+						"tag1": "1",
+					},
+					Values: map[string]interface{}{
+						"val1": "1",
+					},
+				},
+				output: map[string]interface{}{
+					"val1": "1",
+				},
+			},
+			{
+				input: &formatters.EventMsg{
+					Name: "sub1",
+					Tags: map[string]string{
+						"tag2": "2",
+					},
+				},
+				output: nil,
+			},
+		},
+	},
 }
 
-func TestEventAddTag(t *testing.T) {
+func TestHTTPAction(t *testing.T) {
 	for name, ts := range testset {
 		if ai, ok := actions.Actions[ts.actionType]; ok {
 			t.Log("found action")
 			a := ai()
-			err := a.Init(ts.action, nil)
+			err := a.Init(ts.action)
 			if err != nil {
 				t.Errorf("failed to initialize action: %v", err)
 				return
@@ -101,17 +196,18 @@ func TestEventAddTag(t *testing.T) {
 						t.Fail()
 						return
 					}
+					t.Logf("Run result: %+v", string(res.([]byte)))
 					var result interface{}
 					err = json.Unmarshal(res.([]byte), &result)
 					if err != nil {
 						t.Errorf("failed at %s item %d, %v", name, i, err)
 					}
 					if !reflect.DeepEqual(result, item.output) {
-						t.Errorf("failed at %s item %d, expected %+v, got: %+v", name, i, item.output, result)
+						t.Errorf("failed at %s item %d, expected %+v(%T), got: %+v(%T)", name, i, item.output, item.output, result, result)
 					}
 				})
 			}
-			ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+			ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 			s.Shutdown(ctx)
 			cancel()
 		} else {

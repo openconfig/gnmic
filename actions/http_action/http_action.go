@@ -49,16 +49,16 @@ type httpAction struct {
 	logger *log.Logger
 }
 
-func (h *httpAction) Init(cfg map[string]interface{}, logger *log.Logger) error {
+func (h *httpAction) Init(cfg map[string]interface{}, opts ...actions.Option) error {
 	err := actions.DecodeConfig(cfg, h)
 	if err != nil {
 		return err
 	}
-	if h.Debug && logger != nil {
-		h.logger = log.New(logger.Writer(), loggingPrefix, logger.Flags())
-	} else if h.Debug {
-		h.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
+
+	for _, opt := range opts {
+		opt(h)
 	}
+
 	if h.Template != "" {
 		h.tpl, err = template.ParseFiles(h.Template)
 		if err != nil {
@@ -156,4 +156,14 @@ func (h *httpAction) setDefaults() error {
 		h.Expression = defaultExpressionAll
 	}
 	return nil
+}
+
+func (h *httpAction) WithTargets(map[string]interface{}) {}
+
+func (h *httpAction) WithLogger(logger *log.Logger) {
+	if h.Debug && logger != nil {
+		h.logger = log.New(logger.Writer(), loggingPrefix, logger.Flags())
+	} else if h.Debug {
+		h.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
+	}
 }
