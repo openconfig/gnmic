@@ -197,7 +197,7 @@ func TestEventMerge(t *testing.T) {
 		if pi, ok := formatters.EventProcessors[ts.processorType]; ok {
 			t.Log("found processor")
 			p := pi()
-			err := p.Init(ts.processor, nil)
+			err := p.Init(ts.processor)
 			if err != nil {
 				t.Errorf("failed to initialize processors: %v", err)
 				return

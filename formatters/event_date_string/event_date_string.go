@@ -39,7 +39,9 @@ type DateString struct {
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &DateString{}
+		return &DateString{
+			logger: log.New(ioutil.Discard, "", 0),
+		}
 	})
 }
 

@@ -40,7 +40,9 @@ type Write struct {
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &Write{}
+		return &Write{
+			logger: log.New(ioutil.Discard, "", 0),
+		}
 	})
 }
 
@@ -104,14 +106,13 @@ func (p *Write) Init(cfg interface{}, opts ...formatters.Option) error {
 			return err
 		}
 	}
-	if p.logger.Writer() != ioutil.Discard {
-		b, err := json.Marshal(p)
-		if err != nil {
-			p.logger.Printf("initialized processor '%s': %+v", processorType, p)
-			return nil
-		}
-		p.logger.Printf("initialized processor '%s': %s", processorType, string(b))
+
+	b, err := json.Marshal(p)
+	if err != nil {
+		p.logger.Printf("initialized processor '%s': %+v", processorType, p)
+		return nil
 	}
+	p.logger.Printf("initialized processor '%s': %s", processorType, string(b))
 	return nil
 }
 

@@ -33,7 +33,9 @@ type ToTag struct {
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &ToTag{}
+		return &ToTag{
+			logger: log.New(ioutil.Discard, "", 0),
+		}
 	})
 }
 

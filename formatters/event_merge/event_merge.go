@@ -26,7 +26,9 @@ type Merge struct {
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &Merge{}
+		return &Merge{
+			logger: log.New(ioutil.Discard, "", 0),
+		}
 	})
 }
 

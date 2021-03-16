@@ -36,7 +36,9 @@ type Delete struct {
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &Delete{}
+		return &Delete{
+			logger: log.New(ioutil.Discard, "", 0),
+		}
 	})
 }
 

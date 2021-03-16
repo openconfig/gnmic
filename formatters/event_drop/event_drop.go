@@ -35,7 +35,9 @@ type Drop struct {
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &Drop{}
+		return &Drop{
+			logger: log.New(ioutil.Discard, "", 0),
+		}
 	})
 }
 

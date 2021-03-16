@@ -62,7 +62,9 @@ type transform struct {
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &Strings{}
+		return &Strings{
+			logger: log.New(ioutil.Discard, "", 0),
+		}
 	})
 }
 

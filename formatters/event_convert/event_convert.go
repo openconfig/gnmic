@@ -31,7 +31,9 @@ type Convert struct {
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &Convert{}
+		return &Convert{
+			logger: log.New(ioutil.Discard, "", 0),
+		}
 	})
 }
 
