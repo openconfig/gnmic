@@ -42,7 +42,7 @@ type gnmiAction struct {
 	RPC    string   `mapstructure:"rpc,omitempty"`
 	Prefix string   `mapstructure:"prefix,omitempty"`
 	Paths  []string `mapstructure:"paths,omitempty"`
-	Type   string   `mapstructure:"type,omitempty"`
+	Type   string   `mapstructure:"data_type,omitempty"`
 
 	Values []string `mapstructure:"values,omitempty"`
 	//ValuesFromFiles []string `mapstructure:"values-from-files,omitempty"`
