@@ -60,6 +60,7 @@ func newRootCmd() *cobra.Command {
 		PersistentPreRunE: gApp.PreRun,
 	}
 	gApp.InitGlobalFlags()
+	gApp.RootCmd.AddCommand(newCompletionCmd())
 	gApp.RootCmd.AddCommand(newCapabilitiesCmd())
 	gApp.RootCmd.AddCommand(newGetCmd())
 	gApp.RootCmd.AddCommand(newListenCmd())
