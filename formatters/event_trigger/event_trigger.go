@@ -79,37 +79,28 @@ func (p *Trigger) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		if e == nil {
 			continue
 		}
-		params := make(map[string]interface{})
-		b, err := json.Marshal(e)
-		if err != nil {
-			p.logger.Printf("failed marshaling event message: %v", err)
-			continue
-		}
-		err = json.Unmarshal(b, &params)
-		if err != nil {
-			p.logger.Printf("failed unmarshaling event message: %v", err)
-			continue
-		}
-		res, err := expr.Run(p.prg, params)
+		res, err := expr.Run(p.prg, e)
 		if err != nil {
 			p.logger.Printf("failed evaluating: %v", err)
 			continue
 		}
+		p.logger.Printf("expression result: (%T)%+v", res, res)
 		switch res := res.(type) {
 		case bool:
 			if res {
 				p.numOccurrences++
 				// within the window
-				if p.lastOccurrence.Add(p.Window).After(now) {
+				if p.lastOccurrence.Add(p.Window).After(now) || p.Window == 0 {
 					// max occurrences reached
 					if p.MaxOccurrences <= p.numOccurrences {
 						// reset numOccurrences
 						p.numOccurrences = 0
 						// run the action
+						p.logger.Printf("running action: %+v", p.action)
 						go func() {
 							res, err := p.action.Run(e)
 							if err != nil {
-								p.logger.Printf("trigger action failed: %+v", err)
+								p.logger.Printf("trigger action %+v failed: %+v", p.action, err)
 								return
 							}
 							p.logger.Printf("result: %+v", res)
@@ -171,5 +162,9 @@ func (p *Trigger) setDefaults() error {
 	if p.MaxOccurrences <= 0 {
 		p.MaxOccurrences = 1
 	}
+	if p.Window <= 0 && p.MaxOccurrences > 1 {
+		p.Window = time.Minute
+	}
+	p.lastOccurrence = time.Now()
 	return nil
 }
