@@ -284,6 +284,12 @@ func (c *Config) CreateGetRequest() (*gnmi.GetRequest, error) {
 		}
 		req.Prefix = gnmiPrefix
 	}
+	if c.LocalFlags.GetTarget != "" {
+		if req.Prefix == nil {
+			req.Prefix = &gnmi.Path{}
+		}
+		req.Prefix.Target = c.LocalFlags.GetTarget
+	}
 	if c.LocalFlags.GetType != "" {
 		dti, ok := gnmi.GetRequest_DataType_value[strings.ToUpper(c.LocalFlags.GetType)]
 		if !ok {
