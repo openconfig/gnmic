@@ -216,3 +216,6 @@ The `[--proto-dir]` flag is used to specify a list of directories where `gnmic` 
 
 ### targets-file
 The `[--targets-file]` flag is used to configure a [file target loader](user_guide/target_loaders.md#File-target-loader)
+
+### gzip
+The `[--gzip]` flag is used to enable gRPC gzip compression.

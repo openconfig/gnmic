@@ -19,6 +19,7 @@ import (
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -72,6 +73,7 @@ type TargetConfig struct {
 	ProtoFiles    []string      `mapstructure:"proto-files,omitempty" json:"proto-files,omitempty"`
 	ProtoDirs     []string      `mapstructure:"proto-dirs,omitempty" json:"proto-dirs,omitempty"`
 	Tags          []string      `mapstructure:"tags,omitempty" json:"tags,omitempty"`
+	Gzip          *bool         `mapstructure:"gzip,omitempty" json:"gzip,omitempty"`
 }
 
 func (tc *TargetConfig) String() string {
@@ -126,6 +128,9 @@ func (t *Target) CreateGNMIClient(ctx context.Context, opts ...grpc.DialOption) 
 			return err
 		}
 		tOpts = append(tOpts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+	}
+	if *t.Config.Gzip {
+		tOpts = append(tOpts, grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)))
 	}
 	timeoutCtx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 	defer cancel()
