@@ -58,8 +58,8 @@ processors:
         type: http
         # HTTP method
         method: POST
-        # target url
-        url: http://remote-server:p8080/
+        # target url, can be a go template
+        url: http://remote-server:8080/
         # http headers to add to the request, this is a dictionary
         headers: 
           content-type: application/text
@@ -68,12 +68,12 @@ processors:
         timeout: 5s
         # go template used to build the request body.
         # if left empty the whole event message is added as a json object to the request's body
-        body: '"counter1" crossed threshold {{ .Values["counter1"] }}'
+        body: '"counter1" crossed threshold, value={{ index .Values "counter1" }}'
         # enable extra logging
         debug: false
 ```
 
-The below example triggers an HTTP GET to `http://remote-server:p8080/` if the value of counter "counter1" crosses 90 twice within 2 minutes.
+The below example triggers an HTTP GET to `http://remote-server:p8080/${router_name}` if the value of counter "counter1" crosses 90 twice within 2 minutes.
 
 ```yaml
 processors:
@@ -85,7 +85,7 @@ processors:
       action:
         type: http
         method: POST
-        url: http://remote-server:8080/
+        url: http://remote-server:8080/{{ index .Tags "source" }}
         headers: 
           content-type: application/text
         timeout: 5s

@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
 	"strings"
 	"text/template"
@@ -42,7 +41,8 @@ type httpAction struct {
 	Body    string            `mapstructure:"body,omitempty"`
 	Debug   bool              `mapstructure:"debug,omitempty"`
 
-	tpl    *template.Template
+	url    *template.Template
+	body   *template.Template
 	logger *log.Logger
 }
 
@@ -60,19 +60,21 @@ func (h *httpAction) Init(cfg map[string]interface{}, opts ...actions.Option) er
 		return err
 	}
 
-	h.tpl, err = template.New("template").Funcs(funcMap).Parse(h.Body)
+	h.body, err = template.New("body").Funcs(funcMap).Parse(h.Body)
 	if err != nil {
 		return err
 	}
-
+	h.url, err = template.New("url").Funcs(funcMap).Parse(h.URL)
 	return err
 }
 
 func (h *httpAction) Run(e *formatters.EventMsg) (interface{}, error) {
-	if h.tpl == nil {
-		return nil, errors.New("missing template")
+	if h.url == nil {
+		return nil, errors.New("missing url template")
 	}
-
+	if h.body == nil {
+		return nil, errors.New("missing body template")
+	}
 	b := new(bytes.Buffer)
 	err := json.NewEncoder(b).Encode(e)
 	if err != nil {
@@ -80,12 +82,19 @@ func (h *httpAction) Run(e *formatters.EventMsg) (interface{}, error) {
 	}
 
 	b.Reset()
-	err = h.tpl.Execute(b, e)
+	err = h.body.Execute(b, e)
 	if err != nil {
 		return nil, err
 	}
-	h.logger.Printf("template result: %s", b.String())
-	req, err := http.NewRequest(h.Method, h.URL, b)
+	url := new(bytes.Buffer)
+	err = h.url.Execute(url, e)
+	if err != nil {
+		return nil, err
+	}
+	h.logger.Printf("url: %s", url.String())
+	h.logger.Printf("body: %s", b.String())
+
+	req, err := http.NewRequest(h.Method, url.String(), b)
 	if err != nil {
 		return nil, err
 	}
@@ -111,12 +120,12 @@ func (h *httpAction) Run(e *formatters.EventMsg) (interface{}, error) {
 }
 
 func (h *httpAction) setDefaults() error {
-	if !strings.HasPrefix(h.URL, "http") {
-		h.URL = "http://" + h.URL
-	}
-	if _, err := url.Parse(h.URL); err != nil {
-		return err
-	}
+	// if !strings.HasPrefix(h.URL, "http") {
+	// 	h.URL = "http://" + h.URL
+	// }
+	// if _, err := url.Parse(h.URL); err != nil {
+	// 	return err
+	// }
 	if h.Method == "" {
 		h.Method = defaultMethod
 	}
