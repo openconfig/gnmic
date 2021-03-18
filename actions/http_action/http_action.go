@@ -19,11 +19,11 @@ import (
 )
 
 const (
-	defaultMethod   = "GET"
-	defaultTimeout  = 5 * time.Second
-	loggingPrefix   = "[http_action] "
-	actionType      = "http"
-	defaultTemplate = "{{ json . }}"
+	defaultMethod       = "GET"
+	defaultTimeout      = 5 * time.Second
+	loggingPrefix       = "[http_action] "
+	actionType          = "http"
+	defaultBodyTemplate = "{{ json . }}"
 )
 
 func init() {
@@ -35,12 +35,12 @@ func init() {
 }
 
 type httpAction struct {
-	Method   string            `mapstructure:"method,omitempty"`
-	URL      string            `mapstructure:"url,omitempty"`
-	Headers  map[string]string `mapstructure:"headers,omitempty"`
-	Timeout  time.Duration     `mapstructure:"timeout,omitempty"`
-	Template string            `mapstructure:"template,omitempty"`
-	Debug    bool              `mapstructure:"debug,omitempty"`
+	Method  string            `mapstructure:"method,omitempty"`
+	URL     string            `mapstructure:"url,omitempty"`
+	Headers map[string]string `mapstructure:"headers,omitempty"`
+	Timeout time.Duration     `mapstructure:"timeout,omitempty"`
+	Body    string            `mapstructure:"body,omitempty"`
+	Debug   bool              `mapstructure:"debug,omitempty"`
 
 	tpl    *template.Template
 	logger *log.Logger
@@ -60,7 +60,7 @@ func (h *httpAction) Init(cfg map[string]interface{}, opts ...actions.Option) er
 		return err
 	}
 
-	h.tpl, err = template.New("template").Funcs(funcMap).Parse(h.Template)
+	h.tpl, err = template.New("template").Funcs(funcMap).Parse(h.Body)
 	if err != nil {
 		return err
 	}
@@ -144,8 +144,8 @@ func (h *httpAction) setDefaults() error {
 	if h.Timeout <= 0 {
 		h.Timeout = defaultTimeout
 	}
-	if h.Template == "" {
-		h.Template = defaultTemplate
+	if h.Body == "" {
+		h.Body = defaultBodyTemplate
 	}
 	return nil
 }
