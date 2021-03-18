@@ -2,7 +2,9 @@ The `event-trigger` processor, triggers an action if the configured condition ev
 
 The condition is evaluated using the [expr](https://github.com/antonmedv/expr) package with the event message as input.
 
-Examples:
+Check the [expr language definition](https://github.com/antonmedv/expr/blob/master/docs/Language-Definition.md).
+
+Examples of conditions:
 
 - The below expression checks if the value named `counter1` exists and has a value higher than 90
 ```bash
@@ -10,7 +12,7 @@ Examples:
 "counter1" in Values ? (Values["counter1"] > 90) : false
 ```
 
-- This expression checks if the event name is `sub1` and that the tag `source` exists and is equal to `r1:57400`
+- This expression checks if the event name is `sub1`, that the tag `source` exists and is equal to `r1:57400`
 ```bash
 Name == "sub1" and (("source" in Tags ? (Tags["source"] == "r1:57400")): false)
 ```
