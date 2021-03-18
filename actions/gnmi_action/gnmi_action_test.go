@@ -44,7 +44,7 @@ var getRequestTestSet = map[string]struct {
 							},
 						},
 					},
-					Encoding: gnmi.Encoding_JSON_IETF,
+					Encoding: gnmi.Encoding_JSON,
 				},
 			},
 		},
@@ -71,7 +71,7 @@ var getRequestTestSet = map[string]struct {
 							},
 						},
 					},
-					Encoding: gnmi.Encoding_JSON_IETF,
+					Encoding: gnmi.Encoding_JSON,
 				},
 			},
 		},
@@ -106,7 +106,7 @@ var getRequestTestSet = map[string]struct {
 							},
 						},
 					},
-					Encoding: gnmi.Encoding_JSON_IETF,
+					Encoding: gnmi.Encoding_JSON,
 				},
 			},
 		},
@@ -141,8 +141,8 @@ var setRequestTestSet = map[string]struct {
 								},
 							},
 							Val: &gnmi.TypedValue{
-								Value: &gnmi.TypedValue_JsonIetfVal{
-									JsonIetfVal: []byte("\"value1\""),
+								Value: &gnmi.TypedValue_JsonVal{
+									JsonVal: []byte("\"value1\""),
 								},
 							},
 						},
@@ -176,8 +176,8 @@ var setRequestTestSet = map[string]struct {
 								},
 							},
 							Val: &gnmi.TypedValue{
-								Value: &gnmi.TypedValue_JsonIetfVal{
-									JsonIetfVal: []byte("\"value1\""),
+								Value: &gnmi.TypedValue_JsonVal{
+									JsonVal: []byte("\"value1\""),
 								},
 							},
 						},
@@ -215,8 +215,8 @@ var setRequestTestSet = map[string]struct {
 								},
 							},
 							Val: &gnmi.TypedValue{
-								Value: &gnmi.TypedValue_JsonIetfVal{
-									JsonIetfVal: []byte("\"value2\""),
+								Value: &gnmi.TypedValue_JsonVal{
+									JsonVal: []byte("\"value2\""),
 								},
 							},
 						},
@@ -261,8 +261,8 @@ var setRequestTestSet = map[string]struct {
 								},
 							},
 							Val: &gnmi.TypedValue{
-								Value: &gnmi.TypedValue_JsonIetfVal{
-									JsonIetfVal: []byte("\"value11\""),
+								Value: &gnmi.TypedValue_JsonVal{
+									JsonVal: []byte("\"value11\""),
 								},
 							},
 						},
@@ -275,8 +275,8 @@ var setRequestTestSet = map[string]struct {
 								},
 							},
 							Val: &gnmi.TypedValue{
-								Value: &gnmi.TypedValue_JsonIetfVal{
-									JsonIetfVal: []byte("\"value22\""),
+								Value: &gnmi.TypedValue_JsonVal{
+									JsonVal: []byte("\"value22\""),
 								},
 							},
 						},
@@ -314,8 +314,8 @@ var setRequestTestSet = map[string]struct {
 								},
 							},
 							Val: &gnmi.TypedValue{
-								Value: &gnmi.TypedValue_JsonIetfVal{
-									JsonIetfVal: []byte("\"value2\""),
+								Value: &gnmi.TypedValue_JsonVal{
+									JsonVal: []byte("\"value2\""),
 								},
 							},
 						},
@@ -360,8 +360,8 @@ var setRequestTestSet = map[string]struct {
 								},
 							},
 							Val: &gnmi.TypedValue{
-								Value: &gnmi.TypedValue_JsonIetfVal{
-									JsonIetfVal: []byte("\"value11\""),
+								Value: &gnmi.TypedValue_JsonVal{
+									JsonVal: []byte("\"value11\""),
 								},
 							},
 						},
@@ -374,8 +374,8 @@ var setRequestTestSet = map[string]struct {
 								},
 							},
 							Val: &gnmi.TypedValue{
-								Value: &gnmi.TypedValue_JsonIetfVal{
-									JsonIetfVal: []byte("\"value22\""),
+								Value: &gnmi.TypedValue_JsonVal{
+									JsonVal: []byte("\"value22\""),
 								},
 							},
 						},

@@ -21,11 +21,13 @@ import (
 )
 
 const (
-	defaultRPC           = "get"
-	defaultTimeout       = 5 * time.Second
-	loggingPrefix        = "[gnmi_action] "
-	actionType           = "gnmi"
-	defaultExpressionAll = "event"
+	defaultRPC      = "get"
+	defaultTimeout  = 5 * time.Second
+	loggingPrefix   = "[gnmi_action] "
+	actionType      = "gnmi"
+	defaultDataType = "ALL"
+	defaultTarget   = `{{ index .Tags "source" }}`
+	defaultEncoding = "JSON"
 )
 
 func init() {
@@ -42,7 +44,7 @@ type gnmiAction struct {
 	RPC    string   `mapstructure:"rpc,omitempty"`
 	Prefix string   `mapstructure:"prefix,omitempty"`
 	Paths  []string `mapstructure:"paths,omitempty"`
-	Type   string   `mapstructure:"data_type,omitempty"`
+	Type   string   `mapstructure:"data-type,omitempty"`
 
 	Values []string `mapstructure:"values,omitempty"`
 	//ValuesFromFiles []string `mapstructure:"values-from-files,omitempty"`
@@ -113,16 +115,19 @@ func (g *gnmiAction) Run(e *formatters.EventMsg) (interface{}, error) {
 
 func (g *gnmiAction) setDefaults() {
 	if g.Type == "" {
-		g.Type = "ALL"
+		g.Type = defaultDataType
 	}
 	if g.Encoding == "" {
-		g.Encoding = "JSON_IETF"
+		g.Encoding = defaultEncoding
 	}
 	if g.RPC == "" {
 		g.RPC = "get"
 	}
 	if g.RPC == "set" {
 		g.RPC = "set-update"
+	}
+	if g.Target == "" {
+		g.Target = defaultTarget
 	}
 }
 

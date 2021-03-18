@@ -3,6 +3,7 @@ package http_action
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -13,18 +14,16 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/antonmedv/expr"
-	"github.com/antonmedv/expr/vm"
 	"github.com/karimra/gnmic/actions"
 	"github.com/karimra/gnmic/formatters"
 )
 
 const (
-	defaultMethod        = "GET"
-	defaultTimeout       = 5 * time.Second
-	loggingPrefix        = "[http_action] "
-	actionType           = "http"
-	defaultExpressionAll = "event"
+	defaultMethod   = "GET"
+	defaultTimeout  = 5 * time.Second
+	loggingPrefix   = "[http_action] "
+	actionType      = "http"
+	defaultTemplate = "{{ json . }}"
 )
 
 func init() {
@@ -36,16 +35,14 @@ func init() {
 }
 
 type httpAction struct {
-	Method     string            `mapstructure:"method,omitempty"`
-	URL        string            `mapstructure:"url,omitempty"`
-	Headers    map[string]string `mapstructure:"headers,omitempty"`
-	Timeout    time.Duration     `mapstructure:"timeout,omitempty"`
-	Template   string            `mapstructure:"template,omitempty"`
-	Expression string            `mapstructure:"expression,omitempty"`
-	Debug      bool              `mapstructure:"debug,omitempty"`
+	Method   string            `mapstructure:"method,omitempty"`
+	URL      string            `mapstructure:"url,omitempty"`
+	Headers  map[string]string `mapstructure:"headers,omitempty"`
+	Timeout  time.Duration     `mapstructure:"timeout,omitempty"`
+	Template string            `mapstructure:"template,omitempty"`
+	Debug    bool              `mapstructure:"debug,omitempty"`
 
 	tpl    *template.Template
-	prg    *vm.Program
 	logger *log.Logger
 }
 
@@ -58,41 +55,36 @@ func (h *httpAction) Init(cfg map[string]interface{}, opts ...actions.Option) er
 	for _, opt := range opts {
 		opt(h)
 	}
-
-	if h.Template != "" {
-		h.tpl, err = template.ParseFiles(h.Template)
-		if err != nil {
-			return err
-		}
-	}
 	err = h.setDefaults()
 	if err != nil {
 		return err
 	}
-	h.prg, err = expr.Compile(h.Expression)
+
+	h.tpl, err = template.New("template").Funcs(funcMap).Parse(h.Template)
+	if err != nil {
+		return err
+	}
+
 	return err
 }
 
 func (h *httpAction) Run(e *formatters.EventMsg) (interface{}, error) {
-	b := new(bytes.Buffer)
-	if h.tpl != nil {
-		err := h.tpl.Execute(b, map[string]*formatters.EventMsg{"event": e})
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		result, err := expr.Run(h.prg, map[string]*formatters.EventMsg{"event": e})
-		if err != nil {
-			return nil, err
-		}
-		fmt.Printf("result: %+v\n", result)
-		b.Reset()
-		err = json.NewEncoder(b).Encode(result)
-		if err != nil {
-			return nil, err
-		}
+	if h.tpl == nil {
+		return nil, errors.New("missing template")
 	}
 
+	b := new(bytes.Buffer)
+	err := json.NewEncoder(b).Encode(e)
+	if err != nil {
+		return nil, err
+	}
+
+	b.Reset()
+	err = h.tpl.Execute(b, e)
+	if err != nil {
+		return nil, err
+	}
+	h.logger.Printf("template result: %s", b.String())
 	req, err := http.NewRequest(h.Method, h.URL, b)
 	if err != nil {
 		return nil, err
@@ -152,8 +144,8 @@ func (h *httpAction) setDefaults() error {
 	if h.Timeout <= 0 {
 		h.Timeout = defaultTimeout
 	}
-	if h.Expression == "" {
-		h.Expression = defaultExpressionAll
+	if h.Template == "" {
+		h.Template = defaultTemplate
 	}
 	return nil
 }
@@ -166,4 +158,158 @@ func (h *httpAction) WithLogger(logger *log.Logger) {
 	} else if h.Debug {
 		h.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
 	}
+}
+
+var funcMap = template.FuncMap{
+	"json": func(v interface{}) string {
+		a, _ := json.Marshal(v)
+		return string(a)
+	},
+	"name": func(v interface{}) string {
+		var result interface{}
+		switch v := v.(type) {
+		case *formatters.EventMsg:
+			result = v.Name
+		default:
+			return ""
+		}
+		a, _ := json.Marshal(result)
+		return string(a)
+	},
+	"withTags": func(v interface{}, keys ...string) string {
+		switch v := v.(type) {
+		case *formatters.EventMsg:
+			tags := v.Tags
+			v.Tags = make(map[string]string)
+			for _, k := range keys {
+				if vv, ok := tags[k]; ok {
+					v.Tags[k] = vv
+				}
+			}
+			a, _ := json.Marshal(v)
+			return string(a)
+		case string:
+			msg := make(map[string]interface{})
+			json.Unmarshal([]byte(v), &msg)
+			tags := msg["tags"]
+			if tags == nil {
+				a, _ := json.Marshal(msg)
+				return string(a)
+			}
+			tagsMap, ok := tags.(map[string]interface{})
+			if !ok {
+				a, _ := json.Marshal(msg)
+				return string(a)
+			}
+			newTags := make(map[string]interface{})
+			for _, k := range keys {
+				if vv, ok := tagsMap[k]; ok {
+					newTags[k] = vv
+				}
+			}
+			delete(msg, "tags")
+			if len(newTags) > 0 {
+				msg["tags"] = newTags
+			}
+			a, _ := json.Marshal(msg)
+			return string(a)
+		}
+		return ""
+	},
+	"withValues": func(v interface{}, keys ...string) string {
+		switch v := v.(type) {
+		case *formatters.EventMsg:
+			values := v.Values
+			v.Values = make(map[string]interface{})
+			for _, k := range keys {
+				if vv, ok := values[k]; ok {
+					v.Values[k] = vv
+				}
+			}
+			a, _ := json.Marshal(v)
+			return string(a)
+		case string:
+			msg := make(map[string]interface{})
+			json.Unmarshal([]byte(v), &msg)
+			values := msg["values"]
+			if values == nil {
+				a, _ := json.Marshal(msg)
+				return string(a)
+			}
+			valuesMap, ok := values.(map[string]interface{})
+			if !ok {
+				a, _ := json.Marshal(msg)
+				return string(a)
+			}
+			newValues := make(map[string]interface{})
+			for _, k := range keys {
+				if vv, ok := valuesMap[k]; ok {
+					newValues[k] = vv
+				}
+			}
+			delete(msg, "values")
+			if len(newValues) > 0 {
+				msg["values"] = newValues
+			}
+			a, _ := json.Marshal(msg)
+			return string(a)
+		}
+
+		return ""
+	},
+	"withoutTags": func(v interface{}, keys ...string) string {
+		switch v := v.(type) {
+		case *formatters.EventMsg:
+			for _, k := range keys {
+				delete(v.Tags, k)
+			}
+			a, _ := json.Marshal(v)
+			return string(a)
+		case string:
+			msg := make(map[string]interface{})
+			json.Unmarshal([]byte(v), &msg)
+			tags := msg["tags"]
+			if tags == nil {
+				a, _ := json.Marshal(msg)
+				return string(a)
+			}
+			switch tags := msg["tags"].(type) {
+			case map[string]interface{}:
+				for _, k := range keys {
+					delete(tags, k)
+				}
+				msg["tags"] = tags
+			}
+			a, _ := json.Marshal(msg)
+			return string(a)
+		}
+		return ""
+	},
+	"withoutValues": func(v interface{}, keys ...string) string {
+		switch v := v.(type) {
+		case *formatters.EventMsg:
+			for _, k := range keys {
+				delete(v.Values, k)
+			}
+			a, _ := json.Marshal(v)
+			return string(a)
+		case string:
+			msg := make(map[string]interface{})
+			json.Unmarshal([]byte(v), &msg)
+			if msg["values"] == nil {
+				a, _ := json.Marshal(msg)
+				return string(a)
+			}
+			switch values := msg["values"].(type) {
+			case map[string]interface{}:
+				for _, k := range keys {
+					delete(values, k)
+				}
+				msg["values"] = values
+			}
+			a, _ := json.Marshal(msg)
+			return string(a)
+		}
+		return ""
+	},
 }

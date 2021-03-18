@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -50,13 +52,13 @@ var testset = map[string]struct {
 			},
 		},
 	},
-	"with_simple_exp": {
+	"with_simple_template": {
 		actionType: actionType,
 		action: map[string]interface{}{
-			"type":       "http",
-			"url":        "http://localhost:8080",
-			"expression": `event.Name`,
-			"debug":      true,
+			"type":     "http",
+			"url":      "http://localhost:8080",
+			"template": `{{ name . }}`,
+			"debug":    true,
 		},
 		tests: []item{
 			{
@@ -76,13 +78,13 @@ var testset = map[string]struct {
 			},
 		},
 	},
-	"select_tags": {
+	"remove_all_tags": {
 		actionType: actionType,
 		action: map[string]interface{}{
-			"type":       "http",
-			"url":        "http://localhost:8080",
-			"expression": "event.Tags",
-			"debug":      true,
+			"type":     "http",
+			"url":      "http://localhost:8080",
+			"template": `{{ withTags . }}`,
+			"debug":    true,
 		},
 		tests: []item{
 			{
@@ -93,7 +95,7 @@ var testset = map[string]struct {
 					},
 				},
 				output: map[string]interface{}{
-					"tag1": "1",
+					"name": "sub1",
 				},
 			},
 			{
@@ -105,19 +107,212 @@ var testset = map[string]struct {
 					},
 				},
 				output: map[string]interface{}{
-					"tag1": "1",
-					"tag2": "2",
+					"name": "sub1",
 				},
 			},
 		},
 	},
-	"select_values": {
+	"remove_some_tags": {
 		actionType: actionType,
 		action: map[string]interface{}{
-			"type":       "http",
-			"url":        "http://localhost:8080",
-			"expression": `event.Values`,
-			"debug":      true,
+			"type":     "http",
+			"url":      "http://localhost:8080",
+			"template": `{{ withoutTags . "tag1" }}`,
+			"debug":    true,
+		},
+		tests: []item{
+			{
+				input: &formatters.EventMsg{
+					Name: "sub1",
+					Tags: map[string]string{
+						"tag1": "1",
+					},
+				},
+				output: map[string]interface{}{
+					"name": "sub1",
+				},
+			},
+			{
+				input: &formatters.EventMsg{
+					Name: "sub1",
+					Tags: map[string]string{
+						"tag1": "1",
+						"tag2": "2",
+					},
+				},
+				output: map[string]interface{}{
+					"name": "sub1",
+					"tags": map[string]interface{}{
+						"tag2": "2",
+					},
+				},
+			},
+			{
+				input: &formatters.EventMsg{
+					Name: "sub1",
+					Tags: map[string]string{
+						"tag2": "2",
+					},
+				},
+				output: map[string]interface{}{
+					"name": "sub1",
+					"tags": map[string]interface{}{
+						"tag2": "2",
+					},
+				},
+			},
+		},
+	},
+	"select_some_tags": {
+		actionType: actionType,
+		action: map[string]interface{}{
+			"type":     "http",
+			"url":      "http://localhost:8080",
+			"template": `{{ withTags . "tag1" }}`,
+			"debug":    true,
+		},
+		tests: []item{
+			{
+				input: &formatters.EventMsg{
+					Name: "sub1",
+					Tags: map[string]string{
+						"tag1": "1",
+						"tag2": "2",
+						"tag3": "3",
+					},
+				},
+				output: map[string]interface{}{
+					"name": "sub1",
+					"tags": map[string]interface{}{
+						"tag1": "1",
+					},
+				},
+			},
+			{
+				input: &formatters.EventMsg{
+					Name: "sub1",
+					Tags: map[string]string{
+						"tag2": "2",
+					},
+				},
+				output: map[string]interface{}{
+					"name": "sub1",
+				},
+			},
+		},
+	},
+	"remove_all_values": {
+		actionType: actionType,
+		action: map[string]interface{}{
+			"type":     "http",
+			"url":      "http://localhost:8080",
+			"template": `{{ withValues . }}`,
+			"debug":    true,
+		},
+		tests: []item{
+			{
+				input: &formatters.EventMsg{
+					Name: "sub1",
+					Tags: map[string]string{
+						"tag1": "1",
+					},
+				},
+				output: map[string]interface{}{
+					"name": "sub1",
+					"tags": map[string]interface{}{
+						"tag1": "1",
+					},
+				},
+			},
+			{
+				input: &formatters.EventMsg{
+					Name: "sub1",
+					Tags: map[string]string{
+						"tag1": "1",
+					},
+					Values: map[string]interface{}{
+						"val1": "1",
+					},
+				},
+				output: map[string]interface{}{
+					"name": "sub1",
+					"tags": map[string]interface{}{
+						"tag1": "1",
+					},
+				},
+			},
+		},
+	},
+	"remove_some_values": {
+		actionType: actionType,
+		action: map[string]interface{}{
+			"type":     "http",
+			"url":      "http://localhost:8080",
+			"template": `{{ withoutValues . "val1"}}`,
+			"debug":    true,
+		},
+		tests: []item{
+			{
+				input: &formatters.EventMsg{
+					Name: "sub1",
+					Tags: map[string]string{
+						"tag1": "1",
+					},
+				},
+				output: map[string]interface{}{
+					"name": "sub1",
+					"tags": map[string]interface{}{
+						"tag1": "1",
+					},
+				},
+			},
+			{
+				input: &formatters.EventMsg{
+					Name: "sub1",
+					Tags: map[string]string{
+						"tag1": "1",
+					},
+					Values: map[string]interface{}{
+						"val1": "1",
+					},
+				},
+				output: map[string]interface{}{
+					"name": "sub1",
+					"tags": map[string]interface{}{
+						"tag1": "1",
+					},
+				},
+			},
+			{
+				input: &formatters.EventMsg{
+					Name: "sub1",
+					Tags: map[string]string{
+						"tag1": "1",
+					},
+					Values: map[string]interface{}{
+						"val1": "1",
+						"val2": "2",
+					},
+				},
+				output: map[string]interface{}{
+					"name": "sub1",
+					"tags": map[string]interface{}{
+						"tag1": "1",
+					},
+					"values": map[string]interface{}{
+						"val2": "2",
+					},
+				},
+			},
+		},
+	},
+	"select_some_values": {
+		actionType: actionType,
+		action: map[string]interface{}{
+			"type":     "http",
+			"url":      "http://localhost:8080",
+			"template": `{{ withValues . "val1" }}`,
+			"debug":    true,
 		},
 		tests: []item{
 			{
@@ -131,7 +326,76 @@ var testset = map[string]struct {
 					},
 				},
 				output: map[string]interface{}{
-					"val1": "1",
+					"name": "sub1",
+					"tags": map[string]interface{}{
+						"tag1": "1",
+					},
+					"values": map[string]interface{}{
+						"val1": "1",
+					},
+				},
+			},
+			{
+				input: &formatters.EventMsg{
+					Name: "sub1",
+					Tags: map[string]string{
+						"tag1": "1",
+					},
+				},
+				output: map[string]interface{}{
+					"name": "sub1",
+					"tags": map[string]interface{}{
+						"tag1": "1",
+					},
+				},
+			},
+			{
+				input: &formatters.EventMsg{
+					Name: "sub1",
+					Tags: map[string]string{
+						"tag1": "1",
+					},
+					Values: map[string]interface{}{
+						"val2": "2",
+					},
+				},
+				output: map[string]interface{}{
+					"name": "sub1",
+					"tags": map[string]interface{}{
+						"tag1": "1",
+					},
+				},
+			},
+		},
+	},
+	"select_tags_and_values": {
+		actionType: actionType,
+		action: map[string]interface{}{
+			"type":     "http",
+			"url":      "http://localhost:8080",
+			"template": `{{ withTags (withValues . "val1") "tag1" }}`,
+			"debug":    true,
+		},
+		tests: []item{
+			{
+				input: &formatters.EventMsg{
+					Name: "sub1",
+					Tags: map[string]string{
+						"tag1": "1",
+						"tag2": "2",
+					},
+					Values: map[string]interface{}{
+						"val1": "1",
+					},
+				},
+				output: map[string]interface{}{
+					"name": "sub1",
+					"tags": map[string]interface{}{
+						"tag1": "1",
+					},
+					"values": map[string]interface{}{
+						"val1": "1",
+					},
 				},
 			},
 			{
@@ -141,7 +405,27 @@ var testset = map[string]struct {
 						"tag2": "2",
 					},
 				},
-				output: nil,
+				output: map[string]interface{}{
+					"name": "sub1",
+				},
+			},
+			{
+				input: &formatters.EventMsg{
+					Name: "sub1",
+					Tags: map[string]string{
+						"tag2": "2",
+					},
+					Values: map[string]interface{}{
+						"val1": "1",
+						"val2": "2",
+					},
+				},
+				output: map[string]interface{}{
+					"name": "sub1",
+					"values": map[string]interface{}{
+						"val1": "1",
+					},
+				},
 			},
 		},
 	},
@@ -152,7 +436,7 @@ func TestHTTPAction(t *testing.T) {
 		if ai, ok := actions.Actions[ts.actionType]; ok {
 			t.Log("found action")
 			a := ai()
-			err := a.Init(ts.action)
+			err := a.Init(ts.action, actions.WithLogger(log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)))
 			if err != nil {
 				t.Errorf("failed to initialize action: %v", err)
 				return
@@ -201,6 +485,8 @@ func TestHTTPAction(t *testing.T) {
 					err = json.Unmarshal(res.([]byte), &result)
 					if err != nil {
 						t.Errorf("failed at %s item %d, %v", name, i, err)
+						t.Fail()
+						return
 					}
 					if !reflect.DeepEqual(result, item.output) {
 						t.Errorf("failed at %s item %d, expected %+v(%T), got: %+v(%T)", name, i, item.output, item.output, result, result)
@@ -225,7 +511,6 @@ func echo() http.Handler {
 			fmt.Fprintf(w, "%v", err)
 			return
 		}
-		//log.Println(string(b))
 		fmt.Fprint(w, string(b))
 	})
 }
