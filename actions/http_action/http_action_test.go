@@ -57,7 +57,7 @@ var testset = map[string]struct {
 		action: map[string]interface{}{
 			"type":     "http",
 			"url":      "http://localhost:8080",
-			"template": `{{ name . }}`,
+			"body": `{{ name . }}`,
 			"debug":    true,
 		},
 		tests: []item{
@@ -83,7 +83,7 @@ var testset = map[string]struct {
 		action: map[string]interface{}{
 			"type":     "http",
 			"url":      "http://localhost:8080",
-			"template": `{{ withTags . }}`,
+			"body": `{{ withTags . }}`,
 			"debug":    true,
 		},
 		tests: []item{
@@ -117,7 +117,7 @@ var testset = map[string]struct {
 		action: map[string]interface{}{
 			"type":     "http",
 			"url":      "http://localhost:8080",
-			"template": `{{ withoutTags . "tag1" }}`,
+			"body": `{{ withoutTags . "tag1" }}`,
 			"debug":    true,
 		},
 		tests: []item{
@@ -168,7 +168,7 @@ var testset = map[string]struct {
 		action: map[string]interface{}{
 			"type":     "http",
 			"url":      "http://localhost:8080",
-			"template": `{{ withTags . "tag1" }}`,
+			"body": `{{ withTags . "tag1" }}`,
 			"debug":    true,
 		},
 		tests: []item{
@@ -206,7 +206,7 @@ var testset = map[string]struct {
 		action: map[string]interface{}{
 			"type":     "http",
 			"url":      "http://localhost:8080",
-			"template": `{{ withValues . }}`,
+			"body": `{{ withValues . }}`,
 			"debug":    true,
 		},
 		tests: []item{
@@ -248,7 +248,7 @@ var testset = map[string]struct {
 		action: map[string]interface{}{
 			"type":     "http",
 			"url":      "http://localhost:8080",
-			"template": `{{ withoutValues . "val1"}}`,
+			"body": `{{ withoutValues . "val1"}}`,
 			"debug":    true,
 		},
 		tests: []item{
@@ -311,7 +311,7 @@ var testset = map[string]struct {
 		action: map[string]interface{}{
 			"type":     "http",
 			"url":      "http://localhost:8080",
-			"template": `{{ withValues . "val1" }}`,
+			"body": `{{ withValues . "val1" }}`,
 			"debug":    true,
 		},
 		tests: []item{
@@ -373,7 +373,7 @@ var testset = map[string]struct {
 		action: map[string]interface{}{
 			"type":     "http",
 			"url":      "http://localhost:8080",
-			"template": `{{ withTags (withValues . "val1") "tag1" }}`,
+			"body": `{{ withTags (withValues . "val1") "tag1" }}`,
 			"debug":    true,
 		},
 		tests: []item{
