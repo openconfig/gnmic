@@ -22,8 +22,8 @@ var testset = map[string]struct {
 	"init": {
 		processorType: processorType,
 		processor: map[string]interface{}{
-			"expression": `false`,
-			"debug":      true,
+			"condition": `false`,
+			"debug":     true,
 			"action": map[string]interface{}{
 				"type": "http",
 			},
@@ -55,11 +55,11 @@ var testset = map[string]struct {
 			},
 		},
 	},
-	"with_expression": {
+	"with_condition": {
 		processorType: processorType,
 		processor: map[string]interface{}{
-			"expression": `"counter1" in Values ? (Values["counter1"] > 90) : false`,
-			"debug":      true,
+			"condition": `"counter1" in Values ? (Values["counter1"] > 90) : false`,
+			"debug":     true,
 			"action": map[string]interface{}{
 				"type": "http",
 				"url":  "http://remote-alerting-system:9090/",

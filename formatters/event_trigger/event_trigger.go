@@ -17,24 +17,25 @@ import (
 )
 
 const (
-	processorType = "event-trigger"
-	loggingPrefix = "[" + processorType + "] "
+	processorType    = "event-trigger"
+	loggingPrefix    = "[" + processorType + "] "
+	defaultCondition = "true"
 )
 
 // Trigger triggers an action when certain conditions are met
 type Trigger struct {
 	formatters.EventProcessor
 
-	Expression     string                 `mapstructure:"expression,omitempty"`
+	Condition      string                 `mapstructure:"condition,omitempty"`
 	MaxOccurrences int                    `mapstructure:"max-occurrences,omitempty"`
 	Window         time.Duration          `mapstructure:"window,omitempty"`
 	Action         map[string]interface{} `mapstructure:"action,omitempty"`
 	Debug          bool                   `mapstructure:"debug,omitempty"`
 
-	numOccurrences int
-	lastOccurrence time.Time
-	prg            *vm.Program
-	action         actions.Action
+	//numOccurrences   int
+	occurrencesTimes []time.Time
+	prg              *vm.Program
+	action           actions.Action
 
 	targets map[string]interface{}
 	logger  *log.Logger
@@ -57,7 +58,7 @@ func (p *Trigger) Init(cfg interface{}, opts ...formatters.Option) error {
 		opt(p)
 	}
 
-	p.prg, err = expr.Compile(p.Expression)
+	p.prg, err = expr.Compile(p.Condition)
 	if err != nil {
 		return err
 	}
@@ -88,27 +89,31 @@ func (p *Trigger) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		switch res := res.(type) {
 		case bool:
 			if res {
-				p.numOccurrences++
-				// within the window
-				if p.lastOccurrence.Add(p.Window).After(now) || p.Window == 0 {
-					// max occurrences reached
-					if p.MaxOccurrences <= p.numOccurrences {
-						// reset numOccurrences
-						p.numOccurrences = 0
-						// run the action
-						p.logger.Printf("running action: %+v", p.action)
-						go func() {
-							res, err := p.action.Run(e)
-							if err != nil {
-								p.logger.Printf("trigger action %+v failed: %+v", p.action, err)
-								return
-							}
-							p.logger.Printf("result: %+v", res)
-						}()
-					}
+				if p.MaxOccurrences == 1 {
+					p.triggerAction(e)
 					continue
 				}
-				p.lastOccurrence = now
+
+				p.occurrencesTimes = append(p.occurrencesTimes, now)
+				// remove times out of the window
+				numTimes := len(p.occurrencesTimes)
+				validTimes := make([]time.Time, 0, numTimes)
+				for _, t := range p.occurrencesTimes {
+					if t.Add(p.Window).Before(now) {
+						validTimes = append(validTimes, t)
+					}
+				}
+				p.occurrencesTimes = validTimes
+				numTimes = len(p.occurrencesTimes)
+				if numTimes < p.MaxOccurrences {
+					// not enough occurrences
+					continue
+				}
+				// enough occurrences
+				// within the window
+				// max occurrences reached
+				// run the action
+				p.triggerAction(e)
 			}
 		}
 	}
@@ -159,12 +164,26 @@ func (p *Trigger) String() string {
 }
 
 func (p *Trigger) setDefaults() error {
+	if p.Condition == "" {
+		p.Condition = defaultCondition
+	}
 	if p.MaxOccurrences <= 0 {
 		p.MaxOccurrences = 1
 	}
 	if p.Window <= 0 && p.MaxOccurrences > 1 {
 		p.Window = time.Minute
 	}
-	p.lastOccurrence = time.Now()
 	return nil
+}
+
+func (p *Trigger) triggerAction(e *formatters.EventMsg) {
+	p.logger.Printf("running action: %+v", p.action)
+	go func() {
+		res, err := p.action.Run(e)
+		if err != nil {
+			p.logger.Printf("trigger action %+v failed: %+v", p.action, err)
+			return
+		}
+		p.logger.Printf("result: %+v", res)
+	}()
 }
