@@ -202,7 +202,11 @@ func (e *EventMsg) ToMap() map[string]interface{} {
 		m["timestamp"] = e.Timestamp
 	}
 	if len(e.Tags) > 0 {
-		m["tags"] = e.Tags
+		in := make(map[string]interface{})
+		for k, v := range e.Tags {
+			in[k] = v
+		}
+		m["tags"] = in
 	}
 	if len(e.Values) > 0 {
 		m["values"] = e.Values
@@ -239,6 +243,7 @@ func EventFromMap(m map[string]interface{}) (*EventMsg, error) {
 		case map[string]string:
 			e.Tags = v
 		case map[string]interface{}:
+			e.Tags = make(map[string]string)
 			for k, v := range v {
 				e.Tags[k], _ = v.(string)
 			}

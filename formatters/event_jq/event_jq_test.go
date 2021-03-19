@@ -52,7 +52,7 @@ var testset = map[string]struct {
 	"simple_select_expression": {
 		processorType: processorType,
 		processor: map[string]interface{}{
-			"expression": `select(.name=="sub1")`,
+			"expression": `.[] | select(.name=="sub1")`,
 			"debug":      true,
 		},
 		tests: []item{
@@ -116,7 +116,7 @@ var testset = map[string]struct {
 	"double_condition_and_select_expression": {
 		processorType: processorType,
 		processor: map[string]interface{}{
-			"expression": `select(.name=="sub1" and .values.counter1 > 90)`,
+			"expression": `.[] | select(.name=="sub1" and .values.counter1 > 90)`,
 			"debug":      true,
 		},
 		tests: []item{
@@ -173,7 +173,7 @@ var testset = map[string]struct {
 	"complex_select_expression": {
 		processorType: processorType,
 		processor: map[string]interface{}{
-			"expression": `select((.name=="sub1" and .values.counter1 > 90) or (.name=="sub2" and .values.counter2 > 80))`,
+			"expression": `.[] | select((.name=="sub1" and .values.counter1 > 90) or (.name=="sub2" and .values.counter2 > 80))`,
 			"debug":      true,
 		},
 		tests: []item{
@@ -242,6 +242,234 @@ var testset = map[string]struct {
 							"counter2": 91,
 						},
 						Tags: map[string]string{"tag1": "1"},
+					},
+				},
+			},
+		},
+	},
+	"delete_a_single_value": {
+		processorType: processorType,
+		processor: map[string]interface{}{
+			"expression": `.[] | del(.values.counter1)`,
+			"debug":      true,
+		},
+		tests: []item{
+			{
+				input:  nil,
+				output: nil,
+			},
+			{
+				input:  make([]*formatters.EventMsg, 0),
+				output: make([]*formatters.EventMsg, 0),
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Name: "sub1",
+						Values: map[string]interface{}{
+							"counter1": 91,
+						},
+						Tags: map[string]string{"tag1": "1"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Name:   "sub1",
+						Values: map[string]interface{}{},
+						Tags:   map[string]string{"tag1": "1"},
+					},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Name:   "sub1",
+						Values: map[string]interface{}{"value": 1},
+						Tags:   map[string]string{"tag1": "1"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Name:   "sub1",
+						Values: map[string]interface{}{"value": 1},
+						Tags:   map[string]string{"tag1": "1"},
+					},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Name: "sub2",
+						Values: map[string]interface{}{
+							"counter2": 91,
+						},
+						Tags: map[string]string{"tag1": "1"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Name: "sub2",
+						Values: map[string]interface{}{
+							"counter2": 91,
+						},
+						Tags: map[string]string{"tag1": "1"},
+					},
+				},
+			},
+		},
+	},
+	"delete_multiple_values": {
+		processorType: processorType,
+		processor: map[string]interface{}{
+			"expression": `.[] | del(.values.["counter1", "counter2"])`,
+			"debug":      true,
+		},
+		tests: []item{
+			{
+				input:  nil,
+				output: nil,
+			},
+			{
+				input:  make([]*formatters.EventMsg, 0),
+				output: make([]*formatters.EventMsg, 0),
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Name: "sub1",
+						Values: map[string]interface{}{
+							"counter1": 91,
+							"counter2": 91,
+						},
+						Tags: map[string]string{"tag1": "1"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Name:   "sub1",
+						Values: map[string]interface{}{},
+						Tags:   map[string]string{"tag1": "1"},
+					},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Name:   "sub1",
+						Values: map[string]interface{}{"value": 1},
+						Tags:   map[string]string{"tag1": "1"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Name:   "sub1",
+						Values: map[string]interface{}{"value": 1},
+						Tags:   map[string]string{"tag1": "1"},
+					},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Name: "sub2",
+						Values: map[string]interface{}{
+							"counter2": 91,
+						},
+						Tags: map[string]string{"tag1": "1"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Name:   "sub2",
+						Values: map[string]interface{}{},
+						Tags:   map[string]string{"tag1": "1"},
+					},
+				},
+			},
+		},
+	},
+	"add_a_tag": {
+		processorType: processorType,
+		processor: map[string]interface{}{
+			"expression": `.[] |= (.tags.new = "TAG1")`,
+			"debug":      true,
+		},
+		tests: []item{
+			{
+				input:  nil,
+				output: nil,
+			},
+			{
+				input:  make([]*formatters.EventMsg, 0),
+				output: make([]*formatters.EventMsg, 0),
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Name: "sub1",
+						Values: map[string]interface{}{
+							"counter1": 91,
+							"counter2": 91,
+						},
+						Tags: map[string]string{"tag1": "1"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Name: "sub1",
+						Values: map[string]interface{}{
+							"counter1": 91,
+							"counter2": 91,
+						},
+						Tags: map[string]string{
+							"tag1": "1",
+							"new":  "TAG1",
+						},
+					},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Name:   "sub1",
+						Values: map[string]interface{}{"value": 1},
+						Tags:   map[string]string{"tag1": "1"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Name:   "sub1",
+						Values: map[string]interface{}{"value": 1},
+						Tags: map[string]string{
+							"tag1": "1",
+							"new":  "TAG1",
+						},
+					},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Name: "sub2",
+						Values: map[string]interface{}{
+							"counter2": 91,
+						},
+						Tags: map[string]string{
+							"tag1": "1",
+							"new":  "TAG1",
+						},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Name: "sub2",
+						Values: map[string]interface{}{
+							"counter2": 91,
+						},
+						Tags: map[string]string{
+							"tag1": "1",
+							"new":  "TAG1",
+						},
 					},
 				},
 			},

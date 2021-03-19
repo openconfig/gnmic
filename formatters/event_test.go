@@ -36,7 +36,7 @@ var eventMsgtestSet = map[string][]item{
 				"values": map[string]interface{}{
 					"value1": int64(1),
 				},
-				"tags": map[string]string{
+				"tags": map[string]interface{}{
 					"tag1": "1",
 				},
 			},
@@ -53,7 +53,7 @@ var eventMsgtestSet = map[string][]item{
 			m: map[string]interface{}{
 				"name":      "sub1",
 				"timestamp": int64(100),
-				"tags": map[string]string{
+				"tags": map[string]interface{}{
 					"tag1": "1",
 					"tag2": "1",
 				},
@@ -79,7 +79,7 @@ var eventMsgtestSet = map[string][]item{
 					"value1": int64(1),
 					"value2": int64(1),
 				},
-				"tags": map[string]string{
+				"tags": map[string]interface{}{
 					"tag1": "1",
 					"tag2": "1",
 				},

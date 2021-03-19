@@ -2,7 +2,6 @@ package event_jq
 
 import (
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -82,7 +81,7 @@ func (p *jq) setDefaults() {
 }
 
 func (p *jq) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
-	evs := make([]*formatters.EventMsg, 0, len(es))
+	inputs := make([]interface{}, 0, len(es))
 	for _, e := range es {
 		if e == nil {
 			continue
@@ -94,13 +93,13 @@ func (p *jq) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 			continue
 		}
 		if ok {
-			newEvents, err := p.applyExpression(input)
-			if err != nil {
-				p.logger.Printf("failed to apply jq expression: %v", err)
-				continue
-			}
-			evs = append(evs, newEvents...)
+			inputs = append(inputs, input)
 		}
+	}
+	evs, err := p.applyExpression(inputs)
+	if err != nil {
+		p.logger.Printf("failed to apply jq expression: %v", err)
+		return nil
 	}
 	return evs
 }
@@ -132,7 +131,7 @@ func (p *jq) evaluateCondition(input map[string]interface{}) (bool, error) {
 	}
 }
 
-func (p *jq) applyExpression(input map[string]interface{}) ([]*formatters.EventMsg, error) {
+func (p *jq) applyExpression(input []interface{}) ([]*formatters.EventMsg, error) {
 	var res []interface{}
 	var err error
 	var evs = make([]*formatters.EventMsg, 0)
@@ -156,15 +155,28 @@ func (p *jq) applyExpression(input map[string]interface{}) ([]*formatters.EventM
 		}
 	}
 	for _, e := range res {
-		switch e := e.(type) {
+		switch es := e.(type) {
+		case []interface{}:
+			for _, ee := range es {
+				switch ee := ee.(type) {
+				case map[string]interface{}:
+					ev, err := formatters.EventFromMap(ee)
+					if err != nil {
+						return nil, err
+					}
+					evs = append(evs, ev)
+				default:
+					p.logger.Printf("unexpected type (%T)%+v", ee, ee)
+				}
+			}
 		case map[string]interface{}:
-			ev, err := formatters.EventFromMap(e)
+			ev, err := formatters.EventFromMap(es)
 			if err != nil {
 				return nil, err
 			}
 			evs = append(evs, ev)
 		default:
-			fmt.Printf("!! (%T)%+v\n", e, e)
+			p.logger.Printf("unexpected type (%T)%+v", e, e)
 		}
 	}
 	return evs, nil
