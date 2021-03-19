@@ -1,20 +1,23 @@
 The `event-trigger` processor, triggers an action if the configured condition evaluates to `true`.
 
-The condition is evaluated using the [expr](https://github.com/antonmedv/expr) package with the event message as input.
+The condition is evaluated using the the Golang implementation of [jq](https://github.com/itchyny/gojq) with the event message as a `json` input.
 
-Check the [expr language definition](https://github.com/antonmedv/expr/blob/master/docs/Language-Definition.md).
+`jq` [tutorial](https://stedolan.github.io/jq/tutorial/)
+
+`jq` [manual](https://stedolan.github.io/jq/manual/)
+
+`jq` [playground](https://jqplay.org/)
 
 Examples of conditions:
 
-- The below expression checks if the value named `counter1` exists and has a value higher than 90
+- The below expression checks if the value named `counter1` has a value higher than 90
 ```bash
-#     condition      ?          yes              : no
-"counter1" in Values ? (Values["counter1"] > 90) : false
+.values["counter1"] > 90
 ```
 
-- This expression checks if the event name is `sub1`, that the tag `source` exists and is equal to `r1:57400`
+- This expression checks if the event name is `sub1`, that the tag `source` is equal to `r1:57400`
 ```bash
-Name == "sub1" and (("source" in Tags ? (Tags["source"] == "r1:57400")): false)
+.name == "sub1" and .tags["source"] == "r1:57400" 
 ```
 
 The trigger can be monitored over a configurable window of time (default 1 minute), during which only a certain number of occurrences (default 1) trigger the action.
@@ -48,7 +51,7 @@ processors:
     # processor type
     event-trigger:
       # trigger condition
-      condition: '"counter1" in Values ? (Values["counter1"] > 90) : false'
+      condition: '.values["counter1"] > 90'
       # number of condition occurrences before triggering the action
       max-occurrences: 2
       # window of time during which max-occurrences need to 
@@ -81,7 +84,7 @@ The below example triggers an HTTP GET to `http://remote-server:p8080/${router_n
 processors:
   my_trigger_proc:
     event-trigger:
-      condition: '"counter1" in Values ? (Values["counter1"] > 90) : false'
+      condition: '.values["counter1"] > 90'
       max-occurrences: 2
       window: 120s
       action:
@@ -106,7 +109,7 @@ processors:
     # processor type
     event-trigger:
       # trigger condition
-      condition: '"/interface/interface/oper-state" in Values ? (Values["/interface/interface/oper-state"] == "DOWN") : false'
+      condition: '.values["/interface/interface/oper-state"] == "DOWN"'
       # number of condition occurrences before triggering the action
       max-occurrences: 2
       # window of time during which max-occurrences need to 
@@ -147,7 +150,7 @@ The below example shows a trigger that enables a router interface if another int
 processors:
   my_trigger_proc:
     event-trigger:
-      condition: '"/interface/interface/oper-state" in Values ? (Values["/interface/interface/oper-state"] == "DOWN") : false'
+      condition: '.values["/interface/interface/oper-state"] == "DOWN"'
       action:
         type: gnmi
         rpc: set-update

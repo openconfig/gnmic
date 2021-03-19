@@ -7,10 +7,10 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"strings"
 	"time"
 
-	"github.com/antonmedv/expr"
-	"github.com/antonmedv/expr/vm"
+	"github.com/itchyny/gojq"
 	"github.com/karimra/gnmic/actions"
 	_ "github.com/karimra/gnmic/actions/all"
 	"github.com/karimra/gnmic/formatters"
@@ -19,7 +19,7 @@ import (
 const (
 	processorType    = "event-trigger"
 	loggingPrefix    = "[" + processorType + "] "
-	defaultCondition = "true"
+	defaultCondition = `any([true])`
 )
 
 // Trigger triggers an action when certain conditions are met
@@ -32,9 +32,8 @@ type Trigger struct {
 	Action         map[string]interface{} `mapstructure:"action,omitempty"`
 	Debug          bool                   `mapstructure:"debug,omitempty"`
 
-	//numOccurrences   int
 	occurrencesTimes []time.Time
-	prg              *vm.Program
+	code             *gojq.Code
 	action           actions.Action
 
 	targets map[string]interface{}
@@ -57,8 +56,16 @@ func (p *Trigger) Init(cfg interface{}, opts ...formatters.Option) error {
 	for _, opt := range opts {
 		opt(p)
 	}
+	p.Condition = strings.TrimSpace(p.Condition)
+	q, err := gojq.Parse(p.Condition)
+	if err != nil {
+		return err
+	}
+	p.code, err = gojq.Compile(q)
+	if err != nil {
+		return err
+	}
 
-	p.prg, err = expr.Compile(p.Condition)
 	if err != nil {
 		return err
 	}
@@ -71,6 +78,7 @@ func (p *Trigger) Init(cfg interface{}, opts ...formatters.Option) error {
 		return err
 	}
 	p.logger.Printf("%q initalized: %+v", processorType, p)
+
 	return nil
 }
 
@@ -80,41 +88,38 @@ func (p *Trigger) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		if e == nil {
 			continue
 		}
-		res, err := expr.Run(p.prg, e)
+		res, err := p.applyCondition(e)
 		if err != nil {
 			p.logger.Printf("failed evaluating: %v", err)
 			continue
 		}
-		p.logger.Printf("expression result: (%T)%+v", res, res)
-		switch res := res.(type) {
-		case bool:
-			if res {
-				if p.MaxOccurrences == 1 {
-					p.triggerAction(e)
-					continue
-				}
-
-				p.occurrencesTimes = append(p.occurrencesTimes, now)
-				// remove times out of the window
-				numTimes := len(p.occurrencesTimes)
-				validTimes := make([]time.Time, 0, numTimes)
-				for _, t := range p.occurrencesTimes {
-					if t.Add(p.Window).Before(now) {
-						validTimes = append(validTimes, t)
-					}
-				}
-				p.occurrencesTimes = validTimes
-				numTimes = len(p.occurrencesTimes)
-				if numTimes < p.MaxOccurrences {
-					// not enough occurrences
-					continue
-				}
-				// enough occurrences
-				// within the window
-				// max occurrences reached
-				// run the action
+		p.logger.Printf("condition result: (%T)%+v", res, res)
+		if res {
+			if p.MaxOccurrences == 1 {
 				p.triggerAction(e)
+				continue
 			}
+
+			p.occurrencesTimes = append(p.occurrencesTimes, now)
+			// remove times out of the window
+			numTimes := len(p.occurrencesTimes)
+			validTimes := make([]time.Time, 0, numTimes)
+			for _, t := range p.occurrencesTimes {
+				if t.Add(p.Window).Before(now) {
+					validTimes = append(validTimes, t)
+				}
+			}
+			p.occurrencesTimes = validTimes
+			numTimes = len(p.occurrencesTimes)
+			if numTimes < p.MaxOccurrences {
+				// not enough occurrences
+				continue
+			}
+			// enough occurrences
+			// within the window
+			// max occurrences reached
+			// run the action
+			p.triggerAction(e)
 		}
 	}
 	return nil
@@ -186,4 +191,40 @@ func (p *Trigger) triggerAction(e *formatters.EventMsg) {
 		}
 		p.logger.Printf("result: %+v", res)
 	}()
+}
+
+func (p *Trigger) applyCondition(e *formatters.EventMsg) (bool, error) {
+	var res interface{}
+	if p.code != nil {
+		input := make(map[string]interface{})
+		b, err := json.Marshal(e)
+		if err != nil {
+			return false, err
+		}
+		err = json.Unmarshal(b, &input)
+		if err != nil {
+			return false, err
+		}
+		iter := p.code.Run(input)
+		if err != nil {
+			return false, err
+		}
+		var ok bool
+		res, ok = iter.Next()
+		// iterator not done, so the final result won't be a boolean
+		if !ok {
+			//
+			return false, nil
+		}
+		if err, ok = res.(error); ok {
+			return false, err
+		}
+		p.logger.Printf("jq result: (%T)%v", res, res)
+	}
+	switch res := res.(type) {
+	case bool:
+		return res, nil
+	default:
+		return false, errors.New("unexpected condition return type")
+	}
 }

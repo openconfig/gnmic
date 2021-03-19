@@ -22,8 +22,7 @@ var testset = map[string]struct {
 	"init": {
 		processorType: processorType,
 		processor: map[string]interface{}{
-			"condition": `false`,
-			"debug":     true,
+			"debug": true,
 			"action": map[string]interface{}{
 				"type": "http",
 			},
@@ -40,6 +39,7 @@ var testset = map[string]struct {
 			{
 				input: []*formatters.EventMsg{
 					{
+						Name: "sub1",
 						Tags: map[string]string{
 							"tag1": "1",
 						},
@@ -47,6 +47,7 @@ var testset = map[string]struct {
 				},
 				output: []*formatters.EventMsg{
 					{
+						Name: "sub1",
 						Tags: map[string]string{
 							"tag1": "1",
 						},
@@ -58,7 +59,7 @@ var testset = map[string]struct {
 	"with_condition": {
 		processorType: processorType,
 		processor: map[string]interface{}{
-			"condition": `"counter1" in Values ? (Values["counter1"] > 90) : false`,
+			"condition": `.values["counter1"] > 90`,
 			"debug":     true,
 			"action": map[string]interface{}{
 				"type": "http",
@@ -77,6 +78,7 @@ var testset = map[string]struct {
 			{
 				input: []*formatters.EventMsg{
 					{
+						Name: "sub1",
 						Tags: map[string]string{
 							"tag1": "1",
 						},
@@ -87,6 +89,7 @@ var testset = map[string]struct {
 				},
 				output: []*formatters.EventMsg{
 					{
+						Name: "sub1",
 						Tags: map[string]string{
 							"tag1": "1",
 						},
@@ -99,6 +102,7 @@ var testset = map[string]struct {
 			{
 				input: []*formatters.EventMsg{
 					{
+						Name: "sub1",
 						Tags: map[string]string{
 							"tag1": "1",
 						},
@@ -109,6 +113,7 @@ var testset = map[string]struct {
 				},
 				output: []*formatters.EventMsg{
 					{
+						Name: "sub1",
 						Tags: map[string]string{
 							"tag1": "1",
 						},
@@ -121,6 +126,7 @@ var testset = map[string]struct {
 			{
 				input: []*formatters.EventMsg{
 					{
+						Name: "sub1",
 						Tags: map[string]string{
 							"tag1": "1",
 						},
@@ -131,6 +137,7 @@ var testset = map[string]struct {
 				},
 				output: []*formatters.EventMsg{
 					{
+						Name: "sub1",
 						Tags: map[string]string{
 							"tag1": "1",
 						},
