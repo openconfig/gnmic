@@ -2,6 +2,7 @@ package formatters
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	flattener "github.com/karimra/go-map-flattener"
@@ -187,4 +188,118 @@ func getValueFlat(prefix string, updValue *gnmi.TypedValue) (map[string]interfac
 		}
 	}
 	return values, nil
+}
+
+func (e *EventMsg) ToMap() map[string]interface{} {
+	if e == nil {
+		return nil
+	}
+	m := make(map[string]interface{})
+	if e.Name != "" {
+		m["name"] = e.Name
+	}
+	if e.Timestamp != 0 {
+		m["timestamp"] = e.Timestamp
+	}
+	if len(e.Tags) > 0 {
+		m["tags"] = e.Tags
+	}
+	if len(e.Values) > 0 {
+		m["values"] = e.Values
+	}
+	if len(e.Deletes) > 0 {
+		m["deletes"] = e.Deletes
+	}
+	return m
+}
+
+func EventFromMap(m map[string]interface{}) (*EventMsg, error) {
+	if m == nil {
+		return nil, nil
+	}
+	e := new(EventMsg)
+
+	if v, ok := m["name"]; ok {
+		switch v := v.(type) {
+		case string:
+			e.Name = v
+		default:
+			return nil, fmt.Errorf("could not convert map to event message, name it not a string")
+		}
+	}
+	if v, ok := m["timestamp"]; ok {
+		i := num64(v)
+		if i == nil {
+			return nil, fmt.Errorf("could not convert map to event message, timestamp it not an int64")
+		}
+		e.Timestamp = i.(int64)
+	}
+	if v, ok := m["tags"]; ok {
+		switch v := v.(type) {
+		case map[string]string:
+			e.Tags = v
+		case map[string]interface{}:
+			for k, v := range v {
+				e.Tags[k], _ = v.(string)
+			}
+		default:
+			return nil, fmt.Errorf("could not convert map to event message, tags are not a map[string]string")
+		}
+	}
+	if v, ok := m["values"]; ok {
+		switch v := v.(type) {
+		case map[string]interface{}:
+			e.Values = v
+		case map[string]string:
+			e.Values = make(map[string]interface{})
+			for k, v := range v {
+				e.Values[k] = v
+			}
+		default:
+			return nil, fmt.Errorf("could not convert map to event message, values are not a map[string]interface{}")
+		}
+	}
+	if v, ok := m["deletes"]; ok {
+		switch v := v.(type) {
+		case []string:
+			e.Deletes = v
+		case []interface{}:
+			for _, d := range v {
+				if ds, ok := d.(string); ok {
+					e.Deletes = append(e.Deletes, ds)
+				}
+			}
+		default:
+			return nil, fmt.Errorf("could not convert map to event message, name it not a string")
+		}
+	}
+	return e, nil
+}
+
+func num64(n interface{}) interface{} {
+	switch n := n.(type) {
+	case int:
+		return int64(n)
+	case int8:
+		return int64(n)
+	case int16:
+		return int64(n)
+	case int32:
+		return int64(n)
+	case int64:
+		return int64(n)
+	case uint:
+		return uint64(n)
+	case uintptr:
+		return uint64(n)
+	case uint8:
+		return uint64(n)
+	case uint16:
+		return uint64(n)
+	case uint32:
+		return uint64(n)
+	case uint64:
+		return uint64(n)
+	}
+	return nil
 }

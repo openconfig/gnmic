@@ -1,11 +1,130 @@
 package formatters
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/openconfig/gnmi/proto/gnmi"
 )
+
+type item struct {
+	ev *EventMsg
+	m  map[string]interface{}
+}
+
+var eventMsgtestSet = map[string][]item{
+	"nil": {
+		{
+			ev: nil,
+			m:  nil,
+		},
+		{
+			ev: new(EventMsg),
+			m:  make(map[string]interface{}),
+		},
+	},
+	"filled": {
+		{
+			ev: &EventMsg{
+				Timestamp: 100,
+				Values:    map[string]interface{}{"value1": int64(1)},
+				Tags:      map[string]string{"tag1": "1"},
+			},
+			m: map[string]interface{}{
+				"timestamp": int64(100),
+				"values": map[string]interface{}{
+					"value1": int64(1),
+				},
+				"tags": map[string]string{
+					"tag1": "1",
+				},
+			},
+		},
+		{
+			ev: &EventMsg{
+				Name:      "sub1",
+				Timestamp: 100,
+				Tags: map[string]string{
+					"tag1": "1",
+					"tag2": "1",
+				},
+			},
+			m: map[string]interface{}{
+				"name":      "sub1",
+				"timestamp": int64(100),
+				"tags": map[string]string{
+					"tag1": "1",
+					"tag2": "1",
+				},
+			},
+		},
+		{
+			ev: &EventMsg{
+				Name:      "sub1",
+				Timestamp: 100,
+				Values: map[string]interface{}{
+					"value1": int64(1),
+					"value2": int64(1),
+				},
+				Tags: map[string]string{
+					"tag1": "1",
+					"tag2": "1",
+				},
+			},
+			m: map[string]interface{}{
+				"name":      "sub1",
+				"timestamp": int64(100),
+				"values": map[string]interface{}{
+					"value1": int64(1),
+					"value2": int64(1),
+				},
+				"tags": map[string]string{
+					"tag1": "1",
+					"tag2": "1",
+				},
+			},
+		},
+	},
+}
+
+func TestToMap(t *testing.T) {
+	for name, items := range eventMsgtestSet {
+		for i, item := range items {
+			t.Run(name, func(t *testing.T) {
+				t.Logf("running test item %d", i)
+				out := item.ev.ToMap()
+				if !reflect.DeepEqual(out, item.m) {
+					t.Logf("failed at %q item %d", name, i)
+					t.Logf("expected: (%T)%+v", item.m, item.m)
+					t.Logf("     got: (%T)%+v", out, out)
+					t.Fail()
+				}
+			})
+		}
+	}
+}
+
+func TestFromMap(t *testing.T) {
+	for name, items := range eventMsgtestSet {
+		for i, item := range items {
+			t.Run(name, func(t *testing.T) {
+				t.Logf("running test item %d", i)
+				out, err := EventFromMap(item.m)
+				if err != nil {
+					t.Logf("failed at %q: %v", name, err)
+					t.Fail()
+				}
+				if !reflect.DeepEqual(out, item.ev) {
+					t.Logf("failed at %q item %d", name, i)
+					t.Logf("expected: (%T)%+v", item.m, item.m)
+					t.Logf("     got: (%T)%+v", out, out)
+					t.Fail()
+				}
+			})
+		}
+	}
+}
 
 var jsonData = `
 {

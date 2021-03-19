@@ -1,21 +1,171 @@
 package event_jq
 
 import (
+	"errors"
+	"fmt"
+	"io/ioutil"
+	"log"
+	"os"
+	"strings"
+
+	"github.com/itchyny/gojq"
 	"github.com/karimra/gnmic/formatters"
 )
 
 const (
-	processorType = "event-jq"
-	loggingPrefix = "[" + processorType + "] "
+	processorType     = "event-jq"
+	loggingPrefix     = "[" + processorType + "] "
+	defaultCondition  = "all([true])"
+	defaultExpression = "."
 )
 
 // jq runs a jq expression on the received event messages
 type jq struct {
 	formatters.EventProcessor
+	Condition  string `mapstructure:"condition,omitempty"`
+	Expression string `mapstructure:"expression,omitempty"`
+	Debug      bool   `mapstructure:"debug,omitempty"`
+
+	cond   *gojq.Code
+	expr   *gojq.Code
+	logger *log.Logger
 }
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
 		return &jq{}
 	})
+}
+
+func (p *jq) Init(cfg interface{}, logger *log.Logger) error {
+	err := formatters.DecodeConfig(cfg, p)
+	if err != nil {
+		return err
+	}
+	if p.Debug && logger != nil {
+		p.logger = log.New(logger.Writer(), loggingPrefix, logger.Flags())
+	} else if p.Debug {
+		p.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
+	} else {
+		p.logger = log.New(ioutil.Discard, "", 0)
+	}
+	p.setDefaults()
+	p.Condition = strings.TrimSpace(p.Condition)
+	q, err := gojq.Parse(p.Condition)
+	if err != nil {
+		return err
+	}
+	p.cond, err = gojq.Compile(q)
+	if err != nil {
+		return err
+	}
+
+	p.Expression = strings.TrimSpace(p.Expression)
+	q, err = gojq.Parse(p.Expression)
+	if err != nil {
+		return err
+	}
+	p.expr, err = gojq.Compile(q)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (p *jq) setDefaults() {
+	if p.Condition == "" {
+		p.Condition = defaultCondition
+	}
+	if p.Expression == "" {
+		p.Expression = defaultExpression
+	}
+}
+
+func (p *jq) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
+	evs := make([]*formatters.EventMsg, 0, len(es))
+	for _, e := range es {
+		if e == nil {
+			continue
+		}
+		input := e.ToMap()
+		ok, err := p.evaluateCondition(input)
+		if err != nil {
+			p.logger.Printf("failed to evaluate condition: %v", err)
+			continue
+		}
+		if ok {
+			newEvents, err := p.applyExpression(input)
+			if err != nil {
+				p.logger.Printf("failed to apply jq expression: %v", err)
+				continue
+			}
+			evs = append(evs, newEvents...)
+		}
+	}
+	return evs
+}
+
+func (p *jq) evaluateCondition(input map[string]interface{}) (bool, error) {
+	var res interface{}
+	var err error
+	if p.cond != nil {
+		iter := p.cond.Run(input)
+		if err != nil {
+			return false, err
+		}
+		var ok bool
+		res, ok = iter.Next()
+		if !ok {
+			// iterator not done, so the final result won't be a boolean
+			return false, nil
+		}
+		if err, ok = res.(error); ok {
+			return false, err
+		}
+		p.logger.Printf("condition jq result: (%T)%v for input %+v", res, res, input)
+	}
+	switch res := res.(type) {
+	case bool:
+		return res, nil
+	default:
+		return false, errors.New("unexpected condition return type")
+	}
+}
+
+func (p *jq) applyExpression(input map[string]interface{}) ([]*formatters.EventMsg, error) {
+	var res []interface{}
+	var err error
+	var evs = make([]*formatters.EventMsg, 0)
+	iter := p.expr.Run(input)
+	if err != nil {
+		return nil, err
+	}
+	for {
+		r, ok := iter.Next()
+		if !ok {
+			p.logger.Printf("iter done? %v | r=%v", ok, r)
+			break
+		}
+		p.logger.Printf("iter result: (%T)%+v\n", r, r)
+		switch r := r.(type) {
+		case error:
+			return nil, err
+		default:
+			p.logger.Printf("adding %+v\n", r)
+			res = append(res, r)
+		}
+	}
+	for _, e := range res {
+		switch e := e.(type) {
+		case map[string]interface{}:
+			ev, err := formatters.EventFromMap(e)
+			if err != nil {
+				return nil, err
+			}
+			evs = append(evs, ev)
+		default:
+			fmt.Printf("!! (%T)%+v\n", e, e)
+		}
+	}
+	return evs, nil
 }
