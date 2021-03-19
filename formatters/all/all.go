@@ -6,6 +6,7 @@ import (
 	_ "github.com/karimra/gnmic/formatters/event_date_string"
 	_ "github.com/karimra/gnmic/formatters/event_delete"
 	_ "github.com/karimra/gnmic/formatters/event_drop"
+	_ "github.com/karimra/gnmic/formatters/event_jq"
 	_ "github.com/karimra/gnmic/formatters/event_merge"
 	_ "github.com/karimra/gnmic/formatters/event_strings"
 	_ "github.com/karimra/gnmic/formatters/event_to_tag"
