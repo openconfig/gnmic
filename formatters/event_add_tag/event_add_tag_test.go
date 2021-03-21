@@ -17,6 +17,54 @@ var testset = map[string]struct {
 	processor     map[string]interface{}
 	tests         []item
 }{
+	"match_condition": {
+		processorType: processorType,
+		processor: map[string]interface{}{
+			"condition": `.values.value == 1`,
+			"add":       map[string]string{"tag1": "new_tag"},
+		},
+		tests: []item{
+			{
+				input:  nil,
+				output: nil,
+			},
+			{
+				input:  make([]*formatters.EventMsg, 0),
+				output: make([]*formatters.EventMsg, 0),
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"value": 1},
+						Tags:   map[string]string{"tag1": "1"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"value": 1},
+						Tags: map[string]string{
+							"tag1": "1",
+						},
+					},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"value": 1},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"value": 1},
+						Tags: map[string]string{
+							"tag1": "new_tag",
+						},
+					},
+				},
+			},
+		},
+	},
 	// match value name
 	"match_value_name_add": {
 		processorType: processorType,
