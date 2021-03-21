@@ -32,21 +32,19 @@ type jq struct {
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &jq{}
+		return &jq{
+			logger: log.New(ioutil.Discard, "", 0),
+		}
 	})
 }
 
-func (p *jq) Init(cfg interface{}, logger *log.Logger) error {
+func (p *jq) Init(cfg interface{}, opts ...formatters.Option) error {
 	err := formatters.DecodeConfig(cfg, p)
 	if err != nil {
 		return err
 	}
-	if p.Debug && logger != nil {
-		p.logger = log.New(logger.Writer(), loggingPrefix, logger.Flags())
-	} else if p.Debug {
-		p.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
-	} else {
-		p.logger = log.New(ioutil.Discard, "", 0)
+	for _, opt := range opts {
+		opt(p)
 	}
 	p.setDefaults()
 	p.Condition = strings.TrimSpace(p.Condition)
@@ -180,4 +178,12 @@ func (p *jq) applyExpression(input []interface{}) ([]*formatters.EventMsg, error
 		}
 	}
 	return evs, nil
+}
+
+func (p *jq) WithLogger(l *log.Logger) {
+	if p.Debug && l != nil {
+		p.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
+	} else if p.Debug {
+		p.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
+	}
 }

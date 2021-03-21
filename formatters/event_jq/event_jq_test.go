@@ -1,6 +1,8 @@
 package event_jq
 
 import (
+	"log"
+	"os"
 	"reflect"
 	"testing"
 
@@ -482,7 +484,7 @@ func TestEventJQ(t *testing.T) {
 		if pi, ok := formatters.EventProcessors[ts.processorType]; ok {
 			t.Log("found processor")
 			p := pi()
-			err := p.Init(ts.processor, nil)
+			err := p.Init(ts.processor, formatters.WithLogger(log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)))
 			if err != nil {
 				t.Errorf("failed to initialize processors: %v", err)
 				return
