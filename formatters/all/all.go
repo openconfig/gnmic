@@ -9,5 +9,6 @@ import (
 	_ "github.com/karimra/gnmic/formatters/event_merge"
 	_ "github.com/karimra/gnmic/formatters/event_strings"
 	_ "github.com/karimra/gnmic/formatters/event_to_tag"
+	_ "github.com/karimra/gnmic/formatters/event_trigger"
 	_ "github.com/karimra/gnmic/formatters/event_write"
 )

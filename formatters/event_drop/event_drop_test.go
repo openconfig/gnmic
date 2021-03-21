@@ -81,7 +81,7 @@ func TestEventDrop(t *testing.T) {
 	for name, ts := range testset {
 		if pi, ok := formatters.EventProcessors[ts.processorType]; ok {
 			p := pi()
-			err := p.Init(ts.processor, nil)
+			err := p.Init(ts.processor)
 			if err != nil {
 				t.Errorf("failed to initialize processors: %v", err)
 				return

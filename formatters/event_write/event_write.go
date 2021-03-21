@@ -17,6 +17,8 @@ const (
 )
 
 type Write struct {
+	formatters.EventProcessor
+
 	Tags       []string `mapstructure:"tags,omitempty" json:"tags,omitempty"`
 	Values     []string `mapstructure:"values,omitempty" json:"values,omitempty"`
 	TagNames   []string `mapstructure:"tag-names,omitempty" json:"tag-names,omitempty"`
@@ -38,22 +40,21 @@ type Write struct {
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &Write{}
+		return &Write{
+			logger: log.New(ioutil.Discard, "", 0),
+		}
 	})
 }
 
-func (p *Write) Init(cfg interface{}, logger *log.Logger) error {
+func (p *Write) Init(cfg interface{}, opts ...formatters.Option) error {
 	err := formatters.DecodeConfig(cfg, p)
 	if err != nil {
 		return err
 	}
-	if p.Debug && logger != nil {
-		p.logger = log.New(logger.Writer(), loggingPrefix, logger.Flags())
-	} else if p.Debug {
-		p.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
-	} else {
-		p.logger = log.New(ioutil.Discard, "", 0)
+	for _, opt := range opts {
+		opt(p)
 	}
+
 	if p.Separator == "" {
 		p.sep = []byte("\n")
 	} else {
@@ -105,14 +106,13 @@ func (p *Write) Init(cfg interface{}, logger *log.Logger) error {
 			return err
 		}
 	}
-	if p.logger.Writer() != ioutil.Discard {
-		b, err := json.Marshal(p)
-		if err != nil {
-			p.logger.Printf("initialized processor '%s': %+v", processorType, p)
-			return nil
-		}
-		p.logger.Printf("initialized processor '%s': %s", processorType, string(b))
+
+	b, err := json.Marshal(p)
+	if err != nil {
+		p.logger.Printf("initialized processor '%s': %+v", processorType, p)
+		return nil
 	}
+	p.logger.Printf("initialized processor '%s': %s", processorType, string(b))
 	return nil
 }
 
@@ -171,6 +171,14 @@ OUTER:
 		}
 	}
 	return es
+}
+
+func (p *Write) WithLogger(l *log.Logger) {
+	if p.Debug && l != nil {
+		p.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
+	} else if p.Debug {
+		p.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
+	}
 }
 
 func (p *Write) write(e *formatters.EventMsg) error {

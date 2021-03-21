@@ -2,6 +2,8 @@ package event_write
 
 import (
 	"bytes"
+	"io/ioutil"
+	"log"
 	"testing"
 
 	"github.com/karimra/gnmic/formatters"
@@ -169,8 +171,8 @@ var testset = map[string]struct {
 
 func TestEventWrite(t *testing.T) {
 	for name, ts := range testset {
-		p := new(Write)
-		err := p.Init(ts.processor, nil)
+		p := &Write{logger: log.New(ioutil.Discard, "", 0)}
+		err := p.Init(ts.processor)
 		if err != nil {
 			t.Errorf("failed to initialize processors: %v", err)
 			return

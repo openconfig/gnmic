@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/karimra/gnmic/testutils"
 	"github.com/openconfig/gnmi/proto/gnmi"
 )
 
@@ -509,7 +510,7 @@ func TestParsePath(t *testing.T) {
 				}
 				return
 			}
-			if !gnmiPathsEqual(p, tc.gnmiPath) {
+			if !testutils.GnmiPathsEqual(p, tc.gnmiPath) {
 				t.Errorf("failed at '%s', expected %v, got %+v", name, tc.gnmiPath, p)
 			}
 		})
@@ -546,33 +547,6 @@ func TestStringToPathElem(t *testing.T) {
 			}
 		})
 	}
-}
-
-func gnmiPathsEqual(p1, p2 *gnmi.Path) bool {
-	if p1 == nil && p2 == nil {
-		return true
-	}
-	if p1 == nil || p2 == nil {
-		return false
-	}
-	if p1.Origin != p2.Origin {
-		return false
-	}
-	if p1.Target != p2.Target {
-		return false
-	}
-	if len(p1.Elem) != len(p2.Elem) {
-		return false
-	}
-	for i, e := range p1.Elem {
-		if e.Name != p2.Elem[i].Name {
-			return false
-		}
-		if !cmp.Equal(e.Key, p2.Elem[i].Key) {
-			return false
-		}
-	}
-	return true
 }
 
 func BenchmarkParsePath(b *testing.B) {

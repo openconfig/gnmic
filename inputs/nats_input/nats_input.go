@@ -238,7 +238,7 @@ func (n *NatsInput) SetEventProcessors(ps map[string]map[string]interface{}, log
 			}
 			if in, ok := formatters.EventProcessors[epType]; ok {
 				ep := in()
-				err := ep.Init(epCfg[epType], logger)
+				err := ep.Init(epCfg[epType], formatters.WithLogger(logger))
 				if err != nil {
 					n.logger.Printf("failed initializing event processor %q of type=%q: %v", epName, epType, err)
 					continue

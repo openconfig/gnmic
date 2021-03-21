@@ -41,6 +41,7 @@ nav:
           - Override TS: user_guide/event_processors/event_override_ts.md
           - Strings: user_guide/event_processors/event_strings.md
           - To Tag: user_guide/event_processors/event_to_tag.md
+          - Trigger: user_guide/event_processors/event_trigger.md
           - Write: user_guide/event_processors/event_write.md
       - Clustering: user_guide/HA.md
       - API: 

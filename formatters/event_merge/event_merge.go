@@ -16,6 +16,8 @@ const (
 
 // Merge merges a list of event messages into one or multiple messages based on some criteria
 type Merge struct {
+	formatters.EventProcessor
+
 	Always bool `mapstructure:"always,omitempty" json:"always,omitempty"`
 	Debug  bool `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 
@@ -24,21 +26,19 @@ type Merge struct {
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &Merge{}
+		return &Merge{
+			logger: log.New(ioutil.Discard, "", 0),
+		}
 	})
 }
 
-func (p *Merge) Init(cfg interface{}, logger *log.Logger) error {
+func (p *Merge) Init(cfg interface{}, opts ...formatters.Option) error {
 	err := formatters.DecodeConfig(cfg, p)
 	if err != nil {
 		return err
 	}
-	if p.Debug && logger != nil {
-		p.logger = log.New(logger.Writer(), loggingPrefix, logger.Flags())
-	} else if p.Debug {
-		p.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
-	} else {
-		p.logger = log.New(ioutil.Discard, "", 0)
+	for _, opt := range opts {
+		opt(p)
 	}
 
 	if p.logger.Writer() != ioutil.Discard {
@@ -81,6 +81,14 @@ func (p *Merge) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		timestamps[e.Timestamp] = len(result) - 1
 	}
 	return result
+}
+
+func (p *Merge) WithLogger(l *log.Logger) {
+	if p.Debug && l != nil {
+		p.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
+	} else if p.Debug {
+		p.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
+	}
 }
 
 func merge(e1, e2 *formatters.EventMsg) {

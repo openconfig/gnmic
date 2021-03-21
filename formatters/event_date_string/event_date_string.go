@@ -22,6 +22,8 @@ const (
 // Precision specifies the unit of the received timestamp, s, ms, us or ns.
 // DateTimeFormat is the desired datetime format, it defaults to RFC3339
 type DateString struct {
+	formatters.EventProcessor
+
 	Tags      []string `mapstructure:"tag-names,omitempty" json:"tag-names,omitempty"`
 	Values    []string `mapstructure:"value-names,omitempty" json:"value-names,omitempty"`
 	Precision string   `mapstructure:"precision,omitempty" json:"precision,omitempty"`
@@ -37,21 +39,19 @@ type DateString struct {
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &DateString{}
+		return &DateString{
+			logger: log.New(ioutil.Discard, "", 0),
+		}
 	})
 }
 
-func (d *DateString) Init(cfg interface{}, logger *log.Logger) error {
+func (d *DateString) Init(cfg interface{}, opts ...formatters.Option) error {
 	err := formatters.DecodeConfig(cfg, d)
 	if err != nil {
 		return err
 	}
-	if d.Debug && logger != nil {
-		d.logger = log.New(logger.Writer(), loggingPrefix, logger.Flags())
-	} else if d.Debug {
-		d.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
-	} else {
-		d.logger = log.New(ioutil.Discard, "", 0)
+	for _, opt := range opts {
+		opt(d)
 	}
 	// init values regex
 	d.values = make([]*regexp.Regexp, 0, len(d.Values))
@@ -153,6 +153,14 @@ func (d *DateString) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		}
 	}
 	return es
+}
+
+func (d *DateString) WithLogger(l *log.Logger) {
+	if d.Debug && l != nil {
+		d.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
+	} else if d.Debug {
+		d.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
+	}
 }
 
 func convertToInt(i interface{}) (int, error) {

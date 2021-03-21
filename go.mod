@@ -11,13 +11,14 @@ require (
 	github.com/fsnotify/fsnotify v1.4.7
 	github.com/fullstorydev/grpcurl v1.8.0
 	github.com/google/gnxi v0.0.0-20200508145201-92c6d0d3ec3b
-	github.com/google/go-cmp v0.5.0
+	github.com/google/go-cmp v0.5.4
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/hashicorp/consul/api v1.1.0
 	github.com/influxdata/influxdb-client-go/v2 v2.0.1
+	github.com/itchyny/gojq v0.12.2
 	github.com/jhump/protoreflect v1.6.1
 	github.com/karimra/go-map-flattener v0.0.0-20200728034653-b1473e58dae8
 	github.com/karimra/sros-dialout v0.0.0-20200518085040-c759bf74063a

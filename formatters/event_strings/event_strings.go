@@ -19,6 +19,8 @@ const (
 
 // Strings provides some of Golang's strings functions to transform: tags, tag names, values and value names
 type Strings struct {
+	formatters.EventProcessor
+
 	Tags       []string                `mapstructure:"tags,omitempty" json:"tags,omitempty"`
 	Values     []string                `mapstructure:"values,omitempty" json:"values,omitempty"`
 	TagNames   []string                `mapstructure:"tag-names,omitempty" json:"tag-names,omitempty"`
@@ -60,21 +62,19 @@ type transform struct {
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &Strings{}
+		return &Strings{
+			logger: log.New(ioutil.Discard, "", 0),
+		}
 	})
 }
 
-func (s *Strings) Init(cfg interface{}, logger *log.Logger) error {
+func (s *Strings) Init(cfg interface{}, opts ...formatters.Option) error {
 	err := formatters.DecodeConfig(cfg, s)
 	if err != nil {
 		return err
 	}
-	if s.Debug && logger != nil {
-		s.logger = log.New(logger.Writer(), loggingPrefix, logger.Flags())
-	} else if s.Debug {
-		s.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
-	} else {
-		s.logger = log.New(ioutil.Discard, "", 0)
+	for _, opt := range opts {
+		opt(s)
 	}
 	for i := range s.Transforms {
 		for k := range s.Transforms[i] {
@@ -165,6 +165,14 @@ func (s *Strings) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		}
 	}
 	return es
+}
+
+func (s *Strings) WithLogger(l *log.Logger) {
+	if s.Debug && l != nil {
+		s.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
+	} else if s.Debug {
+		s.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
+	}
 }
 
 func (s *Strings) applyValueTransformations(e *formatters.EventMsg, k string, v interface{}) {

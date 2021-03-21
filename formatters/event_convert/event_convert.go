@@ -19,6 +19,8 @@ const (
 
 // Convert converts the value with key matching one of regexes, to the specified Type
 type Convert struct {
+	formatters.EventProcessor
+
 	Values []string `mapstructure:"value-names,omitempty" json:"value-names,omitempty"`
 	Type   string   `mapstructure:"type,omitempty" json:"type,omitempty"`
 	Debug  bool     `mapstructure:"debug,omitempty" json:"debug,omitempty"`
@@ -29,21 +31,19 @@ type Convert struct {
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &Convert{}
+		return &Convert{
+			logger: log.New(ioutil.Discard, "", 0),
+		}
 	})
 }
 
-func (c *Convert) Init(cfg interface{}, logger *log.Logger) error {
+func (c *Convert) Init(cfg interface{}, opts ...formatters.Option) error {
 	err := formatters.DecodeConfig(cfg, c)
 	if err != nil {
 		return err
 	}
-	if c.Debug && logger != nil {
-		c.logger = log.New(logger.Writer(), loggingPrefix, logger.Flags())
-	} else if c.Debug {
-		c.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
-	} else {
-		c.logger = log.New(ioutil.Discard, "", 0)
+	for _, opt := range opts {
+		opt(c)
 	}
 	c.values = make([]*regexp.Regexp, 0, len(c.Values))
 	for _, reg := range c.Values {
@@ -113,6 +113,14 @@ func (c *Convert) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		}
 	}
 	return es
+}
+
+func (c *Convert) WithLogger(l *log.Logger) {
+	if c.Debug && l != nil {
+		c.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
+	} else if c.Debug {
+		c.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
+	}
 }
 
 func convertToInt(i interface{}) (int, error) {
