@@ -98,6 +98,8 @@ targets:
     proto-files:
     # list of directories to look for the proto files
     proto-dirs:
+    # enable grpc gzip compression
+    gzip: 
 ```
 
 ### Example

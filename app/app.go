@@ -29,6 +29,7 @@ import (
 	"github.com/spf13/pflag"
 	"golang.org/x/sync/semaphore"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/protobuf/proto"
 )
@@ -128,6 +129,7 @@ func (a *App) InitGlobalFlags() {
 	a.RootCmd.PersistentFlags().StringArrayVarP(&a.Config.GlobalFlags.ProtoFile, "proto-file", "", nil, "proto file(s) name(s)")
 	a.RootCmd.PersistentFlags().StringArrayVarP(&a.Config.GlobalFlags.ProtoDir, "proto-dir", "", nil, "directory to look for proto files specified with --proto-file")
 	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.TargetsFile, "targets-file", "", "", "path to file with targets configuration")
+	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.Gzip, "gzip", "", false, "enable gzip compression on gRPC connections")
 
 	a.RootCmd.PersistentFlags().VisitAll(func(flag *pflag.Flag) {
 		a.Config.FileConfig.BindPFlag(flag.Name, flag)
@@ -241,13 +243,16 @@ func (a *App) PrintMsg(address string, msgName string, msg proto.Message) error 
 }
 
 func (a *App) createCollectorDialOpts() []grpc.DialOption {
-	opts := []grpc.DialOption{}
-	opts = append(opts, grpc.WithBlock())
+	opts := []grpc.DialOption{grpc.WithBlock()}
 	if a.Config.MaxMsgSize > 0 {
 		opts = append(opts, grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(a.Config.MaxMsgSize)))
 	}
 	if !a.Config.ProxyFromEnv {
 		opts = append(opts, grpc.WithNoProxy())
+	}
+	if a.Config.Gzip {
+		opts = append(opts, grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)))
+
 	}
 	return opts
 }

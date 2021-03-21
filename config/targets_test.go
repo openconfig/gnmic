@@ -33,6 +33,7 @@ address: 10.1.1.1
 				TLSKey:     &emptyStr,
 				Insecure:   &falseBool,
 				SkipVerify: &falseBool,
+				Gzip:       &falseBool,
 			},
 		},
 		outErr: nil,
@@ -54,6 +55,7 @@ targets:
 				TLSKey:     &emptyStr,
 				Insecure:   &falseBool,
 				SkipVerify: &falseBool,
+				Gzip:       &falseBool,
 			},
 		},
 		outErr: nil,
@@ -76,6 +78,7 @@ targets:
 				TLSKey:     &emptyStr,
 				Insecure:   &falseBool,
 				SkipVerify: &trueBool,
+				Gzip:       &falseBool,
 			},
 		},
 		outErr: nil,
@@ -100,6 +103,7 @@ targets:
 				TLSKey:     &emptyStr,
 				Insecure:   &falseBool,
 				SkipVerify: &falseBool,
+				Gzip:       &falseBool,
 			},
 			"10.1.1.2:57400": {
 				Address:    "10.1.1.2:57400",
@@ -110,6 +114,7 @@ targets:
 				TLSKey:     &emptyStr,
 				Insecure:   &falseBool,
 				SkipVerify: &falseBool,
+				Gzip:       &falseBool,
 			},
 		},
 		outErr: nil,
@@ -135,6 +140,7 @@ targets:
 				TLSKey:     &emptyStr,
 				Insecure:   &falseBool,
 				SkipVerify: &trueBool,
+				Gzip:       &falseBool,
 			},
 			"10.1.1.2:57400": {
 				Address:    "10.1.1.2:57400",
@@ -145,6 +151,45 @@ targets:
 				TLSKey:     &emptyStr,
 				Insecure:   &falseBool,
 				SkipVerify: &trueBool,
+				Gzip:       &falseBool,
+			},
+		},
+		outErr: nil,
+	},
+	"multiple_targets_with_gzip": {
+		in: []byte(`
+skip-verify: true
+targets:
+  10.1.1.1:57400:
+    username: admin
+    password: admin
+    gzip: true
+  10.1.1.2:57400:
+    username: admin
+    password: admin
+`),
+		out: map[string]*collector.TargetConfig{
+			"10.1.1.1:57400": {
+				Address:    "10.1.1.1:57400",
+				Name:       "10.1.1.1:57400",
+				Password:   &adminStr,
+				Username:   &adminStr,
+				TLSCert:    &emptyStr,
+				TLSKey:     &emptyStr,
+				Insecure:   &falseBool,
+				SkipVerify: &trueBool,
+				Gzip:       &trueBool,
+			},
+			"10.1.1.2:57400": {
+				Address:    "10.1.1.2:57400",
+				Name:       "10.1.1.2:57400",
+				Password:   &adminStr,
+				Username:   &adminStr,
+				TLSCert:    &emptyStr,
+				TLSKey:     &emptyStr,
+				Insecure:   &falseBool,
+				SkipVerify: &trueBool,
+				Gzip:       &falseBool,
 			},
 		},
 		outErr: nil,
@@ -175,6 +220,7 @@ targets:
 				TLSKey:     &emptyStr,
 				Insecure:   &falseBool,
 				SkipVerify: &trueBool,
+				Gzip:       &falseBool,
 				Subscriptions: []string{
 					"sub1",
 				},
