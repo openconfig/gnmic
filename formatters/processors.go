@@ -1,8 +1,11 @@
 package formatters
 
 import (
+	"encoding/json"
+	"errors"
 	"log"
 
+	"github.com/itchyny/gojq"
 	"github.com/mitchellh/mapstructure"
 )
 
@@ -57,5 +60,40 @@ func WithLogger(l *log.Logger) Option {
 func WithTargets(tcs map[string]interface{}) Option {
 	return func(p EventProcessor) {
 		p.WithTargets(tcs)
+	}
+}
+
+func CheckCondition(code *gojq.Code, e *EventMsg) (bool, error) {
+	var res interface{}
+	if code != nil {
+		input := make(map[string]interface{})
+		b, err := json.Marshal(e)
+		if err != nil {
+			return false, err
+		}
+		err = json.Unmarshal(b, &input)
+		if err != nil {
+			return false, err
+		}
+		iter := code.Run(input)
+		if err != nil {
+			return false, err
+		}
+		var ok bool
+		res, ok = iter.Next()
+		// iterator not done, so the final result won't be a boolean
+		if !ok {
+			//
+			return false, nil
+		}
+		if err, ok = res.(error); ok {
+			return false, err
+		}
+	}
+	switch res := res.(type) {
+	case bool:
+		return res, nil
+	default:
+		return false, errors.New("unexpected condition return type")
 	}
 }

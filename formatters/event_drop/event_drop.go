@@ -6,7 +6,9 @@ import (
 	"log"
 	"os"
 	"regexp"
+	"strings"
 
+	"github.com/itchyny/gojq"
 	"github.com/karimra/gnmic/formatters"
 )
 
@@ -18,7 +20,7 @@ const (
 // Drop Drops the msg if ANY of the Tags or Values regexes are matched
 type Drop struct {
 	formatters.EventProcessor
-
+	Condition  string   `mapstructure:"condition,omitempty"`
 	TagNames   []string `mapstructure:"tag-names,omitempty" json:"tag-names,omitempty"`
 	ValueNames []string `mapstructure:"value-names,omitempty" json:"value-names,omitempty"`
 	Tags       []string `mapstructure:"tags,omitempty" json:"tags,omitempty"`
@@ -29,8 +31,8 @@ type Drop struct {
 	valueNames []*regexp.Regexp
 	tags       []*regexp.Regexp
 	values     []*regexp.Regexp
-
-	logger *log.Logger
+	code       *gojq.Code
+	logger     *log.Logger
 }
 
 func init() {
@@ -48,6 +50,15 @@ func (d *Drop) Init(cfg interface{}, opts ...formatters.Option) error {
 	}
 	for _, opt := range opts {
 		opt(d)
+	}
+	d.Condition = strings.TrimSpace(d.Condition)
+	q, err := gojq.Parse(d.Condition)
+	if err != nil {
+		return err
+	}
+	d.code, err = gojq.Compile(q)
+	if err != nil {
+		return err
 	}
 	// init tag keys regex
 	d.tagNames = make([]*regexp.Regexp, 0, len(d.TagNames))
@@ -99,6 +110,16 @@ func (d *Drop) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	for _, e := range es {
 		if e == nil {
 			continue
+		}
+		if d.code != nil {
+			ok, err := formatters.CheckCondition(d.code, e)
+			if err != nil {
+				d.logger.Printf("condition check failed: %v", err)
+			}
+			if ok {
+				*e = formatters.EventMsg{}
+				continue
+			}
 		}
 		for k, v := range e.Values {
 			for _, re := range d.valueNames {

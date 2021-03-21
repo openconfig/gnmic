@@ -7,7 +7,9 @@ import (
 	"log"
 	"os"
 	"regexp"
+	"strings"
 
+	"github.com/itchyny/gojq"
 	"github.com/karimra/gnmic/formatters"
 )
 
@@ -18,7 +20,7 @@ const (
 
 type Write struct {
 	formatters.EventProcessor
-
+	Condition  string   `mapstructure:"condition,omitempty"`
 	Tags       []string `mapstructure:"tags,omitempty" json:"tags,omitempty"`
 	Values     []string `mapstructure:"values,omitempty" json:"values,omitempty"`
 	TagNames   []string `mapstructure:"tag-names,omitempty" json:"tag-names,omitempty"`
@@ -34,8 +36,8 @@ type Write struct {
 	valueNames []*regexp.Regexp
 	dst        io.Writer
 	sep        []byte
-
-	logger *log.Logger
+	code       *gojq.Code
+	logger     *log.Logger
 }
 
 func init() {
@@ -54,7 +56,15 @@ func (p *Write) Init(cfg interface{}, opts ...formatters.Option) error {
 	for _, opt := range opts {
 		opt(p)
 	}
-
+	p.Condition = strings.TrimSpace(p.Condition)
+	q, err := gojq.Parse(p.Condition)
+	if err != nil {
+		return err
+	}
+	p.code, err = gojq.Compile(q)
+	if err != nil {
+		return err
+	}
 	if p.Separator == "" {
 		p.sep = []byte("\n")
 	} else {
@@ -122,6 +132,19 @@ OUTER:
 		if e == nil {
 			p.dst.Write([]byte(""))
 			continue
+		}
+		if p.code != nil {
+			ok, err := formatters.CheckCondition(p.code, e)
+			if err != nil {
+				p.logger.Printf("condition check failed: %v", err)
+			}
+			if ok {
+				err := p.write(e)
+				if err != nil {
+					p.logger.Printf("failed to write to destination: %v", err)
+					continue OUTER
+				}
+			}
 		}
 		for k, v := range e.Values {
 			for _, re := range p.values {
