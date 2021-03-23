@@ -336,6 +336,10 @@ func (t *Target) Stop() {
 	t.stopped = true
 }
 
+func (t *Target) ReadSubscriptions() (chan *SubscribeResponse, chan *TargetError) {
+	return t.subscribeResponses, t.errors
+}
+
 func loadCerts(tlscfg *tls.Config, c *TargetConfig) error {
 	if *c.TLSCert != "" && *c.TLSKey != "" {
 		certificate, err := tls.LoadX509KeyPair(*c.TLSCert, *c.TLSKey)
