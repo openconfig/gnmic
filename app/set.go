@@ -61,6 +61,10 @@ func (a *App) SetRun(cmd *cobra.Command, args []string) error {
 
 func (a *App) SetRequest(ctx context.Context, tName string, req *gnmi.SetRequest) {
 	defer a.wg.Done()
+	a.setRequest(ctx, tName, req)
+}
+
+func (a *App) setRequest(ctx context.Context, tName string, req *gnmi.SetRequest) {
 	a.Logger.Printf("sending gNMI SetRequest: prefix='%v', delete='%v', replace='%v', update='%v', extension='%v' to %s",
 		req.Prefix, req.Delete, req.Replace, req.Update, req.Extension, tName)
 	if a.Config.PrintRequest {

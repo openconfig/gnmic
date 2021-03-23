@@ -107,9 +107,6 @@ func (p *jq) evaluateCondition(input map[string]interface{}) (bool, error) {
 	var err error
 	if p.cond != nil {
 		iter := p.cond.Run(input)
-		if err != nil {
-			return false, err
-		}
 		var ok bool
 		res, ok = iter.Next()
 		if !ok {

@@ -12,9 +12,12 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"text/template"
 	"time"
 
+	"github.com/Masterminds/sprig"
 	"github.com/adrg/xdg"
+	"github.com/itchyny/gojq"
 	"github.com/karimra/gnmic/collector"
 	"github.com/mitchellh/go-homedir"
 	"github.com/openconfig/gnmi/proto/gnmi"
@@ -151,6 +154,17 @@ type LocalFlags struct {
 	ListenMaxConcurrentStreams uint32 `mapstructure:"listen-max-concurrent-streams,omitempty" json:"listen-max-concurrent-streams,omitempty" yaml:"listen-max-concurrent-streams,omitempty"`
 	// VersionUpgrade
 	UpgradeUsePkg bool `mapstructure:"upgrade-use-pkg" json:"upgrade-use-pkg,omitempty" yaml:"upgrade-use-pkg,omitempty"`
+	// GetSet
+	GetSetPrefix    string `mapstructure:"getset-prefix,omitempty" json:"getset-prefix,omitempty" yaml:"getset-prefix,omitempty"`
+	GetSetGet       string `mapstructure:"getset-get,omitempty" json:"getset-get,omitempty" yaml:"getset-get,omitempty"`
+	GetSetModel     []string
+	GetSetTarget    string `mapstructure:"getset-target,omitempty" json:"getset-target,omitempty" yaml:"getset-target,omitempty"`
+	GetSetType      string `mapstructure:"getset-type,omitempty" json:"getset-type,omitempty" yaml:"getset-type,omitempty"`
+	GetSetCondition string `mapstructure:"getset-condition,omitempty" json:"getset-condition,omitempty" yaml:"getset-condition,omitempty"`
+	GetSetUpdate    string `mapstructure:"getset-update,omitempty" json:"getset-update,omitempty" yaml:"getset-update,omitempty"`
+	GetSetReplace   string `mapstructure:"getset-replace,omitempty" json:"getset-replace,omitempty" yaml:"getset-replace,omitempty"`
+	GetSetDelete    string `mapstructure:"getset-delete,omitempty" json:"getset-delete,omitempty" yaml:"getset-delete,omitempty"`
+	GetSetValue     string `mapstructure:"getset-value,omitempty" json:"getset-value,omitempty" yaml:"getset-value,omitempty"`
 }
 
 func New() *Config {
@@ -306,6 +320,211 @@ func (c *Config) CreateGetRequest() (*gnmi.GetRequest, error) {
 		req.Path = append(req.Path, gnmiPath)
 	}
 	return req, nil
+}
+
+func (c *Config) CreateGASGetRequest() (*gnmi.GetRequest, error) {
+	if c == nil {
+		return nil, errors.New("invalid configuration")
+	}
+	encodingVal, ok := gnmi.Encoding_value[strings.Replace(strings.ToUpper(c.Encoding), "-", "_", -1)]
+	if !ok {
+		return nil, fmt.Errorf("invalid encoding type '%s'", c.Encoding)
+	}
+	req := &gnmi.GetRequest{
+		UseModels: make([]*gnmi.ModelData, 0),
+		Path:      make([]*gnmi.Path, 0, 1),
+		Encoding:  gnmi.Encoding(encodingVal),
+	}
+	if c.LocalFlags.GetSetPrefix != "" {
+		gnmiPrefix, err := collector.ParsePath(c.LocalFlags.GetSetPrefix)
+		if err != nil {
+			return nil, fmt.Errorf("prefix parse error: %v", err)
+		}
+		req.Prefix = gnmiPrefix
+	}
+	if c.LocalFlags.GetSetTarget != "" {
+		if req.Prefix == nil {
+			req.Prefix = &gnmi.Path{}
+		}
+		req.Prefix.Target = c.LocalFlags.GetSetTarget
+	}
+	if c.LocalFlags.GetSetType != "" {
+		dti, ok := gnmi.GetRequest_DataType_value[strings.ToUpper(c.LocalFlags.GetSetType)]
+		if !ok {
+			return nil, fmt.Errorf("unknown data type %s", c.LocalFlags.GetSetType)
+		}
+		req.Type = gnmi.GetRequest_DataType(dti)
+	}
+
+	gnmiPath, err := collector.ParsePath(strings.TrimSpace(c.LocalFlags.GetSetGet))
+	if err != nil {
+		return nil, fmt.Errorf("path parse error: %v", err)
+	}
+	fmt.Println(gnmiPath)
+	req.Path = append(req.Path, gnmiPath)
+
+	return req, nil
+}
+
+func (c *Config) CreateGASSetRequest(input interface{}) (*gnmi.SetRequest, error) {
+	gnmiPrefix, err := collector.CreatePrefix(c.LocalFlags.GetSetPrefix, c.LocalFlags.GetSetTarget)
+	if err != nil {
+		return nil, fmt.Errorf("prefix parse error: %v", err)
+	}
+	req := &gnmi.SetRequest{
+		Prefix:  gnmiPrefix,
+		Delete:  make([]*gnmi.Path, 0, 1),
+		Replace: make([]*gnmi.Update, 0, 1),
+		Update:  make([]*gnmi.Update, 0, 1),
+	}
+	delPath, err := c.execPathTemplate(c.LocalFlags.GetSetDelete, input)
+	if err != nil {
+		return nil, err
+	}
+	if delPath != nil {
+		req.Delete = append(req.Delete, delPath)
+	}
+	updatePath, err := c.execPathTemplate(c.LocalFlags.GetSetUpdate, input)
+	if err != nil {
+		return nil, err
+	}
+	replacePath, err := c.execPathTemplate(c.LocalFlags.GetSetReplace, input)
+	if err != nil {
+		return nil, err
+	}
+	val, err := c.execValueTemplate(c.LocalFlags.GetSetValue, c.Encoding, input)
+	if err != nil {
+		return nil, err
+	}
+	if updatePath != nil {
+		req.Update = append(req.Update, &gnmi.Update{
+			Path: updatePath,
+			Val:  val,
+		})
+	} else if replacePath != nil {
+		req.Replace = append(req.Replace, &gnmi.Update{
+			Path: replacePath,
+			Val:  val,
+		})
+	}
+	return req, nil
+}
+
+func (c *Config) execPathTemplate(tplString string, input interface{}) (*gnmi.Path, error) {
+	if tplString == "" {
+		return nil, nil
+	}
+	if strings.HasPrefix(tplString, "jq(") && strings.HasSuffix(tplString, ")") {
+		tplString = strings.TrimPrefix(tplString, "jq(")
+		tplString = strings.TrimSuffix(tplString, ")")
+		tplString = os.ExpandEnv(tplString)
+		q, err := gojq.Parse(tplString)
+		if err != nil {
+			return nil, err
+		}
+		code, err := gojq.Compile(q)
+		if err != nil {
+			return nil, err
+		}
+		iter := code.Run(input)
+		var res interface{}
+		var ok bool
+
+		res, ok = iter.Next()
+		if !ok {
+			if c.Debug {
+				c.logger.Printf("jq input: %+v", input)
+				c.logger.Printf("jq result: %+v", res)
+			}
+			return nil, fmt.Errorf("unexpected jq result type: %T", res)
+		}
+		switch v := res.(type) {
+		case error:
+			return nil, v
+		case string:
+			c.logger.Printf("path jq expression result: %s", v)
+			return collector.ParsePath(v)
+		default:
+			if c.Debug {
+				c.logger.Printf("jq input: %+v", input)
+				c.logger.Printf("jq result: %+v", v)
+			}
+			return nil, fmt.Errorf("unexpected jq result type: %T", v)
+		}
+	}
+	tpl, err := template.New("default").Funcs(sprig.TxtFuncMap()).Funcs(tplFunc).Parse(tplString)
+	if err != nil {
+		return nil, err
+	}
+	b := new(bytes.Buffer)
+	err = tpl.Execute(b, input)
+	if err != nil {
+		return nil, err
+	}
+	c.logger.Printf("path template: %s", b.String())
+	return collector.ParsePath(b.String())
+}
+
+func (c *Config) execValueTemplate(tplString string, encoding string, input interface{}) (*gnmi.TypedValue, error) {
+	if tplString == "" {
+		return nil, nil
+	}
+	if strings.HasPrefix(tplString, "jq(") && strings.HasSuffix(tplString, ")") {
+		tplString = strings.TrimPrefix(tplString, "jq(")
+		tplString = strings.TrimSuffix(tplString, ")")
+		tplString = os.ExpandEnv(tplString)
+		q, err := gojq.Parse(tplString)
+		if err != nil {
+			return nil, err
+		}
+		code, err := gojq.Compile(q)
+		if err != nil {
+			return nil, err
+		}
+		iter := code.Run(input)
+		var res interface{}
+		var ok bool
+
+		res, ok = iter.Next()
+		if !ok {
+			if c.Debug {
+				c.logger.Printf("jq input: %+v", input)
+				c.logger.Printf("jq result: %+v", res)
+			}
+			return nil, fmt.Errorf("unexpected jq result type: %T", res)
+		}
+		switch v := res.(type) {
+		case error:
+			return nil, v
+		case string:
+			c.logger.Printf("path jq expression result: %s", v)
+			value := new(gnmi.TypedValue)
+			err = setValue(value, encoding, v)
+			return value, err
+		default:
+			if c.Debug {
+				c.logger.Printf("jq input: %+v", input)
+				c.logger.Printf("jq result: %+v", v)
+			}
+			return nil, fmt.Errorf("unexpected jq result type: %T", v)
+		}
+	}
+	tpl, err := template.New("default").Funcs(sprig.TxtFuncMap()).Funcs(tplFunc).Parse(tplString)
+	if err != nil {
+		return nil, err
+	}
+	b := new(bytes.Buffer)
+	err = tpl.Execute(b, input)
+	if err != nil {
+		return nil, err
+	}
+	c.logger.Printf("value template: %s", b.String())
+	value := new(gnmi.TypedValue)
+	err = setValue(value, encoding, b.String())
+	if err != nil {
+		return nil, err
+	}
+	return value, nil
 }
 
 func (c *Config) CreateSetRequest() (*gnmi.SetRequest, error) {
