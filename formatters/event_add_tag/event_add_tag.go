@@ -6,7 +6,9 @@ import (
 	"log"
 	"os"
 	"regexp"
+	"strings"
 
+	"github.com/itchyny/gojq"
 	"github.com/karimra/gnmic/formatters"
 )
 
@@ -18,7 +20,7 @@ const (
 // AddTag adds a set of tags to the event message if tag
 type AddTag struct {
 	formatters.EventProcessor
-
+	Condition  string            `mapstructure:"condition,omitempty"`
 	Tags       []string          `mapstructure:"tags,omitempty" json:"tags,omitempty"`
 	Values     []string          `mapstructure:"values,omitempty" json:"values,omitempty"`
 	TagNames   []string          `mapstructure:"tag-names,omitempty" json:"tag-names,omitempty"`
@@ -31,8 +33,8 @@ type AddTag struct {
 	values     []*regexp.Regexp
 	tagNames   []*regexp.Regexp
 	valueNames []*regexp.Regexp
-
-	logger *log.Logger
+	code       *gojq.Code
+	logger     *log.Logger
 }
 
 func init() {
@@ -50,6 +52,17 @@ func (p *AddTag) Init(cfg interface{}, opts ...formatters.Option) error {
 	}
 	for _, opt := range opts {
 		opt(p)
+	}
+	if p.Condition != "" {
+		p.Condition = strings.TrimSpace(p.Condition)
+		q, err := gojq.Parse(p.Condition)
+		if err != nil {
+			return err
+		}
+		p.code, err = gojq.Compile(q)
+		if err != nil {
+			return err
+		}
 	}
 	// init tags regex
 	p.tags = make([]*regexp.Regexp, 0, len(p.Tags))
@@ -104,39 +117,29 @@ func (p *AddTag) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		if e == nil {
 			continue
 		}
+		// condition is set
+		if p.code != nil && p.Condition != "" {
+			ok, err := formatters.CheckCondition(p.code, e)
+			if err != nil {
+				p.logger.Printf("condition check failed: %v", err)
+			}
+			if ok {
+				p.addTags(e)
+			}
+			continue
+		}
+		// no condition, check regexes
 		for k, v := range e.Values {
 			for _, re := range p.valueNames {
 				if re.MatchString(k) {
-					if e.Tags == nil {
-						e.Tags = make(map[string]string)
-					}
-					for nk, nv := range p.Add {
-						if p.Overwrite {
-							e.Tags[nk] = nv
-							continue
-						}
-						if _, ok := e.Tags[nk]; !ok {
-							e.Tags[nk] = nv
-						}
-					}
+					p.addTags(e)
 					break
 				}
 			}
 			for _, re := range p.values {
 				if vs, ok := v.(string); ok {
 					if re.MatchString(vs) {
-						if e.Tags == nil {
-							e.Tags = make(map[string]string)
-						}
-						for nk, nv := range p.Add {
-							if p.Overwrite {
-								e.Tags[nk] = nv
-								continue
-							}
-							if _, ok := e.Tags[nk]; !ok {
-								e.Tags[nk] = nv
-							}
-						}
+						p.addTags(e)
 					}
 					break
 				}
@@ -145,36 +148,13 @@ func (p *AddTag) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		for k, v := range e.Tags {
 			for _, re := range p.tagNames {
 				if re.MatchString(k) {
-					if e.Tags == nil {
-						e.Tags = make(map[string]string)
-					}
-					for nk, nv := range p.Add {
-						if p.Overwrite {
-							e.Tags[nk] = nv
-							continue
-						}
-						if _, ok := e.Tags[nk]; !ok {
-							e.Tags[nk] = nv
-						}
-					}
+					p.addTags(e)
 					break
 				}
 			}
 			for _, re := range p.tags {
 				if re.MatchString(v) {
-					p.logger.Println("match", v)
-					if e.Tags == nil {
-						e.Tags = make(map[string]string)
-					}
-					for nk, nv := range p.Add {
-						if p.Overwrite {
-							e.Tags[nk] = nv
-							continue
-						}
-						if _, ok := e.Tags[nk]; !ok {
-							e.Tags[nk] = nv
-						}
-					}
+					p.addTags(e)
 					break
 				}
 			}
@@ -188,5 +168,20 @@ func (p *AddTag) WithLogger(l *log.Logger) {
 		p.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
 	} else if p.Debug {
 		p.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
+	}
+}
+
+func (p *AddTag) addTags(e *formatters.EventMsg) {
+	if e.Tags == nil {
+		e.Tags = make(map[string]string)
+	}
+	for nk, nv := range p.Add {
+		if p.Overwrite {
+			e.Tags[nk] = nv
+			continue
+		}
+		if _, ok := e.Tags[nk]; !ok {
+			e.Tags[nk] = nv
+		}
 	}
 }

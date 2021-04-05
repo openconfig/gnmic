@@ -88,7 +88,7 @@ func (p *Trigger) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		if e == nil {
 			continue
 		}
-		res, err := p.applyCondition(e)
+		res, err := formatters.CheckCondition(p.code, e)
 		if err != nil {
 			p.logger.Printf("failed evaluating: %v", err)
 			continue
@@ -191,40 +191,4 @@ func (p *Trigger) triggerAction(e *formatters.EventMsg) {
 		}
 		p.logger.Printf("result: %+v", res)
 	}()
-}
-
-func (p *Trigger) applyCondition(e *formatters.EventMsg) (bool, error) {
-	var res interface{}
-	if p.code != nil {
-		input := make(map[string]interface{})
-		b, err := json.Marshal(e)
-		if err != nil {
-			return false, err
-		}
-		err = json.Unmarshal(b, &input)
-		if err != nil {
-			return false, err
-		}
-		iter := p.code.Run(input)
-		if err != nil {
-			return false, err
-		}
-		var ok bool
-		res, ok = iter.Next()
-		// iterator not done, so the final result won't be a boolean
-		if !ok {
-			//
-			return false, nil
-		}
-		if err, ok = res.(error); ok {
-			return false, err
-		}
-		p.logger.Printf("jq result: (%T)%v", res, res)
-	}
-	switch res := res.(type) {
-	case bool:
-		return res, nil
-	default:
-		return false, errors.New("unexpected condition return type")
-	}
 }

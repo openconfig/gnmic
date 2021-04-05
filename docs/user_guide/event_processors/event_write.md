@@ -1,6 +1,30 @@
 The `event-write` processor,  writes a message that has a value or a tag matching one of the configured regular expressions to `stdout`, `stderr` or to a file. 
 A custom separator (used between written messages) can be configured, it defaults to `\n`
 
+```yaml
+processors:
+  # processor name
+  write-processor:
+    # processor type
+    event-write:
+      # jq expression, if evaluated to true, the message is written to dst
+      condition: 
+      # list of regular expressions to be matched against the tags names, if matched, the message is written to dst
+      tag-names:
+      # list of regular expressions to be matched against the tags values, if matched, the message is written to dst
+      tags:
+      # list of regular expressions to be matched against the values names, if matched, the message is written to dst
+      value-names:
+      # list of regular expressions to be matched against the values, if matched, the message is written to dst
+      values:
+      # path to the destination file
+      dst:
+      # separator to be written between messages
+      separator: 
+      # indent to use when marshaling the event message to json
+      indent:
+```
+
 ### Examples
 ```yaml
 processors:

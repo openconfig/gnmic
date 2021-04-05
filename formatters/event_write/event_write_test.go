@@ -19,6 +19,43 @@ var testset = map[string]struct {
 	processor     map[string]interface{}
 	tests         []item
 }{
+	"write_condition": {
+		processorType: processorType,
+		processor: map[string]interface{}{
+			"condition": `.values.number == "42"`,
+			"separator": "sep",
+		},
+		tests: []item{
+			{
+				input:  nil,
+				output: "",
+			},
+			{
+				input: &formatters.EventMsg{
+					Tags:   map[string]string{},
+					Values: map[string]interface{}{}},
+				output: "",
+			},
+			{
+				input: &formatters.EventMsg{
+					Tags:   map[string]string{},
+					Values: map[string]interface{}{}},
+				output: "",
+			},
+			{
+				input: &formatters.EventMsg{
+					Tags:   map[string]string{},
+					Values: map[string]interface{}{"number": "42"}},
+				output: `{"values":{"number":"42"}}sep`,
+			},
+			{
+				input: &formatters.EventMsg{
+					Tags:   map[string]string{"name": "foo"},
+					Values: map[string]interface{}{"number": "42"}},
+				output: `{"tags":{"name":"foo"},"values":{"number":"42"}}sep`,
+			},
+		},
+	},
 	"write_values_all": {
 		processorType: processorType,
 		processor: map[string]interface{}{

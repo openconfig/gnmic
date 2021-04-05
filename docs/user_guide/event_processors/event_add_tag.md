@@ -2,6 +2,29 @@ The `event-add-tag` processor, adds a set of tags to an event message if one of 
 
 It is possible to overwrite a tag if it's name already exists.
 
+```yaml
+processors:
+  # processor name
+  sample-processor:
+    # processor type
+    event-add-tag:
+      # jq expression, if evaluated to true, the tags are added
+      condition: 
+      # list of regular expressions to be matched against the tags names, if matched, the tags are added
+      tag-names:
+      # list of regular expressions to be matched against the tags values, if matched, the tags are added
+      tags:
+      # list of regular expressions to be matched against the values names, if matched, the tags are added
+      value-names:
+      # list of regular expressions to be matched against the values, if matched, the tags are added
+      values:
+      # boolean, if true tags are over-written with the aded ones if they already exist.
+      overwrite:
+      # map of tags to be added
+      add: 
+        tag_name: tag_value
+```
+
 ### Examples
 
 ```yaml
