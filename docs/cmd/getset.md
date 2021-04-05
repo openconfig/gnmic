@@ -2,11 +2,11 @@
 
 The `getset` command is a combination of the gNMI [Get RPC](https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto#L57) and the gNMI [Set RPC](https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto#L62).
 
-I allows to conditionally execute a [Set RPC](https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto#L62) based on a [GetResponse](https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto#L420)).
+It allows to conditionally execute a [Set RPC](https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto#L62) based on a condition evaluated against a [GetResponse](https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto#L420).
 
-The [GetResponse](https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto#L420)) is then used to evaluate a `condition` written as a [`jq expression`](https://stedolan.github.io/jq/), specified with the flag `--condition`.
+The `condition` written as a [`jq expression`](https://stedolan.github.io/jq/), is specified using the flag `--condition`.
 
-If the condition evaluates to `true` then the [SetRPC](https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto#L62) is executed.
+The [SetRPC](https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto#L62) is executed only if the condition evaluates to `true`
 
 ### Usage
 
@@ -21,7 +21,9 @@ If the condition evaluates to `true` then the [SetRPC](https://github.com/openco
 
 #### prefix
 
-As per [path prefixes](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#241-path-prefixes), the prefix `[--prefix]` flag represents a common prefix that is applied to all paths specified using the local `--get`, `--update`, `--replace` and `--delete` flags. Defaults to `""`.
+As per [path prefixes](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#241-path-prefixes), the prefix `[--prefix]` flag represents a common prefix that is applied to all paths specified using the local `--get`, `--update`, `--replace` and `--delete` flags. 
+
+Defaults to `""`.
 
 #### get
 The mandatory get flag `[--get]` is used to specify the single [path](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#222-paths) used in the Get RPC.
@@ -56,13 +58,18 @@ The `[--value]` specifies a [`jq expression`](https://stedolan.github.io/jq/) us
 
 ### Examples
 
-```bash
-# get the list of interface indexes to interface name mapping, 
-# check if ifindex 70 exists,
-# if it does, change the state to `enable` using the interface name
+The command in the below example does the following:
 
+- gets the list of interface indexes to interface name mapping, 
+
+- checks if the interface index (ifindex) 70 exists,
+
+- if it does, the set request changes the interface state to `enable` using the interface name.
+
+```bash
 gnmic getset -a <ip:port> \
     --get /interface/ifindex \
     --condition '.[] | .updates[].values[""]["srl_nokia-interfaces:interface"][] | select(.ifindex==70) | (.name != "" or .name !=null)' \
     --update '.[] | .updates[].values[""]["srl_nokia-interfaces:interface"][] | select(.ifindex==70) | "interface[name=" + .name + "]/admin-state"' \
     --value enable
+```
