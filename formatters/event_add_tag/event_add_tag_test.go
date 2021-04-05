@@ -65,6 +65,55 @@ var testset = map[string]struct {
 			},
 		},
 	},
+	"match_condition_overwrite": {
+		processorType: processorType,
+		processor: map[string]interface{}{
+			"condition": `.values.value == 1`,
+			"add":       map[string]string{"tag1": "new_tag"},
+			"overwrite": true,
+		},
+		tests: []item{
+			{
+				input:  nil,
+				output: nil,
+			},
+			{
+				input:  make([]*formatters.EventMsg, 0),
+				output: make([]*formatters.EventMsg, 0),
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"value": 1},
+						Tags:   map[string]string{"tag1": "1"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"value": 1},
+						Tags: map[string]string{
+							"tag1": "new_tag",
+						},
+					},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"value": 1},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"value": 1},
+						Tags: map[string]string{
+							"tag1": "new_tag",
+						},
+					},
+				},
+			},
+		},
+	},
 	// match value name
 	"match_value_name_add": {
 		processorType: processorType,
@@ -112,6 +161,7 @@ var testset = map[string]struct {
 	"match_value_name_overwrite": {
 		processorType: processorType,
 		processor: map[string]interface{}{
+			"debug": true,
 			"value-names": []string{"value"},
 			"overwrite":   true,
 			"add": map[string]string{
@@ -811,7 +861,9 @@ func TestEventAddTag(t *testing.T) {
 					outs := p.Apply(item.input...)
 					for j := range outs {
 						if !reflect.DeepEqual(outs[j], item.output[j]) {
-							t.Errorf("failed at %s item %d, index %d, expected %+v, got: %+v", name, i, j, item.output[j], outs[j])
+							t.Logf("failed at %s item %d, index %d, expected: %+v", name, i, j, item.output[j])
+							t.Logf("failed at %s item %d, index %d,      got: %+v", name, i, j, outs[j])
+							t.Fail()
 						}
 					}
 				})

@@ -53,16 +53,17 @@ func (p *AddTag) Init(cfg interface{}, opts ...formatters.Option) error {
 	for _, opt := range opts {
 		opt(p)
 	}
-	p.Condition = strings.TrimSpace(p.Condition)
-	q, err := gojq.Parse(p.Condition)
-	if err != nil {
-		return err
+	if p.Condition != "" {
+		p.Condition = strings.TrimSpace(p.Condition)
+		q, err := gojq.Parse(p.Condition)
+		if err != nil {
+			return err
+		}
+		p.code, err = gojq.Compile(q)
+		if err != nil {
+			return err
+		}
 	}
-	p.code, err = gojq.Compile(q)
-	if err != nil {
-		return err
-	}
-
 	// init tags regex
 	p.tags = make([]*regexp.Regexp, 0, len(p.Tags))
 	for _, reg := range p.Tags {
@@ -116,16 +117,18 @@ func (p *AddTag) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		if e == nil {
 			continue
 		}
-		if p.code != nil {
+		// condition is set
+		if p.code != nil && p.Condition != "" {
 			ok, err := formatters.CheckCondition(p.code, e)
 			if err != nil {
 				p.logger.Printf("condition check failed: %v", err)
 			}
 			if ok {
 				p.addTags(e)
-				continue
 			}
+			continue
 		}
+		// no condition, check regexes
 		for k, v := range e.Values {
 			for _, re := range p.valueNames {
 				if re.MatchString(k) {
