@@ -12,10 +12,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"text/template"
 	"time"
 
-	"github.com/Masterminds/sprig"
 	"github.com/adrg/xdg"
 	"github.com/itchyny/gojq"
 	"github.com/karimra/gnmic/collector"
@@ -414,117 +412,82 @@ func (c *Config) execPathTemplate(tplString string, input interface{}) (*gnmi.Pa
 	if tplString == "" {
 		return nil, nil
 	}
-	if strings.HasPrefix(tplString, "jq(") && strings.HasSuffix(tplString, ")") {
-		tplString = strings.TrimPrefix(tplString, "jq(")
-		tplString = strings.TrimSuffix(tplString, ")")
-		tplString = os.ExpandEnv(tplString)
-		q, err := gojq.Parse(tplString)
-		if err != nil {
-			return nil, err
-		}
-		code, err := gojq.Compile(q)
-		if err != nil {
-			return nil, err
-		}
-		iter := code.Run(input)
-		var res interface{}
-		var ok bool
+	tplString = os.ExpandEnv(tplString)
+	q, err := gojq.Parse(tplString)
+	if err != nil {
+		return nil, err
+	}
+	code, err := gojq.Compile(q)
+	if err != nil {
+		return nil, err
+	}
+	iter := code.Run(input)
+	var res interface{}
+	var ok bool
 
-		res, ok = iter.Next()
-		if !ok {
-			if c.Debug {
-				c.logger.Printf("jq input: %+v", input)
-				c.logger.Printf("jq result: %+v", res)
-			}
-			return nil, fmt.Errorf("unexpected jq result type: %T", res)
+	res, ok = iter.Next()
+	if !ok {
+		if c.Debug {
+			c.logger.Printf("jq input: %+v", input)
+			c.logger.Printf("jq result: %+v", res)
 		}
-		switch v := res.(type) {
-		case error:
-			return nil, v
-		case string:
-			c.logger.Printf("path jq expression result: %s", v)
-			return collector.ParsePath(v)
-		default:
-			if c.Debug {
-				c.logger.Printf("jq input: %+v", input)
-				c.logger.Printf("jq result: %+v", v)
-			}
-			return nil, fmt.Errorf("unexpected jq result type: %T", v)
+		return nil, fmt.Errorf("unexpected jq result type: %T", res)
+	}
+	switch v := res.(type) {
+	case error:
+		return nil, v
+	case string:
+		c.logger.Printf("path jq expression result: %s", v)
+		return collector.ParsePath(v)
+	default:
+		if c.Debug {
+			c.logger.Printf("jq input: %+v", input)
+			c.logger.Printf("jq result: %+v", v)
 		}
+		return nil, fmt.Errorf("unexpected jq result type: %T", v)
 	}
-	tpl, err := template.New("default").Funcs(sprig.TxtFuncMap()).Funcs(tplFunc).Parse(tplString)
-	if err != nil {
-		return nil, err
-	}
-	b := new(bytes.Buffer)
-	err = tpl.Execute(b, input)
-	if err != nil {
-		return nil, err
-	}
-	c.logger.Printf("path template: %s", b.String())
-	return collector.ParsePath(b.String())
 }
 
 func (c *Config) execValueTemplate(tplString string, encoding string, input interface{}) (*gnmi.TypedValue, error) {
 	if tplString == "" {
 		return nil, nil
 	}
-	if strings.HasPrefix(tplString, "jq(") && strings.HasSuffix(tplString, ")") {
-		tplString = strings.TrimPrefix(tplString, "jq(")
-		tplString = strings.TrimSuffix(tplString, ")")
-		tplString = os.ExpandEnv(tplString)
-		q, err := gojq.Parse(tplString)
-		if err != nil {
-			return nil, err
-		}
-		code, err := gojq.Compile(q)
-		if err != nil {
-			return nil, err
-		}
-		iter := code.Run(input)
-		var res interface{}
-		var ok bool
+	tplString = os.ExpandEnv(tplString)
+	q, err := gojq.Parse(tplString)
+	if err != nil {
+		return nil, err
+	}
+	code, err := gojq.Compile(q)
+	if err != nil {
+		return nil, err
+	}
+	iter := code.Run(input)
+	var res interface{}
+	var ok bool
 
-		res, ok = iter.Next()
-		if !ok {
-			if c.Debug {
-				c.logger.Printf("jq input: %+v", input)
-				c.logger.Printf("jq result: %+v", res)
-			}
-			return nil, fmt.Errorf("unexpected jq result type: %T", res)
+	res, ok = iter.Next()
+	if !ok {
+		if c.Debug {
+			c.logger.Printf("jq input: %+v", input)
+			c.logger.Printf("jq result: %+v", res)
 		}
-		switch v := res.(type) {
-		case error:
-			return nil, v
-		case string:
-			c.logger.Printf("path jq expression result: %s", v)
-			value := new(gnmi.TypedValue)
-			err = setValue(value, encoding, v)
-			return value, err
-		default:
-			if c.Debug {
-				c.logger.Printf("jq input: %+v", input)
-				c.logger.Printf("jq result: %+v", v)
-			}
-			return nil, fmt.Errorf("unexpected jq result type: %T", v)
+		return nil, fmt.Errorf("unexpected jq result type: %T", res)
+	}
+	switch v := res.(type) {
+	case error:
+		return nil, v
+	case string:
+		c.logger.Printf("path jq expression result: %s", v)
+		value := new(gnmi.TypedValue)
+		err = setValue(value, encoding, v)
+		return value, err
+	default:
+		if c.Debug {
+			c.logger.Printf("jq input: %+v", input)
+			c.logger.Printf("jq result: %+v", v)
 		}
+		return nil, fmt.Errorf("unexpected jq result type: %T", v)
 	}
-	tpl, err := template.New("default").Funcs(sprig.TxtFuncMap()).Funcs(tplFunc).Parse(tplString)
-	if err != nil {
-		return nil, err
-	}
-	b := new(bytes.Buffer)
-	err = tpl.Execute(b, input)
-	if err != nil {
-		return nil, err
-	}
-	c.logger.Printf("value template: %s", b.String())
-	value := new(gnmi.TypedValue)
-	err = setValue(value, encoding, b.String())
-	if err != nil {
-		return nil, err
-	}
-	return value, nil
 }
 
 func (c *Config) CreateSetRequest() (*gnmi.SetRequest, error) {
