@@ -605,7 +605,7 @@ func TestCreateSetRequest(t *testing.T) {
 func TestExecPathTemplate(t *testing.T) {
 	c := New()
 	c.Debug = true
-	c.logger = log.New(os.Stderr, "", log.Default().Flags())
+	c.logger = log.New(os.Stderr, "", log.LstdFlags)
 	for name, data := range execPathTemplateTestSet {
 		t.Run(name, func(t *testing.T) {
 			o, err := c.execPathTemplate(data.tpl, data.input)
