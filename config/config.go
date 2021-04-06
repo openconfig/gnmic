@@ -358,9 +358,7 @@ func (c *Config) CreateGASGetRequest() (*gnmi.GetRequest, error) {
 	if err != nil {
 		return nil, fmt.Errorf("path parse error: %v", err)
 	}
-	fmt.Println(gnmiPath)
 	req.Path = append(req.Path, gnmiPath)
-
 	return req, nil
 }
 
