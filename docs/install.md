@@ -4,7 +4,7 @@
 To download & install the latest release the following automated [installation script](https://github.com/karimra/gnmic/blob/master/install.sh) can be used:
 
 ```bash
-sudo curl -sL https://github.com/karimra/gnmic/raw/master/install.sh | sudo bash
+bash -c "$(curl -sL https://get-gnmic.kmrd.dev)"
 ```
 
 As a result, the latest `gnmic` version will be installed in the `/usr/local/bin` directory and the version information will be printed out.
@@ -23,14 +23,14 @@ Installation complete!
 
 To install a specific version of `gnmic`, provide the version with `-v` flag to the installation script:
 ```bash
-sudo curl -sL https://github.com/karimra/gnmic/raw/master/install.sh | sudo bash -s -- -v 0.5.0
+bash -c "$(curl -sL https://get-gnmic.kmrd.dev)" -- -v 0.5.0
 ```
 
 #### Packages
-Linux users running distributives with support for `deb`/`rpm` packages can install `gnmic` using pre-built packages:
+Linux users running distributions with support for `deb`/`rpm` packages can install `gnmic` using pre-built packages:
 
 ```
-sudo curl -sL https://github.com/karimra/gnmic/raw/master/install.sh | sudo bash -s -- --use-pkg
+bash -c "$(curl -sL https://get-gnmic.kmrd.dev)" -- --use-pkg
 ```
 
 #### Upgrade

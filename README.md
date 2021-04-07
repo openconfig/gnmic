@@ -42,7 +42,7 @@ Documentation available at [https://gnmic.kmrd.dev](https://gnmic.kmrd.dev)
 ## Quick start guide
 ### Installation
 ```
-sudo curl -sL https://github.com/karimra/gnmic/raw/master/install.sh | sudo bash
+bash -c "$(curl -sL https://get-gnmic.kmrd.dev)"
 ```
 ### Capabilities request
 ```
