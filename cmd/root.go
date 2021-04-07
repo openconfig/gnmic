@@ -63,6 +63,7 @@ func newRootCmd() *cobra.Command {
 	gApp.RootCmd.AddCommand(newCompletionCmd())
 	gApp.RootCmd.AddCommand(newCapabilitiesCmd())
 	gApp.RootCmd.AddCommand(newGetCmd())
+	gApp.RootCmd.AddCommand(newGetSetCmd())
 	gApp.RootCmd.AddCommand(newListenCmd())
 	gApp.RootCmd.AddCommand(newPathCmd())
 	gApp.RootCmd.AddCommand(newPromptCmd())

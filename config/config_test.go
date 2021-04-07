@@ -2,6 +2,8 @@ package config
 
 import (
 	"errors"
+	"log"
+	"os"
 	"strings"
 	"testing"
 
@@ -516,6 +518,45 @@ var createSetRequestTestSet = map[string]struct {
 	},
 }
 
+var execPathTemplateTestSet = map[string]struct {
+	tpl   string
+	input interface{}
+	out   *gnmi.Path
+}{
+	"nil": {
+		tpl:   "",
+		input: nil,
+		out:   nil,
+	},
+	"simple": {
+		tpl:   `"/path/"`,
+		input: nil,
+		out: &gnmi.Path{
+			Elem: []*gnmi.PathElem{
+				{
+					Name: "path",
+				},
+			},
+		},
+	},
+	"with_an_expression": {
+		tpl: `"/interfaces/" + .name`,
+		input: map[string]interface{}{
+			"name": "interface",
+		},
+		out: &gnmi.Path{
+			Elem: []*gnmi.PathElem{
+				{
+					Name: "interfaces",
+				},
+				{
+					Name: "interface",
+				},
+			},
+		},
+	},
+}
+
 var adminStr = "admin"
 var emptyStr = ""
 var falseBool = false
@@ -555,6 +596,26 @@ func TestCreateSetRequest(t *testing.T) {
 				}
 			}
 			if !testutils.CompareSetRequests(setReq, data.out) {
+				t.Fail()
+			}
+		})
+	}
+}
+
+func TestExecPathTemplate(t *testing.T) {
+	c := New()
+	c.Debug = true
+	c.logger = log.New(os.Stderr, "", log.LstdFlags)
+	for name, data := range execPathTemplateTestSet {
+		t.Run(name, func(t *testing.T) {
+			o, err := c.execPathTemplate(data.tpl, data.input)
+			if err != nil {
+				t.Logf("failed: %v", err)
+				t.Fail()
+			}
+			t.Logf("exp value: %+v", data.out)
+			t.Logf("got value: %+v", o)
+			if !testutils.GnmiPathsEqual(data.out, o) {
 				t.Fail()
 			}
 		})

@@ -74,6 +74,7 @@ nav:
       - Capabilities: cmd/capabilities.md
       - Get: cmd/get.md
       - Set: cmd/set.md
+      - GetSet: cmd/getset.md
       - Subscribe: cmd/subscribe.md
       - Listen: cmd/listen.md
       - Path: cmd/path.md
