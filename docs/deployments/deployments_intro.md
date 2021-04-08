@@ -1,5 +1,9 @@
+There are numerous ways `gnmic` can be deployed, each fulfilling a specific use case. 
 
+Whether it is collecting gNMI telemetry collection and export to a single output, 
+or clustered data pipelines with high availability and redundancy, the below examples should cover the most common use cases.
 ### Single Instance
+These examples showcase single `gnmic` instance deployments with the most commonly used outputs
 
 - [NATS output](single-instance/nats-output.md) 
 - [Kafka output](single-instance/kafka-output.md)
@@ -9,6 +13,8 @@
 
 
 ### Clusters
+`gnmic` can also be deployed in [clustered mode](../user_guide/HA.md) to either load share the targets connections between multiple instances and offer connection resiliency,
+and/or replicate the collected data among all the cluster members
 
 - [InfluxDB output](clusters/cluster_with_influxdb_output.md)
 - [Prometheus output](clusters/cluster_with_prometheus_output.md)
@@ -16,6 +22,10 @@
 
 
 ### Pipelines
+
+Building data pipelines using `gnmic` is achieved using gNMIc's [outputs](../user_guide/outputs/output_intro.md) and [inputs](../user_guide/inputs/intro.md) plugins.
+
+You will be able to process the data in a serial fashion, split it for parallel processing or mirror it to create a forked pipeline.
 
 - [NATS to Prometheus](pipelines/nats_prometheus.md)
 - [NATS to InfluxDB](pipelines/nats_influxdb.md)

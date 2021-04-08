@@ -51,7 +51,7 @@ nav:
           - Targets: user_guide/api/targets.md
   
   - Deployment examples:
-      - Index: deployments/deployments_intro.md
+      - Deployments: deployments/deployments_intro.md
       - Single Instance: 
           - NATS output: deployments/single-instance/nats-output.md
           - Kafka output: deployments/single-instance/kafka-output.md
