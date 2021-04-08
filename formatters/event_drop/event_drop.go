@@ -111,10 +111,11 @@ func (d *Drop) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		if e == nil {
 			continue
 		}
-		if d.code != nil {
+		if d.Condition != "" {
 			ok, err := formatters.CheckCondition(d.code, e)
 			if err != nil {
 				d.logger.Printf("condition check failed: %v", err)
+				continue
 			}
 			if ok {
 				*e = formatters.EventMsg{}

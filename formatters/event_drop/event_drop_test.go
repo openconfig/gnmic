@@ -18,9 +18,10 @@ var testset = map[string]struct {
 	tests         []item
 }{
 	"drop_condition": {
-		processorType: "event_drop",
+		processorType: processorType,
 		processor: map[string]interface{}{
 			"condition": ".values.value == 1",
+			"debug":     true,
 		},
 		tests: []item{
 			{
@@ -40,16 +41,20 @@ var testset = map[string]struct {
 			{
 				input: []*formatters.EventMsg{
 					{
-						Values: map[string]interface{}{"value": 1}},
+						Values: map[string]interface{}{"value": 1},
+					},
 				},
-				output: []*formatters.EventMsg{},
+				output: []*formatters.EventMsg{
+					{},
+				},
 			},
 		},
 	},
 	"drop_values": {
-		processorType: "event_drop",
+		processorType: processorType,
 		processor: map[string]interface{}{
-			"value_names": []string{"^number$"},
+			"value-names": []string{"^number$"},
+			"debug":       true,
 		},
 		tests: []item{
 			{
@@ -69,16 +74,20 @@ var testset = map[string]struct {
 			{
 				input: []*formatters.EventMsg{
 					{
-						Values: map[string]interface{}{"number": 1}},
+						Values: map[string]interface{}{"number": 1},
+					},
 				},
-				output: []*formatters.EventMsg{},
+				output: []*formatters.EventMsg{
+					{},
+				},
 			},
 		},
 	},
 	"drop_tags": {
-		processorType: "event_drop",
+		processorType: processorType,
 		processor: map[string]interface{}{
-			"tag_names": []string{"^name*"},
+			"tag-names": []string{"^name*"},
+			"debug":     true,
 		},
 		tests: []item{
 			{
@@ -98,9 +107,12 @@ var testset = map[string]struct {
 			{
 				input: []*formatters.EventMsg{
 					{
-						Tags: map[string]string{"name": "dummy"}},
+						Tags: map[string]string{"name": "dummy"},
+					},
 				},
-				output: []*formatters.EventMsg{},
+				output: []*formatters.EventMsg{
+					{},
+				},
 			},
 		},
 	},
