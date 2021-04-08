@@ -79,6 +79,8 @@ nav:
       - Listen: cmd/listen.md
       - Path: cmd/path.md
       - Prompt: cmd/prompt.md
+  
+  - Blog: blog/index.md
 
 site_author: Karim Radhouani
 site_description: >-
@@ -90,6 +92,8 @@ edit_uri: ""
 theme:
   name: material
 
+  features:
+    - navigation.tabs
   # 404 page
   static_templates:
     - 404.html
@@ -101,9 +105,23 @@ theme:
   # Default values, taken from mkdocs_theme.yml
   language: en
   palette:
-    scheme: preference
-    primary: blue
-    accent: indigo
+      # Light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue
+      accent: indigo
+      toggle:
+        icon: material/toggle-switch-off-outline
+        name: Switch to dark mode
+    # Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: cyan
+      toggle:
+        icon: material/toggle-switch
+        name: Switch to light mode
+
   font:
     text: Manrope
     code: Fira Mono
