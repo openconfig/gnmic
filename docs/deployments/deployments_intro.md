@@ -1,7 +1,16 @@
 There are numerous ways `gnmic` can be deployed, each fulfilling a specific use case. 
 
-Whether it is collecting gNMI telemetry collection and export to a single output, 
-or clustered data pipelines with high availability and redundancy, the below examples should cover the most common use cases.
+Whether it is gNMI telemetry collection and export to a single output, 
+or clustered data pipelines with high availability and redundancy, 
+the below examples should cover the most common use cases.
+
+Each example comes with a set of deployment files:
+
+- one or multiple `gnmic` configuration file(s)
+- a `docker-compose` file 
+- extra configuration files if the used output requires it (e.g: prometheus)
+
+If you do not not find an example that fits your need, feel free to start a discussion on [github](https://github.com/karimra/gnmic/discussions)
 ### Single Instance
 These examples showcase single `gnmic` instance deployments with the most commonly used outputs
 
