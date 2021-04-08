@@ -23,7 +23,7 @@ and/or replicate the collected data among all the cluster members
 
 ### Pipelines
 
-Building data pipelines using `gnmic` is achieved using gNMIc's [outputs](../user_guide/outputs/output_intro.md) and [inputs](../user_guide/inputs/intro.md) plugins.
+Building data pipelines using `gnmic` is achieved using the [outputs](../user_guide/outputs/output_intro.md) and [inputs](../user_guide/inputs/intro.md) plugins.
 
 You will be able to process the data in a serial fashion, split it for parallel processing or mirror it to create a forked pipeline.
 
