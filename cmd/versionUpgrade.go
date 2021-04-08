@@ -10,8 +10,9 @@ import (
 // upgradeCmd represents the version command
 func newVersionUpgradeCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "upgrade",
-		Short: "upgrade gnmic to latest available version",
+		Use:     "upgrade",
+		Aliases: []string{"up"},
+		Short:   "upgrade gnmic to latest available version",
 		PreRun: func(cmd *cobra.Command, args []string) {
 			gApp.Config.SetLocalFlagsFromFile(cmd)
 		},
