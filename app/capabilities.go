@@ -42,7 +42,7 @@ func (a *App) CapRun(cmd *cobra.Command, args []string) error {
 			a.collector.AddTarget(tc)
 		}
 	}
-	numTargets := len(a.collector.Targets)
+	numTargets := len(a.Config.Targets)
 	a.errCh = make(chan error, numTargets*2)
 	a.wg.Add(numTargets)
 	for tName := range a.Config.Targets {
@@ -79,7 +79,7 @@ func (a *App) ReqCapabilities(ctx context.Context, tName string) {
 
 func (a *App) InitCapabilitiesFlags(cmd *cobra.Command) {
 	cmd.ResetFlags()
-	
+
 	cmd.Flags().BoolVarP(&a.Config.LocalFlags.CapabilitiesVersion, "version", "", false, "show gnmi version only")
 	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
 		a.Config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
