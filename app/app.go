@@ -180,9 +180,35 @@ func (a *App) PreRun(_ *cobra.Command, args []string) error {
 		}
 	}
 	a.logConfigKVs()
-	return nil
+	return a.validateGlobals()
 }
 
+func (a *App) validateGlobals() error {
+	if a.Config.Insecure {
+		if a.Config.SkipVerify {
+			return errors.New("flags --insecure and --skip-verify are mutually exclusive")
+		}
+		if a.Config.TLSCa != "" {
+			return errors.New("flags --insecure and --tls-ca are mutually exclusive")
+		}
+		if a.Config.TLSCert != "" {
+			return errors.New("flags --insecure and --tls-cert are mutually exclusive")
+		}
+		if a.Config.TLSKey != "" {
+			return errors.New("flags --insecure and --tls-key are mutually exclusive")
+		}
+		if a.Config.TLSVersion != "" {
+			return errors.New("flags --insecure and --tls-version are mutually exclusive")
+		}
+		if a.Config.TLSMaxVersion != "" {
+			return errors.New("flags --insecure and --tls-max-version are mutually exclusive")
+		}
+		if a.Config.TLSMinVersion != "" {
+			return errors.New("flags --insecure and --tls-min-version are mutually exclusive")
+		}
+	}
+	return nil
+}
 func (a *App) logConfigKVs() {
 	if a.Config.Debug {
 		b, err := json.MarshalIndent(a.Config.FileConfig.AllSettings(), "", "  ")

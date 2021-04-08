@@ -46,6 +46,43 @@ The target address is defined as the key under the `targets` section of the conf
 
 The target inherits the globally defined options if the matching options are not set on a target level. For example, if a target doesn't have a username defined, it will use the username value set on a global level.
 
+#### secure/insecure connections
+`gnmic` supports both secure and insecure gRPC connections to the target.
+
+##### insecure connection
+Using the `--insecure` flag it is possible to establish an insecure gRPC connection to the target.
+
+```bash
+gnmic -a router1:57400 \
+      --insecure \
+      get --path /configure/system/name
+```
+
+##### secure connection
+- A one way secure connection without target certificate verification can be established using the `--skip-verify` flag.
+```bash
+gnmic -a router1:57400 \
+      --skip-verify \
+      get --path /configure/system/name
+```
+
+- Adding target certificate verification can be done using the `--tls-ca` flag.
+```bash
+gnmic -a router1:57400 \
+      --tls-ca /path/to/ca/file \
+      get --path /configure/system/name
+```
+
+- A two way secure connection can be established using the `--tls-cert` `--tls-key` flags.
+```bash
+gnmic -a router1:57400 \
+      --tls-cert /path/to/certificate/file \
+      --tls-key /path/to/certificate/file \
+      get --path /configure/system/name
+```
+- It is also possible to control the negotiated TLS version using the `--tls-min-version`, `--tls-max-version` and `--tls-version` (preferred TLS version) flags.
+
+#### target configuration options
 Target supported options:
 ```yaml
 targets:
