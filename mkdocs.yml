@@ -5,6 +5,8 @@ nav:
       - Installation: install.md
       - Basic usage: basic_usage.md
       - Global flags: global_flags.md
+      - Releases: 
+        - Changelog: changelog.md
   - User guide:
       - Configuration:
         - Introduction: user_guide/configuration_intro.md
@@ -94,6 +96,9 @@ theme:
 
   features:
     - navigation.tabs
+    - navigation.expand
+    - navigation.top
+
   # 404 page
   static_templates:
     - 404.html
