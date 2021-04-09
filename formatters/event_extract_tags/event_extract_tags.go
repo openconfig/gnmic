@@ -35,7 +35,7 @@ type extractTags struct {
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
 		return &extractTags{
-			logger: log.New(os.Stderr, "", 0),
+			logger: log.New(ioutil.Discard, "", 0),
 		}
 	})
 }
@@ -101,7 +101,6 @@ func (p *extractTags) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		if e == nil {
 			continue
 		}
-		// no condition, check regexes
 		for k, v := range e.Values {
 			for _, re := range p.valueNames {
 				p.addTags(e, re, k)

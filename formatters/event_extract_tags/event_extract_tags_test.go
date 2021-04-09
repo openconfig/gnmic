@@ -20,6 +20,7 @@ var testset = map[string]struct {
 	"match_value_names": {
 		processorType: processorType,
 		processor: map[string]interface{}{
+			"debug": true,
 			"value-names": []string{
 				`/(?P<e1>\w+)/(?P<e2>\w+)/(?P<e3>\w+)`,
 			},
@@ -48,6 +49,122 @@ var testset = map[string]struct {
 							"e1":   "elem1",
 							"e2":   "elem2",
 							"e3":   "elem3",
+						},
+					},
+				},
+			},
+		},
+	},
+	"match_value_names_partial": {
+		processorType: processorType,
+		processor: map[string]interface{}{
+			"debug": true,
+			"value-names": []string{
+				`/(?P<e1>\w+)/(\w+)/(?P<e3>\w+)`,
+			},
+		},
+		tests: []item{
+			{
+				input:  nil,
+				output: nil,
+			},
+			{
+				input:  make([]*formatters.EventMsg, 0),
+				output: make([]*formatters.EventMsg, 0),
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"/elem1/elem2/elem3": 1},
+						Tags:   map[string]string{"tag1": "1"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"/elem1/elem2/elem3": 1},
+						Tags: map[string]string{
+							"tag1": "1",
+							"e1":   "elem1",
+							"e3":   "elem3",
+						},
+					},
+				},
+			},
+		},
+	},
+	"match_tag_names": {
+		processorType: processorType,
+		processor: map[string]interface{}{
+			"debug": true,
+			"tag-names": []string{
+				`/(?P<e1>\w+)/(?P<e2>\w+)/(?P<e3>\w+)`,
+			},
+		},
+		tests: []item{
+			{
+				input:  nil,
+				output: nil,
+			},
+			{
+				input:  make([]*formatters.EventMsg, 0),
+				output: make([]*formatters.EventMsg, 0),
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{
+							"tag1":               "1",
+							"/elem1/elem2/elem3": "1",
+						},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{
+							"/elem1/elem2/elem3": "1",
+							"tag1":               "1",
+							"e1":                 "elem1",
+							"e2":                 "elem2",
+							"e3":                 "elem3",
+						},
+					},
+				},
+			},
+		},
+	},
+	"match_tag_names_partial": {
+		processorType: processorType,
+		processor: map[string]interface{}{
+			"debug": true,
+			"tag-names": []string{
+				`/(?P<e1>\w+)/(\w+)/(?P<e3>\w+)`,
+			},
+		},
+		tests: []item{
+			{
+				input:  nil,
+				output: nil,
+			},
+			{
+				input:  make([]*formatters.EventMsg, 0),
+				output: make([]*formatters.EventMsg, 0),
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{
+							"tag1":               "1",
+							"/elem1/elem2/elem3": "1",
+						},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{
+							"/elem1/elem2/elem3": "1",
+							"tag1":               "1",
+							"e1":                 "elem1",
+							"e3":                 "elem3",
 						},
 					},
 				},
