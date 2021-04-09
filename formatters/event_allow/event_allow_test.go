@@ -1,4 +1,4 @@
-package event_drop
+package event_allow
 
 import (
 	"reflect"
@@ -17,11 +17,10 @@ var testset = map[string]struct {
 	processor     map[string]interface{}
 	tests         []item
 }{
-	"drop_condition": {
+	"allow_condition": {
 		processorType: processorType,
 		processor: map[string]interface{}{
 			"condition": ".values.value == 1",
-			"debug":     true,
 		},
 		tests: []item{
 			{
@@ -34,8 +33,7 @@ var testset = map[string]struct {
 						Values: map[string]interface{}{}},
 				},
 				output: []*formatters.EventMsg{
-					{
-						Values: map[string]interface{}{}},
+					{},
 				},
 			},
 			{
@@ -45,16 +43,17 @@ var testset = map[string]struct {
 					},
 				},
 				output: []*formatters.EventMsg{
-					{},
+					{
+						Values: map[string]interface{}{"value": 1},
+					},
 				},
 			},
 		},
 	},
-	"drop_values": {
+	"allow_values": {
 		processorType: processorType,
 		processor: map[string]interface{}{
 			"value-names": []string{"^number$"},
-			"debug":       true,
 		},
 		tests: []item{
 			{
@@ -76,18 +75,23 @@ var testset = map[string]struct {
 					{
 						Values: map[string]interface{}{"number": 1},
 					},
+					{
+						Values: map[string]interface{}{"not-number": 1},
+					},
 				},
 				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"number": 1},
+					},
 					{},
 				},
 			},
 		},
 	},
-	"drop_tags": {
+	"allow_tags": {
 		processorType: processorType,
 		processor: map[string]interface{}{
 			"tag-names": []string{"^name*"},
-			"debug":     true,
 		},
 		tests: []item{
 			{
@@ -109,8 +113,14 @@ var testset = map[string]struct {
 					{
 						Tags: map[string]string{"name": "dummy"},
 					},
+					{
+						Tags: map[string]string{"not-name": "dummy"},
+					},
 				},
 				output: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{"name": "dummy"},
+					},
 					{},
 				},
 			},
@@ -118,7 +128,7 @@ var testset = map[string]struct {
 	},
 }
 
-func TestEventDrop(t *testing.T) {
+func TestEventAllow(t *testing.T) {
 	for name, ts := range testset {
 		if pi, ok := formatters.EventProcessors[ts.processorType]; ok {
 			p := pi()
@@ -134,7 +144,7 @@ func TestEventDrop(t *testing.T) {
 					outs := p.Apply(item.input...)
 					for j := range outs {
 						if !reflect.DeepEqual(outs[j], item.output[j]) {
-							t.Logf("failed at event drop, item %d, index %d", i, j)
+							t.Logf("failed at event allow, item %d, index %d", i, j)
 							t.Logf("expected: %#v", item.output[j])
 							t.Logf("     got: %#v", outs[j])
 							t.Fail()

@@ -1,4 +1,4 @@
-package event_drop
+package event_allow
 
 import (
 	"encoding/json"
@@ -13,12 +13,12 @@ import (
 )
 
 const (
-	processorType = "event-drop"
+	processorType = "event-allow"
 	loggingPrefix = "[" + processorType + "] "
 )
 
-// Drop Drops the msg if ANY of the Tags or Values regexes are matched
-type Drop struct {
+// Allow Allows the msg if ANY of the Tags or Values regexes are matched
+type Allow struct {
 	formatters.EventProcessor
 	Condition  string   `mapstructure:"condition,omitempty"`
 	TagNames   []string `mapstructure:"tag-names,omitempty" json:"tag-names,omitempty"`
@@ -37,13 +37,13 @@ type Drop struct {
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &Drop{
+		return &Allow{
 			logger: log.New(ioutil.Discard, "", 0),
 		}
 	})
 }
 
-func (d *Drop) Init(cfg interface{}, opts ...formatters.Option) error {
+func (d *Allow) Init(cfg interface{}, opts ...formatters.Option) error {
 	err := formatters.DecodeConfig(cfg, d)
 	if err != nil {
 		return err
@@ -106,7 +106,7 @@ func (d *Drop) Init(cfg interface{}, opts ...formatters.Option) error {
 	return nil
 }
 
-func (d *Drop) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
+func (d *Allow) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	for _, e := range es {
 		if e == nil {
 			continue
@@ -117,14 +117,14 @@ func (d *Drop) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 				d.logger.Printf("condition check failed: %v", err)
 				continue
 			}
-			if ok {
+			if !ok {
 				*e = formatters.EventMsg{}
 				continue
 			}
 		}
 		for k, v := range e.Values {
 			for _, re := range d.valueNames {
-				if re.MatchString(k) {
+				if !re.MatchString(k) {
 					d.logger.Printf("value name '%s' matched regex '%s'", k, re.String())
 					*e = formatters.EventMsg{}
 					break
@@ -132,7 +132,7 @@ func (d *Drop) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 			}
 			for _, re := range d.values {
 				if vs, ok := v.(string); ok {
-					if re.MatchString(vs) {
+					if !re.MatchString(vs) {
 						d.logger.Printf("value '%s' matched regex '%s'", v, re.String())
 						*e = formatters.EventMsg{}
 						break
@@ -142,7 +142,7 @@ func (d *Drop) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		}
 		for k, v := range e.Tags {
 			for _, re := range d.tagNames {
-				if re.MatchString(k) {
+				if !re.MatchString(k) {
 					d.logger.Printf("tag name '%s' matched regex '%s'", k, re.String())
 					*e = formatters.EventMsg{}
 					break
@@ -160,7 +160,7 @@ func (d *Drop) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	return es
 }
 
-func (d *Drop) WithLogger(l *log.Logger) {
+func (d *Allow) WithLogger(l *log.Logger) {
 	if d.Debug && l != nil {
 		d.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
 	} else if d.Debug {
