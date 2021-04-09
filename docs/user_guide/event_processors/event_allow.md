@@ -1,4 +1,7 @@
-The `event-allow` processor, allows only messages matching the configured `condition` or one of the regexes under`tags`, `tag-names`, `values` or `value-names`.
+The `event-allow` processor, allows only messages matching the configured `condition` or one of the regular expressions under `tags`, `tag-names`, `values` or `value-names`.
+
+Non matching messages are dropped.
+
 ```yaml
 processors:
   # processor name
@@ -7,13 +10,17 @@ processors:
     event-allow:
       # jq expression, if evaluated to true, the message is allowed
       condition: 
-      # list of regular expressions to be matched against the tags names, if matched, the message is allowed
+      # list of regular expressions to be matched against the tags names, 
+      # if matched, the message is allowed
       tag-names:
-      # list of regular expressions to be matched against the tags values, if matched, the message is allowed
+      # list of regular expressions to be matched against the tags values,
+      # if matched, the message is allowed
       tags:
-      # list of regular expressions to be matched against the values names, if matched, the message is allowed
+      # list of regular expressions to be matched against the values names,
+      # if matched, the message is allowed
       value-names:
-      # list of regular expressions to be matched against the values, if matched, the message is allowed
+      # list of regular expressions to be matched against the values,
+      # if matched, the message is allowed
       values:
 ```
 ### Examples
@@ -24,7 +31,7 @@ processors:
   allow-processor:
     # processor type
     event-allow:
-      condition: ".tags.source == 172.23.23.2:57400"
+      condition: ".tags.interface_name == 1/1/1"
 ```
 
 === "Event format before"
@@ -57,8 +64,8 @@ processors:
         "name": "default",
         "timestamp": 1607291271894072397,
         "tags": {
-            "interface_name": "mgmt0",
-            "source": "172.23.23.2:57400",
+            "interface_name": "1/1/1",
+            "source": "172.23.23.3:57400",
             "subscription-name": "default"
         },
         "values": {
@@ -82,11 +89,13 @@ processors:
     ```json
     [
       {
+      },
+      {
         "name": "default",
         "timestamp": 1607291271894072397,
         "tags": {
-            "interface_name": "mgmt0",
-            "source": "172.23.23.2:57400",
+            "interface_name": "1/1/1",
+            "source": "172.23.23.3:57400",
             "subscription-name": "default"
         },
         "values": {
@@ -103,8 +112,7 @@ processors:
             "/srl_nokia-interfaces:interface/statistics/out-octets": "64721394",
             "/srl_nokia-interfaces:interface/statistics/out-unicast-packets": "105876"
         }
-      },
-      {}
+      }
     ]
     ```
 
