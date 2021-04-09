@@ -33,6 +33,7 @@ nav:
       - Processors: 
           - Introduction: user_guide/event_processors/intro.md
           - Add Tag: user_guide/event_processors/event_add_tag.md
+          - Allow: user_guide/event_processors/event_allow.md
           - Convert: user_guide/event_processors/event_convert.md
           - Date string: user_guide/event_processors/event_date_string.md
           - Delete: user_guide/event_processors/event_delete.md

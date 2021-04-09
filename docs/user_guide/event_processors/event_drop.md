@@ -1,11 +1,11 @@
-The `event-drop` processor, drops the whole message if a tag or a value name matches one of the configured regular expression.
+The `event-drop` processor, drops the whole message if it matches the configured `condition` or one of the regexes under`tags`, `tag-names`, `values` or `value-names`.
 
 ```yaml
 processors:
   # processor name
   sample-processor:
     # processor type
-    drop-processor:
+    event-drop:
       # jq expression, if evaluated to true, the message is dropped
       condition: 
       # list of regular expressions to be matched against the tags names, if matched, the message is dropped
@@ -24,7 +24,7 @@ processors:
   # processor name
   drop-processor:
     # processor type
-    event-delete:
+    event-drop:
       tags:
         - "172.23.23.2*"
 ```
