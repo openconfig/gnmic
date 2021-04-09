@@ -12,4 +12,5 @@ import (
 	_ "github.com/karimra/gnmic/formatters/event_to_tag"
 	_ "github.com/karimra/gnmic/formatters/event_trigger"
 	_ "github.com/karimra/gnmic/formatters/event_write"
+	_ "github.com/karimra/gnmic/formatters/event_extract_tags"
 )
