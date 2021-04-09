@@ -1,0 +1,221 @@
+### v0.10.0 - April 8th 2021
+
+- New command:
+    - `getset` command: This command conditionally executes both a `Get` and a `Set` RPC, the `GetResponse` is used to evaluate a condition which if met triggers the execution of the `Set` RPC.
+- Processors:
+    - Some processors' apply condition can be expressed using `jq` instead of regular expressions. 
+
+### v0.9.1 - March 23rd 2021
+
+- Processors:
+    - Add `event-trigger` processor: This processor is used to trigger a predefined action if a condition is met.
+    - New processor `event-jq` which applies a transformation on the messages expressed as a jq expression.
+    
+- Shell autocompletion:
+    - Shell (bash, zsh and fish) autocompletion scripts can be generated using `gnmic completion [bash|zsh|fish]`.
+- gRPC gzip compression:
+    - `gnmic` supports gzip compression on gRPC connections.
+  
+### v0.9.0 - March 11th 2021
+
+- Clustered Prometheus output:
+    - When deployed as a cluster, it is possible to register only one of the prometheus outputs in Consul. This is handy in the case of a cluster with data replication.
+- Proto file loading at runtime (Nokia SROS):
+    - `gnmic` supports loading SROS proto files at runtime to decode gNMI updates with `proto` encoding
+- Kafka Output:
+    - Kafka SASL support: PLAIN, SCRAM SHA256/SHA512 OAuth mechanisms are supported.
+- Configuration:
+    - `gnmic` supports configuration using environment variables.
+- Processors:
+    - add `event-merge` processor.
+- Target Loaders:
+    - `gnmic` supports target loaders at runtime, new targets can be added to the configuration from a file that `gnmic` watches or from `Consul`
+  
+### v0.8.0 - March 2nd 2021
+
+- Inputs:
+    - Processors can now be applied by the input plugins.
+- Prometheus output:
+    - The Prometheus output can now register as a service in Consul, a Prometheus client can discover the output using consul service discovery.
+- Clustering:
+    - `gnmic` can now run as a cluster, this requires a running Consul instance that will be used by the `gnmic` instance for leader election and target load sharing.
+- Configuration file:
+    - The default configuration file placement now follows [XDG](https://wiki.archlinux.org/index.php/XDG_Base_Directory) recommendations
+- CLI exit status:
+    - Failure of most commands is properly reflected in the cli exit status.
+- Configuration:
+    - Configuration fields that are OS paths are expanded by `gnmic`
+- Deployment examples:
+    - A set of deployment examples is added to the repo and the docs.
+  
+### v0.7.0 - January 28th 2021
+
+- Prometheus output metrics customization:
+    - `metric-prefix` and `append-subscription-name` can be used to change the default metric prefix and append the subscription name to the metric name.
+    - `export-timestamps`: enables/disables the export of timestamps together with the metric.
+    - `strings-as-labels`: enables/disables automatically adding paths with a value of type string as a metric label.
+
+- NATS output:
+    - allow multiple NATS workers under NATS output via field `num-workers`.
+    - add NATS prometheus internal metrics.
+
+- STAN output:
+    - allow multiple STAN workers under STAN output via field `num-workers`.
+    - add NATS prometheus internal metrics.
+
+- File output:
+    - add File prometheus metrics.
+  
+- Inputs:
+    - support ingesting gNMI data from NATS, STAN or a Kafka message bus.
+
+
+### v0.6.0 - December 14th 2020
+
+- Processors: 
+    - Added processors to `gnmic`, a set of basic processors can be used to manipulate gNMI data flowing through `gnmic`. These processors are applied by the output plugins
+
+- Upgrade command: `gnmic` can be upgraded using `gnmic version upgrade` command.
+
+### v0.5.2 - December 1st 2020
+- Outputs:
+    - Improve outputs logging
+    - Add Prometheus metrics to Kafka output
+
+### v0.5.1 - November 28th 2020
+- Prompt Mode:
+    - Fix subscribe RPC behavior
+- QoS:
+    - Do not populate QoS field if not set via config file or flag.
+Outputs:
+    - add configurable number of workers to some outputs.
+
+### v0.5.0 - November 25th 2020
+- Prompt Mode:
+    - Add prompt sub commands.
+- XPATH parsing:
+    - Add custom xpath parsingto gnmi.Path to allow for paths including column `:`.
+- TLS:
+    - Allow configurable TLS versions per target, the minimum, the maximum and the preferred TLS versions ca be configured.
+  
+### v0.4.3 - November 10th 2020
+- Missing path:
+    - Initialize the path field if not present in SubscribeResponse
+  
+### v0.4.2 - November 5th 2020
+- YANG:
+    - Prompt command flags `--file` and `--dir` support globs.
+- Subscribe:
+    - added flags `--output` that allows to choose a single output for `subscribe` updates
+- Prompt:
+    - Max suggestions is automatically adjusted based on the terminal height.
+    - Add suggestions for address and subscriptions.
+
+### v0.4.1 - October 22nd 2020
+- Prompt:
+    - Add suggestions of xpath with origin, `--suggest-with-origin`.
+### v0.4.0 - October 21st 2020
+- New Command:
+    - Add new command `prompt`
+- Prompt:
+    - Add ctrl+z key bind to delete a single path element.
+    - Add YANG info to xpath suggestions.
+    - Add GoLeft, GoRight key binds.
+    - Sort xpaths and prefixes suggestions.
+    - xpaths suggestions are properly generated if a prefix is present.
+    - flag `--suggest-all-flags` allows adding global flags suggestion in prompt mode.
+  
+- Prometheus output:
+    - Add support for Prometheus output plugin.
+    
+### v0.3.0 - October 1st 2020
+- InfluxDB output:
+    - Add support for influxDB output plugin.
+
+### v0.2.3 - September 18th 2020
+- Retry
+    - Add basic RPC retry mechanism.
+- ONCE mode subscription:
+    - Handle targets that send an EOF error instead of a SyncResponse to signify the end of ONCE subscriptions.
+- Docker image:
+    - Docker images added to ghcr.io as well as docker hub.
+  
+### v0.2.2 - September 3rd 2020
+- CLI:
+    - Properly handle paths that include quotes.
+- Unix Socket:
+    - Allow send/rcv of gNMI data to/from a unix socket.
+- Outputs:
+    - Add TCP output plugin.
+
+### v0.2.1 - August 11th 2020
+- Releases:
+    - Add .deb. and .rpm packages to releases.
+ - Outputs:
+    - Add UDP output plugin. 
+
+### v0.2.0 - August 7th 2020
+- Releases:
+    - Add ARM releases.
+    - Push docker image to docker hub.
+  
+### v0.1.1 - July 23rd 2020
+- Set Cmd:
+    - Support `json_ietf` encoding when the value is specified from a file.
+  
+### v0.1.0 - July 16th 2020
+- Outputs:
+    - Allow NATS/STAN output subject customization.
+
+### v0.0.7 - July 16th 2020
+- gNMI Target:
+    - Add support for gNMI Target field.
+- gNMI Origin:
+    - Add support for gNMI Origin field.  
+- Prometheus internal metrics:
+    - Add support for `gnmic` internal metrics via a Prometheus server.
+- Outputs:
+    - Add support for multiple output plugins (file, NATS, STAN, Kafka)
+- Targets:
+    - Support target specific configuration.
+- Poll Subscription:
+    - Allow selecting polled targets and subscription using a CLI select menu.
+- gNMI Models:
+    - Support multiple Models in Get and Subscribe RPCs.
+
+### v0.0.6 - June 2nd 2020
+- Nokia Dialout:
+    - Add Support for Nokia Dialout telemetry.
+- Printing:
+    - Convert timestamps to Time.
+
+### v0.0.5 - May 18th 2020
+- Formatting:
+    - Add `textproto` format.
+
+### v0.0.4 - May 11th 2020
+- Logging:
+    - Support logging to file instead of Stderr.
+- Set Command:
+    - support Set values from YAML file.
+
+### v0.0.3 - April 23rd 2020
+- Proxy:
+    - Allow usage of ENV proxy values for gRPC connections.
+- Installation:
+    - Add installation script.
+
+### v0.0.2 - April 13th 2020
+- Terminal printing clean up.
+- Path Command: Add search option.
+
+### v0.0.1 - March 24th 2020
+- Capabilities RPC Command.
+- Get RPC Command.
+- Subscribe RPC Command.
+- Set RPC Command.
+- TLS support.
+- Version Command.
+- Path Commnd.
+
+### initial Commit - February 20th 2020
