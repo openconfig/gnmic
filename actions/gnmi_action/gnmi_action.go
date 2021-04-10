@@ -3,6 +3,8 @@ package gnmi_action
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,10 +16,10 @@ import (
 	"time"
 
 	"github.com/karimra/gnmic/actions"
-	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 const (
@@ -33,8 +35,8 @@ const (
 func init() {
 	actions.Register(actionType, func() actions.Action {
 		return &gnmiAction{
-			logger:        log.New(ioutil.Discard, "", 0),
-			targetsConfig: make(map[string]*collector.TargetConfig),
+			logger:         log.New(ioutil.Discard, "", 0),
+			targetsConfigs: make(map[string]*targetConfig),
 		}
 	})
 }
@@ -48,16 +50,22 @@ type gnmiAction struct {
 
 	Values []string `mapstructure:"values,omitempty"`
 	//ValuesFromFiles []string `mapstructure:"values-from-files,omitempty"`
-	Encoding string `mapstructure:"encoding,omitempty"`
-	Debug    bool   `mapstructure:"debug,omitempty"`
+	Encoding   string `mapstructure:"encoding,omitempty"`
+	Debug      bool   `mapstructure:"debug,omitempty"`
+	NoEnvProxy bool   `mapstructure:"no-env-proxy,omitempty"`
+	Insecure   bool   `mapstructure:"insecure,omitempty"`
+	SkipVerify bool   `mapstructure:"skip-verify,omitempty"`
+	TLSCa      string `mapstructure:"tls-ca,omitempty"`
+	TLSCert    string `mapstructure:"tls-cert,omitempty"`
+	TLSKey     string `mapstructure:"tls-key,omitempty"`
 
 	target *template.Template
 	prefix *template.Template
 	paths  []*template.Template
 	values []*template.Template
 
-	targetsConfig map[string]*collector.TargetConfig
-	logger        *log.Logger
+	targetsConfigs map[string]*targetConfig
+	logger         *log.Logger
 }
 
 func (g *gnmiAction) Init(cfg map[string]interface{}, opts ...actions.Option) error {
@@ -83,17 +91,17 @@ func (g *gnmiAction) Run(e *formatters.EventMsg) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	if tc, ok := g.targetsConfig[b.String()]; ok {
+	if tc, ok := g.targetsConfigs[b.String()]; ok {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		t := collector.NewTarget(tc)
+		t := newTarget(tc)
 		switch g.RPC {
 		case "get":
 			req, err := g.createGetRequest(e)
 			if err != nil {
 				return nil, err
 			}
-			err = t.CreateGNMIClient(ctx, grpc.WithBlock()) // TODO add dialopts
+			err = t.createGNMIClient(ctx, g.dialOpts()...) // TODO add dialopts
 			if err != nil {
 				return nil, err
 			}
@@ -103,7 +111,7 @@ func (g *gnmiAction) Run(e *formatters.EventMsg) (interface{}, error) {
 			if err != nil {
 				return nil, err
 			}
-			err = t.CreateGNMIClient(ctx, grpc.WithBlock()) // TODO add dialopts
+			err = t.createGNMIClient(ctx, g.dialOpts()...) // TODO add dialopts
 			if err != nil {
 				return nil, err
 			}
@@ -199,7 +207,7 @@ func (g *gnmiAction) createGetRequest(e *formatters.EventMsg) (*gnmi.GetRequest,
 		if err != nil {
 			return nil, fmt.Errorf("prefix parse error: %v", err)
 		}
-		gnmiPrefix, err := collector.ParsePath(b.String())
+		gnmiPrefix, err := parsePath(b.String())
 		if err != nil {
 			return nil, fmt.Errorf("prefix parse error: %v", err)
 		}
@@ -218,7 +226,7 @@ func (g *gnmiAction) createGetRequest(e *formatters.EventMsg) (*gnmi.GetRequest,
 		if err != nil {
 			return nil, fmt.Errorf("path parse error: %v", err)
 		}
-		gnmiPath, err := collector.ParsePath(strings.TrimSpace(b.String()))
+		gnmiPath, err := parsePath(strings.TrimSpace(b.String()))
 		if err != nil {
 			return nil, fmt.Errorf("path parse error: %v", err)
 		}
@@ -241,7 +249,7 @@ func (g *gnmiAction) createSetRequest(e *formatters.EventMsg) (*gnmi.SetRequest,
 		if err != nil {
 			return nil, fmt.Errorf("prefix parse error: %v", err)
 		}
-		gnmiPrefix, err := collector.ParsePath(b.String())
+		gnmiPrefix, err := parsePath(b.String())
 		if err != nil {
 			return nil, fmt.Errorf("prefix parse error: %v", err)
 		}
@@ -253,7 +261,7 @@ func (g *gnmiAction) createSetRequest(e *formatters.EventMsg) (*gnmi.SetRequest,
 		if err != nil {
 			return nil, fmt.Errorf("path parse error: %v", err)
 		}
-		gnmiPath, err := collector.ParsePath(strings.TrimSpace(b.String()))
+		gnmiPath, err := parsePath(strings.TrimSpace(b.String()))
 		if err != nil {
 			return nil, fmt.Errorf("path parse error: %v", err)
 		}
@@ -360,4 +368,57 @@ func (g *gnmiAction) createTypedValue(val string) (*gnmi.TypedValue, error) {
 		return nil, fmt.Errorf("unknown type %q", g.Encoding)
 	}
 	return value, nil
+}
+
+func (g *gnmiAction) dialOpts() []grpc.DialOption {
+	opts := make([]grpc.DialOption, 0, 3)
+	opts = append(opts, grpc.WithBlock())
+	if g.NoEnvProxy {
+		opts = append(opts, grpc.WithNoProxy())
+	}
+	if g.Insecure {
+		return opts
+	}
+	tlsConfig := &tls.Config{
+		Renegotiation:      tls.RenegotiateNever,
+		InsecureSkipVerify: g.SkipVerify,
+	}
+	err := g.loadCerts(tlsConfig)
+	if err != nil {
+		g.logger.Printf("failed loading certificates: %v", err)
+	}
+
+	err = g.loadCACerts(tlsConfig)
+	if err != nil {
+		g.logger.Printf("failed loading CA certificates: %v", err)
+	}
+	opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+	return opts
+}
+
+func (g *gnmiAction) loadCerts(tlscfg *tls.Config) error {
+	if g.TLSCert != "" && g.TLSKey != "" {
+		certificate, err := tls.LoadX509KeyPair(g.TLSCert, g.TLSKey)
+		if err != nil {
+			return err
+		}
+		tlscfg.Certificates = []tls.Certificate{certificate}
+		tlscfg.BuildNameToCertificate()
+	}
+	return nil
+}
+
+func (g *gnmiAction) loadCACerts(tlscfg *tls.Config) error {
+	certPool := x509.NewCertPool()
+	if g.TLSCa != "" {
+		caFile, err := ioutil.ReadFile(g.TLSCa)
+		if err != nil {
+			return err
+		}
+		if ok := certPool.AppendCertsFromPEM(caFile); !ok {
+			return errors.New("failed to append certificate")
+		}
+		tlscfg.RootCAs = certPool
+	}
+	return nil
 }

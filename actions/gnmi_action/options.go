@@ -4,15 +4,18 @@ import (
 	"log"
 	"os"
 
-	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/actions"
 )
 
 func (g *gnmiAction) WithTargets(tcs map[string]interface{}) {
+	var err error
 	for n, tc := range tcs {
-		switch tc := tc.(type) {
-		case *collector.TargetConfig:
-			g.targetsConfig[n] = tc
+		ltc := new(targetConfig)
+		err = actions.DecodeConfig(tc, ltc)
+		if err != nil {
+			g.logger.Printf("failed to decode targets config: %v", err)
 		}
+		g.targetsConfigs[n] = ltc
 	}
 }
 
