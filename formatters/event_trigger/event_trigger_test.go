@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/karimra/gnmic/formatters"
@@ -151,6 +152,53 @@ var testset = map[string]struct {
 	},
 }
 
+var triggerOccWindowTestSet = map[string]struct {
+	t   *Trigger
+	now time.Time
+	out bool
+}{
+	"defaults_0_occurrences": {
+		t: &Trigger{
+			logger:           log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			Debug:            true,
+			MinOccurrences:   1,
+			MaxOccurrences:   1,
+			Window:           time.Minute,
+			occurrencesTimes: []time.Time{},
+		},
+		out: true,
+		now: time.Now(),
+	},
+	"defaults_with_1_occurrence_in_window": {
+		t: &Trigger{
+			logger:         log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			Debug:          true,
+			MinOccurrences: 1,
+			MaxOccurrences: 1,
+			Window:         time.Minute,
+			occurrencesTimes: []time.Time{
+				time.Now().Add(-time.Second),
+			},
+		},
+		out: false,
+		now: time.Now(),
+	},
+	"defaults_with_1_occurrence_out_of_window": {
+		t: &Trigger{
+			logger:         log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			Debug:          true,
+			MinOccurrences: 1,
+			MaxOccurrences: 1,
+			Window:         time.Minute,
+			occurrencesTimes: []time.Time{
+				time.Now().Add(-time.Hour),
+			},
+		},
+		out: true,
+		now: time.Now(),
+	},
+}
+
 func TestEventTrigger(t *testing.T) {
 	for name, ts := range testset {
 		if pi, ok := formatters.EventProcessors[ts.processorType]; ok {
@@ -176,5 +224,17 @@ func TestEventTrigger(t *testing.T) {
 		} else {
 			t.Errorf("event processor %s not found", ts.processorType)
 		}
+	}
+}
+
+func TestOccurrenceTrigger(t *testing.T) {
+	for name, ts := range triggerOccWindowTestSet {
+		t.Run(name, func(t *testing.T) {
+			ok := ts.t.evalOccurrencesWithinWindow(ts.now)
+			t.Logf("%q result: %v", name, ok)
+			if ok != ts.out {
+				t.Errorf("failed at %s , expected %+v, got: %+v", name, ts.out, ok)
+			}
+		})
 	}
 }
