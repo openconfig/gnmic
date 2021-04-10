@@ -60,7 +60,7 @@ func (t *TCPOutput) SetLogger(logger *log.Logger) {
 	}
 }
 
-func (t *TCPOutput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger) {
+func (t *TCPOutput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]interface{}) {
 	for _, epName := range t.Cfg.EventProcessors {
 		if epCfg, ok := ps[epName]; ok {
 			epType := ""
@@ -70,7 +70,7 @@ func (t *TCPOutput) SetEventProcessors(ps map[string]map[string]interface{}, log
 			}
 			if in, ok := formatters.EventProcessors[epType]; ok {
 				ep := in()
-				err := ep.Init(epCfg[epType], formatters.WithLogger(logger))
+				err := ep.Init(epCfg[epType], formatters.WithLogger(logger), formatters.WithTargets(tcs))
 				if err != nil {
 					t.logger.Printf("failed initializing event processor '%s' of type='%s': %v", epName, epType, err)
 					continue

@@ -18,7 +18,7 @@ processors:
       value-names:
       # list of regular expressions to be matched against the values, if matched, the tags are added
       values:
-      # boolean, if true tags are over-written with the aded ones if they already exist.
+      # boolean, if true tags are over-written with the added ones if they already exist.
       overwrite:
       # map of tags to be added
       add: 

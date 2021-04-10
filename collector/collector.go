@@ -18,6 +18,7 @@ import (
 	"github.com/karimra/gnmic/inputs"
 	"github.com/karimra/gnmic/lockers"
 	"github.com/karimra/gnmic/outputs"
+	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
 	"github.com/prometheus/client_golang/prometheus"
@@ -408,7 +409,7 @@ func (c *Collector) AddOutput(name string, cfg map[string]interface{}) error {
 	return nil
 }
 
-func (c *Collector) InitOutput(ctx context.Context, name string) {
+func (c *Collector) InitOutput(ctx context.Context, name string, tcs map[string]interface{}) {
 	c.m.Lock()
 	defer c.m.Unlock()
 	if _, ok := c.Outputs[name]; ok {
@@ -422,7 +423,7 @@ func (c *Collector) InitOutput(ctx context.Context, name string) {
 				go func() {
 					err := out.Init(ctx, name, cfg,
 						outputs.WithLogger(c.logger),
-						outputs.WithEventProcessors(c.EventProcessorsConfig, c.logger),
+						outputs.WithEventProcessors(c.EventProcessorsConfig, c.logger, tcs),
 						outputs.WithRegister(c.reg),
 						outputs.WithName(c.Config.Name),
 						outputs.WithClusterName(c.Config.ClusterName),
@@ -438,8 +439,9 @@ func (c *Collector) InitOutput(ctx context.Context, name string) {
 }
 
 func (c *Collector) InitOutputs(ctx context.Context) {
+	tcs := c.targetsConfigsToMap()
 	for name := range c.outputsConfig {
-		c.InitOutput(ctx, name)
+		c.InitOutput(ctx, name, tcs)
 	}
 }
 
@@ -882,4 +884,20 @@ func (c *Collector) parseProtoFiles(t *Target) error {
 	}
 	c.logger.Printf("target %q loaded proto files", t.Config.Name)
 	return nil
+}
+
+func (c *Collector) targetsConfigsToMap() map[string]interface{} {
+	tcs := make(map[string]interface{})
+	var err error
+	for n, tc := range c.targetsConfig {
+		var itc interface{}
+		err = mapstructure.Decode(tc, &itc)
+		if err != nil {
+			c.logger.Printf("failed to decode target %q config: %v", n, err)
+			continue
+		}
+		c.logger.Printf("%T | %v", itc, itc)
+		tcs[n] = itc
+	}
+	return tcs
 }

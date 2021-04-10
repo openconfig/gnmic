@@ -30,7 +30,7 @@ func (c *Collector) AddInput(name string, cfg map[string]interface{}) error {
 	return nil
 }
 
-func (c *Collector) InitInput(ctx context.Context, name string) {
+func (c *Collector) InitInput(ctx context.Context, name string, tcs map[string]interface{}) {
 	c.m.Lock()
 	defer c.m.Unlock()
 	if _, ok := c.Inputs[name]; ok {
@@ -46,6 +46,7 @@ func (c *Collector) InitInput(ctx context.Context, name string) {
 						inputs.WithLogger(c.logger),
 						inputs.WithOutputs(c.Outputs),
 						inputs.WithName(c.Config.Name),
+						inputs.WithEventProcessors(c.EventProcessorsConfig, c.logger, tcs),
 					)
 					if err != nil {
 						c.logger.Printf("failed to start input type %q: %v", inputType, err)
@@ -58,7 +59,8 @@ func (c *Collector) InitInput(ctx context.Context, name string) {
 }
 
 func (c *Collector) InitInputs(ctx context.Context) {
+	tcs := c.targetsConfigsToMap()
 	for name := range c.inputsConfig {
-		c.InitInput(ctx, name)
+		c.InitInput(ctx, name, tcs)
 	}
 }

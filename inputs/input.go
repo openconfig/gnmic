@@ -12,7 +12,7 @@ type Input interface {
 	Close() error
 	SetLogger(*log.Logger)
 	SetOutputs(map[string]outputs.Output)
-	SetEventProcessors(map[string]map[string]interface{}, *log.Logger)
+	SetEventProcessors(map[string]map[string]interface{}, *log.Logger, map[string]interface{})
 	SetName(string)
 }
 
@@ -50,8 +50,8 @@ func WithName(name string) Option {
 	}
 }
 
-func WithEventProcessors(eps map[string]map[string]interface{}, log *log.Logger) Option {
+func WithEventProcessors(eps map[string]map[string]interface{}, log *log.Logger, tcs map[string]interface{}) Option {
 	return func(i Input) {
-		i.SetEventProcessors(eps, log)
+		i.SetEventProcessors(eps, log, tcs)
 	}
 }
