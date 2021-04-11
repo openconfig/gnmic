@@ -52,11 +52,14 @@ processors:
     event-trigger:
       # trigger condition
       condition: '.values["counter1"] > 90'
-      # number of condition occurrences before triggering the action
-      max-occurrences: 2
+      # minimum number of condition occurrences within the configured window 
+      # required to trigger the action
+      min-occurrences: 1
+      # max number of times the action is triggered within the configured window
+      max-occurrences: 1
       # window of time during which max-occurrences need to 
       # be reached in order to trigger the action
-      window: 120s
+      window: 60s
       # the action to trigger
       action:
         # action type
@@ -85,6 +88,7 @@ processors:
   my_trigger_proc:
     event-trigger:
       condition: '.values["counter1"] > 90'
+      min-occurrences: 1
       max-occurrences: 2
       window: 120s
       action:
@@ -151,6 +155,8 @@ processors:
   my_trigger_proc:
     event-trigger:
       condition: '.values["/interface/interface/oper-state"] == "DOWN"'
+      min-occurrences: 1
+      max-occurrences: 2
       action:
         type: gnmi
         rpc: set-update
