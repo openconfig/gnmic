@@ -162,6 +162,9 @@ func (p *Trigger) setDefaults() error {
 	if p.MaxOccurrences <= 0 {
 		p.MaxOccurrences = 1
 	}
+	if p.MaxOccurrences < p.MinOccurrences {
+		return errors.New("max-occurrences cannot be lower than min-occurrences")
+	}
 	if p.Window <= 0 {
 		p.Window = time.Minute
 	}
@@ -189,7 +192,6 @@ func (p *Trigger) evalOccurrencesWithinWindow(now time.Time) bool {
 		p.logger.Printf("occurrencesTimes: %v", p.occurrencesTimes)
 	}
 	for _, t := range p.occurrencesTimes {
-		p.logger.Printf("time: %v | now: %v", t, now)
 		if t.Add(p.Window).After(now) {
 			occurrencesInWindow = append(occurrencesInWindow, t)
 		}
