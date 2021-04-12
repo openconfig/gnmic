@@ -228,7 +228,7 @@ func (n *NatsInput) SetName(name string) {
 	n.Cfg.Name = sb.String()
 }
 
-func (n *NatsInput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger) {
+func (n *NatsInput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]interface{}) {
 	for _, epName := range n.Cfg.EventProcessors {
 		if epCfg, ok := ps[epName]; ok {
 			epType := ""
@@ -238,7 +238,7 @@ func (n *NatsInput) SetEventProcessors(ps map[string]map[string]interface{}, log
 			}
 			if in, ok := formatters.EventProcessors[epType]; ok {
 				ep := in()
-				err := ep.Init(epCfg[epType], formatters.WithLogger(logger))
+				err := ep.Init(epCfg[epType], formatters.WithLogger(logger), formatters.WithTargets(tcs))
 				if err != nil {
 					n.logger.Printf("failed initializing event processor %q of type=%q: %v", epName, epType, err)
 					continue

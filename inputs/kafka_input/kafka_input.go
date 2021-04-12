@@ -235,7 +235,7 @@ func (k *KafkaInput) SetName(name string) {
 	k.Cfg.Name = sb.String()
 }
 
-func (k *KafkaInput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger) {
+func (k *KafkaInput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]interface{}) {
 	for _, epName := range k.Cfg.EventProcessors {
 		if epCfg, ok := ps[epName]; ok {
 			epType := ""
@@ -245,7 +245,7 @@ func (k *KafkaInput) SetEventProcessors(ps map[string]map[string]interface{}, lo
 			}
 			if in, ok := formatters.EventProcessors[epType]; ok {
 				ep := in()
-				err := ep.Init(epCfg[epType], formatters.WithLogger(logger))
+				err := ep.Init(epCfg[epType], formatters.WithLogger(logger), formatters.WithTargets(tcs))
 				if err != nil {
 					k.logger.Printf("failed initializing event processor %q of type=%q: %v", epName, epType, err)
 					continue

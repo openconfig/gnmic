@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/karimra/gnmic/formatters"
@@ -151,6 +152,154 @@ var testset = map[string]struct {
 	},
 }
 
+var triggerOccWindowTestSet = map[string]struct {
+	t   *Trigger
+	now time.Time
+	out bool
+}{
+	"defaults_0_occurrences": {
+		t: &Trigger{
+			logger:           log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			Debug:            true,
+			MinOccurrences:   1,
+			MaxOccurrences:   1,
+			Window:           time.Minute,
+			occurrencesTimes: []time.Time{},
+		},
+		out: true,
+		now: time.Now(),
+	},
+	"defaults_with_1_occurrence_in_window": {
+		t: &Trigger{
+			logger:         log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			Debug:          true,
+			MinOccurrences: 1,
+			MaxOccurrences: 1,
+			Window:         time.Minute,
+			occurrencesTimes: []time.Time{
+				time.Now().Add(-time.Second),
+			},
+			lastTrigger: time.Now().Add(-time.Second),
+		},
+		out: false,
+		now: time.Now(),
+	},
+	"defaults_with_1_occurrence_out_of_window": {
+		t: &Trigger{
+			logger:         log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			Debug:          true,
+			MinOccurrences: 1,
+			MaxOccurrences: 1,
+			Window:         time.Minute,
+			occurrencesTimes: []time.Time{
+				time.Now().Add(-time.Hour),
+			},
+		},
+		out: true,
+		now: time.Now(),
+	},
+	"2max_1min_without_occurrences": {
+		t: &Trigger{
+			logger:           log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			Debug:            true,
+			MinOccurrences:   1,
+			MaxOccurrences:   2,
+			Window:           time.Minute,
+			occurrencesTimes: []time.Time{},
+		},
+		out: true,
+		now: time.Now(),
+	},
+	"2max_1min_with_1occurrence_in_window": {
+		t: &Trigger{
+			logger:         log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			Debug:          true,
+			MinOccurrences: 1,
+			MaxOccurrences: 2,
+			Window:         time.Minute,
+			occurrencesTimes: []time.Time{
+				time.Now().Add(-30 * time.Second),
+			},
+		},
+		out: true,
+		now: time.Now(),
+	},
+	"2max_1min_with_2occurrences_in_window": {
+		t: &Trigger{
+			logger:         log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			Debug:          true,
+			MinOccurrences: 1,
+			MaxOccurrences: 2,
+			Window:         time.Minute,
+			occurrencesTimes: []time.Time{
+				time.Now().Add(-10 * time.Second),
+				time.Now().Add(-30 * time.Second),
+			},
+			lastTrigger: time.Now().Add(-10 * time.Second),
+		},
+		out: false,
+		now: time.Now(),
+	},
+	"2max_2min_without_occurrences": {
+		t: &Trigger{
+			logger:           log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			Debug:            true,
+			MinOccurrences:   2,
+			MaxOccurrences:   2,
+			Window:           time.Minute,
+			occurrencesTimes: []time.Time{},
+		},
+		out: false,
+		now: time.Now(),
+	},
+	"2max_2min_with_1occurrence_in_window": {
+		t: &Trigger{
+			logger:         log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			Debug:          true,
+			MinOccurrences: 2,
+			MaxOccurrences: 2,
+			Window:         time.Minute,
+			occurrencesTimes: []time.Time{
+				time.Now().Add(-30 * time.Second),
+			},
+		},
+		out: true,
+		now: time.Now(),
+	},
+	"2max_2min_with_2occurrences_in_window": {
+		t: &Trigger{
+			logger:         log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			Debug:          true,
+			MinOccurrences: 2,
+			MaxOccurrences: 2,
+			Window:         time.Minute,
+			occurrencesTimes: []time.Time{
+				time.Now().Add(-10 * time.Second),
+				time.Now().Add(-30 * time.Second),
+			},
+			lastTrigger: time.Now().Add(-10 * time.Second),
+		},
+		out: false,
+		now: time.Now(),
+	},
+	"2max_2min_with_2occurrences_in_window_lastTrigger_out_of_window": {
+		t: &Trigger{
+			logger:         log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			Debug:          true,
+			MinOccurrences: 2,
+			MaxOccurrences: 2,
+			Window:         time.Minute,
+			occurrencesTimes: []time.Time{
+				time.Now().Add(-10 * time.Second),
+				time.Now().Add(-30 * time.Second),
+			},
+			lastTrigger: time.Now().Add(-61 * time.Second),
+		},
+		out: true,
+		now: time.Now(),
+	},
+}
+
 func TestEventTrigger(t *testing.T) {
 	for name, ts := range testset {
 		if pi, ok := formatters.EventProcessors[ts.processorType]; ok {
@@ -166,9 +315,14 @@ func TestEventTrigger(t *testing.T) {
 				t.Run(name, func(t *testing.T) {
 					t.Logf("running test item %d", i)
 					outs := p.Apply(item.input...)
+					if len(outs) != len(item.output) {
+						t.Errorf("failed at %s, result has a different length than the expected result", name)
+						t.Fail()
+					}
 					for j := range outs {
 						if !cmp.Equal(outs[j], item.output[j]) {
 							t.Errorf("failed at %s item %d, index %d, expected %+v, got: %+v", name, i, j, item.output[j], outs[j])
+							t.Fail()
 						}
 					}
 				})
@@ -176,5 +330,17 @@ func TestEventTrigger(t *testing.T) {
 		} else {
 			t.Errorf("event processor %s not found", ts.processorType)
 		}
+	}
+}
+
+func TestOccurrenceTrigger(t *testing.T) {
+	for name, ts := range triggerOccWindowTestSet {
+		t.Run(name, func(t *testing.T) {
+			ok := ts.t.evalOccurrencesWithinWindow(ts.now)
+			t.Logf("%q result: %v", name, ok)
+			if ok != ts.out {
+				t.Errorf("failed at %s , expected %+v, got: %+v", name, ts.out, ok)
+			}
+		})
 	}
 }

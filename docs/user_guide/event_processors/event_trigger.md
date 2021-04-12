@@ -52,11 +52,14 @@ processors:
     event-trigger:
       # trigger condition
       condition: '.values["counter1"] > 90'
-      # number of condition occurrences before triggering the action
-      max-occurrences: 2
+      # minimum number of condition occurrences within the configured window 
+      # required to trigger the action
+      min-occurrences: 1
+      # max number of times the action is triggered within the configured window
+      max-occurrences: 1
       # window of time during which max-occurrences need to 
       # be reached in order to trigger the action
-      window: 120s
+      window: 60s
       # the action to trigger
       action:
         # action type
@@ -85,6 +88,7 @@ processors:
   my_trigger_proc:
     event-trigger:
       condition: '.values["counter1"] > 90'
+      min-occurrences: 1
       max-occurrences: 2
       window: 120s
       action:
@@ -109,12 +113,15 @@ processors:
     # processor type
     event-trigger:
       # trigger condition
-      condition: '.values["/interface/interface/oper-state"] == "DOWN"'
-      # number of condition occurrences before triggering the action
-      max-occurrences: 2
+      condition: '(.tags.interface_name == "ethernet-1/1" or .tags.interface_name == "ethernet-1/2") and .values["/srl_nokia-interfaces:interface/oper-state"] == "down"'
+      # minimum number of condition occurrences within the configured window 
+      # required to trigger the action
+      min-occurrences: 1
+      # max number of times the action is triggered within the configured window
+      max-occurrences: 1
       # window of time during which max-occurrences need to 
       # be reached in order to trigger the action
-      window: 120s
+      window: 60s
       # the action to trigger
       action:
         # action type
@@ -123,7 +130,7 @@ processors:
         # to trigger a set replace, use `set-replace`
         rpc: set
         # the target router, it defaults to the value in tag "source"
-        target: {{ index .Tags "source" }}
+        target: '{{ index .Tags "source" }}'
         # paths templates to build xpaths
         paths:
           - | 
@@ -144,26 +151,30 @@ processors:
         debug: false
 ```
 
-The below example shows a trigger that enables a router interface if another interface's operational status changes to "DOWN".
+The below example shows a trigger that enables a router interface if another interface's operational status changes to "down".
 
 ```yaml
 processors:
-  my_trigger_proc:
+  interface_watch: # 
     event-trigger:
-      condition: '.values["/interface/interface/oper-state"] == "DOWN"'
+      debug: true
+      condition: '(.tags.interface_name == "ethernet-1/1" or .tags.interface_name == "ethernet-1/2") and .values["/srl_nokia-interfaces:interface/oper-state"] == "down"'
       action:
         type: gnmi
-        rpc: set-update
-        target: {{ .Tags["source"] }}
+        rpc: set
+        target: '{{ index .Tags "source" }}'
         paths:
-          - | 
+          - |
+            {{ $interfaceName := "" }}
             {{ if eq ( index .Tags "interface_name" ) "ethernet-1/1"}}
-              {{$interfaceName := "ethernet-1/2"}}
-            {{else}}
-              {{$interfaceName := "ethernet-1/1"}}
+              {{$interfaceName = "ethernet-1/2"}}
+            {{ else if eq ( index .Tags "interface_name" ) "ethernet-1/2"}}
+              {{$interfaceName = "ethernet-1/1"}}
             {{end}}
-            /interfaces/interface[name={{$interfaceName}}]/admin-state
+            /interface[name={{$interfaceName}}]/admin-state
         values:
           - "enable"
+        encoding: json_ietf
+        debug: true
 ```
 
