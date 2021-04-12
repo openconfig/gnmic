@@ -315,9 +315,14 @@ func TestEventTrigger(t *testing.T) {
 				t.Run(name, func(t *testing.T) {
 					t.Logf("running test item %d", i)
 					outs := p.Apply(item.input...)
+					if len(outs) != len(item.output) {
+						t.Errorf("failed at %s, result has a different length than the expected result", name)
+						t.Fail()
+					}
 					for j := range outs {
 						if !cmp.Equal(outs[j], item.output[j]) {
 							t.Errorf("failed at %s item %d, index %d, expected %+v, got: %+v", name, i, j, item.output[j], outs[j])
+							t.Fail()
 						}
 					}
 				})
