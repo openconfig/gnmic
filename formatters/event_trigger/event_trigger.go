@@ -104,7 +104,7 @@ func (p *Trigger) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 			}
 		}
 	}
-	return nil
+	return es
 }
 
 func (p *Trigger) WithLogger(l *log.Logger) {
