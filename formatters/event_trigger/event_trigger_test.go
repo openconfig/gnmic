@@ -179,6 +179,7 @@ var triggerOccWindowTestSet = map[string]struct {
 			occurrencesTimes: []time.Time{
 				time.Now().Add(-time.Second),
 			},
+			lastTrigger: time.Now().Add(-time.Second),
 		},
 		out: false,
 		now: time.Now(),
@@ -234,6 +235,7 @@ var triggerOccWindowTestSet = map[string]struct {
 				time.Now().Add(-10 * time.Second),
 				time.Now().Add(-30 * time.Second),
 			},
+			lastTrigger: time.Now().Add(-10 * time.Second),
 		},
 		out: false,
 		now: time.Now(),
@@ -275,8 +277,25 @@ var triggerOccWindowTestSet = map[string]struct {
 				time.Now().Add(-10 * time.Second),
 				time.Now().Add(-30 * time.Second),
 			},
+			lastTrigger: time.Now().Add(-10 * time.Second),
 		},
 		out: false,
+		now: time.Now(),
+	},
+	"2max_2min_with_2occurrences_in_window_lastTrigger_out_of_window": {
+		t: &Trigger{
+			logger:         log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			Debug:          true,
+			MinOccurrences: 2,
+			MaxOccurrences: 2,
+			Window:         time.Minute,
+			occurrencesTimes: []time.Time{
+				time.Now().Add(-10 * time.Second),
+				time.Now().Add(-30 * time.Second),
+			},
+			lastTrigger: time.Now().Add(-61 * time.Second),
+		},
+		out: true,
 		now: time.Now(),
 	},
 }

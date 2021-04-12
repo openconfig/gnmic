@@ -24,7 +24,7 @@ const (
 
 // Trigger triggers an action when certain conditions are met
 type Trigger struct {
-	formatters.EventProcessor
+	formatters.EventProcessor `mapstructure:"-"`
 
 	Condition      string                 `mapstructure:"condition,omitempty"`
 	MinOccurrences int                    `mapstructure:"min-occurrences,omitempty"`
@@ -34,6 +34,7 @@ type Trigger struct {
 	Debug          bool                   `mapstructure:"debug,omitempty"`
 
 	occurrencesTimes []time.Time
+	lastTrigger      time.Time
 	code             *gojq.Code
 	action           actions.Action
 
@@ -95,7 +96,7 @@ func (p *Trigger) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 			continue
 		}
 		if p.Debug {
-			p.logger.Printf("condition result: (%T)%+v", res, res)
+			p.logger.Printf("msg=%+v, condition %q result: (%T)%v", e, p.Condition, res, res)
 		}
 		if res {
 			if p.evalOccurrencesWithinWindow(now) {
@@ -193,16 +194,30 @@ func (p *Trigger) evalOccurrencesWithinWindow(now time.Time) bool {
 	}
 	for _, t := range p.occurrencesTimes {
 		if t.Add(p.Window).After(now) {
+			if p.Debug {
+				p.logger.Printf("time=%s + %s is after now=%s", t, p.Window, now)
+			}
 			occurrencesInWindow = append(occurrencesInWindow, t)
 		}
 	}
 	p.occurrencesTimes = append(occurrencesInWindow, now)
 	numOccurrences := len(p.occurrencesTimes)
+	if numOccurrences > p.MaxOccurrences {
+		p.occurrencesTimes = p.occurrencesTimes[numOccurrences-p.MaxOccurrences-1:]
+		numOccurrences = len(p.occurrencesTimes)
+	}
+
 	if p.Debug {
 		p.logger.Printf("numOccurrences: %d", numOccurrences)
 	}
 
 	if numOccurrences >= p.MinOccurrences && numOccurrences <= p.MaxOccurrences {
+		p.lastTrigger = now
+		return true
+	}
+	// check last trigger
+	if numOccurrences > p.MinOccurrences && p.lastTrigger.Add(p.Window).Before(now) {
+		p.lastTrigger = now
 		return true
 	}
 	return false
