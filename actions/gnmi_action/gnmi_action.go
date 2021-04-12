@@ -53,11 +53,6 @@ type gnmiAction struct {
 	Encoding   string `mapstructure:"encoding,omitempty"`
 	Debug      bool   `mapstructure:"debug,omitempty"`
 	NoEnvProxy bool   `mapstructure:"no-env-proxy,omitempty"`
-	Insecure   bool   `mapstructure:"insecure,omitempty"`
-	SkipVerify bool   `mapstructure:"skip-verify,omitempty"`
-	TLSCa      string `mapstructure:"tls-ca,omitempty"`
-	TLSCert    string `mapstructure:"tls-cert,omitempty"`
-	TLSKey     string `mapstructure:"tls-key,omitempty"`
 
 	target *template.Template
 	prefix *template.Template
@@ -101,7 +96,7 @@ func (g *gnmiAction) Run(e *formatters.EventMsg) (interface{}, error) {
 			if err != nil {
 				return nil, err
 			}
-			err = t.createGNMIClient(ctx, g.dialOpts()...) // TODO add dialopts
+			err = t.createGNMIClient(ctx, g.dialOpts(tc)...)
 			if err != nil {
 				return nil, err
 			}
@@ -111,7 +106,7 @@ func (g *gnmiAction) Run(e *formatters.EventMsg) (interface{}, error) {
 			if err != nil {
 				return nil, err
 			}
-			err = t.createGNMIClient(ctx, g.dialOpts()...) // TODO add dialopts
+			err = t.createGNMIClient(ctx, g.dialOpts(tc)...)
 			if err != nil {
 				return nil, err
 			}
@@ -370,25 +365,25 @@ func (g *gnmiAction) createTypedValue(val string) (*gnmi.TypedValue, error) {
 	return value, nil
 }
 
-func (g *gnmiAction) dialOpts() []grpc.DialOption {
+func (g *gnmiAction) dialOpts(tc *targetConfig) []grpc.DialOption {
 	opts := make([]grpc.DialOption, 0, 3)
 	opts = append(opts, grpc.WithBlock())
 	if g.NoEnvProxy {
 		opts = append(opts, grpc.WithNoProxy())
 	}
-	if g.Insecure {
+	if tc.Insecure != nil && *tc.Insecure {
 		return opts
 	}
 	tlsConfig := &tls.Config{
 		Renegotiation:      tls.RenegotiateNever,
-		InsecureSkipVerify: g.SkipVerify,
+		InsecureSkipVerify: *tc.SkipVerify,
 	}
-	err := g.loadCerts(tlsConfig)
+	err := tc.loadCerts(tlsConfig)
 	if err != nil {
 		g.logger.Printf("failed loading certificates: %v", err)
 	}
 
-	err = g.loadCACerts(tlsConfig)
+	err = tc.loadCACerts(tlsConfig)
 	if err != nil {
 		g.logger.Printf("failed loading CA certificates: %v", err)
 	}
@@ -396,9 +391,9 @@ func (g *gnmiAction) dialOpts() []grpc.DialOption {
 	return opts
 }
 
-func (g *gnmiAction) loadCerts(tlscfg *tls.Config) error {
-	if g.TLSCert != "" && g.TLSKey != "" {
-		certificate, err := tls.LoadX509KeyPair(g.TLSCert, g.TLSKey)
+func (tc *targetConfig) loadCerts(tlscfg *tls.Config) error {
+	if tc.TLSCert != nil && *tc.TLSCert != "" && tc.TLSKey != nil && *tc.TLSKey != "" {
+		certificate, err := tls.LoadX509KeyPair(*tc.TLSCert, *tc.TLSKey)
 		if err != nil {
 			return err
 		}
@@ -408,10 +403,10 @@ func (g *gnmiAction) loadCerts(tlscfg *tls.Config) error {
 	return nil
 }
 
-func (g *gnmiAction) loadCACerts(tlscfg *tls.Config) error {
+func (tc *targetConfig) loadCACerts(tlscfg *tls.Config) error {
 	certPool := x509.NewCertPool()
-	if g.TLSCa != "" {
-		caFile, err := ioutil.ReadFile(g.TLSCa)
+	if tc.TLSCA != nil && *tc.TLSCA != "" {
+		caFile, err := ioutil.ReadFile(*tc.TLSCA)
 		if err != nil {
 			return err
 		}

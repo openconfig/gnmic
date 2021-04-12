@@ -49,16 +49,9 @@ type targetConfig struct {
 	TLSCert       *string       `mapstructure:"tls-cert,omitempty" json:"tls-cert,omitempty"`
 	TLSKey        *string       `mapstructure:"tls-key,omitempty" json:"tls-key,omitempty"`
 	SkipVerify    *bool         `mapstructure:"skip-verify,omitempty" json:"skip-verify,omitempty"`
-	Subscriptions []string      `mapstructure:"subscriptions,omitempty" json:"subscriptions,omitempty"`
-	Outputs       []string      `mapstructure:"outputs,omitempty" json:"outputs,omitempty"`
-	BufferSize    uint          `mapstructure:"buffer-size,omitempty" json:"buffer-size,omitempty"`
-	RetryTimer    time.Duration `mapstructure:"retry,omitempty" json:"retry-timer,omitempty"`
 	TLSMinVersion string        `mapstructure:"tls-min-version,omitempty" json:"tls-min-version,omitempty"`
 	TLSMaxVersion string        `mapstructure:"tls-max-version,omitempty" json:"tls-max-version,omitempty"`
 	TLSVersion    string        `mapstructure:"tls-version,omitempty" json:"tls-version,omitempty"`
-	ProtoFiles    []string      `mapstructure:"proto-files,omitempty" json:"proto-files,omitempty"`
-	ProtoDirs     []string      `mapstructure:"proto-dirs,omitempty" json:"proto-dirs,omitempty"`
-	Tags          []string      `mapstructure:"tags,omitempty" json:"tags,omitempty"`
 	Gzip          *bool         `mapstructure:"gzip,omitempty" json:"gzip,omitempty"`
 }
 
@@ -78,7 +71,6 @@ func newTarget(c *targetConfig) *target {
 
 // CreateGNMIClient //
 func (t *target) createGNMIClient(ctx context.Context, opts ...grpc.DialOption) error {
-
 	timeoutCtx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 	defer cancel()
 	conn, err := grpc.DialContext(timeoutCtx, t.Config.Address, opts...)
