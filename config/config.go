@@ -723,6 +723,19 @@ func readFile(name string) ([]byte, error) {
 	case ".json":
 		return data, err
 	case ".yaml", ".yml":
+		return tryYAML(data)
+	default:
+		// try yaml
+		newData, err := tryYAML(data)
+		if err != nil {
+			// assume json
+			return data, nil
+		}
+		return newData, nil
+	}
+}
+
+func tryYAML(data []byte) ([]byte, error) {
 		var out interface{}
 		err = yaml.Unmarshal(data, &out)
 		if err != nil {
