@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -640,20 +641,34 @@ func setValue(value *gnmi.TypedValue, typ, val string) error {
 	var err error
 	switch typ {
 	case "json":
+		val = strings.TrimRight(strings.TrimLeft(val, "["), "]")
 		buff := new(bytes.Buffer)
-		err = json.NewEncoder(buff).Encode(strings.TrimRight(strings.TrimLeft(val, "["), "]"))
+		bval := json.RawMessage(val)
+		if json.Valid(bval) {
+			err = json.NewEncoder(buff).Encode(bval)
+		} else {
+			err = json.NewEncoder(buff).Encode(val)
+		}
 		if err != nil {
 			return err
 		}
+
 		value.Value = &gnmi.TypedValue_JsonVal{
 			JsonVal: bytes.Trim(buff.Bytes(), " \r\n\t"),
 		}
 	case "json_ietf":
+		val = strings.TrimRight(strings.TrimLeft(val, "["), "]")
 		buff := new(bytes.Buffer)
-		err = json.NewEncoder(buff).Encode(strings.TrimRight(strings.TrimLeft(val, "["), "]"))
+		bval := json.RawMessage(val)
+		if json.Valid(bval) {
+			err = json.NewEncoder(buff).Encode(bval)
+		} else {
+			err = json.NewEncoder(buff).Encode(val)
+		}
 		if err != nil {
 			return err
 		}
+
 		value.Value = &gnmi.TypedValue_JsonIetfVal{
 			JsonIetfVal: bytes.Trim(buff.Bytes(), " \r\n\t"),
 		}
@@ -715,28 +730,55 @@ func setValue(value *gnmi.TypedValue, typ, val string) error {
 
 // readFile reads a json or yaml file. the the file is .yaml, converts it to json and returns []byte and an error
 func readFile(name string) ([]byte, error) {
-	data, err := ioutil.ReadFile(name)
-	if err != nil {
-		return nil, err
+
+	var in io.Reader
+	var err error
+	if name == "-" {
+		in = os.Stdin
+	} else {
+		f, err := os.Open(name)
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		in = f
 	}
+
+	sc := bufio.NewScanner(in)
+	var data []byte
+	for sc.Scan() {
+		data = append(data, sc.Bytes()...)
+	}
+	//
 	switch filepath.Ext(name) {
 	case ".json":
 		return data, err
 	case ".yaml", ".yml":
-		var out interface{}
-		err = yaml.Unmarshal(data, &out)
+		return tryYAML(data)
+	default:
+		// try yaml
+		newData, err := tryYAML(data)
 		if err != nil {
-			return nil, err
-		}
-		newStruct := convert(out)
-		newData, err := json.Marshal(newStruct)
-		if err != nil {
-			return nil, err
+			// assume json
+			return data, nil
 		}
 		return newData, nil
-	default:
-		return nil, fmt.Errorf("unsupported file format %s", filepath.Ext(name))
 	}
+}
+
+func tryYAML(data []byte) ([]byte, error) {
+	var out interface{}
+	var err error
+	err = yaml.Unmarshal(data, &out)
+	if err != nil {
+		return nil, err
+	}
+	newStruct := convert(out)
+	newData, err := json.Marshal(newStruct)
+	if err != nil {
+		return nil, err
+	}
+	return newData, nil
 }
 
 // SanitizeArrayFlagValue trims trailing and leading brackets ([]),
@@ -805,6 +847,9 @@ func (c *Config) LogFlags() int {
 func ExpandOSPaths(paths []string) ([]string, error) {
 	var err error
 	for i := range paths {
+		if paths[i] == "-" {
+			continue
+		}
 		paths[i], err = expandOSPath(paths[i])
 		if err != nil {
 			return nil, err

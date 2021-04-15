@@ -33,8 +33,6 @@ There are several ways to perform an update operation with gNMI Set RPC:
 #### 1. in-line update, implicit type
 Using both `--update-path` and `--update-value` flags, a user can update a value for a given path.
 
-!!!warning
-    With in-line update method the values provided with `--update-value` flag are **always** set to JSON type. If you need to specify other type for the value (i.e. JSON_IETF), use the [explicit type](#2-in-line-update-explicit-type) method.
 
 ```bash
 gnmic set --update-path /configure/system/name --update-value router1
@@ -62,6 +60,8 @@ Supported types: json, json_ietf, string, int, uint, bool, decimal, float, bytes
 gnmic set --update /configure/system/name:::json:::router1
 
 gnmic set --update /configure/router[router-name=Base]/interface[interface-name=system]/admin-state:::json:::enable
+
+gnmic set --update /configure/router[router-name=Base]/interface[interface-name=system]:::json:::'{"admin-state":"enable"}'
 ```
 
 #### 3. update with a value from JSON or YAML file
@@ -199,6 +199,12 @@ gnmic -a <ip:port> set --update-path /configure/system \
                        --update-file <jsonFile.json>
 ```
 
+```bash
+echo '{"name": "router1"}' | gnmic -a <ip:port> set \
+                             --update-path /configure/system \
+                             --update-file -
+```
+
 ##### specify value type
 ```bash
 gnmic -a <ip:port> set --update /configure/system/name:::json:::router1
@@ -214,6 +220,12 @@ cat interface.json
 gnmic -a <ip:port> --insecure \
       set --replace-path /configure/router[router-name=Base]/interface[interface-name=interface1]/ipv4/primary \
           --replace-file interface.json
+```
+
+```bash
+echo '{"address": "1.1.1.1", "prefix-length": 32}' | gnmic -a <ip:port> --insecure \
+      set --replace-path /configure/router[router-name=Base]/interface[interface-name=interface1]/ipv4/primary \
+          --replace-file -
 ```
 
 #### 3. delete
