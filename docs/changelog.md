@@ -1,3 +1,12 @@
+### v0.11.0 - April 15th 2021
+
+- Processors:
+    - Add `event-allow` processor, basically an allow ACL based on `jq` condition or regular expressions.
+    - Add `event-extract-tags` processor, it adds tags based on regex named groups from tag names, tag values, value names, or values.
+    - Add `gnmi-action` to `event-trigger` processor, the action runs a gNMI Set or Get if the trigger condition is met.
+- Set Command:
+    - Improve usability by supporting reading values (--update-file and --replace-file) from standard input.
+
 ### v0.10.0 - April 8th 2021
 
 - New command:
