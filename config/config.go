@@ -786,12 +786,13 @@ func tryYAML(data []byte) ([]byte, error) {
 func SanitizeArrayFlagValue(ls []string) []string {
 	res := make([]string, 0, len(ls))
 	for i := range ls {
-		if strings.HasPrefix(ls[i], "[") && strings.HasSuffix(ls[i], "]") {
-			ls[i] = strings.Trim(ls[i], "[]")
-			res = append(res, strings.Split(ls[i], " ")...)
+		if ls[i] == "[]" {
 			continue
 		}
-		res = append(res, ls[i])
+		for strings.HasPrefix(ls[i], "[") && strings.HasSuffix(ls[i], "]") {
+			ls[i] = ls[i][1 : len(ls[i])-1]
+		}
+		res = append(res, strings.Split(ls[i], " ")...)
 	}
 	return res
 }
