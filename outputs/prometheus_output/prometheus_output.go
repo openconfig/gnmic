@@ -519,6 +519,8 @@ func getFloat(v interface{}) (float64, error) {
 			return math.NaN(), err
 		}
 		return f, err
+	case *gnmi.Decimal64:
+		return float64(i.Digits) / math.Pow10(int(i.Precision)), nil
 	default:
 		return math.NaN(), errors.New("getFloat: unknown value is of incompatible type")
 	}
