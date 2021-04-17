@@ -109,6 +109,7 @@ type LocalFlags struct {
 	SetUpdateValue  []string `mapstructure:"set-update-value,omitempty" json:"set-update-value,omitempty" yaml:"set-update-value,omitempty"`
 	SetDelimiter    string   `mapstructure:"set-delimiter,omitempty" json:"set-delimiter,omitempty" yaml:"set-delimiter,omitempty"`
 	SetTarget       string   `mapstructure:"set-target,omitempty" json:"set-target,omitempty" yaml:"set-target,omitempty"`
+	SetRequestFile  string   `mapstructure:"set-request-file,omitempty" json:"set-request-file,omitempty" yaml:"set-request-file,omitempty"`
 	// Sub
 	SubscribePrefix            string        `mapstructure:"subscribe-prefix,omitempty" json:"subscribe-prefix,omitempty" yaml:"subscribe-prefix,omitempty"`
 	SubscribePath              []string      `mapstructure:"subscribe-path,omitempty" json:"subscribe-path,omitempty" yaml:"subscribe-path,omitempty"`
@@ -490,6 +491,9 @@ func (c *Config) execValueTemplate(tplString string, encoding string, input inte
 }
 
 func (c *Config) CreateSetRequest() (*gnmi.SetRequest, error) {
+	if c.SetRequestFile != "" {
+		return c.CreateSetRequestFromFile()
+	}
 	gnmiPrefix, err := collector.CreatePrefix(c.LocalFlags.SetPrefix, c.LocalFlags.SetTarget)
 	if err != nil {
 		return nil, fmt.Errorf("prefix parse error: %v", err)
@@ -730,9 +734,10 @@ func setValue(value *gnmi.TypedValue, typ, val string) error {
 
 // readFile reads a json or yaml file. the the file is .yaml, converts it to json and returns []byte and an error
 func readFile(name string) ([]byte, error) {
-
 	var in io.Reader
 	var err error
+	var data []byte
+
 	if name == "-" {
 		in = os.Stdin
 	} else {
@@ -741,11 +746,18 @@ func readFile(name string) ([]byte, error) {
 			return nil, err
 		}
 		defer f.Close()
+
+		st, err := f.Stat()
+		if err != nil {
+			return nil, err
+		}
+		data = make([]byte, 0, st.Size())
 		in = f
 	}
 
 	sc := bufio.NewScanner(in)
-	var data []byte
+	sc.Split(bufio.ScanBytes)
+
 	for sc.Scan() {
 		data = append(data, sc.Bytes()...)
 	}
@@ -817,12 +829,16 @@ func (c *Config) ValidateSetInput() error {
 	if err != nil {
 		return err
 	}
-	if (len(c.LocalFlags.SetDelete)+len(c.LocalFlags.SetUpdate)+len(c.LocalFlags.SetReplace)) == 0 && (len(c.LocalFlags.SetUpdatePath)+len(c.LocalFlags.SetReplacePath)) == 0 {
-		return errors.New("no paths provided")
+	c.LocalFlags.SetRequestFile, err = expandOSPath(c.LocalFlags.SetRequestFile)
+	if err != nil {
+		return err
+	}
+	if (len(c.LocalFlags.SetDelete)+len(c.LocalFlags.SetUpdate)+len(c.LocalFlags.SetReplace)) == 0 &&
+		(len(c.LocalFlags.SetUpdatePath)+len(c.LocalFlags.SetReplacePath)) == 0 &&
+		c.LocalFlags.SetRequestFile == "" {
+		return errors.New("no paths or request file provided")
 	}
 	if len(c.LocalFlags.SetUpdateFile) > 0 && len(c.LocalFlags.SetUpdateValue) > 0 {
-		fmt.Println(len(c.LocalFlags.SetUpdateFile))
-		fmt.Println(len(c.LocalFlags.SetUpdateValue))
 		return errors.New("set update from file and value are not supported in the same command")
 	}
 	if len(c.LocalFlags.SetReplaceFile) > 0 && len(c.LocalFlags.SetReplaceValue) > 0 {
@@ -848,9 +864,6 @@ func (c *Config) LogFlags() int {
 func ExpandOSPaths(paths []string) ([]string, error) {
 	var err error
 	for i := range paths {
-		if paths[i] == "-" {
-			continue
-		}
 		paths[i], err = expandOSPath(paths[i])
 		if err != nil {
 			return nil, err
@@ -860,6 +873,9 @@ func ExpandOSPaths(paths []string) ([]string, error) {
 }
 
 func expandOSPath(p string) (string, error) {
+	if p == "-" {
+		return p, nil
+	}
 	np, err := homedir.Expand(p)
 	if err != nil {
 		return "", fmt.Errorf("path %q: %v", p, err)
