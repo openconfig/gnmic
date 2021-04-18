@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html/template"
 	"io"
 	"io/ioutil"
 	"log"
@@ -46,7 +47,9 @@ type Config struct {
 	Processors    map[string]map[string]interface{}        `mapstructure:"processors,omitempty" json:"processors,omitempty" yaml:"processors,omitempty"`
 	Clustering    *clustering                              `mapstructure:"clustering,omitempty" json:"clustering,omitempty" yaml:"clustering,omitempty"`
 
-	logger *log.Logger
+	logger             *log.Logger
+	setRequestTemplate *template.Template
+	setRequestVars     map[string]interface{}
 }
 
 var ValueTypes = []string{"json", "json_ietf", "string", "int", "uint", "bool", "decimal", "float", "bytes", "ascii"}
@@ -110,6 +113,7 @@ type LocalFlags struct {
 	SetDelimiter    string   `mapstructure:"set-delimiter,omitempty" json:"set-delimiter,omitempty" yaml:"set-delimiter,omitempty"`
 	SetTarget       string   `mapstructure:"set-target,omitempty" json:"set-target,omitempty" yaml:"set-target,omitempty"`
 	SetRequestFile  string   `mapstructure:"set-request-file,omitempty" json:"set-request-file,omitempty" yaml:"set-request-file,omitempty"`
+	SetRequestVars  string   `mapstructure:"set-request-vars,omitempty" json:"set-request-vars,omitempty" yaml:"set-request-vars,omitempty"`
 	// Sub
 	SubscribePrefix            string        `mapstructure:"subscribe-prefix,omitempty" json:"subscribe-prefix,omitempty" yaml:"subscribe-prefix,omitempty"`
 	SubscribePath              []string      `mapstructure:"subscribe-path,omitempty" json:"subscribe-path,omitempty" yaml:"subscribe-path,omitempty"`
@@ -179,6 +183,8 @@ func New() *Config {
 		make(map[string]map[string]interface{}),
 		nil,
 		log.New(ioutil.Discard, configLogPrefix, log.LstdFlags|log.Lmicroseconds),
+		nil,
+		make(map[string]interface{}),
 	}
 }
 
@@ -490,9 +496,9 @@ func (c *Config) execValueTemplate(tplString string, encoding string, input inte
 	}
 }
 
-func (c *Config) CreateSetRequest() (*gnmi.SetRequest, error) {
+func (c *Config) CreateSetRequest(targetName string) (*gnmi.SetRequest, error) {
 	if c.SetRequestFile != "" {
-		return c.CreateSetRequestFromFile()
+		return c.CreateSetRequestFromFile(targetName)
 	}
 	gnmiPrefix, err := collector.CreatePrefix(c.LocalFlags.SetPrefix, c.LocalFlags.SetTarget)
 	if err != nil {

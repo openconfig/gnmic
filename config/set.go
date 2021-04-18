@@ -3,12 +3,21 @@ package config
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"html/template"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/karimra/gnmic/collector"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"gopkg.in/yaml.v2"
+)
+
+const (
+	varFileSuffix = "_vars"
 )
 
 type update struct {
@@ -23,18 +32,69 @@ type setRequestFile struct {
 	Deletes  []string  `json:"deletes,omitempty" yaml:"deletes,omitempty"`
 }
 
-func (c *Config) CreateSetRequestFromFile() (*gnmi.SetRequest, error) {
-	b, err := readFile(c.SetRequestFile)
+func (c *Config) ReadSetRequestTemplate() error {
+	if c.SetRequestFile == "" {
+		return nil
+	}
+	b, err := ioutil.ReadFile(c.SetRequestFile)
 	if err != nil {
-		fmt.Printf("err readFile: %v\n", err)
-		return nil, err
+		return err
 	}
 	if c.Debug {
 		c.logger.Printf("set request file content: %s", string(b))
 	}
+	// read template
+	c.setRequestTemplate, err = template.New("set-request").Parse(string(b))
+	if err != nil {
+		return err
+	}
+	return c.readTemplateVarsFile()
+}
 
+func (c *Config) readTemplateVarsFile() error {
+	if c.SetRequestVars == "" {
+		ext := filepath.Ext(c.SetRequestFile)
+		c.SetRequestVars = fmt.Sprintf("%s%s%s", c.SetRequestFile[0:len(c.SetRequestFile)-len(ext)], varFileSuffix, ext)
+		_, err := os.Stat(c.SetRequestVars)
+		if os.IsNotExist(err) {
+			c.SetRequestVars = ""
+			return nil
+		} else if err != nil {
+			return err
+		}
+	}
+	b, err := readFile(c.SetRequestVars)
+	if err != nil {
+		return err
+	}
+	if c.setRequestVars == nil {
+		c.setRequestVars = make(map[string]interface{})
+	}
+	err = yaml.Unmarshal(b, &c.setRequestVars)
+	if err != nil {
+		return err
+	}
+	if c.Debug {
+		c.logger.Printf("request vars content: %v", c.setRequestVars)
+	}
+	return nil
+}
+
+func (c *Config) CreateSetRequestFromFile(targetName string) (*gnmi.SetRequest, error) {
+	if c.setRequestTemplate == nil {
+		return nil, errors.New("missing set request template")
+	}
+	buf := new(bytes.Buffer)
+	err := c.setRequestTemplate.Execute(buf, c.setRequestVars[targetName])
+	if err != nil {
+		return nil, err
+	}
+	if c.Debug {
+		c.logger.Printf("target %q template result:\n%s", targetName, buf.String())
+	}
+	//
 	reqFile := new(setRequestFile)
-	err = yaml.Unmarshal(b, reqFile)
+	err = yaml.Unmarshal(buf.Bytes(), reqFile)
 	if err != nil {
 		return nil, err
 	}
@@ -43,8 +103,11 @@ func (c *Config) CreateSetRequestFromFile() (*gnmi.SetRequest, error) {
 		Replace: make([]*gnmi.Update, 0, len(reqFile.Replaces)),
 		Update:  make([]*gnmi.Update, 0, len(reqFile.Updates)),
 	}
-	buf := new(bytes.Buffer)
+	buf.Reset()
 	for _, upd := range reqFile.Updates {
+		if upd.Path == "" {
+			upd.Path = "/"
+		}
 		gnmiPath, err := collector.ParsePath(strings.TrimSpace(upd.Path))
 		if err != nil {
 			return nil, err
@@ -70,6 +133,9 @@ func (c *Config) CreateSetRequestFromFile() (*gnmi.SetRequest, error) {
 		})
 	}
 	for _, upd := range reqFile.Replaces {
+		if upd.Path == "" {
+			upd.Path = "/"
+		}
 		gnmiPath, err := collector.ParsePath(strings.TrimSpace(upd.Path))
 		if err != nil {
 			return nil, err
