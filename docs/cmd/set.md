@@ -186,24 +186,25 @@ gnmic set --delete "/configure/router[router-name=Base]/interface[interface-name
 ```
 
 ## Template Based Set Request
-A Set Request can also be built based on a template and (optionally) a set of per target variables.
+A Set Request can also be built based on a template and (optionally) a set of variables.
 
+The variables allow to generate the request on per target basis.
 
+If no variable file is found, the execution continues and the template is assumed to be a static string.
 
-If no variable file is found, the execution continues. the template is assumed to be a static string.
-
+A template results in a single gNMI Set Request.
 ### Template Format
-The rendered template is expected to be in `JSON` or `YAML` format.
+The rendered template data can be a `JSON` or `YAML` valid string.
 
 It has 3 sections, `updates`, `replaces` and `deletes`.
 
-`updates` and `replaces` result in a set of gNMI Set Updates in the Set RPC, `deletes` result in a set of gNMI paths to be deleted.
-
 In each of the `updates` and `replaces`, a `path`, a `value` and an `encoding` can be configured.
 
-If not specified, `path` defaults to `/`, `encoding` defaults to the value specified by `--encoding` flag.
+If not specified, `path` defaults to `/`, while `encoding` defaults to the value set with `--encoding` flag.
 
-The `value` can be any arbitrary data format that the target understands, it will be encoded based on the value of "encoding".
+`updates` and `replaces` result in a set of gNMI Set Updates in the Set RPC, `deletes` result in a set of gNMI paths to be deleted.
+
+The `value` can be any arbitrary data format that the target accepts, it will be encoded based on the value of "encoding".
 === "JSON"
     ```json
     {
@@ -277,19 +278,14 @@ The `value` can be any arbitrary data format that the target understands, it wil
 ### Per Target Template Variables
 The file `--request-file` can be written as a [Go Text template](https://golang.org/pkg/text/template/). 
 
-This way the request file can be generated on per target basis.
+`gnmic` generates one gNMI Set request per target.
 
 The template will be rendered using variables read from the file `--request-vars`. 
 Just like the template file, the variables file can either be a `JSON` or `YAML` formatted file.
 
-If the flag `--request-vars` is not set, `gnmic` will look for a file with the same path, name and **extension** as the `request-file`, appended with `_vars`.
+If the flag `--request-vars` is not set, `gnmic` looks for a file with the same path, name and **extension** as the `request-file`, appended with `_vars`.
 
-when using the command below, `gnmic` will try to find a variables file called `template_vars.json`.
-```bash
-gnmic set --request-file template.json
-``` 
-
-Inside the template, the variables defined in the `--request-vars` file are accessible using the `.Vars` notation, the target name is accessible using the `.TargetName` notation.
+Within the template, the variables defined in the `--request-vars` file are accessible using the `.Vars` notation, while the target name is accessible using the `.TargetName` notation.
 
 Example request template:
 
@@ -312,7 +308,7 @@ replaces:
 {{- end }}
 ```
 
-This variables file defines the input for 3 leafs
+The below variables file defines the input for 3 leafs:
 
 ```yaml
 leaf1:57400:
