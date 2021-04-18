@@ -47,7 +47,7 @@ func (a *App) SetRun(cmd *cobra.Command, args []string) error {
 	}
 	err = a.Config.ReadSetRequestTemplate()
 	if err != nil {
-		return fmt.Errorf("failed reading set request vars file: %v", err)
+		return fmt.Errorf("failed reading set request files: %v", err)
 	}
 	numTargets := len(a.Config.Targets)
 	a.errCh = make(chan error, numTargets*2)

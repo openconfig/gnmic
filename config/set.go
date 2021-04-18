@@ -55,6 +55,7 @@ func (c *Config) readTemplateVarsFile() error {
 	if c.SetRequestVars == "" {
 		ext := filepath.Ext(c.SetRequestFile)
 		c.SetRequestVars = fmt.Sprintf("%s%s%s", c.SetRequestFile[0:len(c.SetRequestFile)-len(ext)], varFileSuffix, ext)
+		c.logger.Printf("trying to find variable file %q", c.SetRequestVars)
 		_, err := os.Stat(c.SetRequestVars)
 		if os.IsNotExist(err) {
 			c.SetRequestVars = ""
@@ -85,7 +86,10 @@ func (c *Config) CreateSetRequestFromFile(targetName string) (*gnmi.SetRequest, 
 		return nil, errors.New("missing set request template")
 	}
 	buf := new(bytes.Buffer)
-	err := c.setRequestTemplate.Execute(buf, c.setRequestVars[targetName])
+	err := c.setRequestTemplate.Execute(buf, templateInput{
+		TargetName: targetName,
+		Vars:       c.setRequestVars,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -168,4 +172,9 @@ func (c *Config) CreateSetRequestFromFile(targetName string) (*gnmi.SetRequest, 
 		sReq.Delete = append(sReq.Delete, gnmiPath)
 	}
 	return sReq, nil
+}
+
+type templateInput struct {
+	TargetName string
+	Vars       map[string]interface{}
 }

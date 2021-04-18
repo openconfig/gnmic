@@ -883,7 +883,7 @@ func ExpandOSPaths(paths []string) ([]string, error) {
 }
 
 func expandOSPath(p string) (string, error) {
-	if p == "-" {
+	if p == "-" || p == "" {
 		return p, nil
 	}
 	np, err := homedir.Expand(p)
