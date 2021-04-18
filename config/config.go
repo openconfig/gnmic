@@ -839,6 +839,10 @@ func (c *Config) ValidateSetInput() error {
 	if err != nil {
 		return err
 	}
+	c.LocalFlags.SetRequestVars, err = expandOSPath(c.LocalFlags.SetRequestVars)
+	if err != nil {
+		return err
+	}
 	if (len(c.LocalFlags.SetDelete)+len(c.LocalFlags.SetUpdate)+len(c.LocalFlags.SetReplace)) == 0 &&
 		(len(c.LocalFlags.SetUpdatePath)+len(c.LocalFlags.SetReplacePath)) == 0 &&
 		c.LocalFlags.SetRequestFile == "" {
