@@ -3,6 +3,9 @@ module github.com/karimra/gnmic
 go 1.13
 
 require (
+	github.com/Masterminds/goutils v1.1.1 // indirect
+	github.com/Masterminds/semver v1.5.0 // indirect
+	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/Shopify/sarama v1.26.4
 	github.com/adrg/xdg v0.3.0
 	github.com/c-bata/go-prompt v0.2.5
@@ -17,6 +20,7 @@ require (
 	github.com/gorilla/mux v1.8.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/hashicorp/consul/api v1.1.0
+	github.com/huandu/xstrings v1.3.2 // indirect
 	github.com/influxdata/influxdb-client-go/v2 v2.0.1
 	github.com/itchyny/gojq v0.12.2
 	github.com/jhump/protoreflect v1.6.1
