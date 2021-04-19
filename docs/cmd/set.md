@@ -327,7 +327,7 @@ leaf1:57400:
       description: "leaf1_to_spine1"
       subinterfaces:
         - admin-state: enable
-          ipv4_address: 192.168.78.1/30
+          ipv4-address: 192.168.78.1/30
     - name: ethernet-1/2
       admin-state: "enable"
       description: "leaf1_to_spine2"
@@ -342,7 +342,7 @@ leaf2:57400:
       description: "leaf2_to_spine1"
       subinterfaces:
         - admin-state: enable
-          ipv4_address: 192.168.88.1/30
+          ipv4-address: 192.168.88.1/30
     - name: ethernet-1/2
       admin-state: "enable"
       description: "leaf2_to_spine2"
@@ -357,7 +357,7 @@ leaf3:57400:
       description: "leaf3_to_spine1"
       subinterfaces:
         - admin-state: enable
-          ipv4_address: 192.168.98.1/30
+          ipv4-address: 192.168.98.1/30
     - name: ethernet-1/2
       admin-state: "enable"
       description: "leaf3_to_spine2"
