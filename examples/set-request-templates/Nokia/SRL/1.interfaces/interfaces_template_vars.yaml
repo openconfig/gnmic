@@ -1,0 +1,96 @@
+leaf1:57400:
+  interfaces:
+    - name: ethernet-1/1
+      admin-state: "enable"
+      description: "leaf1_to_spine1"
+      # vlan-tagging: true | false
+      # mtu: 
+      # loopback-mode: true | false
+      # ethernet:
+        # aggregate-id:
+        # auto-negotiate:
+        # duplex-mode: 
+        # flow-control:
+          #  receive: true | false 
+      subinterfaces:
+        - admin-state: enable
+          ipv4-address: 192.168.78.1/30
+          # ipv6-address:
+    - name: ethernet-1/2
+      admin-state: "enable"
+      description: "leaf1_to_spine2"
+      subinterfaces:
+        - admin-state: enable
+          ipv4-address: 192.168.79.1/30
+
+leaf2:57400:
+  interfaces:
+    - name: ethernet-1/1
+      admin-state: "enable"
+      description: "leaf2_to_spine1"
+      subinterfaces:
+        - admin-state: enable
+          ipv4-address: 192.168.88.1/30
+    - name: ethernet-1/2
+      admin-state: "enable"
+      description: "leaf2_to_spine2"
+      subinterfaces:
+        - admin-state: enable
+          ipv4-address: 192.168.89.1/30
+          
+leaf3:57400:
+  interfaces:
+    - name: ethernet-1/1
+      admin-state: "enable"
+      description: "leaf3_to_spine1"
+      subinterfaces:
+        - admin-state: enable
+          ipv4-address: 192.168.98.1/30
+    - name: ethernet-1/2
+      admin-state: "enable"
+      description: "leaf3_to_spine2"
+      subinterfaces:
+        - admin-state: enable
+          ipv4-address: 192.168.99.1/30
+
+spine1:57400:
+  interfaces:
+    - name: ethernet-1/1
+      admin-state: "enable"
+      description: "spine1_to_leaf1"
+      subinterfaces:
+        - admin-state: enable
+          ipv4-address: 192.168.78.2/30
+    - name: ethernet-1/2
+      admin-state: "enable"
+      description: "spine1_to_leaf2"
+      subinterfaces:
+        - admin-state: enable
+          ipv4-address: 192.168.88.2/30
+    - name: ethernet-1/3
+      admin-state: "enable"
+      description: "spine1_to_leaf3"
+      subinterfaces:
+        - admin-state: enable
+          ipv4-address: 192.168.98.2/30
+
+spine2:57400:
+  interfaces:
+    - name: ethernet-1/1
+      admin-state: "enable"
+      description: "spine2_to_leaf1"
+      subinterfaces:
+        - admin-state: enable
+          ipv4-address: 192.168.79.2/30
+    - name: ethernet-1/2
+      admin-state: "enable"
+      description: "spine2_to_leaf2"
+      subinterfaces:
+        - admin-state: enable
+          ipv4-address: 192.168.89.2/30
+    - name: ethernet-1/3
+      admin-state: "enable"
+      description: "spine2_to_leaf3"
+      subinterfaces:
+        - admin-state: enable
+          ipv4-address: 192.168.99.2/30

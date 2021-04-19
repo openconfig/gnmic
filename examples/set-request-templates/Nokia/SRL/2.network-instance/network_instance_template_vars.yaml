@@ -1,0 +1,8 @@
+leaf1:57400:
+  network-intances:
+    - name: default
+      interfaces:
+        - ethernet-1/1.0
+        - ethernet-1/2.0
+        - ethernet-1/36.0
+        - lo0.0

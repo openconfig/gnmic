@@ -1,0 +1,46 @@
+replaces:
+{{- range $netins := index .Vars .TargetName "network-instances" }}
+  - path: "/network-instance[name={{ index $netins "name" }}]"
+    encoding: json_ietf
+    value: 
+      interface:
+      {{- range $interface := index $netins "interfaces" }}
+        - name: {{ $interfaces}}
+      {{- end }}
+      protocols:
+        bgp:
+          admin-state: enable
+          autonomous-system: 101
+          router-id: 10.0.1.1
+          ebgp-default-policy:
+          import-reject-all: false
+          export-reject-all: false
+          group:
+            - group-name: eBGPv6
+              export-policy: export-local
+              ipv4-unicast:
+                admin-state: enable
+                advertise-ipv6-next-hops: true
+                receive-ipv6-next-hops: true
+              ipv6-unicast:
+                admin-state: enable
+             ipv4-unicast:
+               multipath:
+                 allow-multiple-as: true
+                 max-paths-level-1: 64
+                 max-paths-level-2: 64
+             ipv6-unicast:
+               multipath:
+                 allow-multiple-as: true
+                 max-paths-level-1: 64
+                 max-paths-level-2: 64
+             neighbor:
+               - peer-address: 2002::192:168:11:1
+                 admin-state: enable
+                 peer-as: 201
+                 peer-group: eBGPv6
+               - peer-address: 2002::192:168:12:1
+                 admin-state: enable
+                 peer-as: 202
+                 peer-group: eBGPv6
+{{- end }}

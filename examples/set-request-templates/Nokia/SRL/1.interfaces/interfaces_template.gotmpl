@@ -1,0 +1,53 @@
+replaces:
+{{- range $interface := index .Vars .TargetName "interfaces" }}
+  - path: "/interface[name={{ index $interface "name" }}]"
+    encoding: "json_ietf"
+    value: 
+      admin-state: {{ index $interface "admin-state" | default "disable" }}
+      description: {{ index $interface "description" | default "" }}
+      {{- if hasKey $interface "mtu" }}
+      mtu: {{ index $interface "mtu" }}
+      {{- end }}
+      {{- if hasKey $interface "loopback-mode" }}
+      loopback-mode: {{ index $interface "loopback-mode" }}
+      {{- end }}
+      {{- if hasKey $interface "vlan-tagging" }}
+      vlan-tagging: {{ index $interface "vlan-tagging" }}
+      {{- end }}
+      {{- if hasKey $interface "ethernet" }}
+      {{ $ethernet := index $interface "ethernet" }}
+      ethernet:
+        {{- if hasKey $ethernet "aggregate-id" }}
+        aggregate-id: {{ index $ethernet "aggregate-id" }}
+        {{- end }}
+        {{- if hasKey $ethernet "auto-negotiate" }}
+        auto-negotiate: {{ index $ethernet "auto-negotiate" }}
+        {{- end }}
+        {{- if hasKey $ethernet "duplex-mode" }}
+        duplex-mode: {{ index $ethernet "duplex-mode" }}
+        {{- end }}
+        {{- if hasKey $ethernet "flow-control" }}
+        flow-control: 
+          receive: {{ index $ethernet "flow-control" "receive" }}
+        {{- end }}
+      {{- end }}
+      {{- end }}
+      {{- range $index, $subinterface := index $interface "subinterfaces" }}
+      subinterface:
+        - index: {{ $index }}
+          admin-state: {{ index $subinterface "admin-state" | default "disable" }}
+          type: {{ index $subinterface "type" | default "" }}
+          description: {{ index $subinterface "description" | default "" }}
+          ip-mtu: {{ index $subinterface "ip-mtu" | default "" }}
+          {{- if hasKey $subinterface "ipv4-address" }}
+          ipv4:
+            address:
+              - ip-prefix: {{ index $subinterface "ipv4-address" | toString }}
+          {{- end }}
+          {{- if hasKey $subinterface "ipv6-address" }}
+          ipv6:
+            address:
+              - ip-prefix: {{ index $subinterface "ipv6-address" | toString }}
+          {{- end }}
+      {{- end }}
+{{- end }}
