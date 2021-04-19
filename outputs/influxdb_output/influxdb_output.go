@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"log"
+	"math"
 	"time"
 
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
@@ -89,7 +90,7 @@ func (i *InfluxDBOutput) SetEventProcessors(ps map[string]map[string]interface{}
 			}
 			if in, ok := formatters.EventProcessors[epType]; ok {
 				ep := in()
-				err := ep.Init(epCfg[epType], formatters.WithLogger(logger),formatters.WithTargets(tcs))
+				err := ep.Init(epCfg[epType], formatters.WithLogger(logger), formatters.WithTargets(tcs))
 				if err != nil {
 					i.logger.Printf("failed initializing event processor '%s' of type='%s': %v", epName, epType, err)
 					continue
@@ -260,6 +261,12 @@ START:
 			i.logger.Printf("worker-%d terminating...", idx)
 			return
 		case ev := <-i.eventChan:
+			for n, v := range ev.Values {
+				switch v := v.(type) {
+				case *gnmi.Decimal64:
+					ev.Values[n] = float64(v.Digits) / math.Pow10(int(v.Precision))
+				}
+			}
 			writer.WritePoint(influxdb2.NewPoint(ev.Name, ev.Tags, ev.Values, time.Unix(0, ev.Timestamp)))
 		case <-i.reset:
 			firstStart = false
