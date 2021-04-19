@@ -24,9 +24,6 @@ func (a *App) SetRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed getting targets config: %v", err)
 	}
-	if len(targetsConfig) > 1 {
-		fmt.Println("[warning] running set command on multiple targets")
-	}
 	if a.collector == nil {
 		cfg := &collector.Config{
 			Debug:               a.Config.Debug,
