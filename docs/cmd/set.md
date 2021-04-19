@@ -278,6 +278,8 @@ The `value` can be any arbitrary data format that the target accepts, it will be
 ### Per Target Template Variables
 The file `--request-file` can be written as a [Go Text template](https://golang.org/pkg/text/template/). 
 
+The parsed template is loaded with the excellent library of additional functions [sprig](http://masterminds.github.io/sprig/).
+
 `gnmic` generates one gNMI Set request per target.
 
 The template will be rendered using variables read from the file `--request-vars`. 
@@ -295,15 +297,22 @@ replaces:
   - path: "/interface[name={{ index $interface "name" }}]"
     encoding: "json_ietf"
     value: 
-      admin-state: {{ index $interface "admin-state" }}
-      description: {{ index $interface "description" }}
+      admin-state: {{ index $interface "admin-state" | default "disable" }}
+      description: {{ index $interface "description" | default "" }}
     {{- range $index, $subinterface := index $interface "subinterfaces" }}
       subinterface:
         - index: {{ $index }}
-          admin-state: {{ index $subinterface "admin-state"}}
+          admin-state: {{ index $subinterface "admin-state" | default "disable" }}
+          {{- if hasKey $subinterface "ipv4-address" }}
           ipv4:
             address:
-              - ip-prefix: {{ index $subinterface "ipv4-address"}}
+              - ip-prefix: {{ index $subinterface "ipv4-address" | toString }}
+          {{- end }}
+          {{- if hasKey $subinterface "ipv6-address" }}
+          ipv6:
+            address:
+              - ip-prefix: {{ index $subinterface "ipv6-address" | toString }}
+          {{- end }}
     {{- end }}
 {{- end }}
 ```

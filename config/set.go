@@ -11,6 +11,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/Masterminds/sprig"
 	"github.com/karimra/gnmic/collector"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"gopkg.in/yaml.v2"
@@ -44,7 +45,7 @@ func (c *Config) ReadSetRequestTemplate() error {
 		c.logger.Printf("set request file content: %s", string(b))
 	}
 	// read template
-	c.setRequestTemplate, err = template.New("set-request").Parse(string(b))
+	c.setRequestTemplate, err = template.New("set-request").Funcs(sprig.TxtFuncMap()).Parse(string(b))
 	if err != nil {
 		return err
 	}
@@ -74,6 +75,13 @@ func (c *Config) readTemplateVarsFile() error {
 	err = yaml.Unmarshal(b, &c.setRequestVars)
 	if err != nil {
 		return err
+	}
+	tempInterface := convert(c.setRequestVars)
+	switch t := tempInterface.(type) {
+	case map[string]interface{}:
+		c.setRequestVars = t
+	default:
+		return errors.New("unexpected varibales file format")
 	}
 	if c.Debug {
 		c.logger.Printf("request vars content: %v", c.setRequestVars)
