@@ -15,7 +15,16 @@ leaf1:57400:
       subinterfaces:
         - admin-state: enable
           ipv4-address: 192.168.78.1/30
-          # ipv6-address:
+          ipv6-address:
+          vlan-id:
+          untagged: {}
+          acl:
+            input:
+              ipv4-filter:
+              ipv6-filter:
+            output:
+              ipv4-filter:
+              ipv6-filter:
     - name: ethernet-1/2
       admin-state: "enable"
       description: "leaf1_to_spine2"

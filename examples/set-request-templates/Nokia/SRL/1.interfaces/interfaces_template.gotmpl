@@ -32,22 +32,4 @@ replaces:
         {{- end }}
       {{- end }}
       {{- end }}
-      {{- range $index, $subinterface := index $interface "subinterfaces" }}
-      subinterface:
-        - index: {{ $index }}
-          admin-state: {{ index $subinterface "admin-state" | default "disable" }}
-          type: {{ index $subinterface "type" | default "" }}
-          description: {{ index $subinterface "description" | default "" }}
-          ip-mtu: {{ index $subinterface "ip-mtu" | default "" }}
-          {{- if hasKey $subinterface "ipv4-address" }}
-          ipv4:
-            address:
-              - ip-prefix: {{ index $subinterface "ipv4-address" | toString }}
-          {{- end }}
-          {{- if hasKey $subinterface "ipv6-address" }}
-          ipv6:
-            address:
-              - ip-prefix: {{ index $subinterface "ipv6-address" | toString }}
-          {{- end }}
-      {{- end }}
 {{- end }}

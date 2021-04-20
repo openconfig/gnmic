@@ -1,0 +1,63 @@
+replaces:
+{{- range $interface := index .Vars .TargetName "interfaces" }}
+  {{- range $idx, $subinterface := index $interface "subinterfaces" }}
+  - path: "/interface[name={{ index $interface "name" }}]/subinterface[index={{ $idx }}]"
+    encoding: "json_ietf"
+    value: 
+      admin-state: {{ index $subinterface "admin-state" | default "disable" }}
+      type: {{ index $subinterface "type" | default "" }}
+      {{- if hasKey $subinterface "description" }}
+      description: {{ index $subinterface "description"}}
+      {{- end }}
+      {{- if hasKey $subinterface "ip-mtu" }}
+      ip-mtu: {{ index $subinterface "ip-mtu" }}
+      {{- end }}
+      {{- if hasKey $subinterface "ipv4-address" }}
+      ipv4:
+        address:
+          - ip-prefix: {{ index $subinterface "ipv4-address" | toString }}
+      {{- end }}
+      {{- if hasKey $subinterface "ipv6-address" }}
+      ipv6:
+        address:
+          - ip-prefix: {{ index $subinterface "ipv6-address" | toString }}
+      {{- end }}
+      {{- if hasKey $subinterface "vlan-id" }}
+      vlan:
+        encap:
+          single-tagged:
+            vlan-id: {{ index $subinterface "vlan-id" }}
+      {{- else if hasKey $subinterface "untagged" }}
+      vlan:
+        encap:
+          untagged: {}
+      {{- end }}
+      {{- if hasKey $subinterface "acl" }}
+      {{ $acl := index $subinterface "acl"}}
+      acl:
+        {{- if hasKey $acl "input" }}
+        {{ $input := index $acl "input" }}
+        input:
+          {{- if hasKey $input "ipv4-filter" }}
+          ipv4-filter: {{ index $input "ipv4-filter" }}
+          {{- end }}
+          {{- if hasKey $input "ipv6-filter" }}
+          ipv6-filter: {{ index $acl "input" "ipv6-filter" }}
+          {{- end }}
+        {{- end }}
+        {{- end }}
+        {{- if hasKey $acl "output" }}
+        {{ $output := index $acl "output" }}
+        output:
+          {{- if hasKey$output "ipv4-filter" }}
+          ipv4-filter: {{ index $output "ipv4-filter" }}
+          {{- end }}
+          {{- if hasKey $output "ipv6-filter" }}
+          ipv6-filter: {{ index $output "ipv6-filter" }}
+          {{- end }}
+        {{- end }}
+        {{- end }}
+      {{- end }}
+      {{- end }}
+  {{- end }}
+{{- end }}
