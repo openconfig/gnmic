@@ -1,3 +1,12 @@
+### v0.12.0 - April 20th 2021
+
+- Outputs:
+    - InfluxDB and Prometheus outputs: Convert gNMI Decimal64 values to Float64.
+- Set Command:
+    - Add the ability to run a Set command using a single file, including `replaces`, `updates` and `deletes`.
+    - The request file `--request-file` is either a static file or a Golang Text Template rendered separately for each target.
+    - The template input is read from a file referenced by the flag `--request-vars`.
+  
 ### v0.11.0 - April 15th 2021
 
 - Processors:
