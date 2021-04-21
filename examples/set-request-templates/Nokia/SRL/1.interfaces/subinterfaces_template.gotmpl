@@ -5,59 +5,55 @@ replaces:
     encoding: "json_ietf"
     value: 
       admin-state: {{ index $subinterface "admin-state" | default "disable" }}
-      type: {{ index $subinterface "type" | default "" }}
-      {{- if hasKey $subinterface "description" }}
+      {{- if index $subinterface "type" }}
+      type: {{ index $subinterface "type" }}
+      {{- end }}
+      {{- if index $subinterface "description" }}
       description: {{ index $subinterface "description"}}
       {{- end }}
-      {{- if hasKey $subinterface "ip-mtu" }}
+      {{- if index $subinterface "ip-mtu" }}
       ip-mtu: {{ index $subinterface "ip-mtu" }}
       {{- end }}
-      {{- if hasKey $subinterface "ipv4-address" }}
+      {{- if index $subinterface "ipv4-address" }}
       ipv4:
         address:
           - ip-prefix: {{ index $subinterface "ipv4-address" | toString }}
       {{- end }}
-      {{- if hasKey $subinterface "ipv6-address" }}
+      {{- if index $subinterface "ipv6-address" }}
       ipv6:
         address:
           - ip-prefix: {{ index $subinterface "ipv6-address" | toString }}
       {{- end }}
-      {{- if hasKey $subinterface "vlan-id" }}
+      {{- if index $subinterface "vlan-id" }}
       vlan:
         encap:
           single-tagged:
             vlan-id: {{ index $subinterface "vlan-id" }}
-      {{- else if hasKey $subinterface "untagged" }}
+      {{- else if index $subinterface "untagged" }}
       vlan:
         encap:
           untagged: {}
       {{- end }}
-      {{- if hasKey $subinterface "acl" }}
-      {{ $acl := index $subinterface "acl"}}
+      {{- if $acl := index $subinterface "acl" }}
       acl:
-        {{- if hasKey $acl "input" }}
-        {{ $input := index $acl "input" }}
+        {{- if $input := index $acl "input" }}
         input:
-          {{- if hasKey $input "ipv4-filter" }}
+          {{- if index $input "ipv4-filter" }}
           ipv4-filter: {{ index $input "ipv4-filter" }}
           {{- end }}
-          {{- if hasKey $input "ipv6-filter" }}
+          {{- if index $input "ipv6-filter" }}
           ipv6-filter: {{ index $acl "input" "ipv6-filter" }}
-          {{- end }}
         {{- end }}
         {{- end }}
-        {{- if hasKey $acl "output" }}
-        {{ $output := index $acl "output" }}
+        {{- if $output := index $acl "output" }}
         output:
-          {{- if hasKey$output "ipv4-filter" }}
+          {{- if index $output "ipv4-filter" }}
           ipv4-filter: {{ index $output "ipv4-filter" }}
           {{- end }}
-          {{- if hasKey $output "ipv6-filter" }}
+          {{- if index $output "ipv6-filter" }}
           ipv6-filter: {{ index $output "ipv6-filter" }}
           {{- end }}
         {{- end }}
-        {{- end }}
       {{- end }}
-      {{- end }}
-  {{- end }}
+    {{- end }}
 {{- end }}

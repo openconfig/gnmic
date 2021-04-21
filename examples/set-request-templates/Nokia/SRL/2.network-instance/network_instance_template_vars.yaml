@@ -1,6 +1,57 @@
 leaf1:57400:
   network-intances:
     - name: default
+      admin-state:
+      description:
+      path-mtu-discovery:
+      router-id:
+      interfaces:
+        - ethernet-1/1.0
+        - ethernet-1/2.0
+        - ethernet-1/36.0
+        - lo0.0
+      vxlan-interface:
+      ip-forwarding:
+        receive-ipv4-check:
+        receive-ipv6-check:
+      protocols:
+        bgp:
+        bgp-evpn:
+          admin-state:
+          default-admin-tag:
+          encapsulation-type:
+          vxlan-interface:
+          evi:
+          ecmp:
+          routes:
+            route-table:
+              mac-ip:
+                advertise-gateway-mac:
+            bridge-table:
+              mac-ip:
+                advertise:
+              inclusive-mcat:
+                advertise:
+                originating-ip:
+              next-hop:
+            
+        bgp-vpn:
+        isis:
+        linux:
+        ospf:
+        
+leaf2:57400:
+  network-intances:
+    - name: default
+      interfaces:
+        - ethernet-1/1.0
+        - ethernet-1/2.0
+        - ethernet-1/36.0
+        - lo0.0
+      
+leaf3:57400:
+  network-intances:
+    - name: default
       interfaces:
         - ethernet-1/1.0
         - ethernet-1/2.0

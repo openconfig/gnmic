@@ -3,44 +3,33 @@ replaces:
   - path: "/network-instance[name={{ index $netins "name" }}]"
     encoding: json_ietf
     value: 
-      interface:
-      {{- range $interface := index $netins "interfaces" }}
-        - name: {{ $interfaces}}
+      admin-state: {{ index $netins "admin-state" | default "disable" }}
+      description: {{ index $netins "description" | default "" }}
+      type: {{ index $netins "type" | default "default" }}
+      {{- if index $netins "path-mtu-disovery" }}
+      mtu:
+        path-mtu-discovery: {{ index $netins "path-mtu-disovery" }}
       {{- end }}
+      {{- if index $netins "router-id" }}
+      router-id: {{ index $netins "router-id" }}
+      {{- end }}
+      {{ $interfaces := index $netins "interfaces" }}
+      {{- if ne (len $interfaces) 0 }}
+      interface:
+        {{- range $interface := $interfaces }}
+        - name: {{ $interface }}
+        {{- end }}
+      {{- end }}
+      {{- if index $netins "vxlan-interface" }}
+      vxlan-interface: {{ index $netins "vxlan-interface" }} 
+      {{- end }}
+      {{- if index $netins "ip-forwarding" }}
+      ip-forwarding:
+        receive-ipv4-check: {{ index $netins "ip-forwarding" "receive-ipv4-check" | default false }} 
+        receive-ipv6-check: {{ index $netins "ip-forwarding" "receive-ipv6-check" | default false }} 
+      {{- end }}
+      {{ $protocols := index $netins "protocols" }}
+      {{- if ne (len $protocols) 0 }}
       protocols:
-        bgp:
-          admin-state: enable
-          autonomous-system: 101
-          router-id: 10.0.1.1
-          ebgp-default-policy:
-          import-reject-all: false
-          export-reject-all: false
-          group:
-            - group-name: eBGPv6
-              export-policy: export-local
-              ipv4-unicast:
-                admin-state: enable
-                advertise-ipv6-next-hops: true
-                receive-ipv6-next-hops: true
-              ipv6-unicast:
-                admin-state: enable
-             ipv4-unicast:
-               multipath:
-                 allow-multiple-as: true
-                 max-paths-level-1: 64
-                 max-paths-level-2: 64
-             ipv6-unicast:
-               multipath:
-                 allow-multiple-as: true
-                 max-paths-level-1: 64
-                 max-paths-level-2: 64
-             neighbor:
-               - peer-address: 2002::192:168:11:1
-                 admin-state: enable
-                 peer-as: 201
-                 peer-group: eBGPv6
-               - peer-address: 2002::192:168:12:1
-                 admin-state: enable
-                 peer-as: 202
-                 peer-group: eBGPv6
+      {{- end }}
 {{- end }}

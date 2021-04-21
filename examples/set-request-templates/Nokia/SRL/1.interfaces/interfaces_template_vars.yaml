@@ -3,28 +3,35 @@ leaf1:57400:
     - name: ethernet-1/1
       admin-state: "enable"
       description: "leaf1_to_spine1"
-      # vlan-tagging: true | false
+      # vlan-tagging: # true || false
       # mtu: 
-      # loopback-mode: true | false
+      # loopback-mode: # true || false
       # ethernet:
-        # aggregate-id:
-        # auto-negotiate:
-        # duplex-mode: 
-        # flow-control:
-          #  receive: true | false 
+      #   aggregate-id:
+      #   auto-negotiate:
+      #   duplex-mode: 
+      #   flow-control:
+      #      receive: # true || false 
+      # lag:
+      #   lag-type:
+      #   min-links:
+      #   member-speed:
+      #   lacp-fallback-mode:
+      #   lacp-fallback-timeout:
+      #   lag-speed:         
       subinterfaces:
         - admin-state: enable
           ipv4-address: 192.168.78.1/30
-          ipv6-address:
-          vlan-id:
-          untagged: {}
-          acl:
-            input:
-              ipv4-filter:
-              ipv6-filter:
-            output:
-              ipv4-filter:
-              ipv6-filter:
+          # ipv6-address:
+          # vlan-id:
+          # untagged: {}
+          # acl:
+          #   input:
+          #     ipv4-filter:
+          #     ipv6-filter:
+          #   output:
+          #     ipv4-filter:
+          #     ipv6-filter:
     - name: ethernet-1/2
       admin-state: "enable"
       description: "leaf1_to_spine2"
