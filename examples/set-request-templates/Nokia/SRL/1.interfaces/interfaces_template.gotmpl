@@ -25,7 +25,7 @@ replaces:
         {{- if index $ethernet "duplex-mode" }}
         duplex-mode: {{ index $ethernet "duplex-mode" }}
         {{- end }}
-        {{- if index $ethernet "flow-control" }}
+        {{- if index $ethernet "flow-control" "receive" }}
         flow-control: 
           receive: {{ index $ethernet "flow-control" "receive" }}
         {{- end }}
