@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -32,6 +31,7 @@ import (
 	"google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/protobuf/proto"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -209,9 +209,10 @@ func (a *App) validateGlobals() error {
 	}
 	return nil
 }
+
 func (a *App) logConfigKVs() {
 	if a.Config.Debug {
-		b, err := json.MarshalIndent(a.Config.FileConfig.AllSettings(), "", "  ")
+		b, err := yaml.Marshal(a.Config.FileConfig.AllSettings())
 		if err != nil {
 			a.Logger.Printf("could not marshal settings: %v", err)
 		} else {
