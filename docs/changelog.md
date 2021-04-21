@@ -1,3 +1,7 @@
+### v0.12.1 - April 21st 2021
+
+- Fix parsing of stringArray flags containing a space.
+
 ### v0.12.0 - April 20th 2021
 
 - Outputs:
