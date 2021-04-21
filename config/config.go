@@ -243,14 +243,11 @@ func (c *Config) SetLogger() {
 func (c *Config) SetPersistantFlagsFromFile(cmd *cobra.Command) {
 	cmd.PersistentFlags().VisitAll(func(f *pflag.Flag) {
 		if c.Debug {
-			c.logger.Printf("persistent-flag=%s cmd=%s, changed: %v, is set: %v", f.Name, cmd.Name(), f.Changed, c.FileConfig.IsSet(f.Name))
+			c.logger.Printf("cmd=%s, flagName=%s, changed=%v, isSetInFile=%v",
+				cmd.Name(), f.Name, f.Changed, c.FileConfig.IsSet(f.Name))
 		}
 		if !f.Changed && c.FileConfig.IsSet(f.Name) {
-			if c.Debug {
-				c.logger.Printf("cmd %s, flag %s did not change and is set in file", cmd.Name(), f.Name)
-			}
-			val := c.FileConfig.Get(f.Name)
-			cmd.Flags().Set(f.Name, fmt.Sprintf("%v", val))
+			c.setFlagValue(cmd, f.Name, c.FileConfig.Get(f.Name))
 		}
 	})
 }
@@ -259,16 +256,34 @@ func (c *Config) SetLocalFlagsFromFile(cmd *cobra.Command) {
 	cmd.LocalFlags().VisitAll(func(f *pflag.Flag) {
 		flagName := fmt.Sprintf("%s-%s", cmd.Name(), f.Name)
 		if c.Debug {
-			c.logger.Printf("local-flag=%s, cmd=%s, changed=%v, is set: %v", flagName, cmd.Name(), f.Changed, c.FileConfig.IsSet(flagName))
+			c.logger.Printf("cmd=%s, flagName=%s, changed=%v, isSetInFile=%v",
+				cmd.Name(), f.Name, f.Changed, c.FileConfig.IsSet(flagName))
 		}
 		if !f.Changed && c.FileConfig.IsSet(flagName) {
-			if c.Debug {
-				c.logger.Printf("cmd %s, flag %s did not change and is set in file", cmd.Name(), flagName)
-			}
-			val := c.FileConfig.Get(flagName)
-			cmd.Flags().Set(f.Name, fmt.Sprintf("%v", val))
+			c.setFlagValue(cmd, f.Name, c.FileConfig.Get(flagName))
 		}
 	})
+}
+
+func (c *Config) setFlagValue(cmd *cobra.Command, fName string, val interface{}) {
+	switch val := val.(type) {
+	case []interface{}:
+		if c.Debug {
+			c.logger.Printf("cmd=%s, flagName=%s, valueType=%T, length=%d, value=%#v",
+				cmd.Name(), fName, val, len(val), val)
+		}
+		nVal := make([]string, 0, len(val))
+		for _, v := range val {
+			nVal = append(nVal, fmt.Sprintf("%v", v))
+		}
+		cmd.Flags().Set(fName, strings.Join(nVal, ","))
+	default:
+		if c.Debug {
+			c.logger.Printf("cmd=%s, flagName=%s, valueType=%T, value=%#v",
+				cmd.Name(), fName, val, val)
+		}
+		cmd.Flags().Set(fName, fmt.Sprintf("%v", val))
+	}
 }
 
 func flagIsSet(cmd *cobra.Command, name string) bool {
@@ -810,7 +825,7 @@ func SanitizeArrayFlagValue(ls []string) []string {
 		for strings.HasPrefix(ls[i], "[") && strings.HasSuffix(ls[i], "]") {
 			ls[i] = ls[i][1 : len(ls[i])-1]
 		}
-		res = append(res, strings.Split(ls[i], " ")...)
+		res = append(res, strings.Split(ls[i], ",")...)
 	}
 	return res
 }
