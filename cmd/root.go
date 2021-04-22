@@ -66,12 +66,19 @@ func newRootCmd() *cobra.Command {
 	gApp.RootCmd.AddCommand(newGetSetCmd())
 	gApp.RootCmd.AddCommand(newListenCmd())
 	gApp.RootCmd.AddCommand(newPathCmd())
+	//
+	genCmd := newGenerateCmd()
+	genCmd.AddCommand(newGenerateSetRequestCmd())
+	gApp.RootCmd.AddCommand(genCmd)
+	//
 	gApp.RootCmd.AddCommand(newPromptCmd())
 	gApp.RootCmd.AddCommand(newSetCmd())
 	gApp.RootCmd.AddCommand(newSubscribeCmd())
+	//
 	versionCmd := newVersionCmd()
 	versionCmd.AddCommand(newVersionUpgradeCmd())
 	gApp.RootCmd.AddCommand(versionCmd)
+	//
 	return gApp.RootCmd
 }
 

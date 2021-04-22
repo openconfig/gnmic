@@ -169,6 +169,14 @@ type LocalFlags struct {
 	GetSetReplace   string `mapstructure:"getset-replace,omitempty" json:"getset-replace,omitempty" yaml:"getset-replace,omitempty"`
 	GetSetDelete    string `mapstructure:"getset-delete,omitempty" json:"getset-delete,omitempty" yaml:"getset-delete,omitempty"`
 	GetSetValue     string `mapstructure:"getset-value,omitempty" json:"getset-value,omitempty" yaml:"getset-value,omitempty"`
+	// Generate
+	GenerateFile    []string `mapstructure:"generate-file,omitempty" json:"generate-file,omitempty" yaml:"generate-file,omitempty"`
+	GenerateDir     []string `mapstructure:"generate-dir,omitempty" json:"generate-dir,omitempty" yaml:"generate-dir,omitempty"`
+	GenerateExclude []string `mapstructure:"generate-exclude,omitempty" json:"generate-exclude,omitempty" yaml:"generate-exclude,omitempty"`
+	GenerateOutput  string   `mapstructure:"generate-output,omitempty" json:"generate-output,omitempty" yaml:"generate-output,omitempty"`
+	// Generate Set Request
+	GenerateSetRequestUpdatePath  []string `mapstructure:"generate-update-path,omitempty" json:"generate-update-path,omitempty" yaml:"generate-update-path,omitempty"`
+	GenerateSetRequestReplacePath []string `mapstructure:"generate-replace-path,omitempty" json:"generate-replace-path,omitempty" yaml:"generate-replace-path,omitempty"`
 }
 
 func New() *Config {
