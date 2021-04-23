@@ -35,7 +35,7 @@ func (a *App) GenerateRunE(cmd *cobra.Command, args []string) error {
 	m := make(map[string]interface{})
 	for _, e := range a.SchemaTree.Dir {
 		e.FixChoice()
-		nm := toMap(e)
+		nm := toMap(e, a.Config.GenerateConfigOnly)
 		if nm == nil {
 			continue
 		}
@@ -51,6 +51,12 @@ func (a *App) GenerateRunE(cmd *cobra.Command, args []string) error {
 			m[e.Name] = nm
 		}
 	}
+
+	v, err := getSubMapByPath(a.Config.GeneratePath, m)
+	if err != nil {
+		return err
+	}
+
 	err = output.Truncate(0)
 	if err != nil {
 		return err
@@ -58,9 +64,9 @@ func (a *App) GenerateRunE(cmd *cobra.Command, args []string) error {
 	if a.Config.GenerateJSON {
 		enc := json.NewEncoder(output)
 		enc.SetIndent("", "  ")
-		return enc.Encode(m)
+		return enc.Encode(v)
 	}
-	return yaml.NewEncoder(output).Encode(m)
+	return yaml.NewEncoder(output).Encode(v)
 }
 
 func (a *App) GeneratePreRunE(cmd *cobra.Command, args []string) error {
@@ -122,7 +128,7 @@ func (a *App) GenerateSetRequestRunE(cmd *cobra.Command, args []string) error {
 	m := make(map[string]interface{})
 	for _, e := range a.SchemaTree.Dir {
 		e.FixChoice()
-		nm := toMap(e)
+		nm := toMap(e, true)
 		if nm == nil {
 			continue
 		}
@@ -158,12 +164,17 @@ func (a *App) GenerateSetRequestRunE(cmd *cobra.Command, args []string) error {
 
 func (a *App) InitGenerateFlags(cmd *cobra.Command) {
 	cmd.ResetFlags()
+	// persistant flags
 	cmd.PersistentFlags().StringArrayVarP(&a.Config.LocalFlags.GenerateFile, "file", "", []string{}, "yang file(s)")
 	cmd.PersistentFlags().StringArrayVarP(&a.Config.LocalFlags.GenerateDir, "dir", "", []string{}, "yang dir(s)")
 	cmd.PersistentFlags().StringArrayVarP(&a.Config.LocalFlags.GenerateExclude, "exclude", "", []string{}, "regexes defining modules to be excluded")
 	cmd.PersistentFlags().StringVarP(&a.Config.LocalFlags.GenerateOutput, "output", "", "", "output file, defaults to stdout")
 	cmd.PersistentFlags().BoolVarP(&a.Config.LocalFlags.GenerateJSON, "json", "", false, "generate output as JSON format instead of YAML")
-	cmd.PersistentFlags().VisitAll(func(flag *pflag.Flag) {
+	// local flags
+	cmd.Flags().BoolVarP(&a.Config.LocalFlags.GenerateConfigOnly, "config-only", "", false, "generate output from YANG config nodes only")
+	cmd.Flags().StringVarP(&a.Config.LocalFlags.GeneratePath, "path", "", "", "generate marshaled YANG body under specified path")
+
+	cmd.Flags().VisitAll(func(flag *pflag.Flag) {
 		a.Config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
 	})
 }
@@ -333,11 +344,11 @@ func updateAnnotation(entry *yang.Entry) {
 	}
 }
 
-func toMap(e *yang.Entry) interface{} {
+func toMap(e *yang.Entry, configOnly bool) interface{} {
 	if e == nil {
 		return nil
 	}
-	if e.Config == yang.TSFalse {
+	if e.Config == yang.TSFalse && configOnly {
 		return nil
 	}
 	m := make(map[string]interface{})
@@ -345,13 +356,13 @@ func toMap(e *yang.Entry) interface{} {
 	case e.Dir == nil && e.ListAttr != nil: // leaf-list
 		fallthrough
 	case e.Dir == nil: // leaf
-		if e.Config == yang.TSFalse {
+		if e.Config == yang.TSFalse && configOnly {
 			return nil
 		}
 		return e.Default
 	case e.ListAttr != nil: // list
 		for n, child := range e.Dir {
-			gChild := toMap(child)
+			gChild := toMap(child, configOnly)
 			switch gChild := gChild.(type) {
 			case map[string]interface{}:
 				for k, v := range gChild {
@@ -369,7 +380,7 @@ func toMap(e *yang.Entry) interface{} {
 		for n, child := range e.Dir {
 			if child.IsCase() || child.IsChoice() {
 				for _, gchild := range child.Dir {
-					nnm := toMap(gchild)
+					nnm := toMap(gchild, configOnly)
 					switch nnm := nnm.(type) {
 					case map[string]interface{}:
 						if child.IsChoice() {
@@ -384,7 +395,7 @@ func toMap(e *yang.Entry) interface{} {
 				}
 				continue
 			}
-			nnm := toMap(child)
+			nnm := toMap(child, configOnly)
 			if nnm == nil {
 				continue
 			}
@@ -402,6 +413,17 @@ func toMap(e *yang.Entry) interface{} {
 }
 
 func pathToUpdateItem(p string, m map[string]interface{}) (*config.UpdateItem, error) {
+	v, err := getSubMapByPath(p, m)
+	return &config.UpdateItem{
+		Path:  p,
+		Value: v,
+	}, err
+}
+
+func getSubMapByPath(p string, m map[string]interface{}) (interface{}, error) {
+	if p == "" || p == "/" {
+		return m, nil
+	}
 	// strip path from keys if any
 	gp, err := collector.ParsePath(p)
 	if err != nil {
@@ -440,10 +462,7 @@ func pathToUpdateItem(p string, m map[string]interface{}) (*config.UpdateItem, e
 			return nil, fmt.Errorf("unexpected sub map format @%q: %T", item, rVal)
 		}
 	}
-	return &config.UpdateItem{
-		Path:  p,
-		Value: rVal,
-	}, nil
+	return rVal, nil
 }
 
 //////
