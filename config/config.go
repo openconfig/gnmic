@@ -173,10 +173,11 @@ type LocalFlags struct {
 	GenerateDir     []string `mapstructure:"generate-dir,omitempty" json:"generate-dir,omitempty" yaml:"generate-dir,omitempty"`
 	GenerateExclude []string `mapstructure:"generate-exclude,omitempty" json:"generate-exclude,omitempty" yaml:"generate-exclude,omitempty"`
 	GenerateOutput  string   `mapstructure:"generate-output,omitempty" json:"generate-output,omitempty" yaml:"generate-output,omitempty"`
+	GenerateJSON    bool     `mapstructure:"generate-json,omitempty" json:"generate-json,omitempty" yaml:"generate-json,omitempty"`
 	// Generate Set Request
 	GenerateSetRequestUpdatePath  []string `mapstructure:"generate-update-path,omitempty" json:"generate-update-path,omitempty" yaml:"generate-update-path,omitempty"`
 	GenerateSetRequestReplacePath []string `mapstructure:"generate-replace-path,omitempty" json:"generate-replace-path,omitempty" yaml:"generate-replace-path,omitempty"`
-	GenerateSetRequestJSON        bool     `mapstructure:"generate-set-request-json,omitempty" json:"generate-set-request-json,omitempty" yaml:"generate-set-request-json,omitempty"`
+	//GenerateSetRequestJSON        bool     `mapstructure:"generate-set-request-json,omitempty" json:"generate-set-request-json,omitempty" yaml:"generate-set-request-json,omitempty"`
 	// Generate path
 	GeneratePathWithPrefix bool   `mapstructure:"generate-with-prefix,omitempty" json:"generate-with-prefix,omitempty" yaml:"generate-with-prefix,omitempty"`
 	GeneratePathWithTypes  bool   `mapstructure:"generate-types,omitempty" json:"generate-types,omitempty" yaml:"generate-types,omitempty"`

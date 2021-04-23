@@ -26,6 +26,7 @@ func newGenerateCmd() *cobra.Command {
 		Aliases:           []string{"gen"},
 		Short:             "generate artifacts",
 		PersistentPreRunE: gApp.GeneratePreRunE,
+		RunE:              gApp.GenerateRunE,
 		SilenceUsage:      true,
 	}
 	gApp.InitGenerateFlags(cmd)

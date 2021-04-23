@@ -17,6 +17,52 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+func (a *App) GenerateRunE(cmd *cobra.Command, args []string) error {
+	defer a.InitGenerateFlags(cmd)
+	var output = os.Stdout
+	if a.Config.GenerateOutput != "" {
+		f, err := os.OpenFile(a.Config.GenerateOutput, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		output = f
+	}
+	err := a.GenerateYangSchema(a.Config.GenerateDir, a.Config.GenerateFile, a.Config.GenerateExclude)
+	if err != nil {
+		return err
+	}
+	m := make(map[string]interface{})
+	for _, e := range a.SchemaTree.Dir {
+		e.FixChoice()
+		nm := toMap(e)
+		if nm == nil {
+			continue
+		}
+
+		switch nm := nm.(type) {
+		case map[string]interface{}:
+			for k, v := range nm {
+				m[k] = v
+			}
+		case []interface{}:
+			m[e.Name] = nm
+		case string:
+			m[e.Name] = nm
+		}
+	}
+	err = output.Truncate(0)
+	if err != nil {
+		return err
+	}
+	if a.Config.GenerateJSON {
+		enc := json.NewEncoder(output)
+		enc.SetIndent("", "  ")
+		return enc.Encode(m)
+	}
+	return yaml.NewEncoder(output).Encode(m)
+}
+
 func (a *App) GeneratePreRunE(cmd *cobra.Command, args []string) error {
 	a.Config.SetLocalFlagsFromFile(cmd)
 	a.Config.LocalFlags.GenerateDir = config.SanitizeArrayFlagValue(a.Config.LocalFlags.GenerateDir)
@@ -102,7 +148,7 @@ func (a *App) GenerateSetRequestRunE(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	if a.Config.GenerateSetRequestJSON {
+	if a.Config.GenerateJSON {
 		enc := json.NewEncoder(output)
 		enc.SetIndent("", "  ")
 		return enc.Encode(setReqFile)
@@ -116,6 +162,7 @@ func (a *App) InitGenerateFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringArrayVarP(&a.Config.LocalFlags.GenerateDir, "dir", "", []string{}, "yang dir(s)")
 	cmd.PersistentFlags().StringArrayVarP(&a.Config.LocalFlags.GenerateExclude, "exclude", "", []string{}, "regexes defining modules to be excluded")
 	cmd.PersistentFlags().StringVarP(&a.Config.LocalFlags.GenerateOutput, "output", "", "", "output file, defaults to stdout")
+	cmd.PersistentFlags().BoolVarP(&a.Config.LocalFlags.GenerateJSON, "json", "", false, "generate output as JSON format instead of YAML")
 	cmd.PersistentFlags().VisitAll(func(flag *pflag.Flag) {
 		a.Config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
 	})
@@ -125,7 +172,6 @@ func (a *App) InitGenerateSetRequestFlags(cmd *cobra.Command) {
 	cmd.ResetFlags()
 	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.GenerateSetRequestReplacePath, "replace", "", []string{}, "replace path")
 	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.GenerateSetRequestUpdatePath, "update", "", []string{}, "update path")
-	cmd.Flags().BoolVarP(&a.Config.LocalFlags.GenerateSetRequestJSON, "json", "", false, "generate JSON format instead of YAML")
 
 	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
 		a.Config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
