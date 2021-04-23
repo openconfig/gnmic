@@ -136,7 +136,7 @@ func newPromptCmd() *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := generateYangSchema(gApp.Config.LocalFlags.PromptDir, gApp.Config.LocalFlags.PromptFile, gApp.Config.LocalFlags.PromptExclude)
+			err := gApp.GenerateYangSchema(gApp.Config.LocalFlags.PromptDir, gApp.Config.LocalFlags.PromptFile, gApp.Config.LocalFlags.PromptExclude)
 			if err != nil {
 				gApp.Logger.Printf("failed to load paths from yang: %v", err)
 				if !gApp.Config.Log {

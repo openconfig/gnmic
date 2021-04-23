@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -101,13 +102,16 @@ func (a *App) GenerateSetRequestRunE(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-
+	if a.Config.GenerateSetRequestJSON {
+		enc := json.NewEncoder(output)
+		enc.SetIndent("", "  ")
+		return enc.Encode(setReqFile)
+	}
 	return yaml.NewEncoder(output).Encode(setReqFile)
 }
 
 func (a *App) InitGenerateFlags(cmd *cobra.Command) {
 	cmd.ResetFlags()
-
 	cmd.PersistentFlags().StringArrayVarP(&a.Config.LocalFlags.GenerateFile, "file", "", []string{}, "yang file(s)")
 	cmd.PersistentFlags().StringArrayVarP(&a.Config.LocalFlags.GenerateDir, "dir", "", []string{}, "yang dir(s)")
 	cmd.PersistentFlags().StringArrayVarP(&a.Config.LocalFlags.GenerateExclude, "exclude", "", []string{}, "regexes defining modules to be excluded")
@@ -121,6 +125,7 @@ func (a *App) InitGenerateSetRequestFlags(cmd *cobra.Command) {
 	cmd.ResetFlags()
 	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.GenerateSetRequestReplacePath, "replace", "", []string{}, "replace path")
 	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.GenerateSetRequestUpdatePath, "update", "", []string{}, "update path")
+	cmd.Flags().BoolVarP(&a.Config.LocalFlags.GenerateSetRequestJSON, "json", "", false, "generate JSON format instead of YAML")
 
 	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
 		a.Config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)

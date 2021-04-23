@@ -69,6 +69,7 @@ func newRootCmd() *cobra.Command {
 	//
 	genCmd := newGenerateCmd()
 	genCmd.AddCommand(newGenerateSetRequestCmd())
+	genCmd.AddCommand(newGeneratePathCmd())
 	gApp.RootCmd.AddCommand(genCmd)
 	//
 	gApp.RootCmd.AddCommand(newPromptCmd())
@@ -135,28 +136,6 @@ func loadCACerts(tlscfg *tls.Config) error {
 		tlscfg.RootCAs = certPool
 	}
 	return nil
-}
-
-func printer(ctx context.Context, c chan string) {
-	for {
-		select {
-		case m := <-c:
-			fmt.Println(m)
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
-func gather(ctx context.Context, c chan string, ls *[]string) {
-	for {
-		select {
-		case m := <-c:
-			*ls = append(*ls, m)
-		case <-ctx.Done():
-			return
-		}
-	}
 }
 
 func setupCloseHandler(cancelFn context.CancelFunc) {
