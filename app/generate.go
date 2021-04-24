@@ -56,10 +56,11 @@ func (a *App) GenerateRunE(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-
-	err = output.Truncate(0)
-	if err != nil {
-		return err
+	if output != os.Stdout {
+		err = output.Truncate(0)
+		if err != nil {
+			return err
+		}
 	}
 	if a.Config.GenerateJSON {
 		enc := json.NewEncoder(output)
@@ -149,10 +150,11 @@ func (a *App) GenerateSetRequestRunE(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-
-	err = output.Truncate(0)
-	if err != nil {
-		return err
+	if output != os.Stdout {
+		err = output.Truncate(0)
+		if err != nil {
+			return err
+		}
 	}
 	if a.Config.GenerateJSON {
 		enc := json.NewEncoder(output)
@@ -168,8 +170,8 @@ func (a *App) InitGenerateFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringArrayVarP(&a.Config.LocalFlags.GenerateFile, "file", "", []string{}, "yang file(s)")
 	cmd.PersistentFlags().StringArrayVarP(&a.Config.LocalFlags.GenerateDir, "dir", "", []string{}, "yang dir(s)")
 	cmd.PersistentFlags().StringArrayVarP(&a.Config.LocalFlags.GenerateExclude, "exclude", "", []string{}, "regexes defining modules to be excluded")
-	cmd.PersistentFlags().StringVarP(&a.Config.LocalFlags.GenerateOutput, "output", "", "", "output file, defaults to stdout")
-	cmd.PersistentFlags().BoolVarP(&a.Config.LocalFlags.GenerateJSON, "json", "", false, "generate output as JSON format instead of YAML")
+	cmd.PersistentFlags().StringVarP(&a.Config.LocalFlags.GenerateOutput, "output", "o", "", "output file, defaults to stdout")
+	cmd.PersistentFlags().BoolVarP(&a.Config.LocalFlags.GenerateJSON, "json", "j", false, "generate output as JSON format instead of YAML")
 	// local flags
 	cmd.Flags().BoolVarP(&a.Config.LocalFlags.GenerateConfigOnly, "config-only", "", false, "generate output from YANG config nodes only")
 	cmd.Flags().StringVarP(&a.Config.LocalFlags.GeneratePath, "path", "", "", "generate marshaled YANG body under specified path")

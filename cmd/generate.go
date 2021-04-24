@@ -24,7 +24,7 @@ func newGenerateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:               "generate",
 		Aliases:           []string{"gen"},
-		Short:             "generate artifacts",
+		Short:             "generate paths or JSON/YAML objects from YANG",
 		PersistentPreRunE: gApp.GeneratePreRunE,
 		RunE:              gApp.GenerateRunE,
 		SilenceUsage:      true,
