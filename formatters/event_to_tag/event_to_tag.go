@@ -18,8 +18,6 @@ const (
 // ToTag moves ALL values matching any of the regex in .Values to the EventMsg.Tags map.
 // if .Keep is true, the matching values are not deleted from EventMsg.Tags
 type ToTag struct {
-	formatters.EventProcessor
-
 	Values     []string `mapstructure:"values,omitempty" json:"values,omitempty"`
 	ValueNames []string `mapstructure:"value-names,omitempty" json:"value-names,omitempty"`
 	Keep       bool     `mapstructure:"keep,omitempty" json:"keep,omitempty"`
@@ -116,3 +114,5 @@ func (t *ToTag) WithLogger(l *log.Logger) {
 		t.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
 	}
 }
+
+func (t *ToTag) WithTargets(tcs map[string]interface{}) {}

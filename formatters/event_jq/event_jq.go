@@ -20,7 +20,6 @@ const (
 
 // jq runs a jq expression on the received event messages
 type jq struct {
-	formatters.EventProcessor
 	Condition  string `mapstructure:"condition,omitempty"`
 	Expression string `mapstructure:"expression,omitempty"`
 	Debug      bool   `mapstructure:"debug,omitempty"`
@@ -184,3 +183,5 @@ func (p *jq) WithLogger(l *log.Logger) {
 		p.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
 	}
 }
+
+func (p *jq) WithTargets(tcs map[string]interface{}) {}

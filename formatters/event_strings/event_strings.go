@@ -19,8 +19,6 @@ const (
 
 // Strings provides some of Golang's strings functions to transform: tags, tag names, values and value names
 type Strings struct {
-	formatters.EventProcessor
-
 	Tags       []string                `mapstructure:"tags,omitempty" json:"tags,omitempty"`
 	Values     []string                `mapstructure:"values,omitempty" json:"values,omitempty"`
 	TagNames   []string                `mapstructure:"tag-names,omitempty" json:"tag-names,omitempty"`
@@ -174,6 +172,8 @@ func (s *Strings) WithLogger(l *log.Logger) {
 		s.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
 	}
 }
+
+func (s *Strings) WithTargets(tcs map[string]interface{}) {}
 
 func (s *Strings) applyValueTransformations(e *formatters.EventMsg, k string, v interface{}) {
 	for _, trans := range s.Transforms {

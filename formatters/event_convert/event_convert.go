@@ -19,8 +19,6 @@ const (
 
 // Convert converts the value with key matching one of regexes, to the specified Type
 type Convert struct {
-	formatters.EventProcessor
-
 	Values []string `mapstructure:"value-names,omitempty" json:"value-names,omitempty"`
 	Type   string   `mapstructure:"type,omitempty" json:"type,omitempty"`
 	Debug  bool     `mapstructure:"debug,omitempty" json:"debug,omitempty"`
@@ -122,6 +120,8 @@ func (c *Convert) WithLogger(l *log.Logger) {
 		c.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
 	}
 }
+
+func (c *Convert) WithTargets(tcs map[string]interface{}) {}
 
 func convertToInt(i interface{}) (int, error) {
 	switch i := i.(type) {

@@ -19,7 +19,6 @@ const (
 
 // AddTag adds a set of tags to the event message if tag
 type AddTag struct {
-	formatters.EventProcessor
 	Condition  string            `mapstructure:"condition,omitempty"`
 	Tags       []string          `mapstructure:"tags,omitempty" json:"tags,omitempty"`
 	Values     []string          `mapstructure:"values,omitempty" json:"values,omitempty"`
@@ -170,6 +169,8 @@ func (p *AddTag) WithLogger(l *log.Logger) {
 		p.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
 	}
 }
+
+func (p *AddTag) WithTargets(tcs map[string]interface{}) {}
 
 func (p *AddTag) addTags(e *formatters.EventMsg) {
 	if e.Tags == nil {

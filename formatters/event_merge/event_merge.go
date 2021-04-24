@@ -16,8 +16,6 @@ const (
 
 // Merge merges a list of event messages into one or multiple messages based on some criteria
 type Merge struct {
-	formatters.EventProcessor
-
 	Always bool `mapstructure:"always,omitempty" json:"always,omitempty"`
 	Debug  bool `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 
@@ -90,6 +88,8 @@ func (p *Merge) WithLogger(l *log.Logger) {
 		p.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
 	}
 }
+
+func (p *Merge) WithTargets(tcs map[string]interface{}) {}
 
 func merge(e1, e2 *formatters.EventMsg) {
 	if e1.Tags == nil {
