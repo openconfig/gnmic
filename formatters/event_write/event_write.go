@@ -19,7 +19,6 @@ const (
 )
 
 type Write struct {
-	formatters.EventProcessor
 	Condition  string   `mapstructure:"condition,omitempty"`
 	Tags       []string `mapstructure:"tags,omitempty" json:"tags,omitempty"`
 	Values     []string `mapstructure:"values,omitempty" json:"values,omitempty"`
@@ -221,3 +220,5 @@ func (p *Write) write(e *formatters.EventMsg) error {
 	p.dst.Write(append(b, p.sep...))
 	return nil
 }
+
+func (p *Write) WithTargets(tcs map[string]interface{}) {}

@@ -22,8 +22,6 @@ const (
 // Precision specifies the unit of the received timestamp, s, ms, us or ns.
 // DateTimeFormat is the desired datetime format, it defaults to RFC3339
 type DateString struct {
-	formatters.EventProcessor
-
 	Tags      []string `mapstructure:"tag-names,omitempty" json:"tag-names,omitempty"`
 	Values    []string `mapstructure:"value-names,omitempty" json:"value-names,omitempty"`
 	Precision string   `mapstructure:"precision,omitempty" json:"precision,omitempty"`
@@ -162,6 +160,8 @@ func (d *DateString) WithLogger(l *log.Logger) {
 		d.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
 	}
 }
+
+func (d *DateString) WithTargets(tcs map[string]interface{}) {}
 
 func convertToInt(i interface{}) (int, error) {
 	switch i := i.(type) {

@@ -19,7 +19,6 @@ const (
 
 // Allow Allows the msg if ANY of the Tags or Values regexes are matched
 type Allow struct {
-	formatters.EventProcessor
 	Condition  string   `mapstructure:"condition,omitempty"`
 	TagNames   []string `mapstructure:"tag-names,omitempty" json:"tag-names,omitempty"`
 	ValueNames []string `mapstructure:"value-names,omitempty" json:"value-names,omitempty"`
@@ -167,3 +166,5 @@ func (d *Allow) WithLogger(l *log.Logger) {
 		d.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
 	}
 }
+
+func (d *Allow) WithTargets(tcs map[string]interface{}) {}

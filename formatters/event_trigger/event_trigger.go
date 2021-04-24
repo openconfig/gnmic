@@ -24,8 +24,6 @@ const (
 
 // Trigger triggers an action when certain conditions are met
 type Trigger struct {
-	formatters.EventProcessor `mapstructure:"-"`
-
 	Condition      string                 `mapstructure:"condition,omitempty"`
 	MinOccurrences int                    `mapstructure:"min-occurrences,omitempty"`
 	MaxOccurrences int                    `mapstructure:"max-occurrences,omitempty"`

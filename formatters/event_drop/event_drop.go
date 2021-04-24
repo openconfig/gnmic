@@ -19,7 +19,6 @@ const (
 
 // Drop Drops the msg if ANY of the Tags or Values regexes are matched
 type Drop struct {
-	formatters.EventProcessor
 	Condition  string   `mapstructure:"condition,omitempty"`
 	TagNames   []string `mapstructure:"tag-names,omitempty" json:"tag-names,omitempty"`
 	ValueNames []string `mapstructure:"value-names,omitempty" json:"value-names,omitempty"`
@@ -167,3 +166,5 @@ func (d *Drop) WithLogger(l *log.Logger) {
 		d.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
 	}
 }
+
+func (d *Drop) WithTargets(tcs map[string]interface{}) {}
