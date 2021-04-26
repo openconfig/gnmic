@@ -23,28 +23,6 @@ or
 
 ### Persistent Flags
 
-#### file
-
-A path to a YANG file or a directory with YANG files which `gnmic` will use to generate paths or JSON/YAML objects.
-
-Multiple `--file` flags can be supplied.
-
-#### dir
-
-A path to a directory which `gnmic` would recursively traverse in search for the additional YANG files which may be required by YANG files specified with `--file` to build the YANG tree.
-
-Can also point to a single YANG file instead of a directory.
-
-Multiple `--dir` flags can be supplied.
-
-#### exclude
-
-The `--exclude` flag specifies the YANG module __names__ to be excluded from the path generation when YANG modules names clash.
-
-Can also be a regular expression.
-
-Multiple `--exclude` flags can be supplied.
-
 #### output
 
 The `--output` flag specifies the file to which the generated output will be written, defaults to `stdout`

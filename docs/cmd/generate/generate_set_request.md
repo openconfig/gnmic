@@ -99,6 +99,8 @@ gnmic generate \
         --replace /configure/service/vprn/bgp/family
 ```
 
+The above command generates the below YAML output (JSON if `--json` flag is supplied)
+
 ```yaml
 replaces:
 - path: /configure/service/vprn/bgp/family
@@ -113,6 +115,7 @@ replaces:
 ```
 
 #### Cisco
+
 YANG repo: [YangModels/yang](https://github.com/YangModels/yang)
 
 Clone the `YangModels/yang` repo and change into the main directory of the repo:
@@ -131,6 +134,8 @@ gnmic --encoding json_ietf \
           set-request \
           --path /active-nodes
 ```
+
+The above command generates the below YAML output (JSON if `--json` flag is supplied)
 
 ```yaml
 replaces:
@@ -152,6 +157,7 @@ replaces:
 ```
 
 #### Juniper
+
 YANG repo: [Juniper/yang](https://github.com/Juniper/yang)
 
 Clone the Juniper YANG repository and change into the release directory:
@@ -169,6 +175,8 @@ gnmic --encoding json_ietf \
           set-request \
           --replace /configuration/interfaces/interface/unit/family/inet/address
 ```
+
+The above command generates the below YAML output (JSON if `--json` flag is supplied)
 
 ```yaml
 replaces:
@@ -322,6 +330,7 @@ replaces:
 ```
 
 #### Arista
+
 YANG repo: [aristanetworks/yang](https://github.com/aristanetworks/yang)
 
 Arista uses a subset of OpenConfig modules and does not provide IETF modules inside their repo. So make sure you have IETF models available so you can reference it, a `openconfig/public` is a good candidate.
@@ -332,6 +341,8 @@ Clone the Arista YANG repo:
 git clone https://github.com/aristanetworks/yang
 cd yang
 ```
+
+The above command generates the below YAML output (JSON if `--json` flag is supplied)
 
 ```bash
 gnmic --encoding json_ietf \

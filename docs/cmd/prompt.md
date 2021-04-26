@@ -14,28 +14,11 @@ The auto-completions are generated from the YANG modules d with the `--file` and
 
 ### Flags
 
-#### file
-A path to a YANG file or a directory with YANG files which `gnmic` will use to generate auto-completion for YANG-defined data (paths, models).
-
-Multiple `--file` flags can be supplied.
-
-#### dir
-A path to a directory which `gnmic` would recursively traverse in search for the additional YANG files which may be required by YANG files specified with `--file` to build the YANG tree.
-
-Can also point to a single YANG file instead of a directory.
-
-Multiple `--dir` flags can be supplied.
-
 #### description-with-prefix
 When set, the description of the path elements in the suggestion box will contain module's prefix.
 
 #### description-with-types
 When set, the description of the path elements in the suggestion box will contain element's type information.
-
-#### exclude
-The `--exclude` flag specifies the YANG module __names__ to be excluded from the path generation when YANG modules names are clashed.
-
-Multiple `--exclude` flags can be supplied.
 
 #### max-suggestions
 The `--max-suggestions` flag sets the number of lines that the suggestion box will display without scrolling.
