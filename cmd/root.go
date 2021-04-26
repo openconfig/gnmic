@@ -66,12 +66,20 @@ func newRootCmd() *cobra.Command {
 	gApp.RootCmd.AddCommand(newGetSetCmd())
 	gApp.RootCmd.AddCommand(newListenCmd())
 	gApp.RootCmd.AddCommand(newPathCmd())
+	//
+	genCmd := newGenerateCmd()
+	genCmd.AddCommand(newGenerateSetRequestCmd())
+	genCmd.AddCommand(newGeneratePathCmd())
+	gApp.RootCmd.AddCommand(genCmd)
+	//
 	gApp.RootCmd.AddCommand(newPromptCmd())
 	gApp.RootCmd.AddCommand(newSetCmd())
 	gApp.RootCmd.AddCommand(newSubscribeCmd())
+	//
 	versionCmd := newVersionCmd()
 	versionCmd.AddCommand(newVersionUpgradeCmd())
 	gApp.RootCmd.AddCommand(versionCmd)
+	//
 	return gApp.RootCmd
 }
 
@@ -128,28 +136,6 @@ func loadCACerts(tlscfg *tls.Config) error {
 		tlscfg.RootCAs = certPool
 	}
 	return nil
-}
-
-func printer(ctx context.Context, c chan string) {
-	for {
-		select {
-		case m := <-c:
-			fmt.Println(m)
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
-func gather(ctx context.Context, c chan string, ls *[]string) {
-	for {
-		select {
-		case m := <-c:
-			*ls = append(*ls, m)
-		case <-ctx.Done():
-			return
-		}
-	}
 }
 
 func setupCloseHandler(cancelFn context.CancelFunc) {

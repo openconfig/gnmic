@@ -83,6 +83,10 @@ nav:
       - Listen: cmd/listen.md
       - Path: cmd/path.md
       - Prompt: cmd/prompt.md
+      - Generate: 
+        - Generate: 'cmd/generate.md'
+        - Generate Path: cmd/generate/generate_path.md
+        - Generate Set-Request: cmd/generate/generate_set_request.md
   
   - Blog: blog/index.md
 

@@ -21,16 +21,16 @@ const (
 	varFileSuffix = "_vars"
 )
 
-type update struct {
+type UpdateItem struct {
 	Path     string      `json:"path,omitempty" yaml:"path,omitempty"`
 	Value    interface{} `json:"value,omitempty" yaml:"value,omitempty"`
 	Encoding string      `json:"encoding,omitempty" yaml:"encoding,omitempty"`
 }
 
-type setRequestFile struct {
-	Updates  []*update `json:"updates,omitempty" yaml:"updates,omitempty"`
-	Replaces []*update `json:"replaces,omitempty" yaml:"replaces,omitempty"`
-	Deletes  []string  `json:"deletes,omitempty" yaml:"deletes,omitempty"`
+type SetRequestFile struct {
+	Updates  []*UpdateItem `json:"updates,omitempty" yaml:"updates,omitempty"`
+	Replaces []*UpdateItem `json:"replaces,omitempty" yaml:"replaces,omitempty"`
+	Deletes  []string      `json:"deletes,omitempty" yaml:"deletes,omitempty"`
 }
 
 func (c *Config) ReadSetRequestTemplate() error {
@@ -105,7 +105,7 @@ func (c *Config) CreateSetRequestFromFile(targetName string) (*gnmi.SetRequest, 
 		c.logger.Printf("target %q template result:\n%s", targetName, buf.String())
 	}
 	//
-	reqFile := new(setRequestFile)
+	reqFile := new(SetRequestFile)
 	err = yaml.Unmarshal(buf.Bytes(), reqFile)
 	if err != nil {
 		return nil, err

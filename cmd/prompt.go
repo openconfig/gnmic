@@ -3,10 +3,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"log"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"unicode"
@@ -14,7 +11,6 @@ import (
 	goprompt "github.com/c-bata/go-prompt"
 	"github.com/c-bata/go-prompt/completer"
 	"github.com/karimra/gnmic/collector"
-	"github.com/karimra/gnmic/config"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/nsf/termbox-go"
 	"github.com/olekukonko/tablewriter"
@@ -78,103 +74,17 @@ var promptModeCmd *cobra.Command
 
 func newPromptCmd() *cobra.Command {
 	promptModeCmd = &cobra.Command{
-		Use:   "prompt",
-		Short: "enter the interactive gnmic prompt mode",
-		// PreRun resolve the glob patterns and checks if --max-suggesions is bigger that the terminal height and lowers it if needed.
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			gApp.Config.SetLocalFlagsFromFile(cmd)
-			gApp.Config.LocalFlags.PromptDir = config.SanitizeArrayFlagValue(gApp.Config.LocalFlags.PromptDir)
-			gApp.Config.LocalFlags.PromptFile = config.SanitizeArrayFlagValue(gApp.Config.LocalFlags.PromptFile)
-			gApp.Config.LocalFlags.PromptExclude = config.SanitizeArrayFlagValue(gApp.Config.LocalFlags.PromptExclude)
-
-			var err error
-			gApp.Config.LocalFlags.PromptDir, err = resolveGlobs(gApp.Config.LocalFlags.PromptDir)
-			if err != nil {
-				return err
-			}
-			gApp.Config.LocalFlags.PromptFile, err = resolveGlobs(gApp.Config.LocalFlags.PromptFile)
-			if err != nil {
-				return err
-			}
-			for _, dirpath := range gApp.Config.LocalFlags.PromptDir {
-				expanded, err := yang.PathsWithModules(dirpath)
-				if err != nil {
-					return err
-				}
-				if gApp.Config.Debug {
-					for _, fdir := range expanded {
-						gApp.Logger.Printf("adding %s to yang Paths", fdir)
-					}
-				}
-				yang.AddPath(expanded...)
-			}
-			yfiles, err := findYangFiles(gApp.Config.LocalFlags.PromptFile)
-			if err != nil {
-				return err
-			}
-			gApp.Config.LocalFlags.PromptFile = make([]string, 0, len(yfiles))
-			gApp.Config.LocalFlags.PromptFile = append(gApp.Config.LocalFlags.PromptFile, yfiles...)
-			if gApp.Config.Debug {
-				for _, file := range gApp.Config.LocalFlags.PromptFile {
-					gApp.Logger.Printf("loading %s yang file", file)
-				}
-			}
-			err = termbox.Init()
-			if err != nil {
-				return fmt.Errorf("could not initialize a terminal box: %v", err)
-			}
-			_, h := termbox.Size()
-			termbox.Close()
-			// set max suggestions to terminal height-1 if the supplied value is greater
-			if uint(gApp.Config.LocalFlags.PromptMaxSuggestions) > uint(h) {
-				if h > 1 {
-					gApp.Config.LocalFlags.PromptMaxSuggestions = uint16(h - 2)
-				} else {
-					gApp.Config.LocalFlags.PromptMaxSuggestions = 0
-				}
-			}
-			return nil
-		},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			err := generateYangSchema(gApp.Config.LocalFlags.PromptDir, gApp.Config.LocalFlags.PromptFile, gApp.Config.LocalFlags.PromptExclude)
-			if err != nil {
-				gApp.Logger.Printf("failed to load paths from yang: %v", err)
-				if !gApp.Config.Log {
-					fmt.Fprintf(os.Stderr, "ERR: failed to load paths from yang: %v\n", err)
-				}
-			}
-			gApp.PromptMode = true
-			// load history
-			gApp.PromptHistory = make([]string, 0, 256)
-			home, err := homedir.Dir()
-			if err != nil {
-				if gApp.Config.Debug {
-					log.Printf("failed to get home directory: %v", err)
-				}
-				return nil
-			}
-			content, err := ioutil.ReadFile(home + "/.gnmic.history")
-			if err != nil {
-				if gApp.Config.Debug {
-					log.Printf("failed to read history file: %v", err)
-				}
-				return nil
-			}
-			history := strings.Split(string(content), "\n")
-			for i := range history {
-				if history[i] != "" {
-					gApp.PromptHistory = append(gApp.PromptHistory, history[i])
-				}
-			}
-			return nil
-		},
+		Use:     "prompt",
+		Short:   "enter the interactive gnmic prompt mode",
+		PreRunE: gApp.PromptPreRunE,
+		RunE:    gApp.PromptRunE,
 		PostRun: func(cmd *cobra.Command, args []string) {
 			cmd.ResetFlags()
 			//initPromptFlags(cmd)
 		},
 		SilenceUsage: true,
 	}
-	initPromptFlags(promptModeCmd)
+	gApp.InitPromptFlags(promptModeCmd)
 	return promptModeCmd
 }
 
@@ -414,24 +324,6 @@ func subscriptionTable(scs map[string]*collector.SubscriptionConfig, list bool) 
 }
 
 var name string
-
-// used to init or reset pathCmd flags for gnmic-prompt mode
-func initPromptFlags(cmd *cobra.Command) {
-	cmd.Flags().StringArrayVarP(&gApp.Config.LocalFlags.PromptFile, "file", "", []string{}, "path to a yang file or a directory of them to get path auto-completions from")
-	cmd.Flags().StringArrayVarP(&gApp.Config.LocalFlags.PromptExclude, "exclude", "", []string{}, "yang module names to be excluded from path auto-completion generation")
-	cmd.Flags().StringArrayVarP(&gApp.Config.LocalFlags.PromptDir, "dir", "", []string{}, "path to a directory with yang modules used as includes and/or imports")
-	cmd.Flags().Uint16Var(&gApp.Config.LocalFlags.PromptMaxSuggestions, "max-suggestions", 10, "terminal suggestion max list size")
-	cmd.Flags().StringVar(&gApp.Config.LocalFlags.PromptPrefixColor, "prefix-color", "dark_blue", "terminal prefix color")
-	cmd.Flags().StringVar(&gApp.Config.LocalFlags.PromptSuggestionsBGColor, "suggestions-bg-color", "dark_blue", "suggestion box background color")
-	cmd.Flags().StringVar(&gApp.Config.LocalFlags.PromptDescriptionBGColor, "description-bg-color", "dark_gray", "description box background color")
-	cmd.Flags().BoolVar(&gApp.Config.LocalFlags.PromptSuggestAllFlags, "suggest-all-flags", false, "suggest local as well as inherited flags of subcommands")
-	cmd.Flags().BoolVar(&gApp.Config.LocalFlags.PromptDescriptionWithPrefix, "description-with-prefix", false, "show YANG module prefix in XPATH suggestion description")
-	cmd.Flags().BoolVar(&gApp.Config.LocalFlags.PromptDescriptionWithTypes, "description-with-types", false, "show YANG types in XPATH suggestion description")
-	cmd.Flags().BoolVar(&gApp.Config.LocalFlags.PromptSuggestWithOrigin, "suggest-with-origin", false, "suggest XPATHs with origin prepended ")
-	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
-		gApp.Config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
-	})
-}
 
 func findMatchedXPATH(entry *yang.Entry, input string, prefixPresent bool) []goprompt.Suggest {
 	if strings.HasPrefix(input, ":") {
@@ -1095,24 +987,4 @@ func findSuggestions(co cmdPrompt, doc goprompt.Document) []goprompt.Suggest {
 	}
 
 	return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
-}
-
-func resolveGlobs(globs []string) ([]string, error) {
-	results := make([]string, 0, len(globs))
-	for _, pattern := range globs {
-		for _, p := range strings.Split(pattern, ",") {
-			if strings.ContainsAny(p, `*?[`) {
-				// is a glob pattern
-				matches, err := filepath.Glob(p)
-				if err != nil {
-					return nil, err
-				}
-				results = append(results, matches...)
-			} else {
-				// is not a glob pattern ( file or dir )
-				results = append(results, p)
-			}
-		}
-	}
-	return config.ExpandOSPaths(results)
 }

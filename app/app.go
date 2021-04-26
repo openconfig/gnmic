@@ -115,7 +115,7 @@ func (a *App) InitGlobalFlags() {
 	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.ProxyFromEnv, "proxy-from-env", "", false, "use proxy from environment")
 	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.Format, "format", "", "", fmt.Sprintf("output format, one of: %q", formatNames))
 	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.LogFile, "log-file", "", "", "log file path")
-	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.Log, "log", "", false, "show log messages in stderr")
+	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.Log, "log", "", false, "write log messages to stderr")
 	a.RootCmd.PersistentFlags().IntVarP(&a.Config.GlobalFlags.MaxMsgSize, "max-msg-size", "", msgSize, "max grpc msg size")
 	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.PrometheusAddress, "prometheus-address", "", "", "prometheus server address")
 	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.PrintRequest, "print-request", "", false, "print request as well as the response(s)")
@@ -130,6 +130,10 @@ func (a *App) InitGlobalFlags() {
 	a.RootCmd.PersistentFlags().StringArrayVarP(&a.Config.GlobalFlags.ProtoDir, "proto-dir", "", nil, "directory to look for proto files specified with --proto-file")
 	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.TargetsFile, "targets-file", "", "", "path to file with targets configuration")
 	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.Gzip, "gzip", "", false, "enable gzip compression on gRPC connections")
+
+	a.RootCmd.PersistentFlags().StringArrayVarP(&a.Config.GlobalFlags.File, "file", "", nil, "YANG file(s)")
+	a.RootCmd.PersistentFlags().StringArrayVarP(&a.Config.GlobalFlags.Dir, "dir", "", nil, "YANG dir(s)")
+	a.RootCmd.PersistentFlags().StringArrayVarP(&a.Config.GlobalFlags.Exclude, "exclude", "", nil, "YANG module names to be excluded")
 
 	a.RootCmd.PersistentFlags().VisitAll(func(flag *pflag.Flag) {
 		a.Config.FileConfig.BindPFlag(flag.Name, flag)

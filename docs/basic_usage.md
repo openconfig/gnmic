@@ -1,11 +1,13 @@
 The following examples demonstrate the basic usage of the `gnmic` in a scenario where the remote target runs insecure (not TLS enabled) gNMI server. The `admin:admin` credentials are used to connect to the gNMI server running at `10.1.0.11:57400` address.
 
 !!!info
-    For the complete command usage examples, refer to the "Command reference" menu.
+    For the complete command usage examples, refer to the ["Command reference"](cmd/capabilities.md) menu.
 
 ### Capabilities RPC
+
 Getting the device's [capabilities](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#32-capability-discovery) is done with [`capabilities`](cmd/capabilities.md) command:
-```
+
+```bash
 gnmic -a 10.1.0.11:57400 -u admin -p admin --insecure capabilities
 gNMI_Version: 0.7.0
 supported models:
@@ -20,8 +22,10 @@ supported encodings:
 ```
 
 ### Get RPC
+
 [Retrieving](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#33-retrieving-snapshots-of-state-information) the data snapshot from the target device is done with [`get`](cmd/get.md) command:
-```
+
+```bash
 gnmic -a 10.1.0.11:57400 -u admin -p admin --insecure \
       get --path /state/system/platform
 
@@ -41,8 +45,10 @@ gnmic -a 10.1.0.11:57400 -u admin -p admin --insecure \
 ```
 
 ### Set RPC
+
 [Modifying](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#34-modifying-state) state of the target device is done with [`set`](cmd/set.md) command:
-```
+
+```bash
 gnmic -a 10.1.0.11:57400 -u admin -p admin --insecure \
       set --update-path /configure/system/name \
           --update-value gnmic_demo
@@ -61,8 +67,10 @@ gnmic -a 10.1.0.11:57400 -u admin -p admin --insecure \
 ```
 
 ### Subscribe RPC
+
 [Subscription](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#35-subscribing-to-telemetry-updates) to the gNMI telemetry data can be done with [`subscribe`](cmd/subscribe.md) command:
-```
+
+```bash
 gnmic -a 10.1.0.11:57400 -u admin -p admin --insecure \
       sub --path "/state/port[port-id=1/1/c1/1]/statistics/in-packets"
 
@@ -83,7 +91,9 @@ gnmic -a 10.1.0.11:57400 -u admin -p admin --insecure \
 ```
 
 ### YANG path browser
+
 `gnmic` can produce a list of XPATH/gNMI paths for a given YANG model with its [`path`](cmd/path.md) command. The paths in that list can be used as the `--path` values for the Get/Set/Subscribe commands.
+
 ```bash
 # nokia model
 gnmic path -m nokia-state --file nokia-state-combined.yang | head -10
