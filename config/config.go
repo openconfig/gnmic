@@ -88,6 +88,9 @@ type GlobalFlags struct {
 	ProtoDir          []string      `mapstructure:"proto-dir,omitempty" json:"proto-dir,omitempty" yaml:"proto-dir,omitempty"`
 	TargetsFile       string        `mapstructure:"targets-file,omitempty" json:"targets-file,omitempty" yaml:"targets-file,omitempty"`
 	Gzip              bool          `mapstructure:"gzip,omitempty" json:"gzip,omitempty" yaml:"gzip,omitempty"`
+	File              []string      `mapstructure:"file,omitempty" json:"file,omitempty" yaml:"file,omitempty"`
+	Dir               []string      `mapstructure:"dir,omitempty" json:"dir,omitempty" yaml:"dir,omitempty"`
+	Exclude           []string      `mapstructure:"exclude,omitempty" json:"exclude,omitempty" yaml:"exclude,omitempty"`
 }
 
 type LocalFlags struct {
@@ -134,13 +137,10 @@ type LocalFlags struct {
 
 	SubscribeLockRetry time.Duration `mapstructure:"subscribe-lock-retry,omitempty" json:"subscribe-lock-retry,omitempty" yaml:"subscribe-lock-retry,omitempty"`
 	// Path
-	PathFile       []string `mapstructure:"path-file,omitempty" json:"path-file,omitempty" yaml:"path-file,omitempty"`
-	PathExclude    []string `mapstructure:"path-exclude,omitempty" json:"path-exclude,omitempty" yaml:"path-exclude,omitempty"`
-	PathDir        []string `mapstructure:"path-dir,omitempty" json:"path-dir,omitempty" yaml:"path-dir,omitempty"`
-	PathPathType   string   `mapstructure:"path-path-type,omitempty" json:"path-path-type,omitempty" yaml:"path-path-type,omitempty"`
-	PathWithPrefix bool     `mapstructure:"path-with-prefix,omitempty" json:"path-with-prefix,omitempty" yaml:"path-with-prefix,omitempty"`
-	PathWithTypes  bool     `mapstructure:"path-types,omitempty" json:"path-types,omitempty" yaml:"path-types,omitempty"`
-	PathSearch     bool     `mapstructure:"path-search,omitempty" json:"path-search,omitempty" yaml:"path-search,omitempty"`
+	PathPathType   string `mapstructure:"path-path-type,omitempty" json:"path-path-type,omitempty" yaml:"path-path-type,omitempty"`
+	PathWithPrefix bool   `mapstructure:"path-with-prefix,omitempty" json:"path-with-prefix,omitempty" yaml:"path-with-prefix,omitempty"`
+	PathWithTypes  bool   `mapstructure:"path-types,omitempty" json:"path-types,omitempty" yaml:"path-types,omitempty"`
+	PathSearch     bool   `mapstructure:"path-search,omitempty" json:"path-search,omitempty" yaml:"path-search,omitempty"`
 	// Prompt
 	PromptFile                  []string `mapstructure:"prompt-file,omitempty" json:"prompt-file,omitempty" yaml:"prompt-file,omitempty"`
 	PromptExclude               []string `mapstructure:"prompt-exclude,omitempty" json:"prompt-exclude,omitempty" yaml:"prompt-exclude,omitempty"`
@@ -169,13 +169,10 @@ type LocalFlags struct {
 	GetSetDelete    string `mapstructure:"getset-delete,omitempty" json:"getset-delete,omitempty" yaml:"getset-delete,omitempty"`
 	GetSetValue     string `mapstructure:"getset-value,omitempty" json:"getset-value,omitempty" yaml:"getset-value,omitempty"`
 	// Generate
-	GenerateFile       []string `mapstructure:"generate-file,omitempty" json:"generate-file,omitempty" yaml:"generate-file,omitempty"`
-	GenerateDir        []string `mapstructure:"generate-dir,omitempty" json:"generate-dir,omitempty" yaml:"generate-dir,omitempty"`
-	GenerateExclude    []string `mapstructure:"generate-exclude,omitempty" json:"generate-exclude,omitempty" yaml:"generate-exclude,omitempty"`
-	GenerateOutput     string   `mapstructure:"generate-output,omitempty" json:"generate-output,omitempty" yaml:"generate-output,omitempty"`
-	GenerateJSON       bool     `mapstructure:"generate-json,omitempty" json:"generate-json,omitempty" yaml:"generate-json,omitempty"`
-	GenerateConfigOnly bool     `mapstructure:"generate-config-only,omitempty" json:"generate-config-only,omitempty" yaml:"generate-config-only,omitempty"`
-	GeneratePath       string   `mapstructure:"generate-path,omitempty" json:"generate-path,omitempty" yaml:"generate-path,omitempty"`
+	GenerateOutput     string `mapstructure:"generate-output,omitempty" json:"generate-output,omitempty" yaml:"generate-output,omitempty"`
+	GenerateJSON       bool   `mapstructure:"generate-json,omitempty" json:"generate-json,omitempty" yaml:"generate-json,omitempty"`
+	GenerateConfigOnly bool   `mapstructure:"generate-config-only,omitempty" json:"generate-config-only,omitempty" yaml:"generate-config-only,omitempty"`
+	GeneratePath       string `mapstructure:"generate-path,omitempty" json:"generate-path,omitempty" yaml:"generate-path,omitempty"`
 	// Generate Set Request
 	GenerateSetRequestUpdatePath  []string `mapstructure:"generate-update-path,omitempty" json:"generate-update-path,omitempty" yaml:"generate-update-path,omitempty"`
 	GenerateSetRequestReplacePath []string `mapstructure:"generate-replace-path,omitempty" json:"generate-replace-path,omitempty" yaml:"generate-replace-path,omitempty"`

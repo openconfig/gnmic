@@ -131,6 +131,10 @@ func (a *App) InitGlobalFlags() {
 	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.TargetsFile, "targets-file", "", "", "path to file with targets configuration")
 	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.Gzip, "gzip", "", false, "enable gzip compression on gRPC connections")
 
+	a.RootCmd.PersistentFlags().StringArrayVarP(&a.Config.GlobalFlags.File, "file", "", nil, "YANG file(s)")
+	a.RootCmd.PersistentFlags().StringArrayVarP(&a.Config.GlobalFlags.Dir, "dir", "", nil, "YANG dir(s)")
+	a.RootCmd.PersistentFlags().StringArrayVarP(&a.Config.GlobalFlags.Exclude, "exclude", "", nil, "YANG module names to be excluded")
+
 	a.RootCmd.PersistentFlags().VisitAll(func(flag *pflag.Flag) {
 		a.Config.FileConfig.BindPFlag(flag.Name, flag)
 	})

@@ -13,25 +13,6 @@ import (
 	"github.com/spf13/pflag"
 )
 
-func (a *App) GeneratePathPreRunE(cmd *cobra.Command, args []string) error {
-	a.Config.SetLocalFlagsFromFile(cmd)
-	if a.Config.LocalFlags.PathPathType != "xpath" && a.Config.LocalFlags.PathPathType != "gnmi" {
-		return fmt.Errorf("path-type must be one of 'xpath' or 'gnmi'")
-	}
-	return nil
-}
-
-func (a *App) GeneratePathRunE(cmd *cobra.Command, args []string) error {
-	return a.PathCmdRun(a.Config.GenerateDir,
-		a.Config.GenerateFile,
-		a.Config.GenerateExclude,
-		a.Config.GeneratePathSearch,
-		a.Config.GeneratePathWithPrefix,
-		a.Config.GeneratePathWithTypes,
-		a.Config.GeneratePathPathType,
-	)
-}
-
 func (a *App) PathCmdRun(d, f, e []string, search, withPrefix, withTypes bool, pType string) error {
 	err := a.GenerateYangSchema(d, f, e)
 	if err != nil {
@@ -96,12 +77,19 @@ func (a *App) PathCmdRun(d, f, e []string, search, withPrefix, withTypes bool, p
 	return nil
 }
 
-func (a *App) InitGeneratePathFlags(cmd *cobra.Command) {
-	cmd.ResetFlags()
-	cmd.Flags().StringVarP(&a.Config.LocalFlags.GeneratePathPathType, "path-type", "", "xpath", "path type xpath or gnmi")
-	cmd.Flags().BoolVarP(&a.Config.LocalFlags.GeneratePathWithPrefix, "with-prefix", "", false, "include module/submodule prefix in path elements")
-	cmd.Flags().BoolVarP(&a.Config.LocalFlags.GeneratePathWithTypes, "types", "", false, "print leaf type")
-	cmd.Flags().BoolVarP(&a.Config.LocalFlags.GeneratePathSearch, "search", "", false, "search through path list")
+func (a *App) PathPreRunE(cmd *cobra.Command, args []string) error {
+	a.Config.SetLocalFlagsFromFile(cmd)
+	if a.Config.LocalFlags.PathPathType != "xpath" && a.Config.LocalFlags.PathPathType != "gnmi" {
+		return fmt.Errorf("path-type must be one of 'xpath' or 'gnmi'")
+	}
+	return a.yangFilesPreProcessing()
+}
+
+func (a *App) InitPathFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVarP(&a.Config.LocalFlags.PathPathType, "path-type", "", "xpath", "path type xpath or gnmi")
+	cmd.Flags().BoolVarP(&a.Config.LocalFlags.PathWithPrefix, "with-prefix", "", false, "include module/submodule prefix in path elements")
+	cmd.Flags().BoolVarP(&a.Config.LocalFlags.PathWithTypes, "types", "", false, "print leaf type")
+	cmd.Flags().BoolVarP(&a.Config.LocalFlags.PathSearch, "search", "", false, "search through path list")
 	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
 		a.Config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
 	})

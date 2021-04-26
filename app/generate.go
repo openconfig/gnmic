@@ -28,7 +28,7 @@ func (a *App) GenerateRunE(cmd *cobra.Command, args []string) error {
 		defer f.Close()
 		output = f
 	}
-	err := a.GenerateYangSchema(a.Config.GenerateDir, a.Config.GenerateFile, a.Config.GenerateExclude)
+	err := a.GenerateYangSchema(a.Config.GlobalFlags.Dir, a.Config.GlobalFlags.File, a.Config.GlobalFlags.Exclude)
 	if err != nil {
 		return err
 	}
@@ -72,20 +72,24 @@ func (a *App) GenerateRunE(cmd *cobra.Command, args []string) error {
 
 func (a *App) GeneratePreRunE(cmd *cobra.Command, args []string) error {
 	a.Config.SetLocalFlagsFromFile(cmd)
-	a.Config.LocalFlags.GenerateDir = config.SanitizeArrayFlagValue(a.Config.LocalFlags.GenerateDir)
-	a.Config.LocalFlags.GenerateFile = config.SanitizeArrayFlagValue(a.Config.LocalFlags.GenerateFile)
-	a.Config.LocalFlags.GenerateExclude = config.SanitizeArrayFlagValue(a.Config.LocalFlags.GenerateExclude)
+	return a.yangFilesPreProcessing()
+}
+
+func (a *App) yangFilesPreProcessing() error {
+	a.Config.GlobalFlags.Dir = config.SanitizeArrayFlagValue(a.Config.GlobalFlags.Dir)
+	a.Config.GlobalFlags.File = config.SanitizeArrayFlagValue(a.Config.GlobalFlags.File)
+	a.Config.GlobalFlags.Exclude = config.SanitizeArrayFlagValue(a.Config.GlobalFlags.Exclude)
 
 	var err error
-	a.Config.LocalFlags.GenerateDir, err = resolveGlobs(a.Config.LocalFlags.GenerateDir)
+	a.Config.GlobalFlags.Dir, err = resolveGlobs(a.Config.GlobalFlags.Dir)
 	if err != nil {
 		return err
 	}
-	a.Config.LocalFlags.GenerateFile, err = resolveGlobs(a.Config.LocalFlags.GenerateFile)
+	a.Config.GlobalFlags.File, err = resolveGlobs(a.Config.GlobalFlags.File)
 	if err != nil {
 		return err
 	}
-	for _, dirpath := range a.Config.LocalFlags.GenerateDir {
+	for _, dirpath := range a.Config.GlobalFlags.Dir {
 		expanded, err := yang.PathsWithModules(dirpath)
 		if err != nil {
 			return err
@@ -97,14 +101,14 @@ func (a *App) GeneratePreRunE(cmd *cobra.Command, args []string) error {
 		}
 		yang.AddPath(expanded...)
 	}
-	yfiles, err := findYangFiles(a.Config.LocalFlags.GenerateFile)
+	yfiles, err := findYangFiles(a.Config.GlobalFlags.File)
 	if err != nil {
 		return err
 	}
-	a.Config.LocalFlags.GenerateFile = make([]string, 0, len(yfiles))
-	a.Config.LocalFlags.GenerateFile = append(a.Config.LocalFlags.PathFile, yfiles...)
+	a.Config.GlobalFlags.File = make([]string, 0, len(yfiles))
+	a.Config.GlobalFlags.File = append(a.Config.GlobalFlags.File, yfiles...)
 	if a.Config.Debug {
-		for _, file := range a.Config.LocalFlags.GenerateFile {
+		for _, file := range a.Config.GlobalFlags.File {
 			a.Logger.Printf("loading %s file", file)
 		}
 	}
@@ -122,7 +126,7 @@ func (a *App) GenerateSetRequestRunE(cmd *cobra.Command, args []string) error {
 		defer f.Close()
 		output = f
 	}
-	err := a.GenerateYangSchema(a.Config.GenerateDir, a.Config.GenerateFile, a.Config.GenerateExclude)
+	err := a.GenerateYangSchema(a.Config.GlobalFlags.Dir, a.Config.GlobalFlags.File, a.Config.GlobalFlags.Exclude)
 	if err != nil {
 		return err
 	}
@@ -167,9 +171,6 @@ func (a *App) GenerateSetRequestRunE(cmd *cobra.Command, args []string) error {
 func (a *App) InitGenerateFlags(cmd *cobra.Command) {
 	cmd.ResetFlags()
 	// persistant flags
-	cmd.PersistentFlags().StringArrayVarP(&a.Config.LocalFlags.GenerateFile, "file", "", []string{}, "yang file(s)")
-	cmd.PersistentFlags().StringArrayVarP(&a.Config.LocalFlags.GenerateDir, "dir", "", []string{}, "yang dir(s)")
-	cmd.PersistentFlags().StringArrayVarP(&a.Config.LocalFlags.GenerateExclude, "exclude", "", []string{}, "regexes defining modules to be excluded")
 	cmd.PersistentFlags().StringVarP(&a.Config.LocalFlags.GenerateOutput, "output", "o", "", "output file, defaults to stdout")
 	cmd.PersistentFlags().BoolVarP(&a.Config.LocalFlags.GenerateJSON, "json", "j", false, "generate output as JSON format instead of YAML")
 	// local flags
