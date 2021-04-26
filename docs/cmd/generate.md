@@ -24,6 +24,7 @@ or
 ### Persistent Flags
 
 #### file
+
 A path to a YANG file or a directory with YANG files which `gnmic` will use to generate paths or JSON/YAML objects.
 
 Multiple `--file` flags can be supplied.
@@ -75,3 +76,45 @@ The path sub command is an alias for the [`gnmic path`](../cmd/path.md) command.
 The [set-request](../cmd/generate/generate_set_request.md) sub command generates a Set request file given a list of update and/or replace paths.
 
 ### Examples
+
+#### Openconfig
+
+YANG repo: [openconfig/public](https://github.com/openconfig/public)
+
+Clone the OpenConfig repository:
+
+```bash
+git clone https://github.com/openconfig/public
+cd public
+```
+
+```bash
+gnmic --encoding json_ietf \
+          generate  \
+          --file release/models \
+          --dir third_party \
+          --exclude ietf-interfaces \
+          --path /interfaces/interface/subinterfaces/subinterface/ipv4/addresses/address
+```
+
+```yaml
+- config:
+    ip: ""
+    prefix-length: ""
+  ip: ""
+  vrrp:
+    vrrp-group:
+    - config:
+        accept-mode: "false"
+        advertisement-interval: "100"
+        preempt: "true"
+        preempt-delay: "0"
+        priority: "100"
+        virtual-address: ""
+        virtual-router-id: ""
+      interface-tracking:
+        config:
+          priority-decrement: "0"
+          track-interface: ""
+      virtual-router-id: ""
+```
