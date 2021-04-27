@@ -90,10 +90,9 @@ func (a *App) setRequest(ctx context.Context, tName string, req *gnmi.SetRequest
 func (a *App) InitSetFlags(cmd *cobra.Command) {
 	cmd.ResetFlags()
 
-	cmd.Flags().StringP("prefix", "", "", "set request prefix")
+	cmd.Flags().StringVarP(&a.Config.LocalFlags.SetPrefix, "prefix", "", "", "set request prefix")
 
 	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.SetDelete, "delete", "", []string{}, "set request path to be deleted")
-
 	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.SetReplace, "replace", "", []string{}, fmt.Sprintf("set request path:::type:::value to be replaced, type must be one of %v", config.ValueTypes))
 	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.SetUpdate, "update", "", []string{}, fmt.Sprintf("set request path:::type:::value to be updated, type must be one of %v", config.ValueTypes))
 
