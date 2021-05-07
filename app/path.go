@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/pflag"
 )
 
-func (a *App) PathCmdRun(d, f, e []string, search, withPrefix, withTypes bool, pType string) error {
+func (a *App) PathCmdRun(d, f, e []string, search, withPrefix, withTypes bool, pType string, stateOnly, configOnly bool) error {
 	err := a.GenerateYangSchema(d, f, e)
 	if err != nil {
 		return err
@@ -33,7 +33,18 @@ func (a *App) PathCmdRun(d, f, e []string, search, withPrefix, withTypes bool, p
 		collected = append(collected, collectSchemaNodes(entry, true)...)
 	}
 	for _, entry := range collected {
-		out <- a.generatePath(entry, withPrefix, withTypes, pType)
+		if !stateOnly && !configOnly {
+			out <- a.generatePath(entry, withPrefix, withTypes, pType)
+			continue
+		}
+		if isState(entry) && stateOnly {
+			out <- a.generatePath(entry, withPrefix, withTypes, pType)
+			continue
+		}
+		if !isState(entry) && configOnly {
+			out <- a.generatePath(entry, withPrefix, withTypes, pType)
+			continue
+		}
 	}
 
 	if search {
@@ -90,6 +101,8 @@ func (a *App) InitPathFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVarP(&a.Config.LocalFlags.PathWithPrefix, "with-prefix", "", false, "include module/submodule prefix in path elements")
 	cmd.Flags().BoolVarP(&a.Config.LocalFlags.PathWithTypes, "types", "", false, "print leaf type")
 	cmd.Flags().BoolVarP(&a.Config.LocalFlags.PathSearch, "search", "", false, "search through path list")
+	cmd.Flags().BoolVarP(&a.Config.LocalFlags.PathState, "state", "", false, "generate paths only for YANG leafs representing state data")
+	cmd.Flags().BoolVarP(&a.Config.LocalFlags.PathConfig, "config", "", false, "generate paths only for YANG leafs representing config data")
 	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
 		a.Config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
 	})
@@ -261,4 +274,14 @@ func gather(ctx context.Context, c chan string, ls *[]string) {
 			return
 		}
 	}
+}
+
+func isState(e *yang.Entry) bool {
+	if e.Config == yang.TSFalse {
+		return true
+	}
+	if e.Parent != nil {
+		return isState(e.Parent)
+	}
+	return false
 }
