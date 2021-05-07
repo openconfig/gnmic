@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/pflag"
 )
 
-func (a *App) PathCmdRun(d, f, e []string, search, withPrefix, withTypes bool, pType string) error {
+func (a *App) PathCmdRun(d, f, e []string, search, withDescr, withPrefix, withTypes bool, pType string) error {
 	err := a.GenerateYangSchema(d, f, e)
 	if err != nil {
 		return err
@@ -33,7 +33,7 @@ func (a *App) PathCmdRun(d, f, e []string, search, withPrefix, withTypes bool, p
 		collected = append(collected, collectSchemaNodes(entry, true)...)
 	}
 	for _, entry := range collected {
-		out <- a.generatePath(entry, withPrefix, withTypes, pType)
+		out <- a.generatePath(entry, withDescr, withPrefix, withTypes, pType)
 	}
 
 	if search {
@@ -87,6 +87,7 @@ func (a *App) PathPreRunE(cmd *cobra.Command, args []string) error {
 
 func (a *App) InitPathFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&a.Config.LocalFlags.PathPathType, "path-type", "", "xpath", "path type xpath or gnmi")
+	cmd.Flags().BoolVarP(&a.Config.LocalFlags.PathWithDescr, "descr", "", false, "print leaf description")
 	cmd.Flags().BoolVarP(&a.Config.LocalFlags.PathWithPrefix, "with-prefix", "", false, "include module/submodule prefix in path elements")
 	cmd.Flags().BoolVarP(&a.Config.LocalFlags.PathWithTypes, "types", "", false, "print leaf type")
 	cmd.Flags().BoolVarP(&a.Config.LocalFlags.PathSearch, "search", "", false, "search through path list")
@@ -121,7 +122,7 @@ func collectSchemaNodes(e *yang.Entry, leafOnly bool) []*yang.Entry {
 	return collected
 }
 
-func (a *App) generatePath(entry *yang.Entry, prefixTagging, withTypes bool, pType string) string {
+func (a *App) generatePath(entry *yang.Entry, withDescr, prefixTagging, withTypes bool, pType string) string {
 	path := ""
 	for e := entry; e != nil && e.Parent != nil; e = e.Parent {
 		if e.IsCase() || e.IsChoice() {
@@ -148,6 +149,9 @@ func (a *App) generatePath(entry *yang.Entry, prefixTagging, withTypes bool, pTy
 			fmt.Fprintf(os.Stderr, "path: %s could not be changed to gnmi: %v\n", path, err)
 		}
 		path = gnmiPath.String()
+	}
+	if withDescr {
+		path = fmt.Sprintf("%s\n%s", path, indent("\t", entry.Description))
 	}
 	if withTypes {
 		path = fmt.Sprintf("%s (type=%s)", path, entry.Type.Name)

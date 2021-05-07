@@ -138,6 +138,7 @@ type LocalFlags struct {
 	SubscribeLockRetry time.Duration `mapstructure:"subscribe-lock-retry,omitempty" json:"subscribe-lock-retry,omitempty" yaml:"subscribe-lock-retry,omitempty"`
 	// Path
 	PathPathType   string `mapstructure:"path-path-type,omitempty" json:"path-path-type,omitempty" yaml:"path-path-type,omitempty"`
+	PathWithDescr  bool   `mapstructure:"path-descr,omitempty" json:"path-descr,omitempty" yaml:"path-descr,omitempty"`
 	PathWithPrefix bool   `mapstructure:"path-with-prefix,omitempty" json:"path-with-prefix,omitempty" yaml:"path-with-prefix,omitempty"`
 	PathWithTypes  bool   `mapstructure:"path-types,omitempty" json:"path-types,omitempty" yaml:"path-types,omitempty"`
 	PathSearch     bool   `mapstructure:"path-search,omitempty" json:"path-search,omitempty" yaml:"path-search,omitempty"`
@@ -177,6 +178,7 @@ type LocalFlags struct {
 	GenerateSetRequestUpdatePath  []string `mapstructure:"generate-update-path,omitempty" json:"generate-update-path,omitempty" yaml:"generate-update-path,omitempty"`
 	GenerateSetRequestReplacePath []string `mapstructure:"generate-replace-path,omitempty" json:"generate-replace-path,omitempty" yaml:"generate-replace-path,omitempty"`
 	// Generate path
+	GeneratePathWithDescr  bool   `mapstructure:"generate-descr,omitempty" json:"generate-descr,omitempty" yaml:"generate-descr,omitempty"`
 	GeneratePathWithPrefix bool   `mapstructure:"generate-with-prefix,omitempty" json:"generate-with-prefix,omitempty" yaml:"generate-with-prefix,omitempty"`
 	GeneratePathWithTypes  bool   `mapstructure:"generate-types,omitempty" json:"generate-types,omitempty" yaml:"generate-types,omitempty"`
 	GeneratePathSearch     bool   `mapstructure:"generate-search,omitempty" json:"generate-search,omitempty" yaml:"generate-search,omitempty"`

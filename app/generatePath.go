@@ -21,6 +21,7 @@ func (a *App) GeneratePathRunE(cmd *cobra.Command, args []string) error {
 		a.Config.GlobalFlags.File,
 		a.Config.GlobalFlags.Exclude,
 		a.Config.GeneratePathSearch,
+		a.Config.GeneratePathWithDescr,
 		a.Config.GeneratePathWithPrefix,
 		a.Config.GeneratePathWithTypes,
 		a.Config.GeneratePathPathType,
@@ -30,6 +31,7 @@ func (a *App) GeneratePathRunE(cmd *cobra.Command, args []string) error {
 func (a *App) InitGeneratePathFlags(cmd *cobra.Command) {
 	cmd.ResetFlags()
 	cmd.Flags().StringVarP(&a.Config.LocalFlags.GeneratePathPathType, "path-type", "", "xpath", "path type xpath or gnmi")
+	cmd.Flags().BoolVarP(&a.Config.LocalFlags.GeneratePathWithDescr, "descr", "", false, "print leaf description")
 	cmd.Flags().BoolVarP(&a.Config.LocalFlags.GeneratePathWithPrefix, "with-prefix", "", false, "include module/submodule prefix in path elements")
 	cmd.Flags().BoolVarP(&a.Config.LocalFlags.GeneratePathWithTypes, "types", "", false, "print leaf type")
 	cmd.Flags().BoolVarP(&a.Config.LocalFlags.GeneratePathSearch, "search", "", false, "search through path list")
