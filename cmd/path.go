@@ -38,6 +38,8 @@ func newPathCmd() *cobra.Command {
 				gApp.Config.LocalFlags.PathWithPrefix,
 				gApp.Config.LocalFlags.PathWithTypes,
 				gApp.Config.LocalFlags.PathPathType,
+				gApp.Config.LocalFlags.PathState,
+				gApp.Config.LocalFlags.PathConfig,
 			)
 		},
 		PostRun: func(cmd *cobra.Command, args []string) {

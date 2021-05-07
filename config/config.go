@@ -142,6 +142,8 @@ type LocalFlags struct {
 	PathWithPrefix bool   `mapstructure:"path-with-prefix,omitempty" json:"path-with-prefix,omitempty" yaml:"path-with-prefix,omitempty"`
 	PathWithTypes  bool   `mapstructure:"path-types,omitempty" json:"path-types,omitempty" yaml:"path-types,omitempty"`
 	PathSearch     bool   `mapstructure:"path-search,omitempty" json:"path-search,omitempty" yaml:"path-search,omitempty"`
+	PathState      bool   `mapstructure:"path-state,omitempty" json:"path-state,omitempty" yaml:"path-state,omitempty"`
+	PathConfig     bool   `mapstructure:"path-config,omitempty" json:"path-config,omitempty" yaml:"path-config,omitempty"`
 	// Prompt
 	PromptFile                  []string `mapstructure:"prompt-file,omitempty" json:"prompt-file,omitempty" yaml:"prompt-file,omitempty"`
 	PromptExclude               []string `mapstructure:"prompt-exclude,omitempty" json:"prompt-exclude,omitempty" yaml:"prompt-exclude,omitempty"`
@@ -183,6 +185,8 @@ type LocalFlags struct {
 	GeneratePathWithTypes  bool   `mapstructure:"generate-types,omitempty" json:"generate-types,omitempty" yaml:"generate-types,omitempty"`
 	GeneratePathSearch     bool   `mapstructure:"generate-search,omitempty" json:"generate-search,omitempty" yaml:"generate-search,omitempty"`
 	GeneratePathPathType   string `mapstructure:"generate-path-path-type,omitempty" json:"generate-path-path-type,omitempty" yaml:"generate-path-path-type,omitempty"`
+	GeneratePathState      bool   `mapstructure:"generate-path-state,omitempty" json:"generate-path-state,omitempty" yaml:"generate-path-state,omitempty"`
+	GeneratePathConfig     bool   `mapstructure:"generate-path-config,omitempty" json:"generate-path-config,omitempty" yaml:"generate-path-config,omitempty"`
 }
 
 func New() *Config {
