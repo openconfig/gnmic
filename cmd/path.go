@@ -34,6 +34,7 @@ func newPathCmd() *cobra.Command {
 				gApp.Config.GlobalFlags.File,
 				gApp.Config.GlobalFlags.Exclude,
 				gApp.Config.LocalFlags.PathSearch,
+				gApp.Config.LocalFlags.PathWithDescr,
 				gApp.Config.LocalFlags.PathWithPrefix,
 				gApp.Config.LocalFlags.PathWithTypes,
 				gApp.Config.LocalFlags.PathPathType,
