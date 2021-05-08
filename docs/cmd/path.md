@@ -1,4 +1,5 @@
 ### Description
+
 With `path` command it is possible to generate and search through the XPATH style paths extracted from a YANG file.
 
 By extracting the XPATH styled paths from a YANG model it is made possible to utilize CLI search tools like `awk`, `sed` and alike to find the paths satisfying specific matching rules.
@@ -28,6 +29,7 @@ The other option is `gnmi` which will result in the paths to be formatted using 
     ```
 
 #### search
+
 With the `--search` flag present an interactive CLI search dialog is displayed that allows to navigate through the paths list and perform a search.
 
 ```bash
@@ -45,6 +47,18 @@ Use the arrow keys to navigate: ↓ ↑ → ←  and : toggles search
     /state/aaa/radius/statistics/disconnect-messages/dropped/missing-auth-policy
 ↓   /state/aaa/radius/statistics/disconnect-messages/dropped/invalid
 ```
+
+#### descr
+
+When the `--descr` flag is present, the leaf description is printed after the path, indented with a `\t`.
+
+#### config-only
+
+When the `--config-only` flag is present, path are generated only for YANG leafs representing config data.
+
+#### state-only
+
+When the `--state-only` flag is present, path are generated only for YANG leafs representing state data.
 
 ### Examples
 
