@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -13,7 +14,17 @@ import (
 	"github.com/spf13/pflag"
 )
 
-func (a *App) PathCmdRun(d, f, e []string, search, withDescr, withPrefix, withTypes bool, pType string) error {
+type pathGenOpts struct {
+	search     bool
+	withDescr  bool
+	withTypes  bool
+	withPrefix bool
+	pathType   string
+	stateOnly  bool
+	configOnly bool
+}
+
+func (a *App) PathCmdRun(d, f, e []string, pgo pathGenOpts) error {
 	err := a.GenerateYangSchema(d, f, e)
 	if err != nil {
 		return err
@@ -23,7 +34,7 @@ func (a *App) PathCmdRun(d, f, e []string, search, withDescr, withPrefix, withTy
 	out := make(chan string)
 	defer close(out)
 	paths := make([]string, 0)
-	if search {
+	if pgo.search {
 		go gather(ctx, out, &paths)
 	} else {
 		go printer(ctx, out)
@@ -33,10 +44,22 @@ func (a *App) PathCmdRun(d, f, e []string, search, withDescr, withPrefix, withTy
 		collected = append(collected, collectSchemaNodes(entry, true)...)
 	}
 	for _, entry := range collected {
-		out <- a.generatePath(entry, withDescr, withPrefix, withTypes, pType)
+		if !pgo.stateOnly && !pgo.configOnly || pgo.stateOnly && pgo.configOnly {
+			out <- a.generatePath(entry, pgo.withDescr, pgo.withPrefix, pgo.withTypes, pgo.pathType)
+			continue
+		}
+		state := isState(entry)
+		if state && pgo.stateOnly {
+			out <- a.generatePath(entry, pgo.withDescr, pgo.withPrefix, pgo.withTypes, pgo.pathType)
+			continue
+		}
+		if !state && pgo.configOnly {
+			out <- a.generatePath(entry, pgo.withDescr, pgo.withPrefix, pgo.withTypes, pgo.pathType)
+			continue
+		}
 	}
 
-	if search {
+	if pgo.search {
 		p := promptui.Select{
 			Label:        "select path",
 			Items:        paths,
@@ -79,10 +102,30 @@ func (a *App) PathCmdRun(d, f, e []string, search, withDescr, withPrefix, withTy
 
 func (a *App) PathPreRunE(cmd *cobra.Command, args []string) error {
 	a.Config.SetLocalFlagsFromFile(cmd)
+	if a.Config.PathSearch && a.Config.PathWithDescr {
+		return errors.New("flags --search and --descr cannot be used together")
+	}
 	if a.Config.LocalFlags.PathPathType != "xpath" && a.Config.LocalFlags.PathPathType != "gnmi" {
-		return fmt.Errorf("path-type must be one of 'xpath' or 'gnmi'")
+		return errors.New("path-type must be one of 'xpath' or 'gnmi'")
 	}
 	return a.yangFilesPreProcessing()
+}
+
+func (a *App) PathRunE(cmd *cobra.Command, args []string) error {
+	return a.PathCmdRun(
+		a.Config.GlobalFlags.Dir,
+		a.Config.GlobalFlags.File,
+		a.Config.GlobalFlags.Exclude,
+		pathGenOpts{
+			search:     a.Config.LocalFlags.PathSearch,
+			withDescr:  a.Config.LocalFlags.PathWithDescr,
+			withTypes:  a.Config.LocalFlags.PathWithTypes,
+			withPrefix: a.Config.LocalFlags.PathWithPrefix,
+			pathType:   a.Config.LocalFlags.PathPathType,
+			stateOnly:  a.Config.LocalFlags.PathState,
+			configOnly: a.Config.LocalFlags.PathConfig,
+		},
+	)
 }
 
 func (a *App) InitPathFlags(cmd *cobra.Command) {
@@ -91,6 +134,8 @@ func (a *App) InitPathFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVarP(&a.Config.LocalFlags.PathWithPrefix, "with-prefix", "", false, "include module/submodule prefix in path elements")
 	cmd.Flags().BoolVarP(&a.Config.LocalFlags.PathWithTypes, "types", "", false, "print leaf type")
 	cmd.Flags().BoolVarP(&a.Config.LocalFlags.PathSearch, "search", "", false, "search through path list")
+	cmd.Flags().BoolVarP(&a.Config.LocalFlags.PathState, "state-only", "", false, "generate paths only for YANG leafs representing state data")
+	cmd.Flags().BoolVarP(&a.Config.LocalFlags.PathConfig, "config-only", "", false, "generate paths only for YANG leafs representing config data")
 	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
 		a.Config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
 	})
@@ -133,8 +178,7 @@ func (a *App) generatePath(entry *yang.Entry, withDescr, prefixTagging, withType
 			elementName = e.Prefix.Name + ":" + elementName
 		}
 		if e.Key != "" {
-			keylist := strings.Split(e.Key, " ")
-			for _, k := range keylist {
+			for _, k := range strings.Fields(e.Key) {
 				if prefixTagging && e.Prefix != nil {
 					k = e.Prefix.Name + ":" + k
 				}
@@ -265,4 +309,14 @@ func gather(ctx context.Context, c chan string, ls *[]string) {
 			return
 		}
 	}
+}
+
+func isState(e *yang.Entry) bool {
+	if e.Config == yang.TSFalse {
+		return true
+	}
+	if e.Parent != nil {
+		return isState(e.Parent)
+	}
+	return false
 }

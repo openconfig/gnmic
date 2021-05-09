@@ -28,18 +28,7 @@ func newPathCmd() *cobra.Command {
 			"--dir":  "DIR",
 		},
 		PreRunE: gApp.PathPreRunE,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return gApp.PathCmdRun(
-				gApp.Config.GlobalFlags.Dir,
-				gApp.Config.GlobalFlags.File,
-				gApp.Config.GlobalFlags.Exclude,
-				gApp.Config.LocalFlags.PathSearch,
-				gApp.Config.LocalFlags.PathWithDescr,
-				gApp.Config.LocalFlags.PathWithPrefix,
-				gApp.Config.LocalFlags.PathWithTypes,
-				gApp.Config.LocalFlags.PathPathType,
-			)
-		},
+		RunE:    gApp.PathRunE,
 		PostRun: func(cmd *cobra.Command, args []string) {
 			cmd.ResetFlags()
 			gApp.InitPathFlags(cmd)
