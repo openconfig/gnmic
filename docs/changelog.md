@@ -1,3 +1,18 @@
+
+## Changelog
+
+### v0.13.0 - May 10th 2021
+
+- New `gnmic generate` Command:
+    - Given a set of yang models and an xpath, `gnmic generate` generates a JSON/YAML representation of the YANG object the given path points to.
+    - Given a set of yang models and an set of xpaths (with `--update` or `--replace`), `gnmic generate set-request` generates a set request file that can be filled with the desired values and used with `gnmic set --request-file`
+    - The sub-command `gnmic generate path` is an alias to `gnmic path`
+
+- Path Command:
+    - add flag `--desc` which, if present, prints the YANG leaf description together with the generated paths.
+    - add flag `--config-only` which, if present, only generates paths pointing to YANG leaves representing config data.
+    - add flag `--state-only` which, if present, only generates paths pointing to a YANG leaf representing state data.
+
 ### v0.12.2 - April 24th 2021
 
 - Fix a bug that cause gNMIc to crash if certain processors are used.
@@ -98,7 +113,7 @@
 
 ### v0.6.0 - December 14th 2020
 
-- Processors: 
+- Processors:
     - Added processors to `gnmic`, a set of basic processors can be used to manipulate gNMI data flowing through `gnmic`. These processors are applied by the output plugins
 
 - Upgrade command: `gnmic` can be upgraded using `gnmic version upgrade` command.
