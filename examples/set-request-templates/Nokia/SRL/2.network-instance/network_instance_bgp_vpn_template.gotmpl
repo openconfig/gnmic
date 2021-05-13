@@ -1,0 +1,14 @@
+replaces:
+{{- range $netins := index .Vars .TargetName "network-instances" }}
+  {{- if $bgpvpn := index $netins "protocols" "bgp-vpn" }}
+  - path: "/network-instance[name={{ index $netins "name" }}/protocols/bgp-vpn]"
+    encoding: json_ietf
+    value: 
+      bgp-instance:
+     {{- range $idx, $bgpins := $bgpvpn}} 
+      - id: {{}}
+        admin-state: {{ index $bgpvpn "admin-state" | default "disable" }}
+        default-admin-tag: {{ index $bgpvpn "default-admin-tag" | default 0 }}
+      {{- end }}
+  {{- end }}    
+{{- end }}

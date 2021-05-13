@@ -1,0 +1,10 @@
+replaces:
+{{- range $netins := index .Vars .TargetName "network-instances" }}
+  {{- if $bgp := index $netins "protocols" "bgp" }}
+  - path: "/network-instance[name={{ index $netins "name" }}/protocols/bgp]"
+    encoding: json_ietf
+    value: 
+      admin-state: {{ index $bgp "admin-state" | default "disable" }}
+      
+  {{- end }}    
+{{- end }}

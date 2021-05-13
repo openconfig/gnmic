@@ -1,0 +1,59 @@
+replaces:
+{{- range $interface := index .Vars .TargetName "interfaces" }}
+  {{- range $idx, $subinterface := index $interface "subinterface" }}
+  - path: "/interface[name={{ index $interface "name" }}]/subinterface[index={{ $idx }}]"
+    encoding: "json_ietf"
+    value: 
+      admin-state: {{ index $subinterface "admin-state" | default "disable" }}
+      {{- if index $subinterface "type" }}
+      type: {{ index $subinterface "type" }}
+      {{- end }}
+      {{- if index $subinterface "description" }}
+      description: {{ index $subinterface "description"}}
+      {{- end }}
+      {{- if index $subinterface "ip-mtu" }}
+      ip-mtu: {{ index $subinterface "ip-mtu" }}
+      {{- end }}
+      {{- if index $subinterface "ipv4-address" }}
+      ipv4:
+        address:
+          - ip-prefix: {{ index $subinterface "ipv4-address" | toString }}
+      {{- end }}
+      {{- if index $subinterface "ipv6-address" }}
+      ipv6:
+        address:
+          - ip-prefix: {{ index $subinterface "ipv6-address" | toString }}
+      {{- end }}
+      {{- if index $subinterface "vlan-id" }}
+      vlan:
+        encap:
+          single-tagged:
+            vlan-id: {{ index $subinterface "vlan-id" }}
+      {{- else if index $subinterface "untagged" }}
+      vlan:
+        encap:
+          untagged: {}
+      {{- end }}
+      {{- if $acl := index $subinterface "acl" }}
+      acl:
+        {{- if $input := index $acl "input" }}
+        input:
+          {{- if index $input "ipv4-filter" }}
+          ipv4-filter: {{ index $input "ipv4-filter" }}
+          {{- end }}
+          {{- if index $input "ipv6-filter" }}
+          ipv6-filter: {{ index $acl "input" "ipv6-filter" }}
+        {{- end }}
+        {{- end }}
+        {{- if $output := index $acl "output" }}
+        output:
+          {{- if index $output "ipv4-filter" }}
+          ipv4-filter: {{ index $output "ipv4-filter" }}
+          {{- end }}
+          {{- if index $output "ipv6-filter" }}
+          ipv6-filter: {{ index $output "ipv6-filter" }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+{{- end }}

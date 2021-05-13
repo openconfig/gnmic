@@ -1,0 +1,41 @@
+replaces:
+{{- range $netins := index .Vars .TargetName "network-instances" }}
+  {{- if $bgpevpn := index $netins "protocols" "bgp-evpn" }}
+  - path: "/network-instance[name={{ index $netins "name" }}/protocols/bgp-evpn]"
+    encoding: json_ietf
+    value: 
+      bgp-instance
+        - id: 1
+          admin-state: {{ index $bgpevpn "admin-state" | default "disable" }}
+          default-admin-tag: {{ index $bgpevpn "default-admin-tag" | default 0 }}
+          encapsulation-type: {{ index $bgpevpn "encapsulation-type" | default "vxlan" }}
+          {{- if index $bgpevpn "vxlan-interface" }}
+          vxlan-interface: {{ index $bgpevpn "vxlan-interface" }}
+          {{- end }}
+          {{- if index $bgpevpn "evi" }}
+          evi: {{ index $bgpevpn "evi" }}
+          {{- end }}
+          ecmp: {{ index $bgpevpn "ecmp" | default 1 }}
+          {{- if $routes := index $bgpevpn "routes" }}
+          routes:
+            {{- if $routetable := index $routes "route-table" }}
+            route-table:
+              mac-ip:
+                advertise-gateway-mac: {{ index $routetable "mac-ip" "advertise-gateway-mac" | default false }}
+            {{- end }}
+            {{- if $bridgetable := index $routes "bridge-table" }}             
+            bridge-table:
+              mac-ip:
+                advertise: {{ index $bridgetable "mac-ip" "advertise" | default false }}
+              inclusive-mcast:
+                advertise: {{ index $bridgetable "inclusive-mcast" "advertise" | default true }}
+                {{- if index $bridgetable "inclusive-mcast" "originating-ip" }}
+                originating-ip: {{ index $bridgetable "inclusive-mcast" "originating-ip" }}
+                {{- end }}
+              {{- if index $bridgetable "next-hop" }}
+              next-hop: {{ index $bridgetable "next-hop" }}
+              {{- end }}
+            {{- end }}
+          {{- end }}
+  {{- end }}    
+{{- end }}

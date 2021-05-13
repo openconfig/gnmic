@@ -1,0 +1,649 @@
+node1:57400:
+  network-intances:
+  - name: ""
+    admin-state: enable
+    aggregate-routes:
+      route:
+      - admin-state: enable
+        aggregator:
+          address: ""
+          as-number: ""
+        communities:
+          add: ""
+        generate-icmp: ""
+        prefix: ""
+        summary-only: "false"
+    bridge-table:
+      discard-unknown-dest-mac: "false"
+      mac-duplication:
+        action: stop-learning
+        admin-state: enable
+        hold-down-time: "9"
+        monitoring-window: "3"
+        num-moves: "5"
+      mac-learning:
+        admin-state: enable
+        aging:
+          admin-state: enable
+          age-time: "300"
+      mac-limit:
+        maximum-entries: "250"
+        warning-threshold-pct: "95"
+      protect-anycast-gw-mac: "false"
+      static-mac:
+        mac:
+        - address: ""
+          destination: ""
+    description: ""
+    interface:
+    - name: ""
+    ip-forwarding:
+      receive-ipv4-check: ""
+      receive-ipv6-check: ""
+    ip-load-balancing:
+      resilient-hash-prefix:
+      - hash-buckets-per-path: "1"
+        ip-prefix: ""
+        max-paths: "1"
+    mpls:
+      admin-state: disable
+      static-mpls-entry:
+      - collect-stats: "false"
+        next-hop-group: ""
+        operation: swap
+        preference: "5"
+        top-label: ""
+      ttl-propagation: "false"
+    mtu:
+      path-mtu-discovery: ""
+    next-hop-groups:
+      group:
+      - admin-state: enable
+        blackhole:
+          generate-icmp: "false"
+        name: ""
+        nexthop:
+        - admin-state: enable
+          failure-detection:
+            enable-bfd:
+              local-address: ""
+              local-discriminator: ""
+              remote-discriminator: ""
+          index: ""
+          ip-address: ""
+          pushed-mpls-label-stack: ""
+          resolve: "true"
+    protocols:
+      bgp:
+        admin-state: enable
+        as-path-options:
+          allow-own-as: "0"
+          remove-private-as:
+            ignore-peer-as: "false"
+            leading-only: "false"
+            mode: disabled
+        authentication:
+          keychain: ""
+        autonomous-system: ""
+        convergence:
+          min-wait-to-advertise: "0"
+        dynamic-neighbors:
+          accept:
+            match:
+            - allowed-peer-as: ""
+              peer-group: ""
+              prefix: ""
+            max-sessions: "0"
+        ebgp-default-policy:
+          export-reject-all: "true"
+          import-reject-all: "true"
+        evpn:
+          admin-state: disable
+          advertise-ipv6-next-hops: "false"
+          keep-all-routes: ""
+          rapid-update: "false"
+        export-policy: ""
+        failure-detection:
+          enable-bfd: "false"
+          fast-failover: "true"
+        graceful-restart:
+          admin-state: disable
+          stale-routes-time: "360"
+        group:
+        - admin-state: enable
+          as-path-options:
+            allow-own-as: ""
+            remove-private-as:
+              ignore-peer-as: "false"
+              leading-only: "false"
+              mode: ""
+            replace-peer-as: ""
+          authentication:
+            keychain: ""
+          description: ""
+          evpn:
+            admin-state: ""
+            advertise-ipv6-next-hops: ""
+            prefix-limit:
+              max-received-routes: "4294967295"
+              warning-threshold-pct: "90"
+          export-policy: ""
+          failure-detection:
+            enable-bfd: ""
+            fast-failover: ""
+          graceful-restart:
+            admin-state: ""
+            stale-routes-time: ""
+          group-name: ""
+          import-policy: ""
+          ipv4-unicast:
+            admin-state: ""
+            advertise-ipv6-next-hops: ""
+            prefix-limit:
+              max-received-routes: "4294967295"
+              warning-threshold-pct: "90"
+            receive-ipv6-next-hops: ""
+          ipv6-unicast:
+            admin-state: ""
+            prefix-limit:
+              max-received-routes: "4294967295"
+              warning-threshold-pct: "90"
+          local-as:
+          - as-number: ""
+            prepend-global-as: "true"
+            prepend-local-as: "true"
+          local-preference: ""
+          next-hop-self: "false"
+          peer-as: ""
+          route-reflector:
+            client: ""
+            cluster-id: ""
+          send-community:
+            large: ""
+            standard: ""
+          send-default-route:
+            export-policy: ""
+            ipv4-unicast: "false"
+            ipv6-unicast: "false"
+          timers:
+            connect-retry: "120"
+            hold-time: "90"
+            keepalive-interval: ""
+            minimum-advertisement-interval: "5"
+          trace-options:
+            flag:
+            - modifier: ""
+              name: ""
+          transport:
+            local-address: ""
+            passive-mode: "false"
+            tcp-mss: ""
+        import-policy: ""
+        ipv4-unicast:
+          admin-state: enable
+          advertise-ipv6-next-hops: "false"
+          convergence:
+            max-wait-to-advertise: "0"
+          multipath:
+            allow-multiple-as: "true"
+            max-paths-level-1: "1"
+            max-paths-level-2: "1"
+          receive-ipv6-next-hops: "false"
+        ipv6-unicast:
+          admin-state: disable
+          convergence:
+            max-wait-to-advertise: "0"
+          multipath:
+            allow-multiple-as: "true"
+            max-paths-level-1: "1"
+            max-paths-level-2: "1"
+        local-preference: "100"
+        neighbor:
+        - admin-state: enable
+          as-path-options:
+            allow-own-as: ""
+            remove-private-as:
+              ignore-peer-as: "false"
+              leading-only: "false"
+              mode: ""
+            replace-peer-as: ""
+          authentication:
+            keychain: ""
+          description: ""
+          evpn:
+            admin-state: ""
+            advertise-ipv6-next-hops: ""
+            prefix-limit:
+              max-received-routes: ""
+              warning-threshold-pct: ""
+          export-policy: ""
+          failure-detection:
+            enable-bfd: ""
+            fast-failover: ""
+          graceful-restart:
+            admin-state: ""
+            stale-routes-time: ""
+            warm-restart:
+              admin-state: ""
+          import-policy: ""
+          ipv4-unicast:
+            admin-state: ""
+            advertise-ipv6-next-hops: ""
+            prefix-limit:
+              max-received-routes: ""
+              warning-threshold-pct: ""
+            receive-ipv6-next-hops: ""
+          ipv6-unicast:
+            admin-state: ""
+            prefix-limit:
+              max-received-routes: ""
+              warning-threshold-pct: ""
+          local-as:
+          - as-number: ""
+            prepend-global-as: ""
+            prepend-local-as: ""
+          local-preference: ""
+          next-hop-self: ""
+          peer-address: ""
+          peer-as: ""
+          peer-group: ""
+          route-reflector:
+            client: ""
+            cluster-id: ""
+          send-community:
+            large: ""
+            standard: ""
+          send-default-route:
+            export-policy: ""
+            ipv4-unicast: ""
+            ipv6-unicast: ""
+          timers:
+            connect-retry: ""
+            hold-time: ""
+            keepalive-interval: ""
+            minimum-advertisement-interval: ""
+          trace-options:
+            flag:
+            - modifier: ""
+              name: ""
+          transport:
+            local-address: ""
+            passive-mode: ""
+            tcp-mss: ""
+        preference:
+          ebgp: "170"
+          ibgp: "170"
+        route-advertisement:
+          rapid-withdrawal: "false"
+          wait-for-fib-install: "true"
+        route-reflector:
+          client: "false"
+          cluster-id: ""
+        router-id: ""
+        send-community:
+          large: "true"
+          standard: "true"
+        trace-options:
+          flag:
+          - modifier: ""
+            name: ""
+        transport:
+          tcp-mss: "1024"
+      bgp-evpn:
+        bgp-instance:
+        - admin-state: enable
+          default-admin-tag: "0"
+          ecmp: "1"
+          encapsulation-type: vxlan
+          evi: ""
+          id: ""
+          routes:
+            bridge-table:
+              inclusive-mcast:
+                advertise: "true"
+                originating-ip: ""
+              mac-ip:
+                advertise: "true"
+              next-hop: use-system-ipv4-address
+            route-table:
+              mac-ip:
+                advertise-gateway-mac: "false"
+          vxlan-interface: ""
+      bgp-vpn:
+        bgp-instance:
+        - export-policy: ""
+          id: ""
+          import-policy: ""
+          route-distinguisher:
+            rd: ""
+          route-target:
+            export-rt: ""
+            import-rt: ""
+      directly-connected:
+        te-database-install:
+          bgp-ls:
+            bgp-ls-identifier: ""
+            igp-identifier: ""
+      isis:
+        instance:
+        - admin-state: disable
+          attached-bit:
+            ignore: "false"
+            suppress: "false"
+          authentication:
+            csnp-authentication: ""
+            hello-authentication: ""
+            keychain: ""
+            psnp-authentication: ""
+          auto-cost:
+            reference-bandwidth: ""
+          export-policy: ""
+          graceful-restart:
+            helper-mode: "false"
+          inter-level-propagation-policies:
+            level1-to-level2:
+              summary-address:
+              - ip-prefix: ""
+                route-tag: ""
+          interface:
+          - admin-state: enable
+            authentication:
+              hello-authentication: ""
+              keychain: ""
+            circuit-type: ""
+            hello-padding: disable
+            interface-name: ""
+            ipv4-unicast:
+              admin-state: enable
+              enable-bfd: "false"
+              include-bfd-tlv: "false"
+            ipv6-unicast:
+              admin-state: enable
+              enable-bfd: "false"
+              include-bfd-tlv: "false"
+            ldp-synchronization:
+              disable: ""
+              end-of-lib: ""
+              hold-down-timer: ""
+            level:
+            - authentication:
+                keychain: ""
+              disable: "false"
+              ipv6-unicast-metric: ""
+              level-number: ""
+              metric: ""
+              priority: "64"
+              timers:
+                hello-interval: "9"
+                hello-multiplier: "3"
+            passive: "false"
+            timers:
+              csnp-interval: "10"
+              lsp-pacing-interval: "100"
+            trace-options:
+              trace: ""
+          ipv4-unicast:
+            admin-state: enable
+          ipv6-unicast:
+            admin-state: enable
+            multi-topology: "false"
+          ldp-synchronization:
+            end-of-lib: "false"
+            hold-down-timer: "60"
+          level:
+          - authentication:
+              csnp-authentication: ""
+              hello-authentication: ""
+              keychain: ""
+              psnp-authentication: ""
+            bgp-ls-exclude: "false"
+            level-number: ""
+            metric-style: wide
+            route-preference:
+              external: ""
+              internal: ""
+            trace-options:
+              trace: ""
+          level-capability: L2
+          max-ecmp-paths: "1"
+          name: ""
+          net: ""
+          overload:
+            advertise-external: "false"
+            advertise-interlevel: "false"
+            immediate:
+              max-metric: "false"
+              set-bit: "false"
+            on-boot:
+              max-metric: ""
+              set-bit: ""
+              timeout: ""
+          poi-tlv: "false"
+          te-database-install:
+            bgp-ls:
+              bgp-ls-identifier: ""
+              igp-identifier: ""
+          timers:
+            lsp-generation:
+              initial-wait: "10"
+              max-wait: "5000"
+              second-wait: "1000"
+            lsp-lifetime: "1200"
+            lsp-refresh:
+              half-lifetime: "true"
+              interval: "600"
+            spf:
+              initial-wait: "1000"
+              max-wait: "10000"
+              second-wait: "1000"
+          trace-options:
+            trace: ""
+          traffic-engineering:
+            advertisement: "false"
+            legacy-link-attribute-advertisement: "true"
+          transport:
+            lsp-mtu-size: "1492"
+      ldp:
+        admin-state: disable
+        discovery:
+          interfaces:
+            hello-holdtime: "15"
+            hello-interval: "5"
+            interface:
+            - admin-state: ""
+              hello-holdtime: "15"
+              hello-interval: "5"
+              ipv4:
+                admin-state: enable
+              name: ""
+        dynamic-label-block: ""
+        graceful-restart:
+          helper-enable: "false"
+          max-reconnect-time: "120"
+          max-recovery-time: "120"
+        ipv4:
+          fec-resolution:
+            longest-prefix: "false"
+        multipath:
+          max-paths: ""
+        peers:
+          peer:
+          - ipv4:
+              fec-limit: ""
+            label-space-id: ""
+            lsr-id: ""
+            tcp-transport:
+              authentication:
+                keychain: ""
+          session-keepalive-holdtime: "180"
+          session-keepalive-interval: "60"
+          tcp-transport:
+            authentication:
+              keychain: ""
+        trace-options:
+          interface:
+          - name: ""
+          peer:
+          - label-space-id: ""
+            lsr-id: ""
+      linux:
+        export-neighbors: "true"
+        export-routes: "false"
+        import-routes: "false"
+      ospf:
+        instance:
+        - address-family: ""
+          admin-state: disable
+          advertise-router-capability: ""
+          area:
+          - advertise-router-capability: "true"
+            area-id: ""
+            area-range:
+            - advertise: "true"
+              ip-prefix-mask: ""
+            bgp-ls-exclude: "false"
+            blackhole-aggregate: "true"
+            export-policy: ""
+            interface:
+            - admin-state: enable
+              advertise-router-capability: "true"
+              advertise-subnet: "true"
+              authentication:
+                keychain: ""
+              dead-interval: "40"
+              failure-detection:
+                enable-bfd: "false"
+              hello-interval: "10"
+              interface-name: ""
+              interface-type: ""
+              lsa-filter-out: none
+              metric: ""
+              mtu: ""
+              passive: ""
+              priority: "1"
+              retransmit-interval: "5"
+              trace-options:
+                trace:
+                  adjacencies: ""
+                  interfaces: ""
+                  packet:
+                    detail: ""
+                    modifier: ""
+                    type: ""
+              transit-delay: "1"
+            nssa:
+              area-range:
+              - advertise: "true"
+                ip-prefix-mask: ""
+              originate-default-route:
+                adjacency-check: "true"
+                type-nssa: "false"
+              redistribute-external: ""
+              summaries: ""
+            stub:
+              default-metric: "1"
+              summaries: ""
+          asbr:
+            trace-path: none
+          export-limit:
+            log-percent: ""
+            number: ""
+          export-policy: ""
+          external-db-overflow:
+            interval: "0"
+            limit: "0"
+          external-preference: "150"
+          graceful-restart:
+            helper-mode: "false"
+            strict-lsa-checking: "false"
+          instance-id: ""
+          max-ecmp-paths: "1"
+          name: ""
+          overload:
+            active: "false"
+            overload-include-ext-1: "false"
+            overload-include-ext-2: "false"
+            overload-include-stub: "false"
+            overload-on-boot:
+              timeout: "60"
+            rtr-adv-lsa-limit:
+              log-only: ""
+              max-lsa-count: ""
+              overload-timeout: ""
+              warning-threshold: "0"
+          preference: "10"
+          reference-bandwidth: "400000000"
+          router-id: ""
+          te-database-install:
+            bgp-ls:
+              bgp-ls-identifier: ""
+              igp-identifier: ""
+          timers:
+            incremental-spf-wait: "1000"
+            lsa-accumulate: "1000"
+            lsa-arrival: "1000"
+            lsa-generate:
+              lsa-initial-wait: "5000"
+              lsa-second-wait: "5000"
+              max-lsa-wait: "5000"
+            redistribute-delay: "1000"
+            spf-wait:
+              spf-initial-wait: "1000"
+              spf-max-wait: "10000"
+              spf-second-wait: "1000"
+          trace-options:
+            trace:
+              adjacencies: ""
+              graceful-restart: ""
+              interfaces: ""
+              lsdb:
+                link-state-id: ""
+                router-id: ""
+                type: ""
+              misc: ""
+              packet:
+                detail: ""
+                modifier: ""
+                type: ""
+              routes:
+                dest-address: ""
+              spf:
+                dest-address: ""
+          traffic-engineering:
+            advertisement: "false"
+            legacy-link-attribute-advertisement: "true"
+          version: ""
+    router-id: ""
+    static-routes:
+      route:
+      - admin-state: enable
+        metric: "1"
+        next-hop-group: ""
+        preference: "5"
+        prefix: ""
+    traffic-engineering:
+      admin-groups:
+        group:
+        - bit-position: ""
+          name: ""
+      autonomous-system: ""
+      interface:
+      - admin-group: ""
+        delay:
+          static: ""
+        interface-name: ""
+        srlg-membership: ""
+        te-metric: ""
+      ipv4-te-router-id: ""
+      ipv6-te-router-id: ""
+      shared-risk-link-groups:
+        group:
+        - cost: ""
+          name: ""
+          static-member:
+          - from-address: ""
+            to-address: ""
+          value: ""
+    type: default
+    vxlan-interface:
+    - name: ""

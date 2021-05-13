@@ -1,0 +1,35 @@
+replaces:
+{{- range $netins := index .Vars .TargetName "network-instances" }}
+  - path: "/network-instance[name={{ index $netins "name" }}]"
+    encoding: json_ietf
+    value: 
+      admin-state: {{ index $netins "admin-state" | default "disable" }}
+      description: {{ index $netins "description" | default "" }}
+      type: {{ index $netins "type" | default "default" }}
+      {{- if index $netins "path-mtu-disovery" }}
+      mtu:
+        path-mtu-discovery: {{ index $netins "path-mtu-disovery" }}
+      {{- end }}
+      {{- if index $netins "router-id" }}
+      router-id: {{ index $netins "router-id" }}
+      {{- end }}
+      {{ $interfaces := index $netins "interfaces" }}
+      {{- if ne (len $interfaces) 0 }}
+      interface:
+        {{- range $interface := $interfaces }}
+        - name: {{ $interface }}
+        {{- end }}
+      {{- end }}
+      {{- if index $netins "vxlan-interface" }}
+      vxlan-interface: {{ index $netins "vxlan-interface" }} 
+      {{- end }}
+      {{- if index $netins "ip-forwarding" }}
+      ip-forwarding:
+        receive-ipv4-check: {{ index $netins "ip-forwarding" "receive-ipv4-check" | default false }} 
+        receive-ipv6-check: {{ index $netins "ip-forwarding" "receive-ipv6-check" | default false }} 
+      {{- end }}
+      {{ $protocols := index $netins "protocols" }}
+      {{- if ne (len $protocols) 0 }}
+      protocols:
+      {{- end }}
+{{- end }}

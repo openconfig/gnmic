@@ -1,0 +1,304 @@
+acl:
+  capture-filter:
+    ipv4-filter:
+      statistics-per-entry: # true | false
+      entry:
+        - sequence-id:
+          description:
+          match:
+            source-ip:
+              prefix:
+              address:
+              mask:
+            destination-ip:
+              prefix:
+              address:
+              mask:
+            source-port:
+              operator:
+              value:
+              range:
+                start:
+                end:
+            destination-port:
+              operator:
+              value:
+              range:
+                start:
+                end:
+            icmp:
+              type:
+              code: []
+            tcp-flags:
+            protocol:
+            fragment:
+            first-fragment: 
+          action:
+            accept: {}
+            copy: {}
+
+    ipv6-filter:
+      statistics-per-entry: # true | false
+      entry:
+        - sequence-id:
+          description:
+          match:
+            source-ip:
+              prefix:
+              address:
+              mask:
+            destination-ip:
+              prefix:
+              address:
+              mask:
+            icmp6:
+              type:
+              code: []
+            next-header:
+            protocol:
+            fragment:
+            first-fragment: 
+          action:
+            accept: {}
+            drop: {}
+  cpm-filter:
+    ipv4-filter:
+      statistics-per-entry: # true | false
+      entry:
+        - sequence-id:
+          description:
+          match:
+            source-ip:
+              prefix:
+              address:
+              mask:
+            destination-ip:
+              prefix:
+              address:
+              mask:
+            source-port:
+              operator:
+              value:
+              range:
+                start:
+                end:
+            destination-port:
+              operator:
+              value:
+              range:
+                start:
+                end:
+            icmp:
+              type:
+              code: []
+            tcp-flags:
+            protocol:
+            fragment:
+            first-fragment: 
+          action:
+            accept:
+              log: # true | false
+              rate-limit:
+                distributed-policer: 
+                system-cpu-policer:
+            drop:
+              log: # true | false
+    ipv6-filter:
+      statistics-per-entry: # true | false
+      entry:
+        - sequence-id:
+          description:
+          match:
+            source-ip:
+              prefix:
+              address:
+              mask:
+            destination-ip:
+              prefix:
+              address:
+              mask:
+            icmp6:
+              type:
+              code: []
+            next-header:
+            protocol:
+            fragment:
+            first-fragment: 
+          action:
+            accept:
+              log: # true | false
+              rate-limit:
+                distributed-policer: 
+                system-cpu-policer:
+            drop:
+              log: # true | false
+  
+  ipv4-filter:
+    - name: ""
+      description:
+      subinterface-specific:
+      statistics-per-entry: # true | false
+      entry:
+        - sequence-id:
+          description:
+          action:
+            accept:
+              log: # true | false
+            drop:
+              log: # true | false
+          match:
+            source-ip:
+              prefix:
+              address:
+              mask:
+            destination-ip:
+              prefix:
+              address:
+              mask:
+            source-port:
+              operator:
+              value:
+              range:
+                start:
+                end:
+            destination-port:
+              operator:
+              value:
+              range:
+                start:
+                end:
+            icmp:
+              type:
+              code: []
+            tcp-flags:
+            protocol:
+            fragment:
+            first-fragment: 
+  ipv6-filter:
+    - name: ""
+      description:
+      subinterface-specific:
+      statistics-per-entry: # true | false
+      entry:
+        - sequence-id:
+          description:
+          action:
+            accept:
+              log: # true | false
+            drop:
+              log: # true | false
+          match:
+            source-ip:
+              prefix:
+              address:
+              mask:
+            destination-ip:
+              prefix:
+              address:
+              mask:
+            source-port:
+              operator:
+              value:
+              range:
+                start:
+                end:
+            destination-port:
+              operator:
+              value:
+              range:
+                start:
+                end:
+            icmp6:
+              type:
+              code: []
+            next-header:
+            tcp-flags:
+            protocol:
+            fragment:
+            first-fragment: 
+  policers:
+    policer:
+      - name: ""
+        entry-specific: # true | false
+        peak-rate: 
+        max-burst:
+    system-cpu-policer:
+      - name: ""
+        entry-specific: # true | false
+        peak-packet-rate: 
+        max-packet-burst:
+  system-filter:
+    ipv4-filter:
+      entry:
+        - sequence-id:
+          description:
+          action:
+            accept:
+            drop:
+              log: # true | false
+          match:
+            source-ip:
+              prefix:
+              address:
+              mask:
+            destination-ip:
+              prefix:
+              address:
+              mask:
+            source-port:
+              operator:
+              value:
+              range:
+                start:
+                end:
+            destination-port:
+              operator:
+              value:
+              range:
+                start:
+                end:
+            icmp:
+              type:
+              code: []
+            tcp-flags:
+            protocol:
+            fragment:
+            first-fragment: 
+    ipv6-filter:
+      entry:
+        - sequence-id:
+          description:
+          action:
+            accept:
+            drop:
+              log: # true | false
+          match:
+            source-ip:
+              prefix:
+              address:
+              mask:
+            destination-ip:
+              prefix:
+              address:
+              mask:
+            source-port:
+              operator:
+              value:
+              range:
+                start:
+                end:
+            destination-port:
+              operator:
+              value:
+              range:
+                start:
+                end:
+            icmp6:
+              type:
+              code: []
+            next-header:
+            tcp-flags:
+            protocol:
+            fragment:
+            first-fragment: 
+  tcam-profile: # default | ipv4-egress-scaled

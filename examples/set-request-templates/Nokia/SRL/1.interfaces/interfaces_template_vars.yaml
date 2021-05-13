@@ -1,0 +1,34 @@
+node1:57400:
+  interfaces:
+    - name: # ethernet-1/1
+      admin-state: # "enable" | "disable"
+      description:
+      vlan-tagging: # true || false
+      mtu: 
+      loopback-mode: # true || false
+      ethernet:
+        aggregate-id:
+        auto-negotiate:
+        duplex-mode: 
+        flow-control:
+           receive: # true || false 
+      lag:
+        lag-type:
+        min-links:
+        member-speed:
+        lacp-fallback-mode:
+        lacp-fallback-timeout:
+        lag-speed:         
+      subinterface:
+        - admin-state: # "enable" | "disable"
+          ipv4-address:
+          ipv6-address:
+          vlan-id:
+          untagged: {}
+          acl:
+            input:
+              ipv4-filter:
+              ipv6-filter:
+            output:
+              ipv4-filter:
+              ipv6-filter:
