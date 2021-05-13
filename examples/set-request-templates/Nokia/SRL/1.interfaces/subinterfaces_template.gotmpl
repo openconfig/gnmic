@@ -1,6 +1,6 @@
 replaces:
 {{- range $interface := index .Vars .TargetName "interfaces" }}
-  {{- range $idx, $subinterface := index $interface "subinterfaces" }}
+  {{- range $idx, $subinterface := index $interface "subinterface" }}
   - path: "/interface[name={{ index $interface "name" }}]/subinterface[index={{ $idx }}]"
     encoding: "json_ietf"
     value: 
