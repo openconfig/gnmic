@@ -286,3 +286,40 @@ func expandTargetEnv(tc *collector.TargetConfig) {
 		tc.Tags[i] = os.ExpandEnv(tc.Tags[i])
 	}
 }
+
+func (c *Config) GetDiffTargets() (*collector.TargetConfig, map[string]*collector.TargetConfig, error) {
+	targetsConfig, err := c.GetTargets()
+	if err != nil {
+		if err != ErrNoTargetsFound {
+			return nil, nil, err
+		}
+	}
+	var refConfig *collector.TargetConfig
+	if rc, ok := targetsConfig[c.DiffRef]; ok {
+		refConfig = rc
+	} else {
+		refConfig = &collector.TargetConfig{
+			Address: c.DiffRef,
+		}
+		err = c.SetTargetConfigDefaults(refConfig)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+	compareConfigs := make(map[string]*collector.TargetConfig)
+	for _, cmp := range c.DiffCompare {
+		if cc, ok := targetsConfig[cmp]; ok {
+			compareConfigs[cmp] = cc
+		} else {
+			compConfig := &collector.TargetConfig{
+				Address: cmp,
+			}
+			err = c.SetTargetConfigDefaults(compConfig)
+			if err != nil {
+				return nil, nil, err
+			}
+			compareConfigs[compConfig.Name] = compConfig
+		}
+	}
+	return refConfig, compareConfigs, nil
+}

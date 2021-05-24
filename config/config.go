@@ -187,6 +187,16 @@ type LocalFlags struct {
 	GeneratePathPathType   string `mapstructure:"generate-path-path-type,omitempty" json:"generate-path-path-type,omitempty" yaml:"generate-path-path-type,omitempty"`
 	GeneratePathState      bool   `mapstructure:"generate-path-state,omitempty" json:"generate-path-state,omitempty" yaml:"generate-path-state,omitempty"`
 	GeneratePathConfig     bool   `mapstructure:"generate-path-config,omitempty" json:"generate-path-config,omitempty" yaml:"generate-path-config,omitempty"`
+	//
+	DiffPath    []string `mapstructure:"diff-path,omitempty" json:"diff-path,omitempty" yaml:"diff-path,omitempty"`
+	DiffPrefix  string   `mapstructure:"diff-prefix,omitempty" json:"diff-prefix,omitempty" yaml:"diff-prefix,omitempty"`
+	DiffModel   []string `mapstructure:"diff-model,omitempty" json:"diff-model,omitempty" yaml:"diff-model,omitempty"`
+	DiffType    string   `mapstructure:"diff-type,omitempty" json:"diff-type,omitempty" yaml:"diff-type,omitempty"`
+	DiffTarget  string   `mapstructure:"diff-target,omitempty" json:"diff-target,omitempty" yaml:"diff-target,omitempty"`
+	DiffSub     bool     `mapstructure:"diff-sub,omitempty" json:"diff-sub,omitempty" yaml:"diff-sub,omitempty"`
+	DiffRef     string   `mapstructure:"diff-ref,omitempty" json:"diff-ref,omitempty" yaml:"diff-ref,omitempty"`
+	DiffCompare []string `mapstructure:"diff-compare,omitempty" json:"diff-compare,omitempty" yaml:"diff-compare,omitempty"`
+	DiffQos     uint32   `mapstructure:"diff-qos,omitempty" json:"diff-qos,omitempty" yaml:"diff-qos,omitempty"`
 }
 
 func New() *Config {

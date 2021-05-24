@@ -220,6 +220,18 @@ func (c *Collector) initTarget(name string) error {
 	return fmt.Errorf("unknown target")
 }
 
+func (c *Collector) CreateTarget(name string) error {
+	c.m.Lock()
+	defer c.m.Unlock()
+	if tc, ok := c.targetsConfig[name]; ok {
+		if _, ok := c.Targets[name]; !ok {
+			c.Targets[tc.Name] = NewTarget(tc)
+		}
+		return nil
+	}
+	return fmt.Errorf("unknown target %q", name)
+}
+
 func (c *Collector) TargetSubscribeStream(ctx context.Context, name string) {
 	lockKey := c.lockKey(name)
 START:
