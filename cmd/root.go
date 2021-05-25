@@ -66,6 +66,7 @@ func newRootCmd() *cobra.Command {
 	gApp.RootCmd.AddCommand(newGetSetCmd())
 	gApp.RootCmd.AddCommand(newListenCmd())
 	gApp.RootCmd.AddCommand(newPathCmd())
+	gApp.RootCmd.AddCommand(newDiffCmd())
 	//
 	genCmd := newGenerateCmd()
 	genCmd.AddCommand(newGenerateSetRequestCmd())
