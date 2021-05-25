@@ -28,9 +28,9 @@ func (a *App) InitDiffFlags(cmd *cobra.Command) {
 	cmd.ResetFlags()
 
 	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.DiffPath, "path", "", []string{}, "diff request paths")
-	cmd.Flags().StringVarP(&a.Config.LocalFlags.DiffRef, "ref", "", "", "reference node to compare the other nodes to")
+	cmd.Flags().StringVarP(&a.Config.LocalFlags.DiffRef, "ref", "", "", "reference gNMI target to compare the other targets to")
 	cmd.MarkFlagRequired("ref")
-	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.DiffCompare, "compare", "", []string{}, "nodes to compare to the reference")
+	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.DiffCompare, "compare", "", []string{}, "gNMI targets to compare to the reference")
 	cmd.MarkFlagRequired("compare")
 	cmd.Flags().StringVarP(&a.Config.LocalFlags.DiffPrefix, "prefix", "", "", "diff request prefix")
 	cmd.Flags().StringSliceVarP(&a.Config.LocalFlags.DiffModel, "model", "", []string{}, "diff request models")
