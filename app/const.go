@@ -22,6 +22,7 @@ var formatNames = []string{
 	"prototext",
 	"event",
 	"proto",
+	"flat",
 }
 
 var tlsVersions = []string{"1.3", "1.2", "1.1", "1.0", "1"}
