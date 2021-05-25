@@ -80,6 +80,7 @@ nav:
       - Set: cmd/set.md
       - GetSet: cmd/getset.md
       - Subscribe: cmd/subscribe.md
+      - Diff: cmd/diff.md
       - Listen: cmd/listen.md
       - Path: cmd/path.md
       - Prompt: cmd/prompt.md
@@ -87,7 +88,8 @@ nav:
         - Generate: 'cmd/generate.md'
         - Generate Path: cmd/generate/generate_path.md
         - Generate Set-Request: cmd/generate/generate_set_request.md
-  
+     
+
   - Blog: blog/index.md
 
 site_author: Karim Radhouani
