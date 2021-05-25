@@ -159,7 +159,15 @@ func getValueFlat(prefix string, updValue *gnmi.TypedValue) (map[string]interfac
 	case *gnmi.TypedValue_UintVal:
 		values[prefix] = updValue.GetUintVal()
 	case *gnmi.TypedValue_LeaflistVal:
-		values[prefix] = updValue.GetLeaflistVal()
+		leafListVals := make([]interface{}, 0)
+		for _, tv := range updValue.GetLeaflistVal().GetElement() {
+			v, err := getValue(tv)
+			if err != nil {
+				return nil, err
+			}
+			leafListVals = append(leafListVals, v)
+		}
+		values[prefix] = leafListVals
 	case *gnmi.TypedValue_ProtoBytes:
 		values[prefix] = updValue.GetProtoBytes()
 	case *gnmi.TypedValue_AnyVal:

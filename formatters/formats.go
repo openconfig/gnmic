@@ -1,8 +1,10 @@
 package formatters
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -57,6 +59,27 @@ func (o *MarshalOptions) Marshal(msg proto.Message, meta map[string]string, eps 
 		default:
 			return nil, fmt.Errorf("format 'event' not supported for msg type %T", msg.ProtoReflect().Interface())
 		}
+	case "flat":
+		flatMsg, err := responseFlat(msg)
+		if err != nil {
+			return nil, err
+		}
+		msgLen := len(flatMsg)
+		if msgLen == 0 {
+			return nil, nil
+		}
+
+		sortedPaths := make([]string, 0, msgLen)
+		for k := range flatMsg {
+			sortedPaths = append(sortedPaths, k)
+		}
+		sort.Strings(sortedPaths)
+
+		buf := new(bytes.Buffer)
+		for _, p := range sortedPaths {
+			buf.WriteString(fmt.Sprintf("%s: %v\n", p, flatMsg[p]))
+		}
+		return buf.Bytes(), nil
 	}
 }
 
