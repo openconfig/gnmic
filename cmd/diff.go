@@ -22,8 +22,9 @@ import (
 // diffCmd represents the diff command
 func newDiffCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "diff",
-		Short: "run a diff comparison between targets",
+		Use:     "diff",
+		Aliases: []string{"compare"},
+		Short:   "run a diff comparison between targets",
 		PreRun: func(cmd *cobra.Command, args []string) {
 			gApp.Config.SetLocalFlagsFromFile(cmd)
 			if len(gApp.Config.LocalFlags.DiffPath) == 0 {

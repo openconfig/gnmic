@@ -7,9 +7,10 @@ import (
 
 	"github.com/karimra/gnmic/collector"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/spf13/cobra"
 )
 
-func (c *Config) CreateDiffSubscribeRequest() (*gnmi.SubscribeRequest, error) {
+func (c *Config) CreateDiffSubscribeRequest(cmd *cobra.Command) (*gnmi.SubscribeRequest, error) {
 	sc := &collector.SubscriptionConfig{
 		Name:     "diff-sub",
 		Models:   c.DiffModel,
@@ -19,8 +20,7 @@ func (c *Config) CreateDiffSubscribeRequest() (*gnmi.SubscribeRequest, error) {
 		Mode:     "ONCE",
 		Encoding: c.Encoding,
 	}
-	if c.DiffQos > 0 {
-		// fix case QOS is not set
+	if flagIsSet(cmd, "qos") {
 		sc.Qos = &c.DiffQos
 	}
 	return sc.CreateSubscribeRequest()

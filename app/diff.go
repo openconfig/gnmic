@@ -37,6 +37,7 @@ func (a *App) InitDiffFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&a.Config.LocalFlags.DiffType, "type", "t", "ALL", "data type requested from the target. one of: ALL, CONFIG, STATE, OPERATIONAL")
 	cmd.Flags().StringVarP(&a.Config.LocalFlags.DiffTarget, "target", "", "", "get request target")
 	cmd.Flags().BoolVarP(&a.Config.LocalFlags.DiffSub, "sub", "", false, "use subscribe ONCE mode instead of a get request")
+	cmd.Flags().Uint32VarP(&a.Config.LocalFlags.DiffQos, "qos", "", 0, "QoS marking in case subscribe RPC is used")
 
 	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
 		a.Config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
@@ -94,24 +95,24 @@ func (a *App) DiffRun(cmd *cobra.Command, args []string) error {
 	}
 	sort.Strings(compares)
 
-	err = a.diff(ctx, refTarget.Name, compares)
+	err = a.diff(ctx, cmd, refTarget.Name, compares)
 	if err != nil {
 		a.logError(err)
 	}
 	return a.checkErrors()
 }
 
-func (a *App) diff(ctx context.Context, ref string, compare []string) error {
+func (a *App) diff(ctx context.Context, cmd *cobra.Command, ref string, compare []string) error {
 	if a.Config.DiffSub {
-		return a.subscribeBasedDiff(ctx, ref, compare)
+		return a.subscribeBasedDiff(ctx, cmd, ref, compare)
 	}
 	return a.getBasedDiff(ctx, ref, compare)
 }
 
-func (a *App) subscribeBasedDiff(ctx context.Context, ref string, compare []string) error {
+func (a *App) subscribeBasedDiff(ctx context.Context, cmd *cobra.Command, ref string, compare []string) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	subReq, err := a.Config.CreateDiffSubscribeRequest()
+	subReq, err := a.Config.CreateDiffSubscribeRequest(cmd)
 	if err != nil {
 		return err
 	}
@@ -130,6 +131,8 @@ func (a *App) subscribeBasedDiff(ctx context.Context, ref string, compare []stri
 				a.logError(err)
 				return
 			}
+			a.Logger.Printf("sending gNMI SubscribeRequest: subscribe='%+v', mode='%+v', encoding='%+v', to %s",
+				subReq.Request, subReq.GetSubscribe().GetMode(), subReq.GetSubscribe().GetEncoding(), ref)
 			rspChan, errChan := refTarget.SubscribeOnce(ctx, subReq, "diff-sub")
 			for {
 				select {
@@ -166,6 +169,8 @@ func (a *App) subscribeBasedDiff(ctx context.Context, ref string, compare []stri
 					return
 				}
 				responses := make([]proto.Message, 0)
+				a.Logger.Printf("sending gNMI SubscribeRequest: subscribe='%+v', mode='%+v', encoding='%+v', to %s",
+					subReq.Request, subReq.GetSubscribe().GetMode(), subReq.GetSubscribe().GetEncoding(), tName)
 				subRspChan, errChan := t.SubscribeOnce(ctx, subReq, "diff-sub")
 				for {
 					select {
