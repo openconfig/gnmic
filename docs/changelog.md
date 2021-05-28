@@ -1,6 +1,15 @@
 
 ## Changelog
 
+### v0.14.0 - May 28th 2021
+
+- New Output format `flat`
+    - This format prints the Get and Subscribe RPCs as a list of `xpath: value`, where the `xpath` points to a leaf value.
+
+- New `gnmic diff` command:
+    - This command prints the difference in responses between a reference target `--ref` and one or more targets to be compared to the reference `--compare`.
+    - The output is printed as `flat` format results.
+  
 ### v0.13.0 - May 10th 2021
 
 - New `gnmic generate` Command:
