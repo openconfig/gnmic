@@ -83,8 +83,12 @@ func (f *File) SetEventProcessors(ps map[string]map[string]interface{}, logger *
 				}
 				f.evps = append(f.evps, ep)
 				f.logger.Printf("added event processor '%s' of type=%s to file output", epName, epType)
+				continue
 			}
+			f.logger.Printf("%q event processor has an unknown type=%q", epName, epType)
+			continue
 		}
+		f.logger.Printf("%q event processor not found!", epName)
 	}
 }
 

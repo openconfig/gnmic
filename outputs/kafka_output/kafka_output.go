@@ -113,8 +113,12 @@ func (k *KafkaOutput) SetEventProcessors(ps map[string]map[string]interface{}, l
 				}
 				k.evps = append(k.evps, ep)
 				k.logger.Printf("added event processor '%s' of type=%s to kafka output", epName, epType)
+				continue
 			}
+			k.logger.Printf("%q event processor has an unknown type=%q", epName, epType)
+			continue
 		}
+		k.logger.Printf("%q event processor not found!", epName)
 	}
 }
 

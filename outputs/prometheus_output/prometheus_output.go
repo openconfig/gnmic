@@ -131,8 +131,12 @@ func (p *PrometheusOutput) SetEventProcessors(ps map[string]map[string]interface
 				}
 				p.evps = append(p.evps, ep)
 				p.logger.Printf("added event processor '%s' of type=%s to prometheus output", epName, epType)
+				continue
 			}
+			p.logger.Printf("%q event processor has an unknown type=%q", epName, epType)
+			continue
 		}
+		p.logger.Printf("%q event processor not found!", epName)
 	}
 }
 

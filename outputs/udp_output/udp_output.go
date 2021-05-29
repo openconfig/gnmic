@@ -76,8 +76,12 @@ func (u *UDPSock) SetEventProcessors(ps map[string]map[string]interface{}, logge
 				}
 				u.evps = append(u.evps, ep)
 				u.logger.Printf("added event processor '%s' of type=%s to udp output", epName, epType)
+				continue
 			}
+			u.logger.Printf("%q event processor has an unknown type=%q", epName, epType)
+			continue
 		}
+		u.logger.Printf("%q event processor not found!", epName)
 	}
 }
 

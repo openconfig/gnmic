@@ -113,8 +113,12 @@ func (s *StanOutput) SetEventProcessors(ps map[string]map[string]interface{}, lo
 				}
 				s.evps = append(s.evps, ep)
 				s.logger.Printf("added event processor %q of type=%s to stan output", epName, epType)
+				continue
 			}
+			s.logger.Printf("%q event processor has an unknown type=%q", epName, epType)
+			continue
 		}
+		s.logger.Printf("%q event processor not found!", epName)
 	}
 }
 

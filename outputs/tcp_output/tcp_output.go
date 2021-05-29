@@ -78,8 +78,12 @@ func (t *TCPOutput) SetEventProcessors(ps map[string]map[string]interface{}, log
 				}
 				t.evps = append(t.evps, ep)
 				t.logger.Printf("added event processor '%s' of type=%s to tcp output", epName, epType)
+				continue
 			}
+			t.logger.Printf("%q event processor has an unknown type=%q", epName, epType)
+			continue
 		}
+		t.logger.Printf("%q event processor not found!", epName)
 	}
 }
 

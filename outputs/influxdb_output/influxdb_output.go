@@ -98,8 +98,12 @@ func (i *InfluxDBOutput) SetEventProcessors(ps map[string]map[string]interface{}
 				}
 				i.evps = append(i.evps, ep)
 				i.logger.Printf("added event processor '%s' of type=%s to influxdb output", epName, epType)
+				continue
 			}
+			i.logger.Printf("%q event processor has an unknown type=%q", epName, epType)
+			continue
 		}
+		i.logger.Printf("%q event processor not found!", epName)
 	}
 }
 

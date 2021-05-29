@@ -107,8 +107,12 @@ func (n *NatsOutput) SetEventProcessors(ps map[string]map[string]interface{}, lo
 				}
 				n.evps = append(n.evps, ep)
 				n.logger.Printf("added event processor '%s' of type=%s to nats output", epName, epType)
+				continue
 			}
+			n.logger.Printf("%q event processor has an unknown type=%q", epName, epType)
+			continue
 		}
+		n.logger.Printf("%q event processor not found!", epName)
 	}
 }
 
