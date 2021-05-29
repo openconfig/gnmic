@@ -143,7 +143,11 @@ func (f *File) Init(ctx context.Context, name string, cfg map[string]interface{}
 
 	f.sem = semaphore.NewWeighted(int64(f.Cfg.ConcurrencyLimit))
 
-	f.mo = &formatters.MarshalOptions{Multiline: f.Cfg.Multiline, Indent: f.Cfg.Indent, Format: f.Cfg.Format}
+	f.mo = &formatters.MarshalOptions{
+		Multiline: f.Cfg.Multiline,
+		Indent:    f.Cfg.Indent,
+		Format:    f.Cfg.Format,
+	}
 
 	f.logger.Printf("initialized file output: %s", f.String())
 	go func() {
