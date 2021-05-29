@@ -1,7 +1,6 @@
 package event_override_ts
 
 import (
-	"reflect"
 	"testing"
 	"time"
 
@@ -20,7 +19,10 @@ var testset = map[string]struct {
 	tests     []item
 }{
 	"ms": {
-		processor: map[string]interface{}{},
+		processor: map[string]interface{}{
+			"type":  processorType,
+			"debug": true,
+		},
 		tests: []item{
 			{
 				input:  nil,
@@ -31,6 +33,11 @@ var testset = map[string]struct {
 			},
 			{
 				input: []*formatters.EventMsg{
+					{
+						Timestamp: 0,
+					},
+				},
+				output: []*formatters.EventMsg{
 					{
 						Timestamp: now.UnixNano() / 1000000,
 					},
@@ -40,7 +47,9 @@ var testset = map[string]struct {
 	},
 	"ns": {
 		processor: map[string]interface{}{
+			"type":      processorType,
 			"precision": "ns",
+			"debug":     true,
 		},
 		tests: []item{
 			{
@@ -52,6 +61,11 @@ var testset = map[string]struct {
 			},
 			{
 				input: []*formatters.EventMsg{
+					{
+						Timestamp: -1,
+					},
+				},
+				output: []*formatters.EventMsg{
 					{
 						Timestamp: now.UnixNano(),
 					},
@@ -61,7 +75,9 @@ var testset = map[string]struct {
 	},
 	"us": {
 		processor: map[string]interface{}{
+			"type":      processorType,
 			"precision": "us",
+			"debug":     true,
 		},
 		tests: []item{
 			{
@@ -74,6 +90,11 @@ var testset = map[string]struct {
 			{
 				input: []*formatters.EventMsg{
 					{
+						Timestamp: -1,
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
 						Timestamp: now.UnixNano() / 1000,
 					},
 				},
@@ -82,7 +103,9 @@ var testset = map[string]struct {
 	},
 	"s": {
 		processor: map[string]interface{}{
+			"type":      processorType,
 			"precision": "s",
+			"debug":     true,
 		},
 		tests: []item{
 			{
@@ -94,6 +117,11 @@ var testset = map[string]struct {
 			},
 			{
 				input: []*formatters.EventMsg{
+					{
+						Timestamp: -1,
+					},
+				},
+				output: []*formatters.EventMsg{
 					{
 						Timestamp: now.Unix(),
 					},
@@ -105,6 +133,7 @@ var testset = map[string]struct {
 
 func TestEventDateString(t *testing.T) {
 	for name, ts := range testset {
+		t.Log(name)
 		if typ, ok := ts.processor["type"]; ok {
 			t.Log("found type")
 			if pi, ok := formatters.EventProcessors[typ.(string)]; ok {
@@ -121,7 +150,7 @@ func TestEventDateString(t *testing.T) {
 						t.Logf("running test item %d", i)
 						outs := p.Apply(item.input...)
 						for j := range outs {
-							if !reflect.DeepEqual(outs[j], item.output[j]) {
+							if outs[j].Timestamp < item.output[j].Timestamp {
 								t.Logf("failed at event override_ts, item %d, index %d", i, j)
 								t.Logf("expected: %#v", item.output[j])
 								t.Logf("     got: %#v", outs[j])

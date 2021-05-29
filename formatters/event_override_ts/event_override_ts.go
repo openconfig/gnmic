@@ -17,7 +17,7 @@ const (
 
 // OverrideTS Overrides the message timestamp with the local time
 type OverrideTS struct {
-	formatters.EventProcessor
+	//formatters.EventProcessor
 
 	Precision string `mapstructure:"precision,omitempty" json:"precision,omitempty"`
 	Debug     bool   `mapstructure:"debug,omitempty" json:"debug,omitempty"`
@@ -28,13 +28,13 @@ type OverrideTS struct {
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
 		return &OverrideTS{
-			logger: log.New(ioutil.Discard, "", 0),
+			logger: log.New(os.Stderr, "", 0),
 		}
 	})
 }
 
 func (o *OverrideTS) Init(cfg interface{}, opts ...formatters.Option) error {
-	err := formatters.DecodeConfig(cfg, 0)
+	err := formatters.DecodeConfig(cfg, o)
 	if err != nil {
 		return err
 	}
@@ -76,10 +76,12 @@ func (o *OverrideTS) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	return es
 }
 
-func (p *OverrideTS) WithLogger(l *log.Logger) {
-	if p.Debug && l != nil {
-		p.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
-	} else if p.Debug {
-		p.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
+func (o *OverrideTS) WithLogger(l *log.Logger) {
+	if o.Debug && l != nil {
+		o.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
+	} else if o.Debug {
+		o.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
 	}
 }
+
+func (o *OverrideTS) WithTargets(tcs map[string]interface{}) {}
