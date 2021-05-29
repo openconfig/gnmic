@@ -59,19 +59,20 @@ type KafkaOutput struct {
 
 // Config //
 type Config struct {
-	Address          string        `mapstructure:"address,omitempty"`
-	Topic            string        `mapstructure:"topic,omitempty"`
-	Name             string        `mapstructure:"name,omitempty"`
-	SASL             *sasl         `mapstructure:"sasl,omitempty"`
-	MaxRetry         int           `mapstructure:"max-retry,omitempty"`
-	Timeout          time.Duration `mapstructure:"timeout,omitempty"`
-	RecoveryWaitTime time.Duration `mapstructure:"recovery-wait-time,omitempty"`
-	Format           string        `mapstructure:"format,omitempty"`
-	NumWorkers       int           `mapstructure:"num-workers,omitempty"`
-	Debug            bool          `mapstructure:"debug,omitempty"`
-	BufferSize       int           `mapstructure:"buffer-size,omitempty"`
-	EnableMetrics    bool          `mapstructure:"enable-metrics,omitempty"`
-	EventProcessors  []string      `mapstructure:"event-processors,omitempty"`
+	Address           string        `mapstructure:"address,omitempty"`
+	Topic             string        `mapstructure:"topic,omitempty"`
+	Name              string        `mapstructure:"name,omitempty"`
+	SASL              *sasl         `mapstructure:"sasl,omitempty"`
+	MaxRetry          int           `mapstructure:"max-retry,omitempty"`
+	Timeout           time.Duration `mapstructure:"timeout,omitempty"`
+	RecoveryWaitTime  time.Duration `mapstructure:"recovery-wait-time,omitempty"`
+	Format            string        `mapstructure:"format,omitempty"`
+	NumWorkers        int           `mapstructure:"num-workers,omitempty"`
+	Debug             bool          `mapstructure:"debug,omitempty"`
+	BufferSize        int           `mapstructure:"buffer-size,omitempty"`
+	OverrideTimestamp bool          `mapstructure:"override-ts,omitempty"`
+	EnableMetrics     bool          `mapstructure:"enable-metrics,omitempty"`
+	EventProcessors   []string      `mapstructure:"event-processors,omitempty"`
 }
 type sasl struct {
 	User      string `mapstructure:"user,omitempty"`
@@ -134,7 +135,10 @@ func (k *KafkaOutput) Init(ctx context.Context, name string, cfg map[string]inte
 		return err
 	}
 	k.msgChan = make(chan *protoMsg, uint(k.Cfg.BufferSize))
-	k.mo = &formatters.MarshalOptions{Format: k.Cfg.Format}
+	k.mo = &formatters.MarshalOptions{
+		Format:     k.Cfg.Format,
+		OverrideTS: k.Cfg.OverrideTimestamp,
+	}
 
 	config := k.createConfig()
 	ctx, k.cancelFn = context.WithCancel(ctx)

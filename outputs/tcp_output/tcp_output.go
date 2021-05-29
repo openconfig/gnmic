@@ -42,15 +42,16 @@ type TCPOutput struct {
 }
 
 type Config struct {
-	Address         string        `mapstructure:"address,omitempty"` // ip:port
-	Rate            time.Duration `mapstructure:"rate,omitempty"`
-	BufferSize      uint          `mapstructure:"buffer-size,omitempty"`
-	Format          string        `mapstructure:"format,omitempty"`
-	KeepAlive       time.Duration `mapstructure:"keep-alive,omitempty"`
-	RetryInterval   time.Duration `mapstructure:"retry-interval,omitempty"`
-	NumWorkers      int           `mapstructure:"num-workers,omitempty"`
-	EnableMetrics   bool          `mapstructure:"enable-metrics,omitempty"`
-	EventProcessors []string      `mapstructure:"event-processors,omitempty"`
+	Address           string        `mapstructure:"address,omitempty"` // ip:port
+	Rate              time.Duration `mapstructure:"rate,omitempty"`
+	BufferSize        uint          `mapstructure:"buffer-size,omitempty"`
+	Format            string        `mapstructure:"format,omitempty"`
+	OverrideTimestamp bool          `mapstructure:"override-ts,omitempty"`
+	KeepAlive         time.Duration `mapstructure:"keep-alive,omitempty"`
+	RetryInterval     time.Duration `mapstructure:"retry-interval,omitempty"`
+	NumWorkers        int           `mapstructure:"num-workers,omitempty"`
+	EnableMetrics     bool          `mapstructure:"enable-metrics,omitempty"`
+	EventProcessors   []string      `mapstructure:"event-processors,omitempty"`
 }
 
 func (t *TCPOutput) SetLogger(logger *log.Logger) {

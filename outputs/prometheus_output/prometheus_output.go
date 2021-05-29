@@ -88,6 +88,7 @@ type Config struct {
 	MetricPrefix           string               `mapstructure:"metric-prefix,omitempty"`
 	AppendSubscriptionName bool                 `mapstructure:"append-subscription-name,omitempty"`
 	ExportTimestamps       bool                 `mapstructure:"export-timestamps,omitempty"`
+	OverrideTimestamp      bool                 `mapstructure:"override-ts,omitempty"`
 	StringsAsLabels        bool                 `mapstructure:"strings-as-labels,omitempty"`
 	Debug                  bool                 `mapstructure:"debug,omitempty"`
 	EventProcessors        []string             `mapstructure:"event-processors,omitempty"`
@@ -323,6 +324,9 @@ func (p *PrometheusOutput) worker(ctx context.Context) {
 					labels:  labels,
 					value:   v,
 					addedAt: now,
+				}
+				if p.Cfg.OverrideTimestamp && p.Cfg.ExportTimestamps {
+					ev.Timestamp = time.Now().UnixNano()
 				}
 				if p.Cfg.ExportTimestamps {
 					tm := time.Unix(0, ev.Timestamp)

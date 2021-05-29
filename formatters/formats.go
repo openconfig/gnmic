@@ -22,7 +22,7 @@ type MarshalOptions struct {
 
 // Marshal //
 func (o *MarshalOptions) Marshal(msg proto.Message, meta map[string]string, eps ...EventProcessor) ([]byte, error) {
-	msg = o.overrideTS(msg)
+	msg = o.OverrideTimestamp(msg)
 	switch o.Format {
 	default: // json
 		return o.FormatJSON(msg, meta)
@@ -84,7 +84,7 @@ func (o *MarshalOptions) Marshal(msg proto.Message, meta map[string]string, eps 
 	}
 }
 
-func (o *MarshalOptions) overrideTS(msg proto.Message) proto.Message {
+func (o *MarshalOptions) OverrideTimestamp(msg proto.Message) proto.Message {
 	if o.OverrideTS {
 		ts := time.Now().UnixNano()
 		switch msg := msg.ProtoReflect().Interface().(type) {

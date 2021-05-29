@@ -63,6 +63,7 @@ type Config struct {
 	Debug             bool          `mapstructure:"debug,omitempty"`
 	EventProcessors   []string      `mapstructure:"event-processors,omitempty"`
 	EnableMetrics     bool          `mapstructure:"enable-metrics,omitempty"`
+	OverrideTimestamp bool          `mapstructure:"override-ts,omitempty"`
 }
 
 func (k *InfluxDBOutput) String() string {
@@ -266,6 +267,9 @@ START:
 				case *gnmi.Decimal64:
 					ev.Values[n] = float64(v.Digits) / math.Pow10(int(v.Precision))
 				}
+			}
+			if ev.Timestamp == 0 || i.Cfg.OverrideTimestamp {
+				ev.Timestamp = time.Now().UnixNano()
 			}
 			writer.WritePoint(influxdb2.NewPoint(ev.Name, ev.Tags, ev.Values, time.Unix(0, ev.Timestamp)))
 		case <-i.reset:
