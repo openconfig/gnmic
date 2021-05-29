@@ -62,23 +62,23 @@ type StanOutput struct {
 
 // Config //
 type Config struct {
-	Name              string        `mapstructure:"name,omitempty"`
-	Address           string        `mapstructure:"address,omitempty"`
-	SubjectPrefix     string        `mapstructure:"subject-prefix,omitempty"`
-	Subject           string        `mapstructure:"subject,omitempty"`
-	Username          string        `mapstructure:"username,omitempty"`
-	Password          string        `mapstructure:"password,omitempty"`
-	ClusterName       string        `mapstructure:"cluster-name,omitempty"`
-	PingInterval      int           `mapstructure:"ping-interval,omitempty"`
-	PingRetry         int           `mapstructure:"ping-retry,omitempty"`
-	Format            string        `mapstructure:"format,omitempty"`
-	OverrideTimestamp bool          `mapstructure:"override-ts,omitempty"`
-	RecoveryWaitTime  time.Duration `mapstructure:"recovery-wait-time,omitempty"`
-	NumWorkers        int           `mapstructure:"num-workers,omitempty"`
-	Debug             bool          `mapstructure:"debug,omitempty"`
-	WriteTimeout      time.Duration `mapstructure:"write-timeout,omitempty"`
-	EnableMetrics     bool          `mapstructure:"enable-metrics,omitempty"`
-	EventProcessors   []string      `mapstructure:"event-processors,omitempty"`
+	Name               string        `mapstructure:"name,omitempty"`
+	Address            string        `mapstructure:"address,omitempty"`
+	SubjectPrefix      string        `mapstructure:"subject-prefix,omitempty"`
+	Subject            string        `mapstructure:"subject,omitempty"`
+	Username           string        `mapstructure:"username,omitempty"`
+	Password           string        `mapstructure:"password,omitempty"`
+	ClusterName        string        `mapstructure:"cluster-name,omitempty"`
+	PingInterval       int           `mapstructure:"ping-interval,omitempty"`
+	PingRetry          int           `mapstructure:"ping-retry,omitempty"`
+	Format             string        `mapstructure:"format,omitempty"`
+	OverrideTimestamps bool          `mapstructure:"override-timestamps,omitempty"`
+	RecoveryWaitTime   time.Duration `mapstructure:"recovery-wait-time,omitempty"`
+	NumWorkers         int           `mapstructure:"num-workers,omitempty"`
+	Debug              bool          `mapstructure:"debug,omitempty"`
+	WriteTimeout       time.Duration `mapstructure:"write-timeout,omitempty"`
+	EnableMetrics      bool          `mapstructure:"enable-metrics,omitempty"`
+	EventProcessors    []string      `mapstructure:"event-processors,omitempty"`
 }
 
 func (s *StanOutput) String() string {
@@ -142,7 +142,7 @@ func (s *StanOutput) Init(ctx context.Context, name string, cfg map[string]inter
 
 	s.mo = &formatters.MarshalOptions{
 		Format:     s.Cfg.Format,
-		OverrideTS: s.Cfg.OverrideTimestamp,
+		OverrideTS: s.Cfg.OverrideTimestamps,
 	}
 	ctx, s.cancelFn = context.WithCancel(ctx)
 	s.wg.Add(s.Cfg.NumWorkers)

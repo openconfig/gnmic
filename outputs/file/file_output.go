@@ -45,17 +45,17 @@ type File struct {
 
 // Config //
 type Config struct {
-	FileName          string   `mapstructure:"filename,omitempty"`
-	FileType          string   `mapstructure:"file-type,omitempty"`
-	Format            string   `mapstructure:"format,omitempty"`
-	Multiline         bool     `mapstructure:"multiline,omitempty"`
-	Indent            string   `mapstructure:"indent,omitempty"`
-	Separator         string   `mapstructure:"separator,omitempty"`
-	OverrideTimestamp bool     `mapstructure:"override-ts,omitempty"`
-	EventProcessors   []string `mapstructure:"event-processors,omitempty"`
-	ConcurrencyLimit  int      `mapstructure:"concurrency-limit,omitempty"`
-	EnableMetrics     bool     `mapstructure:"enable-metrics,omitempty"`
-	Debug             bool     `mapstructure:"debug,omitempty"`
+	FileName           string   `mapstructure:"filename,omitempty"`
+	FileType           string   `mapstructure:"file-type,omitempty"`
+	Format             string   `mapstructure:"format,omitempty"`
+	Multiline          bool     `mapstructure:"multiline,omitempty"`
+	Indent             string   `mapstructure:"indent,omitempty"`
+	Separator          string   `mapstructure:"separator,omitempty"`
+	OverrideTimestamps bool     `mapstructure:"override-timestamps,omitempty"`
+	EventProcessors    []string `mapstructure:"event-processors,omitempty"`
+	ConcurrencyLimit   int      `mapstructure:"concurrency-limit,omitempty"`
+	EnableMetrics      bool     `mapstructure:"enable-metrics,omitempty"`
+	Debug              bool     `mapstructure:"debug,omitempty"`
 }
 
 func (f *File) String() string {
@@ -152,7 +152,7 @@ func (f *File) Init(ctx context.Context, name string, cfg map[string]interface{}
 		Multiline:  f.Cfg.Multiline,
 		Indent:     f.Cfg.Indent,
 		Format:     f.Cfg.Format,
-		OverrideTS: f.Cfg.OverrideTimestamp,
+		OverrideTS: f.Cfg.OverrideTimestamps,
 	}
 
 	f.logger.Printf("initialized file output: %s", f.String())

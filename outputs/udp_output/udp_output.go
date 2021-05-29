@@ -42,14 +42,14 @@ type UDPSock struct {
 }
 
 type Config struct {
-	Address           string        `mapstructure:"address,omitempty"` // ip:port
-	Rate              time.Duration `mapstructure:"rate,omitempty"`
-	BufferSize        uint          `mapstructure:"buffer-size,omitempty"`
-	Format            string        `mapstructure:"format,omitempty"`
-	OverrideTimestamp bool          `mapstructure:"override-ts,omitempty"`
-	RetryInterval     time.Duration `mapstructure:"retry-interval,omitempty"`
-	EnableMetrics     bool          `mapstructure:"enable-metrics,omitempty"`
-	EventProcessors   []string      `mapstructure:"event-processors,omitempty"`
+	Address            string        `mapstructure:"address,omitempty"` // ip:port
+	Rate               time.Duration `mapstructure:"rate,omitempty"`
+	BufferSize         uint          `mapstructure:"buffer-size,omitempty"`
+	Format             string        `mapstructure:"format,omitempty"`
+	OverrideTimestamps bool          `mapstructure:"override-timestamps,omitempty"`
+	RetryInterval      time.Duration `mapstructure:"retry-interval,omitempty"`
+	EnableMetrics      bool          `mapstructure:"enable-metrics,omitempty"`
+	EventProcessors    []string      `mapstructure:"event-processors,omitempty"`
 }
 
 func (u *UDPSock) SetLogger(logger *log.Logger) {
@@ -112,7 +112,7 @@ func (u *UDPSock) Init(ctx context.Context, name string, cfg map[string]interfac
 	ctx, u.cancelFn = context.WithCancel(ctx)
 	u.mo = &formatters.MarshalOptions{
 		Format:     u.Cfg.Format,
-		OverrideTS: u.Cfg.OverrideTimestamp,
+		OverrideTS: u.Cfg.OverrideTimestamps,
 	}
 	go u.start(ctx)
 	return nil

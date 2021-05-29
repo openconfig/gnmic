@@ -59,20 +59,20 @@ type NatsOutput struct {
 
 // Config //
 type Config struct {
-	Name              string        `mapstructure:"name,omitempty"`
-	Address           string        `mapstructure:"address,omitempty"`
-	SubjectPrefix     string        `mapstructure:"subject-prefix,omitempty"`
-	Subject           string        `mapstructure:"subject,omitempty"`
-	Username          string        `mapstructure:"username,omitempty"`
-	Password          string        `mapstructure:"password,omitempty"`
-	ConnectTimeWait   time.Duration `mapstructure:"connect-time-wait,omitempty"`
-	Format            string        `mapstructure:"format,omitempty"`
-	OverrideTimestamp bool          `mapstructure:"override-ts,omitempty"`
-	NumWorkers        int           `mapstructure:"num-workers,omitempty"`
-	WriteTimeout      time.Duration `mapstructure:"write-timeout,omitempty"`
-	Debug             bool          `mapstructure:"debug,omitempty"`
-	EnableMetrics     bool          `mapstructure:"enable-metrics,omitempty"`
-	EventProcessors   []string      `mapstructure:"event-processors,omitempty"`
+	Name               string        `mapstructure:"name,omitempty"`
+	Address            string        `mapstructure:"address,omitempty"`
+	SubjectPrefix      string        `mapstructure:"subject-prefix,omitempty"`
+	Subject            string        `mapstructure:"subject,omitempty"`
+	Username           string        `mapstructure:"username,omitempty"`
+	Password           string        `mapstructure:"password,omitempty"`
+	ConnectTimeWait    time.Duration `mapstructure:"connect-time-wait,omitempty"`
+	Format             string        `mapstructure:"format,omitempty"`
+	OverrideTimestamps bool          `mapstructure:"override-timestamps,omitempty"`
+	NumWorkers         int           `mapstructure:"num-workers,omitempty"`
+	WriteTimeout       time.Duration `mapstructure:"write-timeout,omitempty"`
+	Debug              bool          `mapstructure:"debug,omitempty"`
+	EnableMetrics      bool          `mapstructure:"enable-metrics,omitempty"`
+	EventProcessors    []string      `mapstructure:"event-processors,omitempty"`
 }
 
 func (n *NatsOutput) String() string {
@@ -136,7 +136,7 @@ func (n *NatsOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	initMetrics()
 	n.mo = &formatters.MarshalOptions{
 		Format:     n.Cfg.Format,
-		OverrideTS: n.Cfg.OverrideTimestamp,
+		OverrideTS: n.Cfg.OverrideTimestamps,
 	}
 	n.ctx, n.cancelFn = context.WithCancel(ctx)
 	n.wg.Add(n.Cfg.NumWorkers)
