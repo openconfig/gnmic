@@ -15,6 +15,8 @@ outputs:
     file-type: # stdout or stderr
     # string, message formatting, json, protojson, prototext, event
     format: 
+    # boolean, if true the message timestamp is changed to current time
+    override-timestamps: 
     # boolean, format the output in indented form with every element on a new line.
     multiline: 
     # string, indent specifies the set of indentation characters to use in a multiline formatted output

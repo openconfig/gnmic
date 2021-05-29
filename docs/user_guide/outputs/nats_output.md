@@ -27,6 +27,8 @@ outputs:
     connect-time-wait: 2s 
     # Exported message format, one of: proto, prototext, protojson, json, event
     format: json 
+    # boolean, if true the message timestamp is changed to current time
+    override-timestamps: false
     # integer, number of nats publishers to be created
     num-workers: 1 
     # duration after which a message waiting to be handled by a worker gets discarded

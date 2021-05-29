@@ -30,6 +30,8 @@ outputs:
     ping-retry: 2
     # string, message marshaling format, one of: proto, prototext, protojson, json, event
     format:  event 
+    # boolean, if true the message timestamp is changed to current time
+    override-timestamps: false
     # duration to wait before re establishing a lost connection to a stan server
     recovery-wait-time: 2s
     # integer, number of stan publishers to be created
