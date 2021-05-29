@@ -10,6 +10,7 @@ import (
 	_ "github.com/karimra/gnmic/formatters/event_extract_tags"
 	_ "github.com/karimra/gnmic/formatters/event_jq"
 	_ "github.com/karimra/gnmic/formatters/event_merge"
+	_ "github.com/karimra/gnmic/formatters/event_override_ts"
 	_ "github.com/karimra/gnmic/formatters/event_strings"
 	_ "github.com/karimra/gnmic/formatters/event_to_tag"
 	_ "github.com/karimra/gnmic/formatters/event_trigger"
