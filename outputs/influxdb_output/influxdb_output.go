@@ -51,18 +51,19 @@ type InfluxDBOutput struct {
 	evps      []formatters.EventProcessor
 }
 type Config struct {
-	URL               string        `mapstructure:"url,omitempty"`
-	Org               string        `mapstructure:"org,omitempty"`
-	Bucket            string        `mapstructure:"bucket,omitempty"`
-	Token             string        `mapstructure:"token,omitempty"`
-	BatchSize         uint          `mapstructure:"batch-size,omitempty"`
-	FlushTimer        time.Duration `mapstructure:"flush-timer,omitempty"`
-	UseGzip           bool          `mapstructure:"use-gzip,omitempty"`
-	EnableTLS         bool          `mapstructure:"enable-tls,omitempty"`
-	HealthCheckPeriod time.Duration `mapstructure:"health-check-period,omitempty"`
-	Debug             bool          `mapstructure:"debug,omitempty"`
-	EventProcessors   []string      `mapstructure:"event-processors,omitempty"`
-	EnableMetrics     bool          `mapstructure:"enable-metrics,omitempty"`
+	URL                string        `mapstructure:"url,omitempty"`
+	Org                string        `mapstructure:"org,omitempty"`
+	Bucket             string        `mapstructure:"bucket,omitempty"`
+	Token              string        `mapstructure:"token,omitempty"`
+	BatchSize          uint          `mapstructure:"batch-size,omitempty"`
+	FlushTimer         time.Duration `mapstructure:"flush-timer,omitempty"`
+	UseGzip            bool          `mapstructure:"use-gzip,omitempty"`
+	EnableTLS          bool          `mapstructure:"enable-tls,omitempty"`
+	HealthCheckPeriod  time.Duration `mapstructure:"health-check-period,omitempty"`
+	Debug              bool          `mapstructure:"debug,omitempty"`
+	EventProcessors    []string      `mapstructure:"event-processors,omitempty"`
+	EnableMetrics      bool          `mapstructure:"enable-metrics,omitempty"`
+	OverrideTimestamps bool          `mapstructure:"override-timestamps,omitempty"`
 }
 
 func (k *InfluxDBOutput) String() string {
@@ -97,8 +98,12 @@ func (i *InfluxDBOutput) SetEventProcessors(ps map[string]map[string]interface{}
 				}
 				i.evps = append(i.evps, ep)
 				i.logger.Printf("added event processor '%s' of type=%s to influxdb output", epName, epType)
+				continue
 			}
+			i.logger.Printf("%q event processor has an unknown type=%q", epName, epType)
+			continue
 		}
+		i.logger.Printf("%q event processor not found!", epName)
 	}
 }
 
@@ -266,6 +271,9 @@ START:
 				case *gnmi.Decimal64:
 					ev.Values[n] = float64(v.Digits) / math.Pow10(int(v.Precision))
 				}
+			}
+			if ev.Timestamp == 0 || i.Cfg.OverrideTimestamps {
+				ev.Timestamp = time.Now().UnixNano()
 			}
 			writer.WritePoint(influxdb2.NewPoint(ev.Name, ev.Tags, ev.Values, time.Unix(0, ev.Timestamp)))
 		case <-i.reset:

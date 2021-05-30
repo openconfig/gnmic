@@ -35,6 +35,8 @@ outputs:
     recovery-wait-time: 10s 
     # Exported msg format, json, protojson, prototext, proto, event
     format: event 
+    # boolean, if true the message timestamp is changed to current time
+    override-timestamps: false
     # Number of kafka producers to be created 
     num-workers: 1 
     # (bool) enable debug

@@ -42,13 +42,14 @@ type UDPSock struct {
 }
 
 type Config struct {
-	Address         string        `mapstructure:"address,omitempty"` // ip:port
-	Rate            time.Duration `mapstructure:"rate,omitempty"`
-	BufferSize      uint          `mapstructure:"buffer-size,omitempty"`
-	Format          string        `mapstructure:"format,omitempty"`
-	RetryInterval   time.Duration `mapstructure:"retry-interval,omitempty"`
-	EnableMetrics   bool          `mapstructure:"enable-metrics,omitempty"`
-	EventProcessors []string      `mapstructure:"event-processors,omitempty"`
+	Address            string        `mapstructure:"address,omitempty"` // ip:port
+	Rate               time.Duration `mapstructure:"rate,omitempty"`
+	BufferSize         uint          `mapstructure:"buffer-size,omitempty"`
+	Format             string        `mapstructure:"format,omitempty"`
+	OverrideTimestamps bool          `mapstructure:"override-timestamps,omitempty"`
+	RetryInterval      time.Duration `mapstructure:"retry-interval,omitempty"`
+	EnableMetrics      bool          `mapstructure:"enable-metrics,omitempty"`
+	EventProcessors    []string      `mapstructure:"event-processors,omitempty"`
 }
 
 func (u *UDPSock) SetLogger(logger *log.Logger) {
@@ -75,8 +76,12 @@ func (u *UDPSock) SetEventProcessors(ps map[string]map[string]interface{}, logge
 				}
 				u.evps = append(u.evps, ep)
 				u.logger.Printf("added event processor '%s' of type=%s to udp output", epName, epType)
+				continue
 			}
+			u.logger.Printf("%q event processor has an unknown type=%q", epName, epType)
+			continue
 		}
+		u.logger.Printf("%q event processor not found!", epName)
 	}
 }
 
@@ -105,7 +110,10 @@ func (u *UDPSock) Init(ctx context.Context, name string, cfg map[string]interfac
 		u.Close()
 	}()
 	ctx, u.cancelFn = context.WithCancel(ctx)
-	u.mo = &formatters.MarshalOptions{Format: u.Cfg.Format}
+	u.mo = &formatters.MarshalOptions{
+		Format:     u.Cfg.Format,
+		OverrideTS: u.Cfg.OverrideTimestamps,
+	}
 	go u.start(ctx)
 	return nil
 }

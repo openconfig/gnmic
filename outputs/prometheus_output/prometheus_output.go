@@ -88,6 +88,7 @@ type Config struct {
 	MetricPrefix           string               `mapstructure:"metric-prefix,omitempty"`
 	AppendSubscriptionName bool                 `mapstructure:"append-subscription-name,omitempty"`
 	ExportTimestamps       bool                 `mapstructure:"export-timestamps,omitempty"`
+	OverrideTimestamps     bool                 `mapstructure:"override-timestamps,omitempty"`
 	StringsAsLabels        bool                 `mapstructure:"strings-as-labels,omitempty"`
 	Debug                  bool                 `mapstructure:"debug,omitempty"`
 	EventProcessors        []string             `mapstructure:"event-processors,omitempty"`
@@ -130,8 +131,12 @@ func (p *PrometheusOutput) SetEventProcessors(ps map[string]map[string]interface
 				}
 				p.evps = append(p.evps, ep)
 				p.logger.Printf("added event processor '%s' of type=%s to prometheus output", epName, epType)
+				continue
 			}
+			p.logger.Printf("%q event processor has an unknown type=%q", epName, epType)
+			continue
 		}
+		p.logger.Printf("%q event processor not found!", epName)
 	}
 }
 
@@ -323,6 +328,9 @@ func (p *PrometheusOutput) worker(ctx context.Context) {
 					labels:  labels,
 					value:   v,
 					addedAt: now,
+				}
+				if p.Cfg.OverrideTimestamps && p.Cfg.ExportTimestamps {
+					ev.Timestamp = time.Now().UnixNano()
 				}
 				if p.Cfg.ExportTimestamps {
 					tm := time.Unix(0, ev.Timestamp)

@@ -17,6 +17,8 @@ outputs:
     metric-prefix: "" 
     # a boolean, if true the subscription name will be appended to the metric name after the prefix
     append-subscription-name: false 
+    # boolean, if true the message timestamp is changed to current time
+    override-timestamps: false
     # a boolean, enables exporting timestamps received from the gNMI target as part of the metrics
     export-timestamps: false 
     # a boolean, enables setting string type values as prometheus metric labels.

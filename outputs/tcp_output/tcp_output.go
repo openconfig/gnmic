@@ -42,15 +42,16 @@ type TCPOutput struct {
 }
 
 type Config struct {
-	Address         string        `mapstructure:"address,omitempty"` // ip:port
-	Rate            time.Duration `mapstructure:"rate,omitempty"`
-	BufferSize      uint          `mapstructure:"buffer-size,omitempty"`
-	Format          string        `mapstructure:"format,omitempty"`
-	KeepAlive       time.Duration `mapstructure:"keep-alive,omitempty"`
-	RetryInterval   time.Duration `mapstructure:"retry-interval,omitempty"`
-	NumWorkers      int           `mapstructure:"num-workers,omitempty"`
-	EnableMetrics   bool          `mapstructure:"enable-metrics,omitempty"`
-	EventProcessors []string      `mapstructure:"event-processors,omitempty"`
+	Address            string        `mapstructure:"address,omitempty"` // ip:port
+	Rate               time.Duration `mapstructure:"rate,omitempty"`
+	BufferSize         uint          `mapstructure:"buffer-size,omitempty"`
+	Format             string        `mapstructure:"format,omitempty"`
+	OverrideTimestamps bool          `mapstructure:"override-timestamps,omitempty"`
+	KeepAlive          time.Duration `mapstructure:"keep-alive,omitempty"`
+	RetryInterval      time.Duration `mapstructure:"retry-interval,omitempty"`
+	NumWorkers         int           `mapstructure:"num-workers,omitempty"`
+	EnableMetrics      bool          `mapstructure:"enable-metrics,omitempty"`
+	EventProcessors    []string      `mapstructure:"event-processors,omitempty"`
 }
 
 func (t *TCPOutput) SetLogger(logger *log.Logger) {
@@ -77,8 +78,12 @@ func (t *TCPOutput) SetEventProcessors(ps map[string]map[string]interface{}, log
 				}
 				t.evps = append(t.evps, ep)
 				t.logger.Printf("added event processor '%s' of type=%s to tcp output", epName, epType)
+				continue
 			}
+			t.logger.Printf("%q event processor has an unknown type=%q", epName, epType)
+			continue
 		}
+		t.logger.Printf("%q event processor not found!", epName)
 	}
 }
 
@@ -104,7 +109,10 @@ func (t *TCPOutput) Init(ctx context.Context, name string, cfg map[string]interf
 	if t.Cfg.NumWorkers < 1 {
 		t.Cfg.NumWorkers = defaultNumWorkers
 	}
-	t.mo = &formatters.MarshalOptions{Format: t.Cfg.Format}
+	t.mo = &formatters.MarshalOptions{
+		Format:     t.Cfg.Format,
+		OverrideTS: t.Cfg.OverrideTimestamps,
+	}
 	go func() {
 		<-ctx.Done()
 		t.Close()
