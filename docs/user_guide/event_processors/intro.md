@@ -39,7 +39,10 @@ The keys are build from a xpath representation of the gNMI path without the keys
 
 Event processors are defined under the section `processors` in `gNMIc` configuration file.
 
-Each processors is identified by a name, under which we specify the processor type as well as field specific to each type. 
+Each processor is identified by a name, under which we specify the processor type as well as additional fields specific to each type.
+
+!!! note
+    Processors names are case insensitive
 
 All processors support a `debug` field that enables extra debug log messages to help troubleshoot the processor transformation.
 
@@ -55,6 +58,7 @@ processors:
         - ".*multicast.*"
         - ".*broadcast.*"
 ```
+
 ### Linking an event processor to an output
 
 Once the needed event processors are defined under section `processors`, they can be linked to the desired output(s) in the same file.

@@ -19,6 +19,9 @@ To define an Input a user needs to fill in the `inputs` section in the configura
 
 Each Input is defined by its name (`input1` in the example below), a `type` field which determines the type of input to be created (`nats`, `stan`, `kafka`) and various other configuration fields which depend on the Input type.
 
+!!! note
+    Inputs names are case insensitive
+
 All Input types have an `outputs` field, under which the user can defined the downstream destination(s) of the consumed data.
 This way, data consumed once, can be exported multiple times.
 

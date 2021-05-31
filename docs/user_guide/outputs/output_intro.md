@@ -60,6 +60,9 @@ outputs:
     cluster-name: test-cluster
 ```
 
+!!! note
+    Outputs names are case insensitive
+
 #### Output formats
 
 Different formats are supported for all outputs
