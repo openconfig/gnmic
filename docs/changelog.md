@@ -1,6 +1,11 @@
 
 ## Changelog
 
+### v0.14.1 - May 31st 2021
+
+- Fix OverrideTS processor
+- Add `override-timestamps` option under outputs, to override the message timestamps regardless of the message output format
+
 ### v0.14.0 - May 28th 2021
 
 - New Output format `flat`
