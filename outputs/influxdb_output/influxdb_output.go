@@ -303,6 +303,14 @@ func (i *InfluxDBOutput) convertUints(ev *formatters.EventMsg) {
 		switch v := v.(type) {
 		case uint:
 			ev.Values[k] = int(v)
+		case uint8:
+			ev.Values[k] = int(v)
+		case uint16:
+			ev.Values[k] = int(v)
+		case uint32:
+			ev.Values[k] = int(v)
+		case uint64:
+			ev.Values[k] = int(v)
 		}
 	}
 }
