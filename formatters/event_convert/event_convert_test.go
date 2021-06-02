@@ -125,14 +125,24 @@ var testset = map[string]struct {
 			{
 				input: []*formatters.EventMsg{
 					{
-						Values: map[string]interface{}{"number": uint(100)},
-						Tags:   map[string]string{"number": "name_tag"},
+						Values: map[string]interface{}{
+							"number1": uint8(100),
+							"number2": uint16(100),
+							"number3": uint32(100),
+							"number4": uint64(100),
+						},
+						Tags: map[string]string{"number": "name_tag"},
 					},
 				},
 				output: []*formatters.EventMsg{
 					{
-						Values: map[string]interface{}{"number": int(100)},
-						Tags:   map[string]string{"number": "name_tag"},
+						Values: map[string]interface{}{
+							"number1": int(100),
+							"number2": int(100),
+							"number3": int(100),
+							"number4": int(100),
+						},
+						Tags: map[string]string{"number": "name_tag"},
 					},
 				},
 			},
@@ -206,6 +216,23 @@ var testset = map[string]struct {
 					Values: map[string]interface{}{"name_value_bytes": true}}},
 				output: []*formatters.EventMsg{{
 					Values: map[string]interface{}{"name_value_bytes": true}}},
+			},
+			{
+				input: []*formatters.EventMsg{{
+					Values: map[string]interface{}{
+						"name_value_bytes1": int8(74),
+						"name_value_bytes2": int16(75),
+						"name_value_bytes3": int32(76),
+						"name_value_bytes4": int64(77),
+					}}},
+
+				output: []*formatters.EventMsg{{
+					Values: map[string]interface{}{
+						"name_value_bytes1": uint(74),
+						"name_value_bytes2": uint(75),
+						"name_value_bytes3": uint(76),
+						"name_value_bytes4": uint(77),
+					}}},
 			},
 		},
 	},
