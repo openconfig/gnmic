@@ -133,9 +133,27 @@ func convertToInt(i interface{}) (int, error) {
 		return iv, nil
 	case int:
 		return i, nil
+	case int8:
+		return int(i), nil
+	case int16:
+		return int(i), nil
+	case int32:
+		return int(i), nil
+	case int64:
+		return int(i), nil
 	case uint:
 		return int(i), nil
+	case uint8:
+		return int(i), nil
+	case uint16:
+		return int(i), nil
+	case uint32:
+		return int(i), nil
+	case uint64:
+		return int(i), nil
 	case float64:
+		return int(i), nil
+	case float32:
 		return int(i), nil
 	default:
 		return 0, errors.New("cannot convert to int")
@@ -155,8 +173,41 @@ func convertToUint(i interface{}) (uint, error) {
 			return 0, nil
 		}
 		return uint(i), nil
+	case int8:
+		if i < 0 {
+			return 0, nil
+		}
+		return uint(i), nil
+	case int16:
+		if i < 0 {
+			return 0, nil
+		}
+		return uint(i), nil
+	case int32:
+		if i < 0 {
+			return 0, nil
+		}
+		return uint(i), nil
+	case int64:
+		if i < 0 {
+			return 0, nil
+		}
+		return uint(i), nil
 	case uint:
 		return i, nil
+	case uint8:
+		return uint(i), nil
+	case uint16:
+		return uint(i), nil
+	case uint32:
+		return uint(i), nil
+	case uint64:
+		return uint(i), nil
+	case float32:
+		if i < 0 {
+			return 0, nil
+		}
+		return uint(i), nil
 	case float64:
 		if i < 0 {
 			return 0, nil
@@ -177,7 +228,23 @@ func convertToFloat(i interface{}) (float64, error) {
 		return iv, nil
 	case int:
 		return float64(i), nil
+	case int8:
+		return float64(i), nil
+	case int16:
+		return float64(i), nil
+	case int32:
+		return float64(i), nil
+	case int64:
+		return float64(i), nil
 	case uint:
+		return float64(i), nil
+	case uint8:
+		return float64(i), nil
+	case uint16:
+		return float64(i), nil
+	case uint32:
+		return float64(i), nil
+	case uint64:
 		return float64(i), nil
 	case float64:
 		return i, nil
