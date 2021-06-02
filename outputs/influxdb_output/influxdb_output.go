@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"math"
+	"strings"
 	"time"
 
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
@@ -47,8 +48,9 @@ type InfluxDBOutput struct {
 	eventChan chan *formatters.EventMsg
 	reset     chan struct{}
 	startSig  chan struct{}
-	wasup     bool
+	wasUP     bool
 	evps      []formatters.EventProcessor
+	dbVersion string
 }
 type Config struct {
 	URL                string        `mapstructure:"url,omitempty"`
@@ -150,7 +152,7 @@ CRCLIENT:
 		time.Sleep(10 * time.Second)
 		goto CRCLIENT
 	}
-	i.wasup = true
+	i.wasUP = true
 	go i.healthCheck(ctx)
 	i.logger.Printf("initialized influxdb client: %s", i.String())
 
@@ -217,30 +219,33 @@ func (i *InfluxDBOutput) health(ctx context.Context) error {
 	res, err := i.client.Health(ctx)
 	if err != nil {
 		i.logger.Printf("failed health check: %v", err)
-		if i.wasup {
+		if i.wasUP {
 			close(i.reset)
 			i.reset = make(chan struct{})
 		}
 		return err
 	}
 	if res != nil {
+		if res.Version != nil {
+			i.dbVersion = *res.Version
+		}
 		b, err := json.Marshal(res)
 		if err != nil {
 			i.logger.Printf("failed to marshal health check result: %v", err)
 			i.logger.Printf("health check result: %+v", res)
-			if i.wasup {
+			if i.wasUP {
 				close(i.reset)
 				i.reset = make(chan struct{})
 			}
 			return err
 		}
-		i.wasup = true
+		i.wasUP = true
 		close(i.startSig)
 		i.startSig = make(chan struct{})
 		i.logger.Printf("health check result: %s", string(b))
 		return nil
 	}
-	i.wasup = true
+	i.wasUP = true
 	close(i.startSig)
 	i.startSig = make(chan struct{})
 	i.logger.Print("health check result is nil")
@@ -275,6 +280,7 @@ START:
 			if ev.Timestamp == 0 || i.Cfg.OverrideTimestamps {
 				ev.Timestamp = time.Now().UnixNano()
 			}
+			i.convertUints(ev)
 			writer.WritePoint(influxdb2.NewPoint(ev.Name, ev.Tags, ev.Values, time.Unix(0, ev.Timestamp)))
 		case <-i.reset:
 			firstStart = false
@@ -288,3 +294,15 @@ START:
 
 func (i *InfluxDBOutput) SetName(name string)        {}
 func (i *InfluxDBOutput) SetClusterName(name string) {}
+
+func (i *InfluxDBOutput) convertUints(ev *formatters.EventMsg) {
+	if !strings.HasPrefix(i.dbVersion, "1.8") {
+		return
+	}
+	for k, v := range ev.Values {
+		switch v := v.(type) {
+		case uint:
+			ev.Values[k] = int(v)
+		}
+	}
+}
