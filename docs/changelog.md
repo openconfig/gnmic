@@ -1,6 +1,12 @@
 
 ## Changelog
 
+### v0.14.2 - June 3rd 2021
+
+- Fix `event-convert` processor when the conversion is between integer types.
+- Add an implicit conversion of uint to int if the influxdb output version is 1.8.x.
+  This is a workaround for the limited support of influx APIv2 by influxDB1.8
+
 ### v0.14.1 - May 31st 2021
 
 - Fix OverrideTS processor
