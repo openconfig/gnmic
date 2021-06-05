@@ -8,6 +8,7 @@ import (
 	"log"
 	"math"
 	"strings"
+	"text/template"
 	"time"
 
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
@@ -51,6 +52,8 @@ type InfluxDBOutput struct {
 	wasUP     bool
 	evps      []formatters.EventProcessor
 	dbVersion string
+
+	targetTpl *template.Template
 }
 type Config struct {
 	URL                string        `mapstructure:"url,omitempty"`
@@ -63,6 +66,8 @@ type Config struct {
 	EnableTLS          bool          `mapstructure:"enable-tls,omitempty"`
 	HealthCheckPeriod  time.Duration `mapstructure:"health-check-period,omitempty"`
 	Debug              bool          `mapstructure:"debug,omitempty"`
+	AddTarget          string        `mapstructure:"add-target,omitempty"`
+	TargetTemplate     string        `mapstructure:"target-template,omitempty"`
 	EventProcessors    []string      `mapstructure:"event-processors,omitempty"`
 	EnableMetrics      bool          `mapstructure:"enable-metrics,omitempty"`
 	OverrideTimestamps bool          `mapstructure:"override-timestamps,omitempty"`
@@ -139,6 +144,16 @@ func (i *InfluxDBOutput) Init(ctx context.Context, name string, cfg map[string]i
 			InsecureSkipVerify: true,
 		})
 	}
+	if i.Cfg.TargetTemplate == "" {
+		i.targetTpl = outputs.DefaultTargetTemplate
+	} else if i.Cfg.AddTarget != "" {
+		i.targetTpl, err = template.New("target-template").
+			Funcs(outputs.TemplateFuncs).
+			Parse(i.Cfg.TargetTemplate)
+		if err != nil {
+			return err
+		}
+	}
 	if i.Cfg.Debug {
 		iopts.SetLogLevel(3)
 	}
@@ -169,6 +184,10 @@ CRCLIENT:
 func (i *InfluxDBOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) {
 	if rsp == nil {
 		return
+	}
+	err := outputs.AddSubscriptionTarget(rsp, meta, i.Cfg.AddTarget, i.targetTpl)
+	if err != nil {
+		i.logger.Printf("failed to add target to the response: %v", err)
 	}
 	switch rsp := rsp.(type) {
 	case *gnmi.SubscribeResponse:
