@@ -135,7 +135,7 @@ func (c *Config) CreateSetRequestFromFile(targetName string) (*gnmi.SetRequest, 
 		if err != nil {
 			return nil, err
 		}
-		err = setValue(value, strings.ToLower(enc), buf.String())
+		err = setValue(value, strings.ToLower(enc), strings.TrimSpace(buf.String()))
 		if err != nil {
 			return nil, err
 		}
@@ -163,7 +163,7 @@ func (c *Config) CreateSetRequestFromFile(targetName string) (*gnmi.SetRequest, 
 		if err != nil {
 			return nil, err
 		}
-		err = setValue(value, strings.ToLower(enc), buf.String())
+		err = setValue(value, strings.ToLower(enc), strings.TrimSpace(buf.String()))
 		if err != nil {
 			return nil, err
 		}
