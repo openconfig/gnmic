@@ -1,6 +1,10 @@
 
 ## Changelog
 
+### v0.14.3 - June 6th 2021
+
+- Set command: Fix `ascii` values encoding if used with `--request-file` flag.
+
 ### v0.14.2 - June 3rd 2021
 
 - Fix `event-convert` processor when the conversion is between integer types.
