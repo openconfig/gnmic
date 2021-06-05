@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
+	"text/template"
 	"time"
 
 	"github.com/karimra/gnmic/formatters"
@@ -39,6 +40,8 @@ type UDPSock struct {
 	logger   *log.Logger
 	mo       *formatters.MarshalOptions
 	evps     []formatters.EventProcessor
+
+	targetTpl *template.Template
 }
 
 type Config struct {
@@ -46,6 +49,8 @@ type Config struct {
 	Rate               time.Duration `mapstructure:"rate,omitempty"`
 	BufferSize         uint          `mapstructure:"buffer-size,omitempty"`
 	Format             string        `mapstructure:"format,omitempty"`
+	AddTarget          string        `mapstructure:"add-target,omitempty"`
+	TargetTemplate     string        `mapstructure:"target-template,omitempty"`
 	OverrideTimestamps bool          `mapstructure:"override-timestamps,omitempty"`
 	RetryInterval      time.Duration `mapstructure:"retry-interval,omitempty"`
 	EnableMetrics      bool          `mapstructure:"enable-metrics,omitempty"`
@@ -114,6 +119,16 @@ func (u *UDPSock) Init(ctx context.Context, name string, cfg map[string]interfac
 		Format:     u.Cfg.Format,
 		OverrideTS: u.Cfg.OverrideTimestamps,
 	}
+	if u.Cfg.TargetTemplate == "" {
+		u.targetTpl = outputs.DefaultTargetTemplate
+	} else if u.Cfg.AddTarget != "" {
+		u.targetTpl, err = template.New("target-template").
+			Funcs(outputs.TemplateFuncs).
+			Parse(u.Cfg.TargetTemplate)
+		if err != nil {
+			return err
+		}
+	}
 	go u.start(ctx)
 	return nil
 }
@@ -122,12 +137,22 @@ func (u *UDPSock) Write(ctx context.Context, m proto.Message, meta outputs.Meta)
 	if m == nil {
 		return
 	}
-	b, err := u.mo.Marshal(m, meta, u.evps...)
-	if err != nil {
-		u.logger.Printf("failed marshaling proto msg: %v", err)
+	var err error
+	select {
+	case <-ctx.Done():
 		return
+	default:
+		err = outputs.AddSubscriptionTarget(m, meta, u.Cfg.AddTarget, u.targetTpl)
+		if err != nil {
+			u.logger.Printf("failed to add target to the response: %v", err)
+		}
+		b, err := u.mo.Marshal(m, meta, u.evps...)
+		if err != nil {
+			u.logger.Printf("failed marshaling proto msg: %v", err)
+			return
+		}
+		u.buffer <- b
 	}
-	u.buffer <- b
 }
 
 func (u *UDPSock) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {}
