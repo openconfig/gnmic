@@ -727,7 +727,7 @@ func setValue(value *gnmi.TypedValue, typ, val string) error {
 		}
 	case "ascii":
 		value.Value = &gnmi.TypedValue_AsciiVal{
-			AsciiVal: val,
+			AsciiVal: trimQuotes(val),
 		}
 	case "bool":
 		bval, err := strconv.ParseBool(val)
@@ -958,4 +958,13 @@ func (c *Config) expandOSPathFlagValues() error {
 		}
 	}
 	return nil
+}
+
+func trimQuotes(s string) string {
+	if len(s) >= 2 {
+		if s[0] == '"' && s[len(s)-1] == '"' {
+			return s[1 : len(s)-1]
+		}
+	}
+	return s
 }
