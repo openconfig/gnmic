@@ -517,7 +517,7 @@ func (c *Collector) Subscribe(ctx context.Context, tName string) error {
 		}
 		subRequests := make([]subscriptionRequest, 0)
 		for _, sc := range subscriptionsConfigs {
-			req, err := sc.CreateSubscribeRequest()
+			req, err := sc.CreateSubscribeRequest(tName)
 			if err != nil {
 				return err
 			}
@@ -560,7 +560,7 @@ func (c *Collector) SubscribeOnce(ctx context.Context, tName string) error {
 		}
 		subRequests := make([]subscriptionRequest, 0)
 		for _, sc := range subscriptionsConfigs {
-			req, err := sc.CreateSubscribeRequest()
+			req, err := sc.CreateSubscribeRequest(tName)
 			if err != nil {
 				return err
 			}
@@ -661,7 +661,12 @@ func (c *Collector) Start(ctx context.Context) {
 						c.logger.Printf("target %q, failed to decode proto bytes: %v", t.Config.Name, err)
 						continue
 					}
-					m := outputs.Meta{"source": t.Config.Name, "format": c.Config.Format, "subscription-name": rsp.SubscriptionName}
+					m := outputs.Meta{
+						"source":              t.Config.Name,
+						"format":              c.Config.Format,
+						"subscription-name":   rsp.SubscriptionName,
+						"subscription-target": rsp.SubscriptionConfig.Target,
+					}
 					if c.subscriptionMode(rsp.SubscriptionName) == "ONCE" {
 						c.Export(ctx, rsp.Response, m, t.Config.Outputs...)
 					} else {

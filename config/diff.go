@@ -23,7 +23,7 @@ func (c *Config) CreateDiffSubscribeRequest(cmd *cobra.Command) (*gnmi.Subscribe
 	if flagIsSet(cmd, "qos") {
 		sc.Qos = &c.DiffQos
 	}
-	return sc.CreateSubscribeRequest()
+	return sc.CreateSubscribeRequest("")
 }
 
 func (c *Config) CreateDiffGetRequest() (*gnmi.GetRequest, error) {

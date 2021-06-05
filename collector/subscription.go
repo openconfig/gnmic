@@ -21,6 +21,7 @@ type SubscriptionConfig struct {
 	Models            []string       `mapstructure:"models,omitempty" json:"models,omitempty"`
 	Prefix            string         `mapstructure:"prefix,omitempty" json:"prefix,omitempty"`
 	Target            string         `mapstructure:"target,omitempty" json:"target,omitempty"`
+	SetTarget         bool           `mapstructure:"set-target,omitempty" json:"set-target,omitempty"`
 	Paths             []string       `mapstructure:"paths,omitempty" json:"paths,omitempty"`
 	Mode              string         `mapstructure:"mode,omitempty" json:"mode,omitempty"`
 	StreamMode        string         `mapstructure:"stream-mode,omitempty" json:"stream-mode,omitempty"`
@@ -62,11 +63,11 @@ func (sc *SubscriptionConfig) setDefaults() error {
 }
 
 // CreateSubscribeRequest validates the SubscriptionConfig and creates gnmi.SubscribeRequest
-func (sc *SubscriptionConfig) CreateSubscribeRequest() (*gnmi.SubscribeRequest, error) {
+func (sc *SubscriptionConfig) CreateSubscribeRequest(target string) (*gnmi.SubscribeRequest, error) {
 	if err := sc.setDefaults(); err != nil {
 		return nil, err
 	}
-	gnmiPrefix, err := CreatePrefix(sc.Prefix, sc.Target)
+	gnmiPrefix, err := sc.createPrefix(target)
 	if err != nil {
 		return nil, fmt.Errorf("prefix parse error: %v", err)
 	}
@@ -132,10 +133,21 @@ func (sc *SubscriptionConfig) CreateSubscribeRequest() (*gnmi.SubscribeRequest, 
 	}, nil
 }
 
+func (sc *SubscriptionConfig) createPrefix(target string) (*gnmi.Path, error) {
+	if sc.Target != "" {
+		return CreatePrefix(sc.Prefix, sc.Target)
+	}
+	if sc.SetTarget {
+		return CreatePrefix(sc.Prefix, target)
+	}
+	return CreatePrefix(sc.Prefix, "")
+}
+
 // SubscribeResponse //
 type SubscribeResponse struct {
-	SubscriptionName string
-	Response         *gnmi.SubscribeResponse
+	SubscriptionName   string
+	SubscriptionConfig *SubscriptionConfig
+	Response           *gnmi.SubscribeResponse
 }
 
 func (sc *SubscriptionConfig) PathsString() string {
