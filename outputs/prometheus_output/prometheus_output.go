@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"text/template"
 	"time"
 
 	"github.com/google/uuid"
@@ -79,6 +80,8 @@ type PrometheusOutput struct {
 	metricRegex  *regexp.Regexp
 	evps         []formatters.EventProcessor
 	consulClient *api.Client
+
+	targetTpl *template.Template
 }
 type Config struct {
 	Name                   string               `mapstructure:"name,omitempty"`
@@ -89,6 +92,8 @@ type Config struct {
 	AppendSubscriptionName bool                 `mapstructure:"append-subscription-name,omitempty"`
 	ExportTimestamps       bool                 `mapstructure:"export-timestamps,omitempty"`
 	OverrideTimestamps     bool                 `mapstructure:"override-timestamps,omitempty"`
+	AddTarget              string               `mapstructure:"add-target,omitempty"`
+	TargetTemplate         string               `mapstructure:"target-template,omitempty"`
 	StringsAsLabels        bool                 `mapstructure:"strings-as-labels,omitempty"`
 	Debug                  bool                 `mapstructure:"debug,omitempty"`
 	EventProcessors        []string             `mapstructure:"event-processors,omitempty"`
@@ -151,7 +156,16 @@ func (p *PrometheusOutput) Init(ctx context.Context, name string, cfg map[string
 	for _, opt := range opts {
 		opt(p)
 	}
-
+	if p.Cfg.TargetTemplate == "" {
+		p.targetTpl = outputs.DefaultTargetTemplate
+	} else if p.Cfg.AddTarget != "" {
+		p.targetTpl, err = template.New("target-template").
+			Funcs(outputs.TemplateFuncs).
+			Parse(p.Cfg.TargetTemplate)
+		if err != nil {
+			return err
+		}
+	}
 	err = p.setDefaults()
 	if err != nil {
 		return err
@@ -211,6 +225,10 @@ func (p *PrometheusOutput) Write(ctx context.Context, rsp proto.Message, meta ou
 		measName := "default"
 		if subName, ok := meta["subscription-name"]; ok {
 			measName = subName
+		}
+		err := outputs.AddSubscriptionTarget(rsp, meta, p.Cfg.AddTarget, p.targetTpl)
+		if err != nil {
+			p.logger.Printf("failed to add target to the response: %v", err)
 		}
 		events, err := formatters.ResponseToEventMsgs(measName, rsp, meta, p.evps...)
 		if err != nil {
