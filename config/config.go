@@ -773,10 +773,10 @@ func setValue(value *gnmi.TypedValue, typ, val string) error {
 		}
 	case "string":
 		value.Value = &gnmi.TypedValue_StringVal{
-			StringVal: val,
+			StringVal: trimQuotes(val),
 		}
 	default:
-		return fmt.Errorf("unknown type '%s', must be one of: %v", typ, ValueTypes)
+		return fmt.Errorf("unknown type %q, must be one of: %v", typ, ValueTypes)
 	}
 	return nil
 }
