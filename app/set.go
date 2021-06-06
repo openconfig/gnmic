@@ -60,7 +60,7 @@ func (a *App) SetRequest(ctx context.Context, tName string) {
 	defer a.wg.Done()
 	req, err := a.Config.CreateSetRequest(tName)
 	if err != nil {
-		a.logError(fmt.Errorf("target %q: failed to generate%v", tName, err))
+		a.logError(fmt.Errorf("target %q: failed to generate: %v", tName, err))
 		return
 	}
 	a.setRequest(ctx, tName, req)
