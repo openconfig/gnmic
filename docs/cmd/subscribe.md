@@ -35,6 +35,9 @@ gnmic sub --path "openconfig-interfaces:/interfaces/interface"
 #### target
 With the optional `[--target]` flag it is possible to supply the [path target](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#2221-path-target) information in the prefix field of the SubscriptionList message.
 
+#### set-target
+The `[--set-target]` flag is used to set the SubscribeRequest Prefix target value to the configured target name stripped of the port number.
+
 #### model
 The `[--model]` flag is used to specify the schema definition modules that the target should use when extracting the data to stream back.
 
