@@ -191,6 +191,7 @@ SUBSC:
 	t.m.Lock()
 	t.SubscribeClients[subscriptionName] = subscribeClient
 	t.subscribeCancelFn[subscriptionName] = cancel
+	subConfig := t.Subscriptions[subscriptionName]
 	t.m.Unlock()
 	err = subscribeClient.Send(req)
 	if err != nil {
@@ -202,6 +203,7 @@ SUBSC:
 		time.Sleep(t.Config.RetryTimer)
 		goto SUBSC
 	}
+
 	switch req.GetSubscribe().Mode {
 	case gnmi.SubscriptionList_STREAM:
 		for {
@@ -223,8 +225,9 @@ SUBSC:
 				goto SUBSC
 			}
 			t.subscribeResponses <- &SubscribeResponse{
-				SubscriptionName: subscriptionName,
-				Response:         response,
+				SubscriptionName:   subscriptionName,
+				SubscriptionConfig: subConfig,
+				Response:           response,
 			}
 		}
 	case gnmi.SubscriptionList_ONCE:
@@ -247,8 +250,9 @@ SUBSC:
 				goto SUBSC
 			}
 			t.subscribeResponses <- &SubscribeResponse{
-				SubscriptionName: subscriptionName,
-				Response:         response,
+				SubscriptionName:   subscriptionName,
+				SubscriptionConfig: subConfig,
+				Response:           response,
 			}
 			switch response.Response.(type) {
 			case *gnmi.SubscribeResponse_SyncResponse:
@@ -280,8 +284,9 @@ SUBSC:
 					continue
 				}
 				t.subscribeResponses <- &SubscribeResponse{
-					SubscriptionName: subscriptionName,
-					Response:         response,
+					SubscriptionName:   subscriptionName,
+					SubscriptionConfig: subConfig,
+					Response:           response,
 				}
 			case <-nctx.Done():
 				return

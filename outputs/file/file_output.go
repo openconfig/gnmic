@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"text/template"
 	"time"
 
 	"github.com/karimra/gnmic/formatters"
@@ -41,6 +42,8 @@ type File struct {
 	mo     *formatters.MarshalOptions
 	sem    *semaphore.Weighted
 	evps   []formatters.EventProcessor
+
+	targetTpl *template.Template
 }
 
 // Config //
@@ -52,6 +55,8 @@ type Config struct {
 	Indent             string   `mapstructure:"indent,omitempty"`
 	Separator          string   `mapstructure:"separator,omitempty"`
 	OverrideTimestamps bool     `mapstructure:"override-timestamps,omitempty"`
+	AddTarget          string   `mapstructure:"add-target,omitempty"`
+	TargetTemplate     string   `mapstructure:"target-template,omitempty"`
 	EventProcessors    []string `mapstructure:"event-processors,omitempty"`
 	ConcurrencyLimit   int      `mapstructure:"concurrency-limit,omitempty"`
 	EnableMetrics      bool     `mapstructure:"enable-metrics,omitempty"`
@@ -154,7 +159,16 @@ func (f *File) Init(ctx context.Context, name string, cfg map[string]interface{}
 		Format:     f.Cfg.Format,
 		OverrideTS: f.Cfg.OverrideTimestamps,
 	}
-
+	if f.Cfg.TargetTemplate == "" {
+		f.targetTpl = outputs.DefaultTargetTemplate
+	} else if f.Cfg.AddTarget != "" {
+		f.targetTpl, err = template.New("target-template").
+			Funcs(outputs.TemplateFuncs).
+			Parse(f.Cfg.TargetTemplate)
+		if err != nil {
+			return err
+		}
+	}
 	f.logger.Printf("initialized file output: %s", f.String())
 	go func() {
 		<-ctx.Done()
@@ -179,6 +193,10 @@ func (f *File) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) 
 	defer f.sem.Release(1)
 
 	NumberOfReceivedMsgs.WithLabelValues(f.file.Name()).Inc()
+	err = outputs.AddSubscriptionTarget(rsp, meta, f.Cfg.AddTarget, f.targetTpl)
+	if err != nil {
+		f.logger.Printf("failed to add target to the response: %v", err)
+	}
 	b, err := f.mo.Marshal(rsp, meta, f.evps...)
 	if err != nil {
 		if f.Cfg.Debug {

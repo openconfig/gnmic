@@ -8,6 +8,7 @@ import (
 	"log"
 	"strings"
 	"sync"
+	"text/template"
 	"time"
 
 	"github.com/google/uuid"
@@ -58,6 +59,8 @@ type StanOutput struct {
 	wg       *sync.WaitGroup
 	mo       *formatters.MarshalOptions
 	evps     []formatters.EventProcessor
+
+	targetTpl *template.Template
 }
 
 // Config //
@@ -72,6 +75,8 @@ type Config struct {
 	PingInterval       int           `mapstructure:"ping-interval,omitempty"`
 	PingRetry          int           `mapstructure:"ping-retry,omitempty"`
 	Format             string        `mapstructure:"format,omitempty"`
+	AddTarget          string        `mapstructure:"add-target,omitempty"`
+	TargetTemplate     string        `mapstructure:"target-template,omitempty"`
 	OverrideTimestamps bool          `mapstructure:"override-timestamps,omitempty"`
 	RecoveryWaitTime   time.Duration `mapstructure:"recovery-wait-time,omitempty"`
 	NumWorkers         int           `mapstructure:"num-workers,omitempty"`
@@ -143,6 +148,17 @@ func (s *StanOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	s.mo = &formatters.MarshalOptions{
 		Format:     s.Cfg.Format,
 		OverrideTS: s.Cfg.OverrideTimestamps,
+	}
+
+	if s.Cfg.TargetTemplate == "" {
+		s.targetTpl = outputs.DefaultTargetTemplate
+	} else if s.Cfg.AddTarget != "" {
+		s.targetTpl, err = template.New("target-template").
+			Funcs(outputs.TemplateFuncs).
+			Parse(s.Cfg.TargetTemplate)
+		if err != nil {
+			return err
+		}
 	}
 	ctx, s.cancelFn = context.WithCancel(ctx)
 	s.wg.Add(s.Cfg.NumWorkers)
@@ -288,12 +304,17 @@ CRCONN:
 	s.logger.Printf("%s initialized stan producer: %s", workerLogPrefix, s.String())
 	defer stanConn.Close()
 	defer stanConn.NatsConn().Close()
+	var err error
 	for {
 		select {
 		case <-ctx.Done():
 			s.logger.Printf("%s shutting down", workerLogPrefix)
 			return
 		case m := <-s.msgChan:
+			err = outputs.AddSubscriptionTarget(m.m, m.meta, s.Cfg.AddTarget, s.targetTpl)
+			if err != nil {
+				s.logger.Printf("failed to add target to the response: %v", err)
+			}
 			b, err := s.mo.Marshal(m.m, m.meta, s.evps...)
 			if err != nil {
 				if s.Cfg.Debug {

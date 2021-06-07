@@ -23,6 +23,7 @@ func (c *Config) GetSubscriptions(cmd *cobra.Command) (map[string]*collector.Sub
 		sub.Paths = c.LocalFlags.SubscribePath
 		sub.Prefix = c.LocalFlags.SubscribePrefix
 		sub.Target = c.LocalFlags.SubscribeTarget
+		sub.SetTarget = c.LocalFlags.SubscribeSetTarget
 		sub.Mode = c.LocalFlags.SubscribeMode
 		sub.Encoding = c.Encoding
 		if flagIsSet(cmd, "qos") {

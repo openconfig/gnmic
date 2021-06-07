@@ -9,6 +9,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"text/template"
 	"time"
 
 	"github.com/google/uuid"
@@ -55,6 +56,8 @@ type NatsOutput struct {
 	logger   *log.Logger
 	mo       *formatters.MarshalOptions
 	evps     []formatters.EventProcessor
+
+	targetTpl *template.Template
 }
 
 // Config //
@@ -67,6 +70,8 @@ type Config struct {
 	Password           string        `mapstructure:"password,omitempty"`
 	ConnectTimeWait    time.Duration `mapstructure:"connect-time-wait,omitempty"`
 	Format             string        `mapstructure:"format,omitempty"`
+	AddTarget          string        `mapstructure:"add-target,omitempty"`
+	TargetTemplate     string        `mapstructure:"target-template,omitempty"`
 	OverrideTimestamps bool          `mapstructure:"override-timestamps,omitempty"`
 	NumWorkers         int           `mapstructure:"num-workers,omitempty"`
 	WriteTimeout       time.Duration `mapstructure:"write-timeout,omitempty"`
@@ -137,6 +142,16 @@ func (n *NatsOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	n.mo = &formatters.MarshalOptions{
 		Format:     n.Cfg.Format,
 		OverrideTS: n.Cfg.OverrideTimestamps,
+	}
+	if n.Cfg.TargetTemplate == "" {
+		n.targetTpl = outputs.DefaultTargetTemplate
+	} else if n.Cfg.AddTarget != "" {
+		n.targetTpl, err = template.New("target-template").
+			Funcs(outputs.TemplateFuncs).
+			Parse(n.Cfg.TargetTemplate)
+		if err != nil {
+			return err
+		}
 	}
 	n.ctx, n.cancelFn = context.WithCancel(ctx)
 	n.wg.Add(n.Cfg.NumWorkers)
@@ -299,6 +314,10 @@ CRCONN:
 			n.logger.Printf("%s shutting down", workerLogPrefix)
 			return
 		case m := <-n.msgChan:
+			err = outputs.AddSubscriptionTarget(m.m, m.meta, n.Cfg.AddTarget, n.targetTpl)
+			if err != nil {
+				n.logger.Printf("failed to add target to the response: %v", err)
+			}
 			b, err := n.mo.Marshal(m.m, m.meta, n.evps...)
 			if err != nil {
 				if n.Cfg.Debug {

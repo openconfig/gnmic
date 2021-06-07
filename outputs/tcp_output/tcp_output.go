@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
+	"text/template"
 	"time"
 
 	"github.com/karimra/gnmic/formatters"
@@ -39,6 +40,8 @@ type TCPOutput struct {
 	logger   *log.Logger
 	mo       *formatters.MarshalOptions
 	evps     []formatters.EventProcessor
+
+	targetTpl *template.Template
 }
 
 type Config struct {
@@ -46,6 +49,8 @@ type Config struct {
 	Rate               time.Duration `mapstructure:"rate,omitempty"`
 	BufferSize         uint          `mapstructure:"buffer-size,omitempty"`
 	Format             string        `mapstructure:"format,omitempty"`
+	AddTarget          string        `mapstructure:"add-target,omitempty"`
+	TargetTemplate     string        `mapstructure:"target-template,omitempty"`
 	OverrideTimestamps bool          `mapstructure:"override-timestamps,omitempty"`
 	KeepAlive          time.Duration `mapstructure:"keep-alive,omitempty"`
 	RetryInterval      time.Duration `mapstructure:"retry-interval,omitempty"`
@@ -113,6 +118,17 @@ func (t *TCPOutput) Init(ctx context.Context, name string, cfg map[string]interf
 		Format:     t.Cfg.Format,
 		OverrideTS: t.Cfg.OverrideTimestamps,
 	}
+
+	if t.Cfg.TargetTemplate == "" {
+		t.targetTpl = outputs.DefaultTargetTemplate
+	} else if t.Cfg.AddTarget != "" {
+		t.targetTpl, err = template.New("target-template").
+			Funcs(outputs.TemplateFuncs).
+			Parse(t.Cfg.TargetTemplate)
+		if err != nil {
+			return err
+		}
+	}
 	go func() {
 		<-ctx.Done()
 		t.Close()
@@ -129,10 +145,15 @@ func (t *TCPOutput) Write(ctx context.Context, m proto.Message, meta outputs.Met
 	if m == nil {
 		return
 	}
+	var err error
 	select {
 	case <-ctx.Done():
 		return
 	default:
+		err = outputs.AddSubscriptionTarget(m, meta, t.Cfg.AddTarget, t.targetTpl)
+		if err != nil {
+			t.logger.Printf("failed to add target to the response: %v", err)
+		}
 		b, err := t.mo.Marshal(m, meta, t.evps...)
 		if err != nil {
 			t.logger.Printf("failed marshaling proto msg: %v", err)

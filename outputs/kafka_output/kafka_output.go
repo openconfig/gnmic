@@ -9,6 +9,7 @@ import (
 	"log"
 	"strings"
 	"sync"
+	"text/template"
 	"time"
 
 	"github.com/Shopify/sarama"
@@ -55,6 +56,8 @@ type KafkaOutput struct {
 	msgChan  chan *protoMsg
 	wg       *sync.WaitGroup
 	evps     []formatters.EventProcessor
+
+	targetTpl *template.Template
 }
 
 // Config //
@@ -67,6 +70,8 @@ type Config struct {
 	Timeout            time.Duration `mapstructure:"timeout,omitempty"`
 	RecoveryWaitTime   time.Duration `mapstructure:"recovery-wait-time,omitempty"`
 	Format             string        `mapstructure:"format,omitempty"`
+	AddTarget          string        `mapstructure:"add-target,omitempty"`
+	TargetTemplate     string        `mapstructure:"target-template,omitempty"`
 	NumWorkers         int           `mapstructure:"num-workers,omitempty"`
 	Debug              bool          `mapstructure:"debug,omitempty"`
 	BufferSize         int           `mapstructure:"buffer-size,omitempty"`
@@ -142,6 +147,17 @@ func (k *KafkaOutput) Init(ctx context.Context, name string, cfg map[string]inte
 	k.mo = &formatters.MarshalOptions{
 		Format:     k.Cfg.Format,
 		OverrideTS: k.Cfg.OverrideTimestamps,
+	}
+
+	if k.Cfg.TargetTemplate == "" {
+		k.targetTpl = outputs.DefaultTargetTemplate
+	} else if k.Cfg.AddTarget != "" {
+		k.targetTpl, err = template.New("target-template").
+			Funcs(outputs.TemplateFuncs).
+			Parse(k.Cfg.TargetTemplate)
+		if err != nil {
+			return err
+		}
 	}
 
 	config := k.createConfig()
@@ -266,6 +282,10 @@ CRPROD:
 			k.logger.Printf("%s shutting down", workerLogPrefix)
 			return
 		case m := <-k.msgChan:
+			err = outputs.AddSubscriptionTarget(m.m, m.meta, k.Cfg.AddTarget, k.targetTpl)
+			if err != nil {
+				k.logger.Printf("failed to add target to the response: %v", err)
+			}
 			b, err := k.mo.Marshal(m.m, m.meta, k.evps...)
 			if err != nil {
 				if k.Cfg.Debug {

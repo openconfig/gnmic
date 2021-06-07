@@ -1,9 +1,59 @@
-Defining subscriptions with [`subscribe`](../cmd/subscribe.md) command's CLI flags is a quick&easy way to work with gNMI subscriptions. A downside of that approach though is that its not flexible enough.
+
+
+Defining subscriptions with [`subscribe`](../cmd/subscribe.md) command's CLI flags is a quick&easy way to work with gNMI subscriptions. A downside of that approach is that commands can get lengthy when defining multiple subscriptions.
 
 With the multiple subscriptions defined in the [configuration file](configuration_file.md) we make a complex task of managing multiple subscriptions for multiple targets easy. The idea behind the multiple subscriptions is to define the subscriptions separately and then bind them to the targets.
 
 ### Defining subscriptions
+
 To define a subscription a user needs to create the `subscriptions` container in the configuration file:
+
+```yaml
+subscriptions:
+  # a configurable subscription name
+  subscription-name:
+    # string, path to be set as the Subscribe Request Prefix
+    prefix:
+    # string, value to set as the SubscribeRequest Prefix Target
+    target:
+    # boolean, if true, the SubscribeRequest Prefix Target will be set to 
+    # the configured target name under section `targets`.
+    # does not apply if the previous field `target` is set.
+    set-target: # true | false
+    # list of strings, list of subscription paths for the named subscription
+    paths: []
+    # list of strings, schema definition modules
+    models: []
+    # string, case insensitive, one of ONCE, STREAM, POLL
+    mode: STREAM
+    # string, case insensitive, if `mode` is set to STREAM, this defines the type 
+    # of streamed subscription,
+    # one of SAMPLE, TARGET_DEFINED, ON_CHANGE
+    stream-mode: TARGET_DEFINED
+    # string, case insensitive, defines the gNMI encoding to be used for the subscription
+    encoding: JSON
+    # integer, specifies the packet marking that is to be used for the subscribe responses
+    qos:
+    # duration, Golang duration format, e.g: 1s, 1m30s, 1h.
+    # specifies the sample interval for a STREAM/SAMPLE subscription
+    sample-interval:
+    # duration, Golang duration format, e.g: 1s, 1m30s, 1h.
+    # The heartbeat interval value can be specified along with `ON_CHANGE` or `SAMPLE` 
+    # stream subscriptions modes and has the following meanings in each case:
+    # - `ON_CHANGE`: The value of the data item(s) MUST be re-sent once per heartbeat 
+    #                interval regardless of whether the value has changed or not.
+    # - `SAMPLE`: The target MUST generate one telemetry update per heartbeat interval, 
+    #             regardless of whether the `--suppress-redundant` flag is set to true.
+    heartbeat-interval:
+    # boolean, if set to true, the target SHOULD NOT generate a telemetry update message unless 
+    # the value of the path being reported on has changed since the last 
+    suppress-redundant:
+    # boolean, if set to true, the target MUST not transmit the current state of the paths 
+    # that the client has subscribed to, but rather should send only updates to them.
+    updates-only:
+```
+
+Examples:
 
 ```yaml
 # part of ~/gnmic.yml config file
@@ -28,21 +78,6 @@ subscriptions:  # container for subscriptions
 ```
 
 Inside that subscriptions container a user defines individual named subscriptions; in the example above two named subscriptions `port_stats` and `service_state` were defined.
-
-Each subscription is independent and fully configurable. The following list of configuration options is available:
-
-* prefix
-* target
-* paths
-* models
-* mode
-* stream-mode
-* encoding
-* qos
-* sample-interval
-* heartbeat-interval
-* suppress-redundant
-* updates-only
 
 These subscriptions can be used on the cli via the `[ --name ]` flag of subscribe command:
 
@@ -76,9 +111,14 @@ The named subscriptions are put under the `subscriptions` section of a target co
 
 !!! note
     If a target is not explicitly associated with any subscription, the client will subscribe to all defined subscriptions in the file.
-    
+
 The full configuration with the subscriptions defined and associated with targets will look like this:
+
 ```yaml
+username: admin
+password: nokiasr0s
+insecure: true
+
 targets:
   router1.lab.com:
     subscriptions:
@@ -89,9 +129,6 @@ targets:
     subscriptions:
       - service_state
       - system_facts
-username: admin
-password: nokiasr0s
-insecure: true
 
 subscriptions:
   port_stats:
@@ -112,13 +149,15 @@ subscriptions:
        - "/state/system/version"
     mode: once
 ```
+
 As a result of such configuration the `gnmic` will set up three gNMI subscriptions to router1 and two other gNMI subscriptions to router2:
 
-```
+```shell
 $ gnmic subscribe
 gnmic 2020/07/06 22:03:35.579942 target 'router2.lab.com' initialized
 gnmic 2020/07/06 22:03:35.593082 target 'router1.lab.com' initialized
 ```
+
 ```json
 {
   "source": "router2.lab.com",
