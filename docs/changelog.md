@@ -1,6 +1,15 @@
 
 ## Changelog
 
+### v0.15.0 - June 7th 2021
+
+- Subscription:
+   Add field `set-target` under subscription config, a boolean that enables setting the target name as a gNMI prefix target.
+
+- Outputs:
+   Add `add-target` and `target-template` fields under all outputs,
+   Enables adding the target value as a tag/label based on the subscription and target metadata
+
 ### v0.14.3 - June 6th 2021
 
 - Set command: Fix `ascii` values encoding if used with `--request-file` flag.
