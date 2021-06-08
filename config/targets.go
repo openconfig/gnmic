@@ -10,7 +10,7 @@ import (
 
 	"github.com/karimra/gnmic/collector"
 	"github.com/mitchellh/mapstructure"
-	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 )
 
 var ErrNoTargetsFound = errors.New("no targets found")
@@ -135,7 +135,7 @@ func readUsername() (string, error) {
 }
 func readPassword() (string, error) {
 	fmt.Print("password: ")
-	pass, err := terminal.ReadPassword(int(os.Stdin.Fd()))
+	pass, err := term.ReadPassword(int(os.Stdin.Fd()))
 	if err != nil {
 		return "", err
 	}
