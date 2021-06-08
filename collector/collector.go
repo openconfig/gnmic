@@ -277,7 +277,11 @@ START:
 			select {
 			case <-nctx.Done():
 				return
-			case c.targetsChan <- c.Targets[name]:
+			default:
+				c.m.Lock()
+				t := c.Targets[name]
+				c.m.Unlock()
+				c.targetsChan <- t
 				c.logger.Printf("queuing target %q", name)
 			}
 			c.logger.Printf("subscribing to target: %q", name)
@@ -507,6 +511,8 @@ func (c *Collector) DeleteSubscription(name string) error {
 
 // Subscribe //
 func (c *Collector) Subscribe(ctx context.Context, tName string) error {
+	c.m.Lock()
+	defer c.m.Unlock()
 	if t, ok := c.Targets[tName]; ok {
 		subscriptionsConfigs := t.Subscriptions
 		if len(subscriptionsConfigs) == 0 {
@@ -638,13 +644,16 @@ func (c *Collector) Start(ctx context.Context) {
 		if t == nil {
 			continue
 		}
+		c.m.Lock()
 		if _, ok := c.activeTargets[t.Config.Name]; ok {
 			if c.Config.Debug {
 				c.logger.Printf("target %q listener already active", t.Config.Name)
 			}
+			c.m.Unlock()
 			continue
 		}
 		c.activeTargets[t.Config.Name] = struct{}{}
+		c.m.Unlock()
 		c.logger.Printf("starting target %q listener", t.Config.Name)
 		go func(t *Target) {
 			numOnceSubscriptions := t.numberOfOnceSubscriptions()

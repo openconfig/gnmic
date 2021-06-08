@@ -20,6 +20,7 @@ var Loaders = map[string]Initializer{}
 var LoadersTypes = []string{
 	"file",
 	"consul",
+	"docker",
 }
 
 func Register(name string, initFn Initializer) {
