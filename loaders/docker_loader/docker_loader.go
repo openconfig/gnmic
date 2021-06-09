@@ -188,7 +188,7 @@ func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*collector.Ta
 				Filters: fl.nt,
 			})
 			if err != nil {
-				errChan <- err
+				errChan <- fmt.Errorf("failed getting networks list using filter %+v: %v", fl.nt, err)
 				return
 			}
 
@@ -197,7 +197,7 @@ func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*collector.Ta
 					Filters: cfl,
 				})
 				if err != nil {
-					errChan <- err
+					errChan <- fmt.Errorf("failed getting containers list using filter %+v: %v", cfl, err)
 					return
 				}
 				for _, cont := range conts {
@@ -295,6 +295,14 @@ func (d *dockerLoader) diff(m map[string]*collector.TargetConfig) *loaders.Targe
 	}
 	for _, n := range result.Del {
 		delete(d.lastTargets, n)
+	}
+	if d.cfg.Debug {
+		b, err := json.MarshalIndent(result, "", "  ")
+		if err != nil {
+			d.logger.Printf("discovery diff result: %v", result)
+		} else {
+			d.logger.Printf("discovery diff result:\n%s", string(b))
+		}
 	}
 	return result
 }
