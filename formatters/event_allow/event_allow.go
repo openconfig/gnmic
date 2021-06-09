@@ -148,7 +148,7 @@ func (d *Allow) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 				}
 			}
 			for _, re := range d.tags {
-				if re.MatchString(v) {
+				if !re.MatchString(v) {
 					d.logger.Printf("tag '%s' matched regex '%s'", v, re.String())
 					*e = formatters.EventMsg{}
 					break
