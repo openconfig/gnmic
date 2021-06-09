@@ -126,6 +126,46 @@ var testset = map[string]struct {
 			},
 		},
 	},
+	"allow_tag_values": {
+		processorType: processorType,
+		processor: map[string]interface{}{
+			"tags": []string{"router1"},
+		},
+		tests: []item{
+			{
+				input:  nil,
+				output: nil,
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{},
+					},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{"name": "router1"},
+					},
+					{
+						Tags: map[string]string{"not-name": "dummy"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{"name": "router1"},
+					},
+					{},
+				},
+			},
+		},
+	},
 }
 
 func TestEventAllow(t *testing.T) {
