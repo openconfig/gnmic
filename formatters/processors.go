@@ -13,16 +13,19 @@ var EventProcessors = map[string]Initializer{}
 
 var EventProcessorTypes = []string{
 	"event-add-tag",
+	"event-allow",
 	"event-convert",
 	"event-date-string",
 	"event-delete",
 	"event-drop",
+	"event-extract-tags",
+	"event-jq",
+	"event-merge",
 	"event-override-ts",
 	"event-strings",
 	"event-to-tag",
-	"event-write",
-	"event-merge",
 	"event-trigger",
+	"event-write",
 }
 
 type Initializer func() EventProcessor
