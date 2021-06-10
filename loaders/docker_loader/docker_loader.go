@@ -7,7 +7,8 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
-	"os"
+	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -116,14 +117,21 @@ func (d *dockerLoader) Init(ctx context.Context, cfg map[string]interface{}, log
 		})
 	}
 
-	d.client, err = d.createDockerClient()
-	if err != nil {
-		return err
-	}
 	if logger != nil {
 		d.logger.SetOutput(logger.Writer())
 		d.logger.SetFlags(logger.Flags())
 	}
+
+	d.client, err = d.createDockerClient()
+	if err != nil {
+		return err
+	}
+	ping, err := d.client.Ping(ctx)
+	if err != nil {
+		return err
+	}
+
+	d.logger.Printf("docker daemon: %+v", ping)
 	d.logger.Printf("initialized loader type %q: %s", loaderName, d)
 	return nil
 }
@@ -156,14 +164,13 @@ func (d *dockerLoader) Start(ctx context.Context) chan *loaders.TargetOperation 
 			default:
 				d.logger.Printf("querying %q targets", loaderName)
 				readTargets, err := d.getTargets(ctx)
-				if _, ok := err.(*os.PathError); ok {
-					time.Sleep(d.cfg.Interval)
-					continue
-				}
 				if err != nil {
 					d.logger.Printf("failed to read targets from docker daemon: %v", err)
 					time.Sleep(d.cfg.Interval)
 					continue
+				}
+				if d.cfg.Debug {
+					d.logger.Printf("docker loader discovered %d target(s)", len(readTargets))
 				}
 				select {
 				case <-ctx.Done():
@@ -194,7 +201,7 @@ func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*collector.Ta
 				errChan <- fmt.Errorf("failed getting networks list using filter %+v: %v", fl.nt, err)
 				return
 			}
-
+			// get containers for each defined filter
 			for _, cfl := range fl.fl {
 				conts, err := d.client.ContainerList(ctx, types.ContainerListOptions{
 					Filters: cfl,
@@ -204,13 +211,7 @@ func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*collector.Ta
 					return
 				}
 				for _, cont := range conts {
-					name := cont.ID
-					if len(cont.Names) > 0 {
-						name = strings.TrimLeft(cont.Names[0], "/")
-					}
-					if d.cfg.Debug {
-						d.logger.Printf("filter %v returned container %v", cfl, name)
-					}
+					d.logger.Printf("container %q, names: %v, labels: %v", cont.ID, cont.Names, cont.Labels)
 					tc := new(collector.TargetConfig)
 					if fl.cfg != nil {
 						err = mapstructure.Decode(fl.cfg, tc)
@@ -221,7 +222,14 @@ func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*collector.Ta
 							d.logger.Printf("target config before adding name and address: %v", tc)
 						}
 					}
-					tc.Name = name
+					// set target name
+					tc.Name = cont.ID
+					if len(cont.Names) > 0 {
+						tc.Name = strings.TrimLeft(cont.Names[0], "/")
+					}
+					if d.cfg.Debug {
+						d.logger.Printf("filter %v returned container %v", cfl, tc.Name)
+					}
 					switch strings.ToLower(cont.HostConfig.NetworkMode) {
 					case "host":
 						if d.cfg.Address == "" || strings.HasPrefix(d.cfg.Address, "unix://") {
@@ -244,34 +252,83 @@ func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*collector.Ta
 							}
 						}
 					default:
-						for _, nr := range nrs {
-							if n, ok := cont.NetworkSettings.Networks[nr.Name]; ok {
-								if n.IPAddress != "" {
-									tc.Address = n.IPAddress
+						if strings.HasPrefix(d.cfg.Address, "unix:///") {
+							for _, nr := range nrs {
+								if n, ok := cont.NetworkSettings.Networks[nr.Name]; ok {
+									if n.IPAddress != "" {
+										tc.Address = n.IPAddress
+										break
+									}
+									tc.Address = n.GlobalIPv6Address
 									break
 								}
-								tc.Address = n.GlobalIPv6Address
-								break
 							}
-						}
-						if tc.Address == "" {
-							d.logger.Printf("%q no address found", tc.Name)
-							continue
-						}
-						if fl.port != "" {
-							if !strings.Contains(fl.port, "=") {
-								tc.Address = fmt.Sprintf("%s:%s", tc.Address, fl.port)
-							} else {
-								portLabel := strings.Replace(fl.port, "label=", "", 1)
-								if p, ok := cont.Labels[portLabel]; ok {
-									tc.Address = fmt.Sprintf("%s:%s", tc.Address, p)
+							if tc.Address == "" {
+								d.logger.Printf("%q no address found", tc.Name)
+								continue
+							}
+							if fl.port != "" {
+								if !strings.Contains(fl.port, "=") {
+									tc.Address = fmt.Sprintf("%s:%s", tc.Address, fl.port)
+								} else {
+									portLabel := strings.Replace(fl.port, "label=", "", 1)
+									if p, ok := cont.Labels[portLabel]; ok {
+										tc.Address = fmt.Sprintf("%s:%s", tc.Address, p)
+									}
+								}
+							}
+						} else {
+							// get port from config/label
+							port := getPortNumber(cont.Labels, fl.port)
+							// check if port is exposed, find the public port and build the target address
+							for _, p := range cont.Ports {
+								// the container private port matches the port from the docker label
+								if p.PrivatePort == port && p.Type == "tcp" {
+									ipAddr := p.IP
+									if ipAddr == "0.0.0.0" || ipAddr == "::" {
+										if d.cfg.Address == "" {
+											// if docker daemon is empty use localhost as target address
+											ipAddr = "localhost"
+										} else {
+											// derive target address from daemon address if not empty
+											u, err := url.Parse(d.cfg.Address)
+											if err != nil {
+												d.logger.Printf("failed to parse docker daemon address")
+												continue
+											}
+											ipAddr, _, _ = net.SplitHostPort(u.Host)
+										}
+
+									}
+									tc.Address = fmt.Sprintf("%s:%d", ipAddr, p.PublicPort)
+								}
+							}
+							// if an address was not found using the exposed ports
+							// select the bridge address, and use the port from label if not zero
+							if tc.Address == "" {
+								for _, nr := range nrs {
+									if n, ok := cont.NetworkSettings.Networks[nr.Name]; ok {
+										if n.IPAddress != "" {
+											tc.Address = n.IPAddress
+											break
+										}
+										tc.Address = n.GlobalIPv6Address
+										break
+									}
+								}
+								if tc.Address == "" {
+									d.logger.Printf("%q no address found", tc.Name)
+									continue
+								}
+								if port != 0 {
+									tc.Address = fmt.Sprintf("%s:%d", tc.Address, port)
 								}
 							}
 						}
 					}
 					//
 					if d.cfg.Debug {
-						d.logger.Printf("discoved target config %s with filter: %v", tc, cfl)
+						d.logger.Printf("discovered target config %s with filter: %v", tc, cfl)
 					}
 					m.Lock()
 					readTargets[tc.Name] = tc
@@ -325,4 +382,21 @@ func (d *dockerLoader) String() string {
 		return fmt.Sprintf("%+v", d.cfg)
 	}
 	return string(b)
+}
+
+/// helpers
+
+func getPortNumber(labels map[string]string, p string) uint16 {
+	var port uint16
+	if p != "" {
+		if !strings.Contains(p, "=") {
+			p, _ := strconv.Atoi(p)
+			port = uint16(p)
+		} else {
+			s := labels[strings.Replace(p, "label=", "", 1)]
+			p, _ := strconv.Atoi(s)
+			port = uint16(p)
+		}
+	}
+	return port
 }
