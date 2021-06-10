@@ -17,6 +17,7 @@ import (
 	dClient "github.com/docker/docker/client"
 	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/loaders"
+	"github.com/mitchellh/mapstructure"
 )
 
 const (
@@ -49,6 +50,7 @@ type targetFilterComp struct {
 	fl   []filters.Args
 	nt   filters.Args
 	port string
+	cfg  map[string]interface{}
 }
 
 type cfg struct {
@@ -60,9 +62,10 @@ type cfg struct {
 }
 
 type targetFilter struct {
-	Containers []map[string]string `json:"containers,omitempty" mapstructure:"containers,omitempty"`
-	Network    map[string]string   `json:"network,omitempty" mapstructure:"network,omitempty"`
-	Port       string              `json:"port,omitempty" mapstructure:"port,omitempty"`
+	Containers []map[string]string    `json:"containers,omitempty" mapstructure:"containers,omitempty"`
+	Network    map[string]string      `json:"network,omitempty" mapstructure:"network,omitempty"`
+	Port       string                 `json:"port,omitempty" mapstructure:"port,omitempty"`
+	Config     map[string]interface{} `json:"config,omitempty" mapstructure:"config,omitempty"`
 }
 
 func (d *dockerLoader) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger) error {
@@ -109,6 +112,7 @@ func (d *dockerLoader) Init(ctx context.Context, cfg map[string]interface{}, log
 			fl:   cflt,
 			nt:   nflt,
 			port: fm.Port,
+			cfg:  fm.Config,
 		})
 	}
 
@@ -142,7 +146,6 @@ func (d *dockerLoader) createDockerClient() (*dClient.Client, error) {
 }
 
 func (d *dockerLoader) Start(ctx context.Context) chan *loaders.TargetOperation {
-	fmt.Println("Starting docker loader")
 	opChan := make(chan *loaders.TargetOperation)
 	go func() {
 		defer close(opChan)
@@ -209,6 +212,15 @@ func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*collector.Ta
 						d.logger.Printf("filter %v returned container %v", cfl, name)
 					}
 					tc := new(collector.TargetConfig)
+					if fl.cfg != nil {
+						err = mapstructure.Decode(fl.cfg, tc)
+						if err != nil {
+							d.logger.Printf("failed to decode config map: %v", err)
+						}
+						if d.cfg.Debug {
+							d.logger.Printf("target config before adding name and address: %v", tc)
+						}
+					}
 					tc.Name = name
 					switch strings.ToLower(cont.HostConfig.NetworkMode) {
 					case "host":
