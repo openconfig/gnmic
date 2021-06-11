@@ -74,21 +74,8 @@ func (d *dockerLoader) Init(ctx context.Context, cfg map[string]interface{}, log
 	if err != nil {
 		return err
 	}
-	if d.cfg.Interval <= 0 {
-		d.cfg.Interval = watchInterval
-	}
-	if d.cfg.Timeout <= 0 || d.cfg.Timeout >= d.cfg.Interval {
-		d.cfg.Timeout = d.cfg.Interval / 2
-	}
-	if len(d.cfg.Filters) == 0 {
-		d.cfg.Filters = []*targetFilter{
-			{
-				Containers: []map[string]string{
-					{"status": "running"},
-				},
-			},
-		}
-	}
+	d.setDefaults()
+
 	d.fl = make([]*targetFilterComp, 0, len(d.cfg.Filters))
 	for _, fm := range d.cfg.Filters {
 		// network filter
@@ -126,14 +113,33 @@ func (d *dockerLoader) Init(ctx context.Context, cfg map[string]interface{}, log
 	if err != nil {
 		return err
 	}
+
 	ping, err := d.client.Ping(ctx)
 	if err != nil {
 		return err
 	}
 
-	d.logger.Printf("docker daemon: %+v", ping)
+	d.logger.Printf("connected to docker daemon: %+v", ping)
 	d.logger.Printf("initialized loader type %q: %s", loaderName, d)
 	return nil
+}
+
+func (d *dockerLoader) setDefaults() {
+	if d.cfg.Interval <= 0 {
+		d.cfg.Interval = watchInterval
+	}
+	if d.cfg.Timeout <= 0 || d.cfg.Timeout >= d.cfg.Interval {
+		d.cfg.Timeout = d.cfg.Interval / 2
+	}
+	if len(d.cfg.Filters) == 0 {
+		d.cfg.Filters = []*targetFilter{
+			{
+				Containers: []map[string]string{
+					{"status": "running"},
+				},
+			},
+		}
+	}
 }
 
 func (d *dockerLoader) createDockerClient() (*dClient.Client, error) {
@@ -208,18 +214,15 @@ func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*collector.Ta
 				})
 				if err != nil {
 					errChan <- fmt.Errorf("failed getting containers list using filter %+v: %v", cfl, err)
-					return
+					continue
 				}
 				for _, cont := range conts {
-					d.logger.Printf("container %q, names: %v, labels: %v", cont.ID, cont.Names, cont.Labels)
+					d.logger.Printf("building target from container %q, names: %v, labels: %v", cont.ID, cont.Names, cont.Labels)
 					tc := new(collector.TargetConfig)
 					if fl.cfg != nil {
 						err = mapstructure.Decode(fl.cfg, tc)
 						if err != nil {
 							d.logger.Printf("failed to decode config map: %v", err)
-						}
-						if d.cfg.Debug {
-							d.logger.Printf("target config before adding name and address: %v", tc)
 						}
 					}
 					// set target name
@@ -227,9 +230,7 @@ func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*collector.Ta
 					if len(cont.Names) > 0 {
 						tc.Name = strings.TrimLeft(cont.Names[0], "/")
 					}
-					if d.cfg.Debug {
-						d.logger.Printf("filter %v returned container %v", cfl, tc.Name)
-					}
+					// discover target address and port
 					switch strings.ToLower(cont.HostConfig.NetworkMode) {
 					case "host":
 						if d.cfg.Address == "" || strings.HasPrefix(d.cfg.Address, "unix://") {
