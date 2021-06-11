@@ -106,6 +106,8 @@ func (d *Allow) Init(cfg interface{}, opts ...formatters.Option) error {
 }
 
 func (d *Allow) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
+	allowed := make([]*formatters.EventMsg, 0, len(es))
+OUTER:
 	for _, e := range es {
 		if e == nil {
 			continue
@@ -116,47 +118,47 @@ func (d *Allow) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 				d.logger.Printf("condition check failed: %v", err)
 				continue
 			}
-			if !ok {
-				*e = formatters.EventMsg{}
-				continue
+			if ok {
+				allowed = append(allowed, e)
+				continue OUTER
 			}
 		}
 		for k, v := range e.Values {
 			for _, re := range d.valueNames {
-				if !re.MatchString(k) {
+				if re.MatchString(k) {
 					d.logger.Printf("value name '%s' matched regex '%s'", k, re.String())
-					*e = formatters.EventMsg{}
-					break
+					allowed = append(allowed, e)
+					continue OUTER
 				}
 			}
 			for _, re := range d.values {
 				if vs, ok := v.(string); ok {
-					if !re.MatchString(vs) {
+					if re.MatchString(vs) {
 						d.logger.Printf("value '%s' matched regex '%s'", v, re.String())
-						*e = formatters.EventMsg{}
-						break
+						allowed = append(allowed, e)
+						continue OUTER
 					}
 				}
 			}
 		}
 		for k, v := range e.Tags {
 			for _, re := range d.tagNames {
-				if !re.MatchString(k) {
+				if re.MatchString(k) {
 					d.logger.Printf("tag name '%s' matched regex '%s'", k, re.String())
-					*e = formatters.EventMsg{}
-					break
+					allowed = append(allowed, e)
+					continue OUTER
 				}
 			}
 			for _, re := range d.tags {
-				if !re.MatchString(v) {
+				if re.MatchString(v) {
 					d.logger.Printf("tag '%s' matched regex '%s'", v, re.String())
-					*e = formatters.EventMsg{}
-					break
+					allowed = append(allowed, e)
+					continue OUTER
 				}
 			}
 		}
 	}
-	return es
+	return allowed
 }
 
 func (d *Allow) WithLogger(l *log.Logger) {
