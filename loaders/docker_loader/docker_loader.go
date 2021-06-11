@@ -304,9 +304,10 @@ func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*collector.Ta
 											}
 											ipAddr, _, _ = net.SplitHostPort(u.Host)
 										}
-
 									}
-									tc.Address = fmt.Sprintf("%s:%d", ipAddr, p.PublicPort)
+									if ipAddr != "" && p.PublicPort != 0 {
+										tc.Address = fmt.Sprintf("%s:%d", ipAddr, p.PublicPort)
+									}
 								}
 							}
 							// if an address was not found using the exposed ports
