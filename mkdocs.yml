@@ -15,7 +15,11 @@ nav:
         - File configuration: user_guide/configuration_file.md
       - Prompt mode and auto-suggestions: user_guide/prompt_suggestions.md
       - Targets: user_guide/targets.md
-      - Target loaders: user_guide/target_loaders.md
+      - Target Discovery:
+          - Introduction: user_guide/target_discovery/discovery_intro.md
+          - File Discovery: user_guide/target_discovery/file_discovery.md
+          - Consul Discovery: user_guide/target_discovery/consul_discovery.md
+          - Docker Discovery: user_guide/target_discovery/docker_discovery.md
       - Subscriptions: user_guide/subscriptions.md
       - Inputs:
         - Introduction: user_guide/inputs/input_intro.md
@@ -104,8 +108,9 @@ theme:
 
   features:
     - navigation.tabs
-    - navigation.expand
+    #- navigation.expand
     - navigation.top
+    #- navigation.sections
 
   # 404 page
   static_templates:
