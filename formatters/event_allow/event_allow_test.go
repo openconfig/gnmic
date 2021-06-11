@@ -50,7 +50,7 @@ var testset = map[string]struct {
 			},
 		},
 	},
-	"allow_values": {
+	"allow_value_names": {
 		processorType: processorType,
 		processor: map[string]interface{}{
 			"value-names": []string{"^number$"},
@@ -83,12 +83,12 @@ var testset = map[string]struct {
 					{
 						Values: map[string]interface{}{"number": 1},
 					},
-					{},
+					//{},
 				},
 			},
 		},
 	},
-	"allow_tags": {
+	"allow_tag_names": {
 		processorType: processorType,
 		processor: map[string]interface{}{
 			"tag-names": []string{"^name*"},
@@ -121,7 +121,7 @@ var testset = map[string]struct {
 					{
 						Tags: map[string]string{"name": "dummy"},
 					},
-					{},
+					//{},
 				},
 			},
 		},
@@ -161,7 +161,124 @@ var testset = map[string]struct {
 					{
 						Tags: map[string]string{"name": "router1"},
 					},
-					{},
+					//{},
+				},
+			},
+		},
+	},
+	"allow_multiple_value_names": {
+		processorType: processorType,
+		processor: map[string]interface{}{
+			"value-names": []string{
+				"^number$",
+				"^name$",
+			},
+		},
+		tests: []item{
+			{
+				input:  nil,
+				output: nil,
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{}},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{}},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"number": 1},
+					},
+					{
+						Values: map[string]interface{}{"not-number": 1},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"number": 1},
+					},
+					//{},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"name": "123"},
+					},
+					{
+						Values: map[string]interface{}{"not-name": 1},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"name": "123"},
+					},
+					//{},
+				},
+			},
+		},
+	},
+	"allow_multiple_tag_names": {
+		processorType: processorType,
+		processor: map[string]interface{}{
+			"tag-names": []string{
+				"^id$",
+				"^name$",
+			},
+		},
+		tests: []item{
+			{
+				input:  nil,
+				output: nil,
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{}},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{}},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{"name": "dummy"},
+					},
+					{
+						Tags: map[string]string{"not-name": "dummy"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{"name": "dummy"},
+					},
+					//{},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{"name": "dummy"},
+					},
+					{
+						Tags: map[string]string{"id": "dummy"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{"name": "dummy"},
+					},
+					{
+						Tags: map[string]string{"id": "dummy"},
+					},
+					//{},
 				},
 			},
 		},
