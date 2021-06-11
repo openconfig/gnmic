@@ -91,6 +91,11 @@ func (d *dockerLoader) Init(ctx context.Context, cfg map[string]interface{}, log
 				Value: "running",
 			})
 			for k, v := range sfm {
+				if strings.Contains(k, "=") {
+					ks := strings.SplitN(k, "=", 2)
+					flt.Add(ks[0], strings.Join(append(ks[1:], v), "="))
+					continue
+				}
 				flt.Add(k, v)
 			}
 			cflt = append(cflt, flt)
