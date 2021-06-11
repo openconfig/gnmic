@@ -17,7 +17,7 @@
 * **gNMI data manipulation**   
   `gnmic` collector supports [data transformation](user_guide/event_processors/intro/) capabilities that can be used to adapt the collected data to your specific use case.
 * **Dynamic targets loading**  
-  `gnmic` support [target loading at runtime](user_guide/target_loaders.md) based on input from external systems. 
+  `gnmic` support [target loading at runtime](user_guide/target_discovery/discovery_intro.md) based on input from external systems.
 * **YANG-based path suggestions**  
   Your CLI magically becomes a YANG browser when `gnmic` is executed in [prompt](user_guide/prompt_suggestions.md) mode. In this mode the flags that take XPATH values will get auto-suggestions based on the provided YANG modules. In other words - voodoo magic :exploding_head:
 * **Multiple configuration sources**  
