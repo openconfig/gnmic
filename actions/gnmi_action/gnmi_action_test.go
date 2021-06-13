@@ -30,6 +30,7 @@ var getRequestTestSet = map[string]struct {
 			"type":  "gnmi",
 			"paths": []string{"/path"},
 			"debug": true,
+			"vars":  nil,
 		},
 		tests: []getRequestTestItem{
 			{
@@ -53,7 +54,7 @@ var getRequestTestSet = map[string]struct {
 		actionType: actionType,
 		action: map[string]interface{}{
 			"type":  "gnmi",
-			"paths": []string{`/{{.Name}}`},
+			"paths": []string{`/{{.Event.Name}}`},
 			"debug": true,
 		},
 		tests: []getRequestTestItem{
@@ -80,8 +81,8 @@ var getRequestTestSet = map[string]struct {
 		actionType: actionType,
 		action: map[string]interface{}{
 			"type":   "gnmi",
-			"prefix": `/{{.Name}}`,
-			"paths":  []string{`/{{.Name}}`},
+			"prefix": `/{{.Event.Name}}`,
+			"paths":  []string{`/{{.Event.Name}}`},
 			"debug":  true,
 		},
 		tests: []getRequestTestItem{
@@ -156,7 +157,7 @@ var setRequestTestSet = map[string]struct {
 		action: map[string]interface{}{
 			"type":   "gnmi",
 			"rpc":    "set",
-			"paths":  []string{"/{{.Name}}"},
+			"paths":  []string{"/{{.Event.Name}}"},
 			"values": []string{"value1"},
 			"debug":  true,
 		},
@@ -192,8 +193,8 @@ var setRequestTestSet = map[string]struct {
 		action: map[string]interface{}{
 			"type":   "gnmi",
 			"rpc":    "set",
-			"paths":  []string{`{{ range $k, $v := .Values }}{{if eq $k "path1" }}{{$k}}{{end}}{{end}}`},
-			"values": []string{`{{ range $k, $v := .Values }}{{if eq $k "path1" }}value2{{end}}{{end}}`},
+			"paths":  []string{`{{ range $k, $v := .Event.Values }}{{if eq $k "path1" }}{{$k}}{{end}}{{end}}`},
+			"values": []string{`{{ range $k, $v := .Event.Values }}{{if eq $k "path1" }}value2{{end}}{{end}}`},
 			"debug":  true,
 		},
 		tests: []setRequestTestItem{
@@ -232,12 +233,12 @@ var setRequestTestSet = map[string]struct {
 			"type": "gnmi",
 			"rpc":  "set",
 			"paths": []string{
-				`{{ range $k, $v := .Values }}{{if eq $k "path1" }}{{$k}}{{end}}{{end}}`,
-				`{{ range $k, $v := .Values }}{{if eq $k "path2" }}{{$k}}{{end}}{{end}}`,
+				`{{ range $k, $v := .Event.Values }}{{if eq $k "path1" }}{{$k}}{{end}}{{end}}`,
+				`{{ range $k, $v := .Event.Values }}{{if eq $k "path2" }}{{$k}}{{end}}{{end}}`,
 			},
 			"values": []string{
-				`{{ range $k, $v := .Values }}{{if eq $k "path1" }}value11{{end}}{{end}}`,
-				`{{ range $k, $v := .Values }}{{if eq $k "path2" }}value22{{end}}{{end}}`,
+				`{{ range $k, $v := .Event.Values }}{{if eq $k "path1" }}value11{{end}}{{end}}`,
+				`{{ range $k, $v := .Event.Values }}{{if eq $k "path2" }}value22{{end}}{{end}}`,
 			},
 			"debug": true,
 		},
@@ -291,8 +292,8 @@ var setRequestTestSet = map[string]struct {
 		action: map[string]interface{}{
 			"type":   "gnmi",
 			"rpc":    "set-replace",
-			"paths":  []string{`{{ range $k, $v := .Values }}{{if and (eq $k "path1") (eq $v "value1")}}{{$k}}{{end}}{{end}}`},
-			"values": []string{`{{ range $k, $v := .Values }}{{if and (eq $k "path1") (eq $v "value1")}}value2{{end}}{{end}}`},
+			"paths":  []string{`{{ range $k, $v := .Event.Values }}{{if and (eq $k "path1") (eq $v "value1")}}{{$k}}{{end}}{{end}}`},
+			"values": []string{`{{ range $k, $v := .Event.Values }}{{if and (eq $k "path1") (eq $v "value1")}}value2{{end}}{{end}}`},
 			"debug":  true,
 		},
 		tests: []setRequestTestItem{
@@ -331,12 +332,12 @@ var setRequestTestSet = map[string]struct {
 			"type": "gnmi",
 			"rpc":  "set-replace",
 			"paths": []string{
-				`{{ range $k, $v := .Values }}{{if and (eq $k "path1") (eq $v "value1")}}{{$k}}{{end}}{{end}}`,
-				`{{ range $k, $v := .Values }}{{if and (eq $k "path2") (eq $v "value2")}}{{$k}}{{end}}{{end}}`,
+				`{{ range $k, $v := .Event.Values }}{{if and (eq $k "path1") (eq $v "value1")}}{{$k}}{{end}}{{end}}`,
+				`{{ range $k, $v := .Event.Values }}{{if and (eq $k "path2") (eq $v "value2")}}{{$k}}{{end}}{{end}}`,
 			},
 			"values": []string{
-				`{{ range $k, $v := .Values }}{{if and (eq $k "path1") (eq $v "value1")}}value11{{end}}{{end}}`,
-				`{{ range $k, $v := .Values }}{{if and (eq $k "path2") (eq $v "value2")}}value22{{end}}{{end}}`,
+				`{{ range $k, $v := .Event.Values }}{{if and (eq $k "path1") (eq $v "value1")}}value11{{end}}{{end}}`,
+				`{{ range $k, $v := .Event.Values }}{{if and (eq $k "path2") (eq $v "value2")}}value22{{end}}{{end}}`,
 			},
 			"debug": true,
 		},

@@ -913,7 +913,6 @@ func (c *Collector) targetsConfigsToMap() map[string]interface{} {
 			c.logger.Printf("failed to decode target %q config: %v", n, err)
 			continue
 		}
-		c.logger.Printf("%T | %v", itc, itc)
 		tcs[n] = itc
 	}
 	return tcs

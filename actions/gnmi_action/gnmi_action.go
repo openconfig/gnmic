@@ -15,11 +15,13 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/Masterminds/sprig"
 	"github.com/karimra/gnmic/actions"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -28,7 +30,7 @@ const (
 	loggingPrefix   = "[gnmi_action] "
 	actionType      = "gnmi"
 	defaultDataType = "ALL"
-	defaultTarget   = `{{ index .Tags "source" }}`
+	defaultTarget   = `{{ index .Event.Tags "source" }}`
 	defaultEncoding = "JSON"
 )
 
@@ -42,25 +44,31 @@ func init() {
 }
 
 type gnmiAction struct {
-	Target string   `mapstructure:"target,omitempty"`
-	RPC    string   `mapstructure:"rpc,omitempty"`
-	Prefix string   `mapstructure:"prefix,omitempty"`
-	Paths  []string `mapstructure:"paths,omitempty"`
-	Type   string   `mapstructure:"data-type,omitempty"`
-
-	Values []string `mapstructure:"values,omitempty"`
-	//ValuesFromFiles []string `mapstructure:"values-from-files,omitempty"`
-	Encoding   string `mapstructure:"encoding,omitempty"`
-	Debug      bool   `mapstructure:"debug,omitempty"`
-	NoEnvProxy bool   `mapstructure:"no-env-proxy,omitempty"`
+	Target     string                 `mapstructure:"target,omitempty"`
+	RPC        string                 `mapstructure:"rpc,omitempty"`
+	Prefix     string                 `mapstructure:"prefix,omitempty"`
+	Paths      []string               `mapstructure:"paths,omitempty"`
+	Type       string                 `mapstructure:"data-type,omitempty"`
+	Values     []string               `mapstructure:"values,omitempty"`
+	Encoding   string                 `mapstructure:"encoding,omitempty"`
+	Vars       map[string]interface{} `mapstructure:"vars,omitempty"`
+	VarsFile   string                 `mapstructure:"vars-file,omitempty"`
+	Debug      bool                   `mapstructure:"debug,omitempty"`
+	NoEnvProxy bool                   `mapstructure:"no-env-proxy,omitempty"`
 
 	target *template.Template
 	prefix *template.Template
 	paths  []*template.Template
 	values []*template.Template
+	vars   map[string]interface{}
 
 	targetsConfigs map[string]*targetConfig
 	logger         *log.Logger
+}
+
+type input struct {
+	Event *formatters.EventMsg
+	Vars  map[string]interface{}
 }
 
 func (g *gnmiAction) Init(cfg map[string]interface{}, opts ...actions.Option) error {
@@ -71,7 +79,10 @@ func (g *gnmiAction) Init(cfg map[string]interface{}, opts ...actions.Option) er
 	for _, opt := range opts {
 		opt(g)
 	}
-
+	err = g.readVars()
+	if err != nil {
+		return err
+	}
 	g.setDefaults()
 	err = g.parseTemplates()
 	if err != nil {
@@ -82,7 +93,11 @@ func (g *gnmiAction) Init(cfg map[string]interface{}, opts ...actions.Option) er
 
 func (g *gnmiAction) Run(e *formatters.EventMsg) (interface{}, error) {
 	b := new(bytes.Buffer)
-	err := g.target.Execute(b, e)
+	in := &input{
+		Event: e,
+		Vars:  g.vars,
+	}
+	err := g.target.Execute(b, in)
 	if err != nil {
 		return nil, err
 	}
@@ -102,6 +117,7 @@ func (g *gnmiAction) Run(e *formatters.EventMsg) (interface{}, error) {
 			}
 			return t.Get(ctx, req)
 		case "set-update", "set-replace", "delete":
+			time.Sleep(1 * time.Second)
 			req, err := g.createSetRequest(e)
 			if err != nil {
 				return nil, err
@@ -114,6 +130,24 @@ func (g *gnmiAction) Run(e *formatters.EventMsg) (interface{}, error) {
 		}
 	}
 	return nil, fmt.Errorf("unknown target %q", b.String())
+}
+
+func (g *gnmiAction) readVars() error {
+	if g.VarsFile == "" {
+		g.vars = g.Vars
+		return nil
+	}
+	b, err := ioutil.ReadFile(g.VarsFile)
+	if err != nil {
+		return err
+	}
+	v := make(map[string]interface{})
+	err = yaml.Unmarshal(b, &v)
+	if err != nil {
+		return err
+	}
+	g.vars = mergeMaps(v, g.Vars)
+	return nil
 }
 
 func (g *gnmiAction) setDefaults() {
@@ -157,11 +191,11 @@ func (g *gnmiAction) validate() error {
 
 func (g *gnmiAction) parseTemplates() error {
 	var err error
-	g.target, err = template.New("target").Parse(g.Target)
+	g.target, err = template.New("target").Funcs(sprig.TxtFuncMap()).Parse(g.Target)
 	if err != nil {
 		return err
 	}
-	g.prefix, err = template.New("prefix").Parse(g.Prefix)
+	g.prefix, err = template.New("prefix").Funcs(sprig.TxtFuncMap()).Parse(g.Prefix)
 	if err != nil {
 		return err
 	}
@@ -176,7 +210,7 @@ func (g *gnmiAction) parseTemplates() error {
 func (g *gnmiAction) createTemplates(n string, s []string) ([]*template.Template, error) {
 	tpls := make([]*template.Template, 0, len(s))
 	for i, p := range s {
-		tpl, err := template.New(fmt.Sprintf("%s-%d", n, i)).Parse(p)
+		tpl, err := template.New(fmt.Sprintf("%s-%d", n, i)).Funcs(sprig.TxtFuncMap()).Parse(p)
 		if err != nil {
 			return nil, err
 		}
@@ -195,10 +229,14 @@ func (g *gnmiAction) createGetRequest(e *formatters.EventMsg) (*gnmi.GetRequest,
 		Path:      make([]*gnmi.Path, 0, len(g.paths)),
 		Encoding:  gnmi.Encoding(encodingVal),
 	}
+	in := &input{
+		Event: e,
+		Vars:  g.vars,
+	}
 	var err error
 	b := new(bytes.Buffer)
 	if g.Prefix != "" {
-		err = g.prefix.Execute(b, e)
+		err = g.prefix.Execute(b, in)
 		if err != nil {
 			return nil, fmt.Errorf("prefix parse error: %v", err)
 		}
@@ -217,7 +255,7 @@ func (g *gnmiAction) createGetRequest(e *formatters.EventMsg) (*gnmi.GetRequest,
 	}
 	for _, p := range g.paths {
 		b.Reset()
-		err = p.Execute(b, e)
+		err = p.Execute(b, in)
 		if err != nil {
 			return nil, fmt.Errorf("path parse error: %v", err)
 		}
@@ -236,11 +274,14 @@ func (g *gnmiAction) createSetRequest(e *formatters.EventMsg) (*gnmi.SetRequest,
 		Replace: make([]*gnmi.Update, 0, len(g.paths)),
 		Update:  make([]*gnmi.Update, 0, len(g.paths)),
 	}
-
+	in := &input{
+		Event: e,
+		Vars:  g.vars,
+	}
 	var err error
 	b := new(bytes.Buffer)
 	if g.Prefix != "" {
-		err = g.prefix.Execute(b, e)
+		err = g.prefix.Execute(b, in)
 		if err != nil {
 			return nil, fmt.Errorf("prefix parse error: %v", err)
 		}
@@ -252,7 +293,7 @@ func (g *gnmiAction) createSetRequest(e *formatters.EventMsg) (*gnmi.SetRequest,
 	}
 	for i, p := range g.paths {
 		b.Reset()
-		err = p.Execute(b, e)
+		err = p.Execute(b, in)
 		if err != nil {
 			return nil, fmt.Errorf("path parse error: %v", err)
 		}
@@ -263,13 +304,13 @@ func (g *gnmiAction) createSetRequest(e *formatters.EventMsg) (*gnmi.SetRequest,
 
 		// value
 		b.Reset()
-		err = g.values[i].Execute(b, e)
+		err = g.values[i].Execute(b, in)
 		if err != nil {
-			return nil, fmt.Errorf("value parse error: %v", err)
+			return nil, fmt.Errorf("value %d parse error: %v", i, err)
 		}
 		val, err := g.createTypedValue(b.String())
 		if err != nil {
-			return nil, fmt.Errorf("create value error: %v", err)
+			return nil, fmt.Errorf("create value %d error: %v", i, err)
 		}
 		switch g.RPC {
 		case "set-update":
@@ -293,7 +334,13 @@ func (g *gnmiAction) createTypedValue(val string) (*gnmi.TypedValue, error) {
 	switch strings.ToLower(g.Encoding) {
 	case "json":
 		buff := new(bytes.Buffer)
-		err = json.NewEncoder(buff).Encode(strings.TrimRight(strings.TrimLeft(val, "["), "]"))
+		val := strings.TrimRight(strings.TrimLeft(val, "["), "]")
+		bval := json.RawMessage(val)
+		if json.Valid(bval) {
+			err = json.NewEncoder(buff).Encode(bval)
+		} else {
+			err = json.NewEncoder(buff).Encode(val)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -302,7 +349,13 @@ func (g *gnmiAction) createTypedValue(val string) (*gnmi.TypedValue, error) {
 		}
 	case "json_ietf":
 		buff := new(bytes.Buffer)
-		err = json.NewEncoder(buff).Encode(strings.TrimRight(strings.TrimLeft(val, "["), "]"))
+		val := strings.TrimRight(strings.TrimLeft(val, "["), "]")
+		bval := json.RawMessage(val)
+		if json.Valid(bval) {
+			err = json.NewEncoder(buff).Encode(bval)
+		} else {
+			err = json.NewEncoder(buff).Encode(val)
+		}
 		if err != nil {
 			return nil, err
 		}
