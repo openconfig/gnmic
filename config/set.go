@@ -81,7 +81,7 @@ func (c *Config) readTemplateVarsFile() error {
 	case map[string]interface{}:
 		c.setRequestVars = t
 	default:
-		return errors.New("unexpected varibales file format")
+		return errors.New("unexpected variables file format")
 	}
 	if c.Debug {
 		c.logger.Printf("request vars content: %v", c.setRequestVars)
