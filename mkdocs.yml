@@ -7,20 +7,26 @@ nav:
       - Global flags: global_flags.md
       - Releases: 
         - Changelog: changelog.md
+  
   - User guide:
       - Configuration:
         - Introduction: user_guide/configuration_intro.md
         - Flags: user_guide/configuration_flags.md
         - Environment variables: user_guide/configuration_env.md
         - File configuration: user_guide/configuration_file.md
-      - Prompt mode and auto-suggestions: user_guide/prompt_suggestions.md
-      - Targets: user_guide/targets.md
-      - Target Discovery:
-          - Introduction: user_guide/target_discovery/discovery_intro.md
-          - File Discovery: user_guide/target_discovery/file_discovery.md
-          - Consul Discovery: user_guide/target_discovery/consul_discovery.md
-          - Docker Discovery: user_guide/target_discovery/docker_discovery.md
+      
+      - Targets: 
+          - Configuration: user_guide/targets.md
+          - Discovery:
+            - Introduction: user_guide/target_discovery/discovery_intro.md
+            - File Discovery: user_guide/target_discovery/file_discovery.md
+            - Consul Discovery: user_guide/target_discovery/consul_discovery.md
+            - Docker Discovery: user_guide/target_discovery/docker_discovery.md
+      
       - Subscriptions: user_guide/subscriptions.md
+
+      - Prompt mode: user_guide/prompt_suggestions.md
+      
       - Inputs:
         - Introduction: user_guide/inputs/input_intro.md
         - NATS: user_guide/inputs/nats_input.md

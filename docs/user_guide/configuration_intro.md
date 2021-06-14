@@ -3,9 +3,9 @@
 
 The different sources follow a precedence order where a configuration variable from a source take precedence over the next one in the below list:
 
-- flags
-- env
-- file
+- global and local flags
+- Environment variables
+- configuration file
 
 ## Flags
 
