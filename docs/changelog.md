@@ -1,6 +1,14 @@
 
 ## Changelog
 
+### v0.16.0 - June 14th
+
+- Target Discovery
+    Add Docker Engine target loader, `gnmic` can dynamically discover gNMI targets running as docker containers.
+
+- Event Trigger: gNMI action
+    enhance `gNMI action` to take external variables as input, in addition to the received gNMI update.
+
 ### v0.15.0 - June 7th 2021
 
 - Subscription:
