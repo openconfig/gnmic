@@ -130,11 +130,11 @@ processors:
         # to trigger a set replace, use `set-replace`
         rpc: set
         # the target router, it defaults to the value in tag "source"
-        target: '{{ index .Tags "source" }}'
+        target: '{{ index .Event.Tags "source" }}'
         # paths templates to build xpaths
         paths:
           - | 
-            {{ if eq ( index .Tags "interface_name" ) "ethernet-1/1"}}
+            {{ if eq ( index .Event.Tags "interface_name" ) "ethernet-1/1"}}
               {{$interfaceName := "ethernet-1/2"}}
             {{else}}
               {{$interfaceName := "ethernet-1/1"}}
@@ -147,6 +147,12 @@ processors:
         data-type: ALL
         # gNMI encoding, defaults to json
         encoding: json
+        # a dictionary of variables that can be used in the `target`, `paths` and `values` templates.
+        # the variables are accessible in the template using `.Vars`
+        vars:
+        # path to a file containing variable to be used when rendering the `target`, `paths` and `values` templates.
+        # the variable in `vars` override the ones read from the file.
+        vars-file: 
         # debug, enable extra logging
         debug: false
 ```
@@ -162,13 +168,13 @@ processors:
       action:
         type: gnmi
         rpc: set
-        target: '{{ index .Tags "source" }}'
+        target: '{{ index .Event.Tags "source" }}'
         paths:
           - |
             {{ $interfaceName := "" }}
-            {{ if eq ( index .Tags "interface_name" ) "ethernet-1/1"}}
+            {{ if eq ( index .Event.Tags "interface_name" ) "ethernet-1/1"}}
               {{$interfaceName = "ethernet-1/2"}}
-            {{ else if eq ( index .Tags "interface_name" ) "ethernet-1/2"}}
+            {{ else if eq ( index E.vent.Tags "interface_name" ) "ethernet-1/2"}}
               {{$interfaceName = "ethernet-1/1"}}
             {{end}}
             /interface[name={{$interfaceName}}]/admin-state
@@ -177,4 +183,3 @@ processors:
         encoding: json_ietf
         debug: true
 ```
-
