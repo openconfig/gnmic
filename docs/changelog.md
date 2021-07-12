@@ -1,6 +1,10 @@
 
 ## Changelog
 
+### v0.16.1 - July 12th
+
+- Bump github.com/openconfig/goyang version to v0.2.7
+  
 ### v0.16.0 - June 14th
 
 - Target Discovery
