@@ -44,6 +44,7 @@ func init() {
 }
 
 type gnmiAction struct {
+	Name       string                 `mapstructure:"name,omitempty"`
 	Target     string                 `mapstructure:"target,omitempty"`
 	RPC        string                 `mapstructure:"rpc,omitempty"`
 	Prefix     string                 `mapstructure:"prefix,omitempty"`
@@ -66,11 +67,6 @@ type gnmiAction struct {
 	logger         *log.Logger
 }
 
-type input struct {
-	Event *formatters.EventMsg
-	Vars  map[string]interface{}
-}
-
 func (g *gnmiAction) Init(cfg map[string]interface{}, opts ...actions.Option) error {
 	err := actions.DecodeConfig(cfg, g)
 	if err != nil {
@@ -78,6 +74,9 @@ func (g *gnmiAction) Init(cfg map[string]interface{}, opts ...actions.Option) er
 	}
 	for _, opt := range opts {
 		opt(g)
+	}
+	if g.Name == "" {
+		return fmt.Errorf("action type %q missing name field", actionType)
 	}
 	err = g.readVars()
 	if err != nil {
@@ -91,10 +90,11 @@ func (g *gnmiAction) Init(cfg map[string]interface{}, opts ...actions.Option) er
 	return g.validate()
 }
 
-func (g *gnmiAction) Run(e *formatters.EventMsg) (interface{}, error) {
+func (g *gnmiAction) Run(e *formatters.EventMsg, env map[string]interface{}) (interface{}, error) {
 	b := new(bytes.Buffer)
-	in := &input{
+	in := &actions.Input{
 		Event: e,
+		Env:   env,
 		Vars:  g.vars,
 	}
 	err := g.target.Execute(b, in)
@@ -107,7 +107,7 @@ func (g *gnmiAction) Run(e *formatters.EventMsg) (interface{}, error) {
 		t := newTarget(tc)
 		switch g.RPC {
 		case "get":
-			req, err := g.createGetRequest(e)
+			req, err := g.createGetRequest(e, env)
 			if err != nil {
 				return nil, err
 			}
@@ -117,8 +117,7 @@ func (g *gnmiAction) Run(e *formatters.EventMsg) (interface{}, error) {
 			}
 			return t.Get(ctx, req)
 		case "set-update", "set-replace", "delete":
-			time.Sleep(1 * time.Second)
-			req, err := g.createSetRequest(e)
+			req, err := g.createSetRequest(e, env)
 			if err != nil {
 				return nil, err
 			}
@@ -131,6 +130,8 @@ func (g *gnmiAction) Run(e *formatters.EventMsg) (interface{}, error) {
 	}
 	return nil, fmt.Errorf("unknown target %q", b.String())
 }
+
+func (g *gnmiAction) NName() string { return g.Name }
 
 func (g *gnmiAction) readVars() error {
 	if g.VarsFile == "" {
@@ -219,7 +220,7 @@ func (g *gnmiAction) createTemplates(n string, s []string) ([]*template.Template
 	return tpls, nil
 }
 
-func (g *gnmiAction) createGetRequest(e *formatters.EventMsg) (*gnmi.GetRequest, error) {
+func (g *gnmiAction) createGetRequest(e *formatters.EventMsg, env map[string]interface{}) (*gnmi.GetRequest, error) {
 	encodingVal, ok := gnmi.Encoding_value[strings.Replace(strings.ToUpper(g.Encoding), "-", "_", -1)]
 	if !ok {
 		return nil, fmt.Errorf("invalid encoding type '%s'", g.Encoding)
@@ -229,8 +230,9 @@ func (g *gnmiAction) createGetRequest(e *formatters.EventMsg) (*gnmi.GetRequest,
 		Path:      make([]*gnmi.Path, 0, len(g.paths)),
 		Encoding:  gnmi.Encoding(encodingVal),
 	}
-	in := &input{
+	in := &actions.Input{
 		Event: e,
+		Env:   env,
 		Vars:  g.vars,
 	}
 	var err error
@@ -268,14 +270,15 @@ func (g *gnmiAction) createGetRequest(e *formatters.EventMsg) (*gnmi.GetRequest,
 	return req, nil
 }
 
-func (g *gnmiAction) createSetRequest(e *formatters.EventMsg) (*gnmi.SetRequest, error) {
+func (g *gnmiAction) createSetRequest(e *formatters.EventMsg, env map[string]interface{}) (*gnmi.SetRequest, error) {
 	req := &gnmi.SetRequest{
 		Delete:  make([]*gnmi.Path, 0, len(g.paths)),
 		Replace: make([]*gnmi.Update, 0, len(g.paths)),
 		Update:  make([]*gnmi.Update, 0, len(g.paths)),
 	}
-	in := &input{
+	in := &actions.Input{
 		Event: e,
+		Env:   env,
 		Vars:  g.vars,
 	}
 	var err error

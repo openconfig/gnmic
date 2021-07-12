@@ -9,7 +9,8 @@ import (
 
 type Action interface {
 	Init(map[string]interface{}, ...Option) error
-	Run(*formatters.EventMsg) (interface{}, error)
+	Run(*formatters.EventMsg, map[string]interface{}) (interface{}, error)
+	NName() string
 
 	WithTargets(map[string]interface{})
 	WithLogger(*log.Logger)
@@ -48,4 +49,10 @@ func WithLogger(l *log.Logger) Option {
 	return func(a Action) {
 		a.WithLogger(l)
 	}
+}
+
+type Input struct {
+	Event *formatters.EventMsg
+	Env   map[string]interface{}
+	Vars  map[string]interface{}
 }

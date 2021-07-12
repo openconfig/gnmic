@@ -24,17 +24,17 @@ const (
 
 // Trigger triggers an action when certain conditions are met
 type Trigger struct {
-	Condition      string                 `mapstructure:"condition,omitempty"`
-	MinOccurrences int                    `mapstructure:"min-occurrences,omitempty"`
-	MaxOccurrences int                    `mapstructure:"max-occurrences,omitempty"`
-	Window         time.Duration          `mapstructure:"window,omitempty"`
-	Action         map[string]interface{} `mapstructure:"action,omitempty"`
-	Debug          bool                   `mapstructure:"debug,omitempty"`
+	Condition      string                   `mapstructure:"condition,omitempty"`
+	MinOccurrences int                      `mapstructure:"min-occurrences,omitempty"`
+	MaxOccurrences int                      `mapstructure:"max-occurrences,omitempty"`
+	Window         time.Duration            `mapstructure:"window,omitempty"`
+	Actions        []map[string]interface{} `mapstructure:"actions,omitempty"`
+	Debug          bool                     `mapstructure:"debug,omitempty"`
 
 	occurrencesTimes []time.Time
 	lastTrigger      time.Time
 	code             *gojq.Code
-	action           actions.Action
+	actions          []actions.Action
 
 	targets map[string]interface{}
 	logger  *log.Logger
@@ -69,9 +69,11 @@ func (p *Trigger) Init(cfg interface{}, opts ...formatters.Option) error {
 	if err != nil {
 		return err
 	}
-	err = p.initializeAction(p.Action)
-	if err != nil {
-		return err
+	for _, a := range p.Actions {
+		err = p.initializeAction(a)
+		if err != nil {
+			return err
+		}
 	}
 	err = p.setDefaults()
 	if err != nil {
@@ -98,7 +100,7 @@ func (p *Trigger) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		}
 		if res {
 			if p.evalOccurrencesWithinWindow(now) {
-				p.triggerAction(e)
+				p.triggerActions(e)
 			}
 		}
 	}
@@ -128,11 +130,12 @@ func (p *Trigger) initializeAction(cfg map[string]interface{}) error {
 		switch actType := actType.(type) {
 		case string:
 			if in, ok := actions.Actions[actType]; ok {
-				p.action = in()
-				err := p.action.Init(cfg, actions.WithLogger(p.logger), actions.WithTargets(p.targets))
+				act := in()
+				err := act.Init(cfg, actions.WithLogger(p.logger), actions.WithTargets(p.targets))
 				if err != nil {
 					return err
 				}
+				p.actions = append(p.actions, act)
 				return nil
 			}
 			return fmt.Errorf("unknown action type %q", actType)
@@ -170,15 +173,18 @@ func (p *Trigger) setDefaults() error {
 	return nil
 }
 
-func (p *Trigger) triggerAction(e *formatters.EventMsg) {
-	p.logger.Printf("running action: %+v", p.action)
+func (p *Trigger) triggerActions(e *formatters.EventMsg) {
 	go func() {
-		res, err := p.action.Run(e)
-		if err != nil {
-			p.logger.Printf("trigger action %+v failed: %+v", p.action, err)
-			return
+		env := make(map[string]interface{})
+		for _, act := range p.actions {
+			res, err := act.Run(e, env)
+			if err != nil {
+				p.logger.Printf("trigger action %+v failed: %+v", act, err)
+				return
+			}
+			env[act.NName()] = res
+			p.logger.Printf("action result: %+v", res)
 		}
-		p.logger.Printf("action result: %+v", res)
 	}()
 }
 

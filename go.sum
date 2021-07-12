@@ -724,8 +724,8 @@ github.com/openconfig/gnmi v0.0.0-20200508230933-d19cebf5e7be/go.mod h1:M/EcuapN
 github.com/openconfig/gnmi v0.0.0-20200617225440-d2b4e6a45802 h1:WXFwJlWOJINlwlyAZuNo4GdYZS6qPX36+rRUncLmN8Q=
 github.com/openconfig/gnmi v0.0.0-20200617225440-d2b4e6a45802/go.mod h1:M/EcuapNQgvzxo1DDXHK4tx3QpYM/uG4l591v33jG2A=
 github.com/openconfig/goyang v0.0.0-20200115183954-d0a48929f0ea/go.mod h1:dhXaV0JgHJzdrHi2l+w0fZrwArtXL7jEFoiqLEdmkvU=
-github.com/openconfig/goyang v0.0.0-20200908203031-af27d3788542 h1:c2FBBwCKjNONHNnsKJfx79ovMeluXOAggwXUjVr2m7I=
-github.com/openconfig/goyang v0.0.0-20200908203031-af27d3788542/go.mod h1:vX61x01Q46AzbZUzG617vWqh/cB+aisc+RrNkXRd3W8=
+github.com/openconfig/goyang v0.2.7 h1:bWvqXzNekiyHR2eoNE1DWrS3zSQS3aNKl6V+BLQSRSU=
+github.com/openconfig/goyang v0.2.7/go.mod h1:vX61x01Q46AzbZUzG617vWqh/cB+aisc+RrNkXRd3W8=
 github.com/openconfig/ygot v0.6.0/go.mod h1:o30svNf7O0xK+R35tlx95odkDmZWS9JyWWQSmIhqwAs=
 github.com/opencontainers/go-digest v0.0.0-20170106003457-a6d0ee40d420/go.mod h1:cMLVZDEM3+U2I4VmLI6N8jQYUd2OVphdqWwCJHrFt2s=
 github.com/opencontainers/go-digest v0.0.0-20180430190053-c9281466c8b2/go.mod h1:cMLVZDEM3+U2I4VmLI6N8jQYUd2OVphdqWwCJHrFt2s=
