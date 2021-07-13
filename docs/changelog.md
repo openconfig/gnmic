@@ -1,6 +1,10 @@
 
 ## Changelog
 
+### v0.16.2 - July 13th
+
+- Fix nil pointer dereference in case a subscription has `suppress-redundant` but no `heartbeat-interval`.
+
 ### v0.16.1 - July 12th
 
 - Bump github.com/openconfig/goyang version to v0.2.7
