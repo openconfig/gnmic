@@ -19,14 +19,14 @@ func (c *Config) GetTargets() (map[string]*collector.TargetConfig, error) {
 	var err error
 	// case address is defined in .Address
 	if len(c.Address) > 0 {
-		if c.Username == "" {
+		if c.Username == "" && c.Token == "" {
 			defUsername, err := readUsername()
 			if err != nil {
 				return nil, err
 			}
 			c.Username = defUsername
 		}
-		if c.Password == "" {
+		if c.Password == "" && c.Token == "" {
 			defPassword, err := readPassword()
 			if err != nil {
 				return nil, err
@@ -166,6 +166,9 @@ func (c *Config) SetTargetConfigDefaults(tc *collector.TargetConfig) error {
 	if tc.Password == nil {
 		tc.Password = &c.Password
 	}
+	if tc.Token == nil {
+		tc.Token = &c.Token
+	}
 	if tc.Timeout == 0 {
 		tc.Timeout = c.Timeout
 	}
@@ -257,6 +260,9 @@ func expandTargetEnv(tc *collector.TargetConfig) {
 	}
 	if tc.Password != nil {
 		*tc.Password = os.ExpandEnv(*tc.Password)
+	}
+	if tc.Token != nil {
+		*tc.Token = os.ExpandEnv(*tc.Token)
 	}
 	if tc.TLSCA != nil {
 		*tc.TLSCA = os.ExpandEnv(*tc.TLSCA)

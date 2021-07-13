@@ -17,8 +17,10 @@ import (
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
+	"golang.org/x/oauth2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/oauth"
 	"google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/metadata"
 )
@@ -74,6 +76,7 @@ type TargetConfig struct {
 	ProtoDirs     []string      `mapstructure:"proto-dirs,omitempty" json:"proto-dirs,omitempty"`
 	Tags          []string      `mapstructure:"tags,omitempty" json:"tags,omitempty"`
 	Gzip          *bool         `mapstructure:"gzip,omitempty" json:"gzip,omitempty"`
+	Token         *string       `mapstructure:"token,omitempty" json:"token,omitempty"`
 }
 
 func (tc *TargetConfig) String() string {
@@ -128,6 +131,13 @@ func (t *Target) CreateGNMIClient(ctx context.Context, opts ...grpc.DialOption) 
 			return err
 		}
 		tOpts = append(tOpts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+		if t.Config.Token != nil {
+			tOpts = append(tOpts,
+				grpc.WithPerRPCCredentials(
+					oauth.NewOauthAccess(&oauth2.Token{
+						AccessToken: *t.Config.Token,
+					})))
+		}
 	}
 	if *t.Config.Gzip {
 		tOpts = append(tOpts, grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)))
