@@ -131,7 +131,7 @@ func (t *Target) CreateGNMIClient(ctx context.Context, opts ...grpc.DialOption) 
 			return err
 		}
 		tOpts = append(tOpts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
-		if t.Config.Token != nil {
+		if t.Config.Token != nil && *t.Config.Token != "" {
 			tOpts = append(tOpts,
 				grpc.WithPerRPCCredentials(
 					oauth.NewOauthAccess(&oauth2.Token{
