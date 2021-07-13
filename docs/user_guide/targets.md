@@ -98,6 +98,8 @@ targets:
     username:
     # target password
     password:
+    # authentication token
+    token: 
     # target RPC timeout
     timeout:
     # establish an insecure connection
