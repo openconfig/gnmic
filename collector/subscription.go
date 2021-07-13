@@ -108,7 +108,7 @@ func (sc *SubscriptionConfig) CreateSubscribeRequest(target string) (*gnmi.Subsc
 					subscriptions[i].SampleInterval = uint64(sc.SampleInterval.Nanoseconds())
 				}
 				subscriptions[i].SuppressRedundant = sc.SuppressRedundant
-				if subscriptions[i].SuppressRedundant {
+				if subscriptions[i].SuppressRedundant && sc.HeartbeatInterval != nil {
 					subscriptions[i].HeartbeatInterval = uint64(sc.HeartbeatInterval.Nanoseconds())
 				}
 			}
