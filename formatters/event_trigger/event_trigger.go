@@ -179,11 +179,11 @@ func (p *Trigger) triggerActions(e *formatters.EventMsg) {
 		for _, act := range p.actions {
 			res, err := act.Run(e, env)
 			if err != nil {
-				p.logger.Printf("trigger action %+v failed: %+v", act, err)
+				p.logger.Printf("trigger action %q failed: %+v", act.NName(), err)
 				return
 			}
 			env[act.NName()] = res
-			p.logger.Printf("action result: %+v", res)
+			p.logger.Printf("action %q result: %+v", act.NName(), res)
 		}
 	}()
 }
