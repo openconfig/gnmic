@@ -1,34 +1,56 @@
 
 ## Changelog
 
-### v0.16.2 - July 13th
+### v0.17.0 - July 14th 2021
+
+- Event Trigger:
+
+    Enhance `event-trigger` to run multiple actions sequentially when an event occurs.
+
+    The output of an action can be used in the following ones.
+
+- Kafka output:
+
+    Add `SASL_SSL` and `SSL` security protocols to kafka output.
+
+- gRPC authentication:
+
+    Add support for token based gRPC authentication.
+
+### v0.16.2 - July 13th 2021
 
 - Fix nil pointer dereference in case a subscription has `suppress-redundant` but no `heartbeat-interval`.
 
-### v0.16.1 - July 12th
+### v0.16.1 - July 12th 2021
 
 - Bump github.com/openconfig/goyang version to v0.2.7
   
-### v0.16.0 - June 14th
+### v0.16.0 - June 14th 2021
 
-- Target Discovery
+- Target Discovery:
+
     Add Docker Engine target loader, `gnmic` can dynamically discover gNMI targets running as docker containers.
 
 - Event Trigger: gNMI action
-    enhance `gNMI action` to take external variables as input, in addition to the received gNMI update.
+
+    Enhance `gNMI action` to take external variables as input, in addition to the received gNMI update.
 
 ### v0.15.0 - June 7th 2021
 
 - Subscription:
+
    Add field `set-target` under subscription config, a boolean that enables setting the target name as a gNMI prefix target.
 
 - Outputs:
+
    Add `add-target` and `target-template` fields under all outputs,
    Enables adding the target value as a tag/label based on the subscription and target metadata
 
 ### v0.14.3 - June 6th 2021
 
-- Set command: Fix `ascii` values encoding if used with `--request-file` flag.
+- Set command:
+
+    Fix `ascii` values encoding if used with `--request-file` flag.
 
 ### v0.14.2 - June 3rd 2021
 
