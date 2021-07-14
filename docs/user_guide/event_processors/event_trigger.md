@@ -60,6 +60,12 @@ processors:
       # window of time during which max-occurrences need to 
       # be reached in order to trigger the action
       window: 60s
+      # a dictionary of variables that is passed to the actions
+      # and can be accessed in the actions templates using `.Vars`
+      vars:
+      # path to a file containing variables passed to the actions
+      # the variable in the `vars` field override the ones read from the file.
+      vars-file: 
       # the action to trigger
       actions:
       - name: counter1_alert
@@ -125,6 +131,12 @@ processors:
       # window of time during which max-occurrences need to 
       # be reached in order to trigger the action
       window: 60s
+      # a dictionary of variables that is passed to the actions
+      # and can be accessed in the actions templates using `.Vars`
+      vars:
+      # path to a file containing variables passed to the actions
+      # the variable in the `vars` field override the ones read from the file.
+      vars-file: 
       # the action to trigger
       actions:
       - name: my_gnmi_action
@@ -151,12 +163,6 @@ processors:
         data-type: ALL
         # gNMI encoding, defaults to json
         encoding: json
-        # a dictionary of variables that can be used in the `target`, `paths` and `values` templates.
-        # the variables are accessible in the template using `.Vars`
-        vars:
-        # path to a file containing variable to be used when rendering the `target`, `paths` and `values` templates.
-        # the variable in `vars` override the ones read from the file.
-        vars-file: 
         # debug, enable extra logging
         debug: false
 ```
