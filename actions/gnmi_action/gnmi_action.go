@@ -21,7 +21,6 @@ import (
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -44,24 +43,21 @@ func init() {
 }
 
 type gnmiAction struct {
-	Name       string                 `mapstructure:"name,omitempty"`
-	Target     string                 `mapstructure:"target,omitempty"`
-	RPC        string                 `mapstructure:"rpc,omitempty"`
-	Prefix     string                 `mapstructure:"prefix,omitempty"`
-	Paths      []string               `mapstructure:"paths,omitempty"`
-	Type       string                 `mapstructure:"data-type,omitempty"`
-	Values     []string               `mapstructure:"values,omitempty"`
-	Encoding   string                 `mapstructure:"encoding,omitempty"`
-	Vars       map[string]interface{} `mapstructure:"vars,omitempty"`
-	VarsFile   string                 `mapstructure:"vars-file,omitempty"`
-	Debug      bool                   `mapstructure:"debug,omitempty"`
-	NoEnvProxy bool                   `mapstructure:"no-env-proxy,omitempty"`
+	Name       string   `mapstructure:"name,omitempty"`
+	Target     string   `mapstructure:"target,omitempty"`
+	RPC        string   `mapstructure:"rpc,omitempty"`
+	Prefix     string   `mapstructure:"prefix,omitempty"`
+	Paths      []string `mapstructure:"paths,omitempty"`
+	Type       string   `mapstructure:"data-type,omitempty"`
+	Values     []string `mapstructure:"values,omitempty"`
+	Encoding   string   `mapstructure:"encoding,omitempty"`
+	Debug      bool     `mapstructure:"debug,omitempty"`
+	NoEnvProxy bool     `mapstructure:"no-env-proxy,omitempty"`
 
 	target *template.Template
 	prefix *template.Template
 	paths  []*template.Template
 	values []*template.Template
-	vars   map[string]interface{}
 
 	targetsConfigs map[string]*targetConfig
 	logger         *log.Logger
@@ -78,10 +74,6 @@ func (g *gnmiAction) Init(cfg map[string]interface{}, opts ...actions.Option) er
 	if g.Name == "" {
 		return fmt.Errorf("action type %q missing name field", actionType)
 	}
-	err = g.readVars()
-	if err != nil {
-		return err
-	}
 	g.setDefaults()
 	err = g.parseTemplates()
 	if err != nil {
@@ -90,12 +82,12 @@ func (g *gnmiAction) Init(cfg map[string]interface{}, opts ...actions.Option) er
 	return g.validate()
 }
 
-func (g *gnmiAction) Run(e *formatters.EventMsg, env map[string]interface{}) (interface{}, error) {
+func (g *gnmiAction) Run(e *formatters.EventMsg, env, vars map[string]interface{}) (interface{}, error) {
 	b := new(bytes.Buffer)
 	in := &actions.Input{
 		Event: e,
 		Env:   env,
-		Vars:  g.vars,
+		Vars:  vars,
 	}
 	err := g.target.Execute(b, in)
 	if err != nil {
@@ -107,7 +99,7 @@ func (g *gnmiAction) Run(e *formatters.EventMsg, env map[string]interface{}) (in
 		t := newTarget(tc)
 		switch g.RPC {
 		case "get":
-			req, err := g.createGetRequest(e, env)
+			req, err := g.createGetRequest(in)
 			if err != nil {
 				return nil, err
 			}
@@ -117,7 +109,7 @@ func (g *gnmiAction) Run(e *formatters.EventMsg, env map[string]interface{}) (in
 			}
 			return t.Get(ctx, req)
 		case "set-update", "set-replace", "delete":
-			req, err := g.createSetRequest(e, env)
+			req, err := g.createSetRequest(in)
 			if err != nil {
 				return nil, err
 			}
@@ -132,24 +124,6 @@ func (g *gnmiAction) Run(e *formatters.EventMsg, env map[string]interface{}) (in
 }
 
 func (g *gnmiAction) NName() string { return g.Name }
-
-func (g *gnmiAction) readVars() error {
-	if g.VarsFile == "" {
-		g.vars = g.Vars
-		return nil
-	}
-	b, err := ioutil.ReadFile(g.VarsFile)
-	if err != nil {
-		return err
-	}
-	v := make(map[string]interface{})
-	err = yaml.Unmarshal(b, &v)
-	if err != nil {
-		return err
-	}
-	g.vars = mergeMaps(v, g.Vars)
-	return nil
-}
 
 func (g *gnmiAction) setDefaults() {
 	if g.Type == "" {
@@ -220,7 +194,7 @@ func (g *gnmiAction) createTemplates(n string, s []string) ([]*template.Template
 	return tpls, nil
 }
 
-func (g *gnmiAction) createGetRequest(e *formatters.EventMsg, env map[string]interface{}) (*gnmi.GetRequest, error) {
+func (g *gnmiAction) createGetRequest(in *actions.Input) (*gnmi.GetRequest, error) {
 	encodingVal, ok := gnmi.Encoding_value[strings.Replace(strings.ToUpper(g.Encoding), "-", "_", -1)]
 	if !ok {
 		return nil, fmt.Errorf("invalid encoding type '%s'", g.Encoding)
@@ -229,11 +203,6 @@ func (g *gnmiAction) createGetRequest(e *formatters.EventMsg, env map[string]int
 		UseModels: make([]*gnmi.ModelData, 0),
 		Path:      make([]*gnmi.Path, 0, len(g.paths)),
 		Encoding:  gnmi.Encoding(encodingVal),
-	}
-	in := &actions.Input{
-		Event: e,
-		Env:   env,
-		Vars:  g.vars,
 	}
 	var err error
 	b := new(bytes.Buffer)
@@ -270,16 +239,11 @@ func (g *gnmiAction) createGetRequest(e *formatters.EventMsg, env map[string]int
 	return req, nil
 }
 
-func (g *gnmiAction) createSetRequest(e *formatters.EventMsg, env map[string]interface{}) (*gnmi.SetRequest, error) {
+func (g *gnmiAction) createSetRequest(in *actions.Input) (*gnmi.SetRequest, error) {
 	req := &gnmi.SetRequest{
 		Delete:  make([]*gnmi.Path, 0, len(g.paths)),
 		Replace: make([]*gnmi.Update, 0, len(g.paths)),
 		Update:  make([]*gnmi.Update, 0, len(g.paths)),
-	}
-	in := &actions.Input{
-		Event: e,
-		Env:   env,
-		Vars:  g.vars,
 	}
 	var err error
 	b := new(bytes.Buffer)

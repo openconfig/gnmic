@@ -34,20 +34,17 @@ func init() {
 }
 
 type httpAction struct {
-	Name     string                 `mapstructure:"name,omitempty"`
-	Method   string                 `mapstructure:"method,omitempty"`
-	URL      string                 `mapstructure:"url,omitempty"`
-	Headers  map[string]string      `mapstructure:"headers,omitempty"`
-	Timeout  time.Duration          `mapstructure:"timeout,omitempty"`
-	Body     string                 `mapstructure:"body,omitempty"`
-	Debug    bool                   `mapstructure:"debug,omitempty"`
-	Vars     map[string]interface{} `mapstructure:"vars,omitempty"`
-	VarsFile string                 `mapstructure:"vars-file,omitempty"`
+	Name    string            `mapstructure:"name,omitempty"`
+	Method  string            `mapstructure:"method,omitempty"`
+	URL     string            `mapstructure:"url,omitempty"`
+	Headers map[string]string `mapstructure:"headers,omitempty"`
+	Timeout time.Duration     `mapstructure:"timeout,omitempty"`
+	Body    string            `mapstructure:"body,omitempty"`
+	Debug   bool              `mapstructure:"debug,omitempty"`
 
 	url    *template.Template
 	body   *template.Template
 	logger *log.Logger
-	vars   map[string]interface{}
 }
 
 func (h *httpAction) Init(cfg map[string]interface{}, opts ...actions.Option) error {
@@ -75,7 +72,7 @@ func (h *httpAction) Init(cfg map[string]interface{}, opts ...actions.Option) er
 	return err
 }
 
-func (h *httpAction) Run(e *formatters.EventMsg, env map[string]interface{}) (interface{}, error) {
+func (h *httpAction) Run(e *formatters.EventMsg, env, vars map[string]interface{}) (interface{}, error) {
 	if h.url == nil {
 		return nil, errors.New("missing url template")
 	}
@@ -85,7 +82,7 @@ func (h *httpAction) Run(e *formatters.EventMsg, env map[string]interface{}) (in
 	in := &actions.Input{
 		Event: e,
 		Env:   env,
-		Vars:  h.vars,
+		Vars:  vars,
 	}
 	b := new(bytes.Buffer)
 	err := json.NewEncoder(b).Encode(e)

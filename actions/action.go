@@ -9,7 +9,7 @@ import (
 
 type Action interface {
 	Init(map[string]interface{}, ...Option) error
-	Run(*formatters.EventMsg, map[string]interface{}) (interface{}, error)
+	Run(*formatters.EventMsg, map[string]interface{}, map[string]interface{}) (interface{}, error)
 	NName() string
 
 	WithTargets(map[string]interface{})

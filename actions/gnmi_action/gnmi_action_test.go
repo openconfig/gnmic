@@ -411,7 +411,7 @@ func TestGnmiGetRequest(t *testing.T) {
 			for i, item := range ts.tests {
 				t.Run(name, func(t *testing.T) {
 					t.Logf("running test item %d", i)
-					gReq, err := ga.createGetRequest(item.input, nil)
+					gReq, err := ga.createGetRequest(&actions.Input{Event: item.input})
 					if err != nil {
 						t.Logf("failed: %v", err)
 						t.Fail()
@@ -442,7 +442,7 @@ func TestGnmiSetRequest(t *testing.T) {
 			for i, item := range ts.tests {
 				t.Run(name, func(t *testing.T) {
 					t.Logf("running test item %d", i)
-					gReq, err := ga.createSetRequest(item.input, nil)
+					gReq, err := ga.createSetRequest(&actions.Input{Event: item.input})
 					if err != nil {
 						t.Logf("failed: %v", err)
 						t.Fail()
