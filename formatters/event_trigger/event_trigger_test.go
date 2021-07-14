@@ -24,8 +24,11 @@ var testset = map[string]struct {
 		processorType: processorType,
 		processor: map[string]interface{}{
 			"debug": true,
-			"action": map[string]interface{}{
-				"type": "http",
+			"actions": []map[string]interface{}{
+				{
+					"name": "dummy",
+					"type": "http",
+				},
 			},
 		},
 		tests: []item{
@@ -62,9 +65,12 @@ var testset = map[string]struct {
 		processor: map[string]interface{}{
 			"condition": `.values["counter1"] > 90`,
 			"debug":     true,
-			"action": map[string]interface{}{
-				"type": "http",
-				"url":  "http://remote-alerting-system:9090/",
+			"actions": []map[string]interface{}{
+				{
+					"name": "dummy",
+					"type": "http",
+					"url":  "http://remote-alerting-system:9090/",
+				},
 			},
 		},
 		tests: []item{
