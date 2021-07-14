@@ -14,6 +14,8 @@ import (
 	"github.com/karimra/gnmic/actions"
 	_ "github.com/karimra/gnmic/actions/all"
 	"github.com/karimra/gnmic/formatters"
+	"github.com/karimra/gnmic/utils"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -24,17 +26,20 @@ const (
 
 // Trigger triggers an action when certain conditions are met
 type Trigger struct {
-	Condition      string                 `mapstructure:"condition,omitempty"`
-	MinOccurrences int                    `mapstructure:"min-occurrences,omitempty"`
-	MaxOccurrences int                    `mapstructure:"max-occurrences,omitempty"`
-	Window         time.Duration          `mapstructure:"window,omitempty"`
-	Action         map[string]interface{} `mapstructure:"action,omitempty"`
-	Debug          bool                   `mapstructure:"debug,omitempty"`
+	Condition      string                   `mapstructure:"condition,omitempty"`
+	MinOccurrences int                      `mapstructure:"min-occurrences,omitempty"`
+	MaxOccurrences int                      `mapstructure:"max-occurrences,omitempty"`
+	Window         time.Duration            `mapstructure:"window,omitempty"`
+	Actions        []map[string]interface{} `mapstructure:"actions,omitempty"`
+	Vars           map[string]interface{}   `mapstructure:"vars,omitempty"`
+	VarsFile       string                   `mapstructure:"vars-file,omitempty"`
+	Debug          bool                     `mapstructure:"debug,omitempty"`
 
 	occurrencesTimes []time.Time
 	lastTrigger      time.Time
 	code             *gojq.Code
-	action           actions.Action
+	actions          []actions.Action
+	vars             map[string]interface{}
 
 	targets map[string]interface{}
 	logger  *log.Logger
@@ -69,10 +74,17 @@ func (p *Trigger) Init(cfg interface{}, opts ...formatters.Option) error {
 	if err != nil {
 		return err
 	}
-	err = p.initializeAction(p.Action)
+	for _, a := range p.Actions {
+		err = p.initializeAction(a)
+		if err != nil {
+			return err
+		}
+	}
+	err = p.readVars()
 	if err != nil {
 		return err
 	}
+
 	err = p.setDefaults()
 	if err != nil {
 		return err
@@ -98,7 +110,7 @@ func (p *Trigger) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		}
 		if res {
 			if p.evalOccurrencesWithinWindow(now) {
-				p.triggerAction(e)
+				p.triggerActions(e)
 			}
 		}
 	}
@@ -128,11 +140,12 @@ func (p *Trigger) initializeAction(cfg map[string]interface{}) error {
 		switch actType := actType.(type) {
 		case string:
 			if in, ok := actions.Actions[actType]; ok {
-				p.action = in()
-				err := p.action.Init(cfg, actions.WithLogger(p.logger), actions.WithTargets(p.targets))
+				act := in()
+				err := act.Init(cfg, actions.WithLogger(p.logger), actions.WithTargets(p.targets))
 				if err != nil {
 					return err
 				}
+				p.actions = append(p.actions, act)
 				return nil
 			}
 			return fmt.Errorf("unknown action type %q", actType)
@@ -170,15 +183,36 @@ func (p *Trigger) setDefaults() error {
 	return nil
 }
 
-func (p *Trigger) triggerAction(e *formatters.EventMsg) {
-	p.logger.Printf("running action: %+v", p.action)
+func (p *Trigger) readVars() error {
+	if p.VarsFile == "" {
+		p.vars = p.Vars
+		return nil
+	}
+	b, err := ioutil.ReadFile(p.VarsFile)
+	if err != nil {
+		return err
+	}
+	v := make(map[string]interface{})
+	err = yaml.Unmarshal(b, &v)
+	if err != nil {
+		return err
+	}
+	p.vars = utils.MergeMaps(v, p.Vars)
+	return nil
+}
+
+func (p *Trigger) triggerActions(e *formatters.EventMsg) {
 	go func() {
-		res, err := p.action.Run(e)
-		if err != nil {
-			p.logger.Printf("trigger action %+v failed: %+v", p.action, err)
-			return
+		env := make(map[string]interface{})
+		for _, act := range p.actions {
+			res, err := act.Run(e, env, p.vars)
+			if err != nil {
+				p.logger.Printf("trigger action %q failed: %+v", act.NName(), err)
+				return
+			}
+			env[act.NName()] = res
+			p.logger.Printf("action %q result: %+v", act.NName(), res)
 		}
-		p.logger.Printf("action result: %+v", res)
 	}()
 }
 

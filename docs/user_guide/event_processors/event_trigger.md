@@ -1,4 +1,4 @@
-The `event-trigger` processor, triggers an action if the configured condition evaluates to `true`.
+The `event-trigger` processor takes event messages as input and triggers a list of actions (sequentially) if a configured condition evaluates to `true`.
 
 The condition is evaluated using the the Golang implementation of [jq](https://github.com/itchyny/gojq) with the event message as a `json` input.
 
@@ -20,7 +20,7 @@ Examples of conditions:
 .name == "sub1" and .tags["source"] == "r1:57400" 
 ```
 
-The trigger can be monitored over a configurable window of time (default 1 minute), during which only a certain number of occurrences (default 1) trigger the action.
+The trigger can be monitored over a configurable window of time (default 1 minute), during which only a certain number of occurrences (default 1) trigger the actions execution.
 
 Actions can be of two types:
 
@@ -37,11 +37,11 @@ The `HTTP action` templates come with some handy functions like:
 
 - `withTags`: keep only certain tags in the event message.  
   for e.g: `{{ withTags . "tag1" "tag2" }}`
-- `withoutTags`: remove certain tags from the event message.   
+- `withoutTags`: remove certain tags from the event message.
   for e.g: `{{ withoutTags . "tag1" "tag2" }}`
-- `withValues`: keep only certain values in the event message.   
+- `withValues`: keep only certain values in the event message.
   for e.g: `{{ withValues . "counter1" "counter2" }}`
-- `withoutTags`: remove certain values from the event message.   
+- `withoutTags`: remove certain values from the event message.
   for e.g: `{{ withoutTags . "counter1" "counter2" }}`
 
 ```yaml
@@ -60,8 +60,15 @@ processors:
       # window of time during which max-occurrences need to 
       # be reached in order to trigger the action
       window: 60s
+      # a dictionary of variables that is passed to the actions
+      # and can be accessed in the actions templates using `.Vars`
+      vars:
+      # path to a file containing variables passed to the actions
+      # the variable in the `vars` field override the ones read from the file.
+      vars-file: 
       # the action to trigger
-      action:
+      actions:
+      - name: counter1_alert
         # action type
         type: http
         # HTTP method
@@ -91,7 +98,8 @@ processors:
       min-occurrences: 1
       max-occurrences: 2
       window: 120s
-      action:
+      actions:
+      - name: counter1_alert
         type: http
         method: POST
         url: http://remote-server:8080/{{ index .Tags "source" }}
@@ -100,6 +108,7 @@ processors:
         timeout: 5s
         body: '"counter1" crossed threshold, value={{ index .Values "counter1" }}'
 ```
+
 ### gNMI Action
 
 Using the `gNMI action` you can trigger a gNMI Get or Set RPC when the trigger condition is met.
@@ -122,8 +131,15 @@ processors:
       # window of time during which max-occurrences need to 
       # be reached in order to trigger the action
       window: 60s
+      # a dictionary of variables that is passed to the actions
+      # and can be accessed in the actions templates using `.Vars`
+      vars:
+      # path to a file containing variables passed to the actions
+      # the variable in the `vars` field override the ones read from the file.
+      vars-file: 
       # the action to trigger
-      action:
+      actions:
+      - name: my_gnmi_action
         # action type
         type: gnmi
         # gNMI rpc, defaults to `get`, if `set` is used it will default to a set update.
@@ -147,12 +163,6 @@ processors:
         data-type: ALL
         # gNMI encoding, defaults to json
         encoding: json
-        # a dictionary of variables that can be used in the `target`, `paths` and `values` templates.
-        # the variables are accessible in the template using `.Vars`
-        vars:
-        # path to a file containing variable to be used when rendering the `target`, `paths` and `values` templates.
-        # the variable in `vars` override the ones read from the file.
-        vars-file: 
         # debug, enable extra logging
         debug: false
 ```
@@ -165,7 +175,8 @@ processors:
     event-trigger:
       debug: true
       condition: '(.tags.interface_name == "ethernet-1/1" or .tags.interface_name == "ethernet-1/2") and .values["/srl_nokia-interfaces:interface/oper-state"] == "down"'
-      action:
+      actions:
+      - name: my_gnmi_action
         type: gnmi
         rpc: set
         target: '{{ index .Event.Tags "source" }}'

@@ -32,6 +32,7 @@ var testset = map[string]struct {
 		actionType: actionType,
 		action: map[string]interface{}{
 			"type":  "http",
+			"name":  "act1",
 			"URL":   "http://localhost:8080",
 			"debug": true,
 		},
@@ -55,10 +56,11 @@ var testset = map[string]struct {
 	"with_simple_template": {
 		actionType: actionType,
 		action: map[string]interface{}{
-			"type":     "http",
-			"url":      "http://localhost:8080",
-			"body": `{{ name . }}`,
-			"debug":    true,
+			"type":  "http",
+			"name":  "act1",
+			"url":   "http://localhost:8080",
+			"body":  `{{ name . }}`,
+			"debug": true,
 		},
 		tests: []item{
 			{
@@ -81,10 +83,11 @@ var testset = map[string]struct {
 	"remove_all_tags": {
 		actionType: actionType,
 		action: map[string]interface{}{
-			"type":     "http",
-			"url":      "http://localhost:8080",
-			"body": `{{ withTags . }}`,
-			"debug":    true,
+			"type":  "http",
+			"name":  "act1",
+			"url":   "http://localhost:8080",
+			"body":  `{{ withTags . }}`,
+			"debug": true,
 		},
 		tests: []item{
 			{
@@ -115,10 +118,11 @@ var testset = map[string]struct {
 	"remove_some_tags": {
 		actionType: actionType,
 		action: map[string]interface{}{
-			"type":     "http",
-			"url":      "http://localhost:8080",
-			"body": `{{ withoutTags . "tag1" }}`,
-			"debug":    true,
+			"type":  "http",
+			"name":  "act1",
+			"url":   "http://localhost:8080",
+			"body":  `{{ withoutTags . "tag1" }}`,
+			"debug": true,
 		},
 		tests: []item{
 			{
@@ -166,10 +170,11 @@ var testset = map[string]struct {
 	"select_some_tags": {
 		actionType: actionType,
 		action: map[string]interface{}{
-			"type":     "http",
-			"url":      "http://localhost:8080",
-			"body": `{{ withTags . "tag1" }}`,
-			"debug":    true,
+			"type":  "http",
+			"name":  "act1",
+			"url":   "http://localhost:8080",
+			"body":  `{{ withTags . "tag1" }}`,
+			"debug": true,
 		},
 		tests: []item{
 			{
@@ -204,10 +209,11 @@ var testset = map[string]struct {
 	"remove_all_values": {
 		actionType: actionType,
 		action: map[string]interface{}{
-			"type":     "http",
-			"url":      "http://localhost:8080",
-			"body": `{{ withValues . }}`,
-			"debug":    true,
+			"type":  "http",
+			"name":  "act1",
+			"url":   "http://localhost:8080",
+			"body":  `{{ withValues . }}`,
+			"debug": true,
 		},
 		tests: []item{
 			{
@@ -246,10 +252,11 @@ var testset = map[string]struct {
 	"remove_some_values": {
 		actionType: actionType,
 		action: map[string]interface{}{
-			"type":     "http",
-			"url":      "http://localhost:8080",
-			"body": `{{ withoutValues . "val1"}}`,
-			"debug":    true,
+			"type":  "http",
+			"name":  "act1",
+			"url":   "http://localhost:8080",
+			"body":  `{{ withoutValues . "val1"}}`,
+			"debug": true,
 		},
 		tests: []item{
 			{
@@ -309,10 +316,11 @@ var testset = map[string]struct {
 	"select_some_values": {
 		actionType: actionType,
 		action: map[string]interface{}{
-			"type":     "http",
-			"url":      "http://localhost:8080",
-			"body": `{{ withValues . "val1" }}`,
-			"debug":    true,
+			"type":  "http",
+			"name":  "act1",
+			"url":   "http://localhost:8080",
+			"body":  `{{ withValues . "val1" }}`,
+			"debug": true,
 		},
 		tests: []item{
 			{
@@ -371,10 +379,11 @@ var testset = map[string]struct {
 	"select_tags_and_values": {
 		actionType: actionType,
 		action: map[string]interface{}{
-			"type":     "http",
-			"url":      "http://localhost:8080",
-			"body": `{{ withTags (withValues . "val1") "tag1" }}`,
-			"debug":    true,
+			"type":  "http",
+			"name":  "act1",
+			"url":   "http://localhost:8080",
+			"body":  `{{ withTags (withValues . "val1") "tag1" }}`,
+			"debug": true,
 		},
 		tests: []item{
 			{
@@ -474,7 +483,7 @@ func TestHTTPAction(t *testing.T) {
 			for i, item := range ts.tests {
 				t.Run(name, func(t *testing.T) {
 					t.Logf("running test item %d", i)
-					res, err := a.Run(item.input)
+					res, err := a.Run(item.input, nil, nil)
 					if err != nil {
 						t.Errorf("failed at %s item %d, %v", name, i, err)
 						t.Fail()

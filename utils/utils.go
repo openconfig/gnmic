@@ -1,14 +1,14 @@
-package gnmi_action
+package utils
 
 import "reflect"
 
-func mergeMaps(dst, src map[string]interface{}) map[string]interface{} {
+func MergeMaps(dst, src map[string]interface{}) map[string]interface{} {
 	for key, srcVal := range src {
 		if dstVal, ok := dst[key]; ok {
 			srcMap, srcMapOk := mapify(srcVal)
 			dstMap, dstMapOk := mapify(dstVal)
 			if srcMapOk && dstMapOk {
-				srcVal = mergeMaps(dstMap, srcMap)
+				srcVal = MergeMaps(dstMap, srcMap)
 			}
 		}
 		dst[key] = srcVal

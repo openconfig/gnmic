@@ -34,6 +34,7 @@ func init() {
 }
 
 type httpAction struct {
+	Name    string            `mapstructure:"name,omitempty"`
 	Method  string            `mapstructure:"method,omitempty"`
 	URL     string            `mapstructure:"url,omitempty"`
 	Headers map[string]string `mapstructure:"headers,omitempty"`
@@ -55,6 +56,9 @@ func (h *httpAction) Init(cfg map[string]interface{}, opts ...actions.Option) er
 	for _, opt := range opts {
 		opt(h)
 	}
+	if h.Name == "" {
+		return fmt.Errorf("action type %q missing name field", actionType)
+	}
 	err = h.setDefaults()
 	if err != nil {
 		return err
@@ -68,12 +72,17 @@ func (h *httpAction) Init(cfg map[string]interface{}, opts ...actions.Option) er
 	return err
 }
 
-func (h *httpAction) Run(e *formatters.EventMsg) (interface{}, error) {
+func (h *httpAction) Run(e *formatters.EventMsg, env, vars map[string]interface{}) (interface{}, error) {
 	if h.url == nil {
 		return nil, errors.New("missing url template")
 	}
 	if h.body == nil {
 		return nil, errors.New("missing body template")
+	}
+	in := &actions.Input{
+		Event: e,
+		Env:   env,
+		Vars:  vars,
 	}
 	b := new(bytes.Buffer)
 	err := json.NewEncoder(b).Encode(e)
@@ -87,7 +96,7 @@ func (h *httpAction) Run(e *formatters.EventMsg) (interface{}, error) {
 		return nil, err
 	}
 	url := new(bytes.Buffer)
-	err = h.url.Execute(url, e)
+	err = h.url.Execute(url, in)
 	if err != nil {
 		return nil, err
 	}
@@ -118,6 +127,8 @@ func (h *httpAction) Run(e *formatters.EventMsg) (interface{}, error) {
 	}
 	return nil, fmt.Errorf("status code=%d", resp.StatusCode)
 }
+
+func (h *httpAction) NName() string { return h.Name }
 
 func (h *httpAction) setDefaults() error {
 	// if !strings.HasPrefix(h.URL, "http") {
