@@ -2,6 +2,8 @@ package kafka_output
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -66,6 +68,7 @@ type Config struct {
 	Topic              string        `mapstructure:"topic,omitempty"`
 	Name               string        `mapstructure:"name,omitempty"`
 	SASL               *sasl         `mapstructure:"sasl,omitempty"`
+	TLS                *tlsConfig    `mapstructure:"tls,omitempty"`
 	MaxRetry           int           `mapstructure:"max-retry,omitempty"`
 	Timeout            time.Duration `mapstructure:"timeout,omitempty"`
 	RecoveryWaitTime   time.Duration `mapstructure:"recovery-wait-time,omitempty"`
@@ -84,6 +87,13 @@ type sasl struct {
 	Password  string `mapstructure:"password,omitempty"`
 	Mechanism string `mapstructure:"mechanism,omitempty"`
 	TokenURL  string `mapstructure:"token-url,omitempty"`
+}
+
+type tlsConfig struct {
+	CaFile     string `mapstructure:"ca-file,omitempty"`
+	KeyFile    string `mapstructure:"key-file,omitempty"`
+	CertFile   string `mapstructure:"cert-file,omitempty"`
+	SkipVerify bool   `mapstructure:"skip-verify,omitempty"`
 }
 
 func (k *KafkaOutput) String() string {
@@ -160,7 +170,10 @@ func (k *KafkaOutput) Init(ctx context.Context, name string, cfg map[string]inte
 		}
 	}
 
-	config := k.createConfig()
+	config, err := k.createConfig()
+	if err != nil {
+		return err
+	}
 	ctx, k.cancelFn = context.WithCancel(ctx)
 	k.wg.Add(k.Cfg.NumWorkers)
 	for i := 0; i < k.Cfg.NumWorkers; i++ {
@@ -339,9 +352,10 @@ func (k *KafkaOutput) SetName(name string) {
 
 func (k *KafkaOutput) SetClusterName(name string) {}
 
-func (k *KafkaOutput) createConfig() *sarama.Config {
+func (k *KafkaOutput) createConfig() (*sarama.Config, error) {
 	cfg := sarama.NewConfig()
 	cfg.ClientID = k.Cfg.Name
+	// SASL_PLAINTEXT or SASL_SSL
 	if k.Cfg.SASL != nil {
 		cfg.Net.SASL.Enable = true
 		cfg.Net.SASL.User = k.Cfg.SASL.User
@@ -360,11 +374,36 @@ func (k *KafkaOutput) createConfig() *sarama.Config {
 			cfg.Net.SASL.TokenProvider = oauthbearer.NewTokenProvider(cfg.Net.SASL.User, cfg.Net.SASL.Password, k.Cfg.SASL.TokenURL)
 		}
 	}
-	//
+	// SSL or SASL_SSL
+	if k.Cfg.TLS != nil {
+		cfg.Net.TLS.Enable = true
+		tlscfg := &tls.Config{
+			InsecureSkipVerify: k.Cfg.TLS.SkipVerify,
+		}
+		if k.Cfg.TLS.CaFile != "" {
+			caCert, err := ioutil.ReadFile(k.Cfg.TLS.CaFile)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read tls.ca-file: %v", err)
+			}
+			caCertPool := x509.NewCertPool()
+			caCertPool.AppendCertsFromPEM(caCert)
+			tlscfg.RootCAs = caCertPool
+		}
+		if k.Cfg.TLS.CertFile != "" && k.Cfg.TLS.KeyFile != "" {
+			certificate, err := tls.LoadX509KeyPair(k.Cfg.TLS.CertFile, k.Cfg.TLS.KeyFile)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read the keyPair tls.cert-file and tls.key-file: %v", err)
+			}
+			tlscfg.Certificates = []tls.Certificate{certificate}
+			tlscfg.BuildNameToCertificate()
+		}
+		cfg.Net.TLS.Config = tlscfg
+	}
+
 	cfg.Producer.Retry.Max = k.Cfg.MaxRetry
 	cfg.Producer.RequiredAcks = sarama.WaitForAll
 	cfg.Producer.Return.Successes = true
 	cfg.Producer.Timeout = k.Cfg.Timeout
 
-	return cfg
+	return cfg, nil
 }

@@ -1,5 +1,8 @@
 `gnmic` supports exporting subscription updates to multiple Apache Kafka brokers/clusters simultaneously
 
+
+### Configuration sample
+
 A Kafka output can be defined using the below format in `gnmic` config file under `outputs` section:
 
 ```yaml
@@ -27,6 +30,17 @@ outputs:
       mechanism:
       # token url for OAUTHBEARER SASL mechanism
       token-url:
+    # Kafka TLS config
+    tls:
+      # path to certificate authority file, this will be used to verify the kafka server certificate
+      ca-file:
+      # path to client certificate file.
+      cert-file: 
+      # path to client key file.
+      key-file:
+      # boolean, controls whether a client verifies the server's certificate chain and host name
+      # if set to true, the kafka client accepts any certificate presented by the server and any host name in that certificate
+      skip-verify:
     # The total number of times to retry sending a message
     max-retry: 2 
     # Kafka connection timeout
@@ -41,7 +55,7 @@ outputs:
     # if set to `overwrite`, the target value is overwritten using the template configured under `target-template`
     # if set to `if-not-present`, the target value is populated only if it is empty, still using the `target-template`
     add-target: 
-    # string, a GoTemplate that allow for the customization of the target field in Prefix.Target.
+    # string, a GoTemplate that allows for the customization of the target field in Prefix.Target.
     # it applies only if the previous field `add-target` is not empty.
     # if left empty, it defaults to:
     # {{- if index . "subscription-target" -}}
@@ -67,6 +81,152 @@ outputs:
 ```
 
 Currently all subscriptions updates (all targets and all subscriptions) are published to the defined topic name
+
+### Kafka Security protocol
+
+Kafka clients can operate with 4 [security protocols](https://kafka.apache.org/24/javadoc/org/apache/kafka/common/security/auth/SecurityProtocol.html), 
+their configuration is controlled via both `.tls` and `.sasl` fields under the output config.
+
+**Security Protocol**  | **Description**                           | **Configuration**                       |
+-----------------------|-------------------------------------------|-----------------------------------------|
+`PLAINTEXT`            | Un-authenticated, non-encrypted channel   | `.tls` and `.sasl` are **NOT** present  |
+`SASL_PLAINTEXT`       | SASL authenticated, non-encrypted channel | only `.sasl` is present                 |
+`SASL_SSL`             | SASL authenticated, SSL channel           | both `.tls` and `.sasl` are present     |
+`SSL`                  | SSL channel                               | only `.tls` is present                  |
+
+#### Security Configuration Examples
+
+=== "PLAINTEXT"
+    ```yaml
+    outputs:
+      output1:
+        type: kafka
+        topic: my_kafka_topic
+        # other fields
+        # no tls and no sasl fields
+    ```
+=== "SASL_PLAINTEXT"
+    ```yaml
+    outputs:
+      output1:
+        type: kafka
+        topic: my_kafka_topic
+        sasl:
+          username: admin
+          password: secret
+        # other fields
+        # no tls field
+    ```
+=== "SASL_SSL"
+    Example1: Without server certificate verification
+    ```yaml
+    outputs:
+      output1:
+        type: kafka
+        topic: my_kafka_topic
+        sasl:
+          username: admin
+          password: secret
+        tls:
+          skip-verify: true
+        # other fields
+        # ...
+    ```
+    Example2: With server certificate verification
+    ```yaml
+    outputs:
+      output1:
+        type: kafka
+        topic: my_kafka_topic
+        sasl:
+          username: admin
+          password: secret
+        tls:
+          ca-file: /path/to/ca-file
+        # other fields
+        # ...
+    ```
+    Example3: With client certificates
+    ```yaml
+    outputs:
+      output1:
+        type: kafka
+        topic: my_kafka_topic
+        sasl:
+          username: admin
+          password: secret
+        tls:
+          cert-file: /path/to/cert-file
+          key-file: /path/to/cert-file
+        # other fields
+        # ...
+    ```
+    Example4: With both server certificate verification and client certificates
+    ```yaml
+    outputs:
+      output1:
+        type: kafka
+        topic: my_kafka_topic
+        sasl:
+          username: admin
+          password: secret
+        tls:
+          cert-file: /path/to/cert-file
+          key-file: /path/to/cert-file
+          ca-file: /path/to/ca-file
+        # other fields
+        # ...
+    ```
+=== "SSL"
+    Example1: Without server certificate verification
+    ```yaml
+    outputs:
+      output1:
+        type: kafka
+        topic: my_kafka_topic
+        tls:
+          skip-verify: true
+        # other fields
+        # no sasl field
+    ```
+    Example2: With server certificate verification
+    ```yaml
+    outputs:
+      output1:
+        type: kafka
+        topic: my_kafka_topic
+        tls:
+          ca-file: /path/to/ca-file
+        # other fields
+        # no sasl field
+    ```
+    Example3: With client certificates
+    ```yaml
+    outputs:
+      output1:
+        type: kafka
+        topic: my_kafka_topic
+        tls:
+          cert-file: /path/to/cert-file
+          key-file: /path/to/cert-file
+        # other fields
+        # no sasl field
+    ```
+    Example4: With both server certificate verification and client certificates
+    ```yaml
+    outputs:
+      output1:
+        type: kafka
+        topic: my_kafka_topic
+        tls:
+          cert-file: /path/to/cert-file
+          key-file: /path/to/cert-file
+          ca-file: /path/to/ca-file
+        # other fields
+        # no sasl field
+    ```
+
+### Kafka Output Metrics
 
 When a Prometheus server is enabled, `gnmic` kafka output exposes 4 prometheus metrics, 3 Counters and 1 Gauge:
 
