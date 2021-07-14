@@ -98,6 +98,9 @@ targets:
     username:
     # target password
     password:
+    # authentication token, 
+    # applied only in the case of a secure gRPC connection.
+    token: 
     # target RPC timeout
     timeout:
     # establish an insecure connection

@@ -91,6 +91,7 @@ type GlobalFlags struct {
 	File              []string      `mapstructure:"file,omitempty" json:"file,omitempty" yaml:"file,omitempty"`
 	Dir               []string      `mapstructure:"dir,omitempty" json:"dir,omitempty" yaml:"dir,omitempty"`
 	Exclude           []string      `mapstructure:"exclude,omitempty" json:"exclude,omitempty" yaml:"exclude,omitempty"`
+	Token             string        `mapstructure:"token,omitempty" json:"token,omitempty" yaml:"token,omitempty"`
 }
 
 type LocalFlags struct {

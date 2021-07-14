@@ -36,6 +36,7 @@ Global flags to env variable name mapping:
 | --instance-name            | GNMIC_INSTANCE_NAME            |
 | --proto-file               | GNMIC_PROTO_FILE               |
 | --proto-dir                | GNMIC_PROTO_DIR                |
+| --token                    | GNMIC_TOKEN                    |
 
 #### Configuration file to environment variables mapping
 

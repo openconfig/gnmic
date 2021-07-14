@@ -269,6 +269,12 @@ The tls version flag `[--tls-version]` specifies a single supported TLS version 
 
 This flag overwrites the previously listed flags `--tls-max-version` and `--tls-min-version`.
 
+### token
+
+The token flag `[--token]` sets a token value to be added to each RPC as an Authorization Bearer Token.
+
+Applied only in the case of a secure gRPC connection.
+
 ### username
 
 The username flag `[-u | --username]` is used to specify the target username as part of the user credentials. If omitted, the input prompt is used to provide the username.
