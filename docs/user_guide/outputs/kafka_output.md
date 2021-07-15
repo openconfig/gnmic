@@ -112,7 +112,7 @@ their configuration is controlled via both `.tls` and `.sasl` fields under the o
         type: kafka
         topic: my_kafka_topic
         sasl:
-          username: admin
+          user: admin
           password: secret
         # other fields
         # no tls field
@@ -125,7 +125,7 @@ their configuration is controlled via both `.tls` and `.sasl` fields under the o
         type: kafka
         topic: my_kafka_topic
         sasl:
-          username: admin
+          user: admin
           password: secret
         tls:
           skip-verify: true
@@ -139,7 +139,7 @@ their configuration is controlled via both `.tls` and `.sasl` fields under the o
         type: kafka
         topic: my_kafka_topic
         sasl:
-          username: admin
+          user: admin
           password: secret
         tls:
           ca-file: /path/to/ca-file
@@ -153,7 +153,7 @@ their configuration is controlled via both `.tls` and `.sasl` fields under the o
         type: kafka
         topic: my_kafka_topic
         sasl:
-          username: admin
+          user: admin
           password: secret
         tls:
           cert-file: /path/to/cert-file
@@ -168,7 +168,7 @@ their configuration is controlled via both `.tls` and `.sasl` fields under the o
         type: kafka
         topic: my_kafka_topic
         sasl:
-          username: admin
+          user: admin
           password: secret
         tls:
           cert-file: /path/to/cert-file
