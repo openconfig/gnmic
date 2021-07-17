@@ -42,6 +42,7 @@ var OutputTypes = []string{
 	"stan",
 	"tcp",
 	"udp",
+	"gnmi",
 }
 
 func Register(name string, initFn Initializer) {
