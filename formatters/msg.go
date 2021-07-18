@@ -40,6 +40,7 @@ type model struct {
 
 type getRqMsg struct {
 	Prefix   string   `json:"prefix,omitempty"`
+	Target   string   `json:"target,omitempty"`
 	Paths    []string `json:"paths,omitempty"`
 	Encoding string   `json:"encoding,omitempty"`
 	DataType string   `json:"data-type,omitempty"`
@@ -51,6 +52,7 @@ type setRspMsg struct {
 	Timestamp int64             `json:"timestamp,omitempty"`
 	Time      time.Time         `json:"time,omitempty"`
 	Prefix    string            `json:"prefix,omitempty"`
+	Target    string            `json:"target,omitempty"`
 	Results   []updateResultMsg `json:"results,omitempty"`
 }
 
@@ -61,6 +63,7 @@ type updateResultMsg struct {
 
 type setReqMsg struct {
 	Prefix  string      `json:"prefix,omitempty"`
+	Target  string      `json:"target,omitempty"`
 	Delete  []string    `json:"delete,omitempty"`
 	Replace []updateMsg `json:"replace,omitempty"`
 	Update  []updateMsg `json:"update,omitempty"`

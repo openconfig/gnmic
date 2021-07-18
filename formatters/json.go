@@ -164,6 +164,7 @@ func (o *MarshalOptions) formatCapabilitiesResponse(m *gnmi.CapabilityResponse) 
 func (o *MarshalOptions) formatGetRequest(m *gnmi.GetRequest) ([]byte, error) {
 	msg := getRqMsg{
 		Prefix:   gnmiPathToXPath(m.GetPrefix()),
+		Target:   m.GetPrefix().GetTarget(),
 		Paths:    make([]string, 0, len(m.Path)),
 		Encoding: m.GetEncoding().String(),
 		DataType: m.GetType().String(),
@@ -200,6 +201,7 @@ func (o *MarshalOptions) formatGetResponse(m *gnmi.GetResponse, meta map[string]
 			meta = make(map[string]string)
 		}
 		msg.Prefix = gnmiPathToXPath(notif.GetPrefix())
+		msg.Target = notif.GetPrefix().GetTarget()
 		if s, ok := meta["source"]; ok {
 			msg.Source = s
 		}
@@ -233,6 +235,7 @@ func (o *MarshalOptions) formatGetResponse(m *gnmi.GetResponse, meta map[string]
 func (o *MarshalOptions) formatSetRequest(m *gnmi.SetRequest) ([]byte, error) {
 	req := setReqMsg{
 		Prefix:  gnmiPathToXPath(m.Prefix),
+		Target:  m.GetPrefix().GetTarget(),
 		Delete:  make([]string, 0, len(m.GetDelete())),
 		Replace: make([]updateMsg, 0, len(m.GetReplace())),
 		Update:  make([]updateMsg, 0, len(m.GetUpdate())),
@@ -265,6 +268,7 @@ func (o *MarshalOptions) formatSetRequest(m *gnmi.SetRequest) ([]byte, error) {
 func (o *MarshalOptions) formatSetResponse(m *gnmi.SetResponse, meta map[string]string) ([]byte, error) {
 	msg := setRspMsg{}
 	msg.Prefix = gnmiPathToXPath(m.GetPrefix())
+	msg.Target = m.GetPrefix().GetTarget()
 	msg.Timestamp = m.Timestamp
 	msg.Time = time.Unix(0, m.Timestamp)
 	if meta == nil {
