@@ -57,15 +57,14 @@ func (m *matchClient) Update(n interface{}) {
 	_, m.err = m.queue.Insert(n)
 }
 
-func (g *gNMIOutput) newServer() (*server, error) {
-	s := &server{
+func (g *gNMIOutput) newServer() *server {
+	return &server{
 		l:       g.logger,
 		c:       g.c,
 		m:       match.New(),
-		sem:     semaphore.NewWeighted(10),
+		sem:     semaphore.NewWeighted(g.cfg.SubscriptionLimit),
 		timeout: defaultTimeout,
 	}
-	return s, nil
 }
 
 func (s *server) Subscribe(stream gnmi.GNMI_SubscribeServer) error {
