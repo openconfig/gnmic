@@ -17,11 +17,13 @@ limitations under the License.
 package gnmi_output
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/openconfig/gnmi/cache"
 	"github.com/openconfig/gnmi/coalesce"
@@ -34,6 +36,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 type streamClient struct {
@@ -59,6 +62,12 @@ type matchClient struct {
 }
 
 type syncMarker struct{}
+
+type resp struct {
+	stream gnmi.GNMI_SubscribeServer
+	n      *ctree.Leaf
+	dup    uint32
+}
 
 func (m *matchClient) Update(n interface{}) {
 	if m.err != nil {
@@ -297,8 +306,42 @@ func (s *server) sendSubscribeResponse(r *resp, sc *streamClient) error {
 	return r.stream.Send(notif)
 }
 
-type resp struct {
-	stream gnmi.GNMI_SubscribeServer
-	n      *ctree.Leaf
-	dup    uint32
+func (s *server) Get(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetResponse, error) {
+	target := req.GetPrefix().GetTarget()
+	if target == "" {
+		target = "*"
+		if req.GetPrefix() == nil {
+			req.Prefix = &gnmi.Path{Target: "*"}
+		} else {
+			req.Prefix.Target = "*"
+		}
+	}
+	if !s.c.HasTarget(target) {
+		return nil, status.Errorf(codes.NotFound, "target %q not found", target)
+	}
+	resp := &gnmi.GetResponse{
+		Notification: make([]*gnmi.Notification, 0),
+	}
+	var err error
+	for _, p := range req.GetPath() {
+		var fp []string
+		fp, err = path.CompletePath(req.GetPrefix(), p)
+		if err != nil {
+			return nil, err
+		}
+		err = s.c.Query(target, fp,
+			func(_ []string, l *ctree.Leaf, _ interface{}) error {
+				switch n := l.Value().(type) {
+				case *gnmi.Notification:
+					nc := proto.Clone(n).(*gnmi.Notification)
+					nc.Timestamp = time.Now().UnixNano()
+					resp.Notification = append(resp.Notification, nc)
+				}
+				return nil
+			})
+		if err != nil {
+			return nil, err
+		}
+	}
+	return resp, nil
 }
