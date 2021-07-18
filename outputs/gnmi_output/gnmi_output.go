@@ -31,9 +31,9 @@ import (
 )
 
 const (
-	loggingPrefix            = "[gnmi_output] "
-	defaultSubscriptionLimit = 64
-	defaultAddress           = ":57400"
+	loggingPrefix           = "[gnmi_output] "
+	defaultMaxSubscriptions = 64
+	defaultAddress          = ":57400"
 )
 
 func init() {
@@ -58,10 +58,10 @@ type gNMIOutput struct {
 }
 
 type config struct {
-	Name              string `mapstructure:"name,omitempty"`
-	Address           string `mapstructure:"address,omitempty"`
-	TargetTemplate    string `mapstructure:"target-template,omitempty"`
-	SubscriptionLimit int64  `mapstructure:"subscription-limit,omitempty"`
+	Name             string `mapstructure:"name,omitempty"`
+	Address          string `mapstructure:"address,omitempty"`
+	TargetTemplate   string `mapstructure:"target-template,omitempty"`
+	MaxSubscriptions int64  `mapstructure:"max-subscriptions,omitempty"`
 	// TLS
 	SkipVerify bool   `mapstructure:"skip-verify,omitempty"`
 	CaFile     string `mapstructure:"ca-file,omitempty"`
@@ -107,7 +107,9 @@ func (g *gNMIOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.
 				g.c.Add(target)
 				g.logger.Printf("target %q added to the local cache", target)
 			}
-			// g.logger.Printf("updating target %q local cache", target)
+			if g.cfg.Debug {
+				g.logger.Printf("updating target %q local cache", target)
+			}
 			err = g.c.GnmiUpdate(rsp.Update)
 			if err != nil {
 				g.logger.Printf("failed to update gNMI cache: %v", err)
@@ -162,8 +164,8 @@ func (g *gNMIOutput) SetClusterName(string) {}
 //
 
 func (g *gNMIOutput) setDefaults() error {
-	if g.cfg.SubscriptionLimit <= 0 {
-		g.cfg.SubscriptionLimit = defaultSubscriptionLimit
+	if g.cfg.MaxSubscriptions <= 0 {
+		g.cfg.MaxSubscriptions = defaultMaxSubscriptions
 	}
 	if g.cfg.Address == "" {
 		g.cfg.Address = defaultAddress

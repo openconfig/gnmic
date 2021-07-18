@@ -1,7 +1,6 @@
 package gnmi_output
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"log"
@@ -62,7 +61,7 @@ func (g *gNMIOutput) newServer() *server {
 		l:       g.logger,
 		c:       g.c,
 		m:       match.New(),
-		sem:     semaphore.NewWeighted(g.cfg.SubscriptionLimit),
+		sem:     semaphore.NewWeighted(g.cfg.MaxSubscriptions),
 		timeout: defaultTimeout,
 	}
 }
@@ -84,6 +83,12 @@ func (s *server) Subscribe(stream gnmi.GNMI_SubscribeServer) error {
 	sc.target = sc.req.GetSubscribe().GetPrefix().GetTarget()
 	if sc.target == "" {
 		sc.target = "*"
+		sub := sc.req.GetSubscribe()
+		if sub.GetPrefix() == nil {
+			sub.Prefix = &gnmi.Path{Target: "*"}
+		} else {
+			sub.Prefix.Target = "*"
+		}
 	}
 	if !s.c.HasTarget(sc.target) {
 		return status.Errorf(codes.NotFound, "target %q not found", sc.target)
@@ -95,6 +100,13 @@ func (s *server) Subscribe(stream gnmi.GNMI_SubscribeServer) error {
 	sc.queue = coalesce.NewQueue()
 	errChan := make(chan error, 3)
 	sc.errChan = errChan
+
+	s.l.Printf("acquiring subscription spot for target %q", sc.target)
+	ok := s.sem.TryAcquire(1)
+	if !ok {
+		return status.Errorf(codes.ResourceExhausted, "could not acquire a subscription spot")
+	}
+	s.l.Printf("acquired subscription spot for target %q", sc.target)
 
 	switch sc.req.GetSubscribe().GetMode() {
 	case gnmi.SubscriptionList_ONCE:
@@ -165,17 +177,14 @@ func (s *server) processSubscriptionRequest(c *streamClient) {
 	s.l.Printf("processing subscription to target %q", c.target)
 	defer func() {
 		if err != nil {
+			s.l.Printf("error processing subscription to target %q: %v", c.target, err)
 			c.queue.Close()
 			c.errChan <- err
+			return
 		}
 		s.l.Printf("subscription request to target %q processed", c.target)
 	}()
-	s.l.Printf("acquiring subscription spot for target %q", c.target)
-	// wait max 1 second for a subscription spot to get freed
-	// ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	// defer cancel()
-	s.sem.Acquire(context.Background(), 1)
-	s.l.Printf("acquired subscription spot for target %q", c.target)
+
 	if !c.req.GetSubscribe().GetUpdatesOnly() {
 		for _, sub := range c.req.GetSubscribe().GetSubscription() {
 			var fp []string
