@@ -1,11 +1,27 @@
+/*
+Copyright 2017 Google Inc.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// This gNMI server implementation is based on the one found here:
+// https://github.com/openconfig/gnmi/blob/c69a5df04b5329d70e3e76afa773669527cfad9b/subscribe/subscribe.go
+
 package gnmi_output
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"strings"
-	"time"
 
 	"github.com/openconfig/gnmi/cache"
 	"github.com/openconfig/gnmi/coalesce"
@@ -20,10 +36,6 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-const (
-	defaultTimeout = 60 * time.Second
-)
-
 type streamClient struct {
 	target  string
 	req     *gnmi.SubscribeRequest
@@ -35,11 +47,10 @@ type streamClient struct {
 type server struct {
 	gnmi.UnimplementedGNMIServer
 	//
-	l       *log.Logger
-	c       *cache.Cache
-	m       *match.Match
-	sem     *semaphore.Weighted
-	timeout time.Duration
+	l   *log.Logger
+	c   *cache.Cache
+	m   *match.Match
+	sem *semaphore.Weighted
 }
 
 type matchClient struct {
@@ -58,11 +69,10 @@ func (m *matchClient) Update(n interface{}) {
 
 func (g *gNMIOutput) newServer() *server {
 	return &server{
-		l:       g.logger,
-		c:       g.c,
-		m:       match.New(),
-		sem:     semaphore.NewWeighted(g.cfg.MaxSubscriptions),
-		timeout: defaultTimeout,
+		l:   g.logger,
+		c:   g.c,
+		m:   match.New(),
+		sem: semaphore.NewWeighted(g.cfg.MaxSubscriptions),
 	}
 }
 
@@ -94,7 +104,7 @@ func (s *server) Subscribe(stream gnmi.GNMI_SubscribeServer) error {
 		return status.Errorf(codes.NotFound, "target %q not found", sc.target)
 	}
 	peer, _ := peer.FromContext(stream.Context())
-	s.l.Printf("received a subscribe request from %q for target %q", peer.Addr, sc.target)
+	s.l.Printf("received a subscribe request mode=%v from %q for target %q", sc.req.GetSubscribe().GetMode(), peer.Addr, sc.target)
 	defer s.l.Printf("subscription from peer %q terminated", peer.Addr)
 
 	sc.queue = coalesce.NewQueue()
@@ -111,11 +121,11 @@ func (s *server) Subscribe(stream gnmi.GNMI_SubscribeServer) error {
 	switch sc.req.GetSubscribe().GetMode() {
 	case gnmi.SubscriptionList_ONCE:
 		go func() {
-			s.processSubscriptionRequest(sc)
+			s.handleSubscriptionRequest(sc)
 			sc.queue.Close()
 		}()
 	case gnmi.SubscriptionList_POLL:
-		// TODO
+		go s.handlePolledSubscription(sc)
 	case gnmi.SubscriptionList_STREAM:
 		if sc.req.GetSubscribe().GetUpdatesOnly() {
 			sc.queue.Insert(syncMarker{})
@@ -123,11 +133,12 @@ func (s *server) Subscribe(stream gnmi.GNMI_SubscribeServer) error {
 		remove := addSubscription(s.m, sc.req.GetSubscribe(), &matchClient{queue: sc.queue})
 		defer remove()
 		if !sc.req.GetSubscribe().GetUpdatesOnly() {
-			go s.processSubscriptionRequest(sc)
+			go s.handleSubscriptionRequest(sc)
 		}
 	default:
 		return status.Errorf(codes.InvalidArgument, "unrecognized subscription mode: %v", sc.req.GetSubscribe().GetMode())
 	}
+	// send all nodes added to queue
 	go s.sendStreamingResults(sc)
 
 	var errs = make([]error, 0)
@@ -172,59 +183,48 @@ func addSubscription(m *match.Match, s *gnmi.SubscriptionList, c *matchClient) f
 	}
 }
 
-func (s *server) processSubscriptionRequest(c *streamClient) {
+func (s *server) handleSubscriptionRequest(sc *streamClient) {
 	var err error
-	s.l.Printf("processing subscription to target %q", c.target)
+	s.l.Printf("processing subscription to target %q", sc.target)
 	defer func() {
 		if err != nil {
-			s.l.Printf("error processing subscription to target %q: %v", c.target, err)
-			c.queue.Close()
-			c.errChan <- err
+			s.l.Printf("error processing subscription to target %q: %v", sc.target, err)
+			sc.queue.Close()
+			sc.errChan <- err
 			return
 		}
-		s.l.Printf("subscription request to target %q processed", c.target)
+		s.l.Printf("subscription request to target %q processed", sc.target)
 	}()
 
-	if !c.req.GetSubscribe().GetUpdatesOnly() {
-		for _, sub := range c.req.GetSubscribe().GetSubscription() {
+	if !sc.req.GetSubscribe().GetUpdatesOnly() {
+		for _, sub := range sc.req.GetSubscribe().GetSubscription() {
 			var fp []string
-			fp, err = path.CompletePath(c.req.GetSubscribe().GetPrefix(), sub.GetPath())
+			fp, err = path.CompletePath(sc.req.GetSubscribe().GetPrefix(), sub.GetPath())
 			if err != nil {
 				return
 			}
-			s.c.Query(c.target, fp, func(_ []string, l *ctree.Leaf, _ interface{}) error {
-				if err != nil {
-					return err
-				}
-				_, err = c.queue.Insert(l)
-				return nil
-			})
+			err = s.c.Query(sc.target, fp,
+				func(_ []string, l *ctree.Leaf, _ interface{}) error {
+					if err != nil {
+						return err
+					}
+					_, err = sc.queue.Insert(l)
+					return nil
+				})
 			if err != nil {
+				s.l.Printf("target %q failed internal cache query: %v", sc.target, err)
 				return
 			}
 		}
 	}
-	_, err = c.queue.Insert(syncMarker{})
+	_, err = sc.queue.Insert(syncMarker{})
 }
 
 func (s *server) sendStreamingResults(sc *streamClient) {
 	ctx := sc.stream.Context()
 	peer, _ := peer.FromContext(ctx)
 	s.l.Printf("sending streaming results from target %q to peer %q", sc.target, peer.Addr)
-	t := time.NewTimer(s.timeout)
-	t.Stop()
 	defer s.sem.Release(1)
-	done := make(chan struct{})
-	defer close(done)
-	go func() {
-		select {
-		case <-t.C:
-			err := fmt.Errorf("subscription to target %q from peer %q timed out", sc.target, peer.Addr)
-			s.l.Print(err)
-			sc.errChan <- err
-		case <-done:
-		}
-	}()
 	for {
 		item, dup, err := sc.queue.Next(ctx)
 		if coalesce.IsClosedQueue(err) {
@@ -256,13 +256,35 @@ func (s *server) sendStreamingResults(sc *streamClient) {
 			stream: sc.stream,
 			n:      node,
 			dup:    dup,
-			t:      t,
 		}, sc)
 		if err != nil {
+			s.l.Printf("target %q: failed sending subscribeResponse: %v", sc.target, err)
 			sc.errChan <- err
 			return
 		}
 		// TODO: check if target was deleted ? necessary ?
+	}
+}
+
+func (s *server) handlePolledSubscription(sc *streamClient) {
+	s.handleSubscriptionRequest(sc)
+	var err error
+	for {
+		if sc.queue.IsClosed() {
+			return
+		}
+		_, err = sc.stream.Recv()
+		if errors.Is(err, io.EOF) {
+			return
+		}
+		if err != nil {
+			s.l.Printf("target %q: failed poll subscription rcv: %v", sc.target, err)
+			sc.errChan <- err
+			return
+		}
+		s.l.Printf("target %q: repoll", sc.target)
+		s.handleSubscriptionRequest(sc)
+		s.l.Printf("target %q: repoll done", sc.target)
 	}
 }
 
@@ -272,8 +294,6 @@ func (s *server) sendSubscribeResponse(r *resp, sc *streamClient) error {
 		return status.Errorf(codes.Unknown, "unknown error: %v", err)
 	}
 	// No acls
-	r.t.Reset(s.timeout)
-	defer r.t.Stop()
 	return r.stream.Send(notif)
 }
 
@@ -281,5 +301,4 @@ type resp struct {
 	stream gnmi.GNMI_SubscribeServer
 	n      *ctree.Leaf
 	dup    uint32
-	t      *time.Timer
 }
