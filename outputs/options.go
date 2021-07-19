@@ -37,3 +37,9 @@ func WithClusterName(name string) Option {
 		o.SetClusterName(name)
 	}
 }
+
+func WithTargetsConfig(tcs map[string]interface{}) Option {
+	return func(o Output) {
+		o.SetTargetsConfig(tcs)
+	}
+}

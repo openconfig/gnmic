@@ -20,11 +20,13 @@ import (
 	"time"
 
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/openconfig/gnmi/cache"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/sync/semaphore"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/protobuf/proto"
@@ -33,6 +35,7 @@ import (
 const (
 	loggingPrefix           = "[gnmi_output] "
 	defaultMaxSubscriptions = 64
+	defaultMaxGetRPC        = 64
 	defaultAddress          = ":57400"
 )
 
@@ -62,6 +65,7 @@ type config struct {
 	Address          string `mapstructure:"address,omitempty"`
 	TargetTemplate   string `mapstructure:"target-template,omitempty"`
 	MaxSubscriptions int64  `mapstructure:"max-subscriptions,omitempty"`
+	MaxGetRPC        int64  `mapstructure:"max-get-rpc,omitempty"`
 	// TLS
 	SkipVerify bool   `mapstructure:"skip-verify,omitempty"`
 	CaFile     string `mapstructure:"ca-file,omitempty"`
@@ -77,10 +81,17 @@ func (g *gNMIOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	if err != nil {
 		return err
 	}
+	g.c = cache.New(nil)
+	g.srv = g.newServer()
+
 	for _, opt := range opts {
 		opt(g)
 	}
-	g.setDefaults()
+	err = g.setDefaults()
+	if err != nil {
+		return err
+	}
+
 	err = g.startGRPCServer()
 	if err != nil {
 		return err
@@ -161,28 +172,54 @@ func (g *gNMIOutput) SetName(string) {}
 
 func (g *gNMIOutput) SetClusterName(string) {}
 
+func (g *gNMIOutput) SetTargetsConfig(tcs map[string]interface{}) {
+	if g.srv == nil {
+		return
+	}
+	g.srv.mu.Lock()
+	for n, tc := range tcs {
+		switch tc := tc.(type) {
+		case *collector.TargetConfig:
+			if tc.Name != "" {
+				g.srv.targets[tc.Name] = tc
+				continue
+			}
+			g.srv.targets[n] = tc
+		}
+	}
+	for n := range g.srv.targets {
+		if _, ok := tcs[n]; !ok {
+			delete(g.srv.targets, n)
+		}
+	}
+	g.srv.mu.Unlock()
+}
+
 //
 
 func (g *gNMIOutput) setDefaults() error {
-	if g.cfg.MaxSubscriptions <= 0 {
-		g.cfg.MaxSubscriptions = defaultMaxSubscriptions
-	}
 	if g.cfg.Address == "" {
 		g.cfg.Address = defaultAddress
 	}
 	if g.cfg.TargetTemplate == "" {
 		g.targetTpl = outputs.DefaultTargetTemplate
 	}
+	if g.cfg.MaxSubscriptions <= 0 {
+		g.cfg.MaxSubscriptions = defaultMaxSubscriptions
+	}
+	if g.cfg.MaxGetRPC <= 0 {
+		g.cfg.MaxGetRPC = defaultMaxGetRPC
+	}
 	return nil
 }
 
 func (g *gNMIOutput) startGRPCServer() error {
-	var err error
-	g.c = cache.New(nil)
-	g.srv = g.newServer()
+	g.srv.subscribeRPCsem = semaphore.NewWeighted(g.cfg.MaxSubscriptions)
+	g.srv.unaryRPCsem = semaphore.NewWeighted(g.cfg.MaxGetRPC)
 	g.c.SetClient(g.srv.Update)
 
 	var l net.Listener
+	var err error
 	network := "tcp"
 	addr := g.cfg.Address
 	if strings.HasPrefix(g.cfg.Address, "unix://") {

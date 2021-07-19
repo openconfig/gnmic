@@ -598,3 +598,5 @@ func (p *PrometheusOutput) SetClusterName(name string) {
 		p.Cfg.ServiceRegistration.Tags = append(p.Cfg.ServiceRegistration.Tags, fmt.Sprintf("gnmic-cluster=%s", name))
 	}
 }
+
+func (p *PrometheusOutput) SetTargetsConfig(map[string]interface{}) {}

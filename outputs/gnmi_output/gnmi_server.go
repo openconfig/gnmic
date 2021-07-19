@@ -17,14 +17,12 @@ limitations under the License.
 package gnmi_output
 
 import (
-	"context"
 	"errors"
-	"fmt"
 	"io"
 	"log"
-	"strings"
-	"time"
+	"sync"
 
+	"github.com/karimra/gnmic/collector"
 	"github.com/openconfig/gnmi/cache"
 	"github.com/openconfig/gnmi/coalesce"
 	"github.com/openconfig/gnmi/ctree"
@@ -36,7 +34,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
 )
 
 type streamClient struct {
@@ -50,10 +47,14 @@ type streamClient struct {
 type server struct {
 	gnmi.UnimplementedGNMIServer
 	//
-	l   *log.Logger
-	c   *cache.Cache
-	m   *match.Match
-	sem *semaphore.Weighted
+	l               *log.Logger
+	c               *cache.Cache
+	m               *match.Match
+	subscribeRPCsem *semaphore.Weighted
+	unaryRPCsem     *semaphore.Weighted
+	//
+	mu      *sync.RWMutex
+	targets map[string]*collector.TargetConfig
 }
 
 type matchClient struct {
@@ -78,91 +79,12 @@ func (m *matchClient) Update(n interface{}) {
 
 func (g *gNMIOutput) newServer() *server {
 	return &server{
-		l:   g.logger,
-		c:   g.c,
-		m:   match.New(),
-		sem: semaphore.NewWeighted(g.cfg.MaxSubscriptions),
+		l:       g.logger,
+		c:       g.c,
+		m:       match.New(),
+		mu:      new(sync.RWMutex),
+		targets: make(map[string]*collector.TargetConfig),
 	}
-}
-
-func (s *server) Subscribe(stream gnmi.GNMI_SubscribeServer) error {
-	sc := &streamClient{
-		stream: stream,
-	}
-	var err error
-	sc.req, err = stream.Recv()
-	switch {
-	case err == io.EOF:
-		return nil
-	case err != nil:
-		return err
-	case sc.req.GetSubscribe() == nil:
-		return status.Errorf(codes.InvalidArgument, "the subscribe request must contain a subscription definition")
-	}
-	sc.target = sc.req.GetSubscribe().GetPrefix().GetTarget()
-	if sc.target == "" {
-		sc.target = "*"
-		sub := sc.req.GetSubscribe()
-		if sub.GetPrefix() == nil {
-			sub.Prefix = &gnmi.Path{Target: "*"}
-		} else {
-			sub.Prefix.Target = "*"
-		}
-	}
-	if !s.c.HasTarget(sc.target) {
-		return status.Errorf(codes.NotFound, "target %q not found", sc.target)
-	}
-	peer, _ := peer.FromContext(stream.Context())
-	s.l.Printf("received a subscribe request mode=%v from %q for target %q", sc.req.GetSubscribe().GetMode(), peer.Addr, sc.target)
-	defer s.l.Printf("subscription from peer %q terminated", peer.Addr)
-
-	sc.queue = coalesce.NewQueue()
-	errChan := make(chan error, 3)
-	sc.errChan = errChan
-
-	s.l.Printf("acquiring subscription spot for target %q", sc.target)
-	ok := s.sem.TryAcquire(1)
-	if !ok {
-		return status.Errorf(codes.ResourceExhausted, "could not acquire a subscription spot")
-	}
-	s.l.Printf("acquired subscription spot for target %q", sc.target)
-
-	switch sc.req.GetSubscribe().GetMode() {
-	case gnmi.SubscriptionList_ONCE:
-		go func() {
-			s.handleSubscriptionRequest(sc)
-			sc.queue.Close()
-		}()
-	case gnmi.SubscriptionList_POLL:
-		go s.handlePolledSubscription(sc)
-	case gnmi.SubscriptionList_STREAM:
-		if sc.req.GetSubscribe().GetUpdatesOnly() {
-			sc.queue.Insert(syncMarker{})
-		}
-		remove := addSubscription(s.m, sc.req.GetSubscribe(), &matchClient{queue: sc.queue})
-		defer remove()
-		if !sc.req.GetSubscribe().GetUpdatesOnly() {
-			go s.handleSubscriptionRequest(sc)
-		}
-	default:
-		return status.Errorf(codes.InvalidArgument, "unrecognized subscription mode: %v", sc.req.GetSubscribe().GetMode())
-	}
-	// send all nodes added to queue
-	go s.sendStreamingResults(sc)
-
-	var errs = make([]error, 0)
-	for err := range errChan {
-		errs = append(errs, err)
-	}
-	if len(errs) > 0 {
-		sb := strings.Builder{}
-		sb.WriteString("multiple errors occurred:\n")
-		for _, err := range errs {
-			sb.WriteString(fmt.Sprintf("- %v\n", err))
-		}
-		return fmt.Errorf("%v", sb)
-	}
-	return nil
 }
 
 func (s *server) Update(n *ctree.Leaf) {
@@ -233,7 +155,7 @@ func (s *server) sendStreamingResults(sc *streamClient) {
 	ctx := sc.stream.Context()
 	peer, _ := peer.FromContext(ctx)
 	s.l.Printf("sending streaming results from target %q to peer %q", sc.target, peer.Addr)
-	defer s.sem.Release(1)
+	defer s.subscribeRPCsem.Release(1)
 	for {
 		item, dup, err := sc.queue.Next(ctx)
 		if coalesce.IsClosedQueue(err) {
@@ -304,44 +226,4 @@ func (s *server) sendSubscribeResponse(r *resp, sc *streamClient) error {
 	}
 	// No acls
 	return r.stream.Send(notif)
-}
-
-func (s *server) Get(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetResponse, error) {
-	target := req.GetPrefix().GetTarget()
-	if target == "" {
-		target = "*"
-		if req.GetPrefix() == nil {
-			req.Prefix = &gnmi.Path{Target: "*"}
-		} else {
-			req.Prefix.Target = "*"
-		}
-	}
-	if !s.c.HasTarget(target) {
-		return nil, status.Errorf(codes.NotFound, "target %q not found", target)
-	}
-	resp := &gnmi.GetResponse{
-		Notification: make([]*gnmi.Notification, 0),
-	}
-	var err error
-	for _, p := range req.GetPath() {
-		var fp []string
-		fp, err = path.CompletePath(req.GetPrefix(), p)
-		if err != nil {
-			return nil, err
-		}
-		err = s.c.Query(target, fp,
-			func(_ []string, l *ctree.Leaf, _ interface{}) error {
-				switch n := l.Value().(type) {
-				case *gnmi.Notification:
-					nc := proto.Clone(n).(*gnmi.Notification)
-					nc.Timestamp = time.Now().UnixNano()
-					resp.Notification = append(resp.Notification, nc)
-				}
-				return nil
-			})
-		if err != nil {
-			return nil, err
-		}
-	}
-	return resp, nil
 }

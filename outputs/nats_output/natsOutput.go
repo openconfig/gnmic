@@ -385,3 +385,5 @@ func (n *NatsOutput) SetName(name string) {
 }
 
 func (n *NatsOutput) SetClusterName(name string) {}
+
+func (n *NatsOutput) SetTargetsConfig(map[string]interface{}) {}
