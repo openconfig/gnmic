@@ -18,9 +18,13 @@ import (
 func (s *server) Get(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetResponse, error) {
 	ok := s.unaryRPCsem.TryAcquire(1)
 	if !ok {
-		return nil, status.Errorf(codes.ResourceExhausted, "max number of Get RPC reached")
+		return nil, status.Errorf(codes.ResourceExhausted, "max number of Unary RPC reached")
 	}
 	defer s.unaryRPCsem.Release(1)
+
+	if len(req.GetPath()) == 0 && req.GetPrefix() == nil {
+		return nil, status.Errorf(codes.InvalidArgument, "missing path")
+	}
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -76,15 +80,14 @@ func (s *server) Get(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetRespon
 				return
 			}
 		}
-
 	}()
 	wg := new(sync.WaitGroup)
 	wg.Add(numTargets)
 	for name, tc := range targets {
 		go func(name string, tc *collector.TargetConfig) {
+			name = outputs.GetHost(name)
 			defer wg.Done()
 			t := collector.NewTarget(tc)
-			defer t.Stop()
 			ctx, cancel := context.WithTimeout(ctx, tc.Timeout)
 			defer cancel()
 			err := t.CreateGNMIClient(ctx)
