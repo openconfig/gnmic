@@ -22,38 +22,34 @@ func (s *server) Set(ctx context.Context, req *gnmi.SetRequest) (*gnmi.SetRespon
 	}
 	defer s.unaryRPCsem.Release(1)
 
-	if len(req.GetUpdate())+len(req.GetReplace())+len(req.GetDelete()) == 0 {
+	numUpdates := len(req.GetUpdate())
+	numReplaces := len(req.GetReplace())
+	numDeletes := len(req.GetDelete())
+	if numUpdates+numReplaces+numDeletes == 0 {
 		return nil, status.Errorf(codes.InvalidArgument, "missing update/replace/delete path(s)")
 	}
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	targets := make(map[string]*collector.TargetConfig)
 	target := req.GetPrefix().GetTarget()
 	peer, _ := peer.FromContext(ctx)
 	s.l.Printf("received Set request from %q to target %q", peer.Addr, target)
 
-	if target == "" || target == "*" {
-		targets = s.targets
-	} else {
-		for n, tc := range s.targets {
-			if outputs.GetHost(n) == target {
-				targets[target] = tc
-				break
-			}
-		}
+	targets, err := s.selectTargets(target)
+	if err != nil {
+		return nil, err
 	}
-
 	numTargets := len(targets)
 	if numTargets == 0 {
-		return nil, status.Errorf(codes.NotFound, "unknown target %q", target)
+		return nil, status.Errorf(codes.NotFound, "unknown target(s) %q", target)
 	}
 	results := make(chan *gnmi.UpdateResult)
 	errChan := make(chan error, numTargets)
 
 	response := &gnmi.SetResponse{
-		Response: make([]*gnmi.UpdateResult, 0, numTargets), // assume a single update per target
+		// assume one update per target, per update/replace/delete
+		Response: make([]*gnmi.UpdateResult, 0, numTargets*(numUpdates+numReplaces+numDeletes)),
 	}
 	done := make(chan struct{})
 	ctx, cancel := context.WithCancel(ctx)
@@ -100,7 +96,7 @@ func (s *server) Set(ctx context.Context, req *gnmi.SetRequest) (*gnmi.SetRespon
 				return
 			}
 			for _, upd := range res.GetResponse() {
-				upd.Path.Origin = name
+				upd.Path.Target = name
 				results <- upd
 			}
 		}(name, tc)

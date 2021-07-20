@@ -3,6 +3,7 @@ package gnmi_output
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,37 +23,35 @@ func (s *server) Get(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetRespon
 	}
 	defer s.unaryRPCsem.Release(1)
 
-	if len(req.GetPath()) == 0 && req.GetPrefix() == nil {
+	numPaths := len(req.GetPath())
+	if numPaths == 0 && req.GetPrefix() == nil {
 		return nil, status.Errorf(codes.InvalidArgument, "missing path")
 	}
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	if len(req.GetPath()) == 1 && req.GetPath()[0].GetOrigin() == "gnmic" {
-		if req.GetPath()[0].Elem[0].Name == "target" {
-			notifs := make([]*gnmi.Notification, 0, len(s.targets))
-			for _, tc := range s.targets {
-				notifs = append(notifs, targetConfigToNotification(tc))
+	origins := make(map[string]struct{})
+	for _, p := range req.GetPath() {
+		origins[p.GetOrigin()] = struct{}{}
+		if p.GetOrigin() != "gnmic" {
+			if _, ok := origins["gnmic"]; ok {
+				return nil, status.Errorf(codes.InvalidArgument, "combining `gnmic` origin with other origin values is not supported")
 			}
-			return &gnmi.GetResponse{Notification: notifs}, nil
 		}
 	}
 
-	targets := make(map[string]*collector.TargetConfig)
+	if _, ok := origins["gnmic"]; ok {
+		return s.handlegNMIcInternalGet(ctx, req)
+	}
+
 	target := req.GetPrefix().GetTarget()
 	peer, _ := peer.FromContext(ctx)
 	s.l.Printf("received Get request from %q to target %q", peer.Addr, target)
 
-	if target == "" || target == "*" {
-		targets = s.targets
-	} else {
-		for n, tc := range s.targets {
-			if outputs.GetHost(n) == target {
-				targets[target] = tc
-				break
-			}
-		}
+	targets, err := s.selectTargets(target)
+	if err != nil {
+		return nil, err
 	}
 	numTargets := len(targets)
 	if numTargets == 0 {
@@ -62,7 +61,8 @@ func (s *server) Get(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetRespon
 	errChan := make(chan error, numTargets)
 
 	response := &gnmi.GetResponse{
-		Notification: make([]*gnmi.Notification, 0, numTargets), // assume a single notification per target
+		// assume one notification per path per target
+		Notification: make([]*gnmi.Notification, 0, numTargets*numPaths),
 	}
 	done := make(chan struct{})
 	ctx, cancel := context.WithCancel(ctx)
@@ -85,7 +85,7 @@ func (s *server) Get(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetRespon
 	wg.Add(numTargets)
 	for name, tc := range targets {
 		go func(name string, tc *collector.TargetConfig) {
-			name = outputs.GetHost(name)
+			// name = outputs.GetHost(name)
 			defer wg.Done()
 			t := collector.NewTarget(tc)
 			ctx, cancel := context.WithTimeout(ctx, tc.Timeout)
@@ -286,4 +286,39 @@ func targetConfigToNotification(tc *collector.TargetConfig) *gnmi.Notification {
 		})
 	}
 	return n
+}
+
+func (s *server) selectTargets(target string) (map[string]*collector.TargetConfig, error) {
+	if target == "" || target == "*" {
+		return s.targets, nil
+	}
+	targetsNames := strings.Split(target, ",")
+	targets := make(map[string]*collector.TargetConfig)
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+OUTER:
+	for i := range targetsNames {
+		for n, tc := range s.targets {
+			if outputs.GetHost(n) == targetsNames[i] {
+				targets[n] = tc
+				continue OUTER
+			}
+		}
+		return nil, status.Errorf(codes.NotFound, "target %q is not known", targetsNames[i])
+	}
+	return targets, nil
+}
+
+func (s *server) handlegNMIcInternalGet(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetResponse, error) {
+	if len(req.GetPath()) > 1 {
+		return nil, status.Errorf(codes.InvalidArgument, "only one path at a time is supported")
+	}
+	if req.GetPath()[0].Elem[0].Name == "target" {
+		notifs := make([]*gnmi.Notification, 0, len(s.targets))
+		for _, tc := range s.targets {
+			notifs = append(notifs, targetConfigToNotification(tc))
+		}
+		return &gnmi.GetResponse{Notification: notifs}, nil
+	}
+	return nil, status.Errorf(codes.InvalidArgument, "unknown path")
 }

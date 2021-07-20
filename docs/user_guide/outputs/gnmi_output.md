@@ -109,26 +109,117 @@ Clients can subscribe to specific target using the gNMI Prefix Target field, lea
 
 <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2Fgnmi_server.drawio" async></script>
 
-The gNMI server supports the gNMI `Get` RPC. 
+The server supports the gNMI `Get` RPC.
 It relies on the Prefix.Target field to select the target(s) to relay the received GetRequest to.
 
 If Prefix.Target is empty or is equal to `*`, a Get RPC is performed for all known targets.
-The received GetRequest is cloned, enriched with each target name and sent to the corresponding target.
+The received GetRequest is cloned, enriched with each target name and sent to the corresponding destination.
 
-Once all GetResponses are received back successfully, the notifications contained in each GetResponse are combined into a single GetResponse with their Prefix.Target populated if empty.
+Comma separated target names are also supported and allow to select a list of specific targets to send the Get RPC to.
+
+Once all GetResponses are received back successfully, the notifications contained in each GetResponse are combined into a single GetResponse with their Prefix.Target populated, if empty.
 
 The resulting GetResponse is then returned to the gNMI client.
 If one of the RPCs fails, an error with status code `Internal(13)` is returned to the client.
+
+If the Get Request has the origin field set to `gnmic`, the request is performed against the internal server configuration.
+Currently only the path `target` is supported.
+
+```bash
+gnmic -a localhost:57400 --skip-verify get --path gnmic:/target
+```
+
+```json
+[
+  {
+    "timestamp": 1626759382486891218,
+    "time": "2021-07-20T13:36:22.486891218+08:00",
+    "prefix": "gnmic:target[name=clab-gw-srl1:57400]",
+    "updates": [
+      {
+        "Path": "address",
+        "values": {
+          "address": "clab-gw-srl1:57400"
+        }
+      },
+      {
+        "Path": "username",
+        "values": {
+          "username": "admin"
+        }
+      },
+      {
+        "Path": "insecure",
+        "values": {
+          "insecure": "false"
+        }
+      },
+      {
+        "Path": "skip-verify",
+        "values": {
+          "skip-verify": "true"
+        }
+      },
+      {
+        "Path": "timeout",
+        "values": {
+          "timeout": "10s"
+        }
+      }
+    ]
+  },
+  {
+    "timestamp": 1626759382486900697,
+    "time": "2021-07-20T13:36:22.486900697+08:00",
+    "prefix": "gnmic:target[name=clab-gw-srl2:57400]",
+    "updates": [
+      {
+        "Path": "address",
+        "values": {
+          "address": "clab-gw-srl2:57400"
+        }
+      },
+      {
+        "Path": "username",
+        "values": {
+          "username": "admin"
+        }
+      },
+      {
+        "Path": "insecure",
+        "values": {
+          "insecure": "false"
+        }
+      },
+      {
+        "Path": "skip-verify",
+        "values": {
+          "skip-verify": "true"
+        }
+      },
+      {
+        "Path": "timeout",
+        "values": {
+          "timeout": "10s"
+        }
+      }
+    ]
+  }
+]
+```
 
 #### gNMI Set RPC
 
 The gNMI server supports the gNMI `Set` RPC.
 Just like in the case of `Get` RPC, the server relies on the `Prefix.Target` field to select the target(s) to relay the received SetRequest to.
 
-If Prefix.Target is empty or is equal to `*`, a Get RPC is performed for all known targets.
-The received GetRequest is cloned, enriched with each target name and sent to the corresponding target.
+If Prefix.Target is empty or is equal to `*`, a Set RPC is performed for all known targets.
+The received SetRequest is cloned, enriched with each target name and sent to the corresponding destination.
 
-Once all SetResponses are received back successfully, the `UpdateResult`s from each response are merge into a single SetResponse, with the addition of the target name set in `Path.Origin`,
+Comma separated target names are also supported and allow to select a list of specific targets to send the Set RPC to.
+
+Once all SetResponses are received back successfully, the `UpdateResult`s from each response are merged into a single SetResponse, with the addition of the target name set in `Path.Target`.
+This is not compliant with the gNMI specification which stipulates that the `Target` field should only be present in [Prefix Paths](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#2221-path-target)
 
 The resulting SetResponse is then returned to the gNMI client.
 If one of the RPCs fails, an error with status code `Internal(13)` is returned to the client.

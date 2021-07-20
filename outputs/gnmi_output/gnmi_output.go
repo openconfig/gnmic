@@ -61,11 +61,11 @@ type gNMIOutput struct {
 }
 
 type config struct {
-	Name             string `mapstructure:"name,omitempty"`
+	//Name             string `mapstructure:"name,omitempty"`
 	Address          string `mapstructure:"address,omitempty"`
 	TargetTemplate   string `mapstructure:"target-template,omitempty"`
 	MaxSubscriptions int64  `mapstructure:"max-subscriptions,omitempty"`
-	MaxGetRPC        int64  `mapstructure:"max-get-rpc,omitempty"`
+	MaxUnaryRPC      int64  `mapstructure:"max-unary-rpc,omitempty"`
 	// TLS
 	SkipVerify bool   `mapstructure:"skip-verify,omitempty"`
 	CaFile     string `mapstructure:"ca-file,omitempty"`
@@ -207,15 +207,15 @@ func (g *gNMIOutput) setDefaults() error {
 	if g.cfg.MaxSubscriptions <= 0 {
 		g.cfg.MaxSubscriptions = defaultMaxSubscriptions
 	}
-	if g.cfg.MaxGetRPC <= 0 {
-		g.cfg.MaxGetRPC = defaultMaxGetRPC
+	if g.cfg.MaxUnaryRPC <= 0 {
+		g.cfg.MaxUnaryRPC = defaultMaxGetRPC
 	}
 	return nil
 }
 
 func (g *gNMIOutput) startGRPCServer() error {
 	g.srv.subscribeRPCsem = semaphore.NewWeighted(g.cfg.MaxSubscriptions)
-	g.srv.unaryRPCsem = semaphore.NewWeighted(g.cfg.MaxGetRPC)
+	g.srv.unaryRPCsem = semaphore.NewWeighted(g.cfg.MaxUnaryRPC)
 	g.c.SetClient(g.srv.Update)
 
 	var l net.Listener
