@@ -311,8 +311,9 @@ START:
 	}
 }
 
-func (i *InfluxDBOutput) SetName(name string)        {}
-func (i *InfluxDBOutput) SetClusterName(name string) {}
+func (i *InfluxDBOutput) SetName(name string)                     {}
+func (i *InfluxDBOutput) SetClusterName(name string)              {}
+func (i *InfluxDBOutput) SetTargetsConfig(map[string]interface{}) {}
 
 func (i *InfluxDBOutput) convertUints(ev *formatters.EventMsg) {
 	if !strings.HasPrefix(i.dbVersion, "1.8") {

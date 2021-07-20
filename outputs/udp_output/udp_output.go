@@ -216,3 +216,4 @@ DIAL:
 
 func (u *UDPSock) SetName(name string)        {}
 func (u *UDPSock) SetClusterName(name string) {}
+func (u *UDPSock) SetTargetsConfig(map[string]interface{}) {}

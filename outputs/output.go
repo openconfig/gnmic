@@ -27,6 +27,7 @@ type Output interface {
 	SetEventProcessors(map[string]map[string]interface{}, *log.Logger, map[string]interface{})
 	SetName(string)
 	SetClusterName(string)
+	SetTargetsConfig(map[string]interface{})
 }
 
 type Initializer func() Output
@@ -42,6 +43,7 @@ var OutputTypes = []string{
 	"stan",
 	"tcp",
 	"udp",
+	"gnmi",
 }
 
 func Register(name string, initFn Initializer) {

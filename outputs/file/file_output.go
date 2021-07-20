@@ -235,5 +235,6 @@ func (f *File) RegisterMetrics(reg *prometheus.Registry) {
 	}
 }
 
-func (f *File) SetName(name string)        {}
-func (f *File) SetClusterName(name string) {}
+func (f *File) SetName(name string)                     {}
+func (f *File) SetClusterName(name string)              {}
+func (f *File) SetTargetsConfig(map[string]interface{}) {}

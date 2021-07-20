@@ -380,3 +380,4 @@ func (s *StanOutput) SetName(name string) {
 }
 
 func (s *StanOutput) SetClusterName(name string) {}
+func (s *StanOutput) SetTargetsConfig(map[string]interface{}) {}

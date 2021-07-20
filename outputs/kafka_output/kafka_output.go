@@ -352,6 +352,8 @@ func (k *KafkaOutput) SetName(name string) {
 
 func (k *KafkaOutput) SetClusterName(name string) {}
 
+func (k *KafkaOutput) SetTargetsConfig(map[string]interface{}) {}
+
 func (k *KafkaOutput) createConfig() (*sarama.Config, error) {
 	cfg := sarama.NewConfig()
 	cfg.ClientID = k.Cfg.Name

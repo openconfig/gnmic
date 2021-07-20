@@ -38,10 +38,11 @@ nav:
           - NATS: user_guide/outputs/nats_output.md
           - STAN: user_guide/outputs/stan_output.md
           - Kafka: user_guide/outputs/kafka_output.md
+          - InfluxDB: user_guide/outputs/influxdb_output.md
           - Prometheus:  user_guide/outputs/prometheus_output.md
+          - gNMI Server: user_guide/outputs/gnmi_output.md
           - TCP: user_guide/outputs/tcp_output.md
           - UDP: user_guide/outputs/udp_output.md
-          - InfluxDB: user_guide/outputs/influxdb_output.md
       - Processors: 
           - Introduction: user_guide/event_processors/intro.md
           - Add Tag: user_guide/event_processors/event_add_tag.md
