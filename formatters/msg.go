@@ -59,6 +59,7 @@ type setRspMsg struct {
 type updateResultMsg struct {
 	Operation string `json:"operation,omitempty"`
 	Path      string `json:"path,omitempty"`
+	Target    string `json:"target,omitempty"`
 }
 
 type setReqMsg struct {
