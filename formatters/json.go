@@ -282,6 +282,7 @@ func (o *MarshalOptions) formatSetResponse(m *gnmi.SetResponse, meta map[string]
 		msg.Results = append(msg.Results, updateResultMsg{
 			Operation: u.Op.String(),
 			Path:      gnmiPathToXPath(u.GetPath()),
+			Target:    u.GetPath().GetTarget(),
 		})
 	}
 	if o.Multiline {
