@@ -30,7 +30,6 @@ outputs:
     # if set to ``, nothing changes 
     # if set to `overwrite`, the target value is overwritten using the template configured under `target-template`
     # if set to `if-not-present`, the target value is populated only if it is empty, still using the `target-template`
-
     add-target: 
     # string, a GoTemplate that allow for the customization of the target field in Prefix.Target.
     # it applies only if the previous field `add-target` is not empty.
