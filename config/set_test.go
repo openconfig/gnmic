@@ -22,7 +22,7 @@ var createSetRequestFromFileTestSet = map[string]struct {
 				Encoding: "json",
 			},
 			LocalFlags{},
-			nil, nil, nil, nil, nil, nil, nil, nil,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil,
 			template.Must(template.New("set-request").Parse(`{
 				"updates": [
 					{
@@ -58,7 +58,7 @@ var createSetRequestFromFileTestSet = map[string]struct {
 				Encoding: "json",
 			},
 			LocalFlags{},
-			nil, nil, nil, nil, nil, nil, nil, nil,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil,
 			template.Must(template.New("set-request").Parse(`{
 				"replaces": [
 					{
@@ -94,7 +94,7 @@ var createSetRequestFromFileTestSet = map[string]struct {
 				Encoding: "json",
 			},
 			LocalFlags{},
-			nil, nil, nil, nil, nil, nil, nil, nil,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil,
 			template.Must(template.New("set-request").Parse(`{
 				"deletes": [
 					"valid/path"
@@ -120,7 +120,7 @@ var createSetRequestFromFileTestSet = map[string]struct {
 				Encoding: "json",
 			},
 			LocalFlags{},
-			nil, nil, nil, nil, nil, nil, nil, nil,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil,
 			template.Must(template.New("set-request").Parse(`{
 				"updates": [
 					{
@@ -174,7 +174,7 @@ var createSetRequestFromFileTestSet = map[string]struct {
 				Encoding: "json",
 			},
 			LocalFlags{},
-			nil, nil, nil, nil, nil, nil, nil, nil,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil,
 			template.Must(template.New("set-request").Parse(`{
 				"replaces": [
 					{
@@ -228,7 +228,7 @@ var createSetRequestFromFileTestSet = map[string]struct {
 				Encoding: "json",
 			},
 			LocalFlags{},
-			nil, nil, nil, nil, nil, nil, nil, nil,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil,
 			template.Must(template.New("set-request").Parse(`{
 				"deletes": [
 					"valid/path1",
@@ -261,7 +261,7 @@ var createSetRequestFromFileTestSet = map[string]struct {
 				Encoding: "json",
 			},
 			LocalFlags{},
-			nil, nil, nil, nil, nil, nil, nil, nil,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil,
 			template.Must(template.New("set-request").Parse(`{
 				"updates": [
 					{
@@ -329,7 +329,7 @@ var createSetRequestFromFileTestSet = map[string]struct {
 				Encoding: "json",
 			},
 			LocalFlags{},
-			nil, nil, nil, nil, nil, nil, nil, nil,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil,
 			template.Must(template.New("set-request").Parse(`replaces:
 {{- range $interface := index .Vars .TargetName "interfaces" }}
   - path: "/interface[name={{ index $interface "name" }}]"

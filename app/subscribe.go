@@ -50,6 +50,10 @@ func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	err = a.Config.GetGNMIServer()
+	if err != nil {
+		return err
+	}
 	//
 	for {
 		err := a.InitLocker()
@@ -77,6 +81,7 @@ func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
 	a.collector = collector.NewCollector(a.collectorConfig(), targetsConfig, cOpts...)
 
 	a.startAPI()
+	a.startGnmiServer()
 	go a.startCluster()
 	a.startIO()
 
@@ -241,7 +246,8 @@ func (a *App) createCollectorOpts(cmd *cobra.Command) ([]collector.CollectorOpti
 	if err != nil {
 		return nil, fmt.Errorf("failed loading proto files: %v", err)
 	}
-	return []collector.CollectorOption{
+
+	opts := []collector.CollectorOption{
 		collector.WithDialOptions(a.createCollectorDialOpts()),
 		collector.WithSubscriptions(subscriptionsConfig),
 		collector.WithOutputs(outs),
@@ -250,7 +256,11 @@ func (a *App) createCollectorOpts(cmd *cobra.Command) ([]collector.CollectorOpti
 		collector.WithInputs(inputsConfig),
 		collector.WithLocker(a.locker),
 		collector.WithProtoDescriptor(rootDesc),
-	}, nil
+	}
+	if a.Config.GnmiServer != nil {
+		opts = append(opts, collector.WithCache(a.c))
+	}
+	return opts, nil
 }
 
 func (a *App) collectorConfig() *collector.Config {

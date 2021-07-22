@@ -19,11 +19,13 @@ import (
 	"github.com/karimra/gnmic/lockers"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/mitchellh/mapstructure"
+	"github.com/openconfig/gnmi/cache"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -72,6 +74,7 @@ type Collector struct {
 	targetsLocksFn map[string]context.CancelFunc
 
 	rootDesc desc.Descriptor
+	cache    *cache.Cache
 }
 
 type CollectorOption func(c *Collector)
@@ -115,6 +118,12 @@ func WithEventProcessors(eps map[string]map[string]interface{}) CollectorOption 
 func WithProtoDescriptor(d desc.Descriptor) CollectorOption {
 	return func(c *Collector) {
 		c.rootDesc = d
+	}
+}
+
+func WithCache(ch *cache.Cache) CollectorOption {
+	return func(c *Collector) {
+		c.cache = ch
 	}
 }
 
@@ -777,10 +786,44 @@ func (c *Collector) subscriptionMode(name string) string {
 	return ""
 }
 
+func (c *Collector) updateCache(rsp *gnmi.SubscribeResponse, m outputs.Meta) {
+	if c.cache == nil {
+		return
+	}
+	r := proto.Clone(rsp).(*gnmi.SubscribeResponse)
+	switch r := r.Response.(type) {
+	case *gnmi.SubscribeResponse_Update:
+		if r.Update.GetPrefix() == nil {
+			r.Update.Prefix = new(gnmi.Path)
+		}
+		if r.Update.GetPrefix().GetTarget() == "" {
+			r.Update.Prefix.Target = outputs.GetHost(m["source"])
+		}
+		target := r.Update.GetPrefix().GetTarget()
+		if target == "" {
+			c.logger.Printf("response missing target")
+			return
+		}
+		if !c.cache.HasTarget(target) {
+			c.cache.Add(target)
+			c.logger.Printf("target %q added to the local cache", target)
+		}
+		if c.Config.Debug {
+			c.logger.Printf("updating target %q local cache", target)
+		}
+		err := c.cache.GnmiUpdate(r.Update)
+		if err != nil {
+			c.logger.Printf("failed to update gNMI cache: %v", err)
+			return
+		}
+	}
+}
+
 func (c *Collector) Export(ctx context.Context, rsp *gnmi.SubscribeResponse, m outputs.Meta, outs ...string) {
 	if rsp == nil {
 		return
 	}
+	go c.updateCache(rsp, m)
 	wg := new(sync.WaitGroup)
 	if len(outs) == 0 {
 		wg.Add(len(c.Outputs))

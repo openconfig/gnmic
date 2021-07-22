@@ -22,6 +22,8 @@ import (
 	"github.com/karimra/gnmic/config"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/lockers"
+	"github.com/openconfig/gnmi/cache"
+	"github.com/openconfig/gnmi/match"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/spf13/cobra"
@@ -45,7 +47,7 @@ type App struct {
 
 	sem *semaphore.Weighted
 
-	m           *sync.Mutex
+	m           *sync.RWMutex
 	Config      *config.Config
 	collector   *collector.Collector
 	router      *mux.Router
@@ -64,6 +66,14 @@ type App struct {
 	wg        *sync.WaitGroup
 	printLock *sync.Mutex
 	errCh     chan error
+
+	// gnmi server
+	gnmi.UnimplementedGNMIServer
+	grpcSrv         *grpc.Server
+	c               *cache.Cache
+	match           *match.Match
+	subscribeRPCsem *semaphore.Weighted
+	unaryRPCsem     *semaphore.Weighted
 }
 
 func New() *App {
@@ -73,7 +83,7 @@ func New() *App {
 		Cfn:         cancel,
 		RootCmd:     new(cobra.Command),
 		sem:         semaphore.NewWeighted(1),
-		m:           new(sync.Mutex),
+		m:           new(sync.RWMutex),
 		Config:      config.New(),
 		router:      mux.NewRouter(),
 		apiServices: make(map[string]*lockers.Service),
@@ -89,6 +99,7 @@ func New() *App {
 
 		wg:        new(sync.WaitGroup),
 		printLock: new(sync.Mutex),
+		c:         cache.New(nil),
 	}
 	a.router.StrictSlash(true)
 	a.router.Use(headersMiddleware, a.loggingMiddleware)
