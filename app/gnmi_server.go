@@ -602,6 +602,8 @@ func (a *App) sendSubscribeResponse(r *resp, sc *streamClient) error {
 
 func (a *App) handlegNMIcInternalGet(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetResponse, error) {
 	notifications := make([]*gnmi.Notification, 0, len(req.GetPath()))
+	a.m.RLock()
+	defer a.m.RUnlock()
 	for _, p := range req.GetPath() {
 		elems := utils.PathElems(req.GetPrefix(), p)
 		ns, err := a.handlegNMIGetPath(elems, req.GetEncoding())
@@ -655,7 +657,7 @@ func (a *App) handlegNMIGetPath(elems []*gnmi.PathElem, enc gnmi.Encoding) ([]*g
 
 func targetConfigToNotification(tc *collector.TargetConfig, e gnmi.Encoding) *gnmi.Notification {
 	switch e {
-	case gnmi.Encoding_JSON:
+	case gnmi.Encoding_JSON, gnmi.Encoding_JSON_IETF:
 		b, _ := json.Marshal(tc)
 		n := &gnmi.Notification{
 			Timestamp: time.Now().UnixNano(),
@@ -678,6 +680,157 @@ func targetConfigToNotification(tc *collector.TargetConfig, e gnmi.Encoding) *gn
 		}
 		return n
 	case gnmi.Encoding_BYTES:
+		n := &gnmi.Notification{
+			Timestamp: time.Now().UnixNano(),
+			Prefix: &gnmi.Path{
+				Origin: "gnmic",
+				Elem: []*gnmi.PathElem{
+					{
+						Name: "target",
+						Key:  map[string]string{"name": tc.Name},
+					},
+				},
+			},
+			Update: []*gnmi.Update{
+				{
+					Path: &gnmi.Path{
+						Elem: []*gnmi.PathElem{
+							{Name: "address"},
+						},
+					},
+					Val: &gnmi.TypedValue{
+						Value: &gnmi.TypedValue_BytesVal{BytesVal: []byte(tc.Address)},
+					},
+				},
+			},
+		}
+		if tc.Username != nil {
+			n.Update = append(n.Update, &gnmi.Update{
+				Path: &gnmi.Path{
+					Elem: []*gnmi.PathElem{
+						{Name: "username"},
+					},
+				},
+				Val: &gnmi.TypedValue{
+					Value: &gnmi.TypedValue_BytesVal{BytesVal: []byte(*tc.Username)},
+				},
+			})
+		}
+		if tc.Insecure != nil {
+			n.Update = append(n.Update, &gnmi.Update{
+				Path: &gnmi.Path{
+					Elem: []*gnmi.PathElem{
+						{Name: "insecure"},
+					},
+				},
+				Val: &gnmi.TypedValue{
+					Value: &gnmi.TypedValue_BytesVal{BytesVal: []byte(fmt.Sprint(*tc.Insecure))},
+				},
+			})
+		}
+		if tc.SkipVerify != nil {
+			n.Update = append(n.Update, &gnmi.Update{
+				Path: &gnmi.Path{
+					Elem: []*gnmi.PathElem{
+						{Name: "skip-verify"},
+					},
+				},
+				Val: &gnmi.TypedValue{
+					Value: &gnmi.TypedValue_BytesVal{BytesVal: []byte(fmt.Sprint(*tc.SkipVerify))},
+				},
+			})
+		}
+		n.Update = append(n.Update, &gnmi.Update{
+			Path: &gnmi.Path{
+				Elem: []*gnmi.PathElem{
+					{Name: "timeout"},
+				},
+			},
+			Val: &gnmi.TypedValue{
+				Value: &gnmi.TypedValue_BytesVal{BytesVal: []byte(tc.Timeout.String())},
+			},
+		})
+		if tc.TLSCA != nil && tc.TLSCAString() != "NA" {
+			n.Update = append(n.Update, &gnmi.Update{
+				Path: &gnmi.Path{
+					Elem: []*gnmi.PathElem{
+						{Name: "tls-ca"},
+					},
+				},
+				Val: &gnmi.TypedValue{
+					Value: &gnmi.TypedValue_BytesVal{BytesVal: []byte((tc.TLSCAString()))},
+				},
+			})
+		}
+		if tc.TLSCert != nil && tc.TLSCertString() != "NA" {
+			n.Update = append(n.Update, &gnmi.Update{
+				Path: &gnmi.Path{
+					Elem: []*gnmi.PathElem{
+						{Name: "tls-cert"},
+					},
+				},
+				Val: &gnmi.TypedValue{
+					Value: &gnmi.TypedValue_BytesVal{BytesVal: []byte(tc.TLSCertString())},
+				},
+			})
+		}
+		if tc.TLSKey != nil && tc.TLSKeyString() != "NA" {
+			n.Update = append(n.Update, &gnmi.Update{
+				Path: &gnmi.Path{
+					Elem: []*gnmi.PathElem{
+						{Name: "tls-key"},
+					},
+				},
+				Val: &gnmi.TypedValue{
+					Value: &gnmi.TypedValue_BytesVal{BytesVal: []byte(tc.TLSKeyString())},
+				},
+			})
+		}
+		if len(tc.Outputs) > 0 {
+			typedVals := make([]*gnmi.TypedValue, 0, len(tc.Subscriptions))
+			for _, out := range tc.Outputs {
+				typedVals = append(typedVals, &gnmi.TypedValue{
+					Value: &gnmi.TypedValue_BytesVal{BytesVal: []byte(out)},
+				})
+			}
+			n.Update = append(n.Update, &gnmi.Update{
+				Path: &gnmi.Path{
+					Elem: []*gnmi.PathElem{
+						{Name: "outputs"},
+					},
+				},
+				Val: &gnmi.TypedValue{
+					Value: &gnmi.TypedValue_LeaflistVal{
+						LeaflistVal: &gnmi.ScalarArray{
+							Element: typedVals,
+						},
+					},
+				},
+			})
+		}
+		if len(tc.Subscriptions) > 0 {
+			typedVals := make([]*gnmi.TypedValue, 0, len(tc.Subscriptions))
+			for _, sub := range tc.Subscriptions {
+				typedVals = append(typedVals, &gnmi.TypedValue{
+					Value: &gnmi.TypedValue_BytesVal{BytesVal: []byte(sub)},
+				})
+			}
+			n.Update = append(n.Update, &gnmi.Update{
+				Path: &gnmi.Path{
+					Elem: []*gnmi.PathElem{
+						{Name: "subscriptions"},
+					},
+				},
+				Val: &gnmi.TypedValue{
+					Value: &gnmi.TypedValue_LeaflistVal{
+						LeaflistVal: &gnmi.ScalarArray{
+							Element: typedVals,
+						},
+					},
+				},
+			})
+		}
+		return n
 	case gnmi.Encoding_ASCII:
 		n := &gnmi.Notification{
 			Timestamp: time.Now().UnixNano(),
@@ -830,7 +983,6 @@ func targetConfigToNotification(tc *collector.TargetConfig, e gnmi.Encoding) *gn
 			})
 		}
 		return n
-	case gnmi.Encoding_JSON_IETF:
 	}
 	return nil
 }
