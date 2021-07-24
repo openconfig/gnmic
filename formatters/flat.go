@@ -4,6 +4,7 @@ import (
 	"errors"
 	"path/filepath"
 
+	"github.com/karimra/gnmic/utils"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"google.golang.org/protobuf/proto"
 )
@@ -27,9 +28,9 @@ func responseFlat(msg proto.Message) (map[string]interface{}, error) {
 	case *gnmi.GetResponse:
 		rs := make(map[string]interface{})
 		for _, n := range msg.GetNotification() {
-			prefix := gnmiPathToXPath(n.GetPrefix())
+			prefix := utils.GnmiPathToXPath(n.GetPrefix(), false)
 			for _, u := range n.GetUpdate() {
-				p := gnmiPathToXPath(u.GetPath())
+				p := utils.GnmiPathToXPath(u.GetPath(), false)
 				vmap, err := getValueFlat(filepath.Join(prefix, p), u.GetVal())
 				if err != nil {
 					return nil, err
@@ -48,9 +49,9 @@ func responseFlat(msg proto.Message) (map[string]interface{}, error) {
 		rs := make(map[string]interface{})
 		n := msg.GetUpdate()
 		if n != nil {
-			prefix := gnmiPathToXPath(n.GetPrefix())
+			prefix := utils.GnmiPathToXPath(n.GetPrefix(), false)
 			for _, u := range n.GetUpdate() {
-				p := gnmiPathToXPath(u.GetPath())
+				p := utils.GnmiPathToXPath(u.GetPath(), false)
 				vmap, err := getValueFlat(filepath.Join(prefix, p), u.GetVal())
 				if err != nil {
 					return nil, err

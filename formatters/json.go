@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/karimra/gnmic/utils"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"google.golang.org/protobuf/proto"
 )
@@ -39,7 +40,7 @@ func (o *MarshalOptions) formatsubscribeRequest(m *gnmi.SubscribeRequest) ([]byt
 	msg := subscribeReq{}
 	switch m := m.Request.(type) {
 	case *gnmi.SubscribeRequest_Subscribe:
-		msg.Subscribe.Prefix = gnmiPathToXPath(m.Subscribe.GetPrefix())
+		msg.Subscribe.Prefix = utils.GnmiPathToXPath(m.Subscribe.GetPrefix(), false)
 		msg.Subscribe.Target = m.Subscribe.GetPrefix().GetTarget()
 		msg.Subscribe.Subscriptions = make([]subscription, 0, len(m.Subscribe.GetSubscription()))
 		if m.Subscribe != nil {
@@ -54,7 +55,7 @@ func (o *MarshalOptions) formatsubscribeRequest(m *gnmi.SubscribeRequest) ([]byt
 			for _, sub := range m.Subscribe.Subscription {
 				msg.Subscribe.Subscriptions = append(msg.Subscribe.Subscriptions,
 					subscription{
-						Path:              gnmiPathToXPath(sub.Path),
+						Path:              utils.GnmiPathToXPath(sub.Path, false),
 						Mode:              sub.GetMode().String(),
 						SampleInterval:    sub.SampleInterval,
 						HeartbeatInterval: sub.HeartbeatInterval,
@@ -67,7 +68,7 @@ func (o *MarshalOptions) formatsubscribeRequest(m *gnmi.SubscribeRequest) ([]byt
 	case *gnmi.SubscribeRequest_Aliases:
 		msg.Aliases = make(map[string]string)
 		for _, a := range m.Aliases.GetAlias() {
-			msg.Aliases[a.Alias] = gnmiPathToXPath(a.Path)
+			msg.Aliases[a.Alias] = utils.GnmiPathToXPath(a.Path, false)
 		}
 	}
 	if o.Multiline {
@@ -87,7 +88,7 @@ func (o *MarshalOptions) formatSubscribeResponse(m *gnmi.SubscribeResponse, meta
 		if meta == nil {
 			meta = make(map[string]string)
 		}
-		msg.Prefix = gnmiPathToXPath(m.Update.GetPrefix())
+		msg.Prefix = utils.GnmiPathToXPath(m.Update.GetPrefix(), false)
 		msg.Target = m.Update.Prefix.GetTarget()
 		if s, ok := meta["source"]; ok {
 			msg.Source = s
@@ -112,13 +113,13 @@ func (o *MarshalOptions) formatSubscribeResponse(m *gnmi.SubscribeResponse, meta
 			}
 			msg.Updates = append(msg.Updates,
 				update{
-					Path:   gnmiPathToXPath(upd.Path),
+					Path:   utils.GnmiPathToXPath(upd.Path, false),
 					Values: make(map[string]interface{}),
 				})
 			msg.Updates[i].Values[strings.Join(pathElems, "/")] = value
 		}
 		for _, del := range m.Update.Delete {
-			msg.Deletes = append(msg.Deletes, gnmiPathToXPath(del))
+			msg.Deletes = append(msg.Deletes, utils.GnmiPathToXPath(del, false))
 		}
 		if o.Multiline {
 			return json.MarshalIndent(msg, "", o.Indent)
@@ -163,14 +164,14 @@ func (o *MarshalOptions) formatCapabilitiesResponse(m *gnmi.CapabilityResponse) 
 
 func (o *MarshalOptions) formatGetRequest(m *gnmi.GetRequest) ([]byte, error) {
 	msg := getRqMsg{
-		Prefix:   gnmiPathToXPath(m.GetPrefix()),
+		Prefix:   utils.GnmiPathToXPath(m.GetPrefix(), false),
 		Target:   m.GetPrefix().GetTarget(),
 		Paths:    make([]string, 0, len(m.Path)),
 		Encoding: m.GetEncoding().String(),
 		DataType: m.GetType().String(),
 	}
 	for _, p := range m.Path {
-		msg.Paths = append(msg.Paths, gnmiPathToXPath(p))
+		msg.Paths = append(msg.Paths, utils.GnmiPathToXPath(p, false))
 	}
 	for _, um := range m.UseModels {
 		msg.Models = append(msg.Models,
@@ -190,7 +191,7 @@ func (o *MarshalOptions) formatGetResponse(m *gnmi.GetResponse, meta map[string]
 	notifications := make([]NotificationRspMsg, 0, len(m.GetNotification()))
 	for _, notif := range m.GetNotification() {
 		msg := NotificationRspMsg{
-			Prefix:  gnmiPathToXPath(notif.Prefix),
+			Prefix:  utils.GnmiPathToXPath(notif.GetPrefix(), false),
 			Updates: make([]update, 0, len(notif.GetUpdate())),
 			Deletes: make([]string, 0, len(notif.GetDelete())),
 		}
@@ -200,7 +201,7 @@ func (o *MarshalOptions) formatGetResponse(m *gnmi.GetResponse, meta map[string]
 		if meta == nil {
 			meta = make(map[string]string)
 		}
-		msg.Prefix = gnmiPathToXPath(notif.GetPrefix())
+		msg.Prefix = utils.GnmiPathToXPath(notif.GetPrefix(), false)
 		msg.Target = notif.GetPrefix().GetTarget()
 		if s, ok := meta["source"]; ok {
 			msg.Source = s
@@ -216,13 +217,13 @@ func (o *MarshalOptions) formatGetResponse(m *gnmi.GetResponse, meta map[string]
 			}
 			msg.Updates = append(msg.Updates,
 				update{
-					Path:   gnmiPathToXPath(upd.GetPath()),
+					Path:   utils.GnmiPathToXPath(upd.GetPath(), false),
 					Values: make(map[string]interface{}),
 				})
 			msg.Updates[i].Values[strings.Join(pathElems, "/")] = value
 		}
 		for _, del := range notif.GetDelete() {
-			msg.Deletes = append(msg.Deletes, gnmiPathToXPath(del))
+			msg.Deletes = append(msg.Deletes, utils.GnmiPathToXPath(del, false))
 		}
 		notifications = append(notifications, msg)
 	}
@@ -234,7 +235,7 @@ func (o *MarshalOptions) formatGetResponse(m *gnmi.GetResponse, meta map[string]
 
 func (o *MarshalOptions) formatSetRequest(m *gnmi.SetRequest) ([]byte, error) {
 	req := setReqMsg{
-		Prefix:  gnmiPathToXPath(m.Prefix),
+		Prefix:  utils.GnmiPathToXPath(m.GetPrefix(), false),
 		Target:  m.GetPrefix().GetTarget(),
 		Delete:  make([]string, 0, len(m.GetDelete())),
 		Replace: make([]updateMsg, 0, len(m.GetReplace())),
@@ -242,20 +243,20 @@ func (o *MarshalOptions) formatSetRequest(m *gnmi.SetRequest) ([]byte, error) {
 	}
 
 	for _, del := range m.GetDelete() {
-		p := gnmiPathToXPath(del)
+		p := utils.GnmiPathToXPath(del, false)
 		req.Delete = append(req.Delete, p)
 	}
 
 	for _, upd := range m.GetReplace() {
 		req.Replace = append(req.Replace, updateMsg{
-			Path: gnmiPathToXPath(upd.Path),
+			Path: utils.GnmiPathToXPath(upd.GetPath(), false),
 			Val:  upd.Val.String(),
 		})
 	}
 
 	for _, upd := range m.GetUpdate() {
 		req.Update = append(req.Update, updateMsg{
-			Path: gnmiPathToXPath(upd.Path),
+			Path: utils.GnmiPathToXPath(upd.GetPath(), false),
 			Val:  upd.Val.String(),
 		})
 	}
@@ -267,7 +268,7 @@ func (o *MarshalOptions) formatSetRequest(m *gnmi.SetRequest) ([]byte, error) {
 
 func (o *MarshalOptions) formatSetResponse(m *gnmi.SetResponse, meta map[string]string) ([]byte, error) {
 	msg := setRspMsg{}
-	msg.Prefix = gnmiPathToXPath(m.GetPrefix())
+	msg.Prefix = utils.GnmiPathToXPath(m.GetPrefix(), false)
 	msg.Target = m.GetPrefix().GetTarget()
 	msg.Timestamp = m.Timestamp
 	msg.Time = time.Unix(0, m.Timestamp)
@@ -281,7 +282,7 @@ func (o *MarshalOptions) formatSetResponse(m *gnmi.SetResponse, meta map[string]
 	for _, u := range m.GetResponse() {
 		msg.Results = append(msg.Results, updateResultMsg{
 			Operation: u.Op.String(),
-			Path:      gnmiPathToXPath(u.GetPath()),
+			Path:      utils.GnmiPathToXPath(u.GetPath(), false),
 			Target:    u.GetPath().GetTarget(),
 		})
 	}

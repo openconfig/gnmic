@@ -33,6 +33,10 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+const (
+	defaultSampleInterval = 10 * time.Second
+)
+
 type streamClient struct {
 	target  string
 	req     *gnmi.SubscribeRequest
@@ -430,21 +434,11 @@ func (a *App) Subscribe(stream gnmi.GNMI_SubscribeServer) error {
 
 	switch sc.req.GetSubscribe().GetMode() {
 	case gnmi.SubscriptionList_ONCE:
-		go func() {
-			a.handleSubscriptionRequest(sc)
-			sc.queue.Close()
-		}()
+		go a.handleONCESubscriptionRequest(sc)
 	case gnmi.SubscriptionList_POLL:
 		go a.handlePolledSubscription(sc)
 	case gnmi.SubscriptionList_STREAM:
-		if sc.req.GetSubscribe().GetUpdatesOnly() {
-			sc.queue.Insert(syncMarker{})
-		}
-		remove := addSubscription(a.match, sc.req.GetSubscribe(), &matchClient{queue: sc.queue})
-		defer remove()
-		if !sc.req.GetSubscribe().GetUpdatesOnly() {
-			go a.handleSubscriptionRequest(sc)
-		}
+		go a.handleStreamSubscriptionRequest(sc)
 	default:
 		return status.Errorf(codes.InvalidArgument, "unrecognized subscription mode: %v", sc.req.GetSubscribe().GetMode())
 	}
@@ -466,25 +460,18 @@ func (a *App) Subscribe(stream gnmi.GNMI_SubscribeServer) error {
 	return nil
 }
 
-func addSubscription(m *match.Match, s *gnmi.SubscriptionList, c *matchClient) func() {
-	var removes []func()
-	prefix := path.ToStrings(s.GetPrefix(), true)
-	for _, p := range s.GetSubscription() {
-		if p.GetPath() == nil {
-			continue
-		}
-
-		path := append(prefix, path.ToStrings(p.GetPath(), false)...)
-		removes = append(removes, m.AddQuery(path, c))
+func (a *App) addSubscription(m *match.Match, p *gnmi.Path, s *gnmi.Subscription, c *matchClient) func() {
+	prefix := path.ToStrings(p, true)
+	if s.GetPath() == nil {
+		return nil
 	}
-	return func() {
-		for _, remove := range removes {
-			remove()
-		}
-	}
+	pp := path.ToStrings(s.GetPath(), false)
+	path := append(prefix, pp...)
+	a.Logger.Printf("adding match subscription for prefix=%q, path=%q", prefix, pp)
+	return m.AddQuery(path, c)
 }
 
-func (a *App) handleSubscriptionRequest(sc *streamClient) {
+func (a *App) handleONCESubscriptionRequest(sc *streamClient) {
 	var err error
 	a.Logger.Printf("processing subscription to target %q", sc.target)
 	defer func() {
@@ -496,7 +483,7 @@ func (a *App) handleSubscriptionRequest(sc *streamClient) {
 		}
 		a.Logger.Printf("subscription request to target %q processed", sc.target)
 	}()
-
+	defer sc.queue.Close()
 	if !sc.req.GetSubscribe().GetUpdatesOnly() {
 		for _, sub := range sc.req.GetSubscribe().GetSubscription() {
 			var fp []string
@@ -519,6 +506,117 @@ func (a *App) handleSubscriptionRequest(sc *streamClient) {
 		}
 	}
 	_, err = sc.queue.Insert(syncMarker{})
+}
+
+func (a *App) handleStreamSubscriptionRequest(sc *streamClient) {
+	peer, _ := peer.FromContext(sc.stream.Context())
+	var err error
+	a.Logger.Printf("processing STREAM subscription from %q to target %q", peer.Addr, sc.target)
+	defer func() {
+		if err != nil {
+			a.Logger.Printf("error processing STREAM subscription to target %q: %v", sc.target, err)
+			sc.queue.Close()
+			sc.errChan <- err
+			return
+		}
+		a.Logger.Printf("subscription request from %q to target %q processed", peer.Addr, sc.target)
+	}()
+	if sc.req.GetSubscribe().GetUpdatesOnly() {
+		sc.queue.Insert(syncMarker{})
+	}
+	for i, sub := range sc.req.GetSubscribe().GetSubscription() {
+		a.Logger.Printf("handling subscriptionList item[%d]: target %q, %q", i, sc.target, sub.String())
+		switch sub.GetMode() {
+		case gnmi.SubscriptionMode_ON_CHANGE, gnmi.SubscriptionMode_TARGET_DEFINED:
+			if !sc.req.GetSubscribe().GetUpdatesOnly() {
+				var fp []string
+				fp, err = path.CompletePath(sc.req.GetSubscribe().GetPrefix(), sub.GetPath())
+				if err != nil {
+					return
+				}
+				err = a.c.Query(sc.target, fp,
+					func(_ []string, l *ctree.Leaf, _ interface{}) error {
+						if err != nil {
+							return err
+						}
+						_, err = sc.queue.Insert(l)
+						return nil
+					})
+				if err != nil {
+					a.Logger.Printf("target %q failed internal cache query: %v", sc.target, err)
+					return
+				}
+			}
+			if sub.GetHeartbeatInterval() > 0 {
+				fp, err := path.CompletePath(sc.req.GetSubscribe().GetPrefix(), sub.GetPath())
+				if err != nil {
+					return
+				}
+				go a.startPeriodicStreamSubscription(sc, time.Duration(sub.GetHeartbeatInterval()), fp)
+			}
+			remove := a.addSubscription(a.match, sc.req.GetSubscribe().GetPrefix(), sub, &matchClient{queue: sc.queue})
+			defer remove()
+		case gnmi.SubscriptionMode_SAMPLE:
+			period := time.Duration(sub.GetSampleInterval())
+			if period <= 0 {
+				period = defaultSampleInterval
+			}
+			fp, err := path.CompletePath(sc.req.GetSubscribe().GetPrefix(), sub.GetPath())
+			if err != nil {
+				return
+			}
+			go a.startPeriodicStreamSubscription(sc, period, fp)
+		}
+	}
+	_, err = sc.queue.Insert(syncMarker{})
+	if err != nil {
+		a.Logger.Printf("failed to insert sync response into queue: %v", err)
+	}
+	for range sc.stream.Context().Done() {
+		return
+	}
+}
+
+func (a *App) startPeriodicStreamSubscription(sc *streamClient, period time.Duration, fp []string) {
+	if !sc.req.GetSubscribe().GetUpdatesOnly() {
+		a.singlePeriodicQuery(sc, fp)
+	}
+	ticker := time.NewTicker(period)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-sc.stream.Context().Done():
+			a.Logger.Printf("periodic query stopped to target %q: %v", sc.target, sc.stream.Context().Err())
+			return
+		case <-ticker.C:
+			a.singlePeriodicQuery(sc, fp)
+		}
+	}
+}
+
+func (a *App) singlePeriodicQuery(sc *streamClient, fp []string) {
+	var err error
+	if a.Config.Debug {
+		a.Logger.Printf("running sample query for target %q", sc.target)
+	}
+	err = a.c.Query(sc.target, fp,
+		func(_ []string, l *ctree.Leaf, _ interface{}) error {
+			if err != nil {
+				return err
+			}
+			switch gl := l.Value().(type) {
+			case *gnmi.Notification:
+				// update timestamp
+				cgl := proto.Clone(gl).(*gnmi.Notification)
+				cgl.Timestamp = time.Now().UnixNano()
+				_, err = sc.queue.Insert(ctree.DetachedLeaf(cgl))
+			}
+			return nil
+		})
+	if err != nil {
+		a.Logger.Printf("target %q failed internal cache query: %v", sc.target, err)
+		return
+	}
 }
 
 func (a *App) sendStreamingResults(sc *streamClient) {
@@ -568,7 +666,7 @@ func (a *App) sendStreamingResults(sc *streamClient) {
 }
 
 func (a *App) handlePolledSubscription(sc *streamClient) {
-	a.handleSubscriptionRequest(sc)
+	a.handleONCESubscriptionRequest(sc)
 	var err error
 	for {
 		if sc.queue.IsClosed() {
@@ -584,7 +682,7 @@ func (a *App) handlePolledSubscription(sc *streamClient) {
 			return
 		}
 		a.Logger.Printf("target %q: repoll", sc.target)
-		a.handleSubscriptionRequest(sc)
+		a.handleONCESubscriptionRequest(sc)
 		a.Logger.Printf("target %q: repoll done", sc.target)
 	}
 }
@@ -619,15 +717,11 @@ func (a *App) handlegNMIGetPath(elems []*gnmi.PathElem, enc gnmi.Encoding) ([]*g
 	notifications := make([]*gnmi.Notification, 0, len(elems))
 	for _, e := range elems {
 		switch e.Name {
-		case "":
+		// case "":
 		case "targets":
-			tcs, err := a.Config.GetTargets()
-			if err != nil {
-				return nil, err
-			}
 			if e.Key != nil {
 				if _, ok := e.Key["name"]; ok {
-					for _, tc := range tcs {
+					for _, tc := range a.Config.Targets {
 						if tc.Name == e.Key["name"] {
 							notifications = append(notifications, targetConfigToNotification(tc, enc))
 							break
@@ -636,20 +730,33 @@ func (a *App) handlegNMIGetPath(elems []*gnmi.PathElem, enc gnmi.Encoding) ([]*g
 				}
 				break
 			}
-			for _, tc := range tcs {
+			// no keys
+			for _, tc := range a.Config.Targets {
 				notifications = append(notifications, targetConfigToNotification(tc, enc))
 			}
 		case "subscriptions":
-			subs, err := a.Config.GetSubscriptions(nil)
-			if err != nil {
-				return nil, err
+			if e.Key != nil {
+				if _, ok := e.Key["name"]; ok {
+					for _, sub := range a.Config.Subscriptions {
+						if sub.Name == e.Key["name"] {
+							notifications = append(notifications, subscriptionConfigToNotification(sub, enc))
+							break
+						}
+					}
+				}
+				break
 			}
-			for _, sub := range subs {
-				notifications = append(notifications, subscriptionConfigToNotification(sub))
+			// no keys
+			for _, sub := range a.Config.Subscriptions {
+				notifications = append(notifications, subscriptionConfigToNotification(sub, enc))
 			}
-		case "processors":
-		case "clustering":
-		case "gnmi-server":
+		// case "outputs":
+		// case "inputs":
+		// case "processors":
+		// case "clustering":
+		// case "gnmi-server":
+		default:
+			return nil, status.Errorf(codes.InvalidArgument, "unknown path element %q", e.Name)
 		}
 	}
 	return notifications, nil
@@ -987,6 +1094,32 @@ func targetConfigToNotification(tc *collector.TargetConfig, e gnmi.Encoding) *gn
 	return nil
 }
 
-func subscriptionConfigToNotification(sub *collector.SubscriptionConfig) *gnmi.Notification {
+func subscriptionConfigToNotification(sub *collector.SubscriptionConfig, e gnmi.Encoding) *gnmi.Notification {
+	switch e {
+	case gnmi.Encoding_JSON, gnmi.Encoding_JSON_IETF:
+		b, _ := json.Marshal(sub)
+		n := &gnmi.Notification{
+			Timestamp: time.Now().UnixNano(),
+			Update: []*gnmi.Update{
+				{
+					Path: &gnmi.Path{
+						Origin: "gnmic",
+						Elem: []*gnmi.PathElem{
+							{
+								Name: "subscriptions",
+								Key:  map[string]string{"name": sub.Name},
+							},
+						},
+					},
+					Val: &gnmi.TypedValue{
+						Value: &gnmi.TypedValue_JsonVal{JsonVal: b},
+					},
+				},
+			},
+		}
+		return n
+	case gnmi.Encoding_BYTES:
+	case gnmi.Encoding_ASCII:
+	}
 	return nil
 }

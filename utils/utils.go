@@ -10,6 +10,7 @@ import (
 	"encoding/pem"
 	"math/big"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/openconfig/gnmi/proto/gnmi"
@@ -80,4 +81,33 @@ func PathElems(pf, p *gnmi.Path) []*gnmi.PathElem {
 	r := make([]*gnmi.PathElem, 0, len(pf.GetElem())+len(p.GetElem()))
 	r = append(r, pf.GetElem()...)
 	return append(r, p.GetElem()...)
+}
+
+func GnmiPathToXPath(p *gnmi.Path, noKeys bool) string {
+	if p == nil {
+		return ""
+	}
+	sb := strings.Builder{}
+	if p.Origin != "" {
+		sb.WriteString(p.Origin)
+		sb.WriteString(":")
+	}
+	elems := p.GetElem()
+	numElems := len(elems)
+	for i, pe := range elems {
+		sb.WriteString(pe.GetName())
+		if !noKeys {
+			for k, v := range pe.GetKey() {
+				sb.WriteString("[")
+				sb.WriteString(k)
+				sb.WriteString("=")
+				sb.WriteString(v)
+				sb.WriteString("]")
+			}
+		}
+		if i+1 != numElems {
+			sb.WriteString("/")
+		}
+	}
+	return sb.String()
 }
