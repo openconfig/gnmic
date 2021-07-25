@@ -123,10 +123,10 @@ The resulting GetResponse is then returned to the gNMI client.
 If one of the RPCs fails, an error with status code `Internal(13)` is returned to the client.
 
 If the Get Request has the origin field set to `gnmic`, the request is performed against the internal server configuration.
-Currently only the path `target` is supported.
+Currently only the path `targets` is supported.
 
 ```bash
-gnmic -a localhost:57400 --skip-verify get --path gnmic:/target
+gnmic -a localhost:57400 --skip-verify get --path gnmic:/targets
 ```
 
 ```json
@@ -134,7 +134,7 @@ gnmic -a localhost:57400 --skip-verify get --path gnmic:/target
   {
     "timestamp": 1626759382486891218,
     "time": "2021-07-20T13:36:22.486891218+08:00",
-    "prefix": "gnmic:target[name=clab-gw-srl1:57400]",
+    "prefix": "gnmic:targets[name=clab-gw-srl1:57400]",
     "updates": [
       {
         "Path": "address",
@@ -171,7 +171,7 @@ gnmic -a localhost:57400 --skip-verify get --path gnmic:/target
   {
     "timestamp": 1626759382486900697,
     "time": "2021-07-20T13:36:22.486900697+08:00",
-    "prefix": "gnmic:target[name=clab-gw-srl2:57400]",
+    "prefix": "gnmic:targets[name=clab-gw-srl2:57400]",
     "updates": [
       {
         "Path": "address",
