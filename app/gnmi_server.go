@@ -103,7 +103,10 @@ func (a *App) startGnmiServer() {
 func (a *App) gRPCServerOpts() ([]grpc.ServerOption, error) {
 	opts := make([]grpc.ServerOption, 0)
 	if a.Config.GnmiServer.EnableMetrics {
-		opts = append(opts, grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor))
+		opts = append(opts,
+			grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor),
+			grpc.UnaryInterceptor(grpc_prometheus.UnaryServerInterceptor),
+		)
 	}
 	if a.Config.GnmiServer.SkipVerify || a.Config.GnmiServer.CaFile != "" || (a.Config.GnmiServer.CertFile != "" && a.Config.GnmiServer.KeyFile != "") {
 		tlscfg := &tls.Config{
