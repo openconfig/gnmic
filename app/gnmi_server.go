@@ -16,7 +16,6 @@ import (
 
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/karimra/gnmic/collector"
-	"github.com/karimra/gnmic/outputs"
 	"github.com/karimra/gnmic/utils"
 	"github.com/openconfig/gnmi/coalesce"
 	"github.com/openconfig/gnmi/ctree"
@@ -31,10 +30,6 @@ import (
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
-)
-
-const (
-	defaultSampleInterval = 10 * time.Second
 )
 
 type streamClient struct {
@@ -90,12 +85,14 @@ func (a *App) startGnmiServer() {
 		a.Logger.Printf("failed to build gRPC server options: %v", err)
 		return
 	}
-LISTENER:
-	l, err = net.Listen(network, addr)
-	if err != nil {
-		a.Logger.Printf("failed to start gRPC server listener: %v", err)
-		time.Sleep(time.Second)
-		goto LISTENER
+	for {
+		l, err = net.Listen(network, addr)
+		if err != nil {
+			a.Logger.Printf("failed to start gRPC server listener: %v", err)
+			time.Sleep(time.Second)
+			continue
+		}
+		break
 	}
 
 	a.grpcSrv = grpc.NewServer(opts...)
@@ -154,7 +151,7 @@ func (a *App) selectGNMITargets(target string) (map[string]*collector.TargetConf
 OUTER:
 	for i := range targetsNames {
 		for n, tc := range a.Config.Targets {
-			if outputs.GetHost(n) == targetsNames[i] {
+			if utils.GetHost(n) == targetsNames[i] {
 				targets[n] = tc
 				continue OUTER
 			}
@@ -349,7 +346,7 @@ func (a *App) Set(ctx context.Context, req *gnmi.SetRequest) (*gnmi.SetResponse,
 	wg.Add(numTargets)
 	for name, tc := range targets {
 		go func(name string, tc *collector.TargetConfig) {
-			name = outputs.GetHost(name)
+			name = utils.GetHost(name)
 			defer wg.Done()
 			t := collector.NewTarget(tc)
 			err := t.CreateGNMIClient(ctx)
@@ -445,17 +442,10 @@ func (a *App) Subscribe(stream gnmi.GNMI_SubscribeServer) error {
 	// send all nodes added to queue
 	go a.sendStreamingResults(sc)
 
-	var errs = make([]error, 0)
 	for err := range errChan {
-		errs = append(errs, err)
-	}
-	if len(errs) > 0 {
-		sb := strings.Builder{}
-		sb.WriteString("multiple errors occurred:\n")
-		for _, err := range errs {
-			sb.WriteString(fmt.Sprintf("- %v\n", err))
+		if err != nil {
+			return status.Errorf(codes.Internal, "%v", err)
 		}
-		return fmt.Errorf("%v", sb)
 	}
 	return nil
 }
@@ -489,6 +479,7 @@ func (a *App) handleONCESubscriptionRequest(sc *streamClient) {
 			var fp []string
 			fp, err = path.CompletePath(sc.req.GetSubscribe().GetPrefix(), sub.GetPath())
 			if err != nil {
+				sc.errChan <- err
 				return
 			}
 			err = a.c.Query(sc.target, fp,
@@ -548,18 +539,24 @@ func (a *App) handleStreamSubscriptionRequest(sc *streamClient) {
 				}
 			}
 			if sub.GetHeartbeatInterval() > 0 {
+				hb := time.Duration(sub.GetHeartbeatInterval())
+				if hb < a.Config.GnmiServer.MinHeartbeatInterval {
+					hb = a.Config.GnmiServer.MinHeartbeatInterval
+				}
 				fp, err := path.CompletePath(sc.req.GetSubscribe().GetPrefix(), sub.GetPath())
 				if err != nil {
 					return
 				}
-				go a.startPeriodicStreamSubscription(sc, time.Duration(sub.GetHeartbeatInterval()), fp)
+				go a.startPeriodicStreamSubscription(sc, hb, fp)
 			}
 			remove := a.addSubscription(a.match, sc.req.GetSubscribe().GetPrefix(), sub, &matchClient{queue: sc.queue})
 			defer remove()
 		case gnmi.SubscriptionMode_SAMPLE:
 			period := time.Duration(sub.GetSampleInterval())
-			if period <= 0 {
-				period = defaultSampleInterval
+			if period == 0 {
+				period = a.Config.GnmiServer.DefaultSampleInterval
+			} else if period < a.Config.GnmiServer.MinSampleInterval {
+				period = a.Config.GnmiServer.MinSampleInterval
 			}
 			fp, err := path.CompletePath(sc.req.GetSubscribe().GetPrefix(), sub.GetPath())
 			if err != nil {
@@ -572,9 +569,10 @@ func (a *App) handleStreamSubscriptionRequest(sc *streamClient) {
 	if err != nil {
 		a.Logger.Printf("failed to insert sync response into queue: %v", err)
 	}
-	for range sc.stream.Context().Done() {
-		return
-	}
+
+	// wait for ctx to be done
+	<-sc.stream.Context().Done()
+	err = sc.stream.Context().Err()
 }
 
 func (a *App) startPeriodicStreamSubscription(sc *streamClient, period time.Duration, fp []string) {

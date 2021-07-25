@@ -3,18 +3,25 @@ package config
 import (
 	"os"
 	"strconv"
+	"time"
 )
 
 const (
-	defaultAddress          = ":57400"
-	defaultMaxSubscriptions = 64
-	defaultMaxUnaryRPC      = 64
+	defaultAddress           = ":57400"
+	defaultMaxSubscriptions  = 64
+	defaultMaxUnaryRPC       = 64
+	minimumSampleInterval    = 1 * time.Millisecond
+	defaultSampleInterval    = 1 * time.Second
+	minimumHeartbeatInterval = 1 * time.Second
 )
 
 type gnmiServer struct {
-	Address          string `mapstructure:"address,omitempty"`
-	MaxSubscriptions int64  `mapstructure:"max-subscriptions,omitempty"`
-	MaxUnaryRPC      int64  `mapstructure:"max-unary-rpc,omitempty"`
+	Address               string        `mapstructure:"address,omitempty"`
+	MinSampleInterval     time.Duration `mapstructure:"min-sample-interval,omitempty"`
+	DefaultSampleInterval time.Duration `mapstructure:"default-sample-interval,omitempty"`
+	MinHeartbeatInterval  time.Duration `mapstructure:"min-heartbeat-interval,omitempty"`
+	MaxSubscriptions      int64         `mapstructure:"max-subscriptions,omitempty"`
+	MaxUnaryRPC           int64         `mapstructure:"max-unary-rpc,omitempty"`
 	// TLS
 	SkipVerify bool   `mapstructure:"skip-verify,omitempty"`
 	CaFile     string `mapstructure:"ca-file,omitempty"`
@@ -69,5 +76,14 @@ func (c *Config) setGnmiServerDefaults() {
 	}
 	if c.GnmiServer.MaxUnaryRPC <= 0 {
 		c.GnmiServer.MaxUnaryRPC = defaultMaxUnaryRPC
+	}
+	if c.GnmiServer.MinSampleInterval <= 0 {
+		c.GnmiServer.MinSampleInterval = minimumSampleInterval
+	}
+	if c.GnmiServer.DefaultSampleInterval <= 0 {
+		c.GnmiServer.DefaultSampleInterval = defaultSampleInterval
+	}
+	if c.GnmiServer.MinHeartbeatInterval <= 0 {
+		c.GnmiServer.MinHeartbeatInterval = minimumHeartbeatInterval
 	}
 }

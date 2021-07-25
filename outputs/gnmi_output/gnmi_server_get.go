@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/karimra/gnmic/collector"
-	"github.com/karimra/gnmic/outputs"
+	"github.com/karimra/gnmic/utils"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/peer"
@@ -299,7 +299,7 @@ func (s *server) selectTargets(target string) (map[string]*collector.TargetConfi
 OUTER:
 	for i := range targetsNames {
 		for n, tc := range s.targets {
-			if outputs.GetHost(n) == targetsNames[i] {
+			if utils.GetHost(n) == targetsNames[i] {
 				targets[n] = tc
 				continue OUTER
 			}
@@ -313,7 +313,7 @@ func (s *server) handlegNMIcInternalGet(ctx context.Context, req *gnmi.GetReques
 	if len(req.GetPath()) > 1 {
 		return nil, status.Errorf(codes.InvalidArgument, "only one path at a time is supported")
 	}
-	if req.GetPath()[0].Elem[0].Name == "target" {
+	if req.GetPath()[0].Elem[0].Name == "targets" {
 		notifs := make([]*gnmi.Notification, 0, len(s.targets))
 		for _, tc := range s.targets {
 			notifs = append(notifs, targetConfigToNotification(tc))

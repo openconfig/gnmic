@@ -9,6 +9,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"math/big"
+	"net"
 	"reflect"
 	"strings"
 	"time"
@@ -110,4 +111,12 @@ func GnmiPathToXPath(p *gnmi.Path, noKeys bool) string {
 		}
 	}
 	return sb.String()
+}
+
+func GetHost(hostport string) string {
+	h, _, err := net.SplitHostPort(hostport)
+	if err != nil {
+		return hostport
+	}
+	return h
 }

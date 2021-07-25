@@ -18,6 +18,7 @@ import (
 	"github.com/karimra/gnmic/inputs"
 	"github.com/karimra/gnmic/lockers"
 	"github.com/karimra/gnmic/outputs"
+	"github.com/karimra/gnmic/utils"
 	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmi/cache"
 	"github.com/openconfig/gnmi/proto/gnmi"
@@ -797,7 +798,7 @@ func (c *Collector) updateCache(rsp *gnmi.SubscribeResponse, m outputs.Meta) {
 			r.Update.Prefix = new(gnmi.Path)
 		}
 		if r.Update.GetPrefix().GetTarget() == "" {
-			r.Update.Prefix.Target = outputs.GetHost(m["source"])
+			r.Update.Prefix.Target = utils.GetHost(m["source"])
 		}
 		target := r.Update.GetPrefix().GetTarget()
 		if target == "" {
