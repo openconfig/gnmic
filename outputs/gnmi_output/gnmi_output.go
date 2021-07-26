@@ -1,28 +1,22 @@
 package gnmi_output
 
 import (
-	"bytes"
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"io/ioutil"
 	"log"
-	"math/big"
 	"net"
 	"strings"
 	"text/template"
-	"time"
 
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
+	"github.com/karimra/gnmic/utils"
 	"github.com/openconfig/gnmi/cache"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus"
@@ -54,10 +48,10 @@ type gNMIOutput struct {
 	logger    *log.Logger
 	targetTpl *template.Template
 	//
-	srv      *server
-	grpcSrv  *grpc.Server
-	c        *cache.Cache
-	teardown func()
+	srv     *server
+	grpcSrv *grpc.Server
+	c       *cache.Cache
+	//teardown func()
 }
 
 type config struct {
@@ -134,7 +128,7 @@ func (g *gNMIOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.
 func (g *gNMIOutput) WriteEvent(context.Context, *formatters.EventMsg) {}
 
 func (g *gNMIOutput) Close() error {
-	g.teardown()
+	//g.teardown()
 	g.grpcSrv.Stop()
 	return nil
 }
@@ -258,7 +252,7 @@ func (g *gNMIOutput) serverOpts() ([]grpc.ServerOption, error) {
 			tlscfg.Certificates = []tls.Certificate{certificate}
 			// tlscfg.BuildNameToCertificate()
 		} else {
-			cert, err := selfSignedCerts()
+			cert, err := utils.SelfSignedCerts()
 			if err != nil {
 				return nil, err
 			}
@@ -278,39 +272,4 @@ func (g *gNMIOutput) serverOpts() ([]grpc.ServerOption, error) {
 		opts = append(opts, grpc.Creds(credentials.NewTLS(tlscfg)))
 	}
 	return opts, nil
-}
-
-func selfSignedCerts() (tls.Certificate, error) {
-	notBefore := time.Now()
-	notAfter := notBefore.Add(365 * 24 * time.Hour)
-
-	serialNumber, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
-	if err != nil {
-		return tls.Certificate{}, nil
-	}
-	certTemplate := &x509.Certificate{
-		SerialNumber: serialNumber,
-		Subject: pkix.Name{
-			Organization: []string{"kmrd.dev"},
-		},
-		DNSNames:              []string{"kmrd.dev"},
-		NotBefore:             notBefore,
-		NotAfter:              notAfter,
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		BasicConstraintsValid: true,
-	}
-	priv, err := rsa.GenerateKey(rand.Reader, 4096)
-	if err != nil {
-		return tls.Certificate{}, nil
-	}
-	derBytes, err := x509.CreateCertificate(rand.Reader, certTemplate, certTemplate, &priv.PublicKey, priv)
-	if err != nil {
-		return tls.Certificate{}, nil
-	}
-	certBuff := new(bytes.Buffer)
-	keyBuff := new(bytes.Buffer)
-	pem.Encode(certBuff, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
-	pem.Encode(keyBuff, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
-	return tls.X509KeyPair(certBuff.Bytes(), keyBuff.Bytes())
 }

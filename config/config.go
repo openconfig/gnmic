@@ -40,13 +40,13 @@ type Config struct {
 	LocalFlags  `mapstructure:",squash"`
 	FileConfig  *viper.Viper `mapstructure:"-" json:"-" yaml:"-" `
 
-	Targets       map[string]*collector.TargetConfig       `mapstructure:"targets,omitempty" json:"targets,omitempty" yaml:"targets,omitempty"`
-	Subscriptions map[string]*collector.SubscriptionConfig `mapstructure:"subscriptions,omitempty" json:"subscriptions,omitempty" yaml:"subscriptions,omitempty"`
-	Outputs       map[string]map[string]interface{}        `mapstructure:"outputs,omitempty" json:"outputs,omitempty" yaml:"outputs,omitempty"`
-	Inputs        map[string]map[string]interface{}        `mapstructure:"inputs,omitempty" json:"inputs,omitempty" yaml:"inputs,omitempty"`
-	Processors    map[string]map[string]interface{}        `mapstructure:"processors,omitempty" json:"processors,omitempty" yaml:"processors,omitempty"`
-	Clustering    *clustering                              `mapstructure:"clustering,omitempty" json:"clustering,omitempty" yaml:"clustering,omitempty"`
-
+	Targets            map[string]*collector.TargetConfig       `mapstructure:"targets,omitempty" json:"targets,omitempty" yaml:"targets,omitempty"`
+	Subscriptions      map[string]*collector.SubscriptionConfig `mapstructure:"subscriptions,omitempty" json:"subscriptions,omitempty" yaml:"subscriptions,omitempty"`
+	Outputs            map[string]map[string]interface{}        `mapstructure:"outputs,omitempty" json:"outputs,omitempty" yaml:"outputs,omitempty"`
+	Inputs             map[string]map[string]interface{}        `mapstructure:"inputs,omitempty" json:"inputs,omitempty" yaml:"inputs,omitempty"`
+	Processors         map[string]map[string]interface{}        `mapstructure:"processors,omitempty" json:"processors,omitempty" yaml:"processors,omitempty"`
+	Clustering         *clustering                              `mapstructure:"clustering,omitempty" json:"clustering,omitempty" yaml:"clustering,omitempty"`
+	GnmiServer         *gnmiServer                              `mapstructure:"gnmi-server,omitempty" json:"gnmi-server,omitempty" yaml:"gnmi-server,omitempty"`
 	logger             *log.Logger
 	setRequestTemplate *template.Template
 	setRequestVars     map[string]interface{}
@@ -211,6 +211,7 @@ func New() *Config {
 		make(map[string]map[string]interface{}),
 		make(map[string]map[string]interface{}),
 		make(map[string]map[string]interface{}),
+		nil,
 		nil,
 		log.New(ioutil.Discard, configLogPrefix, log.LstdFlags|log.Lmicroseconds),
 		nil,

@@ -3,12 +3,12 @@ package outputs
 import (
 	"context"
 	"log"
-	"net"
 	"strings"
 	"text/template"
 
 	"github.com/karimra/gnmic/formatters"
 	_ "github.com/karimra/gnmic/formatters/all"
+	"github.com/karimra/gnmic/utils"
 	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus"
@@ -107,7 +107,7 @@ var (
 )
 
 var TemplateFuncs = template.FuncMap{
-	"host": GetHost,
+	"host": utils.GetHost,
 }
 
 const (
@@ -118,11 +118,3 @@ const (
 {{ index . "source" | host }}
 {{- end -}}`
 )
-
-func GetHost(hostport string) string {
-	h, _, err := net.SplitHostPort(hostport)
-	if err != nil {
-		return hostport
-	}
-	return h
-}

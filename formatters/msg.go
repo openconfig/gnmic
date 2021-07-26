@@ -2,7 +2,6 @@ package formatters
 
 import (
 	"encoding/json"
-	"strings"
 	"time"
 
 	"github.com/openconfig/gnmi/proto/gnmi"
@@ -100,33 +99,6 @@ type subscription struct {
 	SampleInterval    uint64 `json:"sample-interval,omitempty"`
 	SuppressRedundant bool   `json:"suppress-redundant,omitempty"`
 	HeartbeatInterval uint64 `json:"heartbeat-interval,omitempty"`
-}
-
-func gnmiPathToXPath(p *gnmi.Path) string {
-	if p == nil {
-		return ""
-	}
-	sb := strings.Builder{}
-	if p.Origin != "" {
-		sb.WriteString(p.Origin)
-		sb.WriteString(":")
-	}
-	elems := p.GetElem()
-	numElems := len(elems)
-	for i, pe := range elems {
-		sb.WriteString(pe.GetName())
-		for k, v := range pe.GetKey() {
-			sb.WriteString("[")
-			sb.WriteString(k)
-			sb.WriteString("=")
-			sb.WriteString(v)
-			sb.WriteString("]")
-		}
-		if i+1 != numElems {
-			sb.WriteString("/")
-		}
-	}
-	return sb.String()
 }
 
 func getValue(updValue *gnmi.TypedValue) (interface{}, error) {

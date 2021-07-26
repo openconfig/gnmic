@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/karimra/gnmic/utils"
 	flattener "github.com/karimra/go-map-flattener"
 	"github.com/openconfig/gnmi/proto/gnmi"
 )
@@ -92,7 +93,7 @@ func ResponseToEventMsgs(name string, rsp *gnmi.SubscribeResponse, meta map[stri
 				e.Tags[k] = v
 			}
 			for _, del := range rsp.Update.Delete {
-				e.Deletes = append(e.Deletes, gnmiPathToXPath(del))
+				e.Deletes = append(e.Deletes, utils.GnmiPathToXPath(del, false))
 			}
 			evs = append(evs, e)
 		}

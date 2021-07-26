@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/karimra/gnmic/collector"
-	"github.com/karimra/gnmic/outputs"
+	"github.com/karimra/gnmic/utils"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/peer"
@@ -73,7 +73,7 @@ func (s *server) Set(ctx context.Context, req *gnmi.SetRequest) (*gnmi.SetRespon
 	wg.Add(numTargets)
 	for name, tc := range targets {
 		go func(name string, tc *collector.TargetConfig) {
-			name = outputs.GetHost(name)
+			name = utils.GetHost(name)
 			defer wg.Done()
 			t := collector.NewTarget(tc)
 			err := t.CreateGNMIClient(ctx)

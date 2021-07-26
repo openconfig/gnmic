@@ -26,12 +26,15 @@ nav:
       - Subscriptions: user_guide/subscriptions.md
 
       - Prompt mode: user_guide/prompt_suggestions.md
-      
+    
+      - gNMI Server: user_guide/gnmi_server.md
+    
       - Inputs:
         - Introduction: user_guide/inputs/input_intro.md
         - NATS: user_guide/inputs/nats_input.md
         - STAN: user_guide/inputs/stan_input.md
         - Kafka: user_guide/inputs/kafka_input.md
+
       - Outputs:
           - Introduction: user_guide/outputs/output_intro.md
           - File: user_guide/outputs/file_output.md
@@ -43,6 +46,7 @@ nav:
           - gNMI Server: user_guide/outputs/gnmi_output.md
           - TCP: user_guide/outputs/tcp_output.md
           - UDP: user_guide/outputs/udp_output.md
+          
       - Processors: 
           - Introduction: user_guide/event_processors/intro.md
           - Add Tag: user_guide/event_processors/event_add_tag.md
