@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	processorType = "event-extract-tag"
+	processorType = "event-extract-tags"
 	loggingPrefix = "[" + processorType + "] "
 )
 
