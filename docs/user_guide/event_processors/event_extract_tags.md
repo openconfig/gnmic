@@ -1,4 +1,4 @@
-The `event-extract-tag` processor, extracts tags from a value, a value name, a tag name or a tag value using regex named groups.
+The `event-extract-tags` processor, extracts tags from a value, a value name, a tag name or a tag value using regex named groups.
 
 It is possible to overwrite a tag if its name already exists.
 
@@ -29,7 +29,7 @@ processors:
   # processor name
   sample-processor:
     # processor type
-    event-extract-tag:
+    event-extract-tags:
       value-names:
         - `/(\w+)/(?P<group>\w+)/(\w+)`
 ```
