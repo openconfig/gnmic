@@ -38,6 +38,9 @@ type streamClient struct {
 	queue   *coalesce.Queue
 	stream  gnmi.GNMI_SubscribeServer
 	errChan chan<- error
+
+	m        *sync.Mutex
+	lastSent map[string]*gnmi.TypedValue
 }
 
 type matchClient struct {
@@ -203,8 +206,8 @@ func (a *App) Get(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetResponse,
 	}
 
 	target := req.GetPrefix().GetTarget()
-	peer, _ := peer.FromContext(ctx)
-	a.Logger.Printf("received Get request from %q to target %q", peer.Addr, target)
+	pr, _ := peer.FromContext(ctx)
+	a.Logger.Printf("received Get request from %q to target %q", pr.Addr, target)
 
 	targets, err := a.selectGNMITargets(target)
 	if err != nil {
@@ -287,7 +290,7 @@ func (a *App) Get(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetResponse,
 		}
 	}
 	<-done
-	a.Logger.Printf("sending GetResponse to %q: %+v", peer.Addr, response)
+	a.Logger.Printf("sending GetResponse to %q: %+v", pr.Addr, response)
 	return response, nil
 }
 
@@ -309,8 +312,8 @@ func (a *App) Set(ctx context.Context, req *gnmi.SetRequest) (*gnmi.SetResponse,
 	defer a.m.RUnlock()
 
 	target := req.GetPrefix().GetTarget()
-	peer, _ := peer.FromContext(ctx)
-	a.Logger.Printf("received Set request from %q to target %q", peer.Addr, target)
+	pr, _ := peer.FromContext(ctx)
+	a.Logger.Printf("received Set request from %q to target %q", pr.Addr, target)
 
 	targets, err := a.selectGNMITargets(target)
 	if err != nil {
@@ -386,13 +389,16 @@ func (a *App) Set(ctx context.Context, req *gnmi.SetRequest) (*gnmi.SetResponse,
 		}
 	}
 	<-done
-	a.Logger.Printf("sending SetResponse to %q: %+v", peer.Addr, response)
+	a.Logger.Printf("sending SetResponse to %q: %+v", pr.Addr, response)
 	return response, nil
 }
 
 func (a *App) Subscribe(stream gnmi.GNMI_SubscribeServer) error {
+	pr, _ := peer.FromContext(stream.Context())
 	sc := &streamClient{
-		stream: stream,
+		stream:   stream,
+		m:        new(sync.Mutex),
+		lastSent: make(map[string]*gnmi.TypedValue),
 	}
 	var err error
 	sc.req, err = stream.Recv()
@@ -417,9 +423,9 @@ func (a *App) Subscribe(stream gnmi.GNMI_SubscribeServer) error {
 	if !a.c.HasTarget(sc.target) {
 		return status.Errorf(codes.NotFound, "target %q not found", sc.target)
 	}
-	peer, _ := peer.FromContext(stream.Context())
-	a.Logger.Printf("received a subscribe request mode=%v from %q for target %q", sc.req.GetSubscribe().GetMode(), peer.Addr, sc.target)
-	defer a.Logger.Printf("subscription from peer %q terminated", peer.Addr)
+
+	a.Logger.Printf("received a subscribe request mode=%v from %q for target %q", sc.req.GetSubscribe().GetMode(), pr.Addr, sc.target)
+	defer a.Logger.Printf("subscription from peer %q terminated", pr.Addr)
 
 	sc.queue = coalesce.NewQueue()
 	errChan := make(chan error, 3)
@@ -520,14 +526,14 @@ func (a *App) handleStreamSubscriptionRequest(sc *streamClient) {
 	}
 	for i, sub := range sc.req.GetSubscribe().GetSubscription() {
 		a.Logger.Printf("handling subscriptionList item[%d]: target %q, %q", i, sc.target, sub.String())
+		var fp []string
+		fp, err = path.CompletePath(sc.req.GetSubscribe().GetPrefix(), sub.GetPath())
+		if err != nil {
+			return
+		}
 		switch sub.GetMode() {
 		case gnmi.SubscriptionMode_ON_CHANGE, gnmi.SubscriptionMode_TARGET_DEFINED:
 			if !sc.req.GetSubscribe().GetUpdatesOnly() {
-				var fp []string
-				fp, err = path.CompletePath(sc.req.GetSubscribe().GetPrefix(), sub.GetPath())
-				if err != nil {
-					return
-				}
 				err = a.c.Query(sc.target, fp,
 					func(_ []string, l *ctree.Leaf, _ interface{}) error {
 						if err != nil {
@@ -546,11 +552,7 @@ func (a *App) handleStreamSubscriptionRequest(sc *streamClient) {
 				if hb < a.Config.GnmiServer.MinHeartbeatInterval {
 					hb = a.Config.GnmiServer.MinHeartbeatInterval
 				}
-				fp, err := path.CompletePath(sc.req.GetSubscribe().GetPrefix(), sub.GetPath())
-				if err != nil {
-					return
-				}
-				go a.startPeriodicStreamSubscription(sc, hb, fp)
+				go a.startPeriodicStreamSubscription(sc, hb, fp, false)
 			}
 			remove := a.addSubscription(a.match, sc.req.GetSubscribe().GetPrefix(), sub, &matchClient{queue: sc.queue})
 			defer remove()
@@ -561,11 +563,16 @@ func (a *App) handleStreamSubscriptionRequest(sc *streamClient) {
 			} else if period < a.Config.GnmiServer.MinSampleInterval {
 				period = a.Config.GnmiServer.MinSampleInterval
 			}
-			fp, err := path.CompletePath(sc.req.GetSubscribe().GetPrefix(), sub.GetPath())
-			if err != nil {
-				return
+			// sample-interval
+			go a.startPeriodicStreamSubscription(sc, period, fp, sub.GetSuppressRedundant())
+			// suppress-redundant and heartbeat-interval
+			if sub.GetSuppressRedundant() && sub.GetHeartbeatInterval() > 0 {
+				hb := time.Duration(sub.GetHeartbeatInterval())
+				if hb < a.Config.GnmiServer.MinHeartbeatInterval {
+					hb = a.Config.GnmiServer.MinHeartbeatInterval
+				}
+				go a.startPeriodicStreamSubscription(sc, hb, fp, false)
 			}
-			go a.startPeriodicStreamSubscription(sc, period, fp)
 		}
 	}
 	_, err = sc.queue.Insert(syncMarker{})
@@ -578,9 +585,9 @@ func (a *App) handleStreamSubscriptionRequest(sc *streamClient) {
 	err = sc.stream.Context().Err()
 }
 
-func (a *App) startPeriodicStreamSubscription(sc *streamClient, period time.Duration, fp []string) {
+func (a *App) startPeriodicStreamSubscription(sc *streamClient, period time.Duration, fp []string, suppressRedundant bool) {
 	if !sc.req.GetSubscribe().GetUpdatesOnly() {
-		a.singlePeriodicQuery(sc, fp)
+		a.singlePeriodicQuery(sc, fp, suppressRedundant)
 	}
 	ticker := time.NewTicker(period)
 	defer ticker.Stop()
@@ -590,12 +597,12 @@ func (a *App) startPeriodicStreamSubscription(sc *streamClient, period time.Dura
 			a.Logger.Printf("periodic query stopped to target %q: %v", sc.target, sc.stream.Context().Err())
 			return
 		case <-ticker.C:
-			a.singlePeriodicQuery(sc, fp)
+			a.singlePeriodicQuery(sc, fp, suppressRedundant)
 		}
 	}
 }
 
-func (a *App) singlePeriodicQuery(sc *streamClient, fp []string) {
+func (a *App) singlePeriodicQuery(sc *streamClient, fp []string, suppressRedundant bool) {
 	var err error
 	if a.Config.Debug {
 		a.Logger.Printf("running sample query for target %q", sc.target)
@@ -610,7 +617,37 @@ func (a *App) singlePeriodicQuery(sc *streamClient, fp []string) {
 				// update timestamp
 				cgl := proto.Clone(gl).(*gnmi.Notification)
 				cgl.Timestamp = time.Now().UnixNano()
-				_, err = sc.queue.Insert(ctree.DetachedLeaf(cgl))
+				//
+				if !suppressRedundant {
+					_, err = sc.queue.Insert(ctree.DetachedLeaf(cgl))
+					return nil
+				}
+				prefix := utils.GnmiPathToXPath(cgl.GetPrefix(), false)
+				for _, upd := range cgl.GetUpdate() {
+					path := utils.GnmiPathToXPath(upd.GetPath(), false)
+					valXPath := strings.Join([]string{prefix, path}, "/")
+					if sv, ok := sc.lastSent[valXPath]; !ok || !proto.Equal(sv, upd.Val) {
+						_, err = sc.queue.Insert(ctree.DetachedLeaf(&gnmi.Notification{
+							Timestamp: cgl.GetTimestamp(),
+							Prefix:    cgl.GetPrefix(),
+							Update:    []*gnmi.Update{upd},
+						}))
+						if err != nil {
+							return nil
+						}
+						sc.m.Lock()
+						sc.lastSent[valXPath] = upd.Val
+						sc.m.Unlock()
+					}
+				}
+				if cgl.GetDelete() != nil {
+					_, err = sc.queue.Insert(ctree.DetachedLeaf(&gnmi.Notification{
+						Timestamp: cgl.GetTimestamp(),
+						Prefix:    cgl.GetPrefix(),
+						Delete:    cgl.GetDelete(),
+					}))
+				}
+				return nil
 			}
 			return nil
 		})
