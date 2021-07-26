@@ -2,11 +2,11 @@
 
 ## Introduction
 
-`gNMIc` supports starting a `gNMI` server, that supports `Get`, `Set` and `Subscribe` RPCs.
+On top of acting as `gNMI` client `gNMIc` can run a `gNMI` server that supports `Get`, `Set` and `Subscribe` RPCs.
 
-The goal is to act as a caching point for the collected gNMI notification and make them available to other collectors using the `Subscribe` RPC.
+The goal is to act as a caching point for the collected gNMI notification and make them available to other collectors via the `Subscribe` RPC.
 
-Using this gNMI server feature it is possible to build gNMI based clusters and pipelines with `gNMIc`.
+Using this gNMI server feature it is possible to build `gNMI` based clusters and pipelines with `gNMIc`.
 
 <div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:0,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/karimra/gnmic/diagrams/diagrams/gnmi_server.drawio&quot;}"></div>
 
@@ -14,14 +14,15 @@ Using this gNMI server feature it is possible to build gNMI based clusters and p
 
 The server keeps a cache of the gNMI notifications received from the defined subscriptions and utilizes it to build the `Subscribe` RPC responses.
 
-The unary RPCs, Get and Set, are relayed to the known targets based on the `Prefix.Target` field.
+The unary RPCs, Get and Set, are relayed to known targets based on the `Prefix.Target` field.
 
 ## Get RPC
 
-The server supports the gNMI `Get` RPC.
-It relies on the GetRequest `Prefix.Target` field to select the target(s) to relay the received GetRequest to.
+The server supports the gNMI `Get` RPC, it allows a client to retrieve `gNMI` notifications from multiple targets into a single `GetResponse`.
 
-If `Prefix.Target` is left empty or is equal to `*`, the Get RPC is performed for all known targets.
+It relies on the `GetRequest` `Prefix.Target` field to select the target(s) against which it will run the Get RPC.
+
+If `Prefix.Target` is left empty or is equal to `*`, the Get RPC is performed against all known targets.
 The received GetRequest is cloned, enriched with each target name and sent to the corresponding destination.
 
 Comma separated target names are also supported and allow to select a list of specific targets to send the Get RPC to.
@@ -46,10 +47,11 @@ gnmic -a gnmic-server:57400 get --path gnmic:/subscriptions
 
 ## Set RPC
 
-This gNMI server supports the gNMI `Set` RPC.
-Just like in the case of `Get` RPC, the server relies on the `Prefix.Target` field to select the target(s) to relay the received SetRequest to.
+This `gNMI` server supports the gNMI `Set` RPC, it allows a client to run a single `Set` RPC against multiple targets.
 
-If `Prefix.Target` is left empty or is equal to `*`, a Set RPC is performed for all known targets.
+Just like in the case of `Get` RPC, the server relies on the `Prefix.Target` field to select the target(s) against which it will run the `Set` RPC.
+
+If `Prefix.Target` is left empty or is equal to `*`, a Set RPC is performed against all known targets.
 The received SetRequest is cloned, enriched with each target name and sent to the corresponding destination.
 
 Comma separated target names are also supported and allow to select a list of specific targets to send the Set RPC to.
@@ -71,7 +73,7 @@ If one of the RPCs fails, an error with status code `Internal(13)` is returned t
 ## Subscribe RPC
 
 The server keeps a cache of gNMI notifications synched with the configured targets and the configured subscriptions.
-The subscribe requests received from a client are run against the afore mentioned cache, this means that a client cannot get updates about a leaf that `gNMIc` did not subscribe to upstream.
+The Subscribe requests received from a client are run against the afore mentioned cache, this means that a client cannot get updates about a leaf that `gNMIc` did not subscribe to upstream.
 
 Clients can subscribe to specific target using the gNMI `Prefix.Target` field, leaving the Target field empty or setting it to `*` is equivalent to subscribing to all known targets.
 
@@ -99,28 +101,34 @@ Stream subscriptions are long-lived subscriptions which continue to transmit upd
 
 ##### On Change
 
-When a subscription is defined to be `on-change`, data updates are only sent when the value of the data item changes.
+When a subscription is defined to be `on-change`, data updates are only sent to the client when the value of the data item changes.
+
+In the case of `gNMIc` gNMI server, `on-change` subscriptions depend on the subscription writing data in the local cache,
+if it is a `sample` subscription, each update from a target will trigger an `on-change` update to the server client.
 
 `gNMIc` gNMI server supports `on-change` subscriptions with `heartbeat-interval`.
 If the `heartbeat-interval` value is set to a non zero value, the value of the data item(s) MUST be re-sent once per heartbeat interval regardless of whether the value has changed or not.
 
 !!! note
-    The minimum heartbeat-interval is configurable using the field `min-heartbeat-interval`.
-    It defaults to 1 second if the received value is in `]0..1s[`
+    The minimum heartbeat-interval is configurable using the field `min-heartbeat-interval`. It defaults to `1s`
+
+    If the received `heartbeat-interval` value is greater than zero but lower than `min-heartbeat-interval`, the `min-heartbeat-interval` value is used instead.
 
 ##### Target Defined
 
 When a client creates a subscription specifying the target defined mode, the target MUST determine the best type of subscription to be created on a per-leaf basis.
 
 In the case of `gNMIc` gNMI server, a `target-defined` stream subscription, is treated as an `on-change` subscription.
+
 Note that this does not mean that `gNMIc` will filter out the unchanged values received from a sample subscription to the actual targets.
 
 ##### Sample
 
-A subscription that is defined to be sampled MUST be specified along with a `sample-interval` encoded as an unsigned 64-bit integer representing nanoseconds between samples.
-The value of the data item(s) MUST be sent once per sample interval to the client.
+A `sample` subscription is one where data items are sent to the client once per `sample-interval`.
 
-The minimum supported sample-interval is `1ms`.
+The minimum supported `sample-interval` is configurable using the field `min-sample-interval`, defaults to `1ms`.
+
+If within a `SubscribeRequest` the received `sample-interval` is zero, the `default-sample-interval` is used, defaults to `1s`.
 
 ## Configuration
 
