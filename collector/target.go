@@ -147,6 +147,7 @@ func (t *Target) CreateGNMIClient(ctx context.Context, opts ...grpc.DialOption) 
 	numAddrs := len(addrs)
 	errC := make(chan error, numAddrs)
 	connC := make(chan *grpc.ClientConn)
+	done := make(chan struct{})
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	for _, addr := range addrs {
@@ -158,13 +159,20 @@ func (t *Target) CreateGNMIClient(ctx context.Context, opts ...grpc.DialOption) 
 				errC <- fmt.Errorf("%s: %v", addr, err)
 				return
 			}
-			connC <- conn
+			select {
+			case connC <- conn:
+			case <-done:
+				if conn != nil {
+					conn.Close()
+				}
+			}
 		}(addr)
 	}
 	errs := make([]string, 0, numAddrs)
 	for {
 		select {
 		case conn := <-connC:
+			close(done)
 			t.Client = gnmi.NewGNMIClient(conn)
 			return nil
 		case err := <-errC:
@@ -174,7 +182,6 @@ func (t *Target) CreateGNMIClient(ctx context.Context, opts ...grpc.DialOption) 
 			}
 		}
 	}
-	return nil
 }
 
 // Capabilities sends a gnmi.CapabilitiesRequest to the target *t and returns a gnmi.CapabilitiesResponse and an error
