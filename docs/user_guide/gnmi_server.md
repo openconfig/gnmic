@@ -72,10 +72,13 @@ If one of the RPCs fails, an error with status code `Internal(13)` is returned t
 
 ## Subscribe RPC
 
-The server keeps a cache of gNMI notifications synched with the configured targets and the configured subscriptions.
-The Subscribe requests received from a client are run against the afore mentioned cache, this means that a client cannot get updates about a leaf that `gNMIc` did not subscribe to upstream.
+The `gNMIc` server keeps a cache of gNMI notifications synched with the configured targets based on the configured subscriptions.
 
-Clients can subscribe to specific target using the gNMI `Prefix.Target` field, leaving the Target field empty or setting it to `*` is equivalent to subscribing to all known targets.
+The Subscribe requests received from a client are run against the afore mentioned cache,
+this means that a client cannot get updates about a leaf that `gNMIc` did not subscribe to as a client.
+
+Clients can subscribe to specific target using the gNMI `Prefix.Target` field,
+while leaving the `Prefix.Target` field empty or setting it to `*` is equivalent to subscribing to all known targets.
 
 ### Subscription Mode
 
@@ -89,7 +92,10 @@ It also supports some subscription behavior modifiers:
 
 #### [Once](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#35151-once-subscriptions)
 
-A subscription operating in the `ONCE` mode acts as a single request/response channel. The target creates the relevant update messages, transmits them, and subsequently closes the RPC.
+A subscription operating in the `ONCE` mode acts as a single request/response channel.
+The target creates the relevant update messages, transmits them, and subsequently closes the RPC.
+
+In this subscription mode, `gNMIc` server supports the `updates-only` knob.
 
 #### [Poll](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#35153-poll-subscriptions)
 
@@ -98,6 +104,8 @@ Polling subscriptions are used for on-demand retrieval of data items via long-li
 #### [Stream](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#35152-stream-subscriptions)
 
 Stream subscriptions are long-lived subscriptions which continue to transmit updates relating to the set of paths that are covered within the subscription indefinitely.
+
+In this subscription mode, `gNMIc` server supports the `updates-only` knob.
 
 ##### On Change
 
