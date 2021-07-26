@@ -142,13 +142,38 @@ func (t *Target) CreateGNMIClient(ctx context.Context, opts ...grpc.DialOption) 
 	if *t.Config.Gzip {
 		tOpts = append(tOpts, grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)))
 	}
-	timeoutCtx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
+	//
+	addrs := strings.Split(t.Config.Address, ",")
+	numAddrs := len(addrs)
+	errC := make(chan error, numAddrs)
+	connC := make(chan *grpc.ClientConn)
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	conn, err := grpc.DialContext(timeoutCtx, t.Config.Address, tOpts...)
-	if err != nil {
-		return err
+	for _, addr := range addrs {
+		go func(addr string) {
+			timeoutCtx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
+			defer cancel()
+			conn, err := grpc.DialContext(timeoutCtx, addr, tOpts...)
+			if err != nil {
+				errC <- fmt.Errorf("%s: %v", addr, err)
+				return
+			}
+			connC <- conn
+		}(addr)
 	}
-	t.Client = gnmi.NewGNMIClient(conn)
+	errs := make([]string, 0, numAddrs)
+	for {
+		select {
+		case conn := <-connC:
+			t.Client = gnmi.NewGNMIClient(conn)
+			return nil
+		case err := <-errC:
+			errs = append(errs, err.Error())
+			if len(errs) == numAddrs {
+				return fmt.Errorf("%s", strings.Join(errs, ", "))
+			}
+		}
+	}
 	return nil
 }
 
