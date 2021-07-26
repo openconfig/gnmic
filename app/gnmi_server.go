@@ -245,7 +245,7 @@ func (a *App) Get(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetResponse,
 	wg.Add(numTargets)
 	for name, tc := range targets {
 		go func(name string, tc *collector.TargetConfig) {
-			// name = outputs.GetHost(name)
+			name = utils.GetHost(name)
 			defer wg.Done()
 			t := collector.NewTarget(tc)
 			ctx, cancel := context.WithTimeout(ctx, tc.Timeout)
