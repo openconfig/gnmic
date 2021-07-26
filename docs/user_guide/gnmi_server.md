@@ -81,14 +81,10 @@ Clients can subscribe to specific target using the gNMI `Prefix.Target` field, l
 
 It also supports some subscription behavior modifiers:
 
-- `heartbeat-interval` together with an `on-change` subscription.
 - `updates-only` with `stream` and `once` subscriptions.
-
-`gNMIc` gNMI server DOES NOT support:
-
 - `suppress-redundant`.
-- `heartbeat-interval` with `sample` subscriptions where `suppress-redundant` is set to true.
-  
+- `heartbeat-interval` with `on-change` and `sample` stream subscriptions.
+
 #### [Once](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#35151-once-subscriptions)
 
 A subscription operating in the `ONCE` mode acts as a single request/response channel. The target creates the relevant update messages, transmits them, and subsequently closes the RPC.
