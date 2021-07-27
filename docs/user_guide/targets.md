@@ -1,24 +1,30 @@
+# Targets
+
 Sometimes it is needed to perform an operation on multiple devices; be it getting the same leaf value from a given set of the network elements or setting a certain configuration element to some value.
 
 For cases like that `gnmic` offers support for multiple targets operations which a user can configure both via CLI flags as well as with the [file-based configuration](configuration_file.md).
 
 ### CLI configuration
+
 Specifying multiple targets in the CLI is as easy as repeating the [`--address`](../global_flags.md#address) flag.
 
-```
+```shell
 ❯ gnmic -a router1.lab.net:57400 \
         -a router2.lab.net:57400 \
         get --path /configure/system/name
 ```
 
 ### File-based configuration
+
 With the file-based configuration a user has two options to specify multiple targets:
 
 * using `address` option
 * using `targets` option
 
 #### address option
+
 With `address` option the user must provide a list of addresses. In the YAML format that would look like that:
+
 ```yaml
 address:
   - "router1.lab.net:57400"
@@ -28,7 +34,9 @@ address:
 The limitation this approach has is that it is impossible to set different credentials for the targets, they will essentially share the credentials specified in a file or via flags.
 
 #### target option
+
 With the `targets` option it is possible to set target specific options (such as credentials, subscriptions, TLS config, outputs), and thus this option is recommended to use:
+
 ```yaml
 targets:
   router1.lab.net:
@@ -47,9 +55,11 @@ The target address is defined as the key under the `targets` section of the conf
 The target inherits the globally defined options if the matching options are not set on a target level. For example, if a target doesn't have a username defined, it will use the username value set on a global level.
 
 #### secure/insecure connections
+
 `gnmic` supports both secure and insecure gRPC connections to the target.
 
 ##### insecure connection
+
 Using the `--insecure` flag it is possible to establish an insecure gRPC connection to the target.
 
 ```bash
@@ -59,7 +69,9 @@ gnmic -a router1:57400 \
 ```
 
 ##### secure connection
+
 - A one way secure connection without target certificate verification can be established using the `--skip-verify` flag.
+
 ```bash
 gnmic -a router1:57400 \
       --skip-verify \
@@ -67,6 +79,7 @@ gnmic -a router1:57400 \
 ```
 
 - Adding target certificate verification can be done using the `--tls-ca` flag.
+
 ```bash
 gnmic -a router1:57400 \
       --tls-ca /path/to/ca/file \
@@ -74,25 +87,33 @@ gnmic -a router1:57400 \
 ```
 
 - A two way secure connection can be established using the `--tls-cert` `--tls-key` flags.
+
 ```bash
 gnmic -a router1:57400 \
       --tls-cert /path/to/certificate/file \
       --tls-key /path/to/certificate/file \
       get --path /configure/system/name
 ```
+
 - It is also possible to control the negotiated TLS version using the `--tls-min-version`, `--tls-max-version` and `--tls-version` (preferred TLS version) flags.
 
 #### target configuration options
+
 Target supported options:
+
 ```yaml
 targets:
-  # target address, IP or DNS name.
-  # can include a port number or not,
-  # if a port is not included, the default gRPC port will be added
-  target1:
-    # target name, will default to address if not specified
-    name:
-    # target address
+  # target name or an address (IP or DNS name).
+  # if an address is set it can include a port number or not,
+  # if a port is not included, the default gRPC port will be added.
+  target_key:
+    # target name, will default to the target_key if not specified
+    name: target_key
+    # target address, if missing the target_key is used as an address.
+    # supports comma separated addresses.
+    # if any of the addresses is missing a port, the default gRPC port will be added.
+    # if multiple addresses are set, all of them will be tried simultaneously,
+    # the first established gRPC connection will be used, the other attempts will be canceled.
     address:
     # target username
     username:
@@ -143,10 +164,12 @@ targets:
 ```
 
 ### Example
+
 Whatever configuration option you choose, the multi-targeted operations will uniformly work across the commands that support them.
 
 Consider the `get` command acting on two routers getting their names:
-```
+
+```shell
 ❯ gnmic -a router1.lab.net:57400 \
         -a router2.lab.net:57400 \
         get --path /configure/system/name

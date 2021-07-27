@@ -24,9 +24,9 @@ password: admin
 address: 10.1.1.1
 `),
 		out: map[string]*collector.TargetConfig{
-			"10.1.1.1:57400": {
+			"10.1.1.1": {
 				Address:    "10.1.1.1:57400",
-				Name:       "10.1.1.1:57400",
+				Name:       "10.1.1.1",
 				Password:   &adminStr,
 				Username:   &adminStr,
 				Token:      &emptyStr,
@@ -237,6 +237,31 @@ targets:
 				Outputs: []string{
 					"o1",
 				},
+			},
+		},
+		outErr: nil,
+	},
+	"target_with_multiple_addresses": {
+		in: []byte(`
+port: 57400
+targets:
+  target1:
+    username: admin
+    password: admin
+    address: 10.1.1.1,10.1.1.2
+`),
+		out: map[string]*collector.TargetConfig{
+			"target1": {
+				Address:    "10.1.1.1:57400,10.1.1.2:57400",
+				Name:       "target1",
+				Password:   &adminStr,
+				Username:   &adminStr,
+				Token:      &emptyStr,
+				TLSCert:    &emptyStr,
+				TLSKey:     &emptyStr,
+				Insecure:   &falseBool,
+				SkipVerify: &falseBool,
+				Gzip:       &falseBool,
 			},
 		},
 		outErr: nil,

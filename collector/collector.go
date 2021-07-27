@@ -859,8 +859,6 @@ func (c *Collector) Capabilities(ctx context.Context, tName string, ext ...*gnmi
 	c.m.Lock()
 	defer c.m.Unlock()
 	if t, ok := c.Targets[tName]; ok {
-		ctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
-		defer cancel()
 		if t.Client == nil {
 			if err := t.CreateGNMIClient(ctx, c.dialOpts...); err != nil {
 				if errors.Is(err, context.DeadlineExceeded) {
@@ -869,6 +867,8 @@ func (c *Collector) Capabilities(ctx context.Context, tName string, ext ...*gnmi
 				return nil, fmt.Errorf("failed to create a gRPC client for target '%s' : %v", t.Config.Name, err)
 			}
 		}
+		ctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
+		defer cancel()
 		return t.Capabilities(ctx, ext...)
 	}
 	return nil, fmt.Errorf("unknown target name: %s", tName)
@@ -884,8 +884,6 @@ func (c *Collector) Get(ctx context.Context, tName string, req *gnmi.GetRequest)
 	c.m.Lock()
 	defer c.m.Unlock()
 	if t, ok := c.Targets[tName]; ok {
-		ctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
-		defer cancel()
 		if t.Client == nil {
 			if err := t.CreateGNMIClient(ctx, c.dialOpts...); err != nil {
 				if errors.Is(err, context.DeadlineExceeded) {
@@ -894,6 +892,8 @@ func (c *Collector) Get(ctx context.Context, tName string, req *gnmi.GetRequest)
 				return nil, fmt.Errorf("failed to create a gRPC client for target '%s' : %v", t.Config.Name, err)
 			}
 		}
+		ctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
+		defer cancel()
 		return t.Get(ctx, req)
 	}
 	return nil, fmt.Errorf("unknown target name: %s", tName)
@@ -909,8 +909,6 @@ func (c *Collector) Set(ctx context.Context, tName string, req *gnmi.SetRequest)
 	c.m.Lock()
 	defer c.m.Unlock()
 	if t, ok := c.Targets[tName]; ok {
-		ctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
-		defer cancel()
 		if t.Client == nil {
 			if err := t.CreateGNMIClient(ctx, c.dialOpts...); err != nil {
 				if errors.Is(err, context.DeadlineExceeded) {
@@ -919,6 +917,8 @@ func (c *Collector) Set(ctx context.Context, tName string, req *gnmi.SetRequest)
 				return nil, fmt.Errorf("failed to create a gRPC client for target '%s' : %v", t.Config.Name, err)
 			}
 		}
+		ctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
+		defer cancel()
 		return t.Set(ctx, req)
 	}
 	return nil, fmt.Errorf("unknown target name: %s", tName)

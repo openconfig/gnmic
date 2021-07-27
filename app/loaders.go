@@ -53,7 +53,11 @@ START:
 			}
 		}
 		for _, add := range targetOp.Add {
-			a.Config.SetTargetConfigDefaults(add)
+			err = a.Config.SetTargetConfigDefaults(add)
+			if err != nil {
+				a.Logger.Printf("failed parsing new target configuration %#v: %v", add, err)
+				continue
+			}
 			// not clustered, add target and subscribe
 			if !a.inCluster() {
 				a.Config.Targets[add.Name] = add

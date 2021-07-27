@@ -35,8 +35,10 @@ func (c *Config) GetTargets() (map[string]*collector.TargetConfig, error) {
 		}
 
 		for _, addr := range c.Address {
-			tc := new(collector.TargetConfig)
-			tc.Address = addr
+			tc := &collector.TargetConfig{
+				Name:    addr,
+				Address: addr,
+			}
 			err = c.SetTargetConfigDefaults(tc)
 			if err != nil {
 				return nil, err
@@ -68,7 +70,7 @@ func (c *Config) GetTargets() (map[string]*collector.TargetConfig, error) {
 	}
 
 	newTargetsConfig := make(map[string]*collector.TargetConfig)
-	for addr, t := range targetsMap {
+	for name, t := range targetsMap {
 		tc := new(collector.TargetConfig)
 		switch t := t.(type) {
 		case map[string]interface{}:
@@ -90,7 +92,10 @@ func (c *Config) GetTargets() (map[string]*collector.TargetConfig, error) {
 			return nil, fmt.Errorf("unexpected targets format, got a %T", t)
 		}
 		if tc.Address == "" {
-			tc.Address = addr
+			tc.Address = name
+		}
+		if tc.Name == "" {
+			tc.Name = name
 		}
 		err = c.SetTargetConfigDefaults(tc)
 		if err != nil {
@@ -104,7 +109,7 @@ func (c *Config) GetTargets() (map[string]*collector.TargetConfig, error) {
 			return nil, err
 		}
 		expandTargetEnv(tc)
-		newTargetsConfig[tc.Name] = tc
+		newTargetsConfig[name] = tc
 	}
 	c.Targets = newTargetsConfig
 
@@ -146,19 +151,23 @@ func readPassword() (string, error) {
 func (c *Config) SetTargetConfigDefaults(tc *collector.TargetConfig) error {
 	defGrpcPort := c.FileConfig.GetString("port")
 	if !strings.HasPrefix(tc.Address, "unix://") {
-		_, _, err := net.SplitHostPort(tc.Address)
-		if err != nil {
-			if strings.Contains(err.Error(), "missing port in address") ||
-				strings.Contains(err.Error(), "too many colons in address") {
-				tc.Address = net.JoinHostPort(tc.Address, defGrpcPort)
-			} else {
-				c.logger.Printf("error parsing address '%s': %v", tc.Address, err)
-				return fmt.Errorf("error parsing address '%s': %v", tc.Address, err)
+		addrList := strings.Split(tc.Address, ",")
+		addrs := make([]string, 0, len(addrList))
+		for _, addr := range addrList {
+			addr = strings.TrimSpace(addr)
+			_, _, err := net.SplitHostPort(addr)
+			if err != nil {
+				if strings.Contains(err.Error(), "missing port in address") ||
+					strings.Contains(err.Error(), "too many colons in address") {
+					addr = net.JoinHostPort(addr, defGrpcPort)
+				} else {
+					c.logger.Printf("error parsing address '%s': %v", addr, err)
+					return fmt.Errorf("error parsing address '%s': %v", addr, err)
+				}
 			}
+			addrs = append(addrs, addr)
 		}
-	}
-	if tc.Name == "" {
-		tc.Name = tc.Address
+		tc.Address = strings.Join(addrs, ",")
 	}
 	if tc.Username == nil {
 		tc.Username = &c.Username
