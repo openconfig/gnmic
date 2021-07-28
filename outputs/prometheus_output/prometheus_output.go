@@ -60,8 +60,8 @@ type promMetric struct {
 
 func init() {
 	outputs.Register("prometheus", func() outputs.Output {
-		return &PrometheusOutput{
-			Cfg:         &Config{},
+		return &prometheusOutput{
+			Cfg:         &config{},
 			eventChan:   make(chan *formatters.EventMsg),
 			wg:          new(sync.WaitGroup),
 			entries:     make(map[uint64]*promMetric),
@@ -72,8 +72,8 @@ func init() {
 	})
 }
 
-type PrometheusOutput struct {
-	Cfg       *Config
+type prometheusOutput struct {
+	Cfg       *config
 	logger    *log.Logger
 	eventChan chan *formatters.EventMsg
 
@@ -91,7 +91,7 @@ type PrometheusOutput struct {
 	caches map[string]*cache.Cache
 }
 
-type Config struct {
+type config struct {
 	Name                   string               `mapstructure:"name,omitempty"`
 	Listen                 string               `mapstructure:"listen,omitempty"`
 	Path                   string               `mapstructure:"path,omitempty"`
@@ -105,7 +105,7 @@ type Config struct {
 	StringsAsLabels        bool                 `mapstructure:"strings-as-labels,omitempty"`
 	Debug                  bool                 `mapstructure:"debug,omitempty"`
 	EventProcessors        []string             `mapstructure:"event-processors,omitempty"`
-	ServiceRegistration    *ServiceRegistration `mapstructure:"service-registration,omitempty"`
+	ServiceRegistration    *serviceRegistration `mapstructure:"service-registration,omitempty"`
 	GnmiCache              bool                 `mapstructure:"gnmi-cache,omitempty"`
 	Timeout                time.Duration        `mapstructure:"timeout,omitempty"`
 
@@ -114,7 +114,7 @@ type Config struct {
 	port        int
 }
 
-func (p *PrometheusOutput) String() string {
+func (p *prometheusOutput) String() string {
 	b, err := json.Marshal(p)
 	if err != nil {
 		return ""
@@ -122,14 +122,14 @@ func (p *PrometheusOutput) String() string {
 	return string(b)
 }
 
-func (p *PrometheusOutput) SetLogger(logger *log.Logger) {
+func (p *prometheusOutput) SetLogger(logger *log.Logger) {
 	if logger != nil && p.logger != nil {
 		p.logger.SetOutput(logger.Writer())
 		p.logger.SetFlags(logger.Flags())
 	}
 }
 
-func (p *PrometheusOutput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]interface{}) {
+func (p *prometheusOutput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]interface{}) {
 	for _, epName := range p.Cfg.EventProcessors {
 		if epCfg, ok := ps[epName]; ok {
 			epType := ""
@@ -155,7 +155,7 @@ func (p *PrometheusOutput) SetEventProcessors(ps map[string]map[string]interface
 	}
 }
 
-func (p *PrometheusOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
+func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
 	err := outputs.DecodeConfig(cfg, p.Cfg)
 	if err != nil {
 		return err
@@ -226,7 +226,7 @@ func (p *PrometheusOutput) Init(ctx context.Context, name string, cfg map[string
 }
 
 // Write implements the outputs.Output interface
-func (p *PrometheusOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) {
+func (p *prometheusOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) {
 	if rsp == nil {
 		return
 	}
@@ -259,7 +259,7 @@ func (p *PrometheusOutput) Write(ctx context.Context, rsp proto.Message, meta ou
 	}
 }
 
-func (p *PrometheusOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {
+func (p *prometheusOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {
 	select {
 	case <-ctx.Done():
 		return
@@ -267,7 +267,7 @@ func (p *PrometheusOutput) WriteEvent(ctx context.Context, ev *formatters.EventM
 	}
 }
 
-func (p *PrometheusOutput) Close() error {
+func (p *prometheusOutput) Close() error {
 	var err error
 	if p.consulClient != nil {
 		err = p.consulClient.Agent().ServiceDeregister(p.Cfg.ServiceRegistration.Name)
@@ -286,13 +286,13 @@ func (p *PrometheusOutput) Close() error {
 	return nil
 }
 
-func (p *PrometheusOutput) RegisterMetrics(reg *prometheus.Registry) {}
+func (p *prometheusOutput) RegisterMetrics(reg *prometheus.Registry) {}
 
 // Describe implements prometheus.Collector
-func (p *PrometheusOutput) Describe(ch chan<- *prometheus.Desc) {}
+func (p *prometheusOutput) Describe(ch chan<- *prometheus.Desc) {}
 
 // Collect implements prometheus.Collector
-func (p *PrometheusOutput) Collect(ch chan<- prometheus.Metric) {
+func (p *prometheusOutput) Collect(ch chan<- prometheus.Metric) {
 	p.Lock()
 	defer p.Unlock()
 	if p.Cfg.GnmiCache {
@@ -316,7 +316,7 @@ func (p *PrometheusOutput) Collect(ch chan<- prometheus.Metric) {
 	}
 }
 
-func (p *PrometheusOutput) getLabels(ev *formatters.EventMsg) []*labelPair {
+func (p *prometheusOutput) getLabels(ev *formatters.EventMsg) []*labelPair {
 	labels := make([]*labelPair, 0, len(ev.Tags))
 	addedLabels := make(map[string]struct{})
 	for k, v := range ev.Tags {
@@ -348,7 +348,7 @@ func (p *PrometheusOutput) getLabels(ev *formatters.EventMsg) []*labelPair {
 	return labels
 }
 
-func (p *PrometheusOutput) worker(ctx context.Context) {
+func (p *prometheusOutput) worker(ctx context.Context) {
 	defer p.wg.Done()
 	for {
 		select {
@@ -377,7 +377,7 @@ func (p *PrometheusOutput) worker(ctx context.Context) {
 	}
 }
 
-func (p *PrometheusOutput) expireMetrics() {
+func (p *prometheusOutput) expireMetrics() {
 	if p.Cfg.Expiration <= 0 {
 		return
 	}
@@ -395,7 +395,7 @@ func (p *PrometheusOutput) expireMetrics() {
 	}
 }
 
-func (p *PrometheusOutput) expireMetricsPeriodic(ctx context.Context) {
+func (p *prometheusOutput) expireMetricsPeriodic(ctx context.Context) {
 	if p.Cfg.Expiration <= 0 {
 		return
 	}
@@ -413,7 +413,7 @@ func (p *PrometheusOutput) expireMetricsPeriodic(ctx context.Context) {
 	}
 }
 
-func (p *PrometheusOutput) setDefaults() error {
+func (p *prometheusOutput) setDefaults() error {
 	if p.Cfg.Listen == "" {
 		p.Cfg.Listen = defaultListen
 	}
@@ -567,7 +567,7 @@ func getFloat(v interface{}) (float64, error) {
 // metricName generates the prometheus metric name based on the output plugin,
 // the measurement name and the value name.
 // it makes sure the name matches the regex "[^a-zA-Z0-9_]+"
-func (p *PrometheusOutput) metricName(measName, valueName string) string {
+func (p *prometheusOutput) metricName(measName, valueName string) string {
 	sb := strings.Builder{}
 	if p.Cfg.MetricPrefix != "" {
 		sb.WriteString(p.metricRegex.ReplaceAllString(p.Cfg.MetricPrefix, "_"))
@@ -581,7 +581,7 @@ func (p *PrometheusOutput) metricName(measName, valueName string) string {
 	return sb.String()
 }
 
-func (p *PrometheusOutput) SetName(name string) {
+func (p *prometheusOutput) SetName(name string) {
 	sb := strings.Builder{}
 	if name != "" {
 		sb.WriteString(name)
@@ -604,16 +604,16 @@ func (p *PrometheusOutput) SetName(name string) {
 	}
 }
 
-func (p *PrometheusOutput) SetClusterName(name string) {
+func (p *prometheusOutput) SetClusterName(name string) {
 	p.Cfg.clusterName = name
 	if p.Cfg.ServiceRegistration != nil {
 		p.Cfg.ServiceRegistration.Tags = append(p.Cfg.ServiceRegistration.Tags, fmt.Sprintf("gnmic-cluster=%s", name))
 	}
 }
 
-func (p *PrometheusOutput) SetTargetsConfig(map[string]interface{}) {}
+func (p *prometheusOutput) SetTargetsConfig(map[string]interface{}) {}
 
-func (p *PrometheusOutput) metricsFromEvent(ev *formatters.EventMsg, now time.Time) []*promMetric {
+func (p *prometheusOutput) metricsFromEvent(ev *formatters.EventMsg, now time.Time) []*promMetric {
 	pms := make([]*promMetric, 0, len(ev.Values))
 	labels := p.getLabels(ev)
 	for vName, val := range ev.Values {

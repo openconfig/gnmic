@@ -6,13 +6,14 @@ import (
 	"time"
 
 	"github.com/karimra/gnmic/formatters"
+	"github.com/karimra/gnmic/outputs"
 	"github.com/openconfig/gnmi/cache"
 	"github.com/openconfig/gnmi/ctree"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func (p *PrometheusOutput) writeToCache(measName string, rsp *gnmi.SubscribeResponse) {
+func (p *prometheusOutput) writeToCache(measName string, rsp *gnmi.SubscribeResponse) {
 	var err error
 	switch rsp := rsp.GetResponse().(type) {
 	case *gnmi.SubscribeResponse_Update:
@@ -47,7 +48,7 @@ func (p *PrometheusOutput) writeToCache(measName string, rsp *gnmi.SubscribeResp
 // - generates a lit of events from the gNMI notifications list.
 // - applies the configured processors on the events list.
 // - generates prometheus metrics from the events and sends them to chan<- prometheus.Metric
-func (p *PrometheusOutput) collectFromCache(ch chan<- prometheus.Metric) {
+func (p *prometheusOutput) collectFromCache(ch chan<- prometheus.Metric) {
 	var err error
 	evChan := make(chan []*formatters.EventMsg)
 	events := make([]*formatters.EventMsg, 0)
@@ -83,7 +84,8 @@ func (p *PrometheusOutput) collectFromCache(ch chan<- prometheus.Metric) {
 						// build events without processors
 						events, err := formatters.ResponseToEventMsgs(name, &gnmi.SubscribeResponse{
 							Response: &gnmi.SubscribeResponse_Update{Update: notif},
-						}, nil)
+						},
+							outputs.Meta{"subscription-name": name})
 						if err != nil {
 							p.logger.Printf("failed to convert message to event: %v", err)
 							return nil
