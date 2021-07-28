@@ -24,6 +24,7 @@ import (
 	"github.com/hashicorp/consul/api"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
+	"github.com/openconfig/gnmi/cache"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -63,6 +64,7 @@ func init() {
 			entries:     make(map[uint64]*promMetric),
 			metricRegex: regexp.MustCompile(metricNameRegex),
 			logger:      log.New(ioutil.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			caches:      make(map[string]*cache.Cache),
 		}
 	})
 }
@@ -82,7 +84,10 @@ type PrometheusOutput struct {
 	consulClient *api.Client
 
 	targetTpl *template.Template
+
+	caches map[string]*cache.Cache
 }
+
 type Config struct {
 	Name                   string               `mapstructure:"name,omitempty"`
 	Listen                 string               `mapstructure:"listen,omitempty"`
@@ -98,6 +103,7 @@ type Config struct {
 	Debug                  bool                 `mapstructure:"debug,omitempty"`
 	EventProcessors        []string             `mapstructure:"event-processors,omitempty"`
 	ServiceRegistration    *ServiceRegistration `mapstructure:"service-registration,omitempty"`
+	GnmiCache              bool                 `mapstructure:"gnmi-cache,omitempty"`
 
 	clusterName string
 	address     string
@@ -230,6 +236,10 @@ func (p *PrometheusOutput) Write(ctx context.Context, rsp proto.Message, meta ou
 		if err != nil {
 			p.logger.Printf("failed to add target to the response: %v", err)
 		}
+		if p.Cfg.GnmiCache {
+			p.writeToCache(measName, rsp)
+			return
+		}
 		events, err := formatters.ResponseToEventMsgs(measName, rsp, meta, p.evps...)
 		if err != nil {
 			p.logger.Printf("failed to convert message to event: %v", err)
@@ -281,6 +291,11 @@ func (p *PrometheusOutput) Describe(ch chan<- *prometheus.Desc) {}
 func (p *PrometheusOutput) Collect(ch chan<- prometheus.Metric) {
 	p.Lock()
 	defer p.Unlock()
+	if p.Cfg.GnmiCache {
+		p.collectFromCache(ch)
+		return
+	}
+	// No cache
 	// run expire before exporting metrics
 	p.expireMetrics()
 	for _, entry := range p.entries {
@@ -331,29 +346,7 @@ func (p *PrometheusOutput) worker(ctx context.Context) {
 				p.logger.Printf("got event to store: %+v", ev)
 			}
 			p.Lock()
-			now := time.Now()
-			labels := p.getLabels(ev)
-			for vName, val := range ev.Values {
-				v, err := getFloat(val)
-				if err != nil {
-					if !p.Cfg.StringsAsLabels {
-						continue
-					}
-					v = 1.0
-				}
-				pm := &promMetric{
-					name:    p.metricName(ev.Name, vName),
-					labels:  labels,
-					value:   v,
-					addedAt: now,
-				}
-				if p.Cfg.OverrideTimestamps && p.Cfg.ExportTimestamps {
-					ev.Timestamp = time.Now().UnixNano()
-				}
-				if p.Cfg.ExportTimestamps {
-					tm := time.Unix(0, ev.Timestamp)
-					pm.time = &tm
-				}
+			for _, pm := range p.metricsFromEvent(ev, time.Now()) {
 				key := pm.calculateKey()
 				if e, ok := p.entries[key]; ok && pm.time != nil {
 					if e.time.Before(*pm.time) {
@@ -416,6 +409,9 @@ func (p *PrometheusOutput) setDefaults() error {
 	}
 	if p.Cfg.Expiration == 0 {
 		p.Cfg.Expiration = defaultExpiration
+	}
+	if p.Cfg.GnmiCache && p.Cfg.AddTarget == "" {
+		p.Cfg.AddTarget = "if-not-present"
 	}
 	p.setServiceRegistrationDefaults()
 	var err error
@@ -600,3 +596,32 @@ func (p *PrometheusOutput) SetClusterName(name string) {
 }
 
 func (p *PrometheusOutput) SetTargetsConfig(map[string]interface{}) {}
+
+func (p *PrometheusOutput) metricsFromEvent(ev *formatters.EventMsg, now time.Time) []*promMetric {
+	pms := make([]*promMetric, 0, len(ev.Values))
+	labels := p.getLabels(ev)
+	for vName, val := range ev.Values {
+		v, err := getFloat(val)
+		if err != nil {
+			if !p.Cfg.StringsAsLabels {
+				continue
+			}
+			v = 1.0
+		}
+		pm := &promMetric{
+			name:    p.metricName(ev.Name, vName),
+			labels:  labels,
+			value:   v,
+			addedAt: now,
+		}
+		if p.Cfg.OverrideTimestamps && p.Cfg.ExportTimestamps {
+			ev.Timestamp = now.UnixNano()
+		}
+		if p.Cfg.ExportTimestamps {
+			tm := time.Unix(0, ev.Timestamp)
+			pm.time = &tm
+		}
+		pms = append(pms, pm)
+	}
+	return pms
+}
