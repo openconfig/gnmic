@@ -9,17 +9,14 @@ import (
 
 func (a *App) printCapResponse(printPrefix string, msg *gnmi.CapabilityResponse) {
 	sb := strings.Builder{}
-	sb.WriteString(printPrefix)
 	sb.WriteString("gNMI version: ")
 	sb.WriteString(msg.GNMIVersion)
 	sb.WriteString("\n")
 	if a.Config.LocalFlags.CapabilitiesVersion {
 		return
 	}
-	sb.WriteString(printPrefix)
 	sb.WriteString("supported models:\n")
 	for _, sm := range msg.SupportedModels {
-		sb.WriteString(printPrefix)
 		sb.WriteString("  - ")
 		sb.WriteString(sm.GetName())
 		sb.WriteString(", ")
@@ -28,10 +25,8 @@ func (a *App) printCapResponse(printPrefix string, msg *gnmi.CapabilityResponse)
 		sb.WriteString(sm.GetVersion())
 		sb.WriteString("\n")
 	}
-	sb.WriteString(printPrefix)
 	sb.WriteString("supported encodings:\n")
 	for _, se := range msg.SupportedEncodings {
-		sb.WriteString(printPrefix)
 		sb.WriteString("  - ")
 		sb.WriteString(se.String())
 		sb.WriteString("\n")
