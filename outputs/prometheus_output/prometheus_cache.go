@@ -1,6 +1,7 @@
 package prometheus_output
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -59,6 +60,9 @@ func (p *PrometheusOutput) collectFromCache(ch chan<- prometheus.Metric) {
 		}
 	}()
 
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
 	now := time.Now()
 	wg := new(sync.WaitGroup)
 	wg.Add(len(p.caches))
@@ -96,14 +100,27 @@ func (p *PrometheusOutput) collectFromCache(ch chan<- prometheus.Metric) {
 	}
 	wg.Wait()
 	close(evChan)
-	// apply processors
-	for _, proc := range p.evps {
-		events = proc.Apply(events...)
-	}
-	// build prometheus metrics and send
-	for _, ev := range events {
-		for _, pm := range p.metricsFromEvent(ev, now) {
-			ch <- pm
+
+	select {
+	// check if the collection timeout context is done
+	case <-ctx.Done():
+		p.logger.Printf("collection context terminated: %v", ctx.Err())
+		return
+	default:
+		// apply processors
+		for _, proc := range p.evps {
+			events = proc.Apply(events...)
+		}
+		// build prometheus metrics and send
+		for _, ev := range events {
+			for _, pm := range p.metricsFromEvent(ev, now) {
+				select {
+				case <-ctx.Done():
+					p.logger.Printf("collection context terminated: %v", ctx.Err())
+					return
+				case ch <- pm:
+				}
+			}
 		}
 	}
 }

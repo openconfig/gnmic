@@ -29,6 +29,10 @@ outputs:
     # this mode uses more resource compared to the default one, but offers more flexibility when it comes 
     # to manipulating the data to customize the returned metrics using event-processors.
     gnmi-cache: false
+    # duration, scrape request timeout.
+    # this timer is started when a scrape request is received, 
+    # if it is reached, the metrics generation/collection is stopped.
+    timeout: 10s
     # enable debug for prometheus output
     debug: false 
     # string, one of `overwrite`, `if-not-present`, ``

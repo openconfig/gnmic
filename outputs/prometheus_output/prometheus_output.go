@@ -39,6 +39,9 @@ const (
 	defaultMetricHelp = "gNMIc generated metric"
 	metricNameRegex   = "[^a-zA-Z0-9_]+"
 	loggingPrefix     = "[prometheus_output] "
+	// this is used to timeout the collection method
+	// in case it drags for too long
+	defaultTimeout = 10 * time.Second
 )
 
 type labelPair struct {
@@ -104,6 +107,7 @@ type Config struct {
 	EventProcessors        []string             `mapstructure:"event-processors,omitempty"`
 	ServiceRegistration    *ServiceRegistration `mapstructure:"service-registration,omitempty"`
 	GnmiCache              bool                 `mapstructure:"gnmi-cache,omitempty"`
+	Timeout                time.Duration        `mapstructure:"timeout,omitempty"`
 
 	clusterName string
 	address     string
@@ -298,8 +302,17 @@ func (p *PrometheusOutput) Collect(ch chan<- prometheus.Metric) {
 	// No cache
 	// run expire before exporting metrics
 	p.expireMetrics()
+
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
 	for _, entry := range p.entries {
-		ch <- entry
+		select {
+		case <-ctx.Done():
+			p.logger.Printf("collection context terminated: %v", ctx.Err())
+			return
+		case ch <- entry:
+		}
 	}
 }
 
@@ -412,6 +425,9 @@ func (p *PrometheusOutput) setDefaults() error {
 	}
 	if p.Cfg.GnmiCache && p.Cfg.AddTarget == "" {
 		p.Cfg.AddTarget = "if-not-present"
+	}
+	if p.Cfg.Timeout <= 0 {
+		p.Cfg.Timeout = defaultTimeout
 	}
 	p.setServiceRegistrationDefaults()
 	var err error
