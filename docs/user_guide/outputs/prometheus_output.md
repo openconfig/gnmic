@@ -22,7 +22,17 @@ outputs:
     # a boolean, enables exporting timestamps received from the gNMI target as part of the metrics
     export-timestamps: false 
     # a boolean, enables setting string type values as prometheus metric labels.
-    strings-as-labels: false 
+    strings-as-labels: false
+    # a boolean, if set to true, the received gNMI notifications are stored in a cache.
+    # the prometheus metrics are generated at the time a prometheus server sends scrape request.
+    # this behavior allows the processors (if defined) to be run on all the generated events at once.
+    # this mode uses more resource compared to the default one, but offers more flexibility when it comes 
+    # to manipulating the data to customize the returned metrics using event-processors.
+    gnmi-cache: false
+    # duration, scrape request timeout.
+    # this timer is started when a scrape request is received, 
+    # if it is reached, the metrics generation/collection is stopped.
+    timeout: 10s
     # enable debug for prometheus output
     debug: false 
     # string, one of `overwrite`, `if-not-present`, ``
@@ -188,4 +198,4 @@ outputs:
 
 Note that for the `http` check to work properly, a routable address ( IP or name ) should be specified under `listen`.
 
-Otherwise, a routable address should be added under `service-registration.http-check-address`
+Otherwise, a routable address should be added under `service-registration.http-check-address`.

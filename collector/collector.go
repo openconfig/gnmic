@@ -677,10 +677,12 @@ func (c *Collector) Start(ctx context.Context) {
 						continue
 					}
 					m := outputs.Meta{
-						"source":              t.Config.Name,
-						"format":              c.Config.Format,
-						"subscription-name":   rsp.SubscriptionName,
-						"subscription-target": rsp.SubscriptionConfig.Target,
+						"source":            t.Config.Name,
+						"format":            c.Config.Format,
+						"subscription-name": rsp.SubscriptionName,
+					}
+					if rsp.SubscriptionConfig.Target != "" {
+						m["subscription-target"] = rsp.SubscriptionConfig.Target
 					}
 					if c.subscriptionMode(rsp.SubscriptionName) == "ONCE" {
 						c.Export(ctx, rsp.Response, m, t.Config.Outputs...)

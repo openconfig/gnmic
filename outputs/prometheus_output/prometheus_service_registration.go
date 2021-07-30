@@ -18,7 +18,7 @@ const (
 	defaultMaxServiceFail             = 3
 )
 
-type ServiceRegistration struct {
+type serviceRegistration struct {
 	Address    string `mapstructure:"address,omitempty"`
 	Datacenter string `mapstructure:"datacenter,omitempty"`
 	Username   string `mapstructure:"username,omitempty"`
@@ -38,7 +38,7 @@ type ServiceRegistration struct {
 	httpCheckAddress string
 }
 
-func (p *PrometheusOutput) registerService(ctx context.Context) {
+func (p *prometheusOutput) registerService(ctx context.Context) {
 	if p.Cfg.ServiceRegistration == nil {
 		return
 	}
@@ -139,7 +139,7 @@ INITCONSUL:
 	}
 }
 
-func (p *PrometheusOutput) setServiceRegistrationDefaults() {
+func (p *prometheusOutput) setServiceRegistrationDefaults() {
 	if p.Cfg.ServiceRegistration == nil {
 		return
 	}
@@ -172,7 +172,7 @@ func (p *PrometheusOutput) setServiceRegistrationDefaults() {
 	}
 }
 
-func (p *PrometheusOutput) acquireLock(ctx context.Context, key string, val []byte) (string, error) {
+func (p *prometheusOutput) acquireLock(ctx context.Context, key string, val []byte) (string, error) {
 	var err error
 	var acquired = false
 	writeOpts := new(api.WriteOptions)
@@ -218,7 +218,7 @@ func (p *PrometheusOutput) acquireLock(ctx context.Context, key string, val []by
 	}
 }
 
-func (p *PrometheusOutput) keepLock(ctx context.Context, sessionID string) (chan struct{}, chan error) {
+func (p *prometheusOutput) keepLock(ctx context.Context, sessionID string) (chan struct{}, chan error) {
 	writeOpts := new(api.WriteOptions)
 	writeOpts = writeOpts.WithContext(ctx)
 	doneChan := make(chan struct{})
@@ -243,7 +243,7 @@ func (p *PrometheusOutput) keepLock(ctx context.Context, sessionID string) (chan
 	return doneChan, errChan
 }
 
-func (p *PrometheusOutput) acquireAndKeepLock(ctx context.Context, key string, val []byte) (chan struct{}, error) {
+func (p *prometheusOutput) acquireAndKeepLock(ctx context.Context, key string, val []byte) (chan struct{}, error) {
 	sessionID, err := p.acquireLock(ctx, key, val)
 	if err != nil {
 		p.logger.Printf("failed to acquire lock: %v", err)
