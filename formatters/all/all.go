@@ -8,6 +8,7 @@ import (
 	_ "github.com/karimra/gnmic/formatters/event_delete"
 	_ "github.com/karimra/gnmic/formatters/event_drop"
 	_ "github.com/karimra/gnmic/formatters/event_extract_tags"
+	_ "github.com/karimra/gnmic/formatters/event_group_by"
 	_ "github.com/karimra/gnmic/formatters/event_jq"
 	_ "github.com/karimra/gnmic/formatters/event_merge"
 	_ "github.com/karimra/gnmic/formatters/event_override_ts"
