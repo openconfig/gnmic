@@ -27,6 +27,7 @@ var EventProcessorTypes = []string{
 	"event-to-tag",
 	"event-trigger",
 	"event-write",
+	"event-group-by",
 }
 
 type Initializer func() EventProcessor
