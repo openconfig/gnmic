@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/karimra/gnmic/inputs"
+	"github.com/karimra/gnmic/types"
 )
 
 func WithInputs(inputsConfig map[string]map[string]interface{}) CollectorOption {
@@ -30,7 +31,7 @@ func (c *Collector) AddInput(name string, cfg map[string]interface{}) error {
 	return nil
 }
 
-func (c *Collector) InitInput(ctx context.Context, name string, tcs map[string]interface{}) {
+func (c *Collector) initInput(ctx context.Context, name string, tcs map[string]*types.TargetConfig) {
 	c.m.Lock()
 	defer c.m.Unlock()
 	if _, ok := c.Inputs[name]; ok {
@@ -59,8 +60,7 @@ func (c *Collector) InitInput(ctx context.Context, name string, tcs map[string]i
 }
 
 func (c *Collector) InitInputs(ctx context.Context) {
-	tcs := c.targetsConfigsToMap()
 	for name := range c.inputsConfig {
-		c.InitInput(ctx, name, tcs)
+		c.initInput(ctx, name, c.targetsConfig)
 	}
 }

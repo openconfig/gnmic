@@ -5,9 +5,10 @@ import (
 	"os"
 
 	"github.com/karimra/gnmic/actions"
+	"github.com/karimra/gnmic/types"
 )
 
-func (g *gnmiAction) WithTargets(tcs map[string]interface{}) {
+func (g *gnmiAction) WithTargets(tcs map[string]*types.TargetConfig) {
 	var err error
 	for n, tc := range tcs {
 		ltc := new(targetConfig)

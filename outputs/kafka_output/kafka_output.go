@@ -19,6 +19,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
+	"github.com/karimra/gnmic/types"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
 )
@@ -111,7 +112,7 @@ func (k *KafkaOutput) SetLogger(logger *log.Logger) {
 	}
 }
 
-func (k *KafkaOutput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]interface{}) {
+func (k *KafkaOutput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]*types.TargetConfig) {
 	for _, epName := range k.Cfg.EventProcessors {
 		if epCfg, ok := ps[epName]; ok {
 			epType := ""
@@ -352,7 +353,7 @@ func (k *KafkaOutput) SetName(name string) {
 
 func (k *KafkaOutput) SetClusterName(name string) {}
 
-func (k *KafkaOutput) SetTargetsConfig(map[string]interface{}) {}
+func (k *KafkaOutput) SetTargetsConfig(map[string]*types.TargetConfig) {}
 
 func (k *KafkaOutput) createConfig() (*sarama.Config, error) {
 	cfg := sarama.NewConfig()

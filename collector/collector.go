@@ -20,7 +20,6 @@ import (
 	"github.com/karimra/gnmic/outputs"
 	"github.com/karimra/gnmic/types"
 	"github.com/karimra/gnmic/utils"
-	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmi/cache"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
@@ -129,8 +128,8 @@ func WithCache(ch *cache.Cache) CollectorOption {
 	}
 }
 
-// NewCollector //
-func NewCollector(config *Config, targetConfigs map[string]*types.TargetConfig, opts ...CollectorOption) *Collector {
+// New //
+func New(config *Config, targetConfigs map[string]*types.TargetConfig, opts ...CollectorOption) *Collector {
 	var httpServer *http.Server
 	if config.TargetReceiveBuffer == 0 {
 		config.TargetReceiveBuffer = defaultTargetReceivebuffer
@@ -415,78 +414,6 @@ func (c *Collector) StopTarget(ctx context.Context, name string) error {
 	return c.locker.Unlock(ctx, c.lockKey(name))
 }
 
-// AddOutput initializes an output called name, with config cfg if it does not already exist
-func (c *Collector) AddOutput(name string, cfg map[string]interface{}) error {
-	if c.Outputs == nil {
-		c.Outputs = make(map[string]outputs.Output)
-	}
-	if c.outputsConfig == nil {
-		c.outputsConfig = make(map[string]map[string]interface{})
-	}
-	if _, ok := c.Outputs[name]; ok {
-		return fmt.Errorf("output '%s' already exists", name)
-	}
-	c.m.Lock()
-	defer c.m.Unlock()
-	c.outputsConfig[name] = cfg
-	return nil
-}
-
-func (c *Collector) InitOutput(ctx context.Context, name string, tcs map[string]interface{}) {
-	c.m.Lock()
-	defer c.m.Unlock()
-	if _, ok := c.Outputs[name]; ok {
-		return
-	}
-	if cfg, ok := c.outputsConfig[name]; ok {
-		if outType, ok := cfg["type"]; ok {
-			c.logger.Printf("starting output type %s", outType)
-			if initializer, ok := outputs.Outputs[outType.(string)]; ok {
-				out := initializer()
-				go func() {
-					tcs := make(map[string]interface{})
-					for n, tc := range c.targetsConfig {
-						tcs[n] = tc
-					}
-					err := out.Init(ctx, name, cfg,
-						outputs.WithLogger(c.logger),
-						outputs.WithEventProcessors(c.EventProcessorsConfig, c.logger, tcs),
-						outputs.WithRegister(c.reg),
-						outputs.WithName(c.Config.Name),
-						outputs.WithClusterName(c.Config.ClusterName),
-						outputs.WithTargetsConfig(tcs),
-					)
-					if err != nil {
-						c.logger.Printf("failed to init output type %q: %v", outType, err)
-					}
-				}()
-				c.Outputs[name] = out
-			}
-		}
-	}
-}
-
-func (c *Collector) InitOutputs(ctx context.Context) {
-	tcs := c.targetsConfigsToMap()
-	for name := range c.outputsConfig {
-		c.InitOutput(ctx, name, tcs)
-	}
-}
-
-func (c *Collector) DeleteOutput(name string) error {
-	if c.Outputs == nil {
-		return nil
-	}
-	if _, ok := c.Outputs[name]; !ok {
-		return fmt.Errorf("output '%s' does not exist", name)
-	}
-	c.m.Lock()
-	defer c.m.Unlock()
-	o := c.Outputs[name]
-	o.Close()
-	return nil
-}
-
 // AddSubscriptionConfig adds a subscriptionConfig sc to Collector's map if it does not already exists
 func (c *Collector) AddSubscriptionConfig(sc *types.SubscriptionConfig) error {
 	if c.Subscriptions == nil {
@@ -641,6 +568,7 @@ func (c *Collector) Start(ctx context.Context) {
 			}
 		}()
 	}
+
 	defer func() {
 		for _, o := range c.Outputs {
 			o.Close()
@@ -953,19 +881,4 @@ func (c *Collector) parseProtoFiles(t *Target) error {
 	}
 	c.logger.Printf("target %q loaded proto files", t.Config.Name)
 	return nil
-}
-
-func (c *Collector) targetsConfigsToMap() map[string]interface{} {
-	tcs := make(map[string]interface{})
-	var err error
-	for n, tc := range c.targetsConfig {
-		var itc interface{}
-		err = mapstructure.Decode(tc, &itc)
-		if err != nil {
-			c.logger.Printf("failed to decode target %q config: %v", n, err)
-			continue
-		}
-		tcs[n] = itc
-	}
-	return tcs
 }

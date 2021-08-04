@@ -8,6 +8,7 @@ import (
 	"regexp"
 
 	"github.com/karimra/gnmic/formatters"
+	"github.com/karimra/gnmic/types"
 )
 
 const (
@@ -142,4 +143,4 @@ func (d *Delete) WithLogger(l *log.Logger) {
 	}
 }
 
-func (d *Delete) WithTargets(tcs map[string]interface{}) {}
+func (d *Delete) WithTargets(tcs map[string]*types.TargetConfig) {}

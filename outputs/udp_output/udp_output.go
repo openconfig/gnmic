@@ -12,6 +12,7 @@ import (
 
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
+	"github.com/karimra/gnmic/types"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
 )
@@ -64,7 +65,7 @@ func (u *UDPSock) SetLogger(logger *log.Logger) {
 	}
 }
 
-func (u *UDPSock) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]interface{}) {
+func (u *UDPSock) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]*types.TargetConfig) {
 	for _, epName := range u.Cfg.EventProcessors {
 		if epCfg, ok := ps[epName]; ok {
 			epType := ""
@@ -214,6 +215,6 @@ DIAL:
 	}
 }
 
-func (u *UDPSock) SetName(name string)        {}
-func (u *UDPSock) SetClusterName(name string) {}
-func (u *UDPSock) SetTargetsConfig(map[string]interface{}) {}
+func (u *UDPSock) SetName(name string)                             {}
+func (u *UDPSock) SetClusterName(name string)                      {}
+func (u *UDPSock) SetTargetsConfig(map[string]*types.TargetConfig) {}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/karimra/gnmic/formatters"
 	_ "github.com/karimra/gnmic/formatters/all"
+	"github.com/karimra/gnmic/types"
 	"github.com/karimra/gnmic/utils"
 	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmi/proto/gnmi"
@@ -24,10 +25,10 @@ type Output interface {
 	String() string
 
 	SetLogger(*log.Logger)
-	SetEventProcessors(map[string]map[string]interface{}, *log.Logger, map[string]interface{})
+	SetEventProcessors(map[string]map[string]interface{}, *log.Logger, map[string]*types.TargetConfig)
 	SetName(string)
 	SetClusterName(string)
-	SetTargetsConfig(map[string]interface{})
+	SetTargetsConfig(map[string]*types.TargetConfig)
 }
 
 type Initializer func() Output

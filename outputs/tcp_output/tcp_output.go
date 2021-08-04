@@ -12,6 +12,7 @@ import (
 
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
+	"github.com/karimra/gnmic/types"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
 )
@@ -66,7 +67,7 @@ func (t *TCPOutput) SetLogger(logger *log.Logger) {
 	}
 }
 
-func (t *TCPOutput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]interface{}) {
+func (t *TCPOutput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]*types.TargetConfig) {
 	for _, epName := range t.Cfg.EventProcessors {
 		if epCfg, ok := ps[epName]; ok {
 			epType := ""
@@ -222,6 +223,6 @@ START:
 	}
 }
 
-func (t *TCPOutput) SetName(name string)        {}
-func (t *TCPOutput) SetClusterName(name string) {}
-func (s *TCPOutput) SetTargetsConfig(map[string]interface{}) {}
+func (t *TCPOutput) SetName(name string)                             {}
+func (t *TCPOutput) SetClusterName(name string)                      {}
+func (s *TCPOutput) SetTargetsConfig(map[string]*types.TargetConfig) {}

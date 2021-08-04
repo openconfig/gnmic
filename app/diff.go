@@ -74,7 +74,7 @@ func (a *App) DiffRun(cmd *cobra.Command, args []string) error {
 		}
 		allTargets[refTarget.Name] = refTarget
 
-		a.collector = collector.NewCollector(cfg, allTargets,
+		a.collector = collector.New(cfg, allTargets,
 			collector.WithDialOptions(a.createCollectorDialOpts()),
 			collector.WithLogger(a.Logger),
 		)

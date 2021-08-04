@@ -36,7 +36,7 @@ func (a *App) GetSetRun(cmd *cobra.Command, args []string) error {
 			RetryTimer:          a.Config.Retry,
 		}
 
-		a.collector = collector.NewCollector(cfg, targetsConfig,
+		a.collector = collector.New(cfg, targetsConfig,
 			collector.WithDialOptions(a.createCollectorDialOpts()),
 			collector.WithLogger(a.Logger),
 		)

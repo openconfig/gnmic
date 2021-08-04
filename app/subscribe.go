@@ -79,7 +79,7 @@ func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	//
-	a.collector = collector.NewCollector(a.collectorConfig(), targetsConfig, cOpts...)
+	a.collector = collector.New(a.collectorConfig(), targetsConfig, cOpts...)
 
 	a.startAPI()
 	a.startGnmiServer()
@@ -146,7 +146,7 @@ func (a *App) SubscribeRunPrompt(cmd *cobra.Command, args []string) error {
 	}
 	//
 	if a.collector == nil {
-		a.collector = collector.NewCollector(a.collectorConfig(), targetsConfig, cOpts...)
+		a.collector = collector.New(a.collectorConfig(), targetsConfig, cOpts...)
 		go a.collector.Start(a.ctx)
 		a.startAPI()
 		go a.startCluster()
@@ -398,7 +398,7 @@ func (a *App) SubscribeRunONCE(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	//
-	a.collector = collector.NewCollector(a.collectorConfig(), targetsConfig, cOpts...)
+	a.collector = collector.New(a.collectorConfig(), targetsConfig, cOpts...)
 	a.collector.InitOutputs(a.ctx)
 
 	var limiter *time.Ticker
@@ -432,7 +432,7 @@ func (a *App) SubscribeRunPoll(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	//
-	a.collector = collector.NewCollector(a.collectorConfig(), targetsConfig, cOpts...)
+	a.collector = collector.New(a.collectorConfig(), targetsConfig, cOpts...)
 
 	go a.collector.Start(a.ctx)
 	// a.collector.InitOutputs(a.ctx)

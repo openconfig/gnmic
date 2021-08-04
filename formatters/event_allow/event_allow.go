@@ -10,6 +10,7 @@ import (
 
 	"github.com/itchyny/gojq"
 	"github.com/karimra/gnmic/formatters"
+	"github.com/karimra/gnmic/types"
 )
 
 const (
@@ -169,4 +170,4 @@ func (d *Allow) WithLogger(l *log.Logger) {
 	}
 }
 
-func (d *Allow) WithTargets(tcs map[string]interface{}) {}
+func (d *Allow) WithTargets(tcs map[string]*types.TargetConfig) {}

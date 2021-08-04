@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/karimra/gnmic/formatters"
+	"github.com/karimra/gnmic/types"
 )
 
 const (
@@ -161,7 +162,7 @@ func (d *DateString) WithLogger(l *log.Logger) {
 	}
 }
 
-func (d *DateString) WithTargets(tcs map[string]interface{}) {}
+func (d *DateString) WithTargets(tcs map[string]*types.TargetConfig) {}
 
 func convertToInt(i interface{}) (int, error) {
 	switch i := i.(type) {

@@ -6,6 +6,7 @@ import (
 	"log"
 
 	"github.com/itchyny/gojq"
+	"github.com/karimra/gnmic/types"
 	"github.com/mitchellh/mapstructure"
 )
 
@@ -39,7 +40,7 @@ type EventProcessor interface {
 	Init(interface{}, ...Option) error
 	Apply(...*EventMsg) []*EventMsg
 
-	WithTargets(map[string]interface{})
+	WithTargets(map[string]*types.TargetConfig)
 	WithLogger(l *log.Logger)
 }
 
@@ -55,12 +56,14 @@ func DecodeConfig(src, dst interface{}) error {
 	}
 	return decoder.Decode(src)
 }
+
 func WithLogger(l *log.Logger) Option {
 	return func(p EventProcessor) {
 		p.WithLogger(l)
 	}
 }
-func WithTargets(tcs map[string]interface{}) Option {
+
+func WithTargets(tcs map[string]*types.TargetConfig) Option {
 	return func(p EventProcessor) {
 		p.WithTargets(tcs)
 	}

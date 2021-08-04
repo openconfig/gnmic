@@ -32,7 +32,7 @@ func (a *App) CapRun(cmd *cobra.Command, args []string) error {
 			RetryTimer:          a.Config.Retry,
 		}
 
-		a.collector = collector.NewCollector(cfg, targetsConfig,
+		a.collector = collector.New(cfg, targetsConfig,
 			collector.WithDialOptions(a.createCollectorDialOpts()),
 			collector.WithLogger(a.Logger),
 		)

@@ -15,6 +15,7 @@ import (
 
 	"github.com/karimra/gnmic/actions"
 	"github.com/karimra/gnmic/formatters"
+	"github.com/karimra/gnmic/types"
 )
 
 const (
@@ -170,7 +171,7 @@ func (h *httpAction) setDefaults() error {
 	return nil
 }
 
-func (h *httpAction) WithTargets(map[string]interface{}) {}
+func (h *httpAction) WithTargets(map[string]*types.TargetConfig) {}
 
 func (h *httpAction) WithLogger(logger *log.Logger) {
 	if h.Debug && logger != nil {

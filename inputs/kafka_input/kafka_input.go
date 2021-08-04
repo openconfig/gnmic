@@ -17,6 +17,7 @@ import (
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/inputs"
 	"github.com/karimra/gnmic/outputs"
+	"github.com/karimra/gnmic/types"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -235,7 +236,7 @@ func (k *KafkaInput) SetName(name string) {
 	k.Cfg.Name = sb.String()
 }
 
-func (k *KafkaInput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]interface{}) {
+func (k *KafkaInput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]*types.TargetConfig) {
 	for _, epName := range k.Cfg.EventProcessors {
 		if epCfg, ok := ps[epName]; ok {
 			epType := ""

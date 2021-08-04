@@ -24,6 +24,7 @@ import (
 	"github.com/hashicorp/consul/api"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
+	"github.com/karimra/gnmic/types"
 	"github.com/openconfig/gnmi/cache"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus"
@@ -129,7 +130,7 @@ func (p *prometheusOutput) SetLogger(logger *log.Logger) {
 	}
 }
 
-func (p *prometheusOutput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]interface{}) {
+func (p *prometheusOutput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]*types.TargetConfig) {
 	for _, epName := range p.Cfg.EventProcessors {
 		if epCfg, ok := ps[epName]; ok {
 			epType := ""
@@ -611,7 +612,7 @@ func (p *prometheusOutput) SetClusterName(name string) {
 	}
 }
 
-func (p *prometheusOutput) SetTargetsConfig(map[string]interface{}) {}
+func (p *prometheusOutput) SetTargetsConfig(map[string]*types.TargetConfig) {}
 
 func (p *prometheusOutput) metricsFromEvent(ev *formatters.EventMsg, now time.Time) []*promMetric {
 	pms := make([]*promMetric, 0, len(ev.Values))
