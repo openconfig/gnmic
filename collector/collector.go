@@ -18,6 +18,7 @@ import (
 	"github.com/karimra/gnmic/inputs"
 	"github.com/karimra/gnmic/lockers"
 	"github.com/karimra/gnmic/outputs"
+	"github.com/karimra/gnmic/types"
 	"github.com/karimra/gnmic/utils"
 	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmi/cache"
@@ -52,7 +53,7 @@ type Collector struct {
 	dialOpts []grpc.DialOption
 	//
 	m             *sync.Mutex
-	Subscriptions map[string]*SubscriptionConfig
+	Subscriptions map[string]*types.SubscriptionConfig
 
 	outputsConfig map[string]map[string]interface{}
 	Outputs       map[string]outputs.Output
@@ -62,7 +63,7 @@ type Collector struct {
 
 	locker lockers.Locker
 
-	targetsConfig map[string]*TargetConfig
+	targetsConfig map[string]*types.TargetConfig
 	Targets       map[string]*Target
 
 	EventProcessorsConfig map[string]map[string]interface{}
@@ -90,7 +91,7 @@ func WithLogger(logger *log.Logger) CollectorOption {
 	}
 }
 
-func WithSubscriptions(subs map[string]*SubscriptionConfig) CollectorOption {
+func WithSubscriptions(subs map[string]*types.SubscriptionConfig) CollectorOption {
 	return func(c *Collector) {
 		c.Subscriptions = subs
 	}
@@ -129,7 +130,7 @@ func WithCache(ch *cache.Cache) CollectorOption {
 }
 
 // NewCollector //
-func NewCollector(config *Config, targetConfigs map[string]*TargetConfig, opts ...CollectorOption) *Collector {
+func NewCollector(config *Config, targetConfigs map[string]*types.TargetConfig, opts ...CollectorOption) *Collector {
 	var httpServer *http.Server
 	if config.TargetReceiveBuffer == 0 {
 		config.TargetReceiveBuffer = defaultTargetReceivebuffer
@@ -143,7 +144,7 @@ func NewCollector(config *Config, targetConfigs map[string]*TargetConfig, opts .
 	c := &Collector{
 		Config:         config,
 		m:              new(sync.Mutex),
-		targetsConfig:  make(map[string]*TargetConfig),
+		targetsConfig:  make(map[string]*types.TargetConfig),
 		Targets:        make(map[string]*Target),
 		Outputs:        make(map[string]outputs.Output),
 		Inputs:         make(map[string]inputs.Input),
@@ -181,7 +182,7 @@ func NewCollector(config *Config, targetConfigs map[string]*TargetConfig, opts .
 }
 
 // AddTarget initializes a target based on *TargetConfig
-func (c *Collector) AddTarget(tc *TargetConfig) error {
+func (c *Collector) AddTarget(tc *types.TargetConfig) error {
 	c.logger.Printf("adding target %+v", tc)
 	if c.Targets == nil {
 		c.Targets = make(map[string]*Target)
@@ -208,7 +209,7 @@ func (c *Collector) initTarget(name string) error {
 		if _, ok := c.Targets[name]; !ok {
 			t := NewTarget(tc)
 			//
-			t.Subscriptions = make(map[string]*SubscriptionConfig)
+			t.Subscriptions = make(map[string]*types.SubscriptionConfig)
 			for _, subName := range tc.Subscriptions {
 				if sub, ok := c.Subscriptions[subName]; ok {
 					t.Subscriptions[subName] = sub
@@ -487,9 +488,9 @@ func (c *Collector) DeleteOutput(name string) error {
 }
 
 // AddSubscriptionConfig adds a subscriptionConfig sc to Collector's map if it does not already exists
-func (c *Collector) AddSubscriptionConfig(sc *SubscriptionConfig) error {
+func (c *Collector) AddSubscriptionConfig(sc *types.SubscriptionConfig) error {
 	if c.Subscriptions == nil {
-		c.Subscriptions = make(map[string]*SubscriptionConfig)
+		c.Subscriptions = make(map[string]*types.SubscriptionConfig)
 	}
 	if _, ok := c.Subscriptions[sc.Name]; ok {
 		return fmt.Errorf("subscription '%s' already exists", sc.Name)

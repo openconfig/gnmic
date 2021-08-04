@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/types"
+	"github.com/karimra/gnmic/utils"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
 )
 
 func (c *Config) CreateDiffSubscribeRequest(cmd *cobra.Command) (*gnmi.SubscribeRequest, error) {
-	sc := &collector.SubscriptionConfig{
+	sc := &types.SubscriptionConfig{
 		Name:     "diff-sub",
 		Models:   c.DiffModel,
 		Prefix:   c.DiffPrefix,
@@ -40,7 +41,7 @@ func (c *Config) CreateDiffGetRequest() (*gnmi.GetRequest, error) {
 		Encoding:  gnmi.Encoding(encodingVal),
 	}
 	if c.LocalFlags.GetPrefix != "" {
-		gnmiPrefix, err := collector.ParsePath(c.LocalFlags.DiffPrefix)
+		gnmiPrefix, err := utils.ParsePath(c.LocalFlags.DiffPrefix)
 		if err != nil {
 			return nil, fmt.Errorf("prefix parse error: %v", err)
 		}
@@ -60,7 +61,7 @@ func (c *Config) CreateDiffGetRequest() (*gnmi.GetRequest, error) {
 		req.Type = gnmi.GetRequest_DataType(dti)
 	}
 	for _, p := range c.DiffPath {
-		gnmiPath, err := collector.ParsePath(strings.TrimSpace(p))
+		gnmiPath, err := utils.ParsePath(strings.TrimSpace(p))
 		if err != nil {
 			return nil, fmt.Errorf("path parse error: %v", err)
 		}

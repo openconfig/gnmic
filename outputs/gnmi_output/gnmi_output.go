@@ -13,9 +13,9 @@ import (
 	"text/template"
 
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
-	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
+	"github.com/karimra/gnmic/types"
 	"github.com/karimra/gnmic/utils"
 	"github.com/openconfig/gnmi/cache"
 	"github.com/openconfig/gnmi/proto/gnmi"
@@ -173,7 +173,7 @@ func (g *gNMIOutput) SetTargetsConfig(tcs map[string]interface{}) {
 	g.srv.mu.Lock()
 	for n, tc := range tcs {
 		switch tc := tc.(type) {
-		case *collector.TargetConfig:
+		case *types.TargetConfig:
 			if tc.Name != "" {
 				g.srv.targets[tc.Name] = tc
 				continue

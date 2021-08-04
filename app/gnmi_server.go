@@ -16,6 +16,7 @@ import (
 
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/types"
 	"github.com/karimra/gnmic/utils"
 	"github.com/openconfig/gnmi/coalesce"
 	"github.com/openconfig/gnmi/ctree"
@@ -146,12 +147,12 @@ func (a *App) gRPCServerOpts() ([]grpc.ServerOption, error) {
 	return opts, nil
 }
 
-func (a *App) selectGNMITargets(target string) (map[string]*collector.TargetConfig, error) {
+func (a *App) selectGNMITargets(target string) (map[string]*types.TargetConfig, error) {
 	if target == "" || target == "*" {
 		return a.Config.GetTargets()
 	}
 	targetsNames := strings.Split(target, ",")
-	targets := make(map[string]*collector.TargetConfig)
+	targets := make(map[string]*types.TargetConfig)
 	a.m.RLock()
 	defer a.m.RUnlock()
 OUTER:
@@ -244,7 +245,7 @@ func (a *App) Get(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetResponse,
 	wg := new(sync.WaitGroup)
 	wg.Add(numTargets)
 	for name, tc := range targets {
-		go func(name string, tc *collector.TargetConfig) {
+		go func(name string, tc *types.TargetConfig) {
 			name = utils.GetHost(name)
 			defer wg.Done()
 			t := collector.NewTarget(tc)
@@ -351,7 +352,7 @@ func (a *App) Set(ctx context.Context, req *gnmi.SetRequest) (*gnmi.SetResponse,
 	wg := new(sync.WaitGroup)
 	wg.Add(numTargets)
 	for name, tc := range targets {
-		go func(name string, tc *collector.TargetConfig) {
+		go func(name string, tc *types.TargetConfig) {
 			name = utils.GetHost(name)
 			defer wg.Done()
 			t := collector.NewTarget(tc)
@@ -800,7 +801,7 @@ func (a *App) handlegNMIGetPath(elems []*gnmi.PathElem, enc gnmi.Encoding) ([]*g
 	return notifications, nil
 }
 
-func targetConfigToNotification(tc *collector.TargetConfig, e gnmi.Encoding) *gnmi.Notification {
+func targetConfigToNotification(tc *types.TargetConfig, e gnmi.Encoding) *gnmi.Notification {
 	switch e {
 	case gnmi.Encoding_JSON, gnmi.Encoding_JSON_IETF:
 		b, _ := json.Marshal(tc)
@@ -1132,7 +1133,7 @@ func targetConfigToNotification(tc *collector.TargetConfig, e gnmi.Encoding) *gn
 	return nil
 }
 
-func subscriptionConfigToNotification(sub *collector.SubscriptionConfig, e gnmi.Encoding) *gnmi.Notification {
+func subscriptionConfigToNotification(sub *types.SubscriptionConfig, e gnmi.Encoding) *gnmi.Notification {
 	switch e {
 	case gnmi.Encoding_JSON, gnmi.Encoding_JSON_IETF:
 		b, _ := json.Marshal(sub)

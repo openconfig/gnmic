@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/types"
 	"github.com/karimra/gnmic/utils"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"google.golang.org/grpc/codes"
@@ -84,7 +85,7 @@ func (s *server) Get(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetRespon
 	wg := new(sync.WaitGroup)
 	wg.Add(numTargets)
 	for name, tc := range targets {
-		go func(name string, tc *collector.TargetConfig) {
+		go func(name string, tc *types.TargetConfig) {
 			// name = outputs.GetHost(name)
 			defer wg.Done()
 			t := collector.NewTarget(tc)
@@ -134,7 +135,7 @@ func (s *server) Get(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetRespon
 	return response, nil
 }
 
-func targetConfigToNotification(tc *collector.TargetConfig) *gnmi.Notification {
+func targetConfigToNotification(tc *types.TargetConfig) *gnmi.Notification {
 	n := &gnmi.Notification{
 		Timestamp: time.Now().UnixNano(),
 		Prefix: &gnmi.Path{
@@ -288,12 +289,12 @@ func targetConfigToNotification(tc *collector.TargetConfig) *gnmi.Notification {
 	return n
 }
 
-func (s *server) selectTargets(target string) (map[string]*collector.TargetConfig, error) {
+func (s *server) selectTargets(target string) (map[string]*types.TargetConfig, error) {
 	if target == "" || target == "*" {
 		return s.targets, nil
 	}
 	targetsNames := strings.Split(target, ",")
-	targets := make(map[string]*collector.TargetConfig)
+	targets := make(map[string]*types.TargetConfig)
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 OUTER:

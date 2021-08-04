@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/hashicorp/consul/api"
-	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/loaders"
+	"github.com/karimra/gnmic/types"
 	"github.com/mitchellh/consulstructure"
 )
 
@@ -25,7 +25,7 @@ func init() {
 		return &ConsulLoader{
 			cfg:         &cfg{},
 			m:           new(sync.Mutex),
-			lastTargets: make(map[string]*collector.TargetConfig),
+			lastTargets: make(map[string]*types.TargetConfig),
 			logger:      log.New(ioutil.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
 		}
 	})
@@ -35,7 +35,7 @@ type ConsulLoader struct {
 	cfg         *cfg
 	decoder     *consulstructure.Decoder
 	m           *sync.Mutex
-	lastTargets map[string]*collector.TargetConfig
+	lastTargets map[string]*types.TargetConfig
 	logger      *log.Logger
 }
 
@@ -82,7 +82,7 @@ func (c *ConsulLoader) Start(ctx context.Context) chan *loaders.TargetOperation 
 	updateCh := make(chan interface{})
 	errCh := make(chan error)
 	c.decoder = &consulstructure.Decoder{
-		Target:   new(map[string]*collector.TargetConfig),
+		Target:   new(map[string]*types.TargetConfig),
 		Prefix:   c.cfg.KeyPrefix,
 		Consul:   clientConfig,
 		UpdateCh: updateCh,
@@ -102,14 +102,14 @@ func (c *ConsulLoader) Start(ctx context.Context) chan *loaders.TargetOperation 
 				continue
 			case upd := <-updateCh:
 				c.logger.Printf("loader update: %+v", upd)
-				rs, ok := upd.(*map[string]*collector.TargetConfig)
+				rs, ok := upd.(*map[string]*types.TargetConfig)
 				if !ok {
 					c.logger.Printf("unexpected update format: %T", upd)
 					continue
 				}
 				for n, t := range *rs {
 					if t == nil {
-						t = &collector.TargetConfig{
+						t = &types.TargetConfig{
 							Name:    n,
 							Address: n,
 						}

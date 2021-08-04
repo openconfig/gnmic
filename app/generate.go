@@ -9,8 +9,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/config"
+	"github.com/karimra/gnmic/utils"
 	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -428,7 +428,7 @@ func getSubMapByPath(p string, m map[string]interface{}) (interface{}, error) {
 		return m, nil
 	}
 	// strip path from keys if any
-	gp, err := collector.ParsePath(p)
+	gp, err := utils.ParsePath(p)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse xpath %q: %v", p, err)
 	}

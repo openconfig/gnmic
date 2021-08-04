@@ -8,8 +8,8 @@ import (
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
-	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/config"
+	"github.com/karimra/gnmic/types"
 )
 
 type APIErrors struct {
@@ -59,7 +59,7 @@ func (a *App) handleConfigTargetsPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer r.Body.Close()
-	tc := new(collector.TargetConfig)
+	tc := new(types.TargetConfig)
 	err = json.Unmarshal(body, tc)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)

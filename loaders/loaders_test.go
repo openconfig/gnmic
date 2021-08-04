@@ -5,28 +5,28 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/types"
 )
 
 var testSet = map[string]struct {
-	m1, m2 map[string]*collector.TargetConfig
+	m1, m2 map[string]*types.TargetConfig
 	output *TargetOperation
 }{
 	"t1": {
 		m1: nil,
 		m2: nil,
 		output: &TargetOperation{
-			Add: make([]*collector.TargetConfig, 0),
+			Add: make([]*types.TargetConfig, 0),
 			Del: make([]string, 0),
 		},
 	},
 	"t2": {
 		m1: nil,
-		m2: map[string]*collector.TargetConfig{
+		m2: map[string]*types.TargetConfig{
 			"target1": {Name: "target1"},
 		},
 		output: &TargetOperation{
-			Add: []*collector.TargetConfig{
+			Add: []*types.TargetConfig{
 				{
 					Name: "target1",
 				},
@@ -35,51 +35,51 @@ var testSet = map[string]struct {
 		},
 	},
 	"t3": {
-		m1: map[string]*collector.TargetConfig{
+		m1: map[string]*types.TargetConfig{
 			"target1": {Name: "target1"},
 		},
-		m2: map[string]*collector.TargetConfig{
+		m2: map[string]*types.TargetConfig{
 			"target1": {Name: "target1"},
 		},
 		output: &TargetOperation{
-			Add: make([]*collector.TargetConfig, 0),
+			Add: make([]*types.TargetConfig, 0),
 			Del: make([]string, 0),
 		},
 	},
 	"t4": {
-		m1: map[string]*collector.TargetConfig{
+		m1: map[string]*types.TargetConfig{
 			"target1": {Name: "target1"},
 			"target2": {Name: "target2"},
 		},
-		m2: map[string]*collector.TargetConfig{
+		m2: map[string]*types.TargetConfig{
 			"target1": {Name: "target1"},
 			"target2": {Name: "target2"},
 		},
 		output: &TargetOperation{
-			Add: make([]*collector.TargetConfig, 0),
+			Add: make([]*types.TargetConfig, 0),
 			Del: make([]string, 0),
 		},
 	},
 	"t5": {
-		m1: map[string]*collector.TargetConfig{
+		m1: map[string]*types.TargetConfig{
 			"target1": {Name: "target1"},
 		},
 		m2: nil,
 		output: &TargetOperation{
-			Add: make([]*collector.TargetConfig, 0),
+			Add: make([]*types.TargetConfig, 0),
 			Del: []string{"target1"},
 		},
 	},
 	"t6": {
-		m1: map[string]*collector.TargetConfig{
+		m1: map[string]*types.TargetConfig{
 			"target1": {Name: "target1"},
 		},
-		m2: map[string]*collector.TargetConfig{
+		m2: map[string]*types.TargetConfig{
 			"target1": {Name: "target1"},
 			"target2": {Name: "target2"},
 		},
 		output: &TargetOperation{
-			Add: []*collector.TargetConfig{
+			Add: []*types.TargetConfig{
 				{
 					Name: "target2",
 				},
@@ -88,14 +88,14 @@ var testSet = map[string]struct {
 		},
 	},
 	"t7": {
-		m1: map[string]*collector.TargetConfig{
+		m1: map[string]*types.TargetConfig{
 			"target1": {Name: "target1"},
 		},
-		m2: map[string]*collector.TargetConfig{
+		m2: map[string]*types.TargetConfig{
 			"target2": {Name: "target2"},
 		},
 		output: &TargetOperation{
-			Add: []*collector.TargetConfig{
+			Add: []*types.TargetConfig{
 				{
 					Name: "target2",
 				},
@@ -104,15 +104,15 @@ var testSet = map[string]struct {
 		},
 	},
 	"t8": {
-		m1: map[string]*collector.TargetConfig{
+		m1: map[string]*types.TargetConfig{
 			"target1": {Name: "target1"},
 		},
-		m2: map[string]*collector.TargetConfig{
+		m2: map[string]*types.TargetConfig{
 			"target2": {Name: "target2"},
 			"target3": {Name: "target3"},
 		},
 		output: &TargetOperation{
-			Add: []*collector.TargetConfig{
+			Add: []*types.TargetConfig{
 				{
 					Name: "target2",
 				},
@@ -124,16 +124,16 @@ var testSet = map[string]struct {
 		},
 	},
 	"t9": {
-		m1: map[string]*collector.TargetConfig{
+		m1: map[string]*types.TargetConfig{
 			"target1": {Name: "target1"},
 			"target2": {Name: "target2"},
 		},
-		m2: map[string]*collector.TargetConfig{
+		m2: map[string]*types.TargetConfig{
 			"target2": {Name: "target2"},
 			"target3": {Name: "target3"},
 		},
 		output: &TargetOperation{
-			Add: []*collector.TargetConfig{
+			Add: []*types.TargetConfig{
 				{
 					Name: "target3",
 				},

@@ -7,13 +7,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/types"
 )
 
 var getTargetsTestSet = map[string]struct {
 	envs   []string
 	in     []byte
-	out    map[string]*collector.TargetConfig
+	out    map[string]*types.TargetConfig
 	outErr error
 }{
 	"from_address": {
@@ -23,7 +23,7 @@ username: admin
 password: admin
 address: 10.1.1.1
 `),
-		out: map[string]*collector.TargetConfig{
+		out: map[string]*types.TargetConfig{
 			"10.1.1.1": {
 				Address:    "10.1.1.1:57400",
 				Name:       "10.1.1.1",
@@ -46,7 +46,7 @@ targets:
     username: admin
     password: admin
 `),
-		out: map[string]*collector.TargetConfig{
+		out: map[string]*types.TargetConfig{
 			"10.1.1.1:57400": {
 				Address:    "10.1.1.1:57400",
 				Name:       "10.1.1.1:57400",
@@ -70,7 +70,7 @@ skip-verify: true
 targets:
   10.1.1.1:57400:  
 `),
-		out: map[string]*collector.TargetConfig{
+		out: map[string]*types.TargetConfig{
 			"10.1.1.1:57400": {
 				Address:    "10.1.1.1:57400",
 				Name:       "10.1.1.1:57400",
@@ -96,7 +96,7 @@ targets:
     username: admin
     password: admin
 `),
-		out: map[string]*collector.TargetConfig{
+		out: map[string]*types.TargetConfig{
 			"10.1.1.1:57400": {
 				Address:    "10.1.1.1:57400",
 				Name:       "10.1.1.1:57400",
@@ -135,7 +135,7 @@ targets:
     username: admin
     password: admin
 `),
-		out: map[string]*collector.TargetConfig{
+		out: map[string]*types.TargetConfig{
 			"10.1.1.1:57400": {
 				Address:    "10.1.1.1:57400",
 				Name:       "10.1.1.1:57400",
@@ -175,7 +175,7 @@ targets:
     username: admin
     password: admin
 `),
-		out: map[string]*collector.TargetConfig{
+		out: map[string]*types.TargetConfig{
 			"10.1.1.1:57400": {
 				Address:    "10.1.1.1:57400",
 				Name:       "10.1.1.1:57400",
@@ -219,7 +219,7 @@ targets:
     subscriptions:
       - ${SUB_NAME}
 `),
-		out: map[string]*collector.TargetConfig{
+		out: map[string]*types.TargetConfig{
 			"10.1.1.1:57400": {
 				Address:    "10.1.1.1:57400",
 				Name:       "10.1.1.1:57400",
@@ -250,7 +250,7 @@ targets:
     password: admin
     address: 10.1.1.1,10.1.1.2
 `),
-		out: map[string]*collector.TargetConfig{
+		out: map[string]*types.TargetConfig{
 			"target1": {
 				Address:    "10.1.1.1:57400,10.1.1.2:57400",
 				Name:       "target1",

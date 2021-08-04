@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/types"
 	"github.com/karimra/gnmic/utils"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"google.golang.org/grpc/codes"
@@ -72,7 +73,7 @@ func (s *server) Set(ctx context.Context, req *gnmi.SetRequest) (*gnmi.SetRespon
 	wg := new(sync.WaitGroup)
 	wg.Add(numTargets)
 	for name, tc := range targets {
-		go func(name string, tc *collector.TargetConfig) {
+		go func(name string, tc *types.TargetConfig) {
 			name = utils.GetHost(name)
 			defer wg.Done()
 			t := collector.NewTarget(tc)

@@ -7,13 +7,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/types"
 )
 
 var getSubscriptionsTestSet = map[string]struct {
 	envs   []string
 	in     []byte
-	out    map[string]*collector.SubscriptionConfig
+	out    map[string]*types.SubscriptionConfig
 	outErr error
 }{
 	"no_globals": {
@@ -23,7 +23,7 @@ subscriptions:
     paths: 
       - /valid/path
 `),
-		out: map[string]*collector.SubscriptionConfig{
+		out: map[string]*types.SubscriptionConfig{
 			"sub1": {
 				Name:  "sub1",
 				Paths: []string{"/valid/path"},
@@ -39,7 +39,7 @@ subscriptions:
     paths: 
       - /valid/path
 `),
-		out: map[string]*collector.SubscriptionConfig{
+		out: map[string]*types.SubscriptionConfig{
 			"sub1": {
 				Name:     "sub1",
 				Paths:    []string{"/valid/path"},
@@ -60,7 +60,7 @@ subscriptions:
     mode: stream
     stream-mode: on_change
 `),
-		out: map[string]*collector.SubscriptionConfig{
+		out: map[string]*types.SubscriptionConfig{
 			"sub1": {
 				Name:  "sub1",
 				Paths: []string{"/valid/path"},
@@ -87,7 +87,7 @@ subscriptions:
     mode: stream
     stream-mode: on_change
 `),
-		out: map[string]*collector.SubscriptionConfig{
+		out: map[string]*types.SubscriptionConfig{
 			"sub1": {
 				Name:     "sub1",
 				Paths:    []string{"/valid/path"},
@@ -120,7 +120,7 @@ subscriptions:
     mode: stream
     stream-mode: on_change
 `),
-		out: map[string]*collector.SubscriptionConfig{
+		out: map[string]*types.SubscriptionConfig{
 			"sub1": {
 				Name:     "sub1",
 				Paths:    []string{"/valid/path"},
