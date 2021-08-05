@@ -15,7 +15,7 @@ import (
 	"time"
 
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
-	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/target"
 	"github.com/karimra/gnmic/types"
 	"github.com/karimra/gnmic/utils"
 	"github.com/openconfig/gnmi/coalesce"
@@ -149,7 +149,7 @@ func (a *App) gRPCServerOpts() ([]grpc.ServerOption, error) {
 
 func (a *App) selectGNMITargets(target string) (map[string]*types.TargetConfig, error) {
 	if target == "" || target == "*" {
-		return a.Config.GetTargets()
+		return a.Config.Targets, nil
 	}
 	targetsNames := strings.Split(target, ",")
 	targets := make(map[string]*types.TargetConfig)
@@ -206,17 +206,17 @@ func (a *App) Get(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetResponse,
 		return a.handlegNMIcInternalGet(ctx, req)
 	}
 
-	target := req.GetPrefix().GetTarget()
+	targetName := req.GetPrefix().GetTarget()
 	pr, _ := peer.FromContext(ctx)
-	a.Logger.Printf("received Get request from %q to target %q", pr.Addr, target)
+	a.Logger.Printf("received Get request from %q to target %q", pr.Addr, targetName)
 
-	targets, err := a.selectGNMITargets(target)
+	targets, err := a.selectGNMITargets(targetName)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "could not find targets: %v", err)
 	}
 	numTargets := len(targets)
 	if numTargets == 0 {
-		return nil, status.Errorf(codes.NotFound, "unknown target %q", target)
+		return nil, status.Errorf(codes.NotFound, "unknown target %q", targetName)
 	}
 	results := make(chan *gnmi.Notification)
 	errChan := make(chan error, numTargets)
@@ -248,7 +248,7 @@ func (a *App) Get(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetResponse,
 		go func(name string, tc *types.TargetConfig) {
 			name = utils.GetHost(name)
 			defer wg.Done()
-			t := collector.NewTarget(tc)
+			t := target.NewTarget(tc)
 			ctx, cancel := context.WithTimeout(ctx, tc.Timeout)
 			defer cancel()
 			err := t.CreateGNMIClient(ctx)
@@ -312,17 +312,17 @@ func (a *App) Set(ctx context.Context, req *gnmi.SetRequest) (*gnmi.SetResponse,
 	a.m.RLock()
 	defer a.m.RUnlock()
 
-	target := req.GetPrefix().GetTarget()
+	targetName := req.GetPrefix().GetTarget()
 	pr, _ := peer.FromContext(ctx)
-	a.Logger.Printf("received Set request from %q to target %q", pr.Addr, target)
+	a.Logger.Printf("received Set request from %q to target %q", pr.Addr, targetName)
 
-	targets, err := a.selectGNMITargets(target)
+	targets, err := a.selectGNMITargets(targetName)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "could not find targets: %v", err)
 	}
 	numTargets := len(targets)
 	if numTargets == 0 {
-		return nil, status.Errorf(codes.NotFound, "unknown target(s) %q", target)
+		return nil, status.Errorf(codes.NotFound, "unknown target(s) %q", targetName)
 	}
 	results := make(chan *gnmi.UpdateResult)
 	errChan := make(chan error, numTargets)
@@ -355,7 +355,7 @@ func (a *App) Set(ctx context.Context, req *gnmi.SetRequest) (*gnmi.SetResponse,
 		go func(name string, tc *types.TargetConfig) {
 			name = utils.GetHost(name)
 			defer wg.Done()
-			t := collector.NewTarget(tc)
+			t := target.NewTarget(tc)
 			err := t.CreateGNMIClient(ctx)
 			if err != nil {
 				a.Logger.Printf("target %q err: %v", name, err)

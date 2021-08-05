@@ -46,27 +46,27 @@ type App struct {
 	RootCmd *cobra.Command
 
 	sem *semaphore.Weighted
-
-	m           *sync.RWMutex
-	Config      *config.Config
-	collector   *collector.Collector
-	router      *mux.Router
-	locker      lockers.Locker
+	//
+	m         *sync.RWMutex
+	Config    *config.Config
+	collector *collector.Collector
+	router    *mux.Router
+	locker    lockers.Locker
+	// api
 	apiServices map[string]*lockers.Service
 	isLeader    bool
-
-	httpClient *http.Client
-
-	Logger        *log.Logger
-	out           io.Writer
+	httpClient  *http.Client
+	//
+	Logger *log.Logger
+	out    io.Writer
+	// prompt mode
 	PromptMode    bool
 	PromptHistory []string
 	SchemaTree    *yang.Entry
-
+	//
 	wg        *sync.WaitGroup
 	printLock *sync.Mutex
 	errCh     chan error
-
 	// gnmi server
 	gnmi.UnimplementedGNMIServer
 	grpcSrv         *grpc.Server

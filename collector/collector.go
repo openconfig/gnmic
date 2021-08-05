@@ -18,6 +18,7 @@ import (
 	"github.com/karimra/gnmic/inputs"
 	"github.com/karimra/gnmic/lockers"
 	"github.com/karimra/gnmic/outputs"
+	"github.com/karimra/gnmic/target"
 	"github.com/karimra/gnmic/types"
 	"github.com/karimra/gnmic/utils"
 	"github.com/openconfig/gnmi/cache"
@@ -32,6 +33,7 @@ import (
 const (
 	defaultTargetReceivebuffer = 1000
 	defaultLockRetry           = 5 * time.Second
+	defaultRetryTimer          = 10 * time.Second
 )
 
 // Config is the collector config
@@ -63,14 +65,14 @@ type Collector struct {
 	locker lockers.Locker
 
 	targetsConfig map[string]*types.TargetConfig
-	Targets       map[string]*Target
+	Targets       map[string]*target.Target
 
 	EventProcessorsConfig map[string]map[string]interface{}
 	logger                *log.Logger
 	httpServer            *http.Server
 	reg                   *prometheus.Registry
 
-	targetsChan    chan *Target
+	targetsChan    chan *target.Target
 	activeTargets  map[string]struct{}
 	targetsLocksFn map[string]context.CancelFunc
 
@@ -78,7 +80,64 @@ type Collector struct {
 	cache    *cache.Cache
 }
 
+// New //
+func New(config *Config, targetConfigs map[string]*types.TargetConfig, opts ...CollectorOption) *Collector {
+	var httpServer *http.Server
+	if config.TargetReceiveBuffer == 0 {
+		config.TargetReceiveBuffer = defaultTargetReceivebuffer
+	}
+	if config.RetryTimer == 0 {
+		config.RetryTimer = defaultRetryTimer
+	}
+	if config.LockRetryTimer <= 0 {
+		config.LockRetryTimer = defaultLockRetry
+	}
+	c := &Collector{
+		Config:         config,
+		m:              new(sync.Mutex),
+		targetsConfig:  make(map[string]*types.TargetConfig),
+		Targets:        make(map[string]*target.Target),
+		Outputs:        make(map[string]outputs.Output),
+		Inputs:         make(map[string]inputs.Input),
+		httpServer:     httpServer,
+		targetsChan:    make(chan *target.Target),
+		activeTargets:  make(map[string]struct{}),
+		targetsLocksFn: make(map[string]context.CancelFunc),
+	}
+	for _, op := range opts {
+		op(c)
+	}
+	if config.Debug {
+		c.logger.Printf("starting collector with cfg=%+v", config)
+	}
+	if config.PrometheusAddress != "" {
+		grpcMetrics := grpc_prometheus.NewClientMetrics()
+		c.reg = prometheus.NewRegistry()
+		c.reg.MustRegister(prometheus.NewGoCollector())
+		c.reg.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
+		grpcMetrics.EnableClientHandlingTimeHistogram()
+		c.reg.MustRegister(grpcMetrics)
+		handler := http.NewServeMux()
+		handler.Handle("/metrics", promhttp.HandlerFor(c.reg, promhttp.HandlerOpts{}))
+		c.httpServer = &http.Server{
+			Handler: handler,
+			Addr:    config.PrometheusAddress,
+		}
+		c.dialOpts = append(c.dialOpts, grpc.WithStreamInterceptor(grpcMetrics.StreamClientInterceptor()))
+	}
+
+	for _, tc := range targetConfigs {
+		c.AddTarget(tc)
+	}
+	return c
+}
+
 type CollectorOption func(c *Collector)
+
+type subscriptionRequest struct {
+	name string
+	req  *gnmi.SubscribeRequest
+}
 
 func WithLogger(logger *log.Logger) CollectorOption {
 	return func(c *Collector) {
@@ -128,63 +187,11 @@ func WithCache(ch *cache.Cache) CollectorOption {
 	}
 }
 
-// New //
-func New(config *Config, targetConfigs map[string]*types.TargetConfig, opts ...CollectorOption) *Collector {
-	var httpServer *http.Server
-	if config.TargetReceiveBuffer == 0 {
-		config.TargetReceiveBuffer = defaultTargetReceivebuffer
-	}
-	if config.RetryTimer == 0 {
-		config.RetryTimer = defaultRetryTimer
-	}
-	if config.LockRetryTimer <= 0 {
-		config.LockRetryTimer = defaultLockRetry
-	}
-	c := &Collector{
-		Config:         config,
-		m:              new(sync.Mutex),
-		targetsConfig:  make(map[string]*types.TargetConfig),
-		Targets:        make(map[string]*Target),
-		Outputs:        make(map[string]outputs.Output),
-		Inputs:         make(map[string]inputs.Input),
-		httpServer:     httpServer,
-		targetsChan:    make(chan *Target),
-		activeTargets:  make(map[string]struct{}),
-		targetsLocksFn: make(map[string]context.CancelFunc),
-	}
-	for _, op := range opts {
-		op(c)
-	}
-	if config.Debug {
-		c.logger.Printf("starting collector with cfg=%+v", config)
-	}
-	if config.PrometheusAddress != "" {
-		grpcMetrics := grpc_prometheus.NewClientMetrics()
-		c.reg = prometheus.NewRegistry()
-		c.reg.MustRegister(prometheus.NewGoCollector())
-		c.reg.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
-		grpcMetrics.EnableClientHandlingTimeHistogram()
-		c.reg.MustRegister(grpcMetrics)
-		handler := http.NewServeMux()
-		handler.Handle("/metrics", promhttp.HandlerFor(c.reg, promhttp.HandlerOpts{}))
-		c.httpServer = &http.Server{
-			Handler: handler,
-			Addr:    config.PrometheusAddress,
-		}
-		c.dialOpts = append(c.dialOpts, grpc.WithStreamInterceptor(grpcMetrics.StreamClientInterceptor()))
-	}
-
-	for _, tc := range targetConfigs {
-		c.AddTarget(tc)
-	}
-	return c
-}
-
 // AddTarget initializes a target based on *TargetConfig
 func (c *Collector) AddTarget(tc *types.TargetConfig) error {
 	c.logger.Printf("adding target %+v", tc)
 	if c.Targets == nil {
-		c.Targets = make(map[string]*Target)
+		c.Targets = make(map[string]*target.Target)
 	}
 	// if _, ok := c.Targets[tc.Name]; ok {
 	// 	return fmt.Errorf("target %q already exists", tc.Name)
@@ -206,7 +213,7 @@ func (c *Collector) initTarget(name string) error {
 	defer c.m.Unlock()
 	if tc, ok := c.targetsConfig[name]; ok {
 		if _, ok := c.Targets[name]; !ok {
-			t := NewTarget(tc)
+			t := target.NewTarget(tc)
 			//
 			t.Subscriptions = make(map[string]*types.SubscriptionConfig)
 			for _, subName := range tc.Subscriptions {
@@ -235,7 +242,7 @@ func (c *Collector) CreateTarget(name string) error {
 	defer c.m.Unlock()
 	if tc, ok := c.targetsConfig[name]; ok {
 		if _, ok := c.Targets[name]; !ok {
-			c.Targets[tc.Name] = NewTarget(tc)
+			c.Targets[tc.Name] = target.NewTarget(tc)
 		}
 		return nil
 	}
@@ -430,18 +437,13 @@ func (c *Collector) AddSubscriptionConfig(sc *types.SubscriptionConfig) error {
 
 func (c *Collector) DeleteSubscription(name string) error {
 	if _, ok := c.Subscriptions[name]; !ok {
-		return fmt.Errorf("subscription '%s' does not exist", name)
+		return fmt.Errorf("subscription %q does not exist", name)
 	}
 	c.m.Lock()
 	defer c.m.Unlock()
 	for _, t := range c.Targets {
 		if _, ok := t.SubscribeClients[name]; ok {
-			t.m.Lock()
-			t.subscribeCancelFn[name]()
-			delete(t.subscribeCancelFn, name)
-			delete(t.SubscribeClients, name)
-			delete(t.Subscriptions, name)
-			t.m.Unlock()
+			t.DeleteSubscription(name)
 		}
 	}
 	delete(c.Subscriptions, name)
@@ -467,7 +469,7 @@ func (c *Collector) Subscribe(ctx context.Context, tName string) error {
 			subRequests = append(subRequests, subscriptionRequest{name: sc.Name, req: req})
 		}
 		gnmiCtx, cancel := context.WithCancel(ctx)
-		t.cfn = cancel
+		t.Cfn = cancel
 	CRCLIENT:
 		if err := t.CreateGNMIClient(gnmiCtx, c.dialOpts...); err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
@@ -510,7 +512,7 @@ func (c *Collector) SubscribeOnce(ctx context.Context, tName string) error {
 			subRequests = append(subRequests, subscriptionRequest{name: sc.Name, req: req})
 		}
 		gnmiCtx, cancel := context.WithCancel(ctx)
-		t.cfn = cancel
+		t.Cfn = cancel
 	CRCLIENT:
 		if err := t.CreateGNMIClient(gnmiCtx, c.dialOpts...); err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
@@ -590,17 +592,18 @@ func (c *Collector) Start(ctx context.Context) {
 		}
 		c.activeTargets[t.Config.Name] = struct{}{}
 		c.logger.Printf("starting target %q listener", t.Config.Name)
-		go func(t *Target) {
-			numOnceSubscriptions := t.numberOfOnceSubscriptions()
+		go func(t *target.Target) {
+			numOnceSubscriptions := t.NumberOfOnceSubscriptions()
 			remainingOnceSubscriptions := numOnceSubscriptions
 			numSubscriptions := len(t.Subscriptions)
+			rspChan, errChan := t.ReadSubscriptions()
 			for {
 				select {
-				case rsp := <-t.subscribeResponses:
+				case rsp := <-rspChan:
 					if c.Config.Debug {
 						c.logger.Printf("received gNMI Subscribe Response: %+v", rsp)
 					}
-					err := t.decodeProtoBytes(rsp.Response)
+					err := t.DecodeProtoBytes(rsp.Response)
 					if err != nil {
 						c.logger.Printf("target %q, failed to decode proto bytes: %v", t.Config.Name, err)
 						continue
@@ -632,7 +635,7 @@ func (c *Collector) Start(ctx context.Context) {
 						c.m.Unlock()
 						return
 					}
-				case tErr := <-t.errors:
+				case tErr := <-errChan:
 					if errors.Is(tErr.Err, io.EOF) {
 						c.logger.Printf("target %q, subscription %s closed stream(EOF)", t.Config.Name, tErr.SubscriptionName)
 					} else {
@@ -649,7 +652,7 @@ func (c *Collector) Start(ctx context.Context) {
 						c.m.Unlock()
 						return
 					}
-				case <-t.stopChan:
+				case <-t.StopChan:
 					c.logger.Printf("stopping target %q listener", t.Config.Name)
 					c.m.Lock()
 					delete(c.activeTargets, t.Config.Name)
@@ -863,9 +866,9 @@ func (c *Collector) GetModels(ctx context.Context, tName string) ([]*gnmi.ModelD
 	return capRsp.GetSupportedModels(), nil
 }
 
-func (c *Collector) parseProtoFiles(t *Target) error {
+func (c *Collector) parseProtoFiles(t *target.Target) error {
 	if len(t.Config.ProtoFiles) == 0 {
-		t.rootDesc = c.rootDesc
+		t.RootDesc = c.rootDesc
 		return nil
 	}
 	c.logger.Printf("target %q loading proto files...", t.Config.Name)
@@ -874,7 +877,7 @@ func (c *Collector) parseProtoFiles(t *Target) error {
 		c.logger.Printf("failed to load proto files: %v", err)
 		return err
 	}
-	t.rootDesc, err = descSource.FindSymbol("Nokia.SROS.root")
+	t.RootDesc, err = descSource.FindSymbol("Nokia.SROS.root")
 	if err != nil {
 		c.logger.Printf("target %q could not get symbol 'Nokia.SROS.root': %v", t.Config.Name, err)
 		return err
