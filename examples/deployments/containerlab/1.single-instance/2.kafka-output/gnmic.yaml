@@ -1,0 +1,28 @@
+username: admin
+password: admin
+skip-verify: true
+encoding: json_ietf
+log: true
+
+# docker target loader
+loader:
+  type: docker
+  filters:
+    - containers:
+      - label=clab-node-kind: srl
+        label=containerlab: gnmic-kafka
+
+subscriptions:
+  # Add subscriptions configuration here
+  # e.g:
+  sub1:
+    paths:
+      - /interface/statistics
+    stream-mode: sample
+    sample-interval: 10s
+
+outputs:
+  kafka-output:
+    type: kafka
+    address: clab-gnmic-kafka-kafka-server:9092
+    topic: telemetry

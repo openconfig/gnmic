@@ -1,0 +1,52 @@
+username: admin
+password: admin
+skip-verify: true
+encoding: json_ietf
+log: true
+
+
+loader:
+  type: docker
+  filters:
+    - containers:
+      - label=clab-node-kind: srl
+        label=containerlab: gnmic-mult-outputs
+
+subscriptions:
+  # Add subscriptions configuration here
+  # e.g:
+  sub1:
+    paths:
+      - /interface/statistics
+    stream-mode: sample
+    sample-interval: 10s
+
+
+outputs:
+  file-output:
+    type: file
+    filename: /app/file-out.txt
+    
+  prom-output:
+    type: prometheus
+    listen: "clab-gnmic-mult-outputs-gnmic1:9804"
+    service-registration:
+      address: clab-gnmic-mult-outputs-consul-agent:8500
+
+  influxdb-output:
+    type: influxdb
+    url: http://clab-gnmic-mult-outputs-influxdb:8086
+    bucket: telemetry # db name
+    token: gnmic:gnmic # username:password
+    batch-size: 1000
+    flush-timer: 10s
+  
+  kafka-output:
+    type: kafka
+    address: clab-gnmic-mult-outputs-kafka-server:9092
+    topic: telemetry
+  
+  nats-output:
+    type: nats
+    address: clab-gnmic-mult-outputs-nats:4222
+    subject: telemetry

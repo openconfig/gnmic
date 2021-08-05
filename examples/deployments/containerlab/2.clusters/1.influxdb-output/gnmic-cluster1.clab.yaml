@@ -1,0 +1,79 @@
+name: gnmic-cluster1
+ 
+topology:
+  defaults:
+    kind: srl
+
+  kinds:
+    srl:
+      type: ixr6
+      image: ghcr.io/nokia/srlinux
+
+  nodes:
+    srl1:
+    srl2:
+
+    gnmic1:
+      kind: linux
+      image: ghcr.io/karimra/gnmic:latest
+      binds:
+        - ./gnmic.yaml:/app/gnmic.yaml:ro
+        - /var/run/docker.sock:/var/run/docker.sock
+      ports:
+        - 7890:7890
+      env:
+        GNMIC_API: :7890
+        GNMIC_CLUSTERING_INSTANCE_NAME: clab-gnmic-cluster1-gnmic1
+        GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-gnmic-cluster1-gnmic1
+      cmd: '--config /app/gnmic.yaml subscribe'
+    
+    gnmic2:
+      kind: linux
+      image: ghcr.io/karimra/gnmic:latest
+      binds:
+        - ./gnmic.yaml:/app/gnmic.yaml:ro
+        - /var/run/docker.sock:/var/run/docker.sock
+      ports:
+        - 7891:7891
+      env:
+        GNMIC_API: :7891
+        GNMIC_CLUSTERING_INSTANCE_NAME: clab-gnmic-cluster1-gnmic2
+        GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-gnmic-cluster1-gnmic2
+      cmd: '--config /app/gnmic.yaml subscribe'
+
+    gnmic3:
+      kind: linux
+      image: ghcr.io/karimra/gnmic:latest
+      binds:
+        - ./gnmic.yaml:/app/gnmic.yaml:ro
+        - /var/run/docker.sock:/var/run/docker.sock
+      ports:
+        - 7892:7892
+      env:
+        GNMIC_API: :7892
+        GNMIC_CLUSTERING_INSTANCE_NAME: clab-gnmic-cluster1-gnmic3
+        GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-gnmic-cluster1-gnmic3
+      cmd: '--config /app/gnmic.yaml subscribe'
+
+    consul-agent:
+      kind: linux
+      image: consul:latest
+      ports:
+        - 8500:8500
+        - 8600:8600/udp
+      cmd: 'agent -server -ui -bind=127.0.0.1 -node=server-1 -bootstrap-expect=1 -client=0.0.0.0'
+    
+    influxdb:
+      kind: linux
+      image: influxdb:latest
+      ports:
+        - 8086:8086
+      env:
+        INFLUXDB_DATA_ENGINE: tsm1
+        INFLUXDB_REPORTING_DISABLED: "false"
+        INFLUXDB_USER: gnmic
+        INFLUXDB_USER_PASSWORD: gnmic
+        INFLUXDB_DB: telemetry
+  
+  links:
+    - endpoints: ["srl1:e1-1", "srl2:e1-1"]

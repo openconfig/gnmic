@@ -1,0 +1,30 @@
+name: gnmic_nats
+
+topology:
+  defaults:
+    kind: srl
+
+  kinds:
+    srl:
+      type: ixr6
+      image: ghcr.io/nokia/srlinux
+
+  nodes:
+    srl1:
+    srl2:
+
+    gnmic1:
+      kind: linux
+      image: ghcr.io/karimra/gnmic:latest
+      binds:
+        - ./gnmic.yaml:/app/gnmic.yaml:ro
+        - /var/run/docker.sock:/var/run/docker.sock
+      cmd: '--config /app/gnmic.yaml --log subscribe'
+
+    nats:
+      kind: linux      
+      ports:
+         - 4222:4222    
+
+  links:
+    - endpoints: ["srl1:e1-1", "srl2:e1-1"]

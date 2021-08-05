@@ -1,0 +1,37 @@
+name: gnmic_influxdb
+
+topology:
+  defaults:
+    kind: srl
+
+  kinds:
+    srl:
+      type: ixr6
+      image: ghcr.io/nokia/srlinux
+
+  nodes:
+    srl1:
+    srl2:
+
+    gnmic1:
+      kind: linux
+      image: ghcr.io/karimra/gnmic:latest
+      binds:
+        - ./gnmic.yaml:/app/gnmic.yaml:ro
+        - /var/run/docker.sock:/var/run/docker.sock
+      cmd: '--config /app/gnmic.yaml --log subscribe'
+
+    influxdb:
+      kind: linux
+      image: influxdb:latest
+      ports:
+        - 8086:8086
+      env:
+        INFLUXDB_DATA_ENGINE: tsm1
+        INFLUXDB_REPORTING_DISABLED: "false"
+        INFLUXDB_USER: gnmic
+        INFLUXDB_USER_PASSWORD: gnmic
+        INFLUXDB_DB: telemetry
+  
+  links:
+    - endpoints: ["srl1:e1-1", "srl2:e1-1"]

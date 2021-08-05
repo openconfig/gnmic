@@ -1,0 +1,45 @@
+name: gnmic-kafka
+
+topology:
+  defaults:
+    kind: srl
+
+  kinds:
+    srl:
+      type: ixr6
+      image: ghcr.io/nokia/srlinux
+
+  nodes:
+    srl1:
+    srl2:
+
+    gnmic1:
+      kind: linux
+      image: ghcr.io/karimra/gnmic:latest
+      binds:
+        - ./gnmic.yaml:/app/gnmic.yaml:ro
+        - /var/run/docker.sock:/var/run/docker.sock
+      cmd: '--config /app/gnmic.yaml --log subscribe'
+
+    kafka-server:
+      kind: linux
+      image: bitnami/kafka:latest
+      ports:
+        - 9092:9092
+        - 9000:9000
+      env:
+        KAFKA_CFG_ZOOKEEPER_CONNECT: clab-gnmic-kafka-zookeeper-server:2181
+        KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://clab-gnmic-kafka-server:9092
+        ALLOW_PLAINTEXT_LISTENER: "yes"
+        JMX_PORT: 9000
+
+    zookeeper-server:
+      kind: linux
+      image: bitnami/zookeeper:latest
+      ports:
+        - 2181:2181
+      env:
+        ALLOW_ANONYMOUS_LOGIN: "yes"
+
+  links:
+    - endpoints: ["srl1:e1-1", "srl2:e1-1"]
