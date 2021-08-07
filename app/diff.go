@@ -11,6 +11,7 @@ import (
 
 	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/formatters"
+	"github.com/karimra/gnmic/types"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -67,13 +68,13 @@ func (a *App) DiffRun(cmd *cobra.Command, args []string) error {
 			TargetReceiveBuffer: a.Config.TargetBufferSize,
 			RetryTimer:          a.Config.Retry,
 		}
-		allTargets := make(map[string]*collector.TargetConfig)
+		allTargets := make(map[string]*types.TargetConfig)
 		for n, tc := range targetsConfig {
 			allTargets[n] = tc
 		}
 		allTargets[refTarget.Name] = refTarget
 
-		a.collector = collector.NewCollector(cfg, allTargets,
+		a.collector = collector.New(cfg, allTargets,
 			collector.WithDialOptions(a.createCollectorDialOpts()),
 			collector.WithLogger(a.Logger),
 		)

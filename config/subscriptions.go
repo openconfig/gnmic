@@ -8,17 +8,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/types"
 	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/cobra"
 )
 
-func (c *Config) GetSubscriptions(cmd *cobra.Command) (map[string]*collector.SubscriptionConfig, error) {
+func (c *Config) GetSubscriptions(cmd *cobra.Command) (map[string]*types.SubscriptionConfig, error) {
 	if len(c.LocalFlags.SubscribePath) > 0 && len(c.LocalFlags.SubscribeName) > 0 {
 		return nil, fmt.Errorf("flags --path and --name cannot be mixed")
 	}
 	if len(c.LocalFlags.SubscribePath) > 0 {
-		sub := new(collector.SubscriptionConfig)
+		sub := new(types.SubscriptionConfig)
 		sub.Name = fmt.Sprintf("default-%d", time.Now().Unix())
 		sub.Paths = c.LocalFlags.SubscribePath
 		sub.Prefix = c.LocalFlags.SubscribePrefix
@@ -50,7 +50,7 @@ func (c *Config) GetSubscriptions(cmd *cobra.Command) (map[string]*collector.Sub
 		c.logger.Printf("subscriptions map: %v+", subDef)
 	}
 	for sn, s := range subDef {
-		sub := new(collector.SubscriptionConfig)
+		sub := new(types.SubscriptionConfig)
 		decoder, err := mapstructure.NewDecoder(
 			&mapstructure.DecoderConfig{
 				DecodeHook: mapstructure.StringToTimeDurationHookFunc(),
@@ -80,7 +80,7 @@ func (c *Config) GetSubscriptions(cmd *cobra.Command) (map[string]*collector.Sub
 		}
 		return c.Subscriptions, nil
 	}
-	filteredSubscriptions := make(map[string]*collector.SubscriptionConfig)
+	filteredSubscriptions := make(map[string]*types.SubscriptionConfig)
 	notFound := make([]string, 0)
 	for _, name := range c.LocalFlags.SubscribeName {
 		if s, ok := c.Subscriptions[name]; ok {
@@ -102,7 +102,7 @@ func (c *Config) GetSubscriptions(cmd *cobra.Command) (map[string]*collector.Sub
 	return filteredSubscriptions, nil
 }
 
-func (c *Config) setSubscriptionDefaults(sub *collector.SubscriptionConfig, cmd *cobra.Command) {
+func (c *Config) setSubscriptionDefaults(sub *types.SubscriptionConfig, cmd *cobra.Command) {
 	if sub.SampleInterval == nil {
 		if flagIsSet(cmd, "sample-interval") {
 			sub.SampleInterval = &c.LocalFlags.SubscribeSampleInterval
@@ -129,12 +129,12 @@ func (c *Config) setSubscriptionDefaults(sub *collector.SubscriptionConfig, cmd 
 	}
 }
 
-func (c *Config) GetSubscriptionsFromFile() []*collector.SubscriptionConfig {
+func (c *Config) GetSubscriptionsFromFile() []*types.SubscriptionConfig {
 	subs, err := c.GetSubscriptions(nil)
 	if err != nil {
 		return nil
 	}
-	subscriptions := make([]*collector.SubscriptionConfig, 0)
+	subscriptions := make([]*types.SubscriptionConfig, 0)
 	for _, sub := range subs {
 		subscriptions = append(subscriptions, sub)
 	}
@@ -144,7 +144,7 @@ func (c *Config) GetSubscriptionsFromFile() []*collector.SubscriptionConfig {
 	return subscriptions
 }
 
-func validateSubscriptionsConfig(subs map[string]*collector.SubscriptionConfig) error {
+func validateSubscriptionsConfig(subs map[string]*types.SubscriptionConfig) error {
 	var hasPoll bool
 	var hasOnce bool
 	var hasStream bool
@@ -164,7 +164,7 @@ func validateSubscriptionsConfig(subs map[string]*collector.SubscriptionConfig) 
 	return nil
 }
 
-func expandSubscriptionEnv(sc *collector.SubscriptionConfig) {
+func expandSubscriptionEnv(sc *types.SubscriptionConfig) {
 	sc.Name = os.ExpandEnv(sc.Name)
 	for i := range sc.Models {
 		sc.Models[i] = os.ExpandEnv(sc.Models[i])

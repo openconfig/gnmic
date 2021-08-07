@@ -11,6 +11,7 @@ import (
 
 	"github.com/itchyny/gojq"
 	"github.com/karimra/gnmic/formatters"
+	"github.com/karimra/gnmic/types"
 )
 
 const (
@@ -221,4 +222,4 @@ func (p *Write) write(e *formatters.EventMsg) error {
 	return nil
 }
 
-func (p *Write) WithTargets(tcs map[string]interface{}) {}
+func (p *Write) WithTargets(tcs map[string]*types.TargetConfig) {}

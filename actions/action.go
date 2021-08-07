@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/karimra/gnmic/formatters"
+	"github.com/karimra/gnmic/types"
 	"github.com/mitchellh/mapstructure"
 )
 
@@ -12,7 +13,7 @@ type Action interface {
 	Run(*formatters.EventMsg, map[string]interface{}, map[string]interface{}) (interface{}, error)
 	NName() string
 
-	WithTargets(map[string]interface{})
+	WithTargets(map[string]*types.TargetConfig)
 	WithLogger(*log.Logger)
 }
 
@@ -39,7 +40,7 @@ func DecodeConfig(src, dst interface{}) error {
 	return decoder.Decode(src)
 }
 
-func WithTargets(tcs map[string]interface{}) Option {
+func WithTargets(tcs map[string]*types.TargetConfig) Option {
 	return func(a Action) {
 		a.WithTargets(tcs)
 	}

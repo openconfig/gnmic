@@ -10,7 +10,7 @@ import (
 
 	goprompt "github.com/c-bata/go-prompt"
 	"github.com/c-bata/go-prompt/completer"
-	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/types"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/nsf/termbox-go"
 	"github.com/olekukonko/tablewriter"
@@ -153,7 +153,7 @@ var targetShowCmd = &cobra.Command{
 			return err
 		}
 		if tc, ok := targetsConfig[name]; ok {
-			tabData := targetTable(map[string]*collector.TargetConfig{name: tc}, false)
+			tabData := targetTable(map[string]*types.TargetConfig{name: tc}, false)
 			renderTable(tabData, []string{"Param", "Value"})
 			return nil
 		}
@@ -202,7 +202,7 @@ var subscriptionShowCmd = &cobra.Command{
 			return err
 		}
 		if s, ok := subs[name]; ok {
-			tabData := subscriptionTable(map[string]*collector.SubscriptionConfig{name: s}, false)
+			tabData := subscriptionTable(map[string]*types.SubscriptionConfig{name: s}, false)
 			renderTable(tabData, []string{"Param", "Value"})
 			return nil
 		}
@@ -238,7 +238,7 @@ func renderTable(tabData [][]string, header []string) {
 	table.Render()
 }
 
-func targetTable(targetConfigs map[string]*collector.TargetConfig, list bool) [][]string {
+func targetTable(targetConfigs map[string]*types.TargetConfig, list bool) [][]string {
 	if list {
 		tabData := make([][]string, 0)
 		for _, tc := range targetConfigs {
@@ -286,7 +286,7 @@ func targetTable(targetConfigs map[string]*collector.TargetConfig, list bool) []
 	return [][]string{}
 }
 
-func subscriptionTable(scs map[string]*collector.SubscriptionConfig, list bool) [][]string {
+func subscriptionTable(scs map[string]*types.SubscriptionConfig, list bool) [][]string {
 	if list {
 		tabData := make([][]string, 0, len(scs))
 		for _, sub := range scs {
@@ -671,7 +671,7 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 	return []goprompt.Suggest{}
 }
 
-func subscriptionDescription(sub *collector.SubscriptionConfig) string {
+func subscriptionDescription(sub *types.SubscriptionConfig) string {
 	sb := strings.Builder{}
 	sb.WriteString("mode=")
 	sb.WriteString(sub.Mode)

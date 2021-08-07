@@ -12,7 +12,7 @@ import (
 	"text/template"
 
 	"github.com/Masterminds/sprig"
-	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/utils"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"gopkg.in/yaml.v2"
 )
@@ -120,7 +120,7 @@ func (c *Config) CreateSetRequestFromFile(targetName string) (*gnmi.SetRequest, 
 		if upd.Path == "" {
 			upd.Path = "/"
 		}
-		gnmiPath, err := collector.ParsePath(strings.TrimSpace(upd.Path))
+		gnmiPath, err := utils.ParsePath(strings.TrimSpace(upd.Path))
 		if err != nil {
 			return nil, err
 		}
@@ -148,7 +148,7 @@ func (c *Config) CreateSetRequestFromFile(targetName string) (*gnmi.SetRequest, 
 		if upd.Path == "" {
 			upd.Path = "/"
 		}
-		gnmiPath, err := collector.ParsePath(strings.TrimSpace(upd.Path))
+		gnmiPath, err := utils.ParsePath(strings.TrimSpace(upd.Path))
 		if err != nil {
 			return nil, err
 		}
@@ -173,7 +173,7 @@ func (c *Config) CreateSetRequestFromFile(targetName string) (*gnmi.SetRequest, 
 		})
 	}
 	for _, s := range reqFile.Deletes {
-		gnmiPath, err := collector.ParsePath(strings.TrimSpace(s))
+		gnmiPath, err := utils.ParsePath(strings.TrimSpace(s))
 		if err != nil {
 			return nil, err
 		}

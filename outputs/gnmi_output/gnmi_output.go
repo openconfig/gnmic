@@ -13,9 +13,9 @@ import (
 	"text/template"
 
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
-	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
+	"github.com/karimra/gnmic/types"
 	"github.com/karimra/gnmic/utils"
 	"github.com/openconfig/gnmi/cache"
 	"github.com/openconfig/gnmi/proto/gnmi"
@@ -159,27 +159,24 @@ func (g *gNMIOutput) SetLogger(logger *log.Logger) {
 	}
 }
 
-func (g *gNMIOutput) SetEventProcessors(map[string]map[string]interface{}, *log.Logger, map[string]interface{}) {
+func (g *gNMIOutput) SetEventProcessors(map[string]map[string]interface{}, *log.Logger, map[string]*types.TargetConfig) {
 }
 
 func (g *gNMIOutput) SetName(string) {}
 
 func (g *gNMIOutput) SetClusterName(string) {}
 
-func (g *gNMIOutput) SetTargetsConfig(tcs map[string]interface{}) {
+func (g *gNMIOutput) SetTargetsConfig(tcs map[string]*types.TargetConfig) {
 	if g.srv == nil {
 		return
 	}
 	g.srv.mu.Lock()
 	for n, tc := range tcs {
-		switch tc := tc.(type) {
-		case *collector.TargetConfig:
-			if tc.Name != "" {
-				g.srv.targets[tc.Name] = tc
-				continue
-			}
-			g.srv.targets[n] = tc
+		if tc.Name != "" {
+			g.srv.targets[tc.Name] = tc
+			continue
 		}
+		g.srv.targets[n] = tc
 	}
 	for n := range g.srv.targets {
 		if _, ok := tcs[n]; !ok {

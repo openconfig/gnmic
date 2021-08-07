@@ -1,4 +1,4 @@
-package collector
+package types
 
 import (
 	"encoding/json"
@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/karimra/gnmic/utils"
 	"github.com/openconfig/gnmi/proto/gnmi"
 )
 
@@ -31,10 +32,6 @@ type SubscriptionConfig struct {
 	HeartbeatInterval *time.Duration `mapstructure:"heartbeat-interval,omitempty" json:"heartbeat-interval,omitempty"`
 	SuppressRedundant bool           `mapstructure:"suppress-redundant,omitempty" json:"suppress-redundant,omitempty"`
 	UpdatesOnly       bool           `mapstructure:"updates-only,omitempty" json:"updates-only,omitempty"`
-}
-type subscriptionRequest struct {
-	name string
-	req  *gnmi.SubscribeRequest
 }
 
 // String //
@@ -86,7 +83,7 @@ func (sc *SubscriptionConfig) CreateSubscribeRequest(target string) (*gnmi.Subsc
 
 	subscriptions := make([]*gnmi.Subscription, len(sc.Paths))
 	for i, p := range sc.Paths {
-		gnmiPath, err := ParsePath(strings.TrimSpace(p))
+		gnmiPath, err := utils.ParsePath(strings.TrimSpace(p))
 		if err != nil {
 			return nil, fmt.Errorf("path '%s' parse error: %v", p, err)
 		}
@@ -135,12 +132,12 @@ func (sc *SubscriptionConfig) CreateSubscribeRequest(target string) (*gnmi.Subsc
 
 func (sc *SubscriptionConfig) createPrefix(target string) (*gnmi.Path, error) {
 	if sc.Target != "" {
-		return CreatePrefix(sc.Prefix, sc.Target)
+		return utils.CreatePrefix(sc.Prefix, sc.Target)
 	}
 	if sc.SetTarget {
-		return CreatePrefix(sc.Prefix, target)
+		return utils.CreatePrefix(sc.Prefix, target)
 	}
-	return CreatePrefix(sc.Prefix, "")
+	return utils.CreatePrefix(sc.Prefix, "")
 }
 
 // SubscribeResponse //

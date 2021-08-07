@@ -14,6 +14,7 @@ import (
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
+	"github.com/karimra/gnmic/types"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
@@ -88,7 +89,7 @@ func (i *InfluxDBOutput) SetLogger(logger *log.Logger) {
 	}
 }
 
-func (i *InfluxDBOutput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]interface{}) {
+func (i *InfluxDBOutput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]*types.TargetConfig) {
 	for _, epName := range i.Cfg.EventProcessors {
 		if epCfg, ok := ps[epName]; ok {
 			epType := ""
@@ -311,9 +312,9 @@ START:
 	}
 }
 
-func (i *InfluxDBOutput) SetName(name string)                     {}
-func (i *InfluxDBOutput) SetClusterName(name string)              {}
-func (i *InfluxDBOutput) SetTargetsConfig(map[string]interface{}) {}
+func (i *InfluxDBOutput) SetName(name string)                             {}
+func (i *InfluxDBOutput) SetClusterName(name string)                      {}
+func (i *InfluxDBOutput) SetTargetsConfig(map[string]*types.TargetConfig) {}
 
 func (i *InfluxDBOutput) convertUints(ev *formatters.EventMsg) {
 	if !strings.HasPrefix(i.dbVersion, "1.8") {

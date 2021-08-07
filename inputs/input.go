@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/karimra/gnmic/outputs"
+	"github.com/karimra/gnmic/types"
 )
 
 type Input interface {
@@ -12,7 +13,7 @@ type Input interface {
 	Close() error
 	SetLogger(*log.Logger)
 	SetOutputs(map[string]outputs.Output)
-	SetEventProcessors(map[string]map[string]interface{}, *log.Logger, map[string]interface{})
+	SetEventProcessors(map[string]map[string]interface{}, *log.Logger, map[string]*types.TargetConfig)
 	SetName(string)
 }
 
@@ -50,7 +51,7 @@ func WithName(name string) Option {
 	}
 }
 
-func WithEventProcessors(eps map[string]map[string]interface{}, log *log.Logger, tcs map[string]interface{}) Option {
+func WithEventProcessors(eps map[string]map[string]interface{}, log *log.Logger, tcs map[string]*types.TargetConfig) Option {
 	return func(i Input) {
 		i.SetEventProcessors(eps, log, tcs)
 	}

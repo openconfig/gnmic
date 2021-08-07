@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/loaders"
+	"github.com/karimra/gnmic/types"
 	"gopkg.in/yaml.v2"
 )
 
@@ -24,7 +24,7 @@ func init() {
 	loaders.Register("file", func() loaders.TargetLoader {
 		return &FileLoader{
 			cfg:         &cfg{},
-			lastTargets: make(map[string]*collector.TargetConfig),
+			lastTargets: make(map[string]*types.TargetConfig),
 			logger:      log.New(ioutil.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
 		}
 	})
@@ -32,7 +32,7 @@ func init() {
 
 type FileLoader struct {
 	cfg         *cfg
-	lastTargets map[string]*collector.TargetConfig
+	lastTargets map[string]*types.TargetConfig
 	logger      *log.Logger
 }
 
@@ -90,7 +90,7 @@ func (f *FileLoader) Start(ctx context.Context) chan *loaders.TargetOperation {
 	return opChan
 }
 
-func (f *FileLoader) readFile() (map[string]*collector.TargetConfig, error) {
+func (f *FileLoader) readFile() (map[string]*types.TargetConfig, error) {
 	_, err := os.Stat(f.cfg.File)
 	if err != nil {
 		return nil, err
@@ -99,7 +99,7 @@ func (f *FileLoader) readFile() (map[string]*collector.TargetConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	readTargets := make(map[string]*collector.TargetConfig)
+	readTargets := make(map[string]*types.TargetConfig)
 	switch filepath.Ext(f.cfg.File) {
 	case ".json":
 		err = json.Unmarshal(b, &readTargets)
@@ -114,7 +114,7 @@ func (f *FileLoader) readFile() (map[string]*collector.TargetConfig, error) {
 	}
 	for n, t := range readTargets {
 		if t == nil {
-			readTargets[n] = &collector.TargetConfig{
+			readTargets[n] = &types.TargetConfig{
 				Name:    n,
 				Address: n,
 			}
@@ -130,7 +130,7 @@ func (f *FileLoader) readFile() (map[string]*collector.TargetConfig, error) {
 	return readTargets, nil
 }
 
-func (f *FileLoader) diff(m map[string]*collector.TargetConfig) *loaders.TargetOperation {
+func (f *FileLoader) diff(m map[string]*types.TargetConfig) *loaders.TargetOperation {
 	result := loaders.Diff(f.lastTargets, m)
 	for _, t := range result.Add {
 		if _, ok := f.lastTargets[t.Name]; !ok {

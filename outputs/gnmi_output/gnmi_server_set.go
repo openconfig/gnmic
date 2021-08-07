@@ -6,7 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/target"
+	"github.com/karimra/gnmic/types"
 	"github.com/karimra/gnmic/utils"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"google.golang.org/grpc/codes"
@@ -32,17 +33,17 @@ func (s *server) Set(ctx context.Context, req *gnmi.SetRequest) (*gnmi.SetRespon
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	target := req.GetPrefix().GetTarget()
+	targetName := req.GetPrefix().GetTarget()
 	peer, _ := peer.FromContext(ctx)
-	s.l.Printf("received Set request from %q to target %q", peer.Addr, target)
+	s.l.Printf("received Set request from %q to target %q", peer.Addr, targetName)
 
-	targets, err := s.selectTargets(target)
+	targets, err := s.selectTargets(targetName)
 	if err != nil {
 		return nil, err
 	}
 	numTargets := len(targets)
 	if numTargets == 0 {
-		return nil, status.Errorf(codes.NotFound, "unknown target(s) %q", target)
+		return nil, status.Errorf(codes.NotFound, "unknown target(s) %q", targetName)
 	}
 	results := make(chan *gnmi.UpdateResult)
 	errChan := make(chan error, numTargets)
@@ -72,10 +73,10 @@ func (s *server) Set(ctx context.Context, req *gnmi.SetRequest) (*gnmi.SetRespon
 	wg := new(sync.WaitGroup)
 	wg.Add(numTargets)
 	for name, tc := range targets {
-		go func(name string, tc *collector.TargetConfig) {
+		go func(name string, tc *types.TargetConfig) {
 			name = utils.GetHost(name)
 			defer wg.Done()
-			t := collector.NewTarget(tc)
+			t := target.NewTarget(tc)
 			err := t.CreateGNMIClient(ctx)
 			if err != nil {
 				s.l.Printf("target %q err: %v", name, err)

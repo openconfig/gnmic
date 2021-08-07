@@ -8,6 +8,7 @@ import (
 	"regexp"
 
 	"github.com/karimra/gnmic/formatters"
+	"github.com/karimra/gnmic/types"
 )
 
 const (
@@ -115,4 +116,4 @@ func (t *ToTag) WithLogger(l *log.Logger) {
 	}
 }
 
-func (t *ToTag) WithTargets(tcs map[string]interface{}) {}
+func (t *ToTag) WithTargets(tcs map[string]*types.TargetConfig) {}

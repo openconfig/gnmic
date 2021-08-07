@@ -18,7 +18,8 @@ import (
 
 	"github.com/adrg/xdg"
 	"github.com/itchyny/gojq"
-	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/types"
+	"github.com/karimra/gnmic/utils"
 	"github.com/mitchellh/go-homedir"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
@@ -40,13 +41,13 @@ type Config struct {
 	LocalFlags  `mapstructure:",squash"`
 	FileConfig  *viper.Viper `mapstructure:"-" json:"-" yaml:"-" `
 
-	Targets            map[string]*collector.TargetConfig       `mapstructure:"targets,omitempty" json:"targets,omitempty" yaml:"targets,omitempty"`
-	Subscriptions      map[string]*collector.SubscriptionConfig `mapstructure:"subscriptions,omitempty" json:"subscriptions,omitempty" yaml:"subscriptions,omitempty"`
-	Outputs            map[string]map[string]interface{}        `mapstructure:"outputs,omitempty" json:"outputs,omitempty" yaml:"outputs,omitempty"`
-	Inputs             map[string]map[string]interface{}        `mapstructure:"inputs,omitempty" json:"inputs,omitempty" yaml:"inputs,omitempty"`
-	Processors         map[string]map[string]interface{}        `mapstructure:"processors,omitempty" json:"processors,omitempty" yaml:"processors,omitempty"`
-	Clustering         *clustering                              `mapstructure:"clustering,omitempty" json:"clustering,omitempty" yaml:"clustering,omitempty"`
-	GnmiServer         *gnmiServer                              `mapstructure:"gnmi-server,omitempty" json:"gnmi-server,omitempty" yaml:"gnmi-server,omitempty"`
+	Targets            map[string]*types.TargetConfig       `mapstructure:"targets,omitempty" json:"targets,omitempty" yaml:"targets,omitempty"`
+	Subscriptions      map[string]*types.SubscriptionConfig `mapstructure:"subscriptions,omitempty" json:"subscriptions,omitempty" yaml:"subscriptions,omitempty"`
+	Outputs            map[string]map[string]interface{}    `mapstructure:"outputs,omitempty" json:"outputs,omitempty" yaml:"outputs,omitempty"`
+	Inputs             map[string]map[string]interface{}    `mapstructure:"inputs,omitempty" json:"inputs,omitempty" yaml:"inputs,omitempty"`
+	Processors         map[string]map[string]interface{}    `mapstructure:"processors,omitempty" json:"processors,omitempty" yaml:"processors,omitempty"`
+	Clustering         *clustering                          `mapstructure:"clustering,omitempty" json:"clustering,omitempty" yaml:"clustering,omitempty"`
+	GnmiServer         *gnmiServer                          `mapstructure:"gnmi-server,omitempty" json:"gnmi-server,omitempty" yaml:"gnmi-server,omitempty"`
 	logger             *log.Logger
 	setRequestTemplate *template.Template
 	setRequestVars     map[string]interface{}
@@ -206,8 +207,8 @@ func New() *Config {
 		GlobalFlags{},
 		LocalFlags{},
 		viper.NewWithOptions(viper.KeyDelimiter("/")),
-		make(map[string]*collector.TargetConfig),
-		make(map[string]*collector.SubscriptionConfig),
+		make(map[string]*types.TargetConfig),
+		make(map[string]*types.SubscriptionConfig),
 		make(map[string]map[string]interface{}),
 		make(map[string]map[string]interface{}),
 		make(map[string]map[string]interface{}),
@@ -345,7 +346,7 @@ func (c *Config) CreateGetRequest() (*gnmi.GetRequest, error) {
 		Encoding:  gnmi.Encoding(encodingVal),
 	}
 	if c.LocalFlags.GetPrefix != "" {
-		gnmiPrefix, err := collector.ParsePath(c.LocalFlags.GetPrefix)
+		gnmiPrefix, err := utils.ParsePath(c.LocalFlags.GetPrefix)
 		if err != nil {
 			return nil, fmt.Errorf("prefix parse error: %v", err)
 		}
@@ -365,7 +366,7 @@ func (c *Config) CreateGetRequest() (*gnmi.GetRequest, error) {
 		req.Type = gnmi.GetRequest_DataType(dti)
 	}
 	for _, p := range c.LocalFlags.GetPath {
-		gnmiPath, err := collector.ParsePath(strings.TrimSpace(p))
+		gnmiPath, err := utils.ParsePath(strings.TrimSpace(p))
 		if err != nil {
 			return nil, fmt.Errorf("path parse error: %v", err)
 		}
@@ -388,7 +389,7 @@ func (c *Config) CreateGASGetRequest() (*gnmi.GetRequest, error) {
 		Encoding:  gnmi.Encoding(encodingVal),
 	}
 	if c.LocalFlags.GetSetPrefix != "" {
-		gnmiPrefix, err := collector.ParsePath(c.LocalFlags.GetSetPrefix)
+		gnmiPrefix, err := utils.ParsePath(c.LocalFlags.GetSetPrefix)
 		if err != nil {
 			return nil, fmt.Errorf("prefix parse error: %v", err)
 		}
@@ -408,7 +409,7 @@ func (c *Config) CreateGASGetRequest() (*gnmi.GetRequest, error) {
 		req.Type = gnmi.GetRequest_DataType(dti)
 	}
 
-	gnmiPath, err := collector.ParsePath(strings.TrimSpace(c.LocalFlags.GetSetGet))
+	gnmiPath, err := utils.ParsePath(strings.TrimSpace(c.LocalFlags.GetSetGet))
 	if err != nil {
 		return nil, fmt.Errorf("path parse error: %v", err)
 	}
@@ -417,7 +418,7 @@ func (c *Config) CreateGASGetRequest() (*gnmi.GetRequest, error) {
 }
 
 func (c *Config) CreateGASSetRequest(input interface{}) (*gnmi.SetRequest, error) {
-	gnmiPrefix, err := collector.CreatePrefix(c.LocalFlags.GetSetPrefix, c.LocalFlags.GetSetTarget)
+	gnmiPrefix, err := utils.CreatePrefix(c.LocalFlags.GetSetPrefix, c.LocalFlags.GetSetTarget)
 	if err != nil {
 		return nil, fmt.Errorf("prefix parse error: %v", err)
 	}
@@ -490,7 +491,7 @@ func (c *Config) execPathTemplate(tplString string, input interface{}) (*gnmi.Pa
 		return nil, v
 	case string:
 		c.logger.Printf("path jq expression result: %s", v)
-		return collector.ParsePath(v)
+		return utils.ParsePath(v)
 	default:
 		if c.Debug {
 			c.logger.Printf("jq input: %+v", input)
@@ -546,7 +547,7 @@ func (c *Config) CreateSetRequest(targetName string) (*gnmi.SetRequest, error) {
 	if c.SetRequestFile != "" {
 		return c.CreateSetRequestFromFile(targetName)
 	}
-	gnmiPrefix, err := collector.CreatePrefix(c.LocalFlags.SetPrefix, c.LocalFlags.SetTarget)
+	gnmiPrefix, err := utils.CreatePrefix(c.LocalFlags.SetPrefix, c.LocalFlags.SetTarget)
 	if err != nil {
 		return nil, fmt.Errorf("prefix parse error: %v", err)
 	}
@@ -574,7 +575,7 @@ func (c *Config) CreateSetRequest(targetName string) (*gnmi.SetRequest, error) {
 		Update:  make([]*gnmi.Update, 0),
 	}
 	for _, p := range c.LocalFlags.SetDelete {
-		gnmiPath, err := collector.ParsePath(strings.TrimSpace(p))
+		gnmiPath, err := utils.ParsePath(strings.TrimSpace(p))
 		if err != nil {
 			return nil, err
 		}
@@ -585,7 +586,7 @@ func (c *Config) CreateSetRequest(targetName string) (*gnmi.SetRequest, error) {
 		if len(singleUpdate) < 3 {
 			return nil, fmt.Errorf("invalid inline update format: %s", c.LocalFlags.SetUpdate)
 		}
-		gnmiPath, err := collector.ParsePath(strings.TrimSpace(singleUpdate[0]))
+		gnmiPath, err := utils.ParsePath(strings.TrimSpace(singleUpdate[0]))
 		if err != nil {
 			return nil, err
 		}
@@ -604,7 +605,7 @@ func (c *Config) CreateSetRequest(targetName string) (*gnmi.SetRequest, error) {
 		if len(singleReplace) < 3 {
 			return nil, fmt.Errorf("invalid inline replace format: %s", c.LocalFlags.SetReplace)
 		}
-		gnmiPath, err := collector.ParsePath(strings.TrimSpace(singleReplace[0]))
+		gnmiPath, err := utils.ParsePath(strings.TrimSpace(singleReplace[0]))
 		if err != nil {
 			return nil, err
 		}
@@ -619,7 +620,7 @@ func (c *Config) CreateSetRequest(targetName string) (*gnmi.SetRequest, error) {
 		})
 	}
 	for i, p := range c.LocalFlags.SetUpdatePath {
-		gnmiPath, err := collector.ParsePath(strings.TrimSpace(p))
+		gnmiPath, err := utils.ParsePath(strings.TrimSpace(p))
 		if err != nil {
 			return nil, err
 		}
@@ -655,7 +656,7 @@ func (c *Config) CreateSetRequest(targetName string) (*gnmi.SetRequest, error) {
 		})
 	}
 	for i, p := range c.LocalFlags.SetReplacePath {
-		gnmiPath, err := collector.ParsePath(strings.TrimSpace(p))
+		gnmiPath, err := utils.ParsePath(strings.TrimSpace(p))
 		if err != nil {
 			return nil, err
 		}

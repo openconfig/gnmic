@@ -8,14 +8,14 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/types"
 	"github.com/mitchellh/mapstructure"
 	"golang.org/x/term"
 )
 
 var ErrNoTargetsFound = errors.New("no targets found")
 
-func (c *Config) GetTargets() (map[string]*collector.TargetConfig, error) {
+func (c *Config) GetTargets() (map[string]*types.TargetConfig, error) {
 	var err error
 	// case address is defined in .Address
 	if len(c.Address) > 0 {
@@ -35,7 +35,7 @@ func (c *Config) GetTargets() (map[string]*collector.TargetConfig, error) {
 		}
 
 		for _, addr := range c.Address {
-			tc := &collector.TargetConfig{
+			tc := &types.TargetConfig{
 				Name:    addr,
 				Address: addr,
 			}
@@ -69,9 +69,9 @@ func (c *Config) GetTargets() (map[string]*collector.TargetConfig, error) {
 		return nil, ErrNoTargetsFound
 	}
 
-	newTargetsConfig := make(map[string]*collector.TargetConfig)
+	newTargetsConfig := make(map[string]*types.TargetConfig)
 	for name, t := range targetsMap {
-		tc := new(collector.TargetConfig)
+		tc := new(types.TargetConfig)
 		switch t := t.(type) {
 		case map[string]interface{}:
 			decoder, err := mapstructure.NewDecoder(
@@ -148,7 +148,7 @@ func readPassword() (string, error) {
 	return string(pass), nil
 }
 
-func (c *Config) SetTargetConfigDefaults(tc *collector.TargetConfig) error {
+func (c *Config) SetTargetConfigDefaults(tc *types.TargetConfig) error {
 	defGrpcPort := c.FileConfig.GetString("port")
 	if !strings.HasPrefix(tc.Address, "unix://") {
 		addrList := strings.Split(tc.Address, ",")
@@ -218,12 +218,12 @@ func (c *Config) SetTargetConfigDefaults(tc *collector.TargetConfig) error {
 	return nil
 }
 
-func (c *Config) TargetsList() []*collector.TargetConfig {
+func (c *Config) TargetsList() []*types.TargetConfig {
 	targetsMap, err := c.GetTargets()
 	if err != nil {
 		return nil
 	}
-	targets := make([]*collector.TargetConfig, 0, len(targetsMap))
+	targets := make([]*types.TargetConfig, 0, len(targetsMap))
 	for _, tc := range targetsMap {
 		targets = append(targets, tc)
 	}
@@ -233,7 +233,7 @@ func (c *Config) TargetsList() []*collector.TargetConfig {
 	return targets
 }
 
-func expandCertPaths(tc *collector.TargetConfig) error {
+func expandCertPaths(tc *types.TargetConfig) error {
 	if tc.Insecure != nil && !*tc.Insecure {
 		var err error
 		if tc.TLSCA != nil && *tc.TLSCA != "" {
@@ -261,7 +261,7 @@ func expandCertPaths(tc *collector.TargetConfig) error {
 	return nil
 }
 
-func expandTargetEnv(tc *collector.TargetConfig) {
+func expandTargetEnv(tc *types.TargetConfig) {
 	tc.Name = os.ExpandEnv(tc.Name)
 	tc.Address = os.ExpandEnv(tc.Address)
 	if tc.Username != nil {
@@ -302,18 +302,18 @@ func expandTargetEnv(tc *collector.TargetConfig) {
 	}
 }
 
-func (c *Config) GetDiffTargets() (*collector.TargetConfig, map[string]*collector.TargetConfig, error) {
+func (c *Config) GetDiffTargets() (*types.TargetConfig, map[string]*types.TargetConfig, error) {
 	targetsConfig, err := c.GetTargets()
 	if err != nil {
 		if err != ErrNoTargetsFound {
 			return nil, nil, err
 		}
 	}
-	var refConfig *collector.TargetConfig
+	var refConfig *types.TargetConfig
 	if rc, ok := targetsConfig[c.DiffRef]; ok {
 		refConfig = rc
 	} else {
-		refConfig = &collector.TargetConfig{
+		refConfig = &types.TargetConfig{
 			Address: c.DiffRef,
 		}
 		err = c.SetTargetConfigDefaults(refConfig)
@@ -321,12 +321,12 @@ func (c *Config) GetDiffTargets() (*collector.TargetConfig, map[string]*collecto
 			return nil, nil, err
 		}
 	}
-	compareConfigs := make(map[string]*collector.TargetConfig)
+	compareConfigs := make(map[string]*types.TargetConfig)
 	for _, cmp := range c.DiffCompare {
 		if cc, ok := targetsConfig[cmp]; ok {
 			compareConfigs[cmp] = cc
 		} else {
-			compConfig := &collector.TargetConfig{
+			compConfig := &types.TargetConfig{
 				Address: cmp,
 			}
 			err = c.SetTargetConfigDefaults(compConfig)

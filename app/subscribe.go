@@ -12,6 +12,7 @@ import (
 	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/config"
 	"github.com/karimra/gnmic/formatters"
+	"github.com/karimra/gnmic/types"
 	"github.com/manifoldco/promptui"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
@@ -78,7 +79,7 @@ func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	//
-	a.collector = collector.NewCollector(a.collectorConfig(), targetsConfig, cOpts...)
+	a.collector = collector.New(a.collectorConfig(), targetsConfig, cOpts...)
 
 	a.startAPI()
 	a.startGnmiServer()
@@ -145,7 +146,7 @@ func (a *App) SubscribeRunPrompt(cmd *cobra.Command, args []string) error {
 	}
 	//
 	if a.collector == nil {
-		a.collector = collector.NewCollector(a.collectorConfig(), targetsConfig, cOpts...)
+		a.collector = collector.New(a.collectorConfig(), targetsConfig, cOpts...)
 		go a.collector.Start(a.ctx)
 		a.startAPI()
 		go a.startCluster()
@@ -397,7 +398,7 @@ func (a *App) SubscribeRunONCE(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	//
-	a.collector = collector.NewCollector(a.collectorConfig(), targetsConfig, cOpts...)
+	a.collector = collector.New(a.collectorConfig(), targetsConfig, cOpts...)
 	a.collector.InitOutputs(a.ctx)
 
 	var limiter *time.Ticker
@@ -431,7 +432,7 @@ func (a *App) SubscribeRunPoll(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	//
-	a.collector = collector.NewCollector(a.collectorConfig(), targetsConfig, cOpts...)
+	a.collector = collector.New(a.collectorConfig(), targetsConfig, cOpts...)
 
 	go a.collector.Start(a.ctx)
 	// a.collector.InitOutputs(a.ctx)
@@ -446,7 +447,7 @@ func (a *App) SubscribeRunPoll(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func allSubscriptionsModeOnce(sc map[string]*collector.SubscriptionConfig) bool {
+func allSubscriptionsModeOnce(sc map[string]*types.SubscriptionConfig) bool {
 	for _, sub := range sc {
 		if strings.ToUpper(sub.Mode) != "ONCE" {
 			return false
@@ -455,7 +456,7 @@ func allSubscriptionsModeOnce(sc map[string]*collector.SubscriptionConfig) bool 
 	return true
 }
 
-func allSubscriptionsModePoll(sc map[string]*collector.SubscriptionConfig) bool {
+func allSubscriptionsModePoll(sc map[string]*types.SubscriptionConfig) bool {
 	for _, sub := range sc {
 		if strings.ToUpper(sub.Mode) != "POLL" {
 			return false

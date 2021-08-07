@@ -3,6 +3,7 @@ package outputs
 import (
 	"log"
 
+	"github.com/karimra/gnmic/types"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -14,7 +15,7 @@ func WithLogger(logger *log.Logger) Option {
 	}
 }
 
-func WithEventProcessors(eps map[string]map[string]interface{}, log *log.Logger, tcs map[string]interface{}) Option {
+func WithEventProcessors(eps map[string]map[string]interface{}, log *log.Logger, tcs map[string]*types.TargetConfig) Option {
 	return func(o Output) {
 		o.SetEventProcessors(eps, log, tcs)
 	}
@@ -38,7 +39,7 @@ func WithClusterName(name string) Option {
 	}
 }
 
-func WithTargetsConfig(tcs map[string]interface{}) Option {
+func WithTargetsConfig(tcs map[string]*types.TargetConfig) Option {
 	return func(o Output) {
 		o.SetTargetsConfig(tcs)
 	}

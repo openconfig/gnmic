@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/karimra/gnmic/formatters"
+	"github.com/karimra/gnmic/types"
 )
 
 const (
@@ -173,7 +174,7 @@ func (s *Strings) WithLogger(l *log.Logger) {
 	}
 }
 
-func (s *Strings) WithTargets(tcs map[string]interface{}) {}
+func (s *Strings) WithTargets(tcs map[string]*types.TargetConfig) {}
 
 func (s *Strings) applyValueTransformations(e *formatters.EventMsg, k string, v interface{}) {
 	for _, trans := range s.Transforms {

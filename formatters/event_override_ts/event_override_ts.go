@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/karimra/gnmic/formatters"
+	"github.com/karimra/gnmic/types"
 )
 
 const (
@@ -84,4 +85,4 @@ func (o *OverrideTS) WithLogger(l *log.Logger) {
 	}
 }
 
-func (o *OverrideTS) WithTargets(tcs map[string]interface{}) {}
+func (o *OverrideTS) WithTargets(tcs map[string]*types.TargetConfig) {}

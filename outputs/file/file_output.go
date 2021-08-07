@@ -13,6 +13,7 @@ import (
 
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
+	"github.com/karimra/gnmic/types"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/semaphore"
 	"google.golang.org/protobuf/proto"
@@ -71,7 +72,7 @@ func (f *File) String() string {
 	return string(b)
 }
 
-func (f *File) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]interface{}) {
+func (f *File) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]*types.TargetConfig) {
 	for _, epName := range f.Cfg.EventProcessors {
 		if epCfg, ok := ps[epName]; ok {
 			epType := ""
@@ -235,6 +236,6 @@ func (f *File) RegisterMetrics(reg *prometheus.Registry) {
 	}
 }
 
-func (f *File) SetName(name string)                     {}
-func (f *File) SetClusterName(name string)              {}
-func (f *File) SetTargetsConfig(map[string]interface{}) {}
+func (f *File) SetName(name string)                             {}
+func (f *File) SetClusterName(name string)                      {}
+func (f *File) SetTargetsConfig(map[string]*types.TargetConfig) {}

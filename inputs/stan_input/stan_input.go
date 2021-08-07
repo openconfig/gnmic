@@ -14,6 +14,7 @@ import (
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/inputs"
 	"github.com/karimra/gnmic/outputs"
+	"github.com/karimra/gnmic/types"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/stan.go"
 	"google.golang.org/protobuf/proto"
@@ -159,7 +160,7 @@ func (s *StanInput) SetName(name string) {
 	s.Cfg.Name = sb.String()
 }
 
-func (s *StanInput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]interface{}) {
+func (s *StanInput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]*types.TargetConfig) {
 	for _, epName := range s.Cfg.EventProcessors {
 		if epCfg, ok := ps[epName]; ok {
 			epType := ""

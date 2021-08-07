@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/lockers"
+	"github.com/karimra/gnmic/types"
 )
 
 const (
@@ -270,7 +270,7 @@ func (a *App) dispatchTargets(ctx context.Context) {
 	}
 }
 
-func (a *App) dispatchTarget(ctx context.Context, tc *collector.TargetConfig) error {
+func (a *App) dispatchTarget(ctx context.Context, tc *types.TargetConfig) error {
 	locked, err := a.locker.IsLocked(ctx, fmt.Sprintf("gnmic/%s/targets/%s", a.Config.Clustering.ClusterName, tc.Name))
 	if err != nil {
 		return err
@@ -535,7 +535,7 @@ func (a *App) deleteTarget(name string) error {
 	return fmt.Errorf("there was %d error(s) while deleting target %q", len(errs), name)
 }
 
-func (a *App) assignTarget(ctx context.Context, tc *collector.TargetConfig, service *lockers.Service) error {
+func (a *App) assignTarget(ctx context.Context, tc *types.TargetConfig, service *lockers.Service) error {
 	// encode target config
 	var err error
 	buffer := new(bytes.Buffer)

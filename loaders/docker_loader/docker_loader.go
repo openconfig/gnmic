@@ -13,11 +13,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/docker/docker/api/types"
+	dtypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
 	dClient "github.com/docker/docker/client"
-	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/loaders"
+	"github.com/karimra/gnmic/types"
 	"github.com/mitchellh/mapstructure"
 )
 
@@ -32,7 +32,7 @@ func init() {
 		return &dockerLoader{
 			cfg:         new(cfg),
 			wg:          new(sync.WaitGroup),
-			lastTargets: make(map[string]*collector.TargetConfig),
+			lastTargets: make(map[string]*types.TargetConfig),
 			logger:      log.New(ioutil.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
 		}
 	})
@@ -42,7 +42,7 @@ type dockerLoader struct {
 	cfg         *cfg
 	client      *dClient.Client
 	wg          *sync.WaitGroup
-	lastTargets map[string]*collector.TargetConfig
+	lastTargets map[string]*types.TargetConfig
 	logger      *log.Logger
 	fl          []*targetFilterComp
 }
@@ -195,17 +195,17 @@ func (d *dockerLoader) Start(ctx context.Context) chan *loaders.TargetOperation 
 	return opChan
 }
 
-func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*collector.TargetConfig, error) {
+func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*types.TargetConfig, error) {
 	d.wg = new(sync.WaitGroup)
 	d.wg.Add(len(d.fl))
-	readTargets := make(map[string]*collector.TargetConfig)
+	readTargets := make(map[string]*types.TargetConfig)
 	m := new(sync.Mutex)
 	errChan := make(chan error, len(d.fl))
 	for _, targetFilter := range d.fl {
 		go func(fl *targetFilterComp) {
 			defer d.wg.Done()
 			// get networks
-			nrs, err := d.client.NetworkList(ctx, types.NetworkListOptions{
+			nrs, err := d.client.NetworkList(ctx, dtypes.NetworkListOptions{
 				Filters: fl.nt,
 			})
 			if err != nil {
@@ -214,7 +214,7 @@ func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*collector.Ta
 			}
 			// get containers for each defined filter
 			for _, cfl := range fl.fl {
-				conts, err := d.client.ContainerList(ctx, types.ContainerListOptions{
+				conts, err := d.client.ContainerList(ctx, dtypes.ContainerListOptions{
 					Filters: cfl,
 				})
 				if err != nil {
@@ -223,7 +223,7 @@ func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*collector.Ta
 				}
 				for _, cont := range conts {
 					d.logger.Printf("building target from container %q, names: %v, labels: %v", cont.ID, cont.Names, cont.Labels)
-					tc := new(collector.TargetConfig)
+					tc := new(types.TargetConfig)
 					if fl.cfg != nil {
 						err = mapstructure.Decode(fl.cfg, tc)
 						if err != nil {
@@ -362,7 +362,7 @@ func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*collector.Ta
 	return readTargets, nil
 }
 
-func (d *dockerLoader) diff(m map[string]*collector.TargetConfig) *loaders.TargetOperation {
+func (d *dockerLoader) diff(m map[string]*types.TargetConfig) *loaders.TargetOperation {
 	result := loaders.Diff(d.lastTargets, m)
 	for _, t := range result.Add {
 		if _, ok := d.lastTargets[t.Name]; !ok {

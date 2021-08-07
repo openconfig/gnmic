@@ -22,7 +22,7 @@ import (
 	"log"
 	"sync"
 
-	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/types"
 	"github.com/openconfig/gnmi/cache"
 	"github.com/openconfig/gnmi/coalesce"
 	"github.com/openconfig/gnmi/ctree"
@@ -54,7 +54,7 @@ type server struct {
 	unaryRPCsem     *semaphore.Weighted
 	//
 	mu      *sync.RWMutex
-	targets map[string]*collector.TargetConfig
+	targets map[string]*types.TargetConfig
 }
 
 type matchClient struct {
@@ -83,7 +83,7 @@ func (g *gNMIOutput) newServer() *server {
 		c:       g.c,
 		m:       match.New(),
 		mu:      new(sync.RWMutex),
-		targets: make(map[string]*collector.TargetConfig),
+		targets: make(map[string]*types.TargetConfig),
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/karimra/gnmic/formatters"
+	"github.com/karimra/gnmic/types"
 )
 
 const (
@@ -89,7 +90,7 @@ func (p *Merge) WithLogger(l *log.Logger) {
 	}
 }
 
-func (p *Merge) WithTargets(tcs map[string]interface{}) {}
+func (p *Merge) WithTargets(tcs map[string]*types.TargetConfig) {}
 
 func merge(e1, e2 *formatters.EventMsg) {
 	if e1.Tags == nil {

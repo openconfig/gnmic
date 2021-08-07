@@ -10,6 +10,7 @@ import (
 	"strconv"
 
 	"github.com/karimra/gnmic/formatters"
+	"github.com/karimra/gnmic/types"
 )
 
 const (
@@ -121,7 +122,7 @@ func (c *Convert) WithLogger(l *log.Logger) {
 	}
 }
 
-func (c *Convert) WithTargets(tcs map[string]interface{}) {}
+func (c *Convert) WithTargets(tcs map[string]*types.TargetConfig) {}
 
 func convertToInt(i interface{}) (int, error) {
 	switch i := i.(type) {

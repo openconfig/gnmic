@@ -14,6 +14,7 @@ import (
 	"github.com/karimra/gnmic/actions"
 	_ "github.com/karimra/gnmic/actions/all"
 	"github.com/karimra/gnmic/formatters"
+	"github.com/karimra/gnmic/types"
 	"github.com/karimra/gnmic/utils"
 	"gopkg.in/yaml.v2"
 )
@@ -41,7 +42,7 @@ type Trigger struct {
 	actions          []actions.Action
 	vars             map[string]interface{}
 
-	targets map[string]interface{}
+	targets map[string]*types.TargetConfig
 	logger  *log.Logger
 }
 
@@ -125,7 +126,7 @@ func (p *Trigger) WithLogger(l *log.Logger) {
 	}
 }
 
-func (p *Trigger) WithTargets(tcs map[string]interface{}) {
+func (p *Trigger) WithTargets(tcs map[string]*types.TargetConfig) {
 	if p.Debug {
 		p.logger.Printf("with targets: %+v", tcs)
 	}

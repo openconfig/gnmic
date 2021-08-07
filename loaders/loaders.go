@@ -4,7 +4,7 @@ import (
 	"context"
 	"log"
 
-	"github.com/karimra/gnmic/collector"
+	"github.com/karimra/gnmic/types"
 	"github.com/mitchellh/mapstructure"
 )
 
@@ -28,7 +28,7 @@ func Register(name string, initFn Initializer) {
 }
 
 type TargetOperation struct {
-	Add []*collector.TargetConfig
+	Add []*types.TargetConfig
 	Del []string
 }
 
@@ -45,9 +45,9 @@ func DecodeConfig(src, dst interface{}) error {
 	return decoder.Decode(src)
 }
 
-func Diff(m1, m2 map[string]*collector.TargetConfig) *TargetOperation {
+func Diff(m1, m2 map[string]*types.TargetConfig) *TargetOperation {
 	result := &TargetOperation{
-		Add: make([]*collector.TargetConfig, 0),
+		Add: make([]*types.TargetConfig, 0),
 		Del: make([]string, 0),
 	}
 	if len(m1) == 0 {
