@@ -1,4 +1,4 @@
-The `event-convert` processor, converts the values matching one of the regular expressions to a specific type: `uint`, `int`, `string`, `float`
+The `event-convert` processor, converts the values matching one of the regular expressions to a specific type: `uint`, `int`, `string`, `float` or `bool`
 
 ### Examples
 
@@ -11,7 +11,7 @@ processors:
       # list of regex to be matched with the values names
       value-names: 
         - ".*octets$"
-      # the desired value type, one of int, uint, string, float
+      # the desired value type, one of: int, uint, string, float, bool
       type: int 
 ```
 
