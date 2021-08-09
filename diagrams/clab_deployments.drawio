@@ -1,5 +1,5 @@
-<mxfile host="app.diagrams.net" modified="2021-08-09T19:56:21.135Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.131 Safari/537.36" etag="qtYKzM-6TboiLlZMg8_Z" version="14.9.3" type="github" pages="5">
-  <diagram id="4cyAIsRMo-Zw9HxS2ONe" name="[0]single_nats">
+<mxfile host="app.diagrams.net" modified="2021-08-09T19:57:09.180Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.131 Safari/537.36" etag="a-NdJwN0yX7I4o-Uw_fc" version="14.9.3" type="github" pages="5">
+  <diagram id="4cyAIsRMo-Zw9HxS2ONe" name="1.single_nats">
     <mxGraphModel dx="1426" dy="717" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="900" pageHeight="400" math="0" shadow="0">
       <root>
         <mxCell id="0" />
@@ -379,7 +379,7 @@
       </root>
     </mxGraphModel>
   </diagram>
-  <diagram id="5JQlfoiw1Jpy58FcrNMx" name="single_kafka">
+  <diagram id="5JQlfoiw1Jpy58FcrNMx" name="2.single_kafka">
     <mxGraphModel dx="1426" dy="717" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="900" pageHeight="400" math="0" shadow="0">
       <root>
         <mxCell id="1_3Y12T4DTjZppsktgLo-0" />
@@ -761,7 +761,7 @@
       </root>
     </mxGraphModel>
   </diagram>
-  <diagram id="BNCo7AX0QVGDZsZncH_h" name="single_influxdb">
+  <diagram id="BNCo7AX0QVGDZsZncH_h" name="3.single_influxdb">
     <mxGraphModel dx="1188" dy="598" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="900" pageHeight="400" math="0" shadow="0">
       <root>
         <mxCell id="gBTGp2xAHOtJdxLIhFSI-0" />
@@ -1143,7 +1143,7 @@
       </root>
     </mxGraphModel>
   </diagram>
-  <diagram id="SPa2Q9iaMmQxnq-Y1jHP" name="single_prometheus">
+  <diagram id="SPa2Q9iaMmQxnq-Y1jHP" name="4.single_prometheus">
     <mxGraphModel dx="1426" dy="717" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="900" pageHeight="400" math="0" shadow="0">
       <root>
         <mxCell id="KeBmm1x7uSBezAly6Z3z-0" />
@@ -1546,7 +1546,7 @@
       </root>
     </mxGraphModel>
   </diagram>
-  <diagram id="ZUFN6Jb7fdv81Tjz0g6X" name="Page-5">
+  <diagram id="ZUFN6Jb7fdv81Tjz0g6X" name="5.multiple_outputs">
     <mxGraphModel dx="1426" dy="717" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="900" pageHeight="400" math="0" shadow="0">
       <root>
         <mxCell id="YwZfSOY25nE_7HbYA_qa-0" />
