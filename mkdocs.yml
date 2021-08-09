@@ -56,6 +56,7 @@ nav:
           - Delete: user_guide/event_processors/event_delete.md
           - Drop: user_guide/event_processors/event_drop.md
           - Extract Tags: user_guide/event_processors/event_extract_tags.md
+          - Group by: user_guide/event_processors/event_group_by.md
           - JQ: user_guide/event_processors/event_jq.md
           - Merge: user_guide/event_processors/event_merge.md
           - Override TS: user_guide/event_processors/event_override_ts.md
@@ -63,7 +64,9 @@ nav:
           - To Tag: user_guide/event_processors/event_to_tag.md
           - Trigger: user_guide/event_processors/event_trigger.md
           - Write: user_guide/event_processors/event_write.md
+
       - Clustering: user_guide/HA.md
+
       - API: 
           - Introduction: user_guide/api/api_intro.md
           - Configuration: user_guide/api/configuration.md
