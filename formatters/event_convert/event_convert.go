@@ -2,7 +2,7 @@ package event_convert
 
 import (
 	"encoding/json"
-	"errors"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -157,7 +157,7 @@ func convertToInt(i interface{}) (int, error) {
 	case float32:
 		return int(i), nil
 	default:
-		return 0, errors.New("cannot convert to int")
+		return 0, fmt.Errorf("cannot convert %v to int, type %T", i, i)
 	}
 }
 
@@ -215,7 +215,7 @@ func convertToUint(i interface{}) (uint, error) {
 		}
 		return uint(i), nil
 	default:
-		return 0, errors.New("cannot convert to uint")
+		return 0, fmt.Errorf("cannot convert %v to uint, type %T", i, i)
 	}
 }
 
@@ -250,7 +250,7 @@ func convertToFloat(i interface{}) (float64, error) {
 	case float64:
 		return i, nil
 	default:
-		return 0, errors.New("cannot convert to float64")
+		return 0, fmt.Errorf("cannot convert %v to float64, type %T", i, i)
 	}
 }
 
@@ -260,11 +260,29 @@ func convertToString(i interface{}) (string, error) {
 		return i, nil
 	case int:
 		return strconv.Itoa(i), nil
-	case uint:
+	case int8:
 		return strconv.Itoa(int(i)), nil
+	case int16:
+		return strconv.Itoa(int(i)), nil
+	case int32:
+		return strconv.Itoa(int(i)), nil
+	case int64:
+		return strconv.Itoa(int(i)), nil
+	case uint:
+		return strconv.FormatUint(uint64(i), 10), nil
+	case uint8:
+		return strconv.FormatUint(uint64(i), 10), nil
+	case uint16:
+		return strconv.FormatUint(uint64(i), 10), nil
+	case uint32:
+		return strconv.FormatUint(uint64(i), 10), nil
+	case uint64:
+		return strconv.FormatUint(uint64(i), 10), nil
 	case float64:
-		return strconv.FormatFloat(i, 'f', 64, 64), nil
+		return strconv.FormatFloat(i, 'f', -1, 64), nil
+	case bool:
+		return strconv.FormatBool(i), nil
 	default:
-		return "", errors.New("cannot convert to float64")
+		return "", fmt.Errorf("cannot convert %v to string, type %T", i, i)
 	}
 }

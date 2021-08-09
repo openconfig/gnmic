@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/karimra/gnmic/formatters"
 )
 
@@ -17,6 +18,171 @@ var testset = map[string]struct {
 	processor     map[string]interface{}
 	tests         []item
 }{
+	"string_convert": {
+		processorType: processorType,
+		processor: map[string]interface{}{
+			"value-names": []string{
+				"^convert-me$",
+				"^number*",
+			},
+			"debug": true,
+			"type":  "string",
+		},
+		tests: []item{
+			// nil msg
+			{
+				input:  nil,
+				output: nil,
+			},
+			// empty msg
+			{
+				input:  make([]*formatters.EventMsg, 0),
+				output: make([]*formatters.EventMsg, 0),
+			},
+			// non matching values
+			{
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"name": 1},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"name": 1},
+					},
+				},
+			},
+			// matching values and tags
+			{
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"convert-me": 100},
+						Tags:   map[string]string{"convert-me": "name_tag"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"convert-me": "100"},
+						Tags:   map[string]string{"convert-me": "name_tag"},
+					},
+				},
+			},
+			// 2 msgs, with matching values
+			{
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"convert-me": 100},
+						Tags:   map[string]string{"convert-me": "name_tag"},
+					},
+					{
+						Values: map[string]interface{}{"convert-me": 200},
+						Tags:   map[string]string{"convert-me": "name_tag"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"convert-me": "100"},
+						Tags:   map[string]string{"convert-me": "name_tag"},
+					},
+					{
+						Values: map[string]interface{}{"convert-me": "200"},
+						Tags:   map[string]string{"convert-me": "name_tag"},
+					},
+				},
+			},
+			// 2 msgs, second with matching values
+			{
+				input: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{"convert-me": "name_tag"},
+					},
+					{
+						Values: map[string]interface{}{"convert-me": 200},
+						Tags:   map[string]string{"number": "name_tag"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{"convert-me": "name_tag"},
+					},
+					{
+						Values: map[string]interface{}{"convert-me": "200"},
+						Tags:   map[string]string{"number": "name_tag"},
+					},
+				},
+			},
+			// matching value, already a string
+			{
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"convert-me": "1"},
+						Tags:   map[string]string{"number": "name_tag"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"convert-me": "1"},
+						Tags:   map[string]string{"number": "name_tag"},
+					},
+				},
+			},
+			// matching value, uint
+			{
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{
+							"number1": uint8(100),
+							"number2": uint16(100),
+							"number3": uint32(100),
+							"number4": uint64(100),
+						},
+						Tags: map[string]string{"number": "name_tag"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{
+							"number1": "100",
+							"number2": "100",
+							"number3": "100",
+							"number4": "100",
+						},
+						Tags: map[string]string{"number": "name_tag"},
+					},
+				},
+			},
+			// matching value, float64
+			{
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"number": float64(100.1)},
+						Tags:   map[string]string{"number": "name_tag"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"number": "100.1"},
+						Tags:   map[string]string{"number": "name_tag"},
+					},
+				},
+			},
+			// matching value, bool
+			{
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"number": true},
+						Tags:   map[string]string{"number": "name_tag"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"number": "true"},
+						Tags:   map[string]string{"number": "name_tag"},
+					},
+				},
+			},
+		},
+	},
 	"int_convert": {
 		processorType: processorType,
 		processor: map[string]interface{}{
@@ -313,7 +479,7 @@ func TestEventConvertToUint(t *testing.T) {
 	if pi, ok := formatters.EventProcessors[ts.processorType]; ok {
 		t.Log("found processor")
 		p := pi()
-		err := p.Init(ts.processor)
+		err := p.Init(ts.processor, formatters.WithLogger(nil))
 		if err != nil {
 			t.Errorf("failed to initialize processors: %v", err)
 			return
@@ -341,7 +507,7 @@ func TestEventConvertToInt(t *testing.T) {
 	if pi, ok := formatters.EventProcessors[ts.processorType]; ok {
 		t.Log("found processor")
 		p := pi()
-		err := p.Init(ts.processor)
+		err := p.Init(ts.processor, formatters.WithLogger(nil))
 		if err != nil {
 			t.Errorf("failed to initialize processors: %v", err)
 			return
@@ -368,7 +534,7 @@ func TestEventConvertToString(t *testing.T) {
 	if pi, ok := formatters.EventProcessors[ts.processorType]; ok {
 		t.Log("found processor")
 		p := pi()
-		err := p.Init(ts.processor, nil)
+		err := p.Init(ts.processor, formatters.WithLogger(nil))
 		if err != nil {
 			t.Errorf("failed to initialize processors: %v", err)
 			return
@@ -378,7 +544,7 @@ func TestEventConvertToString(t *testing.T) {
 				t.Logf("running test item %d", i)
 				outs := p.Apply(item.input...)
 				for j := range outs {
-					if !reflect.DeepEqual(outs[j], item.output[j]) {
+					if !cmp.Equal(outs[j], item.output[j]) {
 						t.Logf("failed at string_convert item %d, index %d", i, j)
 						t.Logf("expected: %#v", item.output[j])
 						t.Logf("     got: %#v", outs[j])
@@ -395,7 +561,7 @@ func TestEventConvertToFloat(t *testing.T) {
 	if pi, ok := formatters.EventProcessors[ts.processorType]; ok {
 		t.Log("found processor")
 		p := pi()
-		err := p.Init(ts.processor)
+		err := p.Init(ts.processor, formatters.WithLogger(nil))
 		if err != nil {
 			t.Errorf("failed to initialize processors: %v", err)
 			return
