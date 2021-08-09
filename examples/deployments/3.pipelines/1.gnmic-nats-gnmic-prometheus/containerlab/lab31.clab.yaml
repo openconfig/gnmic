@@ -1,0 +1,72 @@
+name: lab31
+
+topology:
+  defaults:
+    kind: srl
+
+  kinds:
+    srl:
+      type: ixr6
+      image: ghcr.io/nokia/srlinux
+
+  nodes:
+    srl1:
+    srl2:
+
+    gnmic-collector:
+      kind: linux
+      image: ghcr.io/karimra/gnmic:latest
+      binds:
+        - ./gnmic-collector.yaml:/app/gnmic.yaml:ro
+        - /var/run/docker.sock:/var/run/docker.sock
+      cmd: '--config /app/gnmic.yaml subscribe'
+    
+    gnmic-relay:
+      kind: linux
+      image: ghcr.io/karimra/gnmic:latest
+      binds:
+        - ./gnmic-relay.yaml:/app/gnmic.yaml:ro
+        - /var/run/docker.sock:/var/run/docker.sock
+      ports:
+        - 9804:9804
+      cmd: '--config /app/gnmic.yaml subscribe'
+
+    consul-agent:
+      kind: linux
+      image: consul:latest
+      ports:
+        - 8500:8500
+        - 8600:8600/udp
+      cmd: 'agent -server -ui -bind=127.0.0.1 -node=server-1 -bootstrap-expect=1 -client=0.0.0.0'
+    
+    prometheus:
+      kind: linux
+      image: prom/prometheus:latest
+      user: 65534:65534
+      ports:
+        - 9090:9090
+      binds:
+        - ./prometheus/:/etc/prometheus/
+      cmd: |
+        --config.file=/etc/prometheus/prometheus.yaml
+        --web.console.libraries=/usr/share/prometheus/console_libraries
+        --web.console.templates=/usr/share/prometheus/consoles
+        --log.level=debug
+
+    nats:
+      kind: linux
+      image: nats:latest
+      ports:
+         - 4222:4222
+
+    grafana:
+      kind: linux
+      image: grafana/grafana:latest
+      binds:
+        - grafana/datasources/datasource.yaml:/etc/grafana/provisioning/datasources/datasource.yaml:ro
+        #- grafana/dashboards/:/var/lib/grafana/dashboards
+      ports:
+        - 3000:3000
+
+  links:
+    - endpoints: ["srl1:e1-1", "srl2:e1-1"]

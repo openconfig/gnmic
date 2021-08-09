@@ -1,0 +1,107 @@
+name: lab33a
+
+topology:
+  defaults:
+    kind: srl
+
+  kinds:
+    srl:
+      type: ixr6
+      image: ghcr.io/nokia/srlinux
+
+  nodes:
+    srl1:
+    srl2:
+
+    gnmic-collector1:
+      kind: linux
+      image: ghcr.io/karimra/gnmic:latest
+      binds:
+        - ./gnmic.yaml:/app/gnmic-config.yaml:ro
+        - /var/run/docker.sock:/var/run/docker.sock
+      ports:
+        - 7890:7890
+      env:
+        GNMIC_API: :7890
+        GNMIC_CLUSTERING_INSTANCE_NAME: clab-lab33a-gnmic-collector1
+        GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-lab33a-gnmic-collector1
+      cmd: '--config /app/gnmic-config.yaml subscribe'
+    
+    gnmic-collector2:
+      kind: linux
+      image: ghcr.io/karimra/gnmic:latest
+      binds:
+        - ./gnmic.yaml:/app/gnmic-config.yaml:ro
+        - /var/run/docker.sock:/var/run/docker.sock
+      ports:
+        - 7891:7891
+      env:
+        GNMIC_API: :7891
+        GNMIC_CLUSTERING_INSTANCE_NAME: clab-lab33a-gnmic-collector2
+        GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-lab33a-gnmic-collector2
+      cmd: '--config /app/gnmic-config.yaml subscribe'
+
+    gnmic-collector3:
+      kind: linux
+      image: ghcr.io/karimra/gnmic:latest
+      binds:
+        - ./gnmic.yaml:/app/gnmic-config.yaml:ro
+        - /var/run/docker.sock:/var/run/docker.sock
+      ports:
+        - 7892:7892
+      env:
+        GNMIC_API: :7892
+        GNMIC_CLUSTERING_INSTANCE_NAME: clab-lab33a-gnmic-collector3
+        GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-lab33a-gnmic-collector3
+      cmd: '--config /app/gnmic-config.yaml subscribe'
+
+    gnmic-relay:
+      kind: linux
+      image: ghcr.io/karimra/gnmic:latest
+      binds:
+        - ./gnmic.yaml:/app/gnmic-config.yaml:ro
+        - /var/run/docker.sock:/var/run/docker.sock
+      ports:
+        - 7892:7892
+        - 9804:9804
+      cmd: '--config /app/gnmic-config.yaml subscribe'
+
+    consul-agent:
+      kind: linux
+      image: consul:latest
+      ports:
+        - 8500:8500
+        - 8600:8600/udp
+      cmd: 'agent -server -ui -bind=127.0.0.1 -node=server-1 -bootstrap-expect=1 -client=0.0.0.0'
+    
+    prometheus:
+      kind: linux
+      image: prom/prometheus:latest
+      user: 65534:65534
+      ports:
+        - 9090:9090
+      binds:
+        - ./prometheus/:/etc/prometheus/
+      cmd: |
+        --config.file=/etc/prometheus/prometheus.yaml
+        --web.console.libraries=/usr/share/prometheus/console_libraries
+        --web.console.templates=/usr/share/prometheus/consoles
+        --log.level=debug
+
+    nats:
+      kind: linux
+      image: nats:latest
+      ports:
+         - 4222:4222
+
+    grafana:
+      kind: linux
+      image: grafana/grafana:latest
+      binds:
+        - grafana/datasources/datasource.yaml:/etc/grafana/provisioning/datasources/datasource.yaml:ro
+        #- grafana/dashboards/:/var/lib/grafana/dashboards
+      ports:
+        - 3000:3000
+
+  links:
+    - endpoints: ["srl1:e1-1", "srl2:e1-1"]
