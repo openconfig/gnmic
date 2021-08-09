@@ -6,9 +6,9 @@ The data replication is achieved using a `NATS` server acting as both a gnmic in
 
 This deployment example includes a:
 
-- 3 instances [`gnmic` cluster](../../user_guide/HA.md), 
-- A NATS [input](../../user_guide/inputs/nats_input.md) and [output](../../user_guide/outputs/nats_output.md) 
-- A [Prometheus output](../../user_guide/outputs/prometheus_output.md)
+- 3 instances [`gnmic` cluster](../../../user_guide/HA.md), 
+- A NATS [input](../../../user_guide/inputs/nats_input.md) and [output](../../../user_guide/outputs/nats_output.md) 
+- A [Prometheus output](../../../user_guide/outputs/prometheus_output.md)
 
 The leader election and target distribution is done with the help of a [Consul server](https://www.consul.io/docs/introhttps://www.consul.io/docs/intro)
 
@@ -38,9 +38,9 @@ Since only one instance can hold a lock, only one prometheus output is registere
 
 Deployment files:
 
-- [docker compose](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/3.nats-input-prometheus-output/docker-compose.yaml)
-- [gnmic config](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/3.nats-input-prometheus-output/gnmic.yaml)
-- [prometheus config](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/3.nats-input-prometheus-output/prometheus/prometheus.yaml)
+- [docker compose](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/2.clusters/3.nats-input-prometheus-output/docker-compose.yaml)
+- [gnmic config](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/2.clusters/3.nats-input-prometheus-output/gnmic.yaml)
+- [prometheus config](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/2.clusters/3.nats-input-prometheus-output/prometheus/prometheus.yaml)
 
 Download the files, update the `gnmic` config files with the desired subscriptions and targets.
 
@@ -53,4 +53,4 @@ Deploy it with:
 sudo docker-compose up -d
 ```
 
-Check the  [NATS Output](../../user_guide/outputs/nats_output.md), [NATS Input](../../user_guide/inputs/nats_input.md) and  [Prometheus Output](../../user_guide/outputs/influxdb_output.md) documentation pages for more configuration options
+Check the  [NATS Output](../../../user_guide/outputs/nats_output.md), [NATS Input](../../../user_guide/inputs/nats_input.md) and  [Prometheus Output](../../../user_guide/outputs/influxdb_output.md) documentation pages for more configuration options

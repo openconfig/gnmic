@@ -2,8 +2,8 @@ The purpose of this deployment is to achieve __redundancy__, __high-availability
 
 This deployment example includes:
 
-- A 3 instances [`gnmic` cluster](../../user_guide/HA.md),
-- A single [Prometheus output](../../user_guide/outputs/prometheus_output.md)
+- A 3 instances [`gnmic` cluster](../../../user_guide/HA.md),
+- A single [Prometheus output](../../../user_guide/outputs/prometheus_output.md)
 
 The leader election and target distribution is done with the help of a [Consul server](https://www.consul.io/docs/introhttps://www.consul.io/docs/intro)
 
@@ -16,9 +16,9 @@ The leader election and target distribution is done with the help of a [Consul s
 
 Deployment files:
 
-- [docker compose](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/2.prometheus-output/docker-compose.yaml)
-- [gnmic config](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/2.prometheus-output/gnmic.yaml)
-- [prometheus config](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/2.prometheus-output/prometheus/prometheus.yaml)
+- [docker compose](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/2.clusters/2.prometheus-output/docker-compose.yaml)
+- [gnmic config](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/2.clusters/2.prometheus-output/gnmic.yaml)
+- [prometheus config](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/2.clusters/2.prometheus-output/prometheus/prometheus.yaml)
 
 Download the files, update the `gnmic` config files with the desired subscriptions and targets.
 
@@ -28,4 +28,4 @@ Deploy it with:
 sudo docker-compose up -d
 ```
 
-Check the [Prometheus Output](../../user_guide/outputs/prometheus_output.md) documentation page for more configuration options
+Check the [Prometheus Output](../../../user_guide/outputs/prometheus_output.md) documentation page for more configuration options

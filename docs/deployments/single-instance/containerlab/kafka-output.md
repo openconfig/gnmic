@@ -23,4 +23,4 @@ Deploy it with:
 sudo docker-compose up -d
 ```
 
-Check the [Kafka Output](../../user_guide/outputs/kafka_output.md) documentation page for more configuration options
+Check the [Kafka Output](../../../user_guide/outputs/kafka_output.md) documentation page for more configuration options

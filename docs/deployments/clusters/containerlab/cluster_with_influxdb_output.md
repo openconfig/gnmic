@@ -2,8 +2,8 @@ The purpose of this deployment is to achieve __redundancy__, __high-availability
 
 This deployment example includes:
 
-- A 3 instances [`gnmic` cluster](../../user_guide/HA.md),
-- A single [InfluxDB output](../../user_guide/outputs/influxdb_output.md)
+- A 3 instances [`gnmic` cluster](../../../user_guide/HA.md),
+- A single [InfluxDB output](../../../user_guide/outputs/influxdb_output.md)
 
 The leader election and target distribution is done with the help of a [Consul server](https://www.consul.io/docs/introhttps://www.consul.io/docs/intro)
 
@@ -14,9 +14,9 @@ The leader election and target distribution is done with the help of a [Consul s
 
 Deployment files:
 
-- [docker compose](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/1.influxdb-output/docker-compose.yaml)
+- [docker compose](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/2.clusters/1.influxdb-output/docker-compose.yaml)
 
-- [gnmic config](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/1.influxdb-output/gnmic.yaml)
+- [gnmic config](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/2.clusters/1.influxdb-output/gnmic.yaml)
 
 Download the files, update the `gnmic` config files with the desired subscriptions and targets.
 
@@ -26,4 +26,4 @@ Deploy it with:
 sudo docker-compose up -d
 ```
 
-Check the [InfluxDB Output](../../user_guide/outputs/influxdb_output.md) documentation page for more configuration options
+Check the [InfluxDB Output](../../../user_guide/outputs/influxdb_output.md) documentation page for more configuration options

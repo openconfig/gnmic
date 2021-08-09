@@ -71,24 +71,45 @@ nav:
   
   - Deployment examples:
       - Deployments: deployments/deployments_intro.md
-      - Single Instance: 
-          - NATS output: deployments/docker-compose/single-instance/nats-output.md
-          - Kafka output: deployments/docker-compose/single-instance/kafka-output.md
-          - InfluxDB output: deployments/docker-compose/single-instance/influxdb-output.md
-          - Prometheus output: deployments/docker-compose/single-instance/prometheus-output.md
-          - Multiple outputs:  deployments/docker-compose/single-instance/multiple-outputs.md
+      
+      - gNMIc Single Instance:
+        - NATS Output: 
+          - Containerlab: deployments/single-instance/containerlab/nats-output.md
+          - Docker Compose: deployments/single-instance/docker-compose/nats-output.md
+        - Kafka output: 
+          - Containerlab: deployments/single-instance/containerlab/kafka-output.md
+          - Docker Compose: deployments/single-instance/docker-compose/kafka-output.md
+        - InfluxDB output: 
+          - Containerlab: deployments/single-instance/containerlab/influxdb-output.md
+          - Docker Compose: deployments/single-instance/docker-compose/influxdb-output.md
+        - Prometheus output: 
+          - Containerlab: deployments/single-instance/containerlab/prometheus-output.md
+          - Docker Compose: deployments/single-instance/docker-compose/prometheus-output.md
+        - Multiple outputs: 
+          - Containerlab: deployments/single-instance/containerlab/multiple-outputs.md
+          - Docker Compose: deployments/single-instance/docker-compose/multiple-outputs.md
+        
+      - gNMIc Cluster:
+        - InfluxDB output: 
+          - Containerlab: deployments/clusters/containerlab/cluster_with_influxdb_output.md
+          - Docker Compose: deployments/clusters/docker-compose/cluster_with_influxdb_output.md
+        - Prometheus output:
+          - Containerlab: deployments/clusters/containerlab/cluster_with_prometheus_output.md
+          - Docker Compose: deployments/clusters/docker-compose/cluster_with_prometheus_output.md
+        - Prometheus output with data replication:
+          - Containerlab: deployments/clusters/containerlab/cluster_with_nats_input_and_prometheus_output.md
+          - Docker Compose: deployments/clusters/docker-compose/cluster_with_nats_input_and_prometheus_output.md     
+      
+      - gNMIc Pipeline:
+        - NATS to Prometheus: 
+          - Docker Compose: deployments/pipelines/docker-compose/nats_prometheus.md
+        - NATS to InfluxDB: 
+          - Docker Compose: deployments/pipelines/docker-compose/nats_influxdb.md
+        - Clustered pipeline: 
+          - Docker Compose: deployments/pipelines/docker-compose/gnmic_cluster_nats_prometheus.md
+        - Forked pipeline: 
+          - Docker Compose: deployments/pipelines/docker-compose/forked_pipeline.md 
 
-      - Clusters: 
-          - InfluxDB output: deployments/docker-compose/clusters/cluster_with_influxdb_output.md
-          - Prometheus output: deployments/clusters/docker-compose/cluster_with_prometheus_output.md
-          - Prometheus output with data replication: deployments/docker-compose/clusters/cluster_with_nats_input_and_prometheus_output.md
-
-      - Pipelines:  
-          - NATS to Prometheus: deployments/docker-compose/pipelines/nats_prometheus.md
-          - NATS to InfluxDB: deployments/docker-compose/pipelines/nats_influxdb.md
-          - Clustered pipeline: deployments/docker-compose/pipelines/gnmic_cluster_nats_prometheus.md
-          - Forked pipeline: deployments/docker-compose/pipelines/forked_pipeline.md
-  
   - Command reference:
       - Capabilities: cmd/capabilities.md
       - Get: cmd/get.md

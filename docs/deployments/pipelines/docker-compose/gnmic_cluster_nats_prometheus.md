@@ -18,10 +18,10 @@ These 2 examples are essentially scaled-out versions of this [example](nats_prom
 
 Deployment files:
 
-- [docker compose](https://github.com/karimra/gnmic/blob/master/examples/deployments/3.pipelines/3a.gnmic-nats-gnmic-prometheus/docker-compose.yaml)
-- [gnmic collector config](https://github.com/karimra/gnmic/blob/master/examples/deployments/3.pipelines/3a.gnmic-cluster-nats-gnmic-prometheus/gnmic-collector.yaml)
-- [gnmic relay config](https://github.com/karimra/gnmic/blob/master/examples/deployments/3.pipelines/3a.gnmic-cluster-nats-gnmic-prometheus/gnmic-relay.yaml)
-- [prometheus config](https://github.com/karimra/gnmic/blob/master/examples/deployments/3.pipelines/3a.gnmic-cluster-nats-gnmic-prometheus/prometheus/prometheus.yaml)
+- [docker compose](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/3.pipelines/3a.gnmic-nats-gnmic-prometheus/docker-compose.yaml)
+- [gnmic collector config](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/3.pipelines/3a.gnmic-cluster-nats-gnmic-prometheus/gnmic-collector.yaml)
+- [gnmic relay config](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/3.pipelines/3a.gnmic-cluster-nats-gnmic-prometheus/gnmic-relay.yaml)
+- [prometheus config](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/3.pipelines/3a.gnmic-cluster-nats-gnmic-prometheus/prometheus/prometheus.yaml)
 
 Download the files, update the `gnmic` collectors config files with the desired subscriptions and targets.
 
@@ -31,7 +31,7 @@ Deploy it with:
 sudo docker-compose up -d
 ```
 
-Check the [Prometheus Output](../../user_guide/outputs/prometheus_output.md) and [NATS Input](../../user_guide/inputs/nats_input.md) documentation page for more configuration options
+Check the [Prometheus Output](../../../user_guide/outputs/prometheus_output.md) and [NATS Input](../../../user_guide/inputs/nats_input.md) documentation page for more configuration options
 
 ### Clustered collectors and clustered relays
 
@@ -43,10 +43,10 @@ Check the [Prometheus Output](../../user_guide/outputs/prometheus_output.md) and
 
 Deployment files:
 
-- [docker compose](https://github.com/karimra/gnmic/blob/master/examples/deployments/3.pipelines/3b.gnmic-cluster-nats-gnmic-cluster-prometheus/docker-compose.yaml)
-- [gnmic collector config](https://github.com/karimra/gnmic/blob/master/examples/deployments/3.pipelines/3b.gnmic-cluster-nats-gnmic-cluster-prometheus/gnmic-collector.yaml)
-- [gnmic relay config](https://github.com/karimra/gnmic/blob/master/examples/deployments/3.pipelines/3b.gnmic-cluster-nats-gnmic-cluster-prometheus/gnmic-relay.yaml)
-- [prometheus config](https://github.com/karimra/gnmic/blob/master/examples/deployments/3.pipelines/3b.gnmic-cluster-nats-gnmic-prometheus/prometheus/prometheus.yaml)
+- [docker compose](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/3.pipelines/3b.gnmic-cluster-nats-gnmic-cluster-prometheus/docker-compose.yaml)
+- [gnmic collector config](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/3.pipelines/3b.gnmic-cluster-nats-gnmic-cluster-prometheus/gnmic-collector.yaml)
+- [gnmic relay config](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/3.pipelines/3b.gnmic-cluster-nats-gnmic-cluster-prometheus/gnmic-relay.yaml)
+- [prometheus config](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/3.pipelines/3b.gnmic-cluster-nats-gnmic-prometheus/prometheus/prometheus.yaml)
 
 Download the files, update the `gnmic` collectors config files with the desired subscriptions and targets.
 
@@ -56,4 +56,4 @@ Deploy it with:
 sudo docker-compose up -d
 ```
 
-Check the [Prometheus Output](../../user_guide/outputs/prometheus_output.md) and [NATS Input](../../user_guide/inputs/nats_input.md) documentation page for more configuration options
+Check the [Prometheus Output](../../../user_guide/outputs/prometheus_output.md) and [NATS Input](../../../user_guide/inputs/nats_input.md) documentation page for more configuration options

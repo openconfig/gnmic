@@ -8,7 +8,7 @@ The example includes 2 `gnmic` instances.
 
 This deployment enables a few use cases:
 
-- Apply different [processors](../../user_guide/event_processors/intro.md) by the collector and relay.
+- Apply different [processors](../../../user_guide/event_processors/intro.md) by the collector and relay.
 - Scale the collector and relay separately, see this [example](gnmic_cluster_nats_prometheus.md) for a scaled-out version.
 - Fork the data into a separate pipeline for a different use case.
 
@@ -21,10 +21,10 @@ This deployment enables a few use cases:
 
 Deployment files:
 
-- [docker compose](https://github.com/karimra/gnmic/blob/master/examples/deployments/3.pipelines/1.gnmic-nats-gnmic-prometheus/docker-compose.yaml)
+- [docker compose](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/3.pipelines/1.gnmic-nats-gnmic-prometheus/docker-compose.yaml)
 
-- [gnmic collector config](https://github.com/karimra/gnmic/blob/master/examples/deployments/3.pipelines/1.gnmic-nats-gnmic-prometheus/gnmic-collector.yaml)
-- [gnmic relay config](https://github.com/karimra/gnmic/blob/master/examples/deployments/3.pipelines/1.gnmic-nats-gnmic-prometheus/gnmic-relay.yaml)
+- [gnmic collector config](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/3.pipelines/1.gnmic-nats-gnmic-prometheus/gnmic-collector.yaml)
+- [gnmic relay config](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/3.pipelines/1.gnmic-nats-gnmic-prometheus/gnmic-relay.yaml)
 
 Download the files, update the `gnmic` collector config files with the desired subscriptions and targets.
 
@@ -34,4 +34,4 @@ Deploy it with:
 sudo docker-compose up -d
 ```
 
-Check the [Prometheus Output](../../user_guide/outputs/prometheus_output.md) and [NATS Input](../../user_guide/inputs/nats_input.md) documentation page for more configuration options
+Check the [Prometheus Output](../../../user_guide/outputs/prometheus_output.md) and [NATS Input](../../../user_guide/inputs/nats_input.md) documentation page for more configuration options

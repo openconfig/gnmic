@@ -8,7 +8,7 @@ The example includes 3 `gnmic` instances.
 
 This deployment enables a few use cases:
 
-- Apply different [processors](../../user_guide/event_processors/intro.md) by the collector and relay.
+- Apply different [processors](../../../user_guide/event_processors/intro.md) by the collector and relay.
 - Scale the collector and relay separately, see this [example](gnmic_cluster_nats_prometheus.md) for a scaled-out version.
 - Fork the data into a separate pipeline for a different use case.
 
@@ -20,12 +20,12 @@ This deployment enables a few use cases:
 
 Deployment files:
 
-- [docker compose](https://github.com/karimra/gnmic/blob/master/examples/deployments/3.pipelines/4.gnmic-nats-gnmic-prometheus-gnmic-influxdb/docker-compose.yaml)
+- [docker compose](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/3.pipelines/4.gnmic-nats-gnmic-prometheus-gnmic-influxdb/docker-compose.yaml)
 
-- [gnmic collector config](https://github.com/karimra/gnmic/blob/master/examples/deployments/3.pipelines/4.gnmic-nats-gnmic-prometheus-gnmic-influxdb/gnmic-collector.yaml)
-- [gnmic relay1 config](https://github.com/karimra/gnmic/blob/master/examples/deployments/3.pipelines/4.gnmic-nats-gnmic-prometheus-gnmic-influxdb/gnmic-relay1.yaml)
-- [gnmic relay2 config](https://github.com/karimra/gnmic/blob/master/examples/deployments/3.pipelines/4.gnmic-nats-gnmic-prometheus-gnmic-influxdb/gnmic-relay2.yaml)
-- [prometheus config](https://github.com/karimra/gnmic/blob/master/examples/deployments/3.pipelines//4.gnmic-nats-gnmic-prometheus-gnmic-influxdb/prometheus/prometheus.yaml)
+- [gnmic collector config](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/3.pipelines/4.gnmic-nats-gnmic-prometheus-gnmic-influxdb/gnmic-collector.yaml)
+- [gnmic relay1 config](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/3.pipelines/4.gnmic-nats-gnmic-prometheus-gnmic-influxdb/gnmic-relay1.yaml)
+- [gnmic relay2 config](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/3.pipelines/4.gnmic-nats-gnmic-prometheus-gnmic-influxdb/gnmic-relay2.yaml)
+- [prometheus config](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/3.pipelines//4.gnmic-nats-gnmic-prometheus-gnmic-influxdb/prometheus/prometheus.yaml)
 
 Download the files, update the `gnmic` collector config files with the desired subscriptions and targets.
 
@@ -35,4 +35,4 @@ Deploy it with:
 sudo docker-compose up -d
 ```
 
-Check the [Prometheus Output](../../user_guide/outputs/prometheus_output.md) and [NATS Input](../../user_guide/inputs/nats_input.md) documentation page for more configuration options
+Check the [Prometheus Output](../../../user_guide/outputs/prometheus_output.md) and [NATS Input](../../../user_guide/inputs/nats_input.md) documentation page for more configuration options
