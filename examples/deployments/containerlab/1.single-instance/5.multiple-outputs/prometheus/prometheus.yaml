@@ -7,3 +7,5 @@ scrape_configs:
     scrape_interval: 10s 
     consul_sd_configs:
       - server: clab-gnmic_mult_outputs-consul-agent:8500
+        services:
+          - prom-output

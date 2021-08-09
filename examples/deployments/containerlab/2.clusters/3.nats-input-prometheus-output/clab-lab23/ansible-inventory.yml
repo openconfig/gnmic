@@ -1,0 +1,22 @@
+all:
+  children:
+    linux:
+      hosts:
+        clab-lab23-consul-agent:
+          ansible_host: 172.20.20.7
+        clab-lab23-gnmic1:
+          ansible_host: 172.20.20.2
+        clab-lab23-gnmic2:
+          ansible_host: 172.20.20.3
+        clab-lab23-gnmic3:
+          ansible_host: 172.20.20.4
+        clab-lab23-nats:
+          ansible_host: 172.20.20.5
+        clab-lab23-prometheus:
+          ansible_host: 172.20.20.6
+    srl:
+      hosts:
+        clab-lab23-srl1:
+          ansible_host: 172.20.20.9
+        clab-lab23-srl2:
+          ansible_host: 172.20.20.8

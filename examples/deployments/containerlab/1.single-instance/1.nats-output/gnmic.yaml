@@ -4,21 +4,12 @@ skip-verify: true
 encoding: json_ietf
 log: true
 
-#targets:
-  # Add targets configuration here
-  # e.g:
-  # 192.168.1.131:57400:
-  #   username: gnmic
-  #   password: secret_password
-  #   outputs:
-  #     - nats-output
-
 loader:
   type: docker
   filters:
     - containers:
       - label=clab-node-kind: srl
-        label=containerlab: gnmic_nats
+        label=containerlab: lab11
 
 subscriptions:
   # Add subscriptions configuration here
@@ -32,5 +23,5 @@ subscriptions:
 outputs:
   nats-output:
     type: nats
-    address: clab-gnmic_nats-nats:4222
+    address: clab-lab11-nats:4222
     subject: telemetry

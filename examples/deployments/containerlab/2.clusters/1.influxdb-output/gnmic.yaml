@@ -4,21 +4,12 @@ skip-verify: true
 encoding: json_ietf
 log: true
 
-#targets:
-  # Add targets configuration here
-  # e.g:
-  # 192.168.1.131:57400:
-  #   username: gnmic
-  #   password: secret_password
-  #   outputs:
-  #     - nats-output
-
 loader:
   type: docker
   filters:
     - containers:
       - label=clab-node-kind: srl
-        label=containerlab: gnmic-cluster1
+        label=containerlab: lab21
 
 subscriptions:
   # Add subscriptions configuration here
@@ -35,12 +26,12 @@ clustering:
   targets-watch-timer: 30s
   locker:
     type: consul
-    address: clab-gnmic-cluster1-consul-agent:8500
+    address: clab-lab21-consul-agent:8500
 
 outputs:
   influxdb-output:
     type: influxdb
-    url: http://clab-gnmic-cluster1-influxdb:8086
+    url: http://clab-lab21-influxdb:8086
     bucket: telemetry # db name
     token: gnmic:gnmic # username:password
     batch-size: 1000

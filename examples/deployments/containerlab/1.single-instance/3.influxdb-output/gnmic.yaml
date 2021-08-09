@@ -9,7 +9,7 @@ loader:
   filters:
     - containers:
       - label=clab-node-kind: srl
-        label=containerlab: gnmic-influxdb
+        label=containerlab: lab13
 
 subscriptions:
   # Add subscriptions configuration here
@@ -23,7 +23,7 @@ subscriptions:
 outputs:
   influxdb-output:
     type: influxdb
-    url: http://clab-gnmic-influxdb-influxdb:8086
+    url: http://clab-lab13-influxdb:8086
     bucket: telemetry # db name
     token: gnmic:gnmic # username:password
     batch-size: 1000

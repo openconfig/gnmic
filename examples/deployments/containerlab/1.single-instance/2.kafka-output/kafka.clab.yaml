@@ -1,4 +1,4 @@
-name: gnmic-kafka
+name: lab12
 
 topology:
   defaults:
@@ -28,8 +28,8 @@ topology:
         - 9092:9092
         - 9000:9000
       env:
-        KAFKA_CFG_ZOOKEEPER_CONNECT: clab-gnmic-kafka-zookeeper-server:2181
-        KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://clab-gnmic-kafka-server:9092
+        KAFKA_CFG_ZOOKEEPER_CONNECT: clab-lab12-zookeeper-server:2181
+        KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://clab-lab12-server:9092
         ALLOW_PLAINTEXT_LISTENER: "yes"
         JMX_PORT: 9000
 

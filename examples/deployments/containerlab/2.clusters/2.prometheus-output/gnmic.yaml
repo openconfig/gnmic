@@ -9,7 +9,7 @@ loader:
   filters:
     - containers:
       - label=clab-node-kind: srl
-        label=containerlab: gnmic-cluster2
+        label=containerlab: lab22
 
 subscriptions:
   # Add subscriptions configuration here
@@ -26,10 +26,10 @@ clustering:
   targets-watch-timer: 30s
   locker:
     type: consul
-    address: clab-gnmic-cluster2-consul-agent:8500
+    address: clab-lab22-consul-agent:8500
 
 outputs:
   output1:
     type: prometheus
     service-registration:
-      address: clab-gnmic-cluster2-consul-agent:8500
+      address: clab-lab22-consul-agent:8500

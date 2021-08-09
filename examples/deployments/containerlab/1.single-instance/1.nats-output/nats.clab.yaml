@@ -1,4 +1,4 @@
-name: gnmic_nats
+name: lab11
 
 topology:
   defaults:
@@ -22,7 +22,8 @@ topology:
       cmd: '--config /app/gnmic.yaml --log subscribe'
 
     nats:
-      kind: linux      
+      kind: linux
+      image: nats:latest  
       ports:
          - 4222:4222    
 

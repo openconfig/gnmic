@@ -1,4 +1,4 @@
-name: gnmic_influxdb
+name: lab13
 
 topology:
   defaults:

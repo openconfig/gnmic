@@ -9,7 +9,7 @@ loader:
   filters:
     - containers:
       - label=clab-node-kind: srl
-        label=containerlab: gnmic-cluster3
+        label=containerlab: lab23
       config:
         outputs:
           - nats-output
@@ -29,12 +29,12 @@ clustering:
   targets-watch-timer: 30s
   locker:
     type: consul
-    address: clab-gnmic-cluster3-consul-agent:8500
+    address: clab-lab23-consul-agent:8500
 
 inputs:
   nats-input:
     type: nats
-    address: clab-gnmic-cluster3-nats:4222
+    address: clab-lab23-nats:4222
     subject: telemetry
     outputs:
       - output1
@@ -42,11 +42,11 @@ inputs:
 outputs:
   nats-output:
     type: nats
-    address: clab-gnmic-cluster3-nats:4222
+    address: clab-lab23-nats:4222
     subject: telemetry
 
   output1:
     type: prometheus
     service-registration:
-      address: clab-gnmic-cluster3-consul-agent:8500
+      address: clab-lab23-consul-agent:8500
       use-lock: true

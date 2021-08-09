@@ -9,7 +9,7 @@ loader:
   filters:
     - containers:
       - label=clab-node-kind: srl
-        label=containerlab: gnmic-prometheus
+        label=containerlab: lab14
 
 subscriptions:
   # Add subscriptions configuration here
@@ -23,6 +23,6 @@ subscriptions:
 outputs:
   prom-output:
     type: prometheus
-    listen: "clab-gnmic-prometheus-gnmic1:9804"
+    listen: "clab-lab14-gnmic:9804"
     service-registration:
-      address: clab-gnmic-prometheus-consul-agent:8500
+      address: clab-lab14-consul-agent:8500

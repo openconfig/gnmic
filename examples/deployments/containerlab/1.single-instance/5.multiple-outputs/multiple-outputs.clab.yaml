@@ -1,4 +1,4 @@
-name: gnmic-mult-outputs
+name: lab15
 
 topology:
   defaults:
@@ -13,7 +13,7 @@ topology:
     srl1:
     srl2:
 
-    gnmic1:
+    gnmic:
       kind: linux
       image: ghcr.io/karimra/gnmic:latest
       binds:
@@ -22,7 +22,8 @@ topology:
       cmd: '--config /app/gnmic.yaml --log subscribe'
     
     nats:
-      kind: linux      
+      kind: linux
+      image: nats:latest
       ports:
          - 4222:4222        
     
@@ -32,8 +33,8 @@ topology:
       ports:
         - 9092:9092
       env:
-        KAFKA_CFG_ZOOKEEPER_CONNECT: clab-gnmic-mult-outputs-zookeeper-server:2181
-        KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://clab-gnmic-mult-outputs-server:9092
+        KAFKA_CFG_ZOOKEEPER_CONNECT: clab-lab15-zookeeper-server:2181
+        KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://clab-lab15-server:9092
         ALLOW_PLAINTEXT_LISTENER: "yes"
         JMX_PORT: 9000
 
@@ -56,7 +57,6 @@ topology:
         INFLUXDB_USER: gnmic
         INFLUXDB_USER_PASSWORD: gnmic
         INFLUXDB_DB: telemetry
-
     
     consul-agent:
       kind: linux

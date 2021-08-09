@@ -1,4 +1,4 @@
-name: gnmic-cluster3
+name: lab23
 
 topology:
   defaults:
@@ -24,9 +24,9 @@ topology:
         - 9804:9804
       env:
         GNMIC_API: :7890
-        GNMIC_CLUSTERING_INSTANCE_NAME: clab-gnmic-cluster3-gnmic1
-        GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-gnmic-cluster3-gnmic1
-        GNMIC_OUTPUTS_OUTPUT1_LISTEN: clab-gnmic-cluster3-gnmic1:9804
+        GNMIC_CLUSTERING_INSTANCE_NAME: clab-lab23-gnmic1
+        GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-lab23-gnmic1
+        GNMIC_OUTPUTS_OUTPUT1_LISTEN: clab-glab23-gnmic1:9804
       cmd: '--config /app/gnmic-config.yaml subscribe'
     
     gnmic2:
@@ -40,9 +40,9 @@ topology:
         - 9805:9805
       env:
         GNMIC_API: :7891
-        GNMIC_CLUSTERING_INSTANCE_NAME: clab-gnmic-cluster3-gnmic2
-        GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-gnmic-cluster3-gnmic2
-        GNMIC_OUTPUTS_OUTPUT1_LISTEN: clab-gnmic-cluster3-gnmic2:9805
+        GNMIC_CLUSTERING_INSTANCE_NAME: clab-lab23-gnmic2
+        GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-lab23-gnmic2
+        GNMIC_OUTPUTS_OUTPUT1_LISTEN: clab-lab23-gnmic2:9805
       cmd: '--config /app/gnmic-config.yaml subscribe'
 
     gnmic3:
@@ -56,9 +56,9 @@ topology:
         - 9806:9806
       env:
         GNMIC_API: :7892
-        GNMIC_CLUSTERING_INSTANCE_NAME: clab-gnmic-cluster3-gnmic3
-        GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-gnmic-cluster3-gnmic3
-        GNMIC_OUTPUTS_OUTPUT1_LISTEN: clab-gnmic-cluster3-gnmic3:9806
+        GNMIC_CLUSTERING_INSTANCE_NAME: clab-lab23-gnmic3
+        GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-lab23-gnmic3
+        GNMIC_OUTPUTS_OUTPUT1_LISTEN: clab-lab23-gnmic3:9806
       cmd: '--config /app/gnmic-config.yaml subscribe'
 
     consul-agent:

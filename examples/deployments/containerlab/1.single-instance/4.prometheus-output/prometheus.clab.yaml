@@ -1,5 +1,4 @@
-name: gnmic-prometheus
-
+name: lab14
 topology:
   defaults:
     kind: srl
@@ -13,7 +12,7 @@ topology:
     srl1:
     srl2:
 
-    gnmic1:
+    gnmic:
       kind: linux
       image: ghcr.io/karimra/gnmic:latest
       binds:

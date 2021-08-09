@@ -10,7 +10,7 @@ loader:
   filters:
     - containers:
       - label=clab-node-kind: srl
-        label=containerlab: gnmic-mult-outputs
+        label=containerlab: lab15
 
 subscriptions:
   # Add subscriptions configuration here
@@ -29,13 +29,13 @@ outputs:
     
   prom-output:
     type: prometheus
-    listen: "clab-gnmic-mult-outputs-gnmic1:9804"
+    listen: "clab-lab15-gnmic:9804"
     service-registration:
-      address: clab-gnmic-mult-outputs-consul-agent:8500
+      address: clab-lab15-consul-agent:8500
 
   influxdb-output:
     type: influxdb
-    url: http://clab-gnmic-mult-outputs-influxdb:8086
+    url: http://clab-lab15-influxdb:8086
     bucket: telemetry # db name
     token: gnmic:gnmic # username:password
     batch-size: 1000
@@ -43,10 +43,10 @@ outputs:
   
   kafka-output:
     type: kafka
-    address: clab-gnmic-mult-outputs-kafka-server:9092
+    address: clablab15-kafka-server:9092
     topic: telemetry
   
   nats-output:
     type: nats
-    address: clab-gnmic-mult-outputs-nats:4222
+    address: clab-lab15-nats:4222
     subject: telemetry
