@@ -14,20 +14,20 @@ If you do not not find an example that fits your need, feel free to start a disc
 ### Single Instance
 These examples showcase single `gnmic` instance deployments with the most commonly used outputs
 
-- [NATS output](single-instance/nats-output.md) 
-- [Kafka output](single-instance/kafka-output.md)
-- [InfluxDB output](single-instance/influxdb-output.md)
-- [Prometheus output](single-instance/prometheus-output.md)
-- [Multiple outputs](single-instance/multiple-outputs.md)
+- [NATS output](docker-compose/single-instance/nats-output.md) 
+- [Kafka output](docker-compose/single-instance/kafka-output.md)
+- [InfluxDB output](docker-compose/single-instance/influxdb-output.md)
+- [Prometheus output](docker-compose/single-instance/prometheus-output.md)
+- [Multiple outputs](docker-compose/single-instance/multiple-outputs.md)
 
 
 ### Clusters
 `gnmic` can also be deployed in [clustered mode](../user_guide/HA.md) to either load share the targets connections between multiple instances and offer connection resiliency,
 and/or replicate the collected data among all the cluster members
 
-- [InfluxDB output](clusters/cluster_with_influxdb_output.md)
-- [Prometheus output](clusters/cluster_with_prometheus_output.md)
-- [Prometheus output with data replication](clusters/cluster_with_nats_input_and_prometheus_output.md)
+- [InfluxDB output](docker-compose/clusters/cluster_with_influxdb_output.md)
+- [Prometheus output](docker-compose/clusters/cluster_with_prometheus_output.md)
+- [Prometheus output with data replication](docker-compose/clusters/cluster_with_nats_input_and_prometheus_output.md)
 
 
 ### Pipelines
@@ -36,7 +36,7 @@ Building data pipelines using `gnmic` is achieved using the [outputs](../user_gu
 
 You will be able to process the data in a serial fashion, split it for parallel processing or mirror it to create a forked pipeline.
 
-- [NATS to Prometheus](pipelines/nats_prometheus.md)
-- [NATS to InfluxDB](pipelines/nats_influxdb.md)
-- [Clustered pipeline](pipelines/gnmic_cluster_nats_prometheus.md)
-- [Forked pipeline](pipelines/forked_pipeline.md)
+- [NATS to Prometheus](docker-compose/pipelines/nats_prometheus.md)
+- [NATS to InfluxDB](docker-compose/pipelines/nats_influxdb.md)
+- [Clustered pipeline](docker-compose/pipelines/gnmic_cluster_nats_prometheus.md)
+- [Forked pipeline](docker-compose/pipelines/forked_pipeline.md)
