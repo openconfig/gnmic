@@ -14,6 +14,9 @@ Deployment files:
 
 - [gNMIc config](https://github.com/karimra/gnmic/blob/master/examples/deployments/1.single-instance/2.kafka-output/containerlab/gnmic.yaml)
 
+The deployed SR Linux nodes are discovered using Docker API and are loaded as gNMI targets.
+Edit the subscriptions section if needed.
+
 Deploy it with:
 
 ```bash

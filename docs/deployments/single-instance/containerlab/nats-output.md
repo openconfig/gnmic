@@ -11,11 +11,12 @@ This deployment example includes a single `gnmic` instance and a single [NATS ou
 
 Deployment files:
 
-- [containerlab](https://github.com/karimra/gnmic/blob/master/examples/deployments/containerlab/1.single-instance/1.nats-output/nats.clab.yaml)
+- [containerlab](https://github.com/karimra/gnmic/tree/master/examples/deployments/1.single-instance/1.nats-output/containerlab/nats.clab.yaml)
 
-- [gNMIc config](https://github.com/karimra/gnmic/blob/master/examples/deployments/containerlab/1.single-instance/1.nats-output/gnmic.yaml)
+- [gNMIc config](https://github.com/karimra/gnmic/tree/master/examples/deployments/1.single-instance/1.nats-output/containerlab/gnmic.yaml)
 
-Download both files, update the `gnmic` config file with the desired subscriptions and targets.
+The deployed SR Linux nodes are discovered using Docker API and are loaded as gNMI targets.
+Edit the subscriptions section if needed.
 
 Deploy it with:
 
