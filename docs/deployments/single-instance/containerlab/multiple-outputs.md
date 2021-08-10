@@ -3,11 +3,11 @@ The purpose of this deployment is to collect gNMI data and write it to multiple 
 This deployment example includes:
 
 - A single `gnmic` instance
-- A [Prometheus output](../../../user_guide/outputs/prometheus_output.md)
-- An [InfluxDB output](../../../user_guide/outputs/influxdb_output.md)
-- A [NATS output](../../../user_guide/outputs/nats_output.md)
-- A [Kafka output](../../../user_guide/outputs/kafka_output.md)
-- A [File output](../../../user_guide/outputs/file_output.md)
+- A [Prometheus](../../../user_guide/outputs/prometheus_output.md) Server
+- An [InfluxDB](../../../user_guide/outputs/influxdb_output.md) Server
+- A [NATS](../../../user_guide/outputs/nats_output.md) Server
+- A [Kafka](../../../user_guide/outputs/kafka_output.md) Server
+- A [File](../../../user_guide/outputs/file_output.md) output
 - A [Consul Agent](https://www.consul.io/docs/agent)
 - A [Grafana Server](https://grafana.com/docs/)
 
@@ -19,9 +19,13 @@ This deployment example includes:
 
 Deployment files:
 
-- [containerlab](https://github.com/karimra/gnmic/blob/master/examples/deployments/1.single-instance/5.multiple-outputs/docker-compose.yaml)
+- [containerlab](https://github.com/karimra/gnmic/blob/master/examples/deployments/1.single-instance/5.multiple-outputs/containerlab/multiple-outputs.clab.yaml)
 
-- [gNMIc config](https://github.com/karimra/gnmic/blob/master/examples/deployments/1.single-instance/5.multiple-outputs/gnmic.yaml)
+- [gNMIc config](https://github.com/karimra/gnmic/blob/master/examples/deployments/1.single-instance/5.multiple-outputs/containerlab/gnmic.yaml)
+
+- [Prometheus config](https://github.com/karimra/gnmic/blob/master/examples/deployments/1.single-instance/5.multiple-outputs/containerlab/prometheus/prometheus.yaml)
+
+- [Grafana datasource](https://github.com/karimra/gnmic/blob/master/examples/deployments/1.single-instance/5.multiple-outputs/containerlab/grafana/datasources/datasource.yaml)
 
 Deploy it with:
 
