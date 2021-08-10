@@ -1,0 +1,28 @@
+username: admin
+password: admin
+skip-verify: true
+encoding: json_ietf
+log: true
+
+loader:
+  type: docker
+  filters:
+    - containers:
+      - label=clab-node-kind: srl
+        label=containerlab: lab14
+
+subscriptions:
+  # Add subscriptions configuration here
+  # e.g:
+  sub1:
+    paths:
+      - /interface/statistics
+    stream-mode: sample
+    sample-interval: 10s
+
+outputs:
+  prom-output:
+    type: prometheus
+    listen: "clab-lab14-gnmic:9804"
+    service-registration:
+      address: clab-lab14-consul-agent:8500

@@ -1,0 +1,52 @@
+username: admin
+password: admin
+skip-verify: true
+encoding: json_ietf
+log: true
+
+
+loader:
+  type: docker
+  filters:
+    - containers:
+      - label=clab-node-kind: srl
+        label=containerlab: lab15
+
+subscriptions:
+  # Add subscriptions configuration here
+  # e.g:
+  sub1:
+    paths:
+      - /interface/statistics
+    stream-mode: sample
+    sample-interval: 10s
+
+
+outputs:
+  file-output:
+    type: file
+    filename: /app/file-out.txt
+    
+  prom-output:
+    type: prometheus
+    listen: "clab-lab15-gnmic:9804"
+    service-registration:
+      address: clab-lab15-consul-agent:8500
+
+  influxdb-output:
+    type: influxdb
+    url: http://clab-lab15-influxdb:8086
+    bucket: telemetry # db name
+    token: gnmic:gnmic # username:password
+    batch-size: 1000
+    flush-timer: 10s
+  
+  kafka-output:
+    type: kafka
+    address: clablab15-kafka-server:9092
+    topic: telemetry
+  
+  nats-output:
+    type: nats
+    address: clab-lab15-nats:4222
+    subject: telemetry

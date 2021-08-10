@@ -1,0 +1,30 @@
+username: admin
+password: admin
+skip-verify: true
+encoding: json_ietf
+log: true
+
+loader:
+  type: docker
+  filters:
+    - containers:
+      - label=clab-node-kind: srl
+        label=containerlab: lab31
+      config:
+        outputs:
+          - nats-output
+
+subscriptions:
+  # Add subscriptions configuration here
+  # e.g:
+  sub1:
+    paths:
+      - /interface/statistics
+    stream-mode: sample
+    sample-interval: 10s
+
+outputs:
+  nats-output:
+    type: nats
+    address: clab-lab31-nats:4222
+    subject: telemetry

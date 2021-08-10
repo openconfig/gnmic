@@ -1,0 +1,16 @@
+log: true
+
+inputs:
+  nats-input:
+    type: nats
+    address: clab-lab31-nats:4222
+    subject: telemetry
+    outputs:
+      - prom-output
+
+outputs:
+  prom-output:
+    type: prometheus
+    listen: "clab-lab31-gnmic-relay:9804"
+    service-registration:
+      address: clab-lab31-consul-agent:8500

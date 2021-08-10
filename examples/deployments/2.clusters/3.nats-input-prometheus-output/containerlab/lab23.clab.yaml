@@ -1,0 +1,148 @@
+name: lab23
+
+topology:
+  defaults:
+    kind: srl
+
+  kinds:
+    srl:
+      image: ghcr.io/nokia/srlinux
+
+  nodes:
+    super-spine1:
+      type: ixr6
+    super-spine2:
+      type: ixr6
+    
+    spine1:
+    spine2:
+    spine3:
+    spine4:
+
+    leaf1:
+    leaf2:
+    leaf3:
+    leaf4:
+    leaf5:
+    leaf6:
+    leaf7:
+    leaf8:
+
+    gnmic1:
+      kind: linux
+      image: ghcr.io/karimra/gnmic:latest
+      binds:
+        - ./gnmic.yaml:/app/gnmic-config.yaml:ro
+        - /var/run/docker.sock:/var/run/docker.sock
+      ports:
+        - 7890:7890
+        - 9804:9804
+      env:
+        GNMIC_API: :7890
+        GNMIC_CLUSTERING_INSTANCE_NAME: clab-lab23-gnmic1
+        GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-lab23-gnmic1
+        GNMIC_OUTPUTS_OUTPUT1_LISTEN: clab-glab23-gnmic1:9804
+      cmd: '--config /app/gnmic-config.yaml subscribe'
+    
+    gnmic2:
+      kind: linux
+      image: ghcr.io/karimra/gnmic:latest
+      binds:
+        - ./gnmic.yaml:/app/gnmic-config.yaml:ro
+        - /var/run/docker.sock:/var/run/docker.sock
+      ports:
+        - 7891:7891
+        - 9805:9805
+      env:
+        GNMIC_API: :7891
+        GNMIC_CLUSTERING_INSTANCE_NAME: clab-lab23-gnmic2
+        GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-lab23-gnmic2
+        GNMIC_OUTPUTS_OUTPUT1_LISTEN: clab-lab23-gnmic2:9805
+      cmd: '--config /app/gnmic-config.yaml subscribe'
+
+    gnmic3:
+      kind: linux
+      image: ghcr.io/karimra/gnmic:latest
+      binds:
+        - ./gnmic.yaml:/app/gnmic-config.yaml:ro
+        - /var/run/docker.sock:/var/run/docker.sock
+      ports:
+        - 7892:7892
+        - 9806:9806
+      env:
+        GNMIC_API: :7892
+        GNMIC_CLUSTERING_INSTANCE_NAME: clab-lab23-gnmic3
+        GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-lab23-gnmic3
+        GNMIC_OUTPUTS_OUTPUT1_LISTEN: clab-lab23-gnmic3:9806
+      cmd: '--config /app/gnmic-config.yaml subscribe'
+
+    consul-agent:
+      kind: linux
+      image: consul:latest
+      ports:
+        - 8500:8500
+        - 8600:8600/udp
+      cmd: 'agent -server -ui -bind=127.0.0.1 -node=server-1 -bootstrap-expect=1 -client=0.0.0.0'
+    
+    prometheus:
+      kind: linux
+      image: prom/prometheus:latest
+      user: 65534:65534
+      ports:
+        - 9090:9090
+      binds:
+        - ./prometheus/:/etc/prometheus/
+      cmd: |
+        --config.file=/etc/prometheus/prometheus.yaml
+        --web.console.libraries=/usr/share/prometheus/console_libraries
+        --web.console.templates=/usr/share/prometheus/consoles
+        --log.level=debug
+
+    nats:
+      kind: linux
+      image: nats:latest
+      ports:
+         - 4222:4222
+
+    grafana:
+      kind: linux
+      image: grafana/grafana:latest
+      binds:
+        - grafana/datasources/datasource.yaml:/etc/grafana/provisioning/datasources/datasource.yaml:ro
+        #- grafana/dashboards/:/var/lib/grafana/dashboards
+      ports:
+        - 3000:3000
+
+  links:
+    # super-spine1 links
+    - endpoints: ["super-spine1:e1-1", "spine1:e1-1"]
+    - endpoints: ["super-spine1:e1-2", "spine2:e1-1"]
+    - endpoints: ["super-spine1:e1-3", "spine3:e1-1"]
+    - endpoints: ["super-spine1:e1-4", "spine4:e1-1"]
+    # super-spine2 links
+    - endpoints: ["super-spine2:e1-1", "spine1:e1-2"]
+    - endpoints: ["super-spine2:e1-2", "spine2:e1-2"]
+    - endpoints: ["super-spine2:e1-3", "spine3:e1-2"]
+    - endpoints: ["super-spine2:e1-4", "spine4:e1-2"]
+
+    # spine1 links
+    - endpoints: ["spine1:e1-3", "leaf1:e1-1"]
+    - endpoints: ["spine1:e1-4", "leaf2:e1-1"]
+    - endpoints: ["spine1:e1-5", "leaf3:e1-1"]
+    - endpoints: ["spine1:e1-6", "leaf4:e1-1"]
+    # spine2 links
+    - endpoints: ["spine2:e1-3", "leaf1:e1-2"]
+    - endpoints: ["spine2:e1-4", "leaf2:e1-2"]
+    - endpoints: ["spine2:e1-5", "leaf3:e1-2"]
+    - endpoints: ["spine2:e1-6", "leaf4:e1-2"]
+    # spine3 links
+    - endpoints: ["spine3:e1-3", "leaf5:e1-1"]
+    - endpoints: ["spine3:e1-4", "leaf6:e1-1"]
+    - endpoints: ["spine3:e1-5", "leaf7:e1-1"]
+    - endpoints: ["spine3:e1-6", "leaf8:e1-1"]
+    # spine4 links
+    - endpoints: ["spine4:e1-3", "leaf5:e1-2"]
+    - endpoints: ["spine4:e1-4", "leaf6:e1-2"]
+    - endpoints: ["spine4:e1-5", "leaf7:e1-2"]
+    - endpoints: ["spine4:e1-6", "leaf8:e1-2"]
+
