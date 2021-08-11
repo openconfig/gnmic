@@ -64,8 +64,8 @@ func (a *App) inCluster() bool {
 	return !(a.Config.Clustering == nil)
 }
 
-func (a *App) serviceRegistration() {
-	addr, port, _ := net.SplitHostPort(a.Config.API)
+func (a *App) apiServiceRegistration() {
+	addr, port, _ := net.SplitHostPort(a.Config.APIServer.Address)
 	p, _ := strconv.Atoi(port)
 
 	tags := make([]string, 0, 2+len(a.Config.Clustering.Tags))
@@ -108,7 +108,7 @@ func (a *App) startCluster() {
 	}
 
 	// register api service
-	go a.serviceRegistration()
+	go a.apiServiceRegistration()
 
 	leaderKey := a.leaderKey()
 	var err error

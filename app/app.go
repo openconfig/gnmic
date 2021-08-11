@@ -26,6 +26,7 @@ import (
 	"github.com/openconfig/gnmi/match"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/goyang/pkg/yang"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"golang.org/x/sync/semaphore"
@@ -56,6 +57,8 @@ type App struct {
 	apiServices map[string]*lockers.Service
 	isLeader    bool
 	httpClient  *http.Client
+	// prometheus registry
+	reg *prometheus.Registry
 	//
 	Logger *log.Logger
 	out    io.Writer
@@ -128,7 +131,6 @@ func (a *App) InitGlobalFlags() {
 	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.LogFile, "log-file", "", "", "log file path")
 	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.Log, "log", "", false, "write log messages to stderr")
 	a.RootCmd.PersistentFlags().IntVarP(&a.Config.GlobalFlags.MaxMsgSize, "max-msg-size", "", msgSize, "max grpc msg size")
-	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.PrometheusAddress, "prometheus-address", "", "", "prometheus server address")
 	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.PrintRequest, "print-request", "", false, "print request as well as the response(s)")
 	a.RootCmd.PersistentFlags().DurationVarP(&a.Config.GlobalFlags.Retry, "retry", "", defaultRetryTimer, "retry timer for RPCs")
 	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.TLSMinVersion, "tls-min-version", "", "", fmt.Sprintf("minimum TLS supported version, one of %q", tlsVersions))
@@ -389,19 +391,28 @@ func (a *App) loadTargets(e fsnotify.Event) {
 }
 
 func (a *App) startAPI() {
-	if a.Config.API == "" {
+	if a.Config.APIServer == nil {
 		return
 	}
-	a.routes()
-	s := &http.Server{
-		Addr:    a.Config.API,
-		Handler: a.router,
+	s, err := a.newAPIServer()
+	if err != nil {
+		a.Logger.Printf("failed to create a new API server: %v", err)
+		return
 	}
 	go func() {
-		err := s.ListenAndServe()
-		if err != nil {
-			a.Logger.Printf("API server err: %v", err)
-			return
+		var err error
+		if s.TLSConfig != nil {
+			err = s.ListenAndServeTLS("", "")
+			if err != nil {
+				a.Logger.Printf("API server err: %v", err)
+				return
+			}
+		} else {
+			err = s.ListenAndServe()
+			if err != nil {
+				a.Logger.Printf("API server err: %v", err)
+				return
+			}
 		}
 	}()
 }

@@ -207,10 +207,6 @@ The password flag `[-p | --password]` is used to specify the target password as 
 
 Note that in case multiple targets are used, all should use the same credentials.
 
-### prometheus-address
-
-The prometheus-address flag `[--prometheus-address]` allows starting a prometheus server that can be scraped by a prometheus client. It exposes metrics like memory, CPU and file descriptor usage.
-
 ### proto-dir
 
 The `[--proto-dir]` flag is used to specify a list of directories where `gnmic` will search for the proto file names specified with `--proto-file`.

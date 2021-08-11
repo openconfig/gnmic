@@ -9,7 +9,6 @@ require (
 	github.com/Shopify/sarama v1.26.4
 	github.com/adrg/xdg v0.3.0
 	github.com/c-bata/go-prompt v0.2.5
-	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/containerd/containerd v1.5.4 // indirect
 	github.com/damiannolan/sasl v1.0.0
 	github.com/docker/docker v20.10.7+incompatible
@@ -22,7 +21,7 @@ require (
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
-	github.com/hashicorp/consul/api v1.1.0
+	github.com/hashicorp/consul/api v1.3.0
 	github.com/huandu/xstrings v1.3.2 // indirect
 	github.com/influxdata/influxdb-client-go/v2 v2.0.1
 	github.com/itchyny/gojq v0.12.2
@@ -42,7 +41,7 @@ require (
 	github.com/olekukonko/tablewriter v0.0.4
 	github.com/openconfig/gnmi v0.0.0-20210707145734-c69a5df04b53
 	github.com/openconfig/goyang v0.2.7
-	github.com/prometheus/client_golang v1.7.1
+	github.com/prometheus/client_golang v1.8.0
 	github.com/prometheus/client_model v0.2.0
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/pflag v1.0.5
