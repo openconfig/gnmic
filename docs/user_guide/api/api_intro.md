@@ -2,6 +2,8 @@ A limited set of REST endpoints are supported, these are mainly used to allow fo
 
 The API can be used to automate (to a certain extent) the targets configuration loading and starting/stopping subscriptions.
 
+## Configuration
+
 Enabling the API server can be done via a command line flag:
 
 ```bash
@@ -16,7 +18,8 @@ Or via file configuration, by adding the below line to the config file:
 api: ":7890"
 ```
 
-More advanced API configuration can be achieved by setting the `api-server` yaml dictionary
+More advanced API configuration options (like a secure API Server)
+can be achieved by setting the fields under `api-server`.
 
 ```yaml
 api-server:
@@ -29,7 +32,8 @@ api-server:
   timeout: 10s
   # boolean, if true, the server will not verify the client's certificates
   skip-verify: false
-  # path to the CA certificate file to be used, irrelevant if `skip-verify` is true
+  # path to the CA certificate file to be used, 
+  # irrelevant if `skip-verify` is true
   ca-file: 
   # path to the server certificate file
   cert-file:

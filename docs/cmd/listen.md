@@ -9,28 +9,39 @@
 
 ### Usage
 
-```
+```bash
 gnmic listen [global flags] [local flags]
 ```
 
 ### Flags
+
 #### address
+
 The address flag `[-a | --address]` tells `gnmic` which address to bind an internal server to in an `address:port` format, e.g.: `0.0.0.0:57400`.
 
 #### tls-cert
+
 Path to the TLS certificate can be supplied with `--tls-cert` flag.
 
 #### tls-key
+
 Path to the private key can be supplied with `--tls-key` flag.
 
 #### max-concurrent-streams
+
 To limit the maximum number of concurrent HTTP2 streams use the `--max-concurrent-streams` flag, the default value is 256.
 
+### prometheus-address
+
+The prometheus-address flag `[--prometheus-address]` allows starting a prometheus server that can be scraped by a prometheus client. It exposes metrics like memory, CPU and file descriptor usage.
+
 ### Examples
+
 #### TLS disabled server
+
 To start `gnmic` as a server listening on all interfaces without TLS support is as simple as:
 
-```
+```bash
 gnmic listen -a 0.0.0.0:57400
 ```
 
@@ -51,9 +62,10 @@ gnmic listen -a 0.0.0.0:57400
     ```
 
 #### TLS enabled server
+
 By using [tls-cert](#tls-cert) and [tls-key](#tls-key) flags it is possible to run `gnmic` with TLS.
 
-```
+```bash
 gnmic listen -a 0.0.0.0:57400 --tls-cert gnmic.pem --tls-key gnmic-key.pem
 ```
 
