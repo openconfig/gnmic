@@ -124,12 +124,12 @@ func newListenCmd() *cobra.Command {
 			server.grpcServer = grpc.NewServer(opts...)
 			nokiasros.RegisterDialoutTelemetryServer(server.grpcServer, server)
 
-			if gApp.Config.PrometheusAddress != "" {
+			if gApp.Config.LocalFlags.ListenPrometheusAddress != "" {
 				grpc_prometheus.Register(server.grpcServer)
 
 				httpServer := &http.Server{
 					Handler: promhttp.Handler(),
-					Addr:    gApp.Config.PrometheusAddress,
+					Addr:    gApp.Config.LocalFlags.ListenPrometheusAddress,
 				}
 				go func() {
 					if err := httpServer.ListenAndServe(); err != nil {
@@ -138,7 +138,7 @@ func newListenCmd() *cobra.Command {
 				}()
 				defer httpServer.Close()
 			}
-			
+
 			server.grpcServer.Serve(server.listener)
 			defer server.grpcServer.Stop()
 			return nil
@@ -146,7 +146,9 @@ func newListenCmd() *cobra.Command {
 		SilenceUsage: true,
 	}
 	cmd.Flags().Uint32P("max-concurrent-streams", "", 256, "max concurrent streams gnmic can receive per transport")
+	cmd.Flags().StringP("prometheus-address", "", "", "prometheus server address")
 	gApp.Config.FileConfig.BindPFlag("listen-max-concurrent-streams", cmd.LocalFlags().Lookup("max-concurrent-streams"))
+	gApp.Config.FileConfig.BindPFlag("listen-prometheus-address", cmd.LocalFlags().Lookup("prometheus-address"))
 	return cmd
 }
 

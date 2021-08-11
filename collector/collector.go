@@ -7,7 +7,6 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -25,7 +24,6 @@ import (
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 )
@@ -39,7 +37,6 @@ const (
 // Config is the collector config
 type Config struct {
 	Name                string
-	PrometheusAddress   string
 	Debug               bool
 	Format              string
 	TargetReceiveBuffer uint
@@ -69,7 +66,6 @@ type Collector struct {
 
 	EventProcessorsConfig map[string]map[string]interface{}
 	logger                *log.Logger
-	httpServer            *http.Server
 	reg                   *prometheus.Registry
 
 	targetsChan    chan *target.Target
@@ -82,7 +78,6 @@ type Collector struct {
 
 // New //
 func New(config *Config, targetConfigs map[string]*types.TargetConfig, opts ...CollectorOption) *Collector {
-	var httpServer *http.Server
 	if config.TargetReceiveBuffer == 0 {
 		config.TargetReceiveBuffer = defaultTargetReceivebuffer
 	}
@@ -99,7 +94,6 @@ func New(config *Config, targetConfigs map[string]*types.TargetConfig, opts ...C
 		Targets:        make(map[string]*target.Target),
 		Outputs:        make(map[string]outputs.Output),
 		Inputs:         make(map[string]inputs.Input),
-		httpServer:     httpServer,
 		targetsChan:    make(chan *target.Target),
 		activeTargets:  make(map[string]struct{}),
 		targetsLocksFn: make(map[string]context.CancelFunc),
@@ -110,19 +104,10 @@ func New(config *Config, targetConfigs map[string]*types.TargetConfig, opts ...C
 	if config.Debug {
 		c.logger.Printf("starting collector with cfg=%+v", config)
 	}
-	if config.PrometheusAddress != "" {
+	if c.reg != nil {
 		grpcMetrics := grpc_prometheus.NewClientMetrics()
-		c.reg = prometheus.NewRegistry()
-		c.reg.MustRegister(prometheus.NewGoCollector())
-		c.reg.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
 		grpcMetrics.EnableClientHandlingTimeHistogram()
 		c.reg.MustRegister(grpcMetrics)
-		handler := http.NewServeMux()
-		handler.Handle("/metrics", promhttp.HandlerFor(c.reg, promhttp.HandlerOpts{}))
-		c.httpServer = &http.Server{
-			Handler: handler,
-			Addr:    config.PrometheusAddress,
-		}
 		c.dialOpts = append(c.dialOpts, grpc.WithStreamInterceptor(grpcMetrics.StreamClientInterceptor()))
 	}
 
@@ -184,6 +169,12 @@ func WithProtoDescriptor(d desc.Descriptor) CollectorOption {
 func WithCache(ch *cache.Cache) CollectorOption {
 	return func(c *Collector) {
 		c.cache = ch
+	}
+}
+
+func WithPrometheusRegistry(reg *prometheus.Registry) CollectorOption {
+	return func(c *Collector) {
+		c.reg = reg
 	}
 }
 
@@ -560,17 +551,6 @@ func (c *Collector) SubscribeOnce(ctx context.Context, tName string) error {
 
 // Start start the prometheus server as well as a goroutine per target selecting on the response chan, the error chan and the ctx.Done() chan
 func (c *Collector) Start(ctx context.Context) {
-	if c.httpServer != nil {
-		go func() {
-			c.logger.Printf("starting prometheus server on %s", c.httpServer.Addr)
-			err := c.httpServer.ListenAndServe()
-			if err != nil {
-				c.logger.Printf("Unable to start prometheus http server: %v", err)
-				return
-			}
-		}()
-	}
-
 	defer func() {
 		for _, o := range c.Outputs {
 			o.Close()

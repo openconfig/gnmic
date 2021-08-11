@@ -15,6 +15,7 @@ import (
 	"github.com/karimra/gnmic/types"
 	"github.com/manifoldco/promptui"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -52,6 +53,10 @@ func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	err = a.Config.GetGNMIServer()
+	if err != nil {
+		return err
+	}
+	err = a.Config.GetAPIServer()
 	if err != nil {
 		return err
 	}
@@ -261,12 +266,15 @@ func (a *App) createCollectorOpts(cmd *cobra.Command) ([]collector.CollectorOpti
 	if a.Config.GnmiServer != nil {
 		opts = append(opts, collector.WithCache(a.c))
 	}
+	if a.Config.APIServer != nil && a.Config.APIServer.EnableMetrics {
+		a.reg = prometheus.NewRegistry()
+		opts = append(opts, collector.WithPrometheusRegistry(a.reg))
+	}
 	return opts, nil
 }
 
 func (a *App) collectorConfig() *collector.Config {
 	cfg := &collector.Config{
-		PrometheusAddress:   a.Config.PrometheusAddress,
 		Debug:               a.Config.Debug,
 		Format:              a.Config.Format,
 		TargetReceiveBuffer: a.Config.TargetBufferSize,

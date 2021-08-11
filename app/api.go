@@ -10,7 +10,35 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/karimra/gnmic/config"
 	"github.com/karimra/gnmic/types"
+	"github.com/karimra/gnmic/utils"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
+
+func (a *App) newAPIServer() (*http.Server, error) {
+	a.routes()
+	tlscfg, err := utils.NewTLSConfig(a.Config.APIServer.CaFile, a.Config.APIServer.CertFile, a.Config.APIServer.KeyFile, a.Config.APIServer.SkipVerify)
+	if err != nil {
+		return nil, err
+	}
+	if a.Config.APIServer.EnableMetrics {
+		a.router.Handle("/metrics", promhttp.HandlerFor(a.reg, promhttp.HandlerOpts{}))
+		a.reg.MustRegister(prometheus.NewGoCollector())
+		a.reg.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
+	}
+	s := &http.Server{
+		Addr:         a.Config.APIServer.Address,
+		Handler:      a.router,
+		ReadTimeout:  a.Config.APIServer.Timeout / 2,
+		WriteTimeout: a.Config.APIServer.Timeout / 2,
+	}
+
+	if tlscfg != nil {
+		s.TLSConfig = tlscfg
+	}
+
+	return s, nil
+}
 
 type APIErrors struct {
 	Errors []string `json:"errors,omitempty"`

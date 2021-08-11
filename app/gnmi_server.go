@@ -2,13 +2,10 @@ package app
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"strings"
 	"sync"
@@ -106,44 +103,23 @@ func (a *App) startGnmiServer() {
 
 func (a *App) gRPCServerOpts() ([]grpc.ServerOption, error) {
 	opts := make([]grpc.ServerOption, 0)
-	if a.Config.GnmiServer.EnableMetrics {
+	if a.Config.GnmiServer.EnableMetrics && a.reg != nil {
+		grpcMetrics := grpc_prometheus.NewServerMetrics()
 		opts = append(opts,
-			grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor),
-			grpc.UnaryInterceptor(grpc_prometheus.UnaryServerInterceptor),
+			grpc.StreamInterceptor(grpcMetrics.StreamServerInterceptor()),
+			grpc.UnaryInterceptor(grpcMetrics.UnaryServerInterceptor()),
 		)
+		a.reg.MustRegister(grpcMetrics)
 	}
-	if a.Config.GnmiServer.SkipVerify || a.Config.GnmiServer.CaFile != "" || (a.Config.GnmiServer.CertFile != "" && a.Config.GnmiServer.KeyFile != "") {
-		tlscfg := &tls.Config{
-			Renegotiation:      tls.RenegotiateNever,
-			InsecureSkipVerify: a.Config.GnmiServer.SkipVerify,
-		}
-		if a.Config.GnmiServer.CertFile != "" && a.Config.GnmiServer.KeyFile != "" {
-			certificate, err := tls.LoadX509KeyPair(a.Config.GnmiServer.CertFile, a.Config.GnmiServer.KeyFile)
-			if err != nil {
-				return nil, err
-			}
-			tlscfg.Certificates = []tls.Certificate{certificate}
-			// tlscfg.BuildNameToCertificate()
-		} else {
-			cert, err := utils.SelfSignedCerts()
-			if err != nil {
-				return nil, err
-			}
-			tlscfg.Certificates = []tls.Certificate{cert}
-		}
-		if a.Config.GnmiServer.CaFile != "" {
-			certPool := x509.NewCertPool()
-			caFile, err := ioutil.ReadFile(a.Config.GnmiServer.CaFile)
-			if err != nil {
-				return nil, err
-			}
-			if ok := certPool.AppendCertsFromPEM(caFile); !ok {
-				return nil, errors.New("failed to append certificate")
-			}
-			tlscfg.RootCAs = certPool
-		}
+
+	tlscfg, err := utils.NewTLSConfig(a.Config.GnmiServer.CaFile, a.Config.GnmiServer.CertFile, a.Config.GnmiServer.KeyFile, a.Config.GnmiServer.SkipVerify)
+	if err != nil {
+		return nil, err
+	}
+	if tlscfg != nil {
 		opts = append(opts, grpc.Creds(credentials.NewTLS(tlscfg)))
 	}
+
 	return opts, nil
 }
 
