@@ -13,6 +13,10 @@ const (
 	minimumSampleInterval    = 1 * time.Millisecond
 	defaultSampleInterval    = 1 * time.Second
 	minimumHeartbeatInterval = 1 * time.Second
+	//
+	defaultServiceRegistrationAddress = "localhost:8500"
+	defaultRegistrationCheckInterval  = 5 * time.Second
+	defaultMaxServiceFail             = 3
 )
 
 type gnmiServer struct {
@@ -30,6 +34,24 @@ type gnmiServer struct {
 	//
 	EnableMetrics bool `mapstructure:"enable-metrics,omitempty"`
 	Debug         bool `mapstructure:"debug,omitempty"`
+	// ServiceRegistration
+	ServiceRegistration *serviceRegistration `mapstructure:"service-registration,omitempty"`
+}
+
+type serviceRegistration struct {
+	Address       string        `mapstructure:"address,omitempty"`
+	Datacenter    string        `mapstructure:"datacenter,omitempty"`
+	Username      string        `mapstructure:"username,omitempty"`
+	Password      string        `mapstructure:"password,omitempty"`
+	Token         string        `mapstructure:"token,omitempty"`
+	Name          string        `mapstructure:"name,omitempty"`
+	CheckInterval time.Duration `mapstructure:"check-interval,omitempty"`
+	MaxFail       int           `mapstructure:"max-fail,omitempty"`
+	Tags          []string      `mapstructure:"tags,omitempty"`
+	//
+	DeregisterAfter string `mapstructure:"-"`
+	GNMIAddress     string `mapstructure:"-"`
+	GNMIPort        int    `mapstructure:"-"`
 }
 
 func (c *Config) GetGNMIServer() error {
@@ -64,6 +86,21 @@ func (c *Config) GetGNMIServer() error {
 	c.GnmiServer.EnableMetrics = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/enable-metrics")) == "true"
 	c.GnmiServer.Debug = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/debug")) == "true"
 	c.setGnmiServerDefaults()
+
+	if !c.FileConfig.IsSet("gnmi-server/service-registration") {
+		return nil
+	}
+	c.GnmiServer.ServiceRegistration = new(serviceRegistration)
+	c.GnmiServer.ServiceRegistration.Address = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/service-registration/address"))
+	c.GnmiServer.ServiceRegistration.Datacenter = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/service-registration/datacenter"))
+	c.GnmiServer.ServiceRegistration.Username = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/service-registration/username"))
+	c.GnmiServer.ServiceRegistration.Password = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/service-registration/password"))
+	c.GnmiServer.ServiceRegistration.Token = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/service-registration/token"))
+	c.GnmiServer.ServiceRegistration.Name = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/service-registration/name"))
+	c.GnmiServer.ServiceRegistration.CheckInterval = c.FileConfig.GetDuration("gnmi-server/service-registration/check-interval")
+	c.GnmiServer.ServiceRegistration.MaxFail = c.FileConfig.GetInt("gnmi-server/service-registration/max-fail")
+	c.GnmiServer.ServiceRegistration.Tags = c.FileConfig.GetStringSlice("gnmi-server/service-registration/tags")
+	c.setGnmiServerServiceRegistrationDefaults()
 	return nil
 }
 
@@ -86,4 +123,18 @@ func (c *Config) setGnmiServerDefaults() {
 	if c.GnmiServer.MinHeartbeatInterval <= 0 {
 		c.GnmiServer.MinHeartbeatInterval = minimumHeartbeatInterval
 	}
+}
+
+func (c *Config) setGnmiServerServiceRegistrationDefaults() {
+	if c.GnmiServer.ServiceRegistration.Address == "" {
+		c.GnmiServer.ServiceRegistration.Address = defaultServiceRegistrationAddress
+	}
+	if c.GnmiServer.ServiceRegistration.CheckInterval <= 5*time.Second {
+		c.GnmiServer.ServiceRegistration.CheckInterval = defaultRegistrationCheckInterval
+	}
+	if c.GnmiServer.ServiceRegistration.MaxFail <= 0 {
+		c.GnmiServer.ServiceRegistration.MaxFail = defaultMaxServiceFail
+	}
+	deregisterTimer := c.GnmiServer.ServiceRegistration.CheckInterval * time.Duration(c.GnmiServer.ServiceRegistration.MaxFail)
+	c.GnmiServer.ServiceRegistration.DeregisterAfter = deregisterTimer.String()
 }
