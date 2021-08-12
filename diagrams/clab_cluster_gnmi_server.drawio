@@ -1,4 +1,4 @@
-<mxfile host="app.diagrams.net" modified="2021-08-12T14:25:51.332Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.131 Safari/537.36" etag="G8zdFX3VCW0VBzCSBkKv" version="14.9.3" type="github">
+<mxfile host="app.diagrams.net" modified="2021-08-12T14:26:46.073Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.131 Safari/537.36" etag="QzPUEiGrkRaSwGsoajGX" version="14.9.3" type="github">
   <diagram id="GwjLzG_SBHwtGEeClZuq" name="Page-1">
     <mxGraphModel dx="1426" dy="1117" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="900" pageHeight="400" math="0" shadow="0">
       <root>
@@ -963,6 +963,9 @@
         </mxCell>
         <mxCell id="_lcrcqvGePs-DWKDHPAt-174" value="prometheus output registration" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Manrope;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DManrope;fontSize=10;" vertex="1" parent="1">
           <mxGeometry x="510.00000000000006" y="-82.5" width="125" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="_lcrcqvGePs-DWKDHPAt-175" value="gNMI" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;labelBackgroundColor=none;fontFamily=Manrope;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DManrope;" vertex="1" parent="1">
+          <mxGeometry x="404" y="-30" width="40" height="20" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
