@@ -1,0 +1,37 @@
+username: admin
+password: admin
+skip-verify: true
+encoding: json_ietf
+log: true
+
+loader:
+  type: docker
+  filters:
+    - containers:
+      - label=clab-node-kind: srl
+        label=containerlab: lab24
+
+subscriptions:
+  # Add subscriptions configuration here
+  # e.g:
+  sub1:
+    paths:
+      - /interface/statistics
+    stream-mode: sample
+    sample-interval: 10s
+
+api-server:
+  enable-metrics: true
+  
+# clustering config
+clustering:
+  cluster-name: cluster2
+  targets-watch-timer: 30s
+  locker:
+    type: consul
+    address: clab-lab24-consul-agent:8500
+
+gnmi-server:
+  enable-metrics: true
+  service-registration:
+    address: clab-lab24-consul-agent:8500

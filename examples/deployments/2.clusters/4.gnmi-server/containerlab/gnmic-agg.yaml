@@ -1,0 +1,27 @@
+log: true
+
+loader:
+  type: docker
+  filters:
+    - containers:
+        - name: gnmic
+      config:
+        insecure: true
+
+subscriptions:
+  # Add subscriptions configuration here
+  # e.g:
+  sub1:
+    paths:
+      - /
+    stream-mode: on-change
+
+api-server:
+  enable-metrics: true
+  
+outputs:
+  output1:
+    type: prometheus
+    listen: clab-lab24-agg-gnmic:9804
+    service-registration:
+      address: clab-lab24-consul-agent:8500
