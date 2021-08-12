@@ -75,7 +75,7 @@ func (a *App) apiServiceRegistration() {
 
 	serviceReg := &lockers.ServiceRegistration{
 		ID:      a.Config.Clustering.InstanceName + "-api",
-		Name:    apiServiceName,
+		Name:    fmt.Sprintf("%s-%s", a.Config.Clustering.ClusterName, apiServiceName),
 		Address: a.Config.Clustering.ServiceAddress,
 		Port:    p,
 		Tags:    tags,
@@ -154,6 +154,7 @@ START:
 }
 
 func (a *App) watchMembers(ctx context.Context) {
+	serviceName := fmt.Sprintf("%s-%s", a.Config.Clustering.ClusterName, apiServiceName)
 START:
 	select {
 	case <-ctx.Done():
@@ -173,7 +174,7 @@ START:
 				}
 			}
 		}()
-		err := a.locker.WatchServices(a.ctx, apiServiceName, []string{"cluster-name=" + a.Config.Clustering.ClusterName}, membersChan, a.Config.Clustering.ServicesWatchTimer)
+		err := a.locker.WatchServices(a.ctx, serviceName, []string{"cluster-name=" + a.Config.Clustering.ClusterName}, membersChan, a.Config.Clustering.ServicesWatchTimer)
 		if err != nil {
 			a.Logger.Printf("failed getting services: %v", err)
 			time.Sleep(retryTimer)

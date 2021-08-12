@@ -7,11 +7,13 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/hashicorp/consul/api"
 	"github.com/karimra/gnmic/target"
 	"github.com/karimra/gnmic/types"
 	"github.com/karimra/gnmic/utils"
@@ -98,7 +100,111 @@ func (a *App) startGnmiServer() {
 
 	a.grpcSrv = grpc.NewServer(opts...)
 	gnmi.RegisterGNMIServer(a.grpcSrv, a)
-	go a.grpcSrv.Serve(l)
+	//
+	ctx, cancel := context.WithCancel(a.ctx)
+	go func() {
+		err = a.grpcSrv.Serve(l)
+		if err != nil {
+			a.Logger.Printf("gRPC server shutdown: %v", err)
+		}
+		cancel()
+	}()
+	go a.registerGNMIServer(ctx)
+}
+
+func (a *App) registerGNMIServer(ctx context.Context) {
+	if a.Config.GnmiServer.ServiceRegistration == nil {
+		return
+	}
+	var err error
+	clientConfig := &api.Config{
+		Address:    a.Config.GnmiServer.ServiceRegistration.Address,
+		Scheme:     "http",
+		Datacenter: a.Config.GnmiServer.ServiceRegistration.Datacenter,
+		Token:      a.Config.GnmiServer.ServiceRegistration.Token,
+	}
+	if a.Config.GnmiServer.ServiceRegistration.Username != "" && a.Config.GnmiServer.ServiceRegistration.Password != "" {
+		clientConfig.HttpAuth = &api.HttpBasicAuth{
+			Username: a.Config.GnmiServer.ServiceRegistration.Username,
+			Password: a.Config.GnmiServer.ServiceRegistration.Password,
+		}
+	}
+INITCONSUL:
+	consulClient, err := api.NewClient(clientConfig)
+	if err != nil {
+		a.Logger.Printf("failed to connect to consul: %v", err)
+		time.Sleep(1 * time.Second)
+		goto INITCONSUL
+	}
+	self, err := consulClient.Agent().Self()
+	if err != nil {
+		a.Logger.Printf("failed to connect to consul: %v", err)
+		time.Sleep(1 * time.Second)
+		goto INITCONSUL
+	}
+	if cfg, ok := self["Config"]; ok {
+		b, _ := json.Marshal(cfg)
+		a.Logger.Printf("consul agent config: %s", string(b))
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	h, p, err := net.SplitHostPort(a.Config.GnmiServer.Address)
+	if err != nil {
+		a.Logger.Printf("failed to split host and port from gNMI server address %q: %v", a.Config.GnmiServer.Address, err)
+		return
+	}
+	pi, _ := strconv.Atoi(p)
+	service := &api.AgentServiceRegistration{
+		ID:      a.Config.GnmiServer.ServiceRegistration.Name,
+		Name:    a.Config.GnmiServer.ServiceRegistration.Name,
+		Address: h,
+		Port:    pi,
+		Tags:    a.Config.GnmiServer.ServiceRegistration.Tags,
+		Checks: api.AgentServiceChecks{
+			{
+				TTL:                            a.Config.GnmiServer.ServiceRegistration.CheckInterval.String(),
+				DeregisterCriticalServiceAfter: a.Config.GnmiServer.ServiceRegistration.DeregisterAfter,
+			},
+		},
+	}
+	if a.Config.Clustering != nil {
+		service.ID = a.Config.Clustering.InstanceName
+		service.Name = a.Config.Clustering.ClusterName + "-gnmi-server"
+		if service.Tags == nil {
+			service.Tags = make([]string, 0)
+		}
+		service.Tags = append(service.Tags, fmt.Sprintf("cluster-name=%s", a.Config.Clustering.ClusterName))
+		service.Tags = append(service.Tags, fmt.Sprintf("instance-name=%s", a.Config.Clustering.InstanceName))
+	}
+	//
+	ttlCheckID := "service:" + service.ID
+	b, _ := json.Marshal(service)
+	a.Logger.Printf("registering service: %s", string(b))
+	err = consulClient.Agent().ServiceRegister(service)
+	if err != nil {
+		a.Logger.Printf("failed to register service in consul: %v", err)
+		return
+	}
+
+	err = consulClient.Agent().UpdateTTL(ttlCheckID, "", api.HealthPassing)
+	if err != nil {
+		a.Logger.Printf("failed to pass TTL check: %v", err)
+	}
+	ticker := time.NewTicker(a.Config.GnmiServer.ServiceRegistration.CheckInterval / 2)
+	for {
+		select {
+		case <-ticker.C:
+			err = consulClient.Agent().UpdateTTL(ttlCheckID, "", api.HealthPassing)
+			if err != nil {
+				a.Logger.Printf("failed to pass TTL check: %v", err)
+			}
+		case <-ctx.Done():
+			consulClient.Agent().UpdateTTL(ttlCheckID, ctx.Err().Error(), api.HealthCritical)
+			ticker.Stop()
+			goto INITCONSUL
+		}
+	}
 }
 
 func (a *App) gRPCServerOpts() ([]grpc.ServerOption, error) {
