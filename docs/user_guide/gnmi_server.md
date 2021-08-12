@@ -4,7 +4,7 @@
 
 On top of acting as `gNMI` client `gNMIc` can run a `gNMI` server that supports `Get`, `Set` and `Subscribe` RPCs.
 
-The goal is to act as a caching point for the collected gNMI notification and make them available to other collectors via the `Subscribe` RPC.
+The goal is to act as a caching point for the collected gNMI notifications and make them available to other collectors via the `Subscribe` RPC.
 
 Using this gNMI server feature it is possible to build `gNMI` based clusters and pipelines with `gNMIc`.
 
@@ -15,6 +15,17 @@ Using this gNMI server feature it is possible to build `gNMI` based clusters and
 The server keeps a cache of the gNMI notifications received from the defined subscriptions and utilizes it to build the `Subscribe` RPC responses.
 
 The unary RPCs, Get and Set, are relayed to known targets based on the `Prefix.Target` field.
+
+## Supported features
+
+- Supports gNMI RPCs, Get, Set, Subscribe
+- Acts as a gNMI gateway for Get and Set RPCs.
+- Supports Service registration with Consul server.
+- Supports all types of gNMI subscriptions, `once`, `poll`, `stream`.
+- Supports all types of `stream` subscriptions, `on-change`, `target-defined` and `sample`.
+- Supports `updates-only` with `stream` and `once` subscriptions.
+- Supports `suppress-redundant`.
+- Supports `heartbeat-interval` with `on-change` and `sample` stream subscriptions.
 
 ## Get RPC
 
@@ -170,6 +181,31 @@ gnmi-server:
   enable-metrics: false
   # enable additional debug logs
   debug: false
+  # Enables Consul service registration
+  service-registration:
+    # Consul server address, default to localhost:8500
+    address:
+    # Consul Data center, defaults to dc1
+    datacenter: 
+    # Consul username, to be used as part of HTTP basicAuth
+    username:
+    # Consul password, to be used as part of HTTP basicAuth
+    password:
+    # Consul Token, is used to provide a per-request ACL token 
+    # which overrides the agent's default token
+    token:
+    # gnmi server service check interval, only TTL Consul check is enabled
+    # defaults to 5s
+    check-interval:
+    # Maximum number of failed checks before the service is deleted by Consul
+    # defaults to 3
+    max-fail:
+    # Consul service name
+    name:
+    # List of tags to be added to the service registration, 
+    # if available, the instance-name and cluster-name will be added as tags,
+    # in the format: gnmic-instance=$instance-name and gnmic-cluster=$cluster-name
+    tags:
 ```
 
 ### Secure vs Insecure Server
