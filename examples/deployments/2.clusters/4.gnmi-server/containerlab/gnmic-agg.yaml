@@ -1,17 +1,16 @@
 log: true
 
 loader:
-  type: docker
-  filters:
-    - containers:
-        - name: gnmic
+  type: consul
+  address: clab-lab24-consul-agent:8500
+  debug: true
+  services:
+    - name: cluster2-gnmi-server
       config:
         insecure: true
 
 subscriptions:
-  # Add subscriptions configuration here
-  # e.g:
-  sub1:
+  cluster2:
     paths:
       - /
     stream-mode: on-change

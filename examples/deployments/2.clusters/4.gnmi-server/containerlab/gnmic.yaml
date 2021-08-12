@@ -35,3 +35,8 @@ gnmi-server:
   enable-metrics: true
   service-registration:
     address: clab-lab24-consul-agent:8500
+
+outputs:
+  out1:
+    type: file
+    filename: /dev/null
