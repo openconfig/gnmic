@@ -1,5 +1,12 @@
-The Consul target loader is basically `gnmic` watching a [KV](https://www.consul.io/docs/dynamic-app-config/kv) prefix in a `Consul` server.
+The Consul target loader discovers gNMI target with the help of a Consul server.
+It can operate in 2 different ways:
 
+- Watch a Consul [KV](https://www.consul.io/docs/dynamic-app-config/kv) prefix that stores a list of target configurations as a set of indivudual key/values
+- Watch Consul services and derive targets from the services instances.
+
+Both modes cannot be combined.
+
+### Prefix watch
 The prefix is expected to hold each gNMI target configuration as multiple Key/Values.
 
 Putting Key/Values in Consul via the cli is as easy as:
@@ -41,6 +48,22 @@ The above command are the equivalent the target YAML file below:
 10.10.10.14:
 ```
 
+### Services watch
+
+When at least one service name is set, gNMIc consul loader will watch the instances registered with that service name and build a target configuration using their ID as the target name
+their address as address.
+
+The remaining configuration can be set under the service name defintion
+
+```yaml
+loader:
+  type: consul
+  services:
+    - name: cluster1-gnmi-server
+      config:
+        insecure: true
+        username: admin
+```
 ### Configuration
 
 ```yaml
@@ -58,4 +81,12 @@ loader:
   token:
   # the key prefix to watch for targets configuration, defaults to "gnmic/config/targets"
   key-prefix: gnmic/config/targets
+  # list of services to watch and derive target configurations from.
+  services:
+      # name of the Consul service
+    - name:
+      # a list of strings to further filter the service instances
+      tags: 
+      # configuration map to apply to target discovered from this service
+      config:
 ```
