@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -148,11 +149,17 @@ INITCONSUL:
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	h, p, err := net.SplitHostPort(a.Config.GnmiServer.Address)
+	if err != nil {
+		a.Logger.Printf("failed to split host and port from gNMI server address %q: %v", a.Config.GnmiServer.Address, err)
+		return
+	}
+	pi, _ := strconv.Atoi(p)
 	service := &api.AgentServiceRegistration{
 		ID:      a.Config.GnmiServer.ServiceRegistration.Name,
 		Name:    a.Config.GnmiServer.ServiceRegistration.Name,
-		Address: a.Config.GnmiServer.ServiceRegistration.GNMIAddress,
-		Port:    a.Config.GnmiServer.ServiceRegistration.GNMIPort,
+		Address: h,
+		Port:    pi,
 		Tags:    a.Config.GnmiServer.ServiceRegistration.Tags,
 		Checks: api.AgentServiceChecks{
 			{
@@ -161,7 +168,17 @@ INITCONSUL:
 			},
 		},
 	}
-	ttlCheckID := "service:" + a.Config.GnmiServer.ServiceRegistration.Name
+	if a.Config.Clustering != nil {
+		service.ID = a.Config.Clustering.InstanceName
+		service.Name = a.Config.Clustering.ClusterName + "-gnmi-server"
+		if service.Tags == nil {
+			service.Tags = make([]string, 0)
+		}
+		service.Tags = append(service.Tags, fmt.Sprintf("cluster-name=%s", a.Config.Clustering.ClusterName))
+		service.Tags = append(service.Tags, fmt.Sprintf("instance-name=%s", a.Config.Clustering.InstanceName))
+	}
+	//
+	ttlCheckID := "service:" + service.ID
 	b, _ := json.Marshal(service)
 	a.Logger.Printf("registering service: %s", string(b))
 	err = consulClient.Agent().ServiceRegister(service)

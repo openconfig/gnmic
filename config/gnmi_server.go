@@ -50,8 +50,6 @@ type serviceRegistration struct {
 	Tags          []string      `mapstructure:"tags,omitempty"`
 	//
 	DeregisterAfter string `mapstructure:"-"`
-	GNMIAddress     string `mapstructure:"-"`
-	GNMIPort        int    `mapstructure:"-"`
 }
 
 func (c *Config) GetGNMIServer() error {
