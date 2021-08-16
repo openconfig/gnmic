@@ -22,7 +22,7 @@ Deployment files:
 - [containerlab](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/2.prometheus-output/containerlab/lab22.clab.yaml)
 - [gNMIc config](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/2.prometheus-output/containerlab/gnmic.yaml)
 - [Prometheus config](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/2.prometheus-output/containerlab/prometheus/prometheus.yaml)
-- [Grafana datasource](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/2.prometheus-output/containerlab/grafanana/datasources/datasource.yaml)
+- [Grafana datasource](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/2.prometheus-output/containerlab/grafana/datasources/datasource.yaml)
 
 Deploy it with:
 

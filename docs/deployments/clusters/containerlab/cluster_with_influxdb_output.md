@@ -20,7 +20,7 @@ Deployment files:
 
 - [gNMIc config](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/1.influxdb-output/containerlab/gnmic.yaml)
 
-- [Grafana datasource](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/1.influxdb-output/containerlab/grafanana/datasources/datasource.yaml)
+- [Grafana datasource](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/1.influxdb-output/containerlab/grafana/datasources/datasource.yaml)
 
 Deploy it with:
 

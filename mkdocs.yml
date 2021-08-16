@@ -102,7 +102,9 @@ nav:
         - Prometheus output with data replication:
           - Containerlab: deployments/clusters/containerlab/cluster_with_nats_input_and_prometheus_output.md
           - Docker Compose: deployments/clusters/docker-compose/cluster_with_nats_input_and_prometheus_output.md     
-      
+        - gNMI Server Cluster:
+          - Containerlab: deployments/clusters/containerlab/cluster_with_gnmi_server_and_prometheus_output.md
+
       - gNMIc Pipeline:
         - NATS to Prometheus: 
           - Docker Compose: deployments/pipelines/docker-compose/nats_prometheus.md
