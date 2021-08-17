@@ -1,5 +1,57 @@
 
 ## Changelog
+### v0.18.0 - August 17th 2021
+- [gNMI Server](user_guide/gnmi_server.md):
+
+    Add support for a global gNMI server.
+    It supports all types of subscriptions, ran against a local cache build out the configured subscriptions.
+    It support Get and Set RPCs as well, those are run against the configured targets.
+
+    The gNMI server supports Consul based service registration.
+
+- Outputs:
+
+    Add support for [gNMI server](user_guide/outputs/gnmi_output.md) output type
+
+- [Target configuration](user_guide/targets.md):
+
+    Support multiple IP addresses per target, all addresses are tried simultaniously.
+    The first successful gRPC connection is used.
+
+- [Prometheus Output](user_guide/outputs/prometheus_output.md):
+
+    Add the option of generating Prometheus metrics on scrape, instead on reception.
+    The gNMI notifications are stored in a local cache and used to generate metrics when a Prometheus server sends a scrape request.
+
+- Event Processors:
+
+    Add [`group-by`](user_guide/event_processors/event_group_by.md) processor, it groups event together based on a given criteria.
+    The event can belong to different gNMI notifications or even to different subscriptions.
+
+- Event Processor Convert:
+
+    Add support for boolean conversion
+
+- [Deployment Examples](deployments/deployments_intro.md):
+
+    Add [containerlab](https://containerlab.srlinux.dev) based deployment examples.
+    These deployment come with a router fabric built using Nokia's [SRL](https://learn.srlinux.dev)
+
+- [API server](user_guide/api/api_intro.md):
+
+    Add Secure API server configuration options
+
+- Target Loaders:
+
+    [Consul loader](user_guide/target_discovery/consul_discovery.md#services-watch) update: Add support for gNMI target discovery from Consul services.
+
+- Get Request:
+
+    Add printing of Target as part of Path Prefix
+
+- Set Request:
+
+    Add printing of Target as part of Path Prefix
 
 ### v0.17.0 - July 14th 2021
 
