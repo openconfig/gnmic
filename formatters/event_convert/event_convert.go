@@ -225,7 +225,7 @@ func convertToFloat(i interface{}) (float64, error) {
 	switch i := i.(type) {
 	case []uint8:
 	  ij := math.Float32frombits(binary.BigEndian.Uint32([]byte(i)))
-	  return float64(float32(ij)), nil
+	  return float64(ij), nil
 	case string:
 		iv, err := strconv.ParseFloat(i, 64)
 		if err != nil {
