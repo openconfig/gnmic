@@ -224,7 +224,13 @@ func convertToUint(i interface{}) (uint, error) {
 func convertToFloat(i interface{}) (float64, error) {
 	switch i := i.(type) {
 	case []uint8:
-	  ij := math.Float32frombits(binary.BigEndian.Uint32([]byte(i)))
+		if len(i) == 4 {
+	  	ij := math.Float32frombits(binary.BigEndian.Uint32([]byte(i)))
+		} else if len(i) == 8 {
+			ij := math.Float64frombits(binary.BigEndian.Uint64([]byte(i)))
+		} else {
+			return 0, nil
+		}
 	  return float64(ij), nil
 	case string:
 		iv, err := strconv.ParseFloat(i, 64)
