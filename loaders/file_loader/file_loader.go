@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -43,7 +42,10 @@ func init() {
 		}
 	})
 }
-
+// fileLoader implements the loaders.Loader interface.
+// it reads a configured file (local, ftp, sftp, http) periodically, expects the file to contain
+// a dictionnary of types.TargetConfig.
+// It then adds new targets to gNMIc's targets and deletes the removes ones.
 type fileLoader struct {
 	cfg         *cfg
 	lastTargets map[string]*types.TargetConfig
@@ -105,18 +107,39 @@ func (f *fileLoader) Start(ctx context.Context) chan *loaders.TargetOperation {
 }
 
 func (f *fileLoader) getTargets() (map[string]*types.TargetConfig, error) {
+	var result map[string]*types.TargetConfig
+	var err error
 	switch {
 	case strings.HasPrefix(f.cfg.Path, "https://"):
 		fallthrough
 	case strings.HasPrefix(f.cfg.Path, "http://"):
-		return f.readHTTPFile()
+		result, err = f.readHTTPFile()
 	case strings.HasPrefix(f.cfg.Path, "ftp://"):
-		return f.readFTPFile()
+		result, err = f.readFTPFile()
 	case strings.HasPrefix(f.cfg.Path, "sftp://"):
-		return f.readSFTPFile()
+		result, err = f.readSFTPFile()
 	default:
-		return f.readLocalFile()
+		result, err = f.readLocalFile()
 	}
+	if err != nil {
+		return nil, err
+	}
+	for n, t := range result {
+		if t == nil {
+			result[n] = &types.TargetConfig{
+				Name:    n,
+				Address: n,
+			}
+			continue
+		}
+		if t.Name == "" {
+			t.Name = n
+		}
+		if t.Address == "" {
+			t.Address = n
+		}
+	}
+	return result, nil
 }
 
 // readHTTPFile fetches a remote from from an HTTP server,
@@ -165,9 +188,12 @@ func (f *fileLoader) readFTPFile() (map[string]*types.TargetConfig, error) {
 
 	// Parse Host and Port
 	host := parsedUrl.Host
-
+	_, _, err = net.SplitHostPort(host)
+	if err != nil {
+		host = fmt.Sprintf("%s:%d", host, defaultFTPPort)
+	}
 	// connect to server
-	conn, err := ftp.Dial(fmt.Sprintf("%s:%d", host, 21), ftp.DialWithTimeout(f.cfg.Interval/2))
+	conn, err := ftp.Dial(host, ftp.DialWithTimeout(f.cfg.Interval/2))
 	if err != nil {
 		return nil, fmt.Errorf("failed to connecto to [%s]: %v", host, err)
 	}
@@ -208,7 +234,10 @@ func (f *fileLoader) readSFTPFile() (map[string]*types.TargetConfig, error) {
 
 	// Parse Host and Port
 	host := parsedUrl.Host
-
+	_, _, err = net.SplitHostPort(host)
+	if err != nil {
+		host = fmt.Sprintf("%s:%d", host, defaultSFTPPort)
+	}
 	hostKey := f.getHostKey(host)
 
 	f.logger.Printf("Connecting to %s ...", host)
@@ -237,12 +266,10 @@ func (f *fileLoader) readSFTPFile() (map[string]*types.TargetConfig, error) {
 		config.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 	}
 
-	addr := fmt.Sprintf("%s:%d", host, 22)
-
 	// Connect to server
-	conn, err := ssh.Dial("tcp", addr, &config)
+	conn, err := ssh.Dial("tcp", host, &config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connecto to [%s]: %v", addr, err)
+		return nil, fmt.Errorf("failed to connecto to [%s]: %v", host, err)
 	}
 	defer conn.Close()
 
@@ -294,34 +321,9 @@ func (f *fileLoader) readLocalFile() (map[string]*types.TargetConfig, error) {
 		return nil, err
 	}
 	readTargets := make(map[string]*types.TargetConfig)
-	switch filepath.Ext(f.cfg.Path) {
-	case ".json":
-		err = json.Unmarshal(b, &readTargets)
-		if err != nil {
-			return nil, err
-		}
-	case ".yaml", ".yml":
-		err = yaml.Unmarshal(b, &readTargets)
-		if err != nil {
-			return nil, err
-		}
-	}
-	for n, t := range readTargets {
-		if t == nil {
-			readTargets[n] = &types.TargetConfig{
-				Name:    n,
-				Address: n,
-			}
-			continue
-		}
-		if t.Name == "" {
-			t.Name = n
-		}
-		if t.Address == "" {
-			t.Address = n
-		}
-	}
-	return readTargets, nil
+	// unmarshal the received bytes and return the result
+	err = yaml.Unmarshal(b, &readTargets)
+	return readTargets, err
 }
 
 func (f *fileLoader) diff(m map[string]*types.TargetConfig) *loaders.TargetOperation {
