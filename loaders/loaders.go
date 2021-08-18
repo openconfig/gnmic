@@ -21,6 +21,7 @@ var LoadersTypes = []string{
 	"file",
 	"consul",
 	"docker",
+	"http",
 }
 
 func Register(name string, initFn Initializer) {
