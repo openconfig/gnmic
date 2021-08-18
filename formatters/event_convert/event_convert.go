@@ -8,6 +8,9 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"math"
+	"encoding/binary"
+	"reflect"
 
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/types"
@@ -220,7 +223,11 @@ func convertToUint(i interface{}) (uint, error) {
 }
 
 func convertToFloat(i interface{}) (float64, error) {
+	fmt.Println(reflect.TypeOf(i))
 	switch i := i.(type) {
+	case []uint8:
+	  ij := math.Float32frombits(binary.BigEndian.Uint32([]byte(i)))
+	  return float64(float32(ij)), nil
 	case string:
 		iv, err := strconv.ParseFloat(i, 64)
 		if err != nil {

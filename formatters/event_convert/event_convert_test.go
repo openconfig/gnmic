@@ -425,6 +425,18 @@ var testset = map[string]struct {
 			{
 				input: []*formatters.EventMsg{
 					{
+						Values: map[string]interface{}{"number": []uint8{62, 192, 0, 0}},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"number": float64(0.375)},
+					},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
 						Values: map[string]interface{}{"number": "1.1"},
 					},
 				},
