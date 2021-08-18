@@ -9,11 +9,12 @@ Depending on the discovery method, `gnmic` will either:
 When a change is detected, the new targets are added and the corresponding subscriptions are immediately established.
 The removed targets are deleted together with their subscriptions.
 
-Three types of target discovery methods are supported:
+Four types of target discovery methods are supported:
 
 - [File](./file_discovery.md): Watches changes to a local file containing gNMI targets definitions.
 - [Consul Server](./consul_discovery.md): Subscribes to Consul KV key prefix changes, the keys and their value represent a target configuration fields
 - [Docker Engine](./docker_discovery.md): Polls containers from a Docker Engine host matching some predefined criteria (docker filters).
+- [HTTP](./http_discovery.md): Queries an HTTP endpoint periodically, expected a well formatted JSON dict of targets configurations.
   
 !!! notes
     1. Only one discovery method is supported at a time.
