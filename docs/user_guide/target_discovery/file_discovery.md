@@ -1,6 +1,10 @@
 
 `gnmic` is able to watch changes happening to a file carrying the gNMI targets configuration.
 
+The file can be located in the local file system or a remote one.
+
+In case of remote file, `ftp`, `sftp`, `http(s)` protocols are supported.
+The read timeout of remote files is set to half of the read `interval`
 #### Configuration
 
 A file targets loader can be configured in a couple of ways:
@@ -11,16 +15,20 @@ A file targets loader can be configured in a couple of ways:
 gnmic --targets-file ./targets-config.yaml subscribe
 ```
 
+``` bash
+gnmic --targets-file sftp://user:pass@server.com/path/to/targets-file.yaml subscribe
+```
+
 - using the main configuration file:
   
 ``` yaml
 loader:
   type: file
   # path to the file
-  file: ./targets-config.yaml
+  path: ./targets-config.yaml
   # watch interval at which the file
   # is read again to determine if a target was added or deleted.
-  interval: 5s
+  interval: 30s
 ```
 
 The `--targets-file` flag takes precedence over the `loader` configuration section.
@@ -29,6 +37,58 @@ The targets file can be either a `YAML` or a `JSON` file (identified by its exte
 See [here](../../user_guide/targets.md#target-option)
 
 ### Examples
+
+#### Local File
+``` yaml
+loader:
+  type: file
+  # path to the file
+  path: ./targets-config.yaml
+  # watch interval at which the file
+  # is read again to determine if a target was added or deleted.
+  interval: 30s
+```
+
+#### Remote File
+
+SFTP remote file
+
+``` yaml
+loader:
+  type: file
+  # path to the file
+  path: sftp://user:pass@server.com/path/to/targets-file.yaml
+  # watch interval at which the file
+  # is read again to determine if a target was added or deleted.
+  interval: 30s
+```
+
+
+FTP remote file
+
+``` yaml
+loader:
+  type: file
+  # path to the file
+  path: ftp://user:pass@server.com/path/to/targets-file.yaml
+  # watch interval at which the file
+  # is read again to determine if a target was added or deleted.
+  interval: 30s
+```
+
+HTTP remote file
+
+``` yaml
+loader:
+  type: file
+  # path to the file
+  path: http://user:pass@server.com/path/to/targets-file.yaml
+  # watch interval at which the file
+  # is read again to determine if a target was added or deleted.
+  interval: 30s
+```
+
+#### Targets file format
 
 === "YAML"
     ```yaml
