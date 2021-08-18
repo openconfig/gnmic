@@ -425,6 +425,54 @@ var testset = map[string]struct {
 			{
 				input: []*formatters.EventMsg{
 					{
+						Values: map[string]interface{}{"number": []uint8{62, 192, 0, 0}},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"number": float64(0.375)},
+					},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"number": []uint8{64, 9, 33, 251, 84, 68, 45, 24}},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"number": float64(3.141592653589793)},
+					},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"number": []uint8{64, 9, 33, 251, 84, 68, 45, 24, 32}},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"number": float64(0)},
+					},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"number": []uint8{62, 192, 0, 0}},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"number": float64(0.375)},
+					},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
 						Values: map[string]interface{}{"number": "1.1"},
 					},
 				},
