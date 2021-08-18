@@ -28,7 +28,7 @@ import (
 
 const (
 	loggingPrefix   = "[file_loader] "
-	watchInterval   = 5 * time.Second
+	watchInterval   = 30 * time.Second
 	loaderType      = "file"
 	defaultFTPPort  = 21
 	defaultSFTPPort = 22
@@ -256,7 +256,7 @@ func (f *fileLoader) readSFTPFile() (map[string]*types.TargetConfig, error) {
 	// open File
 	file, err := sc.Open(parsedUrl.RequestURI())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to open the remote file %q: %v", parsedUrl.RequestURI(), err)
 	}
 	defer file.Close()
 
@@ -264,6 +264,9 @@ func (f *fileLoader) readSFTPFile() (map[string]*types.TargetConfig, error) {
 	st, err := file.Stat()
 	if err != nil {
 		return nil, err
+	}
+	if st.IsDir() {
+		return nil, fmt.Errorf("remote file %q is a directory", parsedUrl.RequestURI())
 	}
 	// create a []byte with length equal to the file size
 	b := make([]byte, st.Size())
