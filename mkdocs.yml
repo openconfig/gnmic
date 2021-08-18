@@ -22,6 +22,7 @@ nav:
             - File Discovery: user_guide/target_discovery/file_discovery.md
             - Consul Discovery: user_guide/target_discovery/consul_discovery.md
             - Docker Discovery: user_guide/target_discovery/docker_discovery.md
+            - HTTP Discovery: user_guide/target_discovery/http_discovery.md
       
       - Subscriptions: user_guide/subscriptions.md
 
