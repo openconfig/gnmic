@@ -119,7 +119,7 @@ func (f *fileLoader) Start(ctx context.Context) chan *loaders.TargetOperation {
 }
 
 func (f *fileLoader) RegisterMetrics(reg *prometheus.Registry) {
-	if !f.cfg.EnableMetrics {
+	if !f.cfg.EnableMetrics && reg != nil {
 		return
 	}
 	if err := registerMetrics(reg); err != nil {
