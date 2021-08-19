@@ -19,8 +19,8 @@ var fileLoaderDeletedTargets = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 var fileLoaderFailedFileRead = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "gnmic",
 	Subsystem: "file_loader",
-	Name:      "number_of_successful_file_reads",
-	Help:      "Number of times the file was successfully read",
+	Name:      "number_of_failed_file_reads",
+	Help:      "Number of times gnmic failed to read the file",
 }, []string{"loader_type", "error"})
 
 var fileLoaderFileReadTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -38,11 +38,11 @@ var fileLoaderFileReadDuration = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 }, []string{"loader_type"})
 
 func initMetrics() {
-	fileLoaderLoadedTargets.WithLabelValues("").Set(0)
-	fileLoaderDeletedTargets.WithLabelValues("").Set(0)
-	fileLoaderFailedFileRead.WithLabelValues("", "").Add(0)
-	fileLoaderFileReadTotal.WithLabelValues("").Add(0)
-	fileLoaderFileReadDuration.WithLabelValues("").Set(0)
+	fileLoaderLoadedTargets.WithLabelValues(loaderType).Set(0)
+	fileLoaderDeletedTargets.WithLabelValues(loaderType).Set(0)
+	fileLoaderFailedFileRead.WithLabelValues(loaderType, "").Add(0)
+	fileLoaderFileReadTotal.WithLabelValues(loaderType).Add(0)
+	fileLoaderFileReadDuration.WithLabelValues(loaderType).Set(0)
 }
 
 func registerMetrics(reg *prometheus.Registry) error {
