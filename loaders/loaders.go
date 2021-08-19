@@ -6,11 +6,13 @@ import (
 
 	"github.com/karimra/gnmic/types"
 	"github.com/mitchellh/mapstructure"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type TargetLoader interface {
-	Init(context.Context, map[string]interface{}, *log.Logger) error
+	Init(context.Context, map[string]interface{}, *log.Logger, ...Option) error
 	Start(context.Context) chan *TargetOperation
+	RegisterMetrics(*prometheus.Registry)
 }
 
 type Initializer func() TargetLoader

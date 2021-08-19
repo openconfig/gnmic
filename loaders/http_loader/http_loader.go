@@ -12,6 +12,7 @@ import (
 	"github.com/karimra/gnmic/loaders"
 	"github.com/karimra/gnmic/types"
 	"github.com/karimra/gnmic/utils"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -56,7 +57,7 @@ type cfg struct {
 	Token string `json:"token,omitempty" mapstructure:"token,omitempty"`
 }
 
-func (h *httpLoader) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger) error {
+func (h *httpLoader) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger, opts ...loaders.Option) error {
 	err := loaders.DecodeConfig(cfg, h.cfg)
 	if err != nil {
 		return err
@@ -99,6 +100,8 @@ func (h *httpLoader) Start(ctx context.Context) chan *loaders.TargetOperation {
 	}()
 	return opChan
 }
+
+func (h *httpLoader) RegisterMetrics(*prometheus.Registry) {}
 
 func (h *httpLoader) setDefaults() error {
 	if h.cfg.URL == "" {

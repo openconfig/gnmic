@@ -20,6 +20,7 @@ import (
 	"github.com/karimra/gnmic/loaders"
 	"github.com/karimra/gnmic/types"
 	"github.com/pkg/sftp"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 	"gopkg.in/yaml.v2"
@@ -56,16 +57,22 @@ type fileLoader struct {
 type cfg struct {
 	// path the the file, if remote,
 	// must include the proper protocol prefix ftp://, sftp://, http://
-	Path     string        `json:"path,omitempty" mapstructure:"path,omitempty"`
+	Path string `json:"path,omitempty" mapstructure:"path,omitempty"`
 	// the interval at which the file will be re read to load new targets
-	// or detele removed ones.
+	// or delete removed ones.
 	Interval time.Duration `json:"interval,omitempty" mapstructure:"interval,omitempty"`
+	// if true, registers fileLoader prometheus metrics with the provided
+	// prometheus registry
+	EnableMetrics bool `json:"enable-metrics,omitempty" mapstructure:"enable-metrics,omitempty"`
 }
 
-func (f *fileLoader) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger) error {
+func (f *fileLoader) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger, opts ...loaders.Option) error {
 	err := loaders.DecodeConfig(cfg, f.cfg)
 	if err != nil {
 		return err
+	}
+	for _, o := range opts {
+		o(f)
 	}
 	if f.cfg.Path == "" {
 		return errors.New("missing file path")
@@ -111,10 +118,21 @@ func (f *fileLoader) Start(ctx context.Context) chan *loaders.TargetOperation {
 	return opChan
 }
 
+func (f *fileLoader) RegisterMetrics(reg *prometheus.Registry) {
+	if !f.cfg.EnableMetrics && reg != nil {
+		return
+	}
+	if err := registerMetrics(reg); err != nil {
+		f.logger.Printf("failed to register metrics: %v", err)
+	}
+}
+
 func (f *fileLoader) getTargets() (map[string]*types.TargetConfig, error) {
 	var b []byte
 	var err error
 	// read file bytes based on the path prefix
+	fileLoaderFileReadTotal.WithLabelValues(loaderType).Add(1)
+	start := time.Now()
 	switch {
 	case strings.HasPrefix(f.cfg.Path, "https://"):
 		fallthrough
@@ -127,16 +145,19 @@ func (f *fileLoader) getTargets() (map[string]*types.TargetConfig, error) {
 	default:
 		b, err = f.readLocalFile()
 	}
+	fileLoaderFileReadDuration.WithLabelValues(loaderType).Set(float64(time.Since(start).Nanoseconds()))
 	if err != nil {
+		fileLoaderFailedFileRead.WithLabelValues(loaderType, fmt.Sprintf("%v", err)).Add(1)
 		return nil, err
 	}
 	result := make(map[string]*types.TargetConfig)
 	// unmarshal the bytes into a map of targetConfigs
 	err = yaml.Unmarshal(b, result)
 	if err != nil {
+		fileLoaderFailedFileRead.WithLabelValues(loaderType, fmt.Sprintf("%v", err)).Add(1)
 		return nil, err
 	}
-	// properly intialize address and name if not set
+	// properly initialize address and name if not set
 	for n, t := range result {
 		if t == nil && n != "" {
 			result[n] = &types.TargetConfig{
@@ -156,7 +177,7 @@ func (f *fileLoader) getTargets() (map[string]*types.TargetConfig, error) {
 }
 
 // readHTTPFile fetches a remote from from an HTTP server,
-// the resoonse body can be yaml or json bytes.
+// the response body can be yaml or json bytes.
 // it then unmarshal the received bytes into a map[string]*types.TargetConfig
 // and returns
 func (f *fileLoader) readHTTPFile() ([]byte, error) {
@@ -316,7 +337,7 @@ func (f *fileLoader) readLocalFile() ([]byte, error) {
 	return ioutil.ReadFile(f.cfg.Path)
 }
 
-// diff compares the given map[string]*types.TargetConfig with the 
+// diff compares the given map[string]*types.TargetConfig with the
 // stored f.lastTargets and returns
 func (f *fileLoader) diff(m map[string]*types.TargetConfig) *loaders.TargetOperation {
 	result := loaders.Diff(f.lastTargets, m)
@@ -328,6 +349,8 @@ func (f *fileLoader) diff(m map[string]*types.TargetConfig) *loaders.TargetOpera
 	for _, n := range result.Del {
 		delete(f.lastTargets, n)
 	}
+	fileLoaderLoadedTargets.WithLabelValues(loaderType).Set(float64(len(result.Add)))
+	fileLoaderDeletedTargets.WithLabelValues(loaderType).Set(float64(len(result.Del)))
 	return result
 }
 
