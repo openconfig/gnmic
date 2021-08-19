@@ -53,4 +53,4 @@ Deploy it with:
 sudo docker-compose up -d
 ```
 
-Check the  [NATS Output](../../../user_guide/outputs/nats_output.md), [NATS Input](../../../user_guide/inputs/nats_input.md) and  [Prometheus Output](../../../user_guide/outputs/influxdb_output.md) documentation pages for more configuration options
+Check the  [NATS Output](../../../user_guide/outputs/nats_output.md), [NATS Input](../../../user_guide/inputs/nats_input.md) and  [Prometheus Output](../../../user_guide/outputs/influxdb_output.md) documentation pages for more configuration options.

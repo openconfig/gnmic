@@ -58,4 +58,4 @@ sudo clab deploy -t lab22.clab.yaml
 | 20 | clab-lab22-super-spine2 | 418888eb7325 | ghcr.io/nokia/srlinux        | srl   |       | running | 172.20.20.8/24  | 2001:172:20:20::8/64  |
 +----+-------------------------+--------------+------------------------------+-------+-------+---------+-----------------+-----------------------+
 ```
-Check the [Prometheus Output](../../../user_guide/outputs/prometheus_output.md) documentation page for more configuration options
+Check the [Prometheus Output](../../../user_guide/outputs/prometheus_output.md) documentation page for more configuration options.

@@ -1,4 +1,4 @@
-The purpose of this deployment is to achieve __redundancy__, __high-availability__ and __data aggregataion__ via clustering.
+The purpose of this deployment is to achieve __redundancy__, __high-availability__ and __data aggregation__ via clustering.
 
 This deployment example includes:
 

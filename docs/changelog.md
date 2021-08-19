@@ -15,18 +15,18 @@
 
 - [Target configuration](user_guide/targets.md):
 
-    Support multiple IP addresses per target, all addresses are tried simultaniously.
+    Support multiple IP addresses per target, all addresses are tried simultaneously.
     The first successful gRPC connection is used.
 
 - [Prometheus Output](user_guide/outputs/prometheus_output.md):
 
-    Add the option of generating Prometheus metrics on scrape, instead on reception.
+    Add the option of generating Prometheus metrics on-scrape, instead of on-reception.
     The gNMI notifications are stored in a local cache and used to generate metrics when a Prometheus server sends a scrape request.
 
 - Event Processors:
 
-    Add [`group-by`](user_guide/event_processors/event_group_by.md) processor, it groups event together based on a given criteria.
-    The event can belong to different gNMI notifications or even to different subscriptions.
+    Add [`group-by`](user_guide/event_processors/event_group_by.md) processor, it groups events together based on a given criteria.
+    The events can belong to different gNMI notifications or even to different subscriptions.
 
 - Event Processor Convert:
 
