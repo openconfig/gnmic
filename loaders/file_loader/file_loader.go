@@ -71,6 +71,9 @@ func (f *fileLoader) Init(ctx context.Context, cfg map[string]interface{}, logge
 	if err != nil {
 		return err
 	}
+	for _, o := range opts {
+		o(f)
+	}
 	if f.cfg.Path == "" {
 		return errors.New("missing file path")
 	}
