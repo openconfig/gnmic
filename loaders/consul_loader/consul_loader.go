@@ -14,6 +14,7 @@ import (
 	"github.com/karimra/gnmic/types"
 	"github.com/mitchellh/consulstructure"
 	"github.com/mitchellh/mapstructure"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -72,7 +73,7 @@ type service struct {
 	Tags    []string
 }
 
-func (c *consulLoader) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger) error {
+func (c *consulLoader) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger, opts ...loaders.Option) error {
 	err := loaders.DecodeConfig(cfg, c.cfg)
 	if err != nil {
 		return err
@@ -196,6 +197,8 @@ func (c *consulLoader) Start(ctx context.Context) chan *loaders.TargetOperation 
 	}
 	return opChan
 }
+
+func (c *consulLoader) RegisterMetrics(*prometheus.Registry) {}
 
 func (c *consulLoader) setDefaults() error {
 	if c.cfg.Address == "" {

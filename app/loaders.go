@@ -30,7 +30,7 @@ START:
 	a.Logger.Printf("initializing loader type %q", ldTypeS)
 
 	ld := loaders.Loaders[ldTypeS]()
-	err = ld.Init(ctx, ldCfg, a.Logger)
+	err = ld.Init(ctx, ldCfg, a.Logger, loaders.WithRegistry(a.reg))
 	if err != nil {
 		a.Logger.Printf("failed to init loader type %q: %v", ldTypeS, err)
 		return

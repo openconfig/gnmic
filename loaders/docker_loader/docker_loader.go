@@ -19,6 +19,7 @@ import (
 	"github.com/karimra/gnmic/loaders"
 	"github.com/karimra/gnmic/types"
 	"github.com/mitchellh/mapstructure"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -69,7 +70,7 @@ type targetFilter struct {
 	Config     map[string]interface{} `json:"config,omitempty" mapstructure:"config,omitempty"`
 }
 
-func (d *dockerLoader) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger) error {
+func (d *dockerLoader) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger, opts ...loaders.Option) error {
 	err := loaders.DecodeConfig(cfg, d.cfg)
 	if err != nil {
 		return err
@@ -194,6 +195,8 @@ func (d *dockerLoader) Start(ctx context.Context) chan *loaders.TargetOperation 
 	}()
 	return opChan
 }
+
+func (d *dockerLoader) RegisterMetrics(*prometheus.Registry) {}
 
 func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*types.TargetConfig, error) {
 	d.wg = new(sync.WaitGroup)
