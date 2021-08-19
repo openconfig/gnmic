@@ -41,4 +41,4 @@ sudo clab deploy -t kafka.clab.yaml
 +---+-----------------------------+--------------+------------------------------+-------+-------+---------+-----------------+----------------------+
 ```
 
-Check the [Kafka Output](../../../user_guide/outputs/kafka_output.md) documentation page for more configuration options
+Check the [Kafka Output](../../../user_guide/outputs/kafka_output.md) documentation page for more configuration options.

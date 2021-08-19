@@ -26,4 +26,4 @@ Deploy it with:
 sudo docker-compose up -d
 ```
 
-Check the [InfluxDB Output](../../../user_guide/outputs/influxdb_output.md) documentation page for more configuration options
+Check the [InfluxDB Output](../../../user_guide/outputs/influxdb_output.md) documentation page for more configuration options.

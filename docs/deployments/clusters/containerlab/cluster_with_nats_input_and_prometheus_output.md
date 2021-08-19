@@ -80,4 +80,4 @@ sudo clab deploy -t lab23.clab.yaml
 | 21 | clab-lab23-super-spine2 | 3408891a0718 | ghcr.io/nokia/srlinux        | srl   |       | running | 172.20.20.13/24 | 2001:172:20:20::d/64  |
 +----+-------------------------+--------------+------------------------------+-------+-------+---------+-----------------+-----------------------+
 ```
-Check the  [NATS Output](../../../user_guide/outputs/nats_output.md), [NATS Input](../../../user_guide/inputs/nats_input.md) and  [Prometheus Output](../../../user_guide/outputs/influxdb_output.md) documentation pages for more configuration options
+Check the  [NATS Output](../../../user_guide/outputs/nats_output.md), [NATS Input](../../../user_guide/inputs/nats_input.md) and  [Prometheus Output](../../../user_guide/outputs/influxdb_output.md) documentation pages for more configuration options.

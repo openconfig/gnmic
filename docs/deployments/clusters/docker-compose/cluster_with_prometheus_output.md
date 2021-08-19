@@ -28,4 +28,4 @@ Deploy it with:
 sudo docker-compose up -d
 ```
 
-Check the [Prometheus Output](../../../user_guide/outputs/prometheus_output.md) documentation page for more configuration options
+Check the [Prometheus Output](../../../user_guide/outputs/prometheus_output.md) documentation page for more configuration options.

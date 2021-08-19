@@ -42,4 +42,4 @@ sudo clab deploy -t influxdb.clab.yaml
 +---+---------------------+--------------+------------------------------+-------+-------+---------+-----------------+----------------------+
 ```
 
-Check the [InfluxDB Output](../../../user_guide/outputs/influxdb_output.md) documentation page for more configuration options
+Check the [InfluxDB Output](../../../user_guide/outputs/influxdb_output.md) documentation page for more configuration options.

@@ -56,4 +56,4 @@ sudo clab deploy -t multiple-outputs.clab.yaml
 +----+-----------------------------+--------------+------------------------------+-------+-------+---------+-----------------+----------------------+
 ```
 
-Check the [gnmic outputs](../../../user_guide/outputs/output_intro.md) documentation page for more configuration options
+Check the [gnmic outputs](../../../user_guide/outputs/output_intro.md) documentation page for more configuration options.

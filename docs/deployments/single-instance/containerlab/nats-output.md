@@ -41,4 +41,4 @@ sudo clab deploy -t nats.clab.yaml
 +---+-------------------+--------------+------------------------------+-------+-------+---------+----------------+----------------------+
 ```
 
-Check the [NATS Output](../../../user_guide/outputs/nats_output.md) documentation page for more configuration options
+Check the [NATS Output](../../../user_guide/outputs/nats_output.md) documentation page for more configuration options.
