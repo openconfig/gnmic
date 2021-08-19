@@ -42,6 +42,7 @@ func init() {
 		}
 	})
 }
+
 // fileLoader implements the loaders.Loader interface.
 // it reads a configured file (local, ftp, sftp, http) periodically, expects the file to contain
 // a dictionnary of types.TargetConfig.
@@ -53,7 +54,11 @@ type fileLoader struct {
 }
 
 type cfg struct {
+	// path the the file, if remote,
+	// must include the proper protocol prefix ftp://, sftp://, http://
 	Path     string        `json:"path,omitempty" mapstructure:"path,omitempty"`
+	// the interval at which the file will be re read to load new targets
+	// or detele removed ones.
 	Interval time.Duration `json:"interval,omitempty" mapstructure:"interval,omitempty"`
 }
 
@@ -107,25 +112,33 @@ func (f *fileLoader) Start(ctx context.Context) chan *loaders.TargetOperation {
 }
 
 func (f *fileLoader) getTargets() (map[string]*types.TargetConfig, error) {
-	var result map[string]*types.TargetConfig
+	var b []byte
 	var err error
+	// read file bytes based on the path prefix
 	switch {
 	case strings.HasPrefix(f.cfg.Path, "https://"):
 		fallthrough
 	case strings.HasPrefix(f.cfg.Path, "http://"):
-		result, err = f.readHTTPFile()
+		b, err = f.readHTTPFile()
 	case strings.HasPrefix(f.cfg.Path, "ftp://"):
-		result, err = f.readFTPFile()
+		b, err = f.readFTPFile()
 	case strings.HasPrefix(f.cfg.Path, "sftp://"):
-		result, err = f.readSFTPFile()
+		b, err = f.readSFTPFile()
 	default:
-		result, err = f.readLocalFile()
+		b, err = f.readLocalFile()
 	}
 	if err != nil {
 		return nil, err
 	}
+	result := make(map[string]*types.TargetConfig)
+	// unmarshal the bytes into a map of targetConfigs
+	err = yaml.Unmarshal(b, result)
+	if err != nil {
+		return nil, err
+	}
+	// properly intialize address and name if not set
 	for n, t := range result {
-		if t == nil {
+		if t == nil && n != "" {
 			result[n] = &types.TargetConfig{
 				Name:    n,
 				Address: n,
@@ -146,7 +159,7 @@ func (f *fileLoader) getTargets() (map[string]*types.TargetConfig, error) {
 // the resoonse body can be yaml or json bytes.
 // it then unmarshal the received bytes into a map[string]*types.TargetConfig
 // and returns
-func (f *fileLoader) readHTTPFile() (map[string]*types.TargetConfig, error) {
+func (f *fileLoader) readHTTPFile() ([]byte, error) {
 	_, err := url.Parse(f.cfg.Path)
 	if err != nil {
 		return nil, err
@@ -165,18 +178,13 @@ func (f *fileLoader) readHTTPFile() (map[string]*types.TargetConfig, error) {
 	}
 	defer r.Body.Close()
 	readBody, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		return nil, err
-	}
-	result := make(map[string]*types.TargetConfig)
-	err = yaml.Unmarshal(readBody, result)
-	return result, err
+	return readBody, err
 }
 
 // readFTPFile reads a file from a remote FTP server
 // unmarshals the content into a map[string]*types.TargetConfig
 // and returns
-func (f *fileLoader) readFTPFile() (map[string]*types.TargetConfig, error) {
+func (f *fileLoader) readFTPFile() ([]byte, error) {
 	parsedUrl, err := url.Parse(f.cfg.Path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse URL: %v", err)
@@ -208,21 +216,13 @@ func (f *fileLoader) readFTPFile() (map[string]*types.TargetConfig, error) {
 		return nil, fmt.Errorf("failed to read remtoe file %q: %v", parsedUrl.RequestURI(), err)
 	}
 	defer r.Close()
-
-	b, err := ioutil.ReadAll(r)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read remtoe file %q: %v", parsedUrl.RequestURI(), err)
-	}
-	// unmarshal the received bytes and return the result
-	result := make(map[string]*types.TargetConfig)
-	err = yaml.Unmarshal(b, result)
-	return result, err
+	return ioutil.ReadAll(r)
 }
 
 // readSFTPFile reads a file from a remote SFTP server
 // unmarshals the content into a map[string]*types.TargetConfig
 // and returns
-func (f *fileLoader) readSFTPFile() (map[string]*types.TargetConfig, error) {
+func (f *fileLoader) readSFTPFile() ([]byte, error) {
 	parsedUrl, err := url.Parse(f.cfg.Path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse URL: %v", err)
@@ -299,33 +299,25 @@ func (f *fileLoader) readSFTPFile() (map[string]*types.TargetConfig, error) {
 	b := make([]byte, st.Size())
 	// read the file
 	_, err = file.Read(b)
-	if err != nil {
-		return nil, err
-	}
-	// unmarshal the received bytes and return the result
-	result := make(map[string]*types.TargetConfig)
-	err = yaml.Unmarshal(b, result)
-	return result, err
+	return b, err
 }
 
 // readLocalFile reads a file from the local file system,
 // unmarshals the content into a map[string]*types.TargetConfig
 // and returns
-func (f *fileLoader) readLocalFile() (map[string]*types.TargetConfig, error) {
-	_, err := os.Stat(f.cfg.Path)
+func (f *fileLoader) readLocalFile() ([]byte, error) {
+	st, err := os.Stat(f.cfg.Path)
 	if err != nil {
 		return nil, err
 	}
-	b, err := ioutil.ReadFile(f.cfg.Path)
-	if err != nil {
-		return nil, err
+	if st.IsDir() {
+		return nil, fmt.Errorf("%q is a directory", f.cfg.Path)
 	}
-	readTargets := make(map[string]*types.TargetConfig)
-	// unmarshal the received bytes and return the result
-	err = yaml.Unmarshal(b, &readTargets)
-	return readTargets, err
+	return ioutil.ReadFile(f.cfg.Path)
 }
 
+// diff compares the given map[string]*types.TargetConfig with the 
+// stored f.lastTargets and returns
 func (f *fileLoader) diff(m map[string]*types.TargetConfig) *loaders.TargetOperation {
 	result := loaders.Diff(f.lastTargets, m)
 	for _, t := range result.Add {
