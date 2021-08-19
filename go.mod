@@ -27,6 +27,7 @@ require (
 	github.com/influxdata/influxdb-client-go/v2 v2.0.1
 	github.com/itchyny/gojq v0.12.2
 	github.com/jhump/protoreflect v1.6.1
+	github.com/jlaffaye/ftp v0.0.0-20210307004419-5d4190119067
 	github.com/karimra/go-map-flattener v0.0.0-20200728034653-b1473e58dae8
 	github.com/karimra/sros-dialout v0.0.0-20200518085040-c759bf74063a
 	github.com/manifoldco/promptui v0.7.0
@@ -42,12 +43,14 @@ require (
 	github.com/olekukonko/tablewriter v0.0.4
 	github.com/openconfig/gnmi v0.0.0-20210707145734-c69a5df04b53
 	github.com/openconfig/goyang v0.2.7
+	github.com/pkg/sftp v1.13.2
 	github.com/prometheus/client_golang v1.8.0
 	github.com/prometheus/client_model v0.2.0
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.7.0
 	github.com/xdg/scram v0.0.0-20180814205039-7eeb5667e42c
+	golang.org/x/crypto v0.0.0-20210421170649-83a5a9bb288b
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
 	golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1

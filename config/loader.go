@@ -12,7 +12,7 @@ func (c *Config) GetLoader() (map[string]interface{}, error) {
 	if c.GlobalFlags.TargetsFile != "" {
 		return map[string]interface{}{
 			"type": "file",
-			"file": c.GlobalFlags.TargetsFile,
+			"path": c.GlobalFlags.TargetsFile,
 		}, nil
 	}
 	ldCfg := c.FileConfig.GetStringMap("loader")
