@@ -168,5 +168,7 @@ func (h *httpLoader) diff(m map[string]*types.TargetConfig) *loaders.TargetOpera
 	for _, n := range result.Del {
 		delete(h.lastTargets, n)
 	}
+	httpLoaderLoadedTargets.WithLabelValues(loaderType).Set(float64(len(result.Add)))
+	httpLoaderDeletedTargets.WithLabelValues(loaderType).Set(float64(len(result.Del)))
 	return result
 }
