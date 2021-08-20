@@ -2,6 +2,7 @@ package consul_loader
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net"
@@ -19,6 +20,7 @@ import (
 
 const (
 	loggingPrefix  = "[consul_loader] "
+	loaderType     = "consul"
 	watchInterval  = 5 * time.Second
 	defaultAddress = "localhost:8500"
 	defaultPrefix  = "gnmic/config/targets"
@@ -27,7 +29,7 @@ const (
 )
 
 func init() {
-	loaders.Register("consul", func() loaders.TargetLoader {
+	loaders.Register(loaderType, func() loaders.TargetLoader {
 		return &consulLoader{
 			cfg:         &cfg{},
 			m:           new(sync.Mutex),
@@ -58,6 +60,9 @@ type cfg struct {
 	KeyPrefix string `mapstructure:"key-prefix,omitempty" json:"key-prefix,omitempty"`
 	// Service based target config loading
 	Services []*serviceDef `mapstructure:"services,omitempty" json:"services,omitempty"`
+	// if true, registers consulLoader prometheus metrics with the provided
+	// prometheus registry
+	EnableMetrics bool `json:"enable-metrics,omitempty" mapstructure:"enable-metrics,omitempty"`
 }
 
 type serviceDef struct {
@@ -105,7 +110,7 @@ func (c *consulLoader) Start(ctx context.Context) chan *loaders.TargetOperation 
 			Password: c.cfg.Password,
 		}
 	}
-
+	// Prefix based consul loader
 	if c.cfg.KeyPrefix != "" {
 		updateCh := make(chan interface{})
 		errCh := make(chan error)
@@ -127,12 +132,14 @@ func (c *consulLoader) Start(ctx context.Context) chan *loaders.TargetOperation 
 					return
 				case err := <-errCh:
 					c.logger.Printf("loader error: %v", err)
+					consulLoaderWatchError.WithLabelValues(loaderType, fmt.Sprintf("%v", err)).Add(1)
 					continue
 				case upd := <-updateCh:
 					c.logger.Printf("loader update: %+v", upd)
 					rs, ok := upd.(*map[string]*types.TargetConfig)
 					if !ok {
 						c.logger.Printf("unexpected update format: %T", upd)
+						consulLoaderWatchError.WithLabelValues(loaderType, fmt.Sprintf("unexpected update format: %T", upd)).Add(1)
 						continue
 					}
 					for n, t := range *rs {
@@ -150,25 +157,18 @@ func (c *consulLoader) Start(ctx context.Context) chan *loaders.TargetOperation 
 							t.Address = n
 						}
 					}
-					op := loaders.Diff(c.lastTargets, *rs)
-					c.m.Lock()
-					for _, add := range op.Add {
-						c.lastTargets[add.Name] = add
-					}
-					for _, del := range op.Del {
-						delete(c.lastTargets, del)
-					}
-					c.m.Unlock()
-					opChan <- op
+					c.updateTargets(*rs, opChan)
 				}
 			}
 		}()
+		// services based consul loader
 	} else if len(c.cfg.Services) > 0 {
 		var err error
 	CLIENT:
 		c.client, err = api.NewClient(clientConfig)
 		if err != nil {
 			c.logger.Printf("Failed to create a Consul client:%v", err)
+			consulLoaderWatchError.WithLabelValues(loaderType, fmt.Sprintf("%v", err)).Add(1)
 			time.Sleep(2 * time.Second)
 			goto CLIENT
 		}
@@ -182,7 +182,8 @@ func (c *consulLoader) Start(ctx context.Context) chan *loaders.TargetOperation 
 					if !ok {
 						return
 					}
-					c.updateTargets(srvs, opChan)
+					tcs := c.servicesToTargetConfigs(srvs)
+					c.updateTargets(tcs, opChan)
 				}
 			}
 		}()
@@ -198,7 +199,14 @@ func (c *consulLoader) Start(ctx context.Context) chan *loaders.TargetOperation 
 	return opChan
 }
 
-func (c *consulLoader) RegisterMetrics(*prometheus.Registry) {}
+func (c *consulLoader) RegisterMetrics(reg *prometheus.Registry) {
+	if !c.cfg.EnableMetrics && reg != nil {
+		return
+	}
+	if err := registerMetrics(reg); err != nil {
+		c.logger.Printf("failed to register metrics: %v", err)
+	}
+}
 
 func (c *consulLoader) setDefaults() error {
 	if c.cfg.Address == "" {
@@ -285,7 +293,7 @@ func (c *consulLoader) watch(qOpts *api.QueryOptions, serviceName string, tags [
 	return meta.LastIndex, nil
 }
 
-func (c *consulLoader) updateTargets(srvs []*service, opChan chan *loaders.TargetOperation) {
+func (c *consulLoader) servicesToTargetConfigs(srvs []*service) map[string]*types.TargetConfig {
 	tcs := make(map[string]*types.TargetConfig)
 	for _, s := range srvs {
 		tc := new(types.TargetConfig)
@@ -294,6 +302,7 @@ func (c *consulLoader) updateTargets(srvs []*service, opChan chan *loaders.Targe
 				err := mapstructure.Decode(sd.Config, tc)
 				if err != nil {
 					c.logger.Printf("failed to decode config map: %v", err)
+					continue
 				}
 			}
 		}
@@ -301,8 +310,21 @@ func (c *consulLoader) updateTargets(srvs []*service, opChan chan *loaders.Targe
 		tc.Name = s.ID
 		tcs[tc.Name] = tc
 	}
+	return tcs
+}
 
+func (c *consulLoader) updateTargets(tcs map[string]*types.TargetConfig, opChan chan *loaders.TargetOperation) {
 	op := loaders.Diff(c.lastTargets, tcs)
+	numAdds := len(op.Add)
+	numDels := len(op.Del)
+	defer func() {
+		consulLoaderLoadedTargets.WithLabelValues(loaderType).Set(float64(numAdds))
+		consulLoaderDeletedTargets.WithLabelValues(loaderType).Set(float64(numDels))
+	}()
+
+	if numAdds+numDels == 0 {
+		return
+	}
 	c.m.Lock()
 	for _, add := range op.Add {
 		c.lastTargets[add.Name] = add
