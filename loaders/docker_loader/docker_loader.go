@@ -25,11 +25,11 @@ import (
 const (
 	loggingPrefix = "[docker_loader] "
 	watchInterval = 30 * time.Second
-	loaderName    = "docker"
+	loaderType    = "docker"
 )
 
 func init() {
-	loaders.Register(loaderName, func() loaders.TargetLoader {
+	loaders.Register(loaderType, func() loaders.TargetLoader {
 		return &dockerLoader{
 			cfg:         new(cfg),
 			wg:          new(sync.WaitGroup),
@@ -61,6 +61,9 @@ type cfg struct {
 	Timeout  time.Duration   `json:"timeout,omitempty" mapstructure:"timeout,omitempty"`
 	Filters  []*targetFilter `json:"filters,omitempty" mapstructure:"filters,omitempty"`
 	Debug    bool            `json:"debug,omitempty" mapstructure:"debug,omitempty"`
+	// if true, registers dockerLoader prometheus metrics with the provided
+	// prometheus registry
+	EnableMetrics bool `json:"enable-metrics,omitempty" mapstructure:"enable-metrics,omitempty"`
 }
 
 type targetFilter struct {
@@ -126,7 +129,7 @@ func (d *dockerLoader) Init(ctx context.Context, cfg map[string]interface{}, log
 	}
 
 	d.logger.Printf("connected to docker daemon: %+v", ping)
-	d.logger.Printf("initialized loader type %q: %s", loaderName, d)
+	d.logger.Printf("initialized loader type %q: %s", loaderType, d)
 	return nil
 }
 
@@ -174,7 +177,7 @@ func (d *dockerLoader) Start(ctx context.Context) chan *loaders.TargetOperation 
 			case <-ctx.Done():
 				return
 			default:
-				d.logger.Printf("querying %q targets", loaderName)
+				d.logger.Printf("querying %q targets", loaderType)
 				readTargets, err := d.getTargets(ctx)
 				if err != nil {
 					d.logger.Printf("failed to read targets from docker daemon: %v", err)
@@ -196,7 +199,14 @@ func (d *dockerLoader) Start(ctx context.Context) chan *loaders.TargetOperation 
 	return opChan
 }
 
-func (d *dockerLoader) RegisterMetrics(*prometheus.Registry) {}
+func (d *dockerLoader) RegisterMetrics(reg *prometheus.Registry) {
+	if !d.cfg.EnableMetrics && reg != nil {
+		return
+	}
+	if err := registerMetrics(reg); err != nil {
+		d.logger.Printf("failed to register metrics: %v", err)
+	}
+}
 
 func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*types.TargetConfig, error) {
 	d.wg = new(sync.WaitGroup)
@@ -204,8 +214,14 @@ func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*types.Target
 	readTargets := make(map[string]*types.TargetConfig)
 	m := new(sync.Mutex)
 	errChan := make(chan error, len(d.fl))
+
+	start := time.Now()
+	defer dockerLoaderListRequestDuration.WithLabelValues(loaderType).
+		Set(float64(time.Since(start).Nanoseconds()))
+
 	for _, targetFilter := range d.fl {
 		go func(fl *targetFilterComp) {
+			dockerLoaderListRequestsTotal.WithLabelValues(loaderType).Add(1)
 			defer d.wg.Done()
 			// get networks
 			nrs, err := d.client.NetworkList(ctx, dtypes.NetworkListOptions{
@@ -353,11 +369,11 @@ func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*types.Target
 			errors = append(errors, err)
 		}
 	}()
-
 	d.wg.Wait()
 	close(errChan)
 	if len(errors) > 0 {
 		for _, err := range errors {
+			dockerLoaderFailedListRequests.WithLabelValues(loaderType, fmt.Sprintf("%v", err)).Add(1)
 			d.logger.Printf("%v", err)
 		}
 		return nil, fmt.Errorf("there was %d error(s)", len(errors))
@@ -375,6 +391,8 @@ func (d *dockerLoader) diff(m map[string]*types.TargetConfig) *loaders.TargetOpe
 	for _, n := range result.Del {
 		delete(d.lastTargets, n)
 	}
+	dockerLoaderLoadedTargets.WithLabelValues(loaderType).Set(float64(len(result.Add)))
+	dockerLoaderDeletedTargets.WithLabelValues(loaderType).Set(float64(len(result.Del)))
 	if d.cfg.Debug {
 		b, err := json.MarshalIndent(result, "", "  ")
 		if err != nil {
