@@ -29,7 +29,7 @@ type OverrideTS struct {
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
 		return &OverrideTS{
-			logger: log.New(os.Stderr, "", 0),
+			logger: log.New(ioutil.Discard, "", 0),
 		}
 	})
 }
