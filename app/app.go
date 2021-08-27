@@ -295,6 +295,7 @@ func (a *App) createCollectorDialOpts() []grpc.DialOption {
 	if !a.Config.ProxyFromEnv {
 		opts = append(opts, grpc.WithNoProxy())
 	}
+	opts = append(opts, grpc.WithUserAgent(fmt.Sprintf("gNMIc/%s", version)))
 	if a.Config.Gzip {
 		opts = append(opts, grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)))
 
