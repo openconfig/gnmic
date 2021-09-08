@@ -11,4 +11,3 @@ datasources:
     password: gnmic
     database: telemetry
     editable: true
-    
