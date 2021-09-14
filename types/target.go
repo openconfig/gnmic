@@ -67,7 +67,7 @@ func loadCerts(tlscfg *tls.Config, c *TargetConfig) error {
 			return err
 		}
 		tlscfg.Certificates = []tls.Certificate{certificate}
-		tlscfg.BuildNameToCertificate()
+		//tlscfg.BuildNameToCertificate()
 	}
 	if c.TLSCA != nil && *c.TLSCA != "" {
 		certPool := x509.NewCertPool()
