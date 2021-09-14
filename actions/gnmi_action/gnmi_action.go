@@ -418,7 +418,7 @@ func (tc *targetConfig) loadCerts(tlscfg *tls.Config) error {
 			return err
 		}
 		tlscfg.Certificates = []tls.Certificate{certificate}
-		tlscfg.BuildNameToCertificate()
+		//tlscfg.BuildNameToCertificate()
 	}
 	return nil
 }

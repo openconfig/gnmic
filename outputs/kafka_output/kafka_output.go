@@ -398,7 +398,7 @@ func (k *KafkaOutput) createConfig() (*sarama.Config, error) {
 				return nil, fmt.Errorf("failed to read the keyPair tls.cert-file and tls.key-file: %v", err)
 			}
 			tlscfg.Certificates = []tls.Certificate{certificate}
-			tlscfg.BuildNameToCertificate()
+			//tlscfg.BuildNameToCertificate()
 		}
 		cfg.Net.TLS.Config = tlscfg
 	}
