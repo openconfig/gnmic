@@ -1,6 +1,38 @@
-
 ## Changelog
+### v0.19.0 - September 16th 2021
+
+- Event Processors
+
+    [Event Convert](user_guide/event_processors/event_convert.md) now converts binary float notation to float
+
+- Target Loaders:
+
+    - [HTTP Loader](user_guide/target_discovery/http_discovery.md)
+
+      gNMIc can now dynamically discover targets from a remote HTTP server.
+
+      HTTP Loader is now properly instrumented using Prometheus metrics.
+
+    - [File Loader](user_guide/target_discovery/file_discovery.md)
+
+      Supports remote files (ftp, sftp, http(s)) in addition to local file system files.
+
+      File loader is now properly instrumented using Prometheus metrics.
+
+    - [Consul Loader](user_guide/target_discovery/consul_discovery.md)
+
+      Consul Loader is now properly instrumented using Prometheus metrics.
+
+    - [Docker Loader](user_guide/target_discovery/docker_discovery.md)
+
+      Docker Loader is now properly instrumented using Prometheus metrics.
+
+- gRPC
+
+     gNMIc now adds its version as part of the user-agent HTTP header.
+
 ### v0.18.0 - August 17th 2021
+
 - [gNMI Server](user_guide/gnmi_server.md):
 
     Add support for a global gNMI server.
