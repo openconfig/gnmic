@@ -1,4 +1,4 @@
-<mxfile host="app.diagrams.net" modified="2021-09-16T21:28:18.481Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/93.0.4577.63 Safari/537.36" etag="HSm-rqRP3ctPNNQxXO18" version="15.0.6" type="github" pages="3">
+<mxfile host="app.diagrams.net" modified="2021-09-16T21:28:31.797Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/93.0.4577.63 Safari/537.36" etag="-zF9R3A9Erbsrd_Oss2M" version="15.0.6" type="github" pages="3">
   <diagram id="rNGtP_fcMccz2o7l_gVG" name="Page-1">
     <mxGraphModel dx="895" dy="1395" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="413" pageHeight="291" math="0" shadow="0">
       <root>
@@ -456,7 +456,7 @@
     </mxGraphModel>
   </diagram>
   <diagram name="Consul" id="V9Pngm3cnaMO28GKwYzR">
-    <mxGraphModel dx="742" dy="1306" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="413" pageHeight="291" math="0" shadow="0">
+    <mxGraphModel dx="252" dy="1020" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="413" pageHeight="291" math="0" shadow="0">
       <root>
         <mxCell id="uk3EmByN9aPvMEIkgGHb-0" />
         <mxCell id="uk3EmByN9aPvMEIkgGHb-1" parent="uk3EmByN9aPvMEIkgGHb-0" />
@@ -668,9 +668,9 @@
         <mxCell id="uk3EmByN9aPvMEIkgGHb-37" value="gNMI Subscribe" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="uk3EmByN9aPvMEIkgGHb-1">
           <mxGeometry x="140.02" y="-709.85" width="40" height="20" as="geometry" />
         </mxCell>
-        <mxCell id="uk3EmByN9aPvMEIkgGHb-38" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="uk3EmByN9aPvMEIkgGHb-1" source="uk3EmByN9aPvMEIkgGHb-16">
+        <mxCell id="uk3EmByN9aPvMEIkgGHb-38" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.504;entryY=0.986;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="uk3EmByN9aPvMEIkgGHb-1" source="uk3EmByN9aPvMEIkgGHb-16" target="uk3EmByN9aPvMEIkgGHb-40">
           <mxGeometry relative="1" as="geometry">
-            <mxPoint x="275.02" y="-780" as="targetPoint" />
+            <mxPoint x="275" y="-780" as="targetPoint" />
           </mxGeometry>
         </mxCell>
         <mxCell id="uk3EmByN9aPvMEIkgGHb-39" value="Start a long watch on Services or KV updates" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="uk3EmByN9aPvMEIkgGHb-1">
