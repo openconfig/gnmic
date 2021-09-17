@@ -1,6 +1,10 @@
 `gnmic` supports dynamic loading of gNMI targets from external systems.
 This feature allows adding and deleting gNMI targets without the need to restart `gnmic`.
 
+<div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:0,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/karimra/gnmic/diagrams/diagrams/target_discovery.drawio&quot;}"></div>
+
+<script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2Ftarget_discovery.drawio" async></script>
+
 Depending on the discovery method, `gnmic` will either:
 
 - Subscribe to changes on the remote system,
@@ -9,14 +13,41 @@ Depending on the discovery method, `gnmic` will either:
 When a change is detected, the new targets are added and the corresponding subscriptions are immediately established.
 The removed targets are deleted together with their subscriptions.
 
-Four types of target discovery methods are supported:
-
-- [File](./file_discovery.md): Watches changes to a local file containing gNMI targets definitions.
-- [Consul Server](./consul_discovery.md): Subscribes to Consul KV key prefix changes, the keys and their value represent a target configuration fields
-- [Docker Engine](./docker_discovery.md): Polls containers from a Docker Engine host matching some predefined criteria (docker filters).
-- [HTTP](./http_discovery.md): Queries an HTTP endpoint periodically, expected a well formatted JSON dict of targets configurations.
-  
 !!! notes
-    1. Only one discovery method is supported at a time.
+    1. Only one discovery type is supported at a time.
 
     2. Target updates are not supported, delete and re-add is the way to update a target configuration.
+
+Four types of target discovery methods are supported:
+
+### [File Loader](./file_discovery.md)
+
+Watches changes to a local file containing gNMI targets definitions.
+
+<div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:1,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/karimra/gnmic/diagrams/diagrams/target_discovery.drawio&quot;}"></div>
+
+<script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2Ftarget_discovery.drawio" async></script>
+
+### [Consul Server Loader](./consul_discovery.md)
+
+Subscribes to Consul KV key prefix changes, the keys and their value represent a target configuration fields.
+
+<div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:2,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/karimra/gnmic/diagrams/diagrams/target_discovery.drawio&quot;}"></div>
+
+<script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2Ftarget_discovery.drawio" async></script>
+
+### [Docker Engine Loader](./docker_discovery.md)
+
+Polls containers from a Docker Engine host matching some predefined criteria (docker filters).
+
+<div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:3,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/karimra/gnmic/diagrams/diagrams/target_discovery.drawio&quot;}"></div>
+
+<script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2Ftarget_discovery.drawio" async></script>
+
+### [HTTP Loader](./http_discovery.md)
+
+Queries an HTTP endpoint periodically, expected a well formatted JSON dict of targets configurations.
+
+<div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:4,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/karimra/gnmic/diagrams/diagrams/target_discovery.drawio&quot;}"></div>
+
+<script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2Ftarget_discovery.drawio" async></script>

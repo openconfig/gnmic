@@ -5,12 +5,16 @@ It expects a well formatted `application/json` body and a code 200 response.
 
 It supports secure connections, basic authentication using a username and password and/or Oauth2 token based authentication.
 
+<div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:4,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/karimra/gnmic/diagrams/diagrams/target_discovery.drawio&quot;}"></div>
+
+<script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2Ftarget_discovery.drawio" async></script>
+
 #### Configuration
- 
+
 ``` yaml
 loader:
   type: http
-  # ressource URL, must include the http(s) schema
+  # resource URL, must include the http(s) schema
   url: 
   # watch interval at which the HTTP endpoint is queried again
   # to determine if a target was added or deleted.
@@ -32,4 +36,7 @@ loader:
   password:
   # token to be used with Oauth2 token based authentication
   token:
+  # if true, registers httpLoader prometheus metrics with the provided
+  # prometheus registry
+  enable-metrics: false
 ```

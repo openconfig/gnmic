@@ -11,11 +11,12 @@ import (
 	"time"
 
 	"github.com/hashicorp/consul/api"
-	"github.com/karimra/gnmic/loaders"
-	"github.com/karimra/gnmic/types"
 	"github.com/mitchellh/consulstructure"
 	"github.com/mitchellh/mapstructure"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/karimra/gnmic/loaders"
+	"github.com/karimra/gnmic/types"
 )
 
 const (

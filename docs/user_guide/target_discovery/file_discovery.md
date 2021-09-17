@@ -1,13 +1,21 @@
 
-`gnmic` is able to watch changes happening to a file carrying the gNMI targets configuration.
+`gnmic` is able to watch changes happening to a file that contains the gNMI targets configuration.
 
 The file can be located in the local file system or a remote one.
 
 In case of remote file, `ftp`, `sftp`, `http(s)` protocols are supported.
 The read timeout of remote files is set to half of the read `interval`
+
+Newly added targets are discovered and subscribed to.
+Deleted targets are moved from gNMIc's list and their subscriptions are terminated.
+
+<div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:1,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/karimra/gnmic/diagrams/diagrams/target_discovery.drawio&quot;}"></div>
+
+<script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2Ftarget_discovery.drawio" async></script>
+
 #### Configuration
 
-A file targets loader can be configured in a couple of ways:
+A file target loader can be configured in a couple of ways:
 
 - using the `--targets-file` flag:
 
@@ -29,6 +37,9 @@ loader:
   # watch interval at which the file
   # is read again to determine if a target was added or deleted.
   interval: 30s
+  # if true, registers fileLoader prometheus metrics with the provided
+  # prometheus registry
+  enable-metrics: false
 ```
 
 The `--targets-file` flag takes precedence over the `loader` configuration section.
@@ -47,6 +58,9 @@ loader:
   # watch interval at which the file
   # is read again to determine if a target was added or deleted.
   interval: 30s
+  # if true, registers fileLoader prometheus metrics with the provided
+  # prometheus registry
+  enable-metrics: false
 ```
 
 #### Remote File
@@ -61,8 +75,10 @@ loader:
   # watch interval at which the file
   # is read again to determine if a target was added or deleted.
   interval: 30s
+  # if true, registers fileLoader prometheus metrics with the provided
+  # prometheus registry
+  enable-metrics: false
 ```
-
 
 FTP remote file
 
@@ -74,6 +90,9 @@ loader:
   # watch interval at which the file
   # is read again to determine if a target was added or deleted.
   interval: 30s
+  # if true, registers fileLoader prometheus metrics with the provided
+  # prometheus registry
+  enable-metrics: false
 ```
 
 HTTP remote file
@@ -86,6 +105,9 @@ loader:
   # watch interval at which the file
   # is read again to determine if a target was added or deleted.
   interval: 30s
+  # if true, registers fileLoader prometheus metrics with the provided
+  # prometheus registry
+  enable-metrics: false
 ```
 
 #### Targets file format
@@ -117,5 +139,5 @@ loader:
     }
     ```
 
-Just like the targets in the main configuration file, the missing configuration fields get filled with the global flags, 
-the ENV variables, the config file main section and then the default values.
+Just like the targets in the main configuration file, the missing configuration fields get filled with the global flags,
+the ENV variables first, the config file main section next and then the default values.
