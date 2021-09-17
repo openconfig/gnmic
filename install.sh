@@ -57,7 +57,7 @@ runAsRoot() {
 
 # verifySupported checks that the os/arch combination is supported
 verifySupported() {
-    local supported="darwin-x86_64\nlinux-i386\nlinux-x86_64\nlinux-armv7\nlinux-aarch64"
+    local supported="darwin-x86_64\ndarwin-aarch64\nlinux-i386\nlinux-x86_64\nlinux-armv7\nlinux-aarch64"
     if ! echo "${supported}" | grep -q "${OS}-${ARCH}"; then
         echo "No prebuilt binary for ${OS}-${ARCH}."
         echo "To build from source, go to ${REPO_URL}"
@@ -136,6 +136,10 @@ downloadFile() {
             exit 1
         fi
         EXT=$PKG_FORMAT
+    fi
+    # change ARCH to "aarch64" if OS="darwin" and ARCH="arm64"
+    if [ ${OS} == "darwin" ] && [ ${ARCH} == "arm64" ]; then
+        ARCH="aarch64"
     fi
     ARCHIVE="${PROJECT_NAME}_${TAG_WO_VER}_${OS}_${ARCH}.${EXT}"
     DOWNLOAD_URL="${REPO_URL}/releases/download/${TAG}/${ARCHIVE}"
