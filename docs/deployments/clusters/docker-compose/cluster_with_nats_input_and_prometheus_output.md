@@ -27,10 +27,9 @@ prom-output:
   service-registration:
     address: consul-agent:8500
     use-lock: true # <===
-
 ```
-Since only one instance can hold a lock, only one prometheus output is registered, so only one output is scraped by Prometheus.
 
+Since only one instance can hold a lock, only one prometheus output is registered, so only one output is scraped by Prometheus.
 
 <div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:12,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/karimra/gnmic/diagrams/diagrams/cluster_nats_prometheus.drawio&quot;}"></div>
 
@@ -38,9 +37,9 @@ Since only one instance can hold a lock, only one prometheus output is registere
 
 Deployment files:
 
-- [docker compose](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/2.clusters/3.nats-input-prometheus-output/docker-compose.yaml)
-- [gnmic config](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/2.clusters/3.nats-input-prometheus-output/gnmic.yaml)
-- [prometheus config](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/2.clusters/3.nats-input-prometheus-output/prometheus/prometheus.yaml)
+- [docker compose](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/3.nats-input-prometheus-output/docker-compose/docker-compose.yaml)
+- [gnmic config](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/3.nats-input-prometheus-output/docker-compose/gnmic.yaml)
+- [prometheus config](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/3.nats-input-prometheus-output/docker-compose/prometheus/prometheus.yaml)
 
 Download the files, update the `gnmic` config files with the desired subscriptions and targets.
 

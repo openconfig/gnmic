@@ -11,12 +11,11 @@ The leader election and target distribution is done with the help of a [Consul s
 
 <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2Fcluster_influxdb.drawio" async></script>
 
-
 Deployment files:
 
-- [docker compose](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/2.clusters/1.influxdb-output/docker-compose.yaml)
+- [docker compose](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/1.influxdb-output/docker-compose/docker-compose.yaml)
 
-- [gnmic config](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/2.clusters/1.influxdb-output/gnmic.yaml)
+- [gnmic config](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/1.influxdb-output/docker-compose/gnmic.yaml)
 
 Download the files, update the `gnmic` config files with the desired subscriptions and targets.
 

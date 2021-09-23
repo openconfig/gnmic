@@ -13,12 +13,11 @@ The leader election and target distribution is done with the help of a [Consul s
 
 <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2Fcluster_prometheus" async></script>
 
-
 Deployment files:
 
-- [docker compose](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/2.clusters/2.prometheus-output/docker-compose.yaml)
-- [gnmic config](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/2.clusters/2.prometheus-output/gnmic.yaml)
-- [prometheus config](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/2.clusters/2.prometheus-output/prometheus/prometheus.yaml)
+- [docker compose](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/2.prometheus-output/docker-compose/docker-compose.yaml)
+- [gnmic config](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/2.prometheus-output/docker-compose/gnmic.yaml)
+- [prometheus config](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/2.prometheus-output/docker-compose/prometheus/prometheus.yaml)
 
 Download the files, update the `gnmic` config files with the desired subscriptions and targets.
 

@@ -15,6 +15,7 @@ The [containerlab](https://containerlab.srlinux.dev/) examples come with a fabri
 
 If you don't find an example that fits your needs, feel free to start a discussion on [github](https://github.com/karimra/gnmic/discussions)
 ### Single Instance
+
 These examples showcase single `gnmic` instance deployments with the most commonly used outputs
 
 - NATS output: [clab](single-instance/containerlab/nats-output.md), [docker-compose](single-instance/docker-compose/nats-output.md) 
@@ -24,13 +25,13 @@ These examples showcase single `gnmic` instance deployments with the most common
 - Multiple outputs: [clab](single-instance/containerlab/multiple-outputs.md), [docker-compose](single-instance/docker-compose/multiple-outputs.md)
 
 ### Clusters
+
 `gnmic` can also be deployed in [clustered mode](../user_guide/HA.md) to either load share the targets connections between multiple instances and offer connection resiliency,
 and/or replicate the collected data among all the cluster members
 
 - InfluxDB output: [clab](clusters/containerlab/cluster_with_influxdb_output.md), [docker-compose](clusters/docker-compose/cluster_with_influxdb_output.md)
 - Prometheus output: [clab](clusters/containerlab/cluster_with_prometheus_output.md), [docker-compose](clusters/docker-compose/cluster_with_prometheus_output.md)
 - Prometheus output with data replication: [clab](clusters/containerlab/cluster_with_nats_input_and_prometheus_output.md), [docker-compose](clusters/docker-compose/cluster_with_nats_input_and_prometheus_output.md)
-
 
 ### Pipelines
 
