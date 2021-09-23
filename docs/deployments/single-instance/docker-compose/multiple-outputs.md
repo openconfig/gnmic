@@ -14,12 +14,11 @@ This deployment example includes:
 
 <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2Fsingle_instance_multiple_outputs.drawio" async></script>
 
-
 Deployment files:
 
-- [docker compose](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/1.single-instance/5.multiple-outputs/docker-compose.yaml)
+- [docker compose](https://github.com/karimra/gnmic/blob/master/examples/deployments/1.single-instance/5.multiple-outputs/docker-compose/docker-compose.yaml)
 
-- [gnmic config](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/1.single-instance/5.multiple-outputs/gnmic1.yaml)
+- [gnmic config](https://github.com/karimra/gnmic/blob/master/examples/deployments/1.single-instance/5.multiple-outputs/docker-compose/gnmic1.yaml)
 
 Download both files, update the `gnmic` config file with the desired subscriptions and targets.
 

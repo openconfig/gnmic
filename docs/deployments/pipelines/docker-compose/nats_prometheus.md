@@ -18,13 +18,12 @@ This deployment enables a few use cases:
 
 <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2Fpipeline_nats_prometheus.drawio" async></script>
 
-
 Deployment files:
 
-- [docker compose](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/3.pipelines/1.gnmic-nats-gnmic-prometheus/docker-compose.yaml)
+- [docker compose](https://github.com/karimra/gnmic/blob/master/examples/deployments/3.pipelines/1.gnmic-nats-gnmic-prometheus/docker-compose/docker-compose.yaml)
 
-- [gnmic collector config](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/3.pipelines/1.gnmic-nats-gnmic-prometheus/gnmic-collector.yaml)
-- [gnmic relay config](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/3.pipelines/1.gnmic-nats-gnmic-prometheus/gnmic-relay.yaml)
+- [gnmic collector config](https://github.com/karimra/gnmic/blob/master/examples/deployments/3.pipelines/1.gnmic-nats-gnmic-prometheus/docker-compose/gnmic-collector.yaml)
+- [gnmic relay config](https://github.com/karimra/gnmic/blob/master/examples/deployments/3.pipelines/1.gnmic-nats-gnmic-prometheus/docker-compose/gnmic-relay.yaml)
 
 Download the files, update the `gnmic` collector config files with the desired subscriptions and targets.
 

@@ -17,7 +17,6 @@ This deployment enables a few use cases:
 
 <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2Fpipeline_gnmic_nats_gnmic_prometheus_gnmic_influxdb.drawio" async></script>
 
-
 Deployment files:
 
 - [docker compose](https://github.com/karimra/gnmic/blob/master/examples/deployments/docker-compose/3.pipelines/4.gnmic-nats-gnmic-prometheus-gnmic-influxdb/docker-compose.yaml)
