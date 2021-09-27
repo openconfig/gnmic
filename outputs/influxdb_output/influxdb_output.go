@@ -213,7 +213,15 @@ func (i *InfluxDBOutput) Write(ctx context.Context, rsp proto.Message, meta outp
 	}
 }
 
-func (i *InfluxDBOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {}
+func (i *InfluxDBOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {
+	select {
+	case <-ctx.Done():
+		return
+	case <-i.reset:
+		return
+	case i.eventChan <- ev:
+	}
+}
 
 func (i *InfluxDBOutput) Close() error {
 	i.logger.Printf("closing client...")
