@@ -32,7 +32,6 @@ func (a *App) PathCmdRun(d, f, e []string, pgo pathGenOpts) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	out := make(chan string)
-	defer close(out)
 	paths := make([]string, 0)
 	if pgo.search {
 		go gather(ctx, out, &paths)
@@ -58,8 +57,11 @@ func (a *App) PathCmdRun(d, f, e []string, pgo pathGenOpts) error {
 			continue
 		}
 	}
-
+	close(out)
 	if pgo.search {
+		if len(paths) == 0 {
+			return errors.New("no results found")
+		}
 		p := promptui.Select{
 			Label:        "select path",
 			Items:        paths,
@@ -292,7 +294,10 @@ func getAnnotation(entry *yang.Entry, name string) interface{} {
 func printer(ctx context.Context, c chan string) {
 	for {
 		select {
-		case m := <-c:
+		case m, ok := <-c:
+			if !ok {
+				return
+			}
 			fmt.Println(m)
 		case <-ctx.Done():
 			return
@@ -303,7 +308,10 @@ func printer(ctx context.Context, c chan string) {
 func gather(ctx context.Context, c chan string, ls *[]string) {
 	for {
 		select {
-		case m := <-c:
+		case m, ok := <-c:
+			if !ok {
+				return
+			}
 			*ls = append(*ls, m)
 		case <-ctx.Done():
 			return
