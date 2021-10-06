@@ -58,10 +58,10 @@ func (a *App) PathCmdRun(d, f, e []string, pgo pathGenOpts) error {
 		}
 	}
 	close(out)
-	if len(paths) == 0 {
-		return errors.New("no results found")
-	}
 	if pgo.search {
+		if len(paths) == 0 {
+			return errors.New("no results found")
+		}
 		p := promptui.Select{
 			Label:        "select path",
 			Items:        paths,
