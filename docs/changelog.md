@@ -1,4 +1,15 @@
 ## Changelog
+
+### v0.19.1 - October 7th 2021
+
+- Path search
+  
+  Do not enter search mode if not paths are found.
+
+- [Prometheus Output](user_guide/outputs/prometheus_output.md)
+
+  Change the default service name when registering with a Consul server
+
 ### v0.19.0 - September 16th 2021
 
 - Event Processors
