@@ -121,12 +121,14 @@ For example, a gNMI update from subscription `port-stats` with path:
 /interfaces/interface[name=1/1/1]/subinterfaces/subinterface[index=0]/state/counters/in-octets
 ```
 
-is exposed as a metric named: 
+is exposed as a metric named:
+
 ```bash
 gnmic_port_stats_interfaces_interface_subinterfaces_subinterface_state_counters_in_octets
 ```
 
 ### Metric Labels
+
 The metrics labels are generated from the subscription metadata (e.g: `subscription-name` and `source`) and the keys present in the gNMI path elements.
 
 For the previous example the labels would be: 
@@ -135,8 +137,8 @@ For the previous example the labels would be:
 {interface_name="1/1/1",subinterface_index=0,source="$routerIP:Port",subscription_name="port-stats"}
 ```
 
-
 ## Service Registration
+
 `gnmic` supports `prometheus_output` service registration via `Consul`.
 
 It allows `prometheus` to dynamically discover new instances of `gnmic` exposing a prometheus server ready for scraping via its [service discovery feature](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#consul_sd_config).
@@ -144,7 +146,9 @@ It allows `prometheus` to dynamically discover new instances of `gnmic` exposing
 If the configuration section `service-registration` is present under the output definition, `gnmic` will register the `prometheus_output` service in `Consul`.
 
 ### Configuration Example
+
 The below configuration, registers a service name `gnmic-prom-srv` with `IP=10.1.1.1` and `port=9804`
+
 ```yaml
 # gnmic.yaml
 outputs:
@@ -156,9 +160,11 @@ outputs:
       address: consul-agent.local:8500
       name: gnmic-prom-srv
 ```
+
 This allows running multiple instances of `gnmic` with minimal configuration changes by using `prometheus` [service discovery feature](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#consul_sd_config).
 
 Simplified scrape configuration in the prometheus client:
+
 ```yaml
 # prometheus.yaml
 scrape_configs:
@@ -170,17 +176,22 @@ scrape_configs:
           - $service_name
 ```
 
-### Service Name
+### Service Name and ID
+
 The `$service_name` to be discovered by `prometheus` is configured under `outputs.$output_name.service-registration.name`.
 
-If the service registration name field is not present, it will be populated with `gnmic` instance-name (if present) and the `prometheus_output` name, joined with a `-`.
+If the service registration name field is not present, the name `prometheus-${output_name}` will be used.
+
+In both cases the service ID will be `prometheus-${output_name}-${instance_name}`.
 
 ### Service Checks
+
 `gnmic` registers the service in `Consul` with a `ttl` check enabled by default:
 
 * `ttl`: `gnmic` periodically updates the service definition in `Consul`. The goal is to allow `Consul` to detect a same instance restarting with a different service name.
 
 If `service-registration.enable-http-check` is `true`, an `http` check is added:
+
 * `http`: `Consul` periodically scrapes the prometheus server endpoint to check its availability.
 
 ```yaml

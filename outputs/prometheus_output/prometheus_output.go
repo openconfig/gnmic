@@ -583,25 +583,18 @@ func (p *prometheusOutput) metricName(measName, valueName string) string {
 }
 
 func (p *prometheusOutput) SetName(name string) {
-	sb := strings.Builder{}
-	if name != "" {
-		sb.WriteString(name)
-		sb.WriteString("-")
+	if p.Cfg.Name == "" {
+		p.Cfg.Name = name
 	}
-	if p.Cfg.Name != "" {
-		sb.WriteString(p.Cfg.Name)
-	}
-	p.Cfg.Name = sb.String()
 	if p.Cfg.ServiceRegistration != nil {
 		if p.Cfg.ServiceRegistration.Name == "" {
-			p.Cfg.ServiceRegistration.Name = p.Cfg.Name
+			p.Cfg.ServiceRegistration.Name = fmt.Sprintf("prometheus-%s", p.Cfg.Name)
 		}
-		if name != "" {
-			p.Cfg.ServiceRegistration.id = p.Cfg.ServiceRegistration.Name + "-" + name
-			p.Cfg.ServiceRegistration.Tags = append(p.Cfg.ServiceRegistration.Tags, fmt.Sprintf("gnmic-instance=%s", name))
-			return
+		if name == "" {
+			name = uuid.New().String()
 		}
-		p.Cfg.ServiceRegistration.id = p.Cfg.ServiceRegistration.Name + "-" + uuid.New().String()
+		p.Cfg.ServiceRegistration.id = fmt.Sprintf("%s-%s", p.Cfg.ServiceRegistration.Name, name)
+		p.Cfg.ServiceRegistration.Tags = append(p.Cfg.ServiceRegistration.Tags, fmt.Sprintf("gnmic-instance=%s", name))
 	}
 }
 
