@@ -133,7 +133,10 @@ START:
 	ctx, cancel := context.WithCancel(a.ctx)
 	defer cancel()
 	go a.watchMembers(ctx)
+	a.Logger.Printf("leader waiting %s before dispatching targets", a.Config.Clustering.LeaderWaitTimer)
 	time.Sleep(a.Config.Clustering.LeaderWaitTimer)
+	a.Logger.Printf("leader done waiting, starting loader and dispatching targets")
+	go a.startLoader(ctx)
 	go a.dispatchTargets(ctx)
 
 	doneCh, errCh := a.locker.KeepLock(a.ctx, leaderKey)
