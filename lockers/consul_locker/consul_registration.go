@@ -108,7 +108,10 @@ func (c *ConsulLocker) WatchServices(ctx context.Context, serviceName string, ta
 func (c *ConsulLocker) watch(qOpts *api.QueryOptions, serviceName string, tags []string, sChan chan<- []*lockers.Service) (uint64, error) {
 	se, meta, err := c.client.Health().ServiceMultipleTags(serviceName, tags, true, qOpts)
 	if err != nil {
-		return meta.LastIndex, err
+		return 0, err
+	}
+	if meta == nil {
+		meta = new(api.QueryMeta)
 	}
 	if meta.LastIndex == qOpts.WaitIndex {
 		c.logger.Printf("service=%q did not change", serviceName)
