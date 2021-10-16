@@ -91,7 +91,6 @@ func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
 	go a.startCluster()
 	a.startIO()
 
-	//a.handlePolledSubscriptions()
 	if a.Config.LocalFlags.SubscribeWatchConfig {
 		go a.watchConfig()
 	}
@@ -373,9 +372,9 @@ func (a *App) startIO() {
 	a.collector.InitOutputs(a.ctx)
 	a.collector.InitInputs(a.ctx)
 	//a.collector.InitTargets()
-	go a.startLoader(a.ctx)
 
 	if !a.inCluster() {
+		go a.startLoader(a.ctx)
 		var limiter *time.Ticker
 		if a.Config.LocalFlags.SubscribeBackoff > 0 {
 			limiter = time.NewTicker(a.Config.LocalFlags.SubscribeBackoff)
