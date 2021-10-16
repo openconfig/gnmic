@@ -54,6 +54,7 @@ gnmic set --update-path /configure/system/name \
 ```
 
 #### 2. in-line update, explicit type
+
 Using the update flag `--update`, one can specify the path, value type and value in a single parameter using a delimiter `--delimiter`. Delimiter string defaults to `":::"`.
 
 Supported types: json, json_ietf, string, int, uint, bool, decimal, float, bytes, ascii.
@@ -68,6 +69,7 @@ gnmic set --update /configure/router[router-name=Base]/interface[interface-name=
 ```
 
 #### 3. update with a value from JSON or YAML file
+
 It is also possible to specify the values from a local JSON or YAML file using `--update-file` flag for the value and `--update-path` for the path.
 
 In which case the value encoding will be determined by the global flag `[ -e | --encoding ]`, both `JSON` and `JSON_IETF` are supported
@@ -106,9 +108,11 @@ The file's format is identified by its extension, json: `.json` and yaml `.yaml`
     ```
 
 ## Replace Request
+
 There are 3 main ways to specify a replace operation:
 
 #### 1. in-line replace, implicit type
+
 Using both `--replace-path` and `--replace-value` flags, a user can replace a value for a given path. The type of the value is implicitly set to `JSON`:
 
 ```bash
@@ -130,6 +134,7 @@ gnmic set --replace-path /configure/system/name \
 ```
 
 #### 2. in-line replace, explicit type
+
 Using the replace flag `--replace`, you can specify the path, value type and value in a single parameter using a delimiter `--delimiter`. Delimiter string defaults to `":::"`.
 
 Supported types: json, json_ietf, string, int, uint, bool, decimal, float, bytes, ascii.
@@ -143,6 +148,7 @@ gnmic set --replace /configure/router[router-name=Base]/interface[interface-name
 ```
 
 #### 3. replace with a value from JSON or YAML file
+
 It is also possible to specify the values from a local JSON or YAML file using flag `--replace-file` for the value and `--replace-path` for the path.
 
 In which case the value encoding will be determined by the global flag `[ -e | --encoding ]`, both `JSON` and `JSON_IETF` are supported
@@ -171,12 +177,14 @@ The file is identified by its extension, json: `.json` and yaml `.yaml` or `.yml
     ```
 
 Then refer to the file with `--replace-file` flag
+
 ``` bash
 gnmic set --replace-path /configure/router[router-name=Base]/interface[interface-name=system] \
           --replace-file interface.json
 ```
 
 ## Delete Request
+
 A deletion operation within the Set RPC is specified using the delete flag `--delete`.
 
 It takes an XPATH pointing to the config node to be deleted:
@@ -186,6 +194,7 @@ gnmic set --delete "/configure/router[router-name=Base]/interface[interface-name
 ```
 
 ## Template Based Set Request
+
 A Set Request can also be built based on a template and (optionally) a set of variables.
 
 The variables allow to generate the request on per target basis.
@@ -193,7 +202,9 @@ The variables allow to generate the request on per target basis.
 If no variable file is found, the execution continues and the template is assumed to be a static string.
 
 A template results in a single gNMI Set Request.
+
 ### Template Format
+
 The rendered template data can be a `JSON` or `YAML` valid string.
 
 It has 3 sections, `updates`, `replaces` and `deletes`.
@@ -276,9 +287,10 @@ The `value` can be any arbitrary data format that the target accepts, it will be
     ```
 
 ### Per Target Template Variables
-The file `--request-file` can be written as a [Go Text template](https://golang.org/pkg/text/template/). 
 
-The parsed template is loaded with the excellent library of additional functions [sprig](http://masterminds.github.io/sprig/).
+The file `--request-file` can be written as a [Go Text template](https://golang.org/pkg/text/template/).
+
+The parsed template is loaded with additional functions from [gomplate](https://docs.gomplate.ca/).
 
 `gnmic` generates one gNMI Set request per target.
 
@@ -293,7 +305,8 @@ Example request template:
 
 ```yaml
 replaces:
-{{- range $interface := index .Vars .TargetName "interfaces" }}
+{{ $target := index .Vars .TargetName }}
+{{- range $interface := index $target "interfaces" }}
   - path: "/interface[name={{ index $interface "name" }}]"
     encoding: "json_ietf"
     value: 
