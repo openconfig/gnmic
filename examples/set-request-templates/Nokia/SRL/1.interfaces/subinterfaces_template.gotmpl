@@ -1,57 +1,58 @@
-replaces:
-{{- range $interface := index .Vars .TargetName "interfaces" }}
-  {{- range $idx, $subinterface := index $interface "subinterface" }}
-  - path: "/interface[name={{ index $interface "name" }}]/subinterface[index={{ $idx }}]"
+updates:
+{{ $target := index .Vars .TargetName }}
+{{- range $interface := $target.interfaces }}
+  {{- range $idx, $subinterface := $interface.subinterface }}
+  - path: "/interface[name={{ $interface.name }}]/subinterface[index={{ $idx }}]"
     encoding: "json_ietf"
     value: 
-      admin-state: {{ index $subinterface "admin-state" | default "disable" }}
-      {{- if index $subinterface "type" }}
-      type: {{ index $subinterface "type" }}
+      admin-state: {{ $subinterface.admin_state | or "disable" }}
+      {{- if $subinterface.type }}
+      type: {{ $subinterface.type }}
       {{- end }}
-      {{- if index $subinterface "description" }}
-      description: {{ index $subinterface "description"}}
+      {{- if $subinterface.description }}
+      description: {{ $subinterface.description }}
       {{- end }}
-      {{- if index $subinterface "ip-mtu" }}
-      ip-mtu: {{ index $subinterface "ip-mtu" }}
+      {{- if $subinterface.ip_mtu }}
+      ip-mtu: {{ $subinterface.ip_mtu }}
       {{- end }}
-      {{- if index $subinterface "ipv4-address" }}
+      {{- if $subinterface.ipv4_address }}
       ipv4:
         address:
-          - ip-prefix: {{ index $subinterface "ipv4-address" | toString }}
+          - ip-prefix: {{ $subinterface.ipv4_address | toString }}
       {{- end }}
-      {{- if index $subinterface "ipv6-address" }}
+      {{- if $subinterface.ipv6_address }}
       ipv6:
         address:
-          - ip-prefix: {{ index $subinterface "ipv6-address" | toString }}
+          - ip-prefix: {{ $subinterface.ipv6_address | toString }}
       {{- end }}
-      {{- if index $subinterface "vlan-id" }}
+      {{- if $subinterface.vlan_id }}
       vlan:
         encap:
           single-tagged:
-            vlan-id: {{ index $subinterface "vlan-id" }}
-      {{- else if index $subinterface "untagged" }}
+            vlan-id: {{ $subinterface.vlan_id }}
+      {{- else if $subinterface.untagged }}
       vlan:
         encap:
           untagged: {}
       {{- end }}
-      {{- if $acl := index $subinterface "acl" }}
+      {{- if $acl := $subinterface.acl }}
       acl:
-        {{- if $input := index $acl "input" }}
+        {{- if $input := $acl.input }}
         input:
-          {{- if index $input "ipv4-filter" }}
-          ipv4-filter: {{ index $input "ipv4-filter" }}
+          {{- if $input.ipv4_filter }}
+          ipv4-filter: {{ $input.ipv4_filter }}
           {{- end }}
-          {{- if index $input "ipv6-filter" }}
-          ipv6-filter: {{ index $acl "input" "ipv6-filter" }}
+          {{- if $input.ipv6_filter }}
+          ipv6-filter: {{ $acl.input.ipv6_filter }}
         {{- end }}
         {{- end }}
-        {{- if $output := index $acl "output" }}
+        {{- if $output := $acl.output }}
         output:
-          {{- if index $output "ipv4-filter" }}
-          ipv4-filter: {{ index $output "ipv4-filter" }}
+          {{- if $output.ipv4_filter }}
+          ipv4-filter: {{ $output.ipv4_filter }}
           {{- end }}
-          {{- if index $output "ipv6-filter" }}
-          ipv6-filter: {{ index $output "ipv6-filter" }}
+          {{- if $output.ipv6_filter }}
+          ipv6-filter: {{ $output.ipv6_filter }}
           {{- end }}
         {{- end }}
       {{- end }}
