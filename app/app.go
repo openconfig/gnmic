@@ -93,7 +93,7 @@ func New() *App {
 		httpClient: &http.Client{
 			Timeout: defaultHTTPClientTimeout,
 		},
-		Logger:        log.New(ioutil.Discard, "", log.LstdFlags),
+		Logger:        log.New(ioutil.Discard, "[gnmic] ", log.LstdFlags|log.Lmsgprefix),
 		out:           os.Stdout,
 		PromptHistory: make([]string, 0, 128),
 		SchemaTree: &yang.Entry{
@@ -155,34 +155,21 @@ func (a *App) InitGlobalFlags() {
 }
 
 func (a *App) PreRun(_ *cobra.Command, args []string) error {
-	a.Config.SetLogger()
-	a.Logger.SetOutput(a.Config.LogOutput())
-	a.Logger.SetFlags(a.Config.LogFlags())
 	a.Config.SetPersistantFlagsFromFile(a.RootCmd)
+
+	logOutput, flags, err := a.Config.SetLogger()
+	if err != nil {
+		return err
+	}
+	a.Logger.SetOutput(logOutput)
+	a.Logger.SetFlags(flags)
 	a.Config.Address = config.SanitizeArrayFlagValue(a.Config.Address)
-	a.Logger = log.New(ioutil.Discard, "[gnmic] ", log.LstdFlags|log.Lmicroseconds)
-	if a.Config.LogFile != "" {
-		f, err := os.OpenFile(a.Config.LogFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-		if err != nil {
-			return fmt.Errorf("error opening log file: %v", err)
-		}
-		a.Logger.SetOutput(f)
-	} else {
-		if a.Config.Debug {
-			a.Config.Log = true
-		}
-		if a.Config.Log {
-			a.Logger.SetOutput(os.Stderr)
-		}
-	}
-	if a.Config.Debug {
-		a.Logger.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Llongfile)
-	}
+	a.Logger.Printf("version=%s, commit=%s, date=%s, gitURL=%s, docs=https://gnmic.kmrd.dev", version, commit, date, gitURL)
 
 	if a.Config.Debug {
 		grpclog.SetLogger(a.Logger) //lint:ignore SA1019 see https://github.com/karimra/gnmic/issues/59
-		a.Logger.Printf("version=%s, commit=%s, date=%s, gitURL=%s, docs=https://gnmic.kmrd.dev", version, commit, date, gitURL)
 	}
+
 	cfgFile := a.Config.FileConfig.ConfigFileUsed()
 	if len(cfgFile) != 0 {
 		a.Logger.Printf("using config file %s", cfgFile)
