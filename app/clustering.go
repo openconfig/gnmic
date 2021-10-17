@@ -19,7 +19,7 @@ import (
 
 const (
 	defaultClusterName = "default-cluster"
-	retryTimer         = 2 * time.Second
+	retryTimer         = 10 * time.Second
 	lockWaitTime       = 100 * time.Millisecond
 	apiServiceName     = "gnmic-api"
 )
@@ -132,12 +132,14 @@ START:
 	}
 	ctx, cancel := context.WithCancel(a.ctx)
 	defer cancel()
-	go a.watchMembers(ctx)
-	a.Logger.Printf("leader waiting %s before dispatching targets", a.Config.Clustering.LeaderWaitTimer)
-	time.Sleep(a.Config.Clustering.LeaderWaitTimer)
-	a.Logger.Printf("leader done waiting, starting loader and dispatching targets")
-	go a.startLoader(ctx)
-	go a.dispatchTargets(ctx)
+	go func() {
+		go a.watchMembers(ctx)
+		a.Logger.Printf("leader waiting %s before dispatching targets", a.Config.Clustering.LeaderWaitTimer)
+		time.Sleep(a.Config.Clustering.LeaderWaitTimer)
+		a.Logger.Printf("leader done waiting, starting loader and dispatching targets")
+		go a.startLoader(ctx)
+		go a.dispatchTargets(ctx)
+	}()
 
 	doneCh, errCh := a.locker.KeepLock(a.ctx, leaderKey)
 	select {
