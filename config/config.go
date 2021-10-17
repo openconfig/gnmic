@@ -280,7 +280,19 @@ func (c *Config) SetLogger() (io.Writer, int, error) {
 }
 
 func (c *Config) SetPersistantFlagsFromFile(cmd *cobra.Command) {
+	// set debug and log values from file before other persistant flags
 	cmd.PersistentFlags().VisitAll(func(f *pflag.Flag) {
+		if f.Name == "debug" || f.Name == "log" {
+			if !f.Changed && c.FileConfig.IsSet(f.Name) {
+				c.setFlagValue(cmd, f.Name, c.FileConfig.Get(f.Name))
+			}
+		}
+	})
+	//
+	cmd.PersistentFlags().VisitAll(func(f *pflag.Flag) {
+		if f.Name == "debug" || f.Name == "log" {
+			return
+		}
 		if c.Debug {
 			c.logger.Printf("cmd=%s, flagName=%s, changed=%v, isSetInFile=%v",
 				cmd.Name(), f.Name, f.Changed, c.FileConfig.IsSet(f.Name))
