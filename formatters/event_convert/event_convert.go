@@ -1,15 +1,15 @@
 package event_convert
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math"
 	"os"
 	"regexp"
 	"strconv"
-	"math"
-	"encoding/binary"
 
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/types"
