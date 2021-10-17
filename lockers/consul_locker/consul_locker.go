@@ -91,7 +91,8 @@ func (c *ConsulLocker) Init(ctx context.Context, cfg map[string]interface{}, opt
 	if err != nil {
 		return err
 	}
-	c.logger.Printf("initialized consul locker with cfg=%s", c)
+	b, _ := json.Marshal(c.Cfg)
+	c.logger.Printf("initialized consul locker with cfg=%s", string(b))
 	return nil
 }
 
