@@ -3,7 +3,7 @@ package event_date_string
 import (
 	"encoding/json"
 	"errors"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"regexp"
@@ -39,7 +39,7 @@ type DateString struct {
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
 		return &DateString{
-			logger: log.New(ioutil.Discard, "", 0),
+			logger: log.New(io.Discard, "", 0),
 		}
 	})
 }
@@ -79,7 +79,7 @@ func (d *DateString) Init(cfg interface{}, opts ...formatters.Option) error {
 		}
 		d.location = loc
 	}
-	if d.logger.Writer() != ioutil.Discard {
+	if d.logger.Writer() != io.Discard {
 		b, err := json.Marshal(d)
 		if err != nil {
 			d.logger.Printf("initialized processor '%s': %+v", processorType, d)

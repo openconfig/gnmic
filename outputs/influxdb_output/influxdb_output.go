@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"log"
 	"math"
 	"strings"
@@ -37,7 +37,7 @@ func init() {
 			eventChan: make(chan *formatters.EventMsg),
 			reset:     make(chan struct{}),
 			startSig:  make(chan struct{}),
-			logger:    log.New(ioutil.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger:    log.New(io.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
 		}
 	})
 }

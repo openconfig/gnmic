@@ -3,7 +3,7 @@ package consul_loader
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net"
 	"strconv"
@@ -35,7 +35,7 @@ func init() {
 			cfg:         &cfg{},
 			m:           new(sync.Mutex),
 			lastTargets: make(map[string]*types.TargetConfig),
-			logger:      log.New(ioutil.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger:      log.New(io.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
 		}
 	})
 }

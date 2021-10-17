@@ -3,7 +3,6 @@ package event_write
 import (
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"regexp"
@@ -43,7 +42,7 @@ type Write struct {
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
 		return &Write{
-			logger: log.New(ioutil.Discard, "", 0),
+			logger: log.New(io.Discard, "", 0),
 		}
 	})
 }

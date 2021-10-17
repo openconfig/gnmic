@@ -2,7 +2,7 @@ package event_to_tag
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"regexp"
@@ -33,7 +33,7 @@ type ToTag struct {
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
 		return &ToTag{
-			logger: log.New(ioutil.Discard, "", 0),
+			logger: log.New(io.Discard, "", 0),
 		}
 	})
 }
@@ -62,7 +62,7 @@ func (t *ToTag) Init(cfg interface{}, opts ...formatters.Option) error {
 		}
 		t.values = append(t.values, re)
 	}
-	if t.logger.Writer() != ioutil.Discard {
+	if t.logger.Writer() != io.Discard {
 		b, err := json.Marshal(t)
 		if err != nil {
 			t.logger.Printf("initialized processor '%s': %+v", processorType, t)

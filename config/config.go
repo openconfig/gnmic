@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -217,7 +216,7 @@ func New() *Config {
 		nil,
 		nil,
 		nil,
-		log.New(ioutil.Discard, configLogPrefix, log.LstdFlags|log.Lmicroseconds|log.Lmsgprefix),
+		log.New(io.Discard, configLogPrefix, log.LstdFlags|log.Lmicroseconds|log.Lmsgprefix),
 		nil,
 		make(map[string]interface{}),
 	}
@@ -255,7 +254,7 @@ func (c *Config) Load() error {
 }
 
 func (c *Config) SetLogger() (io.Writer, int, error) {
-	var f io.Writer = ioutil.Discard
+	var f io.Writer = io.Discard
 	var loggingFlags = c.logger.Flags()
 	var err error
 

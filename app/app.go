@@ -93,7 +93,7 @@ func New() *App {
 		httpClient: &http.Client{
 			Timeout: defaultHTTPClientTimeout,
 		},
-		Logger:        log.New(ioutil.Discard, "[gnmic] ", log.LstdFlags|log.Lmsgprefix),
+		Logger:        log.New(io.Discard, "[gnmic] ", log.LstdFlags|log.Lmsgprefix),
 		out:           os.Stdout,
 		PromptHistory: make([]string, 0, 128),
 		SchemaTree: &yang.Entry{

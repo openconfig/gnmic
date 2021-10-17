@@ -2,7 +2,7 @@ package event_strings
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -62,7 +62,7 @@ type transform struct {
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
 		return &Strings{
-			logger: log.New(ioutil.Discard, "", 0),
+			logger: log.New(io.Discard, "", 0),
 		}
 	})
 }
@@ -116,7 +116,7 @@ func (s *Strings) Init(cfg interface{}, opts ...formatters.Option) error {
 		}
 		s.valueKeys = append(s.valueKeys, re)
 	}
-	if s.logger.Writer() != ioutil.Discard {
+	if s.logger.Writer() != io.Discard {
 		b, err := json.Marshal(s)
 		if err != nil {
 			s.logger.Printf("initialized processor '%s': %+v", processorType, s)

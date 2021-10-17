@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"strconv"
@@ -37,7 +38,7 @@ const (
 func init() {
 	actions.Register(actionType, func() actions.Action {
 		return &gnmiAction{
-			logger:         log.New(ioutil.Discard, "", 0),
+			logger:         log.New(io.Discard, "", 0),
 			targetsConfigs: make(map[string]*targetConfig),
 		}
 	})

@@ -2,7 +2,7 @@ package event_merge
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 
@@ -26,7 +26,7 @@ type Merge struct {
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
 		return &Merge{
-			logger: log.New(ioutil.Discard, "", 0),
+			logger: log.New(io.Discard, "", 0),
 		}
 	})
 }
@@ -40,7 +40,7 @@ func (p *Merge) Init(cfg interface{}, opts ...formatters.Option) error {
 		opt(p)
 	}
 
-	if p.logger.Writer() != ioutil.Discard {
+	if p.logger.Writer() != io.Discard {
 		b, err := json.Marshal(p)
 		if err != nil {
 			p.logger.Printf("initialized processor '%s': %+v", processorType, p)

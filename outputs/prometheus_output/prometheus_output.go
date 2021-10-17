@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
-	"io/ioutil"
+	"io"
 	"log"
 	"math"
 	"net"
@@ -67,7 +67,7 @@ func init() {
 			wg:          new(sync.WaitGroup),
 			entries:     make(map[uint64]*promMetric),
 			metricRegex: regexp.MustCompile(metricNameRegex),
-			logger:      log.New(ioutil.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger:      log.New(io.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
 			caches:      make(map[string]*cache.Cache),
 		}
 	})

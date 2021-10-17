@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"strings"
 	"sync"
@@ -127,7 +126,7 @@ type subscriptionRequest struct {
 func WithLogger(logger *log.Logger) CollectorOption {
 	return func(c *Collector) {
 		if logger == nil {
-			c.logger = log.New(ioutil.Discard, "", 0)
+			c.logger = log.New(io.Discard, "", 0)
 		} else {
 			c.logger = logger
 		}

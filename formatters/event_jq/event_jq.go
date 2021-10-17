@@ -2,7 +2,7 @@ package event_jq
 
 import (
 	"errors"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"strings"
@@ -33,7 +33,7 @@ type jq struct {
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
 		return &jq{
-			logger: log.New(ioutil.Discard, "", 0),
+			logger: log.New(io.Discard, "", 0),
 		}
 	})
 }
