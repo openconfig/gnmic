@@ -29,7 +29,9 @@ The `--output` flag specifies the file to which the generated output will be wri
 
 #### json
 
-The `--json` flag, if present changes the output format from YAML to JSON.
+When used with `generate` command, the `--json` flag, if present changes the output format from YAML to JSON.
+
+When used with `generate path` command, it outputs the path, the leaf **type**, its **description**, its **default value** and if it is a **state leaf** or not in an array of JSON objects.
 
 ### Local Flags
 
