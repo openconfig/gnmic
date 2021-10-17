@@ -2,9 +2,11 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/google/gnxi/utils/xpath"
@@ -22,6 +24,15 @@ type pathGenOpts struct {
 	pathType   string
 	stateOnly  bool
 	configOnly bool
+	json       bool
+}
+
+type generatedPath struct {
+	Path        string `json:"path,omitempty"`
+	Type        string `json:"type,omitempty"`
+	Description string `json:"description,omitempty"`
+	Default     string `json:"default,omitempty"`
+	IsState     bool   `json:"is-state,omitempty"`
 }
 
 func (a *App) PathCmdRun(d, f, e []string, pgo pathGenOpts) error {
@@ -31,74 +42,121 @@ func (a *App) PathCmdRun(d, f, e []string, pgo pathGenOpts) error {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	out := make(chan string)
-	paths := make([]string, 0)
-	if pgo.search {
-		go gather(ctx, out, &paths)
-	} else {
-		go printer(ctx, out)
-	}
+
+	out := make(chan *generatedPath)
+	gpaths := make([]*generatedPath, 0)
+
+	go func(ctx context.Context, out chan *generatedPath) {
+		for {
+			select {
+			case m, ok := <-out:
+				if !ok {
+					return
+				}
+				gpaths = append(gpaths, m)
+			case <-ctx.Done():
+				return
+			}
+		}
+	}(ctx, out)
+
 	collected := make([]*yang.Entry, 0, 256)
 	for _, entry := range a.SchemaTree.Dir {
 		collected = append(collected, collectSchemaNodes(entry, true)...)
 	}
 	for _, entry := range collected {
 		if !pgo.stateOnly && !pgo.configOnly || pgo.stateOnly && pgo.configOnly {
-			out <- a.generatePath(entry, pgo.withDescr, pgo.withPrefix, pgo.withTypes, pgo.pathType)
+			out <- a.generatePath(entry, pgo.withPrefix, pgo.pathType)
 			continue
 		}
 		state := isState(entry)
 		if state && pgo.stateOnly {
-			out <- a.generatePath(entry, pgo.withDescr, pgo.withPrefix, pgo.withTypes, pgo.pathType)
+			out <- a.generatePath(entry, pgo.withPrefix, pgo.pathType)
 			continue
 		}
 		if !state && pgo.configOnly {
-			out <- a.generatePath(entry, pgo.withDescr, pgo.withPrefix, pgo.withTypes, pgo.pathType)
+			out <- a.generatePath(entry, pgo.withPrefix, pgo.pathType)
 			continue
 		}
 	}
 	close(out)
-	if pgo.search {
-		if len(paths) == 0 {
-			return errors.New("no results found")
-		}
-		p := promptui.Select{
-			Label:        "select path",
-			Items:        paths,
-			Size:         10,
-			Stdout:       os.Stdout,
-			HideSelected: true,
-			Searcher: func(input string, index int) bool {
-				kws := strings.Split(input, " ")
-				result := true
-				for _, kw := range kws {
-					if strings.HasPrefix(kw, "!") {
-						kw = strings.TrimLeft(kw, "!")
-						if kw == "" {
-							continue
-						}
-						result = result && !strings.Contains(paths[index], kw)
-					} else {
-						result = result && strings.Contains(paths[index], kw)
-					}
-				}
-				return result
-			},
-			Keys: &promptui.SelectKeys{
-				Prev:     promptui.Key{Code: promptui.KeyPrev, Display: promptui.KeyPrevDisplay},
-				Next:     promptui.Key{Code: promptui.KeyNext, Display: promptui.KeyNextDisplay},
-				PageUp:   promptui.Key{Code: promptui.KeyBackward, Display: promptui.KeyBackwardDisplay},
-				PageDown: promptui.Key{Code: promptui.KeyForward, Display: promptui.KeyForwardDisplay},
-				Search:   promptui.Key{Code: ':', Display: ":"},
-			},
-		}
-		index, selected, err := p.Run()
+	sort.Slice(gpaths, func(i, j int) bool {
+		return gpaths[i].Path < gpaths[j].Path
+	})
+	if pgo.json {
+		b, err := json.MarshalIndent(gpaths, "", "  ")
 		if err != nil {
 			return err
 		}
-		fmt.Println(selected)
-		fmt.Println(a.generateTypeInfo(collected[index]))
+		fmt.Fprintln(os.Stdout, string(b))
+		return nil
 	}
+
+	if len(gpaths) == 0 {
+		return errors.New("no results found")
+	}
+
+	// regular print
+	if !pgo.search {
+		sb := new(strings.Builder)
+		for _, gp := range gpaths {
+			sb.Reset()
+			sb.WriteString(gp.Path)
+			if pgo.withTypes {
+				sb.WriteString("\t(type=")
+				sb.WriteString(gp.Type)
+				sb.WriteString(")")
+			}
+			if pgo.withDescr {
+				sb.WriteString("\n")
+				sb.WriteString(indent("\t", gp.Description))
+			}
+			fmt.Fprintln(os.Stdout, sb.String())
+		}
+		return nil
+	}
+	// search
+	paths := make([]string, 0, len(gpaths))
+	for _, gp := range gpaths {
+		paths = append(paths, gp.Path)
+	}
+	p := promptui.Select{
+		Label:        "select path",
+		Items:        paths,
+		Size:         10,
+		Stdout:       os.Stdout,
+		HideSelected: true,
+		Searcher: func(input string, index int) bool {
+			kws := strings.Split(input, " ")
+			result := true
+			for _, kw := range kws {
+				if strings.HasPrefix(kw, "!") {
+					kw = strings.TrimLeft(kw, "!")
+					if kw == "" {
+						continue
+					}
+					result = result && !strings.Contains(paths[index], kw)
+				} else {
+					result = result && strings.Contains(paths[index], kw)
+				}
+			}
+			return result
+		},
+		Keys: &promptui.SelectKeys{
+			Prev:     promptui.Key{Code: promptui.KeyPrev, Display: promptui.KeyPrevDisplay},
+			Next:     promptui.Key{Code: promptui.KeyNext, Display: promptui.KeyNextDisplay},
+			PageUp:   promptui.Key{Code: promptui.KeyBackward, Display: promptui.KeyBackwardDisplay},
+			PageDown: promptui.Key{Code: promptui.KeyForward, Display: promptui.KeyForwardDisplay},
+			Search:   promptui.Key{Code: ':', Display: ":"},
+		},
+	}
+	index, selected, err := p.Run()
+	if err != nil {
+		return err
+	}
+	fmt.Println(selected)
+	fmt.Println(a.generateTypeInfo(collected[index]))
+
 	return nil
 }
 
@@ -169,40 +227,39 @@ func collectSchemaNodes(e *yang.Entry, leafOnly bool) []*yang.Entry {
 	return collected
 }
 
-func (a *App) generatePath(entry *yang.Entry, withDescr, prefixTagging, withTypes bool, pType string) string {
-	path := ""
+func (a *App) generatePath(entry *yang.Entry, prefixTagging bool, pType string) *generatedPath {
+	gp := new(generatedPath)
 	for e := entry; e != nil && e.Parent != nil; e = e.Parent {
 		if e.IsCase() || e.IsChoice() {
 			continue
 		}
 		elementName := e.Name
 		if prefixTagging && e.Prefix != nil {
-			elementName = e.Prefix.Name + ":" + elementName
+			elementName = fmt.Sprintf("%s:%s", e.Prefix.Name, elementName)
 		}
 		if e.Key != "" {
 			for _, k := range strings.Fields(e.Key) {
 				if prefixTagging && e.Prefix != nil {
-					k = e.Prefix.Name + ":" + k
+					k = fmt.Sprintf("%s:%s", e.Prefix.Name, k)
 				}
 				elementName = fmt.Sprintf("%s[%s=*]", elementName, k)
 			}
 		}
-		path = fmt.Sprintf("/%s%s", elementName, path)
+		gp.Path = fmt.Sprintf("/%s%s", elementName, gp.Path)
 	}
+
+	gp.Description = entry.Description
+	gp.Type = entry.Type.Name
+	gp.Default = entry.DefaultValue()
+	gp.IsState = isState(entry)
 	if pType == "gnmi" {
-		gnmiPath, err := xpath.ToGNMIPath(path)
+		gnmiPath, err := xpath.ToGNMIPath(gp.Path)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "path: %s could not be changed to gnmi: %v\n", path, err)
+			fmt.Fprintf(os.Stderr, "path: %s could not be changed to gnmi format: %v\n", gp.Path, err)
 		}
-		path = gnmiPath.String()
+		gp.Path = gnmiPath.String()
 	}
-	if withDescr {
-		path = fmt.Sprintf("%s\n%s", path, indent("\t", entry.Description))
-	}
-	if withTypes {
-		path = fmt.Sprintf("%s (type=%s)", path, entry.Type.Name)
-	}
-	return path
+	return gp
 }
 
 func (a *App) generateTypeInfo(e *yang.Entry) string {
@@ -289,34 +346,6 @@ func getAnnotation(entry *yang.Entry, name string) interface{} {
 		}
 	}
 	return nil
-}
-
-func printer(ctx context.Context, c chan string) {
-	for {
-		select {
-		case m, ok := <-c:
-			if !ok {
-				return
-			}
-			fmt.Println(m)
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
-func gather(ctx context.Context, c chan string, ls *[]string) {
-	for {
-		select {
-		case m, ok := <-c:
-			if !ok {
-				return
-			}
-			*ls = append(*ls, m)
-		case <-ctx.Done():
-			return
-		}
-	}
 }
 
 func isState(e *yang.Entry) bool {

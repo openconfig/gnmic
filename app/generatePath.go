@@ -27,11 +27,12 @@ func (a *App) GeneratePathRunE(cmd *cobra.Command, args []string) error {
 		pathGenOpts{
 			search:     a.Config.LocalFlags.GeneratePathSearch,
 			withDescr:  a.Config.LocalFlags.GeneratePathWithDescr,
-			withTypes:  a.Config.LocalFlags.GeneratePathWithPrefix,
-			withPrefix: a.Config.LocalFlags.GeneratePathWithTypes,
+			withTypes:  a.Config.LocalFlags.GeneratePathWithTypes,
+			withPrefix: a.Config.LocalFlags.GeneratePathWithPrefix,
 			pathType:   a.Config.LocalFlags.GeneratePathPathType,
 			stateOnly:  a.Config.LocalFlags.GeneratePathState,
 			configOnly: a.Config.LocalFlags.GeneratePathConfig,
+			json:       a.Config.LocalFlags.GenerateJSON,
 		},
 	)
 }
