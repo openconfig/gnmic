@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,7 +12,8 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/Masterminds/sprig"
+	"github.com/hairyhenderson/gomplate/v3"
+	"github.com/hairyhenderson/gomplate/v3/data"
 	"github.com/karimra/gnmic/utils"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"gopkg.in/yaml.v2"
@@ -45,7 +47,9 @@ func (c *Config) ReadSetRequestTemplate() error {
 		c.logger.Printf("set request file content: %s", string(b))
 	}
 	// read template
-	c.setRequestTemplate, err = template.New("set-request").Funcs(sprig.TxtFuncMap()).Parse(string(b))
+	c.setRequestTemplate, err = template.New("set-request").
+		Funcs(gomplate.CreateFuncs(context.TODO(), new(data.Data))).
+		Parse(string(b))
 	if err != nil {
 		return err
 	}

@@ -1,54 +1,52 @@
-replaces:
-{{- range $interface := index .Vars .TargetName "interfaces" }}
-  - path: "/interface[name={{ index $interface "name" }}]"
+{{ $target := index .Vars .TargetName }}
+updates:
+{{- range $interface := $target.interfaces }}
+  - path: "/interface[name={{ $interface.name }}]"
     encoding: "json_ietf"
-    value: 
-      admin-state: {{ index $interface "admin-state" | default "disable" }}
-      description: {{ index $interface "description" | default "" }}
-      {{- if index $interface "mtu" }}
-      mtu: {{ index $interface "mtu" }}
+    value:
+      admin-state: {{ $interface.admin_state | or "disable" }}
+      description: {{ $interface.description | or "" }}
+      {{- if $interface.mtu }}
+      mtu: {{ $interface.mtu }}
       {{- end }}
-      {{- if index $interface "loopback-mode" }}
-      loopback-mode: {{ index $interface "loopback-mode" }}
+      {{- if $interface.vlan_tagging }}
+      vlan-tagging: {{ $interface.vlan_tagging }}
       {{- end }}
-      {{- if index $interface "vlan-tagging" }}
-      vlan-tagging: {{ index $interface "vlan-tagging" }}
-      {{- end }}
-      {{- if $ethernet := index $interface "ethernet" }}
+      {{- if $ethernet := $interface.ethernet }}
       ethernet:
-        {{- if index $ethernet "aggregate-id" }}
-        aggregate-id: {{ index $ethernet "aggregate-id" }}
+        {{- if $ethernet.aggregate_id }}
+        aggregate-id: {{ $ethernet.aggregate_id }}
         {{- end }}
-        {{- if index $ethernet "auto-negotiate" }}
-        auto-negotiate: {{ index $ethernet "auto-negotiate" }}
+        {{- if $ethernet.auto_negotiate }}
+        auto-negotiate: {{ $ethernet.auto_negotiate }}
         {{- end }}
-        {{- if index $ethernet "duplex-mode" }}
-        duplex-mode: {{ index $ethernet "duplex-mode" }}
+        {{- if $ethernet.duplex_mode }}
+        duplex-mode: {{ $ethernet.duplex_mode }}
         {{- end }}
-        {{- if index $ethernet "flow-control" "receive" }}
+        {{- if $ethernet.flow_control.receive }}
         flow-control: 
-          receive: {{ index $ethernet "flow-control" "receive" }}
+          receive: {{ $ethernet.flow_control.receive }}
         {{- end }}
       {{- end }}
-      {{- if $lag := index $interface "lag" }}
+      {{- if $interface.lag }}
       lag:
-        {{- if index $lag "lag-type" }}
-        lag-type: {{ index $lag "lag-type" }}
+        {{- if $interface.lag.lag_type }}
+        lag-type: {{ $interface.lag.lag_type }}
         {{- end }}
-        {{- if index $lag "min-links" }}
-        min-links: {{ index $lag "min-links" }}
+        {{- if $interface.lag.min_links }}
+        min-links: {{ $interface.lag.min_links }}
         {{- end }}
-        {{- if index $lag "member-speed" }}
-        member-speed: {{ index $lag "member-speed" }}
+        {{- if $interface.lag.member_speed }}
+        member-speed: {{ $interface.lag.member_speed }}
         {{- end }}
-        {{- if index $lag "lacp-fallback-mode" }}
-        lacp-fallback-mode: {{ index $lag "lacp-fallback-mode" }}
+        {{- if $interface.lag.lacp_fallback_mode }}
+        lacp-fallback-mode: {{ $interface.lag.lacp_fallback_mode }}
         {{- end }}
-        {{- if index $lag "lacp-fallback-timeout" }}
-        lacp-fallback-timeout: {{ index $lag "lacp-fallback-timeout" }}
+        {{- if $interface.lag.lacp_fallback_timeout }}
+        lacp-fallback-timeout: {{ $interface.lag.lacp_fallback_timeout }}
         {{- end }}
-        {{- if index $lag "lag-speed" }}
-        lag-speedt: {{ index $lag "lag-speed" }}
+        {{- if $interface.lag.lag_speed }}
+        lag-speedt: {{ $interface.lag.lag_speed }}
         {{- end }}
       {{- end }}
 {{- end }}
