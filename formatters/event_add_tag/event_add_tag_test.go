@@ -161,7 +161,7 @@ var testset = map[string]struct {
 	"match_value_name_overwrite": {
 		processorType: processorType,
 		processor: map[string]interface{}{
-			"debug": true,
+			"debug":       true,
 			"value-names": []string{"value"},
 			"overwrite":   true,
 			"add": map[string]string{
