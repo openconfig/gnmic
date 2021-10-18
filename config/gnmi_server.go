@@ -20,22 +20,22 @@ const (
 )
 
 type gnmiServer struct {
-	Address               string        `mapstructure:"address,omitempty"`
-	MinSampleInterval     time.Duration `mapstructure:"min-sample-interval,omitempty"`
-	DefaultSampleInterval time.Duration `mapstructure:"default-sample-interval,omitempty"`
-	MinHeartbeatInterval  time.Duration `mapstructure:"min-heartbeat-interval,omitempty"`
-	MaxSubscriptions      int64         `mapstructure:"max-subscriptions,omitempty"`
-	MaxUnaryRPC           int64         `mapstructure:"max-unary-rpc,omitempty"`
+	Address               string        `mapstructure:"address,omitempty" json:"address,omitempty"`
+	MinSampleInterval     time.Duration `mapstructure:"min-sample-interval,omitempty" json:"min-sample-interval,omitempty"`
+	DefaultSampleInterval time.Duration `mapstructure:"default-sample-interval,omitempty" json:"default-sample-interval,omitempty"`
+	MinHeartbeatInterval  time.Duration `mapstructure:"min-heartbeat-interval,omitempty" json:"min-heartbeat-interval,omitempty"`
+	MaxSubscriptions      int64         `mapstructure:"max-subscriptions,omitempty" json:"max-subscriptions,omitempty"`
+	MaxUnaryRPC           int64         `mapstructure:"max-unary-rpc,omitempty" json:"max-unary-rpc,omitempty"`
 	// TLS
-	SkipVerify bool   `mapstructure:"skip-verify,omitempty"`
-	CaFile     string `mapstructure:"ca-file,omitempty"`
-	CertFile   string `mapstructure:"cert-file,omitempty"`
-	KeyFile    string `mapstructure:"key-file,omitempty"`
+	SkipVerify bool   `mapstructure:"skip-verify,omitempty" json:"skip-verify,omitempty"`
+	CaFile     string `mapstructure:"ca-file,omitempty" json:"ca-file,omitempty"`
+	CertFile   string `mapstructure:"cert-file,omitempty" json:"cert-file,omitempty"`
+	KeyFile    string `mapstructure:"key-file,omitempty" json:"key-file,omitempty"`
 	//
-	EnableMetrics bool `mapstructure:"enable-metrics,omitempty"`
-	Debug         bool `mapstructure:"debug,omitempty"`
+	EnableMetrics bool `mapstructure:"enable-metrics,omitempty" json:"enable-metrics,omitempty"`
+	Debug         bool `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 	// ServiceRegistration
-	ServiceRegistration *serviceRegistration `mapstructure:"service-registration,omitempty"`
+	ServiceRegistration *serviceRegistration `mapstructure:"service-registration,omitempty" json:"service-registration,omitempty"`
 }
 
 type serviceRegistration struct {

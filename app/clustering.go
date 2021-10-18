@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -71,6 +72,12 @@ func (a *App) apiServiceRegistration() {
 	tags := make([]string, 0, 2+len(a.Config.Clustering.Tags))
 	tags = append(tags, fmt.Sprintf("cluster-name=%s", a.Config.Clustering.ClusterName))
 	tags = append(tags, fmt.Sprintf("instance-name=%s", a.Config.Clustering.InstanceName))
+	if a.Config.APIServer.SkipVerify || a.Config.APIServer.CaFile != "" ||
+		a.Config.APIServer.CertFile != "" && a.Config.APIServer.KeyFile != "" {
+		tags = append(tags, "protocol=https")
+	} else {
+		tags = append(tags, "protocol=http")
+	}
 	tags = append(tags, a.Config.Clustering.Tags...)
 
 	serviceReg := &lockers.ServiceRegistration{
@@ -519,15 +526,32 @@ func (a *App) getHighestTagsMatches(tagsCount map[string]int) []string {
 func (a *App) deleteTarget(name string) error {
 	errs := make([]error, 0, len(a.apiServices))
 	for _, s := range a.apiServices {
-		url := fmt.Sprintf("http://%s/config/targets/%s", s.Address, name)
-		req, err := http.NewRequestWithContext(a.ctx, "DELETE", url, nil)
+		scheme := "http"
+		client := &http.Client{
+			Timeout: defaultHTTPClientTimeout,
+		}
+		for _, t := range s.Tags {
+			if strings.HasPrefix(t, "protocol=") {
+				scheme = strings.Split(t, "=")[1]
+				break
+			}
+		}
+		if scheme == "https" {
+			client.Transport = &http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true,
+				},
+			}
+		}
+		url := fmt.Sprintf("%s://%s/config/targets/%s", scheme, s.Address, name)
+		req, err := http.NewRequestWithContext(a.ctx, http.MethodDelete, url, nil)
 		if err != nil {
 			a.Logger.Printf("failed to create a delete request: %v", err)
 			errs = append(errs, err)
 			continue
 		}
 
-		rsp, err := a.httpClient.Do(req)
+		rsp, err := client.Do(req)
 		if err != nil {
 			a.Logger.Printf("failed deleting target %q: %v", name, err)
 			errs = append(errs, err)
@@ -543,18 +567,34 @@ func (a *App) deleteTarget(name string) error {
 
 func (a *App) assignTarget(ctx context.Context, tc *types.TargetConfig, service *lockers.Service) error {
 	// encode target config
-	var err error
 	buffer := new(bytes.Buffer)
-	err = json.NewEncoder(buffer).Encode(tc)
+	err := json.NewEncoder(buffer).Encode(tc)
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequest(http.MethodPost, "http://"+service.Address+"/config/targets", buffer)
+	scheme := "http"
+	client := &http.Client{
+		Timeout: defaultHTTPClientTimeout,
+	}
+	for _, t := range service.Tags {
+		if strings.HasPrefix(t, "protocol=") {
+			scheme = strings.Split(t, "=")[1]
+			break
+		}
+	}
+	if scheme == "https" {
+		client.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		}
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%s://%s/config/targets", scheme, service.Address), buffer)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := a.httpClient.Do(req.WithContext(ctx))
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -563,11 +603,11 @@ func (a *App) assignTarget(ctx context.Context, tc *types.TargetConfig, service 
 		return fmt.Errorf("status code=%d", resp.StatusCode)
 	}
 	// send target start
-	req, err = http.NewRequest(http.MethodPost, "http://"+service.Address+"/targets/"+tc.Name, new(bytes.Buffer))
+	req, err = http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%s://%s/targets/%s", scheme, service.Address, tc.Name), new(bytes.Buffer))
 	if err != nil {
 		return err
 	}
-	resp, err = a.httpClient.Do(req.WithContext(ctx))
+	resp, err = client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -583,14 +623,31 @@ func (a *App) unassignTarget(name string, serviceID string) error {
 		if s.ID != serviceID {
 			continue
 		}
-		url := fmt.Sprintf("http://%s/targets/%s", s.Address, name)
+		scheme := "http"
+		client := &http.Client{
+			Timeout: defaultHTTPClientTimeout,
+		}
+		for _, t := range s.Tags {
+			if strings.HasPrefix(t, "protocol=") {
+				scheme = strings.Split(t, "=")[1]
+				break
+			}
+		}
+		if scheme == "https" {
+			client.Transport = &http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true,
+				},
+			}
+		}
+		url := fmt.Sprintf("%s://%s/targets/%s", scheme, s.Address, name)
 		ctx, cancel := context.WithTimeout(a.ctx, 500*time.Millisecond)
 		defer cancel()
-		req, err := http.NewRequestWithContext(ctx, "DELETE", url, nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
 		if err != nil {
 			continue
 		}
-		rsp, err := a.httpClient.Do(req)
+		rsp, err := client.Do(req)
 		if err != nil {
 			continue
 		}
