@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"text/template"
@@ -30,7 +30,7 @@ func init() {
 	outputs.Register("file", func() outputs.Output {
 		return &File{
 			Cfg:    &Config{},
-			logger: log.New(ioutil.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger: log.New(io.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
 		}
 	})
 }

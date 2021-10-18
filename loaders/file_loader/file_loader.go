@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net"
@@ -39,7 +40,7 @@ func init() {
 		return &fileLoader{
 			cfg:         &cfg{},
 			lastTargets: make(map[string]*types.TargetConfig),
-			logger:      log.New(ioutil.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger:      log.New(io.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
 		}
 	})
 }

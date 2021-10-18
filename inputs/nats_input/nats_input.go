@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net"
 	"strings"
@@ -35,7 +35,7 @@ func init() {
 	inputs.Register("nats", func() inputs.Input {
 		return &NatsInput{
 			Cfg:    &Config{},
-			logger: log.New(ioutil.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger: log.New(io.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
 			wg:     new(sync.WaitGroup),
 		}
 	})

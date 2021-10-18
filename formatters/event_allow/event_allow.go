@@ -2,7 +2,7 @@ package event_allow
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"regexp"
@@ -38,7 +38,7 @@ type Allow struct {
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
 		return &Allow{
-			logger: log.New(ioutil.Discard, "", 0),
+			logger: log.New(io.Discard, "", 0),
 		}
 	})
 }
@@ -95,7 +95,7 @@ func (d *Allow) Init(cfg interface{}, opts ...formatters.Option) error {
 		}
 		d.values = append(d.values, re)
 	}
-	if d.logger.Writer() != ioutil.Discard {
+	if d.logger.Writer() != io.Discard {
 		b, err := json.Marshal(d)
 		if err != nil {
 			d.logger.Printf("initialized processor '%s': %+v", processorType, d)

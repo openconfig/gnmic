@@ -2,7 +2,7 @@ package event_group_by
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"sort"
@@ -30,7 +30,7 @@ type groupBy struct {
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
 		return &groupBy{
-			logger: log.New(ioutil.Discard, "", 0),
+			logger: log.New(io.Discard, "", 0),
 		}
 	})
 }
@@ -44,7 +44,7 @@ func (p *groupBy) Init(cfg interface{}, opts ...formatters.Option) error {
 		opt(p)
 	}
 
-	if p.logger.Writer() != ioutil.Discard {
+	if p.logger.Writer() != io.Discard {
 		b, err := json.Marshal(p)
 		if err != nil {
 			p.logger.Printf("initialized processor '%s': %+v", processorType, p)

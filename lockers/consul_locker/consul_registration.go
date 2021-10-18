@@ -114,7 +114,7 @@ func (c *ConsulLocker) watch(qOpts *api.QueryOptions, serviceName string, tags [
 		meta = new(api.QueryMeta)
 	}
 	if meta.LastIndex == qOpts.WaitIndex {
-		c.logger.Printf("service=%q did not change", serviceName)
+		c.logger.Printf("service=%q did not change, lastIndex=%d", serviceName, meta.LastIndex)
 		return meta.LastIndex, nil
 	}
 	if err != nil {

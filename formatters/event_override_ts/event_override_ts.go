@@ -2,7 +2,7 @@ package event_override_ts
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"time"
@@ -29,7 +29,7 @@ type OverrideTS struct {
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
 		return &OverrideTS{
-			logger: log.New(ioutil.Discard, "", 0),
+			logger: log.New(io.Discard, "", 0),
 		}
 	})
 }
@@ -45,7 +45,7 @@ func (o *OverrideTS) Init(cfg interface{}, opts ...formatters.Option) error {
 	if o.Precision == "" {
 		o.Precision = "ns"
 	}
-	if o.logger.Writer() != ioutil.Discard {
+	if o.logger.Writer() != io.Discard {
 		b, err := json.Marshal(o)
 		if err != nil {
 			o.logger.Printf("initialized processor '%s': %+v", processorType, o)

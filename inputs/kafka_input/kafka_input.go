@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"strings"
 	"sync"
@@ -39,7 +39,7 @@ func init() {
 	inputs.Register("kafka", func() inputs.Input {
 		return &KafkaInput{
 			Cfg:    &Config{},
-			logger: log.New(ioutil.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger: log.New(io.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
 			wg:     new(sync.WaitGroup),
 		}
 	})

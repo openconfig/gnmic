@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -217,7 +216,7 @@ func New() *Config {
 		nil,
 		nil,
 		nil,
-		log.New(ioutil.Discard, configLogPrefix, log.LstdFlags|log.Lmicroseconds),
+		log.New(io.Discard, configLogPrefix, log.LstdFlags|log.Lmicroseconds|log.Lmsgprefix),
 		nil,
 		make(map[string]interface{}),
 	}
@@ -254,29 +253,46 @@ func (c *Config) Load() error {
 	return c.expandOSPathFlagValues()
 }
 
-func (c *Config) SetLogger() {
+func (c *Config) SetLogger() (io.Writer, int, error) {
+	var f io.Writer = io.Discard
+	var loggingFlags = c.logger.Flags()
+	var err error
+
 	if c.LogFile != "" {
-		f, err := os.OpenFile(c.LogFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+		f, err = os.OpenFile(c.LogFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 		if err != nil {
-			return
+			return nil, 0, err
 		}
-		c.logger.SetOutput(f)
 	} else {
 		if c.Debug {
 			c.Log = true
 		}
 		if c.Log {
-			c.logger.SetOutput(os.Stderr)
+			f = os.Stderr
 		}
 	}
 	if c.Debug {
-		loggingFlags := c.logger.Flags() | log.Llongfile
-		c.logger.SetFlags(loggingFlags)
+		loggingFlags = loggingFlags | log.Llongfile
 	}
+	c.logger.SetOutput(f)
+	c.logger.SetFlags(loggingFlags)
+	return f, loggingFlags, nil
 }
 
 func (c *Config) SetPersistantFlagsFromFile(cmd *cobra.Command) {
+	// set debug and log values from file before other persistant flags
 	cmd.PersistentFlags().VisitAll(func(f *pflag.Flag) {
+		if f.Name == "debug" || f.Name == "log" {
+			if !f.Changed && c.FileConfig.IsSet(f.Name) {
+				c.setFlagValue(cmd, f.Name, c.FileConfig.Get(f.Name))
+			}
+		}
+	})
+	//
+	cmd.PersistentFlags().VisitAll(func(f *pflag.Flag) {
+		if f.Name == "debug" || f.Name == "log" {
+			return
+		}
 		if c.Debug {
 			c.logger.Printf("cmd=%s, flagName=%s, changed=%v, isSetInFile=%v",
 				cmd.Name(), f.Name, f.Changed, c.FileConfig.IsSet(f.Name))
@@ -911,14 +927,6 @@ func (c *Config) ValidateSetInput() error {
 		return errors.New("missing replace value/file or path")
 	}
 	return nil
-}
-
-func (c *Config) LogOutput() io.Writer {
-	return c.logger.Writer()
-}
-
-func (c *Config) LogFlags() int {
-	return c.logger.Flags()
 }
 
 func ExpandOSPaths(paths []string) ([]string, error) {

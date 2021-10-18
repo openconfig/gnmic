@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -49,7 +50,7 @@ type Trigger struct {
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
 		return &Trigger{
-			logger: log.New(ioutil.Discard, "", 0),
+			logger: log.New(io.Discard, "", 0),
 		}
 	})
 }

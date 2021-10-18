@@ -2,7 +2,7 @@ package event_write
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"log"
 	"testing"
 
@@ -208,7 +208,7 @@ var testset = map[string]struct {
 
 func TestEventWrite(t *testing.T) {
 	for name, ts := range testset {
-		p := &Write{logger: log.New(ioutil.Discard, "", 0)}
+		p := &Write{logger: log.New(io.Discard, "", 0)}
 		err := p.Init(ts.processor)
 		if err != nil {
 			t.Errorf("failed to initialize processors: %v", err)

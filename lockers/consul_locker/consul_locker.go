@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"sync"
 	"time"
@@ -29,7 +29,7 @@ func init() {
 			m:              new(sync.Mutex),
 			acquiredlocks:  make(map[string]*locks),
 			attemtinglocks: make(map[string]*locks),
-			logger:         log.New(ioutil.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger:         log.New(io.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
 			services:       make(map[string]context.CancelFunc),
 		}
 	})
@@ -91,7 +91,8 @@ func (c *ConsulLocker) Init(ctx context.Context, cfg map[string]interface{}, opt
 	if err != nil {
 		return err
 	}
-	c.logger.Printf("initialized consul locker with cfg=%s", c)
+	b, _ := json.Marshal(c.Cfg)
+	c.logger.Printf("initialized consul locker with cfg=%s", string(b))
 	return nil
 }
 

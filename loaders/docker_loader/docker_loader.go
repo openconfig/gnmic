@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net"
 	"net/url"
@@ -34,7 +34,7 @@ func init() {
 			cfg:         new(cfg),
 			wg:          new(sync.WaitGroup),
 			lastTargets: make(map[string]*types.TargetConfig),
-			logger:      log.New(ioutil.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger:      log.New(io.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
 		}
 	})
 }

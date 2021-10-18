@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net"
 	"text/template"
@@ -26,7 +26,7 @@ func init() {
 	outputs.Register("udp", func() outputs.Output {
 		return &UDPSock{
 			Cfg:    &Config{},
-			logger: log.New(ioutil.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger: log.New(io.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
 		}
 	})
 }

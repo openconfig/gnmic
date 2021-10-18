@@ -2,7 +2,7 @@ package event_delete
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"regexp"
@@ -36,7 +36,7 @@ type Delete struct {
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
 		return &Delete{
-			logger: log.New(ioutil.Discard, "", 0),
+			logger: log.New(io.Discard, "", 0),
 		}
 	})
 }
@@ -85,7 +85,7 @@ func (d *Delete) Init(cfg interface{}, opts ...formatters.Option) error {
 		}
 		d.valueNames = append(d.valueNames, re)
 	}
-	if d.logger.Writer() != ioutil.Discard {
+	if d.logger.Writer() != io.Discard {
 		b, err := json.Marshal(d)
 		if err != nil {
 			d.logger.Printf("initialized processor '%s': %+v", processorType, d)

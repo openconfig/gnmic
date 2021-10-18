@@ -1,15 +1,15 @@
 package event_convert
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
+	"math"
 	"os"
 	"regexp"
 	"strconv"
-	"math"
-	"encoding/binary"
 
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/types"
@@ -33,7 +33,7 @@ type Convert struct {
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
 		return &Convert{
-			logger: log.New(ioutil.Discard, "", 0),
+			logger: log.New(io.Discard, "", 0),
 		}
 	})
 }
@@ -54,7 +54,7 @@ func (c *Convert) Init(cfg interface{}, opts ...formatters.Option) error {
 		}
 		c.values = append(c.values, re)
 	}
-	if c.logger.Writer() != ioutil.Discard {
+	if c.logger.Writer() != io.Discard {
 		b, err := json.Marshal(c)
 		if err != nil {
 			c.logger.Printf("initialized processor '%s': %+v", processorType, c)
@@ -225,7 +225,7 @@ func convertToFloat(i interface{}) (float64, error) {
 	switch i := i.(type) {
 	case []uint8:
 		if len(i) == 4 {
-	  	return float64(math.Float32frombits(binary.BigEndian.Uint32([]byte(i)))), nil
+			return float64(math.Float32frombits(binary.BigEndian.Uint32([]byte(i)))), nil
 		} else if len(i) == 8 {
 			return float64(math.Float64frombits(binary.BigEndian.Uint64([]byte(i)))), nil
 		} else {
