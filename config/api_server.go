@@ -11,16 +11,16 @@ const (
 )
 
 type APIServer struct {
-	Address string        `mapstructure:"address,omitempty"`
-	Timeout time.Duration `mapstructure:"timeout,omitempty"`
+	Address string        `mapstructure:"address,omitempty" json:"address,omitempty"`
+	Timeout time.Duration `mapstructure:"timeout,omitempty" json:"timeout,omitempty"`
 	// TLS
-	SkipVerify bool   `mapstructure:"skip-verify,omitempty"`
-	CaFile     string `mapstructure:"ca-file,omitempty"`
-	CertFile   string `mapstructure:"cert-file,omitempty"`
-	KeyFile    string `mapstructure:"key-file,omitempty"`
+	SkipVerify bool   `mapstructure:"skip-verify,omitempty" json:"skip-verify,omitempty"`
+	CaFile     string `mapstructure:"ca-file,omitempty" json:"ca-file,omitempty"`
+	CertFile   string `mapstructure:"cert-file,omitempty" json:"cert-file,omitempty"`
+	KeyFile    string `mapstructure:"key-file,omitempty" json:"key-file,omitempty"`
 	//
-	EnableMetrics bool `mapstructure:"enable-metrics,omitempty"`
-	Debug         bool `mapstructure:"debug,omitempty"`
+	EnableMetrics bool `mapstructure:"enable-metrics,omitempty" json:"enable-metrics,omitempty"`
+	Debug         bool `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 }
 
 func (c *Config) GetAPIServer() error {

@@ -160,6 +160,36 @@ func (a *App) handleConfigClustering(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (a *App) handleConfigAPIServer(w http.ResponseWriter, r *http.Request) {
+	err := a.Config.GetAPIServer()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		return
+	}
+	err = json.NewEncoder(w).Encode(a.Config.APIServer)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		return
+	}
+}
+
+func (a *App) handleConfigGNMIServer(w http.ResponseWriter, r *http.Request) {
+	err := a.Config.GetGNMIServer()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		return
+	}
+	err = json.NewEncoder(w).Encode(a.Config.GnmiServer)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		return
+	}
+}
+
 func (a *App) handleConfigInputs(w http.ResponseWriter, r *http.Request) {
 	inputs, err := a.Config.GetInputs()
 	if err != nil {

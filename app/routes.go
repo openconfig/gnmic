@@ -23,8 +23,12 @@ func (a *App) configRoutes() {
 	a.router.HandleFunc("/config/inputs", a.handleConfigInputs).Methods(http.MethodGet)
 	// config/processors
 	a.router.HandleFunc("/config/processors", a.handleConfigProcessors).Methods(http.MethodGet)
-	// config/locker
+	// config/clustering
 	a.router.HandleFunc("/config/clustering", a.handleConfigClustering).Methods(http.MethodGet)
+	// config/api-server
+	a.router.HandleFunc("/config/api-server", a.handleConfigAPIServer).Methods(http.MethodGet)
+	// config/gnmi-server
+	a.router.HandleFunc("/config/gnmi-server", a.handleConfigGNMIServer).Methods(http.MethodGet)
 }
 
 func (a *App) targetRoutes() {

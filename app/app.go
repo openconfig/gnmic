@@ -7,7 +7,6 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"sort"
 	"strings"
@@ -56,7 +55,6 @@ type App struct {
 	// api
 	apiServices map[string]*lockers.Service
 	isLeader    bool
-	httpClient  *http.Client
 	// prometheus registry
 	reg *prometheus.Registry
 	//
@@ -82,17 +80,14 @@ type App struct {
 func New() *App {
 	ctx, cancel := context.WithCancel(context.Background())
 	a := &App{
-		ctx:         ctx,
-		Cfn:         cancel,
-		RootCmd:     new(cobra.Command),
-		sem:         semaphore.NewWeighted(1),
-		m:           new(sync.RWMutex),
-		Config:      config.New(),
-		router:      mux.NewRouter(),
-		apiServices: make(map[string]*lockers.Service),
-		httpClient: &http.Client{
-			Timeout: defaultHTTPClientTimeout,
-		},
+		ctx:           ctx,
+		Cfn:           cancel,
+		RootCmd:       new(cobra.Command),
+		sem:           semaphore.NewWeighted(1),
+		m:             new(sync.RWMutex),
+		Config:        config.New(),
+		router:        mux.NewRouter(),
+		apiServices:   make(map[string]*lockers.Service),
 		Logger:        log.New(io.Discard, "[gnmic] ", log.LstdFlags|log.Lmsgprefix),
 		out:           os.Stdout,
 		PromptHistory: make([]string, 0, 128),
