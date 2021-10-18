@@ -180,6 +180,8 @@ type LocalFlags struct {
 	GenerateJSON       bool   `mapstructure:"generate-json,omitempty" json:"generate-json,omitempty" yaml:"generate-json,omitempty"`
 	GenerateConfigOnly bool   `mapstructure:"generate-config-only,omitempty" json:"generate-config-only,omitempty" yaml:"generate-config-only,omitempty"`
 	GeneratePath       string `mapstructure:"generate-path,omitempty" json:"generate-path,omitempty" yaml:"generate-path,omitempty"`
+	GenerateCamelCase  bool   `mapstructure:"generate-camel-case,omitempty" json:"generate-camel-case" yaml:"generate-camel-case,omitempty"`
+	GenerateSnakeCase  bool   `mapstructure:"generate-snake-case,omitempty" json:"generate-snake-case" yaml:"generate-snake-case,omitempty"`
 	// Generate Set Request
 	GenerateSetRequestUpdatePath  []string `mapstructure:"generate-update-path,omitempty" json:"generate-update-path,omitempty" yaml:"generate-update-path,omitempty"`
 	GenerateSetRequestReplacePath []string `mapstructure:"generate-replace-path,omitempty" json:"generate-replace-path,omitempty" yaml:"generate-replace-path,omitempty"`

@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/huandu/xstrings"
 	"github.com/karimra/gnmic/config"
 	"github.com/karimra/gnmic/utils"
 	"github.com/openconfig/goyang/pkg/yang"
@@ -16,6 +18,22 @@ import (
 	"github.com/spf13/pflag"
 	"gopkg.in/yaml.v2"
 )
+
+// options for formatting keys when generating yaml/json payloads
+type keyOpts struct {
+	camelCase bool
+	snakeCase bool
+}
+
+func (ko *keyOpts) format(s string) string {
+	if ko.camelCase {
+		return xstrings.ToCamelCase(s)
+	}
+	if ko.snakeCase {
+		return xstrings.ToSnakeCase(s)
+	}
+	return s
+}
 
 func (a *App) GenerateRunE(cmd *cobra.Command, args []string) error {
 	defer a.InitGenerateFlags(cmd)
@@ -33,9 +51,13 @@ func (a *App) GenerateRunE(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	m := make(map[string]interface{})
+	kOpts := &keyOpts{
+		camelCase: a.Config.LocalFlags.GenerateCamelCase,
+		snakeCase: a.Config.LocalFlags.GenerateSnakeCase,
+	}
 	for _, e := range a.SchemaTree.Dir {
 		e.FixChoice()
-		nm := toMap(e, a.Config.GenerateConfigOnly)
+		nm := toMap(e, a.Config.GenerateConfigOnly, kOpts)
 		if nm == nil {
 			continue
 		}
@@ -43,16 +65,14 @@ func (a *App) GenerateRunE(cmd *cobra.Command, args []string) error {
 		switch nm := nm.(type) {
 		case map[string]interface{}:
 			for k, v := range nm {
-				m[k] = v
+				m[kOpts.format(k)] = v
 			}
-		case []interface{}:
-			m[e.Name] = nm
-		case string:
-			m[e.Name] = nm
+		case []interface{}, string:
+			m[kOpts.format(e.Name)] = nm
 		}
 	}
 
-	v, err := getSubMapByPath(a.Config.GeneratePath, m)
+	v, err := getSubMapByPath(a.Config.GeneratePath, m, kOpts)
 	if err != nil {
 		return err
 	}
@@ -72,6 +92,9 @@ func (a *App) GenerateRunE(cmd *cobra.Command, args []string) error {
 
 func (a *App) GeneratePreRunE(cmd *cobra.Command, args []string) error {
 	a.Config.SetLocalFlagsFromFile(cmd)
+	if a.Config.LocalFlags.GenerateCamelCase && a.Config.LocalFlags.GenerateSnakeCase {
+		return errors.New("flags --camel-case and --snake-case are mutually exclusive")
+	}
 	return a.yangFilesPreProcessing()
 }
 
@@ -133,7 +156,7 @@ func (a *App) GenerateSetRequestRunE(cmd *cobra.Command, args []string) error {
 	m := make(map[string]interface{})
 	for _, e := range a.SchemaTree.Dir {
 		e.FixChoice()
-		nm := toMap(e, true)
+		nm := toMap(e, true, new(keyOpts))
 		if nm == nil {
 			continue
 		}
@@ -143,9 +166,8 @@ func (a *App) GenerateSetRequestRunE(cmd *cobra.Command, args []string) error {
 			for k, v := range nm {
 				m[k] = v
 			}
-		case []interface{}:
-			m[e.Name] = nm
-		case string:
+		case nil:
+		default:
 			m[e.Name] = nm
 		}
 	}
@@ -176,6 +198,8 @@ func (a *App) InitGenerateFlags(cmd *cobra.Command) {
 	// local flags
 	cmd.Flags().BoolVarP(&a.Config.LocalFlags.GenerateConfigOnly, "config-only", "", false, "generate output from YANG config nodes only")
 	cmd.Flags().StringVarP(&a.Config.LocalFlags.GeneratePath, "path", "", "", "generate marshaled YANG body under specified path")
+	cmd.Flags().BoolVarP(&a.Config.LocalFlags.GenerateCamelCase, "camel-case", "", false, "convert keys to camelCase")
+	cmd.Flags().BoolVarP(&a.Config.LocalFlags.GenerateSnakeCase, "snake-case", "", false, "convert keys to snake_case")
 
 	cmd.Flags().VisitAll(func(flag *pflag.Flag) {
 		a.Config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
@@ -279,7 +303,7 @@ func (a *App) createSetRequestFile(m map[string]interface{}) (*config.SetRequest
 		return setReqFile, nil
 	}
 	for _, p := range a.Config.GenerateSetRequestReplacePath {
-		uItem, err := pathToUpdateItem(p, m)
+		uItem, err := pathToUpdateItem(p, m, new(keyOpts))
 		if err != nil {
 			return nil, err
 		}
@@ -287,7 +311,7 @@ func (a *App) createSetRequestFile(m map[string]interface{}) (*config.SetRequest
 		setReqFile.Replaces = append(setReqFile.Replaces, uItem)
 	}
 	for _, p := range a.Config.GenerateSetRequestUpdatePath {
-		uItem, err := pathToUpdateItem(p, m)
+		uItem, err := pathToUpdateItem(p, m, new(keyOpts))
 		if err != nil {
 			return nil, err
 		}
@@ -347,7 +371,7 @@ func updateAnnotation(entry *yang.Entry) {
 	}
 }
 
-func toMap(e *yang.Entry, configOnly bool) interface{} {
+func toMap(e *yang.Entry, configOnly bool, kopts *keyOpts) interface{} {
 	if e == nil {
 		return nil
 	}
@@ -365,16 +389,14 @@ func toMap(e *yang.Entry, configOnly bool) interface{} {
 		return e.Default
 	case e.ListAttr != nil: // list
 		for n, child := range e.Dir {
-			gChild := toMap(child, configOnly)
+			gChild := toMap(child, configOnly, kopts)
 			switch gChild := gChild.(type) {
 			case map[string]interface{}:
 				for k, v := range gChild {
-					m[k] = v
+					m[kopts.format(k)] = v
 				}
-			case []interface{}:
-				m[n] = gChild
-			case string:
-				m[n] = gChild
+			case []interface{}, string:
+				m[kopts.format(n)] = gChild
 			}
 		}
 		return []interface{}{m}
@@ -383,47 +405,47 @@ func toMap(e *yang.Entry, configOnly bool) interface{} {
 		for n, child := range e.Dir {
 			if child.IsCase() || child.IsChoice() {
 				for _, gchild := range child.Dir {
-					nnm := toMap(gchild, configOnly)
+					nnm := toMap(gchild, configOnly, kopts)
 					switch nnm := nnm.(type) {
 					case map[string]interface{}:
 						if child.IsChoice() {
 							for k, v := range nnm {
-								nm[k] = v
+								nm[kopts.format(k)] = v
 							}
 						}
 					case nil:
 					default:
-						nm[n] = nnm
+						nm[kopts.format(n)] = nnm
 					}
 				}
 				continue
 			}
-			nnm := toMap(child, configOnly)
+			nnm := toMap(child, configOnly, kopts)
 			if nnm == nil {
 				continue
 			}
-			nm[n] = nnm
+			nm[kopts.format(n)] = nnm
 		}
 		if e.Parent != nil && e.Parent.IsList() && !(e.IsCase() || e.IsChoice()) {
-			m[e.Name] = nm
+			m[kopts.format(e.Name)] = nm
 			return m
 		}
 		for k, v := range nm {
-			m[k] = v
+			m[kopts.format(k)] = v
 		}
 		return m
 	}
 }
 
-func pathToUpdateItem(p string, m map[string]interface{}) (*config.UpdateItem, error) {
-	v, err := getSubMapByPath(p, m)
+func pathToUpdateItem(p string, m map[string]interface{}, kopts *keyOpts) (*config.UpdateItem, error) {
+	v, err := getSubMapByPath(p, m, kopts)
 	return &config.UpdateItem{
 		Path:  p,
 		Value: v,
 	}, err
 }
 
-func getSubMapByPath(p string, m map[string]interface{}) (interface{}, error) {
+func getSubMapByPath(p string, m map[string]interface{}, kopts *keyOpts) (interface{}, error) {
 	if p == "" || p == "/" {
 		return m, nil
 	}
@@ -435,7 +457,7 @@ func getSubMapByPath(p string, m map[string]interface{}) (interface{}, error) {
 	pItems := make([]string, 0, len(gp.Elem))
 	for _, e := range gp.Elem {
 		if e.Name != "" {
-			pItems = append(pItems, e.Name)
+			pItems = append(pItems, kopts.format(e.Name))
 		}
 	}
 	// get value body recursively from map

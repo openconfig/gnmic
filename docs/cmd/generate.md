@@ -45,6 +45,14 @@ Defaults to `/`
 
 The `--config-only` flag, if present instruct `gnmic` to generate JSON/YAML payloads from YANG nodes not marked as `config false`.
 
+#### camel-case
+
+The `--camel-case` flag, if present allows to convert all the keys in the generated JSON/YAML paylod to `CamelCase`
+
+#### snake-case
+
+The `--snake-case` flag, if present allows to convert all the keys in the generated JSON/YAML paylod to `snake_case`
+
 ### Sub Commands
 
 #### Path
