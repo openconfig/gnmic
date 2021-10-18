@@ -193,15 +193,20 @@ It takes an XPATH pointing to the config node to be deleted:
 gnmic set --delete "/configure/router[router-name=Base]/interface[interface-name=dummy_interface]"
 ```
 
-## Template Based Set Request
+## Templated Set Request file
 
-A Set Request can also be built based on a template and (optionally) a set of variables.
+A Set Request can also be built based on one or multiple templates and (optionally) a set of variables.
 
-The variables allow to generate the request on per target basis.
+The variables allow to generate a Set Request file on per target basis.
 
 If no variable file is found, the execution continues and the template is assumed to be a static string.
 
-A template results in a single gNMI Set Request.
+Each template specified with the flag `--request-file` is rendered against the variables defined in the file set with `--request-vars`.
+Each template results in a single gNMI Set Request.
+
+```bash
+gnmic set --request-file <template1> --request-file <template2> --request-vars <vars_file>
+```
 
 ### Template Format
 
@@ -405,7 +410,7 @@ Result Request file per target:
               admin-state: enable
               ipv4:
                 address:
-                  - ip-prefix: 192.168.79.1/30 
+                  - ip-prefix: 192.168.79.1/30
     ```
 === "leaf2"
     ```yaml

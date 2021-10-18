@@ -36,29 +36,32 @@ type SetRequestFile struct {
 }
 
 func (c *Config) ReadSetRequestTemplate() error {
-	if c.SetRequestFile == "" {
+	if len(c.SetRequestFile) == 0 {
 		return nil
 	}
-	b, err := ioutil.ReadFile(c.SetRequestFile)
-	if err != nil {
-		return err
-	}
-	if c.Debug {
-		c.logger.Printf("set request file content: %s", string(b))
-	}
-	// read template
-	c.setRequestTemplate, err = template.New("set-request").
-		Funcs(gomplate.CreateFuncs(context.TODO(), new(data.Data))).
-		Parse(string(b))
-	if err != nil {
-		return err
+	c.setRequestTemplate = make([]*template.Template, len(c.SetRequestFile))
+	for i, srf := range c.SetRequestFile {
+		b, err := ioutil.ReadFile(srf)
+		if err != nil {
+			return err
+		}
+		if c.Debug {
+			c.logger.Printf("set request file %d content: %s", i, string(b))
+		}
+		// read template
+		c.setRequestTemplate[i], err = template.New(fmt.Sprintf("set-request-%d", i)).
+			Funcs(gomplate.CreateFuncs(context.TODO(), new(data.Data))).
+			Parse(string(b))
+		if err != nil {
+			return err
+		}
 	}
 	return c.readTemplateVarsFile()
 }
 
 func (c *Config) readTemplateVarsFile() error {
 	if c.SetRequestVars == "" {
-		ext := filepath.Ext(c.SetRequestFile)
+		ext := filepath.Ext(c.SetRequestFile[0])
 		c.SetRequestVars = fmt.Sprintf("%s%s%s", c.SetRequestFile[0:len(c.SetRequestFile)-len(ext)], varFileSuffix, ext)
 		c.logger.Printf("trying to find variable file %q", c.SetRequestVars)
 		_, err := os.Stat(c.SetRequestVars)
@@ -93,97 +96,102 @@ func (c *Config) readTemplateVarsFile() error {
 	return nil
 }
 
-func (c *Config) CreateSetRequestFromFile(targetName string) (*gnmi.SetRequest, error) {
-	if c.setRequestTemplate == nil {
+func (c *Config) CreateSetRequestFromFile(targetName string) ([]*gnmi.SetRequest, error) {
+	if len(c.setRequestTemplate) == 0 {
 		return nil, errors.New("missing set request template")
 	}
+	reqs := make([]*gnmi.SetRequest, 0, len(c.setRequestTemplate))
 	buf := new(bytes.Buffer)
-	err := c.setRequestTemplate.Execute(buf, templateInput{
-		TargetName: targetName,
-		Vars:       c.setRequestVars,
-	})
-	if err != nil {
-		return nil, err
-	}
-	if c.Debug {
-		c.logger.Printf("target %q template result:\n%s", targetName, buf.String())
-	}
-	//
-	reqFile := new(SetRequestFile)
-	err = yaml.Unmarshal(buf.Bytes(), reqFile)
-	if err != nil {
-		return nil, err
-	}
-	sReq := &gnmi.SetRequest{
-		Delete:  make([]*gnmi.Path, 0, len(reqFile.Deletes)),
-		Replace: make([]*gnmi.Update, 0, len(reqFile.Replaces)),
-		Update:  make([]*gnmi.Update, 0, len(reqFile.Updates)),
-	}
-	buf.Reset()
-	for _, upd := range reqFile.Updates {
-		if upd.Path == "" {
-			upd.Path = "/"
-		}
-		gnmiPath, err := utils.ParsePath(strings.TrimSpace(upd.Path))
-		if err != nil {
-			return nil, err
-		}
-
-		enc := upd.Encoding
-		if enc == "" {
-			enc = c.GlobalFlags.Encoding
-		}
-		value := new(gnmi.TypedValue)
+	for _, srf := range c.setRequestTemplate {
 		buf.Reset()
-		err = json.NewEncoder(buf).Encode(convert(upd.Value))
-		if err != nil {
-			return nil, err
-		}
-		err = setValue(value, strings.ToLower(enc), strings.TrimSpace(buf.String()))
-		if err != nil {
-			return nil, err
-		}
-		sReq.Update = append(sReq.Update, &gnmi.Update{
-			Path: gnmiPath,
-			Val:  value,
+		err := srf.Execute(buf, templateInput{
+			TargetName: targetName,
+			Vars:       c.setRequestVars,
 		})
-	}
-	for _, upd := range reqFile.Replaces {
-		if upd.Path == "" {
-			upd.Path = "/"
-		}
-		gnmiPath, err := utils.ParsePath(strings.TrimSpace(upd.Path))
 		if err != nil {
 			return nil, err
 		}
-
-		enc := upd.Encoding
-		if enc == "" {
-			enc = c.GlobalFlags.Encoding
+		if c.Debug {
+			c.logger.Printf("target %q template result:\n%s", targetName, buf.String())
 		}
-		value := new(gnmi.TypedValue)
+		//
+		reqFile := new(SetRequestFile)
+		err = yaml.Unmarshal(buf.Bytes(), reqFile)
+		if err != nil {
+			return nil, err
+		}
+		sReq := &gnmi.SetRequest{
+			Delete:  make([]*gnmi.Path, 0, len(reqFile.Deletes)),
+			Replace: make([]*gnmi.Update, 0, len(reqFile.Replaces)),
+			Update:  make([]*gnmi.Update, 0, len(reqFile.Updates)),
+		}
 		buf.Reset()
-		err = json.NewEncoder(buf).Encode(convert(upd.Value))
-		if err != nil {
-			return nil, err
+		for _, upd := range reqFile.Updates {
+			if upd.Path == "" {
+				upd.Path = "/"
+			}
+			gnmiPath, err := utils.ParsePath(strings.TrimSpace(upd.Path))
+			if err != nil {
+				return nil, err
+			}
+
+			enc := upd.Encoding
+			if enc == "" {
+				enc = c.GlobalFlags.Encoding
+			}
+			value := new(gnmi.TypedValue)
+			buf.Reset()
+			err = json.NewEncoder(buf).Encode(convert(upd.Value))
+			if err != nil {
+				return nil, err
+			}
+			err = setValue(value, strings.ToLower(enc), strings.TrimSpace(buf.String()))
+			if err != nil {
+				return nil, err
+			}
+			sReq.Update = append(sReq.Update, &gnmi.Update{
+				Path: gnmiPath,
+				Val:  value,
+			})
 		}
-		err = setValue(value, strings.ToLower(enc), strings.TrimSpace(buf.String()))
-		if err != nil {
-			return nil, err
+		for _, upd := range reqFile.Replaces {
+			if upd.Path == "" {
+				upd.Path = "/"
+			}
+			gnmiPath, err := utils.ParsePath(strings.TrimSpace(upd.Path))
+			if err != nil {
+				return nil, err
+			}
+
+			enc := upd.Encoding
+			if enc == "" {
+				enc = c.GlobalFlags.Encoding
+			}
+			value := new(gnmi.TypedValue)
+			buf.Reset()
+			err = json.NewEncoder(buf).Encode(convert(upd.Value))
+			if err != nil {
+				return nil, err
+			}
+			err = setValue(value, strings.ToLower(enc), strings.TrimSpace(buf.String()))
+			if err != nil {
+				return nil, err
+			}
+			sReq.Replace = append(sReq.Replace, &gnmi.Update{
+				Path: gnmiPath,
+				Val:  value,
+			})
 		}
-		sReq.Replace = append(sReq.Replace, &gnmi.Update{
-			Path: gnmiPath,
-			Val:  value,
-		})
+		for _, s := range reqFile.Deletes {
+			gnmiPath, err := utils.ParsePath(strings.TrimSpace(s))
+			if err != nil {
+				return nil, err
+			}
+			sReq.Delete = append(sReq.Delete, gnmiPath)
+		}
+		reqs = append(reqs, sReq)
 	}
-	for _, s := range reqFile.Deletes {
-		gnmiPath, err := utils.ParsePath(strings.TrimSpace(s))
-		if err != nil {
-			return nil, err
-		}
-		sReq.Delete = append(sReq.Delete, gnmiPath)
-	}
-	return sReq, nil
+	return reqs, nil
 }
 
 type templateInput struct {

@@ -49,7 +49,7 @@ type Config struct {
 	GnmiServer         *gnmiServer                          `mapstructure:"gnmi-server,omitempty" json:"gnmi-server,omitempty" yaml:"gnmi-server,omitempty"`
 	APIServer          *APIServer                           `mapstructure:"api-server,omitempty" json:"api-server,omitempty" yaml:"api-server,omitempty"`
 	logger             *log.Logger
-	setRequestTemplate *template.Template
+	setRequestTemplate []*template.Template
 	setRequestVars     map[string]interface{}
 }
 
@@ -117,7 +117,7 @@ type LocalFlags struct {
 	SetUpdateValue  []string `mapstructure:"set-update-value,omitempty" json:"set-update-value,omitempty" yaml:"set-update-value,omitempty"`
 	SetDelimiter    string   `mapstructure:"set-delimiter,omitempty" json:"set-delimiter,omitempty" yaml:"set-delimiter,omitempty"`
 	SetTarget       string   `mapstructure:"set-target,omitempty" json:"set-target,omitempty" yaml:"set-target,omitempty"`
-	SetRequestFile  string   `mapstructure:"set-request-file,omitempty" json:"set-request-file,omitempty" yaml:"set-request-file,omitempty"`
+	SetRequestFile  []string `mapstructure:"set-request-file,omitempty" json:"set-request-file,omitempty" yaml:"set-request-file,omitempty"`
 	SetRequestVars  string   `mapstructure:"set-request-vars,omitempty" json:"set-request-vars,omitempty" yaml:"set-request-vars,omitempty"`
 	// Sub
 	SubscribePrefix            string        `mapstructure:"subscribe-prefix,omitempty" json:"subscribe-prefix,omitempty" yaml:"subscribe-prefix,omitempty"`
@@ -562,8 +562,8 @@ func (c *Config) execValueTemplate(tplString string, encoding string, input inte
 	}
 }
 
-func (c *Config) CreateSetRequest(targetName string) (*gnmi.SetRequest, error) {
-	if c.SetRequestFile != "" {
+func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error) {
+	if len(c.SetRequestFile) > 0 {
 		return c.CreateSetRequestFromFile(targetName)
 	}
 	gnmiPrefix, err := utils.CreatePrefix(c.LocalFlags.SetPrefix, c.LocalFlags.SetTarget)
@@ -710,7 +710,7 @@ func (c *Config) CreateSetRequest(targetName string) (*gnmi.SetRequest, error) {
 			Val:  value,
 		})
 	}
-	return req, nil
+	return []*gnmi.SetRequest{req}, nil
 }
 
 func setValue(value *gnmi.TypedValue, typ, val string) error {
@@ -892,6 +892,7 @@ func (c *Config) ValidateSetInput() error {
 	c.LocalFlags.SetReplaceValue = SanitizeArrayFlagValue(c.LocalFlags.SetReplaceValue)
 	c.LocalFlags.SetUpdateFile = SanitizeArrayFlagValue(c.LocalFlags.SetUpdateFile)
 	c.LocalFlags.SetReplaceFile = SanitizeArrayFlagValue(c.LocalFlags.SetReplaceFile)
+	c.LocalFlags.SetRequestFile = SanitizeArrayFlagValue(c.LocalFlags.SetRequestFile)
 
 	c.LocalFlags.SetUpdateFile, err = ExpandOSPaths(c.LocalFlags.SetUpdateFile)
 	if err != nil {
@@ -901,9 +902,11 @@ func (c *Config) ValidateSetInput() error {
 	if err != nil {
 		return err
 	}
-	c.LocalFlags.SetRequestFile, err = expandOSPath(c.LocalFlags.SetRequestFile)
-	if err != nil {
-		return err
+	for i := range c.LocalFlags.SetRequestFile {
+		c.LocalFlags.SetRequestFile[i], err = expandOSPath(c.LocalFlags.SetRequestFile[i])
+		if err != nil {
+			return err
+		}
 	}
 	c.LocalFlags.SetRequestVars, err = expandOSPath(c.LocalFlags.SetRequestVars)
 	if err != nil {
@@ -911,7 +914,7 @@ func (c *Config) ValidateSetInput() error {
 	}
 	if (len(c.LocalFlags.SetDelete)+len(c.LocalFlags.SetUpdate)+len(c.LocalFlags.SetReplace)) == 0 &&
 		(len(c.LocalFlags.SetUpdatePath)+len(c.LocalFlags.SetReplacePath)) == 0 &&
-		c.LocalFlags.SetRequestFile == "" {
+		len(c.LocalFlags.SetRequestFile) == 0 {
 		return errors.New("no paths or request file provided")
 	}
 	if len(c.LocalFlags.SetUpdateFile) > 0 && len(c.LocalFlags.SetUpdateValue) > 0 {

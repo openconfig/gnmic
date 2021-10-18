@@ -23,14 +23,15 @@ var createSetRequestFromFileTestSet = map[string]struct {
 			},
 			LocalFlags{},
 			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-			template.Must(template.New("set-request").Parse(`{
+			[]*template.Template{
+				template.Must(template.New("set-request").Parse(`{
 				"updates": [
 					{
 						"path": "valid/path",
 						"value": "value"
 					}
 				]
-			}`)),
+			}`))},
 			nil,
 		},
 		out: &gnmi.SetRequest{
@@ -59,14 +60,15 @@ var createSetRequestFromFileTestSet = map[string]struct {
 			},
 			LocalFlags{},
 			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-			template.Must(template.New("set-request").Parse(`{
+			[]*template.Template{
+				template.Must(template.New("set-request").Parse(`{
 				"replaces": [
 					{
 						"path": "valid/path",
 						"value": "value"
 					}
 				]
-			}`)),
+			}`))},
 			nil,
 		},
 		out: &gnmi.SetRequest{
@@ -95,11 +97,12 @@ var createSetRequestFromFileTestSet = map[string]struct {
 			},
 			LocalFlags{},
 			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-			template.Must(template.New("set-request").Parse(`{
+			[]*template.Template{
+				template.Must(template.New("set-request").Parse(`{
 				"deletes": [
 					"valid/path"
 				]
-			}`)),
+			}`))},
 			nil,
 		},
 		out: &gnmi.SetRequest{
@@ -121,7 +124,8 @@ var createSetRequestFromFileTestSet = map[string]struct {
 			},
 			LocalFlags{},
 			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-			template.Must(template.New("set-request").Parse(`{
+			[]*template.Template{
+				template.Must(template.New("set-request").Parse(`{
 				"updates": [
 					{
 						"path": "valid/path1",
@@ -133,7 +137,7 @@ var createSetRequestFromFileTestSet = map[string]struct {
 						"encoding": "json_ietf"
 					}
 				]
-			}`)),
+			}`))},
 			nil,
 		},
 		out: &gnmi.SetRequest{
@@ -175,7 +179,8 @@ var createSetRequestFromFileTestSet = map[string]struct {
 			},
 			LocalFlags{},
 			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-			template.Must(template.New("set-request").Parse(`{
+			[]*template.Template{
+				template.Must(template.New("set-request").Parse(`{
 				"replaces": [
 					{
 						"path": "valid/path1",
@@ -187,7 +192,7 @@ var createSetRequestFromFileTestSet = map[string]struct {
 						"encoding": "json_ietf"
 					}
 				]
-			}`)),
+			}`))},
 			nil,
 		},
 		out: &gnmi.SetRequest{
@@ -229,12 +234,13 @@ var createSetRequestFromFileTestSet = map[string]struct {
 			},
 			LocalFlags{},
 			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-			template.Must(template.New("set-request").Parse(`{
+			[]*template.Template{
+				template.Must(template.New("set-request").Parse(`{
 				"deletes": [
 					"valid/path1",
 					"valid/path2"
 				]
-			}`)),
+			}`))},
 			nil,
 		},
 		out: &gnmi.SetRequest{
@@ -262,7 +268,7 @@ var createSetRequestFromFileTestSet = map[string]struct {
 			},
 			LocalFlags{},
 			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-			template.Must(template.New("set-request").Parse(`{
+			[]*template.Template{template.Must(template.New("set-request").Parse(`{
 				"updates": [
 					{
 						"path": "/valid/path1",
@@ -278,7 +284,7 @@ var createSetRequestFromFileTestSet = map[string]struct {
 				"deletes": [
 					"valid/path"
 				]
-			}`)),
+			}`))},
 			nil,
 		},
 		out: &gnmi.SetRequest{
@@ -330,7 +336,8 @@ var createSetRequestFromFileTestSet = map[string]struct {
 			},
 			LocalFlags{},
 			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-			template.Must(template.New("set-request").Parse(`replaces:
+			[]*template.Template{
+				template.Must(template.New("set-request").Parse(`replaces:
 {{- range $interface := index .Vars .TargetName "interfaces" }}
   - path: "/interface[name={{ index $interface "name" }}]"
     encoding: "json_ietf"
@@ -344,7 +351,7 @@ var createSetRequestFromFileTestSet = map[string]struct {
             address:
               - ip-prefix: {{ index $subinterface "ipv4-address"}}
 {{- end }}
-{{- end }}`)),
+{{- end }}`))},
 			map[string]interface{}{
 				"target1": map[string]interface{}{
 					"interfaces": []interface{}{
@@ -401,7 +408,7 @@ func TestCreateSetRequestFromFile(t *testing.T) {
 					t.Fail()
 				}
 			}
-			if !testutils.CompareSetRequests(setReq, data.out) {
+			if !testutils.CompareSetRequests(setReq[0], data.out) {
 				t.Fail()
 			}
 		})
