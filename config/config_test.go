@@ -595,7 +595,7 @@ func TestCreateSetRequest(t *testing.T) {
 					t.Fail()
 				}
 			}
-			if !testutils.CompareSetRequests(setReq, data.out) {
+			if !testutils.CompareSetRequests(setReq[0], data.out) {
 				t.Fail()
 			}
 		})

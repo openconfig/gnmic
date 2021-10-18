@@ -58,12 +58,14 @@ func (a *App) SetRun(cmd *cobra.Command, args []string) error {
 
 func (a *App) SetRequest(ctx context.Context, tName string) {
 	defer a.wg.Done()
-	req, err := a.Config.CreateSetRequest(tName)
+	reqs, err := a.Config.CreateSetRequest(tName)
 	if err != nil {
 		a.logError(fmt.Errorf("target %q: failed to generate: %v", tName, err))
 		return
 	}
-	a.setRequest(ctx, tName, req)
+	for _, req := range reqs {
+		a.setRequest(ctx, tName, req)
+	}
 }
 
 func (a *App) setRequest(ctx context.Context, tName string, req *gnmi.SetRequest) {
@@ -104,7 +106,7 @@ func (a *App) InitSetFlags(cmd *cobra.Command) {
 	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.SetReplaceValue, "replace-value", "", []string{}, "set replace request value")
 	cmd.Flags().StringVarP(&a.Config.LocalFlags.SetDelimiter, "delimiter", "", ":::", "set update/replace delimiter between path, type, value")
 	cmd.Flags().StringVarP(&a.Config.LocalFlags.SetTarget, "target", "", "", "set request target")
-	cmd.Flags().StringVarP(&a.Config.LocalFlags.SetRequestFile, "request-file", "", "", "set request template file")
+	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.SetRequestFile, "request-file", "", []string{}, "set request template file(s)")
 	cmd.Flags().StringVarP(&a.Config.LocalFlags.SetRequestVars, "request-vars", "", "", "set request variables file")
 
 	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
