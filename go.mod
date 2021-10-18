@@ -19,6 +19,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/hairyhenderson/gomplate/v3 v3.10.0
 	github.com/hashicorp/consul/api v1.10.1
+	github.com/huandu/xstrings v1.3.2
 	github.com/influxdata/influxdb-client-go/v2 v2.0.1
 	github.com/itchyny/gojq v0.12.2
 	github.com/jhump/protoreflect v1.6.1
