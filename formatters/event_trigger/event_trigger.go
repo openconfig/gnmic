@@ -123,7 +123,7 @@ func (p *Trigger) WithLogger(l *log.Logger) {
 	if p.Debug && l != nil {
 		p.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
 	} else if p.Debug {
-		p.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
+		p.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
 	}
 }
 

@@ -38,7 +38,7 @@ func init() {
 	outputs.Register("gnmi", func() outputs.Output {
 		return &gNMIOutput{
 			cfg:    new(config),
-			logger: log.New(io.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger: log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
 		}
 	})
 }

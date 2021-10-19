@@ -16,6 +16,7 @@ import (
 	"github.com/karimra/gnmic/inputs"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/karimra/gnmic/types"
+	"github.com/karimra/gnmic/utils"
 	"github.com/nats-io/nats.go"
 	"google.golang.org/protobuf/proto"
 )
@@ -35,7 +36,7 @@ func init() {
 	inputs.Register("nats", func() inputs.Input {
 		return &NatsInput{
 			Cfg:    &Config{},
-			logger: log.New(io.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger: log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
 			wg:     new(sync.WaitGroup),
 		}
 	})

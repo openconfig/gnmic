@@ -17,6 +17,7 @@ import (
 	"github.com/karimra/gnmic/actions"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/types"
+	"github.com/karimra/gnmic/utils"
 )
 
 const (
@@ -178,7 +179,7 @@ func (h *httpAction) WithLogger(logger *log.Logger) {
 	if h.Debug && logger != nil {
 		h.logger = log.New(logger.Writer(), loggingPrefix, logger.Flags())
 	} else if h.Debug {
-		h.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
+		h.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
 	}
 }
 

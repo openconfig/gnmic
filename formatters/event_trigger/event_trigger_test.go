@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/karimra/gnmic/formatters"
+	"github.com/karimra/gnmic/utils"
 )
 
 type item struct {
@@ -165,7 +166,7 @@ var triggerOccWindowTestSet = map[string]struct {
 }{
 	"defaults_0_occurrences": {
 		t: &Trigger{
-			logger:           log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger:           log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags),
 			Debug:            true,
 			MinOccurrences:   1,
 			MaxOccurrences:   1,
@@ -177,7 +178,7 @@ var triggerOccWindowTestSet = map[string]struct {
 	},
 	"defaults_with_1_occurrence_in_window": {
 		t: &Trigger{
-			logger:         log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger:         log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags),
 			Debug:          true,
 			MinOccurrences: 1,
 			MaxOccurrences: 1,
@@ -192,7 +193,7 @@ var triggerOccWindowTestSet = map[string]struct {
 	},
 	"defaults_with_1_occurrence_out_of_window": {
 		t: &Trigger{
-			logger:         log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger:         log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags),
 			Debug:          true,
 			MinOccurrences: 1,
 			MaxOccurrences: 1,
@@ -206,7 +207,7 @@ var triggerOccWindowTestSet = map[string]struct {
 	},
 	"2max_1min_without_occurrences": {
 		t: &Trigger{
-			logger:           log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger:           log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags),
 			Debug:            true,
 			MinOccurrences:   1,
 			MaxOccurrences:   2,
@@ -218,7 +219,7 @@ var triggerOccWindowTestSet = map[string]struct {
 	},
 	"2max_1min_with_1occurrence_in_window": {
 		t: &Trigger{
-			logger:         log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger:         log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags),
 			Debug:          true,
 			MinOccurrences: 1,
 			MaxOccurrences: 2,
@@ -232,7 +233,7 @@ var triggerOccWindowTestSet = map[string]struct {
 	},
 	"2max_1min_with_2occurrences_in_window": {
 		t: &Trigger{
-			logger:         log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger:         log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags),
 			Debug:          true,
 			MinOccurrences: 1,
 			MaxOccurrences: 2,
@@ -248,7 +249,7 @@ var triggerOccWindowTestSet = map[string]struct {
 	},
 	"2max_2min_without_occurrences": {
 		t: &Trigger{
-			logger:           log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger:           log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags),
 			Debug:            true,
 			MinOccurrences:   2,
 			MaxOccurrences:   2,
@@ -260,7 +261,7 @@ var triggerOccWindowTestSet = map[string]struct {
 	},
 	"2max_2min_with_1occurrence_in_window": {
 		t: &Trigger{
-			logger:         log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger:         log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags),
 			Debug:          true,
 			MinOccurrences: 2,
 			MaxOccurrences: 2,
@@ -274,7 +275,7 @@ var triggerOccWindowTestSet = map[string]struct {
 	},
 	"2max_2min_with_2occurrences_in_window": {
 		t: &Trigger{
-			logger:         log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger:         log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags),
 			Debug:          true,
 			MinOccurrences: 2,
 			MaxOccurrences: 2,
@@ -290,7 +291,7 @@ var triggerOccWindowTestSet = map[string]struct {
 	},
 	"2max_2min_with_2occurrences_in_window_lastTrigger_out_of_window": {
 		t: &Trigger{
-			logger:         log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger:         log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags),
 			Debug:          true,
 			MinOccurrences: 2,
 			MaxOccurrences: 2,
@@ -311,7 +312,7 @@ func TestEventTrigger(t *testing.T) {
 		if pi, ok := formatters.EventProcessors[ts.processorType]; ok {
 			t.Log("found processor")
 			p := pi()
-			err := p.Init(ts.processor, formatters.WithLogger(log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)))
+			err := p.Init(ts.processor, formatters.WithLogger(log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)))
 			if err != nil {
 				t.Errorf("failed to initialize processors: %v", err)
 				return

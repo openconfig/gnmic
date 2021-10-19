@@ -11,6 +11,7 @@ import (
 
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/types"
+	"github.com/karimra/gnmic/utils"
 )
 
 const (
@@ -170,7 +171,7 @@ func (s *Strings) WithLogger(l *log.Logger) {
 	if s.Debug && l != nil {
 		s.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
 	} else if s.Debug {
-		s.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
+		s.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
 	}
 }
 

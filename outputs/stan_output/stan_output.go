@@ -15,6 +15,7 @@ import (
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/karimra/gnmic/types"
+	"github.com/karimra/gnmic/utils"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/stan.go"
 	"github.com/prometheus/client_golang/prometheus"
@@ -41,7 +42,7 @@ func init() {
 		return &StanOutput{
 			Cfg:    &Config{},
 			wg:     new(sync.WaitGroup),
-			logger: log.New(io.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger: log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
 		}
 	})
 }

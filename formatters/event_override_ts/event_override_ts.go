@@ -9,6 +9,7 @@ import (
 
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/types"
+	"github.com/karimra/gnmic/utils"
 )
 
 const (
@@ -81,7 +82,7 @@ func (o *OverrideTS) WithLogger(l *log.Logger) {
 	if o.Debug && l != nil {
 		o.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
 	} else if o.Debug {
-		o.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
+		o.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
 	}
 }
 

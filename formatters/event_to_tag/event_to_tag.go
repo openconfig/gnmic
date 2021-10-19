@@ -9,6 +9,7 @@ import (
 
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/types"
+	"github.com/karimra/gnmic/utils"
 )
 
 const (
@@ -112,7 +113,7 @@ func (t *ToTag) WithLogger(l *log.Logger) {
 	if t.Debug && l != nil {
 		t.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
 	} else if t.Debug {
-		t.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
+		t.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
 	}
 }
 

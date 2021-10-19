@@ -18,6 +18,7 @@ import (
 	dClient "github.com/docker/docker/client"
 	"github.com/karimra/gnmic/loaders"
 	"github.com/karimra/gnmic/types"
+	"github.com/karimra/gnmic/utils"
 	"github.com/mitchellh/mapstructure"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -34,7 +35,7 @@ func init() {
 			cfg:         new(cfg),
 			wg:          new(sync.WaitGroup),
 			lastTargets: make(map[string]*types.TargetConfig),
-			logger:      log.New(io.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger:      log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
 		}
 	})
 }
