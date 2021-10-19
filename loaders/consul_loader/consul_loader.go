@@ -17,6 +17,7 @@ import (
 
 	"github.com/karimra/gnmic/loaders"
 	"github.com/karimra/gnmic/types"
+	"github.com/karimra/gnmic/utils"
 )
 
 const (
@@ -35,7 +36,7 @@ func init() {
 			cfg:         &cfg{},
 			m:           new(sync.Mutex),
 			lastTargets: make(map[string]*types.TargetConfig),
-			logger:      log.New(io.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger:      log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
 		}
 	})
 }

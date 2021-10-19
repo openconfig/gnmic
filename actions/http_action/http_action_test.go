@@ -16,6 +16,7 @@ import (
 
 	"github.com/karimra/gnmic/actions"
 	"github.com/karimra/gnmic/formatters"
+	"github.com/karimra/gnmic/utils"
 )
 
 type item struct {
@@ -445,7 +446,7 @@ func TestHTTPAction(t *testing.T) {
 		if ai, ok := actions.Actions[ts.actionType]; ok {
 			t.Log("found action")
 			a := ai()
-			err := a.Init(ts.action, actions.WithLogger(log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)))
+			err := a.Init(ts.action, actions.WithLogger(log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)))
 			if err != nil {
 				t.Errorf("failed to initialize action: %v", err)
 				return

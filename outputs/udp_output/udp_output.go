@@ -13,6 +13,7 @@ import (
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/karimra/gnmic/types"
+	"github.com/karimra/gnmic/utils"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
 )
@@ -26,7 +27,7 @@ func init() {
 	outputs.Register("udp", func() outputs.Output {
 		return &UDPSock{
 			Cfg:    &Config{},
-			logger: log.New(io.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger: log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
 		}
 	})
 }

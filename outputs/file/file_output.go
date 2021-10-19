@@ -14,6 +14,7 @@ import (
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/karimra/gnmic/types"
+	"github.com/karimra/gnmic/utils"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/semaphore"
 	"google.golang.org/protobuf/proto"
@@ -30,7 +31,7 @@ func init() {
 	outputs.Register("file", func() outputs.Output {
 		return &File{
 			Cfg:    &Config{},
-			logger: log.New(io.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger: log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
 		}
 	})
 }

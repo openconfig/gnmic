@@ -15,6 +15,7 @@ import (
 	"github.com/karimra/gnmic/inputs"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/karimra/gnmic/types"
+	"github.com/karimra/gnmic/utils"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/stan.go"
 	"google.golang.org/protobuf/proto"
@@ -36,7 +37,7 @@ func init() {
 	inputs.Register("stan", func() inputs.Input {
 		return &StanInput{
 			Cfg:    &Config{},
-			logger: log.New(io.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger: log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
 			wg:     new(sync.WaitGroup),
 		}
 	})

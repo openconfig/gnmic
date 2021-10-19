@@ -18,6 +18,7 @@ import (
 	"github.com/karimra/gnmic/inputs"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/karimra/gnmic/types"
+	"github.com/karimra/gnmic/utils"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -39,7 +40,7 @@ func init() {
 	inputs.Register("kafka", func() inputs.Input {
 		return &KafkaInput{
 			Cfg:    &Config{},
-			logger: log.New(io.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger: log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
 			wg:     new(sync.WaitGroup),
 		}
 	})

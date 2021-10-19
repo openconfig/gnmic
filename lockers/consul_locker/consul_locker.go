@@ -12,6 +12,7 @@ import (
 
 	"github.com/hashicorp/consul/api"
 	"github.com/karimra/gnmic/lockers"
+	"github.com/karimra/gnmic/utils"
 )
 
 const (
@@ -29,7 +30,7 @@ func init() {
 			m:              new(sync.Mutex),
 			acquiredlocks:  make(map[string]*locks),
 			attemtinglocks: make(map[string]*locks),
-			logger:         log.New(io.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger:         log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
 			services:       make(map[string]context.CancelFunc),
 		}
 	})

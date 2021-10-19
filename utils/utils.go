@@ -1,11 +1,16 @@
 package utils
 
 import (
+	"log"
 	"net"
 	"reflect"
 	"strings"
 
 	"github.com/openconfig/gnmi/proto/gnmi"
+)
+
+const (
+	DefaultLoggingFlags = log.LstdFlags | log.Lmicroseconds | log.Lmsgprefix
 )
 
 func MergeMaps(dst, src map[string]interface{}) map[string]interface{} {

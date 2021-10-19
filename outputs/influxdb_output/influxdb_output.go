@@ -15,6 +15,7 @@ import (
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/karimra/gnmic/types"
+	"github.com/karimra/gnmic/utils"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
@@ -37,7 +38,7 @@ func init() {
 			eventChan: make(chan *formatters.EventMsg),
 			reset:     make(chan struct{}),
 			startSig:  make(chan struct{}),
-			logger:    log.New(io.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger:    log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
 		}
 	})
 }

@@ -218,7 +218,7 @@ func New() *Config {
 		nil,
 		nil,
 		nil,
-		log.New(io.Discard, configLogPrefix, log.LstdFlags|log.Lmicroseconds|log.Lmsgprefix),
+		log.New(io.Discard, configLogPrefix, utils.DefaultLoggingFlags),
 		nil,
 		make(map[string]interface{}),
 	}

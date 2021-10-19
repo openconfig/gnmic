@@ -25,6 +25,7 @@ import (
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/karimra/gnmic/types"
+	"github.com/karimra/gnmic/utils"
 	"github.com/openconfig/gnmi/cache"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus"
@@ -67,7 +68,7 @@ func init() {
 			wg:          new(sync.WaitGroup),
 			entries:     make(map[uint64]*promMetric),
 			metricRegex: regexp.MustCompile(metricNameRegex),
-			logger:      log.New(io.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger:      log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
 			caches:      make(map[string]*cache.Cache),
 		}
 	})

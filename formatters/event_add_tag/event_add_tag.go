@@ -11,6 +11,7 @@ import (
 	"github.com/itchyny/gojq"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/types"
+	"github.com/karimra/gnmic/utils"
 )
 
 const (
@@ -167,7 +168,7 @@ func (p *AddTag) WithLogger(l *log.Logger) {
 	if p.Debug && l != nil {
 		p.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
 	} else if p.Debug {
-		p.logger = log.New(os.Stderr, loggingPrefix, log.LstdFlags|log.Lmicroseconds)
+		p.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
 	}
 }
 

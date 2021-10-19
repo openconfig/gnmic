@@ -27,7 +27,7 @@ func init() {
 		return &httpLoader{
 			cfg:         &cfg{},
 			lastTargets: make(map[string]*types.TargetConfig),
-			logger:      log.New(io.Discard, loggingPrefix, log.LstdFlags|log.Lmicroseconds),
+			logger:      log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
 		}
 	})
 }
