@@ -198,6 +198,9 @@ extra:
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/karimra
+  analytics:
+    provider: google
+    property: UA-177206500-1
 
 # Extensions
 markdown_extensions:
@@ -236,7 +239,3 @@ markdown_extensions:
   - pymdownx.tasklist:
       custom_checkbox: true
   - pymdownx.tilde
-
-google_analytics:
-  - UA-177206500-1
-  - auto
