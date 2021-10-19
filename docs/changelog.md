@@ -1,5 +1,25 @@
 ## Changelog
 
+### v0.20.0 - October 19th 2021
+
+- Add [gomplate](https://docs.gomplate.ca) template functions to all templates rendered by `gnmic`.
+
+- [Path generation](cmd/generate/generate_path.md):
+
+    `gnmic generate path` supports generating paths with type and description in JSON format.
+
+- [Set RPC template](cmd/set.md#templated-set-request-file):
+
+    Set RPC supports multiple template files in a single command.
+
+- [Clustering](user_guide/HA.md):
+
+    `gnmic` clusters can be formed using secure (HTTPS) API endpoints.
+
+- [Configuration payload generation](cmd/generate.md):
+
+    Configuration keys can now be formatted as `camelCase` or `snake_case` strings
+
 ### v0.19.1 - October 7th 2021
 
 - Path search
