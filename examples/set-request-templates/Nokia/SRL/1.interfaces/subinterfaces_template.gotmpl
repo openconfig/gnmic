@@ -18,12 +18,12 @@ updates:
       {{- if $subinterface.ipv4_address }}
       ipv4:
         address:
-          - ip-prefix: {{ $subinterface.ipv4_address | toString }}
+          - ip-prefix: {{ $subinterface.ipv4_address }}
       {{- end }}
       {{- if $subinterface.ipv6_address }}
       ipv6:
         address:
-          - ip-prefix: {{ $subinterface.ipv6_address | toString }}
+          - ip-prefix: {{ $subinterface.ipv6_address }}
       {{- end }}
       {{- if $subinterface.vlan_id }}
       vlan:
