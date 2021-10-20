@@ -5,7 +5,7 @@ updates:
   - path: "/interface[name={{ $interface.name }}]/subinterface[index={{ $idx }}]"
     encoding: "json_ietf"
     value: 
-      admin-state: {{ $subinterface.admin_state | or "disable" }}
+      admin-state: {{ $subinterface.admin_state | default "disable" }}
       {{- if $subinterface.type }}
       type: {{ $subinterface.type }}
       {{- end }}
