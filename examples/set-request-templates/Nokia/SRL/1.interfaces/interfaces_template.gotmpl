@@ -4,8 +4,8 @@ updates:
   - path: "/interface[name={{ $interface.name }}]"
     encoding: "json_ietf"
     value:
-      admin-state: {{ $interface.admin_state | or "disable" }}
-      description: {{ $interface.description | or "" }}
+      admin-state: {{ $interface.admin_state | default "disable" }}
+      description: {{ $interface.description | default "" }}
       {{- if $interface.mtu }}
       mtu: {{ $interface.mtu }}
       {{- end }}
