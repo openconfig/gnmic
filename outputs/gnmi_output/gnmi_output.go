@@ -2,12 +2,8 @@ package gnmi_output
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
-	"errors"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"strings"
@@ -237,37 +233,14 @@ func (g *gNMIOutput) serverOpts() ([]grpc.ServerOption, error) {
 	if g.cfg.EnableMetrics {
 		opts = append(opts, grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor))
 	}
-	if g.cfg.SkipVerify || g.cfg.CaFile != "" || (g.cfg.CertFile != "" && g.cfg.KeyFile != "") {
-		tlscfg := &tls.Config{
-			Renegotiation:      tls.RenegotiateNever,
-			InsecureSkipVerify: g.cfg.SkipVerify,
-		}
-		if g.cfg.CertFile != "" && g.cfg.KeyFile != "" {
-			certificate, err := tls.LoadX509KeyPair(g.cfg.CertFile, g.cfg.KeyFile)
-			if err != nil {
-				return nil, err
-			}
-			tlscfg.Certificates = []tls.Certificate{certificate}
-			// tlscfg.BuildNameToCertificate()
-		} else {
-			cert, err := utils.SelfSignedCerts()
-			if err != nil {
-				return nil, err
-			}
-			tlscfg.Certificates = []tls.Certificate{cert}
-		}
-		if g.cfg.CaFile != "" {
-			certPool := x509.NewCertPool()
-			caFile, err := ioutil.ReadFile(g.cfg.CaFile)
-			if err != nil {
-				return nil, err
-			}
-			if ok := certPool.AppendCertsFromPEM(caFile); !ok {
-				return nil, errors.New("failed to append certificate")
-			}
-			tlscfg.RootCAs = certPool
-		}
+
+	tlscfg, err := utils.NewTLSConfig(g.cfg.CaFile, g.cfg.CertFile, g.cfg.KeyFile, g.cfg.SkipVerify, true)
+	if err != nil {
+		return nil, err
+	}
+	if tlscfg != nil {
 		opts = append(opts, grpc.Creds(credentials.NewTLS(tlscfg)))
 	}
+
 	return opts, nil
 }

@@ -16,11 +16,7 @@ package cmd
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
-	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/signal"
 	"syscall"
@@ -110,33 +106,6 @@ func initConfig() {
 	if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 		fmt.Fprintf(os.Stderr, "failed loading config file: %v\n", err)
 	}
-}
-
-func loadCerts(tlscfg *tls.Config) error {
-	if gApp.Config.TLSCert != "" && gApp.Config.TLSKey != "" {
-		certificate, err := tls.LoadX509KeyPair(gApp.Config.TLSCert, gApp.Config.TLSKey)
-		if err != nil {
-			return err
-		}
-		tlscfg.Certificates = []tls.Certificate{certificate}
-		//tlscfg.BuildNameToCertificate()
-	}
-	return nil
-}
-
-func loadCACerts(tlscfg *tls.Config) error {
-	certPool := x509.NewCertPool()
-	if gApp.Config.TLSCa != "" {
-		caFile, err := ioutil.ReadFile(gApp.Config.TLSCa)
-		if err != nil {
-			return err
-		}
-		if ok := certPool.AppendCertsFromPEM(caFile); !ok {
-			return errors.New("failed to append certificate")
-		}
-		tlscfg.RootCAs = certPool
-	}
-	return nil
 }
 
 func setupCloseHandler(cancelFn context.CancelFunc) {

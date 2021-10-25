@@ -218,7 +218,13 @@ func (a *App) gRPCServerOpts() ([]grpc.ServerOption, error) {
 		a.reg.MustRegister(grpcMetrics)
 	}
 
-	tlscfg, err := utils.NewTLSConfig(a.Config.GnmiServer.CaFile, a.Config.GnmiServer.CertFile, a.Config.GnmiServer.KeyFile, a.Config.GnmiServer.SkipVerify)
+	tlscfg, err := utils.NewTLSConfig(
+		a.Config.GnmiServer.CaFile,
+		a.Config.GnmiServer.CertFile,
+		a.Config.GnmiServer.KeyFile, 
+		a.Config.GnmiServer.SkipVerify,
+		true,
+	)
 	if err != nil {
 		return nil, err
 	}

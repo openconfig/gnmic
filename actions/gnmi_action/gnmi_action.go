@@ -3,31 +3,27 @@ package gnmi_action
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"strconv"
 	"strings"
 	"text/template"
-	"time"
 
 	"github.com/hairyhenderson/gomplate/v3"
 	"github.com/hairyhenderson/gomplate/v3/data"
 	"github.com/karimra/gnmic/actions"
 	"github.com/karimra/gnmic/formatters"
+	"github.com/karimra/gnmic/target"
+	"github.com/karimra/gnmic/types"
+	"github.com/karimra/gnmic/utils"
 	"github.com/openconfig/gnmi/proto/gnmi"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 const (
 	defaultRPC      = "get"
-	defaultTimeout  = 5 * time.Second
 	loggingPrefix   = "[gnmi_action] "
 	actionType      = "gnmi"
 	defaultDataType = "ALL"
@@ -39,7 +35,7 @@ func init() {
 	actions.Register(actionType, func() actions.Action {
 		return &gnmiAction{
 			logger:         log.New(io.Discard, "", 0),
-			targetsConfigs: make(map[string]*targetConfig),
+			targetsConfigs: make(map[string]*types.TargetConfig),
 		}
 	})
 }
@@ -61,7 +57,7 @@ type gnmiAction struct {
 	paths  []*template.Template
 	values []*template.Template
 
-	targetsConfigs map[string]*targetConfig
+	targetsConfigs map[string]*types.TargetConfig
 	logger         *log.Logger
 }
 
@@ -98,14 +94,14 @@ func (g *gnmiAction) Run(e *formatters.EventMsg, env, vars map[string]interface{
 	if tc, ok := g.targetsConfigs[b.String()]; ok {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		t := newTarget(tc)
+		t := &target.Target{Config: tc}
 		switch g.RPC {
 		case "get":
 			req, err := g.createGetRequest(in)
 			if err != nil {
 				return nil, err
 			}
-			err = t.createGNMIClient(ctx, g.dialOpts(tc)...)
+			err = t.CreateGNMIClient(ctx)
 			if err != nil {
 				return nil, err
 			}
@@ -115,7 +111,7 @@ func (g *gnmiAction) Run(e *formatters.EventMsg, env, vars map[string]interface{
 			if err != nil {
 				return nil, err
 			}
-			err = t.createGNMIClient(ctx, g.dialOpts(tc)...)
+			err = t.CreateGNMIClient(ctx)
 			if err != nil {
 				return nil, err
 			}
@@ -135,7 +131,7 @@ func (g *gnmiAction) setDefaults() {
 		g.Encoding = defaultEncoding
 	}
 	if g.RPC == "" {
-		g.RPC = "get"
+		g.RPC = defaultRPC
 	}
 	if g.RPC == "set" {
 		g.RPC = "set-update"
@@ -219,7 +215,8 @@ func (g *gnmiAction) createGetRequest(in *actions.Input) (*gnmi.GetRequest, erro
 		if err != nil {
 			return nil, fmt.Errorf("prefix parse error: %v", err)
 		}
-		gnmiPrefix, err := parsePath(b.String())
+
+		gnmiPrefix, err := utils.ParsePath(b.String())
 		if err != nil {
 			return nil, fmt.Errorf("prefix parse error: %v", err)
 		}
@@ -238,7 +235,7 @@ func (g *gnmiAction) createGetRequest(in *actions.Input) (*gnmi.GetRequest, erro
 		if err != nil {
 			return nil, fmt.Errorf("path parse error: %v", err)
 		}
-		gnmiPath, err := parsePath(strings.TrimSpace(b.String()))
+		gnmiPath, err := utils.ParsePath(strings.TrimSpace(b.String()))
 		if err != nil {
 			return nil, fmt.Errorf("path parse error: %v", err)
 		}
@@ -260,7 +257,7 @@ func (g *gnmiAction) createSetRequest(in *actions.Input) (*gnmi.SetRequest, erro
 		if err != nil {
 			return nil, fmt.Errorf("prefix parse error: %v", err)
 		}
-		gnmiPrefix, err := parsePath(b.String())
+		gnmiPrefix, err := utils.ParsePath(b.String())
 		if err != nil {
 			return nil, fmt.Errorf("prefix parse error: %v", err)
 		}
@@ -272,7 +269,7 @@ func (g *gnmiAction) createSetRequest(in *actions.Input) (*gnmi.SetRequest, erro
 		if err != nil {
 			return nil, fmt.Errorf("path parse error: %v", err)
 		}
-		gnmiPath, err := parsePath(strings.TrimSpace(b.String()))
+		gnmiPath, err := utils.ParsePath(strings.TrimSpace(b.String()))
 		if err != nil {
 			return nil, fmt.Errorf("path parse error: %v", err)
 		}
@@ -391,57 +388,4 @@ func (g *gnmiAction) createTypedValue(val string) (*gnmi.TypedValue, error) {
 		return nil, fmt.Errorf("unknown type %q", g.Encoding)
 	}
 	return value, nil
-}
-
-func (g *gnmiAction) dialOpts(tc *targetConfig) []grpc.DialOption {
-	opts := make([]grpc.DialOption, 0, 3)
-	opts = append(opts, grpc.WithBlock())
-	if g.NoEnvProxy {
-		opts = append(opts, grpc.WithNoProxy())
-	}
-	if tc.Insecure != nil && *tc.Insecure {
-		return opts
-	}
-	tlsConfig := &tls.Config{
-		Renegotiation:      tls.RenegotiateNever,
-		InsecureSkipVerify: *tc.SkipVerify,
-	}
-	err := tc.loadCerts(tlsConfig)
-	if err != nil {
-		g.logger.Printf("failed loading certificates: %v", err)
-	}
-
-	err = tc.loadCACerts(tlsConfig)
-	if err != nil {
-		g.logger.Printf("failed loading CA certificates: %v", err)
-	}
-	opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
-	return opts
-}
-
-func (tc *targetConfig) loadCerts(tlscfg *tls.Config) error {
-	if tc.TLSCert != nil && *tc.TLSCert != "" && tc.TLSKey != nil && *tc.TLSKey != "" {
-		certificate, err := tls.LoadX509KeyPair(*tc.TLSCert, *tc.TLSKey)
-		if err != nil {
-			return err
-		}
-		tlscfg.Certificates = []tls.Certificate{certificate}
-		//tlscfg.BuildNameToCertificate()
-	}
-	return nil
-}
-
-func (tc *targetConfig) loadCACerts(tlscfg *tls.Config) error {
-	certPool := x509.NewCertPool()
-	if tc.TLSCA != nil && *tc.TLSCA != "" {
-		caFile, err := ioutil.ReadFile(*tc.TLSCA)
-		if err != nil {
-			return err
-		}
-		if ok := certPool.AppendCertsFromPEM(caFile); !ok {
-			return errors.New("failed to append certificate")
-		}
-		tlscfg.RootCAs = certPool
-	}
-	return nil
 }

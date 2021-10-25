@@ -2,13 +2,10 @@ package kafka_output
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"strings"
 	"sync"
@@ -381,28 +378,17 @@ func (k *KafkaOutput) createConfig() (*sarama.Config, error) {
 	}
 	// SSL or SASL_SSL
 	if k.Cfg.TLS != nil {
+		var err error
 		cfg.Net.TLS.Enable = true
-		tlscfg := &tls.Config{
-			InsecureSkipVerify: k.Cfg.TLS.SkipVerify,
+		cfg.Net.TLS.Config, err = utils.NewTLSConfig(
+			k.Cfg.TLS.CaFile,
+			k.Cfg.TLS.CertFile,
+			k.Cfg.TLS.KeyFile,
+			k.Cfg.TLS.SkipVerify,
+			false)
+		if err != nil {
+			return nil, err
 		}
-		if k.Cfg.TLS.CaFile != "" {
-			caCert, err := ioutil.ReadFile(k.Cfg.TLS.CaFile)
-			if err != nil {
-				return nil, fmt.Errorf("failed to read tls.ca-file: %v", err)
-			}
-			caCertPool := x509.NewCertPool()
-			caCertPool.AppendCertsFromPEM(caCert)
-			tlscfg.RootCAs = caCertPool
-		}
-		if k.Cfg.TLS.CertFile != "" && k.Cfg.TLS.KeyFile != "" {
-			certificate, err := tls.LoadX509KeyPair(k.Cfg.TLS.CertFile, k.Cfg.TLS.KeyFile)
-			if err != nil {
-				return nil, fmt.Errorf("failed to read the keyPair tls.cert-file and tls.key-file: %v", err)
-			}
-			tlscfg.Certificates = []tls.Certificate{certificate}
-			//tlscfg.BuildNameToCertificate()
-		}
-		cfg.Net.TLS.Config = tlscfg
 	}
 
 	cfg.Producer.Retry.Max = k.Cfg.MaxRetry

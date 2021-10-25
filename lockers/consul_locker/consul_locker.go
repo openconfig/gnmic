@@ -16,7 +16,6 @@ import (
 )
 
 const (
-	defaultAddress    = "localhost:8500"
 	defaultSessionTTL = 10 * time.Second
 	defaultRetryTimer = 2 * time.Second
 	defaultDelay      = 5 * time.Second
@@ -99,7 +98,7 @@ func (c *ConsulLocker) Init(ctx context.Context, cfg map[string]interface{}, opt
 
 func (c *ConsulLocker) Lock(ctx context.Context, key string, val []byte) (bool, error) {
 	var err error
-	var acquired = false
+	var acquired bool
 	writeOpts := new(api.WriteOptions)
 	writeOpts = writeOpts.WithContext(ctx)
 	kvPair := &api.KVPair{Key: key, Value: val}

@@ -17,7 +17,12 @@ import (
 
 func (a *App) newAPIServer() (*http.Server, error) {
 	a.routes()
-	tlscfg, err := utils.NewTLSConfig(a.Config.APIServer.CaFile, a.Config.APIServer.CertFile, a.Config.APIServer.KeyFile, a.Config.APIServer.SkipVerify)
+	tlscfg, err := utils.NewTLSConfig(
+		a.Config.APIServer.CaFile,
+		a.Config.APIServer.CertFile,
+		a.Config.APIServer.KeyFile,
+		a.Config.APIServer.SkipVerify,
+		true)
 	if err != nil {
 		return nil, err
 	}
