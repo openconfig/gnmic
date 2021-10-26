@@ -1,8 +1,8 @@
 package config
 
 import (
-	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -241,16 +241,21 @@ func (c *Config) Load() error {
 		c.FileConfig.AddConfigPath(xdg.ConfigHome + "/gnmic")
 		c.FileConfig.SetConfigName(configName)
 	}
-
-	err := c.FileConfig.ReadInConfig()
+	// TODO read local or remote file
+	configBytes, err := utils.ReadFile(context.Background(), c.FileConfig.ConfigFileUsed())
 	if err != nil {
 		return err
 	}
 
-	err = c.FileConfig.Unmarshal(c.FileConfig)
+	err = c.FileConfig.ReadConfig(bytes.NewBuffer(configBytes))
 	if err != nil {
 		return err
 	}
+	err = c.FileConfig.Unmarshal(c)
+	if err != nil {
+		return err
+	}
+
 	c.mergeEnvVars()
 	return c.expandOSPathFlagValues()
 }
@@ -808,32 +813,9 @@ func setValue(value *gnmi.TypedValue, typ, val string) error {
 
 // readFile reads a json or yaml file. the the file is .yaml, converts it to json and returns []byte and an error
 func readFile(name string) ([]byte, error) {
-	var in io.Reader
-	var err error
-	var data []byte
-
-	if name == "-" {
-		in = os.Stdin
-	} else {
-		f, err := os.Open(name)
-		if err != nil {
-			return nil, err
-		}
-		defer f.Close()
-
-		st, err := f.Stat()
-		if err != nil {
-			return nil, err
-		}
-		data = make([]byte, 0, st.Size())
-		in = f
-	}
-
-	sc := bufio.NewScanner(in)
-	sc.Split(bufio.ScanBytes)
-
-	for sc.Scan() {
-		data = append(data, sc.Bytes()...)
+	data, err := utils.ReadFile(context.TODO(), name)
+	if err != nil {
+		return nil, err
 	}
 	//
 	switch filepath.Ext(name) {
@@ -947,6 +929,12 @@ func ExpandOSPaths(paths []string) ([]string, error) {
 
 func expandOSPath(p string) (string, error) {
 	if p == "-" || p == "" {
+		return p, nil
+	}
+	if strings.HasPrefix(p, "http://") ||
+		strings.HasPrefix(p, "https://") ||
+		strings.HasPrefix(p, "sftp://") ||
+		strings.HasPrefix(p, "ftp://") {
 		return p, nil
 	}
 	np, err := homedir.Expand(p)

@@ -23,7 +23,6 @@ import (
 const (
 	loggingPrefix  = "[consul_loader] "
 	loaderType     = "consul"
-	watchInterval  = 5 * time.Second
 	defaultAddress = "localhost:8500"
 	defaultPrefix  = "gnmic/config/targets"
 	//

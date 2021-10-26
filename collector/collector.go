@@ -87,9 +87,9 @@ func New(config *Config, targetConfigs map[string]*types.TargetConfig, opts ...C
 		config.LockRetryTimer = defaultLockRetry
 	}
 	c := &Collector{
-		Config:         config,
-		m:              new(sync.Mutex),
-		targetsConfig:  make(map[string]*types.TargetConfig),
+		Config: config,
+		m:      new(sync.Mutex),
+		//targetsConfig:  make(map[string]*types.TargetConfig),
 		Targets:        make(map[string]*target.Target),
 		Outputs:        make(map[string]outputs.Output),
 		Inputs:         make(map[string]inputs.Input),

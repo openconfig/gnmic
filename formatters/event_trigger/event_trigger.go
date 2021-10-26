@@ -1,11 +1,11 @@
 package event_trigger
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"strings"
@@ -190,7 +190,7 @@ func (p *Trigger) readVars() error {
 		p.vars = p.Vars
 		return nil
 	}
-	b, err := ioutil.ReadFile(p.VarsFile)
+	b, err := utils.ReadFile(context.TODO(), p.VarsFile)
 	if err != nil {
 		return err
 	}

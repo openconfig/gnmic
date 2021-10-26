@@ -2,6 +2,7 @@ package utils
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
@@ -9,27 +10,60 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"errors"
-	"io/ioutil"
 	"math/big"
+	"sync"
 	"time"
 )
 
-func NewTLSConfig(ca, cert, key string, skipVerify bool) (*tls.Config, error) {
+// NewTLSConfig generates a *tls.Config based on given CA, certificate, key files and skipVerify flag
+// if certificate and key are missing a self signed key pair is generated.
+// The certificates paths can be local or remote, http(s) and (s)ftp are supported for remote files.
+func NewTLSConfig(ca, cert, key string, skipVerify, genSelfSigned bool) (*tls.Config, error) {
 	if !(skipVerify || ca != "" || (cert != "" && key != "")) {
 		return nil, nil
 	}
 	tlsConfig := &tls.Config{
-		Renegotiation:      tls.RenegotiateNever,
 		InsecureSkipVerify: skipVerify,
 	}
 	if cert != "" && key != "" {
-		certificate, err := tls.LoadX509KeyPair(cert, key)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		var certBytes, keyBytes []byte
+
+		errCh := make(chan error, 2)
+		wg := new(sync.WaitGroup)
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			var err error
+			certBytes, err = ReadFile(ctx, cert)
+			if err != nil {
+				errCh <- err
+				return
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			var err error
+			keyBytes, err = ReadFile(ctx, key)
+			if err != nil {
+				errCh <- err
+				return
+			}
+		}()
+		wg.Wait()
+		close(errCh)
+		for err := range errCh {
+			return nil, err
+		}
+		certificate, err := tls.X509KeyPair(certBytes, keyBytes)
 		if err != nil {
 			return nil, err
 		}
+
 		tlsConfig.Certificates = []tls.Certificate{certificate}
-		// tlscfg.BuildNameToCertificate()
-	} else {
+	} else if genSelfSigned {
 		cert, err := SelfSignedCerts()
 		if err != nil {
 			return nil, err
@@ -38,7 +72,9 @@ func NewTLSConfig(ca, cert, key string, skipVerify bool) (*tls.Config, error) {
 	}
 	if ca != "" {
 		certPool := x509.NewCertPool()
-		caFile, err := ioutil.ReadFile(ca)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		caFile, err := ReadFile(ctx, ca)
 		if err != nil {
 			return nil, err
 		}

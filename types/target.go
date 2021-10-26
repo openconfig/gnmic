@@ -2,13 +2,12 @@ package types
 
 import (
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io/ioutil"
 	"strings"
 	"time"
+
+	"github.com/karimra/gnmic/utils"
 )
 
 // TargetConfig //
@@ -45,42 +44,25 @@ func (tc *TargetConfig) String() string {
 	return string(b)
 }
 
-// NewTLS //
-func (tc *TargetConfig) NewTLS() (*tls.Config, error) {
-	tlsConfig := &tls.Config{
-		Renegotiation:      tls.RenegotiateNever,
-		InsecureSkipVerify: *tc.SkipVerify,
-		MaxVersion:         tc.getTLSMaxVersion(),
-		MinVersion:         tc.getTLSMinVersion(),
+// NewTLSConfig //
+func (tc *TargetConfig) NewTLSConfig() (*tls.Config, error) {
+	var ca, cert, key string
+	if tc.TLSCA != nil {
+		ca = *tc.TLSCA
 	}
-	err := loadCerts(tlsConfig, tc)
+	if tc.TLSCert != nil {
+		cert = *tc.TLSCert
+	}
+	if tc.TLSKey != nil {
+		key = *tc.TLSKey
+	}
+	tlsConfig, err := utils.NewTLSConfig(ca, cert, key, *tc.SkipVerify, false)
 	if err != nil {
 		return nil, err
 	}
+	tlsConfig.MaxVersion = tc.getTLSMaxVersion()
+	tlsConfig.MinVersion = tc.getTLSMinVersion()
 	return tlsConfig, nil
-}
-
-func loadCerts(tlscfg *tls.Config, c *TargetConfig) error {
-	if *c.TLSCert != "" && *c.TLSKey != "" {
-		certificate, err := tls.LoadX509KeyPair(*c.TLSCert, *c.TLSKey)
-		if err != nil {
-			return err
-		}
-		tlscfg.Certificates = []tls.Certificate{certificate}
-		//tlscfg.BuildNameToCertificate()
-	}
-	if c.TLSCA != nil && *c.TLSCA != "" {
-		certPool := x509.NewCertPool()
-		caFile, err := ioutil.ReadFile(*c.TLSCA)
-		if err != nil {
-			return err
-		}
-		if ok := certPool.AppendCertsFromPEM(caFile); !ok {
-			return errors.New("failed to append certificate")
-		}
-		tlscfg.RootCAs = certPool
-	}
-	return nil
 }
 
 func (tc *TargetConfig) UsernameString() string {

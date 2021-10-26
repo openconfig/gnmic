@@ -128,7 +128,7 @@ func (h *httpLoader) setDefaults() error {
 
 func (h *httpLoader) query() (map[string]*types.TargetConfig, error) {
 	c := resty.New()
-	tlsCfg, err := utils.NewTLSConfig(h.cfg.CAFile, h.cfg.CertFile, h.cfg.KeyFile, h.cfg.SkipVerify)
+	tlsCfg, err := utils.NewTLSConfig(h.cfg.CAFile, h.cfg.CertFile, h.cfg.KeyFile, h.cfg.SkipVerify, false)
 	if err != nil {
 		httpLoaderFailedGetRequests.WithLabelValues(loaderType, fmt.Sprintf("%v", err))
 		return nil, err

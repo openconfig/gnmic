@@ -16,7 +16,6 @@ package cmd
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -28,6 +27,7 @@ import (
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/karimra/gnmic/outputs"
+	"github.com/karimra/gnmic/utils"
 	nokiasros "github.com/karimra/sros-dialout"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -105,18 +105,14 @@ func newListenCmd() *cobra.Command {
 				grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor))
 
 			if gApp.Config.TLSKey != "" && gApp.Config.TLSCert != "" {
-				tlsConfig := &tls.Config{
-					Renegotiation:      tls.RenegotiateNever,
-					InsecureSkipVerify: gApp.Config.SkipVerify,
-				}
-				err := loadCerts(tlsConfig)
+				tlsConfig, err := utils.NewTLSConfig(
+					gApp.Config.TLSCa,
+					gApp.Config.TLSCert,
+					gApp.Config.TLSKey,
+					gApp.Config.SkipVerify,
+					false)
 				if err != nil {
-					gApp.Logger.Printf("failed loading certificates: %v", err)
-				}
-
-				err = loadCACerts(tlsConfig)
-				if err != nil {
-					gApp.Logger.Printf("failed loading CA certificates: %v", err)
+					return err
 				}
 				opts = append(opts, grpc.Creds(credentials.NewTLS(tlsConfig)))
 			}

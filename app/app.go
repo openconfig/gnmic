@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"sort"
@@ -164,21 +163,7 @@ func (a *App) PreRun(_ *cobra.Command, args []string) error {
 	if a.Config.Debug {
 		grpclog.SetLogger(a.Logger) //lint:ignore SA1019 see https://github.com/karimra/gnmic/issues/59
 	}
-
-	cfgFile := a.Config.FileConfig.ConfigFileUsed()
-	if len(cfgFile) != 0 {
-		a.Logger.Printf("using config file %s", cfgFile)
-		b, err := ioutil.ReadFile(cfgFile)
-		if err != nil {
-			if a.RootCmd.Flag("config").Changed {
-				return err
-			}
-			a.Logger.Printf("failed reading config file: %v", err)
-		}
-		if a.Config.Debug {
-			a.Logger.Printf("config file:\n%s", string(b))
-		}
-	}
+	a.Logger.Printf("using config file %q", a.Config.FileConfig.ConfigFileUsed())
 	a.logConfigKVs()
 	return a.validateGlobals()
 }

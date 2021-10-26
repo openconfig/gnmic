@@ -73,7 +73,7 @@ func (t *Target) CreateGNMIClient(ctx context.Context, opts ...grpc.DialOption) 
 	if *t.Config.Insecure {
 		tOpts = append(tOpts, grpc.WithInsecure())
 	} else {
-		tlsConfig, err := t.Config.NewTLS()
+		tlsConfig, err := t.Config.NewTLSConfig()
 		if err != nil {
 			return err
 		}

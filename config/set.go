@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -41,7 +40,7 @@ func (c *Config) ReadSetRequestTemplate() error {
 	}
 	c.setRequestTemplate = make([]*template.Template, len(c.SetRequestFile))
 	for i, srf := range c.SetRequestFile {
-		b, err := ioutil.ReadFile(srf)
+		b, err := utils.ReadFile(context.TODO(), srf)
 		if err != nil {
 			return err
 		}

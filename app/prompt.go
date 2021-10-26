@@ -2,8 +2,8 @@ package app
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/mitchellh/go-homedir"
@@ -30,7 +30,7 @@ func (a *App) PromptRunE(cmd *cobra.Command, args []string) error {
 		}
 		return nil
 	}
-	content, err := ioutil.ReadFile(home + "/.gnmic.history")
+	content, err := os.ReadFile(filepath.Join(home, ".gnmic.history"))
 	if err != nil {
 		if a.Config.Debug {
 			a.Logger.Printf("failed to read history file: %v", err)
