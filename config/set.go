@@ -61,7 +61,7 @@ func (c *Config) ReadSetRequestTemplate() error {
 func (c *Config) readTemplateVarsFile() error {
 	if c.SetRequestVars == "" {
 		ext := filepath.Ext(c.SetRequestFile[0])
-		c.SetRequestVars = fmt.Sprintf("%s%s%s", c.SetRequestFile[0:len(c.SetRequestFile)-len(ext)], varFileSuffix, ext)
+		c.SetRequestVars = fmt.Sprintf("%s%s%s", c.SetRequestFile[0][0:len(c.SetRequestFile[0])-len(ext)], varFileSuffix, ext)
 		c.logger.Printf("trying to find variable file %q", c.SetRequestVars)
 		_, err := os.Stat(c.SetRequestVars)
 		if os.IsNotExist(err) {

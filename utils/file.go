@@ -31,7 +31,6 @@ const (
 // no prefix means the file is local. `-` means stdin.
 func ReadFile(ctx context.Context, path string) ([]byte, error) {
 	// read file bytes based on the path prefix
-	fmt.Println("Read file")
 	switch {
 	case strings.HasPrefix(path, "https://"):
 		fallthrough
