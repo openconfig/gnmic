@@ -191,6 +191,10 @@ func (a *App) validateGlobals() error {
 		if a.Config.TLSMinVersion != "" {
 			return errors.New("flags --insecure and --tls-min-version are mutually exclusive")
 		}
+	} else {
+		if a.Config.TLSCa == "" && !a.Config.SkipVerify {
+			return errors.New("for a secure connection, flags --tls-ca or --skip-verify need to be specified")
+		}
 	}
 	return nil
 }
