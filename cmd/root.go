@@ -17,13 +17,13 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/karimra/gnmic/app"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 var encodings = [][2]string{
@@ -103,7 +103,7 @@ func initConfig() {
 	if err == nil {
 		return
 	}
-	if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+	if _, ok := err.(*fs.PathError); !ok {
 		fmt.Fprintf(os.Stderr, "failed loading config file: %v\n", err)
 	}
 }

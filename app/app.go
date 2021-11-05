@@ -148,7 +148,7 @@ func (a *App) InitGlobalFlags() {
 	})
 }
 
-func (a *App) PreRun(_ *cobra.Command, args []string) error {
+func (a *App) PreRun(cmd *cobra.Command, args []string) error {
 	a.Config.SetPersistantFlagsFromFile(a.RootCmd)
 
 	logOutput, flags, err := a.Config.SetLogger()
@@ -165,10 +165,10 @@ func (a *App) PreRun(_ *cobra.Command, args []string) error {
 	}
 	a.Logger.Printf("using config file %q", a.Config.FileConfig.ConfigFileUsed())
 	a.logConfigKVs()
-	return a.validateGlobals()
+	return a.validateGlobals(cmd)
 }
 
-func (a *App) validateGlobals() error {
+func (a *App) validateGlobals(cmd *cobra.Command) error {
 	if a.Config.Insecure {
 		if a.Config.SkipVerify {
 			return errors.New("flags --insecure and --skip-verify are mutually exclusive")
@@ -192,8 +192,12 @@ func (a *App) validateGlobals() error {
 			return errors.New("flags --insecure and --tls-min-version are mutually exclusive")
 		}
 	} else {
-		if a.Config.TLSCa == "" && !a.Config.SkipVerify {
-			return errors.New("for a secure connection, flags --tls-ca or --skip-verify need to be specified")
+		switch cmd.Name() {
+		case "version", "generate":
+		default:
+			if a.Config.TLSCa == "" && !a.Config.SkipVerify {
+				return errors.New("for a secure connection, flags --tls-ca or --skip-verify need to be specified")
+			}
 		}
 	}
 	return nil
