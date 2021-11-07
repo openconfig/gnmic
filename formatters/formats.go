@@ -18,6 +18,7 @@ type MarshalOptions struct {
 	Indent     string
 	Format     string
 	OverrideTS bool
+	ValuesOnly bool
 }
 
 // Marshal //

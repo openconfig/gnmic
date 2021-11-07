@@ -227,6 +227,17 @@ func (o *MarshalOptions) formatGetResponse(m *gnmi.GetResponse, meta map[string]
 		}
 		notifications = append(notifications, msg)
 	}
+	if o.ValuesOnly {
+		result := make([]interface{}, 0, len(notifications))
+		for _, n := range notifications {
+			for _, u := range n.Updates {
+				for _, v := range u.Values {
+					result = append(result, v)
+				}
+			}
+		}
+		return json.MarshalIndent(result, "", "  ")
+	}
 	if o.Multiline {
 		return json.MarshalIndent(notifications, "", o.Indent)
 	}
