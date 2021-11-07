@@ -1,0 +1,16 @@
+name: test1
+
+topology:
+  defaults:
+    kind: srl
+  kinds:
+    srl:
+      image: ghcr.io/nokia/srlinux
+  nodes:
+    srl1:
+    srl2:
+    srl3:
+  links:
+    - endpoints: ["srl1:e1-1", "srl2:e1-1"]
+    - endpoints: ["srl2:e1-2", "srl3:e1-1"]
+    - endpoints: ["srl3:e1-2", "srl1:e1-2"]
