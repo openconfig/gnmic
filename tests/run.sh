@@ -8,15 +8,26 @@ failure() {
   local msg=$2
   echo "Failed at line $lineno: $msg"
 }
+export -f failure
 
 function cleanup() {
     printf "cleaning up...\n"
     ./cleanup.sh test_lab1
 }
+export -f cleanup
+
+function contains() {
+  if [[ "$1" != *"$2"* ]]; then
+    exit 1
+  fi
+}
+export -f contains
 
 trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
 trap cleanup EXIT
 trap cleanup SIGINT
+
+export gnmic_base_cmd="./gnmic-rc1 -u admin -p admin --skip-verify --debug"
 
 function buildgNMIc() {
   printf "Building gnmic...\n"
@@ -38,16 +49,13 @@ case "$1" in
     
     # deploy basic 3 nodes lab
     ./deploy.sh test_lab1
-
     # run capabilities cmd tests
     ./capabilities_cmd.sh
-
     # run get cmd tests
     ./get_cmd.sh
 
     # redeploy to avoid getting error: rpc error: code = ResourceExhausted desc = Max number of operations per minute (rate-limit) reached (max: 60)
     ./deploy.sh test_lab1
-
     # run set md tests
     ./set_cmd.sh
 
@@ -59,23 +67,21 @@ case "$1" in
     ;;
   "version")
     # build gnmic
-    printf "Building gnmic...\n"
-    go build -o gnmic-rc1 ../ 
+    buildgNMIc
+
     # run version cmd
     ./version_cmd.sh
     ;;
   "generate")
     # build gnmic
-    printf "Building gnmic...\n"
-    go build -o gnmic-rc1 ../ 
+    buildgNMIc
     # run generate cmd
     ./generate_cmd.sh
     ./generate_path_cmd.sh
     ;;
   "cap")
     # build gnmic
-    printf "Building gnmic...\n"
-    go build -o gnmic-rc1 ../ 
+    buildgNMIc
 
     # deploy basic 3 nodes lab
     ./deploy.sh test_lab1
@@ -85,8 +91,7 @@ case "$1" in
     ;;
   "get")
     # build gnmic
-    printf "Building gnmic...\n"
-    go build -o gnmic-rc1 ../ 
+    buildgNMIc
     # deploy basic 3 nodes lab
     ./deploy.sh test_lab1
     # run get cmd tests
@@ -94,8 +99,7 @@ case "$1" in
     ;;
   "set")
     # build gnmic
-    printf "Building gnmic...\n"
-    go build -o gnmic-rc1 ../ 
+    buildgNMIc
     # deploy basic 3 nodes lab
     ./deploy.sh test_lab1
     # run set md tests
@@ -103,15 +107,14 @@ case "$1" in
     ;;
   "sub")
     # build gnmic
-    printf "Building gnmic...\n"
-    go build -o gnmic-rc1 ../ 
+    buildgNMIc
     # deploy basic 3 nodes lab
     ./deploy.sh test_lab1
     # run set md tests
     ./subscribe_once_cmd.sh.sh
     ;;
   *)
-    echo "./run.sh [ all | version | cap | get | set | sub ]"
+    echo "./run.sh [ all | version | generate | cap | get | set | sub ]"
     exit 1
     ;;
 esac

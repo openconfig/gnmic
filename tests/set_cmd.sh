@@ -1,6 +1,6 @@
 #!/bin/bash
 
-gnmic_base_cmd="./gnmic-rc1 -u admin -p admin --skip-verify -d"
+trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
 
 #########
 ## SET ##
@@ -11,10 +11,15 @@ gnmic_base_cmd="./gnmic-rc1 -u admin -p admin --skip-verify -d"
 
 ### set replace with value
 #### single host
-
+########################
 $gnmic_base_cmd -a clab-test1-srl1 set \
+                              -e json_ietf \
                               --replace /interface[name=ethernet-1/1]/description:::json_ietf:::e1-1_dummy_desc1
-
+out=$($gnmic_base_cmd -a clab-test1-srl1 get -e json_ietf \
+                        --path /interface[name=ethernet-1/1]/description | 
+                        jq '.[].updates[].values."srl_nokia-interfaces:interface/description"')
+contains $out "e1-1_dummy_desc1"
+########################
 $gnmic_base_cmd -a clab-test1-srl1 set \
                               --delimiter "CUSTOM_DELIMITER" \
                               --replace /interface[name=ethernet-1/1]/descriptionCUSTOM_DELIMITERjson_ietfCUSTOM_DELIMITERe1-1_dummy_desc1
@@ -98,7 +103,7 @@ $gnmic_base_cmd -a clab-test1-srl2 -e json_ietf set \
 
 $gnmic_base_cmd -a clab-test1-srl3 set \
                           --replace /interface[name=ethernet-1/1]/description:::json_ietf:::e1-1_dummy_desc1 \
-                          --replace /interface[name=ethernet-1/2]/description:::json_ietf:::e1-1_dummy_desc1
+                          --replace /interface[name=ethernet-1/2]/description:::json_ietf:::e1-2_dummy_desc1
 
 $gnmic_base_cmd -a clab-test1-srl3 set \
                           --delimiter "CUSTOM_DELIMITER" \
@@ -171,8 +176,14 @@ $gnmic_base_cmd -a clab-test1-srl1 -a clab-test1-srl2 -a clab-test1-srl3 -e json
                           --replace-path /interface[name=ethernet-1/1] \
                           --replace-file configs/node/interface.yaml 
 
+
 ### set replace with request file
-# TODO
+$gnmic_base_cmd -a clab-test1-srl1 set --request-file configs/node/replace_request_file.yaml
+$gnmic_base_cmd -a clab-test1-srl2 set --request-file configs/node/replace_request_file.yaml
+$gnmic_base_cmd -a clab-test1-srl3 set --request-file configs/node/replace_request_file.yaml
+
+$gnmic_base_cmd -a clab-test1-srl1,clab-test1-srl2,clab-test1-srl3 set --request-file configs/node/replace_request_file.yaml
+$gnmic_base_cmd -a clab-test1-srl1 -a clab-test1-srl2 -a clab-test1-srl3 set --request-file configs/node/replace_request_file.yaml
 
 ################
 ## SET UPDATE ##
@@ -212,7 +223,12 @@ $gnmic_base_cmd -a clab-test1-srl3 set --update-path /interface[name=ethernet-1/
 $gnmic_base_cmd -a clab-test1-srl1,clab-test1-srl2,clab-test1-srl3 set --update-path /interface[name=ethernet-1/1] --update-file configs/node/interface.yaml -e json_ietf
 $gnmic_base_cmd -a clab-test1-srl1 -a clab-test1-srl2 -a clab-test1-srl3 set --update-path /interface[name=ethernet-1/1] --update-file configs/node/interface.yaml -e json_ietf
 ### set update with request file
-# TODO
+$gnmic_base_cmd -a clab-test1-srl1 set --request-file configs/node/update_request_file.yaml
+$gnmic_base_cmd -a clab-test1-srl2 set --request-file configs/node/update_request_file.yaml
+$gnmic_base_cmd -a clab-test1-srl3 set --request-file configs/node/update_request_file.yaml
+
+$gnmic_base_cmd -a clab-test1-srl1,clab-test1-srl2,clab-test1-srl3 set --request-file configs/node/replace_request_file.yaml
+$gnmic_base_cmd -a clab-test1-srl1 -a clab-test1-srl2 -a clab-test1-srl3 set --request-file configs/node/replace_request_file.yaml
 
 ## delete
 ### single host
@@ -224,4 +240,84 @@ $gnmic_base_cmd -a clab-test1-srl1,clab-test1-srl2,clab-test1-srl3 set --delete 
 $gnmic_base_cmd -a clab-test1-srl1 -a clab-test1-srl2 -a clab-test1-srl3 set --delete /interface[name=ethernet-1/1]/description
 
 ## combined update, replace and delete
-# TODO
+### combined set with value
+
+$gnmic_base_cmd -a clab-test1-srl1 set \
+                --replace /interface[name=ethernet-1/1]/description:::json_ietf:::e1-1_dummy_desc1 \
+                --update /interface[name=ethernet-1/2]/description:::json_ietf:::e1-2_dummy_desc1 \
+                --delete /interface[name=ethernet-1/1]/admin-state
+
+$gnmic_base_cmd -a clab-test1-srl2 set \
+                --replace /interface[name=ethernet-1/1]/description:::json_ietf:::e1-1_dummy_desc1 \
+                --update /interface[name=ethernet-1/2]/description:::json_ietf:::e1-2_dummy_desc1 \
+                --delete /interface[name=ethernet-1/1]/admin-state
+
+$gnmic_base_cmd -a clab-test1-srl3 set \
+                --replace /interface[name=ethernet-1/1]/description:::json_ietf:::e1-1_dummy_desc1 \
+                --update /interface[name=ethernet-1/2]/description:::json_ietf:::e1-2_dummy_desc1 \
+                --delete /interface[name=ethernet-1/1]/admin-state
+
+# reset
+$gnmic_base_cmd -a clab-test1-srl1,clab-test1-srl2,clab-test1-srl3 set \
+                --delete /interface[name=ethernet-1/1]/description \
+                --delete /interface[name=ethernet-1/2]/description
+
+$gnmic_base_cmd -a clab-test1-srl1 set \
+                --replace /interface[name=ethernet-1/1]/description:::json_ietf:::e1-1_dummy_desc1 \
+                --replace /interface[name=ethernet-1/1]/subinterface[index=0]/description:::json_ietf:::e1-1.0_dummy_desc1 \
+                --update /interface[name=ethernet-1/2]/description:::json_ietf:::e1-2_dummy_desc1 \
+                --update /interface[name=ethernet-1/2]/subinterface[index=0]/description:::json_ietf:::e1-2._dummy_desc1 \
+                --delete /interface[name=ethernet-1/1]/admin-state \
+                --delete /interface[name=ethernet-1/2]/admin-state
+
+$gnmic_base_cmd -a clab-test1-srl2 set \
+                --replace /interface[name=ethernet-1/1]/description:::json_ietf:::e1-1_dummy_desc1 \
+                --replace /interface[name=ethernet-1/1]/subinterface[index=0]/description:::json_ietf:::e1-1.0_dummy_desc1 \
+                --update /interface[name=ethernet-1/2]/description:::json_ietf:::e1-2_dummy_desc1 \
+                --update /interface[name=ethernet-1/2]/subinterface[index=0]/description:::json_ietf:::e1-2._dummy_desc1 \
+                --delete /interface[name=ethernet-1/1]/admin-state \
+                --delete /interface[name=ethernet-1/2]/admin-state
+
+$gnmic_base_cmd -a clab-test1-srl3 set \
+                --replace /interface[name=ethernet-1/1]/description:::json_ietf:::e1-1_dummy_desc1 \
+                --replace /interface[name=ethernet-1/1]/subinterface[index=0]/description:::json_ietf:::e1-1.0_dummy_desc1 \
+                --update /interface[name=ethernet-1/2]/description:::json_ietf:::e1-2_dummy_desc1 \
+                --update /interface[name=ethernet-1/2]/subinterface[index=0]/description:::json_ietf:::e1-2._dummy_desc1 \
+                --delete /interface[name=ethernet-1/1]/admin-state \
+                --delete /interface[name=ethernet-1/2]/admin-state
+
+$gnmic_base_cmd -a clab-test1-srl1 set -e json_ietf \
+                --replace-path /interface[name=ethernet-1/1]/description \
+                --replace-value e1-1_dummy_desc1 \
+                --replace-path /interface[name=ethernet-1/1]/subinterface[index=0]/description \
+                --replace-value e1-1.0_dummy_desc1 \
+                --update-path /interface[name=ethernet-1/2]/description \
+                --update-value e1-2_dummy_desc1 \
+                --update-path /interface[name=ethernet-1/2]/subinterface[index=0]/description \
+                --update-value e1-2.0_dummy_desc1 \
+                --delete /interface[name=ethernet-1/1]/admin-state \
+                --delete /interface[name=ethernet-1/2]/admin-state
+
+$gnmic_base_cmd -a clab-test1-srl2 set -e json_ietf \
+                --replace-path /interface[name=ethernet-1/1]/description \
+                --replace-value e1-1_dummy_desc1 \
+                --replace-path /interface[name=ethernet-1/1]/subinterface[index=0]/description \
+                --replace-value e1-1.0_dummy_desc1 \
+                --update-path /interface[name=ethernet-1/2]/description \
+                --update-value e1-2_dummy_desc1 \
+                --update-path /interface[name=ethernet-1/2]/subinterface[index=0]/description \
+                --update-value e1-2.0_dummy_desc1 \
+                --delete /interface[name=ethernet-1/1]/admin-state \
+                --delete /interface[name=ethernet-1/2]/admin-state
+
+$gnmic_base_cmd -a clab-test1-srl3 set -e json_ietf \
+                --replace-path /interface[name=ethernet-1/1]/description \
+                --replace-value e1-1_dummy_desc1 \
+                --replace-path /interface[name=ethernet-1/1]/subinterface[index=0]/description \
+                --replace-value e1-1.0_dummy_desc1 \
+                --update-path /interface[name=ethernet-1/2]/description \
+                --update-value e1-2_dummy_desc1 \
+                --update-path /interface[name=ethernet-1/2]/subinterface[index=0]/description \
+                --update-value e1-2.0_dummy_desc1 \
+                --delete /interface[name=ethernet-1/1]/admin-state \
+                --delete /interface[name=ethernet-1/2]/admin-state

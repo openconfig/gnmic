@@ -1,5 +1,7 @@
 #!/bin/bash
 
+trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
+
 # single host, single path
 ./gnmic-rc1 -a clab-test1-srl1 -u admin -p admin --skip-verify -d -e json_ietf subscribe \
                               --mode once \

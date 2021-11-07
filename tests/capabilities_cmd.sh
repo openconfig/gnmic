@@ -2,6 +2,8 @@
 
 gnmic_base_cmd="./gnmic-rc1 -u admin -p admin --skip-verify -d"
 
+trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
+
 # capabilities
 $gnmic_base_cmd -a clab-test1-srl1 capabilities
 $gnmic_base_cmd -a clab-test1-srl2 capabilities

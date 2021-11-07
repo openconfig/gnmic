@@ -1,4 +1,4 @@
-replaces:
+updates:
   - path: /interface[name=ethernet-1/1]
     value:
       admin-state: enable

@@ -1,9 +1,11 @@
 #!/bin/bash
 
+trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
+
 DIR_NAME="$(pwd)/srl-latest-yang-models"
 
 docker pull ghcr.io/nokia/srlinux
-id=$(docker create ghcr.io/nokia/srlinux foo)
+id=$(docker create ghcr.io/nokia/srlinux)
 mkdir -p $DIR_NAME
 docker cp $id:/opt/srlinux/models/. $DIR_NAME
 docker rm $id
