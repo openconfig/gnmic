@@ -41,11 +41,11 @@ func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
 	}
 	// only once mode subscriptions requested
 	if allSubscriptionsModeOnce(subCfg) {
-		return a.SubscribeRunONCE(cmd, args)
+		return a.SubscribeRunONCE(cmd, args, subCfg)
 	}
 	// only poll mode subscriptions requested
 	if allSubscriptionsModePoll(subCfg) {
-		return a.SubscribeRunPoll(cmd, args)
+		return a.SubscribeRunPoll(cmd, args, subCfg)
 	}
 	// stream subscriptions
 	err = a.Config.GetClustering()
@@ -79,7 +79,7 @@ func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed reading targets config: %v", err)
 	}
 
-	cOpts, err := a.createCollectorOpts(cmd)
+	cOpts, err := a.createCollectorOpts(cmd, subCfg)
 	if err != nil {
 		return err
 	}
@@ -133,18 +133,18 @@ func (a *App) SubscribeRunPrompt(cmd *cobra.Command, args []string) error {
 	}
 	// only once mode subscriptions requested
 	if allSubscriptionsModeOnce(subCfg) {
-		return a.SubscribeRunONCE(cmd, args)
+		return a.SubscribeRunONCE(cmd, args, subCfg)
 	}
 	// only poll mode subscriptions requested
 	if allSubscriptionsModePoll(subCfg) {
-		return a.SubscribeRunPoll(cmd, args)
+		return a.SubscribeRunPoll(cmd, args, subCfg)
 	}
 	// stream+once mode subscriptions
 	outs, err := a.Config.GetOutputs()
 	if err != nil {
 		return fmt.Errorf("failed reading outputs config: %v", err)
 	}
-	cOpts, err := a.createCollectorOpts(cmd)
+	cOpts, err := a.createCollectorOpts(cmd, subCfg)
 	if err != nil {
 		return err
 	}
@@ -230,14 +230,10 @@ func (a *App) InitSubscribeFlags(cmd *cobra.Command) {
 	})
 }
 
-func (a *App) createCollectorOpts(cmd *cobra.Command) ([]collector.CollectorOption, error) {
+func (a *App) createCollectorOpts(cmd *cobra.Command, subConfig map[string]*types.SubscriptionConfig) ([]collector.CollectorOption, error) {
 	inputsConfig, err := a.Config.GetInputs()
 	if err != nil {
 		return nil, fmt.Errorf("failed reading inputs config: %v", err)
-	}
-	subscriptionsConfig, err := a.Config.GetSubscriptions(cmd)
-	if err != nil {
-		return nil, fmt.Errorf("failed reading subscriptions config: %v", err)
 	}
 	outs, err := a.Config.GetOutputs()
 	if err != nil {
@@ -254,7 +250,7 @@ func (a *App) createCollectorOpts(cmd *cobra.Command) ([]collector.CollectorOpti
 
 	opts := []collector.CollectorOption{
 		collector.WithDialOptions(a.createCollectorDialOpts()),
-		collector.WithSubscriptions(subscriptionsConfig),
+		collector.WithSubscriptions(subConfig),
 		collector.WithOutputs(outs),
 		collector.WithLogger(a.Logger),
 		collector.WithEventProcessors(epConfig),
@@ -394,13 +390,13 @@ func (a *App) startIO() {
 	}
 }
 
-func (a *App) SubscribeRunONCE(cmd *cobra.Command, args []string) error {
+func (a *App) SubscribeRunONCE(cmd *cobra.Command, args []string, subCfg map[string]*types.SubscriptionConfig) error {
 	targetsConfig, err := a.Config.GetTargets()
 	if err != nil {
 		return fmt.Errorf("failed reading targets config: %v", err)
 	}
 
-	cOpts, err := a.createCollectorOpts(cmd)
+	cOpts, err := a.createCollectorOpts(cmd, subCfg)
 	if err != nil {
 		return err
 	}
@@ -428,13 +424,13 @@ func (a *App) SubscribeRunONCE(cmd *cobra.Command, args []string) error {
 	return a.checkErrors()
 }
 
-func (a *App) SubscribeRunPoll(cmd *cobra.Command, args []string) error {
+func (a *App) SubscribeRunPoll(cmd *cobra.Command, args []string, subCfg map[string]*types.SubscriptionConfig) error {
 	targetsConfig, err := a.Config.GetTargets()
 	if err != nil {
 		return fmt.Errorf("failed reading targets config: %v", err)
 	}
 
-	cOpts, err := a.createCollectorOpts(cmd)
+	cOpts, err := a.createCollectorOpts(cmd, subCfg)
 	if err != nil {
 		return err
 	}
