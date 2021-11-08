@@ -1,0 +1,11 @@
+replaces:
+  - path: /interface[name=ethernet-1/1]
+    value:
+      admin-state: enable
+      description: dummy_description1
+    encoding: json_ietf
+  - path: /interface[name=ethernet-1/2]
+    value:
+      admin-state: enable
+      description: dummy_description2
+    encoding: json_ietf
