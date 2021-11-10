@@ -193,7 +193,7 @@ func (a *App) validateGlobals(cmd *cobra.Command) error {
 		}
 	} else {
 		switch cmd.Name() {
-		case "version", "generate":
+		case "version", "upgrade", "generate", "set-request", "path":
 		default:
 			if a.Config.TLSCa == "" && !a.Config.SkipVerify {
 				return errors.New("for a secure connection, flags --tls-ca or --skip-verify need to be specified")
