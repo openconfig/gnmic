@@ -1,0 +1,28 @@
+log: true
+
+skip-verify: true
+
+loader:
+  type: consul
+  address: clab-telem-consul-agent:8500
+  debug: true
+  services:
+    - name: cluster2-gnmi-server
+      config:
+        insecure: true
+
+subscriptions:
+  cluster2:
+    paths:
+      - /
+    stream-mode: on-change
+
+api-server:
+  enable-metrics: true
+  
+outputs:
+  aggregator:
+    type: prometheus
+    listen: clab-telem-agg-gnmic:9807
+    service-registration:
+      address: clab-telem-consul-agent:8500
