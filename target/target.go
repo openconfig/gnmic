@@ -45,8 +45,7 @@ type Target struct {
 	stopped            bool
 	StopChan           chan struct{}      `json:"-"`
 	Cfn                context.CancelFunc `json:"-"`
-
-	RootDesc desc.Descriptor
+	RootDesc           desc.Descriptor    `json:"-"`
 }
 
 // NewTarget //

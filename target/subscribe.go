@@ -15,19 +15,27 @@ import (
 
 // Subscribe sends a gnmi.SubscribeRequest to the target *t, responses and error are sent to the target channels
 func (t *Target) Subscribe(ctx context.Context, req *gnmi.SubscribeRequest, subscriptionName string) {
+	var subscribeClient gnmi.GNMI_SubscribeClient
+	var nctx context.Context
+	var cancel context.CancelFunc
+	var err error
 SUBSC:
-	nctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	nctx = metadata.AppendToOutgoingContext(nctx, "username", *t.Config.Username, "password", *t.Config.Password)
-	subscribeClient, err := t.Client.Subscribe(nctx)
-	if err != nil {
-		t.errors <- &TargetError{
-			SubscriptionName: subscriptionName,
-			Err:              fmt.Errorf("failed to create a subscribe client, target='%s', retry in %d. err=%v", t.Config.Name, t.Config.RetryTimer, err),
+	select {
+	case <-ctx.Done():
+	default:
+		nctx, cancel = context.WithCancel(ctx)
+		defer cancel()
+		nctx = metadata.AppendToOutgoingContext(nctx, "username", *t.Config.Username, "password", *t.Config.Password)
+		subscribeClient, err = t.Client.Subscribe(nctx)
+		if err != nil {
+			t.errors <- &TargetError{
+				SubscriptionName: subscriptionName,
+				Err:              fmt.Errorf("failed to create a subscribe client, target='%s', retry in %d. err=%v", t.Config.Name, t.Config.RetryTimer, err),
+			}
+			cancel()
+			time.Sleep(t.Config.RetryTimer)
+			goto SUBSC
 		}
-		cancel()
-		time.Sleep(t.Config.RetryTimer)
-		goto SUBSC
 	}
 	t.m.Lock()
 	t.SubscribeClients[subscriptionName] = subscribeClient
