@@ -43,7 +43,7 @@ outputs:
   
   kafka-output:
     type: kafka
-    address: clablab15-kafka-server:9092
+    address: clab-lab15-kafka-server:9092
     topic: telemetry
   
   nats-output:
