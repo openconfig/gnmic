@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	defaultTargetWatchTimer        = 20 * time.Second
+	minTargetWatchTimer            = 20 * time.Second
 	defaultTargetAssignmentTimeout = 10 * time.Second
 	defaultServicesWatchTimer      = 1 * time.Minute
 	defaultLeaderWaitTimer         = 5 * time.Second
@@ -47,26 +47,35 @@ func (c *Config) GetClustering() error {
 }
 
 func (c *Config) setClusteringDefaults() {
+	// set $clustering.cluster-name to $cluster-name if it's empty string
 	if c.Clustering.ClusterName == "" {
-		c.Clustering.ClusterName = c.GlobalFlags.ClusterName
+		c.Clustering.ClusterName = c.ClusterName
+		// otherwise, set $cluster-name to $clustering.cluster-name
+	} else {
+		c.ClusterName = c.Clustering.ClusterName
 	}
+	// set clustering.instance-name to instance-name
 	if c.Clustering.InstanceName == "" {
-		if c.GlobalFlags.InstanceName != "" {
-			c.Clustering.InstanceName = c.GlobalFlags.InstanceName
+		if c.InstanceName != "" {
+			c.Clustering.InstanceName = c.InstanceName
 		} else {
 			c.Clustering.InstanceName = "gnmic-" + uuid.New().String()
 		}
+	} else {
+		c.InstanceName = c.Clustering.InstanceName
 	}
-	if c.Clustering.TargetsWatchTimer < defaultTargetWatchTimer {
-		c.Clustering.TargetsWatchTimer = defaultTargetWatchTimer
+	// the timers are set to less than the min allowed value,
+	// make them default to that min value.
+	if c.Clustering.TargetsWatchTimer < minTargetWatchTimer {
+		c.Clustering.TargetsWatchTimer = minTargetWatchTimer
 	}
 	if c.Clustering.TargetAssignmentTimeout < defaultTargetAssignmentTimeout {
 		c.Clustering.TargetAssignmentTimeout = defaultTargetAssignmentTimeout
 	}
-	if c.Clustering.ServicesWatchTimer <= 0 {
+	if c.Clustering.ServicesWatchTimer <= defaultServicesWatchTimer {
 		c.Clustering.ServicesWatchTimer = defaultServicesWatchTimer
 	}
-	if c.Clustering.LeaderWaitTimer <= 0 {
+	if c.Clustering.LeaderWaitTimer <= defaultLeaderWaitTimer {
 		c.Clustering.LeaderWaitTimer = defaultLeaderWaitTimer
 	}
 }

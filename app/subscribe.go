@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/config"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/types"
@@ -48,6 +47,21 @@ func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
 		return a.SubscribeRunPoll(cmd, args, subCfg)
 	}
 	// stream subscriptions
+	_, err = a.Config.GetTargets()
+	if errors.Is(err, config.ErrNoTargetsFound) {
+		if !a.Config.LocalFlags.SubscribeWatchConfig && len(a.Config.FileConfig.GetStringMap("loader")) == 0 {
+			return fmt.Errorf("failed reading targets config: %v", err)
+		}
+	} else if err != nil {
+		return fmt.Errorf("failed reading targets config: %v", err)
+	}
+	err = a.readConfigs()
+	if err != nil {
+		return err
+	}
+	if a.Config.APIServer != nil && a.Config.APIServer.EnableMetrics {
+		a.reg = prometheus.NewRegistry()
+	}
 	err = a.Config.GetClustering()
 	if err != nil {
 		return err
@@ -70,23 +84,8 @@ func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
 		}
 		break
 	}
-	targetsConfig, err := a.Config.GetTargets()
-	if errors.Is(err, config.ErrNoTargetsFound) {
-		if !a.Config.LocalFlags.SubscribeWatchConfig && a.Config.FileConfig.GetStringMap("loader") == nil {
-			return fmt.Errorf("failed reading targets config: %v", err)
-		}
-	} else if err != nil {
-		return fmt.Errorf("failed reading targets config: %v", err)
-	}
 
-	cOpts, err := a.createCollectorOpts(cmd, subCfg)
-	if err != nil {
-		return err
-	}
-	//
-	a.collector = collector.New(a.collectorConfig(), targetsConfig, cOpts...)
-
-	a.startAPI()
+	a.startAPIServer()
 	a.startGnmiServer()
 	go a.startCluster()
 	a.startIO()
@@ -105,12 +104,12 @@ func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
 
 func (a *App) subscribeStream(ctx context.Context, name string) {
 	defer a.wg.Done()
-	a.collector.TargetSubscribeStream(ctx, name)
+	a.TargetSubscribeStream(ctx, name)
 }
 
 func (a *App) subscribeOnce(ctx context.Context, name string) {
 	defer a.wg.Done()
-	err := a.collector.TargetSubscribeOnce(ctx, name)
+	err := a.TargetSubscribeOnce(ctx, name)
 	if err != nil {
 		a.logError(err)
 	}
@@ -118,86 +117,7 @@ func (a *App) subscribeOnce(ctx context.Context, name string) {
 
 func (a *App) subscribePoll(ctx context.Context, name string) {
 	defer a.wg.Done()
-	a.collector.TargetSubscribePoll(ctx, name)
-}
-
-func (a *App) SubscribeRunPrompt(cmd *cobra.Command, args []string) error {
-	targetsConfig, err := a.Config.GetTargets()
-	if err != nil {
-		return fmt.Errorf("failed reading targets config: %v", err)
-	}
-
-	subCfg, err := a.Config.GetSubscriptions(cmd)
-	if err != nil {
-		return fmt.Errorf("failed reading subscriptions config: %v", err)
-	}
-	// only once mode subscriptions requested
-	if allSubscriptionsModeOnce(subCfg) {
-		return a.SubscribeRunONCE(cmd, args, subCfg)
-	}
-	// only poll mode subscriptions requested
-	if allSubscriptionsModePoll(subCfg) {
-		return a.SubscribeRunPoll(cmd, args, subCfg)
-	}
-	// stream+once mode subscriptions
-	outs, err := a.Config.GetOutputs()
-	if err != nil {
-		return fmt.Errorf("failed reading outputs config: %v", err)
-	}
-	cOpts, err := a.createCollectorOpts(cmd, subCfg)
-	if err != nil {
-		return err
-	}
-	//
-	if a.collector == nil {
-		a.collector = collector.New(a.collectorConfig(), targetsConfig, cOpts...)
-		go a.collector.Start(a.ctx)
-		a.startAPI()
-		go a.startCluster()
-	} else {
-		// prompt mode
-		for name, outCfg := range outs {
-			err = a.collector.AddOutput(name, outCfg)
-			if err != nil {
-				a.Logger.Printf("%v", err)
-			}
-		}
-		for _, sc := range subCfg {
-			err = a.collector.AddSubscriptionConfig(sc)
-			if err != nil {
-				a.Logger.Printf("%v", err)
-			}
-		}
-		for _, tc := range targetsConfig {
-			a.collector.AddTarget(tc)
-			if err != nil {
-				a.Logger.Printf("%v", err)
-			}
-		}
-	}
-
-	a.collector.InitOutputs(a.ctx)
-	a.collector.InitInputs(a.ctx)
-	// a.collector.InitTargets()
-
-	var limiter *time.Ticker
-	if a.Config.LocalFlags.SubscribeBackoff > 0 {
-		limiter = time.NewTicker(a.Config.LocalFlags.SubscribeBackoff)
-	}
-
-	a.wg.Add(len(a.collector.Targets))
-	for name := range a.Config.Targets {
-		go a.subscribeStream(a.ctx, name)
-		if limiter != nil {
-			<-limiter.C
-		}
-	}
-	if limiter != nil {
-		limiter.Stop()
-	}
-	a.wg.Wait()
-
-	return nil
+	a.TargetSubscribePoll(ctx, name)
 }
 
 // InitSubscribeFlags used to init or reset subscribeCmd flags for gnmic-prompt mode
@@ -230,68 +150,29 @@ func (a *App) InitSubscribeFlags(cmd *cobra.Command) {
 	})
 }
 
-func (a *App) createCollectorOpts(cmd *cobra.Command, subConfig map[string]*types.SubscriptionConfig) ([]collector.CollectorOption, error) {
-	inputsConfig, err := a.Config.GetInputs()
+func (a *App) readConfigs() error {
+	var err error
+	_, err = a.Config.GetOutputs()
 	if err != nil {
-		return nil, fmt.Errorf("failed reading inputs config: %v", err)
+		return fmt.Errorf("failed reading outputs config: %v", err)
 	}
-	outs, err := a.Config.GetOutputs()
+	_, err = a.Config.GetInputs()
 	if err != nil {
-		return nil, fmt.Errorf("failed reading outputs config: %v", err)
+		return fmt.Errorf("failed reading inputs config: %v", err)
 	}
-	epConfig, err := a.Config.GetEventProcessors()
+	_, err = a.Config.GetEventProcessors()
 	if err != nil {
-		return nil, fmt.Errorf("failed reading event processors config: %v", err)
+		return fmt.Errorf("failed reading event processors config: %v", err)
 	}
-	rootDesc, err := a.LoadProtoFiles()
+	_, err = a.LoadProtoFiles()
 	if err != nil {
-		return nil, fmt.Errorf("failed loading proto files: %v", err)
+		return fmt.Errorf("failed loading proto files: %v", err)
 	}
-
-	opts := []collector.CollectorOption{
-		collector.WithDialOptions(a.createCollectorDialOpts()),
-		collector.WithSubscriptions(subConfig),
-		collector.WithOutputs(outs),
-		collector.WithLogger(a.Logger),
-		collector.WithEventProcessors(epConfig),
-		collector.WithInputs(inputsConfig),
-		collector.WithLocker(a.locker),
-		collector.WithProtoDescriptor(rootDesc),
-	}
-	if a.Config.GnmiServer != nil {
-		opts = append(opts, collector.WithCache(a.c))
-	}
-	if a.Config.APIServer != nil && a.Config.APIServer.EnableMetrics {
-		a.reg = prometheus.NewRegistry()
-		opts = append(opts, collector.WithPrometheusRegistry(a.reg))
-	}
-	return opts, nil
-}
-
-func (a *App) collectorConfig() *collector.Config {
-	cfg := &collector.Config{
-		Debug:               a.Config.Debug,
-		Format:              a.Config.Format,
-		TargetReceiveBuffer: a.Config.TargetBufferSize,
-		RetryTimer:          a.Config.Retry,
-		LockRetryTimer:      a.Config.LocalFlags.SubscribeLockRetry,
-	}
-	if a.Config.Clustering != nil {
-		cfg.ClusterName = a.Config.Clustering.ClusterName
-		cfg.Name = a.Config.Clustering.InstanceName
-	}
-	if cfg.ClusterName == "" {
-		cfg.ClusterName = a.Config.ClusterName
-	}
-	if cfg.Name == "" {
-		cfg.Name = a.Config.GlobalFlags.InstanceName
-	}
-	a.Logger.Printf("starting collector with config %+v", cfg)
-	return cfg
+	return nil
 }
 
 func (a *App) handlePolledSubscriptions() {
-	polledTargetsSubscriptions := a.collector.PolledSubscriptionsTargets()
+	polledTargetsSubscriptions := a.PolledSubscriptionsTargets()
 	if len(polledTargetsSubscriptions) > 0 {
 		pollTargets := make([]string, 0, len(polledTargetsSubscriptions))
 		for t := range polledTargetsSubscriptions {
@@ -331,7 +212,7 @@ func (a *App) handlePolledSubscriptions() {
 					fmt.Printf("failed selecting subscription to poll: %v\n", err)
 					continue
 				}
-				response, err := a.collector.TargetPoll(name, subName)
+				response, err := a.clientSubscribePoll(name, subName)
 				if err != nil && err != io.EOF {
 					fmt.Printf("target '%s', subscription '%s': poll response error:%v\n", name, subName, err)
 					continue
@@ -364,10 +245,9 @@ func (a *App) handlePolledSubscriptions() {
 }
 
 func (a *App) startIO() {
-	go a.collector.Start(a.ctx)
-	a.collector.InitOutputs(a.ctx)
-	a.collector.InitInputs(a.ctx)
-	//a.collector.InitTargets()
+	go a.StartCollector(a.ctx)
+	a.InitOutputs(a.ctx)
+	a.InitInputs(a.ctx)
 
 	if !a.inCluster() {
 		go a.startLoader(a.ctx)
@@ -388,66 +268,6 @@ func (a *App) startIO() {
 		}
 		a.wg.Wait()
 	}
-}
-
-func (a *App) SubscribeRunONCE(cmd *cobra.Command, args []string, subCfg map[string]*types.SubscriptionConfig) error {
-	targetsConfig, err := a.Config.GetTargets()
-	if err != nil {
-		return fmt.Errorf("failed reading targets config: %v", err)
-	}
-
-	cOpts, err := a.createCollectorOpts(cmd, subCfg)
-	if err != nil {
-		return err
-	}
-	//
-	a.collector = collector.New(a.collectorConfig(), targetsConfig, cOpts...)
-	a.collector.InitOutputs(a.ctx)
-
-	var limiter *time.Ticker
-	if a.Config.LocalFlags.SubscribeBackoff > 0 {
-		limiter = time.NewTicker(a.Config.LocalFlags.SubscribeBackoff)
-	}
-	numTargets := len(a.Config.Targets)
-	a.errCh = make(chan error, numTargets)
-	a.wg.Add(numTargets)
-	for name := range a.Config.Targets {
-		go a.subscribeOnce(a.ctx, name)
-		if limiter != nil {
-			<-limiter.C
-		}
-	}
-	if limiter != nil {
-		limiter.Stop()
-	}
-	a.wg.Wait()
-	return a.checkErrors()
-}
-
-func (a *App) SubscribeRunPoll(cmd *cobra.Command, args []string, subCfg map[string]*types.SubscriptionConfig) error {
-	targetsConfig, err := a.Config.GetTargets()
-	if err != nil {
-		return fmt.Errorf("failed reading targets config: %v", err)
-	}
-
-	cOpts, err := a.createCollectorOpts(cmd, subCfg)
-	if err != nil {
-		return err
-	}
-	//
-	a.collector = collector.New(a.collectorConfig(), targetsConfig, cOpts...)
-
-	go a.collector.Start(a.ctx)
-	// a.collector.InitOutputs(a.ctx)
-	// a.collector.InitTargets()
-
-	a.wg.Add(len(a.Config.Targets))
-	for name := range a.Config.Targets {
-		go a.subscribePoll(a.ctx, name)
-	}
-	a.wg.Wait()
-	a.handlePolledSubscriptions()
-	return nil
 }
 
 func allSubscriptionsModeOnce(sc map[string]*types.SubscriptionConfig) bool {

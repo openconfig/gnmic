@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/karimra/gnmic/collector"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
 	"github.com/spf13/cobra"
@@ -24,22 +23,10 @@ func (a *App) CapRun(cmd *cobra.Command, args []string) error {
 		a.Logger.Printf("failed getting targets config: %v", err)
 		return fmt.Errorf("failed getting targets config: %v", err)
 	}
-	if a.collector == nil {
-		cfg := &collector.Config{
-			Debug:               a.Config.Debug,
-			Format:              a.Config.Format,
-			TargetReceiveBuffer: a.Config.TargetBufferSize,
-			RetryTimer:          a.Config.Retry,
-		}
-
-		a.collector = collector.New(cfg, targetsConfig,
-			collector.WithDialOptions(a.createCollectorDialOpts()),
-			collector.WithLogger(a.Logger),
-		)
-	} else {
+	if a.PromptMode {
 		// prompt mode
 		for _, tc := range targetsConfig {
-			a.collector.AddTarget(tc)
+			a.AddTargetConfig(tc)
 		}
 	}
 	numTargets := len(a.Config.Targets)
@@ -65,7 +52,7 @@ func (a *App) ReqCapabilities(ctx context.Context, tName string) {
 	}
 
 	a.Logger.Printf("sending gNMI CapabilityRequest: gnmi_ext.Extension='%v' to %s", ext, tName)
-	response, err := a.collector.Capabilities(ctx, tName, ext...)
+	response, err := a.ClientCapabilities(ctx, tName, ext...)
 	if err != nil {
 		a.logError(fmt.Errorf("target %q, capabilities request failed: %v", tName, err))
 		return

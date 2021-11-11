@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/config"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
@@ -24,22 +23,9 @@ func (a *App) SetRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed getting targets config: %v", err)
 	}
-	if a.collector == nil {
-		cfg := &collector.Config{
-			Debug:               a.Config.Debug,
-			Format:              a.Config.Format,
-			TargetReceiveBuffer: a.Config.TargetBufferSize,
-			RetryTimer:          a.Config.Retry,
-		}
-
-		a.collector = collector.New(cfg, targetsConfig,
-			collector.WithDialOptions(a.createCollectorDialOpts()),
-			collector.WithLogger(a.Logger),
-		)
-	} else {
-		// prompt mode
+	if !a.PromptMode {
 		for _, tc := range targetsConfig {
-			a.collector.AddTarget(tc)
+			a.AddTargetConfig(tc)
 		}
 	}
 	err = a.Config.ReadSetRequestTemplate()
@@ -77,7 +63,7 @@ func (a *App) setRequest(ctx context.Context, tName string, req *gnmi.SetRequest
 			a.logError(fmt.Errorf("target %q: %v", tName, err))
 		}
 	}
-	response, err := a.collector.Set(ctx, tName, req)
+	response, err := a.ClientSet(ctx, tName, req)
 	if err != nil {
 		a.logError(fmt.Errorf("target %q set request failed: %v", tName, err))
 		return

@@ -40,7 +40,7 @@ START:
 		for _, del := range targetOp.Del {
 			// not clustered, delete local target
 			if !a.inCluster() {
-				err = a.collector.DeleteTarget(ctx, del)
+				err = a.DeleteTarget(ctx, del)
 				if err != nil {
 					a.Logger.Printf("failed deleting target %q: %v", del, err)
 				}
@@ -61,23 +61,23 @@ START:
 			// not clustered, add target and subscribe
 			if !a.inCluster() {
 				a.Config.Targets[add.Name] = add
-				err = a.collector.AddTarget(add)
-				if err != nil {
-					a.Logger.Printf("failed adding target %q: %v", add.Name, err)
-					continue
-				}
+				a.AddTargetConfig(add)
+				// if err != nil {
+				// 	a.Logger.Printf("failed adding target %q: %v", add.Name, err)
+				// 	continue
+				// }
 				a.wg.Add(1)
-				go a.collector.TargetSubscribeStream(ctx, add.Name)
+				go a.TargetSubscribeStream(ctx, add.Name)
 				continue
 			}
 			// clustered, dispatch
-			a.m.Lock()
+			a.configLock.Lock()
 			a.Config.Targets[add.Name] = add
 			err = a.dispatchTarget(a.ctx, add)
 			if err != nil {
 				a.Logger.Printf("failed dispatching target %q: %v", add.Name, err)
 			}
-			a.m.Unlock()
+			a.configLock.Unlock()
 		}
 	}
 	a.Logger.Printf("target loader stopped")

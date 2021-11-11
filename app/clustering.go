@@ -196,8 +196,8 @@ START:
 }
 
 func (a *App) updateServices(srvs []*lockers.Service) {
-	a.m.Lock()
-	defer a.m.Unlock()
+	a.configLock.Lock()
+	defer a.configLock.Unlock()
 
 	numNewSrv := len(srvs)
 	numCurrentSrv := len(a.apiServices)
@@ -253,7 +253,7 @@ func (a *App) dispatchTargets(ctx context.Context) {
 				continue
 			}
 			var err error
-			a.m.Lock()
+			//a.m.RLock()
 			for _, tc := range a.Config.Targets {
 				err = a.dispatchTarget(ctx, tc)
 				if err != nil {
@@ -271,7 +271,7 @@ func (a *App) dispatchTargets(ctx context.Context) {
 					continue
 				}
 			}
-			a.m.Unlock()
+			//a.m.RUnlock()
 
 			select {
 			case <-ctx.Done():
@@ -322,7 +322,7 @@ SELECTSERVICE:
 		}
 	}
 	key := fmt.Sprintf("gnmic/%s/targets/%s", a.Config.Clustering.ClusterName, tc.Name)
-	a.Logger.Printf("cluster leader, waiting for lock %q to be acquired by %q", key, instanceName)
+	a.Logger.Printf("[cluster-leader] waiting for lock %q to be acquired by %q", key, instanceName)
 	retries := 0
 WAIT:
 	values, err := a.locker.List(ctx, key)
@@ -334,7 +334,7 @@ WAIT:
 	if len(values) == 0 {
 		retries++
 		if (retries+1)*int(lockWaitTime) >= int(a.Config.Clustering.TargetAssignmentTimeout) {
-			a.Logger.Printf("cluster leader, max retries reached for target %q and service %q, reselecting...", tc.Name, service.ID)
+			a.Logger.Printf("[cluster-leader] max retries reached for target %q and service %q, reselecting...", tc.Name, service.ID)
 			err = a.unassignTarget(tc.Name, service.ID)
 			if err != nil {
 				a.Logger.Printf("failed to unassign target %q from %q", tc.Name, service.ID)
@@ -346,13 +346,13 @@ WAIT:
 	}
 	if instance, ok := values[key]; ok {
 		if instance == instanceName {
-			a.Logger.Printf("cluster leader, lock %q acquired by %q", key, instanceName)
+			a.Logger.Printf("[cluster-leader] lock %q acquired by %q", key, instanceName)
 			return nil
 		}
 	}
 	retries++
 	if (retries+1)*int(lockWaitTime) >= int(a.Config.Clustering.TargetAssignmentTimeout) {
-		a.Logger.Printf("cluster leader, max retries reached for target %q and service %q, reselecting...", tc.Name, service.ID)
+		a.Logger.Printf("[cluster-leader] max retries reached for target %q and service %q, reselecting...", tc.Name, service.ID)
 		err = a.unassignTarget(tc.Name, service.ID)
 		if err != nil {
 			a.Logger.Printf("failed to unassign target %q from %q", tc.Name, service.ID)
