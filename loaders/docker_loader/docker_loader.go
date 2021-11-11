@@ -242,7 +242,7 @@ func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*types.Target
 					continue
 				}
 				for _, cont := range conts {
-					d.logger.Printf("building target from container %q, names: %v, labels: %v", cont.ID, cont.Names, cont.Labels)
+					d.logger.Printf("building target from container %q", cont.Names)
 					tc := new(types.TargetConfig)
 					if fl.cfg != nil {
 						err = mapstructure.Decode(fl.cfg, tc)
