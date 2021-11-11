@@ -300,6 +300,9 @@ START:
 			i.logger.Printf("worker-%d terminating...", idx)
 			return
 		case ev := <-i.eventChan:
+			if len(ev.Values) == 0 {
+				continue
+			}
 			for n, v := range ev.Values {
 				switch v := v.(type) {
 				case *gnmi.Decimal64:
