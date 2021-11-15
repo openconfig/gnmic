@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # cleanup
-rm gnmic-rc1
+rm -f gnmic-rc1
 # delete downloaded yang files
 rm -rf srl-latest-yang-models
 # destroy lab
