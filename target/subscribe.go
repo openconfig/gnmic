@@ -22,6 +22,7 @@ func (t *Target) Subscribe(ctx context.Context, req *gnmi.SubscribeRequest, subs
 SUBSC:
 	select {
 	case <-ctx.Done():
+		return
 	default:
 		nctx, cancel = context.WithCancel(ctx)
 		defer cancel()
