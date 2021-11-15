@@ -1,4 +1,4 @@
-name: telem
+name: telemetry
 
 topology:
   defaults:
@@ -16,11 +16,11 @@ topology:
         - 9804:9804
       env:
         GNMIC_API: :7890
-        GNMIC_CLUSTERING_INSTANCE_NAME: clab-telem-gnmic1
-        GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-telem-gnmic1
-        GNMIC_GNMI_SERVER_ADDRESS: clab-telem-gnmic1:57400
-        GNMIC_GNMI_SERVER_SERVICE_REGISTRATION_NAME: clab-telem-gnmic1
-        GNMIC_OUTPUTS_CLUSTER_LISTEN: clab-telem-gnmic1:9804
+        GNMIC_CLUSTERING_INSTANCE_NAME: clab-telemetry-gnmic1
+        GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-telemetry-gnmic1
+        GNMIC_GNMI_SERVER_ADDRESS: clab-telemetry-gnmic1:57400
+        GNMIC_GNMI_SERVER_SERVICE_REGISTRATION_NAME: clab-telemetry-gnmic1
+        GNMIC_OUTPUTS_CLUSTER_LISTEN: clab-telemetry-gnmic1:9804
     
     gnmic2:
       binds:
@@ -32,11 +32,11 @@ topology:
         - 9805:9805
       env:
         GNMIC_API: :7891
-        GNMIC_CLUSTERING_INSTANCE_NAME: clab-telem-gnmic2
-        GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-telem-gnmic2
-        GNMIC_GNMI_SERVER_ADDRESS: clab-telem-gnmic2:57400
-        GNMIC_GNMI_SERVER_SERVICE_REGISTRATION_NAME: clab-telem-gnmic2
-        GNMIC_OUTPUTS_CLUSTER_LISTEN: clab-telem-gnmic2:9805
+        GNMIC_CLUSTERING_INSTANCE_NAME: clab-telemetry-gnmic2
+        GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-telemetry-gnmic2
+        GNMIC_GNMI_SERVER_ADDRESS: clab-telemetry-gnmic2:57400
+        GNMIC_GNMI_SERVER_SERVICE_REGISTRATION_NAME: clab-telemetry-gnmic2
+        GNMIC_OUTPUTS_CLUSTER_LISTEN: clab-telemetry-gnmic2:9805
 
     gnmic3:
       binds:
@@ -48,13 +48,13 @@ topology:
         - 9806:9806
       env:
         GNMIC_API: :7892
-        GNMIC_CLUSTERING_INSTANCE_NAME: clab-telem-gnmic3
-        GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-telem-gnmic3
-        GNMIC_GNMI_SERVER_ADDRESS: clab-telem-gnmic3:57400
-        GNMIC_GNMI_SERVER_SERVICE_REGISTRATION_NAME: clab-telem-gnmic3
-        GNMIC_OUTPUTS_CLUSTER_LISTEN: clab-telem-gnmic3:9806
+        GNMIC_CLUSTERING_INSTANCE_NAME: clab-telemetry-gnmic3
+        GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-telemetry-gnmic3
+        GNMIC_GNMI_SERVER_ADDRESS: clab-telemetry-gnmic3:57400
+        GNMIC_GNMI_SERVER_SERVICE_REGISTRATION_NAME: clab-telemetry-gnmic3
+        GNMIC_OUTPUTS_CLUSTER_LISTEN: clab-telemetry-gnmic3:9806
 
-    agg-gnmic:
+    agg-gnmic1:
       binds:
         - ./gnmic-agg.yaml:/app/gnmic.yaml:ro
         - /var/run/docker.sock:/var/run/docker.sock
@@ -64,6 +64,37 @@ topology:
         - 9807:9807
       env:
         GNMIC_API: :7893
+        GNMIC_CLUSTERING_INSTANCE_NAME: clab-telemetry-agg-gnmic1
+        GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-telemetry-agg-gnmic1
+        GNMIC_OUTPUTS_AGGREGATOR_LISTEN: clab-telemetry-agg-gnmic1:9807
+
+    agg-gnmic2:
+      binds:
+        - ./gnmic-agg.yaml:/app/gnmic.yaml:ro
+        - /var/run/docker.sock:/var/run/docker.sock
+      cmd: '--config /app/gnmic.yaml subscribe'
+      ports:
+        - 7894:7894
+        - 9808:9808
+      env:
+        GNMIC_API: :7894
+        GNMIC_CLUSTERING_INSTANCE_NAME: clab-telemetry-agg-gnmic2
+        GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-telemetry-agg-gnmic2
+        GNMIC_OUTPUTS_AGGREGATOR_LISTEN: clab-telemetry-agg-gnmic2:9808
+
+    agg-gnmic3:
+      binds:
+        - ./gnmic-agg.yaml:/app/gnmic.yaml:ro
+        - /var/run/docker.sock:/var/run/docker.sock
+      cmd: '--config /app/gnmic.yaml subscribe'
+      ports:
+        - 7895:7895
+        - 9809:9809
+      env:
+        GNMIC_API: :7895
+        GNMIC_CLUSTERING_INSTANCE_NAME: clab-telemetry-agg-gnmic3
+        GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-telemetry-agg-gnmic3
+        GNMIC_OUTPUTS_AGGREGATOR_LISTEN: clab-telemetry-agg-gnmic3:9809
 
     nats:
       kind: linux
@@ -77,8 +108,8 @@ topology:
       ports:
         - 9092:9092
       env:
-        KAFKA_CFG_ZOOKEEPER_CONNECT: clab-telem-zookeeper-server:2181
-        KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://clab-telem-kafka-server:9092
+        KAFKA_CFG_ZOOKEEPER_CONNECT: clab-telemetry-zookeeper-server:2181
+        KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://clab-telemetry-kafka-server:9092
         ALLOW_PLAINTEXT_LISTENER: "yes"
         JMX_PORT: 9000
 

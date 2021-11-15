@@ -20,34 +20,39 @@ subscriptions:
       - /interface/statistics
     stream-mode: sample
     sample-interval: 10s
+  sub2:
+    paths:
+      - /interface/subinterface/statistics
+    stream-mode: sample
+    sample-interval: 10s
 
 api-server:
   enable-metrics: true
   
 # clustering config
 clustering:
-  cluster-name: cluster2
+  cluster-name: collectors
   targets-watch-timer: 60s
   locker:
     type: consul
-    address: clab-telem-consul-agent:8500
+    address: clab-telemetry-consul-agent:8500
 
 gnmi-server:
   enable-metrics: true
   service-registration:
-    address: clab-telem-consul-agent:8500
+    address: clab-telemetry-consul-agent:8500
 
 outputs:
-  cluster:
+  collector:
     type: prometheus
     service-registration:
-      address: clab-telem-consul-agent:8500
+      address: clab-telemetry-consul-agent:8500
     event-processors:
       - trim-prefixes
 
   influxdb-output:
     type: influxdb
-    url: http://clab-telem-influxdb:8086
+    url: http://clab-telemetry-influxdb:8086
     bucket: telemetry # db name
     token: gnmic:gnmic # username:password
     batch-size: 1000
@@ -57,14 +62,14 @@ outputs:
   
   kafka-output:
     type: kafka
-    address: clab-telem-kafka-server:9092
+    address: clab-telemetry-kafka-server:9092
     topic: telemetry
     event-processors:
       - trim-prefixes
 
   nats-output:
     type: nats
-    address: clab-telem-nats:4222
+    address: clab-telemetry-nats:4222
     subject: telemetry
     event-processors:
       - trim-prefixes

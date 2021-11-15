@@ -6,8 +6,9 @@ scrape_configs:
   - job_name: 'gnmic'
     scrape_interval: 10s 
     consul_sd_configs:
-      - server: clab-telem-consul-agent:8500
+      - server: clab-telemetry-consul-agent:8500
         services:
-          - cluster2-gnmic-api
+          - collectors-gnmic-api
+          - aggregators-gnmic-api
           - prometheus-cluster
-          - prometheus-aggregator
+          - prometheus-collector
