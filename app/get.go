@@ -112,6 +112,7 @@ func (a *App) InitGetFlags(cmd *cobra.Command) {
 	cmd.Flags().StringSliceVarP(&a.Config.LocalFlags.GetModel, "model", "", []string{}, "get request models")
 	cmd.Flags().StringVarP(&a.Config.LocalFlags.GetType, "type", "t", "ALL", "data type requested from the target. one of: ALL, CONFIG, STATE, OPERATIONAL")
 	cmd.Flags().StringVarP(&a.Config.LocalFlags.GetTarget, "target", "", "", "get request target")
+	cmd.Flags().BoolVarP(&a.Config.LocalFlags.GetValuesOnly, "values-only", "", false, "print GetResponse values only")
 
 	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
 		a.Config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)

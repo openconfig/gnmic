@@ -43,7 +43,12 @@ gnmic -a <ip:port> --insecure \
 The optional model flag `[--model]` is used to specify the schema definition modules that the target should use when returning a GetResponse. The model name should match the names returned in Capabilities RPC. Currently only single model name is supported.
 
 #### target
+
 With the optional `[--target]` flag it is possible to supply the [path target](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#2221-path-target) information in the prefix field of the GetRequest message.
+
+#### values-only
+
+The flag `[--values-only]` allows to print only the values returned in a GetResponse. This is useful when only the value of a leaf is of interest, like check if a value was set correctly.
 
 #### type
 

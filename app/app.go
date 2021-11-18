@@ -265,9 +265,10 @@ func (a *App) PrintMsg(address string, msgName string, msg proto.Message) error 
 		}
 	}
 	mo := formatters.MarshalOptions{
-		Multiline: true,
-		Indent:    "  ",
-		Format:    a.Config.Format,
+		Multiline:  true,
+		Indent:     "  ",
+		Format:     a.Config.Format,
+		ValuesOnly: a.Config.GetValuesOnly,
 	}
 	b, err := mo.Marshal(msg, map[string]string{"address": address})
 	if err != nil {
