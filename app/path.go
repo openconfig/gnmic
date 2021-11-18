@@ -33,6 +33,7 @@ type generatedPath struct {
 	Description string `json:"description,omitempty"`
 	Default     string `json:"default,omitempty"`
 	IsState     bool   `json:"is-state,omitempty"`
+	Namespace   string `json:"namespace,omitempty"`
 }
 
 func (a *App) PathCmdRun(d, f, e []string, pgo pathGenOpts) error {
@@ -252,6 +253,7 @@ func (a *App) generatePath(entry *yang.Entry, prefixTagging bool, pType string) 
 	gp.Type = entry.Type.Name
 	gp.Default = entry.DefaultValue()
 	gp.IsState = isState(entry)
+	gp.Namespace = entry.Namespace().NName()
 	if pType == "gnmi" {
 		gnmiPath, err := xpath.ToGNMIPath(gp.Path)
 		if err != nil {
