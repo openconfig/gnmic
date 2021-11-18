@@ -8,7 +8,6 @@ import (
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
-	"github.com/karimra/gnmic/config"
 	"github.com/karimra/gnmic/types"
 	"github.com/karimra/gnmic/utils"
 	"github.com/prometheus/client_golang/prometheus"
@@ -52,27 +51,18 @@ type APIErrors struct {
 func (a *App) handleConfigTargetsGet(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
-	targets, err := a.Config.GetTargets()
-	if err == config.ErrNoTargetsFound {
-		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
-		return
-	}
-	if err != nil && err != config.ErrNoTargetsFound {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
-		return
-	}
-
+	var err error
+	a.configLock.RLock()
+	defer a.configLock.RUnlock()
 	if id == "" {
-		err = json.NewEncoder(w).Encode(targets)
+		err = json.NewEncoder(w).Encode(a.Config.Targets)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		}
 		return
 	}
-	if t, ok := targets[id]; ok {
+	if t, ok := a.Config.Targets[id]; ok {
 		err = json.NewEncoder(w).Encode(t)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -104,156 +94,62 @@ func (a *App) handleConfigTargetsPost(w http.ResponseWriter, r *http.Request) {
 	// 	json.NewEncoder(w).Encode(APIErrors{Errors: []string{"target config already exists"}})
 	// 	return
 	// }
-	a.Config.Targets[tc.Name] = tc
-	err = a.collector.AddTarget(tc)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
-		return
-	}
+	// a.Config.Targets[tc.Name] = tc
+	a.AddTargetConfig(tc)
 }
 
 func (a *App) handleConfigTargetsDelete(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
-	a.collector.DeleteTarget(a.ctx, id)
-	delete(a.Config.Targets, id)
+	err := a.DeleteTarget(a.ctx, id)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		return
+	}
 }
 
 func (a *App) handleConfigSubscriptions(w http.ResponseWriter, r *http.Request) {
-	subsc, err := a.Config.GetSubscriptions(nil)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
-		return
-	}
-	err = json.NewEncoder(w).Encode(subsc)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
-		return
-	}
+	a.handlerCommonGet(w, r, a.Config.Subscriptions)
 }
 
 func (a *App) handleConfigOutputs(w http.ResponseWriter, r *http.Request) {
-	outputs, err := a.Config.GetOutputs()
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
-		return
-	}
-	err = json.NewEncoder(w).Encode(outputs)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
-		return
-	}
+	a.handlerCommonGet(w, r, a.Config.Outputs)
 }
 
 func (a *App) handleConfigClustering(w http.ResponseWriter, r *http.Request) {
-	err := a.Config.GetClustering()
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
-		return
-	}
-	err = json.NewEncoder(w).Encode(a.Config.Clustering)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
-		return
-	}
+	a.handlerCommonGet(w, r, a.Config.Clustering)
 }
 
 func (a *App) handleConfigAPIServer(w http.ResponseWriter, r *http.Request) {
-	err := a.Config.GetAPIServer()
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
-		return
-	}
-	err = json.NewEncoder(w).Encode(a.Config.APIServer)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
-		return
-	}
+	a.handlerCommonGet(w, r, a.Config.APIServer)
 }
 
 func (a *App) handleConfigGNMIServer(w http.ResponseWriter, r *http.Request) {
-	err := a.Config.GetGNMIServer()
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
-		return
-	}
-	err = json.NewEncoder(w).Encode(a.Config.GnmiServer)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
-		return
-	}
+	a.handlerCommonGet(w, r, a.Config.GnmiServer)
 }
 
 func (a *App) handleConfigInputs(w http.ResponseWriter, r *http.Request) {
-	inputs, err := a.Config.GetInputs()
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
-		return
-	}
-	err = json.NewEncoder(w).Encode(inputs)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
-		return
-	}
+	a.handlerCommonGet(w, r, a.Config.Inputs)
 }
 
 func (a *App) handleConfigProcessors(w http.ResponseWriter, r *http.Request) {
-	evps, err := a.Config.GetEventProcessors()
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
-		return
-	}
-	err = json.NewEncoder(w).Encode(evps)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
-		return
-	}
+	a.handlerCommonGet(w, r, a.Config.Processors)
 }
 
 func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {
-	err := json.NewEncoder(w).Encode(a.Config)
-	if err != nil {
-		a.Logger.Print(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
-		return
-	}
+	a.handlerCommonGet(w, r, a.Config)
 }
 
 func (a *App) handleTargetsGet(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
 	if id == "" {
-		err := json.NewEncoder(w).Encode(a.collector.Targets)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
-			return
-		}
+		a.handlerCommonGet(w, r, a.Targets)
 		return
 	}
-	if t, ok := a.collector.Targets[id]; ok {
-		err := json.NewEncoder(w).Encode(t)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
-			return
-		}
+	if t, ok := a.Targets[id]; ok {
+		a.handlerCommonGet(w, r, t)
 		return
 	}
 	w.WriteHeader(http.StatusNotFound)
@@ -267,19 +163,12 @@ func (a *App) handleTargetsPost(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	if tc, ok := a.Config.Targets[id]; ok {
-		err := a.collector.AddTarget(tc)
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
-			return
-		}
-	} else {
+	if _, ok := a.Config.Targets[id]; !ok {
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{fmt.Sprintf("target %q not found", id)}})
 		return
 	}
-	go a.collector.TargetSubscribeStream(a.ctx, id)
+	go a.TargetSubscribeStream(a.ctx, id)
 }
 
 func (a *App) handleTargetsDelete(w http.ResponseWriter, r *http.Request) {
@@ -289,12 +178,12 @@ func (a *App) handleTargetsDelete(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	if _, ok := a.collector.Targets[id]; !ok {
+	if _, ok := a.Targets[id]; !ok {
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{fmt.Sprintf("target %q not found", id)}})
 		return
 	}
-	err := a.collector.DeleteTarget(a.ctx, id)
+	err := a.DeleteTarget(a.ctx, id)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -314,4 +203,16 @@ func (a *App) loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (a *App) handlerCommonGet(w http.ResponseWriter, r *http.Request, i interface{}) {
+	a.configLock.RLock()
+	defer a.configLock.RUnlock()
+	b, err := json.Marshal(i)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		return
+	}
+	w.Write(b)
 }

@@ -221,7 +221,7 @@ func (a *App) gRPCServerOpts() ([]grpc.ServerOption, error) {
 	tlscfg, err := utils.NewTLSConfig(
 		a.Config.GnmiServer.CaFile,
 		a.Config.GnmiServer.CertFile,
-		a.Config.GnmiServer.KeyFile, 
+		a.Config.GnmiServer.KeyFile,
 		a.Config.GnmiServer.SkipVerify,
 		true,
 	)
@@ -241,8 +241,8 @@ func (a *App) selectGNMITargets(target string) (map[string]*types.TargetConfig, 
 	}
 	targetsNames := strings.Split(target, ",")
 	targets := make(map[string]*types.TargetConfig)
-	a.m.RLock()
-	defer a.m.RUnlock()
+	a.configLock.RLock()
+	defer a.configLock.RUnlock()
 OUTER:
 	for i := range targetsNames {
 		for n, tc := range a.Config.Targets {
@@ -277,8 +277,8 @@ func (a *App) Get(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetResponse,
 		return nil, status.Errorf(codes.InvalidArgument, "missing path")
 	}
 
-	a.m.RLock()
-	defer a.m.RUnlock()
+	a.configLock.RLock()
+	defer a.configLock.RUnlock()
 
 	origins := make(map[string]struct{})
 	for _, p := range req.GetPath() {
@@ -397,8 +397,8 @@ func (a *App) Set(ctx context.Context, req *gnmi.SetRequest) (*gnmi.SetResponse,
 		return nil, status.Errorf(codes.InvalidArgument, "missing update/replace/delete path(s)")
 	}
 
-	a.m.RLock()
-	defer a.m.RUnlock()
+	a.configLock.RLock()
+	defer a.configLock.RUnlock()
 
 	targetName := req.GetPrefix().GetTarget()
 	pr, _ := peer.FromContext(ctx)
@@ -827,8 +827,8 @@ func (a *App) sendSubscribeResponse(r *resp, sc *streamClient) error {
 
 func (a *App) handlegNMIcInternalGet(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetResponse, error) {
 	notifications := make([]*gnmi.Notification, 0, len(req.GetPath()))
-	a.m.RLock()
-	defer a.m.RUnlock()
+	a.configLock.RLock()
+	defer a.configLock.RUnlock()
 	for _, p := range req.GetPath() {
 		elems := utils.PathElems(req.GetPrefix(), p)
 		ns, err := a.handlegNMIGetPath(elems, req.GetEncoding())

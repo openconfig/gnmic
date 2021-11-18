@@ -1,4 +1,6 @@
 _test/
+tests/clab-*
+tests/srl-*
 builds/
 dist
 *.log

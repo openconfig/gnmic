@@ -9,9 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/formatters"
-	"github.com/karimra/gnmic/types"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -61,28 +59,28 @@ func (a *App) DiffRun(cmd *cobra.Command, args []string) error {
 	if len(targetsConfig) == 0 {
 		return fmt.Errorf("failed getting diff compare targets config")
 	}
-	if a.collector == nil {
-		cfg := &collector.Config{
-			Debug:               a.Config.Debug,
-			Format:              a.Config.Format,
-			TargetReceiveBuffer: a.Config.TargetBufferSize,
-			RetryTimer:          a.Config.Retry,
-		}
-		allTargets := make(map[string]*types.TargetConfig)
-		for n, tc := range targetsConfig {
-			allTargets[n] = tc
-		}
-		allTargets[refTarget.Name] = refTarget
+	if !a.PromptMode {
+		// cfg := &collector.Config{
+		// 	Debug:               a.Config.Debug,
+		// 	Format:              a.Config.Format,
+		// 	TargetReceiveBuffer: a.Config.TargetBufferSize,
+		// 	RetryTimer:          a.Config.Retry,
+		// }
+		// allTargets := make(map[string]*types.TargetConfig)
+		// for n, tc := range targetsConfig {
+		// 	allTargets[n] = tc
+		// }
+		// allTargets[refTarget.Name] = refTarget
 
-		a.collector = collector.New(cfg, allTargets,
-			collector.WithDialOptions(a.createCollectorDialOpts()),
-			collector.WithLogger(a.Logger),
-		)
+		// a.collector = collector.New(cfg, allTargets,
+		// 	collector.WithDialOptions(a.createCollectorDialOpts()),
+		// 	collector.WithLogger(a.Logger),
+		// )
 	} else {
 		// prompt mode
-		a.collector.AddTarget(refTarget)
+		a.AddTargetConfig(refTarget)
 		for _, tc := range targetsConfig {
-			a.collector.AddTarget(tc)
+			a.AddTargetConfig(tc)
 		}
 	}
 
@@ -120,11 +118,11 @@ func (a *App) subscribeBasedDiff(ctx context.Context, cmd *cobra.Command, ref st
 	numCompares := len(compare)
 	refResponse := make([]proto.Message, 0)
 	rspChan := make(chan *targetDiffResponse, numCompares)
-	err = a.collector.CreateTarget(ref)
+	err = a.CreateTarget(ref)
 	if err != nil {
 		return err
 	}
-	if refTarget, ok := a.collector.Targets[ref]; ok {
+	if refTarget, ok := a.Targets[ref]; ok {
 		go func() {
 			defer a.wg.Done()
 			err = refTarget.CreateGNMIClient(ctx, a.createCollectorDialOpts()...)
@@ -157,11 +155,11 @@ func (a *App) subscribeBasedDiff(ctx context.Context, cmd *cobra.Command, ref st
 		return fmt.Errorf("unknown reference target %q", ref)
 	}
 	for _, tName := range compare {
-		err = a.collector.CreateTarget(tName)
+		err = a.CreateTarget(tName)
 		if err != nil {
 			return err
 		}
-		if t, ok := a.collector.Targets[tName]; ok {
+		if t, ok := a.Targets[tName]; ok {
 			go func(tName string) {
 				defer a.wg.Done()
 				err = t.CreateGNMIClient(ctx, a.createCollectorDialOpts()...)
@@ -240,7 +238,7 @@ func (a *App) getBasedDiff(ctx context.Context, ref string, compare []string) er
 		defer a.wg.Done()
 		a.Logger.Printf("sending gNMI GetRequest: prefix='%v', path='%v', type='%v', encoding='%v', models='%+v', extension='%+v' to %s",
 			getReq.Prefix, getReq.Path, getReq.Type, getReq.Encoding, getReq.UseModels, getReq.Extension, ref)
-		refResponse, err = a.collector.Get(ctx, ref, getReq)
+		refResponse, err = a.ClientGet(ctx, ref, getReq)
 		if err != nil {
 			a.logError(fmt.Errorf("target %q get request failed: %v", ref, err))
 			return
@@ -252,7 +250,7 @@ func (a *App) getBasedDiff(ctx context.Context, ref string, compare []string) er
 			defer a.wg.Done()
 			a.Logger.Printf("sending gNMI GetRequest: prefix='%v', path='%v', type='%v', encoding='%v', models='%+v', extension='%+v' to %s",
 				getReq.Prefix, getReq.Path, getReq.Type, getReq.Encoding, getReq.UseModels, getReq.Extension, tName)
-			response, err := a.collector.Get(ctx, tName, getReq)
+			response, err := a.ClientGet(ctx, tName, getReq)
 			if err != nil {
 				a.logError(fmt.Errorf("target %q get request failed: %v", tName, err))
 				return

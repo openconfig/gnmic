@@ -8,4 +8,4 @@ scrape_configs:
     consul_sd_configs:
       - server: clab-lab14-consul-agent:8500
         services:
-          - prom-output
+          - prometheus-prom-output

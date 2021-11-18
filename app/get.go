@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/karimra/gnmic/collector"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -24,22 +23,10 @@ func (a *App) GetRun(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed getting targets config: %v", err)
 	}
 
-	if a.collector == nil {
-		cfg := &collector.Config{
-			Debug:               a.Config.Debug,
-			Format:              a.Config.Format,
-			TargetReceiveBuffer: a.Config.TargetBufferSize,
-			RetryTimer:          a.Config.Retry,
-		}
-
-		a.collector = collector.New(cfg, targetsConfig,
-			collector.WithDialOptions(a.createCollectorDialOpts()),
-			collector.WithLogger(a.Logger),
-		)
-	} else {
+	if a.PromptMode {
 		// prompt mode
 		for _, tc := range targetsConfig {
-			a.collector.AddTarget(tc)
+			a.AddTargetConfig(tc)
 		}
 	}
 	req, err := a.Config.CreateGetRequest()
@@ -80,7 +67,7 @@ func (a *App) GetRequest(ctx context.Context, tName string, req *gnmi.GetRequest
 	}
 	a.Logger.Printf("sending gNMI GetRequest: prefix='%v', path='%v', type='%v', encoding='%v', models='%+v', extension='%+v' to %s",
 		xreq.Prefix, xreq.Path, xreq.Type, xreq.Encoding, xreq.UseModels, xreq.Extension, tName)
-	response, err := a.collector.Get(ctx, tName, xreq)
+	response, err := a.ClientGet(ctx, tName, xreq)
 	if err != nil {
 		a.logError(fmt.Errorf("target %q get request failed: %v", tName, err))
 		return
@@ -92,7 +79,7 @@ func (a *App) GetRequest(ctx context.Context, tName string, req *gnmi.GetRequest
 }
 
 func (a *App) filterModels(ctx context.Context, tName string, modelsNames []string) (map[string]*gnmi.ModelData, []string, error) {
-	supModels, err := a.collector.GetModels(ctx, tName)
+	supModels, err := a.GetModels(ctx, tName)
 	if err != nil {
 		return nil, nil, err
 	}

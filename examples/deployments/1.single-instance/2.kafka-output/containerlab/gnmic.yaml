@@ -10,7 +10,7 @@ loader:
   filters:
     - containers:
       - label=clab-node-kind: srl
-        label=containerlab: gnmic-kafka
+        label=containerlab: lab12
 
 subscriptions:
   # Add subscriptions configuration here
@@ -24,5 +24,5 @@ subscriptions:
 outputs:
   kafka-output:
     type: kafka
-    address: clab-gnmic-kafka-kafka-server:9092
+    address: clab-lab12-kafka-server:9092
     topic: telemetry

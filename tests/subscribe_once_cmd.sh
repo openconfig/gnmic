@@ -3,63 +3,63 @@
 trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
 
 # single host, single path
-./gnmic-rc1 -a clab-test1-srl1 -u admin -p admin --skip-verify -d -e json_ietf subscribe \
+./gnmic-rc1 -a clab-test1-srl1 -u admin -p admin --skip-verify -d -e ascii subscribe \
                               --mode once \
-                              --path /system
-./gnmic-rc1 -a clab-test1-srl2 -u admin -p admin --skip-verify -d -e json_ietf subscribe \
+                              --path /system/name
+./gnmic-rc1 -a clab-test1-srl2 -u admin -p admin --skip-verify -d -e ascii subscribe \
                               --mode once \
-                              --path /system
-./gnmic-rc1 -a clab-test1-srl3 -u admin -p admin --skip-verify -d -e json_ietf subscribe \
+                              --path /system/name
+./gnmic-rc1 -a clab-test1-srl3 -u admin -p admin --skip-verify -d -e ascii subscribe \
                               --mode once \
-                              --path /system
+                              --path /system/name
 
 # multiple hosts, single path
-./gnmic-rc1 -a clab-test1-srl1 -a clab-test1-srl2 -a clab-test1-srl3 -u admin -p admin --skip-verify -d -e json_ietf subscribe \
+./gnmic-rc1 -a clab-test1-srl1 -a clab-test1-srl2 -a clab-test1-srl3 -u admin -p admin --skip-verify -d -e ascii subscribe \
                               --mode once \
-                              --path /system
-./gnmic-rc1 -a clab-test1-srl1 -a clab-test1-srl2 -a clab-test1-srl3 -u admin -p admin --skip-verify -d -e json_ietf subscribe \
+                              --path /system/name
+./gnmic-rc1 -a clab-test1-srl1 -a clab-test1-srl2 -a clab-test1-srl3 -u admin -p admin --skip-verify -d -e ascii subscribe \
                               --mode once \
-                              --path /system
-./gnmic-rc1 -a clab-test1-srl1 -a clab-test1-srl2 -a clab-test1-srl3 -u admin -p admin --skip-verify -d -e json_ietf subscribe \
+                              --path /system/name
+./gnmic-rc1 -a clab-test1-srl1 -a clab-test1-srl2 -a clab-test1-srl3 -u admin -p admin --skip-verify -d -e ascii subscribe \
                               --mode once \
-                              --path /system
+                              --path /system/name
 #
-./gnmic-rc1 -a clab-test1-srl1,clab-test1-srl2,clab-test1-srl3 -u admin -p admin --skip-verify -d -e json_ietf subscribe \
+./gnmic-rc1 -a clab-test1-srl1,clab-test1-srl2,clab-test1-srl3 -u admin -p admin --skip-verify -d -e ascii subscribe \
                               --mode once \
-                              --path /system
-./gnmic-rc1 -a clab-test1-srl1,clab-test1-srl2,clab-test1-srl3 -u admin -p admin --skip-verify -d -e json_ietf subscribe \
+                              --path /system/name
+./gnmic-rc1 -a clab-test1-srl1,clab-test1-srl2,clab-test1-srl3 -u admin -p admin --skip-verify -d -e ascii subscribe \
                               --mode once \
-                              --path /system
-./gnmic-rc1 -a clab-test1-srl1,clab-test1-srl2,clab-test1-srl3 -u admin -p admin --skip-verify -d -e json_ietf subscribe \
+                              --path /system/name
+./gnmic-rc1 -a clab-test1-srl1,clab-test1-srl2,clab-test1-srl3 -u admin -p admin --skip-verify -d -e ascii subscribe \
                               --mode once \
-                              --path /system
+                              --path /system/name
 
 # multiple hosts, multiple paths
-./gnmic-rc1 -a clab-test1-srl1 -a clab-test1-srl2 -a clab-test1-srl3 -u admin -p admin --skip-verify -d -e json_ietf subscribe \
+./gnmic-rc1 -a clab-test1-srl1 -a clab-test1-srl2 -a clab-test1-srl3 -u admin -p admin --skip-verify -d -e ascii subscribe \
                               --mode once \
-                              --path /system \
-                              --path /acl
-./gnmic-rc1 -a clab-test1-srl1 -a clab-test1-srl2 -a clab-test1-srl3 -u admin -p admin --skip-verify -d -e json_ietf subscribe \
+                              --path /system/name \
+                              --path /interface[name=*]
+./gnmic-rc1 -a clab-test1-srl1 -a clab-test1-srl2 -a clab-test1-srl3 -u admin -p admin --skip-verify -d -e ascii subscribe \
                               --mode once \
-                              --path /system \
-                              --path /acl
-./gnmic-rc1 -a clab-test1-srl1 -a clab-test1-srl2 -a clab-test1-srl3 -u admin -p admin --skip-verify -d -e json_ietf subscribe \
+                              --path /system/name \
+                              --path /interface[name=*]
+./gnmic-rc1 -a clab-test1-srl1 -a clab-test1-srl2 -a clab-test1-srl3 -u admin -p admin --skip-verify -d -e ascii subscribe \
                               --mode once \
-                              --path /system \
-                              --path /acl
+                              --path /system/name \
+                              --path /interface[name=*]
 #
-./gnmic-rc1 -a clab-test1-srl1,clab-test1-srl2,clab-test1-srl3 -u admin -p admin --skip-verify -d -e json_ietf subscribe \
+./gnmic-rc1 -a clab-test1-srl1,clab-test1-srl2,clab-test1-srl3 -u admin -p admin --skip-verify -d -e ascii subscribe \
                               --mode once \
-                              --path /system \
-                              --path /acl
-./gnmic-rc1 -a clab-test1-srl1,clab-test1-srl2,clab-test1-srl3 -u admin -p admin --skip-verify -d -e json_ietf subscribe \
+                              --path /system/name \
+                              --path /interface[name=*]
+./gnmic-rc1 -a clab-test1-srl1,clab-test1-srl2,clab-test1-srl3 -u admin -p admin --skip-verify -d -e ascii subscribe \
                               --mode once \
-                              --path /system \
-                              --path /acl
-./gnmic-rc1 -a clab-test1-srl1,clab-test1-srl2,clab-test1-srl3 -u admin -p admin --skip-verify -d -e json_ietf subscribe \
+                              --path /system/name \
+                              --path /interface[name=*]
+./gnmic-rc1 -a clab-test1-srl1,clab-test1-srl2,clab-test1-srl3 -u admin -p admin --skip-verify -d -e ascii subscribe \
                               --mode once \
-                              --path /system \
-                              --path /acl
+                              --path /system/name \
+                              --path /interface[name=*]
 
 # subscription config from file
 ./gnmic-rc1 -a clab-test1-srl1 --config configs/gnmic1.yaml subscribe

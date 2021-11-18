@@ -1,0 +1,64 @@
+name: lab{{ (ds "data").ID }}
+
+topology:
+  defaults:
+    kind: srl
+
+  kinds:
+    srl:
+      image: ghcr.io/nokia/srlinux
+      labels:
+        test: telemetry
+
+  nodes:
+    super-spine1:
+      type: ixr6
+    super-spine2:
+      type: ixr6
+    
+    spine1:
+    spine2:
+    spine3:
+    spine4:
+
+    leaf1:
+    leaf2:
+    leaf3:
+    leaf4:
+    leaf5:
+    leaf6:
+    leaf7:
+    leaf8:
+    
+  links:
+    # super-spine1 links
+    - endpoints: ["super-spine1:e1-1", "spine1:e1-1"]
+    - endpoints: ["super-spine1:e1-2", "spine2:e1-1"]
+    - endpoints: ["super-spine1:e1-3", "spine3:e1-1"]
+    - endpoints: ["super-spine1:e1-4", "spine4:e1-1"]
+    # super-spine2 links
+    - endpoints: ["super-spine2:e1-1", "spine1:e1-2"]
+    - endpoints: ["super-spine2:e1-2", "spine2:e1-2"]
+    - endpoints: ["super-spine2:e1-3", "spine3:e1-2"]
+    - endpoints: ["super-spine2:e1-4", "spine4:e1-2"]
+
+    # spine1 links
+    - endpoints: ["spine1:e1-3", "leaf1:e1-1"]
+    - endpoints: ["spine1:e1-4", "leaf2:e1-1"]
+    - endpoints: ["spine1:e1-5", "leaf3:e1-1"]
+    - endpoints: ["spine1:e1-6", "leaf4:e1-1"]
+    # spine2 links
+    - endpoints: ["spine2:e1-3", "leaf1:e1-2"]
+    - endpoints: ["spine2:e1-4", "leaf2:e1-2"]
+    - endpoints: ["spine2:e1-5", "leaf3:e1-2"]
+    - endpoints: ["spine2:e1-6", "leaf4:e1-2"]
+    # spine3 links
+    - endpoints: ["spine3:e1-3", "leaf5:e1-1"]
+    - endpoints: ["spine3:e1-4", "leaf6:e1-1"]
+    - endpoints: ["spine3:e1-5", "leaf7:e1-1"]
+    - endpoints: ["spine3:e1-6", "leaf8:e1-1"]
+    # spine4 links
+    - endpoints: ["spine4:e1-3", "leaf5:e1-2"]
+    - endpoints: ["spine4:e1-4", "leaf6:e1-2"]
+    - endpoints: ["spine4:e1-5", "leaf7:e1-2"]
+    - endpoints: ["spine4:e1-6", "leaf8:e1-2"]

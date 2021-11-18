@@ -16,10 +16,12 @@ import (
 	"github.com/fullstorydev/grpcurl"
 	"github.com/gorilla/mux"
 	"github.com/jhump/protoreflect/desc"
-	"github.com/karimra/gnmic/collector"
 	"github.com/karimra/gnmic/config"
 	"github.com/karimra/gnmic/formatters"
+	"github.com/karimra/gnmic/inputs"
 	"github.com/karimra/gnmic/lockers"
+	"github.com/karimra/gnmic/outputs"
+	"github.com/karimra/gnmic/target"
 	"github.com/openconfig/gnmi/cache"
 	"github.com/openconfig/gnmi/match"
 	"github.com/openconfig/gnmi/proto/gnmi"
@@ -46,11 +48,21 @@ type App struct {
 
 	sem *semaphore.Weighted
 	//
-	m         *sync.RWMutex
-	Config    *config.Config
-	collector *collector.Collector
-	router    *mux.Router
-	locker    lockers.Locker
+	configLock *sync.RWMutex
+	Config     *config.Config
+	// collector
+	dialOpts      []grpc.DialOption
+	operLock      *sync.RWMutex
+	Outputs       map[string]outputs.Output
+	Inputs        map[string]inputs.Input
+	Targets       map[string]*target.Target
+	targetsChan   chan *target.Target
+	activeTargets map[string]struct{}
+	targetsLockFn map[string]context.CancelFunc
+	rootDesc      desc.Descriptor
+	// end collector
+	router *mux.Router
+	locker lockers.Locker
 	// api
 	apiServices map[string]*lockers.Service
 	isLeader    bool
@@ -79,12 +91,21 @@ type App struct {
 func New() *App {
 	ctx, cancel := context.WithCancel(context.Background())
 	a := &App{
-		ctx:           ctx,
-		Cfn:           cancel,
-		RootCmd:       new(cobra.Command),
-		sem:           semaphore.NewWeighted(1),
-		m:             new(sync.RWMutex),
-		Config:        config.New(),
+		ctx:        ctx,
+		Cfn:        cancel,
+		RootCmd:    new(cobra.Command),
+		sem:        semaphore.NewWeighted(1),
+		configLock: new(sync.RWMutex),
+		Config:     config.New(),
+		//
+		operLock:      new(sync.RWMutex),
+		Targets:       make(map[string]*target.Target),
+		Outputs:       make(map[string]outputs.Output),
+		Inputs:        make(map[string]inputs.Input),
+		targetsChan:   make(chan *target.Target),
+		activeTargets: make(map[string]struct{}),
+		targetsLockFn: make(map[string]context.CancelFunc),
+		//
 		router:        mux.NewRouter(),
 		apiServices:   make(map[string]*lockers.Service),
 		Logger:        log.New(io.Discard, "[gnmic] ", log.LstdFlags|log.Lmsgprefix),
@@ -275,6 +296,7 @@ func (a *App) createCollectorDialOpts() []grpc.DialOption {
 		opts = append(opts, grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)))
 
 	}
+	a.dialOpts = opts
 	return opts
 }
 
@@ -302,14 +324,14 @@ func (a *App) loadTargets(e fsnotify.Event) {
 			return
 		}
 		if !a.inCluster() {
-			currentTargets := a.collector.Targets
+			currentTargets := a.Targets
 			// delete targets
 			for n := range currentTargets {
 				if _, ok := newTargets[n]; !ok {
 					if a.Config.Debug {
 						a.Logger.Printf("target %q deleted from config", n)
 					}
-					err = a.collector.DeleteTarget(a.ctx, n)
+					err = a.DeleteTarget(a.ctx, n)
 					if err != nil {
 						a.Logger.Printf("failed to delete target %q: %v", n, err)
 					}
@@ -321,13 +343,13 @@ func (a *App) loadTargets(e fsnotify.Event) {
 					if a.Config.Debug {
 						a.Logger.Printf("target %q added to config", n)
 					}
-					err = a.collector.AddTarget(tc)
-					if err != nil {
-						a.Logger.Printf("failed adding target %q: %v", n, err)
-						continue
-					}
+					a.AddTargetConfig(tc)
+					// if err != nil {
+					// 	a.Logger.Printf("failed adding target %q: %v", n, err)
+					// 	continue
+					// }
 					a.wg.Add(1)
-					go a.collector.TargetSubscribeStream(a.ctx, n)
+					go a.TargetSubscribeStream(a.ctx, n)
 				}
 			}
 			return
@@ -353,7 +375,7 @@ func (a *App) loadTargets(e fsnotify.Event) {
 			}
 		}
 		// add new targets to cluster
-		a.m.Lock()
+		a.configLock.Lock()
 		for _, tc := range newTargets {
 			if _, ok := dist[tc.Name]; !ok {
 				err = a.dispatchTarget(a.ctx, tc)
@@ -362,11 +384,11 @@ func (a *App) loadTargets(e fsnotify.Event) {
 				}
 			}
 		}
-		a.m.Unlock()
+		a.configLock.Unlock()
 	}
 }
 
-func (a *App) startAPI() {
+func (a *App) startAPIServer() {
 	if a.Config.APIServer == nil {
 		return
 	}
@@ -409,5 +431,6 @@ func (a *App) LoadProtoFiles() (desc.Descriptor, error) {
 		return nil, err
 	}
 	a.Logger.Printf("loaded proto files")
+	a.rootDesc = rootDesc
 	return rootDesc, nil
 }

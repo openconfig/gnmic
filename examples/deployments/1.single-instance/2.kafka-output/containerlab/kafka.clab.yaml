@@ -20,7 +20,7 @@ topology:
 
     gnmic:
       kind: linux
-      image: ghcr.io/karimra/gnmic:latest
+      image: gnmic:0.21.0-beta
       binds:
         - ./gnmic.yaml:/app/gnmic.yaml:ro
         - /var/run/docker.sock:/var/run/docker.sock
@@ -34,7 +34,7 @@ topology:
         - 9000:9000
       env:
         KAFKA_CFG_ZOOKEEPER_CONNECT: clab-lab12-zookeeper-server:2181
-        KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://clab-lab12-server:9092
+        KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://clab-lab12-kafka-server:9092
         ALLOW_PLAINTEXT_LISTENER: "yes"
         JMX_PORT: 9000
 

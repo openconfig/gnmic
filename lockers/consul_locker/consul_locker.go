@@ -3,7 +3,6 @@ package consul_locker
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -207,7 +206,7 @@ func (c *ConsulLocker) Unlock(ctx context.Context, key string) error {
 		delete(c.acquiredlocks, key)
 		return nil
 	}
-	return errors.New("unknown key")
+	return fmt.Errorf("unlock failed: unknown key %q", key)
 }
 
 func (c *ConsulLocker) Stop() error {

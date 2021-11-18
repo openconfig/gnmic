@@ -1,0 +1,34 @@
+log: true
+skip-verify: true
+
+loader:
+  type: consul
+  address: clab-telemetry-consul-agent:8500
+  debug: true
+  services:
+    - name: collectors-gnmi-server
+      config:
+        insecure: true
+
+subscriptions:
+  collectors:
+    paths:
+      - /
+    stream-mode: on-change
+
+api-server:
+  enable-metrics: true
+
+# clustering config
+clustering:
+  cluster-name: aggregators
+  targets-watch-timer: 60s
+  locker:
+    type: consul
+    address: clab-telemetry-consul-agent:8500
+
+outputs:
+  aggregator:
+    type: prometheus
+    service-registration:
+      address: clab-telemetry-consul-agent:8500

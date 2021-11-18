@@ -20,6 +20,9 @@ subscriptions:
     stream-mode: sample
     sample-interval: 10s
 
+api-server:
+  enable-metrics: true
+  
 # clustering config
 clustering:
   cluster-name: cluster2
