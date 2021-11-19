@@ -1,7 +1,10 @@
 package outputs
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
 	"log"
 	"strings"
 	"text/template"
@@ -98,6 +101,20 @@ func AddSubscriptionTarget(msg proto.Message, meta Meta, addTarget string, tpl *
 		}
 	}
 	return nil
+}
+
+func ExecTemplate(content []byte, tpl *template.Template) ([]byte, error) {
+	var input interface{}
+	err := json.Unmarshal(content, &input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal input: %v", err)
+	}
+	bf := new(bytes.Buffer)
+	err = tpl.Execute(bf, input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute msg template: %v", err)
+	}
+	return bf.Bytes(), nil
 }
 
 var (

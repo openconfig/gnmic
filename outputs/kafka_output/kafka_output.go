@@ -15,6 +15,8 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/damiannolan/sasl/oauthbearer"
 	"github.com/google/uuid"
+	"github.com/hairyhenderson/gomplate/v3"
+	"github.com/hairyhenderson/gomplate/v3/data"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/karimra/gnmic/types"
@@ -60,6 +62,7 @@ type KafkaOutput struct {
 	evps     []formatters.EventProcessor
 
 	targetTpl *template.Template
+	msgTpl    *template.Template
 }
 
 // Config //
@@ -75,6 +78,7 @@ type Config struct {
 	Format             string        `mapstructure:"format,omitempty"`
 	AddTarget          string        `mapstructure:"add-target,omitempty"`
 	TargetTemplate     string        `mapstructure:"target-template,omitempty"`
+	MsgTemplate        string        `mapstructure:"msg-template,omitempty"`
 	NumWorkers         int           `mapstructure:"num-workers,omitempty"`
 	Debug              bool          `mapstructure:"debug,omitempty"`
 	BufferSize         int           `mapstructure:"buffer-size,omitempty"`
@@ -164,7 +168,18 @@ func (k *KafkaOutput) Init(ctx context.Context, name string, cfg map[string]inte
 	} else if k.Cfg.AddTarget != "" {
 		k.targetTpl, err = template.New("target-template").
 			Funcs(outputs.TemplateFuncs).
+			Funcs(gomplate.CreateFuncs(context.TODO(), new(data.Data))).
 			Parse(k.Cfg.TargetTemplate)
+		if err != nil {
+			return err
+		}
+	}
+
+	if k.Cfg.MsgTemplate != "" {
+		k.msgTpl, err = template.New("msg-template").
+			Funcs(outputs.TemplateFuncs).
+			Funcs(gomplate.CreateFuncs(context.TODO(), new(data.Data))).
+			Parse(k.Cfg.MsgTemplate)
 		if err != nil {
 			return err
 		}
@@ -309,6 +324,18 @@ CRPROD:
 				}
 				continue
 			}
+
+			if k.msgTpl != nil && len(b) > 0 {
+				b, err = outputs.ExecTemplate(b, k.msgTpl)
+				if err != nil {
+					if k.Cfg.Debug {
+						log.Printf("failed to execute template: %v", err)
+					}
+					KafkaNumberOfFailSendMsgs.WithLabelValues(config.ClientID, "template_error").Inc()
+					return
+				}
+			}
+
 			msg := &sarama.ProducerMessage{
 				Topic: k.Cfg.Topic,
 				Value: sarama.ByteEncoder(b),

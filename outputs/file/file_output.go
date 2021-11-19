@@ -11,6 +11,8 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/hairyhenderson/gomplate/v3"
+	"github.com/hairyhenderson/gomplate/v3/data"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/karimra/gnmic/types"
@@ -46,6 +48,7 @@ type File struct {
 	evps   []formatters.EventProcessor
 
 	targetTpl *template.Template
+	msgTpl    *template.Template
 }
 
 // Config //
@@ -60,6 +63,7 @@ type Config struct {
 	AddTarget          string   `mapstructure:"add-target,omitempty"`
 	TargetTemplate     string   `mapstructure:"target-template,omitempty"`
 	EventProcessors    []string `mapstructure:"event-processors,omitempty"`
+	MsgTemplate        string   `mapstructure:"msg-template,omitempty"`
 	ConcurrencyLimit   int      `mapstructure:"concurrency-limit,omitempty"`
 	EnableMetrics      bool     `mapstructure:"enable-metrics,omitempty"`
 	Debug              bool     `mapstructure:"debug,omitempty"`
@@ -166,11 +170,23 @@ func (f *File) Init(ctx context.Context, name string, cfg map[string]interface{}
 	} else if f.Cfg.AddTarget != "" {
 		f.targetTpl, err = template.New("target-template").
 			Funcs(outputs.TemplateFuncs).
+			Funcs(gomplate.CreateFuncs(context.TODO(), new(data.Data))).
 			Parse(f.Cfg.TargetTemplate)
 		if err != nil {
 			return err
 		}
 	}
+
+	if f.Cfg.MsgTemplate != "" {
+		f.msgTpl, err = template.New("msg-template").
+			Funcs(outputs.TemplateFuncs).
+			Funcs(gomplate.CreateFuncs(context.TODO(), new(data.Data))).
+			Parse(f.Cfg.MsgTemplate)
+		if err != nil {
+			return err
+		}
+	}
+
 	f.logger.Printf("initialized file output: %s", f.String())
 	go func() {
 		<-ctx.Done()
@@ -199,6 +215,7 @@ func (f *File) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) 
 	if err != nil {
 		f.logger.Printf("failed to add target to the response: %v", err)
 	}
+
 	b, err := f.mo.Marshal(rsp, meta, f.evps...)
 	if err != nil {
 		if f.Cfg.Debug {
@@ -207,6 +224,18 @@ func (f *File) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) 
 		NumberOfFailWriteMsgs.WithLabelValues(f.file.Name(), "marshal_error").Inc()
 		return
 	}
+
+	if f.msgTpl != nil && len(b) > 0 {
+		b, err = outputs.ExecTemplate(b, f.msgTpl)
+		if err != nil {
+			if f.Cfg.Debug {
+				log.Printf("failed to execute template: %v", err)
+			}
+			NumberOfFailWriteMsgs.WithLabelValues(f.file.Name(), "template_error").Inc()
+			return
+		}
+	}
+
 	n, err := f.file.Write(append(b, []byte(f.Cfg.Separator)...))
 	if err != nil {
 		if f.Cfg.Debug {
