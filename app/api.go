@@ -1,10 +1,12 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -189,6 +191,208 @@ func (a *App) handleTargetsDelete(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
+}
+
+type clusteringResponse struct {
+	ClusterName           string          `json:"name,omitempty"`
+	NumberOfLockedTargets int             `json:"number-of-locked-targets"`
+	Leader                string          `json:"leader,omitempty"`
+	Members               []clusterMember `json:"members,omitempty"`
+}
+
+type clusterMember struct {
+	Name                  string   `json:"name,omitempty"`
+	APIEndpoint           string   `json:"api-endpoint,omitempty"`
+	IsLeader              bool     `json:"is-leader,omitempty"`
+	NumberOfLockedTargets int      `json:"number-of-locked-nodes"`
+	LockedTargets         []string `json:"locked-targets,omitempty"`
+}
+
+func (a *App) handleClusteringGet(w http.ResponseWriter, r *http.Request) {
+	if a.Config.Clustering == nil {
+		return
+	}
+
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+
+	resp := new(clusteringResponse)
+	resp.ClusterName = a.Config.ClusterName
+
+	leaderKey := fmt.Sprintf("gnmic/%s/leader", a.Config.ClusterName)
+	leader, err := a.locker.List(ctx, leaderKey)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		return
+	}
+	resp.Leader = leader[leaderKey]
+	lockedNodesPrefix := fmt.Sprintf("gnmic/%s/targets", a.Config.ClusterName)
+
+	lockedNodes, err := a.locker.List(a.ctx, lockedNodesPrefix)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		return
+	}
+	resp.NumberOfLockedTargets = len(lockedNodes)
+	services, err := a.locker.GetServices(ctx, fmt.Sprintf("%s-gnmic-api", a.Config.ClusterName), nil)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		return
+	}
+
+	instanceNodes := make(map[string][]string)
+	for k, v := range lockedNodes {
+		name := strings.TrimPrefix(k, fmt.Sprintf("gnmic/%s/targets/", a.Config.ClusterName))
+		if _, ok := instanceNodes[v]; !ok {
+			instanceNodes[v] = make([]string, 0)
+		}
+		instanceNodes[v] = append(instanceNodes[v], name)
+	}
+	resp.Members = make([]clusterMember, len(services))
+	for i, s := range services {
+		resp.Members[i].APIEndpoint = s.Address
+		resp.Members[i].Name = strings.TrimSuffix(s.ID, "-api")
+		resp.Members[i].IsLeader = resp.Leader == resp.Members[i].Name
+		resp.Members[i].NumberOfLockedTargets = len(instanceNodes[resp.Members[i].Name])
+		resp.Members[i].LockedTargets = instanceNodes[resp.Members[i].Name]
+	}
+	b, err := json.Marshal(resp)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		return
+	}
+	w.Write(b)
+}
+
+func (a *App) handleClusteringMembersGet(w http.ResponseWriter, r *http.Request) {
+	if a.Config.Clustering == nil {
+		return
+	}
+
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+	// get leader
+	leaderKey := fmt.Sprintf("gnmic/%s/leader", a.Config.ClusterName)
+	leader, err := a.locker.List(ctx, leaderKey)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		return
+	}
+	// get locked targets to instance mapping
+	lockedNodesPrefix := fmt.Sprintf("gnmic/%s/targets", a.Config.ClusterName)
+	lockedNodes, err := a.locker.List(a.ctx, lockedNodesPrefix)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		return
+	}
+
+	services, err := a.locker.GetServices(ctx, fmt.Sprintf("%s-gnmic-api", a.Config.ClusterName), nil)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		return
+	}
+
+	instanceNodes := make(map[string][]string)
+	for k, v := range lockedNodes {
+		name := strings.TrimPrefix(k, fmt.Sprintf("gnmic/%s/targets/", a.Config.ClusterName))
+		if _, ok := instanceNodes[v]; !ok {
+			instanceNodes[v] = make([]string, 0)
+		}
+		instanceNodes[v] = append(instanceNodes[v], name)
+	}
+	members := make([]clusterMember, len(services))
+	for i, s := range services {
+		scheme := "http://"
+		for _, t := range s.Tags {
+			if strings.HasPrefix(t, "protocol=") {
+				scheme = fmt.Sprintf("%s://", strings.TrimPrefix(t, "protocol="))
+			}
+		}
+		members[i].APIEndpoint = fmt.Sprintf("%s%s", scheme, s.Address)
+		members[i].Name = strings.TrimSuffix(s.ID, "-api")
+		members[i].IsLeader = leader[leaderKey] == members[i].Name
+		members[i].NumberOfLockedTargets = len(instanceNodes[members[i].Name])
+		members[i].LockedTargets = instanceNodes[members[i].Name]
+	}
+	b, err := json.Marshal(members)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		return
+	}
+	w.Write(b)
+}
+
+func (a *App) handleClusteringLeaderGet(w http.ResponseWriter, r *http.Request) {
+	if a.Config.Clustering == nil {
+		return
+	}
+
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+	// get leader
+	leaderKey := fmt.Sprintf("gnmic/%s/leader", a.Config.ClusterName)
+	leader, err := a.locker.List(ctx, leaderKey)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		return
+	}
+	// get locked targets to instance mapping
+	lockedNodesPrefix := fmt.Sprintf("gnmic/%s/targets", a.Config.ClusterName)
+	lockedNodes, err := a.locker.List(a.ctx, lockedNodesPrefix)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		return
+	}
+
+	services, err := a.locker.GetServices(ctx, fmt.Sprintf("%s-gnmic-api", a.Config.ClusterName), nil)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		return
+	}
+
+	instanceNodes := make(map[string][]string)
+	for k, v := range lockedNodes {
+		name := strings.TrimPrefix(k, fmt.Sprintf("gnmic/%s/targets/", a.Config.ClusterName))
+		if _, ok := instanceNodes[v]; !ok {
+			instanceNodes[v] = make([]string, 0)
+		}
+		instanceNodes[v] = append(instanceNodes[v], name)
+	}
+	members := make([]clusterMember, 1)
+	for i, s := range services {
+		if strings.TrimSuffix(s.ID, "-api") != leader[leaderKey] {
+			continue
+		}
+		scheme := "http://"
+		for _, t := range s.Tags {
+			if strings.HasPrefix(t, "protocol=") {
+				scheme = fmt.Sprintf("%s://", strings.TrimPrefix(t, "protocol="))
+			}
+		}
+		members[i].APIEndpoint = fmt.Sprintf("%s%s", scheme, s.Address)
+		members[i].Name = strings.TrimSuffix(s.ID, "-api")
+		members[i].IsLeader = true
+		members[i].NumberOfLockedTargets = len(instanceNodes[members[i].Name])
+		members[i].LockedTargets = instanceNodes[members[i].Name]
+	}
+	b, err := json.Marshal(members)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		return
+	}
+	w.Write(b)
 }
 
 func headersMiddleware(next http.Handler) http.Handler {

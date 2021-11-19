@@ -8,6 +8,9 @@ import (
 )
 
 func (a *App) startLoader(ctx context.Context) {
+	if a.Config.Loader == nil {
+		return
+	}
 	if a.inCluster() {
 		ticker := time.NewTicker(time.Second)
 		// wait for instance to become the leader
@@ -18,19 +21,12 @@ func (a *App) startLoader(ctx context.Context) {
 			}
 		}
 	}
+	ldTypeS := a.Config.Loader["type"].(string)
 START:
-	ldCfg, err := a.Config.GetLoader()
-	if err != nil {
-		a.Logger.Printf("failed getting loader config: %v", err)
-	}
-	if ldCfg == nil {
-		return
-	}
-	ldTypeS := ldCfg["type"].(string)
 	a.Logger.Printf("initializing loader type %q", ldTypeS)
 
 	ld := loaders.Loaders[ldTypeS]()
-	err = ld.Init(ctx, ldCfg, a.Logger, loaders.WithRegistry(a.reg))
+	err := ld.Init(ctx, a.Config.Loader, a.Logger, loaders.WithRegistry(a.reg))
 	if err != nil {
 		a.Logger.Printf("failed to init loader type %q: %v", ldTypeS, err)
 		return

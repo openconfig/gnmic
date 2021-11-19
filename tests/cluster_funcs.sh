@@ -64,10 +64,10 @@ function get_number_of_locked_nodes() {
 
 function get_number_of_configured_nodes() {
   api_endpoint=$1
-  echo $(curl -s $api_endpoint/config/targets | jq -r 'keys[]' | wc -l)
+  echo $(curl -s $api_endpoint/api/v1/config/targets | jq -r 'keys[]' | wc -l)
 }
 
 function get_number_of_handled_nodes() {
   api_endpoint=$1
-  echo $(curl -s $api_endpoint/targets | jq -r 'keys[]' | wc -l)
+  echo $(curl -s $api_endpoint/api/v1/targets | jq -r 'keys[]' | wc -l)
 }

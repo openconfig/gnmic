@@ -25,6 +25,7 @@ function cleanup() {
       printf "destroying lab clab/lab%s.clab.yaml\n" $i
       sudo clab destroy -t clab/lab$i.clab.yaml --cleanup
       rm clab/lab$i.clab.yaml
+      rm .lab$i.clab.yaml
     done
 }
 
@@ -109,9 +110,9 @@ echo "Running API calls..."
 ./api.sh clab-telemetry-gnmic1:7890
 ./api.sh clab-telemetry-gnmic2:7891
 ./api.sh clab-telemetry-gnmic3:7892
-./api.sh clab-telemetry-gnmic-agg1:7893
-./api.sh clab-telemetry-gnmic-agg2:7894
-./api.sh clab-telemetry-gnmic-agg3:7895
+./api.sh clab-telemetry-agg-gnmic1:7893
+./api.sh clab-telemetry-agg-gnmic2:7894
+./api.sh clab-telemetry-agg-gnmic3:7895
 
 echo ""
 #start adding and removing labs
