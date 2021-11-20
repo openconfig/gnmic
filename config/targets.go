@@ -108,6 +108,14 @@ func (c *Config) GetTargets() (map[string]*types.TargetConfig, error) {
 		if err != nil {
 			return nil, err
 		}
+		// due to a viper bug that changes env values to lowercase if read
+		// as part of a StringMap or interface{}:
+		// read the target password as a string to maintain its case.
+		// if it's not an empty string set it explicitely
+		pass := c.FileConfig.GetString(fmt.Sprintf("targets/%s/password", name))
+		if pass != "" {
+			*tc.Password = pass
+		}
 		expandTargetEnv(tc)
 		newTargetsConfig[name] = tc
 	}
@@ -267,7 +275,9 @@ func expandTargetEnv(tc *types.TargetConfig) {
 	if tc.Username != nil {
 		*tc.Username = os.ExpandEnv(*tc.Username)
 	}
-	if tc.Password != nil {
+	// expandEnv for the pasword field only if it starts with $
+	// https://github.com/karimra/gnmic/issues/496
+	if tc.Password != nil && strings.HasPrefix(*tc.Password, "$") {
 		*tc.Password = os.ExpandEnv(*tc.Password)
 	}
 	if tc.Token != nil {
