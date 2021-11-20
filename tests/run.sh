@@ -110,8 +110,16 @@ case "$1" in
     buildgNMIc
     # deploy basic 3 nodes lab
     ./deploy.sh test_lab1
-    # run set md tests
+    # run sub tests
     ./subscribe_once_cmd.sh
+    ;;
+  "env")
+    # build gnmic
+    buildgNMIc
+    # deploy basic 3 nodes lab
+    ./deploy.sh test_lab1
+    # run sub tests
+    ./env_vars.sh
     ;;
   *)
     echo "./run.sh [ all | version | generate | cap | get | set | sub ]"
