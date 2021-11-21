@@ -77,7 +77,12 @@ func (g *gnmiAction) Init(cfg map[string]interface{}, opts ...actions.Option) er
 	if err != nil {
 		return err
 	}
-	return g.validate()
+	err = g.validate()
+	if err != nil {
+		return err
+	}
+	g.logger.Printf("action name %q of type %q initialized: %v", g.Name, actionType, g)
+	return nil
 }
 
 func (g *gnmiAction) Run(e *formatters.EventMsg, env, vars map[string]interface{}) (interface{}, error) {

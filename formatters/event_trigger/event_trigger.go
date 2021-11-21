@@ -23,7 +23,7 @@ import (
 const (
 	processorType    = "event-trigger"
 	loggingPrefix    = "[" + processorType + "] "
-	defaultCondition = `any([true])`
+	defaultCondition = "any([true])"
 )
 
 // Trigger triggers an action when certain conditions are met
@@ -63,6 +63,12 @@ func (p *Trigger) Init(cfg interface{}, opts ...formatters.Option) error {
 	for _, opt := range opts {
 		opt(p)
 	}
+	
+	err = p.setDefaults()
+	if err != nil {
+		return err
+	}
+
 	p.Condition = strings.TrimSpace(p.Condition)
 	q, err := gojq.Parse(p.Condition)
 	if err != nil {
@@ -73,9 +79,6 @@ func (p *Trigger) Init(cfg interface{}, opts ...formatters.Option) error {
 		return err
 	}
 
-	if err != nil {
-		return err
-	}
 	for _, a := range p.Actions {
 		err = p.initializeAction(a)
 		if err != nil {
@@ -87,10 +90,6 @@ func (p *Trigger) Init(cfg interface{}, opts ...formatters.Option) error {
 		return err
 	}
 
-	err = p.setDefaults()
-	if err != nil {
-		return err
-	}
 	p.logger.Printf("%q initalized: %+v", processorType, p)
 
 	return nil
