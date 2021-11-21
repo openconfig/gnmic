@@ -51,6 +51,7 @@ type gnmiAction struct {
 	Encoding   string   `mapstructure:"encoding,omitempty"`
 	Debug      bool     `mapstructure:"debug,omitempty"`
 	NoEnvProxy bool     `mapstructure:"no-env-proxy,omitempty"`
+	Format     string   `mapstructure:"format,omitempty"`
 
 	target *template.Template
 	prefix *template.Template
@@ -105,7 +106,13 @@ func (g *gnmiAction) Run(e *formatters.EventMsg, env, vars map[string]interface{
 			if err != nil {
 				return nil, err
 			}
-			return t.Get(ctx, req)
+			resp, err := t.Get(ctx, req)
+			if err != nil {
+				return nil, err
+			}
+			mo := &formatters.MarshalOptions{Format: g.Format}
+			b, err := mo.Marshal(resp, nil)
+			return string(b), err
 		case "set-update", "set-replace", "delete":
 			req, err := g.createSetRequest(in)
 			if err != nil {
@@ -115,7 +122,43 @@ func (g *gnmiAction) Run(e *formatters.EventMsg, env, vars map[string]interface{
 			if err != nil {
 				return nil, err
 			}
-			return t.Set(ctx, req)
+			resp, err := t.Set(ctx, req)
+			if err != nil {
+				return nil, err
+			}
+			mo := &formatters.MarshalOptions{Format: g.Format}
+			b, err := mo.Marshal(resp, nil)
+			return string(b), err
+		case "sub", "subscribe": // once
+			req, err := g.createSubscribeRequest(in)
+			if err != nil {
+				return nil, err
+			}
+			err = t.CreateGNMIClient(ctx)
+			if err != nil {
+				return nil, err
+			}
+
+			responses, err := t.SubscribeOnce(ctx, req)
+			if err != nil {
+				return nil, err
+			}
+			mo := &formatters.MarshalOptions{Format: g.Format}
+			formattedResponse := make([]map[string]interface{}, 0, len(responses))
+			for _, r := range responses {
+				msgb, err := mo.Marshal(r, nil)
+				if err != nil {
+					return nil, err
+				}
+				v := make(map[string]interface{})
+				err = json.Unmarshal(msgb, &v)
+				if err != nil {
+					return nil, err
+				}
+				formattedResponse = append(formattedResponse, v)
+			}
+			rb, err := json.Marshal(formattedResponse)
+			return string(rb), err
 		}
 	}
 	return nil, fmt.Errorf("unknown target %q", b.String())
@@ -155,6 +198,12 @@ func (g *gnmiAction) validate() error {
 		}
 		if numPaths != len(g.values) {
 			return errors.New("number of paths and values do not match")
+		}
+	case "sub", "subscribe":
+		if strings.ToLower(g.Format) != "json" &&
+			strings.ToLower(g.Format) != "protojson" &&
+			strings.ToLower(g.Format) != "event" {
+			return fmt.Errorf("unsupported format %q", g.Format)
 		}
 	default:
 		return fmt.Errorf("unknown gnmi RPC %q", g.RPC)
@@ -388,4 +437,52 @@ func (g *gnmiAction) createTypedValue(val string) (*gnmi.TypedValue, error) {
 		return nil, fmt.Errorf("unknown type %q", g.Encoding)
 	}
 	return value, nil
+}
+
+func (g *gnmiAction) createSubscribeRequest(in *actions.Input) (*gnmi.SubscribeRequest, error) {
+	encodingVal, ok := gnmi.Encoding_value[strings.Replace(strings.ToUpper(g.Encoding), "-", "_", -1)]
+	if !ok {
+		return nil, fmt.Errorf("invalid encoding type '%s'", g.Encoding)
+	}
+
+	var err error
+	b := new(bytes.Buffer)
+	var gnmiPrefix *gnmi.Path
+	if g.Prefix != "" {
+		err = g.prefix.Execute(b, in)
+		if err != nil {
+			return nil, fmt.Errorf("prefix parse error: %v", err)
+		}
+
+		gnmiPrefix, err = utils.ParsePath(b.String())
+		if err != nil {
+			return nil, fmt.Errorf("prefix parse error: %v", err)
+		}
+	}
+	var subscriptions = make([]*gnmi.Subscription, 0, len(g.paths))
+	for _, p := range g.paths {
+		b.Reset()
+		err = p.Execute(b, in)
+		if err != nil {
+			return nil, fmt.Errorf("path parse error: %v", err)
+		}
+		gnmiPath, err := utils.ParsePath(strings.TrimSpace(b.String()))
+		if err != nil {
+			return nil, fmt.Errorf("path parse error: %v", err)
+		}
+		subscriptions = append(subscriptions, &gnmi.Subscription{
+			Path: gnmiPath,
+		})
+	}
+
+	return &gnmi.SubscribeRequest{
+		Request: &gnmi.SubscribeRequest_Subscribe{
+			Subscribe: &gnmi.SubscriptionList{
+				Prefix:       gnmiPrefix,
+				Encoding:     gnmi.Encoding(encodingVal),
+				Mode:         gnmi.SubscriptionList_ONCE,
+				Subscription: subscriptions,
+			},
+		},
+	}, nil
 }

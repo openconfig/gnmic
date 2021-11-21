@@ -132,7 +132,7 @@ func (a *App) subscribeBasedDiff(ctx context.Context, cmd *cobra.Command, ref st
 			}
 			a.Logger.Printf("sending gNMI SubscribeRequest: subscribe='%+v', mode='%+v', encoding='%+v', to %s",
 				subReq.Request, subReq.GetSubscribe().GetMode(), subReq.GetSubscribe().GetEncoding(), ref)
-			rspChan, errChan := refTarget.SubscribeOnce(ctx, subReq, "diff-sub")
+			rspChan, errChan := refTarget.SubscribeOnceChan(ctx, subReq)
 			for {
 				select {
 				case r := <-rspChan:
@@ -170,7 +170,7 @@ func (a *App) subscribeBasedDiff(ctx context.Context, cmd *cobra.Command, ref st
 				responses := make([]proto.Message, 0)
 				a.Logger.Printf("sending gNMI SubscribeRequest: subscribe='%+v', mode='%+v', encoding='%+v', to %s",
 					subReq.Request, subReq.GetSubscribe().GetMode(), subReq.GetSubscribe().GetEncoding(), tName)
-				subRspChan, errChan := t.SubscribeOnce(ctx, subReq, "diff-sub")
+				subRspChan, errChan := t.SubscribeOnceChan(ctx, subReq)
 				for {
 					select {
 					case r := <-subRspChan:

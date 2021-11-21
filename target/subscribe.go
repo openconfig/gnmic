@@ -145,7 +145,7 @@ SUBSC:
 	}
 }
 
-func (t *Target) SubscribeOnce(ctx context.Context, req *gnmi.SubscribeRequest, subscriptionName string) (chan *gnmi.SubscribeResponse, chan error) {
+func (t *Target) SubscribeOnceChan(ctx context.Context, req *gnmi.SubscribeRequest) (chan *gnmi.SubscribeResponse, chan error) {
 	responseCh := make(chan *gnmi.SubscribeResponse)
 	errCh := make(chan error)
 	go func() {
@@ -174,6 +174,29 @@ func (t *Target) SubscribeOnce(ctx context.Context, req *gnmi.SubscribeRequest, 
 	}()
 
 	return responseCh, errCh
+}
+
+func (t *Target) SubscribeOnce(ctx context.Context, req *gnmi.SubscribeRequest) ([]*gnmi.SubscribeResponse, error) {
+	responses := make([]*gnmi.SubscribeResponse, 0)
+	rspChan, errChan := t.SubscribeOnceChan(ctx, req)
+LOOP:
+	for {
+		select {
+		case r := <-rspChan:
+			switch r.Response.(type) {
+			case *gnmi.SubscribeResponse_Update:
+				responses = append(responses, r)
+			case *gnmi.SubscribeResponse_SyncResponse:
+				break LOOP
+			}
+		case err := <-errChan: // only non nil errors
+			if err == io.EOF {
+				break LOOP
+			}
+			return nil, err
+		}
+	}
+	return responses, nil
 }
 
 func (t *Target) ReadSubscriptions() (chan *SubscribeResponse, chan *TargetError) {
