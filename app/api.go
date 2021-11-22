@@ -370,7 +370,7 @@ func (a *App) handleClusteringLeaderGet(w http.ResponseWriter, r *http.Request) 
 		instanceNodes[v] = append(instanceNodes[v], name)
 	}
 	members := make([]clusterMember, 1)
-	for i, s := range services {
+	for _, s := range services {
 		if strings.TrimSuffix(s.ID, "-api") != leader[leaderKey] {
 			continue
 		}
@@ -380,11 +380,13 @@ func (a *App) handleClusteringLeaderGet(w http.ResponseWriter, r *http.Request) 
 				scheme = fmt.Sprintf("%s://", strings.TrimPrefix(t, "protocol="))
 			}
 		}
-		members[i].APIEndpoint = fmt.Sprintf("%s%s", scheme, s.Address)
-		members[i].Name = strings.TrimSuffix(s.ID, "-api")
-		members[i].IsLeader = true
-		members[i].NumberOfLockedTargets = len(instanceNodes[members[i].Name])
-		members[i].LockedTargets = instanceNodes[members[i].Name]
+		// add the leader as a member then break from loop
+		members[0].APIEndpoint = fmt.Sprintf("%s%s", scheme, s.Address)
+		members[0].Name = strings.TrimSuffix(s.ID, "-api")
+		members[0].IsLeader = true
+		members[0].NumberOfLockedTargets = len(instanceNodes[members[0].Name])
+		members[0].LockedTargets = instanceNodes[members[0].Name]
+		break
 	}
 	b, err := json.Marshal(members)
 	if err != nil {
