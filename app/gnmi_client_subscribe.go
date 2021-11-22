@@ -232,7 +232,7 @@ func (a *App) clientSubscribeOnce(ctx context.Context, tName string) error {
 		for _, sreq := range subRequests {
 			a.Logger.Printf("sending gNMI SubscribeRequest: subscribe='%+v', mode='%+v', encoding='%+v', to %s",
 				sreq.req, sreq.req.GetSubscribe().GetMode(), sreq.req.GetSubscribe().GetEncoding(), t.Config.Name)
-			rspCh, errCh := t.SubscribeOnce(gnmiCtx, sreq.req, sreq.name)
+			rspCh, errCh := t.SubscribeOnceChan(gnmiCtx, sreq.req)
 			for {
 				select {
 				case err := <-errCh:
