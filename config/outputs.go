@@ -44,7 +44,7 @@ func (c *Config) GetOutputs() (map[string]map[string]interface{}, error) {
 		}
 	}
 	for n := range c.Outputs {
-		expandMapEnv(c.Outputs[n])
+		expandMapEnv(c.Outputs[n], "msg-template", "target-template")
 	}
 	namedOutputs := c.FileConfig.GetStringSlice("subscribe-output")
 	if len(namedOutputs) == 0 {

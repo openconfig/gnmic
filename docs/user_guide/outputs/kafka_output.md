@@ -1,6 +1,5 @@
 `gnmic` supports exporting subscription updates to multiple Apache Kafka brokers/clusters simultaneously
 
-
 ### Configuration sample
 
 A Kafka output can be defined using the below format in `gnmic` config file under `outputs` section:
@@ -66,6 +65,11 @@ outputs:
     # which will set the target to the value configured under `subscription.$subscription-name.target` if any,
     # otherwise it will set it to the target name stripped of the port number (if present)
     target-template:
+    # string, a GoTemplate that is executed using the received gNMI message as input.
+    # the template execution is the last step before the data is written to the file,
+    # First the received message is formatted according to the `format` field above, then the `event-processors` are applied if any
+    # then finally the msg-template is executed.
+    msg-template:
     # boolean, if true the message timestamp is changed to current time
     override-timestamps: false
     # Number of kafka producers to be created 

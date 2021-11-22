@@ -46,10 +46,16 @@ func (c *Config) mergeEnvVars() {
 	c.FileConfig.MergeConfigMap(envs)
 }
 
-func expandMapEnv(m map[string]interface{}) {
+func expandMapEnv(m map[string]interface{}, except ...string) {
+OUTER:
 	for f := range m {
 		switch v := m[f].(type) {
 		case string:
+			for _, e := range except {
+				if f == e {
+					continue OUTER
+				}
+			}
 			m[f] = os.ExpandEnv(v)
 		case map[string]interface{}:
 			expandMapEnv(v)

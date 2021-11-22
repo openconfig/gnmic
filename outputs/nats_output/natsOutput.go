@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hairyhenderson/gomplate/v3"
+	"github.com/hairyhenderson/gomplate/v3/data"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/karimra/gnmic/types"
@@ -60,6 +62,7 @@ type NatsOutput struct {
 	evps     []formatters.EventProcessor
 
 	targetTpl *template.Template
+	msgTpl    *template.Template
 }
 
 // Config //
@@ -74,6 +77,7 @@ type Config struct {
 	Format             string        `mapstructure:"format,omitempty"`
 	AddTarget          string        `mapstructure:"add-target,omitempty"`
 	TargetTemplate     string        `mapstructure:"target-template,omitempty"`
+	MsgTemplate        string        `mapstructure:"msg-template,omitempty"`
 	OverrideTimestamps bool          `mapstructure:"override-timestamps,omitempty"`
 	NumWorkers         int           `mapstructure:"num-workers,omitempty"`
 	WriteTimeout       time.Duration `mapstructure:"write-timeout,omitempty"`
@@ -150,11 +154,23 @@ func (n *NatsOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	} else if n.Cfg.AddTarget != "" {
 		n.targetTpl, err = template.New("target-template").
 			Funcs(outputs.TemplateFuncs).
+			Funcs(gomplate.CreateFuncs(context.TODO(), new(data.Data))).
 			Parse(n.Cfg.TargetTemplate)
 		if err != nil {
 			return err
 		}
 	}
+
+	if n.Cfg.MsgTemplate != "" {
+		n.msgTpl, err = template.New("msg-template").
+			Funcs(outputs.TemplateFuncs).
+			Funcs(gomplate.CreateFuncs(context.TODO(), new(data.Data))).
+			Parse(n.Cfg.MsgTemplate)
+		if err != nil {
+			return err
+		}
+	}
+
 	n.ctx, n.cancelFn = context.WithCancel(ctx)
 	n.wg.Add(n.Cfg.NumWorkers)
 	for i := 0; i < n.Cfg.NumWorkers; i++ {
@@ -330,6 +346,18 @@ CRCONN:
 				}
 				continue
 			}
+
+			if n.msgTpl != nil && len(b) > 0 {
+				b, err = outputs.ExecTemplate(b, n.msgTpl)
+				if err != nil {
+					if n.Cfg.Debug {
+						log.Printf("failed to execute template: %v", err)
+					}
+					NatsNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "template_error").Inc()
+					return
+				}
+			}
+
 			subject := n.subjectName(cfg, m.meta)
 			var start time.Time
 			if n.Cfg.EnableMetrics {
