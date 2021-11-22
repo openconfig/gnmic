@@ -2,7 +2,7 @@ package formatters
 
 import (
 	"encoding/json"
-	"errors"
+	"fmt"
 	"log"
 
 	"github.com/itchyny/gojq"
@@ -101,6 +101,6 @@ func CheckCondition(code *gojq.Code, e *EventMsg) (bool, error) {
 	case bool:
 		return res, nil
 	default:
-		return false, errors.New("unexpected condition return type")
+		return false, fmt.Errorf("unexpected condition return type: %T | %v", res, res)
 	}
 }

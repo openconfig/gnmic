@@ -194,3 +194,55 @@ processors:
         encoding: json_ietf
         debug: true
 ```
+
+### Template Action
+
+The `Template action` allows to combine different data sources and produce custom payloads to be writen to a remote server or simply to a file.
+
+The template is a Go Template that is executed against the `event` message that triggered the action,
+any variable defined by the trigger processor
+as well as the results of any previous action.
+
+**Data**                      | **Template syntax**                                           |
+----------------------------- | --------------------------------------------------------------|
+**Event Messge**              | `{{ .Event }}`                                                |
+**Trigger Varables**          | `{{ .Vars }}`                                                 |
+**Previous actions results**  | `{{ .Env.$action_name }}` or `{{ index .Env "$action_name"}}` |
+
+```yaml
+processors:
+  # processor name
+  my_trigger_proc: # 
+    # processor type
+    event-trigger:
+      # trigger condition
+      condition: 'any([true])'
+      # minimum number of condition occurrences within the configured window 
+      # required to trigger the action
+      min-occurrences: 1
+      # max number of times the action is triggered within the configured window
+      max-occurrences: 1
+      # window of time during which max-occurrences need to 
+      # be reached in order to trigger the action
+      window: 60s
+      # a dictionary of variables that is passed to the actions
+      # and can be accessed in the actions templates using `.Vars`
+      vars:
+      # path to a file containing variables passed to the actions
+      # the variable in the `vars` field override the ones read from the file.
+      vars-file: 
+      # the action to trigger
+      actions:
+      - name: awesome_template
+        # action type
+        type: template
+        # template string, if not present template-file applies.
+        template: '{{ . }}'
+        # path to a file, or a glob.
+        # applies only if .template is not set.
+        # if not template and template-file are not set, 
+        # the default template `{{ . }}` is used.
+        template-file:   
+        # debug, enable extra logging
+        debug: false
+```

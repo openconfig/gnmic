@@ -21,7 +21,7 @@ require (
 	github.com/hashicorp/consul/api v1.10.1
 	github.com/huandu/xstrings v1.3.2
 	github.com/influxdata/influxdb-client-go/v2 v2.0.1
-	github.com/itchyny/gojq v0.12.2
+	github.com/itchyny/gojq v0.12.5
 	github.com/jhump/protoreflect v1.6.1
 	github.com/jlaffaye/ftp v0.0.0-20210307004419-5d4190119067
 	github.com/karimra/go-map-flattener v0.0.0-20200728034653-b1473e58dae8
@@ -120,7 +120,7 @@ require (
 	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/influxdata/line-protocol v0.0.0-20200327222509-2487e7298839 // indirect
-	github.com/itchyny/timefmt-go v0.1.2 // indirect
+	github.com/itchyny/timefmt-go v0.1.3 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/jcmturner/gofork v1.0.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
