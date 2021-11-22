@@ -72,6 +72,7 @@ nav:
           - Introduction: user_guide/api/api_intro.md
           - Configuration: user_guide/api/configuration.md
           - Targets: user_guide/api/targets.md
+          - Cluster: user_guide/api/cluster.md
   
   - Deployment examples:
       - Deployments: deployments/deployments_intro.md

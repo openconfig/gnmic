@@ -1,4 +1,4 @@
-## `GET /targets`
+## `GET /api/v1/targets`
 
 Request all active targets details.
 
@@ -6,7 +6,7 @@ Returns all active targets as json
 
 === "Request"
     ```bash
-    curl --request GET gnmic-api-address:port/targets
+    curl --request GET gnmic-api-address:port/api/v1/targets
     ```
 === "200 OK"
     ```json
@@ -80,7 +80,7 @@ Returns all active targets as json
     }
     ```
 
-## `GET /targets/{id}` 
+## `GET /api/v1/targets/{id}`
 
 Query a single target details, if active.
 
@@ -135,7 +135,7 @@ Returns a single target if active as json, where {id} is the target ID
     }
     ```
 
-## `POST /targets/{id}`
+## `POST /api/v1/targets/{id}`
 
 Starts a single target subscriptions, where {id} is the target ID
 
@@ -143,7 +143,7 @@ Returns an empty body if successful.
 
 === "Request"
     ```bash
-    curl --request POST gnmic-api-address:port/targets/192.168.1.131:57400
+    curl --request POST gnmic-api-address:port/api/v1/targets/192.168.1.131:57400
     ```
 === "200 OK"
     ```json
@@ -165,7 +165,7 @@ Returns an empty body if successful.
     }
     ```
 
-## `DELETE /targets/{id}`
+## `DELETE /api/v1/targets/{id}`
   
 Stops a single target active subscriptions, where {id} is the target ID
     
@@ -173,7 +173,7 @@ Returns an empty body if successful.
 
 === "Request"
     ```bash
-    curl --request DELETE gnmic-api-address:port/targets/192.168.1.131:57400
+    curl --request DELETE gnmic-api-address:port/api/v1/targets/192.168.1.131:57400
     ```
 === "200 OK"
     ```json
