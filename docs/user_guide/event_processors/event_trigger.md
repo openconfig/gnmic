@@ -142,8 +142,11 @@ processors:
       - name: my_gnmi_action
         # action type
         type: gnmi
-        # gNMI rpc, defaults to `get`, if `set` is used it will default to a set update.
-        # to trigger a set replace, use `set-replace`
+        # gNMI rpc, defaults to `get`, 
+        # if `set` is used it will default to a set update.
+        # to trigger a set replace, use `set-replace`.
+        # `subscribe` is always a subscribe with mode=ONCE
+        # possible values: `get`, `set`, `set-update`, `set-replace`, `sub`, `subscribe`
         rpc: set
         # the target router, it defaults to the value in tag "source"
         target: '{{ index .Event.Tags "source" }}'
