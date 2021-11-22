@@ -1,9 +1,9 @@
 
-# /config
+# /api/v1/config
 
-## /config
+## /api/v1/config
 
-### `GET /config`
+### `GET /api/v1/config`
 
 Request all gnmic configuration
 
@@ -11,7 +11,7 @@ Returns the whole configuration as json
 
 === "Request"
     ```bash
-    curl --request GET gnmic-api-address:port/config
+    curl --request GET gnmic-api-address:port/api/v1/config
     ```
 === "200 OK"
     ```json
@@ -108,9 +108,9 @@ Returns the whole configuration as json
     }
     ```
 
-## /config/targets
+## /api/v1/config/targets
 
-### `GET /config/targets`
+### `GET /api/v1/config/targets`
 
 Request all targets configuration
 
@@ -118,7 +118,7 @@ returns the targets configuration as json
 
 === "Request"
     ```bash
-    curl --request GET gnmic-api-address:port/config/targets
+    curl --request GET gnmic-api-address:port/api/v1/config/targets
     ```
 === "200 OK"
     ```json
@@ -164,7 +164,7 @@ returns the targets configuration as json
     }
     ```
 
-### `GET /config/targets/{id}` 
+### `GET /api/v1/config/targets/{id}`
 
 Request a single target configuration
 
@@ -172,7 +172,7 @@ Returns a single target configuration as json, where {id} is the target ID
 
 === "Request"
     ```bash
-    curl --request GET gnmic-api-address:port/config/targets/192.168.1.131:57400
+    curl --request GET gnmic-api-address:port/api/v1/config/targets/192.168.1.131:57400
     ```
 === "200 OK"
     ```json
@@ -205,8 +205,8 @@ Returns a single target configuration as json, where {id} is the target ID
     }
     ```
 
-### `POST /config/targets`
-    
+### `POST /api/v1/config/targets`
+
 Add a new target to gnmic configuration
 
 Expected request body is a single target config as json
@@ -217,7 +217,7 @@ Returns an empty body if successful.
     ```bash
     curl --request POST -H "Content-Type: application/json" \
          -d '{"address": "10.10.10.10:57400", "username": "admin", "password": "admin", "insecure": true}' \
-         gnmic-api-address:port/config/targets
+         gnmic-api-address:port/api/v1/config/targets
     ```
 === "200 OK"
     ```json
@@ -234,7 +234,7 @@ Returns an empty body if successful.
     }
     ```
 
-### `DELETE /config/targets/{id}`
+### `DELETE /api/v1/config/targets/{id}`
   
 Deletes a target {id} configuration, all active subscriptions are terminated.
 
@@ -242,47 +242,47 @@ Returns an empty body
 
 === "Request"
     ```bash
-    curl --request DELETE gnmic-api-address:port/config/targets/192.168.1.131:57400
+    curl --request DELETE gnmic-api-address:port/api/v1/config/targets/192.168.1.131:57400
     ```
 === "200 OK"
     ```json
     ```
 
-## /config/subscriptions
+## /api/v1/config/subscriptions
 
-### `GET /config/subscriptions`
+### `GET /api/v1/config/subscriptions`
 
 Request all the configured subscriptions.
 
 Returns the subscriptions configuration as json
 
-## /config/outputs
+## /api/v1/config/outputs
 
-### `GET /config/outputs`
+### `GET /api/v1/config/outputs`
 
 Request all the configured outputs.
 
 Returns the outputs configuration as json
 
-## /config/inputs
+## /api/v1/config/inputs
 
-### `GET /config/inputs`
+### `GET /api/v1/config/inputs`
 
 Request all the configured inputs.
 
 Returns the outputs configuration as json
 
-## /config/processors
+## /api/v1/config/processors
 
-### `GET /config/processors`
+### `GET /api/v1/config/processors`
 
 Request all the configured processors.
 
 Returns the processors configuration as json
 
-## /config/clustering
+## /api/v1/config/clustering
 
-### `GET /config/clustering`
+### `GET /api/v1/config/clustering`
 
 Request the clustering configuration.
 

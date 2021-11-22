@@ -2,21 +2,27 @@
 
 trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
 
-curl -s http://$1/config | jq
-curl -s http://$1/config/targets | jq
-for i in $(curl -s http://$1/config/targets | jq -r 'keys[]');
+curl -sS http://$1/api/v1/config | yq eval -P
+curl -sS http://$1/api/v1/config/targets | yq eval -P
+for i in $(curl -sS http://$1/api/v1/config/targets | jq -r 'keys[]');
     do
-        curl -s http://$1/config/targets/$i | jq
+        curl -sS http://$1/api/v1/config/targets/$i |yq eval -P
     done
-curl -s http://$1/config/subscriptions | jq
-curl -s http://$1/config/outputs | jq
-curl -s http://$1/config/inputs | jq
-curl -s http://$1/config/processors | jq
-curl -s http://$1/config/clustering | jq
-curl -s http://$1/config/api-server | jq
-curl -s http://$1/config/gnmi-server | jq
-curl -s http://$1/targets | jq
-for i in $(curl -s http://$1/targets | jq -r 'keys[]');
+
+curl -sS http://$1/api/v1/config/subscriptions | yq eval -P
+curl -sS http://$1/api/v1/config/outputs | yq eval -P
+curl -sS http://$1/api/v1/config/inputs | yq eval -P
+curl -sS http://$1/api/v1/config/processors | yq eval -P
+curl -sS http://$1/api/v1/config/clustering | yq eval -P
+curl -sS http://$1/api/v1/config/api-server | yq eval -P
+curl -sS http://$1/api/v1/config/gnmi-server | yq eval -P
+curl -sS http://$1/api/v1/targets | yq eval -P
+
+for i in $(curl -sS http://$1/api/v1/targets | jq -r 'keys[]');
     do
-        curl -s http://$1/targets/$i | jq
+        curl -sS http://$1/api/v1/targets/$i | yq eval -P
     done
+
+curl -sS http://$1/api/v1/cluster | yq eval -P
+curl -sS http://$1/api/v1/cluster/members | yq eval -P
+curl -sS http://$1/api/v1/cluster/leader | yq eval -P

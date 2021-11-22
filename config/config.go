@@ -48,6 +48,7 @@ type Config struct {
 	Clustering         *clustering                          `mapstructure:"clustering,omitempty" json:"clustering,omitempty" yaml:"clustering,omitempty"`
 	GnmiServer         *gnmiServer                          `mapstructure:"gnmi-server,omitempty" json:"gnmi-server,omitempty" yaml:"gnmi-server,omitempty"`
 	APIServer          *APIServer                           `mapstructure:"api-server,omitempty" json:"api-server,omitempty" yaml:"api-server,omitempty"`
+	Loader             map[string]interface{}               `mapstructure:"loader,omitempty" json:"loader,omitempty" yaml:"loader,omitempty"`
 	logger             *log.Logger
 	setRequestTemplate []*template.Template
 	setRequestVars     map[string]interface{}
@@ -216,6 +217,7 @@ func New() *Config {
 		make(map[string]map[string]interface{}),
 		make(map[string]map[string]interface{}),
 		make(map[string]map[string]interface{}),
+		nil,
 		nil,
 		nil,
 		nil,

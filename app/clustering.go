@@ -543,7 +543,7 @@ func (a *App) deleteTarget(name string) error {
 				},
 			}
 		}
-		url := fmt.Sprintf("%s://%s/config/targets/%s", scheme, s.Address, name)
+		url := fmt.Sprintf("%s://%s/api/v1/config/targets/%s", scheme, s.Address, name)
 		req, err := http.NewRequestWithContext(a.ctx, http.MethodDelete, url, nil)
 		if err != nil {
 			a.Logger.Printf("failed to create a delete request: %v", err)
@@ -589,7 +589,7 @@ func (a *App) assignTarget(ctx context.Context, tc *types.TargetConfig, service 
 			},
 		}
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%s://%s/config/targets", scheme, service.Address), buffer)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%s://%s/api/v1/config/targets", scheme, service.Address), buffer)
 	if err != nil {
 		return err
 	}
@@ -603,7 +603,7 @@ func (a *App) assignTarget(ctx context.Context, tc *types.TargetConfig, service 
 		return fmt.Errorf("status code=%d", resp.StatusCode)
 	}
 	// send target start
-	req, err = http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%s://%s/targets/%s", scheme, service.Address, tc.Name), new(bytes.Buffer))
+	req, err = http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%s://%s/api/v1/targets/%s", scheme, service.Address, tc.Name), new(bytes.Buffer))
 	if err != nil {
 		return err
 	}
@@ -640,7 +640,7 @@ func (a *App) unassignTarget(name string, serviceID string) error {
 				},
 			}
 		}
-		url := fmt.Sprintf("%s://%s/targets/%s", scheme, s.Address, name)
+		url := fmt.Sprintf("%s://%s/api/v1/targets/%s", scheme, s.Address, name)
 		ctx, cancel := context.WithTimeout(a.ctx, 500*time.Millisecond)
 		defer cancel()
 		req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)

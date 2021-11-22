@@ -1,40 +1,53 @@
 package app
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/gorilla/mux"
+)
 
 func (a *App) routes() {
-	a.configRoutes()
-	a.targetRoutes()
+	apiV1 := a.router.PathPrefix("/api/v1").Subrouter()
+	a.clusterRoutes(apiV1)
+	a.configRoutes(apiV1)
+	a.targetRoutes(apiV1)
+
 }
 
-func (a *App) configRoutes() {
+func (a *App) clusterRoutes(r *mux.Router) {
+	r.HandleFunc("/cluster", a.handleClusteringGet).Methods(http.MethodGet)
+	r.HandleFunc("/cluster/members", a.handleClusteringMembersGet).Methods(http.MethodGet)
+	r.HandleFunc("/cluster/leader", a.handleClusteringLeaderGet).Methods(http.MethodGet)
+}
+
+func (a *App) configRoutes(r *mux.Router) {
 	// config
-	a.router.HandleFunc("/config", a.handleConfig).Methods(http.MethodGet)
+	r.HandleFunc("/config", a.handleConfig).Methods(http.MethodGet)
 	// config/targets
-	a.router.HandleFunc("/config/targets", a.handleConfigTargetsGet).Methods(http.MethodGet)
-	a.router.HandleFunc("/config/targets/{id}", a.handleConfigTargetsGet).Methods(http.MethodGet)
-	a.router.HandleFunc("/config/targets", a.handleConfigTargetsPost).Methods(http.MethodPost)
-	a.router.HandleFunc("/config/targets/{id}", a.handleConfigTargetsDelete).Methods(http.MethodDelete)
+	r.HandleFunc("/config/targets", a.handleConfigTargetsGet).Methods(http.MethodGet)
+	r.HandleFunc("/config/targets/{id}", a.handleConfigTargetsGet).Methods(http.MethodGet)
+	r.HandleFunc("/config/targets", a.handleConfigTargetsPost).Methods(http.MethodPost)
+	r.HandleFunc("/config/targets/{id}", a.handleConfigTargetsDelete).Methods(http.MethodDelete)
 	// config/subscriptions
-	a.router.HandleFunc("/config/subscriptions", a.handleConfigSubscriptions).Methods(http.MethodGet)
+	r.HandleFunc("/config/subscriptions", a.handleConfigSubscriptions).Methods(http.MethodGet)
 	// config/outputs
-	a.router.HandleFunc("/config/outputs", a.handleConfigOutputs).Methods(http.MethodGet)
+	r.HandleFunc("/config/outputs", a.handleConfigOutputs).Methods(http.MethodGet)
 	// config/inputs
-	a.router.HandleFunc("/config/inputs", a.handleConfigInputs).Methods(http.MethodGet)
-	// config/processors
-	a.router.HandleFunc("/config/processors", a.handleConfigProcessors).Methods(http.MethodGet)
+	r.HandleFunc("/config/inputs", a.handleConfigInputs).Methods(http.MethodGet)
+	// config/processsors
+	r.HandleFunc("/config/processors", a.handleConfigProcessors).Methods(http.MethodGet)
 	// config/clustering
-	a.router.HandleFunc("/config/clustering", a.handleConfigClustering).Methods(http.MethodGet)
+	r.HandleFunc("/config/clustering", a.handleConfigClustering).Methods(http.MethodGet)
 	// config/api-server
-	a.router.HandleFunc("/config/api-server", a.handleConfigAPIServer).Methods(http.MethodGet)
+	r.HandleFunc("/config/api-server", a.handleConfigAPIServer).Methods(http.MethodGet)
 	// config/gnmi-server
-	a.router.HandleFunc("/config/gnmi-server", a.handleConfigGNMIServer).Methods(http.MethodGet)
+	r.HandleFunc("/config/gnmi-server", a.handleConfigGNMIServer).Methods(http.MethodGet)
 }
 
-func (a *App) targetRoutes() {
+func (a *App) targetRoutes(r *mux.Router) {
 	// targets
-	a.router.HandleFunc("/targets", a.handleTargetsGet).Methods(http.MethodGet)
-	a.router.HandleFunc("/targets/{id}", a.handleTargetsGet).Methods(http.MethodGet)
-	a.router.HandleFunc("/targets/{id}", a.handleTargetsPost).Methods(http.MethodPost)
-	a.router.HandleFunc("/targets/{id}", a.handleTargetsDelete).Methods(http.MethodDelete)
+	r.HandleFunc("/targets", a.handleTargetsGet).Methods(http.MethodGet)
+	r.HandleFunc("/targets/{id}", a.handleTargetsGet).Methods(http.MethodGet)
+	r.HandleFunc("/targets/{id}", a.handleTargetsPost).Methods(http.MethodPost)
+	r.HandleFunc("/targets/{id}", a.handleTargetsDelete).Methods(http.MethodDelete)
 }

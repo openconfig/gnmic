@@ -8,29 +8,35 @@ import (
 	_ "github.com/karimra/gnmic/loaders/all"
 )
 
-func (c *Config) GetLoader() (map[string]interface{}, error) {
+func (c *Config) GetLoader() error {
 	if c.GlobalFlags.TargetsFile != "" {
-		return map[string]interface{}{
+		c.Loader = map[string]interface{}{
 			"type": "file",
 			"path": c.GlobalFlags.TargetsFile,
-		}, nil
+		}
+		return nil
 	}
-	ldCfg := c.FileConfig.GetStringMap("loader")
-	if len(ldCfg) == 0 {
-		return nil, nil
+
+	c.Loader = c.FileConfig.GetStringMap("loader")
+	for k, v := range c.Loader {
+		c.Loader[k] = convert(v)
 	}
-	if _, ok := ldCfg["type"]; !ok {
-		return nil, errors.New("missing type field under loader configuration")
+
+	if len(c.Loader) == 0 {
+		return nil
 	}
-	if lds, ok := ldCfg["type"].(string); ok {
+	if _, ok := c.Loader["type"]; !ok {
+		return errors.New("missing type field under loader configuration")
+	}
+	if lds, ok := c.Loader["type"].(string); ok {
 		for _, lt := range loaders.LoadersTypes {
 			if lt == lds {
-				expandMapEnv(ldCfg)
-				return ldCfg, nil
+				expandMapEnv(c.Loader)
+				return nil
 			}
 		}
-		return nil, fmt.Errorf("unknown loader type %q", lds)
+		return fmt.Errorf("unknown loader type %q", lds)
 	}
-	return nil, fmt.Errorf("field 'type' not a string, found a %T", ldCfg["type"])
+	return fmt.Errorf("field 'type' not a string, found a %T", c.Loader["type"])
 
 }

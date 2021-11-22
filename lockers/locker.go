@@ -25,7 +25,8 @@ type Locker interface {
 	Deregister(string) error
 
 	List(context.Context, string) (map[string]string, error)
-	WatchServices(context.Context, string, []string, chan<- []*Service, time.Duration) error
+	GetServices(ctx context.Context, serviceName string, tags []string) ([]*Service, error)
+	WatchServices(ctx context.Context, serviceName string, tags []string, ch chan<- []*Service, dur time.Duration) error
 
 	Stop() error
 	SetLogger(*log.Logger)

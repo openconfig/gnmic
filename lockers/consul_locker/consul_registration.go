@@ -139,6 +139,26 @@ func (c *ConsulLocker) watch(qOpts *api.QueryOptions, serviceName string, tags [
 	return meta.LastIndex, nil
 }
 
+func (c *ConsulLocker) GetServices(ctx context.Context, serviceName string, tags []string) ([]*lockers.Service, error) {
+	se, _, err := c.client.Health().ServiceMultipleTags(serviceName, tags, true, &api.QueryOptions{})
+	if err != nil {
+		return nil, err
+	}
+	newSrvs := make([]*lockers.Service, 0)
+	for _, srv := range se {
+		addr := srv.Service.Address
+		if addr == "" {
+			addr = srv.Node.Address
+		}
+		newSrvs = append(newSrvs, &lockers.Service{
+			ID:      srv.Service.ID,
+			Address: net.JoinHostPort(addr, strconv.Itoa(srv.Service.Port)),
+			Tags:    srv.Service.Tags,
+		})
+	}
+	return newSrvs, nil
+}
+
 func (c *ConsulLocker) IsLocked(ctx context.Context, k string) (bool, error) {
 	qOpts := &api.QueryOptions{}
 	kv, _, err := c.client.KV().Get(k, qOpts.WithContext(ctx))

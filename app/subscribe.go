@@ -74,6 +74,10 @@ func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	err = a.Config.GetLoader()
+	if err != nil {
+		return err
+	}
 	//
 	for {
 		err := a.InitLocker()
