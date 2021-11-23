@@ -53,7 +53,8 @@ func WithLogger(l *log.Logger) Option {
 }
 
 type Input struct {
-	Event *formatters.EventMsg
-	Env   map[string]interface{}
-	Vars  map[string]interface{}
+	Event  *formatters.EventMsg
+	Env    map[string]interface{}
+	Vars   map[string]interface{}
+	Target string
 }

@@ -8,7 +8,7 @@ import (
 )
 
 func (a *App) startLoader(ctx context.Context) {
-	if a.Config.Loader == nil {
+	if len(a.Config.Loader) == 0 {
 		return
 	}
 	if a.inCluster() {

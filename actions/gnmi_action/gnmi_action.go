@@ -20,6 +20,7 @@ import (
 	"github.com/karimra/gnmic/types"
 	"github.com/karimra/gnmic/utils"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -29,6 +30,7 @@ const (
 	defaultDataType = "ALL"
 	defaultTarget   = `{{ index .Event.Tags "source" }}`
 	defaultEncoding = "JSON"
+	defaultFormat   = "json"
 )
 
 func init() {
@@ -41,17 +43,31 @@ func init() {
 }
 
 type gnmiAction struct {
-	Name       string   `mapstructure:"name,omitempty"`
-	Target     string   `mapstructure:"target,omitempty"`
-	RPC        string   `mapstructure:"rpc,omitempty"`
-	Prefix     string   `mapstructure:"prefix,omitempty"`
-	Paths      []string `mapstructure:"paths,omitempty"`
-	Type       string   `mapstructure:"data-type,omitempty"`
-	Values     []string `mapstructure:"values,omitempty"`
-	Encoding   string   `mapstructure:"encoding,omitempty"`
-	Debug      bool     `mapstructure:"debug,omitempty"`
-	NoEnvProxy bool     `mapstructure:"no-env-proxy,omitempty"`
-	Format     string   `mapstructure:"format,omitempty"`
+	// action name
+	Name string `mapstructure:"name,omitempty"`
+	// target of the gNMI RPC, it can be a Go template
+	Target string `mapstructure:"target,omitempty"`
+	// gNMI RPC, possible values `get`, `set`, `set-update`,
+	// `set-replace`, `sub`, `subscribe`
+	RPC string `mapstructure:"rpc,omitempty"`
+	// gNMI Path Prefix, can be a Go template
+	Prefix string `mapstructure:"prefix,omitempty"`
+	// list of gNMI Paths, each one can be a Go template
+	Paths []string `mapstructure:"paths,omitempty"`
+	// gNMI data type in case RPC is `get`,
+	// possible values: `config`, `state`, `operational`
+	Type string `mapstructure:"data-type,omitempty"`
+	// list of gNMI values, used in case RPC=`set*`
+	Values []string `mapstructure:"values,omitempty"`
+	// gNMI encoding
+	Encoding string `mapstructure:"encoding,omitempty"`
+	// Debug
+	Debug bool `mapstructure:"debug,omitempty"`
+	// Ignore ENV proxy
+	NoEnvProxy bool `mapstructure:"no-env-proxy,omitempty"`
+	// Response format,
+	// possible values: `json`, `event`, `prototext`, `protojson`
+	Format string `mapstructure:"format,omitempty"`
 
 	target *template.Template
 	prefix *template.Template
@@ -97,76 +113,34 @@ func (g *gnmiAction) Run(e *formatters.EventMsg, env, vars map[string]interface{
 	if err != nil {
 		return nil, err
 	}
-	if tc, ok := g.targetsConfigs[b.String()]; ok {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		t := &target.Target{Config: tc}
-		switch g.RPC {
-		case "get":
-			req, err := g.createGetRequest(in)
-			if err != nil {
-				return nil, err
-			}
-			err = t.CreateGNMIClient(ctx)
-			if err != nil {
-				return nil, err
-			}
-			resp, err := t.Get(ctx, req)
-			if err != nil {
-				return nil, err
-			}
-			mo := &formatters.MarshalOptions{Format: g.Format}
-			b, err := mo.Marshal(resp, nil)
-			return string(b), err
-		case "set-update", "set-replace", "delete":
-			req, err := g.createSetRequest(in)
-			if err != nil {
-				return nil, err
-			}
-			err = t.CreateGNMIClient(ctx)
-			if err != nil {
-				return nil, err
-			}
-			resp, err := t.Set(ctx, req)
-			if err != nil {
-				return nil, err
-			}
-			mo := &formatters.MarshalOptions{Format: g.Format}
-			b, err := mo.Marshal(resp, nil)
-			return string(b), err
-		case "sub", "subscribe": // once
-			req, err := g.createSubscribeRequest(in)
-			if err != nil {
-				return nil, err
-			}
-			err = t.CreateGNMIClient(ctx)
-			if err != nil {
-				return nil, err
-			}
-
-			responses, err := t.SubscribeOnce(ctx, req)
-			if err != nil {
-				return nil, err
-			}
-			mo := &formatters.MarshalOptions{Format: g.Format}
-			formattedResponse := make([]map[string]interface{}, 0, len(responses))
-			for _, r := range responses {
-				msgb, err := mo.Marshal(r, nil)
-				if err != nil {
-					return nil, err
-				}
-				v := make(map[string]interface{})
-				err = json.Unmarshal(msgb, &v)
-				if err != nil {
-					return nil, err
-				}
-				formattedResponse = append(formattedResponse, v)
-			}
-			rb, err := json.Marshal(formattedResponse)
-			return string(rb), err
-		}
+	tName := b.String()
+	targetsConfigs, err := g.selectTargets(tName)
+	if err != nil {
+		return nil, err
 	}
-	return nil, fmt.Errorf("unknown target %q", b.String())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	result := make(map[string]interface{})
+	for _, tc := range targetsConfigs {
+		rb, err := g.runRPC(ctx, tc, &actions.Input{
+			Event:  in.Event,
+			Env:    in.Env,
+			Vars:   in.Vars,
+			Target: tc.Name,
+		})
+		if err != nil {
+			return nil, err
+		}
+		var res interface{}
+		// using yaml.Unmarshal instead of json.Unmarshal to avoid
+		// treating integers as floats
+		err = yaml.Unmarshal(rb, &res)
+		if err != nil {
+			return nil, err
+		}
+		result[tc.Name] = res
+	}
+	return result, nil
 }
 
 func (g *gnmiAction) NName() string { return g.Name }
@@ -186,6 +160,9 @@ func (g *gnmiAction) setDefaults() {
 	}
 	if g.Target == "" {
 		g.Target = defaultTarget
+	}
+	if g.Format == "" {
+		g.Format = defaultFormat
 	}
 }
 
@@ -490,4 +467,108 @@ func (g *gnmiAction) createSubscribeRequest(in *actions.Input) (*gnmi.SubscribeR
 			},
 		},
 	}, nil
+}
+
+func (g *gnmiAction) selectTargets(tName string) ([]*types.TargetConfig, error) {
+	if tName == "" {
+		return nil, nil
+	}
+	targets := make([]*types.TargetConfig, 0, len(g.targetsConfigs))
+	if tName == "all" {
+		for _, tc := range g.targetsConfigs {
+			targets = append(targets, tc)
+		}
+		return targets, nil
+	}
+	tNames := strings.Split(tName, ",")
+	for _, name := range tNames {
+		if tc, ok := g.targetsConfigs[name]; ok {
+			targets = append(targets, tc)
+		}
+	}
+	return targets, nil
+}
+
+func (g *gnmiAction) runRPC(ctx context.Context, tc *types.TargetConfig, in *actions.Input) ([]byte, error) {
+	switch g.RPC {
+	case "get":
+		return g.runGet(ctx, tc, in)
+	case "set-update", "set-replace", "delete":
+		return g.runSet(ctx, tc, in)
+	case "sub", "subscribe": // once
+		return g.runSubscribe(ctx, tc, in)
+	default:
+		return nil, fmt.Errorf("unknown RPC %q", g.RPC)
+	}
+}
+
+func (g *gnmiAction) runGet(ctx context.Context, tc *types.TargetConfig, in *actions.Input) ([]byte, error) {
+	t := &target.Target{Config: tc}
+	req, err := g.createGetRequest(in)
+	if err != nil {
+		return nil, err
+	}
+	err = t.CreateGNMIClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := t.Get(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	mo := &formatters.MarshalOptions{Format: g.Format}
+	return mo.Marshal(resp, nil)
+}
+
+func (g *gnmiAction) runSet(ctx context.Context, tc *types.TargetConfig, in *actions.Input) ([]byte, error) {
+	t := &target.Target{Config: tc}
+	req, err := g.createSetRequest(in)
+	if err != nil {
+		return nil, err
+	}
+	err = t.CreateGNMIClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := t.Set(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	mo := &formatters.MarshalOptions{Format: g.Format}
+	return mo.Marshal(resp, nil)
+}
+
+func (g *gnmiAction) runSubscribe(ctx context.Context, tc *types.TargetConfig, in *actions.Input) ([]byte, error) {
+	t := &target.Target{Config: tc}
+	req, err := g.createSubscribeRequest(in)
+	if err != nil {
+		return nil, err
+	}
+	err = t.CreateGNMIClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	responses, err := t.SubscribeOnce(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	mo := &formatters.MarshalOptions{Format: g.Format}
+	formattedResponse := make([]interface{}, 0, len(responses))
+	m := map[string]string{
+		"source": tc.Name,
+	}
+	for _, r := range responses {
+		msgb, err := mo.Marshal(r, m)
+		if err != nil {
+			return nil, err
+		}
+		var v interface{}
+		err = json.Unmarshal(msgb, &v)
+		if err != nil {
+			return nil, err
+		}
+		formattedResponse = append(formattedResponse, utils.Convert(v))
+	}
+	return json.Marshal(formattedResponse)
 }
