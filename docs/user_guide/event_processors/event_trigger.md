@@ -149,6 +149,7 @@ processors:
         # possible values: `get`, `set`, `set-update`, `set-replace`, `sub`, `subscribe`
         rpc: set
         # the target router, it defaults to the value in tag "source"
+        # the value `all` means all known targets
         target: '{{ index .Event.Tags "source" }}'
         # paths templates to build xpaths
         paths:
@@ -245,7 +246,11 @@ processors:
         # applies only if .template is not set.
         # if not template and template-file are not set, 
         # the default template `{{ . }}` is used.
-        template-file:   
+        template-file:
+        # string, either `stdout` or a path to a file
+        # the result of executing to template will be written to the file
+        # specified by .output
+        output:
         # debug, enable extra logging
         debug: false
 ```
