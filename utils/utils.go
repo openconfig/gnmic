@@ -81,3 +81,23 @@ func GetHost(hostport string) string {
 	}
 	return h
 }
+
+func Convert(i interface{}) interface{} {
+	switch x := i.(type) {
+	case map[interface{}]interface{}:
+		nm := map[string]interface{}{}
+		for k, v := range x {
+			nm[k.(string)] = Convert(v)
+		}
+		return nm
+	case map[string]interface{}:
+		for k, v := range x {
+			x[k] = Convert(v)
+		}
+	case []interface{}:
+		for k, v := range x {
+			x[k] = Convert(v)
+		}
+	}
+	return i
+}
