@@ -10,6 +10,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"sync"
 	"text/template"
 
 	"github.com/hairyhenderson/gomplate/v3"
@@ -121,24 +122,54 @@ func (g *gnmiAction) Run(e *formatters.EventMsg, env, vars map[string]interface{
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	result := make(map[string]interface{})
+	resCh := make(chan *gnmiResponse)
+	errCh := make(chan error)
+	wg := new(sync.WaitGroup)
+	wg.Add(len(targetsConfigs))
 	for _, tc := range targetsConfigs {
-		rb, err := g.runRPC(ctx, tc, &actions.Input{
-			Event:  in.Event,
-			Env:    in.Env,
-			Vars:   in.Vars,
-			Target: tc.Name,
-		})
-		if err != nil {
-			return nil, err
+		go func(tc *types.TargetConfig) {
+			defer wg.Done()
+			rb, err := g.runRPC(ctx, tc, &actions.Input{
+				Event:  in.Event,
+				Env:    in.Env,
+				Vars:   in.Vars,
+				Target: tc.Name,
+			})
+			if err != nil {
+				errCh <- err
+				return
+			}
+			resCh <- &gnmiResponse{name: tc.Name, data: rb}
+		}(tc)
+	}
+
+	errs := make([]error, 0)
+	go func() {
+		for {
+			select {
+			case resp, ok := <-resCh:
+				if !ok {
+					return
+				}
+				var res interface{}
+				// using yaml.Unmarshal instead of json.Unmarshal to avoid
+				// treating integers as floats
+				err = yaml.Unmarshal(resp.data, &res)
+				if err != nil {
+					errs = append(errs, err)
+				}
+				result[resp.name] = res
+			case err := <-errCh:
+				g.logger.Printf("gnmi action error: %v", err)
+				errs = append(errs, err)
+			}
 		}
-		var res interface{}
-		// using yaml.Unmarshal instead of json.Unmarshal to avoid
-		// treating integers as floats
-		err = yaml.Unmarshal(rb, &res)
-		if err != nil {
-			return nil, err
-		}
-		result[tc.Name] = res
+	}()
+	wg.Wait()
+	close(resCh)
+	if len(errs) > 0 {
+		// return only the first errors
+		return nil, errs[0]
 	}
 	return result, nil
 }
@@ -571,4 +602,9 @@ func (g *gnmiAction) runSubscribe(ctx context.Context, tc *types.TargetConfig, i
 		formattedResponse = append(formattedResponse, utils.Convert(v))
 	}
 	return json.Marshal(formattedResponse)
+}
+
+type gnmiResponse struct {
+	name string
+	data []byte
 }
