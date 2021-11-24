@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/google/gnxi/utils/xpath"
+	"github.com/karimra/gnmic/utils"
 	"github.com/manifoldco/promptui"
 	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/spf13/cobra"
@@ -84,6 +85,11 @@ func (a *App) PathCmdRun(d, f, e []string, pgo pathGenOpts) error {
 	sort.Slice(gpaths, func(i, j int) bool {
 		return gpaths[i].Path < gpaths[j].Path
 	})
+	if pgo.withPrefix {
+		for _, gp := range gpaths {
+			gp.Path = collapsePrefixes(gp.Path)
+		}
+	}
 	if pgo.json {
 		b, err := json.MarshalIndent(gpaths, "", "  ")
 		if err != nil {
@@ -358,4 +364,43 @@ func isState(e *yang.Entry) bool {
 		return isState(e.Parent)
 	}
 	return false
+}
+
+// collapsePrefixes removes prefixes from path element names and keys
+func collapsePrefixes(p string) string {
+	gp, err := utils.ParsePath(p)
+	if err != nil {
+		return p
+	}
+	parentPrefix := ""
+	for _, pe := range gp.Elem {
+		currentPrefix, name := getPrefixElem(pe.Name)
+		if parentPrefix == "" {
+			// first elem
+			parentPrefix = currentPrefix
+		} else if currentPrefix == parentPrefix {
+			pe.Name = name
+		}
+		for k, v := range pe.Key {
+			kp, kn := getPrefixElem(k)
+			if kp == parentPrefix {
+				pe.Key[kn] = v
+				delete(pe.Key, k)
+			}
+		}
+	}
+	return fmt.Sprintf("/%s", utils.GnmiPathToXPath(gp, false))
+}
+
+// takes a path element name or a key name
+// and returns the prefix and name
+func getPrefixElem(pe string) (string, string) {
+	if pe == "" {
+		return "", ""
+	}
+	pes := strings.SplitN(pe, ":", 2)
+	if len(pes) > 1 {
+		return pes[0], pes[1]
+	}
+	return "", pes[0]
 }
