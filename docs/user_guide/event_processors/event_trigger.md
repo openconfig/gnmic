@@ -1,3 +1,4 @@
+
 The `event-trigger` processor takes event messages as input and triggers a list of actions (sequentially) if a configured condition evaluates to `true`.
 
 The condition is evaluated using the the Golang implementation of [jq](https://github.com/itchyny/gojq) with the event message as a `json` input.
@@ -11,11 +12,13 @@ The condition is evaluated using the the Golang implementation of [jq](https://g
 Examples of conditions:
 
 - The below expression checks if the value named `counter1` has a value higher than 90
+
 ```bash
 .values["counter1"] > 90
 ```
 
 - This expression checks if the event name is `sub1`, that the tag `source` is equal to `r1:57400`
+
 ```bash
 .name == "sub1" and .tags["source"] == "r1:57400" 
 ```
@@ -249,3 +252,39 @@ processors:
         # debug, enable extra logging
         debug: false
 ```
+
+### Script Action
+
+The `Script action` allows to run arbitrary scripts as a result of an event trigger.
+
+The commands to be executed can be specified using the field `command`, e.g:
+
+```yaml
+processors:
+  # processor name
+  my_trigger_proc: # 
+    # processor type
+    event-trigger:
+      actions:
+        - name: weather
+          type: script
+          command: | 
+            curl wttr.in
+            curl cheat.sh
+```
+
+Or using the field `file`, e.g:
+
+```yaml
+processors:
+  # processor name
+  my_trigger_proc: # 
+    # processor type
+    event-trigger:
+      actions:
+        - name: exec
+          type: script
+          file: ./my_executable_script.sh
+```
+
+When using `command`, the shell interpreter can be set using `shell` field. Otherwise it defaults to `/bin/bash`.
