@@ -195,8 +195,13 @@ func (a *App) handleGetRequestEvent(ctx context.Context, req *gnmi.GetRequest, e
 	}
 	responses := make(map[string][]*formatters.EventMsg)
 	go func() {
-		for r := range rsps {
-			responses[r.name] = r.rsp
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case r := <-rsps:
+				responses[r.name] = r.rsp
+			}
 		}
 	}()
 	a.wg.Wait()
