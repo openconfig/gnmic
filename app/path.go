@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/google/gnxi/utils/xpath"
+	"github.com/karimra/gnmic/utils"
 	"github.com/manifoldco/promptui"
 	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/spf13/cobra"
@@ -28,12 +29,13 @@ type pathGenOpts struct {
 }
 
 type generatedPath struct {
-	Path        string `json:"path,omitempty"`
-	Type        string `json:"type,omitempty"`
-	Description string `json:"description,omitempty"`
-	Default     string `json:"default,omitempty"`
-	IsState     bool   `json:"is-state,omitempty"`
-	Namespace   string `json:"namespace,omitempty"`
+	Path           string `json:"path,omitempty"`
+	PathWithPrefix string `json:"path-with-prefix,omitempty"`
+	Type           string `json:"type,omitempty"`
+	Description    string `json:"description,omitempty"`
+	Default        string `json:"default,omitempty"`
+	IsState        bool   `json:"is-state,omitempty"`
+	Namespace      string `json:"namespace,omitempty"`
 }
 
 func (a *App) PathCmdRun(d, f, e []string, pgo pathGenOpts) error {
@@ -67,16 +69,16 @@ func (a *App) PathCmdRun(d, f, e []string, pgo pathGenOpts) error {
 	}
 	for _, entry := range collected {
 		if !pgo.stateOnly && !pgo.configOnly || pgo.stateOnly && pgo.configOnly {
-			out <- a.generatePath(entry, pgo.withPrefix, pgo.pathType)
+			out <- a.generatePath(entry, pgo.pathType)
 			continue
 		}
 		state := isState(entry)
 		if state && pgo.stateOnly {
-			out <- a.generatePath(entry, pgo.withPrefix, pgo.pathType)
+			out <- a.generatePath(entry, pgo.pathType)
 			continue
 		}
 		if !state && pgo.configOnly {
-			out <- a.generatePath(entry, pgo.withPrefix, pgo.pathType)
+			out <- a.generatePath(entry, pgo.pathType)
 			continue
 		}
 	}
@@ -84,6 +86,9 @@ func (a *App) PathCmdRun(d, f, e []string, pgo pathGenOpts) error {
 	sort.Slice(gpaths, func(i, j int) bool {
 		return gpaths[i].Path < gpaths[j].Path
 	})
+	for _, gp := range gpaths {
+		gp.PathWithPrefix = collapsePrefixes(gp.PathWithPrefix)
+	}
 	if pgo.json {
 		b, err := json.MarshalIndent(gpaths, "", "  ")
 		if err != nil {
@@ -228,25 +233,27 @@ func collectSchemaNodes(e *yang.Entry, leafOnly bool) []*yang.Entry {
 	return collected
 }
 
-func (a *App) generatePath(entry *yang.Entry, prefixTagging bool, pType string) *generatedPath {
+func (a *App) generatePath(entry *yang.Entry, pType string) *generatedPath {
 	gp := new(generatedPath)
 	for e := entry; e != nil && e.Parent != nil; e = e.Parent {
 		if e.IsCase() || e.IsChoice() {
 			continue
 		}
 		elementName := e.Name
-		if prefixTagging && e.Prefix != nil {
-			elementName = fmt.Sprintf("%s:%s", e.Prefix.Name, elementName)
+		prefixedElementName := e.Name
+		if e.Prefix != nil {
+			prefixedElementName = fmt.Sprintf("%s:%s", e.Prefix.Name, prefixedElementName)
 		}
 		if e.Key != "" {
 			for _, k := range strings.Fields(e.Key) {
-				if prefixTagging && e.Prefix != nil {
-					k = fmt.Sprintf("%s:%s", e.Prefix.Name, k)
-				}
 				elementName = fmt.Sprintf("%s[%s=*]", elementName, k)
+				prefixedElementName = fmt.Sprintf("%s[%s=*]", prefixedElementName, k)
 			}
 		}
 		gp.Path = fmt.Sprintf("/%s%s", elementName, gp.Path)
+		if e.Prefix != nil {
+			gp.PathWithPrefix = fmt.Sprintf("/%s%s", prefixedElementName, gp.PathWithPrefix)
+		}
 	}
 
 	gp.Description = entry.Description
@@ -358,4 +365,36 @@ func isState(e *yang.Entry) bool {
 		return isState(e.Parent)
 	}
 	return false
+}
+
+// collapsePrefixes removes prefixes from path element names and keys
+func collapsePrefixes(p string) string {
+	gp, err := utils.ParsePath(p)
+	if err != nil {
+		return p
+	}
+	parentPrefix := ""
+	for _, pe := range gp.Elem {
+		currentPrefix, name := getPrefixElem(pe.Name)
+		if parentPrefix == "" || parentPrefix != currentPrefix {
+			// first elem or updating parent prefix
+			parentPrefix = currentPrefix
+		} else if currentPrefix == parentPrefix {
+			pe.Name = name
+		}
+	}
+	return fmt.Sprintf("/%s", utils.GnmiPathToXPath(gp, false))
+}
+
+// takes a path element name or a key name
+// and returns the prefix and name
+func getPrefixElem(pe string) (string, string) {
+	if pe == "" {
+		return "", ""
+	}
+	pes := strings.SplitN(pe, ":", 2)
+	if len(pes) > 1 {
+		return pes[0], pes[1]
+	}
+	return "", pes[0]
 }
