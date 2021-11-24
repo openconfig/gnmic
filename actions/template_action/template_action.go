@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"text/template"
 
 	"github.com/hairyhenderson/gomplate/v3"
@@ -32,6 +33,7 @@ type templateAction struct {
 	Name         string `mapstructure:"name,omitempty"`
 	Template     string `mapstructure:"template,omitempty"`
 	TemplateFile string `mapstructure:"template-file,omitempty"`
+	Output       string `mapstructure:"output,omitempty"`
 	Debug        bool   `mapstructure:"debug,omitempty"`
 
 	tpl    *template.Template
@@ -85,6 +87,20 @@ func (t *templateAction) Run(e *formatters.EventMsg, env, vars map[string]interf
 	out := b.String()
 	if t.Debug {
 		t.logger.Printf("template output: %s", out)
+	}
+	switch t.Output {
+	case "stdout":
+		fmt.Fprint(os.Stdout, out)
+	case "":
+	default:
+		fi, err := os.Create(t.Output)
+		if err != nil {
+			return nil, err
+		}
+		_, err = fi.Write(b.Bytes())
+		if err != nil {
+			return nil, err
+		}
 	}
 	return out, nil
 }
