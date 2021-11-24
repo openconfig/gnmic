@@ -29,12 +29,13 @@ type pathGenOpts struct {
 }
 
 type generatedPath struct {
-	Path        string `json:"path,omitempty"`
-	Type        string `json:"type,omitempty"`
-	Description string `json:"description,omitempty"`
-	Default     string `json:"default,omitempty"`
-	IsState     bool   `json:"is-state,omitempty"`
-	Namespace   string `json:"namespace,omitempty"`
+	Path           string `json:"path,omitempty"`
+	PathWithPrefix string `json:"path-with-prefix,omitempty"`
+	Type           string `json:"type,omitempty"`
+	Description    string `json:"description,omitempty"`
+	Default        string `json:"default,omitempty"`
+	IsState        bool   `json:"is-state,omitempty"`
+	Namespace      string `json:"namespace,omitempty"`
 }
 
 func (a *App) PathCmdRun(d, f, e []string, pgo pathGenOpts) error {
@@ -85,10 +86,8 @@ func (a *App) PathCmdRun(d, f, e []string, pgo pathGenOpts) error {
 	sort.Slice(gpaths, func(i, j int) bool {
 		return gpaths[i].Path < gpaths[j].Path
 	})
-	if pgo.withPrefix {
-		for _, gp := range gpaths {
-			gp.Path = collapsePrefixes(gp.Path)
-		}
+	for _, gp := range gpaths {
+		gp.PathWithPrefix = collapsePrefixes(gp.PathWithPrefix)
 	}
 	if pgo.json {
 		b, err := json.MarshalIndent(gpaths, "", "  ")
@@ -234,25 +233,27 @@ func collectSchemaNodes(e *yang.Entry, leafOnly bool) []*yang.Entry {
 	return collected
 }
 
-func (a *App) generatePath(entry *yang.Entry, prefixTagging bool, pType string) *generatedPath {
+func (a *App) generatePath(entry *yang.Entry, _ bool, pType string) *generatedPath {
 	gp := new(generatedPath)
 	for e := entry; e != nil && e.Parent != nil; e = e.Parent {
 		if e.IsCase() || e.IsChoice() {
 			continue
 		}
 		elementName := e.Name
-		if prefixTagging && e.Prefix != nil {
-			elementName = fmt.Sprintf("%s:%s", e.Prefix.Name, elementName)
+		prefixedElementName := e.Name
+		if e.Prefix != nil {
+			prefixedElementName = fmt.Sprintf("%s:%s", e.Prefix.Name, prefixedElementName)
 		}
 		if e.Key != "" {
 			for _, k := range strings.Fields(e.Key) {
-				if prefixTagging && e.Prefix != nil {
-					k = fmt.Sprintf("%s:%s", e.Prefix.Name, k)
-				}
 				elementName = fmt.Sprintf("%s[%s=*]", elementName, k)
+				prefixedElementName = fmt.Sprintf("%s[%s=*]", prefixedElementName, k)
 			}
 		}
 		gp.Path = fmt.Sprintf("/%s%s", elementName, gp.Path)
+		if e.Prefix != nil {
+			gp.PathWithPrefix = fmt.Sprintf("/%s%s", prefixedElementName, gp.PathWithPrefix)
+		}
 	}
 
 	gp.Description = entry.Description
@@ -375,18 +376,11 @@ func collapsePrefixes(p string) string {
 	parentPrefix := ""
 	for _, pe := range gp.Elem {
 		currentPrefix, name := getPrefixElem(pe.Name)
-		if parentPrefix == "" {
-			// first elem
+		if parentPrefix == "" || parentPrefix != currentPrefix {
+			// first elem or updating parent prefix
 			parentPrefix = currentPrefix
 		} else if currentPrefix == parentPrefix {
 			pe.Name = name
-		}
-		for k, v := range pe.Key {
-			kp, kn := getPrefixElem(k)
-			if kp == parentPrefix {
-				pe.Key[kn] = v
-				delete(pe.Key, k)
-			}
 		}
 	}
 	return fmt.Sprintf("/%s", utils.GnmiPathToXPath(gp, false))
