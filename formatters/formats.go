@@ -34,6 +34,7 @@ func (o *MarshalOptions) Marshal(msg proto.Message, meta map[string]string, eps 
 	case "prototext":
 		return prototext.MarshalOptions{Multiline: o.Multiline, Indent: o.Indent}.Marshal(msg)
 	case "event":
+		b := make([]byte, 0)
 		switch msg := msg.ProtoReflect().Interface().(type) {
 		case *gnmi.SubscribeResponse:
 			var subscriptionName string
@@ -41,7 +42,6 @@ func (o *MarshalOptions) Marshal(msg proto.Message, meta map[string]string, eps 
 			if subscriptionName, ok = meta["subscription-name"]; !ok {
 				subscriptionName = "default"
 			}
-			b := make([]byte, 0)
 			switch msg.GetResponse().(type) {
 			case *gnmi.SubscribeResponse_Update:
 				events, err := ResponseToEventMsgs(subscriptionName, msg, meta, eps...)
@@ -56,6 +56,21 @@ func (o *MarshalOptions) Marshal(msg proto.Message, meta map[string]string, eps 
 				if err != nil {
 					return nil, fmt.Errorf("failed marshaling format 'event': %v", err)
 				}
+			}
+			return b, nil
+		case *gnmi.GetResponse:
+			events, err := GetResponseToEventMsgs(msg, meta, eps...)
+			if err != nil {
+				return nil, fmt.Errorf("failed converting response to events: %v", err)
+			}
+
+			if o.Multiline {
+				b, err = json.MarshalIndent(events, "", o.Indent)
+			} else {
+				b, err = json.Marshal(events)
+			}
+			if err != nil {
+				return nil, fmt.Errorf("failed marshaling format 'event': %v", err)
 			}
 			return b, nil
 		default:

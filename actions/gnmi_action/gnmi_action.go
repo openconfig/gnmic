@@ -162,11 +162,12 @@ func (g *gnmiAction) Run(e *formatters.EventMsg, env, vars map[string]interface{
 			case err := <-errCh:
 				g.logger.Printf("gnmi action error: %v", err)
 				errs = append(errs, err)
+			case <-ctx.Done():
+				return
 			}
 		}
 	}()
 	wg.Wait()
-	close(resCh)
 	if len(errs) > 0 {
 		// return only the first errors
 		return nil, errs[0]

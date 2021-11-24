@@ -270,7 +270,7 @@ func (a *App) PrintMsg(address string, msgName string, msg proto.Message) error 
 		Format:     a.Config.Format,
 		ValuesOnly: a.Config.GetValuesOnly,
 	}
-	b, err := mo.Marshal(msg, map[string]string{"address": address})
+	b, err := mo.Marshal(msg, map[string]string{"source": address})
 	if err != nil {
 		a.Logger.Printf("error marshaling message: %v", err)
 		if !a.Config.Log {

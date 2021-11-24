@@ -106,6 +106,7 @@ type LocalFlags struct {
 	GetType       string   `mapstructure:"get-type,omitempty" json:"get-type,omitempty" yaml:"get-type,omitempty"`
 	GetTarget     string   `mapstructure:"get-target,omitempty" json:"get-target,omitempty" yaml:"get-target,omitempty"`
 	GetValuesOnly bool     `mapstructure:"get-values-only,omitempty" json:"get-values-only,omitempty" yaml:"get-values-only,omitempty"`
+	GetProcessor  []string `mapstructure:"get-processor,omitempty" json:"get-processor,omitempty" yaml:"get-processor,omitempty"`
 	// Set
 	SetPrefix       string   `mapstructure:"set-prefix,omitempty" json:"set-prefix,omitempty" yaml:"set-prefix,omitempty"`
 	SetDelete       []string `mapstructure:"set-delete,omitempty" json:"set-delete,omitempty" yaml:"set-delete,omitempty"`
