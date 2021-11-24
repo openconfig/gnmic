@@ -69,16 +69,16 @@ func (a *App) PathCmdRun(d, f, e []string, pgo pathGenOpts) error {
 	}
 	for _, entry := range collected {
 		if !pgo.stateOnly && !pgo.configOnly || pgo.stateOnly && pgo.configOnly {
-			out <- a.generatePath(entry, pgo.withPrefix, pgo.pathType)
+			out <- a.generatePath(entry, pgo.pathType)
 			continue
 		}
 		state := isState(entry)
 		if state && pgo.stateOnly {
-			out <- a.generatePath(entry, pgo.withPrefix, pgo.pathType)
+			out <- a.generatePath(entry, pgo.pathType)
 			continue
 		}
 		if !state && pgo.configOnly {
-			out <- a.generatePath(entry, pgo.withPrefix, pgo.pathType)
+			out <- a.generatePath(entry, pgo.pathType)
 			continue
 		}
 	}
@@ -233,7 +233,7 @@ func collectSchemaNodes(e *yang.Entry, leafOnly bool) []*yang.Entry {
 	return collected
 }
 
-func (a *App) generatePath(entry *yang.Entry, _ bool, pType string) *generatedPath {
+func (a *App) generatePath(entry *yang.Entry, pType string) *generatedPath {
 	gp := new(generatedPath)
 	for e := entry; e != nil && e.Parent != nil; e = e.Parent {
 		if e.IsCase() || e.IsChoice() {
