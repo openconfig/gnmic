@@ -29,7 +29,7 @@ func ResponseToEventMsgs(name string, rsp *gnmi.SubscribeResponse, meta map[stri
 	switch rsp := rsp.Response.(type) {
 	case *gnmi.SubscribeResponse_Update:
 		namePrefix, prefixTags := TagsFromGNMIPath(rsp.Update.Prefix)
-		for _, upd := range rsp.Update.Update {
+		for _, upd := range rsp.Update.GetUpdate() {
 			e := &EventMsg{
 				Tags:   make(map[string]string),
 				Values: make(map[string]interface{}),
@@ -96,6 +96,60 @@ func ResponseToEventMsgs(name string, rsp *gnmi.SubscribeResponse, meta map[stri
 				e.Deletes = append(e.Deletes, utils.GnmiPathToXPath(del, false))
 			}
 			evs = append(evs, e)
+		}
+	}
+	return evs, nil
+}
+
+func GetResponseToEventMsgs(rsp *gnmi.GetResponse, meta map[string]string, eps ...EventProcessor) ([]*EventMsg, error) {
+	if rsp == nil {
+		return nil, nil
+	}
+	var err error
+	evs := make([]*EventMsg, 0)
+	for _, notif := range rsp.GetNotification() {
+		namePrefix, prefixTags := TagsFromGNMIPath(notif.GetPrefix())
+		for _, upd := range notif.GetUpdate() {
+			e := &EventMsg{
+				Tags:   make(map[string]string),
+				Values: make(map[string]interface{}),
+			}
+			e.Timestamp = notif.GetTimestamp()
+			e.Name = "get-request"
+			for k, v := range prefixTags {
+				e.Tags[k] = v
+			}
+			pathName, pTags := TagsFromGNMIPath(upd.Path)
+			pathName = strings.TrimRight(namePrefix, "/") + "/" + strings.TrimLeft(pathName, "/")
+			for k, v := range pTags {
+				if vv, ok := e.Tags[k]; ok {
+					if v != vv {
+						e.Tags[pathName+":::"+k] = v
+					}
+					continue
+				}
+				e.Tags[k] = v
+			}
+			e.Values, err = getValueFlat(pathName, upd.GetVal())
+			if err != nil {
+				return nil, err
+			}
+			for k, v := range meta {
+				if k == "format" {
+					continue
+				}
+				if _, ok := e.Tags[k]; ok {
+					e.Tags["meta:"+k] = v
+					continue
+				}
+				e.Tags[k] = v
+			}
+			if (e != nil && e != &EventMsg{}) {
+				evs = append(evs, e)
+			}
+		}
+		for _, ep := range eps {
+			evs = ep.Apply(evs...)
 		}
 	}
 	return evs, nil

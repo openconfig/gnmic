@@ -42,6 +42,7 @@ func newGetCmd() *cobra.Command {
 			gApp.Config.SetLocalFlagsFromFile(cmd)
 			gApp.Config.LocalFlags.GetPath = config.SanitizeArrayFlagValue(gApp.Config.LocalFlags.GetPath)
 			gApp.Config.LocalFlags.GetModel = config.SanitizeArrayFlagValue(gApp.Config.LocalFlags.GetModel)
+			gApp.Config.LocalFlags.GetProcessor = config.SanitizeArrayFlagValue(gApp.Config.LocalFlags.GetProcessor)
 		},
 		RunE:         gApp.GetRun,
 		SilenceUsage: true,

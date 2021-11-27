@@ -56,6 +56,12 @@ The type flag `[--type]` is used to specify the [data type](https://github.com/o
 
 One of:  ALL, CONFIG, STATE, OPERATIONAL (defaults to "ALL")
 
+#### processor
+
+The `[--processor]` flag allow to list [event processor](../user_guide/event_processors/intro.md) names to be run as a result of receiving the GetReponse messages.
+
+The processors are run in the order they are specified (`--processor proc1,proc2` or `--processor proc1 --processor proc2`).
+
 ### Examples
 
 ```bash
