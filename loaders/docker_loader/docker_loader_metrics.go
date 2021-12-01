@@ -46,6 +46,9 @@ func initMetrics() {
 }
 
 func registerMetrics(reg *prometheus.Registry) error {
+	if reg == nil {
+		return nil
+	}
 	initMetrics()
 	var err error
 	if err = reg.Register(dockerLoaderLoadedTargets); err != nil {

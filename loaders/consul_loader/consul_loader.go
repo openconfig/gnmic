@@ -13,7 +13,6 @@ import (
 	"github.com/hashicorp/consul/api"
 	"github.com/mitchellh/consulstructure"
 	"github.com/mitchellh/mapstructure"
-	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/karimra/gnmic/loaders"
 	"github.com/karimra/gnmic/types"
@@ -198,15 +197,6 @@ func (c *consulLoader) Start(ctx context.Context) chan *loaders.TargetOperation 
 		}
 	}
 	return opChan
-}
-
-func (c *consulLoader) RegisterMetrics(reg *prometheus.Registry) {
-	if !c.cfg.EnableMetrics && reg != nil {
-		return
-	}
-	if err := registerMetrics(reg); err != nil {
-		c.logger.Printf("failed to register metrics: %v", err)
-	}
 }
 
 func (c *consulLoader) setDefaults() error {

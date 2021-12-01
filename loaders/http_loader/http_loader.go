@@ -12,7 +12,6 @@ import (
 	"github.com/karimra/gnmic/loaders"
 	"github.com/karimra/gnmic/types"
 	"github.com/karimra/gnmic/utils"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -102,15 +101,6 @@ func (h *httpLoader) Start(ctx context.Context) chan *loaders.TargetOperation {
 		}
 	}()
 	return opChan
-}
-
-func (h *httpLoader) RegisterMetrics(reg *prometheus.Registry) {
-	if !h.cfg.EnableMetrics && reg != nil {
-		return
-	}
-	if err := registerMetrics(reg); err != nil {
-		h.logger.Printf("failed to register metrics: %v", err)
-	}
 }
 
 func (h *httpLoader) setDefaults() error {

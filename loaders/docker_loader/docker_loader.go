@@ -3,6 +3,7 @@ package docker_loader
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -16,11 +17,12 @@ import (
 	dtypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
 	dClient "github.com/docker/docker/client"
+	"github.com/karimra/gnmic/actions"
 	"github.com/karimra/gnmic/loaders"
 	"github.com/karimra/gnmic/types"
 	"github.com/karimra/gnmic/utils"
 	"github.com/mitchellh/mapstructure"
-	"github.com/prometheus/client_golang/prometheus"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -34,6 +36,7 @@ func init() {
 		return &dockerLoader{
 			cfg:         new(cfg),
 			wg:          new(sync.WaitGroup),
+			m:           new(sync.Mutex),
 			lastTargets: make(map[string]*types.TargetConfig),
 			logger:      log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
 		}
@@ -41,12 +44,21 @@ func init() {
 }
 
 type dockerLoader struct {
-	cfg         *cfg
-	client      *dClient.Client
-	wg          *sync.WaitGroup
-	lastTargets map[string]*types.TargetConfig
-	logger      *log.Logger
-	fl          []*targetFilterComp
+	cfg    *cfg
+	client *dClient.Client
+	wg     *sync.WaitGroup
+
+	m              *sync.Mutex
+	lastTargets    map[string]*types.TargetConfig
+	targetConfigFn func(*types.TargetConfig) error
+	logger         *log.Logger
+	fl             []*targetFilterComp
+	//
+	vars          map[string]interface{}
+	actionsConfig map[string]map[string]interface{}
+	addActions    []actions.Action
+	delActions    []actions.Action
+	numActions    int
 }
 
 type targetFilterComp struct {
@@ -57,14 +69,30 @@ type targetFilterComp struct {
 }
 
 type cfg struct {
-	Address  string          `json:"address,omitempty" mapstructure:"address,omitempty"`
-	Interval time.Duration   `json:"interval,omitempty" mapstructure:"interval,omitempty"`
-	Timeout  time.Duration   `json:"timeout,omitempty" mapstructure:"timeout,omitempty"`
-	Filters  []*targetFilter `json:"filters,omitempty" mapstructure:"filters,omitempty"`
-	Debug    bool            `json:"debug,omitempty" mapstructure:"debug,omitempty"`
+	// address of docker daemon API
+	Address string `json:"address,omitempty" mapstructure:"address,omitempty"`
+	// interval between docker daemon queries
+	Interval time.Duration `json:"interval,omitempty" mapstructure:"interval,omitempty"`
+	// timeout of docker daemon queries
+	Timeout time.Duration `json:"timeout,omitempty" mapstructure:"timeout,omitempty"`
+	// docker filter to apply on queried docker containers
+	Filters []*targetFilter `json:"filters,omitempty" mapstructure:"filters,omitempty"`
+	// enable debug mode for more logging messages
+	Debug bool `json:"debug,omitempty" mapstructure:"debug,omitempty"`
 	// if true, registers dockerLoader prometheus metrics with the provided
 	// prometheus registry
 	EnableMetrics bool `json:"enable-metrics,omitempty" mapstructure:"enable-metrics,omitempty"`
+	// variables definitions to be passed to the actions
+	Vars map[string]interface{}
+	// variable file, values in this file will be overwritten by
+	// the ones defined in Vars
+	VarsFile string `mapstructure:"vars-file,omitempty"`
+	// run onAdd and onDelete actions asynchronously
+	Async bool `json:"async,omitempty" mapstructure:"async,omitempty"`
+	// list of Actions to run on new target discovery
+	OnAdd []string `json:"on-add,omitempty" mapstructure:"on-add,omitempty"`
+	// list of Actions to run on target removal
+	OnDelete []string `json:"on-delete,omitempty" mapstructure:"on-delete,omitempty"`
 }
 
 type targetFilter struct {
@@ -80,7 +108,9 @@ func (d *dockerLoader) Init(ctx context.Context, cfg map[string]interface{}, log
 		return err
 	}
 	d.setDefaults()
-
+	for _, opt := range opts {
+		opt(d)
+	}
 	d.fl = make([]*targetFilterComp, 0, len(d.cfg.Filters))
 	for _, fm := range d.cfg.Filters {
 		// network filter
@@ -128,7 +158,35 @@ func (d *dockerLoader) Init(ctx context.Context, cfg map[string]interface{}, log
 	if err != nil {
 		return err
 	}
+	err = d.readVars()
+	if err != nil {
+		return err
+	}
+	for _, actName := range d.cfg.OnAdd {
+		if cfg, ok := d.actionsConfig[actName]; ok {
+			fmt.Println(cfg)
+			a, err := d.initializeAction(cfg)
+			if err != nil {
+				return err
+			}
+			d.addActions = append(d.addActions, a)
+			continue
+		}
+		return fmt.Errorf("unknown action name %q", actName)
 
+	}
+	for _, actName := range d.cfg.OnDelete {
+		if cfg, ok := d.actionsConfig[actName]; ok {
+			a, err := d.initializeAction(cfg)
+			if err != nil {
+				return err
+			}
+			d.delActions = append(d.delActions, a)
+			continue
+		}
+		return fmt.Errorf("unknown action name %q", actName)
+	}
+	d.numActions = len(d.addActions) + len(d.delActions)
 	d.logger.Printf("connected to docker daemon: %+v", ping)
 	d.logger.Printf("initialized loader type %q: %s", loaderType, d)
 	return nil
@@ -191,22 +249,64 @@ func (d *dockerLoader) Start(ctx context.Context) chan *loaders.TargetOperation 
 				select {
 				case <-ctx.Done():
 					return
-				case opChan <- d.diff(readTargets):
+				default:
+					targetOp := d.diff(readTargets)
+					// no actions to run, send all target operations to channel
+					if d.numActions == 0 {
+						opChan <- targetOp
+						time.Sleep(d.cfg.Interval)
+						continue
+					}
+					// run targets config function on readTargets
+					for _, tc := range readTargets {
+						err = d.targetConfigFn(tc)
+						if err != nil {
+							d.logger.Printf("failed running target config fn on target %q", tc.Name)
+						}
+					}
+					// some actions are defined,
+					// create waitGroup and add the number of target operations to it
+					wg := new(sync.WaitGroup)
+					wg.Add(len(targetOp.Add) + len(targetOp.Del))
+					// run target config func and build map of targets configs
+					for i, tAdd := range targetOp.Add {
+						err = d.targetConfigFn(tAdd)
+						if err != nil {
+							return
+						}
+						targetOp.Add[i] = tAdd
+					}
+					// run OnAdd actions
+					for _, tAdd := range targetOp.Add {
+						go func(tc *types.TargetConfig) {
+							defer wg.Done()
+							err := d.runOnAddActions(tc.Name, readTargets)
+							if err != nil {
+								d.logger.Printf("failed running OnAdd actions: %v", err)
+								return
+							}
+							opChan <- &loaders.TargetOperation{Add: []*types.TargetConfig{tc}}
+						}(tAdd)
+					}
+					// run OnDelete actions
+					for _, tDel := range targetOp.Del {
+						go func(name string) {
+							defer wg.Done()
+							err := d.runOnDeleteActions(name, readTargets)
+							if err != nil {
+								d.logger.Printf("failed running OnDelete actions: %v", err)
+								return
+							}
+							opChan <- &loaders.TargetOperation{Del: []string{name}}
+						}(tDel)
+					}
+					wg.Wait()
 					time.Sleep(d.cfg.Interval)
 				}
 			}
 		}
 	}()
 	return opChan
-}
-
-func (d *dockerLoader) RegisterMetrics(reg *prometheus.Registry) {
-	if !d.cfg.EnableMetrics && reg != nil {
-		return
-	}
-	if err := registerMetrics(reg); err != nil {
-		d.logger.Printf("failed to register metrics: %v", err)
-	}
 }
 
 func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*types.TargetConfig, error) {
@@ -383,6 +483,8 @@ func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*types.Target
 }
 
 func (d *dockerLoader) diff(m map[string]*types.TargetConfig) *loaders.TargetOperation {
+	d.m.Lock()
+	defer d.m.Unlock()
 	result := loaders.Diff(d.lastTargets, m)
 	for _, t := range result.Add {
 		if _, ok := d.lastTargets[t.Name]; !ok {
@@ -411,6 +513,88 @@ func (d *dockerLoader) String() string {
 		return fmt.Sprintf("%+v", d.cfg)
 	}
 	return string(b)
+}
+
+func (d *dockerLoader) readVars() error {
+	if d.cfg.VarsFile == "" {
+		d.vars = d.cfg.Vars
+		return nil
+	}
+	b, err := utils.ReadFile(context.TODO(), d.cfg.VarsFile)
+	if err != nil {
+		return err
+	}
+	v := make(map[string]interface{})
+	err = yaml.Unmarshal(b, &v)
+	if err != nil {
+		return err
+	}
+	d.vars = utils.MergeMaps(v, d.cfg.Vars)
+	return nil
+}
+
+func (d *dockerLoader) initializeAction(cfg map[string]interface{}) (actions.Action, error) {
+	if len(cfg) == 0 {
+		return nil, errors.New("missing action definition")
+	}
+	if actType, ok := cfg["type"]; ok {
+		switch actType := actType.(type) {
+		case string:
+			if in, ok := actions.Actions[actType]; ok {
+				act := in()
+				err := act.Init(cfg, actions.WithLogger(d.logger), actions.WithTargets(nil))
+				if err != nil {
+					return nil, err
+				}
+
+				return act, nil
+			}
+			return nil, fmt.Errorf("unknown action type %q", actType)
+		default:
+			return nil, fmt.Errorf("unexpected action field type %T", actType)
+		}
+	}
+	return nil, errors.New("missing type field under action")
+}
+
+func (d *dockerLoader) runOnAddActions(tName string, tcs map[string]*types.TargetConfig) error {
+	aCtx := &actions.Context{
+		Input:   tName,
+		Env:     make(map[string]interface{}),
+		Vars:    d.vars,
+		Targets: tcs,
+	}
+	for _, act := range d.addActions {
+		d.logger.Printf("running action %q for target %q", act.NName(), tName)
+		res, err := act.Run(aCtx)
+		if err != nil {
+			// delete target from known targets map
+			d.m.Lock()
+			delete(d.lastTargets, tName)
+			d.m.Unlock()
+			return fmt.Errorf("action %q for target %q failed: %v", act.NName(), tName, err)
+		}
+
+		aCtx.Env[act.NName()] = utils.Convert(res)
+		if d.cfg.Debug {
+			d.logger.Printf("action %q, target %q result: %+v", act.NName(), tName, res)
+			b, _ := json.MarshalIndent(aCtx, "", "  ")
+			d.logger.Printf("action %q context:\n%s", act.NName(), string(b))
+		}
+	}
+	return nil
+}
+
+func (d *dockerLoader) runOnDeleteActions(tName string, tcs map[string]*types.TargetConfig) error {
+	env := make(map[string]interface{})
+	for _, act := range d.delActions {
+		res, err := act.Run(&actions.Context{Input: tName, Env: env, Vars: d.vars})
+		if err != nil {
+			return fmt.Errorf("action %q for target %q failed: %v", act.NName(), tName, err)
+		}
+		env[act.NName()] = res
+	}
+	return nil
 }
 
 /// helpers

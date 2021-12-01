@@ -46,7 +46,7 @@ var testset = map[string]struct {
 					},
 				},
 				output: map[string]interface{}{
-					"input": map[string]interface{}{
+					"Input": map[string]interface{}{
 						"name": "sub1",
 						"tags": map[string]interface{}{
 							"tag1": "1",

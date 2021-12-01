@@ -12,7 +12,6 @@ import (
 	"github.com/karimra/gnmic/loaders"
 	"github.com/karimra/gnmic/types"
 	"github.com/karimra/gnmic/utils"
-	"github.com/prometheus/client_golang/prometheus"
 	"gopkg.in/yaml.v2"
 )
 
@@ -104,15 +103,6 @@ func (f *fileLoader) Start(ctx context.Context) chan *loaders.TargetOperation {
 		}
 	}()
 	return opChan
-}
-
-func (f *fileLoader) RegisterMetrics(reg *prometheus.Registry) {
-	if !f.cfg.EnableMetrics && reg != nil {
-		return
-	}
-	if err := registerMetrics(reg); err != nil {
-		f.logger.Printf("failed to register metrics: %v", err)
-	}
 }
 
 func (f *fileLoader) getTargets(ctx context.Context) (map[string]*types.TargetConfig, error) {
