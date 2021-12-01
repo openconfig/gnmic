@@ -20,7 +20,7 @@ topology:
         GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-telemetry-gnmic1
         GNMIC_GNMI_SERVER_ADDRESS: clab-telemetry-gnmic1:57400
         GNMIC_GNMI_SERVER_SERVICE_REGISTRATION_NAME: clab-telemetry-gnmic1
-        GNMIC_OUTPUTS_CLUSTER_LISTEN: clab-telemetry-gnmic1:9804
+        GNMIC_OUTPUTS_COLLECTOR_LISTEN: clab-telemetry-gnmic1:9804
     
     gnmic2:
       binds:
@@ -36,7 +36,7 @@ topology:
         GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-telemetry-gnmic2
         GNMIC_GNMI_SERVER_ADDRESS: clab-telemetry-gnmic2:57400
         GNMIC_GNMI_SERVER_SERVICE_REGISTRATION_NAME: clab-telemetry-gnmic2
-        GNMIC_OUTPUTS_CLUSTER_LISTEN: clab-telemetry-gnmic2:9805
+        GNMIC_OUTPUTS_COLLECTOR_LISTEN: clab-telemetry-gnmic2:9805
 
     gnmic3:
       binds:
@@ -52,7 +52,7 @@ topology:
         GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-telemetry-gnmic3
         GNMIC_GNMI_SERVER_ADDRESS: clab-telemetry-gnmic3:57400
         GNMIC_GNMI_SERVER_SERVICE_REGISTRATION_NAME: clab-telemetry-gnmic3
-        GNMIC_OUTPUTS_CLUSTER_LISTEN: clab-telemetry-gnmic3:9806
+        GNMIC_OUTPUTS_COLLECTOR_LISTEN: clab-telemetry-gnmic3:9806
 
     agg-gnmic1:
       binds:

@@ -9,6 +9,9 @@ import (
 )
 
 func (g *gnmiAction) WithTargets(tcs map[string]*types.TargetConfig) {
+	if tcs == nil {
+		return
+	}
 	g.targetsConfigs = tcs
 }
 

@@ -46,9 +46,11 @@ var testset = map[string]struct {
 					},
 				},
 				output: map[string]interface{}{
-					"name": "sub1",
-					"tags": map[string]interface{}{
-						"tag1": "1",
+					"input": map[string]interface{}{
+						"name": "sub1",
+						"tags": map[string]interface{}{
+							"tag1": "1",
+						},
 					},
 				},
 			},
@@ -60,7 +62,7 @@ var testset = map[string]struct {
 			"type":  "http",
 			"name":  "act1",
 			"url":   "http://localhost:8080",
-			"body":  `{{ name . }}`,
+			"body":  `{{ name .Input }}`,
 			"debug": true,
 		},
 		tests: []item{
@@ -87,7 +89,7 @@ var testset = map[string]struct {
 			"type":  "http",
 			"name":  "act1",
 			"url":   "http://localhost:8080",
-			"body":  `{{ withTags . }}`,
+			"body":  `{{ withTags .Input }}`,
 			"debug": true,
 		},
 		tests: []item{
@@ -122,7 +124,7 @@ var testset = map[string]struct {
 			"type":  "http",
 			"name":  "act1",
 			"url":   "http://localhost:8080",
-			"body":  `{{ withoutTags . "tag1" }}`,
+			"body":  `{{ withoutTags .Input "tag1" }}`,
 			"debug": true,
 		},
 		tests: []item{
@@ -174,7 +176,7 @@ var testset = map[string]struct {
 			"type":  "http",
 			"name":  "act1",
 			"url":   "http://localhost:8080",
-			"body":  `{{ withTags . "tag1" }}`,
+			"body":  `{{ withTags .Input "tag1" }}`,
 			"debug": true,
 		},
 		tests: []item{
@@ -213,7 +215,7 @@ var testset = map[string]struct {
 			"type":  "http",
 			"name":  "act1",
 			"url":   "http://localhost:8080",
-			"body":  `{{ withValues . }}`,
+			"body":  `{{ withValues .Input }}`,
 			"debug": true,
 		},
 		tests: []item{
@@ -256,7 +258,7 @@ var testset = map[string]struct {
 			"type":  "http",
 			"name":  "act1",
 			"url":   "http://localhost:8080",
-			"body":  `{{ withoutValues . "val1"}}`,
+			"body":  `{{ withoutValues .Input "val1"}}`,
 			"debug": true,
 		},
 		tests: []item{
@@ -320,7 +322,7 @@ var testset = map[string]struct {
 			"type":  "http",
 			"name":  "act1",
 			"url":   "http://localhost:8080",
-			"body":  `{{ withValues . "val1" }}`,
+			"body":  `{{ withValues .Input "val1" }}`,
 			"debug": true,
 		},
 		tests: []item{
@@ -383,7 +385,7 @@ var testset = map[string]struct {
 			"type":  "http",
 			"name":  "act1",
 			"url":   "http://localhost:8080",
-			"body":  `{{ withTags (withValues . "val1") "tag1" }}`,
+			"body":  `{{ withTags (withValues .Input "val1") "tag1" }}`,
 			"debug": true,
 		},
 		tests: []item{
@@ -484,7 +486,7 @@ func TestHTTPAction(t *testing.T) {
 			for i, item := range ts.tests {
 				t.Run(name, func(t *testing.T) {
 					t.Logf("running test item %d", i)
-					res, err := a.Run(item.input, nil, nil)
+					res, err := a.Run(&actions.Context{Input: item.input})
 					if err != nil {
 						t.Errorf("failed at %s item %d, %v", name, i, err)
 						t.Fail()

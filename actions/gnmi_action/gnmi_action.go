@@ -38,6 +38,7 @@ func init() {
 	actions.Register(actionType, func() actions.Action {
 		return &gnmiAction{
 			logger:         log.New(io.Discard, "", 0),
+			m:              new(sync.RWMutex),
 			targetsConfigs: make(map[string]*types.TargetConfig),
 		}
 	})
@@ -75,8 +76,10 @@ type gnmiAction struct {
 	paths  []*template.Template
 	values []*template.Template
 
+	logger *log.Logger
+
+	m              *sync.RWMutex
 	targetsConfigs map[string]*types.TargetConfig
-	logger         *log.Logger
 }
 
 func (g *gnmiAction) Init(cfg map[string]interface{}, opts ...actions.Option) error {
@@ -103,13 +106,19 @@ func (g *gnmiAction) Init(cfg map[string]interface{}, opts ...actions.Option) er
 	return nil
 }
 
-func (g *gnmiAction) Run(e *formatters.EventMsg, env, vars map[string]interface{}) (interface{}, error) {
-	b := new(bytes.Buffer)
-	in := &actions.Input{
-		Event: e,
-		Env:   env,
-		Vars:  vars,
+func (g *gnmiAction) Run(aCtx *actions.Context) (interface{}, error) {
+	g.m.Lock()
+	for n, tc := range aCtx.Targets {
+		g.targetsConfigs[n] = tc
 	}
+	in := &actions.Context{
+		Input:   aCtx.Input,
+		Env:     aCtx.Env,
+		Vars:    aCtx.Vars,
+		Targets: aCtx.Targets,
+	}
+	g.m.Unlock()
+	b := new(bytes.Buffer)
 	err := g.target.Execute(b, in)
 	if err != nil {
 		return nil, err
@@ -129,11 +138,12 @@ func (g *gnmiAction) Run(e *formatters.EventMsg, env, vars map[string]interface{
 	for _, tc := range targetsConfigs {
 		go func(tc *types.TargetConfig) {
 			defer wg.Done()
-			rb, err := g.runRPC(ctx, tc, &actions.Input{
-				Event:  in.Event,
-				Env:    in.Env,
-				Vars:   in.Vars,
-				Target: tc.Name,
+			// create new actions.Context to be used by each target
+			// run RPC
+			rb, err := g.runRPC(ctx, tc, &actions.Context{
+				Input: in.Input,
+				Env:   in.Env,
+				Vars:  in.Vars,
 			})
 			if err != nil {
 				errCh <- err
@@ -144,7 +154,9 @@ func (g *gnmiAction) Run(e *formatters.EventMsg, env, vars map[string]interface{
 	}
 
 	errs := make([]error, 0)
+	doneCh := make(chan struct{})
 	go func() {
+		defer close(doneCh)
 		for {
 			select {
 			case resp, ok := <-resCh:
@@ -168,6 +180,8 @@ func (g *gnmiAction) Run(e *formatters.EventMsg, env, vars map[string]interface{
 		}
 	}()
 	wg.Wait()
+	close(resCh) // close result channel
+	<-doneCh     // wait for the result map to be set
 	if len(errs) > 0 {
 		// return only the first errors
 		return nil, errs[0]
@@ -261,7 +275,7 @@ func (g *gnmiAction) createTemplates(n string, s []string) ([]*template.Template
 	return tpls, nil
 }
 
-func (g *gnmiAction) createGetRequest(in *actions.Input) (*gnmi.GetRequest, error) {
+func (g *gnmiAction) createGetRequest(in *actions.Context) (*gnmi.GetRequest, error) {
 	encodingVal, ok := gnmi.Encoding_value[strings.Replace(strings.ToUpper(g.Encoding), "-", "_", -1)]
 	if !ok {
 		return nil, fmt.Errorf("invalid encoding type '%s'", g.Encoding)
@@ -307,7 +321,7 @@ func (g *gnmiAction) createGetRequest(in *actions.Input) (*gnmi.GetRequest, erro
 	return req, nil
 }
 
-func (g *gnmiAction) createSetRequest(in *actions.Input) (*gnmi.SetRequest, error) {
+func (g *gnmiAction) createSetRequest(in *actions.Context) (*gnmi.SetRequest, error) {
 	req := &gnmi.SetRequest{
 		Delete:  make([]*gnmi.Path, 0, len(g.paths)),
 		Replace: make([]*gnmi.Update, 0, len(g.paths)),
@@ -453,7 +467,7 @@ func (g *gnmiAction) createTypedValue(val string) (*gnmi.TypedValue, error) {
 	return value, nil
 }
 
-func (g *gnmiAction) createSubscribeRequest(in *actions.Input) (*gnmi.SubscribeRequest, error) {
+func (g *gnmiAction) createSubscribeRequest(in *actions.Context) (*gnmi.SubscribeRequest, error) {
 	encodingVal, ok := gnmi.Encoding_value[strings.Replace(strings.ToUpper(g.Encoding), "-", "_", -1)]
 	if !ok {
 		return nil, fmt.Errorf("invalid encoding type '%s'", g.Encoding)
@@ -505,13 +519,18 @@ func (g *gnmiAction) selectTargets(tName string) ([]*types.TargetConfig, error) 
 	if tName == "" {
 		return nil, nil
 	}
+
 	targets := make([]*types.TargetConfig, 0, len(g.targetsConfigs))
+	g.m.RLock()
+	defer g.m.RUnlock()
+	// select all targets
 	if tName == "all" {
 		for _, tc := range g.targetsConfigs {
 			targets = append(targets, tc)
 		}
 		return targets, nil
 	}
+	// select a few targets
 	tNames := strings.Split(tName, ",")
 	for _, name := range tNames {
 		if tc, ok := g.targetsConfigs[name]; ok {
@@ -521,7 +540,7 @@ func (g *gnmiAction) selectTargets(tName string) ([]*types.TargetConfig, error) 
 	return targets, nil
 }
 
-func (g *gnmiAction) runRPC(ctx context.Context, tc *types.TargetConfig, in *actions.Input) ([]byte, error) {
+func (g *gnmiAction) runRPC(ctx context.Context, tc *types.TargetConfig, in *actions.Context) ([]byte, error) {
 	switch g.RPC {
 	case "get":
 		return g.runGet(ctx, tc, in)
@@ -534,7 +553,7 @@ func (g *gnmiAction) runRPC(ctx context.Context, tc *types.TargetConfig, in *act
 	}
 }
 
-func (g *gnmiAction) runGet(ctx context.Context, tc *types.TargetConfig, in *actions.Input) ([]byte, error) {
+func (g *gnmiAction) runGet(ctx context.Context, tc *types.TargetConfig, in *actions.Context) ([]byte, error) {
 	t := &target.Target{Config: tc}
 	req, err := g.createGetRequest(in)
 	if err != nil {
@@ -552,7 +571,7 @@ func (g *gnmiAction) runGet(ctx context.Context, tc *types.TargetConfig, in *act
 	return mo.Marshal(resp, nil)
 }
 
-func (g *gnmiAction) runSet(ctx context.Context, tc *types.TargetConfig, in *actions.Input) ([]byte, error) {
+func (g *gnmiAction) runSet(ctx context.Context, tc *types.TargetConfig, in *actions.Context) ([]byte, error) {
 	t := &target.Target{Config: tc}
 	req, err := g.createSetRequest(in)
 	if err != nil {
@@ -570,7 +589,7 @@ func (g *gnmiAction) runSet(ctx context.Context, tc *types.TargetConfig, in *act
 	return mo.Marshal(resp, nil)
 }
 
-func (g *gnmiAction) runSubscribe(ctx context.Context, tc *types.TargetConfig, in *actions.Input) ([]byte, error) {
+func (g *gnmiAction) runSubscribe(ctx context.Context, tc *types.TargetConfig, in *actions.Context) ([]byte, error) {
 	t := &target.Target{Config: tc}
 	req, err := g.createSubscribeRequest(in)
 	if err != nil {

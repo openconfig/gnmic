@@ -26,7 +26,11 @@ START:
 	a.Logger.Printf("initializing loader type %q", ldTypeS)
 
 	ld := loaders.Loaders[ldTypeS]()
-	err := ld.Init(ctx, a.Config.Loader, a.Logger, loaders.WithRegistry(a.reg))
+	err := ld.Init(ctx, a.Config.Loader, a.Logger,
+		loaders.WithRegistry(a.reg),
+		loaders.WithActions(a.Config.Actions),
+		loaders.WithTargetsDefaults(a.Config.SetTargetConfigDefaults),
+	)
 	if err != nil {
 		a.Logger.Printf("failed to init loader type %q: %v", ldTypeS, err)
 		return
@@ -58,10 +62,6 @@ START:
 			if !a.inCluster() {
 				a.Config.Targets[add.Name] = add
 				a.AddTargetConfig(add)
-				// if err != nil {
-				// 	a.Logger.Printf("failed adding target %q: %v", add.Name, err)
-				// 	continue
-				// }
 				a.wg.Add(1)
 				go a.TargetSubscribeStream(ctx, add.Name)
 				continue
