@@ -15,7 +15,12 @@ func (c *consulLoader) RegisterMetrics(reg *prometheus.Registry) {
 }
 
 func (c *consulLoader) WithActions(acts map[string]map[string]interface{}) {
-	// l.actionsConfig = acts
+	if acts == nil {
+		return
+	}
+	c.actionsConfig = acts
 }
 
-func (c *consulLoader) WithTargetsDefaults(func(tc *types.TargetConfig) error) {}
+func (c *consulLoader) WithTargetsDefaults(fn func(tc *types.TargetConfig) error) {
+	c.targetConfigFn = fn
+}
