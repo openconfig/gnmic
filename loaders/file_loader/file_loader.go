@@ -7,8 +7,10 @@ import (
 	"io"
 	"log"
 	"os"
+	"sync"
 	"time"
 
+	"github.com/karimra/gnmic/actions"
 	"github.com/karimra/gnmic/loaders"
 	"github.com/karimra/gnmic/types"
 	"github.com/karimra/gnmic/utils"
@@ -25,6 +27,7 @@ func init() {
 	loaders.Register(loaderType, func() loaders.TargetLoader {
 		return &fileLoader{
 			cfg:         &cfg{},
+			m:           new(sync.RWMutex),
 			lastTargets: make(map[string]*types.TargetConfig),
 			logger:      log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
 		}
@@ -32,13 +35,21 @@ func init() {
 }
 
 // fileLoader implements the loaders.Loader interface.
-// it reads a configured file (local, ftp, sftp, http) periodically, expects the file to contain
-// a dictionnary of types.TargetConfig.
-// It then adds new targets to gNMIc's targets and deletes the removes ones.
+// it reads a configured file (local, ftp, sftp, http) periodically,
+// expects the file to contain a dictionnary of types.TargetConfig.
+// It then adds new targets to gNMIc's targets and deletes the removed ones.
 type fileLoader struct {
-	cfg         *cfg
-	lastTargets map[string]*types.TargetConfig
-	logger      *log.Logger
+	cfg            *cfg
+	m              *sync.RWMutex
+	lastTargets    map[string]*types.TargetConfig
+	targetConfigFn func(*types.TargetConfig) error
+	logger         *log.Logger
+	//
+	vars          map[string]interface{}
+	actionsConfig map[string]map[string]interface{}
+	addActions    []actions.Action
+	delActions    []actions.Action
+	numActions    int
 }
 
 type cfg struct {
@@ -51,6 +62,17 @@ type cfg struct {
 	// if true, registers fileLoader prometheus metrics with the provided
 	// prometheus registry
 	EnableMetrics bool `json:"enable-metrics,omitempty" mapstructure:"enable-metrics,omitempty"`
+	// variables definitions to be passed to the actions
+	Vars map[string]interface{}
+	// variable file, values in this file will be overwritten by
+	// the ones defined in Vars
+	VarsFile string `mapstructure:"vars-file,omitempty"`
+	// run onAdd and onDelete actions asynchronously
+	Async bool `json:"async,omitempty" mapstructure:"async,omitempty"`
+	// list of Actions to run on new target discovery
+	OnAdd []string `json:"on-add,omitempty" mapstructure:"on-add,omitempty"`
+	// list of Actions to run on target removal
+	OnDelete []string `json:"on-delete,omitempty" mapstructure:"on-delete,omitempty"`
 }
 
 func (f *fileLoader) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger, opts ...loaders.Option) error {
@@ -71,6 +93,34 @@ func (f *fileLoader) Init(ctx context.Context, cfg map[string]interface{}, logge
 		f.logger.SetOutput(logger.Writer())
 		f.logger.SetFlags(logger.Flags())
 	}
+	err = f.readVars()
+	if err != nil {
+		return err
+	}
+	for _, actName := range f.cfg.OnAdd {
+		if cfg, ok := f.actionsConfig[actName]; ok {
+			a, err := f.initializeAction(cfg)
+			if err != nil {
+				return err
+			}
+			f.addActions = append(f.addActions, a)
+			continue
+		}
+		return fmt.Errorf("unknown action name %q", actName)
+
+	}
+	for _, actName := range f.cfg.OnDelete {
+		if cfg, ok := f.actionsConfig[actName]; ok {
+			a, err := f.initializeAction(cfg)
+			if err != nil {
+				return err
+			}
+			f.delActions = append(f.delActions, a)
+			continue
+		}
+		return fmt.Errorf("unknown action name %q", actName)
+	}
+	f.numActions = len(f.addActions) + len(f.delActions)
 	return nil
 }
 
@@ -96,7 +146,8 @@ func (f *fileLoader) Start(ctx context.Context) chan *loaders.TargetOperation {
 				select {
 				case <-ctx.Done():
 					return
-				case opChan <- f.diff(readTargets):
+				default:
+					f.updateTargets(ctx, readTargets, opChan)
 					time.Sleep(f.cfg.Interval)
 				}
 			}
@@ -145,17 +196,74 @@ func (f *fileLoader) getTargets(ctx context.Context) (map[string]*types.TargetCo
 
 // diff compares the given map[string]*types.TargetConfig with the
 // stored f.lastTargets and returns
-func (f *fileLoader) diff(m map[string]*types.TargetConfig) *loaders.TargetOperation {
-	result := loaders.Diff(f.lastTargets, m)
-	for _, t := range result.Add {
-		if _, ok := f.lastTargets[t.Name]; !ok {
-			f.lastTargets[t.Name] = t
+func (f *fileLoader) updateTargets(ctx context.Context, tcs map[string]*types.TargetConfig, opChan chan *loaders.TargetOperation) {
+	targetOp, err := f.runActions(ctx, tcs, loaders.Diff(f.lastTargets, tcs))
+	if err != nil {
+		f.logger.Printf("failed to run actions: %v", err)
+		return
+	}
+	numAdds := len(targetOp.Add)
+	numDels := len(targetOp.Del)
+	defer func() {
+		fileLoaderLoadedTargets.WithLabelValues(loaderType).Set(float64(numAdds))
+		fileLoaderDeletedTargets.WithLabelValues(loaderType).Set(float64(numDels))
+	}()
+	if numAdds+numDels == 0 {
+		return
+	}
+	f.m.Lock()
+	for _, add := range targetOp.Add {
+		f.lastTargets[add.Name] = add
+	}
+	for _, del := range targetOp.Del {
+		delete(f.lastTargets, del)
+	}
+	f.m.Unlock()
+	opChan <- targetOp
+}
+
+func (f *fileLoader) readVars() error {
+	if f.cfg.VarsFile == "" {
+		f.vars = f.cfg.Vars
+		return nil
+	}
+	b, err := utils.ReadFile(context.TODO(), f.cfg.VarsFile)
+	if err != nil {
+		return err
+	}
+	v := make(map[string]interface{})
+	err = yaml.Unmarshal(b, &v)
+	if err != nil {
+		return err
+	}
+	f.vars = utils.MergeMaps(v, f.cfg.Vars)
+	return nil
+}
+
+func (f *fileLoader) initializeAction(cfg map[string]interface{}) (actions.Action, error) {
+	if len(cfg) == 0 {
+		return nil, errors.New("missing action definition")
+	}
+	if actType, ok := cfg["type"]; ok {
+		switch actType := actType.(type) {
+		case string:
+			if in, ok := actions.Actions[actType]; ok {
+				act := in()
+				err := act.Init(cfg, actions.WithLogger(f.logger), actions.WithTargets(nil))
+				if err != nil {
+					return nil, err
+				}
+
+				return act, nil
+			}
+			return nil, fmt.Errorf("unknown action type %q", actType)
+		default:
+			return nil, fmt.Errorf("unexpected action field type %T", actType)
 		}
 	}
-	for _, n := range result.Del {
-		delete(f.lastTargets, n)
-	}
-	fileLoaderLoadedTargets.WithLabelValues(loaderType).Set(float64(len(result.Add)))
-	fileLoaderDeletedTargets.WithLabelValues(loaderType).Set(float64(len(result.Del)))
-	return result
+	return nil, errors.New("missing type field under action")
+}
+
+func (f *fileLoader) runActions(ctx context.Context, tcs map[string]*types.TargetConfig, targetOp *loaders.TargetOperation) (*loaders.TargetOperation, error) {
+	return nil, nil
 }

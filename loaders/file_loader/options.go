@@ -15,7 +15,12 @@ func (f *fileLoader) RegisterMetrics(reg *prometheus.Registry) {
 }
 
 func (f *fileLoader) WithActions(acts map[string]map[string]interface{}) {
-	//	l.actionsConfig = acts
+	if acts == nil {
+		return
+	}
+	f.actionsConfig = acts
 }
 
-func (f *fileLoader) WithTargetsDefaults(func(tc *types.TargetConfig) error) {}
+func (f *fileLoader) WithTargetsDefaults(fn func(tc *types.TargetConfig) error) {
+	f.targetConfigFn = fn
+}
