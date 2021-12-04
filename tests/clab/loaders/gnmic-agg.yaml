@@ -1,0 +1,42 @@
+log: true
+insecure: true
+
+loader:
+  type: consul
+  address: clab-loaders-consul-agent:8500
+  debug: true
+  on-add:
+    - query
+  services:
+    - name: collectors-gnmi-server
+
+subscriptions:
+  collectors:
+    paths:
+      - /
+    stream-mode: on-change
+
+api-server:
+  enable-metrics: true
+
+# clustering config
+clustering:
+  cluster-name: aggregators
+  targets-watch-timer: 10s
+  locker:
+    type: consul
+    address: clab-loaders-consul-agent:8500
+
+outputs:
+  aggregator:
+    type: prometheus
+    service-registration:
+      address: clab-loaders-consul-agent:8500
+
+actions:
+  query:
+    name: query
+    type: http
+    url: http://cht.sh
+    debug: true
+    
