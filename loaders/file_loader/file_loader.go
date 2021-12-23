@@ -2,6 +2,7 @@ package file_loader
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -62,13 +63,13 @@ type cfg struct {
 	// if true, registers fileLoader prometheus metrics with the provided
 	// prometheus registry
 	EnableMetrics bool `json:"enable-metrics,omitempty" mapstructure:"enable-metrics,omitempty"`
+	// enable Debug
+	Debug bool `json:"debug,omitempty" mapstructure:"debug,omitempty"`
 	// variables definitions to be passed to the actions
-	Vars map[string]interface{}
+	Vars map[string]interface{} `json:"vars,omitempty" mapstructure:"vars,omitempty"`
 	// variable file, values in this file will be overwritten by
 	// the ones defined in Vars
-	VarsFile string `mapstructure:"vars-file,omitempty"`
-	// run onAdd and onDelete actions asynchronously
-	Async bool `json:"async,omitempty" mapstructure:"async,omitempty"`
+	VarsFile string `json:"vars-file,omitempty" mapstructure:"vars-file,omitempty"`
 	// list of Actions to run on new target discovery
 	OnAdd []string `json:"on-add,omitempty" mapstructure:"on-add,omitempty"`
 	// list of Actions to run on target removal
@@ -93,7 +94,7 @@ func (f *fileLoader) Init(ctx context.Context, cfg map[string]interface{}, logge
 		f.logger.SetOutput(logger.Writer())
 		f.logger.SetFlags(logger.Flags())
 	}
-	err = f.readVars()
+	err = f.readVars(ctx)
 	if err != nil {
 		return err
 	}
@@ -121,34 +122,46 @@ func (f *fileLoader) Init(ctx context.Context, cfg map[string]interface{}, logge
 		return fmt.Errorf("unknown action name %q", actName)
 	}
 	f.numActions = len(f.addActions) + len(f.delActions)
+	f.logger.Printf("initialized loader type %q: %s", loaderType, f)
 	return nil
+}
+
+func (f *fileLoader) String() string {
+	b, err := json.Marshal(f.cfg)
+	if err != nil {
+		return fmt.Sprintf("%+v", f.cfg)
+	}
+	return string(b)
 }
 
 func (f *fileLoader) Start(ctx context.Context) chan *loaders.TargetOperation {
 	opChan := make(chan *loaders.TargetOperation)
+	ticker := time.NewTicker(f.cfg.Interval)
 	go func() {
 		defer close(opChan)
+		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			default:
+			case <-ticker.C:
 				readTargets, err := f.getTargets(ctx)
 				if _, ok := err.(*os.PathError); ok {
-					time.Sleep(f.cfg.Interval)
+					f.logger.Printf("path err: %v", err)
 					continue
 				}
 				if err != nil {
 					f.logger.Printf("failed to read targets file: %v", err)
-					time.Sleep(f.cfg.Interval)
 					continue
 				}
 				select {
+				// check if the context is done before
+				// updating the targets to the channel
 				case <-ctx.Done():
+					f.logger.Printf("context done: %v", ctx.Err())
 					return
 				default:
 					f.updateTargets(ctx, readTargets, opChan)
-					time.Sleep(f.cfg.Interval)
 				}
 			}
 		}
@@ -191,12 +204,18 @@ func (f *fileLoader) getTargets(ctx context.Context) (map[string]*types.TargetCo
 			t.Address = n
 		}
 	}
+	f.logger.Printf("result: %v", result)
 	return result, nil
 }
 
-// diff compares the given map[string]*types.TargetConfig with the
-// stored f.lastTargets and returns
 func (f *fileLoader) updateTargets(ctx context.Context, tcs map[string]*types.TargetConfig, opChan chan *loaders.TargetOperation) {
+	var err error
+	for _, tc := range tcs {
+		err = f.targetConfigFn(tc)
+		if err != nil {
+			f.logger.Printf("failed running target config fn on target %q", tc.Name)
+		}
+	}
 	targetOp, err := f.runActions(ctx, tcs, loaders.Diff(f.lastTargets, tcs))
 	if err != nil {
 		f.logger.Printf("failed to run actions: %v", err)
@@ -222,12 +241,12 @@ func (f *fileLoader) updateTargets(ctx context.Context, tcs map[string]*types.Ta
 	opChan <- targetOp
 }
 
-func (f *fileLoader) readVars() error {
+func (f *fileLoader) readVars(ctx context.Context) error {
 	if f.cfg.VarsFile == "" {
 		f.vars = f.cfg.Vars
 		return nil
 	}
-	b, err := utils.ReadFile(context.TODO(), f.cfg.VarsFile)
+	b, err := utils.ReadFile(ctx, f.cfg.VarsFile)
 	if err != nil {
 		return err
 	}
@@ -265,5 +284,102 @@ func (f *fileLoader) initializeAction(cfg map[string]interface{}) (actions.Actio
 }
 
 func (f *fileLoader) runActions(ctx context.Context, tcs map[string]*types.TargetConfig, targetOp *loaders.TargetOperation) (*loaders.TargetOperation, error) {
-	return nil, nil
+	if f.numActions == 0 {
+		return targetOp, nil
+	}
+	opChan := make(chan *loaders.TargetOperation)
+	// some actions are defined,
+	doneCh := make(chan struct{})
+	result := &loaders.TargetOperation{
+		Add: make([]*types.TargetConfig, 0, len(targetOp.Add)),
+		Del: make([]string, 0, len(targetOp.Del)),
+	}
+	// start gathering goroutine
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				close(doneCh)
+				return
+			case op, ok := <-opChan:
+				if !ok {
+					close(doneCh)
+					return
+				}
+				result.Add = append(result.Add, op.Add...)
+				result.Del = append(result.Del, op.Del...)
+			}
+		}
+	}()
+	// create waitGroup and add the number of target operations to it
+	wg := new(sync.WaitGroup)
+	wg.Add(len(targetOp.Add) + len(targetOp.Del))
+	// run OnAdd actions
+	for _, tAdd := range targetOp.Add {
+		go func(tc *types.TargetConfig) {
+			defer wg.Done()
+			err := f.runOnAddActions(tc.Name, tcs)
+			if err != nil {
+				f.logger.Printf("failed running OnAdd actions: %v", err)
+				return
+			}
+			opChan <- &loaders.TargetOperation{Add: []*types.TargetConfig{tc}}
+		}(tAdd)
+	}
+	// run OnDelete actions
+	for _, tDel := range targetOp.Del {
+		go func(name string) {
+			defer wg.Done()
+			err := f.runOnDeleteActions(name, tcs)
+			if err != nil {
+				f.logger.Printf("failed running OnDelete actions: %v", err)
+				return
+			}
+			opChan <- &loaders.TargetOperation{Del: []string{name}}
+		}(tDel)
+	}
+	wg.Wait()
+	close(opChan)
+	<-doneCh //wait for gathering goroutine to finish
+	return result, nil
+}
+
+func (d *fileLoader) runOnAddActions(tName string, tcs map[string]*types.TargetConfig) error {
+	aCtx := &actions.Context{
+		Input:   tName,
+		Env:     make(map[string]interface{}),
+		Vars:    d.vars,
+		Targets: tcs,
+	}
+	for _, act := range d.addActions {
+		d.logger.Printf("running action %q for target %q", act.NName(), tName)
+		res, err := act.Run(aCtx)
+		if err != nil {
+			// delete target from known targets map
+			d.m.Lock()
+			delete(d.lastTargets, tName)
+			d.m.Unlock()
+			return fmt.Errorf("action %q for target %q failed: %v", act.NName(), tName, err)
+		}
+
+		aCtx.Env[act.NName()] = utils.Convert(res)
+		if d.cfg.Debug {
+			d.logger.Printf("action %q, target %q result: %+v", act.NName(), tName, res)
+			b, _ := json.MarshalIndent(aCtx, "", "  ")
+			d.logger.Printf("action %q context:\n%s", act.NName(), string(b))
+		}
+	}
+	return nil
+}
+
+func (d *fileLoader) runOnDeleteActions(tName string, tcs map[string]*types.TargetConfig) error {
+	env := make(map[string]interface{})
+	for _, act := range d.delActions {
+		res, err := act.Run(&actions.Context{Input: tName, Env: env, Vars: d.vars})
+		if err != nil {
+			return fmt.Errorf("action %q for target %q failed: %v", act.NName(), tName, err)
+		}
+		env[act.NName()] = res
+	}
+	return nil
 }

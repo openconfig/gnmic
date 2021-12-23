@@ -15,7 +15,12 @@ func (h *httpLoader) RegisterMetrics(reg *prometheus.Registry) {
 }
 
 func (h *httpLoader) WithActions(acts map[string]map[string]interface{}) {
-	//	l.actionsConfig = acts
+	if acts == nil {
+		return
+	}
+	h.actionsConfig = acts
 }
 
-func (h *httpLoader) WithTargetsDefaults(func(tc *types.TargetConfig) error) {}
+func (h *httpLoader) WithTargetsDefaults(fn func(tc *types.TargetConfig) error) {
+	h.targetConfigFn = fn
+}

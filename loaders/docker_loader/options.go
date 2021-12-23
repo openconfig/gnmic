@@ -15,6 +15,9 @@ func (d *dockerLoader) RegisterMetrics(reg *prometheus.Registry) {
 }
 
 func (d *dockerLoader) WithActions(acts map[string]map[string]interface{}) {
+	if acts == nil {
+		return
+	}
 	d.actionsConfig = acts
 }
 

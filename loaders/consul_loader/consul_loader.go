@@ -60,12 +60,17 @@ type consulLoader struct {
 }
 
 type cfg struct {
-	Address    string `mapstructure:"address,omitempty" json:"address,omitempty"`
+	// Consul server address
+	Address string `mapstructure:"address,omitempty" json:"address,omitempty"`
+	// Consul datacenter name, defaults to dc1
 	Datacenter string `mapstructure:"datacenter,omitempty" json:"datacenter,omitempty"`
-	Username   string `mapstructure:"username,omitempty" json:"username,omitempty"`
-	Password   string `mapstructure:"password,omitempty" json:"password,omitempty"`
-	Token      string `mapstructure:"token,omitempty" json:"token,omitempty"`
-
+	// Consul username
+	Username string `mapstructure:"username,omitempty" json:"username,omitempty"`
+	// Consul Password
+	Password string `mapstructure:"password,omitempty" json:"password,omitempty"`
+	// Consul token
+	Token string `mapstructure:"token,omitempty" json:"token,omitempty"`
+	// enable debug
 	Debug bool `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 	// KV based target config loading
 	KeyPrefix string `mapstructure:"key-prefix,omitempty" json:"key-prefix,omitempty"`
@@ -79,8 +84,6 @@ type cfg struct {
 	// variable file, values in this file will be overwritten by
 	// the ones defined in Vars
 	VarsFile string `mapstructure:"vars-file,omitempty"`
-	// run onAdd and onDelete actions asynchronously
-	Async bool `json:"async,omitempty" mapstructure:"async,omitempty"`
 	// list of Actions to run on new target discovery
 	OnAdd []string `json:"on-add,omitempty" mapstructure:"on-add,omitempty"`
 	// list of Actions to run on target removal
@@ -116,7 +119,7 @@ func (c *consulLoader) Init(ctx context.Context, cfg map[string]interface{}, log
 		c.logger.SetOutput(logger.Writer())
 		c.logger.SetFlags(logger.Flags())
 	}
-	err = c.readVars()
+	err = c.readVars(ctx)
 	if err != nil {
 		return err
 	}
@@ -386,12 +389,12 @@ func (c *consulLoader) updateTargets(ctx context.Context, tcs map[string]*types.
 
 //
 
-func (c *consulLoader) readVars() error {
+func (c *consulLoader) readVars(ctx context.Context) error {
 	if c.cfg.VarsFile == "" {
 		c.vars = c.cfg.Vars
 		return nil
 	}
-	b, err := utils.ReadFile(context.TODO(), c.cfg.VarsFile)
+	b, err := utils.ReadFile(ctx, c.cfg.VarsFile)
 	if err != nil {
 		return err
 	}

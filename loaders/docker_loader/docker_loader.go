@@ -87,8 +87,6 @@ type cfg struct {
 	// variable file, values in this file will be overwritten by
 	// the ones defined in Vars
 	VarsFile string `mapstructure:"vars-file,omitempty"`
-	// run onAdd and onDelete actions asynchronously
-	Async bool `json:"async,omitempty" mapstructure:"async,omitempty"`
 	// list of Actions to run on new target discovery
 	OnAdd []string `json:"on-add,omitempty" mapstructure:"on-add,omitempty"`
 	// list of Actions to run on target removal
@@ -158,7 +156,7 @@ func (d *dockerLoader) Init(ctx context.Context, cfg map[string]interface{}, log
 	if err != nil {
 		return err
 	}
-	err = d.readVars()
+	err = d.readVars(ctx)
 	if err != nil {
 		return err
 	}
@@ -229,18 +227,19 @@ func (d *dockerLoader) createDockerClient() (*dClient.Client, error) {
 
 func (d *dockerLoader) Start(ctx context.Context) chan *loaders.TargetOperation {
 	opChan := make(chan *loaders.TargetOperation)
+	ticker := time.NewTicker(d.cfg.Interval)
 	go func() {
 		defer close(opChan)
+		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			default:
+			case <-ticker.C:
 				d.logger.Printf("querying %q targets", loaderType)
 				readTargets, err := d.getTargets(ctx)
 				if err != nil {
 					d.logger.Printf("failed to read targets from docker daemon: %v", err)
-					time.Sleep(d.cfg.Interval)
 					continue
 				}
 				if d.cfg.Debug {
@@ -250,58 +249,7 @@ func (d *dockerLoader) Start(ctx context.Context) chan *loaders.TargetOperation 
 				case <-ctx.Done():
 					return
 				default:
-					targetOp := d.diff(readTargets)
-					// no actions to run, send all target operations to channel
-					if d.numActions == 0 {
-						opChan <- targetOp
-						time.Sleep(d.cfg.Interval)
-						continue
-					}
-					// run targets config function on readTargets
-					for _, tc := range readTargets {
-						err = d.targetConfigFn(tc)
-						if err != nil {
-							d.logger.Printf("failed running target config fn on target %q", tc.Name)
-						}
-					}
-					// some actions are defined,
-					// create waitGroup and add the number of target operations to it
-					wg := new(sync.WaitGroup)
-					wg.Add(len(targetOp.Add) + len(targetOp.Del))
-					// run target config func and build map of targets configs
-					for i, tAdd := range targetOp.Add {
-						err = d.targetConfigFn(tAdd)
-						if err != nil {
-							return
-						}
-						targetOp.Add[i] = tAdd
-					}
-					// run OnAdd actions
-					for _, tAdd := range targetOp.Add {
-						go func(tc *types.TargetConfig) {
-							defer wg.Done()
-							err := d.runOnAddActions(tc.Name, readTargets)
-							if err != nil {
-								d.logger.Printf("failed running OnAdd actions: %v", err)
-								return
-							}
-							opChan <- &loaders.TargetOperation{Add: []*types.TargetConfig{tc}}
-						}(tAdd)
-					}
-					// run OnDelete actions
-					for _, tDel := range targetOp.Del {
-						go func(name string) {
-							defer wg.Done()
-							err := d.runOnDeleteActions(name, readTargets)
-							if err != nil {
-								d.logger.Printf("failed running OnDelete actions: %v", err)
-								return
-							}
-							opChan <- &loaders.TargetOperation{Del: []string{name}}
-						}(tDel)
-					}
-					wg.Wait()
-					time.Sleep(d.cfg.Interval)
+					d.updateTargets(ctx, readTargets, opChan)
 				}
 			}
 		}
@@ -515,12 +463,45 @@ func (d *dockerLoader) String() string {
 	return string(b)
 }
 
-func (d *dockerLoader) readVars() error {
+func (d *dockerLoader) updateTargets(ctx context.Context, tcs map[string]*types.TargetConfig, opChan chan *loaders.TargetOperation) {
+	var err error
+	for _, tc := range tcs {
+		err = d.targetConfigFn(tc)
+		if err != nil {
+			d.logger.Printf("failed running target config fn on target %q", tc.Name)
+		}
+	}
+	targetOp, err := d.runActions(ctx, tcs, d.diff(tcs))
+	if err != nil {
+		d.logger.Printf("failed to run actions: %v", err)
+		return
+	}
+	numAdds := len(targetOp.Add)
+	numDels := len(targetOp.Del)
+	defer func() {
+		dockerLoaderLoadedTargets.WithLabelValues(loaderType).Set(float64(numAdds))
+		dockerLoaderDeletedTargets.WithLabelValues(loaderType).Set(float64(numDels))
+	}()
+	if numAdds+numDels == 0 {
+		return
+	}
+	d.m.Lock()
+	for _, add := range targetOp.Add {
+		d.lastTargets[add.Name] = add
+	}
+	for _, del := range targetOp.Del {
+		delete(d.lastTargets, del)
+	}
+	d.m.Unlock()
+	opChan <- targetOp
+}
+
+func (d *dockerLoader) readVars(ctx context.Context) error {
 	if d.cfg.VarsFile == "" {
 		d.vars = d.cfg.Vars
 		return nil
 	}
-	b, err := utils.ReadFile(context.TODO(), d.cfg.VarsFile)
+	b, err := utils.ReadFile(ctx, d.cfg.VarsFile)
 	if err != nil {
 		return err
 	}
@@ -555,6 +536,67 @@ func (d *dockerLoader) initializeAction(cfg map[string]interface{}) (actions.Act
 		}
 	}
 	return nil, errors.New("missing type field under action")
+}
+
+func (d *dockerLoader) runActions(ctx context.Context, tcs map[string]*types.TargetConfig, targetOp *loaders.TargetOperation) (*loaders.TargetOperation, error) {
+	if d.numActions == 0 {
+		return targetOp, nil
+	}
+	opChan := make(chan *loaders.TargetOperation)
+	// some actions are defined,
+	doneCh := make(chan struct{})
+	result := &loaders.TargetOperation{
+		Add: make([]*types.TargetConfig, 0, len(targetOp.Add)),
+		Del: make([]string, 0, len(targetOp.Del)),
+	}
+	// start gathering goroutine
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				close(doneCh)
+				return
+			case op, ok := <-opChan:
+				if !ok {
+					close(doneCh)
+					return
+				}
+				result.Add = append(result.Add, op.Add...)
+				result.Del = append(result.Del, op.Del...)
+			}
+		}
+	}()
+	// create waitGroup and add the number of target operations to it
+	wg := new(sync.WaitGroup)
+	wg.Add(len(targetOp.Add) + len(targetOp.Del))
+	// run OnAdd actions
+	for _, tAdd := range targetOp.Add {
+		go func(tc *types.TargetConfig) {
+			defer wg.Done()
+			err := d.runOnAddActions(tc.Name, tcs)
+			if err != nil {
+				d.logger.Printf("failed running OnAdd actions: %v", err)
+				return
+			}
+			opChan <- &loaders.TargetOperation{Add: []*types.TargetConfig{tc}}
+		}(tAdd)
+	}
+	// run OnDelete actions
+	for _, tDel := range targetOp.Del {
+		go func(name string) {
+			defer wg.Done()
+			err := d.runOnDeleteActions(name, tcs)
+			if err != nil {
+				d.logger.Printf("failed running OnDelete actions: %v", err)
+				return
+			}
+			opChan <- &loaders.TargetOperation{Del: []string{name}}
+		}(tDel)
+	}
+	wg.Wait()
+	close(opChan)
+	<-doneCh //wait for gathering goroutine to finish
+	return result, nil
 }
 
 func (d *dockerLoader) runOnAddActions(tName string, tcs map[string]*types.TargetConfig) error {
