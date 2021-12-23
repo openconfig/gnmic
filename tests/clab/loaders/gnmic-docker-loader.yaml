@@ -1,0 +1,89 @@
+username: admin
+password: admin
+skip-verify: true
+encoding: json_ietf
+log: true
+
+loader:
+  type: docker
+  debug: true
+  filters:
+    - containers:
+      - label=clab-node-kind: srl
+  on-add:
+    - interfaces
+    - enable_interfaces
+    
+subscriptions:
+  # Add subscriptions configuration here
+  # e.g:
+  sub1:
+    paths:
+      - /interface/statistics
+    stream-mode: sample
+    sample-interval: 10s
+  sub2:
+    paths:
+      - /interface/subinterface/statistics
+    stream-mode: sample
+    sample-interval: 10s
+
+api-server:
+  enable-metrics: true
+  
+# clustering config
+clustering:
+  cluster-name: collectors
+  targets-watch-timer: 10s
+  locker:
+    type: consul
+    address: clab-loaders-consul-agent:8500
+
+gnmi-server:
+  enable-metrics: true
+  service-registration:
+    address: clab-loaders-consul-agent:8500
+
+outputs:
+  collector:
+    type: prometheus
+    service-registration:
+      address: clab-loaders-consul-agent:8500
+    event-processors:
+      - trim-prefixes
+
+processors:
+  trim-prefixes:
+    event-strings:
+      value-names:
+        - ".*"
+      transforms:
+        - path-base:
+            apply-on: "name"
+
+actions:
+  interfaces:
+    name: interfaces
+    type: template
+    debug: true
+    template: |
+      {{- if .Input | strings.Contains "srl1"}}ethernet-1/1,ethernet-1/2
+      {{- else -}}ethernet-1/1
+      {{- end -}}
+
+  enable_interfaces:
+    name: enable_interfaces
+    type: gnmi
+    target: '{{ .Input }}'
+    rpc: set
+    encoding: json_ietf
+    debug: true
+    paths: 
+      - /
+    values:
+      -  | 
+        {{- $ifaces := coll.Slice -}}
+        {{- range $iface := .Env.interfaces | strings.Split "," -}}
+        {{- $ifaces =  $ifaces | coll.Append (coll.Dict "name" $iface "admin-state" "enable") -}}
+        {{- end -}}
+        {{- ( coll.Dict "interface" $ifaces ) | data.ToJSON -}}

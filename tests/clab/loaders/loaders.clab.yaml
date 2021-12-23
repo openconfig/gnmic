@@ -25,8 +25,9 @@ topology:
     
     gnmic1:
       binds:
-        - ./gnmic.yaml:/app/gnmic.yaml:ro
+        - {{ .gnmic_config_file }}:/app/gnmic.yaml:ro
         - /var/run/docker.sock:/var/run/docker.sock
+        - clab/loaders/targets/targets.yaml:/app/targets/targets.yaml
       cmd: '--config /app/gnmic.yaml subscribe'
       ports:
         - 7890:7890
@@ -41,8 +42,9 @@ topology:
     
     gnmic2:
       binds:
-        - ./gnmic.yaml:/app/gnmic.yaml:ro
+        - {{ .gnmic_config_file }}:/app/gnmic.yaml:ro
         - /var/run/docker.sock:/var/run/docker.sock
+        - clab/loaders/targets/targets.yaml:/app/targets/targets.yaml
       cmd: '--config /app/gnmic.yaml subscribe'
       ports:
         - 7891:7891
@@ -57,8 +59,9 @@ topology:
 
     gnmic3:
       binds:
-        - ./gnmic.yaml:/app/gnmic.yaml:ro
+        - {{ .gnmic_config_file }}:/app/gnmic.yaml:ro
         - /var/run/docker.sock:/var/run/docker.sock
+        - clab/loaders/targets/targets.yaml:/app/targets/targets.yaml
       cmd: '--config /app/gnmic.yaml subscribe'
       ports:
         - 7892:7892
@@ -73,7 +76,7 @@ topology:
 
     agg-gnmic1:
       binds:
-        - ./gnmic-agg.yaml:/app/gnmic.yaml:ro
+        - ./clab/loaders/gnmic-agg.yaml:/app/gnmic.yaml:ro
         - /var/run/docker.sock:/var/run/docker.sock
       cmd: '--config /app/gnmic.yaml subscribe'
       ports:
@@ -87,7 +90,7 @@ topology:
 
     agg-gnmic2:
       binds:
-        - ./gnmic-agg.yaml:/app/gnmic.yaml:ro
+        - ./clab/loaders/gnmic-agg.yaml:/app/gnmic.yaml:ro
         - /var/run/docker.sock:/var/run/docker.sock
       cmd: '--config /app/gnmic.yaml subscribe'
       ports:
@@ -101,7 +104,7 @@ topology:
 
     agg-gnmic3:
       binds:
-        - ./gnmic-agg.yaml:/app/gnmic.yaml:ro
+        - ./clab/loaders/gnmic-agg.yaml:/app/gnmic.yaml:ro
         - /var/run/docker.sock:/var/run/docker.sock
       cmd: '--config /app/gnmic.yaml subscribe'
       ports:
@@ -113,3 +116,6 @@ topology:
         GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-loaders-agg-gnmic3
         GNMIC_OUTPUTS_AGGREGATOR_LISTEN: clab-loaders-agg-gnmic3:9809
 
+  links:
+    - endpoints: ["srl1:e1-1", "srl2:e1-1"]
+    - endpoints: ["srl1:e1-2", "srl3:e1-1"]

@@ -5,12 +5,9 @@ encoding: json_ietf
 log: true
 
 loader:
-  type: docker
+  type: file
   debug: true
-  filters:
-    - containers:
-      - label=clab-node-kind: srl
-        #label=containerlab: telem
+  path: ./targets/targets.yaml
   on-add:
     - interfaces
     - enable_interfaces
@@ -68,9 +65,9 @@ actions:
     type: template
     debug: true
     template: |
-      {{- if .Input | strings.Contains "super-spine"}}ethernet-1/1,ethernet-1/2,ethernet-1/3,ethernet-1/4
-      {{- else  if .Input | strings.Contains "spine"}}ethernet-1/1,ethernet-1/2,ethernet-1/3,ethernet-1/4,ethernet-1/5,ethernet-1/6
-      {{- else if .Input | strings.Contains "leaf"}}ethernet-1/1,ethernet-1/2{{- end -}}
+      {{- if .Input | strings.Contains "srl1"}}ethernet-1/1,ethernet-1/2
+      {{- else -}}ethernet-1/1
+      {{- end -}}
 
   enable_interfaces:
     name: enable_interfaces

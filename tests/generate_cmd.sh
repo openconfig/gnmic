@@ -14,6 +14,7 @@ ls -l srl-latest-yang-models
 sed -i.bkp 's|default "::";|//default "::";|g' srl-latest-yang-models/srl_nokia/models/system/srl_nokia-gnmi-server.yang
 sed -i.bkp 's|default "::";|//default "::";|g' srl-latest-yang-models/srl_nokia/models/system/srl_nokia-json-rpc.yang
 sed -i.bkp 's|default "::";|//default "::";|g' srl-latest-yang-models/srl_nokia/models/system/srl_nokia-snmp.yang
+sed -i.bkp 's|modifier invert-match;|//modifier invert-match;|g' srl-latest-yang-models/srl_nokia/models/common/srl_nokia-common.yang
 
 ./gnmic-rc1 generate --path /interface/subinterface --file  srl-latest-yang-models/srl_nokia/models --dir srl-latest-yang-models/ietf --exclude ".tools."
 ./gnmic-rc1 generate --path /interface/subinterface --file  srl-latest-yang-models/srl_nokia/models --dir srl-latest-yang-models/ietf --exclude ".tools." --camel-case
