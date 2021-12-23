@@ -60,6 +60,15 @@ loader:
         username: admin
         password: secret1
         skip-verify: true
+  # list of actions to run on target discovery
+  on-add:
+  # list of actions to run on target removal
+  on-delete:
+  # variable dict to pass to actions to be run
+  vars:
+  # path to variable file, the variables defined will be passed to the actions to be run
+  # values in this file will be overwritten by the ones defined in `vars`
+  vars-file:
 ```
 
 ##### Filter fields explanation
