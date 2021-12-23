@@ -39,4 +39,13 @@ loader:
   # if true, registers httpLoader prometheus metrics with the provided
   # prometheus registry
   enable-metrics: false
+  # list of actions to run on target discovery
+  on-add:
+  # list of actions to run on target removal
+  on-delete:
+  # variable dict to pass to actions to be run
+  vars:
+  # path to variable file, the variables defined will be passed to the actions to be run
+  # values in this file will be overwritten by the ones defined in `vars`
+  vars-file:
 ```

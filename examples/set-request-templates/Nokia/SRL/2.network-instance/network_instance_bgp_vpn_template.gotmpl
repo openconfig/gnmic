@@ -6,7 +6,7 @@ replaces:
     value: 
       bgp-instance:
      {{- range $idx, $bgpins := $bgpvpn}} 
-      - id: {{}}
+      - id: {{ $idx }}
         admin-state: {{ index $bgpvpn "admin-state" | default "disable" }}
         default-admin-tag: {{ index $bgpvpn "default-admin-tag" | default 0 }}
       {{- end }}

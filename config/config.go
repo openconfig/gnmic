@@ -49,6 +49,7 @@ type Config struct {
 	GnmiServer         *gnmiServer                          `mapstructure:"gnmi-server,omitempty" json:"gnmi-server,omitempty" yaml:"gnmi-server,omitempty"`
 	APIServer          *APIServer                           `mapstructure:"api-server,omitempty" json:"api-server,omitempty" yaml:"api-server,omitempty"`
 	Loader             map[string]interface{}               `mapstructure:"loader,omitempty" json:"loader,omitempty" yaml:"loader,omitempty"`
+	Actions            map[string]map[string]interface{}    `mapstructure:"actions,omitempty" json:"actions,omitempty" yaml:"actions,omitempty"`
 	logger             *log.Logger
 	setRequestTemplate []*template.Template
 	setRequestVars     map[string]interface{}
@@ -218,6 +219,7 @@ func New() *Config {
 		make(map[string]map[string]interface{}),
 		make(map[string]map[string]interface{}),
 		make(map[string]map[string]interface{}),
+		nil,
 		nil,
 		nil,
 		nil,

@@ -10,14 +10,12 @@ import (
 	"strings"
 
 	"github.com/karimra/gnmic/actions"
-	"github.com/karimra/gnmic/formatters"
 )
 
 const (
-	loggingPrefix   = "[script_action] "
-	actionType      = "script"
-	defaultTemplate = "{{ . }}"
-	defaultShell    = "/bin/bash"
+	loggingPrefix = "[script_action] "
+	actionType    = "script"
+	defaultShell  = "/bin/bash"
 )
 
 func init() {
@@ -58,7 +56,7 @@ func (s *scriptAction) Init(cfg map[string]interface{}, opts ...actions.Option) 
 	return nil
 }
 
-func (s *scriptAction) Run(e *formatters.EventMsg, env, vars map[string]interface{}) (interface{}, error) {
+func (s *scriptAction) Run(aCtx *actions.Context) (interface{}, error) {
 	if s.Command == "" && s.File == "" {
 		return nil, nil
 	}
@@ -76,11 +74,11 @@ func (s *scriptAction) Run(e *formatters.EventMsg, env, vars map[string]interfac
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	cmd.Env = os.Environ()
-	for k, v := range env {
+	for k, v := range aCtx.Env {
 		k = strings.ReplaceAll(k, "-", "_")
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
 	}
-	for k, v := range vars {
+	for k, v := range aCtx.Vars {
 		k = strings.ReplaceAll(k, "-", "_")
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
 	}

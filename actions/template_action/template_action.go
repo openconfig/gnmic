@@ -12,7 +12,6 @@ import (
 	"github.com/hairyhenderson/gomplate/v3"
 	"github.com/hairyhenderson/gomplate/v3/data"
 	"github.com/karimra/gnmic/actions"
-	"github.com/karimra/gnmic/formatters"
 )
 
 const (
@@ -74,12 +73,13 @@ func (t *templateAction) Init(cfg map[string]interface{}, opts ...actions.Option
 	return nil
 }
 
-func (t *templateAction) Run(e *formatters.EventMsg, env, vars map[string]interface{}) (interface{}, error) {
+func (t *templateAction) Run(aCtx *actions.Context) (interface{}, error) {
 	b := new(bytes.Buffer)
-	err := t.tpl.Execute(b, &actions.Input{
-		Event: e,
-		Env:   env,
-		Vars:  vars,
+	err := t.tpl.Execute(b, &actions.Context{
+		Input:   aCtx.Input,
+		Env:     aCtx.Env,
+		Vars:    aCtx.Vars,
+		Targets: aCtx.Targets,
 	})
 	if err != nil {
 		return nil, err

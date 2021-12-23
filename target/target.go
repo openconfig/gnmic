@@ -69,7 +69,7 @@ func (t *Target) CreateGNMIClient(ctx context.Context, opts ...grpc.DialOption) 
 	tOpts := make([]grpc.DialOption, 0, len(opts)+1)
 	tOpts = append(tOpts, opts...)
 
-	if *t.Config.Insecure {
+	if t.Config.Insecure != nil && *t.Config.Insecure {
 		tOpts = append(tOpts, grpc.WithInsecure())
 	} else {
 		tlsConfig, err := t.Config.NewTLSConfig()
@@ -85,7 +85,7 @@ func (t *Target) CreateGNMIClient(ctx context.Context, opts ...grpc.DialOption) 
 					})))
 		}
 	}
-	if *t.Config.Gzip {
+	if t.Config.Gzip != nil && *t.Config.Gzip {
 		tOpts = append(tOpts, grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)))
 	}
 	//

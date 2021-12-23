@@ -164,6 +164,10 @@ func (a *App) readConfigs() error {
 	if err != nil {
 		return fmt.Errorf("failed reading inputs config: %v", err)
 	}
+	_, err = a.Config.GetActions()
+	if err != nil {
+		return fmt.Errorf("failed reading actions config: %v", err)
+	}
 	_, err = a.Config.GetEventProcessors()
 	if err != nil {
 		return fmt.Errorf("failed reading event processors config: %v", err)

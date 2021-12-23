@@ -33,7 +33,7 @@ func ReadFile(ctx context.Context, path string) ([]byte, error) {
 	// read file bytes based on the path prefix
 	switch {
 	case strings.HasPrefix(path, "https://"):
-		fallthrough
+		return readHTTPFile(ctx, path)
 	case strings.HasPrefix(path, "http://"):
 		return readHTTPFile(ctx, path)
 	case strings.HasPrefix(path, "ftp://"):

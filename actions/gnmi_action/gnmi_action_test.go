@@ -56,7 +56,7 @@ var getRequestTestSet = map[string]struct {
 		action: map[string]interface{}{
 			"type":  "gnmi",
 			"name":  "act1",
-			"paths": []string{`/{{.Event.Name}}`},
+			"paths": []string{`/{{.Input.Name}}`},
 			"debug": true,
 		},
 		tests: []getRequestTestItem{
@@ -84,8 +84,8 @@ var getRequestTestSet = map[string]struct {
 		action: map[string]interface{}{
 			"type":   "gnmi",
 			"name":   "act1",
-			"prefix": `/{{.Event.Name}}`,
-			"paths":  []string{`/{{.Event.Name}}`},
+			"prefix": `/{{.Input.Name}}`,
+			"paths":  []string{`/{{.Input.Name}}`},
 			"debug":  true,
 		},
 		tests: []getRequestTestItem{
@@ -162,7 +162,7 @@ var setRequestTestSet = map[string]struct {
 			"type":   "gnmi",
 			"name":   "act1",
 			"rpc":    "set",
-			"paths":  []string{"/{{.Event.Name}}"},
+			"paths":  []string{"/{{.Input.Name}}"},
 			"values": []string{"value1"},
 			"debug":  true,
 		},
@@ -199,8 +199,8 @@ var setRequestTestSet = map[string]struct {
 			"type":   "gnmi",
 			"name":   "act1",
 			"rpc":    "set",
-			"paths":  []string{`{{ range $k, $v := .Event.Values }}{{if eq $k "path1" }}{{$k}}{{end}}{{end}}`},
-			"values": []string{`{{ range $k, $v := .Event.Values }}{{if eq $k "path1" }}value2{{end}}{{end}}`},
+			"paths":  []string{`{{ range $k, $v := .Input.Values }}{{if eq $k "path1" }}{{$k}}{{end}}{{end}}`},
+			"values": []string{`{{ range $k, $v := .Input.Values }}{{if eq $k "path1" }}value2{{end}}{{end}}`},
 			"debug":  true,
 		},
 		tests: []setRequestTestItem{
@@ -240,12 +240,12 @@ var setRequestTestSet = map[string]struct {
 			"name": "act1",
 			"rpc":  "set",
 			"paths": []string{
-				`{{ range $k, $v := .Event.Values }}{{if eq $k "path1" }}{{$k}}{{end}}{{end}}`,
-				`{{ range $k, $v := .Event.Values }}{{if eq $k "path2" }}{{$k}}{{end}}{{end}}`,
+				`{{ range $k, $v := .Input.Values }}{{if eq $k "path1" }}{{$k}}{{end}}{{end}}`,
+				`{{ range $k, $v := .Input.Values }}{{if eq $k "path2" }}{{$k}}{{end}}{{end}}`,
 			},
 			"values": []string{
-				`{{ range $k, $v := .Event.Values }}{{if eq $k "path1" }}value11{{end}}{{end}}`,
-				`{{ range $k, $v := .Event.Values }}{{if eq $k "path2" }}value22{{end}}{{end}}`,
+				`{{ range $k, $v := .Input.Values }}{{if eq $k "path1" }}value11{{end}}{{end}}`,
+				`{{ range $k, $v := .Input.Values }}{{if eq $k "path2" }}value22{{end}}{{end}}`,
 			},
 			"debug": true,
 		},
@@ -300,8 +300,8 @@ var setRequestTestSet = map[string]struct {
 			"type":   "gnmi",
 			"name":   "act1",
 			"rpc":    "set-replace",
-			"paths":  []string{`{{ range $k, $v := .Event.Values }}{{if and (eq $k "path1") (eq $v "value1")}}{{$k}}{{end}}{{end}}`},
-			"values": []string{`{{ range $k, $v := .Event.Values }}{{if and (eq $k "path1") (eq $v "value1")}}value2{{end}}{{end}}`},
+			"paths":  []string{`{{ range $k, $v := .Input.Values }}{{if and (eq $k "path1") (eq $v "value1")}}{{$k}}{{end}}{{end}}`},
+			"values": []string{`{{ range $k, $v := .Input.Values }}{{if and (eq $k "path1") (eq $v "value1")}}value2{{end}}{{end}}`},
 			"debug":  true,
 		},
 		tests: []setRequestTestItem{
@@ -341,12 +341,12 @@ var setRequestTestSet = map[string]struct {
 			"name": "act1",
 			"rpc":  "set-replace",
 			"paths": []string{
-				`{{ range $k, $v := .Event.Values }}{{if and (eq $k "path1") (eq $v "value1")}}{{$k}}{{end}}{{end}}`,
-				`{{ range $k, $v := .Event.Values }}{{if and (eq $k "path2") (eq $v "value2")}}{{$k}}{{end}}{{end}}`,
+				`{{ range $k, $v := .Input.Values }}{{if and (eq $k "path1") (eq $v "value1")}}{{$k}}{{end}}{{end}}`,
+				`{{ range $k, $v := .Input.Values }}{{if and (eq $k "path2") (eq $v "value2")}}{{$k}}{{end}}{{end}}`,
 			},
 			"values": []string{
-				`{{ range $k, $v := .Event.Values }}{{if and (eq $k "path1") (eq $v "value1")}}value11{{end}}{{end}}`,
-				`{{ range $k, $v := .Event.Values }}{{if and (eq $k "path2") (eq $v "value2")}}value22{{end}}{{end}}`,
+				`{{ range $k, $v := .Input.Values }}{{if and (eq $k "path1") (eq $v "value1")}}value11{{end}}{{end}}`,
+				`{{ range $k, $v := .Input.Values }}{{if and (eq $k "path2") (eq $v "value2")}}value22{{end}}{{end}}`,
 			},
 			"debug": true,
 		},
@@ -411,7 +411,7 @@ func TestGnmiGetRequest(t *testing.T) {
 			for i, item := range ts.tests {
 				t.Run(name, func(t *testing.T) {
 					t.Logf("running test item %d", i)
-					gReq, err := ga.createGetRequest(&actions.Input{Event: item.input})
+					gReq, err := ga.createGetRequest(&actions.Context{Input: item.input})
 					if err != nil {
 						t.Logf("failed: %v", err)
 						t.Fail()
@@ -442,7 +442,7 @@ func TestGnmiSetRequest(t *testing.T) {
 			for i, item := range ts.tests {
 				t.Run(name, func(t *testing.T) {
 					t.Logf("running test item %d", i)
-					gReq, err := ga.createSetRequest(&actions.Input{Event: item.input})
+					gReq, err := ga.createSetRequest(&actions.Context{Input: item.input})
 					if err != nil {
 						t.Logf("failed: %v", err)
 						t.Fail()

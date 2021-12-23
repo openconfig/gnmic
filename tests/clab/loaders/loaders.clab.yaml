@@ -1,0 +1,121 @@
+name: loaders
+
+topology:
+  defaults:
+    kind: linux
+    image: gnmic:0.0.0-rc1
+  kinds:
+    srl:
+      image: ghcr.io/nokia/srlinux
+
+  nodes:
+    srl1:
+      kind: srl
+    srl2:
+      kind: srl
+    srl3:
+      kind: srl
+    
+    consul-agent:
+      image: consul:latest
+      ports:
+        - 8500:8500
+        - 8600:8600/udp
+      cmd: 'agent -server -ui -bind=127.0.0.1 -node=server-1 -bootstrap-expect=1 -client=0.0.0.0'
+    
+    gnmic1:
+      binds:
+        - {{ .gnmic_config_file }}:/app/gnmic.yaml:ro
+        - /var/run/docker.sock:/var/run/docker.sock
+        - clab/loaders/targets/targets.yaml:/app/targets/targets.yaml
+      cmd: '--config /app/gnmic.yaml subscribe'
+      ports:
+        - 7890:7890
+        - 9804:9804
+      env:
+        GNMIC_API: :7890
+        GNMIC_CLUSTERING_INSTANCE_NAME: clab-loaders-gnmic1
+        GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-loaders-gnmic1
+        GNMIC_GNMI_SERVER_ADDRESS: clab-loaders-gnmic1:57400
+        GNMIC_GNMI_SERVER_SERVICE_REGISTRATION_NAME: clab-loaders-gnmic1
+        GNMIC_OUTPUTS_COLLECTOR_LISTEN: clab-loaders-gnmic1:9804
+    
+    gnmic2:
+      binds:
+        - {{ .gnmic_config_file }}:/app/gnmic.yaml:ro
+        - /var/run/docker.sock:/var/run/docker.sock
+        - clab/loaders/targets/targets.yaml:/app/targets/targets.yaml
+      cmd: '--config /app/gnmic.yaml subscribe'
+      ports:
+        - 7891:7891
+        - 9805:9805
+      env:
+        GNMIC_API: :7891
+        GNMIC_CLUSTERING_INSTANCE_NAME: clab-loaders-gnmic2
+        GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-loaders-gnmic2
+        GNMIC_GNMI_SERVER_ADDRESS: clab-loaders-gnmic2:57400
+        GNMIC_GNMI_SERVER_SERVICE_REGISTRATION_NAME: clab-loaders-gnmic2
+        GNMIC_OUTPUTS_COLLECTOR_LISTEN: clab-loaders-gnmic2:9805
+
+    gnmic3:
+      binds:
+        - {{ .gnmic_config_file }}:/app/gnmic.yaml:ro
+        - /var/run/docker.sock:/var/run/docker.sock
+        - clab/loaders/targets/targets.yaml:/app/targets/targets.yaml
+      cmd: '--config /app/gnmic.yaml subscribe'
+      ports:
+        - 7892:7892
+        - 9806:9806
+      env:
+        GNMIC_API: :7892
+        GNMIC_CLUSTERING_INSTANCE_NAME: clab-loaders-gnmic3
+        GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-loaders-gnmic3
+        GNMIC_GNMI_SERVER_ADDRESS: clab-loaders-gnmic3:57400
+        GNMIC_GNMI_SERVER_SERVICE_REGISTRATION_NAME: clab-loaders-gnmic3
+        GNMIC_OUTPUTS_COLLECTOR_LISTEN: clab-loaders-gnmic3:9806
+
+    agg-gnmic1:
+      binds:
+        - ./clab/loaders/gnmic-agg.yaml:/app/gnmic.yaml:ro
+        - /var/run/docker.sock:/var/run/docker.sock
+      cmd: '--config /app/gnmic.yaml subscribe'
+      ports:
+        - 7893:7893
+        - 9807:9807
+      env:
+        GNMIC_API: :7893
+        GNMIC_CLUSTERING_INSTANCE_NAME: clab-loaders-agg-gnmic1
+        GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-loaders-agg-gnmic1
+        GNMIC_OUTPUTS_AGGREGATOR_LISTEN: clab-loaders-agg-gnmic1:9807
+
+    agg-gnmic2:
+      binds:
+        - ./clab/loaders/gnmic-agg.yaml:/app/gnmic.yaml:ro
+        - /var/run/docker.sock:/var/run/docker.sock
+      cmd: '--config /app/gnmic.yaml subscribe'
+      ports:
+        - 7894:7894
+        - 9808:9808
+      env:
+        GNMIC_API: :7894
+        GNMIC_CLUSTERING_INSTANCE_NAME: clab-loaders-agg-gnmic2
+        GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-loaders-agg-gnmic2
+        GNMIC_OUTPUTS_AGGREGATOR_LISTEN: clab-loaders-agg-gnmic2:9808
+
+    agg-gnmic3:
+      binds:
+        - ./clab/loaders/gnmic-agg.yaml:/app/gnmic.yaml:ro
+        - /var/run/docker.sock:/var/run/docker.sock
+      cmd: '--config /app/gnmic.yaml subscribe'
+      ports:
+        - 7895:7895
+        - 9809:9809
+      env:
+        GNMIC_API: :7895
+        GNMIC_CLUSTERING_INSTANCE_NAME: clab-loaders-agg-gnmic3
+        GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-loaders-agg-gnmic3
+        GNMIC_OUTPUTS_AGGREGATOR_LISTEN: clab-loaders-agg-gnmic3:9809
+
+  links:
+    - endpoints: ["srl1:e1-1", "srl2:e1-1"]
+    - endpoints: ["srl1:e1-2", "srl3:e1-1"]

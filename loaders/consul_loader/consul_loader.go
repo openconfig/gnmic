@@ -2,6 +2,8 @@ package consul_loader
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -13,8 +15,9 @@ import (
 	"github.com/hashicorp/consul/api"
 	"github.com/mitchellh/consulstructure"
 	"github.com/mitchellh/mapstructure"
-	"github.com/prometheus/client_golang/prometheus"
+	"gopkg.in/yaml.v2"
 
+	"github.com/karimra/gnmic/actions"
 	"github.com/karimra/gnmic/loaders"
 	"github.com/karimra/gnmic/types"
 	"github.com/karimra/gnmic/utils"
@@ -41,21 +44,33 @@ func init() {
 }
 
 type consulLoader struct {
-	cfg         *cfg
-	decoder     *consulstructure.Decoder
-	client      *api.Client
-	m           *sync.Mutex
-	lastTargets map[string]*types.TargetConfig
-	logger      *log.Logger
+	cfg            *cfg
+	decoder        *consulstructure.Decoder
+	client         *api.Client
+	m              *sync.Mutex
+	lastTargets    map[string]*types.TargetConfig
+	targetConfigFn func(*types.TargetConfig) error
+	logger         *log.Logger
+	//
+	vars          map[string]interface{}
+	actionsConfig map[string]map[string]interface{}
+	addActions    []actions.Action
+	delActions    []actions.Action
+	numActions    int
 }
 
 type cfg struct {
-	Address    string `mapstructure:"address,omitempty" json:"address,omitempty"`
+	// Consul server address
+	Address string `mapstructure:"address,omitempty" json:"address,omitempty"`
+	// Consul datacenter name, defaults to dc1
 	Datacenter string `mapstructure:"datacenter,omitempty" json:"datacenter,omitempty"`
-	Username   string `mapstructure:"username,omitempty" json:"username,omitempty"`
-	Password   string `mapstructure:"password,omitempty" json:"password,omitempty"`
-	Token      string `mapstructure:"token,omitempty" json:"token,omitempty"`
-
+	// Consul username
+	Username string `mapstructure:"username,omitempty" json:"username,omitempty"`
+	// Consul Password
+	Password string `mapstructure:"password,omitempty" json:"password,omitempty"`
+	// Consul token
+	Token string `mapstructure:"token,omitempty" json:"token,omitempty"`
+	// enable debug
 	Debug bool `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 	// KV based target config loading
 	KeyPrefix string `mapstructure:"key-prefix,omitempty" json:"key-prefix,omitempty"`
@@ -64,6 +79,15 @@ type cfg struct {
 	// if true, registers consulLoader prometheus metrics with the provided
 	// prometheus registry
 	EnableMetrics bool `json:"enable-metrics,omitempty" mapstructure:"enable-metrics,omitempty"`
+	// variables definitions to be passed to the actions
+	Vars map[string]interface{}
+	// variable file, values in this file will be overwritten by
+	// the ones defined in Vars
+	VarsFile string `mapstructure:"vars-file,omitempty"`
+	// list of Actions to run on new target discovery
+	OnAdd []string `json:"on-add,omitempty" mapstructure:"on-add,omitempty"`
+	// list of Actions to run on target removal
+	OnDelete []string `json:"on-delete,omitempty" mapstructure:"on-delete,omitempty"`
 }
 
 type serviceDef struct {
@@ -88,10 +112,41 @@ func (c *consulLoader) Init(ctx context.Context, cfg map[string]interface{}, log
 	if err != nil {
 		return err
 	}
+	for _, opt := range opts {
+		opt(c)
+	}
 	if logger != nil {
 		c.logger.SetOutput(logger.Writer())
 		c.logger.SetFlags(logger.Flags())
 	}
+	err = c.readVars(ctx)
+	if err != nil {
+		return err
+	}
+	for _, actName := range c.cfg.OnAdd {
+		if cfg, ok := c.actionsConfig[actName]; ok {
+			a, err := c.initializeAction(cfg)
+			if err != nil {
+				return err
+			}
+			c.addActions = append(c.addActions, a)
+			continue
+		}
+		return fmt.Errorf("unknown action name %q", actName)
+
+	}
+	for _, actName := range c.cfg.OnDelete {
+		if cfg, ok := c.actionsConfig[actName]; ok {
+			a, err := c.initializeAction(cfg)
+			if err != nil {
+				return err
+			}
+			c.delActions = append(c.delActions, a)
+			continue
+		}
+		return fmt.Errorf("unknown action name %q", actName)
+	}
+	c.numActions = len(c.addActions) + len(c.delActions)
 	c.logger.Printf("intialized consul loader: %+v", c.cfg)
 	return nil
 }
@@ -158,7 +213,7 @@ func (c *consulLoader) Start(ctx context.Context) chan *loaders.TargetOperation 
 							t.Address = n
 						}
 					}
-					c.updateTargets(*rs, opChan)
+					c.updateTargets(ctx, *rs, opChan)
 				}
 			}
 		}()
@@ -184,7 +239,7 @@ func (c *consulLoader) Start(ctx context.Context) chan *loaders.TargetOperation 
 						return
 					}
 					tcs := c.servicesToTargetConfigs(srvs)
-					c.updateTargets(tcs, opChan)
+					c.updateTargets(ctx, tcs, opChan)
 				}
 			}
 		}()
@@ -198,15 +253,6 @@ func (c *consulLoader) Start(ctx context.Context) chan *loaders.TargetOperation 
 		}
 	}
 	return opChan
-}
-
-func (c *consulLoader) RegisterMetrics(reg *prometheus.Registry) {
-	if !c.cfg.EnableMetrics && reg != nil {
-		return
-	}
-	if err := registerMetrics(reg); err != nil {
-		c.logger.Printf("failed to register metrics: %v", err)
-	}
 }
 
 func (c *consulLoader) setDefaults() error {
@@ -314,10 +360,14 @@ func (c *consulLoader) servicesToTargetConfigs(srvs []*service) map[string]*type
 	return tcs
 }
 
-func (c *consulLoader) updateTargets(tcs map[string]*types.TargetConfig, opChan chan *loaders.TargetOperation) {
-	op := loaders.Diff(c.lastTargets, tcs)
-	numAdds := len(op.Add)
-	numDels := len(op.Del)
+func (c *consulLoader) updateTargets(ctx context.Context, tcs map[string]*types.TargetConfig, opChan chan *loaders.TargetOperation) {
+	targetOp, err := c.runActions(ctx, tcs, loaders.Diff(c.lastTargets, tcs))
+	if err != nil {
+		c.logger.Printf("failed to run actions: %v", err)
+		return
+	}
+	numAdds := len(targetOp.Add)
+	numDels := len(targetOp.Del)
 	defer func() {
 		consulLoaderLoadedTargets.WithLabelValues(loaderType).Set(float64(numAdds))
 		consulLoaderDeletedTargets.WithLabelValues(loaderType).Set(float64(numDels))
@@ -327,12 +377,173 @@ func (c *consulLoader) updateTargets(tcs map[string]*types.TargetConfig, opChan 
 		return
 	}
 	c.m.Lock()
-	for _, add := range op.Add {
+	for _, add := range targetOp.Add {
 		c.lastTargets[add.Name] = add
 	}
-	for _, del := range op.Del {
+	for _, del := range targetOp.Del {
 		delete(c.lastTargets, del)
 	}
 	c.m.Unlock()
-	opChan <- op
+	opChan <- targetOp
+}
+
+//
+
+func (c *consulLoader) readVars(ctx context.Context) error {
+	if c.cfg.VarsFile == "" {
+		c.vars = c.cfg.Vars
+		return nil
+	}
+	b, err := utils.ReadFile(ctx, c.cfg.VarsFile)
+	if err != nil {
+		return err
+	}
+	v := make(map[string]interface{})
+	err = yaml.Unmarshal(b, &v)
+	if err != nil {
+		return err
+	}
+	c.vars = utils.MergeMaps(v, c.cfg.Vars)
+	return nil
+}
+
+func (c *consulLoader) initializeAction(cfg map[string]interface{}) (actions.Action, error) {
+	if len(cfg) == 0 {
+		return nil, errors.New("missing action definition")
+	}
+	if actType, ok := cfg["type"]; ok {
+		switch actType := actType.(type) {
+		case string:
+			if in, ok := actions.Actions[actType]; ok {
+				act := in()
+				err := act.Init(cfg, actions.WithLogger(c.logger), actions.WithTargets(nil))
+				if err != nil {
+					return nil, err
+				}
+
+				return act, nil
+			}
+			return nil, fmt.Errorf("unknown action type %q", actType)
+		default:
+			return nil, fmt.Errorf("unexpected action field type %T", actType)
+		}
+	}
+	return nil, errors.New("missing type field under action")
+}
+
+func (c *consulLoader) runActions(ctx context.Context, tcs map[string]*types.TargetConfig, targetOp *loaders.TargetOperation) (*loaders.TargetOperation, error) {
+	if c.numActions == 0 {
+		return targetOp, nil
+	}
+	var err error
+	// some actions are defined
+	for _, tc := range tcs {
+		err = c.targetConfigFn(tc)
+		if err != nil {
+			c.logger.Printf("failed running target config fn on target %q", tc.Name)
+		}
+	}
+
+	// run target config func and build map of targets configs
+	for i, tAdd := range targetOp.Add {
+		err = c.targetConfigFn(tAdd)
+		if err != nil {
+			return nil, err
+		}
+		targetOp.Add[i] = tAdd
+	}
+
+	opChan := make(chan *loaders.TargetOperation)
+	doneCh := make(chan struct{})
+	result := &loaders.TargetOperation{
+		Add: make([]*types.TargetConfig, 0, len(targetOp.Add)),
+		Del: make([]string, 0, len(targetOp.Del)),
+	}
+	// start operation gathering goroutine
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case op, ok := <-opChan:
+				if !ok {
+					close(doneCh)
+					return
+				}
+				result.Add = append(result.Add, op.Add...)
+				result.Del = append(result.Del, op.Del...)
+			}
+		}
+	}()
+	// create waitGroup and add the number of target operations to it
+	wg := new(sync.WaitGroup)
+	wg.Add(len(targetOp.Add) + len(targetOp.Del))
+	// run OnAdd actions
+	for _, tAdd := range targetOp.Add {
+		go func(tc *types.TargetConfig) {
+			defer wg.Done()
+			err := c.runOnAddActions(tc.Name, tcs)
+			if err != nil {
+				c.logger.Printf("failed running OnAdd actions: %v", err)
+				return
+			}
+			opChan <- &loaders.TargetOperation{Add: []*types.TargetConfig{tc}}
+		}(tAdd)
+	}
+	// run OnDelete actions
+	for _, tDel := range targetOp.Del {
+		go func(name string) {
+			defer wg.Done()
+			err := c.runOnDeleteActions(name, tcs)
+			if err != nil {
+				c.logger.Printf("failed running OnDelete actions: %v", err)
+				return
+			}
+			opChan <- &loaders.TargetOperation{Del: []string{name}}
+		}(tDel)
+	}
+	wg.Wait()
+	close(opChan)
+	<-doneCh //wait for gathering goroutine to finish
+	return result, nil
+}
+
+func (c *consulLoader) runOnAddActions(tName string, tcs map[string]*types.TargetConfig) error {
+	aCtx := &actions.Context{
+		Input:   tName,
+		Env:     make(map[string]interface{}),
+		Vars:    c.vars,
+		Targets: tcs,
+	}
+	for _, act := range c.addActions {
+		c.logger.Printf("running action %q for target %q", act.NName(), tName)
+		res, err := act.Run(aCtx)
+		if err != nil {
+			// delete target from known targets map
+			c.m.Lock()
+			delete(c.lastTargets, tName)
+			c.m.Unlock()
+			return fmt.Errorf("action %q for target %q failed: %v", act.NName(), tName, err)
+		}
+
+		aCtx.Env[act.NName()] = utils.Convert(res)
+		if c.cfg.Debug {
+			c.logger.Printf("action %q, target %q result: %+v", act.NName(), tName, res)
+			b, _ := json.MarshalIndent(aCtx, "", "  ")
+			c.logger.Printf("action %q context:\n%s", act.NName(), string(b))
+		}
+	}
+	return nil
+}
+
+func (c *consulLoader) runOnDeleteActions(tName string, tcs map[string]*types.TargetConfig) error {
+	env := make(map[string]interface{})
+	for _, act := range c.delActions {
+		res, err := act.Run(&actions.Context{Input: tName, Env: env, Vars: c.vars})
+		if err != nil {
+			return fmt.Errorf("action %q for target %q failed: %v", act.NName(), tName, err)
+		}
+		env[act.NName()] = res
+	}
+	return nil
 }

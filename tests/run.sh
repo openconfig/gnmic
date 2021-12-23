@@ -63,7 +63,10 @@ case "$1" in
     ./deploy.sh test_lab1
     # run subscribe once cmd tests 
     ./subscribe_once_cmd.sh
-
+    # cleanup test_lab1
+    cleanup test_lab1
+    # run loaders tests
+    ./loaders.sh
     ;;
   "version")
     # build gnmic
@@ -121,8 +124,11 @@ case "$1" in
     # run sub tests
     ./env_vars.sh
     ;;
+  "loaders")
+    ./loaders.sh
+    ;;
   *)
-    echo "./run.sh [ all | version | generate | cap | get | set | sub ]"
+    echo "./run.sh [ all | version | generate | cap | get | set | sub | loaders ]"
     exit 1
     ;;
 esac

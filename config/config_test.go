@@ -27,7 +27,7 @@ var createGetRequestTestSet = map[string]struct {
 				Encoding: "dummy",
 			},
 			LocalFlags{},
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: nil,
 		err: errors.New("invalid encoding type"),
@@ -40,7 +40,7 @@ var createGetRequestTestSet = map[string]struct {
 			LocalFlags{
 				GetPrefix: "/invalid/]prefix",
 			},
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: nil,
 		err: errors.New("prefix parse error"),
@@ -53,7 +53,7 @@ var createGetRequestTestSet = map[string]struct {
 			LocalFlags{
 				GetPrefix: "/invalid/]path",
 			},
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: nil,
 		err: errors.New("prefix parse error"),
@@ -67,7 +67,7 @@ var createGetRequestTestSet = map[string]struct {
 				GetPrefix: "/valid/path",
 				GetType:   "dummy",
 			},
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: nil,
 		err: errors.New("unknown data type"),
@@ -80,7 +80,7 @@ var createGetRequestTestSet = map[string]struct {
 			LocalFlags{
 				GetPath: []string{"/valid/path"},
 			},
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: &gnmi.GetRequest{
 			Path: []*gnmi.Path{
@@ -103,7 +103,7 @@ var createGetRequestTestSet = map[string]struct {
 				GetPath: []string{"/valid/path"},
 				GetType: "state",
 			},
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: &gnmi.GetRequest{
 			Path: []*gnmi.Path{
@@ -126,7 +126,7 @@ var createGetRequestTestSet = map[string]struct {
 			LocalFlags{
 				GetPath: []string{"/valid/path"},
 			},
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: &gnmi.GetRequest{
 			Path: []*gnmi.Path{
@@ -150,7 +150,7 @@ var createGetRequestTestSet = map[string]struct {
 				GetPrefix: "/valid/prefix",
 				GetPath:   []string{"/valid/path"},
 			},
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: &gnmi.GetRequest{
 			Prefix: &gnmi.Path{
@@ -182,7 +182,7 @@ var createGetRequestTestSet = map[string]struct {
 					"/valid/path2",
 				},
 			},
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: &gnmi.GetRequest{
 			Path: []*gnmi.Path{
@@ -217,7 +217,7 @@ var createSetRequestTestSet = map[string]struct {
 				SetDelimiter: ":::",
 				SetUpdate:    []string{"/valid/path:::json:::value"},
 			},
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: &gnmi.SetRequest{
 			Update: []*gnmi.Update{
@@ -245,7 +245,7 @@ var createSetRequestTestSet = map[string]struct {
 				SetDelimiter: ":::",
 				SetReplace:   []string{"/valid/path:::json:::value"},
 			},
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: &gnmi.SetRequest{
 			Replace: []*gnmi.Update{
@@ -272,7 +272,7 @@ var createSetRequestTestSet = map[string]struct {
 			LocalFlags{
 				SetDelete: []string{"/valid/path"},
 			},
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: &gnmi.SetRequest{
 			Delete: []*gnmi.Path{
@@ -296,7 +296,7 @@ var createSetRequestTestSet = map[string]struct {
 					"/valid/path2:::json_ietf:::value2",
 				},
 			},
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: &gnmi.SetRequest{
 			Update: []*gnmi.Update{
@@ -340,7 +340,7 @@ var createSetRequestTestSet = map[string]struct {
 					"/valid/path2:::json_ietf:::value2",
 				},
 			},
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: &gnmi.SetRequest{
 			Replace: []*gnmi.Update{
@@ -383,7 +383,7 @@ var createSetRequestTestSet = map[string]struct {
 					"/valid/path2",
 				},
 			},
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: &gnmi.SetRequest{
 			Delete: []*gnmi.Path{
@@ -412,7 +412,7 @@ var createSetRequestTestSet = map[string]struct {
 				SetReplace:   []string{"/valid/path2:::json:::value2"},
 				SetDelete:    []string{"/valid/path"},
 			},
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: &gnmi.SetRequest{
 			Update: []*gnmi.Update{
@@ -465,7 +465,7 @@ var createSetRequestTestSet = map[string]struct {
 				SetUpdatePath:  []string{"/valid/path"},
 				SetUpdateValue: []string{"value"},
 			},
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: &gnmi.SetRequest{
 			Update: []*gnmi.Update{
@@ -495,7 +495,7 @@ var createSetRequestTestSet = map[string]struct {
 				SetReplacePath:  []string{"/valid/path"},
 				SetReplaceValue: []string{"value"},
 			},
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: &gnmi.SetRequest{
 			Replace: []*gnmi.Update{

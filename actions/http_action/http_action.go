@@ -75,26 +75,27 @@ func (h *httpAction) Init(cfg map[string]interface{}, opts ...actions.Option) er
 	return err
 }
 
-func (h *httpAction) Run(e *formatters.EventMsg, env, vars map[string]interface{}) (interface{}, error) {
+func (h *httpAction) Run(aCtx *actions.Context) (interface{}, error) {
 	if h.url == nil {
 		return nil, errors.New("missing url template")
 	}
 	if h.body == nil {
 		return nil, errors.New("missing body template")
 	}
-	in := &actions.Input{
-		Event: e,
-		Env:   env,
-		Vars:  vars,
+	in := &actions.Context{
+		Input:   aCtx.Input,
+		Env:     aCtx.Env,
+		Vars:    aCtx.Vars,
+		Targets: aCtx.Targets,
 	}
 	b := new(bytes.Buffer)
-	err := json.NewEncoder(b).Encode(e)
+	err := json.NewEncoder(b).Encode(in)
 	if err != nil {
 		return nil, err
 	}
 
 	b.Reset()
-	err = h.body.Execute(b, e)
+	err = h.body.Execute(b, in)
 	if err != nil {
 		return nil, err
 	}

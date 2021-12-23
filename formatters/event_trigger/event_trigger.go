@@ -63,7 +63,7 @@ func (p *Trigger) Init(cfg interface{}, opts ...formatters.Option) error {
 	for _, opt := range opts {
 		opt(p)
 	}
-	
+
 	err = p.setDefaults()
 	if err != nil {
 		return err
@@ -204,14 +204,14 @@ func (p *Trigger) readVars() error {
 
 func (p *Trigger) triggerActions(e *formatters.EventMsg) {
 	go func() {
-		env := make(map[string]interface{})
+		actx := &actions.Context{Input: e, Env: make(map[string]interface{}), Vars: p.vars}
 		for _, act := range p.actions {
-			res, err := act.Run(e, env, p.vars)
+			res, err := act.Run(actx)
 			if err != nil {
 				p.logger.Printf("trigger action %q failed: %+v", act.NName(), err)
 				return
 			}
-			env[act.NName()] = res
+			actx.Env[act.NName()] = res
 			p.logger.Printf("action %q result: %+v", act.NName(), res)
 		}
 	}()

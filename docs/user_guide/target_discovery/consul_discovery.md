@@ -11,6 +11,7 @@ Both modes cannot be combined.
 <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2Ftarget_discovery.drawio" async></script>
 
 ### Prefix watch
+
 The prefix is expected to hold each gNMI target configuration as multiple Key/Values.
 
 Putting Key/Values in Consul via the cli is as easy as:
@@ -68,6 +69,7 @@ loader:
         insecure: true
         username: admin
 ```
+
 ### Configuration
 
 ```yaml
@@ -96,4 +98,13 @@ loader:
       tags: 
       # configuration map to apply to target discovered from this service
       config:
+  # list of actions to run on target discovery
+  on-add:
+  # list of actions to run on target removal
+  on-delete:
+  # variable dict to pass to actions to be run
+  vars:
+  # path to variable file, the variables defined will be passed to the actions to be run
+  # values in this file will be overwritten by the ones defined in `vars`
+  vars-file:
 ```

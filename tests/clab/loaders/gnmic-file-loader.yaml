@@ -5,15 +5,13 @@ encoding: json_ietf
 log: true
 
 loader:
-  type: docker
+  type: file
   debug: true
-  filters:
-    - containers:
-      - label=clab-node-kind: srl
-        #label=containerlab: telem
+  path: ./targets/targets.yaml
   on-add:
     - interfaces
     - enable_interfaces
+    
 subscriptions:
   # Add subscriptions configuration here
   # e.g:
@@ -34,48 +32,24 @@ api-server:
 # clustering config
 clustering:
   cluster-name: collectors
-  targets-watch-timer: 60s
+  targets-watch-timer: 10s
   locker:
     type: consul
-    address: clab-telemetry-consul-agent:8500
+    address: clab-loaders-consul-agent:8500
 
 gnmi-server:
   enable-metrics: true
   service-registration:
-    address: clab-telemetry-consul-agent:8500
+    address: clab-loaders-consul-agent:8500
 
 outputs:
   collector:
     type: prometheus
     service-registration:
-      address: clab-telemetry-consul-agent:8500
+      address: clab-loaders-consul-agent:8500
     event-processors:
       - trim-prefixes
 
-  influxdb-output:
-    type: influxdb
-    url: http://clab-telemetry-influxdb:8086
-    bucket: telemetry # db name
-    token: gnmic:gnmic # username:password
-    batch-size: 1000
-    flush-timer: 10s
-    event-processors:
-      - trim-prefixes
-  
-  kafka-output:
-    type: kafka
-    address: clab-telemetry-kafka-server:9092
-    topic: telemetry
-    event-processors:
-      - trim-prefixes
-
-  nats-output:
-    type: nats
-    address: clab-telemetry-nats:4222
-    subject: telemetry
-    event-processors:
-      - trim-prefixes
-      
 processors:
   trim-prefixes:
     event-strings:
@@ -91,9 +65,9 @@ actions:
     type: template
     debug: true
     template: |
-      {{- if .Input | strings.Contains "super-spine"}}ethernet-1/1,ethernet-1/2,ethernet-1/3,ethernet-1/4
-      {{- else  if .Input | strings.Contains "spine"}}ethernet-1/1,ethernet-1/2,ethernet-1/3,ethernet-1/4,ethernet-1/5,ethernet-1/6
-      {{- else if .Input | strings.Contains "leaf"}}ethernet-1/1,ethernet-1/2{{- end -}}
+      {{- if .Input | strings.Contains "srl1"}}ethernet-1/1,ethernet-1/2
+      {{- else -}}ethernet-1/1
+      {{- end -}}
 
   enable_interfaces:
     name: enable_interfaces
