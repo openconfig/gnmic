@@ -320,4 +320,17 @@ $gnmic_base_cmd -a clab-test1-srl3 set -e json_ietf \
                 --update-path /interface[name=ethernet-1/2]/subinterface[index=0]/description \
                 --update-value e1-2.0_dummy_desc1 \
                 --delete /interface[name=ethernet-1/1]/admin-state \
+                --delete /interface[name=ethernet-1/2]/admin-state \
+                --dry-run
+
+$gnmic_base_cmd -a clab-test1-srl3 set -e json_ietf \
+                --replace-path /interface[name=ethernet-1/1]/description \
+                --replace-value e1-1_dummy_desc1 \
+                --replace-path /interface[name=ethernet-1/1]/subinterface[index=0]/description \
+                --replace-value e1-1.0_dummy_desc1 \
+                --update-path /interface[name=ethernet-1/2]/description \
+                --update-value e1-2_dummy_desc1 \
+                --update-path /interface[name=ethernet-1/2]/subinterface[index=0]/description \
+                --update-value e1-2.0_dummy_desc1 \
+                --delete /interface[name=ethernet-1/1]/admin-state \
                 --delete /interface[name=ethernet-1/2]/admin-state

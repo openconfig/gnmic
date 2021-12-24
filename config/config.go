@@ -123,6 +123,7 @@ type LocalFlags struct {
 	SetTarget       string   `mapstructure:"set-target,omitempty" json:"set-target,omitempty" yaml:"set-target,omitempty"`
 	SetRequestFile  []string `mapstructure:"set-request-file,omitempty" json:"set-request-file,omitempty" yaml:"set-request-file,omitempty"`
 	SetRequestVars  string   `mapstructure:"set-request-vars,omitempty" json:"set-request-vars,omitempty" yaml:"set-request-vars,omitempty"`
+	SetDryRun       bool     `mapstructure:"set-dry-run,omitempty" json:"set-dry-run,omitempty" yaml:"set-dry-run,omitempty"`
 	// Sub
 	SubscribePrefix            string        `mapstructure:"subscribe-prefix,omitempty" json:"subscribe-prefix,omitempty" yaml:"subscribe-prefix,omitempty"`
 	SubscribePath              []string      `mapstructure:"subscribe-path,omitempty" json:"subscribe-path,omitempty" yaml:"subscribe-path,omitempty"`
