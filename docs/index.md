@@ -1,5 +1,5 @@
 <nbsp/>
-<p style="text-align:center;"><img src=https://raw.githubusercontent.com/karimra/gnmic/master/docs/images/gnmic-headline.svg?sanitize=true/></p>
+<p style="text-align:center;"><img src=https://raw.githubusercontent.com/karimra/gnmic/main/docs/images/gnmic-headline.svg?sanitize=true/></p>
 
 [![github release](https://img.shields.io/github/release/karimra/gnmic.svg?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://github.com/karimra/gnmic/releases/)
 [![Github all releases](https://img.shields.io/github/downloads/karimra/gnmic/total.svg?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://github.com/karimra/gnmic/releases/)

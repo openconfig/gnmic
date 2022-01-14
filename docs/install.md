@@ -2,7 +2,7 @@
 
 ### Linux/Mac OS
 
-To download & install the latest release the following automated [installation script](https://github.com/karimra/gnmic/blob/master/install.sh) can be used:
+To download & install the latest release the following automated [installation script](https://github.com/karimra/gnmic/blob/main/install.sh) can be used:
 
 ```bash
 bash -c "$(curl -sL https://get-gnmic.kmrd.dev)"

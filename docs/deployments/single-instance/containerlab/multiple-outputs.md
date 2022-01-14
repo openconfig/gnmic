@@ -19,13 +19,13 @@ This deployment example includes:
 
 Deployment files:
 
-- [containerlab](https://github.com/karimra/gnmic/blob/master/examples/deployments/1.single-instance/5.multiple-outputs/containerlab/multiple-outputs.clab.yaml)
+- [containerlab](https://github.com/karimra/gnmic/blob/main/examples/deployments/1.single-instance/5.multiple-outputs/containerlab/multiple-outputs.clab.yaml)
 
-- [gNMIc config](https://github.com/karimra/gnmic/blob/master/examples/deployments/1.single-instance/5.multiple-outputs/containerlab/gnmic.yaml)
+- [gNMIc config](https://github.com/karimra/gnmic/blob/main/examples/deployments/1.single-instance/5.multiple-outputs/containerlab/gnmic.yaml)
 
-- [Prometheus config](https://github.com/karimra/gnmic/blob/master/examples/deployments/1.single-instance/5.multiple-outputs/containerlab/prometheus/prometheus.yaml)
+- [Prometheus config](https://github.com/karimra/gnmic/blob/main/examples/deployments/1.single-instance/5.multiple-outputs/containerlab/prometheus/prometheus.yaml)
 
-- [Grafana datasource](https://github.com/karimra/gnmic/blob/master/examples/deployments/1.single-instance/5.multiple-outputs/containerlab/grafana/datasources/datasource.yaml)
+- [Grafana datasource](https://github.com/karimra/gnmic/blob/main/examples/deployments/1.single-instance/5.multiple-outputs/containerlab/grafana/datasources/datasource.yaml)
 
 Deploy it with:
 

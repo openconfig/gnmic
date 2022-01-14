@@ -10,9 +10,9 @@ This deployment example includes a single `gnmic` instance and a single [Kafka o
 
 Deployment files:
 
-- [containerlab](https://github.com/karimra/gnmic/blob/master/examples/deployments/1.single-instance/2.kafka-output/containerlab/kafka.clab.yaml)
+- [containerlab](https://github.com/karimra/gnmic/blob/main/examples/deployments/1.single-instance/2.kafka-output/containerlab/kafka.clab.yaml)
 
-- [gNMIc config](https://github.com/karimra/gnmic/blob/master/examples/deployments/1.single-instance/2.kafka-output/containerlab/gnmic.yaml)
+- [gNMIc config](https://github.com/karimra/gnmic/blob/main/examples/deployments/1.single-instance/2.kafka-output/containerlab/gnmic.yaml)
 
 The deployed SR Linux nodes are discovered using Docker API and are loaded as gNMI targets.
 Edit the subscriptions section if needed.

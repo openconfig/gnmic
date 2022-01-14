@@ -28,11 +28,11 @@ The whole lab is pretty much self organising:
 
 Deployment files:
 
-- [containerlab](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/4.gnmi-server/containerlab/gnmi-server.clab.yaml)
-- [gNMIc cluster config](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/4.gnmi-server/containerlab/gnmic.yaml)
-- [gNMIc aggregator config](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/4.gnmi-server/containerlab/gnmic-agg.yaml)
-- [Prometheus config](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/4.gnmi-server/containerlab/prometheus/prometheus.yaml)
-- [Grafana datasource](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/4.gnmi-server/containerlab/grafana/datasources/datasource.yaml)
+- [containerlab](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/4.gnmi-server/containerlab/gnmi-server.clab.yaml)
+- [gNMIc cluster config](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/4.gnmi-server/containerlab/gnmic.yaml)
+- [gNMIc aggregator config](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/4.gnmi-server/containerlab/gnmic-agg.yaml)
+- [Prometheus config](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/4.gnmi-server/containerlab/prometheus/prometheus.yaml)
+- [Grafana datasource](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/4.gnmi-server/containerlab/grafana/datasources/datasource.yaml)
 
 Deploy it with:
 
