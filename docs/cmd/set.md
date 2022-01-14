@@ -1,4 +1,5 @@
 ## Description
+
 The `set` command represents the [gNMI Set RPC](https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto#L62).
 
 It is used to send a [Set Request](https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto#L339) to the specified target(s) and expects one [Set Response](https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto#L356) per target.
@@ -9,33 +10,41 @@ Set RPC allows the client to [modify the state](https://github.com/openconfig/re
     It is possible to combine `update`, `replace` and `delete` in a single `gnmic set` command.
 
 ## Usage
+
 `gnmic [global-flags] set [local-flags]`
 
 The Set Request can be any of (or a combination of) update, replace or/and delete operations.
 
-## Common flags
-### prefix
-The `--prefix` flag sets a common [prefix](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#241-path-prefixes) to all paths specified using the local `--path` flag. Defaults to `""`.
+## Flags
 
+### prefix
+
+The `--prefix` flag sets a common [prefix](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#241-path-prefixes) to all paths specified using the local `--path` flag. Defaults to `""`.
 
 If a user needs to provide [origin](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#222-paths) information to the Path message, the following pattern should be used for the path string: `"origin:path"`:
 
 !!! note
     The path after the origin value has to start with a `/`
 
-```
+```bash
 gnmic set --update "openconfig-interfaces:/interfaces/interface:::<type>:::<value>"
 ```
 
 ### target
+
 With the optional `[--target]` flag it is possible to supply the [path target](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#2221-path-target) information in the prefix field of the SetRequest message.
 
+### dry-run
+
+The `--dry-run` flag allow to run a Set request without sending it to the targets.
+This is useful while developing templated Set requests.
+
 ## Update Request
+
 There are several ways to perform an update operation with gNMI Set RPC:
 
 #### 1. in-line update, implicit type
 Using both `--update-path` and `--update-value` flags, a user can update a value for a given path.
-
 
 ```bash
 gnmic set --update-path /configure/system/name --update-value router1

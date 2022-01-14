@@ -46,7 +46,7 @@ func (a *App) SetRequest(ctx context.Context, tName string) {
 	defer a.wg.Done()
 	reqs, err := a.Config.CreateSetRequest(tName)
 	if err != nil {
-		a.logError(fmt.Errorf("target %q: failed to generate: %v", tName, err))
+		a.logError(fmt.Errorf("target %q: failed to create set request: %v", tName, err))
 		return
 	}
 	for _, req := range reqs {
@@ -57,11 +57,14 @@ func (a *App) SetRequest(ctx context.Context, tName string) {
 func (a *App) setRequest(ctx context.Context, tName string, req *gnmi.SetRequest) {
 	a.Logger.Printf("sending gNMI SetRequest: prefix='%v', delete='%v', replace='%v', update='%v', extension='%v' to %s",
 		req.Prefix, req.Delete, req.Replace, req.Update, req.Extension, tName)
-	if a.Config.PrintRequest {
+	if a.Config.PrintRequest || a.Config.SetDryRun {
 		err := a.PrintMsg(tName, "Set Request:", req)
 		if err != nil {
 			a.logError(fmt.Errorf("target %q: %v", tName, err))
 		}
+	}
+	if a.Config.SetDryRun {
+		return
 	}
 	response, err := a.ClientSet(ctx, tName, req)
 	if err != nil {
@@ -94,6 +97,7 @@ func (a *App) InitSetFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&a.Config.LocalFlags.SetTarget, "target", "", "", "set request target")
 	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.SetRequestFile, "request-file", "", []string{}, "set request template file(s)")
 	cmd.Flags().StringVarP(&a.Config.LocalFlags.SetRequestVars, "request-vars", "", "", "set request variables file")
+	cmd.Flags().BoolVarP(&a.Config.LocalFlags.SetDryRun, "dry-run", "", false, "prints the set request without initiating a gRPC connection")
 
 	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
 		a.Config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
