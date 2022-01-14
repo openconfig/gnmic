@@ -50,7 +50,7 @@ targets:
     tls-cert: /path/file2
 ```
 
-The target address is defined as the key under the `targets` section of the configuration file. The default port (57400) can be omitted as demonstrated with `router1.lab.net` target address. Have a look at the [file-based targets configuration](https://github.com/karimra/gnmic/blob/master/config.yaml) example to get a glimpse of what it is capable of.
+The target address is defined as the key under the `targets` section of the configuration file. The default port (57400) can be omitted as demonstrated with `router1.lab.net` target address. Have a look at the [file-based targets configuration](https://github.com/karimra/gnmic/blob/main/config.yaml) example to get a glimpse of what it is capable of.
 
 The target inherits the globally defined options if the matching options are not set on a target level. For example, if a target doesn't have a username defined, it will use the username value set on a global level.
 

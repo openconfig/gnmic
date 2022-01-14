@@ -40,10 +40,10 @@ Since only one instance can hold a lock, only one prometheus output is registere
 
 Deployment files:
 
-- [containerlab](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/3.nats-input-prometheus-output/containerlab/lab23.clab.yaml)
-- [gNMIc config](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/3.nats-input-prometheus-output/containerlab/gnmic.yaml)
-- [prometheus config](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/3.nats-input-prometheus-output/containerlab/prometheus/prometheus.yaml)
-- [Grafana datasource](https://github.com/karimra/gnmic/blob/master/examples/deployments/2.clusters/3.nats-input-prometheus-output/containerlab/grafana/datasources/datasource.yaml)
+- [containerlab](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/3.nats-input-prometheus-output/containerlab/lab23.clab.yaml)
+- [gNMIc config](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/3.nats-input-prometheus-output/containerlab/gnmic.yaml)
+- [prometheus config](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/3.nats-input-prometheus-output/containerlab/prometheus/prometheus.yaml)
+- [Grafana datasource](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/3.nats-input-prometheus-output/containerlab/grafana/datasources/datasource.yaml)
 
 Deploy it with:
 

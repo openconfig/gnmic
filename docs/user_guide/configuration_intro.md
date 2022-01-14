@@ -44,4 +44,4 @@ gnmic --config ./cfg.yml capabilities
 
 If the file referenced by `--config` flag is not present, the default path won't be tried.
 
-Example of the `gnmic` config files are provided in the following formats: [YAML](https://github.com/karimra/gnmic/blob/master/config.yaml), [JSON](https://github.com/karimra/gnmic/blob/master/config.json), [TOML](https://github.com/karimra/gnmic/blob/master/config.toml).
+Example of the `gnmic` config files are provided in the following formats: [YAML](https://github.com/karimra/gnmic/blob/main/config.yaml), [JSON](https://github.com/karimra/gnmic/blob/main/config.json), [TOML](https://github.com/karimra/gnmic/blob/main/config.toml).

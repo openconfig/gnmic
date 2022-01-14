@@ -16,9 +16,9 @@ This deployment example includes:
 
 Deployment files:
 
-- [docker compose](https://github.com/karimra/gnmic/blob/master/examples/deployments/1.single-instance/5.multiple-outputs/docker-compose/docker-compose.yaml)
+- [docker compose](https://github.com/karimra/gnmic/blob/main/examples/deployments/1.single-instance/5.multiple-outputs/docker-compose/docker-compose.yaml)
 
-- [gnmic config](https://github.com/karimra/gnmic/blob/master/examples/deployments/1.single-instance/5.multiple-outputs/docker-compose/gnmic1.yaml)
+- [gnmic config](https://github.com/karimra/gnmic/blob/main/examples/deployments/1.single-instance/5.multiple-outputs/docker-compose/gnmic1.yaml)
 
 Download both files, update the `gnmic` config file with the desired subscriptions and targets.
 

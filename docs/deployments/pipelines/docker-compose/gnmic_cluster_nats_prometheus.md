@@ -17,10 +17,10 @@ These 2 examples are essentially scaled-out versions of this [example](nats_prom
 
 Deployment files:
 
-- [docker compose](https://github.com/karimra/gnmic/blob/master/examples/deployments/3.pipelines/3a.gnmic-cluster-nats-gnmic-prometheus/docker-compose/docker-compose.yaml)
-- [gnmic collector config](https://github.com/karimra/gnmic/blob/master/examples/deployments/3.pipelines/3a.gnmic-cluster-nats-gnmic-prometheus/docker-compose/gnmic-collector.yaml)
-- [gnmic relay config](https://github.com/karimra/gnmic/blob/master/examples/deployments/3.pipelines/3a.gnmic-cluster-nats-gnmic-prometheus/docker-compose/gnmic-relay.yaml)
-- [prometheus config](https://github.com/karimra/gnmic/blob/master/examples/deployments/3.pipelines/3a.gnmic-cluster-nats-gnmic-prometheus/docker-compose/prometheus/prometheus.yaml)
+- [docker compose](https://github.com/karimra/gnmic/blob/main/examples/deployments/3.pipelines/3a.gnmic-cluster-nats-gnmic-prometheus/docker-compose/docker-compose.yaml)
+- [gnmic collector config](https://github.com/karimra/gnmic/blob/main/examples/deployments/3.pipelines/3a.gnmic-cluster-nats-gnmic-prometheus/docker-compose/gnmic-collector.yaml)
+- [gnmic relay config](https://github.com/karimra/gnmic/blob/main/examples/deployments/3.pipelines/3a.gnmic-cluster-nats-gnmic-prometheus/docker-compose/gnmic-relay.yaml)
+- [prometheus config](https://github.com/karimra/gnmic/blob/main/examples/deployments/3.pipelines/3a.gnmic-cluster-nats-gnmic-prometheus/docker-compose/prometheus/prometheus.yaml)
 
 Download the files, update the `gnmic` collectors config files with the desired subscriptions and targets.
 
@@ -40,10 +40,10 @@ Check the [Prometheus Output](../../../user_guide/outputs/prometheus_output.md) 
 
 Deployment files:
 
-- [docker compose](https://github.com/karimra/gnmic/blob/master/examples/deployments/3.pipelines/3b.gnmic-cluster-nats-gnmic-cluster-prometheus/docker-compose/docker-compose.yaml)
-- [gnmic collector config](https://github.com/karimra/gnmic/blob/master/examples/deployments/3.pipelines/3b.gnmic-cluster-nats-gnmic-cluster-prometheus/docker-compose/gnmic-collector.yaml)
-- [gnmic relay config](https://github.com/karimra/gnmic/blob/master/examples/deployments/3.pipelines/3b.gnmic-cluster-nats-gnmic-cluster-prometheus/docker-compose/gnmic-relay.yaml)
-- [prometheus config](https://github.com/karimra/gnmic/blob/master/examples/deployments/3.pipelines/3b.gnmic-cluster-nats-gnmic-cluster-prometheus/docker-compose/prometheus/prometheus.yaml)
+- [docker compose](https://github.com/karimra/gnmic/blob/main/examples/deployments/3.pipelines/3b.gnmic-cluster-nats-gnmic-cluster-prometheus/docker-compose/docker-compose.yaml)
+- [gnmic collector config](https://github.com/karimra/gnmic/blob/main/examples/deployments/3.pipelines/3b.gnmic-cluster-nats-gnmic-cluster-prometheus/docker-compose/gnmic-collector.yaml)
+- [gnmic relay config](https://github.com/karimra/gnmic/blob/main/examples/deployments/3.pipelines/3b.gnmic-cluster-nats-gnmic-cluster-prometheus/docker-compose/gnmic-relay.yaml)
+- [prometheus config](https://github.com/karimra/gnmic/blob/main/examples/deployments/3.pipelines/3b.gnmic-cluster-nats-gnmic-cluster-prometheus/docker-compose/prometheus/prometheus.yaml)
 
 Download the files, update the `gnmic` collectors config files with the desired subscriptions and targets.
 

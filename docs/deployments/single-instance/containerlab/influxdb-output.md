@@ -8,11 +8,11 @@ This deployment example includes a single `gnmic` instance, a single [InfluxDB](
 
 Deployment files:
 
-- [containerlab](https://github.com/karimra/gnmic/blob/master/examples/deployments/1.single-instance/3.influxdb-output/containerlab/influxdb.clab.yaml)
+- [containerlab](https://github.com/karimra/gnmic/blob/main/examples/deployments/1.single-instance/3.influxdb-output/containerlab/influxdb.clab.yaml)
 
-- [gNMIc config](https://github.com/karimra/gnmic/blob/master/examples/deployments/1.single-instance/3.influxdb-output/containerlab/gnmic.yaml)
+- [gNMIc config](https://github.com/karimra/gnmic/blob/main/examples/deployments/1.single-instance/3.influxdb-output/containerlab/gnmic.yaml)
 
-- [Grafana datasource](https://github.com/karimra/gnmic/blob/master/examples/deployments/1.single-instance/3.influxdb-output/containerlab/grafana/datasources/datasource.yaml)
+- [Grafana datasource](https://github.com/karimra/gnmic/blob/main/examples/deployments/1.single-instance/3.influxdb-output/containerlab/grafana/datasources/datasource.yaml)
 
 The deployed SR Linux nodes are discovered using Docker API and are loaded as gNMI targets.
 Edit the subscriptions section if needed.
