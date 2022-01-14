@@ -245,9 +245,6 @@ func readFromStdin(ctx context.Context) ([]byte, error) {
 			n, err := rd.Read(buf)
 			if err == io.EOF {
 				data = append(data, buf[:n]...)
-				fmt.Println("!!!")
-				fmt.Println(string(data))
-				fmt.Println("!!!")
 				return data, nil
 			}
 			if err != nil {
