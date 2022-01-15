@@ -64,7 +64,7 @@ func (tc *TargetConfig) NewTLSConfig() (*tls.Config, error) {
 	}
 
 	if tc.LogTLSSecret != nil && *tc.LogTLSSecret {
-		logPath := tc.Name + ".tlskey.log"
+		logPath := tc.Name + ".tlssecret.log"
 		w, err := os.Create(logPath)
 		if err != nil {
 			return nil, err
