@@ -265,6 +265,12 @@ The tls version flag `[--tls-version]` specifies a single supported TLS version 
 
 This flag overwrites the previously listed flags `--tls-max-version` and `--tls-min-version`.
 
+### log-tls-secret
+
+The log TLS secret flag `[--log-tls-secret]` makes gnmic to log the per-session pre-master secret so that it can be used to [decrypt TLS](https://gitlab.com/wireshark/wireshark/-/wikis/TLS#tls-decryption) secured gNMI communications with, for example, Wireshark.
+
+The secret will be saved to a file named `<target-name>.tlssecret.log`.
+
 ### token
 
 The token flag `[--token]` sets a token value to be added to each RPC as an Authorization Bearer Token.
