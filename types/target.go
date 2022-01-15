@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -60,6 +61,17 @@ func (tc *TargetConfig) NewTLSConfig() (*tls.Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// TODO: add flag to enable tls pre master key log dump
+	if true {
+		logPath := tc.Name + ".tlskey.log"
+		w, err := os.Create(logPath)
+		if err != nil {
+			return nil, err
+		}
+		tlsConfig.KeyLogWriter = w
+	}
+
 	tlsConfig.MaxVersion = tc.getTLSMaxVersion()
 	tlsConfig.MinVersion = tc.getTLSMinVersion()
 	return tlsConfig, nil

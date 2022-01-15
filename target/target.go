@@ -3,7 +3,6 @@ package target
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 
@@ -77,17 +76,6 @@ func (t *Target) CreateGNMIClient(ctx context.Context, opts ...grpc.DialOption) 
 		if err != nil {
 			return err
 		}
-
-		// TODO: add flag to enable tls pre master key log dump
-		if true {
-			logPath := t.Config.Name + ".tlskey.log"
-			w, err := os.Create(logPath)
-			if err != nil {
-				return err
-			}
-			tlsConfig.KeyLogWriter = w
-		}
-
 		tOpts = append(tOpts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 		if t.Config.Token != nil && *t.Config.Token != "" {
 			tOpts = append(tOpts,
