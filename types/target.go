@@ -30,6 +30,7 @@ type TargetConfig struct {
 	TLSMinVersion string        `mapstructure:"tls-min-version,omitempty" json:"tls-min-version,omitempty" yaml:"tls-min-version,omitempty"`
 	TLSMaxVersion string        `mapstructure:"tls-max-version,omitempty" json:"tls-max-version,omitempty" yaml:"tls-max-version,omitempty"`
 	TLSVersion    string        `mapstructure:"tls-version,omitempty" json:"tls-version,omitempty" yaml:"tls-version,omitempty"`
+	LogTLSSecret  *bool         `mapstructure:"log-tls-secret,omitempty" json:"log-tls-secret,omitempty" yaml:"log-tls-secret,omitempty"`
 	ProtoFiles    []string      `mapstructure:"proto-files,omitempty" json:"proto-files,omitempty" yaml:"proto-files,omitempty"`
 	ProtoDirs     []string      `mapstructure:"proto-dirs,omitempty" json:"proto-dirs,omitempty" yaml:"proto-dirs,omitempty"`
 	Tags          []string      `mapstructure:"tags,omitempty" json:"tags,omitempty" yaml:"tags,omitempty"`
@@ -62,8 +63,7 @@ func (tc *TargetConfig) NewTLSConfig() (*tls.Config, error) {
 		return nil, err
 	}
 
-	// TODO: add flag to enable tls pre master key log dump
-	if true {
+	if tc.LogTLSSecret != nil && *tc.LogTLSSecret {
 		logPath := tc.Name + ".tlskey.log"
 		w, err := os.Create(logPath)
 		if err != nil {
