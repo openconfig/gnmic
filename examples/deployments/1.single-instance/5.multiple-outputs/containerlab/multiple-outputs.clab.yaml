@@ -21,7 +21,7 @@ topology:
 
     gnmic:
       kind: linux
-      image: gnmic:0.21.0-beta
+      image: ghcr.io/karimra/gnmic:latest
       binds:
         - ./gnmic.yaml:/app/gnmic.yaml:ro
         - /var/run/docker.sock:/var/run/docker.sock
