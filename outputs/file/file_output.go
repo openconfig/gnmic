@@ -11,8 +11,6 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/hairyhenderson/gomplate/v3"
-	"github.com/hairyhenderson/gomplate/v3/data"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/karimra/gnmic/types"
@@ -168,23 +166,19 @@ func (f *File) Init(ctx context.Context, name string, cfg map[string]interface{}
 	if f.Cfg.TargetTemplate == "" {
 		f.targetTpl = outputs.DefaultTargetTemplate
 	} else if f.Cfg.AddTarget != "" {
-		f.targetTpl, err = template.New("target-template").
-			Funcs(outputs.TemplateFuncs).
-			Funcs(gomplate.CreateFuncs(context.TODO(), new(data.Data))).
-			Parse(f.Cfg.TargetTemplate)
+		f.targetTpl, err = utils.CreateTemplate("target-template", f.Cfg.TargetTemplate)
 		if err != nil {
 			return err
 		}
+		f.targetTpl = f.targetTpl.Funcs(outputs.TemplateFuncs)
 	}
 
 	if f.Cfg.MsgTemplate != "" {
-		f.msgTpl, err = template.New("msg-template").
-			Funcs(outputs.TemplateFuncs).
-			Funcs(gomplate.CreateFuncs(context.TODO(), new(data.Data))).
-			Parse(f.Cfg.MsgTemplate)
+		f.msgTpl, err = utils.CreateTemplate(fmt.Sprintf("%s-msg-template", name), f.Cfg.MsgTemplate)
 		if err != nil {
 			return err
 		}
+		f.msgTpl = f.msgTpl.Funcs(outputs.TemplateFuncs)
 	}
 
 	f.logger.Printf("initialized file output: %s", f.String())

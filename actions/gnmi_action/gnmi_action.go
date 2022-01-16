@@ -13,8 +13,6 @@ import (
 	"sync"
 	"text/template"
 
-	"github.com/hairyhenderson/gomplate/v3"
-	"github.com/hairyhenderson/gomplate/v3/data"
 	"github.com/karimra/gnmic/actions"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/target"
@@ -29,7 +27,7 @@ const (
 	loggingPrefix   = "[gnmi_action] "
 	actionType      = "gnmi"
 	defaultDataType = "ALL"
-	defaultTarget   = `{{ index .Event.Tags "source" }}`
+	defaultTarget   = `{{ index .Input.Tags "source" }}`
 	defaultEncoding = "JSON"
 	defaultFormat   = "json"
 )
@@ -241,15 +239,11 @@ func (g *gnmiAction) validate() error {
 
 func (g *gnmiAction) parseTemplates() error {
 	var err error
-	g.target, err = template.New("target").
-		Funcs(gomplate.CreateFuncs(context.TODO(), new(data.Data))).
-		Parse(g.Target)
+	g.target, err = utils.CreateTemplate(fmt.Sprintf("%s-target", g.Name), g.Target)
 	if err != nil {
 		return err
 	}
-	g.prefix, err = template.New("prefix").
-		Funcs(gomplate.CreateFuncs(context.TODO(), new(data.Data))).
-		Parse(g.Prefix)
+	g.prefix, err = utils.CreateTemplate(fmt.Sprintf("%s-prefix", g.Name), g.Prefix)
 	if err != nil {
 		return err
 	}
@@ -264,9 +258,7 @@ func (g *gnmiAction) parseTemplates() error {
 func (g *gnmiAction) createTemplates(n string, s []string) ([]*template.Template, error) {
 	tpls := make([]*template.Template, 0, len(s))
 	for i, p := range s {
-		tpl, err := template.New(fmt.Sprintf("%s-%d", n, i)).
-			Funcs(gomplate.CreateFuncs(context.TODO(), new(data.Data))).
-			Parse(p)
+		tpl, err := utils.CreateTemplate(fmt.Sprintf("%s-%s-%d", g.Name, n, i), p)
 		if err != nil {
 			return nil, err
 		}

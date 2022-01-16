@@ -149,12 +149,11 @@ func (i *InfluxDBOutput) Init(ctx context.Context, name string, cfg map[string]i
 	if i.Cfg.TargetTemplate == "" {
 		i.targetTpl = outputs.DefaultTargetTemplate
 	} else if i.Cfg.AddTarget != "" {
-		i.targetTpl, err = template.New("target-template").
-			Funcs(outputs.TemplateFuncs).
-			Parse(i.Cfg.TargetTemplate)
+		i.targetTpl, err = utils.CreateTemplate("target-template", i.Cfg.TargetTemplate)
 		if err != nil {
 			return err
 		}
+		i.targetTpl = i.targetTpl.Funcs(outputs.TemplateFuncs)
 	}
 	if i.Cfg.Debug {
 		iopts.SetLogLevel(3)
