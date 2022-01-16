@@ -220,6 +220,9 @@ func (c *Config) SetTargetConfigDefaults(tc *types.TargetConfig) error {
 	if tc.TLSMaxVersion == "" {
 		tc.TLSMaxVersion = c.TLSMaxVersion
 	}
+	if tc.LogTLSSecret == nil {
+		tc.LogTLSSecret = &c.LogTLSSecret
+	}
 	if tc.Gzip == nil {
 		tc.Gzip = &c.Gzip
 	}

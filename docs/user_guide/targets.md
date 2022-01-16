@@ -138,6 +138,8 @@ targets:
     tls-min-version:
     # preferred tls version to use during negotiation
     tls-version:
+    # enable logging of a pre-master TLS secret
+    log-tls-secret:
     # do not verify the target certificate when using tls
     skip-verify:
     # list of subscription names to establish for this target.

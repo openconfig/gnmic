@@ -151,6 +151,7 @@ func (a *App) InitGlobalFlags() {
 	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.TLSMinVersion, "tls-min-version", "", "", fmt.Sprintf("minimum TLS supported version, one of %q", tlsVersions))
 	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.TLSMaxVersion, "tls-max-version", "", "", fmt.Sprintf("maximum TLS supported version, one of %q", tlsVersions))
 	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.TLSVersion, "tls-version", "", "", fmt.Sprintf("set TLS version. Overwrites --tls-min-version and --tls-max-version, one of %q", tlsVersions))
+	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.LogTLSSecret, "log-tls-secret", "", false, "enable logging of a TLS pre-master secret to a file")
 	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.ClusterName, "cluster-name", "", defaultClusterName, "cluster name the gnmic instance belongs to, this is used for target loadsharing via a locker")
 	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.InstanceName, "instance-name", "", "", "gnmic instance name")
 	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.API, "api", "", "", "gnmic api address")
