@@ -124,12 +124,11 @@ func (u *UDPSock) Init(ctx context.Context, name string, cfg map[string]interfac
 	if u.Cfg.TargetTemplate == "" {
 		u.targetTpl = outputs.DefaultTargetTemplate
 	} else if u.Cfg.AddTarget != "" {
-		u.targetTpl, err = template.New("target-template").
-			Funcs(outputs.TemplateFuncs).
-			Parse(u.Cfg.TargetTemplate)
+		u.targetTpl, err = utils.CreateTemplate("target-template", u.Cfg.TargetTemplate)
 		if err != nil {
 			return err
 		}
+		u.targetTpl = u.targetTpl.Funcs(outputs.TemplateFuncs)
 	}
 	go u.start(ctx)
 	return nil

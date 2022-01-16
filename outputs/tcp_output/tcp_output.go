@@ -124,12 +124,11 @@ func (t *TCPOutput) Init(ctx context.Context, name string, cfg map[string]interf
 	if t.Cfg.TargetTemplate == "" {
 		t.targetTpl = outputs.DefaultTargetTemplate
 	} else if t.Cfg.AddTarget != "" {
-		t.targetTpl, err = template.New("target-template").
-			Funcs(outputs.TemplateFuncs).
-			Parse(t.Cfg.TargetTemplate)
+		t.targetTpl, err = utils.CreateTemplate("target-template", t.Cfg.TargetTemplate)
 		if err != nil {
 			return err
 		}
+		t.targetTpl = t.targetTpl.Funcs(outputs.TemplateFuncs)
 	}
 	go func() {
 		<-ctx.Done()

@@ -155,12 +155,11 @@ func (s *StanOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	if s.Cfg.TargetTemplate == "" {
 		s.targetTpl = outputs.DefaultTargetTemplate
 	} else if s.Cfg.AddTarget != "" {
-		s.targetTpl, err = template.New("target-template").
-			Funcs(outputs.TemplateFuncs).
-			Parse(s.Cfg.TargetTemplate)
+		s.targetTpl, err = utils.CreateTemplate("target-template", s.Cfg.TargetTemplate)
 		if err != nil {
 			return err
 		}
+		s.targetTpl = s.targetTpl.Funcs(outputs.TemplateFuncs)
 	}
 	ctx, s.cancelFn = context.WithCancel(ctx)
 	s.wg.Add(s.Cfg.NumWorkers)

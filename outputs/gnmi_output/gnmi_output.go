@@ -3,6 +3,7 @@ package gnmi_output
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -78,11 +79,17 @@ func (g *gNMIOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	for _, opt := range opts {
 		opt(g)
 	}
+
 	err = g.setDefaults()
 	if err != nil {
 		return err
 	}
-
+	if g.targetTpl == nil {
+		g.targetTpl, err = utils.CreateTemplate(fmt.Sprintf("%s-target-template", name), g.cfg.TargetTemplate)
+		if err != nil {
+			return err
+		}
+	}
 	err = g.startGRPCServer()
 	if err != nil {
 		return err

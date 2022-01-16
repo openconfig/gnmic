@@ -13,8 +13,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hairyhenderson/gomplate/v3"
-	"github.com/hairyhenderson/gomplate/v3/data"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/karimra/gnmic/types"
@@ -152,23 +150,19 @@ func (n *NatsOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	if n.Cfg.TargetTemplate == "" {
 		n.targetTpl = outputs.DefaultTargetTemplate
 	} else if n.Cfg.AddTarget != "" {
-		n.targetTpl, err = template.New("target-template").
-			Funcs(outputs.TemplateFuncs).
-			Funcs(gomplate.CreateFuncs(context.TODO(), new(data.Data))).
-			Parse(n.Cfg.TargetTemplate)
+		n.targetTpl, err = utils.CreateTemplate("target-template", n.Cfg.TargetTemplate)
 		if err != nil {
 			return err
 		}
+		n.targetTpl = n.targetTpl.Funcs(outputs.TemplateFuncs)
 	}
 
 	if n.Cfg.MsgTemplate != "" {
-		n.msgTpl, err = template.New("msg-template").
-			Funcs(outputs.TemplateFuncs).
-			Funcs(gomplate.CreateFuncs(context.TODO(), new(data.Data))).
-			Parse(n.Cfg.MsgTemplate)
+		n.msgTpl, err = utils.CreateTemplate("msg-template", n.Cfg.MsgTemplate)
 		if err != nil {
 			return err
 		}
+		n.msgTpl = n.msgTpl.Funcs(outputs.TemplateFuncs)
 	}
 
 	n.ctx, n.cancelFn = context.WithCancel(ctx)

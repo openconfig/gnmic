@@ -15,8 +15,6 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/damiannolan/sasl/oauthbearer"
 	"github.com/google/uuid"
-	"github.com/hairyhenderson/gomplate/v3"
-	"github.com/hairyhenderson/gomplate/v3/data"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/karimra/gnmic/types"
@@ -166,23 +164,19 @@ func (k *KafkaOutput) Init(ctx context.Context, name string, cfg map[string]inte
 	if k.Cfg.TargetTemplate == "" {
 		k.targetTpl = outputs.DefaultTargetTemplate
 	} else if k.Cfg.AddTarget != "" {
-		k.targetTpl, err = template.New("target-template").
-			Funcs(outputs.TemplateFuncs).
-			Funcs(gomplate.CreateFuncs(context.TODO(), new(data.Data))).
-			Parse(k.Cfg.TargetTemplate)
+		k.targetTpl, err = utils.CreateTemplate("target-template", k.Cfg.TargetTemplate)
 		if err != nil {
 			return err
 		}
+		k.targetTpl = k.targetTpl.Funcs(outputs.TemplateFuncs)
 	}
 
 	if k.Cfg.MsgTemplate != "" {
-		k.msgTpl, err = template.New("msg-template").
-			Funcs(outputs.TemplateFuncs).
-			Funcs(gomplate.CreateFuncs(context.TODO(), new(data.Data))).
-			Parse(k.Cfg.MsgTemplate)
+		k.msgTpl, err = utils.CreateTemplate("msg-template", k.Cfg.MsgTemplate)
 		if err != nil {
 			return err
 		}
+		k.msgTpl = k.msgTpl.Funcs(outputs.TemplateFuncs)
 	}
 
 	config, err := k.createConfig()

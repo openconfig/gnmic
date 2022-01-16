@@ -11,8 +11,6 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/hairyhenderson/gomplate/v3"
-	"github.com/hairyhenderson/gomplate/v3/data"
 	"github.com/karimra/gnmic/utils"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"gopkg.in/yaml.v2"
@@ -48,9 +46,7 @@ func (c *Config) ReadSetRequestTemplate() error {
 			c.logger.Printf("set request file %d content: %s", i, string(b))
 		}
 		// read template
-		c.setRequestTemplate[i], err = template.New(fmt.Sprintf("set-request-%d", i)).
-			Funcs(gomplate.CreateFuncs(context.TODO(), new(data.Data))).
-			Parse(string(b))
+		c.setRequestTemplate[i], err = utils.CreateTemplate(fmt.Sprintf("set-request-%d", i), string(b))
 		if err != nil {
 			return err
 		}

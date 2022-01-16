@@ -12,6 +12,7 @@ import (
 	"github.com/hairyhenderson/gomplate/v3"
 	"github.com/hairyhenderson/gomplate/v3/data"
 	"github.com/karimra/gnmic/actions"
+	"github.com/karimra/gnmic/utils"
 )
 
 const (
@@ -56,9 +57,7 @@ func (t *templateAction) Init(cfg map[string]interface{}, opts ...actions.Option
 		return err
 	}
 	if t.Template != "" {
-		t.tpl, err = template.New("template-action").
-			Funcs(gomplate.CreateFuncs(context.TODO(), new(data.Data))).
-			Parse(t.Template)
+		t.tpl, err = utils.CreateTemplate(fmt.Sprintf("%s-template-action", t.Name), t.Template)
 		if err != nil {
 			return err
 		}
@@ -67,7 +66,7 @@ func (t *templateAction) Init(cfg map[string]interface{}, opts ...actions.Option
 		if err != nil {
 			return err
 		}
-		t.tpl = t.tpl.Funcs(gomplate.CreateFuncs(context.TODO(), new(data.Data)))
+		t.tpl = t.tpl.Funcs(gomplate.CreateFuncs(context.TODO(), new(data.Data))).Option("missingkey=zero")
 	}
 	t.logger.Printf("action name %q of type %q initialized: %v", t.Name, actionType, t)
 	return nil

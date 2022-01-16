@@ -171,12 +171,11 @@ func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string
 	if p.Cfg.TargetTemplate == "" {
 		p.targetTpl = outputs.DefaultTargetTemplate
 	} else if p.Cfg.AddTarget != "" {
-		p.targetTpl, err = template.New("target-template").
-			Funcs(outputs.TemplateFuncs).
-			Parse(p.Cfg.TargetTemplate)
+		p.targetTpl, err = utils.CreateTemplate("target-template", p.Cfg.TargetTemplate)
 		if err != nil {
 			return err
 		}
+		p.targetTpl = p.targetTpl.Funcs(outputs.TemplateFuncs)
 	}
 	err = p.setDefaults()
 	if err != nil {
