@@ -66,6 +66,8 @@ nav:
           - Trigger: user_guide/event_processors/event_trigger.md
           - Write: user_guide/event_processors/event_write.md
 
+      - Actions: user_guide/actions/actions.md
+
       - Clustering: user_guide/HA.md
 
       - API: 
