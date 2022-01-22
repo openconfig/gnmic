@@ -172,3 +172,5 @@ func (d *Allow) WithLogger(l *log.Logger) {
 }
 
 func (d *Allow) WithTargets(tcs map[string]*types.TargetConfig) {}
+
+func (d *Allow) WithActions(act map[string]map[string]interface{}) {}

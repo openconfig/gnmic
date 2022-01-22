@@ -15,9 +15,12 @@ func WithLogger(logger *log.Logger) Option {
 	}
 }
 
-func WithEventProcessors(eps map[string]map[string]interface{}, log *log.Logger, tcs map[string]*types.TargetConfig) Option {
+func WithEventProcessors(eps map[string]map[string]interface{},
+	log *log.Logger,
+	tcs map[string]*types.TargetConfig,
+	acts map[string]map[string]interface{}) Option {
 	return func(o Output) {
-		o.SetEventProcessors(eps, log, tcs)
+		o.SetEventProcessors(eps, log, tcs, acts)
 	}
 }
 

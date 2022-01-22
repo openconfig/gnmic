@@ -16,6 +16,17 @@ type item struct {
 	output []*formatters.EventMsg
 }
 
+var actionsCfg = map[string]map[string]interface{}{
+	"dummy1": {
+		"name": "dummy1",
+		"type": "http",
+	},
+	"dummy2": {
+		"name": "dummy2",
+		"type": "http",
+		"url":  "http://remote-alerting-system:9090/",
+	},
+}
 var testset = map[string]struct {
 	processorType string
 	processor     map[string]interface{}
@@ -25,11 +36,8 @@ var testset = map[string]struct {
 		processorType: processorType,
 		processor: map[string]interface{}{
 			"debug": true,
-			"actions": []map[string]interface{}{
-				{
-					"name": "dummy",
-					"type": "http",
-				},
+			"actions": []string{
+				"dummy1",
 			},
 		},
 		tests: []item{
@@ -66,12 +74,8 @@ var testset = map[string]struct {
 		processor: map[string]interface{}{
 			"condition": `.values["counter1"] > 90`,
 			"debug":     true,
-			"actions": []map[string]interface{}{
-				{
-					"name": "dummy",
-					"type": "http",
-					"url":  "http://remote-alerting-system:9090/",
-				},
+			"actions": []string{
+				"dummy2",
 			},
 		},
 		tests: []item{
@@ -312,7 +316,10 @@ func TestEventTrigger(t *testing.T) {
 		if pi, ok := formatters.EventProcessors[ts.processorType]; ok {
 			t.Log("found processor")
 			p := pi()
-			err := p.Init(ts.processor, formatters.WithLogger(log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)))
+			err := p.Init(ts.processor,
+				formatters.WithLogger(log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)),
+				formatters.WithActions(actionsCfg),
+			)
 			if err != nil {
 				t.Errorf("failed to initialize processors: %v", err)
 				return

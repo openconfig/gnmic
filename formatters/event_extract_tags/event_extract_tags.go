@@ -134,6 +134,8 @@ func (p *extractTags) WithLogger(l *log.Logger) {
 
 func (p *extractTags) WithTargets(tcs map[string]*types.TargetConfig) {}
 
+func (p *extractTags) WithActions(act map[string]map[string]interface{}) {}
+
 func (p *extractTags) addTags(e *formatters.EventMsg, re *regexp.Regexp, s string) {
 	if e.Tags == nil {
 		e.Tags = make(map[string]string)

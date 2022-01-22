@@ -93,6 +93,8 @@ func (p *Merge) WithLogger(l *log.Logger) {
 
 func (p *Merge) WithTargets(tcs map[string]*types.TargetConfig) {}
 
+func (p *Merge) WithActions(act map[string]map[string]interface{}) {}
+
 func merge(e1, e2 *formatters.EventMsg) {
 	if e1.Tags == nil {
 		e1.Tags = make(map[string]string)

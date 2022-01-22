@@ -145,3 +145,5 @@ func (d *Delete) WithLogger(l *log.Logger) {
 }
 
 func (d *Delete) WithTargets(tcs map[string]*types.TargetConfig) {}
+
+func (d *Delete) WithActions(act map[string]map[string]interface{}) {}

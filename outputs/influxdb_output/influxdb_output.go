@@ -90,7 +90,10 @@ func (i *InfluxDBOutput) SetLogger(logger *log.Logger) {
 	}
 }
 
-func (i *InfluxDBOutput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]*types.TargetConfig) {
+func (i *InfluxDBOutput) SetEventProcessors(ps map[string]map[string]interface{},
+	logger *log.Logger,
+	tcs map[string]*types.TargetConfig,
+	acts map[string]map[string]interface{}) {
 	for _, epName := range i.Cfg.EventProcessors {
 		if epCfg, ok := ps[epName]; ok {
 			epType := ""
@@ -100,7 +103,10 @@ func (i *InfluxDBOutput) SetEventProcessors(ps map[string]map[string]interface{}
 			}
 			if in, ok := formatters.EventProcessors[epType]; ok {
 				ep := in()
-				err := ep.Init(epCfg[epType], formatters.WithLogger(logger), formatters.WithTargets(tcs))
+				err := ep.Init(epCfg[epType],
+					formatters.WithLogger(logger),
+					formatters.WithTargets(tcs),
+					formatters.WithActions(acts))
 				if err != nil {
 					i.logger.Printf("failed initializing event processor '%s' of type='%s': %v", epName, epType, err)
 					continue

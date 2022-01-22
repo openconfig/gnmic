@@ -174,6 +174,8 @@ func (p *AddTag) WithLogger(l *log.Logger) {
 
 func (p *AddTag) WithTargets(tcs map[string]*types.TargetConfig) {}
 
+func (p *AddTag) WithActions(act map[string]map[string]interface{}) {}
+
 func (p *AddTag) addTags(e *formatters.EventMsg) {
 	if e.Tags == nil {
 		e.Tags = make(map[string]string)

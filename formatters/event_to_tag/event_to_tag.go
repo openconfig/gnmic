@@ -118,3 +118,5 @@ func (t *ToTag) WithLogger(l *log.Logger) {
 }
 
 func (t *ToTag) WithTargets(tcs map[string]*types.TargetConfig) {}
+
+func (t *ToTag) WithActions(act map[string]map[string]interface{}) {}

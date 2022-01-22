@@ -22,7 +22,12 @@ func (a *App) InitOutput(ctx context.Context, name string, tcs map[string]*types
 				go func() {
 					err := out.Init(ctx, name, cfg,
 						outputs.WithLogger(a.Logger),
-						outputs.WithEventProcessors(a.Config.Processors, a.Logger, a.Config.Targets),
+						outputs.WithEventProcessors(
+							a.Config.Processors,
+							a.Logger, 
+							a.Config.Targets,
+							a.Config.Actions,
+						),
 						outputs.WithRegister(a.reg),
 						outputs.WithName(a.Config.InstanceName),
 						outputs.WithClusterName(a.Config.ClusterName),

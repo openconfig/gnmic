@@ -28,7 +28,7 @@ type Output interface {
 	String() string
 
 	SetLogger(*log.Logger)
-	SetEventProcessors(map[string]map[string]interface{}, *log.Logger, map[string]*types.TargetConfig)
+	SetEventProcessors(map[string]map[string]interface{}, *log.Logger, map[string]*types.TargetConfig, map[string]map[string]interface{})
 	SetName(string)
 	SetClusterName(string)
 	SetTargetsConfig(map[string]*types.TargetConfig)

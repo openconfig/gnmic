@@ -87,3 +87,5 @@ func (o *OverrideTS) WithLogger(l *log.Logger) {
 }
 
 func (o *OverrideTS) WithTargets(tcs map[string]*types.TargetConfig) {}
+
+func (o *OverrideTS) WithActions(act map[string]map[string]interface{}) {}
