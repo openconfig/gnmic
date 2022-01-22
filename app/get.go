@@ -22,6 +22,10 @@ func (a *App) GetRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed getting targets config: %v", err)
 	}
+	_, err = a.Config.GetActions()
+	if err != nil {
+		return fmt.Errorf("failed reading actions config: %v", err)
+	}
 	evps, err := a.intializeEventProcessors()
 	if err != nil {
 		return fmt.Errorf("failed to init event procesors: %v", err)

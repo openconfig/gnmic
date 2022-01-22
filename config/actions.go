@@ -15,6 +15,13 @@ func (c *Config) GetActions() (map[string]map[string]interface{}, error) {
 			if err != nil {
 				return nil, err
 			}
+			// set action name if not configured
+			if cname, ok := actc["name"]; !ok || cname == "" {
+				actc["name"] = name
+			}
+			for nn, a := range actc {
+				actc[nn] = convert(a)
+			}
 			c.Actions[name] = actc
 		case nil:
 			return nil, fmt.Errorf("empty action %q config", name)
@@ -22,12 +29,6 @@ func (c *Config) GetActions() (map[string]map[string]interface{}, error) {
 			c.logger.Printf("malformed action config, %+v", actc)
 			return nil, fmt.Errorf("malformed action config, got %T", actc)
 		}
-	}
-	for n, act := range c.Actions {
-		for nn, a := range act {
-			act[nn] = convert(a)
-		}
-		c.Actions[n] = act
 	}
 	for n := range c.Actions {
 		expandMapEnv(c.Actions[n],
