@@ -11,7 +11,7 @@ import (
 func (a *App) SubscribeRunPrompt(cmd *cobra.Command, args []string) error {
 	// stop running subscriptions
 	for _, t := range a.Targets {
-		t.Stop()
+		t.StopSubscriptions()
 	}
 	// reset subscriptions config map
 	a.Config.Subscriptions = make(map[string]*types.SubscriptionConfig)

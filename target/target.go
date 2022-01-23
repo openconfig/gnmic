@@ -36,6 +36,7 @@ type Target struct {
 	Subscriptions map[string]*types.SubscriptionConfig `json:"subscriptions,omitempty"`
 
 	m                  *sync.Mutex
+	conn               *grpc.ClientConn
 	Client             gnmi.GNMIClient                      `json:"-"`
 	SubscribeClients   map[string]gnmi.GNMI_SubscribeClient `json:"-"` // subscription name to subscribeClient
 	subscribeCancelFn  map[string]context.CancelFunc
@@ -119,6 +120,7 @@ func (t *Target) CreateGNMIClient(ctx context.Context, opts ...grpc.DialOption) 
 		select {
 		case conn := <-connC:
 			close(done)
+			t.conn = conn
 			t.Client = gnmi.NewGNMIClient(conn)
 			return nil
 		case err := <-errC:
@@ -160,7 +162,7 @@ func (t *Target) Set(ctx context.Context, req *gnmi.SetRequest) (*gnmi.SetRespon
 	return response, nil
 }
 
-func (t *Target) Stop() {
+func (t *Target) StopSubscriptions() {
 	t.m.Lock()
 	defer t.m.Unlock()
 	for _, cfn := range t.subscribeCancelFn {
@@ -173,4 +175,19 @@ func (t *Target) Stop() {
 		close(t.StopChan)
 	}
 	t.stopped = true
+}
+
+func (t *Target) Close() error {
+	t.StopSubscriptions()
+	if t.conn != nil {
+		return t.conn.Close()
+	}
+	return nil
+}
+
+func (t *Target) ConnState() string {
+	if t.conn == nil {
+		return ""
+	}
+	return t.conn.GetState().String()
 }

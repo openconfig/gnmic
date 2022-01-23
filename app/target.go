@@ -50,7 +50,7 @@ func (a *App) stopTarget(ctx context.Context, name string) error {
 	defer a.operLock.Unlock()
 	a.Logger.Printf("stopping target %q", name)
 	t := a.Targets[name]
-	t.Stop()
+	t.StopSubscriptions()
 	delete(a.Targets, name)
 	if a.locker == nil {
 		return nil
@@ -76,8 +76,8 @@ func (a *App) DeleteTarget(ctx context.Context, name string) error {
 		cfn()
 	}
 	if t, ok := a.Targets[name]; ok {
-		t.Stop()
 		delete(a.Targets, name)
+		t.Close()
 		if a.locker != nil {
 			return a.locker.Unlock(ctx, a.targetLockKey(name))
 		}
