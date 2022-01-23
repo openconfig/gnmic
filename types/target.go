@@ -9,6 +9,12 @@ import (
 	"time"
 
 	"github.com/karimra/gnmic/utils"
+	"golang.org/x/oauth2"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/credentials/oauth"
+	"google.golang.org/grpc/encoding/gzip"
 )
 
 // TargetConfig //
@@ -75,6 +81,39 @@ func (tc *TargetConfig) NewTLSConfig() (*tls.Config, error) {
 	tlsConfig.MaxVersion = tc.getTLSMaxVersion()
 	tlsConfig.MinVersion = tc.getTLSMinVersion()
 	return tlsConfig, nil
+}
+
+// GrpcDialOptions creates the grpc.dialOption list from teh target's configuration
+func (tc *TargetConfig) GrpcDialOptions() ([]grpc.DialOption, error) {
+	tOpts := make([]grpc.DialOption, 0, 1)
+	// gzip
+	if tc.Gzip != nil && *tc.Gzip {
+		tOpts = append(tOpts, grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)))
+	}
+	// insecure
+	if tc.Insecure != nil && *tc.Insecure {
+		tOpts = append(tOpts,
+			grpc.WithTransportCredentials(
+				insecure.NewCredentials(),
+			),
+		)
+		return tOpts, nil
+	}
+	// secure
+	tlsConfig, err := tc.NewTLSConfig()
+	if err != nil {
+		return nil, err
+	}
+	tOpts = append(tOpts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+	if tc.Token != nil && *tc.Token != "" {
+		tOpts = append(tOpts,
+			grpc.WithPerRPCCredentials(
+				oauth.NewOauthAccess(&oauth2.Token{
+					AccessToken: *tc.Token,
+				})))
+	}
+
+	return tOpts, nil
 }
 
 func (tc *TargetConfig) UsernameString() string {

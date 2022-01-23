@@ -12,7 +12,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/karimra/gnmic/types"
 	"github.com/karimra/gnmic/utils"
-	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -29,8 +29,8 @@ func (a *App) newAPIServer() (*http.Server, error) {
 	}
 	if a.Config.APIServer.EnableMetrics {
 		a.router.Handle("/metrics", promhttp.HandlerFor(a.reg, promhttp.HandlerOpts{}))
-		a.reg.MustRegister(prometheus.NewGoCollector())
-		a.reg.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
+		a.reg.MustRegister(collectors.NewGoCollector())
+		a.reg.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 	}
 	s := &http.Server{
 		Addr:         a.Config.APIServer.Address,
