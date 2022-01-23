@@ -10,11 +10,7 @@ import (
 	"github.com/karimra/gnmic/types"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
-	"golang.org/x/oauth2"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/oauth"
-	"google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -67,29 +63,13 @@ func NewTarget(c *types.TargetConfig) *Target {
 
 // CreateGNMIClient //
 func (t *Target) CreateGNMIClient(ctx context.Context, opts ...grpc.DialOption) error {
-	tOpts := make([]grpc.DialOption, 0, len(opts)+1)
-	tOpts = append(tOpts, opts...)
+	tOpts, err := t.Config.GrpcDialOptions()
+	if err != nil {
+		return err
+	}
+	opts = append(opts, tOpts...)
 
-	if t.Config.Insecure != nil && *t.Config.Insecure {
-		tOpts = append(tOpts, grpc.WithInsecure())
-	} else {
-		tlsConfig, err := t.Config.NewTLSConfig()
-		if err != nil {
-			return err
-		}
-		tOpts = append(tOpts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
-		if t.Config.Token != nil && *t.Config.Token != "" {
-			tOpts = append(tOpts,
-				grpc.WithPerRPCCredentials(
-					oauth.NewOauthAccess(&oauth2.Token{
-						AccessToken: *t.Config.Token,
-					})))
-		}
-	}
-	if t.Config.Gzip != nil && *t.Config.Gzip {
-		tOpts = append(tOpts, grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)))
-	}
-	//
+	// create a gRPC connection
 	addrs := strings.Split(t.Config.Address, ",")
 	numAddrs := len(addrs)
 	errC := make(chan error, numAddrs)
@@ -101,7 +81,7 @@ func (t *Target) CreateGNMIClient(ctx context.Context, opts ...grpc.DialOption) 
 		go func(addr string) {
 			timeoutCtx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 			defer cancel()
-			conn, err := grpc.DialContext(timeoutCtx, addr, tOpts...)
+			conn, err := grpc.DialContext(timeoutCtx, addr, opts...)
 			if err != nil {
 				errC <- fmt.Errorf("%s: %v", addr, err)
 				return

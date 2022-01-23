@@ -557,11 +557,6 @@ var execPathTemplateTestSet = map[string]struct {
 	},
 }
 
-var adminStr = "admin"
-var emptyStr = ""
-var falseBool = false
-var trueBool = true
-
 func TestCreateGetRequest(t *testing.T) {
 	for name, data := range createGetRequestTestSet {
 		t.Run(name, func(t *testing.T) {
