@@ -165,6 +165,8 @@ func (d *DateString) WithLogger(l *log.Logger) {
 
 func (d *DateString) WithTargets(tcs map[string]*types.TargetConfig) {}
 
+func (d *DateString) WithActions(act map[string]map[string]interface{}) {}
+
 func convertToInt(i interface{}) (int, error) {
 	switch i := i.(type) {
 	case string:

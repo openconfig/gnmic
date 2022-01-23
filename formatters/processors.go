@@ -43,6 +43,7 @@ type EventProcessor interface {
 
 	WithTargets(map[string]*types.TargetConfig)
 	WithLogger(l *log.Logger)
+	WithActions(act map[string]map[string]interface{})
 }
 
 func DecodeConfig(src, dst interface{}) error {
@@ -67,6 +68,12 @@ func WithLogger(l *log.Logger) Option {
 func WithTargets(tcs map[string]*types.TargetConfig) Option {
 	return func(p EventProcessor) {
 		p.WithTargets(tcs)
+	}
+}
+
+func WithActions(acts map[string]map[string]interface{}) Option {
+	return func(p EventProcessor) {
+		p.WithActions(acts)
 	}
 }
 

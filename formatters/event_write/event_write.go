@@ -223,3 +223,5 @@ func (p *Write) write(e *formatters.EventMsg) error {
 }
 
 func (p *Write) WithTargets(tcs map[string]*types.TargetConfig) {}
+
+func (p *Write) WithActions(act map[string]map[string]interface{}) {}

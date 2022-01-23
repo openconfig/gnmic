@@ -68,7 +68,10 @@ func (t *TCPOutput) SetLogger(logger *log.Logger) {
 	}
 }
 
-func (t *TCPOutput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]*types.TargetConfig) {
+func (t *TCPOutput) SetEventProcessors(ps map[string]map[string]interface{},
+	logger *log.Logger,
+	tcs map[string]*types.TargetConfig,
+	acts map[string]map[string]interface{}) {
 	for _, epName := range t.Cfg.EventProcessors {
 		if epCfg, ok := ps[epName]; ok {
 			epType := ""

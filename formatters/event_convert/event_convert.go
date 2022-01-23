@@ -127,6 +127,8 @@ func (c *Convert) WithLogger(l *log.Logger) {
 
 func (c *Convert) WithTargets(tcs map[string]*types.TargetConfig) {}
 
+func (c *Convert) WithActions(act map[string]map[string]interface{}) {}
+
 func convertToInt(i interface{}) (int, error) {
 	switch i := i.(type) {
 	case string:

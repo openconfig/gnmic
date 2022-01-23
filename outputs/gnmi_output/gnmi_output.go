@@ -163,7 +163,7 @@ func (g *gNMIOutput) SetLogger(logger *log.Logger) {
 	}
 }
 
-func (g *gNMIOutput) SetEventProcessors(map[string]map[string]interface{}, *log.Logger, map[string]*types.TargetConfig) {
+func (g *gNMIOutput) SetEventProcessors(map[string]map[string]interface{}, *log.Logger, map[string]*types.TargetConfig, map[string]map[string]interface{}) {
 }
 
 func (g *gNMIOutput) SetName(string) {}

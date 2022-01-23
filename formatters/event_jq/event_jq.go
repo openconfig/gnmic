@@ -187,3 +187,5 @@ func (p *jq) WithLogger(l *log.Logger) {
 }
 
 func (p *jq) WithTargets(tcs map[string]*types.TargetConfig) {}
+
+func (p *jq) WithActions(act map[string]map[string]interface{}) {}

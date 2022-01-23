@@ -22,6 +22,10 @@ func (a *App) GetRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed getting targets config: %v", err)
 	}
+	_, err = a.Config.GetActions()
+	if err != nil {
+		return fmt.Errorf("failed reading actions config: %v", err)
+	}
 	evps, err := a.intializeEventProcessors()
 	if err != nil {
 		return fmt.Errorf("failed to init event procesors: %v", err)
@@ -159,7 +163,11 @@ func (a *App) intializeEventProcessors() ([]formatters.EventProcessor, error) {
 			}
 			if in, ok := formatters.EventProcessors[epType]; ok {
 				ep := in()
-				err := ep.Init(epCfg[epType], formatters.WithLogger(a.Logger), formatters.WithTargets(a.Config.Targets))
+				err := ep.Init(epCfg[epType],
+					formatters.WithLogger(a.Logger),
+					formatters.WithTargets(a.Config.Targets),
+					formatters.WithActions(a.Config.Actions),
+				)
 				if err != nil {
 					return nil, fmt.Errorf("failed initializing event processor '%s' of type='%s': %v", epName, epType, err)
 				}
@@ -199,7 +207,10 @@ func (a *App) handleGetRequestEvent(ctx context.Context, req *gnmi.GetRequest, e
 			select {
 			case <-ctx.Done():
 				return
-			case r := <-rsps:
+			case r, ok := <-rsps:
+				if !ok {
+					return
+				}
 				responses[r.name] = r.rsp
 			}
 		}

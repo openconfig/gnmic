@@ -28,14 +28,15 @@ const (
 
 // Trigger triggers an action when certain conditions are met
 type Trigger struct {
-	Condition      string                   `mapstructure:"condition,omitempty"`
-	MinOccurrences int                      `mapstructure:"min-occurrences,omitempty"`
-	MaxOccurrences int                      `mapstructure:"max-occurrences,omitempty"`
-	Window         time.Duration            `mapstructure:"window,omitempty"`
-	Actions        []map[string]interface{} `mapstructure:"actions,omitempty"`
-	Vars           map[string]interface{}   `mapstructure:"vars,omitempty"`
-	VarsFile       string                   `mapstructure:"vars-file,omitempty"`
-	Debug          bool                     `mapstructure:"debug,omitempty"`
+	Condition      string                 `mapstructure:"condition,omitempty"`
+	MinOccurrences int                    `mapstructure:"min-occurrences,omitempty"`
+	MaxOccurrences int                    `mapstructure:"max-occurrences,omitempty"`
+	Window         time.Duration          `mapstructure:"window,omitempty"`
+	Actions        []string               `mapstructure:"actions,omitempty"`
+	Vars           map[string]interface{} `mapstructure:"vars,omitempty"`
+	VarsFile       string                 `mapstructure:"vars-file,omitempty"`
+	Debug          bool                   `mapstructure:"debug,omitempty"`
+	Async          bool                   `mapstructure:"async,omitempty"`
 
 	occurrencesTimes []time.Time
 	lastTrigger      time.Time
@@ -44,6 +45,7 @@ type Trigger struct {
 	vars             map[string]interface{}
 
 	targets map[string]*types.TargetConfig
+	acts    map[string]map[string]interface{}
 	logger  *log.Logger
 }
 
@@ -79,11 +81,15 @@ func (p *Trigger) Init(cfg interface{}, opts ...formatters.Option) error {
 		return err
 	}
 
-	for _, a := range p.Actions {
-		err = p.initializeAction(a)
-		if err != nil {
-			return err
+	for _, name := range p.Actions {
+		if actCfg, ok := p.acts[name]; ok {
+			err = p.initializeAction(actCfg)
+			if err != nil {
+				return err
+			}
+			continue
 		}
+		return fmt.Errorf("failed to initialize action %q: config not found", name)
 	}
 	err = p.readVars()
 	if err != nil {
@@ -111,7 +117,11 @@ func (p *Trigger) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		}
 		if res {
 			if p.evalOccurrencesWithinWindow(now) {
-				p.triggerActions(e)
+				if p.Async {
+					go p.triggerActions(e)
+				} else {
+					p.triggerActions(e)
+				}
 			}
 		}
 	}
@@ -131,6 +141,13 @@ func (p *Trigger) WithTargets(tcs map[string]*types.TargetConfig) {
 		p.logger.Printf("with targets: %+v", tcs)
 	}
 	p.targets = tcs
+}
+
+func (p *Trigger) WithActions(acts map[string]map[string]interface{}) {
+	if p.Debug {
+		p.logger.Printf("with actions: %+v", acts)
+	}
+	p.acts = acts
 }
 
 func (p *Trigger) initializeAction(cfg map[string]interface{}) error {
@@ -203,18 +220,16 @@ func (p *Trigger) readVars() error {
 }
 
 func (p *Trigger) triggerActions(e *formatters.EventMsg) {
-	go func() {
-		actx := &actions.Context{Input: e, Env: make(map[string]interface{}), Vars: p.vars}
-		for _, act := range p.actions {
-			res, err := act.Run(actx)
-			if err != nil {
-				p.logger.Printf("trigger action %q failed: %+v", act.NName(), err)
-				return
-			}
-			actx.Env[act.NName()] = res
-			p.logger.Printf("action %q result: %+v", act.NName(), res)
+	actx := &actions.Context{Input: e, Env: make(map[string]interface{}), Vars: p.vars}
+	for _, act := range p.actions {
+		res, err := act.Run(actx)
+		if err != nil {
+			p.logger.Printf("trigger action %q failed: %+v", act.NName(), err)
+			return
 		}
-	}()
+		actx.Env[act.NName()] = res
+		p.logger.Printf("action %q result: %+v", act.NName(), res)
+	}
 }
 
 func (p *Trigger) evalOccurrencesWithinWindow(now time.Time) bool {

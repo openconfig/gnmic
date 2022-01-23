@@ -103,7 +103,10 @@ func (s *StanOutput) SetLogger(logger *log.Logger) {
 	}
 }
 
-func (s *StanOutput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]*types.TargetConfig) {
+func (s *StanOutput) SetEventProcessors(ps map[string]map[string]interface{},
+	logger *log.Logger,
+	tcs map[string]*types.TargetConfig,
+	acts map[string]map[string]interface{}) {
 	for _, epName := range s.Cfg.EventProcessors {
 		if epCfg, ok := ps[epName]; ok {
 			epType := ""
@@ -113,7 +116,9 @@ func (s *StanOutput) SetEventProcessors(ps map[string]map[string]interface{}, lo
 			}
 			if in, ok := formatters.EventProcessors[epType]; ok {
 				ep := in()
-				err := ep.Init(epCfg[epType], formatters.WithLogger(logger), formatters.WithTargets(tcs))
+				err := ep.Init(epCfg[epType], formatters.WithLogger(logger),
+					formatters.WithTargets(tcs),
+					formatters.WithActions(acts))
 				if err != nil {
 					s.logger.Printf("failed initializing event processor %q of type=%q: %v", epName, epType, err)
 					continue

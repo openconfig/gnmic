@@ -87,6 +87,8 @@ func (p *groupBy) WithLogger(l *log.Logger) {
 
 func (p *groupBy) WithTargets(tcs map[string]*types.TargetConfig) {}
 
+func (p *groupBy) WithActions(act map[string]map[string]interface{}) {}
+
 func (p *groupBy) byTags(es []*formatters.EventMsg) []*formatters.EventMsg {
 	if len(p.Tags) == 0 {
 		return es
