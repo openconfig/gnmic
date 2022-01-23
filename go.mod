@@ -55,6 +55,7 @@ require (
 require (
 	cloud.google.com/go v0.95.0 // indirect
 	cloud.google.com/go/storage v1.16.1 // indirect
+	github.com/AlekSi/pointer v1.2.0
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Microsoft/go-winio v0.5.0 // indirect
 	github.com/ProtonMail/go-crypto v0.0.0-20210920160938-87db9fbc61c7 // indirect

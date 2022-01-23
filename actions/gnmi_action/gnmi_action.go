@@ -546,7 +546,7 @@ func (g *gnmiAction) runRPC(ctx context.Context, tc *types.TargetConfig, in *act
 }
 
 func (g *gnmiAction) runGet(ctx context.Context, tc *types.TargetConfig, in *actions.Context) ([]byte, error) {
-	t := &target.Target{Config: tc}
+	t := target.NewTarget(tc)
 	req, err := g.createGetRequest(in)
 	if err != nil {
 		return nil, err
@@ -555,6 +555,7 @@ func (g *gnmiAction) runGet(ctx context.Context, tc *types.TargetConfig, in *act
 	if err != nil {
 		return nil, err
 	}
+	defer t.Close()
 	resp, err := t.Get(ctx, req)
 	if err != nil {
 		return nil, err
@@ -564,7 +565,7 @@ func (g *gnmiAction) runGet(ctx context.Context, tc *types.TargetConfig, in *act
 }
 
 func (g *gnmiAction) runSet(ctx context.Context, tc *types.TargetConfig, in *actions.Context) ([]byte, error) {
-	t := &target.Target{Config: tc}
+	t := target.NewTarget(tc)
 	req, err := g.createSetRequest(in)
 	if err != nil {
 		return nil, err
@@ -573,6 +574,7 @@ func (g *gnmiAction) runSet(ctx context.Context, tc *types.TargetConfig, in *act
 	if err != nil {
 		return nil, err
 	}
+	defer t.Close()
 	resp, err := t.Set(ctx, req)
 	if err != nil {
 		return nil, err
@@ -582,7 +584,7 @@ func (g *gnmiAction) runSet(ctx context.Context, tc *types.TargetConfig, in *act
 }
 
 func (g *gnmiAction) runSubscribe(ctx context.Context, tc *types.TargetConfig, in *actions.Context) ([]byte, error) {
-	t := &target.Target{Config: tc}
+	t := target.NewTarget(tc)
 	req, err := g.createSubscribeRequest(in)
 	if err != nil {
 		return nil, err
@@ -591,7 +593,7 @@ func (g *gnmiAction) runSubscribe(ctx context.Context, tc *types.TargetConfig, i
 	if err != nil {
 		return nil, err
 	}
-
+	defer t.Close()
 	responses, err := t.SubscribeOnce(ctx, req)
 	if err != nil {
 		return nil, err
