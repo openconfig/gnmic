@@ -1,5 +1,51 @@
 ## Changelog
 
+### v0.21.0 - January 23rd 2021
+
+- [Generate Cmd](cmd/generate/generate_path.md):
+
+    Add YANG module namespace to generated paths.
+
+- Outputs:
+
+    Outputs [File](user_guide/outputs/file_output.md), [NATS](user_guide/outputs/nats_output.md) and [Kafka](user_guide/outputs/kafka_output.md) now support a `msg-template` field to customize the written messages using Go templates.
+
+- API:
+
+    Add [Cluster API](user_guide/api/cluster.md) endpoints.
+
+- Actions:
+
+    Add [Template](user_guide/actions/actions.md#template-action) action.
+
+    Add Subscribe ONCE RPC to [gNMI](user_guide/actions/actions.md#gnmi-action) action.
+
+    Allow [gNMI](user_guide/actions/actions.md#gnmi-action) action on multiple targets.
+
+    Add [Script](user_guide/actions/actions.md#script-action) action.
+
+- [Get Cmd](cmd/get.md):
+
+    Implement Format `event` for GetResponse messages.
+
+    Add the ability to execute processors with Get command flag [`--processor`](cmd/get.md#processor) on GetResponse messages.
+
+- [Target Discovery](user_guide/target_discovery/discovery_intro.md):
+
+    Add the ability to run [actions](user_guide/actions/actions.md) on target discovery or deletion.
+
+- [Set Cmd](cmd/set.md):
+
+    Add [`--dry-run`](cmd/set.md#dry-run) flag which runs the set request templates and prints their output without sending the SetRequest to the targets.
+
+- TLS:
+
+    Add pre-master key logging for TLS connections using the flag [`--log-tls-secret`](global_flags.md#log-tls-secret). The key can be used to decrypt encrypted gNMI messages using wireshark.
+
+- Target:
+
+    Add `target.Stop()` method to gracefully close the target underlying gRPC connection.
+
 ### v0.20.0 - October 19th 2021
 
 - Add [gomplate](https://docs.gomplate.ca) template functions to all templates rendered by `gnmic`.

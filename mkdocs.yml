@@ -1,17 +1,21 @@
 site_name: gNMIc
 nav:
   - Home: index.md
+
   - Getting started:
       - Installation: install.md
       - Basic usage: basic_usage.md
-      - Global flags: global_flags.md
-      - Releases: 
-        - Changelog: changelog.md
-  
+      - User guide: user_guide/configuration_intro.md
+      - Command reference: cmd/capabilities.md
+      - Deployment examples: deployments/deployments_intro.md
+      - Changelog: changelog.md
+
   - User guide:
       - Configuration:
         - Introduction: user_guide/configuration_intro.md
-        - Flags: user_guide/configuration_flags.md
+        - Flags: 
+            - user_guide/configuration_flags.md
+            - global_flags.md
         - Environment variables: user_guide/configuration_env.md
         - File configuration: user_guide/configuration_file.md
       
@@ -76,6 +80,21 @@ nav:
           - Targets: user_guide/api/targets.md
           - Cluster: user_guide/api/cluster.md
   
+  - Command reference:
+      - Capabilities: cmd/capabilities.md
+      - Get: cmd/get.md
+      - Set: cmd/set.md
+      - GetSet: cmd/getset.md
+      - Subscribe: cmd/subscribe.md
+      - Diff: cmd/diff.md
+      - Listen: cmd/listen.md
+      - Path: cmd/path.md
+      - Prompt: cmd/prompt.md
+      - Generate: 
+        - Generate: 'cmd/generate.md'
+        - Generate Path: cmd/generate/generate_path.md
+        - Generate Set-Request: cmd/generate/generate_set_request.md
+    
   - Deployment examples:
       - Deployments: deployments/deployments_intro.md
       
@@ -118,23 +137,9 @@ nav:
           - Docker Compose: deployments/pipelines/docker-compose/gnmic_cluster_nats_prometheus.md
         - Forked pipeline: 
           - Docker Compose: deployments/pipelines/docker-compose/forked_pipeline.md 
-
-  - Command reference:
-      - Capabilities: cmd/capabilities.md
-      - Get: cmd/get.md
-      - Set: cmd/set.md
-      - GetSet: cmd/getset.md
-      - Subscribe: cmd/subscribe.md
-      - Diff: cmd/diff.md
-      - Listen: cmd/listen.md
-      - Path: cmd/path.md
-      - Prompt: cmd/prompt.md
-      - Generate: 
-        - Generate: 'cmd/generate.md'
-        - Generate Path: cmd/generate/generate_path.md
-        - Generate Set-Request: cmd/generate/generate_set_request.md
-     
-  - Blog: blog/index.md
+  
+  - Changelog: changelog.md
+  # - Blog: blog/index.md
 
 site_author: Karim Radhouani
 site_description: >-
