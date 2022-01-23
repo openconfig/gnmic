@@ -3,41 +3,41 @@ module github.com/karimra/gnmic
 go 1.17
 
 require (
-	github.com/Shopify/sarama v1.26.4
-	github.com/adrg/xdg v0.3.0
+	github.com/Shopify/sarama v1.31.0
+	github.com/adrg/xdg v0.4.0
 	github.com/c-bata/go-prompt v0.2.5
 	github.com/damiannolan/sasl v1.0.0
 	github.com/docker/docker v20.10.7+incompatible
 	github.com/fsnotify/fsnotify v1.5.1
 	github.com/fullstorydev/grpcurl v1.8.0
-	github.com/go-resty/resty/v2 v2.6.0
+	github.com/go-resty/resty/v2 v2.7.0
 	github.com/google/gnxi v0.0.0-20200508145201-92c6d0d3ec3b
-	github.com/google/go-cmp v0.5.6
+	github.com/google/go-cmp v0.5.7
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/hairyhenderson/gomplate/v3 v3.10.0
-	github.com/hashicorp/consul/api v1.10.1
+	github.com/hashicorp/consul/api v1.12.0
 	github.com/huandu/xstrings v1.3.2
 	github.com/influxdata/influxdb-client-go/v2 v2.0.1
-	github.com/itchyny/gojq v0.12.5
+	github.com/itchyny/gojq v0.12.6
 	github.com/jhump/protoreflect v1.6.1
 	github.com/jlaffaye/ftp v0.0.0-20210307004419-5d4190119067
 	github.com/karimra/go-map-flattener v0.0.0-20200728034653-b1473e58dae8
 	github.com/karimra/sros-dialout v0.0.0-20200518085040-c759bf74063a
-	github.com/manifoldco/promptui v0.7.0
+	github.com/manifoldco/promptui v0.9.0
 	github.com/mitchellh/consulstructure v0.0.0-20190329231841-56fdc4d2da54
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/mitchellh/mapstructure v1.4.2
-	github.com/nats-io/nats.go v1.10.1-0.20210228004050-ed743748acac
-	github.com/nats-io/stan.go v0.7.0
-	github.com/nsf/termbox-go v0.0.0-20200418040025-38ba6e5628f1
-	github.com/olekukonko/tablewriter v0.0.4
+	github.com/mitchellh/mapstructure v1.4.3
+	github.com/nats-io/nats.go v1.13.0
+	github.com/nats-io/stan.go v0.10.2
+	github.com/nsf/termbox-go v1.1.1
+	github.com/olekukonko/tablewriter v0.0.5
 	github.com/openconfig/gnmi v0.0.0-20210707145734-c69a5df04b53
-	github.com/openconfig/goyang v0.2.7
-	github.com/pkg/sftp v1.13.2
-	github.com/prometheus/client_golang v1.8.0
+	github.com/openconfig/goyang v0.4.0
+	github.com/pkg/sftp v1.13.4
+	github.com/prometheus/client_golang v1.12.0
 	github.com/prometheus/client_model v0.2.0
 	github.com/spf13/cobra v1.2.1
 	github.com/spf13/pflag v1.0.5
@@ -46,10 +46,17 @@ require (
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
 	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/term v0.0.0-20210916214954-140adaaadfaf
-	google.golang.org/grpc v1.40.0
+	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
+	google.golang.org/grpc v1.43.0
 	google.golang.org/protobuf v1.27.1
 	gopkg.in/yaml.v2 v2.4.0
+)
+
+require (
+	github.com/jcmturner/aescts/v2 v2.0.0 // indirect
+	github.com/jcmturner/dnsutils/v2 v2.0.0 // indirect
+	github.com/jcmturner/gokrb5/v8 v8.4.2 // indirect
+	github.com/jcmturner/rpc/v2 v2.0.3 // indirect
 )
 
 require (
@@ -75,7 +82,7 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cenkalti/backoff/v3 v3.2.2 // indirect
-	github.com/cespare/xxhash/v2 v2.1.1 // indirect
+	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e // indirect
 	github.com/containerd/containerd v1.5.9 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -115,7 +122,7 @@ require (
 	github.com/hashicorp/go-uuid v1.0.2 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
-	github.com/hashicorp/serf v0.9.5 // indirect
+	github.com/hashicorp/serf v0.9.6 // indirect
 	github.com/hashicorp/vault/api v1.1.1 // indirect
 	github.com/hashicorp/vault/sdk v0.2.1 // indirect
 	github.com/imdario/mergo v0.3.12 // indirect
@@ -128,7 +135,7 @@ require (
 	github.com/joho/godotenv v1.4.0 // indirect
 	github.com/juju/ansiterm v0.0.0-20180109212912-720a0952cc2a // indirect
 	github.com/kevinburke/ssh_config v1.1.0 // indirect
-	github.com/klauspost/compress v1.13.5 // indirect
+	github.com/klauspost/compress v1.13.6 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/labstack/echo/v4 v4.1.11 // indirect
 	github.com/labstack/gommon v0.3.0 // indirect
@@ -151,9 +158,9 @@ require (
 	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/term v1.1.0 // indirect
-	github.com/prometheus/common v0.14.0 // indirect
-	github.com/prometheus/procfs v0.6.0 // indirect
-	github.com/rcrowley/go-metrics v0.0.0-20190826022208-cac0b30c2563 // indirect
+	github.com/prometheus/common v0.32.1 // indirect
+	github.com/prometheus/procfs v0.7.3 // indirect
+	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/rs/zerolog v1.25.0 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	github.com/sergi/go-diff v1.2.0 // indirect
@@ -173,8 +180,8 @@ require (
 	go4.org/intern v0.0.0-20210108033219-3eb7198706b2 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20201222180813-1025295fd063 // indirect
 	gocloud.dev v0.24.0 // indirect
-	golang.org/x/net v0.0.0-20210924151903-3ad01bbaa167 // indirect
-	golang.org/x/sys v0.0.0-20210923061019-b8560ed6a9b7 // indirect
+	golang.org/x/net v0.0.0-20220105145211-5b0dc2dfae98 // indirect
+	golang.org/x/sys v0.0.0-20220114195835-da31bd327af9 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
@@ -182,10 +189,6 @@ require (
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20210924002016-3dee208752a0 // indirect
 	gopkg.in/ini.v1 v1.62.0 // indirect
-	gopkg.in/jcmturner/aescts.v1 v1.0.1 // indirect
-	gopkg.in/jcmturner/dnsutils.v1 v1.0.1 // indirect
-	gopkg.in/jcmturner/gokrb5.v7 v7.5.0 // indirect
-	gopkg.in/jcmturner/rpc.v1 v1.1.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
