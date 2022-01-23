@@ -51,3 +51,5 @@ api-server:
 * [Configuration](./configuration.md)
 
 * [Targets](./targets.md)
+
+* [Cluster](./cluster.md)
