@@ -27,10 +27,10 @@ SUBSC:
 		nctx, cancel = context.WithCancel(ctx)
 		defer cancel()
 		if t.Config.Username != nil {
-			nctx = metadata.AppendToOutgoingContext(ctx, "username", *t.Config.Username)
+			nctx = metadata.AppendToOutgoingContext(nctx, "username", *t.Config.Username)
 		}
 		if t.Config.Password != nil {
-			nctx = metadata.AppendToOutgoingContext(ctx, "password", *t.Config.Password)
+			nctx = metadata.AppendToOutgoingContext(nctx, "password", *t.Config.Password)
 		}
 		subscribeClient, err = t.Client.Subscribe(nctx)
 		if err != nil {
@@ -250,4 +250,12 @@ func (t *Target) DeleteSubscription(name string) {
 	delete(t.subscribeCancelFn, name)
 	delete(t.SubscribeClients, name)
 	delete(t.Subscriptions, name)
+}
+
+func (t *Target) StopSubscription(name string) {
+	t.m.Lock()
+	defer t.m.Unlock()
+	t.subscribeCancelFn[name]()
+	delete(t.subscribeCancelFn, name)
+	delete(t.SubscribeClients, name)
 }
