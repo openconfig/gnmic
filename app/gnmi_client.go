@@ -29,7 +29,11 @@ func (a *App) ClientCapabilities(ctx context.Context, tName string, ext ...*gnmi
 		}
 		ctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 		defer cancel()
-		return t.Capabilities(ctx, ext...)
+		capResponse, err := t.Capabilities(ctx, ext...)
+		if err != nil {
+			return nil, fmt.Errorf("%q CapabilitiesRequest failed: %v", t.Config.Address, err)
+		}
+		return capResponse, nil
 	}
 	return nil, fmt.Errorf("unknown target name: %q", tName)
 }
@@ -54,7 +58,11 @@ func (a *App) ClientGet(ctx context.Context, tName string, req *gnmi.GetRequest)
 		}
 		ctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 		defer cancel()
-		return t.Get(ctx, req)
+		getResponse, err := t.Get(ctx, req)
+		if err != nil {
+			return nil, fmt.Errorf("%q GetRequest failed: %v", t.Config.Address, err)
+		}
+		return getResponse, nil
 	}
 	return nil, fmt.Errorf("unknown target name: %q", tName)
 }
@@ -79,7 +87,11 @@ func (a *App) ClientSet(ctx context.Context, tName string, req *gnmi.SetRequest)
 		}
 		ctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 		defer cancel()
-		return t.Set(ctx, req)
+		setResponse, err := t.Set(ctx, req)
+		if err != nil {
+			return nil, fmt.Errorf("target %q SetRequest failed: %v", t.Config.Name, err)
+		}
+		return setResponse, nil
 	}
 	return nil, fmt.Errorf("unknown target name: %q", tName)
 }
