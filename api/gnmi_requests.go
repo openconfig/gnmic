@@ -323,7 +323,6 @@ func Value(data interface{}, encoding string) func(msg proto.Message) error {
 }
 
 func value(data interface{}, encoding string) (*gnmi.TypedValue, error) {
-	var err error
 	switch data := data.(type) {
 	case []interface{}, []string:
 		switch strings.ToLower(encoding) {
@@ -375,36 +374,22 @@ func value(data interface{}, encoding string) (*gnmi.TypedValue, error) {
 	case string:
 		switch strings.ToLower(encoding) {
 		case "json":
-			// data = strings.TrimRight(strings.TrimLeft(data, "["), "]")
-			buff := new(bytes.Buffer)
-			bval := json.RawMessage(data)
-			if json.Valid(bval) {
-				err = json.NewEncoder(buff).Encode(bval)
-			} else {
-				err = json.NewEncoder(buff).Encode(data)
-			}
+			b, err := json.Marshal(data)
 			if err != nil {
 				return nil, err
 			}
-
 			return &gnmi.TypedValue{
 				Value: &gnmi.TypedValue_JsonVal{
-					JsonVal: bytes.Trim(buff.Bytes(), " \r\n\t"),
+					JsonVal: bytes.Trim(b, " \r\n\t"),
 				}}, nil
 		case "json_ietf":
-			buff := new(bytes.Buffer)
-			bval := json.RawMessage(data)
-			if json.Valid(bval) {
-				err = json.NewEncoder(buff).Encode(bval)
-			} else {
-				err = json.NewEncoder(buff).Encode(data)
-			}
+			b, err := json.Marshal(data)
 			if err != nil {
 				return nil, err
 			}
 			return &gnmi.TypedValue{
 				Value: &gnmi.TypedValue_JsonIetfVal{
-					JsonIetfVal: bytes.Trim(buff.Bytes(), " \r\n\t"),
+					JsonIetfVal: bytes.Trim(b, " \r\n\t"),
 				}}, nil
 		case "ascii":
 			return &gnmi.TypedValue{
@@ -465,7 +450,7 @@ func value(data interface{}, encoding string) (*gnmi.TypedValue, error) {
 	default:
 		return gvalue.FromScalar(data)
 	}
-	return nil, fmt.Errorf("unexpected value type: %T", data)
+	return nil, fmt.Errorf("unexpected value type and encoding: %T and %s", data, encoding)
 }
 
 // Delete creates a GNMIOption that creates a *gnmi.Path and adds it to the supplied proto.Message.

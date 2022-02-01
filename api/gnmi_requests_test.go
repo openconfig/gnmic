@@ -1,9 +1,12 @@
 package api
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/karimra/gnmic/testutils"
 	"github.com/openconfig/gnmi/proto/gnmi"
 )
@@ -573,7 +576,7 @@ var subscribeRequestTestSet = map[string]subscribeRequestInput{
 	},
 }
 
-func TestNewSsubscribeRequest(t *testing.T) {
+func TestNewSubscribeRequest(t *testing.T) {
 	for name, item := range subscribeRequestTestSet {
 		t.Run(name, func(t *testing.T) {
 			nreq, err := NewSubscribeRequest(item.opts...)
@@ -585,6 +588,180 @@ func TestNewSsubscribeRequest(t *testing.T) {
 				t.Errorf("failed at %q", name)
 				t.Errorf("expected %+v", item.req)
 				t.Errorf("     got %+v", nreq)
+				t.Fail()
+			}
+		})
+	}
+}
+
+// TODO: Value tests
+
+type valueInput struct {
+	data     interface{}
+	encoding string
+	msg      *gnmi.Update
+}
+
+var valueTestSet = map[string]valueInput{
+	// json
+	"json_string": {
+		data:     "value",
+		encoding: "json",
+		msg: &gnmi.Update{
+			Val: &gnmi.TypedValue{
+				Value: &gnmi.TypedValue_JsonVal{
+					JsonVal: []byte("\"value\""),
+				},
+			},
+		},
+	},
+	"json_string_array": {
+		data:     []string{"foo", "bar"},
+		encoding: "json",
+		msg: &gnmi.Update{
+			Val: &gnmi.TypedValue{
+				Value: &gnmi.TypedValue_JsonVal{
+					JsonVal: []byte("[\"foo\",\"bar\"]"),
+				},
+			},
+		},
+	},
+	"json_interface{}_array": {
+		data:     []interface{}{"foo", 2},
+		encoding: "json",
+		msg: &gnmi.Update{
+			Val: &gnmi.TypedValue{
+				Value: &gnmi.TypedValue_JsonVal{
+					JsonVal: []byte("[\"foo\",2]"),
+				},
+			},
+		},
+	},
+	"json_map": {
+		data:     map[string]interface{}{"k": "v"},
+		encoding: "json",
+		msg: &gnmi.Update{
+			Val: &gnmi.TypedValue{
+				Value: &gnmi.TypedValue_JsonVal{
+					JsonVal: []byte("{\"k\":\"v\"}"),
+				},
+			},
+		},
+	},
+	// json_ietf
+	"json_ietf_string": {
+		data:     "value",
+		encoding: "json_ietf",
+		msg: &gnmi.Update{
+			Val: &gnmi.TypedValue{
+				Value: &gnmi.TypedValue_JsonIetfVal{
+					JsonIetfVal: []byte("\"value\""),
+				},
+			},
+		},
+	},
+	"json_ietf_string_array": {
+		data:     []string{"foo", "bar"},
+		encoding: "json_ietf",
+		msg: &gnmi.Update{
+			Val: &gnmi.TypedValue{
+				Value: &gnmi.TypedValue_JsonIetfVal{
+					JsonIetfVal: []byte("[\"foo\",\"bar\"]"),
+				},
+			},
+		},
+	},
+	"json_ietf_interface{}_array": {
+		data:     []interface{}{"foo", 2},
+		encoding: "json_ietf",
+		msg: &gnmi.Update{
+			Val: &gnmi.TypedValue{
+				Value: &gnmi.TypedValue_JsonIetfVal{
+					JsonIetfVal: []byte("[\"foo\",2]"),
+				},
+			},
+		},
+	},
+	"json_ietf_map": {
+		data:     map[string]interface{}{"k": "v"},
+		encoding: "json_ietf",
+		msg: &gnmi.Update{
+			Val: &gnmi.TypedValue{
+				Value: &gnmi.TypedValue_JsonIetfVal{
+					JsonIetfVal: []byte("{\"k\":\"v\"}"),
+				},
+			},
+		},
+	},
+	// ascii
+	"ascii_string": {
+		data:     "foo",
+		encoding: "ascii",
+		msg: &gnmi.Update{
+			Val: &gnmi.TypedValue{
+				Value: &gnmi.TypedValue_AsciiVal{
+					AsciiVal: "foo",
+				},
+			},
+		},
+	},
+	"ascii_string_array": {
+		data:     []string{"foo", "bar"},
+		encoding: "ascii",
+		msg: &gnmi.Update{
+			Val: &gnmi.TypedValue{
+				Value: &gnmi.TypedValue_LeaflistVal{
+					LeaflistVal: &gnmi.ScalarArray{
+						Element: []*gnmi.TypedValue{
+							{
+								Value: &gnmi.TypedValue_StringVal{StringVal: "foo"},
+							},
+							{
+								Value: &gnmi.TypedValue_StringVal{StringVal: "bar"},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+	"ascii_interface{}_array": {
+		data:     []interface{}{"foo", 42},
+		encoding: "ascii",
+		msg: &gnmi.Update{
+			Val: &gnmi.TypedValue{
+				Value: &gnmi.TypedValue_LeaflistVal{
+					LeaflistVal: &gnmi.ScalarArray{
+						Element: []*gnmi.TypedValue{
+							{
+								Value: &gnmi.TypedValue_StringVal{StringVal: "foo"},
+							},
+							{
+								Value: &gnmi.TypedValue_IntVal{IntVal: 42},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+}
+
+func TestValue(t *testing.T) {
+	for name, item := range valueTestSet {
+		t.Run(name, func(t *testing.T) {
+			upd := new(gnmi.Update)
+			err := Value(item.data, item.encoding)(upd)
+			if err != nil {
+				t.Errorf("failed at %q with error: %v", name, err)
+				t.Fail()
+			}
+			fmt.Println(upd.GetVal().GetValue())
+			if !cmp.Equal(item.msg.GetVal().GetValue(), upd.GetVal().GetValue(),
+				cmpopts.IgnoreUnexported(gnmi.TypedValue{}, gnmi.ScalarArray{})) {
+				t.Errorf("failed at %q", name)
+				t.Errorf("expected %+v", item.msg.GetVal().GetValue())
+				t.Errorf("     got %+v", upd.GetVal().GetValue())
 				t.Fail()
 			}
 		})
