@@ -1,127 +1,127 @@
 
 The package `github.com/karimra/gnmic/api` exposes a set of `api.GNMIOption` that can be used with 
-`api.NewGetRequest(...api.GNMIOption)`, `api.NewSetRequest(...api.GNMIOption)` or `api.NewSubscribeRequest(...api.GNMIOption)` to create a gNMI Request.
+`api.NewGetRequest(...api.GNMIOption) GNMIOption`, `api.NewSetRequest(...api.GNMIOption) GNMIOption` or `api.NewSubscribeRequest(...api.GNMIOption) GNMIOption` to create a gNMI Request.
 
 ```golang
 // Extention creates a GNMIOption that applies the suplied gnmi_ext.Extension to the provided
 // proto.Message.
-api.Extension(ext *gnmi_ext.Extension)
+func Extension(ext *gnmi_ext.Extension) GNMIOption
 ```
 
 ```golang
 // Prefix creates a GNMIOption that creates a *gnmi.Path and adds it to the supplied 
-// proto.Message (as a Path Prefix) which can be a 
+// proto.Message (as a Path Prefix) GNMIOption which can be a 
 // *gnmi.GetRequest, *gnmi.SetRequest or a *gnmi.SubscribeRequest with RequestType Subscribe.
-api.Prefix(prefix string)
+func Prefix(prefix string) GNMIOption
 ```
 
 ```golang
 // Target creates a GNMIOption that set the gnmi Prefix target to the supplied string value.
 // The proto.Message can be a *gnmi.GetRequest, *gnmi.SetRequest or 
 // a *gnmi.SubscribeRequest with RequestType Subscribe.
-api.Target(target string)
+func Target(target string) GNMIOption
 ```
 
 ```golang
 // Path creates a GNMIOption that creates a *gnmi.Path and adds it to the supplied proto.Message
 // which can be a *gnmi.GetRequest, *gnmi.SetRequest or a *gnmi.Subscription.
-api.Path(path string)
+func Path(path string) GNMIOption
 ```
 
 ```golang
 // Encoding creates a GNMIOption that adds the encoding type to the supplied proto.Message
 // which can be a *gnmi.GetRequest, *gnmi.SetRequest or a *gnmi.SubscribeRequest with RequestType Subscribe.
-api.Encoding(encoding string)
+func Encoding(encoding string) GNMIOption
 ```
 
 ```golang
 // DataType creates a GNMIOption that adds the data type to the supplied proto.Message
 // which must be a *gnmi.GetRequest.
-api.DataType(datat string)
+func DataType(datat string) GNMIOption
 ```
 
 ```golang
 // Update creates a GNMIOption that creates a *gnmi.Update message and adds it to the supplied proto.Message,
 // the supplied message must be a *gnmi.SetRequest.
-api.Update(opts ...GNMIOption)
+func Update(opts ...GNMIOption) GNMIOption
 ```
 
 ```golang
 // Replace creates a GNMIOption that creates a *gnmi.Update message and adds it to the supplied proto.Message.
 // the supplied message must be a *gnmi.SetRequest.
-api.Replace(opts ...GNMIOption)
+func Replace(opts ...GNMIOption) GNMIOption
 ```
 
 ```golang
 // Value creates a GNMIOption that creates a *gnmi.TypedValue and adds it to the supplied proto.Message.
 // the supplied message must be a *gnmi.Update.
-api.Value(data, encoding string)
+func Value(data, encoding string) GNMIOption
 ```
 
 ```golang
 // Delete creates a GNMIOption that creates a *gnmi.Path and adds it to the supplied proto.Message.
 // the supplied message must be a *gnmi.SetRequest. The *gnmi.Path is added the .Delete list.
-api.Delete(path string)
+func Delete(path string) GNMIOption
 ```
 
 ```golang
 // SubscriptionListMode creates a GNMIOption that sets the SubscribeRequest Mode.
 // The variable mode must be one of "once", "poll" or "stream".
 // The supplied proto.Message must be a *gnmi.SubscribeRequest with RequestType Subscribe.
-api.SubscriptionListMode(mode string)
+func SubscriptionListMode(mode string) GNMIOption
 ```
 
 ```golang
 // Qos creates a GNMIOption that sets the QosMarking field in a 
 // *gnmi.SubscribeRequest with RequestType Subscribe.
-api.Qos(qos uint32)
+func Qos(qos uint32) GNMIOption
 ```
 
 ```golang
 // UseAliases creates a GNMIOption that sets the UsesAliases field in a 
 // *gnmi.SubscribeRequest with RequestType Subscribe.
-api.UseAliases(b bool)
+func UseAliases(b bool) GNMIOption
 ```
 
 ```golang
 // AllowAggregation creates a GNMIOption that sets the AllowAggregation field in a 
 // *gnmi.SubscribeRequest with RequestType Subscribe.
-api.AllowAggregation(b bool)
+func AllowAggregation(b bool) GNMIOption
 ```
 
 ```golang
 // UpdatesOnly creates a GNMIOption that sets the UpdatesOnly field in a 
 // *gnmi.SubscribeRequest with RequestType Subscribe.
-api.UpdatesOnly(b bool)
+func UpdatesOnly(b bool) GNMIOption
 ```
 
 ```golang
 // UpdatesOnly creates a GNMIOption that creates a *gnmi.Subscription based on 
-// the supplied GNMIOption(s) and adds it the supplied proto.Mesage which must be 
+// the supplied GNMIOption(s) GNMIOption and adds it the supplied proto.Mesage which must be 
 // of type *gnmi.SubscribeRequest with RequestType Subscribe.
-api.Subscription(opts ...GNMIOption)
+func Subscription(opts ...GNMIOption) GNMIOption
 ```
 
 ```golang
 // SubscriptionMode creates a GNMIOption that sets the Subscription mode in a 
 // proto.Message of type *gnmi.Subscription.
-api.SubscriptionMode(mode string)
+func SubscriptionMode(mode string) GNMIOption
 ```
 
 ```golang
 // SampleInterval creates a GNMIOption that sets the SampleInterval in a 
 // proto.Message of type *gnmi.Subscription.
-api.SampleInterval(d time.Duration)
+func SampleInterval(d time.Duration) GNMIOption
 ```
 
 ```golang
 // HeartbeatInterval creates a GNMIOption that sets the HeartbeatInterval in a 
 // proto.Message of type *gnmi.Subscription.
-api.HeartbeatInterval(d time.Duration)
+func HeartbeatInterval(d time.Duration) GNMIOption
 ```
 
 ```golang
 // SuppressRedundant creates a GNMIOption that sets the SuppressRedundant in a 
 // proto.Message of type *gnmi.Subscription.
-api.SuppressRedundant(s bool)
+func SuppressRedundant(s bool) GNMIOption
 ```
