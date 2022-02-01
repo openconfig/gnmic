@@ -13,7 +13,7 @@ func main() {
 	// create a target
 	tg, err := api.NewTarget(
 		api.Name("srl1"),
-		api.Address("10.0.0.1:57400"),
+		api.Address("srl1:57400"),
 		api.Username("admin"),
 		api.Password("admin"),
 		api.SkipVerify(true),
@@ -33,7 +33,8 @@ func main() {
 	// create a GetREquest
 	getReq, err := api.NewGetRequest(
 		api.Path("/system/name"),
-		api.Encoding("json_ietf"))
+		api.Encoding("json_ietf"),
+	)
 	if err != nil {
 		log.Fatal(err)
 	}

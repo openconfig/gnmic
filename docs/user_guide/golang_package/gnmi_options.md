@@ -55,7 +55,8 @@ func Replace(opts ...GNMIOption) GNMIOption
 ```golang
 // Value creates a GNMIOption that creates a *gnmi.TypedValue and adds it to the supplied proto.Message.
 // the supplied message must be a *gnmi.Update.
-func Value(data, encoding string) GNMIOption
+// If a map is supplied as `data interface{}` it has to be a map[string]interface{}.
+func Value(data interface{}, encoding string) GNMIOption
 ```
 
 ```golang

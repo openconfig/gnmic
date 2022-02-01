@@ -305,7 +305,8 @@ func Replace(opts ...GNMIOption) func(msg proto.Message) error {
 
 // Value creates a GNMIOption that creates a *gnmi.TypedValue and adds it to the supplied proto.Message.
 // the supplied message must be a *gnmi.Update.
-func Value(data, encoding string) func(msg proto.Message) error {
+// If a map is supplied as `data interface{}` it has to be a map[string]interface{}.
+func Value(data interface{}, encoding string) func(msg proto.Message) error {
 	return func(msg proto.Message) error {
 		var err error
 		switch msg := msg.ProtoReflect().Interface().(type) {
