@@ -1,6 +1,13 @@
 ## Changelog
 
-### v0.21.0 - January 23rd 2021
+### v0.22.0 - February 1st 2022
+
+- [gNMIc Golang API](user_guide/):
+
+    Added the `github.com/karimra/gnmic/api` golang package.
+    It can be imported by other Golang programs to ease the creation of gNMI targets and gNMI Requests.
+
+### v0.21.0 - January 23rd 2022
 
 - [Generate Cmd](cmd/generate/generate_path.md):
 
