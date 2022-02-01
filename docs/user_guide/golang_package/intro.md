@@ -226,7 +226,7 @@ subReq := &gnmi.SubscribeRequest_Subscribe{
 
 A target can be created using `func NewTarget(opts ...TargetOption) (*target.Target, error)`.
 
-The full list of `api.TargetOption` can be found [here](../user_guide/golang_package/target_options.md)
+The full list of `api.TargetOption` can be found [here](target_options.md)
 
 ```golang
 tg, err := api.NewTarget(
@@ -239,4 +239,4 @@ tg, err := api.NewTarget(
 // check error
 ```
 
-Once a Target is created, Multiple functions are available to run the desired RPCs, check the examples [here](../user_guide/golang_pacakge/examples/capabilities.md)
+Once a Target is created, Multiple functions are available to run the desired RPCs, check the examples [here](examples/capabilities.md)
