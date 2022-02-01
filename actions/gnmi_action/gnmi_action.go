@@ -558,7 +558,7 @@ func (g *gnmiAction) runGet(ctx context.Context, tc *types.TargetConfig, in *act
 	defer t.Close()
 	resp, err := t.Get(ctx, req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("target %q GetRequest failed: %v", t.Config.Name, err)
 	}
 	mo := &formatters.MarshalOptions{Format: g.Format}
 	return mo.Marshal(resp, nil)
@@ -572,7 +572,7 @@ func (g *gnmiAction) runSet(ctx context.Context, tc *types.TargetConfig, in *act
 	}
 	err = t.CreateGNMIClient(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("target %q SetRequest failed: %v", t.Config.Name, err)
 	}
 	defer t.Close()
 	resp, err := t.Set(ctx, req)
