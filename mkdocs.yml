@@ -74,12 +74,22 @@ nav:
 
       - Clustering: user_guide/HA.md
 
-      - API: 
+      - REST API: 
           - Introduction: user_guide/api/api_intro.md
           - Configuration: user_guide/api/configuration.md
           - Targets: user_guide/api/targets.md
           - Cluster: user_guide/api/cluster.md
-  
+
+      - Golang Package:
+          - Introduction: user_guide/golang_package/intro.md
+          - Target Options: user_guide/golang_package/target_options.md
+          - gNMI Options: user_guide/golang_package/gnmi_options.md
+          - Examples:
+              - Capabilities: user_guide/golang_package/examples/capabilities.md
+              - Get: user_guide/golang_package/examples/get.md
+              - Set: user_guide/golang_package/examples/set.md 
+              - Subcribe: user_guide/golang_package/examples/subscribe.md
+
   - Command reference:
       - Capabilities: cmd/capabilities.md
       - Get: cmd/get.md
