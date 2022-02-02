@@ -52,13 +52,14 @@ func (p *prometheusOutput) collectFromCache(ch chan<- prometheus.Metric) {
 	var err error
 	evChan := make(chan []*formatters.EventMsg)
 	events := make([]*formatters.EventMsg, 0)
-
+	doneCh := make(chan struct{})
 	// this go routine will collect all the events
 	// from the cache queries
 	go func() {
 		for evs := range evChan {
 			events = append(events, evs...)
 		}
+		close(doneCh)
 	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
@@ -102,7 +103,8 @@ func (p *prometheusOutput) collectFromCache(ch chan<- prometheus.Metric) {
 	}
 	wg.Wait()
 	close(evChan)
-
+	// wait for events to be appended to the array
+	<-doneCh
 	select {
 	// check if the collection timeout context is done
 	case <-ctx.Done():
