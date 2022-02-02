@@ -1,5 +1,9 @@
 ## Changelog
 
+### v0.22.1 - February 2nd 2022
+
+- Fix a Prometheus output issue when using gNMI cache that causes events to be missing from the metrics.
+
 ### v0.22.0 - February 1st 2022
 
 - [gNMIc Golang API](user_guide/):
