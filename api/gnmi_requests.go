@@ -34,11 +34,21 @@ const (
 	DefaultGNMIVersion = "0.7.0"
 )
 
+// GNMIOption is a function that acts on the supplied proto.Message.
+// The message is expected to be one of the protobuf defined gNMI messages
+// exchanged by the RPCs or any of the nested messages.
 type GNMIOption func(proto.Message) error
 
+// ErrInvalidMsgType is returned by a GNMIOption in case the Option is supplied
+// an unexpected proto.Message
 var ErrInvalidMsgType = errors.New("invalid message type")
+
+// ErrInvalidValue is returned by a GNMIOption in case the Option is supplied
+// an unexpected value.
 var ErrInvalidValue = errors.New("invalid value")
 
+// apply is a helper function that simply applies the options to the proto.Message.
+// It returns an error if any of the options fails.
 func apply(m proto.Message, opts ...GNMIOption) error {
 	for _, o := range opts {
 		if err := o(m); err != nil {
@@ -174,7 +184,7 @@ func SupportedEncoding(encodings ...string) func(msg proto.Message) error {
 			for _, encoding := range encodings {
 				enc, ok := gnmi.Encoding_value[strings.ToUpper(encoding)]
 				if !ok {
-					return fmt.Errorf("invalid encoding type %s", encoding)
+					return fmt.Errorf("option SupportedEncoding: %v: %s", ErrInvalidValue, encoding)
 				}
 				msg.SupportedEncodings = append(msg.SupportedEncodings, gnmi.Encoding(enc))
 			}
@@ -206,7 +216,7 @@ func SupportedModel(name, org, version string) func(msg proto.Message) error {
 	}
 }
 
-// Extention creates a GNMIOption that applies the suplied gnmi_ext.Extension to the provided
+// Extension creates a GNMIOption that applies the supplied gnmi_ext.Extension to the provided
 // proto.Message.
 func Extension(ext *gnmi_ext.Extension) func(msg proto.Message) error {
 	return func(msg proto.Message) error {
@@ -362,7 +372,7 @@ func Encoding(encoding string) func(msg proto.Message) error {
 	return func(msg proto.Message) error {
 		enc, ok := gnmi.Encoding_value[strings.ToUpper(encoding)]
 		if !ok {
-			return fmt.Errorf("invalid encoding type %s", encoding)
+			return fmt.Errorf("option Encoding: %v: %s", ErrInvalidValue, encoding)
 		}
 		switch msg := msg.ProtoReflect().Interface().(type) {
 		case *gnmi.GetRequest:
@@ -382,22 +392,32 @@ func Encoding(encoding string) func(msg proto.Message) error {
 	}
 }
 
+// EncodingJSON creates a GNMIOption that sets the encoding type to JSON in a gnmi.GetRequest or
+// gnmi.SubscribeRequest.
 func EncodingJSON() func(msg proto.Message) error {
 	return Encoding("JSON")
 }
 
-func EncodingBytes() func(msg proto.Message) error {
+// EncodingBYTES creates a GNMIOption that sets the encoding type to BYTES in a gnmi.GetRequest or
+// gnmi.SubscribeRequest.
+func EncodingBYTES() func(msg proto.Message) error {
 	return Encoding("BYTES")
 }
 
+// EncodingPROTO creates a GNMIOption that sets the encoding type to PROTO in a gnmi.GetRequest or
+// gnmi.SubscribeRequest.
 func EncodingPROTO() func(msg proto.Message) error {
 	return Encoding("PROTO")
 }
 
+// EncodingASCII creates a GNMIOption that sets the encoding type to ASCII in a gnmi.GetRequest or
+// gnmi.SubscribeRequest.
 func EncodingASCII() func(msg proto.Message) error {
 	return Encoding("ASCII")
 }
 
+// EncodingJSON_IETF creates a GNMIOption that sets the encoding type to JSON_IETF in a gnmi.GetRequest or
+// gnmi.SubscribeRequest.
 func EncodingJSON_IETF() func(msg proto.Message) error {
 	return Encoding("JSON_IETF")
 }
@@ -433,7 +453,7 @@ func DataType(datat string) func(msg proto.Message) error {
 		case *gnmi.GetRequest:
 			dt, ok := gnmi.GetRequest_DataType_value[strings.ToUpper(datat)]
 			if !ok {
-				return fmt.Errorf("invalid data type %s", datat)
+				return fmt.Errorf("option DataType: %v: %s", ErrInvalidValue, datat)
 			}
 			msg.Type = gnmi.GetRequest_DataType(dt)
 		default:
@@ -443,6 +463,28 @@ func DataType(datat string) func(msg proto.Message) error {
 	}
 }
 
+// DataTypeALL creates a GNMIOption that sets the gnmi.GetRequest data type to ALL
+func DataTypeALL() func(msg proto.Message) error {
+	return DataType("ALL")
+}
+
+// DataTypeCONFIG creates a GNMIOption that sets the gnmi.GetRequest data type to CONFIG
+func DataTypeCONFIG() func(msg proto.Message) error {
+	return DataType("CONFIG")
+}
+
+// DataTypeSTATE creates a GNMIOption that sets the gnmi.GetRequest data type to STATE
+func DataTypeSTATE() func(msg proto.Message) error {
+	return DataType("STATE")
+}
+
+// DataTypeOPERATIONAL creates a GNMIOption that sets the gnmi.GetRequest data type to OPERATIONAL
+func DataTypeOPERATIONAL() func(msg proto.Message) error {
+	return DataType("OPERATIONAL")
+}
+
+// UseModel creates a GNMIOption that add a gnmi.DataModel to a gnmi.GetRequest or gnmi.SubscribeRequest
+// based on the name, org and version strings provided.
 func UseModel(name, org, version string) func(msg proto.Message) error {
 	return func(msg proto.Message) error {
 		switch msg := msg.ProtoReflect().Interface().(type) {
@@ -728,7 +770,7 @@ func SubscriptionListMode(mode string) func(msg proto.Message) error {
 				}
 				gmode, ok := gnmi.SubscriptionList_Mode_value[strings.ToUpper(mode)]
 				if !ok {
-					return fmt.Errorf("invalid subscription list mode: %s", mode)
+					return fmt.Errorf("option SubscriptionListMode: %v: %s", ErrInvalidValue, mode)
 				}
 				msg.Subscribe.Mode = gnmi.SubscriptionList_Mode(gmode)
 			default:
@@ -741,14 +783,17 @@ func SubscriptionListMode(mode string) func(msg proto.Message) error {
 	}
 }
 
+// SubscriptionListModeSTREAM creates a GNMIOption that sets the Subscription List Mode to STREAM
 func SubscriptionListModeSTREAM() func(msg proto.Message) error {
 	return SubscriptionListMode("STREAM")
 }
 
+// SubscriptionListModeONCE creates a GNMIOption that sets the Subscription List Mode to ONCE
 func SubscriptionListModeONCE() func(msg proto.Message) error {
 	return SubscriptionListMode("ONCE")
 }
 
+// SubscriptionListModePOLL creates a GNMIOption that sets the Subscription List Mode to POLL
 func SubscriptionListModePOLL() func(msg proto.Message) error {
 	return SubscriptionListMode("POLL")
 }
@@ -874,7 +919,7 @@ func SubscriptionMode(mode string) func(msg proto.Message) error {
 		case *gnmi.Subscription:
 			gmode, ok := gnmi.SubscriptionMode_value[strings.ToUpper(strings.ReplaceAll(mode, "-", "_"))]
 			if !ok {
-				return fmt.Errorf("invalid subscription mode: %s", mode)
+				return fmt.Errorf("option SubscriptionMode: %v: %s", ErrInvalidValue, mode)
 			}
 			msg.Mode = gnmi.SubscriptionMode(gmode)
 		default:
@@ -884,14 +929,17 @@ func SubscriptionMode(mode string) func(msg proto.Message) error {
 	}
 }
 
+// SubscriptionModeTARGET_DEFINED creates a GNMIOption that sets the subscription mode to TARGET_DEFINED
 func SubscriptionModeTARGET_DEFINED() func(msg proto.Message) error {
 	return SubscriptionMode("TARGET_DEFINED")
 }
 
+// SubscriptionModeON_CHANGE creates a GNMIOption that sets the subscription mode to ON_CHANGE
 func SubscriptionModeON_CHANGE() func(msg proto.Message) error {
 	return SubscriptionMode("ON_CHANGE")
 }
 
+// SubscriptionModeSAMPLE creates a GNMIOption that sets the subscription mode to SAMPLE
 func SubscriptionModeSAMPLE() func(msg proto.Message) error {
 	return SubscriptionMode("SAMPLE")
 }
@@ -1053,18 +1101,22 @@ func Operation(oper string) func(msg proto.Message) error {
 	}
 }
 
-func OperationInvalid() func(msg proto.Message) error {
+// OperationINVALID creates a GNMIOption that sets the gnmi.SetResponse Operation to INVALID
+func OperationINVALID() func(msg proto.Message) error {
 	return Operation("INVALID")
 }
 
-func OperationDelete() func(msg proto.Message) error {
+// OperationDELETE creates a GNMIOption that sets the gnmi.SetResponse Operation to DELETE
+func OperationDELETE() func(msg proto.Message) error {
 	return Operation("DELETE")
 }
 
-func OperationReplace() func(msg proto.Message) error {
+// OperationREPLACE creates a GNMIOption that sets the gnmi.SetResponse Operation to REPLACE
+func OperationREPLACE() func(msg proto.Message) error {
 	return Operation("REPLACE")
 }
 
-func OperationUpdate() func(msg proto.Message) error {
+// OperationUPDATE creates a GNMIOption that sets the gnmi.SetResponse Operation to UPDATE
+func OperationUPDATE() func(msg proto.Message) error {
 	return Operation("UPDATE")
 }

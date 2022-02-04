@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/karimra/gnmic/testutils"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/gnmi/proto/gnmi_ext"
 )
 
 type getRequestInput struct {
@@ -33,6 +35,29 @@ var getRequestTestSet = map[string]getRequestInput{
 						},
 					},
 				},
+			},
+		},
+	},
+	"extension": {
+		opts: []GNMIOption{
+			Path("system/name"),
+			Extension(&gnmi_ext.Extension{Ext: &gnmi_ext.Extension_History{}}),
+		},
+		req: &gnmi.GetRequest{
+			Path: []*gnmi.Path{
+				{
+					Elem: []*gnmi.PathElem{
+						{
+							Name: "system",
+						},
+						{
+							Name: "name",
+						},
+					},
+				},
+			},
+			Extension: []*gnmi_ext.Extension{
+				{Ext: &gnmi_ext.Extension_History{}},
 			},
 		},
 	},
@@ -119,10 +144,31 @@ var getRequestTestSet = map[string]getRequestInput{
 			},
 		},
 	},
-	"data_type": {
+	"data_type_ALL": {
 		opts: []GNMIOption{
 			Path("system/name"),
-			DataType("config"),
+			DataTypeALL(),
+		},
+		req: &gnmi.GetRequest{
+			Path: []*gnmi.Path{
+				{
+					Elem: []*gnmi.PathElem{
+						{
+							Name: "system",
+						},
+						{
+							Name: "name",
+						},
+					},
+				},
+			},
+			Type: gnmi.GetRequest_ALL,
+		},
+	},
+	"data_type_CONFIG": {
+		opts: []GNMIOption{
+			Path("system/name"),
+			DataTypeCONFIG(),
 		},
 		req: &gnmi.GetRequest{
 			Path: []*gnmi.Path{
@@ -138,6 +184,48 @@ var getRequestTestSet = map[string]getRequestInput{
 				},
 			},
 			Type: gnmi.GetRequest_CONFIG,
+		},
+	},
+	"data_type_STATE": {
+		opts: []GNMIOption{
+			Path("system/name"),
+			DataTypeSTATE(),
+		},
+		req: &gnmi.GetRequest{
+			Path: []*gnmi.Path{
+				{
+					Elem: []*gnmi.PathElem{
+						{
+							Name: "system",
+						},
+						{
+							Name: "name",
+						},
+					},
+				},
+			},
+			Type: gnmi.GetRequest_STATE,
+		},
+	},
+	"data_type_OPERATIONAL": {
+		opts: []GNMIOption{
+			Path("system/name"),
+			DataTypeOPERATIONAL(),
+		},
+		req: &gnmi.GetRequest{
+			Path: []*gnmi.Path{
+				{
+					Elem: []*gnmi.PathElem{
+						{
+							Name: "system",
+						},
+						{
+							Name: "name",
+						},
+					},
+				},
+			},
+			Type: gnmi.GetRequest_OPERATIONAL,
 		},
 	},
 	"encoding": {
@@ -161,6 +249,29 @@ var getRequestTestSet = map[string]getRequestInput{
 			},
 			Type:     gnmi.GetRequest_CONFIG,
 			Encoding: gnmi.Encoding_JSON_IETF,
+		},
+	},
+	"encoding_custom": {
+		opts: []GNMIOption{
+			Path("system/name"),
+			DataType("config"),
+			EncodingCustom(42),
+		},
+		req: &gnmi.GetRequest{
+			Path: []*gnmi.Path{
+				{
+					Elem: []*gnmi.PathElem{
+						{
+							Name: "system",
+						},
+						{
+							Name: "name",
+						},
+					},
+				},
+			},
+			Type:     gnmi.GetRequest_CONFIG,
+			Encoding: gnmi.Encoding(42),
 		},
 	},
 }
@@ -476,6 +587,7 @@ type subscribeRequestInput struct {
 var subscribeRequestTestSet = map[string]subscribeRequestInput{
 	"subscription": {
 		opts: []GNMIOption{
+			EncodingJSON_IETF(),
 			Subscription(
 				Path("system/name"),
 			),
@@ -483,6 +595,7 @@ var subscribeRequestTestSet = map[string]subscribeRequestInput{
 		req: &gnmi.SubscribeRequest{
 			Request: &gnmi.SubscribeRequest_Subscribe{
 				Subscribe: &gnmi.SubscriptionList{
+					Encoding: gnmi.Encoding_JSON_IETF,
 					Subscription: []*gnmi.Subscription{
 						{
 							Path: &gnmi.Path{
@@ -497,9 +610,9 @@ var subscribeRequestTestSet = map[string]subscribeRequestInput{
 			},
 		},
 	},
-	"subscription_list_mode": {
+	"subscription_list_mode_ONCE": {
 		opts: []GNMIOption{
-			SubscriptionListMode("once"),
+			SubscriptionListModeONCE(),
 			Subscription(
 				Path("system/name"),
 			),
@@ -522,11 +635,61 @@ var subscribeRequestTestSet = map[string]subscribeRequestInput{
 			},
 		},
 	},
-	"subscription_mode": {
+	"subscription_list_mode_POLL": {
+		opts: []GNMIOption{
+			SubscriptionListModePOLL(),
+			Subscription(
+				Path("system/name"),
+			),
+		},
+		req: &gnmi.SubscribeRequest{
+			Request: &gnmi.SubscribeRequest_Subscribe{
+				Subscribe: &gnmi.SubscriptionList{
+					Mode: gnmi.SubscriptionList_POLL,
+					Subscription: []*gnmi.Subscription{
+						{
+							Path: &gnmi.Path{
+								Elem: []*gnmi.PathElem{
+									{Name: "system"},
+									{Name: "name"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+	"subscription_list_mode_STREAM": {
+		opts: []GNMIOption{
+			SubscriptionListModeSTREAM(),
+			Subscription(
+				Path("system/name"),
+			),
+		},
+		req: &gnmi.SubscribeRequest{
+			Request: &gnmi.SubscribeRequest_Subscribe{
+				Subscribe: &gnmi.SubscriptionList{
+					Mode: gnmi.SubscriptionList_STREAM,
+					Subscription: []*gnmi.Subscription{
+						{
+							Path: &gnmi.Path{
+								Elem: []*gnmi.PathElem{
+									{Name: "system"},
+									{Name: "name"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+	"subscription_mode_SAMPLE": {
 		opts: []GNMIOption{
 			Subscription(
 				Path("system/name"),
-				SubscriptionMode("sample"),
+				SubscriptionModeSAMPLE(),
 			),
 		},
 		req: &gnmi.SubscribeRequest{
@@ -547,8 +710,88 @@ var subscribeRequestTestSet = map[string]subscribeRequestInput{
 			},
 		},
 	},
+	"subscription_mode_TARGET_DEFINED": {
+		opts: []GNMIOption{
+			Subscription(
+				Path("system/name"),
+				SubscriptionModeTARGET_DEFINED(),
+			),
+		},
+		req: &gnmi.SubscribeRequest{
+			Request: &gnmi.SubscribeRequest_Subscribe{
+				Subscribe: &gnmi.SubscriptionList{
+					Subscription: []*gnmi.Subscription{
+						{
+							Mode: gnmi.SubscriptionMode_TARGET_DEFINED,
+							Path: &gnmi.Path{
+								Elem: []*gnmi.PathElem{
+									{Name: "system"},
+									{Name: "name"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+	"subscription_mode_ON_CHANGE": {
+		opts: []GNMIOption{
+			Subscription(
+				Path("system/name"),
+				SubscriptionModeON_CHANGE(),
+			),
+		},
+		req: &gnmi.SubscribeRequest{
+			Request: &gnmi.SubscribeRequest_Subscribe{
+				Subscribe: &gnmi.SubscriptionList{
+					Subscription: []*gnmi.Subscription{
+						{
+							Mode: gnmi.SubscriptionMode_ON_CHANGE,
+							Path: &gnmi.Path{
+								Elem: []*gnmi.PathElem{
+									{Name: "system"},
+									{Name: "name"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
 	"subscription_sample": {
 		opts: []GNMIOption{
+			Encoding("json_ietf"),
+			Subscription(
+				Path("system/name"),
+				SubscriptionMode("sample"),
+				SampleInterval(10*time.Second),
+			),
+		},
+		req: &gnmi.SubscribeRequest{
+			Request: &gnmi.SubscribeRequest_Subscribe{
+				Subscribe: &gnmi.SubscriptionList{
+					Encoding: gnmi.Encoding_JSON_IETF,
+					Subscription: []*gnmi.Subscription{
+						{
+							Mode:           gnmi.SubscriptionMode_SAMPLE,
+							SampleInterval: uint64(10 * time.Second),
+							Path: &gnmi.Path{
+								Elem: []*gnmi.PathElem{
+									{Name: "system"},
+									{Name: "name"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+	"subscription_list_encoding_json": {
+		opts: []GNMIOption{
+			EncodingJSON(),
 			Subscription(
 				Path("system/name"),
 				SubscriptionMode("sample"),
@@ -560,8 +803,119 @@ var subscribeRequestTestSet = map[string]subscribeRequestInput{
 				Subscribe: &gnmi.SubscriptionList{
 					Subscription: []*gnmi.Subscription{
 						{
-							Mode:           gnmi.SubscriptionMode_SAMPLE,
-							SampleInterval: uint64(10 * time.Second),
+							Mode: gnmi.SubscriptionMode_SAMPLE,
+							Path: &gnmi.Path{
+								Elem: []*gnmi.PathElem{
+									{Name: "system"},
+									{Name: "name"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+	"subscription_list_encoding_bytes": {
+		opts: []GNMIOption{
+			EncodingBYTES(),
+			Subscription(
+				Path("system/name"),
+				SubscriptionMode("sample"),
+				SampleInterval(10*time.Second),
+			),
+		},
+		req: &gnmi.SubscribeRequest{
+			Request: &gnmi.SubscribeRequest_Subscribe{
+				Subscribe: &gnmi.SubscriptionList{
+					Encoding: gnmi.Encoding_BYTES,
+					Subscription: []*gnmi.Subscription{
+						{
+							Mode: gnmi.SubscriptionMode_SAMPLE,
+							Path: &gnmi.Path{
+								Elem: []*gnmi.PathElem{
+									{Name: "system"},
+									{Name: "name"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+	"subscription_list_encoding_proto": {
+		opts: []GNMIOption{
+			EncodingPROTO(),
+			Subscription(
+				Path("system/name"),
+				SubscriptionMode("sample"),
+				SampleInterval(10*time.Second),
+			),
+		},
+		req: &gnmi.SubscribeRequest{
+			Request: &gnmi.SubscribeRequest_Subscribe{
+				Subscribe: &gnmi.SubscriptionList{
+					Encoding: gnmi.Encoding_PROTO,
+					Subscription: []*gnmi.Subscription{
+						{
+							Mode: gnmi.SubscriptionMode_SAMPLE,
+							Path: &gnmi.Path{
+								Elem: []*gnmi.PathElem{
+									{Name: "system"},
+									{Name: "name"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+	"subscription_list_encoding_ascii": {
+		opts: []GNMIOption{
+			EncodingASCII(),
+			Subscription(
+				Path("system/name"),
+				SubscriptionMode("sample"),
+				SampleInterval(10*time.Second),
+			),
+		},
+		req: &gnmi.SubscribeRequest{
+			Request: &gnmi.SubscribeRequest_Subscribe{
+				Subscribe: &gnmi.SubscriptionList{
+					Encoding: gnmi.Encoding_ASCII,
+					Subscription: []*gnmi.Subscription{
+						{
+							Mode: gnmi.SubscriptionMode_SAMPLE,
+							Path: &gnmi.Path{
+								Elem: []*gnmi.PathElem{
+									{Name: "system"},
+									{Name: "name"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+	"subscription_list_encoding_json_ietf": {
+		opts: []GNMIOption{
+			EncodingJSON_IETF(),
+			Subscription(
+				Path("system/name"),
+				SubscriptionMode("sample"),
+				SampleInterval(10*time.Second),
+			),
+		},
+		req: &gnmi.SubscribeRequest{
+			Request: &gnmi.SubscribeRequest_Subscribe{
+				Subscribe: &gnmi.SubscriptionList{
+					Encoding: gnmi.Encoding_JSON_IETF,
+					Subscription: []*gnmi.Subscription{
+						{
+							Mode: gnmi.SubscriptionMode_SAMPLE,
 							Path: &gnmi.Path{
 								Elem: []*gnmi.PathElem{
 									{Name: "system"},
@@ -906,6 +1260,40 @@ var setResponseTestSet = map[string]setResponseInput{
 			Timestamp: 42,
 		},
 	},
+	"combined": {
+		opts: []GNMIOption{
+			Timestamp(42),
+			UpdateResult(
+				Operation("update"),
+				Path("interface"),
+			),
+			UpdateResult(
+				Operation("replace"),
+				Path("network-instance"),
+			),
+		},
+		req: &gnmi.SetResponse{
+			Response: []*gnmi.UpdateResult{
+				{
+					Path: &gnmi.Path{
+						Elem: []*gnmi.PathElem{
+							{Name: "interface"},
+						},
+					},
+					Op: gnmi.UpdateResult_UPDATE,
+				},
+				{
+					Path: &gnmi.Path{
+						Elem: []*gnmi.PathElem{
+							{Name: "network-instance"},
+						},
+					},
+					Op: gnmi.UpdateResult_REPLACE,
+				},
+			},
+			Timestamp: 42,
+		},
+	},
 }
 
 func TestNewSetResponse(t *testing.T) {
@@ -1001,4 +1389,42 @@ func TestNewSubscribeResponse(t *testing.T) {
 			}
 		})
 	}
+}
+
+//
+func TestNewCapabilitiesRequest(t *testing.T) {
+	name := "single_case"
+	t.Run(name, func(t *testing.T) {
+		nreq, err := NewCapabilitiesRequest()
+		if err != nil {
+			t.Errorf("failed at %q: %v", name, err)
+			t.Fail()
+		}
+		if !reflect.DeepEqual(new(gnmi.CapabilityRequest), nreq) {
+			t.Errorf("failed at %q", name)
+			t.Errorf("expected %+v", &gnmi.CapabilityRequest{})
+			t.Errorf("     got %+v", nreq)
+			t.Fail()
+		}
+	})
+}
+
+func TestNewSubscribeRequestPoll(t *testing.T) {
+	name := "single_case"
+	t.Run(name, func(t *testing.T) {
+		nreq, err := NewSubscribePollRequest()
+		if err != nil {
+			t.Errorf("failed at %q: %v", name, err)
+			t.Fail()
+		}
+		if !reflect.DeepEqual(&gnmi.SubscribeRequest{
+			Request: &gnmi.SubscribeRequest_Poll{
+				Poll: new(gnmi.Poll),
+			}}, nreq) {
+			t.Errorf("failed at %q", name)
+			t.Errorf("expected %+v", &gnmi.SubscribeRequest{Request: &gnmi.SubscribeRequest_Poll{}})
+			t.Errorf("     got %+v", nreq)
+			t.Fail()
+		}
+	})
 }
