@@ -1,3 +1,17 @@
+// Copyright © 2022 Karim Radhouani <medkarimrdi@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package api
 
 import (
@@ -16,82 +30,181 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+const (
+	DefaultGNMIVersion = "0.7.0"
+)
+
 type GNMIOption func(proto.Message) error
 
 var ErrInvalidMsgType = errors.New("invalid message type")
+var ErrInvalidValue = errors.New("invalid value")
 
-// NewCapabilitiesRequest creates a new *gnmi.CapabilityeRequest using the priovided GNMIOption list.
+func apply(m proto.Message, opts ...GNMIOption) error {
+	for _, o := range opts {
+		if err := o(m); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// NewCapabilitiesRequest creates a new *gnmi.CapabilityeRequest using the provided GNMIOption list.
 // returns an error in case one of the options is invalid
 func NewCapabilitiesRequest(opts ...GNMIOption) (*gnmi.CapabilityRequest, error) {
-	req := new(gnmi.CapabilityRequest)
-	var err error
-	for _, o := range opts {
-		err = o(req)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return req, nil
+	m := new(gnmi.CapabilityRequest)
+	err := apply(m, opts...)
+	return m, err
 }
 
-// NewGetRequest creates a new *gnmi.GetRequest using the priovided GNMIOption list.
+// NewCapabilitiesResponse creates a new *gnmi.CapabilityResponse using the provided GNMIOption list.
+// returns an error in case one of the options is invalid
+func NewCapabilitiesResponse(opts ...GNMIOption) (*gnmi.CapabilityResponse, error) {
+	m := new(gnmi.CapabilityResponse)
+	err := apply(m, opts...)
+	if m.GNMIVersion == "" {
+		m.GNMIVersion = DefaultGNMIVersion
+	}
+	return m, err
+}
+
+// NewGetRequest creates a new *gnmi.GetRequest using the provided GNMIOption list.
 // returns an error in case one of the options is invalid
 func NewGetRequest(opts ...GNMIOption) (*gnmi.GetRequest, error) {
-	getReq := new(gnmi.GetRequest)
-	var err error
-	for _, o := range opts {
-		err = o(getReq)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return getReq, nil
+	m := new(gnmi.GetRequest)
+	err := apply(m, opts...)
+	return m, err
 }
 
-// NewSetRequest creates a new *gnmi.SetRequest using the priovided GNMIOption list.
+// NewGetResponse creates a new *gnmi.GetResponse using the provided GNMIOption list.
+// returns an error in case one of the options is invalid
+func NewGetResponse(opts ...GNMIOption) (*gnmi.GetResponse, error) {
+	m := new(gnmi.GetResponse)
+	err := apply(m, opts...)
+	return m, err
+}
+
+// NewSetRequest creates a new *gnmi.SetRequest using the provided GNMIOption list.
 // returns an error in case one of the options is invalid
 func NewSetRequest(opts ...GNMIOption) (*gnmi.SetRequest, error) {
-	req := new(gnmi.SetRequest)
-	var err error
-	for _, o := range opts {
-		err = o(req)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return req, nil
+	m := new(gnmi.SetRequest)
+	err := apply(m, opts...)
+	return m, err
 }
 
-// NewSubscribeRequest creates a new *gnmi.SubscribeRequest using the priovided GNMIOption list.
+// NewSetResponse creates a new *gnmi.SetResponse using the provided GNMIOption list.
+// returns an error in case one of the options is invalid
+func NewSetResponse(opts ...GNMIOption) (*gnmi.SetResponse, error) {
+	m := new(gnmi.SetResponse)
+	err := apply(m, opts...)
+	return m, err
+}
+
+// NewSubscribeRequest creates a new *gnmi.SubscribeRequest using the provided GNMIOption list.
 // returns an error in case one of the options is invalid
 func NewSubscribeRequest(opts ...GNMIOption) (*gnmi.SubscribeRequest, error) {
-	req := &gnmi.SubscribeRequest{
+	m := &gnmi.SubscribeRequest{
 		Request: &gnmi.SubscribeRequest_Subscribe{
 			Subscribe: new(gnmi.SubscriptionList),
 		},
 	}
-	var err error
-	for _, o := range opts {
-		err = o(req)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return req, nil
+	err := apply(m, opts...)
+	return m, err
 }
 
 // NewSubscribePollRequest creates a new *gnmi.SubscribeRequest with request type Poll
-// using the priovided GNMIOption list.
+// using the provided GNMIOption list.
 // returns an error in case one of the options is invalid
-func NewSubscribePollRequest(opts ...GNMIOption) *gnmi.SubscribeRequest {
-	return &gnmi.SubscribeRequest{
+func NewSubscribePollRequest(opts ...GNMIOption) (*gnmi.SubscribeRequest, error) {
+	m := &gnmi.SubscribeRequest{
 		Request: &gnmi.SubscribeRequest_Poll{
 			Poll: new(gnmi.Poll),
 		},
 	}
+	err := apply(m, opts...)
+	return m, err
+}
+
+// NewSubscribeResponse creates a *gnmi.SubscribeResponse with a gnmi.SubscribeResponse_Update as
+// response type.
+func NewSubscribeResponse(opts ...GNMIOption) (*gnmi.SubscribeResponse, error) {
+	m := &gnmi.SubscribeResponse{
+		Response: &gnmi.SubscribeResponse_Update{
+			Update: new(gnmi.Notification),
+		},
+	}
+	err := apply(m, opts...)
+	return m, err
+}
+
+// NewSubscribeResponse creates a *gnmi.SubscribeResponse with a gnmi.SubscribeResponse_SyncResponse as
+// response type.
+func NewSubscribeSyncResponse(opts ...GNMIOption) (*gnmi.SubscribeResponse, error) {
+	m := &gnmi.SubscribeResponse{
+		Response: &gnmi.SubscribeResponse_SyncResponse{
+			SyncResponse: true,
+		},
+	}
+	err := apply(m, opts...)
+	return m, err
 }
 
 // Messages options
+
+// Version sets the provided gNMI version string in a gnmi.CapabilityResponse message.
+func Version(v string) func(msg proto.Message) error {
+	return func(msg proto.Message) error {
+		switch msg := msg.ProtoReflect().Interface().(type) {
+		case *gnmi.CapabilityResponse:
+			msg.GNMIVersion = v
+		default:
+			return fmt.Errorf("option Version: %v: %T", ErrInvalidMsgType, msg)
+		}
+		return nil
+	}
+}
+
+// SupportedEncoding creates an GNMIOption that sets the provided encodings as supported encodings in a gnmi.CapabilitiesResponse
+func SupportedEncoding(encodings ...string) func(msg proto.Message) error {
+	return func(msg proto.Message) error {
+		switch msg := msg.ProtoReflect().Interface().(type) {
+		case *gnmi.CapabilityResponse:
+			if len(msg.SupportedEncodings) == 0 {
+				msg.SupportedEncodings = make([]gnmi.Encoding, 0)
+			}
+			for _, encoding := range encodings {
+				enc, ok := gnmi.Encoding_value[strings.ToUpper(encoding)]
+				if !ok {
+					return fmt.Errorf("invalid encoding type %s", encoding)
+				}
+				msg.SupportedEncodings = append(msg.SupportedEncodings, gnmi.Encoding(enc))
+			}
+		default:
+			return fmt.Errorf("option SupportedEncoding: %v: %T", ErrInvalidMsgType, msg)
+		}
+		return nil
+	}
+}
+
+// SupportedModel creates an GNMIOption that sets the provided name, org and version as a supported model in a gnmi.CapabilitiesResponse.
+func SupportedModel(name, org, version string) func(msg proto.Message) error {
+	return func(msg proto.Message) error {
+		switch msg := msg.ProtoReflect().Interface().(type) {
+		case *gnmi.CapabilityResponse:
+			if len(msg.SupportedModels) == 0 {
+				msg.SupportedModels = make([]*gnmi.ModelData, 0)
+			}
+			msg.SupportedModels = append(msg.SupportedModels,
+				&gnmi.ModelData{
+					Name:         name,
+					Organization: org,
+					Version:      version,
+				})
+		default:
+			return fmt.Errorf("option SupportedModel: %v: %T", ErrInvalidMsgType, msg)
+		}
+		return nil
+	}
+}
 
 // Extention creates a GNMIOption that applies the suplied gnmi_ext.Extension to the provided
 // proto.Message.
@@ -103,8 +216,12 @@ func Extension(ext *gnmi_ext.Extension) func(msg proto.Message) error {
 				msg.Extension = make([]*gnmi_ext.Extension, 0)
 			}
 			msg.Extension = append(msg.Extension, ext)
-
 		case *gnmi.GetRequest:
+			if len(msg.Extension) == 0 {
+				msg.Extension = make([]*gnmi_ext.Extension, 0)
+			}
+			msg.Extension = append(msg.Extension, ext)
+		case *gnmi.GetResponse:
 			if len(msg.Extension) == 0 {
 				msg.Extension = make([]*gnmi_ext.Extension, 0)
 			}
@@ -114,7 +231,17 @@ func Extension(ext *gnmi_ext.Extension) func(msg proto.Message) error {
 				msg.Extension = make([]*gnmi_ext.Extension, 0)
 			}
 			msg.Extension = append(msg.Extension, ext)
+		case *gnmi.SetResponse:
+			if len(msg.Extension) == 0 {
+				msg.Extension = make([]*gnmi_ext.Extension, 0)
+			}
+			msg.Extension = append(msg.Extension, ext)
 		case *gnmi.SubscribeRequest:
+			if len(msg.Extension) == 0 {
+				msg.Extension = make([]*gnmi_ext.Extension, 0)
+			}
+			msg.Extension = append(msg.Extension, ext)
+		case *gnmi.SubscribeResponse:
 			if len(msg.Extension) == 0 {
 				msg.Extension = make([]*gnmi_ext.Extension, 0)
 			}
@@ -124,8 +251,9 @@ func Extension(ext *gnmi_ext.Extension) func(msg proto.Message) error {
 	}
 }
 
-// Prefix creates a GNMIOption that creates a *gnmi.Path and adds it to the supplied proto.Message (as a Path Prefix)
-// which can be a *gnmi.GetRequest, *gnmi.SetRequest or a *gnmi.SubscribeRequest with RequestType Subscribe.
+// Prefix creates a GNMIOption that creates a *gnmi.Path and adds it to the supplied
+// proto.Message (as a Path Prefix).
+// The proto.Message can be a *gnmi.GetRequest, *gnmi.SetRequest or a *gnmi.SubscribeRequest with RequestType Subscribe.
 func Prefix(prefix string) func(msg proto.Message) error {
 	return func(msg proto.Message) error {
 		var err error
@@ -134,13 +262,20 @@ func Prefix(prefix string) func(msg proto.Message) error {
 			msg.Prefix, err = utils.CreatePrefix(prefix, "")
 		case *gnmi.SetRequest:
 			msg.Prefix, err = utils.CreatePrefix(prefix, "")
+		case *gnmi.SetResponse:
+			msg.Prefix, err = utils.CreatePrefix(prefix, "")
 		case *gnmi.SubscribeRequest:
 			switch msg := msg.Request.(type) {
 			case *gnmi.SubscribeRequest_Subscribe:
+				if msg.Subscribe == nil {
+					msg.Subscribe = new(gnmi.SubscriptionList)
+				}
 				msg.Subscribe.Prefix, err = utils.CreatePrefix(prefix, "")
 			default:
 				return fmt.Errorf("option Prefix: %v: %T", ErrInvalidMsgType, msg)
 			}
+		case *gnmi.Notification:
+			msg.Prefix, err = utils.CreatePrefix(prefix, "")
 		default:
 			return fmt.Errorf("option Prefix: %v: %T", ErrInvalidMsgType, msg)
 		}
@@ -167,6 +302,9 @@ func Target(target string) func(msg proto.Message) error {
 		case *gnmi.SubscribeRequest:
 			switch msg := msg.Request.(type) {
 			case *gnmi.SubscribeRequest_Subscribe:
+				if msg.Subscribe == nil {
+					msg.Subscribe = new(gnmi.SubscriptionList)
+				}
 				if msg.Subscribe.Prefix == nil {
 					msg.Subscribe.Prefix = new(gnmi.Path)
 				}
@@ -185,6 +323,7 @@ func Target(target string) func(msg proto.Message) error {
 // which can be a *gnmi.GetRequest, *gnmi.SetRequest or a *gnmi.Subscription.
 func Path(path string) func(msg proto.Message) error {
 	return func(msg proto.Message) error {
+		var err error
 		switch msg := msg.ProtoReflect().Interface().(type) {
 		case *gnmi.GetRequest:
 			p, err := utils.ParsePath(path)
@@ -196,13 +335,16 @@ func Path(path string) func(msg proto.Message) error {
 			}
 			msg.Path = append(msg.Path, p)
 		case *gnmi.Update:
-			var err error
+			msg.Path, err = utils.ParsePath(path)
+			if err != nil {
+				return err
+			}
+		case *gnmi.UpdateResult:
 			msg.Path, err = utils.ParsePath(path)
 			if err != nil {
 				return err
 			}
 		case *gnmi.Subscription:
-			var err error
 			msg.Path, err = utils.ParsePath(path)
 			if err != nil {
 				return err
@@ -228,10 +370,56 @@ func Encoding(encoding string) func(msg proto.Message) error {
 		case *gnmi.SubscribeRequest:
 			switch msg := msg.Request.(type) {
 			case *gnmi.SubscribeRequest_Subscribe:
+				if msg.Subscribe == nil {
+					msg.Subscribe = new(gnmi.SubscriptionList)
+				}
 				msg.Subscribe.Encoding = gnmi.Encoding(enc)
 			}
 		default:
 			return fmt.Errorf("option Encoding: %v: %T", ErrInvalidMsgType, msg)
+		}
+		return nil
+	}
+}
+
+func EncodingJSON() func(msg proto.Message) error {
+	return Encoding("JSON")
+}
+
+func EncodingBytes() func(msg proto.Message) error {
+	return Encoding("BYTES")
+}
+
+func EncodingPROTO() func(msg proto.Message) error {
+	return Encoding("PROTO")
+}
+
+func EncodingASCII() func(msg proto.Message) error {
+	return Encoding("ASCII")
+}
+
+func EncodingJSON_IETF() func(msg proto.Message) error {
+	return Encoding("JSON_IETF")
+}
+
+// EncodingCustom creates a GNMIOption that adds the encoding type to the supplied proto.Message
+// which can be a *gnmi.GetRequest, *gnmi.SetRequest or a *gnmi.SubscribeRequest with RequestType Subscribe.
+// Unlike Encoding, this GNMIOption does not validate if the provided encoding is defined by the gNMI spec.
+func EncodingCustom(enc int) func(msg proto.Message) error {
+	return func(msg proto.Message) error {
+		switch msg := msg.ProtoReflect().Interface().(type) {
+		case *gnmi.GetRequest:
+			msg.Encoding = gnmi.Encoding(enc)
+		case *gnmi.SubscribeRequest:
+			switch msg := msg.Request.(type) {
+			case *gnmi.SubscribeRequest_Subscribe:
+				if msg.Subscribe == nil {
+					msg.Subscribe = new(gnmi.SubscriptionList)
+				}
+				msg.Subscribe.Encoding = gnmi.Encoding(enc)
+			}
+		default:
+			return fmt.Errorf("option EncodingCustom: %v: %T", ErrInvalidMsgType, msg)
 		}
 		return nil
 	}
@@ -255,6 +443,43 @@ func DataType(datat string) func(msg proto.Message) error {
 	}
 }
 
+func UseModel(name, org, version string) func(msg proto.Message) error {
+	return func(msg proto.Message) error {
+		switch msg := msg.ProtoReflect().Interface().(type) {
+		case *gnmi.GetRequest:
+			if len(msg.UseModels) == 0 {
+				msg.UseModels = make([]*gnmi.ModelData, 0)
+			}
+			msg.UseModels = append(msg.UseModels,
+				&gnmi.ModelData{
+					Name:         name,
+					Organization: org,
+					Version:      version,
+				})
+
+		case *gnmi.SubscribeRequest:
+			switch msg := msg.Request.(type) {
+			case *gnmi.SubscribeRequest_Subscribe:
+				if msg.Subscribe == nil {
+					msg.Subscribe = new(gnmi.SubscriptionList)
+				}
+				if len(msg.Subscribe.UseModels) == 0 {
+					msg.Subscribe.UseModels = make([]*gnmi.ModelData, 0)
+				}
+				msg.Subscribe.UseModels = append(msg.Subscribe.UseModels,
+					&gnmi.ModelData{
+						Name:         name,
+						Organization: org,
+						Version:      version,
+					})
+			}
+		default:
+			return fmt.Errorf("option UseModel: %v: %T", ErrInvalidMsgType, msg)
+		}
+		return nil
+	}
+}
+
 // Update creates a GNMIOption that creates a *gnmi.Update message and adds it to the supplied proto.Message,
 // the supplied message must be a *gnmi.SetRequest.
 func Update(opts ...GNMIOption) func(msg proto.Message) error {
@@ -265,11 +490,19 @@ func Update(opts ...GNMIOption) func(msg proto.Message) error {
 				msg.Update = make([]*gnmi.Update, 0)
 			}
 			upd := new(gnmi.Update)
-			var err error
-			for _, o := range opts {
-				if err = o(upd); err != nil {
-					return err
-				}
+			err := apply(upd, opts...)
+			if err != nil {
+				return err
+			}
+			msg.Update = append(msg.Update, upd)
+		case *gnmi.Notification:
+			if len(msg.Update) == 0 {
+				msg.Update = make([]*gnmi.Update, 0)
+			}
+			upd := new(gnmi.Update)
+			err := apply(upd, opts...)
+			if err != nil {
+				return err
 			}
 			msg.Update = append(msg.Update, upd)
 		default:
@@ -289,11 +522,9 @@ func Replace(opts ...GNMIOption) func(msg proto.Message) error {
 				msg.Update = make([]*gnmi.Update, 0)
 			}
 			upd := new(gnmi.Update)
-			var err error
-			for _, o := range opts {
-				if err = o(upd); err != nil {
-					return err
-				}
+			err := apply(upd, opts...)
+			if err != nil {
+				return err
 			}
 			msg.Replace = append(msg.Replace, upd)
 		default:
@@ -467,6 +698,15 @@ func Delete(path string) func(msg proto.Message) error {
 				msg.Delete = make([]*gnmi.Path, 0)
 			}
 			msg.Delete = append(msg.Delete, p)
+		case *gnmi.Notification:
+			p, err := utils.ParsePath(path)
+			if err != nil {
+				return err
+			}
+			if len(msg.Delete) == 0 {
+				msg.Delete = make([]*gnmi.Path, 0)
+			}
+			msg.Delete = append(msg.Delete, p)
 		default:
 			return fmt.Errorf("option Delete: %v: %T", ErrInvalidMsgType, msg)
 		}
@@ -483,6 +723,9 @@ func SubscriptionListMode(mode string) func(msg proto.Message) error {
 		case *gnmi.SubscribeRequest:
 			switch msg := msg.Request.(type) {
 			case *gnmi.SubscribeRequest_Subscribe:
+				if msg.Subscribe == nil {
+					msg.Subscribe = new(gnmi.SubscriptionList)
+				}
 				gmode, ok := gnmi.SubscriptionList_Mode_value[strings.ToUpper(mode)]
 				if !ok {
 					return fmt.Errorf("invalid subscription list mode: %s", mode)
@@ -498,6 +741,18 @@ func SubscriptionListMode(mode string) func(msg proto.Message) error {
 	}
 }
 
+func SubscriptionListModeSTREAM() func(msg proto.Message) error {
+	return SubscriptionListMode("STREAM")
+}
+
+func SubscriptionListModeONCE() func(msg proto.Message) error {
+	return SubscriptionListMode("ONCE")
+}
+
+func SubscriptionListModePOLL() func(msg proto.Message) error {
+	return SubscriptionListMode("POLL")
+}
+
 // Qos creates a GNMIOption that sets the QosMarking field in a *gnmi.SubscribeRequest with RequestType Subscribe.
 func Qos(qos uint32) func(msg proto.Message) error {
 	return func(msg proto.Message) error {
@@ -505,6 +760,9 @@ func Qos(qos uint32) func(msg proto.Message) error {
 		case *gnmi.SubscribeRequest:
 			switch msg := msg.Request.(type) {
 			case *gnmi.SubscribeRequest_Subscribe:
+				if msg.Subscribe == nil {
+					msg.Subscribe = new(gnmi.SubscriptionList)
+				}
 				msg.Subscribe.Qos = &gnmi.QOSMarking{Marking: qos}
 			default:
 				return fmt.Errorf("option Qos: %v: %T", ErrInvalidMsgType, msg)
@@ -523,6 +781,9 @@ func UseAliases(b bool) func(msg proto.Message) error {
 		case *gnmi.SubscribeRequest:
 			switch msg := msg.Request.(type) {
 			case *gnmi.SubscribeRequest_Subscribe:
+				if msg.Subscribe == nil {
+					msg.Subscribe = new(gnmi.SubscriptionList)
+				}
 				msg.Subscribe.UseAliases = b
 			default:
 				return fmt.Errorf("option UseAliases: %v: %T", ErrInvalidMsgType, msg)
@@ -541,6 +802,9 @@ func AllowAggregation(b bool) func(msg proto.Message) error {
 		case *gnmi.SubscribeRequest:
 			switch msg := msg.Request.(type) {
 			case *gnmi.SubscribeRequest_Subscribe:
+				if msg.Subscribe == nil {
+					msg.Subscribe = new(gnmi.SubscriptionList)
+				}
 				msg.Subscribe.AllowAggregation = b
 			default:
 				return fmt.Errorf("option AllowAggregation: %v: %T", ErrInvalidMsgType, msg)
@@ -559,6 +823,9 @@ func UpdatesOnly(b bool) func(msg proto.Message) error {
 		case *gnmi.SubscribeRequest:
 			switch msg := msg.Request.(type) {
 			case *gnmi.SubscribeRequest_Subscribe:
+				if msg.Subscribe == nil {
+					msg.Subscribe = new(gnmi.SubscriptionList)
+				}
 				msg.Subscribe.UpdatesOnly = b
 			default:
 				return fmt.Errorf("option UpdatesOnly: %v: %T", ErrInvalidMsgType, msg)
@@ -578,15 +845,16 @@ func Subscription(opts ...GNMIOption) func(msg proto.Message) error {
 		case *gnmi.SubscribeRequest:
 			switch msg := msg.Request.(type) {
 			case *gnmi.SubscribeRequest_Subscribe:
+				if msg.Subscribe == nil {
+					msg.Subscribe = new(gnmi.SubscriptionList)
+				}
 				if len(msg.Subscribe.Subscription) == 0 {
 					msg.Subscribe.Subscription = make([]*gnmi.Subscription, 0)
 				}
 				sub := new(gnmi.Subscription)
-				var err error
-				for _, o := range opts {
-					if err = o(sub); err != nil {
-						return err
-					}
+				err := apply(sub, opts...)
+				if err != nil {
+					return err
 				}
 				msg.Subscribe.Subscription = append(msg.Subscribe.Subscription, sub)
 			default:
@@ -614,6 +882,18 @@ func SubscriptionMode(mode string) func(msg proto.Message) error {
 		}
 		return nil
 	}
+}
+
+func SubscriptionModeTARGET_DEFINED() func(msg proto.Message) error {
+	return SubscriptionMode("TARGET_DEFINED")
+}
+
+func SubscriptionModeON_CHANGE() func(msg proto.Message) error {
+	return SubscriptionMode("ON_CHANGE")
+}
+
+func SubscriptionModeSAMPLE() func(msg proto.Message) error {
+	return SubscriptionMode("SAMPLE")
 }
 
 // SampleInterval creates a GNMIOption that sets the SampleInterval in a proto.Message of type *gnmi.Subscription.
@@ -653,4 +933,138 @@ func SuppressRedundant(s bool) func(msg proto.Message) error {
 		}
 		return nil
 	}
+}
+
+// Notification creates a GNMIOption that builds a gnmi.Notification from the supplied GNMIOptions and adds it
+// to the supplied proto.Message
+func Notification(opts ...GNMIOption) func(msg proto.Message) error {
+	return func(msg proto.Message) error {
+		switch msg := msg.ProtoReflect().Interface().(type) {
+		case *gnmi.GetResponse:
+			if len(msg.Notification) == 0 {
+				msg.Notification = make([]*gnmi.Notification, 0)
+			}
+			notif := new(gnmi.Notification)
+			err := apply(notif, opts...)
+			if err != nil {
+				return err
+			}
+			msg.Notification = append(msg.Notification, notif)
+		case *gnmi.SubscribeResponse:
+			switch msg := msg.Response.(type) {
+			case *gnmi.SubscribeResponse_Update:
+				notif := new(gnmi.Notification)
+				err := apply(notif, opts...)
+				if err != nil {
+					return err
+				}
+				msg.Update = notif
+			}
+		default:
+			return fmt.Errorf("option Notification: %v: %T", ErrInvalidMsgType, msg)
+		}
+		return nil
+	}
+}
+
+// Timestamp sets the supplied timestamp in a gnmi.Notification message
+func Timestamp(t int64) func(msg proto.Message) error {
+	return func(msg proto.Message) error {
+		switch msg := msg.ProtoReflect().Interface().(type) {
+		case *gnmi.Notification:
+			msg.Timestamp = t
+		case *gnmi.SetResponse:
+			msg.Timestamp = t
+		default:
+			return fmt.Errorf("option Timestamp: %v: %T", ErrInvalidMsgType, msg)
+		}
+		return nil
+	}
+}
+
+// TimestampNow is the same as Timestamp(time.Now().UnixNano())
+func TimestampNow() func(msg proto.Message) error {
+	return Timestamp(time.Now().UnixNano())
+}
+
+// Alias sets the supplied alias value in a gnmi.Notification message
+func Alias(alias string) func(msg proto.Message) error {
+	return func(msg proto.Message) error {
+		switch msg := msg.ProtoReflect().Interface().(type) {
+		case *gnmi.Notification:
+			msg.Alias = alias
+		default:
+			return fmt.Errorf("option Alias: %v: %T", ErrInvalidMsgType, msg)
+		}
+		return nil
+	}
+}
+
+// Atomic sets the .Atomic field in a gnmi.Notification message
+func Atomic(b bool) func(msg proto.Message) error {
+	return func(msg proto.Message) error {
+		switch msg := msg.ProtoReflect().Interface().(type) {
+		case *gnmi.Notification:
+			msg.Atomic = b
+		default:
+			return fmt.Errorf("option Atomic: %v: %T", ErrInvalidMsgType, msg)
+		}
+		return nil
+	}
+}
+
+// UpdateResult creates a GNMIOption that creates a gnmi.UpdateResult and adds it to
+// a proto.Message of type gnmi.SetResponse.
+func UpdateResult(opts ...GNMIOption) func(msg proto.Message) error {
+	return func(msg proto.Message) error {
+		switch msg := msg.ProtoReflect().Interface().(type) {
+		case *gnmi.SetResponse:
+			if len(msg.Response) == 0 {
+				msg.Response = make([]*gnmi.UpdateResult, 0)
+			}
+			updRes := new(gnmi.UpdateResult)
+			err := apply(updRes, opts...)
+			if err != nil {
+				return err
+			}
+			msg.Response = append(msg.Response, updRes)
+		default:
+			return fmt.Errorf("option UpdateResult: %v: %T", ErrInvalidMsgType, msg)
+		}
+		return nil
+	}
+}
+
+// Operation creates a GNMIOption that sets the gnmi.UpdateResult_Operation
+// value in a gnmi.UpdateResult.
+func Operation(oper string) func(msg proto.Message) error {
+	return func(msg proto.Message) error {
+		switch msg := msg.ProtoReflect().Interface().(type) {
+		case *gnmi.UpdateResult:
+			setOper, ok := gnmi.UpdateResult_Operation_value[strings.ToUpper(oper)]
+			if !ok {
+				return fmt.Errorf("option Operation: %v: %s", ErrInvalidValue, oper)
+			}
+			msg.Op = gnmi.UpdateResult_Operation(setOper)
+		default:
+			return fmt.Errorf("option Operation: %v: %T", ErrInvalidMsgType, msg)
+		}
+		return nil
+	}
+}
+
+func OperationInvalid() func(msg proto.Message) error {
+	return Operation("INVALID")
+}
+
+func OperationDelete() func(msg proto.Message) error {
+	return Operation("DELETE")
+}
+
+func OperationReplace() func(msg proto.Message) error {
+	return Operation("REPLACE")
+}
+
+func OperationUpdate() func(msg proto.Message) error {
+	return Operation("UPDATE")
 }

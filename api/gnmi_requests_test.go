@@ -594,8 +594,6 @@ func TestNewSubscribeRequest(t *testing.T) {
 	}
 }
 
-// TODO: Value tests
-
 type valueInput struct {
 	data     interface{}
 	encoding string
@@ -762,6 +760,243 @@ func TestValue(t *testing.T) {
 				t.Errorf("failed at %q", name)
 				t.Errorf("expected %+v", item.msg.GetVal().GetValue())
 				t.Errorf("     got %+v", upd.GetVal().GetValue())
+				t.Fail()
+			}
+		})
+	}
+}
+
+type getResponseInput struct {
+	opts []GNMIOption
+	req  *gnmi.GetResponse
+}
+
+var getResponseTestSet = map[string]getResponseInput{
+	"simple": {
+		opts: []GNMIOption{
+			Notification(
+				Timestamp(42),
+				Update(
+					Path("/system/name"),
+					Value("srl1", "json_ietf"),
+				),
+			),
+		},
+		req: &gnmi.GetResponse{
+			Notification: []*gnmi.Notification{
+				{
+					Timestamp: 42,
+					Update: []*gnmi.Update{
+						{
+							Path: &gnmi.Path{
+								Elem: []*gnmi.PathElem{
+									{Name: "system"},
+									{Name: "name"},
+								},
+							},
+
+							Val: &gnmi.TypedValue{
+								Value: &gnmi.TypedValue_JsonIetfVal{
+									JsonIetfVal: []byte("\"srl1\""),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+	"two_updates": {
+		opts: []GNMIOption{
+			Notification(
+				Timestamp(42),
+				Update(
+					Path("/system/name"),
+					Value("srl1", "json_ietf"),
+				),
+				Update(
+					Path("/interface"),
+					Value(map[string]interface{}{
+						"name": "ethernet-1/1",
+					}, "json_ietf"),
+				),
+			),
+		},
+		req: &gnmi.GetResponse{
+			Notification: []*gnmi.Notification{
+				{
+					Timestamp: 42,
+					Update: []*gnmi.Update{
+						{
+							Path: &gnmi.Path{
+								Elem: []*gnmi.PathElem{
+									{Name: "system"},
+									{Name: "name"},
+								},
+							},
+							Val: &gnmi.TypedValue{
+								Value: &gnmi.TypedValue_JsonIetfVal{
+									JsonIetfVal: []byte("\"srl1\""),
+								},
+							},
+						},
+						{
+							Path: &gnmi.Path{
+								Elem: []*gnmi.PathElem{
+									{Name: "interface"},
+								},
+							},
+							Val: &gnmi.TypedValue{
+								Value: &gnmi.TypedValue_JsonIetfVal{
+									JsonIetfVal: []byte(`{"name":"ethernet-1/1"}`),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+}
+
+func TestNewGetResponse(t *testing.T) {
+	for name, item := range getResponseTestSet {
+		t.Run(name, func(t *testing.T) {
+			nreq, err := NewGetResponse(item.opts...)
+			if err != nil {
+				t.Errorf("failed at %q: %v", name, err)
+				t.Fail()
+			}
+			if !testutils.CompareGetResponses(nreq, item.req) {
+				t.Errorf("failed at %q", name)
+				t.Errorf("expected %+v", item.req)
+				t.Errorf("     got %+v", nreq)
+				t.Fail()
+			}
+		})
+	}
+}
+
+// set response test
+type setResponseInput struct {
+	opts []GNMIOption
+	req  *gnmi.SetResponse
+}
+
+var setResponseTestSet = map[string]setResponseInput{
+	"simple": {
+		opts: []GNMIOption{
+			Timestamp(42),
+			UpdateResult(
+				Operation("update"),
+				Path("interface"),
+			),
+		},
+		req: &gnmi.SetResponse{
+			Response: []*gnmi.UpdateResult{
+				{
+					Path: &gnmi.Path{
+						Elem: []*gnmi.PathElem{
+							{Name: "interface"},
+						},
+					},
+					Op: gnmi.UpdateResult_UPDATE,
+				},
+			},
+			Timestamp: 42,
+		},
+	},
+}
+
+func TestNewSetResponse(t *testing.T) {
+	for name, item := range setResponseTestSet {
+		t.Run(name, func(t *testing.T) {
+			nreq, err := NewSetResponse(item.opts...)
+			if err != nil {
+				t.Errorf("failed at %q: %v", name, err)
+				t.Fail()
+			}
+			if !testutils.CompareSetResponses(nreq, item.req) {
+				t.Errorf("failed at %q", name)
+				t.Errorf("expected %+v", item.req)
+				t.Errorf("     got %+v", nreq)
+				t.Fail()
+			}
+		})
+	}
+}
+
+// subscribe response test
+type subscribeResponseInput struct {
+	opts []GNMIOption
+	req  *gnmi.SubscribeResponse
+}
+
+var subscribeResponseTestSet = map[string]subscribeResponseInput{
+	"simple": {
+		opts: []GNMIOption{
+			Notification(
+				Timestamp(42),
+				Alias("alias1"),
+				Update(
+					Path("interface"),
+					Value(map[string]interface{}{
+						"name": "ethernet-1/1",
+					}, "json_ietf"),
+				),
+				Delete("/interface[name=ethernet-1/2]"),
+				Atomic(true),
+			),
+		},
+		req: &gnmi.SubscribeResponse{
+			Response: &gnmi.SubscribeResponse_Update{
+				Update: &gnmi.Notification{
+					Timestamp: 42,
+					Alias:     "alias1",
+					Update: []*gnmi.Update{
+						{
+							Path: &gnmi.Path{
+								Elem: []*gnmi.PathElem{
+									{Name: "interface"},
+								},
+							},
+							Val: &gnmi.TypedValue{
+								Value: &gnmi.TypedValue_JsonIetfVal{
+									JsonIetfVal: []byte(`{"name":"ethernet-1/1"}`),
+								},
+							},
+						},
+					},
+					Delete: []*gnmi.Path{
+						{
+							Elem: []*gnmi.PathElem{
+								{
+									Name: "interface",
+									Key:  map[string]string{"name": "ethernet-1/2"},
+								},
+							},
+						},
+					},
+					Atomic: true,
+				},
+			},
+		},
+	},
+}
+
+//
+func TestNewSubscribeResponse(t *testing.T) {
+	for name, item := range subscribeResponseTestSet {
+		t.Run(name, func(t *testing.T) {
+			nreq, err := NewSubscribeResponse(item.opts...)
+			if err != nil {
+				t.Errorf("failed at %q: %v", name, err)
+				t.Fail()
+			}
+			if !testutils.CompareSubscribeResponses(nreq, item.req) {
+				t.Errorf("failed at %q", name)
+				t.Errorf("expected %+v", item.req)
+				t.Errorf("     got %+v", nreq)
 				t.Fail()
 			}
 		})

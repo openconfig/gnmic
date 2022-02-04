@@ -510,7 +510,7 @@ func TestParsePath(t *testing.T) {
 				}
 				return
 			}
-			if !testutils.GnmiPathsEqual(p, tc.gnmiPath) {
+			if !testutils.CompareGnmiPaths(p, tc.gnmiPath) {
 				t.Errorf("failed at '%s', expected %v, got %+v", name, tc.gnmiPath, p)
 			}
 		})

@@ -610,7 +610,7 @@ func TestExecPathTemplate(t *testing.T) {
 			}
 			t.Logf("exp value: %+v", data.out)
 			t.Logf("got value: %+v", o)
-			if !testutils.GnmiPathsEqual(data.out, o) {
+			if !testutils.CompareGnmiPaths(data.out, o) {
 				t.Fail()
 			}
 		})
