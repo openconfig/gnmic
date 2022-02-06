@@ -163,11 +163,14 @@ func NewSubscribeSyncResponse(opts ...GNMIOption) (*gnmi.SubscribeResponse, erro
 // Version sets the provided gNMI version string in a gnmi.CapabilityResponse message.
 func Version(v string) func(msg proto.Message) error {
 	return func(msg proto.Message) error {
+		if msg == nil {
+			return ErrInvalidMsgType
+		}
 		switch msg := msg.ProtoReflect().Interface().(type) {
 		case *gnmi.CapabilityResponse:
 			msg.GNMIVersion = v
 		default:
-			return fmt.Errorf("option Version: %v: %T", ErrInvalidMsgType, msg)
+			return fmt.Errorf("option Version: %w: %T", ErrInvalidMsgType, msg)
 		}
 		return nil
 	}
@@ -176,6 +179,9 @@ func Version(v string) func(msg proto.Message) error {
 // SupportedEncoding creates an GNMIOption that sets the provided encodings as supported encodings in a gnmi.CapabilitiesResponse
 func SupportedEncoding(encodings ...string) func(msg proto.Message) error {
 	return func(msg proto.Message) error {
+		if msg == nil {
+			return ErrInvalidMsgType
+		}
 		switch msg := msg.ProtoReflect().Interface().(type) {
 		case *gnmi.CapabilityResponse:
 			if len(msg.SupportedEncodings) == 0 {
@@ -184,12 +190,12 @@ func SupportedEncoding(encodings ...string) func(msg proto.Message) error {
 			for _, encoding := range encodings {
 				enc, ok := gnmi.Encoding_value[strings.ToUpper(encoding)]
 				if !ok {
-					return fmt.Errorf("option SupportedEncoding: %v: %s", ErrInvalidValue, encoding)
+					return fmt.Errorf("option SupportedEncoding: %w: %s", ErrInvalidValue, encoding)
 				}
 				msg.SupportedEncodings = append(msg.SupportedEncodings, gnmi.Encoding(enc))
 			}
 		default:
-			return fmt.Errorf("option SupportedEncoding: %v: %T", ErrInvalidMsgType, msg)
+			return fmt.Errorf("option SupportedEncoding: %w: %T", ErrInvalidMsgType, msg)
 		}
 		return nil
 	}
@@ -198,6 +204,9 @@ func SupportedEncoding(encodings ...string) func(msg proto.Message) error {
 // SupportedModel creates an GNMIOption that sets the provided name, org and version as a supported model in a gnmi.CapabilitiesResponse.
 func SupportedModel(name, org, version string) func(msg proto.Message) error {
 	return func(msg proto.Message) error {
+		if msg == nil {
+			return ErrInvalidMsgType
+		}
 		switch msg := msg.ProtoReflect().Interface().(type) {
 		case *gnmi.CapabilityResponse:
 			if len(msg.SupportedModels) == 0 {
@@ -210,7 +219,7 @@ func SupportedModel(name, org, version string) func(msg proto.Message) error {
 					Version:      version,
 				})
 		default:
-			return fmt.Errorf("option SupportedModel: %v: %T", ErrInvalidMsgType, msg)
+			return fmt.Errorf("option SupportedModel: %w: %T", ErrInvalidMsgType, msg)
 		}
 		return nil
 	}
@@ -220,6 +229,9 @@ func SupportedModel(name, org, version string) func(msg proto.Message) error {
 // proto.Message.
 func Extension(ext *gnmi_ext.Extension) func(msg proto.Message) error {
 	return func(msg proto.Message) error {
+		if msg == nil {
+			return ErrInvalidMsgType
+		}
 		switch msg := msg.ProtoReflect().Interface().(type) {
 		case *gnmi.CapabilityRequest:
 			if len(msg.Extension) == 0 {
@@ -266,6 +278,9 @@ func Extension(ext *gnmi_ext.Extension) func(msg proto.Message) error {
 // The proto.Message can be a *gnmi.GetRequest, *gnmi.SetRequest or a *gnmi.SubscribeRequest with RequestType Subscribe.
 func Prefix(prefix string) func(msg proto.Message) error {
 	return func(msg proto.Message) error {
+		if msg == nil {
+			return ErrInvalidMsgType
+		}
 		var err error
 		switch msg := msg.ProtoReflect().Interface().(type) {
 		case *gnmi.GetRequest:
@@ -282,12 +297,12 @@ func Prefix(prefix string) func(msg proto.Message) error {
 				}
 				msg.Subscribe.Prefix, err = utils.CreatePrefix(prefix, "")
 			default:
-				return fmt.Errorf("option Prefix: %v: %T", ErrInvalidMsgType, msg)
+				return fmt.Errorf("option Prefix: %w: %T", ErrInvalidMsgType, msg)
 			}
 		case *gnmi.Notification:
 			msg.Prefix, err = utils.CreatePrefix(prefix, "")
 		default:
-			return fmt.Errorf("option Prefix: %v: %T", ErrInvalidMsgType, msg)
+			return fmt.Errorf("option Prefix: %w: %T", ErrInvalidMsgType, msg)
 		}
 		return err
 	}
@@ -297,6 +312,9 @@ func Prefix(prefix string) func(msg proto.Message) error {
 // The proto.Message can be a *gnmi.GetRequest, *gnmi.SetRequest or a *gnmi.SubscribeRequest with RequestType Subscribe.
 func Target(target string) func(msg proto.Message) error {
 	return func(msg proto.Message) error {
+		if msg == nil {
+			return ErrInvalidMsgType
+		}
 		var err error
 		switch msg := msg.ProtoReflect().Interface().(type) {
 		case *gnmi.GetRequest:
@@ -320,10 +338,10 @@ func Target(target string) func(msg proto.Message) error {
 				}
 				msg.Subscribe.Prefix.Target = target
 			default:
-				return fmt.Errorf("option Target: %v: %T", ErrInvalidMsgType, msg)
+				return fmt.Errorf("option Target: %w: %T", ErrInvalidMsgType, msg)
 			}
 		default:
-			return fmt.Errorf("option Target: %v: %T", ErrInvalidMsgType, msg)
+			return fmt.Errorf("option Target: %w: %T", ErrInvalidMsgType, msg)
 		}
 		return err
 	}
@@ -333,6 +351,9 @@ func Target(target string) func(msg proto.Message) error {
 // which can be a *gnmi.GetRequest, *gnmi.SetRequest or a *gnmi.Subscription.
 func Path(path string) func(msg proto.Message) error {
 	return func(msg proto.Message) error {
+		if msg == nil {
+			return ErrInvalidMsgType
+		}
 		var err error
 		switch msg := msg.ProtoReflect().Interface().(type) {
 		case *gnmi.GetRequest:
@@ -360,7 +381,7 @@ func Path(path string) func(msg proto.Message) error {
 				return err
 			}
 		default:
-			return fmt.Errorf("option Path: %v: %T", ErrInvalidMsgType, msg)
+			return fmt.Errorf("option Path: %w: %T", ErrInvalidMsgType, msg)
 		}
 		return nil
 	}
@@ -370,9 +391,12 @@ func Path(path string) func(msg proto.Message) error {
 // which can be a *gnmi.GetRequest, *gnmi.SetRequest or a *gnmi.SubscribeRequest with RequestType Subscribe.
 func Encoding(encoding string) func(msg proto.Message) error {
 	return func(msg proto.Message) error {
+		if msg == nil {
+			return ErrInvalidMsgType
+		}
 		enc, ok := gnmi.Encoding_value[strings.ToUpper(encoding)]
 		if !ok {
-			return fmt.Errorf("option Encoding: %v: %s", ErrInvalidValue, encoding)
+			return fmt.Errorf("option Encoding: %w: %s", ErrInvalidValue, encoding)
 		}
 		switch msg := msg.ProtoReflect().Interface().(type) {
 		case *gnmi.GetRequest:
@@ -386,7 +410,7 @@ func Encoding(encoding string) func(msg proto.Message) error {
 				msg.Subscribe.Encoding = gnmi.Encoding(enc)
 			}
 		default:
-			return fmt.Errorf("option Encoding: %v: %T", ErrInvalidMsgType, msg)
+			return fmt.Errorf("option Encoding: %w: %T", ErrInvalidMsgType, msg)
 		}
 		return nil
 	}
@@ -427,6 +451,9 @@ func EncodingJSON_IETF() func(msg proto.Message) error {
 // Unlike Encoding, this GNMIOption does not validate if the provided encoding is defined by the gNMI spec.
 func EncodingCustom(enc int) func(msg proto.Message) error {
 	return func(msg proto.Message) error {
+		if msg == nil {
+			return ErrInvalidMsgType
+		}
 		switch msg := msg.ProtoReflect().Interface().(type) {
 		case *gnmi.GetRequest:
 			msg.Encoding = gnmi.Encoding(enc)
@@ -439,7 +466,7 @@ func EncodingCustom(enc int) func(msg proto.Message) error {
 				msg.Subscribe.Encoding = gnmi.Encoding(enc)
 			}
 		default:
-			return fmt.Errorf("option EncodingCustom: %v: %T", ErrInvalidMsgType, msg)
+			return fmt.Errorf("option EncodingCustom: %w: %T", ErrInvalidMsgType, msg)
 		}
 		return nil
 	}
@@ -449,15 +476,18 @@ func EncodingCustom(enc int) func(msg proto.Message) error {
 // which must be a *gnmi.GetRequest.
 func DataType(datat string) func(msg proto.Message) error {
 	return func(msg proto.Message) error {
+		if msg == nil {
+			return ErrInvalidMsgType
+		}
 		switch msg := msg.ProtoReflect().Interface().(type) {
 		case *gnmi.GetRequest:
 			dt, ok := gnmi.GetRequest_DataType_value[strings.ToUpper(datat)]
 			if !ok {
-				return fmt.Errorf("option DataType: %v: %s", ErrInvalidValue, datat)
+				return fmt.Errorf("option DataType: %w: %s", ErrInvalidValue, datat)
 			}
 			msg.Type = gnmi.GetRequest_DataType(dt)
 		default:
-			return fmt.Errorf("option DataType: %v: %T", ErrInvalidMsgType, msg)
+			return fmt.Errorf("option DataType: %w: %T", ErrInvalidMsgType, msg)
 		}
 		return nil
 	}
@@ -487,6 +517,9 @@ func DataTypeOPERATIONAL() func(msg proto.Message) error {
 // based on the name, org and version strings provided.
 func UseModel(name, org, version string) func(msg proto.Message) error {
 	return func(msg proto.Message) error {
+		if msg == nil {
+			return ErrInvalidMsgType
+		}
 		switch msg := msg.ProtoReflect().Interface().(type) {
 		case *gnmi.GetRequest:
 			if len(msg.UseModels) == 0 {
@@ -516,7 +549,7 @@ func UseModel(name, org, version string) func(msg proto.Message) error {
 					})
 			}
 		default:
-			return fmt.Errorf("option UseModel: %v: %T", ErrInvalidMsgType, msg)
+			return fmt.Errorf("option UseModel: %w: %T", ErrInvalidMsgType, msg)
 		}
 		return nil
 	}
@@ -526,6 +559,9 @@ func UseModel(name, org, version string) func(msg proto.Message) error {
 // the supplied message must be a *gnmi.SetRequest.
 func Update(opts ...GNMIOption) func(msg proto.Message) error {
 	return func(msg proto.Message) error {
+		if msg == nil {
+			return ErrInvalidMsgType
+		}
 		switch msg := msg.ProtoReflect().Interface().(type) {
 		case *gnmi.SetRequest:
 			if len(msg.Update) == 0 {
@@ -548,7 +584,7 @@ func Update(opts ...GNMIOption) func(msg proto.Message) error {
 			}
 			msg.Update = append(msg.Update, upd)
 		default:
-			return fmt.Errorf("option Update: %v: %T", ErrInvalidMsgType, msg)
+			return fmt.Errorf("option Update: %w: %T", ErrInvalidMsgType, msg)
 		}
 		return nil
 	}
@@ -558,6 +594,9 @@ func Update(opts ...GNMIOption) func(msg proto.Message) error {
 // the supplied message must be a *gnmi.SetRequest.
 func Replace(opts ...GNMIOption) func(msg proto.Message) error {
 	return func(msg proto.Message) error {
+		if msg == nil {
+			return ErrInvalidMsgType
+		}
 		switch msg := msg.ProtoReflect().Interface().(type) {
 		case *gnmi.SetRequest:
 			if len(msg.Update) == 0 {
@@ -570,7 +609,7 @@ func Replace(opts ...GNMIOption) func(msg proto.Message) error {
 			}
 			msg.Replace = append(msg.Replace, upd)
 		default:
-			return fmt.Errorf("option Replace: %v: %T", ErrInvalidMsgType, msg)
+			return fmt.Errorf("option Replace: %w: %T", ErrInvalidMsgType, msg)
 		}
 		return nil
 	}
@@ -581,6 +620,9 @@ func Replace(opts ...GNMIOption) func(msg proto.Message) error {
 // If a map is supplied as `data interface{}` it has to be a map[string]interface{}.
 func Value(data interface{}, encoding string) func(msg proto.Message) error {
 	return func(msg proto.Message) error {
+		if msg == nil {
+			return ErrInvalidMsgType
+		}
 		var err error
 		switch msg := msg.ProtoReflect().Interface().(type) {
 		case *gnmi.Update:
@@ -589,7 +631,7 @@ func Value(data interface{}, encoding string) func(msg proto.Message) error {
 				return err
 			}
 		default:
-			return fmt.Errorf("option Value: %v: %T", ErrInvalidMsgType, msg)
+			return fmt.Errorf("option Value: %w: %T", ErrInvalidMsgType, msg)
 		}
 		return nil
 	}
@@ -720,16 +762,51 @@ func value(data interface{}, encoding string) (*gnmi.TypedValue, error) {
 		default:
 			return nil, fmt.Errorf("invalid encoding %s", encoding)
 		}
+	case *gnmi.TypedValue:
+		return data, nil
+	case *gnmi.TypedValue_AnyVal:
+		return &gnmi.TypedValue{Value: data}, nil
+	case *gnmi.TypedValue_AsciiVal:
+		return &gnmi.TypedValue{Value: data}, nil
+	case *gnmi.TypedValue_BoolVal:
+		return &gnmi.TypedValue{Value: data}, nil
+	case *gnmi.TypedValue_BytesVal:
+		return &gnmi.TypedValue{Value: data}, nil
+	case *gnmi.TypedValue_DecimalVal:
+		return &gnmi.TypedValue{Value: data}, nil
+	case *gnmi.TypedValue_FloatVal:
+		return &gnmi.TypedValue{Value: data}, nil
+	case *gnmi.TypedValue_IntVal:
+		return &gnmi.TypedValue{Value: data}, nil
+	case *gnmi.TypedValue_JsonIetfVal:
+		return &gnmi.TypedValue{Value: data}, nil
+	case *gnmi.TypedValue_JsonVal:
+		return &gnmi.TypedValue{Value: data}, nil
+	case *gnmi.TypedValue_LeaflistVal:
+		return &gnmi.TypedValue{Value: data}, nil
+	case *gnmi.TypedValue_ProtoBytes:
+		return &gnmi.TypedValue{Value: data}, nil
+	case *gnmi.TypedValue_StringVal:
+		return &gnmi.TypedValue{Value: data}, nil
+	case *gnmi.TypedValue_UintVal:
+		return &gnmi.TypedValue{Value: data}, nil
 	default:
-		return gvalue.FromScalar(data)
+		v, err := gvalue.FromScalar(data)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrInvalidValue, err)
+		}
+		return v, nil
 	}
-	return nil, fmt.Errorf("unexpected value type and encoding: %T and %s", data, encoding)
+	return nil, fmt.Errorf("unexpected value type and encoding %w: %T and %s", ErrInvalidValue, data, encoding)
 }
 
 // Delete creates a GNMIOption that creates a *gnmi.Path and adds it to the supplied proto.Message.
 // the supplied message must be a *gnmi.SetRequest. The *gnmi.Path is added the .Delete list.
 func Delete(path string) func(msg proto.Message) error {
 	return func(msg proto.Message) error {
+		if msg == nil {
+			return ErrInvalidMsgType
+		}
 		switch msg := msg.ProtoReflect().Interface().(type) {
 		case *gnmi.SetRequest:
 			p, err := utils.ParsePath(path)
@@ -750,7 +827,7 @@ func Delete(path string) func(msg proto.Message) error {
 			}
 			msg.Delete = append(msg.Delete, p)
 		default:
-			return fmt.Errorf("option Delete: %v: %T", ErrInvalidMsgType, msg)
+			return fmt.Errorf("option Delete: %w: %T", ErrInvalidMsgType, msg)
 		}
 		return nil
 	}
@@ -761,6 +838,9 @@ func Delete(path string) func(msg proto.Message) error {
 // The supplied proto.Message must be a *gnmi.SubscribeRequest with RequestType Subscribe.
 func SubscriptionListMode(mode string) func(msg proto.Message) error {
 	return func(msg proto.Message) error {
+		if msg == nil {
+			return ErrInvalidMsgType
+		}
 		switch msg := msg.ProtoReflect().Interface().(type) {
 		case *gnmi.SubscribeRequest:
 			switch msg := msg.Request.(type) {
@@ -770,14 +850,14 @@ func SubscriptionListMode(mode string) func(msg proto.Message) error {
 				}
 				gmode, ok := gnmi.SubscriptionList_Mode_value[strings.ToUpper(mode)]
 				if !ok {
-					return fmt.Errorf("option SubscriptionListMode: %v: %s", ErrInvalidValue, mode)
+					return fmt.Errorf("option SubscriptionListMode: %w: %s", ErrInvalidValue, mode)
 				}
 				msg.Subscribe.Mode = gnmi.SubscriptionList_Mode(gmode)
 			default:
-				return fmt.Errorf("option SubscriptionListMode: %v: %T", ErrInvalidMsgType, msg)
+				return fmt.Errorf("option SubscriptionListMode: %w: %T", ErrInvalidMsgType, msg)
 			}
 		default:
-			return fmt.Errorf("option SubscriptionListMode: %v: %T", ErrInvalidMsgType, msg)
+			return fmt.Errorf("option SubscriptionListMode: %w: %T", ErrInvalidMsgType, msg)
 		}
 		return nil
 	}
@@ -810,10 +890,10 @@ func Qos(qos uint32) func(msg proto.Message) error {
 				}
 				msg.Subscribe.Qos = &gnmi.QOSMarking{Marking: qos}
 			default:
-				return fmt.Errorf("option Qos: %v: %T", ErrInvalidMsgType, msg)
+				return fmt.Errorf("option Qos: %w: %T", ErrInvalidMsgType, msg)
 			}
 		default:
-			return fmt.Errorf("option Qos: %v: %T", ErrInvalidMsgType, msg)
+			return fmt.Errorf("option Qos: %w: %T", ErrInvalidMsgType, msg)
 		}
 		return nil
 	}
@@ -831,10 +911,10 @@ func UseAliases(b bool) func(msg proto.Message) error {
 				}
 				msg.Subscribe.UseAliases = b
 			default:
-				return fmt.Errorf("option UseAliases: %v: %T", ErrInvalidMsgType, msg)
+				return fmt.Errorf("option UseAliases: %w: %T", ErrInvalidMsgType, msg)
 			}
 		default:
-			return fmt.Errorf("option UseAliases: %v: %T", ErrInvalidMsgType, msg)
+			return fmt.Errorf("option UseAliases: %w: %T", ErrInvalidMsgType, msg)
 		}
 		return nil
 	}
@@ -852,10 +932,10 @@ func AllowAggregation(b bool) func(msg proto.Message) error {
 				}
 				msg.Subscribe.AllowAggregation = b
 			default:
-				return fmt.Errorf("option AllowAggregation: %v: %T", ErrInvalidMsgType, msg)
+				return fmt.Errorf("option AllowAggregation: %w: %T", ErrInvalidMsgType, msg)
 			}
 		default:
-			return fmt.Errorf("option AllowAggregation: %v: %T", ErrInvalidMsgType, msg)
+			return fmt.Errorf("option AllowAggregation: %w: %T", ErrInvalidMsgType, msg)
 		}
 		return nil
 	}
@@ -873,10 +953,10 @@ func UpdatesOnly(b bool) func(msg proto.Message) error {
 				}
 				msg.Subscribe.UpdatesOnly = b
 			default:
-				return fmt.Errorf("option UpdatesOnly: %v: %T", ErrInvalidMsgType, msg)
+				return fmt.Errorf("option UpdatesOnly: %w: %T", ErrInvalidMsgType, msg)
 			}
 		default:
-			return fmt.Errorf("option UpdatesOnly: %v: %T", ErrInvalidMsgType, msg)
+			return fmt.Errorf("option UpdatesOnly: %w: %T", ErrInvalidMsgType, msg)
 		}
 		return nil
 	}
@@ -903,10 +983,10 @@ func Subscription(opts ...GNMIOption) func(msg proto.Message) error {
 				}
 				msg.Subscribe.Subscription = append(msg.Subscribe.Subscription, sub)
 			default:
-				return fmt.Errorf("option Subscription: %v: %T", ErrInvalidMsgType, msg)
+				return fmt.Errorf("option Subscription: %w: %T", ErrInvalidMsgType, msg)
 			}
 		default:
-			return fmt.Errorf("option Subscription: %v: %T", ErrInvalidMsgType, msg)
+			return fmt.Errorf("option Subscription: %w: %T", ErrInvalidMsgType, msg)
 		}
 		return nil
 	}
@@ -915,15 +995,18 @@ func Subscription(opts ...GNMIOption) func(msg proto.Message) error {
 // SubscriptionMode creates a GNMIOption that sets the Subscription mode in a proto.Message of type *gnmi.Subscription.
 func SubscriptionMode(mode string) func(msg proto.Message) error {
 	return func(msg proto.Message) error {
+		if msg == nil {
+			return ErrInvalidMsgType
+		}
 		switch msg := msg.ProtoReflect().Interface().(type) {
 		case *gnmi.Subscription:
 			gmode, ok := gnmi.SubscriptionMode_value[strings.ToUpper(strings.ReplaceAll(mode, "-", "_"))]
 			if !ok {
-				return fmt.Errorf("option SubscriptionMode: %v: %s", ErrInvalidValue, mode)
+				return fmt.Errorf("option SubscriptionMode: %w: %s", ErrInvalidValue, mode)
 			}
 			msg.Mode = gnmi.SubscriptionMode(gmode)
 		default:
-			return fmt.Errorf("option SubscriptionMode: %v: %T", ErrInvalidMsgType, msg)
+			return fmt.Errorf("option SubscriptionMode: %w: %T", ErrInvalidMsgType, msg)
 		}
 		return nil
 	}
@@ -947,11 +1030,14 @@ func SubscriptionModeSAMPLE() func(msg proto.Message) error {
 // SampleInterval creates a GNMIOption that sets the SampleInterval in a proto.Message of type *gnmi.Subscription.
 func SampleInterval(d time.Duration) func(msg proto.Message) error {
 	return func(msg proto.Message) error {
+		if msg == nil {
+			return ErrInvalidMsgType
+		}
 		switch msg := msg.ProtoReflect().Interface().(type) {
 		case *gnmi.Subscription:
 			msg.SampleInterval = uint64(d.Nanoseconds())
 		default:
-			return fmt.Errorf("option SampleInterval: %v: %T", ErrInvalidMsgType, msg)
+			return fmt.Errorf("option SampleInterval: %w: %T", ErrInvalidMsgType, msg)
 		}
 		return nil
 	}
@@ -960,11 +1046,14 @@ func SampleInterval(d time.Duration) func(msg proto.Message) error {
 // HeartbeatInterval creates a GNMIOption that sets the HeartbeatInterval in a proto.Message of type *gnmi.Subscription.
 func HeartbeatInterval(d time.Duration) func(msg proto.Message) error {
 	return func(msg proto.Message) error {
+		if msg == nil {
+			return ErrInvalidMsgType
+		}
 		switch msg := msg.ProtoReflect().Interface().(type) {
 		case *gnmi.Subscription:
 			msg.HeartbeatInterval = uint64(d.Nanoseconds())
 		default:
-			return fmt.Errorf("option HeartbeatInterval: %v: %T", ErrInvalidMsgType, msg)
+			return fmt.Errorf("option HeartbeatInterval: %w: %T", ErrInvalidMsgType, msg)
 		}
 		return nil
 	}
@@ -973,11 +1062,14 @@ func HeartbeatInterval(d time.Duration) func(msg proto.Message) error {
 // SuppressRedundant creates a GNMIOption that sets the SuppressRedundant in a proto.Message of type *gnmi.Subscription.
 func SuppressRedundant(s bool) func(msg proto.Message) error {
 	return func(msg proto.Message) error {
+		if msg == nil {
+			return ErrInvalidMsgType
+		}
 		switch msg := msg.ProtoReflect().Interface().(type) {
 		case *gnmi.Subscription:
 			msg.SuppressRedundant = s
 		default:
-			return fmt.Errorf("option SuppressRedundant: %v: %T", ErrInvalidMsgType, msg)
+			return fmt.Errorf("option SuppressRedundant: %w: %T", ErrInvalidMsgType, msg)
 		}
 		return nil
 	}
@@ -987,6 +1079,9 @@ func SuppressRedundant(s bool) func(msg proto.Message) error {
 // to the supplied proto.Message
 func Notification(opts ...GNMIOption) func(msg proto.Message) error {
 	return func(msg proto.Message) error {
+		if msg == nil {
+			return ErrInvalidMsgType
+		}
 		switch msg := msg.ProtoReflect().Interface().(type) {
 		case *gnmi.GetResponse:
 			if len(msg.Notification) == 0 {
@@ -1009,7 +1104,7 @@ func Notification(opts ...GNMIOption) func(msg proto.Message) error {
 				msg.Update = notif
 			}
 		default:
-			return fmt.Errorf("option Notification: %v: %T", ErrInvalidMsgType, msg)
+			return fmt.Errorf("option Notification: %w: %T", ErrInvalidMsgType, msg)
 		}
 		return nil
 	}
@@ -1018,13 +1113,16 @@ func Notification(opts ...GNMIOption) func(msg proto.Message) error {
 // Timestamp sets the supplied timestamp in a gnmi.Notification message
 func Timestamp(t int64) func(msg proto.Message) error {
 	return func(msg proto.Message) error {
+		if msg == nil {
+			return ErrInvalidMsgType
+		}
 		switch msg := msg.ProtoReflect().Interface().(type) {
 		case *gnmi.Notification:
 			msg.Timestamp = t
 		case *gnmi.SetResponse:
 			msg.Timestamp = t
 		default:
-			return fmt.Errorf("option Timestamp: %v: %T", ErrInvalidMsgType, msg)
+			return fmt.Errorf("option Timestamp: %w: %T", ErrInvalidMsgType, msg)
 		}
 		return nil
 	}
@@ -1038,11 +1136,14 @@ func TimestampNow() func(msg proto.Message) error {
 // Alias sets the supplied alias value in a gnmi.Notification message
 func Alias(alias string) func(msg proto.Message) error {
 	return func(msg proto.Message) error {
+		if msg == nil {
+			return ErrInvalidMsgType
+		}
 		switch msg := msg.ProtoReflect().Interface().(type) {
 		case *gnmi.Notification:
 			msg.Alias = alias
 		default:
-			return fmt.Errorf("option Alias: %v: %T", ErrInvalidMsgType, msg)
+			return fmt.Errorf("option Alias: %w: %T", ErrInvalidMsgType, msg)
 		}
 		return nil
 	}
@@ -1055,7 +1156,7 @@ func Atomic(b bool) func(msg proto.Message) error {
 		case *gnmi.Notification:
 			msg.Atomic = b
 		default:
-			return fmt.Errorf("option Atomic: %v: %T", ErrInvalidMsgType, msg)
+			return fmt.Errorf("option Atomic: %w: %T", ErrInvalidMsgType, msg)
 		}
 		return nil
 	}
@@ -1077,7 +1178,7 @@ func UpdateResult(opts ...GNMIOption) func(msg proto.Message) error {
 			}
 			msg.Response = append(msg.Response, updRes)
 		default:
-			return fmt.Errorf("option UpdateResult: %v: %T", ErrInvalidMsgType, msg)
+			return fmt.Errorf("option UpdateResult: %w: %T", ErrInvalidMsgType, msg)
 		}
 		return nil
 	}
@@ -1087,15 +1188,18 @@ func UpdateResult(opts ...GNMIOption) func(msg proto.Message) error {
 // value in a gnmi.UpdateResult.
 func Operation(oper string) func(msg proto.Message) error {
 	return func(msg proto.Message) error {
+		if msg == nil {
+			return ErrInvalidMsgType
+		}
 		switch msg := msg.ProtoReflect().Interface().(type) {
 		case *gnmi.UpdateResult:
 			setOper, ok := gnmi.UpdateResult_Operation_value[strings.ToUpper(oper)]
 			if !ok {
-				return fmt.Errorf("option Operation: %v: %s", ErrInvalidValue, oper)
+				return fmt.Errorf("option Operation: %w: %s", ErrInvalidValue, oper)
 			}
 			msg.Op = gnmi.UpdateResult_Operation(setOper)
 		default:
-			return fmt.Errorf("option Operation: %v: %T", ErrInvalidMsgType, msg)
+			return fmt.Errorf("option Operation: %w: %T", ErrInvalidMsgType, msg)
 		}
 		return nil
 	}
