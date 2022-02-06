@@ -570,7 +570,7 @@ func TestCreateGetRequest(t *testing.T) {
 					t.Fail()
 				}
 			}
-			if !testutils.CompareGetRequests(getReq, data.out) {
+			if !testutils.GetRequestsEqual(getReq, data.out) {
 				t.Fail()
 			}
 		})
@@ -590,7 +590,7 @@ func TestCreateSetRequest(t *testing.T) {
 					t.Fail()
 				}
 			}
-			if !testutils.CompareSetRequests(setReq[0], data.out) {
+			if !testutils.SetRequestsEqual(setReq[0], data.out) {
 				t.Fail()
 			}
 		})

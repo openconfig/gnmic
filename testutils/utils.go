@@ -1,11 +1,42 @@
 package testutils
 
 import (
+	"bytes"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/openconfig/gnmi/proto/gnmi"
 )
 
-func CompareGetRequests(req1, req2 *gnmi.GetRequest) bool {
+func CapabilitiesResponsesEqual(rsp1, rsp2 *gnmi.CapabilityResponse) bool {
+	if rsp1 == nil && rsp2 == nil {
+		return true
+	}
+	if rsp1 == nil || rsp2 == nil {
+		return false
+	}
+	if rsp1.GNMIVersion != rsp2.GNMIVersion {
+		return false
+	}
+	if len(rsp1.SupportedEncodings) != len(rsp2.SupportedEncodings) {
+		return false
+	}
+	if len(rsp1.SupportedModels) != len(rsp2.SupportedModels) {
+		return false
+	}
+	for i := range rsp1.SupportedEncodings {
+		if rsp1.SupportedEncodings[i] != rsp2.SupportedEncodings[i] {
+			return false
+		}
+	}
+	for i := range rsp1.SupportedModels {
+		if !cmp.Equal(rsp1.SupportedModels[i], rsp2.SupportedModels[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func GetRequestsEqual(req1, req2 *gnmi.GetRequest) bool {
 	if req1 == nil && req2 == nil {
 		return true
 	}
@@ -41,50 +72,46 @@ func CompareGetRequests(req1, req2 *gnmi.GetRequest) bool {
 	return true
 }
 
-func CompareSetRequests(req1, req2 *gnmi.SetRequest) bool {
+func SetRequestsEqual(req1, req2 *gnmi.SetRequest) bool {
 	if req1 == nil && req2 == nil {
 		return true
 	}
 	if req1 == nil || req2 == nil {
 		return false
 	}
-	if len(req1.Delete) != len(req2.Delete) ||
-		len(req1.Replace) != len(req2.Replace) ||
-		len(req1.Update) != len(req2.Update) {
+	if len(req1.GetDelete()) != len(req2.GetDelete()) ||
+		len(req1.GetReplace()) != len(req2.GetReplace()) ||
+		len(req1.GetUpdate()) != len(req2.GetUpdate()) {
 		return false
 	}
-	if !GnmiPathsEqual(req1.Prefix, req2.Prefix) {
+	if !GnmiPathsEqual(req1.GetPrefix(), req2.GetPrefix()) {
 		return false
 	}
-	for i := range req1.Delete {
-		if !GnmiPathsEqual(req1.Delete[i], req2.Delete[i]) {
+	for i := range req1.GetDelete() {
+		if !GnmiPathsEqual(req1.GetDelete()[i], req2.GetDelete()[i]) {
 			return false
 		}
 	}
-	for i := range req1.Update {
-		if !GnmiPathsEqual(req1.Update[i].Path, req2.Update[i].Path) {
+	for i := range req1.GetUpdate() {
+		if !GnmiPathsEqual(req1.GetUpdate()[i].GetPath(), req2.GetUpdate()[i].GetPath()) {
+			return false
+		}
+		if !cmp.Equal(req1.GetUpdate()[i].GetVal().GetValue(), req2.GetUpdate()[i].GetVal().GetValue()) {
 			return false
 		}
 	}
-	for i := range req1.Replace {
-		if !GnmiPathsEqual(req1.Replace[i].Path, req2.Replace[i].Path) {
+	for i := range req1.GetReplace() {
+		if !GnmiPathsEqual(req1.GetReplace()[i].GetPath(), req2.GetReplace()[i].GetPath()) {
 			return false
 		}
-	}
-	for i := range req1.Update {
-		if !cmp.Equal(req1.Update[i].Val.Value, req2.Update[i].Val.Value) {
-			return false
-		}
-	}
-	for i := range req1.Replace {
-		if !cmp.Equal(req1.Replace[i].Val.Value, req2.Replace[i].Val.Value) {
+		if !cmp.Equal(req1.GetReplace()[i].GetVal().GetValue(), req2.GetReplace()[i].GetVal().GetValue()) {
 			return false
 		}
 	}
 	return true
 }
 
-func CompareSubscribeRequests(req1, req2 *gnmi.SubscribeRequest) bool {
+func SubscribeRequestsEqual(req1, req2 *gnmi.SubscribeRequest) bool {
 	if req1 == nil && req2 == nil {
 		return true
 	}
@@ -149,12 +176,89 @@ func CompareSubscribeRequests(req1, req2 *gnmi.SubscribeRequest) bool {
 				}
 			}
 			for i, sub := range req1.Subscribe.GetSubscription() {
-				if !CompareGnmiSubscription(sub, req1.Subscribe.GetSubscription()[i]) {
+				if !GnmiSubscriptionEqual(sub, req1.Subscribe.GetSubscription()[i]) {
 					return false
 				}
 			}
 		}
 	}
+	return true
+}
+
+func GetResponsesEqual(rsp1, rsp2 *gnmi.GetResponse) bool {
+	if rsp1 == nil && rsp2 == nil {
+		return true
+	}
+	if rsp1 == nil || rsp2 == nil {
+		return false
+	}
+	if len(rsp1.GetNotification()) != len(rsp2.GetNotification()) {
+		return false
+	}
+	for i := range rsp1.GetNotification() {
+		if !GnmiNotificationsEqual(rsp1.GetNotification()[i], rsp2.GetNotification()[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func SetResponsesEqual(rsp1, rsp2 *gnmi.SetResponse) bool {
+	if rsp1 == nil && rsp2 == nil {
+		return true
+	}
+	if rsp1 == nil || rsp2 == nil {
+		return false
+	}
+	if len(rsp1.GetResponse()) != len(rsp2.GetResponse()) {
+		return false
+	}
+	for i := range rsp1.GetResponse() {
+		if !GnmiUpdateResultEqual(rsp1.GetResponse()[i], rsp2.GetResponse()[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func SubscribeResponsesEqual(rsp1, rsp2 *gnmi.SubscribeResponse) bool {
+	if rsp1 == nil && rsp2 == nil {
+		return true
+	}
+	if rsp1 == nil || rsp2 == nil {
+		return false
+	}
+
+	switch rsp1.GetResponse().(type) {
+	case *gnmi.SubscribeResponse_Update:
+		switch rsp2.GetResponse().(type) {
+		case *gnmi.SubscribeResponse_Update:
+		default:
+			return false
+		}
+	case *gnmi.SubscribeResponse_SyncResponse:
+		switch rsp2.GetResponse().(type) {
+		case *gnmi.SubscribeResponse_SyncResponse:
+		default:
+			return false
+		}
+	}
+
+	switch rsp1 := rsp1.GetResponse().(type) {
+	case *gnmi.SubscribeResponse_Update:
+		switch rsp2 := rsp2.GetResponse().(type) {
+		case *gnmi.SubscribeResponse_Update:
+			return GnmiNotificationsEqual(rsp1.Update, rsp2.Update)
+		}
+	case *gnmi.SubscribeResponse_SyncResponse:
+		switch rsp2 := rsp2.GetResponse().(type) {
+		case *gnmi.SubscribeResponse_SyncResponse:
+			if rsp1.SyncResponse != rsp2.SyncResponse {
+				return false
+			}
+		}
+	}
+
 	return true
 }
 
@@ -185,7 +289,7 @@ func GnmiPathsEqual(p1, p2 *gnmi.Path) bool {
 	return true
 }
 
-func CompareGnmiSubscription(s1, s2 *gnmi.Subscription) bool {
+func GnmiSubscriptionEqual(s1, s2 *gnmi.Subscription) bool {
 	if s1 == nil && s2 != nil {
 		return false
 	}
@@ -203,6 +307,268 @@ func CompareGnmiSubscription(s1, s2 *gnmi.Subscription) bool {
 	}
 	if !GnmiPathsEqual(s1.Path, s2.Path) {
 		return false
+	}
+	return true
+}
+
+func GnmiUpdatesEqual(u1, u2 *gnmi.Update) bool {
+	if u1 == nil && u2 == nil {
+		return true
+	}
+	if u1 == nil || u2 == nil {
+		return false
+	}
+	if u1.GetDuplicates() != u2.GetDuplicates() {
+		return false
+	}
+	if !GnmiPathsEqual(u1.GetPath(), u2.GetPath()) {
+		return false
+	}
+	return cmp.Equal(u1.GetVal().GetValue(), u2.GetVal().GetValue())
+}
+
+func GnmiNotificationsEqual(n1, n2 *gnmi.Notification) bool {
+	if n1.GetAtomic() != n2.GetAtomic() {
+		return false
+	}
+	if n1.GetAlias() != n2.GetAlias() {
+		return false
+	}
+	// compare timestamps
+	if n1.GetTimestamp() != n2.GetTimestamp() {
+		return false
+	}
+	// compare prefixes
+	if !GnmiPathsEqual(n1.GetPrefix(), n2.GetPrefix()) {
+		return false
+	}
+	// compare updates
+	for j := range n1.GetUpdate() {
+		if !GnmiUpdatesEqual(n1.GetUpdate()[j], n2.GetUpdate()[j]) {
+			return false
+		}
+	}
+	// compare deletes
+	for j := range n1.GetDelete() {
+		if !GnmiPathsEqual(n1.GetDelete()[j], n2.GetDelete()[j]) {
+			return false
+		}
+	}
+	return true
+}
+
+func GnmiUpdateResultEqual(u1, u2 *gnmi.UpdateResult) bool {
+	if u1 == nil && u2 == nil {
+		return true
+	}
+	if u1 == nil || u2 == nil {
+		return false
+	}
+	if u1.GetOp() != u2.GetOp() {
+		return false
+	}
+	if !GnmiPathsEqual(u1.GetPath(), u2.GetPath()) {
+		return false
+	}
+	return true
+}
+
+func GnmiValuesEqual(v1, v2 *gnmi.TypedValue) bool {
+	if v1 == nil && v2 == nil {
+		return true
+	}
+	if v1 == nil || v2 == nil {
+		return false
+	}
+	switch v1 := v1.GetValue().(type) {
+	case *gnmi.TypedValue_AnyVal:
+		switch v2 := v2.GetValue().(type) {
+		case *gnmi.TypedValue_AnyVal:
+			if v1 == nil && v2 == nil {
+				return true
+			}
+			if v1 == nil || v2 == nil {
+				return false
+			}
+			if v1.AnyVal == nil && v2.AnyVal == nil {
+				return true
+			}
+			if v1.AnyVal == nil || v2.AnyVal == nil {
+				return false
+			}
+			if v1.AnyVal.GetTypeUrl() != v2.AnyVal.GetTypeUrl() {
+				return false
+			}
+			return bytes.Equal(v1.AnyVal.GetValue(), v2.AnyVal.GetValue())
+		default:
+			return false
+		}
+	case *gnmi.TypedValue_AsciiVal:
+		switch v2 := v2.GetValue().(type) {
+		case *gnmi.TypedValue_AsciiVal:
+			if v1 == nil && v2 == nil {
+				return true
+			}
+			if v1 == nil || v2 == nil {
+				return false
+			}
+			return v1.AsciiVal == v2.AsciiVal
+		default:
+			return false
+		}
+	case *gnmi.TypedValue_BoolVal:
+		switch v2 := v2.GetValue().(type) {
+		case *gnmi.TypedValue_BoolVal:
+			if v1 == nil && v2 == nil {
+				return true
+			}
+			if v1 == nil || v2 == nil {
+				return false
+			}
+			return v1.BoolVal == v2.BoolVal
+		default:
+			return false
+		}
+	case *gnmi.TypedValue_BytesVal:
+		switch v2 := v2.GetValue().(type) {
+		case *gnmi.TypedValue_BytesVal:
+			if v1 == nil && v2 == nil {
+				return true
+			}
+			if v1 == nil || v2 == nil {
+				return false
+			}
+			return bytes.Equal(v1.BytesVal, v2.BytesVal)
+		default:
+			return false
+		}
+	case *gnmi.TypedValue_DecimalVal:
+		switch v2 := v2.GetValue().(type) {
+		case *gnmi.TypedValue_DecimalVal:
+			if v1 == nil && v2 == nil {
+				return true
+			}
+			if v1 == nil || v2 == nil {
+				return false
+			}
+			if v1.DecimalVal.GetDigits() != v2.DecimalVal.GetDigits() {
+				return false
+			}
+			return v1.DecimalVal.GetPrecision() == v2.DecimalVal.GetPrecision()
+		default:
+			return false
+		}
+	case *gnmi.TypedValue_FloatVal:
+		switch v2 := v2.GetValue().(type) {
+		case *gnmi.TypedValue_FloatVal:
+			if v1 == nil && v2 == nil {
+				return true
+			}
+			if v1 == nil || v2 == nil {
+				return false
+			}
+			return v1.FloatVal == v2.FloatVal
+		default:
+			return false
+		}
+	case *gnmi.TypedValue_IntVal:
+		switch v2 := v2.GetValue().(type) {
+		case *gnmi.TypedValue_IntVal:
+			if v1 == nil && v2 == nil {
+				return true
+			}
+			if v1 == nil || v2 == nil {
+				return false
+			}
+			return v1.IntVal == v2.IntVal
+		default:
+			return false
+		}
+	case *gnmi.TypedValue_JsonIetfVal:
+		switch v2 := v2.GetValue().(type) {
+		case *gnmi.TypedValue_JsonIetfVal:
+			if v1 == nil && v2 == nil {
+				return true
+			}
+			if v1 == nil || v2 == nil {
+				return false
+			}
+			return bytes.Equal(v1.JsonIetfVal, v2.JsonIetfVal)
+		default:
+			return false
+		}
+	case *gnmi.TypedValue_JsonVal:
+		switch v2 := v2.GetValue().(type) {
+		case *gnmi.TypedValue_JsonVal:
+			if v1 == nil && v2 == nil {
+				return true
+			}
+			if v1 == nil || v2 == nil {
+				return false
+			}
+			return bytes.Equal(v1.JsonVal, v2.JsonVal)
+		default:
+			return false
+		}
+	case *gnmi.TypedValue_LeaflistVal:
+		switch v2 := v2.GetValue().(type) {
+		case *gnmi.TypedValue_LeaflistVal:
+			if v1 == nil && v2 == nil {
+				return true
+			}
+			if v1 == nil || v2 == nil {
+				return false
+			}
+			if len(v1.LeaflistVal.GetElement()) != len(v2.LeaflistVal.GetElement()) {
+				return false
+			}
+			for i := range v1.LeaflistVal.GetElement() {
+				if !GnmiValuesEqual(v1.LeaflistVal.Element[i], v2.LeaflistVal.Element[i]) {
+					return false
+				}
+			}
+		default:
+			return false
+		}
+	case *gnmi.TypedValue_ProtoBytes:
+		switch v2 := v2.GetValue().(type) {
+		case *gnmi.TypedValue_ProtoBytes:
+			if v1 == nil && v2 == nil {
+				return true
+			}
+			if v1 == nil || v2 == nil {
+				return false
+			}
+			return bytes.Equal(v1.ProtoBytes, v2.ProtoBytes)
+		default:
+			return false
+		}
+	case *gnmi.TypedValue_StringVal:
+		switch v2 := v2.GetValue().(type) {
+		case *gnmi.TypedValue_StringVal:
+			if v1 == nil && v2 == nil {
+				return true
+			}
+			if v1 == nil || v2 == nil {
+				return false
+			}
+			return v1.StringVal == v2.StringVal
+		default:
+			return false
+		}
+	case *gnmi.TypedValue_UintVal:
+		switch v2 := v2.GetValue().(type) {
+		case *gnmi.TypedValue_UintVal:
+			if v1 == nil && v2 == nil {
+				return true
+			}
+			if v1 == nil || v2 == nil {
+				return false
+			}
+			return v1.UintVal == v2.UintVal
+		default:
+			return false
+		}
 	}
 	return true
 }

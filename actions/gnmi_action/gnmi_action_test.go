@@ -416,7 +416,7 @@ func TestGnmiGetRequest(t *testing.T) {
 						t.Logf("failed: %v", err)
 						t.Fail()
 					}
-					if !testutils.CompareGetRequests(gReq, item.output) {
+					if !testutils.GetRequestsEqual(gReq, item.output) {
 						t.Errorf("failed at %s item %d, expected %+v, got: %+v", name, i, item.output, gReq)
 					}
 				})
@@ -447,7 +447,7 @@ func TestGnmiSetRequest(t *testing.T) {
 						t.Logf("failed: %v", err)
 						t.Fail()
 					}
-					if !testutils.CompareSetRequests(gReq, item.output) {
+					if !testutils.SetRequestsEqual(gReq, item.output) {
 						t.Errorf("failed at %s item %d, expected %+v, got: %+v", name, i, item.output, gReq)
 					}
 				})
