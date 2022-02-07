@@ -229,17 +229,3 @@ func (a *App) CreateTarget(name string) error {
 	}
 	return fmt.Errorf("unknown target %q", name)
 }
-
-// // AddSubscriptionConfig adds a subscriptionConfig sc to Collector's map if it does not already exists
-// func (a *App) AddSubscriptionConfig(sc *types.SubscriptionConfig) error {
-// 	if a.Subscriptions == nil {
-// 		a.Subscriptions = make(map[string]*types.SubscriptionConfig)
-// 	}
-// 	if _, ok := c.Subscriptions[sc.Name]; ok {
-// 		return fmt.Errorf("subscription '%s' already exists", sc.Name)
-// 	}
-// 	c.m.Lock()
-// 	defer c.m.Unlock()
-// 	c.Subscriptions[sc.Name] = sc
-// 	return nil
-// }

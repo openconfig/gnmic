@@ -58,7 +58,7 @@ actions:
     # if `set` is used it will default to a set update.
     # to trigger a set replace, use `set-replace`.
     # `subscribe` is always a subscribe with mode=ONCE
-    # possible values: `get`, `set`, `set-update`, `set-replace`, `sub`, `subscribe`
+    # possible values: `get`, `set`, `set-update`, `set-replace`, `set-delete`, `sub`, `subscribe`
     rpc: set
     # the target router, it defaults to the value in tag "source"
     # the value `all` means all known targets

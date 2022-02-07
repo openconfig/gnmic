@@ -10,13 +10,13 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"text/template"
 	"time"
 
 	"github.com/adrg/xdg"
 	"github.com/itchyny/gojq"
+	"github.com/karimra/gnmic/api"
 	"github.com/karimra/gnmic/types"
 	"github.com/karimra/gnmic/utils"
 	"github.com/mitchellh/go-homedir"
@@ -32,6 +32,8 @@ const (
 	configLogPrefix = "[config] "
 	envPrefix       = "GNMIC"
 )
+
+var ErrInvalidConfig = errors.New("invalid configuration")
 
 var osPathFlags = []string{"tls-ca", "tls-cert", "tls-key"}
 
@@ -368,107 +370,46 @@ func flagIsSet(cmd *cobra.Command, name string) bool {
 
 func (c *Config) CreateGetRequest() (*gnmi.GetRequest, error) {
 	if c == nil {
-		return nil, errors.New("invalid configuration")
+		return nil, fmt.Errorf("%w", ErrInvalidConfig)
 	}
-	encodingVal, ok := gnmi.Encoding_value[strings.Replace(strings.ToUpper(c.Encoding), "-", "_", -1)]
-	if !ok {
-		return nil, fmt.Errorf("invalid encoding type '%s'", c.Encoding)
-	}
-	req := &gnmi.GetRequest{
-		UseModels: make([]*gnmi.ModelData, 0),
-		Path:      make([]*gnmi.Path, 0, len(c.LocalFlags.GetPath)),
-		Encoding:  gnmi.Encoding(encodingVal),
-	}
-	if c.LocalFlags.GetPrefix != "" {
-		gnmiPrefix, err := utils.ParsePath(c.LocalFlags.GetPrefix)
-		if err != nil {
-			return nil, fmt.Errorf("prefix parse error: %v", err)
-		}
-		req.Prefix = gnmiPrefix
-	}
-	if c.LocalFlags.GetTarget != "" {
-		if req.Prefix == nil {
-			req.Prefix = &gnmi.Path{}
-		}
-		req.Prefix.Target = c.LocalFlags.GetTarget
-	}
-	if c.LocalFlags.GetType != "" {
-		dti, ok := gnmi.GetRequest_DataType_value[strings.ToUpper(c.LocalFlags.GetType)]
-		if !ok {
-			return nil, fmt.Errorf("unknown data type %s", c.LocalFlags.GetType)
-		}
-		req.Type = gnmi.GetRequest_DataType(dti)
-	}
+	gnmiOpts := make([]api.GNMIOption, 0, 4+len(c.LocalFlags.GetPath))
+	gnmiOpts = append(gnmiOpts,
+		api.Encoding(c.Encoding),
+		api.DataType(c.LocalFlags.GetType),
+		api.Prefix(c.LocalFlags.GetPrefix),
+		api.Target(c.LocalFlags.GetTarget),
+	)
 	for _, p := range c.LocalFlags.GetPath {
-		gnmiPath, err := utils.ParsePath(strings.TrimSpace(p))
-		if err != nil {
-			return nil, fmt.Errorf("path parse error: %v", err)
-		}
-		req.Path = append(req.Path, gnmiPath)
+		gnmiOpts = append(gnmiOpts, api.Path(strings.TrimSpace(p)))
 	}
-	return req, nil
+	return api.NewGetRequest(gnmiOpts...)
 }
 
 func (c *Config) CreateGASGetRequest() (*gnmi.GetRequest, error) {
 	if c == nil {
-		return nil, errors.New("invalid configuration")
+		return nil, fmt.Errorf("%w", ErrInvalidConfig)
 	}
-	encodingVal, ok := gnmi.Encoding_value[strings.Replace(strings.ToUpper(c.Encoding), "-", "_", -1)]
-	if !ok {
-		return nil, fmt.Errorf("invalid encoding type '%s'", c.Encoding)
-	}
-	req := &gnmi.GetRequest{
-		UseModels: make([]*gnmi.ModelData, 0),
-		Path:      make([]*gnmi.Path, 0, 1),
-		Encoding:  gnmi.Encoding(encodingVal),
-	}
-	if c.LocalFlags.GetSetPrefix != "" {
-		gnmiPrefix, err := utils.ParsePath(c.LocalFlags.GetSetPrefix)
-		if err != nil {
-			return nil, fmt.Errorf("prefix parse error: %v", err)
-		}
-		req.Prefix = gnmiPrefix
-	}
-	if c.LocalFlags.GetSetTarget != "" {
-		if req.Prefix == nil {
-			req.Prefix = &gnmi.Path{}
-		}
-		req.Prefix.Target = c.LocalFlags.GetSetTarget
-	}
-	if c.LocalFlags.GetSetType != "" {
-		dti, ok := gnmi.GetRequest_DataType_value[strings.ToUpper(c.LocalFlags.GetSetType)]
-		if !ok {
-			return nil, fmt.Errorf("unknown data type %s", c.LocalFlags.GetSetType)
-		}
-		req.Type = gnmi.GetRequest_DataType(dti)
-	}
-
-	gnmiPath, err := utils.ParsePath(strings.TrimSpace(c.LocalFlags.GetSetGet))
-	if err != nil {
-		return nil, fmt.Errorf("path parse error: %v", err)
-	}
-	req.Path = append(req.Path, gnmiPath)
-	return req, nil
+	return api.NewGetRequest(
+		api.Encoding(c.Encoding),
+		api.DataType(c.LocalFlags.GetSetType),
+		api.Prefix(c.LocalFlags.GetSetPrefix),
+		api.Target(c.LocalFlags.GetSetTarget),
+		api.Path(strings.TrimSpace(c.LocalFlags.GetSetGet)))
 }
 
 func (c *Config) CreateGASSetRequest(input interface{}) (*gnmi.SetRequest, error) {
-	gnmiPrefix, err := utils.CreatePrefix(c.LocalFlags.GetSetPrefix, c.LocalFlags.GetSetTarget)
-	if err != nil {
-		return nil, fmt.Errorf("prefix parse error: %v", err)
-	}
-	req := &gnmi.SetRequest{
-		Prefix:  gnmiPrefix,
-		Delete:  make([]*gnmi.Path, 0, 1),
-		Replace: make([]*gnmi.Update, 0, 1),
-		Update:  make([]*gnmi.Update, 0, 1),
-	}
+	gnmiOpts := make([]api.GNMIOption, 0, 3)
+	gnmiOpts = append(gnmiOpts, api.Prefix(c.LocalFlags.GetSetPrefix))
+	gnmiOpts = append(gnmiOpts, api.Target(c.LocalFlags.GetSetTarget))
+
 	delPath, err := c.execPathTemplate(c.LocalFlags.GetSetDelete, input)
 	if err != nil {
 		return nil, err
 	}
-	if delPath != nil {
-		req.Delete = append(req.Delete, delPath)
+	if delPath != "" {
+		gnmiOpts = append(gnmiOpts, api.Delete(delPath))
 	}
+	//
 	updatePath, err := c.execPathTemplate(c.LocalFlags.GetSetUpdate, input)
 	if err != nil {
 		return nil, err
@@ -477,36 +418,39 @@ func (c *Config) CreateGASSetRequest(input interface{}) (*gnmi.SetRequest, error
 	if err != nil {
 		return nil, err
 	}
-	val, err := c.execValueTemplate(c.LocalFlags.GetSetValue, c.Encoding, input)
+	val, err := c.execValueTemplate(c.LocalFlags.GetSetValue, input)
 	if err != nil {
 		return nil, err
 	}
-	if updatePath != nil {
-		req.Update = append(req.Update, &gnmi.Update{
-			Path: updatePath,
-			Val:  val,
-		})
-	} else if replacePath != nil {
-		req.Replace = append(req.Replace, &gnmi.Update{
-			Path: replacePath,
-			Val:  val,
-		})
+	if updatePath != "" {
+		gnmiOpts = append(gnmiOpts,
+			api.Update(
+				api.Path(updatePath),
+				api.Value(val, c.Encoding),
+			))
+	} else if replacePath != "" {
+		gnmiOpts = append(gnmiOpts,
+			api.Replace(
+				api.Path(replacePath),
+				api.Value(val, c.Encoding),
+			))
 	}
-	return req, nil
+
+	return api.NewSetRequest(gnmiOpts...)
 }
 
-func (c *Config) execPathTemplate(tplString string, input interface{}) (*gnmi.Path, error) {
+func (c *Config) execPathTemplate(tplString string, input interface{}) (string, error) {
 	if tplString == "" {
-		return nil, nil
+		return "", nil
 	}
 	tplString = os.ExpandEnv(tplString)
 	q, err := gojq.Parse(tplString)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	code, err := gojq.Compile(q)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	iter := code.Run(input)
 	var res interface{}
@@ -518,35 +462,35 @@ func (c *Config) execPathTemplate(tplString string, input interface{}) (*gnmi.Pa
 			c.logger.Printf("jq input: %+v", input)
 			c.logger.Printf("jq result: %+v", res)
 		}
-		return nil, fmt.Errorf("unexpected jq result type: %T", res)
+		return "", fmt.Errorf("unexpected jq result type: %T", res)
 	}
 	switch v := res.(type) {
 	case error:
-		return nil, v
+		return "", v
 	case string:
 		c.logger.Printf("path jq expression result: %s", v)
-		return utils.ParsePath(v)
+		return v, nil
 	default:
 		if c.Debug {
 			c.logger.Printf("jq input: %+v", input)
 			c.logger.Printf("jq result: %+v", v)
 		}
-		return nil, fmt.Errorf("unexpected jq result type: %T", v)
+		return "", fmt.Errorf("unexpected jq result type: %T", v)
 	}
 }
 
-func (c *Config) execValueTemplate(tplString string, encoding string, input interface{}) (*gnmi.TypedValue, error) {
+func (c *Config) execValueTemplate(tplString string, input interface{}) (string, error) {
 	if tplString == "" {
-		return nil, nil
+		return "", nil
 	}
 	tplString = os.ExpandEnv(tplString)
 	q, err := gojq.Parse(tplString)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	code, err := gojq.Compile(q)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	iter := code.Run(input)
 	var res interface{}
@@ -558,22 +502,20 @@ func (c *Config) execValueTemplate(tplString string, encoding string, input inte
 			c.logger.Printf("jq input: %+v", input)
 			c.logger.Printf("jq result: %+v", res)
 		}
-		return nil, fmt.Errorf("unexpected jq result type: %T", res)
+		return "", fmt.Errorf("unexpected jq result type: %T", res)
 	}
 	switch v := res.(type) {
 	case error:
-		return nil, v
+		return "", v
 	case string:
 		c.logger.Printf("path jq expression result: %s", v)
-		value := new(gnmi.TypedValue)
-		err = setValue(value, encoding, v)
-		return value, err
+		return trimQuotes(v), nil
 	default:
 		if c.Debug {
 			c.logger.Printf("jq input: %+v", input)
 			c.logger.Printf("jq result: %+v", v)
 		}
-		return nil, fmt.Errorf("unexpected jq result type: %T", v)
+		return "", fmt.Errorf("unexpected jq result type: %T", v)
 	}
 }
 
@@ -581,242 +523,102 @@ func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error)
 	if len(c.SetRequestFile) > 0 {
 		return c.CreateSetRequestFromFile(targetName)
 	}
-	gnmiPrefix, err := utils.CreatePrefix(c.LocalFlags.SetPrefix, c.LocalFlags.SetTarget)
-	if err != nil {
-		return nil, fmt.Errorf("prefix parse error: %v", err)
-	}
 	if c.Debug {
 		c.logger.Printf("Set input delete: %+v", &c.LocalFlags.SetDelete)
-
 		c.logger.Printf("Set input update: %+v", &c.LocalFlags.SetUpdate)
 		c.logger.Printf("Set input update path(s): %+v", &c.LocalFlags.SetUpdatePath)
 		c.logger.Printf("Set input update value(s): %+v", &c.LocalFlags.SetUpdateValue)
 		c.logger.Printf("Set input update file(s): %+v", &c.LocalFlags.SetUpdateFile)
-
 		c.logger.Printf("Set input replace: %+v", &c.LocalFlags.SetReplace)
 		c.logger.Printf("Set input replace path(s): %+v", &c.LocalFlags.SetReplacePath)
 		c.logger.Printf("Set input replace value(s): %+v", &c.LocalFlags.SetReplaceValue)
 		c.logger.Printf("Set input replace file(s): %+v", &c.LocalFlags.SetReplaceFile)
 	}
 
-	//
-	useUpdateFiles := len(c.LocalFlags.SetUpdateFile) > 0 && len(c.LocalFlags.SetUpdateValue) == 0
-	useReplaceFiles := len(c.LocalFlags.SetReplaceFile) > 0 && len(c.LocalFlags.SetReplaceValue) == 0
-	req := &gnmi.SetRequest{
-		Prefix:  gnmiPrefix,
-		Delete:  make([]*gnmi.Path, 0, len(c.LocalFlags.SetDelete)),
-		Replace: make([]*gnmi.Update, 0),
-		Update:  make([]*gnmi.Update, 0),
-	}
+	gnmiOpts := make([]api.GNMIOption, 0)
+	gnmiOpts = append(gnmiOpts,
+		api.Prefix(c.LocalFlags.SetPrefix),
+		api.Target(c.LocalFlags.SetTarget),
+	)
 	for _, p := range c.LocalFlags.SetDelete {
-		gnmiPath, err := utils.ParsePath(strings.TrimSpace(p))
-		if err != nil {
-			return nil, err
-		}
-		req.Delete = append(req.Delete, gnmiPath)
+		gnmiOpts = append(gnmiOpts, api.Delete(strings.TrimSpace(p)))
 	}
+
 	for _, u := range c.LocalFlags.SetUpdate {
 		singleUpdate := strings.Split(u, c.LocalFlags.SetDelimiter)
 		if len(singleUpdate) < 3 {
 			return nil, fmt.Errorf("invalid inline update format: %s", c.LocalFlags.SetUpdate)
 		}
-		gnmiPath, err := utils.ParsePath(strings.TrimSpace(singleUpdate[0]))
-		if err != nil {
-			return nil, err
-		}
-		value := new(gnmi.TypedValue)
-		err = setValue(value, singleUpdate[1], singleUpdate[2])
-		if err != nil {
-			return nil, err
-		}
-		req.Update = append(req.Update, &gnmi.Update{
-			Path: gnmiPath,
-			Val:  value,
-		})
+		gnmiOpts = append(gnmiOpts,
+			api.Update(
+				api.Path(strings.TrimSpace(singleUpdate[0])),
+				api.Value(singleUpdate[2], singleUpdate[1]),
+			),
+		)
 	}
+
 	for _, r := range c.LocalFlags.SetReplace {
 		singleReplace := strings.Split(r, c.LocalFlags.SetDelimiter)
 		if len(singleReplace) < 3 {
 			return nil, fmt.Errorf("invalid inline replace format: %s", c.LocalFlags.SetReplace)
 		}
-		gnmiPath, err := utils.ParsePath(strings.TrimSpace(singleReplace[0]))
-		if err != nil {
-			return nil, err
-		}
-		value := new(gnmi.TypedValue)
-		err = setValue(value, singleReplace[1], singleReplace[2])
-		if err != nil {
-			return nil, err
-		}
-		req.Replace = append(req.Replace, &gnmi.Update{
-			Path: gnmiPath,
-			Val:  value,
-		})
+		gnmiOpts = append(gnmiOpts,
+			api.Replace(
+				api.Path(strings.TrimSpace(singleReplace[0])),
+				api.Value(singleReplace[2], singleReplace[1]),
+			),
+		)
 	}
+
+	useUpdateFiles := len(c.LocalFlags.SetUpdateFile) > 0 && len(c.LocalFlags.SetUpdateValue) == 0
+	useReplaceFiles := len(c.LocalFlags.SetReplaceFile) > 0 && len(c.LocalFlags.SetReplaceValue) == 0
+
 	for i, p := range c.LocalFlags.SetUpdatePath {
-		gnmiPath, err := utils.ParsePath(strings.TrimSpace(p))
-		if err != nil {
-			return nil, err
-		}
-		value := new(gnmi.TypedValue)
+		var updOpt api.GNMIOption
 		if useUpdateFiles {
-			var updateData []byte
-			updateData, err = readFile(c.LocalFlags.SetUpdateFile[i])
+			updateData, err := readFile(c.LocalFlags.SetUpdateFile[i])
 			if err != nil {
 				c.logger.Printf("error reading data from file '%s': %v", c.LocalFlags.SetUpdateFile[i], err)
 				return nil, err
 			}
-			switch strings.ToUpper(c.Encoding) {
-			case "JSON":
-				value.Value = &gnmi.TypedValue_JsonVal{
-					JsonVal: bytes.Trim(updateData, " \r\n\t"),
-				}
-			case "JSON_IETF":
-				value.Value = &gnmi.TypedValue_JsonIetfVal{
-					JsonIetfVal: bytes.Trim(updateData, " \r\n\t"),
-				}
-			default:
-				return nil, fmt.Errorf("encoding: %q not supported together with file values", c.Encoding)
-			}
+			updOpt = api.Update(
+				api.Path(strings.TrimSpace(p)),
+				api.Value(string(bytes.Trim(updateData, " \r\n\t")), c.Encoding),
+			)
+
 		} else {
-			err = setValue(value, strings.ToLower(c.Encoding), c.LocalFlags.SetUpdateValue[i])
-			if err != nil {
-				return nil, err
-			}
+			updOpt = api.Update(
+				api.Path(strings.TrimSpace(p)),
+				api.Value(c.LocalFlags.SetUpdateValue[i], c.Encoding),
+			)
+			gnmiOpts = append(gnmiOpts, updOpt)
 		}
-		req.Update = append(req.Update, &gnmi.Update{
-			Path: gnmiPath,
-			Val:  value,
-		})
 	}
+
 	for i, p := range c.LocalFlags.SetReplacePath {
-		gnmiPath, err := utils.ParsePath(strings.TrimSpace(p))
-		if err != nil {
-			return nil, err
-		}
-		value := new(gnmi.TypedValue)
+		var replaceOpt api.GNMIOption
 		if useReplaceFiles {
-			var replaceData []byte
-			replaceData, err = readFile(c.LocalFlags.SetReplaceFile[i])
+			replaceData, err := readFile(c.LocalFlags.SetReplaceFile[i])
 			if err != nil {
 				c.logger.Printf("error reading data from file '%s': %v", c.LocalFlags.SetReplaceFile[i], err)
 				return nil, err
 			}
-			switch strings.ToUpper(c.Encoding) {
-			case "JSON":
-				value.Value = &gnmi.TypedValue_JsonVal{
-					JsonVal: bytes.Trim(replaceData, " \r\n\t"),
-				}
-			case "JSON_IETF":
-				value.Value = &gnmi.TypedValue_JsonIetfVal{
-					JsonIetfVal: bytes.Trim(replaceData, " \r\n\t"),
-				}
-			default:
-				return nil, fmt.Errorf("encoding: %q not supported together with file values", c.Encoding)
-			}
+			replaceOpt = api.Replace(
+				api.Path(strings.TrimSpace(p)),
+				api.Value(string(bytes.Trim(replaceData, " \r\n\t")), c.Encoding),
+			)
+
 		} else {
-			err = setValue(value, strings.ToLower(c.Encoding), c.LocalFlags.SetReplaceValue[i])
-			if err != nil {
-				return nil, err
-			}
+			replaceOpt = api.Replace(
+				api.Path(strings.TrimSpace(p)),
+				api.Value(c.LocalFlags.SetReplaceValue[i], c.Encoding),
+			)
+			gnmiOpts = append(gnmiOpts, replaceOpt)
 		}
-		req.Replace = append(req.Replace, &gnmi.Update{
-			Path: gnmiPath,
-			Val:  value,
-		})
 	}
-	return []*gnmi.SetRequest{req}, nil
-}
 
-func setValue(value *gnmi.TypedValue, typ, val string) error {
-	var err error
-	switch typ {
-	case "json":
-		val = strings.TrimRight(strings.TrimLeft(val, "["), "]")
-		buff := new(bytes.Buffer)
-		bval := json.RawMessage(val)
-		if json.Valid(bval) {
-			err = json.NewEncoder(buff).Encode(bval)
-		} else {
-			err = json.NewEncoder(buff).Encode(val)
-		}
-		if err != nil {
-			return err
-		}
-
-		value.Value = &gnmi.TypedValue_JsonVal{
-			JsonVal: bytes.Trim(buff.Bytes(), " \r\n\t"),
-		}
-	case "json_ietf":
-		val = strings.TrimRight(strings.TrimLeft(val, "["), "]")
-		buff := new(bytes.Buffer)
-		bval := json.RawMessage(val)
-		if json.Valid(bval) {
-			err = json.NewEncoder(buff).Encode(bval)
-		} else {
-			err = json.NewEncoder(buff).Encode(val)
-		}
-		if err != nil {
-			return err
-		}
-
-		value.Value = &gnmi.TypedValue_JsonIetfVal{
-			JsonIetfVal: bytes.Trim(buff.Bytes(), " \r\n\t"),
-		}
-	case "ascii":
-		value.Value = &gnmi.TypedValue_AsciiVal{
-			AsciiVal: trimQuotes(val),
-		}
-	case "bool":
-		bval, err := strconv.ParseBool(val)
-		if err != nil {
-			return err
-		}
-		value.Value = &gnmi.TypedValue_BoolVal{
-			BoolVal: bval,
-		}
-	case "bytes":
-		value.Value = &gnmi.TypedValue_BytesVal{
-			BytesVal: []byte(val),
-		}
-	case "decimal":
-		dVal := &gnmi.Decimal64{}
-		value.Value = &gnmi.TypedValue_DecimalVal{
-			DecimalVal: dVal,
-		}
-		return fmt.Errorf("decimal type not implemented")
-	case "float":
-		f, err := strconv.ParseFloat(val, 32)
-		if err != nil {
-			return err
-		}
-		value.Value = &gnmi.TypedValue_FloatVal{
-			FloatVal: float32(f),
-		}
-	case "int":
-		k, err := strconv.ParseInt(val, 10, 64)
-		if err != nil {
-			return err
-		}
-		value.Value = &gnmi.TypedValue_IntVal{
-			IntVal: k,
-		}
-	case "uint":
-		u, err := strconv.ParseUint(val, 10, 64)
-		if err != nil {
-			return err
-		}
-		value.Value = &gnmi.TypedValue_UintVal{
-			UintVal: u,
-		}
-	case "string":
-		value.Value = &gnmi.TypedValue_StringVal{
-			StringVal: trimQuotes(val),
-		}
-	default:
-		return fmt.Errorf("unknown type %q, must be one of: %v", typ, ValueTypes)
-	}
-	return nil
+	req, err := api.NewSetRequest(gnmiOpts...)
+	return []*gnmi.SetRequest{req}, err
 }
 
 // readFile reads a json or yaml file. the the file is .yaml, converts it to json and returns []byte and an error

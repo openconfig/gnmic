@@ -2,12 +2,17 @@ package config
 
 import (
 	"bytes"
+	"log"
 	"os"
 	"reflect"
 	"strings"
 	"testing"
+	"text/template"
 
+	"github.com/karimra/gnmic/testutils"
 	"github.com/karimra/gnmic/types"
+	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/spf13/viper"
 )
 
 var getSubscriptionsTestSet = map[string]struct {
@@ -170,6 +175,370 @@ func TestGetSubscriptions(t *testing.T) {
 			}
 			if !reflect.DeepEqual(outs, data.out) {
 				t.Log("maps not equal")
+				t.Fail()
+			}
+		})
+	}
+}
+
+func TestConfig_CreateSubscribeRequest(t *testing.T) {
+	type fields struct {
+		GlobalFlags        GlobalFlags
+		LocalFlags         LocalFlags
+		FileConfig         *viper.Viper
+		Targets            map[string]*types.TargetConfig
+		Subscriptions      map[string]*types.SubscriptionConfig
+		Outputs            map[string]map[string]interface{}
+		Inputs             map[string]map[string]interface{}
+		Processors         map[string]map[string]interface{}
+		Clustering         *clustering
+		GnmiServer         *gnmiServer
+		APIServer          *APIServer
+		Loader             map[string]interface{}
+		Actions            map[string]map[string]interface{}
+		logger             *log.Logger
+		setRequestTemplate []*template.Template
+		setRequestVars     map[string]interface{}
+	}
+	type args struct {
+		sc     *types.SubscriptionConfig
+		target string
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		want    *gnmi.SubscribeRequest
+		wantErr bool
+	}{
+		{
+			name: "once_subscription",
+			args: args{
+				sc: &types.SubscriptionConfig{
+					Paths: []string{
+						"interface",
+					},
+					Mode:     "once",
+					Encoding: "json_ietf",
+				},
+			},
+			want: &gnmi.SubscribeRequest{
+				Request: &gnmi.SubscribeRequest_Subscribe{
+					Subscribe: &gnmi.SubscriptionList{
+						Subscription: []*gnmi.Subscription{
+							{
+								Path: &gnmi.Path{
+									Elem: []*gnmi.PathElem{{
+										Name: "interface",
+									}},
+								},
+							},
+						},
+						Mode:     gnmi.SubscriptionList_ONCE,
+						Encoding: gnmi.Encoding_JSON_IETF,
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "once_subscription_multiple_paths",
+			args: args{
+				sc: &types.SubscriptionConfig{
+					Paths: []string{
+						"interface",
+						"network-instance",
+					},
+					Mode:     "once",
+					Encoding: "json_ietf",
+				},
+			},
+			want: &gnmi.SubscribeRequest{
+				Request: &gnmi.SubscribeRequest_Subscribe{
+					Subscribe: &gnmi.SubscriptionList{
+						Mode: gnmi.SubscriptionList_ONCE,
+						Subscription: []*gnmi.Subscription{
+							{
+								Path: &gnmi.Path{
+									Elem: []*gnmi.PathElem{{
+										Name: "interface",
+									}},
+								},
+							},
+							{
+								Path: &gnmi.Path{
+									Elem: []*gnmi.PathElem{{
+										Name: "network-instance",
+									}},
+								},
+							},
+						},
+						Encoding: gnmi.Encoding_JSON_IETF,
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "poll_subscription",
+			args: args{
+				sc: &types.SubscriptionConfig{
+					Paths: []string{
+						"interface",
+					},
+					Mode:     "poll",
+					Encoding: "json_ietf",
+				},
+			},
+			want: &gnmi.SubscribeRequest{
+				Request: &gnmi.SubscribeRequest_Subscribe{
+					Subscribe: &gnmi.SubscriptionList{
+						Subscription: []*gnmi.Subscription{
+							{
+								Path: &gnmi.Path{
+									Elem: []*gnmi.PathElem{{
+										Name: "interface",
+									}},
+								},
+							},
+						},
+						Mode:     gnmi.SubscriptionList_POLL,
+						Encoding: gnmi.Encoding_JSON_IETF,
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "poll_subscription",
+			args: args{
+				sc: &types.SubscriptionConfig{
+					Paths: []string{
+						"interface",
+						"network-instance",
+					},
+					Mode:     "poll",
+					Encoding: "json_ietf",
+				},
+			},
+			want: &gnmi.SubscribeRequest{
+				Request: &gnmi.SubscribeRequest_Subscribe{
+					Subscribe: &gnmi.SubscriptionList{
+						Subscription: []*gnmi.Subscription{
+							{
+								Path: &gnmi.Path{
+									Elem: []*gnmi.PathElem{{
+										Name: "interface",
+									}},
+								},
+							},
+							{
+								Path: &gnmi.Path{
+									Elem: []*gnmi.PathElem{{
+										Name: "network-instance",
+									}},
+								},
+							},
+						},
+						Mode:     gnmi.SubscriptionList_POLL,
+						Encoding: gnmi.Encoding_JSON_IETF,
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "stream_subscription",
+			args: args{
+				sc: &types.SubscriptionConfig{
+					Paths: []string{
+						"interface",
+					},
+					Mode:     "stream",
+					Encoding: "json_ietf",
+				},
+			},
+			want: &gnmi.SubscribeRequest{
+				Request: &gnmi.SubscribeRequest_Subscribe{
+					Subscribe: &gnmi.SubscriptionList{
+						Subscription: []*gnmi.Subscription{
+							{
+								Path: &gnmi.Path{
+									Elem: []*gnmi.PathElem{{
+										Name: "interface",
+									}},
+								},
+							},
+						},
+						Mode:     gnmi.SubscriptionList_STREAM,
+						Encoding: gnmi.Encoding_JSON_IETF,
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "stream_subscription_multiple_paths",
+			args: args{
+				sc: &types.SubscriptionConfig{
+					Paths: []string{
+						"interface",
+						"network-instance",
+					},
+					Mode:     "stream",
+					Encoding: "json_ietf",
+				},
+			},
+			want: &gnmi.SubscribeRequest{
+				Request: &gnmi.SubscribeRequest_Subscribe{
+					Subscribe: &gnmi.SubscriptionList{
+						Subscription: []*gnmi.Subscription{
+							{
+								Path: &gnmi.Path{
+									Elem: []*gnmi.PathElem{{
+										Name: "interface",
+									}},
+								},
+							},
+							{
+								Path: &gnmi.Path{
+									Elem: []*gnmi.PathElem{{
+										Name: "network-instance",
+									}},
+								},
+							},
+						},
+						Mode:     gnmi.SubscriptionList_STREAM,
+						Encoding: gnmi.Encoding_JSON_IETF,
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "stream_sample_subscription",
+			args: args{
+				sc: &types.SubscriptionConfig{
+					Paths: []string{
+						"interface",
+					},
+					// Mode:       "stream",
+					StreamMode: "sample",
+					Encoding:   "json_ietf",
+				},
+			},
+			want: &gnmi.SubscribeRequest{
+				Request: &gnmi.SubscribeRequest_Subscribe{
+					Subscribe: &gnmi.SubscriptionList{
+						Subscription: []*gnmi.Subscription{
+							{
+								Mode: gnmi.SubscriptionMode_SAMPLE,
+								Path: &gnmi.Path{
+									Elem: []*gnmi.PathElem{{
+										Name: "interface",
+									}},
+								},
+							},
+						},
+						Encoding: gnmi.Encoding_JSON_IETF,
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "stream_on_change_subscription",
+			args: args{
+				sc: &types.SubscriptionConfig{
+					Paths: []string{
+						"interface",
+					},
+					// Mode:       "stream",
+					StreamMode: "on-change",
+					Encoding:   "json_ietf",
+				},
+			},
+			want: &gnmi.SubscribeRequest{
+				Request: &gnmi.SubscribeRequest_Subscribe{
+					Subscribe: &gnmi.SubscriptionList{
+						Subscription: []*gnmi.Subscription{
+							{
+								Mode: gnmi.SubscriptionMode_ON_CHANGE,
+								Path: &gnmi.Path{
+									Elem: []*gnmi.PathElem{{
+										Name: "interface",
+									}},
+								},
+							},
+						},
+						Encoding: gnmi.Encoding_JSON_IETF,
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "stream_target_defined_subscription",
+			args: args{
+				sc: &types.SubscriptionConfig{
+					Paths: []string{
+						"interface",
+					},
+					// Mode:       "stream",
+					StreamMode: "on-change",
+					Encoding:   "json_ietf",
+				},
+			},
+			want: &gnmi.SubscribeRequest{
+				Request: &gnmi.SubscribeRequest_Subscribe{
+					Subscribe: &gnmi.SubscriptionList{
+						Subscription: []*gnmi.Subscription{
+							{
+								Mode: gnmi.SubscriptionMode_TARGET_DEFINED,
+								Path: &gnmi.Path{
+									Elem: []*gnmi.PathElem{{
+										Name: "interface",
+									}},
+								},
+							},
+						},
+						Encoding: gnmi.Encoding_JSON_IETF,
+					},
+				},
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &Config{
+				GlobalFlags:        tt.fields.GlobalFlags,
+				LocalFlags:         tt.fields.LocalFlags,
+				FileConfig:         tt.fields.FileConfig,
+				Targets:            tt.fields.Targets,
+				Subscriptions:      tt.fields.Subscriptions,
+				Outputs:            tt.fields.Outputs,
+				Inputs:             tt.fields.Inputs,
+				Processors:         tt.fields.Processors,
+				Clustering:         tt.fields.Clustering,
+				GnmiServer:         tt.fields.GnmiServer,
+				APIServer:          tt.fields.APIServer,
+				Loader:             tt.fields.Loader,
+				Actions:            tt.fields.Actions,
+				logger:             tt.fields.logger,
+				setRequestTemplate: tt.fields.setRequestTemplate,
+				setRequestVars:     tt.fields.setRequestVars,
+			}
+			got, err := c.CreateSubscribeRequest(tt.args.sc, tt.args.target)
+			if (err != nil) != tt.wantErr {
+				t.Logf("Config.CreateSubscribeRequest() error   = %v", err)
+				t.Logf("Config.CreateSubscribeRequest() wantErr = %v", tt.wantErr)
+				t.Fail()
+				return
+			}
+			if !testutils.SubscribeRequestsEqual(got, tt.want) {
+				t.Logf("Config.CreateSubscribeRequest() got  = %v", got)
+				t.Logf("Config.CreateSubscribeRequest() want = %v", tt.want)
 				t.Fail()
 			}
 		})

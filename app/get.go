@@ -28,7 +28,7 @@ func (a *App) GetRun(cmd *cobra.Command, args []string) error {
 	}
 	evps, err := a.intializeEventProcessors()
 	if err != nil {
-		return fmt.Errorf("failed to init event procesors: %v", err)
+		return fmt.Errorf("failed to init event processors: %v", err)
 	}
 	if a.PromptMode {
 		// prompt mode
