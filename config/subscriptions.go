@@ -8,9 +8,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/karimra/gnmic/api"
 	"github.com/karimra/gnmic/types"
 	"github.com/mitchellh/mapstructure"
+	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
+)
+
+const (
+	subscriptionDefaultMode       = "STREAM"
+	subscriptionDefaultStreamMode = "TARGET_DEFINED"
+	subscriptionDefaultEncoding   = "JSON"
 )
 
 func (c *Config) GetSubscriptions(cmd *cobra.Command) (map[string]*types.SubscriptionConfig, error) {
@@ -142,6 +150,80 @@ func (c *Config) GetSubscriptionsFromFile() []*types.SubscriptionConfig {
 		return subscriptions[i].Name < subscriptions[j].Name
 	})
 	return subscriptions
+}
+
+func (*Config) CreateSubscribeRequest(sc *types.SubscriptionConfig, target string) (*gnmi.SubscribeRequest, error) {
+	err := setDefaults(sc)
+	if err != nil {
+		return nil, err
+	}
+	gnmiOpts := make([]api.GNMIOption, 0)
+	gnmiOpts = append(gnmiOpts,
+		api.Prefix(sc.Prefix),
+		api.Encoding(sc.Encoding),
+		api.SubscriptionListMode(sc.Mode),
+		api.UpdatesOnly(sc.UpdatesOnly),
+	)
+	if sc.Qos != nil {
+		gnmiOpts = append(gnmiOpts, api.Qos(*sc.Qos))
+	}
+	// add target opt
+	if sc.Target != "" {
+		gnmiOpts = append(gnmiOpts, api.Target(sc.Target))
+	} else if sc.SetTarget {
+		gnmiOpts = append(gnmiOpts, api.Target(target))
+	}
+	// add gNMI subscriptions
+	for _, p := range sc.Paths {
+		subGnmiOpts := make([]api.GNMIOption, 0, 2)
+		switch gnmi.SubscriptionList_Mode(gnmi.SubscriptionList_Mode_value[strings.ToUpper(sc.Mode)]) {
+		case gnmi.SubscriptionList_STREAM:
+			subGnmiOpts = append(subGnmiOpts, api.SubscriptionMode(sc.StreamMode))
+			switch gnmi.SubscriptionMode(gnmi.SubscriptionMode_value[strings.Replace(strings.ToUpper(sc.StreamMode), "-", "_", -1)]) {
+			case gnmi.SubscriptionMode_ON_CHANGE:
+				if sc.HeartbeatInterval != nil {
+					subGnmiOpts = append(subGnmiOpts, api.HeartbeatInterval(*sc.HeartbeatInterval))
+				}
+			case gnmi.SubscriptionMode_SAMPLE, gnmi.SubscriptionMode_TARGET_DEFINED:
+				if sc.SampleInterval != nil {
+					subGnmiOpts = append(subGnmiOpts, api.SampleInterval(*sc.SampleInterval))
+				}
+				subGnmiOpts = append(subGnmiOpts, api.SuppressRedundant(sc.SuppressRedundant))
+				if sc.SuppressRedundant && sc.HeartbeatInterval != nil {
+					subGnmiOpts = append(subGnmiOpts, api.HeartbeatInterval(*sc.HeartbeatInterval))
+				}
+			default:
+				return nil, fmt.Errorf("unknown stream subscription mode %s", sc.StreamMode)
+			}
+		default:
+			// poll and once subscription modes
+		}
+		//
+		subGnmiOpts = append(subGnmiOpts, api.Path(p))
+		gnmiOpts = append(gnmiOpts,
+			api.Subscription(subGnmiOpts...),
+		)
+	}
+	for _, m := range sc.Models {
+		gnmiOpts = append(gnmiOpts, api.UseModel(m, "", ""))
+	}
+	return api.NewSubscribeRequest(gnmiOpts...)
+}
+
+func setDefaults(sc *types.SubscriptionConfig) error {
+	if len(sc.Paths) == 0 {
+		return fmt.Errorf("missing path(s) in subscription '%s'", sc.Name)
+	}
+	if sc.Mode == "" {
+		sc.Mode = subscriptionDefaultMode
+	}
+	if strings.ToUpper(sc.Mode) == "STREAM" && sc.StreamMode == "" {
+		sc.StreamMode = subscriptionDefaultStreamMode
+	}
+	if sc.Encoding == "" {
+		sc.Encoding = subscriptionDefaultEncoding
+	}
+	return nil
 }
 
 func validateSubscriptionsConfig(subs map[string]*types.SubscriptionConfig) error {

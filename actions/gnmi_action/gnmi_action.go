@@ -8,12 +8,12 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"strconv"
 	"strings"
 	"sync"
 	"text/template"
 
 	"github.com/karimra/gnmic/actions"
+	"github.com/karimra/gnmic/api"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/target"
 	"github.com/karimra/gnmic/types"
@@ -268,15 +268,10 @@ func (g *gnmiAction) createTemplates(n string, s []string) ([]*template.Template
 }
 
 func (g *gnmiAction) createGetRequest(in *actions.Context) (*gnmi.GetRequest, error) {
-	encodingVal, ok := gnmi.Encoding_value[strings.Replace(strings.ToUpper(g.Encoding), "-", "_", -1)]
-	if !ok {
-		return nil, fmt.Errorf("invalid encoding type '%s'", g.Encoding)
-	}
-	req := &gnmi.GetRequest{
-		UseModels: make([]*gnmi.ModelData, 0),
-		Path:      make([]*gnmi.Path, 0, len(g.paths)),
-		Encoding:  gnmi.Encoding(encodingVal),
-	}
+	gnmiOpts := make([]api.GNMIOption, 0, 3)
+	gnmiOpts = append(gnmiOpts, api.Encoding(g.Encoding))
+	gnmiOpts = append(gnmiOpts, api.DataType(g.Type))
+
 	var err error
 	b := new(bytes.Buffer)
 	if g.Prefix != "" {
@@ -284,41 +279,23 @@ func (g *gnmiAction) createGetRequest(in *actions.Context) (*gnmi.GetRequest, er
 		if err != nil {
 			return nil, fmt.Errorf("prefix parse error: %v", err)
 		}
+		gnmiOpts = append(gnmiOpts, api.Prefix(b.String()))
+	}
 
-		gnmiPrefix, err := utils.ParsePath(b.String())
-		if err != nil {
-			return nil, fmt.Errorf("prefix parse error: %v", err)
-		}
-		req.Prefix = gnmiPrefix
-	}
-	if g.Type != "" {
-		dti, ok := gnmi.GetRequest_DataType_value[strings.ToUpper(g.Type)]
-		if !ok {
-			return nil, fmt.Errorf("unknown data type %s", g.Type)
-		}
-		req.Type = gnmi.GetRequest_DataType(dti)
-	}
 	for _, p := range g.paths {
 		b.Reset()
 		err = p.Execute(b, in)
 		if err != nil {
 			return nil, fmt.Errorf("path parse error: %v", err)
 		}
-		gnmiPath, err := utils.ParsePath(strings.TrimSpace(b.String()))
-		if err != nil {
-			return nil, fmt.Errorf("path parse error: %v", err)
-		}
-		req.Path = append(req.Path, gnmiPath)
+		gnmiOpts = append(gnmiOpts, api.Path(b.String()))
 	}
-	return req, nil
+
+	return api.NewGetRequest(gnmiOpts...)
 }
 
 func (g *gnmiAction) createSetRequest(in *actions.Context) (*gnmi.SetRequest, error) {
-	req := &gnmi.SetRequest{
-		Delete:  make([]*gnmi.Path, 0, len(g.paths)),
-		Replace: make([]*gnmi.Update, 0, len(g.paths)),
-		Update:  make([]*gnmi.Update, 0, len(g.paths)),
-	}
+	gnmiOpts := make([]api.GNMIOption, 0, len(g.paths))
 	var err error
 	b := new(bytes.Buffer)
 	if g.Prefix != "" {
@@ -326,11 +303,7 @@ func (g *gnmiAction) createSetRequest(in *actions.Context) (*gnmi.SetRequest, er
 		if err != nil {
 			return nil, fmt.Errorf("prefix parse error: %v", err)
 		}
-		gnmiPrefix, err := utils.ParsePath(b.String())
-		if err != nil {
-			return nil, fmt.Errorf("prefix parse error: %v", err)
-		}
-		req.Prefix = gnmiPrefix
+		gnmiOpts = append(gnmiOpts, api.Prefix(b.String()))
 	}
 	for i, p := range g.paths {
 		b.Reset()
@@ -338,173 +311,62 @@ func (g *gnmiAction) createSetRequest(in *actions.Context) (*gnmi.SetRequest, er
 		if err != nil {
 			return nil, fmt.Errorf("path parse error: %v", err)
 		}
-		gnmiPath, err := utils.ParsePath(strings.TrimSpace(b.String()))
-		if err != nil {
-			return nil, fmt.Errorf("path parse error: %v", err)
-		}
-
-		// value
-		b.Reset()
-		err = g.values[i].Execute(b, in)
-		if err != nil {
-			return nil, fmt.Errorf("value %d parse error: %v", i, err)
-		}
-		val, err := g.createTypedValue(b.String())
-		if err != nil {
-			return nil, fmt.Errorf("create value %d error: %v", i, err)
-		}
+		sPath := b.String()
 		switch g.RPC {
+		case "set-delete":
+			gnmiOpts = append(gnmiOpts, api.Delete(sPath))
 		case "set-update":
-			req.Update = append(req.Update, &gnmi.Update{
-				Path: gnmiPath,
-				Val:  val,
-			})
+			b.Reset()
+			err = g.values[i].Execute(b, in)
+			if err != nil {
+				return nil, fmt.Errorf("value %d parse error: %v", i, err)
+			}
+			gnmiOpts = append(gnmiOpts, api.Update(
+				api.Path(sPath),
+				api.Value(b.String(), g.Encoding),
+			))
 		case "set-replace":
-			req.Replace = append(req.Replace, &gnmi.Update{
-				Path: gnmiPath,
-				Val:  val,
-			})
+			b.Reset()
+			err = g.values[i].Execute(b, in)
+			if err != nil {
+				return nil, fmt.Errorf("value %d parse error: %v", i, err)
+			}
+			gnmiOpts = append(gnmiOpts,
+				api.Replace(
+					api.Path(sPath),
+					api.Value(b.String(), g.Encoding),
+				))
 		}
 	}
-	return req, nil
-}
-
-func (g *gnmiAction) createTypedValue(val string) (*gnmi.TypedValue, error) {
-	var err error
-	value := new(gnmi.TypedValue)
-	switch strings.ToLower(g.Encoding) {
-	case "json":
-		buff := new(bytes.Buffer)
-		val := strings.TrimRight(strings.TrimLeft(val, "["), "]")
-		bval := json.RawMessage(val)
-		if json.Valid(bval) {
-			err = json.NewEncoder(buff).Encode(bval)
-		} else {
-			err = json.NewEncoder(buff).Encode(val)
-		}
-		if err != nil {
-			return nil, err
-		}
-		value.Value = &gnmi.TypedValue_JsonVal{
-			JsonVal: bytes.Trim(buff.Bytes(), " \r\n\t"),
-		}
-	case "json_ietf":
-		buff := new(bytes.Buffer)
-		val := strings.TrimRight(strings.TrimLeft(val, "["), "]")
-		bval := json.RawMessage(val)
-		if json.Valid(bval) {
-			err = json.NewEncoder(buff).Encode(bval)
-		} else {
-			err = json.NewEncoder(buff).Encode(val)
-		}
-		if err != nil {
-			return nil, err
-		}
-		value.Value = &gnmi.TypedValue_JsonIetfVal{
-			JsonIetfVal: bytes.Trim(buff.Bytes(), " \r\n\t"),
-		}
-	case "ascii":
-		value.Value = &gnmi.TypedValue_AsciiVal{
-			AsciiVal: val,
-		}
-	case "bool":
-		bval, err := strconv.ParseBool(val)
-		if err != nil {
-			return nil, err
-		}
-		value.Value = &gnmi.TypedValue_BoolVal{
-			BoolVal: bval,
-		}
-	case "bytes":
-		value.Value = &gnmi.TypedValue_BytesVal{
-			BytesVal: []byte(val),
-		}
-	case "decimal":
-		dVal := &gnmi.Decimal64{}
-		value.Value = &gnmi.TypedValue_DecimalVal{
-			DecimalVal: dVal,
-		}
-		return nil, fmt.Errorf("decimal type not implemented")
-	case "float":
-		f, err := strconv.ParseFloat(val, 32)
-		if err != nil {
-			return nil, err
-		}
-		value.Value = &gnmi.TypedValue_FloatVal{
-			FloatVal: float32(f),
-		}
-	case "int":
-		k, err := strconv.ParseInt(val, 10, 64)
-		if err != nil {
-			return nil, err
-		}
-		value.Value = &gnmi.TypedValue_IntVal{
-			IntVal: k,
-		}
-	case "uint":
-		u, err := strconv.ParseUint(val, 10, 64)
-		if err != nil {
-			return nil, err
-		}
-		value.Value = &gnmi.TypedValue_UintVal{
-			UintVal: u,
-		}
-	case "string":
-		value.Value = &gnmi.TypedValue_StringVal{
-			StringVal: val,
-		}
-	default:
-		return nil, fmt.Errorf("unknown type %q", g.Encoding)
-	}
-	return value, nil
+	return api.NewSetRequest(gnmiOpts...)
 }
 
 func (g *gnmiAction) createSubscribeRequest(in *actions.Context) (*gnmi.SubscribeRequest, error) {
-	encodingVal, ok := gnmi.Encoding_value[strings.Replace(strings.ToUpper(g.Encoding), "-", "_", -1)]
-	if !ok {
-		return nil, fmt.Errorf("invalid encoding type '%s'", g.Encoding)
-	}
-
+	gnmiOpts := make([]api.GNMIOption, 0, 2+len(g.paths))
+	gnmiOpts = append(gnmiOpts,
+		api.Encoding(g.Encoding),
+		api.SubscriptionListModeONCE(),
+	)
+	//
 	var err error
 	b := new(bytes.Buffer)
-	var gnmiPrefix *gnmi.Path
 	if g.Prefix != "" {
 		err = g.prefix.Execute(b, in)
 		if err != nil {
-			return nil, fmt.Errorf("prefix parse error: %v", err)
+			return nil, fmt.Errorf("prefix template exec error: %v", err)
 		}
-
-		gnmiPrefix, err = utils.ParsePath(b.String())
-		if err != nil {
-			return nil, fmt.Errorf("prefix parse error: %v", err)
-		}
+		gnmiOpts = append(gnmiOpts, api.Prefix(b.String()))
 	}
-	var subscriptions = make([]*gnmi.Subscription, 0, len(g.paths))
 	for _, p := range g.paths {
 		b.Reset()
 		err = p.Execute(b, in)
 		if err != nil {
-			return nil, fmt.Errorf("path parse error: %v", err)
+			return nil, fmt.Errorf("path template exec error: %v", err)
 		}
-		gnmiPath, err := utils.ParsePath(strings.TrimSpace(b.String()))
-		if err != nil {
-			return nil, fmt.Errorf("path parse error: %v", err)
-		}
-		subscriptions = append(subscriptions, &gnmi.Subscription{
-			Path: gnmiPath,
-		})
+		gnmiOpts = append(gnmiOpts, api.Subscription(
+			api.Path(b.String())))
 	}
-
-	return &gnmi.SubscribeRequest{
-		Request: &gnmi.SubscribeRequest_Subscribe{
-			Subscribe: &gnmi.SubscriptionList{
-				Prefix:       gnmiPrefix,
-				Encoding:     gnmi.Encoding(encodingVal),
-				Mode:         gnmi.SubscriptionList_ONCE,
-				Subscription: subscriptions,
-			},
-		},
-	}, nil
+	return api.NewSubscribeRequest(gnmiOpts...)
 }
 
 func (g *gnmiAction) selectTargets(tName string) ([]*types.TargetConfig, error) {

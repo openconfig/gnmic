@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/karimra/gnmic/api"
 	"github.com/karimra/gnmic/testutils"
 	"github.com/openconfig/gnmi/proto/gnmi"
 )
@@ -19,7 +20,7 @@ var createGetRequestTestSet = map[string]struct {
 	"nil_input": {
 		in:  nil,
 		out: nil,
-		err: errors.New("invalid configuration"),
+		err: ErrInvalidConfig,
 	},
 	"unknown_encoding_type": {
 		in: &Config{
@@ -30,7 +31,7 @@ var createGetRequestTestSet = map[string]struct {
 			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: nil,
-		err: errors.New("invalid encoding type"),
+		err: api.ErrInvalidValue,
 	},
 	"invalid_prefix": {
 		in: &Config{
@@ -43,7 +44,7 @@ var createGetRequestTestSet = map[string]struct {
 			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: nil,
-		err: errors.New("prefix parse error"),
+		err: api.ErrInvalidValue,
 	},
 	"invalid_path": {
 		in: &Config{
@@ -56,7 +57,7 @@ var createGetRequestTestSet = map[string]struct {
 			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: nil,
-		err: errors.New("prefix parse error"),
+		err: api.ErrInvalidValue,
 	},
 	"unknown_data_type": {
 		in: &Config{
@@ -70,7 +71,7 @@ var createGetRequestTestSet = map[string]struct {
 			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		},
 		out: nil,
-		err: errors.New("unknown data type"),
+		err: api.ErrInvalidValue,
 	},
 	"basic_get_request": {
 		in: &Config{
@@ -521,39 +522,24 @@ var createSetRequestTestSet = map[string]struct {
 var execPathTemplateTestSet = map[string]struct {
 	tpl   string
 	input interface{}
-	out   *gnmi.Path
+	out   string
 }{
 	"nil": {
 		tpl:   "",
 		input: nil,
-		out:   nil,
+		out:   "",
 	},
 	"simple": {
 		tpl:   `"/path/"`,
 		input: nil,
-		out: &gnmi.Path{
-			Elem: []*gnmi.PathElem{
-				{
-					Name: "path",
-				},
-			},
-		},
+		out:   "/path/",
 	},
 	"with_an_expression": {
 		tpl: `"/interfaces/" + .name`,
 		input: map[string]interface{}{
 			"name": "interface",
 		},
-		out: &gnmi.Path{
-			Elem: []*gnmi.PathElem{
-				{
-					Name: "interfaces",
-				},
-				{
-					Name: "interface",
-				},
-			},
-		},
+		out: "/interfaces/interface",
 	},
 }
 
@@ -566,7 +552,8 @@ func TestCreateGetRequest(t *testing.T) {
 			t.Logf("exp error: %+v", data.err)
 			t.Logf("got error: %+v", err)
 			if err != nil {
-				if !strings.HasPrefix(err.Error(), data.err.Error()) {
+				uerr := errors.Unwrap(err)
+				if !errors.Is(uerr, data.err) {
 					t.Fail()
 				}
 			}
@@ -610,7 +597,7 @@ func TestExecPathTemplate(t *testing.T) {
 			}
 			t.Logf("exp value: %+v", data.out)
 			t.Logf("got value: %+v", o)
-			if !testutils.GnmiPathsEqual(data.out, o) {
+			if data.out != o {
 				t.Fail()
 			}
 		})

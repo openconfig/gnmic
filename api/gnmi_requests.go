@@ -63,7 +63,10 @@ func apply(m proto.Message, opts ...GNMIOption) error {
 func NewCapabilitiesRequest(opts ...GNMIOption) (*gnmi.CapabilityRequest, error) {
 	m := new(gnmi.CapabilityRequest)
 	err := apply(m, opts...)
-	return m, err
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 // NewCapabilitiesResponse creates a new *gnmi.CapabilityResponse using the provided GNMIOption list.
@@ -71,10 +74,13 @@ func NewCapabilitiesRequest(opts ...GNMIOption) (*gnmi.CapabilityRequest, error)
 func NewCapabilitiesResponse(opts ...GNMIOption) (*gnmi.CapabilityResponse, error) {
 	m := new(gnmi.CapabilityResponse)
 	err := apply(m, opts...)
+	if err != nil {
+		return nil, err
+	}
 	if m.GNMIVersion == "" {
 		m.GNMIVersion = DefaultGNMIVersion
 	}
-	return m, err
+	return m, nil
 }
 
 // NewGetRequest creates a new *gnmi.GetRequest using the provided GNMIOption list.
@@ -82,7 +88,10 @@ func NewCapabilitiesResponse(opts ...GNMIOption) (*gnmi.CapabilityResponse, erro
 func NewGetRequest(opts ...GNMIOption) (*gnmi.GetRequest, error) {
 	m := new(gnmi.GetRequest)
 	err := apply(m, opts...)
-	return m, err
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 // NewGetResponse creates a new *gnmi.GetResponse using the provided GNMIOption list.
@@ -90,7 +99,10 @@ func NewGetRequest(opts ...GNMIOption) (*gnmi.GetRequest, error) {
 func NewGetResponse(opts ...GNMIOption) (*gnmi.GetResponse, error) {
 	m := new(gnmi.GetResponse)
 	err := apply(m, opts...)
-	return m, err
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 // NewSetRequest creates a new *gnmi.SetRequest using the provided GNMIOption list.
@@ -106,7 +118,10 @@ func NewSetRequest(opts ...GNMIOption) (*gnmi.SetRequest, error) {
 func NewSetResponse(opts ...GNMIOption) (*gnmi.SetResponse, error) {
 	m := new(gnmi.SetResponse)
 	err := apply(m, opts...)
-	return m, err
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 // NewSubscribeRequest creates a new *gnmi.SubscribeRequest using the provided GNMIOption list.
@@ -143,7 +158,10 @@ func NewSubscribeResponse(opts ...GNMIOption) (*gnmi.SubscribeResponse, error) {
 		},
 	}
 	err := apply(m, opts...)
-	return m, err
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 // NewSubscribeResponse creates a *gnmi.SubscribeResponse with a gnmi.SubscribeResponse_SyncResponse as
@@ -155,7 +173,10 @@ func NewSubscribeSyncResponse(opts ...GNMIOption) (*gnmi.SubscribeResponse, erro
 		},
 	}
 	err := apply(m, opts...)
-	return m, err
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 // Messages options
@@ -304,7 +325,10 @@ func Prefix(prefix string) func(msg proto.Message) error {
 		default:
 			return fmt.Errorf("option Prefix: %w: %T", ErrInvalidMsgType, msg)
 		}
-		return err
+		if err != nil {
+			return fmt.Errorf("%w: %v", ErrInvalidValue, err)
+		}
+		return nil
 	}
 }
 
@@ -314,6 +338,9 @@ func Target(target string) func(msg proto.Message) error {
 	return func(msg proto.Message) error {
 		if msg == nil {
 			return ErrInvalidMsgType
+		}
+		if target == "" {
+			return nil
 		}
 		var err error
 		switch msg := msg.ProtoReflect().Interface().(type) {
@@ -359,7 +386,7 @@ func Path(path string) func(msg proto.Message) error {
 		case *gnmi.GetRequest:
 			p, err := utils.ParsePath(path)
 			if err != nil {
-				return err
+				return fmt.Errorf("%w: %v", ErrInvalidValue, err)
 			}
 			if len(msg.Path) == 0 {
 				msg.Path = make([]*gnmi.Path, 0)
@@ -368,17 +395,17 @@ func Path(path string) func(msg proto.Message) error {
 		case *gnmi.Update:
 			msg.Path, err = utils.ParsePath(path)
 			if err != nil {
-				return err
+				return fmt.Errorf("%w: %v", ErrInvalidValue, err)
 			}
 		case *gnmi.UpdateResult:
 			msg.Path, err = utils.ParsePath(path)
 			if err != nil {
-				return err
+				return fmt.Errorf("%w: %v", ErrInvalidValue, err)
 			}
 		case *gnmi.Subscription:
 			msg.Path, err = utils.ParsePath(path)
 			if err != nil {
-				return err
+				return fmt.Errorf("%w: %v", ErrInvalidValue, err)
 			}
 		default:
 			return fmt.Errorf("option Path: %w: %T", ErrInvalidMsgType, msg)
@@ -478,6 +505,9 @@ func DataType(datat string) func(msg proto.Message) error {
 	return func(msg proto.Message) error {
 		if msg == nil {
 			return ErrInvalidMsgType
+		}
+		if datat == "" {
+			return nil
 		}
 		switch msg := msg.ProtoReflect().Interface().(type) {
 		case *gnmi.GetRequest:
@@ -689,7 +719,15 @@ func value(data interface{}, encoding string) (*gnmi.TypedValue, error) {
 	case string:
 		switch strings.ToLower(encoding) {
 		case "json":
-			b, err := json.Marshal(data)
+			var b []byte
+			var err error
+			bval := json.RawMessage(data)
+			if json.Valid(bval) {
+				b, err = json.Marshal(bval)
+			} else {
+				b, err = json.Marshal(data)
+			}
+			//b, err = json.Marshal(data)
 			if err != nil {
 				return nil, err
 			}
@@ -698,7 +736,15 @@ func value(data interface{}, encoding string) (*gnmi.TypedValue, error) {
 					JsonVal: bytes.Trim(b, " \r\n\t"),
 				}}, nil
 		case "json_ietf":
-			b, err := json.Marshal(data)
+			var b []byte
+			var err error
+			bval := json.RawMessage(data)
+			if json.Valid(bval) {
+				b, err = json.Marshal(bval)
+			} else {
+				b, err = json.Marshal(data)
+			}
+			//b, err = json.Marshal(data)
 			if err != nil {
 				return nil, err
 			}
@@ -811,7 +857,7 @@ func Delete(path string) func(msg proto.Message) error {
 		case *gnmi.SetRequest:
 			p, err := utils.ParsePath(path)
 			if err != nil {
-				return err
+				return fmt.Errorf("%w: %v", ErrInvalidValue, err)
 			}
 			if len(msg.Delete) == 0 {
 				msg.Delete = make([]*gnmi.Path, 0)
@@ -820,7 +866,7 @@ func Delete(path string) func(msg proto.Message) error {
 		case *gnmi.Notification:
 			p, err := utils.ParsePath(path)
 			if err != nil {
-				return err
+				return fmt.Errorf("%w: %v", ErrInvalidValue, err)
 			}
 			if len(msg.Delete) == 0 {
 				msg.Delete = make([]*gnmi.Path, 0)

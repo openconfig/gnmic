@@ -11,6 +11,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/karimra/gnmic/api"
 	"github.com/karimra/gnmic/utils"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"gopkg.in/yaml.v2"
@@ -115,76 +116,57 @@ func (c *Config) CreateSetRequestFromFile(targetName string) ([]*gnmi.SetRequest
 		if err != nil {
 			return nil, err
 		}
-		sReq := &gnmi.SetRequest{
-			Delete:  make([]*gnmi.Path, 0, len(reqFile.Deletes)),
-			Replace: make([]*gnmi.Update, 0, len(reqFile.Replaces)),
-			Update:  make([]*gnmi.Update, 0, len(reqFile.Updates)),
-		}
+		gnmiOpts := make([]api.GNMIOption, 0)
 		buf.Reset()
 		for _, upd := range reqFile.Updates {
 			if upd.Path == "" {
 				upd.Path = "/"
 			}
-			gnmiPath, err := utils.ParsePath(strings.TrimSpace(upd.Path))
-			if err != nil {
-				return nil, err
-			}
 
 			enc := upd.Encoding
 			if enc == "" {
 				enc = c.GlobalFlags.Encoding
 			}
-			value := new(gnmi.TypedValue)
 			buf.Reset()
 			err = json.NewEncoder(buf).Encode(convert(upd.Value))
 			if err != nil {
 				return nil, err
 			}
-			err = setValue(value, strings.ToLower(enc), strings.TrimSpace(buf.String()))
-			if err != nil {
-				return nil, err
-			}
-			sReq.Update = append(sReq.Update, &gnmi.Update{
-				Path: gnmiPath,
-				Val:  value,
-			})
+			gnmiOpts = append(gnmiOpts,
+				api.Update(
+					api.Path(strings.TrimSpace(upd.Path)),
+					api.Value(strings.TrimSpace(buf.String()), enc),
+				),
+			)
 		}
 		for _, upd := range reqFile.Replaces {
 			if upd.Path == "" {
 				upd.Path = "/"
 			}
-			gnmiPath, err := utils.ParsePath(strings.TrimSpace(upd.Path))
-			if err != nil {
-				return nil, err
-			}
-
 			enc := upd.Encoding
 			if enc == "" {
 				enc = c.GlobalFlags.Encoding
 			}
-			value := new(gnmi.TypedValue)
 			buf.Reset()
 			err = json.NewEncoder(buf).Encode(convert(upd.Value))
 			if err != nil {
 				return nil, err
 			}
-			err = setValue(value, strings.ToLower(enc), strings.TrimSpace(buf.String()))
-			if err != nil {
-				return nil, err
-			}
-			sReq.Replace = append(sReq.Replace, &gnmi.Update{
-				Path: gnmiPath,
-				Val:  value,
-			})
+			gnmiOpts = append(gnmiOpts, api.Replace(
+				api.Path(strings.TrimSpace(upd.Path)),
+				api.Value(strings.TrimSpace(buf.String()), enc),
+			),
+			)
 		}
 		for _, s := range reqFile.Deletes {
-			gnmiPath, err := utils.ParsePath(strings.TrimSpace(s))
-			if err != nil {
-				return nil, err
-			}
-			sReq.Delete = append(sReq.Delete, gnmiPath)
+			gnmiOpts = append(gnmiOpts, api.Delete(strings.TrimSpace(s)))
 		}
-		reqs = append(reqs, sReq)
+
+		setReq, err := api.NewSetRequest(gnmiOpts...)
+		if err != nil {
+			return nil, err
+		}
+		reqs = append(reqs, setReq)
 	}
 	return reqs, nil
 }

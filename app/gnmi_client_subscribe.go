@@ -169,7 +169,7 @@ func (a *App) clientSubscribe(ctx context.Context, tName string) error {
 	}
 	subRequests := make([]subscriptionRequest, 0)
 	for _, sc := range subscriptionsConfigs {
-		req, err := sc.CreateSubscribeRequest(tName)
+		req, err := a.Config.CreateSubscribeRequest(sc, tName)
 		if err != nil {
 			return err
 		}
@@ -220,7 +220,7 @@ func (a *App) clientSubscribeOnce(ctx context.Context, tName string) error {
 	}
 	subRequests := make([]subscriptionRequest, 0)
 	for _, sc := range subscriptionsConfigs {
-		req, err := sc.CreateSubscribeRequest(tName)
+		req, err := a.Config.CreateSubscribeRequest(sc, tName)
 		if err != nil {
 			return err
 		}
