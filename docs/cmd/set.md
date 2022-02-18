@@ -330,12 +330,12 @@ replaces:
       subinterface:
         - index: {{ $index }}
           admin-state: {{ index $subinterface "admin-state" | default "disable" }}
-          {{- if hasKey $subinterface "ipv4-address" }}
+          {{- if has $subinterface "ipv4-address" }}
           ipv4:
             address:
               - ip-prefix: {{ index $subinterface "ipv4-address" | toString }}
           {{- end }}
-          {{- if hasKey $subinterface "ipv6-address" }}
+          {{- if has $subinterface "ipv6-address" }}
           ipv6:
             address:
               - ip-prefix: {{ index $subinterface "ipv6-address" | toString }}
