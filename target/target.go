@@ -68,7 +68,7 @@ func (t *Target) CreateGNMIClient(ctx context.Context, opts ...grpc.DialOption) 
 		return err
 	}
 	opts = append(opts, tOpts...)
-
+	opts = append(opts, grpc.WithBlock())
 	// create a gRPC connection
 	addrs := strings.Split(t.Config.Address, ",")
 	numAddrs := len(addrs)
