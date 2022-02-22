@@ -24,18 +24,18 @@ dockers:
       - 'docker.io/gnmic/gnmic:{{ replace .Version "v" ""}}'
       - "ghcr.io/karimra/gnmic:latest"
       - 'ghcr.io/karimra/gnmic:{{ replace .Version "v" ""}}'
-    dockerfile: goreleaser.dockerfile
+    dockerfile: goreleaser-alpine.dockerfile
     skip_push: false
   - goos: linux
     goarch: amd64
     ids:
       - gnmic
     image_templates:
-      - "docker.io/gnmic/gnmic-alpine:latest"
-      - 'docker.io/gnmic/gnmic-alpine:{{ replace .Version "v" ""}}'
-      - "ghcr.io/karimra/gnmic-alpine:latest"
-      - 'ghcr.io/karimra/gnmic-alpine:{{ replace .Version "v" ""}}'
-    dockerfile: goreleaser-alpine.dockerfile
+      - "docker.io/gnmic/gnmic-scratch:latest"
+      - 'docker.io/gnmic/gnmic-scratch:{{ replace .Version "v" ""}}'
+      - "ghcr.io/karimra/gnmic-scratch:latest"
+      - 'ghcr.io/karimra/gnmic-scratch:{{ replace .Version "v" ""}}'
+    dockerfile: goreleaser-scratch.dockerfile
     skip_push: false
 archives:
   - replacements:
