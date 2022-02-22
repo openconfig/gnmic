@@ -157,7 +157,7 @@ func (f *fileLoader) Start(ctx context.Context) chan *loaders.TargetOperation {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				readTargets, err := f.getTargets(ctx)
+				readTargets, err := f.RunOnce(ctx)
 				if _, ok := err.(*os.PathError); ok {
 					f.logger.Printf("path err: %v", err)
 					continue
@@ -179,6 +179,17 @@ func (f *fileLoader) Start(ctx context.Context) chan *loaders.TargetOperation {
 		}
 	}()
 	return opChan
+}
+
+func (f *fileLoader) RunOnce(ctx context.Context) (map[string]*types.TargetConfig, error) {
+	readTargets, err := f.getTargets(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if f.cfg.Debug {
+		f.logger.Printf("file loader discovered %d target(s)", len(readTargets))
+	}
+	return readTargets, nil
 }
 
 func (f *fileLoader) getTargets(ctx context.Context) (map[string]*types.TargetConfig, error) {
