@@ -237,13 +237,10 @@ func (d *dockerLoader) Start(ctx context.Context) chan *loaders.TargetOperation 
 				return
 			case <-ticker.C:
 				d.logger.Printf("querying %q targets", loaderType)
-				readTargets, err := d.getTargets(ctx)
+				readTargets, err := d.RunOnce(ctx)
 				if err != nil {
 					d.logger.Printf("failed to read targets from docker daemon: %v", err)
 					continue
-				}
-				if d.cfg.Debug {
-					d.logger.Printf("docker loader discovered %d target(s)", len(readTargets))
 				}
 				select {
 				case <-ctx.Done():
@@ -255,6 +252,18 @@ func (d *dockerLoader) Start(ctx context.Context) chan *loaders.TargetOperation 
 		}
 	}()
 	return opChan
+}
+
+func (d *dockerLoader) RunOnce(ctx context.Context) (map[string]*types.TargetConfig, error) {
+	d.logger.Printf("querying %q targets", loaderType)
+	readTargets, err := d.getTargets(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if d.cfg.Debug {
+		d.logger.Printf("docker loader discovered %d target(s)", len(readTargets))
+	}
+	return readTargets, nil
 }
 
 func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*types.TargetConfig, error) {

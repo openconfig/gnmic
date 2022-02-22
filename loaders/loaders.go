@@ -11,6 +11,7 @@ import (
 
 type TargetLoader interface {
 	Init(context.Context, map[string]interface{}, *log.Logger, ...Option) error
+	RunOnce(ctx context.Context) (map[string]*types.TargetConfig, error)
 	Start(context.Context) chan *TargetOperation
 	RegisterMetrics(*prometheus.Registry)
 	WithActions(map[string]map[string]interface{})

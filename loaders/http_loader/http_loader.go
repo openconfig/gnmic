@@ -169,6 +169,17 @@ func (h *httpLoader) Start(ctx context.Context) chan *loaders.TargetOperation {
 	return opChan
 }
 
+func (h *httpLoader) RunOnce(ctx context.Context) (map[string]*types.TargetConfig, error) {
+	readTargets, err := h.getTargets()
+	if err != nil {
+		return nil, err
+	}
+	if h.cfg.Debug {
+		h.logger.Printf("http loader discovered %d target(s)", len(readTargets))
+	}
+	return readTargets, nil
+}
+
 func (h *httpLoader) setDefaults() error {
 	if h.cfg.URL == "" {
 		return errors.New("missing URL")

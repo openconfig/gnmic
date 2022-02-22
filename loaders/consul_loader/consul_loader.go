@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/consul/api"
-	"github.com/mitchellh/consulstructure"
 	"github.com/mitchellh/mapstructure"
 	"gopkg.in/yaml.v2"
 
@@ -44,8 +43,8 @@ func init() {
 }
 
 type consulLoader struct {
-	cfg            *cfg
-	decoder        *consulstructure.Decoder
+	cfg *cfg
+	// decoder        *consulstructure.Decoder
 	client         *api.Client
 	m              *sync.Mutex
 	lastTargets    map[string]*types.TargetConfig
@@ -94,13 +93,6 @@ type serviceDef struct {
 	Name   string                 `mapstructure:"name,omitempty" json:"name,omitempty"`
 	Tags   []string               `mapstructure:"tags,omitempty" json:"tags,omitempty"`
 	Config map[string]interface{} `mapstructure:"config,omitempty" json:"config,omitempty"`
-}
-
-type service struct {
-	ID      string
-	Name    string
-	Address string
-	Tags    []string
 }
 
 func (c *consulLoader) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger, opts ...loaders.Option) error {
@@ -153,7 +145,109 @@ func (c *consulLoader) Init(ctx context.Context, cfg map[string]interface{}, log
 
 func (c *consulLoader) Start(ctx context.Context) chan *loaders.TargetOperation {
 	opChan := make(chan *loaders.TargetOperation)
+	var err error
+CLIENT:
+	err = c.initClient()
+	if err != nil {
+		c.logger.Printf("Failed to create a Consul client:%v", err)
+		consulLoaderWatchError.WithLabelValues(loaderType, fmt.Sprintf("%v", err)).Add(1)
+		time.Sleep(2 * time.Second)
+		goto CLIENT
+	}
+	sChan := make(chan []*api.ServiceEntry)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case ses, ok := <-sChan:
+				if !ok {
+					return
+				}
+				tcs := make(map[string]*types.TargetConfig)
+				for _, se := range ses {
+					tc, err := c.serviceEntryToTargetConfig(se)
+					if err != nil {
+						c.logger.Printf("Failed to convert service entry %+v to a target config: %v", se, err)
+					}
+					tcs[tc.Name] = tc
+				}
+				c.updateTargets(ctx, tcs, opChan)
+			}
+		}
+	}()
+	for _, s := range c.cfg.Services {
+		go func(s *serviceDef) {
+			err := c.startServicesWatch(ctx, s.Name, s.Tags, sChan, time.Minute)
+			if err != nil {
+				c.logger.Printf("service %q watch stopped: %v", s.Name, err)
+			}
+		}(s)
+	}
+	return opChan
+}
 
+func (c *consulLoader) RunOnce(ctx context.Context) (map[string]*types.TargetConfig, error) {
+	err := c.initClient()
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string]*types.TargetConfig)
+	rsChan := make(chan *api.ServiceEntry)
+	m := new(sync.Mutex)
+	wg := new(sync.WaitGroup)
+	wg.Add(len(c.cfg.Services))
+
+	for _, s := range c.cfg.Services {
+		go func(s *serviceDef) {
+			ses, _, err := c.client.Health().ServiceMultipleTags(s.Name, s.Tags, true, &api.QueryOptions{})
+			if err != nil {
+				c.logger.Printf("failed to get service %q instances: %v", s.Name, err)
+				return
+			}
+			for _, se := range ses {
+				rsChan <- se
+			}
+		}(s)
+	}
+
+	go func() {
+		m.Lock()
+		defer m.Unlock()
+		for {
+			select {
+			case se, ok := <-rsChan:
+				if !ok {
+					return
+				}
+				tc, err := c.serviceEntryToTargetConfig(se)
+				if err != nil {
+					c.logger.Printf("failed to convert service %+v to target config: %v", se, err)
+				}
+				result[tc.Name] = tc
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	wg.Wait()
+	close(rsChan)
+	m.Lock()
+	defer m.Unlock()
+	return result, nil
+}
+
+//
+
+func (c *consulLoader) initClient() error {
+	var err error
+	if c.client != nil {
+		_, err = c.client.Agent().Self()
+		if err == nil {
+			return nil
+		}
+	}
+	// create a new client
 	clientConfig := &api.Config{
 		Address:    c.cfg.Address,
 		Scheme:     "http",
@@ -166,93 +260,8 @@ func (c *consulLoader) Start(ctx context.Context) chan *loaders.TargetOperation 
 			Password: c.cfg.Password,
 		}
 	}
-	// Prefix based consul loader
-	if c.cfg.KeyPrefix != "" {
-		updateCh := make(chan interface{})
-		errCh := make(chan error)
-		c.decoder = &consulstructure.Decoder{
-			Target:   new(map[string]*types.TargetConfig),
-			Prefix:   c.cfg.KeyPrefix,
-			Consul:   clientConfig,
-			UpdateCh: updateCh,
-			ErrCh:    errCh,
-		}
-		go c.decoder.Run()
-
-		go func() {
-			c.logger.Printf("starting watch goroutine")
-			defer close(opChan)
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case err := <-errCh:
-					c.logger.Printf("loader error: %v", err)
-					consulLoaderWatchError.WithLabelValues(loaderType, fmt.Sprintf("%v", err)).Add(1)
-					continue
-				case upd := <-updateCh:
-					c.logger.Printf("loader update: %+v", upd)
-					rs, ok := upd.(*map[string]*types.TargetConfig)
-					if !ok {
-						c.logger.Printf("unexpected update format: %T", upd)
-						consulLoaderWatchError.WithLabelValues(loaderType, fmt.Sprintf("unexpected update format: %T", upd)).Add(1)
-						continue
-					}
-					for n, t := range *rs {
-						if t == nil {
-							t = &types.TargetConfig{
-								Name:    n,
-								Address: n,
-							}
-							continue
-						}
-						if t.Name == "" {
-							t.Name = n
-						}
-						if t.Address == "" {
-							t.Address = n
-						}
-					}
-					c.updateTargets(ctx, *rs, opChan)
-				}
-			}
-		}()
-		// services based consul loader
-	} else if len(c.cfg.Services) > 0 {
-		var err error
-	CLIENT:
-		c.client, err = api.NewClient(clientConfig)
-		if err != nil {
-			c.logger.Printf("Failed to create a Consul client:%v", err)
-			consulLoaderWatchError.WithLabelValues(loaderType, fmt.Sprintf("%v", err)).Add(1)
-			time.Sleep(2 * time.Second)
-			goto CLIENT
-		}
-		sChan := make(chan []*service)
-		go func() {
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case srvs, ok := <-sChan:
-					if !ok {
-						return
-					}
-					tcs := c.servicesToTargetConfigs(srvs)
-					c.updateTargets(ctx, tcs, opChan)
-				}
-			}
-		}()
-		for _, s := range c.cfg.Services {
-			go func(s *serviceDef) {
-				err := c.startServicesWatch(ctx, s.Name, s.Tags, sChan, time.Minute)
-				if err != nil {
-					c.logger.Printf("service %q watch stopped: %v", s.Name, err)
-				}
-			}(s)
-		}
-	}
-	return opChan
+	c.client, err = api.NewClient(clientConfig)
+	return err
 }
 
 func (c *consulLoader) setDefaults() error {
@@ -268,7 +277,7 @@ func (c *consulLoader) setDefaults() error {
 	return nil
 }
 
-func (c *consulLoader) startServicesWatch(ctx context.Context, serviceName string, tags []string, sChan chan<- []*service, watchTimeout time.Duration) error {
+func (c *consulLoader) startServicesWatch(ctx context.Context, serviceName string, tags []string, sChan chan<- []*api.ServiceEntry, watchTimeout time.Duration) error {
 	if watchTimeout <= 0 {
 		watchTimeout = defaultWatchTimeout
 	}
@@ -308,7 +317,7 @@ func (c *consulLoader) startServicesWatch(ctx context.Context, serviceName strin
 	}
 }
 
-func (c *consulLoader) watch(qOpts *api.QueryOptions, serviceName string, tags []string, sChan chan<- []*service) (uint64, error) {
+func (c *consulLoader) watch(qOpts *api.QueryOptions, serviceName string, tags []string, sChan chan<- []*api.ServiceEntry) (uint64, error) {
 	se, meta, err := c.client.Health().ServiceMultipleTags(serviceName, tags, true, qOpts)
 	if err != nil {
 		return 0, err
@@ -323,41 +332,33 @@ func (c *consulLoader) watch(qOpts *api.QueryOptions, serviceName string, tags [
 	if len(se) == 0 {
 		return 1, nil
 	}
-	newSrvs := make([]*service, 0)
-	for _, srv := range se {
-		addr := srv.Service.Address
-		if addr == "" {
-			addr = srv.Node.Address
-		}
-		newSrvs = append(newSrvs, &service{
-			ID:      srv.Service.ID,
-			Name:    serviceName,
-			Address: net.JoinHostPort(addr, strconv.Itoa(srv.Service.Port)),
-			Tags:    srv.Service.Tags,
-		})
-	}
-	sChan <- newSrvs
+	sChan <- se
 	return meta.LastIndex, nil
 }
 
-func (c *consulLoader) servicesToTargetConfigs(srvs []*service) map[string]*types.TargetConfig {
-	tcs := make(map[string]*types.TargetConfig)
-	for _, s := range srvs {
-		tc := new(types.TargetConfig)
-		for _, sd := range c.cfg.Services {
-			if s.Name == sd.Name && sd.Config != nil {
+func (c *consulLoader) serviceEntryToTargetConfig(se *api.ServiceEntry) (*types.TargetConfig, error) {
+	tc := new(types.TargetConfig)
+	if se.Service == nil {
+		return tc, nil
+	}
+	for _, sd := range c.cfg.Services {
+		if se.Service.Service == sd.Name {
+			if sd.Config != nil {
 				err := mapstructure.Decode(sd.Config, tc)
 				if err != nil {
-					c.logger.Printf("failed to decode config map: %v", err)
-					continue
+					return nil, err
 				}
 			}
+			tc.Address = se.Service.Address
+			if tc.Address == "" {
+				tc.Address = se.Node.Address
+			}
+			tc.Address = net.JoinHostPort(tc.Address, strconv.Itoa(se.Service.Port))
+			tc.Name = se.Service.ID
+			return tc, nil
 		}
-		tc.Address = s.Address
-		tc.Name = s.ID
-		tcs[tc.Name] = tc
 	}
-	return tcs
+	return nil, nil
 }
 
 func (c *consulLoader) updateTargets(ctx context.Context, tcs map[string]*types.TargetConfig, opChan chan *loaders.TargetOperation) {
