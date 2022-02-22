@@ -31,10 +31,10 @@ dockers:
     ids:
       - gnmic
     image_templates:
-      - "docker.io/gnmic/gnmic-scratch:latest"
-      - 'docker.io/gnmic/gnmic-scratch:{{ replace .Version "v" ""}}'
-      - "ghcr.io/karimra/gnmic-scratch:latest"
-      - 'ghcr.io/karimra/gnmic-scratch:{{ replace .Version "v" ""}}'
+      - "docker.io/gnmic/gnmic:latest-scratch"
+      - 'docker.io/gnmic/gnmic:{{ replace .Version "v" ""}}-scratch'
+      - "ghcr.io/karimra/gnmic:latest-scratch"
+      - 'ghcr.io/karimra/gnmic:{{ replace .Version "v" ""}}-scratch'
     dockerfile: goreleaser-scratch.dockerfile
     skip_push: false
 archives:
