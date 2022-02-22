@@ -6,7 +6,7 @@ import (
 )
 
 func (d *dockerLoader) RegisterMetrics(reg *prometheus.Registry) {
-	if !d.cfg.EnableMetrics && reg != nil {
+	if !d.cfg.EnableMetrics {
 		return
 	}
 	if err := registerMetrics(reg); err != nil {
@@ -15,9 +15,6 @@ func (d *dockerLoader) RegisterMetrics(reg *prometheus.Registry) {
 }
 
 func (d *dockerLoader) WithActions(acts map[string]map[string]interface{}) {
-	if acts == nil {
-		return
-	}
 	d.actionsConfig = acts
 }
 

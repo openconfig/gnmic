@@ -9,12 +9,18 @@ type Option func(TargetLoader)
 
 func WithRegistry(reg *prometheus.Registry) Option {
 	return func(l TargetLoader) {
+		if reg == nil {
+			return
+		}
 		l.RegisterMetrics(reg)
 	}
 }
 
 func WithActions(acts map[string]map[string]interface{}) Option {
 	return func(l TargetLoader) {
+		if len(acts) == 0 {
+			return
+		}
 		l.WithActions(acts)
 	}
 }
