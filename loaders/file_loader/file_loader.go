@@ -66,6 +66,8 @@ type cfg struct {
 	// a Go text template that can be used to transform the targets format read from the file to match
 	// gNMIc's expected format.
 	Template string `json:"template,omitempty" mapstructure:"template,omitempty"`
+	// time to wait before the first file read
+	StartDelay time.Duration `json:"start-delay,omitempty" mapstructure:"start-delay,omitempty"`
 	// if true, registers fileLoader prometheus metrics with the provided
 	// prometheus registry
 	EnableMetrics bool `json:"enable-metrics,omitempty" mapstructure:"enable-metrics,omitempty"`
@@ -152,29 +154,15 @@ func (f *fileLoader) Start(ctx context.Context) chan *loaders.TargetOperation {
 	go func() {
 		defer close(opChan)
 		defer ticker.Stop()
+		time.Sleep(f.cfg.StartDelay)
+		f.update(ctx, opChan)
 		for {
 			select {
 			case <-ctx.Done():
+				f.logger.Printf("%q context done: %v", loaderType, ctx.Err())
 				return
 			case <-ticker.C:
-				readTargets, err := f.RunOnce(ctx)
-				if _, ok := err.(*os.PathError); ok {
-					f.logger.Printf("path err: %v", err)
-					continue
-				}
-				if err != nil {
-					f.logger.Printf("failed to read targets file: %v", err)
-					continue
-				}
-				select {
-				// check if the context is done before
-				// updating the targets to the channel
-				case <-ctx.Done():
-					f.logger.Printf("context done: %v", ctx.Err())
-					return
-				default:
-					f.updateTargets(ctx, readTargets, opChan)
-				}
+				f.update(ctx, opChan)
 			}
 		}
 	}()
@@ -190,6 +178,27 @@ func (f *fileLoader) RunOnce(ctx context.Context) (map[string]*types.TargetConfi
 		f.logger.Printf("file loader discovered %d target(s)", len(readTargets))
 	}
 	return readTargets, nil
+}
+
+func (f *fileLoader) update(ctx context.Context, opChan chan *loaders.TargetOperation) {
+	readTargets, err := f.RunOnce(ctx)
+	if _, ok := err.(*os.PathError); ok {
+		f.logger.Printf("path err: %v", err)
+		return
+	}
+	if err != nil {
+		f.logger.Printf("failed to read targets file: %v", err)
+		return
+	}
+	select {
+	// check if the context is done before
+	// updating the targets to the channel
+	case <-ctx.Done():
+		f.logger.Printf("context done: %v", ctx.Err())
+		return
+	default:
+		f.updateTargets(ctx, readTargets, opChan)
+	}
 }
 
 func (f *fileLoader) getTargets(ctx context.Context) (map[string]*types.TargetConfig, error) {

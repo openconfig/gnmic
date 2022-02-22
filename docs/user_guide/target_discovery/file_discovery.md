@@ -37,6 +37,8 @@ loader:
   # watch interval at which the file
   # is read again to determine if a target was added or deleted.
   interval: 30s
+  # time to wait before the fist file read
+  start-delay: 0s
   # if true, registers fileLoader prometheus metrics with the provided
   # prometheus registry
   enable-metrics: false

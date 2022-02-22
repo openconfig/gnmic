@@ -77,6 +77,8 @@ type cfg struct {
 	Timeout time.Duration `json:"timeout,omitempty" mapstructure:"timeout,omitempty"`
 	// docker filter to apply on queried docker containers
 	Filters []*targetFilter `json:"filters,omitempty" mapstructure:"filters,omitempty"`
+	// time to wait before the first docker filter query
+	StartDelay time.Duration `json:"start-delay,omitempty" mapstructure:"start-delay,omitempty"`
 	// enable debug mode for more logging messages
 	Debug bool `json:"debug,omitempty" mapstructure:"debug,omitempty"`
 	// if true, registers dockerLoader prometheus metrics with the provided
@@ -231,23 +233,17 @@ func (d *dockerLoader) Start(ctx context.Context) chan *loaders.TargetOperation 
 	go func() {
 		defer close(opChan)
 		defer ticker.Stop()
+		time.Sleep(d.cfg.StartDelay)
+		// first run
+		d.update(ctx, opChan)
+		// periodic runs
 		for {
 			select {
 			case <-ctx.Done():
+				d.logger.Printf("%q context done: %v", loaderType, ctx.Err())
 				return
 			case <-ticker.C:
-				d.logger.Printf("querying %q targets", loaderType)
-				readTargets, err := d.RunOnce(ctx)
-				if err != nil {
-					d.logger.Printf("failed to read targets from docker daemon: %v", err)
-					continue
-				}
-				select {
-				case <-ctx.Done():
-					return
-				default:
-					d.updateTargets(ctx, readTargets, opChan)
-				}
+				d.update(ctx, opChan)
 			}
 		}
 	}()
@@ -264,6 +260,22 @@ func (d *dockerLoader) RunOnce(ctx context.Context) (map[string]*types.TargetCon
 		d.logger.Printf("docker loader discovered %d target(s)", len(readTargets))
 	}
 	return readTargets, nil
+}
+
+// update runs the docker loader once and updates the added/remove target to the opChan
+func (d *dockerLoader) update(ctx context.Context, opChan chan *loaders.TargetOperation) {
+	d.logger.Printf("querying %q targets", loaderType)
+	readTargets, err := d.RunOnce(ctx)
+	if err != nil {
+		d.logger.Printf("failed to read targets from docker daemon: %v", err)
+		return
+	}
+	select {
+	case <-ctx.Done():
+		return
+	default:
+		d.updateTargets(ctx, readTargets, opChan)
+	}
 }
 
 func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*types.TargetConfig, error) {
