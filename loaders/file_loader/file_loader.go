@@ -1,6 +1,7 @@
 package file_loader
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,6 +10,7 @@ import (
 	"log"
 	"os"
 	"sync"
+	"text/template"
 	"time"
 
 	"github.com/karimra/gnmic/actions"
@@ -46,6 +48,7 @@ type fileLoader struct {
 	targetConfigFn func(*types.TargetConfig) error
 	logger         *log.Logger
 	//
+	tpl           *template.Template
 	vars          map[string]interface{}
 	actionsConfig map[string]map[string]interface{}
 	addActions    []actions.Action
@@ -60,6 +63,9 @@ type cfg struct {
 	// the interval at which the file will be re read to load new targets
 	// or delete removed ones.
 	Interval time.Duration `json:"interval,omitempty" mapstructure:"interval,omitempty"`
+	// a Go text template that can be used to transform the targets format read from the file to match
+	// gNMIc's expected format.
+	Template string `json:"template,omitempty" mapstructure:"template,omitempty"`
 	// if true, registers fileLoader prometheus metrics with the provided
 	// prometheus registry
 	EnableMetrics bool `json:"enable-metrics,omitempty" mapstructure:"enable-metrics,omitempty"`
@@ -93,6 +99,12 @@ func (f *fileLoader) Init(ctx context.Context, cfg map[string]interface{}, logge
 	if logger != nil {
 		f.logger.SetOutput(logger.Writer())
 		f.logger.SetFlags(logger.Flags())
+	}
+	if f.cfg.Template != "" {
+		f.tpl, err = utils.CreateTemplate("file-loader-template", f.cfg.Template)
+		if err != nil {
+			return err
+		}
 	}
 	err = f.readVars(ctx)
 	if err != nil {
@@ -180,6 +192,21 @@ func (f *fileLoader) getTargets(ctx context.Context) (map[string]*types.TargetCo
 	if err != nil {
 		fileLoaderFailedFileRead.WithLabelValues(loaderType, fmt.Sprintf("%v", err)).Add(1)
 		return nil, err
+	}
+	if f.tpl != nil {
+		var input interface{}
+		err = json.Unmarshal(b, input)
+		if err != nil {
+			fileLoaderFailedFileRead.WithLabelValues(loaderType, fmt.Sprintf("%v", err)).Add(1)
+			return nil, err
+		}
+		buf := new(bytes.Buffer)
+		err = f.tpl.Execute(buf, input)
+		if err != nil {
+			fileLoaderFailedFileRead.WithLabelValues(loaderType, fmt.Sprintf("%v", err)).Add(1)
+			return nil, err
+		}
+		b = buf.Bytes()
 	}
 	result := make(map[string]*types.TargetConfig)
 	// unmarshal the bytes into a map of targetConfigs
