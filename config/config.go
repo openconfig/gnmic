@@ -234,13 +234,23 @@ func New() *Config {
 	}
 }
 
-func (c *Config) Load() error {
+func (c *Config) Load(ctx context.Context) error {
 	c.FileConfig.SetEnvPrefix(envPrefix)
 	c.FileConfig.SetEnvKeyReplacer(strings.NewReplacer("/", "_", "-", "_"))
 	c.FileConfig.AutomaticEnv()
 	if c.GlobalFlags.CfgFile != "" {
+		// configuration file path is explicitely set
 		c.FileConfig.SetConfigFile(c.GlobalFlags.CfgFile)
+		configBytes, err := utils.ReadFile(ctx, c.FileConfig.ConfigFileUsed())
+		if err != nil {
+			return err
+		}
+		err = c.FileConfig.ReadConfig(bytes.NewBuffer(configBytes))
+		if err != nil {
+			return err
+		}
 	} else {
+		// discover gnmic config file
 		home, err := homedir.Dir()
 		if err != nil {
 			return err
@@ -250,18 +260,13 @@ func (c *Config) Load() error {
 		c.FileConfig.AddConfigPath(xdg.ConfigHome)
 		c.FileConfig.AddConfigPath(xdg.ConfigHome + "/gnmic")
 		c.FileConfig.SetConfigName(configName)
-	}
-	// TODO read local or remote file
-	configBytes, err := utils.ReadFile(context.Background(), c.FileConfig.ConfigFileUsed())
-	if err != nil {
-		return err
+		err = c.FileConfig.ReadInConfig()
+		if err != nil {
+			return err
+		}
 	}
 
-	err = c.FileConfig.ReadConfig(bytes.NewBuffer(configBytes))
-	if err != nil {
-		return err
-	}
-	err = c.FileConfig.Unmarshal(c)
+	err := c.FileConfig.Unmarshal(c)
 	if err != nil {
 		return err
 	}

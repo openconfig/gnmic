@@ -124,6 +124,13 @@ func New() *App {
 	return a
 }
 
+func (a *App) Context() context.Context {
+	if a.ctx == nil {
+		return context.Background()
+	}
+	return a.ctx
+}
+
 func (a *App) InitGlobalFlags() {
 	a.RootCmd.ResetFlags()
 

@@ -99,7 +99,7 @@ func init() {
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
-	err := gApp.Config.Load()
+	err := gApp.Config.Load(gApp.Context())
 	if err == nil {
 		return
 	}
