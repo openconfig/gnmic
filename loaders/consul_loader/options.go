@@ -6,7 +6,7 @@ import (
 )
 
 func (c *consulLoader) RegisterMetrics(reg *prometheus.Registry) {
-	if !c.cfg.EnableMetrics && reg != nil {
+	if !c.cfg.EnableMetrics {
 		return
 	}
 	if err := registerMetrics(reg); err != nil {
@@ -15,9 +15,6 @@ func (c *consulLoader) RegisterMetrics(reg *prometheus.Registry) {
 }
 
 func (c *consulLoader) WithActions(acts map[string]map[string]interface{}) {
-	if acts == nil {
-		return
-	}
 	c.actionsConfig = acts
 }
 

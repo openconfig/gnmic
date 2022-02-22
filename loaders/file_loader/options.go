@@ -6,7 +6,7 @@ import (
 )
 
 func (f *fileLoader) RegisterMetrics(reg *prometheus.Registry) {
-	if !f.cfg.EnableMetrics && reg != nil {
+	if !f.cfg.EnableMetrics {
 		return
 	}
 	if err := registerMetrics(reg); err != nil {
@@ -15,9 +15,6 @@ func (f *fileLoader) RegisterMetrics(reg *prometheus.Registry) {
 }
 
 func (f *fileLoader) WithActions(acts map[string]map[string]interface{}) {
-	if acts == nil {
-		return
-	}
 	f.actionsConfig = acts
 }
 

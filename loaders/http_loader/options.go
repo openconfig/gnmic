@@ -6,7 +6,7 @@ import (
 )
 
 func (h *httpLoader) RegisterMetrics(reg *prometheus.Registry) {
-	if !h.cfg.EnableMetrics && reg != nil {
+	if !h.cfg.EnableMetrics {
 		return
 	}
 	if err := registerMetrics(reg); err != nil {
@@ -15,9 +15,6 @@ func (h *httpLoader) RegisterMetrics(reg *prometheus.Registry) {
 }
 
 func (h *httpLoader) WithActions(acts map[string]map[string]interface{}) {
-	if acts == nil {
-		return
-	}
 	h.actionsConfig = acts
 }
 
