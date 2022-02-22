@@ -1,6 +1,7 @@
 package http_loader
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -8,6 +9,7 @@ import (
 	"io"
 	"log"
 	"sync"
+	"text/template"
 	"time"
 
 	"github.com/go-resty/resty/v2"
@@ -42,6 +44,7 @@ type httpLoader struct {
 	targetConfigFn func(*types.TargetConfig) error
 	logger         *log.Logger
 	//
+	tpl           *template.Template
 	vars          map[string]interface{}
 	actionsConfig map[string]map[string]interface{}
 	addActions    []actions.Action
@@ -66,6 +69,9 @@ type cfg struct {
 	Password string `json:"password,omitempty" mapstructure:"password,omitempty"`
 	// Oauth2
 	Token string `json:"token,omitempty" mapstructure:"token,omitempty"`
+	// a Go text template that can be used to transform the targets format
+	// read from the remote http server to match gNMIc's expected format.
+	Template string `json:"template,omitempty" mapstructure:"template,omitempty"`
 	// if true, registers httpLoader prometheus metrics with the provided
 	// prometheus registry
 	EnableMetrics bool `json:"enable-metrics,omitempty" mapstructure:"enable-metrics,omitempty"`
@@ -97,6 +103,12 @@ func (h *httpLoader) Init(ctx context.Context, cfg map[string]interface{}, logge
 	if logger != nil {
 		h.logger.SetOutput(logger.Writer())
 		h.logger.SetFlags(logger.Flags())
+	}
+	if h.cfg.Template != "" {
+		h.tpl, err = utils.CreateTemplate("http-loader-template", h.cfg.Template)
+		if err != nil {
+			return err
+		}
 	}
 	err = h.readVars()
 	if err != nil {
@@ -187,10 +199,9 @@ func (h *httpLoader) getTargets() (map[string]*types.TargetConfig, error) {
 	if h.cfg.Token != "" {
 		c.SetAuthToken(h.cfg.Token)
 	}
-	result := make(map[string]*types.TargetConfig)
 	start := time.Now()
 	httpLoaderGetRequestsTotal.WithLabelValues(loaderType).Add(1)
-	rsp, err := c.R().SetResult(result).Get(h.cfg.URL)
+	rsp, err := c.R().Get(h.cfg.URL)
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +210,48 @@ func (h *httpLoader) getTargets() (map[string]*types.TargetConfig, error) {
 		httpLoaderFailedGetRequests.WithLabelValues(loaderType, rsp.Status())
 		return nil, fmt.Errorf("failed request, code=%d", rsp.StatusCode())
 	}
-	return rsp.Result().(map[string]*types.TargetConfig), nil
+	b := rsp.Body()
+	if h.tpl != nil {
+		var input interface{}
+		err = json.Unmarshal(b, input)
+		if err != nil {
+			httpLoaderFailedGetRequests.WithLabelValues(loaderType, fmt.Sprintf("%v", err)).Add(1)
+			return nil, err
+		}
+		buf := new(bytes.Buffer)
+		err = h.tpl.Execute(buf, input)
+		if err != nil {
+			httpLoaderFailedGetRequests.WithLabelValues(loaderType, fmt.Sprintf("%v", err)).Add(1)
+			return nil, err
+		}
+		b = buf.Bytes()
+	}
+
+	result := make(map[string]*types.TargetConfig)
+	// unmarshal the bytes into a map of targetConfigs
+	err = yaml.Unmarshal(b, result)
+	if err != nil {
+		httpLoaderFailedGetRequests.WithLabelValues(loaderType, fmt.Sprintf("%v", err)).Add(1)
+		return nil, err
+	}
+	// properly initialize address and name if not set
+	for n, t := range result {
+		if t == nil && n != "" {
+			result[n] = &types.TargetConfig{
+				Name:    n,
+				Address: n,
+			}
+			continue
+		}
+		if t.Name == "" {
+			t.Name = n
+		}
+		if t.Address == "" {
+			t.Address = n
+		}
+	}
+	h.logger.Printf("result: %v", result)
+	return result, nil
 }
 
 func (h *httpLoader) updateTargets(ctx context.Context, tcs map[string]*types.TargetConfig, opChan chan *loaders.TargetOperation) {
