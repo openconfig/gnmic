@@ -1,64 +1,16 @@
-The Consul target loader discovers gNMI target with the help of a Consul server.
-It can operate in 2 different ways:
+The Consul target loader discovers gNMI targets registered as service instances in a Consul Server.
 
-- Watch a Consul [KV](https://www.consul.io/docs/dynamic-app-config/kv) prefix that stores a list of target configurations as a set of indivudual key/values
-- Watch Consul services and derive targets from the services instances.
-
-Both modes cannot be combined.
+The loader watches services registered in Consul defined by a service name and optionally a set of tags.
 
 <div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:2,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/karimra/gnmic/diagrams/diagrams/target_discovery.drawio&quot;}"></div>
 
 <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2Ftarget_discovery.drawio" async></script>
 
-### Prefix watch
-
-The prefix is expected to hold each gNMI target configuration as multiple Key/Values.
-
-Putting Key/Values in Consul via the cli is as easy as:
-
-```shell
-consul kv put gnmic/config/targets/10.10.10.10/username admin
-consul kv put gnmic/config/targets/10.10.10.10/insecure true
-consul kv put gnmic/config/targets/10.10.10.11/username admin
-consul kv put gnmic/config/targets/10.10.10.12 ""
-consul kv put gnmic/config/targets/10.10.10.13 ""
-consul kv put gnmic/config/targets/10.10.10.14 ""
-```
-
-Verify that keys are present:
-
-```shell
-consul kv get -recurse gnmic/config/targets
-```
-
-```text
-gnmic/config/targets/10.10.10.10/insecure:true
-gnmic/config/targets/10.10.10.10/username:admin
-gnmic/config/targets/10.10.10.11/username:admin
-gnmic/config/targets/10.10.10.12:
-gnmic/config/targets/10.10.10.13:
-gnmic/config/targets/10.10.10.14:
-```
-
-The above command are the equivalent the target YAML file below:
-
-```yaml
-10.10.10.10:
-    username: admin
-    insecure: true
-10.10.10.11:
-    username: admin
-10.10.10.12:
-10.10.10.13:
-10.10.10.14:
-```
-
 ### Services watch
 
-When at least one service name is set, gNMIc consul loader will watch the instances registered with that service name and build a target configuration using their ID as the target name
-their address as address.
+When at least one service name is set, gNMIc consul loader will watch the instances registered under that service name and build a target configuration using the service ID as the target name and the registered address and port as the target address.
 
-The remaining configuration can be set under the service name defintion
+The remaining configuration can be set under the service name definition.
 
 ```yaml
 loader:
@@ -68,6 +20,7 @@ loader:
       config:
         insecure: true
         username: admin
+        password: admin
 ```
 
 ### Configuration
