@@ -37,7 +37,7 @@ Deployment files:
 Deploy it with:
 
 ```bash
-git clone github.com/karimra/gnmic
+git clone https://github.com/karimra/gnmic.git
 cd gnmic/examples/deployments/2.clusters/4.gnmi-server/containerlab
 sudo clab deploy -t gnmi-server.clab.yaml
 ```
