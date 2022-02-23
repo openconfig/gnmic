@@ -21,6 +21,8 @@ loader:
   interval: 60s
   # HTTP request timeout
   timeout: 50s
+  # time to wait before the fist HTTP query
+  start-delay: 0s
   # boolean, if true the client does not verify the server certificates
   skip-verify: false
   # path to a certificate authority that will be used to verify the

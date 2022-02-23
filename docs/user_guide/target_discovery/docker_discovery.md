@@ -31,6 +31,8 @@ loader:
   # duration, the docker queries timeout, 
   # defaults to half of `interval` if left unset or is invalid.
   timeout: 15s
+  # time to wait before the fist docker query
+  start-delay: 0s
   # bool, print loader debug statements.
   debug: false
   # if true, registers dockerLoader prometheus metrics with the provided

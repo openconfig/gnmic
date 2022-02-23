@@ -9,12 +9,24 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+// TargetLoader discovers a set of target configurations for gNMIc to run RPCs against.
+// RunOnce should return a map of target configs and is meant to be used with Unary RPCs.
+// Start runs a goroutine in the background that updates added/removed target configs on the
+// returned channel.
 type TargetLoader interface {
-	Init(context.Context, map[string]interface{}, *log.Logger, ...Option) error
+	// Init initializes the target loader given the config, logger and options
+	Init(ctx context.Context, cfg map[string]interface{}, l *log.Logger, opts ...Option) error
+	// RunOnce runs the loader only once, returning a map of target configs
 	RunOnce(ctx context.Context) (map[string]*types.TargetConfig, error)
+	// Start starts the target loader, running periodic polls or a long watch.
+	// It returns a channel of TargetOperation from which the function caller can
+	// receive the added/removed target configs
 	Start(context.Context) chan *TargetOperation
+	// RegsiterMetrics registers the loader metrics with the provided registry
 	RegisterMetrics(*prometheus.Registry)
+	// WithActions passes the actions configuration to the target loader
 	WithActions(map[string]map[string]interface{})
+	// WithTargetsDefaults passes a callback function that sets the target config defaults
 	WithTargetsDefaults(func(tc *types.TargetConfig) error)
 }
 

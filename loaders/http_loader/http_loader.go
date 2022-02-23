@@ -72,6 +72,8 @@ type cfg struct {
 	// a Go text template that can be used to transform the targets format
 	// read from the remote http server to match gNMIc's expected format.
 	Template string `json:"template,omitempty" mapstructure:"template,omitempty"`
+	// time to wait before the first http query
+	StartDelay time.Duration `json:"start-delay,omitempty" mapstructure:"start-delay,omitempty"`
 	// if true, registers httpLoader prometheus metrics with the provided
 	// prometheus registry
 	EnableMetrics bool `json:"enable-metrics,omitempty" mapstructure:"enable-metrics,omitempty"`
@@ -147,22 +149,15 @@ func (h *httpLoader) Start(ctx context.Context) chan *loaders.TargetOperation {
 	go func() {
 		defer close(opChan)
 		defer ticker.Stop()
+		time.Sleep(h.cfg.StartDelay)
+		h.update(ctx, opChan)
 		for {
 			select {
 			case <-ctx.Done():
+				h.logger.Printf("%q context done: %v", loaderType, ctx.Err())
 				return
 			case <-ticker.C:
-				readTargets, err := h.getTargets()
-				if err != nil {
-					h.logger.Printf("failed to read targets from HTTP server: %v", err)
-					continue
-				}
-				select {
-				case <-ctx.Done():
-					return
-				default:
-					h.updateTargets(ctx, readTargets, opChan)
-				}
+				h.update(ctx, opChan)
 			}
 		}
 	}()
@@ -178,6 +173,20 @@ func (h *httpLoader) RunOnce(ctx context.Context) (map[string]*types.TargetConfi
 		h.logger.Printf("http loader discovered %d target(s)", len(readTargets))
 	}
 	return readTargets, nil
+}
+
+func (h *httpLoader) update(ctx context.Context, opChan chan *loaders.TargetOperation) {
+	readTargets, err := h.getTargets()
+	if err != nil {
+		h.logger.Printf("failed to read targets from HTTP server: %v", err)
+		return
+	}
+	select {
+	case <-ctx.Done():
+		return
+	default:
+		h.updateTargets(ctx, readTargets, opChan)
+	}
 }
 
 func (h *httpLoader) setDefaults() error {
