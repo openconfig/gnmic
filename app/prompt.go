@@ -13,7 +13,7 @@ import (
 )
 
 func (a *App) PromptRunE(cmd *cobra.Command, args []string) error {
-	err := a.GenerateYangSchema(a.Config.GlobalFlags.Dir, a.Config.GlobalFlags.File, a.Config.GlobalFlags.Exclude)
+	err := a.generateYangSchema(a.Config.GlobalFlags.Dir, a.Config.GlobalFlags.File, a.Config.GlobalFlags.Exclude)
 	if err != nil {
 		a.Logger.Printf("failed to load paths from yang: %v", err)
 		if !a.Config.Log {

@@ -46,7 +46,7 @@ func (a *App) GenerateRunE(cmd *cobra.Command, args []string) error {
 		defer f.Close()
 		output = f
 	}
-	err := a.GenerateYangSchema(a.Config.GlobalFlags.Dir, a.Config.GlobalFlags.File, a.Config.GlobalFlags.Exclude)
+	err := a.generateYangSchema(a.Config.GlobalFlags.Dir, a.Config.GlobalFlags.File, a.Config.GlobalFlags.Exclude)
 	if err != nil {
 		return err
 	}
@@ -112,6 +112,7 @@ func (a *App) yangFilesPreProcessing() error {
 	if err != nil {
 		return err
 	}
+	a.modules = yang.NewModules()
 	for _, dirpath := range a.Config.GlobalFlags.Dir {
 		expanded, err := yang.PathsWithModules(dirpath)
 		if err != nil {
@@ -122,7 +123,7 @@ func (a *App) yangFilesPreProcessing() error {
 				a.Logger.Printf("adding %s to YANG paths", fdir)
 			}
 		}
-		yang.AddPath(expanded...)
+		a.modules.AddPath(expanded...)
 	}
 	yfiles, err := findYangFiles(a.Config.GlobalFlags.File)
 	if err != nil {
@@ -149,7 +150,7 @@ func (a *App) GenerateSetRequestRunE(cmd *cobra.Command, args []string) error {
 		defer f.Close()
 		output = f
 	}
-	err := a.GenerateYangSchema(a.Config.GlobalFlags.Dir, a.Config.GlobalFlags.File, a.Config.GlobalFlags.Exclude)
+	err := a.generateYangSchema(a.Config.GlobalFlags.Dir, a.Config.GlobalFlags.File, a.Config.GlobalFlags.Exclude)
 	if err != nil {
 		return err
 	}
@@ -216,18 +217,17 @@ func (a *App) InitGenerateSetRequestFlags(cmd *cobra.Command) {
 	})
 }
 
-func (a *App) GenerateYangSchema(dirs, files, excludes []string) error {
+func (a *App) generateYangSchema(dirs, files, excludes []string) error {
 	if len(files) == 0 {
 		return nil
 	}
 
-	ms := yang.NewModules()
 	for _, name := range files {
-		if err := ms.Read(name); err != nil {
+		if err := a.modules.Read(name); err != nil {
 			return err
 		}
 	}
-	if errors := ms.Process(); len(errors) > 0 {
+	if errors := a.modules.Process(); len(errors) > 0 {
 		for _, e := range errors {
 			fmt.Fprintf(os.Stderr, "yang processing error: %v\n", e)
 		}
@@ -238,7 +238,7 @@ func (a *App) GenerateYangSchema(dirs, files, excludes []string) error {
 	mods := map[string]*yang.Module{}
 	var names []string
 
-	for _, m := range ms.Modules {
+	for _, m := range a.modules.Modules {
 		if mods[m.Name] == nil {
 			mods[m.Name] = m
 			names = append(names, m.Name)

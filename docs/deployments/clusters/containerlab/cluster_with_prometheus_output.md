@@ -27,7 +27,7 @@ Deployment files:
 Deploy it with:
 
 ```bash
-git clone github.com/karimra/gnmic
+git clone https://github.com/karimra/gnmic.git
 cd gnmic/examples/deployments/2.clusters/2.prometheus-output/containerlab
 sudo clab deploy -t lab22.clab.yaml
 ```

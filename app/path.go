@@ -39,7 +39,7 @@ type generatedPath struct {
 }
 
 func (a *App) PathCmdRun(d, f, e []string, pgo pathGenOpts) error {
-	err := a.GenerateYangSchema(d, f, e)
+	err := a.generateYangSchema(d, f, e)
 	if err != nil {
 		return err
 	}
@@ -258,7 +258,13 @@ func (a *App) generatePath(entry *yang.Entry, pType string) *generatedPath {
 
 	gp.Description = entry.Description
 	gp.Type = entry.Type.Name
-	gp.Default = entry.DefaultValue()
+
+	if entry.IsLeafList() {
+		gp.Default = strings.Join(entry.DefaultValues(), ", ")
+	} else {
+		gp.Default, _ = entry.SingleDefaultValue()
+	}
+
 	gp.IsState = isState(entry)
 	gp.Namespace = entry.Namespace().NName()
 	if pType == "gnmi" {
