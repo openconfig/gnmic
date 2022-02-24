@@ -146,6 +146,7 @@ require (
 	github.com/nats-io/nats-streaming-server v0.24.1 // indirect
 	github.com/nats-io/nkeys v0.3.0 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
+	github.com/openconfig/grpctunnel v0.0.0-20220222153957-e35baf49072c
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.2 // indirect
 	github.com/pelletier/go-toml v1.9.3 // indirect
