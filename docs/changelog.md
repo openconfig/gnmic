@@ -2,6 +2,15 @@
 
 ### v0.23.0 - February 24th 2022
 
+- Docker image:
+
+    - The published `gnmic` docker image is now based on `alpine` instead of an empty container.
+    - A `from scratch` image is published and can be obtained using the command:
+     ```bash
+     docker pull ghcr.io/karimra/gnmic:latest-scratch
+     docker pull ghcr.io/karimra/gnmic:v0.23.0-scratch
+     ```
+
 - [gNMIc Golang API](user_guide/golang_package/intro.md):
 
     - Add gNMI responses constructors
