@@ -1,12 +1,33 @@
 ## Changelog
 
+### v0.23.0 - February 24th 2022
+
+- Docker image:
+
+    - The published `gnmic` docker image is now based on `alpine` instead of an empty container.
+    - A `from scratch` image is published and can be obtained using the command:
+     ```bash
+     docker pull ghcr.io/karimra/gnmic:latest-scratch
+     docker pull ghcr.io/karimra/gnmic:v0.23.0-scratch
+     ```
+
+- [gNMIc Golang API](user_guide/golang_package/intro.md):
+
+    - Add gNMI responses constructors
+    - Add gRPC tunnel proto messages constructors
+
+- [Target Discovery](user_guide/target_discovery/discovery_intro.md):
+
+    - Add the option to transform the loaded targets format using a Go text template for file and HTTP loaders
+    - Poll based target loaders (file, HTTP and docker) now support a startup delay timer
+
 ### v0.22.1 - February 2nd 2022
 
 - Fix a Prometheus output issue when using gNMI cache that causes events to be missing from the metrics.
 
 ### v0.22.0 - February 1st 2022
 
-- [gNMIc Golang API](user_guide/):
+- [gNMIc Golang API](user_guide/golang_package/intro.md):
 
     Added the `github.com/karimra/gnmic/api` golang package.
     It can be imported by other Golang programs to ease the creation of gNMI targets and gNMI Requests.
