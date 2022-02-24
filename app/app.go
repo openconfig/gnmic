@@ -75,6 +75,8 @@ type App struct {
 	PromptMode    bool
 	PromptHistory []string
 	SchemaTree    *yang.Entry
+	// yang
+	modules *yang.Modules
 	//
 	wg        *sync.WaitGroup
 	printLock *sync.Mutex

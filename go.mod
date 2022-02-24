@@ -34,7 +34,7 @@ require (
 	github.com/nsf/termbox-go v1.1.1
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/openconfig/gnmi v0.0.0-20210707145734-c69a5df04b53
-	github.com/openconfig/goyang v0.4.0
+	github.com/openconfig/goyang v1.0.0
 	github.com/pkg/sftp v1.13.4
 	github.com/prometheus/client_golang v1.12.0
 	github.com/prometheus/client_model v0.2.0
