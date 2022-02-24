@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	tpb "github.com/openconfig/grpctunnel/proto/tunnel"
 )
 
 func CapabilitiesResponsesEqual(rsp1, rsp2 *gnmi.CapabilityResponse) bool {
@@ -569,6 +570,97 @@ func GnmiValuesEqual(v1, v2 *gnmi.TypedValue) bool {
 		default:
 			return false
 		}
+	}
+	return true
+}
+
+func RegisterOpEqual(r1, r2 *tpb.RegisterOp) bool {
+	if r1 == nil && r2 == nil {
+		return true
+	}
+	if r1 == nil || r2 == nil {
+		return false
+	}
+	switch r1 := r1.GetRegistration().(type) {
+	case *tpb.RegisterOp_Target:
+		switch r2 := r2.GetRegistration().(type) {
+		case *tpb.RegisterOp_Target:
+			if r1.Target.GetAccept() != r2.Target.GetAccept() {
+				return false
+			}
+			if r1.Target.GetOp() != r2.Target.GetOp() {
+				return false
+			}
+			if r1.Target.GetTarget() != r2.Target.GetTarget() {
+				return false
+			}
+			if r1.Target.GetError() != r2.Target.GetError() {
+				return false
+			}
+			if r1.Target.GetTargetType() != r2.Target.GetTargetType() {
+				return false
+			}
+		default:
+			return false
+		}
+	case *tpb.RegisterOp_Session:
+		switch r2 := r2.GetRegistration().(type) {
+		case *tpb.RegisterOp_Session:
+			if r1.Session.GetAccept() != r2.Session.GetAccept() {
+				return false
+			}
+			if r1.Session.GetTarget() != r2.Session.GetTarget() {
+				return false
+			}
+			if r1.Session.GetError() != r2.Session.GetError() {
+				return false
+			}
+			if r1.Session.GetTargetType() != r2.Session.GetTargetType() {
+				return false
+			}
+			if r1.Session.GetTag() != r2.Session.GetTag() {
+				return false
+			}
+		default:
+			return false
+		}
+	case *tpb.RegisterOp_Subscription:
+		switch r2 := r2.GetRegistration().(type) {
+		case *tpb.RegisterOp_Subscription:
+			if r1.Subscription.GetAccept() != r2.Subscription.GetAccept() {
+				return false
+			}
+			if r1.Subscription.GetOp() != r2.Subscription.GetOp() {
+				return false
+			}
+			if r1.Subscription.GetError() != r2.Subscription.GetError() {
+				return false
+			}
+			if r1.Subscription.GetTargetType() != r2.Subscription.GetTargetType() {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func TunnelDataEqual(r1, r2 *tpb.Data) bool {
+	if r1 == nil && r2 == nil {
+		return true
+	}
+	if r1 == nil || r2 == nil {
+		return false
+	}
+	if r1.GetClose() != r2.GetClose() {
+		return false
+	}
+	if !bytes.Equal(r1.GetData(), r2.GetData()) {
+		return false
+	}
+	if r1.GetTag() != r2.GetTag() {
+		return false
 	}
 	return true
 }
