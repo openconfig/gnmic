@@ -30,7 +30,7 @@ Deployment files:
 Deploy it with:
 
 ```bash
-git clone github.com/karimra/gnmic
+git clone https://github.com/karimra/gnmic.git
 cd gnmic/examples/deployments/1.single-instance/5.multiple-outputs/containerlab
 sudo clab deploy -t multiple-outputs.clab.yaml
 ```

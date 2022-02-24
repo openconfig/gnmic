@@ -21,7 +21,7 @@ Edit the subscriptions section if needed.
 Deploy it with:
 
 ```bash
-git clone github.com/karimra/gnmic
+git clone https://github.com/karimra/gnmic.git
 cd gnmic/examples/deployments/1.single-instance/3.influxdb-output/containerlab
 sudo clab deploy -t influxdb.clab.yaml
 ```
