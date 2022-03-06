@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/karimra/gnmic/config"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
@@ -43,7 +44,20 @@ func (a *App) InitDiffFlags(cmd *cobra.Command) {
 	})
 }
 
-func (a *App) DiffRun(cmd *cobra.Command, args []string) error {
+func (a *App) DiffPreRunE(cmd *cobra.Command, args []string) error {
+	a.Config.SetLocalFlagsFromFile(cmd)
+	if len(a.Config.LocalFlags.DiffPath) == 0 {
+		a.Config.LocalFlags.DiffPath = []string{"/"}
+	}
+	a.Config.LocalFlags.DiffPath = config.SanitizeArrayFlagValue(a.Config.LocalFlags.DiffPath)
+	a.Config.LocalFlags.DiffModel = config.SanitizeArrayFlagValue(a.Config.LocalFlags.DiffModel)
+	a.Config.LocalFlags.DiffCompare = config.SanitizeArrayFlagValue(a.Config.LocalFlags.DiffCompare)
+
+	a.createCollectorDialOpts()
+	return a.initTunnelServer()
+}
+
+func (a *App) DiffRunE(cmd *cobra.Command, args []string) error {
 	defer a.InitDiffFlags(cmd)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -125,7 +139,7 @@ func (a *App) subscribeBasedDiff(ctx context.Context, cmd *cobra.Command, ref st
 	if refTarget, ok := a.Targets[ref]; ok {
 		go func() {
 			defer a.wg.Done()
-			err = refTarget.CreateGNMIClient(ctx, a.createCollectorDialOpts()...)
+			err = refTarget.CreateGNMIClient(ctx, a.dialOpts...)
 			if err != nil {
 				a.logError(err)
 				return
@@ -162,7 +176,7 @@ func (a *App) subscribeBasedDiff(ctx context.Context, cmd *cobra.Command, ref st
 		if t, ok := a.Targets[tName]; ok {
 			go func(tName string) {
 				defer a.wg.Done()
-				err = t.CreateGNMIClient(ctx, a.createCollectorDialOpts()...)
+				err = t.CreateGNMIClient(ctx, a.dialOpts...)
 				if err != nil {
 					a.logError(err)
 					return

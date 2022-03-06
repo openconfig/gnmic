@@ -10,7 +10,18 @@ import (
 	"github.com/spf13/pflag"
 )
 
-func (a *App) SetRun(cmd *cobra.Command, args []string) error {
+func (a *App) SetPreRunE(cmd *cobra.Command, args []string) error {
+	a.Config.SetLocalFlagsFromFile(cmd)
+	err := a.Config.ValidateSetInput()
+	if err != nil {
+		return err
+	}
+
+	a.createCollectorDialOpts()
+	return a.initTunnelServer()
+}
+
+func (a *App) SetRunE(cmd *cobra.Command, args []string) error {
 	defer a.InitSetFlags(cmd)
 
 	if a.Config.Format == "event" {

@@ -7,13 +7,21 @@ import (
 	"fmt"
 
 	"github.com/itchyny/gojq"
+	"github.com/karimra/gnmic/config"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
-func (a *App) GetSetRun(cmd *cobra.Command, args []string) error {
+func (a *App) GetSetPreRunE(cmd *cobra.Command, args []string) error {
+	a.Config.SetLocalFlagsFromFile(cmd)
+	a.Config.LocalFlags.GetSetModel = config.SanitizeArrayFlagValue(a.Config.LocalFlags.GetSetModel)
+
+	a.createCollectorDialOpts()
+	return a.initTunnelServer()
+}
+func (a *App) GetSetRunE(cmd *cobra.Command, args []string) error {
 	defer a.InitGetSetFlags(cmd)
 
 	if a.Config.Format == "event" {

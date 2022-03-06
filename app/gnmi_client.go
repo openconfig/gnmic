@@ -7,6 +7,7 @@ import (
 
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
+	"google.golang.org/grpc"
 )
 
 func (a *App) ClientCapabilities(ctx context.Context, tName string, ext ...*gnmi_ext.Extension) (*gnmi.CapabilityResponse, error) {
@@ -18,9 +19,17 @@ func (a *App) ClientCapabilities(ctx context.Context, tName string, ext ...*gnmi
 			return nil, err
 		}
 	}
+
 	if t, ok := a.Targets[tName]; ok {
 		if t.Client == nil {
-			if err := t.CreateGNMIClient(ctx, a.dialOpts...); err != nil {
+			targetDialOpts := a.dialOpts
+			if a.Config.UseTunnelServer {
+				targetDialOpts = append(targetDialOpts,
+					grpc.WithContextDialer(a.tunDialerFn(ctx, tName)),
+				)
+				t.Config.Address = t.Config.Name
+			}
+			if err := t.CreateGNMIClient(ctx, targetDialOpts...); err != nil {
 				if errors.Is(err, context.DeadlineExceeded) {
 					return nil, fmt.Errorf("failed to create a gRPC client for target %q, timeout (%s) reached", t.Config.Name, t.Config.Timeout)
 				}
@@ -49,7 +58,15 @@ func (a *App) ClientGet(ctx context.Context, tName string, req *gnmi.GetRequest)
 	}
 	if t, ok := a.Targets[tName]; ok {
 		if t.Client == nil {
-			if err := t.CreateGNMIClient(ctx, a.dialOpts...); err != nil {
+			targetDialOpts := a.dialOpts
+			if a.Config.UseTunnelServer {
+				targetDialOpts = append(targetDialOpts,
+					grpc.WithContextDialer(a.tunDialerFn(ctx, tName)),
+				)
+				// overwrite target address
+				t.Config.Address = t.Config.Name
+			}
+			if err := t.CreateGNMIClient(ctx, targetDialOpts...); err != nil {
 				if errors.Is(err, context.DeadlineExceeded) {
 					return nil, fmt.Errorf("failed to create a gRPC client for target %q, timeout (%s) reached", t.Config.Name, t.Config.Timeout)
 				}
@@ -78,7 +95,15 @@ func (a *App) ClientSet(ctx context.Context, tName string, req *gnmi.SetRequest)
 	}
 	if t, ok := a.Targets[tName]; ok {
 		if t.Client == nil {
-			if err := t.CreateGNMIClient(ctx, a.dialOpts...); err != nil {
+			targetDialOpts := a.dialOpts
+			if a.Config.UseTunnelServer {
+				targetDialOpts = append(targetDialOpts,
+					grpc.WithContextDialer(a.tunDialerFn(ctx, tName)),
+				)
+				// overwrite target address
+				t.Config.Address = t.Config.Name
+			}
+			if err := t.CreateGNMIClient(ctx, targetDialOpts...); err != nil {
 				if errors.Is(err, context.DeadlineExceeded) {
 					return nil, fmt.Errorf("failed to create a gRPC client for target %q, timeout (%s) reached", t.Config.Name, t.Config.Timeout)
 				}

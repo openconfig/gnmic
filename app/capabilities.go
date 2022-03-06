@@ -10,7 +10,13 @@ import (
 	"github.com/spf13/pflag"
 )
 
-func (a *App) CapRun(cmd *cobra.Command, args []string) error {
+func (a *App) CapPreRunE(cmd *cobra.Command, args []string) error {
+	a.Config.SetLocalFlagsFromFile(cmd)
+	a.createCollectorDialOpts()
+	return a.initTunnelServer()
+}
+
+func (a *App) CapRunE(cmd *cobra.Command, args []string) error {
 	defer a.InitCapabilitiesFlags(cmd)
 
 	if a.Config.Format == "event" {

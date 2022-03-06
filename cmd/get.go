@@ -15,7 +15,6 @@
 package cmd
 
 import (
-	"github.com/karimra/gnmic/config"
 	"github.com/spf13/cobra"
 )
 
@@ -38,12 +37,7 @@ func newGetCmd() *cobra.Command {
 			"--model":  "MODEL",
 			"--type":   "STORE",
 		},
-		PreRun: func(cmd *cobra.Command, args []string) {
-			gApp.Config.SetLocalFlagsFromFile(cmd)
-			gApp.Config.LocalFlags.GetPath = config.SanitizeArrayFlagValue(gApp.Config.LocalFlags.GetPath)
-			gApp.Config.LocalFlags.GetModel = config.SanitizeArrayFlagValue(gApp.Config.LocalFlags.GetModel)
-			gApp.Config.LocalFlags.GetProcessor = config.SanitizeArrayFlagValue(gApp.Config.LocalFlags.GetProcessor)
-		},
+		PreRunE:      gApp.GetPreRunE,
 		RunE:         gApp.GetRun,
 		SilenceUsage: true,
 	}

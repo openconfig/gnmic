@@ -33,11 +33,8 @@ func newSetCmd() *cobra.Command {
 			"--update-file":  "FILE",
 			"--update-path":  "XPATH",
 		},
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			gApp.Config.SetLocalFlagsFromFile(cmd)
-			return gApp.Config.ValidateSetInput()
-		},
-		RunE:         gApp.SetRun,
+		PreRunE:      gApp.SetPreRunE,
+		RunE:         gApp.SetRunE,
 		SilenceUsage: true,
 	}
 	gApp.InitSetFlags(cmd)

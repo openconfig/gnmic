@@ -26,6 +26,7 @@ import (
 	"github.com/openconfig/gnmi/match"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/goyang/pkg/yang"
+	"github.com/openconfig/grpctunnel/tunnel"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -83,11 +84,20 @@ type App struct {
 	errCh     chan error
 	// gnmi server
 	gnmi.UnimplementedGNMIServer
-	grpcSrv         *grpc.Server
+	// gRPC server where the gNMI service will be registered
+	grpcSrv *grpc.Server
+	// gNMI cache
 	c               *cache.Cache
 	match           *match.Match
 	subscribeRPCsem *semaphore.Weighted
 	unaryRPCsem     *semaphore.Weighted
+	// tunnel server
+	// gRPC server where the tunnel service will be registered
+	grpcTunnelSrv *grpc.Server
+	tunServer     *tunnel.Server
+	ttm           *sync.RWMutex
+	tunTargets    map[string]tunnel.Target
+	tunTargetCfn  map[string]context.CancelFunc
 }
 
 func New() *App {
@@ -120,6 +130,10 @@ func New() *App {
 		wg:        new(sync.WaitGroup),
 		printLock: new(sync.Mutex),
 		c:         cache.New(nil),
+		// tunnel server objects
+		ttm:          new(sync.RWMutex),
+		tunTargets:   make(map[string]tunnel.Target),
+		tunTargetCfn: make(map[string]context.CancelFunc),
 	}
 	a.router.StrictSlash(true)
 	a.router.Use(headersMiddleware, a.loggingMiddleware)
@@ -174,12 +188,14 @@ func (a *App) InitGlobalFlags() {
 	a.RootCmd.PersistentFlags().StringArrayVarP(&a.Config.GlobalFlags.Dir, "dir", "", nil, "YANG dir(s)")
 	a.RootCmd.PersistentFlags().StringArrayVarP(&a.Config.GlobalFlags.Exclude, "exclude", "", nil, "YANG module names to be excluded")
 
+	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.UseTunnelServer, "use-tunnel-server", "", false, "use tunnel server to dial targets")
+
 	a.RootCmd.PersistentFlags().VisitAll(func(flag *pflag.Flag) {
 		a.Config.FileConfig.BindPFlag(flag.Name, flag)
 	})
 }
 
-func (a *App) PreRun(cmd *cobra.Command, args []string) error {
+func (a *App) PreRunE(cmd *cobra.Command, args []string) error {
 	a.Config.SetPersistantFlagsFromFile(a.RootCmd)
 
 	logOutput, flags, err := a.Config.SetLogger()
@@ -305,7 +321,6 @@ func (a *App) createCollectorDialOpts() []grpc.DialOption {
 	opts = append(opts, grpc.WithUserAgent(fmt.Sprintf("gNMIc/%s", version)))
 	if a.Config.Gzip {
 		opts = append(opts, grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)))
-
 	}
 	a.dialOpts = opts
 	return opts

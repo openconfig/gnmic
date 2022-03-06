@@ -53,7 +53,7 @@ func newRootCmd() *cobra.Command {
 			"--format":   "FORMAT",
 			"--address":  "TARGET",
 		},
-		PersistentPreRunE: gApp.PreRun,
+		PersistentPreRunE: gApp.PreRunE,
 	}
 	gApp.InitGlobalFlags()
 	gApp.RootCmd.AddCommand(newCompletionCmd())

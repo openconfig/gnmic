@@ -23,7 +23,13 @@ const (
 	initLockerRetryTimer = 1 * time.Second
 )
 
-func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
+func (a *App) SubscribePreRunE(cmd *cobra.Command, args []string) error {
+	a.Config.SetLocalFlagsFromFile(cmd)
+	a.createCollectorDialOpts()
+	return a.initTunnelServer()
+}
+
+func (a *App) SubscribeRunE(cmd *cobra.Command, args []string) error {
 	defer a.InitSubscribeFlags(cmd)
 
 	// prompt mode
@@ -49,7 +55,9 @@ func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
 	// stream subscriptions
 	_, err = a.Config.GetTargets()
 	if errors.Is(err, config.ErrNoTargetsFound) {
-		if !a.Config.LocalFlags.SubscribeWatchConfig && len(a.Config.FileConfig.GetStringMap("loader")) == 0 {
+		if !a.Config.LocalFlags.SubscribeWatchConfig &&
+			len(a.Config.FileConfig.GetStringMap("loader")) == 0 &&
+			!a.Config.UseTunnelServer {
 			return fmt.Errorf("failed reading targets config: %v", err)
 		}
 	} else if err != nil {
@@ -105,7 +113,6 @@ func (a *App) SubscribeRun(cmd *cobra.Command, args []string) error {
 }
 
 //
-
 func (a *App) subscribeStream(ctx context.Context, name string) {
 	defer a.wg.Done()
 	a.TargetSubscribeStream(ctx, name)

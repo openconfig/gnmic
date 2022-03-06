@@ -6,11 +6,22 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/karimra/gnmic/config"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
+
+func (a *App) GetPreRunE(cmd *cobra.Command, args []string) error {
+	a.Config.SetLocalFlagsFromFile(cmd)
+	a.Config.LocalFlags.GetPath = config.SanitizeArrayFlagValue(a.Config.LocalFlags.GetPath)
+	a.Config.LocalFlags.GetModel = config.SanitizeArrayFlagValue(a.Config.LocalFlags.GetModel)
+	a.Config.LocalFlags.GetProcessor = config.SanitizeArrayFlagValue(a.Config.LocalFlags.GetProcessor)
+
+	a.createCollectorDialOpts()
+	return a.initTunnelServer()
+}
 
 func (a *App) GetRun(cmd *cobra.Command, args []string) error {
 	defer a.InitGetFlags(cmd)
