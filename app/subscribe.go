@@ -283,6 +283,14 @@ func (a *App) startIO() {
 
 		a.wg.Add(len(a.Config.Targets))
 		for name := range a.Config.Targets {
+			// check if target is a tunnel discovered target.
+			// in which case, do not (re)subscribe
+			a.ttm.RLock()
+			_, ok := a.tunTargets[name]
+			a.ttm.RUnlock()
+			if ok {
+				continue
+			}
 			go a.subscribeStream(a.ctx, name)
 			if limiter != nil {
 				<-limiter.C

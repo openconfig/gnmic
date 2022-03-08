@@ -125,6 +125,60 @@ func (a *App) tunServerAddTargetHandler(tt tunnel.Target) error {
 
 func (a *App) tunServerAddTargetSubscribeHandler(tt tunnel.Target) error {
 	a.tunServerAddTargetHandler(tt)
+	if len(a.Config.TunnelServer.Targets) == 0 {
+		return nil
+	}
+	tc := a.getTunnelTargetMatch(tt)
+	a.AddTargetConfig(tc)
+	a.initTarget(tc.Name)
+	a.targetsChan <- a.Targets[tc.Name]
+	a.wg.Add(1)
+	go a.subscribeStream(a.ctx, tc.Name)
+	return nil
+}
+
+func (a *App) tunServerDeleteTargetHandler(tt tunnel.Target) error {
+	a.Logger.Printf("tunnel server target %+v deregistered", tt)
+	a.ttm.Lock()
+	defer a.ttm.Unlock()
+	if cfn, ok := a.tunTargetCfn[tt.ID]; ok {
+		cfn()
+		delete(a.tunTargetCfn, tt.ID)
+		delete(a.tunTargets, tt.ID)
+		a.configLock.Lock()
+		delete(a.Config.Targets, tt.ID)
+		a.configLock.Unlock()
+	}
+	return nil
+}
+
+func (a *App) tunServerRegisterHandler(ss tunnel.ServerSession) error {
+	return nil
+}
+
+func (a *App) tunServerHandler(ss tunnel.ServerSession, rwc io.ReadWriteCloser) error {
+	return nil
+}
+
+// tunDialerFn is used to build a grpc Option that sets a custom dialer for tunnel targets.
+func (a *App) tunDialerFn(ctx context.Context, tName string) func(context.Context, string) (net.Conn, error) {
+	return func(_ context.Context, _ string) (net.Conn, error) {
+		a.ttm.RLock()
+		tt, ok := a.tunTargets[tName]
+		a.ttm.RUnlock()
+		if !ok {
+			return nil, fmt.Errorf("unknown tunnel target %q", tName)
+		}
+		a.Logger.Printf("dialing tunnel connection for tunnel target %q", tName)
+		conn, err := tunnel.ServerConn(ctx, a.tunServer, &tt)
+		if err != nil {
+			a.Logger.Printf("failed dialing tunnel connection for target %q: %v", tName, err)
+		}
+		return conn, err
+	}
+}
+
+func (a *App) getTunnelTargetMatch(tt tunnel.Target) *types.TargetConfig {
 	for _, tm := range a.Config.TunnelServer.Targets {
 		// check if the discovered target matches one of the configured types
 		ok, err := regexp.MatchString(tm.Type, tt.Type)
@@ -155,52 +209,16 @@ func (a *App) tunServerAddTargetSubscribeHandler(tt tunnel.Target) error {
 			continue
 		}
 		tc.Address = tc.Name
-		a.AddTargetConfig(tc)
-		a.initTarget(tc.Name)
-		a.targetsChan <- a.Targets[tc.Name]
-		a.wg.Add(1)
-		go a.subscribeStream(a.ctx, tc.Name)
+		return tc
+	}
+	// no matchs defined or target didn't match any of the configured ones.
+	// create a default target config
+	tc := &types.TargetConfig{Name: tt.ID}
+	err := a.Config.SetTargetConfigDefaults(tc)
+	if err != nil {
+		a.Logger.Printf("failed to set target %q config defaults: %v", tt.ID, err)
 		return nil
 	}
-	a.Logger.Printf("target %v didn't find any match", tt)
-	return nil
-}
-
-func (a *App) tunServerDeleteTargetHandler(tt tunnel.Target) error {
-	a.Logger.Printf("tunnel server target %+v deregistered", tt)
-	a.ttm.Lock()
-	if cfn, ok := a.tunTargetCfn[tt.ID]; ok {
-		cfn()
-	}
-	delete(a.tunTargetCfn, tt.ID)
-	delete(a.tunTargets, tt.ID)
-	a.ttm.Unlock()
-	return nil
-}
-
-func (a *App) tunServerRegisterHandler(ss tunnel.ServerSession) error {
-	return nil
-}
-
-func (a *App) tunServerHandler(ss tunnel.ServerSession, rwc io.ReadWriteCloser) error {
-	return nil
-}
-
-// tunDialerFn is used to build a grpc Option that sets a custom dialer for tunnel targets.
-func (a *App) tunDialerFn(ctx context.Context, tName string) func(context.Context, string) (net.Conn, error) {
-	return func(_ context.Context, _ string) (net.Conn, error) {
-		a.Logger.Printf("dialing tunnel connection for target %q", tName)
-		a.ttm.RLock()
-		tt, ok := a.tunTargets[tName]
-		a.ttm.RUnlock()
-		if !ok {
-			return nil, fmt.Errorf("unknown tunnel target %q", tName)
-		}
-		a.Logger.Printf("dialing tunnel connection for tunnel target %q", tName)
-		conn, err := tunnel.ServerConn(ctx, a.tunServer, &tt)
-		if err != nil {
-			a.Logger.Printf("failed dialing tunnel connection for target %q: %v", tName, err)
-		}
-		return conn, err
-	}
+	tc.Address = tc.Name
+	return tc
 }

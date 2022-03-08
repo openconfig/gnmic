@@ -131,7 +131,7 @@ func New() *App {
 		wg:        new(sync.WaitGroup),
 		printLock: new(sync.Mutex),
 		c:         cache.New(nil),
-		// tunnel server objects
+		// tunnel server
 		ttm:          new(sync.RWMutex),
 		tunTargets:   make(map[string]tunnel.Target),
 		tunTargetCfn: make(map[string]context.CancelFunc),
@@ -469,8 +469,7 @@ func (a *App) GetTargets() (map[string]*types.TargetConfig, error) {
 			a.ttm.RLock()
 			defer a.ttm.RUnlock()
 			for _, tt := range a.tunTargets {
-				tc := new(types.TargetConfig)
-				tc.Name = tt.ID
+				tc := a.getTunnelTargetMatch(tt)
 				err = a.Config.SetTargetConfigDefaults(tc)
 				if err != nil {
 					return nil, err
