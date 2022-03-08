@@ -232,12 +232,8 @@ func (c *Config) SetTargetConfigDefaults(tc *types.TargetConfig) error {
 }
 
 func (c *Config) TargetsList() []*types.TargetConfig {
-	targetsMap, err := c.GetTargets()
-	if err != nil {
-		return nil
-	}
-	targets := make([]*types.TargetConfig, 0, len(targetsMap))
-	for _, tc := range targetsMap {
+	targets := make([]*types.TargetConfig, 0, len(c.Targets))
+	for _, tc := range c.Targets {
 		targets = append(targets, tc)
 	}
 	sort.Slice(targets, func(i, j int) bool {

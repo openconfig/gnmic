@@ -339,12 +339,13 @@ func (a *App) Get(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetResponse,
 			t := target.NewTarget(tc)
 			ctx, cancel := context.WithTimeout(ctx, tc.Timeout)
 			defer cancel()
-			err := t.CreateGNMIClient(ctx)
+			err := a.CreateGNMIClient(ctx, t)
 			if err != nil {
 				a.Logger.Printf("target %q err: %v", name, err)
 				errChan <- fmt.Errorf("target %q err: %v", name, err)
 				return
 			}
+			defer t.Close()
 			creq := proto.Clone(req).(*gnmi.GetRequest)
 			if creq.GetPrefix() == nil {
 				creq.Prefix = new(gnmi.Path)
@@ -444,7 +445,14 @@ func (a *App) Set(ctx context.Context, req *gnmi.SetRequest) (*gnmi.SetResponse,
 			name = utils.GetHost(name)
 			defer wg.Done()
 			t := target.NewTarget(tc)
-			err := t.CreateGNMIClient(ctx)
+			targetDialOpts := a.dialOpts
+			if a.Config.UseTunnelServer {
+				targetDialOpts = append(targetDialOpts,
+					grpc.WithContextDialer(a.tunDialerFn(ctx, name)),
+				)
+				t.Config.Address = t.Config.Name
+			}
+			err := t.CreateGNMIClient(ctx, targetDialOpts...)
 			if err != nil {
 				a.Logger.Printf("target %q err: %v", name, err)
 				errChan <- fmt.Errorf("target %q err: %v", name, err)

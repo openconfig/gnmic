@@ -12,6 +12,7 @@ import (
 	"github.com/karimra/gnmic/config"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/grpctunnel/tunnel"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"google.golang.org/protobuf/proto"
@@ -54,7 +55,12 @@ func (a *App) DiffPreRunE(cmd *cobra.Command, args []string) error {
 	a.Config.LocalFlags.DiffCompare = config.SanitizeArrayFlagValue(a.Config.LocalFlags.DiffCompare)
 
 	a.createCollectorDialOpts()
-	return a.initTunnelServer()
+	return a.initTunnelServer(tunnel.ServerConfig{
+		AddTargetHandler:    a.tunServerAddTargetHandler,
+		DeleteTargetHandler: a.tunServerDeleteTargetHandler,
+		RegisterHandler:     a.tunServerRegisterHandler,
+		Handler:             a.tunServerHandler,
+	})
 }
 
 func (a *App) DiffRunE(cmd *cobra.Command, args []string) error {

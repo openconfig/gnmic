@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"regexp"
 	"strings"
 	"time"
 
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/karimra/gnmic/types"
 	"github.com/karimra/gnmic/utils"
 	tpb "github.com/openconfig/grpctunnel/proto/tunnel"
 	"github.com/openconfig/grpctunnel/tunnel"
@@ -16,7 +18,7 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
-func (a *App) initTunnelServer() error {
+func (a *App) initTunnelServer(tsc tunnel.ServerConfig) error {
 	if !a.Config.UseTunnelServer {
 		return nil
 	}
@@ -25,7 +27,7 @@ func (a *App) initTunnelServer() error {
 		return err
 	}
 	go func() {
-		err = a.startTunnelServer()
+		err = a.startTunnelServer(tsc)
 		if err != nil {
 			a.Logger.Printf("failed to start tunnel server: %v", err)
 		}
@@ -33,18 +35,12 @@ func (a *App) initTunnelServer() error {
 	return nil
 }
 
-func (a *App) startTunnelServer() error {
+func (a *App) startTunnelServer(tsc tunnel.ServerConfig) error {
 	if a.Config.TunnelServer == nil {
 		return nil
 	}
 	var err error
-	a.tunServer, err = tunnel.NewServer(
-		tunnel.ServerConfig{
-			AddTargetHandler:    a.tunServerAddTargetHandler,
-			DeleteTargetHandler: a.tunServerDeleteTargetHandler,
-			RegisterHandler:     a.tunServerRegisterHandler,
-			Handler:             a.tunServerHandler,
-		})
+	a.tunServer, err = tunnel.NewServer(tsc)
 	if err != nil {
 		a.Logger.Printf("failed to create a tunnel server: %v", err)
 		return err
@@ -127,10 +123,55 @@ func (a *App) tunServerAddTargetHandler(tt tunnel.Target) error {
 	return nil
 }
 
+func (a *App) tunServerAddTargetSubscribeHandler(tt tunnel.Target) error {
+	a.tunServerAddTargetHandler(tt)
+	for _, tm := range a.Config.TunnelServer.Targets {
+		// check if the discovered target matches one of the configured types
+		ok, err := regexp.MatchString(tm.Type, tt.Type)
+		if err != nil {
+			a.Logger.Printf("regex %q eval failed with string %q: %v", tm.Type, tt.Type, err)
+			continue
+		}
+		if !ok {
+			continue
+		}
+		// check if the discovered target matches one of the configured IDs
+		ok, err = regexp.MatchString(tm.Match, tt.ID)
+		if err != nil {
+			a.Logger.Printf("regex %q eval failed with string %q: %v", tm.Match, tt.ID, err)
+			continue
+		}
+		if !ok {
+			continue
+		}
+		// target has a match
+		a.Logger.Printf("target %+v matches %+v", tt, tm)
+		tc := new(types.TargetConfig)
+		*tc = tm.Config
+		tc.Name = tt.ID
+		err = a.Config.SetTargetConfigDefaults(tc)
+		if err != nil {
+			a.Logger.Printf("failed to set target %q config defaults: %v", tt.ID, err)
+			continue
+		}
+		tc.Address = tc.Name
+		a.AddTargetConfig(tc)
+		a.initTarget(tc.Name)
+		a.targetsChan <- a.Targets[tc.Name]
+		a.wg.Add(1)
+		go a.subscribeStream(a.ctx, tc.Name)
+		return nil
+	}
+	a.Logger.Printf("target %v didn't find any match", tt)
+	return nil
+}
+
 func (a *App) tunServerDeleteTargetHandler(tt tunnel.Target) error {
 	a.Logger.Printf("tunnel server target %+v deregistered", tt)
 	a.ttm.Lock()
-	a.tunTargetCfn[tt.ID]()
+	if cfn, ok := a.tunTargetCfn[tt.ID]; ok {
+		cfn()
+	}
 	delete(a.tunTargetCfn, tt.ID)
 	delete(a.tunTargets, tt.ID)
 	a.ttm.Unlock()
@@ -155,6 +196,11 @@ func (a *App) tunDialerFn(ctx context.Context, tName string) func(context.Contex
 		if !ok {
 			return nil, fmt.Errorf("unknown tunnel target %q", tName)
 		}
-		return tunnel.ServerConn(ctx, a.tunServer, &tt)
+		a.Logger.Printf("dialing tunnel connection for tunnel target %q", tName)
+		conn, err := tunnel.ServerConn(ctx, a.tunServer, &tt)
+		if err != nil {
+			a.Logger.Printf("failed dialing tunnel connection for target %q: %v", tName, err)
+		}
+		return conn, err
 	}
 }

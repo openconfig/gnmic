@@ -13,6 +13,7 @@ import (
 func (a *App) ClientCapabilities(ctx context.Context, tName string, ext ...*gnmi_ext.Extension) (*gnmi.CapabilityResponse, error) {
 	// a.operLock.RLock()
 	// defer a.operLock.RUnlock()
+	var err error
 	if _, ok := a.Targets[tName]; !ok {
 		err := a.initTarget(tName)
 		if err != nil {
@@ -21,20 +22,9 @@ func (a *App) ClientCapabilities(ctx context.Context, tName string, ext ...*gnmi
 	}
 
 	if t, ok := a.Targets[tName]; ok {
-		if t.Client == nil {
-			targetDialOpts := a.dialOpts
-			if a.Config.UseTunnelServer {
-				targetDialOpts = append(targetDialOpts,
-					grpc.WithContextDialer(a.tunDialerFn(ctx, tName)),
-				)
-				t.Config.Address = t.Config.Name
-			}
-			if err := t.CreateGNMIClient(ctx, targetDialOpts...); err != nil {
-				if errors.Is(err, context.DeadlineExceeded) {
-					return nil, fmt.Errorf("failed to create a gRPC client for target %q, timeout (%s) reached", t.Config.Name, t.Config.Timeout)
-				}
-				return nil, fmt.Errorf("failed to create a gRPC client for target %q : %v", t.Config.Name, err)
-			}
+		err = a.CreateGNMIClient(ctx, t)
+		if err != nil {
+			return nil, err
 		}
 		ctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 		defer cancel()
@@ -50,28 +40,17 @@ func (a *App) ClientCapabilities(ctx context.Context, tName string, ext ...*gnmi
 func (a *App) ClientGet(ctx context.Context, tName string, req *gnmi.GetRequest) (*gnmi.GetResponse, error) {
 	// a.operLock.RLock()
 	// defer a.operLock.RUnlock()
+	var err error
 	if _, ok := a.Targets[tName]; !ok {
-		err := a.initTarget(tName)
+		err = a.initTarget(tName)
 		if err != nil {
 			return nil, err
 		}
 	}
 	if t, ok := a.Targets[tName]; ok {
-		if t.Client == nil {
-			targetDialOpts := a.dialOpts
-			if a.Config.UseTunnelServer {
-				targetDialOpts = append(targetDialOpts,
-					grpc.WithContextDialer(a.tunDialerFn(ctx, tName)),
-				)
-				// overwrite target address
-				t.Config.Address = t.Config.Name
-			}
-			if err := t.CreateGNMIClient(ctx, targetDialOpts...); err != nil {
-				if errors.Is(err, context.DeadlineExceeded) {
-					return nil, fmt.Errorf("failed to create a gRPC client for target %q, timeout (%s) reached", t.Config.Name, t.Config.Timeout)
-				}
-				return nil, fmt.Errorf("failed to create a gRPC client for target %q : %v", t.Config.Name, err)
-			}
+		err = a.CreateGNMIClient(ctx, t)
+		if err != nil {
+			return nil, err
 		}
 		ctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 		defer cancel()

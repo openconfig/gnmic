@@ -14,6 +14,7 @@ import (
 	"github.com/karimra/gnmic/types"
 	"github.com/manifoldco/promptui"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/grpctunnel/tunnel"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -26,7 +27,7 @@ const (
 func (a *App) SubscribePreRunE(cmd *cobra.Command, args []string) error {
 	a.Config.SetLocalFlagsFromFile(cmd)
 	a.createCollectorDialOpts()
-	return a.initTunnelServer()
+	return nil
 }
 
 func (a *App) SubscribeRunE(cmd *cobra.Command, args []string) error {
@@ -53,6 +54,15 @@ func (a *App) SubscribeRunE(cmd *cobra.Command, args []string) error {
 		return a.SubscribeRunPoll(cmd, args, subCfg)
 	}
 	// stream subscriptions
+	err = a.initTunnelServer(tunnel.ServerConfig{
+		AddTargetHandler:    a.tunServerAddTargetSubscribeHandler,
+		DeleteTargetHandler: a.tunServerDeleteTargetHandler,
+		RegisterHandler:     a.tunServerRegisterHandler,
+		Handler:             a.tunServerHandler,
+	})
+	if err != nil {
+		return err
+	}
 	_, err = a.Config.GetTargets()
 	if errors.Is(err, config.ErrNoTargetsFound) {
 		if !a.Config.LocalFlags.SubscribeWatchConfig &&

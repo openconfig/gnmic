@@ -3,10 +3,15 @@ package config
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/karimra/gnmic/types"
 	"github.com/karimra/gnmic/utils"
 	"github.com/mitchellh/mapstructure"
+)
+
+const (
+	defaultTargetWaitTime = 2 * time.Second
 )
 
 type tunnelServer struct {
@@ -16,6 +21,8 @@ type tunnelServer struct {
 	CaFile     string `mapstructure:"ca-file,omitempty" json:"ca-file,omitempty"`
 	CertFile   string `mapstructure:"cert-file,omitempty" json:"cert-file,omitempty"`
 	KeyFile    string `mapstructure:"key-file,omitempty" json:"key-file,omitempty"`
+	//
+	TargetWaitTime time.Duration `mapstructure:"target-wait-time,omitempty" json:"target-wait-time,omitempty"`
 	//
 	EnableMetrics bool `mapstructure:"enable-metrics,omitempty" json:"enable-metrics,omitempty"`
 	Debug         bool `mapstructure:"debug,omitempty" json:"debug,omitempty"`
@@ -64,9 +71,16 @@ func (c *Config) GetTunnelServer() error {
 	default:
 		return fmt.Errorf("tunnel-server has an unexpected target configuration type %T", targetMatches)
 	}
-	// defaults
+
+	c.setTunnelServerDefaults()
+	return nil
+}
+
+func (c *Config) setTunnelServerDefaults() {
 	if c.TunnelServer.Address == "" {
 		c.TunnelServer.Address = defaultAddress
 	}
-	return nil
+	if c.TunnelServer.TargetWaitTime <= 0 {
+		c.TunnelServer.TargetWaitTime = defaultTargetWaitTime
+	}
 }

@@ -22,6 +22,7 @@ import (
 	"github.com/karimra/gnmic/lockers"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/karimra/gnmic/target"
+	"github.com/karimra/gnmic/types"
 	"github.com/openconfig/gnmi/cache"
 	"github.com/openconfig/gnmi/match"
 	"github.com/openconfig/gnmi/proto/gnmi"
@@ -370,10 +371,6 @@ func (a *App) loadTargets(e fsnotify.Event) {
 						a.Logger.Printf("target %q added to config", n)
 					}
 					a.AddTargetConfig(tc)
-					// if err != nil {
-					// 	a.Logger.Printf("failed adding target %q: %v", n, err)
-					// 	continue
-					// }
 					a.wg.Add(1)
 					go a.TargetSubscribeStream(a.ctx, n)
 				}
@@ -459,4 +456,54 @@ func (a *App) LoadProtoFiles() (desc.Descriptor, error) {
 	a.Logger.Printf("loaded proto files")
 	a.rootDesc = rootDesc
 	return rootDesc, nil
+}
+
+// GetTargets reads the targets configuration from flags or config file.
+// If enabled it will load targets from a configured tunnel server.
+func (a *App) GetTargets() (map[string]*types.TargetConfig, error) {
+	targetsConfig, err := a.Config.GetTargets()
+	if errors.Is(err, config.ErrNoTargetsFound) {
+		if a.Config.UseTunnelServer {
+			a.Logger.Printf("waiting for targets to register with the tunnel server...")
+			time.Sleep(a.Config.TunnelServer.TargetWaitTime)
+			a.ttm.RLock()
+			defer a.ttm.RUnlock()
+			for _, tt := range a.tunTargets {
+				tc := new(types.TargetConfig)
+				tc.Name = tt.ID
+				err = a.Config.SetTargetConfigDefaults(tc)
+				if err != nil {
+					return nil, err
+				}
+				tc.Address = tc.Name
+				a.AddTargetConfig(tc)
+			}
+		} else {
+			return nil, fmt.Errorf("failed reading targets config: %v", err)
+		}
+	} else if err != nil {
+		return nil, err
+	}
+
+	return targetsConfig, nil
+}
+
+func (a *App) CreateGNMIClient(ctx context.Context, t *target.Target) error {
+	if t.Client != nil {
+		return nil
+	}
+	targetDialOpts := a.dialOpts
+	if a.Config.UseTunnelServer {
+		targetDialOpts = append(targetDialOpts,
+			grpc.WithContextDialer(a.tunDialerFn(ctx, t.Config.Name)),
+		)
+		t.Config.Address = t.Config.Name
+	}
+	if err := t.CreateGNMIClient(ctx, targetDialOpts...); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("failed to create a gRPC client for target %q, timeout (%s) reached", t.Config.Name, t.Config.Timeout)
+		}
+		return fmt.Errorf("failed to create a gRPC client for target %q : %w", t.Config.Name, err)
+	}
+	return nil
 }
