@@ -51,6 +51,7 @@ func (c *Config) GetTunnelServer() error {
 	c.TunnelServer.CaFile = os.ExpandEnv(c.FileConfig.GetString("tunnel-server/ca-file"))
 	c.TunnelServer.CertFile = os.ExpandEnv(c.FileConfig.GetString("tunnel-server/cert-file"))
 	c.TunnelServer.KeyFile = os.ExpandEnv(c.FileConfig.GetString("tunnel-server/key-file"))
+	c.TunnelServer.TargetWaitTime = c.FileConfig.GetDuration("tunnel-server/target-wait-time")
 	c.TunnelServer.EnableMetrics = os.ExpandEnv(c.FileConfig.GetString("tunnel-server/enable-metrics")) == "true"
 	c.TunnelServer.Debug = os.ExpandEnv(c.FileConfig.GetString("tunnel-server/debug")) == "true"
 

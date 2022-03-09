@@ -199,7 +199,9 @@ func (a *App) getTunnelTargetMatch(tt tunnel.Target) *types.TargetConfig {
 			continue
 		}
 		// target has a match
-		a.Logger.Printf("target %+v matches %+v", tt, tm)
+		if a.Config.Debug {
+			a.Logger.Printf("target %+v matches %+v", tt, tm)
+		}
 		tc := new(types.TargetConfig)
 		*tc = tm.Config
 		tc.Name = tt.ID

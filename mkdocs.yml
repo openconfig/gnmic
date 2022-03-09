@@ -33,7 +33,9 @@ nav:
       - Prompt mode: user_guide/prompt_suggestions.md
     
       - gNMI Server: user_guide/gnmi_server.md
-    
+
+      - Tunnel Server: user_guide/tunnel_server.md
+
       - Inputs:
         - Introduction: user_guide/inputs/input_intro.md
         - NATS: user_guide/inputs/nats_input.md
