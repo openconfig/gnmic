@@ -464,7 +464,7 @@ func (a *App) GetTargets() (map[string]*types.TargetConfig, error) {
 	targetsConfig, err := a.Config.GetTargets()
 	if errors.Is(err, config.ErrNoTargetsFound) {
 		if a.Config.UseTunnelServer {
-			a.Logger.Printf("waiting for targets to register with the tunnel server...")
+			a.Logger.Printf("waiting %s for targets to register with the tunnel server...", a.Config.TunnelServer.TargetWaitTime)
 			time.Sleep(a.Config.TunnelServer.TargetWaitTime)
 			a.ttm.RLock()
 			defer a.ttm.RUnlock()
