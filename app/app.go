@@ -22,10 +22,12 @@ import (
 	"github.com/karimra/gnmic/lockers"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/karimra/gnmic/target"
+	"github.com/karimra/gnmic/types"
 	"github.com/openconfig/gnmi/cache"
 	"github.com/openconfig/gnmi/match"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/goyang/pkg/yang"
+	"github.com/openconfig/grpctunnel/tunnel"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -83,11 +85,20 @@ type App struct {
 	errCh     chan error
 	// gnmi server
 	gnmi.UnimplementedGNMIServer
-	grpcSrv         *grpc.Server
+	// gRPC server where the gNMI service will be registered
+	grpcSrv *grpc.Server
+	// gNMI cache
 	c               *cache.Cache
 	match           *match.Match
 	subscribeRPCsem *semaphore.Weighted
 	unaryRPCsem     *semaphore.Weighted
+	// tunnel server
+	// gRPC server where the tunnel service will be registered
+	grpcTunnelSrv *grpc.Server
+	tunServer     *tunnel.Server
+	ttm           *sync.RWMutex
+	tunTargets    map[string]tunnel.Target
+	tunTargetCfn  map[string]context.CancelFunc
 }
 
 func New() *App {
@@ -120,6 +131,10 @@ func New() *App {
 		wg:        new(sync.WaitGroup),
 		printLock: new(sync.Mutex),
 		c:         cache.New(nil),
+		// tunnel server
+		ttm:          new(sync.RWMutex),
+		tunTargets:   make(map[string]tunnel.Target),
+		tunTargetCfn: make(map[string]context.CancelFunc),
 	}
 	a.router.StrictSlash(true)
 	a.router.Use(headersMiddleware, a.loggingMiddleware)
@@ -174,12 +189,14 @@ func (a *App) InitGlobalFlags() {
 	a.RootCmd.PersistentFlags().StringArrayVarP(&a.Config.GlobalFlags.Dir, "dir", "", nil, "YANG dir(s)")
 	a.RootCmd.PersistentFlags().StringArrayVarP(&a.Config.GlobalFlags.Exclude, "exclude", "", nil, "YANG module names to be excluded")
 
+	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.UseTunnelServer, "use-tunnel-server", "", false, "use tunnel server to dial targets")
+
 	a.RootCmd.PersistentFlags().VisitAll(func(flag *pflag.Flag) {
 		a.Config.FileConfig.BindPFlag(flag.Name, flag)
 	})
 }
 
-func (a *App) PreRun(cmd *cobra.Command, args []string) error {
+func (a *App) PreRunE(cmd *cobra.Command, args []string) error {
 	a.Config.SetPersistantFlagsFromFile(a.RootCmd)
 
 	logOutput, flags, err := a.Config.SetLogger()
@@ -305,7 +322,6 @@ func (a *App) createCollectorDialOpts() []grpc.DialOption {
 	opts = append(opts, grpc.WithUserAgent(fmt.Sprintf("gNMIc/%s", version)))
 	if a.Config.Gzip {
 		opts = append(opts, grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)))
-
 	}
 	a.dialOpts = opts
 	return opts
@@ -355,10 +371,6 @@ func (a *App) loadTargets(e fsnotify.Event) {
 						a.Logger.Printf("target %q added to config", n)
 					}
 					a.AddTargetConfig(tc)
-					// if err != nil {
-					// 	a.Logger.Printf("failed adding target %q: %v", n, err)
-					// 	continue
-					// }
 					a.wg.Add(1)
 					go a.TargetSubscribeStream(a.ctx, n)
 				}
@@ -444,4 +456,53 @@ func (a *App) LoadProtoFiles() (desc.Descriptor, error) {
 	a.Logger.Printf("loaded proto files")
 	a.rootDesc = rootDesc
 	return rootDesc, nil
+}
+
+// GetTargets reads the targets configuration from flags or config file.
+// If enabled it will load targets from a configured tunnel server.
+func (a *App) GetTargets() (map[string]*types.TargetConfig, error) {
+	targetsConfig, err := a.Config.GetTargets()
+	if errors.Is(err, config.ErrNoTargetsFound) {
+		if a.Config.UseTunnelServer {
+			a.Logger.Printf("waiting %s for targets to register with the tunnel server...", a.Config.TunnelServer.TargetWaitTime)
+			time.Sleep(a.Config.TunnelServer.TargetWaitTime)
+			a.ttm.RLock()
+			defer a.ttm.RUnlock()
+			for _, tt := range a.tunTargets {
+				tc := a.getTunnelTargetMatch(tt)
+				err = a.Config.SetTargetConfigDefaults(tc)
+				if err != nil {
+					return nil, err
+				}
+				tc.Address = tc.Name
+				a.AddTargetConfig(tc)
+			}
+		} else {
+			return nil, fmt.Errorf("failed reading targets config: %v", err)
+		}
+	} else if err != nil {
+		return nil, err
+	}
+
+	return targetsConfig, nil
+}
+
+func (a *App) CreateGNMIClient(ctx context.Context, t *target.Target) error {
+	if t.Client != nil {
+		return nil
+	}
+	targetDialOpts := a.dialOpts
+	if a.Config.UseTunnelServer {
+		targetDialOpts = append(targetDialOpts,
+			grpc.WithContextDialer(a.tunDialerFn(ctx, t.Config.Name)),
+		)
+		t.Config.Address = t.Config.Name
+	}
+	if err := t.CreateGNMIClient(ctx, targetDialOpts...); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("failed to create a gRPC client for target %q, timeout (%s) reached", t.Config.Name, t.Config.Timeout)
+		}
+		return fmt.Errorf("failed to create a gRPC client for target %q : %w", t.Config.Name, err)
+	}
+	return nil
 }

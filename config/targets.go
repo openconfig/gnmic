@@ -163,14 +163,16 @@ func (c *Config) SetTargetConfigDefaults(tc *types.TargetConfig) error {
 		addrs := make([]string, 0, len(addrList))
 		for _, addr := range addrList {
 			addr = strings.TrimSpace(addr)
-			_, _, err := net.SplitHostPort(addr)
-			if err != nil {
-				if strings.Contains(err.Error(), "missing port in address") ||
-					strings.Contains(err.Error(), "too many colons in address") {
-					addr = net.JoinHostPort(addr, defGrpcPort)
-				} else {
-					c.logger.Printf("error parsing address '%s': %v", addr, err)
-					return fmt.Errorf("error parsing address '%s': %v", addr, err)
+			if !c.UseTunnelServer {
+				_, _, err := net.SplitHostPort(addr)
+				if err != nil {
+					if strings.Contains(err.Error(), "missing port in address") ||
+						strings.Contains(err.Error(), "too many colons in address") {
+						addr = net.JoinHostPort(addr, defGrpcPort)
+					} else {
+						c.logger.Printf("error parsing address '%s': %v", addr, err)
+						return fmt.Errorf("error parsing address '%s': %v", addr, err)
+					}
 				}
 			}
 			addrs = append(addrs, addr)
@@ -230,12 +232,8 @@ func (c *Config) SetTargetConfigDefaults(tc *types.TargetConfig) error {
 }
 
 func (c *Config) TargetsList() []*types.TargetConfig {
-	targetsMap, err := c.GetTargets()
-	if err != nil {
-		return nil
-	}
-	targets := make([]*types.TargetConfig, 0, len(targetsMap))
-	for _, tc := range targetsMap {
+	targets := make([]*types.TargetConfig, 0, len(c.Targets))
+	for _, tc := range c.Targets {
 		targets = append(targets, tc)
 	}
 	sort.Slice(targets, func(i, j int) bool {

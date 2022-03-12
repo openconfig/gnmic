@@ -15,26 +15,17 @@
 package cmd
 
 import (
-	"github.com/karimra/gnmic/config"
 	"github.com/spf13/cobra"
 )
 
 // diffCmd represents the diff command
 func newDiffCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "diff",
-		Aliases: []string{"compare"},
-		Short:   "run a diff comparison between targets",
-		PreRun: func(cmd *cobra.Command, args []string) {
-			gApp.Config.SetLocalFlagsFromFile(cmd)
-			if len(gApp.Config.LocalFlags.DiffPath) == 0 {
-				gApp.Config.LocalFlags.DiffPath = []string{"/"}
-			}
-			gApp.Config.LocalFlags.DiffPath = config.SanitizeArrayFlagValue(gApp.Config.LocalFlags.DiffPath)
-			gApp.Config.LocalFlags.DiffModel = config.SanitizeArrayFlagValue(gApp.Config.LocalFlags.DiffModel)
-			gApp.Config.LocalFlags.DiffCompare = config.SanitizeArrayFlagValue(gApp.Config.LocalFlags.DiffCompare)
-		},
-		RunE:         gApp.DiffRun,
+		Use:          "diff",
+		Aliases:      []string{"compare"},
+		Short:        "run a diff comparison between targets",
+		PreRunE:      gApp.DiffPreRunE,
+		RunE:         gApp.DiffRunE,
 		SilenceUsage: true,
 	}
 	gApp.InitDiffFlags(cmd)

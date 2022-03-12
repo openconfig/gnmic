@@ -42,16 +42,18 @@ type Config struct {
 	LocalFlags  `mapstructure:",squash"`
 	FileConfig  *viper.Viper `mapstructure:"-" json:"-" yaml:"-" `
 
-	Targets            map[string]*types.TargetConfig       `mapstructure:"targets,omitempty" json:"targets,omitempty" yaml:"targets,omitempty"`
-	Subscriptions      map[string]*types.SubscriptionConfig `mapstructure:"subscriptions,omitempty" json:"subscriptions,omitempty" yaml:"subscriptions,omitempty"`
-	Outputs            map[string]map[string]interface{}    `mapstructure:"outputs,omitempty" json:"outputs,omitempty" yaml:"outputs,omitempty"`
-	Inputs             map[string]map[string]interface{}    `mapstructure:"inputs,omitempty" json:"inputs,omitempty" yaml:"inputs,omitempty"`
-	Processors         map[string]map[string]interface{}    `mapstructure:"processors,omitempty" json:"processors,omitempty" yaml:"processors,omitempty"`
-	Clustering         *clustering                          `mapstructure:"clustering,omitempty" json:"clustering,omitempty" yaml:"clustering,omitempty"`
-	GnmiServer         *gnmiServer                          `mapstructure:"gnmi-server,omitempty" json:"gnmi-server,omitempty" yaml:"gnmi-server,omitempty"`
-	APIServer          *APIServer                           `mapstructure:"api-server,omitempty" json:"api-server,omitempty" yaml:"api-server,omitempty"`
-	Loader             map[string]interface{}               `mapstructure:"loader,omitempty" json:"loader,omitempty" yaml:"loader,omitempty"`
-	Actions            map[string]map[string]interface{}    `mapstructure:"actions,omitempty" json:"actions,omitempty" yaml:"actions,omitempty"`
+	Targets       map[string]*types.TargetConfig       `mapstructure:"targets,omitempty" json:"targets,omitempty" yaml:"targets,omitempty"`
+	Subscriptions map[string]*types.SubscriptionConfig `mapstructure:"subscriptions,omitempty" json:"subscriptions,omitempty" yaml:"subscriptions,omitempty"`
+	Outputs       map[string]map[string]interface{}    `mapstructure:"outputs,omitempty" json:"outputs,omitempty" yaml:"outputs,omitempty"`
+	Inputs        map[string]map[string]interface{}    `mapstructure:"inputs,omitempty" json:"inputs,omitempty" yaml:"inputs,omitempty"`
+	Processors    map[string]map[string]interface{}    `mapstructure:"processors,omitempty" json:"processors,omitempty" yaml:"processors,omitempty"`
+	Clustering    *clustering                          `mapstructure:"clustering,omitempty" json:"clustering,omitempty" yaml:"clustering,omitempty"`
+	GnmiServer    *gnmiServer                          `mapstructure:"gnmi-server,omitempty" json:"gnmi-server,omitempty" yaml:"gnmi-server,omitempty"`
+	APIServer     *APIServer                           `mapstructure:"api-server,omitempty" json:"api-server,omitempty" yaml:"api-server,omitempty"`
+	Loader        map[string]interface{}               `mapstructure:"loader,omitempty" json:"loader,omitempty" yaml:"loader,omitempty"`
+	Actions       map[string]map[string]interface{}    `mapstructure:"actions,omitempty" json:"actions,omitempty" yaml:"actions,omitempty"`
+	TunnelServer  *tunnelServer                        `mapstructure:"tunnel-server,omitempty" json:"tunnel-server,omitempty" yaml:"tunnel-server,omitempty"`
+	//
 	logger             *log.Logger
 	setRequestTemplate []*template.Template
 	setRequestVars     map[string]interface{}
@@ -98,6 +100,7 @@ type GlobalFlags struct {
 	Dir              []string      `mapstructure:"dir,omitempty" json:"dir,omitempty" yaml:"dir,omitempty"`
 	Exclude          []string      `mapstructure:"exclude,omitempty" json:"exclude,omitempty" yaml:"exclude,omitempty"`
 	Token            string        `mapstructure:"token,omitempty" json:"token,omitempty" yaml:"token,omitempty"`
+	UseTunnelServer  bool          `mapstructure:"use-tunnel-server,omitempty" json:"use-tunnel-server,omitempty" yaml:"use-tunnel-server,omitempty"`
 }
 
 type LocalFlags struct {
@@ -211,6 +214,8 @@ type LocalFlags struct {
 	DiffRef     string   `mapstructure:"diff-ref,omitempty" json:"diff-ref,omitempty" yaml:"diff-ref,omitempty"`
 	DiffCompare []string `mapstructure:"diff-compare,omitempty" json:"diff-compare,omitempty" yaml:"diff-compare,omitempty"`
 	DiffQos     uint32   `mapstructure:"diff-qos,omitempty" json:"diff-qos,omitempty" yaml:"diff-qos,omitempty"`
+	//
+	TunnelServerSubscribe bool
 }
 
 func New() *Config {
@@ -223,6 +228,7 @@ func New() *Config {
 		make(map[string]map[string]interface{}),
 		make(map[string]map[string]interface{}),
 		make(map[string]map[string]interface{}),
+		nil,
 		nil,
 		nil,
 		nil,

@@ -8,7 +8,7 @@ import (
 )
 
 type Action interface {
-	// Init intializes an Action given its configuration and a list of options
+	// Init initializes an Action given its configuration and a list of options
 	Init(cfg map[string]interface{}, opts ...Option) error
 	// Run, well runs the action.
 	// it takes an action Context which is made of:

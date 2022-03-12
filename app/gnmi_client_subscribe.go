@@ -12,6 +12,7 @@ import (
 	"github.com/karimra/gnmic/outputs"
 	"github.com/karimra/gnmic/target"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"google.golang.org/grpc"
 )
 
 type subscriptionRequest struct {
@@ -181,7 +182,18 @@ CRCLIENT:
 	select {
 	case <-gnmiCtx.Done():
 	default:
-		if err := t.CreateGNMIClient(gnmiCtx, a.dialOpts...); err != nil {
+		targetDialOpts := a.dialOpts
+		if a.Config.UseTunnelServer {
+			a.ttm.Lock()
+			a.tunTargetCfn[tName] = cancel
+			a.ttm.Unlock()
+			targetDialOpts = append(targetDialOpts,
+				grpc.WithContextDialer(a.tunDialerFn(gnmiCtx, tName)),
+			)
+			// overwrite target address
+			t.Config.Address = t.Config.Name
+		}
+		if err := t.CreateGNMIClient(ctx, targetDialOpts...); err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
 				a.Logger.Printf("failed to initialize target %q timeout (%s) reached", tName, t.Config.Timeout)
 			} else {
@@ -229,7 +241,18 @@ func (a *App) clientSubscribeOnce(ctx context.Context, tName string) error {
 	gnmiCtx, cancel := context.WithCancel(ctx)
 	t.Cfn = cancel
 CRCLIENT:
-	if err := t.CreateGNMIClient(gnmiCtx, a.dialOpts...); err != nil {
+	targetDialOpts := a.dialOpts
+	if a.Config.UseTunnelServer {
+		a.ttm.Lock()
+		a.tunTargetCfn[tName] = cancel
+		a.ttm.Unlock()
+		targetDialOpts = append(targetDialOpts,
+			grpc.WithContextDialer(a.tunDialerFn(gnmiCtx, tName)),
+		)
+		// overwrite target address
+		t.Config.Address = t.Config.Name
+	}
+	if err := t.CreateGNMIClient(ctx, targetDialOpts...); err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			a.Logger.Printf("failed to initialize target %q timeout (%s) reached", tName, t.Config.Timeout)
 		} else {
@@ -269,7 +292,6 @@ OUTER:
 		}
 	}
 	return nil
-
 }
 
 // clientSubscribePoll sends a gnmi.SubscribeRequest_Poll to targetName and returns the response and an error,

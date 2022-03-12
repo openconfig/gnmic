@@ -45,10 +45,8 @@ func newSubscribeCmd() *cobra.Command {
 			"--name":        "SUBSCRIPTION",
 			"--output":      "OUTPUT",
 		},
-		PreRun: func(cmd *cobra.Command, args []string) {
-			gApp.Config.SetLocalFlagsFromFile(cmd)
-		},
-		RunE:         gApp.SubscribeRun,
+		PreRunE:      gApp.SubscribePreRunE,
+		RunE:         gApp.SubscribeRunE,
 		SilenceUsage: true,
 	}
 	gApp.InitSubscribeFlags(cmd)

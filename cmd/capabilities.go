@@ -21,13 +21,11 @@ import (
 // capabilitiesCmd represents the capabilities command
 func newCapabilitiesCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "capabilities",
-		Aliases: []string{"cap"},
-		Short:   "query targets gnmi capabilities",
-		PreRun: func(cmd *cobra.Command, args []string) {
-			gApp.Config.SetLocalFlagsFromFile(cmd)
-		},
-		RunE:         gApp.CapRun,
+		Use:          "capabilities",
+		Aliases:      []string{"cap"},
+		Short:        "query targets gnmi capabilities",
+		PreRunE:      gApp.CapPreRunE,
+		RunE:         gApp.CapRunE,
 		SilenceUsage: true,
 	}
 	gApp.InitCapabilitiesFlags(cmd)

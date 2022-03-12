@@ -6,11 +6,23 @@ import (
 
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
+	"github.com/openconfig/grpctunnel/tunnel"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
-func (a *App) CapRun(cmd *cobra.Command, args []string) error {
+func (a *App) CapPreRunE(cmd *cobra.Command, args []string) error {
+	a.Config.SetLocalFlagsFromFile(cmd)
+	a.createCollectorDialOpts()
+	return a.initTunnelServer(tunnel.ServerConfig{
+		AddTargetHandler:    a.tunServerAddTargetHandler,
+		DeleteTargetHandler: a.tunServerDeleteTargetHandler,
+		RegisterHandler:     a.tunServerRegisterHandler,
+		Handler:             a.tunServerHandler,
+	})
+}
+
+func (a *App) CapRunE(cmd *cobra.Command, args []string) error {
 	defer a.InitCapabilitiesFlags(cmd)
 
 	if a.Config.Format == "event" {
@@ -18,10 +30,10 @@ func (a *App) CapRun(cmd *cobra.Command, args []string) error {
 	}
 	ctx, cancel := context.WithCancel(a.ctx)
 	defer cancel()
-	targetsConfig, err := a.Config.GetTargets()
+	//
+	targetsConfig, err := a.GetTargets()
 	if err != nil {
-		a.Logger.Printf("failed getting targets config: %v", err)
-		return fmt.Errorf("failed getting targets config: %v", err)
+		return err
 	}
 	if a.PromptMode {
 		// prompt mode
