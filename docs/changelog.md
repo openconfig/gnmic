@@ -1,5 +1,11 @@
 ## Changelog
 
+### v0.24.0 - March 13th 2022
+
+- [gRPC Tunnel Support](user_guide/tunnel_server.md)
+
+    Add support for gNMI RPC using a gRPC tunnel, gNMIc runs as a collector with an embedded tunnel server.
+
 ### v0.23.0 - February 24th 2022
 
 - Docker image:
