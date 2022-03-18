@@ -29,7 +29,7 @@ require (
 	github.com/manifoldco/promptui v0.9.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/mapstructure v1.4.3
-	github.com/nats-io/nats.go v1.13.1-0.20220121202836-972a071d373d
+	github.com/nats-io/nats.go v1.13.1-0.20220308171302-2f2f6968e98d
 	github.com/nats-io/stan.go v0.10.2
 	github.com/nsf/termbox-go v1.1.1
 	github.com/olekukonko/tablewriter v0.0.5
@@ -42,7 +42,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.8.1
 	github.com/xdg/scram v0.0.0-20180814205039-7eeb5667e42c
-	golang.org/x/crypto v0.0.0-20220214200702-86341886e292
+	golang.org/x/crypto v0.0.0-20220307211146-efcb8507fb70
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
@@ -145,8 +145,8 @@ require (
 	github.com/mattn/go-runewidth v0.0.9 // indirect
 	github.com/mattn/go-tty v0.0.3 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect
-	github.com/nats-io/nats-server/v2 v2.7.3 // indirect
-	github.com/nats-io/nats-streaming-server v0.24.2 // indirect
+	github.com/nats-io/nats-server/v2 v2.7.4 // indirect
+	github.com/nats-io/nats-streaming-server v0.24.3 // indirect
 	github.com/nats-io/nkeys v0.3.0 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/openconfig/grpctunnel v0.0.0-20220222153957-e35baf49072c
@@ -179,7 +179,7 @@ require (
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20201222180813-1025295fd063 // indirect
 	gocloud.dev v0.24.0 // indirect
 	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd // indirect
-	golang.org/x/sys v0.0.0-20220224120231-95c6836cb0e7 // indirect
+	golang.org/x/sys v0.0.0-20220307203707-22a9840ba4d7 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20211116232009-f0f3c7e86c11 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
