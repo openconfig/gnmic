@@ -602,8 +602,8 @@ func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error)
 				api.Path(strings.TrimSpace(p)),
 				api.Value(c.LocalFlags.SetUpdateValue[i], c.Encoding),
 			)
-			gnmiOpts = append(gnmiOpts, updOpt)
 		}
+		gnmiOpts = append(gnmiOpts, updOpt)
 	}
 
 	for i, p := range c.LocalFlags.SetReplacePath {
@@ -624,8 +624,8 @@ func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error)
 				api.Path(strings.TrimSpace(p)),
 				api.Value(c.LocalFlags.SetReplaceValue[i], c.Encoding),
 			)
-			gnmiOpts = append(gnmiOpts, replaceOpt)
 		}
+		gnmiOpts = append(gnmiOpts, replaceOpt)
 	}
 
 	req, err := api.NewSetRequest(gnmiOpts...)
