@@ -268,7 +268,9 @@ func (c *Config) Load(ctx context.Context) error {
 		c.FileConfig.SetConfigName(configName)
 		err = c.FileConfig.ReadInConfig()
 		if err != nil {
-			return err
+			if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+				return err
+			}
 		}
 	}
 
