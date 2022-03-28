@@ -478,6 +478,218 @@ var testset = map[string]struct {
 			},
 		},
 	},
+	"add_a_value": {
+		processorType: processorType,
+		processor: map[string]interface{}{
+			"expression": `.[] |= (.values.new = "Value1")`,
+			"debug":      true,
+		},
+		tests: []item{
+			{
+				input:  nil,
+				output: nil,
+			},
+			{
+				input:  make([]*formatters.EventMsg, 0),
+				output: make([]*formatters.EventMsg, 0),
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Name: "sub1",
+						Values: map[string]interface{}{
+							"counter1": 91,
+							"counter2": 91,
+						},
+						Tags: map[string]string{"tag1": "1"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Name: "sub1",
+						Values: map[string]interface{}{
+							"counter1": 91,
+							"counter2": 91,
+							"new":      "Value1",
+						},
+						Tags: map[string]string{
+							"tag1": "1",
+						},
+					},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Name:   "sub1",
+						Values: map[string]interface{}{"value": 1},
+						Tags:   map[string]string{"tag1": "1"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Name: "sub1",
+						Values: map[string]interface{}{
+							"value": 1,
+							"new":   "Value1",
+						},
+						Tags: map[string]string{
+							"tag1": "1",
+						},
+					},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Name: "sub2",
+						Values: map[string]interface{}{
+							"counter2": 91,
+							"new":      "Value1",
+						},
+						Tags: map[string]string{
+							"tag1": "1",
+						},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Name: "sub2",
+						Values: map[string]interface{}{
+							"counter2": 91,
+							"new":      "Value1",
+						},
+						Tags: map[string]string{
+							"tag1": "1",
+						},
+					},
+				},
+			},
+		},
+	},
+	"add_a_value_with_condition": {
+		processorType: processorType,
+		processor: map[string]interface{}{
+			"condition":  `.tags | has("tag1")`,
+			"expression": `.[] |= (.values.new = "Value1")`,
+			"debug":      true,
+		},
+		tests: []item{
+			{
+				input:  nil,
+				output: nil,
+			},
+			{
+				input:  make([]*formatters.EventMsg, 0),
+				output: make([]*formatters.EventMsg, 0),
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Name: "sub1",
+						Values: map[string]interface{}{
+							"counter1": 91,
+							"counter2": 91,
+						},
+						Tags: map[string]string{"tag1": "1"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Name: "sub1",
+						Values: map[string]interface{}{
+							"counter1": 91,
+							"counter2": 91,
+							"new":      "Value1",
+						},
+						Tags: map[string]string{
+							"tag1": "1",
+						},
+					},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Name:   "sub1",
+						Values: map[string]interface{}{"value": 1},
+						Tags:   map[string]string{"tag1": "1"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Name: "sub1",
+						Values: map[string]interface{}{
+							"value": 1,
+							"new":   "Value1",
+						},
+						Tags: map[string]string{
+							"tag1": "1",
+						},
+					},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Name: "sub2",
+						Values: map[string]interface{}{
+							"counter2": 91,
+						},
+						Tags: map[string]string{},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Name: "sub2",
+						Values: map[string]interface{}{
+							"counter2": 91,
+						},
+						Tags: map[string]string{},
+					},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Name: "sub2",
+						Values: map[string]interface{}{
+							"counter1": 91,
+						},
+						Tags: map[string]string{
+							"tag1": "1",
+						},
+					},
+					{
+						Name: "sub2",
+						Values: map[string]interface{}{
+							"counter2": 91,
+						},
+						Tags: map[string]string{},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Name: "sub2",
+						Values: map[string]interface{}{
+							"counter2": 91,
+						},
+						Tags: map[string]string{},
+					},
+					{
+						Name: "sub2",
+						Values: map[string]interface{}{
+							"counter1": 91,
+							"new":      "Value1",
+						},
+						Tags: map[string]string{
+							"tag1": "1",
+						},
+					},
+				},
+			},
+		},
+	},
 }
 
 func TestEventJQ(t *testing.T) {

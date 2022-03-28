@@ -80,7 +80,9 @@ func (p *jq) setDefaults() {
 }
 
 func (p *jq) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
-	inputs := make([]interface{}, 0, len(es))
+	nuMsgs := len(es)
+	inputs := make([]interface{}, 0, nuMsgs)
+	res := make([]*formatters.EventMsg, 0, nuMsgs)
 	for _, e := range es {
 		if e == nil {
 			continue
@@ -93,14 +95,16 @@ func (p *jq) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		}
 		if ok {
 			inputs = append(inputs, input)
+			continue
 		}
+		res = append(res, e)
 	}
 	evs, err := p.applyExpression(inputs)
 	if err != nil {
 		p.logger.Printf("failed to apply jq expression: %v", err)
 		return nil
 	}
-	return evs
+	return append(res, evs...)
 }
 
 func (p *jq) evaluateCondition(input map[string]interface{}) (bool, error) {
