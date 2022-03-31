@@ -9,9 +9,9 @@ The leader election and target distribution is done with the help of a [Consul s
 
 `gnmic` can be discovered by `Prometheus` using Kubernetes service discovery. Kubernetes uses a [headless service](https://kubernetes.io/docs/concepts/services-networking/service/#headless-services) with a StatefulSet to disable the internal load balancing across multiple pods of the same StatefulSet and allow `Prometheus` to discover all instances of `gnmic`.
 
-<div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:12,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/karimra/gnmic/diagrams/diagrams/kubernetes_cluster_prometheus&quot;}"></div>
+<div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:12,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/karimra/gnmic/diagrams/diagrams/cluster_prometheus_kubernetes&quot;}"></div>
 
-<script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2Fkubernetes_cluster_prometheus" async></script>
+<script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2Fcluster_prometheus_kubernetes" async></script>
 
 <ins>[Prometheus Operator](https://github.com/prometheus-operator/prometheus-operator#quickstart) must be installed prior to `gnmic` deployment.</ins> (Can also be installed via [kube-prometheus-stack](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack) helm chart or [kube-prometheus](https://github.com/prometheus-operator/kube-prometheus))
 
