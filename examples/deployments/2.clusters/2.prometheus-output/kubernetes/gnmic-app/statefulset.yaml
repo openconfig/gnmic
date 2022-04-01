@@ -57,7 +57,7 @@ spec:
                   fieldPath: metadata.name
             - name: GNMIC_CLUSTERING_SERVICE_ADDRESS
               value: "$(GNMIC_CLUSTERING_INSTANCE_NAME).gnmic-svc.gnmic.svc.cluster.local"
-            - name: GNMIC_OUTPUTS_PROM_LISTEN
+            - name: GNMIC_OUTPUTS_OUTPUT1_LISTEN
               value: "$(GNMIC_CLUSTERING_INSTANCE_NAME).gnmic-svc.gnmic.svc.cluster.local:9804"
           volumeMounts:
             - mountPath: /app/config.yaml
