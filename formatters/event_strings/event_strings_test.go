@@ -453,6 +453,74 @@ var testset = map[string]struct {
 			},
 		},
 	},
+	"replace_regex": {
+		processorType: processorType,
+		processor: map[string]interface{}{
+			"value-names": []string{"."},
+			"tag-names":   []string{"."},
+			"debug":       true,
+			"transforms": []map[string]*transform{
+				{
+					"replace": &transform{
+						ApplyOn: "name",
+						Old:     "-state$",
+						New:     "-state-code",
+					},
+				},
+				{
+					"replace": &transform{
+						ApplyOn: "name",
+						Old:     "-tag$",
+						New:     "-better-tag",
+					},
+				},
+			},
+		},
+		tests: []item{
+			{
+				input:  nil,
+				output: nil,
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{}},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{}},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{
+							"interface-oper-state": "foo",
+						}},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{
+							"interface-oper-state-code": "foo",
+						}},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{
+							"my-tag": "foo",
+						}},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{
+							"my-better-tag": "foo",
+						}},
+				},
+			},
+		},
+	},
 }
 
 func TestEventStrings(t *testing.T) {

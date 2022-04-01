@@ -50,14 +50,17 @@ type transform struct {
 	Prefix string `mapstructure:"prefix,omitempty" json:"prefix,omitempty"`
 	// Suffix to be trimmed
 	Suffix string `mapstructure:"suffix,omitempty" json:"suffix,omitempty"`
-	// charachter to split on
+	// character to split on
 	SplitOn string `mapstructure:"split-on,omitempty" json:"split-on,omitempty"`
-	// charachter to join with
+	// character to join with
 	JoinWith string `mapstructure:"join-with,omitempty" json:"join-with,omitempty"`
 	// number of first items to ignore when joining
 	IgnoreFirst int `mapstructure:"ignore-first,omitempty" json:"ignore-first,omitempty"`
 	// number of last items to ignore when joining
 	IgnoreLast int `mapstructure:"ignore-last,omitempty" json:"ignore-last,omitempty"`
+
+	//
+	replaceRegexp *regexp.Regexp
 }
 
 func init() {
@@ -79,6 +82,13 @@ func (s *Strings) Init(cfg interface{}, opts ...formatters.Option) error {
 	for i := range s.Transforms {
 		for k := range s.Transforms[i] {
 			s.Transforms[i][k].op = k
+			switch k {
+			case "replace":
+				s.Transforms[i][k].replaceRegexp, err = regexp.Compile(s.Transforms[i][k].Old)
+				if err != nil {
+					return err
+				}
+			}
 		}
 	}
 	// init tags regex
@@ -233,10 +243,10 @@ func (t *transform) apply(k string, v interface{}) (string, interface{}) {
 func (t *transform) replace(k string, v interface{}) (string, interface{}) {
 	switch t.ApplyOn {
 	case "name":
-		k = strings.ReplaceAll(k, t.Old, t.New)
+		k = t.replaceRegexp.ReplaceAllString(k, t.New)
 	case "value":
 		if vs, ok := v.(string); ok {
-			v = strings.ReplaceAll(vs, t.Old, t.New)
+			v = t.replaceRegexp.ReplaceAllString(vs, t.New)
 		}
 	}
 	return k, v
