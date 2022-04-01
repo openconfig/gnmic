@@ -130,10 +130,15 @@ func (a *App) tunServerAddTargetSubscribeHandler(tt tunnel.Target) error {
 	}
 	tc := a.getTunnelTargetMatch(tt)
 	a.AddTargetConfig(tc)
-	a.initTarget(tc.Name)
-	a.targetsChan <- a.Targets[tc.Name]
+	a.operLock.Lock()
+	t, err := a.initTarget(tc)
+	a.operLock.Unlock()
+	if err != nil {
+		return err
+	}
+	a.targetsChan <- t
 	a.wg.Add(1)
-	go a.subscribeStream(a.ctx, tc.Name)
+	go a.subscribeStream(a.ctx, tc)
 	return nil
 }
 
@@ -186,6 +191,7 @@ func (a *App) getTunnelTargetMatch(tt tunnel.Target) *types.TargetConfig {
 			a.Logger.Printf("regex %q eval failed with string %q: %v", tm.Type, tt.Type, err)
 			continue
 		}
+		fmt.Println(tt, tm.Type, ok)
 		if !ok {
 			continue
 		}
@@ -195,6 +201,7 @@ func (a *App) getTunnelTargetMatch(tt tunnel.Target) *types.TargetConfig {
 			a.Logger.Printf("regex %q eval failed with string %q: %v", tm.Match, tt.ID, err)
 			continue
 		}
+		fmt.Println(tt, tm.Match, ok)
 		if !ok {
 			continue
 		}

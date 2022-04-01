@@ -63,7 +63,7 @@ START:
 				a.Config.Targets[add.Name] = add
 				a.AddTargetConfig(add)
 				a.wg.Add(1)
-				go a.TargetSubscribeStream(ctx, add.Name)
+				go a.TargetSubscribeStream(ctx, add)
 				continue
 			}
 			// clustered, dispatch

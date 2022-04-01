@@ -165,12 +165,13 @@ func (a *App) handleTargetsPost(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	if _, ok := a.Config.Targets[id]; !ok {
+	tc, ok := a.Config.Targets[id]
+	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{fmt.Sprintf("target %q not found", id)}})
 		return
 	}
-	go a.TargetSubscribeStream(a.ctx, id)
+	go a.TargetSubscribeStream(a.ctx, tc)
 }
 
 func (a *App) handleTargetsDelete(w http.ResponseWriter, r *http.Request) {

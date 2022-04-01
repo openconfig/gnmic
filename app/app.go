@@ -372,7 +372,7 @@ func (a *App) loadTargets(e fsnotify.Event) {
 					}
 					a.AddTargetConfig(tc)
 					a.wg.Add(1)
-					go a.TargetSubscribeStream(a.ctx, n)
+					go a.TargetSubscribeStream(a.ctx, tc)
 				}
 			}
 			return

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/karimra/gnmic/config"
+	"github.com/karimra/gnmic/types"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/grpctunnel/tunnel"
 	"github.com/spf13/cobra"
@@ -52,45 +53,45 @@ func (a *App) SetRunE(cmd *cobra.Command, args []string) error {
 	numTargets := len(a.Config.Targets)
 	a.errCh = make(chan error, numTargets*2)
 	a.wg.Add(numTargets)
-	for tName := range a.Config.Targets {
-		go a.SetRequest(ctx, tName)
+	for _, tc := range a.Config.Targets {
+		go a.SetRequest(ctx, tc)
 	}
 	a.wg.Wait()
 	return a.checkErrors()
 }
 
-func (a *App) SetRequest(ctx context.Context, tName string) {
+func (a *App) SetRequest(ctx context.Context, tc *types.TargetConfig) {
 	defer a.wg.Done()
-	reqs, err := a.Config.CreateSetRequest(tName)
+	reqs, err := a.Config.CreateSetRequest(tc.Name)
 	if err != nil {
-		a.logError(fmt.Errorf("target %q: failed to create set request: %v", tName, err))
+		a.logError(fmt.Errorf("target %q: failed to create set request: %v", tc.Name, err))
 		return
 	}
 	for _, req := range reqs {
-		a.setRequest(ctx, tName, req)
+		a.setRequest(ctx, tc, req)
 	}
 }
 
-func (a *App) setRequest(ctx context.Context, tName string, req *gnmi.SetRequest) {
+func (a *App) setRequest(ctx context.Context, tc *types.TargetConfig, req *gnmi.SetRequest) {
 	a.Logger.Printf("sending gNMI SetRequest: prefix='%v', delete='%v', replace='%v', update='%v', extension='%v' to %s",
-		req.Prefix, req.Delete, req.Replace, req.Update, req.Extension, tName)
+		req.Prefix, req.Delete, req.Replace, req.Update, req.Extension, tc.Name)
 	if a.Config.PrintRequest || a.Config.SetDryRun {
-		err := a.PrintMsg(tName, "Set Request:", req)
+		err := a.PrintMsg(tc.Name, "Set Request:", req)
 		if err != nil {
-			a.logError(fmt.Errorf("target %q: %v", tName, err))
+			a.logError(fmt.Errorf("target %q: %v", tc.Name, err))
 		}
 	}
 	if a.Config.SetDryRun {
 		return
 	}
-	response, err := a.ClientSet(ctx, tName, req)
+	response, err := a.ClientSet(ctx, tc, req)
 	if err != nil {
-		a.logError(fmt.Errorf("target %q set request failed: %v", tName, err))
+		a.logError(fmt.Errorf("target %q set request failed: %v", tc.Name, err))
 		return
 	}
-	err = a.PrintMsg(tName, "Set Response:", response)
+	err = a.PrintMsg(tc.Name, "Set Response:", response)
 	if err != nil {
-		a.logError(fmt.Errorf("target %q: %v", tName, err))
+		a.logError(fmt.Errorf("target %q: %v", tc.Name, err))
 	}
 }
 

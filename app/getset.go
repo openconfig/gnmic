@@ -9,6 +9,7 @@ import (
 	"github.com/itchyny/gojq"
 	"github.com/karimra/gnmic/config"
 	"github.com/karimra/gnmic/formatters"
+	"github.com/karimra/gnmic/types"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/grpctunnel/tunnel"
 	"github.com/spf13/cobra"
@@ -53,45 +54,45 @@ func (a *App) GetSetRunE(cmd *cobra.Command, args []string) error {
 	numTargets := len(a.Config.Targets)
 	a.errCh = make(chan error, numTargets*3)
 	a.wg.Add(numTargets)
-	for tName := range a.Config.Targets {
-		go a.GetSetRequest(ctx, tName, req)
+	for _, tc := range a.Config.Targets {
+		go a.GetSetRequest(ctx, tc, req)
 	}
 	a.wg.Wait()
 	return a.checkErrors()
 }
 
-func (a *App) GetSetRequest(ctx context.Context, tName string, req *gnmi.GetRequest) {
+func (a *App) GetSetRequest(ctx context.Context, tc *types.TargetConfig, req *gnmi.GetRequest) {
 	defer a.wg.Done()
 	xreq := req
 	if len(a.Config.LocalFlags.GetSetModel) > 0 {
-		spModels, unspModels, err := a.filterModels(ctx, tName, a.Config.LocalFlags.GetSetModel)
+		spModels, unspModels, err := a.filterModels(ctx, tc, a.Config.LocalFlags.GetSetModel)
 		if err != nil {
-			a.logError(fmt.Errorf("failed getting supported models from %q: %v", tName, err))
+			a.logError(fmt.Errorf("failed getting supported models from %q: %v", tc.Name, err))
 			return
 		}
 		if len(unspModels) > 0 {
-			a.logError(fmt.Errorf("found unsupported models for target %q: %+v", tName, unspModels))
+			a.logError(fmt.Errorf("found unsupported models for target %q: %+v", tc.Name, unspModels))
 		}
 		for _, m := range spModels {
 			xreq.UseModels = append(xreq.UseModels, m)
 		}
 	}
 	if a.Config.PrintRequest {
-		err := a.PrintMsg(tName, "Get Request:", req)
+		err := a.PrintMsg(tc.Name, "Get Request:", req)
 		if err != nil {
-			a.logError(fmt.Errorf("target %q Get Request printing failed: %v", tName, err))
+			a.logError(fmt.Errorf("target %q Get Request printing failed: %v", tc.Name, err))
 		}
 	}
 	a.Logger.Printf("sending gNMI GetRequest: prefix='%v', path='%v', type='%v', encoding='%v', models='%+v', extension='%+v' to %s",
-		xreq.Prefix, xreq.Path, xreq.Type, xreq.Encoding, xreq.UseModels, xreq.Extension, tName)
-	response, err := a.ClientGet(ctx, tName, xreq)
+		xreq.Prefix, xreq.Path, xreq.Type, xreq.Encoding, xreq.UseModels, xreq.Extension, tc.Name)
+	response, err := a.ClientGet(ctx, tc, xreq)
 	if err != nil {
-		a.logError(fmt.Errorf("target %q get request failed: %v", tName, err))
+		a.logError(fmt.Errorf("target %q get request failed: %v", tc.Name, err))
 		return
 	}
-	err = a.PrintMsg(tName, "Get Response:", response)
+	err = a.PrintMsg(tc.Name, "Get Response:", response)
 	if err != nil {
-		a.logError(fmt.Errorf("target %q: %v", tName, err))
+		a.logError(fmt.Errorf("target %q: %v", tc.Name, err))
 	}
 	//
 	q, err := gojq.Parse(a.Config.LocalFlags.GetSetCondition)
@@ -105,7 +106,7 @@ func (a *App) GetSetRequest(ctx context.Context, tName string, req *gnmi.GetRequ
 		return
 	}
 	mo := formatters.MarshalOptions{Format: "json"}
-	b, err := mo.Marshal(response, map[string]string{"address": tName})
+	b, err := mo.Marshal(response, map[string]string{"address": tc.Name})
 	if err != nil {
 		a.logError(fmt.Errorf("error marshaling message: %v", err))
 		return
@@ -143,7 +144,7 @@ func (a *App) GetSetRequest(ctx context.Context, tName string, req *gnmi.GetRequ
 				a.Logger.Printf("empty set request")
 				return
 			}
-			a.setRequest(ctx, tName, setReq)
+			a.setRequest(ctx, tc, setReq)
 		}
 		return
 	default:
