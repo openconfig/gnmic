@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gnmic-config
+data:
+  config.yaml: |
+    insecure: true
+    encoding: json_ietf
+    log: true
+
+    clustering:
+      cluster-name: cluster1
+      targets-watch-timer: 30s
+      locker:
+        type: consul
+        address: consul-svc:8500
+
+    targets:
+      # Add targets configuration here
+      # e.g:
+      # 192.168.1.131:57400:
+      #   username: gnmic
+      #   password: secret_password
+
+    subscriptions:
+      # Add subscriptions configuration here
+      # e.g:
+      # sub1:
+      #   paths:
+      #     - /interface/statistics
+      #   stream-mode: sample
+      #   sample-interval: 1s
+
+    outputs:
+      output1:
+        type: prometheus
+

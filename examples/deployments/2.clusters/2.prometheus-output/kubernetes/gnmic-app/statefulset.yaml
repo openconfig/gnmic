@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: gnmic-ss
+  labels:
+    app: gnmic
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: gnmic
+  serviceName: gnmic-svc
+  template:
+    metadata:
+      labels:
+        app: gnmic
+    spec:
+      containers:
+        - args:
+            - subscribe
+            - --config
+            - /app/config.yaml
+          image: ghcr.io/karimra/gnmic
+          imagePullPolicy: IfNotPresent
+          name: gnmic
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - all
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+          ports:
+            - containerPort: 9804
+              name: prom-output
+              protocol: TCP
+            - containerPort: 7890
+              name: gnmic-api
+              protocol: TCP
+          resources:
+            limits:
+              cpu: 100m
+              memory: 400Mi
+            requests:
+              cpu: 50m
+              memory: 200Mi
+          envFrom:
+            - secretRef:
+                name: gnmic-login
+          env:
+            - name: GNMIC_API
+              value: :7890
+            - name: GNMIC_CLUSTERING_INSTANCE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: GNMIC_CLUSTERING_SERVICE_ADDRESS
+              value: "$(GNMIC_CLUSTERING_INSTANCE_NAME).gnmic-svc.gnmic.svc.cluster.local"
+            - name: GNMIC_OUTPUTS_OUTPUT1_LISTEN
+              value: "$(GNMIC_CLUSTERING_INSTANCE_NAME).gnmic-svc.gnmic.svc.cluster.local:9804"
+          volumeMounts:
+            - mountPath: /app/config.yaml
+              name: config
+              subPath: config.yaml
+      volumes:
+        - configMap:
+            defaultMode: 420
+            name: gnmic-config
+          name: config

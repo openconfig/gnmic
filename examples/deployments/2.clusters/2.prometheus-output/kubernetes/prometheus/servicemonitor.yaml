@@ -1,0 +1,16 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: gnmic-sm
+  labels:
+    app: gnmic
+spec:
+  selector:
+    matchLabels:
+      app: gnmic
+  namespaceSelector:
+    matchNames:
+      - gnmic
+  endpoints:
+    - port: http
+      path: /metrics
