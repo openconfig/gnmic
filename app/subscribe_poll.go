@@ -28,8 +28,8 @@ func (a *App) SubscribeRunPoll(cmd *cobra.Command, args []string, subCfg map[str
 	go a.StartCollector(a.ctx)
 
 	a.wg.Add(len(a.Config.Targets))
-	for name := range a.Config.Targets {
-		go a.subscribePoll(a.ctx, name)
+	for _, tc := range a.Config.Targets {
+		go a.subscribePoll(a.ctx, tc)
 	}
 	a.wg.Wait()
 	a.handlePolledSubscriptions()

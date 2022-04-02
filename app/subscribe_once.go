@@ -35,8 +35,8 @@ func (a *App) SubscribeRunONCE(cmd *cobra.Command, args []string, subCfg map[str
 	numTargets := len(a.Config.Targets)
 	a.errCh = make(chan error, numTargets)
 	a.wg.Add(numTargets)
-	for name := range a.Config.Targets {
-		go a.subscribeOnce(a.ctx, name)
+	for _, tc := range a.Config.Targets {
+		go a.subscribeOnce(a.ctx, tc)
 		if limiter != nil {
 			<-limiter.C
 		}

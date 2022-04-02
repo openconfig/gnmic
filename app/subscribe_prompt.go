@@ -48,8 +48,8 @@ func (a *App) SubscribeRunPrompt(cmd *cobra.Command, args []string) error {
 	}
 
 	a.wg.Add(len(a.Config.Targets))
-	for name := range a.Config.Targets {
-		go a.subscribeStream(a.ctx, name)
+	for _, tc := range a.Config.Targets {
+		go a.subscribeStream(a.ctx, tc)
 		if limiter != nil {
 			<-limiter.C
 		}

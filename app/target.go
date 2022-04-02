@@ -10,44 +10,43 @@ import (
 )
 
 // initTarget initializes a new target given its name.
-// it assumes that the config struct is already locked.
-func (a *App) initTarget(name string) error {
-	// config is already reader-locked
-	if tc, ok := a.Config.Targets[name]; ok {
-		if !a.targetExists(name) {
-			t := target.NewTarget(tc)
-			for _, subName := range tc.Subscriptions {
-				if sub, ok := a.Config.Subscriptions[subName]; ok {
-					t.Subscriptions[subName] = sub
-				}
+// it assumes that the configLock as well as the operLock
+// are acquired.
+func (a *App) initTarget(tc *types.TargetConfig) (*target.Target, error) {
+	t, ok := a.Targets[tc.Name]
+	if !ok {
+		t := target.NewTarget(tc)
+		for _, subName := range tc.Subscriptions {
+			if sub, ok := a.Config.Subscriptions[subName]; ok {
+				t.Subscriptions[subName] = sub
 			}
-			if len(t.Subscriptions) == 0 {
-				for _, sub := range a.Config.Subscriptions {
-					t.Subscriptions[sub.Name] = sub
-				}
-			}
-			err := a.parseProtoFiles(t)
-			if err != nil {
-				return err
-			}
-			a.operLock.Lock()
-			a.Targets[t.Config.Name] = t
-			a.operLock.Unlock()
 		}
-		return nil
+		if len(t.Subscriptions) == 0 {
+			for _, sub := range a.Config.Subscriptions {
+				t.Subscriptions[sub.Name] = sub
+			}
+		}
+		err := a.parseProtoFiles(t)
+		if err != nil {
+			return nil, err
+		}
+		a.Targets[t.Config.Name] = t
+		return t, nil
 	}
-	return fmt.Errorf("unknown target")
+	return t, nil
+
 }
 
 func (a *App) stopTarget(ctx context.Context, name string) error {
 	if a.Targets == nil {
 		return nil
 	}
+	a.operLock.Lock()
+	defer a.operLock.Unlock()
 	if !a.targetExists(name) {
 		return fmt.Errorf("target %q does not exist", name)
 	}
-	a.operLock.Lock()
-	defer a.operLock.Unlock()
+
 	a.Logger.Printf("stopping target %q", name)
 	t := a.Targets[name]
 	t.StopSubscriptions()
@@ -125,9 +124,9 @@ func (a *App) parseProtoFiles(t *target.Target) error {
 }
 
 func (a *App) targetExists(name string) bool {
-	a.operLock.RLock()
+	//a.operLock.RLock()
 	_, ok := a.Targets[name]
-	a.operLock.RUnlock()
+	//a.operLock.RUnlock()
 	return ok
 }
 

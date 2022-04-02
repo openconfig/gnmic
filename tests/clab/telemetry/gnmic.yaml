@@ -10,7 +10,19 @@ loader:
   filters:
     - containers:
       - label=clab-node-kind: srl
-        #label=containerlab: telem
+        label=containerlab: lab1
+    - containers:
+      - label=clab-node-kind: srl
+        label=containerlab: lab2
+    - containers:
+      - label=clab-node-kind: srl
+        label=containerlab: lab3
+    - containers:
+      - label=clab-node-kind: srl
+        label=containerlab: lab4
+    - containers:
+      - label=clab-node-kind: srl
+        label=containerlab: lab5
   on-add:
     - interfaces
     - enable_interfaces

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/karimra/gnmic/types"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
 	"github.com/openconfig/grpctunnel/tunnel"
@@ -44,35 +45,35 @@ func (a *App) CapRunE(cmd *cobra.Command, args []string) error {
 	numTargets := len(a.Config.Targets)
 	a.errCh = make(chan error, numTargets*2)
 	a.wg.Add(numTargets)
-	for tName := range a.Config.Targets {
-		go a.ReqCapabilities(ctx, tName)
+	for _, tc := range a.Config.Targets {
+		go a.ReqCapabilities(ctx, tc)
 	}
 	a.wg.Wait()
 	return a.checkErrors()
 }
 
-func (a *App) ReqCapabilities(ctx context.Context, tName string) {
+func (a *App) ReqCapabilities(ctx context.Context, tc *types.TargetConfig) {
 	defer a.wg.Done()
 	ext := make([]*gnmi_ext.Extension, 0) //
 	if a.Config.PrintRequest {
-		err := a.PrintMsg(tName, "Capabilities Request:", &gnmi.CapabilityRequest{
+		err := a.PrintMsg(tc.Name, "Capabilities Request:", &gnmi.CapabilityRequest{
 			Extension: ext,
 		})
 		if err != nil {
-			a.logError(fmt.Errorf("target %q: %v", tName, err))
+			a.logError(fmt.Errorf("target %q: %v", tc.Name, err))
 		}
 	}
 
-	a.Logger.Printf("sending gNMI CapabilityRequest: gnmi_ext.Extension='%v' to %s", ext, tName)
-	response, err := a.ClientCapabilities(ctx, tName, ext...)
+	a.Logger.Printf("sending gNMI CapabilityRequest: gnmi_ext.Extension='%v' to %s", ext, tc.Name)
+	response, err := a.ClientCapabilities(ctx, tc, ext...)
 	if err != nil {
-		a.logError(fmt.Errorf("target %q, capabilities request failed: %v", tName, err))
+		a.logError(fmt.Errorf("target %q, capabilities request failed: %v", tc.Name, err))
 		return
 	}
 
-	err = a.PrintMsg(tName, "Capabilities Response:", response)
+	err = a.PrintMsg(tc.Name, "Capabilities Response:", response)
 	if err != nil {
-		a.logError(fmt.Errorf("target %q: %v", tName, err))
+		a.logError(fmt.Errorf("target %q: %v", tc.Name, err))
 	}
 }
 

@@ -123,22 +123,22 @@ func (a *App) SubscribeRunE(cmd *cobra.Command, args []string) error {
 }
 
 //
-func (a *App) subscribeStream(ctx context.Context, name string) {
+func (a *App) subscribeStream(ctx context.Context, tc *types.TargetConfig) {
 	defer a.wg.Done()
-	a.TargetSubscribeStream(ctx, name)
+	a.TargetSubscribeStream(ctx, tc)
 }
 
-func (a *App) subscribeOnce(ctx context.Context, name string) {
+func (a *App) subscribeOnce(ctx context.Context, tc *types.TargetConfig) {
 	defer a.wg.Done()
-	err := a.TargetSubscribeOnce(ctx, name)
+	err := a.TargetSubscribeOnce(ctx, tc)
 	if err != nil {
 		a.logError(err)
 	}
 }
 
-func (a *App) subscribePoll(ctx context.Context, name string) {
+func (a *App) subscribePoll(ctx context.Context, tc *types.TargetConfig) {
 	defer a.wg.Done()
-	a.TargetSubscribePoll(ctx, name)
+	a.TargetSubscribePoll(ctx, tc)
 }
 
 // InitSubscribeFlags used to init or reset subscribeCmd flags for gnmic-prompt mode
@@ -282,16 +282,16 @@ func (a *App) startIO() {
 		}
 
 		a.wg.Add(len(a.Config.Targets))
-		for name := range a.Config.Targets {
+		for _, tc := range a.Config.Targets {
 			// check if target is a tunnel discovered target.
 			// in which case, do not (re)subscribe
 			a.ttm.RLock()
-			_, ok := a.tunTargets[name]
+			_, ok := a.tunTargets[tc.Name]
 			a.ttm.RUnlock()
 			if ok {
 				continue
 			}
-			go a.subscribeStream(a.ctx, name)
+			go a.subscribeStream(a.ctx, tc)
 			if limiter != nil {
 				<-limiter.C
 			}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/karimra/gnmic/outputs"
 	"github.com/karimra/gnmic/target"
+	"github.com/karimra/gnmic/types"
 	"github.com/karimra/gnmic/utils"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"google.golang.org/protobuf/proto"
@@ -192,8 +193,8 @@ func (a *App) subscriptionMode(name string) string {
 	return ""
 }
 
-func (a *App) GetModels(ctx context.Context, tName string) ([]*gnmi.ModelData, error) {
-	capRsp, err := a.ClientCapabilities(ctx, tName)
+func (a *App) GetModels(ctx context.Context, tc *types.TargetConfig) ([]*gnmi.ModelData, error) {
+	capRsp, err := a.ClientCapabilities(ctx, tc)
 	if err != nil {
 		return nil, err
 	}

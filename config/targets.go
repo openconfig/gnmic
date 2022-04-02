@@ -325,6 +325,7 @@ func (c *Config) GetDiffTargets() (*types.TargetConfig, map[string]*types.Target
 		refConfig = rc
 	} else {
 		refConfig = &types.TargetConfig{
+			Name:    c.DiffRef,
 			Address: c.DiffRef,
 		}
 		err = c.SetTargetConfigDefaults(refConfig)
@@ -338,6 +339,7 @@ func (c *Config) GetDiffTargets() (*types.TargetConfig, map[string]*types.Target
 			compareConfigs[cmp] = cc
 		} else {
 			compConfig := &types.TargetConfig{
+				Name:    cmp,
 				Address: cmp,
 			}
 			err = c.SetTargetConfigDefaults(compConfig)

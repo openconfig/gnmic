@@ -11,6 +11,7 @@ import (
 
 	"github.com/karimra/gnmic/config"
 	"github.com/karimra/gnmic/formatters"
+	"github.com/karimra/gnmic/types"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/grpctunnel/tunnel"
 	"github.com/spf13/cobra"
@@ -108,27 +109,29 @@ func (a *App) DiffRunE(cmd *cobra.Command, args []string) error {
 	a.errCh = make(chan error, numTargets*2)
 	a.wg.Add(numTargets)
 
-	compares := make([]string, 0, len(targetsConfig))
-	for t := range targetsConfig {
+	compares := make([]*types.TargetConfig, 0, len(targetsConfig))
+	for _, t := range targetsConfig {
 		compares = append(compares, t)
 	}
-	sort.Strings(compares)
+	sort.Slice(compares, func(i, j int) bool {
+		return compares[i].Name < compares[j].Name
+	})
 
-	err = a.diff(ctx, cmd, refTarget.Name, compares)
+	err = a.diff(ctx, cmd, refTarget, compares)
 	if err != nil {
 		a.logError(err)
 	}
 	return a.checkErrors()
 }
 
-func (a *App) diff(ctx context.Context, cmd *cobra.Command, ref string, compare []string) error {
+func (a *App) diff(ctx context.Context, cmd *cobra.Command, ref *types.TargetConfig, compare []*types.TargetConfig) error {
 	if a.Config.DiffSub {
 		return a.subscribeBasedDiff(ctx, cmd, ref, compare)
 	}
 	return a.getBasedDiff(ctx, ref, compare)
 }
 
-func (a *App) subscribeBasedDiff(ctx context.Context, cmd *cobra.Command, ref string, compare []string) error {
+func (a *App) subscribeBasedDiff(ctx context.Context, cmd *cobra.Command, ref *types.TargetConfig, compare []*types.TargetConfig) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	subReq, err := a.Config.CreateDiffSubscribeRequest(cmd)
@@ -138,88 +141,86 @@ func (a *App) subscribeBasedDiff(ctx context.Context, cmd *cobra.Command, ref st
 	numCompares := len(compare)
 	refResponse := make([]proto.Message, 0)
 	rspChan := make(chan *targetDiffResponse, numCompares)
-	err = a.CreateTarget(ref)
+	a.operLock.Lock()
+	refTarget, err := a.initTarget(ref)
+	a.operLock.Unlock()
 	if err != nil {
 		return err
 	}
-	if refTarget, ok := a.Targets[ref]; ok {
-		go func() {
+
+	go func() {
+		defer a.wg.Done()
+		err = refTarget.CreateGNMIClient(ctx, a.dialOpts...)
+		if err != nil {
+			a.logError(err)
+			return
+		}
+		a.Logger.Printf("sending gNMI SubscribeRequest: subscribe='%+v', mode='%+v', encoding='%+v', to %s",
+			subReq.Request, subReq.GetSubscribe().GetMode(), subReq.GetSubscribe().GetEncoding(), ref)
+		rspChan, errChan := refTarget.SubscribeOnceChan(ctx, subReq)
+		for {
+			select {
+			case r := <-rspChan:
+				switch r.Response.(type) {
+				case *gnmi.SubscribeResponse_Update:
+					refResponse = append(refResponse, r)
+				case *gnmi.SubscribeResponse_SyncResponse:
+					return
+				}
+			case err := <-errChan:
+				if err != io.EOF {
+					a.logError(err)
+				}
+				return
+			}
+		}
+	}()
+
+	for _, tc := range compare {
+		a.operLock.Lock()
+		t, err := a.initTarget(tc)
+		a.operLock.Unlock()
+		if err != nil {
+			return err
+		}
+		go func(tName string) {
 			defer a.wg.Done()
-			err = refTarget.CreateGNMIClient(ctx, a.dialOpts...)
+			err = t.CreateGNMIClient(ctx, a.dialOpts...)
 			if err != nil {
 				a.logError(err)
 				return
 			}
+			responses := make([]proto.Message, 0)
 			a.Logger.Printf("sending gNMI SubscribeRequest: subscribe='%+v', mode='%+v', encoding='%+v', to %s",
-				subReq.Request, subReq.GetSubscribe().GetMode(), subReq.GetSubscribe().GetEncoding(), ref)
-			rspChan, errChan := refTarget.SubscribeOnceChan(ctx, subReq)
+				subReq.Request, subReq.GetSubscribe().GetMode(), subReq.GetSubscribe().GetEncoding(), tName)
+			subRspChan, errChan := t.SubscribeOnceChan(ctx, subReq)
 			for {
 				select {
-				case r := <-rspChan:
+				case r := <-subRspChan:
 					switch r.Response.(type) {
 					case *gnmi.SubscribeResponse_Update:
-						refResponse = append(refResponse, r)
+						responses = append(responses, r)
 					case *gnmi.SubscribeResponse_SyncResponse:
+						rspChan <- &targetDiffResponse{
+							t:  tName,
+							rs: responses,
+						}
 						return
 					}
 				case err := <-errChan:
-					if err != io.EOF {
-						a.logError(err)
+					if err == io.EOF {
+						rspChan <- &targetDiffResponse{
+							t:  tName,
+							rs: responses,
+						}
+						return
 					}
-					return
-				}
-			}
-		}()
-
-	} else {
-		return fmt.Errorf("unknown reference target %q", ref)
-	}
-	for _, tName := range compare {
-		err = a.CreateTarget(tName)
-		if err != nil {
-			return err
-		}
-		if t, ok := a.Targets[tName]; ok {
-			go func(tName string) {
-				defer a.wg.Done()
-				err = t.CreateGNMIClient(ctx, a.dialOpts...)
-				if err != nil {
 					a.logError(err)
 					return
 				}
-				responses := make([]proto.Message, 0)
-				a.Logger.Printf("sending gNMI SubscribeRequest: subscribe='%+v', mode='%+v', encoding='%+v', to %s",
-					subReq.Request, subReq.GetSubscribe().GetMode(), subReq.GetSubscribe().GetEncoding(), tName)
-				subRspChan, errChan := t.SubscribeOnceChan(ctx, subReq)
-				for {
-					select {
-					case r := <-subRspChan:
-						switch r.Response.(type) {
-						case *gnmi.SubscribeResponse_Update:
-							responses = append(responses, r)
-						case *gnmi.SubscribeResponse_SyncResponse:
-							rspChan <- &targetDiffResponse{
-								t:  tName,
-								rs: responses,
-							}
-							return
-						}
-					case err := <-errChan:
-						if err == io.EOF {
-							rspChan <- &targetDiffResponse{
-								t:  tName,
-								rs: responses,
-							}
-							return
-						}
-						a.logError(err)
-						return
-					}
-				}
-			}(tName)
-			continue
-		}
-		a.logError(fmt.Errorf("unknown target %q", tName))
+			}
+		}(tc.Name)
+		continue
 	}
 	a.wg.Wait()
 	close(rspChan)
@@ -234,7 +235,7 @@ func (a *App) subscribeBasedDiff(ctx context.Context, cmd *cobra.Command, ref st
 	}
 
 	for _, cr := range rsps {
-		fmt.Fprintf(os.Stderr, "%q vs %q\n", ref, cr.t)
+		fmt.Fprintf(os.Stderr, "%q vs %q\n", ref.Name, cr.t)
 		err = a.responsesDiff(refResponse, cr.rs)
 		if err != nil {
 			a.logError(err)
@@ -243,7 +244,7 @@ func (a *App) subscribeBasedDiff(ctx context.Context, cmd *cobra.Command, ref st
 	return nil
 }
 
-func (a *App) getBasedDiff(ctx context.Context, ref string, compare []string) error {
+func (a *App) getBasedDiff(ctx context.Context, ref *types.TargetConfig, compare []*types.TargetConfig) error {
 	getReq, err := a.Config.CreateDiffGetRequest()
 	if err != nil {
 		return err
@@ -265,21 +266,21 @@ func (a *App) getBasedDiff(ctx context.Context, ref string, compare []string) er
 		}
 	}()
 	rspChan := make(chan *targetDiffResponse, numCompares)
-	for _, tName := range compare {
-		go func(tName string) {
+	for _, tc := range compare {
+		go func(tc *types.TargetConfig) {
 			defer a.wg.Done()
 			a.Logger.Printf("sending gNMI GetRequest: prefix='%v', path='%v', type='%v', encoding='%v', models='%+v', extension='%+v' to %s",
-				getReq.Prefix, getReq.Path, getReq.Type, getReq.Encoding, getReq.UseModels, getReq.Extension, tName)
-			response, err := a.ClientGet(ctx, tName, getReq)
+				getReq.Prefix, getReq.Path, getReq.Type, getReq.Encoding, getReq.UseModels, getReq.Extension, tc.Name)
+			response, err := a.ClientGet(ctx, tc, getReq)
 			if err != nil {
-				a.logError(fmt.Errorf("target %q get request failed: %v", tName, err))
+				a.logError(fmt.Errorf("target %q get request failed: %v", tc.Name, err))
 				return
 			}
 			rspChan <- &targetDiffResponse{
-				t: tName,
+				t: tc.Name,
 				r: response,
 			}
-		}(tName)
+		}(tc)
 	}
 	a.wg.Wait()
 	close(rspChan)
@@ -295,7 +296,7 @@ func (a *App) getBasedDiff(ctx context.Context, ref string, compare []string) er
 		return rsps[i].t < rsps[j].t
 	})
 	for _, cr := range rsps {
-		fmt.Fprintf(os.Stderr, "%q vs %q\n", ref, cr.t)
+		fmt.Fprintf(os.Stderr, "%q vs %q\n", ref.Name, cr.t)
 		err = a.responsesDiff([]proto.Message{refResponse}, []proto.Message{cr.r})
 		if err != nil {
 			a.logError(err)

@@ -84,7 +84,8 @@ rm all_services.txt
 ##################################
 #  Deploying labs with SRL nodes #
 ##################################
-
+while true
+do
 printf "Waiting a bit before deploying the nodes\n"
 echo ""
 sleep 10
@@ -117,7 +118,7 @@ echo "Running API calls..."
 echo ""
 #start adding and removing labs
 echo "Waiting a bit before starting to add and remove labs..."
-sleep 60
+sleep 10
 ## remove 2 labs
 sudo clab destroy -t clab/lab1.clab.yaml --cleanup
 sudo clab destroy -t clab/lab5.clab.yaml --cleanup
@@ -156,6 +157,7 @@ sudo clab deploy -t clab/lab2.clab.yaml --reconfigure
 sleep 60
 check_num_locked_targets $(($NUM_NODES_PER_LAB * $NUM_LABS))
 
+done
 #######
 # END #
 #######

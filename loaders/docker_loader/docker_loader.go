@@ -264,7 +264,6 @@ func (d *dockerLoader) RunOnce(ctx context.Context) (map[string]*types.TargetCon
 
 // update runs the docker loader once and updates the added/remove target to the opChan
 func (d *dockerLoader) update(ctx context.Context, opChan chan *loaders.TargetOperation) {
-	d.logger.Printf("querying %q targets", loaderType)
 	readTargets, err := d.RunOnce(ctx)
 	if err != nil {
 		d.logger.Printf("failed to read targets from docker daemon: %v", err)

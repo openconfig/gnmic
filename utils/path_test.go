@@ -182,7 +182,7 @@ var pathsTable = map[string]struct {
 		isOK:        true,
 		expectedErr: nil,
 	},
-	"path_with_column_in_path_elem": {
+	"path_with_colon_in_path_elem": {
 		strPath: "origin:/e1:e1[k=1.1.1.1/32]/e2[k1=v2]",
 		gnmiPath: &gnmi.Path{
 			Origin: "origin",
@@ -202,7 +202,7 @@ var pathsTable = map[string]struct {
 		isOK:        true,
 		expectedErr: nil,
 	},
-	"path_with_column_in_2_path_elems": {
+	"path_with_colon_in_2_path_elems": {
 		strPath: "origin:/e1:e1[k=1.1.1.1/32]/e2:e3[k1=v2]",
 		gnmiPath: &gnmi.Path{
 			Origin: "origin",
@@ -250,7 +250,7 @@ var pathsTable = map[string]struct {
 		isOK:        true,
 		expectedErr: nil,
 	},
-	"path_with_column_in_first_path_elem": {
+	"path_with_colon_in_first_path_elem": {
 		strPath: `e1:e2/e3[k=v]`,
 		gnmiPath: &gnmi.Path{
 			Elem: []*gnmi.PathElem{
@@ -264,7 +264,7 @@ var pathsTable = map[string]struct {
 		isOK:        true,
 		expectedErr: nil,
 	},
-	"path_with_column_in_key_value": {
+	"path_with_colon_in_key_value": {
 		strPath: `/e1/e2[k=v:1]`,
 		gnmiPath: &gnmi.Path{
 			Elem: []*gnmi.PathElem{
@@ -278,7 +278,7 @@ var pathsTable = map[string]struct {
 		isOK:        true,
 		expectedErr: nil,
 	},
-	"path_without_origin_with_column_in_path_elem": {
+	"path_without_origin_with_colon_in_path_elem": {
 		strPath: `e1/e2:e3[k=v:1]`,
 		gnmiPath: &gnmi.Path{
 			Elem: []*gnmi.PathElem{
@@ -292,7 +292,7 @@ var pathsTable = map[string]struct {
 		isOK:        true,
 		expectedErr: nil,
 	},
-	"path_with_origin_and_column_in_key_value": {
+	"path_with_origin_and_colon_in_key_value": {
 		strPath: `origin:/e1/e2[k=v:1]`,
 		gnmiPath: &gnmi.Path{
 			Origin: "origin",
@@ -307,7 +307,7 @@ var pathsTable = map[string]struct {
 		isOK:        true,
 		expectedErr: nil,
 	},
-	"path_with_origin_and_column_space_in_key_value": {
+	"path_with_origin_and_colon_space_in_key_value": {
 		strPath: `origin:/e1/e2[k=v a:1]`,
 		gnmiPath: &gnmi.Path{
 			Origin: "origin",
@@ -322,7 +322,7 @@ var pathsTable = map[string]struct {
 		isOK:        true,
 		expectedErr: nil,
 	},
-	"path_with_origin_and_column_space_in_key_value_double_quoted_value": {
+	"path_with_origin_and_colon_space_in_key_value_double_quoted_value": {
 		strPath: `origin:/e1/e2[k="v a:1"]`,
 		gnmiPath: &gnmi.Path{
 			Origin: "origin",

@@ -8,6 +8,7 @@ import (
 
 	"github.com/karimra/gnmic/config"
 	"github.com/karimra/gnmic/formatters"
+	"github.com/karimra/gnmic/types"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/grpctunnel/tunnel"
 	"github.com/spf13/cobra"
@@ -68,8 +69,8 @@ func (a *App) GetRun(cmd *cobra.Command, args []string) error {
 	numTargets := len(a.Config.Targets)
 	a.errCh = make(chan error, numTargets*3)
 	a.wg.Add(numTargets)
-	for tName := range a.Config.Targets {
-		go a.GetRequest(ctx, tName, req)
+	for _, tc := range a.Config.Targets {
+		go a.GetRequest(ctx, tc, req)
 	}
 	a.wg.Wait()
 	err = a.checkErrors()
@@ -79,52 +80,52 @@ func (a *App) GetRun(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func (a *App) GetRequest(ctx context.Context, tName string, req *gnmi.GetRequest) {
+func (a *App) GetRequest(ctx context.Context, tc *types.TargetConfig, req *gnmi.GetRequest) {
 	defer a.wg.Done()
-	response, err := a.getRequest(ctx, tName, req)
+	response, err := a.getRequest(ctx, tc, req)
 	if err != nil {
-		a.logError(fmt.Errorf("target %q get request failed: %v", tName, err))
+		a.logError(fmt.Errorf("target %q get request failed: %v", tc.Name, err))
 		return
 	}
-	err = a.PrintMsg(tName, "Get Response:", response)
+	err = a.PrintMsg(tc.Name, "Get Response:", response)
 	if err != nil {
-		a.logError(fmt.Errorf("target %q: %v", tName, err))
+		a.logError(fmt.Errorf("target %q: %v", tc.Name, err))
 	}
 }
 
-func (a *App) getRequest(ctx context.Context, tName string, req *gnmi.GetRequest) (*gnmi.GetResponse, error) {
+func (a *App) getRequest(ctx context.Context, tc *types.TargetConfig, req *gnmi.GetRequest) (*gnmi.GetResponse, error) {
 	xreq := req
 	if len(a.Config.LocalFlags.GetModel) > 0 {
-		spModels, unspModels, err := a.filterModels(ctx, tName, a.Config.LocalFlags.GetModel)
+		spModels, unspModels, err := a.filterModels(ctx, tc, a.Config.LocalFlags.GetModel)
 		if err != nil {
-			a.logError(fmt.Errorf("failed getting supported models from %q: %v", tName, err))
+			a.logError(fmt.Errorf("failed getting supported models from %q: %v", tc.Name, err))
 			return nil, err
 		}
 		if len(unspModels) > 0 {
-			a.logError(fmt.Errorf("found unsupported models for target %q: %+v", tName, unspModels))
+			a.logError(fmt.Errorf("found unsupported models for target %q: %+v", tc.Name, unspModels))
 		}
 		for _, m := range spModels {
 			xreq.UseModels = append(xreq.UseModels, m)
 		}
 	}
 	if a.Config.PrintRequest {
-		err := a.PrintMsg(tName, "Get Request:", req)
+		err := a.PrintMsg(tc.Name, "Get Request:", req)
 		if err != nil {
-			a.logError(fmt.Errorf("target %q Get Request printing failed: %v", tName, err))
+			a.logError(fmt.Errorf("target %q Get Request printing failed: %v", tc.Name, err))
 		}
 	}
 	a.Logger.Printf("sending gNMI GetRequest: prefix='%v', path='%v', type='%v', encoding='%v', models='%+v', extension='%+v' to %s",
-		xreq.Prefix, xreq.Path, xreq.Type, xreq.Encoding, xreq.UseModels, xreq.Extension, tName)
+		xreq.Prefix, xreq.Path, xreq.Type, xreq.Encoding, xreq.UseModels, xreq.Extension, tc.Name)
 
-	response, err := a.ClientGet(ctx, tName, xreq)
+	response, err := a.ClientGet(ctx, tc, xreq)
 	if err != nil {
-		a.logError(fmt.Errorf("target %q get request failed: %v", tName, err))
+		a.logError(fmt.Errorf("target %q get request failed: %v", tc.Name, err))
 		return nil, err
 	}
 	return response, nil
 }
-func (a *App) filterModels(ctx context.Context, tName string, modelsNames []string) (map[string]*gnmi.ModelData, []string, error) {
-	supModels, err := a.GetModels(ctx, tName)
+func (a *App) filterModels(ctx context.Context, tc *types.TargetConfig, modelsNames []string) (map[string]*gnmi.ModelData, []string, error) {
+	supModels, err := a.GetModels(ctx, tc)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -203,20 +204,20 @@ func (a *App) handleGetRequestEvent(ctx context.Context, req *gnmi.GetRequest, e
 	a.errCh = make(chan error, numTargets*3)
 	a.wg.Add(numTargets)
 	rsps := make(chan *getResponseEvents)
-	for tName := range a.Config.Targets {
-		go func(tName string) {
+	for _, tc := range a.Config.Targets {
+		go func(tc *types.TargetConfig) {
 			defer a.wg.Done()
-			resp, err := a.getRequest(ctx, tName, req)
+			resp, err := a.getRequest(ctx, tc, req)
 			if err != nil {
 				a.errCh <- err
 				return
 			}
-			evs, err := formatters.GetResponseToEventMsgs(resp, map[string]string{"source": tName}, evps...)
+			evs, err := formatters.GetResponseToEventMsgs(resp, map[string]string{"source": tc.Name}, evps...)
 			if err != nil {
 				a.errCh <- err
 			}
-			rsps <- &getResponseEvents{name: tName, rsp: evs}
-		}(tName)
+			rsps <- &getResponseEvents{name: tc.Name, rsp: evs}
+		}(tc)
 	}
 	responses := make(map[string][]*formatters.EventMsg)
 	go func() {
