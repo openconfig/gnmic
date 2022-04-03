@@ -43,7 +43,7 @@ func (a *App) stopTarget(ctx context.Context, name string) error {
 	}
 	a.operLock.Lock()
 	defer a.operLock.Unlock()
-	if !a.targetExists(name) {
+	if _, ok := a.Targets[name]; !ok {
 		return fmt.Errorf("target %q does not exist", name)
 	}
 
@@ -87,15 +87,15 @@ func (a *App) DeleteTarget(ctx context.Context, name string) error {
 // AddTargetConfig adds a *TargetConfig to the configuration map
 func (a *App) AddTargetConfig(tc *types.TargetConfig) {
 	a.Logger.Printf("adding target %+v", tc)
+	_, ok := a.Config.Targets[tc.Name]
+	if ok {
+		return
+	}
 	if tc.BufferSize <= 0 {
 		tc.BufferSize = a.Config.TargetBufferSize
 	}
 	if tc.RetryTimer <= 0 {
 		tc.RetryTimer = a.Config.Retry
-	}
-
-	if _, ok := a.Config.Targets[tc.Name]; ok {
-		return
 	}
 
 	a.configLock.Lock()
@@ -121,13 +121,6 @@ func (a *App) parseProtoFiles(t *target.Target) error {
 	}
 	a.Logger.Printf("target %q loaded proto files", t.Config.Name)
 	return nil
-}
-
-func (a *App) targetExists(name string) bool {
-	//a.operLock.RLock()
-	_, ok := a.Targets[name]
-	//a.operLock.RUnlock()
-	return ok
 }
 
 func (a *App) targetConfigExists(name string) bool {

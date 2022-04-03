@@ -35,7 +35,7 @@ type targetMatch struct {
 	Type string `mapstructure:"type,omitempty" json:"type,omitempty"`
 	// a Regex pattern to check the target ID as reported by
 	// the tunnel.Target to the Tunnel Server
-	Match string `mapstructure:"match,omitempty" json:"match,omitempty"`
+	ID string `mapstructure:"id,omitempty" json:"id,omitempty"`
 	// Optional gnmic.Target Configuration that will be assigned to the target with
 	// an ID matching the above regex
 	Config types.TargetConfig `mapstructure:"config,omitempty" json:"config,omitempty"`

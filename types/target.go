@@ -42,6 +42,8 @@ type TargetConfig struct {
 	Tags          []string      `mapstructure:"tags,omitempty" json:"tags,omitempty" yaml:"tags,omitempty"`
 	Gzip          *bool         `mapstructure:"gzip,omitempty" json:"gzip,omitempty" yaml:"gzip,omitempty"`
 	Token         *string       `mapstructure:"token,omitempty" json:"token,omitempty" yaml:"token,omitempty"`
+	//
+	TunnelTargetType string `mapstructure:"-" json:"tunnel-target-type,omitempty" yaml:"tunnel-target-type,omitempty"`
 }
 
 func (tc *TargetConfig) String() string {

@@ -124,6 +124,7 @@ func (a *App) getRequest(ctx context.Context, tc *types.TargetConfig, req *gnmi.
 	}
 	return response, nil
 }
+
 func (a *App) filterModels(ctx context.Context, tc *types.TargetConfig, modelsNames []string) (map[string]*gnmi.ModelData, []string, error) {
 	supModels, err := a.GetModels(ctx, tc)
 	if err != nil {
