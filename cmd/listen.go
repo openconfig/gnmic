@@ -71,6 +71,16 @@ func newListenCmd() *cobra.Command {
 				}
 				gApp.Logger.Printf("loaded proto files")
 			}
+			// read config
+			actCfg, err := gApp.Config.GetActions()
+			if err != nil {
+				return fmt.Errorf("failed reading actions config: %v", err)
+			}
+			procCfg, err := gApp.Config.GetEventProcessors()
+			if err != nil {
+				return fmt.Errorf("failed reading event processors config: %v", err)
+			}
+
 			server.Outputs = make(map[string]outputs.Output)
 			outCfgs, err := gApp.Config.GetOutputs()
 			if err != nil {
@@ -80,7 +90,12 @@ func newListenCmd() *cobra.Command {
 				if outType, ok := outConf["type"]; ok {
 					if initializer, ok := outputs.Outputs[outType.(string)]; ok {
 						out := initializer()
-						go out.Init(ctx, name, outConf, outputs.WithLogger(gApp.Logger))
+						go out.Init(ctx, name, outConf,
+							outputs.WithLogger(gApp.Logger),
+							outputs.WithEventProcessors(procCfg, gApp.Logger, nil, actCfg),
+							outputs.WithName(gApp.Config.InstanceName),
+							outputs.WithClusterName(gApp.Config.ClusterName),
+						)
 						server.Outputs[name] = out
 					}
 				}
