@@ -448,7 +448,7 @@ func (a *App) Set(ctx context.Context, req *gnmi.SetRequest) (*gnmi.SetResponse,
 			targetDialOpts := a.dialOpts
 			if a.Config.UseTunnelServer {
 				targetDialOpts = append(targetDialOpts,
-					grpc.WithContextDialer(a.tunDialerFn(ctx, name)),
+					grpc.WithContextDialer(a.tunDialerFn(ctx, tc)),
 				)
 				t.Config.Address = t.Config.Name
 			}

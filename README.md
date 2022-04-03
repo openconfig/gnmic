@@ -18,7 +18,9 @@ Documentation available at [https://gnmic.kmrd.dev](https://gnmic.kmrd.dev)
 * **Flexible collector deployment**  
   `gnmic` can be deployed as a gNMI collector that supports multiple output types ([NATS](https://gnmic.kmrd.dev/user_guide/outputs/nats_output/), [Kafka](https://gnmic.kmrd.dev/user_guide/outputs/kafka_output/), [Prometheus](https://gnmic.kmrd.dev/user_guide/outputs/prometheus_output/), [InfluxDB](https://gnmic.kmrd.dev/user_guide/outputs/influxdb_output/),...).  
   The collector can be deployed either as a [single instance](https://gnmic.kmrd.dev/deployments/deployments_intro/#single-instance), as part of a [cluster](https://gnmic.kmrd.dev/user_guide/HA/), or used to form [data pipelines](https://gnmic.kmrd.dev/deployments/deployments_intro/#pipelines).
-* **gNMI data manipulation**   
+* **Support gRPC tunnel based dialout telemetry**  
+  `gnmic` can be deployed as a gNMI collector with an [embedded tunnel server](https://gnmic.kmrd.dev/user_guide/tunnel_server/).
+* **gNMI data manipulation**  
   `gnmic` collector has [data transformation](https://gnmic.kmrd.dev/user_guide/event_processors/intro/) capabilities that can be used to adapt the collected data to your specific use case.
 * **Dynamic targets loading**  
   `gnmic` support [target loading at runtime](https://gnmic.kmrd.dev/user_guide/target_discovery/discovery_intro/) based on input from external systems.

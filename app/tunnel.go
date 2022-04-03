@@ -117,19 +117,29 @@ func (a *App) gRPCTunnelServerOpts() ([]grpc.ServerOption, error) {
 
 func (a *App) tunServerAddTargetHandler(tt tunnel.Target) error {
 	a.Logger.Printf("tunnel server discovered target %+v", tt)
+	tc := a.getTunnelTargetMatch(tt)
+	if tc == nil {
+		a.Logger.Printf("target %+v ignored", tt)
+		return nil
+	}
 	a.ttm.Lock()
-	a.tunTargets[tt.ID] = tt
+	a.tunTargets[tt] = struct{}{}
 	a.ttm.Unlock()
 	return nil
 }
 
 func (a *App) tunServerAddTargetSubscribeHandler(tt tunnel.Target) error {
-	a.tunServerAddTargetHandler(tt)
-	if len(a.Config.TunnelServer.Targets) == 0 {
+	a.Logger.Printf("tunnel server discovered target %+v", tt)
+	tc := a.getTunnelTargetMatch(tt)
+	if tc == nil {
+		a.Logger.Printf("target %+v ignored", tt)
 		return nil
 	}
-	tc := a.getTunnelTargetMatch(tt)
+	a.ttm.Lock()
+	a.tunTargets[tt] = struct{}{}
 	a.AddTargetConfig(tc)
+	a.ttm.Unlock()
+
 	a.operLock.Lock()
 	t, err := a.initTarget(tc)
 	a.operLock.Unlock()
@@ -143,13 +153,13 @@ func (a *App) tunServerAddTargetSubscribeHandler(tt tunnel.Target) error {
 }
 
 func (a *App) tunServerDeleteTargetHandler(tt tunnel.Target) error {
-	a.Logger.Printf("tunnel server target %+v deregistered", tt)
+	a.Logger.Printf("tunnel server target %+v deregister request", tt)
 	a.ttm.Lock()
 	defer a.ttm.Unlock()
-	if cfn, ok := a.tunTargetCfn[tt.ID]; ok {
+	if cfn, ok := a.tunTargetCfn[tt]; ok {
 		cfn()
-		delete(a.tunTargetCfn, tt.ID)
-		delete(a.tunTargets, tt.ID)
+		delete(a.tunTargetCfn, tt)
+		delete(a.tunTargets, tt)
 		a.configLock.Lock()
 		delete(a.Config.Targets, tt.ID)
 		a.configLock.Unlock()
@@ -166,24 +176,40 @@ func (a *App) tunServerHandler(ss tunnel.ServerSession, rwc io.ReadWriteCloser) 
 }
 
 // tunDialerFn is used to build a grpc Option that sets a custom dialer for tunnel targets.
-func (a *App) tunDialerFn(ctx context.Context, tName string) func(context.Context, string) (net.Conn, error) {
+func (a *App) tunDialerFn(ctx context.Context, tc *types.TargetConfig) func(context.Context, string) (net.Conn, error) {
 	return func(_ context.Context, _ string) (net.Conn, error) {
+		tt := tunnel.Target{ID: tc.Name, Type: tc.TunnelTargetType}
 		a.ttm.RLock()
-		tt, ok := a.tunTargets[tName]
+		_, ok := a.tunTargets[tt]
 		a.ttm.RUnlock()
 		if !ok {
-			return nil, fmt.Errorf("unknown tunnel target %q", tName)
+			return nil, fmt.Errorf("unknown tunnel target %+v", tt)
 		}
-		a.Logger.Printf("dialing tunnel connection for tunnel target %q", tName)
+		a.Logger.Printf("dialing tunnel connection for tunnel target %q", tc.Name)
 		conn, err := tunnel.ServerConn(ctx, a.tunServer, &tt)
 		if err != nil {
-			a.Logger.Printf("failed dialing tunnel connection for target %q: %v", tName, err)
+			a.Logger.Printf("failed dialing tunnel connection for target %q: %v", tc.Name, err)
 		}
 		return conn, err
 	}
 }
 
 func (a *App) getTunnelTargetMatch(tt tunnel.Target) *types.TargetConfig {
+	if len(a.Config.TunnelServer.Targets) == 0 {
+		// no target matches defined, accept only GNMI_GNOI type
+		if tt.Type == "GNMI_GNOI" {
+			// create a default target config
+			tc := &types.TargetConfig{Name: tt.ID, TunnelTargetType: tt.Type}
+			err := a.Config.SetTargetConfigDefaults(tc)
+			if err != nil {
+				a.Logger.Printf("failed to set target %q config defaults: %v", tt.ID, err)
+				return nil
+			}
+			tc.Address = tc.Name
+			return tc
+		}
+		return nil
+	}
 	for _, tm := range a.Config.TunnelServer.Targets {
 		// check if the discovered target matches one of the configured types
 		ok, err := regexp.MatchString(tm.Type, tt.Type)
@@ -191,17 +217,15 @@ func (a *App) getTunnelTargetMatch(tt tunnel.Target) *types.TargetConfig {
 			a.Logger.Printf("regex %q eval failed with string %q: %v", tm.Type, tt.Type, err)
 			continue
 		}
-		fmt.Println(tt, tm.Type, ok)
 		if !ok {
 			continue
 		}
 		// check if the discovered target matches one of the configured IDs
-		ok, err = regexp.MatchString(tm.Match, tt.ID)
+		ok, err = regexp.MatchString(tm.ID, tt.ID)
 		if err != nil {
-			a.Logger.Printf("regex %q eval failed with string %q: %v", tm.Match, tt.ID, err)
+			a.Logger.Printf("regex %q eval failed with string %q: %v", tm.ID, tt.ID, err)
 			continue
 		}
-		fmt.Println(tt, tm.Match, ok)
 		if !ok {
 			continue
 		}
@@ -212,6 +236,7 @@ func (a *App) getTunnelTargetMatch(tt tunnel.Target) *types.TargetConfig {
 		tc := new(types.TargetConfig)
 		*tc = tm.Config
 		tc.Name = tt.ID
+		tc.TunnelTargetType = tt.Type
 		err = a.Config.SetTargetConfigDefaults(tc)
 		if err != nil {
 			a.Logger.Printf("failed to set target %q config defaults: %v", tt.ID, err)
@@ -220,14 +245,5 @@ func (a *App) getTunnelTargetMatch(tt tunnel.Target) *types.TargetConfig {
 		tc.Address = tc.Name
 		return tc
 	}
-	// no matchs defined or target didn't match any of the configured ones.
-	// create a default target config
-	tc := &types.TargetConfig{Name: tt.ID}
-	err := a.Config.SetTargetConfigDefaults(tc)
-	if err != nil {
-		a.Logger.Printf("failed to set target %q config defaults: %v", tt.ID, err)
-		return nil
-	}
-	tc.Address = tc.Name
-	return tc
+	return nil
 }

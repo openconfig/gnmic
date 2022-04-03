@@ -97,8 +97,8 @@ type App struct {
 	grpcTunnelSrv *grpc.Server
 	tunServer     *tunnel.Server
 	ttm           *sync.RWMutex
-	tunTargets    map[string]tunnel.Target
-	tunTargetCfn  map[string]context.CancelFunc
+	tunTargets    map[tunnel.Target]struct{}
+	tunTargetCfn  map[tunnel.Target]context.CancelFunc
 }
 
 func New() *App {
@@ -133,8 +133,8 @@ func New() *App {
 		c:         cache.New(nil),
 		// tunnel server
 		ttm:          new(sync.RWMutex),
-		tunTargets:   make(map[string]tunnel.Target),
-		tunTargetCfn: make(map[string]context.CancelFunc),
+		tunTargets:   make(map[tunnel.Target]struct{}),
+		tunTargetCfn: make(map[tunnel.Target]context.CancelFunc),
 	}
 	a.router.StrictSlash(true)
 	a.router.Use(headersMiddleware, a.loggingMiddleware)
@@ -468,8 +468,11 @@ func (a *App) GetTargets() (map[string]*types.TargetConfig, error) {
 			time.Sleep(a.Config.TunnelServer.TargetWaitTime)
 			a.ttm.RLock()
 			defer a.ttm.RUnlock()
-			for _, tt := range a.tunTargets {
+			for tt := range a.tunTargets {
 				tc := a.getTunnelTargetMatch(tt)
+				if tc == nil {
+					continue
+				}
 				err = a.Config.SetTargetConfigDefaults(tc)
 				if err != nil {
 					return nil, err
@@ -494,10 +497,11 @@ func (a *App) CreateGNMIClient(ctx context.Context, t *target.Target) error {
 	targetDialOpts := a.dialOpts
 	if a.Config.UseTunnelServer {
 		targetDialOpts = append(targetDialOpts,
-			grpc.WithContextDialer(a.tunDialerFn(ctx, t.Config.Name)),
+			grpc.WithContextDialer(a.tunDialerFn(ctx, t.Config)),
 		)
 		t.Config.Address = t.Config.Name
 	}
+	a.Logger.Printf("creating gRPC client for target %q", t.Config.Name)
 	if err := t.CreateGNMIClient(ctx, targetDialOpts...); err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			return fmt.Errorf("failed to create a gRPC client for target %q, timeout (%s) reached", t.Config.Name, t.Config.Timeout)

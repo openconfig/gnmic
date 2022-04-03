@@ -13,6 +13,7 @@ import (
 	"github.com/karimra/gnmic/target"
 	"github.com/karimra/gnmic/types"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/grpctunnel/tunnel"
 	"google.golang.org/grpc"
 )
 
@@ -176,15 +177,16 @@ CRCLIENT:
 		targetDialOpts := a.dialOpts
 		if a.Config.UseTunnelServer {
 			a.ttm.Lock()
-			a.tunTargetCfn[tc.Name] = cancel
+			a.tunTargetCfn[tunnel.Target{ID: tc.Name, Type: tc.TunnelTargetType}] = cancel
 			a.ttm.Unlock()
 			targetDialOpts = append(targetDialOpts,
-				grpc.WithContextDialer(a.tunDialerFn(gnmiCtx, tc.Name)),
+				grpc.WithContextDialer(a.tunDialerFn(gnmiCtx, tc)),
 			)
 			// overwrite target address
 			t.Config.Address = t.Config.Name
 		}
-		if err := t.CreateGNMIClient(ctx, targetDialOpts...); err != nil {
+		err := t.CreateGNMIClient(ctx, targetDialOpts...)
+		if err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
 				a.Logger.Printf("failed to initialize target %q timeout (%s) reached", tc.Name, t.Config.Timeout)
 			} else {
@@ -236,10 +238,10 @@ CRCLIENT:
 	targetDialOpts := a.dialOpts
 	if a.Config.UseTunnelServer {
 		a.ttm.Lock()
-		a.tunTargetCfn[tc.Name] = cancel
+		a.tunTargetCfn[tunnel.Target{ID: tc.Name, Type: tc.TunnelTargetType}] = cancel
 		a.ttm.Unlock()
 		targetDialOpts = append(targetDialOpts,
-			grpc.WithContextDialer(a.tunDialerFn(gnmiCtx, tc.Name)),
+			grpc.WithContextDialer(a.tunDialerFn(gnmiCtx, tc)),
 		)
 		// overwrite target address
 		t.Config.Address = t.Config.Name

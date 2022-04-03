@@ -281,19 +281,13 @@ func (a *App) startIO() {
 			limiter = time.NewTicker(a.Config.LocalFlags.SubscribeBackoff)
 		}
 
-		a.wg.Add(len(a.Config.Targets))
-		for _, tc := range a.Config.Targets {
-			// check if target is a tunnel discovered target.
-			// in which case, do not (re)subscribe
-			a.ttm.RLock()
-			_, ok := a.tunTargets[tc.Name]
-			a.ttm.RUnlock()
-			if ok {
-				continue
-			}
-			go a.subscribeStream(a.ctx, tc)
-			if limiter != nil {
-				<-limiter.C
+		if !a.Config.UseTunnelServer {
+			for _, tc := range a.Config.Targets {
+				a.wg.Add(1)
+				go a.subscribeStream(a.ctx, tc)
+				if limiter != nil {
+					<-limiter.C
+				}
 			}
 		}
 		if limiter != nil {

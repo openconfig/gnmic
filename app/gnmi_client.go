@@ -2,13 +2,11 @@ package app
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/karimra/gnmic/types"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
-	"google.golang.org/grpc"
 )
 
 func (a *App) ClientCapabilities(ctx context.Context, tc *types.TargetConfig, ext ...*gnmi_ext.Extension) (*gnmi.CapabilityResponse, error) {
@@ -21,9 +19,8 @@ func (a *App) ClientCapabilities(ctx context.Context, tc *types.TargetConfig, ex
 	}
 	// acquire reader lock
 	a.operLock.RLock()
-	defer a.operLock.RUnlock()
-
 	err = a.CreateGNMIClient(ctx, t)
+	a.operLock.RUnlock()
 	if err != nil {
 		return nil, err
 	}
@@ -46,9 +43,8 @@ func (a *App) ClientGet(ctx context.Context, tc *types.TargetConfig, req *gnmi.G
 	}
 	// acquire reader lock
 	a.operLock.RLock()
-	defer a.operLock.RUnlock()
-
 	err = a.CreateGNMIClient(ctx, t)
+	a.operLock.RUnlock()
 	if err != nil {
 		return nil, err
 	}
@@ -70,23 +66,10 @@ func (a *App) ClientSet(ctx context.Context, tc *types.TargetConfig, req *gnmi.S
 	}
 	// acquire reader lock
 	a.operLock.RLock()
-	defer a.operLock.RUnlock()
-
-	if t.Client == nil {
-		targetDialOpts := a.dialOpts
-		if a.Config.UseTunnelServer {
-			targetDialOpts = append(targetDialOpts,
-				grpc.WithContextDialer(a.tunDialerFn(ctx, tc.Name)),
-			)
-			// overwrite target address
-			t.Config.Address = t.Config.Name
-		}
-		if err := t.CreateGNMIClient(ctx, targetDialOpts...); err != nil {
-			if errors.Is(err, context.DeadlineExceeded) {
-				return nil, fmt.Errorf("failed to create a gRPC client for target %q, timeout (%s) reached", t.Config.Name, t.Config.Timeout)
-			}
-			return nil, fmt.Errorf("failed to create a gRPC client for target %q : %v", t.Config.Name, err)
-		}
+	err = a.CreateGNMIClient(ctx, t)
+	a.operLock.RUnlock()
+	if err != nil {
+		return nil, err
 	}
 	ctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 	defer cancel()

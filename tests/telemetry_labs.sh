@@ -157,6 +157,14 @@ sudo clab deploy -t clab/lab2.clab.yaml --reconfigure
 sleep 60
 check_num_locked_targets $(($NUM_NODES_PER_LAB * $NUM_LABS))
 
+for i in `seq 1 $NUM_LABS`
+    do
+      printf "destroying lab clab/lab%s.clab.yaml\n" $i
+      sudo clab destroy -t clab/lab$i.clab.yaml --cleanup
+      # rm clab/lab$i.clab.yaml
+      # rm -rf .lab$i.clab.yaml
+    done
+    
 done
 #######
 # END #

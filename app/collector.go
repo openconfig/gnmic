@@ -30,13 +30,19 @@ func (a *App) StartCollector(ctx context.Context) {
 		if t == nil {
 			continue
 		}
-		if _, ok := a.activeTargets[t.Config.Name]; ok {
+		a.operLock.RLock()
+		_, ok := a.activeTargets[t.Config.Name]
+		a.operLock.RUnlock()
+		if ok {
 			if a.Config.Debug {
 				a.Logger.Printf("target %q listener already active", t.Config.Name)
 			}
 			continue
 		}
+		a.operLock.Lock()
 		a.activeTargets[t.Config.Name] = struct{}{}
+		a.operLock.Unlock()
+
 		a.Logger.Printf("starting target %q listener", t.Config.Name)
 		go func(t *target.Target) {
 			numOnceSubscriptions := t.NumberOfOnceSubscriptions()
