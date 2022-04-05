@@ -31,6 +31,7 @@ func init() {
 	loaders.Register(loaderType, func() loaders.TargetLoader {
 		return &httpLoader{
 			cfg:         &cfg{},
+			m:           new(sync.RWMutex),
 			lastTargets: make(map[string]*types.TargetConfig),
 			logger:      log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
 		}
