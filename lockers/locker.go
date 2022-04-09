@@ -46,6 +46,7 @@ func WithLogger(logger *log.Logger) Option {
 
 var LockerTypes = []string{
 	"consul",
+	"k8s",
 }
 
 func Register(name string, initFn Initializer) {

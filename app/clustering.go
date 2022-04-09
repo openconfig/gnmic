@@ -120,6 +120,7 @@ func (a *App) startCluster() {
 	leaderKey := a.leaderKey()
 	var err error
 START:
+	// acquire leader key lock
 	for {
 		a.isLeader = false
 		err = nil
@@ -410,8 +411,10 @@ func (a *App) selectService(tags []string, denied ...string) (*lockers.Service, 
 		}
 		ss := a.getLowLoadInstance(load)
 		a.Logger.Printf("selected service name: %s", ss)
-		srv := a.apiServices[ss+"-api"]
-		return srv, nil
+		if srv, ok := a.apiServices[ss+"-api"]; ok {
+			return srv, nil
+		}
+		return a.apiServices[ss], nil
 	}
 	return nil, errNotFound
 }

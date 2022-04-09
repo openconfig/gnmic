@@ -3,38 +3,44 @@ package k8s_locker
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"strings"
+
 	"fmt"
 	"io"
 	"log"
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/karimra/gnmic/lockers"
 	"github.com/karimra/gnmic/utils"
-	corev1 "k8s.io/api/core/v1"
+	coordinationv1 "k8s.io/api/coordination/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/tools/leaderelection/resourcelock"
+	"k8s.io/client-go/rest"
+
 	"k8s.io/utils/pointer"
 )
 
 const (
-	defaultSessionTTL = 10 * time.Second
-	defaultRetryTimer = 2 * time.Second
-	defaultDelay      = 5 * time.Second
-	loggingPrefix     = "[k8s_locker] "
+	defaultLeaseDuration = 10 * time.Second
+	loggingPrefix        = "[k8s_locker] "
+	defaultNamespace     = "default"
 )
 
 func init() {
 	lockers.Register("k8s", func() lockers.Locker {
 		return &k8sLocker{
 			Cfg:            &config{},
-			m:              new(sync.Mutex),
-			acquiredlocks:  make(map[string]*locks),
-			attemtinglocks: make(map[string]*locks),
+			m:              new(sync.RWMutex),
+			acquiredlocks:  make(map[string]*lock),
+			attemtinglocks: make(map[string]*lock),
 			logger:         log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
 			services:       make(map[string]context.CancelFunc),
+			km:             new(sync.RWMutex),
+			keyMapping:     make(map[string]string),
 		}
 	})
 }
@@ -43,27 +49,26 @@ type k8sLocker struct {
 	Cfg            *config
 	clientset      *kubernetes.Clientset
 	logger         *log.Logger
-	m              *sync.Mutex
-	acquiredlocks  map[string]*locks
-	attemtinglocks map[string]*locks
+	m              *sync.RWMutex
+	acquiredlocks  map[string]*lock
+	attemtinglocks map[string]*lock
 	services       map[string]context.CancelFunc
 	//
-	identity string
+	identity   string // hostname
+	km         *sync.RWMutex
+	keyMapping map[string]string
 }
 
 type config struct {
-	Address     string `mapstructure:"address,omitempty" json:"address,omitempty"`
-	Namespace   string
-	SessionTTL  time.Duration `mapstructure:"session-ttl,omitempty" json:"session-ttl,omitempty"`
-	Delay       time.Duration `mapstructure:"delay,omitempty" json:"delay,omitempty"`
-	RetryTimer  time.Duration `mapstructure:"retry-timer,omitempty" json:"retry-timer,omitempty"`
-	RenewPeriod time.Duration `mapstructure:"renew-period,omitempty" json:"renew-period,omitempty"`
-	Debug       bool          `mapstructure:"debug,omitempty" json:"debug,omitempty"`
+	Namespace     string        `mapstructure:"namespace,omitempty" json:"namespace,omitempty"`
+	LeaseDuration time.Duration `mapstructure:"lease-duration,omitempty" json:"lease-duration,omitempty"`
+	RenewPeriod   time.Duration `mapstructure:"renew-period,omitempty" json:"renew-period,omitempty"`
+	Debug         bool          `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 }
 
-type locks struct {
-	sessionID string
-	doneChan  chan struct{}
+type lock struct {
+	lease    *coordinationv1.Lease
+	doneChan chan struct{}
 }
 
 func (k *k8sLocker) Init(ctx context.Context, cfg map[string]interface{}, opts ...lockers.Option) error {
@@ -78,71 +83,205 @@ func (k *k8sLocker) Init(ctx context.Context, cfg map[string]interface{}, opts .
 	if err != nil {
 		return err
 	}
-	rules := clientcmd.NewDefaultClientConfigLoadingRules()
-	kubeconfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(rules, &clientcmd.ConfigOverrides{})
-	config, err := kubeconfig.ClientConfig()
-	if err != nil {
-		return err
-	}
-	k.clientset, err = kubernetes.NewForConfig(config)
+	inClusterConfig, err := rest.InClusterConfig()
 	if err != nil {
 		return err
 	}
 
+	k.clientset, err = kubernetes.NewForConfig(inClusterConfig)
+	if err != nil {
+		return err
+	}
+	k.identity = k.getIdentity()
 	return nil
 }
 
 func (k *k8sLocker) Lock(ctx context.Context, key string, val []byte) (bool, error) {
-	// k.clientset.CoordinationV1().Leases(k.Cfg.Namespace).Watch(ctx context.Context, opts metav1.ListOptions)
-	ll := resourcelock.LeaseLock{
-		LeaseMeta: metav1.ObjectMeta{
-			Name: key,
+	nkey := strings.ReplaceAll(key, "/", "-")
+	k.km.Lock()
+	k.keyMapping[nkey] = key
+	k.km.Unlock()
+	doneChan := make(chan struct{})
+	l := &coordinationv1.Lease{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      nkey,
+			Namespace: k.Cfg.Namespace,
+			Labels: map[string]string{
+				"app": "gnmic",
+				nkey:  string(val),
+			},
 		},
-		Client: k.clientset.CoordinationV1(),
-		LockConfig: resourcelock.ResourceLockConfig{
-			Identity: k.identity,
-		},
-	}
-
-	err := ll.Create(ctx, resourcelock.LeaderElectionRecord{
-		HolderIdentity: k.identity,
-	})
-	if err != nil {
-		return false, err
-	}
-	cfgMap := &corev1.ConfigMap{
-		TypeMeta:   metav1.TypeMeta{Kind: "ConfigMap", APIVersion: "v1"},
-		ObjectMeta: metav1.ObjectMeta{Name: key, Namespace: k.Cfg.Namespace},
-		Immutable:  pointer.Bool(true),
-		// Data:       map[string]string{},
-		BinaryData: map[string][]byte{
-			"value": val,
+		Spec: coordinationv1.LeaseSpec{
+			HolderIdentity:       pointer.String(k.identity),
+			LeaseDurationSeconds: pointer.Int32(int32(k.Cfg.LeaseDuration / time.Second)),
 		},
 	}
+	k.m.Lock()
+	k.attemtinglocks[nkey] = &lock{
+		lease:    l,
+		doneChan: doneChan,
+	}
+	k.m.Unlock()
+	// cleanup when done
+	defer func() {
+		k.m.Lock()
+		defer k.m.Unlock()
+		delete(k.attemtinglocks, nkey)
+	}()
 	for {
 		select {
 		case <-ctx.Done():
 			return false, ctx.Err()
+		case <-doneChan:
+			return false, lockers.ErrCanceled
 		default:
-			_, err := k.clientset.CoreV1().ConfigMaps(k.Cfg.Namespace).Create(ctx, cfgMap, metav1.CreateOptions{})
-			fmt.Println("create config map:", err)
-			if err == nil {
+			now := metav1.NowMicro()
+			var ol *coordinationv1.Lease
+			var err error
+			// get or create
+			ol, err = k.clientset.CoordinationV1().Leases(k.Cfg.Namespace).Get(ctx, nkey, metav1.GetOptions{})
+			if err != nil {
+				if !errors.IsNotFound(err) {
+					return false, err
+				}
+				// create lease
+				k.logger.Printf("lease %q not found, creating it: %+v", nkey, l.String())
+				l.Spec.AcquireTime = &now
+				l.Spec.RenewTime = &now
+				ol, err = k.clientset.CoordinationV1().Leases(k.Cfg.Namespace).Create(ctx, l, metav1.CreateOptions{})
+				if err != nil {
+					return false, err
+				}
+				k.m.Lock()
+				k.acquiredlocks[nkey] = &lock{
+					lease:    ol,
+					doneChan: doneChan,
+				}
+				k.m.Unlock()
 				return true, nil
 			}
-			time.Sleep(k.Cfg.RetryTimer)
+			// obtained, compare
+			if ol != nil && ol.Spec.HolderIdentity != nil && *ol.Spec.HolderIdentity != "" {
+				k.logger.Printf("%q held by other instance: %v", ol.Name, *ol.Spec.HolderIdentity != k.identity)
+				k.logger.Printf("%q lease has renewTime: %v", ol.Name, ol.Spec.RenewTime != nil)
+				if *ol.Spec.HolderIdentity != k.identity && ol.Spec.RenewTime != nil {
+					expectedRenewTime := ol.Spec.RenewTime.Add(time.Duration(*ol.Spec.LeaseDurationSeconds) * time.Second)
+					k.logger.Printf("%q existing lease renew time %v", ol.Name, ol.Spec.RenewTime)
+					k.logger.Printf("%q expected lease renew time %v", ol.Name, expectedRenewTime)
+					k.logger.Printf("%q renew time passed: %v", ol.Name, expectedRenewTime.Before(now.Time))
+					if !expectedRenewTime.Before(now.Time) {
+						k.logger.Printf("%q is currently held by %s", ol.Name, *ol.Spec.HolderIdentity)
+						time.Sleep(k.Cfg.RenewPeriod)
+						continue
+					}
+				}
+			}
+			k.logger.Printf("taking over lease %q", nkey)
+			// update the lease
+			now = metav1.NowMicro()
+			l.Spec.AcquireTime = &now
+			l.Spec.RenewTime = &now
+			// set resource version to the latest value known
+			l.SetResourceVersion(ol.GetResourceVersion())
+			k.logger.Printf("%q updating with %+v", l.Name, l)
+			ol, err = k.clientset.CoordinationV1().Leases(k.Cfg.Namespace).Update(ctx, l, metav1.UpdateOptions{})
+			if err != nil {
+				return false, err
+			}
+			k.m.Lock()
+			if lc, ok := k.acquiredlocks[nkey]; ok {
+				lc.lease = ol
+			} else {
+				k.acquiredlocks[nkey] = &lock{lease: ol, doneChan: doneChan}
+			}
+			k.m.Unlock()
+			return true, nil
 		}
 	}
-	return false, nil
 }
 
 func (k *k8sLocker) KeepLock(ctx context.Context, key string) (chan struct{}, chan error) {
 	doneChan := make(chan struct{})
 	errChan := make(chan error)
+	k.km.RLock()
+	nkey, ok := k.keyMapping[key]
+	k.km.RUnlock()
+	if !ok {
+		nkey = strings.ReplaceAll(key, "/", "-")
+	}
+	go func() {
+		defer close(doneChan)
+		ticker := time.NewTicker(k.Cfg.RenewPeriod)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-doneChan:
+				return
+			case <-ticker.C:
+				k.m.RLock()
+				lock, ok := k.acquiredlocks[nkey]
+				k.m.RUnlock()
+				if !ok {
+					errChan <- fmt.Errorf("unable to maintain lock %q: not found in acquiredlocks", nkey)
+					return
+				}
+				ol, err := k.clientset.CoordinationV1().Leases(k.Cfg.Namespace).Get(ctx, nkey, metav1.GetOptions{})
+				if err != nil {
+					errChan <- fmt.Errorf("unable to maintain lock %q: %v", nkey, err)
+					return
+				}
+				lock.lease.SetResourceVersion(ol.GetResourceVersion())
+				switch k.compareLeases(lock.lease, ol) {
+				case 0, 1:
+					now := metav1.NowMicro()
+					lock.lease.Spec.AcquireTime = &now
+					lock.lease.Spec.RenewTime = &now
+					ol, err = k.clientset.CoordinationV1().Leases(k.Cfg.Namespace).Update(ctx, lock.lease, metav1.UpdateOptions{})
+					if err != nil {
+						errChan <- fmt.Errorf("unable to update lock %q: %v", nkey, err)
+						return
+					}
 
+					k.m.Lock()
+					if lock, ok := k.acquiredlocks[nkey]; ok {
+						lock.lease = ol
+					}
+					k.m.Unlock()
+				case -1:
+					errChan <- fmt.Errorf("%q failed to keep lease", nkey)
+					return
+				}
+			}
+		}
+	}()
 	return doneChan, errChan
 }
 
 func (k *k8sLocker) Unlock(ctx context.Context, key string) error {
+	k.km.RLock()
+	nkey, ok := k.keyMapping[key]
+	k.km.RUnlock()
+	if !ok {
+		nkey = strings.ReplaceAll(key, "/", "-")
+	}
+	k.m.Lock()
+	defer k.m.Unlock()
+	k.unlock(ctx, nkey)
+	return nil
+}
+
+// assumes the mutex is locked
+func (k *k8sLocker) unlock(ctx context.Context, key string) error {
+	if lock, ok := k.acquiredlocks[key]; ok {
+		delete(k.acquiredlocks, key)
+		return k.clientset.CoordinationV1().Leases(k.Cfg.Namespace).Delete(ctx, lock.lease.Name, metav1.DeleteOptions{})
+	}
+	if lock, ok := k.attemtinglocks[key]; ok {
+		delete(k.attemtinglocks, key)
+		close(lock.doneChan)
+		return k.clientset.CoordinationV1().Leases(k.Cfg.Namespace).Delete(ctx, lock.lease.Name, metav1.DeleteOptions{})
+	}
 	return nil
 }
 
@@ -152,7 +291,7 @@ func (k *k8sLocker) Stop() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	for key := range k.acquiredlocks {
-		k.Unlock(ctx, key)
+		k.unlock(ctx, key)
 	}
 	return nil
 }
@@ -167,20 +306,14 @@ func (k *k8sLocker) SetLogger(logger *log.Logger) {
 // helpers
 
 func (k *k8sLocker) setDefaults() error {
-	if k.Cfg.SessionTTL <= 0 {
-		k.Cfg.SessionTTL = defaultSessionTTL
+	if k.Cfg.Namespace == "" {
+		k.Cfg.Namespace = defaultNamespace
 	}
-	if k.Cfg.RetryTimer <= 0 {
-		k.Cfg.RetryTimer = defaultRetryTimer
+	if k.Cfg.LeaseDuration <= 0 {
+		k.Cfg.LeaseDuration = defaultLeaseDuration
 	}
-	if k.Cfg.RenewPeriod <= 0 || k.Cfg.RenewPeriod >= k.Cfg.SessionTTL {
-		k.Cfg.RenewPeriod = k.Cfg.SessionTTL / 2
-	}
-	if k.Cfg.Delay < 0 {
-		k.Cfg.Delay = defaultDelay
-	}
-	if k.Cfg.Delay > 60*time.Second {
-		k.Cfg.Delay = 60 * time.Second
+	if k.Cfg.RenewPeriod <= 0 || k.Cfg.RenewPeriod >= k.Cfg.LeaseDuration {
+		k.Cfg.RenewPeriod = k.Cfg.LeaseDuration / 2
 	}
 	return nil
 }
@@ -191,4 +324,41 @@ func (k *k8sLocker) String() string {
 		return ""
 	}
 	return string(b)
+}
+
+// compares 2 Leases, assume l1 is not nil and has a valid holderIdentity value.
+// returns 0 if l1 and l2 have the same holder identity
+// return 1 if l2 is nil, has no holder or has an expired renewTime
+// returns -1 if l2 has another holder identity and has a valid renewTime
+func (l *k8sLocker) compareLeases(l1, l2 *coordinationv1.Lease) int {
+	if l2 == nil {
+		return 1
+	}
+	if l2.Spec.HolderIdentity == nil {
+		return 1
+	}
+	now := time.Now()
+	if *l2.Spec.HolderIdentity == "" {
+		return 1
+	}
+	if *l1.Spec.HolderIdentity != *l2.Spec.HolderIdentity {
+		if l2.Spec.RenewTime == nil {
+			return 1
+		}
+		expectedRenewTime := l2.Spec.RenewTime.Add(time.Duration(*l2.Spec.LeaseDurationSeconds) * time.Second)
+		if expectedRenewTime.Before(now) {
+			return 1
+		} else {
+			return -1
+		}
+	}
+	return 0
+}
+
+func (l *k8sLocker) getIdentity() string {
+	name, err := os.Hostname()
+	if err != nil {
+		return uuid.NewString()
+	}
+	return name
 }
