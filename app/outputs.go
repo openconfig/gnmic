@@ -28,7 +28,7 @@ func (a *App) InitOutput(ctx context.Context, name string, tcs map[string]*types
 							a.Config.Targets,
 							a.Config.Actions,
 						),
-						outputs.WithRegister(a.reg),
+						outputs.WithRegistry(a.reg),
 						outputs.WithName(a.Config.InstanceName),
 						outputs.WithClusterName(a.Config.ClusterName),
 						outputs.WithTargetsConfig(tcs),

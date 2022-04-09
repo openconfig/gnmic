@@ -27,7 +27,7 @@ var dockerLoaderListRequestsTotal = prometheus.NewCounterVec(prometheus.CounterO
 	Namespace: "gnmic",
 	Subsystem: "docker_loader",
 	Name:      "number_of_docker_list_total",
-	Help:      "Number of times the loader sent a docker lits request",
+	Help:      "Number of times the loader sent a docker list request",
 }, []string{"loader_type"})
 
 var dockerLoaderListRequestDuration = prometheus.NewGaugeVec(prometheus.GaugeOpts{
