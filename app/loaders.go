@@ -69,7 +69,7 @@ START:
 			// clustered, dispatch
 			a.configLock.Lock()
 			a.Config.Targets[add.Name] = add
-			err = a.dispatchTarget(a.ctx, add)
+			err = a.dispatchTarget(ctx, add)
 			if err != nil {
 				a.Logger.Printf("failed dispatching target %q: %v", add.Name, err)
 			}

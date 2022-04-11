@@ -52,12 +52,13 @@ func (a *App) StartCollector(ctx context.Context) {
 			for {
 				select {
 				case rsp := <-rspChan:
+					subscribeResponseReceivedCounter.WithLabelValues(t.Config.Name, rsp.SubscriptionConfig.Name).Add(1)
 					if a.Config.Debug {
-						a.Logger.Printf("received gNMI Subscribe Response: %+v", rsp)
+						a.Logger.Printf("target %q: gNMI Subscribe Response: %+v", t.Config.Name, rsp)
 					}
 					err := t.DecodeProtoBytes(rsp.Response)
 					if err != nil {
-						a.Logger.Printf("target %q, failed to decode proto bytes: %v", t.Config.Name, err)
+						a.Logger.Printf("target %q: failed to decode proto bytes: %v", t.Config.Name, err)
 						continue
 					}
 					m := outputs.Meta{
@@ -89,9 +90,9 @@ func (a *App) StartCollector(ctx context.Context) {
 					}
 				case tErr := <-errChan:
 					if errors.Is(tErr.Err, io.EOF) {
-						a.Logger.Printf("target %q, subscription %s closed stream(EOF)", t.Config.Name, tErr.SubscriptionName)
+						a.Logger.Printf("target %q: subscription %s closed stream(EOF)", t.Config.Name, tErr.SubscriptionName)
 					} else {
-						a.Logger.Printf("target %q, subscription %s rcv error: %v", t.Config.Name, tErr.SubscriptionName, tErr.Err)
+						a.Logger.Printf("target %q: subscription %s rcv error: %v", t.Config.Name, tErr.SubscriptionName, tErr.Err)
 					}
 					if remainingOnceSubscriptions > 0 {
 						if a.subscriptionMode(tErr.SubscriptionName) == "ONCE" {
@@ -105,10 +106,10 @@ func (a *App) StartCollector(ctx context.Context) {
 						return
 					}
 				case <-t.StopChan:
-					a.Logger.Printf("stopping target %q listener", t.Config.Name)
 					a.operLock.Lock()
 					delete(a.activeTargets, t.Config.Name)
 					a.operLock.Unlock()
+					a.Logger.Printf("target %q: listener stopped", t.Config.Name)
 					return
 				case <-ctx.Done():
 					a.operLock.Lock()

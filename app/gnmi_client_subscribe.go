@@ -168,11 +168,15 @@ func (a *App) clientSubscribe(ctx context.Context, tc *types.TargetConfig) error
 		}
 		subRequests = append(subRequests, subscriptionRequest{name: sc.Name, req: req})
 	}
+	if t.Cfn != nil {
+		t.Cfn()
+	}
 	gnmiCtx, cancel := context.WithCancel(ctx)
 	t.Cfn = cancel
 CRCLIENT:
 	select {
 	case <-gnmiCtx.Done():
+		return gnmiCtx.Err()
 	default:
 		targetDialOpts := a.dialOpts
 		if a.Config.UseTunnelServer {

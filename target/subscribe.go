@@ -44,6 +44,9 @@ SUBSC:
 		}
 	}
 	t.m.Lock()
+	if cfn, ok := t.subscribeCancelFn[subscriptionName]; ok {
+		cfn()
+	}
 	t.SubscribeClients[subscriptionName] = subscribeClient
 	t.subscribeCancelFn[subscriptionName] = cancel
 	subConfig := t.Subscriptions[subscriptionName]
