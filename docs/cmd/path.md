@@ -54,11 +54,15 @@ When the `--descr` flag is present, the leaf description is printed after the pa
 
 #### config-only
 
-When the `--config-only` flag is present, path are generated only for YANG leafs representing config data.
+When the `--config-only` flag is present, paths are generated only for YANG leafs representing config data.
 
 #### state-only
 
-When the `--state-only` flag is present, path are generated only for YANG leafs representing state data.
+When the `--state-only` flag is present, paths are generated only for YANG leafs representing state data.
+
+#### with-containers
+
+When the `--with-containers` flag is present, paths are generated also for YANG containers instead of only YANG leafs.
 
 ### Examples
 
