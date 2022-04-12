@@ -18,14 +18,15 @@ import (
 )
 
 type pathGenOpts struct {
-	search     bool
-	withDescr  bool
-	withTypes  bool
-	withPrefix bool
-	pathType   string
-	stateOnly  bool
-	configOnly bool
-	json       bool
+	search         bool
+	withDescr      bool
+	withTypes      bool
+	withPrefix     bool
+	pathType       string
+	stateOnly      bool
+	configOnly     bool
+	json           bool
+	withContainers bool
 }
 
 type generatedPath struct {
@@ -65,7 +66,7 @@ func (a *App) PathCmdRun(d, f, e []string, pgo pathGenOpts) error {
 
 	collected := make([]*yang.Entry, 0, 256)
 	for _, entry := range a.SchemaTree.Dir {
-		collected = append(collected, collectSchemaNodes(entry, true)...)
+		collected = append(collected, collectSchemaNodes(entry, !pgo.withContainers)...)
 	}
 	for _, entry := range collected {
 		if !pgo.stateOnly && !pgo.configOnly || pgo.stateOnly && pgo.configOnly {
@@ -257,7 +258,11 @@ func (a *App) generatePath(entry *yang.Entry, pType string) *generatedPath {
 	}
 
 	gp.Description = entry.Description
-	gp.Type = entry.Type.Name
+	if entry.Type != nil {
+		gp.Type = entry.Type.Name
+	} else {
+		gp.Type = "container"
+	}
 
 	if entry.IsLeafList() {
 		gp.Default = strings.Join(entry.DefaultValues(), ", ")
