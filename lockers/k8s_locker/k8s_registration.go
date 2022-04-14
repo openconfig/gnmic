@@ -77,7 +77,6 @@ func (k *k8sLocker) GetServices(ctx context.Context, serviceName string, tags []
 
 func (k *k8sLocker) IsLocked(ctx context.Context, key string) (bool, error) {
 	key = strings.ReplaceAll(key, "/", "-")
-	k.logger.Printf("checking if %q is locked", key)
 	ol, err := k.clientset.CoordinationV1().Leases(k.Cfg.Namespace).Get(ctx, key, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
