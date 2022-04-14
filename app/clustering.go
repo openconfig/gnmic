@@ -120,6 +120,7 @@ func (a *App) startCluster() {
 	leaderKey := a.leaderKey()
 	var err error
 START:
+	// acquire leader key lock
 	for {
 		a.isLeader = false
 		err = nil
@@ -284,7 +285,11 @@ func (a *App) dispatchTargets(ctx context.Context) {
 }
 
 func (a *App) dispatchTarget(ctx context.Context, tc *types.TargetConfig) error {
-	locked, err := a.locker.IsLocked(ctx, fmt.Sprintf("gnmic/%s/targets/%s", a.Config.Clustering.ClusterName, tc.Name))
+	if a.Config.Debug {
+		a.Logger.Printf("checking if %q is locked", tc.Name)
+	}
+	key := fmt.Sprintf("gnmic/%s/targets/%s", a.Config.Clustering.ClusterName, tc.Name)
+	locked, err := a.locker.IsLocked(ctx, key)
 	if err != nil {
 		return err
 	}
@@ -321,7 +326,6 @@ SELECTSERVICE:
 			instanceName = splitTag[1]
 		}
 	}
-	key := fmt.Sprintf("gnmic/%s/targets/%s", a.Config.Clustering.ClusterName, tc.Name)
 	a.Logger.Printf("[cluster-leader] waiting for lock %q to be acquired by %q", key, instanceName)
 	retries := 0
 WAIT:
@@ -385,7 +389,7 @@ func (a *App) selectService(tags []string, denied ...string) (*lockers.Service, 
 			}
 		}
 		if len(matchingInstances) == 1 {
-			return a.apiServices[matchingInstances[0]+"-api"], nil
+			return a.apiServices[fmt.Sprintf("%s-api", matchingInstances[0])], nil
 		}
 		// select instance by load
 		load, err := a.getInstancesLoad(matchingInstances...)
@@ -397,7 +401,7 @@ func (a *App) selectService(tags []string, denied ...string) (*lockers.Service, 
 		if len(load) == 0 {
 			for _, n := range matchingInstances {
 				a.Logger.Printf("selected service name: %s", n)
-				return a.apiServices[n+"-api"], nil
+				return a.apiServices[fmt.Sprintf("%s-api", n)], nil
 			}
 		}
 		for _, d := range denied {
@@ -410,8 +414,10 @@ func (a *App) selectService(tags []string, denied ...string) (*lockers.Service, 
 		}
 		ss := a.getLowLoadInstance(load)
 		a.Logger.Printf("selected service name: %s", ss)
-		srv := a.apiServices[ss+"-api"]
-		return srv, nil
+		if srv, ok := a.apiServices[fmt.Sprintf("%s-api", ss)]; ok {
+			return srv, nil
+		}
+		return a.apiServices[ss], nil
 	}
 	return nil, errNotFound
 }
