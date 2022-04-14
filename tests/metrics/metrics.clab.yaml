@@ -1,0 +1,90 @@
+name: metrics
+
+topology:
+  defaults:
+    kind: linux
+    image: gnmic:0.0.0-rc1
+  kinds:
+    srl:
+      image: ghcr.io/nokia/srlinux
+  nodes:
+  {{- range $id := seq 1 9}}
+    srl{{ $id }}:
+      kind: srl
+  {{- end }}
+    gnmic1:
+      binds:
+        - ./gnmic.yaml:/app/gnmic.yaml:ro
+        - /var/run/docker.sock:/var/run/docker.sock
+      cmd: '--config /app/gnmic.yaml subscribe'
+      ports:
+        - 7890:7890
+        - 9804:9804
+      env:
+        GNMIC_API: :7890
+        GNMIC_CLUSTERING_INSTANCE_NAME: clab-metrics-gnmic1
+        GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-metrics-gnmic1
+        GNMIC_GNMI_SERVER_ADDRESS: clab-metrics-gnmic1:57400
+        GNMIC_GNMI_SERVER_SERVICE_REGISTRATION_NAME: clab-metrics-gnmic1
+        GNMIC_OUTPUTS_COLLECTOR_LISTEN: clab-metrics-gnmic1:9804
+    
+    gnmic2:
+      binds:
+        - ./gnmic.yaml:/app/gnmic.yaml:ro
+        - /var/run/docker.sock:/var/run/docker.sock
+      cmd: '--config /app/gnmic.yaml subscribe'
+      ports:
+        - 7891:7891
+        - 9805:9805
+      env:
+        GNMIC_API: :7891
+        GNMIC_CLUSTERING_INSTANCE_NAME: clab-metrics-gnmic2
+        GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-metrics-gnmic2
+        GNMIC_GNMI_SERVER_ADDRESS: clab-metrics-gnmic2:57400
+        GNMIC_GNMI_SERVER_SERVICE_REGISTRATION_NAME: clab-metrics-gnmic2
+        GNMIC_OUTPUTS_COLLECTOR_LISTEN: clab-metrics-gnmic2:9805
+
+    gnmic3:
+      binds:
+        - ./gnmic.yaml:/app/gnmic.yaml:ro
+        - /var/run/docker.sock:/var/run/docker.sock
+      cmd: '--config /app/gnmic.yaml subscribe'
+      ports:
+        - 7892:7892
+        - 9806:9806
+      env:
+        GNMIC_API: :7892
+        GNMIC_CLUSTERING_INSTANCE_NAME: clab-metrics-gnmic3
+        GNMIC_CLUSTERING_SERVICE_ADDRESS: clab-metrics-gnmic3
+        GNMIC_GNMI_SERVER_ADDRESS: clab-metrics-gnmic3:57400
+        GNMIC_GNMI_SERVER_SERVICE_REGISTRATION_NAME: clab-metrics-gnmic3
+        GNMIC_OUTPUTS_COLLECTOR_LISTEN: clab-metrics-gnmic3:9806
+        
+    consul-agent:
+      image: consul:latest
+      ports:
+        - 8500:8500
+        - 8600:8600/udp
+      cmd: 'agent -server -ui -bind=127.0.0.1 -node=server-1 -bootstrap-expect=1 -client=0.0.0.0'
+
+    prometheus:
+      image: prom/prometheus:latest
+      user: 65534:65534
+      ports:
+        - 9090:9090
+      binds:
+        - ./prometheus/:/etc/prometheus/
+      cmd: |
+        --config.file=/etc/prometheus/prometheus.yaml
+        --web.console.libraries=/usr/share/prometheus/console_libraries
+        --web.console.templates=/usr/share/prometheus/consoles
+        --log.level=debug
+
+    grafana:
+      image: grafana/grafana:latest
+      binds:
+        - grafana/datasources/datasource.yaml:/etc/grafana/provisioning/datasources/datasource.yaml:ro
+        - grafana/dashboards.yaml:/etc/grafana/provisioning/dashboards/dashboards.yaml:ro
+        - ../dashboards/:/var/lib/grafana/dashboards
+      ports:
+        - 3000:3000
