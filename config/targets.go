@@ -13,6 +13,10 @@ import (
 	"golang.org/x/term"
 )
 
+const (
+	defaultTargetBufferSize = 100
+)
+
 var ErrNoTargetsFound = errors.New("no targets found")
 
 func (c *Config) GetTargets() (map[string]*types.TargetConfig, error) {
@@ -227,6 +231,9 @@ func (c *Config) SetTargetConfigDefaults(tc *types.TargetConfig) error {
 	}
 	if tc.Gzip == nil {
 		tc.Gzip = &c.Gzip
+	}
+	if tc.BufferSize == 0 {
+		tc.BufferSize = defaultTargetBufferSize
 	}
 	return nil
 }

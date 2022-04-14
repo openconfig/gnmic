@@ -1,0 +1,57 @@
+username: admin
+password: admin
+skip-verify: true
+encoding: json_ietf
+log: true
+
+loader:
+  type: docker
+  debug: true
+  enable-metrics: true
+  filters:
+    - containers:
+      - label=clab-node-kind: srl
+        label=containerlab: metrics
+    
+subscriptions:
+  # Add subscriptions configuration here
+  # e.g:
+  sub1:
+    paths:
+      - /interface/statistics
+    stream-mode: sample
+    sample-interval: 10s
+  sub2:
+    paths:
+      - /interface/subinterface/statistics
+    stream-mode: sample
+    sample-interval: 10s
+
+api-server:
+  enable-metrics: true
+  
+# clustering config
+clustering:
+  cluster-name: collectors
+  targets-watch-timer: 60s
+  locker:
+    type: consul
+    address: clab-metrics-consul-agent:8500
+
+
+outputs:
+  collector:
+    type: prometheus
+    service-registration:
+      address: clab-metrics-consul-agent:8500
+    event-processors:
+      - trim-prefixes
+      
+processors:
+  trim-prefixes:
+    event-strings:
+      value-names:
+        - ".*"
+      transforms:
+        - path-base:
+            apply-on: "name"

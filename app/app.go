@@ -15,6 +15,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/fullstorydev/grpcurl"
 	"github.com/gorilla/mux"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/karimra/gnmic/config"
 	"github.com/karimra/gnmic/formatters"
@@ -110,6 +111,7 @@ func New() *App {
 		sem:        semaphore.NewWeighted(1),
 		configLock: new(sync.RWMutex),
 		Config:     config.New(),
+		reg:        prometheus.NewRegistry(),
 		//
 		operLock:      new(sync.RWMutex),
 		Targets:       make(map[string]*target.Target),
@@ -322,6 +324,14 @@ func (a *App) createCollectorDialOpts() []grpc.DialOption {
 	opts = append(opts, grpc.WithUserAgent(fmt.Sprintf("gNMIc/%s", version)))
 	if a.Config.Gzip {
 		opts = append(opts, grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)))
+	}
+	if a.Config.APIServer != nil && a.Config.APIServer.EnableMetrics && a.reg != nil {
+		grpcClientMetrics := grpc_prometheus.NewClientMetrics()
+		opts = append(opts,
+			grpc.WithUnaryInterceptor(grpcClientMetrics.UnaryClientInterceptor()),
+			grpc.WithStreamInterceptor(grpcClientMetrics.StreamClientInterceptor()),
+		)
+		a.reg.MustRegister(grpcClientMetrics)
 	}
 	a.dialOpts = opts
 	return opts

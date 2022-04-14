@@ -15,7 +15,6 @@ import (
 	"github.com/manifoldco/promptui"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/grpctunnel/tunnel"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -76,9 +75,6 @@ func (a *App) SubscribeRunE(cmd *cobra.Command, args []string) error {
 	err = a.readConfigs()
 	if err != nil {
 		return err
-	}
-	if a.Config.APIServer != nil && a.Config.APIServer.EnableMetrics {
-		a.reg = prometheus.NewRegistry()
 	}
 	err = a.Config.GetClustering()
 	if err != nil {

@@ -24,7 +24,7 @@ func WithEventProcessors(eps map[string]map[string]interface{},
 	}
 }
 
-func WithRegister(reg *prometheus.Registry) Option {
+func WithRegistry(reg *prometheus.Registry) Option {
 	return func(o Output) {
 		o.RegisterMetrics(reg)
 	}

@@ -55,7 +55,7 @@ func NewTarget(c *types.TargetConfig) *Target {
 		subscribeCancelFn:  make(map[string]context.CancelFunc),
 		pollChan:           make(chan string),
 		subscribeResponses: make(chan *SubscribeResponse, c.BufferSize),
-		errors:             make(chan *TargetError),
+		errors:             make(chan *TargetError, c.BufferSize),
 		StopChan:           make(chan struct{}),
 	}
 	return t

@@ -31,6 +31,8 @@ func (a *App) newAPIServer() (*http.Server, error) {
 		a.router.Handle("/metrics", promhttp.HandlerFor(a.reg, promhttp.HandlerOpts{}))
 		a.reg.MustRegister(collectors.NewGoCollector())
 		a.reg.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+		a.reg.MustRegister(subscribeResponseReceivedCounter)
+		go a.startClusterMetrics()
 	}
 	s := &http.Server{
 		Addr:         a.Config.APIServer.Address,
@@ -103,7 +105,7 @@ func (a *App) handleConfigTargetsPost(w http.ResponseWriter, r *http.Request) {
 func (a *App) handleConfigTargetsDelete(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
-	err := a.DeleteTarget(a.ctx, id)
+	err := a.DeleteTarget(r.Context(), id)
 	if err != nil {
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})

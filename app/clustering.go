@@ -187,7 +187,7 @@ START:
 				}
 			}
 		}()
-		err := a.locker.WatchServices(a.ctx, serviceName, []string{"cluster-name=" + a.Config.Clustering.ClusterName}, membersChan, a.Config.Clustering.ServicesWatchTimer)
+		err := a.locker.WatchServices(ctx, serviceName, []string{"cluster-name=" + a.Config.Clustering.ClusterName}, membersChan, a.Config.Clustering.ServicesWatchTimer)
 		if err != nil {
 			a.Logger.Printf("failed getting services: %v", err)
 			time.Sleep(retryTimer)
@@ -549,8 +549,10 @@ func (a *App) deleteTarget(name string) error {
 				},
 			}
 		}
+		ctx, cancel := context.WithCancel(a.ctx)
+		defer cancel()
 		url := fmt.Sprintf("%s://%s/api/v1/config/targets/%s", scheme, s.Address, name)
-		req, err := http.NewRequestWithContext(a.ctx, http.MethodDelete, url, nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
 		if err != nil {
 			a.Logger.Printf("failed to create a delete request: %v", err)
 			errs = append(errs, err)
@@ -559,10 +561,12 @@ func (a *App) deleteTarget(name string) error {
 
 		rsp, err := client.Do(req)
 		if err != nil {
+			rsp.Body.Close()
 			a.Logger.Printf("failed deleting target %q: %v", name, err)
 			errs = append(errs, err)
 			continue
 		}
+		rsp.Body.Close()
 		a.Logger.Printf("received response code=%d, for DELETE %s", rsp.StatusCode, url)
 	}
 	if len(errs) == 0 {
@@ -604,6 +608,7 @@ func (a *App) assignTarget(ctx context.Context, tc *types.TargetConfig, service 
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 	a.Logger.Printf("got response code=%d for target %q config add from %q", resp.StatusCode, tc.Name, service.Address)
 	if resp.StatusCode > 200 {
 		return fmt.Errorf("status code=%d", resp.StatusCode)
@@ -617,6 +622,7 @@ func (a *App) assignTarget(ctx context.Context, tc *types.TargetConfig, service 
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 	a.Logger.Printf("got response code=%d for target %q assignment from %q", resp.StatusCode, tc.Name, service.Address)
 	if resp.StatusCode > 200 {
 		return fmt.Errorf("status code=%d", resp.StatusCode)
@@ -655,8 +661,10 @@ func (a *App) unassignTarget(name string, serviceID string) error {
 		}
 		rsp, err := client.Do(req)
 		if err != nil {
+			rsp.Body.Close()
 			continue
 		}
+		rsp.Body.Close()
 		a.Logger.Printf("received response code=%d, for DELETE %s", rsp.StatusCode, url)
 		break
 	}

@@ -74,6 +74,9 @@ func (a *App) DeleteTarget(ctx context.Context, name string) error {
 	if cfn, ok := a.targetsLockFn[name]; ok {
 		cfn()
 	}
+	if a.c != nil && a.c.HasTarget(name) {
+		a.c.Remove(name)
+	}
 	if t, ok := a.Targets[name]; ok {
 		delete(a.Targets, name)
 		t.Close()
