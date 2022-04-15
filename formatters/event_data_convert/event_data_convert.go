@@ -30,10 +30,13 @@ type dataConvert struct {
 	From   string   `mapstructure:"from,omitempty" json:"from,omitempty"`
 	To     string   `mapstructure:"to,omitempty" json:"to,omitempty"`
 	Keep   bool     `mapstructure:"keep,omitempty" json:"keep,omitempty"`
+	Old    string   `mapstructure:"old,omitempty" json:"old,omitempty"`
+	New    string   `mapstructure:"new,omitempty" json:"new,omitempty"`
 	Debug  bool     `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 
-	values []*regexp.Regexp
-	logger *log.Logger
+	values      []*regexp.Regexp
+	renameRegex *regexp.Regexp
+	logger      *log.Logger
 }
 
 func init() {
@@ -60,6 +63,12 @@ func (c *dataConvert) Init(cfg interface{}, opts ...formatters.Option) error {
 		}
 		c.values = append(c.values, re)
 	}
+	if c.Old != "" {
+		c.renameRegex, err = regexp.Compile(c.Old)
+		if err != nil {
+			return err
+		}
+	}
 	if c.logger.Writer() != io.Discard {
 		b, err := json.Marshal(c)
 		if err != nil {
@@ -77,6 +86,8 @@ func (c *dataConvert) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		if e == nil {
 			continue
 		}
+		// add new Values to a new map to avoid multiple chained regex matches
+		newValues := make(map[string]interface{})
 		for k, v := range e.Values {
 			for _, re := range c.values {
 				if re.MatchString(k) {
@@ -87,14 +98,25 @@ func (c *dataConvert) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 						break
 					}
 					c.logger.Printf("key '%s', value %v converted to %s: %f", k, v, c.To, iv)
-					if c.Keep {
-						e.Values[fmt.Sprintf("%s_%s", k, c.To)] = iv
-					} else {
-						e.Values[k] = iv
+					if c.renameRegex != nil {
+						newValues[c.getNewName(k)] = iv
+						if !c.Keep {
+							delete(e.Values, k)
+						}
+						break
 					}
+					if c.Keep {
+						newValues[fmt.Sprintf("%s_%s", k, c.To)] = iv
+						break
+					}
+					newValues[k] = iv
 					break
 				}
 			}
+		}
+		// add new values to the original message
+		for k, v := range newValues {
+			e.Values[k] = v
 		}
 	}
 	return es
@@ -289,4 +311,11 @@ func unitFromName(k string) *units.Unit {
 		return &units.Byte
 	}
 	return nil
+}
+
+func (c *dataConvert) getNewName(k string) string {
+	if c.renameRegex != nil {
+		return c.renameRegex.ReplaceAllString(k, c.New)
+	}
+	return k
 }

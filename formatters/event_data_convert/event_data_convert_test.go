@@ -252,6 +252,40 @@ func Test_dataConvert_Apply(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "one_msg_rename",
+			fields: map[string]interface{}{
+				"value-names": []string{
+					"_total$",
+				},
+				"to":    "KB",
+				"old":   `^(bytes)(\S+)`,
+				"new":   "kilobytes${2}",
+				"debug": true,
+			},
+			args: args{
+				es: []*formatters.EventMsg{
+					{
+						Name:      "sub1",
+						Timestamp: 42,
+						Tags:      map[string]string{},
+						Values: map[string]interface{}{
+							"bytes_total": 1024,
+						},
+					},
+				},
+			},
+			want: []*formatters.EventMsg{
+				{
+					Name:      "sub1",
+					Timestamp: 42,
+					Tags:      map[string]string{},
+					Values: map[string]interface{}{
+						"kilobytes_total": float64(1),
+					},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
