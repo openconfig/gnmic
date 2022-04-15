@@ -9,6 +9,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 
 	units "github.com/bcicen/go-units"
 	"github.com/karimra/gnmic/formatters"
@@ -80,7 +81,7 @@ func (c *dataConvert) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 			for _, re := range c.values {
 				if re.MatchString(k) {
 					c.logger.Printf("key '%s' matched regex '%s'", k, re.String())
-					iv, err := c.convertData(v, nil)
+					iv, err := c.convertData(k, v, nil)
 					if err != nil {
 						c.logger.Printf("data convert error: %v", err)
 						break
@@ -111,7 +112,10 @@ func (c *dataConvert) WithTargets(tcs map[string]*types.TargetConfig) {}
 
 func (c *dataConvert) WithActions(act map[string]map[string]interface{}) {}
 
-func (c *dataConvert) convertData(i interface{}, from *units.Unit) (float64, error) {
+func (c *dataConvert) convertData(k string, i interface{}, from *units.Unit) (float64, error) {
+	if from == nil && c.From == "" {
+		from = unitFromName(k)
+	}
 	if from == nil {
 		fr := sToU(c.From)
 		from = &fr
@@ -124,9 +128,9 @@ func (c *dataConvert) convertData(i interface{}, from *units.Unit) (float64, err
 			if err != nil {
 				return 0, err
 			}
-			return c.convertData(v, &unit)
+			return c.convertData(k, v, &unit)
 		}
-		return c.convertData(iv, nil)
+		return c.convertData(k, iv, nil)
 	case int:
 		cv, err := units.ConvertFloat(float64(i), *from, sToU(c.To))
 		if err != nil {
@@ -263,18 +267,26 @@ func parseStringUnit(s string) (float64, units.Unit, error) {
 	// derive unit from string
 	groups := stringUnitRegex.FindAllSubmatch([]byte(s), -1)
 	if len(groups) == 0 {
-		return 0, units.Byte, errors.New("failed to parse string")
+		return 0, units.Byte, errors.New("failed to parse string submatches")
 	}
 	if len(groups[0]) != 4 {
-		return 0, units.Byte, errors.New("failed to parse string")
+		return 0, units.Byte, errors.New("failed to parse string, unexpected number of groups")
 	}
 	// check if the first match is equal to the original value
 	if string(groups[0][0]) != s {
-		return 0, units.Byte, errors.New("failed to parse string")
+		return 0, units.Byte, errors.New("failed to parse string, partial match")
 	}
 	f, err := strconv.ParseFloat(string(groups[0][1]), 64)
 	if err != nil {
 		return 0, units.Unit{}, err
 	}
-	return f, sToU(string(groups[0][3])), errors.New("failed to parse string")
+	return f, sToU(string(groups[0][3])), nil
+}
+
+func unitFromName(k string) *units.Unit {
+	switch {
+	case strings.HasSuffix(k, "_octets"), strings.HasSuffix(k, "_bytes"), strings.HasSuffix(k, "-octets"), strings.HasSuffix(k, "-bytes"):
+		return &units.Byte
+	}
+	return nil
 }
