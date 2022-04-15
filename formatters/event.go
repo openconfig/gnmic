@@ -19,6 +19,11 @@ type EventMsg struct {
 	Deletes   []string               `json:"deletes,omitempty"`
 }
 
+func (e *EventMsg) String() string {
+	b, _ := json.Marshal(e)
+	return string(b)
+}
+
 // ResponseToEventMsgs //
 func ResponseToEventMsgs(name string, rsp *gnmi.SubscribeResponse, meta map[string]string, eps ...EventProcessor) ([]*EventMsg, error) {
 	if rsp == nil {
