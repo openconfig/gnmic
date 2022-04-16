@@ -63,6 +63,7 @@ nav:
           - Date string: user_guide/event_processors/event_date_string.md
           - Delete: user_guide/event_processors/event_delete.md
           - Drop: user_guide/event_processors/event_drop.md
+          - Duration Convert: user_guide/event_processors/event_duration_convert.md
           - Extract Tags: user_guide/event_processors/event_extract_tags.md
           - Group by: user_guide/event_processors/event_group_by.md
           - JQ: user_guide/event_processors/event_jq.md
