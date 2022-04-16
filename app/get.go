@@ -204,7 +204,7 @@ func (a *App) handleGetRequestEvent(ctx context.Context, req *gnmi.GetRequest, e
 	numTargets := len(a.Config.Targets)
 	a.errCh = make(chan error, numTargets*3)
 	a.wg.Add(numTargets)
-	rsps := make(chan *getResponseEvents)
+	rsps := make(chan *getResponseEvents, numTargets)
 	for _, tc := range a.Config.Targets {
 		go func(tc *types.TargetConfig) {
 			defer a.wg.Done()
@@ -220,22 +220,13 @@ func (a *App) handleGetRequestEvent(ctx context.Context, req *gnmi.GetRequest, e
 			rsps <- &getResponseEvents{name: tc.Name, rsp: evs}
 		}(tc)
 	}
-	responses := make(map[string][]*formatters.EventMsg)
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case r, ok := <-rsps:
-				if !ok {
-					return
-				}
-				responses[r.name] = r.rsp
-			}
-		}
-	}()
 	a.wg.Wait()
 	close(rsps)
+
+	responses := make(map[string][]*formatters.EventMsg)
+	for r := range rsps {
+		responses[r.name] = r.rsp
+	}
 	err := a.checkErrors()
 	if err != nil {
 		return err
