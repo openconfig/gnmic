@@ -2,6 +2,7 @@ package http_action
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -75,7 +76,7 @@ func (h *httpAction) Init(cfg map[string]interface{}, opts ...actions.Option) er
 	return err
 }
 
-func (h *httpAction) Run(aCtx *actions.Context) (interface{}, error) {
+func (h *httpAction) Run(ctx context.Context, aCtx *actions.Context) (interface{}, error) {
 	if h.url == nil {
 		return nil, errors.New("missing url template")
 	}
@@ -117,7 +118,9 @@ func (h *httpAction) Run(aCtx *actions.Context) (interface{}, error) {
 	client := &http.Client{
 		Timeout: h.Timeout,
 	}
-	resp, err := client.Do(req)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	resp, err := client.Do(req.WithContext(ctx))
 	if err != nil {
 		return nil, err
 	}

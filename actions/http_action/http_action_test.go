@@ -486,7 +486,7 @@ func TestHTTPAction(t *testing.T) {
 			for i, item := range ts.tests {
 				t.Run(name, func(t *testing.T) {
 					t.Logf("running test item %d", i)
-					res, err := a.Run(&actions.Context{Input: item.input})
+					res, err := a.Run(context.TODO(), &actions.Context{Input: item.input})
 					if err != nil {
 						t.Errorf("failed at %s item %d, %v", name, i, err)
 						t.Fail()

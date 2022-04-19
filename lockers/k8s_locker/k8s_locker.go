@@ -215,6 +215,7 @@ func (k *k8sLocker) KeepLock(ctx context.Context, key string) (chan struct{}, ch
 		for {
 			select {
 			case <-ctx.Done():
+				errChan <- ctx.Err()
 				return
 			case <-doneChan:
 				return

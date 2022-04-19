@@ -400,7 +400,7 @@ func (a *App) loadTargets(e fsnotify.Event) {
 		// delete targets
 		for t := range dist {
 			if _, ok := newTargets[t]; !ok {
-				err = a.deleteTarget(t)
+				err = a.deleteTarget(ctx, t)
 				if err != nil {
 					a.Logger.Printf("failed to delete target %q: %v", t, err)
 					continue

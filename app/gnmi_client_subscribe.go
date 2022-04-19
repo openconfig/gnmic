@@ -78,6 +78,9 @@ START:
 				select {
 				case <-nctx.Done():
 					a.Logger.Printf("target %q stopped: %v", tc.Name, nctx.Err())
+					// drain errChan
+					err := <-errChan
+					a.Logger.Printf("target %q keepLock returned: %v", tc.Name, err)
 					return
 				case <-doneChan:
 					a.Logger.Printf("target lock %q removed", tc.Name)

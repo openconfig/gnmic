@@ -341,6 +341,8 @@ func (f *fileLoader) runActions(ctx context.Context, tcs map[string]*types.Targe
 		Add: make([]*types.TargetConfig, 0, len(targetOp.Add)),
 		Del: make([]string, 0, len(targetOp.Del)),
 	}
+	ctx, cancel := context.WithTimeout(ctx, f.cfg.Interval)
+	defer cancel()
 	// start gathering goroutine
 	go func() {
 		for {
@@ -365,7 +367,7 @@ func (f *fileLoader) runActions(ctx context.Context, tcs map[string]*types.Targe
 	for _, tAdd := range targetOp.Add {
 		go func(tc *types.TargetConfig) {
 			defer wg.Done()
-			err := f.runOnAddActions(tc.Name, tcs)
+			err := f.runOnAddActions(ctx, tc.Name, tcs)
 			if err != nil {
 				f.logger.Printf("failed running OnAdd actions: %v", err)
 				return
@@ -377,7 +379,7 @@ func (f *fileLoader) runActions(ctx context.Context, tcs map[string]*types.Targe
 	for _, tDel := range targetOp.Del {
 		go func(name string) {
 			defer wg.Done()
-			err := f.runOnDeleteActions(name, tcs)
+			err := f.runOnDeleteActions(ctx, name, tcs)
 			if err != nil {
 				f.logger.Printf("failed running OnDelete actions: %v", err)
 				return
@@ -391,7 +393,7 @@ func (f *fileLoader) runActions(ctx context.Context, tcs map[string]*types.Targe
 	return result, nil
 }
 
-func (d *fileLoader) runOnAddActions(tName string, tcs map[string]*types.TargetConfig) error {
+func (d *fileLoader) runOnAddActions(ctx context.Context, tName string, tcs map[string]*types.TargetConfig) error {
 	aCtx := &actions.Context{
 		Input:   tName,
 		Env:     make(map[string]interface{}),
@@ -400,7 +402,7 @@ func (d *fileLoader) runOnAddActions(tName string, tcs map[string]*types.TargetC
 	}
 	for _, act := range d.addActions {
 		d.logger.Printf("running action %q for target %q", act.NName(), tName)
-		res, err := act.Run(aCtx)
+		res, err := act.Run(ctx, aCtx)
 		if err != nil {
 			// delete target from known targets map
 			d.m.Lock()
@@ -419,10 +421,10 @@ func (d *fileLoader) runOnAddActions(tName string, tcs map[string]*types.TargetC
 	return nil
 }
 
-func (d *fileLoader) runOnDeleteActions(tName string, tcs map[string]*types.TargetConfig) error {
+func (d *fileLoader) runOnDeleteActions(ctx context.Context, tName string, tcs map[string]*types.TargetConfig) error {
 	env := make(map[string]interface{})
 	for _, act := range d.delActions {
-		res, err := act.Run(&actions.Context{Input: tName, Env: env, Vars: d.vars})
+		res, err := act.Run(ctx, &actions.Context{Input: tName, Env: env, Vars: d.vars})
 		if err != nil {
 			return fmt.Errorf("action %q for target %q failed: %v", act.NName(), tName, err)
 		}

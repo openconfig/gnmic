@@ -27,7 +27,7 @@ topology:
       binds:
         - {{ .gnmic_config_file }}:/app/gnmic.yaml:ro
         - /var/run/docker.sock:/var/run/docker.sock
-        - clab/loaders/targets/targets.yaml:/app/targets/targets.yaml
+        - targets/targets.yaml:/app/targets/targets.yaml
       cmd: '--config /app/gnmic.yaml subscribe'
       ports:
         - 7890:7890
@@ -44,7 +44,7 @@ topology:
       binds:
         - {{ .gnmic_config_file }}:/app/gnmic.yaml:ro
         - /var/run/docker.sock:/var/run/docker.sock
-        - clab/loaders/targets/targets.yaml:/app/targets/targets.yaml
+        - targets/targets.yaml:/app/targets/targets.yaml
       cmd: '--config /app/gnmic.yaml subscribe'
       ports:
         - 7891:7891
@@ -61,7 +61,7 @@ topology:
       binds:
         - {{ .gnmic_config_file }}:/app/gnmic.yaml:ro
         - /var/run/docker.sock:/var/run/docker.sock
-        - clab/loaders/targets/targets.yaml:/app/targets/targets.yaml
+        - targets/targets.yaml:/app/targets/targets.yaml
       cmd: '--config /app/gnmic.yaml subscribe'
       ports:
         - 7892:7892
@@ -76,7 +76,7 @@ topology:
 
     agg-gnmic1:
       binds:
-        - ./clab/loaders/gnmic-agg.yaml:/app/gnmic.yaml:ro
+        - gnmic-agg.yaml:/app/gnmic.yaml:ro
         - /var/run/docker.sock:/var/run/docker.sock
       cmd: '--config /app/gnmic.yaml subscribe'
       ports:
@@ -90,7 +90,7 @@ topology:
 
     agg-gnmic2:
       binds:
-        - ./clab/loaders/gnmic-agg.yaml:/app/gnmic.yaml:ro
+        - gnmic-agg.yaml:/app/gnmic.yaml:ro
         - /var/run/docker.sock:/var/run/docker.sock
       cmd: '--config /app/gnmic.yaml subscribe'
       ports:
@@ -104,7 +104,7 @@ topology:
 
     agg-gnmic3:
       binds:
-        - ./clab/loaders/gnmic-agg.yaml:/app/gnmic.yaml:ro
+        - gnmic-agg.yaml:/app/gnmic.yaml:ro
         - /var/run/docker.sock:/var/run/docker.sock
       cmd: '--config /app/gnmic.yaml subscribe'
       ports:

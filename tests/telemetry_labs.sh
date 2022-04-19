@@ -164,7 +164,7 @@ for i in `seq 1 $NUM_LABS`
       # rm clab/lab$i.clab.yaml
       # rm -rf .lab$i.clab.yaml
     done
-    
+sleep 60
 done
 #######
 # END #

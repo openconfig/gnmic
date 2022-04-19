@@ -104,7 +104,7 @@ func (g *gnmiAction) Init(cfg map[string]interface{}, opts ...actions.Option) er
 	return nil
 }
 
-func (g *gnmiAction) Run(aCtx *actions.Context) (interface{}, error) {
+func (g *gnmiAction) Run(ctx context.Context, aCtx *actions.Context) (interface{}, error) {
 	g.m.Lock()
 	for n, tc := range aCtx.Targets {
 		g.targetsConfigs[n] = tc
@@ -126,7 +126,7 @@ func (g *gnmiAction) Run(aCtx *actions.Context) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	result := make(map[string]interface{})
 	resCh := make(chan *gnmiResponse)

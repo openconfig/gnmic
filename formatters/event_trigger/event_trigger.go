@@ -222,7 +222,7 @@ func (p *Trigger) readVars() error {
 func (p *Trigger) triggerActions(e *formatters.EventMsg) {
 	actx := &actions.Context{Input: e, Env: make(map[string]interface{}), Vars: p.vars}
 	for _, act := range p.actions {
-		res, err := act.Run(actx)
+		res, err := act.Run(context.TODO(), actx)
 		if err != nil {
 			p.logger.Printf("trigger action %q failed: %+v", act.NName(), err)
 			return

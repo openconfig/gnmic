@@ -1,1 +1,1 @@
-gnmic_config_file: ./clab/loaders/gnmic-docker-loader.yaml
+gnmic_config_file: gnmic-docker-loader.yaml

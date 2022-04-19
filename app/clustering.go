@@ -255,8 +255,9 @@ func (a *App) dispatchTargets(ctx context.Context) {
 			}
 			var err error
 			//a.m.RLock()
+			dctx, cancel := context.WithTimeout(ctx, a.Config.Clustering.TargetsWatchTimer)
 			for _, tc := range a.Config.Targets {
-				err = a.dispatchTarget(ctx, tc)
+				err = a.dispatchTarget(dctx, tc)
 				if err != nil {
 					a.Logger.Printf("failed to dispatch target %q: %v", tc.Name, err)
 				}
@@ -273,7 +274,7 @@ func (a *App) dispatchTargets(ctx context.Context) {
 				}
 			}
 			//a.m.RUnlock()
-
+			cancel()
 			select {
 			case <-ctx.Done():
 				return
@@ -339,7 +340,7 @@ WAIT:
 		retries++
 		if (retries+1)*int(lockWaitTime) >= int(a.Config.Clustering.TargetAssignmentTimeout) {
 			a.Logger.Printf("[cluster-leader] max retries reached for target %q and service %q, reselecting...", tc.Name, service.ID)
-			err = a.unassignTarget(tc.Name, service.ID)
+			err = a.unassignTarget(ctx, tc.Name, service.ID)
 			if err != nil {
 				a.Logger.Printf("failed to unassign target %q from %q", tc.Name, service.ID)
 			}
@@ -357,7 +358,7 @@ WAIT:
 	retries++
 	if (retries+1)*int(lockWaitTime) >= int(a.Config.Clustering.TargetAssignmentTimeout) {
 		a.Logger.Printf("[cluster-leader] max retries reached for target %q and service %q, reselecting...", tc.Name, service.ID)
-		err = a.unassignTarget(tc.Name, service.ID)
+		err = a.unassignTarget(ctx, tc.Name, service.ID)
 		if err != nil {
 			a.Logger.Printf("failed to unassign target %q from %q", tc.Name, service.ID)
 		}
@@ -529,7 +530,7 @@ func (a *App) getHighestTagsMatches(tagsCount map[string]int) []string {
 	return ss
 }
 
-func (a *App) deleteTarget(name string) error {
+func (a *App) deleteTarget(ctx context.Context, name string) error {
 	errs := make([]error, 0, len(a.apiServices))
 	for _, s := range a.apiServices {
 		scheme := "http"
@@ -549,7 +550,7 @@ func (a *App) deleteTarget(name string) error {
 				},
 			}
 		}
-		ctx, cancel := context.WithCancel(a.ctx)
+		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 		url := fmt.Sprintf("%s://%s/api/v1/config/targets/%s", scheme, s.Address, name)
 		req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
@@ -630,7 +631,7 @@ func (a *App) assignTarget(ctx context.Context, tc *types.TargetConfig, service 
 	return nil
 }
 
-func (a *App) unassignTarget(name string, serviceID string) error {
+func (a *App) unassignTarget(ctx context.Context, name string, serviceID string) error {
 	for _, s := range a.apiServices {
 		if s.ID != serviceID {
 			continue
@@ -653,15 +654,17 @@ func (a *App) unassignTarget(name string, serviceID string) error {
 			}
 		}
 		url := fmt.Sprintf("%s://%s/api/v1/targets/%s", scheme, s.Address, name)
-		ctx, cancel := context.WithTimeout(a.ctx, 500*time.Millisecond)
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
 		req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
 		if err != nil {
+			a.Logger.Printf("failed to create HTTP request: %v", err)
 			continue
 		}
 		rsp, err := client.Do(req)
 		if err != nil {
 			rsp.Body.Close()
+			a.Logger.Printf("failed HTTP request: %v", err)
 			continue
 		}
 		rsp.Body.Close()
