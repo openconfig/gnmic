@@ -72,7 +72,7 @@ func (t *templateAction) Init(cfg map[string]interface{}, opts ...actions.Option
 	return nil
 }
 
-func (t *templateAction) Run(aCtx *actions.Context) (interface{}, error) {
+func (t *templateAction) Run(_ context.Context, aCtx *actions.Context) (interface{}, error) {
 	b := new(bytes.Buffer)
 	err := t.tpl.Execute(b, &actions.Context{
 		Input:   aCtx.Input,

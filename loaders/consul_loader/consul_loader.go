@@ -28,7 +28,8 @@ const (
 	defaultAddress = "localhost:8500"
 	defaultPrefix  = "gnmic/config/targets"
 	//
-	defaultWatchTimeout = 1 * time.Minute
+	defaultWatchTimeout  = 1 * time.Minute
+	defaultActionTimeout = 30 * time.Second
 )
 
 func init() {
@@ -77,16 +78,19 @@ type cfg struct {
 	Services []*serviceDef `mapstructure:"services,omitempty" json:"services,omitempty"`
 	// if true, registers consulLoader prometheus metrics with the provided
 	// prometheus registry
-	EnableMetrics bool `json:"enable-metrics,omitempty" mapstructure:"enable-metrics,omitempty"`
+	EnableMetrics bool `mapstructure:"enable-metrics,omitempty" json:"enable-metrics,omitempty"`
 	// variables definitions to be passed to the actions
 	Vars map[string]interface{}
 	// variable file, values in this file will be overwritten by
 	// the ones defined in Vars
-	VarsFile string `mapstructure:"vars-file,omitempty"`
+	VarsFile string `mapstructure:"vars-file,omitempty" json:"vars-file,omitempty"`
 	// list of Actions to run on new target discovery
-	OnAdd []string `json:"on-add,omitempty" mapstructure:"on-add,omitempty"`
+	OnAdd []string `mapstructure:"on-add,omitempty" json:"on-add,omitempty"`
 	// list of Actions to run on target removal
-	OnDelete []string `json:"on-delete,omitempty" mapstructure:"on-delete,omitempty"`
+	OnDelete []string `mapstructure:"on-delete,omitempty" json:"on-delete,omitempty"`
+	// timeout for the actions, this applies for all actions as a whole (on-add + on-delete),
+	// not to each action individually.
+	ActionsTimeout time.Duration `mapstructure:"actions-timeout,omitempty" json:"actions-timeout,omitempty"`
 }
 
 type serviceDef struct {
@@ -274,6 +278,9 @@ func (c *consulLoader) setDefaults() error {
 	if c.cfg.KeyPrefix == "" && len(c.cfg.Services) == 0 {
 		c.cfg.KeyPrefix = defaultPrefix
 	}
+	if c.cfg.ActionsTimeout <= 0 {
+		c.cfg.ActionsTimeout = defaultActionTimeout
+	}
 	return nil
 }
 
@@ -460,6 +467,8 @@ func (c *consulLoader) runActions(ctx context.Context, tcs map[string]*types.Tar
 		Add: make([]*types.TargetConfig, 0, len(targetOp.Add)),
 		Del: make([]string, 0, len(targetOp.Del)),
 	}
+	ctx, cancel := context.WithTimeout(ctx, c.cfg.ActionsTimeout)
+	defer cancel()
 	// start operation gathering goroutine
 	go func() {
 		for {
@@ -483,7 +492,7 @@ func (c *consulLoader) runActions(ctx context.Context, tcs map[string]*types.Tar
 	for _, tAdd := range targetOp.Add {
 		go func(tc *types.TargetConfig) {
 			defer wg.Done()
-			err := c.runOnAddActions(tc.Name, tcs)
+			err := c.runOnAddActions(ctx, tc.Name, tcs)
 			if err != nil {
 				c.logger.Printf("failed running OnAdd actions: %v", err)
 				return
@@ -495,7 +504,7 @@ func (c *consulLoader) runActions(ctx context.Context, tcs map[string]*types.Tar
 	for _, tDel := range targetOp.Del {
 		go func(name string) {
 			defer wg.Done()
-			err := c.runOnDeleteActions(name, tcs)
+			err := c.runOnDeleteActions(ctx, name, tcs)
 			if err != nil {
 				c.logger.Printf("failed running OnDelete actions: %v", err)
 				return
@@ -509,7 +518,7 @@ func (c *consulLoader) runActions(ctx context.Context, tcs map[string]*types.Tar
 	return result, nil
 }
 
-func (c *consulLoader) runOnAddActions(tName string, tcs map[string]*types.TargetConfig) error {
+func (c *consulLoader) runOnAddActions(ctx context.Context, tName string, tcs map[string]*types.TargetConfig) error {
 	aCtx := &actions.Context{
 		Input:   tName,
 		Env:     make(map[string]interface{}),
@@ -518,7 +527,7 @@ func (c *consulLoader) runOnAddActions(tName string, tcs map[string]*types.Targe
 	}
 	for _, act := range c.addActions {
 		c.logger.Printf("running action %q for target %q", act.NName(), tName)
-		res, err := act.Run(aCtx)
+		res, err := act.Run(ctx, aCtx)
 		if err != nil {
 			// delete target from known targets map
 			c.m.Lock()
@@ -537,10 +546,10 @@ func (c *consulLoader) runOnAddActions(tName string, tcs map[string]*types.Targe
 	return nil
 }
 
-func (c *consulLoader) runOnDeleteActions(tName string, tcs map[string]*types.TargetConfig) error {
+func (c *consulLoader) runOnDeleteActions(ctx context.Context, tName string, tcs map[string]*types.TargetConfig) error {
 	env := make(map[string]interface{})
 	for _, act := range c.delActions {
-		res, err := act.Run(&actions.Context{Input: tName, Env: env, Vars: c.vars})
+		res, err := act.Run(ctx, &actions.Context{Input: tName, Env: env, Vars: c.vars})
 		if err != nil {
 			return fmt.Errorf("action %q for target %q failed: %v", act.NName(), tName, err)
 		}

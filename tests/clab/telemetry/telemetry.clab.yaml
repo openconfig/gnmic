@@ -5,7 +5,7 @@ topology:
     kind: linux
     image: gnmic:0.0.0-rc1
     
-  nodes:   
+  nodes:
     gnmic1:
       binds:
         - ./gnmic.yaml:/app/gnmic.yaml:ro
@@ -158,6 +158,12 @@ topology:
       binds:
         - grafana/datasources/datasource.yaml:/etc/grafana/provisioning/datasources/datasource.yaml:ro
         - grafana/dashboards.yaml:/etc/grafana/provisioning/dashboards/dashboards.yaml:ro
-        - grafana/dashboards/:/var/lib/grafana/dashboards
+        - ../../dashboards/:/var/lib/grafana/dashboards
       ports:
         - 3000:3000
+      env:
+        GF_AUTH_DISABLE_LOGIN_FORM: "true"
+        GF_AUTH_ANONYMOUS_ENABLED: "true"
+        GF_AUTH_ANONYMOUS_ORG_NAME: Main Org.
+        GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+        GF_USERS_ALLOW_SIGN_UP: "false"

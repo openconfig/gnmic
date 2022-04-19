@@ -113,7 +113,7 @@ func (h *httpLoader) Init(ctx context.Context, cfg map[string]interface{}, logge
 			return err
 		}
 	}
-	err = h.readVars()
+	err = h.readVars(ctx)
 	if err != nil {
 		return err
 	}
@@ -310,12 +310,14 @@ func (h *httpLoader) updateTargets(ctx context.Context, tcs map[string]*types.Ta
 	opChan <- targetOp
 }
 
-func (h *httpLoader) readVars() error {
+func (h *httpLoader) readVars(ctx context.Context) error {
 	if h.cfg.VarsFile == "" {
 		h.vars = h.cfg.Vars
 		return nil
 	}
-	b, err := utils.ReadFile(context.TODO(), h.cfg.VarsFile)
+	ctx, cancel := context.WithTimeout(ctx, h.cfg.Interval)
+	defer cancel()
+	b, err := utils.ReadFile(ctx, h.cfg.VarsFile)
 	if err != nil {
 		return err
 	}
@@ -363,6 +365,8 @@ func (f *httpLoader) runActions(ctx context.Context, tcs map[string]*types.Targe
 		Add: make([]*types.TargetConfig, 0, len(targetOp.Add)),
 		Del: make([]string, 0, len(targetOp.Del)),
 	}
+	ctx, cancel := context.WithTimeout(ctx, f.cfg.Interval)
+	defer cancel()
 	// start operation gathering goroutine
 	go func() {
 		for {
@@ -386,7 +390,7 @@ func (f *httpLoader) runActions(ctx context.Context, tcs map[string]*types.Targe
 	for _, tAdd := range targetOp.Add {
 		go func(tc *types.TargetConfig) {
 			defer wg.Done()
-			err := f.runOnAddActions(tc.Name, tcs)
+			err := f.runOnAddActions(ctx, tc.Name, tcs)
 			if err != nil {
 				f.logger.Printf("failed running OnAdd actions: %v", err)
 				return
@@ -398,7 +402,7 @@ func (f *httpLoader) runActions(ctx context.Context, tcs map[string]*types.Targe
 	for _, tDel := range targetOp.Del {
 		go func(name string) {
 			defer wg.Done()
-			err := f.runOnDeleteActions(name, tcs)
+			err := f.runOnDeleteActions(ctx, name, tcs)
 			if err != nil {
 				f.logger.Printf("failed running OnDelete actions: %v", err)
 				return
@@ -412,7 +416,7 @@ func (f *httpLoader) runActions(ctx context.Context, tcs map[string]*types.Targe
 	return result, nil
 }
 
-func (d *httpLoader) runOnAddActions(tName string, tcs map[string]*types.TargetConfig) error {
+func (d *httpLoader) runOnAddActions(ctx context.Context, tName string, tcs map[string]*types.TargetConfig) error {
 	aCtx := &actions.Context{
 		Input:   tName,
 		Env:     make(map[string]interface{}),
@@ -421,7 +425,7 @@ func (d *httpLoader) runOnAddActions(tName string, tcs map[string]*types.TargetC
 	}
 	for _, act := range d.addActions {
 		d.logger.Printf("running action %q for target %q", act.NName(), tName)
-		res, err := act.Run(aCtx)
+		res, err := act.Run(ctx, aCtx)
 		if err != nil {
 			// delete target from known targets map
 			d.m.Lock()
@@ -440,10 +444,10 @@ func (d *httpLoader) runOnAddActions(tName string, tcs map[string]*types.TargetC
 	return nil
 }
 
-func (d *httpLoader) runOnDeleteActions(tName string, tcs map[string]*types.TargetConfig) error {
+func (d *httpLoader) runOnDeleteActions(ctx context.Context, tName string, tcs map[string]*types.TargetConfig) error {
 	env := make(map[string]interface{})
 	for _, act := range d.delActions {
-		res, err := act.Run(&actions.Context{Input: tName, Env: env, Vars: d.vars})
+		res, err := act.Run(ctx, &actions.Context{Input: tName, Env: env, Vars: d.vars})
 		if err != nil {
 			return fmt.Errorf("action %q for target %q failed: %v", act.NName(), tName, err)
 		}
