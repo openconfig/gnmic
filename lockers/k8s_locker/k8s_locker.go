@@ -28,6 +28,7 @@ const (
 	defaultLeaseDuration = 10 * time.Second
 	loggingPrefix        = "[k8s_locker] "
 	defaultNamespace     = "default"
+	origKeyName          = "original-key"
 )
 
 func init() {
@@ -38,9 +39,6 @@ func init() {
 			acquiredlocks:  make(map[string]*lock),
 			attemtinglocks: make(map[string]*lock),
 			logger:         log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
-			services:       make(map[string]context.CancelFunc),
-			km:             new(sync.RWMutex),
-			keyMapping:     make(map[string]string),
 		}
 	})
 }
@@ -52,11 +50,8 @@ type k8sLocker struct {
 	m              *sync.RWMutex
 	acquiredlocks  map[string]*lock
 	attemtinglocks map[string]*lock
-	services       map[string]context.CancelFunc
-	//
-	identity   string // hostname
-	km         *sync.RWMutex
-	keyMapping map[string]string
+
+	identity string // hostname
 }
 
 type config struct {
@@ -98,12 +93,12 @@ func (k *k8sLocker) Init(ctx context.Context, cfg map[string]interface{}, opts .
 
 func (k *k8sLocker) Lock(ctx context.Context, key string, val []byte) (bool, error) {
 	nkey := strings.ReplaceAll(key, "/", "-")
-	k.km.Lock()
-	k.keyMapping[nkey] = key
-	k.km.Unlock()
 	doneChan := make(chan struct{})
 	l := &coordinationv1.Lease{
 		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{
+				origKeyName: key,
+			},
 			Name:      nkey,
 			Namespace: k.Cfg.Namespace,
 			Labels: map[string]string{
@@ -203,12 +198,8 @@ func (k *k8sLocker) Lock(ctx context.Context, key string, val []byte) (bool, err
 func (k *k8sLocker) KeepLock(ctx context.Context, key string) (chan struct{}, chan error) {
 	doneChan := make(chan struct{})
 	errChan := make(chan error)
-	k.km.RLock()
-	nkey, ok := k.keyMapping[key]
-	k.km.RUnlock()
-	if !ok {
-		nkey = strings.ReplaceAll(key, "/", "-")
-	}
+	nkey := strings.ReplaceAll(key, "/", "-")
+
 	go func() {
 		defer close(doneChan)
 		ticker := time.NewTicker(k.Cfg.RenewPeriod)
@@ -260,12 +251,7 @@ func (k *k8sLocker) KeepLock(ctx context.Context, key string) (chan struct{}, ch
 }
 
 func (k *k8sLocker) Unlock(ctx context.Context, key string) error {
-	k.km.RLock()
-	nkey, ok := k.keyMapping[key]
-	k.km.RUnlock()
-	if !ok {
-		nkey = strings.ReplaceAll(key, "/", "-")
-	}
+	nkey := strings.ReplaceAll(key, "/", "-")
 	k.m.Lock()
 	defer k.m.Unlock()
 	k.unlock(ctx, nkey)
