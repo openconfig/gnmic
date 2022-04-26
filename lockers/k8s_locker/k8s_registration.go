@@ -96,25 +96,26 @@ func (k *k8sLocker) IsLocked(ctx context.Context, key string) (bool, error) {
 }
 
 func (k *k8sLocker) List(ctx context.Context, prefix string) (map[string]string, error) {
-	ll, err := k.clientset.CoordinationV1().Leases(k.Cfg.Namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: "app=gnmic",
-	})
+	ll, err := k.clientset.CoordinationV1().Leases(k.Cfg.Namespace).List(ctx,
+		metav1.ListOptions{
+			LabelSelector: "app=gnmic",
+		})
 	if err != nil {
 		return nil, err
 	}
 
 	prefix = strings.ReplaceAll(prefix, "/", "-")
 	rs := make(map[string]string, len(ll.Items))
-
-	k.km.Lock()
-	defer k.km.Unlock()
 	for _, l := range ll.Items {
 		for key, v := range l.Labels {
+			if key == "app" {
+				continue
+			}
 			if strings.HasPrefix(key, prefix) {
-				if okey, ok := k.keyMapping[key]; ok {
+				okey, ok := l.Annotations[origKeyName]
+				if ok {
 					rs[okey] = v
-				} else {
-					rs[strings.ReplaceAll(key, "-", "/")] = v
+					continue
 				}
 			}
 		}
