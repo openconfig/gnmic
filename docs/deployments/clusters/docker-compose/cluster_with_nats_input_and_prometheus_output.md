@@ -37,9 +37,9 @@ Since only one instance can hold a lock, only one prometheus output is registere
 
 Deployment files:
 
-- [docker compose](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/3.nats-input-prometheus-output/docker-compose/docker-compose.yaml)
-- [gnmic config](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/3.nats-input-prometheus-output/docker-compose/gnmic.yaml)
-- [prometheus config](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/3.nats-input-prometheus-output/docker-compose/prometheus/prometheus.yaml)
+- [Docker Compose](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/3.nats-input-prometheus-output/docker-compose/docker-compose.yaml)
+- [gNMIc config](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/3.nats-input-prometheus-output/docker-compose/gnmic.yaml)
+- [Prometheus config](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/3.nats-input-prometheus-output/docker-compose/prometheus/prometheus.yaml)
 
 Download the files, update the `gnmic` config files with the desired subscriptions and targets.
 
