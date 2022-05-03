@@ -12,7 +12,7 @@
 : ${REPO_NAME:="karimra/gnmic"}
 : ${REPO_URL:="https://github.com/$REPO_NAME"}
 : ${PROJECT_URL:="https://gnmic.kmrd.dev"}
-
+: ${LATEST_URL:="https://api.github.com/repos/$REPO_NAME/releases/latest"}
 # detectArch discovers the architecture for this system.
 detectArch() {
     ARCH=$(uname -m)
@@ -87,13 +87,13 @@ setDesiredVersion() {
         # when desired version is not provided
         # get latest tag from the gh releases
         if type "curl" &>/dev/null; then
-            local latest_release_url=$(curl -s $REPO_URL/releases/latest | cut -d '"' -f 2)
+            local latest_release_url=$(curl -s $LATEST_URL | sed '5q;d' | cut -d '"' -f 4)
             TAG=$(echo $latest_release_url | cut -d '"' -f 2 | awk -F "/" '{print $NF}')
             # tag with stripped `v` prefix
             TAG_WO_VER=$(echo "${TAG}" | cut -c 2-)
         elif type "wget" &>/dev/null; then
             # get latest release info and get 5th line out of the response to get the URL
-            local latest_release_url=$(wget -q https://api.github.com/repos/$REPO_NAME/releases/latest -O- | sed '5q;d' | cut -d '"' -f 4)
+            local latest_release_url=$(wget -q $LATEST_URL -O- | sed '5q;d' | cut -d '"' -f 4)
             TAG=$(echo $latest_release_url | cut -d '"' -f 2 | awk -F "/" '{print $NF}')
             TAG_WO_VER=$(echo "${TAG}" | cut -c 2-)
         fi
