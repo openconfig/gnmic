@@ -15,9 +15,9 @@ The leader election and target distribution is done with the help of a [Consul s
 
 Deployment files:
 
-- [docker compose](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/2.prometheus-output/docker-compose/docker-compose.yaml)
-- [gnmic config](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/2.prometheus-output/docker-compose/gnmic.yaml)
-- [prometheus config](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/2.prometheus-output/docker-compose/prometheus/prometheus.yaml)
+- [Docker Compose](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/2.prometheus-output/docker-compose/docker-compose.yaml)
+- [gNMIc config](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/2.prometheus-output/docker-compose/gnmic.yaml)
+- [Prometheus config](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/2.prometheus-output/docker-compose/prometheus/prometheus.yaml)
 
 Download the files, update the `gnmic` config files with the desired subscriptions and targets.
 

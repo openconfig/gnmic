@@ -8,9 +8,11 @@ This deployment example includes a single `gnmic` instance and a single [Prometh
 
 Deployment files:
 
-- [docker compose](https://github.com/karimra/gnmic/blob/main/examples/deployments/1.single-instance/4.prometheus-output/docker-compose/docker-compose.yaml)
+- [Docker Compose](https://github.com/karimra/gnmic/blob/main/examples/deployments/1.single-instance/4.prometheus-output/docker-compose/docker-compose.yaml)
 
-- [gnmic config](https://github.com/karimra/gnmic/blob/main/examples/deployments/1.single-instance/4.prometheus-output/docker-compose/gnmic1.yaml)
+- [gNMIc config](https://github.com/karimra/gnmic/blob/main/examples/deployments/1.single-instance/4.prometheus-output/docker-compose/gnmic1.yaml)
+
+- [Prometheus config](https://github.com/karimra/gnmic/blob/main/examples/deployments/1.single-instance/4.prometheus-output/docker-compose/prometheus/prometheus.yaml)
 
 Download both files, update the `gnmic` config file with the desired subscriptions and targets.
 
