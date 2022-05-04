@@ -86,17 +86,30 @@ setDesiredVersion() {
     if [ "x$DESIRED_VERSION" == "x" ]; then
         # when desired version is not provided
         # get latest tag from the gh releases
+        local cmd=""
         if type "curl" &>/dev/null; then
-            local latest_release_url=$(curl -s $LATEST_URL | sed '5q;d' | cut -d '"' -f 4)
-            TAG=$(echo $latest_release_url | cut -d '"' -f 2 | awk -F "/" '{print $NF}')
-            # tag with stripped `v` prefix
-            TAG_WO_VER=$(echo "${TAG}" | cut -c 2-)
+            cmd="curl -s "
         elif type "wget" &>/dev/null; then
-            # get latest release info and get 5th line out of the response to get the URL
-            local latest_release_url=$(wget -q $LATEST_URL -O- | sed '5q;d' | cut -d '"' -f 4)
-            TAG=$(echo $latest_release_url | cut -d '"' -f 2 | awk -F "/" '{print $NF}')
-            TAG_WO_VER=$(echo "${TAG}" | cut -c 2-)
+            cmd="wget -q -O- "
+        else
+            echo "Missing curl or wget utility to download the installation package"
+            exit 1
         fi
+        local latest_release_url=""
+        # use jq to filter the api response if available
+        if type "jq" &>/dev/null; then
+            latest_release_url=$($cmd $LATEST_URL | jq -r .html_url)
+        # else use grep and cut
+        else
+            latest_release_url=$($cmd $LATEST_URL | grep "html_url.*releases/tag" | cut -d '"' -f 4)
+        fi
+        if [ "x$latest_release_url" == "x" ]; then
+            echo "Could not determine the latest release"
+            exit 1
+        fi
+        TAG=$(echo $latest_release_url | cut -d '"' -f 2 | awk -F "/" '{print $NF}')
+        # tag with stripped `v` prefix
+        TAG_WO_VER=$(echo "${TAG}" | cut -c 2-)
     else
         TAG=$DESIRED_VERSION
         TAG_WO_VER=$(echo "${TAG}" | cut -c 2-)
