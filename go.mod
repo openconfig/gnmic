@@ -3,16 +3,16 @@ module github.com/karimra/gnmic
 go 1.17
 
 require (
-	github.com/Shopify/sarama v1.31.0
+	github.com/Shopify/sarama v1.32.0
 	github.com/adrg/xdg v0.4.0
 	github.com/c-bata/go-prompt v0.2.5
 	github.com/damiannolan/sasl v1.0.0
 	github.com/docker/docker v20.10.7+incompatible
-	github.com/fsnotify/fsnotify v1.5.1
-	github.com/fullstorydev/grpcurl v1.8.0
+	github.com/fsnotify/fsnotify v1.5.4
+	github.com/fullstorydev/grpcurl v1.8.6
 	github.com/go-resty/resty/v2 v2.7.0
 	github.com/google/gnxi v0.0.0-20200508145201-92c6d0d3ec3b
-	github.com/google/go-cmp v0.5.7
+	github.com/google/go-cmp v0.5.8
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
@@ -21,15 +21,15 @@ require (
 	github.com/hashicorp/consul/api v1.12.0
 	github.com/huandu/xstrings v1.3.2
 	github.com/influxdata/influxdb-client-go/v2 v2.0.1
-	github.com/itchyny/gojq v0.12.6
-	github.com/jhump/protoreflect v1.6.1
+	github.com/itchyny/gojq v0.12.7
+	github.com/jhump/protoreflect v1.10.3
 	github.com/jlaffaye/ftp v0.0.0-20210307004419-5d4190119067
 	github.com/karimra/go-map-flattener v0.0.0-20200728034653-b1473e58dae8
 	github.com/karimra/sros-dialout v0.0.0-20200518085040-c759bf74063a
 	github.com/manifoldco/promptui v0.9.0
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/mitchellh/mapstructure v1.4.3
-	github.com/nats-io/nats.go v1.13.1-0.20220308171302-2f2f6968e98d
+	github.com/mitchellh/mapstructure v1.5.0
+	github.com/nats-io/nats.go v1.14.0
 	github.com/nats-io/stan.go v0.10.2
 	github.com/nsf/termbox-go v1.1.1
 	github.com/olekukonko/tablewriter v0.0.5
@@ -41,13 +41,13 @@ require (
 	github.com/spf13/cobra v1.2.1
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.8.1
-	github.com/xdg/scram v0.0.0-20180814205039-7eeb5667e42c
-	golang.org/x/crypto v0.0.0-20220307211146-efcb8507fb70
-	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
+	github.com/xdg/scram v1.0.5
+	golang.org/x/crypto v0.0.0-20220427172511-eb4f295cb31f
+	golang.org/x/oauth2 v0.0.0-20220411215720-9780585627b5
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
-	google.golang.org/grpc v1.44.0
-	google.golang.org/protobuf v1.27.1
+	google.golang.org/grpc v1.46.0
+	google.golang.org/protobuf v1.28.0
 	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/api v0.22.5
 	k8s.io/apimachinery v0.22.5
@@ -59,7 +59,7 @@ require (
 	cloud.google.com/go/iam v0.3.0 // indirect
 	github.com/Knetic/govaluate v3.0.0+incompatible // indirect
 	github.com/bcicen/bfstree v1.0.0 // indirect
-	github.com/cenkalti/backoff/v4 v4.1.2 // indirect
+	github.com/cenkalti/backoff/v4 v4.1.3 // indirect
 	github.com/go-logr/logr v0.4.0 // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
 	github.com/googleapis/gnostic v0.5.5 // indirect
@@ -126,7 +126,7 @@ require (
 	github.com/google/wire v0.5.0 // indirect
 	github.com/googleapis/gax-go/v2 v2.1.1 // indirect
 	github.com/gosimple/slug v1.10.0 // indirect
-	github.com/gosimple/unidecode v1.0.0 // indirect
+	github.com/gosimple/unidecode v1.0.1 // indirect
 	github.com/hairyhenderson/toml v0.4.2-0.20210923231440-40456b8e66cf // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
@@ -136,7 +136,7 @@ require (
 	github.com/hashicorp/go-retryablehttp v0.7.0 // indirect
 	github.com/hashicorp/go-rootcerts v1.0.2 // indirect
 	github.com/hashicorp/go-sockaddr v1.0.2 // indirect
-	github.com/hashicorp/go-uuid v1.0.2 // indirect
+	github.com/hashicorp/go-uuid v1.0.3 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/hashicorp/serf v0.9.6 // indirect
@@ -191,11 +191,11 @@ require (
 	github.com/zealic/xignore v0.3.3 // indirect
 	go.etcd.io/bbolt v1.3.6 // indirect
 	go.opencensus.io v0.23.0 // indirect
-	go4.org/intern v0.0.0-20210108033219-3eb7198706b2 // indirect
-	go4.org/unsafe/assume-no-moving-gc v0.0.0-20201222180813-1025295fd063 // indirect
+	go4.org/intern v0.0.0-20220301175310-a089fc204883 // indirect
+	go4.org/unsafe/assume-no-moving-gc v0.0.0-20211027215541-db492cf91b37 // indirect
 	gocloud.dev v0.24.0 // indirect
 	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd // indirect
-	golang.org/x/sys v0.0.0-20220307203707-22a9840ba4d7 // indirect
+	golang.org/x/sys v0.0.0-20220412211240-33da011f77ad // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20211116232009-f0f3c7e86c11 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
