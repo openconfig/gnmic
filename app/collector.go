@@ -69,6 +69,9 @@ func (a *App) StartCollector(ctx context.Context) {
 					if rsp.SubscriptionConfig.Target != "" {
 						m["subscription-target"] = rsp.SubscriptionConfig.Target
 					}
+					for k, v := range t.Config.EventTags {
+						m[k] = v
+					}
 					if a.subscriptionMode(rsp.SubscriptionName) == "ONCE" {
 						a.Export(ctx, rsp.Response, m, t.Config.Outputs...)
 					} else {

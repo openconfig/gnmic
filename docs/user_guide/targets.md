@@ -157,6 +157,10 @@ targets:
     retry:
     # list of tags, relevant when clustering is enabled.
     tags:
+    # a mapping of static tags to add to all events from this target.
+    # each key/value pair in this mapping will be added to metadata
+    # on all events
+    event-tags:
     # list of proto file names to decode protoBytes values
     proto-files:
     # list of directories to look for the proto files

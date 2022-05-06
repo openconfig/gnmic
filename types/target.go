@@ -19,29 +19,30 @@ import (
 
 // TargetConfig //
 type TargetConfig struct {
-	Name          string        `mapstructure:"name,omitempty" json:"name,omitempty" yaml:"name,omitempty"`
-	Address       string        `mapstructure:"address,omitempty" json:"address,omitempty" yaml:"address,omitempty"`
-	Username      *string       `mapstructure:"username,omitempty" json:"username,omitempty" yaml:"username,omitempty"`
-	Password      *string       `mapstructure:"password,omitempty" json:"password,omitempty" yaml:"password,omitempty"`
-	Timeout       time.Duration `mapstructure:"timeout,omitempty" json:"timeout,omitempty" yaml:"timeout,omitempty"`
-	Insecure      *bool         `mapstructure:"insecure,omitempty" json:"insecure,omitempty" yaml:"insecure,omitempty"`
-	TLSCA         *string       `mapstructure:"tls-ca,omitempty" json:"tls-ca,omitempty" yaml:"tlsca,omitempty"`
-	TLSCert       *string       `mapstructure:"tls-cert,omitempty" json:"tls-cert,omitempty" yaml:"tls-cert,omitempty"`
-	TLSKey        *string       `mapstructure:"tls-key,omitempty" json:"tls-key,omitempty" yaml:"tls-key,omitempty"`
-	SkipVerify    *bool         `mapstructure:"skip-verify,omitempty" json:"skip-verify,omitempty" yaml:"skip-verify,omitempty"`
-	Subscriptions []string      `mapstructure:"subscriptions,omitempty" json:"subscriptions,omitempty" yaml:"subscriptions,omitempty"`
-	Outputs       []string      `mapstructure:"outputs,omitempty" json:"outputs,omitempty" yaml:"outputs,omitempty"`
-	BufferSize    uint          `mapstructure:"buffer-size,omitempty" json:"buffer-size,omitempty" yaml:"buffer-size,omitempty"`
-	RetryTimer    time.Duration `mapstructure:"retry,omitempty" json:"retry-timer,omitempty" yaml:"retry-timer,omitempty"`
-	TLSMinVersion string        `mapstructure:"tls-min-version,omitempty" json:"tls-min-version,omitempty" yaml:"tls-min-version,omitempty"`
-	TLSMaxVersion string        `mapstructure:"tls-max-version,omitempty" json:"tls-max-version,omitempty" yaml:"tls-max-version,omitempty"`
-	TLSVersion    string        `mapstructure:"tls-version,omitempty" json:"tls-version,omitempty" yaml:"tls-version,omitempty"`
-	LogTLSSecret  *bool         `mapstructure:"log-tls-secret,omitempty" json:"log-tls-secret,omitempty" yaml:"log-tls-secret,omitempty"`
-	ProtoFiles    []string      `mapstructure:"proto-files,omitempty" json:"proto-files,omitempty" yaml:"proto-files,omitempty"`
-	ProtoDirs     []string      `mapstructure:"proto-dirs,omitempty" json:"proto-dirs,omitempty" yaml:"proto-dirs,omitempty"`
-	Tags          []string      `mapstructure:"tags,omitempty" json:"tags,omitempty" yaml:"tags,omitempty"`
-	Gzip          *bool         `mapstructure:"gzip,omitempty" json:"gzip,omitempty" yaml:"gzip,omitempty"`
-	Token         *string       `mapstructure:"token,omitempty" json:"token,omitempty" yaml:"token,omitempty"`
+	Name          string            `mapstructure:"name,omitempty" json:"name,omitempty" yaml:"name,omitempty"`
+	Address       string            `mapstructure:"address,omitempty" json:"address,omitempty" yaml:"address,omitempty"`
+	Username      *string           `mapstructure:"username,omitempty" json:"username,omitempty" yaml:"username,omitempty"`
+	Password      *string           `mapstructure:"password,omitempty" json:"password,omitempty" yaml:"password,omitempty"`
+	Timeout       time.Duration     `mapstructure:"timeout,omitempty" json:"timeout,omitempty" yaml:"timeout,omitempty"`
+	Insecure      *bool             `mapstructure:"insecure,omitempty" json:"insecure,omitempty" yaml:"insecure,omitempty"`
+	TLSCA         *string           `mapstructure:"tls-ca,omitempty" json:"tls-ca,omitempty" yaml:"tlsca,omitempty"`
+	TLSCert       *string           `mapstructure:"tls-cert,omitempty" json:"tls-cert,omitempty" yaml:"tls-cert,omitempty"`
+	TLSKey        *string           `mapstructure:"tls-key,omitempty" json:"tls-key,omitempty" yaml:"tls-key,omitempty"`
+	SkipVerify    *bool             `mapstructure:"skip-verify,omitempty" json:"skip-verify,omitempty" yaml:"skip-verify,omitempty"`
+	Subscriptions []string          `mapstructure:"subscriptions,omitempty" json:"subscriptions,omitempty" yaml:"subscriptions,omitempty"`
+	Outputs       []string          `mapstructure:"outputs,omitempty" json:"outputs,omitempty" yaml:"outputs,omitempty"`
+	BufferSize    uint              `mapstructure:"buffer-size,omitempty" json:"buffer-size,omitempty" yaml:"buffer-size,omitempty"`
+	RetryTimer    time.Duration     `mapstructure:"retry,omitempty" json:"retry-timer,omitempty" yaml:"retry-timer,omitempty"`
+	TLSMinVersion string            `mapstructure:"tls-min-version,omitempty" json:"tls-min-version,omitempty" yaml:"tls-min-version,omitempty"`
+	TLSMaxVersion string            `mapstructure:"tls-max-version,omitempty" json:"tls-max-version,omitempty" yaml:"tls-max-version,omitempty"`
+	TLSVersion    string            `mapstructure:"tls-version,omitempty" json:"tls-version,omitempty" yaml:"tls-version,omitempty"`
+	LogTLSSecret  *bool             `mapstructure:"log-tls-secret,omitempty" json:"log-tls-secret,omitempty" yaml:"log-tls-secret,omitempty"`
+	ProtoFiles    []string          `mapstructure:"proto-files,omitempty" json:"proto-files,omitempty" yaml:"proto-files,omitempty"`
+	ProtoDirs     []string          `mapstructure:"proto-dirs,omitempty" json:"proto-dirs,omitempty" yaml:"proto-dirs,omitempty"`
+	Tags          []string          `mapstructure:"tags,omitempty" json:"tags,omitempty" yaml:"tags,omitempty"`
+	EventTags     map[string]string `mapstructure:"event-tags,omitempty" json:"event-tags,omitempty" yaml:"event-tags,omitempty"`
+	Gzip          *bool             `mapstructure:"gzip,omitempty" json:"gzip,omitempty" yaml:"gzip,omitempty"`
+	Token         *string           `mapstructure:"token,omitempty" json:"token,omitempty" yaml:"token,omitempty"`
 	//
 	TunnelTargetType string `mapstructure:"-" json:"tunnel-target-type,omitempty" yaml:"tunnel-target-type,omitempty"`
 }
