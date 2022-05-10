@@ -22,11 +22,11 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/consul/api"
+	"github.com/karimra/gnmic/cache"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/karimra/gnmic/types"
 	"github.com/karimra/gnmic/utils"
-	"github.com/openconfig/gnmi/cache"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -69,7 +69,6 @@ func init() {
 			entries:     make(map[uint64]*promMetric),
 			metricRegex: regexp.MustCompile(metricNameRegex),
 			logger:      log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
-			caches:      make(map[string]*cache.Cache),
 		}
 	})
 }
@@ -90,7 +89,7 @@ type prometheusOutput struct {
 
 	targetTpl *template.Template
 
-	caches map[string]*cache.Cache
+	gnmiCache *cache.GnmiOutputCache
 }
 
 type config struct {
@@ -183,6 +182,9 @@ func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string
 		}
 		p.targetTpl = p.targetTpl.Funcs(outputs.TemplateFuncs)
 	}
+	if p.Cfg.GnmiCache {
+		p.initCache()
+	}
 	err = p.setDefaults()
 	if err != nil {
 		return err
@@ -247,8 +249,8 @@ func (p *prometheusOutput) Write(ctx context.Context, rsp proto.Message, meta ou
 		if err != nil {
 			p.logger.Printf("failed to add target to the response: %v", err)
 		}
-		if p.Cfg.GnmiCache {
-			p.writeToCache(measName, rsp)
+		if p.gnmiCache != nil {
+			p.gnmiCache.Write(measName, rsp)
 			return
 		}
 		events, err := formatters.ResponseToEventMsgs(measName, rsp, meta, p.evps...)
