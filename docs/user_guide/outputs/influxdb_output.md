@@ -19,7 +19,9 @@ outputs:
     batch-size: 1000 
     # flush period after which the buffer is written to the server whether the batch_size is reached or not
     flush-timer: 10s
+    # if true, the influxdb client will use gzip compression in write requests.
     use-gzip: false
+    # if true, the influxdb client will use a secure connection to the server.
     enable-tls: false
     # boolean, if true the message timestamp is changed to current time
     override-timestamps: false 
@@ -47,7 +49,16 @@ outputs:
     # NOT IMPLEMENTED boolean, enables the collection and export (via prometheus) of output specific metrics
     enable-metrics: false 
     # list of processors to apply on the message before writing
-    event-processors: 
+    event-processors: []
+    # cache, if present enables the influxdb output to cache received updates and write them all together 
+    # at `cache-flush-timer` expiry.
+    cache:
+      # duration, if > 0, enables the expiry of values written to the cache.
+      expiration: 0s
+      # debug, if true enable extra logging
+      debug: false
+    # cache-flush-timer
+    cache-flush-timer: 5s
 ```
 
 `gnmic` uses the [`event`](../output_intro#formats-examples) format to generate the measurements written to influxdb
