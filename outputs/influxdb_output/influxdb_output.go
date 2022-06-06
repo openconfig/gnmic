@@ -36,7 +36,7 @@ const (
 func init() {
 	outputs.Register("influxdb", func() outputs.Output {
 		return &InfluxDBOutput{
-			Cfg:       &Config{GnmiCacheConfig: &cache.GnmiCacheConfig{}},
+			Cfg:       &Config{},
 			eventChan: make(chan *formatters.EventMsg),
 			reset:     make(chan struct{}),
 			startSig:  make(chan struct{}),
@@ -151,10 +151,10 @@ func (i *InfluxDBOutput) Init(ctx context.Context, name string, cfg map[string]i
 		i.Cfg.HealthCheckPeriod = defaultHealthCheckPeriod
 	}
 	if i.Cfg.GnmiCacheConfig != nil {
-		i.initCache()
 		if i.Cfg.CacheFlushTimer == 0 {
 			i.Cfg.CacheFlushTimer = defaultCacheFlushTimer
 		}
+		i.initCache()
 	}
 
 	iopts := influxdb2.DefaultOptions().
