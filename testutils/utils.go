@@ -452,9 +452,11 @@ func GnmiValuesEqual(v1, v2 *gnmi.TypedValue) bool {
 			if v1 == nil || v2 == nil {
 				return false
 			}
+			//lint:ignore SA1019 still need DecimalVal for backward compatibility
 			if v1.DecimalVal.GetDigits() != v2.DecimalVal.GetDigits() {
 				return false
 			}
+			//lint:ignore SA1019 still need DecimalVal for backward compatibility
 			return v1.DecimalVal.GetPrecision() == v2.DecimalVal.GetPrecision()
 		default:
 			return false
@@ -468,6 +470,7 @@ func GnmiValuesEqual(v1, v2 *gnmi.TypedValue) bool {
 			if v1 == nil || v2 == nil {
 				return false
 			}
+			//lint:ignore SA1019 still need FloatVal for backward compatibility
 			return v1.FloatVal == v2.FloatVal
 		default:
 			return false

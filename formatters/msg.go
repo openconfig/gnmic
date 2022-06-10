@@ -115,8 +115,10 @@ func getValue(updValue *gnmi.TypedValue) (interface{}, error) {
 	case *gnmi.TypedValue_BytesVal:
 		value = updValue.GetBytesVal()
 	case *gnmi.TypedValue_DecimalVal:
+		//lint:ignore SA1019 still need DecimalVal for backward compatibility
 		value = updValue.GetDecimalVal()
 	case *gnmi.TypedValue_FloatVal:
+		//lint:ignore SA1019 still need GetFloatVal for backward compatibility
 		value = updValue.GetFloatVal()
 	case *gnmi.TypedValue_IntVal:
 		value = updValue.GetIntVal()

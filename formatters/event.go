@@ -209,8 +209,10 @@ func getValueFlat(prefix string, updValue *gnmi.TypedValue) (map[string]interfac
 	case *gnmi.TypedValue_BytesVal:
 		values[prefix] = updValue.GetBytesVal()
 	case *gnmi.TypedValue_DecimalVal:
+		//lint:ignore SA1019 still need DecimalVal for backward compatibility
 		values[prefix] = updValue.GetDecimalVal()
 	case *gnmi.TypedValue_FloatVal:
+		//lint:ignore SA1019 still need GetFloatVal for backward compatibility
 		values[prefix] = updValue.GetFloatVal()
 	case *gnmi.TypedValue_IntVal:
 		values[prefix] = updValue.GetIntVal()
