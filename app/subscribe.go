@@ -41,8 +41,30 @@ func (a *App) SubscribeRunE(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed reading subscriptions config: %v", err)
 	}
-	if len(subCfg) == 0 {
-		return errors.New("no subscriptions configuration found")
+
+	err = a.readConfigs()
+	if err != nil {
+		return err
+	}
+	err = a.Config.GetClustering()
+	if err != nil {
+		return err
+	}
+	err = a.Config.GetGNMIServer()
+	if err != nil {
+		return err
+	}
+	err = a.Config.GetAPIServer()
+	if err != nil {
+		return err
+	}
+	err = a.Config.GetLoader()
+	if err != nil {
+		return err
+	}
+
+	if len(subCfg) == 0 && len(a.Config.Inputs) == 0 {
+		return errors.New("no subscriptions or inputs configuration found")
 	}
 	// only once mode subscriptions requested
 	if allSubscriptionsModeOnce(subCfg) {
@@ -72,26 +94,7 @@ func (a *App) SubscribeRunE(cmd *cobra.Command, args []string) error {
 	} else if err != nil {
 		return fmt.Errorf("failed reading targets config: %v", err)
 	}
-	err = a.readConfigs()
-	if err != nil {
-		return err
-	}
-	err = a.Config.GetClustering()
-	if err != nil {
-		return err
-	}
-	err = a.Config.GetGNMIServer()
-	if err != nil {
-		return err
-	}
-	err = a.Config.GetAPIServer()
-	if err != nil {
-		return err
-	}
-	err = a.Config.GetLoader()
-	if err != nil {
-		return err
-	}
+
 	//
 	for {
 		err := a.InitLocker()
