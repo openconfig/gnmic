@@ -1,5 +1,43 @@
 ## Changelog
 
+### v0.25.0 - June 11th 2022
+
+- Processors
+
+    - [Strings replace processor](user_guide/event_processors/event_strings) supports replaces using regular expressions.
+
+    - Processors  are now supported when collecting telemetry using [listen command](cmd/listen.md) (Nokia SROS specific)
+
+- New Processors
+
+    - [Data convert](user_guide/event_processors/event_data_convert.md)
+
+    - [Duration convert](user_guide/event_processors/event_duration_convert.md)
+    
+    - [Value tag](user_guide/event_processors/event_value_tag.md)
+
+- [Clustering](user_guide/clustering.md)
+
+    - `gNMIc` supports kubernetes based clustering,
+    i.e you can build `gNMIc` clusters on kubernetes without the need for Consul cluster.
+
+- [Yang path generation](cmd/generate.md)
+
+    - The command `gnmic generate path` supports generating paths for YANG containers.
+    In earlier versions, the paths generation was done for YANG leaves only.
+
+- Internal gNMIc Prometheus metrics
+
+    `gNMIc` exposes additional internal metrics available to be scraped using Prometheus.
+
+- Static tags from target configuration
+
+    - It is now possible to set static tags on events by configuring them under each target.
+
+- Influxdb cache
+
+    The [InfluxDB output](user_guide/outputs/influxdb_output.md) now supports gNMI based caching, allowing to apply processors on multiple event messages at once and batching the written points to InfluxDB.
+
 ### v0.24.0 - March 13th 2022
 
 - [gRPC Tunnel Support](user_guide/tunnel_server.md)
