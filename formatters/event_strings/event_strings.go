@@ -12,6 +12,8 @@ import (
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/types"
 	"github.com/karimra/gnmic/utils"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 const (
@@ -279,10 +281,10 @@ func (t *transform) trimSuffix(k string, v interface{}) (string, interface{}) {
 func (t *transform) toTitle(k string, v interface{}) (string, interface{}) {
 	switch t.ApplyOn {
 	case "name":
-		k = strings.Title(k)
+		k = cases.Title(language.English).String(k)
 	case "value":
 		if vs, ok := v.(string); ok {
-			v = strings.Title(vs)
+			v = cases.Title(language.English).String(vs)
 		}
 	}
 	return k, v
