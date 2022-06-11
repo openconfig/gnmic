@@ -72,6 +72,7 @@ nav:
           - Strings: user_guide/event_processors/event_strings.md
           - To Tag: user_guide/event_processors/event_to_tag.md
           - Trigger: user_guide/event_processors/event_trigger.md
+          - Value Tag: user_guide/event_processors/event_value_tag.md
           - Write: user_guide/event_processors/event_write.md
 
       - Actions: user_guide/actions/actions.md

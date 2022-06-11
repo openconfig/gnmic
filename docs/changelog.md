@@ -16,7 +16,7 @@
     
     - [Value tag](user_guide/event_processors/event_value_tag.md)
 
-- [Clustering](user_guide/clustering.md)
+- [Clustering](user_guide/HA.md)
 
     - `gNMIc` supports kubernetes based clustering,
     i.e you can build `gNMIc` clusters on kubernetes without the need for Consul cluster.
