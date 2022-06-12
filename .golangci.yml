@@ -3,10 +3,8 @@ linters-settings:
     check-shadowing: true
     enable:
       - fieldalignment
-  golint:
-    min-confidence: 0
   gocyclo:
-    min-complexity: 10
+    min-complexity: 20
   dupl:
     threshold: 100
   goconst:
@@ -37,7 +35,7 @@ linters:
     # - gochecknoglobals
     # - gochecknoinits
     # - gocognit
-    # - goconst
+    - goconst
     # - gocritic
     # - gocyclo
     # - godox
@@ -50,7 +48,7 @@ linters:
     # - goprintffuncname
     # - gosec
     # - gosimple
-    # - govet
+    - govet
     # - ineffassign
     # - lll
     - misspell
@@ -58,9 +56,9 @@ linters:
     # - nestif
     # - nlreturn
     # - noctx
-    # - nolintlint
+    - nolintlint
     - prealloc
-    # - revive
+    - revive
     # - rowserrcheck
     # - sqlclosecheck
     # - staticcheck
