@@ -1,6 +1,6 @@
 module github.com/karimra/gnmic
 
-go 1.17
+go 1.18
 
 require (
 	github.com/Shopify/sarama v1.32.0
@@ -11,7 +11,6 @@ require (
 	github.com/fsnotify/fsnotify v1.5.4
 	github.com/fullstorydev/grpcurl v1.8.6
 	github.com/go-resty/resty/v2 v2.7.0
-	github.com/google/gnxi v0.0.0-20200508145201-92c6d0d3ec3b
 	github.com/google/go-cmp v0.5.8
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/handlers v1.5.1
