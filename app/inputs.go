@@ -13,7 +13,7 @@ func (a *App) InitInput(ctx context.Context, name string, tcs map[string]*types.
 	if _, ok := a.Inputs[name]; ok {
 		return
 	}
-	if cfg, ok := a.Config.Outputs[name]; ok {
+	if cfg, ok := a.Config.Inputs[name]; ok {
 		if inputType, ok := cfg["type"]; ok {
 			a.Logger.Printf("starting input type %s", inputType)
 			if initializer, ok := inputs.Inputs[inputType.(string)]; ok {
@@ -23,6 +23,7 @@ func (a *App) InitInput(ctx context.Context, name string, tcs map[string]*types.
 						inputs.WithLogger(a.Logger),
 						inputs.WithEventProcessors(a.Config.Processors, a.Logger, a.Config.Targets),
 						inputs.WithName(a.Config.InstanceName),
+						inputs.WithOutputs(a.Outputs),
 					)
 					if err != nil {
 						a.Logger.Printf("failed to init input type %q: %v", inputType, err)
