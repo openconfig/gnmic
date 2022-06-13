@@ -9,7 +9,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/google/gnxi/utils/xpath"
 	"github.com/karimra/gnmic/utils"
 	"github.com/manifoldco/promptui"
 	"github.com/openconfig/goyang/pkg/yang"
@@ -279,7 +278,7 @@ func (a *App) generatePath(entry *yang.Entry, pType string) *generatedPath {
 	gp.IsState = isState(entry)
 	gp.Namespace = entry.Namespace().NName()
 	if pType == "gnmi" {
-		gnmiPath, err := xpath.ToGNMIPath(gp.Path)
+		gnmiPath, err := utils.ParsePath(gp.Path)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "path: %s could not be changed to gnmi format: %v\n", gp.Path, err)
 		}

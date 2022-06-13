@@ -1,27 +1,33 @@
 ---
 name: Test
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches:
       - "main"
       - "!releases/**"
 env:
-  GOVER: 1.17.2
+  GOVER: 1.18.1
 
 jobs:
   test:
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-go@v2
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GOVER }}
       - run: go test -cover ./...
         env:
           CGO_ENABLED: 0
-
-      - name: Staticcheck
-        run: |
-          go get -u honnef.co/go/tools/cmd/staticcheck
-          staticcheck ./...
+      # run staticcheck
+      - uses: reviewdog/action-staticcheck@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # Change reviewdog reporter if you need [github-pr-check,github-check,github-pr-review].
+          reporter: github-pr-review
+          # Report all results.
+          filter_mode: nofilter
+          # Exit with 1 when it find at least one finding.
+          fail_on_error: true
