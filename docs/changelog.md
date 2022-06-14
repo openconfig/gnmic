@@ -1,5 +1,10 @@
 ## Changelog
 
+
+### v0.25.1 - June 13th 2022
+
+- Fix running `gnmic subscribe` with only Inputs and Outputs configured (no subscriptions or targets).
+
 ### v0.25.0 - June 11th 2022
 
 - Processors
