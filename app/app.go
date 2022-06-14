@@ -241,14 +241,6 @@ func (a *App) validateGlobals(cmd *cobra.Command) error {
 		if a.Config.TLSMinVersion != "" {
 			return errors.New("flags --insecure and --tls-min-version are mutually exclusive")
 		}
-	} else {
-		switch cmd.Name() {
-		case "version", "upgrade", "generate", "set-request", "path":
-		default:
-			if a.Config.TLSCa == "" && !a.Config.SkipVerify {
-				return errors.New("for a secure connection, flags --tls-ca or --skip-verify need to be specified")
-			}
-		}
 	}
 	return nil
 }

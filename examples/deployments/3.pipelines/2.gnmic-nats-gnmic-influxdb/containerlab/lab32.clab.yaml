@@ -6,7 +6,7 @@ topology:
 
   kinds:
     srl:
-      type: ixr6
+      # type: ixr6
       image: ghcr.io/nokia/srlinux
 
   nodes:
@@ -55,7 +55,7 @@ topology:
       kind: linux
       image: nats:latest
       ports:
-         - 4222:4222
+        - 4222:4222
 
     grafana:
       kind: linux

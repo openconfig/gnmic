@@ -62,8 +62,8 @@ func (a *App) SubscribeRunE(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-
-	if len(subCfg) == 0 && len(a.Config.Inputs) == 0 {
+	numInputs := len(a.Config.Inputs)
+	if len(subCfg) == 0 && numInputs == 0 {
 		return errors.New("no subscriptions or inputs configuration found")
 	}
 	// only once mode subscriptions requested
@@ -88,7 +88,8 @@ func (a *App) SubscribeRunE(cmd *cobra.Command, args []string) error {
 	if errors.Is(err, config.ErrNoTargetsFound) {
 		if !a.Config.LocalFlags.SubscribeWatchConfig &&
 			len(a.Config.FileConfig.GetStringMap("loader")) == 0 &&
-			!a.Config.UseTunnelServer {
+			!a.Config.UseTunnelServer &&
+			numInputs == 0 {
 			return fmt.Errorf("failed reading targets config: %v", err)
 		}
 	} else if err != nil {
@@ -297,6 +298,9 @@ func (a *App) startIO() {
 }
 
 func allSubscriptionsModeOnce(sc map[string]*types.SubscriptionConfig) bool {
+	if len(sc) == 0 {
+		return false
+	}
 	for _, sub := range sc {
 		if strings.ToUpper(sub.Mode) != "ONCE" {
 			return false
@@ -306,6 +310,9 @@ func allSubscriptionsModeOnce(sc map[string]*types.SubscriptionConfig) bool {
 }
 
 func allSubscriptionsModePoll(sc map[string]*types.SubscriptionConfig) bool {
+	if len(sc) == 0 {
+		return false
+	}
 	for _, sub := range sc {
 		if strings.ToUpper(sub.Mode) != "POLL" {
 			return false
