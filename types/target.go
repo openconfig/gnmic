@@ -86,7 +86,7 @@ func (tc *TargetConfig) NewTLSConfig() (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
-// GrpcDialOptions creates the grpc.dialOption list from teh target's configuration
+// GrpcDialOptions creates the grpc.dialOption list from the target's configuration
 func (tc *TargetConfig) GrpcDialOptions() ([]grpc.DialOption, error) {
 	tOpts := make([]grpc.DialOption, 0, 1)
 	// gzip
@@ -121,49 +121,49 @@ func (tc *TargetConfig) GrpcDialOptions() ([]grpc.DialOption, error) {
 
 func (tc *TargetConfig) UsernameString() string {
 	if tc.Username == nil {
-		return "NA"
+		return notApplicable
 	}
 	return *tc.Username
 }
 
 func (tc *TargetConfig) PasswordString() string {
 	if tc.Password == nil {
-		return "NA"
+		return notApplicable
 	}
 	return *tc.Password
 }
 
 func (tc *TargetConfig) InsecureString() string {
 	if tc.Insecure == nil {
-		return "NA"
+		return notApplicable
 	}
 	return fmt.Sprintf("%t", *tc.Insecure)
 }
 
 func (tc *TargetConfig) TLSCAString() string {
 	if tc.TLSCA == nil || *tc.TLSCA == "" {
-		return "NA"
+		return notApplicable
 	}
 	return *tc.TLSCA
 }
 
 func (tc *TargetConfig) TLSKeyString() string {
 	if tc.TLSKey == nil || *tc.TLSKey == "" {
-		return "NA"
+		return notApplicable
 	}
 	return *tc.TLSKey
 }
 
 func (tc *TargetConfig) TLSCertString() string {
 	if tc.TLSCert == nil || *tc.TLSCert == "" {
-		return "NA"
+		return notApplicable
 	}
 	return *tc.TLSCert
 }
 
 func (tc *TargetConfig) SkipVerifyString() string {
 	if tc.SkipVerify == nil {
-		return "NA"
+		return notApplicable
 	}
 	return fmt.Sprintf("%t", *tc.SkipVerify)
 }

@@ -24,7 +24,7 @@ type update struct {
 	Values map[string]interface{} `json:"values,omitempty"`
 }
 type capRequest struct {
-	Extentions []string `json:"extentions,omitempty"`
+	Extensions []string `json:"extensions,omitempty"`
 }
 type capResponse struct {
 	Version         string   `json:"version,omitempty"`

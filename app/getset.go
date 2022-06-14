@@ -31,7 +31,7 @@ func (a *App) GetSetPreRunE(cmd *cobra.Command, args []string) error {
 func (a *App) GetSetRunE(cmd *cobra.Command, args []string) error {
 	defer a.InitGetSetFlags(cmd)
 
-	if a.Config.Format == "event" {
+	if a.Config.Format == formatEvent {
 		return fmt.Errorf("format event not supported for GetSet RPC")
 	}
 	ctx, cancel := context.WithCancel(context.Background())

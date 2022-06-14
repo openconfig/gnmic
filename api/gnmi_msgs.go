@@ -32,6 +32,8 @@ import (
 
 const (
 	DefaultGNMIVersion = "0.7.0"
+	encodingJSON       = "json"
+	encodingJSON_IETF  = "json_ietf"
 )
 
 // GNMIOption is a function that acts on the supplied proto.Message.
@@ -671,7 +673,7 @@ func value(data interface{}, encoding string) (*gnmi.TypedValue, error) {
 	switch data := data.(type) {
 	case []interface{}, []string:
 		switch strings.ToLower(encoding) {
-		case "json":
+		case encodingJSON:
 			b, err := json.Marshal(data)
 			if err != nil {
 				return nil, err
@@ -680,7 +682,7 @@ func value(data interface{}, encoding string) (*gnmi.TypedValue, error) {
 				Value: &gnmi.TypedValue_JsonVal{
 					JsonVal: bytes.Trim(b, " \r\n\t"),
 				}}, nil
-		case "json_ietf":
+		case encodingJSON_IETF:
 			b, err := json.Marshal(data)
 			if err != nil {
 				return nil, err
@@ -695,9 +697,9 @@ func value(data interface{}, encoding string) (*gnmi.TypedValue, error) {
 	case map[string]interface{}:
 		switch strings.ToLower(encoding) {
 		case "":
-			encoding = "json"
+			encoding = encodingJSON
 			fallthrough
-		case "json":
+		case encodingJSON:
 			b, err := json.Marshal(data)
 			if err != nil {
 				return nil, err
@@ -706,7 +708,7 @@ func value(data interface{}, encoding string) (*gnmi.TypedValue, error) {
 				Value: &gnmi.TypedValue_JsonVal{
 					JsonVal: bytes.Trim(b, " \r\n\t"),
 				}}, nil
-		case "json_ietf":
+		case encodingJSON_IETF:
 			b, err := json.Marshal(data)
 			if err != nil {
 				return nil, err

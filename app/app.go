@@ -199,7 +199,7 @@ func (a *App) InitGlobalFlags() {
 }
 
 func (a *App) PreRunE(cmd *cobra.Command, args []string) error {
-	a.Config.SetPersistantFlagsFromFile(a.RootCmd)
+	a.Config.SetPersistentFlagsFromFile(a.RootCmd)
 
 	logOutput, flags, err := a.Config.SetLogger()
 	if err != nil {

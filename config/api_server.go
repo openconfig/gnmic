@@ -8,6 +8,7 @@ import (
 const (
 	defaultAPIServerAddress = ":7890"
 	defaultAPIServerTimeout = 10 * time.Second
+	trueString              = "true"
 )
 
 type APIServer struct {
@@ -33,13 +34,13 @@ func (c *Config) GetAPIServer() error {
 		c.APIServer.Address = os.ExpandEnv(c.FileConfig.GetString("api"))
 	}
 	c.APIServer.Timeout = c.FileConfig.GetDuration("api-server/timeout")
-	c.APIServer.SkipVerify = os.ExpandEnv(c.FileConfig.GetString("api-server/skip-verify")) == "true"
+	c.APIServer.SkipVerify = os.ExpandEnv(c.FileConfig.GetString("api-server/skip-verify")) == trueString
 	c.APIServer.CaFile = os.ExpandEnv(c.FileConfig.GetString("api-server/ca-file"))
 	c.APIServer.CertFile = os.ExpandEnv(c.FileConfig.GetString("api-server/cert-file"))
 	c.APIServer.KeyFile = os.ExpandEnv(c.FileConfig.GetString("api-server/key-file"))
 
-	c.APIServer.EnableMetrics = os.ExpandEnv(c.FileConfig.GetString("api-server/enable-metrics")) == "true"
-	c.APIServer.Debug = os.ExpandEnv(c.FileConfig.GetString("api-server/debug")) == "true"
+	c.APIServer.EnableMetrics = os.ExpandEnv(c.FileConfig.GetString("api-server/enable-metrics")) == trueString
+	c.APIServer.Debug = os.ExpandEnv(c.FileConfig.GetString("api-server/debug")) == trueString
 	c.setAPIServerDefaults()
 	return nil
 }

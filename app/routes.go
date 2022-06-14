@@ -34,7 +34,7 @@ func (a *App) configRoutes(r *mux.Router) {
 	r.HandleFunc("/config/outputs", a.handleConfigOutputs).Methods(http.MethodGet)
 	// config/inputs
 	r.HandleFunc("/config/inputs", a.handleConfigInputs).Methods(http.MethodGet)
-	// config/processsors
+	// config/processors
 	r.HandleFunc("/config/processors", a.handleConfigProcessors).Methods(http.MethodGet)
 	// config/clustering
 	r.HandleFunc("/config/clustering", a.handleConfigClustering).Methods(http.MethodGet)

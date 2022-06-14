@@ -131,10 +131,10 @@ func (o *MarshalOptions) formatSubscribeResponse(m *gnmi.SubscribeResponse, meta
 
 func (o *MarshalOptions) formatCapabilitiesRequest(m *gnmi.CapabilityRequest) ([]byte, error) {
 	capReq := capRequest{
-		Extentions: make([]string, 0, len(m.Extension)),
+		Extensions: make([]string, 0, len(m.Extension)),
 	}
 	for _, e := range m.Extension {
-		capReq.Extentions = append(capReq.Extentions, e.String())
+		capReq.Extensions = append(capReq.Extensions, e.String())
 	}
 	if o.Multiline {
 		return json.MarshalIndent(capReq, "", o.Indent)

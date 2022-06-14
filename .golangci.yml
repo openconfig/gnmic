@@ -22,10 +22,10 @@ linters:
   disable-all: true
   enable:
     - asciicheck
-    # - bodyclose
-    # - deadcode
-    # - depguard
-    # - dogsled
+    - bodyclose
+    - deadcode
+    - depguard
+    - dogsled
     # - dupl
     # - errcheck
     # - exhaustive
@@ -48,7 +48,7 @@ linters:
     # - goprintffuncname
     # - gosec
     # - gosimple
-    - govet
+    # - govet
     # - ineffassign
     # - lll
     - misspell
@@ -58,7 +58,7 @@ linters:
     # - noctx
     - nolintlint
     - prealloc
-    - revive
+    # - revive
     # - rowserrcheck
     # - sqlclosecheck
     # - staticcheck
