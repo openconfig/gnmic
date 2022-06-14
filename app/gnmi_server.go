@@ -992,7 +992,7 @@ func targetConfigToNotification(tc *types.TargetConfig, e gnmi.Encoding) *gnmi.N
 				Value: &gnmi.TypedValue_BytesVal{BytesVal: []byte(tc.Timeout.String())},
 			},
 		})
-		if tc.TLSCA != nil && tc.TLSCAString() != "NA" {
+		if tc.TLSCA != nil && *tc.TLSCA != "" {
 			n.Update = append(n.Update, &gnmi.Update{
 				Path: &gnmi.Path{
 					Elem: []*gnmi.PathElem{
@@ -1004,7 +1004,7 @@ func targetConfigToNotification(tc *types.TargetConfig, e gnmi.Encoding) *gnmi.N
 				},
 			})
 		}
-		if tc.TLSCert != nil && tc.TLSCertString() != "NA" {
+		if tc.TLSCert != nil && *tc.TLSCert != "" {
 			n.Update = append(n.Update, &gnmi.Update{
 				Path: &gnmi.Path{
 					Elem: []*gnmi.PathElem{
@@ -1016,7 +1016,7 @@ func targetConfigToNotification(tc *types.TargetConfig, e gnmi.Encoding) *gnmi.N
 				},
 			})
 		}
-		if tc.TLSKey != nil && tc.TLSKeyString() != "NA" {
+		if tc.TLSKey != nil && *tc.TLSKey != "" {
 			n.Update = append(n.Update, &gnmi.Update{
 				Path: &gnmi.Path{
 					Elem: []*gnmi.PathElem{
@@ -1144,7 +1144,7 @@ func targetConfigToNotification(tc *types.TargetConfig, e gnmi.Encoding) *gnmi.N
 				Value: &gnmi.TypedValue_AsciiVal{AsciiVal: tc.Timeout.String()},
 			},
 		})
-		if tc.TLSCA != nil && tc.TLSCAString() != "NA" {
+		if tc.TLSCA != nil && *tc.TLSCA != "" {
 			n.Update = append(n.Update, &gnmi.Update{
 				Path: &gnmi.Path{
 					Elem: []*gnmi.PathElem{
@@ -1156,7 +1156,7 @@ func targetConfigToNotification(tc *types.TargetConfig, e gnmi.Encoding) *gnmi.N
 				},
 			})
 		}
-		if tc.TLSCert != nil && tc.TLSCertString() != "NA" {
+		if tc.TLSCert != nil && *tc.TLSCert != "" {
 			n.Update = append(n.Update, &gnmi.Update{
 				Path: &gnmi.Path{
 					Elem: []*gnmi.PathElem{
@@ -1168,7 +1168,7 @@ func targetConfigToNotification(tc *types.TargetConfig, e gnmi.Encoding) *gnmi.N
 				},
 			})
 		}
-		if tc.TLSKey != nil && tc.TLSKeyString() != "NA" {
+		if tc.TLSKey != nil && *tc.TLSKey != "" {
 			n.Update = append(n.Update, &gnmi.Update{
 				Path: &gnmi.Path{
 					Elem: []*gnmi.PathElem{

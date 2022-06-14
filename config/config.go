@@ -246,7 +246,7 @@ func (c *Config) Load(ctx context.Context) error {
 	c.FileConfig.SetEnvKeyReplacer(strings.NewReplacer("/", "_", "-", "_"))
 	c.FileConfig.AutomaticEnv()
 	if c.GlobalFlags.CfgFile != "" {
-		// configuration file path is explicitely set
+		// configuration file path is explicitly set
 		c.FileConfig.SetConfigFile(c.GlobalFlags.CfgFile)
 		configBytes, err := utils.ReadFile(ctx, c.FileConfig.ConfigFileUsed())
 		if err != nil {
@@ -303,15 +303,15 @@ func (c *Config) SetLogger() (io.Writer, int, error) {
 		}
 	}
 	if c.Debug {
-		loggingFlags = loggingFlags | log.Llongfile
+		loggingFlags |= log.Llongfile
 	}
 	c.logger.SetOutput(f)
 	c.logger.SetFlags(loggingFlags)
 	return f, loggingFlags, nil
 }
 
-func (c *Config) SetPersistantFlagsFromFile(cmd *cobra.Command) {
-	// set debug and log values from file before other persistant flags
+func (c *Config) SetPersistentFlagsFromFile(cmd *cobra.Command) {
+	// set debug and log values from file before other persistent flags
 	cmd.PersistentFlags().VisitAll(func(f *pflag.Flag) {
 		if f.Name == "debug" || f.Name == "log" {
 			if !f.Changed && c.FileConfig.IsSet(f.Name) {

@@ -193,7 +193,7 @@ func (a *App) GenerateSetRequestRunE(cmd *cobra.Command, args []string) error {
 
 func (a *App) InitGenerateFlags(cmd *cobra.Command) {
 	cmd.ResetFlags()
-	// persistant flags
+	// persistent flags
 	cmd.PersistentFlags().StringVarP(&a.Config.LocalFlags.GenerateOutput, "output", "o", "", "output file, defaults to stdout")
 	cmd.PersistentFlags().BoolVarP(&a.Config.LocalFlags.GenerateJSON, "json", "j", false, "generate output as JSON format instead of YAML")
 	// local flags

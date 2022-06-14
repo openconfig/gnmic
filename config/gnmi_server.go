@@ -76,13 +76,13 @@ func (c *Config) GetGNMIServer() error {
 		c.GnmiServer.MaxUnaryRPC = int64(maxUnaryRPC)
 	}
 
-	c.GnmiServer.SkipVerify = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/skip-verify")) == "true"
+	c.GnmiServer.SkipVerify = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/skip-verify")) == trueString
 	c.GnmiServer.CaFile = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/ca-file"))
 	c.GnmiServer.CertFile = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/cert-file"))
 	c.GnmiServer.KeyFile = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/key-file"))
 
-	c.GnmiServer.EnableMetrics = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/enable-metrics")) == "true"
-	c.GnmiServer.Debug = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/debug")) == "true"
+	c.GnmiServer.EnableMetrics = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/enable-metrics")) == trueString
+	c.GnmiServer.Debug = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/debug")) == trueString
 	c.setGnmiServerDefaults()
 
 	if !c.FileConfig.IsSet("gnmi-server/service-registration") {

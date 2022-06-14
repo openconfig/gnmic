@@ -39,7 +39,7 @@ func init() {
 
 // fileLoader implements the loaders.Loader interface.
 // it reads a configured file (local, ftp, sftp, http) periodically,
-// expects the file to contain a dictionnary of types.TargetConfig.
+// expects the file to contain a dictionary of types.TargetConfig.
 // It then adds new targets to gNMIc's targets and deletes the removed ones.
 type fileLoader struct {
 	cfg            *cfg

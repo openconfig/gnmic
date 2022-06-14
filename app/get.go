@@ -60,9 +60,9 @@ func (a *App) GetRun(cmd *cobra.Command, args []string) error {
 	}
 	// event format
 	if len(a.Config.GetProcessor) > 0 {
-		a.Config.Format = "event"
+		a.Config.Format = formatEvent
 	}
-	if a.Config.Format == "event" {
+	if a.Config.Format == formatEvent {
 		return a.handleGetRequestEvent(ctx, req, evps)
 	}
 	// other formats

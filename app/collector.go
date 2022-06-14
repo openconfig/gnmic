@@ -16,6 +16,11 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+const (
+	subscriptionModeONCE = "ONCE"
+	subscriptionModePOLL = "POLL"
+)
+
 func (a *App) StartCollector(ctx context.Context) {
 	defer func() {
 		for _, o := range a.Outputs {
@@ -72,13 +77,13 @@ func (a *App) StartCollector(ctx context.Context) {
 					for k, v := range t.Config.EventTags {
 						m[k] = v
 					}
-					if a.subscriptionMode(rsp.SubscriptionName) == "ONCE" {
+					if a.subscriptionMode(rsp.SubscriptionName) == subscriptionModeONCE {
 						a.Export(ctx, rsp.Response, m, t.Config.Outputs...)
 					} else {
 						go a.Export(ctx, rsp.Response, m, t.Config.Outputs...)
 					}
 					if remainingOnceSubscriptions > 0 {
-						if a.subscriptionMode(rsp.SubscriptionName) == "ONCE" {
+						if a.subscriptionMode(rsp.SubscriptionName) == subscriptionModeONCE {
 							switch rsp.Response.Response.(type) {
 							case *gnmi.SubscribeResponse_SyncResponse:
 								remainingOnceSubscriptions--
@@ -98,7 +103,7 @@ func (a *App) StartCollector(ctx context.Context) {
 						a.Logger.Printf("target %q: subscription %s rcv error: %v", t.Config.Name, tErr.SubscriptionName, tErr.Err)
 					}
 					if remainingOnceSubscriptions > 0 {
-						if a.subscriptionMode(tErr.SubscriptionName) == "ONCE" {
+						if a.subscriptionMode(tErr.SubscriptionName) == subscriptionModeONCE {
 							remainingOnceSubscriptions--
 						}
 					}
@@ -134,7 +139,7 @@ func (a *App) Export(ctx context.Context, rsp *gnmi.SubscribeResponse, m outputs
 	}
 	go a.updateCache(rsp, m)
 	wg := new(sync.WaitGroup)
-	// target has no outputs explicitely defined
+	// target has no outputs explicitly defined
 	if len(outs) == 0 {
 		wg.Add(len(a.Outputs))
 		for _, o := range a.Outputs {
@@ -216,7 +221,7 @@ func (a *App) PolledSubscriptionsTargets() map[string][]string {
 	result := make(map[string][]string)
 	for tn, target := range a.Targets {
 		for _, sub := range target.Subscriptions {
-			if strings.ToUpper(sub.Mode) == "POLL" {
+			if strings.ToUpper(sub.Mode) == subscriptionModePOLL {
 				if result[tn] == nil {
 					result[tn] = make([]string, 0)
 				}

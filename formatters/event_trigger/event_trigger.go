@@ -96,7 +96,7 @@ func (p *Trigger) Init(cfg interface{}, opts ...formatters.Option) error {
 		return err
 	}
 
-	p.logger.Printf("%q initalized: %+v", processorType, p)
+	p.logger.Printf("%q initialized: %+v", processorType, p)
 
 	return nil
 }
