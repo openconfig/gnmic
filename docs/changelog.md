@@ -1,7 +1,8 @@
 ## Changelog
 
-
 ### v0.25.1 - June 13th 2022
+
+- Upgrade Go version to go1.18.1.
 
 - Fix running `gnmic subscribe` with only Inputs and Outputs configured (no subscriptions or targets).
 
