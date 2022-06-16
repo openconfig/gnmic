@@ -50,7 +50,7 @@ func (p *promWriteOutput) writer(ctx context.Context) {
 				p.logger.Printf("write interval reached, writing to remote")
 			}
 			p.write(ctx)
-		case <-p.buffCh:
+		case <-p.buffDrainCh:
 			if p.Cfg.Debug {
 				p.logger.Printf("buffer full, writing to remote")
 			}
@@ -148,7 +148,7 @@ func (p *promWriteOutput) writeReq(ctx context.Context, wr *prompb.WriteRequest)
 		if err != nil {
 			return err
 		}
-		return fmt.Errorf("write response, code=%d, body=%s", rsp.StatusCode, string(msg))
+		return fmt.Errorf("write response failed, code=%d, body=%s", rsp.StatusCode, string(msg))
 	}
 	return nil
 }

@@ -7,12 +7,8 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math"
 	"net/http"
-	"path/filepath"
 	"regexp"
-	"strconv"
-	"strings"
 	"text/template"
 	"time"
 
@@ -24,13 +20,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/prompb"
 
-	"github.com/prometheus/prometheus/model/labels"
+	promcom "github.com/karimra/gnmic/outputs/prometheus_output"
 	"google.golang.org/protobuf/proto"
 )
 
 const (
 	outputType           = "prometheus_write"
-	metricNameRegex      = "[^a-zA-Z0-9_]+"
 	loggingPrefix        = "[prometheus_write_output:%s] "
 	defaultTimeout       = 10 * time.Second
 	defaultWriteInterval = 10 * time.Second
@@ -47,8 +42,7 @@ func init() {
 				Cfg:         &config{},
 				logger:      log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
 				eventChan:   make(chan *formatters.EventMsg),
-				buffCh:      make(chan struct{}),
-				metricRegex: regexp.MustCompile(metricNameRegex),
+				buffDrainCh: make(chan struct{}),
 			}
 		})
 }
@@ -60,13 +54,12 @@ type promWriteOutput struct {
 	httpClient   *http.Client
 	eventChan    chan *formatters.EventMsg
 	timeSeriesCh chan *prompb.TimeSeries
-	buffCh       chan struct{}
-
-	cfn         context.CancelFunc
-	metricRegex *regexp.Regexp
-	evps        []formatters.EventProcessor
-
-	targetTpl *template.Template
+	buffDrainCh  chan struct{}
+	mb           *promcom.MetricBuilder
+	cfn          context.CancelFunc
+	metricRegex  *regexp.Regexp
+	evps         []formatters.EventProcessor
+	targetTpl    *template.Template
 	// TODO:
 	// gnmiCache *cache.GnmiOutputCache
 }
@@ -138,6 +131,12 @@ func (p *promWriteOutput) Init(ctx context.Context, name string, cfg map[string]
 	err = p.setDefaults()
 	if err != nil {
 		return err
+	}
+
+	p.mb = &promcom.MetricBuilder{
+		Prefix:                 p.Cfg.MetricPrefix,
+		AppendSubscriptionName: p.Cfg.AppendSubscriptionName,
+		StringsAsLabels:        p.Cfg.StringsAsLabels,
 	}
 
 	// initialize buffer chan
@@ -280,12 +279,12 @@ func (p *promWriteOutput) worker(ctx context.Context) {
 			if p.Cfg.Debug {
 				p.logger.Printf("got event to buffer: %+v", ev)
 			}
-			for _, pt := range p.timeSeriesFromEvent(ev) {
+			for _, pt := range p.mb.TimeSeriesFromEvent(ev) {
 				if len(p.timeSeriesCh) >= p.Cfg.BufferSize {
 					if p.Cfg.Debug {
 						p.logger.Printf("buffer size reached, triggering write")
 					}
-					p.buffCh <- struct{}{}
+					p.buffDrainCh <- struct{}{}
 				}
 				if p.Cfg.Debug {
 					p.logger.Printf("writing TimeSeries to buffer")
@@ -310,121 +309,4 @@ func (p *promWriteOutput) setDefaults() error {
 		p.Cfg.NumWriters = defaultNumWriters
 	}
 	return nil
-}
-
-func (p *promWriteOutput) getLabels(ev *formatters.EventMsg) []prompb.Label {
-	labels := make([]prompb.Label, 0, len(ev.Tags))
-	addedLabels := make(map[string]struct{})
-	for k, v := range ev.Tags {
-		labelName := p.metricRegex.ReplaceAllString(filepath.Base(k), "_")
-		if _, ok := addedLabels[labelName]; ok {
-			continue
-		}
-		labels = append(labels, prompb.Label{Name: labelName, Value: v})
-		addedLabels[labelName] = struct{}{}
-	}
-	if !p.Cfg.StringsAsLabels {
-		return labels
-	}
-
-	var err error
-	for k, v := range ev.Values {
-		_, err = getFloat(v)
-		if err == nil {
-			continue
-		}
-		if vs, ok := v.(string); ok {
-			labelName := p.metricRegex.ReplaceAllString(filepath.Base(k), "_")
-			if _, ok := addedLabels[labelName]; ok {
-				continue
-			}
-			labels = append(labels, prompb.Label{Name: labelName, Value: vs})
-		}
-	}
-	labels = append(labels, prompb.Label{})
-	return labels
-}
-
-// metricName generates the prometheus metric name based on the output plugin,
-// the measurement name and the value name.
-// it makes sure the name matches the regex "[^a-zA-Z0-9_]+"
-func (p *promWriteOutput) metricName(measName, valueName string) string {
-	sb := strings.Builder{}
-	if p.Cfg.MetricPrefix != "" {
-		sb.WriteString(p.metricRegex.ReplaceAllString(p.Cfg.MetricPrefix, "_"))
-		sb.WriteString("_")
-	}
-	if p.Cfg.AppendSubscriptionName {
-		sb.WriteString(strings.TrimRight(p.metricRegex.ReplaceAllString(measName, "_"), "_"))
-		sb.WriteString("_")
-	}
-	sb.WriteString(strings.TrimLeft(p.metricRegex.ReplaceAllString(valueName, "_"), "_"))
-	return sb.String()
-}
-
-func (p *promWriteOutput) timeSeriesFromEvent(ev *formatters.EventMsg) []*prompb.TimeSeries {
-	promTS := make([]*prompb.TimeSeries, 0, len(ev.Values))
-	tsLabels := p.getLabels(ev)
-	for k, v := range ev.Values {
-		fv, err := getFloat(v)
-		if err != nil {
-			p.logger.Printf("failed to convert value %v to float: %v", v, err)
-			continue
-		}
-
-		promTS = append(promTS,
-			&prompb.TimeSeries{
-				Labels: append(tsLabels,
-					prompb.Label{
-						Name:  labels.MetricName,
-						Value: p.metricName(ev.Name, k),
-					}),
-				Samples: []prompb.Sample{
-					{
-						Value:     fv,
-						Timestamp: ev.Timestamp / int64(time.Millisecond),
-					},
-				},
-			})
-	}
-	return promTS
-}
-
-func getFloat(v interface{}) (float64, error) {
-	switch i := v.(type) {
-	case float64:
-		return float64(i), nil
-	case float32:
-		return float64(i), nil
-	case int64:
-		return float64(i), nil
-	case int32:
-		return float64(i), nil
-	case int16:
-		return float64(i), nil
-	case int8:
-		return float64(i), nil
-	case uint64:
-		return float64(i), nil
-	case uint32:
-		return float64(i), nil
-	case uint16:
-		return float64(i), nil
-	case uint8:
-		return float64(i), nil
-	case int:
-		return float64(i), nil
-	case uint:
-		return float64(i), nil
-	case string:
-		f, err := strconv.ParseFloat(i, 64)
-		if err != nil {
-			return math.NaN(), err
-		}
-		return f, err
-	case *gnmi.Decimal64:
-		return float64(i.Digits) / math.Pow10(int(i.Precision)), nil
-	default:
-		return math.NaN(), errors.New("getFloat: unknown value is of incompatible type")
-	}
 }

@@ -11,8 +11,6 @@ import (
 	"math"
 	"net"
 	"net/http"
-	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -25,34 +23,32 @@ import (
 	"github.com/karimra/gnmic/cache"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
+	promcom "github.com/karimra/gnmic/outputs/prometheus_output"
 	"github.com/karimra/gnmic/types"
 	"github.com/karimra/gnmic/utils"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/prometheus/prompb"
 	"google.golang.org/protobuf/proto"
 )
 
 const (
+	outputType        = "prometheus"
 	defaultListen     = ":9804"
 	defaultPath       = "/metrics"
 	defaultExpiration = time.Minute
 	defaultMetricHelp = "gNMIc generated metric"
-	metricNameRegex   = "[^a-zA-Z0-9_]+"
-	loggingPrefix     = "[prometheus_output] "
+	loggingPrefix     = "[prometheus_output:%s] "
 	// this is used to timeout the collection method
 	// in case it drags for too long
 	defaultTimeout = 10 * time.Second
 )
 
-type labelPair struct {
-	Name  string
-	Value string
-}
 type promMetric struct {
 	name   string
-	labels []*labelPair
+	labels []prompb.Label
 	time   *time.Time
 	value  float64
 	// addedAt is used to expire metrics if the time field is not initialized
@@ -61,14 +57,13 @@ type promMetric struct {
 }
 
 func init() {
-	outputs.Register("prometheus", func() outputs.Output {
+	outputs.Register(outputType, func() outputs.Output {
 		return &prometheusOutput{
-			Cfg:         &config{},
-			eventChan:   make(chan *formatters.EventMsg),
-			wg:          new(sync.WaitGroup),
-			entries:     make(map[uint64]*promMetric),
-			metricRegex: regexp.MustCompile(metricNameRegex),
-			logger:      log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
+			Cfg:       &config{},
+			eventChan: make(chan *formatters.EventMsg),
+			wg:        new(sync.WaitGroup),
+			entries:   make(map[uint64]*promMetric),
+			logger:    log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
 		}
 	})
 }
@@ -83,7 +78,7 @@ type prometheusOutput struct {
 	sync.Mutex
 	entries map[uint64]*promMetric
 
-	metricRegex  *regexp.Regexp
+	mb           *promcom.MetricBuilder
 	evps         []formatters.EventProcessor
 	consulClient *api.Client
 
@@ -143,7 +138,8 @@ func (p *prometheusOutput) SetEventProcessors(ps map[string]map[string]interface
 			}
 			if in, ok := formatters.EventProcessors[epType]; ok {
 				ep := in()
-				err := ep.Init(epCfg[epType],
+				err := ep.Init(
+					epCfg[epType],
 					formatters.WithLogger(logger),
 					formatters.WithTargets(tcs),
 					formatters.WithActions(acts))
@@ -189,6 +185,7 @@ func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string
 	if err != nil {
 		return err
 	}
+	p.logger.SetPrefix(fmt.Sprintf(loggingPrefix, p.Cfg.Name))
 	// create prometheus registry
 	registry := prometheus.NewRegistry()
 
@@ -330,38 +327,6 @@ func (p *prometheusOutput) Collect(ch chan<- prometheus.Metric) {
 		case ch <- entry:
 		}
 	}
-}
-
-func (p *prometheusOutput) getLabels(ev *formatters.EventMsg) []*labelPair {
-	labels := make([]*labelPair, 0, len(ev.Tags))
-	addedLabels := make(map[string]struct{})
-	for k, v := range ev.Tags {
-		labelName := p.metricRegex.ReplaceAllString(filepath.Base(k), "_")
-		if _, ok := addedLabels[labelName]; ok {
-			continue
-		}
-		labels = append(labels, &labelPair{Name: labelName, Value: v})
-		addedLabels[labelName] = struct{}{}
-	}
-	if !p.Cfg.StringsAsLabels {
-		return labels
-	}
-
-	var err error
-	for k, v := range ev.Values {
-		_, err = getFloat(v)
-		if err == nil {
-			continue
-		}
-		if vs, ok := v.(string); ok {
-			labelName := p.metricRegex.ReplaceAllString(filepath.Base(k), "_")
-			if _, ok := addedLabels[labelName]; ok {
-				continue
-			}
-			labels = append(labels, &labelPair{Name: labelName, Value: vs})
-		}
-	}
-	return labels
 }
 
 func (p *prometheusOutput) worker(ctx context.Context) {
@@ -580,23 +545,6 @@ func getFloat(v interface{}) (float64, error) {
 	}
 }
 
-// metricName generates the prometheus metric name based on the output plugin,
-// the measurement name and the value name.
-// it makes sure the name matches the regex "[^a-zA-Z0-9_]+"
-func (p *prometheusOutput) metricName(measName, valueName string) string {
-	sb := strings.Builder{}
-	if p.Cfg.MetricPrefix != "" {
-		sb.WriteString(p.metricRegex.ReplaceAllString(p.Cfg.MetricPrefix, "_"))
-		sb.WriteString("_")
-	}
-	if p.Cfg.AppendSubscriptionName {
-		sb.WriteString(strings.TrimRight(p.metricRegex.ReplaceAllString(measName, "_"), "_"))
-		sb.WriteString("_")
-	}
-	sb.WriteString(strings.TrimLeft(p.metricRegex.ReplaceAllString(valueName, "_"), "_"))
-	return sb.String()
-}
-
 func (p *prometheusOutput) SetName(name string) {
 	if p.Cfg.Name == "" {
 		p.Cfg.Name = name
@@ -624,7 +572,7 @@ func (p *prometheusOutput) SetTargetsConfig(map[string]*types.TargetConfig) {}
 
 func (p *prometheusOutput) metricsFromEvent(ev *formatters.EventMsg, now time.Time) []*promMetric {
 	pms := make([]*promMetric, 0, len(ev.Values))
-	labels := p.getLabels(ev)
+	labels := p.mb.GetLabels(ev)
 	for vName, val := range ev.Values {
 		v, err := getFloat(val)
 		if err != nil {
@@ -634,7 +582,7 @@ func (p *prometheusOutput) metricsFromEvent(ev *formatters.EventMsg, now time.Ti
 			v = 1.0
 		}
 		pm := &promMetric{
-			name:    p.metricName(ev.Name, vName),
+			name:    p.mb.MetricName(ev.Name, vName),
 			labels:  labels,
 			value:   v,
 			addedAt: now,
