@@ -30,7 +30,7 @@ const (
 	defaultNumWorkers       = 1
 	defaultWriteTimeout     = 5 * time.Second
 	defaultAddress          = "localhost:4222"
-	loggingPrefix           = "[nats_output] "
+	loggingPrefix           = "[nats_output:%s] "
 )
 
 func init() {
@@ -147,6 +147,7 @@ func (n *NatsOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	if err != nil {
 		return err
 	}
+	n.logger.SetPrefix(fmt.Sprintf(loggingPrefix, n.Cfg.Name))
 	n.msgChan = make(chan *protoMsg)
 	initMetrics()
 	n.mo = &formatters.MarshalOptions{

@@ -24,7 +24,7 @@ const (
 	defaultFormat           = "json"
 	defaultWriteConcurrency = 1000
 	defaultSeparator        = "\n"
-	loggingPrefix           = "[file_output] "
+	loggingPrefix           = "[file_output:%s] "
 )
 
 func init() {
@@ -133,6 +133,9 @@ func (f *File) Init(ctx context.Context, name string, cfg map[string]interface{}
 	if f.Cfg.FileName == "" && f.Cfg.FileType == "" {
 		f.Cfg.FileType = "stdout"
 	}
+
+	f.logger.SetPrefix(fmt.Sprintf(loggingPrefix, name))
+
 	switch f.Cfg.FileType {
 	case "stdout":
 		f.file = os.Stdout

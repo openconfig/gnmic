@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"math"
@@ -30,7 +31,7 @@ const (
 	defaultCacheFlushTimer   = 5 * time.Second
 
 	numWorkers    = 1
-	loggingPrefix = "[influxdb_output] "
+	loggingPrefix = "[influxdb_output:%s] "
 )
 
 func init() {
@@ -156,7 +157,7 @@ func (i *InfluxDBOutput) Init(ctx context.Context, name string, cfg map[string]i
 		}
 		i.initCache()
 	}
-
+	i.logger.SetPrefix(fmt.Sprintf(loggingPrefix, name))
 	iopts := influxdb2.DefaultOptions().
 		SetUseGZip(i.Cfg.UseGzip).
 		SetBatchSize(i.Cfg.BatchSize).
@@ -243,7 +244,14 @@ func (i *InfluxDBOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg
 		return
 	case <-i.reset:
 		return
-	case i.eventChan <- ev:
+	default:
+		var evs = []*formatters.EventMsg{ev}
+		for _, proc := range i.evps {
+			evs = proc.Apply(evs...)
+		}
+		for _, pev := range evs {
+			i.eventChan <- pev
+		}
 	}
 }
 

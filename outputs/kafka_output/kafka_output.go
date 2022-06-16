@@ -31,7 +31,7 @@ const (
 	defaultFormat           = "event"
 	defaultRecoveryWaitTime = 10 * time.Second
 	defaultAddress          = "localhost:9092"
-	loggingPrefix           = "[kafka_output] "
+	loggingPrefix           = "[kafka_output:%s] "
 )
 
 type protoMsg struct {

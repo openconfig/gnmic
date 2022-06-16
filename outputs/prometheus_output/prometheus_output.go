@@ -272,7 +272,14 @@ func (p *prometheusOutput) WriteEvent(ctx context.Context, ev *formatters.EventM
 	select {
 	case <-ctx.Done():
 		return
-	case p.eventChan <- ev:
+	default:
+		var evs = []*formatters.EventMsg{ev}
+		for _, proc := range p.evps {
+			evs = proc.Apply(evs...)
+		}
+		for _, pev := range evs {
+			p.eventChan <- pev
+		}
 	}
 }
 

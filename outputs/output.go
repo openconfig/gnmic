@@ -48,6 +48,7 @@ var OutputTypes = []string{
 	"tcp",
 	"udp",
 	"gnmi",
+	"prometheus_write",
 }
 
 func Register(name string, initFn Initializer) {

@@ -21,7 +21,7 @@ import (
 const (
 	defaultRetryTimer = 2 * time.Second
 	defaultNumWorkers = 1
-	loggingPrefix     = "[tcp_output] "
+	loggingPrefix     = "[tcp_output:%s] "
 )
 
 func init() {
@@ -119,6 +119,7 @@ func (t *TCPOutput) Init(ctx context.Context, name string, cfg map[string]interf
 	if t.Cfg.NumWorkers < 1 {
 		t.Cfg.NumWorkers = defaultNumWorkers
 	}
+	t.logger.SetPrefix(fmt.Sprintf(loggingPrefix, name))
 	t.mo = &formatters.MarshalOptions{
 		Format:     t.Cfg.Format,
 		OverrideTS: t.Cfg.OverrideTimestamps,
