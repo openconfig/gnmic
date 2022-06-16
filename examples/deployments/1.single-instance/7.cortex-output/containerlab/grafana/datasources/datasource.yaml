@@ -1,0 +1,21 @@
+apiVersion: 1
+
+deleteDatasources:
+  - name: Cortex
+    orgId: 1
+
+datasources:
+  - name: Cortex
+    type: prometheus
+    orgId: 1
+    url: http://clab-lab17-cortex:9009/prometheus
+    password:
+    user:
+    database:
+    basicAuth: false
+    basicAuthUser:
+    basicAuthPassword:
+    withCredentials:
+    isDefault: true
+    version: 1
+    editable: true
