@@ -117,17 +117,23 @@ func (m *MetricBuilder) MetricName(measName, valueName string) string {
 	return sb.String()
 }
 
-func (m *MetricBuilder) TimeSeriesFromEvent(ev *formatters.EventMsg) []*prompb.TimeSeries {
-	promTS := make([]*prompb.TimeSeries, 0, len(ev.Values))
+type NamedTimeSeries struct {
+	Name string
+	TS   *prompb.TimeSeries
+}
+
+func (m *MetricBuilder) TimeSeriesFromEvent(ev *formatters.EventMsg) []*NamedTimeSeries {
+	promTS := make([]*NamedTimeSeries, 0, len(ev.Values))
 	tsLabels := m.GetLabels(ev)
 	for k, v := range ev.Values {
 		fv, err := toFloat(v)
 		if err != nil {
 			continue
 		}
-
-		promTS = append(promTS,
-			&prompb.TimeSeries{
+		tsName := m.MetricName(ev.Name, k)
+		nts := &NamedTimeSeries{
+			Name: tsName,
+			TS: &prompb.TimeSeries{
 				Labels: append(tsLabels,
 					prompb.Label{
 						Name:  labels.MetricName,
@@ -139,7 +145,9 @@ func (m *MetricBuilder) TimeSeriesFromEvent(ev *formatters.EventMsg) []*prompb.T
 						Timestamp: ev.Timestamp / int64(time.Millisecond),
 					},
 				},
-			})
+			},
+		}
+		promTS = append(promTS, nts)
 	}
 	return promTS
 }

@@ -8,7 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"regexp"
+	"sync"
 	"text/template"
 	"time"
 
@@ -25,24 +25,28 @@ import (
 )
 
 const (
-	outputType           = "prometheus_write"
-	loggingPrefix        = "[prometheus_write_output:%s] "
-	defaultTimeout       = 10 * time.Second
-	defaultWriteInterval = 10 * time.Second
-	defaultBufferSize    = 1000
-	defaultMetricHelp    = "gNMIc generated metric"
-	defaultNumWriters    = 1
-	userAgent            = "gNMIc prometheus write"
+	outputType                        = "prometheus_write"
+	loggingPrefix                     = "[prometheus_write_output:%s] "
+	defaultTimeout                    = 10 * time.Second
+	defaultWriteInterval              = 10 * time.Second
+	defaultMetadataWriteInterval      = time.Minute
+	defaultBufferSize                 = 1000
+	defaultMaxTSPerWrite              = 500
+	defaultMaxMetaDataEntriesPerWrite = 500
+	defaultMetricHelp                 = "gNMIc generated metric"
+	userAgent                         = "gNMIc prometheus write"
 )
 
 func init() {
 	outputs.Register(outputType,
 		func() outputs.Output {
 			return &promWriteOutput{
-				Cfg:         &config{},
-				logger:      log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
-				eventChan:   make(chan *formatters.EventMsg),
-				buffDrainCh: make(chan struct{}),
+				Cfg:           &config{},
+				logger:        log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
+				eventChan:     make(chan *formatters.EventMsg),
+				buffDrainCh:   make(chan struct{}),
+				m:             new(sync.Mutex),
+				metadataCache: make(map[string]prompb.MetricMetadata),
 			}
 		})
 }
@@ -56,27 +60,31 @@ type promWriteOutput struct {
 	timeSeriesCh chan *prompb.TimeSeries
 	buffDrainCh  chan struct{}
 	mb           *promcom.MetricBuilder
-	cfn          context.CancelFunc
-	metricRegex  *regexp.Regexp
-	evps         []formatters.EventProcessor
-	targetTpl    *template.Template
+
+	m             *sync.Mutex
+	metadataCache map[string]prompb.MetricMetadata
+
+	evps      []formatters.EventProcessor
+	targetTpl *template.Template
+	cfn       context.CancelFunc
 	// TODO:
 	// gnmiCache *cache.GnmiOutputCache
 }
 
 type config struct {
-	Name            string            `mapstructure:"name,omitempty" json:"name,omitempty"`
-	URL             string            `mapstructure:"url,omitempty" json:"url,omitempty"`
-	Timeout         time.Duration     `mapstructure:"timeout,omitempty" json:"timeout,omitempty"`
-	Headers         map[string]string `mapstructure:"headers,omitempty" json:"headers,omitempty"`
-	Authentication  *auth             `mapstructure:"authentication,omitempty" json:"authentication,omitempty"`
-	Authorization   *authorization    `mapstructure:"authorization,omitempty" json:"authorization,omitempty"`
-	TLS             *tls              `mapstructure:"tls,omitempty" json:"tls,omitempty"`
-	Interval        time.Duration     `mapstructure:"interval,omitempty" json:"interval,omitempty"`
-	BufferSize      int               `mapstructure:"buffer-size,omitempty" json:"buffer-size,omitempty"`
-	IncludeMetadata bool              `mapstructure:"include-metadata,omitempty" json:"include-metadata,omitempty"`
-	NumWriters      int               `mapstructure:"num-writers,omitempty" json:"num-writers,omitempty"`
-	Debug           bool              `mapstructure:"debug,omitempty" json:"debug,omitempty"`
+	Name                  string            `mapstructure:"name,omitempty" json:"name,omitempty"`
+	URL                   string            `mapstructure:"url,omitempty" json:"url,omitempty"`
+	Timeout               time.Duration     `mapstructure:"timeout,omitempty" json:"timeout,omitempty"`
+	Headers               map[string]string `mapstructure:"headers,omitempty" json:"headers,omitempty"`
+	Authentication        *auth             `mapstructure:"authentication,omitempty" json:"authentication,omitempty"`
+	Authorization         *authorization    `mapstructure:"authorization,omitempty" json:"authorization,omitempty"`
+	TLS                   *tls              `mapstructure:"tls,omitempty" json:"tls,omitempty"`
+	Interval              time.Duration     `mapstructure:"interval,omitempty" json:"interval,omitempty"`
+	BufferSize            int               `mapstructure:"buffer-size,omitempty" json:"buffer-size,omitempty"`
+	MaxTimeSeriesPerWrite int               `mapstructure:"max-time-series-per-write,omitempty" json:"max-time-series-per-write,omitempty"`
+	MaxRetries            int               `mapstructure:"max-retries,omitempty" json:"max-retries,omitempty"`
+	Metadata              *metadata         `mapstructure:"metadata,omitempty" json:"metadata,omitempty"`
+	Debug                 bool              `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 	//
 	MetricPrefix           string   `mapstructure:"metric-prefix,omitempty" json:"metric-prefix,omitempty"`
 	AppendSubscriptionName bool     `mapstructure:"append-subscription-name,omitempty" json:"append-subscription-name,omitempty"`
@@ -101,6 +109,12 @@ type tls struct {
 	CertFile   string `mapstructure:"cert-file,omitempty" json:"cert-file,omitempty"`
 	KeyFile    string `mapstructure:"key-file,omitempty" json:"key-file,omitempty"`
 	SkipVerify bool   `mapstructure:"skip-verify,omitempty" json:"skip-verify,omitempty"`
+}
+
+type metadata struct {
+	Include            bool          `mapstructure:"include,omitempty" json:"include,omitempty"`
+	Interval           time.Duration `mapstructure:"interval,omitempty" json:"interval,omitempty"`
+	MaxEntriesPerWrite int           `mapstructure:"max-entries-per-write,omitempty" json:"max-entries-per-write,omitempty"`
 }
 
 func (p *promWriteOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
@@ -148,11 +162,9 @@ func (p *promWriteOutput) Init(ctx context.Context, name string, cfg map[string]
 
 	ctx, p.cfn = context.WithCancel(ctx)
 	go p.worker(ctx)
-	for i := 0; i < p.Cfg.NumWriters; i++ {
-		go p.writer(ctx)
-	}
-
-	p.logger.Printf("initialized prometheus_write output %s: %s", p.Cfg.Name, p.String())
+	go p.writer(ctx)
+	go p.metadataWriter(ctx)
+	p.logger.Printf("initialized prometheus write output %s: %s", p.Cfg.Name, p.String())
 	return nil
 }
 
@@ -209,7 +221,7 @@ func (p *promWriteOutput) Close() error {
 	return nil
 }
 
-func (p *promWriteOutput) RegisterMetrics(*prometheus.Registry) {}
+func (p *promWriteOutput) RegisterMetrics(_ *prometheus.Registry) {}
 
 func (p *promWriteOutput) String() string {
 	b, err := json.Marshal(p)
@@ -279,17 +291,29 @@ func (p *promWriteOutput) worker(ctx context.Context) {
 			if p.Cfg.Debug {
 				p.logger.Printf("got event to buffer: %+v", ev)
 			}
-			for _, pt := range p.mb.TimeSeriesFromEvent(ev) {
+			for _, pts := range p.mb.TimeSeriesFromEvent(ev) {
 				if len(p.timeSeriesCh) >= p.Cfg.BufferSize {
-					if p.Cfg.Debug {
-						p.logger.Printf("buffer size reached, triggering write")
-					}
+					//if p.Cfg.Debug {
+					p.logger.Printf("buffer size reached, triggering write")
+					// }
 					p.buffDrainCh <- struct{}{}
 				}
+				// populate metadata cache
+				p.m.Lock()
+				if p.Cfg.Debug {
+					p.logger.Printf("saving metrics metadata")
+				}
+				p.metadataCache[pts.Name] = prompb.MetricMetadata{
+					Type:             prompb.MetricMetadata_COUNTER,
+					MetricFamilyName: pts.Name,
+					Help:             defaultMetricHelp,
+				}
+				p.m.Unlock()
+				// write time series to buffer
 				if p.Cfg.Debug {
 					p.logger.Printf("writing TimeSeries to buffer")
 				}
-				p.timeSeriesCh <- pt
+				p.timeSeriesCh <- pts.TS
 			}
 		}
 	}
@@ -305,8 +329,24 @@ func (p *promWriteOutput) setDefaults() error {
 	if p.Cfg.BufferSize <= 0 {
 		p.Cfg.BufferSize = defaultBufferSize
 	}
-	if p.Cfg.NumWriters <= 0 {
-		p.Cfg.NumWriters = defaultNumWriters
+	if p.Cfg.MaxTimeSeriesPerWrite <= 0 {
+		p.Cfg.MaxTimeSeriesPerWrite = defaultMaxTSPerWrite
+	}
+	if p.Cfg.Metadata == nil {
+		p.Cfg.Metadata = &metadata{
+			Include:            true,
+			Interval:           defaultMetadataWriteInterval,
+			MaxEntriesPerWrite: defaultMaxMetaDataEntriesPerWrite,
+		}
+		return nil
+	}
+	if p.Cfg.Metadata.Include {
+		if p.Cfg.Metadata.Interval <= 0 {
+			p.Cfg.Metadata.Interval = defaultMetadataWriteInterval
+		}
+		if p.Cfg.Metadata.MaxEntriesPerWrite <= 0 {
+			p.Cfg.Metadata.MaxEntriesPerWrite = defaultMaxMetaDataEntriesPerWrite
+		}
 	}
 	return nil
 }

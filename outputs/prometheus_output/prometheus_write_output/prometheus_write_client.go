@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strings"
 	"time"
 
 	gogoproto "github.com/gogo/protobuf/proto"
@@ -14,6 +13,8 @@ import (
 	"github.com/karimra/gnmic/utils"
 	"github.com/prometheus/prometheus/prompb"
 )
+
+var backoff = 100 * time.Millisecond
 
 func (p *promWriteOutput) createHTTPClient() error {
 	c := &http.Client{
@@ -75,71 +76,70 @@ func (p *promWriteOutput) write(ctx context.Context) {
 		case ts := <-p.timeSeriesCh:
 			pts = append(pts, *ts)
 			if len(pts) == buffSize {
-				goto BUFF
+				goto WRITE
 			}
 		case <-time.After(time.Second):
-			goto BUFF
+			goto WRITE
 		}
 	}
-BUFF:
-	if len(pts) == 0 {
+WRITE:
+	numTS := len(pts)
+	if numTS == 0 {
 		return
 	}
-	wr := &prompb.WriteRequest{
-		Timeseries: pts,
-		Metadata: []prompb.MetricMetadata{
-			{
-				Type: prompb.MetricMetadata_COUNTER,
-				Help: defaultMetricHelp,
-			},
-		},
-	}
-	if p.Cfg.IncludeMetadata {
-		wr.Metadata = []prompb.MetricMetadata{
-			{
-				Type: prompb.MetricMetadata_COUNTER,
-				Help: defaultMetricHelp,
-			},
+	chunk := make([]prompb.TimeSeries, 0, p.Cfg.MaxTimeSeriesPerWrite)
+	for i, pt := range pts {
+		// append timeSeries to chunk
+		chunk = append(chunk, pt)
+		// if the chunk size reaches the configured max or
+		// we reach the max number of time series gathered, send.
+		chunkSize := len(chunk)
+		if chunkSize == p.Cfg.MaxTimeSeriesPerWrite || i+1 == numTS {
+			if p.Cfg.Debug {
+				p.logger.Printf("writing a %d time series chunk", chunkSize)
+			}
+			err := p.writeRequest(ctx, &prompb.WriteRequest{
+				Timeseries: chunk,
+			})
+			if err != nil {
+				p.logger.Print(err)
+			}
+			// return if we are done with the gathered time series
+			if i+1 == numTS {
+				return
+			}
+			// reset chunk if we are not done yet
+			chunk = make([]prompb.TimeSeries, 0, p.Cfg.MaxTimeSeriesPerWrite)
 		}
-	}
-	err := p.writeReq(ctx, wr)
-	if err != nil {
-		p.logger.Print(err)
 	}
 }
 
-func (p *promWriteOutput) writeReq(ctx context.Context, wr *prompb.WriteRequest) error {
-	b, err := gogoproto.Marshal(wr)
+// writeRequest marshals the supplied prompb.WriteRequest,
+// creates an HTTP request with the proper configured options (Authentication, Headers,...),
+// sends the request and checks the returned response status code.
+// It returns an error if the status code is >=300.
+func (p *promWriteOutput) writeRequest(ctx context.Context, wr *prompb.WriteRequest) error {
+	httpReq, err := p.makeHTTPRequest(ctx, wr)
 	if err != nil {
-		return fmt.Errorf("failed to marshal proto write request: %v", err)
-	}
-	compBytes := snappy.Encode(nil, b)
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.Cfg.URL, bytes.NewBuffer(compBytes))
-	if err != nil {
-		return fmt.Errorf("failed to create HTTP request: %v", err)
-	}
-	httpReq.Header.Set("X-Prometheus-Remote-Write-Version", "0.1.0")
-	httpReq.Header.Set("Content-Encoding", "snappy")
-	httpReq.Header.Set("User-Agent", userAgent)
-	httpReq.Header.Set("Content-Type", "application/x-protobuf")
-
-	if p.Cfg.Authentication != nil {
-		httpReq.SetBasicAuth(p.Cfg.Authentication.Username, p.Cfg.Authentication.Password)
+		return err
 	}
 
-	if p.Cfg.Authorization != nil && strings.ToLower(p.Cfg.Authorization.Type) == "bearer" {
-		httpReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", p.Cfg.Authorization.Credentials))
-	}
-
-	for k, v := range p.Cfg.Headers {
-		httpReq.Header.Add(k, v)
-	}
-
+	// send request with retries
+	retries := 0
+RETRY:
 	rsp, err := p.httpClient.Do(httpReq)
 	if err != nil {
-		return fmt.Errorf("failed to write to remote: %v", err)
+		retries++
+		err = fmt.Errorf("failed to write to remote: %w", err)
+		p.logger.Print(err)
+		if retries < p.Cfg.MaxRetries {
+			time.Sleep(backoff)
+			goto RETRY
+		}
+		return err
 	}
 	defer rsp.Body.Close()
+
 	if p.Cfg.Debug {
 		p.logger.Printf("got response from remote: status=%s", rsp.Status)
 	}
@@ -151,4 +151,104 @@ func (p *promWriteOutput) writeReq(ctx context.Context, wr *prompb.WriteRequest)
 		return fmt.Errorf("write response failed, code=%d, body=%s", rsp.StatusCode, string(msg))
 	}
 	return nil
+}
+
+// metadataWriter writes the cached metadata entries to the remote address each `metadata.interval`
+func (p *promWriteOutput) metadataWriter(ctx context.Context) {
+	if p.Cfg.Metadata == nil || !p.Cfg.Metadata.Include {
+		return
+	}
+	p.writeMetadata(ctx)
+	ticker := time.NewTicker(p.Cfg.Metadata.Interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			p.writeMetadata(ctx)
+		}
+	}
+}
+
+// writeMetadata writes the currently cached metadata entries to the remote address,
+// it will multiple prompb.WriteRequest with at most `metadata.max-entries` each until all entries are sent.
+func (p *promWriteOutput) writeMetadata(ctx context.Context) {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	if len(p.metadataCache) == 0 {
+		return
+	}
+
+	mds := make([]prompb.MetricMetadata, 0, p.Cfg.Metadata.MaxEntriesPerWrite)
+	count := 0 // keep track of the number of entries in mds
+
+	for _, md := range p.metadataCache {
+		if count < p.Cfg.Metadata.MaxEntriesPerWrite {
+			count++
+			mds = append(mds, md)
+			continue
+		}
+		// max entries reached, write accumulated entries
+		if p.Cfg.Debug {
+			p.logger.Printf("writing %d metadata points", len(mds))
+		}
+		err := p.writeRequest(ctx, &prompb.WriteRequest{
+			Metadata: mds,
+		})
+		if err != nil {
+			p.logger.Printf("metadata write err: %v", err)
+			return
+		}
+		// reset counter and array then continue with the loop
+		count = 0
+		mds = make([]prompb.MetricMetadata, 0, p.Cfg.Metadata.MaxEntriesPerWrite)
+	}
+
+	// no metadata entries to write, return
+	if len(mds) == 0 {
+		return
+	}
+
+	// loop done with some metadata entries left to write
+	if p.Cfg.Debug {
+		p.logger.Printf("writing %d metadata points", len(mds))
+	}
+	err := p.writeRequest(ctx, &prompb.WriteRequest{
+		Metadata: mds,
+	})
+	if err != nil {
+		p.logger.Printf("metadata write err: %v", err)
+	}
+}
+
+func (p *promWriteOutput) makeHTTPRequest(ctx context.Context, wr *prompb.WriteRequest) (*http.Request, error) {
+	b, err := gogoproto.Marshal(wr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal proto write request: %v", err)
+	}
+	compBytes := snappy.Encode(nil, b)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.Cfg.URL, bytes.NewBuffer(compBytes))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP request: %v", err)
+	}
+	httpReq.Header.Set("X-Prometheus-Remote-Write-Version", "0.1.0")
+	httpReq.Header.Set("Content-Encoding", "snappy")
+	httpReq.Header.Set("User-Agent", userAgent)
+	httpReq.Header.Set("Content-Type", "application/x-protobuf")
+
+	if p.Cfg.Authentication != nil {
+		httpReq.SetBasicAuth(p.Cfg.Authentication.Username, p.Cfg.Authentication.Password)
+	}
+
+	if p.Cfg.Authorization != nil && p.Cfg.Authorization.Type != "" {
+		httpReq.Header.Set("Authorization", fmt.Sprintf("%s %s", p.Cfg.Authorization.Type, p.Cfg.Authorization.Credentials))
+	}
+
+	for k, v := range p.Cfg.Headers {
+		httpReq.Header.Add(k, v)
+	}
+
+	return httpReq, nil
 }
