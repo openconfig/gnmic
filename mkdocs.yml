@@ -49,7 +49,9 @@ nav:
           - STAN: user_guide/outputs/stan_output.md
           - Kafka: user_guide/outputs/kafka_output.md
           - InfluxDB: user_guide/outputs/influxdb_output.md
-          - Prometheus:  user_guide/outputs/prometheus_output.md
+          - Prometheus:  
+            - Scrape Based (Pull): user_guide/outputs/prometheus_output.md
+            - Remote Write (Push): user_guide/outputs/prometheus_write_output.md
           - gNMI Server: user_guide/outputs/gnmi_output.md
           - TCP: user_guide/outputs/tcp_output.md
           - UDP: user_guide/outputs/udp_output.md
