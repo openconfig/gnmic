@@ -30,5 +30,5 @@ outputs:
   prom-remote:
     type: prometheus_write
     url: http://clab-lab16-prometheus:9090/api/v1/write
-    include-metadata: true
-
+    metadata:
+      include: true
