@@ -20,7 +20,7 @@ import (
 
 const (
 	defaultRetryTimer = 2 * time.Second
-	loggingPrefix     = "[udp_output] "
+	loggingPrefix     = "[udp_output:%s] "
 )
 
 func init() {
@@ -112,6 +112,8 @@ func (u *UDPSock) Init(ctx context.Context, name string, cfg map[string]interfac
 	if u.Cfg.RetryInterval == 0 {
 		u.Cfg.RetryInterval = defaultRetryTimer
 	}
+
+	u.logger.SetPrefix(fmt.Sprintf(loggingPrefix, name))
 
 	u.buffer = make(chan []byte, u.Cfg.BufferSize)
 	if u.Cfg.Rate > 0 {

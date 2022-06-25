@@ -1,0 +1,34 @@
+username: admin
+password: admin
+skip-verify: true
+encoding: json_ietf
+log: true
+
+loader:
+  type: docker
+  filters:
+    - containers:
+      - label=clab-node-kind: srl
+        label=containerlab: lab16
+
+subscriptions:
+  # Add subscriptions configuration here
+  # e.g:
+  sub1:
+    paths:
+      - /interface/statistics
+    stream-mode: sample
+    sample-interval: 10s
+
+  sub2:
+    paths:
+      - /interface/subinterface/statistics
+    stream-mode: sample
+    sample-interval: 10s
+    
+outputs:
+  prom-remote:
+    type: prometheus_write
+    url: http://clab-lab16-prometheus:9090/api/v1/write
+    metadata:
+      include: true

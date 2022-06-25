@@ -1,0 +1,34 @@
+username: admin
+password: admin
+skip-verify: true
+encoding: json_ietf
+log: true
+
+
+loader:
+  type: docker
+  filters:
+    - containers:
+      - label=clab-node-kind: srl
+        label=containerlab: lab18
+
+subscriptions:
+  # Add subscriptions configuration here
+  # e.g:
+  sub1:
+    paths:
+      - /interface/statistics
+    stream-mode: sample
+    sample-interval: 10s
+
+  sub2:
+    paths:
+      - /interface/subinterface/statistics
+    stream-mode: sample
+    sample-interval: 10s
+    
+outputs:
+  cortex:
+    type: prometheus_write
+    url: http://clab-lab18-victoria:8428/api/v1/write
+

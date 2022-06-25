@@ -1,0 +1,21 @@
+apiVersion: 1
+
+deleteDatasources:
+  - name: victoria
+    orgId: 1
+
+datasources:
+  - name: victoria
+    type: prometheus
+    orgId: 1
+    url: http://clab-lab18-victoria:8428
+    password:
+    user:
+    database:
+    basicAuth: false
+    basicAuthUser:
+    basicAuthPassword:
+    withCredentials:
+    isDefault: true
+    version: 1
+    editable: true

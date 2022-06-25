@@ -105,7 +105,7 @@ The below diagram shows an example of a prometheus metric generation from a gnmi
 
 The metric name starts with the string configured under __metric-prefix__. 
 
-Then if __append-subscription-name__ is `true`, the __subscription-name__ as specified in `gnmic` configuraiton file is appended.
+Then if __append-subscription-name__ is `true`, the __subscription-name__ as specified in `gnmic` configuration file is appended.
 
 The resulting string is followed by the gNMI __path__ stripped of its keys if there are any.
 
@@ -131,7 +131,7 @@ gnmic_port_stats_interfaces_interface_subinterfaces_subinterface_state_counters_
 
 The metrics labels are generated from the subscription metadata (e.g: `subscription-name` and `source`) and the keys present in the gNMI path elements.
 
-For the previous example the labels would be: 
+For the previous example the labels would be:
 
 ```bash
 {interface_name="1/1/1",subinterface_index=0,source="$routerIP:Port",subscription_name="port-stats"}
@@ -207,6 +207,6 @@ outputs:
       enable-http-check: true
 ```
 
-Note that for the `http` check to work properly, a routable address ( IP or name ) should be specified under `listen`.
+Note that for the `http` check to work properly, a reachable address ( IP or name ) should be specified under `listen`.
 
-Otherwise, a routable address should be added under `service-registration.http-check-address`.
+Otherwise, a reachable address should be added under `service-registration.http-check-address`.
