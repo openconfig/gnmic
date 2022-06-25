@@ -84,7 +84,7 @@ type prometheusOutput struct {
 
 	targetTpl *template.Template
 
-	gnmiCache *cache.GnmiOutputCache
+	gnmiCache *cache.GnmiCache
 }
 
 type config struct {
@@ -178,13 +178,22 @@ func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string
 		}
 		p.targetTpl = p.targetTpl.Funcs(outputs.TemplateFuncs)
 	}
-	if p.Cfg.GnmiCache {
-		p.initCache()
-	}
 	err = p.setDefaults()
 	if err != nil {
 		return err
 	}
+
+	if p.Cfg.GnmiCache {
+		p.gnmiCache = cache.New(
+			&cache.GnmiCacheConfig{
+				Expiration: p.Cfg.Expiration,
+				Timeout:    p.Cfg.Timeout,
+				Debug:      p.Cfg.Debug,
+			},
+			cache.WithLogger(p.logger),
+		)
+	}
+
 	p.logger.SetPrefix(fmt.Sprintf(loggingPrefix, p.Cfg.Name))
 	// create prometheus registry
 	registry := prometheus.NewRegistry()

@@ -25,13 +25,13 @@ type GnmiCacheConfig struct {
 	Debug      bool          `mapstructure:"debug,omitempty"`
 }
 
-func (gcc *GnmiCacheConfig) SetDefaults() {
+func (gcc *GnmiCacheConfig) setDefaults() {
 	if gcc.Timeout == 0 {
 		gcc.Timeout = defaultTimeout
 	}
 }
 
-type GnmiOutputCache struct {
+type GnmiCache struct {
 	sync.Mutex
 	caches     map[string]*gnmiCache.Cache
 	logger     *log.Logger
@@ -40,29 +40,32 @@ type GnmiOutputCache struct {
 	debug      bool
 }
 
-func (gc *GnmiOutputCache) LoadConfig(gcc *GnmiCacheConfig) {
+func (gc *GnmiCache) loadConfig(gcc *GnmiCacheConfig) {
 	gc.expiration = gcc.Expiration
 	gc.timeout = gcc.Timeout
 	gc.logger = log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags)
 	gc.caches = make(map[string]*gnmiCache.Cache)
 	gc.debug = gcc.Debug
-
 }
 
-func (gc *GnmiOutputCache) Init(opts ...Option) {
+func New(cfg *GnmiCacheConfig, opts ...Option) *GnmiCache {
+	gc := new(GnmiCache)
+	cfg.setDefaults()
+	gc.loadConfig(cfg)
 	for _, opt := range opts {
 		opt(gc)
 	}
+	return gc
 }
 
-func (gc *GnmiOutputCache) SetLogger(logger *log.Logger) {
+func (gc *GnmiCache) SetLogger(logger *log.Logger) {
 	if logger != nil && gc.logger != nil {
 		gc.logger.SetOutput(logger.Writer())
 		gc.logger.SetFlags(logger.Flags())
 	}
 }
 
-func (gc *GnmiOutputCache) Write(measName string, rsp *gnmi.SubscribeResponse) {
+func (gc *GnmiCache) Write(measName string, rsp *gnmi.SubscribeResponse) {
 	var err error
 	switch rsp := rsp.GetResponse().(type) {
 	case *gnmi.SubscribeResponse_Update:
@@ -88,7 +91,7 @@ func (gc *GnmiOutputCache) Write(measName string, rsp *gnmi.SubscribeResponse) {
 	}
 }
 
-func (gc *GnmiOutputCache) Read() []*formatters.EventMsg {
+func (gc *GnmiCache) ReadEvents() []*formatters.EventMsg {
 	var err error
 	gc.Lock()
 	defer gc.Unlock()
@@ -122,9 +125,10 @@ func (gc *GnmiOutputCache) Read() []*formatters.EventMsg {
 							return nil
 						}
 						// build events without processors
-						events, err := formatters.ResponseToEventMsgs(name, &gnmi.SubscribeResponse{
-							Response: &gnmi.SubscribeResponse_Update{Update: notif},
-						},
+						events, err := formatters.ResponseToEventMsgs(name,
+							&gnmi.SubscribeResponse{
+								Response: &gnmi.SubscribeResponse_Update{Update: notif},
+							},
 							outputs.Meta{"subscription-name": name})
 						if err != nil {
 							gc.logger.Printf("failed to convert message to event: %v", err)
@@ -145,4 +149,54 @@ func (gc *GnmiOutputCache) Read() []*formatters.EventMsg {
 	// wait for events to be appended to the array
 	<-doneCh
 	return events
+}
+
+func (gc *GnmiCache) ReadNotifications() []*gnmi.Notification {
+	var err error
+	gc.Lock()
+	defer gc.Unlock()
+	notificationChan := make(chan *gnmi.Notification)
+	notifications := make([]*gnmi.Notification, 0)
+	doneCh := make(chan struct{})
+	// this go routine will collect all the notifications
+	// from the cache queries
+	go func() {
+		for notif := range notificationChan {
+			notifications = append(notifications, notif)
+		}
+		close(doneCh)
+	}()
+
+	now := time.Now()
+	wg := new(sync.WaitGroup)
+	wg.Add(len(gc.caches))
+	for name, c := range gc.caches {
+		go func(c *gnmiCache.Cache, name string) {
+			defer wg.Done()
+			err = c.Query("*", []string{},
+				func(_ []string, l *ctree.Leaf, v interface{}) error {
+					if err != nil {
+						return err
+					}
+					switch notif := v.(type) {
+					case *gnmi.Notification:
+						if gc.expiration > 0 &&
+							time.Unix(0, notif.Timestamp).Before(now.Add(time.Duration(-gc.expiration))) {
+							return nil
+						}
+						notificationChan <- notif
+					}
+					return nil
+				})
+			if err != nil {
+				gc.logger.Printf("failed prometheus cache query:%v", err)
+				return
+			}
+		}(c, name)
+	}
+	wg.Wait()
+	close(notificationChan)
+	// wait for notifications to be appended to the array
+	<-doneCh
+	return notifications
 }
