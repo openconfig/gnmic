@@ -2,10 +2,10 @@ package cache
 
 import "log"
 
-type Option func(*GnmiOutputCache)
+type Option func(*GnmiCache)
 
 func WithLogger(logger *log.Logger) Option {
-	return func(gc *GnmiOutputCache) {
+	return func(gc *GnmiCache) {
 		gc.SetLogger(logger)
 	}
 }

@@ -7,10 +7,7 @@ import (
 )
 
 func (i *InfluxDBOutput) initCache() {
-	i.Cfg.GnmiCacheConfig.SetDefaults()
-	i.gnmiCache = &cache.GnmiOutputCache{}
-	i.gnmiCache.LoadConfig(i.Cfg.GnmiCacheConfig)
-	i.gnmiCache.Init(cache.WithLogger(i.logger))
+	i.gnmiCache = cache.New(i.Cfg.GnmiCacheConfig, cache.WithLogger(i.logger))
 	i.cacheTicker = time.NewTicker(i.Cfg.CacheFlushTimer)
 	i.done = make(chan struct{})
 	go i.runCache()
@@ -36,7 +33,7 @@ func (i *InfluxDBOutput) runCache() {
 }
 
 func (i *InfluxDBOutput) readCache() {
-	events := i.gnmiCache.Read()
+	events := i.gnmiCache.ReadEvents()
 	for _, proc := range i.evps {
 		events = proc.Apply(events...)
 	}

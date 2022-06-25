@@ -60,7 +60,7 @@ type InfluxDBOutput struct {
 
 	targetTpl *template.Template
 
-	gnmiCache   *cache.GnmiOutputCache
+	gnmiCache   *cache.GnmiCache
 	cacheTicker *time.Ticker
 	done        chan struct{}
 }
