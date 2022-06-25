@@ -83,7 +83,24 @@ func (gc *GnmiCache) Write(measName string, rsp *gnmi.SubscribeResponse) {
 			gc.caches[measName].Add(target)
 			gc.logger.Printf("target %q added to the local cache", target)
 		}
-		err = gc.caches[measName].GnmiUpdate(rsp.Update)
+		// do not write updates with nil values to cache.
+		notif := &gnmi.Notification{
+			Timestamp: rsp.Update.GetTimestamp(),
+			Prefix:    rsp.Update.GetPrefix(),
+			Update:    make([]*gnmi.Update, 0, len(rsp.Update.GetUpdate())),
+			Delete:    rsp.Update.GetDelete(),
+			Atomic:    rsp.Update.GetAtomic(),
+		}
+		for _, upd := range rsp.Update.GetUpdate() {
+			if upd.Val == nil {
+				continue
+			}
+			notif.Update = append(notif.Update, upd)
+		}
+		if len(notif.Update) == 0 {
+			return
+		}
+		err = gc.caches[measName].GnmiUpdate(notif)
 		if err != nil && gc.debug {
 			gc.logger.Printf("failed to update gNMI cache: %v", err)
 		}

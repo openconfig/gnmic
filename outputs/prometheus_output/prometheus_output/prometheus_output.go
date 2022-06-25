@@ -183,6 +183,12 @@ func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string
 		return err
 	}
 
+	p.mb = &promcom.MetricBuilder{
+		Prefix:                 p.Cfg.MetricPrefix,
+		AppendSubscriptionName: p.Cfg.AppendSubscriptionName,
+		StringsAsLabels:        p.Cfg.StringsAsLabels,
+	}
+
 	if p.Cfg.GnmiCache {
 		p.gnmiCache = cache.New(
 			&cache.GnmiCacheConfig{
@@ -504,8 +510,8 @@ func (p *promMetric) Write(out *dto.Metric) error {
 		Value: &p.value,
 	}
 	out.Label = make([]*dto.LabelPair, 0, len(p.labels))
-	for _, lb := range p.labels {
-		out.Label = append(out.Label, &dto.LabelPair{Name: &lb.Name, Value: &lb.Value})
+	for i := range p.labels {
+		out.Label = append(out.Label, &dto.LabelPair{Name: &p.labels[i].Name, Value: &p.labels[i].Value})
 	}
 	if p.time == nil {
 		return nil

@@ -1,5 +1,8 @@
 name: lab14
 
+mgmt:
+  ipv4_subnet: 192.168.1.0/24
+
 topology:
   defaults:
     kind: srl
@@ -10,9 +13,7 @@ topology:
 
   nodes:
     spine1:
-      type: ixr6
     spine2:
-      type: ixr6
     leaf1:
     leaf2:
     leaf3:
@@ -20,7 +21,7 @@ topology:
 
     gnmic:
       kind: linux
-      image: ghcr.io/karimra/gnmic:latest
+      image: ghcr.io/karimra/gnmic
       binds:
         - ./gnmic.yaml:/app/gnmic.yaml:ro
         - /var/run/docker.sock:/var/run/docker.sock

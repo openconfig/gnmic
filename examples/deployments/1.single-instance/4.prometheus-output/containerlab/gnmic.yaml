@@ -1,7 +1,6 @@
 username: admin
 password: admin
 skip-verify: true
-encoding: json_ietf
 log: true
 
 loader:
@@ -17,12 +16,25 @@ subscriptions:
   sub1:
     paths:
       - /interface/statistics
+      - /interface/description
     stream-mode: sample
     sample-interval: 10s
+    encoding: ascii
 
-outputs:
+outputs:     
   prom-output:
     type: prometheus
     listen: "clab-lab14-gnmic:9804"
+    gnmi-cache: true
+    debug: true
+    strings-as-labels: true
     service-registration:
       address: clab-lab14-consul-agent:8500
+    event-processors:
+      - group_by_interface
+
+processors:
+  group_by_interface:
+    event-group-by:
+      tags:
+        - interface_name
