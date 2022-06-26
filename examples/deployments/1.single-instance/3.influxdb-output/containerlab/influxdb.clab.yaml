@@ -10,9 +10,7 @@ topology:
 
   nodes:
     spine1:
-      type: ixr6
     spine2:
-      type: ixr6
     leaf1:
     leaf2:
     leaf3:
