@@ -12,9 +12,7 @@ topology:
 
   nodes:
     super-spine1:
-      type: ixr6
     super-spine2:
-      type: ixr6
     
     spine1:
     spine2:
