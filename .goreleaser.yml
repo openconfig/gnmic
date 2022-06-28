@@ -12,8 +12,6 @@ builds:
       - 386
       - arm
       - arm64
-    hooks:
-      post: upx "{{ .Path }}"
 dockers:
   - goos: linux
     goarch: amd64

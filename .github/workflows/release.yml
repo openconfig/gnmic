@@ -30,9 +30,6 @@ jobs:
         with:
           go-version: ${{ env.GOVER }}
 
-      - name: Install upx
-        run: sudo apt update && sudo apt install -y libucl1 && curl -L http://archive.ubuntu.com/ubuntu/pool/universe/u/upx-ucl/upx-ucl_3.96-2_amd64.deb -o /tmp/upx.deb && sudo dpkg -i /tmp/upx.deb
-
       - name: Login to dockerhub
         run: docker login -u vikar2 -p ${{ secrets.DOCKERHUB_TOKEN }}
 
