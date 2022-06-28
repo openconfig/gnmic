@@ -165,6 +165,9 @@ func (a *App) InitSubscribeFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVarP(&a.Config.LocalFlags.SubscribeWatchConfig, "watch-config", "", false, "watch configuration changes, add or delete subscribe targets accordingly")
 	cmd.Flags().DurationVarP(&a.Config.LocalFlags.SubscribeBackoff, "backoff", "", 0, "backoff time between subscribe requests")
 	cmd.Flags().DurationVarP(&a.Config.LocalFlags.SubscribeLockRetry, "lock-retry", "", 5*time.Second, "time to wait between target lock attempts")
+	cmd.Flags().StringVarP(&a.Config.LocalFlags.SubscribeHistorySnapshot, "history-snapshot", "", "", "sets the snapshot time in a historical subscription, nanoseconds since Unix epoch or RFC3339 format")
+	cmd.Flags().StringVarP(&a.Config.LocalFlags.SubscribeHistoryStart, "history-start", "", "", "sets the start time in a historical range subscription, nanoseconds since Unix epoch or RFC3339 format")
+	cmd.Flags().StringVarP(&a.Config.LocalFlags.SubscribeHistoryEnd, "history-end", "", "", "sets the end time in a historical range subscription, nanoseconds since Unix epoch or RFC3339 format")
 	//
 	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
 		a.Config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)

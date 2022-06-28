@@ -148,8 +148,10 @@ type LocalFlags struct {
 	SubscribeOutput            []string      `mapstructure:"subscribe-output,omitempty" json:"subscribe-output,omitempty" yaml:"subscribe-output,omitempty"`
 	SubscribeWatchConfig       bool          `mapstructure:"subscribe-watch-config,omitempty" json:"subscribe-watch-config,omitempty" yaml:"subscribe-watch-config,omitempty"`
 	SubscribeBackoff           time.Duration `mapstructure:"subscribe-backoff,omitempty" json:"subscribe-backoff,omitempty" yaml:"subscribe-backoff,omitempty"`
-
-	SubscribeLockRetry time.Duration `mapstructure:"subscribe-lock-retry,omitempty" json:"subscribe-lock-retry,omitempty" yaml:"subscribe-lock-retry,omitempty"`
+	SubscribeLockRetry         time.Duration `mapstructure:"subscribe-lock-retry,omitempty" json:"subscribe-lock-retry,omitempty" yaml:"subscribe-lock-retry,omitempty"`
+	SubscribeHistorySnapshot   string        `mapstructure:"subscribe-history-snapshot,omitempty" json:"subscribe-history-snapshot,omitempty" yaml:"subscribe-history-snapshot,omitempty"`
+	SubscribeHistoryStart      string        `mapstructure:"subscribe-history-start,omitempty" json:"subscribe-history-start,omitempty" yaml:"subscribe-history-start,omitempty"`
+	SubscribeHistoryEnd        string        `mapstructure:"subscribe-history-end,omitempty" json:"subscribe-history-end,omitempty" yaml:"subscribe-history-end,omitempty"`
 	// Path
 	PathPathType   string `mapstructure:"path-path-type,omitempty" json:"path-path-type,omitempty" yaml:"path-path-type,omitempty"`
 	PathWithDescr  bool   `mapstructure:"path-descr,omitempty" json:"path-descr,omitempty" yaml:"path-descr,omitempty"`

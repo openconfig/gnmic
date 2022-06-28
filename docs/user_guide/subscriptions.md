@@ -51,6 +51,17 @@ subscriptions:
     # boolean, if set to true, the target MUST not transmit the current state of the paths 
     # that the client has subscribed to, but rather should send only updates to them.
     updates-only:
+    # historical subscription config: https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-history.md#1-purpose
+    history:
+      # string, nanoseconds since Unix epoch or RFC3339 format.
+      # if set, the history extension type will be a Snapshot request
+      snapshot:
+      # string, nanoseconds since Unix epoch or RFC3339 format.
+      # if set, the history extension type will be a Range request
+      start:
+      # string, nanoseconds since Unix epoch or RFC3339 format.
+      # if set, the history extension type will be a Range request
+      end:
 ```
 
 Examples:
