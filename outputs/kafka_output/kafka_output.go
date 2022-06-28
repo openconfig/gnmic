@@ -34,11 +34,6 @@ const (
 	loggingPrefix           = "[kafka_output:%s] "
 )
 
-type protoMsg struct {
-	m    proto.Message
-	meta outputs.Meta
-}
-
 func init() {
 	outputs.Register("kafka", func() outputs.Output {
 		return &KafkaOutput{
@@ -55,7 +50,7 @@ type KafkaOutput struct {
 	logger   sarama.StdLogger
 	mo       *formatters.MarshalOptions
 	cancelFn context.CancelFunc
-	msgChan  chan *protoMsg
+	msgChan  chan *outputs.ProtoMsg
 	wg       *sync.WaitGroup
 	evps     []formatters.EventProcessor
 
@@ -162,7 +157,7 @@ func (k *KafkaOutput) Init(ctx context.Context, name string, cfg map[string]inte
 	if err != nil {
 		return err
 	}
-	k.msgChan = make(chan *protoMsg, uint(k.Cfg.BufferSize))
+	k.msgChan = make(chan *outputs.ProtoMsg, uint(k.Cfg.BufferSize))
 	k.mo = &formatters.MarshalOptions{
 		Format:     k.Cfg.Format,
 		OverrideTS: k.Cfg.OverrideTimestamps,
@@ -259,7 +254,7 @@ func (k *KafkaOutput) Write(ctx context.Context, rsp proto.Message, meta outputs
 	select {
 	case <-ctx.Done():
 		return
-	case k.msgChan <- &protoMsg{m: rsp, meta: meta}:
+	case k.msgChan <- outputs.NewProtoMsg(rsp, meta):
 	case <-wctx.Done():
 		if k.Cfg.Debug {
 			k.logger.Printf("writing expired after %s, Kafka output might not be initialized", k.Cfg.Timeout)
@@ -311,11 +306,11 @@ CRPROD:
 			k.logger.Printf("%s shutting down", workerLogPrefix)
 			return
 		case m := <-k.msgChan:
-			err = outputs.AddSubscriptionTarget(m.m, m.meta, k.Cfg.AddTarget, k.targetTpl)
+			err = outputs.AddSubscriptionTarget(m.GetMsg(), m.GetMeta(), k.Cfg.AddTarget, k.targetTpl)
 			if err != nil {
 				k.logger.Printf("failed to add target to the response: %v", err)
 			}
-			b, err := k.mo.Marshal(m.m, m.meta, k.evps...)
+			b, err := k.mo.Marshal(m.GetMsg(), m.GetMeta(), k.evps...)
 			if err != nil {
 				if k.Cfg.Debug {
 					k.logger.Printf("%s failed marshaling proto msg: %v", workerLogPrefix, err)

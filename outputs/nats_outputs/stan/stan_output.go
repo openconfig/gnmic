@@ -19,7 +19,6 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/stan.go"
 	"github.com/prometheus/client_golang/prometheus"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
@@ -47,17 +46,12 @@ func init() {
 	})
 }
 
-type protoMsg struct {
-	m    proto.Message
-	meta outputs.Meta
-}
-
 // StanOutput //
 type StanOutput struct {
 	Cfg      *Config
 	cancelFn context.CancelFunc
 	logger   *log.Logger
-	msgChan  chan *protoMsg
+	msgChan  chan *outputs.ProtoMsg
 	wg       *sync.WaitGroup
 	mo       *formatters.MarshalOptions
 	evps     []formatters.EventProcessor
@@ -150,7 +144,7 @@ func (s *StanOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	if err != nil {
 		return err
 	}
-	s.msgChan = make(chan *protoMsg)
+	s.msgChan = make(chan *outputs.ProtoMsg)
 
 	s.mo = &formatters.MarshalOptions{
 		Format:     s.Cfg.Format,
@@ -231,7 +225,7 @@ func (s *StanOutput) Write(ctx context.Context, rsp protoreflect.ProtoMessage, m
 	select {
 	case <-ctx.Done():
 		return
-	case s.msgChan <- &protoMsg{m: rsp, meta: meta}:
+	case s.msgChan <- outputs.NewProtoMsg(rsp, meta):
 	case <-wctx.Done():
 		if s.Cfg.Debug {
 			s.logger.Printf("writing expired after %s, STAN output might not be initialized", s.Cfg.WriteTimeout)
@@ -317,11 +311,11 @@ CRCONN:
 			s.logger.Printf("%s shutting down", workerLogPrefix)
 			return
 		case m := <-s.msgChan:
-			err = outputs.AddSubscriptionTarget(m.m, m.meta, s.Cfg.AddTarget, s.targetTpl)
+			err = outputs.AddSubscriptionTarget(m.GetMsg(), m.GetMeta(), s.Cfg.AddTarget, s.targetTpl)
 			if err != nil {
 				s.logger.Printf("failed to add target to the response: %v", err)
 			}
-			b, err := s.mo.Marshal(m.m, m.meta, s.evps...)
+			b, err := s.mo.Marshal(m.GetMsg(), m.GetMeta(), s.evps...)
 			if err != nil {
 				if s.Cfg.Debug {
 					s.logger.Printf("%s failed marshaling proto msg: %v", workerLogPrefix, err)
@@ -331,7 +325,7 @@ CRCONN:
 				}
 				continue
 			}
-			subject := s.subjectName(c, m.meta)
+			subject := s.subjectName(c, m.GetMeta())
 			start := time.Now()
 			err = stanConn.Publish(subject, b)
 			if err != nil {

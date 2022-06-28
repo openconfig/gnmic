@@ -1,0 +1,33 @@
+username: admin
+password: admin
+skip-verify: true
+encoding: ascii
+log: true
+
+loader:
+  type: docker
+  filters:
+    - containers:
+      - label=clab-node-kind: srl
+        label=containerlab: lab19
+
+subscriptions:
+  # Add subscriptions configuration here
+  # e.g:
+  sub1:
+    paths:
+      - /interface/statistics
+    stream-mode: sample
+    sample-interval: 10s
+
+outputs:
+  js-output:
+    type: jetstream
+    address: clab-lab19-nats:4222
+    subject-format: subscription.target.pathKeys
+    format: proto
+    stream: gnmic
+    write-timeout: 10s
+    num-workers: 2
+    create-stream: {} 
+    debug: true

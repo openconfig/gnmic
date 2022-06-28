@@ -49,6 +49,7 @@ var OutputTypes = map[string]struct{}{
 	"tcp":              {},
 	"udp":              {},
 	"gnmi":             {},
+	"jetstream":        {},
 }
 
 func Register(name string, initFn Initializer) {
