@@ -45,8 +45,10 @@ nav:
       - Outputs:
           - Introduction: user_guide/outputs/output_intro.md
           - File: user_guide/outputs/file_output.md
-          - NATS: user_guide/outputs/nats_output.md
-          - STAN: user_guide/outputs/stan_output.md
+          - NATS:
+            - NATS: user_guide/outputs/nats_output.md
+            - STAN: user_guide/outputs/stan_output.md
+            - Jetstream: user_guide/outputs/jetstream_output.md
           - Kafka: user_guide/outputs/kafka_output.md
           - InfluxDB: user_guide/outputs/influxdb_output.md
           - Prometheus:  

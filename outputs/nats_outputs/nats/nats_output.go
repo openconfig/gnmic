@@ -43,17 +43,12 @@ func init() {
 	})
 }
 
-type protoMsg struct {
-	m    proto.Message
-	meta outputs.Meta
-}
-
 // NatsOutput //
 type NatsOutput struct {
 	Cfg      *Config
 	ctx      context.Context
 	cancelFn context.CancelFunc
-	msgChan  chan *protoMsg
+	msgChan  chan *outputs.ProtoMsg
 	wg       *sync.WaitGroup
 	logger   *log.Logger
 	mo       *formatters.MarshalOptions
@@ -148,7 +143,7 @@ func (n *NatsOutput) Init(ctx context.Context, name string, cfg map[string]inter
 		return err
 	}
 	n.logger.SetPrefix(fmt.Sprintf(loggingPrefix, n.Cfg.Name))
-	n.msgChan = make(chan *protoMsg)
+	n.msgChan = make(chan *outputs.ProtoMsg)
 	initMetrics()
 	n.mo = &formatters.MarshalOptions{
 		Format:     n.Cfg.Format,
@@ -227,7 +222,7 @@ func (n *NatsOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.
 	select {
 	case <-ctx.Done():
 		return
-	case n.msgChan <- &protoMsg{m: rsp, meta: meta}:
+	case n.msgChan <- outputs.NewProtoMsg(rsp, meta):
 	case <-wctx.Done():
 		if n.Cfg.Debug {
 			n.logger.Printf("writing expired after %s, NATS output might not be initialized", n.Cfg.WriteTimeout)
@@ -333,11 +328,11 @@ CRCONN:
 			n.logger.Printf("%s shutting down", workerLogPrefix)
 			return
 		case m := <-n.msgChan:
-			err = outputs.AddSubscriptionTarget(m.m, m.meta, n.Cfg.AddTarget, n.targetTpl)
+			err = outputs.AddSubscriptionTarget(m.GetMsg(), m.GetMeta(), n.Cfg.AddTarget, n.targetTpl)
 			if err != nil {
 				n.logger.Printf("failed to add target to the response: %v", err)
 			}
-			b, err := n.mo.Marshal(m.m, m.meta, n.evps...)
+			b, err := n.mo.Marshal(m.GetMsg(), m.GetMeta(), n.evps...)
 			if err != nil {
 				if n.Cfg.Debug {
 					n.logger.Printf("%s failed marshaling proto msg: %v", workerLogPrefix, err)
@@ -359,7 +354,7 @@ CRCONN:
 				}
 			}
 
-			subject := n.subjectName(cfg, m.meta)
+			subject := n.subjectName(cfg, m.GetMeta())
 			var start time.Time
 			if n.Cfg.EnableMetrics {
 				start = time.Now()
