@@ -296,6 +296,77 @@ func Extension(ext *gnmi_ext.Extension) func(msg proto.Message) error {
 	}
 }
 
+// Extension_HistorySnapshotTime creates a GNMIOption that adds a gNMI extension of
+// type History Snapshot with the supplied snapshot time.
+// the snapshot value can be nanoseconds since Unix epoch or a date in RFC3339 format
+func Extension_HistorySnapshotTime(tm string) func(msg proto.Message) error {
+	return func(msg proto.Message) error {
+		if msg == nil {
+			return ErrInvalidMsgType
+		}
+		switch msg := msg.ProtoReflect().Interface().(type) {
+		case *gnmi.SubscribeRequest:
+			ts, err := parseTime(tm)
+			if err != nil {
+				return err
+			}
+			fn := Extension(
+				&gnmi_ext.Extension{
+					Ext: &gnmi_ext.Extension_History{
+						History: &gnmi_ext.History{
+							Request: &gnmi_ext.History_SnapshotTime{
+								SnapshotTime: ts,
+							},
+						},
+					},
+				},
+			)
+			return fn(msg)
+		default:
+			return fmt.Errorf("option Extension_HistorySnapshotTime: %w: %T", ErrInvalidMsgType, msg)
+		}
+	}
+}
+
+// Extension_HistoryRange creates a GNMIOption that adds a gNMI extension of
+// type History TimeRange with the supplied start and end times.
+// the start/end values can be nanoseconds since Unix epoch or a date in RFC3339 format
+func Extension_HistoryRange(start, end string) func(msg proto.Message) error {
+	return func(msg proto.Message) error {
+		if msg == nil {
+			return ErrInvalidMsgType
+		}
+		switch msg := msg.ProtoReflect().Interface().(type) {
+		case *gnmi.SubscribeRequest:
+			startTS, err := parseTime(start)
+			if err != nil {
+				return err
+			}
+			endTS, err := parseTime(end)
+			if err != nil {
+				return err
+			}
+			fn := Extension(
+				&gnmi_ext.Extension{
+					Ext: &gnmi_ext.Extension_History{
+						History: &gnmi_ext.History{
+							Request: &gnmi_ext.History_Range{
+								Range: &gnmi_ext.TimeRange{
+									Start: startTS,
+									End:   endTS,
+								},
+							},
+						},
+					},
+				},
+			)
+			return fn(msg)
+		default:
+			return fmt.Errorf("option Extension_HistoryRange: %w: %T", ErrInvalidMsgType, msg)
+		}
+	}
+}
+
 // Prefix creates a GNMIOption that creates a *gnmi.Path and adds it to the supplied
 // proto.Message (as a Path Prefix).
 // The proto.Message can be a *gnmi.GetRequest, *gnmi.SetRequest or a *gnmi.SubscribeRequest with RequestType Subscribe.
@@ -1271,4 +1342,16 @@ func OperationREPLACE() func(msg proto.Message) error {
 // OperationUPDATE creates a GNMIOption that sets the gnmi.SetResponse Operation to UPDATE
 func OperationUPDATE() func(msg proto.Message) error {
 	return Operation("UPDATE")
+}
+
+func parseTime(tm string) (int64, error) {
+	ts, err := strconv.ParseInt(tm, 10, 64)
+	if err != nil {
+		tmi, err := time.Parse(time.RFC3339Nano, tm)
+		if err != nil {
+			return 0, err
+		}
+		return tmi.UnixNano(), nil
+	}
+	return ts, nil
 }

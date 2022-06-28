@@ -12,6 +12,7 @@ import (
 	"github.com/karimra/gnmic/testutils"
 	"github.com/karimra/gnmic/types"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/gnmi/proto/gnmi_ext"
 	"github.com/spf13/viper"
 )
 
@@ -137,6 +138,48 @@ subscriptions:
 				Mode:       "stream",
 				StreamMode: "on_change",
 				Encoding:   "proto",
+			},
+		},
+		outErr: nil,
+	},
+	"history_snapshot": {
+		in: []byte(`
+subscriptions:
+  sub1:
+    paths: 
+      - /valid/path
+    history:
+      snapshot: 2022-07-14T07:30:00.0Z
+`),
+		out: map[string]*types.SubscriptionConfig{
+			"sub1": {
+				Name:  "sub1",
+				Paths: []string{"/valid/path"},
+				History: &types.HistoryConfig{
+					Snapshot: "2022-07-14T07:30:00.0Z",
+				},
+			},
+		},
+		outErr: nil,
+	},
+	"history_range": {
+		in: []byte(`
+subscriptions:
+  sub1:
+    paths: 
+      - /valid/path
+    history:
+      start: 2021-07-14T07:30:00.0Z
+      end: 2022-07-14T07:30:00.0Z
+`),
+		out: map[string]*types.SubscriptionConfig{
+			"sub1": {
+				Name:  "sub1",
+				Paths: []string{"/valid/path"},
+				History: &types.HistoryConfig{
+					Start: "2021-07-14T07:30:00.0Z",
+					End:   "2022-07-14T07:30:00.0Z",
+				},
 			},
 		},
 		outErr: nil,
@@ -503,6 +546,50 @@ func TestConfig_CreateSubscribeRequest(t *testing.T) {
 							},
 						},
 						Encoding: gnmi.Encoding_JSON_IETF,
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "subscription_with_history_snapshot",
+			args: args{
+				sc: &types.SubscriptionConfig{
+					Paths: []string{
+						"interface",
+					},
+					Mode:     "once",
+					Encoding: "json_ietf",
+					History: &types.HistoryConfig{
+						Snapshot: "2022-07-14T07:30:00.0Z",
+					},
+				},
+			},
+			want: &gnmi.SubscribeRequest{
+				Request: &gnmi.SubscribeRequest_Subscribe{
+					Subscribe: &gnmi.SubscriptionList{
+						Subscription: []*gnmi.Subscription{
+							{
+								Path: &gnmi.Path{
+									Elem: []*gnmi.PathElem{{
+										Name: "interface",
+									}},
+								},
+							},
+						},
+						Encoding: gnmi.Encoding_JSON_IETF,
+						Mode:     gnmi.SubscriptionList_ONCE,
+					},
+				},
+				Extension: []*gnmi_ext.Extension{
+					{
+						Ext: &gnmi_ext.Extension_History{
+							History: &gnmi_ext.History{
+								Request: &gnmi_ext.History_SnapshotTime{
+									SnapshotTime: 1657783800000000,
+								},
+							},
+						},
 					},
 				},
 			},

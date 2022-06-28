@@ -25,6 +25,7 @@ func (c *Config) GetSubscriptions(cmd *cobra.Command) (map[string]*types.Subscri
 	if len(c.LocalFlags.SubscribePath) > 0 && len(c.LocalFlags.SubscribeName) > 0 {
 		return nil, fmt.Errorf("flags --path and --name cannot be mixed")
 	}
+	// subscriptions from cli flags
 	if len(c.LocalFlags.SubscribePath) > 0 {
 		sub := new(types.SubscriptionConfig)
 		sub.Name = fmt.Sprintf("default-%d", time.Now().Unix())
@@ -47,12 +48,24 @@ func (c *Config) GetSubscriptions(cmd *cobra.Command) (map[string]*types.Subscri
 		sub.SuppressRedundant = c.LocalFlags.SubscribeSuppressRedundant
 		sub.UpdatesOnly = c.LocalFlags.SubscribeUpdatesOnly
 		sub.Models = c.LocalFlags.SubscribeModel
+		if flagIsSet(cmd, "history-snapshot") {
+			sub.History = &types.HistoryConfig{
+				Snapshot: c.LocalFlags.SubscribeHistorySnapshot,
+			}
+		}
+		if flagIsSet(cmd, "history-start") && flagIsSet(cmd, "history-end") {
+			sub.History = &types.HistoryConfig{
+				Start: c.LocalFlags.SubscribeHistoryStart,
+				End:   c.LocalFlags.SubscribeHistoryEnd,
+			}
+		}
 		c.Subscriptions[sub.Name] = sub
 		if c.Debug {
 			c.logger.Printf("subscriptions: %s", c.Subscriptions)
 		}
 		return c.Subscriptions, nil
 	}
+	// subscriptions from file
 	subDef := c.FileConfig.GetStringMap("subscriptions")
 	if c.Debug {
 		c.logger.Printf("subscriptions map: %v+", subDef)
@@ -111,15 +124,11 @@ func (c *Config) GetSubscriptions(cmd *cobra.Command) (map[string]*types.Subscri
 }
 
 func (c *Config) setSubscriptionDefaults(sub *types.SubscriptionConfig, cmd *cobra.Command) {
-	if sub.SampleInterval == nil {
-		if flagIsSet(cmd, "sample-interval") {
-			sub.SampleInterval = &c.LocalFlags.SubscribeSampleInterval
-		}
+	if sub.SampleInterval == nil && flagIsSet(cmd, "sample-interval") {
+		sub.SampleInterval = &c.LocalFlags.SubscribeSampleInterval
 	}
-	if sub.HeartbeatInterval == nil {
-		if flagIsSet(cmd, "heartbeat-interval") {
-			sub.HeartbeatInterval = &c.LocalFlags.SubscribeHeartbearInterval
-		}
+	if sub.HeartbeatInterval == nil && flagIsSet(cmd, "heartbeat-interval") {
+		sub.HeartbeatInterval = &c.LocalFlags.SubscribeHeartbearInterval
 	}
 	if sub.Encoding == "" {
 		sub.Encoding = c.Encoding
@@ -130,10 +139,21 @@ func (c *Config) setSubscriptionDefaults(sub *types.SubscriptionConfig, cmd *cob
 	if strings.ToUpper(sub.Mode) == "STREAM" && sub.StreamMode == "" {
 		sub.StreamMode = c.LocalFlags.SubscribeStreamMode
 	}
-	if sub.Qos == nil {
-		if flagIsSet(cmd, "qos") {
-			sub.Qos = &c.LocalFlags.SubscribeQos
+	if sub.Qos == nil && flagIsSet(cmd, "qos") {
+		sub.Qos = &c.LocalFlags.SubscribeQos
+	}
+	if sub.History == nil && flagIsSet(cmd, "history-snapshot") {
+		sub.History = &types.HistoryConfig{
+			Snapshot: c.LocalFlags.SubscribeHistorySnapshot,
 		}
+		return
+	}
+	if sub.History == nil && flagIsSet(cmd, "history-start") && flagIsSet(cmd, "history-end") {
+		sub.History = &types.HistoryConfig{
+			Start: c.LocalFlags.SubscribeHistoryStart,
+			End:   c.LocalFlags.SubscribeHistoryEnd,
+		}
+		return
 	}
 }
 
@@ -164,6 +184,15 @@ func (*Config) CreateSubscribeRequest(sc *types.SubscriptionConfig, target strin
 		api.SubscriptionListMode(sc.Mode),
 		api.UpdatesOnly(sc.UpdatesOnly),
 	)
+	// history extension
+	if sc.History != nil {
+		if sc.History.Snapshot != "" {
+			gnmiOpts = append(gnmiOpts, api.Extension_HistorySnapshotTime(sc.History.Snapshot))
+		}
+		if sc.History.Start != "" && sc.History.End != "" {
+			gnmiOpts = append(gnmiOpts, api.Extension_HistoryRange(sc.History.Start, sc.History.End))
+		}
+	}
 	if sc.Qos != nil {
 		gnmiOpts = append(gnmiOpts, api.Qos(*sc.Qos))
 	}
