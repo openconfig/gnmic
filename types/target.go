@@ -71,7 +71,9 @@ func (tc *TargetConfig) NewTLSConfig() (*tls.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	if tlsConfig == nil {
+		return nil, nil
+	}
 	if tc.LogTLSSecret != nil && *tc.LogTLSSecret {
 		logPath := tc.Name + ".tlssecret.log"
 		w, err := os.Create(logPath)
@@ -108,6 +110,7 @@ func (tc *TargetConfig) GrpcDialOptions() ([]grpc.DialOption, error) {
 		return nil, err
 	}
 	tOpts = append(tOpts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+	// token credentials
 	if tc.Token != nil && *tc.Token != "" {
 		tOpts = append(tOpts,
 			grpc.WithPerRPCCredentials(
@@ -115,7 +118,6 @@ func (tc *TargetConfig) GrpcDialOptions() ([]grpc.DialOption, error) {
 					AccessToken: *tc.Token,
 				})))
 	}
-
 	return tOpts, nil
 }
 
