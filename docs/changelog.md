@@ -1,5 +1,16 @@
 ## Changelog
 
+### v0.26.0 - June 28th 2022
+
+- Outputs
+
+    - Add [Prometheus Remote Write output](user_guide/outputs/prometheus_write_output.md), this output type can be used to push metrics to various systems like [Mimir](https://grafana.com/oss/mimir/), [CortexMetrics](https://cortexmetrics.io/), [VictoriaMetrics](https://victoriametrics.com/), [Thanos](https://thanos.io/)...
+    - Add [NATS Jetstream output](user_guide/outputs/jetstream_output.md), it allows to write metrics to NATS jetstream which supports persistency and filtering.
+
+- [gNMI historical subscriptions](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-history.md#1-purpose)
+
+    `gNMIc` now support historical subscription using the [gNMI history extension](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-history.md#2-definition)
+
 ### v0.25.1 - June 13th 2022
 
 - Upgrade Go version to go1.18.1.
