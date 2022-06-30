@@ -167,6 +167,8 @@ targets:
     proto-dirs:
     # enable grpc gzip compression
     gzip: 
+    # address of the target's SOCKS5 proxy server
+    socks-address:
 ```
 
 ### Example

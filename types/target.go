@@ -43,6 +43,7 @@ type TargetConfig struct {
 	EventTags     map[string]string `mapstructure:"event-tags,omitempty" json:"event-tags,omitempty" yaml:"event-tags,omitempty"`
 	Gzip          *bool             `mapstructure:"gzip,omitempty" json:"gzip,omitempty" yaml:"gzip,omitempty"`
 	Token         *string           `mapstructure:"token,omitempty" json:"token,omitempty" yaml:"token,omitempty"`
+	SocksAddress  string            `mapstructure:"socks-address,omitempty" json:"socks-address,omitempty" yaml:"socks-address,omitempty"`
 	//
 	TunnelTargetType string `mapstructure:"-" json:"tunnel-target-type,omitempty" yaml:"tunnel-target-type,omitempty"`
 }

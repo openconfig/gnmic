@@ -3,6 +3,7 @@ package target
 import (
 	"context"
 	"fmt"
+	"net"
 	"strings"
 	"sync"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/karimra/gnmic/types"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
+	"golang.org/x/net/proxy"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
@@ -81,6 +83,22 @@ func (t *Target) CreateGNMIClient(ctx context.Context, opts ...grpc.DialOption) 
 		go func(addr string) {
 			timeoutCtx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 			defer cancel()
+			if t.Config.SocksAddress != "" {
+				dialer, err := proxy.SOCKS5("tcp", t.Config.SocksAddress, nil,
+					&net.Dialer{
+						Timeout:   t.Config.Timeout,
+						KeepAlive: t.Config.Timeout,
+					},
+				)
+				if err != nil {
+					errC <- fmt.Errorf("%s: %v", addr, err)
+					return
+				}
+				opts = append(opts, grpc.WithContextDialer(
+					func(ctx context.Context, addr string) (net.Conn, error) {
+						return dialer.Dial("tcp", addr)
+					}))
+			}
 			conn, err := grpc.DialContext(timeoutCtx, addr, opts...)
 			if err != nil {
 				errC <- fmt.Errorf("%s: %v", addr, err)
