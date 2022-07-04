@@ -83,21 +83,27 @@ func (t *Target) CreateGNMIClient(ctx context.Context, opts ...grpc.DialOption) 
 		go func(addr string) {
 			timeoutCtx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 			defer cancel()
-			if t.Config.SocksAddress != "" {
-				dialer, err := proxy.SOCKS5("tcp", t.Config.SocksAddress, nil,
-					&net.Dialer{
-						Timeout:   t.Config.Timeout,
-						KeepAlive: t.Config.Timeout,
-					},
-				)
-				if err != nil {
-					errC <- fmt.Errorf("%s: %v", addr, err)
-					return
+			if t.Config.Proxy != "" {
+				if idx := strings.Index(t.Config.Proxy, "://"); idx >= 0 {
+					proxyType := t.Config.Proxy[:idx]
+					proxyAddress := t.Config.Proxy[idx+3:]
+					if proxyType == "socks5" {
+						opts = append(opts, grpc.WithContextDialer(
+							func(ctx context.Context, addr string) (net.Conn, error) {
+								dialer, err := proxy.SOCKS5("tcp", proxyAddress, nil,
+									&net.Dialer{
+										Timeout:   t.Config.Timeout,
+										KeepAlive: t.Config.Timeout,
+									},
+								)
+								if err != nil {
+									errC <- fmt.Errorf("%s: %v", addr, err)
+									return nil, err
+								}
+								return dialer.Dial("tcp", addr)
+							}))
+					}
 				}
-				opts = append(opts, grpc.WithContextDialer(
-					func(ctx context.Context, addr string) (net.Conn, error) {
-						return dialer.Dial("tcp", addr)
-					}))
 			}
 			conn, err := grpc.DialContext(timeoutCtx, addr, opts...)
 			if err != nil {
