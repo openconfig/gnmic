@@ -9,7 +9,6 @@ import (
 	"github.com/karimra/gnmic/lockers"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 )
 
 const defaultWatchTimeout = 10 * time.Second
@@ -42,34 +41,37 @@ func (k *k8sLocker) WatchServices(ctx context.Context, serviceName string, tags 
 }
 
 func (k *k8sLocker) GetServices(ctx context.Context, serviceName string, tags []string) ([]*lockers.Service, error) {
-	ksrv, err := k.clientset.CoreV1().Services(k.Cfg.Namespace).Get(ctx, serviceName, metav1.GetOptions{})
-	if err != nil {
-		return nil, err
-	}
-	if len(ksrv.Spec.Ports) == 0 {
-		return nil, fmt.Errorf("missing ports in service %s", serviceName)
-	}
-	portNum := ksrv.Spec.Ports[0].Port
-
-	set := labels.Set(ksrv.Spec.Selector)
-	pods, err := k.clientset.CoreV1().Pods(k.Cfg.Namespace).List(ctx, metav1.ListOptions{LabelSelector: set.AsSelector().String()})
+	ep, err := k.clientset.CoreV1().Endpoints(k.Cfg.Namespace).Get(ctx, serviceName, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
 
-	services := make([]*lockers.Service, 0, len(pods.Items))
-	for _, pod := range pods.Items {
-		if pod.Status.PodIP == "" {
-			continue
+	// the service should only have a single port number assigned, so
+	// all subsets should have the port number we're looking for
+	if len(ep.Subsets) <= 0 {
+		return nil, fmt.Errorf("no subsets found in endpoint for service %s", serviceName)
+	}
+	if len(ep.Subsets[0].Ports) <= 0 {
+		return nil, fmt.Errorf("no ports found for service %s", serviceName)
+	}
+	port := ep.Subsets[0].Ports[0].Port
+
+	services := make([]*lockers.Service, 0, len(ep.Subsets[0].Addresses))
+	for _, subset := range ep.Subsets {
+		for _, addr := range subset.Addresses {
+			targetName := addr.IP
+			if addr.TargetRef != nil {
+				targetName = addr.TargetRef.Name
+			}
+			ls := &lockers.Service{
+				ID:      fmt.Sprintf("%s-api", targetName),
+				Address: fmt.Sprintf("%s:%d", addr.IP, port),
+				Tags: []string{
+					fmt.Sprintf("instance-name=%s", targetName),
+				},
+			}
+			services = append(services, ls)
 		}
-		ls := &lockers.Service{
-			ID:      fmt.Sprintf("%s-api", pod.Name),
-			Address: fmt.Sprintf("%s:%d", pod.Status.PodIP, portNum),
-			Tags: []string{
-				fmt.Sprintf("instance-name=%s", pod.Name),
-			},
-		}
-		services = append(services, ls)
 	}
 
 	return services, nil
