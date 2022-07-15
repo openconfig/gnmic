@@ -159,15 +159,21 @@ func (k *k8sLocker) Lock(ctx context.Context, key string, val []byte) (bool, err
 			}
 			// obtained, compare
 			if ol != nil && ol.Spec.HolderIdentity != nil && *ol.Spec.HolderIdentity != "" {
-				k.logger.Printf("%q held by other instance: %v", ol.Name, *ol.Spec.HolderIdentity != k.identity)
-				k.logger.Printf("%q lease has renewTime: %v", ol.Name, ol.Spec.RenewTime != nil)
+				if k.Cfg.Debug {
+					k.logger.Printf("%q held by other instance: %v", ol.Name, *ol.Spec.HolderIdentity != k.identity)
+					k.logger.Printf("%q lease has renewTime: %v", ol.Name, ol.Spec.RenewTime != nil)
+				}
 				if *ol.Spec.HolderIdentity != k.identity && ol.Spec.RenewTime != nil {
 					expectedRenewTime := ol.Spec.RenewTime.Add(time.Duration(*ol.Spec.LeaseDurationSeconds) * time.Second)
-					k.logger.Printf("%q existing lease renew time %v", ol.Name, ol.Spec.RenewTime)
-					k.logger.Printf("%q expected lease renew time %v", ol.Name, expectedRenewTime)
-					k.logger.Printf("%q renew time passed: %v", ol.Name, expectedRenewTime.Before(now.Time))
+					if k.Cfg.Debug {
+						k.logger.Printf("%q existing lease renew time %v", ol.Name, ol.Spec.RenewTime)
+						k.logger.Printf("%q expected lease renew time %v", ol.Name, expectedRenewTime)
+						k.logger.Printf("%q renew time passed: %v", ol.Name, expectedRenewTime.Before(now.Time))
+					}
 					if !expectedRenewTime.Before(now.Time) {
-						k.logger.Printf("%q is currently held by %s", ol.Name, *ol.Spec.HolderIdentity)
+						if k.Cfg.Debug {
+							k.logger.Printf("%q is currently held by %s", ol.Name, *ol.Spec.HolderIdentity)
+						}
 						time.Sleep(k.Cfg.RenewPeriod)
 						continue
 					}
