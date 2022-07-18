@@ -271,7 +271,7 @@ func (h *httpLoader) getTargets() (map[string]*types.TargetConfig, error) {
 			t.Address = n
 		}
 	}
-	h.logger.Printf("result: %v", result)
+	h.logger.Printf("result: %s", result)
 	return result, nil
 }
 
