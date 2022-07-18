@@ -26,6 +26,7 @@ import (
 
 const (
 	defaultLeaseDuration = 10 * time.Second
+	defaultRetryTimer    = 2 * time.Second
 	loggingPrefix        = "[k8s_locker] "
 	defaultNamespace     = "default"
 	origKeyName          = "original-key"
@@ -58,6 +59,7 @@ type config struct {
 	Namespace     string        `mapstructure:"namespace,omitempty" json:"namespace,omitempty"`
 	LeaseDuration time.Duration `mapstructure:"lease-duration,omitempty" json:"lease-duration,omitempty"`
 	RenewPeriod   time.Duration `mapstructure:"renew-period,omitempty" json:"renew-period,omitempty"`
+	RetryTimer    time.Duration `mapstructure:"retry-timer,omitempty" json:"retry-timer,omitempty"`
 	Debug         bool          `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 }
 
@@ -301,6 +303,9 @@ func (k *k8sLocker) setDefaults() error {
 	}
 	if k.Cfg.RenewPeriod <= 0 || k.Cfg.RenewPeriod >= k.Cfg.LeaseDuration {
 		k.Cfg.RenewPeriod = k.Cfg.LeaseDuration / 2
+	}
+	if k.Cfg.RetryTimer <= 0 {
+		k.Cfg.RetryTimer = defaultRetryTimer
 	}
 	return nil
 }
