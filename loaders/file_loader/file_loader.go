@@ -251,7 +251,7 @@ func (f *fileLoader) getTargets(ctx context.Context) (map[string]*types.TargetCo
 			t.Address = n
 		}
 	}
-	f.logger.Printf("result: %v", result)
+	f.logger.Printf("result: %s", result)
 	return result, nil
 }
 

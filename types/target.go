@@ -49,7 +49,16 @@ type TargetConfig struct {
 }
 
 func (tc *TargetConfig) String() string {
-	b, err := json.Marshal(tc)
+	var redacted_tc *TargetConfig
+	if tc.Password == nil {
+		redacted_tc = tc
+	} else {
+		redacted_tc = new(TargetConfig)
+		*redacted_tc = *tc
+		password := "****"
+		redacted_tc.Password = &password
+	}
+	b, err := json.Marshal(redacted_tc)
 	if err != nil {
 		return ""
 	}

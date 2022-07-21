@@ -89,7 +89,7 @@ func (a *App) DeleteTarget(ctx context.Context, name string) error {
 
 // AddTargetConfig adds a *TargetConfig to the configuration map
 func (a *App) AddTargetConfig(tc *types.TargetConfig) {
-	a.Logger.Printf("adding target %+v", tc)
+	a.Logger.Printf("adding target %s", tc)
 	_, ok := a.Config.Targets[tc.Name]
 	if ok {
 		return
