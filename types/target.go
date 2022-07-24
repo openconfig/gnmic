@@ -50,7 +50,8 @@ type TargetConfig struct {
 
 func (tc TargetConfig) String() string {
 	if tc.Password != nil {
-		*tc.Password = "****"
+		pwd := "****"
+		tc.Password = &pwd
 	}
 	
 	b, err := json.Marshal(tc)
