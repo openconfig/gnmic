@@ -48,20 +48,17 @@ type TargetConfig struct {
 	TunnelTargetType string `mapstructure:"-" json:"tunnel-target-type,omitempty" yaml:"tunnel-target-type,omitempty"`
 }
 
-func (tc *TargetConfig) String() string {
-	var redacted_tc *TargetConfig
-	if tc.Password == nil {
-		redacted_tc = tc
-	} else {
-		redacted_tc = new(TargetConfig)
-		*redacted_tc = *tc
-		password := "****"
-		redacted_tc.Password = &password
+func (tc TargetConfig) String() string {
+	if tc.Password != nil {
+		pwd := "****"
+		tc.Password = &pwd
 	}
-	b, err := json.Marshal(redacted_tc)
+	
+	b, err := json.Marshal(tc)
 	if err != nil {
 		return ""
 	}
+
 	return string(b)
 }
 
