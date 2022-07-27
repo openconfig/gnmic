@@ -125,13 +125,15 @@ func (p *promWriteOutput) Init(ctx context.Context, name string, cfg map[string]
 	if p.Cfg.URL == "" {
 		return errors.New("missing url field")
 	}
-	for _, opt := range opts {
-		opt(p)
-	}
 	if p.Cfg.Name == "" {
 		p.Cfg.Name = name
 	}
 	p.logger.SetPrefix(fmt.Sprintf(loggingPrefix, p.Cfg.Name))
+
+	for _, opt := range opts {
+		opt(p)
+	}
+
 	if p.Cfg.TargetTemplate == "" {
 		p.targetTpl = outputs.DefaultTargetTemplate
 	} else if p.Cfg.AddTarget != "" {
@@ -178,7 +180,8 @@ func (p *promWriteOutput) Write(ctx context.Context, rsp proto.Message, meta out
 		if subName, ok := meta["subscription-name"]; ok {
 			measName = subName
 		}
-		err := outputs.AddSubscriptionTarget(rsp, meta, p.Cfg.AddTarget, p.targetTpl)
+		var err error
+		rsp, err = outputs.AddSubscriptionTarget(rsp, meta, p.Cfg.AddTarget, p.targetTpl)
 		if err != nil {
 			p.logger.Printf("failed to add target to the response: %v", err)
 		}

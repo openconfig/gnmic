@@ -100,7 +100,8 @@ func (g *gNMIOutput) Init(ctx context.Context, name string, cfg map[string]inter
 }
 
 func (g *gNMIOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) {
-	err := outputs.AddSubscriptionTarget(rsp, meta, "if-not-present", g.targetTpl)
+	var err error
+	rsp, err = outputs.AddSubscriptionTarget(rsp, meta, "if-not-present", g.targetTpl)
 	if err != nil {
 		g.logger.Printf("failed to add target to the response: %v", err)
 	}

@@ -71,38 +71,41 @@ func DecodeConfig(src, dst interface{}) error {
 	return decoder.Decode(src)
 }
 
-func AddSubscriptionTarget(msg proto.Message, meta Meta, addTarget string, tpl *template.Template) error {
+func AddSubscriptionTarget(msg proto.Message, meta Meta, addTarget string, tpl *template.Template) (*gnmi.SubscribeResponse, error) {
 	if addTarget == "" {
-		return nil
+		return nil, nil
 	}
+	msg = proto.Clone(msg)
 	switch trsp := msg.(type) {
 	case *gnmi.SubscribeResponse:
-		switch trsp := trsp.Response.(type) {
+		switch rrsp := trsp.Response.(type) {
 		case *gnmi.SubscribeResponse_Update:
-			if trsp.Update.Prefix == nil {
-				trsp.Update.Prefix = new(gnmi.Path)
+			if rrsp.Update.Prefix == nil {
+				rrsp.Update.Prefix = new(gnmi.Path)
 			}
 			switch addTarget {
 			case "overwrite":
 				sb := new(strings.Builder)
 				err := tpl.Execute(sb, meta)
 				if err != nil {
-					return err
+					return nil, err
 				}
-				trsp.Update.Prefix.Target = sb.String()
+				rrsp.Update.Prefix.Target = sb.String()
+				return trsp, nil
 			case "if-not-present":
-				if trsp.Update.Prefix.Target == "" {
+				if rrsp.Update.Prefix.Target == "" {
 					sb := new(strings.Builder)
 					err := tpl.Execute(sb, meta)
 					if err != nil {
-						return err
+						return nil, err
 					}
-					trsp.Update.Prefix.Target = sb.String()
+					rrsp.Update.Prefix.Target = sb.String()
 				}
+				return trsp, nil
 			}
 		}
 	}
-	return nil
+	return nil, nil
 }
 
 func ExecTemplate(content []byte, tpl *template.Template) ([]byte, error) {

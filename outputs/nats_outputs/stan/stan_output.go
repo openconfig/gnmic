@@ -311,11 +311,12 @@ CRCONN:
 			s.logger.Printf("%s shutting down", workerLogPrefix)
 			return
 		case m := <-s.msgChan:
-			err = outputs.AddSubscriptionTarget(m.GetMsg(), m.GetMeta(), s.Cfg.AddTarget, s.targetTpl)
+			pmsg := m.GetMsg()
+			pmsg, err = outputs.AddSubscriptionTarget(pmsg, m.GetMeta(), s.Cfg.AddTarget, s.targetTpl)
 			if err != nil {
 				s.logger.Printf("failed to add target to the response: %v", err)
 			}
-			b, err := s.mo.Marshal(m.GetMsg(), m.GetMeta(), s.evps...)
+			b, err := s.mo.Marshal(pmsg, m.GetMeta(), s.evps...)
 			if err != nil {
 				if s.Cfg.Debug {
 					s.logger.Printf("%s failed marshaling proto msg: %v", workerLogPrefix, err)

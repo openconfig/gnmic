@@ -260,7 +260,7 @@ func (k *KafkaOutput) Write(ctx context.Context, rsp proto.Message, meta outputs
 			k.logger.Printf("writing expired after %s, Kafka output might not be initialized", k.Cfg.Timeout)
 		}
 		if k.Cfg.EnableMetrics {
-			KafkaNumberOfFailSendMsgs.WithLabelValues(k.Cfg.Name, "timeout").Inc()
+			kafkaNumberOfFailSendMsgs.WithLabelValues(k.Cfg.Name, "timeout").Inc()
 		}
 		return
 	}
@@ -306,17 +306,18 @@ CRPROD:
 			k.logger.Printf("%s shutting down", workerLogPrefix)
 			return
 		case m := <-k.msgChan:
-			err = outputs.AddSubscriptionTarget(m.GetMsg(), m.GetMeta(), k.Cfg.AddTarget, k.targetTpl)
+			pmsg := m.GetMsg()
+			pmsg, err = outputs.AddSubscriptionTarget(pmsg, m.GetMeta(), k.Cfg.AddTarget, k.targetTpl)
 			if err != nil {
 				k.logger.Printf("failed to add target to the response: %v", err)
 			}
-			b, err := k.mo.Marshal(m.GetMsg(), m.GetMeta(), k.evps...)
+			b, err := k.mo.Marshal(pmsg, m.GetMeta(), k.evps...)
 			if err != nil {
 				if k.Cfg.Debug {
 					k.logger.Printf("%s failed marshaling proto msg: %v", workerLogPrefix, err)
 				}
 				if k.Cfg.EnableMetrics {
-					KafkaNumberOfFailSendMsgs.WithLabelValues(config.ClientID, "marshal_error").Inc()
+					kafkaNumberOfFailSendMsgs.WithLabelValues(config.ClientID, "marshal_error").Inc()
 				}
 				continue
 			}
@@ -327,7 +328,7 @@ CRPROD:
 					if k.Cfg.Debug {
 						log.Printf("failed to execute template: %v", err)
 					}
-					KafkaNumberOfFailSendMsgs.WithLabelValues(config.ClientID, "template_error").Inc()
+					kafkaNumberOfFailSendMsgs.WithLabelValues(config.ClientID, "template_error").Inc()
 					return
 				}
 			}
@@ -347,16 +348,16 @@ CRPROD:
 					k.logger.Printf("%s failed to send a kafka msg to topic '%s': %v", workerLogPrefix, k.Cfg.Topic, err)
 				}
 				if k.Cfg.EnableMetrics {
-					KafkaNumberOfFailSendMsgs.WithLabelValues(config.ClientID, "send_error").Inc()
+					kafkaNumberOfFailSendMsgs.WithLabelValues(config.ClientID, "send_error").Inc()
 				}
 				producer.Close()
 				time.Sleep(k.Cfg.RecoveryWaitTime)
 				goto CRPROD
 			}
 			if k.Cfg.EnableMetrics {
-				KafkaSendDuration.WithLabelValues(config.ClientID).Set(float64(time.Since(start).Nanoseconds()))
-				KafkaNumberOfSentMsgs.WithLabelValues(config.ClientID).Inc()
-				KafkaNumberOfSentBytes.WithLabelValues(config.ClientID).Add(float64(len(b)))
+				kafkaSendDuration.WithLabelValues(config.ClientID).Set(float64(time.Since(start).Nanoseconds()))
+				kafkaNumberOfSentMsgs.WithLabelValues(config.ClientID).Inc()
+				kafkaNumberOfSentBytes.WithLabelValues(config.ClientID).Add(float64(len(b)))
 			}
 		}
 	}

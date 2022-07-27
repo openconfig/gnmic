@@ -135,6 +135,8 @@ func (n *NatsOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	if n.Cfg.Name == "" {
 		n.Cfg.Name = name
 	}
+	n.logger.SetPrefix(fmt.Sprintf(loggingPrefix, n.Cfg.Name))
+
 	for _, opt := range opts {
 		opt(n)
 	}
@@ -142,7 +144,7 @@ func (n *NatsOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	if err != nil {
 		return err
 	}
-	n.logger.SetPrefix(fmt.Sprintf(loggingPrefix, n.Cfg.Name))
+
 	n.msgChan = make(chan *outputs.ProtoMsg)
 	initMetrics()
 	n.mo = &formatters.MarshalOptions{
@@ -328,11 +330,12 @@ CRCONN:
 			n.logger.Printf("%s shutting down", workerLogPrefix)
 			return
 		case m := <-n.msgChan:
-			err = outputs.AddSubscriptionTarget(m.GetMsg(), m.GetMeta(), n.Cfg.AddTarget, n.targetTpl)
+			pmsg := m.GetMsg()
+			pmsg, err = outputs.AddSubscriptionTarget(pmsg, m.GetMeta(), n.Cfg.AddTarget, n.targetTpl)
 			if err != nil {
 				n.logger.Printf("failed to add target to the response: %v", err)
 			}
-			b, err := n.mo.Marshal(m.GetMsg(), m.GetMeta(), n.evps...)
+			b, err := n.mo.Marshal(pmsg, m.GetMeta(), n.evps...)
 			if err != nil {
 				if n.Cfg.Debug {
 					n.logger.Printf("%s failed marshaling proto msg: %v", workerLogPrefix, err)
