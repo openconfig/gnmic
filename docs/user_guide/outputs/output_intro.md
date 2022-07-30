@@ -197,7 +197,7 @@ targets:
 
 By default, `gNMIc` outputs write the received gNMI updates as they arrive (i.e without caching).
 
-Caching messages before writing them to a remote location can yield a few benefits benefits like **rate limiting**, **batch processing**, **data replication**, etc.
+Caching messages before writing them to a remote location can yield a few benefits like **rate limiting**, **batch processing**, **data replication**, etc.
 
 Both `influxdb` and `prometheus` outputs support caching messages before exporting.
 Caching support by other outputs is planned.
@@ -224,11 +224,27 @@ outputs:
   output1:
     type: prometheus
     #
+    # other output related fields
+    #
     cache: {}
 ```
 
+This enables `output1` to use a cache of type [`oc`](#gnmi-cache).
+
 Each output has its own cache.
-In future release, using a single global cache will be implemented.
+Using a single global cache will be implemented in a future release.
+
+#### Distributed caches
+
+When running multiple instances of `gNMIc` it's possible to synchronize the collected data between all the instances using a distributed cache.
+
+Each output configured with a remote cache will write the collected gNMI update to the cache first, then read back all written data to process it and eventually write it to the output server.
+
+<div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:10,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/karimra/gnmic/diagrams/diagrams/distributed_caches.drawio&quot;}"></div>
+
+<script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2F/distributed_caches.drawio" async></script>
+
+This is useful when different instances collect data from different targets and/or subscriptions. A single instance can be responsible for writing all the collected data to the output or each instance would be writing to a different output.
 
 #### Cache types
 
@@ -246,6 +262,8 @@ Configuration:
 outputs:
   output1:
     type: prometheus # or influxdb
+    #
+    # other output related fields
     #
     cache: 
       type: oc
@@ -268,6 +286,8 @@ Configuration:
 outputs:
   output1:
     type: prometheus # or influxdb
+    #
+    # other output related fields
     #
     cache:
       type: nats
@@ -298,6 +318,8 @@ Configuration:
 outputs:
   output1:
     type: prometheus # or influxdb
+    #
+    # other output related fields
     #
     cache:
       type: jetstream
@@ -337,6 +359,8 @@ This type of cache is useful when multiple `gNMIc` instances are subscribed to d
 outputs:
   output1:
     type: prometheus # or influxdb
+    #
+    # other output related fields
     #
     cache:
       type: redis

@@ -1,6 +1,6 @@
 `gnmic` supports writing metrics to Prometheus using its [remote write API](https://grafana.com/blog/2019/03/25/whats-new-in-prometheus-2.8-wal-based-remote-write/).
 
-`gNMIc`'s prometheus remote write can be used to push metrics to a variety of monitoring systems like [Mimir](https://grafana.com/oss/mimir/), [CortexMetrics](https://cortexmetrics.io/), [VictoriaMetrics](https://victoriametrics.com/), [Thanos](https://thanos.io/)...
+`gNMIc`'s prometheus remote write can be used to push metrics to a variety of monitoring systems like [Prometheus](https://prometheus.io), [Mimir](https://grafana.com/oss/mimir/), [CortexMetrics](https://cortexmetrics.io/), [VictoriaMetrics](https://victoriametrics.com/), [Thanos](https://thanos.io/)...
 
 A Prometheus write output can be defined using the below format in `gnmic` config file under `outputs` section:
 

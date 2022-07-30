@@ -76,4 +76,5 @@ The below diagram shows how an InfluxDB output works with and without cache enab
 <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2F/influxdb_output_with_without_cache.drawio" async></script>
 
 When caching is enabled, the cached gNMI updates are periodically retrieved in batch, converted to [events](../event_processors/intro.md#the-event-format).
+
 If [processors](../event_processors/intro.md) are defined under the output, they are applied to the whole list of events at once. This allows augmenting some messages with values from other messages even if they where collected from a different target/subscription.
