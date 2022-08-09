@@ -69,34 +69,38 @@ func (k *k8sLocker) watch(ctx context.Context, serviceName string, tags []string
 	watchChan := watched.ResultChan()
 
 	for {
-		event := <- watchChan
-		switch event.Type {
-		case watch.Modified, watch.Added:
-			endpoints, ok := event.Object.(*corev1.Endpoints)
-			if !ok {
-				// this ought not to happen, but we should probably
-				// start from scratch next time in case it does
-				return "", fmt.Errorf("error converting watch result to an endpoint")
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case event := <-watchChan:
+			switch event.Type {
+			case watch.Modified, watch.Added:
+				endpoints, ok := event.Object.(*corev1.Endpoints)
+				if !ok {
+					// this ought not to happen, but we should probably
+					// start from scratch next time in case it does
+					return "", fmt.Errorf("error converting watch result to an endpoint")
+				}
+				resourceVersion = endpoints.ResourceVersion
+				if k.Cfg.Debug {
+					k.logger.Printf("received watch event %s for resource version %s", event.Type, resourceVersion)
+				}
+				svcs, err := parseEndpoint(endpoints)
+				if err != nil {
+					return "", err
+				}
+				sChan <- svcs
+			case "":
+				// reached the timeout. return the version we last saw so
+				// we can resume watching
+				return resourceVersion, nil
+			default:
+				// something else happened, including maybe the object we
+				// were watching being deleted. we'll need to start the
+				// next watch from scratch, so don't return the resource
+				// version
+				return "", fmt.Errorf("unexpected watch event: %s", event.Type)
 			}
-			resourceVersion = endpoints.ResourceVersion
-			if k.Cfg.Debug {
-				k.logger.Printf("received watch event %s for resource version %s", event.Type, resourceVersion)
-			}
-			svcs, err := parseEndpoint(endpoints)
-			if err != nil {
-				return "", err
-			}
-			sChan <- svcs
-		case "":
-			// reached the timeout. return the version we last saw so
-			// we can resume watching
-			return resourceVersion, nil
-		default:
-			// something else happened, including maybe the object we
-			// were watching being deleted. we'll need to start the
-			// next watch from scratch, so don't return the resource
-			// version
-			return "", fmt.Errorf("unexpected watch event: %s", event.Type)
 		}
 	}
 }
