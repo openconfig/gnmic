@@ -26,6 +26,7 @@ import (
 
 const (
 	defaultLeaseDuration = 10 * time.Second
+	defaultRetryTimer    = 2 * time.Second
 	loggingPrefix        = "[k8s_locker] "
 	defaultNamespace     = "default"
 	origKeyName          = "original-key"
@@ -58,6 +59,7 @@ type config struct {
 	Namespace     string        `mapstructure:"namespace,omitempty" json:"namespace,omitempty"`
 	LeaseDuration time.Duration `mapstructure:"lease-duration,omitempty" json:"lease-duration,omitempty"`
 	RenewPeriod   time.Duration `mapstructure:"renew-period,omitempty" json:"renew-period,omitempty"`
+	RetryTimer    time.Duration `mapstructure:"retry-timer,omitempty" json:"retry-timer,omitempty"`
 	Debug         bool          `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 }
 
@@ -157,15 +159,21 @@ func (k *k8sLocker) Lock(ctx context.Context, key string, val []byte) (bool, err
 			}
 			// obtained, compare
 			if ol != nil && ol.Spec.HolderIdentity != nil && *ol.Spec.HolderIdentity != "" {
-				k.logger.Printf("%q held by other instance: %v", ol.Name, *ol.Spec.HolderIdentity != k.identity)
-				k.logger.Printf("%q lease has renewTime: %v", ol.Name, ol.Spec.RenewTime != nil)
+				if k.Cfg.Debug {
+					k.logger.Printf("%q held by other instance: %v", ol.Name, *ol.Spec.HolderIdentity != k.identity)
+					k.logger.Printf("%q lease has renewTime: %v", ol.Name, ol.Spec.RenewTime != nil)
+				}
 				if *ol.Spec.HolderIdentity != k.identity && ol.Spec.RenewTime != nil {
 					expectedRenewTime := ol.Spec.RenewTime.Add(time.Duration(*ol.Spec.LeaseDurationSeconds) * time.Second)
-					k.logger.Printf("%q existing lease renew time %v", ol.Name, ol.Spec.RenewTime)
-					k.logger.Printf("%q expected lease renew time %v", ol.Name, expectedRenewTime)
-					k.logger.Printf("%q renew time passed: %v", ol.Name, expectedRenewTime.Before(now.Time))
+					if k.Cfg.Debug {
+						k.logger.Printf("%q existing lease renew time %v", ol.Name, ol.Spec.RenewTime)
+						k.logger.Printf("%q expected lease renew time %v", ol.Name, expectedRenewTime)
+						k.logger.Printf("%q renew time passed: %v", ol.Name, expectedRenewTime.Before(now.Time))
+					}
 					if !expectedRenewTime.Before(now.Time) {
-						k.logger.Printf("%q is currently held by %s", ol.Name, *ol.Spec.HolderIdentity)
+						if k.Cfg.Debug {
+							k.logger.Printf("%q is currently held by %s", ol.Name, *ol.Spec.HolderIdentity)
+						}
 						time.Sleep(k.Cfg.RenewPeriod)
 						continue
 					}
@@ -301,6 +309,9 @@ func (k *k8sLocker) setDefaults() error {
 	}
 	if k.Cfg.RenewPeriod <= 0 || k.Cfg.RenewPeriod >= k.Cfg.LeaseDuration {
 		k.Cfg.RenewPeriod = k.Cfg.LeaseDuration / 2
+	}
+	if k.Cfg.RetryTimer <= 0 {
+		k.Cfg.RetryTimer = defaultRetryTimer
 	}
 	return nil
 }
