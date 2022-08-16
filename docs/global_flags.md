@@ -195,6 +195,18 @@ The `--log` flag enables log messages to appear on stderr output. By default log
 
 The log-file flag `[--log-file <path>]` sets the log output to a file referenced by the path. This flag supersede the `--log` flag
 
+### log-max-size
+
+The `[--log-max-size]` flag enables log rotation and sets the maximum size of the log file in megabytes before it gets rotated.
+
+### log-max-backups
+
+The `[--log-max-backups]` flag sets the maximum number of old log files to retain. The default is to retain all old log files.
+
+### log-compress
+
+The `[--log-compress]` flag determines if the rotated log files should be compressed using gzip. The default is not to perform compression.
+
 ### no-prefix
 
 The no prefix flag `[--no-prefix]` disables prefixing the json formatted responses with `[ip:port]` string.
@@ -221,7 +233,7 @@ The proxy-from-env flag `[--proxy-from-env]` indicates that the gnmic should use
 
 ### retry
 
-The retry flag `[--retry] specifies the wait time before each retry.
+The retry flag `[--retry]` specifies the wait time before each retry.
 
 Valid formats: 10s, 1m30s, 1h.  Defaults to 10s
 

@@ -24,6 +24,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"gopkg.in/natefinch/lumberjack.v2"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -84,6 +85,9 @@ type GlobalFlags struct {
 	Format        string        `mapstructure:"format,omitempty" json:"format,omitempty" yaml:"format,omitempty"`
 	LogFile       string        `mapstructure:"log-file,omitempty" json:"log-file,omitempty" yaml:"log-file,omitempty"`
 	Log           bool          `mapstructure:"log,omitempty" json:"log,omitempty" yaml:"log,omitempty"`
+	LogMaxSize    int           `mapstructure:"log-max-size,omitempty" json:"log-max-size,omitempty" yaml:"log-max-size,omitempty"`
+	LogMaxBackups int           `mapstructure:"log-max-backups,omitempty" json:"log-max-backups,omitempty" yaml:"log-max-backups,omitempty"`
+	LogCompress   bool          `mapstructure:"log-compress,omitempty" json:"log-compress,omitempty" yaml:"log-compress,omitempty"`
 	MaxMsgSize    int           `mapstructure:"max-msg-size,omitempty" json:"max-msg-size,omitempty" yaml:"max-msg-size,omitempty"`
 	//PrometheusAddress string        `mapstructure:"prometheus-address,omitempty" json:"prometheus-address,omitempty" yaml:"prometheus-address,omitempty"`
 	PrintRequest     bool          `mapstructure:"print-request,omitempty" json:"print-request,omitempty" yaml:"print-request,omitempty"`
@@ -292,9 +296,18 @@ func (c *Config) SetLogger() (io.Writer, int, error) {
 	var err error
 
 	if c.LogFile != "" {
-		f, err = os.OpenFile(c.LogFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-		if err != nil {
-			return nil, 0, err
+		if c.LogMaxSize > 0 {
+			f = &lumberjack.Logger{
+				Filename:   c.LogFile,
+				MaxSize:    c.LogMaxSize,
+				MaxBackups: c.LogMaxBackups,
+				Compress:   c.LogCompress,
+			}
+		} else {
+			f, err = os.OpenFile(c.LogFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+			if err != nil {
+				return nil, 0, err
+			}
 		}
 	} else {
 		if c.Debug {
