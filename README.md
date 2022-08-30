@@ -1,4 +1,4 @@
-<p align=center><img src=https://gitlab.com/rdodin/pics/-/wikis/uploads/46e7d1631bd5569e9bf289be9dfa3812/gnmic-headline.svg?sanitize=true/></p>
+<p align=center><img src=docs/images/gnmic-headline.svg?sanitize=true/></p>
 
 [![github release](https://img.shields.io/github/release/karimra/gnmic.svg?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://github.com/karimra/gnmic/releases/)
 [![Github all releases](https://img.shields.io/github/downloads/karimra/gnmic/total.svg?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://github.com/karimra/gnmic/releases/)
@@ -13,6 +13,7 @@
 Documentation available at [https://gnmic.kmrd.dev](https://gnmic.kmrd.dev)
 
 ## Features
+
 * **Full support for gNMI RPCs**  
   Every gNMI RPC has a [corresponding command](https://gnmic.kmrd.dev/basic_usage/) with all of the RPC options configurable by means of the local and global flags.
 * **Flexible collector deployment**  
@@ -42,22 +43,28 @@ Documentation available at [https://gnmic.kmrd.dev](https://gnmic.kmrd.dev)
   You won't be in need to dive into the source code to understand how `gnimc` works, our [documentation site](https://gnmic.kmrd.dev) has you covered.
 
 ## Quick start guide
+
 ### Installation
+
 ```
 bash -c "$(curl -sL https://get-gnmic.kmrd.dev)"
 ```
+
 ### Capabilities request
+
 ```
 gnmic -a 10.1.0.11:57400 -u admin -p admin --insecure capabilities
 ```
 
 ### Get request
+
 ```
 gnmic -a 10.1.0.11:57400 -u admin -p admin --insecure \
       get --path /state/system/platform
 ```
 
 ### Set request
+
 ```
 gnmic -a 10.1.0.11:57400 -u admin -p admin --insecure \
       set --update-path /configure/system/name \
@@ -65,12 +72,14 @@ gnmic -a 10.1.0.11:57400 -u admin -p admin --insecure \
 ```
 
 ### Subscribe request
+
 ```
 gnmic -a 10.1.0.11:57400 -u admin -p admin --insecure \
       sub --path "/state/port[port-id=1/1/c1/1]/statistics/in-packets"
 ```
 
 ### Prompt mode
+
 The [prompt mode](https://gnmic.kmrd.dev/user_guide/prompt_suggestions/) is an interactive mode of the gnmic CLI client for user convenience.
 
 ```bash
