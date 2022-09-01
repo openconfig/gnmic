@@ -1,4 +1,4 @@
-<mxfile host="app.diagrams.net" modified="2022-09-01T08:36:59.513Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36" etag="pYYwQ3DYz-DRWL1TrfsC" version="20.2.7" type="github" pages="3">
+<mxfile host="app.diagrams.net" modified="2022-09-01T09:31:38.473Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36" etag="1a_TZmLfssATfPEWijbH" version="20.2.7" type="github" pages="3">
   <diagram id="4FA8s8q_QNfWjVpFnbCt" name="cluster_clab_influxdb">
     <mxGraphModel dx="1425" dy="1139" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="900" pageHeight="400" math="0" shadow="0">
       <root>
@@ -1854,7 +1854,7 @@
     </mxGraphModel>
   </diagram>
   <diagram name="nanog86_1" id="bGOeYygBXdkeR76ghsW5">
-    <mxGraphModel dx="1333" dy="691" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="3300" pageHeight="4681" math="0" shadow="0">
+    <mxGraphModel dx="1333" dy="691" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="3300" pageHeight="4681" math="0" shadow="0">
       <root>
         <mxCell id="TDTckM_-To39sIRMP_3v-0" />
         <mxCell id="TDTckM_-To39sIRMP_3v-1" parent="TDTckM_-To39sIRMP_3v-0" />
