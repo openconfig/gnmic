@@ -8,7 +8,7 @@ datasources:
   - name: Prometheus
     type: prometheus
     orgId: 1
-    url: http://clab-lab25-prometheus:9090
+    url: http://clab-lab25-2-prometheus:9090
     password:
     user:
     database:
