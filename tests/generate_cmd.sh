@@ -11,6 +11,8 @@ docker cp $id:/opt/srlinux/models/. $DIR_NAME
 docker rm $id
 ls -l srl-latest-yang-models
 
+sed -i 's|modifier "invert-match";|//modifier "invert-match";|g' srl-latest-yang-models/srl_nokia/models/common/srl_nokia-common.yang
+
 ./gnmic-rc1 generate --path /interface/subinterface --file  srl-latest-yang-models/srl_nokia/models --dir srl-latest-yang-models/ietf --exclude ".tools."
 ./gnmic-rc1 generate --path /interface/subinterface --file  srl-latest-yang-models/srl_nokia/models --dir srl-latest-yang-models/ietf --exclude ".tools." --camel-case
 ./gnmic-rc1 generate --path /interface/subinterface --file  srl-latest-yang-models/srl_nokia/models --dir srl-latest-yang-models/ietf --exclude ".tools." --snake-case

@@ -81,6 +81,8 @@ nav:
 
       - Actions: user_guide/actions/actions.md
 
+      - Caching: user_guide/caching.md
+
       - Clustering: user_guide/HA.md
 
       - REST API: 
