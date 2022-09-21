@@ -143,7 +143,7 @@ func Test_natsCache_Write(t *testing.T) {
 				t.Fatal(err)
 			}
 			c.Write(tt.args.ctx, tt.args.subscriptionName, tt.args.m)
-			rs, err := c.Read(context.TODO(), "reader1", nil)
+			rs, err := c.Read()
 			if err != nil {
 				t.Fatal(err)
 			}

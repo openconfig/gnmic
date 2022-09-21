@@ -43,7 +43,7 @@ func (i *InfluxDBOutput) runCache(ctx context.Context, name string) {
 }
 
 func (i *InfluxDBOutput) readCache(ctx context.Context, name string) {
-	notifications, err := i.gnmiCache.Read(ctx, name, &cache.ReadOpts{})
+	notifications, err := i.gnmiCache.Read()
 	if err != nil {
 		i.logger.Printf("failed to read from cache: %v", err)
 		return

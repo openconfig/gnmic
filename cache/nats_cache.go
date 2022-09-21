@@ -188,6 +188,7 @@ START:
 }
 
 func (c *natsCache) Write(ctx context.Context, subscriptionName string, m proto.Message) {
+	// write the msg to nats
 	c.writeRemoteNATS(ctx, subscriptionName, m)
 	// publish the subscription name to nats for other gnmic instances
 	var ok bool
@@ -202,7 +203,6 @@ func (c *natsCache) Write(ctx context.Context, subscriptionName string, m proto.
 		}
 	}()
 	_, ok = c.subjects[subscriptionName]
-
 }
 
 func (c *natsCache) writeRemoteNATS(ctx context.Context, subscriptionName string, m proto.Message) {
@@ -237,11 +237,13 @@ func (c *natsCache) publishNotificationNATS(_ context.Context, subscriptionName,
 	return nil
 }
 
-func (c *natsCache) Read(ctx context.Context, name string, ro *ReadOpts) (map[string][]*gnmi.Notification, error) {
-	return c.oc.Read(ctx, name, ro)
+func (c *natsCache) Read() (map[string][]*gnmi.Notification, error) {
+	return c.oc.Read()
 }
 
-func (c *natsCache) Subscribe(ctx context.Context, so *ReadOpts) chan *notification { return nil }
+func (c *natsCache) Subscribe(ctx context.Context, ro *ReadOpts) chan *Notification {
+	return c.oc.Subscribe(ctx, ro)
+}
 
 func (c *natsCache) Stop() {
 	c.cfn()
@@ -259,4 +261,8 @@ func (c *natsCache) SetLogger(logger *log.Logger) {
 		c.logger.SetFlags(logger.Flags())
 		c.logger.SetPrefix(loggingPrefixNATS)
 	}
+}
+
+func (c *natsCache) DeleteTarget(name string) {
+	c.oc.DeleteTarget(name)
 }

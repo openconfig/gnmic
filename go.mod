@@ -33,8 +33,8 @@ require (
 	github.com/nats-io/stan.go v0.10.2
 	github.com/nsf/termbox-go v1.1.1
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/openconfig/gnmi v0.0.0-20220503232738-6eb133c65a13
-	github.com/openconfig/goyang v1.0.0
+	github.com/openconfig/gnmi v0.0.0-20220617175856-41246b1b3507
+	github.com/openconfig/goyang v1.1.0
 	github.com/pkg/sftp v1.13.4
 	github.com/prometheus/client_golang v1.12.2
 	github.com/prometheus/client_model v0.2.0

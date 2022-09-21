@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/karimra/gnmic/cache"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/outputs"
 	"github.com/openconfig/gnmi/proto/gnmi"
@@ -14,7 +13,7 @@ import (
 func (p *prometheusOutput) collectFromCache(ch chan<- prometheus.Metric) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
-	notifications, err := p.gnmiCache.Read(ctx, p.Cfg.Name, &cache.ReadOpts{})
+	notifications, err := p.gnmiCache.Read()
 	if err != nil {
 		p.logger.Printf("failed to read from cache: %v", err)
 		return

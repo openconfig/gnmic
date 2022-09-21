@@ -137,7 +137,7 @@ func (a *App) Export(ctx context.Context, rsp *gnmi.SubscribeResponse, m outputs
 	if rsp == nil {
 		return
 	}
-	go a.updateCache(rsp, m)
+	go a.updateCache(ctx, rsp, m)
 	wg := new(sync.WaitGroup)
 	// target has no outputs explicitly defined
 	if len(outs) == 0 {
@@ -168,7 +168,7 @@ func (a *App) Export(ctx context.Context, rsp *gnmi.SubscribeResponse, m outputs
 	wg.Wait()
 }
 
-func (a *App) updateCache(rsp *gnmi.SubscribeResponse, m outputs.Meta) {
+func (a *App) updateCache(ctx context.Context, rsp *gnmi.SubscribeResponse, m outputs.Meta) {
 	if a.c == nil {
 		return
 	}
@@ -186,18 +186,11 @@ func (a *App) updateCache(rsp *gnmi.SubscribeResponse, m outputs.Meta) {
 			a.Logger.Printf("response missing target")
 			return
 		}
-		if !a.c.HasTarget(target) {
-			a.c.Add(target)
-			a.Logger.Printf("target %q added to the local cache", target)
-		}
 		if a.Config.Debug {
-			a.Logger.Printf("updating target %q local cache", target)
+			a.Logger.Printf("updating target %q cache", target)
 		}
-		err := a.c.GnmiUpdate(r.Update)
-		if err != nil {
-			a.Logger.Printf("failed to update gNMI cache: %v", err)
-			return
-		}
+		sub := m["subscription-name"]
+		a.c.Write(ctx, sub, &gnmi.SubscribeResponse{Response: &gnmi.SubscribeResponse_Update{Update: r.Update}})
 	}
 }
 

@@ -220,10 +220,25 @@ func (s *server) handlePolledSubscription(sc *streamClient) {
 }
 
 func (s *server) sendSubscribeResponse(r *resp, sc *streamClient) error {
-	notif, err := subscribe.MakeSubscribeResponse(r.n.Value(), r.dup)
+	notif, err := makeSubscribeResponse(r.n.Value(), r.dup)
 	if err != nil {
 		return status.Errorf(codes.Unknown, "unknown error: %v", err)
 	}
 	// No acls
 	return r.stream.Send(notif)
+}
+
+func makeSubscribeResponse(n interface{}, dup uint32) (*gnmi.SubscribeResponse, error) {
+	var notification *gnmi.Notification
+	var ok bool
+	notification, ok = n.(*gnmi.Notification)
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "invalid notification type: %#v", n)
+	}
+
+	return &gnmi.SubscribeResponse{
+		Response: &gnmi.SubscribeResponse_Update{
+			Update: notification,
+		},
+	}, nil
 }

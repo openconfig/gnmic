@@ -175,6 +175,23 @@ func (c *jetStreamCache) createStream(streamName string, subjects []string) erro
 }
 
 func (c *jetStreamCache) Write(ctx context.Context, subscriptionName string, m proto.Message) {
+	c.writeRemoteJS(ctx, subscriptionName, m)
+	// publish the subscription name to nats for other gnmic instances
+	var ok bool
+	c.m.RLock()
+	defer func() {
+		c.m.RUnlock()
+		if !ok {
+			c.m.Lock()
+			c.streams[subscriptionName] = struct{}{}
+			c.m.Unlock()
+			_ = c.nc.Publish(cacheSubjects, []byte(subscriptionName))
+		}
+	}()
+	_, ok = c.streams[subscriptionName]
+}
+
+func (c *jetStreamCache) writeRemoteJS(ctx context.Context, subscriptionName string, m proto.Message) {
 	switch m := m.ProtoReflect().Interface().(type) {
 	case *gnmi.SubscribeResponse:
 		switch rsp := m.GetResponse().(type) {
@@ -207,13 +224,11 @@ func (c *jetStreamCache) Write(ctx context.Context, subscriptionName string, m p
 			// wait in case the stream is being created
 			c.m.RLock()
 			defer c.m.RUnlock()
-			var err error
-			for _, r := range splitSubscribeResponse(rsp.Update) {
-				err = c.publishNotificationJS(ctx, subscriptionName, targetName, r)
-				if err != nil {
-					c.logger.Print(err)
-				}
+			err := c.publishNotificationJS(ctx, subscriptionName, targetName, m)
+			if err != nil {
+				c.logger.Print(err)
 			}
+
 		}
 	}
 }
@@ -297,25 +312,12 @@ START:
 }
 
 // Read //
-func (c *jetStreamCache) Read(ctx context.Context, name string, ro *ReadOpts) (map[string][]*gnmi.Notification, error) {
-	return c.oc.Read(ctx, name, ro)
+func (c *jetStreamCache) Read() (map[string][]*gnmi.Notification, error) {
+	return c.oc.Read()
 }
 
-func (c *jetStreamCache) Subscribe(ctx context.Context, ro *ReadOpts) chan *notification {
-	if ro == nil {
-		ro = &ReadOpts{
-			Target:         "*",
-			Paths:          []*gnmi.Path{{}},
-			Mode:           "stream_sample",
-			SampleInterval: 10 * time.Second,
-		}
-	}
-	ch := make(chan *notification)
-	go c.subscribe(ctx, ro, ch)
-	return ch
-}
-
-func (c *jetStreamCache) subscribe(ctx context.Context, ro *ReadOpts, ch chan *notification) {
+func (c *jetStreamCache) Subscribe(ctx context.Context, ro *ReadOpts) chan *Notification {
+	return c.oc.Subscribe(ctx, ro)
 }
 
 func (c *jetStreamCache) Stop() {
@@ -326,6 +328,10 @@ func (c *jetStreamCache) Stop() {
 	if c.ns != nil {
 		c.ns.Shutdown()
 	}
+}
+
+func (c *jetStreamCache) DeleteTarget(name string) {
+	c.oc.DeleteTarget(name)
 }
 
 func subjectName(streamName, target string, m proto.Message) (string, error) {
@@ -359,36 +365,6 @@ func subjectName(streamName, target string, m proto.Message) (string, error) {
 		}
 	}
 	return sb.String(), nil
-}
-
-func splitSubscribeResponse(m *gnmi.Notification) []*gnmi.SubscribeResponse {
-	if m == nil {
-		return nil
-	}
-	rs := make([]*gnmi.SubscribeResponse, 0, len(m.GetUpdate())+len(m.GetDelete()))
-	for _, upd := range m.GetUpdate() {
-		rs = append(rs, &gnmi.SubscribeResponse{
-			Response: &gnmi.SubscribeResponse_Update{
-				Update: &gnmi.Notification{
-					Timestamp: m.GetTimestamp(),
-					Prefix:    m.GetPrefix(),
-					Update:    []*gnmi.Update{upd},
-				},
-			},
-		})
-	}
-	for _, del := range m.GetDelete() {
-		rs = append(rs, &gnmi.SubscribeResponse{
-			Response: &gnmi.SubscribeResponse_Update{
-				Update: &gnmi.Notification{
-					Timestamp: m.GetTimestamp(),
-					Prefix:    m.GetPrefix(),
-					Delete:    []*gnmi.Path{del},
-				},
-			},
-		})
-	}
-	return rs
 }
 
 type subjectOpts struct {

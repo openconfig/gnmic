@@ -29,7 +29,6 @@ type redisCache struct {
 	channelChan chan string
 	m           *sync.RWMutex
 	channels    map[string]struct{}
-	schannels   *sync.Map
 	logger      *log.Logger
 }
 
@@ -48,8 +47,8 @@ func newRedisCache(cfg *Config, opts ...Option) (*redisCache, error) {
 		channelChan: make(chan string),
 		m:           new(sync.RWMutex),
 		channels:    make(map[string]struct{}),
-		schannels:   new(sync.Map),
 	}
+
 	for _, opt := range opts {
 		opt(c)
 	}
@@ -117,11 +116,9 @@ func (c *redisCache) writeRemoteREDIS(ctx context.Context, subscriptionName stri
 			}
 			c.channelChan <- subscriptionName
 			var err error
-			for _, r := range splitSubscribeResponse(rsp.Update) {
-				err = c.publishNotificationREDIS(ctx, subscriptionName, targetName, r)
-				if err != nil {
-					c.logger.Print(err)
-				}
+			err = c.publishNotificationREDIS(ctx, subscriptionName, targetName, m)
+			if err != nil {
+				c.logger.Print(err)
 			}
 		}
 	}
@@ -149,8 +146,8 @@ func (c *redisCache) publishNotificationREDIS(ctx context.Context, subscriptionN
 	return nil
 }
 
-func (c *redisCache) Read(ctx context.Context, name string, ro *ReadOpts) (map[string][]*gnmi.Notification, error) {
-	return c.oc.Read(ctx, name, ro)
+func (c *redisCache) Read() (map[string][]*gnmi.Notification, error) {
+	return c.oc.Read()
 }
 
 func (c *redisCache) sync(ctx context.Context) {
@@ -200,10 +197,13 @@ func (c *redisCache) sync(ctx context.Context) {
 func (c *redisCache) syncChannel(ctx context.Context, channel string) {
 	sub := c.c.PSubscribe(ctx, fmt.Sprintf("%s*", channel))
 	defer sub.Close()
-
+	i := 0
 	for {
 		select {
 		case msg := <-sub.Channel():
+			if len(msg.Payload) == 0 {
+				continue
+			}
 			m := new(gnmi.SubscribeResponse)
 			err := proto.Unmarshal([]byte(msg.Payload), m)
 			if err != nil {
@@ -211,14 +211,15 @@ func (c *redisCache) syncChannel(ctx context.Context, channel string) {
 				continue
 			}
 			c.oc.Write(ctx, channel, m)
+			i++
 		case <-ctx.Done():
 			return
 		}
 	}
 }
 
-func (c *redisCache) Subscribe(ctx context.Context, ro *ReadOpts) chan *notification {
-	return nil
+func (c *redisCache) Subscribe(ctx context.Context, ro *ReadOpts) chan *Notification {
+	return c.oc.Subscribe(ctx, ro)
 }
 
 func (c *redisCache) Stop() {
@@ -226,4 +227,8 @@ func (c *redisCache) Stop() {
 	if c.c != nil {
 		c.c.Close()
 	}
+}
+
+func (c *redisCache) DeleteTarget(name string) {
+	c.oc.DeleteTarget(name)
 }

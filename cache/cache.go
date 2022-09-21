@@ -4,36 +4,45 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"google.golang.org/protobuf/proto"
 )
 
-type cacheType string
+type CacheType string
 
 const (
-	cacheType_OC    cacheType = "oc"
-	cacheType_Redis cacheType = "redis"
-	cacheType_NATS  cacheType = "nats"
-	cacheType_JS    cacheType = "jetstream"
+	cacheType_OC    CacheType = "oc"
+	cacheType_Redis CacheType = "redis"
+	cacheType_NATS  CacheType = "nats"
+	cacheType_JS    CacheType = "jetstream"
+)
+
+const (
+	ReadMode_Once           = "once"
+	ReadMode_StreamOnChange = "stream_on_change"
+	ReadMode_StreamSample   = "stream_sample"
 )
 
 type Cache interface {
-	// Write inserts the SubscribeResponse into the cache under a subscription called `sub`
+	// Write inserts the proto.Message (SubscribeResponse) into the cache under a subscription called `sub`
 	Write(ctx context.Context, sub string, m proto.Message)
-	// Read entries from cache, return the entries grouped by subscription name.
-	Read(ctx context.Context, name string, ro *ReadOpts) (map[string][]*gnmi.Notification, error)
-	// Subscribes to the caches and returns the notification over a channel
-	Subscribe(ctx context.Context, so *ReadOpts) chan *notification
+	// Read entries from the local cache, return the entries grouped by subscription name.
+	Read() (map[string][]*gnmi.Notification, error)
+	// Subscribes to the local cache and returns the notification over a channel
+	Subscribe(ctx context.Context, so *ReadOpts) chan *Notification
 	// Stops the cache
 	Stop()
+	// DeleteTarget deletes the target from the cache by name
+	DeleteTarget(name string)
 	// SetLogger sets a logger for the cache
 	SetLogger(l *log.Logger)
 }
 
 type Config struct {
-	Type       cacheType     `mapstructure:"type,omitempty" json:"type,omitempty"`
+	Type       CacheType     `mapstructure:"type,omitempty" json:"type,omitempty"`
 	Address    string        `mapstructure:"address,omitempty" json:"address,omitempty"`
 	Timeout    time.Duration `mapstructure:"timeout,omitempty" json:"timeout,omitempty"`
 	Expiration time.Duration `mapstructure:"expiration,omitempty" json:"expiration,omitempty"`
@@ -113,10 +122,33 @@ type ReadOpts struct {
 	HeartbeatInterval time.Duration
 	SuppressRedundant bool
 	UpdatesOnly       bool
+	OverrideTS        bool
+
+	m        *sync.RWMutex
+	lastSent map[string]*gnmi.TypedValue
 }
 
-type notification struct {
-	name         string
-	notification *gnmi.Notification
-	// err          error
+func (ro *ReadOpts) setDefaults() {
+	if ro.Target == "" {
+		ro.Target = "*"
+	}
+	if ro.Mode == "" {
+		ro.Mode = ReadMode_StreamOnChange
+	}
+	if len(ro.Paths) == 0 {
+		ro.Paths = []*gnmi.Path{{}}
+	}
+	if ro.Mode == ReadMode_StreamSample && ro.SampleInterval <= 0 {
+		ro.SampleInterval = 10 * time.Second
+	}
+	if ro.SuppressRedundant {
+		ro.m = new(sync.RWMutex)
+		ro.lastSent = make(map[string]*gnmi.TypedValue)
+	}
+}
+
+type Notification struct {
+	Name         string
+	Notification *gnmi.Notification
+	Err          error
 }
