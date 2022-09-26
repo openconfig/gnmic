@@ -14,15 +14,11 @@ import (
 
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/hashicorp/consul/api"
+	"github.com/karimra/gnmic/cache"
 	"github.com/karimra/gnmic/target"
 	"github.com/karimra/gnmic/types"
 	"github.com/karimra/gnmic/utils"
-	"github.com/openconfig/gnmi/coalesce"
-	"github.com/openconfig/gnmi/ctree"
-	"github.com/openconfig/gnmi/match"
-	"github.com/openconfig/gnmi/path"
 	"github.com/openconfig/gnmi/proto/gnmi"
-	"github.com/openconfig/gnmi/subscribe"
 	"golang.org/x/sync/semaphore"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -33,34 +29,11 @@ import (
 )
 
 type streamClient struct {
-	target  string
-	req     *gnmi.SubscribeRequest
-	queue   *coalesce.Queue
+	target string
+	req    *gnmi.SubscribeRequest
+
 	stream  gnmi.GNMI_SubscribeServer
 	errChan chan<- error
-
-	m        *sync.Mutex
-	lastSent map[string]*gnmi.TypedValue
-}
-
-type matchClient struct {
-	queue *coalesce.Queue
-	err   error
-}
-
-type syncMarker struct{}
-
-type resp struct {
-	stream gnmi.GNMI_SubscribeServer
-	n      *ctree.Leaf
-	dup    uint32
-}
-
-func (m *matchClient) Update(n interface{}) {
-	if m.err != nil {
-		return
-	}
-	_, m.err = m.queue.Insert(n)
 }
 
 func (a *App) startGnmiServer() {
@@ -68,14 +41,17 @@ func (a *App) startGnmiServer() {
 		a.c = nil
 		return
 	}
-	a.match = match.New()
+	var err error
+	a.c, err = cache.New(a.Config.GnmiServer.Cache, cache.WithLogger(a.Logger))
+	if err != nil {
+		a.Logger.Printf("failed to initialize gNMI cache: %v", err)
+		return
+	}
 
 	a.subscribeRPCsem = semaphore.NewWeighted(a.Config.GnmiServer.MaxSubscriptions)
 	a.unaryRPCsem = semaphore.NewWeighted(a.Config.GnmiServer.MaxUnaryRPC)
-	a.c.SetClient(a.Update)
 	//
 	var l net.Listener
-	var err error
 	network := "tcp"
 	addr := a.Config.GnmiServer.Address
 	if strings.HasPrefix(a.Config.GnmiServer.Address, "unix://") {
@@ -254,15 +230,6 @@ OUTER:
 		return nil, status.Errorf(codes.NotFound, "target %q is not known", targetsNames[i])
 	}
 	return targets, nil
-}
-
-func (a *App) Update(n *ctree.Leaf) {
-	switch v := n.Value().(type) {
-	case *gnmi.Notification:
-		subscribe.UpdateNotification(a.match, n, v, path.ToStrings(v.Prefix, true))
-	default:
-		a.Logger.Printf("unexpected update type: %T", v)
-	}
 }
 
 func (a *App) Get(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetResponse, error) {
@@ -493,9 +460,7 @@ func (a *App) Set(ctx context.Context, req *gnmi.SetRequest) (*gnmi.SetResponse,
 func (a *App) Subscribe(stream gnmi.GNMI_SubscribeServer) error {
 	pr, _ := peer.FromContext(stream.Context())
 	sc := &streamClient{
-		stream:   stream,
-		m:        new(sync.Mutex),
-		lastSent: make(map[string]*gnmi.TypedValue),
+		stream: stream,
 	}
 	var err error
 	sc.req, err = stream.Recv()
@@ -517,27 +482,31 @@ func (a *App) Subscribe(stream gnmi.GNMI_SubscribeServer) error {
 			sub.Prefix.Target = "*"
 		}
 	}
-	if !a.c.HasTarget(sc.target) {
-		return status.Errorf(codes.NotFound, "target %q not found", sc.target)
-	}
 
 	a.Logger.Printf("received a subscribe request mode=%v from %q for target %q", sc.req.GetSubscribe().GetMode(), pr.Addr, sc.target)
 	defer a.Logger.Printf("subscription from peer %q terminated", pr.Addr)
 
-	sc.queue = coalesce.NewQueue()
 	errChan := make(chan error, 3)
-	sc.errChan = errChan
+	sc.errChan = make(chan error, 3)
 
 	a.Logger.Printf("acquiring subscription spot for target %q", sc.target)
 	ok := a.subscribeRPCsem.TryAcquire(1)
 	if !ok {
 		return status.Errorf(codes.ResourceExhausted, "could not acquire a subscription spot")
 	}
+	defer a.subscribeRPCsem.Release(1)
+
 	a.Logger.Printf("acquired subscription spot for target %q", sc.target)
 
 	switch sc.req.GetSubscribe().GetMode() {
 	case gnmi.SubscriptionList_ONCE:
-		go a.handleONCESubscriptionRequest(sc)
+		go func() {
+			a.handleONCESubscriptionRequest(sc)
+			errChan <- sc.stream.Send(&gnmi.SubscribeResponse{
+				Response: &gnmi.SubscribeResponse_SyncResponse{SyncResponse: true},
+			})
+			close(errChan)
+		}()
 	case gnmi.SubscriptionList_POLL:
 		go a.handlePolledSubscription(sc)
 	case gnmi.SubscriptionList_STREAM:
@@ -545,8 +514,6 @@ func (a *App) Subscribe(stream gnmi.GNMI_SubscribeServer) error {
 	default:
 		return status.Errorf(codes.InvalidArgument, "unrecognized subscription mode: %v", sc.req.GetSubscribe().GetMode())
 	}
-	// send all nodes added to queue
-	go a.sendStreamingResults(sc)
 
 	for err := range errChan {
 		if err != nil {
@@ -556,257 +523,181 @@ func (a *App) Subscribe(stream gnmi.GNMI_SubscribeServer) error {
 	return nil
 }
 
-func (a *App) addSubscription(m *match.Match, p *gnmi.Path, s *gnmi.Subscription, c *matchClient) func() {
-	prefix := path.ToStrings(p, true)
-	if s.GetPath() == nil {
-		return nil
-	}
-	pp := path.ToStrings(s.GetPath(), false)
-	path := append(prefix, pp...)
-	a.Logger.Printf("adding match subscription for prefix=%q, path=%q", prefix, pp)
-	return m.AddQuery(path, c)
-}
-
 func (a *App) handleONCESubscriptionRequest(sc *streamClient) {
 	var err error
 	a.Logger.Printf("processing subscription to target %q", sc.target)
+	paths := make([]*gnmi.Path, 0)
+
+	switch req := sc.req.GetRequest().(type) {
+	case *gnmi.SubscribeRequest_Subscribe:
+		pr := req.Subscribe.GetPrefix()
+		for _, sub := range req.Subscribe.GetSubscription() {
+			paths = append(paths,
+				&gnmi.Path{
+					Origin: pr.GetOrigin(),
+					Target: pr.GetTarget(),
+					Elem:   append(pr.GetElem(), sub.GetPath().GetElem()...),
+				})
+		}
+	}
+	//
+	ro := &cache.ReadOpts{
+		Target:      sc.target,
+		Paths:       paths,
+		Mode:        "once",
+		UpdatesOnly: sc.req.GetSubscribe().GetUpdatesOnly(),
+	}
+
 	defer func() {
 		if err != nil {
 			a.Logger.Printf("error processing subscription to target %q: %v", sc.target, err)
-			sc.queue.Close()
 			sc.errChan <- err
 			return
 		}
 		a.Logger.Printf("subscription request to target %q processed", sc.target)
 	}()
-	defer sc.queue.Close()
-	if !sc.req.GetSubscribe().GetUpdatesOnly() {
-		for _, sub := range sc.req.GetSubscribe().GetSubscription() {
-			var fp []string
-			fp, err = path.CompletePath(sc.req.GetSubscribe().GetPrefix(), sub.GetPath())
-			if err != nil {
-				sc.errChan <- err
-				return
-			}
-			err = a.c.Query(sc.target, fp,
-				func(_ []string, l *ctree.Leaf, _ interface{}) error {
-					if err != nil {
-						return err
-					}
-					_, err = sc.queue.Insert(l)
-					return nil
-				})
-			if err != nil {
-				a.Logger.Printf("target %q failed internal cache query: %v", sc.target, err)
-				return
-			}
+
+	for n := range a.c.Subscribe(sc.stream.Context(), ro) {
+		if n.Err != nil {
+			err = n.Err
+			return
+		}
+		err = sc.stream.Send(&gnmi.SubscribeResponse{
+			Response: &gnmi.SubscribeResponse_Update{
+				Update: n.Notification,
+			},
+		})
+		if err != nil {
+			return
 		}
 	}
-	_, err = sc.queue.Insert(syncMarker{})
 }
 
 func (a *App) handleStreamSubscriptionRequest(sc *streamClient) {
 	peer, _ := peer.FromContext(sc.stream.Context())
 	var err error
 	a.Logger.Printf("processing STREAM subscription from %q to target %q", peer.Addr, sc.target)
+
 	defer func() {
-		if err != nil {
-			a.Logger.Printf("error processing STREAM subscription to target %q: %v", sc.target, err)
-			sc.queue.Close()
+		if err == nil {
+			a.Logger.Printf("subscription request from %q to target %q processed", peer.Addr, sc.target)
+			return
+		}
+		if errors.Is(err, context.Canceled) {
+			a.Logger.Printf("subscription to target %q canceled", sc.target)
 			sc.errChan <- err
 			return
 		}
-		a.Logger.Printf("subscription request from %q to target %q processed", peer.Addr, sc.target)
-	}()
-	if sc.req.GetSubscribe().GetUpdatesOnly() {
-		sc.queue.Insert(syncMarker{})
-	}
-	for i, sub := range sc.req.GetSubscribe().GetSubscription() {
-		a.Logger.Printf("handling subscriptionList item[%d]: target %q, %q", i, sc.target, sub.String())
-		var fp []string
-		fp, err = path.CompletePath(sc.req.GetSubscribe().GetPrefix(), sub.GetPath())
 		if err != nil {
+			a.Logger.Printf("error processing STREAM subscription to target %q: %v", sc.target, err)
+			sc.errChan <- err
 			return
 		}
-		switch sub.GetMode() {
-		case gnmi.SubscriptionMode_ON_CHANGE, gnmi.SubscriptionMode_TARGET_DEFINED:
-			if !sc.req.GetSubscribe().GetUpdatesOnly() {
-				err = a.c.Query(sc.target, fp,
-					func(_ []string, l *ctree.Leaf, _ interface{}) error {
-						if err != nil {
-							return err
-						}
-						_, err = sc.queue.Insert(l)
-						return nil
-					})
-				if err != nil {
-					a.Logger.Printf("target %q failed internal cache query: %v", sc.target, err)
-					return
-				}
-			}
-			if sub.GetHeartbeatInterval() > 0 {
-				hb := time.Duration(sub.GetHeartbeatInterval())
-				if hb < a.Config.GnmiServer.MinHeartbeatInterval {
-					hb = a.Config.GnmiServer.MinHeartbeatInterval
-				}
-				go a.startPeriodicStreamSubscription(sc, hb, fp, false)
-			}
-			remove := a.addSubscription(a.match, sc.req.GetSubscribe().GetPrefix(), sub, &matchClient{queue: sc.queue})
-			defer remove()
-		case gnmi.SubscriptionMode_SAMPLE:
-			period := time.Duration(sub.GetSampleInterval())
-			if period == 0 {
-				period = a.Config.GnmiServer.DefaultSampleInterval
-			} else if period < a.Config.GnmiServer.MinSampleInterval {
-				period = a.Config.GnmiServer.MinSampleInterval
-			}
-			// sample-interval
-			go a.startPeriodicStreamSubscription(sc, period, fp, sub.GetSuppressRedundant())
-			// suppress-redundant and heartbeat-interval
-			if sub.GetSuppressRedundant() && sub.GetHeartbeatInterval() > 0 {
-				hb := time.Duration(sub.GetHeartbeatInterval())
-				if hb < a.Config.GnmiServer.MinHeartbeatInterval {
-					hb = a.Config.GnmiServer.MinHeartbeatInterval
-				}
-				go a.startPeriodicStreamSubscription(sc, hb, fp, false)
-			}
-		}
+	}()
+
+	if sc.req.GetSubscribe().GetUpdatesOnly() {
+		err = sc.stream.Send(&gnmi.SubscribeResponse{
+			Response: &gnmi.SubscribeResponse_SyncResponse{SyncResponse: true},
+		})
 	}
-	_, err = sc.queue.Insert(syncMarker{})
-	if err != nil {
-		a.Logger.Printf("failed to insert sync response into queue: %v", err)
+	var pr *gnmi.Path
+	switch req := sc.req.GetRequest().(type) {
+	case *gnmi.SubscribeRequest_Subscribe:
+		pr = req.Subscribe.GetPrefix()
+	}
+
+	subs := sc.req.GetSubscribe().GetSubscription()
+	wg := new(sync.WaitGroup)
+	wg.Add(len(subs))
+	for i, sub := range subs {
+		a.Logger.Printf("handling subscriptionList item[%d]: target %q, %q", i, sc.target, sub.String())
+		go func(sub *gnmi.Subscription) {
+			defer wg.Done()
+			switch sub.GetMode() {
+			case gnmi.SubscriptionMode_ON_CHANGE, gnmi.SubscriptionMode_TARGET_DEFINED:
+				ro := &cache.ReadOpts{
+					Target: sc.target,
+					Paths: []*gnmi.Path{
+						{
+							Origin: pr.GetOrigin(),
+							Target: pr.GetTarget(),
+							Elem:   append(pr.GetElem(), sub.GetPath().GetElem()...),
+						},
+					},
+					Mode:              cache.ReadMode_StreamOnChange,
+					HeartbeatInterval: time.Duration(sub.GetHeartbeatInterval()),
+					SuppressRedundant: sub.GetSuppressRedundant(),
+					UpdatesOnly:       sc.req.GetSubscribe().GetUpdatesOnly(),
+				}
+				a.Logger.Printf("cache subscribe: %+v", ro)
+				for n := range a.c.Subscribe(sc.stream.Context(), ro) {
+					if n.Err != nil {
+						err = n.Err
+						return
+					}
+					err = sc.stream.Send(&gnmi.SubscribeResponse{
+						Response: &gnmi.SubscribeResponse_Update{
+							Update: n.Notification,
+						},
+					})
+					if err != nil {
+						return
+					}
+				}
+				return
+			case gnmi.SubscriptionMode_SAMPLE:
+				period := time.Duration(sub.GetSampleInterval())
+				if period == 0 {
+					period = a.Config.GnmiServer.DefaultSampleInterval
+				} else if period < a.Config.GnmiServer.MinSampleInterval {
+					period = a.Config.GnmiServer.MinSampleInterval
+				}
+				ro := &cache.ReadOpts{
+					Target: sc.target,
+					Paths: []*gnmi.Path{
+						{
+							Origin: pr.GetOrigin(),
+							Target: pr.GetTarget(),
+							Elem:   append(pr.GetElem(), sub.GetPath().GetElem()...),
+						}},
+					Mode:              cache.ReadMode_StreamSample,
+					SampleInterval:    period,
+					HeartbeatInterval: time.Duration(sub.GetHeartbeatInterval()),
+					SuppressRedundant: sub.GetSuppressRedundant(),
+					UpdatesOnly:       sc.req.GetSubscribe().GetUpdatesOnly(),
+				}
+				a.Logger.Printf("cache subscribe: %+v", ro)
+				for n := range a.c.Subscribe(sc.stream.Context(), ro) {
+					if n.Err != nil {
+						err = n.Err
+						a.Logger.Printf("cache subscribe failed: %+v: %v", ro, err)
+						return
+					}
+					err = sc.stream.Send(&gnmi.SubscribeResponse{
+						Response: &gnmi.SubscribeResponse_Update{
+							Update: n.Notification,
+						},
+					})
+					if err != nil {
+						return
+					}
+				}
+				return
+			}
+		}(sub)
 	}
 
 	// wait for ctx to be done
 	<-sc.stream.Context().Done()
 	err = sc.stream.Context().Err()
-}
-
-func (a *App) startPeriodicStreamSubscription(sc *streamClient, period time.Duration, fp []string, suppressRedundant bool) {
-	if !sc.req.GetSubscribe().GetUpdatesOnly() {
-		a.singlePeriodicQuery(sc, fp, suppressRedundant)
-	}
-	ticker := time.NewTicker(period)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-sc.stream.Context().Done():
-			a.Logger.Printf("periodic query stopped to target %q: %v", sc.target, sc.stream.Context().Err())
-			return
-		case <-ticker.C:
-			a.singlePeriodicQuery(sc, fp, suppressRedundant)
-		}
-	}
-}
-
-func (a *App) singlePeriodicQuery(sc *streamClient, fp []string, suppressRedundant bool) {
-	var err error
-	if a.Config.Debug {
-		a.Logger.Printf("running sample query for target %q", sc.target)
-	}
-	err = a.c.Query(sc.target, fp,
-		func(_ []string, l *ctree.Leaf, _ interface{}) error {
-			if err != nil {
-				return err
-			}
-			switch gl := l.Value().(type) {
-			case *gnmi.Notification:
-				// update timestamp
-				cgl := proto.Clone(gl).(*gnmi.Notification)
-				cgl.Timestamp = time.Now().UnixNano()
-				//
-				if !suppressRedundant {
-					_, err = sc.queue.Insert(ctree.DetachedLeaf(cgl))
-					return nil
-				}
-				prefix := utils.GnmiPathToXPath(cgl.GetPrefix(), false)
-				for _, upd := range cgl.GetUpdate() {
-					path := utils.GnmiPathToXPath(upd.GetPath(), false)
-					valXPath := strings.Join([]string{prefix, path}, "/")
-					if sv, ok := sc.lastSent[valXPath]; !ok || !proto.Equal(sv, upd.Val) {
-						_, err = sc.queue.Insert(ctree.DetachedLeaf(&gnmi.Notification{
-							Timestamp: cgl.GetTimestamp(),
-							Prefix:    cgl.GetPrefix(),
-							Update:    []*gnmi.Update{upd},
-						}))
-						if err != nil {
-							return nil
-						}
-						sc.m.Lock()
-						sc.lastSent[valXPath] = upd.Val
-						sc.m.Unlock()
-					}
-				}
-				if cgl.GetDelete() != nil {
-					_, err = sc.queue.Insert(ctree.DetachedLeaf(&gnmi.Notification{
-						Timestamp: cgl.GetTimestamp(),
-						Prefix:    cgl.GetPrefix(),
-						Delete:    cgl.GetDelete(),
-					}))
-				}
-				return nil
-			}
-			return nil
-		})
-	if err != nil {
-		a.Logger.Printf("target %q failed internal cache query: %v", sc.target, err)
-		return
-	}
-}
-
-func (a *App) sendStreamingResults(sc *streamClient) {
-	ctx := sc.stream.Context()
-	peer, _ := peer.FromContext(ctx)
-	a.Logger.Printf("sending streaming results from target %q to peer %q", sc.target, peer.Addr)
-	defer a.subscribeRPCsem.Release(1)
-	for {
-		item, dup, err := sc.queue.Next(ctx)
-		if coalesce.IsClosedQueue(err) {
-			sc.errChan <- nil
-			return
-		}
-		if err != nil {
-			sc.errChan <- err
-			return
-		}
-		if _, ok := item.(syncMarker); ok {
-			err = sc.stream.Send(&gnmi.SubscribeResponse{
-				Response: &gnmi.SubscribeResponse_SyncResponse{
-					SyncResponse: true,
-				}})
-			if err != nil {
-				sc.errChan <- err
-				return
-			}
-			continue
-		}
-
-		node, ok := item.(*ctree.Leaf)
-		if !ok || node == nil {
-			sc.errChan <- status.Errorf(codes.Internal, "invalid cache node: %+v", item)
-			return
-		}
-		err = a.sendSubscribeResponse(&resp{
-			stream: sc.stream,
-			n:      node,
-			dup:    dup,
-		}, sc)
-		if err != nil {
-			a.Logger.Printf("target %q: failed sending subscribeResponse: %v", sc.target, err)
-			sc.errChan <- err
-			return
-		}
-		// TODO: check if target was deleted ? necessary ?
-	}
+	wg.Wait()
 }
 
 func (a *App) handlePolledSubscription(sc *streamClient) {
 	a.handleONCESubscriptionRequest(sc)
+	defer close(sc.errChan)
 	var err error
 	for {
-		if sc.queue.IsClosed() {
-			return
-		}
 		_, err = sc.stream.Recv()
 		if errors.Is(err, io.EOF) {
 			return
@@ -820,15 +711,6 @@ func (a *App) handlePolledSubscription(sc *streamClient) {
 		a.handleONCESubscriptionRequest(sc)
 		a.Logger.Printf("target %q: repoll done", sc.target)
 	}
-}
-
-func (a *App) sendSubscribeResponse(r *resp, sc *streamClient) error {
-	notif, err := subscribe.MakeSubscribeResponse(r.n.Value(), r.dup)
-	if err != nil {
-		return status.Errorf(codes.Unknown, "unknown error: %v", err)
-	}
-	// No acls
-	return r.stream.Send(notif)
 }
 
 ////

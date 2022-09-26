@@ -17,6 +17,7 @@ import (
 	"github.com/gorilla/mux"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/jhump/protoreflect/desc"
+	"github.com/karimra/gnmic/cache"
 	"github.com/karimra/gnmic/config"
 	"github.com/karimra/gnmic/formatters"
 	"github.com/karimra/gnmic/inputs"
@@ -24,8 +25,6 @@ import (
 	"github.com/karimra/gnmic/outputs"
 	"github.com/karimra/gnmic/target"
 	"github.com/karimra/gnmic/types"
-	"github.com/openconfig/gnmi/cache"
-	"github.com/openconfig/gnmi/match"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/openconfig/grpctunnel/tunnel"
@@ -89,8 +88,7 @@ type App struct {
 	// gRPC server where the gNMI service will be registered
 	grpcSrv *grpc.Server
 	// gNMI cache
-	c               *cache.Cache
-	match           *match.Match
+	c               cache.Cache
 	subscribeRPCsem *semaphore.Weighted
 	unaryRPCsem     *semaphore.Weighted
 	// tunnel server
@@ -132,7 +130,6 @@ func New() *App {
 
 		wg:        new(sync.WaitGroup),
 		printLock: new(sync.Mutex),
-		c:         cache.New(nil),
 		// tunnel server
 		ttm:          new(sync.RWMutex),
 		tunTargets:   make(map[tunnel.Target]struct{}),

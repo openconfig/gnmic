@@ -78,7 +78,7 @@ func (o *MarshalOptions) formatsubscribeRequest(m *gnmi.SubscribeRequest) ([]byt
 }
 
 func (o *MarshalOptions) formatSubscribeResponse(m *gnmi.SubscribeResponse, meta map[string]string) ([]byte, error) {
-	switch m := m.Response.(type) {
+	switch m := m.GetResponse().(type) {
 	case *gnmi.SubscribeResponse_Update:
 		msg := NotificationRspMsg{
 			Timestamp: m.Update.Timestamp,

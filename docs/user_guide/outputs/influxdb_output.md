@@ -1,5 +1,7 @@
 `gnmic` supports exporting subscription updates to [influxDB](https://www.influxdata.com/products/influxdb-overview/) time series database
 
+## Configuration
+
 An influxdb output can be defined using the below format in `gnmic` config file under `outputs` section:
 
 ```yaml
@@ -61,4 +63,18 @@ outputs:
     cache-flush-timer: 5s
 ```
 
-`gnmic` uses the [`event`](../output_intro#formats-examples) format to generate the measurements written to influxdb
+`gnmic` uses the [`event`](../event_processors/intro.md#the-event-format) format to generate the measurements written to influxdb.
+
+## Caching
+
+When caching is enabled, the received messages are not written directly to InfluxDB, they are first cached as gNMI updates and written in batch when the `cache-flush-timer` is reached.
+
+The below diagram shows how an InfluxDB output works with and without cache enabled:
+
+<div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:10,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/karimra/gnmic/diagrams/diagrams/influxdb_output_with_without_cache.drawio&quot;}"></div>
+
+<script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2F/influxdb_output_with_without_cache.drawio" async></script>
+
+When caching is enabled, the cached gNMI updates are periodically retrieved in batch, converted to [events](../event_processors/intro.md#the-event-format).
+
+If [processors](../event_processors/intro.md) are defined under the output, they are applied to the whole list of events at once. This allows augmenting some messages with values from other messages even if they where collected from a different target/subscription.

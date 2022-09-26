@@ -3,9 +3,11 @@ In the context of gnmi subscriptions (on top of terminal output) `gnmic` support
 * [Local file](file_output.md)
 * [NATS messaging system](nats_output.md)
 * [NATS Streaming messaging bus (STAN)](stan_output.md)
+* [NATS JetStream](jetstream_output.md)
 * [Kafka messaging bus](kafka_output.md)
 * [InfluxDB Time Series Database](influxdb_output.md)
 * [Prometheus Server](prometheus_output.md)
+* [Prometheus Remote Write](prometheus_write_output.md)
 * [UDP Server](udp_output.md)
 * [TCP Server](tcp_output.md)
 
@@ -15,7 +17,7 @@ In the context of gnmi subscriptions (on top of terminal output) `gnmic` support
 
 These outputs can be mixed and matched at will with the different gnmi subscribe targets.
 
-With multiple outputs defined in the [configuration file](../configuration_file.md) you can collect once 
+With multiple outputs defined in the [configuration file](../configuration_file.md) you can collect once
 and export the subscriptions updates to multiple locations formatted differently.
 
 ### Defining outputs
@@ -190,3 +192,14 @@ targets:
       - output3
       - output4
 ```
+
+### Caching
+
+By default, `gNMIc` outputs write the received gNMI updates as they arrive (i.e without caching).
+
+Caching messages before writing them to a remote location can yield a few benefits like **rate limiting**, **batch processing**, **data replication**, etc.
+
+Both `influxdb` and `prometheus` outputs support caching messages before exporting.
+Caching support for other outputs is planned.
+
+See more details about caching [here](../caching.md)

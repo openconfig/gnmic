@@ -4,6 +4,8 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/karimra/gnmic/cache"
 )
 
 const (
@@ -36,6 +38,8 @@ type gnmiServer struct {
 	Debug         bool `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 	// ServiceRegistration
 	ServiceRegistration *serviceRegistration `mapstructure:"service-registration,omitempty" json:"service-registration,omitempty"`
+	// cache config
+	Cache *cache.Config `mapstructure:"cache,omitempty" json:"cache,omitempty"`
 }
 
 type serviceRegistration struct {
@@ -85,20 +89,36 @@ func (c *Config) GetGNMIServer() error {
 	c.GnmiServer.Debug = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/debug")) == trueString
 	c.setGnmiServerDefaults()
 
-	if !c.FileConfig.IsSet("gnmi-server/service-registration") {
-		return nil
+	if c.FileConfig.IsSet("gnmi-server/service-registration") {
+		c.GnmiServer.ServiceRegistration = new(serviceRegistration)
+		c.GnmiServer.ServiceRegistration.Address = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/service-registration/address"))
+		c.GnmiServer.ServiceRegistration.Datacenter = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/service-registration/datacenter"))
+		c.GnmiServer.ServiceRegistration.Username = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/service-registration/username"))
+		c.GnmiServer.ServiceRegistration.Password = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/service-registration/password"))
+		c.GnmiServer.ServiceRegistration.Token = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/service-registration/token"))
+		c.GnmiServer.ServiceRegistration.Name = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/service-registration/name"))
+		c.GnmiServer.ServiceRegistration.CheckInterval = c.FileConfig.GetDuration("gnmi-server/service-registration/check-interval")
+		c.GnmiServer.ServiceRegistration.MaxFail = c.FileConfig.GetInt("gnmi-server/service-registration/max-fail")
+		c.GnmiServer.ServiceRegistration.Tags = c.FileConfig.GetStringSlice("gnmi-server/service-registration/tags")
+		c.setGnmiServerServiceRegistrationDefaults()
 	}
-	c.GnmiServer.ServiceRegistration = new(serviceRegistration)
-	c.GnmiServer.ServiceRegistration.Address = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/service-registration/address"))
-	c.GnmiServer.ServiceRegistration.Datacenter = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/service-registration/datacenter"))
-	c.GnmiServer.ServiceRegistration.Username = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/service-registration/username"))
-	c.GnmiServer.ServiceRegistration.Password = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/service-registration/password"))
-	c.GnmiServer.ServiceRegistration.Token = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/service-registration/token"))
-	c.GnmiServer.ServiceRegistration.Name = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/service-registration/name"))
-	c.GnmiServer.ServiceRegistration.CheckInterval = c.FileConfig.GetDuration("gnmi-server/service-registration/check-interval")
-	c.GnmiServer.ServiceRegistration.MaxFail = c.FileConfig.GetInt("gnmi-server/service-registration/max-fail")
-	c.GnmiServer.ServiceRegistration.Tags = c.FileConfig.GetStringSlice("gnmi-server/service-registration/tags")
-	c.setGnmiServerServiceRegistrationDefaults()
+
+	if c.FileConfig.IsSet("gnmi-server/cache") {
+		c.GnmiServer.Cache = new(cache.Config)
+		c.GnmiServer.Cache.Type = cache.CacheType(os.ExpandEnv(c.FileConfig.GetString("gnmi-server/cache/type")))
+		c.GnmiServer.Cache.Address = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/cache/address"))
+		c.GnmiServer.Cache.Timeout = c.FileConfig.GetDuration("gnmi-server/cache/timeout")
+		c.GnmiServer.Cache.Expiration = c.FileConfig.GetDuration("gnmi-server/cache/expiration")
+		c.GnmiServer.Cache.Debug = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/cache/debug")) == trueString
+		c.GnmiServer.Cache.Username = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/cache/username"))
+		c.GnmiServer.Cache.Password = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/cache/password"))
+		//
+		c.GnmiServer.Cache.MaxBytes = c.FileConfig.GetInt64("gnmi-server/cache/max-bytes")
+		c.GnmiServer.Cache.MaxMsgsPerSubscription = c.FileConfig.GetInt64("gnmi-server/cache/max-msgs-per-subscription")
+		//
+		c.GnmiServer.Cache.FetchBatchSize = c.FileConfig.GetInt("gnmi-server/cache/fetch-batch-size")
+		c.GnmiServer.Cache.FetchWaitTime = c.FileConfig.GetDuration("gnmi-server/cache/fetch-wait-time")
+	}
 	return nil
 }
 

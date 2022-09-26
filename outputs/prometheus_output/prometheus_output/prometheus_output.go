@@ -84,26 +84,27 @@ type prometheusOutput struct {
 
 	targetTpl *template.Template
 
-	gnmiCache *cache.GnmiCache
+	gnmiCache cache.Cache
 }
 
 type config struct {
-	Name                   string               `mapstructure:"name,omitempty"`
-	Listen                 string               `mapstructure:"listen,omitempty"`
-	Path                   string               `mapstructure:"path,omitempty"`
-	Expiration             time.Duration        `mapstructure:"expiration,omitempty"`
-	MetricPrefix           string               `mapstructure:"metric-prefix,omitempty"`
-	AppendSubscriptionName bool                 `mapstructure:"append-subscription-name,omitempty"`
-	ExportTimestamps       bool                 `mapstructure:"export-timestamps,omitempty"`
-	OverrideTimestamps     bool                 `mapstructure:"override-timestamps,omitempty"`
-	AddTarget              string               `mapstructure:"add-target,omitempty"`
-	TargetTemplate         string               `mapstructure:"target-template,omitempty"`
-	StringsAsLabels        bool                 `mapstructure:"strings-as-labels,omitempty"`
-	Debug                  bool                 `mapstructure:"debug,omitempty"`
-	EventProcessors        []string             `mapstructure:"event-processors,omitempty"`
-	ServiceRegistration    *serviceRegistration `mapstructure:"service-registration,omitempty"`
-	GnmiCache              bool                 `mapstructure:"gnmi-cache,omitempty"`
-	Timeout                time.Duration        `mapstructure:"timeout,omitempty"`
+	Name                   string               `mapstructure:"name,omitempty" json:"name,omitempty"`
+	Listen                 string               `mapstructure:"listen,omitempty" json:"listen,omitempty"`
+	Path                   string               `mapstructure:"path,omitempty" json:"path,omitempty"`
+	Expiration             time.Duration        `mapstructure:"expiration,omitempty" json:"expiration,omitempty"`
+	MetricPrefix           string               `mapstructure:"metric-prefix,omitempty" json:"metric-prefix,omitempty"`
+	AppendSubscriptionName bool                 `mapstructure:"append-subscription-name,omitempty" json:"append-subscription-name,omitempty"`
+	ExportTimestamps       bool                 `mapstructure:"export-timestamps,omitempty" json:"export-timestamps,omitempty"`
+	OverrideTimestamps     bool                 `mapstructure:"override-timestamps,omitempty" json:"override-timestamps,omitempty"`
+	AddTarget              string               `mapstructure:"add-target,omitempty" json:"add-target,omitempty"`
+	TargetTemplate         string               `mapstructure:"target-template,omitempty" json:"target-template,omitempty"`
+	StringsAsLabels        bool                 `mapstructure:"strings-as-labels,omitempty" json:"strings-as-labels,omitempty"`
+	Debug                  bool                 `mapstructure:"debug,omitempty" json:"debug,omitempty"`
+	EventProcessors        []string             `mapstructure:"event-processors,omitempty" json:"event-processors,omitempty"`
+	ServiceRegistration    *serviceRegistration `mapstructure:"service-registration,omitempty" json:"service-registration,omitempty"`
+	// GnmiCache              bool                 `mapstructure:"gnmi-cache,omitempty"`
+	Timeout     time.Duration `mapstructure:"timeout,omitempty" json:"timeout,omitempty"`
+	CacheConfig *cache.Config `mapstructure:"cache,omitempty" json:"cache-config,omitempty"`
 
 	clusterName string
 	address     string
@@ -166,6 +167,9 @@ func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string
 	if p.Cfg.Name == "" {
 		p.Cfg.Name = name
 	}
+
+	p.logger.SetPrefix(fmt.Sprintf(loggingPrefix, p.Cfg.Name))
+
 	for _, opt := range opts {
 		opt(p)
 	}
@@ -189,18 +193,16 @@ func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string
 		StringsAsLabels:        p.Cfg.StringsAsLabels,
 	}
 
-	if p.Cfg.GnmiCache {
-		p.gnmiCache = cache.New(
-			&cache.GnmiCacheConfig{
-				Expiration: p.Cfg.Expiration,
-				Timeout:    p.Cfg.Timeout,
-				Debug:      p.Cfg.Debug,
-			},
+	if p.Cfg.CacheConfig != nil {
+		p.gnmiCache, err = cache.New(
+			p.Cfg.CacheConfig,
 			cache.WithLogger(p.logger),
 		)
+		if err != nil {
+			return err
+		}
 	}
 
-	p.logger.SetPrefix(fmt.Sprintf(loggingPrefix, p.Cfg.Name))
 	// create prometheus registry
 	registry := prometheus.NewRegistry()
 
@@ -257,12 +259,13 @@ func (p *prometheusOutput) Write(ctx context.Context, rsp proto.Message, meta ou
 		if subName, ok := meta["subscription-name"]; ok {
 			measName = subName
 		}
-		err := outputs.AddSubscriptionTarget(rsp, meta, p.Cfg.AddTarget, p.targetTpl)
+		var err error
+		rsp, err = outputs.AddSubscriptionTarget(rsp, meta, p.Cfg.AddTarget, p.targetTpl)
 		if err != nil {
 			p.logger.Printf("failed to add target to the response: %v", err)
 		}
 		if p.gnmiCache != nil {
-			p.gnmiCache.Write(measName, rsp)
+			p.gnmiCache.Write(ctx, measName, rsp)
 			return
 		}
 		events, err := formatters.ResponseToEventMsgs(measName, rsp, meta, p.evps...)
@@ -303,6 +306,9 @@ func (p *prometheusOutput) Close() error {
 			p.logger.Printf("failed to deregister consul service: %v", err)
 		}
 	}
+	if p.gnmiCache != nil {
+		p.gnmiCache.Stop()
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	err = p.server.Shutdown(ctx)
@@ -323,7 +329,7 @@ func (p *prometheusOutput) Describe(ch chan<- *prometheus.Desc) {}
 func (p *prometheusOutput) Collect(ch chan<- prometheus.Metric) {
 	p.Lock()
 	defer p.Unlock()
-	if p.Cfg.GnmiCache {
+	if p.Cfg.CacheConfig != nil {
 		p.collectFromCache(ch)
 		return
 	}
@@ -419,12 +425,13 @@ func (p *prometheusOutput) setDefaults() error {
 	if p.Cfg.Expiration == 0 {
 		p.Cfg.Expiration = defaultExpiration
 	}
-	if p.Cfg.GnmiCache && p.Cfg.AddTarget == "" {
+	if p.Cfg.CacheConfig != nil && p.Cfg.AddTarget == "" {
 		p.Cfg.AddTarget = "if-not-present"
 	}
 	if p.Cfg.Timeout <= 0 {
 		p.Cfg.Timeout = defaultTimeout
 	}
+
 	p.setServiceRegistrationDefaults()
 	var err error
 	var port string

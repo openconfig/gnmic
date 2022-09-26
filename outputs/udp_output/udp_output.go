@@ -102,6 +102,8 @@ func (u *UDPSock) Init(ctx context.Context, name string, cfg map[string]interfac
 	if err != nil {
 		return err
 	}
+	u.logger.SetPrefix(fmt.Sprintf(loggingPrefix, name))
+
 	for _, opt := range opts {
 		opt(u)
 	}
@@ -112,8 +114,6 @@ func (u *UDPSock) Init(ctx context.Context, name string, cfg map[string]interfac
 	if u.Cfg.RetryInterval == 0 {
 		u.Cfg.RetryInterval = defaultRetryTimer
 	}
-
-	u.logger.SetPrefix(fmt.Sprintf(loggingPrefix, name))
 
 	u.buffer = make(chan []byte, u.Cfg.BufferSize)
 	if u.Cfg.Rate > 0 {
@@ -145,16 +145,16 @@ func (u *UDPSock) Write(ctx context.Context, m proto.Message, meta outputs.Meta)
 	if m == nil {
 		return
 	}
-	var err error
+
 	select {
 	case <-ctx.Done():
 		return
 	default:
-		err = outputs.AddSubscriptionTarget(m, meta, u.Cfg.AddTarget, u.targetTpl)
+		rsp, err := outputs.AddSubscriptionTarget(m, meta, u.Cfg.AddTarget, u.targetTpl)
 		if err != nil {
 			u.logger.Printf("failed to add target to the response: %v", err)
 		}
-		b, err := u.mo.Marshal(m, meta, u.evps...)
+		b, err := u.mo.Marshal(rsp, meta, u.evps...)
 		if err != nil {
 			u.logger.Printf("failed marshaling proto msg: %v", err)
 			return

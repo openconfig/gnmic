@@ -515,7 +515,7 @@ func resolveGlobs(globs []string) ([]string, error) {
 func walkDir(path, ext string) ([]string, error) {
 	fs := make([]string, 0)
 	err := filepath.Walk(path,
-		func(path string, info os.FileInfo, err error) error {
+		func(path string, _ os.FileInfo, err error) error {
 			if err != nil {
 				return err
 			}

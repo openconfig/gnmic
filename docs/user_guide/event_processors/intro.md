@@ -69,9 +69,9 @@ A list of event processors names can be added under an output configuration, the
 
 In the below example, 3 event processors are configured and linked to `output1` of type `influxdb`.
 
-The first processor converts all value to `integer` if possible.
+The first processor converts all values type to `integer` if possible.
 
-The second deletes tags with name starting with `subscription-name`. 
+The second deletes tags with name starting with `subscription-name`.
 
 Finally the third deletes values with name ending with `out-unicast-packets`.
 
@@ -106,3 +106,12 @@ processors:
       value-names:
         - ".*out-unicast-packets"
 ```
+
+### Event processors with cache
+
+When a set of processors are defined under an output where [caching](../outputs/output_intro.md#caching) is enabled, the event messages retried from the cache are processed by each processor at the same time. This allows combining values from different messages together.
+
+### Event processors pipeline
+
+Processors under an output are applied in a strict sequential order for each group of event messages received.
+

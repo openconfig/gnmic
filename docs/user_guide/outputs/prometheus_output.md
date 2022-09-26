@@ -210,3 +210,18 @@ outputs:
 Note that for the `http` check to work properly, a reachable address ( IP or name ) should be specified under `listen`.
 
 Otherwise, a reachable address should be added under `service-registration.http-check-address`.
+
+## Caching
+
+When caching is enabled, the received messages are not immediately converted into metrics, they are written to the cache as gNMI updates.
+They are converted only when a scrape request is received.
+
+The below diagram shows how a `prometheus` output works with and without cache enabled:
+
+<div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:10,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/karimra/gnmic/diagrams/diagrams/prometheus_output_with_without_cache.drawio&quot;}"></div>
+
+<script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2F/prometheus_output_with_without_cache.drawio" async></script>
+
+When caching is enabled, the received gNMI updates are not processed and converted into metrics immediately, they are rather stored as is in the configured gNMI cache.
+
+Once a scrape request is received from `Prometheus`, all the cached gNMI updates are retrieved from the cache, converted to [events](../event_processors/intro.md#the-event-format), the configured processors, if any, are then applied to the whole list of events. Finally, The resulting event are converted into metrics and written back to `Prometheus` within the scrape response.

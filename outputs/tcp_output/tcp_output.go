@@ -102,6 +102,8 @@ func (t *TCPOutput) Init(ctx context.Context, name string, cfg map[string]interf
 	if err != nil {
 		return err
 	}
+	t.logger.SetPrefix(fmt.Sprintf(loggingPrefix, name))
+
 	for _, opt := range opts {
 		opt(t)
 	}
@@ -119,7 +121,7 @@ func (t *TCPOutput) Init(ctx context.Context, name string, cfg map[string]interf
 	if t.Cfg.NumWorkers < 1 {
 		t.Cfg.NumWorkers = defaultNumWorkers
 	}
-	t.logger.SetPrefix(fmt.Sprintf(loggingPrefix, name))
+
 	t.mo = &formatters.MarshalOptions{
 		Format:     t.Cfg.Format,
 		OverrideTS: t.Cfg.OverrideTimestamps,
@@ -150,16 +152,15 @@ func (t *TCPOutput) Write(ctx context.Context, m proto.Message, meta outputs.Met
 	if m == nil {
 		return
 	}
-	var err error
 	select {
 	case <-ctx.Done():
 		return
 	default:
-		err = outputs.AddSubscriptionTarget(m, meta, t.Cfg.AddTarget, t.targetTpl)
+		rsp, err := outputs.AddSubscriptionTarget(m, meta, t.Cfg.AddTarget, t.targetTpl)
 		if err != nil {
 			t.logger.Printf("failed to add target to the response: %v", err)
 		}
-		b, err := t.mo.Marshal(m, meta, t.evps...)
+		b, err := t.mo.Marshal(rsp, meta, t.evps...)
 		if err != nil {
 			t.logger.Printf("failed marshaling proto msg: %v", err)
 			return

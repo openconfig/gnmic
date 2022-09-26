@@ -119,6 +119,8 @@ func (n *jetstreamOutput) Init(ctx context.Context, name string, cfg map[string]
 	if n.Cfg.Name == "" {
 		n.Cfg.Name = name
 	}
+	n.logger.SetPrefix(fmt.Sprintf(loggingPrefix, n.Cfg.Name))
+
 	for _, opt := range opts {
 		opt(n)
 	}
@@ -127,7 +129,6 @@ func (n *jetstreamOutput) Init(ctx context.Context, name string, cfg map[string]
 		return err
 	}
 
-	n.logger.SetPrefix(fmt.Sprintf(loggingPrefix, n.Cfg.Name))
 	n.msgChan = make(chan *outputs.ProtoMsg)
 	initMetrics()
 	n.mo = &formatters.MarshalOptions{
@@ -376,16 +377,17 @@ CRCONN:
 			n.logger.Printf("%s shutting down", workerLogPrefix)
 			return
 		case m := <-n.msgChan:
-			err = outputs.AddSubscriptionTarget(m.GetMsg(), m.GetMeta(), n.Cfg.AddTarget, n.targetTpl)
+			pmsg := m.GetMsg()
+			pmsg, err = outputs.AddSubscriptionTarget(pmsg, m.GetMeta(), n.Cfg.AddTarget, n.targetTpl)
 			if err != nil {
 				n.logger.Printf("failed to add target to the response: %v", err)
 			}
 			var rs []proto.Message
 			switch n.Cfg.SubjectFormat {
 			case subjectFormat_Static, subjectFormat_SubTarget:
-				rs = []proto.Message{m.GetMsg()}
+				rs = []proto.Message{pmsg}
 			case subjectFormat_SubTargetPath, subjectFormat_SubTargetPathWithKeys:
-				switch rsp := m.GetMsg().(type) {
+				switch rsp := pmsg.(type) {
 				case *gnmi.SubscribeResponse:
 					switch rsp := rsp.Response.(type) {
 					case *gnmi.SubscribeResponse_Update:

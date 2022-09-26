@@ -60,28 +60,28 @@ type InfluxDBOutput struct {
 
 	targetTpl *template.Template
 
-	gnmiCache   *cache.GnmiCache
+	gnmiCache   cache.Cache
 	cacheTicker *time.Ticker
 	done        chan struct{}
 }
 type Config struct {
-	URL                string                 `mapstructure:"url,omitempty"`
-	Org                string                 `mapstructure:"org,omitempty"`
-	Bucket             string                 `mapstructure:"bucket,omitempty"`
-	Token              string                 `mapstructure:"token,omitempty"`
-	BatchSize          uint                   `mapstructure:"batch-size,omitempty"`
-	FlushTimer         time.Duration          `mapstructure:"flush-timer,omitempty"`
-	UseGzip            bool                   `mapstructure:"use-gzip,omitempty"`
-	EnableTLS          bool                   `mapstructure:"enable-tls,omitempty"`
-	HealthCheckPeriod  time.Duration          `mapstructure:"health-check-period,omitempty"`
-	Debug              bool                   `mapstructure:"debug,omitempty"`
-	AddTarget          string                 `mapstructure:"add-target,omitempty"`
-	TargetTemplate     string                 `mapstructure:"target-template,omitempty"`
-	EventProcessors    []string               `mapstructure:"event-processors,omitempty"`
-	EnableMetrics      bool                   `mapstructure:"enable-metrics,omitempty"`
-	OverrideTimestamps bool                   `mapstructure:"override-timestamps,omitempty"`
-	GnmiCacheConfig    *cache.GnmiCacheConfig `mapstructure:"cache,omitempty"`
-	CacheFlushTimer    time.Duration          `mapstructure:"cache-flush-timer,omitempty"`
+	URL                string        `mapstructure:"url,omitempty"`
+	Org                string        `mapstructure:"org,omitempty"`
+	Bucket             string        `mapstructure:"bucket,omitempty"`
+	Token              string        `mapstructure:"token,omitempty"`
+	BatchSize          uint          `mapstructure:"batch-size,omitempty"`
+	FlushTimer         time.Duration `mapstructure:"flush-timer,omitempty"`
+	UseGzip            bool          `mapstructure:"use-gzip,omitempty"`
+	EnableTLS          bool          `mapstructure:"enable-tls,omitempty"`
+	HealthCheckPeriod  time.Duration `mapstructure:"health-check-period,omitempty"`
+	Debug              bool          `mapstructure:"debug,omitempty"`
+	AddTarget          string        `mapstructure:"add-target,omitempty"`
+	TargetTemplate     string        `mapstructure:"target-template,omitempty"`
+	EventProcessors    []string      `mapstructure:"event-processors,omitempty"`
+	EnableMetrics      bool          `mapstructure:"enable-metrics,omitempty"`
+	OverrideTimestamps bool          `mapstructure:"override-timestamps,omitempty"`
+	CacheConfig        *cache.Config `mapstructure:"cache,omitempty"`
+	CacheFlushTimer    time.Duration `mapstructure:"cache-flush-timer,omitempty"`
 }
 
 func (k *InfluxDBOutput) String() string {
@@ -136,6 +136,8 @@ func (i *InfluxDBOutput) Init(ctx context.Context, name string, cfg map[string]i
 	if err != nil {
 		return err
 	}
+	i.logger.SetPrefix(fmt.Sprintf(loggingPrefix, name))
+
 	for _, opt := range opts {
 		opt(i)
 	}
@@ -151,13 +153,16 @@ func (i *InfluxDBOutput) Init(ctx context.Context, name string, cfg map[string]i
 	if i.Cfg.HealthCheckPeriod == 0 {
 		i.Cfg.HealthCheckPeriod = defaultHealthCheckPeriod
 	}
-	if i.Cfg.GnmiCacheConfig != nil {
+	if i.Cfg.CacheConfig != nil {
 		if i.Cfg.CacheFlushTimer == 0 {
 			i.Cfg.CacheFlushTimer = defaultCacheFlushTimer
 		}
-		i.initCache()
+		err = i.initCache(ctx, name)
+		if err != nil {
+			return err
+		}
 	}
-	i.logger.SetPrefix(fmt.Sprintf(loggingPrefix, name))
+
 	iopts := influxdb2.DefaultOptions().
 		SetUseGZip(i.Cfg.UseGzip).
 		SetBatchSize(i.Cfg.BatchSize).
@@ -207,7 +212,8 @@ func (i *InfluxDBOutput) Write(ctx context.Context, rsp proto.Message, meta outp
 	if rsp == nil {
 		return
 	}
-	err := outputs.AddSubscriptionTarget(rsp, meta, i.Cfg.AddTarget, i.targetTpl)
+	var err error
+	rsp, err = outputs.AddSubscriptionTarget(rsp, meta, i.Cfg.AddTarget, i.targetTpl)
 	if err != nil {
 		i.logger.Printf("failed to add target to the response: %v", err)
 	}
@@ -218,7 +224,7 @@ func (i *InfluxDBOutput) Write(ctx context.Context, rsp proto.Message, meta outp
 			measName = subName
 		}
 		if i.gnmiCache != nil {
-			i.gnmiCache.Write(measName, rsp)
+			i.gnmiCache.Write(ctx, measName, rsp)
 			return
 		}
 		events, err := formatters.ResponseToEventMsgs(measName, rsp, meta, i.evps...)
@@ -257,7 +263,7 @@ func (i *InfluxDBOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg
 
 func (i *InfluxDBOutput) Close() error {
 	i.logger.Printf("closing client...")
-	if i.Cfg.GnmiCacheConfig != nil {
+	if i.Cfg.CacheConfig != nil {
 		i.stopCache()
 	}
 	i.cancelFn()

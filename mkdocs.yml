@@ -81,6 +81,8 @@ nav:
 
       - Actions: user_guide/actions/actions.md
 
+      - Caching: user_guide/caching.md
+
       - Clustering: user_guide/HA.md
 
       - REST API: 
@@ -130,10 +132,12 @@ nav:
         - Prometheus output: 
           - Containerlab: deployments/single-instance/containerlab/prometheus-output.md
           - Docker Compose: deployments/single-instance/docker-compose/prometheus-output.md
+        - Prometheus Remote Write output:
+          - Containerlab: deployments/single-instance/containerlab/prometheus-remote-write-output.md
         - Multiple outputs: 
           - Containerlab: deployments/single-instance/containerlab/multiple-outputs.md
           - Docker Compose: deployments/single-instance/docker-compose/multiple-outputs.md
-        
+
       - gNMIc Cluster:
         - InfluxDB output: 
           - Containerlab: deployments/clusters/containerlab/cluster_with_influxdb_output.md
