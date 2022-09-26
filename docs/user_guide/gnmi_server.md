@@ -122,7 +122,7 @@ In this subscription mode, `gNMIc` server supports the `updates-only` knob.
 
 When a subscription is defined to be `on-change`, data updates are only sent to the client when the value of the data item changes.
 
-In the case of `gNMIc` gNMI server, `on-change` subscriptions depend on the subscription writing data in the local cache,
+In the case of `gNMIc` gNMI server, `on-change` subscriptions depend on the subscription writing data to the local cache,
 if it is a `sample` subscription, each update from a target will trigger an `on-change` update to the server client.
 
 `gNMIc` gNMI server supports `on-change` subscriptions with `heartbeat-interval`.
@@ -206,6 +206,33 @@ gnmi-server:
     # if available, the instance-name and cluster-name will be added as tags,
     # in the format: gnmic-instance=$instance-name and gnmic-cluster=$cluster-name
     tags:
+  # cache configuration
+  cache:
+    # cache type, defaults to `oc`
+    type: oc
+    # string, address of the remote cache server,
+    # irrelevant if type is `oc`
+    address:
+    # string, the remote server username.
+    username:
+    # string, the remote server password.
+    password:
+    # string, expiration period of received messages.
+    expiration: 60s
+    # enable extra logging
+    debug: false
+    # int64, default: 1073741824 (1 GiB). 
+    # Max number of bytes stored in the cache per subscription.
+    max-bytes:
+    # int64, default: 1048576. 
+    # Max number of messages stored per subscription.
+    max-msgs-per-subscription:
+    # int, default 100. 
+    # Batch size used by the JetStream pull subscriber.
+    fetch-batch-size:
+    # duration, default 100ms. 
+    # Wait time used by the JetStream pull subscriber.
+    fetch-wait-time:  
 ```
 
 ### Secure vs Insecure Server
@@ -321,3 +348,50 @@ Enables the collection of Prometheus gRPC server metrics.
 #### debug
 
 Enables additional debug logging.
+
+## Caching
+
+By default, the gNMI server uses Openconfig's gNMI cache as a backend.
+
+Distributed caching is supported using any of the other cache types specified [here](caching.md#cache-types).
+
+<div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:0,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/karimra/gnmic/diagrams/diagrams/gnmi_server_cache.drawio&quot;}"></div>
+
+<script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2Fgnmi_server_cache.drawio" async></script>
+
+When a distributed cache is used together with the gNMI server feature, a gNMI client can subscribe to any of the gNMI servers to get gNMI updates collected from all the targets.
+
+On the other hand, if the gNMI client sends a unary RPC (Get, Set), it will have be directed to the gNMI server directly connected to the target.
+
+```yaml
+gnmi-server:
+  #
+  # other gnmi-server attributes
+  #
+  cache:
+    # cache type, defaults to `oc`
+    type: oc # redis, nats or jetstream
+    # string, address of the remote cache server,
+    # irrelevant if type is `oc`
+    address:
+    # string, the remote server username.
+    username:
+    # string, the remote server password.
+    password:
+    # string, expiration period of received messages.
+    expiration: 60s
+    # enable extra logging.
+    debug: false
+    # int64, default: 1073741824 (1 GiB). 
+    # Max number of bytes stored in the cache per subscription.
+    max-bytes:
+    # int64, default: 1048576. 
+    # Max number of messages stored per subscription.
+    max-msgs-per-subscription:
+    # int, default 100. 
+    # Batch size used by the JetStream pull subscriber.
+    fetch-batch-size:
+    # duration, default 100ms. 
+    # Wait time used by the JetStream pull subscriber.
+    fetch-wait-time:
+```

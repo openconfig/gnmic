@@ -31,7 +31,7 @@ import (
 type streamClient struct {
 	target string
 	req    *gnmi.SubscribeRequest
-	
+
 	stream  gnmi.GNMI_SubscribeServer
 	errChan chan<- error
 }
