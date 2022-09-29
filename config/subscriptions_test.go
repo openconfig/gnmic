@@ -17,10 +17,10 @@ import (
 	"testing"
 	"text/template"
 
-	"github.com/karimra/gnmic/testutils"
-	"github.com/karimra/gnmic/types"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
+	"github.com/openconfig/gnmic/testutils"
+	"github.com/openconfig/gnmic/types"
 	"github.com/spf13/viper"
 )
 

@@ -14,7 +14,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/karimra/gnmic/formatters"
+	"github.com/openconfig/gnmic/formatters"
 )
 
 func Test_dataConvert_Apply(t *testing.T) {

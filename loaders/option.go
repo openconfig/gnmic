@@ -9,7 +9,7 @@
 package loaders
 
 import (
-	"github.com/karimra/gnmic/types"
+	"github.com/openconfig/gnmic/types"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

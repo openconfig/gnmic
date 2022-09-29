@@ -11,8 +11,8 @@ package app
 import (
 	"context"
 
-	"github.com/karimra/gnmic/inputs"
-	"github.com/karimra/gnmic/types"
+	"github.com/openconfig/gnmic/inputs"
+	"github.com/openconfig/gnmic/types"
 )
 
 func (a *App) InitInput(ctx context.Context, name string, tcs map[string]*types.TargetConfig) {

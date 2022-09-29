@@ -16,8 +16,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/karimra/gnmic/types"
 	"github.com/mitchellh/mapstructure"
+	"github.com/openconfig/gnmic/types"
 	"golang.org/x/term"
 )
 

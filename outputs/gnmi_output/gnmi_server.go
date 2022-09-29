@@ -22,7 +22,6 @@ import (
 	"log"
 	"sync"
 
-	"github.com/karimra/gnmic/types"
 	"github.com/openconfig/gnmi/cache"
 	"github.com/openconfig/gnmi/coalesce"
 	"github.com/openconfig/gnmi/ctree"
@@ -30,6 +29,7 @@ import (
 	"github.com/openconfig/gnmi/path"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/subscribe"
+	"github.com/openconfig/gnmic/types"
 	"golang.org/x/sync/semaphore"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/peer"

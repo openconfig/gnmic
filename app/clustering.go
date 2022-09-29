@@ -22,8 +22,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/karimra/gnmic/lockers"
-	"github.com/karimra/gnmic/types"
+	"github.com/openconfig/gnmic/lockers"
+	"github.com/openconfig/gnmic/types"
 )
 
 const (

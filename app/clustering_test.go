@@ -13,7 +13,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/karimra/gnmic/lockers"
+	"github.com/openconfig/gnmic/lockers"
 )
 
 var testSetGetInstancesTagsMatches = map[string]struct {

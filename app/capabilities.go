@@ -12,15 +12,15 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/karimra/gnmic/types"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
+	"github.com/openconfig/gnmic/types"
 	"github.com/openconfig/grpctunnel/tunnel"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
-func (a *App) CapPreRunE(cmd *cobra.Command, args []string) error {
+func (a *App) CapPreRunE(cmd *cobra.Command, _ []string) error {
 	a.Config.SetLocalFlagsFromFile(cmd)
 	a.createCollectorDialOpts()
 	return a.initTunnelServer(tunnel.ServerConfig{

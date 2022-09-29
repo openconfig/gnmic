@@ -21,11 +21,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/karimra/gnmic/formatters"
-	"github.com/karimra/gnmic/outputs"
-	"github.com/karimra/gnmic/types"
-	"github.com/karimra/gnmic/utils"
 	"github.com/nats-io/nats.go"
+	"github.com/openconfig/gnmic/formatters"
+	"github.com/openconfig/gnmic/outputs"
+	"github.com/openconfig/gnmic/types"
+	"github.com/openconfig/gnmic/utils"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
 )

@@ -12,8 +12,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/karimra/gnmic/types"
-	"github.com/karimra/gnmic/utils"
+	"github.com/openconfig/gnmic/types"
+	"github.com/openconfig/gnmic/utils"
 )
 
 func (s *scriptAction) WithTargets(map[string]*types.TargetConfig) {}

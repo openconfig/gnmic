@@ -18,8 +18,8 @@ import (
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
-	"github.com/karimra/gnmic/types"
-	"github.com/karimra/gnmic/utils"
+	"github.com/openconfig/gnmic/types"
+	"github.com/openconfig/gnmic/utils"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )

@@ -19,8 +19,8 @@ import (
 
 	"github.com/hairyhenderson/gomplate/v3"
 	"github.com/hairyhenderson/gomplate/v3/data"
-	"github.com/karimra/gnmic/actions"
-	"github.com/karimra/gnmic/utils"
+	"github.com/openconfig/gnmic/actions"
+	"github.com/openconfig/gnmic/utils"
 )
 
 const (

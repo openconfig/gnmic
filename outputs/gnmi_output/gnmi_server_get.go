@@ -15,10 +15,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/karimra/gnmic/target"
-	"github.com/karimra/gnmic/types"
-	"github.com/karimra/gnmic/utils"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/gnmic/target"
+	"github.com/openconfig/gnmic/types"
+	"github.com/openconfig/gnmic/utils"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"

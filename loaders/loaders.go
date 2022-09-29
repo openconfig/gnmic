@@ -12,8 +12,8 @@ import (
 	"context"
 	"log"
 
-	"github.com/karimra/gnmic/types"
 	"github.com/mitchellh/mapstructure"
+	"github.com/openconfig/gnmic/types"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

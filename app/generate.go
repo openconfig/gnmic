@@ -19,8 +19,8 @@ import (
 	"strings"
 
 	"github.com/huandu/xstrings"
-	"github.com/karimra/gnmic/config"
-	"github.com/karimra/gnmic/utils"
+	"github.com/openconfig/gnmic/config"
+	"github.com/openconfig/gnmic/utils"
 	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"

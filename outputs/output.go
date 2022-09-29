@@ -17,12 +17,12 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/karimra/gnmic/formatters"
-	_ "github.com/karimra/gnmic/formatters/all"
-	"github.com/karimra/gnmic/types"
-	"github.com/karimra/gnmic/utils"
 	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/gnmic/formatters"
+	_ "github.com/openconfig/gnmic/formatters/all"
+	"github.com/openconfig/gnmic/types"
+	"github.com/openconfig/gnmic/utils"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
 )

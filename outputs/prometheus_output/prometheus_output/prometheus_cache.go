@@ -12,9 +12,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/karimra/gnmic/formatters"
-	"github.com/karimra/gnmic/outputs"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/gnmic/formatters"
+	"github.com/openconfig/gnmic/outputs"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

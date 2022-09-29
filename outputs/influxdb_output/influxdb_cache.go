@@ -12,10 +12,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/karimra/gnmic/cache"
-	"github.com/karimra/gnmic/formatters"
-	"github.com/karimra/gnmic/outputs"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/gnmic/cache"
+	"github.com/openconfig/gnmic/formatters"
+	"github.com/openconfig/gnmic/outputs"
 )
 
 func (i *InfluxDBOutput) initCache(ctx context.Context, name string) error {

@@ -21,8 +21,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/karimra/gnmic/lockers"
-	"github.com/karimra/gnmic/utils"
+	"github.com/openconfig/gnmic/lockers"
+	"github.com/openconfig/gnmic/utils"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

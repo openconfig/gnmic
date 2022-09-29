@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/karimra/gnmic/types"
+	"github.com/openconfig/gnmic/types"
 	"github.com/spf13/cobra"
 )
 

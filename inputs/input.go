@@ -12,8 +12,8 @@ import (
 	"context"
 	"log"
 
-	"github.com/karimra/gnmic/outputs"
-	"github.com/karimra/gnmic/types"
+	"github.com/openconfig/gnmic/outputs"
+	"github.com/openconfig/gnmic/types"
 )
 
 type Input interface {

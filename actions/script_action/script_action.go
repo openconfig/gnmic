@@ -18,7 +18,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/karimra/gnmic/actions"
+	"github.com/openconfig/gnmic/actions"
 )
 
 const (

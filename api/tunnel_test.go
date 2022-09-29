@@ -12,7 +12,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/karimra/gnmic/testutils"
+	"github.com/openconfig/gnmic/testutils"
 	tpb "github.com/openconfig/grpctunnel/proto/tunnel"
 )
 

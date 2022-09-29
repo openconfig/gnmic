@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/karimra/gnmic/formatters"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/gnmic/formatters"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/prompb"
 )

@@ -11,7 +11,7 @@ package config
 import (
 	"fmt"
 
-	"github.com/karimra/gnmic/actions"
+	"github.com/openconfig/gnmic/actions"
 )
 
 func (c *Config) GetActions() (map[string]map[string]interface{}, error) {

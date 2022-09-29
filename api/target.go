@@ -14,8 +14,8 @@ import (
 	"time"
 
 	"github.com/AlekSi/pointer"
-	"github.com/karimra/gnmic/target"
-	"github.com/karimra/gnmic/types"
+	"github.com/openconfig/gnmic/target"
+	"github.com/openconfig/gnmic/types"
 )
 
 var DefaultTargetTimeout = 10 * time.Second

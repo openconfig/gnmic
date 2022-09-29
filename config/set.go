@@ -19,9 +19,9 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/karimra/gnmic/api"
-	"github.com/karimra/gnmic/utils"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/gnmic/api"
+	"github.com/openconfig/gnmic/utils"
 	"gopkg.in/yaml.v2"
 )
 

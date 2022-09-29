@@ -13,8 +13,8 @@ import (
 	"fmt"
 
 	"github.com/fullstorydev/grpcurl"
-	"github.com/karimra/gnmic/target"
-	"github.com/karimra/gnmic/types"
+	"github.com/openconfig/gnmic/target"
+	"github.com/openconfig/gnmic/types"
 )
 
 // initTarget initializes a new target given its name.

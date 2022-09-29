@@ -13,7 +13,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/karimra/gnmic/types"
+	"github.com/openconfig/gnmic/types"
 )
 
 var testSet = map[string]struct {

@@ -18,7 +18,7 @@ import (
 
 	gogoproto "github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
-	"github.com/karimra/gnmic/utils"
+	"github.com/openconfig/gnmic/utils"
 	"github.com/prometheus/prometheus/prompb"
 )
 

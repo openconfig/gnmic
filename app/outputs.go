@@ -12,8 +12,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/karimra/gnmic/outputs"
-	"github.com/karimra/gnmic/types"
+	"github.com/openconfig/gnmic/outputs"
+	"github.com/openconfig/gnmic/types"
 )
 
 func (a *App) InitOutput(ctx context.Context, name string, tcs map[string]*types.TargetConfig) {

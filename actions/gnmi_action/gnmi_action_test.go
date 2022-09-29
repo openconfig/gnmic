@@ -11,10 +11,10 @@ package gnmi_action
 import (
 	"testing"
 
-	"github.com/karimra/gnmic/actions"
-	"github.com/karimra/gnmic/formatters"
-	"github.com/karimra/gnmic/testutils"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/gnmic/actions"
+	"github.com/openconfig/gnmic/formatters"
+	"github.com/openconfig/gnmic/testutils"
 )
 
 type getRequestTestItem struct {

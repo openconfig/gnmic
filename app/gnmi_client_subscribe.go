@@ -16,11 +16,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/karimra/gnmic/lockers"
-	"github.com/karimra/gnmic/outputs"
-	"github.com/karimra/gnmic/target"
-	"github.com/karimra/gnmic/types"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/gnmic/lockers"
+	"github.com/openconfig/gnmic/outputs"
+	"github.com/openconfig/gnmic/target"
+	"github.com/openconfig/gnmic/types"
 	"github.com/openconfig/grpctunnel/tunnel"
 	"google.golang.org/grpc"
 )

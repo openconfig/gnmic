@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/karimra/gnmic/cache"
+	"github.com/openconfig/gnmic/cache"
 )
 
 const (

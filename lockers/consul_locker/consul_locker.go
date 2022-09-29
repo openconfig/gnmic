@@ -18,8 +18,8 @@ import (
 	"time"
 
 	"github.com/hashicorp/consul/api"
-	"github.com/karimra/gnmic/lockers"
-	"github.com/karimra/gnmic/utils"
+	"github.com/openconfig/gnmic/lockers"
+	"github.com/openconfig/gnmic/utils"
 )
 
 const (

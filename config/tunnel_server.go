@@ -13,9 +13,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/karimra/gnmic/types"
-	"github.com/karimra/gnmic/utils"
 	"github.com/mitchellh/mapstructure"
+	"github.com/openconfig/gnmic/types"
+	"github.com/openconfig/gnmic/utils"
 )
 
 const (

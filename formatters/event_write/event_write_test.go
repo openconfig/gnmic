@@ -14,7 +14,7 @@ import (
 	"log"
 	"testing"
 
-	"github.com/karimra/gnmic/formatters"
+	"github.com/openconfig/gnmic/formatters"
 )
 
 type item struct {

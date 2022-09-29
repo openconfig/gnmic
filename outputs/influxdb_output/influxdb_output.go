@@ -21,12 +21,12 @@ import (
 	"time"
 
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
-	"github.com/karimra/gnmic/cache"
-	"github.com/karimra/gnmic/formatters"
-	"github.com/karimra/gnmic/outputs"
-	"github.com/karimra/gnmic/types"
-	"github.com/karimra/gnmic/utils"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/gnmic/cache"
+	"github.com/openconfig/gnmic/formatters"
+	"github.com/openconfig/gnmic/outputs"
+	"github.com/openconfig/gnmic/types"
+	"github.com/openconfig/gnmic/utils"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
 )

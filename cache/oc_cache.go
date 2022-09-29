@@ -17,13 +17,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/karimra/gnmic/utils"
 	ocCache "github.com/openconfig/gnmi/cache"
 	"github.com/openconfig/gnmi/ctree"
 	"github.com/openconfig/gnmi/match"
 	"github.com/openconfig/gnmi/path"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/subscribe"
+	"github.com/openconfig/gnmic/utils"
 	"google.golang.org/protobuf/proto"
 )
 

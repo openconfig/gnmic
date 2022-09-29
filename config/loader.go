@@ -12,8 +12,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/karimra/gnmic/loaders"
-	_ "github.com/karimra/gnmic/loaders/all"
+	"github.com/openconfig/gnmic/loaders"
+	_ "github.com/openconfig/gnmic/loaders/all"
 )
 
 func (c *Config) GetLoader() error {

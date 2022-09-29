@@ -17,8 +17,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/karimra/gnmic/utils"
 	"github.com/manifoldco/promptui"
+	"github.com/openconfig/gnmic/utils"
 	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"

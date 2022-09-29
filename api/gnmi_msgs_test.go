@@ -15,9 +15,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/karimra/gnmic/testutils"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
+	"github.com/openconfig/gnmic/testutils"
 )
 
 //  Capabilities Request / Response tests

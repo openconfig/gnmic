@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/karimra/gnmic/utils"
+	"github.com/openconfig/gnmic/utils"
 	"golang.org/x/oauth2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -61,7 +61,7 @@ func (tc TargetConfig) String() string {
 		pwd := "****"
 		tc.Password = &pwd
 	}
-	
+
 	b, err := json.Marshal(tc)
 	if err != nil {
 		return ""

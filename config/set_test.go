@@ -13,8 +13,8 @@ import (
 	"testing"
 	"text/template"
 
-	"github.com/karimra/gnmic/testutils"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/gnmic/testutils"
 )
 
 var createSetRequestFromFileTestSet = map[string]struct {

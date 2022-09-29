@@ -11,7 +11,7 @@ package config
 import (
 	"fmt"
 
-	"github.com/karimra/gnmic/formatters"
+	"github.com/openconfig/gnmic/formatters"
 )
 
 func (c *Config) GetEventProcessors() (map[string]map[string]interface{}, error) {

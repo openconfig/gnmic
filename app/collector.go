@@ -16,11 +16,11 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/karimra/gnmic/outputs"
-	"github.com/karimra/gnmic/target"
-	"github.com/karimra/gnmic/types"
-	"github.com/karimra/gnmic/utils"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/gnmic/outputs"
+	"github.com/openconfig/gnmic/target"
+	"github.com/openconfig/gnmic/types"
+	"github.com/openconfig/gnmic/utils"
 	"google.golang.org/protobuf/proto"
 )
 

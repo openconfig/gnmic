@@ -15,9 +15,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/karimra/gnmic/api"
-	"github.com/karimra/gnmic/testutils"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/gnmic/api"
+	"github.com/openconfig/gnmic/testutils"
 )
 
 var createGetRequestTestSet = map[string]struct {

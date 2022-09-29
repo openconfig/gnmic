@@ -14,8 +14,8 @@ import (
 	"log"
 
 	"github.com/itchyny/gojq"
-	"github.com/karimra/gnmic/types"
 	"github.com/mitchellh/mapstructure"
+	"github.com/openconfig/gnmic/types"
 )
 
 var EventProcessors = map[string]Initializer{}

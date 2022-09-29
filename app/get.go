@@ -14,10 +14,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/karimra/gnmic/config"
-	"github.com/karimra/gnmic/formatters"
-	"github.com/karimra/gnmic/types"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/gnmic/config"
+	"github.com/openconfig/gnmic/formatters"
+	"github.com/openconfig/gnmic/types"
 	"github.com/openconfig/grpctunnel/tunnel"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"

@@ -106,7 +106,7 @@ func readFTPFile(ctx context.Context, path string) ([]byte, error) {
 
 	conn, err := ftp.Dial(host, ftp.DialWithContext(ctx))
 	if err != nil {
-		return nil, fmt.Errorf("failed to connecto to [%s]: %v", host, err)
+		return nil, fmt.Errorf("failed to connect to [%s]: %v", host, err)
 	}
 
 	err = conn.Login(user, pass)
@@ -116,7 +116,7 @@ func readFTPFile(ctx context.Context, path string) ([]byte, error) {
 
 	r, err := conn.Retr(parsedUrl.RequestURI())
 	if err != nil {
-		return nil, fmt.Errorf("failed to read remtoe file %q: %v", parsedUrl.RequestURI(), err)
+		return nil, fmt.Errorf("failed to read remote file %q: %v", parsedUrl.RequestURI(), err)
 	}
 	defer r.Close()
 	return io.ReadAll(r)
@@ -173,7 +173,7 @@ func readSFTPFile(ctx context.Context, path string) ([]byte, error) {
 	// Connect to server
 	conn, err := ssh.Dial("tcp", host, &config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connecto to [%s]: %v", host, err)
+		return nil, fmt.Errorf("failed to connect to [%s]: %v", host, err)
 	}
 	defer conn.Close()
 

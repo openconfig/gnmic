@@ -14,8 +14,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/karimra/gnmic/formatters"
-	"github.com/karimra/gnmic/utils"
+	"github.com/openconfig/gnmic/formatters"
+	"github.com/openconfig/gnmic/utils"
 )
 
 type item struct {

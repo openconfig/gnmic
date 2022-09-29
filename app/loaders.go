@@ -12,7 +12,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/karimra/gnmic/loaders"
+	"github.com/openconfig/gnmic/loaders"
 )
 
 func (a *App) startLoader(ctx context.Context) {

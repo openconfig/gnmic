@@ -11,7 +11,7 @@ import (
     "log"
     "time"
 
-    "github.com/karimra/gnmic/api"
+    "github.com/openconfig/gnmic/api"
     "google.golang.org/protobuf/encoding/prototext"
 )
 

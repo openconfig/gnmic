@@ -13,8 +13,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/karimra/gnmic/outputs"
-	_ "github.com/karimra/gnmic/outputs/all"
+	"github.com/openconfig/gnmic/outputs"
+	_ "github.com/openconfig/gnmic/outputs/all"
 )
 
 func (c *Config) GetOutputs() (map[string]map[string]interface{}, error) {

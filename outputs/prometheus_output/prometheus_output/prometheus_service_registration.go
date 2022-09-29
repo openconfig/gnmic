@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/consul/api"
-	"github.com/karimra/gnmic/lockers"
+	"github.com/openconfig/gnmic/lockers"
 )
 
 const (

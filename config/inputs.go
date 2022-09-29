@@ -11,8 +11,8 @@ package config
 import (
 	"fmt"
 
-	"github.com/karimra/gnmic/inputs"
-	_ "github.com/karimra/gnmic/inputs/all"
+	"github.com/openconfig/gnmic/inputs"
+	_ "github.com/openconfig/gnmic/inputs/all"
 )
 
 func (c *Config) GetInputs() (map[string]map[string]interface{}, error) {

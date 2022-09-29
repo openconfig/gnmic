@@ -9,7 +9,7 @@
 package main
 
 import (
-	"github.com/karimra/gnmic/cmd"
+	"github.com/openconfig/gnmic/cmd"
 )
 
 func main() {

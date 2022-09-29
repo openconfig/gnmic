@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/karimra/gnmic/api"
+	"github.com/openconfig/gnmic/api"
 	"google.golang.org/protobuf/encoding/prototext"
 )
 

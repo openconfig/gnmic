@@ -20,10 +20,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/karimra/gnmic/utils"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/gnmic/utils"
 	"google.golang.org/protobuf/proto"
 )
 

@@ -22,11 +22,11 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/damiannolan/sasl/oauthbearer"
 	"github.com/google/uuid"
-	"github.com/karimra/gnmic/formatters"
-	"github.com/karimra/gnmic/inputs"
-	"github.com/karimra/gnmic/outputs"
-	"github.com/karimra/gnmic/types"
-	"github.com/karimra/gnmic/utils"
+	"github.com/openconfig/gnmic/formatters"
+	"github.com/openconfig/gnmic/inputs"
+	"github.com/openconfig/gnmic/outputs"
+	"github.com/openconfig/gnmic/types"
+	"github.com/openconfig/gnmic/utils"
 	"google.golang.org/protobuf/proto"
 )
 

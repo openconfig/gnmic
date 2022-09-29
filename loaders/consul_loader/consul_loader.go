@@ -24,10 +24,10 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"gopkg.in/yaml.v2"
 
-	"github.com/karimra/gnmic/actions"
-	"github.com/karimra/gnmic/loaders"
-	"github.com/karimra/gnmic/types"
-	"github.com/karimra/gnmic/utils"
+	"github.com/openconfig/gnmic/actions"
+	"github.com/openconfig/gnmic/loaders"
+	"github.com/openconfig/gnmic/types"
+	"github.com/openconfig/gnmic/utils"
 )
 
 const (

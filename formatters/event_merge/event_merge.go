@@ -14,9 +14,9 @@ import (
 	"log"
 	"os"
 
-	"github.com/karimra/gnmic/formatters"
-	"github.com/karimra/gnmic/types"
-	"github.com/karimra/gnmic/utils"
+	"github.com/openconfig/gnmic/formatters"
+	"github.com/openconfig/gnmic/types"
+	"github.com/openconfig/gnmic/utils"
 )
 
 const (

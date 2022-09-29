@@ -11,8 +11,8 @@ package config
 import (
 	"errors"
 
-	"github.com/karimra/gnmic/lockers"
-	_ "github.com/karimra/gnmic/lockers/all"
+	"github.com/openconfig/gnmic/lockers"
+	_ "github.com/openconfig/gnmic/lockers/all"
 )
 
 func (c *Config) getLocker() error {
