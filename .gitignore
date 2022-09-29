@@ -1,6 +1,0 @@
-_test/
-builds/
-dist
-*.log
-gnmic
-*.tmp
