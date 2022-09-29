@@ -1,4 +1,4 @@
-module github.com/karimra/gnmic
+module github.com/openconfig/gnmic
 
 go 1.18
 
