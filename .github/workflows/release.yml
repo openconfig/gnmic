@@ -38,11 +38,12 @@ jobs:
         with:
           go-version: ${{ env.GOVER }}
 
-      - name: Login to dockerhub
-        run: docker login -u vikar2 -p ${{ secrets.DOCKERHUB_TOKEN }}
-
       - name: Login to github container registry
-        run: docker login ghcr.io -u karimra -p ${{ secrets.GHCR_TOKEN }}
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Release with goreleaser
         uses: goreleaser/goreleaser-action@v2

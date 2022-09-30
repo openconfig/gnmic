@@ -26,8 +26,6 @@ dockers:
     ids:
       - gnmic
     image_templates:
-      - "docker.io/gnmic/gnmic:latest"
-      - 'docker.io/gnmic/gnmic:{{ replace .Version "v" ""}}'
       - "ghcr.io/openconfig/gnmic:latest"
       - 'ghcr.io/openconfig/gnmic:{{ replace .Version "v" ""}}'
     dockerfile: goreleaser-alpine.dockerfile
