@@ -1,8 +1,8 @@
 <nbsp/>
-<p style="text-align:center;"><img src=https://raw.githubusercontent.com/karimra/gnmic/main/docs/images/gnmic-headline.svg?sanitize=true/></p>
+<p style="text-align:center;"><img src=https://raw.githubusercontent.com/openconfig/gnmic/main/docs/images/gnmic-headline.svg?sanitize=true/></p>
 
-[![github release](https://img.shields.io/github/release/karimra/gnmic.svg?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://github.com/karimra/gnmic/releases/)
-[![Github all releases](https://img.shields.io/github/downloads/karimra/gnmic/total.svg?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://github.com/karimra/gnmic/releases/)
+[![github release](https://img.shields.io/github/release/openconfig/gnmic.svg?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://github.com/openconfig/gnmic/releases/)
+[![Github all releases](https://img.shields.io/github/downloads/openconfig/gnmic/total.svg?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://github.com/openconfig/gnmic/releases/)
 
 ---
 
@@ -33,7 +33,7 @@
 * **Dial-out telemetry**  
   The [dial-out telemetry server](https://gnmic.kmrd.dev/cmd/listen/) is provided for Nokia SR OS.
 * **Pre-built multi-platform binaries**  
-  Statically linked [binaries](https://github.com/karimra/gnmic/releases) made in our release pipeline are available for major operating systems and architectures. Making [installation](https://gnmic.kmrd.dev/install/) a breeze!
+  Statically linked [binaries](https://github.com/openconfig/gnmic/releases) made in our release pipeline are available for major operating systems and architectures. Making [installation](https://gnmic.kmrd.dev/install/) a breeze!
 * **Extensive and friendly documentation**  
   You won't be in need to dive into the source code to understand how `gnimc` works, our [documentation site](https://gnmic.kmrd.dev) has you covered.
 

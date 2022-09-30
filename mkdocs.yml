@@ -177,8 +177,8 @@ site_author: Karim Radhouani
 site_description: >-
   gnmi client and collector command line interface
 # Repository
-repo_name: karimra/gnmic
-repo_url: https://github.com/karimra/gnmic
+repo_name: openconfig/gnmic
+repo_url: https://github.com/openconfig/gnmic
 edit_uri: ""
 theme:
   name: material

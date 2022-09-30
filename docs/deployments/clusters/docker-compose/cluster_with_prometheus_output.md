@@ -9,15 +9,15 @@ The leader election and target distribution is done with the help of a [Consul s
 
 `gnmic` will also register its Prometheus output service in `Consul` so that Prometheus can discover which Prometheus servers are available to be scraped
 
-<div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:12,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/karimra/gnmic/diagrams/diagrams/cluster_prometheus&quot;}"></div>
+<div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:12,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/openconfig/gnmic/diagrams/diagrams/cluster_prometheus&quot;}"></div>
 
 <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2Fcluster_prometheus" async></script>
 
 Deployment files:
 
-- [Docker Compose](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/2.prometheus-output/docker-compose/docker-compose.yaml)
-- [gNMIc config](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/2.prometheus-output/docker-compose/gnmic.yaml)
-- [Prometheus config](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/2.prometheus-output/docker-compose/prometheus/prometheus.yaml)
+- [Docker Compose](https://github.com/openconfig/gnmic/blob/main/examples/deployments/2.clusters/2.prometheus-output/docker-compose/docker-compose.yaml)
+- [gNMIc config](https://github.com/openconfig/gnmic/blob/main/examples/deployments/2.clusters/2.prometheus-output/docker-compose/gnmic.yaml)
+- [Prometheus config](https://github.com/openconfig/gnmic/blob/main/examples/deployments/2.clusters/2.prometheus-output/docker-compose/prometheus/prometheus.yaml)
 
 Download the files, update the `gnmic` config files with the desired subscriptions and targets.
 

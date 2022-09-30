@@ -1,8 +1,8 @@
-`gnmic` is a single binary built for the Linux, Mac OS and Windows operating systems distributed via [Github releases](https://github.com/karimra/gnmic/releases).
+`gnmic` is a single binary built for the Linux, Mac OS and Windows operating systems distributed via [Github releases](https://github.com/openconfig/gnmic/releases).
 
 ### Linux/Mac OS
 
-To download & install the latest release the following automated [installation script](https://github.com/karimra/gnmic/blob/main/install.sh) can be used:
+To download & install the latest release the following automated [installation script](https://github.com/openconfig/gnmic/blob/main/install.sh) can be used:
 
 ```bash
 bash -c "$(curl -sL https://get-gnmic.kmrd.dev)"
@@ -17,7 +17,7 @@ Moving gnmic to /usr/local/bin
 version : 0.0.3
  commit : f541948
    date : 2020-04-23T12:06:07Z
- gitURL : https://github.com/karimra/gnmic.git
+ gitURL : https://github.com/openconfig/gnmic.git
    docs : https://gnmic.kmrd.dev
 
 Installation complete!
@@ -63,16 +63,16 @@ docker pull gnmic/gnmic:latest
 docker pull gnmic/gnmic:0.7.0
 
 # pull latest release from github registry
-docker pull ghcr.io/karimra/gnmic:latest
+docker pull ghcr.io/openconfig/gnmic:latest
 # pull a specific release from github registry
-docker pull ghcr.io/karimra/gnmic:0.5.2
+docker pull ghcr.io/openconfig/gnmic:0.5.2
 ```
 
 Example running `gnmic get` command using the docker image:
 ```bash
 docker run \
        --network host \
-       --rm ghcr.io/karimra/gnmic get --log --username admin --password admin --insecure --address router1.local --path /interfaces
+       --rm ghcr.io/openconfig/gnmic get --log --username admin --password admin --insecure --address router1.local --path /interfaces
 ```
 
 ### Docker Compose
@@ -88,7 +88,7 @@ networks:
 
 services:
   gnmic-1:
-    image: ghcr.io/karimra/gnmic:latest
+    image: ghcr.io/openconfig/gnmic:latest
     container_name: gnmic-1
     networks:
       - gnmic-net

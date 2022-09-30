@@ -22,7 +22,7 @@ topology:
 
     gnmic-collector:
       kind: linux
-      image: ghcr.io/karimra/gnmic:latest
+      image: ghcr.io/openconfig/gnmic:latest
       binds:
         - ./gnmic-collector.yaml:/app/gnmic.yaml:ro
         - /var/run/docker.sock:/var/run/docker.sock
@@ -30,7 +30,7 @@ topology:
     
     gnmic-relay:
       kind: linux
-      image: ghcr.io/karimra/gnmic:latest
+      image: ghcr.io/openconfig/gnmic:latest
       binds:
         - ./gnmic-relay.yaml:/app/gnmic.yaml:ro
         - /var/run/docker.sock:/var/run/docker.sock

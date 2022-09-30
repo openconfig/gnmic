@@ -1,10 +1,10 @@
 <p align=center><img src=docs/images/gnmic-headline.svg?sanitize=true/></p>
 
-[![github release](https://img.shields.io/github/release/karimra/gnmic.svg?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://github.com/karimra/gnmic/releases/)
-[![Github all releases](https://img.shields.io/github/downloads/karimra/gnmic/total.svg?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://github.com/karimra/gnmic/releases/)
-[![Go Report](https://img.shields.io/badge/go%20report-A%2B-blue?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://goreportcard.com/report/github.com/karimra/gnmic)
+[![github release](https://img.shields.io/github/release/openconfig/gnmic.svg?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://github.com/openconfig/gnmic/releases/)
+[![Github all releases](https://img.shields.io/github/downloads/openconfig/gnmic/total.svg?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://github.com/openconfig/gnmic/releases/)
+[![Go Report](https://img.shields.io/badge/go%20report-A%2B-blue?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://goreportcard.com/report/github.com/openconfig/gnmic)
 [![Doc](https://img.shields.io/badge/Docs-gnmic.kmrd.dev-blue?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://gnmic.kmrd.dev)
-[![build](https://img.shields.io/github/workflow/status/karimra/gnmic/Test/master?style=flat-square&labelColor=bec8d2)](https://github.com/karimra/gnmic/releases/)
+[![build](https://img.shields.io/github/workflow/status/openconfig/gnmic/Test/main?style=flat-square&labelColor=bec8d2)](https://github.com/openconfig/gnmic/releases/)
 
 ---
 
@@ -38,9 +38,9 @@ Documentation available at [https://gnmic.kmrd.dev](https://gnmic.kmrd.dev)
 * **Dial-out telemetry**  
   The [dial-out telemetry server](https://gnmic.kmrd.dev/cmd/listen/) is provided for Nokia SR OS.
 * **Pre-built multi-platform binaries**  
-  Statically linked [binaries](https://github.com/karimra/gnmic/releases) made in our release pipeline are available for major operating systems and architectures. Making [installation](https://gnmic.kmrd.dev/install/) a breeze!
+  Statically linked [binaries](https://github.com/openconfig/gnmic/releases) made in our release pipeline are available for major operating systems and architectures. Making [installation](https://gnmic.kmrd.dev/install/) a breeze!
 * **Extensive and friendly documentation**  
-  You won't be in need to dive into the source code to understand how `gnimc` works, our [documentation site](https://gnmic.kmrd.dev) has you covered.
+  You won't be in need to dive into the source code to understand how `gnmic` works, our [documentation site](https://gnmic.kmrd.dev) has you covered.
 
 ## Quick start guide
 

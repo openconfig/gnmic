@@ -33,21 +33,21 @@ prom-output:
 ```
 Since only one instance can hold a lock, only one prometheus output is registered, so only one output is scraped by Prometheus.
 
-<div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:0,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/karimra/gnmic/diagrams/diagrams/cluster_clab_prom_nats.drawio&quot;}"></div>
+<div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:0,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/openconfig/gnmic/diagrams/diagrams/cluster_clab_prom_nats.drawio&quot;}"></div>
 
 <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2Fcluster_clab_prom_nats.drawio" async></script>
 
 Deployment files:
 
-- [containerlab](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/3.nats-input-prometheus-output/containerlab/lab23.clab.yaml)
-- [gNMIc config](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/3.nats-input-prometheus-output/containerlab/gnmic.yaml)
-- [prometheus config](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/3.nats-input-prometheus-output/containerlab/prometheus/prometheus.yaml)
-- [Grafana datasource](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/3.nats-input-prometheus-output/containerlab/grafana/datasources/datasource.yaml)
+- [containerlab](https://github.com/openconfig/gnmic/blob/main/examples/deployments/2.clusters/3.nats-input-prometheus-output/containerlab/lab23.clab.yaml)
+- [gNMIc config](https://github.com/openconfig/gnmic/blob/main/examples/deployments/2.clusters/3.nats-input-prometheus-output/containerlab/gnmic.yaml)
+- [prometheus config](https://github.com/openconfig/gnmic/blob/main/examples/deployments/2.clusters/3.nats-input-prometheus-output/containerlab/prometheus/prometheus.yaml)
+- [Grafana datasource](https://github.com/openconfig/gnmic/blob/main/examples/deployments/2.clusters/3.nats-input-prometheus-output/containerlab/grafana/datasources/datasource.yaml)
 
 Deploy it with:
 
 ```bash
-git clone https://github.com/karimra/gnmic.git
+git clone https://github.com/openconfig/gnmic.git
 cd gnmic/examples/deployments/2.clusters/3.nats-input-prometheus-output/containerlab
 sudo clab deploy -t lab23.clab.yaml
 ```
@@ -57,9 +57,9 @@ sudo clab deploy -t lab23.clab.yaml
 | #  |          Name           | Container ID |            Image             | Kind  | Group |  State  |  IPv4 Address   |     IPv6 Address      |
 +----+-------------------------+--------------+------------------------------+-------+-------+---------+-----------------+-----------------------+
 |  1 | clab-lab23-consul-agent | cfdaf19e9435 | consul:latest                | linux |       | running | 172.20.20.8/24  | 2001:172:20:20::8/64  |
-|  2 | clab-lab23-gnmic1       | 7e2a4060a1ae | ghcr.io/karimra/gnmic:latest | linux |       | running | 172.20.20.3/24  | 2001:172:20:20::3/64  |
-|  3 | clab-lab23-gnmic2       | 9e27e4620104 | ghcr.io/karimra/gnmic:latest | linux |       | running | 172.20.20.4/24  | 2001:172:20:20::4/64  |
-|  4 | clab-lab23-gnmic3       | bb7471eb5f49 | ghcr.io/karimra/gnmic:latest | linux |       | running | 172.20.20.5/24  | 2001:172:20:20::5/64  |
+|  2 | clab-lab23-gnmic1       | 7e2a4060a1ae | ghcr.io/openconfig/gnmic:latest | linux |       | running | 172.20.20.3/24  | 2001:172:20:20::3/64  |
+|  3 | clab-lab23-gnmic2       | 9e27e4620104 | ghcr.io/openconfig/gnmic:latest | linux |       | running | 172.20.20.4/24  | 2001:172:20:20::4/64  |
+|  4 | clab-lab23-gnmic3       | bb7471eb5f49 | ghcr.io/openconfig/gnmic:latest | linux |       | running | 172.20.20.5/24  | 2001:172:20:20::5/64  |
 |  5 | clab-lab23-grafana      | 3fbf7755c49e | grafana/grafana:latest       | linux |       | running | 172.20.20.2/24  | 2001:172:20:20::2/64  |
 |  6 | clab-lab23-leaf1        | a61624d5312b | ghcr.io/nokia/srlinux        | srl   |       | running | 172.20.20.21/24 | 2001:172:20:20::15/64 |
 |  7 | clab-lab23-leaf2        | ef86f701b379 | ghcr.io/nokia/srlinux        | srl   |       | running | 172.20.20.14/24 | 2001:172:20:20::e/64  |

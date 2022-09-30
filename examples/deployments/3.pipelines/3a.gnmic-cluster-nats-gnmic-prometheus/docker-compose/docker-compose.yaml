@@ -14,7 +14,7 @@ networks:
 
 services:
   gnmic-collector1: &gnmic
-    image: ghcr.io/karimra/gnmic:latest
+    image: ghcr.io/openconfig/gnmic:latest
     container_name: gnmic-collector1
     volumes:
       - ./gnmic-collector.yaml:/app/gnmic.yaml
@@ -51,7 +51,7 @@ services:
       - 7892:7892
 
   gnmic-relay:
-    image: ghcr.io/karimra/gnmic:latest
+    image: ghcr.io/openconfig/gnmic:latest
     container_name: gnmic-relay
     command: "subscribe --config /app/gnmic.yaml"
     volumes:

@@ -12,25 +12,25 @@ This deployment example includes:
 - A [Grafana Server](https://grafana.com/docs/)
 
 
-<div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:4,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/karimra/gnmic/diagrams/diagrams/clab_deployments.drawio&quot;}"></div>
+<div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:4,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/openconfig/gnmic/diagrams/diagrams/clab_deployments.drawio&quot;}"></div>
 
 <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2Fclab_deployments.drawio" async></script>
 
 
 Deployment files:
 
-- [containerlab](https://github.com/karimra/gnmic/blob/main/examples/deployments/1.single-instance/5.multiple-outputs/containerlab/multiple-outputs.clab.yaml)
+- [containerlab](https://github.com/openconfig/gnmic/blob/main/examples/deployments/1.single-instance/5.multiple-outputs/containerlab/multiple-outputs.clab.yaml)
 
-- [gNMIc config](https://github.com/karimra/gnmic/blob/main/examples/deployments/1.single-instance/5.multiple-outputs/containerlab/gnmic.yaml)
+- [gNMIc config](https://github.com/openconfig/gnmic/blob/main/examples/deployments/1.single-instance/5.multiple-outputs/containerlab/gnmic.yaml)
 
-- [Prometheus config](https://github.com/karimra/gnmic/blob/main/examples/deployments/1.single-instance/5.multiple-outputs/containerlab/prometheus/prometheus.yaml)
+- [Prometheus config](https://github.com/openconfig/gnmic/blob/main/examples/deployments/1.single-instance/5.multiple-outputs/containerlab/prometheus/prometheus.yaml)
 
-- [Grafana datasource](https://github.com/karimra/gnmic/blob/main/examples/deployments/1.single-instance/5.multiple-outputs/containerlab/grafana/datasources/datasource.yaml)
+- [Grafana datasource](https://github.com/openconfig/gnmic/blob/main/examples/deployments/1.single-instance/5.multiple-outputs/containerlab/grafana/datasources/datasource.yaml)
 
 Deploy it with:
 
 ```bash
-git clone https://github.com/karimra/gnmic.git
+git clone https://github.com/openconfig/gnmic.git
 cd gnmic/examples/deployments/1.single-instance/5.multiple-outputs/containerlab
 sudo clab deploy -t multiple-outputs.clab.yaml
 ```
@@ -40,7 +40,7 @@ sudo clab deploy -t multiple-outputs.clab.yaml
 | #  |            Name             | Container ID |            Image             | Kind  | Group |  State  |  IPv4 Address   |     IPv6 Address     |
 +----+-----------------------------+--------------+------------------------------+-------+-------+---------+-----------------+----------------------+
 |  1 | clab-lab15-consul-agent     | 14f864fb1da9 | consul:latest                | linux |       | running | 172.20.20.4/24  | 2001:172:20:20::4/64 |
-|  2 | clab-lab15-gnmic            | cfb8bfca7547 | ghcr.io/karimra/gnmic:latest | linux |       | running | 172.20.20.6/24  | 2001:172:20:20::6/64 |
+|  2 | clab-lab15-gnmic            | cfb8bfca7547 | ghcr.io/openconfig/gnmic:latest | linux |       | running | 172.20.20.6/24  | 2001:172:20:20::6/64 |
 |  3 | clab-lab15-grafana          | 56c19565e27c | grafana/grafana:latest       | linux |       | running | 172.20.20.2/24  | 2001:172:20:20::2/64 |
 |  4 | clab-lab15-influxdb         | f2d0b2186e10 | influxdb:latest              | linux |       | running | 172.20.20.9/24  | 2001:172:20:20::9/64 |
 |  5 | clab-lab15-kafka-server     | efe445dbf0f0 | bitnami/kafka:latest         | linux |       | running | 172.20.20.7/24  | 2001:172:20:20::7/64 |

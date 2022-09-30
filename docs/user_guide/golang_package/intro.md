@@ -1,4 +1,4 @@
-`gnmic` (`github.com/karimra/gnmic/api`) can be imported as a dependency in your Golang programs.
+`gnmic` (`github.com/openconfig/gnmic/api`) can be imported as a dependency in your Golang programs.
 
 It acts as a wrapper around the `openconfig/gnmi` package providing a user friendly API to create a target and easily craft gNMI requests.
 
@@ -12,7 +12,7 @@ func NewGetRequest(opts ...GNMIOption) (*gnmi.GetRequest, error)
 
 The below 2 snippets create a Get Request with 2 paths, `json_ietf` encoding and data type `STATE`
 
-Using `github.com/karimra/gnmic/api`
+Using `github.com/openconfig/gnmic/api`
 
 ```golang
 getReq, err := api.NewGetRequest(
@@ -56,7 +56,7 @@ func NewSetRequest(opts ...GNMIOption) (*gnmi.SetRequest, error)
 
 The below 2 snippets create a Set Request with one two updates, one replace and one delete messages:
 
-Using `github.com/karimra/gnmic/api`
+Using `github.com/openconfig/gnmic/api`
 
 ```golang
 setReq, err := api.NewSetRequest(
@@ -168,7 +168,7 @@ func NewSubscribePollRequest(opts ...GNMIOption) *gnmi.SubscribeRequest
 
 The below 2 snippets create a `stream` subscribe request with 2 paths, `json_ietf` encoding and a sample interval of 10 seconds:
 
-Using `github.com/karimra/gnmic/api`
+Using `github.com/openconfig/gnmic/api`
 
 ```golang
 subReq, err := api.NewSubscribeRequest(

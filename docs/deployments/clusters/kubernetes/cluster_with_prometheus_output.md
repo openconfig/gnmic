@@ -9,7 +9,7 @@ The leader election and target distribution is done with the help of a [Consul s
 
 `gnmic` can be discovered by `Prometheus` using Kubernetes service discovery. Kubernetes uses a [headless service](https://kubernetes.io/docs/concepts/services-networking/service/#headless-services) with a StatefulSet to disable the internal load balancing across multiple pods of the same StatefulSet and allow `Prometheus` to discover all instances of `gnmic`.
 
-<div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:12,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/karimra/gnmic/diagrams/diagrams/cluster_prometheus_kubernetes&quot;}"></div>
+<div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:12,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/openconfig/gnmic/diagrams/diagrams/cluster_prometheus_kubernetes&quot;}"></div>
 
 <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2Fcluster_prometheus_kubernetes" async></script>
 
@@ -17,9 +17,9 @@ The leader election and target distribution is done with the help of a [Consul s
 
 Deployment files:
 
-- [gnmic](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/2.prometheus-output/kubernetes/gnmic-app)
-- [consul](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/2.prometheus-output/kubernetes/consul)
-- [prometheus servicemonitor](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/2.prometheus-output/kubernetes/prometheus/servicemonitor.yaml)
+- [gnmic](https://github.com/openconfig/gnmic/blob/main/examples/deployments/2.clusters/2.prometheus-output/kubernetes/gnmic-app)
+- [consul](https://github.com/openconfig/gnmic/blob/main/examples/deployments/2.clusters/2.prometheus-output/kubernetes/consul)
+- [prometheus servicemonitor](https://github.com/openconfig/gnmic/blob/main/examples/deployments/2.clusters/2.prometheus-output/kubernetes/prometheus/servicemonitor.yaml)
 
 Download the files, update the `gnmic` ConfigMap with the desired subscriptions and targets and make sure that `prometheus servicemonitor` is in a namespace or has a label that `Prometheus operator` is watching.
 

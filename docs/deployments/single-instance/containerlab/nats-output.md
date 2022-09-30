@@ -5,15 +5,15 @@ Multiple 3rd Party systems (acting as a NATS clients) can then read the data fro
 This deployment example includes a single `gnmic` instance and a single [NATS output](../../../user_guide/outputs/nats_output.md)
 
 
-<div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:0,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/karimra/gnmic/diagrams/diagrams/clab_deployments.drawio&quot;}"></div>
+<div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:0,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/openconfig/gnmic/diagrams/diagrams/clab_deployments.drawio&quot;}"></div>
 
 <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2Fclab_deployments.drawio" async></script>
 
 Deployment files:
 
-- [containerlab](https://github.com/karimra/gnmic/tree/main/examples/deployments/1.single-instance/1.nats-output/containerlab/nats.clab.yaml)
+- [containerlab](https://github.com/openconfig/gnmic/tree/main/examples/deployments/1.single-instance/1.nats-output/containerlab/nats.clab.yaml)
 
-- [gNMIc config](https://github.com/karimra/gnmic/tree/main/examples/deployments/1.single-instance/1.nats-output/containerlab/gnmic.yaml)
+- [gNMIc config](https://github.com/openconfig/gnmic/tree/main/examples/deployments/1.single-instance/1.nats-output/containerlab/gnmic.yaml)
 
 The deployed SR Linux nodes are discovered using Docker API and are loaded as gNMI targets.
 Edit the subscriptions section if needed.
@@ -21,7 +21,7 @@ Edit the subscriptions section if needed.
 Deploy it with:
 
 ```bash
-git clone https://github.com/karimra/gnmic.git
+git clone https://github.com/openconfig/gnmic.git
 cd gnmic/examples/deployments/1.single-instance/1.nats-output/containerlab
 sudo clab deploy -t nats.clab.yaml
 ```
@@ -30,7 +30,7 @@ sudo clab deploy -t nats.clab.yaml
 +---+-------------------+--------------+------------------------------+-------+-------+---------+----------------+----------------------+
 | # |       Name        | Container ID |            Image             | Kind  | Group |  State  |  IPv4 Address  |     IPv6 Address     |
 +---+-------------------+--------------+------------------------------+-------+-------+---------+----------------+----------------------+
-| 1 | clab-lab11-gnmic  | 955eaa35b730 | ghcr.io/karimra/gnmic:latest | linux |       | running | 172.20.20.3/24 | 2001:172:20:20::3/64 |
+| 1 | clab-lab11-gnmic  | 955eaa35b730 | ghcr.io/openconfig/gnmic:latest | linux |       | running | 172.20.20.3/24 | 2001:172:20:20::3/64 |
 | 2 | clab-lab11-leaf1  | f0f61a79124e | ghcr.io/nokia/srlinux        | srl   |       | running | 172.20.20.4/24 | 2001:172:20:20::4/64 |
 | 3 | clab-lab11-leaf2  | de714ee79856 | ghcr.io/nokia/srlinux        | srl   |       | running | 172.20.20.9/24 | 2001:172:20:20::9/64 |
 | 4 | clab-lab11-leaf3  | c674b7bbb898 | ghcr.io/nokia/srlinux        | srl   |       | running | 172.20.20.8/24 | 2001:172:20:20::8/64 |

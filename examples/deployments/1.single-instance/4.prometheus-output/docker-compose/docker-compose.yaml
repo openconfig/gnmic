@@ -14,7 +14,7 @@ networks:
 
 services:
   gnmic1:
-    image: ghcr.io/karimra/gnmic:latest
+    image: ghcr.io/openconfig/gnmic:latest
     container_name: gnmic1
     volumes:
       - ./gnmic1.yaml:/app/gnmic.yaml

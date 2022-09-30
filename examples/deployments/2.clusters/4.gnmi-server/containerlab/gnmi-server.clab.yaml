@@ -36,7 +36,7 @@ topology:
     
     gnmic1:
       kind: linux
-      image: ghcr.io/karimra/gnmic:latest
+      image: ghcr.io/openconfig/gnmic:latest
       binds:
         - ./gnmic.yaml:/app/gnmic.yaml:ro
         - /var/run/docker.sock:/var/run/docker.sock
@@ -52,7 +52,7 @@ topology:
     
     gnmic2:
       kind: linux
-      image: ghcr.io/karimra/gnmic:latest
+      image: ghcr.io/openconfig/gnmic:latest
       binds:
         - ./gnmic.yaml:/app/gnmic.yaml:ro
         - /var/run/docker.sock:/var/run/docker.sock
@@ -68,7 +68,7 @@ topology:
 
     gnmic3:
       kind: linux
-      image: ghcr.io/karimra/gnmic:latest
+      image: ghcr.io/openconfig/gnmic:latest
       binds:
         - ./gnmic.yaml:/app/gnmic.yaml:ro
         - /var/run/docker.sock:/var/run/docker.sock
@@ -84,7 +84,7 @@ topology:
 
     agg-gnmic:
       kind: linux
-      image: ghcr.io/karimra/gnmic:latest
+      image: ghcr.io/openconfig/gnmic:latest
       binds:
         - ./gnmic-agg.yaml:/app/gnmic.yaml:ro
         - /var/run/docker.sock:/var/run/docker.sock

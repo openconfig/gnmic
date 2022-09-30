@@ -20,7 +20,7 @@ The whole lab is pretty much self organising:
 - The `gNMIc` standalone instance, discovers the cluster instance using a [Consul Loader](../../../user_guide/target_discovery/consul_discovery.md)
 - The Prometheus server discovers gNMIc's Prometheus output using [Consul Service Discovery](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#consul_sd_config)
 
-<div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:1,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/karimra/gnmic/diagrams/diagrams/clab_cluster_gnmi_server.drawio&quot;}"></div>
+<div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:1,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/openconfig/gnmic/diagrams/diagrams/clab_cluster_gnmi_server.drawio&quot;}"></div>
 
 <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2Fclab_cluster_gnmi_server.drawio" async></script>
 
@@ -28,16 +28,16 @@ The whole lab is pretty much self organising:
 
 Deployment files:
 
-- [containerlab](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/4.gnmi-server/containerlab/gnmi-server.clab.yaml)
-- [gNMIc cluster config](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/4.gnmi-server/containerlab/gnmic.yaml)
-- [gNMIc aggregator config](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/4.gnmi-server/containerlab/gnmic-agg.yaml)
-- [Prometheus config](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/4.gnmi-server/containerlab/prometheus/prometheus.yaml)
-- [Grafana datasource](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/4.gnmi-server/containerlab/grafana/datasources/datasource.yaml)
+- [containerlab](https://github.com/openconfig/gnmic/blob/main/examples/deployments/2.clusters/4.gnmi-server/containerlab/gnmi-server.clab.yaml)
+- [gNMIc cluster config](https://github.com/openconfig/gnmic/blob/main/examples/deployments/2.clusters/4.gnmi-server/containerlab/gnmic.yaml)
+- [gNMIc aggregator config](https://github.com/openconfig/gnmic/blob/main/examples/deployments/2.clusters/4.gnmi-server/containerlab/gnmic-agg.yaml)
+- [Prometheus config](https://github.com/openconfig/gnmic/blob/main/examples/deployments/2.clusters/4.gnmi-server/containerlab/prometheus/prometheus.yaml)
+- [Grafana datasource](https://github.com/openconfig/gnmic/blob/main/examples/deployments/2.clusters/4.gnmi-server/containerlab/grafana/datasources/datasource.yaml)
 
 Deploy it with:
 
 ```bash
-git clone https://github.com/karimra/gnmic.git
+git clone https://github.com/openconfig/gnmic.git
 cd gnmic/examples/deployments/2.clusters/4.gnmi-server/containerlab
 sudo clab deploy -t gnmi-server.clab.yaml
 ```
@@ -46,11 +46,11 @@ sudo clab deploy -t gnmi-server.clab.yaml
 +----+-------------------------+--------------+------------------------------+-------+-------+---------+-----------------+-----------------------+
 | #  |          Name           | Container ID |            Image             | Kind  | Group |  State  |  IPv4 Address   |     IPv6 Address      |
 +----+-------------------------+--------------+------------------------------+-------+-------+---------+-----------------+-----------------------+
-|  1 | clab-lab24-agg-gnmic    | 2e9cc2821b07 | ghcr.io/karimra/gnmic:latest | linux |       | running | 172.20.20.7/24  | 2001:172:20:20::7/64  |
+|  1 | clab-lab24-agg-gnmic    | 2e9cc2821b07 | ghcr.io/openconfig/gnmic:latest | linux |       | running | 172.20.20.7/24  | 2001:172:20:20::7/64  |
 |  2 | clab-lab24-consul-agent | c17d31d5f41b | consul:latest                | linux |       | running | 172.20.20.2/24  | 2001:172:20:20::2/64  |
-|  3 | clab-lab24-gnmic1       | 3d56e09955f2 | ghcr.io/karimra/gnmic:latest | linux |       | running | 172.20.20.4/24  | 2001:172:20:20::4/64  |
-|  4 | clab-lab24-gnmic2       | eba24dacea36 | ghcr.io/karimra/gnmic:latest | linux |       | running | 172.20.20.3/24  | 2001:172:20:20::3/64  |
-|  5 | clab-lab24-gnmic3       | caf473f500f6 | ghcr.io/karimra/gnmic:latest | linux |       | running | 172.20.20.6/24  | 2001:172:20:20::6/64  |
+|  3 | clab-lab24-gnmic1       | 3d56e09955f2 | ghcr.io/openconfig/gnmic:latest | linux |       | running | 172.20.20.4/24  | 2001:172:20:20::4/64  |
+|  4 | clab-lab24-gnmic2       | eba24dacea36 | ghcr.io/openconfig/gnmic:latest | linux |       | running | 172.20.20.3/24  | 2001:172:20:20::3/64  |
+|  5 | clab-lab24-gnmic3       | caf473f500f6 | ghcr.io/openconfig/gnmic:latest | linux |       | running | 172.20.20.6/24  | 2001:172:20:20::6/64  |
 |  6 | clab-lab24-grafana      | eaa224e62243 | grafana/grafana:latest       | linux |       | running | 172.20.20.8/24  | 2001:172:20:20::8/64  |
 |  7 | clab-lab24-leaf1        | 6771dc8d3786 | ghcr.io/nokia/srlinux        | srl   |       | running | 172.20.20.10/24 | 2001:172:20:20::a/64  |
 |  8 | clab-lab24-leaf2        | 5cfb1cf68958 | ghcr.io/nokia/srlinux        | srl   |       | running | 172.20.20.14/24 | 2001:172:20:20::e/64  |

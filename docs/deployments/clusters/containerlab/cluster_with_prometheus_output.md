@@ -11,7 +11,7 @@ The leader election and target distribution is done with the help of a [Consul s
 
 `gnmic` will also register its Prometheus output service in `Consul` so that Prometheus can discover which Prometheus servers are available to be scraped.
 
-<div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:1,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/karimra/gnmic/diagrams/diagrams/clab_cluster_deployments&quot;}"></div>
+<div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:1,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/openconfig/gnmic/diagrams/diagrams/clab_cluster_deployments&quot;}"></div>
 
 <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2Fclab_cluster_deployments" async></script>
 
@@ -19,15 +19,15 @@ The leader election and target distribution is done with the help of a [Consul s
 
 Deployment files:
 
-- [containerlab](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/2.prometheus-output/containerlab/lab22.clab.yaml)
-- [gNMIc config](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/2.prometheus-output/containerlab/gnmic.yaml)
-- [Prometheus config](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/2.prometheus-output/containerlab/prometheus/prometheus.yaml)
-- [Grafana datasource](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/2.prometheus-output/containerlab/grafana/datasources/datasource.yaml)
+- [containerlab](https://github.com/openconfig/gnmic/blob/main/examples/deployments/2.clusters/2.prometheus-output/containerlab/lab22.clab.yaml)
+- [gNMIc config](https://github.com/openconfig/gnmic/blob/main/examples/deployments/2.clusters/2.prometheus-output/containerlab/gnmic.yaml)
+- [Prometheus config](https://github.com/openconfig/gnmic/blob/main/examples/deployments/2.clusters/2.prometheus-output/containerlab/prometheus/prometheus.yaml)
+- [Grafana datasource](https://github.com/openconfig/gnmic/blob/main/examples/deployments/2.clusters/2.prometheus-output/containerlab/grafana/datasources/datasource.yaml)
 
 Deploy it with:
 
 ```bash
-git clone https://github.com/karimra/gnmic.git
+git clone https://github.com/openconfig/gnmic.git
 cd gnmic/examples/deployments/2.clusters/2.prometheus-output/containerlab
 sudo clab deploy -t lab22.clab.yaml
 ```
@@ -37,9 +37,9 @@ sudo clab deploy -t lab22.clab.yaml
 | #  |          Name           | Container ID |            Image             | Kind  | Group |  State  |  IPv4 Address   |     IPv6 Address      |
 +----+-------------------------+--------------+------------------------------+-------+-------+---------+-----------------+-----------------------+
 |  1 | clab-lab22-consul-agent | 542169159f8b | consul:latest                | linux |       | running | 172.20.20.2/24  | 2001:172:20:20::2/64  |
-|  2 | clab-lab22-gnmic1       | c04b2b597e7a | ghcr.io/karimra/gnmic:latest | linux |       | running | 172.20.20.4/24  | 2001:172:20:20::4/64  |
-|  3 | clab-lab22-gnmic2       | 49604280d82d | ghcr.io/karimra/gnmic:latest | linux |       | running | 172.20.20.3/24  | 2001:172:20:20::3/64  |
-|  4 | clab-lab22-gnmic3       | 49e910460cad | ghcr.io/karimra/gnmic:latest | linux |       | running | 172.20.20.5/24  | 2001:172:20:20::5/64  |
+|  2 | clab-lab22-gnmic1       | c04b2b597e7a | ghcr.io/openconfig/gnmic:latest | linux |       | running | 172.20.20.4/24  | 2001:172:20:20::4/64  |
+|  3 | clab-lab22-gnmic2       | 49604280d82d | ghcr.io/openconfig/gnmic:latest | linux |       | running | 172.20.20.3/24  | 2001:172:20:20::3/64  |
+|  4 | clab-lab22-gnmic3       | 49e910460cad | ghcr.io/openconfig/gnmic:latest | linux |       | running | 172.20.20.5/24  | 2001:172:20:20::5/64  |
 |  5 | clab-lab22-grafana      | c0a37b012d29 | grafana/grafana:latest       | linux |       | running | 172.20.20.7/24  | 2001:172:20:20::7/64  |
 |  6 | clab-lab22-leaf1        | c6429b499c11 | ghcr.io/nokia/srlinux        | srl   |       | running | 172.20.20.19/24 | 2001:172:20:20::13/64 |
 |  7 | clab-lab22-leaf2        | 62f235b39a62 | ghcr.io/nokia/srlinux        | srl   |       | running | 172.20.20.17/24 | 2001:172:20:20::11/64 |

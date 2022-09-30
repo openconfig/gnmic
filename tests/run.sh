@@ -31,7 +31,7 @@ export gnmic_base_cmd="./gnmic-rc1 -u admin -p admin --skip-verify --debug"
 
 function buildgNMIc() {
   printf "Building gnmic...\n"
-  CGO_ENABLED=0 go build -o gnmic-rc1 -ldflags="-s -w -X 'github.com/karimra/gnmic/app.commit=$(git rev-parse --short HEAD)' -X 'github.com/karimra/gnmic/app.date=$(date)'" ../
+  CGO_ENABLED=0 go build -o gnmic-rc1 -ldflags="-s -w -X 'github.com/openconfig/gnmic/app.commit=$(git rev-parse --short HEAD)' -X 'github.com/openconfig/gnmic/app.date=$(date)'" ../
 }
 
 start=`date +%s`

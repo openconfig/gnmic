@@ -9,23 +9,23 @@ This deployment example includes:
 
 The leader election and target distribution is done with the help of a [Consul server](https://www.consul.io/docs/intro)
 
-<div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:0,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/karimra/gnmic/diagrams/diagrams/clab_cluster_deployments&quot;}"></div>
+<div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:0,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/openconfig/gnmic/diagrams/diagrams/clab_cluster_deployments&quot;}"></div>
 
 <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2Fclab_cluster_deployments" async></script>
 
 
 Deployment files:
 
-- [containerlab](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/1.influxdb-output/containerlab/lab21.clab.yaml)
+- [containerlab](https://github.com/openconfig/gnmic/blob/main/examples/deployments/2.clusters/1.influxdb-output/containerlab/lab21.clab.yaml)
 
-- [gNMIc config](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/1.influxdb-output/containerlab/gnmic.yaml)
+- [gNMIc config](https://github.com/openconfig/gnmic/blob/main/examples/deployments/2.clusters/1.influxdb-output/containerlab/gnmic.yaml)
 
-- [Grafana datasource](https://github.com/karimra/gnmic/blob/main/examples/deployments/2.clusters/1.influxdb-output/containerlab/grafana/datasources/datasource.yaml)
+- [Grafana datasource](https://github.com/openconfig/gnmic/blob/main/examples/deployments/2.clusters/1.influxdb-output/containerlab/grafana/datasources/datasource.yaml)
 
 Deploy it with:
 
 ```bash
-git clone https://github.com/karimra/gnmic.git
+git clone https://github.com/openconfig/gnmic.git
 cd gnmic/examples/deployments/2.clusters/1.influxdb-output/containerlab
 sudo clab deploy -t lab21.clab.yaml
 ```
@@ -35,9 +35,9 @@ sudo clab deploy -t lab21.clab.yaml
 | #  |          Name           | Container ID |            Image             | Kind  | Group |  State  |  IPv4 Address   |     IPv6 Address      |
 +----+-------------------------+--------------+------------------------------+-------+-------+---------+-----------------+-----------------------+
 |  1 | clab-lab21-consul-agent | a6f6eb70965f | consul:latest                | linux |       | running | 172.20.20.7/24  | 2001:172:20:20::7/64  |
-|  2 | clab-lab21-gnmic1       | 9758b0761431 | ghcr.io/karimra/gnmic:latest | linux |       | running | 172.20.20.5/24  | 2001:172:20:20::5/64  |
-|  3 | clab-lab21-gnmic2       | 6d6ae91c64bf | ghcr.io/karimra/gnmic:latest | linux |       | running | 172.20.20.2/24  | 2001:172:20:20::2/64  |
-|  4 | clab-lab21-gnmic3       | 5df100a9fa73 | ghcr.io/karimra/gnmic:latest | linux |       | running | 172.20.20.4/24  | 2001:172:20:20::4/64  |
+|  2 | clab-lab21-gnmic1       | 9758b0761431 | ghcr.io/openconfig/gnmic:latest | linux |       | running | 172.20.20.5/24  | 2001:172:20:20::5/64  |
+|  3 | clab-lab21-gnmic2       | 6d6ae91c64bf | ghcr.io/openconfig/gnmic:latest | linux |       | running | 172.20.20.2/24  | 2001:172:20:20::2/64  |
+|  4 | clab-lab21-gnmic3       | 5df100a9fa73 | ghcr.io/openconfig/gnmic:latest | linux |       | running | 172.20.20.4/24  | 2001:172:20:20::4/64  |
 |  5 | clab-lab21-grafana      | fe51bda1830c | grafana/grafana:latest       | linux |       | running | 172.20.20.3/24  | 2001:172:20:20::3/64  |
 |  6 | clab-lab21-influxdb     | 20712484d835 | influxdb:latest              | linux |       | running | 172.20.20.6/24  | 2001:172:20:20::6/64  |
 |  7 | clab-lab21-leaf1        | ce084f636942 | ghcr.io/nokia/srlinux        | srl   |       | running | 172.20.20.14/24 | 2001:172:20:20::e/64  |

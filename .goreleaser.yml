@@ -11,7 +11,7 @@ builds:
   - env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X github.com/karimra/gnmic/app.version={{.Version}} -X github.com/karimra/gnmic/app.commit={{.ShortCommit}} -X github.com/karimra/gnmic/app.date={{.Date}} -X github.com/karimra/gnmic/app.gitURL={{.GitURL}}
+      - -s -w -X github.com/openconfig/gnmic/app.version={{.Version}} -X github.com/openconfig/gnmic/app.commit={{.ShortCommit}} -X github.com/openconfig/gnmic/app.date={{.Date}} -X github.com/openconfig/gnmic/app.gitURL={{.GitURL}}
     goos:
       - linux
       - darwin
@@ -28,8 +28,8 @@ dockers:
     image_templates:
       - "docker.io/gnmic/gnmic:latest"
       - 'docker.io/gnmic/gnmic:{{ replace .Version "v" ""}}'
-      - "ghcr.io/karimra/gnmic:latest"
-      - 'ghcr.io/karimra/gnmic:{{ replace .Version "v" ""}}'
+      - "ghcr.io/openconfig/gnmic:latest"
+      - 'ghcr.io/openconfig/gnmic:{{ replace .Version "v" ""}}'
     dockerfile: goreleaser-alpine.dockerfile
     skip_push: false
   - goos: linux
@@ -37,10 +37,8 @@ dockers:
     ids:
       - gnmic
     image_templates:
-      - "docker.io/gnmic/gnmic:latest-scratch"
-      - 'docker.io/gnmic/gnmic:{{ replace .Version "v" ""}}-scratch'
-      - "ghcr.io/karimra/gnmic:latest-scratch"
-      - 'ghcr.io/karimra/gnmic:{{ replace .Version "v" ""}}-scratch'
+      - "ghcr.io/openconfig/gnmic:latest-scratch"
+      - 'ghcr.io/openconfig/gnmic:{{ replace .Version "v" ""}}-scratch'
     dockerfile: goreleaser-scratch.dockerfile
     skip_push: false
 archives:

@@ -28,7 +28,7 @@ spec:
             - subscribe
             - --config
             - /app/config.yaml
-          image: ghcr.io/karimra/gnmic
+          image: ghcr.io/openconfig/gnmic
           imagePullPolicy: IfNotPresent
           name: gnmic
           securityContext:

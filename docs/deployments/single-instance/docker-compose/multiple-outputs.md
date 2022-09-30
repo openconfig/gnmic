@@ -10,17 +10,17 @@ This deployment example includes:
 - A [File output](../../../user_guide/outputs/file_output.md)
 
 
-<div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:12,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/karimra/gnmic/diagrams/diagrams/single_instance_multiple_outputs.drawio&quot;}"></div>
+<div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:12,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/openconfig/gnmic/diagrams/diagrams/single_instance_multiple_outputs.drawio&quot;}"></div>
 
 <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2Fsingle_instance_multiple_outputs.drawio" async></script>
 
 Deployment files:
 
-- [Docker Compose](https://github.com/karimra/gnmic/blob/main/examples/deployments/1.single-instance/5.multiple-outputs/docker-compose/docker-compose.yaml)
+- [Docker Compose](https://github.com/openconfig/gnmic/blob/main/examples/deployments/1.single-instance/5.multiple-outputs/docker-compose/docker-compose.yaml)
 
-- [gNMIc config](https://github.com/karimra/gnmic/blob/main/examples/deployments/1.single-instance/5.multiple-outputs/docker-compose/gnmic1.yaml)
+- [gNMIc config](https://github.com/openconfig/gnmic/blob/main/examples/deployments/1.single-instance/5.multiple-outputs/docker-compose/gnmic1.yaml)
 
-- [Prometheus config](https://github.com/karimra/gnmic/blob/main/examples/deployments/1.single-instance/5.multiple-outputs/docker-compose/prometheus/prometheus.yaml)
+- [Prometheus config](https://github.com/openconfig/gnmic/blob/main/examples/deployments/1.single-instance/5.multiple-outputs/docker-compose/prometheus/prometheus.yaml)
 
 Download both files, update the `gnmic` config file with the desired subscriptions and targets.
 

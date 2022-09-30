@@ -29,7 +29,7 @@ var (
 	gitURL  = ""
 )
 
-var downloadURL = "https://github.com/karimra/gnmic/raw/main/install.sh"
+var downloadURL = "https://github.com/openconfig/gnmic/raw/main/install.sh"
 
 func (a *App) VersionRun(cmd *cobra.Command, args []string) {
 	if a.Config.Format != "json" {
