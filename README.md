@@ -1,4 +1,5 @@
 <p align=center><img src=docs/images/gnmic-headline.svg?sanitize=true/></p>
+foo
 
 [![github release](https://img.shields.io/github/release/openconfig/gnmic.svg?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://github.com/openconfig/gnmic/releases/)
 [![Github all releases](https://img.shields.io/github/downloads/openconfig/gnmic/total.svg?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://github.com/openconfig/gnmic/releases/)
