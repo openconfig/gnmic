@@ -19,7 +19,7 @@
 : ${BIN_INSTALL_DIR:="/usr/local/bin"}
 : ${REPO_NAME:="openconfig/gnmic"}
 : ${REPO_URL:="https://github.com/$REPO_NAME"}
-: ${PROJECT_URL:="https://gnmic.kmrd.dev"}
+: ${PROJECT_URL:="https://gnmic.openconfig.net"}
 : ${LATEST_URL:="https://api.github.com/repos/$REPO_NAME/releases/latest"}
 # detectArch discovers the architecture for this system.
 detectArch() {

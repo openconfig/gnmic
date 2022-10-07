@@ -36,7 +36,7 @@ $ gnmic --config tunnel_server_config.yaml \
       --use-tunnel-server \
       get \
       --path /configure/system/name
-2022/03/09 10:12:34.729037 [gnmic] version=dev, commit=none, date=unknown, gitURL=, docs=https://gnmic.kmrd.dev
+2022/03/09 10:12:34.729037 [gnmic] version=dev, commit=none, date=unknown, gitURL=, docs=https://gnmic.openconfig.net
 2022/03/09 10:12:34.729063 [gnmic] using config file "tunnel_server_config.yaml"
 2022/03/09 10:12:34.730472 [gnmic] waiting for targets to register with the tunnel server...
 2022/03/09 10:12:36.435521 [gnmic] tunnel server discovered target {ID:sr1 Type:GNMI_GNOI}

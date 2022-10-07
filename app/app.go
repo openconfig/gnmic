@@ -213,7 +213,7 @@ func (a *App) PreRunE(cmd *cobra.Command, args []string) error {
 	a.Logger.SetOutput(logOutput)
 	a.Logger.SetFlags(flags)
 	a.Config.Address = config.SanitizeArrayFlagValue(a.Config.Address)
-	a.Logger.Printf("version=%s, commit=%s, date=%s, gitURL=%s, docs=https://gnmic.kmrd.dev", version, commit, date, gitURL)
+	a.Logger.Printf("version=%s, commit=%s, date=%s, gitURL=%s, docs=https://gnmic.openconfig.net", version, commit, date, gitURL)
 
 	if a.Config.Debug {
 		grpclog.SetLogger(a.Logger) //lint:ignore SA1019 see https://github.com/karimra/gnmic/issues/59

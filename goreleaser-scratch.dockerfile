@@ -9,7 +9,7 @@
 FROM scratch
 
 LABEL maintainer="Karim Radhouani <medkarimrdi@gmail.com>, Roman Dodin <dodin.roman@gmail.com>"
-LABEL documentation="https://gnmic.kmrd.dev"
+LABEL documentation="https://gnmic.openconfig.net"
 LABEL repo="https://github.com/openconfig/gnmic"
 
 COPY gnmic /app/gnmic

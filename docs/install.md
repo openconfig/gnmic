@@ -5,7 +5,7 @@
 To download & install the latest release the following automated [installation script](https://github.com/openconfig/gnmic/blob/main/install.sh) can be used:
 
 ```bash
-bash -c "$(curl -sL https://get-gnmic.kmrd.dev)"
+bash -c "$(curl -sL https://get-gnmic.openconfig.net)"
 ```
 
 As a result, the latest `gnmic` version will be installed in the `/usr/local/bin` directory and the version information will be printed out.
@@ -18,14 +18,14 @@ version : 0.0.3
  commit : f541948
    date : 2020-04-23T12:06:07Z
  gitURL : https://github.com/openconfig/gnmic.git
-   docs : https://gnmic.kmrd.dev
+   docs : https://gnmic.openconfig.net
 
 Installation complete!
 ```
 
 To install a specific version of `gnmic`, provide the version with `-v` flag to the installation script:
 ```bash
-bash -c "$(curl -sL https://get-gnmic.kmrd.dev)" -- -v 0.5.0
+bash -c "$(curl -sL https://get-gnmic.openconfig.net)" -- -v 0.5.0
 ```
 
 #### Packages
@@ -33,7 +33,7 @@ bash -c "$(curl -sL https://get-gnmic.kmrd.dev)" -- -v 0.5.0
 Linux users running distributions with support for `deb`/`rpm` packages can install `gnmic` using pre-built packages:
 
 ```bash
-bash -c "$(curl -sL https://get-gnmic.kmrd.dev)" -- --use-pkg
+bash -c "$(curl -sL https://get-gnmic.openconfig.net)" -- --use-pkg
 ```
 
 #### Upgrade
