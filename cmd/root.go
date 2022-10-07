@@ -40,7 +40,7 @@ var gApp = app.New()
 func newRootCmd() *cobra.Command {
 	gApp.RootCmd = &cobra.Command{
 		Use:   "gnmic",
-		Short: "run gnmi rpcs from the terminal (https://gnmic.kmrd.dev)",
+		Short: "run gnmi rpcs from the terminal (https://gnmic.openconfig.net)",
 		Annotations: map[string]string{
 			"--encoding": "ENCODING",
 			"--config":   "FILE",

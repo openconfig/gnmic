@@ -105,9 +105,9 @@ func SelfSignedCerts() (tls.Certificate, error) {
 	certTemplate := &x509.Certificate{
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{
-			Organization: []string{"kmrd.dev"},
+			Organization: []string{"openconfig.net"},
 		},
-		DNSNames:              []string{"kmrd.dev"},
+		DNSNames:              []string{"openconfig.net"},
 		NotBefore:             notBefore,
 		NotAfter:              notAfter,
 		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,

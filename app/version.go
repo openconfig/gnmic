@@ -37,7 +37,7 @@ func (a *App) VersionRun(cmd *cobra.Command, args []string) {
 		fmt.Printf(" commit : %s\n", commit)
 		fmt.Printf("   date : %s\n", date)
 		fmt.Printf(" gitURL : %s\n", gitURL)
-		fmt.Printf("   docs : https://gnmic.kmrd.dev\n")
+		fmt.Printf("   docs : https://gnmic.openconfig.net\n")
 		return
 	}
 	b, err := json.Marshal(map[string]string{
@@ -45,7 +45,7 @@ func (a *App) VersionRun(cmd *cobra.Command, args []string) {
 		"commit":  commit,
 		"date":    date,
 		"gitURL":  gitURL,
-		"docs":    "https://gnmic.kmrd.dev",
+		"docs":    "https://gnmic.openconfig.net",
 	}) // need indent? use jq
 	if err != nil {
 		a.Logger.Printf("failed: %v", err)

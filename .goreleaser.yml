@@ -67,7 +67,7 @@ nfpms:
       darwin: Darwin
       linux: Linux
     vendor: gnmic
-    homepage: https://gnmic.kmrd.dev
+    homepage: https://gnmic.openconfig.net
     maintainer: Karim Radhouani <medkarimrdi@gmail.com>, Roman Dodin <dodin.roman@gmail.com>
     description: gNMI CLI client and collector
     license: Apache 2.0
