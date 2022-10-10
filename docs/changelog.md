@@ -1,5 +1,15 @@
 ## Changelog
 
+### v0.27.0 - October 8th 2022
+
+- Targets
+
+    - Add supports for socks5 proxies per target.
+
+- Logging
+
+    - Support for log rotation via the flags `--log-max-size`, `log-max-backups` and `--log-compress`
+
 ### v0.26.0 - June 28th 2022
 
 - Outputs
