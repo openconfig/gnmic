@@ -136,7 +136,10 @@ func (m *MetricBuilder) TimeSeriesFromEvent(ev *formatters.EventMsg) []*NamedTim
 	for k, v := range ev.Values {
 		fv, err := toFloat(v)
 		if err != nil {
-			continue
+			if !m.StringsAsLabels {
+				continue
+			}
+			fv = 1.0
 		}
 		tsName := m.MetricName(ev.Name, k)
 		nts := &NamedTimeSeries{
