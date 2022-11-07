@@ -81,6 +81,9 @@ func DecodeConfig(src, dst interface{}) error {
 
 func AddSubscriptionTarget(msg proto.Message, meta Meta, addTarget string, tpl *template.Template) (*gnmi.SubscribeResponse, error) {
 	if addTarget == "" {
+		if message, ok := msg.(*gnmi.SubscribeResponse); ok {
+			return message, nil
+		}
 		return nil, nil
 	}
 	msg = proto.Clone(msg)
