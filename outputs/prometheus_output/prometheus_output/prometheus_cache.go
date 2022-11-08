@@ -13,9 +13,9 @@ import (
 	"time"
 
 	"github.com/openconfig/gnmi/proto/gnmi"
-	"github.com/openconfig/gnmic/formatters"
-	"github.com/openconfig/gnmic/outputs"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/openconfig/gnmic/formatters"
 )
 
 func (p *prometheusOutput) collectFromCache(ch chan<- prometheus.Metric) {
@@ -26,15 +26,19 @@ func (p *prometheusOutput) collectFromCache(ch chan<- prometheus.Metric) {
 		p.logger.Printf("failed to read from cache: %v", err)
 		return
 	}
+	p.targetsMeta.DeleteExpired()
 	events := make([]*formatters.EventMsg, 0, len(notifications))
 	for subName, notifs := range notifications {
 		// build events without processors
 		for _, notif := range notifs {
-			ievents, err := formatters.ResponseToEventMsgs(subName,
+			targetName := notif.GetPrefix().GetTarget()
+			item := p.targetsMeta.Get(subName + "/" + targetName)
+			ievents, err := formatters.ResponseToEventMsgs(
+				subName,
 				&gnmi.SubscribeResponse{
 					Response: &gnmi.SubscribeResponse_Update{Update: notif},
 				},
-				outputs.Meta{"subscription-name": subName})
+				item.Value())
 			if err != nil {
 				p.logger.Printf("failed to convert gNMI notifications to events: %v", err)
 				return

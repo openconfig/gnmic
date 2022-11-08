@@ -22,6 +22,7 @@ require (
 	github.com/huandu/xstrings v1.3.2
 	github.com/influxdata/influxdb-client-go/v2 v2.0.1
 	github.com/itchyny/gojq v0.12.7
+	github.com/jellydator/ttlcache/v3 v3.0.0
 	github.com/jhump/protoreflect v1.10.3
 	github.com/jlaffaye/ftp v0.0.0-20210307004419-5d4190119067
 	github.com/karimra/go-map-flattener v0.0.0-20200728034653-b1473e58dae8

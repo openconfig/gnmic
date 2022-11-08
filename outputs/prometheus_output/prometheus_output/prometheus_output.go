@@ -28,18 +28,20 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/consul/api"
+	"github.com/jellydator/ttlcache/v3"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/prometheus/prompb"
+	"google.golang.org/protobuf/proto"
+
 	"github.com/openconfig/gnmic/cache"
 	"github.com/openconfig/gnmic/formatters"
 	"github.com/openconfig/gnmic/outputs"
 	promcom "github.com/openconfig/gnmic/outputs/prometheus_output"
 	"github.com/openconfig/gnmic/types"
 	"github.com/openconfig/gnmic/utils"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	dto "github.com/prometheus/client_model/go"
-	"github.com/prometheus/prometheus/prompb"
-	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -92,7 +94,8 @@ type prometheusOutput struct {
 
 	targetTpl *template.Template
 
-	gnmiCache cache.Cache
+	gnmiCache   cache.Cache
+	targetsMeta *ttlcache.Cache[string, outputs.Meta]
 }
 
 type config struct {
@@ -110,9 +113,8 @@ type config struct {
 	Debug                  bool                 `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 	EventProcessors        []string             `mapstructure:"event-processors,omitempty" json:"event-processors,omitempty"`
 	ServiceRegistration    *serviceRegistration `mapstructure:"service-registration,omitempty" json:"service-registration,omitempty"`
-	// GnmiCache              bool                 `mapstructure:"gnmi-cache,omitempty"`
-	Timeout     time.Duration `mapstructure:"timeout,omitempty" json:"timeout,omitempty"`
-	CacheConfig *cache.Config `mapstructure:"cache,omitempty" json:"cache-config,omitempty"`
+	Timeout                time.Duration        `mapstructure:"timeout,omitempty" json:"timeout,omitempty"`
+	CacheConfig            *cache.Config        `mapstructure:"cache,omitempty" json:"cache-config,omitempty"`
 
 	clusterName string
 	address     string
@@ -209,6 +211,7 @@ func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string
 		if err != nil {
 			return err
 		}
+		p.targetsMeta = ttlcache.New(ttlcache.WithTTL[string, outputs.Meta](p.Cfg.Expiration))
 	}
 
 	// create prometheus registry
@@ -274,6 +277,8 @@ func (p *prometheusOutput) Write(ctx context.Context, rsp proto.Message, meta ou
 		}
 		if p.gnmiCache != nil {
 			p.gnmiCache.Write(ctx, measName, rsp)
+			target := utils.GetHost(meta["source"])
+			p.targetsMeta.Set(measName+"/"+target, meta, ttlcache.DefaultTTL)
 			return
 		}
 		events, err := formatters.ResponseToEventMsgs(measName, rsp, meta, p.evps...)
