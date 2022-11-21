@@ -128,6 +128,8 @@ func getValue(updValue *gnmi.TypedValue) (interface{}, error) {
 	case *gnmi.TypedValue_FloatVal:
 		//lint:ignore SA1019 still need GetFloatVal for backward compatibility
 		value = updValue.GetFloatVal()
+	case *gnmi.TypedValue_DoubleVal:
+		value = updValue.GetDoubleVal()
 	case *gnmi.TypedValue_IntVal:
 		value = updValue.GetIntVal()
 	case *gnmi.TypedValue_StringVal:
