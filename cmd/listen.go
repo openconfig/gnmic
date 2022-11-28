@@ -187,20 +187,17 @@ func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_Publi
 		}
 	}
 	outMeta := outputs.Meta{}
-	meta := make(map[string]interface{})
 	if sn, ok := md["subscription-name"]; ok {
 		if len(sn) > 0 {
-			meta["subscription-name"] = sn[0]
 			outMeta["subscription-name"] = sn[0]
 		}
 	} else {
 		gApp.Logger.Println("could not find subscription-name in http2 headers")
 	}
-	meta["source"] = peer.Addr.String()
 	outMeta["source"] = peer.Addr.String()
 	if systemName, ok := md["system-name"]; ok {
 		if len(systemName) > 0 {
-			meta["system-name"] = systemName[0]
+			outMeta["system-name"] = systemName[0]
 		}
 	} else {
 		gApp.Logger.Println("could not find system-name in http2 headers")
@@ -245,7 +242,7 @@ func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_Publi
 			}
 
 		case *gnmi.SubscribeResponse_SyncResponse:
-			gApp.Logger.Printf("received sync response=%+v from %s\n", resp.SyncResponse, meta["source"])
+			gApp.Logger.Printf("received sync response=%+v from %s", resp.SyncResponse, outMeta["source"])
 		}
 	}
 	return nil
