@@ -216,7 +216,7 @@ func (i *influxDBOutput) setDefaults() {
 	if i.Cfg.FlushTimer == 0 {
 		i.Cfg.FlushTimer = defaultFlushTimer
 	}
-	if i.Cfg.HealthCheckPeriod > 0 && i.Cfg.HealthCheckPeriod < minHealthCheckPeriod {
+	if i.Cfg.HealthCheckPeriod != 0 && i.Cfg.HealthCheckPeriod < minHealthCheckPeriod {
 		i.Cfg.HealthCheckPeriod = minHealthCheckPeriod
 	}
 	if i.Cfg.CacheConfig != nil {
