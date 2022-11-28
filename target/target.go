@@ -146,10 +146,10 @@ func (t *Target) CreateGNMIClient(ctx context.Context, opts ...grpc.DialOption) 
 
 // Capabilities sends a gnmi.CapabilitiesRequest to the target *t and returns a gnmi.CapabilitiesResponse and an error
 func (t *Target) Capabilities(ctx context.Context, ext ...*gnmi_ext.Extension) (*gnmi.CapabilityResponse, error) {
-	if t.Config.Username != nil {
+	if t.Config.Username != nil && *t.Config.Username != "" {
 		ctx = metadata.AppendToOutgoingContext(ctx, "username", *t.Config.Username)
 	}
-	if t.Config.Password != nil {
+	if t.Config.Password != nil && *t.Config.Password != "" {
 		ctx = metadata.AppendToOutgoingContext(ctx, "password", *t.Config.Password)
 	}
 	return t.Client.Capabilities(ctx, &gnmi.CapabilityRequest{Extension: ext})
@@ -157,10 +157,10 @@ func (t *Target) Capabilities(ctx context.Context, ext ...*gnmi_ext.Extension) (
 
 // Get sends a gnmi.GetRequest to the target *t and returns a gnmi.GetResponse and an error
 func (t *Target) Get(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetResponse, error) {
-	if t.Config.Username != nil {
+	if t.Config.Username != nil && *t.Config.Username != "" {
 		ctx = metadata.AppendToOutgoingContext(ctx, "username", *t.Config.Username)
 	}
-	if t.Config.Password != nil {
+	if t.Config.Password != nil && *t.Config.Password != "" {
 		ctx = metadata.AppendToOutgoingContext(ctx, "password", *t.Config.Password)
 	}
 	return t.Client.Get(ctx, req)
@@ -168,10 +168,10 @@ func (t *Target) Get(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetRespon
 
 // Set sends a gnmi.SetRequest to the target *t and returns a gnmi.SetResponse and an error
 func (t *Target) Set(ctx context.Context, req *gnmi.SetRequest) (*gnmi.SetResponse, error) {
-	if t.Config.Username != nil {
+	if t.Config.Username != nil && *t.Config.Username != "" {
 		ctx = metadata.AppendToOutgoingContext(ctx, "username", *t.Config.Username)
 	}
-	if t.Config.Password != nil {
+	if t.Config.Password != nil && *t.Config.Password != "" {
 		ctx = metadata.AppendToOutgoingContext(ctx, "password", *t.Config.Password)
 	}
 	return t.Client.Set(ctx, req)
