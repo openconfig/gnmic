@@ -18,7 +18,7 @@ import (
 	"github.com/openconfig/gnmic/outputs"
 )
 
-func (i *InfluxDBOutput) initCache(ctx context.Context, name string) error {
+func (i *influxDBOutput) initCache(ctx context.Context, name string) error {
 	var err error
 	i.gnmiCache, err = cache.New(i.Cfg.CacheConfig, cache.WithLogger(i.logger))
 	if err != nil {
@@ -30,13 +30,13 @@ func (i *InfluxDBOutput) initCache(ctx context.Context, name string) error {
 	return nil
 }
 
-func (i *InfluxDBOutput) stopCache() {
+func (i *influxDBOutput) stopCache() {
 	i.cacheTicker.Stop()
 	close(i.done)
 	i.gnmiCache.Stop()
 }
 
-func (i *InfluxDBOutput) runCache(ctx context.Context, name string) {
+func (i *influxDBOutput) runCache(ctx context.Context, name string) {
 	for {
 		select {
 		case <-i.done:
@@ -50,7 +50,7 @@ func (i *InfluxDBOutput) runCache(ctx context.Context, name string) {
 	}
 }
 
-func (i *InfluxDBOutput) readCache(ctx context.Context, name string) {
+func (i *influxDBOutput) readCache(ctx context.Context, name string) {
 	notifications, err := i.gnmiCache.Read()
 	if err != nil {
 		i.logger.Printf("failed to read from cache: %v", err)

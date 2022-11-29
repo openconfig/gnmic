@@ -27,8 +27,10 @@ outputs:
     enable-tls: false
     # boolean, if true the message timestamp is changed to current time
     override-timestamps: false 
-    # server health check period, used to recover from server connectivity failure
-    health-check-period: 30s 
+    # server health check period, used to recover from server connectivity failure.
+    # health check is disabled by default, can be enabled by setting the below field to any value other that zero.
+    # with a minimum allowed period of 30s.
+    health-check-period: 0s 
     # enable debug
     debug: false 
     # string, one of `overwrite`, `if-not-present`, ``

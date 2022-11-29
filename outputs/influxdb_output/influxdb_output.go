@@ -32,11 +32,11 @@ import (
 )
 
 const (
-	defaultURL               = "http://localhost:8086"
-	defaultBatchSize         = 1000
-	defaultFlushTimer        = 10 * time.Second
-	defaultHealthCheckPeriod = 30 * time.Second
-	defaultCacheFlushTimer   = 5 * time.Second
+	defaultURL             = "http://localhost:8086"
+	defaultBatchSize       = 1000
+	defaultFlushTimer      = 10 * time.Second
+	minHealthCheckPeriod   = 30 * time.Second
+	defaultCacheFlushTimer = 5 * time.Second
 
 	numWorkers    = 1
 	loggingPrefix = "[influxdb_output:%s] "
@@ -44,7 +44,7 @@ const (
 
 func init() {
 	outputs.Register("influxdb", func() outputs.Output {
-		return &InfluxDBOutput{
+		return &influxDBOutput{
 			Cfg:       &Config{},
 			eventChan: make(chan *formatters.EventMsg),
 			reset:     make(chan struct{}),
@@ -54,7 +54,7 @@ func init() {
 	})
 }
 
-type InfluxDBOutput struct {
+type influxDBOutput struct {
 	Cfg       *Config
 	client    influxdb2.Client
 	logger    *log.Logger
@@ -72,6 +72,7 @@ type InfluxDBOutput struct {
 	cacheTicker *time.Ticker
 	done        chan struct{}
 }
+
 type Config struct {
 	URL                string        `mapstructure:"url,omitempty"`
 	Org                string        `mapstructure:"org,omitempty"`
@@ -92,7 +93,7 @@ type Config struct {
 	CacheFlushTimer    time.Duration `mapstructure:"cache-flush-timer,omitempty"`
 }
 
-func (k *InfluxDBOutput) String() string {
+func (k *influxDBOutput) String() string {
 	b, err := json.Marshal(k)
 	if err != nil {
 		return ""
@@ -100,14 +101,14 @@ func (k *InfluxDBOutput) String() string {
 	return string(b)
 }
 
-func (i *InfluxDBOutput) SetLogger(logger *log.Logger) {
+func (i *influxDBOutput) SetLogger(logger *log.Logger) {
 	if logger != nil && i.logger != nil {
 		i.logger.SetOutput(logger.Writer())
 		i.logger.SetFlags(logger.Flags())
 	}
 }
 
-func (i *InfluxDBOutput) SetEventProcessors(ps map[string]map[string]interface{},
+func (i *influxDBOutput) SetEventProcessors(ps map[string]map[string]interface{},
 	logger *log.Logger,
 	tcs map[string]*types.TargetConfig,
 	acts map[string]map[string]interface{}) {
@@ -139,7 +140,7 @@ func (i *InfluxDBOutput) SetEventProcessors(ps map[string]map[string]interface{}
 	}
 }
 
-func (i *InfluxDBOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
+func (i *influxDBOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
 	err := outputs.DecodeConfig(cfg, i.Cfg)
 	if err != nil {
 		return err
@@ -149,22 +150,9 @@ func (i *InfluxDBOutput) Init(ctx context.Context, name string, cfg map[string]i
 	for _, opt := range opts {
 		opt(i)
 	}
-	if i.Cfg.URL == "" {
-		i.Cfg.URL = defaultURL
-	}
-	if i.Cfg.BatchSize == 0 {
-		i.Cfg.BatchSize = defaultBatchSize
-	}
-	if i.Cfg.FlushTimer == 0 {
-		i.Cfg.FlushTimer = defaultFlushTimer
-	}
-	if i.Cfg.HealthCheckPeriod == 0 {
-		i.Cfg.HealthCheckPeriod = defaultHealthCheckPeriod
-	}
+	i.setDefaults()
+
 	if i.Cfg.CacheConfig != nil {
-		if i.Cfg.CacheFlushTimer == 0 {
-			i.Cfg.CacheFlushTimer = defaultCacheFlushTimer
-		}
 		err = i.initCache(ctx, name)
 		if err != nil {
 			return err
@@ -196,14 +184,16 @@ func (i *InfluxDBOutput) Init(ctx context.Context, name string, cfg map[string]i
 CRCLIENT:
 	i.client = influxdb2.NewClientWithOptions(i.Cfg.URL, i.Cfg.Token, iopts)
 	// start influx health check
-	err = i.health(ctx)
-	if err != nil {
-		i.logger.Printf("failed to check influxdb health: %v", err)
-		time.Sleep(10 * time.Second)
-		goto CRCLIENT
+	if i.Cfg.HealthCheckPeriod > 0 {
+		err = i.health(ctx)
+		if err != nil {
+			i.logger.Printf("failed to check influxdb health: %v", err)
+			time.Sleep(10 * time.Second)
+			goto CRCLIENT
+		}
+		go i.healthCheck(ctx)
 	}
 	i.wasUP = true
-	go i.healthCheck(ctx)
 	i.logger.Printf("initialized influxdb client: %s", i.String())
 
 	for k := 0; k < numWorkers; k++ {
@@ -216,7 +206,27 @@ CRCLIENT:
 	return nil
 }
 
-func (i *InfluxDBOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) {
+func (i *influxDBOutput) setDefaults() {
+	if i.Cfg.URL == "" {
+		i.Cfg.URL = defaultURL
+	}
+	if i.Cfg.BatchSize == 0 {
+		i.Cfg.BatchSize = defaultBatchSize
+	}
+	if i.Cfg.FlushTimer == 0 {
+		i.Cfg.FlushTimer = defaultFlushTimer
+	}
+	if i.Cfg.HealthCheckPeriod != 0 && i.Cfg.HealthCheckPeriod < minHealthCheckPeriod {
+		i.Cfg.HealthCheckPeriod = minHealthCheckPeriod
+	}
+	if i.Cfg.CacheConfig != nil {
+		if i.Cfg.CacheFlushTimer == 0 {
+			i.Cfg.CacheFlushTimer = defaultCacheFlushTimer
+		}
+	}
+}
+
+func (i *influxDBOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) {
 	if rsp == nil {
 		return
 	}
@@ -252,7 +262,7 @@ func (i *InfluxDBOutput) Write(ctx context.Context, rsp proto.Message, meta outp
 	}
 }
 
-func (i *InfluxDBOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {
+func (i *influxDBOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {
 	select {
 	case <-ctx.Done():
 		return
@@ -269,7 +279,7 @@ func (i *InfluxDBOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg
 	}
 }
 
-func (i *InfluxDBOutput) Close() error {
+func (i *influxDBOutput) Close() error {
 	i.logger.Printf("closing client...")
 	if i.Cfg.CacheConfig != nil {
 		i.stopCache()
@@ -278,9 +288,9 @@ func (i *InfluxDBOutput) Close() error {
 	i.logger.Printf("closed.")
 	return nil
 }
-func (i *InfluxDBOutput) RegisterMetrics(reg *prometheus.Registry) {}
+func (i *influxDBOutput) RegisterMetrics(reg *prometheus.Registry) {}
 
-func (i *InfluxDBOutput) healthCheck(ctx context.Context) {
+func (i *influxDBOutput) healthCheck(ctx context.Context) {
 	ticker := time.NewTicker(i.Cfg.HealthCheckPeriod)
 	for {
 		select {
@@ -292,7 +302,7 @@ func (i *InfluxDBOutput) healthCheck(ctx context.Context) {
 	}
 }
 
-func (i *InfluxDBOutput) health(ctx context.Context) error {
+func (i *influxDBOutput) health(ctx context.Context) error {
 	res, err := i.client.Health(ctx)
 	if err != nil {
 		i.logger.Printf("failed health check: %v", err)
@@ -329,7 +339,7 @@ func (i *InfluxDBOutput) health(ctx context.Context) error {
 	return nil
 }
 
-func (i *InfluxDBOutput) worker(ctx context.Context, idx int) {
+func (i *influxDBOutput) worker(ctx context.Context, idx int) {
 	firstStart := true
 START:
 	if !firstStart {
@@ -372,11 +382,11 @@ START:
 	}
 }
 
-func (i *InfluxDBOutput) SetName(name string)                             {}
-func (i *InfluxDBOutput) SetClusterName(name string)                      {}
-func (i *InfluxDBOutput) SetTargetsConfig(map[string]*types.TargetConfig) {}
+func (i *influxDBOutput) SetName(name string)                             {}
+func (i *influxDBOutput) SetClusterName(name string)                      {}
+func (i *influxDBOutput) SetTargetsConfig(map[string]*types.TargetConfig) {}
 
-func (i *InfluxDBOutput) convertUints(ev *formatters.EventMsg) {
+func (i *influxDBOutput) convertUints(ev *formatters.EventMsg) {
 	if !strings.HasPrefix(i.dbVersion, "1.8") {
 		return
 	}
