@@ -16,7 +16,7 @@ gnmic -a 192.168.113.11:57400 --address 192.168.113.12:57400
 
 ### cluster-name
 
-The `[--cluster-name]` flag is used to specify the cluster name the `gnmic` instance will join. 
+The `[--cluster-name]` flag is used to specify the cluster name the `gnmic` instance will join.
 
 The cluster name is used as part of the locked keys to share targets between multiple gnmic instances.
 
@@ -24,7 +24,7 @@ Defaults to `default-cluster`
 
 ### config
 
-The `--config` flag specifies the location of a configuration file that `gnmic` will read. 
+The `--config` flag specifies the location of a configuration file that `gnmic` will read.
 
 If not specified, gnmic searches for a file named `.gnmic` with extensions `yaml, yml, toml or json` in the following locations:
 
@@ -215,7 +215,7 @@ Note that in case a single target is specified, the prefix is not added.
 
 ### password
 
-The password flag `[-p | --password]` is used to specify the target password as part of the user credentials. If omitted, the password input prompt is used to provide the password.
+The password flag `[-p | --password]` is used to specify the target password as part of the user credentials.
 
 Note that in case multiple targets are used, all should use the same credentials.
 
@@ -291,4 +291,4 @@ Applied only in the case of a secure gRPC connection.
 
 ### username
 
-The username flag `[-u | --username]` is used to specify the target username as part of the user credentials. If omitted, the input prompt is used to provide the username.
+The username flag `[-u | --username]` is used to specify the target username as part of the user credentials.

@@ -18,7 +18,6 @@ import (
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmic/types"
-	"golang.org/x/term"
 )
 
 const (
@@ -31,21 +30,6 @@ func (c *Config) GetTargets() (map[string]*types.TargetConfig, error) {
 	var err error
 	// case address is defined in .Address
 	if len(c.Address) > 0 {
-		if c.Username == "" && c.Token == "" {
-			defUsername, err := readUsername()
-			if err != nil {
-				return nil, err
-			}
-			c.Username = defUsername
-		}
-		if c.Password == "" && c.Token == "" {
-			defPassword, err := readPassword()
-			if err != nil {
-				return nil, err
-			}
-			c.Password = defPassword
-		}
-
 		for _, addr := range c.Address {
 			tc := &types.TargetConfig{
 				Name:    addr,
@@ -147,25 +131,6 @@ func (c *Config) GetTargets() (map[string]*types.TargetConfig, error) {
 		c.logger.Printf("targets: %v", c.Targets)
 	}
 	return c.Targets, nil
-}
-
-func readUsername() (string, error) {
-	var username string
-	fmt.Print("username: ")
-	_, err := fmt.Scan(&username)
-	if err != nil {
-		return "", err
-	}
-	return username, nil
-}
-func readPassword() (string, error) {
-	fmt.Print("password: ")
-	pass, err := term.ReadPassword(int(os.Stdin.Fd()))
-	if err != nil {
-		return "", err
-	}
-	fmt.Println()
-	return string(pass), nil
 }
 
 func (c *Config) SetTargetConfigDefaults(tc *types.TargetConfig) error {
