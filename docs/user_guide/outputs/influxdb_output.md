@@ -63,7 +63,7 @@ outputs:
     cache-flush-timer: 5s
 ```
 
-`gnmic` uses the [`event`](../event_processors/intro.md#the-event-format) format to generate the measurements written to influxdb.
+`gnmic` uses the [`event`](../event_processors/intro.md#the-event-format) format to generate the measurements written to InfluxDB. When an event has been processed through `gnmic` processors, the final value of the `subscription-name` tag will be used as an InfluxDB measurement name and the tag will be removed. If the `subscription-name` tag does not exist in the event, the event's `Name` will be used as InfluxDB measurement.
 
 ## Caching
 

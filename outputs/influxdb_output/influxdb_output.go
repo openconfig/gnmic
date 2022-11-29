@@ -360,6 +360,10 @@ START:
 			if ev.Timestamp == 0 || i.Cfg.OverrideTimestamps {
 				ev.Timestamp = time.Now().UnixNano()
 			}
+			if subscriptionName, ok := ev.Tags["subscription-name"]; ok {
+				ev.Name = subscriptionName
+				delete(ev.Tags, "subscription-name")
+			}
 			i.convertUints(ev)
 			writer.WritePoint(influxdb2.NewPoint(ev.Name, ev.Tags, ev.Values, time.Unix(0, ev.Timestamp)))
 		case <-i.reset:
