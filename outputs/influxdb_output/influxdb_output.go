@@ -89,6 +89,7 @@ type Config struct {
 	EventProcessors    []string      `mapstructure:"event-processors,omitempty"`
 	EnableMetrics      bool          `mapstructure:"enable-metrics,omitempty"`
 	OverrideTimestamps bool          `mapstructure:"override-timestamps,omitempty"`
+	TimestampPrecision string        `mapstructure:"timestamp-precision,omitempty"`
 	CacheConfig        *cache.Config `mapstructure:"cache,omitempty"`
 	CacheFlushTimer    time.Duration `mapstructure:"cache-flush-timer,omitempty"`
 }
@@ -371,7 +372,7 @@ START:
 				ev.Timestamp = time.Now().UnixNano()
 			}
 			i.convertUints(ev)
-			writer.WritePoint(influxdb2.NewPoint(ev.Name, ev.Tags, ev.Values, time.Unix(0, ev.Timestamp)))
+			writer.WritePoint(influxdb2.NewPoint(ev.Name, ev.Tags, ev.Values, i.convertTS(ev.Timestamp)))
 		case <-i.reset:
 			firstStart = false
 			i.logger.Printf("resetting worker-%d...", idx)
@@ -403,5 +404,18 @@ func (i *influxDBOutput) convertUints(ev *formatters.EventMsg) {
 		case uint64:
 			ev.Values[k] = int(v)
 		}
+	}
+}
+
+func (i *influxDBOutput) convertTS(ts int64) time.Time {
+	switch i.Cfg.TimestampPrecision {
+	case "s":
+		return time.Unix(ts/1000000000, 0)
+	case "ms":
+		return time.Unix(0, time.Duration(ts).Milliseconds()*1e6)
+	case "us":
+		return time.Unix(0, time.Duration(ts).Microseconds()*1e3)
+	default:
+		return time.Unix(0, ts)
 	}
 }
