@@ -47,7 +47,6 @@ require (
 	golang.org/x/crypto v0.0.0-20220427172511-eb4f295cb31f
 	golang.org/x/oauth2 v0.0.0-20220411215720-9780585627b5
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
 	google.golang.org/grpc v1.47.0
 	google.golang.org/protobuf v1.28.0
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
@@ -89,6 +88,7 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/nats-io/jwt/v2 v2.2.1-0.20220330180145-442af02fd36a // indirect
 	github.com/onsi/gomega v1.19.0 // indirect
+	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	k8s.io/klog/v2 v2.60.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20220328201542-3ee0da9b0b42 // indirect

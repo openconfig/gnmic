@@ -34,10 +34,10 @@ SUBSC:
 	default:
 		nctx, cancel = context.WithCancel(ctx)
 		defer cancel()
-		if t.Config.Username != nil {
+		if t.Config.Username != nil && *t.Config.Username != "" {
 			nctx = metadata.AppendToOutgoingContext(nctx, "username", *t.Config.Username)
 		}
-		if t.Config.Password != nil {
+		if t.Config.Password != nil && *t.Config.Password != "" {
 			nctx = metadata.AppendToOutgoingContext(nctx, "password", *t.Config.Password)
 		}
 		subscribeClient, err = t.Client.Subscribe(nctx)
