@@ -160,15 +160,6 @@ func (i *influxDBOutput) Init(ctx context.Context, name string, cfg map[string]i
 		}
 	}
 
-	iopts := influxdb2.DefaultOptions().
-		SetUseGZip(i.Cfg.UseGzip).
-		SetBatchSize(i.Cfg.BatchSize).
-		SetFlushInterval(uint(i.Cfg.FlushTimer.Milliseconds()))
-	if i.Cfg.EnableTLS {
-		iopts.SetTLSConfig(&tls.Config{
-			InsecureSkipVerify: true,
-		})
-	}
 	if i.Cfg.TargetTemplate == "" {
 		i.targetTpl = outputs.DefaultTargetTemplate
 	} else if i.Cfg.AddTarget != "" {
@@ -178,12 +169,10 @@ func (i *influxDBOutput) Init(ctx context.Context, name string, cfg map[string]i
 		}
 		i.targetTpl = i.targetTpl.Funcs(outputs.TemplateFuncs)
 	}
-	if i.Cfg.Debug {
-		iopts.SetLogLevel(3)
-	}
+
 	ctx, i.cancelFn = context.WithCancel(ctx)
 CRCLIENT:
-	i.client = influxdb2.NewClientWithOptions(i.Cfg.URL, i.Cfg.Token, iopts)
+	i.client = influxdb2.NewClientWithOptions(i.Cfg.URL, i.Cfg.Token, i.clientOpts())
 	// start influx health check
 	if i.Cfg.HealthCheckPeriod > 0 {
 		err = i.health(ctx)
@@ -372,7 +361,7 @@ START:
 				ev.Timestamp = time.Now().UnixNano()
 			}
 			i.convertUints(ev)
-			writer.WritePoint(influxdb2.NewPoint(ev.Name, ev.Tags, ev.Values, i.convertTS(ev.Timestamp)))
+			writer.WritePoint(influxdb2.NewPoint(ev.Name, ev.Tags, ev.Values, time.Unix(0, ev.Timestamp)))
 		case <-i.reset:
 			firstStart = false
 			i.logger.Printf("resetting worker-%d...", idx)
@@ -407,15 +396,27 @@ func (i *influxDBOutput) convertUints(ev *formatters.EventMsg) {
 	}
 }
 
-func (i *influxDBOutput) convertTS(ts int64) time.Time {
+func (i *influxDBOutput) clientOpts() *influxdb2.Options {
+	iopts := influxdb2.DefaultOptions().
+		SetUseGZip(i.Cfg.UseGzip).
+		SetBatchSize(i.Cfg.BatchSize).
+		SetFlushInterval(uint(i.Cfg.FlushTimer.Milliseconds()))
+
+	if i.Cfg.EnableTLS {
+		iopts.SetTLSConfig(&tls.Config{
+			InsecureSkipVerify: true,
+		})
+	}
 	switch i.Cfg.TimestampPrecision {
 	case "s":
-		return time.Unix(ts/1000000000, 0)
+		iopts.SetPrecision(time.Second)
 	case "ms":
-		return time.Unix(0, time.Duration(ts).Milliseconds()*1e6)
+		iopts.SetPrecision(time.Millisecond)
 	case "us":
-		return time.Unix(0, time.Duration(ts).Microseconds()*1e3)
-	default:
-		return time.Unix(0, ts)
+		iopts.SetPrecision(time.Microsecond)
 	}
+	if i.Cfg.Debug {
+		iopts.SetLogLevel(3)
+	}
+	return iopts
 }
