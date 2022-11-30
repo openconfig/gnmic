@@ -89,6 +89,7 @@ type Config struct {
 	EventProcessors    []string      `mapstructure:"event-processors,omitempty"`
 	EnableMetrics      bool          `mapstructure:"enable-metrics,omitempty"`
 	OverrideTimestamps bool          `mapstructure:"override-timestamps,omitempty"`
+	TimestampPrecision string        `mapstructure:"timestamp-precision,omitempty"`
 	CacheConfig        *cache.Config `mapstructure:"cache,omitempty"`
 	CacheFlushTimer    time.Duration `mapstructure:"cache-flush-timer,omitempty"`
 }
@@ -159,15 +160,6 @@ func (i *influxDBOutput) Init(ctx context.Context, name string, cfg map[string]i
 		}
 	}
 
-	iopts := influxdb2.DefaultOptions().
-		SetUseGZip(i.Cfg.UseGzip).
-		SetBatchSize(i.Cfg.BatchSize).
-		SetFlushInterval(uint(i.Cfg.FlushTimer.Milliseconds()))
-	if i.Cfg.EnableTLS {
-		iopts.SetTLSConfig(&tls.Config{
-			InsecureSkipVerify: true,
-		})
-	}
 	if i.Cfg.TargetTemplate == "" {
 		i.targetTpl = outputs.DefaultTargetTemplate
 	} else if i.Cfg.AddTarget != "" {
@@ -177,12 +169,10 @@ func (i *influxDBOutput) Init(ctx context.Context, name string, cfg map[string]i
 		}
 		i.targetTpl = i.targetTpl.Funcs(outputs.TemplateFuncs)
 	}
-	if i.Cfg.Debug {
-		iopts.SetLogLevel(3)
-	}
+
 	ctx, i.cancelFn = context.WithCancel(ctx)
 CRCLIENT:
-	i.client = influxdb2.NewClientWithOptions(i.Cfg.URL, i.Cfg.Token, iopts)
+	i.client = influxdb2.NewClientWithOptions(i.Cfg.URL, i.Cfg.Token, i.clientOpts())
 	// start influx health check
 	if i.Cfg.HealthCheckPeriod > 0 {
 		err = i.health(ctx)
@@ -408,4 +398,29 @@ func (i *influxDBOutput) convertUints(ev *formatters.EventMsg) {
 			ev.Values[k] = int(v)
 		}
 	}
+}
+
+func (i *influxDBOutput) clientOpts() *influxdb2.Options {
+	iopts := influxdb2.DefaultOptions().
+		SetUseGZip(i.Cfg.UseGzip).
+		SetBatchSize(i.Cfg.BatchSize).
+		SetFlushInterval(uint(i.Cfg.FlushTimer.Milliseconds()))
+
+	if i.Cfg.EnableTLS {
+		iopts.SetTLSConfig(&tls.Config{
+			InsecureSkipVerify: true,
+		})
+	}
+	switch i.Cfg.TimestampPrecision {
+	case "s":
+		iopts.SetPrecision(time.Second)
+	case "ms":
+		iopts.SetPrecision(time.Millisecond)
+	case "us":
+		iopts.SetPrecision(time.Microsecond)
+	}
+	if i.Cfg.Debug {
+		iopts.SetLogLevel(3)
+	}
+	return iopts
 }

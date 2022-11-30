@@ -31,6 +31,12 @@ outputs:
     # health check is disabled by default, can be enabled by setting the below field to any value other that zero.
     # with a minimum allowed period of 30s.
     health-check-period: 0s 
+    # defines the write timestamp precision, 
+    # one of `s` for second, `ms` for millisecond, `us` for microsecond and `ns` for nanoseconds
+    # any other value defaults to `ns`.
+    timestamp-precision: ns
+    # server health check period, used to recover from server connectivity failure
+    health-check-period: 30s 
     # enable debug
     debug: false 
     # string, one of `overwrite`, `if-not-present`, ``
