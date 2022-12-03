@@ -21,7 +21,7 @@ import (
 func (p *prometheusOutput) collectFromCache(ch chan<- prometheus.Metric) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
-	notifications, err := p.gnmiCache.Read()
+	notifications, err := p.gnmiCache.ReadAll()
 	if err != nil {
 		p.logger.Printf("failed to read from cache: %v", err)
 		return

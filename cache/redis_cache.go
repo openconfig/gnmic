@@ -154,8 +154,12 @@ func (c *redisCache) publishNotificationREDIS(ctx context.Context, subscriptionN
 	return nil
 }
 
-func (c *redisCache) Read() (map[string][]*gnmi.Notification, error) {
-	return c.oc.Read()
+func (c *redisCache) ReadAll() (map[string][]*gnmi.Notification, error) {
+	return c.oc.ReadAll()
+}
+
+func (c *redisCache) Read(sub, target string, p *gnmi.Path) (map[string][]*gnmi.Notification, error) {
+	return c.oc.read(sub, target, p), nil
 }
 
 func (c *redisCache) sync(ctx context.Context) {

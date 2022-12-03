@@ -245,8 +245,12 @@ func (c *natsCache) publishNotificationNATS(_ context.Context, subscriptionName,
 	return nil
 }
 
-func (c *natsCache) Read() (map[string][]*gnmi.Notification, error) {
-	return c.oc.Read()
+func (c *natsCache) ReadAll() (map[string][]*gnmi.Notification, error) {
+	return c.oc.ReadAll()
+}
+
+func (c *natsCache) Read(sub, target string, p *gnmi.Path) (map[string][]*gnmi.Notification, error) {
+	return c.oc.read(sub, target, p), nil
 }
 
 func (c *natsCache) Subscribe(ctx context.Context, ro *ReadOpts) chan *Notification {

@@ -37,8 +37,10 @@ const (
 type Cache interface {
 	// Write inserts the proto.Message (SubscribeResponse) into the cache under a subscription called `sub`
 	Write(ctx context.Context, sub string, m proto.Message)
-	// Read entries from the local cache, return the entries grouped by subscription name.
-	Read() (map[string][]*gnmi.Notification, error)
+	// ReadAll, reads entries from the local cache, return the entries grouped by subscription name.
+	ReadAll() (map[string][]*gnmi.Notification, error)
+	// Read, reads a single path value from the cache filtering by subscription and target name
+	Read(sub, target string, p *gnmi.Path) (map[string][]*gnmi.Notification, error)
 	// Subscribes to the local cache and returns the notification over a channel
 	Subscribe(ctx context.Context, so *ReadOpts) chan *Notification
 	// Stops the cache
@@ -78,7 +80,7 @@ func (c *Config) setDefaults() {
 	if c.Timeout == 0 {
 		c.Timeout = defaultTimeout
 	}
-	if c.Expiration <= 0 {
+	if c.Expiration == 0 {
 		c.Expiration = defaultExpiration
 	}
 
