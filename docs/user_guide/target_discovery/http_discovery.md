@@ -38,6 +38,12 @@ loader:
   password:
   # token to be used with Oauth2 token based authentication
   token:
+  # auth scheme (default is `Bearer`)
+  auth-scheme:
+  # text template
+  template:
+  # path to a text template file
+  template-file:
   # if true, registers httpLoader prometheus metrics with the provided
   # prometheus registry
   enable-metrics: false

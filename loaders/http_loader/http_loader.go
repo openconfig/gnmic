@@ -78,9 +78,14 @@ type cfg struct {
 	Password string `json:"password,omitempty" mapstructure:"password,omitempty"`
 	// Oauth2
 	Token string `json:"token,omitempty" mapstructure:"token,omitempty"`
+	// the auth scheme. The default auth scheme is `Bearer``.
+	AuthScheme string `json:"auth-scheme,omitempty" mapstructure:"auth-scheme,omitempty"`
 	// a Go text template that can be used to transform the targets format
 	// read from the remote http server to match gNMIc's expected format.
 	Template string `json:"template,omitempty" mapstructure:"template,omitempty"`
+	// a Go text template that can be used to transform the targets format
+	// read from the remote http server to match gNMIc's expected format.
+	TemplateFile string `json:"template-file,omitempty" mapstructure:"template-file,omitempty"`
 	// time to wait before the first http query
 	StartDelay time.Duration `json:"start-delay,omitempty" mapstructure:"start-delay,omitempty"`
 	// if true, registers httpLoader prometheus metrics with the provided
@@ -117,6 +122,12 @@ func (h *httpLoader) Init(ctx context.Context, cfg map[string]interface{}, logge
 	}
 	if h.cfg.Template != "" {
 		h.tpl, err = utils.CreateTemplate("http-loader-template", h.cfg.Template)
+		if err != nil {
+			return err
+		}
+	}
+	if h.cfg.TemplateFile != "" {
+		h.tpl, err = utils.CreateFileTemplate(h.cfg.TemplateFile)
 		if err != nil {
 			return err
 		}
@@ -228,9 +239,12 @@ func (h *httpLoader) getTargets() (map[string]*types.TargetConfig, error) {
 	if h.cfg.Token != "" {
 		c.SetAuthToken(h.cfg.Token)
 	}
+	if h.cfg.AuthScheme != "" {
+		c.SetAuthScheme(h.cfg.AuthScheme)
+	}
 	start := time.Now()
 	httpLoaderGetRequestsTotal.WithLabelValues(loaderType).Add(1)
-	rsp, err := c.R().Get(h.cfg.URL)
+	rsp, err := c.R().SetHeader("Accept", "application/json").Get(h.cfg.URL)
 	if err != nil {
 		return nil, err
 	}
@@ -242,7 +256,7 @@ func (h *httpLoader) getTargets() (map[string]*types.TargetConfig, error) {
 	b := rsp.Body()
 	if h.tpl != nil {
 		var input interface{}
-		err = json.Unmarshal(b, input)
+		err = json.Unmarshal(b, &input)
 		if err != nil {
 			httpLoaderFailedGetRequests.WithLabelValues(loaderType, fmt.Sprintf("%v", err)).Add(1)
 			return nil, err
@@ -258,7 +272,7 @@ func (h *httpLoader) getTargets() (map[string]*types.TargetConfig, error) {
 
 	result := make(map[string]*types.TargetConfig)
 	// unmarshal the bytes into a map of targetConfigs
-	err = yaml.Unmarshal(b, result)
+	err = json.Unmarshal(b, &result)
 	if err != nil {
 		httpLoaderFailedGetRequests.WithLabelValues(loaderType, fmt.Sprintf("%v", err)).Add(1)
 		return nil, err
