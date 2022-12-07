@@ -35,7 +35,7 @@
 * **Pre-built multi-platform binaries**  
   Statically linked [binaries](https://github.com/openconfig/gnmic/releases) made in our release pipeline are available for major operating systems and architectures. Making [installation](https://gnmic.openconfig.net/install/) a breeze!
 * **Extensive and friendly documentation**  
-  You won't be in need to dive into the source code to understand how `gnimc` works, our [documentation site](https://gnmic.openconfig.net) has you covered.
+  You won't be in need to dive into the source code to understand how `gnmic` works, our [documentation site](https://gnmic.openconfig.net) has you covered.
 
 ## Quick start guide
 ### Installation
