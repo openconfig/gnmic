@@ -1,5 +1,21 @@
 ## Changelog
 
+### v0.28.0 - December 7th 2022
+
+- Targets
+
+  - Targets static tags are now properly propagated to outputs when a cache is used.
+
+- Listen Command:
+
+  - The `system-name` HTTP2 header is now used as a tag in exported metrics.
+
+- Outputs:
+
+  - The timestamp precision under `gNMIc`'s InfluxDB output is now configurable.
+
+  - Added a new `snmp` output type, it allows to dynamically convert gNMI updates into SNMP traps.
+
 ### v0.27.0 - October 8th 2022
 
 - Targets
