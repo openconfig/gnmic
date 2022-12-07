@@ -51,7 +51,7 @@ func (i *influxDBOutput) runCache(ctx context.Context, name string) {
 }
 
 func (i *influxDBOutput) readCache(ctx context.Context, name string) {
-	notifications, err := i.gnmiCache.Read()
+	notifications, err := i.gnmiCache.ReadAll()
 	if err != nil {
 		i.logger.Printf("failed to read from cache: %v", err)
 		return

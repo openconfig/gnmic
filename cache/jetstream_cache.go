@@ -320,8 +320,12 @@ START:
 }
 
 // Read //
-func (c *jetStreamCache) Read() (map[string][]*gnmi.Notification, error) {
-	return c.oc.Read()
+func (c *jetStreamCache) ReadAll() (map[string][]*gnmi.Notification, error) {
+	return c.oc.ReadAll()
+}
+
+func (c *jetStreamCache) Read(sub, target string, p *gnmi.Path) (map[string][]*gnmi.Notification, error) {
+	return c.oc.read(sub, target, p), nil
 }
 
 func (c *jetStreamCache) Subscribe(ctx context.Context, ro *ReadOpts) chan *Notification {

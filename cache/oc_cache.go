@@ -147,8 +147,12 @@ func (gc *gnmiCache) Write(ctx context.Context, measName string, m proto.Message
 	}
 }
 
-func (gc *gnmiCache) Read() (map[string][]*gnmi.Notification, error) {
-	return gc.readNotifications(), nil
+func (gc *gnmiCache) ReadAll() (map[string][]*gnmi.Notification, error) {
+	return gc.read("", "*", &gnmi.Path{Elem: []*gnmi.PathElem{{Name: "/"}}}), nil
+}
+
+func (gc *gnmiCache) Read(sub, target string, p *gnmi.Path) (map[string][]*gnmi.Notification, error) {
+	return gc.read(sub, target, p), nil
 }
 
 func (gc *gnmiCache) Subscribe(ctx context.Context, ro *ReadOpts) chan *Notification {
@@ -352,9 +356,7 @@ func (gc *gnmiCache) handleOnChangeQuery(ctx context.Context, ro *ReadOpts, ch c
 
 func (gc *gnmiCache) Stop() {}
 
-func (gc *gnmiCache) readNotifications() map[string][]*gnmi.Notification {
-	var err error
-
+func (gc *gnmiCache) read(sub, target string, p *gnmi.Path) map[string][]*gnmi.Notification {
 	notificationChan := make(chan *Notification)
 	notifications := make(map[string][]*gnmi.Notification, 0)
 	doneCh := make(chan struct{})
@@ -369,15 +371,23 @@ func (gc *gnmiCache) readNotifications() map[string][]*gnmi.Notification {
 		}
 		close(doneCh)
 	}()
-
+	if sub == "*" {
+		sub = ""
+	}
 	now := time.Now()
 	wg := new(sync.WaitGroup)
-	caches := gc.getCaches()
+	caches := gc.getCaches(sub)
 	wg.Add(len(caches))
+
 	for name, c := range caches {
 		go func(c *subCache, name string) {
 			defer wg.Done()
-			err = c.c.Query("*", []string{},
+			cp, err := path.CompletePath(p, nil)
+			if err != nil {
+				gc.logger.Printf("failed to generate CompletePath from %v", p)
+				return
+			}
+			err = c.c.Query(target, cp,
 				func(_ []string, _ *ctree.Leaf, v interface{}) error {
 					if err != nil {
 						return err

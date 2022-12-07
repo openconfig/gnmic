@@ -18,6 +18,7 @@ import (
 	_ "github.com/openconfig/gnmic/outputs/nats_outputs/stan"
 	_ "github.com/openconfig/gnmic/outputs/prometheus_output/prometheus_output"
 	_ "github.com/openconfig/gnmic/outputs/prometheus_output/prometheus_write_output"
+	_ "github.com/openconfig/gnmic/outputs/snmp_output"
 	_ "github.com/openconfig/gnmic/outputs/tcp_output"
 	_ "github.com/openconfig/gnmic/outputs/udp_output"
 )
