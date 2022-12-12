@@ -10,6 +10,7 @@ package utils
 
 import (
 	"context"
+	"path"
 	"text/template"
 
 	"github.com/hairyhenderson/gomplate/v3"
@@ -21,4 +22,16 @@ func CreateTemplate(name, text string) (*template.Template, error) {
 		Option("missingkey=zero").
 		Funcs(gomplate.CreateFuncs(context.TODO(), new(data.Data))).
 		Parse(text)
+}
+
+func CreateFileTemplate(filename string) (*template.Template, error) {
+	name := path.Base(filename)
+
+	tpl, err := template.New(name).
+		Funcs(gomplate.CreateFuncs(context.TODO(), new(data.Data))).
+		ParseFiles(filename)
+
+	template.Must(tpl, err)
+
+	return tpl, err
 }
