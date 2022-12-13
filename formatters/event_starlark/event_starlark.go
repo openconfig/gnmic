@@ -9,6 +9,7 @@
 package event_starlark
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -99,7 +100,14 @@ func (p *starlarkProc) Init(cfg interface{}, opts ...formatters.Option) error {
 	globals["cache"] = starlark.NewDict(0)
 
 	globals.Freeze()
-	p.logger.Printf("initialized starlark processor: %+v", p)
+	if p.logger.Writer() != io.Discard {
+		b, err := json.Marshal(p)
+		if err != nil {
+			p.logger.Printf("initialized processor '%s': %+v", processorType, p)
+			return nil
+		}
+		p.logger.Printf("initialized processor '%s': %s", processorType, string(b))
+	}
 	return nil
 }
 
