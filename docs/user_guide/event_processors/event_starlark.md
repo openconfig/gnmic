@@ -1,6 +1,6 @@
 ### Intro
 
-The `event-starlark` processor, applies a [`starlark](https://github.com/google/starlark-go/blob/master/doc/spec.md) function on a list of event messages before returning them to the processors pipeline and then to the output.
+The `event-starlark` processor applies a [`Starlark`](https://github.com/google/starlark-go/blob/master/doc/spec.md) function on a list of `event` messages before returning them to the processors pipeline and then to the output.
 
 `starlark` is a dialect of Python, developed initially for the [Bazel build tool](https://bazel.build/) but found multiple uses as a configuration language embedded in a larger application.
 
@@ -8,8 +8,9 @@ There are a few differences between Python and Starlark, programs written in Sta
 
 `gNMIc` uses the Go implementation of Starlark, the language definition can be found [here](https://github.com/google/starlark-go/blob/master/doc/spec.md)
 
-A Starlark program running as a `gNMIc` processor should have an `apply` function that takes an arbitrary number of arguments of type `Event` and returns zero or more `Event`s
-An [`Event`](./user_guide/event_processors/intro.md#the-event-format) is the transformed gNMI update message as `gNMIc` processes it.
+A Starlark program running as a `gNMIc` processor should define an `apply` function that takes an arbitrary number of arguments of type `Event` and returns zero or more `Event`s.
+
+An [`Event`](intro.md#the-event-format) is the transformed gNMI update message as `gNMIc` processes it.
 
 ```python
 def apply(*events)
@@ -17,16 +18,55 @@ def apply(*events)
   return events
 ```
 
-There are some additional builtin functions like `Event(name)` which creates a new `Event` message and `copy_event` which duplicates a given `Event` message.
+### Configuration
+
+```yaml
+processors:
+  # processor name
+  sample-processor:
+    # processor type
+    event-starlark:
+      # the source of the starlark program.
+      source: |
+        def apply(*events):
+          # processor logic here
+          return events
+      # path to a file containing the starlark program to run.
+      script:
+      # boolean enabling extra logging
+      debug: false
+```
+
+### Writing a Starlark processor
+
+To write a starlark processor all that is needed is writing a function called `apply` that will read/modify/delete a list of `Event` messages.
+
+Starlark defines multiple builtin types and functions, see spec [here](https://github.com/google/starlark-go/blob/d1966c6b9fcd/doc/spec.md)
+
+There are some additional builtin functions like `Event(name)` which creates a new `Event` message and `copy_event(Event)` which duplicates a given `Event` message.
+
+The `Event` message comprises a few fields:
+
+- `name`: string
+
+- `timestamp`: int64
+
+- `tags`: dictionary of string to string
+
+- `values`: dictionary of string to any
+
+- `deletes`: list of strings
 
 Two libraries are available for loading:
 
-- time: `load("time.star", "time")` loads the time library which provides the following functions to work with the `Event` message timestamp field:
+- **time**: `load("time.star", "time")` loads the time library which provides the following functions to work with the `Event` message timestamp field:
     - `time.from_timestamp(sec, nsec)`:
 
           Converts the given Unix time corresponding to the number of seconds
           and (optionally) nanoseconds since January 1, 1970 UTC into an object
-          of type Time. For more details, refer to https://pkg.go.dev/time#Unix.
+          of type Time. 
+          
+          For more details, refer to https://pkg.go.dev/time#Unix.
 
     - `time.is_valid_timezone(loc)`:
 
@@ -38,7 +78,9 @@ Two libraries are available for loading:
 
     -  `time.parse_duration(d)`:
 
-          Parses the given duration string. For more details, refer to https://pkg.go.dev/time#ParseDuration.
+          Parses the given duration string.
+          
+          For more details, refer to https://pkg.go.dev/time#ParseDuration.
 
     - `time.parseTime(x, format, location)`:
 
@@ -54,7 +96,7 @@ Two libraries are available for loading:
           Returns the Time corresponding to `yyyy-mm-dd hh:mm:ss + nsec nanoseconds` in the appropriate zone for that time
           in the given location. All the parameters are optional.
 
-- math: `load("math.star", "math")` loads the math library which provides a set of constants and math-related functions:
+- **math**: `load("math.star", "math")` loads the math library which provides a set of constants and math-related functions:
     - `ceil(x)`:
 
           Returns the ceiling of x, the smallest integer greater than or equal to x.
@@ -172,25 +214,6 @@ Two libraries are available for loading:
     
         Returns the Gamma function of x.
 
-### Configuration
-
-```yaml
-processors:
-  # processor name
-  sample-processor:
-    # processor type
-    event-starlark:
-      # the source of the starlark program.
-      source: |
-        def apply(*events):
-          # processor logic here
-          return events
-      # path to a file containing the starlark program to run.
-      script:
-      # boolean enabling extra logging
-      debug: false
-```
-
 ### Examples
 
 #### Move a value to a tag
@@ -237,6 +260,9 @@ def apply(*events):
 
 #### Set an interface description as a tag
 
+This script stores each interface description per target/interface in a cache and
+adds it to other values as a tag.
+
 ```python
 cache = {}
 
@@ -260,36 +286,43 @@ def apply(*events):
   return evs
 ```
 
-#### Calculate the avg, min and max of values
+#### Calculate new values based on the received ones
 
 The below script calculates the avg, min, max of a list of values over their last N=10 values
 
 ```python
 cache = {}
-values_names=[
+
+values_names = [
   '/interface/statistics/out-octets',
   '/interface/statistics/in-octets'
 ]
+
 N=10
 
 def apply(*events):
   for e in events:
     for value_name in values_names:
-      if e.values.get(value_name):
-        val_key = e.tags["source"] + "_" + e.tags["interface_name"] + "_" + value_name
-        if not cache.get(val_key):
-          cache.update({val_key: []})
-        if len(cache[val_key]) >= N:
-          cache[val_key] = cache[val_key][1:]
-        cache[val_key].append(int(e.values[value_name]))
-  for e in events:
-    for value_name in values_names:
-      if e.values.get(value_name):
-        val_key = e.tags["source"] + "_" + e.tags["interface_name"] + "_" + value_name
-        val_list = cache[val_key]
-        e.values[value_name+"_min"] = min(val_list)
-        e.values[value_name+"_max"] = max(val_list)
-        e.values[value_name+"_avg"] = avg(val_list)   
+      v = e.values.get(value_name)
+      # check if v is not None and is a digit to proceed
+      if not v.isdigit():
+        continue
+      # update cache with the latest value
+      val_key = "_".join([e.tags["source"], e.tags["interface_name"], value_name])
+      if not cache.get(val_key):
+        # initialize the cache entry if empty
+        cache.update({val_key: []})
+      if len(cache[val_key]) >= N:
+        # remove the oldest entry if the number of entries reached N
+        cache[val_key] = cache[val_key][1:]
+      # update cache entry
+      cache[val_key].append(int(v))
+      # get the list of values
+      val_list = cache[val_key]
+      # calculate min, max and avg
+      e.values[value_name+"_min"] = min(val_list)
+      e.values[value_name+"_max"] = max(val_list)
+      e.values[value_name+"_avg"] = avg(val_list)
   return events
 
 def avg(vals):
@@ -297,4 +330,57 @@ def avg(vals):
   for v in vals:
     sum = sum + v
   return sum/len(vals)
+```
+
+The below script builds on top of the previous one by adding the rate calculation to the added values.
+Now the cache contains a timestamp as well as the value.
+
+```python
+cache = {}
+
+values_names=[
+  '/interface/statistics/out-octets',
+  '/interface/statistics/in-octets'
+]
+
+N=10
+
+def apply(*events):
+  for e in events:
+    for value_name in values_names:
+      v = e.values.get(value_name)
+      # check if v is not None and is a digit to proceed
+      if not v.isdigit():
+        continue
+      # update cache with the latest value
+      val_key = "_".join([e.tags["source"], e.tags["interface_name"], value_name])
+      if not cache.get(val_key):
+        # initialize the cache entry if empty
+        cache.update({val_key: []})
+      if len(cache[val_key]) >= N:
+        # remove the oldest entry if the number of entries reached N
+        cache[val_key] = cache[val_key][1:]
+      # update cache entry
+      cache[val_key].append((e.timestamp, int(v)))
+      # get the list of values
+      val_list = cache[val_key]
+      # calculate min, max and avg
+      vals = [x[1] for x in val_list]
+      e.values[value_name+"_min"] = min(vals)
+      e.values[value_name+"_max"] = max(vals)
+      e.values[value_name+"_avg"] = avg(vals)
+      if len(val_list) > 1:
+        e.values[value_name+"_rate"] = rate(val_list[-2:])
+  return events
+
+def avg(vals):
+  sum = 0
+  for v in vals:
+    sum = sum + v
+  return sum/len(vals)
+
+def rate(vals):
+  period = (vals[1][0] - vals[0][0]) / 1000000000
+  change = vals[1][1] - vals[0][1]
+  return change / period
 ```
