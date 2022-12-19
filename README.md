@@ -4,7 +4,7 @@
 [![Github all releases](https://img.shields.io/github/downloads/openconfig/gnmic/total.svg?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://github.com/openconfig/gnmic/releases/)
 [![Go Report](https://img.shields.io/badge/go%20report-A%2B-blue?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://goreportcard.com/report/github.com/openconfig/gnmic)
 [![Doc](https://img.shields.io/badge/Docs-gnmic.openconfig.net-blue?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://gnmic.openconfig.net)
-[![build](https://img.shields.io/github/workflow/status/openconfig/gnmic/Test/main?style=flat-square&labelColor=bec8d2)](https://github.com/openconfig/gnmic/releases/)
+[![build](https://img.shields.io/github/actions/workflow/status/openconfig/gnmic/test.yml?branch=main&style=flat-square&labelColor=bec8d2)](https://github.com/openconfig/gnmic/releases/)
 
 ---
 
