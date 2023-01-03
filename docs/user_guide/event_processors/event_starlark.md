@@ -58,7 +58,7 @@ The `Event` message comprises a few fields:
 
 - `deletes`: list of strings
 
-Two libraries are available for loading:
+Starlark allows for the dynamic [loading of other modules](https://github.com/bazelbuild/starlark/blob/master/spec.md#load-statements). In the context of gNMIc, the following two modules are available for loading within a starlark program:
 
 - **time**: `load("time.star", "time")` loads the time library which provides the following functions to work with the `Event` message timestamp field:
     - `time.from_timestamp(sec, nsec)`:
