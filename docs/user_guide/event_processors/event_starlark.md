@@ -42,7 +42,7 @@ processors:
 
 To write a starlark processor all that is needed is writing a function called `apply` that will read/modify/delete a list of `Event` messages.
 
-Starlark defines multiple builtin types and functions, see spec [here](https://github.com/google/starlark-go/blob/d1966c6b9fcd/doc/spec.md)
+Starlark [specification](https://github.com/google/starlark-go/blob/d1966c6b9fcd/doc/spec.md) defines multiple builtin types and functions.
 
 There are some additional builtin functions like `Event(name)` which creates a new `Event` message and `copy_event(Event)` which duplicates a given `Event` message.
 
