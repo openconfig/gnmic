@@ -32,6 +32,7 @@ processors:
           # processor logic here
           return events
       # path to a file containing the starlark program to run.
+      # Mutually exclusive with `source` parameter. 
       script:
       # boolean enabling extra logging
       debug: false
