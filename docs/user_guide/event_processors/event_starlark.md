@@ -44,7 +44,7 @@ To write a starlark processor all that is needed is writing a function called `a
 
 Starlark [specification](https://github.com/google/starlark-go/blob/d1966c6b9fcd/doc/spec.md) defines multiple builtin types and functions.
 
-There are some additional builtin functions like `Event(name)` which creates a new `Event` message and `copy_event(Event)` which duplicates a given `Event` message.
+`gNMIc` provides additional builtin functions like `Event(name)` which creates a new `Event` message and `copy_event(Event)` which duplicates a given `Event` message.
 
 The `Event` message comprises a few fields:
 
