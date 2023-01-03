@@ -6,7 +6,7 @@ The `event-starlark` processor applies a [`Starlark`](https://github.com/google/
 
 There are a few differences between Python and Starlark, programs written in Starlark are supposed to be short-lived and have no external side effects, their main result is structured data or side effects on the host application. As a result, Starlark has no need for classes, exceptions, reflection, concurrency, and other such features of Python.
 
-`gNMIc` uses the Go implementation of Starlark, the language definition can be found [here](https://github.com/google/starlark-go/blob/master/doc/spec.md)
+`gNMIc` uses the [Go implementation](https://github.com/google/starlark-go/blob/master/doc/spec.md) of Starlark.
 
 A Starlark program running as a `gNMIc` processor should define an `apply` function that takes an arbitrary number of arguments of type `Event` and returns zero or more `Event`s.
 
