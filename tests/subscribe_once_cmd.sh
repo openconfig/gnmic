@@ -3,60 +3,60 @@
 trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
 
 # single host, single path
-./gnmic-rc1 -a clab-test1-srl1 -u admin -p admin --skip-verify -d -e ascii subscribe \
+./gnmic-rc1 -a clab-test1-srl1 -u admin -p NokiaSrl1! --skip-verify -d -e ascii subscribe \
                               --mode once \
                               --path /system/name
-./gnmic-rc1 -a clab-test1-srl2 -u admin -p admin --skip-verify -d -e ascii subscribe \
+./gnmic-rc1 -a clab-test1-srl2 -u admin -p NokiaSrl1! --skip-verify -d -e ascii subscribe \
                               --mode once \
                               --path /system/name
-./gnmic-rc1 -a clab-test1-srl3 -u admin -p admin --skip-verify -d -e ascii subscribe \
+./gnmic-rc1 -a clab-test1-srl3 -u admin -p NokiaSrl1! --skip-verify -d -e ascii subscribe \
                               --mode once \
                               --path /system/name
 
 # multiple hosts, single path
-./gnmic-rc1 -a clab-test1-srl1 -a clab-test1-srl2 -a clab-test1-srl3 -u admin -p admin --skip-verify -d -e ascii subscribe \
+./gnmic-rc1 -a clab-test1-srl1 -a clab-test1-srl2 -a clab-test1-srl3 -u admin -p NokiaSrl1! --skip-verify -d -e ascii subscribe \
                               --mode once \
                               --path /system/name
-./gnmic-rc1 -a clab-test1-srl1 -a clab-test1-srl2 -a clab-test1-srl3 -u admin -p admin --skip-verify -d -e ascii subscribe \
+./gnmic-rc1 -a clab-test1-srl1 -a clab-test1-srl2 -a clab-test1-srl3 -u admin -p NokiaSrl1! --skip-verify -d -e ascii subscribe \
                               --mode once \
                               --path /system/name
-./gnmic-rc1 -a clab-test1-srl1 -a clab-test1-srl2 -a clab-test1-srl3 -u admin -p admin --skip-verify -d -e ascii subscribe \
+./gnmic-rc1 -a clab-test1-srl1 -a clab-test1-srl2 -a clab-test1-srl3 -u admin -p NokiaSrl1! --skip-verify -d -e ascii subscribe \
                               --mode once \
                               --path /system/name
 #
-./gnmic-rc1 -a clab-test1-srl1,clab-test1-srl2,clab-test1-srl3 -u admin -p admin --skip-verify -d -e ascii subscribe \
+./gnmic-rc1 -a clab-test1-srl1,clab-test1-srl2,clab-test1-srl3 -u admin -p NokiaSrl1! --skip-verify -d -e ascii subscribe \
                               --mode once \
                               --path /system/name
-./gnmic-rc1 -a clab-test1-srl1,clab-test1-srl2,clab-test1-srl3 -u admin -p admin --skip-verify -d -e ascii subscribe \
+./gnmic-rc1 -a clab-test1-srl1,clab-test1-srl2,clab-test1-srl3 -u admin -p NokiaSrl1! --skip-verify -d -e ascii subscribe \
                               --mode once \
                               --path /system/name
-./gnmic-rc1 -a clab-test1-srl1,clab-test1-srl2,clab-test1-srl3 -u admin -p admin --skip-verify -d -e ascii subscribe \
+./gnmic-rc1 -a clab-test1-srl1,clab-test1-srl2,clab-test1-srl3 -u admin -p NokiaSrl1! --skip-verify -d -e ascii subscribe \
                               --mode once \
                               --path /system/name
 
 # multiple hosts, multiple paths
-./gnmic-rc1 -a clab-test1-srl1 -a clab-test1-srl2 -a clab-test1-srl3 -u admin -p admin --skip-verify -d -e ascii subscribe \
+./gnmic-rc1 -a clab-test1-srl1 -a clab-test1-srl2 -a clab-test1-srl3 -u admin -p NokiaSrl1! --skip-verify -d -e ascii subscribe \
                               --mode once \
                               --path /system/name \
                               --path /interface[name=*]
-./gnmic-rc1 -a clab-test1-srl1 -a clab-test1-srl2 -a clab-test1-srl3 -u admin -p admin --skip-verify -d -e ascii subscribe \
+./gnmic-rc1 -a clab-test1-srl1 -a clab-test1-srl2 -a clab-test1-srl3 -u admin -p NokiaSrl1! --skip-verify -d -e ascii subscribe \
                               --mode once \
                               --path /system/name \
                               --path /interface[name=*]
-./gnmic-rc1 -a clab-test1-srl1 -a clab-test1-srl2 -a clab-test1-srl3 -u admin -p admin --skip-verify -d -e ascii subscribe \
+./gnmic-rc1 -a clab-test1-srl1 -a clab-test1-srl2 -a clab-test1-srl3 -u admin -p NokiaSrl1! --skip-verify -d -e ascii subscribe \
                               --mode once \
                               --path /system/name \
                               --path /interface[name=*]
 #
-./gnmic-rc1 -a clab-test1-srl1,clab-test1-srl2,clab-test1-srl3 -u admin -p admin --skip-verify -d -e ascii subscribe \
+./gnmic-rc1 -a clab-test1-srl1,clab-test1-srl2,clab-test1-srl3 -u admin -p NokiaSrl1! --skip-verify -d -e ascii subscribe \
                               --mode once \
                               --path /system/name \
                               --path /interface[name=*]
-./gnmic-rc1 -a clab-test1-srl1,clab-test1-srl2,clab-test1-srl3 -u admin -p admin --skip-verify -d -e ascii subscribe \
+./gnmic-rc1 -a clab-test1-srl1,clab-test1-srl2,clab-test1-srl3 -u admin -p NokiaSrl1! --skip-verify -d -e ascii subscribe \
                               --mode once \
                               --path /system/name \
                               --path /interface[name=*]
-./gnmic-rc1 -a clab-test1-srl1,clab-test1-srl2,clab-test1-srl3 -u admin -p admin --skip-verify -d -e ascii subscribe \
+./gnmic-rc1 -a clab-test1-srl1,clab-test1-srl2,clab-test1-srl3 -u admin -p NokiaSrl1! --skip-verify -d -e ascii subscribe \
                               --mode once \
                               --path /system/name \
                               --path /interface[name=*]

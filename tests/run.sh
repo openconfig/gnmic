@@ -27,7 +27,7 @@ trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
 trap cleanup EXIT
 trap cleanup SIGINT
 
-export gnmic_base_cmd="./gnmic-rc1 -u admin -p admin --skip-verify --debug"
+export gnmic_base_cmd="./gnmic-rc1 -u admin -p NokiaSrl1! --skip-verify --debug"
 
 function buildgNMIc() {
   printf "Building gnmic...\n"

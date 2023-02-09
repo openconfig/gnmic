@@ -4,25 +4,25 @@ trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
 
 targets=clab-test1-srl1,clab-test1-srl2,clab-test1-srl3
 # create read only role
-./gnmic-rc1 -u admin -p admin --skip-verify --debug -a $targets -e json_ietf \
+./gnmic-rc1 -u admin -p NokiaSrl1! --skip-verify --debug -a $targets -e json_ietf \
         set \
         --update-path /system/aaa/authorization \
         --update-value '{"role": {"rolename":"readonly"}}'
 
 # craete readonly role
-./gnmic-rc1 -u admin -p admin --skip-verify --debug -a $targets -e json_ietf \
+./gnmic-rc1 -u admin -p NokiaSrl1! --skip-verify --debug -a $targets -e json_ietf \
         set \
         --update-path /system/configuration/role[name=readonly]/rule[path-reference="/"]/action \
         --update-value "read"
 
 # create a new user
-./gnmic-rc1 -u admin -p admin --skip-verify --debug -a $targets -e json_ietf \
+./gnmic-rc1 -u admin -p NokiaSrl1! --skip-verify --debug -a $targets -e json_ietf \
         set \
         --update-path /system/aaa/authentication/user[username=user1]/password \
         --update-value '|Bo|Z%TYe*&$P33~' 
 
 # assign readonly role to the new user
-./gnmic-rc1 -u admin -p admin --skip-verify --debug -a $targets -e json_ietf \
+./gnmic-rc1 -u admin -p NokiaSrl1! --skip-verify --debug -a $targets -e json_ietf \
         set \
         --update-path /system/aaa/authentication/user[username=user1] \
         --update-value '{"role": ["readonly"]}'
