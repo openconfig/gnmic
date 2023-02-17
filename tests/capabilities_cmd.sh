@@ -1,6 +1,6 @@
 #!/bin/bash
 
-gnmic_base_cmd="./gnmic-rc1 -u admin -p admin --skip-verify -d"
+gnmic_base_cmd="./gnmic-rc1 -u admin -p NokiaSrl1! --skip-verify -d"
 
 trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
 
