@@ -37,13 +37,25 @@ type pathGenOpts struct {
 }
 
 type generatedPath struct {
-	Path           string `json:"path,omitempty"`
-	PathWithPrefix string `json:"path-with-prefix,omitempty"`
-	Type           string `json:"type,omitempty"`
-	Description    string `json:"description,omitempty"`
-	Default        string `json:"default,omitempty"`
-	IsState        bool   `json:"is-state,omitempty"`
-	Namespace      string `json:"namespace,omitempty"`
+	Path           string   `json:"path,omitempty"`
+	PathWithPrefix string   `json:"path-with-prefix,omitempty"`
+	Type           string   `json:"type,omitempty"`
+	Description    string   `json:"description,omitempty"`
+	Default        string   `json:"default,omitempty"`
+	IsState        bool     `json:"is-state,omitempty"`
+	Namespace      string   `json:"namespace,omitempty"`
+	FeatureList    []string `json:"featurelist,omitempty"`
+}
+
+type extraFields struct {
+	IfFeature []struct {
+		Name   string `json:"name"`
+		Source struct {
+			Keyword     string `json:"keyword"`
+			HasArgument string `json:"has-argument"`
+			Argument    string `json:"argument"`
+		} `json:"source"`
+	} `json:"if-feature-stack"`
 }
 
 func (a *App) PathCmdRun(d, f, e []string, pgo pathGenOpts) error {
@@ -56,12 +68,13 @@ func (a *App) PathCmdRun(d, f, e []string, pgo pathGenOpts) error {
 
 	out := make(chan *generatedPath)
 	gpaths := make([]*generatedPath, 0)
-
+	done := make(chan struct{})
 	go func(ctx context.Context, out chan *generatedPath) {
 		for {
 			select {
 			case m, ok := <-out:
 				if !ok {
+					close(done)
 					return
 				}
 				gpaths = append(gpaths, m)
@@ -95,6 +108,7 @@ func (a *App) PathCmdRun(d, f, e []string, pgo pathGenOpts) error {
 		}
 	}
 	close(out)
+	<-done
 	sort.Slice(gpaths, func(i, j int) bool {
 		return gpaths[i].Path < gpaths[j].Path
 	})
@@ -223,22 +237,47 @@ func collectSchemaNodes(e *yang.Entry, leafOnly bool) []*yang.Entry {
 	if e == nil {
 		return []*yang.Entry{}
 	}
+
 	collected := make([]*yang.Entry, 0, 128)
 	for _, child := range e.Dir {
 		collected = append(collected,
 			collectSchemaNodes(child, leafOnly)...)
 	}
+
 	if e.Parent != nil {
 		switch {
 		case e.Dir == nil && e.ListAttr != nil: // leaf-list
 			fallthrough
 		case e.Dir == nil: // leaf
-			collected = append(collected, e)
+			b, err := json.Marshal(e)
+			if err != nil {
+				fmt.Println(err)
+			}
+			f := yang.Entry{}
+			err = json.Unmarshal(b, &f)
+			if err != nil {
+				fmt.Println(err)
+			}
+			f.Parent = e.Parent
+			f.Dir = e.Dir
+			if e.Extra["if-feature"] != nil {
+				f.Extra["if-feature"] = e.Extra["if-feature"]
+				f.Extra["if-feature-stack"] = e.Extra["if-feature"]
+			} else {
+				f.Extra = make(map[string][]interface{})
+			}
+			collected = append(collected, &f)
 		case e.ListAttr != nil: // list
 			fallthrough
 		default: // container
-			if !leafOnly {
-				collected = append(collected, e)
+			if !leafOnly && e.Extra["if-feature"] != nil {
+				for _, myleaf := range collected {
+					if myleaf.Extra["if-feature-stack"] != nil {
+						myleaf.Extra["if-feature-stack"] = append(myleaf.Extra["if-feature-stack"], e.Extra["if-feature"][0])
+					} else {
+						myleaf.Extra["if-feature-stack"] = e.Extra["if-feature"]
+					}
+				}
 			}
 		}
 	}
@@ -265,6 +304,21 @@ func (a *App) generatePath(entry *yang.Entry, pType string) *generatedPath {
 		gp.Path = fmt.Sprintf("/%s%s", elementName, gp.Path)
 		if e.Prefix != nil {
 			gp.PathWithPrefix = fmt.Sprintf("/%s%s", prefixedElementName, gp.PathWithPrefix)
+		}
+	}
+
+	if entry.Extra["if-feature-stack"] != nil {
+		b, err := json.Marshal(entry.Extra)
+		if err != nil {
+			fmt.Println(err)
+		}
+		var test extraFields
+		err = json.Unmarshal(b, &test)
+		if err != nil {
+			fmt.Println(err)
+		}
+		for _, feature := range test.IfFeature {
+			gp.FeatureList = append(gp.FeatureList, strings.Split(feature.Source.Argument, " and ")...)
 		}
 	}
 
