@@ -47,17 +47,6 @@ type generatedPath struct {
 	FeatureList    []string `json:"featurelist,omitempty"`
 }
 
-type extraFields struct {
-	IfFeature []struct {
-		Name   string `json:"name"`
-		Source struct {
-			Keyword     string `json:"keyword"`
-			HasArgument string `json:"has-argument"`
-			Argument    string `json:"argument"`
-		} `json:"source"`
-	} `json:"if-feature-stack"`
-}
-
 func (a *App) PathCmdRun(d, f, e []string, pgo pathGenOpts) error {
 	err := a.generateYangSchema(d, f, e)
 	if err != nil {
@@ -237,7 +226,6 @@ func collectSchemaNodes(e *yang.Entry, leafOnly bool) []*yang.Entry {
 	if e == nil {
 		return []*yang.Entry{}
 	}
-
 	collected := make([]*yang.Entry, 0, 128)
 	for _, child := range e.Dir {
 		collected = append(collected,
@@ -249,33 +237,40 @@ func collectSchemaNodes(e *yang.Entry, leafOnly bool) []*yang.Entry {
 		case e.Dir == nil && e.ListAttr != nil: // leaf-list
 			fallthrough
 		case e.Dir == nil: // leaf
-			b, err := json.Marshal(e)
-			if err != nil {
-				fmt.Println(err)
+			f := &yang.Entry{
+				Parent:      e.Parent,
+				Node:        e.Node,
+				Name:        e.Name,
+				Description: e.Description,
+				Default:     e.Default,
+				Units:       e.Units,
+				Kind:        e.Kind,
+				Config:      e.Config,
+				Prefix:      e.Prefix,
+				Mandatory:   e.Mandatory,
+				Dir:         e.Dir,
+				Key:         e.Key,
+				Type:        e.Type,
+				Exts:        e.Exts,
+				ListAttr:    e.ListAttr,
+				Extra:       make(map[string][]interface{}),
 			}
-			f := yang.Entry{}
-			err = json.Unmarshal(b, &f)
-			if err != nil {
-				fmt.Println(err)
+			for k, v := range e.Extra {
+				f.Extra[k] = v
 			}
-			f.Parent = e.Parent
-			f.Dir = e.Dir
-			if e.Extra["if-feature"] != nil {
-				f.Extra["if-feature"] = e.Extra["if-feature"]
-				f.Extra["if-feature-stack"] = e.Extra["if-feature"]
-			} else {
-				f.Extra = make(map[string][]interface{})
-			}
-			collected = append(collected, &f)
+			collected = append(collected, f)
 		case e.ListAttr != nil: // list
 			fallthrough
 		default: // container
-			if !leafOnly && e.Extra["if-feature"] != nil {
+			if !leafOnly {
+				collected = append(collected, e)
+			}
+			if e.Extra["if-feature"] != nil {
 				for _, myleaf := range collected {
-					if myleaf.Extra["if-feature-stack"] != nil {
-						myleaf.Extra["if-feature-stack"] = append(myleaf.Extra["if-feature-stack"], e.Extra["if-feature"][0])
+					if myleaf.Extra["if-feature"] != nil && myleaf.Extra["if-feature"][0] != nil {
+						myleaf.Extra["if-feature"] = append(myleaf.Extra["if-feature"], e.Extra["if-feature"][0])
 					} else {
-						myleaf.Extra["if-feature-stack"] = e.Extra["if-feature"]
+						myleaf.Extra["if-feature"] = e.Extra["if-feature"]
 					}
 				}
 			}
@@ -306,19 +301,11 @@ func (a *App) generatePath(entry *yang.Entry, pType string) *generatedPath {
 			gp.PathWithPrefix = fmt.Sprintf("/%s%s", prefixedElementName, gp.PathWithPrefix)
 		}
 	}
-
-	if entry.Extra["if-feature-stack"] != nil {
-		b, err := json.Marshal(entry.Extra)
-		if err != nil {
-			fmt.Println(err)
-		}
-		var test extraFields
-		err = json.Unmarshal(b, &test)
-		if err != nil {
-			fmt.Println(err)
-		}
-		for _, feature := range test.IfFeature {
-			gp.FeatureList = append(gp.FeatureList, strings.Split(feature.Source.Argument, " and ")...)
+	if ifFeature, ok := entry.Extra["if-feature"]; ok && ifFeature != nil {
+		for _, feature := range ifFeature {
+			if f, ok := feature.(*yang.Value); ok {
+				gp.FeatureList = append(gp.FeatureList, strings.Split(f.Source.Argument, " and ")...)
+			}
 		}
 	}
 
