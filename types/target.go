@@ -129,9 +129,14 @@ func (tc *TargetConfig) GrpcDialOptions() ([]grpc.DialOption, error) {
 	if tc.Token != nil && *tc.Token != "" {
 		tOpts = append(tOpts,
 			grpc.WithPerRPCCredentials(
-				oauth.NewOauthAccess(&oauth2.Token{
-					AccessToken: *tc.Token,
-				})))
+				oauth.TokenSource{
+					TokenSource: oauth2.StaticTokenSource(
+						&oauth2.Token{
+							AccessToken: *tc.Token,
+						},
+					),
+				},
+			))
 	}
 	return tOpts, nil
 }

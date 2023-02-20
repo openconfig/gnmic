@@ -12,7 +12,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"time"
 
@@ -152,7 +152,7 @@ RETRY:
 		p.logger.Printf("got response from remote: status=%s", rsp.Status)
 	}
 	if rsp.StatusCode >= 300 {
-		msg, err := ioutil.ReadAll(rsp.Body)
+		msg, err := io.ReadAll(rsp.Body)
 		if err != nil {
 			return err
 		}

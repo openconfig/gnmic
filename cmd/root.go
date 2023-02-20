@@ -103,7 +103,7 @@ func initConfig() {
 }
 
 func setupCloseHandler(cancelFn context.CancelFunc) {
-	c := make(chan os.Signal)
+	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 	go func() {
 		sig := <-c
