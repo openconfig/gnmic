@@ -44,7 +44,7 @@ type generatedPath struct {
 	Default        string   `json:"default,omitempty"`
 	IsState        bool     `json:"is-state,omitempty"`
 	Namespace      string   `json:"namespace,omitempty"`
-	FeatureList    []string `json:"featurelist,omitempty"`
+	FeatureList    []string `json:"if-features,omitempty"`
 }
 
 func (a *App) PathCmdRun(d, f, e []string, pgo pathGenOpts) error {
@@ -253,7 +253,7 @@ func collectSchemaNodes(e *yang.Entry, leafOnly bool) []*yang.Entry {
 				Type:        e.Type,
 				Exts:        e.Exts,
 				ListAttr:    e.ListAttr,
-				Extra:       make(map[string][]interface{}),
+				Extra:       make(map[string][]any),
 			}
 			for k, v := range e.Extra {
 				f.Extra[k] = v
@@ -265,12 +265,27 @@ func collectSchemaNodes(e *yang.Entry, leafOnly bool) []*yang.Entry {
 			if !leafOnly {
 				collected = append(collected, e)
 			}
-			if e.Extra["if-feature"] != nil {
+			if len(e.Extra["if-feature"]) > 0 {
 				for _, myleaf := range collected {
-					if myleaf.Extra["if-feature"] != nil && myleaf.Extra["if-feature"][0] != nil {
-						myleaf.Extra["if-feature"] = append(myleaf.Extra["if-feature"], e.Extra["if-feature"][0])
-					} else {
+					if myleaf.Extra["if-feature"] == nil {
 						myleaf.Extra["if-feature"] = e.Extra["if-feature"]
+						continue
+					}
+				LOOP:
+					for _, f := range e.Extra["if-feature"] {
+						for _, mlf := range myleaf.Extra["if-feature"] {
+							if ff, ok := f.(*yang.Value); ok && ff != nil {
+								if mlff, ok := mlf.(*yang.Value); ok && mlff != nil {
+									if ff.Source == nil || mlff.Source == nil {
+										continue LOOP
+									}
+									if ff.Source.Argument == mlff.Source.Argument {
+										continue LOOP
+									}
+									myleaf.Extra["if-feature"] = append(myleaf.Extra["if-feature"], f)
+								}
+							}
+						}
 					}
 				}
 			}
@@ -302,10 +317,18 @@ func (a *App) generatePath(entry *yang.Entry, pType string) *generatedPath {
 		}
 	}
 	if ifFeature, ok := entry.Extra["if-feature"]; ok && ifFeature != nil {
+	APPEND:
 		for _, feature := range ifFeature {
-			if f, ok := feature.(*yang.Value); ok {
-				gp.FeatureList = append(gp.FeatureList, strings.Split(f.Source.Argument, " and ")...)
+			f, ok := feature.(*yang.Value)
+			if !ok {
+				continue
 			}
+			for _, ef := range gp.FeatureList {
+				if ef == f.Source.Argument {
+					continue APPEND
+				}
+			}
+			gp.FeatureList = append(gp.FeatureList, strings.Split(f.Source.Argument, " and ")...)
 		}
 	}
 
@@ -412,7 +435,7 @@ func (a *App) generateTypeInfo(e *yang.Entry) string {
 	return rstr
 }
 
-func getAnnotation(entry *yang.Entry, name string) interface{} {
+func getAnnotation(entry *yang.Entry, name string) any {
 	if entry.Annotation != nil {
 		data, ok := entry.Annotation[name]
 		if ok {
