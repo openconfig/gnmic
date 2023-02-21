@@ -1,20 +1,35 @@
 ## Changelog
 
+### v0.29.0 - February 20th 2023
+
+- Generate Path
+
+    - The `generate path` command with the flag `--json` shows the features the path depends on.
+      The list of features is built recursively from the YANG attribute `if-feature`.
+
+- Processors:
+
+    - New processor [`event-starlark`](user_guide/event_processors/event_starlark.md) allows to run a [starlak](https://github.com/google/starlark-go/blob/master/doc/spec.md) script on the received messages.
+
+- Loaders
+
+    - The [HTTP loader](user_guide/target_discovery/http_discovery.md) now supports different authentication schemas as well as setting a template from a local file.
+
 ### v0.28.0 - December 7th 2022
 
 - Targets
 
-  - Targets static tags are now properly propagated to outputs when a cache is used.
+    - Targets static tags are now properly propagated to outputs when a cache is used.
 
 - Listen Command:
 
-  - The `system-name` HTTP2 header is now used as a tag in exported metrics.
+    - The `system-name` HTTP2 header is now used as a tag in exported metrics.
 
 - Outputs:
 
-  - The timestamp precision under `gNMIc`'s InfluxDB output is now configurable.
+    - The timestamp precision under `gNMIc`'s InfluxDB output is now configurable.
 
-  - Added a new `snmp` output type, it allows to dynamically convert gNMI updates into SNMP traps.
+    - Added a new `snmp` output type, it allows to dynamically convert gNMI updates into SNMP traps.
 
 ### v0.27.0 - October 8th 2022
 
@@ -47,7 +62,7 @@
 
 - Processors
 
-    - [Strings replace processor](user_guide/event_processors/event_strings) supports replaces using regular expressions.
+    - [Strings replace processor](user_guide/event_processors/event_strings.md) supports replaces using regular expressions.
 
     - Processors  are now supported when collecting telemetry using [listen command](cmd/listen.md) (Nokia SROS specific)
 
