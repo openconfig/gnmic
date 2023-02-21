@@ -37,13 +37,14 @@ type pathGenOpts struct {
 }
 
 type generatedPath struct {
-	Path           string `json:"path,omitempty"`
-	PathWithPrefix string `json:"path-with-prefix,omitempty"`
-	Type           string `json:"type,omitempty"`
-	Description    string `json:"description,omitempty"`
-	Default        string `json:"default,omitempty"`
-	IsState        bool   `json:"is-state,omitempty"`
-	Namespace      string `json:"namespace,omitempty"`
+	Path           string   `json:"path,omitempty"`
+	PathWithPrefix string   `json:"path-with-prefix,omitempty"`
+	Type           string   `json:"type,omitempty"`
+	Description    string   `json:"description,omitempty"`
+	Default        string   `json:"default,omitempty"`
+	IsState        bool     `json:"is-state,omitempty"`
+	Namespace      string   `json:"namespace,omitempty"`
+	FeatureList    []string `json:"if-features,omitempty"`
 }
 
 func (a *App) PathCmdRun(d, f, e []string, pgo pathGenOpts) error {
@@ -56,12 +57,13 @@ func (a *App) PathCmdRun(d, f, e []string, pgo pathGenOpts) error {
 
 	out := make(chan *generatedPath)
 	gpaths := make([]*generatedPath, 0)
-
+	done := make(chan struct{})
 	go func(ctx context.Context, out chan *generatedPath) {
 		for {
 			select {
 			case m, ok := <-out:
 				if !ok {
+					close(done)
 					return
 				}
 				gpaths = append(gpaths, m)
@@ -95,6 +97,7 @@ func (a *App) PathCmdRun(d, f, e []string, pgo pathGenOpts) error {
 		}
 	}
 	close(out)
+	<-done
 	sort.Slice(gpaths, func(i, j int) bool {
 		return gpaths[i].Path < gpaths[j].Path
 	})
@@ -228,17 +231,63 @@ func collectSchemaNodes(e *yang.Entry, leafOnly bool) []*yang.Entry {
 		collected = append(collected,
 			collectSchemaNodes(child, leafOnly)...)
 	}
+
 	if e.Parent != nil {
 		switch {
 		case e.Dir == nil && e.ListAttr != nil: // leaf-list
 			fallthrough
 		case e.Dir == nil: // leaf
-			collected = append(collected, e)
+			f := &yang.Entry{
+				Parent:      e.Parent,
+				Node:        e.Node,
+				Name:        e.Name,
+				Description: e.Description,
+				Default:     e.Default,
+				Units:       e.Units,
+				Kind:        e.Kind,
+				Config:      e.Config,
+				Prefix:      e.Prefix,
+				Mandatory:   e.Mandatory,
+				Dir:         e.Dir,
+				Key:         e.Key,
+				Type:        e.Type,
+				Exts:        e.Exts,
+				ListAttr:    e.ListAttr,
+				Extra:       make(map[string][]any),
+			}
+			for k, v := range e.Extra {
+				f.Extra[k] = v
+			}
+			collected = append(collected, f)
 		case e.ListAttr != nil: // list
 			fallthrough
 		default: // container
 			if !leafOnly {
 				collected = append(collected, e)
+			}
+			if len(e.Extra["if-feature"]) > 0 {
+				for _, myleaf := range collected {
+					if myleaf.Extra["if-feature"] == nil {
+						myleaf.Extra["if-feature"] = e.Extra["if-feature"]
+						continue
+					}
+				LOOP:
+					for _, f := range e.Extra["if-feature"] {
+						for _, mlf := range myleaf.Extra["if-feature"] {
+							if ff, ok := f.(*yang.Value); ok && ff != nil {
+								if mlff, ok := mlf.(*yang.Value); ok && mlff != nil {
+									if ff.Source == nil || mlff.Source == nil {
+										continue LOOP
+									}
+									if ff.Source.Argument == mlff.Source.Argument {
+										continue LOOP
+									}
+									myleaf.Extra["if-feature"] = append(myleaf.Extra["if-feature"], f)
+								}
+							}
+						}
+					}
+				}
 			}
 		}
 	}
@@ -265,6 +314,21 @@ func (a *App) generatePath(entry *yang.Entry, pType string) *generatedPath {
 		gp.Path = fmt.Sprintf("/%s%s", elementName, gp.Path)
 		if e.Prefix != nil {
 			gp.PathWithPrefix = fmt.Sprintf("/%s%s", prefixedElementName, gp.PathWithPrefix)
+		}
+	}
+	if ifFeature, ok := entry.Extra["if-feature"]; ok && ifFeature != nil {
+	APPEND:
+		for _, feature := range ifFeature {
+			f, ok := feature.(*yang.Value)
+			if !ok {
+				continue
+			}
+			for _, ef := range gp.FeatureList {
+				if ef == f.Source.Argument {
+					continue APPEND
+				}
+			}
+			gp.FeatureList = append(gp.FeatureList, strings.Split(f.Source.Argument, " and ")...)
 		}
 	}
 
@@ -371,7 +435,7 @@ func (a *App) generateTypeInfo(e *yang.Entry) string {
 	return rstr
 }
 
-func getAnnotation(entry *yang.Entry, name string) interface{} {
+func getAnnotation(entry *yang.Entry, name string) any {
 	if entry.Annotation != nil {
 		data, ok := entry.Annotation[name]
 		if ok {
