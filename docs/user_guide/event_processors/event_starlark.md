@@ -83,7 +83,7 @@ Starlark allows for the dynamic [loading of other modules](https://github.com/ba
           
           For more details, refer to https://pkg.go.dev/time#ParseDuration.
 
-    - `time.parseTime(x, format, location)`:
+    - `time.parse_time(x, format, location)`:
 
           Parses the given time string using a specific time format and location.
           The expected arguments are a time string (mandatory), a time format
