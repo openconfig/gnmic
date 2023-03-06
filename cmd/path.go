@@ -23,7 +23,7 @@ func newPathCmd() *cobra.Command {
 		},
 		PreRunE: gApp.PathPreRunE,
 		RunE:    gApp.PathRunE,
-		PostRun: func(cmd *cobra.Command, args []string) {
+		PostRun: func(cmd *cobra.Command, _ []string) {
 			cmd.ResetFlags()
 			gApp.InitPathFlags(cmd)
 		},

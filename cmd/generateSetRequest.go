@@ -18,7 +18,7 @@ func newGenerateSetRequestCmd() *cobra.Command {
 		Use:     "set-request",
 		Aliases: []string{"sr", "sreq", "srq"},
 		Short:   "generate Set Request file",
-		PreRunE: func(cmd *cobra.Command, args []string) error {
+		PreRunE: func(cmd *cobra.Command, _ []string) error {
 			gApp.Config.SetLocalFlagsFromFile(cmd)
 			return nil
 		},

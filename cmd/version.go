@@ -17,7 +17,7 @@ func newVersionCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "version",
 		Short: "show gnmic version",
-		PreRun: func(cmd *cobra.Command, args []string) {
+		PreRun: func(cmd *cobra.Command, _ []string) {
 			gApp.Config.SetLocalFlagsFromFile(cmd)
 		},
 		Run: gApp.VersionRun,
