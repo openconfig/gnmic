@@ -904,6 +904,7 @@ func value(data interface{}, encoding string) (*gnmi.TypedValue, error) {
 	case *gnmi.TypedValue_UintVal:
 		return &gnmi.TypedValue{Value: data}, nil
 	default:
+		fmt.Println("from FromScalar")
 		v, err := gvalue.FromScalar(data)
 		if err != nil {
 			return nil, fmt.Errorf("%w: %v", ErrInvalidValue, err)

@@ -657,21 +657,20 @@ func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error)
 		}
 		gnmiOpts = append(gnmiOpts, replaceOpt)
 	}
-
-	for _, cli := range c.LocalFlags.SetUpdateCli {
+	if len(c.LocalFlags.SetUpdateCli) > 0 {
 		gnmiOpts = append(gnmiOpts,
 			api.Update(
 				api.Path("cli:/"),
-				api.Value(cli, "ascii"),
+				api.Value(strings.Join(c.LocalFlags.SetUpdateCli, "\n"), "ascii"),
 			),
 		)
 	}
 
-	for _, cli := range c.LocalFlags.SetReplaceCli {
+	if len(c.LocalFlags.SetReplaceCli) > 0 {
 		gnmiOpts = append(gnmiOpts,
 			api.Replace(
 				api.Path("cli:/"),
-				api.Value(cli, "ascii"),
+				api.Value(strings.Join(c.LocalFlags.SetReplaceCli, "\n"), "ascii"),
 			),
 		)
 	}
@@ -684,7 +683,7 @@ func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error)
 		gnmiOpts = append(gnmiOpts,
 			api.Update(
 				api.Path("cli:/"),
-				api.Value(data, "ascii"),
+				api.Value(string(data), "ascii"),
 			),
 		)
 	}
@@ -697,7 +696,7 @@ func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error)
 		gnmiOpts = append(gnmiOpts,
 			api.Replace(
 				api.Path("cli:/"),
-				api.Value(data, "ascii"),
+				api.Value(string(data), "ascii"),
 			),
 		)
 	}
