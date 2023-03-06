@@ -127,21 +127,25 @@ type LocalFlags struct {
 	GetValuesOnly bool     `mapstructure:"get-values-only,omitempty" json:"get-values-only,omitempty" yaml:"get-values-only,omitempty"`
 	GetProcessor  []string `mapstructure:"get-processor,omitempty" json:"get-processor,omitempty" yaml:"get-processor,omitempty"`
 	// Set
-	SetPrefix       string   `mapstructure:"set-prefix,omitempty" json:"set-prefix,omitempty" yaml:"set-prefix,omitempty"`
-	SetDelete       []string `mapstructure:"set-delete,omitempty" json:"set-delete,omitempty" yaml:"set-delete,omitempty"`
-	SetReplace      []string `mapstructure:"set-replace,omitempty" json:"set-replace,omitempty" yaml:"set-replace,omitempty"`
-	SetUpdate       []string `mapstructure:"set-update,omitempty" json:"set-update,omitempty" yaml:"set-update,omitempty"`
-	SetReplacePath  []string `mapstructure:"set-replace-path,omitempty" json:"set-replace-path,omitempty" yaml:"set-replace-path,omitempty"`
-	SetUpdatePath   []string `mapstructure:"set-update-path,omitempty" json:"set-update-path,omitempty" yaml:"set-update-path,omitempty"`
-	SetReplaceFile  []string `mapstructure:"set-replace-file,omitempty" json:"set-replace-file,omitempty" yaml:"set-replace-file,omitempty"`
-	SetUpdateFile   []string `mapstructure:"set-update-file,omitempty" json:"set-update-file,omitempty" yaml:"set-update-file,omitempty"`
-	SetReplaceValue []string `mapstructure:"set-replace-value,omitempty" json:"set-replace-value,omitempty" yaml:"set-replace-value,omitempty"`
-	SetUpdateValue  []string `mapstructure:"set-update-value,omitempty" json:"set-update-value,omitempty" yaml:"set-update-value,omitempty"`
-	SetDelimiter    string   `mapstructure:"set-delimiter,omitempty" json:"set-delimiter,omitempty" yaml:"set-delimiter,omitempty"`
-	SetTarget       string   `mapstructure:"set-target,omitempty" json:"set-target,omitempty" yaml:"set-target,omitempty"`
-	SetRequestFile  []string `mapstructure:"set-request-file,omitempty" json:"set-request-file,omitempty" yaml:"set-request-file,omitempty"`
-	SetRequestVars  string   `mapstructure:"set-request-vars,omitempty" json:"set-request-vars,omitempty" yaml:"set-request-vars,omitempty"`
-	SetDryRun       bool     `mapstructure:"set-dry-run,omitempty" json:"set-dry-run,omitempty" yaml:"set-dry-run,omitempty"`
+	SetPrefix         string   `mapstructure:"set-prefix,omitempty" json:"set-prefix,omitempty" yaml:"set-prefix,omitempty"`
+	SetDelete         []string `mapstructure:"set-delete,omitempty" json:"set-delete,omitempty" yaml:"set-delete,omitempty"`
+	SetReplace        []string `mapstructure:"set-replace,omitempty" json:"set-replace,omitempty" yaml:"set-replace,omitempty"`
+	SetUpdate         []string `mapstructure:"set-update,omitempty" json:"set-update,omitempty" yaml:"set-update,omitempty"`
+	SetReplacePath    []string `mapstructure:"set-replace-path,omitempty" json:"set-replace-path,omitempty" yaml:"set-replace-path,omitempty"`
+	SetUpdatePath     []string `mapstructure:"set-update-path,omitempty" json:"set-update-path,omitempty" yaml:"set-update-path,omitempty"`
+	SetReplaceFile    []string `mapstructure:"set-replace-file,omitempty" json:"set-replace-file,omitempty" yaml:"set-replace-file,omitempty"`
+	SetUpdateFile     []string `mapstructure:"set-update-file,omitempty" json:"set-update-file,omitempty" yaml:"set-update-file,omitempty"`
+	SetReplaceValue   []string `mapstructure:"set-replace-value,omitempty" json:"set-replace-value,omitempty" yaml:"set-replace-value,omitempty"`
+	SetUpdateValue    []string `mapstructure:"set-update-value,omitempty" json:"set-update-value,omitempty" yaml:"set-update-value,omitempty"`
+	SetDelimiter      string   `mapstructure:"set-delimiter,omitempty" json:"set-delimiter,omitempty" yaml:"set-delimiter,omitempty"`
+	SetTarget         string   `mapstructure:"set-target,omitempty" json:"set-target,omitempty" yaml:"set-target,omitempty"`
+	SetRequestFile    []string `mapstructure:"set-request-file,omitempty" json:"set-request-file,omitempty" yaml:"set-request-file,omitempty"`
+	SetRequestVars    string   `mapstructure:"set-request-vars,omitempty" json:"set-request-vars,omitempty" yaml:"set-request-vars,omitempty"`
+	SetDryRun         bool     `mapstructure:"set-dry-run,omitempty" json:"set-dry-run,omitempty" yaml:"set-dry-run,omitempty"`
+	SetReplaceCli     []string `mapstructure:"set-replace-cli,omitempty" yaml:"set-replace-cli,omitempty" json:"set-replace-cli,omitempty"`
+	SetReplaceCliFile string   `mapstructure:"set-replace-cli-file,omitempty" yaml:"set-replace-cli-file,omitempty" json:"set-replace-cli-file,omitempty"`
+	SetUpdateCli      []string `mapstructure:"set-update-cli,omitempty" yaml:"set-update-cli,omitempty" json:"set-update-cli,omitempty"`
+	SetUpdateCliFile  string   `mapstructure:"set-update-cli-file,omitempty" yaml:"set-update-cli-file,omitempty" json:"set-update-cli-file,omitempty"`
 	// Sub
 	SubscribePrefix            string        `mapstructure:"subscribe-prefix,omitempty" json:"subscribe-prefix,omitempty" yaml:"subscribe-prefix,omitempty"`
 	SubscribePath              []string      `mapstructure:"subscribe-path,omitempty" json:"subscribe-path,omitempty" yaml:"subscribe-path,omitempty"`
@@ -654,6 +658,50 @@ func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error)
 		gnmiOpts = append(gnmiOpts, replaceOpt)
 	}
 
+	for _, cli := range c.LocalFlags.SetUpdateCli {
+		gnmiOpts = append(gnmiOpts,
+			api.Update(
+				api.Path("cli:/"),
+				api.Value(cli, "ascii"),
+			),
+		)
+	}
+
+	for _, cli := range c.LocalFlags.SetReplaceCli {
+		gnmiOpts = append(gnmiOpts,
+			api.Replace(
+				api.Path("cli:/"),
+				api.Value(cli, "ascii"),
+			),
+		)
+	}
+
+	if c.LocalFlags.SetUpdateCliFile != "" {
+		data, err := readFile(c.LocalFlags.SetUpdateCliFile)
+		if err != nil {
+			return nil, err
+		}
+		gnmiOpts = append(gnmiOpts,
+			api.Update(
+				api.Path("cli:/"),
+				api.Value(data, "ascii"),
+			),
+		)
+	}
+
+	if c.LocalFlags.SetReplaceCliFile != "" {
+		data, err := readFile(c.LocalFlags.SetReplaceCliFile)
+		if err != nil {
+			return nil, err
+		}
+		gnmiOpts = append(gnmiOpts,
+			api.Replace(
+				api.Path("cli:/"),
+				api.Value(data, "ascii"),
+			),
+		)
+	}
+	//
 	req, err := api.NewSetRequest(gnmiOpts...)
 	return []*gnmi.SetRequest{req}, err
 }
@@ -666,10 +714,6 @@ func readFile(name string) ([]byte, error) {
 	}
 	switch filepath.Ext(name) {
 	default:
-		// try yaml
-		newData, err := tryYAML(data)
-		if err != nil {
-			// assume json
 		return data, nil
 	case ".yaml", ".yml":
 		return toJSONBytes(data)
@@ -740,7 +784,11 @@ func (c *Config) ValidateSetInput() error {
 	}
 	if (len(c.LocalFlags.SetDelete)+len(c.LocalFlags.SetUpdate)+len(c.LocalFlags.SetReplace)) == 0 &&
 		(len(c.LocalFlags.SetUpdatePath)+len(c.LocalFlags.SetReplacePath)) == 0 &&
-		len(c.LocalFlags.SetRequestFile) == 0 {
+		len(c.LocalFlags.SetRequestFile) == 0 &&
+		len(c.LocalFlags.SetReplaceCli) == 0 &&
+		len(c.LocalFlags.SetUpdateCli) == 0 &&
+		len(c.LocalFlags.SetReplaceCliFile) == 0 &&
+		len(c.LocalFlags.SetUpdateCliFile) == 0 {
 		return errors.New("no paths or request file provided")
 	}
 	if len(c.LocalFlags.SetUpdateFile) > 0 && len(c.LocalFlags.SetUpdateValue) > 0 {

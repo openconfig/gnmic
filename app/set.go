@@ -124,6 +124,11 @@ func (a *App) InitSetFlags(cmd *cobra.Command) {
 	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.SetRequestFile, "request-file", "", []string{}, "set request template file(s)")
 	cmd.Flags().StringVarP(&a.Config.LocalFlags.SetRequestVars, "request-vars", "", "", "set request variables file")
 	cmd.Flags().BoolVarP(&a.Config.LocalFlags.SetDryRun, "dry-run", "", false, "prints the set request without initiating a gRPC connection")
+	//
+	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.SetReplaceCli, "replace-cli", "", []string{}, "a cli command to be sent as a set replace request")
+	cmd.Flags().StringVarP(&a.Config.LocalFlags.SetReplaceCliFile, "replace-cli-file", "", "", "path to a file containing a list of commands that will be sent as a set replace request")
+	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.SetUpdateCli, "update-cli", "", []string{}, "a cli command to be sent as a set update request")
+	cmd.Flags().StringVarP(&a.Config.LocalFlags.SetUpdateCliFile, "update-cli-file", "", "", "path to a file containing a list of commands that will be sent as a set update request")
 
 	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
 		a.Config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
