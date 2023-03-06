@@ -39,11 +39,13 @@ var testset = map[string]struct {
 			{
 				input: []*formatters.EventMsg{
 					{
-						Values: map[string]interface{}{}},
+						Values: map[string]interface{}{},
+					},
 				},
 				output: []*formatters.EventMsg{
 					{
-						Values: map[string]interface{}{}},
+						Values: map[string]interface{}{},
+					},
 				},
 			},
 			{
@@ -52,9 +54,7 @@ var testset = map[string]struct {
 						Values: map[string]interface{}{"value": 1},
 					},
 				},
-				output: []*formatters.EventMsg{
-					{},
-				},
+				output: nil,
 			},
 		},
 	},
@@ -72,11 +72,13 @@ var testset = map[string]struct {
 			{
 				input: []*formatters.EventMsg{
 					{
-						Values: map[string]interface{}{}},
+						Values: map[string]interface{}{},
+					},
 				},
 				output: []*formatters.EventMsg{
 					{
-						Values: map[string]interface{}{}},
+						Values: map[string]interface{}{},
+					},
 				},
 			},
 			{
@@ -85,9 +87,7 @@ var testset = map[string]struct {
 						Values: map[string]interface{}{"number": 1},
 					},
 				},
-				output: []*formatters.EventMsg{
-					{},
-				},
+				output: nil,
 			},
 		},
 	},
@@ -105,11 +105,13 @@ var testset = map[string]struct {
 			{
 				input: []*formatters.EventMsg{
 					{
-						Tags: map[string]string{}},
+						Tags: map[string]string{},
+					},
 				},
 				output: []*formatters.EventMsg{
 					{
-						Tags: map[string]string{}},
+						Tags: map[string]string{},
+					},
 				},
 			},
 			{
@@ -118,9 +120,7 @@ var testset = map[string]struct {
 						Tags: map[string]string{"name": "dummy"},
 					},
 				},
-				output: []*formatters.EventMsg{
-					{},
-				},
+				output: nil,
 			},
 		},
 	},
@@ -140,6 +140,10 @@ func TestEventDrop(t *testing.T) {
 				t.Run(name, func(t *testing.T) {
 					t.Logf("running test item %d", i)
 					outs := p.Apply(item.input...)
+					if len(outs) != len(item.output) {
+						t.Logf("output length mismatch")
+						t.Fail()
+					}
 					for j := range outs {
 						if !reflect.DeepEqual(outs[j], item.output[j]) {
 							t.Logf("failed at event drop, item %d, index %d", i, j)

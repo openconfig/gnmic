@@ -116,7 +116,8 @@ func (d *Drop) Init(cfg interface{}, opts ...formatters.Option) error {
 }
 
 func (d *Drop) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
-	for _, e := range es {
+	toDrop := make([]int, 0, len(es))
+	for i, e := range es {
 		if e == nil {
 			continue
 		}
@@ -127,7 +128,7 @@ func (d *Drop) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 				continue
 			}
 			if ok {
-				*e = formatters.EventMsg{}
+				toDrop = append(toDrop, i)
 				continue
 			}
 		}
@@ -135,7 +136,7 @@ func (d *Drop) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 			for _, re := range d.valueNames {
 				if re.MatchString(k) {
 					d.logger.Printf("value name '%s' matched regex '%s'", k, re.String())
-					*e = formatters.EventMsg{}
+					toDrop = append(toDrop, i)
 					break
 				}
 			}
@@ -143,7 +144,7 @@ func (d *Drop) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 				if vs, ok := v.(string); ok {
 					if re.MatchString(vs) {
 						d.logger.Printf("value '%s' matched regex '%s'", v, re.String())
-						*e = formatters.EventMsg{}
+						toDrop = append(toDrop, i)
 						break
 					}
 				}
@@ -153,20 +154,24 @@ func (d *Drop) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 			for _, re := range d.tagNames {
 				if re.MatchString(k) {
 					d.logger.Printf("tag name '%s' matched regex '%s'", k, re.String())
-					*e = formatters.EventMsg{}
+					toDrop = append(toDrop, i)
 					break
 				}
 			}
 			for _, re := range d.tags {
 				if re.MatchString(v) {
 					d.logger.Printf("tag '%s' matched regex '%s'", v, re.String())
-					*e = formatters.EventMsg{}
+					toDrop = append(toDrop, i)
 					break
 				}
 			}
 		}
 	}
-	return es
+	if len(toDrop) == 0 {
+		return es
+	}
+
+	return shift(es, toDrop)
 }
 
 func (d *Drop) WithLogger(l *log.Logger) {
@@ -180,3 +185,15 @@ func (d *Drop) WithLogger(l *log.Logger) {
 func (d *Drop) WithTargets(tcs map[string]*types.TargetConfig) {}
 
 func (d *Drop) WithActions(act map[string]map[string]interface{}) {}
+
+func shift[T any](es []T, dropIndexes []int) []T {
+	lastDropIndexes := len(dropIndexes) - 1
+	for i, dropIndex := range dropIndexes {
+		if i == lastDropIndexes {
+			es = es[:dropIndex]
+			continue
+		}
+		copy(es[dropIndex:], es[dropIndexes[i+1]:])
+	}
+	return es
+}
