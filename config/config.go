@@ -664,24 +664,19 @@ func readFile(name string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	//
 	switch filepath.Ext(name) {
-	case ".json":
-		return data, err
-	case ".yaml", ".yml":
-		return tryYAML(data)
 	default:
 		// try yaml
 		newData, err := tryYAML(data)
 		if err != nil {
 			// assume json
-			return data, nil
-		}
-		return newData, nil
+		return data, nil
+	case ".yaml", ".yml":
+		return toJSONBytes(data)
 	}
 }
 
-func tryYAML(data []byte) ([]byte, error) {
+func toJSONBytes(data []byte) ([]byte, error) {
 	var out interface{}
 	var err error
 	err = yaml.Unmarshal(data, &out)
