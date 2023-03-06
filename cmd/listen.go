@@ -37,10 +37,10 @@ func newListenCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "listen",
 		Short: "listens for telemetry dialout updates from the node",
-		PreRun: func(cmd *cobra.Command, args []string) {
+		PreRun: func(cmd *cobra.Command, _ []string) {
 			gApp.Config.SetLocalFlagsFromFile(cmd)
 		},
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			server := new(dialoutTelemetryServer)

@@ -125,7 +125,7 @@ func readFTPFile(ctx context.Context, path string) ([]byte, error) {
 // readSFTPFile reads a file from a remote SFTP server
 // unmarshals the content into a map[string]*types.TargetConfig
 // and returns
-func readSFTPFile(ctx context.Context, path string) ([]byte, error) {
+func readSFTPFile(_ context.Context, path string) ([]byte, error) {
 	parsedUrl, err := url.Parse(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse URL: %v", err)

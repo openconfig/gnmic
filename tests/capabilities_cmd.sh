@@ -73,10 +73,7 @@ sed -i 's/^skip-verify: false/#skip-verify: true/g' configs/gnmic1.yaml
 
 # use --tls-ca
 ./gnmic-rc1 -a clab-test1-srl1,clab-test1-srl2,clab-test1-srl3 --config configs/gnmic1.yaml \
-                                                               --tls-ca clab-test1/ca/root/root-ca.pem \
+                                                               --tls-ca clab-test1/.tls/ca/ca.pem \
                                                                capabilities
 # revert back skip-verify value to true
 sed -i 's/^#skip-verify: true/skip-verify: true/g' configs/gnmic1.yaml
-
-
-

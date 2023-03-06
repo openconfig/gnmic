@@ -86,7 +86,7 @@ func newPromptCmd() *cobra.Command {
 		Short:   "enter the interactive gnmic prompt mode",
 		PreRunE: gApp.PromptPreRunE,
 		RunE:    gApp.PromptRunE,
-		PostRun: func(cmd *cobra.Command, args []string) {
+		PostRun: func(cmd *cobra.Command, _ []string) {
 			cmd.ResetFlags()
 			//initPromptFlags(cmd)
 		},
@@ -99,7 +99,7 @@ func newPromptCmd() *cobra.Command {
 var promptQuitCmd = &cobra.Command{
 	Use:   "quit",
 	Short: "quit the gnmic-prompt",
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, _ []string) {
 		// cancel gctx
 		gApp.Cfn()
 		// save history
@@ -131,7 +131,7 @@ var targetCmd = &cobra.Command{
 var targetListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "list configured targets",
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(_ *cobra.Command, _ []string) error {
 		targetsConfig, err := gApp.Config.GetTargets()
 		if err != nil {
 			return err
@@ -140,7 +140,7 @@ var targetListCmd = &cobra.Command{
 		renderTable(tabData, targetListHeader)
 		return nil
 	},
-	PostRun: func(cmd *cobra.Command, args []string) {
+	PostRun: func(_ *cobra.Command, _ []string) {
 		name = ""
 	},
 }
@@ -151,7 +151,7 @@ var targetShowCmd = &cobra.Command{
 	Annotations: map[string]string{
 		"--name": "TARGET",
 	},
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(_ *cobra.Command, _ []string) error {
 		if name == "" {
 			fmt.Println("provide a target name with --name")
 			return nil
@@ -167,7 +167,7 @@ var targetShowCmd = &cobra.Command{
 		}
 		return errors.New("unknown target")
 	},
-	PostRun: func(cmd *cobra.Command, args []string) {
+	PostRun: func(_ *cobra.Command, _ []string) {
 		name = ""
 	},
 }
@@ -180,7 +180,7 @@ var subscriptionCmd = &cobra.Command{
 var subscriptionListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "list configured subscriptions",
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(_ *cobra.Command, _ []string) error {
 		subs, err := gApp.Config.GetSubscriptions(nil)
 		if err != nil {
 			return err
@@ -189,7 +189,7 @@ var subscriptionListCmd = &cobra.Command{
 		renderTable(tabData, subscriptionListHeader)
 		return nil
 	},
-	PostRun: func(cmd *cobra.Command, args []string) {
+	PostRun: func(_ *cobra.Command, _ []string) {
 		name = ""
 	},
 }
@@ -200,7 +200,7 @@ var subscriptionShowCmd = &cobra.Command{
 	Annotations: map[string]string{
 		"--name": "SUBSCRIPTION",
 	},
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(_ *cobra.Command, _ []string) error {
 		if name == "" {
 			fmt.Println("provide a subscription name with --name")
 			return nil
@@ -216,7 +216,7 @@ var subscriptionShowCmd = &cobra.Command{
 		}
 		return errors.New("unknown subscription")
 	},
-	PostRun: func(cmd *cobra.Command, args []string) {
+	PostRun: func(_ *cobra.Command, _ []string) {
 		name = ""
 	},
 }
@@ -229,7 +229,7 @@ var outputCmd = &cobra.Command{
 var outputListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "list configured outputs",
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(_ *cobra.Command, _ []string) error {
 		tabData := gApp.Config.GetOutputsConfigs()
 		renderTable(tabData, []string{"Name", "Config"})
 		return nil
