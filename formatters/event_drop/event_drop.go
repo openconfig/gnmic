@@ -14,6 +14,7 @@ import (
 	"log"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/itchyny/gojq"
@@ -187,13 +188,12 @@ func (d *Drop) WithTargets(tcs map[string]*types.TargetConfig) {}
 func (d *Drop) WithActions(act map[string]map[string]interface{}) {}
 
 func shift[T any](es []T, dropIndexes []int) []T {
-	lastDropIndexes := len(dropIndexes) - 1
-	for i, dropIndex := range dropIndexes {
-		if i == lastDropIndexes {
-			es = es[:dropIndex]
-			continue
+	sort.Sort(sort.Reverse(sort.IntSlice(dropIndexes)))
+	for _, dropIndex := range dropIndexes {
+		if dropIndex < len(es) {
+			copy(es[dropIndex:], es[dropIndex+1:])
+			es = es[:len(es)-1]
 		}
-		copy(es[dropIndex:], es[dropIndexes[i+1]:])
 	}
 	return es
 }
