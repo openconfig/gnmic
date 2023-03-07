@@ -68,37 +68,24 @@ type KafkaOutput struct {
 
 // Config //
 type Config struct {
-	Address            string        `mapstructure:"address,omitempty"`
-	Topic              string        `mapstructure:"topic,omitempty"`
-	Name               string        `mapstructure:"name,omitempty"`
-	SASL               *sasl         `mapstructure:"sasl,omitempty"`
-	TLS                *tlsConfig    `mapstructure:"tls,omitempty"`
-	MaxRetry           int           `mapstructure:"max-retry,omitempty"`
-	Timeout            time.Duration `mapstructure:"timeout,omitempty"`
-	RecoveryWaitTime   time.Duration `mapstructure:"recovery-wait-time,omitempty"`
-	Format             string        `mapstructure:"format,omitempty"`
-	AddTarget          string        `mapstructure:"add-target,omitempty"`
-	TargetTemplate     string        `mapstructure:"target-template,omitempty"`
-	MsgTemplate        string        `mapstructure:"msg-template,omitempty"`
-	NumWorkers         int           `mapstructure:"num-workers,omitempty"`
-	Debug              bool          `mapstructure:"debug,omitempty"`
-	BufferSize         int           `mapstructure:"buffer-size,omitempty"`
-	OverrideTimestamps bool          `mapstructure:"override-timestamps,omitempty"`
-	EnableMetrics      bool          `mapstructure:"enable-metrics,omitempty"`
-	EventProcessors    []string      `mapstructure:"event-processors,omitempty"`
-}
-type sasl struct {
-	User      string `mapstructure:"user,omitempty"`
-	Password  string `mapstructure:"password,omitempty"`
-	Mechanism string `mapstructure:"mechanism,omitempty"`
-	TokenURL  string `mapstructure:"token-url,omitempty"`
-}
-
-type tlsConfig struct {
-	CaFile     string `mapstructure:"ca-file,omitempty"`
-	KeyFile    string `mapstructure:"key-file,omitempty"`
-	CertFile   string `mapstructure:"cert-file,omitempty"`
-	SkipVerify bool   `mapstructure:"skip-verify,omitempty"`
+	Address            string           `mapstructure:"address,omitempty"`
+	Topic              string           `mapstructure:"topic,omitempty"`
+	Name               string           `mapstructure:"name,omitempty"`
+	SASL               *types.SASL      `mapstructure:"sasl,omitempty"`
+	TLS                *types.TLSConfig `mapstructure:"tls,omitempty"`
+	MaxRetry           int              `mapstructure:"max-retry,omitempty"`
+	Timeout            time.Duration    `mapstructure:"timeout,omitempty"`
+	RecoveryWaitTime   time.Duration    `mapstructure:"recovery-wait-time,omitempty"`
+	Format             string           `mapstructure:"format,omitempty"`
+	AddTarget          string           `mapstructure:"add-target,omitempty"`
+	TargetTemplate     string           `mapstructure:"target-template,omitempty"`
+	MsgTemplate        string           `mapstructure:"msg-template,omitempty"`
+	NumWorkers         int              `mapstructure:"num-workers,omitempty"`
+	Debug              bool             `mapstructure:"debug,omitempty"`
+	BufferSize         int              `mapstructure:"buffer-size,omitempty"`
+	OverrideTimestamps bool             `mapstructure:"override-timestamps,omitempty"`
+	EnableMetrics      bool             `mapstructure:"enable-metrics,omitempty"`
+	EventProcessors    []string         `mapstructure:"event-processors,omitempty"`
 }
 
 func (k *KafkaOutput) String() string {
