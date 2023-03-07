@@ -66,29 +66,23 @@ type KafkaInput struct {
 
 // Config //
 type Config struct {
-	Name              string        `mapstructure:"name,omitempty"`
-	Address           string        `mapstructure:"address,omitempty"`
-	Topics            string        `mapstructure:"topics,omitempty"`
-	SASL              *sasl         `mapstructure:"sasl,omitempty"`
-	GroupID           string        `mapstructure:"group-id,omitempty"`
-	SessionTimeout    time.Duration `mapstructure:"session-timeout,omitempty"`
-	HeartbeatInterval time.Duration `mapstructure:"heartbeat-interval,omitempty"`
-	RecoveryWaitTime  time.Duration `mapstructure:"recovery-wait-time,omitempty"`
-	Version           string        `mapstructure:"version,omitempty"`
-	Format            string        `mapstructure:"format,omitempty"`
-	Debug             bool          `mapstructure:"debug,omitempty"`
-	NumWorkers        int           `mapstructure:"num-workers,omitempty"`
-	Outputs           []string      `mapstructure:"outputs,omitempty"`
-	EventProcessors   []string      `mapstructure:"event-processors,omitempty"`
+	Name              string           `mapstructure:"name,omitempty"`
+	Address           string           `mapstructure:"address,omitempty"`
+	Topics            string           `mapstructure:"topics,omitempty"`
+	SASL              *types.SASL      `mapstructure:"sasl,omitempty"`
+	TLS               *types.TLSConfig `mapstructure:"tls,omitempty"`
+	GroupID           string           `mapstructure:"group-id,omitempty"`
+	SessionTimeout    time.Duration    `mapstructure:"session-timeout,omitempty"`
+	HeartbeatInterval time.Duration    `mapstructure:"heartbeat-interval,omitempty"`
+	RecoveryWaitTime  time.Duration    `mapstructure:"recovery-wait-time,omitempty"`
+	Version           string           `mapstructure:"version,omitempty"`
+	Format            string           `mapstructure:"format,omitempty"`
+	Debug             bool             `mapstructure:"debug,omitempty"`
+	NumWorkers        int              `mapstructure:"num-workers,omitempty"`
+	Outputs           []string         `mapstructure:"outputs,omitempty"`
+	EventProcessors   []string         `mapstructure:"event-processors,omitempty"`
 
 	kafkaVersion sarama.KafkaVersion
-}
-
-type sasl struct {
-	User      string `mapstructure:"user,omitempty"`
-	Password  string `mapstructure:"password,omitempty"`
-	Mechanism string `mapstructure:"mechanism,omitempty"`
-	TokenURL  string `mapstructure:"token-url,omitempty"`
 }
 
 func (k *KafkaInput) Start(ctx context.Context, name string, cfg map[string]interface{}, opts ...inputs.Option) error {
@@ -106,17 +100,22 @@ func (k *KafkaInput) Start(ctx context.Context, name string, cfg map[string]inte
 	if err != nil {
 		return err
 	}
+	config, err := k.createConfig()
+	if err != nil {
+		return err
+	}
 	k.wg.Add(k.Cfg.NumWorkers)
 	for i := 0; i < k.Cfg.NumWorkers; i++ {
-		go k.worker(ctx, i)
+		cfg := *config
+		cfg.ClientID = fmt.Sprintf("%s-%d", config.ClientID, i)
+		go k.worker(ctx, i, &cfg)
 	}
 	return nil
 }
 
-func (k *KafkaInput) worker(ctx context.Context, idx int) {
+func (k *KafkaInput) worker(ctx context.Context, idx int, config *sarama.Config) {
 	defer k.wg.Done()
 
-	config := k.createConfig(idx)
 	workerLogPrefix := fmt.Sprintf("worker-%d", idx)
 START:
 	k.logger.Printf("%s starting consumer group %s", workerLogPrefix, k.Cfg.GroupID)
@@ -325,14 +324,14 @@ func (k *KafkaInput) setDefaults() error {
 	return nil
 }
 
-func (k *KafkaInput) createConfig(idx int) *sarama.Config {
+func (k *KafkaInput) createConfig() (*sarama.Config, error) {
 	cfg := sarama.NewConfig()
 	cfg.Version = k.Cfg.kafkaVersion
-	cfg.ClientID = fmt.Sprintf("%s-%d", k.Cfg.Name, idx)
 	cfg.Consumer.Return.Errors = true
 	cfg.Consumer.Group.Session.Timeout = k.Cfg.SessionTimeout
 	cfg.Consumer.Group.Heartbeat.Interval = k.Cfg.HeartbeatInterval
 	cfg.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRange
+	// SASL_PLAINTEXT or SASL_SSL
 	if k.Cfg.SASL != nil {
 		cfg.Net.SASL.Enable = true
 		cfg.Net.SASL.User = k.Cfg.SASL.User
@@ -351,7 +350,21 @@ func (k *KafkaInput) createConfig(idx int) *sarama.Config {
 			cfg.Net.SASL.TokenProvider = oauthbearer.NewTokenProvider(cfg.Net.SASL.User, cfg.Net.SASL.Password, k.Cfg.SASL.TokenURL)
 		}
 	}
-	return cfg
+	// SSL or SASL_SSL
+	if k.Cfg.TLS != nil {
+		var err error
+		cfg.Net.TLS.Enable = true
+		cfg.Net.TLS.Config, err = utils.NewTLSConfig(
+			k.Cfg.TLS.CaFile,
+			k.Cfg.TLS.CertFile,
+			k.Cfg.TLS.KeyFile,
+			k.Cfg.TLS.SkipVerify,
+			false)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return cfg, nil
 }
 
 // consumer
