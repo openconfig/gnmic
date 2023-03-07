@@ -39,11 +39,13 @@ var testset = map[string]struct {
 			{
 				input: []*formatters.EventMsg{
 					{
-						Values: map[string]interface{}{}},
+						Values: map[string]interface{}{},
+					},
 				},
 				output: []*formatters.EventMsg{
 					{
-						Values: map[string]interface{}{}},
+						Values: map[string]interface{}{},
+					},
 				},
 			},
 			{
@@ -52,8 +54,33 @@ var testset = map[string]struct {
 						Values: map[string]interface{}{"value": 1},
 					},
 				},
+				output: nil,
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{"value": 0},
+					},
+					{
+						Values: map[string]interface{}{"value": 1},
+					},
+					{
+						Values: map[string]interface{}{"value": 2},
+					},
+					{
+						Values: map[string]interface{}{"value": 3},
+					},
+				},
 				output: []*formatters.EventMsg{
-					{},
+					{
+						Values: map[string]interface{}{"value": 0},
+					},
+					{
+						Values: map[string]interface{}{"value": 2},
+					},
+					{
+						Values: map[string]interface{}{"value": 3},
+					},
 				},
 			},
 		},
@@ -72,11 +99,13 @@ var testset = map[string]struct {
 			{
 				input: []*formatters.EventMsg{
 					{
-						Values: map[string]interface{}{}},
+						Values: map[string]interface{}{},
+					},
 				},
 				output: []*formatters.EventMsg{
 					{
-						Values: map[string]interface{}{}},
+						Values: map[string]interface{}{},
+					},
 				},
 			},
 			{
@@ -85,9 +114,7 @@ var testset = map[string]struct {
 						Values: map[string]interface{}{"number": 1},
 					},
 				},
-				output: []*formatters.EventMsg{
-					{},
-				},
+				output: nil,
 			},
 		},
 	},
@@ -105,11 +132,13 @@ var testset = map[string]struct {
 			{
 				input: []*formatters.EventMsg{
 					{
-						Tags: map[string]string{}},
+						Tags: map[string]string{},
+					},
 				},
 				output: []*formatters.EventMsg{
 					{
-						Tags: map[string]string{}},
+						Tags: map[string]string{},
+					},
 				},
 			},
 			{
@@ -118,9 +147,7 @@ var testset = map[string]struct {
 						Tags: map[string]string{"name": "dummy"},
 					},
 				},
-				output: []*formatters.EventMsg{
-					{},
-				},
+				output: nil,
 			},
 		},
 	},
@@ -140,6 +167,10 @@ func TestEventDrop(t *testing.T) {
 				t.Run(name, func(t *testing.T) {
 					t.Logf("running test item %d", i)
 					outs := p.Apply(item.input...)
+					if len(outs) != len(item.output) {
+						t.Logf("output length mismatch")
+						t.Fail()
+					}
 					for j := range outs {
 						if !reflect.DeepEqual(outs[j], item.output[j]) {
 							t.Logf("failed at event drop, item %d, index %d", i, j)
@@ -151,5 +182,114 @@ func TestEventDrop(t *testing.T) {
 				})
 			}
 		}
+	}
+}
+
+func Test_shift(t *testing.T) {
+	type args struct {
+		es          []string
+		dropIndexes []int
+	}
+	tests := []struct {
+		name string
+		args args
+		want []string
+	}{
+		{
+			// drop even indexes
+			name: "1",
+			args: args{
+				es:          []string{"A", "B", "C", "D", "E", "F", "G", "H", "I"},
+				dropIndexes: []int{0, 2, 4, 6, 8},
+			},
+			want: []string{"B", "D", "F", "H"},
+		},
+		{
+			// drop first and last
+			name: "2",
+			args: args{
+				es:          []string{"A", "B", "C", "D", "E", "F", "G", "H", "I"},
+				dropIndexes: []int{0, 8},
+			},
+			want: []string{"B", "C", "D", "E", "F", "G", "H"},
+		},
+		{
+			// no dropping
+			name: "3",
+			args: args{
+				es:          []string{"A", "B", "C", "D", "E", "F", "G", "H", "I"},
+				dropIndexes: nil,
+			},
+			want: []string{"A", "B", "C", "D", "E", "F", "G", "H", "I"},
+		},
+		{
+			// drop index out of bound
+			name: "4",
+			args: args{
+				es:          []string{"A", "B", "C", "D", "E", "F", "G", "H", "I"},
+				dropIndexes: []int{42},
+			},
+			want: []string{"A", "B", "C", "D", "E", "F", "G", "H", "I"},
+		},
+		{
+			// drop all
+			name: "5",
+			args: args{
+				es:          []string{"A", "B", "C", "D", "E", "F", "G", "H", "I"},
+				dropIndexes: []int{0, 1, 2, 3, 4, 5, 6, 7, 8},
+			},
+			want: []string{},
+		},
+		{
+			// drop first
+			name: "6",
+			args: args{
+				es:          []string{"A", "B", "C", "D", "E", "F", "G", "H", "I"},
+				dropIndexes: []int{0},
+			},
+			want: []string{"B", "C", "D", "E", "F", "G", "H", "I"},
+		},
+		{
+			// drop last
+			name: "7",
+			args: args{
+				es:          []string{"A", "B", "C", "D", "E", "F", "G", "H", "I"},
+				dropIndexes: []int{8},
+			},
+			want: []string{"A", "B", "C", "D", "E", "F", "G", "H"},
+		},
+		{
+			// drop all but last
+			name: "8",
+			args: args{
+				es:          []string{"A", "B", "C", "D", "E", "F", "G", "H", "I"},
+				dropIndexes: []int{0, 1, 2, 3, 4, 5, 6, 7},
+			},
+			want: []string{"I"},
+		},
+		{
+			// drop all but first
+			name: "9",
+			args: args{
+				es:          []string{"A", "B", "C", "D", "E", "F", "G", "H", "I"},
+				dropIndexes: []int{1, 2, 3, 4, 5, 6, 7, 8},
+			},
+			want: []string{"A"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := shift(tt.args.es, tt.args.dropIndexes); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("shift() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func BenchmarkShift(b *testing.B) {
+	var sl = []string{"A", "B", "C", "D", "E", "F", "G", "H", "I"}
+	drop := []int{0, 2, 3, 5, 8}
+	for n := 0; n < b.N; n++ {
+		shift(sl, drop)
 	}
 }
