@@ -1012,27 +1012,6 @@ func Qos(qos uint32) func(msg proto.Message) error {
 	}
 }
 
-// UseAliases creates a GNMIOption that sets the UsesAliases field in a *gnmi.SubscribeRequest with RequestType Subscribe.
-func UseAliases(b bool) func(msg proto.Message) error {
-	return func(msg proto.Message) error {
-		switch msg := msg.ProtoReflect().Interface().(type) {
-		case *gnmi.SubscribeRequest:
-			switch msg := msg.Request.(type) {
-			case *gnmi.SubscribeRequest_Subscribe:
-				if msg.Subscribe == nil {
-					msg.Subscribe = new(gnmi.SubscriptionList)
-				}
-				msg.Subscribe.UseAliases = b
-			default:
-				return fmt.Errorf("option UseAliases: %w: %T", ErrInvalidMsgType, msg)
-			}
-		default:
-			return fmt.Errorf("option UseAliases: %w: %T", ErrInvalidMsgType, msg)
-		}
-		return nil
-	}
-}
-
 // AllowAggregation creates a GNMIOption that sets the AllowAggregation field in a *gnmi.SubscribeRequest with RequestType Subscribe.
 func AllowAggregation(b bool) func(msg proto.Message) error {
 	return func(msg proto.Message) error {
@@ -1246,21 +1225,6 @@ func TimestampNow() func(msg proto.Message) error {
 	return Timestamp(time.Now().UnixNano())
 }
 
-// Alias sets the supplied alias value in a gnmi.Notification message
-func Alias(alias string) func(msg proto.Message) error {
-	return func(msg proto.Message) error {
-		if msg == nil {
-			return ErrInvalidMsgType
-		}
-		switch msg := msg.ProtoReflect().Interface().(type) {
-		case *gnmi.Notification:
-			msg.Alias = alias
-		default:
-			return fmt.Errorf("option Alias: %w: %T", ErrInvalidMsgType, msg)
-		}
-		return nil
-	}
-}
 
 // Atomic sets the .Atomic field in a gnmi.Notification message
 func Atomic(b bool) func(msg proto.Message) error {

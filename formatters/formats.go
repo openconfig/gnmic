@@ -22,7 +22,7 @@ import (
 )
 
 type MarshalOptions struct {
-	Multiline  bool // could get rid of this and deduct it from len(Indent)
+	Multiline  bool
 	Indent     string
 	Format     string
 	OverrideTS bool
