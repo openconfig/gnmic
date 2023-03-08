@@ -86,7 +86,7 @@ type config struct {
 	Headers               map[string]string `mapstructure:"headers,omitempty" json:"headers,omitempty"`
 	Authentication        *auth             `mapstructure:"authentication,omitempty" json:"authentication,omitempty"`
 	Authorization         *authorization    `mapstructure:"authorization,omitempty" json:"authorization,omitempty"`
-	TLS                   *tls              `mapstructure:"tls,omitempty" json:"tls,omitempty"`
+	TLS                   *types.TLSConfig  `mapstructure:"tls,omitempty" json:"tls,omitempty"`
 	Interval              time.Duration     `mapstructure:"interval,omitempty" json:"interval,omitempty"`
 	BufferSize            int               `mapstructure:"buffer-size,omitempty" json:"buffer-size,omitempty"`
 	MaxTimeSeriesPerWrite int               `mapstructure:"max-time-series-per-write,omitempty" json:"max-time-series-per-write,omitempty"`
@@ -110,13 +110,6 @@ type auth struct {
 type authorization struct {
 	Type        string `mapstructure:"type,omitempty" json:"type,omitempty"`
 	Credentials string `mapstructure:"credentials,omitempty" json:"credentials,omitempty"`
-}
-
-type tls struct {
-	CAFile     string `mapstructure:"ca-file,omitempty" json:"ca-file,omitempty"`
-	CertFile   string `mapstructure:"cert-file,omitempty" json:"cert-file,omitempty"`
-	KeyFile    string `mapstructure:"key-file,omitempty" json:"key-file,omitempty"`
-	SkipVerify bool   `mapstructure:"skip-verify,omitempty" json:"skip-verify,omitempty"`
 }
 
 type metadata struct {

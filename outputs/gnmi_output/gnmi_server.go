@@ -228,7 +228,7 @@ func (s *server) sendSubscribeResponse(r *resp, sc *streamClient) error {
 	return r.stream.Send(notif)
 }
 
-func makeSubscribeResponse(n interface{}, dup uint32) (*gnmi.SubscribeResponse, error) {
+func makeSubscribeResponse(n interface{}, _ uint32) (*gnmi.SubscribeResponse, error) {
 	var notification *gnmi.Notification
 	var ok bool
 	notification, ok = n.(*gnmi.Notification)
