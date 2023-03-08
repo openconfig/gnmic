@@ -101,6 +101,7 @@ func toFloat(v interface{}) (float64, error) {
 			return math.NaN(), err
 		}
 		return f, err
+		//lint:ignore SA1019 still need DecimalVal for backward compatibility
 	case *gnmi.Decimal64:
 		return float64(i.Digits) / math.Pow10(int(i.Precision)), nil
 	default:

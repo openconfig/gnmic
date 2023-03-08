@@ -20,7 +20,7 @@ import (
 	"github.com/openconfig/gnmic/testutils"
 )
 
-//  Capabilities Request / Response tests
+// Capabilities Request / Response tests
 func TestNewCapabilitiesRequest(t *testing.T) {
 	name := "single_case"
 	t.Run(name, func(t *testing.T) {
@@ -1253,7 +1253,7 @@ var subscribeResponseTestSet = map[string]subscribeResponseInput{
 		opts: []GNMIOption{
 			Notification(
 				Timestamp(42),
-				Alias("alias1"),
+				// Alias("alias1"),
 				Update(
 					Path("interface"),
 					Value(map[string]interface{}{
@@ -1268,7 +1268,7 @@ var subscribeResponseTestSet = map[string]subscribeResponseInput{
 			Response: &gnmi.SubscribeResponse_Update{
 				Update: &gnmi.Notification{
 					Timestamp: 42,
-					Alias:     "alias1",
+					// Alias:     "alias1",
 					Update: []*gnmi.Update{
 						{
 							Path: &gnmi.Path{
@@ -1550,13 +1550,6 @@ var valueTestSet = map[string]valueInput{
 		data: &gnmi.TypedValue_BytesVal{BytesVal: []byte{0, 42}},
 		msg: &gnmi.Update{
 			Val: &gnmi.TypedValue{Value: &gnmi.TypedValue_BytesVal{BytesVal: []byte{0, 42}}},
-		},
-		err: nil,
-	},
-	"typed_value_decimal": {
-		data: &gnmi.TypedValue_DecimalVal{DecimalVal: &gnmi.Decimal64{Digits: 420, Precision: 1}},
-		msg: &gnmi.Update{
-			Val: &gnmi.TypedValue{Value: &gnmi.TypedValue_DecimalVal{DecimalVal: &gnmi.Decimal64{Digits: 420, Precision: 1}}},
 		},
 		err: nil,
 	},

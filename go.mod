@@ -35,7 +35,7 @@ require (
 	github.com/nats-io/stan.go v0.10.4
 	github.com/nsf/termbox-go v1.1.1
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/openconfig/gnmi v0.0.0-20220617175856-41246b1b3507
+	github.com/openconfig/gnmi v0.9.1
 	github.com/openconfig/goyang v1.2.0
 	github.com/pkg/sftp v1.13.5
 	github.com/prometheus/client_golang v1.14.0
@@ -47,7 +47,7 @@ require (
 	github.com/xdg/scram v1.0.5
 	go.starlark.net v0.0.0-20230128213706-3f75dec8e403
 	golang.org/x/crypto v0.7.0
-	golang.org/x/oauth2 v0.5.0
+	golang.org/x/oauth2 v0.6.0
 	golang.org/x/sync v0.1.0
 	google.golang.org/grpc v1.53.0
 	google.golang.org/protobuf v1.28.2-0.20230222093303-bc1253ad3743

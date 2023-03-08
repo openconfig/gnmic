@@ -52,7 +52,7 @@ func (o *MarshalOptions) formatsubscribeRequest(m *gnmi.SubscribeRequest) ([]byt
 		msg.Subscribe.Target = m.Subscribe.GetPrefix().GetTarget()
 		msg.Subscribe.Subscriptions = make([]subscription, 0, len(m.Subscribe.GetSubscription()))
 		if m.Subscribe != nil {
-			msg.Subscribe.UseAliases = m.Subscribe.UseAliases
+			// msg.Subscribe.UseAliases = m.Subscribe.UseAliases
 			msg.Subscribe.AllowAggregation = m.Subscribe.AllowAggregation
 			msg.Subscribe.UpdatesOnly = m.Subscribe.UpdatesOnly
 			msg.Subscribe.Encoding = m.Subscribe.Encoding.String()
@@ -73,11 +73,11 @@ func (o *MarshalOptions) formatsubscribeRequest(m *gnmi.SubscribeRequest) ([]byt
 		}
 	case *gnmi.SubscribeRequest_Poll:
 		msg.Poll = new(poll)
-	case *gnmi.SubscribeRequest_Aliases:
-		msg.Aliases = make(map[string]string)
-		for _, a := range m.Aliases.GetAlias() {
-			msg.Aliases[a.Alias] = utils.GnmiPathToXPath(a.Path, false)
-		}
+		// case *gnmi.SubscribeRequest_Aliases:
+		// 	msg.Aliases = make(map[string]string)
+		// 	for _, a := range m.Aliases.GetAlias() {
+		// 		msg.Aliases[a.Alias] = utils.GnmiPathToXPath(a.Path, false)
+		// 	}
 	}
 	if o.Multiline {
 		return json.MarshalIndent(msg, "", o.Indent)

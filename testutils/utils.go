@@ -167,12 +167,6 @@ func SubscribeRequestsEqual(req1, req2 *gnmi.SubscribeRequest) bool {
 		default:
 			return false
 		}
-	case *gnmi.SubscribeRequest_Aliases:
-		switch req2.Request.(type) {
-		case *gnmi.SubscribeRequest_Aliases:
-		default:
-			return false
-		}
 	}
 	// compare subscribe request subscribe
 	switch req1 := req1.Request.(type) {
@@ -195,9 +189,6 @@ func SubscribeRequestsEqual(req1, req2 *gnmi.SubscribeRequest) bool {
 				return false
 			}
 			if req1.Subscribe.GetAllowAggregation() != req2.Subscribe.GetAllowAggregation() {
-				return false
-			}
-			if req1.Subscribe.GetUseAliases() != req2.Subscribe.GetUseAliases() {
 				return false
 			}
 			if !GnmiPathsEqual(req1.Subscribe.Prefix, req2.Subscribe.Prefix) {
@@ -365,9 +356,6 @@ func GnmiUpdatesEqual(u1, u2 *gnmi.Update) bool {
 
 func GnmiNotificationsEqual(n1, n2 *gnmi.Notification) bool {
 	if n1.GetAtomic() != n2.GetAtomic() {
-		return false
-	}
-	if n1.GetAlias() != n2.GetAlias() {
 		return false
 	}
 	// compare timestamps
