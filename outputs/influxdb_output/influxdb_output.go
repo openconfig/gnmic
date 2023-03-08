@@ -353,6 +353,7 @@ START:
 			}
 			for n, v := range ev.Values {
 				switch v := v.(type) {
+				//lint:ignore SA1019 still need DecimalVal for backward compatibility
 				case *gnmi.Decimal64:
 					ev.Values[n] = float64(v.Digits) / math.Pow10(int(v.Precision))
 				}
