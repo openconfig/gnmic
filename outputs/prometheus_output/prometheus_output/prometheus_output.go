@@ -10,6 +10,7 @@ package prometheus_output
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -101,6 +102,7 @@ type prometheusOutput struct {
 type config struct {
 	Name                   string               `mapstructure:"name,omitempty" json:"name,omitempty"`
 	Listen                 string               `mapstructure:"listen,omitempty" json:"listen,omitempty"`
+	TLS                    *types.TLSConfig     `mapstructure:"tls,omitempty"`
 	Path                   string               `mapstructure:"path,omitempty" json:"path,omitempty"`
 	Expiration             time.Duration        `mapstructure:"expiration,omitempty" json:"expiration,omitempty"`
 	MetricPrefix           string               `mapstructure:"metric-prefix,omitempty" json:"metric-prefix,omitempty"`
@@ -233,7 +235,18 @@ func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string
 	}
 
 	// create tcp listener
-	listener, err := net.Listen("tcp", p.Cfg.Listen)
+	var listener net.Listener
+	switch {
+	case p.Cfg.TLS == nil:
+		listener, err = net.Listen("tcp", p.Cfg.Listen)
+	default:
+		var tlsConfig *tls.Config
+		tlsConfig, err = utils.NewTLSConfig(p.Cfg.TLS.CaFile, p.Cfg.TLS.CertFile, p.Cfg.TLS.KeyFile, p.Cfg.TLS.SkipVerify, true)
+		if err != nil {
+			return err
+		}
+		listener, err = tls.Listen("tcp", p.Cfg.Listen, tlsConfig)
+	}
 	if err != nil {
 		return err
 	}
