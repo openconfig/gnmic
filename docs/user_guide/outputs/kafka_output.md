@@ -29,17 +29,18 @@ outputs:
       mechanism:
       # token url for OAUTHBEARER SASL mechanism
       token-url:
-    # Kafka TLS config
+    # tls config
     tls:
-      # path to certificate authority file, this will be used to verify the kafka server certificate
+      # string, path to the CA certificate file,
+      # this will be used to verify the clients certificates when `skip-verify` is false
       ca-file:
-      # path to client certificate file.
-      cert-file: 
-      # path to client key file.
+      # string, client certificate file.
+      cert-file:
+      # string, client key file.
       key-file:
-      # boolean, controls whether a client verifies the server's certificate chain and host name
-      # if set to true, the kafka client accepts any certificate presented by the server and any host name in that certificate
-      skip-verify:
+      # boolean, if true, the client will not verify the server
+      # certificate against the available certificate chain.
+      skip-verify: false
     # The total number of times to retry sending a message
     max-retry: 2 
     # Kafka connection timeout

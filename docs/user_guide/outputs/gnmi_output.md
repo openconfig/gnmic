@@ -18,19 +18,22 @@ outputs:
     max-subscriptions: 64
     # maximum number of ongoing Get/Set RPCs.
     max-unary-rpc: 64
-    # boolean, if true, the gNMI server will run in secure mode 
-    # but will not verify the client certificate against the available certificate chain.
-    skip-verify: false
-    # string, path to the CA certificate file, this will be used to verify the clients certificates, if `skip-verify` is false
-    ca-file:
-    # string, server certificate file.
-    # if both `cert-file` and `key-file` are empty, and `skip-verify` is true or `ca-file` is set, 
-    # the server will run with self signed certificates.
-    cert-file:
-    # string, server key file.
-    # if both `cert-file` and `key-file` are empty, and `skip-verify` is true or `ca-file` is set, 
-    # the server will run with self signed certificates.
-    key-file:
+    # tls config
+    tls:
+      # string, path to the CA certificate file,      # string, path to the CA certificate file,
+      # this will be used to verify the clients certificates when `skip-verify` is false
+      ca-file:
+      # string, server certificate file.
+      # if both `cert-file` and `key-file` are empty, and `skip-verify` is true or `ca-file` is set, 
+      # the server will run with self signed certificates.
+      cert-file:
+      # string, server key file.
+      # if both `cert-file` and `key-file` are empty, and `skip-verify` is true or `ca-file` is set, 
+      # the server will run with self signed certificates.
+      key-file:
+      # boolean, if true, the server will run in secure mode 
+      # but will not verify the client certificate against the available certificate chain.
+      skip-verify: false
     # string, a GoTemplate that allow for the customization of the target field in Prefix.Target.
     # it applies only if the returned Prefix.Target is empty.
     # if left empty, it defaults to:

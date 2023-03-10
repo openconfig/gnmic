@@ -23,12 +23,29 @@ outputs:
     export-timestamps: false 
     # a boolean, enables setting string type values as prometheus metric labels.
     strings-as-labels: false
-    # a boolean, if set to true, the received gNMI notifications are stored in a cache.
+    # tls config
+    tls:
+      # string, path to the CA certificate file,      # string, path to the CA certificate file,
+      # this will be used to verify the clients certificates when `skip-verify` is false
+      ca-file:
+      # string, server certificate file.
+      # if both `cert-file` and `key-file` are empty, and `skip-verify` is true or `ca-file` is set, 
+      # the server will run with self signed certificates.
+      cert-file:
+      # string, server key file.
+      # if both `cert-file` and `key-file` are empty, and `skip-verify` is true or `ca-file` is set, 
+      # the server will run with self signed certificates.
+      key-file:
+      # boolean, if true, the gNMI server will run in secure mode 
+      # but will not verify the client certificate against the available certificate chain.
+      skip-verify: false
+    # see https://gnmic.openconfig.net/user_guide/caching/, 
+    # if enabled, the received gNMI notifications are stored in a cache.
     # the prometheus metrics are generated at the time a prometheus server sends scrape request.
     # this behavior allows the processors (if defined) to be run on all the generated events at once.
     # this mode uses more resource compared to the default one, but offers more flexibility when it comes 
     # to manipulating the data to customize the returned metrics using event-processors.
-    gnmi-cache: false
+    cache:
     # duration, scrape request timeout.
     # this timer is started when a scrape request is received, 
     # if it is reached, the metrics generation/collection is stopped.

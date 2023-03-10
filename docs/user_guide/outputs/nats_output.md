@@ -25,6 +25,18 @@ outputs:
     password: 
     # wait time before reconnection attempts
     connect-time-wait: 2s 
+    # tls config
+    tls:
+      # string, path to the CA certificate file,
+      # this will be used to verify the clients certificates when `skip-verify` is false
+      ca-file:
+      # string, client certificate file.
+      cert-file:
+      # string, client key file.
+      key-file:
+      # boolean, if true, the client will not verify the server
+      # certificate against the available certificate chain.
+      skip-verify: false
     # Exported message format, one of: proto, prototext, protojson, json, event
     format: json 
     # string, one of `overwrite`, `if-not-present`, ``
