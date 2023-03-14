@@ -273,10 +273,10 @@ func (n *NatsOutput) createNATSConn(c *Config) (*nats.Conn, error) {
 		nats.ErrorHandler(func(_ *nats.Conn, _ *nats.Subscription, err error) {
 			n.logger.Printf("NATS error: %v", err)
 		}),
-		nats.DisconnectHandler(func(c *nats.Conn) {
+		nats.DisconnectHandler(func(*nats.Conn) {
 			n.logger.Println("Disconnected from NATS")
 		}),
-		nats.ClosedHandler(func(c *nats.Conn) {
+		nats.ClosedHandler(func( *nats.Conn) {
 			n.logger.Println("NATS connection is closed")
 		}),
 	}
@@ -353,8 +353,10 @@ CRCONN:
 				}
 				continue
 			}
-
-			if n.msgTpl != nil && len(b) > 0 {
+			if len(b) == 0 {
+				return
+			}
+			if n.msgTpl != nil {
 				b, err = outputs.ExecTemplate(b, n.msgTpl)
 				if err != nil {
 					if n.Cfg.Debug {

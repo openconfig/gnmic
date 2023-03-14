@@ -316,8 +316,10 @@ CRPROD:
 				}
 				continue
 			}
-
-			if k.msgTpl != nil && len(b) > 0 {
+			if len(b) == 0 {
+				return
+			}
+			if k.msgTpl != nil {
 				b, err = outputs.ExecTemplate(b, k.msgTpl)
 				if err != nil {
 					if k.Cfg.Debug {

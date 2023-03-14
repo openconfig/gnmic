@@ -334,6 +334,9 @@ CRCONN:
 				}
 				continue
 			}
+			if len(b) == 0 {
+				continue
+			}
 			subject := s.subjectName(c, m.GetMeta())
 			start := time.Now()
 			err = stanConn.Publish(subject, b)

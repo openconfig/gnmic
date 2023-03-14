@@ -237,8 +237,10 @@ func (f *File) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) 
 		numberOfFailWriteMsgs.WithLabelValues(f.file.Name(), "marshal_error").Inc()
 		return
 	}
-
-	if f.msgTpl != nil && len(b) > 0 {
+	if len(b) == 0 {
+		return
+	}
+	if f.msgTpl != nil {
 		b, err = outputs.ExecTemplate(b, f.msgTpl)
 		if err != nil {
 			if f.Cfg.Debug {

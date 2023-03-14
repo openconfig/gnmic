@@ -56,6 +56,9 @@ func (o *MarshalOptions) Marshal(msg proto.Message, meta map[string]string, eps 
 				if err != nil {
 					return nil, fmt.Errorf("failed converting response to events: %v", err)
 				}
+				if len(events) == 0 {
+					return nil, nil
+				}
 				if o.Multiline {
 					b, err = json.MarshalIndent(events, "", o.Indent)
 				} else {
