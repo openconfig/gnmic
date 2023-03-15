@@ -19,7 +19,7 @@ require (
 	github.com/gosnmp/gosnmp v1.35.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/hairyhenderson/gomplate/v3 v3.11.4
-	github.com/hashicorp/consul/api v1.19.1
+	github.com/hashicorp/consul/api v1.20.0
 	github.com/huandu/xstrings v1.4.0
 	github.com/influxdata/influxdb-client-go/v2 v2.12.2
 	github.com/itchyny/gojq v0.12.12
