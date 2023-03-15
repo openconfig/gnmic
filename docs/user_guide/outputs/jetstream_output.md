@@ -63,16 +63,18 @@ outputs:
     # If a subject-format is `static`, gnmic will publish all subscriptions updates 
     # to a single subject configured under this field. Defaults to 'telemetry'
     subject: telemetry
-    # TLS configuration
+    # tls config
     tls:
-      # string, path to CA certificates file
+      # string, path to the CA certificate file,
+      # this will be used to verify the clients certificates when `skip-verify` is false
       ca-file:
-      # string, path to client certificate file
+      # string, client certificate file.
       cert-file:
-      # string, path to client key file
+      # string, client key file.
       key-file:
-      # boolean, if true, the client does not verify the server certificates
-      skip-verify:
+      # boolean, if true, the client will not verify the server
+      # certificate against the available certificate chain.
+      skip-verify: false
     # NATS username
     username: 
     # NATS password  

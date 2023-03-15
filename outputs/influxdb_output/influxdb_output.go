@@ -74,24 +74,25 @@ type influxDBOutput struct {
 }
 
 type Config struct {
-	URL                string        `mapstructure:"url,omitempty"`
-	Org                string        `mapstructure:"org,omitempty"`
-	Bucket             string        `mapstructure:"bucket,omitempty"`
-	Token              string        `mapstructure:"token,omitempty"`
-	BatchSize          uint          `mapstructure:"batch-size,omitempty"`
-	FlushTimer         time.Duration `mapstructure:"flush-timer,omitempty"`
-	UseGzip            bool          `mapstructure:"use-gzip,omitempty"`
-	EnableTLS          bool          `mapstructure:"enable-tls,omitempty"`
-	HealthCheckPeriod  time.Duration `mapstructure:"health-check-period,omitempty"`
-	Debug              bool          `mapstructure:"debug,omitempty"`
-	AddTarget          string        `mapstructure:"add-target,omitempty"`
-	TargetTemplate     string        `mapstructure:"target-template,omitempty"`
-	EventProcessors    []string      `mapstructure:"event-processors,omitempty"`
-	EnableMetrics      bool          `mapstructure:"enable-metrics,omitempty"`
-	OverrideTimestamps bool          `mapstructure:"override-timestamps,omitempty"`
-	TimestampPrecision string        `mapstructure:"timestamp-precision,omitempty"`
-	CacheConfig        *cache.Config `mapstructure:"cache,omitempty"`
-	CacheFlushTimer    time.Duration `mapstructure:"cache-flush-timer,omitempty"`
+	URL                string           `mapstructure:"url,omitempty"`
+	Org                string           `mapstructure:"org,omitempty"`
+	Bucket             string           `mapstructure:"bucket,omitempty"`
+	Token              string           `mapstructure:"token,omitempty"`
+	BatchSize          uint             `mapstructure:"batch-size,omitempty"`
+	FlushTimer         time.Duration    `mapstructure:"flush-timer,omitempty"`
+	UseGzip            bool             `mapstructure:"use-gzip,omitempty"`
+	EnableTLS          bool             `mapstructure:"enable-tls,omitempty"`
+	TLS                *types.TLSConfig `mapstructure:"tls,omitempty" json:"tls,omitempty"`
+	HealthCheckPeriod  time.Duration    `mapstructure:"health-check-period,omitempty"`
+	Debug              bool             `mapstructure:"debug,omitempty"`
+	AddTarget          string           `mapstructure:"add-target,omitempty"`
+	TargetTemplate     string           `mapstructure:"target-template,omitempty"`
+	EventProcessors    []string         `mapstructure:"event-processors,omitempty"`
+	EnableMetrics      bool             `mapstructure:"enable-metrics,omitempty"`
+	OverrideTimestamps bool             `mapstructure:"override-timestamps,omitempty"`
+	TimestampPrecision string           `mapstructure:"timestamp-precision,omitempty"`
+	CacheConfig        *cache.Config    `mapstructure:"cache,omitempty"`
+	CacheFlushTimer    time.Duration    `mapstructure:"cache-flush-timer,omitempty"`
 }
 
 func (k *influxDBOutput) String() string {
@@ -171,8 +172,12 @@ func (i *influxDBOutput) Init(ctx context.Context, name string, cfg map[string]i
 	}
 
 	ctx, i.cancelFn = context.WithCancel(ctx)
+	influxOpts, err := i.clientOpts()
+	if err != nil {
+		return err
+	}
 CRCLIENT:
-	i.client = influxdb2.NewClientWithOptions(i.Cfg.URL, i.Cfg.Token, i.clientOpts())
+	i.client = influxdb2.NewClientWithOptions(i.Cfg.URL, i.Cfg.Token, influxOpts)
 	// start influx health check
 	if i.Cfg.HealthCheckPeriod > 0 {
 		err = i.health(ctx)
@@ -401,12 +406,20 @@ func (i *influxDBOutput) convertUints(ev *formatters.EventMsg) {
 	}
 }
 
-func (i *influxDBOutput) clientOpts() *influxdb2.Options {
+func (i *influxDBOutput) clientOpts() (*influxdb2.Options, error) {
 	iopts := influxdb2.DefaultOptions().
 		SetUseGZip(i.Cfg.UseGzip).
 		SetBatchSize(i.Cfg.BatchSize).
 		SetFlushInterval(uint(i.Cfg.FlushTimer.Milliseconds()))
-
+	if i.Cfg.TLS != nil {
+		tlsConfig, err := utils.NewTLSConfig(
+			i.Cfg.TLS.CaFile, i.Cfg.TLS.CertFile, i.Cfg.TLS.KeyFile, i.Cfg.TLS.SkipVerify,
+			false)
+		if err != nil {
+			return nil, err
+		}
+		iopts.SetTLSConfig(tlsConfig)
+	}
 	if i.Cfg.EnableTLS {
 		iopts.SetTLSConfig(&tls.Config{
 			InsecureSkipVerify: true,
@@ -423,5 +436,5 @@ func (i *influxDBOutput) clientOpts() *influxdb2.Options {
 	if i.Cfg.Debug {
 		iopts.SetLogLevel(3)
 	}
-	return iopts
+	return iopts, nil
 }

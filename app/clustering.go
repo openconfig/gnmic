@@ -80,8 +80,7 @@ func (a *App) apiServiceRegistration() {
 	tags := make([]string, 0, 2+len(a.Config.Clustering.Tags))
 	tags = append(tags, fmt.Sprintf("cluster-name=%s", a.Config.Clustering.ClusterName))
 	tags = append(tags, fmt.Sprintf("instance-name=%s", a.Config.Clustering.InstanceName))
-	if a.Config.APIServer.SkipVerify || a.Config.APIServer.CaFile != "" ||
-		a.Config.APIServer.CertFile != "" && a.Config.APIServer.KeyFile != "" {
+	if a.Config.APIServer.TLS != nil {
 		tags = append(tags, "protocol=https")
 	} else {
 		tags = append(tags, "protocol=http")

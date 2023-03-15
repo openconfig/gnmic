@@ -10,6 +10,7 @@ package app
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -26,15 +27,20 @@ import (
 
 func (a *App) newAPIServer() (*http.Server, error) {
 	a.routes()
-	tlscfg, err := utils.NewTLSConfig(
-		a.Config.APIServer.CaFile,
-		a.Config.APIServer.CertFile,
-		a.Config.APIServer.KeyFile,
-		a.Config.APIServer.SkipVerify,
-		true)
-	if err != nil {
-		return nil, err
+	var tlscfg *tls.Config
+	var err error
+	if a.Config.APIServer.TLS != nil {
+		tlscfg, err = utils.NewTLSConfig(
+			a.Config.APIServer.TLS.CaFile,
+			a.Config.APIServer.TLS.CertFile,
+			a.Config.APIServer.TLS.KeyFile,
+			a.Config.APIServer.TLS.SkipVerify,
+			true)
+		if err != nil {
+			return nil, err
+		}
 	}
+
 	if a.Config.APIServer.EnableMetrics {
 		a.router.Handle("/metrics", promhttp.HandlerFor(a.reg, promhttp.HandlerOpts{}))
 		a.reg.MustRegister(collectors.NewGoCollector())

@@ -23,8 +23,21 @@ outputs:
     flush-timer: 10s
     # if true, the influxdb client will use gzip compression in write requests.
     use-gzip: false
-    # if true, the influxdb client will use a secure connection to the server.
+    # (deprecated, use tls.skip-verify: true) 
+    #if true, the influxdb client will use a secure connection to the server.
     enable-tls: false
+    # tls config
+    tls:
+      # string, path to the CA certificate file,
+      # this will be used to verify the clients certificates when `skip-verify` is false
+      ca-file:
+      # string, client certificate file.
+      cert-file:
+      # string, client key file.
+      key-file:
+      # boolean, if true, the client will not verify the server
+      # certificate against the available certificate chain.
+      skip-verify: false
     # boolean, if true the message timestamp is changed to current time
     override-timestamps: false 
     # server health check period, used to recover from server connectivity failure.

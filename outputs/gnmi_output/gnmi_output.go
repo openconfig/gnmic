@@ -62,18 +62,13 @@ type gNMIOutput struct {
 
 type config struct {
 	//Name             string `mapstructure:"name,omitempty"`
-	Address          string `mapstructure:"address,omitempty"`
-	TargetTemplate   string `mapstructure:"target-template,omitempty"`
-	MaxSubscriptions int64  `mapstructure:"max-subscriptions,omitempty"`
-	MaxUnaryRPC      int64  `mapstructure:"max-unary-rpc,omitempty"`
-	// TLS
-	SkipVerify bool   `mapstructure:"skip-verify,omitempty"`
-	CaFile     string `mapstructure:"ca-file,omitempty"`
-	CertFile   string `mapstructure:"cert-file,omitempty"`
-	KeyFile    string `mapstructure:"key-file,omitempty"`
-	//
-	EnableMetrics bool `mapstructure:"enable-metrics,omitempty"`
-	Debug         bool `mapstructure:"debug,omitempty"`
+	Address          string           `mapstructure:"address,omitempty"`
+	TargetTemplate   string           `mapstructure:"target-template,omitempty"`
+	MaxSubscriptions int64            `mapstructure:"max-subscriptions,omitempty"`
+	MaxUnaryRPC      int64            `mapstructure:"max-unary-rpc,omitempty"`
+	TLS              *types.TLSConfig `mapstructure:"tls,omitempty"`
+	EnableMetrics    bool             `mapstructure:"enable-metrics,omitempty"`
+	Debug            bool             `mapstructure:"debug,omitempty"`
 }
 
 func (g *gNMIOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
@@ -250,8 +245,15 @@ func (g *gNMIOutput) serverOpts() ([]grpc.ServerOption, error) {
 	if g.cfg.EnableMetrics {
 		opts = append(opts, grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor))
 	}
+	if g.cfg.TLS == nil {
+		return opts, nil
+	}
 
-	tlscfg, err := utils.NewTLSConfig(g.cfg.CaFile, g.cfg.CertFile, g.cfg.KeyFile, g.cfg.SkipVerify, true)
+	tlscfg, err := utils.NewTLSConfig(
+		g.cfg.TLS.CaFile,
+		g.cfg.TLS.CertFile, g.cfg.TLS.KeyFile,
+		g.cfg.TLS.SkipVerify,
+		true)
 	if err != nil {
 		return nil, err
 	}
