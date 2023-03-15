@@ -30,7 +30,7 @@ func (p *promWriteOutput) createHTTPClient() error {
 	}
 	if p.Cfg.TLS != nil {
 		tlsCfg, err := utils.NewTLSConfig(
-			p.Cfg.TLS.CAFile,
+			p.Cfg.TLS.CaFile,
 			p.Cfg.TLS.CertFile,
 			p.Cfg.TLS.KeyFile,
 			p.Cfg.TLS.SkipVerify,

@@ -65,21 +65,22 @@ type StanInput struct {
 
 // Config //
 type Config struct {
-	Name            string        `mapstructure:"name,omitempty"`
-	Address         string        `mapstructure:"address,omitempty"`
-	Subject         string        `mapstructure:"subject,omitempty"`
-	Queue           string        `mapstructure:"queue,omitempty"`
-	Username        string        `mapstructure:"username,omitempty"`
-	Password        string        `mapstructure:"password,omitempty"`
-	ConnectTimeWait time.Duration `mapstructure:"connect-time-wait,omitempty"`
-	ClusterName     string        `mapstructure:"cluster-name,omitempty"`
-	PingInterval    int           `mapstructure:"ping-interval,omitempty"`
-	PingRetry       int           `mapstructure:"ping-retry,omitempty"`
-	Format          string        `mapstructure:"format,omitempty"`
-	Debug           bool          `mapstructure:"debug,omitempty"`
-	NumWorkers      int           `mapstructure:"num-workers,omitempty"`
-	Outputs         []string      `mapstructure:"outputs,omitempty"`
-	EventProcessors []string      `mapstructure:"event-processors,omitempty"`
+	Name            string           `mapstructure:"name,omitempty"`
+	Address         string           `mapstructure:"address,omitempty"`
+	Subject         string           `mapstructure:"subject,omitempty"`
+	Queue           string           `mapstructure:"queue,omitempty"`
+	Username        string           `mapstructure:"username,omitempty"`
+	Password        string           `mapstructure:"password,omitempty"`
+	ConnectTimeWait time.Duration    `mapstructure:"connect-time-wait,omitempty"`
+	TLS             *types.TLSConfig `mapstructure:"tls,omitempty" json:"tls,omitempty"`
+	ClusterName     string           `mapstructure:"cluster-name,omitempty"`
+	PingInterval    int              `mapstructure:"ping-interval,omitempty"`
+	PingRetry       int              `mapstructure:"ping-retry,omitempty"`
+	Format          string           `mapstructure:"format,omitempty"`
+	Debug           bool             `mapstructure:"debug,omitempty"`
+	NumWorkers      int              `mapstructure:"num-workers,omitempty"`
+	Outputs         []string         `mapstructure:"outputs,omitempty"`
+	EventProcessors []string         `mapstructure:"event-processors,omitempty"`
 }
 
 func (s *StanInput) Start(ctx context.Context, name string, cfg map[string]interface{}, opts ...inputs.Option) error {
@@ -108,12 +109,18 @@ func (s *StanInput) Start(ctx context.Context, name string, cfg map[string]inter
 func (s *StanInput) worker(ctx context.Context, idx int) {
 	defer s.wg.Done()
 	var stanConn stan.Conn
+	var err error
 	workerLogPrefix := fmt.Sprintf("worker-%d", idx)
 	cfg := *s.Cfg
 	cfg.Name = fmt.Sprintf("%s-%d", cfg.Name, idx)
 	s.logger.Printf("%s starting", workerLogPrefix)
-CRCONN:
-	stanConn = s.createSTANConn(&cfg)
+START:
+	stanConn, err = s.createSTANConn(&cfg)
+	if err != nil {
+		s.logger.Printf("%s failed to create NATS connection: %v", workerLogPrefix, err)
+		time.Sleep(s.Cfg.ConnectTimeWait)
+		goto START
+	}
 	s.logger.Printf("%s initialized stan input connection: %+v", workerLogPrefix, s)
 	defer stanConn.Close()
 	defer stanConn.NatsConn().Close()
@@ -121,10 +128,10 @@ CRCONN:
 	sub, err := stanConn.QueueSubscribe(s.Cfg.Subject, s.Cfg.Queue, s.handleMsg, stan.DurableName(cfg.Name))
 	if err != nil {
 		s.logger.Printf("%s failed to subscribe to STAN subject=%q, queue=%q, err=%v", workerLogPrefix, s.Cfg.Subject, s.Cfg.Queue, err)
+		stanConn.Close()
+		stanConn.NatsConn().Close()
 		time.Sleep(s.Cfg.ConnectTimeWait)
-		defer stanConn.Close()
-		defer stanConn.NatsConn().Close()
-		goto CRCONN
+		goto START
 	}
 	defer sub.Close()
 	defer sub.Unsubscribe()
@@ -230,12 +237,23 @@ func (s *StanInput) setDefaults() error {
 	return nil
 }
 
-func (s *StanInput) createSTANConn(c *Config) stan.Conn {
+func (s *StanInput) createSTANConn(c *Config) (stan.Conn, error) {
 	opts := []nats.Option{
 		nats.Name(c.Name),
 	}
 	if c.Username != "" && c.Password != "" {
 		opts = append(opts, nats.UserInfo(c.Username, c.Password))
+	}
+	if s.Cfg.TLS != nil {
+		tlsConfig, err := utils.NewTLSConfig(
+			s.Cfg.TLS.CaFile, s.Cfg.TLS.CertFile, s.Cfg.TLS.KeyFile, s.Cfg.TLS.SkipVerify,
+			false)
+		if err != nil {
+			return nil, err
+		}
+		if tlsConfig != nil {
+			opts = append(opts, nats.Secure(tlsConfig))
+		}
 	}
 	var nc *nats.Conn
 	var sc stan.Conn
@@ -248,12 +266,13 @@ CRCONN:
 		time.Sleep(s.Cfg.ConnectTimeWait)
 		goto CRCONN
 	}
+
 	sc, err = stan.Connect(c.ClusterName, c.Name,
 		stan.NatsConn(nc),
 		stan.Pings(c.PingInterval, c.PingRetry),
 		stan.SetConnectionLostHandler(func(_ stan.Conn, err error) {
 			s.logger.Printf("STAN connection lost, reason: %v", err)
-			s.logger.Printf("retryring...")
+			s.logger.Printf("retrying...")
 			//sc = s.createSTANConn(c)
 		}),
 	)
@@ -264,7 +283,7 @@ CRCONN:
 		goto CRCONN
 	}
 	s.logger.Printf("successfully connected to STAN server %s", c.Address)
-	return sc
+	return sc, nil
 }
 
 func (s *StanInput) handleMsg(m *stan.Msg) {

@@ -30,15 +30,22 @@ api-server:
   # duration, the server timeout.
   # The set value is equally split between read and write timeouts
   timeout: 10s
-  # boolean, if true, the server will not verify the client's certificates
-  skip-verify: false
-  # path to the CA certificate file to be used, 
-  # irrelevant if `skip-verify` is true
-  ca-file: 
-  # path to the server certificate file
-  cert-file:
-  # path to the server key file
-  key-file:
+  # tls config
+  tls:
+    # string, path to the CA certificate file,
+    # this will be used to verify the clients certificates when `skip-verify` is false
+    ca-file:
+    # string, server certificate file.
+    # if both `cert-file` and `key-file` are empty, and `skip-verify` is true or `ca-file` is set, 
+    # the server will run with self signed certificates.
+    cert-file:
+    # string, server key file.
+    # if both `cert-file` and `key-file` are empty, and `skip-verify` is true or `ca-file` is set, 
+    # the server will run with self signed certificates.
+    key-file:
+    # boolean, if true, the server will run in secure mode 
+    # but will not verify the client certificate against the available certificate chain.
+    skip-verify: false
   # boolean, if true, the server will also handle the path /metrics and serve 
   # gNMIc's enabled prometheus metrics.
   enable-metrics: false

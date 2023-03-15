@@ -64,19 +64,20 @@ type NatsInput struct {
 
 // Config //
 type Config struct {
-	Name            string        `mapstructure:"name,omitempty"`
-	Address         string        `mapstructure:"address,omitempty"`
-	Subject         string        `mapstructure:"subject,omitempty"`
-	Queue           string        `mapstructure:"queue,omitempty"`
-	Username        string        `mapstructure:"username,omitempty"`
-	Password        string        `mapstructure:"password,omitempty"`
-	ConnectTimeWait time.Duration `mapstructure:"connect-time-wait,omitempty"`
-	Format          string        `mapstructure:"format,omitempty"`
-	Debug           bool          `mapstructure:"debug,omitempty"`
-	NumWorkers      int           `mapstructure:"num-workers,omitempty"`
-	BufferSize      int           `mapstructure:"buffer-size,omitempty"`
-	Outputs         []string      `mapstructure:"outputs,omitempty"`
-	EventProcessors []string      `mapstructure:"event-processors,omitempty"`
+	Name            string           `mapstructure:"name,omitempty"`
+	Address         string           `mapstructure:"address,omitempty"`
+	Subject         string           `mapstructure:"subject,omitempty"`
+	Queue           string           `mapstructure:"queue,omitempty"`
+	Username        string           `mapstructure:"username,omitempty"`
+	Password        string           `mapstructure:"password,omitempty"`
+	ConnectTimeWait time.Duration    `mapstructure:"connect-time-wait,omitempty"`
+	TLS             *types.TLSConfig `mapstructure:"tls,omitempty" json:"tls,omitempty"`
+	Format          string           `mapstructure:"format,omitempty"`
+	Debug           bool             `mapstructure:"debug,omitempty"`
+	NumWorkers      int              `mapstructure:"num-workers,omitempty"`
+	BufferSize      int              `mapstructure:"buffer-size,omitempty"`
+	Outputs         []string         `mapstructure:"outputs,omitempty"`
+	EventProcessors []string         `mapstructure:"event-processors,omitempty"`
 }
 
 // Init //
@@ -302,15 +303,26 @@ func (n *NatsInput) createNATSConn(c *Config) (*nats.Conn, error) {
 		nats.ErrorHandler(func(_ *nats.Conn, _ *nats.Subscription, err error) {
 			n.logger.Printf("NATS error: %v", err)
 		}),
-		nats.DisconnectHandler(func(c *nats.Conn) {
+		nats.DisconnectHandler(func(*nats.Conn) {
 			n.logger.Println("Disconnected from NATS")
 		}),
-		nats.ClosedHandler(func(c *nats.Conn) {
+		nats.ClosedHandler(func(*nats.Conn) {
 			n.logger.Println("NATS connection is closed")
 		}),
 	}
 	if c.Username != "" && c.Password != "" {
 		opts = append(opts, nats.UserInfo(c.Username, c.Password))
+	}
+	if n.Cfg.TLS != nil {
+		tlsConfig, err := utils.NewTLSConfig(
+			n.Cfg.TLS.CaFile, n.Cfg.TLS.CertFile, n.Cfg.TLS.KeyFile, n.Cfg.TLS.SkipVerify,
+			false)
+		if err != nil {
+			return nil, err
+		}
+		if tlsConfig != nil {
+			opts = append(opts, nats.Secure(tlsConfig))
+		}
 	}
 	nc, err := nats.Connect(c.Address, opts...)
 	if err != nil {

@@ -74,7 +74,7 @@ type config struct {
 	Username           string              `mapstructure:"username,omitempty" json:"username,omitempty"`
 	Password           string              `mapstructure:"password,omitempty" json:"password,omitempty"`
 	ConnectTimeWait    time.Duration       `mapstructure:"connect-time-wait,omitempty" json:"connect-time-wait,omitempty"`
-	TLS                *tls                `mapstructure:"tls,omitempty" json:"tls,omitempty"`
+	TLS                *types.TLSConfig    `mapstructure:"tls,omitempty" json:"tls,omitempty"`
 	Format             string              `mapstructure:"format,omitempty" json:"format,omitempty"`
 	AddTarget          string              `mapstructure:"add-target,omitempty" json:"add-target,omitempty"`
 	TargetTemplate     string              `mapstructure:"target-template,omitempty" json:"target-template,omitempty"`
@@ -95,13 +95,6 @@ type createStreamConfig struct {
 	MaxBytes    int64         `mapstructure:"max-bytes,omitempty" json:"max-bytes,omitempty"`
 	MaxAge      time.Duration `mapstructure:"max-age,omitempty" json:"max-age,omitempty"`
 	MaxMsgSize  int32         `mapstructure:"max-msg-size,omitempty" json:"max-msg-size,omitempty"`
-}
-
-type tls struct {
-	CAFile     string `mapstructure:"ca-file,omitempty" json:"ca-file,omitempty"`
-	CertFile   string `mapstructure:"cert-file,omitempty" json:"cert-file,omitempty"`
-	KeyFile    string `mapstructure:"key-file,omitempty" json:"key-file,omitempty"`
-	SkipVerify bool   `mapstructure:"skip-verify,omitempty" json:"skip-verify,omitempty"`
 }
 
 // jetstreamOutput //
@@ -507,7 +500,7 @@ func (n *jetstreamOutput) createNATSConn(c *config) (*nats.Conn, error) {
 	}
 	if n.Cfg.TLS != nil {
 		tlsConfig, err := utils.NewTLSConfig(
-			n.Cfg.TLS.CAFile, n.Cfg.TLS.CertFile, n.Cfg.TLS.KeyFile, n.Cfg.TLS.SkipVerify,
+			n.Cfg.TLS.CaFile, n.Cfg.TLS.CertFile, n.Cfg.TLS.KeyFile, n.Cfg.TLS.SkipVerify,
 			false)
 		if err != nil {
 			return nil, err
