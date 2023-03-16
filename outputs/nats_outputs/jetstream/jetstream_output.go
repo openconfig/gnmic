@@ -407,15 +407,17 @@ CRCONN:
 					}
 					continue
 				}
-
-				if n.msgTpl != nil && len(b) > 0 {
+				if len(b) == 0 {
+					continue
+				}
+				if n.msgTpl != nil {
 					b, err = outputs.ExecTemplate(b, n.msgTpl)
 					if err != nil {
 						if n.Cfg.Debug {
 							log.Printf("failed to execute template: %v", err)
 						}
 						jetStreamNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "template_error").Inc()
-						return
+						continue
 					}
 				}
 

@@ -365,8 +365,10 @@ CRCONN:
 				}
 				continue
 			}
-
-			if n.msgTpl != nil && len(b) > 0 {
+			if len(b) == 0 {
+				return
+			}
+			if n.msgTpl != nil {
 				b, err = outputs.ExecTemplate(b, n.msgTpl)
 				if err != nil {
 					if n.Cfg.Debug {
