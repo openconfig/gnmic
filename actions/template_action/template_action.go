@@ -17,8 +17,6 @@ import (
 	"os"
 	"text/template"
 
-	"github.com/hairyhenderson/gomplate/v3"
-	"github.com/hairyhenderson/gomplate/v3/data"
 	"github.com/openconfig/gnmic/actions"
 	"github.com/openconfig/gnmic/utils"
 )
@@ -74,7 +72,8 @@ func (t *templateAction) Init(cfg map[string]interface{}, opts ...actions.Option
 		if err != nil {
 			return err
 		}
-		t.tpl = t.tpl.Funcs(gomplate.CreateFuncs(context.TODO(), new(data.Data))).Option("missingkey=zero")
+		t.tpl = t.tpl.Funcs(utils.NewTemplateEngine().CreateFuncs()).
+			Option("missingkey=zero")
 	}
 	t.logger.Printf("action name %q of type %q initialized: %v", t.Name, actionType, t)
 	return nil
