@@ -34,6 +34,9 @@ outputs:
     target-template:
     # boolean, if true the message timestamp is changed to current time
     override-timestamps: false
+    # string, a delimiter to be sent after each message.
+    # useful when writing to logstash TCP input.
+    delimiter:
     # enable TCP keepalive and specify the timer, e.g: 1s, 30s
     keep-alive: 
     # time duration to wait before re-dial in case there is a failure

@@ -34,15 +34,15 @@ const (
 
 func init() {
 	outputs.Register("tcp", func() outputs.Output {
-		return &TCPOutput{
-			Cfg:    &Config{},
+		return &tcpOutput{
+			cfg:    &config{},
 			logger: log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
 		}
 	})
 }
 
-type TCPOutput struct {
-	Cfg *Config
+type tcpOutput struct {
+	cfg *config
 
 	cancelFn context.CancelFunc
 	buffer   chan []byte
@@ -52,9 +52,10 @@ type TCPOutput struct {
 	evps     []formatters.EventProcessor
 
 	targetTpl *template.Template
+	delimiter []byte
 }
 
-type Config struct {
+type config struct {
 	Address            string        `mapstructure:"address,omitempty"` // ip:port
 	Rate               time.Duration `mapstructure:"rate,omitempty"`
 	BufferSize         uint          `mapstructure:"buffer-size,omitempty"`
@@ -62,6 +63,7 @@ type Config struct {
 	AddTarget          string        `mapstructure:"add-target,omitempty"`
 	TargetTemplate     string        `mapstructure:"target-template,omitempty"`
 	OverrideTimestamps bool          `mapstructure:"override-timestamps,omitempty"`
+	Delimiter          string        `mapstructure:"delimiter,omitempty"`
 	KeepAlive          time.Duration `mapstructure:"keep-alive,omitempty"`
 	RetryInterval      time.Duration `mapstructure:"retry-interval,omitempty"`
 	NumWorkers         int           `mapstructure:"num-workers,omitempty"`
@@ -69,18 +71,18 @@ type Config struct {
 	EventProcessors    []string      `mapstructure:"event-processors,omitempty"`
 }
 
-func (t *TCPOutput) SetLogger(logger *log.Logger) {
+func (t *tcpOutput) SetLogger(logger *log.Logger) {
 	if logger != nil && t.logger != nil {
 		t.logger.SetOutput(logger.Writer())
 		t.logger.SetFlags(logger.Flags())
 	}
 }
 
-func (t *TCPOutput) SetEventProcessors(ps map[string]map[string]interface{},
+func (t *tcpOutput) SetEventProcessors(ps map[string]map[string]interface{},
 	logger *log.Logger,
 	tcs map[string]*types.TargetConfig,
 	acts map[string]map[string]interface{}) {
-	for _, epName := range t.Cfg.EventProcessors {
+	for _, epName := range t.cfg.EventProcessors {
 		if epCfg, ok := ps[epName]; ok {
 			epType := ""
 			for k := range epCfg {
@@ -105,8 +107,8 @@ func (t *TCPOutput) SetEventProcessors(ps map[string]map[string]interface{},
 	}
 }
 
-func (t *TCPOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
-	err := outputs.DecodeConfig(cfg, t.Cfg)
+func (t *tcpOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
+	err := outputs.DecodeConfig(cfg, t.cfg)
 	if err != nil {
 		return err
 	}
@@ -115,30 +117,32 @@ func (t *TCPOutput) Init(ctx context.Context, name string, cfg map[string]interf
 	for _, opt := range opts {
 		opt(t)
 	}
-	_, _, err = net.SplitHostPort(t.Cfg.Address)
+	_, _, err = net.SplitHostPort(t.cfg.Address)
 	if err != nil {
 		return fmt.Errorf("wrong address format: %v", err)
 	}
-	t.buffer = make(chan []byte, t.Cfg.BufferSize)
-	if t.Cfg.Rate > 0 {
-		t.limiter = time.NewTicker(t.Cfg.Rate)
+	t.buffer = make(chan []byte, t.cfg.BufferSize)
+	if t.cfg.Rate > 0 {
+		t.limiter = time.NewTicker(t.cfg.Rate)
 	}
-	if t.Cfg.RetryInterval == 0 {
-		t.Cfg.RetryInterval = defaultRetryTimer
+	if t.cfg.RetryInterval == 0 {
+		t.cfg.RetryInterval = defaultRetryTimer
 	}
-	if t.Cfg.NumWorkers < 1 {
-		t.Cfg.NumWorkers = defaultNumWorkers
+	if t.cfg.NumWorkers < 1 {
+		t.cfg.NumWorkers = defaultNumWorkers
 	}
-
+	if len(t.cfg.Delimiter) > 0 {
+		t.delimiter = []byte(t.cfg.Delimiter)
+	}
 	t.mo = &formatters.MarshalOptions{
-		Format:     t.Cfg.Format,
-		OverrideTS: t.Cfg.OverrideTimestamps,
+		Format:     t.cfg.Format,
+		OverrideTS: t.cfg.OverrideTimestamps,
 	}
 
-	if t.Cfg.TargetTemplate == "" {
+	if t.cfg.TargetTemplate == "" {
 		t.targetTpl = outputs.DefaultTargetTemplate
-	} else if t.Cfg.AddTarget != "" {
-		t.targetTpl, err = utils.CreateTemplate("target-template", t.Cfg.TargetTemplate)
+	} else if t.cfg.AddTarget != "" {
+		t.targetTpl, err = utils.CreateTemplate("target-template", t.cfg.TargetTemplate)
 		if err != nil {
 			return err
 		}
@@ -150,13 +154,13 @@ func (t *TCPOutput) Init(ctx context.Context, name string, cfg map[string]interf
 	}()
 
 	ctx, t.cancelFn = context.WithCancel(ctx)
-	for i := 0; i < t.Cfg.NumWorkers; i++ {
+	for i := 0; i < t.cfg.NumWorkers; i++ {
 		go t.start(ctx, i)
 	}
 	return nil
 }
 
-func (t *TCPOutput) Write(ctx context.Context, m proto.Message, meta outputs.Meta) {
+func (t *tcpOutput) Write(ctx context.Context, m proto.Message, meta outputs.Meta) {
 	if m == nil {
 		return
 	}
@@ -164,7 +168,7 @@ func (t *TCPOutput) Write(ctx context.Context, m proto.Message, meta outputs.Met
 	case <-ctx.Done():
 		return
 	default:
-		rsp, err := outputs.AddSubscriptionTarget(m, meta, t.Cfg.AddTarget, t.targetTpl)
+		rsp, err := outputs.AddSubscriptionTarget(m, meta, t.cfg.AddTarget, t.targetTpl)
 		if err != nil {
 			t.logger.Printf("failed to add target to the response: %v", err)
 		}
@@ -177,44 +181,44 @@ func (t *TCPOutput) Write(ctx context.Context, m proto.Message, meta outputs.Met
 	}
 }
 
-func (t *TCPOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {}
+func (t *tcpOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {}
 
-func (t *TCPOutput) Close() error {
+func (t *tcpOutput) Close() error {
 	t.cancelFn()
 	if t.limiter != nil {
 		t.limiter.Stop()
 	}
 	return nil
 }
-func (t *TCPOutput) RegisterMetrics(reg *prometheus.Registry) {}
+func (t *tcpOutput) RegisterMetrics(reg *prometheus.Registry) {}
 
-func (t *TCPOutput) String() string {
-	b, err := json.Marshal(t)
+func (t *tcpOutput) String() string {
+	b, err := json.Marshal(t.cfg)
 	if err != nil {
 		return ""
 	}
 	return string(b)
 }
 
-func (t *TCPOutput) start(ctx context.Context, idx int) {
+func (t *tcpOutput) start(ctx context.Context, idx int) {
 	workerLogPrefix := fmt.Sprintf("worker-%d", idx)
 START:
-	tcpAddr, err := net.ResolveTCPAddr("tcp", t.Cfg.Address)
+	tcpAddr, err := net.ResolveTCPAddr("tcp", t.cfg.Address)
 	if err != nil {
 		t.logger.Printf("%s failed to resolve address: %v", workerLogPrefix, err)
-		time.Sleep(t.Cfg.RetryInterval)
+		time.Sleep(t.cfg.RetryInterval)
 		goto START
 	}
 	conn, err := net.DialTCP("tcp", nil, tcpAddr)
 	if err != nil {
 		t.logger.Printf("%s failed to dial TCP: %v", workerLogPrefix, err)
-		time.Sleep(t.Cfg.RetryInterval)
+		time.Sleep(t.cfg.RetryInterval)
 		goto START
 	}
 	defer conn.Close()
-	if t.Cfg.KeepAlive > 0 {
+	if t.cfg.KeepAlive > 0 {
 		conn.SetKeepAlive(true)
-		conn.SetKeepAlivePeriod(t.Cfg.KeepAlive)
+		conn.SetKeepAlivePeriod(t.cfg.KeepAlive)
 	}
 	defer t.Close()
 	for {
@@ -225,17 +229,19 @@ START:
 			if t.limiter != nil {
 				<-t.limiter.C
 			}
+			// append delimiter
+			b = append(b, t.delimiter...)
 			_, err = conn.Write(b)
 			if err != nil {
 				t.logger.Printf("%s failed sending tcp bytes: %v", workerLogPrefix, err)
 				conn.Close()
-				time.Sleep(t.Cfg.RetryInterval)
+				time.Sleep(t.cfg.RetryInterval)
 				goto START
 			}
 		}
 	}
 }
 
-func (t *TCPOutput) SetName(name string)                             {}
-func (t *TCPOutput) SetClusterName(name string)                      {}
-func (s *TCPOutput) SetTargetsConfig(map[string]*types.TargetConfig) {}
+func (t *tcpOutput) SetName(name string)                             {}
+func (t *tcpOutput) SetClusterName(name string)                      {}
+func (s *tcpOutput) SetTargetsConfig(map[string]*types.TargetConfig) {}
