@@ -9,6 +9,7 @@
 package kafka_output
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -44,17 +45,17 @@ const (
 
 func init() {
 	outputs.Register("kafka", func() outputs.Output {
-		return &KafkaOutput{
-			Cfg:    &Config{},
+		return &kafkaOutput{
+			Cfg:    &config{},
 			wg:     new(sync.WaitGroup),
 			logger: log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
 		}
 	})
 }
 
-// KafkaOutput //
-type KafkaOutput struct {
-	Cfg      *Config
+// kafkaOutput //
+type kafkaOutput struct {
+	Cfg      *config
 	logger   sarama.StdLogger
 	mo       *formatters.MarshalOptions
 	cancelFn context.CancelFunc
@@ -66,8 +67,8 @@ type KafkaOutput struct {
 	msgTpl    *template.Template
 }
 
-// Config //
-type Config struct {
+// config //
+type config struct {
 	Address            string           `mapstructure:"address,omitempty"`
 	Topic              string           `mapstructure:"topic,omitempty"`
 	Name               string           `mapstructure:"name,omitempty"`
@@ -77,6 +78,7 @@ type Config struct {
 	Timeout            time.Duration    `mapstructure:"timeout,omitempty"`
 	RecoveryWaitTime   time.Duration    `mapstructure:"recovery-wait-time,omitempty"`
 	Format             string           `mapstructure:"format,omitempty"`
+	InsertKey          bool             `mapstructure:"insert-key,omitempty"`
 	AddTarget          string           `mapstructure:"add-target,omitempty"`
 	TargetTemplate     string           `mapstructure:"target-template,omitempty"`
 	MsgTemplate        string           `mapstructure:"msg-template,omitempty"`
@@ -88,22 +90,22 @@ type Config struct {
 	EventProcessors    []string         `mapstructure:"event-processors,omitempty"`
 }
 
-func (k *KafkaOutput) String() string {
-	b, err := json.Marshal(k)
+func (k *kafkaOutput) String() string {
+	b, err := json.Marshal(k.Cfg)
 	if err != nil {
 		return ""
 	}
 	return string(b)
 }
 
-func (k *KafkaOutput) SetLogger(logger *log.Logger) {
+func (k *kafkaOutput) SetLogger(logger *log.Logger) {
 	if logger != nil {
 		sarama.Logger = log.New(logger.Writer(), loggingPrefix, logger.Flags())
 		k.logger = sarama.Logger
 	}
 }
 
-func (k *KafkaOutput) SetEventProcessors(ps map[string]map[string]interface{},
+func (k *kafkaOutput) SetEventProcessors(ps map[string]map[string]interface{},
 	logger *log.Logger,
 	tcs map[string]*types.TargetConfig,
 	acts map[string]map[string]interface{}) {
@@ -137,7 +139,7 @@ func (k *KafkaOutput) SetEventProcessors(ps map[string]map[string]interface{},
 }
 
 // Init /
-func (k *KafkaOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
+func (k *kafkaOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
 	err := outputs.DecodeConfig(cfg, k.Cfg)
 	if err != nil {
 		return err
@@ -194,7 +196,7 @@ func (k *KafkaOutput) Init(ctx context.Context, name string, cfg map[string]inte
 	return nil
 }
 
-func (k *KafkaOutput) setDefaults() error {
+func (k *kafkaOutput) setDefaults() error {
 	if k.Cfg.Format == "" {
 		k.Cfg.Format = defaultFormat
 	}
@@ -238,7 +240,7 @@ func (k *KafkaOutput) setDefaults() error {
 }
 
 // Write //
-func (k *KafkaOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) {
+func (k *kafkaOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) {
 	if rsp == nil {
 		return
 	}
@@ -261,17 +263,17 @@ func (k *KafkaOutput) Write(ctx context.Context, rsp proto.Message, meta outputs
 	}
 }
 
-func (k *KafkaOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {}
+func (k *kafkaOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {}
 
 // Close //
-func (k *KafkaOutput) Close() error {
+func (k *kafkaOutput) Close() error {
 	k.cancelFn()
 	k.wg.Wait()
 	return nil
 }
 
 // Metrics //
-func (k *KafkaOutput) RegisterMetrics(reg *prometheus.Registry) {
+func (k *kafkaOutput) RegisterMetrics(reg *prometheus.Registry) {
 	if !k.Cfg.EnableMetrics {
 		return
 	}
@@ -280,7 +282,7 @@ func (k *KafkaOutput) RegisterMetrics(reg *prometheus.Registry) {
 	}
 }
 
-func (k *KafkaOutput) worker(ctx context.Context, idx int, config *sarama.Config) {
+func (k *kafkaOutput) worker(ctx context.Context, idx int, config *sarama.Config) {
 	var producer sarama.SyncProducer
 	var err error
 	defer k.wg.Done()
@@ -317,7 +319,7 @@ CRPROD:
 				continue
 			}
 			if len(b) == 0 {
-				return
+				continue
 			}
 			if k.msgTpl != nil {
 				b, err = outputs.ExecTemplate(b, k.msgTpl)
@@ -334,7 +336,9 @@ CRPROD:
 				Topic: k.Cfg.Topic,
 				Value: sarama.ByteEncoder(b),
 			}
-
+			if k.Cfg.InsertKey {
+				msg.Key = sarama.ByteEncoder(k.partitionKey(m.GetMeta()))
+			}
 			var start time.Time
 			if k.Cfg.EnableMetrics {
 				start = time.Now()
@@ -360,7 +364,7 @@ CRPROD:
 	}
 }
 
-func (k *KafkaOutput) SetName(name string) {
+func (k *kafkaOutput) SetName(name string) {
 	sb := strings.Builder{}
 	if name != "" {
 		sb.WriteString(name)
@@ -371,11 +375,11 @@ func (k *KafkaOutput) SetName(name string) {
 	k.Cfg.Name = sb.String()
 }
 
-func (k *KafkaOutput) SetClusterName(name string) {}
+func (k *kafkaOutput) SetClusterName(name string) {}
 
-func (k *KafkaOutput) SetTargetsConfig(map[string]*types.TargetConfig) {}
+func (k *kafkaOutput) SetTargetsConfig(map[string]*types.TargetConfig) {}
 
-func (k *KafkaOutput) createConfig() (*sarama.Config, error) {
+func (k *kafkaOutput) createConfig() (*sarama.Config, error) {
 	cfg := sarama.NewConfig()
 	cfg.ClientID = k.Cfg.Name
 	// SASL_PLAINTEXT or SASL_SSL
@@ -418,4 +422,10 @@ func (k *KafkaOutput) createConfig() (*sarama.Config, error) {
 	cfg.Producer.Timeout = k.Cfg.Timeout
 
 	return cfg, nil
+}
+
+func (k *kafkaOutput) partitionKey(m outputs.Meta) []byte {
+	b := new(bytes.Buffer)
+	fmt.Fprintf(b, "%s_%s", m["source"], m["subscription-name"])
+	return b.Bytes()
 }

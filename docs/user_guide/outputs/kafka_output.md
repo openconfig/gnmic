@@ -49,6 +49,10 @@ outputs:
     recovery-wait-time: 10s 
     # Exported msg format, json, protojson, prototext, proto, event
     format: event 
+    # boolean, if true the kafka producer will add a key to 
+    # the message written to the broker. The key value is ${source}_${subscription-name}.
+    # this is useful for Kafka topics with multiple partitions, it allows to keep messages from the same source and subscription in sequence.
+    insert-key: false
     # string, one of `overwrite`, `if-not-present`, ``
     # This field allows populating/changing the value of Prefix.Target in the received message.
     # if set to ``, nothing changes 
