@@ -43,6 +43,7 @@ func (a *App) StartCollector(ctx context.Context) {
 		if t == nil {
 			continue
 		}
+		subscribeTargetState.WithLabelValues(t.Config.Name).Set(0)
 		a.operLock.RLock()
 		_, ok := a.activeTargets[t.Config.Name]
 		a.operLock.RUnlock()
@@ -65,6 +66,7 @@ func (a *App) StartCollector(ctx context.Context) {
 			for {
 				select {
 				case rsp := <-rspChan:
+					subscribeTargetState.WithLabelValues(t.Config.Name).Set(1)
 					subscribeResponseReceivedCounter.WithLabelValues(t.Config.Name, rsp.SubscriptionConfig.Name).Add(1)
 					if a.Config.Debug {
 						a.Logger.Printf("target %q: gNMI Subscribe Response: %+v", t.Config.Name, rsp)

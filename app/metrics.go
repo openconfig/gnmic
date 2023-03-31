@@ -27,6 +27,12 @@ var subscribeResponseReceivedCounter = prometheus.NewCounterVec(prometheus.Count
 	Name:      "number_of_received_subscribe_response_messages_total",
 	Help:      "Total number of received subscribe response messages",
 }, []string{"source", "subscription"})
+var subscribeTargetState = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	Namespace: "gnmic",
+	Subsystem: "subscribe",
+	Name:      "target_is_subscribed",
+	Help:      "Has value 1 if target is subscribed, 0 otherwise",
+}, []string{"source"})
 
 // cluster
 var clusterNumberOfLockedTargets = prometheus.NewGauge(prometheus.GaugeOpts{
