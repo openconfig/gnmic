@@ -43,8 +43,8 @@ api-server:
     #  - request:         The server requests a certificate from the client but does not 
     #                     require the client to send a certificate. 
     #                     If the server sends a certificate, it is not required to be valid.
-    #  - require:         The server requires the client to send a certificate and fails if 
-    #                     the client certificate is not valid.
+    #  - require:         The server requires the client to send a certificate and does not 
+    #                     fail if the client certificate is not valid.
     #  - verify-if-given: The server requests a certificate, 
     #                     does not fail if no certificate is sent. 
     #                     If a certificate is sent it is required to be valid.
