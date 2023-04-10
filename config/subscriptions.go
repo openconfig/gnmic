@@ -57,14 +57,26 @@ func (c *Config) GetSubscriptions(cmd *cobra.Command) (map[string]*types.Subscri
 		sub.UpdatesOnly = c.LocalFlags.SubscribeUpdatesOnly
 		sub.Models = c.LocalFlags.SubscribeModel
 		if flagIsSet(cmd, "history-snapshot") {
+			snapshot, err := time.Parse(time.RFC3339Nano, c.LocalFlags.SubscribeHistorySnapshot)
+			if err != nil {
+				return nil, fmt.Errorf("history-snapshot: %v", err)
+			}
 			sub.History = &types.HistoryConfig{
-				Snapshot: c.LocalFlags.SubscribeHistorySnapshot,
+				Snapshot: snapshot,
 			}
 		}
 		if flagIsSet(cmd, "history-start") && flagIsSet(cmd, "history-end") {
+			start, err := time.Parse(time.RFC3339Nano, c.LocalFlags.SubscribeHistoryStart)
+			if err != nil {
+				return nil, fmt.Errorf("history-start: %v", err)
+			}
+			end, err := time.Parse(time.RFC3339Nano, c.LocalFlags.SubscribeHistoryEnd)
+			if err != nil {
+				return nil, fmt.Errorf("history-end: %v", err)
+			}
 			sub.History = &types.HistoryConfig{
-				Start: c.LocalFlags.SubscribeHistoryStart,
-				End:   c.LocalFlags.SubscribeHistoryEnd,
+				Start: start,
+				End:   end,
 			}
 		}
 		c.Subscriptions[sub.Name] = sub
@@ -95,7 +107,9 @@ func (c *Config) GetSubscriptions(cmd *cobra.Command) (map[string]*types.Subscri
 		sub.Name = sn
 
 		// inherit global "subscribe-*" option if it's not set
-		c.setSubscriptionDefaults(sub, cmd)
+		if err := c.setSubscriptionDefaults(sub, cmd); err != nil {
+			return nil, err
+		}
 		expandSubscriptionEnv(sub)
 		c.Subscriptions[sn] = sub
 	}
@@ -131,7 +145,7 @@ func (c *Config) GetSubscriptions(cmd *cobra.Command) (map[string]*types.Subscri
 	return filteredSubscriptions, nil
 }
 
-func (c *Config) setSubscriptionDefaults(sub *types.SubscriptionConfig, cmd *cobra.Command) {
+func (c *Config) setSubscriptionDefaults(sub *types.SubscriptionConfig, cmd *cobra.Command) error {
 	if sub.SampleInterval == nil && flagIsSet(cmd, "sample-interval") {
 		sub.SampleInterval = &c.LocalFlags.SubscribeSampleInterval
 	}
@@ -151,18 +165,31 @@ func (c *Config) setSubscriptionDefaults(sub *types.SubscriptionConfig, cmd *cob
 		sub.Qos = &c.LocalFlags.SubscribeQos
 	}
 	if sub.History == nil && flagIsSet(cmd, "history-snapshot") {
-		sub.History = &types.HistoryConfig{
-			Snapshot: c.LocalFlags.SubscribeHistorySnapshot,
+		snapshot, err := time.Parse(time.RFC3339Nano, c.LocalFlags.SubscribeHistorySnapshot)
+		if err != nil {
+			return fmt.Errorf("history-snapshot: %v", err)
 		}
-		return
+		sub.History = &types.HistoryConfig{
+			Snapshot: snapshot,
+		}
+		return nil
 	}
 	if sub.History == nil && flagIsSet(cmd, "history-start") && flagIsSet(cmd, "history-end") {
-		sub.History = &types.HistoryConfig{
-			Start: c.LocalFlags.SubscribeHistoryStart,
-			End:   c.LocalFlags.SubscribeHistoryEnd,
+		start, err := time.Parse(time.RFC3339Nano, c.LocalFlags.SubscribeHistoryStart)
+		if err != nil {
+			return fmt.Errorf("history-start: %v", err)
 		}
-		return
+		end, err := time.Parse(time.RFC3339Nano, c.LocalFlags.SubscribeHistoryEnd)
+		if err != nil {
+			return fmt.Errorf("history-end: %v", err)
+		}
+		sub.History = &types.HistoryConfig{
+			Start: start,
+			End:   end,
+		}
+		return nil
 	}
+	return nil
 }
 
 func (c *Config) GetSubscriptionsFromFile() []*types.SubscriptionConfig {
@@ -194,10 +221,10 @@ func (*Config) CreateSubscribeRequest(sc *types.SubscriptionConfig, target strin
 	)
 	// history extension
 	if sc.History != nil {
-		if sc.History.Snapshot != "" {
+		if !sc.History.Snapshot.IsZero() {
 			gnmiOpts = append(gnmiOpts, api.Extension_HistorySnapshotTime(sc.History.Snapshot))
 		}
-		if sc.History.Start != "" && sc.History.End != "" {
+		if !sc.History.Start.IsZero() && !sc.History.End.IsZero() {
 			gnmiOpts = append(gnmiOpts, api.Extension_HistoryRange(sc.History.Start, sc.History.End))
 		}
 	}
