@@ -61,6 +61,6 @@ func (a *App) DiffSetRequestRunE(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(os.Stdout, diff.Format(format))
+	fmt.Fprint(os.Stdout, diff.Format(format))
 	return nil
 }
