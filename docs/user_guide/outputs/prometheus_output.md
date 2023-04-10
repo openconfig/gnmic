@@ -23,22 +23,28 @@ outputs:
     export-timestamps: false 
     # a boolean, enables setting string type values as prometheus metric labels.
     strings-as-labels: false
-    # tls config
     tls:
-      # string, path to the CA certificate file,      # string, path to the CA certificate file,
-      # this will be used to verify the clients certificates when `skip-verify` is false
+      # string, path to the CA certificate file,
+      # this certificate is used to verify the clients certificates.
       ca-file:
       # string, server certificate file.
-      # if both `cert-file` and `key-file` are empty, and `skip-verify` is true or `ca-file` is set, 
-      # the server will run with self signed certificates.
       cert-file:
       # string, server key file.
-      # if both `cert-file` and `key-file` are empty, and `skip-verify` is true or `ca-file` is set, 
-      # the server will run with self signed certificates.
       key-file:
-      # boolean, if true, the gNMI server will run in secure mode 
-      # but will not verify the client certificate against the available certificate chain.
-      skip-verify: false
+      # string, one of `"", "request", "require", "verify-if-given", or "require-verify" 
+      #  - request:         The server requests a certificate from the client but does not 
+      #                     require the client to send a certificate. 
+      #                     If the server sends a certificate, it is not required to be valid.
+      #  - require:         The server requires the client to send a certificate and fails if 
+      #                     the client certificate is not valid.
+      #  - verify-if-given: The server requests a certificate, 
+      #                     does not fail if no certificate is sent. 
+      #                     If a certificate is sent it is required to be valid.
+      #  - require-verify:  The server requires the client to send a valid certificate.
+      #
+      # if no ca-file is present, `client-auth` defaults to ""`
+      # if a ca-file is set, `client-auth` defaults to "require-verify"`
+      client-auth: ""
     # see https://gnmic.openconfig.net/user_guide/caching/, 
     # if enabled, the received gNMI notifications are stored in a cache.
     # the prometheus metrics are generated at the time a prometheus server sends scrape request.

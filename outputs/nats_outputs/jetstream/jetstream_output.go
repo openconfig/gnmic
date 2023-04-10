@@ -500,7 +500,11 @@ func (n *jetstreamOutput) createNATSConn(c *config) (*nats.Conn, error) {
 	}
 	if n.Cfg.TLS != nil {
 		tlsConfig, err := utils.NewTLSConfig(
-			n.Cfg.TLS.CaFile, n.Cfg.TLS.CertFile, n.Cfg.TLS.KeyFile, n.Cfg.TLS.SkipVerify,
+			n.Cfg.TLS.CaFile,
+			n.Cfg.TLS.CertFile,
+			n.Cfg.TLS.KeyFile,
+			"",
+			n.Cfg.TLS.SkipVerify,
 			false)
 		if err != nil {
 			return nil, err

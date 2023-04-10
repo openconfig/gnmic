@@ -69,10 +69,11 @@ type cfg struct {
 	// query timeout
 	Timeout time.Duration `json:"timeout,omitempty" mapstructure:"timeout,omitempty"`
 	// TLS config
-	SkipVerify bool   `json:"skip-verify,omitempty" mapstructure:"skip-verify,omitempty"`
-	CAFile     string `json:"ca-file,omitempty" mapstructure:"ca-file,omitempty"`
-	CertFile   string `json:"cert-file,omitempty" mapstructure:"cert-file,omitempty"`
-	KeyFile    string `json:"key-file,omitempty" mapstructure:"key-file,omitempty"`
+	TLS *types.TLSConfig `json:"tls,omitempty" mapstructure:"tls,omitempty"`
+	// SkipVerify bool   `json:"skip-verify,omitempty" mapstructure:"skip-verify,omitempty"`
+	// CAFile     string `json:"ca-file,omitempty" mapstructure:"ca-file,omitempty"`
+	// CertFile   string `json:"cert-file,omitempty" mapstructure:"cert-file,omitempty"`
+	// KeyFile    string `json:"key-file,omitempty" mapstructure:"key-file,omitempty"`
 	// HTTP basicAuth
 	Username string `json:"username,omitempty" mapstructure:"username,omitempty"`
 	Password string `json:"password,omitempty" mapstructure:"password,omitempty"`
@@ -224,13 +225,15 @@ func (h *httpLoader) setDefaults() error {
 
 func (h *httpLoader) getTargets() (map[string]*types.TargetConfig, error) {
 	c := resty.New()
-	tlsCfg, err := utils.NewTLSConfig(h.cfg.CAFile, h.cfg.CertFile, h.cfg.KeyFile, h.cfg.SkipVerify, false)
-	if err != nil {
-		httpLoaderFailedGetRequests.WithLabelValues(loaderType, fmt.Sprintf("%v", err))
-		return nil, err
-	}
-	if tlsCfg != nil {
-		c = c.SetTLSClientConfig(tlsCfg)
+	if h.cfg.TLS != nil {
+		tlsCfg, err := utils.NewTLSConfig(h.cfg.TLS.CaFile, h.cfg.TLS.CertFile, h.cfg.TLS.KeyFile, "", h.cfg.TLS.SkipVerify, false)
+		if err != nil {
+			httpLoaderFailedGetRequests.WithLabelValues(loaderType, fmt.Sprintf("%v", err))
+			return nil, err
+		}
+		if tlsCfg != nil {
+			c = c.SetTLSClientConfig(tlsCfg)
+		}
 	}
 	c.SetTimeout(h.cfg.Timeout)
 	if h.cfg.Username != "" && h.cfg.Password != "" {

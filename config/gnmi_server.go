@@ -9,11 +9,13 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"time"
 
 	"github.com/openconfig/gnmic/cache"
+	"github.com/openconfig/gnmic/types"
 )
 
 const (
@@ -30,20 +32,15 @@ const (
 )
 
 type gnmiServer struct {
-	Address               string        `mapstructure:"address,omitempty" json:"address,omitempty"`
-	MinSampleInterval     time.Duration `mapstructure:"min-sample-interval,omitempty" json:"min-sample-interval,omitempty"`
-	DefaultSampleInterval time.Duration `mapstructure:"default-sample-interval,omitempty" json:"default-sample-interval,omitempty"`
-	MinHeartbeatInterval  time.Duration `mapstructure:"min-heartbeat-interval,omitempty" json:"min-heartbeat-interval,omitempty"`
-	MaxSubscriptions      int64         `mapstructure:"max-subscriptions,omitempty" json:"max-subscriptions,omitempty"`
-	MaxUnaryRPC           int64         `mapstructure:"max-unary-rpc,omitempty" json:"max-unary-rpc,omitempty"`
-	// TLS
-	SkipVerify bool   `mapstructure:"skip-verify,omitempty" json:"skip-verify,omitempty"`
-	CaFile     string `mapstructure:"ca-file,omitempty" json:"ca-file,omitempty"`
-	CertFile   string `mapstructure:"cert-file,omitempty" json:"cert-file,omitempty"`
-	KeyFile    string `mapstructure:"key-file,omitempty" json:"key-file,omitempty"`
-	//
-	EnableMetrics bool `mapstructure:"enable-metrics,omitempty" json:"enable-metrics,omitempty"`
-	Debug         bool `mapstructure:"debug,omitempty" json:"debug,omitempty"`
+	Address               string           `mapstructure:"address,omitempty" json:"address,omitempty"`
+	MinSampleInterval     time.Duration    `mapstructure:"min-sample-interval,omitempty" json:"min-sample-interval,omitempty"`
+	DefaultSampleInterval time.Duration    `mapstructure:"default-sample-interval,omitempty" json:"default-sample-interval,omitempty"`
+	MinHeartbeatInterval  time.Duration    `mapstructure:"min-heartbeat-interval,omitempty" json:"min-heartbeat-interval,omitempty"`
+	MaxSubscriptions      int64            `mapstructure:"max-subscriptions,omitempty" json:"max-subscriptions,omitempty"`
+	MaxUnaryRPC           int64            `mapstructure:"max-unary-rpc,omitempty" json:"max-unary-rpc,omitempty"`
+	TLS                   *types.TLSConfig `mapstructure:"tls,omitempty"`
+	EnableMetrics         bool             `mapstructure:"enable-metrics,omitempty" json:"enable-metrics,omitempty"`
+	Debug                 bool             `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 	// ServiceRegistration
 	ServiceRegistration *serviceRegistration `mapstructure:"service-registration,omitempty" json:"service-registration,omitempty"`
 	// cache config
@@ -87,11 +84,16 @@ func (c *Config) GetGNMIServer() error {
 		}
 		c.GnmiServer.MaxUnaryRPC = int64(maxUnaryRPC)
 	}
-
-	c.GnmiServer.SkipVerify = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/skip-verify")) == trueString
-	c.GnmiServer.CaFile = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/ca-file"))
-	c.GnmiServer.CertFile = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/cert-file"))
-	c.GnmiServer.KeyFile = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/key-file"))
+	if c.FileConfig.IsSet("gnmi-server/tls") {
+		c.GnmiServer.TLS = new(types.TLSConfig)
+		c.GnmiServer.TLS.CaFile = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/tls/ca-file"))
+		c.GnmiServer.TLS.CertFile = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/tls/cert-file"))
+		c.GnmiServer.TLS.KeyFile = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/tls/key-file"))
+		c.GnmiServer.TLS.ClientAuth = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/tls/client-auth"))
+		if err := c.GnmiServer.TLS.Validate(); err != nil {
+			return fmt.Errorf("gnmi-server TLS config error: %w", err)
+		}
+	}
 
 	c.GnmiServer.EnableMetrics = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/enable-metrics")) == trueString
 	c.GnmiServer.Debug = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/debug")) == trueString

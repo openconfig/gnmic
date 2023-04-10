@@ -246,8 +246,11 @@ func (s *StanInput) createSTANConn(c *Config) (stan.Conn, error) {
 	}
 	if s.Cfg.TLS != nil {
 		tlsConfig, err := utils.NewTLSConfig(
-			s.Cfg.TLS.CaFile, s.Cfg.TLS.CertFile, s.Cfg.TLS.KeyFile, s.Cfg.TLS.SkipVerify,
-			false)
+			s.Cfg.TLS.CaFile, s.Cfg.TLS.CertFile, s.Cfg.TLS.KeyFile,
+			"",
+			s.Cfg.TLS.SkipVerify,
+			false,
+		)
 		if err != nil {
 			return nil, err
 		}

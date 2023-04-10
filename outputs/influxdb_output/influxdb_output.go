@@ -413,7 +413,7 @@ func (i *influxDBOutput) clientOpts() (*influxdb2.Options, error) {
 		SetFlushInterval(uint(i.Cfg.FlushTimer.Milliseconds()))
 	if i.Cfg.TLS != nil {
 		tlsConfig, err := utils.NewTLSConfig(
-			i.Cfg.TLS.CaFile, i.Cfg.TLS.CertFile, i.Cfg.TLS.KeyFile, i.Cfg.TLS.SkipVerify,
+			i.Cfg.TLS.CaFile, i.Cfg.TLS.CertFile, i.Cfg.TLS.KeyFile, "", i.Cfg.TLS.SkipVerify,
 			false)
 		if err != nil {
 			return nil, err

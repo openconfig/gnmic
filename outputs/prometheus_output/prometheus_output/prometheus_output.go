@@ -241,7 +241,14 @@ func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string
 		listener, err = net.Listen("tcp", p.Cfg.Listen)
 	default:
 		var tlsConfig *tls.Config
-		tlsConfig, err = utils.NewTLSConfig(p.Cfg.TLS.CaFile, p.Cfg.TLS.CertFile, p.Cfg.TLS.KeyFile, p.Cfg.TLS.SkipVerify, true)
+		tlsConfig, err = utils.NewTLSConfig(
+			p.Cfg.TLS.CaFile,
+			p.Cfg.TLS.CertFile,
+			p.Cfg.TLS.KeyFile,
+			p.Cfg.TLS.ClientAuth,
+			true,
+			true,
+		)
 		if err != nil {
 			return err
 		}

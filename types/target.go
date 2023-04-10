@@ -82,7 +82,7 @@ func (tc *TargetConfig) NewTLSConfig() (*tls.Config, error) {
 	if tc.TLSKey != nil {
 		key = *tc.TLSKey
 	}
-	tlsConfig, err := utils.NewTLSConfig(ca, cert, key, *tc.SkipVerify, false)
+	tlsConfig, err := utils.NewTLSConfig(ca, cert, key, "", *tc.SkipVerify, false)
 	if err != nil {
 		return nil, err
 	}
