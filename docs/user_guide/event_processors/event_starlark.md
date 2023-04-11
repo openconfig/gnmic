@@ -385,3 +385,21 @@ def rate(vals):
   change = vals[1][1] - vals[0][1]
   return change / period
 ```
+
+#### Ungroup values
+
+The below script ungroups values part of the same event message producing an event message per value.
+
+```python
+def apply(*events):
+  ungrouped_events = []
+  for e in events:
+    for k, v in e.values.items():
+      # create a new event without any value
+      new_event = Event(e.name, e.timestamp, e.tags)
+      # add a single value to the new event
+      new_event.values[k] = v
+      # add the new event to the array
+      ungrouped_events.append(new_event)
+  return ungrouped_events
+```
