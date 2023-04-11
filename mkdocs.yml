@@ -117,7 +117,10 @@ nav:
       - Set: cmd/set.md
       - GetSet: cmd/getset.md
       - Subscribe: cmd/subscribe.md
-      - Diff: cmd/diff.md
+      - Diff:
+        - Diff: cmd/diff.md
+        - Diff Setrequest: cmd/diff_setrequest.md
+        - Diff Setrequest-To-Notifications: cmd/diff_set_to_notifs.md
       - Listen: cmd/listen.md
       - Path: cmd/path.md
       - Prompt: cmd/prompt.md

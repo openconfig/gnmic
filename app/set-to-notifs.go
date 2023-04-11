@@ -30,9 +30,9 @@ func (a *App) InitDiffSetToNotifsFlags(cmd *cobra.Command) {
 	cmd.ResetFlags()
 
 	cmd.Flags().StringVarP(&a.Config.LocalFlags.DiffSetToNotifsSet, "setrequest", "", "", "reference gNMI SetRequest textproto file for comparing against stored notifications from a device")
-	cmd.Flags().StringVarP(&a.Config.LocalFlags.DiffSetToNotifsNotifs, "notifications", "", "", "gNMI Notifications textproto file (can be GetResponse or SubscribeResponse stream) for comparing against the reference SetRequest")
+	cmd.Flags().StringVarP(&a.Config.LocalFlags.DiffSetToNotifsResponse, "response", "", "", "gNMI Notifications textproto file (can be GetResponse or SubscribeResponse stream) for comparing against the reference SetRequest")
 	cmd.MarkFlagRequired("setrequest")
-	cmd.MarkFlagRequired("notifications")
+	cmd.MarkFlagRequired("response")
 	cmd.Flags().BoolVarP(&a.Config.LocalFlags.DiffSetToNotifsFull, "full", "f", false, "show common values")
 
 	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
@@ -52,7 +52,7 @@ func (a *App) DiffSetToNotifsRunE(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	notifs, err := gnmiparse.NotifsFromFile(a.Config.LocalFlags.DiffSetToNotifsNotifs)
+	notifs, err := gnmiparse.NotifsFromFile(a.Config.LocalFlags.DiffSetToNotifsResponse)
 	if err != nil {
 		return err
 	}

@@ -224,21 +224,21 @@ type LocalFlags struct {
 	GeneratePathConfig        bool   `mapstructure:"generate-path-config,omitempty" json:"generate-path-config,omitempty" yaml:"generate-path-config,omitempty"`
 	GeneratePathWithNonLeaves bool   `mapstructure:"generate-path-with-non-leaves,omitempty" json:"generate-path-with-non-leaves,omitempty" yaml:"generate-path-with-non-leaves,omitempty"`
 	//
-	DiffPath              []string `mapstructure:"diff-path,omitempty" json:"diff-path,omitempty" yaml:"diff-path,omitempty"`
-	DiffPrefix            string   `mapstructure:"diff-prefix,omitempty" json:"diff-prefix,omitempty" yaml:"diff-prefix,omitempty"`
-	DiffModel             []string `mapstructure:"diff-model,omitempty" json:"diff-model,omitempty" yaml:"diff-model,omitempty"`
-	DiffType              string   `mapstructure:"diff-type,omitempty" json:"diff-type,omitempty" yaml:"diff-type,omitempty"`
-	DiffTarget            string   `mapstructure:"diff-target,omitempty" json:"diff-target,omitempty" yaml:"diff-target,omitempty"`
-	DiffSub               bool     `mapstructure:"diff-sub,omitempty" json:"diff-sub,omitempty" yaml:"diff-sub,omitempty"`
-	DiffRef               string   `mapstructure:"diff-ref,omitempty" json:"diff-ref,omitempty" yaml:"diff-ref,omitempty"`
-	DiffCompare           []string `mapstructure:"diff-compare,omitempty" json:"diff-compare,omitempty" yaml:"diff-compare,omitempty"`
-	DiffQos               uint32   `mapstructure:"diff-qos,omitempty" json:"diff-qos,omitempty" yaml:"diff-qos,omitempty"`
-	DiffSetRequestRef     string   `mapstructure:"diff-setrequest-ref,omitempty" json:"diff-setrequest-ref,omitempty" yaml:"diff-setrequest-ref,omitempty"`
-	DiffSetRequestNew     string   `mapstructure:"diff-setrequest-new,omitempty" json:"diff-setrequest-new,omitempty" yaml:"diff-setrequest-new,omitempty"`
-	DiffSetRequestFull    bool     `mapstructure:"diff-setrequest-full,omitempty" json:"diff-setrequest-full,omitempty" yaml:"diff-setrequest-full,omitempty"`
-	DiffSetToNotifsSet    string   `mapstructure:"diff-set-to-notifs-set,omitempty" json:"diff-set-to-notifs-set,omitempty" yaml:"diff-set-to-notifs-set,omitempty"`
-	DiffSetToNotifsNotifs string   `mapstructure:"diff-set-to-notifs-notifs,omitempty" json:"diff-set-to-notifs-notifs,omitempty" yaml:"diff-set-to-notifs-notifs,omitempty"`
-	DiffSetToNotifsFull   bool     `mapstructure:"diff-set-to-notifs-full,omitempty" json:"diff-set-to-notifs-full,omitempty" yaml:"diff-set-to-notifs-full,omitempty"`
+	DiffPath                []string `mapstructure:"diff-path,omitempty" json:"diff-path,omitempty" yaml:"diff-path,omitempty"`
+	DiffPrefix              string   `mapstructure:"diff-prefix,omitempty" json:"diff-prefix,omitempty" yaml:"diff-prefix,omitempty"`
+	DiffModel               []string `mapstructure:"diff-model,omitempty" json:"diff-model,omitempty" yaml:"diff-model,omitempty"`
+	DiffType                string   `mapstructure:"diff-type,omitempty" json:"diff-type,omitempty" yaml:"diff-type,omitempty"`
+	DiffTarget              string   `mapstructure:"diff-target,omitempty" json:"diff-target,omitempty" yaml:"diff-target,omitempty"`
+	DiffSub                 bool     `mapstructure:"diff-sub,omitempty" json:"diff-sub,omitempty" yaml:"diff-sub,omitempty"`
+	DiffRef                 string   `mapstructure:"diff-ref,omitempty" json:"diff-ref,omitempty" yaml:"diff-ref,omitempty"`
+	DiffCompare             []string `mapstructure:"diff-compare,omitempty" json:"diff-compare,omitempty" yaml:"diff-compare,omitempty"`
+	DiffQos                 uint32   `mapstructure:"diff-qos,omitempty" json:"diff-qos,omitempty" yaml:"diff-qos,omitempty"`
+	DiffSetRequestRef       string   `mapstructure:"diff-setrequest-ref,omitempty" json:"diff-setrequest-ref,omitempty" yaml:"diff-setrequest-ref,omitempty"`
+	DiffSetRequestNew       string   `mapstructure:"diff-setrequest-new,omitempty" json:"diff-setrequest-new,omitempty" yaml:"diff-setrequest-new,omitempty"`
+	DiffSetRequestFull      bool     `mapstructure:"diff-setrequest-full,omitempty" json:"diff-setrequest-full,omitempty" yaml:"diff-setrequest-full,omitempty"`
+	DiffSetToNotifsSet      string   `mapstructure:"diff-set-to-notifs-set,omitempty" json:"diff-set-to-notifs-set,omitempty" yaml:"diff-set-to-notifs-set,omitempty"`
+	DiffSetToNotifsResponse string   `mapstructure:"diff-set-to-notifs-response,omitempty" json:"diff-set-to-notifs-response,omitempty" yaml:"diff-set-to-notifs-response,omitempty"`
+	DiffSetToNotifsFull     bool     `mapstructure:"diff-set-to-notifs-full,omitempty" json:"diff-set-to-notifs-full,omitempty" yaml:"diff-set-to-notifs-full,omitempty"`
 	//
 	TunnelServerSubscribe bool
 }
