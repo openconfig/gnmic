@@ -39,9 +39,9 @@ type SubscriptionConfig struct {
 }
 
 type HistoryConfig struct {
-	Snapshot string `mapstructure:"snapshot,omitempty" json:"snapshot,omitempty"`
-	Start    string `mapstructure:"start,omitempty" json:"start,omitempty"`
-	End      string `mapstructure:"end,omitempty" json:"end,omitempty"`
+	Snapshot time.Time `mapstructure:"snapshot,omitempty" json:"snapshot,omitempty"`
+	Start    time.Time `mapstructure:"start,omitempty" json:"start,omitempty"`
+	End      time.Time `mapstructure:"end,omitempty" json:"end,omitempty"`
 }
 
 // String //

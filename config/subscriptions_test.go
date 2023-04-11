@@ -10,12 +10,14 @@ package config
 
 import (
 	"bytes"
+	"fmt"
 	"log"
 	"os"
 	"reflect"
 	"strings"
 	"testing"
 	"text/template"
+	"time"
 
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
@@ -23,6 +25,15 @@ import (
 	"github.com/openconfig/gnmic/types"
 	"github.com/spf13/viper"
 )
+
+func mustParseTime(tm string) time.Time {
+	tmi, err := time.Parse(time.RFC3339Nano, tm)
+	if err != nil {
+		panic(fmt.Sprintf("cannot parse time: %v", err))
+	}
+
+	return tmi
+}
 
 var getSubscriptionsTestSet = map[string]struct {
 	envs   []string
@@ -164,7 +175,7 @@ subscriptions:
 				Name:  "sub1",
 				Paths: []string{"/valid/path"},
 				History: &types.HistoryConfig{
-					Snapshot: "2022-07-14T07:30:00.0Z",
+					Snapshot: mustParseTime("2022-07-14T07:30:00.0Z"),
 				},
 			},
 		},
@@ -185,8 +196,8 @@ subscriptions:
 				Name:  "sub1",
 				Paths: []string{"/valid/path"},
 				History: &types.HistoryConfig{
-					Start: "2021-07-14T07:30:00.0Z",
-					End:   "2022-07-14T07:30:00.0Z",
+					Start: mustParseTime("2021-07-14T07:30:00.0Z"),
+					End:   mustParseTime("2022-07-14T07:30:00.0Z"),
 				},
 			},
 		},
@@ -569,7 +580,7 @@ func TestConfig_CreateSubscribeRequest(t *testing.T) {
 					Mode:     "once",
 					Encoding: "json_ietf",
 					History: &types.HistoryConfig{
-						Snapshot: "2022-07-14T07:30:00.0Z",
+						Snapshot: mustParseTime("2022-07-14T07:30:00.0Z"),
 					},
 				},
 			},
