@@ -118,8 +118,10 @@ func newListenCmd() *cobra.Command {
 					gApp.Config.TLSCa,
 					gApp.Config.TLSCert,
 					gApp.Config.TLSKey,
-					gApp.Config.SkipVerify,
-					false)
+					"request",
+					false,
+					true,
+				)
 				if err != nil {
 					return err
 				}

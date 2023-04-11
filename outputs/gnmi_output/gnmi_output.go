@@ -251,9 +251,12 @@ func (g *gNMIOutput) serverOpts() ([]grpc.ServerOption, error) {
 
 	tlscfg, err := utils.NewTLSConfig(
 		g.cfg.TLS.CaFile,
-		g.cfg.TLS.CertFile, g.cfg.TLS.KeyFile,
-		g.cfg.TLS.SkipVerify,
-		true)
+		g.cfg.TLS.CertFile,
+		g.cfg.TLS.KeyFile,
+		g.cfg.TLS.ClientAuth,
+		false,
+		true,
+	)
 	if err != nil {
 		return nil, err
 	}

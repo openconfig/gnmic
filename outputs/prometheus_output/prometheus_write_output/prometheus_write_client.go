@@ -33,8 +33,10 @@ func (p *promWriteOutput) createHTTPClient() error {
 			p.Cfg.TLS.CaFile,
 			p.Cfg.TLS.CertFile,
 			p.Cfg.TLS.KeyFile,
+			"",
 			p.Cfg.TLS.SkipVerify,
-			false)
+			false,
+		)
 		if err != nil {
 			return err
 		}

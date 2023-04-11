@@ -25,10 +25,7 @@ const (
 type tunnelServer struct {
 	Address string `mapstructure:"address,omitempty" json:"address,omitempty"`
 	// TLS
-	SkipVerify bool   `mapstructure:"skip-verify,omitempty" json:"skip-verify,omitempty"`
-	CaFile     string `mapstructure:"ca-file,omitempty" json:"ca-file,omitempty"`
-	CertFile   string `mapstructure:"cert-file,omitempty" json:"cert-file,omitempty"`
-	KeyFile    string `mapstructure:"key-file,omitempty" json:"key-file,omitempty"`
+	TLS *types.TLSConfig `mapstructure:"tls,omitempty"`
 	//
 	TargetWaitTime time.Duration `mapstructure:"target-wait-time,omitempty" json:"target-wait-time,omitempty"`
 	//
@@ -55,13 +52,20 @@ func (c *Config) GetTunnelServer() error {
 	}
 	c.TunnelServer = new(tunnelServer)
 	c.TunnelServer.Address = os.ExpandEnv(c.FileConfig.GetString("tunnel-server/address"))
-	c.TunnelServer.SkipVerify = os.ExpandEnv(c.FileConfig.GetString("tunnel-server/skip-verify")) == "true"
-	c.TunnelServer.CaFile = os.ExpandEnv(c.FileConfig.GetString("tunnel-server/ca-file"))
-	c.TunnelServer.CertFile = os.ExpandEnv(c.FileConfig.GetString("tunnel-server/cert-file"))
-	c.TunnelServer.KeyFile = os.ExpandEnv(c.FileConfig.GetString("tunnel-server/key-file"))
+
+	if c.FileConfig.IsSet("tunnel-server/tls") {
+		c.TunnelServer.TLS = new(types.TLSConfig)
+		c.TunnelServer.TLS.CaFile = os.ExpandEnv(c.FileConfig.GetString("tunnel-server/tls/ca-file"))
+		c.TunnelServer.TLS.CertFile = os.ExpandEnv(c.FileConfig.GetString("tunnel-server/tls/cert-file"))
+		c.TunnelServer.TLS.KeyFile = os.ExpandEnv(c.FileConfig.GetString("tunnel-server/tls/key-file"))
+		c.TunnelServer.TLS.ClientAuth = os.ExpandEnv(c.FileConfig.GetString("tunnel-server/tls/client-auth"))
+		if err := c.TunnelServer.TLS.Validate(); err != nil {
+			return fmt.Errorf("tunnel-server TLS config error: %w", err)
+		}
+	}
 	c.TunnelServer.TargetWaitTime = c.FileConfig.GetDuration("tunnel-server/target-wait-time")
-	c.TunnelServer.EnableMetrics = os.ExpandEnv(c.FileConfig.GetString("tunnel-server/enable-metrics")) == "true"
-	c.TunnelServer.Debug = os.ExpandEnv(c.FileConfig.GetString("tunnel-server/debug")) == "true"
+	c.TunnelServer.EnableMetrics = os.ExpandEnv(c.FileConfig.GetString("tunnel-server/enable-metrics")) == trueString
+	c.TunnelServer.Debug = os.ExpandEnv(c.FileConfig.GetString("tunnel-server/debug")) == trueString
 
 	var err error
 	c.TunnelServer.Targets = make([]*targetMatch, 0)

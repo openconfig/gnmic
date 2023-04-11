@@ -155,15 +155,29 @@ If within a `SubscribeRequest` the received `sample-interval` is zero, the `defa
 gnmi-server:
   # the address the gNMI server will listen to
   address: :57400
-  # if true, the server will not verify the client's certificates
-  skip-verify: false
-  # path to the CA certificate file to be used, irrelevant if `skip-verify` is true
-  ca-file: 
-  # path to the server certificate file
-  cert-file:
-  # path to the server key file
-  key-file:
-  # maximum number of allowed subscriptions
+  # tls config
+  tls:
+    # string, path to the CA certificate file,
+    # this certificate is used to verify the clients certificates.
+    ca-file:
+    # string, server certificate file.
+    cert-file:
+    # string, server key file.
+    key-file:
+    # string, one of `"", "request", "require", "verify-if-given", or "require-verify" 
+    #  - request:         The server requests a certificate from the client but does not 
+    #                     require the client to send a certificate. 
+    #                     If the client sends a certificate, it is not required to be valid.
+    #  - require:         The server requires the client to send a certificate and does not 
+    #                     fail if the client certificate is not valid.
+    #  - verify-if-given: The server requests a certificate, 
+    #                     does not fail if no certificate is sent. 
+    #                     If a certificate is sent it is required to be valid.
+    #  - require-verify:  The server requires the client to send a valid certificate.
+    #
+    # if no ca-file is present, `client-auth` defaults to ""`
+    # if a ca-file is set, `client-auth` defaults to "require-verify"`
+    client-auth: ""
   max-subscriptions: 64
   # maximum number of active Get/Set RPCs
   max-unary-rpc: 64

@@ -18,6 +18,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"math/big"
 	"sync"
 	"time"
@@ -26,12 +27,29 @@ import (
 // NewTLSConfig generates a *tls.Config based on given CA, certificate, key files and skipVerify flag
 // if certificate and key are missing a self signed key pair is generated.
 // The certificates paths can be local or remote, http(s) and (s)ftp are supported for remote files.
-func NewTLSConfig(ca, cert, key string, skipVerify, genSelfSigned bool) (*tls.Config, error) {
+func NewTLSConfig(ca, cert, key, clientAuth string, skipVerify, genSelfSigned bool) (*tls.Config, error) {
 	if !(skipVerify || ca != "" || (cert != "" && key != "")) {
 		return nil, nil
 	}
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: skipVerify,
+	}
+	// set clientAuth
+	switch clientAuth {
+	case "":
+		if ca != "" {
+			tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+		}
+	case "request":
+		tlsConfig.ClientAuth = tls.RequestClientCert
+	case "require":
+		tlsConfig.ClientAuth = tls.RequireAnyClientCert
+	case "verify-if-given":
+		tlsConfig.ClientAuth = tls.VerifyClientCertIfGiven
+	case "require-verify":
+		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+	default:
+		return nil, fmt.Errorf("unknown client-auth mode: %s", clientAuth)
 	}
 	if cert != "" && key != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

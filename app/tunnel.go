@@ -107,10 +107,11 @@ func (a *App) gRPCTunnelServerOpts() ([]grpc.ServerOption, error) {
 	}
 
 	tlscfg, err := utils.NewTLSConfig(
-		a.Config.TunnelServer.CaFile,
-		a.Config.TunnelServer.CertFile,
-		a.Config.TunnelServer.KeyFile,
-		a.Config.TunnelServer.SkipVerify,
+		a.Config.TunnelServer.TLS.CaFile,
+		a.Config.TunnelServer.TLS.CertFile,
+		a.Config.TunnelServer.TLS.KeyFile,
+		a.Config.TunnelServer.TLS.ClientAuth,
+		false,
 		true,
 	)
 	if err != nil {

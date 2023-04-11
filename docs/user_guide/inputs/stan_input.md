@@ -51,4 +51,3 @@ inputs:
     # Must be configured under root level `outputs` section
     outputs: 
 ```
-

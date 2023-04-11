@@ -9,6 +9,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"time"
 
@@ -39,11 +40,15 @@ func (c *Config) GetAPIServer() error {
 		c.APIServer.Address = os.ExpandEnv(c.FileConfig.GetString("api"))
 	}
 	c.APIServer.Timeout = c.FileConfig.GetDuration("api-server/timeout")
-	if c.APIServer.TLS != nil {
-		c.APIServer.TLS.SkipVerify = os.ExpandEnv(c.FileConfig.GetString("api-server/skip-verify")) == trueString
-		c.APIServer.TLS.CaFile = os.ExpandEnv(c.FileConfig.GetString("api-server/ca-file"))
-		c.APIServer.TLS.CertFile = os.ExpandEnv(c.FileConfig.GetString("api-server/cert-file"))
-		c.APIServer.TLS.KeyFile = os.ExpandEnv(c.FileConfig.GetString("api-server/key-file"))
+	if c.FileConfig.IsSet("api-server/tls") {
+		c.APIServer.TLS = new(types.TLSConfig)
+		c.APIServer.TLS.CaFile = os.ExpandEnv(c.FileConfig.GetString("api-server/tls/ca-file"))
+		c.APIServer.TLS.CertFile = os.ExpandEnv(c.FileConfig.GetString("api-server/tls/cert-file"))
+		c.APIServer.TLS.KeyFile = os.ExpandEnv(c.FileConfig.GetString("api-server/tls/key-file"))
+		c.APIServer.TLS.ClientAuth = os.ExpandEnv(c.FileConfig.GetString("api-server/tls/client-auth"))
+		if err := c.APIServer.TLS.Validate(); err != nil {
+			return fmt.Errorf("api-server TLS config error: %w", err)
+		}
 	}
 
 	c.APIServer.EnableMetrics = os.ExpandEnv(c.FileConfig.GetString("api-server/enable-metrics")) == trueString

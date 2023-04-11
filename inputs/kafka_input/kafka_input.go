@@ -358,6 +358,7 @@ func (k *KafkaInput) createConfig() (*sarama.Config, error) {
 			k.Cfg.TLS.CaFile,
 			k.Cfg.TLS.CertFile,
 			k.Cfg.TLS.KeyFile,
+			"",
 			k.Cfg.TLS.SkipVerify,
 			false)
 		if err != nil {
