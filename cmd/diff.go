@@ -23,5 +23,18 @@ func newDiffCmd() *cobra.Command {
 		SilenceUsage: true,
 	}
 	gApp.InitDiffFlags(cmd)
+	cmd.AddCommand(newDiffSetRequestCmd())
+	return cmd
+}
+
+// newDiffSetRequestCmd creates a new diff setrequest command.
+func newDiffSetRequestCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:          "setrequest",
+		Short:        "run a diff comparison between two setrequests in textproto format",
+		RunE:         gApp.DiffSetRequestRunE,
+		SilenceUsage: true,
+	}
+	gApp.InitDiffSetRequestFlags(cmd)
 	return cmd
 }
