@@ -50,7 +50,7 @@ Overwrites are also possible, although this is currently unsupported.
 
 In order to compare equivalent SetRequests correctly, this tool breaks down a
 SetRequest into its "minimal intent" (deletes followed by updates) prior to the
-diff computation. This is why the output groups deletes/replaces in the same
+diff computation. This is why the output groups deletes/replaces into the same
 section.
 
 ### Usage
