@@ -108,7 +108,7 @@ tunnel-server:
     # string, one of `"", "request", "require", "verify-if-given", or "require-verify" 
     #  - request:         The server requests a certificate from the client but does not 
     #                     require the client to send a certificate. 
-    #                     If the server sends a certificate, it is not required to be valid.
+    #                     If the client sends a certificate, it is not required to be valid.
     #  - require:         The server requires the client to send a certificate and does not 
     #                     fail if the client certificate is not valid.
     #  - verify-if-given: The server requests a certificate, 
