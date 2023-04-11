@@ -70,6 +70,9 @@ outputs:
     # which will set the target to the value configured under `subscription.$subscription-name.target` if any,
     # otherwise it will set it to the target name stripped of the port number (if present)
     target-template:
+    # boolean, valid only if format is `event`.
+    # if true, arrays of events are split and marshaled as JSON objects instead of an array of dicts.
+    split-events: false
     # string, a GoTemplate that is executed using the received gNMI message as input.
     # the template execution is the last step before the data is written to the file,
     # First the received message is formatted according to the `format` field above, then the `event-processors` are applied if any
