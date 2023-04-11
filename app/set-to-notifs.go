@@ -61,6 +61,6 @@ func (a *App) DiffSetToNotifsRunE(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(os.Stderr, diff.Format(format))
+	fmt.Fprint(os.Stderr, diff.Format(format))
 	return nil
 }
