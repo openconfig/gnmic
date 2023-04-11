@@ -50,8 +50,8 @@ Overwrites are also possible, although this is currently unsupported.
 
 In order to compare equivalent SetRequests correctly, this tool breaks down a
 SetRequest into its "minimal intent" (deletes followed by updates) prior to the
-diff computation, where replaces are split into a delete action followed by an
-update action. This tool then compares the two intents to show the diff.
+diff computation. This is why the output groups deletes/replaces in the same
+section.
 
 ### Usage
 

@@ -42,13 +42,13 @@ The output above indicates:
 When `--full` is specified, values common between the SetRequest and the
 response messages are also shown.
 
-### How to obtain GetResponse and SubscribeResponse
-
-Responses retrieved from either GetRequest or SubscribeRequest are supported by
-this command.
+### How to obtain a GetResponse or SubscribeResponse
 
 To obtain GetRespnse/SubscribeResponse in textproto format, simply run `gnmic`'s
 subscribe or get functions and pass in the flag `--format prototext`.
+
+Responses retrieved from either GetRequest or SubscribeRequest are supported by
+this command's `--response` flag.
 
 ### Usage
 
