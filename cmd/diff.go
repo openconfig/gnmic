@@ -24,6 +24,7 @@ func newDiffCmd() *cobra.Command {
 	}
 	gApp.InitDiffFlags(cmd)
 	cmd.AddCommand(newDiffSetRequestCmd())
+	cmd.AddCommand(newDiffSetToNotifsCmd())
 	return cmd
 }
 
@@ -36,5 +37,16 @@ func newDiffSetRequestCmd() *cobra.Command {
 		SilenceUsage: true,
 	}
 	gApp.InitDiffSetRequestFlags(cmd)
+	return cmd
+}
+
+func newDiffSetToNotifsCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:          "set-to-notifs",
+		Short:        "run a diff comparison between a SetRequest and a GetResponse or SubscribeResponse stream stored in textproto format",
+		RunE:         gApp.DiffSetToNotifsRunE,
+		SilenceUsage: true,
+	}
+	gApp.InitDiffSetToNotifsFlags(cmd)
 	return cmd
 }
