@@ -25,6 +25,7 @@ import (
 	"github.com/openconfig/gnmic/utils"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 type Output interface {
@@ -153,3 +154,60 @@ const (
 {{ index . "source" | host }}
 {{- end -}}`
 )
+
+func Marshal(pmsg protoreflect.ProtoMessage, meta map[string]string, mo *formatters.MarshalOptions, splitEvents bool, evps ...formatters.EventProcessor) ([][]byte, error) {
+	switch mo.Format {
+	case "event":
+		if splitEvents {
+			return marshalSplit(pmsg, meta, mo, evps...)
+		}
+		fallthrough
+	default:
+		b, err := mo.Marshal(pmsg, meta, evps...)
+		if err != nil {
+			return nil, err
+		}
+		return [][]byte{b}, nil
+	}
+}
+
+func marshalSplit(pmsg protoreflect.ProtoMessage, meta map[string]string, mo *formatters.MarshalOptions, evps ...formatters.EventProcessor) ([][]byte, error) {
+	var subscriptionName string
+	var ok bool
+	if subscriptionName, ok = meta["subscription-name"]; !ok {
+		subscriptionName = "default"
+	}
+	switch msg := pmsg.(type) {
+	case *gnmi.SubscribeResponse:
+		switch msg.GetResponse().(type) {
+		case *gnmi.SubscribeResponse_Update:
+			events, err := formatters.ResponseToEventMsgs(subscriptionName, msg, meta, evps...)
+			if err != nil {
+				return nil, fmt.Errorf("failed converting response to events: %v", err)
+			}
+			numEvents := len(events)
+			if numEvents == 0 {
+				return nil, nil
+			}
+			rs := make([][]byte, 0, numEvents)
+			marshalFn := json.Marshal
+			if mo.Multiline {
+				marshalFn = func(v any) ([]byte, error) {
+					return json.MarshalIndent(v, "", mo.Indent)
+				}
+			}
+			for _, ev := range events {
+				b, err := marshalFn(ev)
+				if err != nil {
+					return nil, err
+				}
+				rs = append(rs, b)
+			}
+			return rs, nil
+		default:
+			return nil, fmt.Errorf("unexpected message type: %T", msg)
+		}
+	default:
+		return nil, fmt.Errorf("unexpected message type: %T", msg)
+	}
+}

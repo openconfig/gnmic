@@ -62,6 +62,7 @@ type Config struct {
 	AddTarget          string        `mapstructure:"add-target,omitempty"`
 	TargetTemplate     string        `mapstructure:"target-template,omitempty"`
 	OverrideTimestamps bool          `mapstructure:"override-timestamps,omitempty"`
+	SplitEvents        bool          `mapstructure:"split-events,omitempty"`
 	RetryInterval      time.Duration `mapstructure:"retry-interval,omitempty"`
 	EnableMetrics      bool          `mapstructure:"enable-metrics,omitempty"`
 	EventProcessors    []string      `mapstructure:"event-processors,omitempty"`
@@ -162,12 +163,14 @@ func (u *UDPSock) Write(ctx context.Context, m proto.Message, meta outputs.Meta)
 		if err != nil {
 			u.logger.Printf("failed to add target to the response: %v", err)
 		}
-		b, err := u.mo.Marshal(rsp, meta, u.evps...)
+		bb, err := outputs.Marshal(rsp, meta, u.mo, u.Cfg.SplitEvents, u.evps...)
 		if err != nil {
 			u.logger.Printf("failed marshaling proto msg: %v", err)
 			return
 		}
-		u.buffer <- b
+		for _, b := range bb {
+			u.buffer <- b
+		}
 	}
 }
 
