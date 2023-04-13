@@ -18,7 +18,9 @@ See [here](configuration_flags.md) for a complete list of the supported global a
 The Env variable names are inline with the flag names as well as the configuration hierarchy.
 
 See [here](configuration_env.md) for more details on environment variables.
+
 ## File configuration
+
 Configuration file that `gnmic` reads must be in one of the following formats: JSON, YAML, TOML, HCL or Properties.  
 
 By default, `gnmic` will search for a file named `.gnmic.[yml/yaml, toml, json]` in the following locations and will use the first file that exists:
