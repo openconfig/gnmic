@@ -32,6 +32,9 @@ outputs:
     # which will set the target to the value configured under `subscription.$subscription-name.target` if any,
     # otherwise it will set it to the target name stripped of the port number (if present)
     target-template:
+    # boolean, valid only if format is `event`.
+    # if true, arrays of events are split and marshaled as JSON objects instead of an array of dicts.
+    split-events: false
     # boolean, if true the message timestamp is changed to current time
     override-timestamps: false
     # string, a delimiter to be sent after each message.

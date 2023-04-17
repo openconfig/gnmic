@@ -82,6 +82,7 @@ type config struct {
 	AddTarget          string           `mapstructure:"add-target,omitempty"`
 	TargetTemplate     string           `mapstructure:"target-template,omitempty"`
 	MsgTemplate        string           `mapstructure:"msg-template,omitempty"`
+	SplitEvents        bool             `mapstructure:"split-events,omitempty"`
 	NumWorkers         int              `mapstructure:"num-workers,omitempty"`
 	Debug              bool             `mapstructure:"debug,omitempty"`
 	BufferSize         int              `mapstructure:"buffer-size,omitempty"`
@@ -308,7 +309,7 @@ CRPROD:
 			if err != nil {
 				k.logger.Printf("failed to add target to the response: %v", err)
 			}
-			b, err := k.mo.Marshal(pmsg, m.GetMeta(), k.evps...)
+			bb, err := outputs.Marshal(pmsg, m.GetMeta(), k.mo, k.Cfg.SplitEvents, k.evps...)
 			if err != nil {
 				if k.Cfg.Debug {
 					k.logger.Printf("%s failed marshaling proto msg: %v", workerLogPrefix, err)
@@ -318,47 +319,49 @@ CRPROD:
 				}
 				continue
 			}
-			if len(b) == 0 {
+			if len(bb) == 0 {
 				continue
 			}
-			if k.msgTpl != nil {
-				b, err = outputs.ExecTemplate(b, k.msgTpl)
+			for _, b := range bb {
+				if k.msgTpl != nil {
+					b, err = outputs.ExecTemplate(b, k.msgTpl)
+					if err != nil {
+						if k.Cfg.Debug {
+							log.Printf("failed to execute template: %v", err)
+						}
+						kafkaNumberOfFailSendMsgs.WithLabelValues(config.ClientID, "template_error").Inc()
+						continue
+					}
+				}
+
+				msg := &sarama.ProducerMessage{
+					Topic: k.Cfg.Topic,
+					Value: sarama.ByteEncoder(b),
+				}
+				if k.Cfg.InsertKey {
+					msg.Key = sarama.ByteEncoder(k.partitionKey(m.GetMeta()))
+				}
+				var start time.Time
+				if k.Cfg.EnableMetrics {
+					start = time.Now()
+				}
+				_, _, err = producer.SendMessage(msg)
 				if err != nil {
 					if k.Cfg.Debug {
-						log.Printf("failed to execute template: %v", err)
+						k.logger.Printf("%s failed to send a kafka msg to topic '%s': %v", workerLogPrefix, k.Cfg.Topic, err)
 					}
-					kafkaNumberOfFailSendMsgs.WithLabelValues(config.ClientID, "template_error").Inc()
-					return
-				}
-			}
-
-			msg := &sarama.ProducerMessage{
-				Topic: k.Cfg.Topic,
-				Value: sarama.ByteEncoder(b),
-			}
-			if k.Cfg.InsertKey {
-				msg.Key = sarama.ByteEncoder(k.partitionKey(m.GetMeta()))
-			}
-			var start time.Time
-			if k.Cfg.EnableMetrics {
-				start = time.Now()
-			}
-			_, _, err = producer.SendMessage(msg)
-			if err != nil {
-				if k.Cfg.Debug {
-					k.logger.Printf("%s failed to send a kafka msg to topic '%s': %v", workerLogPrefix, k.Cfg.Topic, err)
+					if k.Cfg.EnableMetrics {
+						kafkaNumberOfFailSendMsgs.WithLabelValues(config.ClientID, "send_error").Inc()
+					}
+					producer.Close()
+					time.Sleep(k.Cfg.RecoveryWaitTime)
+					goto CRPROD
 				}
 				if k.Cfg.EnableMetrics {
-					kafkaNumberOfFailSendMsgs.WithLabelValues(config.ClientID, "send_error").Inc()
+					kafkaSendDuration.WithLabelValues(config.ClientID).Set(float64(time.Since(start).Nanoseconds()))
+					kafkaNumberOfSentMsgs.WithLabelValues(config.ClientID).Inc()
+					kafkaNumberOfSentBytes.WithLabelValues(config.ClientID).Add(float64(len(b)))
 				}
-				producer.Close()
-				time.Sleep(k.Cfg.RecoveryWaitTime)
-				goto CRPROD
-			}
-			if k.Cfg.EnableMetrics {
-				kafkaSendDuration.WithLabelValues(config.ClientID).Set(float64(time.Since(start).Nanoseconds()))
-				kafkaNumberOfSentMsgs.WithLabelValues(config.ClientID).Inc()
-				kafkaNumberOfSentBytes.WithLabelValues(config.ClientID).Add(float64(len(b)))
 			}
 		}
 	}

@@ -63,6 +63,7 @@ type config struct {
 	AddTarget          string        `mapstructure:"add-target,omitempty"`
 	TargetTemplate     string        `mapstructure:"target-template,omitempty"`
 	OverrideTimestamps bool          `mapstructure:"override-timestamps,omitempty"`
+	SplitEvents        bool          `mapstructure:"split-events,omitempty"`
 	Delimiter          string        `mapstructure:"delimiter,omitempty"`
 	KeepAlive          time.Duration `mapstructure:"keep-alive,omitempty"`
 	RetryInterval      time.Duration `mapstructure:"retry-interval,omitempty"`
@@ -172,12 +173,14 @@ func (t *tcpOutput) Write(ctx context.Context, m proto.Message, meta outputs.Met
 		if err != nil {
 			t.logger.Printf("failed to add target to the response: %v", err)
 		}
-		b, err := t.mo.Marshal(rsp, meta, t.evps...)
+		bb, err := outputs.Marshal(rsp, meta, t.mo, t.cfg.SplitEvents, t.evps...)
 		if err != nil {
 			t.logger.Printf("failed marshaling proto msg: %v", err)
 			return
 		}
-		t.buffer <- b
+		for _, b := range bb {
+			t.buffer <- b
+		}
 	}
 }
 

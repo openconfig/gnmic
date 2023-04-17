@@ -65,6 +65,7 @@ type Config struct {
 	Multiline          bool     `mapstructure:"multiline,omitempty"`
 	Indent             string   `mapstructure:"indent,omitempty"`
 	Separator          string   `mapstructure:"separator,omitempty"`
+	SplitEvents        bool     `mapstructure:"split-events,omitempty"`
 	OverrideTimestamps bool     `mapstructure:"override-timestamps,omitempty"`
 	AddTarget          string   `mapstructure:"add-target,omitempty"`
 	TargetTemplate     string   `mapstructure:"target-template,omitempty"`
@@ -228,8 +229,7 @@ func (f *File) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) 
 	if err != nil {
 		f.logger.Printf("failed to add target to the response: %v", err)
 	}
-
-	b, err := f.mo.Marshal(rsp, meta, f.evps...)
+	bb, err := outputs.Marshal(rsp, meta, f.mo, f.Cfg.SplitEvents, f.evps...)
 	if err != nil {
 		if f.Cfg.Debug {
 			f.logger.Printf("failed marshaling proto msg: %v", err)
@@ -237,30 +237,32 @@ func (f *File) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) 
 		numberOfFailWriteMsgs.WithLabelValues(f.file.Name(), "marshal_error").Inc()
 		return
 	}
-	if len(b) == 0 {
+	if len(bb) == 0 {
 		return
 	}
-	if f.msgTpl != nil {
-		b, err = outputs.ExecTemplate(b, f.msgTpl)
+	for _, b := range bb {
+		if f.msgTpl != nil {
+			b, err = outputs.ExecTemplate(b, f.msgTpl)
+			if err != nil {
+				if f.Cfg.Debug {
+					log.Printf("failed to execute template: %v", err)
+				}
+				numberOfFailWriteMsgs.WithLabelValues(f.file.Name(), "template_error").Inc()
+				continue
+			}
+		}
+
+		n, err := f.file.Write(append(b, []byte(f.Cfg.Separator)...))
 		if err != nil {
 			if f.Cfg.Debug {
-				log.Printf("failed to execute template: %v", err)
+				f.logger.Printf("failed to write to file '%s': %v", f.file.Name(), err)
 			}
-			numberOfFailWriteMsgs.WithLabelValues(f.file.Name(), "template_error").Inc()
+			numberOfFailWriteMsgs.WithLabelValues(f.file.Name(), "write_error").Inc()
 			return
 		}
+		numberOfWrittenBytes.WithLabelValues(f.file.Name()).Add(float64(n))
+		numberOfWrittenMsgs.WithLabelValues(f.file.Name()).Inc()
 	}
-
-	n, err := f.file.Write(append(b, []byte(f.Cfg.Separator)...))
-	if err != nil {
-		if f.Cfg.Debug {
-			f.logger.Printf("failed to write to file '%s': %v", f.file.Name(), err)
-		}
-		numberOfFailWriteMsgs.WithLabelValues(f.file.Name(), "write_error").Inc()
-		return
-	}
-	numberOfWrittenBytes.WithLabelValues(f.file.Name()).Add(float64(n))
-	numberOfWrittenMsgs.WithLabelValues(f.file.Name()).Inc()
 }
 
 func (f *File) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {}

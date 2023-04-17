@@ -77,6 +77,7 @@ type Config struct {
 	ConnectTimeWait    time.Duration    `mapstructure:"connect-time-wait,omitempty"`
 	TLS                *types.TLSConfig `mapstructure:"tls,omitempty" json:"tls,omitempty"`
 	Format             string           `mapstructure:"format,omitempty"`
+	SplitEvents        bool             `mapstructure:"split-events,omitempty"`
 	AddTarget          string           `mapstructure:"add-target,omitempty"`
 	TargetTemplate     string           `mapstructure:"target-template,omitempty"`
 	MsgTemplate        string           `mapstructure:"msg-template,omitempty"`
@@ -359,7 +360,7 @@ CRCONN:
 			if err != nil {
 				n.logger.Printf("failed to add target to the response: %v", err)
 			}
-			b, err := n.mo.Marshal(pmsg, m.GetMeta(), n.evps...)
+			bb, err := outputs.Marshal(pmsg, m.GetMeta(), n.mo, n.Cfg.SplitEvents, n.evps...)
 			if err != nil {
 				if n.Cfg.Debug {
 					n.logger.Printf("%s failed marshaling proto msg: %v", workerLogPrefix, err)
@@ -369,41 +370,43 @@ CRCONN:
 				}
 				continue
 			}
-			if len(b) == 0 {
+			if len(bb) == 0 {
 				return
 			}
-			if n.msgTpl != nil {
-				b, err = outputs.ExecTemplate(b, n.msgTpl)
+			for _, b := range bb {
+				if n.msgTpl != nil {
+					b, err = outputs.ExecTemplate(b, n.msgTpl)
+					if err != nil {
+						if n.Cfg.Debug {
+							log.Printf("failed to execute template: %v", err)
+						}
+						NatsNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "template_error").Inc()
+						continue
+					}
+				}
+
+				subject := n.subjectName(cfg, m.GetMeta())
+				var start time.Time
+				if n.Cfg.EnableMetrics {
+					start = time.Now()
+				}
+				err = natsConn.Publish(subject, b)
 				if err != nil {
 					if n.Cfg.Debug {
-						log.Printf("failed to execute template: %v", err)
+						n.logger.Printf("%s failed to write to nats subject '%s': %v", workerLogPrefix, subject, err)
 					}
-					NatsNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "template_error").Inc()
-					return
-				}
-			}
-
-			subject := n.subjectName(cfg, m.GetMeta())
-			var start time.Time
-			if n.Cfg.EnableMetrics {
-				start = time.Now()
-			}
-			err = natsConn.Publish(subject, b)
-			if err != nil {
-				if n.Cfg.Debug {
-					n.logger.Printf("%s failed to write to nats subject '%s': %v", workerLogPrefix, subject, err)
+					if n.Cfg.EnableMetrics {
+						NatsNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "publish_error").Inc()
+					}
+					natsConn.Close()
+					time.Sleep(cfg.ConnectTimeWait)
+					goto CRCONN
 				}
 				if n.Cfg.EnableMetrics {
-					NatsNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "publish_error").Inc()
+					NatsSendDuration.WithLabelValues(cfg.Name).Set(float64(time.Since(start).Nanoseconds()))
+					NatsNumberOfSentMsgs.WithLabelValues(cfg.Name, subject).Inc()
+					NatsNumberOfSentBytes.WithLabelValues(cfg.Name, subject).Add(float64(len(b)))
 				}
-				natsConn.Close()
-				time.Sleep(cfg.ConnectTimeWait)
-				goto CRCONN
-			}
-			if n.Cfg.EnableMetrics {
-				NatsSendDuration.WithLabelValues(cfg.Name).Set(float64(time.Since(start).Nanoseconds()))
-				NatsNumberOfSentMsgs.WithLabelValues(cfg.Name, subject).Inc()
-				NatsNumberOfSentBytes.WithLabelValues(cfg.Name, subject).Add(float64(len(b)))
 			}
 		}
 	}
