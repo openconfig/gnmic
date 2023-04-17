@@ -13,7 +13,8 @@ Each deployment comes with:
 
 The [containerlab](https://containerlab.srlinux.dev/) examples come with a fabric deployed using Nokia's [SR Linux](https://learn.srlinux.dev)
 
-If you don't find an example that fits your needs, feel free to start a discussion on [github](https://github.com/openconfig/gnmic/discussions)
+If you don't find an example that fits your needs, feel free to open an issue on [github](https://github.com/openconfig/gnmic/issues/new)
+
 ### Single Instance
 
 These examples showcase single `gnmic` instance deployments with the most commonly used outputs

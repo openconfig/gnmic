@@ -1,4 +1,4 @@
-The following examples demonstrate the basic usage of the `gnmic` in a scenario where the remote target runs insecure (not TLS enabled) gNMI server. The `admin:admin` credentials are used to connect to the gNMI server running at `10.1.0.11:57400` address.
+The following examples demonstrate the basic usage of `gnmic` in a scenario where the remote target runs an unsecured (without TLS enabled) gNMI server. The `admin:admin` credentials are used to connect to the gNMI server running at `10.1.0.11:57400` address.
 
 !!!info
     For the complete command usage examples, refer to the ["Command reference"](cmd/capabilities.md) menu.

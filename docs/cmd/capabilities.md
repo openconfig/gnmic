@@ -1,4 +1,5 @@
 ## Description
+
 The `[cap | capabilities]` command represents the [gNMI Capabilities RPC](https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto#L51).
 
 It is used to send a [Capability Request](https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto#L431) to the specified target(s) and expects one [Capability Response](https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto#L440) per target.

@@ -31,7 +31,7 @@ processors:
     # processor type
     event-extract-tags:
       value-names:
-        - `/(\w+)/(?P<group>\w+)/(\w+)`
+        - /([a-zA-Z0-9-_:]+)/(?P<group>[a-zA-Z0-9-_:]+)/([a-zA-Z0-9-_:]+)
 ```
 
 === "Event format before"
