@@ -1,5 +1,72 @@
 ## Changelog
 
+### v0.30.0 - April 18th 2023
+
+- Set Command
+
+    - The [set command](cmd/set.md) now supports the flags `--replace-cli`, `--replace-cli-file`, `--update-cli` and `--update-cli-file`, these flags can be used to send gNMI set requests with the CLI origin.
+
+- Logging:
+  
+    - Reduce log verbosity of File and HTTP target discovery mechanisms.
+
+- Processors:
+
+    - The [Drop](user_guide/event_processors/event_drop.md) event processor completely removes the message to be dropped instead of replacing it with an empty message.
+
+- Inputs:
+
+    - [Kafka input](user_guide/inputs/kafka_input.md) now supports TLS connections.
+
+- Outputs:
+
+    - [Kafka output](user_guide/outputs/kafka_output.md) now has a configuration attribute called `insert-key`, if true, the messages written will include a key built from the gNMI message source and subscription name.
+
+    - [TCP output](user_guide/outputs/tcp_output.md) now has a configuration attribute called `delimiter`, it allows to set user defined string to be sent between each message. This allows the receiving end to properly split JSON objects. It it particularly useful with Logstash when writing gNMI events to an ELK stack.
+
+- TLS:
+
+    - When using `gNMIc`'s components that expose a TLS server (gNMI server, Tunnel server, Rest API and Prometheus output) it's possible to fine tune the how the server requests and validates a client certificate.
+
+        This is done using the configuration attribute `client-auth` under each server's TLS section, it takes 4 different values:
+
+        - request:
+            The server requests a certificate from the client but does not require the client to send a certificate.
+            If the client sends a certificate, it is not required to be valid.
+
+        - require:
+            The server requires the client to send a certificate and does not fail if the client certificate is not valid.
+
+        - verify-if-given:
+            The server requests a certificate, does not fail if no certificate is sent. If a certificate is sent it is required to be valid.
+
+        - require-verify:
+            The server requires the client to send a valid certificate.
+
+- Diff Command:
+
+    - The [diff command](cmd/diff/diff.md) has 2 new sub commands:
+
+        - [`setrequest`](cmd/diff/diff_setrequest.md): compares the intent between two `SetRequest` messages encoded in textproto format.
+
+        - [`set-to-notifs`](cmd/diff/diff_set_to_notifs.md): verifies whether a set of
+            notifications from a `GetResponse` or a stream of `SubscribeResponse` messages
+            comply with a `SetRequest` messages in textproto format. The envisioned use case
+            is to check whether a stored snapshot of device state matches that of the
+            intended state as specified by a `SetRequest`.
+
+- Outputs:
+
+    - When using the `event` format with certain outputs (`file`, `nats`, `jetstream`, `kafka`, `tcp` or `udp`) it's possible to send event message individually as opposed to sending them in an array.
+        This is done using the attribute `split-events: true` under each of the outputs configuration sections.
+
+    - [Prometheus output](user_guide/outputs/prometheus_output.md) now supports a custom service address field under `service-registration`, it specifies the address to be registered in Consul for discovery.
+        It can be a hostname, an IP address or a IP/Host:Port socket address. It it does not contain a port number, the port number from the `listen` field is used.
+
+- Set Request file
+
+    - The Set request file can be used with Origin `cli`, gNMIc will properly format the commands as string, not as JSON value.
+
 ### v0.29.0 - February 20th 2023
 
 - Generate Path
