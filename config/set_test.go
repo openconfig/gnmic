@@ -401,6 +401,73 @@ var createSetRequestFromFileTestSet = map[string]struct {
 		},
 		err: nil,
 	},
+	"set_replace_origin_cli": {
+		in: &Config{
+			GlobalFlags{},
+			LocalFlags{},
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+			[]*template.Template{
+				template.Must(template.New("set-request").Parse(`{
+				"replaces": [
+					{
+						"path": "cli:/",
+						"value": "set interface ethernet-1/1 admin-state enable\nset interface ethernet-1/2 admin-state enable",
+						"encoding": "ascii",
+					}
+				]
+			}`))},
+			nil,
+		},
+		out: &gnmi.SetRequest{
+			Replace: []*gnmi.Update{
+				{
+					Path: &gnmi.Path{
+						Origin: "cli",
+					},
+					Val: &gnmi.TypedValue{
+						Value: &gnmi.TypedValue_AsciiVal{
+							AsciiVal: "set interface ethernet-1/1 admin-state enable\nset interface ethernet-1/2 admin-state enable",
+						},
+					},
+				},
+			},
+		},
+		err: nil,
+	},
+	"set_update_origin_cli": {
+		in: &Config{
+			GlobalFlags{
+				Encoding: "ascii",
+			},
+			LocalFlags{},
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+			[]*template.Template{
+				template.Must(template.New("set-request").Parse(`{
+				"updates": [
+					{
+						"path": "cli:/",
+						"value": "set interface ethernet-1/1 admin-state enable"
+					}
+				]
+			}`))},
+			nil,
+		},
+		out: &gnmi.SetRequest{
+			Update: []*gnmi.Update{
+				{
+					Path: &gnmi.Path{
+						Origin: "cli",
+					},
+					Val: &gnmi.TypedValue{
+						Value: &gnmi.TypedValue_AsciiVal{
+							AsciiVal: "set interface ethernet-1/1 admin-state enable",
+						},
+					},
+				},
+			},
+		},
+		err: nil,
+	},
 }
 
 func TestCreateSetRequestFromFile(t *testing.T) {

@@ -136,10 +136,20 @@ func (c *Config) CreateSetRequestFromFile(targetName string) ([]*gnmi.SetRequest
 				enc = c.GlobalFlags.Encoding
 			}
 			buf.Reset()
-			err = json.NewEncoder(buf).Encode(convert(upd.Value))
-			if err != nil {
-				return nil, err
+			switch {
+			case strings.HasPrefix(upd.Path, "cli:/"):
+				val, ok := upd.Value.(string)
+				if !ok {
+					return nil, fmt.Errorf("value %v is not a string", upd.Value)
+				}
+				buf.WriteString(val)
+			default:
+				err = json.NewEncoder(buf).Encode(convert(upd.Value))
+				if err != nil {
+					return nil, err
+				}
 			}
+
 			gnmiOpts = append(gnmiOpts,
 				api.Update(
 					api.Path(strings.TrimSpace(upd.Path)),
@@ -156,9 +166,18 @@ func (c *Config) CreateSetRequestFromFile(targetName string) ([]*gnmi.SetRequest
 				enc = c.GlobalFlags.Encoding
 			}
 			buf.Reset()
-			err = json.NewEncoder(buf).Encode(convert(upd.Value))
-			if err != nil {
-				return nil, err
+			switch {
+			case upd.Path == "cli:/":
+				val, ok := upd.Value.(string)
+				if !ok {
+					return nil, fmt.Errorf("value %v is not a string", upd.Value)
+				}
+				buf.WriteString(val)
+			default:
+				err = json.NewEncoder(buf).Encode(convert(upd.Value))
+				if err != nil {
+					return nil, err
+				}
 			}
 			gnmiOpts = append(gnmiOpts, api.Replace(
 				api.Path(strings.TrimSpace(upd.Path)),
