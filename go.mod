@@ -37,12 +37,12 @@ require (
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/openconfig/gnmi v0.9.1
 	github.com/openconfig/goyang v1.2.0
-	github.com/openconfig/ygot v0.27.0
+	github.com/openconfig/ygot v0.28.0
 	github.com/pkg/sftp v1.13.5
 	github.com/prometheus/client_golang v1.14.0
 	github.com/prometheus/client_model v0.3.0
 	github.com/prometheus/prometheus v0.42.0
-	github.com/spf13/cobra v1.6.1
+	github.com/spf13/cobra v1.7.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.15.0
 	github.com/xdg/scram v1.0.5
@@ -50,7 +50,7 @@ require (
 	golang.org/x/crypto v0.7.0
 	golang.org/x/oauth2 v0.6.0
 	golang.org/x/sync v0.1.0
-	google.golang.org/grpc v1.53.0
+	google.golang.org/grpc v1.54.0
 	google.golang.org/protobuf v1.30.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v2 v2.4.0
@@ -196,7 +196,7 @@ require (
 	github.com/hashicorp/vault/api v1.6.0 // indirect
 	github.com/hashicorp/vault/sdk v0.5.0 // indirect
 	github.com/imdario/mergo v0.3.13 // indirect
-	github.com/inconshreveable/mousetrap v1.0.1 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/influxdata/line-protocol v0.0.0-20200327222509-2487e7298839 // indirect
 	github.com/itchyny/timefmt-go v0.1.5 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
