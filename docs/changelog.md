@@ -1,6 +1,6 @@
 ## Changelog
 
-### v0.30.0 - April 17th 2023
+### v0.30.0 - April 18th 2023
 
 - Set Command
 
@@ -59,6 +59,13 @@
 
     - When using the `event` format with certain outputs (`file`, `nats`, `jetstream`, `kafka`, `tcp` or `udp`) it's possible to send event message individually as opposed to sending them in an array.
         This is done using the attribute `split-events: true` under each of the outputs configuration sections.
+
+    - [Prometheus output](user_guide/outputs/prometheus_output.md) now supports a custom service address field under `service-registration`, it specifies the address to be registered in Consul for discovery.
+        It can be a hostname, an IP address or a IP/Host:Port socket address. It it does not contain a port number, the port number from the `listen` field is used.
+
+- Set Request file
+
+    - The Set request file can be used with Origin `cli`, gNMIc will properly format the commands as string, not as JSON value.
 
 ### v0.29.0 - February 20th 2023
 
