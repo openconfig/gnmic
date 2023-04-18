@@ -27,19 +27,20 @@ const (
 )
 
 type serviceRegistration struct {
-	Address    string `mapstructure:"address,omitempty"`
-	Datacenter string `mapstructure:"datacenter,omitempty"`
-	Username   string `mapstructure:"username,omitempty"`
-	Password   string `mapstructure:"password,omitempty"`
-	Token      string `mapstructure:"token,omitempty"`
+	Address    string `mapstructure:"address,omitempty" json:"address,omitempty"`
+	Datacenter string `mapstructure:"datacenter,omitempty" json:"datacenter,omitempty"`
+	Username   string `mapstructure:"username,omitempty" json:"username,omitempty"`
+	Password   string `mapstructure:"password,omitempty" json:"password,omitempty"`
+	Token      string `mapstructure:"token,omitempty" json:"token,omitempty"`
 
-	Name             string        `mapstructure:"name,omitempty"`
-	CheckInterval    time.Duration `mapstructure:"check-interval,omitempty"`
-	MaxFail          int           `mapstructure:"max-fail,omitempty"`
-	Tags             []string      `mapstructure:"tags,omitempty"`
-	EnableHTTPCheck  bool          `mapstructure:"enable-http-check,omitempty"`
-	HTTPCheckAddress string        `mapstructure:"http-check-address,omitempty"`
-	UseLock          bool          `mapstructure:"use-lock,omitempty"`
+	Name             string        `mapstructure:"name,omitempty" json:"name,omitempty"`
+	CheckInterval    time.Duration `mapstructure:"check-interval,omitempty" json:"check-interval,omitempty"`
+	MaxFail          int           `mapstructure:"max-fail,omitempty" json:"max-fail,omitempty"`
+	Tags             []string      `mapstructure:"tags,omitempty" json:"tags,omitempty"`
+	EnableHTTPCheck  bool          `mapstructure:"enable-http-check,omitempty" json:"enable-http-check,omitempty"`
+	HTTPCheckAddress string        `mapstructure:"http-check-address,omitempty" json:"http-check-address,omitempty"`
+	UseLock          bool          `mapstructure:"use-lock,omitempty" json:"use-lock,omitempty"`
+	ServiceAddress   string        `mapstructure:"service-address,omitempty" json:"service-address,omitempty"`
 
 	deregisterAfter  string
 	id               string
@@ -148,9 +149,6 @@ INITCONSUL:
 }
 
 func (p *prometheusOutput) setServiceRegistrationDefaults() {
-	if p.Cfg.ServiceRegistration == nil {
-		return
-	}
 	if p.Cfg.ServiceRegistration.Address == "" {
 		p.Cfg.ServiceRegistration.Address = defaultServiceRegistrationAddress
 	}

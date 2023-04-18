@@ -102,7 +102,7 @@ type prometheusOutput struct {
 type config struct {
 	Name                   string               `mapstructure:"name,omitempty" json:"name,omitempty"`
 	Listen                 string               `mapstructure:"listen,omitempty" json:"listen,omitempty"`
-	TLS                    *types.TLSConfig     `mapstructure:"tls,omitempty"`
+	TLS                    *types.TLSConfig     `mapstructure:"tls,omitempty" json:"tls,omitempty"`
 	Path                   string               `mapstructure:"path,omitempty" json:"path,omitempty"`
 	Expiration             time.Duration        `mapstructure:"expiration,omitempty" json:"expiration,omitempty"`
 	MetricPrefix           string               `mapstructure:"metric-prefix,omitempty" json:"metric-prefix,omitempty"`
@@ -464,19 +464,53 @@ func (p *prometheusOutput) setDefaults() error {
 	if p.Cfg.Timeout <= 0 {
 		p.Cfg.Timeout = defaultTimeout
 	}
+	if p.Cfg.ServiceRegistration == nil {
+		return nil
+	}
 
 	p.setServiceRegistrationDefaults()
 	var err error
 	var port string
-	p.Cfg.address, port, err = net.SplitHostPort(p.Cfg.Listen)
-	if err != nil {
-		p.logger.Printf("invalid 'listen' field format: %v", err)
-		return err
-	}
-	p.Cfg.port, err = strconv.Atoi(port)
-	if err != nil {
-		p.logger.Printf("invalid 'listen' field format: %v", err)
-		return err
+	switch {
+	case p.Cfg.ServiceRegistration.ServiceAddress != "":
+		p.Cfg.address, port, err = net.SplitHostPort(p.Cfg.ServiceRegistration.ServiceAddress)
+		if err != nil {
+			// if service-address does not include a port number, use the port number from the listen field
+			if strings.Contains(err.Error(), "missing port in address") {
+				p.Cfg.address = p.Cfg.ServiceRegistration.ServiceAddress
+				_, port, err = net.SplitHostPort(p.Cfg.Listen)
+				if err != nil {
+					p.logger.Printf("invalid 'listen' field format: %v", err)
+					return err
+				}
+				p.Cfg.port, err = strconv.Atoi(port)
+				if err != nil {
+					p.logger.Printf("invalid 'listen' field format: %v", err)
+					return err
+				}
+				return nil
+			}
+			// if the error is not related to a missing port, fail
+			p.logger.Printf("invalid 'service-registration.service-address' field format: %v", err)
+			return err
+		}
+		// the service-address contains both an address and a port number
+		p.Cfg.port, err = strconv.Atoi(port)
+		if err != nil {
+			p.logger.Printf("invalid 'service-registration.service-address' field format: %v", err)
+			return err
+		}
+	default:
+		p.Cfg.address, port, err = net.SplitHostPort(p.Cfg.Listen)
+		if err != nil {
+			p.logger.Printf("invalid 'listen' field format: %v", err)
+			return err
+		}
+		p.Cfg.port, err = strconv.Atoi(port)
+		if err != nil {
+			p.logger.Printf("invalid 'listen' field format: %v", err)
+			return err
+		}
 	}
 
 	return nil
