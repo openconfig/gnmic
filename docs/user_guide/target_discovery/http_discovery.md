@@ -23,15 +23,18 @@ loader:
   timeout: 50s
   # time to wait before the fist HTTP query
   start-delay: 0s
-  # boolean, if true the client does not verify the server certificates
-  skip-verify: false
-  # path to a certificate authority that will be used to verify the
-  # server certificates. Irrelevant if `skip-verify: true`
-  ca-file:
-  # path to client certificate file
-  cert-file:
-  # path to client key file
-  key-file:
+  # tls config
+  tls:
+    # string, path to the CA certificate file,
+    # this will be used to verify the clients certificates when `skip-verify` is false
+    ca-file:
+    # string, client certificate file.
+    cert-file:
+    # string, client key file.
+    key-file:
+    # boolean, if true, the client will not verify the server
+    # certificate against the available certificate chain.
+    skip-verify: false
   # username to be used with basic authentication
   username:
   # password to be used with basic authentication
