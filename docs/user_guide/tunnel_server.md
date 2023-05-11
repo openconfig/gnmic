@@ -25,7 +25,7 @@ $ cat tunnel_server_config.yaml
 insecure: true
 log: true
 username: admin
-password: admin
+password: NokiaSrl1!
 
 tunnel-server:
   address: ":57401"
@@ -41,8 +41,8 @@ $ gnmic --config tunnel_server_config.yaml \
 2022/03/09 10:12:34.730472 [gnmic] waiting for targets to register with the tunnel server...
 2022/03/09 10:12:36.435521 [gnmic] tunnel server discovered target {ID:sr1 Type:GNMI_GNOI}
 2022/03/09 10:12:36.436332 [gnmic] tunnel server discovered target {ID:sr2 Type:GNMI_GNOI}
-2022/03/09 10:12:36.731125 [gnmic] adding target {"name":"sr1","address":"sr1","username":"admin","password":"admin","timeout":10000000000,"insecure":true,"skip-verify":false,"subscriptions":["sub1"],"retry-timer":10000000000,"log-tls-secret":false,"gzip":false,"token":""}
-2022/03/09 10:12:36.731158 [gnmic] adding target {"name":"sr2","address":"sr2","username":"admin","password":"admin","timeout":10000000000,"insecure":true,"skip-verify":false,"subscriptions":["sub1"],"retry-timer":10000000000,"log-tls-secret":false,"gzip":false,"token":""}
+2022/03/09 10:12:36.731125 [gnmic] adding target {"name":"sr1","address":"sr1","username":"admin","password":"NokiaSrl1!","timeout":10000000000,"insecure":true,"skip-verify":false,"subscriptions":["sub1"],"retry-timer":10000000000,"log-tls-secret":false,"gzip":false,"token":""}
+2022/03/09 10:12:36.731158 [gnmic] adding target {"name":"sr2","address":"sr2","username":"admin","password":"NokiaSrl1!","timeout":10000000000,"insecure":true,"skip-verify":false,"subscriptions":["sub1"],"retry-timer":10000000000,"log-tls-secret":false,"gzip":false,"token":""}
 2022/03/09 10:12:36.731651 [gnmic] sending gNMI GetRequest: prefix='<nil>', path='[elem:{name:"configure"}  elem:{name:"system"}  elem:{name:"name"}]', type='ALL', encoding='JSON', models='[]', extension='[]' to sr1
 2022/03/09 10:12:36.731742 [gnmic] sending gNMI GetRequest: prefix='<nil>', path='[elem:{name:"configure"}  elem:{name:"system"}  elem:{name:"name"}]', type='ALL', encoding='JSON', models='[]', extension='[]' to sr2
 2022/03/09 10:12:36.732337 [gnmic] dialing tunnel connection for tunnel target "sr2"
@@ -138,7 +138,7 @@ The configuration file would look like:
 ```yaml
 insecure: true
 username: admin
-password: admin
+password: NokiaSrl1!
 
 subscriptions:
   sub1:

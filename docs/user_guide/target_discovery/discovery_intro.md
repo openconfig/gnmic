@@ -74,7 +74,7 @@ loader:
       config:
         skip-verify: true
         username: admin
-        password: admin
+        password: NokiaSrl1!
   on-add:
     - configure_interfaces
     - configure_subinterfaces
