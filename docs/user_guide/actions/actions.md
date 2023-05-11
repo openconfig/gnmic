@@ -157,7 +157,7 @@ Before the targets are added to the target's list for subscriptions, a list of a
 
 ```yaml
 username: admin
-password: admin
+password: NokiaSrl1!
 skip-verify: true
 encoding: ascii
 log: true
@@ -241,7 +241,7 @@ It then builds a containerlab topology from a defined template and the gathered 
 
 ```yaml
 username: admin
-password: admin
+password: NokiaSrl1!
 skip-verify: true
 encoding: json_ietf
 # log: true
