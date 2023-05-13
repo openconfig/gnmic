@@ -14,7 +14,7 @@ address: "10.0.0.1:57400"
 # gNMI target user name; CLI flag `--username`
 username: admin
 # gNMI target user password; CLI flag `--password`
-password: admin
+password: NokiaSrl1!
 # connection mode; CLI flag `--insecure`
 insecure: true
 # log file location; CLI flag `--log-file`
@@ -40,7 +40,7 @@ So, for example, we can provide the [`path`](../cmd/get.md#path) flag of a [`get
 ```yaml
 address: "router.lab:57400"
 username: admin
-password: admin
+password: NokiaSrl1!
 insecure: true
 get-path: /configure/system/name  # `get` command local flag
 ```
@@ -66,7 +66,7 @@ For example one can set multiple paths for get/set/subscribe operations. In the 
 ```yaml
 address: "router.lab:57400"
 username: admin
-password: admin
+password: NokiaSrl1!
 insecure: true
 get-path:
     - /configure/system/name

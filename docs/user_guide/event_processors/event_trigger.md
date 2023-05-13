@@ -134,7 +134,7 @@ It then builds a containerlab topology from a defined template and the gathered 
 
 ```yaml
 username: admin
-password: admin
+password: NokiaSrl1!
 skip-verify: true
 encoding: json_ietf
 # log: true

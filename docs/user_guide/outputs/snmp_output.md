@@ -108,7 +108,7 @@ It adds `sysName`, `ifAdminStatus` and `ifIndex` variable bindings to the trap b
 
 ```yaml
 username: admin
-password: admin
+password: NokiaSrl1!
 skip-verify: true
 
 targets:
