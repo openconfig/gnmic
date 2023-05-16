@@ -10,7 +10,7 @@ name: lab17
 
 mgmt:
   bridge: cortex
-  ipv4_subnet: 172.19.19.0/24
+  ipv4-subnet: 172.19.19.0/24
 
 topology:
   defaults:
@@ -34,8 +34,8 @@ topology:
       binds:
         - ./gnmic.yaml:/app/gnmic.yaml:ro
         - /var/run/docker.sock:/var/run/docker.sock
-      cmd: '--config /app/gnmic.yaml --log subscribe'
-    
+      cmd: "--config /app/gnmic.yaml --log subscribe"
+
     cortex:
       kind: linux
       image: quay.io/cortexproject/cortex:latest
@@ -45,7 +45,7 @@ topology:
         - ./cortex/single-process-config-blocks.yaml:/etc/single-process-config-blocks.yaml:ro
       cmd: |
         -config.file=/etc/single-process-config-blocks.yaml
-    
+
     grafana:
       kind: linux
       image: grafana/grafana:latest
@@ -54,7 +54,7 @@ topology:
         # - grafana/dashboards/:/var/lib/grafana/dashboards
       ports:
         - 3000:3000
-                 
+
   links:
     # spine1 links
     - endpoints: ["spine1:e1-1", "leaf1:e1-1"]
@@ -66,4 +66,3 @@ topology:
     - endpoints: ["spine2:e1-2", "leaf2:e1-2"]
     - endpoints: ["spine2:e1-3", "leaf3:e1-2"]
     - endpoints: ["spine2:e1-4", "leaf4:e1-2"]
-
