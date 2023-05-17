@@ -1,5 +1,18 @@
 ## Changelog
 
+### v0.31.0 - May 17th 2023
+
+- Prometheus output
+
+    - When using the Consul auto discovery feature of the Proemtheus output,
+      it is now possible to configure different service and listen addresses.
+      This is useful when gNMIc is running as a container of behind a NAT device
+
+- Set Request file
+
+    - The CLI origin is now allowed in the `path` field of `updates`, `replaces` and `deletes` in a set request file.
+      If the `path` field has the `cli:/` origin, the `value` field is expected to be a string and will be set in an `ascii` TypedValue.
+
 ### v0.30.0 - April 18th 2023
 
 - Set Command
