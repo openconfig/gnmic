@@ -108,6 +108,7 @@ func NewTLSConfig(ca, cert, key, clientAuth string, skipVerify, genSelfSigned bo
 			return nil, errors.New("failed to append certificate")
 		}
 		tlsConfig.RootCAs = certPool
+		tlsConfig.ClientCAs = certPool
 	}
 	return tlsConfig, nil
 }
