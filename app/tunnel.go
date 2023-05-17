@@ -106,6 +106,10 @@ func (a *App) gRPCTunnelServerOpts() ([]grpc.ServerOption, error) {
 		a.reg.MustRegister(grpcMetrics)
 	}
 
+	if a.Config.TunnelServer.TLS == nil {
+		return opts, nil
+	}
+
 	tlscfg, err := utils.NewTLSConfig(
 		a.Config.TunnelServer.TLS.CaFile,
 		a.Config.TunnelServer.TLS.CertFile,
