@@ -7,7 +7,7 @@ require (
 	github.com/adrg/xdg v0.4.0
 	github.com/c-bata/go-prompt v0.2.5
 	github.com/damiannolan/sasl v1.0.0
-	github.com/docker/docker v20.10.23+incompatible
+	github.com/docker/docker v24.0.1+incompatible
 	github.com/fsnotify/fsnotify v1.6.0
 	github.com/fullstorydev/grpcurl v1.8.7
 	github.com/go-redis/redis/v8 v8.11.5
@@ -228,7 +228,6 @@ require (
 	github.com/rs/zerolog v1.29.0 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	github.com/sergi/go-diff v1.2.0 // indirect
-	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/spf13/afero v1.9.3 // indirect
 	github.com/spf13/cast v1.5.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
