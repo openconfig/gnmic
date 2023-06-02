@@ -22,10 +22,13 @@ import (
 	"path/filepath"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/jlaffaye/ftp"
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/crypto/ssh/knownhosts"
 )
 
 const (
@@ -141,10 +144,6 @@ func readSFTPFile(_ context.Context, path string) ([]byte, error) {
 	if err != nil {
 		host = fmt.Sprintf("%s:%d", host, defaultSFTPPort)
 	}
-	hostKey, err := getHostKey(host)
-	if err != nil {
-		return nil, err
-	}
 
 	var auths []ssh.AuthMethod
 
@@ -164,11 +163,9 @@ func readSFTPFile(_ context.Context, path string) ([]byte, error) {
 		User: user,
 		Auth: auths,
 	}
-	if hostKey != nil {
-		config.HostKeyCallback = ssh.FixedHostKey(hostKey)
-	} else {
-		config.HostKeyCallback = ssh.InsecureIgnoreHostKey()
-	}
+
+	knownHostsFile := filepath.Join(os.Getenv("HOME"), ".ssh", "known_hosts")
+	config.HostKeyCallback = getCustomHostKeyCallback(knownHostsFile)
 
 	// Connect to server
 	conn, err := ssh.Dial("tcp", host, &config)
@@ -263,31 +260,32 @@ func readFromStdin(ctx context.Context) ([]byte, error) {
 	}
 }
 
-// Get host key from local known hosts
-func getHostKey(host string) (ssh.PublicKey, error) {
-	// parse OpenSSH known_hosts file
-	// ssh or use ssh-keyscan to get initial key
-	file, err := os.Open(filepath.Join(os.Getenv("HOME"), ".ssh", "known_hosts"))
+// getCustomHostKeyCallback returns a custom ssh.HostKeyCallback.
+// it will never block the connection, but issue a log.Warn if the
+// host_key cannot be found (due to absense of the entry or
+// the file being missing)
+func getCustomHostKeyCallback(knownHostsFiles ...string) ssh.HostKeyCallback {
+	// load the known_hosts file retrieving an ssh.HostKeyCallback
+	knownHostsFileCallback, err := knownhosts.New(knownHostsFiles...)
 	if err != nil {
-		return nil, err
+		log.Warnf("error loading known_hosts file %q", knownHostsFiles)
+		// this is an always failing knownHosts checker.
+		// it will make sure that the log message of the custom function further down
+		// is consistently logged. Meaning if file can't be loaded or entry does not exist.
+		knownHostsFileCallback = func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+			return err
+		}
 	}
-	defer file.Close()
 
-	scanner := bufio.NewScanner(file)
-	var hostKey ssh.PublicKey
-	for scanner.Scan() {
-		fields := strings.Split(scanner.Text(), " ")
-		if len(fields) != 3 {
-			continue
+	// defien the custom ssh.HostKeyCallback function.
+	// will use the
+	return func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+		// delegate the call
+		err = knownHostsFileCallback(hostname, remote, key)
+		if err != nil {
+			// But if an error crops up, make it a warning and continue
+			log.Warnf("error while performing host key validation based on %q for hostname %q (%v). continuing anyways", knownHostsFiles, hostname, err)
 		}
-		if strings.Contains(fields[0], host) {
-			var err error
-			hostKey, _, _, _, err = ssh.ParseAuthorizedKey(scanner.Bytes())
-			if err != nil {
-				return nil, err
-			}
-			break
-		}
+		return nil
 	}
-	return hostKey, nil
 }
