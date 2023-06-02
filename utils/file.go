@@ -265,27 +265,45 @@ func readFromStdin(ctx context.Context) ([]byte, error) {
 // host_key cannot be found (due to absense of the entry or
 // the file being missing)
 func getCustomHostKeyCallback(knownHostsFiles ...string) ssh.HostKeyCallback {
+	var usefiles []string
+	// check
+	for _, file := range knownHostsFiles {
+		if !FileExists(file) {
+			log.Debugf("known_hosts file %s does not exist.", file)
+			continue
+		}
+		usefiles = append(usefiles, file)
+	}
+
 	// load the known_hosts file retrieving an ssh.HostKeyCallback
-	knownHostsFileCallback, err := knownhosts.New(knownHostsFiles...)
+	knownHostsFileCallback, err := knownhosts.New(usefiles...)
 	if err != nil {
-		log.Warnf("error loading known_hosts file %q", knownHostsFiles)
+		log.Debugf("error loading known_hosts files %q", strings.Join(knownHostsFiles, ", "))
 		// this is an always failing knownHosts checker.
 		// it will make sure that the log message of the custom function further down
 		// is consistently logged. Meaning if file can't be loaded or entry does not exist.
 		knownHostsFileCallback = func(hostname string, remote net.Addr, key ssh.PublicKey) error {
-			return err
+			return fmt.Errorf("error loading known_hosts files %v", err)
 		}
 	}
 
 	// defien the custom ssh.HostKeyCallback function.
-	// will use the
 	return func(hostname string, remote net.Addr, key ssh.PublicKey) error {
 		// delegate the call
 		err = knownHostsFileCallback(hostname, remote, key)
 		if err != nil {
 			// But if an error crops up, make it a warning and continue
-			log.Warnf("error while performing host key validation based on %q for hostname %q (%v). continuing anyways", knownHostsFiles, hostname, err)
+			log.Warnf("error performing host key validation based on %q for hostname %q (%v). continuing anyways", strings.Join(knownHostsFiles, ", "), hostname, err)
 		}
 		return nil
 	}
+}
+
+// FileExists returns true if a file referenced by filename exists & accessible.
+func FileExists(filename string) bool {
+	f, err := os.Stat(filename)
+	if err != nil {
+		return false
+	}
+	return !f.IsDir()
 }
