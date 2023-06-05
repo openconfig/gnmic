@@ -22,8 +22,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/jlaffaye/ftp"
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
@@ -50,7 +48,7 @@ func ReadFile(ctx context.Context, path string) ([]byte, error) {
 	case strings.HasPrefix(path, "ftp://"):
 		return readFTPFile(ctx, path)
 	case strings.HasPrefix(path, "sftp://"):
-		return readSFTPFile(ctx, path)
+		return readSFTPFile(ctx, path, false)
 	default:
 		return readLocalFile(ctx, path)
 	}
@@ -128,7 +126,7 @@ func readFTPFile(ctx context.Context, path string) ([]byte, error) {
 // readSFTPFile reads a file from a remote SFTP server
 // unmarshals the content into a map[string]*types.TargetConfig
 // and returns
-func readSFTPFile(_ context.Context, path string) ([]byte, error) {
+func readSFTPFile(_ context.Context, path string, checkHostKey bool) ([]byte, error) {
 	parsedUrl, err := url.Parse(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse URL: %v", err)
@@ -164,8 +162,23 @@ func readSFTPFile(_ context.Context, path string) ([]byte, error) {
 		Auth: auths,
 	}
 
-	knownHostsFile := filepath.Join(os.Getenv("HOME"), ".ssh", "known_hosts")
-	config.HostKeyCallback = getCustomHostKeyCallback(knownHostsFile)
+	// if checkHostKey is set, try loading the know_hosts file
+	if checkHostKey {
+		knownHostsFile := filepath.Join(os.Getenv("HOME"), ".ssh", "known_hosts")
+		// check ~/.ssh/known_hosts existence
+		if !FileExists(knownHostsFile) {
+			return nil, fmt.Errorf("known_hosts file %s does not exist", knownHostsFile)
+		}
+
+		// load the known_hosts file retrieving an ssh.HostKeyCallback
+		config.HostKeyCallback, err = knownhosts.New(knownHostsFile)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// use the use the InsecureIgnoreHostKey implementation
+		config.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+	}
 
 	// Connect to server
 	conn, err := ssh.Dial("tcp", host, &config)
@@ -257,45 +270,6 @@ func readFromStdin(ctx context.Context) ([]byte, error) {
 			}
 			data = append(data, buf[:n]...)
 		}
-	}
-}
-
-// getCustomHostKeyCallback returns a custom ssh.HostKeyCallback.
-// it will never block the connection, but issue a log.Warn if the
-// host_key cannot be found (due to absense of the entry or
-// the file being missing)
-func getCustomHostKeyCallback(knownHostsFiles ...string) ssh.HostKeyCallback {
-	var usefiles []string
-	// check
-	for _, file := range knownHostsFiles {
-		if !FileExists(file) {
-			log.Debugf("known_hosts file %s does not exist.", file)
-			continue
-		}
-		usefiles = append(usefiles, file)
-	}
-
-	// load the known_hosts file retrieving an ssh.HostKeyCallback
-	knownHostsFileCallback, err := knownhosts.New(usefiles...)
-	if err != nil {
-		log.Debugf("error loading known_hosts files %q", strings.Join(knownHostsFiles, ", "))
-		// this is an always failing knownHosts checker.
-		// it will make sure that the log message of the custom function further down
-		// is consistently logged. Meaning if file can't be loaded or entry does not exist.
-		knownHostsFileCallback = func(hostname string, remote net.Addr, key ssh.PublicKey) error {
-			return fmt.Errorf("error loading known_hosts files %v", err)
-		}
-	}
-
-	// defien the custom ssh.HostKeyCallback function.
-	return func(hostname string, remote net.Addr, key ssh.PublicKey) error {
-		// delegate the call
-		err = knownHostsFileCallback(hostname, remote, key)
-		if err != nil {
-			// But if an error crops up, make it a warning and continue
-			log.Warnf("error performing host key validation based on %q for hostname %q (%v). continuing anyways", strings.Join(knownHostsFiles, ", "), hostname, err)
-		}
-		return nil
 	}
 }
 
