@@ -31,7 +31,7 @@ processors:
                 "interface_name": "Ethernet1"
             },
             "values": {
-                "/interfaces/interface/status/counters/in-octets": 100
+                "/interfaces/interface/state/counters/in-octets": 100
             }
         },
         {
@@ -43,7 +43,7 @@ processors:
                 "interface_name": "Ethernet1"
             },
             "values": {
-                "/interfaces/interface/status/counters/out-octets": 100
+                "/interfaces/interface/state/counters/out-octets": 100
             }
         },
         {
@@ -55,7 +55,7 @@ processors:
                 "interface_name": "Ethernet1"
             },
             "values": {
-                "/interfaces/interface/status/description": "Uplink"
+                "/interfaces/interface/state/description": "Uplink"
             }
         }
     ]
@@ -73,7 +73,7 @@ processors:
                 "description": "Uplink"
             },
             "values": {
-                "/interfaces/interface/status/counters/in-octets": 100
+                "/interfaces/interface/state/counters/in-octets": 100
             }
         },
         {
@@ -86,7 +86,7 @@ processors:
                 "description": "Uplink"
             },
             "values": {
-                "/interfaces/interface/status/counters/out-octets": 100
+                "/interfaces/interface/state/counters/out-octets": 100
             }
         },
         {
@@ -98,7 +98,7 @@ processors:
                 "interface_name": "Ethernet1"
             },
             "values": {
-                "/interfaces/interface/status/description": "Uplink"
+                "/interfaces/interface/state/description": "Uplink"
             }
         }
     ]
