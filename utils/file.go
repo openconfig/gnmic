@@ -26,6 +26,7 @@ import (
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/crypto/ssh/knownhosts"
 )
 
 const (
@@ -47,7 +48,7 @@ func ReadFile(ctx context.Context, path string) ([]byte, error) {
 	case strings.HasPrefix(path, "ftp://"):
 		return readFTPFile(ctx, path)
 	case strings.HasPrefix(path, "sftp://"):
-		return readSFTPFile(ctx, path)
+		return readSFTPFile(ctx, path, false)
 	default:
 		return readLocalFile(ctx, path)
 	}
@@ -125,7 +126,7 @@ func readFTPFile(ctx context.Context, path string) ([]byte, error) {
 // readSFTPFile reads a file from a remote SFTP server
 // unmarshals the content into a map[string]*types.TargetConfig
 // and returns
-func readSFTPFile(_ context.Context, path string) ([]byte, error) {
+func readSFTPFile(_ context.Context, path string, checkHostKey bool) ([]byte, error) {
 	parsedUrl, err := url.Parse(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse URL: %v", err)
@@ -140,10 +141,6 @@ func readSFTPFile(_ context.Context, path string) ([]byte, error) {
 	_, _, err = net.SplitHostPort(host)
 	if err != nil {
 		host = fmt.Sprintf("%s:%d", host, defaultSFTPPort)
-	}
-	hostKey, err := getHostKey(host)
-	if err != nil {
-		return nil, err
 	}
 
 	var auths []ssh.AuthMethod
@@ -164,9 +161,22 @@ func readSFTPFile(_ context.Context, path string) ([]byte, error) {
 		User: user,
 		Auth: auths,
 	}
-	if hostKey != nil {
-		config.HostKeyCallback = ssh.FixedHostKey(hostKey)
+
+	// if checkHostKey is set, try loading the know_hosts file
+	if checkHostKey {
+		knownHostsFile := filepath.Join(os.Getenv("HOME"), ".ssh", "known_hosts")
+		// check ~/.ssh/known_hosts existence
+		if !FileExists(knownHostsFile) {
+			return nil, fmt.Errorf("known_hosts file %s does not exist", knownHostsFile)
+		}
+
+		// load the known_hosts file retrieving an ssh.HostKeyCallback
+		config.HostKeyCallback, err = knownhosts.New(knownHostsFile)
+		if err != nil {
+			return nil, err
+		}
 	} else {
+		// use the use the InsecureIgnoreHostKey implementation
 		config.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 	}
 
@@ -263,31 +273,11 @@ func readFromStdin(ctx context.Context) ([]byte, error) {
 	}
 }
 
-// Get host key from local known hosts
-func getHostKey(host string) (ssh.PublicKey, error) {
-	// parse OpenSSH known_hosts file
-	// ssh or use ssh-keyscan to get initial key
-	file, err := os.Open(filepath.Join(os.Getenv("HOME"), ".ssh", "known_hosts"))
+// FileExists returns true if a file referenced by filename exists & accessible.
+func FileExists(filename string) bool {
+	f, err := os.Stat(filename)
 	if err != nil {
-		return nil, err
+		return false
 	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	var hostKey ssh.PublicKey
-	for scanner.Scan() {
-		fields := strings.Split(scanner.Text(), " ")
-		if len(fields) != 3 {
-			continue
-		}
-		if strings.Contains(fields[0], host) {
-			var err error
-			hostKey, _, _, _, err = ssh.ParseAuthorizedKey(scanner.Bytes())
-			if err != nil {
-				return nil, err
-			}
-			break
-		}
-	}
-	return hostKey, nil
+	return !f.IsDir()
 }
