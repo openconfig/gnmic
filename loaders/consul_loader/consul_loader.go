@@ -45,7 +45,7 @@ func init() {
 		return &consulLoader{
 			cfg:         &cfg{},
 			m:           new(sync.Mutex),
-			lastTargets: make(map[string]*types.TargetConfig),
+			lastTargets: make(map[string]map[string]*types.TargetConfig),
 			logger:      log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
 		}
 	})
@@ -54,9 +54,10 @@ func init() {
 type consulLoader struct {
 	cfg *cfg
 	// decoder        *consulstructure.Decoder
-	client         *api.Client
-	m              *sync.Mutex
-	lastTargets    map[string]*types.TargetConfig
+	client *api.Client
+	m      *sync.Mutex
+	// map of targets per service
+	lastTargets    map[string]map[string]*types.TargetConfig
 	targetConfigFn func(*types.TargetConfig) error
 	logger         *log.Logger
 	//
@@ -177,14 +178,18 @@ CLIENT:
 					return
 				}
 				tcs := make(map[string]*types.TargetConfig)
+				srvName := ""
 				for _, se := range ses {
+					srvName = se.Service.Service
 					tc, err := c.serviceEntryToTargetConfig(se)
 					if err != nil {
 						c.logger.Printf("Failed to convert service entry %+v to a target config: %v", se, err)
+						continue
 					}
 					tcs[tc.Name] = tc
 				}
-				c.updateTargets(ctx, tcs, opChan)
+
+				c.updateTargets(ctx, srvName, tcs, opChan)
 			}
 		}
 	}()
@@ -376,14 +381,18 @@ func (c *consulLoader) serviceEntryToTargetConfig(se *api.ServiceEntry) (*types.
 	return nil, nil
 }
 
-func (c *consulLoader) updateTargets(ctx context.Context, tcs map[string]*types.TargetConfig, opChan chan *loaders.TargetOperation) {
-	targetOp, err := c.runActions(ctx, tcs, loaders.Diff(c.lastTargets, tcs))
+func (c *consulLoader) updateTargets(ctx context.Context, srvName string, tcs map[string]*types.TargetConfig, opChan chan *loaders.TargetOperation) {
+	targetOp, err := c.runActions(ctx, tcs, loaders.Diff(c.lastTargets[srvName], tcs))
 	if err != nil {
 		c.logger.Printf("failed to run actions: %v", err)
 		return
 	}
 	numAdds := len(targetOp.Add)
 	numDels := len(targetOp.Del)
+	if c.cfg.Debug {
+		c.logger.Printf("updating service %s with targets=%v", srvName, tcs)
+		c.logger.Printf("updating service %s with op=%v", srvName, targetOp)
+	}
 	defer func() {
 		consulLoaderLoadedTargets.WithLabelValues(loaderType).Set(float64(numAdds))
 		consulLoaderDeletedTargets.WithLabelValues(loaderType).Set(float64(numDels))
@@ -393,13 +402,17 @@ func (c *consulLoader) updateTargets(ctx context.Context, tcs map[string]*types.
 		return
 	}
 	c.m.Lock()
+	if _, ok := c.lastTargets[srvName]; !ok {
+		c.lastTargets[srvName] = make(map[string]*types.TargetConfig)
+	}
 	for _, add := range targetOp.Add {
-		c.lastTargets[add.Name] = add
+		c.lastTargets[srvName][add.Name] = add
 	}
 	for _, del := range targetOp.Del {
-		delete(c.lastTargets, del)
+		delete(c.lastTargets[srvName], del)
 	}
 	c.m.Unlock()
+
 	opChan <- targetOp
 }
 
