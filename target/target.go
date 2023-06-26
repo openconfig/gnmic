@@ -10,6 +10,7 @@ package target
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"net"
 	"strings"
@@ -144,37 +145,36 @@ func (t *Target) CreateGNMIClient(ctx context.Context, opts ...grpc.DialOption) 
 	}
 }
 
+func (t *Target) appendCredentials(ctx context.Context) context.Context {
+	switch t.Config.AuthScheme {
+	case "":
+		if t.Config.Username != nil && *t.Config.Username != "" {
+			ctx = metadata.AppendToOutgoingContext(ctx, "username", *t.Config.Username)
+		}
+		if t.Config.Password != nil && *t.Config.Password != "" {
+			ctx = metadata.AppendToOutgoingContext(ctx, "password", *t.Config.Password)
+		}
+	default:
+		auth := *t.Config.Username + ":" + *t.Config.Password
+		authEncoded := base64.StdEncoding.EncodeToString([]byte(auth))
+		ctx = metadata.AppendToOutgoingContext(ctx, t.Config.AuthScheme, authEncoded)
+	}
+	return ctx
+}
+
 // Capabilities sends a gnmi.CapabilitiesRequest to the target *t and returns a gnmi.CapabilitiesResponse and an error
 func (t *Target) Capabilities(ctx context.Context, ext ...*gnmi_ext.Extension) (*gnmi.CapabilityResponse, error) {
-	if t.Config.Username != nil && *t.Config.Username != "" {
-		ctx = metadata.AppendToOutgoingContext(ctx, "username", *t.Config.Username)
-	}
-	if t.Config.Password != nil && *t.Config.Password != "" {
-		ctx = metadata.AppendToOutgoingContext(ctx, "password", *t.Config.Password)
-	}
-	return t.Client.Capabilities(ctx, &gnmi.CapabilityRequest{Extension: ext})
+	return t.Client.Capabilities(t.appendCredentials(ctx), &gnmi.CapabilityRequest{Extension: ext})
 }
 
 // Get sends a gnmi.GetRequest to the target *t and returns a gnmi.GetResponse and an error
 func (t *Target) Get(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetResponse, error) {
-	if t.Config.Username != nil && *t.Config.Username != "" {
-		ctx = metadata.AppendToOutgoingContext(ctx, "username", *t.Config.Username)
-	}
-	if t.Config.Password != nil && *t.Config.Password != "" {
-		ctx = metadata.AppendToOutgoingContext(ctx, "password", *t.Config.Password)
-	}
-	return t.Client.Get(ctx, req)
+	return t.Client.Get(t.appendCredentials(ctx), req)
 }
 
 // Set sends a gnmi.SetRequest to the target *t and returns a gnmi.SetResponse and an error
 func (t *Target) Set(ctx context.Context, req *gnmi.SetRequest) (*gnmi.SetResponse, error) {
-	if t.Config.Username != nil && *t.Config.Username != "" {
-		ctx = metadata.AppendToOutgoingContext(ctx, "username", *t.Config.Username)
-	}
-	if t.Config.Password != nil && *t.Config.Password != "" {
-		ctx = metadata.AppendToOutgoingContext(ctx, "password", *t.Config.Password)
-	}
-	return t.Client.Set(ctx, req)
+	return t.Client.Set(t.appendCredentials(ctx), req)
 }
 
 func (t *Target) StopSubscriptions() {

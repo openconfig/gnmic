@@ -197,6 +197,7 @@ func (a *App) InitGlobalFlags() {
 	a.RootCmd.PersistentFlags().StringArrayVarP(&a.Config.GlobalFlags.Exclude, "exclude", "", nil, "YANG module names to be excluded")
 
 	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.UseTunnelServer, "use-tunnel-server", "", false, "use tunnel server to dial targets")
+	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.AuthScheme, "auth-scheme", "", "", "authentication scheme to use for the target's username/password")
 
 	a.RootCmd.PersistentFlags().VisitAll(func(flag *pflag.Flag) {
 		a.Config.FileConfig.BindPFlag(flag.Name, flag)
