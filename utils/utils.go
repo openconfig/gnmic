@@ -12,6 +12,7 @@ import (
 	"log"
 	"net"
 	"reflect"
+	"sort"
 	"strings"
 
 	"github.com/openconfig/gnmi/proto/gnmi"
@@ -57,22 +58,33 @@ func GnmiPathToXPath(p *gnmi.Path, noKeys bool) string {
 	if p == nil {
 		return ""
 	}
-	sb := strings.Builder{}
+	sb := &strings.Builder{}
 	if p.Origin != "" {
 		sb.WriteString(p.Origin)
 		sb.WriteString(":")
 	}
 	elems := p.GetElem()
 	numElems := len(elems)
+
 	for i, pe := range elems {
 		sb.WriteString(pe.GetName())
 		if !noKeys {
-			for k, v := range pe.GetKey() {
-				sb.WriteString("[")
-				sb.WriteString(k)
-				sb.WriteString("=")
-				sb.WriteString(v)
-				sb.WriteString("]")
+			numKeys := len(pe.GetKey())
+			switch numKeys {
+			case 0:
+			case 1:
+				for k := range pe.GetKey() {
+					writeKey(sb, k, pe.GetKey()[k])
+				}
+			default:
+				keys := make([]string, 0, numKeys)
+				for k := range pe.GetKey() {
+					keys = append(keys, k)
+				}
+				sort.Strings(keys)
+				for _, k := range keys {
+					writeKey(sb, k, pe.GetKey()[k])
+				}
 			}
 		}
 		if i+1 != numElems {
@@ -80,6 +92,14 @@ func GnmiPathToXPath(p *gnmi.Path, noKeys bool) string {
 		}
 	}
 	return sb.String()
+}
+
+func writeKey(sb *strings.Builder, k, v string) {
+	sb.WriteString("[")
+	sb.WriteString(k)
+	sb.WriteString("=")
+	sb.WriteString(v)
+	sb.WriteString("]")
 }
 
 func GetHost(hostport string) string {
