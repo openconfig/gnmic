@@ -201,16 +201,15 @@ func (a *App) gRPCServerOpts() ([]grpc.ServerOption, error) {
 		)
 		a.reg.MustRegister(grpcMetrics)
 	}
-
 	if a.Config.GnmiServer.TLS == nil {
-		return opts,nil
+		return opts, nil
 	}
 	tlscfg, err := utils.NewTLSConfig(
 		a.Config.GnmiServer.TLS.CaFile,
 		a.Config.GnmiServer.TLS.CertFile,
 		a.Config.GnmiServer.TLS.KeyFile,
 		a.Config.GnmiServer.TLS.ClientAuth,
-		false,
+		true,
 		true,
 	)
 	if err != nil {

@@ -21,7 +21,9 @@ import (
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
 	"github.com/openconfig/gnmic/types"
 	"golang.org/x/net/proxy"
+	"golang.org/x/oauth2"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/oauth"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -98,7 +100,7 @@ func (t *Target) CreateGNMIClient(ctx context.Context, opts ...grpc.DialOption) 
 					proxyAddress := t.Config.Proxy[idx+3:]
 					if proxyType == "socks5" {
 						opts = append(opts, grpc.WithContextDialer(
-							func(ctx context.Context, addr string) (net.Conn, error) {
+							func(_ context.Context, addr string) (net.Conn, error) {
 								dialer, err := proxy.SOCKS5("tcp", proxyAddress, nil,
 									&net.Dialer{
 										Timeout:   t.Config.Timeout,
@@ -145,36 +147,63 @@ func (t *Target) CreateGNMIClient(ctx context.Context, opts ...grpc.DialOption) 
 	}
 }
 
+func (t *Target) callOpts() []grpc.CallOption {
+	if t.Config.AuthScheme == "" {
+		return nil
+	}
+	callOpts := make([]grpc.CallOption, 0, 1)
+
+	var auth string
+	if t.Config.Username != nil {
+		auth = *t.Config.Username
+	}
+	auth += ":"
+	if t.Config.Password != nil {
+		auth += *t.Config.Password
+	}
+
+	callOpts = append(callOpts,
+		grpc.PerRPCCredentials(
+			oauth.TokenSource{
+				TokenSource: oauth2.StaticTokenSource(
+					&oauth2.Token{
+						AccessToken: base64.StdEncoding.EncodeToString([]byte(auth)),
+						TokenType:   t.Config.AuthScheme,
+					},
+				),
+			},
+		))
+
+	return callOpts
+}
+
 func (t *Target) appendCredentials(ctx context.Context) context.Context {
-	switch t.Config.AuthScheme {
-	case "":
-		if t.Config.Username != nil && *t.Config.Username != "" {
-			ctx = metadata.AppendToOutgoingContext(ctx, "username", *t.Config.Username)
-		}
-		if t.Config.Password != nil && *t.Config.Password != "" {
-			ctx = metadata.AppendToOutgoingContext(ctx, "password", *t.Config.Password)
-		}
-	default:
-		auth := *t.Config.Username + ":" + *t.Config.Password
-		authEncoded := base64.StdEncoding.EncodeToString([]byte(auth))
-		ctx = metadata.AppendToOutgoingContext(ctx, t.Config.AuthScheme, authEncoded)
+	if t.Config.AuthScheme != "" {
+		return ctx
+	}
+
+	if t.Config.Username != nil && *t.Config.Username != "" {
+		ctx = metadata.AppendToOutgoingContext(ctx, "username", *t.Config.Username)
+	}
+	if t.Config.Password != nil && *t.Config.Password != "" {
+		ctx = metadata.AppendToOutgoingContext(ctx, "password", *t.Config.Password)
 	}
 	return ctx
 }
 
 // Capabilities sends a gnmi.CapabilitiesRequest to the target *t and returns a gnmi.CapabilitiesResponse and an error
 func (t *Target) Capabilities(ctx context.Context, ext ...*gnmi_ext.Extension) (*gnmi.CapabilityResponse, error) {
-	return t.Client.Capabilities(t.appendCredentials(ctx), &gnmi.CapabilityRequest{Extension: ext})
+	return t.Client.Capabilities(t.appendCredentials(ctx), &gnmi.CapabilityRequest{Extension: ext}, t.callOpts()...)
 }
 
 // Get sends a gnmi.GetRequest to the target *t and returns a gnmi.GetResponse and an error
 func (t *Target) Get(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetResponse, error) {
-	return t.Client.Get(t.appendCredentials(ctx), req)
+	return t.Client.Get(t.appendCredentials(ctx), req, t.callOpts()...)
 }
 
 // Set sends a gnmi.SetRequest to the target *t and returns a gnmi.SetResponse and an error
 func (t *Target) Set(ctx context.Context, req *gnmi.SetRequest) (*gnmi.SetResponse, error) {
-	return t.Client.Set(t.appendCredentials(ctx), req)
+	return t.Client.Set(t.appendCredentials(ctx), req, t.callOpts()...)
 }
 
 func (t *Target) StopSubscriptions() {
