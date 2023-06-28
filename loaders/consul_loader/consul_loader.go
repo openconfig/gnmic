@@ -485,7 +485,7 @@ func (c *consulLoader) runActions(ctx context.Context, tcs map[string]*types.Tar
 	opChan := make(chan *loaders.TargetOperation)
 	doneCh := make(chan struct{})
 	result := &loaders.TargetOperation{
-		Add: make([]*types.TargetConfig, 0, len(targetOp.Add)),
+		Add: make(map[string]*types.TargetConfig, len(targetOp.Add)),
 		Del: make([]string, 0, len(targetOp.Del)),
 	}
 	ctx, cancel := context.WithTimeout(ctx, c.cfg.ActionsTimeout)
@@ -501,7 +501,9 @@ func (c *consulLoader) runActions(ctx context.Context, tcs map[string]*types.Tar
 					close(doneCh)
 					return
 				}
-				result.Add = append(result.Add, op.Add...)
+				for n, t := range op.Add {
+					result.Add[n] = t
+				}
 				result.Del = append(result.Del, op.Del...)
 			}
 		}
@@ -510,16 +512,16 @@ func (c *consulLoader) runActions(ctx context.Context, tcs map[string]*types.Tar
 	wg := new(sync.WaitGroup)
 	wg.Add(len(targetOp.Add) + len(targetOp.Del))
 	// run OnAdd actions
-	for _, tAdd := range targetOp.Add {
-		go func(tc *types.TargetConfig) {
+	for n, tAdd := range targetOp.Add {
+		go func(n string, tc *types.TargetConfig) {
 			defer wg.Done()
 			err := c.runOnAddActions(ctx, tc.Name, tcs)
 			if err != nil {
 				c.logger.Printf("failed running OnAdd actions: %v", err)
 				return
 			}
-			opChan <- &loaders.TargetOperation{Add: []*types.TargetConfig{tc}}
-		}(tAdd)
+			opChan <- &loaders.TargetOperation{Add: map[string]*types.TargetConfig{n:tc}}
+		}(n, tAdd)
 	}
 	// run OnDelete actions
 	for _, tDel := range targetOp.Del {

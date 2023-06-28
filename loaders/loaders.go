@@ -54,7 +54,7 @@ func Register(name string, initFn Initializer) {
 }
 
 type TargetOperation struct {
-	Add []*types.TargetConfig
+	Add map[string]*types.TargetConfig
 	Del []string
 }
 
@@ -73,12 +73,12 @@ func DecodeConfig(src, dst interface{}) error {
 
 func Diff(m1, m2 map[string]*types.TargetConfig) *TargetOperation {
 	result := &TargetOperation{
-		Add: make([]*types.TargetConfig, 0),
+		Add: make(map[string]*types.TargetConfig, 0),
 		Del: make([]string, 0),
 	}
 	if len(m1) == 0 {
-		for _, t := range m2 {
-			result.Add = append(result.Add, t)
+		for n, t := range m2 {
+			result.Add[n] = t
 		}
 		return result
 	}
@@ -90,7 +90,7 @@ func Diff(m1, m2 map[string]*types.TargetConfig) *TargetOperation {
 	}
 	for n, t := range m2 {
 		if _, ok := m1[n]; !ok {
-			result.Add = append(result.Add, t)
+			result.Add[n] = t
 		}
 	}
 	for n := range m1 {

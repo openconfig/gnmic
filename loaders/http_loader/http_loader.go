@@ -325,9 +325,9 @@ func (h *httpLoader) updateTargets(ctx context.Context, tcs map[string]*types.Ta
 		return
 	}
 	h.m.Lock()
-	for _, t := range targetOp.Add {
-		if _, ok := h.lastTargets[t.Name]; !ok {
-			h.lastTargets[t.Name] = t
+	for n, t := range targetOp.Add {
+		if _, ok := h.lastTargets[n]; !ok {
+			h.lastTargets[n] = t
 		}
 	}
 	for _, n := range targetOp.Del {
@@ -389,7 +389,7 @@ func (f *httpLoader) runActions(ctx context.Context, tcs map[string]*types.Targe
 	// some actions are defined,
 	doneCh := make(chan struct{})
 	result := &loaders.TargetOperation{
-		Add: make([]*types.TargetConfig, 0, len(targetOp.Add)),
+		Add: make(map[string]*types.TargetConfig, len(targetOp.Add)),
 		Del: make([]string, 0, len(targetOp.Del)),
 	}
 	ctx, cancel := context.WithTimeout(ctx, f.cfg.Interval)
@@ -405,7 +405,9 @@ func (f *httpLoader) runActions(ctx context.Context, tcs map[string]*types.Targe
 					close(doneCh)
 					return
 				}
-				result.Add = append(result.Add, op.Add...)
+				for n, t := range op.Add {
+					result.Add[n] = t
+				}
 				result.Del = append(result.Del, op.Del...)
 			}
 		}
@@ -414,16 +416,16 @@ func (f *httpLoader) runActions(ctx context.Context, tcs map[string]*types.Targe
 	wg := new(sync.WaitGroup)
 	wg.Add(len(targetOp.Add) + len(targetOp.Del))
 	// run OnAdd actions
-	for _, tAdd := range targetOp.Add {
-		go func(tc *types.TargetConfig) {
+	for n, tAdd := range targetOp.Add {
+		go func(n string, tc *types.TargetConfig) {
 			defer wg.Done()
 			err := f.runOnAddActions(ctx, tc.Name, tcs)
 			if err != nil {
 				f.logger.Printf("failed running OnAdd actions: %v", err)
 				return
 			}
-			opChan <- &loaders.TargetOperation{Add: []*types.TargetConfig{tc}}
-		}(tAdd)
+			opChan <- &loaders.TargetOperation{Add: map[string]*types.TargetConfig{n: tc}}
+		}(n, tAdd)
 	}
 	// run OnDelete actions
 	for _, tDel := range targetOp.Del {

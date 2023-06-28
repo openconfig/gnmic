@@ -9,7 +9,6 @@
 package loaders
 
 import (
-	"sort"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -24,7 +23,7 @@ var testSet = map[string]struct {
 		m1: nil,
 		m2: nil,
 		output: &TargetOperation{
-			Add: make([]*types.TargetConfig, 0),
+			Add: make(map[string]*types.TargetConfig, 0),
 			Del: make([]string, 0),
 		},
 	},
@@ -34,8 +33,8 @@ var testSet = map[string]struct {
 			"target1": {Name: "target1"},
 		},
 		output: &TargetOperation{
-			Add: []*types.TargetConfig{
-				{
+			Add: map[string]*types.TargetConfig{
+				"target1": {
 					Name: "target1",
 				},
 			},
@@ -50,7 +49,7 @@ var testSet = map[string]struct {
 			"target1": {Name: "target1"},
 		},
 		output: &TargetOperation{
-			Add: make([]*types.TargetConfig, 0),
+			Add: make(map[string]*types.TargetConfig, 0),
 			Del: make([]string, 0),
 		},
 	},
@@ -64,7 +63,7 @@ var testSet = map[string]struct {
 			"target2": {Name: "target2"},
 		},
 		output: &TargetOperation{
-			Add: make([]*types.TargetConfig, 0),
+			Add: make(map[string]*types.TargetConfig, 0),
 			Del: make([]string, 0),
 		},
 	},
@@ -74,7 +73,7 @@ var testSet = map[string]struct {
 		},
 		m2: nil,
 		output: &TargetOperation{
-			Add: make([]*types.TargetConfig, 0),
+			Add: make(map[string]*types.TargetConfig, 0),
 			Del: []string{"target1"},
 		},
 	},
@@ -87,8 +86,8 @@ var testSet = map[string]struct {
 			"target2": {Name: "target2"},
 		},
 		output: &TargetOperation{
-			Add: []*types.TargetConfig{
-				{
+			Add: map[string]*types.TargetConfig{
+				"target2": {
 					Name: "target2",
 				},
 			},
@@ -103,8 +102,8 @@ var testSet = map[string]struct {
 			"target2": {Name: "target2"},
 		},
 		output: &TargetOperation{
-			Add: []*types.TargetConfig{
-				{
+			Add: map[string]*types.TargetConfig{
+				"target2": {
 					Name: "target2",
 				},
 			},
@@ -120,11 +119,11 @@ var testSet = map[string]struct {
 			"target3": {Name: "target3"},
 		},
 		output: &TargetOperation{
-			Add: []*types.TargetConfig{
-				{
+			Add: map[string]*types.TargetConfig{
+				"target2": {
 					Name: "target2",
 				},
-				{
+				"target3": {
 					Name: "target3",
 				},
 			},
@@ -141,8 +140,8 @@ var testSet = map[string]struct {
 			"target3": {Name: "target3"},
 		},
 		output: &TargetOperation{
-			Add: []*types.TargetConfig{
-				{
+			Add: map[string]*types.TargetConfig{
+				"target3": {
 					Name: "target3",
 				},
 			},
@@ -155,12 +154,6 @@ func TestGetInstancesTagsMatches(t *testing.T) {
 	for name, item := range testSet {
 		t.Run(name, func(t *testing.T) {
 			res := Diff(item.m1, item.m2)
-			sort.Slice(res.Add, func(i, j int) bool {
-				return res.Add[i].Name < res.Add[j].Name
-			})
-			sort.Slice(item.output.Add, func(i, j int) bool {
-				return item.output.Add[i].Name < item.output.Add[j].Name
-			})
 			t.Logf("exp value: %+v", item.output)
 			t.Logf("got value: %+v", res)
 			if !cmp.Equal(item.output, res) {
