@@ -31,6 +31,7 @@ type TargetConfig struct {
 	Address       string            `mapstructure:"address,omitempty" json:"address,omitempty" yaml:"address,omitempty"`
 	Username      *string           `mapstructure:"username,omitempty" json:"username,omitempty" yaml:"username,omitempty"`
 	Password      *string           `mapstructure:"password,omitempty" json:"password,omitempty" yaml:"password,omitempty"`
+	AuthScheme    string            `mapstructure:"auth-scheme,omitempty" json:"auth-scheme,omitempty" yaml:"auth-scheme,omitempty"`
 	Timeout       time.Duration     `mapstructure:"timeout,omitempty" json:"timeout,omitempty" yaml:"timeout,omitempty"`
 	Insecure      *bool             `mapstructure:"insecure,omitempty" json:"insecure,omitempty" yaml:"insecure,omitempty"`
 	TLSCA         *string           `mapstructure:"tls-ca,omitempty" json:"tls-ca,omitempty" yaml:"tlsca,omitempty"`

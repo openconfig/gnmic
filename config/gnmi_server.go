@@ -38,7 +38,7 @@ type gnmiServer struct {
 	MinHeartbeatInterval  time.Duration    `mapstructure:"min-heartbeat-interval,omitempty" json:"min-heartbeat-interval,omitempty"`
 	MaxSubscriptions      int64            `mapstructure:"max-subscriptions,omitempty" json:"max-subscriptions,omitempty"`
 	MaxUnaryRPC           int64            `mapstructure:"max-unary-rpc,omitempty" json:"max-unary-rpc,omitempty"`
-	TLS                   *types.TLSConfig `mapstructure:"tls,omitempty"`
+	TLS                   *types.TLSConfig `mapstructure:"tls,omitempty" json:"tls,omitempty"`
 	EnableMetrics         bool             `mapstructure:"enable-metrics,omitempty" json:"enable-metrics,omitempty"`
 	Debug                 bool             `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 	// ServiceRegistration

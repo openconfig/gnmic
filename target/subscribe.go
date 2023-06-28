@@ -18,7 +18,6 @@ import (
 
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/openconfig/gnmi/proto/gnmi"
-	"google.golang.org/grpc/metadata"
 )
 
 // Subscribe sends a gnmi.SubscribeRequest to the target *t, responses and error are sent to the target channels
@@ -34,13 +33,8 @@ SUBSC:
 	default:
 		nctx, cancel = context.WithCancel(ctx)
 		defer cancel()
-		if t.Config.Username != nil && *t.Config.Username != "" {
-			nctx = metadata.AppendToOutgoingContext(nctx, "username", *t.Config.Username)
-		}
-		if t.Config.Password != nil && *t.Config.Password != "" {
-			nctx = metadata.AppendToOutgoingContext(nctx, "password", *t.Config.Password)
-		}
-		subscribeClient, err = t.Client.Subscribe(nctx)
+		nctx = t.appendCredentials(nctx)
+		subscribeClient, err = t.Client.Subscribe(nctx, t.callOpts()...)
 		if err != nil {
 			t.errors <- &TargetError{
 				SubscriptionName: subscriptionName,
@@ -168,8 +162,8 @@ func (t *Target) SubscribeOnceChan(ctx context.Context, req *gnmi.SubscribeReque
 		nctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		nctx = metadata.AppendToOutgoingContext(nctx, "username", *t.Config.Username, "password", *t.Config.Password)
-		subscribeClient, err := t.Client.Subscribe(nctx)
+		nctx = t.appendCredentials(nctx)
+		subscribeClient, err := t.Client.Subscribe(nctx, t.callOpts()...)
 		if err != nil {
 			errCh <- err
 			return

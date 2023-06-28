@@ -165,6 +165,9 @@ func (c *Config) SetTargetConfigDefaults(tc *types.TargetConfig) error {
 	if tc.Token == nil {
 		tc.Token = &c.Token
 	}
+	if tc.AuthScheme == "" {
+		tc.AuthScheme = c.AuthScheme
+	}
 	if tc.Timeout == 0 {
 		tc.Timeout = c.Timeout
 	}

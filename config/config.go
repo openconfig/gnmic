@@ -113,6 +113,7 @@ type GlobalFlags struct {
 	Exclude          []string      `mapstructure:"exclude,omitempty" json:"exclude,omitempty" yaml:"exclude,omitempty"`
 	Token            string        `mapstructure:"token,omitempty" json:"token,omitempty" yaml:"token,omitempty"`
 	UseTunnelServer  bool          `mapstructure:"use-tunnel-server,omitempty" json:"use-tunnel-server,omitempty" yaml:"use-tunnel-server,omitempty"`
+	AuthScheme       string        `mapstructure:"auth-scheme,omitempty" json:"auth-scheme,omitempty" yaml:"auth-scheme,omitempty"`
 }
 
 type LocalFlags struct {
