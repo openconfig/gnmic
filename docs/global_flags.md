@@ -14,6 +14,12 @@ or by using the `--address` flag multiple times:
 gnmic -a 192.168.113.11:57400 --address 192.168.113.12:57400
 ```
 
+### auth-scheme
+
+The auth-scheme flag `--auth-scheme` is used to specify the authorization header type.
+For example, if `auth-scheme` is set to `Basic`, the gNMI requests headers will include an `Authorization` header with
+value `Basic base64enc(username:password)`.
+
 ### cluster-name
 
 The `[--cluster-name]` flag is used to specify the cluster name the `gnmic` instance will join.
