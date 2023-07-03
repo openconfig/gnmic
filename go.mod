@@ -37,7 +37,7 @@ require (
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/openconfig/gnmi v0.9.1
 	github.com/openconfig/goyang v1.4.0
-	github.com/openconfig/ygot v0.28.3
+	github.com/openconfig/ygot v0.29.0
 	github.com/pkg/sftp v1.13.5
 	github.com/prometheus/client_golang v1.16.0
 	github.com/prometheus/client_model v0.4.0
