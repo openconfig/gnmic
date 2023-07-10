@@ -44,7 +44,7 @@ require (
 	github.com/prometheus/prometheus v0.45.0
 	github.com/spf13/cobra v1.7.0
 	github.com/spf13/pflag v1.0.5
-	github.com/spf13/viper v1.15.0
+	github.com/spf13/viper v1.16.0
 	github.com/xdg/scram v1.0.5
 	go.starlark.net v0.0.0-20230612165344-9532f5667272
 	golang.org/x/crypto v0.11.0
