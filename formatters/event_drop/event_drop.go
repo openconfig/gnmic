@@ -116,61 +116,18 @@ func (d *Drop) Init(cfg interface{}, opts ...formatters.Option) error {
 }
 
 func (d *Drop) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
-	toDrop := make([]int, 0, len(es))
-	for i, e := range es {
-		if e == nil {
-			continue
-		}
-		if d.Condition != "" {
-			ok, err := formatters.CheckCondition(d.code, e)
-			if err != nil {
-				d.logger.Printf("condition check failed: %v", err)
-				continue
-			}
-			if ok {
-				toDrop = append(toDrop, i)
-				continue
-			}
-		}
-		for k, v := range e.Values {
-			for _, re := range d.valueNames {
-				if re.MatchString(k) {
-					d.logger.Printf("value name '%s' matched regex '%s'", k, re.String())
-					toDrop = append(toDrop, i)
-					break
-				}
-			}
-			for _, re := range d.values {
-				if vs, ok := v.(string); ok {
-					if re.MatchString(vs) {
-						d.logger.Printf("value '%s' matched regex '%s'", v, re.String())
-						toDrop = append(toDrop, i)
-						break
-					}
-				}
-			}
-		}
-		for k, v := range e.Tags {
-			for _, re := range d.tagNames {
-				if re.MatchString(k) {
-					d.logger.Printf("tag name '%s' matched regex '%s'", k, re.String())
-					toDrop = append(toDrop, i)
-					break
-				}
-			}
-			for _, re := range d.tags {
-				if re.MatchString(v) {
-					d.logger.Printf("tag '%s' matched regex '%s'", v, re.String())
-					toDrop = append(toDrop, i)
-					break
-				}
-			}
+	i := 0
+	for _, e := range es {
+		if !d.drop(e) {
+			es[i] = e
+			i++
 		}
 	}
-	if len(toDrop) == 0 {
-		return es
+	for j := i; j < len(es); j++ {
+		es[j] = nil
 	}
-	return shift(es, toDrop)
+	es = es[:i]
+	return es
 }
 
 func (d *Drop) WithLogger(l *log.Logger) {
@@ -185,19 +142,44 @@ func (d *Drop) WithTargets(tcs map[string]*types.TargetConfig) {}
 
 func (d *Drop) WithActions(act map[string]map[string]interface{}) {}
 
-func shift[T any](es []T, dropIndexes []int) []T {
-	// reverse dropIndexes instead of sorting them.
-	for i, j := 0, len(dropIndexes)-1; i < j; i, j = i+1, j-1 {
-		dropIndexes[i], dropIndexes[j] = dropIndexes[j], dropIndexes[i]
-	}
-	// copy 'es' items into 'es' skipping the dropIndexes
-	for _, dropIndex := range dropIndexes {
-		if dropIndex < len(es) {
-			copy(es[dropIndex:], es[dropIndex+1:])
-			es = es[:len(es)-1]
-			continue
+func (d *Drop) drop(e *formatters.EventMsg) bool {
+	if d.Condition != "" {
+		ok, err := formatters.CheckCondition(d.code, e)
+		if err != nil {
+			d.logger.Printf("condition check failed: %v", err)
+			return true
 		}
-		break
+		return ok
 	}
-	return es
+	for k, v := range e.Values {
+		for _, re := range d.valueNames {
+			if re.MatchString(k) {
+				d.logger.Printf("value name '%s' matched regex '%s'", k, re.String())
+				return true
+			}
+		}
+		for _, re := range d.values {
+			if vs, ok := v.(string); ok {
+				if re.MatchString(vs) {
+					d.logger.Printf("value '%s' matched regex '%s'", v, re.String())
+					return true
+				}
+			}
+		}
+	}
+	for k, v := range e.Tags {
+		for _, re := range d.tagNames {
+			if re.MatchString(k) {
+				d.logger.Printf("tag name '%s' matched regex '%s'", k, re.String())
+				return true
+			}
+		}
+		for _, re := range d.tags {
+			if re.MatchString(v) {
+				d.logger.Printf("tag '%s' matched regex '%s'", v, re.String())
+				return true
+			}
+		}
+	}
+	return false
 }
