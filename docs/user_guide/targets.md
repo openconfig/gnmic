@@ -142,6 +142,9 @@ targets:
     log-tls-secret:
     # do not verify the target certificate when using tls
     skip-verify:
+    # server name used to verify the hostname on the returned 
+    # certificates unless skip-verify is true.    
+    tls-server-name:
     # list of subscription names to establish for this target.
     # if empty it defaults to all subscriptions defined under
     # the main level `subscriptions` field

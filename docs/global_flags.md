@@ -263,19 +263,25 @@ The TLS CA flag `[--tls-ca]` specifies the root certificates for verifying serve
 
 ### tls-cert
 
-The tls cert flag `[--tls-cert]` specifies the public key for the client encoded in PEM format.
+The TLS cert flag `[--tls-cert]` specifies the public key for the client encoded in PEM format.
 
 ### tls-key
 
-The tls key flag `[--tls-key]` specifies the private key for the client encoded in PEM format.
+The TLS key flag `[--tls-key]` specifies the private key for the client encoded in PEM format.
 
 ### tls-max-version
 
-The tls max version flag `[--tls-max-version]` specifies the maximum supported TLS version supported by gNMIc when creating a secure gRPC connection.
+The TLS max version flag `[--tls-max-version]` specifies the maximum supported TLS version supported by gNMIc when creating a secure gRPC connection.
 
 ### tls-min-version
 
 The tls min version flag `[--tls-min-version]` specifies the minimum supported TLS version supported by gNMIc when creating a secure gRPC connection.
+
+### tls-server-name
+
+The TLS server name flag `[--tls-server-name]` sets the server name to be used when verifying the hostname on the returned certificates unless `--skip-verify` is set.
+
+This global flag applies to all targets.
 
 ### tls-version
 

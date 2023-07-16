@@ -38,6 +38,7 @@ type TargetConfig struct {
 	TLSCert       *string           `mapstructure:"tls-cert,omitempty" json:"tls-cert,omitempty" yaml:"tls-cert,omitempty"`
 	TLSKey        *string           `mapstructure:"tls-key,omitempty" json:"tls-key,omitempty" yaml:"tls-key,omitempty"`
 	SkipVerify    *bool             `mapstructure:"skip-verify,omitempty" json:"skip-verify,omitempty" yaml:"skip-verify,omitempty"`
+	TLSServerName string            `mapstructure:"tls-server-name,omitempty" json:"tls-server-name,omitempty" yaml:"tls-server-name,omitempty"`
 	Subscriptions []string          `mapstructure:"subscriptions,omitempty" json:"subscriptions,omitempty" yaml:"subscriptions,omitempty"`
 	Outputs       []string          `mapstructure:"outputs,omitempty" json:"outputs,omitempty" yaml:"outputs,omitempty"`
 	BufferSize    uint              `mapstructure:"buffer-size,omitempty" json:"buffer-size,omitempty" yaml:"buffer-size,omitempty"`
@@ -101,6 +102,7 @@ func (tc *TargetConfig) NewTLSConfig() (*tls.Config, error) {
 
 	tlsConfig.MaxVersion = tc.getTLSMaxVersion()
 	tlsConfig.MinVersion = tc.getTLSMinVersion()
+	tlsConfig.ServerName = tc.TLSServerName
 	return tlsConfig, nil
 }
 
