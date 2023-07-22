@@ -370,7 +370,7 @@ func (p *prometheusOutput) Collect(ch chan<- prometheus.Metric) {
 	// run expire before exporting metrics
 	p.expireMetrics()
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), p.Cfg.Timeout)
 	defer cancel()
 
 	for _, entry := range p.entries {

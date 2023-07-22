@@ -19,8 +19,6 @@ import (
 )
 
 func (p *prometheusOutput) collectFromCache(ch chan<- prometheus.Metric) {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-	defer cancel()
 	notifications, err := p.gnmiCache.ReadAll()
 	if err != nil {
 		p.logger.Printf("failed to read from cache: %v", err)
@@ -47,9 +45,18 @@ func (p *prometheusOutput) collectFromCache(ch chan<- prometheus.Metric) {
 		}
 	}
 
+	if p.Cfg.CacheConfig.Debug {
+		p.logger.Printf("got %d events from cache pre processors", len(events))
+	}
 	for _, proc := range p.evps {
 		events = proc.Apply(events...)
 	}
+	if p.Cfg.CacheConfig.Debug {
+		p.logger.Printf("got %d events from cache post processors", len(events))
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), p.Cfg.Timeout)
+	defer cancel()
 	now := time.Now()
 	for _, ev := range events {
 		for _, pm := range p.metricsFromEvent(ev, now) {
