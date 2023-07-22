@@ -2,11 +2,11 @@
 
 Sometimes it is needed to perform an operation on multiple devices; be it getting the same leaf value from a given set of the network elements or setting a certain configuration element to some value.
 
-For cases like that `gnmic` offers support for multiple targets operations which a user can configure both via CLI flags as well as with the [file-based configuration](configuration_file.md).
+For cases like that `gnmic` offers support for multiple targets operations which a user can configure both via CLI flags as well as with the [file-based configuration](../configuration_file.md).
 
 ### CLI configuration
 
-Specifying multiple targets in the CLI is as easy as repeating the [`--address`](../global_flags.md#address) flag.
+Specifying multiple targets in the CLI is as easy as repeating the [`--address`](../../global_flags.md#address) flag.
 
 ```shell
 ❯ gnmic -a router1.lab.net:57400 \
@@ -215,4 +215,4 @@ Consider the `get` command acting on two routers getting their names:
 [router2.lab.net:57400] }
 ```
 
-Notice how in the output the different gNMI targets are prefixed with the target address to make the output easy to read. If those prefixes are not needed, you can make them disappear with [`--no-prefix`](../global_flags.md#no-prefix) global flag.
+Notice how in the output the different gNMI targets are prefixed with the target address to make the output easy to read. If those prefixes are not needed, you can make them disappear with [`--no-prefix`](../../global_flags.md#no-prefix) global flag.

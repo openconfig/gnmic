@@ -249,7 +249,7 @@ The skip verify flag `[--skip-verify]` indicates that the target should skip the
 
 ### targets-file
 
-The `[--targets-file]` flag is used to configure a [file target loader](user_guide/target_discovery/file_discovery.md)
+The `[--targets-file]` flag is used to configure a [file target loader](user_guide/targets/target_discovery/file_discovery.md)
 
 ### timeout
 

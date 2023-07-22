@@ -56,11 +56,12 @@ loader:
 The `--targets-file` flag takes precedence over the `loader` configuration section.
 
 The targets file can be either a `YAML` or a `JSON` file (identified by its extension json, yaml or yml), and follows the same format as the main configuration file `targets` section.
-See [here](../../user_guide/targets.md#target-option)
+See [here](../../../user_guide/targets/targets.md#target-option)
 
 ### Examples
 
 #### Local File
+
 ``` yaml
 loader:
   type: file

@@ -93,7 +93,7 @@
 
 - Loaders
 
-    - The [HTTP loader](user_guide/target_discovery/http_discovery.md) now supports different authentication schemas as well as setting a template from a local file.
+    - The [HTTP loader](user_guide/targets/target_discovery/http_discovery.md) now supports different authentication schemas as well as setting a template from a local file.
 
 ### v0.28.0 - December 7th 2022
 
@@ -198,7 +198,7 @@
     - Add gNMI responses constructors
     - Add gRPC tunnel proto messages constructors
 
-- [Target Discovery](user_guide/target_discovery/discovery_intro.md):
+- [Target Discovery](user_guide/targets/target_discovery/discovery_intro.md):
 
     - Add the option to transform the loaded targets format using a Go text template for file and HTTP loaders
     - Poll based target loaders (file, HTTP and docker) now support a startup delay timer
@@ -244,7 +244,7 @@
 
     Add the ability to execute processors with Get command flag [`--processor`](cmd/get.md#processor) on GetResponse messages.
 
-- [Target Discovery](user_guide/target_discovery/discovery_intro.md):
+- [Target Discovery](user_guide/targets/target_discovery/discovery_intro.md):
 
     Add the ability to run [actions](user_guide/actions/actions.md) on target discovery or deletion.
 
@@ -298,23 +298,23 @@
 
 - Target Loaders:
 
-    - [HTTP Loader](user_guide/target_discovery/http_discovery.md)
+    - [HTTP Loader](user_guide/targets/target_discovery/http_discovery.md)
 
       gNMIc can now dynamically discover targets from a remote HTTP server.
 
       HTTP Loader is now properly instrumented using Prometheus metrics.
 
-    - [File Loader](user_guide/target_discovery/file_discovery.md)
+    - [File Loader](user_guide/targets/target_discovery/file_discovery.md)
 
       Supports remote files (ftp, sftp, http(s)) in addition to local file system files.
 
       File loader is now properly instrumented using Prometheus metrics.
 
-    - [Consul Loader](user_guide/target_discovery/consul_discovery.md)
+    - [Consul Loader](user_guide/targets/target_discovery/consul_discovery.md)
 
       Consul Loader is now properly instrumented using Prometheus metrics.
 
-    - [Docker Loader](user_guide/target_discovery/docker_discovery.md)
+    - [Docker Loader](user_guide/targets/target_discovery/docker_discovery.md)
 
       Docker Loader is now properly instrumented using Prometheus metrics.
 
@@ -336,7 +336,7 @@
 
     Add support for [gNMI server](user_guide/outputs/gnmi_output.md) output type
 
-- [Target configuration](user_guide/targets.md):
+- [Target configuration](user_guide/targets/targets.md):
 
     Support multiple IP addresses per target, all addresses are tried simultaneously.
     The first successful gRPC connection is used.
@@ -366,7 +366,7 @@
 
 - Target Loaders:
 
-    [Consul loader](user_guide/target_discovery/consul_discovery.md#services-watch) update: Add support for gNMI target discovery from Consul services.
+    [Consul loader](user_guide/targets/target_discovery/consul_discovery.md#services-watch) update: Add support for gNMI target discovery from Consul services.
 
 - Get Request:
 

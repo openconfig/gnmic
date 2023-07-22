@@ -48,7 +48,7 @@ get-path: /configure/system/name  # `get` command local flag
 Another example: the [`update-path`](../cmd/set.md#1-in-line-update-implicit-type) flag of a [`set`](../cmd/set.md) will be `set-update-path` in the configuration file.
 
 #### Targets
-It is possible to specify multiple targets with different configurations (credentials, timeout,...). This is described in [Multiple targets](targets.md) documentation article.
+It is possible to specify multiple targets with different configurations (credentials, timeout,...). This is described in [Multiple targets](targets/targets.md) documentation article.
 
 #### Subscriptions
 It is possible to specify multiple subscriptions and associate them with different targets in a flexible way. This configuration option is described in [Multiple subscriptions](subscriptions.md) documentation article.

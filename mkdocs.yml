@@ -28,13 +28,14 @@ nav:
         - File configuration: user_guide/configuration_file.md
       
       - Targets: 
-          - Configuration: user_guide/targets.md
+          - Configuration: user_guide/targets/targets.md
+          - Session Security: user_guide/targets/targets_tls.md
           - Discovery:
-            - Introduction: user_guide/target_discovery/discovery_intro.md
-            - File Discovery: user_guide/target_discovery/file_discovery.md
-            - Consul Discovery: user_guide/target_discovery/consul_discovery.md
-            - Docker Discovery: user_guide/target_discovery/docker_discovery.md
-            - HTTP Discovery: user_guide/target_discovery/http_discovery.md
+            - Introduction: user_guide/targets/target_discovery/discovery_intro.md
+            - File Discovery: user_guide/targets/target_discovery/file_discovery.md
+            - Consul Discovery: user_guide/targets/target_discovery/consul_discovery.md
+            - Docker Discovery: user_guide/targets/target_discovery/docker_discovery.md
+            - HTTP Discovery: user_guide/targets/target_discovery/http_discovery.md
       
       - Subscriptions: user_guide/subscriptions.md
 
@@ -280,7 +281,8 @@ markdown_extensions:
   - pymdownx.snippets:
       check_paths: true
   - pymdownx.superfences
-  - pymdownx.tabbed
+  - pymdownx.tabbed:
+      alternate_style: true 
   - pymdownx.tasklist:
       custom_checkbox: true
   - pymdownx.tilde
