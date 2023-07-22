@@ -1,6 +1,6 @@
 The `event-group-by` processor, groups values under the same event message based on a list of tag names.
 
-This processor is intended to be used together with a output with cached gNMI notifications, like `prometheus` output with `gnmi-cache: true`.
+This processor is intended to be used together with an output with cached gNMI notifications, like `prometheus` output with `cache: {}`.
 
 ### Configuration
 

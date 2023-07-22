@@ -192,6 +192,146 @@ func Test_gnmiCache_read(t *testing.T) {
 			want:              map[string][]*gnmi.Notification{},
 			expectedRespCount: 1,
 		},
+		{
+			name: "readAll_same_subscription",
+			fields: fields{
+				inputs: []input{
+					{
+						measName: "sub1",
+						target:   "t1",
+						m: &gnmi.SubscribeResponse{
+							Response: &gnmi.SubscribeResponse_Update{
+								Update: &gnmi.Notification{
+									Timestamp: time.Now().UnixNano(),
+									Prefix:    &gnmi.Path{Target: "t1"},
+									Update: []*gnmi.Update{
+										{
+											Path: &gnmi.Path{
+												Elem: []*gnmi.PathElem{
+													{Name: "system"},
+													{Name: "name"},
+													{Name: "host-name"},
+												},
+											},
+											Val: &gnmi.TypedValue{
+												Value: &gnmi.TypedValue_AsciiVal{AsciiVal: "srl1"},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						measName: "sub1",
+						target:   "t1",
+						m: &gnmi.SubscribeResponse{
+							Response: &gnmi.SubscribeResponse_Update{
+								Update: &gnmi.Notification{
+									Timestamp: time.Now().UnixNano(),
+									Prefix:    &gnmi.Path{Target: "t1"},
+									Update: []*gnmi.Update{
+										{
+											Path: &gnmi.Path{
+												Elem: []*gnmi.PathElem{
+													{
+														Name: "interface",
+														Key: map[string]string{
+															"name": "ethernet-1/1",
+														},
+													},
+													{Name: "admin-state"},
+												},
+											},
+											Val: &gnmi.TypedValue{
+												Value: &gnmi.TypedValue_AsciiVal{AsciiVal: "enable"},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				sub:    "",
+				target: "*",
+				p:      nil,
+			},
+			want:              map[string][]*gnmi.Notification{},
+			expectedRespCount: 2,
+		},
+		{
+			name: "readAll",
+			fields: fields{
+				inputs: []input{
+					{
+						measName: "sub1",
+						target:   "t1",
+						m: &gnmi.SubscribeResponse{
+							Response: &gnmi.SubscribeResponse_Update{
+								Update: &gnmi.Notification{
+									Timestamp: time.Now().UnixNano(),
+									Prefix:    &gnmi.Path{Target: "t1"},
+									Update: []*gnmi.Update{
+										{
+											Path: &gnmi.Path{
+												Elem: []*gnmi.PathElem{
+													{Name: "system"},
+													{Name: "name"},
+													{Name: "host-name"},
+												},
+											},
+											Val: &gnmi.TypedValue{
+												Value: &gnmi.TypedValue_AsciiVal{AsciiVal: "srl1"},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						measName: "sub2",
+						target:   "t1",
+						m: &gnmi.SubscribeResponse{
+							Response: &gnmi.SubscribeResponse_Update{
+								Update: &gnmi.Notification{
+									Timestamp: time.Now().UnixNano(),
+									Prefix:    &gnmi.Path{Target: "t1"},
+									Update: []*gnmi.Update{
+										{
+											Path: &gnmi.Path{
+												Elem: []*gnmi.PathElem{
+													{
+														Name: "interface",
+														Key: map[string]string{
+															"name": "ethernet-1/1",
+														},
+													},
+													{Name: "admin-state"},
+												},
+											},
+											Val: &gnmi.TypedValue{
+												Value: &gnmi.TypedValue_AsciiVal{AsciiVal: "enable"},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				sub:    "",
+				target: "*",
+				p:      nil,
+			},
+			want:              map[string][]*gnmi.Notification{},
+			expectedRespCount: 2,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -201,10 +341,17 @@ func Test_gnmiCache_read(t *testing.T) {
 			}
 
 			rsp := gc.read(tt.args.sub, tt.args.target, tt.args.p)
-			if _, ok := rsp[tt.args.sub]; !ok {
+			if _, ok := rsp[tt.args.sub]; !ok && tt.args.sub != "" {
 				t.Errorf("%s: response does not contain the expected subscription name", tt.name)
 			}
-			rspCount := len(rsp[tt.args.sub])
+			var rspCount int
+			if tt.args.sub == "" {
+				for _, rsps := range rsp {
+					rspCount += len(rsps)
+				}
+			} else {
+				rspCount = len(rsp[tt.args.sub])
+			}
 			if tt.expectedRespCount != rspCount {
 				t.Errorf("%s: unexpected response count, got %d, expected %d", tt.name, rspCount, tt.expectedRespCount)
 			}

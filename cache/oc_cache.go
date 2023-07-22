@@ -105,17 +105,19 @@ func (gc *gnmiCache) Write(ctx context.Context, measName string, m proto.Message
 				gc.logger.Printf("subscription=%q: response missing target: %v", measName, rsp)
 				return
 			}
-			var sCache *subCache
 			gc.m.Lock()
-			if _, ok := gc.caches[measName]; !ok {
+			sCache, ok := gc.caches[measName]
+			if !ok {
 				sCache = &subCache{
 					c:     ocCache.New(nil),
 					match: match.New(),
 				}
 				sCache.c.SetClient(sCache.update)
 				sCache.c.Add(target)
+				gc.logger.Printf("target %q added to local cache %q", target, measName)
 				gc.caches[measName] = sCache
-			} else if sCache = gc.caches[measName]; !sCache.c.HasTarget(target) {
+			}
+			if !sCache.c.HasTarget(target) {
 				sCache.c.Add(target)
 				gc.logger.Printf("target %q added to local cache %q", target, measName)
 			}
@@ -148,7 +150,7 @@ func (gc *gnmiCache) Write(ctx context.Context, measName string, m proto.Message
 }
 
 func (gc *gnmiCache) ReadAll() (map[string][]*gnmi.Notification, error) {
-	return gc.read("", "*", &gnmi.Path{Elem: []*gnmi.PathElem{{Name: "/"}}}), nil
+	return gc.read("", "*", nil), nil
 }
 
 func (gc *gnmiCache) Read(sub, target string, p *gnmi.Path) (map[string][]*gnmi.Notification, error) {

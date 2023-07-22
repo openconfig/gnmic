@@ -33,7 +33,7 @@ outputs:
   prom-output:
     type: prometheus
     listen: "clab-lab14-gnmic:9804"
-    gnmi-cache: true
+    cache: {}
     debug: true
     strings-as-labels: true
     service-registration:
