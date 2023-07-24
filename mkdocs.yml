@@ -29,7 +29,7 @@ nav:
       
       - Targets: 
           - Configuration: user_guide/targets/targets.md
-          - Session Security: user_guide/targets/targets_tls.md
+          - Session Security: user_guide/targets/targets_session_sec.md
           - Discovery:
             - Introduction: user_guide/targets/target_discovery/discovery_intro.md
             - File Discovery: user_guide/targets/target_discovery/file_discovery.md
