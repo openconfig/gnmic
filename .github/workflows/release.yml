@@ -14,7 +14,7 @@ on:
       - v*
 env:
   GOVER: 1.20.5
-  GORELEASER_VER: v0.180.3
+  GORELEASER_VER: v1.19.2
 
 jobs:
   test:

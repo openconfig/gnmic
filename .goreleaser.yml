@@ -17,7 +17,7 @@ builds:
       - darwin
     goarch:
       - amd64
-      - 386
+      - "386"
       - arm
       - arm64
 dockers:
@@ -40,13 +40,15 @@ dockers:
     dockerfile: goreleaser-scratch.dockerfile
     skip_push: false
 archives:
-  - replacements:
-      darwin: Darwin
-      linux: Linux
-      amd64: x86_64
-      386: i386
-      arm: armv7
-      arm64: aarch64
+  - name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else if eq .Arch "arm" }}armv7
+      {{- else if eq .Arch "arm64" }}aarch64
+      {{- else }}{{ .Arch }}{{ end }}
 checksum:
   name_template: "checksums.txt"
 snapshot:
@@ -60,12 +62,15 @@ changelog:
 
 nfpms:
   - id: gnmic
-    file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    replacements:
-      amd64: x86_64
-      386: i386
-      darwin: Darwin
-      linux: Linux
+    file_name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else if eq .Arch "arm" }}armv7
+      {{- else if eq .Arch "arm64" }}aarch64
+      {{- else }}{{ .Arch }}{{ end }}
     vendor: gnmic
     homepage: https://gnmic.openconfig.net
     maintainer: Karim Radhouani <medkarimrdi@gmail.com>, Roman Dodin <dodin.roman@gmail.com>
