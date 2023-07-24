@@ -16,8 +16,8 @@ The aggregation `gNMIc` instance exposes a Prometheus output that is registered 
 
 The whole lab is pretty much self organising:
 
-- The `gNMIc` cluster instances discover the targets dynamically using a [Docker Loader](../../../user_guide/target_discovery/docker_discovery.md)
-- The `gNMIc` standalone instance, discovers the cluster instance using a [Consul Loader](../../../user_guide/target_discovery/consul_discovery.md)
+- The `gNMIc` cluster instances discover the targets dynamically using a [Docker Loader](../../../user_guide/targets/target_discovery/docker_discovery.md)
+- The `gNMIc` standalone instance, discovers the cluster instance using a [Consul Loader](../../../user_guide/targets/target_discovery/consul_discovery.md)
 - The Prometheus server discovers gNMIc's Prometheus output using [Consul Service Discovery](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#consul_sd_config)
 
 <div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:1,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/openconfig/gnmic/diagrams/diagrams/clab_cluster_gnmi_server.drawio&quot;}"></div>
