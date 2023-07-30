@@ -698,6 +698,47 @@ var testset = map[string]struct {
 			},
 		},
 	},
+	"expression_with_$var": {
+		processorType: processorType,
+		processor: map[string]interface{}{
+			"condition":  `.values | has("a")`,
+			"expression": `.[] | .values.a as $x | .values.b=$x+1`,
+			"debug":      true,
+		},
+		tests: []item{
+			{
+				input:  nil,
+				output: nil,
+			},
+			{
+				input:  make([]*formatters.EventMsg, 0),
+				output: make([]*formatters.EventMsg, 0),
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Name: "sub1",
+						Values: map[string]interface{}{
+							"a": 42,
+						},
+						Tags: map[string]string{"tag1": "1"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Name: "sub1",
+						Values: map[string]interface{}{
+							"a": 42,
+							"b": 43,
+						},
+						Tags: map[string]string{
+							"tag1": "1",
+						},
+					},
+				},
+			},
+		},
+	},
 }
 
 func TestEventJQ(t *testing.T) {
