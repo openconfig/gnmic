@@ -90,9 +90,11 @@ func (s *event) SetField(name string, value starlark.Value) error {
 	case "timestamp":
 		return s.SetTimestamp(value)
 	case "tags":
-		return errors.New("cannot set tags")
+		return s.SetTags(value)
 	case "values":
-		return errors.New("cannot set values")
+		return s.SetValues(value)
+	case "deletes":
+		return s.SetDeletes(value)
 	default:
 		return starlark.NoSuchAttrError(
 			fmt.Sprintf("cannot assign to field %q", name))
@@ -145,6 +147,33 @@ func (s *event) SetTimestamp(value starlark.Value) error {
 	}
 }
 
+func (s *event) SetTags(value starlark.Value) error {
+	tags, err := toTags(value)
+	if err != nil {
+		return err
+	}
+	s.ev.Tags = tags
+	return nil
+}
+
+func (s *event) SetValues(value starlark.Value) error {
+	vals, err := toValues(value)
+	if err != nil {
+		return err
+	}
+	s.ev.Values = vals
+	return nil
+}
+
+func (s *event) SetDeletes(value starlark.Value) error {
+	dels, err := toDeletes(value)
+	if err != nil {
+		return err
+	}
+	s.ev.Deletes = dels
+	return nil
+}
+
 func newEvent(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var name starlark.String
 	var ts starlark.Int
@@ -159,6 +188,7 @@ func newEvent(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwar
 		"values?", &values,
 		"deletes?", &deletes,
 	)
+
 	if err != nil {
 		return nil, err
 	}
@@ -195,22 +225,21 @@ func toValues(value starlark.Value) (map[string]any, error) {
 		return make(map[string]any), nil
 	}
 	if value, ok := value.(starlark.IterableMapping); ok {
-		items := value.Items()
 		result := make(map[string]any)
 		var err error
-		for _, item := range items {
+		for _, item := range value.Items() {
 			k, ok := item[0].(starlark.String)
 			if !ok {
 				return nil, fmt.Errorf("failed to represent value name %v as string", item[0])
 			}
-			result[k.GoString()], err = toGoVal(items[1])
+			result[k.GoString()], err = toGoVal(item[1])
 			if err != nil {
 				return nil, err
 			}
 		}
 		return result, nil
 	}
-	return nil, errors.New("unexpected iterable type")
+	return nil, errors.New("unexpected iterable type in values field")
 }
 
 func toTags(value starlark.Value) (map[string]string, error) {
@@ -218,9 +247,8 @@ func toTags(value starlark.Value) (map[string]string, error) {
 		return make(map[string]string), nil
 	}
 	if value, ok := value.(starlark.IterableMapping); ok {
-		items := value.Items()
 		result := make(map[string]string)
-		for _, item := range items {
+		for _, item := range value.Items() {
 			k, ok := item[0].(starlark.String)
 			if !ok {
 				return nil, fmt.Errorf("failed to represent value name %v as string", item[0])
@@ -233,7 +261,7 @@ func toTags(value starlark.Value) (map[string]string, error) {
 		}
 		return result, nil
 	}
-	return nil, errors.New("unexpected iterable type")
+	return nil, errors.New("unexpected iterable type in tags field")
 }
 
 func toDeletes(value starlark.Value) ([]string, error) {
@@ -257,7 +285,7 @@ func toDeletes(value starlark.Value) ([]string, error) {
 		}
 		return result, nil
 	}
-	return nil, errors.New("unexpected iterable type")
+	return nil, errors.New("unexpected iterable type in deletes field")
 }
 
 // toStarlarkValue converts a value to a starlark.Value.

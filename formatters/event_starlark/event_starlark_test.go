@@ -40,7 +40,7 @@ def apply(*events):
   for e in events:
     print(e)
   return events
-					`,
+`,
 				},
 			},
 			args: args{
@@ -108,7 +108,7 @@ def apply(*events):
   for e in events:
     e.tags["new_tag"] = "new_tag"
   return events
-					`,
+`,
 				},
 			},
 			args: args{
@@ -178,7 +178,7 @@ def apply(*events):
   for e in events:
     e.tags.pop("tag1")
   return events
-					`,
+`,
 				},
 			},
 			args: args{
@@ -244,7 +244,7 @@ def apply(*events):
   for e in events:
     e.values["new_val"] = "val"
   return events
-					`,
+`,
 				},
 			},
 			args: args{
@@ -314,7 +314,7 @@ def apply(*events):
   for e in events:
     e.values.pop("val1")
   return events
-					`,
+`,
 				},
 			},
 			args: args{
@@ -370,20 +370,18 @@ def apply(*events):
 			},
 		},
 		{
-			name: "insert_event",
+			name: "insert_event1",
 			fields: fields{
 				cfg: map[string]interface{}{
 					"debug": true,
 					"source": `
 def apply(*events):
-  evs = []
-  for e in events:
-    evs.append(e)
   ne = Event("new_event")
   ne.tags["tag1"] = "tag1"
+  evs = list(events)
   evs.append(ne)
   return evs
-					`,
+`,
 				},
 			},
 			args: args{
@@ -449,6 +447,85 @@ def apply(*events):
 			},
 		},
 		{
+			name: "insert_event2",
+			fields: fields{
+				cfg: map[string]interface{}{
+					"debug": true,
+					"source": `
+def apply(*events):
+  ne = Event("new_event", 42, {"a": "b"}, {"foo": "bar"})
+  print(ne)
+  evs = list(events)
+  evs.append(ne)
+  return evs`,
+				},
+			},
+			args: args{
+				es: []*formatters.EventMsg{
+					{
+						Name:      "ev1",
+						Timestamp: 42,
+						Tags: map[string]string{
+							"tag1": "v1",
+							"tag2": "v2",
+						},
+						Values: map[string]interface{}{
+							"val1": 42,
+							"val2": "foo",
+						},
+					},
+					{
+						Name:      "ev2",
+						Timestamp: 42,
+						Tags: map[string]string{
+							"tag1": "v1",
+							"tag2": "v2",
+						},
+						Values: map[string]interface{}{
+							"val1": 42,
+							"val2": "foo",
+						},
+					},
+				},
+			},
+			want: []*formatters.EventMsg{
+				{
+					Name:      "ev1",
+					Timestamp: 42,
+					Tags: map[string]string{
+						"tag1": "v1",
+						"tag2": "v2",
+					},
+					Values: map[string]interface{}{
+						"val1": 42,
+						"val2": "foo",
+					},
+				},
+				{
+					Name:      "ev2",
+					Timestamp: 42,
+					Tags: map[string]string{
+						"tag1": "v1",
+						"tag2": "v2",
+					},
+					Values: map[string]interface{}{
+						"val1": 42,
+						"val2": "foo",
+					},
+				},
+				{
+					Name:      "new_event",
+					Timestamp: 42,
+					Tags: map[string]string{
+						"a": "b",
+					},
+					Values: map[string]interface{}{
+						"foo": "bar",
+					},
+				},
+			},
+		},
+		{
 			name: "use_cache",
 			fields: fields{
 				cfg: map[string]interface{}{
@@ -461,11 +538,13 @@ def apply(*events):
 	target_if = e.tags["target"] + "_" + e.tags["interface_name"]
 	if e.values.get("description"):
 	  cache[target_if] = e.values["description"]
-	  continue
-	e.tags["description"] = cache[target_if]
-	evs.append(e)
+  for e in events:
+    if e.values.get("description"):	
+      continue
+    e.tags["description"] = cache[target_if]
+    evs.append(e)
   return evs
-					`,
+`,
 				},
 			},
 			args: args{
@@ -506,6 +585,133 @@ def apply(*events):
 					Values: map[string]interface{}{
 						"val1": 42,
 					},
+				},
+			},
+		},
+		{
+			name: "set_tags",
+			fields: fields{
+				cfg: map[string]interface{}{
+					"debug": true,
+					"source": `
+def apply(*events):
+  for e in events:
+	e.tags = {"t1": "v1"}
+  return events
+`,
+				},
+			},
+			args: args{
+				es: []*formatters.EventMsg{
+					{
+						Name:      "ev1",
+						Timestamp: 42,
+						Tags: map[string]string{
+							"target":         "router1",
+							"interface_name": "if1",
+						},
+						Values: map[string]interface{}{
+							"val1": 42,
+						},
+					},
+				},
+			},
+			want: []*formatters.EventMsg{
+				{
+					Name:      "ev1",
+					Timestamp: 42,
+					Tags: map[string]string{
+						"t1": "v1",
+					},
+					Values: map[string]interface{}{
+						"val1": 42,
+					},
+				},
+			},
+		},
+		{
+			name: "set_values",
+			fields: fields{
+				cfg: map[string]interface{}{
+					"debug": true,
+					"source": `
+def apply(*events):
+  for e in events:
+	e.values = {"t1": "v1"}
+  return events
+`,
+				},
+			},
+			args: args{
+				es: []*formatters.EventMsg{
+					{
+						Name:      "ev1",
+						Timestamp: 42,
+						Tags: map[string]string{
+							"target":         "router1",
+							"interface_name": "if1",
+						},
+						Values: map[string]interface{}{
+							"val1": 42,
+						},
+					},
+				},
+			},
+			want: []*formatters.EventMsg{
+				{
+					Name:      "ev1",
+					Timestamp: 42,
+					Tags: map[string]string{
+						"target":         "router1",
+						"interface_name": "if1",
+					},
+					Values: map[string]interface{}{
+						"t1": "v1",
+					},
+				},
+			},
+		},
+		{
+			name: "set_deletes",
+			fields: fields{
+				cfg: map[string]interface{}{
+					"debug": true,
+					"source": `
+cache = {}
+def apply(*events):
+  for e in events:
+	e.deletes = ["path1", "path2"]
+  return events
+`,
+				},
+			},
+			args: args{
+				es: []*formatters.EventMsg{
+					{
+						Name:      "ev1",
+						Timestamp: 42,
+						Tags: map[string]string{
+							"target":         "router1",
+							"interface_name": "if1",
+						},
+						Values: map[string]interface{}{
+							"val1": 42,
+						},
+					},
+				},
+			},
+			want: []*formatters.EventMsg{
+				{
+					Name:      "ev1",
+					Timestamp: 42,
+					Tags: map[string]string{
+						"target":         "router1",
+						"interface_name": "if1",
+					},
+					Values: map[string]interface{}{
+						"val1": 42,
+					},
+					Deletes: []string{"path1", "path2"},
 				},
 			},
 		},
