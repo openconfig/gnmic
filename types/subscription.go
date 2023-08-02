@@ -21,21 +21,22 @@ const (
 
 // SubscriptionConfig //
 type SubscriptionConfig struct {
-	Name              string         `mapstructure:"name,omitempty" json:"name,omitempty"`
-	Models            []string       `mapstructure:"models,omitempty" json:"models,omitempty"`
-	Prefix            string         `mapstructure:"prefix,omitempty" json:"prefix,omitempty"`
-	Target            string         `mapstructure:"target,omitempty" json:"target,omitempty"`
-	SetTarget         bool           `mapstructure:"set-target,omitempty" json:"set-target,omitempty"`
-	Paths             []string       `mapstructure:"paths,omitempty" json:"paths,omitempty"`
-	Mode              string         `mapstructure:"mode,omitempty" json:"mode,omitempty"`
-	StreamMode        string         `mapstructure:"stream-mode,omitempty" json:"stream-mode,omitempty"`
-	Encoding          string         `mapstructure:"encoding,omitempty" json:"encoding,omitempty"`
-	Qos               *uint32        `mapstructure:"qos,omitempty" json:"qos,omitempty"`
-	SampleInterval    *time.Duration `mapstructure:"sample-interval,omitempty" json:"sample-interval,omitempty"`
-	HeartbeatInterval *time.Duration `mapstructure:"heartbeat-interval,omitempty" json:"heartbeat-interval,omitempty"`
-	SuppressRedundant bool           `mapstructure:"suppress-redundant,omitempty" json:"suppress-redundant,omitempty"`
-	UpdatesOnly       bool           `mapstructure:"updates-only,omitempty" json:"updates-only,omitempty"`
-	History           *HistoryConfig `mapstructure:"history,omitempty" json:"history,omitempty"`
+	Name                string                `mapstructure:"name,omitempty" json:"name,omitempty"`
+	Models              []string              `mapstructure:"models,omitempty" json:"models,omitempty"`
+	Prefix              string                `mapstructure:"prefix,omitempty" json:"prefix,omitempty"`
+	Target              string                `mapstructure:"target,omitempty" json:"target,omitempty"`
+	SetTarget           bool                  `mapstructure:"set-target,omitempty" json:"set-target,omitempty"`
+	Paths               []string              `mapstructure:"paths,omitempty" json:"paths,omitempty"`
+	Mode                string                `mapstructure:"mode,omitempty" json:"mode,omitempty"`
+	StreamMode          string                `mapstructure:"stream-mode,omitempty" json:"stream-mode,omitempty"`
+	Encoding            string                `mapstructure:"encoding,omitempty" json:"encoding,omitempty"`
+	Qos                 *uint32               `mapstructure:"qos,omitempty" json:"qos,omitempty"`
+	SampleInterval      *time.Duration        `mapstructure:"sample-interval,omitempty" json:"sample-interval,omitempty"`
+	HeartbeatInterval   *time.Duration        `mapstructure:"heartbeat-interval,omitempty" json:"heartbeat-interval,omitempty"`
+	SuppressRedundant   bool                  `mapstructure:"suppress-redundant,omitempty" json:"suppress-redundant,omitempty"`
+	UpdatesOnly         bool                  `mapstructure:"updates-only,omitempty" json:"updates-only,omitempty"`
+	History             *HistoryConfig        `mapstructure:"history,omitempty" json:"history,omitempty"`
+	StreamSubscriptions []*SubscriptionConfig `mapstructure:"stream-subscriptions,omitempty" json:"stream-subscriptions,omitempty"`
 }
 
 type HistoryConfig struct {

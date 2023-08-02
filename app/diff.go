@@ -10,6 +10,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -144,7 +145,10 @@ func (a *App) subscribeBasedDiff(ctx context.Context, cmd *cobra.Command, ref *t
 	defer cancel()
 	subReq, err := a.Config.CreateDiffSubscribeRequest(cmd)
 	if err != nil {
-		return err
+		if errors.Is(errors.Unwrap(err), config.ErrConfig) {
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+			os.Exit(1)
+		}
 	}
 	numCompares := len(compare)
 	refResponse := make([]proto.Message, 0)

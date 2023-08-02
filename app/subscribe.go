@@ -76,11 +76,11 @@ func (a *App) SubscribeRunE(cmd *cobra.Command, args []string) error {
 	}
 	// only once mode subscriptions requested
 	if allSubscriptionsModeOnce(subCfg) {
-		return a.SubscribeRunONCE(cmd, args, subCfg)
+		return a.SubscribeRunONCE(cmd, args)
 	}
 	// only poll mode subscriptions requested
 	if allSubscriptionsModePoll(subCfg) {
-		return a.SubscribeRunPoll(cmd, args, subCfg)
+		return a.SubscribeRunPoll(cmd, args)
 	}
 	// stream subscriptions
 	err = a.initTunnelServer(tunnel.ServerConfig{
@@ -130,7 +130,6 @@ func (a *App) SubscribeRunE(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-//
 func (a *App) subscribeStream(ctx context.Context, tc *types.TargetConfig) {
 	defer a.wg.Done()
 	a.TargetSubscribeStream(ctx, tc)
@@ -163,7 +162,7 @@ func (a *App) InitSubscribeFlags(cmd *cobra.Command) {
 	cmd.Flags().DurationVarP(&a.Config.LocalFlags.SubscribeSampleInterval, "sample-interval", "i", 0,
 		"sample interval as a decimal number and a suffix unit, such as \"10s\" or \"1m30s\"")
 	cmd.Flags().BoolVarP(&a.Config.LocalFlags.SubscribeSuppressRedundant, "suppress-redundant", "", false, "suppress redundant update if the subscribed value didn't not change")
-	cmd.Flags().DurationVarP(&a.Config.LocalFlags.SubscribeHeartbearInterval, "heartbeat-interval", "", 0, "heartbeat interval in case suppress-redundant is enabled")
+	cmd.Flags().DurationVarP(&a.Config.LocalFlags.SubscribeHeartbeatInterval, "heartbeat-interval", "", 0, "heartbeat interval in case suppress-redundant is enabled")
 	cmd.Flags().StringSliceVarP(&a.Config.LocalFlags.SubscribeModel, "model", "", []string{}, "subscribe request used model(s)")
 	cmd.Flags().BoolVar(&a.Config.LocalFlags.SubscribeQuiet, "quiet", false, "suppress stdout printing")
 	cmd.Flags().StringVarP(&a.Config.LocalFlags.SubscribeTarget, "target", "", "", "subscribe request target")
@@ -308,11 +307,11 @@ func (a *App) startIO() {
 	}
 }
 
-func allSubscriptionsModeOnce(sc map[string]*types.SubscriptionConfig) bool {
-	if len(sc) == 0 {
+func allSubscriptionsModeOnce(subs map[string]*types.SubscriptionConfig) bool {
+	if len(subs) == 0 {
 		return false
 	}
-	for _, sub := range sc {
+	for _, sub := range subs {
 		if strings.ToUpper(sub.Mode) != "ONCE" {
 			return false
 		}
@@ -320,11 +319,11 @@ func allSubscriptionsModeOnce(sc map[string]*types.SubscriptionConfig) bool {
 	return true
 }
 
-func allSubscriptionsModePoll(sc map[string]*types.SubscriptionConfig) bool {
-	if len(sc) == 0 {
+func allSubscriptionsModePoll(subs map[string]*types.SubscriptionConfig) bool {
+	if len(subs) == 0 {
 		return false
 	}
-	for _, sub := range sc {
+	for _, sub := range subs {
 		if strings.ToUpper(sub.Mode) != "POLL" {
 			return false
 		}

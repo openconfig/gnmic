@@ -11,12 +11,11 @@ package app
 import (
 	"fmt"
 
-	"github.com/openconfig/gnmic/types"
 	"github.com/openconfig/grpctunnel/tunnel"
 	"github.com/spf13/cobra"
 )
 
-func (a *App) SubscribeRunPoll(cmd *cobra.Command, args []string, subCfg map[string]*types.SubscriptionConfig) error {
+func (a *App) SubscribeRunPoll(cmd *cobra.Command, args []string) error {
 	a.initTunnelServer(tunnel.ServerConfig{
 		AddTargetHandler:    a.tunServerAddTargetHandler,
 		DeleteTargetHandler: a.tunServerDeleteTargetHandler,

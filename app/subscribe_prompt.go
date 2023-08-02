@@ -35,11 +35,11 @@ func (a *App) SubscribeRunPrompt(cmd *cobra.Command, args []string) error {
 	}
 	// only once mode subscriptions requested
 	if allSubscriptionsModeOnce(subCfg) {
-		return a.SubscribeRunONCE(cmd, args, subCfg)
+		return a.SubscribeRunONCE(cmd, args)
 	}
 	// only poll mode subscriptions requested
 	if allSubscriptionsModePoll(subCfg) {
-		return a.SubscribeRunPoll(cmd, args, subCfg)
+		return a.SubscribeRunPoll(cmd, args)
 	}
 	// stream+once mode subscriptions
 	err = a.readConfigs()

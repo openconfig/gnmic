@@ -19,11 +19,13 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/AlekSi/pointer"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
 	"github.com/openconfig/gnmic/testutils"
 	"github.com/openconfig/gnmic/types"
 	"github.com/spf13/viper"
+	"google.golang.org/protobuf/encoding/prototext"
 )
 
 func mustParseTime(tm string) time.Time {
@@ -203,6 +205,35 @@ subscriptions:
 		},
 		outErr: nil,
 	},
+	"subscription_list": {
+		in: []byte(`
+subscriptions:
+  sub1:
+    stream-subscriptions:
+      - paths:
+        - /valid/path1
+        stream-mode: sample
+      - paths:
+        - /valid/path2
+        stream-mode: on-change
+`),
+		out: map[string]*types.SubscriptionConfig{
+			"sub1": {
+				Name: "sub1",
+				StreamSubscriptions: []*types.SubscriptionConfig{
+					{
+						Paths:      []string{"/valid/path1"},
+						StreamMode: "sample",
+					},
+					{
+						Paths:      []string{"/valid/path2"},
+						StreamMode: "on-change",
+					},
+				},
+			},
+		},
+		outErr: nil,
+	},
 }
 
 func TestGetSubscriptions(t *testing.T) {
@@ -372,7 +403,7 @@ func TestConfig_CreateSubscribeRequest(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "poll_subscription",
+			name: "poll_subscription_multiple_paths",
 			args: args{
 				sc: &types.SubscriptionConfig{
 					Paths: []string{
@@ -484,9 +515,9 @@ func TestConfig_CreateSubscribeRequest(t *testing.T) {
 					Paths: []string{
 						"interface",
 					},
-					// Mode:       "stream",
-					StreamMode: "sample",
-					Encoding:   "json_ietf",
+					StreamMode:     "sample",
+					Encoding:       "json_ietf",
+					SampleInterval: pointer.ToDuration(5 * time.Second),
 				},
 			},
 			want: &gnmi.SubscribeRequest{
@@ -515,7 +546,6 @@ func TestConfig_CreateSubscribeRequest(t *testing.T) {
 					Paths: []string{
 						"interface",
 					},
-					// Mode:       "stream",
 					StreamMode: "on-change",
 					Encoding:   "json_ietf",
 				},
@@ -546,8 +576,7 @@ func TestConfig_CreateSubscribeRequest(t *testing.T) {
 					Paths: []string{
 						"interface",
 					},
-					// Mode:       "stream",
-					StreamMode: "on-change",
+					StreamMode: "on_change",
 					Encoding:   "json_ietf",
 				},
 			},
@@ -556,7 +585,7 @@ func TestConfig_CreateSubscribeRequest(t *testing.T) {
 					Subscribe: &gnmi.SubscriptionList{
 						Subscription: []*gnmi.Subscription{
 							{
-								Mode: gnmi.SubscriptionMode_TARGET_DEFINED,
+								Mode: gnmi.SubscriptionMode_ON_CHANGE,
 								Path: &gnmi.Path{
 									Elem: []*gnmi.PathElem{{
 										Name: "interface",
@@ -614,6 +643,224 @@ func TestConfig_CreateSubscribeRequest(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "combined_on-change_and_sample",
+			args: args{
+				sc: &types.SubscriptionConfig{
+					Encoding: "json_ietf",
+					StreamSubscriptions: []*types.SubscriptionConfig{
+						{
+							Paths: []string{
+								"interface/admin-state",
+							},
+							StreamMode: "ON_CHANGE",
+						},
+						{
+							Paths: []string{
+								"interface/statistics",
+							},
+							StreamMode: "SAMPLE",
+						},
+					},
+				},
+			},
+			want: &gnmi.SubscribeRequest{
+				Request: &gnmi.SubscribeRequest_Subscribe{
+					Subscribe: &gnmi.SubscriptionList{
+						Subscription: []*gnmi.Subscription{
+							{
+								Mode: gnmi.SubscriptionMode_ON_CHANGE,
+								Path: &gnmi.Path{
+									Elem: []*gnmi.PathElem{
+										{
+											Name: "interface",
+										},
+										{
+											Name: "admin-state",
+										},
+									},
+								},
+							},
+							{
+								Mode: gnmi.SubscriptionMode_SAMPLE,
+								Path: &gnmi.Path{
+									Elem: []*gnmi.PathElem{
+										{
+											Name: "interface",
+										},
+										{
+											Name: "statistics",
+										},
+									},
+								},
+							},
+						},
+						Encoding: gnmi.Encoding_JSON_IETF,
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "combined_on-change_and_sample_multiple_paths",
+			args: args{
+				sc: &types.SubscriptionConfig{
+					Encoding: "json_ietf",
+					StreamSubscriptions: []*types.SubscriptionConfig{
+						{
+							Paths: []string{
+								"interface/admin-state",
+								"interface/oper-state",
+							},
+							StreamMode: "ON_CHANGE",
+						},
+						{
+							Paths: []string{
+								"interface/statistics",
+								"interface/subinterface/statistics",
+							},
+							StreamMode: "SAMPLE",
+						},
+					},
+				},
+			},
+			want: &gnmi.SubscribeRequest{
+				Request: &gnmi.SubscribeRequest_Subscribe{
+					Subscribe: &gnmi.SubscriptionList{
+						Subscription: []*gnmi.Subscription{
+							{
+								Mode: gnmi.SubscriptionMode_ON_CHANGE,
+								Path: &gnmi.Path{
+									Elem: []*gnmi.PathElem{
+										{
+											Name: "interface",
+										},
+										{
+											Name: "admin-state",
+										},
+									},
+								},
+							},
+							{
+								Mode: gnmi.SubscriptionMode_ON_CHANGE,
+								Path: &gnmi.Path{
+									Elem: []*gnmi.PathElem{
+										{
+											Name: "interface",
+										},
+										{
+											Name: "oper-state",
+										},
+									},
+								},
+							},
+							{
+								Mode: gnmi.SubscriptionMode_SAMPLE,
+								Path: &gnmi.Path{
+									Elem: []*gnmi.PathElem{
+										{
+											Name: "interface",
+										},
+										{
+											Name: "statistics",
+										},
+									},
+								},
+							},
+							{
+								Mode: gnmi.SubscriptionMode_SAMPLE,
+								Path: &gnmi.Path{
+									Elem: []*gnmi.PathElem{
+										{
+											Name: "interface",
+										},
+										{
+											Name: "subinterface",
+										},
+										{
+											Name: "statistics",
+										},
+									},
+								},
+							},
+						},
+						Encoding: gnmi.Encoding_JSON_IETF,
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid_combined_paths_and_subscriptions",
+			args: args{
+				sc: &types.SubscriptionConfig{
+					Paths:    []string{"network-instance"},
+					Encoding: "json_ietf",
+					StreamSubscriptions: []*types.SubscriptionConfig{
+						{
+							Paths: []string{
+								"interface/admin-state",
+							},
+							StreamMode: "ON_CHANGE",
+						},
+						{
+							Paths: []string{
+								"interface/statistics",
+							},
+							StreamMode: "SAMPLE",
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid_combined_subscriptions_mode",
+			args: args{
+				sc: &types.SubscriptionConfig{
+					Encoding: "json_ietf",
+					StreamSubscriptions: []*types.SubscriptionConfig{
+						{
+							Paths: []string{
+								"interface/admin-state",
+							},
+							Mode: "ONCE",
+						},
+						{
+							Paths: []string{
+								"interface/statistics",
+							},
+							StreamMode: "SAMPLE",
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid_subscription mode",
+			args: args{
+				sc: &types.SubscriptionConfig{
+					Encoding: "json_ietf",
+					Mode:     "ONCE",
+					StreamSubscriptions: []*types.SubscriptionConfig{
+						{
+							Paths: []string{
+								"interface/admin-state",
+							},
+							Mode: "ON_CHANGE",
+						},
+						{
+							Paths: []string{
+								"interface/statistics",
+							},
+							StreamMode: "SAMPLE",
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -636,12 +883,17 @@ func TestConfig_CreateSubscribeRequest(t *testing.T) {
 				setRequestVars:     tt.fields.setRequestVars,
 			}
 			got, err := c.CreateSubscribeRequest(tt.args.sc, tt.args.target)
+			if err != nil && tt.wantErr {
+				t.Logf("expected error: %v", err)
+				return
+			}
 			if (err != nil) != tt.wantErr {
 				t.Logf("Config.CreateSubscribeRequest() error   = %v", err)
 				t.Logf("Config.CreateSubscribeRequest() wantErr = %v", tt.wantErr)
 				t.Fail()
 				return
 			}
+			t.Logf("got:\n%s", prototext.Format(got))
 			if !testutils.SubscribeRequestsEqual(got, tt.want) {
 				t.Logf("Config.CreateSubscribeRequest() got  = %v", got)
 				t.Logf("Config.CreateSubscribeRequest() want = %v", tt.want)
