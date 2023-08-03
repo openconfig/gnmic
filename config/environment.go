@@ -66,7 +66,7 @@ OUTER:
 			}
 			m[f] = os.ExpandEnv(v)
 		case map[string]interface{}:
-			expandMapEnv(v)
+			expandMapEnv(v, except...)
 			m[f] = v
 		}
 	}
