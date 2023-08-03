@@ -13,13 +13,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/gnmic/config"
 	"github.com/openconfig/gnmic/lockers"
 	"github.com/openconfig/gnmic/outputs"
-	"github.com/openconfig/gnmic/target"
 	"github.com/openconfig/gnmic/types"
 	"github.com/openconfig/grpctunnel/tunnel"
 	"google.golang.org/grpc"
@@ -156,14 +157,14 @@ func (a *App) TargetSubscribePoll(ctx context.Context, tc *types.TargetConfig) {
 }
 
 func (a *App) clientSubscribe(ctx context.Context, tc *types.TargetConfig) error {
-	var t *target.Target
-	var ok bool
 	a.operLock.RLock()
-	if t, ok = a.Targets[tc.Name]; !ok {
-		a.operLock.RUnlock()
+	t, ok := a.Targets[tc.Name]
+	a.operLock.RUnlock()
+
+	if !ok {
 		return fmt.Errorf("unknown target name: %q", tc.Name)
 	}
-	a.operLock.RUnlock()
+
 	subscriptionsConfigs := t.Subscriptions
 	if len(subscriptionsConfigs) == 0 {
 		subscriptionsConfigs = a.Config.Subscriptions
@@ -171,13 +172,16 @@ func (a *App) clientSubscribe(ctx context.Context, tc *types.TargetConfig) error
 	if len(subscriptionsConfigs) == 0 {
 		return fmt.Errorf("target %q has no subscriptions defined", tc.Name)
 	}
-	subRequests := make([]subscriptionRequest, 0)
-	for _, sc := range subscriptionsConfigs {
+	subRequests := make([]subscriptionRequest, 0, len(subscriptionsConfigs))
+	for scName, sc := range subscriptionsConfigs {
 		req, err := a.Config.CreateSubscribeRequest(sc, tc.Name)
 		if err != nil {
-			return err
+			if errors.Is(errors.Unwrap(err), config.ErrConfig) {
+				fmt.Fprintf(os.Stderr, "%v\n", err)
+				os.Exit(1)
+			}
 		}
-		subRequests = append(subRequests, subscriptionRequest{name: sc.Name, req: req})
+		subRequests = append(subRequests, subscriptionRequest{name: scName, req: req})
 	}
 	if t.Cfn != nil {
 		t.Cfn()
@@ -223,10 +227,8 @@ CRCLIENT:
 }
 
 func (a *App) clientSubscribeOnce(ctx context.Context, tc *types.TargetConfig) error {
-	var t *target.Target
-	var ok bool
 	a.operLock.RLock()
-	t, ok = a.Targets[tc.Name]
+	t, ok := a.Targets[tc.Name]
 	a.operLock.RUnlock()
 	if !ok {
 		return fmt.Errorf("unknown target name: %q", tc.Name)
@@ -243,7 +245,10 @@ func (a *App) clientSubscribeOnce(ctx context.Context, tc *types.TargetConfig) e
 	for _, sc := range subscriptionsConfigs {
 		req, err := a.Config.CreateSubscribeRequest(sc, tc.Name)
 		if err != nil {
-			return err
+			if errors.Is(errors.Unwrap(err), config.ErrConfig) {
+				fmt.Fprintf(os.Stderr, "%v\n", err)
+				os.Exit(1)
+			}
 		}
 		subRequests = append(subRequests, subscriptionRequest{name: sc.Name, req: req})
 	}

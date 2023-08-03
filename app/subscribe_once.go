@@ -12,12 +12,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/openconfig/gnmic/types"
 	"github.com/openconfig/grpctunnel/tunnel"
 	"github.com/spf13/cobra"
 )
 
-func (a *App) SubscribeRunONCE(cmd *cobra.Command, args []string, subCfg map[string]*types.SubscriptionConfig) error {
+func (a *App) SubscribeRunONCE(_ *cobra.Command, _ []string) error {
 	a.c = nil // todo:
 	a.initTunnelServer(tunnel.ServerConfig{
 		AddTargetHandler:    a.tunServerAddTargetHandler,

@@ -30,8 +30,8 @@ func (a *App) initTarget(tc *types.TargetConfig) (*target.Target, error) {
 			}
 		}
 		if len(t.Subscriptions) == 0 {
-			for _, sub := range a.Config.Subscriptions {
-				t.Subscriptions[sub.Name] = sub
+			for n, sub := range a.Config.Subscriptions {
+				t.Subscriptions[n] = sub
 			}
 		}
 		err := a.parseProtoFiles(t)

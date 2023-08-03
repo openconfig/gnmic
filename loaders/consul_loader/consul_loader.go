@@ -520,7 +520,7 @@ func (c *consulLoader) runActions(ctx context.Context, tcs map[string]*types.Tar
 				c.logger.Printf("failed running OnAdd actions: %v", err)
 				return
 			}
-			opChan <- &loaders.TargetOperation{Add: map[string]*types.TargetConfig{n:tc}}
+			opChan <- &loaders.TargetOperation{Add: map[string]*types.TargetConfig{n: tc}}
 		}(n, tAdd)
 	}
 	// run OnDelete actions

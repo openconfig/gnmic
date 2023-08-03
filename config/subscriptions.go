@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,90 +30,36 @@ const (
 	subscriptionDefaultEncoding   = "JSON"
 )
 
+var ErrConfig = errors.New("config error")
+
 func (c *Config) GetSubscriptions(cmd *cobra.Command) (map[string]*types.SubscriptionConfig, error) {
 	if len(c.LocalFlags.SubscribePath) > 0 && len(c.LocalFlags.SubscribeName) > 0 {
 		return nil, fmt.Errorf("flags --path and --name cannot be mixed")
 	}
 	// subscriptions from cli flags
 	if len(c.LocalFlags.SubscribePath) > 0 {
-		sub := new(types.SubscriptionConfig)
-		sub.Name = fmt.Sprintf("default-%d", time.Now().Unix())
-		sub.Paths = c.LocalFlags.SubscribePath
-		sub.Prefix = c.LocalFlags.SubscribePrefix
-		sub.Target = c.LocalFlags.SubscribeTarget
-		sub.SetTarget = c.LocalFlags.SubscribeSetTarget
-		sub.Mode = c.LocalFlags.SubscribeMode
-		sub.Encoding = c.Encoding
-		if flagIsSet(cmd, "qos") {
-			sub.Qos = &c.LocalFlags.SubscribeQos
-		}
-		sub.StreamMode = c.LocalFlags.SubscribeStreamMode
-		if flagIsSet(cmd, "heartbeat-interval") {
-			sub.HeartbeatInterval = &c.LocalFlags.SubscribeHeartbearInterval
-		}
-		if flagIsSet(cmd, "sample-interval") {
-			sub.SampleInterval = &c.LocalFlags.SubscribeSampleInterval
-		}
-		sub.SuppressRedundant = c.LocalFlags.SubscribeSuppressRedundant
-		sub.UpdatesOnly = c.LocalFlags.SubscribeUpdatesOnly
-		sub.Models = c.LocalFlags.SubscribeModel
-		if flagIsSet(cmd, "history-snapshot") {
-			snapshot, err := time.Parse(time.RFC3339Nano, c.LocalFlags.SubscribeHistorySnapshot)
-			if err != nil {
-				return nil, fmt.Errorf("history-snapshot: %v", err)
-			}
-			sub.History = &types.HistoryConfig{
-				Snapshot: snapshot,
-			}
-		}
-		if flagIsSet(cmd, "history-start") && flagIsSet(cmd, "history-end") {
-			start, err := time.Parse(time.RFC3339Nano, c.LocalFlags.SubscribeHistoryStart)
-			if err != nil {
-				return nil, fmt.Errorf("history-start: %v", err)
-			}
-			end, err := time.Parse(time.RFC3339Nano, c.LocalFlags.SubscribeHistoryEnd)
-			if err != nil {
-				return nil, fmt.Errorf("history-end: %v", err)
-			}
-			sub.History = &types.HistoryConfig{
-				Start: start,
-				End:   end,
-			}
-		}
-		c.Subscriptions[sub.Name] = sub
-		if c.Debug {
-			c.logger.Printf("subscriptions: %s", c.Subscriptions)
-		}
-		return c.Subscriptions, nil
+		return c.subscriptionConfigFromFlags(cmd)
 	}
 	// subscriptions from file
 	subDef := c.FileConfig.GetStringMap("subscriptions")
 	if c.Debug {
-		c.logger.Printf("subscriptions map: %v+", subDef)
+		c.logger.Printf("subscriptions map: %#v", subDef)
 	}
+	// decode subscription config
 	for sn, s := range subDef {
-		sub := new(types.SubscriptionConfig)
-		decoder, err := mapstructure.NewDecoder(
-			&mapstructure.DecoderConfig{
-				DecodeHook: mapstructure.StringToTimeDurationHookFunc(),
-				Result:     sub,
-			})
-		if err != nil {
-			return nil, err
+		switch s := s.(type) {
+		case map[string]any:
+			sub, err := c.decodeSubscriptionConfig(sn, s, cmd)
+			if err != nil {
+				return nil, err
+			}
+			c.Subscriptions[sn] = sub
+		default:
+			return nil, fmt.Errorf("%w: subscriptions map: unexpected type %T", ErrConfig, s)
 		}
-		err = decoder.Decode(s)
-		if err != nil {
-			return nil, err
-		}
-		sub.Name = sn
-
-		// inherit global "subscribe-*" option if it's not set
-		if err := c.setSubscriptionDefaults(sub, cmd); err != nil {
-			return nil, err
-		}
-		expandSubscriptionEnv(sub)
-		c.Subscriptions[sn] = sub
 	}
+
+	// named subscription
 	if len(c.LocalFlags.SubscribeName) == 0 {
 		if c.Debug {
 			c.logger.Printf("subscriptions: %s", c.Subscriptions)
@@ -145,12 +92,90 @@ func (c *Config) GetSubscriptions(cmd *cobra.Command) (map[string]*types.Subscri
 	return filteredSubscriptions, nil
 }
 
-func (c *Config) setSubscriptionDefaults(sub *types.SubscriptionConfig, cmd *cobra.Command) error {
+func (c *Config) subscriptionConfigFromFlags(cmd *cobra.Command) (map[string]*types.SubscriptionConfig, error) {
+	sub := &types.SubscriptionConfig{
+		Name:      fmt.Sprintf("default-%d", time.Now().Unix()),
+		Models:    []string{},
+		Prefix:    c.LocalFlags.SubscribePrefix,
+		Target:    c.LocalFlags.SubscribeTarget,
+		SetTarget: c.LocalFlags.SubscribeSetTarget,
+		Paths:     c.LocalFlags.SubscribePath,
+		Mode:      c.LocalFlags.SubscribeMode,
+		Encoding:  c.Encoding,
+	}
+	if flagIsSet(cmd, "qos") {
+		sub.Qos = &c.LocalFlags.SubscribeQos
+	}
+	sub.StreamMode = c.LocalFlags.SubscribeStreamMode
+	if flagIsSet(cmd, "heartbeat-interval") {
+		sub.HeartbeatInterval = &c.LocalFlags.SubscribeHeartbeatInterval
+	}
+	if flagIsSet(cmd, "sample-interval") {
+		sub.SampleInterval = &c.LocalFlags.SubscribeSampleInterval
+	}
+	sub.SuppressRedundant = c.LocalFlags.SubscribeSuppressRedundant
+	sub.UpdatesOnly = c.LocalFlags.SubscribeUpdatesOnly
+	sub.Models = c.LocalFlags.SubscribeModel
+	if flagIsSet(cmd, "history-snapshot") {
+		snapshot, err := time.Parse(time.RFC3339Nano, c.LocalFlags.SubscribeHistorySnapshot)
+		if err != nil {
+			return nil, fmt.Errorf("history-snapshot: %v", err)
+		}
+		sub.History = &types.HistoryConfig{
+			Snapshot: snapshot,
+		}
+	}
+	if flagIsSet(cmd, "history-start") && flagIsSet(cmd, "history-end") {
+		start, err := time.Parse(time.RFC3339Nano, c.LocalFlags.SubscribeHistoryStart)
+		if err != nil {
+			return nil, fmt.Errorf("history-start: %v", err)
+		}
+		end, err := time.Parse(time.RFC3339Nano, c.LocalFlags.SubscribeHistoryEnd)
+		if err != nil {
+			return nil, fmt.Errorf("history-end: %v", err)
+		}
+		sub.History = &types.HistoryConfig{
+			Start: start,
+			End:   end,
+		}
+	}
+	c.Subscriptions[sub.Name] = sub
+	if c.Debug {
+		c.logger.Printf("subscriptions: %s", c.Subscriptions)
+	}
+	return c.Subscriptions, nil
+}
+
+func (c *Config) decodeSubscriptionConfig(sn string, s any, cmd *cobra.Command) (*types.SubscriptionConfig, error) {
+	sub := new(types.SubscriptionConfig)
+	decoder, err := mapstructure.NewDecoder(
+		&mapstructure.DecoderConfig{
+			DecodeHook: mapstructure.StringToTimeDurationHookFunc(),
+			Result:     sub,
+		})
+	if err != nil {
+		return nil, err
+	}
+	err = decoder.Decode(s)
+	if err != nil {
+		return nil, err
+	}
+	sub.Name = sn
+
+	// inherit global "subscribe-*" option if it's not set
+	if err := c.setSubscriptionFieldsFromFlags(sub, cmd); err != nil {
+		return nil, err
+	}
+	expandSubscriptionEnv(sub)
+	return sub, nil
+}
+
+func (c *Config) setSubscriptionFieldsFromFlags(sub *types.SubscriptionConfig, cmd *cobra.Command) error {
 	if sub.SampleInterval == nil && flagIsSet(cmd, "sample-interval") {
 		sub.SampleInterval = &c.LocalFlags.SubscribeSampleInterval
 	}
 	if sub.HeartbeatInterval == nil && flagIsSet(cmd, "heartbeat-interval") {
-		sub.HeartbeatInterval = &c.LocalFlags.SubscribeHeartbearInterval
+		sub.HeartbeatInterval = &c.LocalFlags.SubscribeHeartbeatInterval
 	}
 	if sub.Encoding == "" {
 		sub.Encoding = c.Encoding
@@ -207,12 +232,21 @@ func (c *Config) GetSubscriptionsFromFile() []*types.SubscriptionConfig {
 	return subscriptions
 }
 
-func (*Config) CreateSubscribeRequest(sc *types.SubscriptionConfig, target string) (*gnmi.SubscribeRequest, error) {
-	err := setDefaults(sc)
+func (c *Config) CreateSubscribeRequest(sc *types.SubscriptionConfig, target string) (*gnmi.SubscribeRequest, error) {
+	err := validateAndSetDefaults(sc)
 	if err != nil {
 		return nil, err
 	}
-	gnmiOpts := make([]api.GNMIOption, 0)
+	gnmiOpts, err := c.subscriptionOpts(sc, target)
+	if err != nil {
+		return nil, err
+	}
+	return api.NewSubscribeRequest(gnmiOpts...)
+}
+
+func (c *Config) subscriptionOpts(sc *types.SubscriptionConfig, target string) ([]api.GNMIOption, error) {
+	gnmiOpts := make([]api.GNMIOption, 0, 4)
+
 	gnmiOpts = append(gnmiOpts,
 		api.Prefix(sc.Prefix),
 		api.Encoding(sc.Encoding),
@@ -228,9 +262,16 @@ func (*Config) CreateSubscribeRequest(sc *types.SubscriptionConfig, target strin
 			gnmiOpts = append(gnmiOpts, api.Extension_HistoryRange(sc.History.Start, sc.History.End))
 		}
 	}
+	// QoS
 	if sc.Qos != nil {
 		gnmiOpts = append(gnmiOpts, api.Qos(*sc.Qos))
 	}
+
+	// add models
+	for _, m := range sc.Models {
+		gnmiOpts = append(gnmiOpts, api.UseModel(m, "", ""))
+	}
+
 	// add target opt
 	if sc.Target != "" {
 		gnmiOpts = append(gnmiOpts, api.Target(sc.Target))
@@ -238,16 +279,27 @@ func (*Config) CreateSubscribeRequest(sc *types.SubscriptionConfig, target strin
 		gnmiOpts = append(gnmiOpts, api.Target(target))
 	}
 	// add gNMI subscriptions
+	// multiple stream subscriptions
+	if len(sc.StreamSubscriptions) > 0 {
+		for _, ssc := range sc.StreamSubscriptions {
+			streamGNMIOpts, err := c.streamSubscriptionOpts(ssc)
+			if err != nil {
+				return nil, err
+			}
+			gnmiOpts = append(gnmiOpts, streamGNMIOpts...)
+		}
+	}
+
 	for _, p := range sc.Paths {
 		subGnmiOpts := make([]api.GNMIOption, 0, 2)
 		switch gnmi.SubscriptionList_Mode(gnmi.SubscriptionList_Mode_value[strings.ToUpper(sc.Mode)]) {
 		case gnmi.SubscriptionList_STREAM:
-			subGnmiOpts = append(subGnmiOpts, api.SubscriptionMode(sc.StreamMode))
 			switch gnmi.SubscriptionMode(gnmi.SubscriptionMode_value[strings.Replace(strings.ToUpper(sc.StreamMode), "-", "_", -1)]) {
 			case gnmi.SubscriptionMode_ON_CHANGE:
 				if sc.HeartbeatInterval != nil {
 					subGnmiOpts = append(subGnmiOpts, api.HeartbeatInterval(*sc.HeartbeatInterval))
 				}
+				subGnmiOpts = append(subGnmiOpts, api.SubscriptionMode(sc.StreamMode))
 			case gnmi.SubscriptionMode_SAMPLE, gnmi.SubscriptionMode_TARGET_DEFINED:
 				if sc.SampleInterval != nil {
 					subGnmiOpts = append(subGnmiOpts, api.SampleInterval(*sc.SampleInterval))
@@ -256,8 +308,9 @@ func (*Config) CreateSubscribeRequest(sc *types.SubscriptionConfig, target strin
 				if sc.SuppressRedundant && sc.HeartbeatInterval != nil {
 					subGnmiOpts = append(subGnmiOpts, api.HeartbeatInterval(*sc.HeartbeatInterval))
 				}
+				subGnmiOpts = append(subGnmiOpts, api.SubscriptionMode(sc.StreamMode))
 			default:
-				return nil, fmt.Errorf("unknown stream subscription mode %s", sc.StreamMode)
+				return nil, fmt.Errorf("%w: subscription %s unknown stream subscription mode %s", ErrConfig, sc.Name, sc.StreamMode)
 			}
 		default:
 			// poll and once subscription modes
@@ -268,24 +321,139 @@ func (*Config) CreateSubscribeRequest(sc *types.SubscriptionConfig, target strin
 			api.Subscription(subGnmiOpts...),
 		)
 	}
-	for _, m := range sc.Models {
-		gnmiOpts = append(gnmiOpts, api.UseModel(m, "", ""))
-	}
-	return api.NewSubscribeRequest(gnmiOpts...)
+
+	return gnmiOpts, nil
 }
 
-func setDefaults(sc *types.SubscriptionConfig) error {
-	if len(sc.Paths) == 0 {
-		return fmt.Errorf("missing path(s) in subscription '%s'", sc.Name)
+func (c *Config) streamSubscriptionOpts(sc *types.SubscriptionConfig) ([]api.GNMIOption, error) {
+	gnmiOpts := make([]api.GNMIOption, 0)
+	for _, p := range sc.Paths {
+		subGnmiOpts := make([]api.GNMIOption, 0, 2)
+		switch gnmi.SubscriptionMode(gnmi.SubscriptionMode_value[strings.Replace(strings.ToUpper(sc.StreamMode), "-", "_", -1)]) {
+		case gnmi.SubscriptionMode_ON_CHANGE:
+			if sc.HeartbeatInterval != nil {
+				subGnmiOpts = append(subGnmiOpts, api.HeartbeatInterval(*sc.HeartbeatInterval))
+			}
+			subGnmiOpts = append(subGnmiOpts, api.SubscriptionMode(sc.StreamMode))
+		case gnmi.SubscriptionMode_SAMPLE, gnmi.SubscriptionMode_TARGET_DEFINED:
+			if sc.SampleInterval != nil {
+				subGnmiOpts = append(subGnmiOpts, api.SampleInterval(*sc.SampleInterval))
+			}
+			subGnmiOpts = append(subGnmiOpts, api.SuppressRedundant(sc.SuppressRedundant))
+			if sc.SuppressRedundant && sc.HeartbeatInterval != nil {
+				subGnmiOpts = append(subGnmiOpts, api.HeartbeatInterval(*sc.HeartbeatInterval))
+			}
+			subGnmiOpts = append(subGnmiOpts, api.SubscriptionMode(sc.StreamMode))
+		default:
+			return nil, fmt.Errorf("%w: subscription %s unknown stream subscription mode %s", ErrConfig, sc.Name, sc.StreamMode)
+		}
+
+		subGnmiOpts = append(subGnmiOpts, api.Path(p))
+		gnmiOpts = append(gnmiOpts,
+			api.Subscription(subGnmiOpts...),
+		)
 	}
-	if sc.Mode == "" {
+	return gnmiOpts, nil
+}
+
+func validateAndSetDefaults(sc *types.SubscriptionConfig) error {
+	numPaths := len(sc.Paths)
+	numStreamSubs := len(sc.StreamSubscriptions)
+	if sc.Prefix == "" && numPaths == 0 && numStreamSubs == 0 {
+		return fmt.Errorf("%w: missing path(s) in subscription %q", ErrConfig, sc.Name)
+	}
+
+	if numPaths > 0 && numStreamSubs > 0 {
+		return fmt.Errorf("%w: subscription %q: cannot set 'paths' and 'stream-subscriptions' at the same time", ErrConfig, sc.Name)
+	}
+
+	// validate subscription Mode
+	switch strings.ToUpper(sc.Mode) {
+	case "":
 		sc.Mode = subscriptionDefaultMode
+	case "ONCE", "POLL":
+		if numStreamSubs > 0 {
+			return fmt.Errorf("%w: subscription %q: cannot set 'stream-subscriptions' and 'mode'", ErrConfig, sc.Name)
+		}
+	case "STREAM":
+	default:
+		return fmt.Errorf("%w: subscription %s: unknown subscription mode %q", ErrConfig, sc.Name, sc.Mode)
 	}
-	if strings.ToUpper(sc.Mode) == "STREAM" && sc.StreamMode == "" {
-		sc.StreamMode = subscriptionDefaultStreamMode
-	}
-	if sc.Encoding == "" {
+	// validate encoding
+	switch strings.ToUpper(strings.ReplaceAll(sc.Encoding, "-", "_")) {
+	case "":
 		sc.Encoding = subscriptionDefaultEncoding
+	case "JSON":
+	case "BYTES":
+	case "PROTO":
+	case "ASCII":
+	case "JSON_IETF":
+	default:
+		// allow integer encoding values
+		_, err := strconv.Atoi(sc.Encoding)
+		if err != nil {
+			return fmt.Errorf("%w: subscription %s: unknown encoding type %q", ErrConfig, sc.Name, sc.Encoding)
+		}
+	}
+
+	// validate subscription stream mode
+	if strings.ToUpper(sc.Mode) == "STREAM" {
+		if len(sc.StreamSubscriptions) == 0 {
+			switch strings.ToUpper(strings.ReplaceAll(sc.StreamMode, "-", "_")) {
+			case "":
+				sc.StreamMode = subscriptionDefaultStreamMode
+			case "TARGET_DEFINED":
+			case "SAMPLE":
+			case "ON_CHANGE":
+			default:
+				return fmt.Errorf("%w: subscription %s: unknown stream-mode type %q", ErrConfig, sc.Name, sc.StreamMode)
+			}
+			return nil
+		}
+
+		// stream subscriptions
+		for i, scs := range sc.StreamSubscriptions {
+			if scs.Mode != "" {
+				return fmt.Errorf("%w: subscription %s/%d: 'mode' attribute cannot be set", ErrConfig, sc.Name, i)
+			}
+			if scs.Prefix != "" {
+				return fmt.Errorf("%w: subscription %s/%d: 'prefix' attribute cannot be set", ErrConfig, sc.Name, i)
+			}
+			if scs.Target != "" {
+				return fmt.Errorf("%w: subscription %s/%d: 'target' attribute cannot be set", ErrConfig, sc.Name, i)
+			}
+			if scs.SetTarget {
+				return fmt.Errorf("%w: subscription %s/%d: 'set-target' attribute cannot be set", ErrConfig, sc.Name, i)
+			}
+			if scs.Encoding != "" {
+				return fmt.Errorf("%w: subscription %s/%d: 'encoding' attribute cannot be set", ErrConfig, sc.Name, i)
+			}
+			if scs.History != nil {
+				return fmt.Errorf("%w: subscription %s/%d: 'history' attribute cannot be set", ErrConfig, sc.Name, i)
+			}
+			if scs.Models != nil {
+				return fmt.Errorf("%w: subscription %s/%d: 'models' attribute cannot be set", ErrConfig, sc.Name, i)
+			}
+			if scs.UpdatesOnly {
+				return fmt.Errorf("%w: subscription %s/%d: 'updates-only' attribute cannot be set", ErrConfig, sc.Name, i)
+			}
+			if scs.StreamSubscriptions != nil {
+				return fmt.Errorf("%w: subscription %s/%d: 'subscriptions' attribute cannot be set", ErrConfig, sc.Name, i)
+			}
+			if scs.Qos != nil {
+				return fmt.Errorf("%w: subscription %s/%d: 'qos' attribute cannot be set", ErrConfig, sc.Name, i)
+			}
+
+			switch strings.ReplaceAll(strings.ToUpper(scs.StreamMode), "-", "_") {
+			case "":
+				scs.StreamMode = subscriptionDefaultStreamMode
+			case "TARGET_DEFINED":
+			case "SAMPLE":
+			case "ON_CHANGE":
+			default:
+				return fmt.Errorf("%w: subscription %s/%d: unknown subscription stream mode %q", ErrConfig, sc.Name, i, scs.StreamMode)
+			}
+		}
 	}
 	return nil
 }
