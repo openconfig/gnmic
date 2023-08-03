@@ -11,6 +11,7 @@ package formatters
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 
 	flattener "github.com/karimra/go-map-flattener"
@@ -218,7 +219,8 @@ func getValueFlat(prefix string, updValue *gnmi.TypedValue) (map[string]interfac
 		values[prefix] = updValue.GetBytesVal()
 	case *gnmi.TypedValue_DecimalVal:
 		//lint:ignore SA1019 still need DecimalVal for backward compatibility
-		values[prefix] = updValue.GetDecimalVal()
+		v := updValue.GetDecimalVal()
+		values[prefix] = float64(v.Digits) / math.Pow10(int(v.Precision))
 	case *gnmi.TypedValue_FloatVal:
 		//lint:ignore SA1019 still need GetFloatVal for backward compatibility
 		values[prefix] = updValue.GetFloatVal()
