@@ -35,9 +35,9 @@ require (
 	github.com/nats-io/stan.go v0.10.4
 	github.com/nsf/termbox-go v1.1.1
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/openconfig/gnmi v0.9.1
+	github.com/openconfig/gnmi v0.10.0
 	github.com/openconfig/goyang v1.4.0
-	github.com/openconfig/ygot v0.29.2
+	github.com/openconfig/ygot v0.29.9
 	github.com/pkg/sftp v1.13.5
 	github.com/prometheus/client_golang v1.16.0
 	github.com/prometheus/client_model v0.4.0
@@ -50,7 +50,7 @@ require (
 	golang.org/x/crypto v0.11.0
 	golang.org/x/oauth2 v0.10.0
 	golang.org/x/sync v0.3.0
-	google.golang.org/grpc v1.56.1
+	google.golang.org/grpc v1.58.0-dev
 	google.golang.org/protobuf v1.31.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v2 v2.4.0
@@ -121,7 +121,7 @@ require (
 	github.com/rivo/uniseg v0.4.4 // indirect
 	github.com/zealic/xignore v0.3.3 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df // indirect
+	golang.org/x/exp v0.0.0-20230725093048-515e97ebf090 // indirect
 	golang.org/x/mod v0.11.0 // indirect
 	golang.org/x/term v0.10.0 // indirect
 	golang.org/x/tools v0.10.0 // indirect
