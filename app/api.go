@@ -287,6 +287,10 @@ func (a *App) handleClusteringGet(w http.ResponseWriter, r *http.Request) {
 	w.Write(b)
 }
 
+func (a *App) handleHealthzGet(w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte("I'm healthy!\n"))
+}
+
 func (a *App) handleClusteringMembersGet(w http.ResponseWriter, r *http.Request) {
 	if a.Config.Clustering == nil {
 		return
