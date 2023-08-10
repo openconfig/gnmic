@@ -41,6 +41,7 @@ const (
 	defaultRecoveryWaitTime = 10 * time.Second
 	defaultAddress          = "localhost:9092"
 	loggingPrefix           = "[kafka_output:%s] "
+	defaultCompressionCodec = sarama.CompressionNone
 )
 
 func init() {
@@ -84,6 +85,7 @@ type config struct {
 	MsgTemplate        string           `mapstructure:"msg-template,omitempty"`
 	SplitEvents        bool             `mapstructure:"split-events,omitempty"`
 	NumWorkers         int              `mapstructure:"num-workers,omitempty"`
+	CompressionCodec   string           `mapstructure:"compression-codec,omitempty"`
 	Debug              bool             `mapstructure:"debug,omitempty"`
 	BufferSize         int              `mapstructure:"buffer-size,omitempty"`
 	OverrideTimestamps bool             `mapstructure:"override-timestamps,omitempty"`
@@ -424,6 +426,19 @@ func (k *kafkaOutput) createConfig() (*sarama.Config, error) {
 	cfg.Producer.RequiredAcks = sarama.WaitForAll
 	cfg.Producer.Return.Successes = true
 	cfg.Producer.Timeout = k.Cfg.Timeout
+
+	switch k.Cfg.CompressionCodec {
+	case "gzip":
+		cfg.Producer.Compression = sarama.CompressionGZIP
+	case "snappy":
+		cfg.Producer.Compression = sarama.CompressionSnappy
+	case "zstd":
+		cfg.Producer.Compression = sarama.CompressionZSTD
+	case "lz4":
+		cfg.Producer.Compression = sarama.CompressionLZ4
+	default:
+		cfg.Producer.Compression = defaultCompressionCodec
+	}
 
 	return cfg, nil
 }
