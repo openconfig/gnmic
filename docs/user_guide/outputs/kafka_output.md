@@ -85,7 +85,9 @@ outputs:
     # (bool) enable debug
     debug: false 
     # (int) number of messages to buffer before being picked up by the workers
-    buffer-size: 0 
+    buffer-size: 0
+    # (string) enables compression of produced message. One of gzip, snappy, zstd, lz4
+    compression-codec: gzip
     # (bool) enables the collection and export (via prometheus) of output specific metrics
     enable-metrics: false 
     # list of processors to apply on the message before writing
