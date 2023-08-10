@@ -19,7 +19,7 @@ func (a *App) routes() {
 	a.clusterRoutes(apiV1)
 	a.configRoutes(apiV1)
 	a.targetRoutes(apiV1)
-
+	a.healthRoutes(apiV1)
 }
 
 func (a *App) clusterRoutes(r *mux.Router) {
@@ -58,4 +58,8 @@ func (a *App) targetRoutes(r *mux.Router) {
 	r.HandleFunc("/targets/{id}", a.handleTargetsGet).Methods(http.MethodGet)
 	r.HandleFunc("/targets/{id}", a.handleTargetsPost).Methods(http.MethodPost)
 	r.HandleFunc("/targets/{id}", a.handleTargetsDelete).Methods(http.MethodDelete)
+}
+
+func (a *App) healthRoutes(r *mux.Router) {
+	r.HandleFunc("/healthz", a.handleHealthzGet).Methods(http.MethodGet)
 }

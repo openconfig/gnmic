@@ -287,6 +287,17 @@ func (a *App) handleClusteringGet(w http.ResponseWriter, r *http.Request) {
 	w.Write(b)
 }
 
+func (a *App) handleHealthzGet(w http.ResponseWriter, r *http.Request) {
+	s := map[string]string{"status": "healthy",}
+	b, err := json.Marshal(s)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		return
+	}
+	w.Write(b)
+}
+
 func (a *App) handleClusteringMembersGet(w http.ResponseWriter, r *http.Request) {
 	if a.Config.Clustering == nil {
 		return
