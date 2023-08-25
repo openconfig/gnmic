@@ -37,6 +37,7 @@ type SubscriptionConfig struct {
 	UpdatesOnly         bool                  `mapstructure:"updates-only,omitempty" json:"updates-only,omitempty"`
 	History             *HistoryConfig        `mapstructure:"history,omitempty" json:"history,omitempty"`
 	StreamSubscriptions []*SubscriptionConfig `mapstructure:"stream-subscriptions,omitempty" json:"stream-subscriptions,omitempty"`
+	Outputs             []string              `mapstructure:"outputs,omitempty" json:"outputs,omitempty"`
 }
 
 type HistoryConfig struct {

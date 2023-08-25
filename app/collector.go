@@ -85,10 +85,20 @@ func (a *App) StartCollector(ctx context.Context) {
 					for k, v := range t.Config.EventTags {
 						m[k] = v
 					}
-					if a.subscriptionMode(rsp.SubscriptionName) == subscriptionModeONCE {
-						a.Export(ctx, rsp.Response, m, t.Config.Outputs...)
+
+					// Allow overridden outputs per subscription
+					// If both target and subscription have a specified Output, the subscription's Output will be used
+					var outs []string
+					if len(rsp.SubscriptionConfig.Outputs) > 0 {
+						outs = rsp.SubscriptionConfig.Outputs
 					} else {
-						go a.Export(ctx, rsp.Response, m, t.Config.Outputs...)
+						outs = t.Config.Outputs
+					}
+
+					if a.subscriptionMode(rsp.SubscriptionName) == subscriptionModeONCE {
+						a.Export(ctx, rsp.Response, m, outs...)
+					} else {
+						go a.Export(ctx, rsp.Response, m, outs...)
 					}
 					if remainingOnceSubscriptions > 0 {
 						if a.subscriptionMode(rsp.SubscriptionName) == subscriptionModeONCE {
