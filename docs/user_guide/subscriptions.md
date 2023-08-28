@@ -72,6 +72,10 @@ subscriptions:
     # boolean, if set to true, the target MUST not transmit the current state of the paths 
     # that the client has subscribed to, but rather should send only updates to them.
     updates-only:
+    # list of strings, the list of outputs to send updates to. If blank, defaults to all outputs
+    outputs:
+      - output1
+      - output2
     # list of subscription definition, this field is used to define multiple stream subscriptions (target-defined, sample or on-change)
     # that will be created using a single SubscribeRequest (i.e: share the same gRPC stream).
     # This field cannot be defined if `paths`, `stream-mode`, `sample-interval`, `heartbeat-interval` or`suppress-redundant` are set.
