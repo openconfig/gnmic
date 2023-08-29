@@ -93,6 +93,9 @@ func (o *MarshalOptions) formatSubscribeResponse(m *gnmi.SubscribeResponse, meta
 		}
 		t := time.Unix(0, m.Update.Timestamp)
 		msg.Time = &t
+		msg.RecvTimestamp = time.Now().UnixNano()
+		msg.LatencyNano = msg.RecvTimestamp - msg.Timestamp
+		msg.LatencyMilli = msg.LatencyNano / 1000 / 1000
 		if meta == nil {
 			meta = make(map[string]string)
 		}
