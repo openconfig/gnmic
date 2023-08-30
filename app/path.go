@@ -40,6 +40,7 @@ type generatedPath struct {
 	Path           string   `json:"path,omitempty"`
 	PathWithPrefix string   `json:"path-with-prefix,omitempty"`
 	Type           string   `json:"type,omitempty"`
+	EnumValues     []string `json:"enum-values,omitempty"`
 	Description    string   `json:"description,omitempty"`
 	Default        string   `json:"default,omitempty"`
 	IsState        bool     `json:"is-state,omitempty"`
@@ -335,6 +336,9 @@ func (a *App) generatePath(entry *yang.Entry, pType string) *generatedPath {
 	gp.Description = entry.Description
 	if entry.Type != nil {
 		gp.Type = entry.Type.Name
+		if gp.Type == "enumeration" {
+			gp.EnumValues = entry.Type.Enum.Names()
+		}
 	} else if entry.IsList() {
 		gp.Type = "[list]"
 	} else {
