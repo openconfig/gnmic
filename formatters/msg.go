@@ -23,6 +23,7 @@ type NotificationRspMsg struct {
 	Timestamp        int64                  `json:"timestamp,omitempty"`
 	Time             *time.Time             `json:"time,omitempty"`
 	RecvTimestamp    int64                  `json:"recvtimestamp,omitempty"`
+	RecvTime         *time.Time             `json:"recvtime,omitempty"`
 	LatencyNano      int64                  `json:"latencynano,omitempty"`
 	LatencyMilli     int64                  `json:"latencymilli,omitempty"`
 	Prefix           string                 `json:"prefix,omitempty"`
