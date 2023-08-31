@@ -1,5 +1,29 @@
 ## Changelog
 
+### v0.32.0 - August 31st 2023
+
+- TLS
+
+    - It is now possible to override the serverName used by gNMIc when verifying the server name present in the
+      certificate sent by the gNMI server. [PR](https://github.com/openconfig/gnmic/pull/173)
+
+- Subscription
+ 
+    - Added support for mixing on-change and sample stream subscription in the same gRPC stream. [PR](https://github.com/openconfig/gnmic/pull/197)
+    - Added support for attaching specific outputs to a subscription. [PR](https://github.com/openconfig/gnmic/pull/209)
+
+- REST API
+
+    - Added a health chek endpoint to be used by kubernetes. [PR](https://github.com/openconfig/gnmic/pull/202)
+
+- Kafka Output
+
+    - Added support for Kafka compression. [PR](https://github.com/openconfig/gnmic/pull/203)
+
+- Generate Path
+ 
+    - Added `enum-values` to the `JSON` output of `generate path` command. [PR](https://github.com/openconfig/gnmic/pull/215)
+
 ### v0.31.0 - May 17th 2023
 
 - Prometheus output
