@@ -67,3 +67,5 @@ api-server:
 * [Targets](./targets.md)
 
 * [Cluster](./cluster.md)
+
+* [Other](./other.md)
