@@ -1,5 +1,5 @@
 
-# /api/v1/config
+# Configuration
 
 ## /api/v1/config
 
