@@ -525,6 +525,36 @@ var createSetRequestTestSet = map[string]struct {
 		},
 		err: nil,
 	},
+	"set_union_replace_path_request": {
+		in: &Config{
+			GlobalFlags{
+				Encoding: "json",
+			},
+			LocalFlags{
+				SetUnionReplacePath:  []string{"/valid/path"},
+				SetUnionReplaceValue: []string{"value"},
+			},
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		},
+		out: &gnmi.SetRequest{
+			UnionReplace: []*gnmi.Update{
+				{
+					Path: &gnmi.Path{
+						Elem: []*gnmi.PathElem{
+							{Name: "valid"},
+							{Name: "path"},
+						},
+					},
+					Val: &gnmi.TypedValue{
+						Value: &gnmi.TypedValue_JsonVal{
+							JsonVal: []byte("\"value\""),
+						},
+					},
+				},
+			},
+		},
+		err: nil,
+	},
 }
 
 var execPathTemplateTestSet = map[string]struct {

@@ -129,25 +129,29 @@ type LocalFlags struct {
 	GetValuesOnly bool     `mapstructure:"get-values-only,omitempty" json:"get-values-only,omitempty" yaml:"get-values-only,omitempty"`
 	GetProcessor  []string `mapstructure:"get-processor,omitempty" json:"get-processor,omitempty" yaml:"get-processor,omitempty"`
 	// Set
-	SetPrefix         string   `mapstructure:"set-prefix,omitempty" json:"set-prefix,omitempty" yaml:"set-prefix,omitempty"`
-	SetDelete         []string `mapstructure:"set-delete,omitempty" json:"set-delete,omitempty" yaml:"set-delete,omitempty"`
-	SetReplace        []string `mapstructure:"set-replace,omitempty" json:"set-replace,omitempty" yaml:"set-replace,omitempty"`
-	SetUpdate         []string `mapstructure:"set-update,omitempty" json:"set-update,omitempty" yaml:"set-update,omitempty"`
-	SetReplacePath    []string `mapstructure:"set-replace-path,omitempty" json:"set-replace-path,omitempty" yaml:"set-replace-path,omitempty"`
-	SetUpdatePath     []string `mapstructure:"set-update-path,omitempty" json:"set-update-path,omitempty" yaml:"set-update-path,omitempty"`
-	SetReplaceFile    []string `mapstructure:"set-replace-file,omitempty" json:"set-replace-file,omitempty" yaml:"set-replace-file,omitempty"`
-	SetUpdateFile     []string `mapstructure:"set-update-file,omitempty" json:"set-update-file,omitempty" yaml:"set-update-file,omitempty"`
-	SetReplaceValue   []string `mapstructure:"set-replace-value,omitempty" json:"set-replace-value,omitempty" yaml:"set-replace-value,omitempty"`
-	SetUpdateValue    []string `mapstructure:"set-update-value,omitempty" json:"set-update-value,omitempty" yaml:"set-update-value,omitempty"`
-	SetDelimiter      string   `mapstructure:"set-delimiter,omitempty" json:"set-delimiter,omitempty" yaml:"set-delimiter,omitempty"`
-	SetTarget         string   `mapstructure:"set-target,omitempty" json:"set-target,omitempty" yaml:"set-target,omitempty"`
-	SetRequestFile    []string `mapstructure:"set-request-file,omitempty" json:"set-request-file,omitempty" yaml:"set-request-file,omitempty"`
-	SetRequestVars    string   `mapstructure:"set-request-vars,omitempty" json:"set-request-vars,omitempty" yaml:"set-request-vars,omitempty"`
-	SetDryRun         bool     `mapstructure:"set-dry-run,omitempty" json:"set-dry-run,omitempty" yaml:"set-dry-run,omitempty"`
-	SetReplaceCli     []string `mapstructure:"set-replace-cli,omitempty" yaml:"set-replace-cli,omitempty" json:"set-replace-cli,omitempty"`
-	SetReplaceCliFile string   `mapstructure:"set-replace-cli-file,omitempty" yaml:"set-replace-cli-file,omitempty" json:"set-replace-cli-file,omitempty"`
-	SetUpdateCli      []string `mapstructure:"set-update-cli,omitempty" yaml:"set-update-cli,omitempty" json:"set-update-cli,omitempty"`
-	SetUpdateCliFile  string   `mapstructure:"set-update-cli-file,omitempty" yaml:"set-update-cli-file,omitempty" json:"set-update-cli-file,omitempty"`
+	SetPrefix            string   `mapstructure:"set-prefix,omitempty" json:"set-prefix,omitempty" yaml:"set-prefix,omitempty"`
+	SetDelete            []string `mapstructure:"set-delete,omitempty" json:"set-delete,omitempty" yaml:"set-delete,omitempty"`
+	SetReplace           []string `mapstructure:"set-replace,omitempty" json:"set-replace,omitempty" yaml:"set-replace,omitempty"`
+	SetUnionReplace      []string `mapstructure:"set-union-replace,omitempty" json:"set-union-replace,omitempty" yaml:"set-union-replace,omitempty"`
+	SetUpdate            []string `mapstructure:"set-update,omitempty" json:"set-update,omitempty" yaml:"set-update,omitempty"`
+	SetReplacePath       []string `mapstructure:"set-replace-path,omitempty" json:"set-replace-path,omitempty" yaml:"set-replace-path,omitempty"`
+	SetUpdatePath        []string `mapstructure:"set-update-path,omitempty" json:"set-update-path,omitempty" yaml:"set-update-path,omitempty"`
+	SetReplaceFile       []string `mapstructure:"set-replace-file,omitempty" json:"set-replace-file,omitempty" yaml:"set-replace-file,omitempty"`
+	SetUpdateFile        []string `mapstructure:"set-update-file,omitempty" json:"set-update-file,omitempty" yaml:"set-update-file,omitempty"`
+	SetReplaceValue      []string `mapstructure:"set-replace-value,omitempty" json:"set-replace-value,omitempty" yaml:"set-replace-value,omitempty"`
+	SetUpdateValue       []string `mapstructure:"set-update-value,omitempty" json:"set-update-value,omitempty" yaml:"set-update-value,omitempty"`
+	SetUnionReplacePath  []string `mapstructure:"set-union-replace-path,omitempty" yaml:"set-union-replace-path,omitempty" json:"set-union-replace-path,omitempty"`
+	SetUnionReplaceValue []string `mapstructure:"set-union-replace-value,omitempty" yaml:"set-union-replace-value,omitempty" json:"set-union-replace-value,omitempty"`
+	SetUnionReplaceFile  []string `mapstructure:"set-union-replace-file,omitempty" yaml:"set-union-replace-file,omitempty" json:"set-union-replace-file,omitempty"`
+	SetDelimiter         string   `mapstructure:"set-delimiter,omitempty" json:"set-delimiter,omitempty" yaml:"set-delimiter,omitempty"`
+	SetTarget            string   `mapstructure:"set-target,omitempty" json:"set-target,omitempty" yaml:"set-target,omitempty"`
+	SetRequestFile       []string `mapstructure:"set-request-file,omitempty" json:"set-request-file,omitempty" yaml:"set-request-file,omitempty"`
+	SetRequestVars       string   `mapstructure:"set-request-vars,omitempty" json:"set-request-vars,omitempty" yaml:"set-request-vars,omitempty"`
+	SetDryRun            bool     `mapstructure:"set-dry-run,omitempty" json:"set-dry-run,omitempty" yaml:"set-dry-run,omitempty"`
+	SetReplaceCli        []string `mapstructure:"set-replace-cli,omitempty" yaml:"set-replace-cli,omitempty" json:"set-replace-cli,omitempty"`
+	SetReplaceCliFile    string   `mapstructure:"set-replace-cli-file,omitempty" yaml:"set-replace-cli-file,omitempty" json:"set-replace-cli-file,omitempty"`
+	SetUpdateCli         []string `mapstructure:"set-update-cli,omitempty" yaml:"set-update-cli,omitempty" json:"set-update-cli,omitempty"`
+	SetUpdateCliFile     string   `mapstructure:"set-update-cli-file,omitempty" yaml:"set-update-cli-file,omitempty" json:"set-update-cli-file,omitempty"`
 	// Sub
 	SubscribePrefix            string        `mapstructure:"subscribe-prefix,omitempty" json:"subscribe-prefix,omitempty" yaml:"subscribe-prefix,omitempty"`
 	SubscribePath              []string      `mapstructure:"subscribe-path,omitempty" json:"subscribe-path,omitempty" yaml:"subscribe-path,omitempty"`
@@ -582,9 +586,17 @@ func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error)
 		c.logger.Printf("Set input replace path(s): %+v", &c.LocalFlags.SetReplacePath)
 		c.logger.Printf("Set input replace value(s): %+v", &c.LocalFlags.SetReplaceValue)
 		c.logger.Printf("Set input replace file(s): %+v", &c.LocalFlags.SetReplaceFile)
+		c.logger.Printf("Set input union replace path(s): %+v", &c.LocalFlags.SetUnionReplacePath)
+		c.logger.Printf("Set input union replace value(s): %+v", &c.LocalFlags.SetUnionReplaceValue)
+		c.logger.Printf("Set input union replace file(s): %+v", &c.LocalFlags.SetUnionReplaceFile)
 	}
 
-	gnmiOpts := make([]api.GNMIOption, 0)
+	gnmiOpts := make([]api.GNMIOption, 0, 2+ // prefix+target
+		len(c.LocalFlags.SetDelete)+len(c.LocalFlags.SetUpdate)+len(c.LocalFlags.SetReplace)+len(c.LocalFlags.SetUnionReplace)+
+		len(c.LocalFlags.SetUpdatePath)+len(c.LocalFlags.SetReplacePath)+len(c.LocalFlags.SetUnionReplacePath)+
+		1+1+ // updateCli + replaceCli
+		1+1, // updateCliFile + replaceCliFile
+	)
 	gnmiOpts = append(gnmiOpts,
 		api.Prefix(c.LocalFlags.SetPrefix),
 		api.Target(c.LocalFlags.SetTarget),
@@ -594,7 +606,7 @@ func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error)
 	}
 
 	for _, u := range c.LocalFlags.SetUpdate {
-		singleUpdate := strings.Split(u, c.LocalFlags.SetDelimiter)
+		singleUpdate := strings.SplitN(u, c.LocalFlags.SetDelimiter, 3)
 		if len(singleUpdate) < 3 {
 			return nil, fmt.Errorf("invalid inline update format: %s", c.LocalFlags.SetUpdate)
 		}
@@ -607,7 +619,7 @@ func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error)
 	}
 
 	for _, r := range c.LocalFlags.SetReplace {
-		singleReplace := strings.Split(r, c.LocalFlags.SetDelimiter)
+		singleReplace := strings.SplitN(r, c.LocalFlags.SetDelimiter, 3)
 		if len(singleReplace) < 3 {
 			return nil, fmt.Errorf("invalid inline replace format: %s", c.LocalFlags.SetReplace)
 		}
@@ -619,8 +631,22 @@ func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error)
 		)
 	}
 
+	for _, r := range c.LocalFlags.SetUnionReplace {
+		singleUnionReplace := strings.SplitN(r, c.LocalFlags.SetDelimiter, 3)
+		if len(singleUnionReplace) < 3 {
+			return nil, fmt.Errorf("invalid inline union-replace format: %s'", c.LocalFlags.SetReplace)
+		}
+		gnmiOpts = append(gnmiOpts,
+			api.UnionReplace(
+				api.Path(strings.TrimSpace(singleUnionReplace[0])),
+				api.Value(singleUnionReplace[2], singleUnionReplace[1]),
+			),
+		)
+	}
+
 	useUpdateFiles := len(c.LocalFlags.SetUpdateFile) > 0 && len(c.LocalFlags.SetUpdateValue) == 0
 	useReplaceFiles := len(c.LocalFlags.SetReplaceFile) > 0 && len(c.LocalFlags.SetReplaceValue) == 0
+	useUnionReplaceFiles := len(c.LocalFlags.SetUnionReplaceFile) > 0 && len(c.LocalFlags.SetUnionReplaceValue) == 0
 
 	for i, p := range c.LocalFlags.SetUpdatePath {
 		var updOpt api.GNMIOption
@@ -665,6 +691,29 @@ func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error)
 		}
 		gnmiOpts = append(gnmiOpts, replaceOpt)
 	}
+
+	for i, p := range c.LocalFlags.SetUnionReplacePath {
+		var unionReplaceOpt api.GNMIOption
+		if useUnionReplaceFiles {
+			replaceData, err := readFile(c.LocalFlags.SetUnionReplaceFile[i])
+			if err != nil {
+				c.logger.Printf("error reading data from file '%s': %v", c.LocalFlags.SetUnionReplaceFile[i], err)
+				return nil, err
+			}
+			unionReplaceOpt = api.UnionReplace(
+				api.Path(strings.TrimSpace(p)),
+				api.Value(string(bytes.Trim(replaceData, " \r\n\t")), c.Encoding),
+			)
+
+		} else {
+			unionReplaceOpt = api.UnionReplace(
+				api.Path(strings.TrimSpace(p)),
+				api.Value(c.LocalFlags.SetUnionReplaceValue[i], c.Encoding),
+			)
+		}
+		gnmiOpts = append(gnmiOpts, unionReplaceOpt)
+	}
+
 	if len(c.LocalFlags.SetUpdateCli) > 0 {
 		gnmiOpts = append(gnmiOpts,
 			api.Update(
@@ -789,8 +838,8 @@ func (c *Config) ValidateSetInput() error {
 	if err != nil {
 		return err
 	}
-	if (len(c.LocalFlags.SetDelete)+len(c.LocalFlags.SetUpdate)+len(c.LocalFlags.SetReplace)) == 0 &&
-		(len(c.LocalFlags.SetUpdatePath)+len(c.LocalFlags.SetReplacePath)) == 0 &&
+	if (len(c.LocalFlags.SetDelete)+len(c.LocalFlags.SetUpdate)+len(c.LocalFlags.SetReplace)+len(c.LocalFlags.SetUnionReplace)) == 0 &&
+		(len(c.LocalFlags.SetUpdatePath)+len(c.LocalFlags.SetReplacePath)+len(c.LocalFlags.SetUnionReplacePath)) == 0 &&
 		len(c.LocalFlags.SetRequestFile) == 0 &&
 		len(c.LocalFlags.SetReplaceCli) == 0 &&
 		len(c.LocalFlags.SetUpdateCli) == 0 &&
@@ -804,11 +853,17 @@ func (c *Config) ValidateSetInput() error {
 	if len(c.LocalFlags.SetReplaceFile) > 0 && len(c.LocalFlags.SetReplaceValue) > 0 {
 		return errors.New("set replace from file and value are not supported in the same command")
 	}
+	if len(c.LocalFlags.SetUnionReplaceFile) > 0 && len(c.LocalFlags.SetUnionReplaceValue) > 0 {
+		return errors.New("set union-replace from file and value are not supported in the same command")
+	}
 	if len(c.LocalFlags.SetUpdatePath) != len(c.LocalFlags.SetUpdateValue) && len(c.LocalFlags.SetUpdatePath) != len(c.LocalFlags.SetUpdateFile) {
 		return errors.New("missing update value/file or path")
 	}
 	if len(c.LocalFlags.SetReplacePath) != len(c.LocalFlags.SetReplaceValue) && len(c.LocalFlags.SetReplacePath) != len(c.LocalFlags.SetReplaceFile) {
 		return errors.New("missing replace value/file or path")
+	}
+	if len(c.LocalFlags.SetUnionReplacePath) != len(c.LocalFlags.SetUnionReplaceValue) && len(c.LocalFlags.SetUnionReplacePath) != len(c.LocalFlags.SetUnionReplaceFile) {
+		return errors.New("missing union-replace value/file or path")
 	}
 	return nil
 }

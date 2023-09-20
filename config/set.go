@@ -36,9 +36,10 @@ type UpdateItem struct {
 }
 
 type SetRequestFile struct {
-	Updates  []*UpdateItem `json:"updates,omitempty" yaml:"updates,omitempty"`
-	Replaces []*UpdateItem `json:"replaces,omitempty" yaml:"replaces,omitempty"`
-	Deletes  []string      `json:"deletes,omitempty" yaml:"deletes,omitempty"`
+	Updates       []*UpdateItem `json:"updates,omitempty" yaml:"updates,omitempty"`
+	Replaces      []*UpdateItem `json:"replaces,omitempty" yaml:"replaces,omitempty"`
+	UnionReplaces []*UpdateItem `json:"union-replaces,omitempty" yaml:"union-replaces,omitempty"`
+	Deletes       []string      `json:"deletes,omitempty" yaml:"deletes,omitempty"`
 }
 
 func (c *Config) ReadSetRequestTemplate() error {
@@ -185,6 +186,35 @@ func (c *Config) CreateSetRequestFromFile(targetName string) ([]*gnmi.SetRequest
 			),
 			)
 		}
+		for _, upd := range reqFile.UnionReplaces {
+			if upd.Path == "" {
+				upd.Path = "/"
+			}
+			enc := upd.Encoding
+			if enc == "" {
+				enc = c.GlobalFlags.Encoding
+			}
+			buf.Reset()
+			switch {
+			case upd.Path == "cli:/":
+				val, ok := upd.Value.(string)
+				if !ok {
+					return nil, fmt.Errorf("value %v is not a string", upd.Value)
+				}
+				buf.WriteString(val)
+			default:
+				err = json.NewEncoder(buf).Encode(convert(upd.Value))
+				if err != nil {
+					return nil, err
+				}
+			}
+			gnmiOpts = append(gnmiOpts, api.UnionReplace(
+				api.Path(strings.TrimSpace(upd.Path)),
+				api.Value(strings.TrimSpace(buf.String()), enc),
+			),
+			)
+		}
+
 		for _, s := range reqFile.Deletes {
 			gnmiOpts = append(gnmiOpts, api.Delete(strings.TrimSpace(s)))
 		}

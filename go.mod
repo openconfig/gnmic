@@ -19,7 +19,7 @@ require (
 	github.com/gosnmp/gosnmp v1.35.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/hairyhenderson/gomplate/v3 v3.11.5
-	github.com/hashicorp/consul/api v1.22.0
+	github.com/hashicorp/consul/api v1.25.1
 	github.com/huandu/xstrings v1.4.0
 	github.com/influxdata/influxdb-client-go/v2 v2.12.3
 	github.com/itchyny/gojq v0.12.13
@@ -35,8 +35,8 @@ require (
 	github.com/nats-io/stan.go v0.10.4
 	github.com/nsf/termbox-go v1.1.1
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/openconfig/gnmi v0.9.1
-	github.com/openconfig/goyang v1.4.0
+	github.com/openconfig/gnmi v0.10.0
+	github.com/openconfig/goyang v1.4.1
 	github.com/openconfig/ygot v0.29.2
 	github.com/pkg/sftp v1.13.5
 	github.com/prometheus/client_golang v1.16.0
@@ -245,7 +245,7 @@ require (
 	go4.org/intern v0.0.0-20230205224052-192e9f60865c // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20230204201903-c31fa085b70e // indirect
 	gocloud.dev v0.25.1-0.20220408200107-09b10f7359f7 // indirect
-	golang.org/x/net v0.12.0
+	golang.org/x/net v0.13.0
 	golang.org/x/sys v0.10.0 // indirect
 	golang.org/x/text v0.11.0
 	golang.org/x/time v0.3.0 // indirect
