@@ -32,18 +32,73 @@ gnmic set --update "openconfig-interfaces:/interfaces/interface:::<type>:::<valu
 
 ### target
 
-With the optional `[--target]` flag it is possible to supply the [path target](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#2221-path-target) information in the prefix field of the SetRequest message.
+With the optional `[--target]` flag it is possible to supply the [path target](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#2221-path-target) information in the prefix field of a SetRequest message.
 
 ### dry-run
 
 The `--dry-run` flag allow to run a Set request without sending it to the targets.
 This is useful while developing templated Set requests.
 
+### delete
+
+The `--delete` flag allows creating a [SetRequest.Delete](https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto#L337) as part of teh SetRequest message.
+
+### replace
+
+The `--replace` flag allows creating a [SetRequest.Replace](https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto#L338) as part of a SetRequest message.
+It is expected to be in the format `$path:::$type:::$value`, where `$path` is the gNMI path of the object to replace, `$type` is the type of the value and `$value` is the replacement value.
+
+### update
+
+The `--update` flag allows creating a [SetRequest.Update](https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto#L339) as part of a SetRequest message.
+It is expected to be in the format `$path:::$type:::$value`, where `$path` is the gNMI path of the object to update, `$type` is the type of the value and `$value` is the update value.
+
+### replace-path and replace-value
+
+The `--replace-path` and `--replace-value` flags are equivalent to the `--replace` flag, where the path and value are split and the type is deduced from the `[-e | --encoding]` global flag.
+
+### update-path and update-value
+
+The `--update-path` and `--update-value` flags are equivalent to the `--update` flag, where the path and value are split and the type is deduced from the `[-e | --encoding]` global flag.
+
+### replace-path and replace-file
+
+The `--replace-path` and `--replace-file` flags are equivalent to the `--replace` flag, where the path and value are split and the type is deduced from the `[-e | --encoding]` global flag.
+
+### update-path and update-file
+
+The `--update-path` and `--update-file` flags are equivalent to the `--update` flag, where the path and value are split and the type is deduced from the `[-e | --encoding]` global flag.
+
+### replace-cli
+
+The `--replace-cli` flag allows setting a [SetRequest.Replace](https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto#L338) as part of a SetRequest message.
+It expects a single CLI command which will form the value path of the Replace, the path will be set to the CLI origin `cli`.
+
+### replace-cli-file
+
+The `--replace-cli` flag allows setting a [SetRequest.Replace](https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto#L338) as part of a SetRequest message.
+It expects a file containing one or multiple CLI commands which will form the value path of the Replace, the path will be set to the CLI origin `cli`.
+
+### update-cli
+
+The `--update-cli` flag allows setting a [SetRequest.Update](https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto#L339) as part of a SetRequest message.
+It expects a single CLI command which will form the value path of the Replace, the path will be set to the CLI origin `cli`.
+
+### update-cli-file
+
+The `--update-cli` flag allows setting a [SetRequest.Update](https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto#L339) as part of a SetRequest message.
+It expects a file containing one or multiple CLI commands which will form the value path of the Replace, the path will be set to the CLI origin `cli`.
+
+### request-file and request-vars
+
+See [this section](#templated-set-request-file) below.
+
 ## Update Request
 
 There are several ways to perform an update operation with gNMI Set RPC:
 
 #### 1. in-line update, implicit type
+
 Using both `--update-path` and `--update-value` flags, a user can update a value for a given path.
 
 ```bash
@@ -53,7 +108,7 @@ gnmic set --update-path /configure/router[router-name=Base]/interface[interface-
           --update-value enable
 ```
 
-The above 2 updates can be combined in the same cli command:
+The above 2 updates can be combined in the same CLI command:
 
 ```bash
 gnmic set --update-path /configure/system/name \
@@ -133,7 +188,7 @@ gnmic set --replace-path /configure/router[router-name=Base]/interface[interface
           --replace-value enable
 ```
 
-The above 2 commands can be packed in the same cli command:
+The above 2 commands can be packed in the same CLI command:
 
 ```bash
 gnmic set --replace-path /configure/system/name \
@@ -434,7 +489,7 @@ Result Request file per target:
               admin-state: enable
               ipv4:
                 address:
-                  - ip-prefix: 192.168.88.1/30 
+                  - ip-prefix: 192.168.88.1/30
       - path: /interface[name=ethernet-1/2]
         encoding: "json_ietf"
         value: 
@@ -445,7 +500,7 @@ Result Request file per target:
               admin-state: enable
               ipv4:
                 address:
-                  - ip-prefix: 192.168.89.1/30 
+                  - ip-prefix: 192.168.89.1/30
     ```
 === "leaf3"
     ```yaml
@@ -460,7 +515,7 @@ Result Request file per target:
               admin-state: enable
               ipv4:
                 address:
-                  - ip-prefix: 192.168.98.1/30 
+                  - ip-prefix: 192.168.98.1/30
       - path: /interface[name=ethernet-1/2]
         encoding: "json_ietf"
         value: 
@@ -471,18 +526,22 @@ Result Request file per target:
               admin-state: enable
               ipv4:
                 address:
-                  - ip-prefix: 192.168.99.1/30 
+                  - ip-prefix: 192.168.99.1/30
     ```
 
 ## Examples
-#### 1. update
-##### in-line value
+
+### 1. update
+
+#### in-line value
+
 ```bash
 gnmic -a <ip:port> set --update-path /configure/system/name \
                        --update-value <system_name>
 ```
 
-##### value from JSON file
+#### value from JSON file
+
 ```bash
 cat jsonFile.json
 {"name": "router1"}
@@ -497,14 +556,16 @@ echo '{"name": "router1"}' | gnmic -a <ip:port> set \
                              --update-file -
 ```
 
-##### specify value type
+#### specify value type
+
 ```bash
 gnmic -a <ip:port> set --update /configure/system/name:::json:::router1
 gnmic -a <ip:port> set --update /configure/system/name@json@router1 \
                        --delimiter @
 ```
 
-#### 2. replace
+### 2. replace
+
 ```bash
 cat interface.json
 {"address": "1.1.1.1", "prefix-length": 32}
@@ -520,7 +581,8 @@ echo '{"address": "1.1.1.1", "prefix-length": 32}' | gnmic -a <ip:port> --insecu
           --replace-file -
 ```
 
-#### 3. delete
+### 3. delete
+
 ```bash
 gnmic -a <ip:port> --insecure set --delete /configure/router[router-name=Base]/interface[interface-name=interface1]
 ```
