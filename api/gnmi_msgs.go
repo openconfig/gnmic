@@ -1288,3 +1288,28 @@ func OperationREPLACE() func(msg proto.Message) error {
 func OperationUPDATE() func(msg proto.Message) error {
 	return Operation("UPDATE")
 }
+
+// UnionReplace creates a GNMIOption that creates a *gnmi.Update message and adds it to the supplied proto.Message.
+// the supplied message must be a *gnmi.SetRequest.
+func UnionReplace(opts ...GNMIOption) func(msg proto.Message) error {
+	return func(msg proto.Message) error {
+		if msg == nil {
+			return ErrInvalidMsgType
+		}
+		switch msg := msg.ProtoReflect().Interface().(type) {
+		case *gnmi.SetRequest:
+			if len(msg.UnionReplace) == 0 {
+				msg.UnionReplace = make([]*gnmi.Update, 0)
+			}
+			upd := new(gnmi.Update)
+			err := apply(upd, opts...)
+			if err != nil {
+				return err
+			}
+			msg.UnionReplace = append(msg.UnionReplace, upd)
+		default:
+			return fmt.Errorf("option UnionReplace: %w: %T", ErrInvalidMsgType, msg)
+		}
+		return nil
+	}
+}
