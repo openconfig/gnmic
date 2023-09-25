@@ -13,12 +13,12 @@ on:
     tags:
       - v*
 env:
-  GOVER: 1.20.5
+  GOVER: 1.21.1
   GORELEASER_VER: v1.19.2
 
 jobs:
   test:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v4
@@ -29,7 +29,7 @@ jobs:
           CGO_ENABLED: 0
 
   release:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs:
       - test
     steps:

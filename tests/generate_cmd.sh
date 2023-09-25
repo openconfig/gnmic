@@ -7,20 +7,20 @@ DIR_NAME="$(pwd)/srl-latest-yang-models"
 docker pull ghcr.io/nokia/srlinux
 id=$(docker create ghcr.io/nokia/srlinux)
 mkdir -p $DIR_NAME
-docker cp $id:/opt/srlinux/models/. $DIR_NAME
-docker rm $id
+sudo docker cp $id:/opt/srlinux/models/. $DIR_NAME
+sudo docker rm $id
 ls -l srl-latest-yang-models
 
-sed -i 's|modifier "invert-match";|//modifier "invert-match";|g' srl-latest-yang-models/srl_nokia/models/common/srl_nokia-common.yang
+sudo sed -i 's|modifier "invert-match";|//modifier "invert-match";|g' srl-latest-yang-models/srl_nokia/models/common/srl_nokia-common.yang
 
-./gnmic-rc1 generate --path /interface/subinterface --file  srl-latest-yang-models/srl_nokia/models --dir srl-latest-yang-models/ietf --exclude ".tools."
-./gnmic-rc1 generate --path /interface/subinterface --file  srl-latest-yang-models/srl_nokia/models --dir srl-latest-yang-models/ietf --exclude ".tools." --camel-case
-./gnmic-rc1 generate --path /interface/subinterface --file  srl-latest-yang-models/srl_nokia/models --dir srl-latest-yang-models/ietf --exclude ".tools." --snake-case
+./gnmic-rc1 generate --path /interface/subinterface --file  srl-latest-yang-models/srl_nokia/models --dir srl-latest-yang-models --exclude ".tools."
+./gnmic-rc1 generate --path /interface/subinterface --file  srl-latest-yang-models/srl_nokia/models --dir srl-latest-yang-models --exclude ".tools." --camel-case
+./gnmic-rc1 generate --path /interface/subinterface --file  srl-latest-yang-models/srl_nokia/models --dir srl-latest-yang-models --exclude ".tools." --snake-case
 
-./gnmic-rc1 generate --path /network-instance/protocols/bgp --file  srl-latest-yang-models/srl_nokia/models --dir srl-latest-yang-models/ietf --exclude ".tools."
+./gnmic-rc1 generate --path /network-instance/protocols/bgp --file  srl-latest-yang-models/srl_nokia/models --dir srl-latest-yang-models --exclude ".tools."
 #./gnmic-rc1 generate --path /network-instance/protocols/bgp --file  srl-latest-yang-models/srl_nokia/models --dir srl-latest-yang-models/ietf --exclude ".tools." --camel-case
-./gnmic-rc1 generate --path /network-instance/protocols/bgp --file  srl-latest-yang-models/srl_nokia/models --dir srl-latest-yang-models/ietf --exclude ".tools." --snake-case
+./gnmic-rc1 generate --path /network-instance/protocols/bgp --file  srl-latest-yang-models/srl_nokia/models --dir srl-latest-yang-models --exclude ".tools." --snake-case
 
-./gnmic-rc1 generate --path /interface/subinterface --file  srl-latest-yang-models/srl_nokia/models --dir srl-latest-yang-models/ietf --exclude ".tools." --config-only
-./gnmic-rc1 generate --path /interface/subinterface --file  srl-latest-yang-models/srl_nokia/models --dir srl-latest-yang-models/ietf --exclude ".tools." --config-only --camel-case
-./gnmic-rc1 generate --path /interface/subinterface --file  srl-latest-yang-models/srl_nokia/models --dir srl-latest-yang-models/ietf --exclude ".tools." --config-only --snake-case
+./gnmic-rc1 generate --path /interface/subinterface --file  srl-latest-yang-models/srl_nokia/models --dir srl-latest-yang-models --exclude ".tools." --config-only
+./gnmic-rc1 generate --path /interface/subinterface --file  srl-latest-yang-models/srl_nokia/models --dir srl-latest-yang-models --exclude ".tools." --config-only --camel-case
+./gnmic-rc1 generate --path /interface/subinterface --file  srl-latest-yang-models/srl_nokia/models --dir srl-latest-yang-models --exclude ".tools." --config-only --snake-case
