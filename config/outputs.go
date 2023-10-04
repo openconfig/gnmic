@@ -21,9 +21,10 @@ func (c *Config) GetOutputs() (map[string]map[string]interface{}, error) {
 	outDef := c.FileConfig.GetStringMap("outputs")
 	if len(outDef) == 0 && !c.FileConfig.GetBool("subscribe-quiet") {
 		stdoutConfig := map[string]interface{}{
-			"type":      "file",
-			"file-type": "stdout",
-			"format":    c.FileConfig.GetString("format"),
+			"type":              "file",
+			"file-type":         "stdout",
+			"format":            c.FileConfig.GetString("format"),
+			"calculate-latency": c.FileConfig.GetBool("calculate-latency"),
 		}
 		outDef["default-stdout"] = stdoutConfig
 	}

@@ -304,3 +304,13 @@ Applied only in the case of a secure gRPC connection.
 ### username
 
 The username flag `[-u | --username]` is used to specify the target username as part of the user credentials.
+
+### calculate-latency
+
+The `calculate-latency` flag augments subscribe et get responses by calculating the delta between the message timestamp and the receive timestamp.
+The resulting message will include 4 extra fields:
+
+* `recv-timestamp`:The receive timestamp in nanoseconds.
+* `recv-time`: The receive time in ISO 8601 date and time representation, extended to include fractional seconds and a time zone offset..
+* `latency-nano`: The difference between the message timestamp and the receive time in nanoseconds.
+* `latency-milli`: The difference between the message timestamp and the receive time in milliseconds.

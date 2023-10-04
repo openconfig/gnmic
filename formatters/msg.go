@@ -22,10 +22,10 @@ type NotificationRspMsg struct {
 	SubscriptionName string                 `json:"subscription-name,omitempty"`
 	Timestamp        int64                  `json:"timestamp,omitempty"`
 	Time             *time.Time             `json:"time,omitempty"`
-	RecvTimestamp    int64                  `json:"recvtimestamp,omitempty"`
-	RecvTime         *time.Time             `json:"recvtime,omitempty"`
-	LatencyNano      int64                  `json:"latencynano,omitempty"`
-	LatencyMilli     int64                  `json:"latencymilli,omitempty"`
+	RecvTimestamp    int64                  `json:"recv-timestamp,omitempty"`
+	RecvTime         *time.Time             `json:"recv-time,omitempty"`
+	LatencyNano      int64                  `json:"latency-nano,omitempty"`
+	LatencyMilli     int64                  `json:"latency-milli,omitempty"`
 	Prefix           string                 `json:"prefix,omitempty"`
 	Target           string                 `json:"target,omitempty"`
 	Updates          []update               `json:"updates,omitempty"`

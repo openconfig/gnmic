@@ -93,11 +93,13 @@ func (o *MarshalOptions) formatSubscribeResponse(m *gnmi.SubscribeResponse, meta
 		}
 		t := time.Unix(0, m.Update.Timestamp)
 		msg.Time = &t
-		msg.RecvTimestamp = time.Now().UnixNano()
-		rt := time.Unix(0, msg.RecvTimestamp)
-		msg.RecvTime = &rt
-		msg.LatencyNano = msg.RecvTimestamp - msg.Timestamp
-		msg.LatencyMilli = msg.LatencyNano / 1000 / 1000
+		if o.CalculateLatency {
+			msg.RecvTimestamp = time.Now().UnixNano()
+			rt := time.Unix(0, msg.RecvTimestamp)
+			msg.RecvTime = &rt
+			msg.LatencyNano = msg.RecvTimestamp - msg.Timestamp
+			msg.LatencyMilli = msg.LatencyNano / 1000 / 1000
+		}
 		if meta == nil {
 			meta = make(map[string]string)
 		}
@@ -211,6 +213,13 @@ func (o *MarshalOptions) formatGetResponse(m *gnmi.GetResponse, meta map[string]
 		msg.Timestamp = notif.Timestamp
 		t := time.Unix(0, notif.Timestamp)
 		msg.Time = &t
+		if o.CalculateLatency && !o.ValuesOnly {
+			msg.RecvTimestamp = time.Now().UnixNano()
+			rt := time.Unix(0, msg.RecvTimestamp)
+			msg.RecvTime = &rt
+			msg.LatencyNano = msg.RecvTimestamp - msg.Timestamp
+			msg.LatencyMilli = msg.LatencyNano / 1000 / 1000
+		}
 		if meta == nil {
 			meta = make(map[string]string)
 		}
@@ -240,6 +249,7 @@ func (o *MarshalOptions) formatGetResponse(m *gnmi.GetResponse, meta map[string]
 		}
 		notifications = append(notifications, msg)
 	}
+
 	if o.ValuesOnly {
 		result := make([]interface{}, 0, len(notifications))
 		for _, n := range notifications {
