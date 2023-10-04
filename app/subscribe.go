@@ -224,9 +224,10 @@ func (a *App) handlePolledSubscriptions() {
 		waitChan := make(chan struct{}, 1)
 		waitChan <- struct{}{}
 		mo := &formatters.MarshalOptions{
-			Multiline: true,
-			Indent:    "  ",
-			Format:    a.Config.Format,
+			Multiline:        true,
+			Indent:           "  ",
+			Format:           a.Config.Format,
+			CalculateLatency: a.Config.GlobalFlags.CalculateLatency,
 		}
 
 		for {

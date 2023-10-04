@@ -202,6 +202,7 @@ func (a *App) InitGlobalFlags() {
 
 	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.UseTunnelServer, "use-tunnel-server", "", false, "use tunnel server to dial targets")
 	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.AuthScheme, "auth-scheme", "", "", "authentication scheme to use for the target's username/password")
+	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.CalculateLatency, "calculate-latency", "", false, "calculate the delta between each message timestamp and the receive timestamp. JSON format only")
 
 	a.RootCmd.PersistentFlags().VisitAll(func(flag *pflag.Flag) {
 		a.Config.FileConfig.BindPFlag(flag.Name, flag)
@@ -296,10 +297,11 @@ func (a *App) PrintMsg(address string, msgName string, msg proto.Message) error 
 		}
 	}
 	mo := formatters.MarshalOptions{
-		Multiline:  true,
-		Indent:     "  ",
-		Format:     a.Config.Format,
-		ValuesOnly: a.Config.GetValuesOnly,
+		Multiline:        true,
+		Indent:           "  ",
+		Format:           a.Config.Format,
+		ValuesOnly:       a.Config.GetValuesOnly,
+		CalculateLatency: a.Config.CalculateLatency,
 	}
 	b, err := mo.Marshal(msg, map[string]string{"source": address})
 	if err != nil {

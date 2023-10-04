@@ -74,6 +74,7 @@ type Config struct {
 	ConcurrencyLimit   int      `mapstructure:"concurrency-limit,omitempty"`
 	EnableMetrics      bool     `mapstructure:"enable-metrics,omitempty"`
 	Debug              bool     `mapstructure:"debug,omitempty"`
+	CalculateLatency   bool     `mapstructure:"calculate-latency,omitempty"`
 }
 
 func (f *File) String() string {
@@ -178,10 +179,11 @@ func (f *File) Init(ctx context.Context, name string, cfg map[string]interface{}
 	f.sem = semaphore.NewWeighted(int64(f.Cfg.ConcurrencyLimit))
 
 	f.mo = &formatters.MarshalOptions{
-		Multiline:  f.Cfg.Multiline,
-		Indent:     f.Cfg.Indent,
-		Format:     f.Cfg.Format,
-		OverrideTS: f.Cfg.OverrideTimestamps,
+		Multiline:        f.Cfg.Multiline,
+		Indent:           f.Cfg.Indent,
+		Format:           f.Cfg.Format,
+		OverrideTS:       f.Cfg.OverrideTimestamps,
+		CalculateLatency: f.Cfg.CalculateLatency,
 	}
 	if f.Cfg.TargetTemplate == "" {
 		f.targetTpl = outputs.DefaultTargetTemplate

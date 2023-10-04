@@ -22,11 +22,12 @@ import (
 )
 
 type MarshalOptions struct {
-	Multiline  bool
-	Indent     string
-	Format     string
-	OverrideTS bool
-	ValuesOnly bool
+	Multiline        bool
+	Indent           string
+	Format           string
+	OverrideTS       bool
+	ValuesOnly       bool
+	CalculateLatency bool
 }
 
 // Marshal //
