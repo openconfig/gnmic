@@ -45,17 +45,17 @@ func (p *prometheusOutput) collectFromCache(ch chan<- prometheus.Metric) {
 		}
 	}
 
-	if p.Cfg.CacheConfig.Debug {
+	if p.cfg.CacheConfig.Debug {
 		p.logger.Printf("got %d events from cache pre processors", len(events))
 	}
 	for _, proc := range p.evps {
 		events = proc.Apply(events...)
 	}
-	if p.Cfg.CacheConfig.Debug {
+	if p.cfg.CacheConfig.Debug {
 		p.logger.Printf("got %d events from cache post processors", len(events))
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), p.Cfg.Timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), p.cfg.Timeout)
 	defer cancel()
 	now := time.Now()
 	for _, ev := range events {

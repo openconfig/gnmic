@@ -26,15 +26,15 @@ var backoff = 100 * time.Millisecond
 
 func (p *promWriteOutput) createHTTPClient() error {
 	c := &http.Client{
-		Timeout: p.Cfg.Timeout,
+		Timeout: p.cfg.Timeout,
 	}
-	if p.Cfg.TLS != nil {
+	if p.cfg.TLS != nil {
 		tlsCfg, err := utils.NewTLSConfig(
-			p.Cfg.TLS.CaFile,
-			p.Cfg.TLS.CertFile,
-			p.Cfg.TLS.KeyFile,
+			p.cfg.TLS.CaFile,
+			p.cfg.TLS.CertFile,
+			p.cfg.TLS.KeyFile,
 			"",
-			p.Cfg.TLS.SkipVerify,
+			p.cfg.TLS.SkipVerify,
 			false,
 		)
 		if err != nil {
@@ -50,19 +50,19 @@ func (p *promWriteOutput) createHTTPClient() error {
 
 func (p *promWriteOutput) writer(ctx context.Context) {
 	p.logger.Printf("starting writer")
-	ticker := time.NewTicker(p.Cfg.Interval)
+	ticker := time.NewTicker(p.cfg.Interval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if p.Cfg.Debug {
+			if p.cfg.Debug {
 				p.logger.Printf("write interval reached, writing to remote")
 			}
 			p.write(ctx)
 		case <-p.buffDrainCh:
-			if p.Cfg.Debug {
+			if p.cfg.Debug {
 				p.logger.Printf("buffer full, writing to remote")
 			}
 			p.write(ctx)
@@ -72,7 +72,7 @@ func (p *promWriteOutput) writer(ctx context.Context) {
 
 func (p *promWriteOutput) write(ctx context.Context) {
 	buffSize := len(p.timeSeriesCh)
-	if p.Cfg.Debug {
+	if p.cfg.Debug {
 		p.logger.Printf("write triggered, buffer size: %d", buffSize)
 	}
 	if buffSize == 0 {
@@ -97,15 +97,15 @@ WRITE:
 	if numTS == 0 {
 		return
 	}
-	chunk := make([]prompb.TimeSeries, 0, p.Cfg.MaxTimeSeriesPerWrite)
+	chunk := make([]prompb.TimeSeries, 0, p.cfg.MaxTimeSeriesPerWrite)
 	for i, pt := range pts {
 		// append timeSeries to chunk
 		chunk = append(chunk, pt)
 		// if the chunk size reaches the configured max or
 		// we reach the max number of time series gathered, send.
 		chunkSize := len(chunk)
-		if chunkSize == p.Cfg.MaxTimeSeriesPerWrite || i+1 == numTS {
-			if p.Cfg.Debug {
+		if chunkSize == p.cfg.MaxTimeSeriesPerWrite || i+1 == numTS {
+			if p.cfg.Debug {
 				p.logger.Printf("writing a %d time series chunk", chunkSize)
 			}
 			err := p.writeRequest(ctx, &prompb.WriteRequest{
@@ -119,7 +119,7 @@ WRITE:
 				return
 			}
 			// reset chunk if we are not done yet
-			chunk = make([]prompb.TimeSeries, 0, p.Cfg.MaxTimeSeriesPerWrite)
+			chunk = make([]prompb.TimeSeries, 0, p.cfg.MaxTimeSeriesPerWrite)
 		}
 	}
 }
@@ -142,7 +142,7 @@ RETRY:
 		retries++
 		err = fmt.Errorf("failed to write to remote: %w", err)
 		p.logger.Print(err)
-		if retries < p.Cfg.MaxRetries {
+		if retries < p.cfg.MaxRetries {
 			time.Sleep(backoff)
 			goto RETRY
 		}
@@ -150,7 +150,7 @@ RETRY:
 	}
 	defer rsp.Body.Close()
 
-	if p.Cfg.Debug {
+	if p.cfg.Debug {
 		p.logger.Printf("got response from remote: status=%s", rsp.Status)
 	}
 	if rsp.StatusCode >= 300 {
@@ -165,11 +165,11 @@ RETRY:
 
 // metadataWriter writes the cached metadata entries to the remote address each `metadata.interval`
 func (p *promWriteOutput) metadataWriter(ctx context.Context) {
-	if p.Cfg.Metadata == nil || !p.Cfg.Metadata.Include {
+	if p.cfg.Metadata == nil || !p.cfg.Metadata.Include {
 		return
 	}
 	p.writeMetadata(ctx)
-	ticker := time.NewTicker(p.Cfg.Metadata.Interval)
+	ticker := time.NewTicker(p.cfg.Metadata.Interval)
 	defer ticker.Stop()
 	for {
 		select {
@@ -191,17 +191,17 @@ func (p *promWriteOutput) writeMetadata(ctx context.Context) {
 		return
 	}
 
-	mds := make([]prompb.MetricMetadata, 0, p.Cfg.Metadata.MaxEntriesPerWrite)
+	mds := make([]prompb.MetricMetadata, 0, p.cfg.Metadata.MaxEntriesPerWrite)
 	count := 0 // keep track of the number of entries in mds
 
 	for _, md := range p.metadataCache {
-		if count < p.Cfg.Metadata.MaxEntriesPerWrite {
+		if count < p.cfg.Metadata.MaxEntriesPerWrite {
 			count++
 			mds = append(mds, md)
 			continue
 		}
 		// max entries reached, write accumulated entries
-		if p.Cfg.Debug {
+		if p.cfg.Debug {
 			p.logger.Printf("writing %d metadata points", len(mds))
 		}
 		err := p.writeRequest(ctx, &prompb.WriteRequest{
@@ -213,7 +213,7 @@ func (p *promWriteOutput) writeMetadata(ctx context.Context) {
 		}
 		// reset counter and array then continue with the loop
 		count = 0
-		mds = make([]prompb.MetricMetadata, 0, p.Cfg.Metadata.MaxEntriesPerWrite)
+		mds = make([]prompb.MetricMetadata, 0, p.cfg.Metadata.MaxEntriesPerWrite)
 	}
 
 	// no metadata entries to write, return
@@ -222,7 +222,7 @@ func (p *promWriteOutput) writeMetadata(ctx context.Context) {
 	}
 
 	// loop done with some metadata entries left to write
-	if p.Cfg.Debug {
+	if p.cfg.Debug {
 		p.logger.Printf("writing %d metadata points", len(mds))
 	}
 	err := p.writeRequest(ctx, &prompb.WriteRequest{
@@ -239,7 +239,7 @@ func (p *promWriteOutput) makeHTTPRequest(ctx context.Context, wr *prompb.WriteR
 		return nil, fmt.Errorf("failed to marshal proto write request: %v", err)
 	}
 	compBytes := snappy.Encode(nil, b)
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.Cfg.URL, bytes.NewBuffer(compBytes))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.cfg.URL, bytes.NewBuffer(compBytes))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %v", err)
 	}
@@ -248,15 +248,15 @@ func (p *promWriteOutput) makeHTTPRequest(ctx context.Context, wr *prompb.WriteR
 	httpReq.Header.Set("User-Agent", userAgent)
 	httpReq.Header.Set("Content-Type", "application/x-protobuf")
 
-	if p.Cfg.Authentication != nil {
-		httpReq.SetBasicAuth(p.Cfg.Authentication.Username, p.Cfg.Authentication.Password)
+	if p.cfg.Authentication != nil {
+		httpReq.SetBasicAuth(p.cfg.Authentication.Username, p.cfg.Authentication.Password)
 	}
 
-	if p.Cfg.Authorization != nil && p.Cfg.Authorization.Type != "" {
-		httpReq.Header.Set("Authorization", fmt.Sprintf("%s %s", p.Cfg.Authorization.Type, p.Cfg.Authorization.Credentials))
+	if p.cfg.Authorization != nil && p.cfg.Authorization.Type != "" {
+		httpReq.Header.Set("Authorization", fmt.Sprintf("%s %s", p.cfg.Authorization.Type, p.cfg.Authorization.Credentials))
 	}
 
-	for k, v := range p.Cfg.Headers {
+	for k, v := range p.cfg.Headers {
 		httpReq.Header.Add(k, v)
 	}
 
