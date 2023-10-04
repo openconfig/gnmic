@@ -82,6 +82,8 @@ outputs:
     target-template:
     # list of processors to apply on the message before writing
     event-processors: 
+    # an integer, sets the number of worker handling messages to be converted into Prometheus metrics
+    num-workers: 1
     # Enables Consul service registration
     service-registration:
       # Consul server address, default to localhost:8500
