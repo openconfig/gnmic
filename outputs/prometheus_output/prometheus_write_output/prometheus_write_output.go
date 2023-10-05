@@ -104,6 +104,7 @@ type config struct {
 	StringsAsLabels        bool     `mapstructure:"strings-as-labels,omitempty" json:"strings-as-labels,omitempty"`
 	EventProcessors        []string `mapstructure:"event-processors,omitempty" json:"event-processors,omitempty"`
 	NumWorkers             int      `mapstructure:"num-workers,omitempty" json:"num-workers,omitempty"`
+	EnableMetrics          bool     `mapstructure:"enable-metrics,omitempty" json:"enable-metrics,omitempty"`
 }
 
 type auth struct {
@@ -221,7 +222,14 @@ func (p *promWriteOutput) Close() error {
 	return nil
 }
 
-func (p *promWriteOutput) RegisterMetrics(_ *prometheus.Registry) {}
+func (p *promWriteOutput) RegisterMetrics(reg *prometheus.Registry) {
+	if !p.cfg.EnableMetrics {
+		return
+	}
+	if err := registerMetrics(reg); err != nil {
+		p.logger.Printf("failed to register metric: %v", err)
+	}
+}
 
 func (p *promWriteOutput) String() string {
 	b, err := json.Marshal(p.cfg)

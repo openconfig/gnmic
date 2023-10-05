@@ -121,6 +121,7 @@ type config struct {
 	Timeout                time.Duration        `mapstructure:"timeout,omitempty" json:"timeout,omitempty"`
 	CacheConfig            *cache.Config        `mapstructure:"cache,omitempty" json:"cache-config,omitempty"`
 	NumWorkers             int                  `mapstructure:"num-workers,omitempty" json:"num-workers,omitempty"`
+	EnableMetrics          bool                 `mapstructure:"enable-metrics,omitempty" json:"enable-metrics,omitempty"`
 
 	clusterName string
 	address     string
@@ -268,7 +269,9 @@ func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string
 		go p.worker(wctx)
 	}
 
-	go p.expireMetricsPeriodic(wctx)
+	if p.cfg.CacheConfig == nil {
+		go p.expireMetricsPeriodic(wctx)
+	}
 
 	go func() {
 		defer p.wg.Done()
@@ -345,7 +348,14 @@ func (p *prometheusOutput) Close() error {
 	return nil
 }
 
-func (p *prometheusOutput) RegisterMetrics(reg *prometheus.Registry) {}
+func (p *prometheusOutput) RegisterMetrics(reg *prometheus.Registry) {
+	if !p.cfg.EnableMetrics {
+		return
+	}
+	if err := p.registerMetrics(reg); err != nil {
+		p.logger.Printf("failed to register metric: %v", err)
+	}
+}
 
 // Describe implements prometheus.Collector
 func (p *prometheusOutput) Describe(ch chan<- *prometheus.Desc) {}
@@ -463,6 +473,9 @@ func (p *prometheusOutput) expireMetricsPeriodic(ctx context.Context) {
 	if p.cfg.Expiration <= 0 {
 		return
 	}
+	p.Lock()
+	prometheusNumberOfMetrics.Set(float64(len(p.entries)))
+	p.Unlock()
 	ticker := time.NewTicker(p.cfg.Expiration)
 	defer ticker.Stop()
 	for {
@@ -472,6 +485,7 @@ func (p *prometheusOutput) expireMetricsPeriodic(ctx context.Context) {
 		case <-ticker.C:
 			p.Lock()
 			p.expireMetrics()
+			prometheusNumberOfMetrics.Set(float64(len(p.entries)))
 			p.Unlock()
 		}
 	}

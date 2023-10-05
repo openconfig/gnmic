@@ -24,8 +24,11 @@ func (p *prometheusOutput) collectFromCache(ch chan<- prometheus.Metric) {
 		p.logger.Printf("failed to read from cache: %v", err)
 		return
 	}
+	numNotifications := len(notifications)
+	prometheusNumberOfCachedMetrics.Set(float64(numNotifications))
+
 	p.targetsMeta.DeleteExpired()
-	events := make([]*formatters.EventMsg, 0, len(notifications))
+	events := make([]*formatters.EventMsg, 0, numNotifications)
 	for subName, notifs := range notifications {
 		// build events without processors
 		for _, notif := range notifs {

@@ -108,12 +108,16 @@ WRITE:
 			if p.cfg.Debug {
 				p.logger.Printf("writing a %d time series chunk", chunkSize)
 			}
+			start := time.Now()
 			err := p.writeRequest(ctx, &prompb.WriteRequest{
 				Timeseries: chunk,
 			})
 			if err != nil {
-				p.logger.Print(err)
+				prometheusWriteNumberOfFailSendMsgs.WithLabelValues(err.Error()).Inc()
+				continue
 			}
+			prometheusWriteSendDuration.Set(float64(time.Since(start).Nanoseconds()))
+			prometheusWriteNumberOfSentMsgs.Add(float64(chunkSize))
 			// return if we are done with the gathered time series
 			if i+1 == numTS {
 				return
@@ -204,13 +208,16 @@ func (p *promWriteOutput) writeMetadata(ctx context.Context) {
 		if p.cfg.Debug {
 			p.logger.Printf("writing %d metadata points", len(mds))
 		}
+		start := time.Now()
 		err := p.writeRequest(ctx, &prompb.WriteRequest{
 			Metadata: mds,
 		})
 		if err != nil {
-			p.logger.Printf("metadata write err: %v", err)
+			prometheusWriteNumberOfFailSendMetadataMsgs.WithLabelValues(err.Error()).Inc()
 			return
 		}
+		prometheusWriteMetadataSendDuration.Set(float64(time.Since(start).Nanoseconds()))
+		prometheusWriteNumberOfSentMetadataMsgs.Add(float64(len(mds)))
 		// reset counter and array then continue with the loop
 		count = 0
 		mds = make([]prompb.MetricMetadata, 0, p.cfg.Metadata.MaxEntriesPerWrite)
@@ -225,12 +232,16 @@ func (p *promWriteOutput) writeMetadata(ctx context.Context) {
 	if p.cfg.Debug {
 		p.logger.Printf("writing %d metadata points", len(mds))
 	}
+	start := time.Now()
 	err := p.writeRequest(ctx, &prompb.WriteRequest{
 		Metadata: mds,
 	})
 	if err != nil {
-		p.logger.Printf("metadata write err: %v", err)
+		prometheusWriteNumberOfFailSendMetadataMsgs.WithLabelValues(err.Error()).Inc()
+		return
 	}
+	prometheusWriteMetadataSendDuration.Set(float64(time.Since(start).Nanoseconds()))
+	prometheusWriteNumberOfSentMetadataMsgs.Add(float64(len(mds)))
 }
 
 func (p *promWriteOutput) makeHTTPRequest(ctx context.Context, wr *prompb.WriteRequest) (*http.Request, error) {
