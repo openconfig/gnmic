@@ -54,7 +54,8 @@ const (
 	loggingPrefix     = "[prometheus_output:%s] "
 	// this is used to timeout the collection method
 	// in case it drags for too long
-	defaultTimeout = 10 * time.Second
+	defaultTimeout    = 10 * time.Second
+	defaultNumWorkers = 1
 )
 
 type promMetric struct {
@@ -70,8 +71,9 @@ type promMetric struct {
 func init() {
 	outputs.Register(outputType, func() outputs.Output {
 		return &prometheusOutput{
-			Cfg:       &config{},
+			cfg:       &config{},
 			eventChan: make(chan *formatters.EventMsg),
+			msgChan:   make(chan *outputs.ProtoMsg),
 			wg:        new(sync.WaitGroup),
 			entries:   make(map[uint64]*promMetric),
 			logger:    log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
@@ -80,9 +82,10 @@ func init() {
 }
 
 type prometheusOutput struct {
-	Cfg       *config
+	cfg       *config
 	logger    *log.Logger
 	eventChan chan *formatters.EventMsg
+	msgChan   chan *outputs.ProtoMsg
 
 	wg     *sync.WaitGroup
 	server *http.Server
@@ -117,6 +120,8 @@ type config struct {
 	ServiceRegistration    *serviceRegistration `mapstructure:"service-registration,omitempty" json:"service-registration,omitempty"`
 	Timeout                time.Duration        `mapstructure:"timeout,omitempty" json:"timeout,omitempty"`
 	CacheConfig            *cache.Config        `mapstructure:"cache,omitempty" json:"cache-config,omitempty"`
+	NumWorkers             int                  `mapstructure:"num-workers,omitempty" json:"num-workers,omitempty"`
+	EnableMetrics          bool                 `mapstructure:"enable-metrics,omitempty" json:"enable-metrics,omitempty"`
 
 	clusterName string
 	address     string
@@ -124,7 +129,7 @@ type config struct {
 }
 
 func (p *prometheusOutput) String() string {
-	b, err := json.Marshal(p)
+	b, err := json.Marshal(p.cfg)
 	if err != nil {
 		return ""
 	}
@@ -142,7 +147,7 @@ func (p *prometheusOutput) SetEventProcessors(ps map[string]map[string]interface
 	logger *log.Logger,
 	tcs map[string]*types.TargetConfig,
 	acts map[string]map[string]interface{}) {
-	for _, epName := range p.Cfg.EventProcessors {
+	for _, epName := range p.cfg.EventProcessors {
 		if epCfg, ok := ps[epName]; ok {
 			epType := ""
 			for k := range epCfg {
@@ -172,23 +177,23 @@ func (p *prometheusOutput) SetEventProcessors(ps map[string]map[string]interface
 }
 
 func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
-	err := outputs.DecodeConfig(cfg, p.Cfg)
+	err := outputs.DecodeConfig(cfg, p.cfg)
 	if err != nil {
 		return err
 	}
-	if p.Cfg.Name == "" {
-		p.Cfg.Name = name
+	if p.cfg.Name == "" {
+		p.cfg.Name = name
 	}
 
-	p.logger.SetPrefix(fmt.Sprintf(loggingPrefix, p.Cfg.Name))
+	p.logger.SetPrefix(fmt.Sprintf(loggingPrefix, p.cfg.Name))
 
 	for _, opt := range opts {
 		opt(p)
 	}
-	if p.Cfg.TargetTemplate == "" {
+	if p.cfg.TargetTemplate == "" {
 		p.targetTpl = outputs.DefaultTargetTemplate
-	} else if p.Cfg.AddTarget != "" {
-		p.targetTpl, err = utils.CreateTemplate("target-template", p.Cfg.TargetTemplate)
+	} else if p.cfg.AddTarget != "" {
+		p.targetTpl, err = utils.CreateTemplate("target-template", p.cfg.TargetTemplate)
 		if err != nil {
 			return err
 		}
@@ -200,20 +205,20 @@ func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string
 	}
 
 	p.mb = &promcom.MetricBuilder{
-		Prefix:                 p.Cfg.MetricPrefix,
-		AppendSubscriptionName: p.Cfg.AppendSubscriptionName,
-		StringsAsLabels:        p.Cfg.StringsAsLabels,
+		Prefix:                 p.cfg.MetricPrefix,
+		AppendSubscriptionName: p.cfg.AppendSubscriptionName,
+		StringsAsLabels:        p.cfg.StringsAsLabels,
 	}
 
-	if p.Cfg.CacheConfig != nil {
+	if p.cfg.CacheConfig != nil {
 		p.gnmiCache, err = cache.New(
-			p.Cfg.CacheConfig,
+			p.cfg.CacheConfig,
 			cache.WithLogger(p.logger),
 		)
 		if err != nil {
 			return err
 		}
-		p.targetsMeta = ttlcache.New(ttlcache.WithTTL[string, outputs.Meta](p.Cfg.Expiration))
+		p.targetsMeta = ttlcache.New(ttlcache.WithTTL[string, outputs.Meta](p.cfg.Expiration))
 	}
 
 	// create prometheus registry
@@ -227,41 +232,47 @@ func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string
 	promHandler := promhttp.HandlerFor(registry, promhttp.HandlerOpts{ErrorHandling: promhttp.ContinueOnError})
 
 	mux := http.NewServeMux()
-	mux.Handle(p.Cfg.Path, promHandler)
+	mux.Handle(p.cfg.Path, promHandler)
 
 	p.server = &http.Server{
-		Addr:    p.Cfg.Listen,
+		Addr:    p.cfg.Listen,
 		Handler: mux,
 	}
 
 	// create tcp listener
 	var listener net.Listener
 	switch {
-	case p.Cfg.TLS == nil:
-		listener, err = net.Listen("tcp", p.Cfg.Listen)
+	case p.cfg.TLS == nil:
+		listener, err = net.Listen("tcp", p.cfg.Listen)
 	default:
 		var tlsConfig *tls.Config
 		tlsConfig, err = utils.NewTLSConfig(
-			p.Cfg.TLS.CaFile,
-			p.Cfg.TLS.CertFile,
-			p.Cfg.TLS.KeyFile,
-			p.Cfg.TLS.ClientAuth,
+			p.cfg.TLS.CaFile,
+			p.cfg.TLS.CertFile,
+			p.cfg.TLS.KeyFile,
+			p.cfg.TLS.ClientAuth,
 			true,
 			true,
 		)
 		if err != nil {
 			return err
 		}
-		listener, err = tls.Listen("tcp", p.Cfg.Listen, tlsConfig)
+		listener, err = tls.Listen("tcp", p.cfg.Listen, tlsConfig)
 	}
 	if err != nil {
 		return err
 	}
 	// start worker
-	p.wg.Add(2)
+	p.wg.Add(1 + p.cfg.NumWorkers)
 	wctx, wcancel := context.WithCancel(ctx)
-	go p.worker(wctx)
-	go p.expireMetricsPeriodic(wctx)
+	for i := 0; i < p.cfg.NumWorkers; i++ {
+		go p.worker(wctx)
+	}
+
+	if p.cfg.CacheConfig == nil {
+		go p.expireMetricsPeriodic(wctx)
+	}
+
 	go func() {
 		defer p.wg.Done()
 		err = p.server.Serve(listener)
@@ -284,35 +295,19 @@ func (p *prometheusOutput) Write(ctx context.Context, rsp proto.Message, meta ou
 	if rsp == nil {
 		return
 	}
-	switch rsp := rsp.(type) {
-	case *gnmi.SubscribeResponse:
-		measName := "default"
-		if subName, ok := meta["subscription-name"]; ok {
-			measName = subName
+
+	wctx, cancel := context.WithTimeout(ctx, p.cfg.Timeout)
+	defer cancel()
+
+	select {
+	case <-ctx.Done():
+		return
+	case p.msgChan <- outputs.NewProtoMsg(rsp, meta):
+	case <-wctx.Done():
+		if p.cfg.Debug {
+			p.logger.Printf("writing expired after %s", p.cfg.Timeout)
 		}
-		var err error
-		rsp, err = outputs.AddSubscriptionTarget(rsp, meta, p.Cfg.AddTarget, p.targetTpl)
-		if err != nil {
-			p.logger.Printf("failed to add target to the response: %v", err)
-		}
-		if p.gnmiCache != nil {
-			p.gnmiCache.Write(ctx, measName, rsp)
-			target := utils.GetHost(meta["source"])
-			p.targetsMeta.Set(measName+"/"+target, meta, ttlcache.DefaultTTL)
-			return
-		}
-		events, err := formatters.ResponseToEventMsgs(measName, rsp, meta, p.evps...)
-		if err != nil {
-			p.logger.Printf("failed to convert message to event: %v", err)
-			return
-		}
-		for _, ev := range events {
-			select {
-			case <-ctx.Done():
-				return
-			case p.eventChan <- ev:
-			}
-		}
+		return
 	}
 }
 
@@ -334,7 +329,7 @@ func (p *prometheusOutput) WriteEvent(ctx context.Context, ev *formatters.EventM
 func (p *prometheusOutput) Close() error {
 	var err error
 	if p.consulClient != nil {
-		err = p.consulClient.Agent().ServiceDeregister(p.Cfg.ServiceRegistration.Name)
+		err = p.consulClient.Agent().ServiceDeregister(p.cfg.ServiceRegistration.Name)
 		if err != nil {
 			p.logger.Printf("failed to deregister consul service: %v", err)
 		}
@@ -353,7 +348,14 @@ func (p *prometheusOutput) Close() error {
 	return nil
 }
 
-func (p *prometheusOutput) RegisterMetrics(reg *prometheus.Registry) {}
+func (p *prometheusOutput) RegisterMetrics(reg *prometheus.Registry) {
+	if !p.cfg.EnableMetrics {
+		return
+	}
+	if err := p.registerMetrics(reg); err != nil {
+		p.logger.Printf("failed to register metric: %v", err)
+	}
+}
 
 // Describe implements prometheus.Collector
 func (p *prometheusOutput) Describe(ch chan<- *prometheus.Desc) {}
@@ -362,7 +364,7 @@ func (p *prometheusOutput) Describe(ch chan<- *prometheus.Desc) {}
 func (p *prometheusOutput) Collect(ch chan<- prometheus.Metric) {
 	p.Lock()
 	defer p.Unlock()
-	if p.Cfg.CacheConfig != nil {
+	if p.cfg.CacheConfig != nil {
 		p.collectFromCache(ch)
 		return
 	}
@@ -370,7 +372,7 @@ func (p *prometheusOutput) Collect(ch chan<- prometheus.Metric) {
 	// run expire before exporting metrics
 	p.expireMetrics()
 
-	ctx, cancel := context.WithTimeout(context.Background(), p.Cfg.Timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), p.cfg.Timeout)
 	defer cancel()
 
 	for _, entry := range p.entries {
@@ -390,35 +392,72 @@ func (p *prometheusOutput) worker(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case ev := <-p.eventChan:
-			if p.Cfg.Debug {
-				p.logger.Printf("got event to store: %+v", ev)
-			}
-			p.Lock()
-			for _, pm := range p.metricsFromEvent(ev, time.Now()) {
-				key := pm.calculateKey()
-				if e, ok := p.entries[key]; ok && pm.time != nil {
-					if e.time.Before(*pm.time) {
-						p.entries[key] = pm
-					}
-				} else {
-					p.entries[key] = pm
-				}
-				if p.Cfg.Debug {
-					p.logger.Printf("saved key=%d, metric: %+v", key, pm)
-				}
-			}
-			p.Unlock()
+			p.workerHandleEvent(ev)
+		case m := <-p.msgChan:
+			p.workerHandleProto(ctx, m)
+		}
+	}
+}
+
+func (p *prometheusOutput) workerHandleProto(ctx context.Context, m *outputs.ProtoMsg) {
+	pmsg := m.GetMsg()
+	switch pmsg := pmsg.(type) {
+	case *gnmi.SubscribeResponse:
+		meta := m.GetMeta()
+		measName := "default"
+		if subName, ok := meta["subscription-name"]; ok {
+			measName = subName
+		}
+		var err error
+		pmsg, err = outputs.AddSubscriptionTarget(pmsg, m.GetMeta(), p.cfg.AddTarget, p.targetTpl)
+		if err != nil {
+			p.logger.Printf("failed to add target to the response: %v", err)
+		}
+		if p.gnmiCache != nil {
+			p.gnmiCache.Write(ctx, measName, pmsg)
+			target := utils.GetHost(meta["source"])
+			p.targetsMeta.Set(measName+"/"+target, meta, ttlcache.DefaultTTL)
+			return
+		}
+		events, err := formatters.ResponseToEventMsgs(measName, pmsg, meta, p.evps...)
+		if err != nil {
+			p.logger.Printf("failed to convert message to event: %v", err)
+			return
+		}
+		for _, ev := range events {
+			p.workerHandleEvent(ev)
+		}
+	}
+}
+
+func (p *prometheusOutput) workerHandleEvent(ev *formatters.EventMsg) {
+	if p.cfg.Debug {
+		p.logger.Printf("got event to store: %+v", ev)
+	}
+	p.Lock()
+	defer p.Unlock()
+	for _, pm := range p.metricsFromEvent(ev, time.Now()) {
+		key := pm.calculateKey()
+		e, ok := p.entries[key]
+		// if the entry key is not present add it to the map.
+		// if present add it only if the entry timestamp is newer than the
+		// existing one.
+		if !ok || (ok && pm.time != nil && e.time.Before(*pm.time)) {
+			p.entries[key] = pm
+		}
+		if p.cfg.Debug {
+			p.logger.Printf("saved key=%d, metric: %+v", key, pm)
 		}
 	}
 }
 
 func (p *prometheusOutput) expireMetrics() {
-	if p.Cfg.Expiration <= 0 {
+	if p.cfg.Expiration <= 0 {
 		return
 	}
-	expiry := time.Now().Add(-p.Cfg.Expiration)
+	expiry := time.Now().Add(-p.cfg.Expiration)
 	for k, e := range p.entries {
-		if p.Cfg.ExportTimestamps {
+		if p.cfg.ExportTimestamps {
 			if e.time.Before(expiry) {
 				delete(p.entries, k)
 			}
@@ -431,10 +470,13 @@ func (p *prometheusOutput) expireMetrics() {
 }
 
 func (p *prometheusOutput) expireMetricsPeriodic(ctx context.Context) {
-	if p.Cfg.Expiration <= 0 {
+	if p.cfg.Expiration <= 0 {
 		return
 	}
-	ticker := time.NewTicker(p.Cfg.Expiration)
+	p.Lock()
+	prometheusNumberOfMetrics.Set(float64(len(p.entries)))
+	p.Unlock()
+	ticker := time.NewTicker(p.cfg.Expiration)
 	defer ticker.Stop()
 	for {
 		select {
@@ -443,28 +485,32 @@ func (p *prometheusOutput) expireMetricsPeriodic(ctx context.Context) {
 		case <-ticker.C:
 			p.Lock()
 			p.expireMetrics()
+			prometheusNumberOfMetrics.Set(float64(len(p.entries)))
 			p.Unlock()
 		}
 	}
 }
 
 func (p *prometheusOutput) setDefaults() error {
-	if p.Cfg.Listen == "" {
-		p.Cfg.Listen = defaultListen
+	if p.cfg.Listen == "" {
+		p.cfg.Listen = defaultListen
 	}
-	if p.Cfg.Path == "" {
-		p.Cfg.Path = defaultPath
+	if p.cfg.Path == "" {
+		p.cfg.Path = defaultPath
 	}
-	if p.Cfg.Expiration == 0 {
-		p.Cfg.Expiration = defaultExpiration
+	if p.cfg.Expiration == 0 {
+		p.cfg.Expiration = defaultExpiration
 	}
-	if p.Cfg.CacheConfig != nil && p.Cfg.AddTarget == "" {
-		p.Cfg.AddTarget = "if-not-present"
+	if p.cfg.CacheConfig != nil && p.cfg.AddTarget == "" {
+		p.cfg.AddTarget = "if-not-present"
 	}
-	if p.Cfg.Timeout <= 0 {
-		p.Cfg.Timeout = defaultTimeout
+	if p.cfg.Timeout <= 0 {
+		p.cfg.Timeout = defaultTimeout
 	}
-	if p.Cfg.ServiceRegistration == nil {
+	if p.cfg.NumWorkers <= 0 {
+		p.cfg.NumWorkers = defaultNumWorkers
+	}
+	if p.cfg.ServiceRegistration == nil {
 		return nil
 	}
 
@@ -472,18 +518,18 @@ func (p *prometheusOutput) setDefaults() error {
 	var err error
 	var port string
 	switch {
-	case p.Cfg.ServiceRegistration.ServiceAddress != "":
-		p.Cfg.address, port, err = net.SplitHostPort(p.Cfg.ServiceRegistration.ServiceAddress)
+	case p.cfg.ServiceRegistration.ServiceAddress != "":
+		p.cfg.address, port, err = net.SplitHostPort(p.cfg.ServiceRegistration.ServiceAddress)
 		if err != nil {
 			// if service-address does not include a port number, use the port number from the listen field
 			if strings.Contains(err.Error(), "missing port in address") {
-				p.Cfg.address = p.Cfg.ServiceRegistration.ServiceAddress
-				_, port, err = net.SplitHostPort(p.Cfg.Listen)
+				p.cfg.address = p.cfg.ServiceRegistration.ServiceAddress
+				_, port, err = net.SplitHostPort(p.cfg.Listen)
 				if err != nil {
 					p.logger.Printf("invalid 'listen' field format: %v", err)
 					return err
 				}
-				p.Cfg.port, err = strconv.Atoi(port)
+				p.cfg.port, err = strconv.Atoi(port)
 				if err != nil {
 					p.logger.Printf("invalid 'listen' field format: %v", err)
 					return err
@@ -495,18 +541,18 @@ func (p *prometheusOutput) setDefaults() error {
 			return err
 		}
 		// the service-address contains both an address and a port number
-		p.Cfg.port, err = strconv.Atoi(port)
+		p.cfg.port, err = strconv.Atoi(port)
 		if err != nil {
 			p.logger.Printf("invalid 'service-registration.service-address' field format: %v", err)
 			return err
 		}
 	default:
-		p.Cfg.address, port, err = net.SplitHostPort(p.Cfg.Listen)
+		p.cfg.address, port, err = net.SplitHostPort(p.cfg.Listen)
 		if err != nil {
 			p.logger.Printf("invalid 'listen' field format: %v", err)
 			return err
 		}
-		p.Cfg.port, err = strconv.Atoi(port)
+		p.cfg.port, err = strconv.Atoi(port)
 		if err != nil {
 			p.logger.Printf("invalid 'listen' field format: %v", err)
 			return err
@@ -636,25 +682,25 @@ func getFloat(v interface{}) (float64, error) {
 }
 
 func (p *prometheusOutput) SetName(name string) {
-	if p.Cfg.Name == "" {
-		p.Cfg.Name = name
+	if p.cfg.Name == "" {
+		p.cfg.Name = name
 	}
-	if p.Cfg.ServiceRegistration != nil {
-		if p.Cfg.ServiceRegistration.Name == "" {
-			p.Cfg.ServiceRegistration.Name = fmt.Sprintf("prometheus-%s", p.Cfg.Name)
+	if p.cfg.ServiceRegistration != nil {
+		if p.cfg.ServiceRegistration.Name == "" {
+			p.cfg.ServiceRegistration.Name = fmt.Sprintf("prometheus-%s", p.cfg.Name)
 		}
 		if name == "" {
 			name = uuid.New().String()
 		}
-		p.Cfg.ServiceRegistration.id = fmt.Sprintf("%s-%s", p.Cfg.ServiceRegistration.Name, name)
-		p.Cfg.ServiceRegistration.Tags = append(p.Cfg.ServiceRegistration.Tags, fmt.Sprintf("gnmic-instance=%s", name))
+		p.cfg.ServiceRegistration.id = fmt.Sprintf("%s-%s", p.cfg.ServiceRegistration.Name, name)
+		p.cfg.ServiceRegistration.Tags = append(p.cfg.ServiceRegistration.Tags, fmt.Sprintf("gnmic-instance=%s", name))
 	}
 }
 
 func (p *prometheusOutput) SetClusterName(name string) {
-	p.Cfg.clusterName = name
-	if p.Cfg.ServiceRegistration != nil {
-		p.Cfg.ServiceRegistration.Tags = append(p.Cfg.ServiceRegistration.Tags, fmt.Sprintf("gnmic-cluster=%s", name))
+	p.cfg.clusterName = name
+	if p.cfg.ServiceRegistration != nil {
+		p.cfg.ServiceRegistration.Tags = append(p.cfg.ServiceRegistration.Tags, fmt.Sprintf("gnmic-cluster=%s", name))
 	}
 }
 
@@ -666,7 +712,7 @@ func (p *prometheusOutput) metricsFromEvent(ev *formatters.EventMsg, now time.Ti
 	for vName, val := range ev.Values {
 		v, err := getFloat(val)
 		if err != nil {
-			if !p.Cfg.StringsAsLabels {
+			if !p.cfg.StringsAsLabels {
 				continue
 			}
 			v = 1.0
@@ -677,10 +723,10 @@ func (p *prometheusOutput) metricsFromEvent(ev *formatters.EventMsg, now time.Ti
 			value:   v,
 			addedAt: now,
 		}
-		if p.Cfg.OverrideTimestamps && p.Cfg.ExportTimestamps {
+		if p.cfg.OverrideTimestamps && p.cfg.ExportTimestamps {
 			ev.Timestamp = now.UnixNano()
 		}
-		if p.Cfg.ExportTimestamps {
+		if p.cfg.ExportTimestamps {
 			tm := time.Unix(0, ev.Timestamp)
 			pm.time = &tm
 		}

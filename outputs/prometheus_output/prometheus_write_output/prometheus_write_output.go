@@ -43,15 +43,17 @@ const (
 	defaultMaxMetaDataEntriesPerWrite = 500
 	defaultMetricHelp                 = "gNMIc generated metric"
 	userAgent                         = "gNMIc prometheus write"
+	defaultNumWorkers                 = 1
 )
 
 func init() {
 	outputs.Register(outputType,
 		func() outputs.Output {
 			return &promWriteOutput{
-				Cfg:           &config{},
+				cfg:           &config{},
 				logger:        log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
 				eventChan:     make(chan *formatters.EventMsg),
+				msgChan:       make(chan *outputs.ProtoMsg),
 				buffDrainCh:   make(chan struct{}),
 				m:             new(sync.Mutex),
 				metadataCache: make(map[string]prompb.MetricMetadata),
@@ -60,11 +62,12 @@ func init() {
 }
 
 type promWriteOutput struct {
-	Cfg    *config
+	cfg    *config
 	logger *log.Logger
 
 	httpClient   *http.Client
 	eventChan    chan *formatters.EventMsg
+	msgChan      chan *outputs.ProtoMsg
 	timeSeriesCh chan *prompb.TimeSeries
 	buffDrainCh  chan struct{}
 	mb           *promcom.MetricBuilder
@@ -100,6 +103,8 @@ type config struct {
 	TargetTemplate         string   `mapstructure:"target-template,omitempty" json:"target-template,omitempty"`
 	StringsAsLabels        bool     `mapstructure:"strings-as-labels,omitempty" json:"strings-as-labels,omitempty"`
 	EventProcessors        []string `mapstructure:"event-processors,omitempty" json:"event-processors,omitempty"`
+	NumWorkers             int      `mapstructure:"num-workers,omitempty" json:"num-workers,omitempty"`
+	EnableMetrics          bool     `mapstructure:"enable-metrics,omitempty" json:"enable-metrics,omitempty"`
 }
 
 type auth struct {
@@ -119,26 +124,26 @@ type metadata struct {
 }
 
 func (p *promWriteOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
-	err := outputs.DecodeConfig(cfg, p.Cfg)
+	err := outputs.DecodeConfig(cfg, p.cfg)
 	if err != nil {
 		return err
 	}
-	if p.Cfg.URL == "" {
+	if p.cfg.URL == "" {
 		return errors.New("missing url field")
 	}
-	if p.Cfg.Name == "" {
-		p.Cfg.Name = name
+	if p.cfg.Name == "" {
+		p.cfg.Name = name
 	}
-	p.logger.SetPrefix(fmt.Sprintf(loggingPrefix, p.Cfg.Name))
+	p.logger.SetPrefix(fmt.Sprintf(loggingPrefix, p.cfg.Name))
 
 	for _, opt := range opts {
 		opt(p)
 	}
 
-	if p.Cfg.TargetTemplate == "" {
+	if p.cfg.TargetTemplate == "" {
 		p.targetTpl = outputs.DefaultTargetTemplate
-	} else if p.Cfg.AddTarget != "" {
-		p.targetTpl, err = utils.CreateTemplate("target-template", p.Cfg.TargetTemplate)
+	} else if p.cfg.AddTarget != "" {
+		p.targetTpl, err = utils.CreateTemplate("target-template", p.cfg.TargetTemplate)
 		if err != nil {
 			return err
 		}
@@ -151,23 +156,26 @@ func (p *promWriteOutput) Init(ctx context.Context, name string, cfg map[string]
 	}
 
 	p.mb = &promcom.MetricBuilder{
-		Prefix:                 p.Cfg.MetricPrefix,
-		AppendSubscriptionName: p.Cfg.AppendSubscriptionName,
-		StringsAsLabels:        p.Cfg.StringsAsLabels,
+		Prefix:                 p.cfg.MetricPrefix,
+		AppendSubscriptionName: p.cfg.AppendSubscriptionName,
+		StringsAsLabels:        p.cfg.StringsAsLabels,
 	}
 
 	// initialize buffer chan
-	p.timeSeriesCh = make(chan *prompb.TimeSeries, p.Cfg.BufferSize)
+	p.timeSeriesCh = make(chan *prompb.TimeSeries, p.cfg.BufferSize)
 	err = p.createHTTPClient()
 	if err != nil {
 		return err
 	}
 
 	ctx, p.cfn = context.WithCancel(ctx)
-	go p.worker(ctx)
+	for i := 0; i < p.cfg.NumWorkers; i++ {
+		go p.worker(ctx)
+	}
+
 	go p.writer(ctx)
 	go p.metadataWriter(ctx)
-	p.logger.Printf("initialized prometheus write output %s: %s", p.Cfg.Name, p.String())
+	p.logger.Printf("initialized prometheus write output %s: %s", p.cfg.Name, p.String())
 	return nil
 }
 
@@ -175,30 +183,19 @@ func (p *promWriteOutput) Write(ctx context.Context, rsp proto.Message, meta out
 	if rsp == nil {
 		return
 	}
-	switch rsp := rsp.(type) {
-	case *gnmi.SubscribeResponse:
-		measName := "default"
-		if subName, ok := meta["subscription-name"]; ok {
-			measName = subName
-		}
-		var err error
-		rsp, err = outputs.AddSubscriptionTarget(rsp, meta, p.Cfg.AddTarget, p.targetTpl)
-		if err != nil {
-			p.logger.Printf("failed to add target to the response: %v", err)
-		}
 
-		events, err := formatters.ResponseToEventMsgs(measName, rsp, meta, p.evps...)
-		if err != nil {
-			p.logger.Printf("failed to convert message to event: %v", err)
-			return
+	wctx, cancel := context.WithTimeout(ctx, p.cfg.Timeout)
+	defer cancel()
+
+	select {
+	case <-ctx.Done():
+		return
+	case p.msgChan <- outputs.NewProtoMsg(rsp, meta):
+	case <-wctx.Done():
+		if p.cfg.Debug {
+			p.logger.Printf("writing expired after %s", p.cfg.Timeout)
 		}
-		for _, ev := range events {
-			select {
-			case <-ctx.Done():
-				return
-			case p.eventChan <- ev:
-			}
-		}
+		return
 	}
 }
 
@@ -225,10 +222,17 @@ func (p *promWriteOutput) Close() error {
 	return nil
 }
 
-func (p *promWriteOutput) RegisterMetrics(_ *prometheus.Registry) {}
+func (p *promWriteOutput) RegisterMetrics(reg *prometheus.Registry) {
+	if !p.cfg.EnableMetrics {
+		return
+	}
+	if err := registerMetrics(reg); err != nil {
+		p.logger.Printf("failed to register metric: %v", err)
+	}
+}
 
 func (p *promWriteOutput) String() string {
-	b, err := json.Marshal(p)
+	b, err := json.Marshal(p.cfg)
 	if err != nil {
 		return ""
 	}
@@ -246,7 +250,7 @@ func (p *promWriteOutput) SetEventProcessors(ps map[string]map[string]interface{
 	logger *log.Logger,
 	tcs map[string]*types.TargetConfig,
 	acts map[string]map[string]interface{}) {
-	for _, epName := range p.Cfg.EventProcessors {
+	for _, epName := range p.cfg.EventProcessors {
 		if epCfg, ok := ps[epName]; ok {
 			epType := ""
 			for k := range epCfg {
@@ -275,8 +279,8 @@ func (p *promWriteOutput) SetEventProcessors(ps map[string]map[string]interface{
 }
 
 func (p *promWriteOutput) SetName(name string) {
-	if p.Cfg.Name == "" {
-		p.Cfg.Name = name
+	if p.cfg.Name == "" {
+		p.cfg.Name = name
 	}
 }
 
@@ -292,64 +296,98 @@ func (p *promWriteOutput) worker(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case ev := <-p.eventChan:
-			if p.Cfg.Debug {
-				p.logger.Printf("got event to buffer: %+v", ev)
-			}
-			for _, pts := range p.mb.TimeSeriesFromEvent(ev) {
-				if len(p.timeSeriesCh) >= p.Cfg.BufferSize {
-					//if p.Cfg.Debug {
-					p.logger.Printf("buffer size reached, triggering write")
-					// }
-					p.buffDrainCh <- struct{}{}
-				}
-				// populate metadata cache
-				p.m.Lock()
-				if p.Cfg.Debug {
-					p.logger.Printf("saving metrics metadata")
-				}
-				p.metadataCache[pts.Name] = prompb.MetricMetadata{
-					Type:             prompb.MetricMetadata_COUNTER,
-					MetricFamilyName: pts.Name,
-					Help:             defaultMetricHelp,
-				}
-				p.m.Unlock()
-				// write time series to buffer
-				if p.Cfg.Debug {
-					p.logger.Printf("writing TimeSeries to buffer")
-				}
-				p.timeSeriesCh <- pts.TS
-			}
+			p.workerHandleEvent(ev)
+		case m := <-p.msgChan:
+			p.workerHandleProto(ctx, m)
 		}
 	}
 }
 
+func (p *promWriteOutput) workerHandleProto(ctx context.Context, m *outputs.ProtoMsg) {
+	pmsg := m.GetMsg()
+	switch pmsg := pmsg.(type) {
+	case *gnmi.SubscribeResponse:
+		meta := m.GetMeta()
+		measName := "default"
+		if subName, ok := meta["subscription-name"]; ok {
+			measName = subName
+		}
+		var err error
+		pmsg, err = outputs.AddSubscriptionTarget(pmsg, m.GetMeta(), p.cfg.AddTarget, p.targetTpl)
+		if err != nil {
+			p.logger.Printf("failed to add target to the response: %v", err)
+		}
+		events, err := formatters.ResponseToEventMsgs(measName, pmsg, meta, p.evps...)
+		if err != nil {
+			p.logger.Printf("failed to convert message to event: %v", err)
+			return
+		}
+		for _, ev := range events {
+			p.workerHandleEvent(ev)
+		}
+	}
+}
+
+func (p *promWriteOutput) workerHandleEvent(ev *formatters.EventMsg) {
+	if p.cfg.Debug {
+		p.logger.Printf("got event to buffer: %+v", ev)
+	}
+	for _, pts := range p.mb.TimeSeriesFromEvent(ev) {
+		if len(p.timeSeriesCh) >= p.cfg.BufferSize {
+			if p.cfg.Debug {
+				p.logger.Printf("buffer size reached, triggering write")
+			}
+			p.buffDrainCh <- struct{}{}
+		}
+		// populate metadata cache
+		p.m.Lock()
+		if p.cfg.Debug {
+			p.logger.Printf("saving metrics metadata")
+		}
+		p.metadataCache[pts.Name] = prompb.MetricMetadata{
+			Type:             prompb.MetricMetadata_COUNTER,
+			MetricFamilyName: pts.Name,
+			Help:             defaultMetricHelp,
+		}
+		p.m.Unlock()
+		// write time series to buffer
+		if p.cfg.Debug {
+			p.logger.Printf("writing TimeSeries to buffer")
+		}
+		p.timeSeriesCh <- pts.TS
+	}
+}
+
 func (p *promWriteOutput) setDefaults() error {
-	if p.Cfg.Timeout <= 0 {
-		p.Cfg.Timeout = defaultTimeout
+	if p.cfg.Timeout <= 0 {
+		p.cfg.Timeout = defaultTimeout
 	}
-	if p.Cfg.Interval <= 0 {
-		p.Cfg.Interval = defaultWriteInterval
+	if p.cfg.Interval <= 0 {
+		p.cfg.Interval = defaultWriteInterval
 	}
-	if p.Cfg.BufferSize <= 0 {
-		p.Cfg.BufferSize = defaultBufferSize
+	if p.cfg.BufferSize <= 0 {
+		p.cfg.BufferSize = defaultBufferSize
 	}
-	if p.Cfg.MaxTimeSeriesPerWrite <= 0 {
-		p.Cfg.MaxTimeSeriesPerWrite = defaultMaxTSPerWrite
+	if p.cfg.NumWorkers <= 0 {
+		p.cfg.NumWorkers = defaultNumWorkers
 	}
-	if p.Cfg.Metadata == nil {
-		p.Cfg.Metadata = &metadata{
+	if p.cfg.MaxTimeSeriesPerWrite <= 0 {
+		p.cfg.MaxTimeSeriesPerWrite = defaultMaxTSPerWrite
+	}
+	if p.cfg.Metadata == nil {
+		p.cfg.Metadata = &metadata{
 			Include:            true,
 			Interval:           defaultMetadataWriteInterval,
 			MaxEntriesPerWrite: defaultMaxMetaDataEntriesPerWrite,
 		}
 		return nil
 	}
-	if p.Cfg.Metadata.Include {
-		if p.Cfg.Metadata.Interval <= 0 {
-			p.Cfg.Metadata.Interval = defaultMetadataWriteInterval
+	if p.cfg.Metadata.Include {
+		if p.cfg.Metadata.Interval <= 0 {
+			p.cfg.Metadata.Interval = defaultMetadataWriteInterval
 		}
-		if p.Cfg.Metadata.MaxEntriesPerWrite <= 0 {
-			p.Cfg.Metadata.MaxEntriesPerWrite = defaultMaxMetaDataEntriesPerWrite
+		if p.cfg.Metadata.MaxEntriesPerWrite <= 0 {
+			p.cfg.Metadata.MaxEntriesPerWrite = defaultMaxMetaDataEntriesPerWrite
 		}
 	}
 	return nil

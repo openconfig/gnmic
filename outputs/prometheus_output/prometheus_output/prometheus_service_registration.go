@@ -48,20 +48,20 @@ type serviceRegistration struct {
 }
 
 func (p *prometheusOutput) registerService(ctx context.Context) {
-	if p.Cfg.ServiceRegistration == nil {
+	if p.cfg.ServiceRegistration == nil {
 		return
 	}
 	var err error
 	clientConfig := &api.Config{
-		Address:    p.Cfg.ServiceRegistration.Address,
+		Address:    p.cfg.ServiceRegistration.Address,
 		Scheme:     "http",
-		Datacenter: p.Cfg.ServiceRegistration.Datacenter,
-		Token:      p.Cfg.ServiceRegistration.Token,
+		Datacenter: p.cfg.ServiceRegistration.Datacenter,
+		Token:      p.cfg.ServiceRegistration.Token,
 	}
-	if p.Cfg.ServiceRegistration.Username != "" && p.Cfg.ServiceRegistration.Password != "" {
+	if p.cfg.ServiceRegistration.Username != "" && p.cfg.ServiceRegistration.Password != "" {
 		clientConfig.HttpAuth = &api.HttpBasicAuth{
-			Username: p.Cfg.ServiceRegistration.Username,
-			Password: p.Cfg.ServiceRegistration.Password,
+			Username: p.cfg.ServiceRegistration.Username,
+			Password: p.cfg.ServiceRegistration.Password,
 		}
 	}
 INITCONSUL:
@@ -85,8 +85,8 @@ INITCONSUL:
 	defer cancel()
 
 	doneCh := make(chan struct{})
-	if p.Cfg.ServiceRegistration.UseLock {
-		doneCh, err = p.acquireAndKeepLock(ctx, "gnmic/"+p.Cfg.clusterName+"/prometheus-output", []byte(p.Cfg.ServiceRegistration.id))
+	if p.cfg.ServiceRegistration.UseLock {
+		doneCh, err = p.acquireAndKeepLock(ctx, "gnmic/"+p.cfg.clusterName+"/prometheus-output", []byte(p.cfg.ServiceRegistration.id))
 		if err != nil {
 			p.logger.Printf("failed to acquire lock: %v", err)
 			time.Sleep(1 * time.Second)
@@ -95,26 +95,26 @@ INITCONSUL:
 	}
 
 	service := &api.AgentServiceRegistration{
-		ID:      p.Cfg.ServiceRegistration.id,
-		Name:    p.Cfg.ServiceRegistration.Name,
-		Address: p.Cfg.address,
-		Port:    p.Cfg.port,
-		Tags:    p.Cfg.ServiceRegistration.Tags,
+		ID:      p.cfg.ServiceRegistration.id,
+		Name:    p.cfg.ServiceRegistration.Name,
+		Address: p.cfg.address,
+		Port:    p.cfg.port,
+		Tags:    p.cfg.ServiceRegistration.Tags,
 		Checks: api.AgentServiceChecks{
 			{
-				TTL:                            p.Cfg.ServiceRegistration.CheckInterval.String(),
-				DeregisterCriticalServiceAfter: p.Cfg.ServiceRegistration.deregisterAfter,
+				TTL:                            p.cfg.ServiceRegistration.CheckInterval.String(),
+				DeregisterCriticalServiceAfter: p.cfg.ServiceRegistration.deregisterAfter,
 			},
 		},
 	}
-	ttlCheckID := "service:" + p.Cfg.ServiceRegistration.id
-	if p.Cfg.ServiceRegistration.EnableHTTPCheck {
+	ttlCheckID := "service:" + p.cfg.ServiceRegistration.id
+	if p.cfg.ServiceRegistration.EnableHTTPCheck {
 		service.Checks = append(service.Checks, &api.AgentServiceCheck{
-			HTTP:                           p.Cfg.ServiceRegistration.httpCheckAddress,
+			HTTP:                           p.cfg.ServiceRegistration.httpCheckAddress,
 			Method:                         "GET",
-			Interval:                       p.Cfg.ServiceRegistration.CheckInterval.String(),
+			Interval:                       p.cfg.ServiceRegistration.CheckInterval.String(),
 			TLSSkipVerify:                  true,
-			DeregisterCriticalServiceAfter: p.Cfg.ServiceRegistration.deregisterAfter,
+			DeregisterCriticalServiceAfter: p.cfg.ServiceRegistration.deregisterAfter,
 		})
 		ttlCheckID = ttlCheckID + ":1"
 	}
@@ -130,7 +130,7 @@ INITCONSUL:
 	if err != nil {
 		p.logger.Printf("failed to pass TTL check: %v", err)
 	}
-	ticker := time.NewTicker(p.Cfg.ServiceRegistration.CheckInterval / 2)
+	ticker := time.NewTicker(p.cfg.ServiceRegistration.CheckInterval / 2)
 	for {
 		select {
 		case <-ticker.C:
@@ -149,32 +149,32 @@ INITCONSUL:
 }
 
 func (p *prometheusOutput) setServiceRegistrationDefaults() {
-	if p.Cfg.ServiceRegistration.Address == "" {
-		p.Cfg.ServiceRegistration.Address = defaultServiceRegistrationAddress
+	if p.cfg.ServiceRegistration.Address == "" {
+		p.cfg.ServiceRegistration.Address = defaultServiceRegistrationAddress
 	}
-	if p.Cfg.ServiceRegistration.CheckInterval <= 5*time.Second {
-		p.Cfg.ServiceRegistration.CheckInterval = defaultRegistrationCheckInterval
+	if p.cfg.ServiceRegistration.CheckInterval <= 5*time.Second {
+		p.cfg.ServiceRegistration.CheckInterval = defaultRegistrationCheckInterval
 	}
-	if p.Cfg.ServiceRegistration.MaxFail <= 0 {
-		p.Cfg.ServiceRegistration.MaxFail = defaultMaxServiceFail
+	if p.cfg.ServiceRegistration.MaxFail <= 0 {
+		p.cfg.ServiceRegistration.MaxFail = defaultMaxServiceFail
 	}
-	deregisterTimer := p.Cfg.ServiceRegistration.CheckInterval * time.Duration(p.Cfg.ServiceRegistration.MaxFail)
-	p.Cfg.ServiceRegistration.deregisterAfter = deregisterTimer.String()
+	deregisterTimer := p.cfg.ServiceRegistration.CheckInterval * time.Duration(p.cfg.ServiceRegistration.MaxFail)
+	p.cfg.ServiceRegistration.deregisterAfter = deregisterTimer.String()
 
-	if !p.Cfg.ServiceRegistration.EnableHTTPCheck {
+	if !p.cfg.ServiceRegistration.EnableHTTPCheck {
 		return
 	}
-	p.Cfg.ServiceRegistration.httpCheckAddress = p.Cfg.ServiceRegistration.HTTPCheckAddress
-	if p.Cfg.ServiceRegistration.httpCheckAddress != "" {
-		p.Cfg.ServiceRegistration.httpCheckAddress = filepath.Join(p.Cfg.ServiceRegistration.httpCheckAddress, p.Cfg.Path)
-		if !strings.HasPrefix(p.Cfg.ServiceRegistration.httpCheckAddress, "http") {
-			p.Cfg.ServiceRegistration.httpCheckAddress = "http://" + p.Cfg.ServiceRegistration.httpCheckAddress
+	p.cfg.ServiceRegistration.httpCheckAddress = p.cfg.ServiceRegistration.HTTPCheckAddress
+	if p.cfg.ServiceRegistration.httpCheckAddress != "" {
+		p.cfg.ServiceRegistration.httpCheckAddress = filepath.Join(p.cfg.ServiceRegistration.httpCheckAddress, p.cfg.Path)
+		if !strings.HasPrefix(p.cfg.ServiceRegistration.httpCheckAddress, "http") {
+			p.cfg.ServiceRegistration.httpCheckAddress = "http://" + p.cfg.ServiceRegistration.httpCheckAddress
 		}
 		return
 	}
-	p.Cfg.ServiceRegistration.httpCheckAddress = filepath.Join(p.Cfg.Listen, p.Cfg.Path)
-	if !strings.HasPrefix(p.Cfg.ServiceRegistration.httpCheckAddress, "http") {
-		p.Cfg.ServiceRegistration.httpCheckAddress = "http://" + p.Cfg.ServiceRegistration.httpCheckAddress
+	p.cfg.ServiceRegistration.httpCheckAddress = filepath.Join(p.cfg.Listen, p.cfg.Path)
+	if !strings.HasPrefix(p.cfg.ServiceRegistration.httpCheckAddress, "http") {
+		p.cfg.ServiceRegistration.httpCheckAddress = "http://" + p.cfg.ServiceRegistration.httpCheckAddress
 	}
 }
 
@@ -196,7 +196,7 @@ func (p *prometheusOutput) acquireLock(ctx context.Context, key string, val []by
 			kvPair.Session, _, err = p.consulClient.Session().Create(
 				&api.SessionEntry{
 					Behavior:  "delete",
-					TTL:       time.Duration(p.Cfg.ServiceRegistration.CheckInterval * 2).String(),
+					TTL:       time.Duration(p.cfg.ServiceRegistration.CheckInterval * 2).String(),
 					LockDelay: 0,
 				},
 				writeOpts,
@@ -216,7 +216,7 @@ func (p *prometheusOutput) acquireLock(ctx context.Context, key string, val []by
 			if acquired {
 				return kvPair.Session, nil
 			}
-			if p.Cfg.Debug {
+			if p.cfg.Debug {
 				p.logger.Printf("failed acquiring lock to %q: already locked", kvPair.Key)
 			}
 			time.Sleep(10 * time.Second)
@@ -236,7 +236,7 @@ func (p *prometheusOutput) keepLock(ctx context.Context, sessionID string) (chan
 			return
 		}
 		err := p.consulClient.Session().RenewPeriodic(
-			time.Duration(p.Cfg.ServiceRegistration.CheckInterval/2).String(),
+			time.Duration(p.cfg.ServiceRegistration.CheckInterval/2).String(),
 			sessionID,
 			writeOpts,
 			doneChan,

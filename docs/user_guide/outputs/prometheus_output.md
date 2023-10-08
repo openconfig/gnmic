@@ -82,6 +82,8 @@ outputs:
     target-template:
     # list of processors to apply on the message before writing
     event-processors: 
+    # an integer, sets the number of worker handling messages to be converted into Prometheus metrics
+    num-workers: 1
     # Enables Consul service registration
     service-registration:
       # Consul server address, default to localhost:8500
@@ -457,6 +459,13 @@ The below diagram shows how a `prometheus` output works with and without cache e
 When caching is enabled, the received gNMI updates are not processed and converted into metrics immediately, they are rather stored as is in the configured gNMI cache.
 
 Once a scrape request is received from `Prometheus`, all the cached gNMI updates are retrieved from the cache, converted to [events](../event_processors/intro.md#the-event-format), the configured processors, if any, are then applied to the whole list of events. Finally, The resulting event are converted into metrics and written back to `Prometheus` within the scrape response.
+
+## Prometheus Output Metrics
+
+When a Prometheus server (gNMI API) is enabled, `gnmic` prometheus output exposes 2 prometheus Gauges:
+
+* `number_of_prometheus_metrics_total`: Number of metrics stored by the prometheus output.
+* `number_of_prometheus_cached_metrics_total`: Number of metrics cached by the prometheus output.
 
 ## Examples
 
