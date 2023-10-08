@@ -1,5 +1,23 @@
 ## Changelog
 
+### v 0.33.0 - October 8th 2023
+
+- Rest API
+
+    - Added a kubernetes friendly `api/v1/healthz` endpoint.
+
+- Set Command
+
+    - Added support for gNMI set [`union_replace`](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-union_replace.md) operation.
+
+- Outputs
+
+    - Allow the number of workers used by the `prometheus` and `prometheus_write` outputs to be configurable to improve performance.
+
+- Go version
+
+    - Upgrade to Golang v1.21.1.
+
 ### v0.32.0 - August 31st 2023
 
 - TLS
