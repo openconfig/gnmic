@@ -139,3 +139,15 @@ For the previous example the labels would be:
 ```bash
 {interface_name="1/1/1",subinterface_index=0,source="$routerIP:Port",subscription_name="port-stats"}
 ```
+
+## Prometheus Write Metrics
+
+When a Prometheus server (gNMI API) is enabled, `gnmic` prometheus write output exposes 4 prometheus counters and 2 prometheus Gauges:
+
+* `number_of_prometheus_write_msgs_sent_success_total`: Number of msgs successfully sent by gnmic prometheus_write output.
+* `number_of_prometheus_write_msgs_sent_fail_total`: Number of failed msgs sent by gnmic prometheus_write output.
+* `msg_send_duration_ns`: gnmic prometheus_write output send duration in ns.
+
+* `number_of_prometheus_write_metadata_msgs_sent_success_total`: Number of metadata msgs successfully sent by gnmic prometheus_write output.
+* `number_of_prometheus_write_metadata_msgs_sent_fail_total`: Number of failed metadata msgs sent by gnmic prometheus_write output.
+* `metadata_msg_send_duration_ns`: gnmic prometheus_write output metadata send duration in ns.

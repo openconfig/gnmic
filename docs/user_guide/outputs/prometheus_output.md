@@ -460,6 +460,13 @@ When caching is enabled, the received gNMI updates are not processed and convert
 
 Once a scrape request is received from `Prometheus`, all the cached gNMI updates are retrieved from the cache, converted to [events](../event_processors/intro.md#the-event-format), the configured processors, if any, are then applied to the whole list of events. Finally, The resulting event are converted into metrics and written back to `Prometheus` within the scrape response.
 
+## Prometheus Output Metrics
+
+When a Prometheus server (gNMI API) is enabled, `gnmic` prometheus output exposes 2 prometheus Gauges:
+
+* `number_of_prometheus_metrics_total`: Number of metrics stored by the prometheus output.
+* `number_of_prometheus_cached_metrics_total`: Number of metrics cached by the prometheus output.
+
 ## Examples
 
 ### **A simple Prometheus output**
