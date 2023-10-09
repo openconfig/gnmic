@@ -37,7 +37,7 @@ require (
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/openconfig/gnmi v0.10.0
 	github.com/openconfig/goyang v1.4.2
-	github.com/openconfig/ygot v0.29.2
+	github.com/openconfig/ygot v0.29.12
 	github.com/pkg/sftp v1.13.6
 	github.com/prometheus/client_golang v1.16.0
 	github.com/prometheus/client_model v0.4.0
@@ -121,7 +121,7 @@ require (
 	github.com/rivo/uniseg v0.4.4 // indirect
 	github.com/zealic/xignore v0.3.3 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df // indirect
+	golang.org/x/exp v0.0.0-20230801115018-d63ba01acd4b // indirect
 	golang.org/x/mod v0.11.0 // indirect
 	golang.org/x/term v0.12.0 // indirect
 	golang.org/x/tools v0.10.0 // indirect
