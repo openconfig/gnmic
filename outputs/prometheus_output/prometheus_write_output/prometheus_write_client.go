@@ -11,6 +11,7 @@ package prometheus_write_output
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,8 +19,13 @@ import (
 
 	gogoproto "github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
-	"github.com/openconfig/gnmic/utils"
 	"github.com/prometheus/prometheus/prompb"
+
+	"github.com/openconfig/gnmic/utils"
+)
+
+var (
+	ErrMarshal = errors.New("marshal error")
 )
 
 var backoff = 100 * time.Millisecond
@@ -113,7 +119,9 @@ WRITE:
 				Timeseries: chunk,
 			})
 			if err != nil {
-				prometheusWriteNumberOfFailSendMsgs.WithLabelValues(err.Error()).Inc()
+				if p.cfg.Debug {
+					p.logger.Print(err)
+				}
 				continue
 			}
 			prometheusWriteSendDuration.Set(float64(time.Since(start).Nanoseconds()))
@@ -150,6 +158,7 @@ RETRY:
 			time.Sleep(backoff)
 			goto RETRY
 		}
+		prometheusWriteNumberOfFailSendMsgs.WithLabelValues("client_failure").Inc()
 		return err
 	}
 	defer rsp.Body.Close()
@@ -158,6 +167,7 @@ RETRY:
 		p.logger.Printf("got response from remote: status=%s", rsp.Status)
 	}
 	if rsp.StatusCode >= 300 {
+		prometheusWriteNumberOfFailSendMsgs.WithLabelValues(fmt.Sprintf("status_code=%d", rsp.StatusCode)).Inc()
 		msg, err := io.ReadAll(rsp.Body)
 		if err != nil {
 			return err
@@ -213,7 +223,9 @@ func (p *promWriteOutput) writeMetadata(ctx context.Context) {
 			Metadata: mds,
 		})
 		if err != nil {
-			prometheusWriteNumberOfFailSendMetadataMsgs.WithLabelValues(err.Error()).Inc()
+			if p.cfg.Debug {
+				p.logger.Print(err)
+			}
 			return
 		}
 		prometheusWriteMetadataSendDuration.Set(float64(time.Since(start).Nanoseconds()))
@@ -237,7 +249,9 @@ func (p *promWriteOutput) writeMetadata(ctx context.Context) {
 		Metadata: mds,
 	})
 	if err != nil {
-		prometheusWriteNumberOfFailSendMetadataMsgs.WithLabelValues(err.Error()).Inc()
+		if p.cfg.Debug {
+			p.logger.Print(err)
+		}
 		return
 	}
 	prometheusWriteMetadataSendDuration.Set(float64(time.Since(start).Nanoseconds()))
@@ -247,7 +261,8 @@ func (p *promWriteOutput) writeMetadata(ctx context.Context) {
 func (p *promWriteOutput) makeHTTPRequest(ctx context.Context, wr *prompb.WriteRequest) (*http.Request, error) {
 	b, err := gogoproto.Marshal(wr)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal proto write request: %v", err)
+		prometheusWriteNumberOfFailSendMsgs.WithLabelValues("marshal_error").Inc()
+		return nil, fmt.Errorf("marshal error: %w", err)
 	}
 	compBytes := snappy.Encode(nil, b)
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.cfg.URL, bytes.NewBuffer(compBytes))
