@@ -47,7 +47,7 @@ require (
 	github.com/spf13/viper v1.15.0
 	github.com/xdg/scram v1.0.5
 	go.starlark.net v0.0.0-20230612165344-9532f5667272
-	golang.org/x/crypto v0.13.0
+	golang.org/x/crypto v0.14.0
 	golang.org/x/oauth2 v0.12.0
 	golang.org/x/sync v0.3.0
 	google.golang.org/grpc v1.58.2
@@ -123,7 +123,7 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df // indirect
 	golang.org/x/mod v0.11.0 // indirect
-	golang.org/x/term v0.12.0 // indirect
+	golang.org/x/term v0.13.0 // indirect
 	golang.org/x/tools v0.10.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20230711160842-782d3b101e98 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230711160842-782d3b101e98 // indirect
@@ -245,8 +245,8 @@ require (
 	go4.org/intern v0.0.0-20230205224052-192e9f60865c // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20230525183740-e7c30c78aeb2 // indirect
 	gocloud.dev v0.25.1-0.20220408200107-09b10f7359f7 // indirect
-	golang.org/x/net v0.15.0
-	golang.org/x/sys v0.12.0 // indirect
+	golang.org/x/net v0.17.0
+	golang.org/x/sys v0.13.0 // indirect
 	golang.org/x/text v0.13.0
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
