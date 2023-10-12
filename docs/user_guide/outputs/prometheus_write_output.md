@@ -14,6 +14,7 @@ outputs:
     # a map of string:string, 
     # custom HTTP headers to be sent along with each remote write request.
     headers:
+      # header: value
     # sets the `Authorization` header on every remote write request with the
     # configured username and password.
     authentication:
@@ -92,6 +93,8 @@ outputs:
     event-processors: 
     # an integer, sets the number of worker handling messages to be converted into Prometheus metrics
     num-workers: 1
+    # an integer, sets the number of writers draining the buffer and writing to Prometheus
+    num-writers: 1
 ```
 
 `gnmic` creates the prometheus metric name and its labels from the subscription name, the gnmic path and the value name.
