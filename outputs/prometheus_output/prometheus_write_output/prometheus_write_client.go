@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"time"
 
 	gogoproto "github.com/gogo/protobuf/proto"
@@ -103,6 +104,10 @@ WRITE:
 	if numTS == 0 {
 		return
 	}
+	// sort timeSeries by timestamp
+	sort.Slice(pts, func(i, j int) bool {
+		return pts[i].Samples[0].Timestamp < pts[j].Samples[0].Timestamp
+	})
 	chunk := make([]prompb.TimeSeries, 0, p.cfg.MaxTimeSeriesPerWrite)
 	for i, pt := range pts {
 		// append timeSeries to chunk
