@@ -17,11 +17,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AlekSi/pointer"
 	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/spf13/cobra"
+
 	"github.com/openconfig/gnmic/api"
 	"github.com/openconfig/gnmic/types"
-	"github.com/spf13/cobra"
 )
 
 const (
@@ -101,8 +103,11 @@ func (c *Config) subscriptionConfigFromFlags(cmd *cobra.Command) (map[string]*ty
 		SetTarget: c.LocalFlags.SubscribeSetTarget,
 		Paths:     c.LocalFlags.SubscribePath,
 		Mode:      c.LocalFlags.SubscribeMode,
-		Encoding:  c.Encoding,
 	}
+	// if globalFlagIsSet(cmd, "encoding") {
+	// 	sub.Encoding = &c.Encoding
+	// }
+	fmt.Println("!!", sub)
 	if flagIsSet(cmd, "qos") {
 		sub.Qos = &c.LocalFlags.SubscribeQos
 	}
@@ -161,12 +166,14 @@ func (c *Config) decodeSubscriptionConfig(sn string, s any, cmd *cobra.Command) 
 		return nil, err
 	}
 	sub.Name = sn
-
+	fmt.Println("1", sub)
 	// inherit global "subscribe-*" option if it's not set
 	if err := c.setSubscriptionFieldsFromFlags(sub, cmd); err != nil {
 		return nil, err
 	}
+	fmt.Println("2", sub)
 	expandSubscriptionEnv(sub)
+	fmt.Println("3", sub)
 	return sub, nil
 }
 
@@ -177,9 +184,9 @@ func (c *Config) setSubscriptionFieldsFromFlags(sub *types.SubscriptionConfig, c
 	if sub.HeartbeatInterval == nil && flagIsSet(cmd, "heartbeat-interval") {
 		sub.HeartbeatInterval = &c.LocalFlags.SubscribeHeartbeatInterval
 	}
-	if sub.Encoding == "" {
-		sub.Encoding = c.Encoding
-	}
+	// if sub.Encoding == nil && globalFlagIsSet(cmd, "encoding") {
+	// 	sub.Encoding = &c.Encoding
+	// }
 	if sub.Mode == "" {
 		sub.Mode = c.LocalFlags.SubscribeMode
 	}
@@ -232,27 +239,36 @@ func (c *Config) GetSubscriptionsFromFile() []*types.SubscriptionConfig {
 	return subscriptions
 }
 
-func (c *Config) CreateSubscribeRequest(sc *types.SubscriptionConfig, target string) (*gnmi.SubscribeRequest, error) {
+func (c *Config) CreateSubscribeRequest(sc *types.SubscriptionConfig, tc *types.TargetConfig) (*gnmi.SubscribeRequest, error) {
 	err := validateAndSetDefaults(sc)
 	if err != nil {
 		return nil, err
 	}
-	gnmiOpts, err := c.subscriptionOpts(sc, target)
+	gnmiOpts, err := c.subscriptionOpts(sc, tc)
 	if err != nil {
 		return nil, err
 	}
 	return api.NewSubscribeRequest(gnmiOpts...)
 }
 
-func (c *Config) subscriptionOpts(sc *types.SubscriptionConfig, target string) ([]api.GNMIOption, error) {
+func (c *Config) subscriptionOpts(sc *types.SubscriptionConfig, tc *types.TargetConfig) ([]api.GNMIOption, error) {
 	gnmiOpts := make([]api.GNMIOption, 0, 4)
 
 	gnmiOpts = append(gnmiOpts,
 		api.Prefix(sc.Prefix),
-		api.Encoding(sc.Encoding),
 		api.SubscriptionListMode(sc.Mode),
 		api.UpdatesOnly(sc.UpdatesOnly),
 	)
+	// encoding
+	switch {
+	case sc.Encoding != nil:
+		gnmiOpts = append(gnmiOpts, api.Encoding(*sc.Encoding))
+	case tc != nil && tc.Encoding != nil:
+		gnmiOpts = append(gnmiOpts, api.Encoding(*tc.Encoding))
+	default:
+		gnmiOpts = append(gnmiOpts, api.Encoding(c.Encoding))
+	}
+
 	// history extension
 	if sc.History != nil {
 		if !sc.History.Snapshot.IsZero() {
@@ -276,13 +292,13 @@ func (c *Config) subscriptionOpts(sc *types.SubscriptionConfig, target string) (
 	if sc.Target != "" {
 		gnmiOpts = append(gnmiOpts, api.Target(sc.Target))
 	} else if sc.SetTarget {
-		gnmiOpts = append(gnmiOpts, api.Target(target))
+		gnmiOpts = append(gnmiOpts, api.Target(tc.Name))
 	}
 	// add gNMI subscriptions
 	// multiple stream subscriptions
 	if len(sc.StreamSubscriptions) > 0 {
 		for _, ssc := range sc.StreamSubscriptions {
-			streamGNMIOpts, err := c.streamSubscriptionOpts(ssc)
+			streamGNMIOpts, err := streamSubscriptionOpts(ssc)
 			if err != nil {
 				return nil, err
 			}
@@ -325,7 +341,7 @@ func (c *Config) subscriptionOpts(sc *types.SubscriptionConfig, target string) (
 	return gnmiOpts, nil
 }
 
-func (c *Config) streamSubscriptionOpts(sc *types.SubscriptionConfig) ([]api.GNMIOption, error) {
+func streamSubscriptionOpts(sc *types.SubscriptionConfig) ([]api.GNMIOption, error) {
 	gnmiOpts := make([]api.GNMIOption, 0)
 	for _, p := range sc.Paths {
 		subGnmiOpts := make([]api.GNMIOption, 0, 2)
@@ -380,19 +396,21 @@ func validateAndSetDefaults(sc *types.SubscriptionConfig) error {
 		return fmt.Errorf("%w: subscription %s: unknown subscription mode %q", ErrConfig, sc.Name, sc.Mode)
 	}
 	// validate encoding
-	switch strings.ToUpper(strings.ReplaceAll(sc.Encoding, "-", "_")) {
-	case "":
-		sc.Encoding = subscriptionDefaultEncoding
-	case "JSON":
-	case "BYTES":
-	case "PROTO":
-	case "ASCII":
-	case "JSON_IETF":
-	default:
-		// allow integer encoding values
-		_, err := strconv.Atoi(sc.Encoding)
-		if err != nil {
-			return fmt.Errorf("%w: subscription %s: unknown encoding type %q", ErrConfig, sc.Name, sc.Encoding)
+	if sc.Encoding != nil {
+		switch strings.ToUpper(strings.ReplaceAll(*sc.Encoding, "-", "_")) {
+		case "":
+			sc.Encoding = pointer.ToString(subscriptionDefaultEncoding)
+		case "JSON":
+		case "BYTES":
+		case "PROTO":
+		case "ASCII":
+		case "JSON_IETF":
+		default:
+			// allow integer encoding values
+			_, err := strconv.Atoi(*sc.Encoding)
+			if err != nil {
+				return fmt.Errorf("%w: subscription %s: unknown encoding type %q", ErrConfig, sc.Name, *sc.Encoding)
+			}
 		}
 	}
 
@@ -425,7 +443,7 @@ func validateAndSetDefaults(sc *types.SubscriptionConfig) error {
 			if scs.SetTarget {
 				return fmt.Errorf("%w: subscription %s/%d: 'set-target' attribute cannot be set", ErrConfig, sc.Name, i)
 			}
-			if scs.Encoding != "" {
+			if scs.Encoding != nil {
 				return fmt.Errorf("%w: subscription %s/%d: 'encoding' attribute cannot be set", ErrConfig, sc.Name, i)
 			}
 			if scs.History != nil {
@@ -490,5 +508,7 @@ func expandSubscriptionEnv(sc *types.SubscriptionConfig) {
 	}
 	sc.Mode = os.ExpandEnv(sc.Mode)
 	sc.StreamMode = os.ExpandEnv(sc.StreamMode)
-	sc.Encoding = os.ExpandEnv(sc.Encoding)
+	if sc.Encoding != nil {
+		sc.Encoding = pointer.ToString(os.ExpandEnv(*sc.Encoding))
+	}
 }

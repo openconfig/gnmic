@@ -288,7 +288,7 @@ func (a *App) handleClusteringGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleHealthzGet(w http.ResponseWriter, r *http.Request) {
-	s := map[string]string{"status": "healthy",}
+	s := map[string]string{"status": "healthy"}
 	b, err := json.Marshal(s)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)

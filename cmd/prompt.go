@@ -21,10 +21,11 @@ import (
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/nsf/termbox-go"
 	"github.com/olekukonko/tablewriter"
-	"github.com/openconfig/gnmic/types"
 	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+
+	"github.com/openconfig/gnmic/types"
 )
 
 var colorMapping = map[string]goprompt.Color{
@@ -298,13 +299,17 @@ func subscriptionTable(scs map[string]*types.SubscriptionConfig, list bool) [][]
 	if list {
 		tabData := make([][]string, 0, len(scs))
 		for _, sub := range scs {
+			enc := ""
+			if sub.Encoding != nil {
+				enc = *sub.Encoding
+			}
 			tabData = append(tabData, []string{
 				sub.Name,
 				sub.ModeString(),
 				sub.PrefixString(),
 				sub.PathsString(),
 				sub.SampleIntervalString(),
-				sub.Encoding,
+				enc,
 			})
 		}
 		sort.Slice(tabData, func(i, j int) bool {
@@ -323,7 +328,7 @@ func subscriptionTable(scs map[string]*types.SubscriptionConfig, list bool) [][]
 		tabData = append(tabData, []string{"Prefix", sub.PrefixString()})
 		tabData = append(tabData, []string{"Paths", sub.PathsString()})
 		tabData = append(tabData, []string{"Sample Interval", sub.SampleIntervalString()})
-		tabData = append(tabData, []string{"Encoding", sub.Encoding})
+		tabData = append(tabData, []string{"Encoding", *sub.Encoding})
 		tabData = append(tabData, []string{"Qos", sub.QosString()})
 		tabData = append(tabData, []string{"Heartbeat Interval", sub.HeartbeatIntervalString()})
 		return tabData
@@ -694,9 +699,11 @@ func subscriptionDescription(sub *types.SubscriptionConfig) string {
 			sb.WriteString(", ")
 		}
 	}
-	sb.WriteString("encoding=")
-	sb.WriteString(sub.Encoding)
-	sb.WriteString(", ")
+	if sub.Encoding != nil {
+		sb.WriteString("encoding=")
+		sb.WriteString(*sub.Encoding)
+		sb.WriteString(", ")
+	}
 	if sub.Prefix != "" {
 		sb.WriteString("prefix=")
 		sb.WriteString(sub.Prefix)

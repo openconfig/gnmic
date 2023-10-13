@@ -149,6 +149,11 @@ targets:
     # if empty it defaults to all subscriptions defined under
     # the main level `subscriptions` field
     subscriptions:
+    # string, case insensitive, defines the gNMI encoding to be used for 
+    # the subscriptions to be established for this target.
+    # This encoding value applies only if the subscription configuration does
+    # NOT explicitly define an encoding.
+    encoding:
     # list of output names to which the gnmi data will be written.
     # if empty if defaults to all outputs defined under
     # the main level `outputs` field

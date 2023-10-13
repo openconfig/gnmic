@@ -26,14 +26,15 @@ import (
 	"github.com/itchyny/gojq"
 	"github.com/mitchellh/go-homedir"
 	"github.com/openconfig/gnmi/proto/gnmi"
-	"github.com/openconfig/gnmic/api"
-	"github.com/openconfig/gnmic/types"
-	"github.com/openconfig/gnmic/utils"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"gopkg.in/natefinch/lumberjack.v2"
 	yaml "gopkg.in/yaml.v2"
+
+	"github.com/openconfig/gnmic/api"
+	"github.com/openconfig/gnmic/types"
+	"github.com/openconfig/gnmic/utils"
 )
 
 const (

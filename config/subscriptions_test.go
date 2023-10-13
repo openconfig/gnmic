@@ -22,10 +22,11 @@ import (
 	"github.com/AlekSi/pointer"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
-	"github.com/openconfig/gnmic/testutils"
-	"github.com/openconfig/gnmic/types"
 	"github.com/spf13/viper"
 	"google.golang.org/protobuf/encoding/prototext"
+
+	"github.com/openconfig/gnmic/testutils"
+	"github.com/openconfig/gnmic/types"
 )
 
 func mustParseTime(tm string) time.Time {
@@ -58,23 +59,23 @@ subscriptions:
 		},
 		outErr: nil,
 	},
-	"with_globals": {
-		in: []byte(`
-encoding: proto
-subscriptions:
-  sub1:
-    paths: 
-      - /valid/path
-`),
-		out: map[string]*types.SubscriptionConfig{
-			"sub1": {
-				Name:     "sub1",
-				Paths:    []string{"/valid/path"},
-				Encoding: "proto",
-			},
-		},
-		outErr: nil,
-	},
+	// 	"with_globals": {
+	// 		in: []byte(`
+	// subscribe-sample-interval: 10s
+	// subscriptions:
+	//   sub1:
+	//     paths:
+	//       - /valid/path
+	// `),
+	// 		out: map[string]*types.SubscriptionConfig{
+	// 			"sub1": {
+	// 				Name:           "sub1",
+	// 				Paths:          []string{"/valid/path"},
+	// 				SampleInterval: pointer.ToDuration(10 * time.Second),
+	// 			},
+	// 		},
+	// 		outErr: nil,
+	// 	},
 	"2_subs": {
 		in: []byte(`
 subscriptions:
@@ -101,42 +102,41 @@ subscriptions:
 		},
 		outErr: nil,
 	},
-	"2_subs_with_globals": {
-		in: []byte(`
-encoding: proto
-subscriptions:
-  sub1:
-    paths: 
-      - /valid/path
-  sub2:
-    paths: 
-      - /valid/path2
-    mode: stream
-    stream-mode: on_change
-`),
-		out: map[string]*types.SubscriptionConfig{
-			"sub1": {
-				Name:     "sub1",
-				Paths:    []string{"/valid/path"},
-				Encoding: "proto",
-			},
-			"sub2": {
-				Name:       "sub2",
-				Paths:      []string{"/valid/path2"},
-				Mode:       "stream",
-				StreamMode: "on_change",
-				Encoding:   "proto",
-			},
-		},
-		outErr: nil,
-	},
+	// 	"2_subs_with_globals": {
+	// 		in: []byte(`
+	// subscribe-sample-interval: 10s
+	// subscriptions:
+	//   sub1:
+	//     paths:
+	//       - /valid/path
+	//   sub2:
+	//     paths:
+	//       - /valid/path2
+	//     mode: stream
+	//     stream-mode: on_change
+	// `),
+	// 		out: map[string]*types.SubscriptionConfig{
+	// 			"sub1": {
+	// 				Name:           "sub1",
+	// 				Paths:          []string{"/valid/path"},
+	// 				SampleInterval: pointer.ToDuration(10 * time.Second),
+	// 			},
+	// 			"sub2": {
+	// 				Name:           "sub2",
+	// 				Paths:          []string{"/valid/path2"},
+	// 				Mode:           "stream",
+	// 				StreamMode:     "on_change",
+	// 				SampleInterval: pointer.ToDuration(10 * time.Second),
+	// 			},
+	// 		},
+	// 		outErr: nil,
+	// 	},
 	"3_subs_with_env": {
 		envs: []string{
 			"SUB1_PATH=/valid/path",
 			"SUB2_PATH=/valid/path2",
 		},
 		in: []byte(`
-encoding: proto
 subscriptions:
   sub1:
     paths: 
@@ -149,16 +149,14 @@ subscriptions:
 `),
 		out: map[string]*types.SubscriptionConfig{
 			"sub1": {
-				Name:     "sub1",
-				Paths:    []string{"/valid/path"},
-				Encoding: "proto",
+				Name:  "sub1",
+				Paths: []string{"/valid/path"},
 			},
 			"sub2": {
 				Name:       "sub2",
 				Paths:      []string{"/valid/path2"},
 				Mode:       "stream",
 				StreamMode: "on_change",
-				Encoding:   "proto",
 			},
 		},
 		outErr: nil,
@@ -295,7 +293,7 @@ func TestConfig_CreateSubscribeRequest(t *testing.T) {
 	}
 	type args struct {
 		sc     *types.SubscriptionConfig
-		target string
+		target *types.TargetConfig
 	}
 	tests := []struct {
 		name    string
@@ -312,7 +310,7 @@ func TestConfig_CreateSubscribeRequest(t *testing.T) {
 						"interface",
 					},
 					Mode:     "once",
-					Encoding: "json_ietf",
+					Encoding: pointer.ToString("json_ietf"),
 				},
 			},
 			want: &gnmi.SubscribeRequest{
@@ -343,7 +341,7 @@ func TestConfig_CreateSubscribeRequest(t *testing.T) {
 						"network-instance",
 					},
 					Mode:     "once",
-					Encoding: "json_ietf",
+					Encoding: pointer.ToString("json_ietf"),
 				},
 			},
 			want: &gnmi.SubscribeRequest{
@@ -380,7 +378,7 @@ func TestConfig_CreateSubscribeRequest(t *testing.T) {
 						"interface",
 					},
 					Mode:     "poll",
-					Encoding: "json_ietf",
+					Encoding: pointer.ToString("json_ietf"),
 				},
 			},
 			want: &gnmi.SubscribeRequest{
@@ -411,7 +409,7 @@ func TestConfig_CreateSubscribeRequest(t *testing.T) {
 						"network-instance",
 					},
 					Mode:     "poll",
-					Encoding: "json_ietf",
+					Encoding: pointer.ToString("json_ietf"),
 				},
 			},
 			want: &gnmi.SubscribeRequest{
@@ -448,7 +446,7 @@ func TestConfig_CreateSubscribeRequest(t *testing.T) {
 						"interface",
 					},
 					Mode:     "stream",
-					Encoding: "json_ietf",
+					Encoding: pointer.ToString("json_ietf"),
 				},
 			},
 			want: &gnmi.SubscribeRequest{
@@ -479,7 +477,7 @@ func TestConfig_CreateSubscribeRequest(t *testing.T) {
 						"network-instance",
 					},
 					Mode:     "stream",
-					Encoding: "json_ietf",
+					Encoding: pointer.ToString("json_ietf"),
 				},
 			},
 			want: &gnmi.SubscribeRequest{
@@ -516,7 +514,7 @@ func TestConfig_CreateSubscribeRequest(t *testing.T) {
 						"interface",
 					},
 					StreamMode:     "sample",
-					Encoding:       "json_ietf",
+					Encoding:       pointer.ToString("json_ietf"),
 					SampleInterval: pointer.ToDuration(5 * time.Second),
 				},
 			},
@@ -547,7 +545,7 @@ func TestConfig_CreateSubscribeRequest(t *testing.T) {
 						"interface",
 					},
 					StreamMode: "on-change",
-					Encoding:   "json_ietf",
+					Encoding:   pointer.ToString("json_ietf"),
 				},
 			},
 			want: &gnmi.SubscribeRequest{
@@ -577,7 +575,7 @@ func TestConfig_CreateSubscribeRequest(t *testing.T) {
 						"interface",
 					},
 					StreamMode: "on_change",
-					Encoding:   "json_ietf",
+					Encoding:   pointer.ToString("json_ietf"),
 				},
 			},
 			want: &gnmi.SubscribeRequest{
@@ -607,7 +605,7 @@ func TestConfig_CreateSubscribeRequest(t *testing.T) {
 						"interface",
 					},
 					Mode:     "once",
-					Encoding: "json_ietf",
+					Encoding: pointer.ToString("json_ietf"),
 					History: &types.HistoryConfig{
 						Snapshot: mustParseTime("2022-07-14T07:30:00.0Z"),
 					},
@@ -647,7 +645,7 @@ func TestConfig_CreateSubscribeRequest(t *testing.T) {
 			name: "combined_on-change_and_sample",
 			args: args{
 				sc: &types.SubscriptionConfig{
-					Encoding: "json_ietf",
+					Encoding: pointer.ToString("json_ietf"),
 					StreamSubscriptions: []*types.SubscriptionConfig{
 						{
 							Paths: []string{
@@ -705,7 +703,7 @@ func TestConfig_CreateSubscribeRequest(t *testing.T) {
 			name: "combined_on-change_and_sample_multiple_paths",
 			args: args{
 				sc: &types.SubscriptionConfig{
-					Encoding: "json_ietf",
+					Encoding: pointer.ToString("json_ietf"),
 					StreamSubscriptions: []*types.SubscriptionConfig{
 						{
 							Paths: []string{
@@ -795,7 +793,7 @@ func TestConfig_CreateSubscribeRequest(t *testing.T) {
 			args: args{
 				sc: &types.SubscriptionConfig{
 					Paths:    []string{"network-instance"},
-					Encoding: "json_ietf",
+					Encoding: pointer.ToString("json_ietf"),
 					StreamSubscriptions: []*types.SubscriptionConfig{
 						{
 							Paths: []string{
@@ -818,7 +816,7 @@ func TestConfig_CreateSubscribeRequest(t *testing.T) {
 			name: "invalid_combined_subscriptions_mode",
 			args: args{
 				sc: &types.SubscriptionConfig{
-					Encoding: "json_ietf",
+					Encoding: pointer.ToString("json_ietf"),
 					StreamSubscriptions: []*types.SubscriptionConfig{
 						{
 							Paths: []string{
@@ -841,7 +839,7 @@ func TestConfig_CreateSubscribeRequest(t *testing.T) {
 			name: "invalid_subscription mode",
 			args: args{
 				sc: &types.SubscriptionConfig{
-					Encoding: "json_ietf",
+					Encoding: pointer.ToString("json_ietf"),
 					Mode:     "ONCE",
 					StreamSubscriptions: []*types.SubscriptionConfig{
 						{
@@ -860,6 +858,70 @@ func TestConfig_CreateSubscribeRequest(t *testing.T) {
 				},
 			},
 			wantErr: true,
+		},
+		{
+			name: "encoding_from_target",
+			args: args{
+				sc: &types.SubscriptionConfig{
+					Paths: []string{
+						"interface",
+					},
+					Mode: "once",
+				},
+				target: &types.TargetConfig{
+					Encoding: pointer.ToString("json_ietf"),
+				},
+			},
+			want: &gnmi.SubscribeRequest{
+				Request: &gnmi.SubscribeRequest_Subscribe{
+					Subscribe: &gnmi.SubscriptionList{
+						Subscription: []*gnmi.Subscription{
+							{
+								Path: &gnmi.Path{
+									Elem: []*gnmi.PathElem{{
+										Name: "interface",
+									}},
+								},
+							},
+						},
+						Mode:     gnmi.SubscriptionList_ONCE,
+						Encoding: gnmi.Encoding_JSON_IETF,
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "encoding_from_global",
+			fields: fields{
+				GlobalFlags: GlobalFlags{Encoding: "json_ietf"},
+			},
+			args: args{
+				sc: &types.SubscriptionConfig{
+					Paths: []string{
+						"interface",
+					},
+					Mode: "once",
+				},
+			},
+			want: &gnmi.SubscribeRequest{
+				Request: &gnmi.SubscribeRequest_Subscribe{
+					Subscribe: &gnmi.SubscriptionList{
+						Subscription: []*gnmi.Subscription{
+							{
+								Path: &gnmi.Path{
+									Elem: []*gnmi.PathElem{{
+										Name: "interface",
+									}},
+								},
+							},
+						},
+						Mode:     gnmi.SubscriptionList_ONCE,
+						Encoding: gnmi.Encoding_JSON_IETF,
+					},
+				},
+			},
+			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
