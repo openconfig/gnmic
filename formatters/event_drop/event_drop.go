@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/itchyny/gojq"
+
 	"github.com/openconfig/gnmic/formatters"
 	"github.com/openconfig/gnmic/types"
 	"github.com/openconfig/gnmic/utils"
@@ -27,8 +28,8 @@ const (
 	loggingPrefix = "[" + processorType + "] "
 )
 
-// Drop Drops the msg if ANY of the Tags or Values regexes are matched
-type Drop struct {
+// drop Drops the msg if ANY of the Tags or Values regexes are matched
+type drop struct {
 	Condition  string   `mapstructure:"condition,omitempty"`
 	TagNames   []string `mapstructure:"tag-names,omitempty" json:"tag-names,omitempty"`
 	ValueNames []string `mapstructure:"value-names,omitempty" json:"value-names,omitempty"`
@@ -46,13 +47,13 @@ type Drop struct {
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &Drop{
+		return &drop{
 			logger: log.New(io.Discard, "", 0),
 		}
 	})
 }
 
-func (d *Drop) Init(cfg interface{}, opts ...formatters.Option) error {
+func (d *drop) Init(cfg interface{}, opts ...formatters.Option) error {
 	err := formatters.DecodeConfig(cfg, d)
 	if err != nil {
 		return err
@@ -115,7 +116,7 @@ func (d *Drop) Init(cfg interface{}, opts ...formatters.Option) error {
 	return nil
 }
 
-func (d *Drop) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
+func (d *drop) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	i := 0
 	for _, e := range es {
 		if !d.drop(e) {
@@ -130,7 +131,7 @@ func (d *Drop) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	return es
 }
 
-func (d *Drop) WithLogger(l *log.Logger) {
+func (d *drop) WithLogger(l *log.Logger) {
 	if d.Debug && l != nil {
 		d.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
 	} else if d.Debug {
@@ -138,11 +139,13 @@ func (d *Drop) WithLogger(l *log.Logger) {
 	}
 }
 
-func (d *Drop) WithTargets(tcs map[string]*types.TargetConfig) {}
+func (d *drop) WithTargets(tcs map[string]*types.TargetConfig) {}
 
-func (d *Drop) WithActions(act map[string]map[string]interface{}) {}
+func (d *drop) WithActions(act map[string]map[string]interface{}) {}
 
-func (d *Drop) drop(e *formatters.EventMsg) bool {
+func (d *drop) WithProcessors(procs map[string]map[string]any) {}
+
+func (d *drop) drop(e *formatters.EventMsg) bool {
 	if d.Condition != "" {
 		ok, err := formatters.CheckCondition(d.code, e)
 		if err != nil {

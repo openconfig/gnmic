@@ -20,12 +20,13 @@ import (
 	"time"
 
 	"github.com/itchyny/gojq"
+	"gopkg.in/yaml.v2"
+
 	"github.com/openconfig/gnmic/actions"
 	_ "github.com/openconfig/gnmic/actions/all"
 	"github.com/openconfig/gnmic/formatters"
 	"github.com/openconfig/gnmic/types"
 	"github.com/openconfig/gnmic/utils"
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -34,8 +35,8 @@ const (
 	defaultCondition = "any([true])"
 )
 
-// Trigger triggers an action when certain conditions are met
-type Trigger struct {
+// trigger triggers an action when certain conditions are met
+type trigger struct {
 	Condition      string                 `mapstructure:"condition,omitempty"`
 	MinOccurrences int                    `mapstructure:"min-occurrences,omitempty"`
 	MaxOccurrences int                    `mapstructure:"max-occurrences,omitempty"`
@@ -59,13 +60,13 @@ type Trigger struct {
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &Trigger{
+		return &trigger{
 			logger: log.New(io.Discard, "", 0),
 		}
 	})
 }
 
-func (p *Trigger) Init(cfg interface{}, opts ...formatters.Option) error {
+func (p *trigger) Init(cfg interface{}, opts ...formatters.Option) error {
 	err := formatters.DecodeConfig(cfg, p)
 	if err != nil {
 		return err
@@ -109,7 +110,7 @@ func (p *Trigger) Init(cfg interface{}, opts ...formatters.Option) error {
 	return nil
 }
 
-func (p *Trigger) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
+func (p *trigger) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	now := time.Now()
 	for _, e := range es {
 		if e == nil {
@@ -136,7 +137,7 @@ func (p *Trigger) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	return es
 }
 
-func (p *Trigger) WithLogger(l *log.Logger) {
+func (p *trigger) WithLogger(l *log.Logger) {
 	if p.Debug && l != nil {
 		p.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
 	} else if p.Debug {
@@ -144,21 +145,21 @@ func (p *Trigger) WithLogger(l *log.Logger) {
 	}
 }
 
-func (p *Trigger) WithTargets(tcs map[string]*types.TargetConfig) {
+func (p *trigger) WithTargets(tcs map[string]*types.TargetConfig) {
 	if p.Debug {
 		p.logger.Printf("with targets: %+v", tcs)
 	}
 	p.targets = tcs
 }
 
-func (p *Trigger) WithActions(acts map[string]map[string]interface{}) {
+func (p *trigger) WithActions(acts map[string]map[string]interface{}) {
 	if p.Debug {
 		p.logger.Printf("with actions: %+v", acts)
 	}
 	p.acts = acts
 }
 
-func (p *Trigger) initializeAction(cfg map[string]interface{}) error {
+func (p *trigger) initializeAction(cfg map[string]interface{}) error {
 	if len(cfg) == 0 {
 		return errors.New("missing action definition")
 	}
@@ -182,7 +183,7 @@ func (p *Trigger) initializeAction(cfg map[string]interface{}) error {
 	return errors.New("missing type field under action")
 }
 
-func (p *Trigger) String() string {
+func (p *trigger) String() string {
 	b, err := json.Marshal(p)
 	if err != nil {
 		return ""
@@ -190,7 +191,7 @@ func (p *Trigger) String() string {
 	return string(b)
 }
 
-func (p *Trigger) setDefaults() error {
+func (p *trigger) setDefaults() error {
 	if p.Condition == "" {
 		p.Condition = defaultCondition
 	}
@@ -209,7 +210,7 @@ func (p *Trigger) setDefaults() error {
 	return nil
 }
 
-func (p *Trigger) readVars() error {
+func (p *trigger) readVars() error {
 	if p.VarsFile == "" {
 		p.vars = p.Vars
 		return nil
@@ -227,7 +228,7 @@ func (p *Trigger) readVars() error {
 	return nil
 }
 
-func (p *Trigger) triggerActions(e *formatters.EventMsg) {
+func (p *trigger) triggerActions(e *formatters.EventMsg) {
 	actx := &actions.Context{Input: e, Env: make(map[string]interface{}), Vars: p.vars}
 	for _, act := range p.actions {
 		res, err := act.Run(context.TODO(), actx)
@@ -240,7 +241,7 @@ func (p *Trigger) triggerActions(e *formatters.EventMsg) {
 	}
 }
 
-func (p *Trigger) evalOccurrencesWithinWindow(now time.Time) bool {
+func (p *trigger) evalOccurrencesWithinWindow(now time.Time) bool {
 	if p.occurrencesTimes == nil {
 		p.occurrencesTimes = make([]time.Time, 0)
 	}
@@ -278,3 +279,5 @@ func (p *Trigger) evalOccurrencesWithinWindow(now time.Time) bool {
 	}
 	return false
 }
+
+func (p *trigger) WithProcessors(procs map[string]map[string]any) {}

@@ -17,11 +17,12 @@ import (
 	"regexp"
 	"strings"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
 	"github.com/openconfig/gnmic/formatters"
 	"github.com/openconfig/gnmic/types"
 	"github.com/openconfig/gnmic/utils"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 )
 
 const (
@@ -31,8 +32,8 @@ const (
 	valueField    = "value"
 )
 
-// Strings provides some of Golang's strings functions to transform: tags, tag names, values and value names
-type Strings struct {
+// stringsp provides some of Golang's strings functions to transform: tags, tag names, values and value names
+type stringsp struct {
 	Tags       []string                `mapstructure:"tags,omitempty" json:"tags,omitempty"`
 	Values     []string                `mapstructure:"values,omitempty" json:"values,omitempty"`
 	TagNames   []string                `mapstructure:"tag-names,omitempty" json:"tag-names,omitempty"`
@@ -77,13 +78,13 @@ type transform struct {
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &Strings{
+		return &stringsp{
 			logger: log.New(io.Discard, "", 0),
 		}
 	})
 }
 
-func (s *Strings) Init(cfg interface{}, opts ...formatters.Option) error {
+func (s *stringsp) Init(cfg interface{}, opts ...formatters.Option) error {
 	err := formatters.DecodeConfig(cfg, s)
 	if err != nil {
 		return err
@@ -150,7 +151,7 @@ func (s *Strings) Init(cfg interface{}, opts ...formatters.Option) error {
 	return nil
 }
 
-func (s *Strings) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
+func (s *stringsp) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	for _, e := range es {
 		if e == nil {
 			continue
@@ -189,7 +190,7 @@ func (s *Strings) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	return es
 }
 
-func (s *Strings) WithLogger(l *log.Logger) {
+func (s *stringsp) WithLogger(l *log.Logger) {
 	if s.Debug && l != nil {
 		s.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
 	} else if s.Debug {
@@ -197,11 +198,13 @@ func (s *Strings) WithLogger(l *log.Logger) {
 	}
 }
 
-func (s *Strings) WithTargets(tcs map[string]*types.TargetConfig) {}
+func (s *stringsp) WithTargets(tcs map[string]*types.TargetConfig) {}
 
-func (s *Strings) WithActions(act map[string]map[string]interface{}) {}
+func (s *stringsp) WithActions(act map[string]map[string]interface{}) {}
 
-func (s *Strings) applyValueTransformations(e *formatters.EventMsg, k string, v interface{}) {
+func (s *stringsp) WithProcessors(procs map[string]map[string]any) {}
+
+func (s *stringsp) applyValueTransformations(e *formatters.EventMsg, k string, v interface{}) {
 	for _, trans := range s.Transforms {
 		for _, t := range trans {
 			if !t.Keep {
@@ -213,7 +216,7 @@ func (s *Strings) applyValueTransformations(e *formatters.EventMsg, k string, v 
 	}
 }
 
-func (s *Strings) applyTagTransformations(e *formatters.EventMsg, k, v string) {
+func (s *stringsp) applyTagTransformations(e *formatters.EventMsg, k, v string) {
 	for _, trans := range s.Transforms {
 		for _, t := range trans {
 			if !t.Keep {

@@ -28,10 +28,10 @@ const (
 	loggingPrefix = "[" + processorType + "] "
 )
 
-// DateString converts Tags and/or Values of unix timestamp to a human readable format.
+// dateString converts Tags and/or Values of unix timestamp to a human readable format.
 // Precision specifies the unit of the received timestamp, s, ms, us or ns.
 // DateTimeFormat is the desired datetime format, it defaults to RFC3339
-type DateString struct {
+type dateString struct {
 	Tags      []string `mapstructure:"tag-names,omitempty" json:"tag-names,omitempty"`
 	Values    []string `mapstructure:"value-names,omitempty" json:"value-names,omitempty"`
 	Precision string   `mapstructure:"precision,omitempty" json:"precision,omitempty"`
@@ -47,13 +47,13 @@ type DateString struct {
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &DateString{
+		return &dateString{
 			logger: log.New(io.Discard, "", 0),
 		}
 	})
 }
 
-func (d *DateString) Init(cfg interface{}, opts ...formatters.Option) error {
+func (d *dateString) Init(cfg interface{}, opts ...formatters.Option) error {
 	err := formatters.DecodeConfig(cfg, d)
 	if err != nil {
 		return err
@@ -99,7 +99,7 @@ func (d *DateString) Init(cfg interface{}, opts ...formatters.Option) error {
 	return nil
 }
 
-func (d *DateString) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
+func (d *dateString) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	for _, e := range es {
 		if e == nil {
 			continue
@@ -163,7 +163,7 @@ func (d *DateString) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	return es
 }
 
-func (d *DateString) WithLogger(l *log.Logger) {
+func (d *dateString) WithLogger(l *log.Logger) {
 	if d.Debug && l != nil {
 		d.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
 	} else if d.Debug {
@@ -171,9 +171,11 @@ func (d *DateString) WithLogger(l *log.Logger) {
 	}
 }
 
-func (d *DateString) WithTargets(tcs map[string]*types.TargetConfig) {}
+func (d *dateString) WithTargets(tcs map[string]*types.TargetConfig) {}
 
-func (d *DateString) WithActions(act map[string]map[string]interface{}) {}
+func (d *dateString) WithActions(act map[string]map[string]interface{}) {}
+
+func (d *dateString) WithProcessors(procs map[string]map[string]any) {}
 
 func convertToInt(i interface{}) (int, error) {
 	switch i := i.(type) {

@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/itchyny/gojq"
+
 	"github.com/openconfig/gnmic/formatters"
 	"github.com/openconfig/gnmic/types"
 	"github.com/openconfig/gnmic/utils"
@@ -27,7 +28,7 @@ const (
 	loggingPrefix = "[" + processorType + "] "
 )
 
-type Write struct {
+type write struct {
 	Condition  string   `mapstructure:"condition,omitempty"`
 	Tags       []string `mapstructure:"tags,omitempty" json:"tags,omitempty"`
 	Values     []string `mapstructure:"values,omitempty" json:"values,omitempty"`
@@ -50,13 +51,13 @@ type Write struct {
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &Write{
+		return &write{
 			logger: log.New(io.Discard, "", 0),
 		}
 	})
 }
 
-func (p *Write) Init(cfg interface{}, opts ...formatters.Option) error {
+func (p *write) Init(cfg interface{}, opts ...formatters.Option) error {
 	err := formatters.DecodeConfig(cfg, p)
 	if err != nil {
 		return err
@@ -134,24 +135,23 @@ func (p *Write) Init(cfg interface{}, opts ...formatters.Option) error {
 	return nil
 }
 
-func (p *Write) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
+func (p *write) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 OUTER:
 	for _, e := range es {
 		if e == nil {
 			p.dst.Write([]byte(""))
 			continue
 		}
-		if p.code != nil {
-			ok, err := formatters.CheckCondition(p.code, e)
+
+		ok, err := formatters.CheckCondition(p.code, e)
+		if err != nil {
+			p.logger.Printf("condition check failed: %v", err)
+		}
+		if ok {
+			err := p.write(e)
 			if err != nil {
-				p.logger.Printf("condition check failed: %v", err)
-			}
-			if ok {
-				err := p.write(e)
-				if err != nil {
-					p.logger.Printf("failed to write to destination: %v", err)
-					continue OUTER
-				}
+				p.logger.Printf("failed to write to destination: %v", err)
+				continue OUTER
 			}
 		}
 		for k, v := range e.Values {
@@ -204,7 +204,7 @@ OUTER:
 	return es
 }
 
-func (p *Write) WithLogger(l *log.Logger) {
+func (p *write) WithLogger(l *log.Logger) {
 	if p.Debug && l != nil {
 		p.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
 	} else if p.Debug {
@@ -212,7 +212,7 @@ func (p *Write) WithLogger(l *log.Logger) {
 	}
 }
 
-func (p *Write) write(e *formatters.EventMsg) error {
+func (p *write) write(e *formatters.EventMsg) error {
 	var b []byte
 	var err error
 	if len(p.Indent) > 0 {
@@ -230,6 +230,8 @@ func (p *Write) write(e *formatters.EventMsg) error {
 	return nil
 }
 
-func (p *Write) WithTargets(tcs map[string]*types.TargetConfig) {}
+func (p *write) WithTargets(tcs map[string]*types.TargetConfig) {}
 
-func (p *Write) WithActions(act map[string]map[string]interface{}) {}
+func (p *write) WithActions(act map[string]map[string]interface{}) {}
+
+func (p *write) WithProcessors(procs map[string]map[string]any) {}
