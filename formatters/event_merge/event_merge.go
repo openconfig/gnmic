@@ -24,8 +24,8 @@ const (
 	loggingPrefix = "[" + processorType + "] "
 )
 
-// Merge merges a list of event messages into one or multiple messages based on some criteria
-type Merge struct {
+// merge merges a list of event messages into one or multiple messages based on some criteria
+type merge struct {
 	Always bool `mapstructure:"always,omitempty" json:"always,omitempty"`
 	Debug  bool `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 
@@ -34,13 +34,13 @@ type Merge struct {
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &Merge{
+		return &merge{
 			logger: log.New(io.Discard, "", 0),
 		}
 	})
 }
 
-func (p *Merge) Init(cfg interface{}, opts ...formatters.Option) error {
+func (p *merge) Init(cfg interface{}, opts ...formatters.Option) error {
 	err := formatters.DecodeConfig(cfg, p)
 	if err != nil {
 		return err
@@ -60,7 +60,7 @@ func (p *Merge) Init(cfg interface{}, opts ...formatters.Option) error {
 	return nil
 }
 
-func (p *Merge) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
+func (p *merge) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	if len(es) == 0 {
 		return nil
 	}
@@ -70,7 +70,7 @@ func (p *Merge) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 				continue
 			}
 			if i > 0 {
-				merge(es[0], e)
+				mergeEvents(es[0], e)
 			}
 		}
 		return []*formatters.EventMsg{es[0]}
@@ -82,7 +82,7 @@ func (p *Merge) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 			continue
 		}
 		if idx, ok := timestamps[e.Timestamp]; ok {
-			merge(result[idx], e)
+			mergeEvents(result[idx], e)
 			continue
 		}
 		result = append(result, e)
@@ -91,7 +91,7 @@ func (p *Merge) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	return result
 }
 
-func (p *Merge) WithLogger(l *log.Logger) {
+func (p *merge) WithLogger(l *log.Logger) {
 	if p.Debug && l != nil {
 		p.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
 	} else if p.Debug {
@@ -99,11 +99,13 @@ func (p *Merge) WithLogger(l *log.Logger) {
 	}
 }
 
-func (p *Merge) WithTargets(tcs map[string]*types.TargetConfig) {}
+func (p *merge) WithTargets(tcs map[string]*types.TargetConfig) {}
 
-func (p *Merge) WithActions(act map[string]map[string]interface{}) {}
+func (p *merge) WithActions(act map[string]map[string]interface{}) {}
 
-func merge(e1, e2 *formatters.EventMsg) {
+func (p *merge) WithProcessors(procs map[string]map[string]any) {}
+
+func mergeEvents(e1, e2 *formatters.EventMsg) {
 	if e1.Tags == nil {
 		e1.Tags = make(map[string]string)
 	}

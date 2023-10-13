@@ -29,8 +29,8 @@ const (
 	loggingPrefix = "[" + processorType + "] "
 )
 
-// Convert converts the value with key matching one of regexes, to the specified Type
-type Convert struct {
+// convert converts the value with key matching one of regexes, to the specified Type
+type convert struct {
 	Values []string `mapstructure:"value-names,omitempty" json:"value-names,omitempty"`
 	Type   string   `mapstructure:"type,omitempty" json:"type,omitempty"`
 	Debug  bool     `mapstructure:"debug,omitempty" json:"debug,omitempty"`
@@ -41,13 +41,13 @@ type Convert struct {
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &Convert{
+		return &convert{
 			logger: log.New(io.Discard, "", 0),
 		}
 	})
 }
 
-func (c *Convert) Init(cfg interface{}, opts ...formatters.Option) error {
+func (c *convert) Init(cfg interface{}, opts ...formatters.Option) error {
 	err := formatters.DecodeConfig(cfg, c)
 	if err != nil {
 		return err
@@ -74,7 +74,7 @@ func (c *Convert) Init(cfg interface{}, opts ...formatters.Option) error {
 	return nil
 }
 
-func (c *Convert) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
+func (c *convert) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	for _, e := range es {
 		if e == nil {
 			continue
@@ -125,7 +125,7 @@ func (c *Convert) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	return es
 }
 
-func (c *Convert) WithLogger(l *log.Logger) {
+func (c *convert) WithLogger(l *log.Logger) {
 	if c.Debug && l != nil {
 		c.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
 	} else if c.Debug {
@@ -133,9 +133,11 @@ func (c *Convert) WithLogger(l *log.Logger) {
 	}
 }
 
-func (c *Convert) WithTargets(tcs map[string]*types.TargetConfig) {}
+func (c *convert) WithTargets(tcs map[string]*types.TargetConfig) {}
 
-func (c *Convert) WithActions(act map[string]map[string]interface{}) {}
+func (c *convert) WithActions(act map[string]map[string]interface{}) {}
+
+func (c *convert) WithProcessors(procs map[string]map[string]any) {}
 
 func convertToInt(i interface{}) (int, error) {
 	switch i := i.(type) {

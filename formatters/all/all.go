@@ -11,6 +11,7 @@ package all
 import (
 	_ "github.com/openconfig/gnmic/formatters/event_add_tag"
 	_ "github.com/openconfig/gnmic/formatters/event_allow"
+	_ "github.com/openconfig/gnmic/formatters/event_combine"
 	_ "github.com/openconfig/gnmic/formatters/event_convert"
 	_ "github.com/openconfig/gnmic/formatters/event_data_convert"
 	_ "github.com/openconfig/gnmic/formatters/event_date_string"

@@ -144,6 +144,8 @@ func (p *extractTags) WithTargets(tcs map[string]*types.TargetConfig) {}
 
 func (p *extractTags) WithActions(act map[string]map[string]interface{}) {}
 
+func (p *extractTags) WithProcessors(procs map[string]map[string]any) {}
+
 func (p *extractTags) addTags(e *formatters.EventMsg, re *regexp.Regexp, s string) {
 	if e.Tags == nil {
 		e.Tags = make(map[string]string)

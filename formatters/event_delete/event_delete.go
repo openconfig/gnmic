@@ -25,8 +25,8 @@ const (
 	loggingPrefix = "[" + processorType + "] "
 )
 
-// Delete, deletes ALL the tags or values matching one of the regexes
-type Delete struct {
+// deletep, deletes ALL the tags or values matching one of the regexes
+type deletep struct {
 	Tags       []string `mapstructure:"tags,omitempty" json:"tags,omitempty"`
 	Values     []string `mapstructure:"values,omitempty" json:"values,omitempty"`
 	TagNames   []string `mapstructure:"tag-names,omitempty" json:"tag-names,omitempty"`
@@ -44,13 +44,13 @@ type Delete struct {
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &Delete{
+		return &deletep{
 			logger: log.New(io.Discard, "", 0),
 		}
 	})
 }
 
-func (d *Delete) Init(cfg interface{}, opts ...formatters.Option) error {
+func (d *deletep) Init(cfg interface{}, opts ...formatters.Option) error {
 	err := formatters.DecodeConfig(cfg, d)
 	if err != nil {
 		return err
@@ -105,7 +105,7 @@ func (d *Delete) Init(cfg interface{}, opts ...formatters.Option) error {
 	return nil
 }
 
-func (d *Delete) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
+func (d *deletep) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	for _, e := range es {
 		if e == nil {
 			continue
@@ -144,7 +144,7 @@ func (d *Delete) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	return es
 }
 
-func (d *Delete) WithLogger(l *log.Logger) {
+func (d *deletep) WithLogger(l *log.Logger) {
 	if d.Debug && l != nil {
 		d.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
 	} else if d.Debug {
@@ -152,6 +152,8 @@ func (d *Delete) WithLogger(l *log.Logger) {
 	}
 }
 
-func (d *Delete) WithTargets(tcs map[string]*types.TargetConfig) {}
+func (d *deletep) WithTargets(tcs map[string]*types.TargetConfig) {}
 
-func (d *Delete) WithActions(act map[string]map[string]interface{}) {}
+func (d *deletep) WithActions(act map[string]map[string]interface{}) {}
+
+func (d *deletep) WithProcessors(procs map[string]map[string]any) {}
