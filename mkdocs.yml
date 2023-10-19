@@ -83,6 +83,7 @@ nav:
           - JQ: user_guide/event_processors/event_jq.md
           - Merge: user_guide/event_processors/event_merge.md
           - Override TS: user_guide/event_processors/event_override_ts.md
+          - Rate Limit: user_guide/event_processors/event_rate_limit.md
           - Starlark: user_guide/event_processors/event_starlark.md
           - Strings: user_guide/event_processors/event_strings.md
           - To Tag: user_guide/event_processors/event_to_tag.md

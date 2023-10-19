@@ -22,6 +22,7 @@ import (
 	_ "github.com/openconfig/gnmic/formatters/event_jq"
 	_ "github.com/openconfig/gnmic/formatters/event_merge"
 	_ "github.com/openconfig/gnmic/formatters/event_override_ts"
+	_ "github.com/openconfig/gnmic/formatters/event_rate_limit"
 	_ "github.com/openconfig/gnmic/formatters/event_starlark"
 	_ "github.com/openconfig/gnmic/formatters/event_strings"
 	_ "github.com/openconfig/gnmic/formatters/event_to_tag"
