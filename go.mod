@@ -51,7 +51,7 @@ require (
 	golang.org/x/crypto v0.14.0
 	golang.org/x/oauth2 v0.12.0
 	golang.org/x/sync v0.3.0
-	google.golang.org/grpc v1.58.2
+	google.golang.org/grpc v1.58.3
 	google.golang.org/protobuf v1.31.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v2 v2.4.0
