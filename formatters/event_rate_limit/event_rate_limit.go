@@ -87,8 +87,8 @@ func (o *RateLimit) Init(cfg interface{}, opts ...formatters.Option) error {
 }
 
 func (o *RateLimit) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
-	validEs := make([]*formatters.EventMsg, len(es))
-	acceptedCount := 0
+	validEs := make([]*formatters.EventMsg, 0, len(es))
+
 	for _, e := range es {
 		if e == nil {
 			continue
@@ -103,11 +103,10 @@ func (o *RateLimit) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		}
 		// retain the last event that passed through
 		o.eventIndex.Add(h, e.Timestamp)
-		validEs[acceptedCount] = e
-		acceptedCount++
+		validEs = append(validEs, e)
 	}
 
-	return validEs[:acceptedCount]
+	return validEs
 }
 
 func hashEvent(e *formatters.EventMsg) string {
