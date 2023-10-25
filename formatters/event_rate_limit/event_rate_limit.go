@@ -18,10 +18,15 @@ import (
 )
 
 const (
-	processorType = "event-rate-limit"
-	loggingPrefix = "[" + processorType + "] "
-	defaultCacheSize = 1000
-	oneSecond int64 = int64(time.Second)
+	processorType          = "event-rate-limit"
+	loggingPrefix          = "[" + processorType + "] "
+	defaultCacheSize       = 1000
+	oneSecond        int64 = int64(time.Second)
+)
+
+var (
+	eqChar = []byte("=")
+	lfChar = []byte("\n")
 )
 
 // RateLimit rate-limits the message to the given rate.
@@ -29,7 +34,7 @@ type RateLimit struct {
 	// formatters.EventProcessor
 
 	PerSecondLimit float64 `mapstructure:"per-second,omitempty" json:"per-second,omitempty"`
-	CacheSize        int     `mapstructure:"cache-size,omitempty" json:"cache-size,omitempty"`
+	CacheSize      int     `mapstructure:"cache-size,omitempty" json:"cache-size,omitempty"`
 	Debug          bool    `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 
 	// eventIndex is an lru cache used to compare the events hash with known value.
@@ -44,7 +49,7 @@ type RateLimit struct {
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
 		return &RateLimit{
-			logger:     log.New(io.Discard, "", 0),
+			logger: log.New(io.Discard, "", 0),
 		}
 	})
 }
@@ -82,7 +87,8 @@ func (o *RateLimit) Init(cfg interface{}, opts ...formatters.Option) error {
 }
 
 func (o *RateLimit) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
-	validEs := []*formatters.EventMsg{}
+	validEs := make([]*formatters.EventMsg, len(es))
+	acceptedCount := 0
 	for _, e := range es {
 		if e == nil {
 			continue
@@ -90,16 +96,18 @@ func (o *RateLimit) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		h := hashEvent(e)
 		ts, has := o.eventIndex.Get(h)
 		// we check that we have the event hash in the map, if not, it's the first time we see the event
-		if val := float64(e.Timestamp - ts) * o.PerSecondLimit; has && e.Timestamp != ts && int64(val) < oneSecond {
+		if val := float64(e.Timestamp-ts) * o.PerSecondLimit; has && e.Timestamp != ts && int64(val) < oneSecond {
 			// reject event
 			o.logger.Printf("dropping event val %.2f lower than configured rate", val)
 			continue
 		}
 		// retain the last event that passed through
 		o.eventIndex.Add(h, e.Timestamp)
-		validEs = append(validEs, e)
+		validEs[acceptedCount] = e
+		acceptedCount++
 	}
-	return validEs
+
+	return validEs[:acceptedCount]
 }
 
 func hashEvent(e *formatters.EventMsg) string {
@@ -114,9 +122,9 @@ func hashEvent(e *formatters.EventMsg) string {
 
 	for _, tagKey := range tagKeys {
 		h.Write([]byte(tagKey))
-		h.Write([]byte("="))
+		h.Write(eqChar)
 		h.Write([]byte(e.Tags[tagKey]))
-		h.Write([]byte("\n"))
+		h.Write(lfChar)
 	}
 
 	return hex.EncodeToString(h.Sum(nil))
