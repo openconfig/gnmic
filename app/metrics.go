@@ -69,7 +69,7 @@ func (a *App) startClusterMetrics() {
 			if err != nil {
 				a.Logger.Printf("failed to get leader key: %v", err)
 			}
-			if leader[leaderKey] == a.Config.InstanceName {
+			if leader[leaderKey] == a.Config.Clustering.InstanceName {
 				clusterIsLeader.Set(1)
 			} else {
 				clusterIsLeader.Set(0)
@@ -84,7 +84,7 @@ func (a *App) startClusterMetrics() {
 			}
 			numLockedNodes := 0
 			for _, v := range lockedNodes {
-				if v == a.Config.InstanceName {
+				if v == a.Config.Clustering.InstanceName {
 					numLockedNodes++
 				}
 			}
