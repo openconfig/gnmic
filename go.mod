@@ -18,6 +18,7 @@ require (
 	github.com/gorilla/mux v1.8.0
 	github.com/gosnmp/gosnmp v1.35.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
+	github.com/guptarohit/asciigraph v0.5.6
 	github.com/hairyhenderson/gomplate/v3 v3.11.5
 	github.com/hashicorp/consul/api v1.25.1
 	github.com/huandu/xstrings v1.4.0
