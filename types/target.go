@@ -34,7 +34,7 @@ type TargetConfig struct {
 	AuthScheme    string            `mapstructure:"auth-scheme,omitempty" json:"auth-scheme,omitempty" yaml:"auth-scheme,omitempty"`
 	Timeout       time.Duration     `mapstructure:"timeout,omitempty" json:"timeout,omitempty" yaml:"timeout,omitempty"`
 	Insecure      *bool             `mapstructure:"insecure,omitempty" json:"insecure,omitempty" yaml:"insecure,omitempty"`
-	TLSCA         *string           `mapstructure:"tls-ca,omitempty" json:"tls-ca,omitempty" yaml:"tlsca,omitempty"`
+	TLSCA         *string           `mapstructure:"tls-ca,omitempty" json:"tls-ca,omitempty" yaml:"tls-ca,omitempty"`
 	TLSCert       *string           `mapstructure:"tls-cert,omitempty" json:"tls-cert,omitempty" yaml:"tls-cert,omitempty"`
 	TLSKey        *string           `mapstructure:"tls-key,omitempty" json:"tls-key,omitempty" yaml:"tls-key,omitempty"`
 	SkipVerify    *bool             `mapstructure:"skip-verify,omitempty" json:"skip-verify,omitempty" yaml:"skip-verify,omitempty"`
