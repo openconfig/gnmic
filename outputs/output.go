@@ -140,11 +140,11 @@ var (
 		template.New("target-template").
 			Funcs(TemplateFuncs).
 			Parse(defaultTargetTemplateString))
-)
 
-var TemplateFuncs = template.FuncMap{
-	"host": utils.GetHost,
-}
+	TemplateFuncs = template.FuncMap{
+		"host": utils.GetHost,
+	}
+)
 
 const (
 	defaultTargetTemplateString = `
