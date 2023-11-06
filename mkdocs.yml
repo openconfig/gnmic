@@ -67,6 +67,7 @@ nav:
           - TCP: user_guide/outputs/tcp_output.md
           - UDP: user_guide/outputs/udp_output.md
           - SNMP: user_guide/outputs/snmp_output.md
+          - ASCII Graph: user_guide/outputs/asciigraph_output.md
           
       - Processors: 
           - Introduction: user_guide/event_processors/intro.md

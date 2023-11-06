@@ -566,6 +566,8 @@ github.com/grafana/regexp v0.0.0-20221122212121-6b5c0a4cb7fd/go.mod h1:M5qHK+eWf
 github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 h1:Ovs26xHkKqVztRpIrF/92BcuyuQ/YW4NSIpoGtfXNho=
 github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0/go.mod h1:8NvIoxWQoOIhqOTXgfV/d3M/q6VIi02HzZEHgUlZvzk=
 github.com/grpc-ecosystem/grpc-gateway v1.16.0/go.mod h1:BDjrQk3hbvj6Nolgz8mAMFbcEtjT1g+wF4CSlocrBnw=
+github.com/guptarohit/asciigraph v0.5.6 h1:0tra3HEhfdj1sP/9IedrCpfSiXYTtHdCgBhBL09Yx6E=
+github.com/guptarohit/asciigraph v0.5.6/go.mod h1:dYl5wwK4gNsnFf9Zp+l06rFiDZ5YtXM6x7SRWZ3KGag=
 github.com/hairyhenderson/go-fsimpl v0.0.0-20220529183339-9deae3e35047 h1:nSSfN9G8O8XXDqB3aDEHJ8K+0llYYToNlTcWOe1Pti8=
 github.com/hairyhenderson/go-fsimpl v0.0.0-20220529183339-9deae3e35047/go.mod h1:30RY4Ey+bg+BGKBufZE2IEmxk7hok9U9mjdgZYomwN4=
 github.com/hairyhenderson/gomplate/v3 v3.11.5 h1:LSDxCw8tWC/ltOzbZaleUNjGJOIEgnR/SN3GM9eClsA=
