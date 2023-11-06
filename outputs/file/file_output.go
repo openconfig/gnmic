@@ -267,7 +267,60 @@ func (f *File) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) 
 	}
 }
 
-func (f *File) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {}
+func (f *File) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {
+	select {
+	case <-ctx.Done():
+		return
+	default:
+	}
+	var evs = []*formatters.EventMsg{ev}
+	for _, proc := range f.evps {
+		evs = proc.Apply(evs...)
+	}
+	toWrite := []byte{}
+	if f.Cfg.SplitEvents {
+		for _, pev := range evs {
+			var err error
+			var b []byte
+			if f.Cfg.Multiline {
+				b, err = json.MarshalIndent(pev, "", f.Cfg.Indent)
+			} else {
+				b, err = json.Marshal(pev)
+			}
+			if err != nil {
+				fmt.Printf("failed to WriteEvent: %v", err)
+				numberOfFailWriteMsgs.WithLabelValues(f.file.Name(), "marshal_error").Inc()
+				return
+			}
+			toWrite = append(toWrite, b...)
+			toWrite = append(toWrite, []byte(f.Cfg.Separator)...)
+		}
+	} else {
+		var err error
+		var b []byte
+		if f.Cfg.Multiline {
+			b, err = json.MarshalIndent(evs, "", f.Cfg.Indent)
+		} else {
+			b, err = json.Marshal(evs)
+		}
+		if err != nil {
+			fmt.Printf("failed to WriteEvent: %v", err)
+			numberOfFailWriteMsgs.WithLabelValues(f.file.Name(), "marshal_error").Inc()
+			return
+		}
+		toWrite = append(toWrite, b...)
+		toWrite = append(toWrite, []byte(f.Cfg.Separator)...)
+	}
+
+	n, err := f.file.Write(toWrite)
+	if err != nil {
+		fmt.Printf("failed to WriteEvent: %v", err)
+		numberOfFailWriteMsgs.WithLabelValues(f.file.Name(), "write_error").Inc()
+		return
+	}
+	numberOfWrittenBytes.WithLabelValues(f.file.Name()).Add(float64(n))
+	numberOfWrittenMsgs.WithLabelValues(f.file.Name()).Inc()
+}
 
 // Close //
 func (f *File) Close() error {
