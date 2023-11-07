@@ -12,6 +12,7 @@ import (
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
+
 	"github.com/openconfig/gnmic/formatters"
 	"github.com/openconfig/gnmic/types"
 	"github.com/openconfig/gnmic/utils"
@@ -140,3 +141,5 @@ func (o *RateLimit) WithLogger(l *log.Logger) {
 func (o *RateLimit) WithTargets(tcs map[string]*types.TargetConfig) {}
 
 func (o *RateLimit) WithActions(act map[string]map[string]interface{}) {}
+
+func (o *RateLimit) WithProcessors(procs map[string]map[string]any) {}
