@@ -30,8 +30,8 @@ var (
 	lfChar = []byte("\n")
 )
 
-// RateLimit rate-limits the message to the given rate.
-type RateLimit struct {
+// rateLimit rate-limits the message to the given rate.
+type rateLimit struct {
 	// formatters.EventProcessor
 
 	PerSecondLimit float64 `mapstructure:"per-second,omitempty" json:"per-second,omitempty"`
@@ -49,13 +49,13 @@ type RateLimit struct {
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &RateLimit{
+		return &rateLimit{
 			logger: log.New(io.Discard, "", 0),
 		}
 	})
 }
 
-func (o *RateLimit) Init(cfg interface{}, opts ...formatters.Option) error {
+func (o *rateLimit) Init(cfg interface{}, opts ...formatters.Option) error {
 	err := formatters.DecodeConfig(cfg, o)
 	if err != nil {
 		return err
@@ -87,7 +87,7 @@ func (o *RateLimit) Init(cfg interface{}, opts ...formatters.Option) error {
 	return nil
 }
 
-func (o *RateLimit) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
+func (o *rateLimit) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	validEs := make([]*formatters.EventMsg, 0, len(es))
 
 	for _, e := range es {
@@ -130,7 +130,7 @@ func hashEvent(e *formatters.EventMsg) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-func (o *RateLimit) WithLogger(l *log.Logger) {
+func (o *rateLimit) WithLogger(l *log.Logger) {
 	if o.Debug && l != nil {
 		o.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
 	} else if o.Debug {
@@ -138,8 +138,8 @@ func (o *RateLimit) WithLogger(l *log.Logger) {
 	}
 }
 
-func (o *RateLimit) WithTargets(tcs map[string]*types.TargetConfig) {}
+func (o *rateLimit) WithTargets(tcs map[string]*types.TargetConfig) {}
 
-func (o *RateLimit) WithActions(act map[string]map[string]interface{}) {}
+func (o *rateLimit) WithActions(act map[string]map[string]interface{}) {}
 
-func (o *RateLimit) WithProcessors(procs map[string]map[string]any) {}
+func (o *rateLimit) WithProcessors(procs map[string]map[string]any) {}
