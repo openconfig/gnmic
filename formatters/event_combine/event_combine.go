@@ -125,37 +125,38 @@ func (p *combine) Init(cfg any, opts ...formatters.Option) error {
 
 func (p *combine) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	les := len(es)
-	nes := make([]*formatters.EventMsg, 0, les)
-	nes = append(nes, es...)
 
+	in := make([]*formatters.EventMsg, 0, les)
+	out := make([]*formatters.EventMsg, 0, les)
 	for _, proc := range p.Processors {
-		in := make([]*formatters.EventMsg, 0, les)
-		out := make([]*formatters.EventMsg, 0, les)
-		for _, e := range es {
+		in = in[:0]
+		out = out[:0]
+
+		for i, e := range es {
 			ok, err := formatters.CheckCondition(proc.condition, e)
 			if err != nil {
 				p.logger.Printf("condition check failed: %v", err)
 			}
 			if ok {
 				if p.Debug {
-					p.logger.Printf("in: %s", e)
+					p.logger.Printf("processor #%d include: %s", i, e)
 				}
-
 				in = append(in, e)
 				continue
 			}
 			if p.Debug {
-				p.logger.Printf("out: %s", e)
+				p.logger.Printf("processor #%d exclude: %s", i, e)
 			}
 			out = append(out, e)
 		}
+
 		in = proc.proc.Apply(in...)
-		nes = nes[:0]
-		nes = append(nes, in...)
-		nes = append(nes, out...)
-		if len(nes) > 1 {
-			sort.Slice(nes, func(i, j int) bool {
-				return nes[i].Timestamp < nes[j].Timestamp
+		es = es[:0]
+		es = append(es, in...)
+		es = append(es, out...)
+		if len(es) > 1 {
+			sort.Slice(es, func(i, j int) bool {
+				return es[i].Timestamp < es[j].Timestamp
 			})
 		}
 	}

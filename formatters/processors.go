@@ -40,7 +40,7 @@ var EventProcessorTypes = []string{
 	"event-data-convert",
 	"event-value-tag",
 	"event-starlark",
-	"event-sequence",
+	"event-combine",
 }
 
 type Initializer func() EventProcessor
