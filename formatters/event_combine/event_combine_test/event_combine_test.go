@@ -31,13 +31,14 @@ func Test_combine_Apply(t *testing.T) {
 		want   []*formatters.EventMsg
 	}{
 		{
-			name: "simple",
+			name: "simple1",
 			fields: fields{
 				processorConfig: map[string]any{
 					"debug": true,
 					"processors": []any{
 						map[string]any{
-							"name": "proc1",
+							"condition": ".tags.tag == \"t1\"",
+							"name":      "proc1",
 						},
 						map[string]any{
 							"name": "proc2",
@@ -83,12 +84,91 @@ func Test_combine_Apply(t *testing.T) {
 						Tags:   map[string]string{"tag": "t1"},
 						Values: map[string]interface{}{"number": "42"},
 					},
+					{
+						Tags:   map[string]string{"t": "t1"},
+						Values: map[string]interface{}{"n": "42"},
+					},
 				},
 			},
 			want: []*formatters.EventMsg{
 				{
 					Tags:   map[string]string{"new_tag": "t1"},
 					Values: map[string]interface{}{"new_number": "42"},
+				},
+				{
+					Tags:   map[string]string{"t": "t1"},
+					Values: map[string]interface{}{"n": "42"},
+				},
+			},
+		},
+		{
+			name: "simple2",
+			fields: fields{
+				processorConfig: map[string]any{
+					"debug": true,
+					"processors": []any{
+						map[string]any{
+							"condition": ".tags.tag == \"t2\"",
+							"name":      "proc1",
+						},
+						map[string]any{
+							"name": "proc2",
+						},
+					},
+				},
+				processorsSet: map[string]map[string]any{
+					"proc1": {
+						"event-strings": map[string]any{
+							"value-names": []string{"^number$"},
+							"transforms": []map[string]any{
+								{
+									"replace": map[string]any{
+										"apply-on": "name",
+										"old":      "number",
+										"new":      "new_number",
+									},
+								},
+							},
+							"debug": true,
+						},
+					},
+					"proc2": {
+						"event-strings": map[string]any{
+							"tag-names": []string{"^tag$"},
+							"transforms": []map[string]any{
+								{
+									"replace": map[string]any{
+										"apply-on": "name",
+										"old":      "tag",
+										"new":      "new_tag",
+									},
+								},
+							},
+							"debug": true,
+						},
+					},
+				},
+			},
+			args: args{
+				es: []*formatters.EventMsg{
+					{
+						Tags:   map[string]string{"tag": "t1"},
+						Values: map[string]interface{}{"number": "42"},
+					},
+					{
+						Tags:   map[string]string{"t": "t1"},
+						Values: map[string]interface{}{"n": "42"},
+					},
+				},
+			},
+			want: []*formatters.EventMsg{
+				{
+					Tags:   map[string]string{"new_tag": "t1"},
+					Values: map[string]interface{}{"number": "42"},
+				},
+				{
+					Tags:   map[string]string{"t": "t1"},
+					Values: map[string]interface{}{"n": "42"},
 				},
 			},
 		},
