@@ -11,6 +11,7 @@ require (
 	github.com/fsnotify/fsnotify v1.6.0
 	github.com/fullstorydev/grpcurl v1.8.7
 	github.com/go-redis/redis/v8 v8.11.5
+	github.com/go-redsync/redsync/v4 v4.10.0
 	github.com/go-resty/resty/v2 v2.7.0
 	github.com/google/go-cmp v0.5.9
 	github.com/google/uuid v1.3.1
@@ -44,6 +45,7 @@ require (
 	github.com/prometheus/client_golang v1.16.0
 	github.com/prometheus/client_model v0.4.0
 	github.com/prometheus/prometheus v0.45.0
+	github.com/redis/go-redis/v9 v9.2.1
 	github.com/spf13/cobra v1.7.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.15.0
@@ -88,6 +90,7 @@ require (
 	github.com/go-openapi/jsonpointer v0.19.6 // indirect
 	github.com/go-openapi/jsonreference v0.20.2 // indirect
 	github.com/go-openapi/swag v0.22.3 // indirect
+	github.com/gomodule/redigo v2.0.0+incompatible // indirect
 	github.com/google/gnostic v0.6.9 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/s2a-go v0.1.4 // indirect

@@ -17,27 +17,44 @@ import (
 	"github.com/mitchellh/mapstructure"
 )
 
-var (
-	ErrCanceled = errors.New("canceled")
-)
+var ErrCanceled = errors.New("canceled")
 
 type Locker interface {
+	// Init initialises the locker data, with the given configuration read from flags/files.
 	Init(context.Context, map[string]interface{}, ...Option) error
-
-	Lock(context.Context, string, []byte) (bool, error)
-	KeepLock(context.Context, string) (chan struct{}, chan error)
-	IsLocked(context.Context, string) (bool, error)
-	Unlock(context.Context, string) error
-
-	Register(context.Context, *ServiceRegistration) error
-	Deregister(string) error
-
-	List(context.Context, string) (map[string]string, error)
-	GetServices(ctx context.Context, serviceName string, tags []string) ([]*Service, error)
-	WatchServices(ctx context.Context, serviceName string, tags []string, ch chan<- []*Service, dur time.Duration) error
-
+	// Stop is called when the locker instance is called. It should unlock all aquired locks.
 	Stop() error
 	SetLogger(*log.Logger)
+
+	// This is the Target locking logic.
+
+	// Lock acquires a lock on given key.
+	Lock(context.Context, string, []byte) (bool, error)
+	// KeepLock maintains the lock on the target.
+	KeepLock(context.Context, string) (chan struct{}, chan error)
+	// IsLocked replys if the target given as string is currently locked or not.
+	IsLocked(context.Context, string) (bool, error)
+	// Unlock unlocks the target log.
+	Unlock(context.Context, string) error
+
+	// This is the instance registration logic.
+
+	// Register registers this instance in the registry. It must also maintain the registration (called in a goroutine from the main). ServiceRegistration.ID contains the ID of the service to register.
+	Register(context.Context, *ServiceRegistration) error
+	// Deregister removes this instance from the registry. This looks like it's not called.
+	Deregister(string) error
+
+	// GetServices must return the gnmic instances.
+	GetServices(ctx context.Context, serviceName string, tags []string) ([]*Service, error)
+	// WatchServices must push all existing discovered gnmic instances
+	// into the provided channel.
+	WatchServices(ctx context.Context, serviceName string, tags []string, ch chan<- []*Service, dur time.Duration) error
+
+	// Mixed registration/target lock functions
+
+	// List returns all locks that start with prefix string,
+	// indexed by the lock name. Could be target locks or leader lock. It must return a map of matching keys to instance name.
+	List(ctx context.Context, prefix string) (map[string]string, error)
 }
 
 type Initializer func() Locker
@@ -55,6 +72,7 @@ func WithLogger(logger *log.Logger) Option {
 var LockerTypes = []string{
 	"consul",
 	"k8s",
+	"redis",
 }
 
 func Register(name string, initFn Initializer) {
