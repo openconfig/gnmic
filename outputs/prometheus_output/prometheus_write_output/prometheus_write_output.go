@@ -16,20 +16,21 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"sync"
 	"text/template"
 	"time"
 
 	"github.com/openconfig/gnmi/proto/gnmi"
-	"github.com/openconfig/gnmic/formatters"
-	"github.com/openconfig/gnmic/outputs"
-	"github.com/openconfig/gnmic/types"
-	"github.com/openconfig/gnmic/utils"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/prompb"
-
-	promcom "github.com/openconfig/gnmic/outputs/prometheus_output"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/openconfig/gnmic/formatters"
+	"github.com/openconfig/gnmic/outputs"
+	promcom "github.com/openconfig/gnmic/outputs/prometheus_output"
+	"github.com/openconfig/gnmic/types"
+	"github.com/openconfig/gnmic/utils"
 )
 
 const (
@@ -44,6 +45,7 @@ const (
 	defaultMetricHelp                 = "gNMIc generated metric"
 	userAgent                         = "gNMIc prometheus write"
 	defaultNumWorkers                 = 1
+	defaultNumWriters                 = 1
 )
 
 func init() {
@@ -104,6 +106,7 @@ type config struct {
 	StringsAsLabels        bool     `mapstructure:"strings-as-labels,omitempty" json:"strings-as-labels,omitempty"`
 	EventProcessors        []string `mapstructure:"event-processors,omitempty" json:"event-processors,omitempty"`
 	NumWorkers             int      `mapstructure:"num-workers,omitempty" json:"num-workers,omitempty"`
+	NumWriters             int      `mapstructure:"num-writers,omitempty" json:"num-writers,omitempty"`
 	EnableMetrics          bool     `mapstructure:"enable-metrics,omitempty" json:"enable-metrics,omitempty"`
 }
 
@@ -130,6 +133,10 @@ func (p *promWriteOutput) Init(ctx context.Context, name string, cfg map[string]
 	}
 	if p.cfg.URL == "" {
 		return errors.New("missing url field")
+	}
+	_, err = url.Parse(p.cfg.URL)
+	if err != nil {
+		return err
 	}
 	if p.cfg.Name == "" {
 		p.cfg.Name = name
@@ -172,8 +179,9 @@ func (p *promWriteOutput) Init(ctx context.Context, name string, cfg map[string]
 	for i := 0; i < p.cfg.NumWorkers; i++ {
 		go p.worker(ctx)
 	}
-
-	go p.writer(ctx)
+	for i := 0; i < p.cfg.NumWriters; i++ {
+		go p.writer(ctx)
+	}
 	go p.metadataWriter(ctx)
 	p.logger.Printf("initialized prometheus write output %s: %s", p.cfg.Name, p.String())
 	return nil
@@ -370,6 +378,9 @@ func (p *promWriteOutput) setDefaults() error {
 	}
 	if p.cfg.NumWorkers <= 0 {
 		p.cfg.NumWorkers = defaultNumWorkers
+	}
+	if p.cfg.NumWriters <= 0 {
+		p.cfg.NumWriters = defaultNumWriters
 	}
 	if p.cfg.MaxTimeSeriesPerWrite <= 0 {
 		p.cfg.MaxTimeSeriesPerWrite = defaultMaxTSPerWrite
