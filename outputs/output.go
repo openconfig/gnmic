@@ -19,13 +19,14 @@ import (
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
+
 	"github.com/openconfig/gnmic/formatters"
 	_ "github.com/openconfig/gnmic/formatters/all"
 	"github.com/openconfig/gnmic/types"
 	"github.com/openconfig/gnmic/utils"
-	"github.com/prometheus/client_golang/prometheus"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 type Output interface {
@@ -60,6 +61,7 @@ var OutputTypes = map[string]struct{}{
 	"gnmi":             {},
 	"jetstream":        {},
 	"snmp":             {},
+	"asciigraph":       {},
 }
 
 func Register(name string, initFn Initializer) {
@@ -140,11 +142,11 @@ var (
 		template.New("target-template").
 			Funcs(TemplateFuncs).
 			Parse(defaultTargetTemplateString))
-)
 
-var TemplateFuncs = template.FuncMap{
-	"host": utils.GetHost,
-}
+	TemplateFuncs = template.FuncMap{
+		"host": utils.GetHost,
+	}
+)
 
 const (
 	defaultTargetTemplateString = `

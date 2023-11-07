@@ -149,7 +149,11 @@ func (p *starlarkProc) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg 
 	}
 	r, err := starlark.Call(p.thread, p.applyFn, sevs, nil)
 	if err != nil {
-		p.logger.Printf("failed to run script: %v", err)
+		if p.Debug {
+			p.logger.Printf("failed to run script with input %v: %v", sevs, err)
+		} else {
+			p.logger.Printf("failed to run script: %v", err)
+		}
 		return es
 	}
 	if p.Debug {

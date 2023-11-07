@@ -31,6 +31,7 @@ var EventProcessorTypes = []string{
 	"event-jq",
 	"event-merge",
 	"event-override-ts",
+	"event-rate-limit",
 	"event-strings",
 	"event-to-tag",
 	"event-trigger",

@@ -9,6 +9,7 @@
 package all
 
 import (
+	_ "github.com/openconfig/gnmic/outputs/asciigraph_output"
 	_ "github.com/openconfig/gnmic/outputs/file"
 	_ "github.com/openconfig/gnmic/outputs/gnmi_output"
 	_ "github.com/openconfig/gnmic/outputs/influxdb_output"

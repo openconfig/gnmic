@@ -670,7 +670,7 @@ func (a *App) unassignTarget(ctx context.Context, name string, serviceID string)
 		}
 		rsp, err := client.Do(req)
 		if err != nil {
-			rsp.Body.Close()
+			// don't close the body here since Body will be nil
 			a.Logger.Printf("failed HTTP request: %v", err)
 			continue
 		}

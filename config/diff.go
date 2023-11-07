@@ -13,9 +13,10 @@ import (
 	"strings"
 
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/spf13/cobra"
+
 	"github.com/openconfig/gnmic/api"
 	"github.com/openconfig/gnmic/types"
-	"github.com/spf13/cobra"
 )
 
 func (c *Config) CreateDiffSubscribeRequest(cmd *cobra.Command) (*gnmi.SubscribeRequest, error) {
@@ -26,12 +27,12 @@ func (c *Config) CreateDiffSubscribeRequest(cmd *cobra.Command) (*gnmi.Subscribe
 		Target:   c.DiffTarget,
 		Paths:    c.DiffPath,
 		Mode:     "ONCE",
-		Encoding: c.Encoding,
+		Encoding: &c.Encoding,
 	}
 	if flagIsSet(cmd, "qos") {
 		sc.Qos = &c.DiffQos
 	}
-	return c.CreateSubscribeRequest(sc, "")
+	return c.CreateSubscribeRequest(sc, nil)
 }
 
 func (c *Config) CreateDiffGetRequest() (*gnmi.GetRequest, error) {

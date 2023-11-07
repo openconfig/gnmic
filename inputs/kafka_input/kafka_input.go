@@ -9,6 +9,7 @@
 package kafka_input
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -22,12 +23,13 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/damiannolan/sasl/oauthbearer"
 	"github.com/google/uuid"
+	"google.golang.org/protobuf/proto"
+
 	"github.com/openconfig/gnmic/formatters"
 	"github.com/openconfig/gnmic/inputs"
 	"github.com/openconfig/gnmic/outputs"
 	"github.com/openconfig/gnmic/types"
 	"github.com/openconfig/gnmic/utils"
-	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -43,6 +45,9 @@ const (
 )
 
 var defaultVersion = sarama.V2_5_0_0
+
+var openSquareBracket = []byte("[")
+var openCurlyBrace = []byte("{")
 
 func init() {
 	inputs.Register("kafka", func() inputs.Input {
@@ -162,8 +167,16 @@ START:
 			}
 			switch k.Cfg.Format {
 			case "event":
+				m.Value = bytes.TrimSpace(m.Value)
 				evMsgs := make([]*formatters.EventMsg, 1)
-				err = json.Unmarshal(m.Value, &evMsgs)
+				switch {
+				case len(m.Value) == 0:
+					continue
+				case m.Value[0] == openSquareBracket[0]:
+					err = json.Unmarshal(m.Value, &evMsgs)
+				case m.Value[0] == openCurlyBrace[0]:
+					err = json.Unmarshal(m.Value, evMsgs[0])
+				}
 				if err != nil {
 					if k.Cfg.Debug {
 						k.logger.Printf("%s failed to unmarshal event msg: %v", workerLogPrefix, err)

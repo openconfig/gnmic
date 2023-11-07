@@ -145,14 +145,17 @@ func (m *MetricBuilder) TimeSeriesFromEvent(ev *formatters.EventMsg) []*NamedTim
 			fv = 1.0
 		}
 		tsName := m.MetricName(ev.Name, k)
+		tsLabelsWithName := make([]prompb.Label, 0, len(tsLabels)+1)
+		tsLabelsWithName = append(tsLabelsWithName, tsLabels...)
+		tsLabelsWithName = append(tsLabelsWithName,
+			prompb.Label{
+				Name:  labels.MetricName,
+				Value: tsName,
+			})
 		nts := &NamedTimeSeries{
 			Name: tsName,
 			TS: &prompb.TimeSeries{
-				Labels: append(tsLabels,
-					prompb.Label{
-						Name:  labels.MetricName,
-						Value: tsName,
-					}),
+				Labels: tsLabelsWithName,
 				Samples: []prompb.Sample{
 					{
 						Value:     fv,

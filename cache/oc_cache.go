@@ -23,8 +23,9 @@ import (
 	"github.com/openconfig/gnmi/path"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/subscribe"
-	"github.com/openconfig/gnmic/utils"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/openconfig/gnmic/utils"
 )
 
 const (
@@ -298,13 +299,13 @@ func (gc *gnmiCache) handleOnChangeQuery(ctx context.Context, ro *ReadOpts, ch c
 	caches := gc.getCaches(ro.Subscription)
 	numCaches := len(caches)
 	gc.logger.Printf("on-change query got %d caches", numCaches)
+
 	wg := new(sync.WaitGroup)
 	wg.Add(numCaches)
 
 	for name, c := range caches {
 		go func(name string, c *subCache) {
 			defer wg.Done()
-
 			for _, p := range ro.Paths {
 				// handle updates only
 				if !ro.UpdatesOnly {
@@ -330,6 +331,9 @@ func (gc *gnmiCache) handleOnChangeQuery(ctx context.Context, ro *ReadOpts, ch c
 				}
 				// main on-change subscription
 				fp := path.ToStrings(p, true)
+				fp = append(fp, "")
+				copy(fp[1:], fp)
+				fp[0] = ro.Target
 				// set callback
 				mc := &matchClient{name: name, ch: ch}
 				remove := c.match.AddQuery(fp, mc)
