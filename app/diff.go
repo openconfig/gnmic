@@ -19,13 +19,14 @@ import (
 	"strings"
 
 	"github.com/openconfig/gnmi/proto/gnmi"
-	"github.com/openconfig/gnmic/config"
-	"github.com/openconfig/gnmic/formatters"
-	"github.com/openconfig/gnmic/types"
 	"github.com/openconfig/grpctunnel/tunnel"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/openconfig/gnmic/config"
+	"github.com/openconfig/gnmic/formatters"
+	"github.com/openconfig/gnmic/types"
 )
 
 type targetDiffResponse struct {

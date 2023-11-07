@@ -16,13 +16,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openconfig/gnmic/utils"
 	"golang.org/x/oauth2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/credentials/oauth"
 	"google.golang.org/grpc/encoding/gzip"
+
+	"github.com/openconfig/gnmic/utils"
 )
 
 // TargetConfig //
@@ -55,7 +56,8 @@ type TargetConfig struct {
 	Token         *string           `mapstructure:"token,omitempty" json:"token,omitempty" yaml:"token,omitempty"`
 	Proxy         string            `mapstructure:"proxy,omitempty" json:"proxy,omitempty" yaml:"proxy,omitempty"`
 	//
-	TunnelTargetType string `mapstructure:"-" json:"tunnel-target-type,omitempty" yaml:"tunnel-target-type,omitempty"`
+	TunnelTargetType string  `mapstructure:"-" json:"tunnel-target-type,omitempty" yaml:"tunnel-target-type,omitempty"`
+	Encoding         *string `mapstructure:"encoding,omitempty" yaml:"encoding,omitempty" json:"encoding,omitempty"`
 }
 
 func (tc TargetConfig) String() string {

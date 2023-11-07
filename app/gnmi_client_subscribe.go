@@ -18,12 +18,13 @@ import (
 	"time"
 
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/grpctunnel/tunnel"
+	"google.golang.org/grpc"
+
 	"github.com/openconfig/gnmic/config"
 	"github.com/openconfig/gnmic/lockers"
 	"github.com/openconfig/gnmic/outputs"
 	"github.com/openconfig/gnmic/types"
-	"github.com/openconfig/grpctunnel/tunnel"
-	"google.golang.org/grpc"
 )
 
 type subscriptionRequest struct {
@@ -174,7 +175,7 @@ func (a *App) clientSubscribe(ctx context.Context, tc *types.TargetConfig) error
 	}
 	subRequests := make([]subscriptionRequest, 0, len(subscriptionsConfigs))
 	for scName, sc := range subscriptionsConfigs {
-		req, err := a.Config.CreateSubscribeRequest(sc, tc.Name)
+		req, err := a.Config.CreateSubscribeRequest(sc, tc)
 		if err != nil {
 			if errors.Is(errors.Unwrap(err), config.ErrConfig) {
 				fmt.Fprintf(os.Stderr, "%v\n", err)
@@ -243,7 +244,7 @@ func (a *App) clientSubscribeOnce(ctx context.Context, tc *types.TargetConfig) e
 	}
 	subRequests := make([]subscriptionRequest, 0)
 	for _, sc := range subscriptionsConfigs {
-		req, err := a.Config.CreateSubscribeRequest(sc, tc.Name)
+		req, err := a.Config.CreateSubscribeRequest(sc, tc)
 		if err != nil {
 			if errors.Is(errors.Unwrap(err), config.ErrConfig) {
 				fmt.Fprintf(os.Stderr, "%v\n", err)

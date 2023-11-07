@@ -29,7 +29,7 @@ type SubscriptionConfig struct {
 	Paths               []string              `mapstructure:"paths,omitempty" json:"paths,omitempty"`
 	Mode                string                `mapstructure:"mode,omitempty" json:"mode,omitempty"`
 	StreamMode          string                `mapstructure:"stream-mode,omitempty" json:"stream-mode,omitempty"`
-	Encoding            string                `mapstructure:"encoding,omitempty" json:"encoding,omitempty"`
+	Encoding            *string               `mapstructure:"encoding,omitempty" json:"encoding,omitempty"`
 	Qos                 *uint32               `mapstructure:"qos,omitempty" json:"qos,omitempty"`
 	SampleInterval      *time.Duration        `mapstructure:"sample-interval,omitempty" json:"sample-interval,omitempty"`
 	HeartbeatInterval   *time.Duration        `mapstructure:"heartbeat-interval,omitempty" json:"heartbeat-interval,omitempty"`
