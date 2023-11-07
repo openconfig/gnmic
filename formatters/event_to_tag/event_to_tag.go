@@ -25,9 +25,9 @@ const (
 	loggingPrefix = "[" + processorType + "] "
 )
 
-// ToTag moves ALL values matching any of the regex in .Values to the EventMsg.Tags map.
+// toTag moves ALL values matching any of the regex in .Values to the EventMsg.Tags map.
 // if .Keep is true, the matching values are not deleted from EventMsg.Tags
-type ToTag struct {
+type toTag struct {
 	Values     []string `mapstructure:"values,omitempty" json:"values,omitempty"`
 	ValueNames []string `mapstructure:"value-names,omitempty" json:"value-names,omitempty"`
 	Keep       bool     `mapstructure:"keep,omitempty" json:"keep,omitempty"`
@@ -41,13 +41,13 @@ type ToTag struct {
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &ToTag{
+		return &toTag{
 			logger: log.New(io.Discard, "", 0),
 		}
 	})
 }
 
-func (t *ToTag) Init(cfg interface{}, opts ...formatters.Option) error {
+func (t *toTag) Init(cfg interface{}, opts ...formatters.Option) error {
 	err := formatters.DecodeConfig(cfg, t)
 	if err != nil {
 		return err
@@ -82,7 +82,7 @@ func (t *ToTag) Init(cfg interface{}, opts ...formatters.Option) error {
 	return nil
 }
 
-func (t *ToTag) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
+func (t *toTag) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	for _, e := range es {
 		if e == nil {
 			continue
@@ -117,7 +117,7 @@ func (t *ToTag) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	return es
 }
 
-func (t *ToTag) WithLogger(l *log.Logger) {
+func (t *toTag) WithLogger(l *log.Logger) {
 	if t.Debug && l != nil {
 		t.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
 	} else if t.Debug {
@@ -125,6 +125,8 @@ func (t *ToTag) WithLogger(l *log.Logger) {
 	}
 }
 
-func (t *ToTag) WithTargets(tcs map[string]*types.TargetConfig) {}
+func (t *toTag) WithTargets(tcs map[string]*types.TargetConfig) {}
 
-func (t *ToTag) WithActions(act map[string]map[string]interface{}) {}
+func (t *toTag) WithActions(act map[string]map[string]interface{}) {}
+
+func (t *toTag) WithProcessors(procs map[string]map[string]any) {}

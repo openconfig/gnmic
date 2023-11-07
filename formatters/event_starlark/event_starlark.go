@@ -17,13 +17,14 @@ import (
 	"os"
 	"sync"
 
-	"github.com/openconfig/gnmic/formatters"
-	"github.com/openconfig/gnmic/types"
-	"github.com/openconfig/gnmic/utils"
 	"go.starlark.net/lib/math"
 	"go.starlark.net/lib/time"
 	"go.starlark.net/resolve"
 	"go.starlark.net/starlark"
+
+	"github.com/openconfig/gnmic/formatters"
+	"github.com/openconfig/gnmic/types"
+	"github.com/openconfig/gnmic/utils"
 )
 
 const (
@@ -198,6 +199,8 @@ func (p *starlarkProc) WithLogger(l *log.Logger) {
 func (p *starlarkProc) WithTargets(tcs map[string]*types.TargetConfig) {}
 
 func (p *starlarkProc) WithActions(act map[string]map[string]interface{}) {}
+
+func (p *starlarkProc) WithProcessors(procs map[string]map[string]any) {}
 
 func (p *starlarkProc) sourceProgram(builtins starlark.StringDict) (*starlark.Program, error) {
 	var src interface{}

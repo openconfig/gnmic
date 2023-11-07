@@ -121,6 +121,8 @@ func (c *durationConvert) WithTargets(tcs map[string]*types.TargetConfig) {}
 
 func (c *durationConvert) WithActions(act map[string]map[string]interface{}) {}
 
+func (c *durationConvert) WithProcessors(procs map[string]map[string]any) {}
+
 func (c *durationConvert) convertDuration(k string, i interface{}) (int64, error) {
 	switch i := i.(type) {
 	case string:

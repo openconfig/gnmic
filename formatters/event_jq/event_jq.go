@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/itchyny/gojq"
+
 	"github.com/openconfig/gnmic/formatters"
 	"github.com/openconfig/gnmic/types"
 	"github.com/openconfig/gnmic/utils"
@@ -201,3 +202,5 @@ func (p *jq) WithLogger(l *log.Logger) {
 func (p *jq) WithTargets(tcs map[string]*types.TargetConfig) {}
 
 func (p *jq) WithActions(act map[string]map[string]interface{}) {}
+
+func (p *jq) WithProcessors(procs map[string]map[string]any) {}

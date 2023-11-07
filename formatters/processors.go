@@ -15,6 +15,7 @@ import (
 
 	"github.com/itchyny/gojq"
 	"github.com/mitchellh/mapstructure"
+
 	"github.com/openconfig/gnmic/types"
 )
 
@@ -40,6 +41,7 @@ var EventProcessorTypes = []string{
 	"event-data-convert",
 	"event-value-tag",
 	"event-starlark",
+	"event-combine",
 }
 
 type Initializer func() EventProcessor
@@ -56,6 +58,7 @@ type EventProcessor interface {
 	WithTargets(map[string]*types.TargetConfig)
 	WithLogger(l *log.Logger)
 	WithActions(act map[string]map[string]interface{})
+	WithProcessors(procs map[string]map[string]any)
 }
 
 func DecodeConfig(src, dst interface{}) error {
@@ -89,33 +92,43 @@ func WithActions(acts map[string]map[string]interface{}) Option {
 	}
 }
 
-func CheckCondition(code *gojq.Code, e *EventMsg) (bool, error) {
-	var res interface{}
-	if code != nil {
-		input := make(map[string]interface{})
-		b, err := json.Marshal(e)
-		if err != nil {
-			return false, err
-		}
-		err = json.Unmarshal(b, &input)
-		if err != nil {
-			return false, err
-		}
-		iter := code.Run(input)
-		if err != nil {
-			return false, err
-		}
-		var ok bool
-		res, ok = iter.Next()
-		// iterator not done, so the final result won't be a boolean
-		if !ok {
-			//
-			return false, nil
-		}
-		if err, ok = res.(error); ok {
-			return false, err
-		}
+func WithProcessors(procs map[string]map[string]interface{}) Option {
+	return func(p EventProcessor) {
+		p.WithProcessors(procs)
 	}
+}
+
+func CheckCondition(code *gojq.Code, e *EventMsg) (bool, error) {
+	if code == nil {
+		return true, nil
+	}
+
+	var res interface{}
+
+	input := make(map[string]interface{})
+	b, err := json.Marshal(e)
+	if err != nil {
+		return false, err
+	}
+	err = json.Unmarshal(b, &input)
+	if err != nil {
+		return false, err
+	}
+	iter := code.Run(input)
+	if err != nil {
+		return false, err
+	}
+	var ok bool
+	res, ok = iter.Next()
+	// iterator not done, so the final result won't be a boolean
+	if !ok {
+		//
+		return false, nil
+	}
+	if err, ok = res.(error); ok {
+		return false, err
+	}
+
 	switch res := res.(type) {
 	case bool:
 		return res, nil

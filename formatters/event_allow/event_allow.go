@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/itchyny/gojq"
+
 	"github.com/openconfig/gnmic/formatters"
 	"github.com/openconfig/gnmic/types"
 	"github.com/openconfig/gnmic/utils"
@@ -27,8 +28,8 @@ const (
 	loggingPrefix = "[" + processorType + "] "
 )
 
-// Allow Allows the msg if ANY of the Tags or Values regexes are matched
-type Allow struct {
+// allow Allows the msg if ANY of the Tags or Values regexes are matched
+type allow struct {
 	Condition  string   `mapstructure:"condition,omitempty"`
 	TagNames   []string `mapstructure:"tag-names,omitempty" json:"tag-names,omitempty"`
 	ValueNames []string `mapstructure:"value-names,omitempty" json:"value-names,omitempty"`
@@ -46,13 +47,13 @@ type Allow struct {
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &Allow{
+		return &allow{
 			logger: log.New(io.Discard, "", 0),
 		}
 	})
 }
 
-func (d *Allow) Init(cfg interface{}, opts ...formatters.Option) error {
+func (d *allow) Init(cfg interface{}, opts ...formatters.Option) error {
 	err := formatters.DecodeConfig(cfg, d)
 	if err != nil {
 		return err
@@ -115,7 +116,7 @@ func (d *Allow) Init(cfg interface{}, opts ...formatters.Option) error {
 	return nil
 }
 
-func (d *Allow) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
+func (d *allow) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	i := 0
 	for _, e := range es {
 		if d.allow(e) {
@@ -130,7 +131,7 @@ func (d *Allow) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	return es
 }
 
-func (d *Allow) WithLogger(l *log.Logger) {
+func (d *allow) WithLogger(l *log.Logger) {
 	if d.Debug && l != nil {
 		d.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
 	} else if d.Debug {
@@ -138,11 +139,13 @@ func (d *Allow) WithLogger(l *log.Logger) {
 	}
 }
 
-func (d *Allow) WithTargets(tcs map[string]*types.TargetConfig) {}
+func (d *allow) WithTargets(tcs map[string]*types.TargetConfig) {}
 
-func (d *Allow) WithActions(act map[string]map[string]interface{}) {}
+func (d *allow) WithActions(act map[string]map[string]interface{}) {}
 
-func (d *Allow) allow(e *formatters.EventMsg) bool {
+func (d *allow) WithProcessors(procs map[string]map[string]any) {}
+
+func (d *allow) allow(e *formatters.EventMsg) bool {
 	if d.Condition != "" {
 		ok, err := formatters.CheckCondition(d.code, e)
 		if err != nil {

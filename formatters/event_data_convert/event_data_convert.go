@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	units "github.com/bcicen/go-units"
+
 	"github.com/openconfig/gnmic/formatters"
 	"github.com/openconfig/gnmic/types"
 	"github.com/openconfig/gnmic/utils"
@@ -141,6 +142,8 @@ func (c *dataConvert) WithLogger(l *log.Logger) {
 func (c *dataConvert) WithTargets(tcs map[string]*types.TargetConfig) {}
 
 func (c *dataConvert) WithActions(act map[string]map[string]interface{}) {}
+
+func (c *dataConvert) WithProcessors(procs map[string]map[string]any) {}
 
 func (c *dataConvert) convertData(k string, i interface{}, from *units.Unit) (float64, error) {
 	if from == nil && c.From == "" {

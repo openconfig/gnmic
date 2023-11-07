@@ -25,7 +25,7 @@ const (
 	loggingPrefix = "[" + processorType + "] "
 )
 
-type ValueTag struct {
+type valueTag struct {
 	TagName   string `mapstructure:"tag-name,omitempty" json:"tag-name,omitempty"`
 	ValueName string `mapstructure:"value-name,omitempty" json:"value-name,omitempty"`
 	Consume   bool   `mapstructure:"consume,omitempty" json:"consume,omitempty"`
@@ -35,11 +35,11 @@ type ValueTag struct {
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &ValueTag{logger: log.New(io.Discard, "", 0)}
+		return &valueTag{logger: log.New(io.Discard, "", 0)}
 	})
 }
 
-func (vt *ValueTag) Init(cfg interface{}, opts ...formatters.Option) error {
+func (vt *valueTag) Init(cfg interface{}, opts ...formatters.Option) error {
 	err := formatters.DecodeConfig(cfg, vt)
 	if err != nil {
 		return err
@@ -64,7 +64,7 @@ type foo struct {
 	value interface{}
 }
 
-func (vt *ValueTag) Apply(evs ...*formatters.EventMsg) []*formatters.EventMsg {
+func (vt *valueTag) Apply(evs ...*formatters.EventMsg) []*formatters.EventMsg {
 	if vt.TagName == "" {
 		vt.TagName = vt.ValueName
 	}
@@ -92,7 +92,7 @@ func (vt *ValueTag) Apply(evs ...*formatters.EventMsg) []*formatters.EventMsg {
 	return evs
 }
 
-func (vt *ValueTag) WithLogger(l *log.Logger) {
+func (vt *valueTag) WithLogger(l *log.Logger) {
 	if vt.Debug && l != nil {
 		vt.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
 	} else if vt.Debug {
@@ -100,9 +100,9 @@ func (vt *ValueTag) WithLogger(l *log.Logger) {
 	}
 }
 
-func (vt *ValueTag) WithTargets(tcs map[string]*types.TargetConfig) {}
+func (vt *valueTag) WithTargets(tcs map[string]*types.TargetConfig) {}
 
-func (vt *ValueTag) WithActions(act map[string]map[string]interface{}) {}
+func (vt *valueTag) WithActions(act map[string]map[string]interface{}) {}
 
 func checkKeys(a map[string]string, b map[string]string) bool {
 	for k, v := range a {
@@ -116,3 +116,5 @@ func checkKeys(a map[string]string, b map[string]string) bool {
 	}
 	return true
 }
+
+func (vt *valueTag) WithProcessors(procs map[string]map[string]any) {}

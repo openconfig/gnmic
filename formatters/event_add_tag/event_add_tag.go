@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/itchyny/gojq"
+
 	"github.com/openconfig/gnmic/formatters"
 	"github.com/openconfig/gnmic/types"
 	"github.com/openconfig/gnmic/utils"
@@ -27,8 +28,8 @@ const (
 	loggingPrefix = "[" + processorType + "] "
 )
 
-// AddTag adds a set of tags to the event message if tag
-type AddTag struct {
+// addTag adds a set of tags to the event message if tag
+type addTag struct {
 	Condition  string            `mapstructure:"condition,omitempty"`
 	Tags       []string          `mapstructure:"tags,omitempty" json:"tags,omitempty"`
 	Values     []string          `mapstructure:"values,omitempty" json:"values,omitempty"`
@@ -48,13 +49,13 @@ type AddTag struct {
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &AddTag{
+		return &addTag{
 			logger: log.New(io.Discard, "", 0),
 		}
 	})
 }
 
-func (p *AddTag) Init(cfg interface{}, opts ...formatters.Option) error {
+func (p *addTag) Init(cfg interface{}, opts ...formatters.Option) error {
 	err := formatters.DecodeConfig(cfg, p)
 	if err != nil {
 		return err
@@ -121,7 +122,7 @@ func (p *AddTag) Init(cfg interface{}, opts ...formatters.Option) error {
 	return nil
 }
 
-func (p *AddTag) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
+func (p *addTag) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	for _, e := range es {
 		if e == nil {
 			continue
@@ -172,7 +173,7 @@ func (p *AddTag) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	return es
 }
 
-func (p *AddTag) WithLogger(l *log.Logger) {
+func (p *addTag) WithLogger(l *log.Logger) {
 	if p.Debug && l != nil {
 		p.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
 	} else if p.Debug {
@@ -180,11 +181,13 @@ func (p *AddTag) WithLogger(l *log.Logger) {
 	}
 }
 
-func (p *AddTag) WithTargets(tcs map[string]*types.TargetConfig) {}
+func (p *addTag) WithTargets(tcs map[string]*types.TargetConfig) {}
 
-func (p *AddTag) WithActions(act map[string]map[string]interface{}) {}
+func (p *addTag) WithActions(act map[string]map[string]interface{}) {}
 
-func (p *AddTag) addTags(e *formatters.EventMsg) {
+func (p *addTag) WithProcessors(procs map[string]map[string]any) {}
+
+func (p *addTag) addTags(e *formatters.EventMsg) {
 	if e.Tags == nil {
 		e.Tags = make(map[string]string)
 	}
