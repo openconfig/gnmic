@@ -106,6 +106,8 @@ type serviceDef struct {
 	Name   string                 `mapstructure:"name,omitempty" json:"name,omitempty"`
 	Tags   []string               `mapstructure:"tags,omitempty" json:"tags,omitempty"`
 	Config map[string]interface{} `mapstructure:"config,omitempty" json:"config,omitempty"`
+
+	tags map[string]struct{}
 }
 
 func (c *consulLoader) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger, opts ...loaders.Option) error {
@@ -124,6 +126,14 @@ func (c *consulLoader) Init(ctx context.Context, cfg map[string]interface{}, log
 		c.logger.SetOutput(logger.Writer())
 		c.logger.SetFlags(logger.Flags())
 	}
+
+	for _, se := range c.cfg.Services {
+		se.tags = make(map[string]struct{})
+		for _, t := range se.Tags {
+			se.tags[t] = struct{}{}
+		}
+	}
+
 	err = c.readVars(ctx)
 	if err != nil {
 		return err
@@ -152,7 +162,7 @@ func (c *consulLoader) Init(ctx context.Context, cfg map[string]interface{}, log
 		return fmt.Errorf("unknown action name %q", actName)
 	}
 	c.numActions = len(c.addActions) + len(c.delActions)
-	c.logger.Printf("intialized consul loader: %+v", c.cfg)
+	c.logger.Printf("initialized consul loader: %+v", c.cfg)
 	return nil
 }
 
@@ -361,23 +371,40 @@ func (c *consulLoader) serviceEntryToTargetConfig(se *api.ServiceEntry) (*types.
 	if se.Service == nil {
 		return tc, nil
 	}
+
+SRV:
 	for _, sd := range c.cfg.Services {
+		// match service name
 		if se.Service.Service == sd.Name {
-			if sd.Config != nil {
-				err := mapstructure.Decode(sd.Config, tc)
-				if err != nil {
-					return nil, err
+			continue
+		}
+
+		// match service tags
+		if len(sd.tags) > 0 {
+			for _, t := range se.Service.Tags {
+				if _, ok := sd.tags[t]; !ok {
+					goto SRV
 				}
 			}
-			tc.Address = se.Service.Address
-			if tc.Address == "" {
-				tc.Address = se.Node.Address
-			}
-			tc.Address = net.JoinHostPort(tc.Address, strconv.Itoa(se.Service.Port))
-			tc.Name = se.Service.ID
-			return tc, nil
 		}
+
+		// decode config if present
+		if sd.Config != nil {
+			err := mapstructure.Decode(sd.Config, tc)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		tc.Address = se.Service.Address
+		if tc.Address == "" {
+			tc.Address = se.Node.Address
+		}
+		tc.Address = net.JoinHostPort(tc.Address, strconv.Itoa(se.Service.Port))
+		tc.Name = se.Service.ID
+		return tc, nil
 	}
+
 	return nil, nil
 }
 
