@@ -7,4 +7,4 @@ dist
 *.log
 gnmic
 *.tmp
-*.work.*
+*.work*
