@@ -9,7 +9,7 @@ import (
     "fmt"
     "log"
 
-    "github.com/openconfig/gnmic/api"
+    "github.com/openconfig/gnmic/pkg/api"
     "google.golang.org/protobuf/encoding/prototext"
 )
 
