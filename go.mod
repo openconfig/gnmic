@@ -48,8 +48,8 @@ require (
 	github.com/nsf/termbox-go v1.1.1
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/openconfig/gnmi v0.10.0
-	github.com/openconfig/gnmic/pkg/api v0.0.0
-	github.com/openconfig/gnmic/pkg/cache v0.0.0
+	github.com/openconfig/gnmic/pkg/api v0.33.0
+	github.com/openconfig/gnmic/pkg/cache v0.33.0
 	github.com/openconfig/gnmic/pkg/path v0.33.0
 	github.com/openconfig/gnmic/pkg/target v0.33.0
 	github.com/openconfig/gnmic/pkg/testutils v0.33.0

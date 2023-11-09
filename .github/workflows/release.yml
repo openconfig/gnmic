@@ -24,13 +24,7 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           go-version: ${{ env.GOVER }}
-      - run: |
-          go test -cover ./...
-          go test -cover ./pkg/utils
-          go test -cover ./pkg/target
-          go test -cover ./pkg/path
-          go test -cover ./pkg/cache
-          go test -cover ./pkg/api
+      - run: ./tests/run_tests.sh
         env:
           CGO_ENABLED: 0
 
