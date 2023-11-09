@@ -16,7 +16,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/openconfig/gnmic/app"
+	"github.com/openconfig/gnmic/pkg/app"
 	"github.com/spf13/cobra"
 )
 

@@ -14,8 +14,9 @@ import (
 	"log"
 	"time"
 
-	"github.com/openconfig/gnmic/api"
 	"google.golang.org/protobuf/encoding/prototext"
+
+	"github.com/openconfig/gnmic/pkg/api"
 )
 
 func main() {

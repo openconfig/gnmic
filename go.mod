@@ -1,6 +1,16 @@
 module github.com/openconfig/gnmic
 
-go 1.21
+go 1.21.1
+
+replace (
+	github.com/openconfig/gnmic/pkg/api => ./pkg/api
+	github.com/openconfig/gnmic/pkg/cache => ./pkg/cache
+	github.com/openconfig/gnmic/pkg/path => ./pkg/path
+	github.com/openconfig/gnmic/pkg/target => ./pkg/target
+	github.com/openconfig/gnmic/pkg/testutils => ./pkg/testutils
+	github.com/openconfig/gnmic/pkg/types => ./pkg/types
+	github.com/openconfig/gnmic/pkg/utils => ./pkg/utils
+)
 
 require (
 	github.com/Shopify/sarama v1.38.1
@@ -10,10 +20,9 @@ require (
 	github.com/docker/docker v24.0.7+incompatible
 	github.com/fsnotify/fsnotify v1.6.0
 	github.com/fullstorydev/grpcurl v1.8.7
-	github.com/go-redis/redis/v8 v8.11.5
 	github.com/go-redsync/redsync/v4 v4.10.0
 	github.com/go-resty/resty/v2 v2.7.0
-	github.com/google/go-cmp v0.5.9
+	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.3.1
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
@@ -27,7 +36,7 @@ require (
 	github.com/influxdata/influxdb-client-go/v2 v2.12.3
 	github.com/itchyny/gojq v0.12.13
 	github.com/jellydator/ttlcache/v3 v3.1.0
-	github.com/jhump/protoreflect v1.15.1
+	github.com/jhump/protoreflect v1.15.3
 	github.com/jlaffaye/ftp v0.2.0
 	github.com/karimra/go-map-flattener v0.0.1
 	github.com/karimra/sros-dialout v0.0.0-20200518085040-c759bf74063a
@@ -39,6 +48,13 @@ require (
 	github.com/nsf/termbox-go v1.1.1
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/openconfig/gnmi v0.10.0
+	github.com/openconfig/gnmic/pkg/api v0.33.0
+	github.com/openconfig/gnmic/pkg/cache v0.33.0
+	github.com/openconfig/gnmic/pkg/path v0.33.0
+	github.com/openconfig/gnmic/pkg/target v0.33.0
+	github.com/openconfig/gnmic/pkg/testutils v0.33.0
+	github.com/openconfig/gnmic/pkg/types v0.33.0
+	github.com/openconfig/gnmic/pkg/utils v0.33.0
 	github.com/openconfig/goyang v1.4.2
 	github.com/openconfig/ygot v0.29.2
 	github.com/pkg/sftp v1.13.6
@@ -52,7 +68,6 @@ require (
 	github.com/xdg/scram v1.0.5
 	go.starlark.net v0.0.0-20230612165344-9532f5667272
 	golang.org/x/crypto v0.14.0
-	golang.org/x/oauth2 v0.12.0
 	golang.org/x/sync v0.3.0
 	google.golang.org/grpc v1.59.0
 	google.golang.org/protobuf v1.31.0
@@ -81,7 +96,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.13.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.26.10 // indirect
 	github.com/bcicen/bfstree v1.0.0 // indirect
-	github.com/bufbuild/protocompile v0.5.1 // indirect
+	github.com/bufbuild/protocompile v0.6.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
 	github.com/derekparker/trie v0.0.0-20221221181808-1424fce0c981 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
@@ -90,6 +105,7 @@ require (
 	github.com/go-openapi/jsonpointer v0.19.6 // indirect
 	github.com/go-openapi/jsonreference v0.20.2 // indirect
 	github.com/go-openapi/swag v0.22.3 // indirect
+	github.com/go-redis/redis/v8 v8.11.5 // indirect
 	github.com/gomodule/redigo v2.0.0+incompatible // indirect
 	github.com/google/gnostic v0.6.9 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
@@ -128,6 +144,7 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df // indirect
 	golang.org/x/mod v0.11.0 // indirect
+	golang.org/x/oauth2 v0.13.0 // indirect
 	golang.org/x/term v0.13.0 // indirect
 	golang.org/x/tools v0.10.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20230822172742-b8732ec3820d // indirect
@@ -222,11 +239,11 @@ require (
 	github.com/mattn/go-runewidth v0.0.14 // indirect
 	github.com/mattn/go-tty v0.0.4 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
-	github.com/nats-io/nats-server/v2 v2.10.4
+	github.com/nats-io/nats-server/v2 v2.10.4 // indirect
 	github.com/nats-io/nats-streaming-server v0.24.3 // indirect
 	github.com/nats-io/nkeys v0.4.6 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
-	github.com/openconfig/grpctunnel v0.0.0-20220819142823-6f5422b8ca70
+	github.com/openconfig/grpctunnel v0.1.0
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.2 // indirect
 	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
@@ -250,7 +267,7 @@ require (
 	go4.org/intern v0.0.0-20230205224052-192e9f60865c // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20230525183740-e7c30c78aeb2 // indirect
 	gocloud.dev v0.25.1-0.20220408200107-09b10f7359f7 // indirect
-	golang.org/x/net v0.17.0
+	golang.org/x/net v0.17.0 // indirect
 	golang.org/x/sys v0.13.0 // indirect
 	golang.org/x/text v0.13.0
 	golang.org/x/time v0.3.0 // indirect
