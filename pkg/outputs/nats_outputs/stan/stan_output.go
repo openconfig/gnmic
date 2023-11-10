@@ -111,32 +111,19 @@ func (s *StanOutput) SetLogger(logger *log.Logger) {
 func (s *StanOutput) SetEventProcessors(ps map[string]map[string]interface{},
 	logger *log.Logger,
 	tcs map[string]*types.TargetConfig,
-	acts map[string]map[string]interface{}) {
-	for _, epName := range s.Cfg.EventProcessors {
-		if epCfg, ok := ps[epName]; ok {
-			epType := ""
-			for k := range epCfg {
-				epType = k
-				break
-			}
-			if in, ok := formatters.EventProcessors[epType]; ok {
-				ep := in()
-				err := ep.Init(epCfg[epType], formatters.WithLogger(logger),
-					formatters.WithTargets(tcs),
-					formatters.WithActions(acts))
-				if err != nil {
-					s.logger.Printf("failed initializing event processor %q of type=%q: %v", epName, epType, err)
-					continue
-				}
-				s.evps = append(s.evps, ep)
-				s.logger.Printf("added event processor %q of type=%s to stan output", epName, epType)
-				continue
-			}
-			s.logger.Printf("%q event processor has an unknown type=%q", epName, epType)
-			continue
-		}
-		s.logger.Printf("%q event processor not found!", epName)
+	acts map[string]map[string]interface{}) error {
+	var err error
+	s.evps, err = outputs.MakeEventProcessors(
+		logger,
+		s.Cfg.EventProcessors,
+		ps,
+		tcs,
+		acts,
+	)
+	if err != nil {
+		return err
 	}
+	return nil
 }
 
 // Init //
@@ -149,7 +136,9 @@ func (s *StanOutput) Init(ctx context.Context, name string, cfg map[string]inter
 		s.Cfg.Name = name
 	}
 	for _, opt := range opts {
-		opt(s)
+		if err := opt(s); err != nil {
+			return err
+		}
 	}
 	err = s.setDefaults()
 	if err != nil {

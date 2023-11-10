@@ -114,34 +114,19 @@ func (k *kafkaOutput) SetLogger(logger *log.Logger) {
 func (k *kafkaOutput) SetEventProcessors(ps map[string]map[string]interface{},
 	logger *log.Logger,
 	tcs map[string]*types.TargetConfig,
-	acts map[string]map[string]interface{}) {
-	for _, epName := range k.Cfg.EventProcessors {
-		if epCfg, ok := ps[epName]; ok {
-			epType := ""
-			for k := range epCfg {
-				epType = k
-				break
-			}
-			if in, ok := formatters.EventProcessors[epType]; ok {
-				ep := in()
-				err := ep.Init(epCfg[epType],
-					formatters.WithLogger(logger),
-					formatters.WithTargets(tcs),
-					formatters.WithActions(acts),
-				)
-				if err != nil {
-					k.logger.Printf("failed initializing event processor '%s' of type='%s': %v", epName, epType, err)
-					continue
-				}
-				k.evps = append(k.evps, ep)
-				k.logger.Printf("added event processor '%s' of type=%s to kafka output", epName, epType)
-				continue
-			}
-			k.logger.Printf("%q event processor has an unknown type=%q", epName, epType)
-			continue
-		}
-		k.logger.Printf("%q event processor not found!", epName)
+	acts map[string]map[string]interface{}) error {
+	var err error
+	k.evps, err = outputs.MakeEventProcessors(
+		logger,
+		k.Cfg.EventProcessors,
+		ps,
+		tcs,
+		acts,
+	)
+	if err != nil {
+		return err
 	}
+	return nil
 }
 
 // Init /
@@ -154,7 +139,9 @@ func (k *kafkaOutput) Init(ctx context.Context, name string, cfg map[string]inte
 		k.Cfg.Name = name
 	}
 	for _, opt := range opts {
-		opt(k)
+		if err := opt(k); err != nil {
+			return err
+		}
 	}
 	err = k.setDefaults()
 	if err != nil {

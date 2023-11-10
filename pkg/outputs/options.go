@@ -15,11 +15,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-type Option func(Output)
+type Option func(Output) error
 
 func WithLogger(logger *log.Logger) Option {
-	return func(o Output) {
+	return func(o Output) error {
 		o.SetLogger(logger)
+		return nil
 	}
 }
 
@@ -27,31 +28,35 @@ func WithEventProcessors(eps map[string]map[string]interface{},
 	log *log.Logger,
 	tcs map[string]*types.TargetConfig,
 	acts map[string]map[string]interface{}) Option {
-	return func(o Output) {
-		o.SetEventProcessors(eps, log, tcs, acts)
+	return func(o Output) error {
+		return  o.SetEventProcessors(eps, log, tcs, acts)
 	}
 }
 
 func WithRegistry(reg *prometheus.Registry) Option {
-	return func(o Output) {
+	return func(o Output) error {
 		o.RegisterMetrics(reg)
+		return nil
 	}
 }
 
 func WithName(name string) Option {
-	return func(o Output) {
+	return func(o Output) error {
 		o.SetName(name)
+		return nil
 	}
 }
 
 func WithClusterName(name string) Option {
-	return func(o Output) {
+	return func(o Output) error {
 		o.SetClusterName(name)
+		return nil
 	}
 }
 
 func WithTargetsConfig(tcs map[string]*types.TargetConfig) Option {
-	return func(o Output) {
+	return func(o Output) error {
 		o.SetTargetsConfig(tcs)
+		return nil
 	}
 }

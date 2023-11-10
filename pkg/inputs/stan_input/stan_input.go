@@ -93,7 +93,9 @@ func (s *StanInput) Start(ctx context.Context, name string, cfg map[string]inter
 		s.Cfg.Name = name
 	}
 	for _, opt := range opts {
-		opt(s)
+		if err := opt(s); err != nil {
+			return err
+		}
 	}
 	err = s.setDefaults()
 	if err != nil {
@@ -177,26 +179,18 @@ func (s *StanInput) SetName(name string) {
 	s.Cfg.Name = sb.String()
 }
 
-func (s *StanInput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]*types.TargetConfig) {
-	for _, epName := range s.Cfg.EventProcessors {
-		if epCfg, ok := ps[epName]; ok {
-			epType := ""
-			for k := range epCfg {
-				epType = k
-				break
-			}
-			if in, ok := formatters.EventProcessors[epType]; ok {
-				ep := in()
-				err := ep.Init(epCfg[epType], formatters.WithLogger(logger), formatters.WithTargets(tcs))
-				if err != nil {
-					s.logger.Printf("failed initializing event processor %q of type=%q: %v", epName, epType, err)
-					continue
-				}
-				s.evps = append(s.evps, ep)
-				s.logger.Printf("added event processor %q of type=%q to stan input", epName, epType)
-			}
-		}
+func (s *StanInput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]*types.TargetConfig) error {
+	var err error
+	s.evps, err = inputs.MakeEventProcessors(
+		logger,
+		s.Cfg.EventProcessors,
+		ps,
+		tcs,
+	)
+	if err != nil {
+		return err
 	}
+	return nil
 }
 
 // helper functions

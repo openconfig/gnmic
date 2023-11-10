@@ -146,7 +146,9 @@ func (p *promWriteOutput) Init(ctx context.Context, name string, cfg map[string]
 	p.logger.SetPrefix(fmt.Sprintf(loggingPrefix, p.cfg.Name))
 
 	for _, opt := range opts {
-		opt(p)
+		if err := opt(p); err != nil {
+			return err
+		}
 	}
 
 	if p.cfg.TargetTemplate == "" {
@@ -259,33 +261,19 @@ func (p *promWriteOutput) SetLogger(logger *log.Logger) {
 func (p *promWriteOutput) SetEventProcessors(ps map[string]map[string]interface{},
 	logger *log.Logger,
 	tcs map[string]*types.TargetConfig,
-	acts map[string]map[string]interface{}) {
-	for _, epName := range p.cfg.EventProcessors {
-		if epCfg, ok := ps[epName]; ok {
-			epType := ""
-			for k := range epCfg {
-				epType = k
-				break
-			}
-			if in, ok := formatters.EventProcessors[epType]; ok {
-				ep := in()
-				err := ep.Init(epCfg[epType],
-					formatters.WithLogger(logger),
-					formatters.WithTargets(tcs),
-					formatters.WithActions(acts))
-				if err != nil {
-					p.logger.Printf("failed initializing event processor '%s' of type='%s': %v", epName, epType, err)
-					continue
-				}
-				p.evps = append(p.evps, ep)
-				p.logger.Printf("added event processor '%s' of type=%s to prometheus output", epName, epType)
-				continue
-			}
-			p.logger.Printf("%q event processor has an unknown type=%q", epName, epType)
-			continue
-		}
-		p.logger.Printf("%q event processor not found!", epName)
+	acts map[string]map[string]interface{}) error {
+	var err error
+	p.evps, err = outputs.MakeEventProcessors(
+		logger,
+		p.cfg.EventProcessors,
+		ps,
+		tcs,
+		acts,
+	)
+	if err != nil {
+		return err
 	}
+	return nil
 }
 
 func (p *promWriteOutput) SetName(name string) {

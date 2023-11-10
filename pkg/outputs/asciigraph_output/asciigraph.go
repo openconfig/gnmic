@@ -134,34 +134,19 @@ func (a *asciigraphOutput) String() string {
 func (a *asciigraphOutput) SetEventProcessors(ps map[string]map[string]interface{},
 	logger *log.Logger,
 	tcs map[string]*types.TargetConfig,
-	acts map[string]map[string]interface{}) {
-	for _, epName := range a.cfg.EventProcessors {
-		if epCfg, ok := ps[epName]; ok {
-			epType := ""
-			for k := range epCfg {
-				epType = k
-				break
-			}
-			if in, ok := formatters.EventProcessors[epType]; ok {
-				ep := in()
-				err := ep.Init(epCfg[epType],
-					formatters.WithLogger(logger),
-					formatters.WithTargets(tcs),
-					formatters.WithActions(acts),
-				)
-				if err != nil {
-					a.logger.Printf("failed initializing event processor '%s' of type='%s': %v", epName, epType, err)
-					continue
-				}
-				a.evps = append(a.evps, ep)
-				a.logger.Printf("added event processor '%s' of type=%s to file output", epName, epType)
-				continue
-			}
-			a.logger.Printf("%q event processor has an unknown type=%q", epName, epType)
-			continue
-		}
-		a.logger.Printf("%q event processor not found!", epName)
+	acts map[string]map[string]interface{}) error {
+	var err error
+	a.evps, err = outputs.MakeEventProcessors(
+		logger,
+		a.cfg.EventProcessors,
+		ps,
+		tcs,
+		acts,
+	)
+	if err != nil {
+		return err
 	}
+	return nil
 }
 
 func (a *asciigraphOutput) SetLogger(logger *log.Logger) {
@@ -181,7 +166,9 @@ func (a *asciigraphOutput) Init(ctx context.Context, name string, cfg map[string
 	a.logger.SetPrefix(fmt.Sprintf(loggingPrefix, name))
 
 	for _, opt := range opts {
-		opt(a)
+		if err := opt(a); err != nil {
+			return err
+		}
 	}
 
 	if a.cfg.TargetTemplate == "" {
