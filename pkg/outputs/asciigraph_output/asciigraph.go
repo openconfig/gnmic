@@ -24,12 +24,11 @@ import (
 	"text/template"
 	"time"
 
-	"google.golang.org/protobuf/proto"
-
 	"github.com/guptarohit/asciigraph"
 	"github.com/nsf/termbox-go"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
@@ -136,7 +135,7 @@ func (a *asciigraphOutput) SetEventProcessors(ps map[string]map[string]interface
 	tcs map[string]*types.TargetConfig,
 	acts map[string]map[string]interface{}) error {
 	var err error
-	a.evps, err = outputs.MakeEventProcessors(
+	a.evps, err = formatters.MakeEventProcessors(
 		logger,
 		a.cfg.EventProcessors,
 		ps,

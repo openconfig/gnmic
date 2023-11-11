@@ -83,7 +83,7 @@ func (u *UDPSock) SetEventProcessors(ps map[string]map[string]interface{},
 	tcs map[string]*types.TargetConfig,
 	acts map[string]map[string]interface{}) error {
 	var err error
-	u.evps, err = outputs.MakeEventProcessors(
+	u.evps, err = formatters.MakeEventProcessors(
 		logger,
 		u.Cfg.EventProcessors,
 		ps,

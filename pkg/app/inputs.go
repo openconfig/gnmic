@@ -29,7 +29,12 @@ func (a *App) InitInput(ctx context.Context, name string, tcs map[string]*types.
 				go func() {
 					err := in.Start(ctx, name, cfg,
 						inputs.WithLogger(a.Logger),
-						inputs.WithEventProcessors(a.Config.Processors, a.Logger, a.Config.Targets),
+						inputs.WithEventProcessors(
+							a.Config.Processors,
+							a.Logger,
+							a.Config.Targets,
+							a.Config.Actions,
+						),
 						inputs.WithName(a.Config.InstanceName),
 						inputs.WithOutputs(a.Outputs),
 					)

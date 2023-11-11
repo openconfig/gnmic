@@ -118,7 +118,7 @@ func (i *influxDBOutput) SetEventProcessors(ps map[string]map[string]interface{}
 	tcs map[string]*types.TargetConfig,
 	acts map[string]map[string]interface{}) error {
 	var err error
-	i.evps, err = outputs.MakeEventProcessors(
+	i.evps, err = formatters.MakeEventProcessors(
 		logger,
 		i.Cfg.EventProcessors,
 		ps,

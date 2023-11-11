@@ -294,7 +294,7 @@ func (n *jetstreamOutput) SetEventProcessors(ps map[string]map[string]interface{
 	tcs map[string]*types.TargetConfig,
 	acts map[string]map[string]interface{}) error {
 	var err error
-	n.evps, err = outputs.MakeEventProcessors(
+	n.evps, err = formatters.MakeEventProcessors(
 		logger,
 		n.Cfg.EventProcessors,
 		ps,

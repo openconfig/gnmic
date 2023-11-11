@@ -87,7 +87,7 @@ func (t *tcpOutput) SetEventProcessors(ps map[string]map[string]interface{},
 	tcs map[string]*types.TargetConfig,
 	acts map[string]map[string]interface{}) error {
 	var err error
-	t.evps, err = outputs.MakeEventProcessors(
+	t.evps, err = formatters.MakeEventProcessors(
 		logger,
 		t.cfg.EventProcessors,
 		ps,

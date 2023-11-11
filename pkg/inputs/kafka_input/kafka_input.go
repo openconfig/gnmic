@@ -20,11 +20,10 @@ import (
 	"sync"
 	"time"
 
-	"google.golang.org/protobuf/proto"
-
 	"github.com/Shopify/sarama"
 	"github.com/damiannolan/sasl/oauthbearer"
 	"github.com/google/uuid"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/inputs"
@@ -260,13 +259,14 @@ func (k *KafkaInput) SetName(name string) {
 	k.Cfg.Name = sb.String()
 }
 
-func (k *KafkaInput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]*types.TargetConfig) error {
+func (k *KafkaInput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]*types.TargetConfig, acts map[string]map[string]interface{}) error {
 	var err error
-	k.evps, err = inputs.MakeEventProcessors(
+	k.evps, err = formatters.MakeEventProcessors(
 		logger,
 		k.Cfg.EventProcessors,
 		ps,
 		tcs,
+		acts,
 	)
 	if err != nil {
 		return err

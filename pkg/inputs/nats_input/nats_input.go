@@ -242,13 +242,14 @@ func (n *NatsInput) SetName(name string) {
 	n.Cfg.Name = sb.String()
 }
 
-func (n *NatsInput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]*types.TargetConfig) error {
+func (n *NatsInput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]*types.TargetConfig, acts map[string]map[string]interface{}) error {
 	var err error
-	n.evps, err = inputs.MakeEventProcessors(
+	n.evps, err = formatters.MakeEventProcessors(
 		logger,
 		n.Cfg.EventProcessors,
 		ps,
 		tcs,
+		acts,
 	)
 	if err != nil {
 		return err

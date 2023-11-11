@@ -263,7 +263,7 @@ func (p *promWriteOutput) SetEventProcessors(ps map[string]map[string]interface{
 	tcs map[string]*types.TargetConfig,
 	acts map[string]map[string]interface{}) error {
 	var err error
-	p.evps, err = outputs.MakeEventProcessors(
+	p.evps, err = formatters.MakeEventProcessors(
 		logger,
 		p.cfg.EventProcessors,
 		ps,

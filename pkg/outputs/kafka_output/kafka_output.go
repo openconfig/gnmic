@@ -116,7 +116,7 @@ func (k *kafkaOutput) SetEventProcessors(ps map[string]map[string]interface{},
 	tcs map[string]*types.TargetConfig,
 	acts map[string]map[string]interface{}) error {
 	var err error
-	k.evps, err = outputs.MakeEventProcessors(
+	k.evps, err = formatters.MakeEventProcessors(
 		logger,
 		k.Cfg.EventProcessors,
 		ps,

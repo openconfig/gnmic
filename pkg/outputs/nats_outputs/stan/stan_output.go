@@ -113,7 +113,7 @@ func (s *StanOutput) SetEventProcessors(ps map[string]map[string]interface{},
 	tcs map[string]*types.TargetConfig,
 	acts map[string]map[string]interface{}) error {
 	var err error
-	s.evps, err = outputs.MakeEventProcessors(
+	s.evps, err = formatters.MakeEventProcessors(
 		logger,
 		s.Cfg.EventProcessors,
 		ps,

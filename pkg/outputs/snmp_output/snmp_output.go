@@ -110,7 +110,7 @@ func (s *snmpOutput) SetEventProcessors(ps map[string]map[string]interface{},
 	tcs map[string]*types.TargetConfig,
 	acts map[string]map[string]interface{}) error {
 	var err error
-	s.evps, err = outputs.MakeEventProcessors(
+	s.evps, err = formatters.MakeEventProcessors(
 		logger,
 		s.cfg.EventProcessors,
 		ps,

@@ -93,7 +93,7 @@ func (f *File) SetEventProcessors(ps map[string]map[string]interface{},
 	tcs map[string]*types.TargetConfig,
 	acts map[string]map[string]interface{}) error {
 	var err error
-	f.evps, err = outputs.MakeEventProcessors(
+	f.evps, err = formatters.MakeEventProcessors(
 		logger,
 		f.cfg.EventProcessors,
 		ps,

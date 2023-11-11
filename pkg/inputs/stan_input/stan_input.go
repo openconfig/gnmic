@@ -19,10 +19,10 @@ import (
 	"time"
 
 	"google.golang.org/protobuf/proto"
-
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/stan.go"
+
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/inputs"
 	"github.com/openconfig/gnmic/pkg/outputs"
@@ -179,13 +179,14 @@ func (s *StanInput) SetName(name string) {
 	s.Cfg.Name = sb.String()
 }
 
-func (s *StanInput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]*types.TargetConfig) error {
+func (s *StanInput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]*types.TargetConfig, acts map[string]map[string]interface{}) error {
 	var err error
-	s.evps, err = inputs.MakeEventProcessors(
+	s.evps, err = formatters.MakeEventProcessors(
 		logger,
 		s.Cfg.EventProcessors,
 		ps,
 		tcs,
+		acts,
 	)
 	if err != nil {
 		return err
