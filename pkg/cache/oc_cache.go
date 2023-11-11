@@ -10,7 +10,6 @@ package cache
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"log"
 	"strings"
@@ -73,7 +72,7 @@ func newGNMICache(cfg *Config, loggingPrefix string, opts ...Option) *gnmiCache 
 		if loggingPrefix == "" {
 			loggingPrefix = "oc"
 		}
-		gc.logger.SetPrefix(fmt.Sprintf(loggingPrefixOC, loggingPrefix))
+		gc.logger.SetPrefix(loggingPrefixOC)
 	}
 	return gc
 }
