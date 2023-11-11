@@ -184,8 +184,9 @@ func (gc *gnmiCache) subscribe(ctx context.Context, ro *ReadOpts, ch chan *Notif
 }
 
 func (gc *gnmiCache) handleSingleQuery(ctx context.Context, ro *ReadOpts, ch chan *Notification) {
+	target := ro.Target
 	if gc.debug {
-		gc.logger.Printf("running single query for target %q", ro.Target)
+		gc.logger.Printf("running single query for target %q", target)
 	}
 
 	caches := gc.getCaches(ro.Subscription)
@@ -199,6 +200,12 @@ func (gc *gnmiCache) handleSingleQuery(ctx context.Context, ro *ReadOpts, ch cha
 	for name, c := range caches {
 		go func(name string, c *subCache) {
 			defer wg.Done()
+			if !c.c.HasTarget(target) {
+				if gc.debug {
+					gc.logger.Printf("subscription-cache %q doesn't have target: %q", name, target)
+				}
+				return
+			}
 			for _, p := range ro.Paths {
 				fp, err := path.CompletePath(p, nil)
 				if err != nil {
@@ -296,6 +303,7 @@ func (gc *gnmiCache) handleSampledQuery(ctx context.Context, ro *ReadOpts, ch ch
 }
 
 func (gc *gnmiCache) handleOnChangeQuery(ctx context.Context, ro *ReadOpts, ch chan *Notification) {
+	target := ro.Target
 	caches := gc.getCaches(ro.Subscription)
 	numCaches := len(caches)
 	gc.logger.Printf("on-change query got %d caches", numCaches)
@@ -306,6 +314,12 @@ func (gc *gnmiCache) handleOnChangeQuery(ctx context.Context, ro *ReadOpts, ch c
 	for name, c := range caches {
 		go func(name string, c *subCache) {
 			defer wg.Done()
+			if !c.c.HasTarget(target) {
+				if gc.debug {
+					gc.logger.Printf("subscription-cache %q doesn't have target: %q", name, target)
+				}
+				return
+			}
 			for _, p := range ro.Paths {
 				// handle updates only
 				if !ro.UpdatesOnly {
