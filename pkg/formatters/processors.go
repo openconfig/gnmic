@@ -136,3 +136,39 @@ func CheckCondition(code *gojq.Code, e *EventMsg) (bool, error) {
 		return false, fmt.Errorf("unexpected condition return type: %T | %v", res, res)
 	}
 }
+
+func MakeEventProcessors(
+	logger *log.Logger,
+	processorNames []string,
+	ps map[string]map[string]interface{},
+	tcs map[string]*types.TargetConfig,
+	acts map[string]map[string]interface{},
+) ([]EventProcessor, error) {
+	evps := make([]EventProcessor, len(processorNames))
+	for i, epName := range processorNames {
+		if epCfg, ok := ps[epName]; ok {
+			epType := ""
+			for k := range epCfg {
+				epType = k
+				break
+			}
+			if in, ok := EventProcessors[epType]; ok {
+				ep := in()
+				err := ep.Init(epCfg[epType],
+					WithLogger(logger),
+					WithTargets(tcs),
+					WithActions(acts),
+				)
+				if err != nil {
+					return nil, fmt.Errorf("failed initializing event processor '%s' of type='%s': %w", epName, epType, err)
+				}
+				evps[i] = ep
+				logger.Printf("added event processor '%s' of type=%s to file output", epName, epType)
+				continue
+			}
+			return nil, fmt.Errorf("%q event processor has an unknown type=%q", epName, epType)
+		}
+		return nil, fmt.Errorf("%q event processor not found", epName)
+	}
+	return evps, nil
+}

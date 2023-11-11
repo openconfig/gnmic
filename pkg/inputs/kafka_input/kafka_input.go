@@ -20,11 +20,10 @@ import (
 	"sync"
 	"time"
 
-	"google.golang.org/protobuf/proto"
-
 	"github.com/Shopify/sarama"
 	"github.com/damiannolan/sasl/oauthbearer"
 	"github.com/google/uuid"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/inputs"
@@ -100,7 +99,9 @@ func (k *KafkaInput) Start(ctx context.Context, name string, cfg map[string]inte
 		k.Cfg.Name = name
 	}
 	for _, opt := range opts {
-		opt(k)
+		if err := opt(k); err != nil {
+			return err
+		}
 	}
 	err = k.setDefaults()
 	if err != nil {
@@ -258,26 +259,19 @@ func (k *KafkaInput) SetName(name string) {
 	k.Cfg.Name = sb.String()
 }
 
-func (k *KafkaInput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]*types.TargetConfig) {
-	for _, epName := range k.Cfg.EventProcessors {
-		if epCfg, ok := ps[epName]; ok {
-			epType := ""
-			for k := range epCfg {
-				epType = k
-				break
-			}
-			if in, ok := formatters.EventProcessors[epType]; ok {
-				ep := in()
-				err := ep.Init(epCfg[epType], formatters.WithLogger(logger), formatters.WithTargets(tcs))
-				if err != nil {
-					k.logger.Printf("failed initializing event processor %q of type=%q: %v", epName, epType, err)
-					continue
-				}
-				k.evps = append(k.evps, ep)
-				k.logger.Printf("added event processor %q of type=%q to kafka input", epName, epType)
-			}
-		}
+func (k *KafkaInput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]*types.TargetConfig, acts map[string]map[string]interface{}) error {
+	var err error
+	k.evps, err = formatters.MakeEventProcessors(
+		logger,
+		k.Cfg.EventProcessors,
+		ps,
+		tcs,
+		acts,
+	)
+	if err != nil {
+		return err
 	}
+	return nil
 }
 
 // helper funcs

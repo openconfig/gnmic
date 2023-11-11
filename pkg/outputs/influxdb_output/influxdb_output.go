@@ -116,33 +116,19 @@ func (i *influxDBOutput) SetLogger(logger *log.Logger) {
 func (i *influxDBOutput) SetEventProcessors(ps map[string]map[string]interface{},
 	logger *log.Logger,
 	tcs map[string]*types.TargetConfig,
-	acts map[string]map[string]interface{}) {
-	for _, epName := range i.Cfg.EventProcessors {
-		if epCfg, ok := ps[epName]; ok {
-			epType := ""
-			for k := range epCfg {
-				epType = k
-				break
-			}
-			if in, ok := formatters.EventProcessors[epType]; ok {
-				ep := in()
-				err := ep.Init(epCfg[epType],
-					formatters.WithLogger(logger),
-					formatters.WithTargets(tcs),
-					formatters.WithActions(acts))
-				if err != nil {
-					i.logger.Printf("failed initializing event processor '%s' of type='%s': %v", epName, epType, err)
-					continue
-				}
-				i.evps = append(i.evps, ep)
-				i.logger.Printf("added event processor '%s' of type=%s to influxdb output", epName, epType)
-				continue
-			}
-			i.logger.Printf("%q event processor has an unknown type=%q", epName, epType)
-			continue
-		}
-		i.logger.Printf("%q event processor not found!", epName)
+	acts map[string]map[string]interface{}) error {
+	var err error
+	i.evps, err = formatters.MakeEventProcessors(
+		logger,
+		i.Cfg.EventProcessors,
+		ps,
+		tcs,
+		acts,
+	)
+	if err != nil {
+		return err
 	}
+	return nil
 }
 
 func (i *influxDBOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
@@ -153,7 +139,9 @@ func (i *influxDBOutput) Init(ctx context.Context, name string, cfg map[string]i
 	i.logger.SetPrefix(fmt.Sprintf(loggingPrefix, name))
 
 	for _, opt := range opts {
-		opt(i)
+		if err := opt(i); err != nil {
+			return err
+		}
 	}
 	i.setDefaults()
 

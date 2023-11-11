@@ -91,34 +91,19 @@ func (f *File) String() string {
 func (f *File) SetEventProcessors(ps map[string]map[string]interface{},
 	logger *log.Logger,
 	tcs map[string]*types.TargetConfig,
-	acts map[string]map[string]interface{}) {
-	for _, epName := range f.cfg.EventProcessors {
-		if epCfg, ok := ps[epName]; ok {
-			epType := ""
-			for k := range epCfg {
-				epType = k
-				break
-			}
-			if in, ok := formatters.EventProcessors[epType]; ok {
-				ep := in()
-				err := ep.Init(epCfg[epType],
-					formatters.WithLogger(logger),
-					formatters.WithTargets(tcs),
-					formatters.WithActions(acts),
-				)
-				if err != nil {
-					f.logger.Printf("failed initializing event processor '%s' of type='%s': %v", epName, epType, err)
-					continue
-				}
-				f.evps = append(f.evps, ep)
-				f.logger.Printf("added event processor '%s' of type=%s to file output", epName, epType)
-				continue
-			}
-			f.logger.Printf("%q event processor has an unknown type=%q", epName, epType)
-			continue
-		}
-		f.logger.Printf("%q event processor not found!", epName)
+	acts map[string]map[string]interface{}) error {
+	var err error
+	f.evps, err = formatters.MakeEventProcessors(
+		logger,
+		f.cfg.EventProcessors,
+		ps,
+		tcs,
+		acts,
+	)
+	if err != nil {
+		return err
 	}
+	return nil
 }
 
 func (f *File) SetLogger(logger *log.Logger) {
@@ -138,7 +123,9 @@ func (f *File) Init(ctx context.Context, name string, cfg map[string]interface{}
 	f.logger.SetPrefix(fmt.Sprintf(loggingPrefix, name))
 
 	for _, opt := range opts {
-		opt(f)
+		if err := opt(f); err != nil {
+			return err
+		}
 	}
 	if f.cfg.Format == "proto" {
 		return fmt.Errorf("proto format not supported in output type 'file'")

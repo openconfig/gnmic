@@ -21,7 +21,7 @@ type Input interface {
 	Close() error
 	SetLogger(*log.Logger)
 	SetOutputs(map[string]outputs.Output)
-	SetEventProcessors(map[string]map[string]interface{}, *log.Logger, map[string]*types.TargetConfig)
+	SetEventProcessors(map[string]map[string]interface{}, *log.Logger, map[string]*types.TargetConfig, map[string]map[string]interface{}) error
 	SetName(string)
 }
 
@@ -39,28 +39,31 @@ func Register(name string, initFn Initializer) {
 	Inputs[name] = initFn
 }
 
-type Option func(Input)
+type Option func(Input) error
 
 func WithLogger(logger *log.Logger) Option {
-	return func(i Input) {
+	return func(i Input) error {
 		i.SetLogger(logger)
+		return nil
 	}
 }
 
 func WithOutputs(outs map[string]outputs.Output) Option {
-	return func(i Input) {
+	return func(i Input) error {
 		i.SetOutputs(outs)
+		return nil
 	}
 }
 
 func WithName(name string) Option {
-	return func(i Input) {
+	return func(i Input) error {
 		i.SetName(name)
+		return nil
 	}
 }
 
-func WithEventProcessors(eps map[string]map[string]interface{}, log *log.Logger, tcs map[string]*types.TargetConfig) Option {
-	return func(i Input) {
-		i.SetEventProcessors(eps, log, tcs)
+func WithEventProcessors(eps map[string]map[string]interface{}, log *log.Logger, tcs map[string]*types.TargetConfig, acts map[string]map[string]interface{}) Option {
+	return func(i Input) error {
+		return i.SetEventProcessors(eps, log, tcs, acts)
 	}
 }

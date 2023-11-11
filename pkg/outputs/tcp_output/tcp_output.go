@@ -85,30 +85,19 @@ func (t *tcpOutput) SetLogger(logger *log.Logger) {
 func (t *tcpOutput) SetEventProcessors(ps map[string]map[string]interface{},
 	logger *log.Logger,
 	tcs map[string]*types.TargetConfig,
-	acts map[string]map[string]interface{}) {
-	for _, epName := range t.cfg.EventProcessors {
-		if epCfg, ok := ps[epName]; ok {
-			epType := ""
-			for k := range epCfg {
-				epType = k
-				break
-			}
-			if in, ok := formatters.EventProcessors[epType]; ok {
-				ep := in()
-				err := ep.Init(epCfg[epType], formatters.WithLogger(logger), formatters.WithTargets(tcs))
-				if err != nil {
-					t.logger.Printf("failed initializing event processor '%s' of type='%s': %v", epName, epType, err)
-					continue
-				}
-				t.evps = append(t.evps, ep)
-				t.logger.Printf("added event processor '%s' of type=%s to tcp output", epName, epType)
-				continue
-			}
-			t.logger.Printf("%q event processor has an unknown type=%q", epName, epType)
-			continue
-		}
-		t.logger.Printf("%q event processor not found!", epName)
+	acts map[string]map[string]interface{}) error {
+	var err error
+	t.evps, err = formatters.MakeEventProcessors(
+		logger,
+		t.cfg.EventProcessors,
+		ps,
+		tcs,
+		acts,
+	)
+	if err != nil {
+		return err
 	}
+	return nil
 }
 
 func (t *tcpOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
@@ -119,7 +108,9 @@ func (t *tcpOutput) Init(ctx context.Context, name string, cfg map[string]interf
 	t.logger.SetPrefix(fmt.Sprintf(loggingPrefix, name))
 
 	for _, opt := range opts {
-		opt(t)
+		if err := opt(t); err != nil {
+			return err
+		}
 	}
 	_, _, err = net.SplitHostPort(t.cfg.Address)
 	if err != nil {

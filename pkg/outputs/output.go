@@ -17,12 +17,11 @@ import (
 	"strings"
 	"text/template"
 
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/reflect/protoreflect"
-
 	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/openconfig/gnmic/pkg/formatters"
 	_ "github.com/openconfig/gnmic/pkg/formatters/all"
@@ -39,7 +38,7 @@ type Output interface {
 	String() string
 
 	SetLogger(*log.Logger)
-	SetEventProcessors(map[string]map[string]interface{}, *log.Logger, map[string]*types.TargetConfig, map[string]map[string]interface{})
+	SetEventProcessors(map[string]map[string]interface{}, *log.Logger, map[string]*types.TargetConfig, map[string]map[string]interface{}) error
 	SetName(string)
 	SetClusterName(string)
 	SetTargetsConfig(map[string]*types.TargetConfig)

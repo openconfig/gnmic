@@ -91,7 +91,9 @@ func (n *NatsInput) Start(ctx context.Context, name string, cfg map[string]inter
 		n.Cfg.Name = name
 	}
 	for _, opt := range opts {
-		opt(n)
+		if err := opt(n); err != nil {
+			return err
+		}
 	}
 	err = n.setDefaults()
 	if err != nil {
@@ -240,26 +242,19 @@ func (n *NatsInput) SetName(name string) {
 	n.Cfg.Name = sb.String()
 }
 
-func (n *NatsInput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]*types.TargetConfig) {
-	for _, epName := range n.Cfg.EventProcessors {
-		if epCfg, ok := ps[epName]; ok {
-			epType := ""
-			for k := range epCfg {
-				epType = k
-				break
-			}
-			if in, ok := formatters.EventProcessors[epType]; ok {
-				ep := in()
-				err := ep.Init(epCfg[epType], formatters.WithLogger(logger), formatters.WithTargets(tcs))
-				if err != nil {
-					n.logger.Printf("failed initializing event processor %q of type=%q: %v", epName, epType, err)
-					continue
-				}
-				n.evps = append(n.evps, ep)
-				n.logger.Printf("added event processor %q of type=%q to nats input", epName, epType)
-			}
-		}
+func (n *NatsInput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]*types.TargetConfig, acts map[string]map[string]interface{}) error {
+	var err error
+	n.evps, err = formatters.MakeEventProcessors(
+		logger,
+		n.Cfg.EventProcessors,
+		ps,
+		tcs,
+		acts,
+	)
+	if err != nil {
+		return err
 	}
+	return nil
 }
 
 // helper functions
