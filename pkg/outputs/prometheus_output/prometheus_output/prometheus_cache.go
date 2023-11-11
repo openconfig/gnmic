@@ -16,6 +16,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/openconfig/gnmic/pkg/formatters"
+	"github.com/openconfig/gnmic/pkg/outputs"
 )
 
 func (p *prometheusOutput) collectFromCache(ch chan<- prometheus.Metric) {
@@ -33,13 +34,16 @@ func (p *prometheusOutput) collectFromCache(ch chan<- prometheus.Metric) {
 		// build events without processors
 		for _, notif := range notifs {
 			targetName := notif.GetPrefix().GetTarget()
-			item := p.targetsMeta.Get(subName + "/" + targetName)
+			var meta outputs.Meta
+			if item := p.targetsMeta.Get(subName + "/" + targetName); item != nil {
+				meta = item.Value()
+			}
 			ievents, err := formatters.ResponseToEventMsgs(
 				subName,
 				&gnmi.SubscribeResponse{
 					Response: &gnmi.SubscribeResponse_Update{Update: notif},
 				},
-				item.Value())
+				meta)
 			if err != nil {
 				p.logger.Printf("failed to convert gNMI notifications to events: %v", err)
 				return
