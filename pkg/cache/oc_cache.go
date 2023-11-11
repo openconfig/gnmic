@@ -10,7 +10,6 @@ package cache
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"log"
 	"strings"
@@ -29,7 +28,7 @@ import (
 )
 
 const (
-	loggingPrefixOC = "[cache:%s] "
+	loggingPrefixOC = "[cache:oc] "
 	defaultTimeout  = 10 * time.Second
 )
 
@@ -73,7 +72,7 @@ func newGNMICache(cfg *Config, loggingPrefix string, opts ...Option) *gnmiCache 
 		if loggingPrefix == "" {
 			loggingPrefix = "oc"
 		}
-		gc.logger.SetPrefix(fmt.Sprintf(loggingPrefixOC, loggingPrefix))
+		gc.logger.SetPrefix(loggingPrefixOC)
 	}
 	return gc
 }
@@ -199,6 +198,12 @@ func (gc *gnmiCache) handleSingleQuery(ctx context.Context, ro *ReadOpts, ch cha
 	for name, c := range caches {
 		go func(name string, c *subCache) {
 			defer wg.Done()
+			if !c.c.HasTarget(ro.Target) {
+				if gc.debug {
+					gc.logger.Printf("subscription-cache %q doesn't have target: %q", name, ro.Target)
+				}
+				return
+			}
 			for _, p := range ro.Paths {
 				fp, err := path.CompletePath(p, nil)
 				if err != nil {
@@ -306,6 +311,12 @@ func (gc *gnmiCache) handleOnChangeQuery(ctx context.Context, ro *ReadOpts, ch c
 	for name, c := range caches {
 		go func(name string, c *subCache) {
 			defer wg.Done()
+			if !c.c.HasTarget(ro.Target) {
+				if gc.debug {
+					gc.logger.Printf("subscription-cache %q doesn't have target: %q", name, ro.Target)
+				}
+				return
+			}
 			for _, p := range ro.Paths {
 				// handle updates only
 				if !ro.UpdatesOnly {
