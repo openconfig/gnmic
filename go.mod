@@ -48,13 +48,13 @@ require (
 	github.com/nsf/termbox-go v1.1.1
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/openconfig/gnmi v0.10.0
-	github.com/openconfig/gnmic/pkg/api v0.33.0
-	github.com/openconfig/gnmic/pkg/cache v0.33.0
-	github.com/openconfig/gnmic/pkg/path v0.33.0
-	github.com/openconfig/gnmic/pkg/target v0.33.0
-	github.com/openconfig/gnmic/pkg/testutils v0.33.0
-	github.com/openconfig/gnmic/pkg/types v0.33.0
-	github.com/openconfig/gnmic/pkg/utils v0.33.0
+	github.com/openconfig/gnmic/pkg/api v0.34.0
+	github.com/openconfig/gnmic/pkg/cache v0.34.0
+	github.com/openconfig/gnmic/pkg/path v0.34.0
+	github.com/openconfig/gnmic/pkg/target v0.34.0
+	github.com/openconfig/gnmic/pkg/testutils v0.34.0
+	github.com/openconfig/gnmic/pkg/types v0.34.0
+	github.com/openconfig/gnmic/pkg/utils v0.34.0
 	github.com/openconfig/goyang v1.4.2
 	github.com/openconfig/ygot v0.29.2
 	github.com/pkg/sftp v1.13.6

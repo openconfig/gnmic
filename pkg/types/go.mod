@@ -2,10 +2,8 @@ module github.com/openconfig/gnmic/pkg/types
 
 go 1.21.1
 
-replace github.com/openconfig/gnmic/pkg/utils => ../utils
-
 require (
-	github.com/openconfig/gnmic/pkg/utils v0.33.0
+	github.com/openconfig/gnmic/pkg/utils v0.0.0-20231111233637-b2f2ba97c7e5
 	golang.org/x/oauth2 v0.13.0
 	google.golang.org/grpc v1.59.0
 )

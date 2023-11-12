@@ -1,5 +1,30 @@
 ## Changelog
 
+### v 0.34.0 - November 11th 2023
+
+- Prometheus Write Output
+
+    - The number of `prometheus_write` writers can now be configured.
+
+- Subscription Encoding
+
+    - A subscription encoding can now be set per target. Before, it was either a global attribute or set per subscription.
+        With this change, it can be set globally, per target or per subscription.
+
+- Processors:
+
+    - New `event-combine` processor: A convenience processor that allows combining other processors into a single one.
+
+    - New `event-rate-limit` processor: A processor that rate-limits each event with matching tags to the configured amount per-seconds.
+
+- Outputs:
+
+    - New `asciigraph` output: https://asciinema.org/a/617477
+
+- Clustering:
+
+    - New `redis` locker: For leader election, service discovery and target distribution gNMIc supports both `Consul` and `Kubernetes`. It is now possible to use `redis` for the same purpose.
+
 ### v 0.33.0 - October 8th 2023
 
 - Rest API
