@@ -11,7 +11,7 @@ builds:
   - env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X github.com/openconfig/gnmic/app.version={{.Version}} -X github.com/openconfig/gnmic/app.commit={{.ShortCommit}} -X github.com/openconfig/gnmic/app.date={{.Date}} -X github.com/openconfig/gnmic/app.gitURL={{.GitURL}}
+      - -s -w -X github.com/openconfig/gnmic/pkg/app.version={{.Version}} -X github.com/openconfig/gnmic/pkg/app.commit={{.ShortCommit}} -X github.com/openconfig/gnmic/pkg/app.date={{.Date}} -X github.com/openconfig/gnmic/pkg/app.gitURL={{.GitURL}}
     goos:
       - linux
       - darwin
