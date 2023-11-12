@@ -2,19 +2,15 @@ module github.com/openconfig/gnmic/pkg/cache
 
 go 1.21.1
 
-replace (
-	github.com/openconfig/gnmic/pkg/path => ../path
-	github.com/openconfig/gnmic/pkg/testutils => ../testutils
-	github.com/openconfig/gnmic/pkg/utils => ../utils
-)
+replace github.com/openconfig/gnmic/pkg/testutils => github.com/openconfig/gnmic/pkg/testutils v0.0.0-20231111233637-b2f2ba97c7e5
 
 require (
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/nats-io/nats-server/v2 v2.10.4
 	github.com/nats-io/nats.go v1.31.0
 	github.com/openconfig/gnmi v0.10.0
-	github.com/openconfig/gnmic/pkg/path v0.33.0
-	github.com/openconfig/gnmic/pkg/utils v0.33.0
+	github.com/openconfig/gnmic/pkg/path v0.0.0-20231111233637-b2f2ba97c7e5
+	github.com/openconfig/gnmic/pkg/utils v0.0.0-20231111233637-b2f2ba97c7e5
 	google.golang.org/protobuf v1.31.0
 )
 

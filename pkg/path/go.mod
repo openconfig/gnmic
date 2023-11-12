@@ -2,12 +2,10 @@ module github.com/openconfig/gnmic/pkg/path
 
 go 1.21.1
 
-replace github.com/openconfig/gnmic/pkg/testutils => ../testutils
-
 require (
 	github.com/google/go-cmp v0.6.0
 	github.com/openconfig/gnmi v0.10.0
-	github.com/openconfig/gnmic/pkg/testutils v0.33.0
+	github.com/openconfig/gnmic/pkg/testutils v0.0.0-20231111233637-b2f2ba97c7e5
 )
 
 require (
