@@ -5,11 +5,6 @@ go 1.21.1
 replace (
 	github.com/openconfig/gnmic/pkg/api => ./pkg/api
 	github.com/openconfig/gnmic/pkg/cache => ./pkg/cache
-	github.com/openconfig/gnmic/pkg/path => ./pkg/path
-	github.com/openconfig/gnmic/pkg/target => ./pkg/target
-	github.com/openconfig/gnmic/pkg/testutils => ./pkg/testutils
-	github.com/openconfig/gnmic/pkg/types => ./pkg/types
-	github.com/openconfig/gnmic/pkg/utils => ./pkg/utils
 )
 
 require (
@@ -50,11 +45,11 @@ require (
 	github.com/openconfig/gnmi v0.10.0
 	github.com/openconfig/gnmic/pkg/api v0.34.0
 	github.com/openconfig/gnmic/pkg/cache v0.34.0
-	github.com/openconfig/gnmic/pkg/path v0.34.0
-	github.com/openconfig/gnmic/pkg/target v0.34.0
-	github.com/openconfig/gnmic/pkg/testutils v0.34.0
-	github.com/openconfig/gnmic/pkg/types v0.34.0
-	github.com/openconfig/gnmic/pkg/utils v0.34.0
+	github.com/openconfig/gnmic/pkg/path v0.1.1
+	github.com/openconfig/gnmic/pkg/target v0.1.1
+	github.com/openconfig/gnmic/pkg/testutils v0.1.0
+	github.com/openconfig/gnmic/pkg/types v0.1.1
+	github.com/openconfig/gnmic/pkg/utils v0.1.0
 	github.com/openconfig/goyang v1.4.2
 	github.com/openconfig/ygot v0.29.2
 	github.com/pkg/sftp v1.13.6

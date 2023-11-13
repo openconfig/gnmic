@@ -2,12 +2,6 @@ module github.com/openconfig/gnmic/pkg/api
 
 go 1.21.1
 
-replace (
-	github.com/openconfig/gnmic/pkg/testutils => github.com/openconfig/gnmic/pkg/testutils v0.0.0-20231111233637-b2f2ba97c7e5
-	github.com/openconfig/gnmic/pkg/types => github.com/openconfig/gnmic/pkg/types v0.0.0-20231111233637-b2f2ba97c7e5
-	github.com/openconfig/gnmic/pkg/utils => github.com/openconfig/gnmic/pkg/utils v0.0.0-20231111233637-b2f2ba97c7e5
-)
-
 require (
 	github.com/AlekSi/pointer v1.2.0
 	github.com/google/go-cmp v0.6.0
@@ -17,11 +11,11 @@ require (
 )
 
 require (
-	github.com/openconfig/gnmic/pkg/path v0.0.0-20231111233637-b2f2ba97c7e5
-	github.com/openconfig/gnmic/pkg/target v0.0.0-20231111233637-b2f2ba97c7e5
-	github.com/openconfig/gnmic/pkg/testutils v0.33.0
-	github.com/openconfig/gnmic/pkg/types v0.33.0
-	github.com/openconfig/gnmic/pkg/utils v0.33.0 // indirect
+	github.com/openconfig/gnmic/pkg/path v0.1.1
+	github.com/openconfig/gnmic/pkg/target v0.1.1
+	github.com/openconfig/gnmic/pkg/testutils v0.1.0
+	github.com/openconfig/gnmic/pkg/types v0.1.1
+	github.com/openconfig/gnmic/pkg/utils v0.1.0 // indirect
 )
 
 require (
