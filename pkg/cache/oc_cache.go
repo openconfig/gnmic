@@ -105,6 +105,18 @@ func (gc *gnmiCache) Write(ctx context.Context, measName string, m proto.Message
 				gc.logger.Printf("subscription=%q: response missing target: %v", measName, rsp)
 				return
 			}
+
+			// if the update does not have a prefix path,
+			// check that each update has a path.
+			if len(rsp.Update.GetPrefix().GetElem()) == 0 {
+				for _, upd := range rsp.Update.GetUpdate() {
+					if len(upd.GetPath().GetElem()) == 0 {
+						gc.logger.Printf("write fail: received an update with en empty path: %v", upd)
+						return
+					}
+				}
+			}
+
 			gc.m.Lock()
 			sCache, ok := gc.caches[measName]
 			if !ok {

@@ -2,11 +2,6 @@ module github.com/openconfig/gnmic
 
 go 1.21.1
 
-replace (
-	github.com/openconfig/gnmic/pkg/api => ./pkg/api
-	github.com/openconfig/gnmic/pkg/cache => ./pkg/cache
-)
-
 require (
 	github.com/Shopify/sarama v1.38.1
 	github.com/adrg/xdg v0.4.0
@@ -43,8 +38,8 @@ require (
 	github.com/nsf/termbox-go v1.1.1
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/openconfig/gnmi v0.10.0
-	github.com/openconfig/gnmic/pkg/api v0.34.0
-	github.com/openconfig/gnmic/pkg/cache v0.34.0
+	github.com/openconfig/gnmic/pkg/api v0.1.1
+	github.com/openconfig/gnmic/pkg/cache v0.1.1
 	github.com/openconfig/gnmic/pkg/path v0.1.1
 	github.com/openconfig/gnmic/pkg/target v0.1.1
 	github.com/openconfig/gnmic/pkg/testutils v0.1.0
