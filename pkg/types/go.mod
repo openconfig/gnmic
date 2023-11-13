@@ -3,7 +3,7 @@ module github.com/openconfig/gnmic/pkg/types
 go 1.21.1
 
 require (
-	github.com/openconfig/gnmic/pkg/utils v0.0.0-20231111233637-b2f2ba97c7e5
+	github.com/openconfig/gnmic/pkg/utils v0.1.0
 	golang.org/x/oauth2 v0.13.0
 	google.golang.org/grpc v1.59.0
 )

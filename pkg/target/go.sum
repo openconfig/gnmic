@@ -15,10 +15,10 @@ github.com/jhump/protoreflect v1.15.3 h1:6SFRuqU45u9hIZPJAoZ8c28T3nK64BNdp9w6jFo
 github.com/jhump/protoreflect v1.15.3/go.mod h1:4ORHmSBmlCW8fh3xHmJMGyul1zNqZK4Elxc8qKP+p1k=
 github.com/openconfig/gnmi v0.10.0 h1:kQEZ/9ek3Vp2Y5IVuV2L/ba8/77TgjdXg505QXvYmg8=
 github.com/openconfig/gnmi v0.10.0/go.mod h1:Y9os75GmSkhHw2wX8sMsxfI7qRGAEcDh8NTa5a8vj6E=
-github.com/openconfig/gnmic/pkg/types v0.0.0-20231111233637-b2f2ba97c7e5 h1:EPs1NhmZsYSNDBp0K2aRdx6UCKhPTJBbLqYg6kVb5tc=
-github.com/openconfig/gnmic/pkg/types v0.0.0-20231111233637-b2f2ba97c7e5/go.mod h1:JeHEsiNmTz2NQjDZi5L+28sOUnqtQ6DwRaRSdZ6wxns=
-github.com/openconfig/gnmic/pkg/utils v0.0.0-20231111233637-b2f2ba97c7e5 h1:mSf0eMbzKOW8NuxagiDnuMqt3f18wIo6u4c2zySo9qk=
-github.com/openconfig/gnmic/pkg/utils v0.0.0-20231111233637-b2f2ba97c7e5/go.mod h1:DQm/e8cdRwdmUORjODWteDU0HG0CWNYBAhLWqnPQegE=
+github.com/openconfig/gnmic/pkg/types v0.1.0 h1:zQfwBHSiTLtW0+FW2N5YZremqXssdE0hWheA3l9L7D0=
+github.com/openconfig/gnmic/pkg/types v0.1.0/go.mod h1:2cZJEUYw4x4lhqXuCyz4Ya9DR2xaGKwPnJeIAqGVgCM=
+github.com/openconfig/gnmic/pkg/utils v0.1.0 h1:MqRhW8oJdPpBb1UprbnpDxciBJVjl/Gw97xuNoBG3Vs=
+github.com/openconfig/gnmic/pkg/utils v0.1.0/go.mod h1:DQm/e8cdRwdmUORjODWteDU0HG0CWNYBAhLWqnPQegE=
 golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=
 golang.org/x/net v0.0.0-20190603091049-60506f45cf65/go.mod h1:HSz+uSET+XFnRR8LxR5pz3Of3rY3CfYBVs4xY44aLks=
 golang.org/x/net v0.17.0 h1:pVaXccu2ozPjCXewfr1S7xza/zcXTity9cCdXQYSjIM=
