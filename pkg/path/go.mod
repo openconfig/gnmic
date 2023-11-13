@@ -5,7 +5,7 @@ go 1.21.1
 require (
 	github.com/google/go-cmp v0.6.0
 	github.com/openconfig/gnmi v0.10.0
-	github.com/openconfig/gnmic/pkg/testutils v0.0.0-20231111233637-b2f2ba97c7e5
+	github.com/openconfig/gnmic/pkg/testutils v0.1.0
 )
 
 require (
