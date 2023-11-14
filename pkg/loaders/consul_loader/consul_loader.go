@@ -377,7 +377,7 @@ func (c *consulLoader) serviceEntryToTargetConfig(se *api.ServiceEntry) (*types.
 SRV:
 	for _, sd := range c.cfg.Services {
 		// match service name
-		if se.Service.Service == sd.Name {
+		if se.Service.Service != sd.Name {
 			continue
 		}
 
@@ -407,7 +407,7 @@ SRV:
 		return tc, nil
 	}
 
-	return nil, nil
+	return nil, errors.New("unable to find a match in Consul service(s)")
 }
 
 func (c *consulLoader) updateTargets(ctx context.Context, srvName string, tcs map[string]*types.TargetConfig, opChan chan *loaders.TargetOperation) {

@@ -520,6 +520,12 @@ func (a *App) Subscribe(stream gnmi.GNMI_SubscribeServer) error {
 			})
 			close(errChan)
 		}()
+
+		for err := range errChan {
+			if err != nil {
+				return status.Errorf(codes.Internal, "%v", err)
+			}
+		}
 	case gnmi.SubscriptionList_POLL:
 		go a.handlePolledSubscription(sc)
 	case gnmi.SubscriptionList_STREAM:
@@ -528,12 +534,9 @@ func (a *App) Subscribe(stream gnmi.GNMI_SubscribeServer) error {
 		return status.Errorf(codes.InvalidArgument, "unrecognized subscription mode: %v", sc.req.GetSubscribe().GetMode())
 	}
 
-	for err := range errChan {
-		if err != nil {
-			return status.Errorf(codes.Internal, "%v", err)
-		}
-	}
-	return nil
+	//TODO: handle other errors here
+	<-sc.stream.Context().Done()
+	return sc.stream.Context().Err()
 }
 
 func (a *App) handleONCESubscriptionRequest(sc *streamClient) {
@@ -646,7 +649,7 @@ func (a *App) handleStreamSubscriptionRequest(sc *streamClient) {
 				for n := range a.c.Subscribe(sc.stream.Context(), ro) {
 					if n.Err != nil {
 						err = n.Err
-						return
+						continue
 					}
 					err = sc.stream.Send(&gnmi.SubscribeResponse{
 						Response: &gnmi.SubscribeResponse_Update{
@@ -654,7 +657,7 @@ func (a *App) handleStreamSubscriptionRequest(sc *streamClient) {
 						},
 					})
 					if err != nil {
-						return
+						continue
 					}
 				}
 				return
@@ -684,7 +687,7 @@ func (a *App) handleStreamSubscriptionRequest(sc *streamClient) {
 					if n.Err != nil {
 						err = n.Err
 						a.Logger.Printf("cache subscribe failed: %+v: %v", ro, err)
-						return
+						continue
 					}
 					err = sc.stream.Send(&gnmi.SubscribeResponse{
 						Response: &gnmi.SubscribeResponse_Update{
@@ -692,7 +695,7 @@ func (a *App) handleStreamSubscriptionRequest(sc *streamClient) {
 						},
 					})
 					if err != nil {
-						return
+						continue
 					}
 				}
 				return
