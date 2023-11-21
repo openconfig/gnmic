@@ -18,15 +18,14 @@ import (
 	"strings"
 	"text/template"
 
-	"golang.org/x/sync/semaphore"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/protobuf/proto"
-
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/openconfig/gnmi/cache"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/sync/semaphore"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
@@ -149,6 +148,10 @@ func (g *gNMIOutput) Close() error {
 
 func (g *gNMIOutput) RegisterMetrics(reg *prometheus.Registry) {
 	if !g.cfg.EnableMetrics {
+		return
+	}
+	if reg == nil {
+		g.logger.Printf("ERR: output metrics enabled but main registry is not initialized, enable main metrics under `api-server`")
 		return
 	}
 	srvMetrics := grpc_prometheus.NewServerMetrics()

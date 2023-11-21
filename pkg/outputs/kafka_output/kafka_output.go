@@ -21,12 +21,11 @@ import (
 	"text/template"
 	"time"
 
-	"google.golang.org/protobuf/proto"
-
 	"github.com/Shopify/sarama"
 	"github.com/damiannolan/sasl/oauthbearer"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
@@ -268,6 +267,10 @@ func (k *kafkaOutput) Close() error {
 // Metrics //
 func (k *kafkaOutput) RegisterMetrics(reg *prometheus.Registry) {
 	if !k.Cfg.EnableMetrics {
+		return
+	}
+	if reg == nil {
+		k.logger.Printf("ERR: output metrics enabled but main registry is not initialized, enable main metrics under `api-server`")
 		return
 	}
 	if err := registerMetrics(reg); err != nil {

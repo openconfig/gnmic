@@ -19,12 +19,11 @@ import (
 	"text/template"
 	"time"
 
-	"google.golang.org/protobuf/reflect/protoreflect"
-
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/stan.go"
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
@@ -242,6 +241,10 @@ func (s *StanOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {}
 // Metrics //
 func (s *StanOutput) RegisterMetrics(reg *prometheus.Registry) {
 	if !s.Cfg.EnableMetrics {
+		return
+	}
+	if reg == nil {
+		s.logger.Printf("ERR: output metrics enabled but main registry is not initialized, enable main metrics under `api-server`")
 		return
 	}
 	if err := registerMetrics(reg); err != nil {
