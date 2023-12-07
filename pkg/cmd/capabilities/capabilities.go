@@ -6,27 +6,23 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package cmd
+package capabilities
 
 import (
+	"github.com/openconfig/gnmic/pkg/app"
 	"github.com/spf13/cobra"
 )
 
-// getCmd represents the get command
-func newGetSetCmd() *cobra.Command {
+// capabilitiesCmd represents the capabilities command
+func New(gApp *app.App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "getset",
-		Aliases: []string{"gas", "gs"},
-		Short:   "run gnmi get then set on targets",
-		Annotations: map[string]string{
-			"--get":    "XPATH",
-			"--prefix": "PREFIX",
-			"--type":   "STORE",
-		},
-		PreRunE:      gApp.GetSetPreRunE,
-		RunE:         gApp.GetSetRunE,
+		Use:          "capabilities",
+		Aliases:      []string{"cap"},
+		Short:        "query targets gnmi capabilities",
+		PreRunE:      gApp.CapPreRunE,
+		RunE:         gApp.CapRunE,
 		SilenceUsage: true,
 	}
-	gApp.InitGetSetFlags(cmd)
+	gApp.InitCapabilitiesFlags(cmd)
 	return cmd
 }

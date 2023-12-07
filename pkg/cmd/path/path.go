@@ -6,22 +6,30 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package cmd
+package path
 
 import (
+	"github.com/openconfig/gnmic/pkg/app"
 	"github.com/spf13/cobra"
 )
 
-// capabilitiesCmd represents the capabilities command
-func newCapabilitiesCmd() *cobra.Command {
+// New creates the path command tree.
+func New(gApp *app.App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:          "capabilities",
-		Aliases:      []string{"cap"},
-		Short:        "query targets gnmi capabilities",
-		PreRunE:      gApp.CapPreRunE,
-		RunE:         gApp.CapRunE,
+		Use:   "path",
+		Short: "generate gnmi or xpath style from yang file",
+		Annotations: map[string]string{
+			"--file": "YANG",
+			"--dir":  "DIR",
+		},
+		PreRunE: gApp.PathPreRunE,
+		RunE:    gApp.PathRunE,
+		PostRun: func(cmd *cobra.Command, _ []string) {
+			cmd.ResetFlags()
+			gApp.InitPathFlags(cmd)
+		},
 		SilenceUsage: true,
 	}
-	gApp.InitCapabilitiesFlags(cmd)
+	gApp.InitPathFlags(cmd)
 	return cmd
 }

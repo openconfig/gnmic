@@ -6,14 +6,15 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package cmd
+package diff
 
 import (
+	"github.com/openconfig/gnmic/pkg/app"
 	"github.com/spf13/cobra"
 )
 
 // diffCmd represents the diff command
-func newDiffCmd() *cobra.Command {
+func New(gApp *app.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "diff",
 		Aliases:      []string{"compare"},
@@ -23,13 +24,13 @@ func newDiffCmd() *cobra.Command {
 		SilenceUsage: true,
 	}
 	gApp.InitDiffFlags(cmd)
-	cmd.AddCommand(newDiffSetRequestCmd())
-	cmd.AddCommand(newDiffSetToNotifsCmd())
+	cmd.AddCommand(newDiffSetRequestCmd(gApp))
+	cmd.AddCommand(newDiffSetToNotifsCmd(gApp))
 	return cmd
 }
 
 // newDiffSetRequestCmd creates a new diff setrequest command.
-func newDiffSetRequestCmd() *cobra.Command {
+func newDiffSetRequestCmd(gApp *app.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "setrequest",
 		Short:        "run a diff comparison between two setrequests in textproto format",
@@ -40,7 +41,7 @@ func newDiffSetRequestCmd() *cobra.Command {
 	return cmd
 }
 
-func newDiffSetToNotifsCmd() *cobra.Command {
+func newDiffSetToNotifsCmd(gApp *app.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "set-to-notifs",
 		Short:        "run a diff comparison between a SetRequest and a GetResponse or SubscribeResponse stream stored in textproto format",

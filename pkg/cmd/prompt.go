@@ -25,6 +25,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"github.com/openconfig/gnmic/pkg/cmd/get"
+	"github.com/openconfig/gnmic/pkg/cmd/subscribe"
 	"github.com/openconfig/gnmic/pkg/types"
 )
 
@@ -630,20 +632,20 @@ func findDynamicSuggestions(annotation string, doc goprompt.Document) []goprompt
 		}
 		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
 	case "STORE":
-		suggestions := make([]goprompt.Suggest, 0, len(dataType))
-		for _, sugg := range dataType {
+		suggestions := make([]goprompt.Suggest, 0, len(get.DataType))
+		for _, sugg := range get.DataType {
 			suggestions = append(suggestions, goprompt.Suggest{Text: sugg[0], Description: sugg[1]})
 		}
 		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
 	case "SUBSC_MODE":
-		suggestions := make([]goprompt.Suggest, 0, len(subscriptionModes))
-		for _, sugg := range subscriptionModes {
+		suggestions := make([]goprompt.Suggest, 0, len(subscribe.Modes))
+		for _, sugg := range subscribe.Modes {
 			suggestions = append(suggestions, goprompt.Suggest{Text: sugg[0], Description: sugg[1]})
 		}
 		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
 	case "STREAM_MODE":
-		suggestions := make([]goprompt.Suggest, 0, len(streamSubscriptionModes))
-		for _, sugg := range streamSubscriptionModes {
+		suggestions := make([]goprompt.Suggest, 0, len(subscribe.StreamModes))
+		for _, sugg := range subscribe.StreamModes {
 			suggestions = append(suggestions, goprompt.Suggest{Text: sugg[0], Description: sugg[1]})
 		}
 		return goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)

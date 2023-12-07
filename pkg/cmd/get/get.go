@@ -6,13 +6,14 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package cmd
+package get
 
 import (
+	"github.com/openconfig/gnmic/pkg/app"
 	"github.com/spf13/cobra"
 )
 
-var dataType = [][2]string{
+var DataType = [][2]string{
 	{"all", "all config/state/operational data"},
 	{"config", "data that the target considers to be read/write"},
 	{"state", "read-only data on the target"},
@@ -20,7 +21,7 @@ var dataType = [][2]string{
 }
 
 // getCmd represents the get command
-func newGetCmd() *cobra.Command {
+func New(gApp *app.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "get",
 		Short: "run gnmi get on targets",

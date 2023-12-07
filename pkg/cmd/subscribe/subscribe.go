@@ -6,26 +6,31 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package cmd
+package subscribe
 
 import (
+	"github.com/openconfig/gnmic/pkg/app"
 	"github.com/spf13/cobra"
 )
 
-var subscriptionModes = [][2]string{
-	{"once", "a single request/response channel. The target creates the relevant update messages, transmits them, and subsequently closes the RPC"},
-	{"stream", "long-lived subscriptions which continue to transmit updates relating to the set of paths that are covered within the subscription indefinitely"},
-	{"poll", "on-demand retrieval of data items via long-lived RPCs"},
-}
+var (
+	// Modes is the list of supported subscription modes.
+	Modes = [][2]string{
+		{"once", "a single request/response channel. The target creates the relevant update messages, transmits them, and subsequently closes the RPC"},
+		{"stream", "long-lived subscriptions which continue to transmit updates relating to the set of paths that are covered within the subscription indefinitely"},
+		{"poll", "on-demand retrieval of data items via long-lived RPCs"},
+	}
 
-var streamSubscriptionModes = [][2]string{
-	{"target-defined", "the target MUST determine the best type of subscription to be created on a per-leaf basis"},
-	{"sample", "the value of the data item(s) MUST be sent once per sample interval to the client"},
-	{"on-change", "data updates are only sent when the value of the data item changes"},
-}
+	// StreamModes is the list of supported streaming modes.
+	StreamModes = [][2]string{
+		{"target-defined", "the target MUST determine the best type of subscription to be created on a per-leaf basis"},
+		{"sample", "the value of the data item(s) MUST be sent once per sample interval to the client"},
+		{"on-change", "data updates are only sent when the value of the data item changes"},
+	}
+)
 
-// subscribeCmd represents the subscribe command
-func newSubscribeCmd() *cobra.Command {
+// New create the subscribe command tree.
+func New(gApp *app.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "subscribe",
 		Aliases: []string{"sub"},
