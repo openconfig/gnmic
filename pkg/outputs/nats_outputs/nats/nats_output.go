@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"google.golang.org/protobuf/proto"
-
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
 	"github.com/prometheus/client_golang/prometheus"
@@ -250,6 +249,10 @@ func (n *NatsOutput) Close() error {
 // Metrics //
 func (n *NatsOutput) RegisterMetrics(reg *prometheus.Registry) {
 	if !n.Cfg.EnableMetrics {
+		return
+	}
+	if reg == nil {
+		n.logger.Printf("ERR: output metrics enabled but main registry is not initialized, enable main metrics under `api-server`")
 		return
 	}
 	if err := registerMetrics(reg); err != nil {

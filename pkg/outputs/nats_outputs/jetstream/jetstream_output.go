@@ -23,12 +23,11 @@ import (
 	"text/template"
 	"time"
 
-	"google.golang.org/protobuf/proto"
-
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
@@ -259,6 +258,10 @@ func (n *jetstreamOutput) Close() error {
 
 func (n *jetstreamOutput) RegisterMetrics(reg *prometheus.Registry) {
 	if !n.Cfg.EnableMetrics {
+		return
+	}
+	if reg == nil {
+		n.logger.Printf("ERR: output metrics enabled but main registry is not initialized, enable main metrics under `api-server`")
 		return
 	}
 	if err := registerMetrics(reg); err != nil {

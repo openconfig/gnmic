@@ -9,12 +9,17 @@
 package http_loader
 
 import (
-	"github.com/openconfig/gnmic/pkg/types"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/openconfig/gnmic/pkg/types"
 )
 
 func (h *httpLoader) RegisterMetrics(reg *prometheus.Registry) {
 	if !h.cfg.EnableMetrics {
+		return
+	}
+	if reg == nil {
+		h.logger.Printf("ERR: metrics enabled but main registry is not initialized, enable main metrics under `api-server`")
 		return
 	}
 	if err := registerMetrics(reg); err != nil {

@@ -19,12 +19,11 @@ import (
 	"text/template"
 	"time"
 
-	"google.golang.org/protobuf/proto"
-
 	g "github.com/gosnmp/gosnmp"
 	"github.com/itchyny/gojq"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/openconfig/gnmic/pkg/cache"
 	"github.com/openconfig/gnmic/pkg/formatters"
@@ -245,6 +244,10 @@ func (s *snmpOutput) Close() error {
 
 func (s *snmpOutput) RegisterMetrics(reg *prometheus.Registry) {
 	if !s.cfg.EnableMetrics {
+		return
+	}
+	if reg == nil {
+		s.logger.Printf("ERR: output metrics enabled but main registry is not initialized, enable main metrics under `api-server`")
 		return
 	}
 	if err := s.registerMetrics(reg); err != nil {
