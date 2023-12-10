@@ -6,15 +6,16 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package cmd
+package generate
 
 import (
+	"github.com/openconfig/gnmic/pkg/app"
 	"github.com/spf13/cobra"
 )
 
 // generateCmd represents the generate command
-func newGenerateCmd() *cobra.Command {
-	cmd := &cobra.Command{
+func New(gApp *app.App) *cobra.Command {
+	genCmd := &cobra.Command{
 		Use:               "generate",
 		Aliases:           []string{"gen"},
 		Short:             "generate paths or JSON/YAML objects from YANG",
@@ -22,6 +23,9 @@ func newGenerateCmd() *cobra.Command {
 		RunE:              gApp.GenerateRunE,
 		SilenceUsage:      true,
 	}
-	gApp.InitGenerateFlags(cmd)
-	return cmd
+	genCmd.AddCommand(newGenerateSetRequestCmd(gApp))
+	genCmd.AddCommand(newGeneratePathCmd(gApp))
+
+	gApp.InitGenerateFlags(genCmd)
+	return genCmd
 }

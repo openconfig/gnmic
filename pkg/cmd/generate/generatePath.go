@@ -6,29 +6,22 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package cmd
+package generate
 
 import (
+	"github.com/openconfig/gnmic/pkg/app"
 	"github.com/spf13/cobra"
 )
 
-// pathCmd represents the path command
-func newPathCmd() *cobra.Command {
+// newGeneratePathCmd represents the generate path command
+func newGeneratePathCmd(gApp *app.App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "path",
-		Short: "generate gnmi or xpath style from yang file",
-		Annotations: map[string]string{
-			"--file": "YANG",
-			"--dir":  "DIR",
-		},
-		PreRunE: gApp.PathPreRunE,
-		RunE:    gApp.PathRunE,
-		PostRun: func(cmd *cobra.Command, _ []string) {
-			cmd.ResetFlags()
-			gApp.InitPathFlags(cmd)
-		},
+		Use:          "path",
+		Short:        "generate xpath(s) from yang models",
+		PreRunE:      gApp.GeneratePathPreRunE,
+		RunE:         gApp.GeneratePathRunE,
 		SilenceUsage: true,
 	}
-	gApp.InitPathFlags(cmd)
+	gApp.InitGeneratePathFlags(cmd)
 	return cmd
 }

@@ -17,6 +17,16 @@ import (
 	"syscall"
 
 	"github.com/openconfig/gnmic/pkg/app"
+	"github.com/openconfig/gnmic/pkg/cmd/capabilities"
+	"github.com/openconfig/gnmic/pkg/cmd/diff"
+	"github.com/openconfig/gnmic/pkg/cmd/generate"
+	"github.com/openconfig/gnmic/pkg/cmd/get"
+	"github.com/openconfig/gnmic/pkg/cmd/getset"
+	"github.com/openconfig/gnmic/pkg/cmd/listener"
+	"github.com/openconfig/gnmic/pkg/cmd/path"
+	"github.com/openconfig/gnmic/pkg/cmd/set"
+	"github.com/openconfig/gnmic/pkg/cmd/subscribe"
+	"github.com/openconfig/gnmic/pkg/cmd/version"
 	"github.com/spf13/cobra"
 )
 
@@ -50,27 +60,20 @@ func newRootCmd() *cobra.Command {
 		PersistentPreRunE: gApp.PreRunE,
 	}
 	gApp.InitGlobalFlags()
-	gApp.RootCmd.AddCommand(newCompletionCmd())
-	gApp.RootCmd.AddCommand(newCapabilitiesCmd())
-	gApp.RootCmd.AddCommand(newGetCmd())
-	gApp.RootCmd.AddCommand(newGetSetCmd())
-	gApp.RootCmd.AddCommand(newListenCmd())
-	gApp.RootCmd.AddCommand(newPathCmd())
-	gApp.RootCmd.AddCommand(newDiffCmd())
-	//
-	genCmd := newGenerateCmd()
-	genCmd.AddCommand(newGenerateSetRequestCmd())
-	genCmd.AddCommand(newGeneratePathCmd())
-	gApp.RootCmd.AddCommand(genCmd)
-	//
+	gApp.RootCmd.AddCommand(newCompletionCmd(gApp))
 	gApp.RootCmd.AddCommand(newPromptCmd())
-	gApp.RootCmd.AddCommand(newSetCmd())
-	gApp.RootCmd.AddCommand(newSubscribeCmd())
-	//
-	versionCmd := newVersionCmd()
-	versionCmd.AddCommand(newVersionUpgradeCmd())
-	gApp.RootCmd.AddCommand(versionCmd)
-	//
+
+	// Subcommands
+	gApp.RootCmd.AddCommand(capabilities.New(gApp))
+	gApp.RootCmd.AddCommand(get.New(gApp))
+	gApp.RootCmd.AddCommand(getset.New(gApp))
+	gApp.RootCmd.AddCommand(listener.New(gApp))
+	gApp.RootCmd.AddCommand(path.New(gApp))
+	gApp.RootCmd.AddCommand(diff.New(gApp))
+	gApp.RootCmd.AddCommand(generate.New(gApp))
+	gApp.RootCmd.AddCommand(set.New(gApp))
+	gApp.RootCmd.AddCommand(subscribe.New(gApp))
+	gApp.RootCmd.AddCommand(version.New(gApp))
 	return gApp.RootCmd
 }
 

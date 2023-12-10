@@ -11,11 +11,12 @@ package cmd
 import (
 	"os"
 
+	"github.com/openconfig/gnmic/pkg/app"
 	"github.com/spf13/cobra"
 )
 
-// getCmd represents the get command
-func newCompletionCmd() *cobra.Command {
+// newCompletionCmd creates completion command tree.
+func newCompletionCmd(gApp *app.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "completion [bash|zsh|fish]",
 		Short:        "generate completion script",

@@ -6,25 +6,32 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package cmd
+package set
 
 import (
+	"github.com/openconfig/gnmic/pkg/app"
 	"github.com/spf13/cobra"
 )
 
-// newGenerateSetRequestCmd represents the generate set-request command
-func newGenerateSetRequestCmd() *cobra.Command {
+// New creates the set command tree.
+func New(gApp *app.App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "set-request",
-		Aliases: []string{"sr", "sreq", "srq"},
-		Short:   "generate Set Request file",
-		PreRunE: func(cmd *cobra.Command, _ []string) error {
-			gApp.Config.SetLocalFlagsFromFile(cmd)
-			return nil
+		Use:   "set",
+		Short: "run gnmi set on targets",
+		Annotations: map[string]string{
+			"--delete":       "XPATH",
+			"--prefix":       "PREFIX",
+			"--replace":      "XPATH",
+			"--replace-file": "FILE",
+			"--replace-path": "XPATH",
+			"--update":       "XPATH",
+			"--update-file":  "FILE",
+			"--update-path":  "XPATH",
 		},
-		RunE:         gApp.GenerateSetRequestRunE,
+		PreRunE:      gApp.SetPreRunE,
+		RunE:         gApp.SetRunE,
 		SilenceUsage: true,
 	}
-	gApp.InitGenerateSetRequestFlags(cmd)
+	gApp.InitSetFlags(cmd)
 	return cmd
 }

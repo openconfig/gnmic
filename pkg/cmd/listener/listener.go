@@ -6,7 +6,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package cmd
+package listener
 
 import (
 	"context"
@@ -22,6 +22,7 @@ import (
 	"github.com/jhump/protoreflect/dynamic"
 	nokiasros "github.com/karimra/sros-dialout"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/gnmic/pkg/app"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	"github.com/openconfig/gnmic/pkg/utils"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -32,8 +33,8 @@ import (
 	"google.golang.org/grpc/peer"
 )
 
-// listenCmd represents the listen command
-func newListenCmd() *cobra.Command {
+// New returns the listen command tree.
+func New(gApp *app.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "listen",
 		Short: "listens for telemetry dialout updates from the node",
@@ -145,7 +146,7 @@ func newListenCmd() *cobra.Command {
 				}()
 				defer httpServer.Close()
 			}
-
+			server.gApp = gApp
 			server.grpcServer.Serve(server.listener)
 			defer server.grpcServer.Stop()
 			return nil
@@ -167,25 +168,27 @@ type dialoutTelemetryServer struct {
 	Outputs map[string]outputs.Output
 
 	ctx context.Context
+
+	gApp *app.App
 }
 
 func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_PublishServer) error {
 	peer, ok := peer.FromContext(stream.Context())
-	if ok && gApp.Config.Debug {
+	if ok && s.gApp.Config.Debug {
 		b, err := json.Marshal(peer)
 		if err != nil {
-			gApp.Logger.Printf("failed to marshal peer data: %v", err)
+			s.gApp.Logger.Printf("failed to marshal peer data: %v", err)
 		} else {
-			gApp.Logger.Printf("received Publish RPC from peer=%s", string(b))
+			s.gApp.Logger.Printf("received Publish RPC from peer=%s", string(b))
 		}
 	}
 	md, ok := metadata.FromIncomingContext(stream.Context())
-	if ok && gApp.Config.Debug {
+	if ok && s.gApp.Config.Debug {
 		b, err := json.Marshal(md)
 		if err != nil {
-			gApp.Logger.Printf("failed to marshal context metadata: %v", err)
+			s.gApp.Logger.Printf("failed to marshal context metadata: %v", err)
 		} else {
-			gApp.Logger.Printf("received http2_header=%s", string(b))
+			s.gApp.Logger.Printf("received http2_header=%s", string(b))
 		}
 	}
 	outMeta := outputs.Meta{}
@@ -194,7 +197,7 @@ func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_Publi
 			outMeta["subscription-name"] = sn[0]
 		}
 	} else {
-		gApp.Logger.Println("could not find subscription-name in http2 headers")
+		s.gApp.Logger.Println("could not find subscription-name in http2 headers")
 	}
 	outMeta["source"] = peer.Addr.String()
 	if systemName, ok := md["system-name"]; ok {
@@ -202,19 +205,19 @@ func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_Publi
 			outMeta["system-name"] = systemName[0]
 		}
 	} else {
-		gApp.Logger.Println("could not find system-name in http2 headers")
+		s.gApp.Logger.Println("could not find system-name in http2 headers")
 	}
 	for {
 		subResp, err := stream.Recv()
 		if err != nil {
 			if err != io.EOF {
-				gApp.Logger.Printf("gRPC dialout receive error: %v", err)
+				s.gApp.Logger.Printf("gRPC dialout receive error: %v", err)
 			}
 			break
 		}
 		err = stream.Send(&nokiasros.PublishResponse{})
 		if err != nil {
-			gApp.Logger.Printf("error sending publish response to server: %v", err)
+			s.gApp.Logger.Printf("error sending publish response to server: %v", err)
 		}
 		switch resp := subResp.Response.(type) {
 		case *gnmi.SubscribeResponse_Update:
@@ -225,15 +228,15 @@ func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_Publi
 						m := dynamic.NewMessage(s.rootDesc.GetFile().FindMessage("Nokia.SROS.root"))
 						err := m.Unmarshal(update.Val.GetProtoBytes())
 						if err != nil {
-							gApp.Logger.Printf("failed to unmarshal m: %v", err)
+							s.gApp.Logger.Printf("failed to unmarshal m: %v", err)
 						}
 						jsondata, err := m.MarshalJSON()
 						if err != nil {
-							gApp.Logger.Printf("failed to marshal dynamic proto msg: %v", err)
+							s.gApp.Logger.Printf("failed to marshal dynamic proto msg: %v", err)
 							continue
 						}
-						if gApp.Config.Debug {
-							gApp.Logger.Printf("json format=%s", string(jsondata))
+						if s.gApp.Config.Debug {
+							s.gApp.Logger.Printf("json format=%s", string(jsondata))
 						}
 						update.Val.Value = &gnmi.TypedValue_JsonVal{JsonVal: jsondata}
 					}
@@ -244,7 +247,7 @@ func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_Publi
 			}
 
 		case *gnmi.SubscribeResponse_SyncResponse:
-			gApp.Logger.Printf("received sync response=%+v from %s", resp.SyncResponse, outMeta["source"])
+			s.gApp.Logger.Printf("received sync response=%+v from %s", resp.SyncResponse, outMeta["source"])
 		}
 	}
 	return nil

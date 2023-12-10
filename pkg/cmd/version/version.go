@@ -6,33 +6,24 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package cmd
+package version
 
 import (
-	"fmt"
-
+	"github.com/openconfig/gnmic/pkg/app"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 )
 
-// upgradeCmd represents the version command
-func newVersionUpgradeCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:     "upgrade",
-		Aliases: []string{"up"},
-		Short:   "upgrade gnmic to latest available version",
+// New creates the version command tree.
+func New(gApp *app.App) *cobra.Command {
+	versionCmd := &cobra.Command{
+		Use:   "version",
+		Short: "show gnmic version",
 		PreRun: func(cmd *cobra.Command, _ []string) {
 			gApp.Config.SetLocalFlagsFromFile(cmd)
 		},
-		RunE: gApp.VersionUpgradeRun,
+		Run: gApp.VersionRun,
 	}
-	initVersionUpgradeFlags(cmd)
-	return cmd
-}
+	versionCmd.AddCommand(newVersionUpgradeCmd(gApp))
 
-func initVersionUpgradeFlags(cmd *cobra.Command) {
-	cmd.Flags().Bool("use-pkg", false, "upgrade using package")
-	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
-		gApp.Config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
-	})
+	return versionCmd
 }
