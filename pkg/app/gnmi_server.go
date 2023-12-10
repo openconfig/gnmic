@@ -588,30 +588,32 @@ func (a *App) handleONCESubscriptionRequest(sc *streamClient) {
 
 func (a *App) handleStreamSubscriptionRequest(sc *streamClient) {
 	peer, _ := peer.FromContext(sc.stream.Context())
-	var err error
+	errChan := make(chan error)
+	defer close(errChan)
 	a.Logger.Printf("processing STREAM subscription from %q to target %q", peer.Addr, sc.target)
 
-	defer func() {
-		if err == nil {
-			a.Logger.Printf("subscription request from %q to target %q processed", peer.Addr, sc.target)
-			return
-		}
-		if errors.Is(err, context.Canceled) {
-			a.Logger.Printf("subscription to target %q canceled", sc.target)
-			sc.errChan <- err
-			return
-		}
-		if err != nil {
-			a.Logger.Printf("error processing STREAM subscription to target %q: %v", sc.target, err)
-			sc.errChan <- err
-			return
+	go func() {
+		for err := range errChan {
+			if err == nil {
+				a.Logger.Printf("subscription request from %q to target %q processed", peer.Addr, sc.target)
+			} else if errors.Is(err, context.Canceled) {
+				a.Logger.Printf("subscription to target %q canceled", sc.target)
+				sc.errChan <- err
+			} else {
+				a.Logger.Printf("error processing STREAM subscription to target %q: %v", sc.target, err)
+				sc.errChan <- err
+			}
 		}
 	}()
 
 	if sc.req.GetSubscribe().GetUpdatesOnly() {
-		err = sc.stream.Send(&gnmi.SubscribeResponse{
+		err := sc.stream.Send(&gnmi.SubscribeResponse{
 			Response: &gnmi.SubscribeResponse_SyncResponse{SyncResponse: true},
 		})
+
+		if err != nil {
+			errChan <- err
+		}
 	}
 	var pr *gnmi.Path
 	switch req := sc.req.GetRequest().(type) {
@@ -645,15 +647,16 @@ func (a *App) handleStreamSubscriptionRequest(sc *streamClient) {
 				a.Logger.Printf("cache subscribe: %+v", ro)
 				for n := range a.c.Subscribe(sc.stream.Context(), ro) {
 					if n.Err != nil {
-						err = n.Err
+						errChan <- n.Err
 						return
 					}
-					err = sc.stream.Send(&gnmi.SubscribeResponse{
+					err := sc.stream.Send(&gnmi.SubscribeResponse{
 						Response: &gnmi.SubscribeResponse_Update{
 							Update: n.Notification,
 						},
 					})
 					if err != nil {
+						errChan <- n.Err
 						return
 					}
 				}
@@ -682,16 +685,17 @@ func (a *App) handleStreamSubscriptionRequest(sc *streamClient) {
 				a.Logger.Printf("cache subscribe: %+v", ro)
 				for n := range a.c.Subscribe(sc.stream.Context(), ro) {
 					if n.Err != nil {
-						err = n.Err
-						a.Logger.Printf("cache subscribe failed: %+v: %v", ro, err)
+						errChan <- n.Err
+						a.Logger.Printf("cache subscribe failed: %+v: %v", ro, n.Err)
 						return
 					}
-					err = sc.stream.Send(&gnmi.SubscribeResponse{
+					err := sc.stream.Send(&gnmi.SubscribeResponse{
 						Response: &gnmi.SubscribeResponse_Update{
 							Update: n.Notification,
 						},
 					})
 					if err != nil {
+						errChan <- n.Err
 						return
 					}
 				}
@@ -702,7 +706,7 @@ func (a *App) handleStreamSubscriptionRequest(sc *streamClient) {
 
 	// wait for ctx to be done
 	<-sc.stream.Context().Done()
-	err = sc.stream.Context().Err()
+	errChan <- sc.stream.Context().Err()
 	wg.Wait()
 }
 
