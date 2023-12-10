@@ -194,6 +194,7 @@ installFile() {
     tar xf "$TMP_FILE" -C "$TMP_ROOT"
     echo "Preparing to install $BINARY_NAME ${TAG_WO_VER} into ${BIN_INSTALL_DIR}"
     runAsRoot cp -f "$TMP_ROOT/$BINARY_NAME" "$BIN_INSTALL_DIR/$BINARY_NAME"
+    runAsRoot chmod 755 "$BIN_INSTALL_DIR/$BINARY_NAME"
     echo "$BINARY_NAME installed into $BIN_INSTALL_DIR/$BINARY_NAME"
 }
 
