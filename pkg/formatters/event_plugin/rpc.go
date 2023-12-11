@@ -76,7 +76,7 @@ func (g *EventProcessorRPC) Init(cfg interface{}, opts ...formatters.Option) err
 	}
 	err := g.client.Call("Plugin.Init", &InitArgs{Cfg: cfg}, &InitResponse{})
 	if err != nil {
-		panic(err)
+		return err
 	}
 	return nil
 }
@@ -85,7 +85,8 @@ func (g *EventProcessorRPC) Apply(event ...*formatters.EventMsg) []*formatters.E
 	var resp ApplyResponse
 	err := g.client.Call("Plugin.Apply", &ApplyArgs{Events: event}, &resp)
 	if err != nil {
-		panic(err)
+		log.Print("RPC client call error: ", err)
+		return nil
 	}
 	return resp.Events
 }
@@ -93,21 +94,21 @@ func (g *EventProcessorRPC) Apply(event ...*formatters.EventMsg) []*formatters.E
 func (g *EventProcessorRPC) WithActions(act map[string]map[string]interface{}) {
 	err := g.client.Call("Plugin.WithActions", act, &Actionresponse{})
 	if err != nil {
-		panic(err)
+		log.Print("RPC client call error: ", err)
 	}
 }
 
 func (g *EventProcessorRPC) WithTargets(tcs map[string]*types.TargetConfig) {
 	err := g.client.Call("Plugin.WithTargets", tcs, &Targetresponse{})
 	if err != nil {
-		panic(err)
+		log.Print("RPC client call error: ", err)
 	}
 }
 
 func (g *EventProcessorRPC) WithProcessors(procs map[string]map[string]any) {
 	err := g.client.Call("Plugin.WithProcessors", procs, &Proccessorresponse{})
 	if err != nil {
-		panic(err)
+		log.Print("RPC client call error: ", err)
 	}
 }
 
