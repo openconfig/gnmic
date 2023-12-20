@@ -519,7 +519,7 @@ func (a *App) Subscribe(stream gnmi.GNMI_SubscribeServer) error {
 			errChan <- sc.stream.Send(&gnmi.SubscribeResponse{
 				Response: &gnmi.SubscribeResponse_SyncResponse{SyncResponse: true},
 			})
-			defer close(errChan)
+			close(errChan)
 		}()
 
 	case gnmi.SubscriptionList_POLL:
@@ -727,8 +727,8 @@ func (a *App) handleStreamSubscriptionRequest(sc *streamClient) {
 }
 
 func (a *App) handlePolledSubscription(sc *streamClient) {
-	defer close(sc.errChan)
 	a.handleONCESubscriptionRequest(sc)
+	defer close(sc.errChan)
 	var err error
 	for {
 		_, err = sc.stream.Recv()
