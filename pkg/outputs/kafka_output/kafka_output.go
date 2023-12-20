@@ -419,6 +419,7 @@ func (k *kafkaOutput) createConfig() (*sarama.Config, error) {
 	cfg.Producer.RequiredAcks = sarama.WaitForAll
 	cfg.Producer.Return.Successes = true
 	cfg.Producer.Timeout = k.Cfg.Timeout
+	cfg.Metadata.Full = false
 
 	switch k.Cfg.CompressionCodec {
 	case "gzip":
