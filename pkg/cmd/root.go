@@ -16,6 +16,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/openconfig/gnmic/pkg/formatters/plugin_manager"
+
 	"github.com/openconfig/gnmic/pkg/app"
 	"github.com/openconfig/gnmic/pkg/cmd/capabilities"
 	"github.com/openconfig/gnmic/pkg/cmd/diff"
@@ -110,6 +112,7 @@ func setupCloseHandler(cancelFn context.CancelFunc) {
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 	go func() {
 		sig := <-c
+		plugin_manager.Cleanup()
 		fmt.Printf("\nreceived signal '%s'. terminating...\n", sig.String())
 		cancelFn()
 		os.Exit(0)
