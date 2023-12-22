@@ -100,7 +100,7 @@ func (p *combine) Init(cfg any, opts ...formatters.Option) error {
 					formatters.WithLogger(p.logger),
 					formatters.WithTargets(p.targetsConfigs),
 					formatters.WithActions(p.actionsDefinitions),
-					formatters.WithProcessors(p.actionsDefinitions),
+					formatters.WithProcessors(p.processorsDefinitions),
 				)
 				if err != nil {
 					return fmt.Errorf("failed initializing event processor '%s' of type='%s': %v", proc.Name, epType, err)
