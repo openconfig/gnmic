@@ -158,6 +158,7 @@ func MakeEventProcessors(
 					WithLogger(logger),
 					WithTargets(tcs),
 					WithActions(acts),
+					WithProcessors(ps),
 				)
 				if err != nil {
 					return nil, fmt.Errorf("failed initializing event processor '%s' of type='%s': %w", epName, epType, err)
