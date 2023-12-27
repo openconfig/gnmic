@@ -107,7 +107,6 @@ func (c *Config) subscriptionConfigFromFlags(cmd *cobra.Command) (map[string]*ty
 	// if globalFlagIsSet(cmd, "encoding") {
 	// 	sub.Encoding = &c.Encoding
 	// }
-	fmt.Println("!!", sub)
 	if flagIsSet(cmd, "qos") {
 		sub.Qos = &c.LocalFlags.SubscribeQos
 	}
