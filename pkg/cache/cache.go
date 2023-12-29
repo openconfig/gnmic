@@ -15,9 +15,8 @@ import (
 	"sync"
 	"time"
 
-	"google.golang.org/protobuf/proto"
-
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"google.golang.org/protobuf/proto"
 )
 
 type CacheType string

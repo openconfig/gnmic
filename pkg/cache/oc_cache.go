@@ -116,7 +116,6 @@ func (gc *gnmiCache) Write(ctx context.Context, measName string, m proto.Message
 					}
 				}
 			}
-
 			gc.m.Lock()
 			sCache, ok := gc.caches[measName]
 			if !ok {
@@ -148,7 +147,7 @@ func (gc *gnmiCache) Write(ctx context.Context, measName string, m proto.Message
 				}
 				notif.Update = append(notif.Update, upd)
 			}
-			if len(notif.Update) == 0 {
+			if len(notif.Update) == 0 && len(notif.Delete) == 0 {
 				return
 			}
 			err = sCache.c.GnmiUpdate(notif)
@@ -315,7 +314,7 @@ func (gc *gnmiCache) handleSampledQuery(ctx context.Context, ro *ReadOpts, ch ch
 func (gc *gnmiCache) handleOnChangeQuery(ctx context.Context, ro *ReadOpts, ch chan *Notification) {
 	caches := gc.getCaches(ro.Subscription)
 	numCaches := len(caches)
-	gc.logger.Printf("on-change query got %d caches", numCaches)
+	gc.logger.Printf("on-change query got %d cache(s)", numCaches)
 
 	wg := new(sync.WaitGroup)
 	wg.Add(numCaches)
@@ -330,14 +329,14 @@ func (gc *gnmiCache) handleOnChangeQuery(ctx context.Context, ro *ReadOpts, ch c
 				return
 			}
 			for _, p := range ro.Paths {
+				cp, err := path.CompletePath(p, nil)
+				if err != nil {
+					gc.logger.Printf("failed to generate CompletePath from %v", p)
+					ch <- &Notification{Name: name, Err: err}
+					return
+				}
 				// handle updates only
 				if !ro.UpdatesOnly {
-					cp, err := path.CompletePath(p, nil)
-					if err != nil {
-						gc.logger.Printf("failed to generate CompletePath from %v", p)
-						ch <- &Notification{Name: name, Err: err}
-						return
-					}
 					err = c.c.Query(ro.Target, cp,
 						func(_ []string, l *ctree.Leaf, _ interface{}) error {
 							switch gl := l.Value().(type) {
@@ -353,10 +352,9 @@ func (gc *gnmiCache) handleOnChangeQuery(ctx context.Context, ro *ReadOpts, ch c
 					}
 				}
 				// main on-change subscription
-				fp := path.ToStrings(p, true)
-				fp = append(fp, "")
-				copy(fp[1:], fp)
-				fp[0] = ro.Target
+				fp := make([]string, 0, len(cp)+1)
+				fp = append(fp, ro.Target)
+				fp = append(fp, cp...)
 				// set callback
 				mc := &matchClient{name: name, ch: ch}
 				remove := c.match.AddQuery(fp, mc)
