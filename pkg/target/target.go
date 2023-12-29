@@ -16,17 +16,15 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/jhump/protoreflect/desc"
+	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/gnmi/proto/gnmi_ext"
+	"github.com/openconfig/gnmic/pkg/types"
 	"golang.org/x/net/proxy"
 	"golang.org/x/oauth2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/oauth"
 	"google.golang.org/grpc/metadata"
-
-	"github.com/jhump/protoreflect/desc"
-	"github.com/openconfig/gnmi/proto/gnmi"
-	"github.com/openconfig/gnmi/proto/gnmi_ext"
-
-	"github.com/openconfig/gnmic/pkg/types"
 )
 
 type TargetError struct {
