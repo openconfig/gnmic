@@ -499,7 +499,7 @@ func (a *App) Subscribe(stream gnmi.GNMI_SubscribeServer) error {
 	a.Logger.Printf("received a subscribe request mode=%v from %q for target %q", sc.req.GetSubscribe().GetMode(), pr.Addr, sc.target)
 	defer a.Logger.Printf("subscription from peer %q terminated", pr.Addr)
 
-	// closing of this channel is handeled by respective goroutines that are going to send error on this channel
+	// closing of this channel is handled by respective goroutines that are going to send error on this channel
 	errChan := make(chan error, len(sc.req.GetSubscribe().GetSubscription()))
 	sc.errChan = errChan // send-only
 
@@ -524,7 +524,6 @@ func (a *App) Subscribe(stream gnmi.GNMI_SubscribeServer) error {
 
 	case gnmi.SubscriptionList_POLL:
 		go a.handlePolledSubscription(sc)
-
 	case gnmi.SubscriptionList_STREAM:
 		go a.handleStreamSubscriptionRequest(sc)
 	default:
@@ -538,7 +537,7 @@ func (a *App) Subscribe(stream gnmi.GNMI_SubscribeServer) error {
 		}
 	}()
 
-	// returing first non-nil error and flushing rest in defer
+	// returning first non-nil error and flushing rest in defer
 	for err := range errChan {
 		if err != nil {
 			return status.Errorf(codes.Internal, "%v", err)
@@ -727,12 +726,23 @@ func (a *App) handleStreamSubscriptionRequest(sc *streamClient) {
 }
 
 func (a *App) handlePolledSubscription(sc *streamClient) {
-	a.handleONCESubscriptionRequest(sc)
 	defer close(sc.errChan)
-	var err error
+	a.handleONCESubscriptionRequest(sc)
+	sc.errChan <- sc.stream.Send(&gnmi.SubscribeResponse{Response: &gnmi.SubscribeResponse_SyncResponse{
+		SyncResponse: true,
+	}})
+	// var err error
 	for {
-		_, err = sc.stream.Recv()
+		req, err := sc.stream.Recv()
 		if errors.Is(err, io.EOF) {
+			sc.errChan <- err
+			return
+		}
+		switch req := req.Request.(type) {
+		case *gnmi.SubscribeRequest_Poll:
+		default:
+			err = fmt.Errorf("unexpected request type: expecting a Poll request, rcvd: %v", req)
+			a.Logger.Print(err)
 			sc.errChan <- err
 			return
 		}
@@ -743,6 +753,9 @@ func (a *App) handlePolledSubscription(sc *streamClient) {
 		}
 		a.Logger.Printf("target %q: repoll", sc.target)
 		a.handleONCESubscriptionRequest(sc)
+		sc.errChan <- sc.stream.Send(&gnmi.SubscribeResponse{Response: &gnmi.SubscribeResponse_SyncResponse{
+			SyncResponse: true,
+		}})
 		a.Logger.Printf("target %q: repoll done", sc.target)
 	}
 }

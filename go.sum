@@ -956,12 +956,12 @@ github.com/openconfig/gnmi v0.10.0 h1:kQEZ/9ek3Vp2Y5IVuV2L/ba8/77TgjdXg505QXvYmg
 github.com/openconfig/gnmi v0.10.0/go.mod h1:Y9os75GmSkhHw2wX8sMsxfI7qRGAEcDh8NTa5a8vj6E=
 github.com/openconfig/gnmic/pkg/api v0.1.1 h1:9d7mhVdoz9k+73h9qoWvwcTpmWvLhjavHg1jyuRGq6Y=
 github.com/openconfig/gnmic/pkg/api v0.1.1/go.mod h1:kX1bJnTRTuYyvceHLcs8JDkLL3QzTpaeYVfQGphYWE4=
-github.com/openconfig/gnmic/pkg/cache v0.1.1 h1:cT3swYn6NOmBFELFMJeK3GsWEviRgo9+mft7CKVh3sE=
-github.com/openconfig/gnmic/pkg/cache v0.1.1/go.mod h1:EQpcUMnkiUUvsSpAux8Jul8Tfkz6XT/wJvXbgohCyr4=
+github.com/openconfig/gnmic/pkg/cache v0.1.2 h1:n7TwHP4qOrRNZbRYLa+mLO0LEJlnHNiCrQ0JJSa1KBw=
+github.com/openconfig/gnmic/pkg/cache v0.1.2/go.mod h1:EQpcUMnkiUUvsSpAux8Jul8Tfkz6XT/wJvXbgohCyr4=
 github.com/openconfig/gnmic/pkg/path v0.1.1 h1:C6vZTC0NsMOGyre7ueXRS8vmYvCW9sdHKQ5cqWYiNPw=
 github.com/openconfig/gnmic/pkg/path v0.1.1/go.mod h1:Z2Ejm3UIO7WDxlXsnJmzE7/lnWe/0neCuXW6QDwmYHQ=
-github.com/openconfig/gnmic/pkg/target v0.1.1 h1:/XA3cFs3FTb2Bli4TdvLYf0b/ifMX1gDOMY+f8LcTr0=
-github.com/openconfig/gnmic/pkg/target v0.1.1/go.mod h1:5NF5rtYCt7e7wygyi5kUUU6YsrFLD62kDB2jaCwFUbk=
+github.com/openconfig/gnmic/pkg/target v0.1.2 h1:Zpqnb9iLB/EeQC/FpbxQw8eJXH6XLdS0JCWwM6OYeXg=
+github.com/openconfig/gnmic/pkg/target v0.1.2/go.mod h1:5NF5rtYCt7e7wygyi5kUUU6YsrFLD62kDB2jaCwFUbk=
 github.com/openconfig/gnmic/pkg/testutils v0.1.0 h1:Mw6LKGqzXQnrI9fCtaCAp3pFDy2B0+rKQFtjCqQWJwM=
 github.com/openconfig/gnmic/pkg/testutils v0.1.0/go.mod h1:/JyhCq6rSbQdmeCbPIQjD8K3ArOqGQZFKUKKUpebonk=
 github.com/openconfig/gnmic/pkg/types v0.1.1 h1:LczdQ/eTsnMkHJvOdu2Q5UpNqdjnzNPsjAL0fhCK410=

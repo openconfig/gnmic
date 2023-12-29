@@ -207,78 +207,138 @@ func (a *App) readConfigs() error {
 	return nil
 }
 
-func (a *App) handlePolledSubscriptions() {
-	polledTargetsSubscriptions := a.PolledSubscriptionsTargets()
-	if len(polledTargetsSubscriptions) > 0 {
-		pollTargets := make([]string, 0, len(polledTargetsSubscriptions))
-		for t := range polledTargetsSubscriptions {
-			pollTargets = append(pollTargets, t)
-		}
-		sort.Slice(pollTargets, func(i, j int) bool {
-			return pollTargets[i] < pollTargets[j]
-		})
-		s := promptui.Select{
-			Label:        "select target to poll",
-			Items:        pollTargets,
-			HideSelected: true,
-		}
-		waitChan := make(chan struct{}, 1)
-		waitChan <- struct{}{}
-		mo := &formatters.MarshalOptions{
-			Multiline:        true,
-			Indent:           "  ",
-			Format:           a.Config.Format,
-			CalculateLatency: a.Config.GlobalFlags.CalculateLatency,
-		}
+func (a *App) handlePolledSubscriptions() error {
+	polledTargetsSubscriptions := a.polledSubscriptionsTargets()
 
-		for {
-			select {
-			case <-waitChan:
-				_, name, err := s.Run()
-				if err != nil {
-					fmt.Printf("failed selecting target to poll: %v\n", err)
-					continue
-				}
-				ss := promptui.Select{
-					Label:        "select subscription to poll",
-					Items:        polledTargetsSubscriptions[name],
-					HideSelected: true,
-				}
-				_, subName, err := ss.Run()
-				if err != nil {
-					fmt.Printf("failed selecting subscription to poll: %v\n", err)
-					continue
-				}
-				response, err := a.clientSubscribePoll(name, subName)
-				if err != nil && err != io.EOF {
-					fmt.Printf("target '%s', subscription '%s': poll response error:%v\n", name, subName, err)
-					continue
-				}
-				if response == nil {
-					fmt.Printf("received empty response from target '%s'\n", name)
-					continue
-				}
-				switch rsp := response.Response.(type) {
-				case *gnmi.SubscribeResponse_SyncResponse:
-					fmt.Printf("received sync response '%t' from '%s'\n", rsp.SyncResponse, name)
-					waitChan <- struct{}{}
-					continue
-				}
-				b, err := mo.Marshal(response, nil)
-				if err != nil {
-					fmt.Printf("target '%s', subscription '%s': poll response formatting error:%v\n", name, subName, err)
+	if len(polledTargetsSubscriptions) == 0 {
+		return nil
+	}
+	mo := &formatters.MarshalOptions{
+		Multiline:        true,
+		Indent:           "  ",
+		Format:           a.Config.Format,
+		CalculateLatency: a.Config.GlobalFlags.CalculateLatency,
+	}
+	// handle initial responses if updates-only is not set
+	if !a.Config.SubscribeUpdatesOnly {
+		for targetName := range polledTargetsSubscriptions {
+			a.operLock.RLock()
+			t, ok := a.Targets[targetName]
+			a.operLock.RUnlock()
+			if !ok {
+				return fmt.Errorf("unknown target name %q", targetName)
+			}
+			rspCh, errCh := t.ReadSubscriptions()
+		SUBS:
+			for {
+				select {
+				case rsp := <-rspCh:
+					b, err := mo.Marshal(rsp.Response, nil)
+					if err != nil {
+						return fmt.Errorf("target '%s', subscription '%s': poll response formatting error: %v", targetName, rsp.SubscriptionName, err)
+					}
 					fmt.Println(string(b))
-					waitChan <- struct{}{}
-					continue
+					switch rsp := rsp.Response.Response.(type) {
+					case *gnmi.SubscribeResponse_SyncResponse:
+						fmt.Printf("received sync response '%t' from '%s'\n", rsp.SyncResponse, targetName)
+						break SUBS // current target done sending initial updates
+					}
+				case tErr := <-errCh:
+					if tErr.Err != nil {
+						return fmt.Errorf("target '%s', subscription '%s': poll response error: %v", targetName, tErr.SubscriptionName, tErr.Err)
+					}
+				case <-a.ctx.Done():
+					return a.ctx.Err()
 				}
-				fmt.Println(string(b))
-				waitChan <- struct{}{}
-			case <-a.ctx.Done():
-				return
 			}
 		}
-
 	}
+
+	pollTargets := make([]string, 0, len(polledTargetsSubscriptions))
+	for t := range polledTargetsSubscriptions {
+		pollTargets = append(pollTargets, t)
+	}
+	sort.Slice(pollTargets, func(i, j int) bool {
+		return pollTargets[i] < pollTargets[j]
+	})
+	s := promptui.Select{
+		Label:        "select target to poll",
+		Items:        pollTargets,
+		HideSelected: true,
+	}
+	waitChan := make(chan struct{}, 1)
+	waitChan <- struct{}{}
+
+OUTER:
+	for {
+		select {
+		case <-waitChan:
+			_, name, err := s.Run()
+			if err != nil {
+				fmt.Printf("failed selecting target to poll: %v\n", err)
+				continue
+			}
+			ss := promptui.Select{
+				Label:        "select subscription to poll",
+				Items:        polledTargetsSubscriptions[name],
+				HideSelected: true,
+			}
+			_, subName, err := ss.Run()
+			if err != nil {
+				fmt.Printf("failed selecting subscription to poll: %v\n", err)
+				continue
+			}
+			err = a.clientSubscribePoll(a.Context(), name, subName)
+			if err != nil && err != io.EOF {
+				fmt.Printf("target '%s', subscription '%s': poll response error:%v\n", name, subName, err)
+				continue
+			}
+			a.operLock.RLock()
+			t, ok := a.Targets[name]
+			a.operLock.RUnlock()
+			if !ok {
+				return fmt.Errorf("unknown target name %q", name)
+			}
+			rspCh, errCh := t.ReadSubscriptions()
+			for {
+				select {
+				case <-a.Context().Done():
+					return a.Context().Err()
+				case tErr := <-errCh:
+					if tErr.Err != nil {
+						fmt.Printf("received error from target '%s': %v\n", name, err)
+						waitChan <- struct{}{}
+						continue OUTER
+					}
+				case rsp, ok := <-rspCh:
+					if !ok {
+						waitChan <- struct{}{}
+						continue OUTER
+					}
+					if rsp == nil {
+						fmt.Printf("received empty response from target '%s'\n", name)
+						continue
+					}
+					switch rsp := rsp.Response.Response.(type) {
+					case *gnmi.SubscribeResponse_SyncResponse:
+						fmt.Printf("received sync response '%t' from '%s'\n", rsp.SyncResponse, name)
+						waitChan <- struct{}{}
+						continue OUTER
+					}
+					b, err := mo.Marshal(rsp.Response, nil)
+					if err != nil {
+						fmt.Printf("target '%s', subscription '%s': poll response formatting error:%v\n", name, subName, err)
+						fmt.Println(rsp.Response)
+						continue
+					}
+					fmt.Println(string(b))
+				}
+			}
+		case <-a.ctx.Done():
+			return a.Context().Err()
+		}
+	}
+
 }
 
 func (a *App) startIO() {

@@ -228,8 +228,8 @@ func (a *App) GetModels(ctx context.Context, tc *types.TargetConfig) ([]*gnmi.Mo
 	return capRsp.GetSupportedModels(), nil
 }
 
-// PolledSubscriptionsTargets returns a map of target name to a list of subscription names that have Mode == POLL
-func (a *App) PolledSubscriptionsTargets() map[string][]string {
+// polledSubscriptionsTargets returns a map of target name to a list of subscription names that have Mode == POLL
+func (a *App) polledSubscriptionsTargets() map[string][]string {
 	result := make(map[string][]string)
 	for tn, target := range a.Targets {
 		for _, sub := range target.Subscriptions {
