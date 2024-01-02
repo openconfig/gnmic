@@ -33,7 +33,7 @@ SUBSC:
 	default:
 		nctx, cancel = context.WithCancel(ctx)
 		defer cancel()
-		nctx = t.appendCredentials(nctx)
+		nctx = t.appendRequestMetadata(nctx)
 		subscribeClient, err = t.Client.Subscribe(nctx, t.callOpts()...)
 		if err != nil {
 			t.errors <- &TargetError{
@@ -162,7 +162,7 @@ func (t *Target) SubscribeOnceChan(ctx context.Context, req *gnmi.SubscribeReque
 		nctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		nctx = t.appendCredentials(nctx)
+		nctx = t.appendRequestMetadata(nctx)
 		subscribeClient, err := t.Client.Subscribe(nctx, t.callOpts()...)
 		if err != nil {
 			errCh <- err
