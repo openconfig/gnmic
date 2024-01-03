@@ -42,9 +42,9 @@ require (
 	github.com/openconfig/gnmic/pkg/api v0.1.1
 	github.com/openconfig/gnmic/pkg/cache v0.1.2
 	github.com/openconfig/gnmic/pkg/path v0.1.1
-	github.com/openconfig/gnmic/pkg/target v0.1.2
+	github.com/openconfig/gnmic/pkg/target v0.1.3
 	github.com/openconfig/gnmic/pkg/testutils v0.1.0
-	github.com/openconfig/gnmic/pkg/types v0.1.1
+	github.com/openconfig/gnmic/pkg/types v0.1.2
 	github.com/openconfig/gnmic/pkg/utils v0.1.0
 	github.com/openconfig/goyang v1.4.2
 	github.com/openconfig/ygot v0.29.2
