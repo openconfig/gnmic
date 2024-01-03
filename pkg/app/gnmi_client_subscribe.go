@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/openconfig/gnmi/proto/gnmi"
@@ -135,26 +134,18 @@ func (a *App) TargetSubscribePoll(ctx context.Context, tc *types.TargetConfig) {
 		cfn()
 	}
 	a.targetsLockFn[tc.Name] = cancel
-	t, err := a.initTarget(tc)
+	_, err := a.initTarget(tc)
 	a.operLock.Unlock()
 	if err != nil {
 		a.Logger.Printf("failed to initialize target %q: %v", tc.Name, err)
 		return
 	}
-	select {
-	case <-nctx.Done():
-		return
-	case a.targetsChan <- t:
-		a.Logger.Printf("queuing target %q", tc.Name)
-	}
 	a.Logger.Printf("subscribing to target: %q", tc.Name)
-	go func() {
-		err := a.clientSubscribe(nctx, tc)
-		if err != nil {
-			a.Logger.Printf("failed to subscribe: %v", err)
-			return
-		}
-	}()
+	err = a.clientSubscribe(nctx, tc)
+	if err != nil {
+		a.Logger.Printf("failed to subscribe: %v", err)
+		return
+	}
 }
 
 func (a *App) clientSubscribe(ctx context.Context, tc *types.TargetConfig) error {
@@ -309,30 +300,12 @@ OUTER:
 	return nil
 }
 
-// clientSubscribePoll sends a gnmi.SubscribeRequest_Poll to targetName and returns the response and an error,
-// it uses the targetName and the subscriptionName strings to find the gnmi.GNMI_SubscribeClient
-func (a *App) clientSubscribePoll(targetName, subscriptionName string) (*gnmi.SubscribeResponse, error) {
+func (a *App) clientSubscribePoll(ctx context.Context, targetName, subscriptionName string) error {
 	a.operLock.RLock()
-	defer a.operLock.RUnlock()
-	if t, ok := a.Targets[targetName]; ok {
-		if sub, ok := t.Subscriptions[subscriptionName]; ok {
-			if strings.ToUpper(sub.Mode) != "POLL" {
-				return nil, fmt.Errorf("subscription %q is not a POLL subscription", subscriptionName)
-			}
-			if subClient, ok := t.SubscribeClients[subscriptionName]; ok {
-				err := subClient.Send(&gnmi.SubscribeRequest{
-					Request: &gnmi.SubscribeRequest_Poll{
-						Poll: new(gnmi.Poll),
-					},
-				})
-				if err != nil {
-					return nil, err
-				}
-				return subClient.Recv()
-			}
-			return nil, fmt.Errorf("subscribe-client not found %q", subscriptionName)
-		}
-		return nil, fmt.Errorf("unknown subscription name %q", subscriptionName)
+	t, ok := a.Targets[targetName]
+	a.operLock.RUnlock()
+	if !ok {
+		return fmt.Errorf("unknown target name %q", targetName)
 	}
-	return nil, fmt.Errorf("unknown target name %q", targetName)
+	return t.SubscribePoll(ctx, subscriptionName)
 }

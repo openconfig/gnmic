@@ -40,7 +40,7 @@ require (
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/openconfig/gnmi v0.10.0
 	github.com/openconfig/gnmic/pkg/api v0.1.1
-	github.com/openconfig/gnmic/pkg/cache v0.1.1
+	github.com/openconfig/gnmic/pkg/cache v0.1.2
 	github.com/openconfig/gnmic/pkg/path v0.1.1
 	github.com/openconfig/gnmic/pkg/target v0.1.3
 	github.com/openconfig/gnmic/pkg/testutils v0.1.0

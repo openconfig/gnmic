@@ -39,6 +39,5 @@ func (a *App) SubscribeRunPoll(cmd *cobra.Command, args []string) error {
 		go a.subscribePoll(a.ctx, tc)
 	}
 	a.wg.Wait()
-	a.handlePolledSubscriptions()
-	return nil
+	return a.handlePolledSubscriptions()
 }
