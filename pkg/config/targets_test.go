@@ -78,11 +78,16 @@ targets:
 	},
 	"from_both_targets_and_main_section": {
 		in: []byte(`
+metadata:
+  key1: val1
+  key2: val2
 username: admin
 password: admin
 skip-verify: true
 targets:
   10.1.1.1:57400:  
+    metadata:
+      override1: val2
 `),
 		out: map[string]*types.TargetConfig{
 			"10.1.1.1:57400": {
@@ -98,12 +103,18 @@ targets:
 				SkipVerify:   pointer.ToBool(true),
 				Gzip:         pointer.ToBool(false),
 				BufferSize:   uint(100),
+				Metadata: map[string]string{
+					"override1": "val2",
+				},
 			},
 		},
 		outErr: nil,
 	},
 	"multiple_targets": {
 		in: []byte(`
+metadata:
+  key1: val1
+  key2: val2
 targets:
   10.1.1.1:57400:
     username: admin
@@ -126,6 +137,10 @@ targets:
 				SkipVerify:   pointer.ToBool(false),
 				Gzip:         pointer.ToBool(false),
 				BufferSize:   uint(100),
+				Metadata: map[string]string{
+					"key1": "val1",
+					"key2": "val2",
+				},
 			},
 			"10.1.1.2:57400": {
 				Address:      "10.1.1.2:57400",
@@ -140,6 +155,10 @@ targets:
 				SkipVerify:   pointer.ToBool(false),
 				Gzip:         pointer.ToBool(false),
 				BufferSize:   uint(100),
+				Metadata: map[string]string{
+					"key1": "val1",
+					"key2": "val2",
+				},
 			},
 		},
 		outErr: nil,

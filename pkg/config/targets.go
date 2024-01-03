@@ -11,6 +11,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"net"
 	"os"
 	"sort"
@@ -214,6 +215,10 @@ func (c *Config) SetTargetConfigDefaults(tc *types.TargetConfig) error {
 	}
 	if tc.BufferSize == 0 {
 		tc.BufferSize = defaultTargetBufferSize
+	}
+	if tc.Metadata == nil && c.Metadata != nil {
+		tc.Metadata = make(map[string]string)
+		maps.Copy(tc.Metadata, c.Metadata)
 	}
 	return nil
 }

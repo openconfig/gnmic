@@ -204,7 +204,7 @@ func (a *App) InitGlobalFlags() {
 	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.UseTunnelServer, "use-tunnel-server", "", false, "use tunnel server to dial targets")
 	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.AuthScheme, "auth-scheme", "", "", "authentication scheme to use for the target's username/password")
 	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.CalculateLatency, "calculate-latency", "", false, "calculate the delta between each message timestamp and the receive timestamp. JSON format only")
-
+	a.RootCmd.PersistentFlags().StringToStringP("metadata", "H", a.Config.GlobalFlags.Metadata, "add metadata to gRPC requests (`key=value`)")
 	a.RootCmd.PersistentFlags().VisitAll(func(flag *pflag.Flag) {
 		a.Config.FileConfig.BindPFlag(flag.Name, flag)
 	})
