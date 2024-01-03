@@ -56,8 +56,9 @@ type TargetConfig struct {
 	Token         *string           `mapstructure:"token,omitempty" json:"token,omitempty" yaml:"token,omitempty"`
 	Proxy         string            `mapstructure:"proxy,omitempty" json:"proxy,omitempty" yaml:"proxy,omitempty"`
 	//
-	TunnelTargetType string  `mapstructure:"-" json:"tunnel-target-type,omitempty" yaml:"tunnel-target-type,omitempty"`
-	Encoding         *string `mapstructure:"encoding,omitempty" yaml:"encoding,omitempty" json:"encoding,omitempty"`
+	TunnelTargetType string            `mapstructure:"-" json:"tunnel-target-type,omitempty" yaml:"tunnel-target-type,omitempty"`
+	Encoding         *string           `mapstructure:"encoding,omitempty" yaml:"encoding,omitempty" json:"encoding,omitempty"`
+	Metadata         map[string]string `mapstructure:"metadata,omitempty" json:"metadata,omitempty" yaml:"metadata,omitempty"`
 }
 
 func (tc TargetConfig) String() string {
