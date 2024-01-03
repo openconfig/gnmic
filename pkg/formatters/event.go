@@ -227,6 +227,8 @@ func getValueFlat(prefix string, updValue *gnmi.TypedValue) (map[string]interfac
 	case *gnmi.TypedValue_FloatVal:
 		//lint:ignore SA1019 still need GetFloatVal for backward compatibility
 		values[prefix] = updValue.GetFloatVal()
+	case *gnmi.TypedValue_DoubleVal:
+		values[prefix] = updValue.GetDoubleVal()
 	case *gnmi.TypedValue_IntVal:
 		values[prefix] = updValue.GetIntVal()
 	case *gnmi.TypedValue_StringVal:
