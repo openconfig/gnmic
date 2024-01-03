@@ -5,7 +5,7 @@ go 1.21.1
 require (
 	github.com/jhump/protoreflect v1.15.3
 	github.com/openconfig/gnmi v0.10.0
-	github.com/openconfig/gnmic/pkg/types v0.1.0
+	github.com/openconfig/gnmic/pkg/types v0.1.2
 	golang.org/x/net v0.17.0
 	golang.org/x/oauth2 v0.13.0
 	google.golang.org/grpc v1.59.0

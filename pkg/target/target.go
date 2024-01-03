@@ -177,6 +177,12 @@ func (t *Target) callOpts() []grpc.CallOption {
 	return callOpts
 }
 
+func (t *Target) appendRequestMetadata(ctx context.Context) context.Context {
+	ctx = t.appendCredentials(ctx)
+	ctx = t.appendMetadata(ctx)
+	return ctx
+}
+
 func (t *Target) appendCredentials(ctx context.Context) context.Context {
 	if t.Config.AuthScheme != "" {
 		return ctx
@@ -191,19 +197,27 @@ func (t *Target) appendCredentials(ctx context.Context) context.Context {
 	return ctx
 }
 
+func (t *Target) appendMetadata(ctx context.Context) context.Context {
+	var pairs []string
+	for k, v := range t.Config.Metadata {
+		pairs = append(pairs, k, v)
+	}
+	return metadata.AppendToOutgoingContext(ctx, pairs...)
+}
+
 // Capabilities sends a gnmi.CapabilitiesRequest to the target *t and returns a gnmi.CapabilitiesResponse and an error
 func (t *Target) Capabilities(ctx context.Context, ext ...*gnmi_ext.Extension) (*gnmi.CapabilityResponse, error) {
-	return t.Client.Capabilities(t.appendCredentials(ctx), &gnmi.CapabilityRequest{Extension: ext}, t.callOpts()...)
+	return t.Client.Capabilities(t.appendRequestMetadata(ctx), &gnmi.CapabilityRequest{Extension: ext}, t.callOpts()...)
 }
 
 // Get sends a gnmi.GetRequest to the target *t and returns a gnmi.GetResponse and an error
 func (t *Target) Get(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetResponse, error) {
-	return t.Client.Get(t.appendCredentials(ctx), req, t.callOpts()...)
+	return t.Client.Get(t.appendRequestMetadata(ctx), req, t.callOpts()...)
 }
 
 // Set sends a gnmi.SetRequest to the target *t and returns a gnmi.SetResponse and an error
 func (t *Target) Set(ctx context.Context, req *gnmi.SetRequest) (*gnmi.SetResponse, error) {
-	return t.Client.Set(t.appendCredentials(ctx), req, t.callOpts()...)
+	return t.Client.Set(t.appendRequestMetadata(ctx), req, t.callOpts()...)
 }
 
 func (t *Target) StopSubscriptions() {
