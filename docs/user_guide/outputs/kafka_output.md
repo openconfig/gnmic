@@ -21,9 +21,9 @@ outputs:
     topic: telemetry 
     # Kafka topic prefix
     # If supplied, overrides the `topic` key and outputs to a separate topic per source
-    # named like `topic_<source>`. If `source` contains a port number separated with a colon,
+    # named like `$topic_$subscriptionName_$targetName`. If `source` contains a port number separated with a colon,
     # the colon will be replaced with an underscore due to restrictions on the naming of kafka topics.
-    # ex: topic_device1_6030
+    # ex: telemetry_bgp_neighbor_state_device1_6030
     topic-prefix: telemetry
     # Kafka SASL configuration
     sasl:
