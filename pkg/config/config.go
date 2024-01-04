@@ -22,9 +22,6 @@ import (
 	"text/template"
 	"time"
 
-	"gopkg.in/natefinch/lumberjack.v2"
-	yaml "gopkg.in/yaml.v2"
-
 	"github.com/adrg/xdg"
 	"github.com/itchyny/gojq"
 	"github.com/mitchellh/go-homedir"
@@ -32,6 +29,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"gopkg.in/natefinch/lumberjack.v2"
+	yaml "gopkg.in/yaml.v2"
 
 	"github.com/openconfig/gnmic/pkg/api"
 	gfile "github.com/openconfig/gnmic/pkg/file"
@@ -427,13 +426,17 @@ func flagIsSet(cmd *cobra.Command, name string) bool {
 	return isSet
 }
 
-func (c *Config) CreateGetRequest() (*gnmi.GetRequest, error) {
+func (c *Config) CreateGetRequest(tc *types.TargetConfig) (*gnmi.GetRequest, error) {
 	if c == nil {
 		return nil, fmt.Errorf("%w", ErrInvalidConfig)
 	}
 	gnmiOpts := make([]api.GNMIOption, 0, 4+len(c.LocalFlags.GetPath))
+	enc := c.Encoding
+	if tc.Encoding != nil {
+		enc = *tc.Encoding
+	}
 	gnmiOpts = append(gnmiOpts,
-		api.Encoding(c.Encoding),
+		api.Encoding(enc),
 		api.DataType(c.LocalFlags.GetType),
 		api.Prefix(c.LocalFlags.GetPrefix),
 		api.Target(c.LocalFlags.GetTarget),
