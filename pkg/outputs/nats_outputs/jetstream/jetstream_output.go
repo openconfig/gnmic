@@ -61,7 +61,7 @@ type subjectFormat string
 
 const (
 	subjectFormat_Static                = "static"
-	subjectFormat_SubjectTargetSub      = "subject.target.subscription"
+	subjectFormat_TargetSub             = "target.subscription"
 	subjectFormat_SubTarget             = "subscription.target"
 	subjectFormat_SubTargetPath         = "subscription.target.path"
 	subjectFormat_SubTargetPathWithKeys = "subscription.target.pathKeys"
@@ -188,7 +188,7 @@ func (n *jetstreamOutput) setDefaults() error {
 	}
 	switch n.Cfg.SubjectFormat {
 	case subjectFormat_Static,
-		subjectFormat_SubjectTargetSub,
+		subjectFormat_TargetSub,
 		subjectFormat_SubTarget,
 		subjectFormat_SubTargetPath,
 		subjectFormat_SubTargetPathWithKeys:
@@ -382,7 +382,7 @@ CRCONN:
 			}
 			var rs []proto.Message
 			switch n.Cfg.SubjectFormat {
-			case subjectFormat_Static, subjectFormat_SubjectTargetSub, subjectFormat_SubTarget:
+			case subjectFormat_Static, subjectFormat_TargetSub, subjectFormat_SubTarget:
 				rs = []proto.Message{pmsg}
 			case subjectFormat_SubTargetPath, subjectFormat_SubTargetPathWithKeys:
 				switch rsp := pmsg.(type) {
@@ -529,7 +529,7 @@ func (n *jetstreamOutput) subjectName(m proto.Message, meta outputs.Meta) (strin
 	switch n.Cfg.SubjectFormat {
 	case subjectFormat_Static:
 		sb.WriteString(n.Cfg.Subject)
-	case subjectFormat_SubjectTargetSub:
+	case subjectFormat_TargetSub:
 		if n.Cfg.Subject != "" {
 			sb.WriteString(n.Cfg.Subject)
 			sb.WriteString(".")
