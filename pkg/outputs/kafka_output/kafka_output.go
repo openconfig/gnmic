@@ -445,20 +445,20 @@ func (k *kafkaOutput) partitionKey(m outputs.Meta) []byte {
 }
 
 func (k *kafkaOutput) selectTopic(m outputs.Meta) string {
-	sb := strings.Builder{}
-	if k.Cfg.TopicPrefix != "" {
-		sb.WriteString(k.Cfg.TopicPrefix)
-		if subname, ok := m["subscription-name"]; ok {
-			sb.WriteString("_")
-			sb.WriteString(subname)
-		}
-		if s, ok := m["source"]; ok {
-			source := strings.ReplaceAll(s, ":", "_")
-			sb.WriteString("_")
-			sb.WriteString(source)
-		}
-		return sb.String()
-	} else {
+	if k.Cfg.TopicPrefix == "" {
 		return k.Cfg.Topic
 	}
+
+	sb := strings.Builder{}
+	sb.WriteString(k.Cfg.TopicPrefix)
+	if subname, ok := m["subscription-name"]; ok {
+		sb.WriteString("_")
+		sb.WriteString(subname)
+	}
+	if s, ok := m["source"]; ok {
+		source := strings.ReplaceAll(s, ":", "_")
+		sb.WriteString("_")
+		sb.WriteString(source)
+	}
+	return sb.String()
 }
