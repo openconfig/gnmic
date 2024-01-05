@@ -63,23 +63,19 @@ func (a *App) GetRun(cmd *cobra.Command, args []string) error {
 			a.AddTargetConfig(tc)
 		}
 	}
-	req, err := a.Config.CreateGetRequest()
-	if err != nil {
-		return err
-	}
 	// event format
 	if len(a.Config.GetProcessor) > 0 {
 		a.Config.Format = formatEvent
 	}
 	if a.Config.Format == formatEvent {
-		return a.handleGetRequestEvent(ctx, req, evps)
+		return a.handleGetRequestEvent(ctx, evps)
 	}
 	// other formats
 	numTargets := len(a.Config.Targets)
 	a.errCh = make(chan error, numTargets*3)
 	a.wg.Add(numTargets)
 	for _, tc := range a.Config.Targets {
-		go a.GetRequest(ctx, tc, req)
+		go a.GetRequest(ctx, tc)
 	}
 	a.wg.Wait()
 	err = a.checkErrors()
@@ -89,11 +85,16 @@ func (a *App) GetRun(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func (a *App) GetRequest(ctx context.Context, tc *types.TargetConfig, req *gnmi.GetRequest) {
+func (a *App) GetRequest(ctx context.Context, tc *types.TargetConfig) {
 	defer a.wg.Done()
+	req, err := a.Config.CreateGetRequest(tc)
+	if err != nil {
+		a.logError(fmt.Errorf("target %q building Get request failed: %v", tc.Name, err))
+		return
+	}
 	response, err := a.getRequest(ctx, tc, req)
 	if err != nil {
-		a.logError(fmt.Errorf("target %q get request failed: %v", tc.Name, err))
+		a.logError(fmt.Errorf("target %q Get request failed: %v", tc.Name, err))
 		return
 	}
 	err = a.PrintMsg(tc.Name, "Get Response:", response)
@@ -209,7 +210,7 @@ func (a *App) intializeEventProcessors() ([]formatters.EventProcessor, error) {
 	return evps, nil
 }
 
-func (a *App) handleGetRequestEvent(ctx context.Context, req *gnmi.GetRequest, evps []formatters.EventProcessor) error {
+func (a *App) handleGetRequestEvent(ctx context.Context, evps []formatters.EventProcessor) error {
 	numTargets := len(a.Config.Targets)
 	a.errCh = make(chan error, numTargets*3)
 	a.wg.Add(numTargets)
@@ -217,6 +218,11 @@ func (a *App) handleGetRequestEvent(ctx context.Context, req *gnmi.GetRequest, e
 	for _, tc := range a.Config.Targets {
 		go func(tc *types.TargetConfig) {
 			defer a.wg.Done()
+			req, err := a.Config.CreateGetRequest(tc)
+			if err != nil {
+				a.errCh <- err
+				return
+			}
 			resp, err := a.getRequest(ctx, tc, req)
 			if err != nil {
 				a.errCh <- err

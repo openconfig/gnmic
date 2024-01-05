@@ -19,6 +19,7 @@ import (
 
 	"github.com/openconfig/gnmic/pkg/api"
 	"github.com/openconfig/gnmic/pkg/testutils"
+	"github.com/openconfig/gnmic/pkg/types"
 )
 
 var createGetRequestTestSet = map[string]struct {
@@ -585,7 +586,7 @@ var execPathTemplateTestSet = map[string]struct {
 func TestCreateGetRequest(t *testing.T) {
 	for name, data := range createGetRequestTestSet {
 		t.Run(name, func(t *testing.T) {
-			getReq, err := data.in.CreateGetRequest()
+			getReq, err := data.in.CreateGetRequest(&types.TargetConfig{})
 			t.Logf("exp value: %+v", data.out)
 			t.Logf("got value: %+v", getReq)
 			t.Logf("exp error: %+v", data.err)
