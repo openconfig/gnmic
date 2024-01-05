@@ -19,6 +19,12 @@ outputs:
     address: localhost:9092 
     # Kafka topic name
     topic: telemetry 
+    # Kafka topic prefix
+    # If supplied, overrides the `topic` key and outputs to a separate topic per source
+    # named like `$topic_$subscriptionName_$targetName`. If `source` contains a port number separated with a colon,
+    # the colon will be replaced with an underscore due to restrictions on the naming of kafka topics.
+    # ex: telemetry_bgp_neighbor_state_device1_6030
+    topic-prefix: telemetry
     # Kafka SASL configuration
     sasl:
       # SASL user name
@@ -94,7 +100,7 @@ outputs:
     event-processors: 
 ```
 
-Currently all subscriptions updates (all targets and all subscriptions) are published to the defined topic name
+Currently all subscriptions updates (all targets and all subscriptions) are published to the defined topic name unless the `topic-prefix` configuration option is set.
 
 ### Kafka Security protocol
 

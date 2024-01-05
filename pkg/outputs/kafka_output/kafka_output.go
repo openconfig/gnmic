@@ -74,6 +74,7 @@ type kafkaOutput struct {
 type config struct {
 	Address            string           `mapstructure:"address,omitempty"`
 	Topic              string           `mapstructure:"topic,omitempty"`
+	TopicPrefix        string           `mapstructure:"topic-prefix,omitempty"`
 	Name               string           `mapstructure:"name,omitempty"`
 	SASL               *types.SASL      `mapstructure:"sasl,omitempty"`
 	TLS                *types.TLSConfig `mapstructure:"tls,omitempty"`
@@ -329,8 +330,9 @@ CRPROD:
 					}
 				}
 
+				topic := k.selectTopic(m.GetMeta())
 				msg := &sarama.ProducerMessage{
-					Topic: k.Cfg.Topic,
+					Topic: topic,
 					Value: sarama.ByteEncoder(b),
 				}
 				if k.Cfg.InsertKey {
@@ -343,7 +345,7 @@ CRPROD:
 				_, _, err = producer.SendMessage(msg)
 				if err != nil {
 					if k.Cfg.Debug {
-						k.logger.Printf("%s failed to send a kafka msg to topic '%s': %v", workerLogPrefix, k.Cfg.Topic, err)
+						k.logger.Printf("%s failed to send a kafka msg to topic '%s': %v", workerLogPrefix, topic, err)
 					}
 					if k.Cfg.EnableMetrics {
 						kafkaNumberOfFailSendMsgs.WithLabelValues(config.ClientID, "send_error").Inc()
@@ -441,4 +443,23 @@ func (k *kafkaOutput) partitionKey(m outputs.Meta) []byte {
 	b := new(bytes.Buffer)
 	fmt.Fprintf(b, "%s_%s", m["source"], m["subscription-name"])
 	return b.Bytes()
+}
+
+func (k *kafkaOutput) selectTopic(m outputs.Meta) string {
+	if k.Cfg.TopicPrefix == "" {
+		return k.Cfg.Topic
+	}
+
+	sb := strings.Builder{}
+	sb.WriteString(k.Cfg.TopicPrefix)
+	if subname, ok := m["subscription-name"]; ok {
+		sb.WriteString("_")
+		sb.WriteString(subname)
+	}
+	if s, ok := m["source"]; ok {
+		source := strings.ReplaceAll(s, ":", "_")
+		sb.WriteString("_")
+		sb.WriteString(source)
+	}
+	return sb.String()
 }
