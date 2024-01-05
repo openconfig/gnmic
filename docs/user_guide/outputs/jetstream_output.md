@@ -59,9 +59,15 @@ outputs:
     #       The path is built by joining the gNMI path pathElements and Keys with a dot (.).
     #       e.g: /interface[name=ethernet-1/1]/statistics/in-octets
     #       -->  interface.{name=ethernet-1/1}.statistics.in-octets 
+    # `target.subscription`:
+    #       updates from each subscription, target will be written with a prefix of the `subject`
+    #       to subject $subject.$target_name.$subscription_name if `subject` is present. If not,
+    #       it will write to $target_name.$subscription_name.
     subject-format: static 
     # If a subject-format is `static`, gnmic will publish all subscriptions updates 
     # to a single subject configured under this field. Defaults to 'telemetry'
+    # If a subject-format is `target.subscription`, gnmic will publish subscripion
+    # updates prefixed with this subject.
     subject: telemetry
     # tls config
     tls:
