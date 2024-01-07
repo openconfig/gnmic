@@ -6,9 +6,9 @@ import (
 	"os"
 
 	"github.com/hashicorp/go-plugin"
+
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/formatters/event_plugin"
-
 	"github.com/openconfig/gnmic/pkg/types"
 )
 
