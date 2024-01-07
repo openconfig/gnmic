@@ -28,7 +28,7 @@ type (
 	Proccessorresponse struct{}
 )
 
-type EventProcessorRPCServer struct {
+type eventProcessorRPCServer struct {
 	Impl formatters.EventProcessor
 }
 
@@ -37,26 +37,26 @@ func init() {
 	gob.Register([]interface{}{})
 }
 
-func (s *EventProcessorRPCServer) Init(args *InitArgs, resp *InitResponse) error {
+func (s *eventProcessorRPCServer) Init(args *InitArgs, resp *InitResponse) error {
 	return s.Impl.Init(args.Cfg)
 }
 
-func (s *EventProcessorRPCServer) Apply(args *ApplyArgs, resp *ApplyResponse) error {
+func (s *eventProcessorRPCServer) Apply(args *ApplyArgs, resp *ApplyResponse) error {
 	resp.Events = s.Impl.Apply(args.Events...)
 	return nil
 }
 
-func (s *EventProcessorRPCServer) WithActions(args map[string]map[string]interface{}, resp *Actionresponse) error {
+func (s *eventProcessorRPCServer) WithActions(args map[string]map[string]interface{}, resp *Actionresponse) error {
 	s.Impl.WithActions(args)
 	return nil
 }
 
-func (s *EventProcessorRPCServer) WithTargets(args map[string]*types.TargetConfig, resp *Targetresponse) error {
+func (s *eventProcessorRPCServer) WithTargets(args map[string]*types.TargetConfig, resp *Targetresponse) error {
 	s.Impl.WithTargets(args)
 	return nil
 }
 
-func (s *EventProcessorRPCServer) WithProcessors(
+func (s *eventProcessorRPCServer) WithProcessors(
 	args map[string]map[string]interface{},
 	resp *Proccessorresponse,
 ) error {
@@ -64,7 +64,7 @@ func (s *EventProcessorRPCServer) WithProcessors(
 	return nil
 }
 
-func (s *EventProcessorRPCServer) WithLogger() error {
+func (s *eventProcessorRPCServer) WithLogger() error {
 	return nil
 }
 

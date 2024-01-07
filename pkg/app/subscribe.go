@@ -34,6 +34,12 @@ const (
 
 func (a *App) SubscribePreRunE(cmd *cobra.Command, args []string) error {
 	a.Config.SetLocalFlagsFromFile(cmd)
+
+	err := a.initPluginManager()
+	if err != nil {
+		return err
+	}
+
 	a.createCollectorDialOpts()
 	return nil
 }

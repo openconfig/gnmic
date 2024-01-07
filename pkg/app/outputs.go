@@ -11,6 +11,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/openconfig/gnmic/pkg/outputs"
 	"github.com/openconfig/gnmic/pkg/types"
@@ -22,12 +23,15 @@ func (a *App) InitOutput(ctx context.Context, name string, tcs map[string]*types
 	if _, ok := a.Outputs[name]; ok {
 		return
 	}
+	wg := new(sync.WaitGroup)
 	if cfg, ok := a.Config.Outputs[name]; ok {
 		if outType, ok := cfg["type"]; ok {
 			a.Logger.Printf("starting output type %s", outType)
 			if initializer, ok := outputs.Outputs[outType.(string)]; ok {
 				out := initializer()
+				wg.Add(1)
 				go func() {
+					defer wg.Done()
 					err := out.Init(ctx, name, cfg,
 						outputs.WithLogger(a.Logger),
 						outputs.WithEventProcessors(
@@ -51,6 +55,7 @@ func (a *App) InitOutput(ctx context.Context, name string, tcs map[string]*types
 			}
 		}
 	}
+	wg.Wait()
 }
 
 func (a *App) InitOutputs(ctx context.Context) {

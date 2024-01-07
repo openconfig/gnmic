@@ -165,14 +165,11 @@ func (c *Config) decodeSubscriptionConfig(sn string, s any, cmd *cobra.Command) 
 		return nil, err
 	}
 	sub.Name = sn
-	fmt.Println("1", sub)
 	// inherit global "subscribe-*" option if it's not set
 	if err := c.setSubscriptionFieldsFromFlags(sub, cmd); err != nil {
 		return nil, err
 	}
-	fmt.Println("2", sub)
 	expandSubscriptionEnv(sub)
-	fmt.Println("3", sub)
 	return sub, nil
 }
 
