@@ -104,15 +104,19 @@ processors:
 ### trigger get request through gNMIc's gNMI server
 
 ```yaml
+# enable gNMIc gNMI server
 gnmi-server:
   address: :57401
+
 processors:
   proc1:
     event-gnmi-get:
       debug: true
       encoding: ascii
       data-type: all
+      # set the gNMI Get target to the local gNMI server address
       target: localhost:57401
+      # include the actual target name in the GetRequest Prefix
       prefix-target: '{{ index .Tags "source" }}'
       paths:
         - path: "platform/chassis/type"
