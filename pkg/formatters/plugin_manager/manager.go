@@ -97,18 +97,18 @@ func (p *PluginManager) initProcessorFn(name, pluginPath string) func() formatte
 		p.m.Unlock()
 		rpcClient, err := client.Client()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to initialize plugin processor %s: %v", name, err)
+			fmt.Fprintf(os.Stderr, "failed to initialize plugin processor %s: %v\n", name, err)
 			os.Exit(1)
 		}
 		raw, err := rpcClient.Dispense(name)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to dispense plugin processor %s: %v", name, err)
+			fmt.Fprintf(os.Stderr, "failed to dispense plugin processor %s: %v\n", name, err)
 			os.Exit(1)
 		}
 		eventPlugin, ok := raw.(formatters.EventProcessor)
 		if !ok {
 			err := fmt.Errorf("plugin %s dispensed an unexpected interface: %T", name, raw)
-			fmt.Fprintf(os.Stderr, "%v", err)
+			fmt.Fprintf(os.Stderr, "%v\n", err)
 			os.Exit(1)
 		}
 		return eventPlugin

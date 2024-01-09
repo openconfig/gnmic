@@ -164,7 +164,7 @@ func MakeEventProcessors(
 					return nil, fmt.Errorf("failed initializing event processor '%s' of type='%s': %w", epName, epType, err)
 				}
 				evps[i] = ep
-				logger.Printf("added event processor '%s' of type=%s to file output", epName, epType)
+				logger.Printf("added event processor '%s' of type=%s to output", epName, epType)
 				continue
 			}
 			return nil, fmt.Errorf("%q event processor has an unknown type=%q", epName, epType)
