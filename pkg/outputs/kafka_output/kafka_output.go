@@ -280,13 +280,13 @@ func (k *kafkaOutput) RegisterMetrics(reg *prometheus.Registry) {
 }
 
 func (k *kafkaOutput) worker(ctx context.Context, idx int, config *sarama.Config) {
-	var producer sarama.SyncProducer
+	var producer sarama.AsyncProducer
 	var err error
 	defer k.wg.Done()
 	workerLogPrefix := fmt.Sprintf("worker-%d", idx)
 	k.logger.Printf("%s starting", workerLogPrefix)
 CRPROD:
-	producer, err = sarama.NewSyncProducer(strings.Split(k.Cfg.Address, ","), config)
+	producer, err = sarama.NewAsyncProducer(strings.Split(k.Cfg.Address, ","), config)
 	if err != nil {
 		k.logger.Printf("%s failed to create kafka producer: %v", workerLogPrefix, err)
 		time.Sleep(k.Cfg.RecoveryWaitTime)
@@ -294,6 +294,47 @@ CRPROD:
 	}
 	defer producer.Close()
 	k.logger.Printf("%s initialized kafka producer: %s", workerLogPrefix, k.String())
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case msg, ok := <-producer.Successes():
+				if !ok {
+					return
+				}
+				if k.Cfg.EnableMetrics {
+					start, ok := msg.Metadata.(time.Time)
+					if ok {
+						kafkaSendDuration.WithLabelValues(config.ClientID).Set(float64(time.Since(start).Nanoseconds()))
+					}
+					kafkaNumberOfSentMsgs.WithLabelValues(config.ClientID).Inc()
+					kafkaNumberOfSentBytes.WithLabelValues(config.ClientID).Add(float64(msg.Value.Length()))
+				}
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case err, ok := <-producer.Errors():
+				if !ok {
+					return
+				}
+				if k.Cfg.Debug {
+					k.logger.Printf("%s failed to send a kafka msg to topic '%s': %v", workerLogPrefix, err.Msg.Topic, err.Err)
+				}
+				if k.Cfg.EnableMetrics {
+					kafkaNumberOfFailSendMsgs.WithLabelValues(config.ClientID, "send_error").Inc()
+				}
+			}
+		}
+	}()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -341,24 +382,9 @@ CRPROD:
 				var start time.Time
 				if k.Cfg.EnableMetrics {
 					start = time.Now()
+					msg.Metadata = start
 				}
-				_, _, err = producer.SendMessage(msg)
-				if err != nil {
-					if k.Cfg.Debug {
-						k.logger.Printf("%s failed to send a kafka msg to topic '%s': %v", workerLogPrefix, topic, err)
-					}
-					if k.Cfg.EnableMetrics {
-						kafkaNumberOfFailSendMsgs.WithLabelValues(config.ClientID, "send_error").Inc()
-					}
-					producer.Close()
-					time.Sleep(k.Cfg.RecoveryWaitTime)
-					goto CRPROD
-				}
-				if k.Cfg.EnableMetrics {
-					kafkaSendDuration.WithLabelValues(config.ClientID).Set(float64(time.Since(start).Nanoseconds()))
-					kafkaNumberOfSentMsgs.WithLabelValues(config.ClientID).Inc()
-					kafkaNumberOfSentBytes.WithLabelValues(config.ClientID).Add(float64(len(b)))
-				}
+				producer.Input() <- msg
 			}
 		}
 	}
