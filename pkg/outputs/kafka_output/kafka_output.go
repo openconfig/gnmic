@@ -313,14 +313,6 @@ CRPROD:
 					kafkaNumberOfSentBytes.WithLabelValues(config.ClientID).Add(float64(msg.Value.Length()))
 				}
 			}
-		}
-	}()
-
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
 			case err, ok := <-producer.Errors():
 				if !ok {
 					return
