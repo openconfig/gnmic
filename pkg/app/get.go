@@ -30,6 +30,11 @@ func (a *App) GetPreRunE(cmd *cobra.Command, args []string) error {
 	a.Config.LocalFlags.GetModel = config.SanitizeArrayFlagValue(a.Config.LocalFlags.GetModel)
 	a.Config.LocalFlags.GetProcessor = config.SanitizeArrayFlagValue(a.Config.LocalFlags.GetProcessor)
 
+	err := a.initPluginManager()
+	if err != nil {
+		return err
+	}
+
 	a.createCollectorDialOpts()
 	return a.initTunnelServer(tunnel.ServerConfig{
 		AddTargetHandler:    a.tunServerAddTargetHandler,

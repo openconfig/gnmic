@@ -109,9 +109,16 @@ processors:
 
 ### Event processors with cache
 
-When a set of processors are defined under an output where [caching](../outputs/output_intro.md#caching) is enabled, the event messages retried from the cache are processed by each processor at the same time. This allows combining values from different messages together.
+In the scenario where processors are configured under an output with [caching](../outputs/output_intro.md#caching) enabled, the event messages retrieved from the cache are processed as a single set by each processor. This concurrent processing facilitates the application of a logic that merges or combines messages, enabling more complex and integrated processing strategies.
 
 ### Event processors pipeline
 
 Processors under an output are applied in a strict sequential order for each group of event messages received.
 
+### Event processors plugins
+
+gNMIc incorporates the capability to extend its functionality through the use of event processors as plugins. To integrate seamlessly with gNMIc, these plugins need to be written in Golang.
+
+The communication between gNMIc and these plugins is facilitated by HashiCorp's go-plugin package, which employs `netrpc` as the underlying protocol for this interaction.
+
+See some plugin examples [here](https://github.com/openconfig/gnmic/examples/plugins)

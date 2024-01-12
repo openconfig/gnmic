@@ -16,7 +16,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/openconfig/gnmic/pkg/formatters/plugin_manager"
+	"github.com/spf13/cobra"
 
 	"github.com/openconfig/gnmic/pkg/app"
 	"github.com/openconfig/gnmic/pkg/cmd/capabilities"
@@ -29,7 +29,6 @@ import (
 	"github.com/openconfig/gnmic/pkg/cmd/set"
 	"github.com/openconfig/gnmic/pkg/cmd/subscribe"
 	"github.com/openconfig/gnmic/pkg/cmd/version"
-	"github.com/spf13/cobra"
 )
 
 var encodings = [][2]string{
@@ -112,8 +111,8 @@ func setupCloseHandler(cancelFn context.CancelFunc) {
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 	go func() {
 		sig := <-c
-		plugin_manager.Cleanup()
 		fmt.Printf("\nreceived signal '%s'. terminating...\n", sig.String())
+		gApp.CleanupPlugins()
 		cancelFn()
 		os.Exit(0)
 	}()

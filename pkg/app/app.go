@@ -41,6 +41,7 @@ import (
 	"github.com/openconfig/gnmic/pkg/cache"
 	"github.com/openconfig/gnmic/pkg/config"
 	"github.com/openconfig/gnmic/pkg/formatters"
+	"github.com/openconfig/gnmic/pkg/formatters/plugin_manager"
 	"github.com/openconfig/gnmic/pkg/inputs"
 	"github.com/openconfig/gnmic/pkg/lockers"
 	"github.com/openconfig/gnmic/pkg/outputs"
@@ -107,6 +108,8 @@ type App struct {
 	ttm           *sync.RWMutex
 	tunTargets    map[tunnel.Target]struct{}
 	tunTargetCfn  map[tunnel.Target]context.CancelFunc
+	// processors plugin manager
+	pm *plugin_manager.PluginManager
 }
 
 func New() *App {
@@ -205,6 +208,7 @@ func (a *App) InitGlobalFlags() {
 	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.AuthScheme, "auth-scheme", "", "", "authentication scheme to use for the target's username/password")
 	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.CalculateLatency, "calculate-latency", "", false, "calculate the delta between each message timestamp and the receive timestamp. JSON format only")
 	a.RootCmd.PersistentFlags().StringToStringP("metadata", "H", a.Config.GlobalFlags.Metadata, "add metadata to gRPC requests (`key=value`)")
+	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.PluginProcessorsPath, "processors-plugins-path", "P", "", "filesystem path where gNMIc will look for even_plugin processors to initialize")
 	a.RootCmd.PersistentFlags().VisitAll(func(flag *pflag.Flag) {
 		a.Config.FileConfig.BindPFlag(flag.Name, flag)
 	})

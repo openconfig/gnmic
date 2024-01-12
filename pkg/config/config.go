@@ -119,7 +119,8 @@ type GlobalFlags struct {
 	AuthScheme       string        `mapstructure:"auth-scheme,omitempty" json:"auth-scheme,omitempty" yaml:"auth-scheme,omitempty"`
 	CalculateLatency bool          `mapstructure:"calculate-latency,omitempty" json:"calculate-latency,omitempty" yaml:"calculate-latency,omitempty"`
 
-	Metadata map[string]string `mapstructure:"metadata,omitempty" json:"metadata,omitempty" yaml:"metadata,omitempty"`
+	Metadata             map[string]string `mapstructure:"metadata,omitempty" json:"metadata,omitempty" yaml:"metadata,omitempty"`
+	PluginProcessorsPath string            `mapstructure:"plugin-processors-path,omitempty" yaml:"plugin-processors-path,omitempty" json:"plugin-processors-path,omitempty"`
 }
 
 type LocalFlags struct {

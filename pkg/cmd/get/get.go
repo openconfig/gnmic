@@ -9,8 +9,9 @@
 package get
 
 import (
-	"github.com/openconfig/gnmic/pkg/app"
 	"github.com/spf13/cobra"
+
+	"github.com/openconfig/gnmic/pkg/app"
 )
 
 var DataType = [][2]string{
@@ -31,8 +32,11 @@ func New(gApp *app.App) *cobra.Command {
 			"--model":  "MODEL",
 			"--type":   "STORE",
 		},
-		PreRunE:      gApp.GetPreRunE,
-		RunE:         gApp.GetRun,
+		PreRunE: gApp.GetPreRunE,
+		RunE:    gApp.GetRun,
+		PostRun: func(cmd *cobra.Command, args []string) {
+			gApp.CleanupPlugins()
+		},
 		SilenceUsage: true,
 	}
 	gApp.InitGetFlags(cmd)

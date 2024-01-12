@@ -4,6 +4,7 @@ import (
 	"net/rpc"
 
 	"github.com/hashicorp/go-plugin"
+
 	"github.com/openconfig/gnmic/pkg/formatters"
 )
 
@@ -12,7 +13,7 @@ type EventProcessorPlugin struct {
 }
 
 func (p *EventProcessorPlugin) Server(*plugin.MuxBroker) (interface{}, error) {
-	return &EventProcessorRPCServer{Impl: p.Impl}, nil
+	return &eventProcessorRPCServer{Impl: p.Impl}, nil
 }
 
 func (p *EventProcessorPlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (interface{}, error) {

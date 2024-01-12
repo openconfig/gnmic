@@ -4,9 +4,16 @@ import (
 	"encoding/gob"
 	"log"
 	"net/rpc"
+	"os"
 
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/types"
+	"github.com/openconfig/gnmic/pkg/utils"
+)
+
+const (
+	processorType = "event-plugin"
+	loggingPrefix = "[" + processorType + "] "
 )
 
 type InitArgs struct {
@@ -28,7 +35,7 @@ type (
 	Proccessorresponse struct{}
 )
 
-type EventProcessorRPCServer struct {
+type eventProcessorRPCServer struct {
 	Impl formatters.EventProcessor
 }
 
@@ -37,26 +44,26 @@ func init() {
 	gob.Register([]interface{}{})
 }
 
-func (s *EventProcessorRPCServer) Init(args *InitArgs, resp *InitResponse) error {
+func (s *eventProcessorRPCServer) Init(args *InitArgs, resp *InitResponse) error {
 	return s.Impl.Init(args.Cfg)
 }
 
-func (s *EventProcessorRPCServer) Apply(args *ApplyArgs, resp *ApplyResponse) error {
+func (s *eventProcessorRPCServer) Apply(args *ApplyArgs, resp *ApplyResponse) error {
 	resp.Events = s.Impl.Apply(args.Events...)
 	return nil
 }
 
-func (s *EventProcessorRPCServer) WithActions(args map[string]map[string]interface{}, resp *Actionresponse) error {
+func (s *eventProcessorRPCServer) WithActions(args map[string]map[string]interface{}, resp *Actionresponse) error {
 	s.Impl.WithActions(args)
 	return nil
 }
 
-func (s *EventProcessorRPCServer) WithTargets(args map[string]*types.TargetConfig, resp *Targetresponse) error {
+func (s *eventProcessorRPCServer) WithTargets(args map[string]*types.TargetConfig, resp *Targetresponse) error {
 	s.Impl.WithTargets(args)
 	return nil
 }
 
-func (s *EventProcessorRPCServer) WithProcessors(
+func (s *eventProcessorRPCServer) WithProcessors(
 	args map[string]map[string]interface{},
 	resp *Proccessorresponse,
 ) error {
@@ -64,11 +71,14 @@ func (s *EventProcessorRPCServer) WithProcessors(
 	return nil
 }
 
-func (s *EventProcessorRPCServer) WithLogger() error {
+func (s *eventProcessorRPCServer) WithLogger() error {
 	return nil
 }
 
-type EventProcessorRPC struct{ client *rpc.Client }
+type EventProcessorRPC struct {
+	client *rpc.Client
+	logger *log.Logger
+}
 
 func (g *EventProcessorRPC) Init(cfg interface{}, opts ...formatters.Option) error {
 	for _, opt := range opts {
@@ -85,7 +95,7 @@ func (g *EventProcessorRPC) Apply(event ...*formatters.EventMsg) []*formatters.E
 	var resp ApplyResponse
 	err := g.client.Call("Plugin.Apply", &ApplyArgs{Events: event}, &resp)
 	if err != nil {
-		log.Print("RPC client call error: ", err)
+		g.logger.Print("RPC client call error: ", err)
 		return nil
 	}
 	return resp.Events
@@ -94,23 +104,28 @@ func (g *EventProcessorRPC) Apply(event ...*formatters.EventMsg) []*formatters.E
 func (g *EventProcessorRPC) WithActions(act map[string]map[string]interface{}) {
 	err := g.client.Call("Plugin.WithActions", act, &Actionresponse{})
 	if err != nil {
-		log.Print("RPC client call error: ", err)
+		g.logger.Print("RPC client call error: ", err)
 	}
 }
 
 func (g *EventProcessorRPC) WithTargets(tcs map[string]*types.TargetConfig) {
 	err := g.client.Call("Plugin.WithTargets", tcs, &Targetresponse{})
 	if err != nil {
-		log.Print("RPC client call error: ", err)
+		g.logger.Print("RPC client call error: ", err)
 	}
 }
 
 func (g *EventProcessorRPC) WithProcessors(procs map[string]map[string]any) {
 	err := g.client.Call("Plugin.WithProcessors", procs, &Proccessorresponse{})
 	if err != nil {
-		log.Print("RPC client call error: ", err)
+		g.logger.Print("RPC client call error: ", err)
 	}
 }
 
 func (g *EventProcessorRPC) WithLogger(l *log.Logger) {
+	if l == nil {
+		g.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
+		return
+	}
+	g.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
 }

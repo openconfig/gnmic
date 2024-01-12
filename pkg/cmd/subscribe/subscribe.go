@@ -9,8 +9,9 @@
 package subscribe
 
 import (
-	"github.com/openconfig/gnmic/pkg/app"
 	"github.com/spf13/cobra"
+
+	"github.com/openconfig/gnmic/pkg/app"
 )
 
 var (
@@ -44,8 +45,11 @@ func New(gApp *app.App) *cobra.Command {
 			"--name":        "SUBSCRIPTION",
 			"--output":      "OUTPUT",
 		},
-		PreRunE:      gApp.SubscribePreRunE,
-		RunE:         gApp.SubscribeRunE,
+		PreRunE: gApp.SubscribePreRunE,
+		RunE:    gApp.SubscribeRunE,
+		PostRun: func(cmd *cobra.Command, args []string) {
+			gApp.CleanupPlugins()
+		},
 		SilenceUsage: true,
 	}
 	gApp.InitSubscribeFlags(cmd)
