@@ -7,7 +7,7 @@ This deployment example includes:
 - A [Grafana](https://grafana.com/docs/) Server
 - A [Consul](https://www.consul.io/docs/intro) Server
 
-The leader election and target distribution is done with the help of a [Consul server](https://www.consul.io/docs/introhttps://www.consul.io/docs/intro)
+The leader election and target distribution is done with the help of a [Consul server](https://www.consul.io/docs/intro)
 
 `gnmic` will also register its Prometheus output service in `Consul` so that Prometheus can discover which Prometheus servers are available to be scraped.
 
