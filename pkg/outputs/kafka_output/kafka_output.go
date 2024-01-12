@@ -543,9 +543,7 @@ func (k *kafkaOutput) createConfig() (*sarama.Config, error) {
 	}
 
 	cfg.Producer.Retry.Max = k.cfg.MaxRetry
-	if k.cfg.SyncProducer {
-		cfg.Producer.Return.Successes = true
-	}
+	cfg.Producer.Return.Successes = true
 	cfg.Producer.Timeout = k.cfg.Timeout
 	switch k.cfg.RequiredAcks {
 	case requiredAcksNoResponse:
