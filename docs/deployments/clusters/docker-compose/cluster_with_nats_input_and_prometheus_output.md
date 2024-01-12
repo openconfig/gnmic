@@ -10,7 +10,7 @@ This deployment example includes a:
 - A NATS [input](../../../user_guide/inputs/nats_input.md) and [output](../../../user_guide/outputs/nats_output.md) 
 - A [Prometheus output](../../../user_guide/outputs/prometheus_output.md)
 
-The leader election and target distribution is done with the help of a [Consul server](https://www.consul.io/docs/introhttps://www.consul.io/docs/intro)
+The leader election and target distribution is done with the help of a [Consul server](https://www.consul.io/docs/intro)
 
 Each `gnmic` instance outputs the streamed gNMI data to NATS, and reads back all the data from the same NATS server (including its own),
 

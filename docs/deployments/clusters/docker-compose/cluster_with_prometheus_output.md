@@ -5,7 +5,7 @@ This deployment example includes:
 - A 3 instances [`gnmic` cluster](../../../user_guide/HA.md),
 - A single [Prometheus output](../../../user_guide/outputs/prometheus_output.md)
 
-The leader election and target distribution is done with the help of a [Consul server](https://www.consul.io/docs/introhttps://www.consul.io/docs/intro)
+The leader election and target distribution is done with the help of a [Consul server](https://www.consul.io/docs/intro)
 
 `gnmic` will also register its Prometheus output service in `Consul` so that Prometheus can discover which Prometheus servers are available to be scraped
 
