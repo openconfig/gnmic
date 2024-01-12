@@ -5,7 +5,7 @@ This deployment example includes:
 - A 3 instances [`gnmic` cluster](../../../user_guide/HA.md),
 - A single [Prometheus output](../../../user_guide/outputs/prometheus_output.md)
 
-The leader election and target distribution is done with the help of a [Consul server](https://www.consul.io/docs/introhttps://www.consul.io/docs/intro)
+The leader election and target distribution is done with the help of a [Consul server](https://www.consul.io/docs/intro)
 
 `gnmic` can be discovered by `Prometheus` using Kubernetes service discovery. Kubernetes uses a [headless service](https://kubernetes.io/docs/concepts/services-networking/service/#headless-services) with a StatefulSet to disable the internal load balancing across multiple pods of the same StatefulSet and allow `Prometheus` to discover all instances of `gnmic`.
 

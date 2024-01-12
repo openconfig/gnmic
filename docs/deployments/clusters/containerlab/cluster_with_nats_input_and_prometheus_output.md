@@ -12,7 +12,7 @@ This deployment example includes a:
 - A [Grafana](https://grafana.com/docs/) Server
 - A [Consul](https://www.consul.io/docs/intro) Server
 
-The leader election and target distribution is done with the help of a [Consul server](https://www.consul.io/docs/introhttps://www.consul.io/docs/intro)
+The leader election and target distribution is done with the help of a [Consul server](https://www.consul.io/docs/intro)
 
 Each `gnmic` instance outputs the streamed gNMI data to NATS, and reads back all the data from the same NATS server (including its own),
 
