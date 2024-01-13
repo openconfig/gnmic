@@ -68,7 +68,7 @@ SUBSC:
 
 	switch req.GetSubscribe().GetMode() {
 	case gnmi.SubscriptionList_STREAM:
-		err = t.handleStreamSubscriptionRcv(nctx, subscribeClient, subConfig)
+		err = t.handleStreamSubscriptionRcv(nctx, subscribeClient, subscriptionName, subConfig)
 		if err != nil {
 			t.errors <- &TargetError{
 				SubscriptionName: subscriptionName,
@@ -83,7 +83,7 @@ SUBSC:
 			goto SUBSC
 		}
 	case gnmi.SubscriptionList_ONCE:
-		err = t.handleONCESubscriptionRcv(nctx, subscribeClient, subConfig)
+		err = t.handleONCESubscriptionRcv(nctx, subscribeClient, subscriptionName, subConfig)
 		if err != nil {
 			t.errors <- &TargetError{
 				SubscriptionName: subscriptionName,
@@ -103,7 +103,7 @@ SUBSC:
 		return
 	case gnmi.SubscriptionList_POLL:
 		go t.listenPolls(nctx)
-		err = t.handlePollSubscriptionRcv(nctx, subscribeClient, subConfig)
+		err = t.handlePollSubscriptionRcv(nctx, subscribeClient, subscriptionName, subConfig)
 		if err != nil {
 			t.errors <- &TargetError{
 				SubscriptionName: subscriptionName,
@@ -257,7 +257,7 @@ func (t *Target) listenPolls(ctx context.Context) {
 	}
 }
 
-func (t *Target) handleStreamSubscriptionRcv(ctx context.Context, stream gnmi.GNMI_SubscribeClient, subConfig *types.SubscriptionConfig) error {
+func (t *Target) handleStreamSubscriptionRcv(ctx context.Context, stream gnmi.GNMI_SubscribeClient, subscriptionName string, subConfig *types.SubscriptionConfig) error {
 	for {
 		if ctx.Err() != nil {
 			return nil
@@ -267,14 +267,14 @@ func (t *Target) handleStreamSubscriptionRcv(ctx context.Context, stream gnmi.GN
 			return err
 		}
 		t.subscribeResponses <- &SubscribeResponse{
-			SubscriptionName:   subConfig.Name,
+			SubscriptionName:   subscriptionName,
 			SubscriptionConfig: subConfig,
 			Response:           response,
 		}
 	}
 }
 
-func (t *Target) handleONCESubscriptionRcv(ctx context.Context, stream gnmi.GNMI_SubscribeClient, subConfig *types.SubscriptionConfig) error {
+func (t *Target) handleONCESubscriptionRcv(ctx context.Context, stream gnmi.GNMI_SubscribeClient, subscriptionName string, subConfig *types.SubscriptionConfig) error {
 	for {
 		if ctx.Err() != nil {
 			return nil
@@ -284,7 +284,7 @@ func (t *Target) handleONCESubscriptionRcv(ctx context.Context, stream gnmi.GNMI
 			return err
 		}
 		t.subscribeResponses <- &SubscribeResponse{
-			SubscriptionName:   subConfig.Name,
+			SubscriptionName:   subscriptionName,
 			SubscriptionConfig: subConfig,
 			Response:           response,
 		}
@@ -295,7 +295,7 @@ func (t *Target) handleONCESubscriptionRcv(ctx context.Context, stream gnmi.GNMI
 	}
 }
 
-func (t *Target) handlePollSubscriptionRcv(ctx context.Context, stream gnmi.GNMI_SubscribeClient, subConfig *types.SubscriptionConfig) error {
+func (t *Target) handlePollSubscriptionRcv(ctx context.Context, stream gnmi.GNMI_SubscribeClient, subscriptionName string, subConfig *types.SubscriptionConfig) error {
 	for {
 		select {
 		case <-ctx.Done():
@@ -306,7 +306,7 @@ func (t *Target) handlePollSubscriptionRcv(ctx context.Context, stream gnmi.GNMI
 				return err
 			}
 			t.subscribeResponses <- &SubscribeResponse{
-				SubscriptionName:   subConfig.Name,
+				SubscriptionName:   subscriptionName,
 				SubscriptionConfig: subConfig,
 				Response:           response,
 			}
