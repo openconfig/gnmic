@@ -298,6 +298,7 @@ func (k *kafkaOutput) RegisterMetrics(reg *prometheus.Registry) {
 func (k *kafkaOutput) worker(ctx context.Context, idx int, config *sarama.Config) {
 	if k.cfg.SyncProducer {
 		k.syncProducerWorker(ctx, idx, config)
+		return
 	}
 	k.asyncProducerWorker(ctx, idx, config)
 }
