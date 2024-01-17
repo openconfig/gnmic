@@ -134,6 +134,7 @@ type LocalFlags struct {
 	GetTarget     string   `mapstructure:"get-target,omitempty" json:"get-target,omitempty" yaml:"get-target,omitempty"`
 	GetValuesOnly bool     `mapstructure:"get-values-only,omitempty" json:"get-values-only,omitempty" yaml:"get-values-only,omitempty"`
 	GetProcessor  []string `mapstructure:"get-processor,omitempty" json:"get-processor,omitempty" yaml:"get-processor,omitempty"`
+	GetDepth      string   `mapstructure:"get-depth,omitempty" json:"get-depth,omitempty" yaml:"get-depth,omitempty"`
 	// Set
 	SetPrefix            string   `mapstructure:"set-prefix,omitempty" json:"set-prefix,omitempty" yaml:"set-prefix,omitempty"`
 	SetDelete            []string `mapstructure:"set-delete,omitempty" json:"set-delete,omitempty" yaml:"set-delete,omitempty"`
@@ -180,6 +181,7 @@ type LocalFlags struct {
 	SubscribeHistorySnapshot   string        `mapstructure:"subscribe-history-snapshot,omitempty" json:"subscribe-history-snapshot,omitempty" yaml:"subscribe-history-snapshot,omitempty"`
 	SubscribeHistoryStart      string        `mapstructure:"subscribe-history-start,omitempty" json:"subscribe-history-start,omitempty" yaml:"subscribe-history-start,omitempty"`
 	SubscribeHistoryEnd        string        `mapstructure:"subscribe-history-end,omitempty" json:"subscribe-history-end,omitempty" yaml:"subscribe-history-end,omitempty"`
+	SubscribeDepth             string        `mapstructure:"subscribe-depth,omitempty" json:"subscribe-depth,omitempty" yaml:"subscribe-depth,omitempty"`
 	// Path
 	PathPathType   string `mapstructure:"path-path-type,omitempty" json:"path-path-type,omitempty" yaml:"path-path-type,omitempty"`
 	PathWithDescr  bool   `mapstructure:"path-descr,omitempty" json:"path-descr,omitempty" yaml:"path-descr,omitempty"`

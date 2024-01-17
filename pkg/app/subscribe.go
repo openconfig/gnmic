@@ -182,6 +182,7 @@ func (a *App) InitSubscribeFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&a.Config.LocalFlags.SubscribeHistorySnapshot, "history-snapshot", "", "", "sets the snapshot time in a historical subscription, nanoseconds since Unix epoch or RFC3339 format")
 	cmd.Flags().StringVarP(&a.Config.LocalFlags.SubscribeHistoryStart, "history-start", "", "", "sets the start time in a historical range subscription, nanoseconds since Unix epoch or RFC3339 format")
 	cmd.Flags().StringVarP(&a.Config.LocalFlags.SubscribeHistoryEnd, "history-end", "", "", "sets the end time in a historical range subscription, nanoseconds since Unix epoch or RFC3339 format")
+	cmd.Flags().StringVarP(&a.Config.LocalFlags.SubscribeDepth, "depth", "", "", "sets the level for gNMI Depth extension")
 	//
 	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
 		a.Config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)

@@ -143,6 +143,14 @@ func (c *Config) subscriptionConfigFromFlags(cmd *cobra.Command) (map[string]*ty
 			End:   end,
 		}
 	}
+	if flagIsSet(cmd, "depth") {
+		depth, err := strconv.ParseUint(c.LocalFlags.SubscribeDepth, 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("depth: %v", err)
+		}
+		temp := uint32(depth)
+		sub.Depth = &temp
+	}
 	c.Subscriptions[sub.Name] = sub
 	if c.Debug {
 		c.logger.Printf("subscriptions: %s", c.Subscriptions)
@@ -274,6 +282,12 @@ func (c *Config) subscriptionOpts(sc *types.SubscriptionConfig, tc *types.Target
 			gnmiOpts = append(gnmiOpts, api.Extension_HistoryRange(sc.History.Start, sc.History.End))
 		}
 	}
+
+	// depth extension
+	if sc.Depth != nil {
+		gnmiOpts = append(gnmiOpts, api.Extension_DepthLevel(*sc.Depth))
+	}
+
 	// QoS
 	if sc.Qos != nil {
 		gnmiOpts = append(gnmiOpts, api.Qos(*sc.Qos))
