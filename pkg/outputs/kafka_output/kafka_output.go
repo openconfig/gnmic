@@ -44,12 +44,16 @@ const (
 	defaultAddress          = "localhost:9092"
 	loggingPrefix           = "[kafka_output:%s] "
 	defaultCompressionCodec = sarama.CompressionNone
+
+	requiredAcksNoResponse   = "no-response"
+	requiredAcksWaitForLocal = "wait-for-local"
+	requiredAcksWaitForAll   = "wait-for-all"
 )
 
 func init() {
 	outputs.Register("kafka", func() outputs.Output {
 		return &kafkaOutput{
-			Cfg:    &config{},
+			cfg:    &config{},
 			wg:     new(sync.WaitGroup),
 			logger: log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
 		}
@@ -58,7 +62,7 @@ func init() {
 
 // kafkaOutput //
 type kafkaOutput struct {
-	Cfg      *config
+	cfg      *config
 	logger   sarama.StdLogger
 	mo       *formatters.MarshalOptions
 	cancelFn context.CancelFunc
@@ -81,6 +85,8 @@ type config struct {
 	MaxRetry           int              `mapstructure:"max-retry,omitempty"`
 	Timeout            time.Duration    `mapstructure:"timeout,omitempty"`
 	RecoveryWaitTime   time.Duration    `mapstructure:"recovery-wait-time,omitempty"`
+	SyncProducer       bool             `mapstructure:"sync-producer,omitempty"`
+	RequiredAcks       string           `mapstructure:"required-acks,omitempty"`
 	Format             string           `mapstructure:"format,omitempty"`
 	InsertKey          bool             `mapstructure:"insert-key,omitempty"`
 	AddTarget          string           `mapstructure:"add-target,omitempty"`
@@ -97,7 +103,7 @@ type config struct {
 }
 
 func (k *kafkaOutput) String() string {
-	b, err := json.Marshal(k.Cfg)
+	b, err := json.Marshal(k.cfg)
 	if err != nil {
 		return ""
 	}
@@ -118,7 +124,7 @@ func (k *kafkaOutput) SetEventProcessors(ps map[string]map[string]interface{},
 	var err error
 	k.evps, err = formatters.MakeEventProcessors(
 		logger,
-		k.Cfg.EventProcessors,
+		k.cfg.EventProcessors,
 		ps,
 		tcs,
 		acts,
@@ -131,12 +137,12 @@ func (k *kafkaOutput) SetEventProcessors(ps map[string]map[string]interface{},
 
 // Init /
 func (k *kafkaOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
-	err := outputs.DecodeConfig(cfg, k.Cfg)
+	err := outputs.DecodeConfig(cfg, k.cfg)
 	if err != nil {
 		return err
 	}
-	if k.Cfg.Name == "" {
-		k.Cfg.Name = name
+	if k.cfg.Name == "" {
+		k.cfg.Name = name
 	}
 	for _, opt := range opts {
 		if err := opt(k); err != nil {
@@ -147,24 +153,24 @@ func (k *kafkaOutput) Init(ctx context.Context, name string, cfg map[string]inte
 	if err != nil {
 		return err
 	}
-	k.msgChan = make(chan *outputs.ProtoMsg, uint(k.Cfg.BufferSize))
+	k.msgChan = make(chan *outputs.ProtoMsg, uint(k.cfg.BufferSize))
 	k.mo = &formatters.MarshalOptions{
-		Format:     k.Cfg.Format,
-		OverrideTS: k.Cfg.OverrideTimestamps,
+		Format:     k.cfg.Format,
+		OverrideTS: k.cfg.OverrideTimestamps,
 	}
 
-	if k.Cfg.TargetTemplate == "" {
+	if k.cfg.TargetTemplate == "" {
 		k.targetTpl = outputs.DefaultTargetTemplate
-	} else if k.Cfg.AddTarget != "" {
-		k.targetTpl, err = gtemplate.CreateTemplate("target-template", k.Cfg.TargetTemplate)
+	} else if k.cfg.AddTarget != "" {
+		k.targetTpl, err = gtemplate.CreateTemplate("target-template", k.cfg.TargetTemplate)
 		if err != nil {
 			return err
 		}
 		k.targetTpl = k.targetTpl.Funcs(outputs.TemplateFuncs)
 	}
 
-	if k.Cfg.MsgTemplate != "" {
-		k.msgTpl, err = gtemplate.CreateTemplate("msg-template", k.Cfg.MsgTemplate)
+	if k.cfg.MsgTemplate != "" {
+		k.msgTpl, err = gtemplate.CreateTemplate("msg-template", k.cfg.MsgTemplate)
 		if err != nil {
 			return err
 		}
@@ -176,8 +182,8 @@ func (k *kafkaOutput) Init(ctx context.Context, name string, cfg map[string]inte
 		return err
 	}
 	ctx, k.cancelFn = context.WithCancel(ctx)
-	k.wg.Add(k.Cfg.NumWorkers)
-	for i := 0; i < k.Cfg.NumWorkers; i++ {
+	k.wg.Add(k.cfg.NumWorkers)
+	for i := 0; i < k.cfg.NumWorkers; i++ {
 		cfg := *config
 		cfg.ClientID = fmt.Sprintf("%s-%d", config.ClientID, i)
 		go k.worker(ctx, i, &cfg)
@@ -190,44 +196,54 @@ func (k *kafkaOutput) Init(ctx context.Context, name string, cfg map[string]inte
 }
 
 func (k *kafkaOutput) setDefaults() error {
-	if k.Cfg.Format == "" {
-		k.Cfg.Format = defaultFormat
+	if k.cfg.Format == "" {
+		k.cfg.Format = defaultFormat
 	}
-	if !(k.Cfg.Format == "event" || k.Cfg.Format == "protojson" || k.Cfg.Format == "prototext" || k.Cfg.Format == "proto" || k.Cfg.Format == "json") {
-		return fmt.Errorf("unsupported output format '%s' for output type kafka", k.Cfg.Format)
+	if !(k.cfg.Format == "event" || k.cfg.Format == "protojson" || k.cfg.Format == "prototext" || k.cfg.Format == "proto" || k.cfg.Format == "json") {
+		return fmt.Errorf("unsupported output format '%s' for output type kafka", k.cfg.Format)
 	}
-	if k.Cfg.Address == "" {
-		k.Cfg.Address = defaultAddress
+	if k.cfg.Address == "" {
+		k.cfg.Address = defaultAddress
 	}
-	if k.Cfg.Topic == "" {
-		k.Cfg.Topic = defaultKafkaTopic
+	if k.cfg.Topic == "" {
+		k.cfg.Topic = defaultKafkaTopic
 	}
-	if k.Cfg.MaxRetry == 0 {
-		k.Cfg.MaxRetry = defaultKafkaMaxRetry
+	if k.cfg.MaxRetry == 0 {
+		k.cfg.MaxRetry = defaultKafkaMaxRetry
 	}
-	if k.Cfg.Timeout <= 0 {
-		k.Cfg.Timeout = defaultKafkaTimeout
+	if k.cfg.Timeout <= 0 {
+		k.cfg.Timeout = defaultKafkaTimeout
 	}
-	if k.Cfg.RecoveryWaitTime <= 0 {
-		k.Cfg.RecoveryWaitTime = defaultRecoveryWaitTime
+	if k.cfg.RecoveryWaitTime <= 0 {
+		k.cfg.RecoveryWaitTime = defaultRecoveryWaitTime
 	}
-	if k.Cfg.NumWorkers <= 0 {
-		k.Cfg.NumWorkers = defaultNumWorkers
+	if k.cfg.NumWorkers <= 0 {
+		k.cfg.NumWorkers = defaultNumWorkers
 	}
-	if k.Cfg.Name == "" {
-		k.Cfg.Name = "gnmic-" + uuid.New().String()
+	if k.cfg.Name == "" {
+		k.cfg.Name = "gnmic-" + uuid.New().String()
 	}
-	if k.Cfg.SASL == nil {
+	if k.cfg.SASL == nil {
 		return nil
 	}
-	k.Cfg.SASL.Mechanism = strings.ToUpper(k.Cfg.SASL.Mechanism)
-	switch k.Cfg.SASL.Mechanism {
+	k.cfg.SASL.Mechanism = strings.ToUpper(k.cfg.SASL.Mechanism)
+	switch k.cfg.SASL.Mechanism {
 	case "":
-		k.Cfg.SASL.Mechanism = "PLAIN"
+		k.cfg.SASL.Mechanism = "PLAIN"
 	case "OAUTHBEARER":
-		if k.Cfg.SASL.TokenURL == "" {
+		if k.cfg.SASL.TokenURL == "" {
 			return errors.New("missing token-url for kafka SASL mechanism OAUTHBEARER")
 		}
+	}
+
+	switch k.cfg.RequiredAcks {
+	case requiredAcksNoResponse:
+	case requiredAcksWaitForLocal:
+	case requiredAcksWaitForAll:
+	case "":
+		k.cfg.RequiredAcks = requiredAcksWaitForLocal
+	default:
+		return fmt.Errorf("unknown `required-acks` value %s: must be one of %q, %q or %q", k.cfg.RequiredAcks, requiredAcksNoResponse, requiredAcksWaitForLocal, requiredAcksWaitForAll)
 	}
 	return nil
 }
@@ -238,7 +254,7 @@ func (k *kafkaOutput) Write(ctx context.Context, rsp proto.Message, meta outputs
 		return
 	}
 
-	wctx, cancel := context.WithTimeout(ctx, k.Cfg.Timeout)
+	wctx, cancel := context.WithTimeout(ctx, k.cfg.Timeout)
 	defer cancel()
 
 	select {
@@ -246,11 +262,11 @@ func (k *kafkaOutput) Write(ctx context.Context, rsp proto.Message, meta outputs
 		return
 	case k.msgChan <- outputs.NewProtoMsg(rsp, meta):
 	case <-wctx.Done():
-		if k.Cfg.Debug {
-			k.logger.Printf("writing expired after %s, Kafka output might not be initialized", k.Cfg.Timeout)
+		if k.cfg.Debug {
+			k.logger.Printf("writing expired after %s, Kafka output might not be initialized", k.cfg.Timeout)
 		}
-		if k.Cfg.EnableMetrics {
-			kafkaNumberOfFailSendMsgs.WithLabelValues(k.Cfg.Name, "timeout").Inc()
+		if k.cfg.EnableMetrics {
+			kafkaNumberOfFailSendMsgs.WithLabelValues(k.cfg.Name, "timeout").Inc()
 		}
 		return
 	}
@@ -267,7 +283,7 @@ func (k *kafkaOutput) Close() error {
 
 // Metrics //
 func (k *kafkaOutput) RegisterMetrics(reg *prometheus.Registry) {
-	if !k.Cfg.EnableMetrics {
+	if !k.cfg.EnableMetrics {
 		return
 	}
 	if reg == nil {
@@ -280,20 +296,60 @@ func (k *kafkaOutput) RegisterMetrics(reg *prometheus.Registry) {
 }
 
 func (k *kafkaOutput) worker(ctx context.Context, idx int, config *sarama.Config) {
-	var producer sarama.SyncProducer
+	if k.cfg.SyncProducer {
+		k.syncProducerWorker(ctx, idx, config)
+		return
+	}
+	k.asyncProducerWorker(ctx, idx, config)
+}
+
+func (k *kafkaOutput) asyncProducerWorker(ctx context.Context, idx int, config *sarama.Config) {
+	var producer sarama.AsyncProducer
 	var err error
 	defer k.wg.Done()
 	workerLogPrefix := fmt.Sprintf("worker-%d", idx)
 	k.logger.Printf("%s starting", workerLogPrefix)
 CRPROD:
-	producer, err = sarama.NewSyncProducer(strings.Split(k.Cfg.Address, ","), config)
+	producer, err = sarama.NewAsyncProducer(strings.Split(k.cfg.Address, ","), config)
 	if err != nil {
 		k.logger.Printf("%s failed to create kafka producer: %v", workerLogPrefix, err)
-		time.Sleep(k.Cfg.RecoveryWaitTime)
+		time.Sleep(k.cfg.RecoveryWaitTime)
 		goto CRPROD
 	}
 	defer producer.Close()
 	k.logger.Printf("%s initialized kafka producer: %s", workerLogPrefix, k.String())
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case msg, ok := <-producer.Successes():
+				if !ok {
+					return
+				}
+				if k.cfg.EnableMetrics {
+					start, ok := msg.Metadata.(time.Time)
+					if ok {
+						kafkaSendDuration.WithLabelValues(config.ClientID).Set(float64(time.Since(start).Nanoseconds()))
+					}
+					kafkaNumberOfSentMsgs.WithLabelValues(config.ClientID).Inc()
+					kafkaNumberOfSentBytes.WithLabelValues(config.ClientID).Add(float64(msg.Value.Length()))
+				}
+			case err, ok := <-producer.Errors():
+				if !ok {
+					return
+				}
+				if k.cfg.Debug {
+					k.logger.Printf("%s failed to send a kafka msg to topic '%s': %v", workerLogPrefix, err.Msg.Topic, err.Err)
+				}
+				if k.cfg.EnableMetrics {
+					kafkaNumberOfFailSendMsgs.WithLabelValues(config.ClientID, "send_error").Inc()
+				}
+			}
+		}
+	}()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -301,16 +357,16 @@ CRPROD:
 			return
 		case m := <-k.msgChan:
 			pmsg := m.GetMsg()
-			pmsg, err = outputs.AddSubscriptionTarget(pmsg, m.GetMeta(), k.Cfg.AddTarget, k.targetTpl)
+			pmsg, err = outputs.AddSubscriptionTarget(pmsg, m.GetMeta(), k.cfg.AddTarget, k.targetTpl)
 			if err != nil {
 				k.logger.Printf("failed to add target to the response: %v", err)
 			}
-			bb, err := outputs.Marshal(pmsg, m.GetMeta(), k.mo, k.Cfg.SplitEvents, k.evps...)
+			bb, err := outputs.Marshal(pmsg, m.GetMeta(), k.mo, k.cfg.SplitEvents, k.evps...)
 			if err != nil {
-				if k.Cfg.Debug {
+				if k.cfg.Debug {
 					k.logger.Printf("%s failed marshaling proto msg: %v", workerLogPrefix, err)
 				}
-				if k.Cfg.EnableMetrics {
+				if k.cfg.EnableMetrics {
 					kafkaNumberOfFailSendMsgs.WithLabelValues(config.ClientID, "marshal_error").Inc()
 				}
 				continue
@@ -322,7 +378,7 @@ CRPROD:
 				if k.msgTpl != nil {
 					b, err = outputs.ExecTemplate(b, k.msgTpl)
 					if err != nil {
-						if k.Cfg.Debug {
+						if k.cfg.Debug {
 							log.Printf("failed to execute template: %v", err)
 						}
 						kafkaNumberOfFailSendMsgs.WithLabelValues(config.ClientID, "template_error").Inc()
@@ -335,26 +391,96 @@ CRPROD:
 					Topic: topic,
 					Value: sarama.ByteEncoder(b),
 				}
-				if k.Cfg.InsertKey {
+				if k.cfg.InsertKey {
 					msg.Key = sarama.ByteEncoder(k.partitionKey(m.GetMeta()))
 				}
 				var start time.Time
-				if k.Cfg.EnableMetrics {
+				if k.cfg.EnableMetrics {
+					start = time.Now()
+					msg.Metadata = start
+				}
+				producer.Input() <- msg
+			}
+		}
+	}
+}
+
+func (k *kafkaOutput) syncProducerWorker(ctx context.Context, idx int, config *sarama.Config) {
+	var producer sarama.SyncProducer
+	var err error
+	defer k.wg.Done()
+	workerLogPrefix := fmt.Sprintf("worker-%d", idx)
+	k.logger.Printf("%s starting", workerLogPrefix)
+CRPROD:
+	producer, err = sarama.NewSyncProducer(strings.Split(k.cfg.Address, ","), config)
+	if err != nil {
+		k.logger.Printf("%s failed to create kafka producer: %v", workerLogPrefix, err)
+		time.Sleep(k.cfg.RecoveryWaitTime)
+		goto CRPROD
+	}
+	defer producer.Close()
+	k.logger.Printf("%s initialized kafka producer: %s", workerLogPrefix, k.String())
+	for {
+		select {
+		case <-ctx.Done():
+			k.logger.Printf("%s shutting down", workerLogPrefix)
+			return
+		case m := <-k.msgChan:
+			pmsg := m.GetMsg()
+			pmsg, err = outputs.AddSubscriptionTarget(pmsg, m.GetMeta(), k.cfg.AddTarget, k.targetTpl)
+			if err != nil {
+				k.logger.Printf("failed to add target to the response: %v", err)
+			}
+			bb, err := outputs.Marshal(pmsg, m.GetMeta(), k.mo, k.cfg.SplitEvents, k.evps...)
+			if err != nil {
+				if k.cfg.Debug {
+					k.logger.Printf("%s failed marshaling proto msg: %v", workerLogPrefix, err)
+				}
+				if k.cfg.EnableMetrics {
+					kafkaNumberOfFailSendMsgs.WithLabelValues(config.ClientID, "marshal_error").Inc()
+				}
+				continue
+			}
+			if len(bb) == 0 {
+				continue
+			}
+			for _, b := range bb {
+				if k.msgTpl != nil {
+					b, err = outputs.ExecTemplate(b, k.msgTpl)
+					if err != nil {
+						if k.cfg.Debug {
+							log.Printf("failed to execute template: %v", err)
+						}
+						kafkaNumberOfFailSendMsgs.WithLabelValues(config.ClientID, "template_error").Inc()
+						continue
+					}
+				}
+
+				topic := k.selectTopic(m.GetMeta())
+				msg := &sarama.ProducerMessage{
+					Topic: topic,
+					Value: sarama.ByteEncoder(b),
+				}
+				if k.cfg.InsertKey {
+					msg.Key = sarama.ByteEncoder(k.partitionKey(m.GetMeta()))
+				}
+				var start time.Time
+				if k.cfg.EnableMetrics {
 					start = time.Now()
 				}
 				_, _, err = producer.SendMessage(msg)
 				if err != nil {
-					if k.Cfg.Debug {
+					if k.cfg.Debug {
 						k.logger.Printf("%s failed to send a kafka msg to topic '%s': %v", workerLogPrefix, topic, err)
 					}
-					if k.Cfg.EnableMetrics {
+					if k.cfg.EnableMetrics {
 						kafkaNumberOfFailSendMsgs.WithLabelValues(config.ClientID, "send_error").Inc()
 					}
 					producer.Close()
-					time.Sleep(k.Cfg.RecoveryWaitTime)
+					time.Sleep(k.cfg.RecoveryWaitTime)
 					goto CRPROD
 				}
-				if k.Cfg.EnableMetrics {
+				if k.cfg.EnableMetrics {
 					kafkaSendDuration.WithLabelValues(config.ClientID).Set(float64(time.Since(start).Nanoseconds()))
 					kafkaNumberOfSentMsgs.WithLabelValues(config.ClientID).Inc()
 					kafkaNumberOfSentBytes.WithLabelValues(config.ClientID).Add(float64(len(b)))
@@ -370,9 +496,9 @@ func (k *kafkaOutput) SetName(name string) {
 		sb.WriteString(name)
 		sb.WriteString("-")
 	}
-	sb.WriteString(k.Cfg.Name)
+	sb.WriteString(k.cfg.Name)
 	sb.WriteString("-kafka-prod")
-	k.Cfg.Name = sb.String()
+	k.cfg.Name = sb.String()
 }
 
 func (k *kafkaOutput) SetClusterName(name string) {}
@@ -381,13 +507,13 @@ func (k *kafkaOutput) SetTargetsConfig(map[string]*types.TargetConfig) {}
 
 func (k *kafkaOutput) createConfig() (*sarama.Config, error) {
 	cfg := sarama.NewConfig()
-	cfg.ClientID = k.Cfg.Name
+	cfg.ClientID = k.cfg.Name
 	// SASL_PLAINTEXT or SASL_SSL
-	if k.Cfg.SASL != nil {
+	if k.cfg.SASL != nil {
 		cfg.Net.SASL.Enable = true
-		cfg.Net.SASL.User = k.Cfg.SASL.User
-		cfg.Net.SASL.Password = k.Cfg.SASL.Password
-		cfg.Net.SASL.Mechanism = sarama.SASLMechanism(k.Cfg.SASL.Mechanism)
+		cfg.Net.SASL.User = k.cfg.SASL.User
+		cfg.Net.SASL.Password = k.cfg.SASL.Password
+		cfg.Net.SASL.Mechanism = sarama.SASLMechanism(k.cfg.SASL.Mechanism)
 		switch cfg.Net.SASL.Mechanism {
 		case sarama.SASLTypeSCRAMSHA256:
 			cfg.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient {
@@ -398,32 +524,39 @@ func (k *kafkaOutput) createConfig() (*sarama.Config, error) {
 				return &XDGSCRAMClient{HashGeneratorFcn: SHA512}
 			}
 		case sarama.SASLTypeOAuth:
-			cfg.Net.SASL.TokenProvider = oauthbearer.NewTokenProvider(cfg.Net.SASL.User, cfg.Net.SASL.Password, k.Cfg.SASL.TokenURL)
+			cfg.Net.SASL.TokenProvider = oauthbearer.NewTokenProvider(cfg.Net.SASL.User, cfg.Net.SASL.Password, k.cfg.SASL.TokenURL)
 		}
 	}
 	// SSL or SASL_SSL
-	if k.Cfg.TLS != nil {
+	if k.cfg.TLS != nil {
 		var err error
 		cfg.Net.TLS.Enable = true
 		cfg.Net.TLS.Config, err = utils.NewTLSConfig(
-			k.Cfg.TLS.CaFile,
-			k.Cfg.TLS.CertFile,
-			k.Cfg.TLS.KeyFile,
+			k.cfg.TLS.CaFile,
+			k.cfg.TLS.CertFile,
+			k.cfg.TLS.KeyFile,
 			"",
-			k.Cfg.TLS.SkipVerify,
+			k.cfg.TLS.SkipVerify,
 			false)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	cfg.Producer.Retry.Max = k.Cfg.MaxRetry
-	cfg.Producer.RequiredAcks = sarama.WaitForAll
+	cfg.Producer.Retry.Max = k.cfg.MaxRetry
 	cfg.Producer.Return.Successes = true
-	cfg.Producer.Timeout = k.Cfg.Timeout
+	cfg.Producer.Timeout = k.cfg.Timeout
+	switch k.cfg.RequiredAcks {
+	case requiredAcksNoResponse:
+	case requiredAcksWaitForLocal:
+		cfg.Producer.RequiredAcks = sarama.WaitForLocal
+	case requiredAcksWaitForAll:
+		cfg.Producer.RequiredAcks = sarama.WaitForAll
+	}
+
 	cfg.Metadata.Full = false
 
-	switch k.Cfg.CompressionCodec {
+	switch k.cfg.CompressionCodec {
 	case "gzip":
 		cfg.Producer.Compression = sarama.CompressionGZIP
 	case "snappy":
@@ -446,12 +579,12 @@ func (k *kafkaOutput) partitionKey(m outputs.Meta) []byte {
 }
 
 func (k *kafkaOutput) selectTopic(m outputs.Meta) string {
-	if k.Cfg.TopicPrefix == "" {
-		return k.Cfg.Topic
+	if k.cfg.TopicPrefix == "" {
+		return k.cfg.Topic
 	}
 
 	sb := strings.Builder{}
-	sb.WriteString(k.Cfg.TopicPrefix)
+	sb.WriteString(k.cfg.TopicPrefix)
 	if subname, ok := m["subscription-name"]; ok {
 		sb.WriteString("_")
 		sb.WriteString(subname)
