@@ -27,7 +27,18 @@ func (t *Target) Subscribe(ctx context.Context, req *gnmi.SubscribeRequest, subs
 	var nctx context.Context
 	var cancel context.CancelFunc
 	var err error
+	goto SUBSC_NODELAY
 SUBSC:
+	{
+		retry := time.NewTimer(t.Config.RetryTimer)
+		select {
+		case <-ctx.Done():
+			retry.Stop()
+			return
+		case <-retry.C:
+		}
+	}
+SUBSC_NODELAY:
 	select {
 	case <-ctx.Done():
 		return
@@ -42,7 +53,6 @@ SUBSC:
 				Err:              fmt.Errorf("failed to create a subscribe client, target='%s', retry in %d. err=%v", t.Config.Name, t.Config.RetryTimer, err),
 			}
 			cancel()
-			time.Sleep(t.Config.RetryTimer)
 			goto SUBSC
 		}
 	}
@@ -62,7 +72,6 @@ SUBSC:
 			Err:              fmt.Errorf("target '%s' send error, retry in %d. err=%v", t.Config.Name, t.Config.RetryTimer, err),
 		}
 		cancel()
-		time.Sleep(t.Config.RetryTimer)
 		goto SUBSC
 	}
 
@@ -79,7 +88,6 @@ SUBSC:
 				Err:              fmt.Errorf("retrying in %s", t.Config.RetryTimer),
 			}
 			cancel()
-			time.Sleep(t.Config.RetryTimer)
 			goto SUBSC
 		}
 	case gnmi.SubscriptionList_ONCE:
@@ -97,7 +105,6 @@ SUBSC:
 				Err:              fmt.Errorf("retrying in %d", t.Config.RetryTimer),
 			}
 			cancel()
-			time.Sleep(t.Config.RetryTimer)
 			goto SUBSC
 		}
 		return
@@ -110,7 +117,6 @@ SUBSC:
 				Err:              err,
 			}
 			cancel()
-			time.Sleep(t.Config.RetryTimer)
 			goto SUBSC
 		}
 	}
