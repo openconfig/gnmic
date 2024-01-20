@@ -90,7 +90,7 @@ require (
 	github.com/bcicen/bfstree v1.0.0 // indirect
 	github.com/bufbuild/protocompile v0.6.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
-	github.com/cloudflare/circl v1.3.3 // indirect
+	github.com/cloudflare/circl v1.3.7 // indirect
 	github.com/cyphar/filepath-securejoin v0.2.4 // indirect
 	github.com/derekparker/trie v0.0.0-20221221181808-1424fce0c981 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
