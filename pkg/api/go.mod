@@ -7,14 +7,14 @@ require (
 	github.com/google/go-cmp v0.6.0
 	github.com/openconfig/gnmi v0.10.0
 	github.com/openconfig/grpctunnel v0.1.0
-	google.golang.org/protobuf v1.31.0
+	google.golang.org/protobuf v1.32.0
 )
 
 require (
 	github.com/openconfig/gnmic/pkg/path v0.1.1
-	github.com/openconfig/gnmic/pkg/target v0.1.1
+	github.com/openconfig/gnmic/pkg/target v0.1.4
 	github.com/openconfig/gnmic/pkg/testutils v0.1.0
-	github.com/openconfig/gnmic/pkg/types v0.1.1
+	github.com/openconfig/gnmic/pkg/types v0.1.2
 	github.com/openconfig/gnmic/pkg/utils v0.1.0 // indirect
 )
 
