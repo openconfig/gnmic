@@ -1,4 +1,4 @@
-The `event-allow` processor, allows only messages matching the configured `condition` or one of the regular expressions under `tags`, `tag-names`, `values` or `value-names`.
+The `event-allow` processor allows only messages matching the configured `condition` or one of the regular expressions under `tags`, `tag-names`, `values` or `value-names`.
 
 Non matching messages are dropped.
 

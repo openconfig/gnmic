@@ -1,4 +1,4 @@
-The `event-override-ts` processor, overrides the message timestamp with `time.Now()`. The precision `s`, `ms`, `us` or `ns` (default) can be configured.
+The `event-override-ts` processor overrides the message timestamp with `time.Now()`. The precision `s`, `ms`, `us` or `ns` (default) can be configured.
 
 ### Examples
 

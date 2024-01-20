@@ -1,4 +1,4 @@
-The `event-duration-convert` processor, converts duration written as string to a integer with second precision.
+The `event-duration-convert` processor converts duration written as string to a integer with second precision.
 
 The string format supported is a series of digits and a single letter indicating the unit, e.g 1w3d (1 week 3 days)
 The highest unit is `w` for week and the lowest is `s` for second.

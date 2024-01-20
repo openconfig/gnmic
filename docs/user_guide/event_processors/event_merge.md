@@ -1,4 +1,4 @@
-The `event-merge` processor, merges multiple event messages together based on some criteria.
+The `event-merge` processor merges multiple event messages together based on some criteria.
 
 Each [gNMI subscribe Response Update](https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto#L95) in a [gNMI subscribe Response Notification](https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto#L79) is transformed into an [Event Message](intro.md)
 
