@@ -19,8 +19,8 @@ import (
 
 	"go.starlark.net/lib/math"
 	"go.starlark.net/lib/time"
-	"go.starlark.net/resolve"
 	"go.starlark.net/starlark"
+	"go.starlark.net/syntax"
 
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/types"
@@ -46,12 +46,6 @@ type starlarkProc struct {
 }
 
 func init() {
-	resolve.AllowNestedDef = true
-	resolve.AllowLambda = true
-	resolve.AllowFloat = true
-	resolve.AllowSet = true
-	resolve.AllowGlobalReassign = true
-	resolve.AllowRecursion = true
 	formatters.Register(processorType, func() formatters.EventProcessor {
 		return &starlarkProc{
 			logger: log.New(io.Discard, "", 0),
@@ -203,11 +197,16 @@ func (p *starlarkProc) WithActions(act map[string]map[string]interface{}) {}
 func (p *starlarkProc) WithProcessors(procs map[string]map[string]any) {}
 
 func (p *starlarkProc) sourceProgram(builtins starlark.StringDict) (*starlark.Program, error) {
-	var src interface{}
+	var src any
 	if p.Source != "" {
 		src = p.Source
 	}
-	_, program, err := starlark.SourceProgram(p.Script, src, builtins.Has)
+	options := &syntax.FileOptions{
+		Set:            true,
+		GlobalReassign: true,
+		Recursion:      true,
+	}
+	_, program, err := starlark.SourceProgramOptions(options, p.Script, src, builtins.Has)
 	return program, err
 }
 
