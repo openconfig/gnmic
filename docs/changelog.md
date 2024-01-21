@@ -1,5 +1,28 @@
 ## Changelog
 
+### v 0.35.0 - January 20th 2024
+
+- Processors
+
+    - Added a plugin process type that allows users to write their own custom processors: [examples](https://github.com/openconfig/gnmic/tree/main/examples/plugins)
+
+- gRPC metadata
+
+    - A new flag `--metadata | -H` is introduced. It allows users to add custom gRPC metadata headers to any request.
+
+
+- Outputs:
+
+    - Kafka output:
+        - Added support for custom topics per target/subscription.
+
+        - Added support for both Async and Sync Kafka producers.
+
+- Commands:
+
+    - Listen command:
+        When using the `listen` command outputs internal metrics are properly initialized and exposed to prometheus for scraping.
+
 ### v 0.34.0 - November 11th 2023
 
 - Prometheus Write Output
