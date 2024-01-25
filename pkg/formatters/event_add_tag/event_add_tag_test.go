@@ -850,6 +850,61 @@ var testset = map[string]struct {
 			},
 		},
 	},
+	// match delete
+	"match_delete_add": {
+		processorType: processorType,
+		processor: map[string]interface{}{
+			"deletes": []string{"^deleted_path.*"},
+			"add":     map[string]string{"tag1": "new_tag"},
+		},
+		tests: []item{
+			{
+				input:  nil,
+				output: nil,
+			},
+			{
+				input:  make([]*formatters.EventMsg, 0),
+				output: make([]*formatters.EventMsg, 0),
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Tags:    map[string]string{"old_tag": "tag_value"},
+						Deletes: []string{"deleted_path"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{
+							"old_tag": "tag_value",
+							"tag1":    "new_tag",
+						},
+						Deletes: []string{"deleted_path"},
+					},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{
+							"old_tag": "tag_value",
+							"tag1":    "old_value",
+						},
+						Deletes: []string{"non_matching_deleted_path"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{
+							"old_tag": "tag_value",
+							"tag1":    "old_value",
+						},
+						Deletes: []string{"non_matching_deleted_path"},
+					},
+				},
+			},
+		},
+	},
 }
 
 func TestEventAddTag(t *testing.T) {
