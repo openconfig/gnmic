@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/openconfig/gnmi/proto/gnmi"
@@ -134,48 +133,6 @@ func TestFromMap(t *testing.T) {
 			})
 		}
 	}
-}
-
-func TestResponseToEventMsgs(t *testing.T) {
-	rsp := &gnmi.SubscribeResponse{
-		Response: &gnmi.SubscribeResponse_Update{
-			Update: &gnmi.Notification{
-				Timestamp: time.Now().UnixNano(),
-				Prefix: &gnmi.Path{
-					Elem: []*gnmi.PathElem{
-						{Name: "a"},
-					},
-				},
-				Update: []*gnmi.Update{
-					{
-						Path: &gnmi.Path{
-							Elem: []*gnmi.PathElem{
-								{Name: "b",
-									Key: map[string]string{
-										"k1": "v1",
-									},
-								},
-								{Name: "c",
-									Key: map[string]string{
-										"k2": "v2",
-									}},
-							},
-						},
-						Val: &gnmi.TypedValue{
-							Value: &gnmi.TypedValue_StringVal{
-								StringVal: "value",
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-	evs, err := ResponseToEventMsgs("subname", rsp, map[string]string{"k1": "v0"})
-	if err != nil {
-		t.Error(err)
-	}
-	t.Logf("%v", evs)
 }
 
 func TestTagsFromGNMIPath(t *testing.T) {
@@ -390,6 +347,347 @@ func Test_getValueFlat(t *testing.T) {
 				t.Errorf("got:  %+v", got)
 				t.Errorf("want: %+v", tt.want)
 				t.Errorf("getValueFlat() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestResponseToEventMsgs(t *testing.T) {
+	type args struct {
+		name string
+		rsp  *gnmi.SubscribeResponse
+		meta map[string]string
+		eps  []EventProcessor
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    []*EventMsg
+		wantErr bool
+	}{
+		{
+			name: "sync_response",
+			args: args{
+				name: "sub1",
+				rsp: &gnmi.SubscribeResponse{
+					Response: &gnmi.SubscribeResponse_SyncResponse{
+						SyncResponse: true,
+					},
+				},
+			},
+			want:    []*EventMsg{},
+			wantErr: false,
+		},
+		{
+			name: "single_update_ascii_value",
+			args: args{
+				name: "sub1",
+				rsp: &gnmi.SubscribeResponse{
+					Response: &gnmi.SubscribeResponse_Update{
+						Update: &gnmi.Notification{
+							Timestamp: 42,
+							Update: []*gnmi.Update{
+								{
+									Path: &gnmi.Path{
+										Elem: []*gnmi.PathElem{
+											{
+												Name: "interface",
+												Key: map[string]string{
+													"name": "ethernet-1/1",
+												},
+											},
+											{Name: "oper-state"},
+										},
+									},
+									Val: &gnmi.TypedValue{
+										Value: &gnmi.TypedValue_AsciiVal{AsciiVal: "up"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: []*EventMsg{
+				{
+					Name:      "sub1",
+					Timestamp: 42,
+					Tags: map[string]string{
+						"interface_name": "ethernet-1/1",
+					},
+					Values: map[string]interface{}{
+						"/interface/oper-state": "up",
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "single_update_string_json_value",
+			args: args{
+				name: "sub1",
+				rsp: &gnmi.SubscribeResponse{
+					Response: &gnmi.SubscribeResponse_Update{
+						Update: &gnmi.Notification{
+							Timestamp: 42,
+							Update: []*gnmi.Update{
+								{
+									Path: &gnmi.Path{
+										Elem: []*gnmi.PathElem{
+											{
+												Name: "interface",
+												Key: map[string]string{
+													"name": "ethernet-1/1",
+												},
+											},
+											{Name: "oper-state"},
+										},
+									},
+									Val: &gnmi.TypedValue{
+										Value: &gnmi.TypedValue_JsonVal{JsonVal: []byte("\"up\"")},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: []*EventMsg{
+				{
+					Name:      "sub1",
+					Timestamp: 42,
+					Tags: map[string]string{
+						"interface_name": "ethernet-1/1",
+					},
+					Values: map[string]interface{}{
+						"/interface/oper-state": "up",
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "single_update_object_json_value",
+			args: args{
+				name: "sub1",
+				rsp: &gnmi.SubscribeResponse{
+					Response: &gnmi.SubscribeResponse_Update{
+						Update: &gnmi.Notification{
+							Timestamp: 42,
+							Update: []*gnmi.Update{
+								{
+									Path: &gnmi.Path{
+										Elem: []*gnmi.PathElem{
+											{
+												Name: "interface",
+												Key: map[string]string{
+													"name": "ethernet-1/1",
+												},
+											},
+											{Name: "statistics"},
+										},
+									},
+									Val: &gnmi.TypedValue{
+										Value: &gnmi.TypedValue_JsonVal{JsonVal: []byte(`{"in-octets":"10","out-octets":"11"}`)},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: []*EventMsg{
+				{
+					Name:      "sub1",
+					Timestamp: 42,
+					Tags: map[string]string{
+						"interface_name": "ethernet-1/1",
+					},
+					Values: map[string]interface{}{
+						"/interface/statistics/in-octets":  "10",
+						"/interface/statistics/out-octets": "11",
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "multiple_updates_single_ascii_values",
+			args: args{
+				name: "sub1",
+				rsp: &gnmi.SubscribeResponse{
+					Response: &gnmi.SubscribeResponse_Update{
+						Update: &gnmi.Notification{
+							Timestamp: 42,
+							Update: []*gnmi.Update{
+								{
+									Path: &gnmi.Path{
+										Elem: []*gnmi.PathElem{
+											{
+												Name: "interface",
+												Key: map[string]string{
+													"name": "ethernet-1/1",
+												},
+											},
+											{Name: "admin-state"},
+										},
+									},
+									Val: &gnmi.TypedValue{
+										Value: &gnmi.TypedValue_AsciiVal{AsciiVal: "enable"},
+									},
+								},
+								{
+									Path: &gnmi.Path{
+										Elem: []*gnmi.PathElem{
+											{
+												Name: "interface",
+												Key: map[string]string{
+													"name": "ethernet-1/1",
+												},
+											},
+											{Name: "oper-state"},
+										},
+									},
+									Val: &gnmi.TypedValue{
+										Value: &gnmi.TypedValue_AsciiVal{AsciiVal: "up"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: []*EventMsg{
+				{
+					Name:      "sub1",
+					Timestamp: 42,
+					Tags: map[string]string{
+						"interface_name": "ethernet-1/1",
+					},
+					Values: map[string]interface{}{
+						"/interface/admin-state": "enable",
+					},
+				},
+				{
+					Name:      "sub1",
+					Timestamp: 42,
+					Tags: map[string]string{
+						"interface_name": "ethernet-1/1",
+					},
+					Values: map[string]interface{}{
+						"/interface/oper-state": "up",
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "with_single_delete",
+			args: args{
+				name: "sub1",
+				rsp: &gnmi.SubscribeResponse{
+					Response: &gnmi.SubscribeResponse_Update{
+						Update: &gnmi.Notification{
+							Timestamp: 42,
+							Delete: []*gnmi.Path{
+								{
+									Elem: []*gnmi.PathElem{
+										{
+											Name: "interface",
+											Key: map[string]string{
+												"name": "ethernet-1/1",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: []*EventMsg{
+				{
+					Name:      "sub1",
+					Timestamp: 42,
+					Tags: map[string]string{
+						"interface_name": "ethernet-1/1",
+					},
+					Deletes: []string{
+						"/interface",
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "with_2_deletes",
+			args: args{
+				name: "sub1",
+				rsp: &gnmi.SubscribeResponse{
+					Response: &gnmi.SubscribeResponse_Update{
+						Update: &gnmi.Notification{
+							Timestamp: 42,
+							Delete: []*gnmi.Path{
+								{
+									Elem: []*gnmi.PathElem{
+										{
+											Name: "interface",
+											Key: map[string]string{
+												"name": "ethernet-1/1",
+											},
+										},
+									},
+								},
+								{
+									Elem: []*gnmi.PathElem{
+										{
+											Name: "interface",
+											Key: map[string]string{
+												"name": "ethernet-1/2",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: []*EventMsg{
+				{
+					Name:      "sub1",
+					Timestamp: 42,
+					Tags: map[string]string{
+						"interface_name": "ethernet-1/1",
+					},
+					Deletes: []string{
+						"/interface",
+					},
+				},
+				{
+					Name:      "sub1",
+					Timestamp: 42,
+					Tags: map[string]string{
+						"interface_name": "ethernet-1/2",
+					},
+					Deletes: []string{
+						"/interface",
+					},
+				},
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ResponseToEventMsgs(tt.args.name, tt.args.rsp, tt.args.meta, tt.args.eps...)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ResponseToEventMsgs() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("ResponseToEventMsgs() got = %v", got)
+				t.Errorf("ResponseToEventMsgs() want= %v", tt.want)
 			}
 		})
 	}

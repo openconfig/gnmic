@@ -16,8 +16,6 @@ import (
 
 	flattener "github.com/karimra/go-map-flattener"
 	"github.com/openconfig/gnmi/proto/gnmi"
-
-	"github.com/openconfig/gnmic/pkg/path"
 )
 
 // EventMsg represents a gNMI update message,
@@ -41,58 +39,23 @@ func ResponseToEventMsgs(name string, rsp *gnmi.SubscribeResponse, meta map[stri
 	if rsp == nil {
 		return nil, nil
 	}
-	evs := make([]*EventMsg, 0)
+	evs := make([]*EventMsg, 0, len(rsp.GetUpdate().GetUpdate())+len(rsp.GetUpdate().GetDelete()))
 	switch rsp := rsp.Response.(type) {
 	case *gnmi.SubscribeResponse_Update:
 		namePrefix, prefixTags := tagsFromGNMIPath(rsp.Update.GetPrefix())
 		// notification updates
-		for _, upd := range rsp.Update.GetUpdate() {
-			e, err := updateToEvent(name, namePrefix, rsp.Update.Timestamp, upd, prefixTags)
-			if err != nil {
-				return nil, err
-			}
-			for k, v := range meta {
-				if k == "format" {
-					continue
-				}
-				if _, ok := e.Tags[k]; ok {
-					e.Tags[fmt.Sprintf("meta_%s", k)] = v
-					continue
-				}
-				e.Tags[k] = v
-			}
+		uevs, err := updatesToEvent(name, namePrefix, rsp.Update.GetTimestamp(), rsp.Update.GetUpdate(), prefixTags, meta)
+		if err != nil {
+			return nil, err
+		}
+		evs = append(evs, uevs...)
+		// notification deletes
+		for _, del := range rsp.Update.GetDelete() {
+			e := deleteToEvent(name, namePrefix, rsp.Update.GetTimestamp(), del, prefixTags)
+			addMetaTags(e, meta)
 			if (e != nil && e != &EventMsg{}) {
 				evs = append(evs, e)
 			}
-		}
-		// notification deletes
-		numDeletes := len(rsp.Update.GetDelete())
-		if numDeletes > 0 {
-			e := &EventMsg{
-				Name:      name,
-				Timestamp: rsp.Update.GetTimestamp(),
-				Tags:      make(map[string]string),
-				Deletes:   make([]string, 0, numDeletes),
-			}
-			// build tags
-			for k, v := range prefixTags {
-				e.Tags[k] = v
-			}
-			for k, v := range meta {
-				if k == "format" {
-					continue
-				}
-				if _, ok := e.Tags[k]; ok {
-					e.Tags[fmt.Sprintf("meta_%s", k)] = v
-					continue
-				}
-				e.Tags[k] = v
-			}
-			// add paths
-			for _, del := range rsp.Update.GetDelete() {
-				e.Deletes = append(e.Deletes, path.GnmiPathToXPath(del, false))
-			}
-			evs = append(evs, e)
 		}
 
 		for _, ep := range eps {
@@ -106,30 +69,31 @@ func GetResponseToEventMsgs(rsp *gnmi.GetResponse, meta map[string]string, eps .
 	if rsp == nil {
 		return nil, nil
 	}
-	evs := make([]*EventMsg, 0)
+	evs := make([]*EventMsg, 0, len(rsp.GetNotification()))
 	for _, notif := range rsp.GetNotification() {
 		namePrefix, prefixTags := tagsFromGNMIPath(notif.GetPrefix())
-		for _, upd := range notif.GetUpdate() {
-			e, err := updateToEvent("get-request", namePrefix, notif.GetTimestamp(), upd, prefixTags)
-			if err != nil {
-				return nil, err
-			}
-			for k, v := range meta {
-				if k == "format" {
-					continue
-				}
-				if _, ok := e.Tags[k]; ok {
-					e.Tags["meta:"+k] = v
-					continue
-				}
-				e.Tags[k] = v
-			}
-			if (e != nil && e != &EventMsg{}) {
-				evs = append(evs, e)
-			}
+		uevs, err := updatesToEvent("get-request", namePrefix, notif.GetTimestamp(), notif.GetUpdate(), prefixTags, meta)
+		if err != nil {
+			return nil, err
 		}
-		for _, ep := range eps {
-			evs = ep.Apply(evs...)
+		evs = append(evs, uevs...)
+	}
+	for _, ep := range eps {
+		evs = ep.Apply(evs...)
+	}
+	return evs, nil
+}
+
+func updatesToEvent(name, prefix string, ts int64, upds []*gnmi.Update, tags, meta map[string]string) ([]*EventMsg, error) {
+	evs := make([]*EventMsg, 0, len(upds))
+	for _, upd := range upds {
+		e, err := updateToEvent(name, prefix, ts, upd, tags)
+		if err != nil {
+			return nil, err
+		}
+		addMetaTags(e, meta)
+		if (e != nil && e != &EventMsg{}) {
+			evs = append(evs, e)
 		}
 	}
 	return evs, nil
@@ -166,6 +130,35 @@ func updateToEvent(name, prefix string, ts int64, upd *gnmi.Update, tags map[str
 		return nil, err
 	}
 	return e, nil
+}
+
+func deleteToEvent(name, prefix string, ts int64, del *gnmi.Path, tags map[string]string) *EventMsg {
+	e := &EventMsg{
+		Name:      name,
+		Timestamp: ts,
+		Tags:      make(map[string]string),
+		Deletes:   make([]string, 0, 1),
+	}
+	for k, v := range tags {
+		e.Tags[k] = v
+	}
+	pathName, pTags := tagsFromGNMIPath(del)
+	psb := strings.Builder{}
+	psb.WriteString(strings.TrimRight(prefix, "/"))
+	psb.WriteString("/")
+	psb.WriteString(strings.TrimLeft(pathName, "/"))
+	pathName = psb.String()
+	for k, v := range pTags {
+		if vv, ok := e.Tags[k]; ok {
+			if v != vv {
+				e.Tags[fmt.Sprintf("%s_%s", pathName, k)] = v
+			}
+			continue
+		}
+		e.Tags[k] = v
+	}
+	e.Deletes = append(e.Deletes, pathName)
+	return e
 }
 
 // tagsFromGNMIPath returns a string representation of the gNMI path without keys,
@@ -392,4 +385,17 @@ func num64(n interface{}) interface{} {
 		return uint64(n)
 	}
 	return nil
+}
+
+func addMetaTags(e *EventMsg, meta map[string]string) {
+	for k, v := range meta {
+		if k == "format" {
+			continue
+		}
+		if _, ok := e.Tags[k]; ok {
+			e.Tags[fmt.Sprintf("meta_%s", k)] = v
+			continue
+		}
+		e.Tags[k] = v
+	}
 }
