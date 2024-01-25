@@ -430,11 +430,11 @@ func (p *prometheusOutput) workerHandleEvent(ev *formatters.EventMsg) {
 		// if the entry key is not present add it to the map.
 		// if present add it only if the entry timestamp is newer than the
 		// existing one.
-		if !ok || (ok && pm.time != nil && e.time.Before(*pm.time)) {
+		if !ok || pm.time == nil || (ok && pm.time != nil && e.time.Before(*pm.time)) {
 			p.entries[key] = pm
-		}
-		if p.cfg.Debug {
-			p.logger.Printf("saved key=%d, metric: %+v", key, pm)
+			if p.cfg.Debug {
+				p.logger.Printf("saved key=%d, metric: %+v", key, pm)
+			}
 		}
 	}
 }
