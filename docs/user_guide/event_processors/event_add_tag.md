@@ -18,6 +18,8 @@ processors:
       value-names:
       # list of regular expressions to be matched against the values, if matched, the tags are added
       values:
+      # list of regular expressions to be matched against the deleted paths, if matched, the tags are added
+      deletes:
       # boolean, if true tags are over-written with the added ones if they already exist.
       overwrite:
       # map of tags to be added

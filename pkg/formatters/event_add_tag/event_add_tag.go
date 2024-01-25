@@ -28,13 +28,14 @@ const (
 	loggingPrefix = "[" + processorType + "] "
 )
 
-// addTag adds a set of tags to the event message if tag
+// addTag adds a set of tags to the event message if certain criteria's are met.
 type addTag struct {
 	Condition  string            `mapstructure:"condition,omitempty"`
 	Tags       []string          `mapstructure:"tags,omitempty" json:"tags,omitempty"`
 	Values     []string          `mapstructure:"values,omitempty" json:"values,omitempty"`
 	TagNames   []string          `mapstructure:"tag-names,omitempty" json:"tag-names,omitempty"`
 	ValueNames []string          `mapstructure:"value-names,omitempty" json:"value-names,omitempty"`
+	Deletes    []string          `mapstructure:"deletes,omitempty" json:"deletes,omitempty"`
 	Overwrite  bool              `mapstructure:"overwrite,omitempty" json:"overwrite,omitempty"`
 	Add        map[string]string `mapstructure:"add,omitempty" json:"add,omitempty"`
 	Debug      bool              `mapstructure:"debug,omitempty" json:"debug,omitempty"`
@@ -43,6 +44,7 @@ type addTag struct {
 	values     []*regexp.Regexp
 	tagNames   []*regexp.Regexp
 	valueNames []*regexp.Regexp
+	deletes    []*regexp.Regexp
 	code       *gojq.Code
 	logger     *log.Logger
 }
@@ -75,42 +77,30 @@ func (p *addTag) Init(cfg interface{}, opts ...formatters.Option) error {
 		}
 	}
 	// init tags regex
-	p.tags = make([]*regexp.Regexp, 0, len(p.Tags))
-	for _, reg := range p.Tags {
-		re, err := regexp.Compile(reg)
-		if err != nil {
-			return err
-		}
-		p.tags = append(p.tags, re)
+	p.tags, err = compileRegex(p.Tags)
+	if err != nil {
+		return err
 	}
 	// init tag names regex
-	p.tagNames = make([]*regexp.Regexp, 0, len(p.TagNames))
-	for _, reg := range p.TagNames {
-		re, err := regexp.Compile(reg)
-		if err != nil {
-			return err
-		}
-		p.tagNames = append(p.tagNames, re)
+	p.tagNames, err = compileRegex(p.TagNames)
+	if err != nil {
+		return err
 	}
 	// init values regex
-	p.values = make([]*regexp.Regexp, 0, len(p.Values))
-	for _, reg := range p.Values {
-		re, err := regexp.Compile(reg)
-		if err != nil {
-			return err
-		}
-		p.values = append(p.values, re)
+	p.values, err = compileRegex(p.Values)
+	if err != nil {
+		return err
 	}
 	// init value names regex
-	p.valueNames = make([]*regexp.Regexp, 0, len(p.ValueNames))
-	for _, reg := range p.ValueNames {
-		re, err := regexp.Compile(reg)
-		if err != nil {
-			return err
-		}
-		p.valueNames = append(p.valueNames, re)
+	p.valueNames, err = compileRegex(p.ValueNames)
+	if err != nil {
+		return err
 	}
-
+	// init deletes regex
+	p.deletes, err = compileRegex(p.Deletes)
+	if err != nil {
+		return err
+	}
 	if p.logger.Writer() != io.Discard {
 		b, err := json.Marshal(p)
 		if err != nil {
@@ -169,6 +159,14 @@ func (p *addTag) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 				}
 			}
 		}
+		for _, k := range e.Deletes {
+			for _, re := range p.deletes {
+				if re.MatchString(k) {
+					p.addTags(e)
+					break
+				}
+			}
+		}
 	}
 	return es
 }
@@ -200,4 +198,16 @@ func (p *addTag) addTags(e *formatters.EventMsg) {
 			e.Tags[nk] = nv
 		}
 	}
+}
+
+func compileRegex(expr []string) ([]*regexp.Regexp, error) {
+	res := make([]*regexp.Regexp, 0, len(expr))
+	for _, reg := range expr {
+		re, err := regexp.Compile(reg)
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, re)
+	}
+	return res, nil
 }
