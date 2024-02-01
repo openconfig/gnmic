@@ -25,6 +25,11 @@ outputs:
     # the colon will be replaced with an underscore due to restrictions on the naming of kafka topics.
     # ex: telemetry_bgp_neighbor_state_device1_6030
     topic-prefix: telemetry
+    # starts a sync-producer if set to true.
+    sync-producer: false
+    # required-acks is used in Produce Requests to tell the broker how many replica acknowledgements
+    # it must see before responding. One of `no-response`, `wait-for-local`, `wait-for-all`.
+    required-acks: wait-for-local
     # Kafka SASL configuration
     sasl:
       # SASL user name

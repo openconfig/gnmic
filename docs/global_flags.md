@@ -307,10 +307,14 @@ The username flag `[-u | --username]` is used to specify the target username as 
 
 ### calculate-latency
 
-The `calculate-latency` flag augments subscribe et get responses by calculating the delta between the message timestamp and the receive timestamp.
+The `--calculate-latency` flag augments subscribe et get responses by calculating the delta between the message timestamp and the receive timestamp.
 The resulting message will include 4 extra fields:
 
 * `recv-timestamp`:The receive timestamp in nanoseconds.
 * `recv-time`: The receive time in ISO 8601 date and time representation, extended to include fractional seconds and a time zone offset..
 * `latency-nano`: The difference between the message timestamp and the receive time in nanoseconds.
 * `latency-milli`: The difference between the message timestamp and the receive time in milliseconds.
+
+### metadata
+
+The `[-H | --metadata]` flag adds custom headers to any gRPC request. `gnmic -H header1=value1 -H header2=value2`
