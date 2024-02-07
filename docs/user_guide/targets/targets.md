@@ -97,6 +97,110 @@ gnmic -a router1:57400 \
 
 - It is also possible to control the negotiated TLS version using the `--tls-min-version`, `--tls-max-version` and `--tls-version` (preferred TLS version) flags.
 
+##### Controlling the advertised cipher suites
+
+It's possible to configure the advertised cipher suites gNMIc's gNMI client advertises to the target.
+This can be done by setting the `tls-min-version` and `tls-max-version` or by explicitly listing cipher suites to be advertised.
+
+By default the below list is advertised:
+
+| Name                                           | Key Exchange | Auth      | Enc                  | MAC       |
+|------------------------------------------------|--------------|-----------|----------------------|-----------|
+| TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256        | ECDHE        | ECDSA     | AES_128_GCM          | SHA256    |
+| TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256          | ECDHE        | RSA       | AES_128_GCM          | SHA256    |
+| TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384        | ECDHE        | ECDSA     | AES_256_GCM          | SHA384    |
+| TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384          | ECDHE        | RSA       | AES_256_GCM          | SHA384    |
+| TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256  | ECDHE        | ECDSA     | CHACHA20_POLY1305    | SHA256    |
+| TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256    | ECDHE        | RSA       | CHACHA20_POLY1305    | SHA256    |
+| TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA           | ECDHE        | ECDSA     | AES_128_CBC          | SHA       |
+| TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA             | ECDHE        | RSA       | AES_128_CBC          | SHA       |
+| TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA           | ECDHE        | ECDSA     | AES_256_CBC          | SHA       |
+| TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA             | ECDHE        | RSA       | AES_256_CBC          | SHA       |
+| TLS_RSA_WITH_AES_128_GCM_SHA256                | RSA          | RSA       | AES_128_GCM          | SHA256    |
+| TLS_RSA_WITH_AES_256_GCM_SHA384                | RSA          | RSA       | AES_256_GCM          | SHA384    |
+| TLS_RSA_WITH_AES_128_CBC_SHA                   | RSA          | RSA       | AES_128_CBC          | SHA       |
+| TLS_RSA_WITH_AES_256_CBC_SHA                   | RSA          | RSA       | AES_256_CBC          | SHA       |
+| TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA            | ECDHE        | RSA       | 3DES_EDE_CBC         | SHA       |
+| TLS_RSA_WITH_3DES_EDE_CBC_SHA                  | RSA          | RSA       | 3DES_EDE_CBC         | SHA       |
+| TLS_AES_128_GCM_SHA256                         | (TLS 1.3)    | (TLS 1.3) | AES_128_GCM          | SHA256    |
+| TLS_AES_256_GCM_SHA384                         | (TLS 1.3)    | (TLS 1.3) | AES_256_GCM          | SHA384    |
+| TLS_CHACHA20_POLY1305_SHA256                   | (TLS 1.3)    | (TLS 1.3) | CHACHA20_POLY1305    | SHA256    |
+
+If the `tls-max-version` is set to "1.2", the TLS1.3 cipher suites will not be included:
+
+| Name                                           | Key Exchange | Auth  | Enc               | MAC       |
+|------------------------------------------------|--------------|-------|-------------------|-----------|
+| TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256        | ECDHE        | ECDSA | AES_128_GCM       | SHA256    |
+| TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256          | ECDHE        | RSA   | AES_128_GCM       | SHA256    |
+| TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384        | ECDHE        | ECDSA | AES_256_GCM       | SHA384    |
+| TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384          | ECDHE        | RSA   | AES_256_GCM       | SHA384    |
+| TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256  | ECDHE        | ECDSA | CHACHA20_POLY1305 | SHA256    |
+| TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256    | ECDHE        | RSA   | CHACHA20_POLY1305 | SHA256    |
+| TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA           | ECDHE        | ECDSA | AES_128_CBC       | SHA       |
+| TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA             | ECDHE        | RSA   | AES_128_CBC       | SHA       |
+| TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA           | ECDHE        | ECDSA | AES_256_CBC       | SHA       |
+| TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA             | ECDHE        | RSA   | AES_256_CBC       | SHA       |
+| TLS_RSA_WITH_AES_128_GCM_SHA256                | RSA          | RSA   | AES_128_GCM       | SHA256    |
+| TLS_RSA_WITH_AES_256_GCM_SHA384                | RSA          | RSA   | AES_256_GCM       | SHA384    |
+| TLS_RSA_WITH_AES_128_CBC_SHA                   | RSA          | RSA   | AES_128_CBC       | SHA       |
+| TLS_RSA_WITH_AES_256_CBC_SHA                   | RSA          | RSA   | AES_256_CBC       | SHA       |
+| TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA            | ECDHE        | RSA   | 3DES_EDE_CBC      | SHA       |
+| TLS_RSA_WITH_3DES_EDE_CBC_SHA                  | RSA          | RSA   | 3DES_EDE_CBC      | SHA       |
+
+If the `tls-max-version` and `tls-min-version` are set to "1.1", the below list of cipher suites is advertised:
+
+| Name                                   | Key Exchange | Auth  | Enc          | MAC |
+|----------------------------------------|--------------|-------|--------------|-----|
+| TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA   | ECDHE        | ECDSA | AES_128_CBC  | SHA |
+| TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA     | ECDHE        | RSA   | AES_128_CBC  | SHA |
+| TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA   | ECDHE        | ECDSA | AES_256_CBC  | SHA |
+| TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA     | ECDHE        | RSA   | AES_256_CBC  | SHA |
+| TLS_RSA_WITH_AES_128_CBC_SHA           | RSA          | RSA   | AES_128_CBC  | SHA |
+| TLS_RSA_WITH_AES_256_CBC_SHA           | RSA          | RSA   | AES_256_CBC  | SHA |
+| TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA    | ECDHE        | RSA   | 3DES_EDE_CBC | SHA |
+| TLS_RSA_WITH_3DES_EDE_CBC_SHA          | RSA          | RSA   | 3DES_EDE_CBC | SHA |
+
+If you want to control which cipher suites are sent and in what order of preference, you can set the `cipher-suites` field under the target:
+
+```yaml
+targets:
+  target1:
+    # other fields
+    cipher-suites:
+      - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+      - TLS_AES_128_GCM_SHA256
+```
+
+The full list of supported cipher suites is:
+
+| Name                                           | Key Exchange | Auth      | Enc                | MAC       |
+|------------------------------------------------|--------------|-----------|--------------------|-----------|
+| TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256        | ECDHE        | ECDSA     | AES_128_GCM        | SHA256    |
+| TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256          | ECDHE        | RSA       | AES_128_GCM        | SHA256    |
+| TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384        | ECDHE        | ECDSA     | AES_256_GCM        | SHA384    |
+| TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384          | ECDHE        | RSA       | AES_256_GCM        | SHA384    |
+| TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256  | ECDHE        | ECDSA     | CHACHA20_POLY1305  | SHA256    |
+| TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256    | ECDHE        | RSA       | CHACHA20_POLY1305  | SHA256    |
+| TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA           | ECDHE        | ECDSA     | AES_128_CBC        | SHA       |
+| TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA             | ECDHE        | RSA       | AES_128_CBC        | SHA       |
+| TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA           | ECDHE        | ECDSA     | AES_256_CBC        | SHA       |
+| TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA             | ECDHE        | RSA       | AES_256_CBC        | SHA       |
+| TLS_RSA_WITH_AES_128_GCM_SHA256                | RSA          | RSA       | AES_128_GCM        | SHA256    |
+| TLS_RSA_WITH_AES_256_GCM_SHA384                | RSA          | RSA       | AES_256_GCM        | SHA384    |
+| TLS_RSA_WITH_AES_128_CBC_SHA                   | RSA          | RSA       | AES_128_CBC        | SHA       |
+| TLS_RSA_WITH_AES_256_CBC_SHA                   | RSA          | RSA       | AES_256_CBC        | SHA       |
+| TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA            | ECDHE        | RSA       | 3DES_EDE_CBC       | SHA       |
+| TLS_RSA_WITH_3DES_EDE_CBC_SHA                  | RSA          | RSA       | 3DES_EDE_CBC       | SHA       |
+| TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256        | ECDHE        | ECDSA     | AES_128_CBC        | SHA256    |
+| TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256          | ECDHE        | RSA       | AES_128_CBC        | SHA256    |
+| TLS_RSA_WITH_AES_128_CBC_SHA256                | RSA          | RSA       | AES_128_CBC        | SHA256    |
+| TLS_ECDHE_ECDSA_WITH_RC4_128_SHA               | ECDHE        | ECDSA     | RC4_128            | SHA       |
+| TLS_ECDHE_RSA_WITH_RC4_128_SHA                 | ECDHE        | RSA       | RC4_128            | SHA       |
+| TLS_RSA_WITH_RC4_128_SHA                       | RSA          | RSA       | RC4_128            | SHA       |
+| TLS_AES_128_GCM_SHA256                         | (TLS 1.3)    | (TLS 1.3) | AES_128_GCM        | SHA256    |
+| TLS_AES_256_GCM_SHA384                         | (TLS 1.3)    | (TLS 1.3) | AES_256_GCM        | SHA384    |
+| TLS_CHACHA20_POLY1305_SHA256                   | (TLS 1.3)    | (TLS 1.3) | CHACHA20_POLY1305  | SHA256    |
+
 #### target configuration options
 
 Target supported options:
@@ -137,6 +241,8 @@ targets:
     # min tls version to use during negotiation
     tls-min-version:
     # preferred tls version to use during negotiation
+    # this value overwrites both tls-min-version and 
+    # tls-max-version
     tls-version:
     # enable logging of a pre-master TLS secret
     log-tls-secret:
@@ -178,6 +284,9 @@ targets:
     # proxy type and address, only SOCKS5 is supported currently
     # example: socks5://<address>:<port>
     proxy:
+    # list of custom TLS cipher suites to advertise to the target 
+    # during the TLS handshake.
+    cipher-suites:
 ```
 
 ### Example

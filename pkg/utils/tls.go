@@ -27,40 +27,6 @@ import (
 	"time"
 )
 
-// from https://github.com/golang/go/blob/b39ec942d8f154add0af01ebf66d7524318470e2/src/crypto/tls/cipher_suites.go#L270
-// we explicitly set the default ciphers so that go-grpc doesn't filter out forbidden ciphers: https://github.com/grpc/grpc-go/pull/6776
-// https://github.com/openconfig/gnmic/issues/367
-var cipherSuitesPreferenceOrder = []uint16{
-	// AEADs w/ ECDHE
-	tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-	tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-	tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305, tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
-
-	// CBC w/ ECDHE
-	tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA, tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-	tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA, tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
-
-	// AEADs w/o ECDHE
-	tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
-	tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
-
-	// CBC w/o ECDHE
-	tls.TLS_RSA_WITH_AES_128_CBC_SHA,
-	tls.TLS_RSA_WITH_AES_256_CBC_SHA,
-
-	// 3DES
-	tls.TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA,
-	tls.TLS_RSA_WITH_3DES_EDE_CBC_SHA,
-
-	// CBC_SHA256
-	tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256, tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
-	tls.TLS_RSA_WITH_AES_128_CBC_SHA256,
-
-	// RC4
-	tls.TLS_ECDHE_ECDSA_WITH_RC4_128_SHA, tls.TLS_ECDHE_RSA_WITH_RC4_128_SHA,
-	tls.TLS_RSA_WITH_RC4_128_SHA,
-}
-
 // NewTLSConfig generates a *tls.Config based on given CA, certificate, key files and skipVerify flag
 // if certificate and key are missing a self signed key pair is generated.
 // The certificates paths can be local or remote, http(s) and (s)ftp are supported for remote files.
@@ -71,7 +37,6 @@ func NewTLSConfig(ca, cert, key, clientAuth string, skipVerify, genSelfSigned bo
 
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: skipVerify,
-		CipherSuites:       cipherSuitesPreferenceOrder,
 	}
 
 	// set clientAuth
