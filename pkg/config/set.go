@@ -19,6 +19,7 @@ import (
 	"strings"
 	"text/template"
 
+	"google.golang.org/protobuf/encoding/prototext"
 	"gopkg.in/yaml.v2"
 
 	"github.com/openconfig/gnmi/proto/gnmi"
@@ -234,4 +235,21 @@ func (c *Config) CreateSetRequestFromFile(targetName string) ([]*gnmi.SetRequest
 type templateInput struct {
 	TargetName string
 	Vars       map[string]interface{}
+}
+
+func (c *Config) CreateSetRequestFromProtoFile() ([]*gnmi.SetRequest, error) {
+	reqs := make([]*gnmi.SetRequest, 0, len(c.SetRequestProtoFile))
+	for _, r := range c.SetRequestProtoFile {
+		b, err := os.ReadFile(r)
+		if err != nil {
+			return nil, err
+		}
+		req := new(gnmi.SetRequest)
+		err = prototext.Unmarshal(b, req)
+		if err != nil {
+			return nil, err
+		}
+		reqs = append(reqs, req)
+	}
+	return reqs, nil
 }

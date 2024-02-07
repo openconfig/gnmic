@@ -153,6 +153,7 @@ type LocalFlags struct {
 	SetTarget            string   `mapstructure:"set-target,omitempty" json:"set-target,omitempty" yaml:"set-target,omitempty"`
 	SetRequestFile       []string `mapstructure:"set-request-file,omitempty" json:"set-request-file,omitempty" yaml:"set-request-file,omitempty"`
 	SetRequestVars       string   `mapstructure:"set-request-vars,omitempty" json:"set-request-vars,omitempty" yaml:"set-request-vars,omitempty"`
+	SetRequestProtoFile  []string `mapstructure:"set-proto-request-file,omitempty" yaml:"set-proto-request-file,omitempty" json:"set-proto-request-file,omitempty"`
 	SetDryRun            bool     `mapstructure:"set-dry-run,omitempty" json:"set-dry-run,omitempty" yaml:"set-dry-run,omitempty"`
 	SetReplaceCli        []string `mapstructure:"set-replace-cli,omitempty" yaml:"set-replace-cli,omitempty" json:"set-replace-cli,omitempty"`
 	SetReplaceCliFile    string   `mapstructure:"set-replace-cli-file,omitempty" yaml:"set-replace-cli-file,omitempty" json:"set-replace-cli-file,omitempty"`
@@ -583,6 +584,9 @@ func (c *Config) execValueTemplate(tplString string, input interface{}) (string,
 }
 
 func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error) {
+	if len(c.SetRequestProtoFile) > 0 {
+		return c.CreateSetRequestFromProtoFile()
+	}
 	if len(c.SetRequestFile) > 0 {
 		return c.CreateSetRequestFromFile(targetName)
 	}
@@ -854,7 +858,8 @@ func (c *Config) ValidateSetInput() error {
 		len(c.LocalFlags.SetReplaceCli) == 0 &&
 		len(c.LocalFlags.SetUpdateCli) == 0 &&
 		len(c.LocalFlags.SetReplaceCliFile) == 0 &&
-		len(c.LocalFlags.SetUpdateCliFile) == 0 {
+		len(c.LocalFlags.SetUpdateCliFile) == 0 &&
+		len(c.LocalFlags.SetRequestProtoFile) == 0 {
 		return errors.New("no paths or request file provided")
 	}
 	if len(c.LocalFlags.SetUpdateFile) > 0 && len(c.LocalFlags.SetUpdateValue) > 0 {
