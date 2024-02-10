@@ -20,8 +20,8 @@ import (
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
 	gvalue "github.com/openconfig/gnmi/value"
-	"google.golang.org/protobuf/proto"
 	"github.com/openconfig/gnmic/pkg/path"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -726,6 +726,9 @@ func value(data interface{}, encoding string) (*gnmi.TypedValue, error) {
 	switch data := data.(type) {
 	case []interface{}, []string:
 		switch strings.ToLower(encoding) {
+		case "":
+			encoding = encodingJSON
+			fallthrough
 		case encodingJSON:
 			b, err := json.Marshal(data)
 			if err != nil {
@@ -753,59 +756,67 @@ func value(data interface{}, encoding string) (*gnmi.TypedValue, error) {
 			encoding = encodingJSON
 			fallthrough
 		case encodingJSON:
-			b, err := json.Marshal(data)
+			b := new(bytes.Buffer)
+			enc := json.NewEncoder(b)
+			enc.SetEscapeHTML(false)
+			err := enc.Encode(data)
 			if err != nil {
 				return nil, err
 			}
 			return &gnmi.TypedValue{
 				Value: &gnmi.TypedValue_JsonVal{
-					JsonVal: bytes.Trim(b, " \r\n\t"),
+					JsonVal: bytes.Trim(b.Bytes(), " \r\n\t"),
 				}}, nil
 		case encodingJSON_IETF:
-			b, err := json.Marshal(data)
+			b := new(bytes.Buffer)
+			enc := json.NewEncoder(b)
+			enc.SetEscapeHTML(false)
+			err := enc.Encode(data)
 			if err != nil {
 				return nil, err
 			}
 			return &gnmi.TypedValue{
 				Value: &gnmi.TypedValue_JsonIetfVal{
-					JsonIetfVal: bytes.Trim(b, " \r\n\t"),
+					JsonIetfVal: bytes.Trim(b.Bytes(), " \r\n\t"),
 				}}, nil
 		}
 	case string:
 		switch strings.ToLower(encoding) {
-		case "json":
-			var b []byte
-			var err error
-			bval := json.RawMessage(data)
-			if json.Valid(bval) {
-				b, err = json.Marshal(bval)
+		case "":
+			encoding = encodingJSON
+			fallthrough
+		case encodingJSON:
+			b := new(bytes.Buffer)
+			if json.Valid([]byte(data)) {
+				b.WriteString(data)
 			} else {
-				b, err = json.Marshal(data)
-			}
-			//b, err = json.Marshal(data)
-			if err != nil {
-				return nil, err
+				enc := json.NewEncoder(b)
+				enc.SetEscapeHTML(false)
+				err := enc.Encode(data)
+				if err != nil {
+					return nil, err
+				}
 			}
 			return &gnmi.TypedValue{
 				Value: &gnmi.TypedValue_JsonVal{
-					JsonVal: bytes.Trim(b, " \r\n\t"),
+					JsonVal: bytes.Trim(b.Bytes(), " \r\n\t"),
 				}}, nil
-		case "json_ietf":
-			var b []byte
-			var err error
-			bval := json.RawMessage(data)
-			if json.Valid(bval) {
-				b, err = json.Marshal(bval)
+		case encodingJSON_IETF:
+			b := new(bytes.Buffer)
+			if json.Valid([]byte(data)) {
+				b.WriteString(data)
 			} else {
-				b, err = json.Marshal(data)
-			}
-			//b, err = json.Marshal(data)
-			if err != nil {
-				return nil, err
+				enc := json.NewEncoder(b)
+				enc.SetEscapeHTML(false)
+
+				err := enc.Encode(data)
+				if err != nil {
+					return nil, err
+				}
 			}
 			return &gnmi.TypedValue{
 				Value: &gnmi.TypedValue_JsonIetfVal{
-					JsonIetfVal: bytes.Trim(b, " \r\n\t"),
+					JsonIetfVal: bytes.Trim(b.Bytes(), " \r\n\t"),
 				}}, nil
 		case "ascii":
 			return &gnmi.TypedValue{
