@@ -798,11 +798,17 @@ func toJSONBytes(data []byte) ([]byte, error) {
 		return nil, err
 	}
 	newStruct := convert(out)
-	newData, err := json.Marshal(newStruct)
+
+	b := new(bytes.Buffer)
+	enc := json.NewEncoder(b)
+	enc.SetEscapeHTML(false)
+
+	err = enc.Encode(newStruct)
 	if err != nil {
 		return nil, err
 	}
-	return newData, nil
+
+	return b.Bytes(), nil
 }
 
 // SanitizeArrayFlagValue trims trailing and leading brackets ([]),

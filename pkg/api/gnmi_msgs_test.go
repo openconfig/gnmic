@@ -1381,6 +1381,17 @@ var valueTestSet = map[string]valueInput{
 			},
 		},
 	},
+	"json_string_special_chars": {
+		data:     "<.*>",
+		encoding: "json",
+		msg: &gnmi.Update{
+			Val: &gnmi.TypedValue{
+				Value: &gnmi.TypedValue_JsonVal{
+					JsonVal: []byte("\"<.*>\""),
+				},
+			},
+		},
+	},
 	"json_string_array": {
 		data:     []string{"foo", "bar"},
 		encoding: "json",
