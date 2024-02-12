@@ -26,39 +26,129 @@ import (
 	"github.com/openconfig/gnmic/pkg/utils"
 )
 
+// map of supported cipher suites
+func ciphersMap() map[string]uint16 {
+	return map[string]uint16{
+		// secure, up to tls1.2
+		"TLS_RSA_WITH_AES_128_CBC_SHA": tls.TLS_RSA_WITH_AES_128_CBC_SHA,
+		"TLS_RSA_WITH_AES_256_CBC_SHA": tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+		// secure, only tls1.2
+		"TLS_RSA_WITH_AES_128_GCM_SHA256": tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
+		"TLS_RSA_WITH_AES_256_GCM_SHA384": tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+		// secure, tls1.3
+		"TLS_AES_128_GCM_SHA256":       tls.TLS_AES_128_GCM_SHA256,
+		"TLS_AES_256_GCM_SHA384":       tls.TLS_AES_256_GCM_SHA384,
+		"TLS_CHACHA20_POLY1305_SHA256": tls.TLS_CHACHA20_POLY1305_SHA256,
+		// secure, ECDHE
+		"TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA":          tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+		"TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA":          tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
+		"TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA":            tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+		"TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA":            tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+		"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256":       tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+		"TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384":       tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+		"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256":         tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+		"TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384":         tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+		"TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256":   tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+		"TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256": tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+		// insecure
+		"TLS_RSA_WITH_RC4_128_SHA":                tls.TLS_RSA_WITH_RC4_128_SHA,
+		"TLS_RSA_WITH_3DES_EDE_CBC_SHA":           tls.TLS_RSA_WITH_3DES_EDE_CBC_SHA,
+		"TLS_RSA_WITH_AES_128_CBC_SHA256":         tls.TLS_RSA_WITH_AES_128_CBC_SHA256,
+		"TLS_ECDHE_ECDSA_WITH_RC4_128_SHA":        tls.TLS_ECDHE_ECDSA_WITH_RC4_128_SHA,
+		"TLS_ECDHE_RSA_WITH_RC4_128_SHA":          tls.TLS_ECDHE_RSA_WITH_RC4_128_SHA,
+		"TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA":     tls.TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA,
+		"TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256": tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,
+		"TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256":   tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
+	}
+}
+
+var cipherSuitesPreferenceOrder = []uint16{
+	// AEADs w/ ECDHE
+	tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+	tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+	tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305, tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
+
+	// CBC w/ ECDHE
+	tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA, tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+	tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA, tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+
+	// AEADs w/o ECDHE
+	tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
+	tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+
+	// CBC w/o ECDHE
+	tls.TLS_RSA_WITH_AES_128_CBC_SHA,
+	tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+
+	// 3DES
+	tls.TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA,
+	tls.TLS_RSA_WITH_3DES_EDE_CBC_SHA,
+
+	// disabled cipher suites
+	// CBC_SHA256
+	tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256, tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
+	tls.TLS_RSA_WITH_AES_128_CBC_SHA256,
+
+	// RC4
+	tls.TLS_ECDHE_ECDSA_WITH_RC4_128_SHA, tls.TLS_ECDHE_RSA_WITH_RC4_128_SHA,
+	tls.TLS_RSA_WITH_RC4_128_SHA,
+}
+
+var disabledCipherSuites = []uint16{
+	// CBC_SHA256
+	tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256, tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
+	tls.TLS_RSA_WITH_AES_128_CBC_SHA256,
+
+	// RC4
+	tls.TLS_ECDHE_ECDSA_WITH_RC4_128_SHA, tls.TLS_ECDHE_RSA_WITH_RC4_128_SHA,
+	tls.TLS_RSA_WITH_RC4_128_SHA,
+}
+
+var (
+	defaultCipherSuitesLen = len(cipherSuitesPreferenceOrder) - len(disabledCipherSuites)
+	defaultCipherSuites    = cipherSuitesPreferenceOrder[:defaultCipherSuitesLen]
+)
+
+var defaultCipherSuitesTLS13 = []uint16{
+	tls.TLS_AES_128_GCM_SHA256,
+	tls.TLS_AES_256_GCM_SHA384,
+	tls.TLS_CHACHA20_POLY1305_SHA256,
+}
+
 // TargetConfig //
 type TargetConfig struct {
-	Name          string            `mapstructure:"name,omitempty" json:"name,omitempty" yaml:"name,omitempty"`
-	Address       string            `mapstructure:"address,omitempty" json:"address,omitempty" yaml:"address,omitempty"`
-	Username      *string           `mapstructure:"username,omitempty" json:"username,omitempty" yaml:"username,omitempty"`
-	Password      *string           `mapstructure:"password,omitempty" json:"password,omitempty" yaml:"password,omitempty"`
-	AuthScheme    string            `mapstructure:"auth-scheme,omitempty" json:"auth-scheme,omitempty" yaml:"auth-scheme,omitempty"`
-	Timeout       time.Duration     `mapstructure:"timeout,omitempty" json:"timeout,omitempty" yaml:"timeout,omitempty"`
-	Insecure      *bool             `mapstructure:"insecure,omitempty" json:"insecure,omitempty" yaml:"insecure,omitempty"`
-	TLSCA         *string           `mapstructure:"tls-ca,omitempty" json:"tls-ca,omitempty" yaml:"tls-ca,omitempty"`
-	TLSCert       *string           `mapstructure:"tls-cert,omitempty" json:"tls-cert,omitempty" yaml:"tls-cert,omitempty"`
-	TLSKey        *string           `mapstructure:"tls-key,omitempty" json:"tls-key,omitempty" yaml:"tls-key,omitempty"`
-	SkipVerify    *bool             `mapstructure:"skip-verify,omitempty" json:"skip-verify,omitempty" yaml:"skip-verify,omitempty"`
-	TLSServerName string            `mapstructure:"tls-server-name,omitempty" json:"tls-server-name,omitempty" yaml:"tls-server-name,omitempty"`
-	Subscriptions []string          `mapstructure:"subscriptions,omitempty" json:"subscriptions,omitempty" yaml:"subscriptions,omitempty"`
-	Outputs       []string          `mapstructure:"outputs,omitempty" json:"outputs,omitempty" yaml:"outputs,omitempty"`
-	BufferSize    uint              `mapstructure:"buffer-size,omitempty" json:"buffer-size,omitempty" yaml:"buffer-size,omitempty"`
-	RetryTimer    time.Duration     `mapstructure:"retry,omitempty" json:"retry-timer,omitempty" yaml:"retry-timer,omitempty"`
-	TLSMinVersion string            `mapstructure:"tls-min-version,omitempty" json:"tls-min-version,omitempty" yaml:"tls-min-version,omitempty"`
-	TLSMaxVersion string            `mapstructure:"tls-max-version,omitempty" json:"tls-max-version,omitempty" yaml:"tls-max-version,omitempty"`
-	TLSVersion    string            `mapstructure:"tls-version,omitempty" json:"tls-version,omitempty" yaml:"tls-version,omitempty"`
-	LogTLSSecret  *bool             `mapstructure:"log-tls-secret,omitempty" json:"log-tls-secret,omitempty" yaml:"log-tls-secret,omitempty"`
-	ProtoFiles    []string          `mapstructure:"proto-files,omitempty" json:"proto-files,omitempty" yaml:"proto-files,omitempty"`
-	ProtoDirs     []string          `mapstructure:"proto-dirs,omitempty" json:"proto-dirs,omitempty" yaml:"proto-dirs,omitempty"`
-	Tags          []string          `mapstructure:"tags,omitempty" json:"tags,omitempty" yaml:"tags,omitempty"`
-	EventTags     map[string]string `mapstructure:"event-tags,omitempty" json:"event-tags,omitempty" yaml:"event-tags,omitempty"`
-	Gzip          *bool             `mapstructure:"gzip,omitempty" json:"gzip,omitempty" yaml:"gzip,omitempty"`
-	Token         *string           `mapstructure:"token,omitempty" json:"token,omitempty" yaml:"token,omitempty"`
-	Proxy         string            `mapstructure:"proxy,omitempty" json:"proxy,omitempty" yaml:"proxy,omitempty"`
+	Name          string            `mapstructure:"name,omitempty" yaml:"name,omitempty" json:"name,omitempty"`
+	Address       string            `mapstructure:"address,omitempty" yaml:"address,omitempty" json:"address,omitempty"`
+	Username      *string           `mapstructure:"username,omitempty" yaml:"username,omitempty" json:"username,omitempty"`
+	Password      *string           `mapstructure:"password,omitempty" yaml:"password,omitempty" json:"password,omitempty"`
+	AuthScheme    string            `mapstructure:"auth-scheme,omitempty" yaml:"auth-scheme,omitempty" json:"auth-scheme,omitempty"`
+	Timeout       time.Duration     `mapstructure:"timeout,omitempty" yaml:"timeout,omitempty" json:"timeout,omitempty"`
+	Insecure      *bool             `mapstructure:"insecure,omitempty" yaml:"insecure,omitempty" json:"insecure,omitempty"`
+	TLSCA         *string           `mapstructure:"tls-ca,omitempty" yaml:"tls-ca,omitempty" json:"tls-ca,omitempty"`
+	TLSCert       *string           `mapstructure:"tls-cert,omitempty" yaml:"tls-cert,omitempty" json:"tls-cert,omitempty"`
+	TLSKey        *string           `mapstructure:"tls-key,omitempty" yaml:"tls-key,omitempty" json:"tls-key,omitempty"`
+	SkipVerify    *bool             `mapstructure:"skip-verify,omitempty" yaml:"skip-verify,omitempty" json:"skip-verify,omitempty"`
+	TLSServerName string            `mapstructure:"tls-server-name,omitempty" yaml:"tls-server-name,omitempty" json:"tls-server-name,omitempty"`
+	Subscriptions []string          `mapstructure:"subscriptions,omitempty" yaml:"subscriptions,omitempty" json:"subscriptions,omitempty"`
+	Outputs       []string          `mapstructure:"outputs,omitempty" yaml:"outputs,omitempty" json:"outputs,omitempty"`
+	BufferSize    uint              `mapstructure:"buffer-size,omitempty" yaml:"buffer-size,omitempty" json:"buffer-size,omitempty"`
+	RetryTimer    time.Duration     `mapstructure:"retry,omitempty" yaml:"retry-timer,omitempty" json:"retry-timer,omitempty"`
+	TLSMinVersion string            `mapstructure:"tls-min-version,omitempty" yaml:"tls-min-version,omitempty" json:"tls-min-version,omitempty"`
+	TLSMaxVersion string            `mapstructure:"tls-max-version,omitempty" yaml:"tls-max-version,omitempty" json:"tls-max-version,omitempty"`
+	TLSVersion    string            `mapstructure:"tls-version,omitempty" yaml:"tls-version,omitempty" json:"tls-version,omitempty"`
+	LogTLSSecret  *bool             `mapstructure:"log-tls-secret,omitempty" yaml:"log-tls-secret,omitempty" json:"log-tls-secret,omitempty"`
+	ProtoFiles    []string          `mapstructure:"proto-files,omitempty" yaml:"proto-files,omitempty" json:"proto-files,omitempty"`
+	ProtoDirs     []string          `mapstructure:"proto-dirs,omitempty" yaml:"proto-dirs,omitempty" json:"proto-dirs,omitempty"`
+	Tags          []string          `mapstructure:"tags,omitempty" yaml:"tags,omitempty" json:"tags,omitempty"`
+	EventTags     map[string]string `mapstructure:"event-tags,omitempty" yaml:"event-tags,omitempty" json:"event-tags,omitempty"`
+	Gzip          *bool             `mapstructure:"gzip,omitempty" yaml:"gzip,omitempty" json:"gzip,omitempty"`
+	Token         *string           `mapstructure:"token,omitempty" yaml:"token,omitempty" json:"token,omitempty"`
+	Proxy         string            `mapstructure:"proxy,omitempty" yaml:"proxy,omitempty" json:"proxy,omitempty"`
 	//
-	TunnelTargetType string            `mapstructure:"-" json:"tunnel-target-type,omitempty" yaml:"tunnel-target-type,omitempty"`
+	TunnelTargetType string            `mapstructure:"-" yaml:"tunnel-target-type,omitempty" json:"tunnel-target-type,omitempty"`
 	Encoding         *string           `mapstructure:"encoding,omitempty" yaml:"encoding,omitempty" json:"encoding,omitempty"`
-	Metadata         map[string]string `mapstructure:"metadata,omitempty" json:"metadata,omitempty" yaml:"metadata,omitempty"`
+	Metadata         map[string]string `mapstructure:"metadata,omitempty" yaml:"metadata,omitempty" json:"metadata,omitempty"`
+	CipherSuites     []string          `mapstructure:"cipher-suites,omitempty" yaml:"cipher-suites,omitempty" json:"cipher-suites,omitempty"`
 }
 
 func (tc TargetConfig) String() string {
@@ -106,6 +196,26 @@ func (tc *TargetConfig) NewTLSConfig() (*tls.Config, error) {
 	tlsConfig.MaxVersion = tc.getTLSMaxVersion()
 	tlsConfig.MinVersion = tc.getTLSMinVersion()
 	tlsConfig.ServerName = tc.TLSServerName
+
+	// tc.cipher-suites is not set
+	if len(tlsConfig.CipherSuites) == 0 && len(tc.CipherSuites) == 0 {
+		tlsConfig.CipherSuites = defaultCipherSuites
+		// add tls1.3 ciphers if it's supported
+		if tlsConfig.MaxVersion == tls.VersionTLS13 || tlsConfig.MaxVersion == 0 {
+			tlsConfig.CipherSuites = append(tlsConfig.CipherSuites, defaultCipherSuitesTLS13...)
+		}
+	}
+	// tc.cipher-suites is set
+	if len(tlsConfig.CipherSuites) == 0 && len(tc.CipherSuites) != 0 {
+		tlsConfig.CipherSuites = make([]uint16, 0, len(tc.CipherSuites))
+		cmap := ciphersMap()
+		for _, cs := range tc.CipherSuites {
+			if _, ok := cmap[cs]; !ok {
+				return nil, fmt.Errorf("unknown cipher suite %q", cs)
+			}
+			tlsConfig.CipherSuites = append(tlsConfig.CipherSuites, cmap[cs])
+		}
+	}
 	return tlsConfig, nil
 }
 
