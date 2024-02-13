@@ -1,5 +1,19 @@
 ## Changelog
 
+### v 0.36.0 - February 13th 2024
+
+- Event Message
+
+    - gNMI updates with deleted paths are now converted into separate event messages where the keys are extracted from the path and set as event tags.
+
+- gNMI TLS cipher suites
+
+    - It is now possible to select the list of a cipher suites that gNMIc advertises to a gNMI server during a TLS handshake. The full list of supported ciphers can be found [here](user_guide/targets/targets.md#controlling-the-advertised-cipher-suites)
+
+- Set Request
+
+    - The Set command now features a new flag, `--proto-file`, which allows the specification of one or more files. These files should contain gNMI Set requests in `prototext` format, which will be sent to the specified targets.
+
 ### v 0.35.0 - January 20th 2024
 
 - Processors
