@@ -23,8 +23,8 @@ import (
 	"time"
 
 	"github.com/openconfig/gnmic/pkg/actions"
+	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
-	"github.com/openconfig/gnmic/pkg/utils"
 )
 
 type item struct {

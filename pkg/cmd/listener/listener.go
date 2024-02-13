@@ -31,9 +31,9 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
 
+	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/app"
 	"github.com/openconfig/gnmic/pkg/outputs"
-	"github.com/openconfig/gnmic/pkg/utils"
 )
 
 // New returns the listen command tree.

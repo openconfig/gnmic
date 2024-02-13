@@ -13,8 +13,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/outputs"
-	"github.com/openconfig/gnmic/pkg/types"
 )
 
 func (a *App) InitOutput(ctx context.Context, name string, tcs map[string]*types.TargetConfig) {

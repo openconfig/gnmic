@@ -23,7 +23,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/openconfig/gnmic/pkg/api"
-	"github.com/openconfig/gnmic/pkg/types"
+	"github.com/openconfig/gnmic/pkg/api/types"
 )
 
 const (

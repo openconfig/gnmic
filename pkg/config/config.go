@@ -33,9 +33,9 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/openconfig/gnmic/pkg/api"
+	"github.com/openconfig/gnmic/pkg/api/types"
+	"github.com/openconfig/gnmic/pkg/api/utils"
 	gfile "github.com/openconfig/gnmic/pkg/file"
-	"github.com/openconfig/gnmic/pkg/types"
-	"github.com/openconfig/gnmic/pkg/utils"
 )
 
 const (

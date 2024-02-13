@@ -24,9 +24,9 @@ import (
 	"github.com/spf13/pflag"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/config"
 	"github.com/openconfig/gnmic/pkg/formatters"
-	"github.com/openconfig/gnmic/pkg/types"
 )
 
 type targetDiffResponse struct {

@@ -11,9 +11,9 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
 
+	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/formatters/event_plugin"
-	"github.com/openconfig/gnmic/pkg/types"
 )
 
 const (

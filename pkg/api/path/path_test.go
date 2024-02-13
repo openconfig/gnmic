@@ -15,7 +15,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/openconfig/gnmi/proto/gnmi"
-	"github.com/openconfig/gnmic/pkg/testutils"
+	"github.com/openconfig/gnmic/pkg/api/testutils"
 )
 
 var prefixSet = map[string]*gnmi.Path{

@@ -20,9 +20,9 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/openconfig/gnmi/proto/gnmi"
-	"github.com/openconfig/gnmic/pkg/target"
-	"github.com/openconfig/gnmic/pkg/types"
-	"github.com/openconfig/gnmic/pkg/utils"
+	"github.com/openconfig/gnmic/pkg/api/types"
+	"github.com/openconfig/gnmic/pkg/api/utils"
+	"github.com/openconfig/gnmic/pkg/api/target"
 )
 
 func (s *server) Set(ctx context.Context, req *gnmi.SetRequest) (*gnmi.SetResponse, error) {

@@ -26,10 +26,10 @@ import (
 	"github.com/mitchellh/mapstructure"
 
 	"github.com/openconfig/gnmic/pkg/actions"
+	"github.com/openconfig/gnmic/pkg/api/types"
+	"github.com/openconfig/gnmic/pkg/api/utils"
 	gfile "github.com/openconfig/gnmic/pkg/file"
 	"github.com/openconfig/gnmic/pkg/loaders"
-	"github.com/openconfig/gnmic/pkg/types"
-	"github.com/openconfig/gnmic/pkg/utils"
 )
 
 const (

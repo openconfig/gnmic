@@ -22,7 +22,7 @@ import (
 	"github.com/golang/snappy"
 	"github.com/prometheus/prometheus/prompb"
 
-	"github.com/openconfig/gnmic/pkg/utils"
+	"github.com/openconfig/gnmic/pkg/api/utils"
 )
 
 var (

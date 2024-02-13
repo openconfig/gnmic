@@ -28,8 +28,8 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/lockers"
-	"github.com/openconfig/gnmic/pkg/utils"
 )
 
 const (

@@ -19,7 +19,7 @@ import (
 	"github.com/jhump/protoreflect/desc"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
-	"github.com/openconfig/gnmic/pkg/types"
+	"github.com/openconfig/gnmic/pkg/api/types"
 	"golang.org/x/net/proxy"
 	"golang.org/x/oauth2"
 	"google.golang.org/grpc"

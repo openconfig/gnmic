@@ -23,7 +23,7 @@ import (
 	"google.golang.org/grpc/credentials/oauth"
 	"google.golang.org/grpc/encoding/gzip"
 
-	"github.com/openconfig/gnmic/pkg/utils"
+	"github.com/openconfig/gnmic/pkg/api/utils"
 )
 
 // map of supported cipher suites

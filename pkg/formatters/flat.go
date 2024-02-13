@@ -15,7 +15,7 @@ import (
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/openconfig/gnmic/pkg/path"
+	"github.com/openconfig/gnmic/pkg/api/path"
 )
 
 func ResponsesFlat(msgs ...proto.Message) (map[string]interface{}, error) {

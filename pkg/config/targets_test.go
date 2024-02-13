@@ -17,7 +17,7 @@ import (
 
 	"github.com/AlekSi/pointer"
 
-	"github.com/openconfig/gnmic/pkg/types"
+	"github.com/openconfig/gnmic/pkg/api/types"
 )
 
 var getTargetsTestSet = map[string]struct {

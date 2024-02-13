@@ -13,9 +13,9 @@ import (
 
 	lru "github.com/hashicorp/golang-lru/v2"
 
+	"github.com/openconfig/gnmic/pkg/api/types"
+	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
-	"github.com/openconfig/gnmic/pkg/types"
-	"github.com/openconfig/gnmic/pkg/utils"
 )
 
 const (

@@ -18,12 +18,12 @@ import (
 	"github.com/openconfig/gnmi/proto/gnmi"
 
 	"github.com/openconfig/gnmic/pkg/api"
+	"github.com/openconfig/gnmic/pkg/api/target"
+	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/formatters/event_plugin"
 	gtemplate "github.com/openconfig/gnmic/pkg/gtemplate"
-	gpath "github.com/openconfig/gnmic/pkg/path"
-	"github.com/openconfig/gnmic/pkg/target"
-	"github.com/openconfig/gnmic/pkg/types"
+	gpath "github.com/openconfig/gnmic/pkg/api/path"
 )
 
 const (

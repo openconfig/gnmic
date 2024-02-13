@@ -11,7 +11,7 @@ package consul_loader
 import (
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/openconfig/gnmic/pkg/types"
+	"github.com/openconfig/gnmic/pkg/api/types"
 )
 
 func (c *consulLoader) RegisterMetrics(reg *prometheus.Registry) {

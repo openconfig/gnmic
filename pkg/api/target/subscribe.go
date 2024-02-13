@@ -18,7 +18,7 @@ import (
 
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/openconfig/gnmi/proto/gnmi"
-	"github.com/openconfig/gnmic/pkg/types"
+	"github.com/openconfig/gnmic/pkg/api/types"
 )
 
 // Subscribe sends a gnmi.SubscribeRequest to the target *t, responses and error are sent to the target channels

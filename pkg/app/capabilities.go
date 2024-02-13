@@ -18,7 +18,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
-	"github.com/openconfig/gnmic/pkg/types"
+	"github.com/openconfig/gnmic/pkg/api/types"
 )
 
 func (a *App) CapPreRunE(cmd *cobra.Command, _ []string) error {

@@ -14,8 +14,8 @@ import (
 
 	"github.com/fullstorydev/grpcurl"
 
-	"github.com/openconfig/gnmic/pkg/target"
-	"github.com/openconfig/gnmic/pkg/types"
+	"github.com/openconfig/gnmic/pkg/api/target"
+	"github.com/openconfig/gnmic/pkg/api/types"
 )
 
 // initTarget initializes a new target given its name.

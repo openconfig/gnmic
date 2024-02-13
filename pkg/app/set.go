@@ -17,8 +17,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/config"
-	"github.com/openconfig/gnmic/pkg/types"
 )
 
 func (a *App) SetPreRunE(cmd *cobra.Command, args []string) error {

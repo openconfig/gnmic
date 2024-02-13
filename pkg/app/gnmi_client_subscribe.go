@@ -20,10 +20,10 @@ import (
 	"github.com/openconfig/grpctunnel/tunnel"
 	"google.golang.org/grpc"
 
+	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/config"
 	"github.com/openconfig/gnmic/pkg/lockers"
 	"github.com/openconfig/gnmic/pkg/outputs"
-	"github.com/openconfig/gnmic/pkg/types"
 )
 
 type subscriptionRequest struct {

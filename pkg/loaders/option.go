@@ -11,7 +11,7 @@ package loaders
 import (
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/openconfig/gnmic/pkg/types"
+	"github.com/openconfig/gnmic/pkg/api/types"
 )
 
 type Option func(TargetLoader)

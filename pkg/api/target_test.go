@@ -14,7 +14,7 @@ import (
 	"github.com/AlekSi/pointer"
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/openconfig/gnmic/pkg/types"
+	"github.com/openconfig/gnmic/pkg/api/types"
 )
 
 type input struct {

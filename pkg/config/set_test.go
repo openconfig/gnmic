@@ -15,7 +15,7 @@ import (
 
 	"github.com/openconfig/gnmi/proto/gnmi"
 
-	"github.com/openconfig/gnmic/pkg/testutils"
+	"github.com/openconfig/gnmic/pkg/api/testutils"
 )
 
 var createSetRequestFromFileTestSet = map[string]struct {

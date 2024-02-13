@@ -15,8 +15,8 @@ import (
 	"github.com/go-redsync/redsync/v4/redis/goredis/v9"
 	goredislib "github.com/redis/go-redis/v9"
 
+	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/lockers"
-	"github.com/openconfig/gnmic/pkg/utils"
 )
 
 const (

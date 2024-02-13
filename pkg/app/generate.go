@@ -24,8 +24,8 @@ import (
 	"github.com/spf13/pflag"
 	"gopkg.in/yaml.v2"
 
+	"github.com/openconfig/gnmic/pkg/api/path"
 	"github.com/openconfig/gnmic/pkg/config"
-	"github.com/openconfig/gnmic/pkg/path"
 )
 
 // options for formatting keys when generating yaml/json payloads

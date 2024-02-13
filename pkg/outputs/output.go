@@ -23,10 +23,10 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
+	"github.com/openconfig/gnmic/pkg/api/types"
+	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	_ "github.com/openconfig/gnmic/pkg/formatters/all"
-	"github.com/openconfig/gnmic/pkg/types"
-	"github.com/openconfig/gnmic/pkg/utils"
 )
 
 type Output interface {

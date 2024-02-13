@@ -20,16 +20,16 @@ import (
 	"text/template"
 	"time"
 
-	"google.golang.org/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/protobuf/proto"
 
+	"github.com/openconfig/gnmic/pkg/api/types"
+	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
 	"github.com/openconfig/gnmic/pkg/outputs"
-	"github.com/openconfig/gnmic/pkg/types"
-	"github.com/openconfig/gnmic/pkg/utils"
 )
 
 const (

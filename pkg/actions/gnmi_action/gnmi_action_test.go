@@ -14,8 +14,8 @@ import (
 	"github.com/openconfig/gnmi/proto/gnmi"
 
 	"github.com/openconfig/gnmic/pkg/actions"
+	"github.com/openconfig/gnmic/pkg/api/testutils"
 	"github.com/openconfig/gnmic/pkg/formatters"
-	"github.com/openconfig/gnmic/pkg/testutils"
 )
 
 type getRequestTestItem struct {

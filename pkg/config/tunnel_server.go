@@ -15,8 +15,8 @@ import (
 
 	"github.com/mitchellh/mapstructure"
 
-	"github.com/openconfig/gnmic/pkg/types"
-	"github.com/openconfig/gnmic/pkg/utils"
+	"github.com/openconfig/gnmic/pkg/api/types"
+	"github.com/openconfig/gnmic/pkg/api/utils"
 )
 
 const (

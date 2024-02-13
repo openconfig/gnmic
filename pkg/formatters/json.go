@@ -16,7 +16,7 @@ import (
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/openconfig/gnmic/pkg/path"
+	"github.com/openconfig/gnmic/pkg/api/path"
 )
 
 // FormatJSON formats a proto.Message and returns a []byte and an error
