@@ -26,8 +26,8 @@ import (
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
 	"github.com/spf13/viper"
 
-	"github.com/openconfig/gnmic/pkg/testutils"
-	"github.com/openconfig/gnmic/pkg/types"
+	"github.com/openconfig/gnmic/pkg/api/testutils"
+	"github.com/openconfig/gnmic/pkg/api/types"
 )
 
 func mustParseTime(tm string) time.Time {

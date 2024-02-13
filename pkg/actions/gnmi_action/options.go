@@ -12,8 +12,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/openconfig/gnmic/pkg/types"
-	"github.com/openconfig/gnmic/pkg/utils"
+	"github.com/openconfig/gnmic/pkg/api/types"
+	"github.com/openconfig/gnmic/pkg/api/utils"
 )
 
 func (g *gnmiAction) WithTargets(tcs map[string]*types.TargetConfig) {

@@ -13,7 +13,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/openconfig/gnmic/pkg/types"
+	"github.com/openconfig/gnmic/pkg/api/types"
 )
 
 const (

@@ -12,8 +12,8 @@ import (
 	"context"
 	"log"
 
+	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/outputs"
-	"github.com/openconfig/gnmic/pkg/types"
 )
 
 type Input interface {

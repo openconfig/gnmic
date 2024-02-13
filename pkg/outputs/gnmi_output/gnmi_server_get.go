@@ -22,9 +22,9 @@ import (
 
 	"github.com/openconfig/gnmi/proto/gnmi"
 
-	"github.com/openconfig/gnmic/pkg/target"
-	"github.com/openconfig/gnmic/pkg/types"
-	"github.com/openconfig/gnmic/pkg/utils"
+	"github.com/openconfig/gnmic/pkg/api/target"
+	"github.com/openconfig/gnmic/pkg/api/types"
+	"github.com/openconfig/gnmic/pkg/api/utils"
 )
 
 func (s *server) Get(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetResponse, error) {

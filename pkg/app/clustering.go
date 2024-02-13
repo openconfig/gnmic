@@ -22,8 +22,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/lockers"
-	"github.com/openconfig/gnmic/pkg/types"
 )
 
 const (

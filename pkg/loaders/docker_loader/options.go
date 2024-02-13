@@ -11,7 +11,7 @@ package docker_loader
 import (
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/openconfig/gnmic/pkg/types"
+	"github.com/openconfig/gnmic/pkg/api/types"
 )
 
 func (d *dockerLoader) RegisterMetrics(reg *prometheus.Registry) {

@@ -20,7 +20,7 @@ import (
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
 	gvalue "github.com/openconfig/gnmi/value"
-	"github.com/openconfig/gnmic/pkg/path"
+	"github.com/openconfig/gnmic/pkg/api/path"
 	"google.golang.org/protobuf/proto"
 )
 

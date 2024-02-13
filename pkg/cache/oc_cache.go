@@ -22,8 +22,8 @@ import (
 	"github.com/openconfig/gnmi/path"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/subscribe"
-	gpath "github.com/openconfig/gnmic/pkg/path"
-	"github.com/openconfig/gnmic/pkg/utils"
+	gpath "github.com/openconfig/gnmic/pkg/api/path"
+	"github.com/openconfig/gnmic/pkg/api/utils"
 	"google.golang.org/protobuf/proto"
 )
 

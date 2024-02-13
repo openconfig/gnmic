@@ -14,7 +14,7 @@ import (
 
 	tpb "github.com/openconfig/grpctunnel/proto/tunnel"
 
-	"github.com/openconfig/gnmic/pkg/testutils"
+	"github.com/openconfig/gnmic/pkg/api/testutils"
 )
 
 type registerOpInput struct {

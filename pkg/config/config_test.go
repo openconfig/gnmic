@@ -18,8 +18,8 @@ import (
 	"github.com/openconfig/gnmi/proto/gnmi"
 
 	"github.com/openconfig/gnmic/pkg/api"
-	"github.com/openconfig/gnmic/pkg/testutils"
-	"github.com/openconfig/gnmic/pkg/types"
+	"github.com/openconfig/gnmic/pkg/api/testutils"
+	"github.com/openconfig/gnmic/pkg/api/types"
 )
 
 var createGetRequestTestSet = map[string]struct {

@@ -26,7 +26,7 @@ import (
 	"golang.org/x/crypto/ssh/knownhosts"
 
 	"github.com/jlaffaye/ftp"
-	"github.com/openconfig/gnmic/pkg/utils"
+	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/pkg/sftp"
 )
 

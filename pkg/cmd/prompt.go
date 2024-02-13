@@ -25,9 +25,9 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/cmd/get"
 	"github.com/openconfig/gnmic/pkg/cmd/subscribe"
-	"github.com/openconfig/gnmic/pkg/types"
 )
 
 var colorMapping = map[string]goprompt.Color{

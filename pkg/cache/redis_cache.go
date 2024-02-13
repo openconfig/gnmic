@@ -21,7 +21,7 @@ import (
 	redis "github.com/go-redis/redis/v8"
 	"github.com/openconfig/gnmi/proto/gnmi"
 
-	"github.com/openconfig/gnmic/pkg/utils"
+	"github.com/openconfig/gnmic/pkg/api/utils"
 )
 
 const (

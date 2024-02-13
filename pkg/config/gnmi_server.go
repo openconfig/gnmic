@@ -14,8 +14,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/cache"
-	"github.com/openconfig/gnmic/pkg/types"
 )
 
 const (

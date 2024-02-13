@@ -11,7 +11,7 @@ package outputs
 import (
 	"log"
 
-	"github.com/openconfig/gnmic/pkg/types"
+	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -29,7 +29,7 @@ func WithEventProcessors(eps map[string]map[string]interface{},
 	tcs map[string]*types.TargetConfig,
 	acts map[string]map[string]interface{}) Option {
 	return func(o Output) error {
-		return  o.SetEventProcessors(eps, log, tcs, acts)
+		return o.SetEventProcessors(eps, log, tcs, acts)
 	}
 }
 

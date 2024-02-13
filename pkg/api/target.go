@@ -15,8 +15,8 @@ import (
 
 	"github.com/AlekSi/pointer"
 
-	"github.com/openconfig/gnmic/pkg/target"
-	"github.com/openconfig/gnmic/pkg/types"
+	"github.com/openconfig/gnmic/pkg/api/target"
+	"github.com/openconfig/gnmic/pkg/api/types"
 )
 
 var DefaultTargetTimeout = 10 * time.Second

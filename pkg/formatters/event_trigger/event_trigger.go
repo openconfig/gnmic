@@ -25,10 +25,10 @@ import (
 
 	"github.com/openconfig/gnmic/pkg/actions"
 	_ "github.com/openconfig/gnmic/pkg/actions/all"
+	"github.com/openconfig/gnmic/pkg/api/types"
+	"github.com/openconfig/gnmic/pkg/api/utils"
 	gfile "github.com/openconfig/gnmic/pkg/file"
 	"github.com/openconfig/gnmic/pkg/formatters"
-	"github.com/openconfig/gnmic/pkg/types"
-	"github.com/openconfig/gnmic/pkg/utils"
 )
 
 const (
