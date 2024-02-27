@@ -289,7 +289,7 @@ OUTER:
 				switch rsp.Response.(type) {
 				case *gnmi.SubscribeResponse_SyncResponse:
 					a.Logger.Printf("target %q, subscription %q received sync response", t.Config.Name, sreq.name)
-					return nil
+					continue
 				default:
 					m := outputs.Meta{"source": t.Config.Name, "format": a.Config.Format, "subscription-name": sreq.name}
 					a.Export(ctx, rsp, m, t.Config.Outputs...)
