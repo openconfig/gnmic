@@ -94,28 +94,7 @@ func (t *Target) CreateGNMIClient(ctx context.Context, opts ...grpc.DialOption) 
 		go func(addr string) {
 			timeoutCtx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 			defer cancel()
-			if t.Config.Proxy != "" {
-				if idx := strings.Index(t.Config.Proxy, "://"); idx >= 0 {
-					proxyType := t.Config.Proxy[:idx]
-					proxyAddress := t.Config.Proxy[idx+3:]
-					if proxyType == "socks5" {
-						opts = append(opts, grpc.WithContextDialer(
-							func(_ context.Context, addr string) (net.Conn, error) {
-								dialer, err := proxy.SOCKS5("tcp", proxyAddress, nil,
-									&net.Dialer{
-										Timeout:   t.Config.Timeout,
-										KeepAlive: t.Config.Timeout,
-									},
-								)
-								if err != nil {
-									errC <- fmt.Errorf("%s: %v", addr, err)
-									return nil, err
-								}
-								return dialer.Dial("tcp", addr)
-							}))
-					}
-				}
-			}
+			opts = append(opts, grpc.WithContextDialer(t.createDialer(addr)))
 			conn, err := grpc.DialContext(timeoutCtx, addr, opts...)
 			if err != nil {
 				errC <- fmt.Errorf("%s: %v", addr, err)
@@ -144,6 +123,48 @@ func (t *Target) CreateGNMIClient(ctx context.Context, opts ...grpc.DialOption) 
 				return fmt.Errorf("%s", strings.Join(errs, ", "))
 			}
 		}
+	}
+}
+
+func (t *Target) createDialer(addr string) func(context.Context, string) (net.Conn, error) {
+	// socks5 proxy dialer
+	if t.Config.Proxy != "" {
+		if idx := strings.Index(t.Config.Proxy, "://"); idx >= 0 {
+			proxyType := t.Config.Proxy[:idx]
+			proxyAddress := t.Config.Proxy[idx+3:]
+			if proxyType == "socks5" {
+				return t.createProxyDialer(proxyAddress)
+			}
+		}
+	}
+	// non socks5 proxy or non-proxied dialer
+	return t.createCustomDialer(addr)
+}
+
+func (t *Target) createProxyDialer(addr string) func(context.Context, string) (net.Conn, error) {
+	return func(context.Context, string) (net.Conn, error) {
+		dialer, err := proxy.SOCKS5("tcp", addr, nil,
+			&net.Dialer{
+				Timeout:   t.Config.Timeout,
+				KeepAlive: t.Config.TCPKeepalive,
+			},
+		)
+		if err != nil {
+			return nil, err
+		}
+		return dialer.Dial("tcp", addr)
+	}
+}
+
+func (t *Target) createCustomDialer(addr string) func(context.Context, string) (net.Conn, error) {
+	return func(ctx context.Context, _ string) (net.Conn, error) {
+		dialer := net.Dialer{
+			Timeout:   t.Config.Timeout,
+			KeepAlive: t.Config.TCPKeepalive,
+		}
+		ctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
+		defer cancel()
+		return dialer.DialContext(ctx, "tcp", addr)
 	}
 }
 
