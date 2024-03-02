@@ -287,6 +287,13 @@ targets:
     # list of custom TLS cipher suites to advertise to the target 
     # during the TLS handshake.
     cipher-suites:
+    # a duration, sets the TCP keepalive time and keepalive interval.
+    # The number of keepalive probes to send before sending a TCP RST
+    # is not configurable, it inherits its value from the linux kernel
+    # net.ipv4.tcp_keepalive_probes which usually has a default value of 9.
+    # When empty or set to 0s, the Golang default (15s) applies.
+    # Disabled if set to a negative value.
+    tcp-keepalive: 0s
 ```
 
 ### Example
