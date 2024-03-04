@@ -176,7 +176,6 @@ func (a *App) GenerateSetRequestRunE(cmd *cobra.Command, args []string) error {
 			for k, v := range nm {
 				m[k] = v
 			}
-		case nil:
 		default:
 			m[e.Name] = nm
 		}

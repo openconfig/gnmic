@@ -115,14 +115,10 @@ func CheckCondition(code *gojq.Code, e *EventMsg) (bool, error) {
 		return false, err
 	}
 	iter := code.Run(input)
-	if err != nil {
-		return false, err
-	}
 	var ok bool
 	res, ok = iter.Next()
 	// iterator not done, so the final result won't be a boolean
 	if !ok {
-		//
 		return false, nil
 	}
 	if err, ok = res.(error); ok {
