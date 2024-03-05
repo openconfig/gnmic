@@ -952,8 +952,8 @@ github.com/onsi/gomega v1.27.10/go.mod h1:RsS8tutOdbdgzbPtzzATp12yT7kM5I5aElG3ev
 github.com/openconfig/gnmi v0.0.0-20200508230933-d19cebf5e7be/go.mod h1:M/EcuapNQgvzxo1DDXHK4tx3QpYM/uG4l591v33jG2A=
 github.com/openconfig/gnmi v0.10.0 h1:kQEZ/9ek3Vp2Y5IVuV2L/ba8/77TgjdXg505QXvYmg8=
 github.com/openconfig/gnmi v0.10.0/go.mod h1:Y9os75GmSkhHw2wX8sMsxfI7qRGAEcDh8NTa5a8vj6E=
-github.com/openconfig/gnmic/pkg/api v0.1.4 h1:RAWjMkNInAg+a4glGo++UJgNp/3unmVDOUkSwvLVJ3Y=
-github.com/openconfig/gnmic/pkg/api v0.1.4/go.mod h1:/q9bvX5mSie8jCTo1kWnP0gJYtJB0OabDUqZ813/tjk=
+github.com/openconfig/gnmic/pkg/api v0.1.5 h1:vnhB72kqMzJyjnIOOpIdLHFUDe01ySMd5+PZLKtYsjY=
+github.com/openconfig/gnmic/pkg/api v0.1.5/go.mod h1:/q9bvX5mSie8jCTo1kWnP0gJYtJB0OabDUqZ813/tjk=
 github.com/openconfig/gnmic/pkg/cache v0.1.2 h1:n7TwHP4qOrRNZbRYLa+mLO0LEJlnHNiCrQ0JJSa1KBw=
 github.com/openconfig/gnmic/pkg/cache v0.1.2/go.mod h1:EQpcUMnkiUUvsSpAux8Jul8Tfkz6XT/wJvXbgohCyr4=
 github.com/openconfig/gnmic/pkg/path v0.1.1 h1:C6vZTC0NsMOGyre7ueXRS8vmYvCW9sdHKQ5cqWYiNPw=
