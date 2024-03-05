@@ -164,7 +164,15 @@ func (t *Target) createCustomDialer(addr string) func(context.Context, string) (
 		}
 		ctx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 		defer cancel()
-		return dialer.DialContext(ctx, "tcp", addr)
+
+		var networkType = "tcp"
+		if indx := strings.Index(addr, "://"); indx > 0 {
+			if addr[:indx] == "unix" {
+				networkType = "unix"
+				addr = addr[indx+3:]
+			}
+		}
+		return dialer.DialContext(ctx, networkType, addr)
 	}
 }
 
