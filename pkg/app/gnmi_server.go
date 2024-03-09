@@ -374,7 +374,8 @@ func (a *App) Set(ctx context.Context, req *gnmi.SetRequest) (*gnmi.SetResponse,
 	numUpdates := len(req.GetUpdate())
 	numReplaces := len(req.GetReplace())
 	numDeletes := len(req.GetDelete())
-	if numUpdates+numReplaces+numDeletes == 0 {
+	numUnionReplace := len(req.GetUnionReplace())
+	if numUpdates+numReplaces+numDeletes+numUnionReplace == 0 {
 		return nil, status.Errorf(codes.InvalidArgument, "missing update/replace/delete path(s)")
 	}
 

@@ -122,6 +122,80 @@ SUBSC_NODELAY:
 	}
 }
 
+func (t *Target) SubscribeStreamChan(ctx context.Context, req *gnmi.SubscribeRequest, subscriptionName string) (chan *gnmi.SubscribeResponse, chan error) {
+	responseCh := make(chan *gnmi.SubscribeResponse)
+	errCh := make(chan error)
+
+	go func() {
+		if req.GetSubscribe().GetMode() != gnmi.SubscriptionList_STREAM {
+			errCh <- fmt.Errorf("subscribe request does not define a STREAM subscription: %v", req.GetSubscribe().GetMode())
+			close(errCh)
+			close(responseCh)
+			return
+		}
+		var subscribeClient gnmi.GNMI_SubscribeClient
+		var nctx context.Context
+		var cancel context.CancelFunc
+		var err error
+		goto SUBSC_NODELAY
+	SUBSC:
+		{
+			retry := time.NewTimer(t.Config.RetryTimer)
+			select {
+			case <-ctx.Done():
+				retry.Stop()
+				return
+			case <-retry.C:
+			}
+		}
+	SUBSC_NODELAY:
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			nctx, cancel = context.WithCancel(ctx)
+			defer cancel()
+			nctx = t.appendRequestMetadata(nctx)
+			subscribeClient, err = t.Client.Subscribe(nctx, t.callOpts()...)
+			if err != nil {
+				errCh <- fmt.Errorf("failed to create a subscribe client, target='%s', retry in %d. err=%v", t.Config.Name, t.Config.RetryTimer, err)
+				cancel()
+				goto SUBSC
+			}
+		}
+		t.m.Lock()
+		if cfn, ok := t.subscribeCancelFn[subscriptionName]; ok {
+			cfn()
+		}
+		t.SubscribeClients[subscriptionName] = subscribeClient
+		t.subscribeCancelFn[subscriptionName] = cancel
+		t.m.Unlock()
+
+		err = subscribeClient.Send(req)
+		if err != nil {
+			errCh <- fmt.Errorf("target '%s' send error, retry in %d. err=%v", t.Config.Name, t.Config.RetryTimer, err)
+			cancel()
+			goto SUBSC
+		}
+
+		for {
+			if ctx.Err() != nil {
+				errCh <- err
+				cancel()
+				goto SUBSC
+			}
+			response, err := subscribeClient.Recv()
+			if err != nil {
+				errCh <- err
+				cancel()
+				goto SUBSC
+			}
+			responseCh <- response
+		}
+	}()
+	return responseCh, errCh
+}
+
 func (t *Target) SubscribeOnceChan(ctx context.Context, req *gnmi.SubscribeRequest) (chan *gnmi.SubscribeResponse, chan error) {
 	responseCh := make(chan *gnmi.SubscribeResponse)
 	errCh := make(chan error)
@@ -241,7 +315,10 @@ func (t *Target) DeleteSubscription(name string) {
 func (t *Target) StopSubscription(name string) {
 	t.m.Lock()
 	defer t.m.Unlock()
-	t.subscribeCancelFn[name]()
+	cfn, ok := t.subscribeCancelFn[name]
+	if ok {
+		cfn()
+	}
 	delete(t.subscribeCancelFn, name)
 	delete(t.SubscribeClients, name)
 }
