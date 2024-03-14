@@ -10,17 +10,20 @@ package server
 
 import (
 	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"os"
 	"time"
 
+	grpc_ratelimit "github.com/grpc-ecosystem/go-grpc-middleware/ratelimit"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/juju/ratelimit"
+	"github.com/openconfig/gnmic/pkg/api/utils"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-func (s *GNMIServer) serverOpts() ([]grpc.ServerOption, error) {
+func (s *gNMIServer) serverOpts() ([]grpc.ServerOption, error) {
 	opts := make([]grpc.ServerOption, 0, 1)
 	credsOpts, err := s.tlsServerOpts()
 	if err != nil {
@@ -40,10 +43,41 @@ func (s *GNMIServer) serverOpts() ([]grpc.ServerOption, error) {
 	if s.config.MaxConcurrentStreams > 0 {
 		opts = append(opts, grpc.MaxConcurrentStreams(s.config.MaxConcurrentStreams))
 	}
+	opts = append(opts, s.interceptorsOpts()...)
 	return opts, nil
 }
 
-func (s *GNMIServer) tlsServerOpts() (grpc.ServerOption, error) {
+func (s *gNMIServer) interceptorsOpts() []grpc.ServerOption {
+	ui := []grpc.UnaryServerInterceptor{}
+	si := []grpc.StreamServerInterceptor{}
+	if s.reg != nil {
+		grpcMetrics := grpc_prometheus.NewServerMetrics()
+		ui = append(ui, grpcMetrics.UnaryServerInterceptor())
+		si = append(si, grpcMetrics.StreamServerInterceptor())
+		s.reg.MustRegister(grpcMetrics)
+	}
+	if s.config.RateLimit > 0 {
+		limiter := &rateLimiterInterceptor{
+			bucket: ratelimit.NewBucket(time.Second, s.config.RateLimit),
+		}
+		ui = append(ui, grpc_ratelimit.UnaryServerInterceptor(limiter))
+		si = append(si, grpc_ratelimit.StreamServerInterceptor(limiter))
+	}
+	return []grpc.ServerOption{
+		grpc.ChainUnaryInterceptor(ui...),
+		grpc.ChainStreamInterceptor(si...),
+	}
+}
+
+type rateLimiterInterceptor struct {
+	bucket *ratelimit.Bucket
+}
+
+func (r *rateLimiterInterceptor) Limit() bool {
+	return r.bucket.TakeAvailable(1) == 0
+}
+
+func (s *gNMIServer) tlsServerOpts() (grpc.ServerOption, error) {
 	if s.config.TLS == nil {
 		return grpc.Creds(insecure.NewCredentials()), nil
 	}
@@ -58,7 +92,7 @@ func (s *GNMIServer) tlsServerOpts() (grpc.ServerOption, error) {
 	return grpc.Creds(credentials.NewTLS(tlsConfig)), nil
 }
 
-func (s *GNMIServer) createTLSConfig() (*tls.Config, error) {
+func (s *gNMIServer) createTLSConfig() (*tls.Config, error) {
 	tlsConfig := &tls.Config{
 		GetCertificate: s.readCerts,
 	}
@@ -76,19 +110,17 @@ func (s *GNMIServer) createTLSConfig() (*tls.Config, error) {
 	}
 
 	if len(s.config.TLS.CaFile) != 0 {
-		ca, err := os.ReadFile(s.config.TLS.CaFile)
+		caCertPool, err := utils.LoadCACertificates(s.config.TLS.CaFile)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read client CA cert: %w", err)
+			return nil, err
 		}
-		caCertPool := x509.NewCertPool()
-		caCertPool.AppendCertsFromPEM(ca)
 		tlsConfig.ClientCAs = caCertPool
 	}
 
 	return tlsConfig, nil
 }
 
-func (s *GNMIServer) readCerts(chi *tls.ClientHelloInfo) (*tls.Certificate, error) {
+func (s *gNMIServer) readCerts(chi *tls.ClientHelloInfo) (*tls.Certificate, error) {
 	now := time.Now()
 
 	s.cm.Lock()
