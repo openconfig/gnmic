@@ -92,8 +92,10 @@ func (a *App) startGNMIProxyServer(ctx context.Context) error {
 		TCPKeepalive:         a.Config.GnmiServer.TCPKeepalive,
 		Keepalive:            a.Config.GnmiServer.GRPCKeepalive.Convert(),
 		HealthEnabled:        true,
+		RateLimit:            a.Config.GnmiServer.RateLimit,
 		TLS:                  a.Config.GnmiServer.TLS,
 	}, server.WithLogger(a.Logger),
+		server.WithRegistry(a.reg),
 		server.WithGetHandler(a.proxyGetHandler),
 		server.WithSetHandler(a.proxySetHandler),
 		server.WithSubscribeHandler(a.proxySubscribeHandler))
@@ -184,8 +186,9 @@ func (a *App) proxyGetHandler(ctx context.Context, req *gnmi.GetRequest) (*gnmi.
 		}
 	}
 	<-done
-	a.Logger.Printf("sending GetResponse to %q: %+v", pr.Addr, response)
-
+	if a.Config.Debug {
+		a.Logger.Printf("sending GetResponse to %q: %+v", pr.Addr, response)
+	}
 	return response, nil
 }
 

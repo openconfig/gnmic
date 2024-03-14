@@ -44,6 +44,7 @@ type gnmiServer struct {
 	MaxConcurrentStreams  uint32               `mapstructure:"max-concurrent-streams,omitempty" json:"max-concurrent-streams,omitempty"`
 	TCPKeepalive          time.Duration        `mapstructure:"tcp-keepalive,omitempty" json:"tcp-keepalive,omitempty"`
 	GRPCKeepalive         *grpcKeepaliveConfig `mapstructure:"grpc-keepalive,omitempty" json:"grpc-keepalive,omitempty"`
+	RateLimit             int64                `mapstructure:"rate-limit,omitempty" json:"rate-limit,omitempty"`
 	TLS                   *types.TLSConfig     `mapstructure:"tls,omitempty" json:"tls,omitempty"`
 	EnableMetrics         bool                 `mapstructure:"enable-metrics,omitempty" json:"enable-metrics,omitempty"`
 	Debug                 bool                 `mapstructure:"debug,omitempty" json:"debug,omitempty"`

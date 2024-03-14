@@ -38,6 +38,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"gopkg.in/yaml.v2"
 
+	"github.com/openconfig/gnmic/pkg/api/target"
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/cache"
 	"github.com/openconfig/gnmic/pkg/config"
@@ -46,7 +47,6 @@ import (
 	"github.com/openconfig/gnmic/pkg/inputs"
 	"github.com/openconfig/gnmic/pkg/lockers"
 	"github.com/openconfig/gnmic/pkg/outputs"
-	"github.com/openconfig/gnmic/pkg/api/target"
 )
 
 const (
@@ -93,14 +93,9 @@ type App struct {
 	wg        *sync.WaitGroup
 	printLock *sync.Mutex
 	errCh     chan error
-	// gnmi server
-	gnmi.UnimplementedGNMIServer
-	// gRPC server where the gNMI service will be registered
-	grpcSrv *grpc.Server
-	// gNMI cache
-	c               cache.Cache
-	subscribeRPCsem *semaphore.Weighted
-	unaryRPCsem     *semaphore.Weighted
+	// gNMI cache, used if a gnmi-server is configured
+	// with subscribe or proxy commands.
+	c cache.Cache
 	// tunnel server
 	// gRPC server where the tunnel service will be registered
 	grpcTunnelSrv *grpc.Server
