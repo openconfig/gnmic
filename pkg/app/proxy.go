@@ -78,6 +78,7 @@ func (a *App) ProxyRunE(cmd *cobra.Command, args []string) error {
 
 	a.startAPIServer()
 	go a.startLoaderProxy(cmd.Context())
+	go a.registerGNMIServer(cmd.Context(), "isProxy=true")
 	return a.startGNMIProxyServer(cmd.Context())
 }
 
@@ -311,11 +312,6 @@ func (a *App) proxySubscribeHandler(req *gnmi.SubscribeRequest, stream gnmi.GNMI
 		return a.proxySubscribeSTREAMHandler(req, stream, targets)
 	}
 	return nil
-}
-
-func (a *App) InitProxyFlags(cmd *cobra.Command) {
-	cmd.ResetFlags()
-
 }
 
 func (a *App) proxySubscribeONCEHandler(req *gnmi.SubscribeRequest, stream gnmi.GNMI_SubscribeServer, targets map[string]*target.Target) error {

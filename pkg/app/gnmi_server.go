@@ -89,7 +89,7 @@ func (a *App) startGnmiServer() error {
 	return nil
 }
 
-func (a *App) registerGNMIServer(ctx context.Context) {
+func (a *App) registerGNMIServer(ctx context.Context, defaultTags ...string) {
 	if a.Config.GnmiServer.ServiceRegistration == nil {
 		return
 	}
@@ -133,11 +133,11 @@ INITCONSUL:
 	}
 	pi, _ := strconv.Atoi(p)
 	service := &api.AgentServiceRegistration{
-		ID:      a.Config.GnmiServer.ServiceRegistration.Name,
+		ID:      a.Config.InstanceName,
 		Name:    a.Config.GnmiServer.ServiceRegistration.Name,
 		Address: h,
 		Port:    pi,
-		Tags:    a.Config.GnmiServer.ServiceRegistration.Tags,
+		Tags:    append(defaultTags, a.Config.GnmiServer.ServiceRegistration.Tags...),
 		Checks: api.AgentServiceChecks{
 			{
 				TTL:                            a.Config.GnmiServer.ServiceRegistration.CheckInterval.String(),
@@ -146,15 +146,19 @@ INITCONSUL:
 		},
 	}
 	if a.Config.Clustering != nil {
-		service.ID = a.Config.Clustering.InstanceName
+		if a.Config.Clustering.InstanceName != "" {
+			service.ID = a.Config.Clustering.InstanceName
+		}
 		service.Name = a.Config.Clustering.ClusterName + "-gnmi-server"
 		if service.Tags == nil {
 			service.Tags = make([]string, 0)
 		}
 		service.Tags = append(service.Tags, fmt.Sprintf("cluster-name=%s", a.Config.Clustering.ClusterName))
-		service.Tags = append(service.Tags, fmt.Sprintf("instance-name=%s", a.Config.Clustering.InstanceName))
 	}
-	//
+	if service.ID == "" {
+		service.ID = service.Name
+	}
+	service.Tags = append(service.Tags, fmt.Sprintf("instance-name=%s", service.ID))
 	ttlCheckID := "service:" + service.ID
 	b, _ := json.Marshal(service)
 	a.Logger.Printf("registering service: %s", string(b))

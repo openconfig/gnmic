@@ -17,6 +17,5 @@ func New(gApp *app.App) *cobra.Command {
 		},
 		SilenceUsage: true,
 	}
-	gApp.InitProxyFlags(cmd)
 	return cmd
 }
