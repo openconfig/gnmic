@@ -4,11 +4,11 @@ The `[proxy]` command start a gNMI proxy server. That relays gNMI messages to kn
 
 `gNMIc` proxy relays `Get`, `Set` and `Subscribe` RPCs but not `Capabilities`.
 
-To designate the target of an RPC, the `Prefix.Target` field within the RPC request message should be utilized. This field is versatile, accepting a single target, a comma-separated list of targets, or the wildcard character `*` for broader targeting. 
+To designate the target of an RPC, the `Prefix.Target` field within the RPC request message should be utilized. This field is versatile, accepting a single target, a comma-separated list of targets, or the wildcard character `*` for broader targeting.
 
 Here are the key points regarding target specification:
 
-- The target cab ve set to a target name or a comma-separated list of targets.
+- The target can be set to a target name or a comma-separated list of targets.
 - Setting the target to `*` implies the selection of all known targets.
 - If the Prefix.Target field is not explicitly set, gNMIc defaults to treating it as if `*` were specified, thus applying the action to all known targets.
 
