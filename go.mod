@@ -44,13 +44,13 @@ require (
 	github.com/openconfig/gnmic/pkg/api v0.1.5
 	github.com/openconfig/gnmic/pkg/cache v0.1.2
 	github.com/openconfig/goyang v1.4.5
-	github.com/openconfig/ygot v0.29.2
+	github.com/openconfig/ygot v0.29.18
 	github.com/pkg/sftp v1.13.6
 	github.com/prometheus/client_golang v1.19.0
 	github.com/prometheus/client_model v0.5.0
 	github.com/prometheus/prometheus v0.45.0
 	github.com/redis/go-redis/v9 v9.4.0
-	github.com/spf13/cobra v1.7.0
+	github.com/spf13/cobra v1.8.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.15.0
 	github.com/xdg/scram v1.0.5
@@ -145,7 +145,7 @@ require (
 	go.opentelemetry.io/otel/metric v1.21.0 // indirect
 	go.opentelemetry.io/otel/trace v1.21.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df // indirect
+	golang.org/x/exp v0.0.0-20230801115018-d63ba01acd4b // indirect
 	golang.org/x/mod v0.12.0 // indirect
 	golang.org/x/oauth2 v0.17.0 // indirect
 	golang.org/x/term v0.17.0 // indirect
