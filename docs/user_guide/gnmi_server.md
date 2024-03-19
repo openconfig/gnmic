@@ -181,6 +181,45 @@ gnmi-server:
   max-subscriptions: 64
   # maximum number of active Get/Set RPCs
   max-unary-rpc: 64
+  # defines the maximum msg size (in bytes) the server can receive, 
+  # defaults to 4MB
+  max-recv-msg-size:
+  # defines the maximum msg size (in bytes) the server can send,
+  # default to MaxInt32 (2147483647 bytes or 2.147483647 Gb)
+  max-send-msg-size:
+  # defines the maximum number of streams per streaming RPC.
+  max-concurrent-streams:
+  # defines the TCP keepalive tiem and interval for client connections, 
+  # if unset it is enabled based on the OS. If negative it is disabled.
+  tcp-keepalive: 
+  # set keepalive and max-age parameters on the server-side.
+  keepalive:
+    # MaxConnectionIdle is a duration for the amount of time after which an
+    # idle connection would be closed by sending a GoAway. Idleness duration is
+    # defined since the most recent time the number of outstanding RPCs became
+    # zero or the connection establishment.
+    # The current default value is infinity.
+    max-connection-idle:
+    # MaxConnectionAge is a duration for the maximum amount of time a
+    # connection may exist before it will be closed by sending a GoAway. A
+    # random jitter of +/-10% will be added to MaxConnectionAge to spread out
+    # connection storms.
+    # The current default value is infinity.
+    max-connection-age:
+    # MaxConnectionAgeGrace is an additive period after MaxConnectionAge after
+    # which the connection will be forcibly closed.
+    # The current default value is infinity.
+    max-connection-age-grace:
+    # After a duration of this time if the server doesn't see any activity it
+    # pings the client to see if the transport is still alive.
+    # If set below 1s, a minimum value of 1s will be used instead.
+    # The current default value is 2 hours.
+    time: 120m
+    # After having pinged for keepalive check, the server waits for a duration
+    # of Timeout and if no activity is seen even after that the connection is
+    # closed.
+    # The current default value is 20 seconds.
+    timeout: 20s
   # defines the minimum allowed sample interval, this value is used when the received sample-interval 
   # is greater than zero but lower than this minimum value.
   min-sample-interval: 1ms

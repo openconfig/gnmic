@@ -16,25 +16,20 @@ import (
 	"io"
 	"net"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
-	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/hashicorp/consul/api"
 	"github.com/openconfig/gnmi/proto/gnmi"
-	"golang.org/x/sync/semaphore"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/openconfig/gnmic/pkg/api/path"
+	"github.com/openconfig/gnmic/pkg/api/server"
 	"github.com/openconfig/gnmic/pkg/api/target"
 	"github.com/openconfig/gnmic/pkg/api/types"
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/cache"
 )
 
@@ -46,59 +41,55 @@ type streamClient struct {
 	errChan chan<- error
 }
 
-func (a *App) startGnmiServer() {
+func (a *App) startGnmiServer() error {
 	if a.Config.GnmiServer == nil {
 		a.c = nil
-		return
+		return nil
 	}
+
 	var err error
 	a.c, err = cache.New(a.Config.GnmiServer.Cache, cache.WithLogger(a.Logger))
 	if err != nil {
 		a.Logger.Printf("failed to initialize gNMI cache: %v", err)
-		return
+		return err
 	}
 
-	a.subscribeRPCsem = semaphore.NewWeighted(a.Config.GnmiServer.MaxSubscriptions)
-	a.unaryRPCsem = semaphore.NewWeighted(a.Config.GnmiServer.MaxUnaryRPC)
-	//
-	var l net.Listener
-	network := "tcp"
-	addr := a.Config.GnmiServer.Address
-	if strings.HasPrefix(a.Config.GnmiServer.Address, "unix://") {
-		network = "unix"
-		addr = strings.TrimPrefix(addr, "unix://")
-	}
-
-	opts, err := a.gRPCServerOpts()
+	s, err := server.New(server.Config{
+		Address:              a.Config.GnmiServer.Address,
+		MaxUnaryRPC:          a.Config.GnmiServer.MaxUnaryRPC,
+		MaxStreamingRPC:      a.Config.GnmiServer.MaxSubscriptions,
+		MaxRecvMsgSize:       a.Config.GnmiServer.MaxRecvMsgSize,
+		MaxSendMsgSize:       a.Config.GnmiServer.MaxSendMsgSize,
+		MaxConcurrentStreams: a.Config.GnmiServer.MaxConcurrentStreams,
+		TCPKeepalive:         a.Config.GnmiServer.TCPKeepalive,
+		Keepalive:            a.Config.GnmiServer.GRPCKeepalive.Convert(),
+		RateLimit:            a.Config.GnmiServer.RateLimit,
+		HealthEnabled:        true,
+		TLS:                  a.Config.GnmiServer.TLS,
+	}, server.WithLogger(a.Logger),
+		server.WithGetHandler(a.serverGetHandler),
+		server.WithSetHandler(a.serverSetHandler),
+		server.WithSubscribeHandler(a.serverSubscribeHandler),
+		server.WithRegistry(a.reg),
+	)
 	if err != nil {
-		a.Logger.Printf("failed to build gRPC server options: %v", err)
-		return
-	}
-	for {
-		l, err = net.Listen(network, addr)
-		if err != nil {
-			a.Logger.Printf("failed to start gRPC server listener: %v", err)
-			time.Sleep(time.Second)
-			continue
-		}
-		break
+		return err
 	}
 
-	a.grpcSrv = grpc.NewServer(opts...)
-	gnmi.RegisterGNMIServer(a.grpcSrv, a)
-	//
 	ctx, cancel := context.WithCancel(a.ctx)
-	go func() {
-		err = a.grpcSrv.Serve(l)
-		if err != nil {
-			a.Logger.Printf("gRPC server shutdown: %v", err)
-		}
-		cancel()
-	}()
+	defer cancel()
+
 	go a.registerGNMIServer(ctx)
+	go func() {
+		err := s.Start(ctx)
+		if err != nil {
+			a.Logger.Print(err)
+		}
+	}()
+	return nil
 }
 
-func (a *App) registerGNMIServer(ctx context.Context) {
+func (a *App) registerGNMIServer(ctx context.Context, defaultTags ...string) {
 	if a.Config.GnmiServer.ServiceRegistration == nil {
 		return
 	}
@@ -142,11 +133,11 @@ INITCONSUL:
 	}
 	pi, _ := strconv.Atoi(p)
 	service := &api.AgentServiceRegistration{
-		ID:      a.Config.GnmiServer.ServiceRegistration.Name,
+		ID:      a.Config.InstanceName,
 		Name:    a.Config.GnmiServer.ServiceRegistration.Name,
 		Address: h,
 		Port:    pi,
-		Tags:    a.Config.GnmiServer.ServiceRegistration.Tags,
+		Tags:    append(defaultTags, a.Config.GnmiServer.ServiceRegistration.Tags...),
 		Checks: api.AgentServiceChecks{
 			{
 				TTL:                            a.Config.GnmiServer.ServiceRegistration.CheckInterval.String(),
@@ -155,15 +146,19 @@ INITCONSUL:
 		},
 	}
 	if a.Config.Clustering != nil {
-		service.ID = a.Config.Clustering.InstanceName
+		if a.Config.Clustering.InstanceName != "" {
+			service.ID = a.Config.Clustering.InstanceName
+		}
 		service.Name = a.Config.Clustering.ClusterName + "-gnmi-server"
 		if service.Tags == nil {
 			service.Tags = make([]string, 0)
 		}
 		service.Tags = append(service.Tags, fmt.Sprintf("cluster-name=%s", a.Config.Clustering.ClusterName))
-		service.Tags = append(service.Tags, fmt.Sprintf("instance-name=%s", a.Config.Clustering.InstanceName))
 	}
-	//
+	if service.ID == "" {
+		service.ID = service.Name
+	}
+	service.Tags = append(service.Tags, fmt.Sprintf("instance-name=%s", service.ID))
 	ttlCheckID := "service:" + service.ID
 	b, _ := json.Marshal(service)
 	a.Logger.Printf("registering service: %s", string(b))
@@ -191,360 +186,6 @@ INITCONSUL:
 			goto INITCONSUL
 		}
 	}
-}
-
-func (a *App) gRPCServerOpts() ([]grpc.ServerOption, error) {
-	opts := make([]grpc.ServerOption, 0)
-	if a.Config.GnmiServer.EnableMetrics && a.reg != nil {
-		grpcMetrics := grpc_prometheus.NewServerMetrics()
-		opts = append(opts,
-			grpc.StreamInterceptor(grpcMetrics.StreamServerInterceptor()),
-			grpc.UnaryInterceptor(grpcMetrics.UnaryServerInterceptor()),
-		)
-		a.reg.MustRegister(grpcMetrics)
-	}
-	if a.Config.GnmiServer.TLS == nil {
-		return opts, nil
-	}
-	tlscfg, err := utils.NewTLSConfig(
-		a.Config.GnmiServer.TLS.CaFile,
-		a.Config.GnmiServer.TLS.CertFile,
-		a.Config.GnmiServer.TLS.KeyFile,
-		a.Config.GnmiServer.TLS.ClientAuth,
-		true,
-		true,
-	)
-	if err != nil {
-		return nil, err
-	}
-	if tlscfg != nil {
-		opts = append(opts, grpc.Creds(credentials.NewTLS(tlscfg)))
-	}
-
-	return opts, nil
-}
-
-func (a *App) selectGNMITargets(target string) (map[string]*types.TargetConfig, error) {
-	if target == "" || target == "*" {
-		return a.Config.Targets, nil
-	}
-	targetsNames := strings.Split(target, ",")
-	targets := make(map[string]*types.TargetConfig)
-	a.configLock.RLock()
-	defer a.configLock.RUnlock()
-OUTER:
-	for i := range targetsNames {
-		for n, tc := range a.Config.Targets {
-			if utils.GetHost(n) == targetsNames[i] {
-				targets[n] = tc
-				continue OUTER
-			}
-		}
-		return nil, status.Errorf(codes.NotFound, "target %q is not known", targetsNames[i])
-	}
-	return targets, nil
-}
-
-func (a *App) Get(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetResponse, error) {
-	ok := a.unaryRPCsem.TryAcquire(1)
-	if !ok {
-		return nil, status.Errorf(codes.ResourceExhausted, "max number of Unary RPC reached")
-	}
-	defer a.unaryRPCsem.Release(1)
-
-	numPaths := len(req.GetPath())
-	if numPaths == 0 && req.GetPrefix() == nil {
-		return nil, status.Errorf(codes.InvalidArgument, "missing path")
-	}
-
-	a.configLock.RLock()
-	defer a.configLock.RUnlock()
-
-	origins := make(map[string]struct{})
-	for _, p := range req.GetPath() {
-		origins[p.GetOrigin()] = struct{}{}
-		if p.GetOrigin() != "gnmic" {
-			if _, ok := origins["gnmic"]; ok {
-				return nil, status.Errorf(codes.InvalidArgument, "combining `gnmic` origin with other origin values is not supported")
-			}
-		}
-	}
-
-	if _, ok := origins["gnmic"]; ok {
-		return a.handlegNMIcInternalGet(ctx, req)
-	}
-
-	targetName := req.GetPrefix().GetTarget()
-	pr, _ := peer.FromContext(ctx)
-	a.Logger.Printf("received Get request from %q to target %q", pr.Addr, targetName)
-
-	targets, err := a.selectGNMITargets(targetName)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "could not find targets: %v", err)
-	}
-	numTargets := len(targets)
-	if numTargets == 0 {
-		return nil, status.Errorf(codes.NotFound, "unknown target %q", targetName)
-	}
-	results := make(chan *gnmi.Notification)
-	errChan := make(chan error, numTargets)
-
-	response := &gnmi.GetResponse{
-		// assume one notification per path per target
-		Notification: make([]*gnmi.Notification, 0, numTargets*numPaths),
-	}
-	done := make(chan struct{})
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	go func() {
-		for {
-			select {
-			case notif, ok := <-results:
-				if !ok {
-					close(done)
-					return
-				}
-				response.Notification = append(response.Notification, notif)
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-	wg := new(sync.WaitGroup)
-	wg.Add(numTargets)
-	for name, tc := range targets {
-		go func(name string, tc *types.TargetConfig) {
-			name = utils.GetHost(name)
-			defer wg.Done()
-			t := target.NewTarget(tc)
-			ctx, cancel := context.WithTimeout(ctx, tc.Timeout)
-			defer cancel()
-			err := a.CreateGNMIClient(ctx, t)
-			if err != nil {
-				a.Logger.Printf("target %q err: %v", name, err)
-				errChan <- fmt.Errorf("target %q err: %v", name, err)
-				return
-			}
-			defer t.Close()
-			creq := proto.Clone(req).(*gnmi.GetRequest)
-			if creq.GetPrefix() == nil {
-				creq.Prefix = new(gnmi.Path)
-			}
-			if creq.GetPrefix().GetTarget() == "" || creq.GetPrefix().GetTarget() == "*" {
-				creq.Prefix.Target = name
-			}
-			res, err := t.Get(ctx, creq)
-			if err != nil {
-				a.Logger.Printf("target %q err: %v", name, err)
-				errChan <- fmt.Errorf("target %q err: %v", name, err)
-				return
-			}
-
-			for _, n := range res.GetNotification() {
-				if n.GetPrefix() == nil {
-					n.Prefix = new(gnmi.Path)
-				}
-				if n.GetPrefix().GetTarget() == "" {
-					n.Prefix.Target = name
-				}
-				results <- n
-			}
-		}(name, tc)
-	}
-	wg.Wait()
-	close(results)
-	close(errChan)
-	for err := range errChan {
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "%v", err)
-		}
-	}
-	<-done
-	a.Logger.Printf("sending GetResponse to %q: %+v", pr.Addr, response)
-	return response, nil
-}
-
-func (a *App) Set(ctx context.Context, req *gnmi.SetRequest) (*gnmi.SetResponse, error) {
-	ok := a.unaryRPCsem.TryAcquire(1)
-	if !ok {
-		return nil, status.Errorf(codes.ResourceExhausted, "max number of Unary RPC reached")
-	}
-	defer a.unaryRPCsem.Release(1)
-
-	numUpdates := len(req.GetUpdate())
-	numReplaces := len(req.GetReplace())
-	numDeletes := len(req.GetDelete())
-	if numUpdates+numReplaces+numDeletes == 0 {
-		return nil, status.Errorf(codes.InvalidArgument, "missing update/replace/delete path(s)")
-	}
-
-	a.configLock.RLock()
-	defer a.configLock.RUnlock()
-
-	targetName := req.GetPrefix().GetTarget()
-	pr, _ := peer.FromContext(ctx)
-	a.Logger.Printf("received Set request from %q to target %q", pr.Addr, targetName)
-
-	targets, err := a.selectGNMITargets(targetName)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "could not find targets: %v", err)
-	}
-	numTargets := len(targets)
-	if numTargets == 0 {
-		return nil, status.Errorf(codes.NotFound, "unknown target(s) %q", targetName)
-	}
-	results := make(chan *gnmi.UpdateResult)
-	errChan := make(chan error, numTargets)
-
-	response := &gnmi.SetResponse{
-		// assume one update per target, per update/replace/delete
-		Response: make([]*gnmi.UpdateResult, 0, numTargets*(numUpdates+numReplaces+numDeletes)),
-	}
-	done := make(chan struct{})
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	go func() {
-		for {
-			select {
-			case upd, ok := <-results:
-				if !ok {
-					response.Timestamp = time.Now().UnixNano()
-					close(done)
-					return
-				}
-				response.Response = append(response.Response, upd)
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-	wg := new(sync.WaitGroup)
-	wg.Add(numTargets)
-	for name, tc := range targets {
-		go func(name string, tc *types.TargetConfig) {
-			name = utils.GetHost(name)
-			defer wg.Done()
-			t := target.NewTarget(tc)
-			targetDialOpts := a.dialOpts
-			if a.Config.UseTunnelServer {
-				targetDialOpts = append(targetDialOpts,
-					grpc.WithContextDialer(a.tunDialerFn(ctx, tc)),
-				)
-				t.Config.Address = t.Config.Name
-			}
-			err := t.CreateGNMIClient(ctx, targetDialOpts...)
-			if err != nil {
-				a.Logger.Printf("target %q err: %v", name, err)
-				errChan <- fmt.Errorf("target %q err: %v", name, err)
-				return
-			}
-			creq := proto.Clone(req).(*gnmi.SetRequest)
-			if creq.GetPrefix() == nil {
-				creq.Prefix = new(gnmi.Path)
-			}
-			if creq.GetPrefix().GetTarget() == "" || creq.GetPrefix().GetTarget() == "*" {
-				creq.Prefix.Target = name
-			}
-			res, err := t.Set(ctx, creq)
-			if err != nil {
-				a.Logger.Printf("target %q err: %v", name, err)
-				errChan <- fmt.Errorf("target %q err: %v", name, err)
-				return
-			}
-			for _, upd := range res.GetResponse() {
-				upd.Path.Target = name
-				results <- upd
-			}
-		}(name, tc)
-	}
-	wg.Wait()
-	close(results)
-	close(errChan)
-	for err := range errChan {
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "%v", err)
-		}
-	}
-	<-done
-	a.Logger.Printf("sending SetResponse to %q: %+v", pr.Addr, response)
-	return response, nil
-}
-
-func (a *App) Subscribe(stream gnmi.GNMI_SubscribeServer) error {
-	pr, _ := peer.FromContext(stream.Context())
-	sc := &streamClient{
-		stream: stream,
-	}
-	var err error
-	sc.req, err = stream.Recv()
-	switch {
-	case err == io.EOF:
-		return nil
-	case err != nil:
-		return err
-	case sc.req.GetSubscribe() == nil:
-		return status.Errorf(codes.InvalidArgument, "the subscribe request must contain a subscription definition")
-	}
-	sc.target = sc.req.GetSubscribe().GetPrefix().GetTarget()
-	if sc.target == "" {
-		sc.target = "*"
-		sub := sc.req.GetSubscribe()
-		if sub.GetPrefix() == nil {
-			sub.Prefix = &gnmi.Path{Target: "*"}
-		} else {
-			sub.Prefix.Target = "*"
-		}
-	}
-
-	a.Logger.Printf("received a subscribe request mode=%v from %q for target %q", sc.req.GetSubscribe().GetMode(), pr.Addr, sc.target)
-	defer a.Logger.Printf("subscription from peer %q terminated", pr.Addr)
-
-	// closing of this channel is handled by respective goroutines that are going to send error on this channel
-	errChan := make(chan error, len(sc.req.GetSubscribe().GetSubscription()))
-	sc.errChan = errChan // send-only
-
-	a.Logger.Printf("acquiring subscription spot for target %q", sc.target)
-	ok := a.subscribeRPCsem.TryAcquire(1)
-	if !ok {
-		return status.Errorf(codes.ResourceExhausted, "could not acquire a subscription spot")
-	}
-	defer a.subscribeRPCsem.Release(1)
-
-	a.Logger.Printf("acquired subscription spot for target %q", sc.target)
-
-	switch sc.req.GetSubscribe().GetMode() {
-	case gnmi.SubscriptionList_ONCE:
-		go func() {
-			a.handleONCESubscriptionRequest(sc)
-			errChan <- sc.stream.Send(&gnmi.SubscribeResponse{
-				Response: &gnmi.SubscribeResponse_SyncResponse{SyncResponse: true},
-			})
-			close(errChan)
-		}()
-
-	case gnmi.SubscriptionList_POLL:
-		go a.handlePolledSubscription(sc)
-	case gnmi.SubscriptionList_STREAM:
-		go a.handleStreamSubscriptionRequest(sc)
-	default:
-		return status.Errorf(codes.InvalidArgument, "unrecognized subscription mode: %v", sc.req.GetSubscribe().GetMode())
-	}
-
-	// flushing the errChan
-	defer func() {
-		a.Logger.Printf("flushing subscription errChan")
-		for range errChan {
-		}
-	}()
-
-	// returning first non-nil error and flushing rest in defer
-	for err := range errChan {
-		if err != nil {
-			return status.Errorf(codes.Internal, "%v", err)
-		}
-	}
-
-	return nil
 }
 
 func (a *App) handleONCESubscriptionRequest(sc *streamClient) {
@@ -1185,5 +826,250 @@ func subscriptionConfigToNotification(sub *types.SubscriptionConfig, e gnmi.Enco
 	case gnmi.Encoding_BYTES:
 	case gnmi.Encoding_ASCII:
 	}
+	return nil
+}
+
+func (a *App) serverGetHandler(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetResponse, error) {
+	numPaths := len(req.GetPath())
+	if numPaths == 0 && req.GetPrefix() == nil {
+		return nil, status.Errorf(codes.InvalidArgument, "missing path")
+	}
+
+	origins := make(map[string]struct{})
+	for _, p := range req.GetPath() {
+		origins[p.GetOrigin()] = struct{}{}
+		if p.GetOrigin() != "gnmic" {
+			if _, ok := origins["gnmic"]; ok {
+				return nil, status.Errorf(codes.InvalidArgument, "combining `gnmic` origin with other origin values is not supported")
+			}
+		}
+	}
+
+	if _, ok := origins["gnmic"]; ok {
+		return a.handlegNMIcInternalGet(ctx, req)
+	}
+
+	targetName := req.GetPrefix().GetTarget()
+	pr, _ := peer.FromContext(ctx)
+	a.Logger.Printf("received Get request from %q to target %q", pr.Addr, targetName)
+
+	targets, err := a.selectTargets(ctx, targetName)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "could not find targets: %v", err)
+	}
+	numTargets := len(targets)
+	if numTargets == 0 {
+		return nil, status.Errorf(codes.NotFound, "unknown target %q", targetName)
+	}
+	results := make(chan *gnmi.Notification)
+	errChan := make(chan error, numTargets)
+
+	response := &gnmi.GetResponse{
+		// assume one notification per path per target
+		Notification: make([]*gnmi.Notification, 0, numTargets*numPaths),
+	}
+	done := make(chan struct{})
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go func() {
+		for {
+			select {
+			case notif, ok := <-results:
+				if !ok {
+					close(done)
+					return
+				}
+				response.Notification = append(response.Notification, notif)
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	wg := new(sync.WaitGroup)
+	wg.Add(numTargets)
+	for name, t := range targets {
+		go func(name string, t *target.Target) {
+			defer wg.Done()
+
+			creq := proto.Clone(req).(*gnmi.GetRequest)
+			if creq.GetPrefix() == nil {
+				creq.Prefix = new(gnmi.Path)
+			}
+			if creq.GetPrefix().GetTarget() == "" || creq.GetPrefix().GetTarget() == "*" {
+				creq.Prefix.Target = name
+			}
+			res, err := t.Get(ctx, creq)
+			if err != nil {
+				a.Logger.Printf("target %q err: %v", name, err)
+				errChan <- fmt.Errorf("target %q err: %v", name, err)
+				return
+			}
+
+			for _, n := range res.GetNotification() {
+				if n.GetPrefix() == nil {
+					n.Prefix = new(gnmi.Path)
+				}
+				if n.GetPrefix().GetTarget() == "" {
+					n.Prefix.Target = name
+				}
+				results <- n
+			}
+		}(name, t)
+	}
+	wg.Wait()
+	close(results)
+	close(errChan)
+	for err := range errChan {
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "%v", err)
+		}
+	}
+	<-done
+	if a.Config.Debug {
+		a.Logger.Printf("sending GetResponse to %q: %+v", pr.Addr, response)
+	}
+	return response, nil
+}
+
+func (a *App) serverSetHandler(ctx context.Context, req *gnmi.SetRequest) (*gnmi.SetResponse, error) {
+	numUpdates := len(req.GetUpdate())
+	numReplaces := len(req.GetReplace())
+	numDeletes := len(req.GetDelete())
+	numUnionReplace := len(req.GetUnionReplace())
+	if numUpdates+numReplaces+numDeletes+numUnionReplace == 0 {
+		return nil, status.Errorf(codes.InvalidArgument, "missing update/replace/delete path(s)")
+	}
+
+	targetName := req.GetPrefix().GetTarget()
+	pr, _ := peer.FromContext(ctx)
+	a.Logger.Printf("received Set request from %q to target %q", pr.Addr, targetName)
+
+	targets, err := a.selectTargets(ctx, targetName)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "could not find targets: %v", err)
+	}
+	numTargets := len(targets)
+	if numTargets == 0 {
+		return nil, status.Errorf(codes.NotFound, "unknown target(s) %q", targetName)
+	}
+	results := make(chan *gnmi.UpdateResult)
+	errChan := make(chan error, numTargets)
+
+	response := &gnmi.SetResponse{
+		// assume one update per target, per update/replace/delete
+		Response: make([]*gnmi.UpdateResult, 0, numTargets*(numUpdates+numReplaces+numDeletes)),
+	}
+	done := make(chan struct{})
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go func() {
+		for {
+			select {
+			case upd, ok := <-results:
+				if !ok {
+					response.Timestamp = time.Now().UnixNano()
+					close(done)
+					return
+				}
+				response.Response = append(response.Response, upd)
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	wg := new(sync.WaitGroup)
+	wg.Add(numTargets)
+	for name, t := range targets {
+		go func(name string, t *target.Target) {
+			defer wg.Done()
+
+			creq := proto.Clone(req).(*gnmi.SetRequest)
+			if creq.GetPrefix() == nil {
+				creq.Prefix = new(gnmi.Path)
+			}
+			if creq.GetPrefix().GetTarget() == "" || creq.GetPrefix().GetTarget() == "*" {
+				creq.Prefix.Target = name
+			}
+			res, err := t.Set(ctx, creq)
+			if err != nil {
+				a.Logger.Printf("target %q err: %v", name, err)
+				errChan <- fmt.Errorf("target %q err: %v", name, err)
+				return
+			}
+			for _, upd := range res.GetResponse() {
+				upd.Path.Target = name
+				results <- upd
+			}
+		}(name, t)
+	}
+	wg.Wait()
+	close(results)
+	close(errChan)
+	for err := range errChan {
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "%v", err)
+		}
+	}
+	<-done
+	a.Logger.Printf("sending SetResponse to %q: %+v", pr.Addr, response)
+	return response, nil
+}
+
+func (a *App) serverSubscribeHandler(req *gnmi.SubscribeRequest, stream gnmi.GNMI_SubscribeServer) error {
+	pr, _ := peer.FromContext(stream.Context())
+	sc := &streamClient{
+		stream: stream,
+		req:    req,
+	}
+	sc.target = sc.req.GetSubscribe().GetPrefix().GetTarget()
+	if sc.target == "" {
+		sc.target = "*"
+		sub := sc.req.GetSubscribe()
+		if sub.GetPrefix() == nil {
+			sub.Prefix = &gnmi.Path{Target: "*"}
+		} else {
+			sub.Prefix.Target = "*"
+		}
+	}
+
+	a.Logger.Printf("received a subscribe request mode=%v from %q for target %q", sc.req.GetSubscribe().GetMode(), pr.Addr, sc.target)
+	defer a.Logger.Printf("subscription from peer %q terminated", pr.Addr)
+
+	// closing of this channel is handled by respective goroutines that are going to send error on this channel
+	errChan := make(chan error, len(sc.req.GetSubscribe().GetSubscription()))
+	sc.errChan = errChan // send-only
+
+	switch sc.req.GetSubscribe().GetMode() {
+	case gnmi.SubscriptionList_ONCE:
+		go func() {
+			a.handleONCESubscriptionRequest(sc)
+			errChan <- sc.stream.Send(&gnmi.SubscribeResponse{
+				Response: &gnmi.SubscribeResponse_SyncResponse{SyncResponse: true},
+			})
+			close(errChan)
+		}()
+
+	case gnmi.SubscriptionList_POLL:
+		go a.handlePolledSubscription(sc)
+	case gnmi.SubscriptionList_STREAM:
+		go a.handleStreamSubscriptionRequest(sc)
+	default:
+		return status.Errorf(codes.InvalidArgument, "unrecognized subscription mode: %v", sc.req.GetSubscribe().GetMode())
+	}
+
+	// flushing the errChan
+	defer func() {
+		a.Logger.Printf("flushing subscription errChan")
+		for range errChan {
+		}
+	}()
+
+	// returning first non-nil error and flushing rest in defer
+	for err := range errChan {
+		if err != nil {
+			return status.Errorf(codes.Internal, "%v", err)
+		}
+	}
+
 	return nil
 }

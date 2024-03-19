@@ -92,3 +92,60 @@ START:
 		goto START
 	}
 }
+
+func (a *App) startLoaderProxy(ctx context.Context) {
+	if len(a.Config.Loader) == 0 {
+		return
+	}
+	ldTypeS := a.Config.Loader["type"].(string)
+START:
+	a.Logger.Printf("initializing loader type %q", ldTypeS)
+
+	ld := loaders.Loaders[ldTypeS]()
+	err := ld.Init(ctx, a.Config.Loader, a.Logger,
+		loaders.WithRegistry(a.reg),
+		loaders.WithActions(a.Config.Actions),
+		loaders.WithTargetsDefaults(a.Config.SetTargetConfigDefaults),
+	)
+	if err != nil {
+		a.Logger.Printf("failed to init loader type %q: %v", ldTypeS, err)
+		return
+	}
+	a.Logger.Printf("starting loader type %q", ldTypeS)
+	for targetOp := range ld.Start(ctx) {
+		for _, del := range targetOp.Del {
+			// clustered, delete target in all instances of the cluster
+			a.configLock.Lock()
+			delete(a.Config.Targets, del)
+			a.configLock.Unlock()
+			a.operLock.Lock()
+			t, ok := a.Targets[del]
+			if ok {
+				err = t.Close()
+				if err != nil {
+					a.Logger.Printf("failed to stop target %s: %v", del, err)
+				}
+				delete(a.Targets, del)
+			}
+			a.operLock.Unlock()
+		}
+		for _, add := range targetOp.Add {
+			err = a.Config.SetTargetConfigDefaults(add)
+			if err != nil {
+				a.Logger.Printf("failed parsing new target configuration %#v: %v", add, err)
+				continue
+			}
+
+			a.configLock.Lock()
+			a.Config.Targets[add.Name] = add
+			a.configLock.Unlock()
+		}
+	}
+	a.Logger.Printf("target loader stopped")
+	select {
+	case <-ctx.Done():
+		return
+	default:
+		goto START
+	}
+}

@@ -16,6 +16,7 @@ import (
 
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/cache"
+	"google.golang.org/grpc/keepalive"
 )
 
 const (
@@ -32,15 +33,21 @@ const (
 )
 
 type gnmiServer struct {
-	Address               string           `mapstructure:"address,omitempty" json:"address,omitempty"`
-	MinSampleInterval     time.Duration    `mapstructure:"min-sample-interval,omitempty" json:"min-sample-interval,omitempty"`
-	DefaultSampleInterval time.Duration    `mapstructure:"default-sample-interval,omitempty" json:"default-sample-interval,omitempty"`
-	MinHeartbeatInterval  time.Duration    `mapstructure:"min-heartbeat-interval,omitempty" json:"min-heartbeat-interval,omitempty"`
-	MaxSubscriptions      int64            `mapstructure:"max-subscriptions,omitempty" json:"max-subscriptions,omitempty"`
-	MaxUnaryRPC           int64            `mapstructure:"max-unary-rpc,omitempty" json:"max-unary-rpc,omitempty"`
-	TLS                   *types.TLSConfig `mapstructure:"tls,omitempty" json:"tls,omitempty"`
-	EnableMetrics         bool             `mapstructure:"enable-metrics,omitempty" json:"enable-metrics,omitempty"`
-	Debug                 bool             `mapstructure:"debug,omitempty" json:"debug,omitempty"`
+	Address               string               `mapstructure:"address,omitempty" json:"address,omitempty"`
+	MinSampleInterval     time.Duration        `mapstructure:"min-sample-interval,omitempty" json:"min-sample-interval,omitempty"`
+	DefaultSampleInterval time.Duration        `mapstructure:"default-sample-interval,omitempty" json:"default-sample-interval,omitempty"`
+	MinHeartbeatInterval  time.Duration        `mapstructure:"min-heartbeat-interval,omitempty" json:"min-heartbeat-interval,omitempty"`
+	MaxSubscriptions      int64                `mapstructure:"max-subscriptions,omitempty" json:"max-subscriptions,omitempty"`
+	MaxUnaryRPC           int64                `mapstructure:"max-unary-rpc,omitempty" json:"max-unary-rpc,omitempty"`
+	MaxRecvMsgSize        int                  `mapstructure:"max-recv-msg-size,omitempty" json:"max-recv-msg-size,omitempty"`
+	MaxSendMsgSize        int                  `mapstructure:"max-send-msg-size,omitempty" json:"max-send-msg-size,omitempty"`
+	MaxConcurrentStreams  uint32               `mapstructure:"max-concurrent-streams,omitempty" json:"max-concurrent-streams,omitempty"`
+	TCPKeepalive          time.Duration        `mapstructure:"tcp-keepalive,omitempty" json:"tcp-keepalive,omitempty"`
+	GRPCKeepalive         *grpcKeepaliveConfig `mapstructure:"grpc-keepalive,omitempty" json:"grpc-keepalive,omitempty"`
+	RateLimit             int64                `mapstructure:"rate-limit,omitempty" json:"rate-limit,omitempty"`
+	TLS                   *types.TLSConfig     `mapstructure:"tls,omitempty" json:"tls,omitempty"`
+	EnableMetrics         bool                 `mapstructure:"enable-metrics,omitempty" json:"enable-metrics,omitempty"`
+	Debug                 bool                 `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 	// ServiceRegistration
 	ServiceRegistration *serviceRegistration `mapstructure:"service-registration,omitempty" json:"service-registration,omitempty"`
 	// cache config
@@ -59,6 +66,44 @@ type serviceRegistration struct {
 	Tags          []string      `mapstructure:"tags,omitempty" json:"tags,omitempty"`
 	//
 	DeregisterAfter string `mapstructure:"-" json:"-"`
+}
+
+// from keepalive.ServerParameters
+type grpcKeepaliveConfig struct {
+	// MaxConnectionIdle is a duration for the amount of time after which an
+	// idle connection would be closed by sending a GoAway. Idleness duration is
+	// defined since the most recent time the number of outstanding RPCs became
+	// zero or the connection establishment.
+	MaxConnectionIdle time.Duration `mapstructure:"max-connection-idle,omitempty"` // The current default value is infinity.
+	// MaxConnectionAge is a duration for the maximum amount of time a
+	// connection may exist before it will be closed by sending a GoAway. A
+	// random jitter of +/-10% will be added to MaxConnectionAge to spread out
+	// connection storms.
+	MaxConnectionAge time.Duration `mapstructure:"max-connection-age,omitempty"` // The current default value is infinity.
+	// MaxConnectionAgeGrace is an additive period after MaxConnectionAge after
+	// which the connection will be forcibly closed.
+	MaxConnectionAgeGrace time.Duration `mapstructure:"max-connection-age-grace,omitempty"` // The current default value is infinity.
+	// After a duration of this time if the server doesn't see any activity it
+	// pings the client to see if the transport is still alive.
+	// If set below 1s, a minimum value of 1s will be used instead.
+	Time time.Duration `mapstructure:"time,omitempty"` // The current default value is 2 hours.
+	// After having pinged for keepalive check, the server waits for a duration
+	// of Timeout and if no activity is seen even after that the connection is
+	// closed.
+	Timeout time.Duration `mapstructure:"timeout,omitempty"` // The current default value is 20 seconds.
+}
+
+func (gkc *grpcKeepaliveConfig) Convert() *keepalive.ServerParameters {
+	if gkc == nil {
+		return nil
+	}
+	return &keepalive.ServerParameters{
+		MaxConnectionIdle:     gkc.MaxConnectionIdle,
+		MaxConnectionAge:      gkc.MaxConnectionAge,
+		MaxConnectionAgeGrace: gkc.MaxConnectionAgeGrace,
+		Time:                  gkc.Time,
+		Timeout:               gkc.Timeout,
+	}
 }
 
 func (c *Config) GetGNMIServer() error {

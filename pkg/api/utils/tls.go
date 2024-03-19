@@ -18,7 +18,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
-	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -102,15 +101,9 @@ func NewTLSConfig(ca, cert, key, clientAuth string, skipVerify, genSelfSigned bo
 		tlsConfig.Certificates = []tls.Certificate{cert}
 	}
 	if ca != "" {
-		certPool := x509.NewCertPool()
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		caFile, err := ReadLocalFile(ctx, ca)
+		certPool, err := LoadCACertificates(ca)
 		if err != nil {
 			return nil, err
-		}
-		if ok := certPool.AppendCertsFromPEM(caFile); !ok {
-			return nil, errors.New("failed to append certificate")
 		}
 		tlsConfig.RootCAs = certPool
 		tlsConfig.ClientCAs = certPool
@@ -208,4 +201,35 @@ func readFromStdin(ctx context.Context) ([]byte, error) {
 			data = append(data, buf[:n]...)
 		}
 	}
+}
+
+// LoadCACertificates reads PEM-encoded CA certificates from a file and adds them to a CertPool.
+// It returns the CertPool and any error encountered.
+func LoadCACertificates(filePath string) (*x509.CertPool, error) {
+	certPEMBlock, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read the cert file: %s: %w", filePath, err)
+	}
+
+	certPool := x509.NewCertPool()
+
+	for {
+		block, rest := pem.Decode(certPEMBlock)
+		if block == nil {
+			break
+		}
+		certPEMBlock = rest
+
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse certificate: %w", err)
+		}
+
+		if !cert.IsCA {
+			return nil, fmt.Errorf("file %s contains a certificate that is not a CA", filePath)
+		}
+		certPool.AddCert(cert)
+	}
+
+	return certPool, nil
 }
