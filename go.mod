@@ -9,7 +9,7 @@ require (
 	github.com/adrg/xdg v0.4.0
 	github.com/c-bata/go-prompt v0.2.6
 	github.com/damiannolan/sasl v1.0.0
-	github.com/docker/docker v24.0.7+incompatible
+	github.com/docker/docker v24.0.9+incompatible
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/fullstorydev/grpcurl v1.8.9
 	github.com/go-redsync/redsync/v4 v4.11.0
