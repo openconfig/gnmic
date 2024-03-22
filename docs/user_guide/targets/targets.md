@@ -294,6 +294,21 @@ targets:
     # When empty or set to 0s, the Golang default (15s) applies.
     # Disabled if set to a negative value.
     tcp-keepalive: 0s
+    # sets gRPC keepalive parameters according to: 
+    # https://github.com/grpc/proposal/blob/master/A8-client-side-keepalive.md
+    grpc-keepalive:
+      # After a duration of this time if the client doesn't see any activity 
+      # it pings the server to see if the transport is still alive. 
+      # If set below 10s, a minimum value of 10s will be used instead.
+      time:
+      # After having pinged for keepalive check, the client waits 
+      # for a duration of Timeout and if no activity is seen even 
+      # after that the connection is closed.
+      timeout:
+      # If true, client sends keepalive pings even with no active RPCs. 
+      # If false, when there are no active RPCs, 
+      # Time and Timeout will be ignored and no keepalive pings will be sent.
+      permit-without-stream: false
 ```
 
 ### Example

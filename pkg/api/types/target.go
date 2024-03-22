@@ -22,6 +22,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/credentials/oauth"
 	"google.golang.org/grpc/encoding/gzip"
+	"google.golang.org/grpc/keepalive"
 
 	"github.com/openconfig/gnmic/pkg/api/utils"
 )
@@ -150,6 +151,13 @@ type TargetConfig struct {
 	Metadata         map[string]string `mapstructure:"metadata,omitempty" yaml:"metadata,omitempty" json:"metadata,omitempty"`
 	CipherSuites     []string          `mapstructure:"cipher-suites,omitempty" yaml:"cipher-suites,omitempty" json:"cipher-suites,omitempty"`
 	TCPKeepalive     time.Duration     `mapstructure:"tcp-keepalive,omitempty" yaml:"tcp-keepalive,omitempty" json:"tcp-keepalive,omitempty"`
+	GRPCKeepalive    *clientKeepalive  `mapstructure:"grpc-keepalive,omitempty" yaml:"grpc-keepalive,omitempty" json:"grpc-keepalive,omitempty"`
+}
+
+type clientKeepalive struct {
+	Time                time.Duration `mapstructure:"time,omitempty"`
+	Timeout             time.Duration `mapstructure:"timeout,omitempty"`
+	PermitWithoutStream bool          `mapstructure:"permit-without-stream,omitempty"`
 }
 
 func (tc TargetConfig) String() string {
@@ -226,6 +234,14 @@ func (tc *TargetConfig) GrpcDialOptions() ([]grpc.DialOption, error) {
 	// gzip
 	if tc.Gzip != nil && *tc.Gzip {
 		tOpts = append(tOpts, grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)))
+	}
+	// gRPC keepalive
+	if tc.GRPCKeepalive != nil {
+		tOpts = append(tOpts, grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:                tc.GRPCKeepalive.Time,
+			Timeout:             tc.GRPCKeepalive.Timeout,
+			PermitWithoutStream: tc.GRPCKeepalive.PermitWithoutStream,
+		}))
 	}
 	// insecure
 	if tc.Insecure != nil && *tc.Insecure {
