@@ -26,6 +26,7 @@ import (
 	"github.com/openconfig/gnmic/pkg/cmd/getset"
 	"github.com/openconfig/gnmic/pkg/cmd/listener"
 	"github.com/openconfig/gnmic/pkg/cmd/path"
+	"github.com/openconfig/gnmic/pkg/cmd/processor"
 	"github.com/openconfig/gnmic/pkg/cmd/proxy"
 	"github.com/openconfig/gnmic/pkg/cmd/set"
 	"github.com/openconfig/gnmic/pkg/cmd/subscribe"
@@ -77,6 +78,7 @@ func newRootCmd() *cobra.Command {
 	gApp.RootCmd.AddCommand(subscribe.New(gApp))
 	gApp.RootCmd.AddCommand(version.New(gApp))
 	gApp.RootCmd.AddCommand(proxy.New(gApp))
+	gApp.RootCmd.AddCommand(processor.New(gApp))
 	return gApp.RootCmd
 }
 
