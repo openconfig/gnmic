@@ -254,6 +254,12 @@ type LocalFlags struct {
 	DiffSetToNotifsFull     bool     `mapstructure:"diff-set-to-notifs-full,omitempty" json:"diff-set-to-notifs-full,omitempty" yaml:"diff-set-to-notifs-full,omitempty"`
 	//
 	TunnelServerSubscribe bool
+	// Processor
+	ProcessorInput          string
+	ProcessorInputDelimiter string
+	ProcessorName           []string
+	ProcessorPrometheusOpts []string
+	ProcessorOutput         string
 }
 
 func New() *Config {

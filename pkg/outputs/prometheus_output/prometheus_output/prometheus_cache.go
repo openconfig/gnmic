@@ -66,7 +66,7 @@ func (p *prometheusOutput) collectFromCache(ch chan<- prometheus.Metric) {
 	defer cancel()
 	now := time.Now()
 	for _, ev := range events {
-		for _, pm := range p.metricsFromEvent(ev, now) {
+		for _, pm := range p.mb.MetricsFromEvent(ev, now) {
 			select {
 			case <-ctx.Done():
 				p.logger.Printf("collection context terminated: %v", ctx.Err())

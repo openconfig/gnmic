@@ -312,9 +312,15 @@ func EventFromMap(m map[string]interface{}) (*EventMsg, error) {
 	if v, ok := m["timestamp"]; ok {
 		i := num64(v)
 		if i == nil {
-			return nil, fmt.Errorf("could not convert map to event message, timestamp it not an int64")
+			return nil, fmt.Errorf("could not convert map to event message, timestamp is not an int64: %T", v)
 		}
-		e.Timestamp = i.(int64)
+		switch i := i.(type) {
+		case int64:
+			e.Timestamp = i
+		case uint64:
+			e.Timestamp = int64(i)
+		}
+
 	}
 	if v, ok := m["tags"]; ok {
 		switch v := v.(type) {
@@ -382,6 +388,8 @@ func num64(n interface{}) interface{} {
 	case uint32:
 		return uint64(n)
 	case uint64:
+		return uint64(n)
+	case float64:
 		return uint64(n)
 	}
 	return nil

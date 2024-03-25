@@ -134,7 +134,6 @@ func (a *App) getRequest(ctx context.Context, tc *types.TargetConfig, req *gnmi.
 
 	response, err := a.ClientGet(ctx, tc, xreq)
 	if err != nil {
-		a.logError(fmt.Errorf("target %q get request failed: %v", tc.Name, err))
 		return nil, err
 	}
 	return response, nil
