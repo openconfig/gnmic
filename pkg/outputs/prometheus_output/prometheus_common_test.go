@@ -9,10 +9,13 @@
 package prometheus_output
 
 import (
+	"cmp"
+	"slices"
 	"testing"
 
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/prompb"
 )
 
 var metricNameSet = map[string]struct {
@@ -93,6 +96,32 @@ func TestTimeSeriesFromEvent(t *testing.T) {
 			if label.Name == labels.MetricName && label.Value != nts.Name {
 				t.Errorf("__name__ label wrong, expected '%s', got '%s'", nts.Name, label.Value)
 			}
+		}
+	}
+}
+
+func TestTimeSeriesLabelsSorted(t *testing.T) {
+	metricBuilder := &MetricBuilder{StringsAsLabels: true}
+	event := &formatters.EventMsg{
+		Name:      "eventName",
+		Timestamp: 12345,
+		Tags: map[string]string{
+			"tagName": "tagVal",
+		},
+		Values: map[string]interface{}{
+			"strName1": "strVal1",
+			"strName2": "strVal2",
+			"intName1": 1,
+			"intName2": 2,
+		},
+		Deletes: []string{},
+	}
+	for _, nts := range metricBuilder.TimeSeriesFromEvent(event) {
+		areLabelsSorted := slices.IsSortedFunc(nts.TS.Labels, func(a prompb.Label, b prompb.Label) int {
+			return cmp.Compare(a.Name, b.Name)
+		})
+		if !areLabelsSorted {
+			t.Errorf("labels names are not sorted, got '%v'", nts.TS.Labels)
 		}
 	}
 }
