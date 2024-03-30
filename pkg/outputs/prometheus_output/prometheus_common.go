@@ -9,6 +9,7 @@
 package prometheus_output
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -16,6 +17,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -278,6 +280,13 @@ func (m *MetricBuilder) TimeSeriesFromEvent(ev *formatters.EventMsg) []*NamedTim
 				Name:  labels.MetricName,
 				Value: tsName,
 			})
+
+		// The prometheus spec requires label names to be sorted
+		// https://prometheus.io/docs/concepts/remote_write_spec/
+		slices.SortFunc(tsLabelsWithName, func(a prompb.Label, b prompb.Label) int {
+			return cmp.Compare(a.Name, b.Name)
+		})
+
 		nts := &NamedTimeSeries{
 			Name: tsName,
 			TS: &prompb.TimeSeries{
