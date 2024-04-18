@@ -85,6 +85,7 @@ type config struct {
 	MaxRetry           int              `mapstructure:"max-retry,omitempty"`
 	Timeout            time.Duration    `mapstructure:"timeout,omitempty"`
 	RecoveryWaitTime   time.Duration    `mapstructure:"recovery-wait-time,omitempty"`
+	FlushFrequency     time.Duration    `mapstructure:"flush-frequency,omitempty"`
 	SyncProducer       bool             `mapstructure:"sync-producer,omitempty"`
 	RequiredAcks       string           `mapstructure:"required-acks,omitempty"`
 	Format             string           `mapstructure:"format,omitempty"`
@@ -546,6 +547,7 @@ func (k *kafkaOutput) createConfig() (*sarama.Config, error) {
 	cfg.Producer.Retry.Max = k.cfg.MaxRetry
 	cfg.Producer.Return.Successes = true
 	cfg.Producer.Timeout = k.cfg.Timeout
+	cfg.Producer.Flush.Frequency = k.cfg.FlushFrequency
 	switch k.cfg.RequiredAcks {
 	case requiredAcksNoResponse:
 	case requiredAcksWaitForLocal:
