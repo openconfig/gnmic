@@ -168,7 +168,7 @@ type LocalFlags struct {
 	SubscribeStreamMode        string        `mapstructure:"subscribe-stream_mode,omitempty" json:"subscribe-stream-mode,omitempty" yaml:"subscribe-stream-mode,omitempty"`
 	SubscribeSampleInterval    time.Duration `mapstructure:"subscribe-sample-interval,omitempty" json:"subscribe-sample-interval,omitempty" yaml:"subscribe-sample-interval,omitempty"`
 	SubscribeSuppressRedundant bool          `mapstructure:"subscribe-suppress-redundant,omitempty" json:"subscribe-suppress-redundant,omitempty" yaml:"subscribe-suppress-redundant,omitempty"`
-	SubscribeHeartbeatInterval time.Duration `mapstructure:"subscribe-heartbear-interval,omitempty" json:"subscribe-heartbear-interval,omitempty" yaml:"subscribe-heartbear-interval,omitempty"`
+	SubscribeHeartbeatInterval time.Duration `mapstructure:"subscribe-heartbeat-interval,omitempty" json:"subscribe-heartbeat-interval,omitempty" yaml:"subscribe-heartbeat-interval,omitempty"`
 	SubscribeModel             []string      `mapstructure:"subscribe-model,omitempty" json:"subscribe-model,omitempty" yaml:"subscribe-model,omitempty"`
 	SubscribeQuiet             bool          `mapstructure:"subscribe-quiet,omitempty" json:"subscribe-quiet,omitempty" yaml:"subscribe-quiet,omitempty"`
 	SubscribeTarget            string        `mapstructure:"subscribe-target,omitempty" json:"subscribe-target,omitempty" yaml:"subscribe-target,omitempty"`
@@ -207,23 +207,23 @@ type LocalFlags struct {
 	// VersionUpgrade
 	UpgradeUsePkg bool `mapstructure:"upgrade-use-pkg" json:"upgrade-use-pkg,omitempty" yaml:"upgrade-use-pkg,omitempty"`
 	// GetSet
-	GetSetPrefix    string `mapstructure:"getset-prefix,omitempty" json:"getset-prefix,omitempty" yaml:"getset-prefix,omitempty"`
-	GetSetGet       string `mapstructure:"getset-get,omitempty" json:"getset-get,omitempty" yaml:"getset-get,omitempty"`
-	GetSetModel     []string
-	GetSetTarget    string `mapstructure:"getset-target,omitempty" json:"getset-target,omitempty" yaml:"getset-target,omitempty"`
-	GetSetType      string `mapstructure:"getset-type,omitempty" json:"getset-type,omitempty" yaml:"getset-type,omitempty"`
-	GetSetCondition string `mapstructure:"getset-condition,omitempty" json:"getset-condition,omitempty" yaml:"getset-condition,omitempty"`
-	GetSetUpdate    string `mapstructure:"getset-update,omitempty" json:"getset-update,omitempty" yaml:"getset-update,omitempty"`
-	GetSetReplace   string `mapstructure:"getset-replace,omitempty" json:"getset-replace,omitempty" yaml:"getset-replace,omitempty"`
-	GetSetDelete    string `mapstructure:"getset-delete,omitempty" json:"getset-delete,omitempty" yaml:"getset-delete,omitempty"`
-	GetSetValue     string `mapstructure:"getset-value,omitempty" json:"getset-value,omitempty" yaml:"getset-value,omitempty"`
+	GetSetPrefix    string   `mapstructure:"getset-prefix,omitempty" json:"getset-prefix,omitempty" yaml:"getset-prefix,omitempty"`
+	GetSetGet       string   `mapstructure:"getset-get,omitempty" json:"getset-get,omitempty" yaml:"getset-get,omitempty"`
+	GetSetModel     []string `mapstructure:"get-set-model,omitempty" yaml:"get-set-model,omitempty" json:"get-set-model,omitempty"`
+	GetSetTarget    string   `mapstructure:"getset-target,omitempty" json:"getset-target,omitempty" yaml:"getset-target,omitempty"`
+	GetSetType      string   `mapstructure:"getset-type,omitempty" json:"getset-type,omitempty" yaml:"getset-type,omitempty"`
+	GetSetCondition string   `mapstructure:"getset-condition,omitempty" json:"getset-condition,omitempty" yaml:"getset-condition,omitempty"`
+	GetSetUpdate    string   `mapstructure:"getset-update,omitempty" json:"getset-update,omitempty" yaml:"getset-update,omitempty"`
+	GetSetReplace   string   `mapstructure:"getset-replace,omitempty" json:"getset-replace,omitempty" yaml:"getset-replace,omitempty"`
+	GetSetDelete    string   `mapstructure:"getset-delete,omitempty" json:"getset-delete,omitempty" yaml:"getset-delete,omitempty"`
+	GetSetValue     string   `mapstructure:"getset-value,omitempty" json:"getset-value,omitempty" yaml:"getset-value,omitempty"`
 	// Generate
 	GenerateOutput     string `mapstructure:"generate-output,omitempty" json:"generate-output,omitempty" yaml:"generate-output,omitempty"`
 	GenerateJSON       bool   `mapstructure:"generate-json,omitempty" json:"generate-json,omitempty" yaml:"generate-json,omitempty"`
 	GenerateConfigOnly bool   `mapstructure:"generate-config-only,omitempty" json:"generate-config-only,omitempty" yaml:"generate-config-only,omitempty"`
 	GeneratePath       string `mapstructure:"generate-path,omitempty" json:"generate-path,omitempty" yaml:"generate-path,omitempty"`
-	GenerateCamelCase  bool   `mapstructure:"generate-camel-case,omitempty" json:"generate-camel-case" yaml:"generate-camel-case,omitempty"`
-	GenerateSnakeCase  bool   `mapstructure:"generate-snake-case,omitempty" json:"generate-snake-case" yaml:"generate-snake-case,omitempty"`
+	GenerateCamelCase  bool   `mapstructure:"generate-camel-case,omitempty" json:"generate-camel-case,omitempty" yaml:"generate-camel-case,omitempty"`
+	GenerateSnakeCase  bool   `mapstructure:"generate-snake-case,omitempty" json:"generate-snake-case,omitempty" yaml:"generate-snake-case,omitempty"`
 	// Generate Set Request
 	GenerateSetRequestUpdatePath  []string `mapstructure:"generate-update-path,omitempty" json:"generate-update-path,omitempty" yaml:"generate-update-path,omitempty"`
 	GenerateSetRequestReplacePath []string `mapstructure:"generate-replace-path,omitempty" json:"generate-replace-path,omitempty" yaml:"generate-replace-path,omitempty"`
@@ -253,13 +253,12 @@ type LocalFlags struct {
 	DiffSetToNotifsResponse string   `mapstructure:"diff-set-to-notifs-response,omitempty" json:"diff-set-to-notifs-response,omitempty" yaml:"diff-set-to-notifs-response,omitempty"`
 	DiffSetToNotifsFull     bool     `mapstructure:"diff-set-to-notifs-full,omitempty" json:"diff-set-to-notifs-full,omitempty" yaml:"diff-set-to-notifs-full,omitempty"`
 	//
-	TunnelServerSubscribe bool
+	TunnelServerSubscribe bool `mapstructure:"tunnel-server-subscribe,omitempty" yaml:"tunnel-server-subscribe,omitempty" json:"tunnel-server-subscribe,omitempty"`
 	// Processor
-	ProcessorInput          string
-	ProcessorInputDelimiter string
-	ProcessorName           []string
-	ProcessorPrometheusOpts []string
-	ProcessorOutput         string
+	ProcessorInput          string   `mapstructure:"processor-input,omitempty" yaml:"processor-input,omitempty" json:"processor-input,omitempty"`
+	ProcessorInputDelimiter string   `mapstructure:"processor-input-delimiter,omitempty" yaml:"processor-input-delimiter,omitempty" json:"processor-input-delimiter,omitempty"`
+	ProcessorName           []string `mapstructure:"processor-name,omitempty" yaml:"processor-name,omitempty" json:"processor-name,omitempty"`
+	ProcessorOutput         string   `mapstructure:"processor-output,omitempty" yaml:"processor-output,omitempty" json:"processor-output,omitempty"`
 }
 
 func New() *Config {

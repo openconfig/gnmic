@@ -9,6 +9,7 @@ import (
 func New(gApp *app.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "processor",
+		Aliases: []string{"proc"},
 		Short:   "apply a list of processors",
 		PreRunE: gApp.ProcessorPreRunE,
 		RunE:    gApp.ProcessorRunE,

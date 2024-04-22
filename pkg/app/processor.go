@@ -120,7 +120,6 @@ func (a *App) InitProcessorFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&a.Config.LocalFlags.ProcessorInputDelimiter, "delimiter", "", "\n", "processors input delimiter")
 	cmd.Flags().StringSliceVarP(&a.Config.LocalFlags.ProcessorName, "name", "", nil, "list of processors to apply to the input")
 	cmd.MarkFlagRequired("name")
-	cmd.Flags().StringSliceVarP(&a.Config.LocalFlags.ProcessorPrometheusOpts, "prom-opts", "", nil, "list of prometheus output options")
 	cmd.Flags().StringVarP(&a.Config.LocalFlags.ProcessorOutput, "output", "", "", "output name")
 }
 
@@ -131,7 +130,10 @@ func (a *App) promFormat(rrevs [][]*formatters.EventMsg, outName string) ([]byte
 	if outputConfig == nil {
 		return nil, fmt.Errorf("unknown output name: %s", outName)
 	}
-
+	outType := a.Config.FileConfig.GetString(outputPath + "/type")
+	if outType != "prometheus" && outType != "remote_write" {
+		return nil, fmt.Errorf("output %q must be of type 'prometheus' or 'remote_write'", outName)
+	}
 	mb := &promcom.MetricBuilder{
 		Prefix:                 a.Config.FileConfig.GetString(outputPath + "/metric-prefix"),
 		AppendSubscriptionName: a.Config.FileConfig.GetBool(outputPath + "/append-subscription-name"),

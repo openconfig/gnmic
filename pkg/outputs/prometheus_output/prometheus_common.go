@@ -16,7 +16,7 @@ import (
 	"math"
 	"path/filepath"
 	"regexp"
-  "slices"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
