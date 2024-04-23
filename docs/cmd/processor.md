@@ -3,7 +3,7 @@
 The `[processor | proc]` command allows running a set of event processor offline given an input of event messages.
 
 If expects a file input (`--input`) containing a list of event messages and one or more processor(s) name(s) (`--name`) defined in the main config file.
-This command will read the input file, validate the configured processors, apply them on the input event messages and output the result.
+This command will read the input file, validate the configured processors, apply them on the input event messages and print out the result.
 
 ### Usage
 
@@ -301,7 +301,7 @@ input File:
 Command:
 
 ```shell
-gnmic processor --input /path/to/event_msg.txt --name proc1,proc2,proc3 --output out1
+gnmic processor --input /path/to/event_msg.txt --delimiter "\n###" --name proc1,proc2,proc3 --output out1
 ```
 
 Output:
