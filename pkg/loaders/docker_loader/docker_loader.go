@@ -25,6 +25,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	dtypes "github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	dClient "github.com/docker/docker/client"
 	"github.com/mitchellh/mapstructure"
@@ -315,7 +316,7 @@ func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*types.Target
 			}
 			// get containers for each defined filter
 			for _, cfl := range fl.fl {
-				conts, err := d.client.ContainerList(ctx, dtypes.ContainerListOptions{
+				conts, err := d.client.ContainerList(ctx, container.ListOptions{
 					Filters: cfl,
 				})
 				if err != nil {

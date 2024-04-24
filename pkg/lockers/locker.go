@@ -22,7 +22,7 @@ var ErrCanceled = errors.New("canceled")
 type Locker interface {
 	// Init initialises the locker data, with the given configuration read from flags/files.
 	Init(context.Context, map[string]interface{}, ...Option) error
-	// Stop is called when the locker instance is called. It should unlock all aquired locks.
+	// Stop is called when the locker instance is called. It should unlock all acquired locks.
 	Stop() error
 	SetLogger(*log.Logger)
 

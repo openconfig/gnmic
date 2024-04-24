@@ -6,7 +6,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-FROM golang:1.21.1 as builder
+FROM golang:1.21.9 as builder
 ADD . /build
 WORKDIR /build
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o gnmic .

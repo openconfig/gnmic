@@ -45,7 +45,6 @@ const (
 	defaultListen     = ":9804"
 	defaultPath       = "/metrics"
 	defaultExpiration = time.Minute
-	defaultMetricHelp = "gNMIc generated metric"
 	loggingPrefix     = "[prometheus_output:%s] "
 	// this is used to timeout the collection method
 	// in case it drags for too long
