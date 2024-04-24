@@ -226,9 +226,10 @@ func (s *stringsp) applyTagTransformations(e *formatters.EventMsg, k, v string) 
 			k, vi = t.apply(k, v)
 			if vs, ok := vi.(string); ok {
 				e.Tags[k] = vs
-			} else {
-				s.logger.Printf("failed to assert %v type as string", vi)
+				v = vs // change the original value in case it's used in the next transform
+				continue
 			}
+			s.logger.Printf("failed to assert %v type as string", vi)
 		}
 	}
 }

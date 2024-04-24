@@ -12,15 +12,11 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"hash/fnv"
 	"io"
 	"log"
-	"math"
 	"net"
 	"net/http"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -33,8 +29,6 @@ import (
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	dto "github.com/prometheus/client_model/go"
-	"github.com/prometheus/prometheus/prompb"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/openconfig/gnmic/pkg/api/types"
@@ -59,16 +53,6 @@ const (
 	defaultNumWorkers = 1
 )
 
-type promMetric struct {
-	name   string
-	labels []prompb.Label
-	time   *time.Time
-	value  float64
-	// addedAt is used to expire metrics if the time field is not initialized
-	// this happens when ExportTimestamp == false
-	addedAt time.Time
-}
-
 func init() {
 	outputs.Register(outputType, func() outputs.Output {
 		return &prometheusOutput{
@@ -76,7 +60,7 @@ func init() {
 			eventChan: make(chan *formatters.EventMsg),
 			msgChan:   make(chan *outputs.ProtoMsg),
 			wg:        new(sync.WaitGroup),
-			entries:   make(map[uint64]*promMetric),
+			entries:   make(map[uint64]*promcom.PromMetric),
 			logger:    log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
 		}
 	})
@@ -91,7 +75,7 @@ type prometheusOutput struct {
 	wg     *sync.WaitGroup
 	server *http.Server
 	sync.Mutex
-	entries map[uint64]*promMetric
+	entries map[uint64]*promcom.PromMetric
 
 	mb           *promcom.MetricBuilder
 	evps         []formatters.EventProcessor
@@ -196,6 +180,8 @@ func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string
 		Prefix:                 p.cfg.MetricPrefix,
 		AppendSubscriptionName: p.cfg.AppendSubscriptionName,
 		StringsAsLabels:        p.cfg.StringsAsLabels,
+		OverrideTimestamps:     p.cfg.OverrideTimestamps,
+		ExportTimestamps:       p.cfg.ExportTimestamps,
 	}
 
 	if p.cfg.CacheConfig != nil {
@@ -424,13 +410,13 @@ func (p *prometheusOutput) workerHandleEvent(ev *formatters.EventMsg) {
 	}
 	p.Lock()
 	defer p.Unlock()
-	for _, pm := range p.metricsFromEvent(ev, time.Now()) {
-		key := pm.calculateKey()
+	for _, pm := range p.mb.MetricsFromEvent(ev, time.Now()) {
+		key := pm.CalculateKey()
 		e, ok := p.entries[key]
 		// if the entry key is not present add it to the map.
 		// if present add it only if the entry timestamp is newer than the
 		// existing one.
-		if !ok || pm.time == nil || (ok && pm.time != nil && e.time.Before(*pm.time)) {
+		if !ok || pm.Time == nil || (ok && pm.Time != nil && e.Time.Before(*pm.Time)) {
 			p.entries[key] = pm
 			if p.cfg.Debug {
 				p.logger.Printf("saved key=%d, metric: %+v", key, pm)
@@ -446,12 +432,12 @@ func (p *prometheusOutput) expireMetrics() {
 	expiry := time.Now().Add(-p.cfg.Expiration)
 	for k, e := range p.entries {
 		if p.cfg.ExportTimestamps {
-			if e.time.Before(expiry) {
+			if e.Time.Before(expiry) {
 				delete(p.entries, k)
 			}
 			continue
 		}
-		if e.addedAt.Before(expiry) {
+		if e.AddedAt.Before(expiry) {
 			delete(p.entries, k)
 		}
 	}
@@ -550,125 +536,6 @@ func (p *prometheusOutput) setDefaults() error {
 	return nil
 }
 
-// Metric
-func (p *promMetric) calculateKey() uint64 {
-	h := fnv.New64a()
-	h.Write([]byte(p.name))
-	if len(p.labels) > 0 {
-		h.Write([]byte(":"))
-		sort.Slice(p.labels, func(i, j int) bool {
-			return p.labels[i].Name < p.labels[j].Name
-		})
-		for _, label := range p.labels {
-			h.Write([]byte(label.Name))
-			h.Write([]byte(":"))
-			h.Write([]byte(label.Value))
-			h.Write([]byte(":"))
-		}
-	}
-	return h.Sum64()
-}
-
-func (p *promMetric) String() string {
-	if p == nil {
-		return ""
-	}
-	sb := strings.Builder{}
-	sb.WriteString("name=")
-	sb.WriteString(p.name)
-	sb.WriteString(",")
-	numLabels := len(p.labels)
-	if numLabels > 0 {
-		sb.WriteString("labels=[")
-		for i, lb := range p.labels {
-			sb.WriteString(lb.Name)
-			sb.WriteString("=")
-			sb.WriteString(lb.Value)
-			if i < numLabels-1 {
-				sb.WriteString(",")
-			}
-		}
-		sb.WriteString("],")
-	}
-	sb.WriteString(fmt.Sprintf("value=%f,", p.value))
-	sb.WriteString("time=")
-	if p.time != nil {
-		sb.WriteString(p.time.String())
-	} else {
-		sb.WriteString("nil")
-	}
-	sb.WriteString(",addedAt=")
-	sb.WriteString(p.addedAt.String())
-	return sb.String()
-}
-
-// Desc implements prometheus.Metric
-func (p *promMetric) Desc() *prometheus.Desc {
-	labelNames := make([]string, 0, len(p.labels))
-	for _, label := range p.labels {
-		labelNames = append(labelNames, label.Name)
-	}
-
-	return prometheus.NewDesc(p.name, defaultMetricHelp, labelNames, nil)
-}
-
-// Write implements prometheus.Metric
-func (p *promMetric) Write(out *dto.Metric) error {
-	out.Untyped = &dto.Untyped{
-		Value: &p.value,
-	}
-	out.Label = make([]*dto.LabelPair, 0, len(p.labels))
-	for i := range p.labels {
-		out.Label = append(out.Label, &dto.LabelPair{Name: &p.labels[i].Name, Value: &p.labels[i].Value})
-	}
-	if p.time == nil {
-		return nil
-	}
-	timestamp := p.time.UnixNano() / 1000000
-	out.TimestampMs = &timestamp
-	return nil
-}
-
-func getFloat(v interface{}) (float64, error) {
-	switch i := v.(type) {
-	case float64:
-		return float64(i), nil
-	case float32:
-		return float64(i), nil
-	case int64:
-		return float64(i), nil
-	case int32:
-		return float64(i), nil
-	case int16:
-		return float64(i), nil
-	case int8:
-		return float64(i), nil
-	case uint64:
-		return float64(i), nil
-	case uint32:
-		return float64(i), nil
-	case uint16:
-		return float64(i), nil
-	case uint8:
-		return float64(i), nil
-	case int:
-		return float64(i), nil
-	case uint:
-		return float64(i), nil
-	case string:
-		f, err := strconv.ParseFloat(i, 64)
-		if err != nil {
-			return math.NaN(), err
-		}
-		return f, err
-		//lint:ignore SA1019 still need DecimalVal for backward compatibility
-	case *gnmi.Decimal64:
-		return float64(i.Digits) / math.Pow10(int(i.Precision)), nil
-	default:
-		return math.NaN(), errors.New("getFloat: unknown value is of incompatible type")
-	}
-}
-
 func (p *prometheusOutput) SetName(name string) {
 	if p.cfg.Name == "" {
 		p.cfg.Name = name
@@ -693,32 +560,3 @@ func (p *prometheusOutput) SetClusterName(name string) {
 }
 
 func (p *prometheusOutput) SetTargetsConfig(map[string]*types.TargetConfig) {}
-
-func (p *prometheusOutput) metricsFromEvent(ev *formatters.EventMsg, now time.Time) []*promMetric {
-	pms := make([]*promMetric, 0, len(ev.Values))
-	labels := p.mb.GetLabels(ev)
-	for vName, val := range ev.Values {
-		v, err := getFloat(val)
-		if err != nil {
-			if !p.cfg.StringsAsLabels {
-				continue
-			}
-			v = 1.0
-		}
-		pm := &promMetric{
-			name:    p.mb.MetricName(ev.Name, vName),
-			labels:  labels,
-			value:   v,
-			addedAt: now,
-		}
-		if p.cfg.OverrideTimestamps && p.cfg.ExportTimestamps {
-			ev.Timestamp = now.UnixNano()
-		}
-		if p.cfg.ExportTimestamps {
-			tm := time.Unix(0, ev.Timestamp)
-			pm.time = &tm
-		}
-		pms = append(pms, pm)
-	}
-	return pms
-}
