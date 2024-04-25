@@ -24,7 +24,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	"github.com/google/uuid"
 
@@ -117,8 +117,8 @@ func (k *k8sLocker) Lock(ctx context.Context, key string, val []byte) (bool, err
 			},
 		},
 		Spec: coordinationv1.LeaseSpec{
-			HolderIdentity:       pointer.String(k.identity),
-			LeaseDurationSeconds: pointer.Int32(int32(k.Cfg.LeaseDuration / time.Second)),
+			HolderIdentity:       ptr.To(k.identity),
+			LeaseDurationSeconds: ptr.To(int32(k.Cfg.LeaseDuration / time.Second)),
 		},
 	}
 	k.m.Lock()

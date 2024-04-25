@@ -8,7 +8,7 @@
 
 linters-settings:
   govet:
-    check-shadowing: true
+    # check-shadowing: true
     enable:
       - fieldalignment
   gocyclo:
@@ -21,7 +21,7 @@ linters-settings:
   lll:
     line-length: 140
   nolintlint:
-    allow-leading-space: true # don't require machine-readable nolint directives (i.e. with no leading space)
+    # allow-leading-space: true # don't require machine-readable nolint directives (i.e. with no leading space)
     allow-unused: false # report any unused nolint directives
     require-explanation: false # don't require an explanation for nolint directives
     require-specific: false # don't require nolint directives to be specific about which linter is being skipped
@@ -31,8 +31,8 @@ linters:
   enable:
     - asciicheck
     - bodyclose
-    - deadcode
-    - depguard
+    # - deadcode
+    # - depguard
     - dogsled
     # - dupl
     # - errcheck
@@ -76,7 +76,7 @@ linters:
     # - unconvert
     # - unparam
     - unused
-    - varcheck
+    # - varcheck
     # - whitespace
     # - wsl
 

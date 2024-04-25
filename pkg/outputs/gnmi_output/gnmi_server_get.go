@@ -320,7 +320,7 @@ OUTER:
 	return targets, nil
 }
 
-func (s *server) handlegNMIcInternalGet(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetResponse, error) {
+func (s *server) handlegNMIcInternalGet(_ context.Context, req *gnmi.GetRequest) (*gnmi.GetResponse, error) {
 	if len(req.GetPath()) > 1 {
 		return nil, status.Errorf(codes.InvalidArgument, "only one path at a time is supported")
 	}

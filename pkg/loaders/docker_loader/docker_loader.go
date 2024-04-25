@@ -25,6 +25,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	dtypes "github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	dClient "github.com/docker/docker/client"
 	"github.com/mitchellh/mapstructure"
@@ -315,7 +316,7 @@ func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*types.Target
 			}
 			// get containers for each defined filter
 			for _, cfl := range fl.fl {
-				conts, err := d.client.ContainerList(ctx, dtypes.ContainerListOptions{
+				conts, err := d.client.ContainerList(ctx, container.ListOptions{
 					Filters: cfl,
 				})
 				if err != nil {
@@ -622,7 +623,7 @@ func (d *dockerLoader) runActions(ctx context.Context, tcs map[string]*types.Tar
 	for _, tDel := range targetOp.Del {
 		go func(name string) {
 			defer wg.Done()
-			err := d.runOnDeleteActions(ctx, name, tcs)
+			err := d.runOnDeleteActions(ctx, name)
 			if err != nil {
 				d.logger.Printf("failed running OnDelete actions: %v", err)
 				return
@@ -664,7 +665,7 @@ func (d *dockerLoader) runOnAddActions(ctx context.Context, tName string, tcs ma
 	return nil
 }
 
-func (d *dockerLoader) runOnDeleteActions(ctx context.Context, tName string, tcs map[string]*types.TargetConfig) error {
+func (d *dockerLoader) runOnDeleteActions(ctx context.Context, tName string) error {
 	env := make(map[string]interface{})
 	for _, act := range d.delActions {
 		res, err := act.Run(ctx, &actions.Context{Input: tName, Env: env, Vars: d.vars})

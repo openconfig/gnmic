@@ -55,7 +55,7 @@ func (a *App) GenerateRunE(cmd *cobra.Command, args []string) error {
 		defer f.Close()
 		output = f
 	}
-	err := a.generateYangSchema(a.Config.GlobalFlags.Dir, a.Config.GlobalFlags.File, a.Config.GlobalFlags.Exclude)
+	err := a.generateYangSchema(a.Config.GlobalFlags.File, a.Config.GlobalFlags.Exclude)
 	if err != nil {
 		return err
 	}
@@ -159,7 +159,7 @@ func (a *App) GenerateSetRequestRunE(cmd *cobra.Command, args []string) error {
 		defer f.Close()
 		output = f
 	}
-	err := a.generateYangSchema(a.Config.GlobalFlags.Dir, a.Config.GlobalFlags.File, a.Config.GlobalFlags.Exclude)
+	err := a.generateYangSchema(a.Config.GlobalFlags.File, a.Config.GlobalFlags.Exclude)
 	if err != nil {
 		return err
 	}
@@ -225,7 +225,7 @@ func (a *App) InitGenerateSetRequestFlags(cmd *cobra.Command) {
 	})
 }
 
-func (a *App) generateYangSchema(dirs, files, excludes []string) error {
+func (a *App) generateYangSchema(files, excludes []string) error {
 	if len(files) == 0 {
 		return nil
 	}

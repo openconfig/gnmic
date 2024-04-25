@@ -110,12 +110,6 @@ func (a *App) handleConfigTargetsPost(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
-	// if _, ok := a.Config.Targets[tc.Name]; ok {
-	// 	w.WriteHeader(http.StatusBadRequest)
-	// 	json.NewEncoder(w).Encode(APIErrors{Errors: []string{"target config already exists"}})
-	// 	return
-	// }
-	// a.Config.Targets[tc.Name] = tc
 	a.AddTargetConfig(tc)
 }
 
@@ -131,46 +125,46 @@ func (a *App) handleConfigTargetsDelete(w http.ResponseWriter, r *http.Request) 
 }
 
 func (a *App) handleConfigSubscriptions(w http.ResponseWriter, r *http.Request) {
-	a.handlerCommonGet(w, r, a.Config.Subscriptions)
+	a.handlerCommonGet(w,  a.Config.Subscriptions)
 }
 
 func (a *App) handleConfigOutputs(w http.ResponseWriter, r *http.Request) {
-	a.handlerCommonGet(w, r, a.Config.Outputs)
+	a.handlerCommonGet(w,  a.Config.Outputs)
 }
 
 func (a *App) handleConfigClustering(w http.ResponseWriter, r *http.Request) {
-	a.handlerCommonGet(w, r, a.Config.Clustering)
+	a.handlerCommonGet(w,  a.Config.Clustering)
 }
 
 func (a *App) handleConfigAPIServer(w http.ResponseWriter, r *http.Request) {
-	a.handlerCommonGet(w, r, a.Config.APIServer)
+	a.handlerCommonGet(w, a.Config.APIServer)
 }
 
 func (a *App) handleConfigGNMIServer(w http.ResponseWriter, r *http.Request) {
-	a.handlerCommonGet(w, r, a.Config.GnmiServer)
+	a.handlerCommonGet(w, a.Config.GnmiServer)
 }
 
 func (a *App) handleConfigInputs(w http.ResponseWriter, r *http.Request) {
-	a.handlerCommonGet(w, r, a.Config.Inputs)
+	a.handlerCommonGet(w, a.Config.Inputs)
 }
 
 func (a *App) handleConfigProcessors(w http.ResponseWriter, r *http.Request) {
-	a.handlerCommonGet(w, r, a.Config.Processors)
+	a.handlerCommonGet(w, a.Config.Processors)
 }
 
 func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {
-	a.handlerCommonGet(w, r, a.Config)
+	a.handlerCommonGet(w, a.Config)
 }
 
 func (a *App) handleTargetsGet(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
 	if id == "" {
-		a.handlerCommonGet(w, r, a.Targets)
+		a.handlerCommonGet(w, a.Targets)
 		return
 	}
 	if t, ok := a.Targets[id]; ok {
-		a.handlerCommonGet(w, r, t)
+		a.handlerCommonGet(w, t)
 		return
 	}
 	w.WriteHeader(http.StatusNotFound)
@@ -442,7 +436,7 @@ func (a *App) loggingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func (a *App) handlerCommonGet(w http.ResponseWriter, r *http.Request, i interface{}) {
+func (a *App) handlerCommonGet(w http.ResponseWriter, i interface{}) {
 	a.configLock.RLock()
 	defer a.configLock.RUnlock()
 	b, err := json.Marshal(i)

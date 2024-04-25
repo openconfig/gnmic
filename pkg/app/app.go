@@ -226,10 +226,10 @@ func (a *App) PreRunE(cmd *cobra.Command, args []string) error {
 	}
 	a.Logger.Printf("using config file %q", a.Config.FileConfig.ConfigFileUsed())
 	a.logConfigKVs()
-	return a.validateGlobals(cmd)
+	return a.validateGlobals()
 }
 
-func (a *App) validateGlobals(cmd *cobra.Command) error {
+func (a *App) validateGlobals() error {
 	if a.Config.Insecure {
 		if a.Config.SkipVerify {
 			return errors.New("flags --insecure and --skip-verify are mutually exclusive")

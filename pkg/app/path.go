@@ -50,7 +50,7 @@ type generatedPath struct {
 }
 
 func (a *App) PathCmdRun(d, f, e []string, pgo pathGenOpts) error {
-	err := a.generateYangSchema(d, f, e)
+	err := a.generateYangSchema(f, e)
 	if err != nil {
 		return err
 	}
