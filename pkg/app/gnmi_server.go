@@ -407,13 +407,19 @@ func (a *App) handlegNMIcInternalGet(ctx context.Context, req *gnmi.GetRequest) 
 	notifications := make([]*gnmi.Notification, 0, len(req.GetPath()))
 	a.configLock.RLock()
 	defer a.configLock.RUnlock()
+
 	for _, p := range req.GetPath() {
-		elems := path.PathElems(req.GetPrefix(), p)
-		ns, err := a.handlegNMIGetPath(elems, req.GetEncoding())
-		if err != nil {
-			return nil, err
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			elems := path.PathElems(req.GetPrefix(), p)
+			ns, err := a.handlegNMIGetPath(elems, req.GetEncoding())
+			if err != nil {
+				return nil, err
+			}
+			notifications = append(notifications, ns...)
 		}
-		notifications = append(notifications, ns...)
 	}
 	return &gnmi.GetResponse{Notification: notifications}, nil
 }

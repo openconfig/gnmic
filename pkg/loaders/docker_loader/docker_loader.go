@@ -623,7 +623,7 @@ func (d *dockerLoader) runActions(ctx context.Context, tcs map[string]*types.Tar
 	for _, tDel := range targetOp.Del {
 		go func(name string) {
 			defer wg.Done()
-			err := d.runOnDeleteActions(ctx, name, tcs)
+			err := d.runOnDeleteActions(ctx, name)
 			if err != nil {
 				d.logger.Printf("failed running OnDelete actions: %v", err)
 				return
@@ -665,7 +665,7 @@ func (d *dockerLoader) runOnAddActions(ctx context.Context, tName string, tcs ma
 	return nil
 }
 
-func (d *dockerLoader) runOnDeleteActions(ctx context.Context, tName string, tcs map[string]*types.TargetConfig) error {
+func (d *dockerLoader) runOnDeleteActions(ctx context.Context, tName string) error {
 	env := make(map[string]interface{})
 	for _, act := range d.delActions {
 		res, err := act.Run(ctx, &actions.Context{Input: tName, Env: env, Vars: d.vars})

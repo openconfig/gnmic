@@ -55,7 +55,7 @@ func (k *k8sLocker) WatchServices(ctx context.Context, serviceName string, tags 
 	}
 }
 
-func (k *k8sLocker) watch(ctx context.Context, serviceName string, tags []string, sChan chan<- []*lockers.Service, watchTimeout time.Duration, resourceVersion string) (string, error) {
+func (k *k8sLocker) watch(ctx context.Context, serviceName string, _ []string, sChan chan<- []*lockers.Service, watchTimeout time.Duration, resourceVersion string) (string, error) {
 	timeoutSeconds := int64(watchTimeout.Seconds())
 	listopts := metav1.ListOptions{
 		FieldSelector:   fields.OneTermEqualSelector(metav1.ObjectNameField, serviceName).String(),

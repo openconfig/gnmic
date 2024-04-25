@@ -220,7 +220,7 @@ func (s *server) handlePolledSubscription(sc *streamClient) {
 	}
 }
 
-func (s *server) sendSubscribeResponse(r *resp, sc *streamClient) error {
+func (s *server) sendSubscribeResponse(r *resp, _ *streamClient) error {
 	notif, err := makeSubscribeResponse(r.n.Value(), r.dup)
 	if err != nil {
 		return status.Errorf(codes.Unknown, "unknown error: %v", err)
