@@ -157,7 +157,22 @@ func TestGetInstancesTagsMatches(t *testing.T) {
 			res := Diff(item.m1, item.m2)
 			t.Logf("exp value: %+v", item.output)
 			t.Logf("got value: %+v", res)
-			if !cmp.Equal(item.output, res) {
+			if len(item.output.Add) != len(res.Add) {
+				t.Fail()
+			}
+			if len(item.output.Del) != len(res.Del) {
+				t.Fail()
+			}
+			for k, v1 := range item.output.Add {
+				if v2, ok := res.Add[k]; ok {
+					if v1.String() != v2.String() {
+						t.Fail()
+					}
+				} else {
+					t.Fail()
+				}
+			}
+			if !cmp.Equal(item.output.Del, res.Del) {
 				t.Fail()
 			}
 		})
