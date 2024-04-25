@@ -337,7 +337,7 @@ func (k *KafkaInput) createConfig() (*sarama.Config, error) {
 	cfg.Consumer.Return.Errors = true
 	cfg.Consumer.Group.Session.Timeout = k.Cfg.SessionTimeout
 	cfg.Consumer.Group.Heartbeat.Interval = k.Cfg.HeartbeatInterval
-	cfg.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRange
+	cfg.Consumer.Group.Rebalance.Strategy = sarama.NewBalanceStrategyRange()
 	// SASL_PLAINTEXT or SASL_SSL
 	if k.Cfg.SASL != nil {
 		cfg.Net.SASL.Enable = true

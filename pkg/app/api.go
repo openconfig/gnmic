@@ -125,15 +125,15 @@ func (a *App) handleConfigTargetsDelete(w http.ResponseWriter, r *http.Request) 
 }
 
 func (a *App) handleConfigSubscriptions(w http.ResponseWriter, r *http.Request) {
-	a.handlerCommonGet(w,  a.Config.Subscriptions)
+	a.handlerCommonGet(w, a.Config.Subscriptions)
 }
 
 func (a *App) handleConfigOutputs(w http.ResponseWriter, r *http.Request) {
-	a.handlerCommonGet(w,  a.Config.Outputs)
+	a.handlerCommonGet(w, a.Config.Outputs)
 }
 
 func (a *App) handleConfigClustering(w http.ResponseWriter, r *http.Request) {
-	a.handlerCommonGet(w,  a.Config.Clustering)
+	a.handlerCommonGet(w, a.Config.Clustering)
 }
 
 func (a *App) handleConfigAPIServer(w http.ResponseWriter, r *http.Request) {
