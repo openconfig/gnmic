@@ -93,9 +93,14 @@ func (s *gNMIServer) tlsServerOpts() (grpc.ServerOption, error) {
 }
 
 func (s *gNMIServer) createTLSConfig() (*tls.Config, error) {
-	tlsConfig := &tls.Config{
-		GetCertificate: s.readCerts,
+	tlsConfig := &tls.Config{}
+	if s.config.TLS.CertFile == "" && s.config.TLS.KeyFile == "" {
+		cert, _ := utils.SelfSignedCerts()
+		tlsConfig.Certificates = []tls.Certificate{cert}
+	} else {
+		tlsConfig.GetCertificate = s.readCerts
 	}
+
 	switch s.config.TLS.ClientAuth {
 	default:
 		tlsConfig.ClientAuth = tls.NoClientCert
