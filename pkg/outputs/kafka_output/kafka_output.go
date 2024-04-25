@@ -21,17 +21,16 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/Shopify/sarama"
-	"github.com/damiannolan/sasl/oauthbearer"
+	"github.com/IBM/sarama"
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
-	"google.golang.org/protobuf/proto"
-
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
 	"github.com/openconfig/gnmic/pkg/outputs"
+	pkgutils "github.com/openconfig/gnmic/pkg/utils"
+	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -525,7 +524,7 @@ func (k *kafkaOutput) createConfig() (*sarama.Config, error) {
 				return &XDGSCRAMClient{HashGeneratorFcn: SHA512}
 			}
 		case sarama.SASLTypeOAuth:
-			cfg.Net.SASL.TokenProvider = oauthbearer.NewTokenProvider(cfg.Net.SASL.User, cfg.Net.SASL.Password, k.cfg.SASL.TokenURL)
+			cfg.Net.SASL.TokenProvider = pkgutils.NewTokenProvider(cfg.Net.SASL.User, cfg.Net.SASL.Password, k.cfg.SASL.TokenURL)
 		}
 	}
 	// SSL or SASL_SSL

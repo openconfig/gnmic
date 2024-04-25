@@ -20,16 +20,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Shopify/sarama"
-	"github.com/damiannolan/sasl/oauthbearer"
+	"github.com/IBM/sarama"
 	"github.com/google/uuid"
-	"google.golang.org/protobuf/proto"
-
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/inputs"
 	"github.com/openconfig/gnmic/pkg/outputs"
+	pkgutils "github.com/openconfig/gnmic/pkg/utils"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -338,7 +337,7 @@ func (k *KafkaInput) createConfig() (*sarama.Config, error) {
 	cfg.Consumer.Return.Errors = true
 	cfg.Consumer.Group.Session.Timeout = k.Cfg.SessionTimeout
 	cfg.Consumer.Group.Heartbeat.Interval = k.Cfg.HeartbeatInterval
-	cfg.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRange
+	cfg.Consumer.Group.Rebalance.Strategy = sarama.NewBalanceStrategyRange()
 	// SASL_PLAINTEXT or SASL_SSL
 	if k.Cfg.SASL != nil {
 		cfg.Net.SASL.Enable = true
@@ -355,7 +354,7 @@ func (k *KafkaInput) createConfig() (*sarama.Config, error) {
 				return &XDGSCRAMClient{HashGeneratorFcn: SHA512}
 			}
 		case sarama.SASLTypeOAuth:
-			cfg.Net.SASL.TokenProvider = oauthbearer.NewTokenProvider(cfg.Net.SASL.User, cfg.Net.SASL.Password, k.Cfg.SASL.TokenURL)
+			cfg.Net.SASL.TokenProvider = pkgutils.NewTokenProvider(cfg.Net.SASL.User, cfg.Net.SASL.Password, k.Cfg.SASL.TokenURL)
 		}
 	}
 	// SSL or SASL_SSL
