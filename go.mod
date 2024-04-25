@@ -1,16 +1,15 @@
 module github.com/openconfig/gnmic
 
-go 1.21.9
+go 1.22.2
 
 replace github.com/openconfig/gnmic/pkg/api v0.1.5 => ./pkg/api
 
 replace github.com/openconfig/gnmic/pkg/cache v0.1.3 => ./pkg/cache
 
 require (
-	github.com/Shopify/sarama v1.38.1
+	github.com/IBM/sarama v1.43.1
 	github.com/adrg/xdg v0.4.0
 	github.com/c-bata/go-prompt v0.2.6
-	github.com/damiannolan/sasl v1.0.0
 	github.com/docker/docker v26.1.0+incompatible
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/fullstorydev/grpcurl v1.9.1
@@ -58,6 +57,7 @@ require (
 	github.com/xdg/scram v1.0.5
 	go.starlark.net v0.0.0-20231121155337-90ade8b19d09
 	golang.org/x/crypto v0.22.0
+	golang.org/x/oauth2 v0.19.0
 	golang.org/x/sync v0.7.0
 	google.golang.org/grpc v1.63.2
 	google.golang.org/protobuf v1.33.1-0.20240408130810-98873a205002
@@ -140,7 +140,7 @@ require (
 	github.com/oapi-codegen/runtime v1.0.0 // indirect
 	github.com/oklog/run v1.1.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.1.0 // indirect
-	github.com/pierrec/lz4/v4 v4.1.18 // indirect
+	github.com/pierrec/lz4/v4 v4.1.21 // indirect
 	github.com/pjbgf/sha1cd v0.3.0 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
 	github.com/sagikazarmark/locafero v0.4.0 // indirect
@@ -157,7 +157,6 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20240119083558-1b970713d09a // indirect
 	golang.org/x/mod v0.16.0 // indirect
-	golang.org/x/oauth2 v0.19.0 // indirect
 	golang.org/x/term v0.19.0 // indirect
 	golang.org/x/tools v0.19.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240311132316-a219d84964c2 // indirect
@@ -199,8 +198,8 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/docker/libkv v0.2.2-0.20180912205406-458977154600 // indirect
 	github.com/dustin/gojson v0.0.0-20160307161227-2e71ec9dd5ad // indirect
-	github.com/eapache/go-resiliency v1.3.0 // indirect
-	github.com/eapache/go-xerial-snappy v0.0.0-20230111030713-bf00bc1b83b6 // indirect
+	github.com/eapache/go-resiliency v1.6.0 // indirect
+	github.com/eapache/go-xerial-snappy v0.0.0-20230731223053-c322873962e3 // indirect
 	github.com/eapache/queue v1.1.0 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/fatih/color v1.15.0 // indirect
