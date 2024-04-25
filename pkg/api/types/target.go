@@ -152,6 +152,8 @@ type TargetConfig struct {
 	CipherSuites     []string          `mapstructure:"cipher-suites,omitempty" yaml:"cipher-suites,omitempty" json:"cipher-suites,omitempty"`
 	TCPKeepalive     time.Duration     `mapstructure:"tcp-keepalive,omitempty" yaml:"tcp-keepalive,omitempty" json:"tcp-keepalive,omitempty"`
 	GRPCKeepalive    *clientKeepalive  `mapstructure:"grpc-keepalive,omitempty" yaml:"grpc-keepalive,omitempty" json:"grpc-keepalive,omitempty"`
+
+	tlsConfig *tls.Config
 }
 
 type clientKeepalive struct {
@@ -174,8 +176,15 @@ func (tc TargetConfig) String() string {
 	return string(b)
 }
 
+func (tc *TargetConfig) SetTLSConfig(tlsConfig *tls.Config) {
+	tc.tlsConfig = tlsConfig
+}
+
 // NewTLSConfig //
 func (tc *TargetConfig) NewTLSConfig() (*tls.Config, error) {
+	if tc.tlsConfig != nil {
+		return tc.tlsConfig, nil
+	}
 	var ca, cert, key string
 	if tc.TLSCA != nil {
 		ca = *tc.TLSCA

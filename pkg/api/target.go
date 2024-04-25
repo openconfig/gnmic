@@ -9,6 +9,7 @@
 package api
 
 import (
+	"crypto/tls"
 	"errors"
 	"strings"
 	"time"
@@ -161,6 +162,14 @@ func TLSMaxVersion(v string) TargetOption {
 func TLSVersion(v string) TargetOption {
 	return func(t *target.Target) error {
 		t.Config.TLSVersion = v
+		return nil
+	}
+}
+
+// TLSConfig
+func TLSConfig(tlsconfig *tls.Config) TargetOption {
+	return func(t *target.Target) error {
+		t.Config.SetTLSConfig(tlsconfig)
 		return nil
 	}
 }
