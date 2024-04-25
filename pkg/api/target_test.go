@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/AlekSi/pointer"
-	"github.com/google/go-cmp/cmp"
 
 	"github.com/openconfig/gnmic/pkg/api/types"
 )
@@ -145,7 +144,7 @@ func TestNewTarget(t *testing.T) {
 				t.Errorf("failed at %q: %v", name, err)
 				t.Fail()
 			}
-			if !cmp.Equal(tg.Config, item.config) {
+			if tg.Config.String() != item.config.String() {
 				t.Errorf("failed at %q", name)
 				t.Errorf("expected %+v", item.config)
 				t.Errorf("     got %+v", tg.Config)
