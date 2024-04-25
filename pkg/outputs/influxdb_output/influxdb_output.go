@@ -41,8 +41,9 @@ const (
 	minHealthCheckPeriod   = 30 * time.Second
 	defaultCacheFlushTimer = 5 * time.Second
 
-	numWorkers    = 1
-	loggingPrefix = "[influxdb_output:%s] "
+	numWorkers     = 1
+	loggingPrefix  = "[influxdb_output:%s] "
+	deleteTagValue = "true"
 )
 
 func init() {
@@ -96,6 +97,7 @@ type Config struct {
 	TimestampPrecision string           `mapstructure:"timestamp-precision,omitempty"`
 	CacheConfig        *cache.Config    `mapstructure:"cache,omitempty"`
 	CacheFlushTimer    time.Duration    `mapstructure:"cache-flush-timer,omitempty"`
+	DeleteTag          string           `mapstructure:"delete-tag,omitempty"`
 }
 
 func (k *influxDBOutput) String() string {
@@ -344,7 +346,7 @@ START:
 			i.logger.Printf("worker-%d terminating...", idx)
 			return
 		case ev := <-i.eventChan:
-			if len(ev.Values) == 0 {
+			if len(ev.Values) == 0 || (len(ev.Deletes) == 0 && i.Cfg.DeleteTag != "") {
 				continue
 			}
 			for n, v := range ev.Values {
@@ -361,8 +363,24 @@ START:
 				ev.Name = subscriptionName
 				delete(ev.Tags, "subscription-name")
 			}
-			i.convertUints(ev)
-			writer.WritePoint(influxdb2.NewPoint(ev.Name, ev.Tags, ev.Values, time.Unix(0, ev.Timestamp)))
+
+			if len(ev.Values) > 0 {
+				i.convertUints(ev)
+				writer.WritePoint(influxdb2.NewPoint(ev.Name, ev.Tags, ev.Values, time.Unix(0, ev.Timestamp)))
+			}
+			
+			if len(ev.Deletes) > 0 && i.Cfg.DeleteTag != "" {
+				tags := make(map[string]string, len(ev.Tags))
+				for k, v := range ev.Tags {
+					tags[k] = v
+				}
+				tags[i.Cfg.DeleteTag] = deleteTagValue
+				values := make(map[string]any, len(ev.Deletes))
+				for _, del := range ev.Deletes {
+					values[del] = 0
+				}
+				writer.WritePoint(influxdb2.NewPoint(ev.Name, tags, values, time.Unix(0, ev.Timestamp)))
+			}
 		case <-i.reset:
 			firstStart = false
 			i.logger.Printf("resetting worker-%d...", idx)
