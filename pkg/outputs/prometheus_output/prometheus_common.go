@@ -133,7 +133,7 @@ func (mb *MetricBuilder) MetricsFromEvent(ev *formatters.EventMsg, now time.Time
 	pms := make([]*PromMetric, 0, len(ev.Values))
 	labels := mb.GetLabels(ev)
 	for vName, val := range ev.Values {
-		v, err := getFloat(val)
+		v, err := toFloat(val)
 		if err != nil {
 			if !mb.StringsAsLabels {
 				continue
@@ -224,6 +224,11 @@ func toFloat(v interface{}) (float64, error) {
 		return float64(i), nil
 	case uint:
 		return float64(i), nil
+	case bool:
+		if i {
+			return 1, nil
+		}
+		return 0, nil
 	case string:
 		f, err := strconv.ParseFloat(i, 64)
 		if err != nil {
@@ -234,7 +239,7 @@ func toFloat(v interface{}) (float64, error) {
 	case *gnmi.Decimal64:
 		return float64(i.Digits) / math.Pow10(int(i.Precision)), nil
 	default:
-		return math.NaN(), errors.New("getFloat: unknown value is of incompatible type")
+		return math.NaN(), errors.New("toFloat: unknown value is of incompatible type")
 	}
 }
 
@@ -302,44 +307,4 @@ func (m *MetricBuilder) TimeSeriesFromEvent(ev *formatters.EventMsg) []*NamedTim
 		promTS = append(promTS, nts)
 	}
 	return promTS
-}
-
-func getFloat(v interface{}) (float64, error) {
-	switch i := v.(type) {
-	case float64:
-		return float64(i), nil
-	case float32:
-		return float64(i), nil
-	case int64:
-		return float64(i), nil
-	case int32:
-		return float64(i), nil
-	case int16:
-		return float64(i), nil
-	case int8:
-		return float64(i), nil
-	case uint64:
-		return float64(i), nil
-	case uint32:
-		return float64(i), nil
-	case uint16:
-		return float64(i), nil
-	case uint8:
-		return float64(i), nil
-	case int:
-		return float64(i), nil
-	case uint:
-		return float64(i), nil
-	case string:
-		f, err := strconv.ParseFloat(i, 64)
-		if err != nil {
-			return math.NaN(), err
-		}
-		return f, err
-		//lint:ignore SA1019 still need DecimalVal for backward compatibility
-	case *gnmi.Decimal64:
-		return float64(i.Digits) / math.Pow10(int(i.Precision)), nil
-	default:
-		return math.NaN(), errors.New("getFloat: unknown value is of incompatible type")
-	}
 }
