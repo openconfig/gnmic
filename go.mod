@@ -1,6 +1,8 @@
 module github.com/openconfig/gnmic
 
-go 1.21.9
+go 1.21.1
+
+toolchain go1.21.9
 
 replace github.com/openconfig/gnmic/pkg/api v0.1.5 => ./pkg/api
 
