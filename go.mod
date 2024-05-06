@@ -1,8 +1,7 @@
 module github.com/openconfig/gnmic
 
 go 1.21.1
-
-toolchain go1.21.9
+toolchain go1.22.2
 
 replace github.com/openconfig/gnmic/pkg/api v0.1.5 => ./pkg/api
 
@@ -15,7 +14,7 @@ require (
 	github.com/docker/docker v26.1.0+incompatible
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/fullstorydev/grpcurl v1.9.1
-	github.com/go-redsync/redsync/v4 v4.11.0
+	github.com/go-redsync/redsync/v4 v4.13.0
 	github.com/go-resty/resty/v2 v2.12.0
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.6.0
