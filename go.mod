@@ -4,7 +4,7 @@ go 1.21.1
 
 toolchain go1.21.9
 
-replace github.com/openconfig/gnmic/pkg/api v0.1.5 => ./pkg/api
+replace github.com/openconfig/gnmic/pkg/api v0.1.7 => ./pkg/api
 
 replace github.com/openconfig/gnmic/pkg/cache v0.1.3 => ./pkg/cache
 
@@ -44,7 +44,7 @@ require (
 	github.com/nsf/termbox-go v1.1.1
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/openconfig/gnmi v0.11.0
-	github.com/openconfig/gnmic/pkg/api v0.1.5
+	github.com/openconfig/gnmic/pkg/api v0.1.7
 	github.com/openconfig/gnmic/pkg/cache v0.1.3
 	github.com/openconfig/goyang v1.4.5
 	github.com/openconfig/ygot v0.29.18
