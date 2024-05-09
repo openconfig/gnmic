@@ -72,8 +72,29 @@ sed -i 's/^skip-verify: false/#skip-verify: true/g' configs/gnmic1.yaml
 ./gnmic-rc1 -a clab-test1-srl1 -a clab-test1-srl2 -a clab-test1-srl3 --config configs/gnmic1.yaml --skip-verify capabilities --format json
 
 # use --tls-ca
+./gnmic-rc1 -a clab-test1-srl1 --config configs/gnmic1.yaml \
+                                                               --tls-ca clab-test1/.tls/ca/ca.pem \
+                                                               capabilities
+./gnmic-rc1 -a clab-test1-srl2 --config configs/gnmic1.yaml \
+                                                               --tls-ca clab-test1/.tls/ca/ca.pem \
+                                                               capabilities
+./gnmic-rc1 -a clab-test1-srl3 --config configs/gnmic1.yaml \
+                                                               --tls-ca clab-test1/.tls/ca/ca.pem \
+                                                               capabilities
+# use --tls-server-name s
+./gnmic-rc1 -a clab-test1-srl1 --config configs/gnmic1.yaml --tls-server-name srl1 \
+                                                               --tls-ca clab-test1/.tls/ca/ca.pem \
+                                                               capabilities
+./gnmic-rc1 -a clab-test1-srl2 --config configs/gnmic1.yaml --tls-server-name srl2 \
+                                                               --tls-ca clab-test1/.tls/ca/ca.pem \
+                                                               capabilities
+./gnmic-rc1 -a clab-test1-srl3 --config configs/gnmic1.yaml --tls-server-name srl3 \
+                                                               --tls-ca clab-test1/.tls/ca/ca.pem \
+                                                               capabilities
+
 ./gnmic-rc1 -a clab-test1-srl1,clab-test1-srl2,clab-test1-srl3 --config configs/gnmic1.yaml \
                                                                --tls-ca clab-test1/.tls/ca/ca.pem \
                                                                capabilities
+
 # revert back skip-verify value to true
 sed -i 's/^#skip-verify: true/skip-verify: true/g' configs/gnmic1.yaml

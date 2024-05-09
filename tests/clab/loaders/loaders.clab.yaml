@@ -6,7 +6,7 @@ topology:
     image: gnmic:0.0.0-rc1
   kinds:
     srl:
-      image: ghcr.io/nokia/srlinux
+      image: ghcr.io/nokia/srlinux:23.10.3
 
   nodes:
     srl1:
