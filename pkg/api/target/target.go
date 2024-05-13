@@ -94,7 +94,11 @@ func (t *Target) CreateGNMIClient(ctx context.Context, opts ...grpc.DialOption) 
 		go func(addr string) {
 			timeoutCtx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 			defer cancel()
-			opts = append(opts, grpc.WithContextDialer(t.createDialer(addr)))
+
+			// add the local custom dialer only if the target is a not tunneled.
+			if t.Config.TunnelTargetType == "" {
+				opts = append(opts, grpc.WithContextDialer(t.createDialer(addr)))
+			}
 			conn, err := grpc.DialContext(timeoutCtx, addr, opts...)
 			if err != nil {
 				errC <- fmt.Errorf("%s: %v", addr, err)
