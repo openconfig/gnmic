@@ -1,6 +1,41 @@
 ## Changelog
 
-### v 0.36.0 - February 13th 2024
+### v0.37.0 - May 13th 2024
+
+- gNMI connection TCP Keepalive
+
+    - It is now possible to configure the TCP keepalive probes time interval.
+
+- gRPC Keepalive
+
+    - The gRPC connection keepalive parameters are now configurable.
+    It follows the gRPC spec: https://github.com/grpc/proposal/blob/master/A8-client-side-keepalive.md
+
+- Proxy Command:
+
+    - gNMIc now supports a `proxy` command.
+    When issued, gNMIc runs as a gNMI proxy. See details [here](../cmd/proxy.md)
+
+- Processor Command:
+
+    - gNMIc now supports a `processor command.
+    It can be used to run a set of processor offline against an input of event messages and print the result.
+    See details [here](../cmd/processor.md)
+
+- Kafka Output:
+
+    - The Kafka output now supports a configurable flush-interval parameters.
+
+- Infuxdb Output:
+
+    - The InfluxDB output now supports writing gNMI deletes to InlufxDB using a custom tag name.
+
+- Prometheus Output:
+
+    - The Prometheus output will now automatically convert boolean values (true: 1 and false: 0).
+
+
+### v0.36.0 - February 13th 2024
 
 - Event Message
 
@@ -14,7 +49,7 @@
 
     - The Set command now features a new flag, `--proto-file`, which allows the specification of one or more files. These files should contain gNMI Set requests in `prototext` format, which will be sent to the specified targets.
 
-### v 0.35.0 - January 20th 2024
+### v0.35.0 - January 20th 2024
 
 - Processors
 
@@ -37,7 +72,7 @@
     - Listen command:
         When using the `listen` command outputs internal metrics are properly initialized and exposed to prometheus for scraping.
 
-### v 0.34.0 - November 11th 2023
+### v0.34.0 - November 11th 2023
 
 - Prometheus Write Output
 
@@ -62,7 +97,7 @@
 
     - New `redis` locker: For leader election, service discovery and target distribution gNMIc supports both `Consul` and `Kubernetes`. It is now possible to use `redis` for the same purpose.
 
-### v 0.33.0 - October 8th 2023
+### v0.33.0 - October 8th 2023
 
 - Rest API
 
