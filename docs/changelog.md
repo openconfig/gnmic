@@ -14,21 +14,21 @@
 - Proxy Command:
 
     - gNMIc now supports a `proxy` command.
-    When issued, gNMIc runs as a gNMI proxy. See details [here](../cmd/proxy.md)
+    When issued, gNMIc runs as a gNMI proxy. See details [here](cmd/proxy.md)
 
 - Processor Command:
 
-    - gNMIc now supports a `processor command.
+    - gNMIc now supports a `processor` command.
     It can be used to run a set of processor offline against an input of event messages and print the result.
-    See details [here](../cmd/processor.md)
+    See details [here](cmd/processor.md)
 
 - Kafka Output:
 
     - The Kafka output now supports a configurable flush-interval parameters.
 
-- Infuxdb Output:
+- InfluxDB Output:
 
-    - The InfluxDB output now supports writing gNMI deletes to InlufxDB using a custom tag name.
+    - The InfluxDB output now supports writing gNMI deletes to InfluxDB using a custom tag name.
 
 - Prometheus Output:
 
