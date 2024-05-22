@@ -22,6 +22,7 @@ import (
 	gvalue "github.com/openconfig/gnmi/value"
 	"github.com/openconfig/gnmic/pkg/api/path"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 const (
@@ -287,6 +288,115 @@ func Extension(ext *gnmi_ext.Extension) func(msg proto.Message) error {
 			msg.Extension = append(msg.Extension, ext)
 		}
 		return nil
+	}
+}
+
+func Extension_CommitRequest(id string, dur time.Duration) func(msg proto.Message) error {
+	return func(msg proto.Message) error {
+		if msg == nil {
+			return ErrInvalidMsgType
+		}
+		switch msg := msg.ProtoReflect().Interface().(type) {
+		case *gnmi.SetRequest:
+			fn := Extension(
+				&gnmi_ext.Extension{
+					Ext: &gnmi_ext.Extension_Commit{
+						Commit: &gnmi_ext.Commit{
+							Id: id,
+							Action: &gnmi_ext.Commit_Commit{
+								Commit: &gnmi_ext.CommitRequest{
+									RollbackDuration: durationpb.New(dur),
+								},
+							},
+						},
+					},
+				},
+			)
+			return fn(msg)
+		default:
+			return fmt.Errorf("option Extension_CommitRequest: %w: %T", ErrInvalidMsgType, msg)
+		}
+	}
+}
+
+func Extension_CommitConfirm(id string) func(msg proto.Message) error {
+	return func(msg proto.Message) error {
+		if msg == nil {
+			return ErrInvalidMsgType
+		}
+		switch msg := msg.ProtoReflect().Interface().(type) {
+		case *gnmi.SetRequest:
+			fn := Extension(
+				&gnmi_ext.Extension{
+					Ext: &gnmi_ext.Extension_Commit{
+						Commit: &gnmi_ext.Commit{
+							Id: id,
+							Action: &gnmi_ext.Commit_Confirm{
+								Confirm: &gnmi_ext.CommitConfirm{},
+							},
+						},
+					},
+				},
+			)
+			return fn(msg)
+		default:
+			return fmt.Errorf("option Extension_CommitConfirm: %w: %T", ErrInvalidMsgType, msg)
+		}
+	}
+}
+
+func Extension_CommitCancel(id string) func(msg proto.Message) error {
+	return func(msg proto.Message) error {
+		if msg == nil {
+			return ErrInvalidMsgType
+		}
+		switch msg := msg.ProtoReflect().Interface().(type) {
+		case *gnmi.SetRequest:
+			fn := Extension(
+				&gnmi_ext.Extension{
+					Ext: &gnmi_ext.Extension_Commit{
+						Commit: &gnmi_ext.Commit{
+							Id: id,
+							Action: &gnmi_ext.Commit_Cancel{
+								Cancel: &gnmi_ext.CommitCancel{},
+							},
+						},
+					},
+				},
+			)
+			return fn(msg)
+		default:
+			return fmt.Errorf("option Extension_CommitCancel: %w: %T", ErrInvalidMsgType, msg)
+		}
+	}
+}
+
+func Extension_CommitSetRollbackDuration(id string, dur time.Duration) func(msg proto.Message) error {
+	return func(msg proto.Message) error {
+		if msg == nil {
+			return ErrInvalidMsgType
+		}
+
+		switch msg := msg.ProtoReflect().Interface().(type) {
+		case *gnmi.SetRequest:
+			fn := Extension(
+				&gnmi_ext.Extension{
+					Ext: &gnmi_ext.Extension_Commit{
+						Commit: &gnmi_ext.Commit{
+							Id: id,
+							Action: &gnmi_ext.Commit_SetRollbackDuration{
+								SetRollbackDuration: &gnmi_ext.CommitSetRollbackDuration{
+									RollbackDuration: durationpb.New(dur),
+								},
+							},
+						},
+					},
+				},
+			)
+			return fn(msg)
+		default:
+			return fmt.Errorf("option Extension_CommitCancel: %w: %T", ErrInvalidMsgType, msg)
+		}
 	}
 }
 
