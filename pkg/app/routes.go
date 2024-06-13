@@ -36,6 +36,7 @@ func (a *App) configRoutes(r *mux.Router) {
 	r.HandleFunc("/config/targets/{id}", a.handleConfigTargetsGet).Methods(http.MethodGet)
 	r.HandleFunc("/config/targets", a.handleConfigTargetsPost).Methods(http.MethodPost)
 	r.HandleFunc("/config/targets/{id}", a.handleConfigTargetsDelete).Methods(http.MethodDelete)
+	r.HandleFunc("/config/targets/{id}/subscriptions", a.handleConfigTargetsSubscriptions).Methods(http.MethodPatch)
 	// config/subscriptions
 	r.HandleFunc("/config/subscriptions", a.handleConfigSubscriptions).Methods(http.MethodGet)
 	// config/outputs

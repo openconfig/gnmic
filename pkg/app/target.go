@@ -43,7 +43,6 @@ func (a *App) initTarget(tc *types.TargetConfig) (*target.Target, error) {
 		return t, nil
 	}
 	return t, nil
-
 }
 
 func (a *App) stopTarget(ctx context.Context, name string) error {
@@ -93,6 +92,26 @@ func (a *App) DeleteTarget(ctx context.Context, name string) error {
 			return a.locker.Unlock(ctx, a.targetLockKey(name))
 		}
 	}
+	return nil
+}
+
+// UpdateTargetConfig updates the subscriptions for an existing target
+func (a *App) UpdateTargetSubscription(ctx context.Context, name string, subs []string) error {
+	a.configLock.Lock()
+	for _, subName := range subs {
+		if _, ok := a.Config.Subscriptions[subName]; !ok {
+			return fmt.Errorf("subscription %q does not exist", subName)
+		}
+	}
+	targetConfig := a.Config.Targets[name]
+	targetConfig.Subscriptions = subs
+	a.configLock.Unlock()
+
+	if err := a.stopTarget(ctx, name); err != nil {
+		return err
+	}
+
+	go a.TargetSubscribeStream(ctx, targetConfig)
 	return nil
 }
 
