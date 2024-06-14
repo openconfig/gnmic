@@ -100,6 +100,7 @@ func (a *App) UpdateTargetSubscription(ctx context.Context, name string, subs []
 	a.configLock.Lock()
 	for _, subName := range subs {
 		if _, ok := a.Config.Subscriptions[subName]; !ok {
+			a.configLock.Unlock()
 			return fmt.Errorf("subscription %q does not exist", subName)
 		}
 	}
