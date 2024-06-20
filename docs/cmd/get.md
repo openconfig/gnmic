@@ -62,6 +62,10 @@ The `[--processor]` flag allow to list [event processor](../user_guide/event_pro
 
 The processors are run in the order they are specified (`--processor proc1,proc2` or `--processor proc1 --processor proc2`).
 
+#### depth
+
+The `[--depth]` flag set the gNMI extension depth value as defined [here](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-depth.md)
+
 ### Examples
 
 ```bash
