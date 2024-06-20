@@ -93,6 +93,26 @@ It expects a file containing one or multiple CLI commands which will form the va
 
 See [this section](#templated-set-request-file) below.
 
+### commit-id
+
+The `--commit-id` flag sets the commit ID when the client needs to perform a commit confirmed set request as per: https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-commit-confirmed.md
+
+### commit-request
+
+The `--commit-request` flag is used together with the `--commit-id` flag to set the commit action to `Request`, essentially starting a commit request.
+
+### commit-confirm
+
+The `--commit-confirm` flag is used together with the `--commit-id` flag to confirm an already started commit confirmed transaction.
+
+### commit-cancel
+
+The `--commit-cancel` flag is used together with the `--commit-id` flag to cancel an already started commit confirmed transaction.
+
+### rollback-duration
+
+The `--rollback-duration` flag is used together with the `--commit-id` flag to set the rollback duration of a commit confirmed transaction either at creation time or before the previous commit rollback expires.
+
 ## Update Request
 
 There are several ways to perform an update operation with gNMI Set RPC:

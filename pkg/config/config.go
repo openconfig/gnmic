@@ -135,30 +135,35 @@ type LocalFlags struct {
 	GetValuesOnly bool     `mapstructure:"get-values-only,omitempty" json:"get-values-only,omitempty" yaml:"get-values-only,omitempty"`
 	GetProcessor  []string `mapstructure:"get-processor,omitempty" json:"get-processor,omitempty" yaml:"get-processor,omitempty"`
 	// Set
-	SetPrefix            string   `mapstructure:"set-prefix,omitempty" json:"set-prefix,omitempty" yaml:"set-prefix,omitempty"`
-	SetDelete            []string `mapstructure:"set-delete,omitempty" json:"set-delete,omitempty" yaml:"set-delete,omitempty"`
-	SetReplace           []string `mapstructure:"set-replace,omitempty" json:"set-replace,omitempty" yaml:"set-replace,omitempty"`
-	SetUnionReplace      []string `mapstructure:"set-union-replace,omitempty" json:"set-union-replace,omitempty" yaml:"set-union-replace,omitempty"`
-	SetUpdate            []string `mapstructure:"set-update,omitempty" json:"set-update,omitempty" yaml:"set-update,omitempty"`
-	SetReplacePath       []string `mapstructure:"set-replace-path,omitempty" json:"set-replace-path,omitempty" yaml:"set-replace-path,omitempty"`
-	SetUpdatePath        []string `mapstructure:"set-update-path,omitempty" json:"set-update-path,omitempty" yaml:"set-update-path,omitempty"`
-	SetReplaceFile       []string `mapstructure:"set-replace-file,omitempty" json:"set-replace-file,omitempty" yaml:"set-replace-file,omitempty"`
-	SetUpdateFile        []string `mapstructure:"set-update-file,omitempty" json:"set-update-file,omitempty" yaml:"set-update-file,omitempty"`
-	SetReplaceValue      []string `mapstructure:"set-replace-value,omitempty" json:"set-replace-value,omitempty" yaml:"set-replace-value,omitempty"`
-	SetUpdateValue       []string `mapstructure:"set-update-value,omitempty" json:"set-update-value,omitempty" yaml:"set-update-value,omitempty"`
-	SetUnionReplacePath  []string `mapstructure:"set-union-replace-path,omitempty" yaml:"set-union-replace-path,omitempty" json:"set-union-replace-path,omitempty"`
-	SetUnionReplaceValue []string `mapstructure:"set-union-replace-value,omitempty" yaml:"set-union-replace-value,omitempty" json:"set-union-replace-value,omitempty"`
-	SetUnionReplaceFile  []string `mapstructure:"set-union-replace-file,omitempty" yaml:"set-union-replace-file,omitempty" json:"set-union-replace-file,omitempty"`
-	SetDelimiter         string   `mapstructure:"set-delimiter,omitempty" json:"set-delimiter,omitempty" yaml:"set-delimiter,omitempty"`
-	SetTarget            string   `mapstructure:"set-target,omitempty" json:"set-target,omitempty" yaml:"set-target,omitempty"`
-	SetRequestFile       []string `mapstructure:"set-request-file,omitempty" json:"set-request-file,omitempty" yaml:"set-request-file,omitempty"`
-	SetRequestVars       string   `mapstructure:"set-request-vars,omitempty" json:"set-request-vars,omitempty" yaml:"set-request-vars,omitempty"`
-	SetRequestProtoFile  []string `mapstructure:"set-proto-request-file,omitempty" yaml:"set-proto-request-file,omitempty" json:"set-proto-request-file,omitempty"`
-	SetDryRun            bool     `mapstructure:"set-dry-run,omitempty" json:"set-dry-run,omitempty" yaml:"set-dry-run,omitempty"`
-	SetReplaceCli        []string `mapstructure:"set-replace-cli,omitempty" yaml:"set-replace-cli,omitempty" json:"set-replace-cli,omitempty"`
-	SetReplaceCliFile    string   `mapstructure:"set-replace-cli-file,omitempty" yaml:"set-replace-cli-file,omitempty" json:"set-replace-cli-file,omitempty"`
-	SetUpdateCli         []string `mapstructure:"set-update-cli,omitempty" yaml:"set-update-cli,omitempty" json:"set-update-cli,omitempty"`
-	SetUpdateCliFile     string   `mapstructure:"set-update-cli-file,omitempty" yaml:"set-update-cli-file,omitempty" json:"set-update-cli-file,omitempty"`
+	SetPrefix                 string        `mapstructure:"set-prefix,omitempty" json:"set-prefix,omitempty" yaml:"set-prefix,omitempty"`
+	SetDelete                 []string      `mapstructure:"set-delete,omitempty" json:"set-delete,omitempty" yaml:"set-delete,omitempty"`
+	SetReplace                []string      `mapstructure:"set-replace,omitempty" json:"set-replace,omitempty" yaml:"set-replace,omitempty"`
+	SetUnionReplace           []string      `mapstructure:"set-union-replace,omitempty" json:"set-union-replace,omitempty" yaml:"set-union-replace,omitempty"`
+	SetUpdate                 []string      `mapstructure:"set-update,omitempty" json:"set-update,omitempty" yaml:"set-update,omitempty"`
+	SetReplacePath            []string      `mapstructure:"set-replace-path,omitempty" json:"set-replace-path,omitempty" yaml:"set-replace-path,omitempty"`
+	SetUpdatePath             []string      `mapstructure:"set-update-path,omitempty" json:"set-update-path,omitempty" yaml:"set-update-path,omitempty"`
+	SetReplaceFile            []string      `mapstructure:"set-replace-file,omitempty" json:"set-replace-file,omitempty" yaml:"set-replace-file,omitempty"`
+	SetUpdateFile             []string      `mapstructure:"set-update-file,omitempty" json:"set-update-file,omitempty" yaml:"set-update-file,omitempty"`
+	SetReplaceValue           []string      `mapstructure:"set-replace-value,omitempty" json:"set-replace-value,omitempty" yaml:"set-replace-value,omitempty"`
+	SetUpdateValue            []string      `mapstructure:"set-update-value,omitempty" json:"set-update-value,omitempty" yaml:"set-update-value,omitempty"`
+	SetUnionReplacePath       []string      `mapstructure:"set-union-replace-path,omitempty" yaml:"set-union-replace-path,omitempty" json:"set-union-replace-path,omitempty"`
+	SetUnionReplaceValue      []string      `mapstructure:"set-union-replace-value,omitempty" yaml:"set-union-replace-value,omitempty" json:"set-union-replace-value,omitempty"`
+	SetUnionReplaceFile       []string      `mapstructure:"set-union-replace-file,omitempty" yaml:"set-union-replace-file,omitempty" json:"set-union-replace-file,omitempty"`
+	SetDelimiter              string        `mapstructure:"set-delimiter,omitempty" json:"set-delimiter,omitempty" yaml:"set-delimiter,omitempty"`
+	SetTarget                 string        `mapstructure:"set-target,omitempty" json:"set-target,omitempty" yaml:"set-target,omitempty"`
+	SetRequestFile            []string      `mapstructure:"set-request-file,omitempty" json:"set-request-file,omitempty" yaml:"set-request-file,omitempty"`
+	SetRequestVars            string        `mapstructure:"set-request-vars,omitempty" json:"set-request-vars,omitempty" yaml:"set-request-vars,omitempty"`
+	SetRequestProtoFile       []string      `mapstructure:"set-proto-request-file,omitempty" yaml:"set-proto-request-file,omitempty" json:"set-proto-request-file,omitempty"`
+	SetDryRun                 bool          `mapstructure:"set-dry-run,omitempty" json:"set-dry-run,omitempty" yaml:"set-dry-run,omitempty"`
+	SetReplaceCli             []string      `mapstructure:"set-replace-cli,omitempty" yaml:"set-replace-cli,omitempty" json:"set-replace-cli,omitempty"`
+	SetReplaceCliFile         string        `mapstructure:"set-replace-cli-file,omitempty" yaml:"set-replace-cli-file,omitempty" json:"set-replace-cli-file,omitempty"`
+	SetUpdateCli              []string      `mapstructure:"set-update-cli,omitempty" yaml:"set-update-cli,omitempty" json:"set-update-cli,omitempty"`
+	SetUpdateCliFile          string        `mapstructure:"set-update-cli-file,omitempty" yaml:"set-update-cli-file,omitempty" json:"set-update-cli-file,omitempty"`
+	SetCommitId               string        `mapstructure:"set-commit-id,omitempty" yaml:"set-commit-id,omitempty" json:"set-commit-id,omitempty"`
+	SetCommitRequest          bool          `mapstructure:"set-commit-request,omitempty" yaml:"set-commit-request,omitempty" json:"set-commit-request,omitempty"`
+	SetCommitRollbackDuration time.Duration `mapstructure:"set-commit-rollback-duration,omitempty" yaml:"set-commit-rollback-duration,omitempty" json:"set-commit-rollback-duration,omitempty"`
+	SetCommitCancel           bool          `mapstructure:"set-commit-cancel,omitempty" yaml:"set-commit-cancel,omitempty" json:"set-commit-cancel,omitempty"`
+	SetCommitConfirm          bool          `mapstructure:"set-commit-confirm,omitempty" yaml:"set-commit-confirm,omitempty" json:"set-commit-confirm,omitempty"`
 	// Sub
 	SubscribePrefix            string        `mapstructure:"subscribe-prefix,omitempty" json:"subscribe-prefix,omitempty" yaml:"subscribe-prefix,omitempty"`
 	SubscribePath              []string      `mapstructure:"subscribe-path,omitempty" json:"subscribe-path,omitempty" yaml:"subscribe-path,omitempty"`
@@ -776,6 +781,32 @@ func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error)
 			),
 		)
 	}
+
+	if c.LocalFlags.SetCommitId != "" {
+		if c.LocalFlags.SetCommitRequest {
+			gnmiOpts = append(gnmiOpts,
+				api.Extension_CommitRequest(
+					c.LocalFlags.SetCommitId,
+					c.LocalFlags.SetCommitRollbackDuration,
+				))
+		} else if c.LocalFlags.SetCommitConfirm {
+			gnmiOpts = append(gnmiOpts,
+				api.Extension_CommitConfirm(
+					c.LocalFlags.SetCommitId,
+				))
+		} else if c.LocalFlags.SetCommitCancel {
+			gnmiOpts = append(gnmiOpts,
+				api.Extension_CommitCancel(
+					c.LocalFlags.SetCommitId,
+				))
+		} else {
+			gnmiOpts = append(gnmiOpts,
+				api.Extension_CommitSetRollbackDuration(
+					c.LocalFlags.SetCommitId,
+					c.LocalFlags.SetCommitRollbackDuration,
+				))
+		}
+	}
 	//
 	req, err := api.NewSetRequest(gnmiOpts...)
 	return []*gnmi.SetRequest{req}, err
@@ -870,7 +901,8 @@ func (c *Config) ValidateSetInput() error {
 		len(c.LocalFlags.SetUpdateCli) == 0 &&
 		len(c.LocalFlags.SetReplaceCliFile) == 0 &&
 		len(c.LocalFlags.SetUpdateCliFile) == 0 &&
-		len(c.LocalFlags.SetRequestProtoFile) == 0 {
+		len(c.LocalFlags.SetRequestProtoFile) == 0 &&
+		c.LocalFlags.SetCommitId == "" {
 		return errors.New("no paths or request file provided")
 	}
 	if len(c.LocalFlags.SetUpdateFile) > 0 && len(c.LocalFlags.SetUpdateValue) > 0 {

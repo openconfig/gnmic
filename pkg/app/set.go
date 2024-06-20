@@ -139,6 +139,12 @@ func (a *App) InitSetFlags(cmd *cobra.Command) {
 	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.SetUpdateCli, "update-cli", "", []string{}, "a cli command to be sent as a set update request")
 	cmd.Flags().StringVarP(&a.Config.LocalFlags.SetUpdateCliFile, "update-cli-file", "", "", "path to a file containing a list of commands that will be sent as a set update request")
 
+	cmd.Flags().StringVarP(&a.Config.LocalFlags.SetCommitId, "commit-id", "", "", "commit ID value")
+	cmd.Flags().BoolVarP(&a.Config.LocalFlags.SetCommitRequest, "commit-request", "", false, "start a commit confirmed transaction")
+	cmd.Flags().BoolVarP(&a.Config.LocalFlags.SetCommitConfirm, "commit-confirm", "", false, "confirm the commit ID")
+	cmd.Flags().BoolVarP(&a.Config.LocalFlags.SetCommitCancel, "commit-cancel", "", false, "cancel the commit")
+	cmd.Flags().DurationVarP(&a.Config.LocalFlags.SetCommitRollbackDuration, "rollback-duration", "", 0, "set the commit rollback duration")
+
 	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
 		a.Config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
 	})

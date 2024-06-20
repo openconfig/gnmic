@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"strings"
 	"text/template"
+	"time"
 
 	"google.golang.org/protobuf/encoding/prototext"
 	"gopkg.in/yaml.v2"
@@ -40,11 +41,23 @@ type UpdateItem struct {
 }
 
 type SetRequestFile struct {
-	Updates       []*UpdateItem `json:"updates,omitempty" yaml:"updates,omitempty"`
-	Replaces      []*UpdateItem `json:"replaces,omitempty" yaml:"replaces,omitempty"`
-	UnionReplaces []*UpdateItem `json:"union-replaces,omitempty" yaml:"union-replaces,omitempty"`
-	Deletes       []string      `json:"deletes,omitempty" yaml:"deletes,omitempty"`
+	Updates          []*UpdateItem `json:"updates,omitempty" yaml:"updates,omitempty"`
+	Replaces         []*UpdateItem `json:"replaces,omitempty" yaml:"replaces,omitempty"`
+	UnionReplaces    []*UpdateItem `json:"union-replaces,omitempty" yaml:"union-replaces,omitempty"`
+	Deletes          []string      `json:"deletes,omitempty" yaml:"deletes,omitempty"`
+	CommitID         string        `yaml:"commit-id,omitempty" json:"commit-id,omitempty"`
+	CommitAction     commitAction  `yaml:"commit-action,omitempty" json:"commit-action,omitempty"`
+	RollbackDuration time.Duration `yaml:"rollback-duration,omitempty" json:"rollback-duration,omitempty"`
 }
+
+type commitAction string
+
+const (
+	commitActionRequest             commitAction = "request"
+	commitActionCancel              commitAction = "cancel"
+	commitActionConfirm             commitAction = "confirm"
+	commitActionSetRollbackDuration commitAction = "set-rollback-duration"
+)
 
 func (c *Config) ReadSetRequestTemplate() error {
 	if len(c.SetRequestFile) == 0 {
@@ -221,6 +234,35 @@ func (c *Config) CreateSetRequestFromFile(targetName string) ([]*gnmi.SetRequest
 
 		for _, s := range reqFile.Deletes {
 			gnmiOpts = append(gnmiOpts, api.Delete(strings.TrimSpace(s)))
+		}
+
+		if reqFile.CommitID != "" {
+			switch reqFile.CommitAction {
+			case commitActionRequest:
+				gnmiOpts = append(gnmiOpts,
+					api.Extension_CommitRequest(
+						c.LocalFlags.SetCommitId,
+						c.LocalFlags.SetCommitRollbackDuration,
+					))
+			case commitActionCancel:
+				gnmiOpts = append(gnmiOpts,
+					api.Extension_CommitCancel(
+						c.LocalFlags.SetCommitId,
+					))
+			case commitActionConfirm:
+				gnmiOpts = append(gnmiOpts,
+					api.Extension_CommitConfirm(
+						c.LocalFlags.SetCommitId,
+					))
+			case commitActionSetRollbackDuration:
+				gnmiOpts = append(gnmiOpts,
+					api.Extension_CommitSetRollbackDuration(
+						c.LocalFlags.SetCommitId,
+						c.LocalFlags.SetCommitRollbackDuration,
+					))
+			default:
+				return nil, fmt.Errorf("unknown commit action %s", reqFile.CommitAction)
+			}
 		}
 
 		setReq, err := api.NewSetRequest(gnmiOpts...)
