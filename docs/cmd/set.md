@@ -97,17 +97,17 @@ See [this section](#templated-set-request-file) below.
 
 The `--commit-id` flag sets the commit ID when the client needs to perform a commit confirmed set request as per: https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-commit-confirmed.md
 
-### request
+### commit-request
 
-The `--request` flag is used together with the `--commit-id` flag to set the commit action to `Request`, essentially starting a commit request.
+The `--commit-request` flag is used together with the `--commit-id` flag to set the commit action to `Request`, essentially starting a commit request.
 
-### commit
+### commit-confirm
 
-The `--commit` flag is used together with the `--commit-id` flag to commit an already started commit confirmed transaction.
+The `--commit-confirm` flag is used together with the `--commit-id` flag to confirm an already started commit confirmed transaction.
 
-### cancel
+### commit-cancel
 
-The `--cancel` flag is used together with the `--commit-id` flag to cancel an already started commit confirmed transaction.
+The `--commit-cancel` flag is used together with the `--commit-id` flag to cancel an already started commit confirmed transaction.
 
 ### rollback-duration
 
