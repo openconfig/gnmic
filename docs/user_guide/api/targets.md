@@ -220,7 +220,6 @@ Returns an empty body if successful.
     ```json
     {
         "errors": [
-            "subscriptions not found",
             "subscription $subscription does not exist"
         ]
     }
