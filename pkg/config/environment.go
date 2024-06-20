@@ -11,6 +11,9 @@ package config
 import (
 	"os"
 	"strings"
+
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 func envToMap() map[string]interface{} {
@@ -52,6 +55,14 @@ func (c *Config) mergeEnvVars() {
 		c.logger.Printf("merging env vars: %+v", envs)
 	}
 	c.FileConfig.MergeConfigMap(envs)
+}
+
+func (c *Config) SetGlobalsFromEnv(cmd *cobra.Command) {
+	cmd.PersistentFlags().VisitAll(func(f *pflag.Flag) {
+		if !f.Changed && c.FileConfig.IsSet(f.Name) {
+			c.setFlagValue(cmd, f.Name, os.ExpandEnv(c.FileConfig.GetString(f.Name)))
+		}
+	})
 }
 
 func expandMapEnv(m map[string]interface{}, except ...string) {
