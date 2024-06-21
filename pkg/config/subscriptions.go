@@ -103,6 +103,7 @@ func (c *Config) subscriptionConfigFromFlags(cmd *cobra.Command) (map[string]*ty
 		SetTarget: c.LocalFlags.SubscribeSetTarget,
 		Paths:     c.LocalFlags.SubscribePath,
 		Mode:      c.LocalFlags.SubscribeMode,
+		Depth:     c.LocalFlags.SubscribeDepth,
 	}
 	// if globalFlagIsSet(cmd, "encoding") {
 	// 	sub.Encoding = &c.Encoding
@@ -192,6 +193,9 @@ func (c *Config) setSubscriptionFieldsFromFlags(sub *types.SubscriptionConfig, c
 	if sub.Qos == nil && flagIsSet(cmd, "qos") {
 		sub.Qos = &c.LocalFlags.SubscribeQos
 	}
+	if flagIsSet(cmd, "depth") {
+		sub.Depth = c.LocalFlags.SubscribeDepth
+	}
 	if sub.History == nil && flagIsSet(cmd, "history-snapshot") {
 		snapshot, err := time.Parse(time.RFC3339Nano, c.LocalFlags.SubscribeHistorySnapshot)
 		if err != nil {
@@ -200,7 +204,6 @@ func (c *Config) setSubscriptionFieldsFromFlags(sub *types.SubscriptionConfig, c
 		sub.History = &types.HistoryConfig{
 			Snapshot: snapshot,
 		}
-		return nil
 	}
 	if sub.History == nil && flagIsSet(cmd, "history-start") && flagIsSet(cmd, "history-end") {
 		start, err := time.Parse(time.RFC3339Nano, c.LocalFlags.SubscribeHistoryStart)
@@ -215,7 +218,6 @@ func (c *Config) setSubscriptionFieldsFromFlags(sub *types.SubscriptionConfig, c
 			Start: start,
 			End:   end,
 		}
-		return nil
 	}
 	return nil
 }
@@ -334,6 +336,10 @@ func (c *Config) subscriptionOpts(sc *types.SubscriptionConfig, tc *types.Target
 		)
 	}
 
+	// Depth extension
+	if sc.Depth > 0 {
+		gnmiOpts = append(gnmiOpts, api.Extension_Depth(sc.Depth))
+	}
 	return gnmiOpts, nil
 }
 

@@ -144,6 +144,10 @@ The value can be either nanoseconds since Unix epoch or a date in RFC3339 format
 
 The `[--history-end]` flag sets the end value in the subscribe request Time Range [gNMI History extension](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-history.md).
 
+#### depth
+
+The `[--depth]` flag set the gNMI extension depth value as defined [here](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-depth.md)
+
 ### Examples
 
 #### 1. streaming, target-defined, 10s interval

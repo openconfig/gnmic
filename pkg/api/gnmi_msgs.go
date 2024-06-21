@@ -400,6 +400,30 @@ func Extension_CommitSetRollbackDuration(id string, dur time.Duration) func(msg 
 	}
 }
 
+func Extension_Depth(lvl uint32) func(msg proto.Message) error {
+	return func(msg proto.Message) error {
+		if msg == nil {
+			return ErrInvalidMsgType
+		}
+
+		switch msg := msg.ProtoReflect().Interface().(type) {
+		case *gnmi.GetRequest, *gnmi.SubscribeRequest:
+			fn := Extension(
+				&gnmi_ext.Extension{
+					Ext: &gnmi_ext.Extension_Depth{
+						Depth: &gnmi_ext.Depth{
+							Level: lvl,
+						},
+					},
+				},
+			)
+			return fn(msg)
+		default:
+			return fmt.Errorf("option Extension_Depth: %w: %T", ErrInvalidMsgType, msg)
+		}
+	}
+}
+
 // Extension_HistorySnapshotTime creates a GNMIOption that adds a gNMI extension of
 // type History Snapshot with the supplied snapshot time.
 // the snapshot value can be nanoseconds since Unix epoch or a date in RFC3339 format

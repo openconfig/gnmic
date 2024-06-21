@@ -38,6 +38,7 @@ type SubscriptionConfig struct {
 	History             *HistoryConfig        `mapstructure:"history,omitempty" json:"history,omitempty"`
 	StreamSubscriptions []*SubscriptionConfig `mapstructure:"stream-subscriptions,omitempty" json:"stream-subscriptions,omitempty"`
 	Outputs             []string              `mapstructure:"outputs,omitempty" json:"outputs,omitempty"`
+	Depth               uint32                `mapstructure:"depth,omitempty" json:"depth,omitempty"`
 }
 
 type HistoryConfig struct {

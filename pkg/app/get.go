@@ -175,6 +175,7 @@ func (a *App) InitGetFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&a.Config.LocalFlags.GetTarget, "target", "", "", "get request target")
 	cmd.Flags().BoolVarP(&a.Config.LocalFlags.GetValuesOnly, "values-only", "", false, "print GetResponse values only")
 	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.GetProcessor, "processor", "", []string{}, "list of processor names to run")
+	cmd.Flags().Uint32VarP(&a.Config.LocalFlags.GetDepth, "depth", "", 0, "depth extension value")
 
 	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
 		a.Config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)

@@ -103,6 +103,8 @@ subscriptions:
       # string, nanoseconds since Unix epoch or RFC3339 format.
       # if set, the history extension type will be a Range request
       end:
+    # uint32, depth value as per: https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-depth.md
+    depth: 0
 ```
 
 #### Subscription config to gNMI SubscribeRequest
