@@ -47,6 +47,8 @@ type generatedPath struct {
 	IsState        bool     `json:"is-state,omitempty"`
 	Namespace      string   `json:"namespace,omitempty"`
 	FeatureList    []string `json:"if-features,omitempty"`
+	Rpc            bool     `json:"rpc,omitempty"`
+	Action         bool     `json:"action,omitempty"`
 }
 
 func (a *App) PathCmdRun(d, f, e []string, pgo pathGenOpts) error {
@@ -234,6 +236,25 @@ func collectSchemaNodes(e *yang.Entry, leafOnly bool) []*yang.Entry {
 			collectSchemaNodes(child, leafOnly)...)
 	}
 
+	// Support for RPC & Action
+	if e.RPC != nil {
+		kind := e.Node.Kind()
+		if e.RPC.Input != nil {
+			if e.RPC.Input.Extra == nil {
+				e.RPC.Input.Extra = make(map[string][]interface{})
+			}
+			e.RPC.Input.Extra[kind] = []interface{}{true}
+			collected = append(collected, collectSchemaNodes(e.RPC.Input, leafOnly)...)
+		}
+		if e.RPC.Output != nil {
+			if e.RPC.Output.Extra == nil {
+				e.RPC.Output.Extra = make(map[string][]interface{})
+			}
+			e.RPC.Output.Extra[kind] = []interface{}{true}
+			collected = append(collected, collectSchemaNodes(e.RPC.Output, leafOnly)...)
+		}
+	}
+
 	if e.Parent != nil {
 		switch {
 		case e.Dir == nil && e.ListAttr != nil: // leaf-list
@@ -291,6 +312,23 @@ func collectSchemaNodes(e *yang.Entry, leafOnly bool) []*yang.Entry {
 					}
 				}
 			}
+
+			// Support for RPC
+			if len(e.Extra["rpc"]) > 0 {
+				for _, myleaf := range collected {
+					if myleaf.Extra["rpc"] == nil {
+						myleaf.Extra["rpc"] = e.Extra["rpc"]
+					}
+				}
+			}
+			// Support for Action
+			if len(e.Extra["action"]) > 0 {
+				for _, myleaf := range collected {
+					if myleaf.Extra["action"] == nil {
+						myleaf.Extra["action"] = e.Extra["action"]
+					}
+				}
+			}
 		}
 	}
 	return collected
@@ -332,6 +370,15 @@ func (a *App) generatePath(entry *yang.Entry, pType string) *generatedPath {
 			}
 			gp.FeatureList = append(gp.FeatureList, strings.Split(f.Source.Argument, " and ")...)
 		}
+	}
+
+	// Support for RPC
+	if len(entry.Extra["rpc"]) == 1 {
+		gp.Rpc = true
+	}
+	// Support for Action
+	if len(entry.Extra["action"]) == 1 {
+		gp.Action = true
 	}
 
 	gp.Description = entry.Description
