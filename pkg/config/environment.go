@@ -59,8 +59,21 @@ func (c *Config) mergeEnvVars() {
 
 func (c *Config) SetGlobalsFromEnv(cmd *cobra.Command) {
 	cmd.PersistentFlags().VisitAll(func(f *pflag.Flag) {
+		// expand password and token global attr only if they start with '$'
+		if f.Name == "password" || f.Name == "token" {
+			if !f.Changed && c.FileConfig.IsSet(f.Name) {
+				val := c.FileConfig.GetString(f.Name)
+				if strings.HasPrefix(val, "$") {
+					c.setFlagValue(cmd, f.Name, val)
+				}
+			}
+			return
+		}
+		// other global flags
 		if !f.Changed && c.FileConfig.IsSet(f.Name) {
-			c.setFlagValue(cmd, f.Name, os.ExpandEnv(c.FileConfig.GetString(f.Name)))
+			if val := os.ExpandEnv(c.FileConfig.GetString(f.Name)); val != "" {
+				c.setFlagValue(cmd, f.Name, val)
+			}
 		}
 	})
 }

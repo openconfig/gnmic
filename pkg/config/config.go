@@ -863,7 +863,21 @@ func SanitizeArrayFlagValue(ls []string) []string {
 		for strings.HasPrefix(ls[i], "[") && strings.HasSuffix(ls[i], "]") {
 			ls[i] = ls[i][1 : len(ls[i])-1]
 		}
-		res = append(res, strings.Split(ls[i], ",")...)
+		res = append(res, ls[i])
+	}
+	return res
+}
+
+func ParseAddressField(addr []string) []string {
+	res := make([]string, 0, len(addr))
+	for i := range addr {
+		if addr[i] == "[]" {
+			continue
+		}
+		for strings.HasPrefix(addr[i], "[") && strings.HasSuffix(addr[i], "]") {
+			addr[i] = addr[i][1 : len(addr[i])-1]
+		}
+		res = append(res, strings.Split(addr[i], ",")...)
 	}
 	return res
 }
