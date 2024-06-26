@@ -49,6 +49,7 @@ type generatedPath struct {
 	FeatureList    []string `json:"if-features,omitempty"`
 	Rpc            bool     `json:"rpc,omitempty"`
 	Action         bool     `json:"action,omitempty"`
+	Notification   bool     `json:"notification,omitempty"`
 }
 
 func (a *App) PathCmdRun(d, f, e []string, pgo pathGenOpts) error {
@@ -236,6 +237,15 @@ func collectSchemaNodes(e *yang.Entry, leafOnly bool) []*yang.Entry {
 			collectSchemaNodes(child, leafOnly)...)
 	}
 
+	// Support for Notification
+	if e.Node.Kind() == "notification" {
+		fmt.Println(e.Name)
+		if e.Extra == nil {
+			e.Extra = make(map[string][]interface{})
+		}
+		e.Extra["notification"] = []interface{}{true}
+	}
+
 	// Support for RPC & Action
 	if e.RPC != nil {
 		kind := e.Node.Kind()
@@ -312,7 +322,14 @@ func collectSchemaNodes(e *yang.Entry, leafOnly bool) []*yang.Entry {
 					}
 				}
 			}
-
+			// Support for Notification
+			if len(e.Extra["notification"]) > 0 {
+				for _, myleaf := range collected {
+					if myleaf.Extra["notification"] == nil {
+						myleaf.Extra["notification"] = e.Extra["notification"]
+					}
+				}
+			}
 			// Support for RPC
 			if len(e.Extra["rpc"]) > 0 {
 				for _, myleaf := range collected {
@@ -372,6 +389,10 @@ func (a *App) generatePath(entry *yang.Entry, pType string) *generatedPath {
 		}
 	}
 
+	// Support for Notification
+	if len(entry.Extra["notification"]) == 1 {
+		gp.Notification = true
+	}
 	// Support for RPC
 	if len(entry.Extra["rpc"]) == 1 {
 		gp.Rpc = true
