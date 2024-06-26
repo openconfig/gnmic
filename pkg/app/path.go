@@ -47,9 +47,9 @@ type generatedPath struct {
 	IsState        bool     `json:"is-state,omitempty"`
 	Namespace      string   `json:"namespace,omitempty"`
 	FeatureList    []string `json:"if-features,omitempty"`
-	Rpc            bool     `json:"rpc,omitempty"`
-	Action         bool     `json:"action,omitempty"`
-	Notification   bool     `json:"notification,omitempty"`
+	IsNotification bool     `json:"is-notification,omitempty"`
+	IsRpc          bool     `json:"is-rpc,omitempty"`
+	IsAction       bool     `json:"is-action,omitempty"`
 }
 
 func (a *App) PathCmdRun(d, f, e []string, pgo pathGenOpts) error {
@@ -390,15 +390,15 @@ func (a *App) generatePath(entry *yang.Entry, pType string) *generatedPath {
 
 	// Support for Notification
 	if len(entry.Extra["notification"]) == 1 {
-		gp.Notification = true
+		gp.IsNotification = true
 	}
 	// Support for RPC
 	if len(entry.Extra["rpc"]) == 1 {
-		gp.Rpc = true
+		gp.IsRpc = true
 	}
 	// Support for Action
 	if len(entry.Extra["action"]) == 1 {
-		gp.Action = true
+		gp.IsAction = true
 	}
 
 	gp.Description = entry.Description
