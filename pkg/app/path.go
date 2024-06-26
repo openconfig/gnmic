@@ -239,7 +239,6 @@ func collectSchemaNodes(e *yang.Entry, leafOnly bool) []*yang.Entry {
 
 	// Support for Notification
 	if e.Node.Kind() == "notification" {
-		fmt.Println(e.Name)
 		if e.Extra == nil {
 			e.Extra = make(map[string][]interface{})
 		}
