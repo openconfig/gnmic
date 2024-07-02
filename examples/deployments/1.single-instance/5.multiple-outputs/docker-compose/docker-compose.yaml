@@ -90,7 +90,7 @@ services:
       - ALLOW_ANONYMOUS_LOGIN=yes
 
   influxdb:
-    image: influxdb:latest
+    image: influxdb:1.8.10
     container_name: influxdb
     networks:
       - gnmic-net
