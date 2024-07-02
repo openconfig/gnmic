@@ -389,12 +389,18 @@ func toMap(e *yang.Entry, configOnly bool, kopts *keyOpts) interface{} {
 	m := make(map[string]interface{})
 	switch {
 	case e.Dir == nil && e.ListAttr != nil: // leaf-list
-		fallthrough
-	case e.Dir == nil: // leaf
 		if e.Config == yang.TSFalse && configOnly {
 			return nil
 		}
 		return e.Default
+	case e.Dir == nil: // leaf
+		if e.Config == yang.TSFalse && configOnly {
+			return nil
+		}
+		if len(e.Default) > 0 {
+			return e.Default[0]
+		}
+		return ""
 	case e.ListAttr != nil: // list
 		for n, child := range e.Dir {
 			gChild := toMap(child, configOnly, kopts)
@@ -403,7 +409,7 @@ func toMap(e *yang.Entry, configOnly bool, kopts *keyOpts) interface{} {
 				for k, v := range gChild {
 					m[kopts.format(k)] = v
 				}
-			case []interface{}, string:
+			case []interface{}, []string, string:
 				m[kopts.format(n)] = gChild
 			}
 		}
