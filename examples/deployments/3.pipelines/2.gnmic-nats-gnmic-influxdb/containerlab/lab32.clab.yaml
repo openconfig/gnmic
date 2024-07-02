@@ -49,7 +49,7 @@ topology:
     
     influxdb:
       kind: linux
-      image: influxdb:latest
+      image: influxdb:1.8.10
       ports:
         - 8086:8086
       env:
