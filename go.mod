@@ -46,7 +46,7 @@ require (
 	github.com/openconfig/gnmi v0.11.0
 	github.com/openconfig/gnmic/pkg/api v0.1.7
 	github.com/openconfig/gnmic/pkg/cache v0.1.3
-	github.com/openconfig/goyang v1.4.5
+	github.com/openconfig/goyang v1.5.0
 	github.com/openconfig/ygot v0.29.18
 	github.com/pkg/sftp v1.13.6
 	github.com/prometheus/client_golang v1.19.0
