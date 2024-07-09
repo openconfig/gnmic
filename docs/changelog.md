@@ -1,5 +1,16 @@
 ## Changelog
 
+### v0.38.0 - July 8th 2024
+
+- Kafka Output
+
+    - Add configurable Kafka version
+
+- gNMI extensions
+
+    - Implement [Commit confirmed gNMI extension](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-commit-confirmed.md)
+    - Implement [Depth gNMI extension](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-depth.md)
+
 ### v0.37.0 - May 13th 2024
 
 - gNMI connection TCP Keepalive
