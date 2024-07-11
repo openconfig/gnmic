@@ -687,7 +687,7 @@ func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error)
 			}
 			updOpt = api.Update(
 				api.Path(strings.TrimSpace(p)),
-				api.Value(string(bytes.Trim(updateData, " \r\n\t")), c.Encoding),
+				api.Value(string(updateData), c.Encoding),
 			)
 
 		} else {
@@ -709,7 +709,7 @@ func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error)
 			}
 			replaceOpt = api.Replace(
 				api.Path(strings.TrimSpace(p)),
-				api.Value(string(bytes.Trim(replaceData, " \r\n\t")), c.Encoding),
+				api.Value(string(replaceData), c.Encoding),
 			)
 
 		} else {
@@ -731,7 +731,7 @@ func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error)
 			}
 			unionReplaceOpt = api.UnionReplace(
 				api.Path(strings.TrimSpace(p)),
-				api.Value(string(bytes.Trim(replaceData, " \r\n\t")), c.Encoding),
+				api.Value(string(replaceData), c.Encoding),
 			)
 
 		} else {
