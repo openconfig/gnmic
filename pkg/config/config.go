@@ -188,6 +188,7 @@ type LocalFlags struct {
 	SubscribeHistoryStart      string        `mapstructure:"subscribe-history-start,omitempty" json:"subscribe-history-start,omitempty" yaml:"subscribe-history-start,omitempty"`
 	SubscribeHistoryEnd        string        `mapstructure:"subscribe-history-end,omitempty" json:"subscribe-history-end,omitempty" yaml:"subscribe-history-end,omitempty"`
 	SubscribeDepth             uint32        `mapstructure:"subscribe-depth,omitempty" yaml:"subscribe-depth,omitempty" json:"subscribe-depth,omitempty"`
+	SubscribeDryRun            bool          `mapstructure:"subscribe-dry-run,omitempty" json:"subscribe-dry-run,omitempty" yaml:"subscribe-dry-run,omitempty"`
 	// Path
 	PathPathType   string `mapstructure:"path-path-type,omitempty" json:"path-path-type,omitempty" yaml:"path-path-type,omitempty"`
 	PathWithDescr  bool   `mapstructure:"path-descr,omitempty" json:"path-descr,omitempty" yaml:"path-descr,omitempty"`
