@@ -135,6 +135,7 @@ type LocalFlags struct {
 	GetValuesOnly bool     `mapstructure:"get-values-only,omitempty" json:"get-values-only,omitempty" yaml:"get-values-only,omitempty"`
 	GetProcessor  []string `mapstructure:"get-processor,omitempty" json:"get-processor,omitempty" yaml:"get-processor,omitempty"`
 	GetDepth      uint32   `mapstructure:"get-depth,omitempty" yaml:"get-depth,omitempty" json:"get-depth,omitempty"`
+	GetDryRun     bool     `mapstructure:"get-dry-run,omitempty" json:"get-dry-run,omitempty" yaml:"get-dry-run,omitempty"`
 	// Set
 	SetPrefix                 string        `mapstructure:"set-prefix,omitempty" json:"set-prefix,omitempty" yaml:"set-prefix,omitempty"`
 	SetDelete                 []string      `mapstructure:"set-delete,omitempty" json:"set-delete,omitempty" yaml:"set-delete,omitempty"`

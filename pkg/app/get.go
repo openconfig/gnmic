@@ -102,6 +102,9 @@ func (a *App) GetRequest(ctx context.Context, tc *types.TargetConfig) {
 		a.logError(fmt.Errorf("target %q Get request failed: %v", tc.Name, err))
 		return
 	}
+	if response == nil {
+		return
+	}
 	err = a.PrintMsg(tc.Name, "Get Response:", response)
 	if err != nil {
 		a.logError(fmt.Errorf("target %q: %v", tc.Name, err))
@@ -123,11 +126,14 @@ func (a *App) getRequest(ctx context.Context, tc *types.TargetConfig, req *gnmi.
 			xreq.UseModels = append(xreq.UseModels, m)
 		}
 	}
-	if a.Config.PrintRequest {
+	if a.Config.PrintRequest || a.Config.GetDryRun {
 		err := a.PrintMsg(tc.Name, "Get Request:", req)
 		if err != nil {
 			a.logError(fmt.Errorf("target %q Get Request printing failed: %v", tc.Name, err))
 		}
+	}
+	if a.Config.GetDryRun {
+		return nil, nil
 	}
 	a.Logger.Printf("sending gNMI GetRequest: prefix='%v', path='%v', type='%v', encoding='%v', models='%+v', extension='%+v' to %s",
 		xreq.Prefix, xreq.Path, xreq.Type, xreq.Encoding, xreq.UseModels, xreq.Extension, tc.Name)
@@ -176,6 +182,7 @@ func (a *App) InitGetFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVarP(&a.Config.LocalFlags.GetValuesOnly, "values-only", "", false, "print GetResponse values only")
 	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.GetProcessor, "processor", "", []string{}, "list of processor names to run")
 	cmd.Flags().Uint32VarP(&a.Config.LocalFlags.GetDepth, "depth", "", 0, "depth extension value")
+	cmd.Flags().BoolVarP(&a.Config.LocalFlags.GetDryRun, "dry-run", "", false, "prints the get request without initiating a gRPC connection")
 
 	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
 		a.Config.FileConfig.BindPFlag(fmt.Sprintf("%s-%s", cmd.Name(), flag.Name), flag)
