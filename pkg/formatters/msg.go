@@ -13,9 +13,15 @@ import (
 	"time"
 
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/gnmi/proto/gnmi_ext"
 )
 
-type NotificationRspMsg struct {
+type syncResponseMsg struct {
+	SyncResponse bool                  `json:"sync-response,omitempty"`
+	Extensions   []*gnmi_ext.Extension `json:"extensions,omitempty"`
+}
+
+type notificationRspMsg struct {
 	Meta             map[string]interface{} `json:"meta,omitempty"`
 	Source           string                 `json:"source,omitempty"`
 	SystemName       string                 `json:"system-name,omitempty"`
@@ -30,18 +36,20 @@ type NotificationRspMsg struct {
 	Target           string                 `json:"target,omitempty"`
 	Updates          []update               `json:"updates,omitempty"`
 	Deletes          []string               `json:"deletes,omitempty"`
+	Extensions       []*gnmi_ext.Extension  `json:"extensions,omitempty"`
 }
 type update struct {
 	Path   string
 	Values map[string]interface{} `json:"values,omitempty"`
 }
 type capRequest struct {
-	Extensions []string `json:"extensions,omitempty"`
+	Extensions []*gnmi_ext.Extension `json:"extensions,omitempty"`
 }
 type capResponse struct {
-	Version         string   `json:"version,omitempty"`
-	SupportedModels []model  `json:"supported-models,omitempty"`
-	Encodings       []string `json:"encodings,omitempty"`
+	Version         string                `json:"version,omitempty"`
+	SupportedModels []model               `json:"supported-models,omitempty"`
+	Encodings       []string              `json:"encodings,omitempty"`
+	Extensions      []*gnmi_ext.Extension `json:"extensions,omitempty"`
 }
 type model struct {
 	Name         string `json:"name,omitempty"`
@@ -50,21 +58,27 @@ type model struct {
 }
 
 type getRqMsg struct {
-	Prefix   string   `json:"prefix,omitempty"`
-	Target   string   `json:"target,omitempty"`
-	Paths    []string `json:"paths,omitempty"`
-	Encoding string   `json:"encoding,omitempty"`
-	DataType string   `json:"data-type,omitempty"`
-	Models   []model  `json:"models,omitempty"`
+	Prefix     string                `json:"prefix,omitempty"`
+	Target     string                `json:"target,omitempty"`
+	Paths      []string              `json:"paths,omitempty"`
+	Encoding   string                `json:"encoding,omitempty"`
+	DataType   string                `json:"data-type,omitempty"`
+	Models     []model               `json:"models,omitempty"`
+	Extensions []*gnmi_ext.Extension `json:"extensions,omitempty"`
 }
 
+type getRspMsg struct {
+	Notifications []notificationRspMsg  `json:"notifications,omitempty"`
+	Extensions    []*gnmi_ext.Extension `json:"extensions,omitempty"`
+}
 type setRspMsg struct {
-	Source    string            `json:"source,omitempty"`
-	Timestamp int64             `json:"timestamp,omitempty"`
-	Time      time.Time         `json:"time,omitempty"`
-	Prefix    string            `json:"prefix,omitempty"`
-	Target    string            `json:"target,omitempty"`
-	Results   []updateResultMsg `json:"results,omitempty"`
+	Source     string                `json:"source,omitempty"`
+	Timestamp  int64                 `json:"timestamp,omitempty"`
+	Time       time.Time             `json:"time,omitempty"`
+	Prefix     string                `json:"prefix,omitempty"`
+	Target     string                `json:"target,omitempty"`
+	Results    []updateResultMsg     `json:"results,omitempty"`
+	Extensions []*gnmi_ext.Extension `json:"extensions,omitempty"`
 }
 
 type updateResultMsg struct {
@@ -74,12 +88,12 @@ type updateResultMsg struct {
 }
 
 type setReqMsg struct {
-	Prefix  string      `json:"prefix,omitempty"`
-	Target  string      `json:"target,omitempty"`
-	Delete  []string    `json:"delete,omitempty"`
-	Replace []updateMsg `json:"replace,omitempty"`
-	Update  []updateMsg `json:"update,omitempty"`
-	// extension is not implemented
+	Prefix     string                `json:"prefix,omitempty"`
+	Target     string                `json:"target,omitempty"`
+	Delete     []string              `json:"delete,omitempty"`
+	Replace    []updateMsg           `json:"replace,omitempty"`
+	Update     []updateMsg           `json:"update,omitempty"`
+	Extensions []*gnmi_ext.Extension `json:"extensions,omitempty"`
 }
 
 type updateMsg struct {
@@ -88,11 +102,14 @@ type updateMsg struct {
 }
 
 type subscribeReq struct {
-	Subscribe subscribe         `json:"subscribe,omitempty"`
-	Poll      *poll             `json:"poll,omitempty"`
-	Aliases   map[string]string `json:"aliases,omitempty"`
+	Subscribe  subscribe             `json:"subscribe,omitempty"`
+	Poll       *poll                 `json:"poll,omitempty"`
+	Aliases    map[string]string     `json:"aliases,omitempty"`
+	Extensions []*gnmi_ext.Extension `json:"extensions,omitempty"`
 }
+
 type poll struct{}
+
 type subscribe struct {
 	Target           string         `json:"target,omitempty"`
 	Prefix           string         `json:"prefix,omitempty"`
@@ -105,6 +122,7 @@ type subscribe struct {
 	Encoding         string         `json:"encoding,omitempty"`
 	UpdatesOnly      bool           `json:"updates-only,omitempty"`
 }
+
 type subscription struct {
 	Path              string `json:"path,omitempty"`
 	Mode              string `json:"mode,omitempty"`
