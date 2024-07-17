@@ -42,6 +42,7 @@ const (
 	configName      = ".gnmic"
 	configLogPrefix = "[config] "
 	envPrefix       = "GNMIC"
+	trimChars       = " \r\n\t"
 )
 
 var ErrInvalidConfig = errors.New("invalid configuration")
@@ -686,13 +687,13 @@ func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error)
 				c.logger.Printf("error reading data from file '%s': %v", c.LocalFlags.SetUpdateFile[i], err)
 				return nil, err
 			}
-			trimChars := " \r\n\t"
-			if c.LocalFlags.SetNoTrim {
-				trimChars = ""
+			trim := ""
+			if !c.LocalFlags.SetNoTrim {
+				trim = trimChars
 			}
 			updOpt = api.Update(
 				api.Path(strings.TrimSpace(p)),
-				api.Value(string(bytes.Trim(updateData, trimChars)), c.Encoding),
+				api.Value(string(bytes.Trim(updateData, trim)), c.Encoding),
 			)
 
 		} else {
@@ -712,13 +713,13 @@ func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error)
 				c.logger.Printf("error reading data from file '%s': %v", c.LocalFlags.SetReplaceFile[i], err)
 				return nil, err
 			}
-			trimChars := " \r\n\t"
-			if c.LocalFlags.SetNoTrim {
-				trimChars = ""
+			trim := ""
+			if !c.LocalFlags.SetNoTrim {
+				trim = trimChars
 			}
 			replaceOpt = api.Replace(
 				api.Path(strings.TrimSpace(p)),
-				api.Value(string(bytes.Trim(replaceData, trimChars)), c.Encoding),
+				api.Value(string(bytes.Trim(replaceData, trim)), c.Encoding),
 			)
 
 		} else {
@@ -738,13 +739,13 @@ func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error)
 				c.logger.Printf("error reading data from file '%s': %v", c.LocalFlags.SetUnionReplaceFile[i], err)
 				return nil, err
 			}
-			trimChars := " \r\n\t"
-			if c.LocalFlags.SetNoTrim {
-				trimChars = ""
+			trim := ""
+			if !c.LocalFlags.SetNoTrim {
+				trim = trimChars
 			}
 			unionReplaceOpt = api.UnionReplace(
 				api.Path(strings.TrimSpace(p)),
-				api.Value(string(bytes.Trim(replaceData, trimChars)), c.Encoding),
+				api.Value(string(bytes.Trim(replaceData, trim)), c.Encoding),
 			)
 
 		} else {
