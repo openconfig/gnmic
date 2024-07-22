@@ -42,6 +42,7 @@ const (
 	configName      = ".gnmic"
 	configLogPrefix = "[config] "
 	envPrefix       = "GNMIC"
+	trimChars       = " \r\n\t"
 )
 
 var ErrInvalidConfig = errors.New("invalid configuration")
@@ -157,6 +158,7 @@ type LocalFlags struct {
 	SetRequestVars            string        `mapstructure:"set-request-vars,omitempty" json:"set-request-vars,omitempty" yaml:"set-request-vars,omitempty"`
 	SetRequestProtoFile       []string      `mapstructure:"set-proto-request-file,omitempty" yaml:"set-proto-request-file,omitempty" json:"set-proto-request-file,omitempty"`
 	SetDryRun                 bool          `mapstructure:"set-dry-run,omitempty" json:"set-dry-run,omitempty" yaml:"set-dry-run,omitempty"`
+	SetNoTrim                 bool          `mapstructure:"set-no-trim,omitempty" json:"set-no-trim,omitempty" yaml:"set-no-trim,omitempty"`
 	SetReplaceCli             []string      `mapstructure:"set-replace-cli,omitempty" yaml:"set-replace-cli,omitempty" json:"set-replace-cli,omitempty"`
 	SetReplaceCliFile         string        `mapstructure:"set-replace-cli-file,omitempty" yaml:"set-replace-cli-file,omitempty" json:"set-replace-cli-file,omitempty"`
 	SetUpdateCli              []string      `mapstructure:"set-update-cli,omitempty" yaml:"set-update-cli,omitempty" json:"set-update-cli,omitempty"`
@@ -686,9 +688,13 @@ func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error)
 				c.logger.Printf("error reading data from file '%s': %v", c.LocalFlags.SetUpdateFile[i], err)
 				return nil, err
 			}
+			trim := ""
+			if !c.LocalFlags.SetNoTrim {
+				trim = trimChars
+			}
 			updOpt = api.Update(
 				api.Path(strings.TrimSpace(p)),
-				api.Value(string(bytes.Trim(updateData, " \r\n\t")), c.Encoding),
+				api.Value(string(bytes.Trim(updateData, trim)), c.Encoding),
 			)
 
 		} else {
@@ -708,9 +714,13 @@ func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error)
 				c.logger.Printf("error reading data from file '%s': %v", c.LocalFlags.SetReplaceFile[i], err)
 				return nil, err
 			}
+			trim := ""
+			if !c.LocalFlags.SetNoTrim {
+				trim = trimChars
+			}
 			replaceOpt = api.Replace(
 				api.Path(strings.TrimSpace(p)),
-				api.Value(string(bytes.Trim(replaceData, " \r\n\t")), c.Encoding),
+				api.Value(string(bytes.Trim(replaceData, trim)), c.Encoding),
 			)
 
 		} else {
@@ -730,9 +740,13 @@ func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error)
 				c.logger.Printf("error reading data from file '%s': %v", c.LocalFlags.SetUnionReplaceFile[i], err)
 				return nil, err
 			}
+			trim := ""
+			if !c.LocalFlags.SetNoTrim {
+				trim = trimChars
+			}
 			unionReplaceOpt = api.UnionReplace(
 				api.Path(strings.TrimSpace(p)),
-				api.Value(string(bytes.Trim(replaceData, " \r\n\t")), c.Encoding),
+				api.Value(string(bytes.Trim(replaceData, trim)), c.Encoding),
 			)
 
 		} else {
