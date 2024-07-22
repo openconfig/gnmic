@@ -77,10 +77,10 @@ func (a *App) startGnmiServer() error {
 	}
 
 	ctx, cancel := context.WithCancel(a.ctx)
-	defer cancel()
 
 	go a.registerGNMIServer(ctx)
 	go func() {
+		defer cancel()
 		err := s.Start(ctx)
 		if err != nil {
 			a.Logger.Print(err)
