@@ -185,7 +185,8 @@ CRCLIENT:
 	case <-gnmiCtx.Done():
 		return gnmiCtx.Err()
 	default:
-		targetDialOpts := a.dialOpts
+		targetDialOpts := make([]grpc.DialOption, len(a.dialOpts))
+		copy(targetDialOpts, a.dialOpts)
 		if a.Config.UseTunnelServer {
 			a.ttm.Lock()
 			a.tunTargetCfn[tunnel.Target{ID: tc.Name, Type: tc.TunnelTargetType}] = cancel
