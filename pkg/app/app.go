@@ -320,18 +320,22 @@ func (a *App) PrintMsg(address string, msgName string, msg proto.Message) error 
 	return nil
 }
 
-func (a *App) createCollectorDialOpts() []grpc.DialOption {
-	opts := []grpc.DialOption{grpc.WithBlock()}
+func (a *App) createCollectorDialOpts() {
+	// append gRPC userAgent name
+	opts := []grpc.DialOption{grpc.WithUserAgent(fmt.Sprintf("gNMIc/%s", version))}
+	// add maxMsgSize
 	if a.Config.MaxMsgSize > 0 {
 		opts = append(opts, grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(a.Config.MaxMsgSize)))
 	}
+	// Set NoProxy
 	if !a.Config.ProxyFromEnv {
 		opts = append(opts, grpc.WithNoProxy())
 	}
-	opts = append(opts, grpc.WithUserAgent(fmt.Sprintf("gNMIc/%s", version)))
+	// add gzip compressor
 	if a.Config.Gzip {
 		opts = append(opts, grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)))
 	}
+	// enable metrics
 	if a.Config.APIServer != nil && a.Config.APIServer.EnableMetrics && a.reg != nil {
 		grpcClientMetrics := grpc_prometheus.NewClientMetrics()
 		opts = append(opts,
@@ -341,7 +345,6 @@ func (a *App) createCollectorDialOpts() []grpc.DialOption {
 		a.reg.MustRegister(grpcClientMetrics)
 	}
 	a.dialOpts = opts
-	return opts
 }
 
 func (a *App) watchConfig() {
