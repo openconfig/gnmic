@@ -330,6 +330,11 @@ func (a *App) handleHealthzGet(w http.ResponseWriter, r *http.Request) {
 	w.Write(b)
 }
 
+func (a *App) handleAdminShutdown(w http.ResponseWriter, r *http.Request) {
+	a.Logger.Printf("shutting down due to user request")
+	a.Cfn()
+}
+
 func (a *App) handleClusteringMembersGet(w http.ResponseWriter, r *http.Request) {
 	if a.Config.Clustering == nil {
 		return
