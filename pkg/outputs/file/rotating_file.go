@@ -36,13 +36,13 @@ type rotatingFile struct {
 }
 
 // newRotatingFile initialize the lumberjack instance
-func newRotatingFile(filename string, compress bool, maxSize, maxBackups, maxAge int) *rotatingFile {
+func newRotatingFile(cfg *Config) *rotatingFile {
 	lj := lumberjack.Logger{
-		Filename:   filename,
-		MaxSize:    maxSize,
-		MaxBackups: maxBackups,
-		MaxAge:     maxAge,
-		Compress:   compress,
+		Filename:   cfg.FileName,
+		MaxSize:    cfg.Rotation.MaxSize,
+		MaxBackups: cfg.Rotation.MaxBackups,
+		MaxAge:     cfg.Rotation.MaxAge,
+		Compress:   cfg.Rotation.Compress,
 	}
 
 	return &rotatingFile{l: &lj}

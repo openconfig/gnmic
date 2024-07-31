@@ -157,7 +157,7 @@ func (f *File) Init(ctx context.Context, name string, cfg map[string]interface{}
 			return err
 		}
 
-		f.file = newRotatingFile(f.cfg.FileName, f.cfg.Rotation.Compress, f.cfg.Rotation.MaxSize, f.cfg.Rotation.MaxBackups, f.cfg.Rotation.MaxAge)
+		f.file = newRotatingFile(f.cfg)
 	default:
 	CRFILE:
 		f.file, err = os.OpenFile(f.cfg.FileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
