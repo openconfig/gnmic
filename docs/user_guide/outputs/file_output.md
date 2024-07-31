@@ -10,9 +10,9 @@ outputs:
     # filename to write telemetry data to.
     # will be ignored if `file-type` is set
     filename: /path/to/filename
-    # file-type, stdout or stderr.
-    # overwrites `filename`
-    file-type: # stdout or stderr
+    # file-type, stdout, stderr, or rotating.
+    # overwrites `filename` if stdout or stderr
+    file-type: # stdout, stderr, or rotating
     # string, message formatting, json, protojson, prototext, event
     format: 
     # string, one of `overwrite`, `if-not-present`, ``
@@ -54,10 +54,20 @@ outputs:
     enable-metrics: false
      # list of processors to apply on the message before writing
     event-processors:
+    # file rotation configuration
+    #   all fields are required if enabling file rotation
+    rotation:
+      max-size: 100 # size in megabytes
+      max-age: 30 # max age in days
+      max-backups: 3 # maximum number of old files to store, not counting the current file
+      compress: false # whether or not to enable compression
+      
 ```
 
-The file output can be used to write to file on the disk, to stdout or to stderr.
+The file output can be used to write to file on the disk, to stdout or to stderr. Also includes support for rotating files to control disk utilization and maximum age.
 
 For a disk file, a file name is required.
 
 For stdout or stderr, only file-type is required.
+
+For rotation, all fields (other than `compress`) are required.
