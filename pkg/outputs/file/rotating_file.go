@@ -1,34 +1,28 @@
 package file
 
 import (
-	"fmt"
-
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 // RotationConfig manages configuration around file rotation
-type RotationConfig struct {
+type rotationConfig struct {
 	MaxSize    int  `mapstructure:"max-size,omitempty"`
 	MaxBackups int  `mapstructure:"max-backups,omitempty"`
 	MaxAge     int  `mapstructure:"max-age,omitempty"`
 	Compress   bool `mapstructure:"compress,omitempty"`
 }
 
-// validateConfig ensures all parameters are supplied
-func (rc *RotationConfig) validateConfig() error {
-	if rc.MaxSize == 0 {
-		return fmt.Errorf("Rotation.MaxSize is required if using type 'rotating'")
+func (r *rotationConfig) SetDefaults() {
+	if r.MaxSize == 0 {
+		r.MaxSize = 100
+	}
+	if r.MaxBackups == 0 {
+		r.MaxBackups = 3
 	}
 
-	if rc.MaxBackups == 0 {
-		return fmt.Errorf("Rotation.MaxBackups is required if using type 'rotating'")
+	if r.MaxAge == 0 {
+		r.MaxAge = 30
 	}
-
-	if rc.MaxAge == 0 {
-		return fmt.Errorf("Rotation.MaxAge is required if using type 'rotating'")
-	}
-
-	return nil
 }
 
 type rotatingFile struct {
@@ -37,6 +31,8 @@ type rotatingFile struct {
 
 // newRotatingFile initialize the lumberjack instance
 func newRotatingFile(cfg *Config) *rotatingFile {
+	cfg.Rotation.SetDefaults()
+
 	lj := lumberjack.Logger{
 		Filename:   cfg.FileName,
 		MaxSize:    cfg.Rotation.MaxSize,

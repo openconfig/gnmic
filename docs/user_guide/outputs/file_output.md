@@ -55,7 +55,6 @@ outputs:
      # list of processors to apply on the message before writing
     event-processors:
     # file rotation configuration
-    #   all fields are required if enabling file rotation
     rotation:
       max-size: 100 # size in megabytes
       max-age: 30 # max age in days
@@ -69,5 +68,3 @@ The file output can be used to write to file on the disk, to stdout or to stderr
 For a disk file, a file name is required.
 
 For stdout or stderr, only file-type is required.
-
-For rotation, all fields (other than `compress`) are required.

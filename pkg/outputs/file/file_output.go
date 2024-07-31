@@ -78,7 +78,7 @@ type Config struct {
 	EnableMetrics      bool           `mapstructure:"enable-metrics,omitempty"`
 	Debug              bool           `mapstructure:"debug,omitempty"`
 	CalculateLatency   bool           `mapstructure:"calculate-latency,omitempty"`
-	Rotation           RotationConfig `mapstructure:"rotation,omitempty"`
+	Rotation           rotationConfig `mapstructure:"rotation,omitempty"`
 }
 
 type file interface {
@@ -150,13 +150,6 @@ func (f *File) Init(ctx context.Context, name string, cfg map[string]interface{}
 	case "stderr":
 		f.file = os.Stderr
 	case "rotating":
-		err := f.cfg.Rotation.validateConfig()
-		if err != nil {
-			f.logger.Printf("failed to validate rotating configuration: %v", err)
-
-			return err
-		}
-
 		f.file = newRotatingFile(f.cfg)
 	default:
 	CRFILE:
