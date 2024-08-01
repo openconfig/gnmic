@@ -12,7 +12,7 @@ require (
 	github.com/IBM/sarama v1.43.1
 	github.com/adrg/xdg v0.4.0
 	github.com/c-bata/go-prompt v0.2.6
-	github.com/docker/docker v26.1.0+incompatible
+	github.com/docker/docker v26.1.4+incompatible
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/fullstorydev/grpcurl v1.9.1
 	github.com/go-redsync/redsync/v4 v4.11.0
