@@ -10,8 +10,8 @@ outputs:
     # filename to write telemetry data to.
     # will be ignored if `file-type` is set
     filename: /path/to/filename
-    # file-type, stdout or stderr
-    # overwrites `filename` if stdout or stderr
+    # file-type, stdout or stderr.
+    # overwrites `filename`
     file-type: # stdout or stderr
     # string, message formatting, json, protojson, prototext, event
     format: 
