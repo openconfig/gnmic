@@ -10,9 +10,9 @@ outputs:
     # filename to write telemetry data to.
     # will be ignored if `file-type` is set
     filename: /path/to/filename
-    # file-type, stdout, stderr, or rotating.
+    # file-type, stdout or stderr
     # overwrites `filename` if stdout or stderr
-    file-type: # stdout, stderr, or rotating
+    file-type: # stdout or stderr
     # string, message formatting, json, protojson, prototext, event
     format: 
     # string, one of `overwrite`, `if-not-present`, ``
@@ -63,7 +63,7 @@ outputs:
       
 ```
 
-The file output can be used to write to file on the disk, to stdout or to stderr. Also includes support for rotating files to control disk utilization and maximum age.
+The file output can be used to write to file on the disk, to stdout or to stderr. Also includes support for rotating files to control disk utilization and maximum age using the `rotation` configuration section.
 
 For a disk file, a file name is required.
 
