@@ -62,23 +62,23 @@ type File struct {
 
 // Config //
 type Config struct {
-	FileName           string         `mapstructure:"filename,omitempty"`
-	FileType           string         `mapstructure:"file-type,omitempty"`
-	Format             string         `mapstructure:"format,omitempty"`
-	Multiline          bool           `mapstructure:"multiline,omitempty"`
-	Indent             string         `mapstructure:"indent,omitempty"`
-	Separator          string         `mapstructure:"separator,omitempty"`
-	SplitEvents        bool           `mapstructure:"split-events,omitempty"`
-	OverrideTimestamps bool           `mapstructure:"override-timestamps,omitempty"`
-	AddTarget          string         `mapstructure:"add-target,omitempty"`
-	TargetTemplate     string         `mapstructure:"target-template,omitempty"`
-	EventProcessors    []string       `mapstructure:"event-processors,omitempty"`
-	MsgTemplate        string         `mapstructure:"msg-template,omitempty"`
-	ConcurrencyLimit   int            `mapstructure:"concurrency-limit,omitempty"`
-	EnableMetrics      bool           `mapstructure:"enable-metrics,omitempty"`
-	Debug              bool           `mapstructure:"debug,omitempty"`
-	CalculateLatency   bool           `mapstructure:"calculate-latency,omitempty"`
-	Rotation           rotationConfig `mapstructure:"rotation,omitempty"`
+	FileName           string          `mapstructure:"filename,omitempty"`
+	FileType           string          `mapstructure:"file-type,omitempty"`
+	Format             string          `mapstructure:"format,omitempty"`
+	Multiline          bool            `mapstructure:"multiline,omitempty"`
+	Indent             string          `mapstructure:"indent,omitempty"`
+	Separator          string          `mapstructure:"separator,omitempty"`
+	SplitEvents        bool            `mapstructure:"split-events,omitempty"`
+	OverrideTimestamps bool            `mapstructure:"override-timestamps,omitempty"`
+	AddTarget          string          `mapstructure:"add-target,omitempty"`
+	TargetTemplate     string          `mapstructure:"target-template,omitempty"`
+	EventProcessors    []string        `mapstructure:"event-processors,omitempty"`
+	MsgTemplate        string          `mapstructure:"msg-template,omitempty"`
+	ConcurrencyLimit   int             `mapstructure:"concurrency-limit,omitempty"`
+	EnableMetrics      bool            `mapstructure:"enable-metrics,omitempty"`
+	Debug              bool            `mapstructure:"debug,omitempty"`
+	CalculateLatency   bool            `mapstructure:"calculate-latency,omitempty"`
+	Rotation           *rotationConfig `mapstructure:"rotation,omitempty"`
 }
 
 type file interface {
@@ -149,15 +149,17 @@ func (f *File) Init(ctx context.Context, name string, cfg map[string]interface{}
 		f.file = os.Stdout
 	case "stderr":
 		f.file = os.Stderr
-	case "rotating":
-		f.file = newRotatingFile(f.cfg)
 	default:
 	CRFILE:
-		f.file, err = os.OpenFile(f.cfg.FileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-		if err != nil {
-			f.logger.Printf("failed to create file: %v", err)
-			time.Sleep(10 * time.Second)
-			goto CRFILE
+		if f.cfg.Rotation != nil {
+			f.file = newRotatingFile(f.cfg)
+		} else {
+			f.file, err = os.OpenFile(f.cfg.FileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+			if err != nil {
+				f.logger.Printf("failed to create file: %v", err)
+				time.Sleep(10 * time.Second)
+				goto CRFILE
+			}
 		}
 	}
 
