@@ -26,10 +26,25 @@ dockers:
     ids:
       - gnmic
     image_templates:
-      - "ghcr.io/openconfig/gnmic:latest"
-      - 'ghcr.io/openconfig/gnmic:{{ replace .Version "v" ""}}'
+      - &amd64_latest_image "ghcr.io/openconfig/gnmic:latest-amd64"
+      - &amd64_versioned_image 'ghcr.io/openconfig/gnmic:{{ replace .Version "v" ""}}-amd64'
     dockerfile: goreleaser-alpine.dockerfile
     skip_push: false
+    use: buildx
+    build_flag_templates:
+      - "--platform=linux/amd64"
+  - goos: linux
+    goarch: arm64
+    ids:
+      - gnmic
+    image_templates:
+      - &arm64_latest_image "ghcr.io/openconfig/gnmic:latest-arm64"
+      - &arm64_versioned_image 'ghcr.io/openconfig/gnmic:{{ replace .Version "v" ""}}-arm64'
+    dockerfile: goreleaser-alpine.dockerfile
+    skip_push: false
+    use: buildx
+    build_flag_templates:
+      - "--platform=linux/arm64"
   - goos: linux
     goarch: amd64
     ids:
@@ -39,6 +54,15 @@ dockers:
       - 'ghcr.io/openconfig/gnmic:{{ replace .Version "v" ""}}-scratch'
     dockerfile: goreleaser-scratch.dockerfile
     skip_push: false
+docker_manifests:
+  - name_template: 'ghcr.io/openconfig/gnmic:{{ replace .Version "v" "" }}'
+    image_templates:
+      - *amd64_versioned_image
+      - *arm64_versioned_image
+  - name_template: "{{- if not .IsSnapshot}}ghcr.io/openconfig/gnmic:latest{{- end}}"
+    image_templates:
+      - *amd64_latest_image
+      - *arm64_latest_image
 archives:
   - name_template: >-
       {{ .ProjectName }}_
