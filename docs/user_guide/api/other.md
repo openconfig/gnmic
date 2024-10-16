@@ -16,3 +16,14 @@ Health check endpoint for Kubernetes or similar
         "status": "healthy"
     }
     ```
+    
+## /api/v1/admin/shutdown
+
+### `POST /api/v1/admin/shutdown`
+
+Gracefully shut down the application
+
+=== "Request"
+    ```bash
+    curl --request POST gnmic-api-address:port/api/v1/admin/shutdown
+    ```

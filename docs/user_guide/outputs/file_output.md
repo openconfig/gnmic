@@ -54,9 +54,16 @@ outputs:
     enable-metrics: false
      # list of processors to apply on the message before writing
     event-processors:
+    # file rotation configuration
+    rotation:
+      max-size: 100 # size in megabytes
+      max-age: 30 # max age in days
+      max-backups: 3 # maximum number of old files to store, not counting the current file
+      compress: false # whether or not to enable compression
+      
 ```
 
-The file output can be used to write to file on the disk, to stdout or to stderr.
+The file output can be used to write to file on the disk, to stdout or to stderr. Also includes support for rotating files to control disk utilization and maximum age using the `rotation` configuration section.
 
 For a disk file, a file name is required.
 

@@ -38,14 +38,14 @@ func (o *MarshalOptions) FormatJSON(m proto.Message, meta map[string]string) ([]
 	case *gnmi.SetResponse:
 		return o.formatSetResponse(m, meta)
 	case *gnmi.SubscribeRequest:
-		return o.formatsubscribeRequest(m)
+		return o.formatSubscribeRequest(m)
 	case *gnmi.SubscribeResponse:
 		return o.formatSubscribeResponse(m, meta)
 	}
 	return nil, nil
 }
 
-func (o *MarshalOptions) formatsubscribeRequest(m *gnmi.SubscribeRequest) ([]byte, error) {
+func (o *MarshalOptions) formatSubscribeRequest(m *gnmi.SubscribeRequest) ([]byte, error) {
 	msg := subscribeReq{}
 	switch m := m.Request.(type) {
 	case *gnmi.SubscribeRequest_Subscribe:
@@ -53,7 +53,6 @@ func (o *MarshalOptions) formatsubscribeRequest(m *gnmi.SubscribeRequest) ([]byt
 		msg.Subscribe.Target = m.Subscribe.GetPrefix().GetTarget()
 		msg.Subscribe.Subscriptions = make([]subscription, 0, len(m.Subscribe.GetSubscription()))
 		if m.Subscribe != nil {
-			// msg.Subscribe.UseAliases = m.Subscribe.UseAliases
 			msg.Subscribe.AllowAggregation = m.Subscribe.AllowAggregation
 			msg.Subscribe.UpdatesOnly = m.Subscribe.UpdatesOnly
 			msg.Subscribe.Encoding = m.Subscribe.Encoding.String()
@@ -74,11 +73,9 @@ func (o *MarshalOptions) formatsubscribeRequest(m *gnmi.SubscribeRequest) ([]byt
 		}
 	case *gnmi.SubscribeRequest_Poll:
 		msg.Poll = new(poll)
-		// case *gnmi.SubscribeRequest_Aliases:
-		// 	msg.Aliases = make(map[string]string)
-		// 	for _, a := range m.Aliases.GetAlias() {
-		// 		msg.Aliases[a.Alias] = path.GnmiPathToXPath(a.Path, false)
-		// 	}
+	}
+	if len(m.GetExtension()) > 0 {
+		msg.Extensions = m.GetExtension()
 	}
 	if o.Multiline {
 		return json.MarshalIndent(msg, "", o.Indent)
@@ -87,12 +84,29 @@ func (o *MarshalOptions) formatsubscribeRequest(m *gnmi.SubscribeRequest) ([]byt
 }
 
 func (o *MarshalOptions) formatSubscribeResponse(m *gnmi.SubscribeResponse, meta map[string]string) ([]byte, error) {
-	switch m := m.GetResponse().(type) {
-	case *gnmi.SubscribeResponse_Update:
-		msg := NotificationRspMsg{
-			Timestamp: m.Update.Timestamp,
+	switch mr := m.GetResponse().(type) {
+	default:
+		if len(m.GetExtension()) > 0 {
+			msg := notificationRspMsg{Extensions: m.GetExtension()}
+			if o.Multiline {
+				return json.MarshalIndent(msg, "", o.Indent)
+			}
+			return json.Marshal(msg)
 		}
-		t := time.Unix(0, m.Update.Timestamp)
+	case *gnmi.SubscribeResponse_SyncResponse:
+		msg := &syncResponseMsg{
+			SyncResponse: mr.SyncResponse,
+			Extensions:   m.GetExtension(),
+		}
+		if o.Multiline {
+			return json.MarshalIndent(msg, "", o.Indent)
+		}
+		return json.Marshal(msg)
+	case *gnmi.SubscribeResponse_Update:
+		msg := notificationRspMsg{
+			Timestamp: mr.Update.Timestamp,
+		}
+		t := time.Unix(0, mr.Update.Timestamp)
 		msg.Time = &t
 		if o.CalculateLatency {
 			msg.RecvTimestamp = time.Now().UnixNano()
@@ -104,8 +118,8 @@ func (o *MarshalOptions) formatSubscribeResponse(m *gnmi.SubscribeResponse, meta
 		if meta == nil {
 			meta = make(map[string]string)
 		}
-		msg.Prefix = path.GnmiPathToXPath(m.Update.GetPrefix(), false)
-		msg.Target = m.Update.Prefix.GetTarget()
+		msg.Prefix = path.GnmiPathToXPath(mr.Update.GetPrefix(), false)
+		msg.Target = mr.Update.Prefix.GetTarget()
 		if s, ok := meta["source"]; ok {
 			msg.Source = s
 		}
@@ -115,7 +129,7 @@ func (o *MarshalOptions) formatSubscribeResponse(m *gnmi.SubscribeResponse, meta
 		if s, ok := meta["subscription-name"]; ok {
 			msg.SubscriptionName = s
 		}
-		for i, upd := range m.Update.Update {
+		for i, upd := range mr.Update.Update {
 			if upd.Path == nil {
 				upd.Path = new(gnmi.Path)
 			}
@@ -134,8 +148,11 @@ func (o *MarshalOptions) formatSubscribeResponse(m *gnmi.SubscribeResponse, meta
 				})
 			msg.Updates[i].Values[strings.Join(pathElems, "/")] = value
 		}
-		for _, del := range m.Update.Delete {
+		for _, del := range mr.Update.Delete {
 			msg.Deletes = append(msg.Deletes, path.GnmiPathToXPath(del, false))
+		}
+		if len(m.GetExtension()) > 0 {
+			msg.Extensions = m.GetExtension()
 		}
 		if o.Multiline {
 			return json.MarshalIndent(msg, "", o.Indent)
@@ -147,10 +164,7 @@ func (o *MarshalOptions) formatSubscribeResponse(m *gnmi.SubscribeResponse, meta
 
 func (o *MarshalOptions) formatCapabilitiesRequest(m *gnmi.CapabilityRequest) ([]byte, error) {
 	capReq := capRequest{
-		Extensions: make([]string, 0, len(m.Extension)),
-	}
-	for _, e := range m.Extension {
-		capReq.Extensions = append(capReq.Extensions, e.String())
+		Extensions: m.Extension,
 	}
 	if o.Multiline {
 		return json.MarshalIndent(capReq, "", o.Indent)
@@ -159,7 +173,9 @@ func (o *MarshalOptions) formatCapabilitiesRequest(m *gnmi.CapabilityRequest) ([
 }
 
 func (o *MarshalOptions) formatCapabilitiesResponse(m *gnmi.CapabilityResponse) ([]byte, error) {
-	capRspMsg := capResponse{}
+	capRspMsg := capResponse{
+		Extensions: m.Extension,
+	}
 	capRspMsg.Version = m.GetGNMIVersion()
 	for _, sm := range m.SupportedModels {
 		capRspMsg.SupportedModels = append(capRspMsg.SupportedModels,
@@ -180,11 +196,12 @@ func (o *MarshalOptions) formatCapabilitiesResponse(m *gnmi.CapabilityResponse) 
 
 func (o *MarshalOptions) formatGetRequest(m *gnmi.GetRequest) ([]byte, error) {
 	msg := getRqMsg{
-		Prefix:   path.GnmiPathToXPath(m.GetPrefix(), false),
-		Target:   m.GetPrefix().GetTarget(),
-		Paths:    make([]string, 0, len(m.Path)),
-		Encoding: m.GetEncoding().String(),
-		DataType: m.GetType().String(),
+		Prefix:     path.GnmiPathToXPath(m.GetPrefix(), false),
+		Target:     m.GetPrefix().GetTarget(),
+		Paths:      make([]string, 0, len(m.Path)),
+		Encoding:   m.GetEncoding().String(),
+		DataType:   m.GetType().String(),
+		Extensions: m.Extension,
 	}
 	for _, p := range m.Path {
 		msg.Paths = append(msg.Paths, path.GnmiPathToXPath(p, false))
@@ -204,9 +221,13 @@ func (o *MarshalOptions) formatGetRequest(m *gnmi.GetRequest) ([]byte, error) {
 }
 
 func (o *MarshalOptions) formatGetResponse(m *gnmi.GetResponse, meta map[string]string) ([]byte, error) {
-	notifications := make([]NotificationRspMsg, 0, len(m.GetNotification()))
+	getRsp := getRspMsg{
+		Notifications: make([]notificationRspMsg, 0, len(m.GetNotification())),
+		Extensions:    m.GetExtension(),
+	}
+
 	for _, notif := range m.GetNotification() {
-		msg := NotificationRspMsg{
+		msg := notificationRspMsg{
 			Prefix:  path.GnmiPathToXPath(notif.GetPrefix(), false),
 			Updates: make([]update, 0, len(notif.GetUpdate())),
 			Deletes: make([]string, 0, len(notif.GetDelete())),
@@ -248,12 +269,12 @@ func (o *MarshalOptions) formatGetResponse(m *gnmi.GetResponse, meta map[string]
 		for _, del := range notif.GetDelete() {
 			msg.Deletes = append(msg.Deletes, path.GnmiPathToXPath(del, false))
 		}
-		notifications = append(notifications, msg)
+		getRsp.Notifications = append(getRsp.Notifications, msg)
 	}
 
 	if o.ValuesOnly {
-		result := make([]interface{}, 0, len(notifications))
-		for _, n := range notifications {
+		result := make([]interface{}, 0, len(getRsp.Notifications))
+		for _, n := range getRsp.Notifications {
 			for _, u := range n.Updates {
 				for _, v := range u.Values {
 					result = append(result, v)
@@ -262,19 +283,26 @@ func (o *MarshalOptions) formatGetResponse(m *gnmi.GetResponse, meta map[string]
 		}
 		return json.MarshalIndent(result, "", "  ")
 	}
-	if o.Multiline {
-		return json.MarshalIndent(notifications, "", o.Indent)
+	var data any
+	if len(getRsp.Extensions) > 0 {
+		data = getRsp
+	} else {
+		data = getRsp.Notifications
 	}
-	return json.Marshal(notifications)
+	if o.Multiline {
+		return json.MarshalIndent(data, "", o.Indent)
+	}
+	return json.Marshal(data)
 }
 
 func (o *MarshalOptions) formatSetRequest(m *gnmi.SetRequest) ([]byte, error) {
 	req := setReqMsg{
-		Prefix:  path.GnmiPathToXPath(m.GetPrefix(), false),
-		Target:  m.GetPrefix().GetTarget(),
-		Delete:  make([]string, 0, len(m.GetDelete())),
-		Replace: make([]updateMsg, 0, len(m.GetReplace())),
-		Update:  make([]updateMsg, 0, len(m.GetUpdate())),
+		Prefix:     path.GnmiPathToXPath(m.GetPrefix(), false),
+		Target:     m.GetPrefix().GetTarget(),
+		Delete:     make([]string, 0, len(m.GetDelete())),
+		Replace:    make([]updateMsg, 0, len(m.GetReplace())),
+		Update:     make([]updateMsg, 0, len(m.GetUpdate())),
+		Extensions: m.GetExtension(),
 	}
 
 	for _, del := range m.GetDelete() {
@@ -302,11 +330,13 @@ func (o *MarshalOptions) formatSetRequest(m *gnmi.SetRequest) ([]byte, error) {
 }
 
 func (o *MarshalOptions) formatSetResponse(m *gnmi.SetResponse, meta map[string]string) ([]byte, error) {
-	msg := setRspMsg{}
-	msg.Prefix = path.GnmiPathToXPath(m.GetPrefix(), false)
-	msg.Target = m.GetPrefix().GetTarget()
-	msg.Timestamp = m.Timestamp
-	msg.Time = time.Unix(0, m.Timestamp)
+	msg := setRspMsg{
+		Prefix:     path.GnmiPathToXPath(m.GetPrefix(), false),
+		Target:     m.GetPrefix().GetTarget(),
+		Timestamp:  m.GetTimestamp(),
+		Time:       time.Unix(0, m.Timestamp),
+		Extensions: m.GetExtension(),
+	}
 	if meta == nil {
 		meta = make(map[string]string)
 	}

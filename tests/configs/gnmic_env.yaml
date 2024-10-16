@@ -1,0 +1,2 @@
+address: $CUSTOM_ADDR
+skip-verify: $SKIPVER

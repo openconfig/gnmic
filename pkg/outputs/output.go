@@ -169,6 +169,9 @@ func Marshal(pmsg protoreflect.ProtoMessage, meta map[string]string, mo *formatt
 		if err != nil {
 			return nil, err
 		}
+		if len(b) == 0 {
+			return nil, nil
+		}
 		return [][]byte{b}, nil
 	}
 }

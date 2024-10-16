@@ -20,6 +20,7 @@ func (a *App) routes() {
 	a.configRoutes(apiV1)
 	a.targetRoutes(apiV1)
 	a.healthRoutes(apiV1)
+	a.adminRoutes(apiV1)
 }
 
 func (a *App) clusterRoutes(r *mux.Router) {
@@ -63,4 +64,8 @@ func (a *App) targetRoutes(r *mux.Router) {
 
 func (a *App) healthRoutes(r *mux.Router) {
 	r.HandleFunc("/healthz", a.handleHealthzGet).Methods(http.MethodGet)
+}
+
+func (a *App) adminRoutes(r *mux.Router) {
+	r.HandleFunc("/admin/shutdown", a.handleAdminShutdown).Methods(http.MethodPost)
 }

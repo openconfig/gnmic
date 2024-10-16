@@ -13,13 +13,15 @@ targets=clab-test1-srl1,clab-test1-srl2,clab-test1-srl3
 ./gnmic-rc1 -u admin -p NokiaSrl1! --skip-verify --debug -a $targets -e json_ietf \
         set \
         --update-path /system/configuration/role[name=readonly]/rule[path-reference="/"]/action \
-        --update-value "read"
+        --update-value "read" \
+        --update-path /system/aaa/authorization/role[rolename=readonly] \
+        --update-value '{"services": ["gnmi"]}'
 
 # create a new user
 ./gnmic-rc1 -u admin -p NokiaSrl1! --skip-verify --debug -a $targets -e json_ietf \
         set \
         --update-path /system/aaa/authentication/user[username=user1]/password \
-        --update-value '|Bo|Z%TYe*&$P33~' 
+        --update-value "|Bo|Z%TYe*&\$P33~"
 
 # assign readonly role to the new user
 ./gnmic-rc1 -u admin -p NokiaSrl1! --skip-verify --debug -a $targets -e json_ietf \
@@ -33,7 +35,7 @@ targets=clab-test1-srl1,clab-test1-srl2,clab-test1-srl3
        --path /system/name
 
 # password from ENV
-GNMIC_PASSWORD='|Bo|Z%TYe*&$P33~' ./gnmic-rc1 -u user1 --skip-verify --debug -a $targets -e json_ietf \
+GNMIC_PASSWORD="|Bo|Z%TYe*&\$P33~" ./gnmic-rc1 -u user1 --skip-verify --debug -a $targets -e json_ietf \
        get \
        --path /system/name
 
@@ -56,3 +58,11 @@ GNMIC_USERNAME=user1 GNMIC_PASSWORD='|Bo|Z%TYe*&$P33~' GNMIC_DEBUG=true ./gnmic-
 GNMIC_USERNAME=user1 GNMIC_PASSWORD='|Bo|Z%TYe*&$P33~' GNMIC_DEBUG=true GNMIC_SKIP_VERIFY=true GNMIC_ENCODING=json_ietf GNMIC_ADDRESS=$targets ./gnmic-rc1 \
        get \
        --path /system/name
+
+## config file expansion
+CUSTOM_ADDR=$targets GNMIC_USERNAME=user1 GNMIC_PASSWORD='|Bo|Z%TYe*&$P33~' GNMIC_SKIP_VERIFY=true GNMIC_ENCODING=json_ietf ./gnmic-rc1 --config configs/gnmic_env.yaml --debug \
+       get \
+       --path /system/name
+CUSTOM_ADDR=$targets GNMIC_USERNAME=user1 GNMIC_PASSWORD='|Bo|Z%TYe*&$P33~' GNMIC_SKIP_VERIFY=true SKIPVER=false GNMIC_ENCODING=json_ietf ./gnmic-rc1 --config configs/gnmic_env.yaml --debug \
+       get \
+       --path /system/dns
