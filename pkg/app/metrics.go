@@ -11,6 +11,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -35,6 +36,14 @@ var subscribeResponseFailedCounter = prometheus.NewCounterVec(prometheus.Counter
 	Help:      "Total number of failed subscribe requests",
 }, []string{"source", "subscription"})
 
+// target
+var targetUPMetric = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	Namespace: "gnmic",
+	Subsystem: "target",
+	Name:      "up",
+	Help:      "Has value 1 if the gNMI connection to the target is established; otherwise, 0.",
+}, []string{"name"})
+
 // cluster
 var clusterNumberOfLockedTargets = prometheus.NewGauge(prometheus.GaugeOpts{
 	Namespace: "gnmic",
@@ -48,6 +57,66 @@ var clusterIsLeader = prometheus.NewGauge(prometheus.GaugeOpts{
 	Name:      "is_leader",
 	Help:      "Has value 1 if this gnmic instance is the cluster leader, 0 otherwise",
 })
+
+func (a *App) registerTargetMetrics() {
+	err := a.reg.Register(targetUPMetric)
+	if err != nil {
+		a.Logger.Printf("failed to register target metric: %v", err)
+	}
+	a.configLock.RLock()
+	for _, t := range a.Config.Targets {
+		targetUPMetric.WithLabelValues(t.Name).Set(0)
+	}
+	a.configLock.RUnlock()
+	go func() {
+		ticker := time.NewTicker(clusterMetricsUpdatePeriod)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-a.ctx.Done():
+				return
+			case <-ticker.C:
+				ownTargets := make(map[string]string)
+				if a.isLeader {
+					lockedNodesPrefix := fmt.Sprintf("gnmic/%s/targets", a.Config.ClusterName)
+					ctx, cancel := context.WithTimeout(a.ctx, clusterMetricsUpdatePeriod/2)
+					lockedNodes, err := a.locker.List(ctx, lockedNodesPrefix)
+					cancel()
+					if err != nil {
+						a.Logger.Printf("failed to get locked nodes key: %v", err)
+					}
+					for k, v := range lockedNodes {
+						ownTargets[strings.TrimPrefix(k, lockedNodesPrefix+"/")] = v
+					}
+				}
+
+				a.configLock.RLock()
+				for _, tc := range a.Config.Targets {
+					a.operLock.RLock()
+					t, ok := a.Targets[tc.Name]
+					a.operLock.RUnlock()
+					if ok {
+						switch t.ConnState() {
+						case "IDLE", "READY":
+							targetUPMetric.WithLabelValues(tc.Name).Set(1)
+						default:
+							targetUPMetric.WithLabelValues(tc.Name).Set(0)
+						}
+					} else {
+						if a.isLeader {
+							if ownTargets[tc.Name] == a.Config.Clustering.InstanceName {
+								targetUPMetric.WithLabelValues(tc.Name).Set(0)
+							}
+						} else {
+							targetUPMetric.WithLabelValues(tc.Name).Set(0)
+						}
+					}
+				}
+				a.configLock.RUnlock()
+			}
+		}
+	}()
+}
 
 func (a *App) startClusterMetrics() {
 	if a.Config.APIServer == nil || !a.Config.APIServer.EnableMetrics || a.Config.Clustering == nil {
