@@ -40,18 +40,20 @@ func (i *influxDBOutput) stopCache() {
 func (i *influxDBOutput) runCache(ctx context.Context, name string) {
 	for {
 		select {
+		case <-ctx.Done():
+			return
 		case <-i.done:
 			return
 		case <-i.cacheTicker.C:
 			if i.Cfg.Debug {
 				i.logger.Printf("cache timer tick")
 			}
-			i.readCache(ctx, name)
+			i.readCache(ctx)
 		}
 	}
 }
 
-func (i *influxDBOutput) readCache(ctx context.Context, name string) {
+func (i *influxDBOutput) readCache(ctx context.Context) {
 	notifications, err := i.gnmiCache.ReadAll()
 	if err != nil {
 		i.logger.Printf("failed to read from cache: %v", err)
@@ -85,6 +87,8 @@ func (i *influxDBOutput) readCache(ctx context.Context, name string) {
 
 	for _, ev := range events {
 		select {
+		case <-ctx.Done():
+			return
 		case <-i.reset:
 			return
 		case i.eventChan <- ev:
