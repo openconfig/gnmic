@@ -9,10 +9,12 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/openconfig/gnmic/pkg/api/types"
 )
 
 const (
@@ -32,6 +34,7 @@ type clustering struct {
 	LeaderWaitTimer         time.Duration          `mapstructure:"leader-wait-timer,omitempty" json:"leader-wait-timer,omitempty" yaml:"leader-wait-timer,omitempty"`
 	Tags                    []string               `mapstructure:"tags,omitempty" json:"tags,omitempty" yaml:"tags,omitempty"`
 	Locker                  map[string]interface{} `mapstructure:"locker,omitempty" json:"locker,omitempty" yaml:"locker,omitempty"`
+	TLS                     *types.TLSConfig       `mapstructure:"tls,omitempty" json:"tls,omitempty" yaml:"tls,omitempty"`
 }
 
 func (c *Config) GetClustering() error {
@@ -49,6 +52,16 @@ func (c *Config) GetClustering() error {
 	c.Clustering.Tags = c.FileConfig.GetStringSlice("clustering/tags")
 	for i := range c.Clustering.Tags {
 		c.Clustering.Tags[i] = os.ExpandEnv(c.Clustering.Tags[i])
+	}
+	if c.FileConfig.IsSet("clustering/tls") {
+		c.Clustering.TLS = new(types.TLSConfig)
+		c.Clustering.TLS.CaFile = os.ExpandEnv(c.FileConfig.GetString("clustering/tls/ca-file"))
+		c.Clustering.TLS.CertFile = os.ExpandEnv(c.FileConfig.GetString("clustering/tls/cert-file"))
+		c.Clustering.TLS.KeyFile = os.ExpandEnv(c.FileConfig.GetString("clustering/tls/key-file"))
+		c.Clustering.TLS.SkipVerify = os.ExpandEnv(c.FileConfig.GetString("clustering/tls/skip-verify")) == trueString
+		if err := c.APIServer.TLS.Validate(); err != nil {
+			return fmt.Errorf("clustering TLS config error: %w", err)
+		}
 	}
 	c.setClusteringDefaults()
 	return c.getLocker()
