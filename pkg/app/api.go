@@ -50,6 +50,7 @@ func (a *App) newAPIServer() (*http.Server, error) {
 		a.reg.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 		a.reg.MustRegister(subscribeResponseReceivedCounter)
 		a.reg.MustRegister(subscribeResponseFailedCounter)
+		a.registerTargetMetrics()
 		go a.startClusterMetrics()
 	}
 	s := &http.Server{

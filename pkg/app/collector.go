@@ -118,7 +118,7 @@ func (a *App) StartCollector(ctx context.Context) {
 				case tErr := <-errChan:
 					if errors.Is(tErr.Err, io.EOF) {
 						a.Logger.Printf("target %q: subscription %s closed stream(EOF)", t.Config.Name, tErr.SubscriptionName)
-						} else {
+					} else {
 						subscribeResponseFailedCounter.WithLabelValues(t.Config.Name, tErr.SubscriptionName).Inc()
 						a.Logger.Printf("target %q: subscription %s rcv error: %v", t.Config.Name, tErr.SubscriptionName, tErr.Err)
 					}
