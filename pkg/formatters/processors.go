@@ -42,6 +42,7 @@ var EventProcessorTypes = []string{
 	"event-value-tag",
 	"event-starlark",
 	"event-combine",
+	"event-ieeefloat32",
 }
 
 type Initializer func() EventProcessor
