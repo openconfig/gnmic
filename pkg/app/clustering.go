@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/openconfig/gnmic/pkg/api/types"
+	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/lockers"
 )
 
@@ -31,6 +32,7 @@ const (
 	retryTimer         = 10 * time.Second
 	lockWaitTime       = 100 * time.Millisecond
 	apiServiceName     = "gnmic-api"
+	protocolTagName    = "__protocol"
 )
 
 var (
@@ -81,9 +83,9 @@ func (a *App) apiServiceRegistration() {
 	tags = append(tags, fmt.Sprintf("cluster-name=%s", a.Config.Clustering.ClusterName))
 	tags = append(tags, fmt.Sprintf("instance-name=%s", a.Config.Clustering.InstanceName))
 	if a.Config.APIServer.TLS != nil {
-		tags = append(tags, "protocol=https")
+		tags = append(tags, protocolTagName+"=https")
 	} else {
-		tags = append(tags, "protocol=http")
+		tags = append(tags, protocolTagName+"=http")
 	}
 	tags = append(tags, a.Config.Clustering.Tags...)
 
@@ -538,25 +540,13 @@ func (a *App) getHighestTagsMatches(tagsCount map[string]int) []string {
 }
 
 func (a *App) deleteTarget(ctx context.Context, name string) error {
+	err := a.createAPIClient()
+	if err != nil {
+		return err
+	}
 	errs := make([]error, 0, len(a.apiServices))
 	for _, s := range a.apiServices {
-		scheme := "http"
-		client := &http.Client{
-			Timeout: defaultHTTPClientTimeout,
-		}
-		for _, t := range s.Tags {
-			if strings.HasPrefix(t, "protocol=") {
-				scheme = strings.Split(t, "=")[1]
-				break
-			}
-		}
-		if scheme == "https" {
-			client.Transport = &http.Transport{
-				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: true,
-				},
-			}
-		}
+		scheme := a.getServiceScheme(s)
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 		url := fmt.Sprintf("%s://%s/api/v1/config/targets/%s", scheme, s.Address, name)
@@ -567,7 +557,7 @@ func (a *App) deleteTarget(ctx context.Context, name string) error {
 			continue
 		}
 
-		rsp, err := client.Do(req)
+		rsp, err := a.clusteringClient.Do(req)
 		if err != nil {
 			rsp.Body.Close()
 			a.Logger.Printf("failed deleting target %q: %v", name, err)
@@ -590,29 +580,17 @@ func (a *App) assignTarget(ctx context.Context, tc *types.TargetConfig, service 
 	if err != nil {
 		return err
 	}
-	scheme := "http"
-	client := &http.Client{
-		Timeout: defaultHTTPClientTimeout,
+	err = a.createAPIClient()
+	if err != nil {
+		return err
 	}
-	for _, t := range service.Tags {
-		if strings.HasPrefix(t, "protocol=") {
-			scheme = strings.Split(t, "=")[1]
-			break
-		}
-	}
-	if scheme == "https" {
-		client.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-		}
-	}
+	scheme := a.getServiceScheme(service)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%s://%s/api/v1/config/targets", scheme, service.Address), buffer)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := client.Do(req)
+	resp, err := a.clusteringClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -626,7 +604,7 @@ func (a *App) assignTarget(ctx context.Context, tc *types.TargetConfig, service 
 	if err != nil {
 		return err
 	}
-	resp, err = client.Do(req)
+	resp, err = a.clusteringClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -639,27 +617,15 @@ func (a *App) assignTarget(ctx context.Context, tc *types.TargetConfig, service 
 }
 
 func (a *App) unassignTarget(ctx context.Context, name string, serviceID string) error {
+	err := a.createAPIClient()
+	if err != nil {
+		return err
+	}
 	for _, s := range a.apiServices {
 		if s.ID != serviceID {
 			continue
 		}
-		scheme := "http"
-		client := &http.Client{
-			Timeout: defaultHTTPClientTimeout,
-		}
-		for _, t := range s.Tags {
-			if strings.HasPrefix(t, "protocol=") {
-				scheme = strings.Split(t, "=")[1]
-				break
-			}
-		}
-		if scheme == "https" {
-			client.Transport = &http.Transport{
-				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: true,
-				},
-			}
-		}
+		scheme := a.getServiceScheme(s)
 		url := fmt.Sprintf("%s://%s/api/v1/targets/%s", scheme, s.Address, name)
 		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
@@ -668,7 +634,7 @@ func (a *App) unassignTarget(ctx context.Context, name string, serviceID string)
 			a.Logger.Printf("failed to create HTTP request: %v", err)
 			continue
 		}
-		rsp, err := client.Do(req)
+		rsp, err := a.clusteringClient.Do(req)
 		if err != nil {
 			// don't close the body here since Body will be nil
 			a.Logger.Printf("failed HTTP request: %v", err)
@@ -677,6 +643,52 @@ func (a *App) unassignTarget(ctx context.Context, name string, serviceID string)
 		rsp.Body.Close()
 		a.Logger.Printf("received response code=%d, for DELETE %s", rsp.StatusCode, url)
 		break
+	}
+	return nil
+}
+
+func (a *App) getServiceScheme(service *lockers.Service) string {
+	scheme := "http"
+	for _, t := range service.Tags {
+		if strings.HasPrefix(t, protocolTagName+"=") {
+			scheme = strings.Split(t, "=")[1]
+			break
+		}
+	}
+	return scheme
+}
+
+func (a *App) createAPIClient() error {
+	if a.clusteringClient != nil {
+		return nil
+	}
+	// no certs
+	if a.Config.Clustering.TLS == nil {
+		a.clusteringClient = &http.Client{
+			Timeout: defaultHTTPClientTimeout,
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true,
+				},
+			},
+		}
+		return nil
+	}
+	// with certs
+	tlsConfig, err := utils.NewTLSConfig(
+		a.Config.Clustering.TLS.CaFile,
+		a.Config.Clustering.TLS.CertFile,
+		a.Config.Clustering.TLS.KeyFile, "",
+		a.Config.Clustering.TLS.SkipVerify,
+		false)
+	if err != nil {
+		return err
+	}
+	a.clusteringClient = &http.Client{
+		Timeout: defaultHTTPClientTimeout,
+		Transport: &http.Transport{
+			TLSClientConfig: tlsConfig,
+		},
 	}
 	return nil
 }

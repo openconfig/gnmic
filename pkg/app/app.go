@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"os"
 	"sort"
 	"strings"
@@ -76,8 +77,9 @@ type App struct {
 	targetsLockFn map[string]context.CancelFunc
 	rootDesc      desc.Descriptor
 	// end collector
-	router *mux.Router
-	locker lockers.Locker
+	router           *mux.Router
+	locker           lockers.Locker
+	clusteringClient *http.Client
 	// api
 	apiServices map[string]*lockers.Service
 	isLeader    bool

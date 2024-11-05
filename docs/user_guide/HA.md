@@ -123,6 +123,19 @@ clustering:
     renew-period: 5s
     # debug, enable extra logging messages
     debug: false
+  # tls config for the REST API client
+  tls:
+    # string, path to the CA certificate file,
+    # this will be used to verify the certificates of the gNMIc cluster members
+    # when `skip-verify` is false
+    ca-file:
+    # string, client certificate file.
+    cert-file:
+    # string, client key file.
+    key-file:
+    # boolean, if true, the client will not verify the server
+    # certificate against the available certificate chain.
+    skip-verify: false
 ```
 
 A `gnmic` instance creates gNMI subscriptions only towards targets for which it acquired locks. It is also responsible for maintaining that lock for the duration of the subscription.
