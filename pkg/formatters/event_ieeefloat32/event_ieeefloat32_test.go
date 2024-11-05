@@ -28,7 +28,10 @@ var testset = map[string]struct {
 	"simple": {
 		processorType: processorType,
 		processor: map[string]interface{}{
-			"value-names": []string{"^components/component/power-supply/state/output-current$"},
+			"value-names": []string{
+				"^components/component/power-supply/state/output-current$",
+				"^components/component/power-supply/state/input-current$",
+			},
 		},
 		tests: []item{
 			{
@@ -66,6 +69,24 @@ var testset = map[string]struct {
 					{
 						Values: map[string]interface{}{
 							"components/component/power-supply/state/output-current": float32(3.09375)},
+					},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{
+							"components/component/power-supply/state/output-current": "QEYAAA==",
+							"components/component/power-supply/state/input-current":  "QEYAAA==",
+						},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{
+							"components/component/power-supply/state/output-current": float32(3.09375),
+							"components/component/power-supply/state/input-current":  float32(3.09375),
+						},
 					},
 				},
 			},

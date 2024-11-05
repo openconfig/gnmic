@@ -109,6 +109,7 @@ func (p *ieeefloat32) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 					f, err := p.decodeBase64String(v)
 					if err != nil {
 						p.logger.Printf("failed to decode base64 string: %v", err)
+						continue
 					}
 					e.Values[k] = f
 					break
@@ -147,11 +148,8 @@ func (p *ieeefloat32) decodeBase64String(e any) (float32, error) {
 		if len(data) < 4 {
 			return 0, fmt.Errorf("decoded data is less than 4 bytes")
 		}
-		fmt.Printf("%x\n", data)
 		bits := binary.BigEndian.Uint32(data[:4])
-		fmt.Printf("%v\n", bits)
 		floatVal := math.Float32frombits(bits)
-		fmt.Printf("%v\n", floatVal)
 		return floatVal, nil
 	}
 }
