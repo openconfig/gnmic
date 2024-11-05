@@ -73,6 +73,10 @@ outputs:
     # boolean, enables extra logging for the nats output
     debug: false
     # boolean, enables the collection and export (via prometheus) of output specific metrics
+    # integer, sets the size of the local buffer where received
+    # NATS messages are stored before being sent to outputs.
+    # This value is set per worker. Defaults to 100 messages
+    buffer-size: 100
     enable-metrics: false 
     # list of processors to apply on the message before writing
     event-processors: 
