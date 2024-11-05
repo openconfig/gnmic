@@ -87,7 +87,7 @@ type Config struct {
 	NumWorkers         int              `mapstructure:"num-workers,omitempty"`
 	WriteTimeout       time.Duration    `mapstructure:"write-timeout,omitempty"`
 	Debug              bool             `mapstructure:"debug,omitempty"`
-	BufferSize         int              `mapstructure:"buffer-size,omitempty"`
+	BufferSize         uint             `mapstructure:"buffer-size,omitempty"`
 	EnableMetrics      bool             `mapstructure:"enable-metrics,omitempty"`
 	EventProcessors    []string         `mapstructure:"event-processors,omitempty"`
 }
