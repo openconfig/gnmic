@@ -11,6 +11,8 @@ package config
 import (
 	"errors"
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/openconfig/gnmic/pkg/loaders"
 	_ "github.com/openconfig/gnmic/pkg/loaders/all"
@@ -39,12 +41,20 @@ func (c *Config) GetLoader() error {
 	if lds, ok := c.Loader["type"].(string); ok {
 		for _, lt := range loaders.LoadersTypes {
 			if lt == lds {
-				expandMapEnv(c.Loader)
+				expandMapEnv(c.Loader, func(k, v string) string {
+					if k == "password" {
+						if strings.HasPrefix(v, "${") && strings.HasSuffix(v, "}") {
+							return os.ExpandEnv(v)
+						}
+						return v
+					}
+					return os.ExpandEnv(v)
+				})
+				fmt.Printf("LOADER: %+v\n", c.Loader)
 				return nil
 			}
 		}
 		return fmt.Errorf("unknown loader type %q", lds)
 	}
 	return fmt.Errorf("field 'type' not a string, found a %T", c.Loader["type"])
-
 }

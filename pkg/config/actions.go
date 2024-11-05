@@ -40,10 +40,11 @@ func (c *Config) GetActions() (map[string]map[string]interface{}, error) {
 	}
 	for n := range c.Actions {
 		expandMapEnv(c.Actions[n],
-			"target", "paths", "values", // gnmi action templates
-			"url", "body", // http action templates
-			"template", // template action templates
-		)
+			expandExcept(
+				"target", "paths", "values", // gnmi action templates
+				"url", "body", // http action templates
+				"template", // template action templates
+			))
 	}
 	if c.Debug {
 		c.logger.Printf("actions: %+v", c.Actions)
