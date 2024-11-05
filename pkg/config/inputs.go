@@ -51,7 +51,7 @@ func (c *Config) GetInputs() (map[string]map[string]interface{}, error) {
 		return nil, fmt.Errorf("there was %d error(s) when getting inputs configuration", len(errs))
 	}
 	for n := range c.Inputs {
-		expandMapEnv(c.Inputs[n])
+		expandMapEnv(c.Inputs[n], expandAll())
 	}
 	if c.Debug {
 		c.logger.Printf("inputs: %+v", c.Inputs)

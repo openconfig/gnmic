@@ -78,20 +78,54 @@ func (c *Config) SetGlobalsFromEnv(cmd *cobra.Command) {
 	})
 }
 
-func expandMapEnv(m map[string]interface{}, except ...string) {
-OUTER:
+func expandMapEnv(m map[string]interface{}, fn func(string, string) string) {
 	for f := range m {
 		switch v := m[f].(type) {
 		case string:
-			for _, e := range except {
-				if f == e {
-					continue OUTER
+			m[f] = fn(f, v)
+		case map[string]interface{}:
+			expandMapEnv(v, fn)
+			m[f] = v
+		case []any:
+			for i, item := range v {
+				switch item := item.(type) {
+				case string:
+					v[i] = os.ExpandEnv(item)
+				case map[string]interface{}:
+					expandMapEnv(item, fn)
+				case []any:
+					expandSliceEnv(item, fn)
 				}
 			}
-			m[f] = os.ExpandEnv(v)
-		case map[string]interface{}:
-			expandMapEnv(v, except...)
 			m[f] = v
 		}
 	}
+}
+
+func expandSliceEnv(s []any, fn func(string, string) string) {
+	for i, item := range s {
+		switch item := item.(type) {
+		case string:
+			s[i] = os.ExpandEnv(item)
+		case map[string]interface{}:
+			expandMapEnv(item, fn)
+		case []any:
+			expandSliceEnv(item, fn)
+		}
+	}
+}
+
+func expandExcept(except ...string) func(string, string) string {
+	return func(k, v string) string {
+		for _, e := range except {
+			if k == e {
+				return v
+			}
+		}
+		return os.ExpandEnv(v)
+	}
+}
+
+func expandAll() func(string, string) string {
+	return expandExcept()
 }

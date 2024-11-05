@@ -32,7 +32,7 @@ func (c *Config) getLocker() error {
 		default:
 			return errors.New("wrong locker type format")
 		}
-		expandMapEnv(c.Clustering.Locker)
+		expandMapEnv(c.Clustering.Locker, expandAll())
 		return nil
 	}
 	return errors.New("missing locker type")
