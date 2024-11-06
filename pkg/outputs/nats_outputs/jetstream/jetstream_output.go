@@ -137,7 +137,7 @@ func (n *jetstreamOutput) Init(ctx context.Context, name string, cfg map[string]
 		return err
 	}
 
-	n.msgChan = make(chan *outputs.ProtoMsg, uint(n.Cfg.BufferSize))
+	n.msgChan = make(chan *outputs.ProtoMsg, n.Cfg.BufferSize)
 	initMetrics()
 	n.mo = &formatters.MarshalOptions{
 		Format:     n.Cfg.Format,
