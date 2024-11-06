@@ -15,3 +15,6 @@ scrape_configs:
     scrape_interval: 10s 
     consul_sd_configs:
       - server: clab-lab25-2-consul-agent:8500
+        services:
+          - cluster2-gnmic-api
+          - prometheus-output1

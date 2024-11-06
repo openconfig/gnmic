@@ -27,7 +27,7 @@ services:
       - consul-agent 
 
   consul-agent:
-    image: consul:latest
+    image: hashicorp/consul:latest
     container_name: consul
     networks:
       - gnmic-net

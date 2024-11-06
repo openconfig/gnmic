@@ -12,6 +12,9 @@ insecure: true
 encoding: json_ietf
 log: true
 
+api-server:
+  enable-metrics: true
+
 # clustering config
 clustering:
   cluster-name: cluster1

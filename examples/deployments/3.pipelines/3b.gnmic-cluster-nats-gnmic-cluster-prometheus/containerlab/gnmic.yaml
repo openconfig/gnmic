@@ -12,6 +12,9 @@ skip-verify: true
 encoding: json_ietf
 log: true
 
+api-server:
+  enable-metrics: true
+  
 loader:
   type: docker
   filters:

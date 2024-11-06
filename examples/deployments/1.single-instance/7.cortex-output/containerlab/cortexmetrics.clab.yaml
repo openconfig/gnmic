@@ -30,7 +30,7 @@ topology:
 
     gnmic:
       kind: linux
-      image: gnmic:0.0.0
+      image: ghcr.io/openconfig/gnmic:latest
       binds:
         - ./gnmic.yaml:/app/gnmic.yaml:ro
         - /var/run/docker.sock:/var/run/docker.sock
@@ -38,7 +38,7 @@ topology:
 
     cortex:
       kind: linux
-      image: quay.io/cortexproject/cortex:latest
+      image: quay.io/cortexproject/cortex:v1.18.1
       ports:
         - 9009:9009
       binds:
