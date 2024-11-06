@@ -340,7 +340,6 @@ CRCONN:
 		time.Sleep(n.Cfg.ConnectTimeWait)
 		goto CRCONN
 	}
-	defer natsConn.Close()
 	js, err := natsConn.JetStream()
 	if err != nil {
 		if n.Cfg.Debug {
@@ -372,6 +371,7 @@ CRCONN:
 	for {
 		select {
 		case <-ctx.Done():
+			natsConn.Close()
 			n.logger.Printf("%s shutting down", workerLogPrefix)
 			return
 		case m := <-n.msgChan:
@@ -490,8 +490,8 @@ func (n *jetstreamOutput) createNATSConn(c *config) (*nats.Conn, error) {
 		nats.ErrorHandler(func(_ *nats.Conn, _ *nats.Subscription, err error) {
 			n.logger.Printf("NATS error: %v", err)
 		}),
-		nats.DisconnectHandler(func(*nats.Conn) {
-			n.logger.Println("Disconnected from NATS")
+		nats.DisconnectErrHandler(func(c *nats.Conn, err error) {
+			n.logger.Printf("Disconnected from NATS err=%v", err)
 		}),
 		nats.ClosedHandler(func(*nats.Conn) {
 			n.logger.Println("NATS connection is closed")
