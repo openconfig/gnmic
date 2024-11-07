@@ -67,16 +67,15 @@ topology:
       kind: linux
       image: ghcr.io/openconfig/gnmic:latest
       binds:
-        - ./gnmic.yaml:/app/gnmic-config.yaml:ro
+        - ./gnmic-relay.yaml:/app/gnmic-config.yaml:ro
         - /var/run/docker.sock:/var/run/docker.sock
       ports:
-        - 7892:7892
         - 9804:9804
       cmd: '--config /app/gnmic-config.yaml subscribe'
 
     consul-agent:
       kind: linux
-      image: consul:latest
+      image: hashicorp/consul:latest
       ports:
         - 8500:8500
         - 8600:8600/udp

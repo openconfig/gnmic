@@ -36,7 +36,6 @@ topology:
     
     gnmic1:
       kind: linux
-      #image: ghcr.io/openconfig/gnmic:latest
       image: ghcr.io/openconfig/gnmic:latest
       binds:
         - ./gnmic.yaml:/app/gnmic.yaml:ro
@@ -53,7 +52,6 @@ topology:
     
     gnmic2:
       kind: linux
-      #image: ghcr.io/openconfig/gnmic:latest
       image: ghcr.io/openconfig/gnmic:latest
       binds:
         - ./gnmic.yaml:/app/gnmic.yaml:ro
@@ -70,7 +68,6 @@ topology:
 
     gnmic3:
       kind: linux
-      #image: ghcr.io/openconfig/gnmic:latest
       image: ghcr.io/openconfig/gnmic:latest
       binds:
         - ./gnmic.yaml:/app/gnmic.yaml:ro
@@ -87,7 +84,7 @@ topology:
 
     consul-agent:
       kind: linux
-      image: consul:latest
+      image: hashicorp/consul:latest
       ports:
         - 8500:8500
         - 8600:8600/udp

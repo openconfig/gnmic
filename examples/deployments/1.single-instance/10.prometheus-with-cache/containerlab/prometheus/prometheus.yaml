@@ -15,6 +15,11 @@ scrape_configs:
     scrape_interval: 10s 
     consul_sd_configs:
       - server: clab-lab110-consul-agent:8500
+        services:
+          - prometheus-prom-output-js
+          - prometheus-prom-output-nats
+          - prometheus-prom-output-oc
+          - prometheus-prom-output-redis
 
   - job_name: 'gnmic-internal'
     scrape_interval: 10s 
