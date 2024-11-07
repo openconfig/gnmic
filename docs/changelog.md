@@ -1,5 +1,44 @@
 ## Changelog
 
+### v0.39.0 - November 7th 2024
+
+- Get Command
+
+    - Added `--dry-run` flag.
+
+- Set Command
+
+    - Added `--no-trim` flag to disable trimming white spaces from values payload.
+
+- REST API
+
+    - Added `/api/v1/admin/shutdown` endpoint to shutdown gNMIc.
+
+- Outputs:
+
+    - File: file output now supports file rotation.
+
+    - NATS and Jetstream: The publishers buffer size is now configurable.
+
+- Build:
+
+    - Added `ARM64` binary and container image.
+
+- gNMIc Metrics:
+
+    - Added a metric to keep track of failed subscribe requests.
+
+    - Added a metric to keep track of targets connectivity state.
+
+- Clustering:
+
+    - The REST API client used for building gNMIc cluster can now be configured with client certificates to support mTLS.
+
+- Processors:
+
+    - Added a processor to handle converting binary IEEE float32 values to float32.
+
+
 ### v0.38.0 - July 8th 2024
 
 - Kafka Output
