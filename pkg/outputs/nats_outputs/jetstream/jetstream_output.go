@@ -490,7 +490,7 @@ func (n *jetstreamOutput) createNATSConn(c *config) (*nats.Conn, error) {
 		nats.ErrorHandler(func(_ *nats.Conn, _ *nats.Subscription, err error) {
 			n.logger.Printf("NATS error: %v", err)
 		}),
-		nats.DisconnectErrHandler(func(c *nats.Conn, err error) {
+		nats.DisconnectErrHandler(func(_ *nats.Conn, err error) {
 			n.logger.Printf("Disconnected from NATS err=%v", err)
 		}),
 		nats.ClosedHandler(func(*nats.Conn) {
