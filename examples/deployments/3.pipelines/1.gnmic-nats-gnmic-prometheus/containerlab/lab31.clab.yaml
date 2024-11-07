@@ -22,8 +22,7 @@ topology:
 
     gnmic-collector:
       kind: linux
-      # image: ghcr.io/openconfig/gnmic:latest
-      image: priv-gnmic
+      image: ghcr.io/openconfig/gnmic:latest
       binds:
         - ./gnmic-collector.yaml:/app/gnmic.yaml:ro
         - /var/run/docker.sock:/var/run/docker.sock
