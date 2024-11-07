@@ -87,6 +87,7 @@ type config struct {
 	NumWorkers         int                 `mapstructure:"num-workers,omitempty" json:"num-workers,omitempty"`
 	WriteTimeout       time.Duration       `mapstructure:"write-timeout,omitempty" json:"write-timeout,omitempty"`
 	Debug              bool                `mapstructure:"debug,omitempty" json:"debug,omitempty"`
+	BufferSize         uint                `mapstructure:"buffer-size,omitempty"`
 	EnableMetrics      bool                `mapstructure:"enable-metrics,omitempty" json:"enable-metrics,omitempty"`
 	EventProcessors    []string            `mapstructure:"event-processors,omitempty" json:"event-processors,omitempty"`
 }
@@ -136,7 +137,7 @@ func (n *jetstreamOutput) Init(ctx context.Context, name string, cfg map[string]
 		return err
 	}
 
-	n.msgChan = make(chan *outputs.ProtoMsg)
+	n.msgChan = make(chan *outputs.ProtoMsg, n.Cfg.BufferSize)
 	initMetrics()
 	n.mo = &formatters.MarshalOptions{
 		Format:     n.Cfg.Format,

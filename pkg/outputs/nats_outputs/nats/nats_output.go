@@ -87,6 +87,7 @@ type Config struct {
 	NumWorkers         int              `mapstructure:"num-workers,omitempty"`
 	WriteTimeout       time.Duration    `mapstructure:"write-timeout,omitempty"`
 	Debug              bool             `mapstructure:"debug,omitempty"`
+	BufferSize         uint             `mapstructure:"buffer-size,omitempty"`
 	EnableMetrics      bool             `mapstructure:"enable-metrics,omitempty"`
 	EventProcessors    []string         `mapstructure:"event-processors,omitempty"`
 }
@@ -145,7 +146,7 @@ func (n *NatsOutput) Init(ctx context.Context, name string, cfg map[string]inter
 		return err
 	}
 
-	n.msgChan = make(chan *outputs.ProtoMsg)
+	n.msgChan = make(chan *outputs.ProtoMsg, n.Cfg.BufferSize)
 	initMetrics()
 	n.mo = &formatters.MarshalOptions{
 		Format:     n.Cfg.Format,
