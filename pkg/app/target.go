@@ -14,6 +14,9 @@ import (
 
 	"github.com/fullstorydev/grpcurl"
 
+	"github.com/jhump/protoreflect/desc"
+	"github.com/jhump/protoreflect/desc/protoparse"
+
 	"github.com/openconfig/gnmic/pkg/api/target"
 	"github.com/openconfig/gnmic/pkg/api/types"
 )
@@ -36,6 +39,10 @@ func (a *App) initTarget(tc *types.TargetConfig) (*target.Target, error) {
 			}
 		}
 		err := a.parseProtoFiles(t)
+		if err != nil {
+			return nil, err
+		}
+		err = a.parseExtensionProtos(t)
 		if err != nil {
 			return nil, err
 		}
@@ -152,6 +159,34 @@ func (a *App) parseProtoFiles(t *target.Target) error {
 		return err
 	}
 	a.Logger.Printf("target %q loaded proto files", t.Config.Name)
+	return nil
+}
+
+// Dynamically parse (and load) protobuf files defined in config for specific extension IDs
+func (a *App) parseExtensionProtos(t *target.Target) error {
+	parser := protoparse.Parser{}
+	extensionProtoMap := make(map[int]*desc.MessageDescriptor)
+	a.Logger.Printf("Target %q loading protofiles for gNMI extensions", t.Config.Name)
+	if len(t.Config.RegisteredExtensions) == 0 {
+		return nil
+	}
+	for _, extension := range t.Config.RegisteredExtensions {
+		descSources, err := parser.ParseFiles(extension.ProtoFile)
+		if err != nil {
+			a.Logger.Printf("target %q could not load protofile: %s: %v", t.Config.Name, extension.ProtoFile, err)
+			return err
+		}
+		// Only a single file is ever provided to ParseFiles, so we can just grab offset 0 from the returned slice
+		// Verify if the provided message exists in the proto and assign
+		if desc := descSources[0].FindMessage(extension.MessageName); desc != nil {
+			extensionProtoMap[extension.Id] = desc
+		} else {
+			a.Logger.Printf("target %q could not find message %q", t.Config.Name, extension.MessageName)
+			return fmt.Errorf("target %q could not find message %q", t.Config.Name, extension.MessageName)
+		}
+	}
+	t.ExtensionProtoMap = extensionProtoMap
+	a.Logger.Printf("target %q loaded proto files for gNMI extensions", t.Config.Name)
 	return nil
 }
 
