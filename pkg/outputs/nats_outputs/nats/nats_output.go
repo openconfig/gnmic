@@ -270,8 +270,8 @@ func (n *NatsOutput) createNATSConn(c *Config) (*nats.Conn, error) {
 		nats.ErrorHandler(func(_ *nats.Conn, _ *nats.Subscription, err error) {
 			n.logger.Printf("NATS error: %v", err)
 		}),
-		nats.DisconnectHandler(func(*nats.Conn) {
-			n.logger.Println("Disconnected from NATS")
+		nats.DisconnectErrHandler(func(_ *nats.Conn, err error) {
+			n.logger.Printf("Disconnected from NATS err=%v", err)
 		}),
 		nats.ClosedHandler(func(*nats.Conn) {
 			n.logger.Println("NATS connection is closed")
@@ -329,9 +329,12 @@ func (n *NatsOutput) Dial(network, address string) (net.Conn, error) {
 
 func (n *NatsOutput) worker(ctx context.Context, i int, cfg *Config) {
 	defer n.wg.Done()
+
 	var natsConn *nats.Conn
 	var err error
 	workerLogPrefix := fmt.Sprintf("worker-%d", i)
+
+	defer n.logger.Printf("%s exited", workerLogPrefix)
 	n.logger.Printf("%s starting", workerLogPrefix)
 CRCONN:
 	natsConn, err = n.createNATSConn(cfg)
@@ -340,14 +343,14 @@ CRCONN:
 		time.Sleep(n.Cfg.ConnectTimeWait)
 		goto CRCONN
 	}
-	defer natsConn.Close()
-	n.logger.Printf("%s initialized nats producer: %+v", workerLogPrefix, cfg)
+	defer n.logger.Printf("%s initialized nats publisher: %+v", workerLogPrefix, cfg)
 	for {
 		select {
 		case <-ctx.Done():
 			n.logger.Printf("%s flushing", workerLogPrefix)
 			natsConn.FlushTimeout(time.Second)
 			n.logger.Printf("%s shutting down", workerLogPrefix)
+			natsConn.Close()
 			return
 		case m := <-n.msgChan:
 			pmsg := m.GetMsg()
@@ -366,7 +369,7 @@ CRCONN:
 				continue
 			}
 			if len(bb) == 0 {
-				return
+				continue
 			}
 			for _, b := range bb {
 				if n.msgTpl != nil {
@@ -393,8 +396,16 @@ CRCONN:
 					if n.Cfg.EnableMetrics {
 						NatsNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "publish_error").Inc()
 					}
+					if n.Cfg.Debug {
+						n.logger.Printf("%s closing connection to NATS '%s'", workerLogPrefix, subject)
+					}
+
 					natsConn.Close()
 					time.Sleep(cfg.ConnectTimeWait)
+
+					if n.Cfg.Debug {
+						n.logger.Printf("%s reconnecting to NATS", workerLogPrefix)
+					}
 					goto CRCONN
 				}
 				if n.Cfg.EnableMetrics {
