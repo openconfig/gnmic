@@ -90,11 +90,11 @@ func expandMapEnv(m map[string]interface{}, fn func(string, string) string) {
 			for i, item := range v {
 				switch item := item.(type) {
 				case string:
-					v[i] = os.ExpandEnv(item)
+					v[i] = fn(f, item)
 				case map[string]interface{}:
 					expandMapEnv(item, fn)
 				case []any:
-					expandSliceEnv(item, fn)
+					expandSliceEnv(f, item, fn)
 				}
 			}
 			m[f] = v
@@ -102,15 +102,15 @@ func expandMapEnv(m map[string]interface{}, fn func(string, string) string) {
 	}
 }
 
-func expandSliceEnv(s []any, fn func(string, string) string) {
+func expandSliceEnv(parent string, s []any, fn func(string, string) string) {
 	for i, item := range s {
 		switch item := item.(type) {
 		case string:
-			s[i] = os.ExpandEnv(item)
+			s[i] = fn(parent, item)
 		case map[string]interface{}:
 			expandMapEnv(item, fn)
 		case []any:
-			expandSliceEnv(item, fn)
+			expandSliceEnv("", item, fn)
 		}
 	}
 }

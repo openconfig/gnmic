@@ -39,7 +39,14 @@ func (c *Config) GetEventProcessors() (map[string]map[string]interface{}, error)
 		c.Processors[n] = es
 	}
 	for n := range c.Processors {
-		expandMapEnv(c.Processors[n], expandExcept("expression", "condition"))
+		expandMapEnv(c.Processors[n], expandExcept(
+			"expression",
+			"condition",
+			"value-names", "values",
+			"tag-names", "tags",
+			"old", "new", // strings.replace
+			"source", // starlark
+		))
 	}
 	if c.Debug {
 		c.logger.Printf("processors: %+v", c.Processors)
