@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/AlekSi/pointer"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/collectors"
@@ -24,6 +25,7 @@ import (
 
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
+	"github.com/openconfig/gnmic/pkg/config"
 )
 
 func (a *App) newAPIServer() (*http.Server, error) {
@@ -78,7 +80,14 @@ func (a *App) handleConfigTargetsGet(w http.ResponseWriter, r *http.Request) {
 	a.configLock.RLock()
 	defer a.configLock.RUnlock()
 	if id == "" {
-		err = json.NewEncoder(w).Encode(a.Config.Targets)
+		// copy targets map
+		targets := make(map[string]*types.TargetConfig, len(a.Config.Targets))
+		for n, tc := range a.Config.Targets {
+			ntc := tc.DeepCopy()
+			ntc.Password = pointer.ToString("****")
+			targets[n] = ntc
+		}
+		err = json.NewEncoder(w).Encode(targets)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -86,7 +95,9 @@ func (a *App) handleConfigTargetsGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if t, ok := a.Config.Targets[id]; ok {
-		err = json.NewEncoder(w).Encode(t)
+		tc := t.DeepCopy()
+		tc.Password = pointer.ToString("****")
+		err = json.NewEncoder(w).Encode(tc)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -192,7 +203,28 @@ func (a *App) handleConfigProcessors(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {
-	a.handlerCommonGet(w, a.Config)
+	nc := &config.Config{
+		GlobalFlags:   a.Config.GlobalFlags,
+		LocalFlags:    a.Config.LocalFlags,
+		FileConfig:    a.Config.FileConfig,
+		Targets:       make(map[string]*types.TargetConfig, len(a.Config.Targets)),
+		Subscriptions: a.Config.Subscriptions,
+		Outputs:       a.Config.Outputs,
+		Inputs:        a.Config.Inputs,
+		Processors:    a.Config.Processors,
+		Clustering:    a.Config.Clustering,
+		GnmiServer:    a.Config.GnmiServer,
+		APIServer:     a.Config.APIServer,
+		Loader:        a.Config.Loader,
+		Actions:       a.Config.Actions,
+		TunnelServer:  a.Config.TunnelServer,
+	}
+	for n, t := range a.Config.Targets {
+		tc := t.DeepCopy()
+		tc.Password = pointer.ToString("****")
+		nc.Targets[n] = tc
+	}
+	a.handlerCommonGet(w, nc)
 }
 
 func (a *App) handleTargetsGet(w http.ResponseWriter, r *http.Request) {

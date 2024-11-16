@@ -176,6 +176,89 @@ func (tc TargetConfig) String() string {
 	return string(b)
 }
 
+func (tc *TargetConfig) DeepCopy() *TargetConfig {
+	if tc == nil {
+		return nil
+	}
+	ntc := &TargetConfig{
+		Name:             tc.Name,
+		Address:          tc.Address,
+		AuthScheme:       tc.AuthScheme,
+		Timeout:          tc.Timeout,
+		TLSServerName:    tc.TLSServerName,
+		Subscriptions:    make([]string, 0, len(tc.Subscriptions)),
+		Outputs:          make([]string, 0, len(tc.Outputs)),
+		BufferSize:       tc.BufferSize,
+		RetryTimer:       tc.RetryTimer,
+		TLSMinVersion:    tc.TLSMinVersion,
+		TLSMaxVersion:    tc.TLSMaxVersion,
+		TLSVersion:       tc.TLSVersion,
+		ProtoFiles:       make([]string, 0, len(tc.ProtoFiles)),
+		ProtoDirs:        make([]string, 0, len(tc.ProtoDirs)),
+		Tags:             make([]string, 0, len(tc.Tags)),
+		EventTags:        make(map[string]string, len(tc.EventTags)),
+		Proxy:            tc.Proxy,
+		TunnelTargetType: tc.TunnelTargetType,
+		Metadata:         make(map[string]string, len(tc.Metadata)),
+		CipherSuites:     make([]string, 0, len(tc.CipherSuites)),
+		TCPKeepalive:     tc.TCPKeepalive,
+	}
+	if tc.Username != nil {
+		ntc.Username = tc.Username
+	}
+	if tc.Password != nil {
+		ntc.Password = tc.Password
+	}
+	if tc.Insecure != nil {
+		ntc.Insecure = tc.Insecure
+	}
+	if tc.TLSCA != nil {
+		ntc.TLSCA = tc.TLSCA
+	}
+	if tc.TLSCert != nil {
+		ntc.TLSCert = tc.TLSCert
+	}
+	if tc.TLSKey != nil {
+		ntc.TLSKey = tc.TLSKey
+	}
+	if tc.SkipVerify != nil {
+		ntc.SkipVerify = tc.SkipVerify
+	}
+	if tc.LogTLSSecret != nil {
+		ntc.LogTLSSecret = tc.LogTLSSecret
+	}
+	if tc.Gzip != nil {
+		ntc.Gzip = tc.Gzip
+	}
+	if tc.Token != nil {
+		ntc.Token = tc.Token
+	}
+	if tc.Encoding != nil {
+		ntc.Encoding = tc.Encoding
+	}
+	ntc.Subscriptions = append(ntc.Subscriptions, tc.Subscriptions...)
+	ntc.Outputs = append(ntc.Outputs, tc.Outputs...)
+	ntc.ProtoFiles = append(ntc.ProtoFiles, tc.ProtoFiles...)
+	ntc.ProtoDirs = append(ntc.ProtoDirs, tc.ProtoDirs...)
+	ntc.Tags = append(ntc.Tags, tc.Tags...)
+	ntc.CipherSuites = append(ntc.CipherSuites, tc.CipherSuites...)
+
+	for k, v := range tc.EventTags {
+		tc.EventTags[k] = v
+	}
+	for k, v := range tc.Metadata {
+		tc.Metadata[k] = v
+	}
+	if tc.GRPCKeepalive != nil {
+		ntc.GRPCKeepalive = &clientKeepalive{
+			Time:                tc.GRPCKeepalive.Time,
+			Timeout:             tc.GRPCKeepalive.Timeout,
+			PermitWithoutStream: tc.GRPCKeepalive.PermitWithoutStream,
+		}
+	}
+	return ntc
+}
+
 func (tc *TargetConfig) SetTLSConfig(tlsConfig *tls.Config) {
 	tc.tlsConfig = tlsConfig
 }
