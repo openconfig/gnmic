@@ -144,7 +144,7 @@ subscriptions:
   sub1:
     paths:
       - /state/port
-    sample-interface: 10s
+    sample-interval: 10s
 
 gnmi-server:
   address: :57400
