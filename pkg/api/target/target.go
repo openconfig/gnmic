@@ -53,9 +53,10 @@ type Target struct {
 	subscribeResponses chan *SubscribeResponse
 	errors             chan *TargetError
 	stopped            bool
-	StopChan           chan struct{}      `json:"-"`
-	Cfn                context.CancelFunc `json:"-"`
-	RootDesc           desc.Descriptor    `json:"-"`
+	StopChan           chan struct{}                   `json:"-"`
+	Cfn                context.CancelFunc              `json:"-"`
+	RootDesc           desc.Descriptor                 `json:"-"`
+	ExtensionProtoMap  map[int]*desc.MessageDescriptor `json:"-"`
 }
 
 // NewTarget //
