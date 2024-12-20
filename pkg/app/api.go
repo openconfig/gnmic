@@ -506,8 +506,10 @@ func headersMiddleware(next http.Handler) http.Handler {
 }
 
 func (a *App) loggingMiddleware(next http.Handler) http.Handler {
-	next = handlers.LoggingHandler(a.Logger.Writer(), next)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if (!a.Config.APIServer.HealthzDisableLogging && r.URL.Path == "/api/v1/healthz") || r.URL.Path != "/api/v1/healthz" {
+			next = handlers.LoggingHandler(a.Logger.Writer(), next)
+		}
 		next.ServeHTTP(w, r)
 	})
 }
