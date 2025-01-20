@@ -72,10 +72,12 @@ func (a *App) DeleteTarget(ctx context.Context, name string) error {
 	if !a.targetConfigExists(name) {
 		return fmt.Errorf("target %q does not exist", name)
 	}
-	a.configLock.Lock()
-	delete(a.Config.Targets, name)
-	a.configLock.Unlock()
-	a.Logger.Printf("target %q deleted from config", name)
+	if !a.isLeader {
+		a.configLock.Lock()
+		delete(a.Config.Targets, name)
+		a.configLock.Unlock()
+		a.Logger.Printf("target %q deleted from config", name)
+	}
 	// delete from oper map
 	a.operLock.Lock()
 	defer a.operLock.Unlock()

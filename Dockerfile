@@ -6,13 +6,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-FROM golang:1.21.9 as builder
+FROM golang:1.21.9 AS builder
 ADD . /build
 WORKDIR /build
-RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o gnmic .
+#RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o gnmic .
+RUN CGO_ENABLED=0 go build -o gnmic .
 
 FROM alpine
-LABEL org.opencontainers.image.source https://github.com/openconfig/gnmic
+LABEL org.opencontainers.image.source=https://github.com/openconfig/gnmic
 COPY --from=builder /build/gnmic /app/
 WORKDIR /app
 ENTRYPOINT [ "/app/gnmic" ]

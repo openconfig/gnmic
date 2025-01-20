@@ -25,8 +25,11 @@ func (a *App) routes() {
 
 func (a *App) clusterRoutes(r *mux.Router) {
 	r.HandleFunc("/cluster", a.handleClusteringGet).Methods(http.MethodGet)
-	r.HandleFunc("/cluster/members", a.handleClusteringMembersGet).Methods(http.MethodGet)
+	r.HandleFunc("/cluster/rebalance", a.handleClusterRebalance).Methods(http.MethodPost)
 	r.HandleFunc("/cluster/leader", a.handleClusteringLeaderGet).Methods(http.MethodGet)
+	r.HandleFunc("/cluster/leader", a.handleClusteringLeaderDelete).Methods(http.MethodDelete)
+	r.HandleFunc("/cluster/members", a.handleClusteringMembersGet).Methods(http.MethodGet)
+	r.HandleFunc("/cluster/members/{id}/drain", a.handleClusteringDrainInstance).Methods(http.MethodPost)
 }
 
 func (a *App) configRoutes(r *mux.Router) {
