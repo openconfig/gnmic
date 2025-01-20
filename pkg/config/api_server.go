@@ -28,6 +28,7 @@ type APIServer struct {
 	TLS           *types.TLSConfig `mapstructure:"tls,omitempty" json:"tls,omitempty"`
 	EnableMetrics bool             `mapstructure:"enable-metrics,omitempty" json:"enable-metrics,omitempty"`
 	Debug         bool             `mapstructure:"debug,omitempty" json:"debug,omitempty"`
+	HealthzDisableLogging bool     	   `mapstructure:"healthz-disable-logging,omitempty" json:"healthz-disable-logging,omitempty"`
 }
 
 func (c *Config) GetAPIServer() error {
@@ -53,6 +54,7 @@ func (c *Config) GetAPIServer() error {
 
 	c.APIServer.EnableMetrics = os.ExpandEnv(c.FileConfig.GetString("api-server/enable-metrics")) == trueString
 	c.APIServer.Debug = os.ExpandEnv(c.FileConfig.GetString("api-server/debug")) == trueString
+	c.APIServer.HealthzDisableLogging = os.ExpandEnv(c.FileConfig.GetString("api-server/healthz-disable-logging")) == trueString
 	c.setAPIServerDefaults()
 	return nil
 }

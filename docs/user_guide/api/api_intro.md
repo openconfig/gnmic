@@ -58,6 +58,8 @@ api-server:
   enable-metrics: false
   # boolean, enables extra debug log printing
   debug: false
+  # boolean, disables creating log messages when accessing the `healthz` path
+  healthz-disable-logging: false
 ```
 
 ## API Endpoints
