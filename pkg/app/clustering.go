@@ -738,7 +738,8 @@ func (a *App) clusterRebalanceTargets() error {
 	a.dispatchLock.Lock()
 	defer a.dispatchLock.Unlock()
 
-	rebalanceCount := 0
+	rebalanceCount := 0 // counts the number of iterations
+	maxIter := -1       // stores the maximum expected number of iterations
 	for {
 		// get most loaded and least loaded
 		load, err := a.getInstancesLoad()
@@ -746,16 +747,21 @@ func (a *App) clusterRebalanceTargets() error {
 			return err
 		}
 		highest, lowest := a.getHighAndLowInstance(load)
-		// lowest := a.getLowLoadInstance(load)
-		// highest := a.getHighLoadInstance(load)
 		lowLoad := load[lowest]
 		highLoad := load[highest]
+		delta := highLoad - lowLoad
+		if maxIter < 0 { // set max number of iteration to delta/2
+			maxIter = delta / 2
+			if maxIter > maxRebalanceLoop {
+				maxIter = maxRebalanceLoop
+			}
+		}
 		a.Logger.Printf("rebalancing: high instance: %s=%d, low instance %s=%d", highest, highLoad, lowest, lowLoad)
 		// nothing to do
-		if highLoad-lowLoad < 2 {
+		if delta < 2 {
 			return nil
 		}
-		if rebalanceCount >= maxRebalanceLoop {
+		if rebalanceCount >= maxIter {
 			return nil
 		}
 		// there is some work to do
@@ -772,7 +778,6 @@ func (a *App) clusterRebalanceTargets() error {
 		if err != nil {
 			return err
 		}
-		// a.assignTarget(a.ctx, tc*types.TargetConfig, service*lockers.Service)
 		tc, ok := a.Config.Targets[highInstanceTargets[0]]
 		if !ok {
 			return fmt.Errorf("could not find target %s config", highInstanceTargets[0])
