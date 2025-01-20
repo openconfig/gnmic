@@ -82,9 +82,11 @@ nav:
           - Duration Convert: user_guide/event_processors/event_duration_convert.md
           - Extract Tags: user_guide/event_processors/event_extract_tags.md
           - Group by: user_guide/event_processors/event_group_by.md
+          - IEEE Float32: user_guide/event_processors/event_ieeefloat32.md
           - JQ: user_guide/event_processors/event_jq.md
           - Merge: user_guide/event_processors/event_merge.md
           - Override TS: user_guide/event_processors/event_override_ts.md
+          - Plugin: user_guide/event_processors/event_plugin.md
           - Rate Limit: user_guide/event_processors/event_rate_limit.md
           - Starlark: user_guide/event_processors/event_starlark.md
           - Strings: user_guide/event_processors/event_strings.md
@@ -104,6 +106,7 @@ nav:
           - Configuration: user_guide/api/configuration.md
           - Targets: user_guide/api/targets.md
           - Cluster: user_guide/api/cluster.md
+          - Other: user_guide/api/other.md
 
       - Golang Package:
           - Introduction: user_guide/golang_package/intro.md
@@ -132,6 +135,8 @@ nav:
         - Generate: 'cmd/generate.md'
         - Generate Path: cmd/generate/generate_path.md
         - Generate Set-Request: cmd/generate/generate_set_request.md
+      - Processor: cmd/processor.md
+      - Proxy: cmd/proxy.md
     
   - Deployment examples:
       - Deployments: deployments/deployments_intro.md
