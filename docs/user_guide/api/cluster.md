@@ -1,8 +1,10 @@
-## `GET /api/v1/cluster`
+# Cluster
 
-Request gNMIc cluster state and details
+## /api/v1/cluster
 
-Returns gNMIc cluster state and details
+### `GET /api/v1/cluster`
+
+Request gNMIc cluster state and details.
 
 === "Request"
     ```bash
@@ -119,7 +121,94 @@ Returns gNMIc cluster state and details
     }
     ```
 
-## `GET /api/v1/cluster/members`
+### `POST /api/v1/cluster/rebalance`
+
+If the cluster load is not balanced it moves targets from the high load instances to the low load instances.
+
+=== "Request"
+    ```bash
+    curl --request POST gnmic-api-address:port/api/v1/cluster/rebalance
+    ```
+=== "200 OK"
+    ```
+    ```
+=== "400 Bad Request"
+    ```json
+    {
+        "errors": [
+            "not leader"
+        ]
+    }
+    ```
+
+### `GET /api/v1/cluster/leader`
+
+Returns the cluster leader details.
+
+=== "Request"
+    ```bash
+    curl --request POST gnmic-api-address:port/api/v1/cluster/leader
+    ```
+=== "200 OK"
+    ```json
+    [
+        {
+            "name": "clab-telemetry-gnmic1",
+            "api-endpoint": "http://clab-telemetry-gnmic1:7890",
+            "is-leader": true,
+            "number-of-locked-nodes": 23,
+            "locked-targets": [
+                "clab-lab4-leaf8",
+                "clab-lab5-leaf8",
+                "clab-lab1-spine2",
+                "clab-lab3-leaf7",
+                "clab-lab4-leaf4",
+                "clab-lab2-leaf8",
+                "clab-lab2-spine3",
+                "clab-lab4-leaf1",
+                "clab-lab4-leaf2",
+                "clab-lab4-spine3",
+                "clab-lab5-spine2",
+                "clab-lab1-spine1",
+                "clab-lab2-leaf6",
+                "clab-lab5-leaf7",
+                "clab-lab1-leaf8",
+                "clab-lab3-leaf8",
+                "clab-lab3-spine2",
+                "clab-lab3-super-spine1",
+                "clab-lab5-spine1",
+                "clab-lab2-super-spine2",
+                "clab-lab3-leaf2",
+                "clab-lab2-spine2",
+                "clab-lab4-spine1"
+            ]
+        }
+    ]
+    ```
+=== "500 Internal Server Error"
+    ```json
+    {
+        "errors": [
+            "Error Text"
+        ]
+    }
+    ```
+
+### `DELETE /api/v1/cluster/leader`
+
+Forces the cluster leader to free its lock to allow another instance to become the leader.
+
+=== "Request"
+    ```bash
+    curl --request DELETE gnmic-api-address:port/api/v1/cluster/leader
+    ```
+=== "200 OK"
+    ```json
+    ```
+
+## /api/v1/cluster/members
+
+### `GET /api/v1/cluster/members`
 
 Query gNMIc cluster members
 
@@ -235,57 +324,14 @@ Returns a list of gNMIc cluster members with details
     }
     ```
 
-## `GET /api/v1/cluster/leader`
+### `POST /api/v1/cluster/members/{id}/drain`
 
-Queries the cluster leader deatils
-
-Returns details of the gNMIc cluster leader.
+Drains the instance `id` from its targets, moving them to the other instances in the cluster.
 
 === "Request"
     ```bash
-    curl --request POST gnmic-api-address:port/api/v1/cluster/leader
+    curl --request POST gnmic-api-address:port/api/v1/cluster/members/{id}/drain
     ```
 === "200 OK"
     ```json
-    [
-        {
-            "name": "clab-telemetry-gnmic1",
-            "api-endpoint": "http://clab-telemetry-gnmic1:7890",
-            "is-leader": true,
-            "number-of-locked-nodes": 23,
-            "locked-targets": [
-                "clab-lab4-leaf8",
-                "clab-lab5-leaf8",
-                "clab-lab1-spine2",
-                "clab-lab3-leaf7",
-                "clab-lab4-leaf4",
-                "clab-lab2-leaf8",
-                "clab-lab2-spine3",
-                "clab-lab4-leaf1",
-                "clab-lab4-leaf2",
-                "clab-lab4-spine3",
-                "clab-lab5-spine2",
-                "clab-lab1-spine1",
-                "clab-lab2-leaf6",
-                "clab-lab5-leaf7",
-                "clab-lab1-leaf8",
-                "clab-lab3-leaf8",
-                "clab-lab3-spine2",
-                "clab-lab3-super-spine1",
-                "clab-lab5-spine1",
-                "clab-lab2-super-spine2",
-                "clab-lab3-leaf2",
-                "clab-lab2-spine2",
-                "clab-lab4-spine1"
-            ]
-        }
-    ]
-    ```
-=== "500 Internal Server Error"
-    ```json
-    {
-        "errors": [
-            "Error Text"
-        ]
-    }
     ```

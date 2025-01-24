@@ -33,24 +33,24 @@ const (
 func init() {
 	lockers.Register("consul", func() lockers.Locker {
 		return &ConsulLocker{
-			Cfg:            &config{},
-			m:              new(sync.Mutex),
-			acquiredlocks:  make(map[string]*locks),
-			attemtinglocks: make(map[string]*locks),
-			logger:         log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
-			services:       make(map[string]context.CancelFunc),
+			Cfg:             &config{},
+			m:               new(sync.Mutex),
+			acquiredlocks:   make(map[string]*locks),
+			attemptinglocks: make(map[string]*locks),
+			logger:          log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
+			services:        make(map[string]context.CancelFunc),
 		}
 	})
 }
 
 type ConsulLocker struct {
-	Cfg            *config
-	client         *api.Client
-	logger         *log.Logger
-	m              *sync.Mutex
-	acquiredlocks  map[string]*locks
-	attemtinglocks map[string]*locks
-	services       map[string]context.CancelFunc
+	Cfg             *config
+	client          *api.Client
+	logger          *log.Logger
+	m               *sync.Mutex
+	acquiredlocks   map[string]*locks
+	attemptinglocks map[string]*locks
+	services        map[string]context.CancelFunc
 }
 
 type config struct {
@@ -114,7 +114,7 @@ func (c *ConsulLocker) Lock(ctx context.Context, key string, val []byte) (bool, 
 	defer func() {
 		c.m.Lock()
 		defer c.m.Unlock()
-		delete(c.attemtinglocks, key)
+		delete(c.attemptinglocks, key)
 	}()
 	for {
 		select {
@@ -138,7 +138,7 @@ func (c *ConsulLocker) Lock(ctx context.Context, key string, val []byte) (bool, 
 				continue
 			}
 			c.m.Lock()
-			c.attemtinglocks[key] = &locks{sessionID: kvPair.Session, doneChan: doneChan}
+			c.attemptinglocks[key] = &locks{sessionID: kvPair.Session, doneChan: doneChan}
 			c.m.Unlock()
 			acquired, _, err = c.client.KV().Acquire(kvPair, writeOpts)
 			if err != nil {
@@ -206,7 +206,7 @@ func (c *ConsulLocker) Unlock(ctx context.Context, key string) error {
 		delete(c.acquiredlocks, key)
 		return nil
 	}
-	if lock, ok := c.attemtinglocks[key]; ok {
+	if lock, ok := c.attemptinglocks[key]; ok {
 		close(lock.doneChan)
 		_, err := c.client.Session().Destroy(lock.sessionID, nil)
 		if err != nil {

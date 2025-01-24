@@ -18,6 +18,7 @@ import (
 	"net"
 	"net/http"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -33,6 +34,7 @@ const (
 	lockWaitTime       = 100 * time.Millisecond
 	apiServiceName     = "gnmic-api"
 	protocolTagName    = "__protocol"
+	maxRebalanceLoop   = 100
 )
 
 var (
@@ -158,17 +160,19 @@ START:
 		go a.dispatchTargets(ctx)
 	}()
 
-	doneCh, errCh := a.locker.KeepLock(a.ctx, leaderKey)
+	doneCh, errCh := a.locker.KeepLock(ctx, leaderKey)
 	select {
 	case <-doneCh:
 		a.Logger.Printf("%q lost leader role", a.Config.Clustering.InstanceName)
 		cancel()
 		a.isLeader = false
+		time.Sleep(retryTimer)
 		goto START
 	case err := <-errCh:
 		a.Logger.Printf("%q failed to maintain the leader key: %v", a.Config.Clustering.InstanceName, err)
 		cancel()
 		a.isLeader = false
+		time.Sleep(retryTimer)
 		goto START
 	case <-a.ctx.Done():
 		return
@@ -262,28 +266,9 @@ func (a *App) dispatchTargets(ctx context.Context) {
 				time.Sleep(a.Config.Clustering.TargetsWatchTimer)
 				continue
 			}
-			var err error
-			//a.m.RLock()
-			dctx, cancel := context.WithTimeout(ctx, a.Config.Clustering.TargetsWatchTimer)
-			for _, tc := range a.Config.Targets {
-				err = a.dispatchTarget(dctx, tc)
-				if err != nil {
-					a.Logger.Printf("failed to dispatch target %q: %v", tc.Name, err)
-				}
-				if err == errNotFound {
-					// no registered services,
-					// no need to continue with other targets,
-					// break from the targets loop
-					break
-				}
-				if err == errNoMoreSuitableServices {
-					// target has no suitable matching services,
-					// continue to next target without wait
-					continue
-				}
-			}
-			//a.m.RUnlock()
-			cancel()
+			a.dispatchLock.Lock()
+			a.dispatchTargetsOnce(ctx)
+			a.dispatchLock.Unlock()
 			select {
 			case <-ctx.Done():
 				return
@@ -294,7 +279,29 @@ func (a *App) dispatchTargets(ctx context.Context) {
 	}
 }
 
-func (a *App) dispatchTarget(ctx context.Context, tc *types.TargetConfig) error {
+func (a *App) dispatchTargetsOnce(ctx context.Context) {
+	dctx, cancel := context.WithTimeout(ctx, a.Config.Clustering.TargetsWatchTimer)
+	defer cancel()
+	for _, tc := range a.Config.Targets {
+		err := a.dispatchTarget(dctx, tc)
+		if err != nil {
+			a.Logger.Printf("failed to dispatch target %q: %v", tc.Name, err)
+		}
+		if err == errNotFound {
+			// no registered services,
+			// no need to continue with other targets,
+			// break from the targets loop
+			break
+		}
+		if err == errNoMoreSuitableServices {
+			// target has no suitable matching services,
+			// continue to next target without wait
+			continue
+		}
+	}
+}
+
+func (a *App) dispatchTarget(ctx context.Context, tc *types.TargetConfig, denied ...string) error {
 	if a.Config.Debug {
 		a.Logger.Printf("checking if %q is locked", tc.Name)
 	}
@@ -310,7 +317,9 @@ func (a *App) dispatchTarget(ctx context.Context, tc *types.TargetConfig) error 
 		return nil
 	}
 	a.Logger.Printf("dispatching target %q", tc.Name)
-	denied := make([]string, 0)
+	if denied == nil {
+		denied = make([]string, 0)
+	}
 SELECTSERVICE:
 	service, err := a.selectService(tc.Tags, denied...)
 	if err != nil {
@@ -485,8 +494,27 @@ func (a *App) getLowLoadInstance(load map[string]int) string {
 	return ss
 }
 
-func (a *App) getTargetToInstanceMapping() (map[string]string, error) {
-	locks, err := a.locker.List(a.ctx, fmt.Sprintf("gnmic/%s/targets", a.Config.Clustering.ClusterName))
+// loop through the current cluster load
+// find the instance(s) with the highest and lowest load
+func (a *App) getHighAndLowInstance(load map[string]int) (string, string) {
+	var highIns, lowIns string
+	var high = -1
+	var low = -1
+	for s, l := range load {
+		if high < 0 || l > high {
+			highIns = s
+			high = l
+		}
+		if low < 0 || l < low {
+			lowIns = s
+			low = l
+		}
+	}
+	return highIns, lowIns
+}
+
+func (a *App) getTargetToInstanceMapping(ctx context.Context) (map[string]string, error) {
+	locks, err := a.locker.List(ctx, fmt.Sprintf("gnmic/%s/targets", a.Config.Clustering.ClusterName))
 	if err != nil {
 		return nil, err
 	}
@@ -498,6 +526,27 @@ func (a *App) getTargetToInstanceMapping() (map[string]string, error) {
 		locks[filepath.Base(k)] = v
 	}
 	return locks, nil
+}
+
+func (a *App) getInstanceToTargetsMapping(ctx context.Context) (map[string][]string, error) {
+	locks, err := a.locker.List(ctx, fmt.Sprintf("gnmic/%s/targets", a.Config.Clustering.ClusterName))
+	if err != nil {
+		return nil, err
+	}
+	if a.Config.Debug {
+		a.Logger.Println("current locks:", locks)
+	}
+	rs := make(map[string][]string)
+	for k, v := range locks {
+		if _, ok := rs[v]; !ok {
+			rs[v] = make([]string, 0)
+		}
+		rs[v] = append(rs[v], filepath.Base(k))
+	}
+	for _, ls := range rs {
+		sort.Strings(ls)
+	}
+	return rs, nil
 }
 
 func (a *App) getInstancesTagsMatches(tags []string) map[string]int {
@@ -621,28 +670,20 @@ func (a *App) unassignTarget(ctx context.Context, name string, serviceID string)
 	if err != nil {
 		return err
 	}
-	for _, s := range a.apiServices {
-		if s.ID != serviceID {
-			continue
-		}
+	if s, ok := a.apiServices[serviceID]; ok {
 		scheme := a.getServiceScheme(s)
 		url := fmt.Sprintf("%s://%s/api/v1/targets/%s", scheme, s.Address, name)
 		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
 		req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
 		if err != nil {
-			a.Logger.Printf("failed to create HTTP request: %v", err)
-			continue
+			return err
 		}
 		rsp, err := a.clusteringClient.Do(req)
 		if err != nil {
-			// don't close the body here since Body will be nil
-			a.Logger.Printf("failed HTTP request: %v", err)
-			continue
+			return err
 		}
-		rsp.Body.Close()
 		a.Logger.Printf("received response code=%d, for DELETE %s", rsp.StatusCode, url)
-		break
 	}
 	return nil
 }
@@ -691,4 +732,60 @@ func (a *App) createAPIClient() error {
 		},
 	}
 	return nil
+}
+
+func (a *App) clusterRebalanceTargets() error {
+	a.dispatchLock.Lock()
+	defer a.dispatchLock.Unlock()
+
+	rebalanceCount := 0 // counts the number of iterations
+	maxIter := -1       // stores the maximum expected number of iterations
+	for {
+		// get most loaded and least loaded
+		load, err := a.getInstancesLoad()
+		if err != nil {
+			return err
+		}
+		highest, lowest := a.getHighAndLowInstance(load)
+		lowLoad := load[lowest]
+		highLoad := load[highest]
+		delta := highLoad - lowLoad
+		if maxIter < 0 { // set max number of iteration to delta/2
+			maxIter = delta / 2
+			if maxIter > maxRebalanceLoop {
+				maxIter = maxRebalanceLoop
+			}
+		}
+		a.Logger.Printf("rebalancing: high instance: %s=%d, low instance %s=%d", highest, highLoad, lowest, lowLoad)
+		// nothing to do
+		if delta < 2 {
+			return nil
+		}
+		if rebalanceCount >= maxIter {
+			return nil
+		}
+		// there is some work to do
+		// get highest load instance targets
+		highInstanceTargets, err := a.getInstanceTargets(a.ctx, highest)
+		if err != nil {
+			return err
+		}
+		if len(highInstanceTargets) == 0 {
+			return nil
+		}
+		// pick one and move it to the lowest load instance
+		err = a.unassignTarget(a.ctx, highInstanceTargets[0], highest+"-api")
+		if err != nil {
+			return err
+		}
+		tc, ok := a.Config.Targets[highInstanceTargets[0]]
+		if !ok {
+			return fmt.Errorf("could not find target %s config", highInstanceTargets[0])
+		}
+		err = a.dispatchTarget(a.ctx, tc)
+		if err != nil {
+			return err
+		}
+		rebalanceCount++
+	}
 }

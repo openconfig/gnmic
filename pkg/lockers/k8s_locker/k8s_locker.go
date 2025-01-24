@@ -43,22 +43,22 @@ const (
 func init() {
 	lockers.Register("k8s", func() lockers.Locker {
 		return &k8sLocker{
-			Cfg:            &config{},
-			m:              new(sync.RWMutex),
-			acquiredlocks:  make(map[string]*lock),
-			attemtinglocks: make(map[string]*lock),
-			logger:         log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
+			Cfg:             &config{},
+			m:               new(sync.RWMutex),
+			acquiredlocks:   make(map[string]*lock),
+			attemptinglocks: make(map[string]*lock),
+			logger:          log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
 		}
 	})
 }
 
 type k8sLocker struct {
-	Cfg            *config
-	clientset      *kubernetes.Clientset
-	logger         *log.Logger
-	m              *sync.RWMutex
-	acquiredlocks  map[string]*lock
-	attemtinglocks map[string]*lock
+	Cfg             *config
+	clientset       *kubernetes.Clientset
+	logger          *log.Logger
+	m               *sync.RWMutex
+	acquiredlocks   map[string]*lock
+	attemptinglocks map[string]*lock
 
 	identity string // hostname
 }
@@ -122,7 +122,7 @@ func (k *k8sLocker) Lock(ctx context.Context, key string, val []byte) (bool, err
 		},
 	}
 	k.m.Lock()
-	k.attemtinglocks[nkey] = &lock{
+	k.attemptinglocks[nkey] = &lock{
 		lease:    l,
 		doneChan: doneChan,
 	}
@@ -131,7 +131,7 @@ func (k *k8sLocker) Lock(ctx context.Context, key string, val []byte) (bool, err
 	defer func() {
 		k.m.Lock()
 		defer k.m.Unlock()
-		delete(k.attemtinglocks, nkey)
+		delete(k.attemptinglocks, nkey)
 	}()
 	for {
 		select {
@@ -280,8 +280,8 @@ func (k *k8sLocker) unlock(ctx context.Context, key string) error {
 		delete(k.acquiredlocks, key)
 		return k.clientset.CoordinationV1().Leases(k.Cfg.Namespace).Delete(ctx, lock.lease.Name, metav1.DeleteOptions{})
 	}
-	if lock, ok := k.attemtinglocks[key]; ok {
-		delete(k.attemtinglocks, key)
+	if lock, ok := k.attemptinglocks[key]; ok {
+		delete(k.attemptinglocks, key)
 		close(lock.doneChan)
 		return k.clientset.CoordinationV1().Leases(k.Cfg.Namespace).Delete(ctx, lock.lease.Name, metav1.DeleteOptions{})
 	}
