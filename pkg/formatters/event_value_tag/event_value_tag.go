@@ -59,7 +59,7 @@ func (vt *valueTag) Init(cfg interface{}, opts ...formatters.Option) error {
 	return nil
 }
 
-type foo struct {
+type tagVal struct {
 	tags  map[string]string
 	value interface{}
 }
@@ -68,24 +68,14 @@ func (vt *valueTag) Apply(evs ...*formatters.EventMsg) []*formatters.EventMsg {
 	if vt.TagName == "" {
 		vt.TagName = vt.ValueName
 	}
-	// Look for events with ValueName
-	toApply := make([]foo, 0)
-	for _, ev := range evs {
-		for k, v := range ev.Values {
-			if vt.ValueName == k {
-				toApply = append(toApply, foo{ev.Tags, v})
-				if vt.Consume {
-					delete(ev.Values, k)
-				}
-			}
-		}
-	}
-	for _, bar := range toApply {
+
+	cache := make(map[string]bool)
+	vts := vt.buildApplyRules(evs)
+	for _, tv := range vts {
 		for _, ev := range evs {
-			if checkKeys(bar.tags, ev.Tags) {
-				if _, ok := ev.Values[vt.ValueName]; !ok {
-					ev.Tags[vt.TagName] = fmt.Sprint(bar.value)
-				}
+			match := compareTags(tv.tags, ev.Tags, cache)
+			if match {
+				ev.Tags[vt.TagName] = fmt.Sprint(tv.value)
 			}
 		}
 	}
@@ -104,17 +94,39 @@ func (vt *valueTag) WithTargets(tcs map[string]*types.TargetConfig) {}
 
 func (vt *valueTag) WithActions(act map[string]map[string]interface{}) {}
 
-func checkKeys(a map[string]string, b map[string]string) bool {
+// returns true if all keys match, false otherwise.
+func compareTags(a map[string]string, b map[string]string, cache map[string]bool) bool {
+	cacheKey := fmt.Sprintf("%v-%v", a, b)
+	if cachedResult, exists := cache[cacheKey]; exists {
+		return cachedResult
+	}
+
+	if len(a) > len(b) {
+		cache[cacheKey] = false
+		return false
+	}
 	for k, v := range a {
-		if vv, ok := b[k]; ok {
-			if v != vv {
-				return false
-			}
-		} else {
+		if vv, ok := b[k]; !ok || v != vv {
+			cache[cacheKey] = false
 			return false
 		}
 	}
+
+	cache[cacheKey] = true
 	return true
 }
 
 func (vt *valueTag) WithProcessors(procs map[string]map[string]any) {}
+
+func (vt *valueTag) buildApplyRules(evs []*formatters.EventMsg) []*tagVal {
+	toApply := make([]*tagVal, 0)
+	for _, ev := range evs {
+		if v, ok := ev.Values[vt.ValueName]; ok {
+			toApply = append(toApply, &tagVal{tags: ev.Tags, value: v})
+			if vt.Consume {
+				delete(ev.Values, vt.ValueName)
+			}
+		}
+	}
+	return toApply
+}
