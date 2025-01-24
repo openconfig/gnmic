@@ -314,7 +314,19 @@ func (c *Config) subscriptionOpts(sc *types.SubscriptionConfig, tc *types.Target
 					subGnmiOpts = append(subGnmiOpts, api.HeartbeatInterval(*sc.HeartbeatInterval))
 				}
 				subGnmiOpts = append(subGnmiOpts, api.SubscriptionMode(sc.StreamMode))
-			case gnmi.SubscriptionMode_SAMPLE, gnmi.SubscriptionMode_TARGET_DEFINED:
+			case gnmi.SubscriptionMode_TARGET_DEFINED:
+				if sc.HeartbeatInterval != nil {
+					subGnmiOpts = append(subGnmiOpts, api.HeartbeatInterval(*sc.HeartbeatInterval))
+				}
+				if sc.SampleInterval != nil {
+					subGnmiOpts = append(subGnmiOpts, api.SampleInterval(*sc.SampleInterval))
+				}
+				subGnmiOpts = append(subGnmiOpts, api.SuppressRedundant(sc.SuppressRedundant))
+				if sc.SuppressRedundant && sc.HeartbeatInterval != nil {
+					subGnmiOpts = append(subGnmiOpts, api.HeartbeatInterval(*sc.HeartbeatInterval))
+				}
+				subGnmiOpts = append(subGnmiOpts, api.SubscriptionMode(sc.StreamMode))
+			case gnmi.SubscriptionMode_SAMPLE:
 				if sc.SampleInterval != nil {
 					subGnmiOpts = append(subGnmiOpts, api.SampleInterval(*sc.SampleInterval))
 				}
