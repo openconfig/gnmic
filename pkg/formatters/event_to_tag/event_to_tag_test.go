@@ -9,7 +9,9 @@
 package event_to_tag
 
 import (
+	"fmt"
 	"reflect"
+	"regexp"
 	"testing"
 
 	"github.com/openconfig/gnmic/pkg/formatters"
@@ -245,5 +247,65 @@ func TestEventToTag(t *testing.T) {
 		} else {
 			t.Errorf("event processor %s not found", ts.processorType)
 		}
+	}
+}
+
+// Helper function to generate test messages
+func generateTestMessages(count int) []*formatters.EventMsg {
+	messages := make([]*formatters.EventMsg, count)
+	for i := 0; i < count; i++ {
+		messages[i] = &formatters.EventMsg{
+			Name:      fmt.Sprintf("event%d", i),
+			Timestamp: int64(i),
+			Values: map[string]interface{}{
+				fmt.Sprintf("key%d", i):  fmt.Sprintf("value%d", i),
+				"staticKey":              "staticValue",
+				fmt.Sprintf("tagw%d", i): fmt.Sprintf("value%d", i),
+			},
+		}
+	}
+	return messages
+}
+
+// Benchmark test for the Apply function
+func BenchmarkApply(b *testing.B) {
+	// Create a toTag instance with sample regex patterns
+	toTagInstance := &toTag{
+		valueNames: []*regexp.Regexp{
+			regexp.MustCompile(`^key\d+$`), // Matches keys like "key1", "key2", etc.
+		},
+		values: []*regexp.Regexp{
+			regexp.MustCompile(`^value\d+$`), // Matches values like "value1", "value2", etc.
+		},
+		Keep: false,
+	}
+
+	// Generate a sample EventMsg array
+	eventMessages := generateTestMessages(10000)
+	// Benchmark the Apply function
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		toTagInstance.Apply(eventMessages...)
+	}
+}
+
+func BenchmarkApply2(b *testing.B) {
+	// Create a toTag instance with sample regex patterns
+	toTagInstance := &toTag{
+		valueNames: []*regexp.Regexp{
+			regexp.MustCompile(`^key\d+$`), // Matches keys like "key1", "key2", etc.
+		},
+		values: []*regexp.Regexp{
+			regexp.MustCompile(`^value\d+$`), // Matches values like "value1", "value2", etc.
+		},
+		Keep: false,
+	}
+
+	// Generate a sample EventMsg array
+	eventMessages := generateTestMessages(10000)
+	// Benchmark the Apply function
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		toTagInstance.Apply2(eventMessages...)
 	}
 }
