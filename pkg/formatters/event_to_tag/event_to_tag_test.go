@@ -171,6 +171,50 @@ var testset = map[string]struct {
 			},
 		},
 	},
+	"match_integer_value": {
+		processorType: processorType,
+		processor: map[string]interface{}{
+			"value-names": []string{".*peer-as$"},
+			"keep":        true,
+		},
+		tests: []item{
+			{
+				input:  nil,
+				output: nil,
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{}},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{}},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Values: map[string]interface{}{
+							"name":    "dummy",
+							"peer-as": 65000,
+						},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Tags: map[string]string{
+							"peer-as": "65000",
+						},
+						Values: map[string]interface{}{
+							"name":    "dummy",
+							"peer-as": 65000,
+						},
+					},
+				},
+			},
+		},
+	},
 }
 
 func TestEventToTag(t *testing.T) {
@@ -185,7 +229,7 @@ func TestEventToTag(t *testing.T) {
 			}
 			t.Logf("processor: %+v", p)
 			for i, item := range ts.tests {
-				t.Run("uint_convert", func(t *testing.T) {
+				t.Run(name, func(t *testing.T) {
 					t.Logf("running test item %d", i)
 					outs := p.Apply(item.input...)
 					for j := range outs {

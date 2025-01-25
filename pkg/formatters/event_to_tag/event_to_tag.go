@@ -10,6 +10,7 @@ package event_to_tag
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -93,7 +94,12 @@ func (t *toTag) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 					if e.Tags == nil {
 						e.Tags = make(map[string]string)
 					}
-					e.Tags[k] = v.(string)
+					switch v := v.(type) {
+					case string:
+						e.Tags[k] = v
+					default:
+						e.Tags[k] = fmt.Sprint(v)
+					}
 					if !t.Keep {
 						delete(e.Values, k)
 					}
