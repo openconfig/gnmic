@@ -82,6 +82,8 @@ type promWriteOutput struct {
 	evps      []formatters.EventProcessor
 	targetTpl *template.Template
 	cfn       context.CancelFunc
+
+	reg *prometheus.Registry
 	// TODO:
 	// gnmiCache *cache.GnmiOutputCache
 }
@@ -149,6 +151,11 @@ func (p *promWriteOutput) Init(ctx context.Context, name string, cfg map[string]
 		if err := opt(p); err != nil {
 			return err
 		}
+	}
+
+	err = p.registerMetrics()
+	if err != nil {
+		return err
 	}
 
 	if p.cfg.TargetTemplate == "" {
@@ -238,9 +245,7 @@ func (p *promWriteOutput) RegisterMetrics(reg *prometheus.Registry) {
 	if !p.cfg.EnableMetrics {
 		return
 	}
-	if err := registerMetrics(reg); err != nil {
-		p.logger.Printf("failed to register metric: %v", err)
-	}
+	p.reg = reg
 }
 
 func (p *promWriteOutput) String() string {
