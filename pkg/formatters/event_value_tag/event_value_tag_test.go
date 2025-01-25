@@ -9,6 +9,7 @@
 package event_value_tag
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -48,18 +49,18 @@ var testset = map[string]struct {
 					{
 						Timestamp: 2,
 						Tags:      map[string]string{"tag": "value"},
-						Values:    map[string]interface{}{"foo": "value"},
+						Values:    map[string]interface{}{"foo": "new_value"},
 					},
 				},
 				output: []*formatters.EventMsg{
 					{
 						Timestamp: 1,
-						Tags:      map[string]string{"tag": "value", "foo": "value"},
+						Tags:      map[string]string{"tag": "value", "foo": "new_value"},
 					},
 					{
 						Timestamp: 2,
-						Tags:      map[string]string{"tag": "value"},
-						Values:    map[string]interface{}{"foo": "value"},
+						Tags:      map[string]string{"tag": "value", "foo": "new_value"},
+						Values:    map[string]interface{}{"foo": "new_value"},
 					},
 				},
 			},
@@ -84,6 +85,32 @@ var testset = map[string]struct {
 						Timestamp: 2,
 						Tags:      map[string]string{"tag": "value"},
 						Values:    map[string]interface{}{"bar": "value"},
+					},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Timestamp: 1,
+						Tags:      map[string]string{"tag": "value"},
+						Values:    map[string]interface{}{"counter1": "1"},
+					},
+					{
+						Timestamp: 2,
+						Tags:      map[string]string{"tag": "value"},
+						Values:    map[string]interface{}{"foo": "value"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Timestamp: 1,
+						Tags:      map[string]string{"tag": "value", "foo": "value"},
+						Values:    map[string]interface{}{"counter1": "1"},
+					},
+					{
+						Timestamp: 2,
+						Tags:      map[string]string{"tag": "value", "foo": "value"},
+						Values:    map[string]interface{}{"foo": "value"},
 					},
 				},
 			},
@@ -113,18 +140,18 @@ var testset = map[string]struct {
 					{
 						Timestamp: 2,
 						Tags:      map[string]string{"tag": "value"},
-						Values:    map[string]interface{}{"foo": "value"},
+						Values:    map[string]interface{}{"foo": "new_value"},
 					},
 				},
 				output: []*formatters.EventMsg{
 					{
 						Timestamp: 1,
-						Tags:      map[string]string{"tag": "value", "bar": "value"},
+						Tags:      map[string]string{"tag": "value", "bar": "new_value"},
 					},
 					{
 						Timestamp: 2,
-						Tags:      map[string]string{"tag": "value"},
-						Values:    map[string]interface{}{"foo": "value"},
+						Tags:      map[string]string{"tag": "value", "bar": "new_value"},
+						Values:    map[string]interface{}{"foo": "new_value"},
 					},
 				},
 			},
@@ -149,6 +176,32 @@ var testset = map[string]struct {
 						Timestamp: 2,
 						Tags:      map[string]string{"tag": "value"},
 						Values:    map[string]interface{}{"bar": "value"},
+					},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Timestamp: 1,
+						Tags:      map[string]string{"tag": "value"},
+						Values:    map[string]interface{}{"counter1": "1"},
+					},
+					{
+						Timestamp: 2,
+						Tags:      map[string]string{"tag": "value"},
+						Values:    map[string]interface{}{"foo": "value"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Timestamp: 1,
+						Tags:      map[string]string{"tag": "value", "bar": "value"},
+						Values:    map[string]interface{}{"counter1": "1"},
+					},
+					{
+						Timestamp: 2,
+						Tags:      map[string]string{"tag": "value", "bar": "value"},
+						Values:    map[string]interface{}{"foo": "value"},
 					},
 				},
 			},
@@ -178,17 +231,17 @@ var testset = map[string]struct {
 					{
 						Timestamp: 2,
 						Tags:      map[string]string{"tag": "value"},
-						Values:    map[string]interface{}{"foo": "value"},
+						Values:    map[string]interface{}{"foo": "new_value"},
 					},
 				},
 				output: []*formatters.EventMsg{
 					{
 						Timestamp: 1,
-						Tags:      map[string]string{"tag": "value", "foo": "value"},
+						Tags:      map[string]string{"tag": "value", "foo": "new_value"},
 					},
 					{
 						Timestamp: 2,
-						Tags:      map[string]string{"tag": "value", "foo": "value"},
+						Tags:      map[string]string{"tag": "value", "foo": "new_value"},
 						Values:    make(map[string]interface{}, 0),
 					},
 				},
@@ -238,7 +291,8 @@ func TestEventValueTag(t *testing.T) {
 					outs := p.Apply(item.input...)
 					for j := range outs {
 						if !reflect.DeepEqual(outs[j], item.output[j]) {
-							t.Errorf("failed at %s item %d, index %d, expected %+v, got: %+v", name, i, j, item.output[j], outs[j])
+							t.Errorf("failed at %s item %d, index %d, expected %+v", name, i, j, item.output[j])
+							t.Errorf("failed at %s item %d, index %d, got:     %+v", name, i, j, outs[j])
 						}
 					}
 				})
@@ -247,4 +301,57 @@ func TestEventValueTag(t *testing.T) {
 			t.Errorf("event processor %s not found", ts.processorType)
 		}
 	}
+}
+
+func generateEventMsgs(numEvents, numValues int, targetKey, targetValue string) []*formatters.EventMsg {
+	evs := make([]*formatters.EventMsg, numEvents)
+	for i := 0; i < numEvents; i++ {
+		values := make(map[string]any)
+		for j := 0; j < numValues; j++ {
+			values[fmt.Sprintf("key%d", j)] = fmt.Sprintf("value%d", j)
+		}
+		values[targetKey] = targetValue
+		evs[i] = &formatters.EventMsg{
+			Tags:   map[string]string{"tag": "test"},
+			Values: values,
+		}
+	}
+	return evs
+}
+
+func BenchmarkBuildApplyRules(b *testing.B) {
+	evs := generateEventMsgs(100, 10, "targetKey", "targetValue")
+	vt := &valueTag{ValueName: "targetKey", Consume: true}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		vt.buildApplyRules(evs)
+	}
+}
+
+func BenchmarkBuildApplyRules2(b *testing.B) {
+	evs := generateEventMsgs(100, 10, "targetKey", "targetValue")
+	vt := &valueTag{ValueName: "targetKey", Consume: true}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		vt.buildApplyRules2(evs)
+	}
+}
+
+// as ref
+func (vt *valueTag) buildApplyRules2(evs []*formatters.EventMsg) []*tagVal {
+	toApply := make([]*tagVal, 0)
+
+	for _, ev := range evs {
+		for k, v := range ev.Values {
+			if vt.ValueName == k {
+				toApply = append(toApply, &tagVal{ev.Tags, v})
+				if vt.Consume {
+					delete(ev.Values, vt.ValueName)
+				}
+			}
+		}
+	}
+	return toApply
 }
