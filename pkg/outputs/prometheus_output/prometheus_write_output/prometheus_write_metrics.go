@@ -106,5 +106,5 @@ func (p *promWriteOutput) registerMetrics() error {
 		}
 	})
 	initMetrics(p.cfg.Name)
-	return nil
+	return err
 }

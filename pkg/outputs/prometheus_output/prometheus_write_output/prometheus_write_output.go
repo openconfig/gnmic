@@ -21,11 +21,10 @@ import (
 	"text/template"
 	"time"
 
-	"google.golang.org/protobuf/proto"
-
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/prompb"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
@@ -306,7 +305,7 @@ func (p *promWriteOutput) worker(ctx context.Context) {
 	}
 }
 
-func (p *promWriteOutput) workerHandleProto(ctx context.Context, m *outputs.ProtoMsg) {
+func (p *promWriteOutput) workerHandleProto(_ context.Context, m *outputs.ProtoMsg) {
 	pmsg := m.GetMsg()
 	switch pmsg := pmsg.(type) {
 	case *gnmi.SubscribeResponse:

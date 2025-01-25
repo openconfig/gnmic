@@ -8,41 +8,55 @@
 
 package prometheus_output
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"sync"
+
+	"github.com/prometheus/client_golang/prometheus"
+)
 
 const (
 	namespace = "gnmic"
 	subsystem = "prometheus_output"
 )
 
-var prometheusNumberOfMetrics = prometheus.NewGauge(
+var registerMetricsOnce sync.Once
+
+var prometheusNumberOfMetrics = prometheus.NewGaugeVec(
 	prometheus.GaugeOpts{
 		Namespace: namespace,
 		Subsystem: subsystem,
 		Name:      "number_of_prometheus_metrics_total",
 		Help:      "Number of metrics stored by the prometheus output",
-	})
+	}, []string{"name"})
 
-var prometheusNumberOfCachedMetrics = prometheus.NewGauge(
+var prometheusNumberOfCachedMetrics = prometheus.NewGaugeVec(
 	prometheus.GaugeOpts{
 		Namespace: namespace,
 		Subsystem: subsystem,
 		Name:      "number_of_prometheus_cached_metrics_total",
 		Help:      "Number of metrics cached by the prometheus output",
-	})
+	}, []string{"name"})
 
 func (p *prometheusOutput) initMetrics() {
 	if p.cfg.CacheConfig == nil {
-		prometheusNumberOfMetrics.Set(0)
+		prometheusNumberOfMetrics.WithLabelValues(p.cfg.Name).Set(0)
 		return
 	}
-	prometheusNumberOfCachedMetrics.Set(0)
+	prometheusNumberOfCachedMetrics.WithLabelValues(p.cfg.Name).Set(0)
 }
 
-func (p *prometheusOutput) registerMetrics(reg *prometheus.Registry) error {
-	p.initMetrics()
-	if p.cfg.CacheConfig == nil {
-		return reg.Register(prometheusNumberOfMetrics)
+func (p *prometheusOutput) registerMetrics() error {
+	if p.reg == nil {
+		return nil
 	}
-	return reg.Register(prometheusNumberOfCachedMetrics)
+	var err error
+	registerMetricsOnce.Do(func() {
+		if p.cfg.CacheConfig == nil {
+			err = p.reg.Register(prometheusNumberOfMetrics)
+			return
+		}
+		err = p.reg.Register(prometheusNumberOfCachedMetrics)
+	})
+	p.initMetrics()
+	return err
 }

@@ -19,10 +19,9 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/semaphore"
 	"google.golang.org/protobuf/proto"
-
-	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
@@ -58,10 +57,13 @@ type File struct {
 
 	targetTpl *template.Template
 	msgTpl    *template.Template
+
+	reg *prometheus.Registry
 }
 
 // Config //
 type Config struct {
+	Name               string          `mapstructure:"name,omitempty"`
 	FileName           string          `mapstructure:"filename,omitempty"`
 	FileType           string          `mapstructure:"file-type,omitempty"`
 	Format             string          `mapstructure:"format,omitempty"`
@@ -126,13 +128,20 @@ func (f *File) Init(ctx context.Context, name string, cfg map[string]interface{}
 	if err != nil {
 		return err
 	}
-
+	if f.cfg.Name == "" {
+		f.cfg.Name = name
+	}
 	f.logger.SetPrefix(fmt.Sprintf(loggingPrefix, name))
 
 	for _, opt := range opts {
 		if err := opt(f); err != nil {
 			return err
 		}
+	}
+
+	err = f.registerMetrics()
+	if err != nil {
+		return err
 	}
 	if f.cfg.Format == "proto" {
 		return fmt.Errorf("proto format not supported in output type 'file'")
@@ -339,9 +348,7 @@ func (f *File) RegisterMetrics(reg *prometheus.Registry) {
 	if !f.cfg.EnableMetrics {
 		return
 	}
-	if err := registerMetrics(reg); err != nil {
-		f.logger.Printf("failed to register metric: %v", err)
-	}
+	f.reg = reg
 }
 
 func (f *File) SetName(name string)                             {}
