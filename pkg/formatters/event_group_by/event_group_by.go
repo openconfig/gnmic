@@ -10,10 +10,11 @@ package event_group_by
 
 import (
 	"encoding/json"
+	"hash/fnv"
 	"io"
 	"log"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/openconfig/gnmic/pkg/api/types"
@@ -79,13 +80,14 @@ func (p *groupBy) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	groups := make(map[string][]*formatters.EventMsg)
 	names := make([]string, 0)
 	for _, e := range es {
-		if _, ok := groups[e.Name]; !ok {
+		_, ok := groups[e.Name]
+		if !ok {
 			groups[e.Name] = make([]*formatters.EventMsg, 0)
 			names = append(names, e.Name)
 		}
 		groups[e.Name] = append(groups[e.Name], e)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	for _, n := range names {
 		result = append(result, p.byTags(groups[n])...)
 	}
@@ -109,7 +111,7 @@ func (p *groupBy) WithActions(act map[string]map[string]interface{}) {}
 
 func (p *groupBy) WithProcessors(procs map[string]map[string]any) {}
 
-func (p *groupBy) byTags(es []*formatters.EventMsg) []*formatters.EventMsg {
+func (p *groupBy) byTagsOld(es []*formatters.EventMsg) []*formatters.EventMsg {
 	if len(p.Tags) == 0 {
 		return es
 	}
@@ -124,41 +126,118 @@ func (p *groupBy) byTags(es []*formatters.EventMsg) []*formatters.EventMsg {
 		var key strings.Builder
 		for _, t := range p.Tags {
 			if v, ok := e.Tags[t]; ok {
+				key.WriteString(t)
+				key.Write(eqByte)
 				key.WriteString(v)
+				key.Write(pipeByte)
 				continue
 			}
 			exist = false
 			break
 		}
-		if exist {
-			skey := key.String()
-			if _, ok := groups[skey]; !ok {
-				keys = append(keys, skey)
-				groups[skey] = &formatters.EventMsg{
-					Name:      e.Name,
-					Timestamp: e.Timestamp,
-					Tags:      make(map[string]string),
-					Values:    make(map[string]interface{}),
-				}
-			}
-			for k, v := range e.Tags {
-				groups[skey].Tags[k] = v
-			}
-			for k, v := range e.Values {
-				groups[skey].Values[k] = v
-			}
-			if e.Deletes != nil {
-				groups[skey].Deletes = make([]string, 0)
-				groups[skey].Deletes = append(groups[skey].Deletes, e.Deletes...)
-			}
-
+		if !exist {
+			result = append(result, e)
 			continue
 		}
-		result = append(result, e)
+
+		skey := key.String()
+		group, ok := groups[skey]
+		if !ok {
+			keys = append(keys, skey)
+			group = &formatters.EventMsg{
+				Name:      e.Name,
+				Timestamp: e.Timestamp,
+				Tags:      make(map[string]string),
+				Values:    make(map[string]interface{}),
+			}
+			groups[skey] = group
+		}
+		for k, v := range e.Tags {
+			group.Tags[k] = v
+		}
+		for k, v := range e.Values {
+			group.Values[k] = v
+		}
+		if e.Deletes != nil {
+			group.Deletes = append(group.Deletes, e.Deletes...)
+		}
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 	for _, k := range keys {
 		result = append(result, groups[k])
 	}
 	return result
 }
+
+func (p *groupBy) byTags(es []*formatters.EventMsg) []*formatters.EventMsg {
+	if len(p.Tags) == 0 {
+		return es
+	}
+
+	result := make([]*formatters.EventMsg, 0, len(es))
+	groups := make(map[uint64]*formatters.EventMsg)
+
+	for _, e := range es {
+		if e == nil || e.Tags == nil || e.Values == nil {
+			continue
+		}
+
+		//grouping key based on tags value
+		skey, match := generateKeyAndCheck(e.Tags, p.Tags)
+		if !match {
+			result = append(result, e)
+			continue
+		}
+
+		group, exists := groups[skey]
+		if !exists {
+			group = &formatters.EventMsg{
+				Name:      e.Name,
+				Timestamp: e.Timestamp,
+				Tags:      make(map[string]string, len(e.Tags)),
+				Values:    make(map[string]interface{}, len(e.Values)),
+				Deletes:   make([]string, 0, len(e.Deletes)),
+			}
+			groups[skey] = group
+		}
+
+		// merge tags, values and deletes into the group
+		for k, v := range e.Tags {
+			group.Tags[k] = v
+		}
+		for k, v := range e.Values {
+			group.Values[k] = v
+		}
+		if e.Deletes != nil {
+			group.Deletes = append(group.Deletes, e.Deletes...)
+		}
+	}
+
+	for _, ev := range groups {
+		result = append(result, ev)
+	}
+
+	return result
+}
+
+func generateKeyAndCheck(tags map[string]string, keys []string) (uint64, bool) {
+	h := fnv.New64a()
+
+	for _, k := range keys {
+		v, ok := tags[k]
+		if !ok {
+			return 0, false
+		}
+		h.Write([]byte(k))
+		h.Write([]byte(eqByte))
+		h.Write([]byte(v))
+		h.Write([]byte(pipeByte))
+	}
+
+	return h.Sum64(), true
+}
+
+var (
+	eqByte   = []byte("=")
+	pipeByte = []byte("|")
+)
