@@ -30,5 +30,6 @@ import (
 	_ "github.com/openconfig/gnmic/pkg/formatters/event_to_tag"
 	_ "github.com/openconfig/gnmic/pkg/formatters/event_trigger"
 	_ "github.com/openconfig/gnmic/pkg/formatters/event_value_tag"
+	_ "github.com/openconfig/gnmic/pkg/formatters/event_value_tag_v2"
 	_ "github.com/openconfig/gnmic/pkg/formatters/event_write"
 )
