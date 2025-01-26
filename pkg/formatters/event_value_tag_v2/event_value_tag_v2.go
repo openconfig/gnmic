@@ -1,4 +1,4 @@
-// © 2022 Nokia.
+// © 2025 Nokia.
 //
 // This code is a Contribution to the gNMIc project (“Work”) made under the Google Software Grant and Corporate Contributor License Agreement (“CLA”) and governed by the Apache License 2.0.
 // No other rights or licenses in or to any of Nokia’s intellectual property are granted for any other purpose.
@@ -6,14 +6,16 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package event_value_tag
+package event_value_tag_v2
 
 import (
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"log"
 	"os"
+	"slices"
 
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
@@ -21,8 +23,14 @@ import (
 )
 
 const (
-	processorType = "event-value-tag"
+	processorType = "event-value-tag-v2"
 	loggingPrefix = "[" + processorType + "] "
+)
+
+var (
+	eqByte   = []byte("=")
+	semiC    = []byte(";")
+	pipeByte = []byte("|")
 )
 
 type valueTag struct {
@@ -31,6 +39,8 @@ type valueTag struct {
 	Consume   bool   `mapstructure:"consume,omitempty" json:"consume,omitempty"`
 	Debug     bool   `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 	logger    *log.Logger
+
+	applyRules map[uint64]*applyRule
 }
 
 func init() {
@@ -44,12 +54,15 @@ func (vt *valueTag) Init(cfg interface{}, opts ...formatters.Option) error {
 	if err != nil {
 		return err
 	}
-	if vt.TagName == "" {
-		vt.TagName = vt.ValueName
-	}
 	for _, opt := range opts {
 		opt(vt)
 	}
+
+	if vt.TagName == "" {
+		vt.TagName = vt.ValueName
+	}
+
+	vt.applyRules = make(map[uint64]*applyRule)
 
 	if vt.logger.Writer() != io.Discard {
 		b, err := json.Marshal(vt)
@@ -62,22 +75,25 @@ func (vt *valueTag) Init(cfg interface{}, opts ...formatters.Option) error {
 	return nil
 }
 
-type tagVal struct {
-	tags  map[string]string
-	value interface{}
+type applyRule struct {
+	// Set of tags that must be present in a message
+	// in order to add the value as tag.
+	tags map[string]string
+	// The value to be added as tag.
+	// The tag name is taken from the main proc struct.
+	value any
 }
 
 func (vt *valueTag) Apply(evs ...*formatters.EventMsg) []*formatters.EventMsg {
-	vts := vt.buildApplyRules(evs)
-	for _, tv := range vts {
+	vt.updateApplyRules(evs)
+	for _, ar := range vt.applyRules {
 		for _, ev := range evs {
-			match := compareTags(tv.tags, ev.Tags)
-			if match {
-				switch v := tv.value.(type) {
+			if includedIn(ar.tags, ev.Tags) {
+				switch v := ar.value.(type) {
 				case string:
 					ev.Tags[vt.TagName] = v
 				default:
-					ev.Tags[vt.TagName] = fmt.Sprint(tv.value)
+					ev.Tags[vt.TagName] = fmt.Sprint(ar.value)
 				}
 			}
 		}
@@ -97,13 +113,14 @@ func (vt *valueTag) WithTargets(tcs map[string]*types.TargetConfig) {}
 
 func (vt *valueTag) WithActions(act map[string]map[string]interface{}) {}
 
-// returns true if all keys match, false otherwise.
-func compareTags(a map[string]string, b map[string]string) bool {
+// comparison logic for maps
+// i.e: a ⊆ b
+func includedIn(a, b map[string]string) bool {
 	if len(a) > len(b) {
 		return false
 	}
 	for k, v := range a {
-		if vv, ok := b[k]; !ok || v != vv {
+		if bv, ok := b[k]; !ok || v != bv {
 			return false
 		}
 	}
@@ -112,21 +129,40 @@ func compareTags(a map[string]string, b map[string]string) bool {
 
 func (vt *valueTag) WithProcessors(procs map[string]map[string]any) {}
 
-func (vt *valueTag) buildApplyRules(evs []*formatters.EventMsg) []*tagVal {
-	toApply := make([]*tagVal, 0)
+func (vt *valueTag) updateApplyRules(evs []*formatters.EventMsg) {
 	for _, ev := range evs {
 		if v, ok := ev.Values[vt.ValueName]; ok {
-			toApply = append(toApply,
-				&tagVal{
-					tags:  copyTags(ev.Tags),
-					value: v,
-				})
+			// calculate apply rule Key
+			k := vt.applyRuleKey(ev.Tags)
+			vt.applyRules[k] = &applyRule{
+				tags:  copyTags(ev.Tags), // copy map
+				value: v,
+			}
 			if vt.Consume {
 				delete(ev.Values, vt.ValueName)
 			}
 		}
 	}
-	return toApply
+}
+
+// the apply rule key is a hash of the valueName and the event msg tags
+func (vt *valueTag) applyRuleKey(m map[string]string) uint64 {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+
+	h := fnv.New64a()
+	h.Write([]byte(vt.ValueName))
+	h.Write(pipeByte)
+	for _, k := range keys {
+		h.Write([]byte(k))
+		h.Write(eqByte)
+		h.Write([]byte(m[k]))
+		h.Write(semiC)
+	}
+	return h.Sum64()
 }
 
 func copyTags(src map[string]string) map[string]string {

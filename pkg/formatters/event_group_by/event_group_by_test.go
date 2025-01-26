@@ -9,6 +9,7 @@
 package event_group_by
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -418,11 +419,9 @@ func TestEventGroupBy(t *testing.T) {
 						t.Errorf("     got: %v", outs)
 						return
 					}
-					for j := range outs {
-						if !reflect.DeepEqual(outs[j], item.output[j]) {
-							t.Errorf("failed at %s item %d, index %d, expected: %+v", name, i, j, item.output[j])
-							t.Errorf("failed at %s item %d, index %d,      got: %+v", name, i, j, outs[j])
-						}
+					if !slicesEqual(outs, item.output) {
+						t.Errorf("failed at %s, expected: %+v", name, item.output)
+						t.Errorf("failed at %s,      got: %+v", name, outs)
 					}
 				})
 			}
@@ -430,4 +429,95 @@ func TestEventGroupBy(t *testing.T) {
 			t.Errorf("event processor %s not found", ts.processorType)
 		}
 	}
+}
+
+func generateMockEvents(numEvents, numTags int) []*formatters.EventMsg {
+	es := make([]*formatters.EventMsg, numEvents)
+	for i := 0; i < numEvents; i++ {
+		tags := make(map[string]string, numTags)
+		values := make(map[string]interface{}, numTags)
+		for j := 0; j < numTags; j++ {
+			tags[fmt.Sprintf("tag%d", j)] = fmt.Sprintf("value%d", j)
+			values[fmt.Sprintf("valueKey%d", j)] = fmt.Sprintf("value%d", j)
+		}
+		es[i] = &formatters.EventMsg{
+			Name:      fmt.Sprintf("event%d", i%5), // Group some events by name
+			Timestamp: int64(i),
+			Tags:      tags,
+			Values:    values,
+		}
+	}
+	return es
+}
+
+func BenchmarkByTags(b *testing.B) {
+	p := &groupBy{Tags: []string{"tag1", "tag2"}}
+
+	// Generate mock event messages
+	es := generateMockEvents(100_000, 5)
+
+	b.Run("OldByTags", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_ = p.byTagsOld(es)
+		}
+	})
+
+	b.Run("NewByTags", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_ = p.byTags(es)
+		}
+	})
+}
+
+func slicesEqual(slice1, slice2 []*formatters.EventMsg) bool {
+	if len(slice1) != len(slice2) {
+		return false
+	}
+
+	// Create a map to track matches in slice2
+	used := make([]bool, len(slice2))
+
+	// Check that every item in slice1 has a match in slice2
+	for _, e1 := range slice1 {
+		found := false
+		for i, e2 := range slice2 {
+			if !used[i] && eventMsgEqual(e1, e2) {
+				used[i] = true
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false // No match found for this item
+		}
+	}
+
+	return true
+}
+
+func eventMsgEqual(a, b *formatters.EventMsg) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+
+	if a.Name != b.Name || a.Timestamp != b.Timestamp {
+		return false
+	}
+
+	if !reflect.DeepEqual(a.Tags, b.Tags) {
+		return false
+	}
+	if !reflect.DeepEqual(a.Values, b.Values) {
+		return false
+	}
+	if a.Deletes == nil && b.Deletes == nil {
+		return true
+	}
+	if len(a.Deletes) == 0 && len(b.Deletes) == 0 {
+		return true
+	}
+	if !reflect.DeepEqual(a.Deletes, b.Deletes) {
+		return false
+	}
+	return true
 }
