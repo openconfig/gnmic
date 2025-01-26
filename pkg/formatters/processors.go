@@ -40,6 +40,7 @@ var EventProcessorTypes = []string{
 	"event-group-by",
 	"event-data-convert",
 	"event-value-tag",
+	"event-value-tag-v2",
 	"event-starlark",
 	"event-combine",
 	"event-ieeefloat32",
