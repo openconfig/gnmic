@@ -44,6 +44,9 @@ func (vt *valueTag) Init(cfg interface{}, opts ...formatters.Option) error {
 	if err != nil {
 		return err
 	}
+	if vt.TagName == "" {
+		vt.TagName = vt.ValueName
+	}
 	for _, opt := range opts {
 		opt(vt)
 	}
@@ -65,17 +68,17 @@ type tagVal struct {
 }
 
 func (vt *valueTag) Apply(evs ...*formatters.EventMsg) []*formatters.EventMsg {
-	if vt.TagName == "" {
-		vt.TagName = vt.ValueName
-	}
-
-	cache := make(map[string]bool)
 	vts := vt.buildApplyRules(evs)
 	for _, tv := range vts {
 		for _, ev := range evs {
-			match := compareTags(tv.tags, ev.Tags, cache)
+			match := compareTags(tv.tags, ev.Tags)
 			if match {
-				ev.Tags[vt.TagName] = fmt.Sprint(tv.value)
+				switch v := tv.value.(type) {
+				case string:
+					ev.Tags[vt.TagName] = v
+				default:
+					ev.Tags[vt.TagName] = fmt.Sprint(tv.value)
+				}
 			}
 		}
 	}
@@ -95,24 +98,15 @@ func (vt *valueTag) WithTargets(tcs map[string]*types.TargetConfig) {}
 func (vt *valueTag) WithActions(act map[string]map[string]interface{}) {}
 
 // returns true if all keys match, false otherwise.
-func compareTags(a map[string]string, b map[string]string, cache map[string]bool) bool {
-	cacheKey := fmt.Sprintf("%v-%v", a, b)
-	if cachedResult, exists := cache[cacheKey]; exists {
-		return cachedResult
-	}
-
+func compareTags(a map[string]string, b map[string]string) bool {
 	if len(a) > len(b) {
-		cache[cacheKey] = false
 		return false
 	}
 	for k, v := range a {
 		if vv, ok := b[k]; !ok || v != vv {
-			cache[cacheKey] = false
 			return false
 		}
 	}
-
-	cache[cacheKey] = true
 	return true
 }
 
@@ -122,11 +116,23 @@ func (vt *valueTag) buildApplyRules(evs []*formatters.EventMsg) []*tagVal {
 	toApply := make([]*tagVal, 0)
 	for _, ev := range evs {
 		if v, ok := ev.Values[vt.ValueName]; ok {
-			toApply = append(toApply, &tagVal{tags: ev.Tags, value: v})
+			toApply = append(toApply,
+				&tagVal{
+					tags:  copyTags(ev.Tags),
+					value: v,
+				})
 			if vt.Consume {
 				delete(ev.Values, vt.ValueName)
 			}
 		}
 	}
 	return toApply
+}
+
+func copyTags(src map[string]string) map[string]string {
+	dest := make(map[string]string, len(src))
+	for k, v := range src {
+		dest[k] = v
+	}
+	return dest
 }

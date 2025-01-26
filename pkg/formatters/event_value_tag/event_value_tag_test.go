@@ -10,6 +10,7 @@ package event_value_tag
 
 import (
 	"fmt"
+	"log"
 	"reflect"
 	"testing"
 
@@ -30,6 +31,7 @@ var testset = map[string]struct {
 		processorType: processorType,
 		processor: map[string]interface{}{
 			"value-name": "foo",
+			"debug":      true,
 		},
 		tests: []item{
 			{
@@ -51,6 +53,16 @@ var testset = map[string]struct {
 						Tags:      map[string]string{"tag": "value"},
 						Values:    map[string]interface{}{"foo": "new_value"},
 					},
+					{
+						Timestamp: 3,
+						Tags:      map[string]string{"other_tag": "value"},
+						Values:    map[string]interface{}{"other_val": "val"},
+					},
+					{
+						Timestamp: 4,
+						Tags:      map[string]string{"foo": "other_value"},
+						Values:    map[string]interface{}{"other_val": "val"},
+					},
 				},
 				output: []*formatters.EventMsg{
 					{
@@ -61,6 +73,16 @@ var testset = map[string]struct {
 						Timestamp: 2,
 						Tags:      map[string]string{"tag": "value", "foo": "new_value"},
 						Values:    map[string]interface{}{"foo": "new_value"},
+					},
+					{
+						Timestamp: 3,
+						Tags:      map[string]string{"other_tag": "value"},
+						Values:    map[string]interface{}{"other_val": "val"},
+					},
+					{
+						Timestamp: 4,
+						Tags:      map[string]string{"foo": "other_value"},
+						Values:    map[string]interface{}{"other_val": "val"},
 					},
 				},
 			},
@@ -272,6 +294,94 @@ var testset = map[string]struct {
 			},
 		},
 	},
+	"integer_val": {
+		processorType: processorType,
+		processor: map[string]interface{}{
+			"value-name": "foo",
+		},
+		tests: []item{
+			{
+				input:  nil,
+				output: nil,
+			},
+			{
+				input:  make([]*formatters.EventMsg, 0),
+				output: make([]*formatters.EventMsg, 0),
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Timestamp: 1,
+						Tags:      map[string]string{"tag": "value"},
+					},
+					{
+						Timestamp: 2,
+						Tags:      map[string]string{"tag": "value"},
+						Values:    map[string]interface{}{"foo": 42},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Timestamp: 1,
+						Tags:      map[string]string{"tag": "value", "foo": "42"},
+					},
+					{
+						Timestamp: 2,
+						Tags:      map[string]string{"tag": "value", "foo": "42"},
+						Values:    map[string]interface{}{"foo": 42},
+					},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Timestamp: 1,
+						Tags:      map[string]string{"tag": "value"},
+					},
+					{
+						Timestamp: 2,
+						Tags:      map[string]string{"tag": "value"},
+						Values:    map[string]interface{}{"bar": "value"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Timestamp: 1,
+						Tags:      map[string]string{"tag": "value"},
+					},
+					{
+						Timestamp: 2,
+						Tags:      map[string]string{"tag": "value"},
+						Values:    map[string]interface{}{"bar": "value"},
+					},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Timestamp: 1,
+						Tags:      map[string]string{"tag": "value"},
+					},
+					{
+						Timestamp: 2,
+						Tags:      map[string]string{"tag": "value1"},
+						Values:    map[string]interface{}{"foo": "value"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Timestamp: 1,
+						Tags:      map[string]string{"tag": "value"},
+					},
+					{
+						Timestamp: 2,
+						Tags:      map[string]string{"tag": "value1", "foo": "value"},
+						Values:    map[string]interface{}{"foo": "value"},
+					},
+				},
+			},
+		},
+	},
 }
 
 func TestEventValueTag(t *testing.T) {
@@ -279,7 +389,7 @@ func TestEventValueTag(t *testing.T) {
 		if pi, ok := formatters.EventProcessors[ts.processorType]; ok {
 			t.Log("found processor")
 			p := pi()
-			err := p.Init(ts.processor)
+			err := p.Init(ts.processor, formatters.WithLogger(log.Default()))
 			if err != nil {
 				t.Errorf("failed to initialize processors: %v", err)
 				return
@@ -320,7 +430,7 @@ func generateEventMsgs(numEvents, numValues int, targetKey, targetValue string) 
 }
 
 func BenchmarkBuildApplyRules(b *testing.B) {
-	evs := generateEventMsgs(100, 10, "targetKey", "targetValue")
+	evs := generateEventMsgs(100_000, 10, "targetKey", "targetValue")
 	vt := &valueTag{ValueName: "targetKey", Consume: true}
 
 	b.ResetTimer()
@@ -330,7 +440,7 @@ func BenchmarkBuildApplyRules(b *testing.B) {
 }
 
 func BenchmarkBuildApplyRules2(b *testing.B) {
-	evs := generateEventMsgs(100, 10, "targetKey", "targetValue")
+	evs := generateEventMsgs(100_000, 10, "targetKey", "targetValue")
 	vt := &valueTag{ValueName: "targetKey", Consume: true}
 
 	b.ResetTimer()
@@ -346,7 +456,11 @@ func (vt *valueTag) buildApplyRules2(evs []*formatters.EventMsg) []*tagVal {
 	for _, ev := range evs {
 		for k, v := range ev.Values {
 			if vt.ValueName == k {
-				toApply = append(toApply, &tagVal{ev.Tags, v})
+				toApply = append(toApply, &tagVal{
+					// copyTags(ev.Tags),
+					ev.Tags,
+					v,
+				})
 				if vt.Consume {
 					delete(ev.Values, vt.ValueName)
 				}
