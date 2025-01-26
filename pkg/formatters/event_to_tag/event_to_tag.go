@@ -10,6 +10,7 @@ package event_to_tag
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -87,13 +88,18 @@ func (t *toTag) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		if e == nil {
 			continue
 		}
+		if e.Tags == nil {
+			e.Tags = make(map[string]string)
+		}
 		for k, v := range e.Values {
 			for _, re := range t.valueNames {
 				if re.MatchString(k) {
-					if e.Tags == nil {
-						e.Tags = make(map[string]string)
+					switch v := v.(type) {
+					case string:
+						e.Tags[k] = v
+					default:
+						e.Tags[k] = fmt.Sprint(v)
 					}
-					e.Tags[k] = v.(string)
 					if !t.Keep {
 						delete(e.Values, k)
 					}
@@ -102,9 +108,38 @@ func (t *toTag) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 			for _, re := range t.values {
 				if vs, ok := v.(string); ok {
 					if re.MatchString(vs) {
-						if e.Tags == nil {
-							e.Tags = make(map[string]string)
+						e.Tags[k] = vs
+						if !t.Keep {
+							delete(e.Values, k)
 						}
+					}
+				}
+			}
+		}
+	}
+	return es
+}
+
+func (t *toTag) Apply2(es ...*formatters.EventMsg) []*formatters.EventMsg {
+	for _, e := range es {
+		if e == nil {
+			continue
+		}
+		if e.Tags == nil {
+			e.Tags = make(map[string]string)
+		}
+		for k, v := range e.Values {
+			for _, re := range t.valueNames {
+				if re.MatchString(k) {
+					e.Tags[k] = fmt.Sprint(v)  // always cast v results on extra allocations: Apply > Apply2
+					if !t.Keep {
+						delete(e.Values, k)
+					}
+				}
+			}
+			for _, re := range t.values {
+				if vs, ok := v.(string); ok {
+					if re.MatchString(vs) {
 						e.Tags[k] = vs
 						if !t.Keep {
 							delete(e.Values, k)
