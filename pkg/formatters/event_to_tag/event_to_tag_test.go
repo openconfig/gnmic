@@ -44,6 +44,7 @@ var testset = map[string]struct {
 				},
 				output: []*formatters.EventMsg{
 					{
+						Tags:   map[string]string{},
 						Values: map[string]interface{}{}},
 				},
 			},
@@ -78,6 +79,7 @@ var testset = map[string]struct {
 				},
 				output: []*formatters.EventMsg{
 					{
+						Tags:   map[string]string{},
 						Values: map[string]interface{}{}},
 				},
 			},
@@ -111,6 +113,7 @@ var testset = map[string]struct {
 				},
 				output: []*formatters.EventMsg{
 					{
+						Tags:   map[string]string{},
 						Values: map[string]interface{}{}},
 				},
 			},
@@ -150,6 +153,7 @@ var testset = map[string]struct {
 				},
 				output: []*formatters.EventMsg{
 					{
+						Tags:   map[string]string{},
 						Values: map[string]interface{}{}},
 				},
 			},
@@ -191,6 +195,7 @@ var testset = map[string]struct {
 				},
 				output: []*formatters.EventMsg{
 					{
+						Tags:   map[string]string{},
 						Values: map[string]interface{}{}},
 				},
 			},
