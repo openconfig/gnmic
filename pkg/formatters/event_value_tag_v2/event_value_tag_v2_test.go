@@ -12,6 +12,7 @@ import (
 	"log"
 	"os"
 	"reflect"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -46,30 +47,32 @@ var testset = map[string]struct {
 				output: make([]*formatters.EventMsg, 0),
 			},
 			{
+				// `foo`` value becomes a tag
 				input: []*formatters.EventMsg{
-					{
-						Timestamp: 1,
-						Tags:      map[string]string{"tag": "value"},
-					},
 					{
 						Timestamp: 2,
 						Tags:      map[string]string{"tag": "value"},
 						Values:    map[string]interface{}{"foo": "new_value"},
+					},
+					{
+						Timestamp: 1,
+						Tags:      map[string]string{"tag": "value"},
 					},
 				},
 				output: []*formatters.EventMsg{
 					{
-						Timestamp: 1,
-						Tags:      map[string]string{"tag": "value", "foo": "new_value"},
-					},
-					{
 						Timestamp: 2,
 						Tags:      map[string]string{"tag": "value", "foo": "new_value"},
 						Values:    map[string]interface{}{"foo": "new_value"},
 					},
+					{
+						Timestamp: 1,
+						Tags:      map[string]string{"tag": "value", "foo": "new_value"},
+					},
 				},
 			},
 			{
+				// no change
 				input: []*formatters.EventMsg{
 					{
 						Timestamp: 1,
@@ -94,54 +97,55 @@ var testset = map[string]struct {
 				},
 			},
 			{
+				// foo value becomes a tag
 				input: []*formatters.EventMsg{
-					{
-						Timestamp: 1,
-						Tags:      map[string]string{"tag": "value"},
-						Values:    map[string]interface{}{"counter1": "1"},
-					},
 					{
 						Timestamp: 2,
 						Tags:      map[string]string{"tag": "value"},
 						Values:    map[string]interface{}{"foo": "value"},
+					},
+					{
+						Timestamp: 1,
+						Tags:      map[string]string{"tag": "value"},
+						Values:    map[string]interface{}{"counter1": "1"},
 					},
 				},
 				output: []*formatters.EventMsg{
 					{
-						Timestamp: 1,
-						Tags:      map[string]string{"tag": "value", "foo": "value"},
-						Values:    map[string]interface{}{"counter1": "1"},
-					},
-					{
 						Timestamp: 2,
 						Tags:      map[string]string{"tag": "value", "foo": "value"},
 						Values:    map[string]interface{}{"foo": "value"},
+					},
+					{
+						Timestamp: 1,
+						Tags:      map[string]string{"tag": "value", "foo": "value"},
+						Values:    map[string]interface{}{"counter1": "1"},
 					},
 				},
 			},
 			{
 				input: []*formatters.EventMsg{
 					{
-						Timestamp: 1,
-						Tags:      map[string]string{"tag": "value"},
-						Values:    map[string]interface{}{"counter1": "1"},
-					},
-					{
 						Timestamp: 2,
 						Tags:      map[string]string{"tag": "value"},
 						Values:    map[string]interface{}{"foo": 42},
+					},
+					{
+						Timestamp: 1,
+						Tags:      map[string]string{"tag": "value"},
+						Values:    map[string]interface{}{"counter1": "1"},
 					},
 				},
 				output: []*formatters.EventMsg{
 					{
-						Timestamp: 1,
-						Tags:      map[string]string{"tag": "value", "foo": "42"},
-						Values:    map[string]interface{}{"counter1": "1"},
-					},
-					{
 						Timestamp: 2,
 						Tags:      map[string]string{"tag": "value", "foo": "42"},
 						Values:    map[string]interface{}{"foo": 42},
+					},
+					{
+						Timestamp: 1,
+						Tags:      map[string]string{"tag": "value", "foo": "42"},
+						Values:    map[string]interface{}{"counter1": "1"},
 					},
 				},
 			},
@@ -169,24 +173,24 @@ var testset = map[string]struct {
 			{
 				input: []*formatters.EventMsg{
 					{
-						Timestamp: 1,
-						Tags:      map[string]string{"tag": "value"},
-					},
-					{
 						Timestamp: 2,
 						Tags:      map[string]string{"tag": "value"},
 						Values:    map[string]interface{}{"foo": "new_value"},
+					},
+					{
+						Timestamp: 1,
+						Tags:      map[string]string{"tag": "value"},
 					},
 				},
 				output: []*formatters.EventMsg{
 					{
-						Timestamp: 1,
-						Tags:      map[string]string{"tag": "value", "bar": "new_value"},
-					},
-					{
 						Timestamp: 2,
 						Tags:      map[string]string{"tag": "value", "bar": "new_value"},
 						Values:    map[string]interface{}{"foo": "new_value"},
+					},
+					{
+						Timestamp: 1,
+						Tags:      map[string]string{"tag": "value", "bar": "new_value"},
 					},
 				},
 			},
@@ -217,26 +221,26 @@ var testset = map[string]struct {
 			{
 				input: []*formatters.EventMsg{
 					{
-						Timestamp: 1,
-						Tags:      map[string]string{"tag": "value"},
-						Values:    map[string]interface{}{"counter1": "1"},
-					},
-					{
 						Timestamp: 2,
 						Tags:      map[string]string{"tag": "value"},
 						Values:    map[string]interface{}{"foo": "value"},
+					},
+					{
+						Timestamp: 1,
+						Tags:      map[string]string{"tag": "value"},
+						Values:    map[string]interface{}{"counter1": "1"},
 					},
 				},
 				output: []*formatters.EventMsg{
 					{
-						Timestamp: 1,
-						Tags:      map[string]string{"tag": "value", "bar": "value"},
-						Values:    map[string]interface{}{"counter1": "1"},
-					},
-					{
 						Timestamp: 2,
 						Tags:      map[string]string{"tag": "value", "bar": "value"},
 						Values:    map[string]interface{}{"foo": "value"},
+					},
+					{
+						Timestamp: 1,
+						Tags:      map[string]string{"tag": "value", "bar": "value"},
+						Values:    map[string]interface{}{"counter1": "1"},
 					},
 				},
 			},
@@ -264,24 +268,24 @@ var testset = map[string]struct {
 			{
 				input: []*formatters.EventMsg{
 					{
-						Timestamp: 1,
-						Tags:      map[string]string{"tag": "value"},
-					},
-					{
 						Timestamp: 2,
 						Tags:      map[string]string{"tag": "value"},
 						Values:    map[string]interface{}{"foo": "new_value"},
 					},
-				},
-				output: []*formatters.EventMsg{
 					{
 						Timestamp: 1,
-						Tags:      map[string]string{"tag": "value", "foo": "new_value"},
+						Tags:      map[string]string{"tag": "value"},
 					},
+				},
+				output: []*formatters.EventMsg{
 					{
 						Timestamp: 2,
 						Tags:      map[string]string{"tag": "value", "foo": "new_value"},
 						Values:    make(map[string]interface{}, 0),
+					},
+					{
+						Timestamp: 1,
+						Tags:      map[string]string{"tag": "value", "foo": "new_value"},
 					},
 				},
 			},
@@ -340,24 +344,24 @@ var testset = map[string]struct {
 			{
 				input: []*formatters.EventMsg{
 					{
-						Timestamp: 1,
-						Tags:      map[string]string{"tag": "value"},
-					},
-					{
 						Timestamp: 2,
 						Tags:      map[string]string{"tag": "value"},
 						Values:    map[string]interface{}{"foo": "new_value"},
 					},
-				},
-				output: []*formatters.EventMsg{
 					{
 						Timestamp: 1,
-						Tags:      map[string]string{"tag": "value", "foo": "new_value"},
+						Tags:      map[string]string{"tag": "value"},
 					},
+				},
+				output: []*formatters.EventMsg{
 					{
 						Timestamp: 2,
 						Tags:      map[string]string{"tag": "value", "foo": "new_value"},
 						Values:    make(map[string]interface{}, 0),
+					},
+					{
+						Timestamp: 1,
+						Tags:      map[string]string{"tag": "value", "foo": "new_value"},
 					},
 				},
 			},
@@ -365,14 +369,15 @@ var testset = map[string]struct {
 			{
 				input: []*formatters.EventMsg{
 					{
-						Timestamp: 1,
-						Tags:      map[string]string{"tag": "value"},
-					},
-					{
 						Timestamp: 2,
 						Tags:      map[string]string{"tag": "value"},
 						Values:    map[string]interface{}{"bar": "value"}, // value to be copied to tags
 					},
+					{
+						Timestamp: 1,
+						Tags:      map[string]string{"tag": "value"},
+					},
+
 					{ // this message should remain unchanged
 						Timestamp: 3,
 						Tags:      map[string]string{"tag1": "value"},
@@ -380,14 +385,15 @@ var testset = map[string]struct {
 				},
 				output: []*formatters.EventMsg{
 					{
-						Timestamp: 1,
-						Tags:      map[string]string{"tag": "value", "bar": "value"},
-					},
-					{
 						Timestamp: 2,
 						Tags:      map[string]string{"tag": "value", "bar": "value"},
 						Values:    map[string]interface{}{"bar": "value"},
 					},
+					{
+						Timestamp: 1,
+						Tags:      map[string]string{"tag": "value", "bar": "value"},
+					},
+
 					{
 						Timestamp: 3,
 						Tags:      map[string]string{"tag1": "value"},
@@ -398,23 +404,25 @@ var testset = map[string]struct {
 			{
 				input: []*formatters.EventMsg{
 					{
-						Timestamp: 1,
-						Tags:      map[string]string{"tag1": "value"},
-					},
-					{
 						Timestamp: 2,
 						Tags:      map[string]string{"tag1": "value"},
 						Values:    map[string]interface{}{"foo": "value"}, // value to be copied to tags
-					},
-					{
-						Timestamp: 3,
-						Tags:      map[string]string{"tag2": "value"},
 					},
 					{
 						Timestamp: 4,
 						Tags:      map[string]string{"tag2": "value"},
 						Values:    map[string]interface{}{"bar": "value"}, // value to be copied to tags
 					},
+					{
+						Timestamp: 1,
+						Tags:      map[string]string{"tag1": "value"},
+					},
+
+					{
+						Timestamp: 3,
+						Tags:      map[string]string{"tag2": "value"},
+					},
+
 					{ // this message should remain unchanged
 						Timestamp: 5,
 						Tags:      map[string]string{"other_tag": "value"},
@@ -426,22 +434,23 @@ var testset = map[string]struct {
 				},
 				output: []*formatters.EventMsg{
 					{
-						Timestamp: 1,
-						Tags:      map[string]string{"tag1": "value", "foo": "value"},
-					},
-					{
 						Timestamp: 2,
 						Tags:      map[string]string{"tag1": "value", "foo": "value"},
 						Values:    map[string]interface{}{},
 					},
 					{
-						Timestamp: 3,
-						Tags:      map[string]string{"tag2": "value", "bar": "value"},
-					},
-					{
 						Timestamp: 4,
 						Tags:      map[string]string{"tag2": "value", "bar": "value"},
 						Values:    map[string]interface{}{"bar": "value"}, // value to be copied to tags
+					},
+					{
+						Timestamp: 1,
+						Tags:      map[string]string{"tag1": "value", "foo": "value"},
+					},
+
+					{
+						Timestamp: 3,
+						Tags:      map[string]string{"tag2": "value", "bar": "value"},
 					},
 					{
 						Timestamp: 5,
@@ -472,6 +481,7 @@ func TestEventValueTag(t *testing.T) {
 				t.Logf("processor: %+v", p)
 				t.Run(name, func(t *testing.T) {
 					t.Logf("running test item %d", i)
+					// _ = p.Apply(item.input...)
 					outs := p.Apply(item.input...)
 					for j := range outs {
 						if !reflect.DeepEqual(outs[j], item.output[j]) {
@@ -498,6 +508,7 @@ func TestValueTagApplySubsequentRuns(t *testing.T) {
 		},
 		Debug:  true,
 		logger: log.Default(),
+		m:      new(sync.RWMutex),
 		applyRules: []map[uint64]*applyRule{
 			make(map[uint64]*applyRule),
 		},
