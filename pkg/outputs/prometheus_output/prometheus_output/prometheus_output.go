@@ -57,7 +57,7 @@ func init() {
 		return &prometheusOutput{
 			cfg:       &config{},
 			eventChan: make(chan *formatters.EventMsg),
-			msgChan:   make(chan *outputs.ProtoMsg),
+			msgChan:   make(chan *outputs.ProtoMsg, 10_000),
 			wg:        new(sync.WaitGroup),
 			entries:   make(map[uint64]*promcom.PromMetric),
 			logger:    log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
@@ -397,28 +397,41 @@ func (p *prometheusOutput) workerHandleProto(ctx context.Context, m *outputs.Pro
 			p.logger.Printf("failed to convert message to event: %v", err)
 			return
 		}
-		for _, ev := range events {
-			p.workerHandleEvent(ev)
-		}
+		p.workerHandleEvent(events...)
 	}
 }
 
-func (p *prometheusOutput) workerHandleEvent(ev *formatters.EventMsg) {
+type metricAndKey struct {
+	k uint64
+	m *promcom.PromMetric
+}
+
+func (p *prometheusOutput) workerHandleEvent(evs ...*formatters.EventMsg) {
 	if p.cfg.Debug {
-		p.logger.Printf("got event to store: %+v", ev)
+		p.logger.Printf("got event to store: %+v", evs)
+	}
+	mks := make([]*metricAndKey, 0, len(evs))
+	for _, ev := range evs {
+		for _, pm := range p.mb.MetricsFromEvent(ev, time.Now()) {
+			mks = append(mks, &metricAndKey{
+				m: pm,
+				k: pm.CalculateKey(),
+			})
+		}
 	}
 	p.Lock()
+
 	defer p.Unlock()
-	for _, pm := range p.mb.MetricsFromEvent(ev, time.Now()) {
-		key := pm.CalculateKey()
-		e, ok := p.entries[key]
+	for _, mk := range mks {
+		//	key := pm.CalculateKey()
+		e, ok := p.entries[mk.k]
 		// if the entry key is not present add it to the map.
 		// if present add it only if the entry timestamp is newer than the
 		// existing one.
-		if !ok || pm.Time == nil || (ok && pm.Time != nil && e.Time.Before(*pm.Time)) {
-			p.entries[key] = pm
+		if !ok || mk.m.Time == nil || (ok && mk.m.Time != nil && e.Time.Before(*mk.m.Time)) {
+			p.entries[mk.k] = mk.m
 			if p.cfg.Debug {
-				p.logger.Printf("saved key=%d, metric: %+v", key, pm)
+				p.logger.Printf("saved key=%d, metric: %+v", mk.k, mk.m)
 			}
 		}
 	}

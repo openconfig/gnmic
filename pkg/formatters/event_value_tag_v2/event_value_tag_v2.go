@@ -16,6 +16,7 @@ import (
 	"log"
 	"os"
 	"slices"
+	"sync"
 
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
@@ -38,6 +39,7 @@ type valueTag struct {
 	Debug  bool    `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 	logger *log.Logger
 
+	m          *sync.RWMutex
 	applyRules []map[uint64]*applyRule
 }
 
@@ -49,7 +51,7 @@ type rule struct {
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &valueTag{logger: log.New(io.Discard, "", 0)}
+		return &valueTag{m: new(sync.RWMutex), logger: log.New(io.Discard, "", 0)}
 	})
 }
 
@@ -69,7 +71,7 @@ func (vt *valueTag) Init(cfg interface{}, opts ...formatters.Option) error {
 
 	vt.applyRules = make([]map[uint64]*applyRule, len(vt.Rules))
 	for i := range vt.applyRules {
-		vt.applyRules[i] = make(map[uint64]*applyRule)
+		vt.applyRules[i] = make(map[uint64]*applyRule, 0)
 	}
 
 	if vt.logger.Writer() != io.Discard {
@@ -93,16 +95,29 @@ type applyRule struct {
 }
 
 func (vt *valueTag) Apply(evs ...*formatters.EventMsg) []*formatters.EventMsg {
-	vt.updateApplyRules(evs)
-	for i, arSet := range vt.applyRules {
-		for _, ar := range arSet {
-			for _, ev := range evs {
+	vt.m.Lock()
+	defer vt.m.Unlock()
+
+	for _, ev := range evs {
+		for i, r := range vt.Rules {
+			if v, ok := ev.Values[r.ValueName]; ok {
+				// calculate apply rule Key
+				k := vt.applyRuleKey(ev.Tags, r)
+				vt.applyRules[i][k] = &applyRule{
+					tags:  copyTags(ev.Tags), // copy map
+					value: v,
+				}
+				if r.Consume {
+					delete(ev.Values, r.ValueName)
+				}
+			}
+			for _, ar := range vt.applyRules[i] {
 				if includedIn(ar.tags, ev.Tags) {
 					switch v := ar.value.(type) {
 					case string:
-						ev.Tags[vt.Rules[i].TagName] = v
+						ev.Tags[r.TagName] = v
 					default:
-						ev.Tags[vt.Rules[i].TagName] = fmt.Sprint(ar.value)
+						ev.Tags[r.TagName] = fmt.Sprint(ar.value)
 					}
 				}
 			}
@@ -138,24 +153,6 @@ func includedIn(a, b map[string]string) bool {
 }
 
 func (vt *valueTag) WithProcessors(procs map[string]map[string]any) {}
-
-func (vt *valueTag) updateApplyRules(evs []*formatters.EventMsg) {
-	for i, r := range vt.Rules {
-		for _, ev := range evs {
-			if v, ok := ev.Values[r.ValueName]; ok {
-				// calculate apply rule Key
-				k := vt.applyRuleKey(ev.Tags, r)
-				vt.applyRules[i][k] = &applyRule{
-					tags:  copyTags(ev.Tags), // copy map
-					value: v,
-				}
-				if r.Consume {
-					delete(ev.Values, r.ValueName)
-				}
-			}
-		}
-	}
-}
 
 // the apply rule key is a hash of the valueName and the event msg tags
 func (vt *valueTag) applyRuleKey(m map[string]string, r *rule) uint64 {
