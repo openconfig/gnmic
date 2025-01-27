@@ -9,8 +9,8 @@
 package event_value_tag_v2
 
 import (
-	"io"
 	"log"
+	"os"
 	"reflect"
 	"testing"
 
@@ -32,7 +32,9 @@ var testset = map[string]struct {
 	"no-options": {
 		processorType: processorType,
 		processor: map[string]interface{}{
-			"value-name": "foo",
+			"rules": []map[string]any{
+				{"value-name": "foo"},
+			},
 		},
 		tests: []item{
 			{
@@ -117,13 +119,43 @@ var testset = map[string]struct {
 					},
 				},
 			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Timestamp: 1,
+						Tags:      map[string]string{"tag": "value"},
+						Values:    map[string]interface{}{"counter1": "1"},
+					},
+					{
+						Timestamp: 2,
+						Tags:      map[string]string{"tag": "value"},
+						Values:    map[string]interface{}{"foo": 42},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Timestamp: 1,
+						Tags:      map[string]string{"tag": "value", "foo": "42"},
+						Values:    map[string]interface{}{"counter1": "1"},
+					},
+					{
+						Timestamp: 2,
+						Tags:      map[string]string{"tag": "value", "foo": "42"},
+						Values:    map[string]interface{}{"foo": 42},
+					},
+				},
+			},
 		},
 	},
 	"rename-tag": {
 		processorType: processorType,
 		processor: map[string]interface{}{
-			"value-name": "foo",
-			"tag-name":   "bar",
+			"rules": []map[string]any{
+				{
+					"value-name": "foo",
+					"tag-name":   "bar",
+				},
+			},
 		},
 		tests: []item{
 			{
@@ -213,8 +245,12 @@ var testset = map[string]struct {
 	"consume-value": {
 		processorType: processorType,
 		processor: map[string]interface{}{
-			"value-name": "foo",
-			"consume":    true,
+			"rules": []map[string]any{
+				{
+					"value-name": "foo",
+					"consume":    true,
+				},
+			},
 		},
 		tests: []item{
 			{
@@ -275,6 +311,150 @@ var testset = map[string]struct {
 			},
 		},
 	},
+	"multiple-rules": {
+		processorType: processorType,
+		processor: map[string]interface{}{
+			"rules": []map[string]any{
+				{
+					"value-name": "foo",
+					"consume":    true,
+				},
+				{
+					"value-name": "bar",
+					// "consume":    true,
+				},
+			},
+		},
+		tests: []item{
+			// 0
+			{
+				input:  nil,
+				output: nil,
+			},
+			// 1
+			{
+				input:  make([]*formatters.EventMsg, 0),
+				output: make([]*formatters.EventMsg, 0),
+			},
+			// 2
+			{
+				input: []*formatters.EventMsg{
+					{
+						Timestamp: 1,
+						Tags:      map[string]string{"tag": "value"},
+					},
+					{
+						Timestamp: 2,
+						Tags:      map[string]string{"tag": "value"},
+						Values:    map[string]interface{}{"foo": "new_value"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Timestamp: 1,
+						Tags:      map[string]string{"tag": "value", "foo": "new_value"},
+					},
+					{
+						Timestamp: 2,
+						Tags:      map[string]string{"tag": "value", "foo": "new_value"},
+						Values:    make(map[string]interface{}, 0),
+					},
+				},
+			},
+			// 3
+			{
+				input: []*formatters.EventMsg{
+					{
+						Timestamp: 1,
+						Tags:      map[string]string{"tag": "value"},
+					},
+					{
+						Timestamp: 2,
+						Tags:      map[string]string{"tag": "value"},
+						Values:    map[string]interface{}{"bar": "value"}, // value to be copied to tags
+					},
+					{ // this message should remain unchanged
+						Timestamp: 3,
+						Tags:      map[string]string{"tag1": "value"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Timestamp: 1,
+						Tags:      map[string]string{"tag": "value", "bar": "value"},
+					},
+					{
+						Timestamp: 2,
+						Tags:      map[string]string{"tag": "value", "bar": "value"},
+						Values:    map[string]interface{}{"bar": "value"},
+					},
+					{
+						Timestamp: 3,
+						Tags:      map[string]string{"tag1": "value"},
+					},
+				},
+			},
+			// 4
+			{
+				input: []*formatters.EventMsg{
+					{
+						Timestamp: 1,
+						Tags:      map[string]string{"tag1": "value"},
+					},
+					{
+						Timestamp: 2,
+						Tags:      map[string]string{"tag1": "value"},
+						Values:    map[string]interface{}{"foo": "value"}, // value to be copied to tags
+					},
+					{
+						Timestamp: 3,
+						Tags:      map[string]string{"tag2": "value"},
+					},
+					{
+						Timestamp: 4,
+						Tags:      map[string]string{"tag2": "value"},
+						Values:    map[string]interface{}{"bar": "value"}, // value to be copied to tags
+					},
+					{ // this message should remain unchanged
+						Timestamp: 5,
+						Tags:      map[string]string{"other_tag": "value"},
+					},
+					{ // this message should remain unchanged
+						Timestamp: 6,
+						// Tags:      map[string]string{"other_tag": "value"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Timestamp: 1,
+						Tags:      map[string]string{"tag1": "value", "foo": "value"},
+					},
+					{
+						Timestamp: 2,
+						Tags:      map[string]string{"tag1": "value", "foo": "value"},
+						Values:    map[string]interface{}{},
+					},
+					{
+						Timestamp: 3,
+						Tags:      map[string]string{"tag2": "value", "bar": "value"},
+					},
+					{
+						Timestamp: 4,
+						Tags:      map[string]string{"tag2": "value", "bar": "value"},
+						Values:    map[string]interface{}{"bar": "value"}, // value to be copied to tags
+					},
+					{
+						Timestamp: 5,
+						Tags:      map[string]string{"other_tag": "value"},
+					},
+					{ // this message should remain unchanged
+						Timestamp: 6,
+						// Tags:      map[string]string{"other_tag": "value"},
+					},
+				},
+			},
+		},
+	},
 }
 
 func TestEventValueTag(t *testing.T) {
@@ -284,7 +464,7 @@ func TestEventValueTag(t *testing.T) {
 			for i, item := range ts.tests {
 				// a processor per test item
 				p := pi()
-				err := p.Init(ts.processor)
+				err := p.Init(ts.processor, formatters.WithLogger(log.New(os.Stderr, "test", log.Flags())))
 				if err != nil {
 					t.Errorf("failed to initialize processors: %v", err)
 					return
@@ -309,12 +489,18 @@ func TestEventValueTag(t *testing.T) {
 
 func TestValueTagApplySubsequentRuns(t *testing.T) {
 	processor := &valueTag{
-		TagName:    "moved-tag",
-		ValueName:  "important-value",
-		Consume:    true,
-		Debug:      true,
-		logger:     log.New(io.Discard, "", 0),
-		applyRules: make(map[uint64]*applyRule),
+		Rules: []*rule{
+			{
+				TagName:   "moved-tag",
+				ValueName: "important-value",
+				Consume:   true,
+			},
+		},
+		Debug:  true,
+		logger: log.Default(),
+		applyRules: []map[uint64]*applyRule{
+			make(map[uint64]*applyRule),
+		},
 	}
 
 	// first set

@@ -34,13 +34,17 @@ var (
 )
 
 type valueTag struct {
+	Rules  []*rule `mapstructure:"rules,omitempty" json:"rules,omitempty"`
+	Debug  bool    `mapstructure:"debug,omitempty" json:"debug,omitempty"`
+	logger *log.Logger
+
+	applyRules []map[uint64]*applyRule
+}
+
+type rule struct {
 	TagName   string `mapstructure:"tag-name,omitempty" json:"tag-name,omitempty"`
 	ValueName string `mapstructure:"value-name,omitempty" json:"value-name,omitempty"`
 	Consume   bool   `mapstructure:"consume,omitempty" json:"consume,omitempty"`
-	Debug     bool   `mapstructure:"debug,omitempty" json:"debug,omitempty"`
-	logger    *log.Logger
-
-	applyRules map[uint64]*applyRule
 }
 
 func init() {
@@ -57,12 +61,16 @@ func (vt *valueTag) Init(cfg interface{}, opts ...formatters.Option) error {
 	for _, opt := range opts {
 		opt(vt)
 	}
-
-	if vt.TagName == "" {
-		vt.TagName = vt.ValueName
+	for _, r := range vt.Rules {
+		if r.TagName == "" {
+			r.TagName = r.ValueName
+		}
 	}
 
-	vt.applyRules = make(map[uint64]*applyRule)
+	vt.applyRules = make([]map[uint64]*applyRule, len(vt.Rules))
+	for i := range vt.applyRules {
+		vt.applyRules[i] = make(map[uint64]*applyRule)
+	}
 
 	if vt.logger.Writer() != io.Discard {
 		b, err := json.Marshal(vt)
@@ -86,14 +94,16 @@ type applyRule struct {
 
 func (vt *valueTag) Apply(evs ...*formatters.EventMsg) []*formatters.EventMsg {
 	vt.updateApplyRules(evs)
-	for _, ar := range vt.applyRules {
-		for _, ev := range evs {
-			if includedIn(ar.tags, ev.Tags) {
-				switch v := ar.value.(type) {
-				case string:
-					ev.Tags[vt.TagName] = v
-				default:
-					ev.Tags[vt.TagName] = fmt.Sprint(ar.value)
+	for i, arSet := range vt.applyRules {
+		for _, ar := range arSet {
+			for _, ev := range evs {
+				if includedIn(ar.tags, ev.Tags) {
+					switch v := ar.value.(type) {
+					case string:
+						ev.Tags[vt.Rules[i].TagName] = v
+					default:
+						ev.Tags[vt.Rules[i].TagName] = fmt.Sprint(ar.value)
+					}
 				}
 			}
 		}
@@ -130,23 +140,25 @@ func includedIn(a, b map[string]string) bool {
 func (vt *valueTag) WithProcessors(procs map[string]map[string]any) {}
 
 func (vt *valueTag) updateApplyRules(evs []*formatters.EventMsg) {
-	for _, ev := range evs {
-		if v, ok := ev.Values[vt.ValueName]; ok {
-			// calculate apply rule Key
-			k := vt.applyRuleKey(ev.Tags)
-			vt.applyRules[k] = &applyRule{
-				tags:  copyTags(ev.Tags), // copy map
-				value: v,
-			}
-			if vt.Consume {
-				delete(ev.Values, vt.ValueName)
+	for i, r := range vt.Rules {
+		for _, ev := range evs {
+			if v, ok := ev.Values[r.ValueName]; ok {
+				// calculate apply rule Key
+				k := vt.applyRuleKey(ev.Tags, r)
+				vt.applyRules[i][k] = &applyRule{
+					tags:  copyTags(ev.Tags), // copy map
+					value: v,
+				}
+				if r.Consume {
+					delete(ev.Values, r.ValueName)
+				}
 			}
 		}
 	}
 }
 
 // the apply rule key is a hash of the valueName and the event msg tags
-func (vt *valueTag) applyRuleKey(m map[string]string) uint64 {
+func (vt *valueTag) applyRuleKey(m map[string]string, r *rule) uint64 {
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
@@ -154,7 +166,7 @@ func (vt *valueTag) applyRuleKey(m map[string]string) uint64 {
 	slices.Sort(keys)
 
 	h := fnv.New64a()
-	h.Write([]byte(vt.ValueName))
+	h.Write([]byte(r.ValueName))
 	h.Write(pipeByte)
 	for _, k := range keys {
 		h.Write([]byte(k))
