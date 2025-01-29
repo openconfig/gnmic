@@ -434,11 +434,12 @@ func (c *consulLoader) updateTargets(ctx context.Context, srvName string, tcs ma
 	if _, ok := c.lastTargets[srvName]; !ok {
 		c.lastTargets[srvName] = make(map[string]*types.TargetConfig)
 	}
-	for _, add := range targetOp.Add {
-		c.lastTargets[srvName][add.Name] = add
-	}
+	// do delete first since change is delete+add
 	for _, del := range targetOp.Del {
 		delete(c.lastTargets[srvName], del)
+	}
+	for _, add := range targetOp.Add {
+		c.lastTargets[srvName][add.Name] = add
 	}
 	c.m.Unlock()
 
