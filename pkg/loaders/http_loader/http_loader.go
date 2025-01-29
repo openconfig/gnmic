@@ -329,13 +329,15 @@ func (h *httpLoader) updateTargets(ctx context.Context, tcs map[string]*types.Ta
 		return
 	}
 	h.m.Lock()
+	// do delete first, since target change
+	// consists of delete and add
+	for _, n := range targetOp.Del {
+		delete(h.lastTargets, n)
+	}
 	for n, t := range targetOp.Add {
 		if _, ok := h.lastTargets[n]; !ok {
 			h.lastTargets[n] = t
 		}
-	}
-	for _, n := range targetOp.Del {
-		delete(h.lastTargets, n)
 	}
 	h.m.Unlock()
 	opChan <- targetOp
@@ -417,24 +419,12 @@ func (f *httpLoader) runActions(ctx context.Context, tcs map[string]*types.Targe
 		}
 	}()
 	// create waitGroup and add the number of target operations to it
-	wg := new(sync.WaitGroup)
-	wg.Add(len(targetOp.Add) + len(targetOp.Del))
-	// run OnAdd actions
-	for n, tAdd := range targetOp.Add {
-		go func(n string, tc *types.TargetConfig) {
-			defer wg.Done()
-			err := f.runOnAddActions(ctx, tc.Name, tcs)
-			if err != nil {
-				f.logger.Printf("failed running OnAdd actions: %v", err)
-				return
-			}
-			opChan <- &loaders.TargetOperation{Add: map[string]*types.TargetConfig{n: tc}}
-		}(n, tAdd)
-	}
-	// run OnDelete actions
+	wgDelete := new(sync.WaitGroup)
+	wgDelete.Add(len(targetOp.Del))
+	// run OnDelete actions first, since change==delete+add
 	for _, tDel := range targetOp.Del {
 		go func(name string) {
-			defer wg.Done()
+			defer wgDelete.Done()
 			err := f.runOnDeleteActions(ctx, name, tcs)
 			if err != nil {
 				f.logger.Printf("failed running OnDelete actions: %v", err)
@@ -443,7 +433,25 @@ func (f *httpLoader) runActions(ctx context.Context, tcs map[string]*types.Targe
 			opChan <- &loaders.TargetOperation{Del: []string{name}}
 		}(tDel)
 	}
-	wg.Wait()
+	wgDelete.Wait()
+
+	wgAdd := new(sync.WaitGroup)
+	wgAdd.Add(len(targetOp.Add))
+
+	// run OnAdd actions
+	for n, tAdd := range targetOp.Add {
+		go func(n string, tc *types.TargetConfig) {
+			defer wgDelete.Done()
+			err := f.runOnAddActions(ctx, tc.Name, tcs)
+			if err != nil {
+				f.logger.Printf("failed running OnAdd actions: %v", err)
+				return
+			}
+			opChan <- &loaders.TargetOperation{Add: map[string]*types.TargetConfig{n: tc}}
+		}(n, tAdd)
+	}
+
+	wgAdd.Wait()
 	close(opChan)
 	<-doneCh //wait for gathering goroutine to finish
 	return result, nil

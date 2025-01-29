@@ -149,6 +149,24 @@ var testSet = map[string]struct {
 			Del: []string{"target1"},
 		},
 	},
+	"t10-target-change": {
+		m1: map[string]*types.TargetConfig{
+			"target1": {Address: "ip1"},
+			"target2": {Address: "ip2"},
+		},
+		m2: map[string]*types.TargetConfig{
+			"target1": {Address: "ip1"},
+			"target2": {Address: "ip2new"},
+		},
+		output: &TargetOperation{
+			Add: map[string]*types.TargetConfig{
+				"target2": {
+					Address: "ip2new",
+				},
+			},
+			Del: []string{"target2"},
+		},
+	},
 }
 
 func TestGetInstancesTagsMatches(t *testing.T) {

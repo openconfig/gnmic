@@ -45,6 +45,7 @@ START:
 	}
 	a.Logger.Printf("starting loader type %q", ldTypeS)
 	for targetOp := range ld.Start(ctx) {
+		// do deletes first, since target change equates to delete+add
 		for _, del := range targetOp.Del {
 			// not clustered, delete local target
 			if !a.inCluster() {
@@ -113,6 +114,7 @@ START:
 	}
 	a.Logger.Printf("starting loader type %q", ldTypeS)
 	for targetOp := range ld.Start(ctx) {
+		// do deletes first since target change is delete+add
 		for _, del := range targetOp.Del {
 			// clustered, delete target in all instances of the cluster
 			a.configLock.Lock()

@@ -291,11 +291,12 @@ func (f *fileLoader) updateTargets(ctx context.Context, tcs map[string]*types.Ta
 		return
 	}
 	f.m.Lock()
-	for _, add := range targetOp.Add {
-		f.lastTargets[add.Name] = add
-	}
+	// do delete first since change is delete+add
 	for _, del := range targetOp.Del {
 		delete(f.lastTargets, del)
+	}
+	for _, add := range targetOp.Add {
+		f.lastTargets[add.Name] = add
 	}
 	f.m.Unlock()
 	opChan <- targetOp

@@ -11,6 +11,7 @@ package loaders
 import (
 	"context"
 	"log"
+	"reflect"
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/prometheus/client_golang/prometheus"
@@ -72,30 +73,48 @@ func DecodeConfig(src, dst interface{}) error {
 	return decoder.Decode(src)
 }
 
-func Diff(m1, m2 map[string]*types.TargetConfig) *TargetOperation {
+func Diff(currentMap, newMap map[string]*types.TargetConfig) *TargetOperation {
 	result := &TargetOperation{
 		Add: make(map[string]*types.TargetConfig, 0),
 		Del: make([]string, 0),
 	}
-	if len(m1) == 0 {
-		for n, t := range m2 {
+	// handle removed and added targets
+	if len(currentMap) == 0 {
+		for n, t := range newMap {
 			result.Add[n] = t
 		}
 		return result
 	}
-	if len(m2) == 0 {
-		for name := range m1 {
+	if len(newMap) == 0 {
+		for name := range currentMap {
 			result.Del = append(result.Del, name)
 		}
 		return result
 	}
-	for n, t := range m2 {
-		if _, ok := m1[n]; !ok {
+	for n, t := range newMap {
+		if _, ok := currentMap[n]; !ok {
 			result.Add[n] = t
 		}
 	}
-	for n := range m1 {
-		if _, ok := m2[n]; !ok {
+	for n := range currentMap {
+		if _, ok := newMap[n]; !ok {
+			result.Del = append(result.Del, n)
+		}
+	}
+	// handle changes
+	for n, currentVal := range currentMap {
+		newVal, ok := newMap[n]
+		// we don't have the target in the new config,
+		// already handled above
+		if !ok {
+			continue
+		}
+		// if any target parameter changes, we need to remove
+		// and re-add
+		// the only case I see where we wouldn't necessarily need to restart the actual GRPC connection
+		// is if Tags and EventTags changed, we could just apply the new tags internally (but right now it's done in the StartCollector phase)
+		if !reflect.DeepEqual(currentVal, newVal) {
+			result.Add[n] = newVal
 			result.Del = append(result.Del, n)
 		}
 	}
