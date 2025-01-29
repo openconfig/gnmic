@@ -1,5 +1,21 @@
 ## Changelog
 
+### v0.40.0 - January 27th 2025
+
+- Processors:
+
+    - Introducing `event-value-tag-v2` processor, enabling the addition of values as tags to other messages
+      without requiring caching to be enabled in the associated output.
+  
+- Logging related to calls to the `/api/v1/healthz` API endpoint is now optional.
+
+- Clustering:
+  
+    - New REST API endpoints added:
+      - Switch the cluster leader: `DELETE /api/v1/cluster/leader`
+      - Drain an instance: `POST /api/v1/members/{id}/drain` where id is the instance name to be drained
+      - Rebalance the load between instances: `POST /api/v1/cluster/rebalance`
+
 ### v0.39.0 - November 7th 2024
 
 - Get Command
