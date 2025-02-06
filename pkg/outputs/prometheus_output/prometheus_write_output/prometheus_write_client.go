@@ -129,8 +129,8 @@ WRITE:
 				}
 				continue
 			}
-			prometheusWriteSendDuration.Set(float64(time.Since(start).Nanoseconds()))
-			prometheusWriteNumberOfSentMsgs.Add(float64(chunkSize))
+			prometheusWriteSendDuration.WithLabelValues(p.cfg.Name).Set(float64(time.Since(start).Nanoseconds()))
+			prometheusWriteNumberOfSentMsgs.WithLabelValues(p.cfg.Name).Add(float64(chunkSize))
 			// return if we are done with the gathered time series
 			if i+1 == numTS {
 				return
@@ -163,7 +163,7 @@ RETRY:
 			time.Sleep(backoff)
 			goto RETRY
 		}
-		prometheusWriteNumberOfFailSendMsgs.WithLabelValues("client_failure").Inc()
+		prometheusWriteNumberOfFailSendMsgs.WithLabelValues(p.cfg.Name, "client_failure").Inc()
 		return err
 	}
 	defer rsp.Body.Close()
@@ -172,7 +172,7 @@ RETRY:
 		p.logger.Printf("got response from remote: status=%s", rsp.Status)
 	}
 	if rsp.StatusCode >= 300 {
-		prometheusWriteNumberOfFailSendMsgs.WithLabelValues(fmt.Sprintf("status_code=%d", rsp.StatusCode)).Inc()
+		prometheusWriteNumberOfFailSendMsgs.WithLabelValues(p.cfg.Name, fmt.Sprintf("status_code=%d", rsp.StatusCode)).Inc()
 		msg, err := io.ReadAll(rsp.Body)
 		if err != nil {
 			return err
@@ -228,13 +228,14 @@ func (p *promWriteOutput) writeMetadata(ctx context.Context) {
 			Metadata: mds,
 		})
 		if err != nil {
+			prometheusWriteNumberOfFailSendMetadataMsgs.WithLabelValues(p.cfg.Name).Add(1)
 			if p.cfg.Debug {
 				p.logger.Print(err)
 			}
 			return
 		}
-		prometheusWriteMetadataSendDuration.Set(float64(time.Since(start).Nanoseconds()))
-		prometheusWriteNumberOfSentMetadataMsgs.Add(float64(len(mds)))
+		prometheusWriteMetadataSendDuration.WithLabelValues(p.cfg.Name).Set(float64(time.Since(start).Nanoseconds()))
+		prometheusWriteNumberOfSentMetadataMsgs.WithLabelValues(p.cfg.Name).Add(float64(len(mds)))
 		// reset counter and array then continue with the loop
 		count = 0
 		mds = make([]prompb.MetricMetadata, 0, p.cfg.Metadata.MaxEntriesPerWrite)
@@ -259,14 +260,14 @@ func (p *promWriteOutput) writeMetadata(ctx context.Context) {
 		}
 		return
 	}
-	prometheusWriteMetadataSendDuration.Set(float64(time.Since(start).Nanoseconds()))
-	prometheusWriteNumberOfSentMetadataMsgs.Add(float64(len(mds)))
+	prometheusWriteMetadataSendDuration.WithLabelValues(p.cfg.Name).Set(float64(time.Since(start).Nanoseconds()))
+	prometheusWriteNumberOfSentMetadataMsgs.WithLabelValues(p.cfg.Name).Add(float64(len(mds)))
 }
 
 func (p *promWriteOutput) makeHTTPRequest(ctx context.Context, wr *prompb.WriteRequest) (*http.Request, error) {
 	b, err := gogoproto.Marshal(wr)
 	if err != nil {
-		prometheusWriteNumberOfFailSendMsgs.WithLabelValues("marshal_error").Inc()
+		prometheusWriteNumberOfFailSendMsgs.WithLabelValues(p.cfg.Name, "marshal_error").Inc()
 		return nil, fmt.Errorf("marshal error: %w", err)
 	}
 	compBytes := snappy.Encode(nil, b)
