@@ -520,11 +520,12 @@ func (d *dockerLoader) updateTargets(ctx context.Context, tcs map[string]*types.
 		return
 	}
 	d.m.Lock()
-	for _, add := range targetOp.Add {
-		d.lastTargets[add.Name] = add
-	}
+	// do deletes first since change is delete+add
 	for _, del := range targetOp.Del {
 		delete(d.lastTargets, del)
+	}
+	for _, add := range targetOp.Add {
+		d.lastTargets[add.Name] = add
 	}
 	d.m.Unlock()
 	opChan <- targetOp
