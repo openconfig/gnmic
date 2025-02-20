@@ -89,7 +89,7 @@ func (a *App) registerTargetMetrics() {
 						ownTargets[strings.TrimPrefix(k, lockedNodesPrefix+"/")] = v
 					}
 				}
-
+				targetUPMetric.Reset()
 				a.configLock.RLock()
 				for _, tc := range a.Config.Targets {
 					a.operLock.RLock()
