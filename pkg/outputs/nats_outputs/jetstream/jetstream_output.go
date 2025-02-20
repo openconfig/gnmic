@@ -115,6 +115,8 @@ type jetstreamOutput struct {
 
 	targetTpl *template.Template
 	msgTpl    *template.Template
+
+	reg *prometheus.Registry
 }
 
 func (n *jetstreamOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
@@ -136,9 +138,11 @@ func (n *jetstreamOutput) Init(ctx context.Context, name string, cfg map[string]
 	if err != nil {
 		return err
 	}
-
+	err = n.registerMetrics()
+	if err != nil {
+		return err
+	}
 	n.msgChan = make(chan *outputs.ProtoMsg, n.Cfg.BufferSize)
-	initMetrics()
 	n.mo = &formatters.MarshalOptions{
 		Format:     n.Cfg.Format,
 		OverrideTS: n.Cfg.OverrideTimestamps,
@@ -263,13 +267,7 @@ func (n *jetstreamOutput) RegisterMetrics(reg *prometheus.Registry) {
 	if !n.Cfg.EnableMetrics {
 		return
 	}
-	if reg == nil {
-		n.logger.Printf("ERR: output metrics enabled but main registry is not initialized, enable main metrics under `api-server`")
-		return
-	}
-	if err := registerMetrics(reg); err != nil {
-		n.logger.Printf("failed to register metric: %+v", err)
-	}
+	n.reg = reg
 }
 
 func (c *config) String() string {

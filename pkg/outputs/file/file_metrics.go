@@ -46,9 +46,9 @@ var numberOfFailWriteMsgs = prometheus.NewCounterVec(prometheus.CounterOpts{
 
 func (f *File) initMetrics() {
 	numberOfWrittenBytes.WithLabelValues(f.cfg.Name, "").Add(0)
-	numberOfReceivedMsgs.WithLabelValues("").Add(0)
-	numberOfWrittenMsgs.WithLabelValues("").Add(0)
-	numberOfFailWriteMsgs.WithLabelValues("", "").Add(0)
+	numberOfReceivedMsgs.WithLabelValues(f.cfg.Name, "").Add(0)
+	numberOfWrittenMsgs.WithLabelValues(f.cfg.Name, "").Add(0)
+	numberOfFailWriteMsgs.WithLabelValues(f.cfg.Name, "", "").Add(0)
 }
 
 func (f *File) registerMetrics() error {

@@ -241,7 +241,7 @@ func (f *File) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) 
 	}
 	defer f.sem.Release(1)
 
-	numberOfReceivedMsgs.WithLabelValues(f.file.Name()).Inc()
+	numberOfReceivedMsgs.WithLabelValues(f.cfg.Name, f.file.Name()).Inc()
 	rsp, err = outputs.AddSubscriptionTarget(rsp, meta, f.cfg.AddTarget, f.targetTpl)
 	if err != nil {
 		f.logger.Printf("failed to add target to the response: %v", err)
@@ -251,7 +251,7 @@ func (f *File) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) 
 		if f.cfg.Debug {
 			f.logger.Printf("failed marshaling proto msg: %v", err)
 		}
-		numberOfFailWriteMsgs.WithLabelValues(f.file.Name(), "marshal_error").Inc()
+		numberOfFailWriteMsgs.WithLabelValues(f.cfg.Name, f.file.Name(), "marshal_error").Inc()
 		return
 	}
 	if len(bb) == 0 {
@@ -264,7 +264,7 @@ func (f *File) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) 
 				if f.cfg.Debug {
 					log.Printf("failed to execute template: %v", err)
 				}
-				numberOfFailWriteMsgs.WithLabelValues(f.file.Name(), "template_error").Inc()
+				numberOfFailWriteMsgs.WithLabelValues(f.cfg.Name, f.file.Name(), "template_error").Inc()
 				continue
 			}
 		}
@@ -274,11 +274,11 @@ func (f *File) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) 
 			if f.cfg.Debug {
 				f.logger.Printf("failed to write to file '%s': %v", f.file.Name(), err)
 			}
-			numberOfFailWriteMsgs.WithLabelValues(f.file.Name(), "write_error").Inc()
+			numberOfFailWriteMsgs.WithLabelValues(f.cfg.Name, f.file.Name(), "write_error").Inc()
 			return
 		}
-		numberOfWrittenBytes.WithLabelValues(f.file.Name()).Add(float64(n))
-		numberOfWrittenMsgs.WithLabelValues(f.file.Name()).Inc()
+		numberOfWrittenBytes.WithLabelValues(f.cfg.Name, f.file.Name()).Add(float64(n))
+		numberOfWrittenMsgs.WithLabelValues(f.cfg.Name, f.file.Name()).Inc()
 	}
 }
 
@@ -304,7 +304,7 @@ func (f *File) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {
 			}
 			if err != nil {
 				fmt.Printf("failed to WriteEvent: %v", err)
-				numberOfFailWriteMsgs.WithLabelValues(f.file.Name(), "marshal_error").Inc()
+				numberOfFailWriteMsgs.WithLabelValues(f.cfg.Name, f.file.Name(), "marshal_error").Inc()
 				return
 			}
 			toWrite = append(toWrite, b...)
@@ -320,7 +320,7 @@ func (f *File) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {
 		}
 		if err != nil {
 			fmt.Printf("failed to WriteEvent: %v", err)
-			numberOfFailWriteMsgs.WithLabelValues(f.file.Name(), "marshal_error").Inc()
+			numberOfFailWriteMsgs.WithLabelValues(f.cfg.Name, f.file.Name(), "marshal_error").Inc()
 			return
 		}
 		toWrite = append(toWrite, b...)
@@ -330,11 +330,11 @@ func (f *File) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {
 	n, err := f.file.Write(toWrite)
 	if err != nil {
 		fmt.Printf("failed to WriteEvent: %v", err)
-		numberOfFailWriteMsgs.WithLabelValues(f.file.Name(), "write_error").Inc()
+		numberOfFailWriteMsgs.WithLabelValues(f.cfg.Name, f.file.Name(), "write_error").Inc()
 		return
 	}
-	numberOfWrittenBytes.WithLabelValues(f.file.Name()).Add(float64(n))
-	numberOfWrittenMsgs.WithLabelValues(f.file.Name()).Inc()
+	numberOfWrittenBytes.WithLabelValues(f.cfg.Name, f.file.Name()).Add(float64(n))
+	numberOfWrittenMsgs.WithLabelValues(f.cfg.Name, f.file.Name()).Inc()
 }
 
 // Close //
