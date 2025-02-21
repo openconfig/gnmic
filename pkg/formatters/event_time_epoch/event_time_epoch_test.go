@@ -42,6 +42,7 @@ func Test_epoch_Apply(t *testing.T) {
 		{
 			name: "simple",
 			fields: map[string]any{
+				"precision": "s",
 				"value-names": []string{
 					".*last-change",
 				},
