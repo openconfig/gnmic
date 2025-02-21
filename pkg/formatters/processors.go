@@ -44,6 +44,7 @@ var EventProcessorTypes = []string{
 	"event-starlark",
 	"event-combine",
 	"event-ieeefloat32",
+	"event-time-epoch",
 }
 
 type Initializer func() EventProcessor

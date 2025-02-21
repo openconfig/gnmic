@@ -27,6 +27,7 @@ import (
 	_ "github.com/openconfig/gnmic/pkg/formatters/event_rate_limit"
 	_ "github.com/openconfig/gnmic/pkg/formatters/event_starlark"
 	_ "github.com/openconfig/gnmic/pkg/formatters/event_strings"
+	_ "github.com/openconfig/gnmic/pkg/formatters/event_time_epoch"
 	_ "github.com/openconfig/gnmic/pkg/formatters/event_to_tag"
 	_ "github.com/openconfig/gnmic/pkg/formatters/event_trigger"
 	_ "github.com/openconfig/gnmic/pkg/formatters/event_value_tag"
