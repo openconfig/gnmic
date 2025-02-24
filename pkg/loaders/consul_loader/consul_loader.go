@@ -16,7 +16,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"maps"
 	"net"
 	"strconv"
 	"strings"
@@ -112,8 +111,6 @@ type serviceDef struct {
 	Name   string                 `mapstructure:"name,omitempty" json:"name,omitempty"`
 	Tags   []string               `mapstructure:"tags,omitempty" json:"tags,omitempty"`
 	Config map[string]interface{} `mapstructure:"config,omitempty" json:"config,omitempty"`
-	TargetName string 			  `mapstructure:"target-name,omitempty" json:"target-name,omitempty"`
-	TargetTags map[string]string  `mapstructure:"target-tags,omitempty" json:"target-tags,omitempty"`
 
 	tags map[string]struct{}
 	targetNameTemplate *template.Template
@@ -414,8 +411,10 @@ SRV:
 		
 		var buffer bytes.Buffer
 
-		if sd.TargetName != "" {
-			nameTemplate, err := template.New("targetName").Option("missingkey=zero").Parse(sd.TargetName)
+		tc.Name = se.Service.ID
+
+		if configName, ok := sd.Config["name"].(string); ok {
+			nameTemplate, err := template.New("targetName").Option("missingkey=zero").Parse(configName)
 			if err != nil {
 				c.logger.Println("Could not parse nameTemplate")
 			}
@@ -428,24 +427,24 @@ SRV:
 				continue
 			}
 			tc.Name = buffer.String()
-		} else {
-			tc.Name = se.Service.ID
 		}
-		
-		if sd.TargetTags != nil {
-			// Create Event tags from Consul via templates
+
+		// Create Event tags from Consul via templates
+		if configEventTags, ok := sd.Config["event-tags"].(map[string]interface{}); ok {
 			// Allow to use join function in tags
 			templateFunctions := template.FuncMap{"join": strings.Join}
+
 			sd.targetTagsTemplate = make(map[string]*template.Template)
-			for tagName, tagTemplateString := range sd.TargetTags {
-				tagTemplate, err := template.New(tagName).Funcs(templateFunctions).Option("missingkey=zero").Parse(tagTemplateString)
+			for tagName, tagTemplateString := range configEventTags {
+				tagTemplate, err := template.New(tagName).Funcs(templateFunctions).Option("missingkey=zero").Parse(fmt.Sprintf("%v",tagTemplateString))
 				if err != nil {
 					c.logger.Println("Could not parse tagTemplate:", tagName)
 					continue
 				}
 				sd.targetTagsTemplate[tagName] = tagTemplate
 			}
-			extraTags := make(map[string]string)
+
+			eventTags := make(map[string]string)
 			for tagName, tagTemplate := range sd.targetTagsTemplate {
 				buffer.Reset()
 				err := tagTemplate.Execute(&buffer, se.Service)
@@ -453,9 +452,9 @@ SRV:
 					c.logger.Println("Could not execute tagTemplate:", tagName)
 					return nil, err
 				}
-				extraTags[tagName] = buffer.String()
+				eventTags[tagName] = buffer.String()
 			}
-			maps.Copy(tc.EventTags, extraTags)
+			tc.EventTags = eventTags
 		}
 		return tc, nil
 	}

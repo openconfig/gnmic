@@ -25,9 +25,9 @@ loader:
 
 ### Templating with Consul
 
-It is possible to set the target name to something other than the Consul Service ID using the `target-name` field under the service. The target name can be customized using [Go Templates](https://golang.org/pkg/text/template/).
+It is possible to set the target name to something other than the Consul Service ID using the `name` field under the config. The target name can be customized using [Go Templates](https://golang.org/pkg/text/template/).
 
-In addition to setting the target name, it is also possible to add extra `target-tags` to the targets that use the same configuration as the target name.
+In addition to setting the target name, it is also possible to use Go Templates on `event-tags` as well.
 
 The templates use the Service under Consul, so access to things like `ID`, `Tags`, `Meta`, etc. are all available.
 
@@ -36,11 +36,13 @@ loader:
   type: consul
   services:
     - name: cluster1-gnmi-server
-      target-name: "{{.Meta.fancy-target-name}}"
-      target-tags:
-        location: "{{.Meta.site_name}}"
-        model: "{{.Meta.device_type}}"
-        tag-1: "{{.Meta.tag_1}}"
+      config:
+        name: "{{.Meta.device}}"
+        event-tags:
+            location: "{{.Meta.site_name}}"
+            model: "{{.Meta.device_type}}"
+            tag-1: "{{.Meta.tag_1}}"
+            boring-static-tag: "hello"
 ```
 
 ### Configuration
@@ -67,12 +69,6 @@ loader:
   services:
       # name of the Consul service
     - name:
-      # templated name of the target
-      target-name:
-      # a mapping of Consul templated tags to add to all events from this taget.
-      # each key/value pair in this mapping will be added to metadata on all events.
-      # the templated value will be converted based on the Consul data for the target.
-      target-tags:
       # a list of strings to further filter the service instances
       tags: 
       # configuration map to apply to target discovered from this service
