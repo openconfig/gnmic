@@ -50,7 +50,6 @@ func (c *Config) GetLoader() error {
 					}
 					return os.ExpandEnv(v)
 				})
-				fmt.Printf("LOADER: %+v\n", c.Loader)
 				return nil
 			}
 		}

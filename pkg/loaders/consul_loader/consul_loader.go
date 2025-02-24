@@ -9,15 +9,19 @@
 package consul_loader
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
+	"maps"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
+	"text/template"
 	"time"
 
 	"gopkg.in/yaml.v2"
@@ -108,8 +112,12 @@ type serviceDef struct {
 	Name   string                 `mapstructure:"name,omitempty" json:"name,omitempty"`
 	Tags   []string               `mapstructure:"tags,omitempty" json:"tags,omitempty"`
 	Config map[string]interface{} `mapstructure:"config,omitempty" json:"config,omitempty"`
+	TargetName string 			  `mapstructure:"target-name,omitempty" json:"target-name,omitempty"`
+	TargetTags map[string]string  `mapstructure:"target-tags,omitempty" json:"target-tags,omitempty"`
 
 	tags map[string]struct{}
+	targetNameTemplate *template.Template
+	targetTagsTemplate map[string]*template.Template
 }
 
 func (c *consulLoader) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger, opts ...loaders.Option) error {
@@ -403,7 +411,54 @@ SRV:
 			tc.Address = se.Node.Address
 		}
 		tc.Address = net.JoinHostPort(tc.Address, strconv.Itoa(se.Service.Port))
-		tc.Name = se.Service.ID
+
+		c.logger.Println(se.Service.Tags)
+		
+		var buffer bytes.Buffer
+		buffer.Reset()
+
+		if sd.TargetName != "" {
+			nameTemplate, err := template.New("targetName").Option("missingkey=zero").Parse(sd.TargetName)
+			if err != nil {
+				c.logger.Println("Could not parse nameTemplate")
+			}
+			sd.targetNameTemplate = nameTemplate
+
+			err = sd.targetNameTemplate.Execute(&buffer, se.Service)
+			if err != nil {
+				c.logger.Println("Could not execute nameTemplate")
+				continue
+			}
+			tc.Name = buffer.String()
+		} else {
+			tc.Name = se.Service.ID
+		}
+		
+		if sd.TargetTags != nil {
+			// Create Event tags from Consul via templates
+			// Allow to use join function in tags
+			templateFunctions := template.FuncMap{"join": strings.Join}
+			sd.targetTagsTemplate = make(map[string]*template.Template)
+			for tagName, tagTemplateString := range sd.TargetTags {
+				tagTemplate, err := template.New(tagName).Funcs(templateFunctions).Option("missingkey=zero").Parse(tagTemplateString)
+				if err != nil {
+					c.logger.Println("Could not parse tagTemplate:", tagName)
+					continue
+				}
+				sd.targetTagsTemplate[tagName] = tagTemplate
+			}
+			extraTags := make(map[string]string)
+			for tagName, tagTemplate := range sd.targetTagsTemplate {
+				buffer.Reset()
+				err := tagTemplate.Execute(&buffer, se.Service)
+				if err != nil {
+					c.logger.Println("Could not execute tagTemplate:", tagName)
+					return nil, err
+				}
+				extraTags[tagName] = buffer.String()
+			}
+			maps.Copy(tc.EventTags, extraTags)
+		}
 		return tc, nil
 	}
 
