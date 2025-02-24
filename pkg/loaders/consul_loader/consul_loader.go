@@ -411,11 +411,8 @@ SRV:
 			tc.Address = se.Node.Address
 		}
 		tc.Address = net.JoinHostPort(tc.Address, strconv.Itoa(se.Service.Port))
-
-		c.logger.Println(se.Service.Tags)
 		
 		var buffer bytes.Buffer
-		buffer.Reset()
 
 		if sd.TargetName != "" {
 			nameTemplate, err := template.New("targetName").Option("missingkey=zero").Parse(sd.TargetName)
@@ -423,7 +420,8 @@ SRV:
 				c.logger.Println("Could not parse nameTemplate")
 			}
 			sd.targetNameTemplate = nameTemplate
-
+			
+			buffer.Reset()
 			err = sd.targetNameTemplate.Execute(&buffer, se.Service)
 			if err != nil {
 				c.logger.Println("Could not execute nameTemplate")
