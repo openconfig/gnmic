@@ -23,6 +23,28 @@ loader:
         password: admin
 ```
 
+### Templating with Consul
+
+It is possible to set the target name to something other than the Consul Service ID using the `name` field under the config. The target name can be customized using [Go Templates](https://golang.org/pkg/text/template/).
+
+In addition to setting the target name, it is also possible to use Go Templates on `event-tags` as well.
+
+The templates use the Service under Consul, so access to things like `ID`, `Tags`, `Meta`, etc. are all available.
+
+```yaml
+loader:
+  type: consul
+  services:
+    - name: cluster1-gnmi-server
+      config:
+        name: "{{.Meta.device}}"
+        event-tags:
+            location: "{{.Meta.site_name}}"
+            model: "{{.Meta.device_type}}"
+            tag-1: "{{.Meta.tag_1}}"
+            boring-static-tag: "hello"
+```
+
 ### Configuration
 
 ```yaml
