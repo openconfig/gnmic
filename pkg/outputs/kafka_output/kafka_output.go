@@ -23,14 +23,15 @@ import (
 
 	"github.com/IBM/sarama"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/protobuf/proto"
+
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	pkgutils "github.com/openconfig/gnmic/pkg/utils"
-	"github.com/prometheus/client_golang/prometheus"
-	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -71,6 +72,8 @@ type kafkaOutput struct {
 
 	targetTpl *template.Template
 	msgTpl    *template.Template
+
+	reg *prometheus.Registry
 }
 
 // config //
@@ -151,6 +154,10 @@ func (k *kafkaOutput) Init(ctx context.Context, name string, cfg map[string]inte
 		}
 	}
 	err = k.setDefaults()
+	if err != nil {
+		return err
+	}
+	err = k.registerMetrics()
 	if err != nil {
 		return err
 	}
@@ -291,9 +298,7 @@ func (k *kafkaOutput) RegisterMetrics(reg *prometheus.Registry) {
 		k.logger.Printf("ERR: output metrics enabled but main registry is not initialized, enable main metrics under `api-server`")
 		return
 	}
-	if err := registerMetrics(reg); err != nil {
-		k.logger.Printf("failed to register metric: %v", err)
-	}
+	k.reg = reg
 }
 
 func (k *kafkaOutput) worker(ctx context.Context, idx int, config *sarama.Config) {
@@ -332,10 +337,10 @@ CRPROD:
 				if k.cfg.EnableMetrics {
 					start, ok := msg.Metadata.(time.Time)
 					if ok {
-						kafkaSendDuration.WithLabelValues(config.ClientID).Set(float64(time.Since(start).Nanoseconds()))
+						kafkaSendDuration.WithLabelValues(k.cfg.Name, config.ClientID).Set(float64(time.Since(start).Nanoseconds()))
 					}
-					kafkaNumberOfSentMsgs.WithLabelValues(config.ClientID).Inc()
-					kafkaNumberOfSentBytes.WithLabelValues(config.ClientID).Add(float64(msg.Value.Length()))
+					kafkaNumberOfSentMsgs.WithLabelValues(k.cfg.Name, config.ClientID).Inc()
+					kafkaNumberOfSentBytes.WithLabelValues(k.cfg.Name, config.ClientID).Add(float64(msg.Value.Length()))
 				}
 			case err, ok := <-producer.Errors():
 				if !ok {
@@ -345,7 +350,7 @@ CRPROD:
 					k.logger.Printf("%s failed to send a kafka msg to topic '%s': %v", workerLogPrefix, err.Msg.Topic, err.Err)
 				}
 				if k.cfg.EnableMetrics {
-					kafkaNumberOfFailSendMsgs.WithLabelValues(config.ClientID, "send_error").Inc()
+					kafkaNumberOfFailSendMsgs.WithLabelValues(k.cfg.Name, config.ClientID, "send_error").Inc()
 				}
 			}
 		}
@@ -368,7 +373,7 @@ CRPROD:
 					k.logger.Printf("%s failed marshaling proto msg: %v", workerLogPrefix, err)
 				}
 				if k.cfg.EnableMetrics {
-					kafkaNumberOfFailSendMsgs.WithLabelValues(config.ClientID, "marshal_error").Inc()
+					kafkaNumberOfFailSendMsgs.WithLabelValues(k.cfg.Name, config.ClientID, "marshal_error").Inc()
 				}
 				continue
 			}
@@ -382,7 +387,7 @@ CRPROD:
 						if k.cfg.Debug {
 							log.Printf("failed to execute template: %v", err)
 						}
-						kafkaNumberOfFailSendMsgs.WithLabelValues(config.ClientID, "template_error").Inc()
+						kafkaNumberOfFailSendMsgs.WithLabelValues(k.cfg.Name, config.ClientID, "template_error").Inc()
 						continue
 					}
 				}
@@ -438,7 +443,7 @@ CRPROD:
 					k.logger.Printf("%s failed marshaling proto msg: %v", workerLogPrefix, err)
 				}
 				if k.cfg.EnableMetrics {
-					kafkaNumberOfFailSendMsgs.WithLabelValues(config.ClientID, "marshal_error").Inc()
+					kafkaNumberOfFailSendMsgs.WithLabelValues(k.cfg.Name, config.ClientID, "marshal_error").Inc()
 				}
 				continue
 			}
@@ -452,7 +457,7 @@ CRPROD:
 						if k.cfg.Debug {
 							log.Printf("failed to execute template: %v", err)
 						}
-						kafkaNumberOfFailSendMsgs.WithLabelValues(config.ClientID, "template_error").Inc()
+						kafkaNumberOfFailSendMsgs.WithLabelValues(k.cfg.Name, config.ClientID, "template_error").Inc()
 						continue
 					}
 				}
@@ -482,9 +487,9 @@ CRPROD:
 					goto CRPROD
 				}
 				if k.cfg.EnableMetrics {
-					kafkaSendDuration.WithLabelValues(config.ClientID).Set(float64(time.Since(start).Nanoseconds()))
-					kafkaNumberOfSentMsgs.WithLabelValues(config.ClientID).Inc()
-					kafkaNumberOfSentBytes.WithLabelValues(config.ClientID).Add(float64(len(b)))
+					kafkaSendDuration.WithLabelValues(k.cfg.Name, config.ClientID).Set(float64(time.Since(start).Nanoseconds()))
+					kafkaNumberOfSentMsgs.WithLabelValues(k.cfg.Name, config.ClientID).Inc()
+					kafkaNumberOfSentBytes.WithLabelValues(k.cfg.Name, config.ClientID).Add(float64(len(b)))
 				}
 			}
 		}
@@ -515,7 +520,7 @@ func (k *kafkaOutput) createConfig() (*sarama.Config, error) {
 		if err != nil {
 			return nil, err
 		}
-	}	
+	}
 	// SASL_PLAINTEXT or SASL_SSL
 	if k.cfg.SASL != nil {
 		cfg.Net.SASL.Enable = true
