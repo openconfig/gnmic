@@ -282,6 +282,10 @@ func (a *App) dispatchTargets(ctx context.Context) {
 func (a *App) dispatchTargetsOnce(ctx context.Context) {
 	dctx, cancel := context.WithTimeout(ctx, a.Config.Clustering.TargetsWatchTimer)
 	defer cancel()
+	var limiter *time.Ticker
+	if a.Config.LocalFlags.SubscribeBackoff > 0 {
+		limiter = time.NewTicker(a.Config.LocalFlags.SubscribeBackoff)
+	}
 	for _, tc := range a.Config.Targets {
 		err := a.dispatchTarget(dctx, tc)
 		if err != nil {
@@ -298,6 +302,12 @@ func (a *App) dispatchTargetsOnce(ctx context.Context) {
 			// continue to next target without wait
 			continue
 		}
+		if limiter != nil {
+			<-limiter.C
+		}
+	}
+	if limiter != nil {
+		limiter.Stop()
 	}
 }
 
