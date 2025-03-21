@@ -390,6 +390,10 @@ func (a *App) loadTargets(e fsnotify.Event) {
 				}
 			}
 			// add targets
+			var limiter *time.Ticker
+			if a.Config.LocalFlags.SubscribeBackoff > 0 {
+				limiter = time.NewTicker(a.Config.LocalFlags.SubscribeBackoff)
+			}
 			for n, tc := range newTargets {
 				if _, ok := currentTargets[n]; !ok {
 					if a.Config.Debug {
@@ -398,7 +402,13 @@ func (a *App) loadTargets(e fsnotify.Event) {
 					a.AddTargetConfig(tc)
 					a.wg.Add(1)
 					go a.TargetSubscribeStream(a.ctx, tc)
+					if limiter != nil {
+						<-limiter.C
+					}
 				}
+			}
+			if limiter != nil {
+				limiter.Stop()
 			}
 			return
 		}
