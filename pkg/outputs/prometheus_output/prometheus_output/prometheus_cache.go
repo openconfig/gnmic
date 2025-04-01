@@ -26,7 +26,7 @@ func (p *prometheusOutput) collectFromCache(ch chan<- prometheus.Metric) {
 		return
 	}
 	numNotifications := len(notifications)
-	prometheusNumberOfCachedMetrics.Set(float64(numNotifications))
+	prometheusNumberOfCachedMetrics.WithLabelValues(p.cfg.Name).Set(float64(numNotifications))
 
 	p.targetsMeta.DeleteExpired()
 	events := make([]*formatters.EventMsg, 0, numNotifications)

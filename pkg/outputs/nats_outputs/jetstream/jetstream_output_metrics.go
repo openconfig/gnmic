@@ -8,7 +8,13 @@
 
 package jetstream_output
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"sync"
+
+	"github.com/prometheus/client_golang/prometheus"
+)
+
+var registerMetricsOnce sync.Once
 
 var jetStreamNumberOfSentMsgs = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "gnmic",
@@ -38,27 +44,33 @@ var jetStreamSendDuration = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 	Help:      "gnmic jetstream output send duration in ns",
 }, []string{"publisher_id"})
 
-func initMetrics() {
-	jetStreamNumberOfSentMsgs.WithLabelValues("", "").Add(0)
-	jetStreamNumberOfSentBytes.WithLabelValues("", "").Add(0)
-	jetStreamNumberOfFailSendMsgs.WithLabelValues("", "").Add(0)
-	jetStreamSendDuration.WithLabelValues("").Set(0)
+func (n *jetstreamOutput) initMetrics() {
+	jetStreamNumberOfSentMsgs.WithLabelValues(n.Cfg.Name, "").Add(0)
+	jetStreamNumberOfSentBytes.WithLabelValues(n.Cfg.Name, "").Add(0)
+	jetStreamNumberOfFailSendMsgs.WithLabelValues(n.Cfg.Name, "").Add(0)
+	jetStreamSendDuration.WithLabelValues(n.Cfg.Name).Set(0)
 }
 
-func registerMetrics(reg *prometheus.Registry) error {
-	initMetrics()
+func (n *jetstreamOutput) registerMetrics() error {
+	if n.reg == nil {
+		return nil
+	}
+
 	var err error
-	if err = reg.Register(jetStreamNumberOfSentMsgs); err != nil {
-		return err
-	}
-	if err = reg.Register(jetStreamNumberOfSentBytes); err != nil {
-		return err
-	}
-	if err = reg.Register(jetStreamNumberOfFailSendMsgs); err != nil {
-		return err
-	}
-	if err = reg.Register(jetStreamSendDuration); err != nil {
-		return err
-	}
-	return nil
+	registerMetricsOnce.Do(func() {
+		if err = n.reg.Register(jetStreamNumberOfSentMsgs); err != nil {
+			return
+		}
+		if err = n.reg.Register(jetStreamNumberOfSentBytes); err != nil {
+			return
+		}
+		if err = n.reg.Register(jetStreamNumberOfFailSendMsgs); err != nil {
+			return
+		}
+		if err = n.reg.Register(jetStreamSendDuration); err != nil {
+			return
+		}
+	})
+	n.initMetrics()
+	return err
 }

@@ -21,11 +21,10 @@ import (
 	"text/template"
 	"time"
 
-	"google.golang.org/protobuf/proto"
-
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/prompb"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
@@ -82,6 +81,8 @@ type promWriteOutput struct {
 	evps      []formatters.EventProcessor
 	targetTpl *template.Template
 	cfn       context.CancelFunc
+
+	reg *prometheus.Registry
 	// TODO:
 	// gnmiCache *cache.GnmiOutputCache
 }
@@ -149,6 +150,11 @@ func (p *promWriteOutput) Init(ctx context.Context, name string, cfg map[string]
 		if err := opt(p); err != nil {
 			return err
 		}
+	}
+
+	err = p.registerMetrics()
+	if err != nil {
+		return err
 	}
 
 	if p.cfg.TargetTemplate == "" {
@@ -238,9 +244,7 @@ func (p *promWriteOutput) RegisterMetrics(reg *prometheus.Registry) {
 	if !p.cfg.EnableMetrics {
 		return
 	}
-	if err := registerMetrics(reg); err != nil {
-		p.logger.Printf("failed to register metric: %v", err)
-	}
+	p.reg = reg
 }
 
 func (p *promWriteOutput) String() string {
@@ -301,7 +305,7 @@ func (p *promWriteOutput) worker(ctx context.Context) {
 	}
 }
 
-func (p *promWriteOutput) workerHandleProto(ctx context.Context, m *outputs.ProtoMsg) {
+func (p *promWriteOutput) workerHandleProto(_ context.Context, m *outputs.ProtoMsg) {
 	pmsg := m.GetMsg()
 	switch pmsg := pmsg.(type) {
 	case *gnmi.SubscribeResponse:

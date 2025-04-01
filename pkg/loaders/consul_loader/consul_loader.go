@@ -9,6 +9,7 @@
 package consul_loader
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -17,7 +18,9 @@ import (
 	"log"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
+	"text/template"
 	"time"
 
 	"gopkg.in/yaml.v2"
@@ -110,6 +113,8 @@ type serviceDef struct {
 	Config map[string]interface{} `mapstructure:"config,omitempty" json:"config,omitempty"`
 
 	tags map[string]struct{}
+	targetNameTemplate *template.Template
+	targetTagsTemplate map[string]*template.Template
 }
 
 func (c *consulLoader) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger, opts ...loaders.Option) error {
@@ -403,7 +408,54 @@ SRV:
 			tc.Address = se.Node.Address
 		}
 		tc.Address = net.JoinHostPort(tc.Address, strconv.Itoa(se.Service.Port))
+		
+		var buffer bytes.Buffer
+
 		tc.Name = se.Service.ID
+
+		if configName, ok := sd.Config["name"].(string); ok {
+			nameTemplate, err := template.New("targetName").Option("missingkey=zero").Parse(configName)
+			if err != nil {
+				c.logger.Println("Could not parse nameTemplate")
+			}
+			sd.targetNameTemplate = nameTemplate
+			
+			buffer.Reset()
+			err = sd.targetNameTemplate.Execute(&buffer, se.Service)
+			if err != nil {
+				c.logger.Println("Could not execute nameTemplate")
+				continue
+			}
+			tc.Name = buffer.String()
+		}
+
+		// Create Event tags from Consul via templates
+		if configEventTags, ok := sd.Config["event-tags"].(map[string]interface{}); ok {
+			// Allow to use join function in tags
+			templateFunctions := template.FuncMap{"join": strings.Join}
+
+			sd.targetTagsTemplate = make(map[string]*template.Template)
+			for tagName, tagTemplateString := range configEventTags {
+				tagTemplate, err := template.New(tagName).Funcs(templateFunctions).Option("missingkey=zero").Parse(fmt.Sprintf("%v",tagTemplateString))
+				if err != nil {
+					c.logger.Println("Could not parse tagTemplate:", tagName)
+					continue
+				}
+				sd.targetTagsTemplate[tagName] = tagTemplate
+			}
+
+			eventTags := make(map[string]string)
+			for tagName, tagTemplate := range sd.targetTagsTemplate {
+				buffer.Reset()
+				err := tagTemplate.Execute(&buffer, se.Service)
+				if err != nil {
+					c.logger.Println("Could not execute tagTemplate:", tagName)
+					return nil, err
+				}
+				eventTags[tagName] = buffer.String()
+			}
+			tc.EventTags = eventTags
+		}
 		return tc, nil
 	}
 

@@ -19,10 +19,9 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/semaphore"
 	"google.golang.org/protobuf/proto"
-
-	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
@@ -58,10 +57,13 @@ type File struct {
 
 	targetTpl *template.Template
 	msgTpl    *template.Template
+
+	reg *prometheus.Registry
 }
 
 // Config //
 type Config struct {
+	Name               string          `mapstructure:"name,omitempty"`
 	FileName           string          `mapstructure:"filename,omitempty"`
 	FileType           string          `mapstructure:"file-type,omitempty"`
 	Format             string          `mapstructure:"format,omitempty"`
@@ -126,13 +128,20 @@ func (f *File) Init(ctx context.Context, name string, cfg map[string]interface{}
 	if err != nil {
 		return err
 	}
-
+	if f.cfg.Name == "" {
+		f.cfg.Name = name
+	}
 	f.logger.SetPrefix(fmt.Sprintf(loggingPrefix, name))
 
 	for _, opt := range opts {
 		if err := opt(f); err != nil {
 			return err
 		}
+	}
+
+	err = f.registerMetrics()
+	if err != nil {
+		return err
 	}
 	if f.cfg.Format == "proto" {
 		return fmt.Errorf("proto format not supported in output type 'file'")
@@ -232,7 +241,7 @@ func (f *File) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) 
 	}
 	defer f.sem.Release(1)
 
-	numberOfReceivedMsgs.WithLabelValues(f.file.Name()).Inc()
+	numberOfReceivedMsgs.WithLabelValues(f.cfg.Name, f.file.Name()).Inc()
 	rsp, err = outputs.AddSubscriptionTarget(rsp, meta, f.cfg.AddTarget, f.targetTpl)
 	if err != nil {
 		f.logger.Printf("failed to add target to the response: %v", err)
@@ -242,7 +251,7 @@ func (f *File) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) 
 		if f.cfg.Debug {
 			f.logger.Printf("failed marshaling proto msg: %v", err)
 		}
-		numberOfFailWriteMsgs.WithLabelValues(f.file.Name(), "marshal_error").Inc()
+		numberOfFailWriteMsgs.WithLabelValues(f.cfg.Name, f.file.Name(), "marshal_error").Inc()
 		return
 	}
 	if len(bb) == 0 {
@@ -255,7 +264,7 @@ func (f *File) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) 
 				if f.cfg.Debug {
 					log.Printf("failed to execute template: %v", err)
 				}
-				numberOfFailWriteMsgs.WithLabelValues(f.file.Name(), "template_error").Inc()
+				numberOfFailWriteMsgs.WithLabelValues(f.cfg.Name, f.file.Name(), "template_error").Inc()
 				continue
 			}
 		}
@@ -265,11 +274,11 @@ func (f *File) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) 
 			if f.cfg.Debug {
 				f.logger.Printf("failed to write to file '%s': %v", f.file.Name(), err)
 			}
-			numberOfFailWriteMsgs.WithLabelValues(f.file.Name(), "write_error").Inc()
+			numberOfFailWriteMsgs.WithLabelValues(f.cfg.Name, f.file.Name(), "write_error").Inc()
 			return
 		}
-		numberOfWrittenBytes.WithLabelValues(f.file.Name()).Add(float64(n))
-		numberOfWrittenMsgs.WithLabelValues(f.file.Name()).Inc()
+		numberOfWrittenBytes.WithLabelValues(f.cfg.Name, f.file.Name()).Add(float64(n))
+		numberOfWrittenMsgs.WithLabelValues(f.cfg.Name, f.file.Name()).Inc()
 	}
 }
 
@@ -295,7 +304,7 @@ func (f *File) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {
 			}
 			if err != nil {
 				fmt.Printf("failed to WriteEvent: %v", err)
-				numberOfFailWriteMsgs.WithLabelValues(f.file.Name(), "marshal_error").Inc()
+				numberOfFailWriteMsgs.WithLabelValues(f.cfg.Name, f.file.Name(), "marshal_error").Inc()
 				return
 			}
 			toWrite = append(toWrite, b...)
@@ -311,7 +320,7 @@ func (f *File) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {
 		}
 		if err != nil {
 			fmt.Printf("failed to WriteEvent: %v", err)
-			numberOfFailWriteMsgs.WithLabelValues(f.file.Name(), "marshal_error").Inc()
+			numberOfFailWriteMsgs.WithLabelValues(f.cfg.Name, f.file.Name(), "marshal_error").Inc()
 			return
 		}
 		toWrite = append(toWrite, b...)
@@ -321,11 +330,11 @@ func (f *File) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {
 	n, err := f.file.Write(toWrite)
 	if err != nil {
 		fmt.Printf("failed to WriteEvent: %v", err)
-		numberOfFailWriteMsgs.WithLabelValues(f.file.Name(), "write_error").Inc()
+		numberOfFailWriteMsgs.WithLabelValues(f.cfg.Name, f.file.Name(), "write_error").Inc()
 		return
 	}
-	numberOfWrittenBytes.WithLabelValues(f.file.Name()).Add(float64(n))
-	numberOfWrittenMsgs.WithLabelValues(f.file.Name()).Inc()
+	numberOfWrittenBytes.WithLabelValues(f.cfg.Name, f.file.Name()).Add(float64(n))
+	numberOfWrittenMsgs.WithLabelValues(f.cfg.Name, f.file.Name()).Inc()
 }
 
 // Close //
@@ -339,9 +348,7 @@ func (f *File) RegisterMetrics(reg *prometheus.Registry) {
 	if !f.cfg.EnableMetrics {
 		return
 	}
-	if err := registerMetrics(reg); err != nil {
-		f.logger.Printf("failed to register metric: %v", err)
-	}
+	f.reg = reg
 }
 
 func (f *File) SetName(name string)                             {}

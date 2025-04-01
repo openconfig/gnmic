@@ -8,7 +8,13 @@
 
 package nats_output
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"sync"
+
+	"github.com/prometheus/client_golang/prometheus"
+)
+
+var registerMetricsOnce sync.Once
 
 var NatsNumberOfSentMsgs = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "gnmic",
@@ -38,27 +44,32 @@ var NatsSendDuration = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 	Help:      "gnmic nats output send duration in ns",
 }, []string{"publisher_id"})
 
-func initMetrics() {
-	NatsNumberOfSentMsgs.WithLabelValues("", "").Add(0)
-	NatsNumberOfSentBytes.WithLabelValues("", "").Add(0)
-	NatsNumberOfFailSendMsgs.WithLabelValues("", "").Add(0)
-	NatsSendDuration.WithLabelValues("").Set(0)
+func (n *NatsOutput) initMetrics() {
+	NatsNumberOfSentMsgs.WithLabelValues(n.Cfg.Name, "").Add(0)
+	NatsNumberOfSentBytes.WithLabelValues(n.Cfg.Name, "").Add(0)
+	NatsNumberOfFailSendMsgs.WithLabelValues(n.Cfg.Name, "").Add(0)
+	NatsSendDuration.WithLabelValues(n.Cfg.Name).Set(0)
 }
 
-func registerMetrics(reg *prometheus.Registry) error {
-	initMetrics()
+func (n *NatsOutput) registerMetrics() error {
+	if n.reg == nil {
+		return nil
+	}
 	var err error
-	if err = reg.Register(NatsNumberOfSentMsgs); err != nil {
-		return err
-	}
-	if err = reg.Register(NatsNumberOfSentBytes); err != nil {
-		return err
-	}
-	if err = reg.Register(NatsNumberOfFailSendMsgs); err != nil {
-		return err
-	}
-	if err = reg.Register(NatsSendDuration); err != nil {
-		return err
-	}
-	return nil
+	registerMetricsOnce.Do(func() {
+		if err = n.reg.Register(NatsNumberOfSentMsgs); err != nil {
+			return
+		}
+		if err = n.reg.Register(NatsNumberOfSentBytes); err != nil {
+			return
+		}
+		if err = n.reg.Register(NatsNumberOfFailSendMsgs); err != nil {
+			return
+		}
+		if err = n.reg.Register(NatsSendDuration); err != nil {
+			return
+		}
+	})
+	n.initMetrics()
+	return err
 }

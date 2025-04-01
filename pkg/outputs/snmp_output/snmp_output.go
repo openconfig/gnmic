@@ -66,6 +66,8 @@ type snmpOutput struct {
 
 	cache     cache.Cache
 	startTime time.Time
+
+	reg *prometheus.Registry
 }
 
 type Config struct {
@@ -137,7 +139,10 @@ func (s *snmpOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	}
 
 	s.setDefaults()
-
+	err = s.registerMetrics()
+	if err != nil {
+		return err
+	}
 	if len(s.cfg.Traps) == 0 {
 		return errors.New("missing traps definition")
 	}
@@ -246,13 +251,7 @@ func (s *snmpOutput) RegisterMetrics(reg *prometheus.Registry) {
 	if !s.cfg.EnableMetrics {
 		return
 	}
-	if reg == nil {
-		s.logger.Printf("ERR: output metrics enabled but main registry is not initialized, enable main metrics under `api-server`")
-		return
-	}
-	if err := s.registerMetrics(reg); err != nil {
-		s.logger.Printf("failed to register metrics: %+v", err)
-	}
+	s.reg = reg
 }
 
 func (s *snmpOutput) String() string {

@@ -8,7 +8,13 @@
 
 package snmpoutput
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"sync"
+
+	"github.com/prometheus/client_golang/prometheus"
+)
+
+var registerMetricsOnce sync.Once
 
 var snmpNumberOfSentTraps = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "gnmic",
@@ -45,20 +51,26 @@ func (s *snmpOutput) initMetrics() {
 	snmpTrapGenerationDuration.WithLabelValues(s.name, "0").Set(0)
 }
 
-func (s *snmpOutput) registerMetrics(reg *prometheus.Registry) error {
-	s.initMetrics()
+func (s *snmpOutput) registerMetrics() error {
+	if s.reg == nil {
+		return nil
+	}
+
 	var err error
-	if err = reg.Register(snmpNumberOfSentTraps); err != nil {
-		return err
-	}
-	if err = reg.Register(snmpNumberOfTrapSendFailureTraps); err != nil {
-		return err
-	}
-	if err = reg.Register(snmpNumberOfFailedTrapGeneration); err != nil {
-		return err
-	}
-	if err = reg.Register(snmpTrapGenerationDuration); err != nil {
-		return err
-	}
-	return nil
+	registerMetricsOnce.Do(func() {
+		if err = s.reg.Register(snmpNumberOfSentTraps); err != nil {
+			return
+		}
+		if err = s.reg.Register(snmpNumberOfTrapSendFailureTraps); err != nil {
+			return
+		}
+		if err = s.reg.Register(snmpNumberOfFailedTrapGeneration); err != nil {
+			return
+		}
+		if err = s.reg.Register(snmpTrapGenerationDuration); err != nil {
+			return
+		}
+	})
+	s.initMetrics()
+	return err
 }

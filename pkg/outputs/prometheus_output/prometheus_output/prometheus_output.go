@@ -84,6 +84,8 @@ type prometheusOutput struct {
 
 	gnmiCache   cache.Cache
 	targetsMeta *ttlcache.Cache[string, outputs.Meta]
+
+	reg *prometheus.Registry
 }
 
 type config struct {
@@ -171,6 +173,10 @@ func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string
 		p.targetTpl = p.targetTpl.Funcs(outputs.TemplateFuncs)
 	}
 	err = p.setDefaults()
+	if err != nil {
+		return err
+	}
+	err = p.registerMetrics()
 	if err != nil {
 		return err
 	}
@@ -325,9 +331,10 @@ func (p *prometheusOutput) RegisterMetrics(reg *prometheus.Registry) {
 	if !p.cfg.EnableMetrics {
 		return
 	}
-	if err := p.registerMetrics(reg); err != nil {
-		p.logger.Printf("failed to register metric: %v", err)
-	}
+	p.reg = reg
+	// if err := p.registerMetrics(reg); err != nil {
+	// 	p.logger.Printf("failed to register metric: %v", err)
+	// }
 }
 
 // Describe implements prometheus.Collector
@@ -460,7 +467,7 @@ func (p *prometheusOutput) expireMetricsPeriodic(ctx context.Context) {
 		return
 	}
 	p.Lock()
-	prometheusNumberOfMetrics.Set(float64(len(p.entries)))
+	prometheusNumberOfMetrics.WithLabelValues(p.cfg.Name).Set(float64(len(p.entries)))
 	p.Unlock()
 	ticker := time.NewTicker(p.cfg.Expiration)
 	defer ticker.Stop()
@@ -471,7 +478,7 @@ func (p *prometheusOutput) expireMetricsPeriodic(ctx context.Context) {
 		case <-ticker.C:
 			p.Lock()
 			p.expireMetrics()
-			prometheusNumberOfMetrics.Set(float64(len(p.entries)))
+			prometheusNumberOfMetrics.WithLabelValues(p.cfg.Name).Set(float64(len(p.entries)))
 			p.Unlock()
 		}
 	}
