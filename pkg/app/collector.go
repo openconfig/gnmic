@@ -96,11 +96,7 @@ func (a *App) StartCollector(ctx context.Context) {
 						outs = t.Config.Outputs
 					}
 
-					if a.subscriptionMode(rsp.SubscriptionName) == subscriptionModeONCE {
-						a.Export(ctx, rsp.Response, m, outs...)
-					} else {
-						go a.Export(ctx, rsp.Response, m, outs...)
-					}
+					a.Export(ctx, rsp.Response, m, outs...)
 					if remainingOnceSubscriptions > 0 {
 						if a.subscriptionMode(rsp.SubscriptionName) == subscriptionModeONCE {
 							switch rsp.Response.Response.(type) {
@@ -159,7 +155,7 @@ func (a *App) Export(ctx context.Context, rsp *gnmi.SubscribeResponse, m outputs
 	}
 	go a.updateCache(ctx, rsp, m)
 	wg := new(sync.WaitGroup)
-	// target has no outputs explicitly defined
+	// target has no explicitly defined outputs
 	if len(outs) == 0 {
 		wg.Add(len(a.Outputs))
 		for _, o := range a.Outputs {
