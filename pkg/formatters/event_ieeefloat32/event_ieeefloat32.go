@@ -135,23 +135,25 @@ func (p *ieeefloat32) WithActions(act map[string]map[string]interface{}) {}
 func (p *ieeefloat32) WithProcessors(procs map[string]map[string]any) {}
 
 func (p *ieeefloat32) decodeBase64String(e any) (float32, error) {
+	var err error
+	var data []byte
 	switch b64 := e.(type) {
 	default:
 		return 0, fmt.Errorf("invalid type: %T", e)
 	case string:
-
-		data, err := base64.StdEncoding.DecodeString(b64)
+		data, err = base64.StdEncoding.DecodeString(b64)
 		if err != nil {
 			return 0, fmt.Errorf("failed to decode base64: %v", err)
 		}
-
-		if len(data) < 4 {
-			return 0, fmt.Errorf("decoded data is less than 4 bytes")
-		}
-		bits := binary.BigEndian.Uint32(data[:4])
-		floatVal := math.Float32frombits(bits)
-		return floatVal, nil
+	case []byte:
+		data = b64
 	}
+	if len(data) < 4 {
+		return 0, fmt.Errorf("decoded data is less than 4 bytes")
+	}
+	bits := binary.BigEndian.Uint32(data[:4])
+	floatVal := math.Float32frombits(bits)
+	return floatVal, nil
 }
 
 func compileRegex(expr []string) ([]*regexp.Regexp, error) {
