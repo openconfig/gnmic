@@ -90,6 +90,7 @@ nav:
           - Rate Limit: user_guide/event_processors/event_rate_limit.md
           - Starlark: user_guide/event_processors/event_starlark.md
           - Strings: user_guide/event_processors/event_strings.md
+          - Time Epoch: user_guide/event_processors/event_time_epoch.md
           - To Tag: user_guide/event_processors/event_to_tag.md
           - Trigger: user_guide/event_processors/event_trigger.md
           - Value Tag: user_guide/event_processors/event_value_tag.md
