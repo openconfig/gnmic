@@ -9,7 +9,6 @@
 package app
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -54,27 +53,7 @@ func (a *App) PathCmdRun(d, f, e []string, pgo pathGenOpts) error {
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	out := make(chan *generatedPath)
-	gpaths := make([]*generatedPath, 0)
-	done := make(chan struct{})
-	go func(ctx context.Context, out chan *generatedPath) {
-		for {
-			select {
-			case m, ok := <-out:
-				if !ok {
-					close(done)
-					return
-				}
-				gpaths = append(gpaths, m)
-			case <-ctx.Done():
-				return
-			}
-		}
-	}(ctx, out)
-
+	gpaths := make([]*generatedPath, 0, 256)
 	collected := make([]*yang.Entry, 0, 256)
 	for _, entry := range a.SchemaTree.Dir {
 		collected = append(collected, collectSchemaNodes(entry, !pgo.withNonLeaves)...)
@@ -85,21 +64,19 @@ func (a *App) PathCmdRun(d, f, e []string, pgo pathGenOpts) error {
 			continue
 		}
 		if !pgo.stateOnly && !pgo.configOnly || pgo.stateOnly && pgo.configOnly {
-			out <- a.generatePath(entry, pgo.pathType)
+			gpaths = append(gpaths, a.generatePath(entry, pgo.pathType))
 			continue
 		}
 		state := isState(entry)
 		if state && pgo.stateOnly {
-			out <- a.generatePath(entry, pgo.pathType)
+			gpaths = append(gpaths, a.generatePath(entry, pgo.pathType))
 			continue
 		}
 		if !state && pgo.configOnly {
-			out <- a.generatePath(entry, pgo.pathType)
+			gpaths = append(gpaths, a.generatePath(entry, pgo.pathType))
 			continue
 		}
 	}
-	close(out)
-	<-done
 	sort.Slice(gpaths, func(i, j int) bool {
 		return gpaths[i].Path < gpaths[j].Path
 	})
@@ -124,7 +101,11 @@ func (a *App) PathCmdRun(d, f, e []string, pgo pathGenOpts) error {
 		sb := new(strings.Builder)
 		for _, gp := range gpaths {
 			sb.Reset()
-			sb.WriteString(gp.Path)
+			if pgo.withPrefix {
+				sb.WriteString(gp.PathWithPrefix)
+			} else {
+				sb.WriteString(gp.Path)
+			}
 			if pgo.withTypes {
 				sb.WriteString("\t(type=")
 				sb.WriteString(gp.Type)
@@ -305,7 +286,11 @@ func (a *App) generatePath(entry *yang.Entry, pType string) *generatedPath {
 		elementName := e.Name
 		prefixedElementName := e.Name
 		if e.Prefix != nil {
-			prefixedElementName = fmt.Sprintf("%s:%s", e.Prefix.Name, prefixedElementName)
+			if e.Prefix.Parent != nil {
+				prefixedElementName = fmt.Sprintf("%s:%s", e.Prefix.Parent.NName(), prefixedElementName)
+			} else {
+				prefixedElementName = fmt.Sprintf("%s:%s", e.Prefix.NName(), prefixedElementName)
+			}
 		}
 		if e.Key != "" {
 			for _, k := range strings.Fields(e.Key) {
