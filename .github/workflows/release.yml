@@ -30,6 +30,10 @@ jobs:
 
   release:
     runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+      packages: write
+
     needs:
       - test
     steps:
@@ -51,6 +55,6 @@ jobs:
         uses: goreleaser/goreleaser-action@v6
         with:
           version: ${{ env.GORELEASER_VER }}
-          args: release --rm-dist
+          args: release --rm-dist --debug
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
