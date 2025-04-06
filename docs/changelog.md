@@ -1,5 +1,15 @@
 ## Changelog
 
+### v0.41.0 - April 6th 2025
+
+- Processors:
+
+    - Added `event-time-epoch` processor, enabling converting string-based time values into epoch timestamps
+
+- Target Discovery:
+
+    - Consul loader: Adds the ability to use Go Templates on Consul targets to set target name as well as event-tags
+
 ### v0.40.0 - January 27th 2025
 
 - Processors:
