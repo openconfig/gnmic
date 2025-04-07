@@ -67,13 +67,21 @@ func (a *App) StartCollector(ctx context.Context) {
 				select {
 				case rsp := <-rspChan:
 					subscribeResponseReceivedCounter.WithLabelValues(t.Config.Name, rsp.SubscriptionConfig.Name).Add(1)
-					if a.Config.Debug {
-						a.Logger.Printf("target %q: gNMI Subscribe Response: %+v", t.Config.Name, rsp)
+					// decode gNMI extensions
+					if extensions := rsp.Response.Extension; len(extensions) > 0 {
+						err := t.DecodeExtension(rsp.Response)
+						if err != nil {
+							a.Logger.Printf("target %q: failed to decode extension field: %v", t.Config.Name, err)
+							continue
+						}
 					}
 					err := t.DecodeProtoBytes(rsp.Response)
 					if err != nil {
 						a.Logger.Printf("target %q: failed to decode proto bytes: %v", t.Config.Name, err)
 						continue
+					}
+					if a.Config.Debug {
+						a.Logger.Printf("target %q: gNMI Subscribe Response: %+v", t.Config.Name, rsp)
 					}
 					m := outputs.Meta{
 						"source":            t.Config.Name,
