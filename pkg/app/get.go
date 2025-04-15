@@ -155,8 +155,25 @@ func (a *App) filterModels(ctx context.Context, tc *types.TargetConfig, modelsNa
 	var found bool
 	for _, m := range modelsNames {
 		found = false
+
+		modelName := m
+		var organization *string
+		var version *string
+
+		if strings.Contains(modelName, "/") {
+			parts := strings.SplitN(modelName, "/", 2)
+			organization = &parts[0]
+			modelName = parts[1]
+		}
+
+		if strings.Contains(modelName, ":") {
+			parts := strings.SplitN(modelName, ":", 2)
+			modelName = parts[0]
+			version = &parts[1]
+		}
+
 		for _, tModel := range supModels {
-			if m == tModel.Name {
+			if modelName == tModel.Name && (organization == nil || *organization == tModel.Organization) && (version == nil || *version == tModel.Version) {
 				supportedModels[m] = tModel
 				found = true
 				break
