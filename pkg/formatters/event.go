@@ -12,10 +12,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 
 	flattener "github.com/karimra/go-map-flattener"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/gnmi/proto/gnmi_ext"
 )
 
 // EventMsg represents a gNMI update message,
@@ -40,9 +42,28 @@ func ResponseToEventMsgs(name string, rsp *gnmi.SubscribeResponse, meta map[stri
 		return nil, nil
 	}
 	evs := make([]*EventMsg, 0, len(rsp.GetUpdate().GetUpdate())+len(rsp.GetUpdate().GetDelete()))
+	response := rsp
 	switch rsp := rsp.Response.(type) {
 	case *gnmi.SubscribeResponse_Update:
 		namePrefix, prefixTags := tagsFromGNMIPath(rsp.Update.GetPrefix())
+		// Extension message to tags
+		if prefixTags == nil {
+			prefixTags = make(map[string]string)
+		}
+		for _, ext := range response.Extension {
+			extensionValues, err := extensionToMap(ext)
+			if err != nil {
+				return nil, err
+			}
+			for k, v := range extensionValues {
+				switch v := v.(type) {
+				case string:
+					prefixTags[k] = v
+				case float64:
+					prefixTags[k] = strconv.FormatFloat(v, 'G', -1, 64)
+				}
+			}
+		}
 		// notification updates
 		uevs, err := updatesToEvent(name, namePrefix, rsp.Update.GetTimestamp(), rsp.Update.GetUpdate(), prefixTags, meta)
 		if err != nil {
@@ -198,6 +219,20 @@ func tagsFromGNMIPath(p *gnmi.Path) (string, map[string]string) {
 		tags["target"] = p.GetTarget()
 	}
 	return sb.String(), tags
+}
+
+func extensionToMap(ext *gnmi_ext.Extension) (map[string]interface{}, error) {
+	jsondata := ext.GetRegisteredExt().GetMsg()
+
+	var anyJson map[string]interface{}
+	if len(jsondata) != 0 {
+		err := json.Unmarshal(jsondata, &anyJson)
+		if err != nil {
+			return nil, err
+		}
+		return anyJson, nil
+	}
+	return nil, fmt.Errorf("0 length JSON decoded")
 }
 
 func getValueFlat(prefix string, updValue *gnmi.TypedValue) (map[string]interface{}, error) {
