@@ -423,11 +423,14 @@ func (n *JetstreamInput) Dial(network, address string) (net.Conn, error) {
 			return nil, n.ctx.Err()
 		default:
 			d := &net.Dialer{}
-			if conn, err := d.DialContext(ctx, network, address); err == nil {
-				n.logger.Printf("successfully connected to NATS server %s", address)
-				return conn, nil
+			conn, err := d.DialContext(ctx, network, address)
+			if err != nil {
+				n.logger.Printf("failed to connect to NATS server %s: %v", address, err)
+				time.Sleep(n.Cfg.ConnectTimeWait)
+				continue
 			}
-			time.Sleep(n.Cfg.ConnectTimeWait)
+			n.logger.Printf("successfully connected to NATS server %s", address)
+			return conn, nil
 		}
 	}
 }
