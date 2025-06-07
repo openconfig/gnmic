@@ -24,7 +24,7 @@ func (c *Config) GetInputs() (map[string]map[string]interface{}, error) {
 		case map[string]interface{}:
 			if outType, ok := inputCfg["type"]; ok {
 				if !strInlist(outType.(string), inputs.InputTypes) {
-					return nil, fmt.Errorf("unknown output type: %q", outType)
+					return nil, fmt.Errorf("unknown input type: %q", outType)
 				}
 				if _, ok := inputs.Inputs[outType.(string)]; ok {
 					format, ok := inputCfg["format"]

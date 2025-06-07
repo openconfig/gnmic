@@ -9,6 +9,7 @@
 package all
 
 import (
+	_ "github.com/openconfig/gnmic/pkg/inputs/jetstream_input"
 	_ "github.com/openconfig/gnmic/pkg/inputs/kafka_input"
 	_ "github.com/openconfig/gnmic/pkg/inputs/nats_input"
 	_ "github.com/openconfig/gnmic/pkg/inputs/stan_input"
