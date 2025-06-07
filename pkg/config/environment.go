@@ -16,30 +16,33 @@ import (
 	"github.com/spf13/pflag"
 )
 
-func envToMap() map[string]interface{} {
-	m := map[string]interface{}{}
+func envToMap() map[string]any {
+	m := map[string]any{}
 	for _, e := range os.Environ() {
 		if !strings.HasPrefix(e, envPrefix) {
 			continue
 		}
-		e = strings.ToLower(strings.Replace(e, envPrefix+"_", "", 1))
 		pair := strings.SplitN(e, "=", 2)
+		if len(pair) < 2 {
+			continue // malformed env var
+		}
+		pair[0] = strings.ToLower(strings.TrimPrefix(pair[0], envPrefix+"_"))
 		items := strings.Split(pair[0], "_")
 		mergeMap(m, items, pair[1])
 	}
 	return m
 }
 
-func mergeMap(m map[string]interface{}, items []string, v interface{}) {
+func mergeMap(m map[string]any, items []string, v any) {
 	nItems := len(items)
 	if nItems == 0 {
 		return
 	}
 	if nItems > 1 {
 		if _, ok := m[items[0]]; !ok {
-			m[items[0]] = map[string]interface{}{}
+			m[items[0]] = map[string]any{}
 		}
-		asMap, ok := m[items[0]].(map[string]interface{})
+		asMap, ok := m[items[0]].(map[string]any)
 		if !ok {
 			return
 		}
