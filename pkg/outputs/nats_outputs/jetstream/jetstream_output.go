@@ -529,16 +529,12 @@ func (n *jetstreamOutput) subjectName(m proto.Message, meta outputs.Meta) (strin
 	case subjectFormat_Static:
 		sb.WriteString(n.Cfg.Subject)
 	case subjectFormat_TargetSub:
-		if n.Cfg.Subject != "" {
-			sb.WriteString(n.Cfg.Subject)
-			sb.WriteString(".")
-		}
 		err := n.targetTpl.Execute(sb, meta)
 		if err != nil {
 			return "", err
 		}
-		sb.WriteString(".")
 		if sub, ok := meta["subscription-name"]; ok {
+			sb.WriteString(".")
 			sb.WriteString(sub)
 		}
 	case subjectFormat_SubTarget:

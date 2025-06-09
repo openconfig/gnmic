@@ -31,6 +31,7 @@ var InputTypes = []string{
 	"nats",
 	"stan",
 	"kafka",
+	"jetstream",
 }
 
 var Inputs = map[string]Initializer{}
