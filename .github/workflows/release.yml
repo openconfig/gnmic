@@ -13,7 +13,7 @@ on:
     tags:
       - v*
 env:
-  GOVER: 1.21.9
+  GOVER: 1.23.10
   GORELEASER_VER: v1.19.2
 
 jobs:
