@@ -61,6 +61,10 @@ START:
 				a.Logger.Printf("failed to delete target %q: %v", del, err)
 			}
 		}
+		var limiter *time.Ticker
+		if a.Config.LocalFlags.SubscribeBackoff > 0 {
+			limiter = time.NewTicker(a.Config.LocalFlags.SubscribeBackoff)
+		}
 		for _, add := range targetOp.Add {
 			err = a.Config.SetTargetConfigDefaults(add)
 			if err != nil {
@@ -73,6 +77,9 @@ START:
 				a.AddTargetConfig(add)
 				a.wg.Add(1)
 				go a.TargetSubscribeStream(ctx, add)
+				if limiter != nil {
+					<-limiter.C
+				}
 				continue
 			}
 			// clustered, dispatch
@@ -83,6 +90,9 @@ START:
 				a.Logger.Printf("failed dispatching target %q: %v", add.Name, err)
 			}
 			a.configLock.Unlock()
+		}
+		if limiter != nil {
+			limiter.Stop()
 		}
 	}
 	a.Logger.Printf("target loader stopped")
