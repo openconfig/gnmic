@@ -44,7 +44,6 @@ SUBSC_NODELAY:
 		return
 	default:
 		nctx, cancel = context.WithCancel(ctx)
-		defer cancel()
 		nctx = t.appendRequestMetadata(nctx)
 		subscribeClient, err = t.Client.Subscribe(nctx, t.callOpts()...)
 		if err != nil {
@@ -98,6 +97,7 @@ SUBSC_NODELAY:
 				Err:              err,
 			}
 			if errors.Is(err, io.EOF) {
+				cancel()
 				return
 			}
 			t.errors <- &TargetError{
@@ -107,6 +107,7 @@ SUBSC_NODELAY:
 			cancel()
 			goto SUBSC
 		}
+		cancel()
 		return
 	case gnmi.SubscriptionList_POLL:
 		go t.listenPolls(nctx)
@@ -120,6 +121,7 @@ SUBSC_NODELAY:
 			goto SUBSC
 		}
 	}
+	cancel()
 }
 
 func (t *Target) SubscribeStreamChan(ctx context.Context, req *gnmi.SubscribeRequest, subscriptionName string) (chan *gnmi.SubscribeResponse, chan error) {
