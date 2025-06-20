@@ -16,7 +16,7 @@ on:
       - "main"
       - "!releases/**"
 env:
-  GOVER: 1.21.9
+  GOVER: 1.23.10
 
 jobs:
   test:
