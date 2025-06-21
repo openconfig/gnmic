@@ -91,7 +91,7 @@ require (
 	github.com/bcicen/bfstree v1.0.0 // indirect
 	github.com/bufbuild/protocompile v0.13.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
-	github.com/cloudflare/circl v1.3.7 // indirect
+	github.com/cloudflare/circl v1.6.1 // indirect
 	github.com/cncf/xds/go v0.0.0-20231128003011-0fa0005c9caa // indirect
 	github.com/cyphar/filepath-securejoin v0.2.5 // indirect
 	github.com/derekparker/trie v0.0.0-20221221181808-1424fce0c981 // indirect
