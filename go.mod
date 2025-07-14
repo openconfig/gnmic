@@ -57,9 +57,9 @@ require (
 	github.com/stretchr/testify v1.10.0
 	github.com/xdg/scram v1.0.5
 	go.starlark.net v0.0.0-20231121155337-90ade8b19d09
-	golang.org/x/crypto v0.38.0
+	golang.org/x/crypto v0.40.0
 	golang.org/x/oauth2 v0.25.0
-	golang.org/x/sync v0.14.0
+	golang.org/x/sync v0.16.0
 	google.golang.org/grpc v1.63.2
 	google.golang.org/protobuf v1.34.2
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
@@ -158,9 +158,9 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
-	golang.org/x/mod v0.19.0 // indirect
-	golang.org/x/term v0.32.0 // indirect
-	golang.org/x/tools v0.23.0 // indirect
+	golang.org/x/mod v0.25.0 // indirect
+	golang.org/x/term v0.33.0 // indirect
+	golang.org/x/tools v0.34.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240311132316-a219d84964c2 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240415180920-8c6c420018be // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
@@ -275,9 +275,9 @@ require (
 	go4.org/intern v0.0.0-20230205224052-192e9f60865c // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20231121144256-b99613f794b6 // indirect
 	gocloud.dev v0.25.1-0.20220408200107-09b10f7359f7 // indirect
-	golang.org/x/net v0.34.0 // indirect
-	golang.org/x/sys v0.33.0 // indirect
-	golang.org/x/text v0.25.0
+	golang.org/x/net v0.41.0 // indirect
+	golang.org/x/sys v0.34.0 // indirect
+	golang.org/x/text v0.27.0
 	golang.org/x/time v0.9.0 // indirect
 	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028 // indirect
 	google.golang.org/api v0.169.0 // indirect
