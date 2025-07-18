@@ -58,7 +58,7 @@ require (
 	github.com/xdg/scram v1.0.5
 	go.starlark.net v0.0.0-20231121155337-90ade8b19d09
 	golang.org/x/crypto v0.38.0
-	golang.org/x/oauth2 v0.25.0
+	golang.org/x/oauth2 v0.27.0
 	golang.org/x/sync v0.14.0
 	google.golang.org/grpc v1.63.2
 	google.golang.org/protobuf v1.34.2
