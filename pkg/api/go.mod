@@ -1,6 +1,6 @@
 module github.com/openconfig/gnmic/pkg/api
 
-go 1.21.1
+go 1.23.0
 
 require (
 	github.com/AlekSi/pointer v1.2.0
@@ -14,7 +14,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.19.0
 	golang.org/x/net v0.34.0
-	golang.org/x/oauth2 v0.25.0
+	golang.org/x/oauth2 v0.27.0
 	golang.org/x/sync v0.10.0
 	google.golang.org/grpc v1.63.2
 	google.golang.org/protobuf v1.33.1-0.20240408130810-98873a205002
