@@ -176,6 +176,7 @@ START:
 				case m.Value[0] == openSquareBracket[0]:
 					err = json.Unmarshal(m.Value, &evMsgs)
 				case m.Value[0] == openCurlyBrace[0]:
+					evMsgs[0] = &formatters.EventMsg{}
 					err = json.Unmarshal(m.Value, evMsgs[0])
 				}
 				if err != nil {
