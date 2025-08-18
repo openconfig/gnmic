@@ -94,6 +94,7 @@ func (a *App) startGNMIProxyServer(ctx context.Context) error {
 		Keepalive:            a.Config.GnmiServer.GRPCKeepalive.Convert(),
 		HealthEnabled:        true,
 		RateLimit:            a.Config.GnmiServer.RateLimit,
+		Timeout:              a.Config.GnmiServer.Timeout,
 		TLS:                  a.Config.GnmiServer.TLS,
 	}, server.WithLogger(a.Logger),
 		server.WithRegistry(a.reg),

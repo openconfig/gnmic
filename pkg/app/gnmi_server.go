@@ -64,6 +64,7 @@ func (a *App) startGnmiServer() error {
 		TCPKeepalive:         a.Config.GnmiServer.TCPKeepalive,
 		Keepalive:            a.Config.GnmiServer.GRPCKeepalive.Convert(),
 		RateLimit:            a.Config.GnmiServer.RateLimit,
+		Timeout:              a.Config.GnmiServer.Timeout,
 		HealthEnabled:        true,
 		TLS:                  a.Config.GnmiServer.TLS,
 	}, server.WithLogger(a.Logger),
