@@ -24,7 +24,7 @@ Deploy it with:
 ```bash
 git clone https://github.com/openconfig/gnmic.git
 cd gnmic/examples/deployments/1.single-instance/4.prometheus-output/containerlab
-sudo clab deploy -t prometheus.clab.yaml
+sudo clab deploy -t ./prom_write.clab.yaml
 ```
 
 ```text
