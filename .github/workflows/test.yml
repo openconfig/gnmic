@@ -30,7 +30,7 @@ jobs:
         env:
           CGO_ENABLED: 0
       # run staticcheck
-      - uses: reviewdog/action-staticcheck@73cfd0daa6fdbba9a858dcb0f62844012fa8317d
+      - uses: reviewdog/action-staticcheck@50f9bfcf3738839ddc95deac241b904d77469096
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           # Change reviewdog reporter if you need [github-pr-check,github-check,github-pr-review].
