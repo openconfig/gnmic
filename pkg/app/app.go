@@ -111,6 +111,9 @@ type App struct {
 	tunTargetCfn  map[tunnel.Target]context.CancelFunc
 	// processors plugin manager
 	pm *plugin_manager.PluginManager
+
+	// pprof
+	pprof *PprofServer
 }
 
 func New() *App {
@@ -149,6 +152,9 @@ func New() *App {
 		ttm:          new(sync.RWMutex),
 		tunTargets:   make(map[tunnel.Target]struct{}),
 		tunTargetCfn: make(map[tunnel.Target]context.CancelFunc),
+
+		// pprof
+		pprof: NewPprofServer(),
 	}
 	a.router.StrictSlash(true)
 	a.router.Use(headersMiddleware, a.loggingMiddleware)
@@ -177,6 +183,8 @@ func (a *App) InitGlobalFlags() {
 	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.TLSKey, "tls-key", "", "", "tls key")
 	a.RootCmd.PersistentFlags().DurationVarP(&a.Config.GlobalFlags.Timeout, "timeout", "", 10*time.Second, "grpc timeout, valid formats: 10s, 1m30s, 1h")
 	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.Debug, "debug", "d", false, "debug mode")
+	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.EnablePprof, "enable-pprof", "", false, "enable go pprof")
+	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.PprofAddr, "pprof-addr", "", defaultPprofAddr, "pprof host/IP and port to listen on")
 	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.SkipVerify, "skip-verify", "", false, "skip verify tls connection")
 	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.NoPrefix, "no-prefix", "", false, "do not add [ip:port] prefix to print output in case of multiple targets")
 	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.ProxyFromEnv, "proxy-from-env", "", false, "use proxy from environment")
@@ -218,6 +226,18 @@ func (a *App) InitGlobalFlags() {
 }
 
 func (a *App) PreRunE(cmd *cobra.Command, args []string) error {
+	if a.Config.EnablePprof {
+		a.pprof.Start(a.Config.GlobalFlags.PprofAddr)
+		a.Logger.Printf("pprof server started at %s", a.Config.GlobalFlags.PprofAddr)
+		go func() {
+			select {
+			case err := <-a.pprof.ErrChan():
+				a.Logger.Printf("E! pprof server failed: %v", err)
+				a.Cfn()
+			}
+		}()
+	}
+
 	a.Config.SetGlobalsFromEnv(a.RootCmd)
 	a.Config.SetPersistentFlagsFromFile(a.RootCmd)
 
