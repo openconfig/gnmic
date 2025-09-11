@@ -118,33 +118,35 @@ var defaultCipherSuitesTLS13 = []uint16{
 
 // TargetConfig //
 type TargetConfig struct {
-	Name          string            `mapstructure:"name,omitempty" yaml:"name,omitempty" json:"name,omitempty"`
-	Address       string            `mapstructure:"address,omitempty" yaml:"address,omitempty" json:"address,omitempty"`
-	Username      *string           `mapstructure:"username,omitempty" yaml:"username,omitempty" json:"username,omitempty"`
-	Password      *string           `mapstructure:"password,omitempty" yaml:"password,omitempty" json:"password,omitempty"`
-	AuthScheme    string            `mapstructure:"auth-scheme,omitempty" yaml:"auth-scheme,omitempty" json:"auth-scheme,omitempty"`
-	Timeout       time.Duration     `mapstructure:"timeout,omitempty" yaml:"timeout,omitempty" json:"timeout,omitempty"`
-	Insecure      *bool             `mapstructure:"insecure,omitempty" yaml:"insecure,omitempty" json:"insecure,omitempty"`
-	TLSCA         *string           `mapstructure:"tls-ca,omitempty" yaml:"tls-ca,omitempty" json:"tls-ca,omitempty"`
-	TLSCert       *string           `mapstructure:"tls-cert,omitempty" yaml:"tls-cert,omitempty" json:"tls-cert,omitempty"`
-	TLSKey        *string           `mapstructure:"tls-key,omitempty" yaml:"tls-key,omitempty" json:"tls-key,omitempty"`
-	SkipVerify    *bool             `mapstructure:"skip-verify,omitempty" yaml:"skip-verify,omitempty" json:"skip-verify,omitempty"`
-	TLSServerName string            `mapstructure:"tls-server-name,omitempty" yaml:"tls-server-name,omitempty" json:"tls-server-name,omitempty"`
-	Subscriptions []string          `mapstructure:"subscriptions,omitempty" yaml:"subscriptions,omitempty" json:"subscriptions,omitempty"`
-	Outputs       []string          `mapstructure:"outputs,omitempty" yaml:"outputs,omitempty" json:"outputs,omitempty"`
-	BufferSize    uint              `mapstructure:"buffer-size,omitempty" yaml:"buffer-size,omitempty" json:"buffer-size,omitempty"`
-	RetryTimer    time.Duration     `mapstructure:"retry,omitempty" yaml:"retry-timer,omitempty" json:"retry-timer,omitempty"`
-	TLSMinVersion string            `mapstructure:"tls-min-version,omitempty" yaml:"tls-min-version,omitempty" json:"tls-min-version,omitempty"`
-	TLSMaxVersion string            `mapstructure:"tls-max-version,omitempty" yaml:"tls-max-version,omitempty" json:"tls-max-version,omitempty"`
-	TLSVersion    string            `mapstructure:"tls-version,omitempty" yaml:"tls-version,omitempty" json:"tls-version,omitempty"`
-	LogTLSSecret  *bool             `mapstructure:"log-tls-secret,omitempty" yaml:"log-tls-secret,omitempty" json:"log-tls-secret,omitempty"`
-	ProtoFiles    []string          `mapstructure:"proto-files,omitempty" yaml:"proto-files,omitempty" json:"proto-files,omitempty"`
-	ProtoDirs     []string          `mapstructure:"proto-dirs,omitempty" yaml:"proto-dirs,omitempty" json:"proto-dirs,omitempty"`
-	Tags          []string          `mapstructure:"tags,omitempty" yaml:"tags,omitempty" json:"tags,omitempty"`
-	EventTags     map[string]string `mapstructure:"event-tags,omitempty" yaml:"event-tags,omitempty" json:"event-tags,omitempty"`
-	Gzip          *bool             `mapstructure:"gzip,omitempty" yaml:"gzip,omitempty" json:"gzip,omitempty"`
-	Token         *string           `mapstructure:"token,omitempty" yaml:"token,omitempty" json:"token,omitempty"`
-	Proxy         string            `mapstructure:"proxy,omitempty" yaml:"proxy,omitempty" json:"proxy,omitempty"`
+	Name                string            `mapstructure:"name,omitempty" yaml:"name,omitempty" json:"name,omitempty"`
+	Address             string            `mapstructure:"address,omitempty" yaml:"address,omitempty" json:"address,omitempty"`
+	Username            *string           `mapstructure:"username,omitempty" yaml:"username,omitempty" json:"username,omitempty"`
+	Password            *string           `mapstructure:"password,omitempty" yaml:"password,omitempty" json:"password,omitempty"`
+	AuthScheme          string            `mapstructure:"auth-scheme,omitempty" yaml:"auth-scheme,omitempty" json:"auth-scheme,omitempty"`
+	Timeout             time.Duration     `mapstructure:"timeout,omitempty" yaml:"timeout,omitempty" json:"timeout,omitempty"`
+	Insecure            *bool             `mapstructure:"insecure,omitempty" yaml:"insecure,omitempty" json:"insecure,omitempty"`
+	TLSCA               *string           `mapstructure:"tls-ca,omitempty" yaml:"tls-ca,omitempty" json:"tls-ca,omitempty"`
+	TLSCert             *string           `mapstructure:"tls-cert,omitempty" yaml:"tls-cert,omitempty" json:"tls-cert,omitempty"`
+	TLSKey              *string           `mapstructure:"tls-key,omitempty" yaml:"tls-key,omitempty" json:"tls-key,omitempty"`
+	SkipVerify          *bool             `mapstructure:"skip-verify,omitempty" yaml:"skip-verify,omitempty" json:"skip-verify,omitempty"`
+	TLSServerName       string            `mapstructure:"tls-server-name,omitempty" yaml:"tls-server-name,omitempty" json:"tls-server-name,omitempty"`
+	Subscriptions       []string          `mapstructure:"subscriptions,omitempty" yaml:"subscriptions,omitempty" json:"subscriptions,omitempty"`
+	Outputs             []string          `mapstructure:"outputs,omitempty" yaml:"outputs,omitempty" json:"outputs,omitempty"`
+	BufferSize          uint              `mapstructure:"buffer-size,omitempty" yaml:"buffer-size,omitempty" json:"buffer-size,omitempty"`
+	GRPCReadBufferSize  uint              `mapstructure:"grpc-read-buffer-size,omitempty" yaml:"grpc-read-buffer-size,omitempty" json:"grpc-read-buffer-size,omitempty"`
+	GRPCWriteBufferSize uint              `mapstructure:"grpc-write-buffer-size,omitempty" yaml:"grpc-write-buffer-size,omitempty" json:"grpc-write-buffer-size,omitempty"`
+	RetryTimer          time.Duration     `mapstructure:"retry,omitempty" yaml:"retry-timer,omitempty" json:"retry-timer,omitempty"`
+	TLSMinVersion       string            `mapstructure:"tls-min-version,omitempty" yaml:"tls-min-version,omitempty" json:"tls-min-version,omitempty"`
+	TLSMaxVersion       string            `mapstructure:"tls-max-version,omitempty" yaml:"tls-max-version,omitempty" json:"tls-max-version,omitempty"`
+	TLSVersion          string            `mapstructure:"tls-version,omitempty" yaml:"tls-version,omitempty" json:"tls-version,omitempty"`
+	LogTLSSecret        *bool             `mapstructure:"log-tls-secret,omitempty" yaml:"log-tls-secret,omitempty" json:"log-tls-secret,omitempty"`
+	ProtoFiles          []string          `mapstructure:"proto-files,omitempty" yaml:"proto-files,omitempty" json:"proto-files,omitempty"`
+	ProtoDirs           []string          `mapstructure:"proto-dirs,omitempty" yaml:"proto-dirs,omitempty" json:"proto-dirs,omitempty"`
+	Tags                []string          `mapstructure:"tags,omitempty" yaml:"tags,omitempty" json:"tags,omitempty"`
+	EventTags           map[string]string `mapstructure:"event-tags,omitempty" yaml:"event-tags,omitempty" json:"event-tags,omitempty"`
+	Gzip                *bool             `mapstructure:"gzip,omitempty" yaml:"gzip,omitempty" json:"gzip,omitempty"`
+	Token               *string           `mapstructure:"token,omitempty" yaml:"token,omitempty" json:"token,omitempty"`
+	Proxy               string            `mapstructure:"proxy,omitempty" yaml:"proxy,omitempty" json:"proxy,omitempty"`
 	//
 	TunnelTargetType string            `mapstructure:"-" yaml:"tunnel-target-type,omitempty" json:"tunnel-target-type,omitempty"`
 	Encoding         *string           `mapstructure:"encoding,omitempty" yaml:"encoding,omitempty" json:"encoding,omitempty"`
@@ -181,27 +183,29 @@ func (tc *TargetConfig) DeepCopy() *TargetConfig {
 		return nil
 	}
 	ntc := &TargetConfig{
-		Name:             tc.Name,
-		Address:          tc.Address,
-		AuthScheme:       tc.AuthScheme,
-		Timeout:          tc.Timeout,
-		TLSServerName:    tc.TLSServerName,
-		Subscriptions:    make([]string, 0, len(tc.Subscriptions)),
-		Outputs:          make([]string, 0, len(tc.Outputs)),
-		BufferSize:       tc.BufferSize,
-		RetryTimer:       tc.RetryTimer,
-		TLSMinVersion:    tc.TLSMinVersion,
-		TLSMaxVersion:    tc.TLSMaxVersion,
-		TLSVersion:       tc.TLSVersion,
-		ProtoFiles:       make([]string, 0, len(tc.ProtoFiles)),
-		ProtoDirs:        make([]string, 0, len(tc.ProtoDirs)),
-		Tags:             make([]string, 0, len(tc.Tags)),
-		EventTags:        make(map[string]string, len(tc.EventTags)),
-		Proxy:            tc.Proxy,
-		TunnelTargetType: tc.TunnelTargetType,
-		Metadata:         make(map[string]string, len(tc.Metadata)),
-		CipherSuites:     make([]string, 0, len(tc.CipherSuites)),
-		TCPKeepalive:     tc.TCPKeepalive,
+		Name:                tc.Name,
+		Address:             tc.Address,
+		AuthScheme:          tc.AuthScheme,
+		Timeout:             tc.Timeout,
+		TLSServerName:       tc.TLSServerName,
+		Subscriptions:       make([]string, 0, len(tc.Subscriptions)),
+		Outputs:             make([]string, 0, len(tc.Outputs)),
+		BufferSize:          tc.BufferSize,
+		GRPCReadBufferSize:  tc.GRPCReadBufferSize,
+		GRPCWriteBufferSize: tc.GRPCWriteBufferSize,
+		RetryTimer:          tc.RetryTimer,
+		TLSMinVersion:       tc.TLSMinVersion,
+		TLSMaxVersion:       tc.TLSMaxVersion,
+		TLSVersion:          tc.TLSVersion,
+		ProtoFiles:          make([]string, 0, len(tc.ProtoFiles)),
+		ProtoDirs:           make([]string, 0, len(tc.ProtoDirs)),
+		Tags:                make([]string, 0, len(tc.Tags)),
+		EventTags:           make(map[string]string, len(tc.EventTags)),
+		Proxy:               tc.Proxy,
+		TunnelTargetType:    tc.TunnelTargetType,
+		Metadata:            make(map[string]string, len(tc.Metadata)),
+		CipherSuites:        make([]string, 0, len(tc.CipherSuites)),
+		TCPKeepalive:        tc.TCPKeepalive,
 	}
 	if tc.Username != nil {
 		ntc.Username = tc.Username
@@ -335,6 +339,10 @@ func (tc *TargetConfig) GrpcDialOptions() ([]grpc.DialOption, error) {
 			PermitWithoutStream: tc.GRPCKeepalive.PermitWithoutStream,
 		}))
 	}
+	// Read write Buffer size,  every value of type uint is >= 0
+	tOpts = append(tOpts, grpc.WithReadBufferSize(int(tc.GRPCReadBufferSize)))
+	tOpts = append(tOpts, grpc.WithWriteBufferSize(int(tc.GRPCWriteBufferSize)))
+
 	// insecure
 	if tc.Insecure != nil && *tc.Insecure {
 		tOpts = append(tOpts,
