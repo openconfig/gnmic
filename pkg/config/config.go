@@ -91,6 +91,8 @@ type GlobalFlags struct {
 	LogTLSSecret  bool          `mapstructure:"log-tls-secret,omitempty" json:"log-tls-secret,omitempty" yaml:"log-tls-secret,omitempty"`
 	Timeout       time.Duration `mapstructure:"timeout,omitempty" json:"timeout,omitempty" yaml:"timeout,omitempty"`
 	Debug         bool          `mapstructure:"debug,omitempty" json:"debug,omitempty" yaml:"debug,omitempty"`
+	EnablePprof   bool          `mapstructure:"enable-pprof,omitempty" json:"enable-pprof,omitempty" yaml:"enable-pprof,omitempty"`
+	PprofAddr     string        `mapstructure:"pprof-addr,omitempty" json:"pprof-addr,omitempty" yaml:"pprof-addr,omitempty"`
 	SkipVerify    bool          `mapstructure:"skip-verify,omitempty" json:"skip-verify,omitempty" yaml:"skip-verify,omitempty"`
 	NoPrefix      bool          `mapstructure:"no-prefix,omitempty" json:"no-prefix,omitempty" yaml:"no-prefix,omitempty"`
 	ProxyFromEnv  bool          `mapstructure:"proxy-from-env,omitempty" json:"proxy-from-env,omitempty" yaml:"proxy-from-env,omitempty"`
