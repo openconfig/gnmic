@@ -28,6 +28,7 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/config"
+	"github.com/openconfig/gnmic/pkg/lockers"
 )
 
 func (a *App) newAPIServer() (*http.Server, error) {
@@ -92,7 +93,7 @@ func (a *App) handleConfigTargetsGet(w http.ResponseWriter, r *http.Request) {
 		err = json.NewEncoder(w).Encode(targets)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+			_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		}
 		return
 	}
@@ -102,16 +103,12 @@ func (a *App) handleConfigTargetsGet(w http.ResponseWriter, r *http.Request) {
 		err = json.NewEncoder(w).Encode(tc)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+			_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		}
 		return
 	}
 	w.WriteHeader(http.StatusNotFound)
-	err = json.NewEncoder(w).Encode(APIErrors{Errors: []string{fmt.Sprintf("target %q not found", id)}})
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
-	}
+	_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{fmt.Sprintf("target %q not found", id)}})
 }
 
 func (a *App) handleConfigTargetsPost(w http.ResponseWriter, r *http.Request) {
@@ -245,11 +242,7 @@ func (a *App) handleTargetsGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNotFound)
-	err := json.NewEncoder(w).Encode(APIErrors{Errors: []string{"no targets found"}})
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
-	}
+	_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{"no targets found"}})
 }
 
 func (a *App) handleTargetsPost(w http.ResponseWriter, r *http.Request) {
@@ -342,14 +335,7 @@ func (a *App) handleClusteringGet(w http.ResponseWriter, r *http.Request) {
 
 	resp.Members = make([]clusterMember, len(services))
 	for i, s := range services {
-		scheme := "http://"
-		for _, t := range s.Tags {
-			after, ok := strings.CutPrefix(t, "protocol=")
-			if ok {
-				scheme = fmt.Sprintf("%s://", after)
-				break
-			}
-		}
+		scheme := getServiceScheme(s)
 		resp.Members[i].APIEndpoint = fmt.Sprintf("%s%s", scheme, s.Address)
 		resp.Members[i].Name = strings.TrimSuffix(s.ID, "-api")
 		resp.Members[i].IsLeader = resp.Leader == resp.Members[i].Name
@@ -419,14 +405,7 @@ func (a *App) handleClusteringMembersGet(w http.ResponseWriter, r *http.Request)
 	}
 	members := make([]clusterMember, len(services))
 	for i, s := range services {
-		scheme := "http://"
-		for _, t := range s.Tags {
-			after, ok := strings.CutPrefix(t, "protocol=")
-			if ok {
-				scheme = fmt.Sprintf("%s://", after)
-				break
-			}
-		}
+		scheme := getServiceScheme(s)
 		members[i].APIEndpoint = fmt.Sprintf("%s%s", scheme, s.Address)
 		members[i].Name = strings.TrimSuffix(s.ID, "-api")
 		members[i].IsLeader = leader == members[i].Name
@@ -480,13 +459,7 @@ func (a *App) handleClusteringLeaderGet(w http.ResponseWriter, r *http.Request) 
 		if strings.TrimSuffix(s.ID, "-api") != leader {
 			continue
 		}
-		scheme := "http://"
-		for _, t := range s.Tags {
-			after, ok := strings.CutPrefix(t, "protocol=")
-			if ok {
-				scheme = fmt.Sprintf("%s://", after)
-			}
-		}
+		scheme := getServiceScheme(s)
 		// add the leader as a member then break from loop
 		members[0].APIEndpoint = fmt.Sprintf("%s%s", scheme, s.Address)
 		members[0].Name = strings.TrimSuffix(s.ID, "-api")
@@ -663,4 +636,20 @@ func (a *App) getInstanceTargets(ctx context.Context, instance string) ([]string
 	}
 	sort.Strings(targets)
 	return targets, nil
+}
+
+// getServiceScheme returns the scheme of the service based on the protocol tag
+// the tag is expected to be in the format "protocol=<scheme>"
+// if the tag is not found, the scheme is "http"
+func getServiceScheme(service *lockers.Service) string {
+	scheme := "http"
+	for _, t := range service.Tags {
+		if strings.HasPrefix(t, "protocol=") {
+			if strings.Split(t, "=")[1] != "" {
+				scheme = strings.Split(t, "=")[1]
+			}
+			break
+		}
+	}
+	return scheme
 }
