@@ -232,7 +232,7 @@ func (h *httpLoader) getTargets() (map[string]*types.TargetConfig, error) {
 	if h.cfg.TLS != nil {
 		tlsCfg, err := utils.NewTLSConfig(h.cfg.TLS.CaFile, h.cfg.TLS.CertFile, h.cfg.TLS.KeyFile, "", h.cfg.TLS.SkipVerify, false)
 		if err != nil {
-			httpLoaderFailedGetRequests.WithLabelValues(loaderType, fmt.Sprintf("%v", err))
+			httpLoaderFailedGetRequests.WithLabelValues(loaderType, fmt.Sprintf("%v", err)).Add(1)
 			return nil, err
 		}
 		if tlsCfg != nil {
@@ -253,6 +253,7 @@ func (h *httpLoader) getTargets() (map[string]*types.TargetConfig, error) {
 	httpLoaderGetRequestsTotal.WithLabelValues(loaderType).Add(1)
 	rsp, err := c.R().SetHeader("Accept", "application/json").Get(h.cfg.URL)
 	if err != nil {
+		httpLoaderFailedGetRequests.WithLabelValues(loaderType, fmt.Sprintf("%v", err)).Add(1)
 		return nil, err
 	}
 	httpLoaderGetRequestDuration.WithLabelValues(loaderType).Set(float64(time.Since(start).Nanoseconds()))
@@ -301,7 +302,7 @@ func (h *httpLoader) getTargets() (map[string]*types.TargetConfig, error) {
 		}
 	}
 	if h.cfg.Debug {
-		h.logger.Printf("result: %s", result)
+		h.logger.Printf("result: %+v", result)
 	}
 	return result, nil
 }
@@ -391,33 +392,13 @@ func (f *httpLoader) runActions(ctx context.Context, tcs map[string]*types.Targe
 	if f.numActions == 0 {
 		return targetOp, nil
 	}
-	opChan := make(chan *loaders.TargetOperation)
-	// some actions are defined,
-	doneCh := make(chan struct{})
 	result := &loaders.TargetOperation{
 		Add: make(map[string]*types.TargetConfig, len(targetOp.Add)),
 		Del: make([]string, 0, len(targetOp.Del)),
 	}
+	var resultMu sync.Mutex
 	ctx, cancel := context.WithTimeout(ctx, f.cfg.Interval)
 	defer cancel()
-	// start operation gathering goroutine
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case op, ok := <-opChan:
-				if !ok {
-					close(doneCh)
-					return
-				}
-				for n, t := range op.Add {
-					result.Add[n] = t
-				}
-				result.Del = append(result.Del, op.Del...)
-			}
-		}
-	}()
 	// create waitGroup and add the number of target operations to it
 	wgDelete := new(sync.WaitGroup)
 	wgDelete.Add(len(targetOp.Del))
@@ -430,7 +411,9 @@ func (f *httpLoader) runActions(ctx context.Context, tcs map[string]*types.Targe
 				f.logger.Printf("failed running OnDelete actions: %v", err)
 				return
 			}
-			opChan <- &loaders.TargetOperation{Del: []string{name}}
+			resultMu.Lock()
+			result.Del = append(result.Del, name)
+			resultMu.Unlock()
 		}(tDel)
 	}
 	wgDelete.Wait()
@@ -441,19 +424,19 @@ func (f *httpLoader) runActions(ctx context.Context, tcs map[string]*types.Targe
 	// run OnAdd actions
 	for n, tAdd := range targetOp.Add {
 		go func(n string, tc *types.TargetConfig) {
-			defer wgDelete.Done()
+			defer wgAdd.Done()
 			err := f.runOnAddActions(ctx, tc.Name, tcs)
 			if err != nil {
 				f.logger.Printf("failed running OnAdd actions: %v", err)
 				return
 			}
-			opChan <- &loaders.TargetOperation{Add: map[string]*types.TargetConfig{n: tc}}
+			resultMu.Lock()
+			result.Add[n] = tc
+			resultMu.Unlock()
 		}(n, tAdd)
 	}
 
 	wgAdd.Wait()
-	close(opChan)
-	<-doneCh //wait for gathering goroutine to finish
 	return result, nil
 }
 
@@ -485,8 +468,8 @@ func (d *httpLoader) runOnAddActions(ctx context.Context, tName string, tcs map[
 	return nil
 }
 
-func (d *httpLoader) runOnDeleteActions(ctx context.Context, tName string, tcs map[string]*types.TargetConfig) error {
-	env := make(map[string]interface{})
+func (d *httpLoader) runOnDeleteActions(ctx context.Context, tName string, _ map[string]*types.TargetConfig) error {
+	env := make(map[string]any)
 	for _, act := range d.delActions {
 		res, err := act.Run(ctx, &actions.Context{Input: tName, Env: env, Vars: d.vars})
 		if err != nil {

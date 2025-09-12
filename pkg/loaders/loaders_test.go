@@ -167,6 +167,42 @@ var testSet = map[string]struct {
 			Del: []string{"target2"},
 		},
 	},
+	"t11-tags-change": {
+		m1: map[string]*types.TargetConfig{
+			"target1": {Name: "target1", Tags: []string{"a"}},
+		},
+		m2: map[string]*types.TargetConfig{
+			"target1": {Name: "target1", Tags: []string{"a", "b"}},
+		},
+		output: &TargetOperation{
+			Add: map[string]*types.TargetConfig{
+				"target1": {Name: "target1", Tags: []string{"a", "b"}},
+			},
+			Del: []string{"target1"},
+		},
+	},
+	"t12-both-empty": {
+		m1: map[string]*types.TargetConfig{},
+		m2: map[string]*types.TargetConfig{},
+		output: &TargetOperation{
+			Add: make(map[string]*types.TargetConfig, 0),
+			Del: make([]string, 0),
+		},
+	},
+	"t13-slice-order-change": {
+		m1: map[string]*types.TargetConfig{
+			"target1": {Name: "target1", Tags: []string{"a", "b"}},
+		},
+		m2: map[string]*types.TargetConfig{
+			"target1": {Name: "target1", Tags: []string{"b", "a"}},
+		},
+		output: &TargetOperation{
+			Add: map[string]*types.TargetConfig{
+				"target1": {Name: "target1", Tags: []string{"b", "a"}},
+			},
+			Del: []string{"target1"},
+		},
+	},
 }
 
 func TestGetInstancesTagsMatches(t *testing.T) {
