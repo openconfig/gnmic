@@ -1,6 +1,6 @@
 module github.com/openconfig/gnmic
 
-go 1.23.0
+go 1.24.0
 
 replace github.com/openconfig/gnmic/pkg/api v0.1.8 => ./pkg/api
 
@@ -58,7 +58,7 @@ require (
 	github.com/xdg/scram v1.0.5
 	go.starlark.net v0.0.0-20231121155337-90ade8b19d09
 	golang.org/x/crypto v0.41.0
-	golang.org/x/oauth2 v0.30.0
+	golang.org/x/oauth2 v0.31.0
 	golang.org/x/sync v0.16.0
 	google.golang.org/grpc v1.63.2
 	google.golang.org/protobuf v1.34.2
