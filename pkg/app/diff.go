@@ -142,8 +142,6 @@ func (a *App) diff(ctx context.Context, cmd *cobra.Command, ref *types.TargetCon
 }
 
 func (a *App) subscribeBasedDiff(ctx context.Context, cmd *cobra.Command, ref *types.TargetConfig, compare []*types.TargetConfig) error {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
 	subReq, err := a.Config.CreateDiffSubscribeRequest(cmd)
 	if err != nil {
 		if errors.Is(errors.Unwrap(err), config.ErrConfig) {
@@ -160,6 +158,9 @@ func (a *App) subscribeBasedDiff(ctx context.Context, cmd *cobra.Command, ref *t
 	if err != nil {
 		return err
 	}
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	go func() {
 		defer a.wg.Done()

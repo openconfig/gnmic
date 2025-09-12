@@ -17,10 +17,10 @@ import (
 	_ "github.com/openconfig/gnmic/pkg/outputs/all"
 )
 
-func (c *Config) GetOutputs() (map[string]map[string]interface{}, error) {
+func (c *Config) GetOutputs() (map[string]map[string]any, error) {
 	outDef := c.FileConfig.GetStringMap("outputs")
 	if len(outDef) == 0 && !c.FileConfig.GetBool("subscribe-quiet") {
-		stdoutConfig := map[string]interface{}{
+		stdoutConfig := map[string]any{
 			"type":              "file",
 			"file-type":         "stdout",
 			"format":            c.FileConfig.GetString("format"),
@@ -31,20 +31,21 @@ func (c *Config) GetOutputs() (map[string]map[string]interface{}, error) {
 	for name, outputCfg := range outDef {
 		outputCfgconv := convert(outputCfg)
 		switch outCfg := outputCfgconv.(type) {
-		case map[string]interface{}:
+		case map[string]any:
 			if outType, ok := outCfg["type"]; ok {
-				if _, ok := outputs.OutputTypes[outType.(string)]; !ok {
-					return nil, fmt.Errorf("unknown output type: %q", outType)
-				}
-				if _, ok := outputs.Outputs[outType.(string)]; ok {
-					format, ok := outCfg["format"]
-					if !ok || (ok && format == "") {
-						outCfg["format"] = c.FileConfig.GetString("format")
+				switch outType := outType.(type) {
+				case string:
+					if _, ok := outputs.OutputTypes[outType]; !ok {
+						return nil, fmt.Errorf("unknown output type: %q", outType)
 					}
-					c.Outputs[name] = outCfg
-					continue
+				default:
+					return nil, fmt.Errorf("unknown output type: %T", outType)
 				}
-				c.logger.Printf("unknown output type '%s'", outType)
+				format, ok := outCfg["format"]
+				if !ok || (ok && format == "") {
+					outCfg["format"] = c.FileConfig.GetString("format")
+				}
+				c.Outputs[name] = outCfg
 				continue
 			}
 			c.logger.Printf("missing output 'type' under %v", outCfg)

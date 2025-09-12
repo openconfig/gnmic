@@ -29,7 +29,7 @@ var (
 	ErrMarshal = errors.New("marshal error")
 )
 
-var backoff = 100 * time.Millisecond
+const backoff = 100 * time.Millisecond
 
 func (p *promWriteOutput) createHTTPClient() error {
 	c := &http.Client{

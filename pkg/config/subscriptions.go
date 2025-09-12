@@ -27,8 +27,16 @@ import (
 )
 
 const (
-	subscriptionDefaultMode       = "STREAM"
-	subscriptionDefaultStreamMode = "TARGET_DEFINED"
+	SubscriptionMode_STREAM               = "STREAM"
+	SubscriptionMode_ONCE                 = "ONCE"
+	SubscriptionMode_POLL                 = "POLL"
+	SubscriptionStreamMode_TARGET_DEFINED = "TARGET_DEFINED"
+	SubscriptionStreamMode_ON_CHANGE      = "ON_CHANGE"
+	SubscriptionStreamMode_SAMPLE         = "SAMPLE"
+)
+const (
+	subscriptionDefaultMode       = SubscriptionMode_STREAM
+	subscriptionDefaultStreamMode = SubscriptionStreamMode_TARGET_DEFINED
 	subscriptionDefaultEncoding   = "JSON"
 )
 
@@ -187,7 +195,7 @@ func (c *Config) setSubscriptionFieldsFromFlags(sub *types.SubscriptionConfig, c
 	if sub.Mode == "" {
 		sub.Mode = c.LocalFlags.SubscribeMode
 	}
-	if strings.ToUpper(sub.Mode) == "STREAM" && sub.StreamMode == "" {
+	if strings.ToUpper(sub.Mode) == SubscriptionMode_STREAM && sub.StreamMode == "" {
 		sub.StreamMode = c.LocalFlags.SubscribeStreamMode
 	}
 	if sub.Qos == nil && flagIsSet(cmd, "qos") {

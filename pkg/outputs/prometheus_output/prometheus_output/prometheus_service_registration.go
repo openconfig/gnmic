@@ -137,13 +137,17 @@ INITCONSUL:
 		case <-ticker.C:
 			err = p.consulClient.Agent().UpdateTTL(ttlCheckID, "", api.HealthPassing)
 			if err != nil {
-				p.logger.Printf("failed to pass TTL check: %v", err)
+				p.logger.Printf("failed to update TTL check to Passing: %v", err)
 			}
 		case <-ctx.Done():
-			p.consulClient.Agent().UpdateTTL(ttlCheckID, ctx.Err().Error(), api.HealthCritical)
+			err = p.consulClient.Agent().UpdateTTL(ttlCheckID, ctx.Err().Error(), api.HealthCritical)
+			if err != nil {
+				p.logger.Printf("failed to update TTL check to Critical: %v", err)
+			}
 			ticker.Stop()
 			goto INITCONSUL
 		case <-doneCh:
+			ticker.Stop()
 			goto INITCONSUL
 		}
 	}

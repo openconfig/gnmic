@@ -54,13 +54,13 @@ const (
 
 func toJSDeliverPolicy(dp deliverPolicy) jetstream.DeliverPolicy {
 	switch dp {
-	case "all":
+	case deliverPolicyAll:
 		return jetstream.DeliverAllPolicy
-	case "last":
+	case deliverPolicyLast:
 		return jetstream.DeliverLastPolicy
-	case "new":
+	case deliverPolicyNew:
 		return jetstream.DeliverNewPolicy
-	case "last-per-subject":
+	case deliverPolicyLastPerSubject:
 		return jetstream.DeliverLastPerSubjectPolicy
 	}
 	return 0
