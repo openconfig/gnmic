@@ -122,12 +122,23 @@ func (o *MarshalOptions) formatSubscribeResponse(m *gnmi.SubscribeResponse, meta
 		msg.Target = mr.Update.Prefix.GetTarget()
 		if s, ok := meta["source"]; ok {
 			msg.Source = s
+			delete(meta, "source")
 		}
 		if s, ok := meta["system-name"]; ok {
 			msg.SystemName = s
+			delete(meta, "system-name")
 		}
 		if s, ok := meta["subscription-name"]; ok {
 			msg.SubscriptionName = s
+			delete(meta, "subscription-name")
+		}
+		delete(meta, "format")
+		// add remaining meta as tags
+		if len(meta) > 0 {
+			msg.Tags = make(map[string]interface{}, len(meta))
+			for k, v := range meta {
+				msg.Tags[k] = v
+			}
 		}
 		for i, upd := range mr.Update.Update {
 			if upd.Path == nil {

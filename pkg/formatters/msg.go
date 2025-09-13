@@ -37,6 +37,7 @@ type notificationRspMsg struct {
 	Updates          []update               `json:"updates,omitempty"`
 	Deletes          []string               `json:"deletes,omitempty"`
 	Extensions       []*gnmi_ext.Extension  `json:"extensions,omitempty"`
+	Tags             map[string]interface{} `json:"tags,omitempty"`
 }
 type update struct {
 	Path   string
