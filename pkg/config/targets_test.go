@@ -416,7 +416,7 @@ func TestSetTargetLoaderConfigDefaults(t *testing.T) {
 				break
 			}
 			cfg := New()
-			err = cfg.SetTargetLoaderConfigDefaults(input)
+			err = cfg.SetTargetConfigDefaultsExpandEnv(input)
 			if err != nil {
 				t.Logf("SetTargetLoaderConfigDefaults error: %v", err)
 				t.Fail()

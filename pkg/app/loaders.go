@@ -37,7 +37,7 @@ START:
 	err := ld.Init(ctx, a.Config.Loader, a.Logger,
 		loaders.WithRegistry(a.reg),
 		loaders.WithActions(a.Config.Actions),
-		loaders.WithTargetsDefaults(a.Config.SetTargetLoaderConfigDefaults),
+		loaders.WithTargetsDefaults(a.Config.SetTargetConfigDefaultsExpandEnv),
 	)
 	if err != nil {
 		a.Logger.Printf("failed to init loader type %q: %v", ldTypeS, err)
@@ -66,7 +66,7 @@ START:
 			limiter = time.NewTicker(a.Config.LocalFlags.SubscribeBackoff)
 		}
 		for _, add := range targetOp.Add {
-			err = a.Config.SetTargetLoaderConfigDefaults(add)
+			err = a.Config.SetTargetConfigDefaultsExpandEnv(add)
 			if err != nil {
 				a.Logger.Printf("failed parsing new target configuration %#v: %v", add, err)
 				continue
@@ -116,7 +116,7 @@ START:
 	err := ld.Init(ctx, a.Config.Loader, a.Logger,
 		loaders.WithRegistry(a.reg),
 		loaders.WithActions(a.Config.Actions),
-		loaders.WithTargetsDefaults(a.Config.SetTargetLoaderConfigDefaults),
+		loaders.WithTargetsDefaults(a.Config.SetTargetConfigDefaultsExpandEnv),
 	)
 	if err != nil {
 		a.Logger.Printf("failed to init loader type %q: %v", ldTypeS, err)
@@ -142,7 +142,7 @@ START:
 			a.operLock.Unlock()
 		}
 		for _, add := range targetOp.Add {
-			err = a.Config.SetTargetLoaderConfigDefaults(add)
+			err = a.Config.SetTargetConfigDefaultsExpandEnv(add)
 			if err != nil {
 				a.Logger.Printf("failed parsing new target configuration %#v: %v", add, err)
 				continue

@@ -135,7 +135,7 @@ func (c *Config) GetTargets() (map[string]*types.TargetConfig, error) {
 	return c.Targets, nil
 }
 
-func (c *Config) SetTargetLoaderConfigDefaults(tc *types.TargetConfig) error {
+func (c *Config) SetTargetConfigDefaultsExpandEnv(tc *types.TargetConfig) error {
 	er := c.SetTargetConfigDefaults(tc)
 	if er != nil {
 		return er
