@@ -23,12 +23,12 @@ const (
 )
 
 type APIServer struct {
-	Address       string           `mapstructure:"address,omitempty" json:"address,omitempty"`
-	Timeout       time.Duration    `mapstructure:"timeout,omitempty" json:"timeout,omitempty"`
-	TLS           *types.TLSConfig `mapstructure:"tls,omitempty" json:"tls,omitempty"`
-	EnableMetrics bool             `mapstructure:"enable-metrics,omitempty" json:"enable-metrics,omitempty"`
-	Debug         bool             `mapstructure:"debug,omitempty" json:"debug,omitempty"`
-	HealthzDisableLogging bool     	   `mapstructure:"healthz-disable-logging,omitempty" json:"healthz-disable-logging,omitempty"`
+	Address               string           `mapstructure:"address,omitempty" json:"address,omitempty"`
+	Timeout               time.Duration    `mapstructure:"timeout,omitempty" json:"timeout,omitempty"`
+	TLS                   *types.TLSConfig `mapstructure:"tls,omitempty" json:"tls,omitempty"`
+	EnableMetrics         bool             `mapstructure:"enable-metrics,omitempty" json:"enable-metrics,omitempty"`
+	Debug                 bool             `mapstructure:"debug,omitempty" json:"debug,omitempty"`
+	HealthzDisableLogging bool             `mapstructure:"healthz-disable-logging,omitempty" json:"healthz-disable-logging,omitempty"`
 }
 
 func (c *Config) GetAPIServer() error {

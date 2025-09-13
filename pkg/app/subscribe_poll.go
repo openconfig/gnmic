@@ -16,13 +16,16 @@ import (
 )
 
 func (a *App) SubscribeRunPoll(cmd *cobra.Command, args []string) error {
-	a.initTunnelServer(tunnel.ServerConfig{
+	err := a.initTunnelServer(tunnel.ServerConfig{
 		AddTargetHandler:    a.tunServerAddTargetHandler,
 		DeleteTargetHandler: a.tunServerDeleteTargetHandler,
 		RegisterHandler:     a.tunServerRegisterHandler,
 		Handler:             a.tunServerHandler,
 	})
-	_, err := a.GetTargets()
+	if err != nil {
+		return fmt.Errorf("failed to init tunnel server: %v", err)
+	}
+	_, err = a.GetTargets()
 	if err != nil {
 		return fmt.Errorf("failed reading targets config: %v", err)
 	}

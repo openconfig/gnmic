@@ -683,6 +683,7 @@ func (a *App) unassignTarget(ctx context.Context, name string, serviceID string)
 		if err != nil {
 			return err
 		}
+		defer rsp.Body.Close()
 		a.Logger.Printf("received response code=%d, for DELETE %s", rsp.StatusCode, url)
 	}
 	return nil

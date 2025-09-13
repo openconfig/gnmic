@@ -131,7 +131,7 @@ func (t *toTag) Apply2(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		for k, v := range e.Values {
 			for _, re := range t.valueNames {
 				if re.MatchString(k) {
-					e.Tags[k] = fmt.Sprint(v)  // always cast v results on extra allocations: Apply > Apply2
+					e.Tags[k] = fmt.Sprint(v) // always cast v results on extra allocations: Apply > Apply2
 					if !t.Keep {
 						delete(e.Values, k)
 					}

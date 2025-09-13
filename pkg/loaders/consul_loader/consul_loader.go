@@ -112,7 +112,7 @@ type serviceDef struct {
 	Tags   []string               `mapstructure:"tags,omitempty" json:"tags,omitempty"`
 	Config map[string]interface{} `mapstructure:"config,omitempty" json:"config,omitempty"`
 
-	tags map[string]struct{}
+	tags               map[string]struct{}
 	targetNameTemplate *template.Template
 	targetTagsTemplate map[string]*template.Template
 }
@@ -363,9 +363,6 @@ func (c *consulLoader) watch(qOpts *api.QueryOptions, serviceName string, tags [
 		c.logger.Printf("service=%q did not change", serviceName)
 		return meta.LastIndex, nil
 	}
-	if err != nil {
-		return meta.LastIndex, err
-	}
 	if len(se) == 0 {
 		return 1, nil
 	}
@@ -408,7 +405,7 @@ SRV:
 			tc.Address = se.Node.Address
 		}
 		tc.Address = net.JoinHostPort(tc.Address, strconv.Itoa(se.Service.Port))
-		
+
 		var buffer bytes.Buffer
 
 		tc.Name = se.Service.ID
@@ -419,7 +416,7 @@ SRV:
 				c.logger.Println("Could not parse nameTemplate")
 			}
 			sd.targetNameTemplate = nameTemplate
-			
+
 			buffer.Reset()
 			err = sd.targetNameTemplate.Execute(&buffer, se.Service)
 			if err != nil {
@@ -436,7 +433,7 @@ SRV:
 
 			sd.targetTagsTemplate = make(map[string]*template.Template)
 			for tagName, tagTemplateString := range configEventTags {
-				tagTemplate, err := template.New(tagName).Funcs(templateFunctions).Option("missingkey=zero").Parse(fmt.Sprintf("%v",tagTemplateString))
+				tagTemplate, err := template.New(tagName).Funcs(templateFunctions).Option("missingkey=zero").Parse(fmt.Sprintf("%v", tagTemplateString))
 				if err != nil {
 					c.logger.Println("Could not parse tagTemplate:", tagName)
 					continue

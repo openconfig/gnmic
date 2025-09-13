@@ -37,8 +37,14 @@ const (
 	loggingPrefix           = "[file_output:%s] "
 )
 
+const (
+	outputType      = "file"
+	fileType_STDOUT = "stdout"
+	fileType_STDERR = "stderr"
+)
+
 func init() {
-	outputs.Register("file", func() outputs.Output {
+	outputs.Register(outputType, func() outputs.Output {
 		return &File{
 			cfg:    &Config{},
 			logger: log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
@@ -150,11 +156,11 @@ func (f *File) Init(ctx context.Context, name string, cfg map[string]interface{}
 		f.cfg.Separator = defaultSeparator
 	}
 	if f.cfg.FileName == "" && f.cfg.FileType == "" {
-		f.cfg.FileType = "stdout"
+		f.cfg.FileType = fileType_STDOUT
 	}
 
 	switch f.cfg.FileType {
-	case "stdout":
+	case fileType_STDOUT:
 		f.file = os.Stdout
 	case "stderr":
 		f.file = os.Stderr
@@ -175,7 +181,7 @@ func (f *File) Init(ctx context.Context, name string, cfg map[string]interface{}
 	if f.cfg.Format == "" {
 		f.cfg.Format = defaultFormat
 	}
-	if f.cfg.FileType == "stdout" || f.cfg.FileType == "stderr" {
+	if f.cfg.FileType == fileType_STDOUT || f.cfg.FileType == fileType_STDERR {
 		f.cfg.Indent = "  "
 		f.cfg.Multiline = true
 	}
@@ -184,7 +190,7 @@ func (f *File) Init(ctx context.Context, name string, cfg map[string]interface{}
 	}
 	if f.cfg.ConcurrencyLimit < 1 {
 		switch f.cfg.FileType {
-		case "stdout", "stderr":
+		case fileType_STDOUT, fileType_STDERR:
 			f.cfg.ConcurrencyLimit = 1
 		default:
 			f.cfg.ConcurrencyLimit = defaultWriteConcurrency

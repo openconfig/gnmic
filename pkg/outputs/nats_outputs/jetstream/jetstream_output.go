@@ -686,10 +686,20 @@ func sanitizeKey(k string) string {
 	return regSpace.ReplaceAllString(s, spaceReplChar)
 }
 
-var storageTypes = map[string]nats.StorageType{
-	"file":   nats.FileStorage,
-	"memory": nats.MemoryStorage,
+func storageType(s string) nats.StorageType {
+	switch strings.ToLower(s) {
+	case "file":
+		return nats.FileStorage
+	case "memory":
+		return nats.MemoryStorage
+	}
+	return nats.MemoryStorage
 }
+
+// var storageTypes = map[string]nats.StorageType{
+// 	"file":   nats.FileStorage,
+// 	"memory": nats.MemoryStorage,
+// }
 
 func (n *jetstreamOutput) createStream(js nats.JetStreamContext) error {
 	if n.Cfg.CreateStream == nil {
@@ -710,7 +720,7 @@ func (n *jetstreamOutput) createStream(js nats.JetStreamContext) error {
 		Name:        n.Cfg.Stream,
 		Description: n.Cfg.CreateStream.Description,
 		Subjects:    n.Cfg.CreateStream.Subjects,
-		Storage:     storageTypes[strings.ToLower(n.Cfg.CreateStream.Storage)],
+		Storage:     storageType(n.Cfg.CreateStream.Storage),
 		MaxMsgs:     n.Cfg.CreateStream.MaxMsgs,
 		MaxBytes:    n.Cfg.CreateStream.MaxBytes,
 		MaxAge:      n.Cfg.CreateStream.MaxAge,

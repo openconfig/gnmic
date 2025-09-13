@@ -28,6 +28,7 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/config"
+	"github.com/openconfig/gnmic/pkg/lockers"
 )
 
 func (a *App) newAPIServer() (*http.Server, error) {
@@ -92,7 +93,7 @@ func (a *App) handleConfigTargetsGet(w http.ResponseWriter, r *http.Request) {
 		err = json.NewEncoder(w).Encode(targets)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+			_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		}
 		return
 	}
@@ -102,19 +103,19 @@ func (a *App) handleConfigTargetsGet(w http.ResponseWriter, r *http.Request) {
 		err = json.NewEncoder(w).Encode(tc)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+			_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		}
 		return
 	}
 	w.WriteHeader(http.StatusNotFound)
-	json.NewEncoder(w).Encode(APIErrors{Errors: []string{fmt.Sprintf("target %q not found", id)}})
+	_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{fmt.Sprintf("target %q not found", id)}})
 }
 
 func (a *App) handleConfigTargetsPost(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 	defer r.Body.Close()
@@ -122,7 +123,7 @@ func (a *App) handleConfigTargetsPost(w http.ResponseWriter, r *http.Request) {
 	err = json.Unmarshal(body, tc)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 	a.AddTargetConfig(tc)
@@ -133,13 +134,13 @@ func (a *App) handleConfigTargetsSubscriptions(w http.ResponseWriter, r *http.Re
 	id := vars["id"]
 	if !a.targetConfigExists(id) {
 		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{fmt.Sprintf("target %q not found", id)}})
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{fmt.Sprintf("target %q not found", id)}})
 		return
 	}
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 	defer r.Body.Close()
@@ -148,19 +149,19 @@ func (a *App) handleConfigTargetsSubscriptions(w http.ResponseWriter, r *http.Re
 	err = json.Unmarshal(body, &data)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 	subs, ok := data["subscriptions"]
 	if !ok {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"subscriptions not found"}})
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{"subscriptions not found"}})
 		return
 	}
 	err = a.UpdateTargetSubscription(a.ctx, id, subs)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 }
@@ -171,7 +172,7 @@ func (a *App) handleConfigTargetsDelete(w http.ResponseWriter, r *http.Request) 
 	err := a.DeleteTarget(r.Context(), id)
 	if err != nil {
 		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 }
@@ -241,7 +242,7 @@ func (a *App) handleTargetsGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNotFound)
-	json.NewEncoder(w).Encode(APIErrors{Errors: []string{"no targets found"}})
+	_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{"no targets found"}})
 }
 
 func (a *App) handleTargetsPost(w http.ResponseWriter, r *http.Request) {
@@ -254,7 +255,7 @@ func (a *App) handleTargetsPost(w http.ResponseWriter, r *http.Request) {
 	tc, ok := a.Config.Targets[id]
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{fmt.Sprintf("target %q not found", id)}})
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{fmt.Sprintf("target %q not found", id)}})
 		return
 	}
 	go a.TargetSubscribeStream(a.ctx, tc)
@@ -269,13 +270,13 @@ func (a *App) handleTargetsDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, ok := a.Targets[id]; !ok {
 		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{fmt.Sprintf("target %q not found", id)}})
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{fmt.Sprintf("target %q not found", id)}})
 		return
 	}
 	err := a.DeleteTarget(a.ctx, id)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 }
@@ -310,21 +311,21 @@ func (a *App) handleClusteringGet(w http.ResponseWriter, r *http.Request) {
 	resp.Leader, err = a.getLeaderName(ctx)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 
 	services, err := a.locker.GetServices(ctx, fmt.Sprintf("%s-gnmic-api", a.Config.ClusterName), nil)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 
 	instanceNodes, err := a.getInstanceToTargetsMapping(ctx)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 
@@ -334,12 +335,7 @@ func (a *App) handleClusteringGet(w http.ResponseWriter, r *http.Request) {
 
 	resp.Members = make([]clusterMember, len(services))
 	for i, s := range services {
-		scheme := "http://"
-		for _, t := range s.Tags {
-			if strings.HasPrefix(t, "protocol=") {
-				scheme = fmt.Sprintf("%s://", strings.TrimPrefix(t, "protocol="))
-			}
-		}
+		scheme := getServiceScheme(s)
 		resp.Members[i].APIEndpoint = fmt.Sprintf("%s%s", scheme, s.Address)
 		resp.Members[i].Name = strings.TrimSuffix(s.ID, "-api")
 		resp.Members[i].IsLeader = resp.Leader == resp.Members[i].Name
@@ -349,10 +345,14 @@ func (a *App) handleClusteringGet(w http.ResponseWriter, r *http.Request) {
 	b, err := json.Marshal(resp)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
-	w.Write(b)
+	_, err = w.Write(b)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+	}
 }
 
 func (a *App) handleHealthzGet(w http.ResponseWriter, r *http.Request) {
@@ -360,10 +360,14 @@ func (a *App) handleHealthzGet(w http.ResponseWriter, r *http.Request) {
 	b, err := json.Marshal(s)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
-	w.Write(b)
+	_, err = w.Write(b)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+	}
 }
 
 func (a *App) handleAdminShutdown(w http.ResponseWriter, r *http.Request) {
@@ -382,7 +386,7 @@ func (a *App) handleClusteringMembersGet(w http.ResponseWriter, r *http.Request)
 	leader, err := a.getLeaderName(ctx)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 
@@ -396,17 +400,12 @@ func (a *App) handleClusteringMembersGet(w http.ResponseWriter, r *http.Request)
 	instanceNodes, err := a.getInstanceToTargetsMapping(ctx)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 	members := make([]clusterMember, len(services))
 	for i, s := range services {
-		scheme := "http://"
-		for _, t := range s.Tags {
-			if strings.HasPrefix(t, "protocol=") {
-				scheme = fmt.Sprintf("%s://", strings.TrimPrefix(t, "protocol="))
-			}
-		}
+		scheme := getServiceScheme(s)
 		members[i].APIEndpoint = fmt.Sprintf("%s%s", scheme, s.Address)
 		members[i].Name = strings.TrimSuffix(s.ID, "-api")
 		members[i].IsLeader = leader == members[i].Name
@@ -416,10 +415,14 @@ func (a *App) handleClusteringMembersGet(w http.ResponseWriter, r *http.Request)
 	b, err := json.Marshal(members)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
-	w.Write(b)
+	_, err = w.Write(b)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+	}
 }
 
 func (a *App) handleClusteringLeaderGet(w http.ResponseWriter, r *http.Request) {
@@ -433,21 +436,21 @@ func (a *App) handleClusteringLeaderGet(w http.ResponseWriter, r *http.Request) 
 	leader, err := a.getLeaderName(ctx)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 
 	services, err := a.locker.GetServices(ctx, fmt.Sprintf("%s-gnmic-api", a.Config.ClusterName), nil)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 
 	instanceNodes, err := a.getInstanceToTargetsMapping(ctx)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 
@@ -456,12 +459,7 @@ func (a *App) handleClusteringLeaderGet(w http.ResponseWriter, r *http.Request) 
 		if strings.TrimSuffix(s.ID, "-api") != leader {
 			continue
 		}
-		scheme := "http://"
-		for _, t := range s.Tags {
-			if strings.HasPrefix(t, "protocol=") {
-				scheme = fmt.Sprintf("%s://", strings.TrimPrefix(t, "protocol="))
-			}
-		}
+		scheme := getServiceScheme(s)
 		// add the leader as a member then break from loop
 		members[0].APIEndpoint = fmt.Sprintf("%s%s", scheme, s.Address)
 		members[0].Name = strings.TrimSuffix(s.ID, "-api")
@@ -473,7 +471,7 @@ func (a *App) handleClusteringLeaderGet(w http.ResponseWriter, r *http.Request) 
 	b, err := json.Marshal(members)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 	w.Write(b)
@@ -486,14 +484,14 @@ func (a *App) handleClusteringLeaderDelete(w http.ResponseWriter, r *http.Reques
 
 	if !a.isLeader {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"not leader"}})
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{"not leader"}})
 		return
 	}
 
 	err := a.locker.Unlock(r.Context(), a.leaderKey())
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 }
@@ -505,7 +503,7 @@ func (a *App) handleClusteringDrainInstance(w http.ResponseWriter, r *http.Reque
 
 	if !a.isLeader {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"not leader"}})
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{"not leader"}})
 		return
 	}
 
@@ -522,18 +520,18 @@ func (a *App) handleClusteringDrainInstance(w http.ResponseWriter, r *http.Reque
 		})
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 	if len(services) == 0 {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"unknown instance: " + id}})
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{"unknown instance: " + id}})
 		return
 	}
 	targets, err := a.getInstanceTargets(ctx, id)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 
@@ -568,7 +566,7 @@ func (a *App) handleClusterRebalance(w http.ResponseWriter, r *http.Request) {
 
 	if !a.isLeader {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"not leader"}})
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{"not leader"}})
 		return
 	}
 
@@ -603,10 +601,14 @@ func (a *App) handlerCommonGet(w http.ResponseWriter, i interface{}) {
 	b, err := json.Marshal(i)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
-	w.Write(b)
+	_, err = w.Write(b)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+	}
 }
 
 func (a *App) getLeaderName(ctx context.Context) (string, error) {
@@ -634,4 +636,20 @@ func (a *App) getInstanceTargets(ctx context.Context, instance string) ([]string
 	}
 	sort.Strings(targets)
 	return targets, nil
+}
+
+// getServiceScheme returns the scheme of the service based on the protocol tag
+// the tag is expected to be in the format "protocol=<scheme>"
+// if the tag is not found, the scheme is "http"
+func getServiceScheme(service *lockers.Service) string {
+	scheme := "http"
+	for _, t := range service.Tags {
+		if strings.HasPrefix(t, "protocol=") {
+			if strings.Split(t, "=")[1] != "" {
+				scheme = strings.Split(t, "=")[1]
+			}
+			break
+		}
+	}
+	return scheme
 }

@@ -50,6 +50,7 @@ func (c *ConsulLocker) Register(ctx context.Context, s *lockers.ServiceRegistrat
 		return err
 	}
 	ticker := time.NewTicker(s.TTL / 2)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
@@ -58,8 +59,10 @@ func (c *ConsulLocker) Register(ctx context.Context, s *lockers.ServiceRegistrat
 				return err
 			}
 		case <-sctx.Done():
-			c.client.Agent().UpdateTTL(ttlCheckID, ctx.Err().Error(), api.HealthCritical)
-			ticker.Stop()
+			err = c.client.Agent().UpdateTTL(ttlCheckID, sctx.Err().Error(), api.HealthCritical)
+			if err != nil {
+				return err
+			}
 			return nil
 		}
 	}
