@@ -10,10 +10,10 @@ name: lab25-1
 
 topology:
   defaults:
-    kind: srl
+    kind: nokia_srlinux
 
   kinds:
-    srl:
+    nokia_srlinux:
       image: ghcr.io/nokia/srlinux
 
   nodes:

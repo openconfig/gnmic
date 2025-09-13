@@ -10,10 +10,10 @@ name: lab33a
 
 topology:
   defaults:
-    kind: srl
+    kind: nokia_srlinux
 
   kinds:
-    srl:
+    nokia_srlinux:
       # type: ixr6
       image: ghcr.io/nokia/srlinux
 
