@@ -113,7 +113,7 @@ type App struct {
 	pm *plugin_manager.PluginManager
 
 	// pprof
-	pprof *PprofServer
+	pprof *pprofServer
 }
 
 func New() *App {
@@ -154,7 +154,7 @@ func New() *App {
 		tunTargetCfn: make(map[tunnel.Target]context.CancelFunc),
 
 		// pprof
-		pprof: NewPprofServer(),
+		pprof: newPprofServer(),
 	}
 	a.router.StrictSlash(true)
 	a.router.Use(headersMiddleware, a.loggingMiddleware)
@@ -230,11 +230,8 @@ func (a *App) PreRunE(cmd *cobra.Command, args []string) error {
 		a.pprof.Start(a.Config.GlobalFlags.PprofAddr)
 		a.Logger.Printf("pprof server started at %s", a.Config.GlobalFlags.PprofAddr)
 		go func() {
-			select {
-			case err := <-a.pprof.ErrChan():
-				a.Logger.Printf("E! pprof server failed: %v", err)
-				a.Cfn()
-			}
+			err := <-a.pprof.ErrChan()
+			a.Logger.Printf("pprof server failed: %v", err)
 		}()
 	}
 

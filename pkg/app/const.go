@@ -14,7 +14,7 @@ const (
 	defaultGrpcPort   = "57400"
 	msgSize           = 512 * 1024 * 1024
 	defaultRetryTimer = 10 * time.Second
-	defaultPprofAddr  = "localhost:6060"
+	defaultPprofAddr  = "127.0.0.1:6060"
 
 	formatJSON      = "json"
 	formatPROTOJSON = "protojson"
