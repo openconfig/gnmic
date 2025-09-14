@@ -2,42 +2,33 @@ package app
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	_ "net/http/pprof" //nolint:gosec // Import for pprof, only enabled via CLI flag
-	"strings"
 	"time"
 )
 
-type Server interface {
-	Start(string)
-	ErrChan() <-chan error
-}
-
-type PprofServer struct {
+type pprofServer struct {
 	err chan error
 }
 
-func NewPprofServer() *PprofServer {
-	return &PprofServer{
-		err: make(chan error),
+func newPprofServer() *pprofServer {
+	return &pprofServer{
+		err: make(chan error, 1),
 	}
 }
 
-func (p *PprofServer) Start(address string) {
+func (p *pprofServer) Start(address string) {
 	go func() {
-		pprofHostPort := address
-		parts := strings.Split(pprofHostPort, ":")
-		if len(parts) == 2 && parts[0] == "" {
-			pprofHostPort = "localhost:" + parts[1]
+		_, _, err := net.SplitHostPort(address)
+		if err != nil {
+			fmt.Printf("error %v,  using default %q", err, defaultPprofAddr)
+			address = defaultPprofAddr
 		}
-		pprofHostPort = "http://" + pprofHostPort + "/debug/pprof"
-
-		fmt.Printf("I! Starting pprof HTTP server at: %s\n", pprofHostPort)
 
 		server := &http.Server{
-			Addr:         address,
-			ReadTimeout:  10 * time.Second,
-			WriteTimeout: 10 * time.Second,
+			Addr:              address,
+			ReadHeaderTimeout: 10 * time.Second,
 		}
 
 		if err := server.ListenAndServe(); err != nil {
@@ -47,6 +38,6 @@ func (p *PprofServer) Start(address string) {
 	}()
 }
 
-func (p *PprofServer) ErrChan() <-chan error {
+func (p *pprofServer) ErrChan() <-chan error {
 	return p.err
 }
