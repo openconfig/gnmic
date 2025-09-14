@@ -135,6 +135,17 @@ func (c *Config) GetTargets() (map[string]*types.TargetConfig, error) {
 	return c.Targets, nil
 }
 
+func (c *Config) SetTargetConfigDefaultsExpandEnv(tc *types.TargetConfig) error {
+	er := c.SetTargetConfigDefaults(tc)
+	if er != nil {
+		return er
+	}
+	// we can also expand cert paths if needed
+	expandTargetEnv(tc)
+
+	return nil
+}
+
 func (c *Config) SetTargetConfigDefaults(tc *types.TargetConfig) error {
 	defGrpcPort := c.FileConfig.GetString("port")
 	if !strings.HasPrefix(tc.Address, "unix://") {
