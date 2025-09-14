@@ -480,7 +480,7 @@ CRPROD:
 						k.logger.Printf("%s failed to send a kafka msg to topic '%s': %v", workerLogPrefix, topic, err)
 					}
 					if k.cfg.EnableMetrics {
-						kafkaNumberOfFailSendMsgs.WithLabelValues(config.ClientID, config.ClientID, "send_error").Inc()
+						kafkaNumberOfFailSendMsgs.WithLabelValues(k.cfg.Name, config.ClientID, "send_error").Inc()
 					}
 					producer.Close()
 					time.Sleep(k.cfg.RecoveryWaitTime)
