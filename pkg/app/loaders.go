@@ -12,6 +12,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/loaders"
 )
 
@@ -32,12 +33,17 @@ func (a *App) startLoader(ctx context.Context) {
 	ldTypeS := a.Config.Loader["type"].(string)
 START:
 	a.Logger.Printf("initializing loader type %q", ldTypeS)
-
+	var targetsDefaultsFunc func(tc *types.TargetConfig) error
+	if expandEnv, ok := a.Config.Loader["expand-env"].(bool); ok && expandEnv {
+		targetsDefaultsFunc = a.Config.SetTargetConfigDefaultsExpandEnv
+	} else {
+		targetsDefaultsFunc = a.Config.SetTargetConfigDefaults
+	}
 	ld := loaders.Loaders[ldTypeS]()
 	err := ld.Init(ctx, a.Config.Loader, a.Logger,
 		loaders.WithRegistry(a.reg),
 		loaders.WithActions(a.Config.Actions),
-		loaders.WithTargetsDefaults(a.Config.SetTargetConfigDefaultsExpandEnv),
+		loaders.WithTargetsDefaults(targetsDefaultsFunc),
 	)
 	if err != nil {
 		a.Logger.Printf("failed to init loader type %q: %v", ldTypeS, err)
