@@ -274,7 +274,7 @@ func (k *kafkaOutput) Write(ctx context.Context, rsp proto.Message, meta outputs
 			k.logger.Printf("writing expired after %s, Kafka output might not be initialized", k.cfg.Timeout)
 		}
 		if k.cfg.EnableMetrics {
-			kafkaNumberOfFailSendMsgs.WithLabelValues(k.cfg.Name, "timeout").Inc()
+			kafkaNumberOfFailSendMsgs.WithLabelValues(k.cfg.Name, k.cfg.Name, "timeout").Inc()
 		}
 		return
 	}
@@ -480,7 +480,7 @@ CRPROD:
 						k.logger.Printf("%s failed to send a kafka msg to topic '%s': %v", workerLogPrefix, topic, err)
 					}
 					if k.cfg.EnableMetrics {
-						kafkaNumberOfFailSendMsgs.WithLabelValues(config.ClientID, "send_error").Inc()
+						kafkaNumberOfFailSendMsgs.WithLabelValues(k.cfg.Name, config.ClientID, "send_error").Inc()
 					}
 					producer.Close()
 					time.Sleep(k.cfg.RecoveryWaitTime)
