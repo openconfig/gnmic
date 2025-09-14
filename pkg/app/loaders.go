@@ -33,17 +33,17 @@ func (a *App) startLoader(ctx context.Context) {
 	ldTypeS := a.Config.Loader["type"].(string)
 START:
 	a.Logger.Printf("initializing loader type %q", ldTypeS)
-	var targetsDefaultsFunc func(tc *types.TargetConfig) error
+	var fnTargetsDefaults func(tc *types.TargetConfig) error
 	if expandEnv, ok := a.Config.Loader["expand-env"].(bool); ok && expandEnv {
-		targetsDefaultsFunc = a.Config.SetTargetConfigDefaultsExpandEnv
+		fnTargetsDefaults = a.Config.SetTargetConfigDefaultsExpandEnv
 	} else {
-		targetsDefaultsFunc = a.Config.SetTargetConfigDefaults
+		fnTargetsDefaults = a.Config.SetTargetConfigDefaults
 	}
 	ld := loaders.Loaders[ldTypeS]()
 	err := ld.Init(ctx, a.Config.Loader, a.Logger,
 		loaders.WithRegistry(a.reg),
 		loaders.WithActions(a.Config.Actions),
-		loaders.WithTargetsDefaults(targetsDefaultsFunc),
+		loaders.WithTargetsDefaults(fnTargetsDefaults),
 	)
 	if err != nil {
 		a.Logger.Printf("failed to init loader type %q: %v", ldTypeS, err)
@@ -72,7 +72,7 @@ START:
 			limiter = time.NewTicker(a.Config.LocalFlags.SubscribeBackoff)
 		}
 		for _, add := range targetOp.Add {
-			err = targetsDefaultsFunc(add)
+			err = fnTargetsDefaults(add)
 			if err != nil {
 				a.Logger.Printf("failed parsing new target configuration %#v: %v", add, err)
 				continue
@@ -118,18 +118,18 @@ func (a *App) startLoaderProxy(ctx context.Context) {
 START:
 	a.Logger.Printf("initializing loader type %q", ldTypeS)
 
-	var targetsDefaultsFunc func(tc *types.TargetConfig) error
+	var fnTargetsDefaults func(tc *types.TargetConfig) error
 	if expandEnv, ok := a.Config.Loader["expand-env"].(bool); ok && expandEnv {
-		targetsDefaultsFunc = a.Config.SetTargetConfigDefaultsExpandEnv
+		fnTargetsDefaults = a.Config.SetTargetConfigDefaultsExpandEnv
 	} else {
-		targetsDefaultsFunc = a.Config.SetTargetConfigDefaults
+		fnTargetsDefaults = a.Config.SetTargetConfigDefaults
 	}
 
 	ld := loaders.Loaders[ldTypeS]()
 	err := ld.Init(ctx, a.Config.Loader, a.Logger,
 		loaders.WithRegistry(a.reg),
 		loaders.WithActions(a.Config.Actions),
-		loaders.WithTargetsDefaults(targetsDefaultsFunc),
+		loaders.WithTargetsDefaults(fnTargetsDefaults),
 	)
 	if err != nil {
 		a.Logger.Printf("failed to init loader type %q: %v", ldTypeS, err)
@@ -155,7 +155,7 @@ START:
 			a.operLock.Unlock()
 		}
 		for _, add := range targetOp.Add {
-			err = targetsDefaultsFunc(add)
+			err = fnTargetsDefaults(add)
 			if err != nil {
 				a.Logger.Printf("failed parsing new target configuration %#v: %v", add, err)
 				continue
