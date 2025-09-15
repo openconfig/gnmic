@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"sort"
@@ -227,12 +228,17 @@ func (a *App) InitGlobalFlags() {
 
 func (a *App) PreRunE(cmd *cobra.Command, args []string) error {
 	if a.Config.EnablePprof {
-		a.pprof.Start(a.Config.GlobalFlags.PprofAddr)
-		a.Logger.Printf("pprof server started at %s", a.Config.GlobalFlags.PprofAddr)
-		go func() {
-			err := <-a.pprof.ErrChan()
-			a.Logger.Printf("pprof server failed: %v", err)
-		}()
+		_, _, err := net.SplitHostPort(a.Config.GlobalFlags.PprofAddr)
+		if err != nil {
+			fmt.Printf("pprof error %v", err)
+		} else {
+			a.pprof.Start(a.Config.GlobalFlags.PprofAddr)
+			a.Logger.Printf("pprof server started at %s/debug/pprof", a.Config.GlobalFlags.PprofAddr)
+			go func() {
+				err := <-a.pprof.ErrChan()
+				a.Logger.Printf("pprof server failed: %v", err)
+			}()
+		}
 	}
 
 	a.Config.SetGlobalsFromEnv(a.RootCmd)
