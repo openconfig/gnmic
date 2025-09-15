@@ -385,8 +385,15 @@ SRV:
 
 		// match service tags
 		if len(sd.tags) > 0 {
-			for _, t := range se.Service.Tags {
-				if _, ok := sd.tags[t]; !ok {
+			for requiredTag := range sd.tags {
+				found := false
+				for _, serviceTag := range se.Service.Tags {
+					if serviceTag == requiredTag {
+						found = true
+						break
+					}
+				}
+				if !found {
 					goto SRV
 				}
 			}
