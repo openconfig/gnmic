@@ -97,8 +97,16 @@ func (a *App) registerTargetMetrics() {
 					a.operLock.RUnlock()
 					if ok {
 						switch t.ConnState() {
-						case "IDLE", "READY":
+						case "READY":
 							targetUPMetric.WithLabelValues(tc.Name).Set(1)
+						case "IDLE":
+							targetUPMetric.WithLabelValues(tc.Name).Set(2)
+						case "CONNECTING":
+							targetUPMetric.WithLabelValues(tc.Name).Set(3)
+						case "TRANSIENT_FAILURE":
+							targetUPMetric.WithLabelValues(tc.Name).Set(4)
+						case "SHUTDOWN":
+							targetUPMetric.WithLabelValues(tc.Name).Set(5)
 						default:
 							targetUPMetric.WithLabelValues(tc.Name).Set(0)
 						}
