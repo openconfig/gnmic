@@ -1,8 +1,6 @@
 package app
 
 import (
-	"fmt"
-	"net"
 	"net/http"
 	_ "net/http/pprof" //nolint:gosec // Import for pprof, only enabled via CLI flag
 	"time"
@@ -20,12 +18,6 @@ func newPprofServer() *pprofServer {
 
 func (p *pprofServer) Start(address string) {
 	go func() {
-		_, _, err := net.SplitHostPort(address)
-		if err != nil {
-			fmt.Printf("error %v,  using default %q", err, defaultPprofAddr)
-			address = defaultPprofAddr
-		}
-
 		server := &http.Server{
 			Addr:              address,
 			ReadHeaderTimeout: 10 * time.Second,
