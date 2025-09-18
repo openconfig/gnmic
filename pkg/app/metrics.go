@@ -114,13 +114,16 @@ func (a *App) registerTargetMetrics() {
 							targetUPMetric.WithLabelValues(tc.Name).Set(1)
 							targetConnStateMetric.WithLabelValues(tc.Name).Set(1)
 						case "CONNECTING":
+							targetUPMetric.WithLabelValues(tc.Name).Set(0)
 							targetConnStateMetric.WithLabelValues(tc.Name).Set(2)
 						case "READY":
 							targetUPMetric.WithLabelValues(tc.Name).Set(1)
 							targetConnStateMetric.WithLabelValues(tc.Name).Set(3)
 						case "TRANSIENT_FAILURE":
+							targetUPMetric.WithLabelValues(tc.Name).Set(0)
 							targetConnStateMetric.WithLabelValues(tc.Name).Set(4)
 						case "SHUTDOWN":
+							targetUPMetric.WithLabelValues(tc.Name).Set(0)
 							targetConnStateMetric.WithLabelValues(tc.Name).Set(5)
 						default:
 							targetUPMetric.WithLabelValues(tc.Name).Set(0)
