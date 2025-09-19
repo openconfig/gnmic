@@ -59,7 +59,17 @@ Queries an HTTP endpoint periodically, expected a well formatted JSON dict of ta
 
 <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2Ftarget_discovery.drawio" async></script>
 
-## Running actions on discovery
+## Expanding Environment Variables in Loaded Configuration
+
+You can use environment variables within your loaded target configurations. To enable this feature, set `expand-env` to `true` under the loader configuration:
+
+```yaml
+loader:
+  type: consul
+  expand-env: true
+  # loader specific configuration
+```
+## Running Actions On Discovery
 
 All actions support fields `on-add` and `on-delete` which take a list of predefined action names that will be run sequentially on target discovery or deletion.
 
