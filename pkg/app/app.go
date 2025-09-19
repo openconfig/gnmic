@@ -51,6 +51,8 @@ import (
 
 const (
 	defaultHTTPClientTimeout = 5 * time.Second
+	defaultWriteBufSize      = 32 * 1024
+	defaultReadBufSize       = 32 * 1024
 )
 
 var obscuredAttrs = []string{
@@ -206,7 +208,8 @@ func (a *App) InitGlobalFlags() {
 	a.RootCmd.PersistentFlags().StringArrayVarP(&a.Config.GlobalFlags.File, "file", "", nil, "YANG file(s)")
 	a.RootCmd.PersistentFlags().StringArrayVarP(&a.Config.GlobalFlags.Dir, "dir", "", nil, "YANG dir(s)")
 	a.RootCmd.PersistentFlags().StringArrayVarP(&a.Config.GlobalFlags.Exclude, "exclude", "", nil, "YANG module names to be excluded")
-
+	a.RootCmd.PersistentFlags().UintVarP(&a.Config.GlobalFlags.TargetGRPCWriteBufferSize, "target-grpc-write-buffer-size", "", defaultWriteBufSize, "gRPC write buffer size for the target connection")
+	a.RootCmd.PersistentFlags().UintVarP(&a.Config.GlobalFlags.TrgetGRPCReadBufferSize, "target-grpc-read-buffer-size", "", defaultReadBufSize, "gRPC read buffer size for the target connection")
 	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.UseTunnelServer, "use-tunnel-server", "", false, "use tunnel server to dial targets")
 	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.AuthScheme, "auth-scheme", "", "", "authentication scheme to use for the target's username/password")
 	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.CalculateLatency, "calculate-latency", "", false, "calculate the delta between each message timestamp and the receive timestamp. JSON format only")

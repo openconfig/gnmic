@@ -102,23 +102,25 @@ type GlobalFlags struct {
 	LogCompress   bool          `mapstructure:"log-compress,omitempty" json:"log-compress,omitempty" yaml:"log-compress,omitempty"`
 	MaxMsgSize    int           `mapstructure:"max-msg-size,omitempty" json:"max-msg-size,omitempty" yaml:"max-msg-size,omitempty"`
 	//PrometheusAddress string        `mapstructure:"prometheus-address,omitempty" json:"prometheus-address,omitempty" yaml:"prometheus-address,omitempty"`
-	PrintRequest     bool          `mapstructure:"print-request,omitempty" json:"print-request,omitempty" yaml:"print-request,omitempty"`
-	Retry            time.Duration `mapstructure:"retry,omitempty" json:"retry,omitempty" yaml:"retry,omitempty"`
-	TargetBufferSize uint          `mapstructure:"target-buffer-size,omitempty" json:"target-buffer-size,omitempty" yaml:"target-buffer-size,omitempty"`
-	ClusterName      string        `mapstructure:"cluster-name,omitempty" json:"cluster-name,omitempty" yaml:"cluster-name,omitempty"`
-	InstanceName     string        `mapstructure:"instance-name,omitempty" json:"instance-name,omitempty" yaml:"instance-name,omitempty"`
-	API              string        `mapstructure:"api,omitempty" json:"api,omitempty" yaml:"api,omitempty"`
-	ProtoFile        []string      `mapstructure:"proto-file,omitempty" json:"proto-file,omitempty" yaml:"proto-file,omitempty"`
-	ProtoDir         []string      `mapstructure:"proto-dir,omitempty" json:"proto-dir,omitempty" yaml:"proto-dir,omitempty"`
-	TargetsFile      string        `mapstructure:"targets-file,omitempty" json:"targets-file,omitempty" yaml:"targets-file,omitempty"`
-	Gzip             bool          `mapstructure:"gzip,omitempty" json:"gzip,omitempty" yaml:"gzip,omitempty"`
-	File             []string      `mapstructure:"file,omitempty" json:"file,omitempty" yaml:"file,omitempty"`
-	Dir              []string      `mapstructure:"dir,omitempty" json:"dir,omitempty" yaml:"dir,omitempty"`
-	Exclude          []string      `mapstructure:"exclude,omitempty" json:"exclude,omitempty" yaml:"exclude,omitempty"`
-	Token            string        `mapstructure:"token,omitempty" json:"token,omitempty" yaml:"token,omitempty"`
-	UseTunnelServer  bool          `mapstructure:"use-tunnel-server,omitempty" json:"use-tunnel-server,omitempty" yaml:"use-tunnel-server,omitempty"`
-	AuthScheme       string        `mapstructure:"auth-scheme,omitempty" json:"auth-scheme,omitempty" yaml:"auth-scheme,omitempty"`
-	CalculateLatency bool          `mapstructure:"calculate-latency,omitempty" json:"calculate-latency,omitempty" yaml:"calculate-latency,omitempty"`
+	PrintRequest              bool          `mapstructure:"print-request,omitempty" json:"print-request,omitempty" yaml:"print-request,omitempty"`
+	Retry                     time.Duration `mapstructure:"retry,omitempty" json:"retry,omitempty" yaml:"retry,omitempty"`
+	TargetBufferSize          uint          `mapstructure:"target-buffer-size,omitempty" json:"target-buffer-size,omitempty" yaml:"target-buffer-size,omitempty"`
+	TrgetGRPCReadBufferSize   uint          `mapstructure:"target-grpc-read-buffer-size,omitempty" yaml:"target-grpc-read-buffer-size,omitempty" json:"target-grpc-read-buffer-size,omitempty"`
+	TargetGRPCWriteBufferSize uint          `mapstructure:"target-grpc-write-buffer-size,omitempty" yaml:"target-grpc-write-buffer-size,omitempty" json:"target-grpc-write-buffer-size,omitempty"`
+	ClusterName               string        `mapstructure:"cluster-name,omitempty" json:"cluster-name,omitempty" yaml:"cluster-name,omitempty"`
+	InstanceName              string        `mapstructure:"instance-name,omitempty" json:"instance-name,omitempty" yaml:"instance-name,omitempty"`
+	API                       string        `mapstructure:"api,omitempty" json:"api,omitempty" yaml:"api,omitempty"`
+	ProtoFile                 []string      `mapstructure:"proto-file,omitempty" json:"proto-file,omitempty" yaml:"proto-file,omitempty"`
+	ProtoDir                  []string      `mapstructure:"proto-dir,omitempty" json:"proto-dir,omitempty" yaml:"proto-dir,omitempty"`
+	TargetsFile               string        `mapstructure:"targets-file,omitempty" json:"targets-file,omitempty" yaml:"targets-file,omitempty"`
+	Gzip                      bool          `mapstructure:"gzip,omitempty" json:"gzip,omitempty" yaml:"gzip,omitempty"`
+	File                      []string      `mapstructure:"file,omitempty" json:"file,omitempty" yaml:"file,omitempty"`
+	Dir                       []string      `mapstructure:"dir,omitempty" json:"dir,omitempty" yaml:"dir,omitempty"`
+	Exclude                   []string      `mapstructure:"exclude,omitempty" json:"exclude,omitempty" yaml:"exclude,omitempty"`
+	Token                     string        `mapstructure:"token,omitempty" json:"token,omitempty" yaml:"token,omitempty"`
+	UseTunnelServer           bool          `mapstructure:"use-tunnel-server,omitempty" json:"use-tunnel-server,omitempty" yaml:"use-tunnel-server,omitempty"`
+	AuthScheme                string        `mapstructure:"auth-scheme,omitempty" json:"auth-scheme,omitempty" yaml:"auth-scheme,omitempty"`
+	CalculateLatency          bool          `mapstructure:"calculate-latency,omitempty" json:"calculate-latency,omitempty" yaml:"calculate-latency,omitempty"`
 
 	Metadata             map[string]string `mapstructure:"metadata,omitempty" json:"metadata,omitempty" yaml:"metadata,omitempty"`
 	PluginProcessorsPath string            `mapstructure:"plugin-processors-path,omitempty" yaml:"plugin-processors-path,omitempty" json:"plugin-processors-path,omitempty"`
