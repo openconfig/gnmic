@@ -216,7 +216,7 @@ Returns an empty body if successful.
 === "Request"
     ```bash
     curl --request POST -H "Content-Type: application/json" \
-         -d '{"address": "10.10.10.10:57400", "username": "admin", "password": "admin", "insecure": true}' \
+         -d '{"name": "10.10.10.10:57400", "address": "10.10.10.10:57400", "username": "admin", "password": "admin", "insecure": true}' \
          gnmic-api-address:port/api/v1/config/targets
     ```
 === "200 OK"
