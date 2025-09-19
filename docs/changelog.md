@@ -1,5 +1,24 @@
 ## Changelog
 
+### v0.42.0 - September 19th 2025
+
+- Inputs:
+
+    - Add support for NATS Jetstream input type.
+
+- Loader:
+
+    - Loaded targets subscribe requests are now subject the `subscribe-backoff` timer.
+    - Loaded target configuration now supports ENV variables when `expand-env` is set to true.
+
+- gNMI server:
+
+    - The unary RPCs timeout is now configurable.
+
+- Targets:
+
+    - A new internal prometheus metric was added `gnmic_target_connection_state`. It reflect the gRPC client connection state with values: 0(UNKNOWN), 1 (IDLE), 2 (CONNECTING), 3 (READY), 4 (TRANSIENT_FAILURE), or 5 (SHUTDOWN).
+    
 ### v0.41.0 - April 6th 2025
 
 - Processors:
