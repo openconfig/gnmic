@@ -144,23 +144,23 @@ func (c *consulLoader) Init(ctx context.Context, cfg map[string]interface{}, log
 		}
 	}
 	// parse tempaltes if present
-	for _, se := range c.cfg.Services {
+	for i, se := range c.cfg.Services {
 		if se.Config == nil {
 			continue
 		}
 		if name, ok := se.Config["name"].(string); ok {
-			nameTemplate, err := template.New("targetName").Funcs(templateFunctions).Option("missingkey=zero").Parse(name)
+			nameTemplate, err := template.New(fmt.Sprintf("targetName-%d", i)).Funcs(templateFunctions).Option("missingkey=zero").Parse(name)
 			if err != nil {
-				c.logger.Println("Could not parse nameTemplate")
+				return err
 			}
 			se.targetNameTemplate = nameTemplate
 		}
 		if eventTags, ok := se.Config["event-tags"].(map[string]any); ok {
 			se.targetTagsTemplate = make(map[string]*template.Template)
 			for tagName, tagTemplateString := range eventTags {
-				tagTemplate, err := template.New(tagName).Funcs(templateFunctions).Option("missingkey=zero").Parse(fmt.Sprintf("%v", tagTemplateString))
+				tagTemplate, err := template.New(fmt.Sprintf("tagTemplate-%s-%d", tagName, i)).Funcs(templateFunctions).Option("missingkey=zero").Parse(fmt.Sprintf("%v", tagTemplateString))
 				if err != nil {
-					c.logger.Println("Could not parse tagTemplate:", tagName)
+					return err
 				}
 				se.targetTagsTemplate[tagName] = tagTemplate
 			}
