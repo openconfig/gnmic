@@ -17,6 +17,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -44,6 +45,8 @@ const (
 	defaultWatchTimeout  = 1 * time.Minute
 	defaultActionTimeout = 30 * time.Second
 )
+
+var templateFunctions = template.FuncMap{"join": strings.Join}
 
 func init() {
 	loaders.Register(loaderType, func() loaders.TargetLoader {
@@ -140,6 +143,29 @@ func (c *consulLoader) Init(ctx context.Context, cfg map[string]interface{}, log
 			se.tags[t] = struct{}{}
 		}
 	}
+	// parse tempaltes if present
+	for i, se := range c.cfg.Services {
+		if se.Config == nil {
+			continue
+		}
+		if name, ok := se.Config["name"].(string); ok {
+			nameTemplate, err := template.New(fmt.Sprintf("targetName-%d", i)).Funcs(templateFunctions).Option("missingkey=zero").Parse(name)
+			if err != nil {
+				return err
+			}
+			se.targetNameTemplate = nameTemplate
+		}
+		if eventTags, ok := se.Config["event-tags"].(map[string]any); ok {
+			se.targetTagsTemplate = make(map[string]*template.Template)
+			for tagName, tagTemplateString := range eventTags {
+				tagTemplate, err := template.New(fmt.Sprintf("tagTemplate-%s-%d", tagName, i)).Funcs(templateFunctions).Option("missingkey=zero").Parse(fmt.Sprintf("%v", tagTemplateString))
+				if err != nil {
+					return err
+				}
+				se.targetTagsTemplate[tagName] = tagTemplate
+			}
+		}
+	}
 
 	err = c.readVars(ctx)
 	if err != nil {
@@ -222,53 +248,57 @@ CLIENT:
 }
 
 func (c *consulLoader) RunOnce(ctx context.Context) (map[string]*types.TargetConfig, error) {
-	err := c.initClient()
-	if err != nil {
+	if err := c.initClient(); err != nil {
 		return nil, err
 	}
 	result := make(map[string]*types.TargetConfig)
 	rsChan := make(chan *api.ServiceEntry)
-	m := new(sync.Mutex)
 	wg := new(sync.WaitGroup)
-	wg.Add(len(c.cfg.Services))
 
+	// fan-out queries
 	for _, s := range c.cfg.Services {
+		wg.Add(1)
 		go func(s *serviceDef) {
+			defer wg.Done()
 			ses, _, err := c.client.Health().ServiceMultipleTags(s.Name, s.Tags, true, &api.QueryOptions{})
 			if err != nil {
 				c.logger.Printf("failed to get service %q instances: %v", s.Name, err)
 				return
 			}
 			for _, se := range ses {
-				rsChan <- se
+				select {
+				case rsChan <- se:
+				case <-ctx.Done():
+					return
+				}
 			}
 		}(s)
 	}
 
+	// closer
 	go func() {
-		m.Lock()
-		defer m.Unlock()
-		for {
-			select {
-			case se, ok := <-rsChan:
-				if !ok {
-					return
-				}
-				tc, err := c.serviceEntryToTargetConfig(se)
-				if err != nil {
-					c.logger.Printf("failed to convert service %+v to target config: %v", se, err)
-				}
-				result[tc.Name] = tc
-			case <-ctx.Done():
-				return
-			}
-		}
+		wg.Wait()
+		close(rsChan)
 	}()
-	wg.Wait()
-	close(rsChan)
-	m.Lock()
-	defer m.Unlock()
-	return result, nil
+
+	for {
+		select {
+		case se, ok := <-rsChan:
+			if !ok {
+				return result, nil
+			}
+			tc, err := c.serviceEntryToTargetConfig(se)
+			if err != nil {
+				c.logger.Printf("failed to convert service %+v to target config: %v", se, err)
+				continue
+			}
+			if tc != nil {
+				result[tc.Name] = tc
+			}
+		case <-ctx.Done():
+			return result, ctx.Err()
+		}
+	}
 }
 
 //
@@ -386,14 +416,7 @@ SRV:
 		// match service tags
 		if len(sd.tags) > 0 {
 			for requiredTag := range sd.tags {
-				found := false
-				for _, serviceTag := range se.Service.Tags {
-					if serviceTag == requiredTag {
-						found = true
-						break
-					}
-				}
-				if !found {
+				if !slices.Contains(se.Service.Tags, requiredTag) {
 					goto SRV
 				}
 			}
@@ -417,15 +440,9 @@ SRV:
 
 		tc.Name = se.Service.ID
 
-		if configName, ok := sd.Config["name"].(string); ok {
-			nameTemplate, err := template.New("targetName").Option("missingkey=zero").Parse(configName)
-			if err != nil {
-				c.logger.Println("Could not parse nameTemplate")
-			}
-			sd.targetNameTemplate = nameTemplate
-
+		if sd.targetNameTemplate != nil {
 			buffer.Reset()
-			err = sd.targetNameTemplate.Execute(&buffer, se.Service)
+			err := sd.targetNameTemplate.Execute(&buffer, se.Service)
 			if err != nil {
 				c.logger.Println("Could not execute nameTemplate")
 				continue
@@ -434,20 +451,7 @@ SRV:
 		}
 
 		// Create Event tags from Consul via templates
-		if configEventTags, ok := sd.Config["event-tags"].(map[string]interface{}); ok {
-			// Allow to use join function in tags
-			templateFunctions := template.FuncMap{"join": strings.Join}
-
-			sd.targetTagsTemplate = make(map[string]*template.Template)
-			for tagName, tagTemplateString := range configEventTags {
-				tagTemplate, err := template.New(tagName).Funcs(templateFunctions).Option("missingkey=zero").Parse(fmt.Sprintf("%v", tagTemplateString))
-				if err != nil {
-					c.logger.Println("Could not parse tagTemplate:", tagName)
-					continue
-				}
-				sd.targetTagsTemplate[tagName] = tagTemplate
-			}
-
+		if len(sd.targetTagsTemplate) > 0 {
 			eventTags := make(map[string]string)
 			for tagName, tagTemplate := range sd.targetTagsTemplate {
 				buffer.Reset()
@@ -630,7 +634,7 @@ func (c *consulLoader) runActions(ctx context.Context, tcs map[string]*types.Tar
 func (c *consulLoader) runOnAddActions(ctx context.Context, tName string, tcs map[string]*types.TargetConfig) error {
 	aCtx := &actions.Context{
 		Input:   tName,
-		Env:     make(map[string]interface{}),
+		Env:     make(map[string]any),
 		Vars:    c.vars,
 		Targets: tcs,
 	}
@@ -638,10 +642,6 @@ func (c *consulLoader) runOnAddActions(ctx context.Context, tName string, tcs ma
 		c.logger.Printf("running action %q for target %q", act.NName(), tName)
 		res, err := act.Run(ctx, aCtx)
 		if err != nil {
-			// delete target from known targets map
-			c.m.Lock()
-			delete(c.lastTargets, tName)
-			c.m.Unlock()
 			return fmt.Errorf("action %q for target %q failed: %v", act.NName(), tName, err)
 		}
 
@@ -655,7 +655,7 @@ func (c *consulLoader) runOnAddActions(ctx context.Context, tName string, tcs ma
 	return nil
 }
 
-func (c *consulLoader) runOnDeleteActions(ctx context.Context, tName string, tcs map[string]*types.TargetConfig) error {
+func (c *consulLoader) runOnDeleteActions(ctx context.Context, tName string, _ map[string]*types.TargetConfig) error {
 	env := make(map[string]interface{})
 	for _, act := range c.delActions {
 		res, err := act.Run(ctx, &actions.Context{Input: tName, Env: env, Vars: c.vars})

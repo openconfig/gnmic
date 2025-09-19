@@ -48,7 +48,7 @@ var targetConnStateMetric = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 	Namespace: "gnmic",
 	Subsystem: "target",
 	Name:      "connection_state",
-	Help:      "The current gRPC connection state to the target. The value can be one of the following: 0(INVALID_STATE), 1 (IDLE), 2 (CONNECTING), 3 (READY), 4 (TRANSIENT_FAILURE), or 5 (SHUTDOWN).",
+	Help:      "The current gRPC connection state to the target. The value can be one of the following: 0(UNKNOWN), 1 (IDLE), 2 (CONNECTING), 3 (READY), 4 (TRANSIENT_FAILURE), or 5 (SHUTDOWN).",
 }, []string{"name"})
 
 // cluster
