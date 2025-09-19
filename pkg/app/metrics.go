@@ -44,6 +44,13 @@ var targetUPMetric = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 	Help:      "Has value 1 if the gNMI connection to the target is established; otherwise, 0.",
 }, []string{"name"})
 
+var targetConnStateMetric = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	Namespace: "gnmic",
+	Subsystem: "target",
+	Name:      "connection_state",
+	Help:      "The current gRPC connection state to the target. The value can be one of the following: 0(UNKNOWN), 1 (IDLE), 2 (CONNECTING), 3 (READY), 4 (TRANSIENT_FAILURE), or 5 (SHUTDOWN).",
+}, []string{"name"})
+
 // cluster
 var clusterNumberOfLockedTargets = prometheus.NewGauge(prometheus.GaugeOpts{
 	Namespace: "gnmic",
@@ -63,9 +70,14 @@ func (a *App) registerTargetMetrics() {
 	if err != nil {
 		a.Logger.Printf("failed to register target metric: %v", err)
 	}
+	err = a.reg.Register(targetConnStateMetric)
+	if err != nil {
+		a.Logger.Printf("failed to register target connection state metric: %v", err)
+	}
 	a.configLock.RLock()
 	for _, t := range a.Config.Targets {
 		targetUPMetric.WithLabelValues(t.Name).Set(0)
+		targetConnStateMetric.WithLabelValues(t.Name).Set(0)
 	}
 	a.configLock.RUnlock()
 	go func() {
@@ -90,6 +102,7 @@ func (a *App) registerTargetMetrics() {
 					}
 				}
 				targetUPMetric.Reset()
+				targetConnStateMetric.Reset()
 				a.configLock.RLock()
 				for _, tc := range a.Config.Targets {
 					a.operLock.RLock()
@@ -97,18 +110,34 @@ func (a *App) registerTargetMetrics() {
 					a.operLock.RUnlock()
 					if ok {
 						switch t.ConnState() {
-						case "IDLE", "READY":
+						case "IDLE":
 							targetUPMetric.WithLabelValues(tc.Name).Set(1)
+							targetConnStateMetric.WithLabelValues(tc.Name).Set(1)
+						case "CONNECTING":
+							targetUPMetric.WithLabelValues(tc.Name).Set(0)
+							targetConnStateMetric.WithLabelValues(tc.Name).Set(2)
+						case "READY":
+							targetUPMetric.WithLabelValues(tc.Name).Set(1)
+							targetConnStateMetric.WithLabelValues(tc.Name).Set(3)
+						case "TRANSIENT_FAILURE":
+							targetUPMetric.WithLabelValues(tc.Name).Set(0)
+							targetConnStateMetric.WithLabelValues(tc.Name).Set(4)
+						case "SHUTDOWN":
+							targetUPMetric.WithLabelValues(tc.Name).Set(0)
+							targetConnStateMetric.WithLabelValues(tc.Name).Set(5)
 						default:
 							targetUPMetric.WithLabelValues(tc.Name).Set(0)
+							targetConnStateMetric.WithLabelValues(tc.Name).Set(0)
 						}
 					} else {
 						if a.isLeader {
 							if ownTargets[tc.Name] == a.Config.Clustering.InstanceName {
 								targetUPMetric.WithLabelValues(tc.Name).Set(0)
+								targetConnStateMetric.WithLabelValues(tc.Name).Set(0)
 							}
 						} else {
 							targetUPMetric.WithLabelValues(tc.Name).Set(0)
+							targetConnStateMetric.WithLabelValues(tc.Name).Set(0)
 						}
 					}
 				}

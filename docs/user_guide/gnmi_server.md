@@ -181,6 +181,8 @@ gnmi-server:
   max-subscriptions: 64
   # maximum number of active Get/Set RPCs
   max-unary-rpc: 64
+  # Unary RPC request timeout
+  unary-rpc-timeout: 120s
   # defines the maximum msg size (in bytes) the server can receive, 
   # defaults to 4MB
   max-recv-msg-size:
