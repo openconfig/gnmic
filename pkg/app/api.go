@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/pprof"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -47,6 +48,21 @@ func (a *App) newAPIServer() (*http.Server, error) {
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	if a.Config.APIServer.EnableProfiling {
+		a.router.HandleFunc("/debug/pprof/", pprof.Index)
+		a.router.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+		a.router.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		a.router.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		a.router.Path("/debug/pprof/symbol").Methods("POST", "GET").HandlerFunc(pprof.Symbol)
+		a.router.HandleFunc("/debug/pprof/trace", pprof.Trace)
+		a.router.Handle("/debug/pprof/heap", pprof.Handler("heap"))
+		a.router.Handle("/debug/pprof/mutex", pprof.Handler("mutex"))
+		a.router.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
+		a.router.Handle("/debug/pprof/goroutine", pprof.Handler("goroutine"))
+		a.router.Handle("/debug/pprof/allocs", pprof.Handler("allocs"))
+		a.router.Handle("/debug/pprof/block", pprof.Handler("block"))
 	}
 
 	if a.Config.APIServer.EnableMetrics {
