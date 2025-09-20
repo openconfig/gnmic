@@ -305,6 +305,25 @@ func (t *Target) DecodeProtoBytes(resp *gnmi.SubscribeResponse) error {
 	return nil
 }
 
+func (t *Target) DecodeExtension(resp *gnmi.SubscribeResponse) error {
+	if t.ExtensionProtoMap == nil {
+		return nil
+	}
+	for _, extension := range resp.Extension {
+		m := dynamic.NewMessage(t.ExtensionProtoMap[int(extension.GetRegisteredExt().GetId().Number())])
+		err := m.Unmarshal(extension.GetRegisteredExt().GetMsg())
+		if err != nil {
+			return err
+		}
+		jsondata, err := m.MarshalJSON()
+		if err != nil {
+			return err
+		}
+		extension.GetRegisteredExt().Msg = jsondata
+	}
+	return nil
+}
+
 func (t *Target) DeleteSubscription(name string) {
 	t.m.Lock()
 	defer t.m.Unlock()

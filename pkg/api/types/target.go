@@ -154,6 +154,14 @@ type TargetConfig struct {
 	GRPCKeepalive    *clientKeepalive  `mapstructure:"grpc-keepalive,omitempty" yaml:"grpc-keepalive,omitempty" json:"grpc-keepalive,omitempty"`
 
 	tlsConfig *tls.Config
+
+	RegisteredExtensions []*RegisteredExtension `mapstructure:"registered-extensions,omitempty" yaml:"registered-extensions,omitempty" json:"registered-extensions,omitempty"`
+}
+
+type RegisteredExtension struct {
+	Id          int    `mapstructure:"id,omitempty" yaml:"id,omitempty" json:"id,omitempty"`
+	MessageName string `mapstructure:"message-name,omitempty" yaml:"message-name,omitempty" json:"message-name,omitempty"`
+	ProtoFile   string `mapstructure:"proto-file,omitempty" yaml:"proto-file,omitempty" json:"proto-file,omitempty"`
 }
 
 type clientKeepalive struct {
