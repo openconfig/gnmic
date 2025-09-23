@@ -17,6 +17,7 @@ import (
 
 	"github.com/openconfig/gnmic/pkg/api"
 	"github.com/openconfig/gnmic/pkg/api/types"
+	"github.com/openconfig/gnmic/pkg/utils"
 )
 
 func (c *Config) CreateDiffSubscribeRequest(cmd *cobra.Command) (*gnmi.SubscribeRequest, error) {
@@ -32,7 +33,7 @@ func (c *Config) CreateDiffSubscribeRequest(cmd *cobra.Command) (*gnmi.Subscribe
 	if flagIsSet(cmd, "qos") {
 		sc.Qos = &c.DiffQos
 	}
-	return c.CreateSubscribeRequest(sc, nil)
+	return utils.CreateSubscribeRequest(sc, nil, c.Encoding)
 }
 
 func (c *Config) CreateDiffGetRequest() (*gnmi.GetRequest, error) {

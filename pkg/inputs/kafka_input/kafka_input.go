@@ -51,7 +51,7 @@ var openCurlyBrace = []byte("{")
 func init() {
 	inputs.Register("kafka", func() inputs.Input {
 		return &KafkaInput{
-			Cfg:    &Config{},
+			Cfg:    &config{},
 			logger: log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
 			wg:     new(sync.WaitGroup),
 		}
@@ -60,7 +60,7 @@ func init() {
 
 // KafkaInput //
 type KafkaInput struct {
-	Cfg     *Config
+	Cfg     *config
 	cfn     context.CancelFunc
 	logger  sarama.StdLogger
 	wg      *sync.WaitGroup
@@ -68,8 +68,8 @@ type KafkaInput struct {
 	evps    []formatters.EventProcessor
 }
 
-// Config //
-type Config struct {
+// config //
+type config struct {
 	Name              string           `mapstructure:"name,omitempty"`
 	Address           string           `mapstructure:"address,omitempty"`
 	Topics            string           `mapstructure:"topics,omitempty"`
@@ -97,11 +97,20 @@ func (k *KafkaInput) Start(ctx context.Context, name string, cfg map[string]inte
 	if k.Cfg.Name == "" {
 		k.Cfg.Name = name
 	}
+	options := &inputs.InputOptions{}
 	for _, opt := range opts {
-		if err := opt(k); err != nil {
+		if err := opt(options); err != nil {
 			return err
 		}
 	}
+	k.setLogger(options.Logger)
+	k.setName(options.Name)
+	k.setOutputs(options.Outputs)
+	err = k.setEventProcessors(options.EventProcessors, options.Logger, options.Targets, options.Actions)
+	if err != nil {
+		return err
+	}
+
 	err = k.setDefaults()
 	if err != nil {
 		return err
@@ -227,14 +236,14 @@ func (k *KafkaInput) Close() error {
 	return nil
 }
 
-func (k *KafkaInput) SetLogger(logger *log.Logger) {
+func (k *KafkaInput) setLogger(logger *log.Logger) {
 	if logger != nil {
 		sarama.Logger = log.New(logger.Writer(), loggingPrefix, logger.Flags())
 		k.logger = sarama.Logger
 	}
 }
 
-func (k *KafkaInput) SetOutputs(outs map[string]outputs.Output) {
+func (k *KafkaInput) setOutputs(outs map[string]outputs.Output) {
 	if len(k.Cfg.Outputs) == 0 {
 		for _, o := range outs {
 			k.outputs = append(k.outputs, o)
@@ -248,7 +257,7 @@ func (k *KafkaInput) SetOutputs(outs map[string]outputs.Output) {
 	}
 }
 
-func (k *KafkaInput) SetName(name string) {
+func (k *KafkaInput) setName(name string) {
 	sb := strings.Builder{}
 	if name != "" {
 		sb.WriteString(name)
@@ -259,7 +268,7 @@ func (k *KafkaInput) SetName(name string) {
 	k.Cfg.Name = sb.String()
 }
 
-func (k *KafkaInput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]*types.TargetConfig, acts map[string]map[string]interface{}) error {
+func (k *KafkaInput) setEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]*types.TargetConfig, acts map[string]map[string]interface{}) error {
 	var err error
 	k.evps, err = formatters.MakeEventProcessors(
 		logger,

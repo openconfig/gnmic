@@ -18,7 +18,6 @@ import (
 
 	"github.com/itchyny/gojq"
 
-	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 )
@@ -29,6 +28,7 @@ const (
 )
 
 type write struct {
+	formatters.BaseProcessor
 	Condition  string   `mapstructure:"condition,omitempty"`
 	Tags       []string `mapstructure:"tags,omitempty" json:"tags,omitempty"`
 	Values     []string `mapstructure:"values,omitempty" json:"values,omitempty"`
@@ -229,9 +229,3 @@ func (p *write) write(e *formatters.EventMsg) error {
 	p.dst.Write(append(b, p.sep...))
 	return nil
 }
-
-func (p *write) WithTargets(tcs map[string]*types.TargetConfig) {}
-
-func (p *write) WithActions(act map[string]map[string]interface{}) {}
-
-func (p *write) WithProcessors(procs map[string]map[string]any) {}

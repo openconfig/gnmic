@@ -12,9 +12,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	"github.com/openconfig/gnmic/pkg/api/types"
+	"github.com/spf13/cobra"
 )
 
 func (a *App) SubscribeRunPrompt(cmd *cobra.Command, args []string) error {
@@ -47,7 +46,7 @@ func (a *App) SubscribeRunPrompt(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	go a.StartCollector(a.ctx)
+	go a.StartTargetsManager(a.ctx)
 
 	a.InitOutputs(a.ctx)
 

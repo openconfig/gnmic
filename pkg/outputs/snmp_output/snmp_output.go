@@ -55,6 +55,7 @@ func init() {
 }
 
 type snmpOutput struct {
+	outputs.BaseOutput
 	name       string
 	cfg        *Config
 	logger     *log.Logger
@@ -99,20 +100,12 @@ type trap struct {
 	Bindings  []*binding `mapstructure:"bindings,omitempty" json:"bindings,omitempty"`
 }
 
-func (s *snmpOutput) SetLogger(logger *log.Logger) {
-	if logger != nil && s.logger != nil {
-		s.logger.SetOutput(logger.Writer())
-		s.logger.SetFlags(logger.Flags())
-	}
-}
-
-func (s *snmpOutput) SetEventProcessors(ps map[string]map[string]interface{},
-	logger *log.Logger,
+func (s *snmpOutput) setEventProcessors(ps map[string]map[string]interface{},
 	tcs map[string]*types.TargetConfig,
 	acts map[string]map[string]interface{}) error {
 	var err error
 	s.evps, err = formatters.MakeEventProcessors(
-		logger,
+		s.logger,
 		s.cfg.EventProcessors,
 		ps,
 		tcs,
@@ -132,20 +125,37 @@ func (s *snmpOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	}
 	s.logger.SetPrefix(fmt.Sprintf(loggingPrefix, name))
 
+	options := &outputs.OutputOptions{}
 	for _, opt := range opts {
-		if err := opt(s); err != nil {
+		if err := opt(options); err != nil {
 			return err
 		}
 	}
 
+	// apply logger
+	if options.Logger != nil && s.logger != nil {
+		s.logger.SetOutput(options.Logger.Writer())
+		s.logger.SetFlags(options.Logger.Flags())
+	}
+
 	s.setDefaults()
+
+	if len(s.cfg.Traps) == 0 {
+		return errors.New("missing traps definition")
+	}
+
+	err = s.setEventProcessors(options.EventProcessors, options.TargetsConfig, options.Actions)
+	if err != nil {
+		return err
+	}
+	// initialize registry
+	s.reg = options.Registry
 	err = s.registerMetrics()
 	if err != nil {
 		return err
 	}
-	if len(s.cfg.Traps) == 0 {
-		return errors.New("missing traps definition")
-	}
+
+	// initialize traps
 	for i, trap := range s.cfg.Traps {
 		if trap.Trigger == nil {
 			return fmt.Errorf("trap index %d missing \"trigger\"", i)
@@ -247,13 +257,6 @@ func (s *snmpOutput) Close() error {
 	return s.snmpClient.Close()
 }
 
-func (s *snmpOutput) RegisterMetrics(reg *prometheus.Registry) {
-	if !s.cfg.EnableMetrics {
-		return
-	}
-	s.reg = reg
-}
-
 func (s *snmpOutput) String() string {
 	b, err := json.Marshal(s.cfg)
 	if err != nil {
@@ -286,10 +289,6 @@ func (s *snmpOutput) start(ctx context.Context) {
 		}
 	}
 }
-
-func (s *snmpOutput) SetName(name string)                               {}
-func (s *snmpOutput) SetClusterName(name string)                        {}
-func (s *snmpOutput) SetTargetsConfig(c map[string]*types.TargetConfig) {}
 
 func (s *snmpOutput) setDefaults() {
 	if s.cfg.Port <= 0 {

@@ -15,7 +15,6 @@ import (
 	"os"
 	"regexp"
 
-	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 )
@@ -27,6 +26,7 @@ const (
 
 // deletep, deletes ALL the tags or values matching one of the regexes
 type deletep struct {
+	formatters.BaseProcessor
 	Tags       []string `mapstructure:"tags,omitempty" json:"tags,omitempty"`
 	Values     []string `mapstructure:"values,omitempty" json:"values,omitempty"`
 	TagNames   []string `mapstructure:"tag-names,omitempty" json:"tag-names,omitempty"`
@@ -151,9 +151,3 @@ func (d *deletep) WithLogger(l *log.Logger) {
 		d.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
 	}
 }
-
-func (d *deletep) WithTargets(tcs map[string]*types.TargetConfig) {}
-
-func (d *deletep) WithActions(act map[string]map[string]interface{}) {}
-
-func (d *deletep) WithProcessors(procs map[string]map[string]any) {}

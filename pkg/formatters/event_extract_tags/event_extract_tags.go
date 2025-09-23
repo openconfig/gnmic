@@ -15,7 +15,6 @@ import (
 	"os"
 	"regexp"
 
-	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 )
@@ -27,6 +26,7 @@ const (
 
 // extractTags extracts tags from a value, a value name, a tag name or a tag value using regex named groups
 type extractTags struct {
+	formatters.BaseProcessor
 	Tags       []string `mapstructure:"tags,omitempty" json:"tags,omitempty"`
 	Values     []string `mapstructure:"values,omitempty" json:"values,omitempty"`
 	TagNames   []string `mapstructure:"tag-names,omitempty" json:"tag-names,omitempty"`
@@ -139,12 +139,6 @@ func (p *extractTags) WithLogger(l *log.Logger) {
 		p.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
 	}
 }
-
-func (p *extractTags) WithTargets(tcs map[string]*types.TargetConfig) {}
-
-func (p *extractTags) WithActions(act map[string]map[string]interface{}) {}
-
-func (p *extractTags) WithProcessors(procs map[string]map[string]any) {}
 
 func (p *extractTags) addTags(e *formatters.EventMsg, re *regexp.Regexp, s string) {
 	if e.Tags == nil {

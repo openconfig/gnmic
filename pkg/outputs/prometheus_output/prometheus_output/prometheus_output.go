@@ -66,6 +66,7 @@ func init() {
 }
 
 type prometheusOutput struct {
+	outputs.BaseOutput
 	cfg       *config
 	logger    *log.Logger
 	eventChan chan *formatters.EventMsg
@@ -122,31 +123,6 @@ func (p *prometheusOutput) String() string {
 	return string(b)
 }
 
-func (p *prometheusOutput) SetLogger(logger *log.Logger) {
-	if logger != nil && p.logger != nil {
-		p.logger.SetOutput(logger.Writer())
-		p.logger.SetFlags(logger.Flags())
-	}
-}
-
-func (p *prometheusOutput) SetEventProcessors(ps map[string]map[string]interface{},
-	logger *log.Logger,
-	tcs map[string]*types.TargetConfig,
-	acts map[string]map[string]interface{}) error {
-	var err error
-	p.evps, err = formatters.MakeEventProcessors(
-		logger,
-		p.cfg.EventProcessors,
-		ps,
-		tcs,
-		acts,
-	)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
 	err := outputs.DecodeConfig(cfg, p.cfg)
 	if err != nil {
@@ -158,11 +134,20 @@ func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string
 
 	p.logger.SetPrefix(fmt.Sprintf(loggingPrefix, p.cfg.Name))
 
+	options := &outputs.OutputOptions{}
 	for _, opt := range opts {
-		if err := opt(p); err != nil {
+		if err := opt(options); err != nil {
 			return err
 		}
 	}
+
+	// apply logger
+	if options.Logger != nil && p.logger != nil {
+		p.logger.SetOutput(options.Logger.Writer())
+		p.logger.SetFlags(options.Logger.Flags())
+	}
+
+	// initialize target template
 	if p.cfg.TargetTemplate == "" {
 		p.targetTpl = outputs.DefaultTargetTemplate
 	} else if p.cfg.AddTarget != "" {
@@ -172,15 +157,27 @@ func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string
 		}
 		p.targetTpl = p.targetTpl.Funcs(outputs.TemplateFuncs)
 	}
+
+	// set defaults
 	err = p.setDefaults()
 	if err != nil {
 		return err
 	}
+
+	// initialize registry
+	p.reg = options.Registry
 	err = p.registerMetrics()
 	if err != nil {
 		return err
 	}
-
+	p.setName(options.Name)
+	p.setClusterName(options.ClusterName)
+	// initialize event processors
+	p.evps, err = formatters.MakeEventProcessors(options.Logger, p.cfg.EventProcessors,
+		options.EventProcessors, options.TargetsConfig, options.Actions)
+	if err != nil {
+		return err
+	}
 	p.mb = &promcom.MetricBuilder{
 		Prefix:                 p.cfg.MetricPrefix,
 		AppendSubscriptionName: p.cfg.AppendSubscriptionName,
@@ -220,8 +217,8 @@ func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string
 
 	// create tcp listener
 	var listener net.Listener
-	switch {
-	case p.cfg.TLS == nil:
+	switch p.cfg.TLS {
+	case nil:
 		listener, err = net.Listen("tcp", p.cfg.Listen)
 	default:
 		var tlsConfig *tls.Config
@@ -325,16 +322,6 @@ func (p *prometheusOutput) Close() error {
 	p.logger.Printf("closed.")
 	p.wg.Wait()
 	return nil
-}
-
-func (p *prometheusOutput) RegisterMetrics(reg *prometheus.Registry) {
-	if !p.cfg.EnableMetrics {
-		return
-	}
-	p.reg = reg
-	// if err := p.registerMetrics(reg); err != nil {
-	// 	p.logger.Printf("failed to register metric: %v", err)
-	// }
 }
 
 // Describe implements prometheus.Collector
@@ -555,7 +542,7 @@ func (p *prometheusOutput) setDefaults() error {
 	return nil
 }
 
-func (p *prometheusOutput) SetName(name string) {
+func (p *prometheusOutput) setName(name string) {
 	if p.cfg.Name == "" {
 		p.cfg.Name = name
 	}
@@ -571,11 +558,9 @@ func (p *prometheusOutput) SetName(name string) {
 	}
 }
 
-func (p *prometheusOutput) SetClusterName(name string) {
+func (p *prometheusOutput) setClusterName(name string) {
 	p.cfg.clusterName = name
 	if p.cfg.ServiceRegistration != nil {
 		p.cfg.ServiceRegistration.Tags = append(p.cfg.ServiceRegistration.Tags, fmt.Sprintf("gnmic-cluster=%s", name))
 	}
 }
-
-func (p *prometheusOutput) SetTargetsConfig(map[string]*types.TargetConfig) {}

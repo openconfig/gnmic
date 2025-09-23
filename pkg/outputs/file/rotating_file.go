@@ -30,7 +30,7 @@ type rotatingFile struct {
 }
 
 // newRotatingFile initialize the lumberjack instance
-func newRotatingFile(cfg *Config) *rotatingFile {
+func newRotatingFile(cfg *config) *rotatingFile {
 	cfg.Rotation.SetDefaults()
 
 	lj := lumberjack.Logger{

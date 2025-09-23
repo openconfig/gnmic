@@ -20,7 +20,6 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
-	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 )
@@ -34,6 +33,8 @@ const (
 
 // stringsp provides some of Golang's strings functions to transform: tags, tag names, values and value names
 type stringsp struct {
+	formatters.BaseProcessor
+
 	Tags       []string                `mapstructure:"tags,omitempty" json:"tags,omitempty"`
 	Values     []string                `mapstructure:"values,omitempty" json:"values,omitempty"`
 	TagNames   []string                `mapstructure:"tag-names,omitempty" json:"tag-names,omitempty"`
@@ -197,12 +198,6 @@ func (s *stringsp) WithLogger(l *log.Logger) {
 		s.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
 	}
 }
-
-func (s *stringsp) WithTargets(tcs map[string]*types.TargetConfig) {}
-
-func (s *stringsp) WithActions(act map[string]map[string]interface{}) {}
-
-func (s *stringsp) WithProcessors(procs map[string]map[string]any) {}
 
 func (s *stringsp) applyValueTransformations(e *formatters.EventMsg, k string, v interface{}) {
 	for _, trans := range s.Transforms {

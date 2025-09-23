@@ -20,8 +20,6 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/prometheus/client_golang/prometheus"
-
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
@@ -44,6 +42,7 @@ func init() {
 }
 
 type UDPSock struct {
+	outputs.BaseOutput
 	Cfg *Config
 
 	conn     *net.UDPConn
@@ -71,14 +70,7 @@ type Config struct {
 	EventProcessors    []string      `mapstructure:"event-processors,omitempty"`
 }
 
-func (u *UDPSock) SetLogger(logger *log.Logger) {
-	if logger != nil && u.logger != nil {
-		u.logger.SetOutput(logger.Writer())
-		u.logger.SetFlags(logger.Flags())
-	}
-}
-
-func (u *UDPSock) SetEventProcessors(ps map[string]map[string]interface{},
+func (u *UDPSock) setEventProcessors(ps map[string]map[string]interface{},
 	logger *log.Logger,
 	tcs map[string]*types.TargetConfig,
 	acts map[string]map[string]interface{}) error {
@@ -103,10 +95,23 @@ func (u *UDPSock) Init(ctx context.Context, name string, cfg map[string]interfac
 	}
 	u.logger.SetPrefix(fmt.Sprintf(loggingPrefix, name))
 
+	options := &outputs.OutputOptions{}
 	for _, opt := range opts {
-		if err := opt(u); err != nil {
+		if err := opt(options); err != nil {
 			return err
 		}
+	}
+
+	// apply logger
+	if options.Logger != nil && u.logger != nil {
+		u.logger.SetOutput(options.Logger.Writer())
+		u.logger.SetFlags(options.Logger.Flags())
+	}
+
+	// initialize event processors
+	err = u.setEventProcessors(options.EventProcessors, options.Logger, options.TargetsConfig, options.Actions)
+	if err != nil {
+		return err
 	}
 	_, _, err = net.SplitHostPort(u.Cfg.Address)
 	if err != nil {
@@ -176,8 +181,6 @@ func (u *UDPSock) Close() error {
 	return nil
 }
 
-func (u *UDPSock) RegisterMetrics(reg *prometheus.Registry) {}
-
 func (u *UDPSock) String() string {
 	b, err := json.Marshal(u)
 	if err != nil {
@@ -224,7 +227,3 @@ DIAL:
 		}
 	}
 }
-
-func (u *UDPSock) SetName(name string)                             {}
-func (u *UDPSock) SetClusterName(name string)                      {}
-func (u *UDPSock) SetTargetsConfig(map[string]*types.TargetConfig) {}

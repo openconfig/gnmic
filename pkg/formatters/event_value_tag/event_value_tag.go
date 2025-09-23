@@ -15,7 +15,6 @@ import (
 	"log"
 	"os"
 
-	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 )
@@ -26,6 +25,7 @@ const (
 )
 
 type valueTag struct {
+	formatters.BaseProcessor
 	TagName   string `mapstructure:"tag-name,omitempty" json:"tag-name,omitempty"`
 	ValueName string `mapstructure:"value-name,omitempty" json:"value-name,omitempty"`
 	Consume   bool   `mapstructure:"consume,omitempty" json:"consume,omitempty"`
@@ -92,10 +92,6 @@ func (vt *valueTag) WithLogger(l *log.Logger) {
 		vt.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
 	}
 }
-
-func (vt *valueTag) WithTargets(tcs map[string]*types.TargetConfig) {}
-
-func (vt *valueTag) WithActions(act map[string]map[string]interface{}) {}
 
 // returns true if all keys match, false otherwise.
 func compareTags(a map[string]string, b map[string]string) bool {

@@ -52,7 +52,11 @@ func (n *jetstreamOutput) initMetrics() {
 }
 
 func (n *jetstreamOutput) registerMetrics() error {
+	if !n.Cfg.EnableMetrics {
+		return nil
+	}
 	if n.reg == nil {
+		n.logger.Printf("ERR: metrics enabled but main registry is not initialized, enable main metrics under `api-server`")
 		return nil
 	}
 

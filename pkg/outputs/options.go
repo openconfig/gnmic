@@ -15,48 +15,57 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-type Option func(Output) error
+type OutputOptions struct {
+	Name            string
+	ClusterName     string
+	Logger          *log.Logger
+	EventProcessors map[string]map[string]any
+	TargetsConfig   map[string]*types.TargetConfig
+	Actions         map[string]map[string]any
+	Registry        *prometheus.Registry
+}
+
+type Option func(*OutputOptions) error
 
 func WithLogger(logger *log.Logger) Option {
-	return func(o Output) error {
-		o.SetLogger(logger)
+	return func(o *OutputOptions) error {
+		o.Logger = logger
 		return nil
 	}
 }
 
-func WithEventProcessors(eps map[string]map[string]interface{},
-	log *log.Logger,
-	tcs map[string]*types.TargetConfig,
-	acts map[string]map[string]interface{}) Option {
-	return func(o Output) error {
-		return o.SetEventProcessors(eps, log, tcs, acts)
+func WithEventProcessors(eps map[string]map[string]any, acts map[string]map[string]any) Option {
+	return func(o *OutputOptions) error {
+		o.EventProcessors = eps
+		o.Actions = acts
+		return nil
 	}
 }
 
 func WithRegistry(reg *prometheus.Registry) Option {
-	return func(o Output) error {
-		o.RegisterMetrics(reg)
+	return func(o *OutputOptions) error {
+		o.Registry = reg
 		return nil
 	}
 }
 
 func WithName(name string) Option {
-	return func(o Output) error {
-		o.SetName(name)
+	return func(o *OutputOptions) error {
+		o.Name = name
 		return nil
 	}
 }
 
 func WithClusterName(name string) Option {
-	return func(o Output) error {
-		o.SetClusterName(name)
+	return func(o *OutputOptions) error {
+		o.ClusterName = name
 		return nil
 	}
 }
 
 func WithTargetsConfig(tcs map[string]*types.TargetConfig) Option {
-	return func(o Output) error {
-		o.SetTargetsConfig(tcs)
+	return func(o *OutputOptions) error {
+		o.TargetsConfig = tcs
 		return nil
 	}
 }

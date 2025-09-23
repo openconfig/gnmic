@@ -18,7 +18,6 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 )
@@ -35,6 +34,7 @@ var (
 )
 
 type valueTag struct {
+	formatters.BaseProcessor
 	Rules  []*rule `mapstructure:"rules,omitempty" json:"rules,omitempty"`
 	Debug  bool    `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 	logger *log.Logger
@@ -134,10 +134,6 @@ func (vt *valueTag) WithLogger(l *log.Logger) {
 	}
 }
 
-func (vt *valueTag) WithTargets(tcs map[string]*types.TargetConfig) {}
-
-func (vt *valueTag) WithActions(act map[string]map[string]interface{}) {}
-
 // comparison logic for maps
 // i.e: a ⊆ b
 func includedIn(a, b map[string]string) bool {
@@ -151,8 +147,6 @@ func includedIn(a, b map[string]string) bool {
 	}
 	return true
 }
-
-func (vt *valueTag) WithProcessors(procs map[string]map[string]any) {}
 
 // the apply rule key is a hash of the valueName and the event msg tags
 func (vt *valueTag) applyRuleKey(m map[string]string, r *rule) uint64 {

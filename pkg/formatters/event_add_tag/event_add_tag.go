@@ -18,7 +18,6 @@ import (
 
 	"github.com/itchyny/gojq"
 
-	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 )
@@ -30,6 +29,7 @@ const (
 
 // addTag adds a set of tags to the event message if certain criteria's are met.
 type addTag struct {
+	formatters.BaseProcessor
 	Condition  string            `mapstructure:"condition,omitempty"`
 	Tags       []string          `mapstructure:"tags,omitempty" json:"tags,omitempty"`
 	Values     []string          `mapstructure:"values,omitempty" json:"values,omitempty"`
@@ -178,12 +178,6 @@ func (p *addTag) WithLogger(l *log.Logger) {
 		p.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
 	}
 }
-
-func (p *addTag) WithTargets(tcs map[string]*types.TargetConfig) {}
-
-func (p *addTag) WithActions(act map[string]map[string]interface{}) {}
-
-func (p *addTag) WithProcessors(procs map[string]map[string]any) {}
 
 func (p *addTag) addTags(e *formatters.EventMsg) {
 	if e.Tags == nil {

@@ -31,6 +31,7 @@ const (
 
 // combine allows running multiple processors together based on conditions
 type combine struct {
+	formatters.BaseProcessor
 	Processors []*procseq `mapstructure:"processors,omitempty"`
 	Debug      bool       `mapstructure:"debug,omitempty"`
 

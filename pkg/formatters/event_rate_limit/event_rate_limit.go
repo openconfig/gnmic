@@ -13,7 +13,6 @@ import (
 
 	lru "github.com/hashicorp/golang-lru/v2"
 
-	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 )
@@ -32,7 +31,7 @@ var (
 
 // rateLimit rate-limits the message to the given rate.
 type rateLimit struct {
-	// formatters.EventProcessor
+	formatters.BaseProcessor
 
 	PerSecondLimit float64 `mapstructure:"per-second,omitempty" json:"per-second,omitempty"`
 	CacheSize      int     `mapstructure:"cache-size,omitempty" json:"cache-size,omitempty"`
@@ -137,9 +136,3 @@ func (o *rateLimit) WithLogger(l *log.Logger) {
 		o.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
 	}
 }
-
-func (o *rateLimit) WithTargets(tcs map[string]*types.TargetConfig) {}
-
-func (o *rateLimit) WithActions(act map[string]map[string]interface{}) {}
-
-func (o *rateLimit) WithProcessors(procs map[string]map[string]any) {}

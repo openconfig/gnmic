@@ -24,6 +24,7 @@ import (
 	"github.com/openconfig/gnmic/pkg/config"
 	"github.com/openconfig/gnmic/pkg/lockers"
 	"github.com/openconfig/gnmic/pkg/outputs"
+	"github.com/openconfig/gnmic/pkg/utils"
 )
 
 type subscriptionRequest struct {
@@ -166,7 +167,7 @@ func (a *App) clientSubscribe(ctx context.Context, tc *types.TargetConfig) error
 	}
 	subRequests := make([]subscriptionRequest, 0, len(subscriptionsConfigs))
 	for scName, sc := range subscriptionsConfigs {
-		req, err := a.Config.CreateSubscribeRequest(sc, tc)
+		req, err := utils.CreateSubscribeRequest(sc, tc, a.Config.Encoding)
 		if err != nil {
 			if errors.Is(errors.Unwrap(err), config.ErrConfig) {
 				fmt.Fprintf(os.Stderr, "%v\n", err)
@@ -236,7 +237,7 @@ func (a *App) clientSubscribeOnce(ctx context.Context, tc *types.TargetConfig) e
 	}
 	subRequests := make([]subscriptionRequest, 0)
 	for _, sc := range subscriptionsConfigs {
-		req, err := a.Config.CreateSubscribeRequest(sc, tc)
+		req, err := utils.CreateSubscribeRequest(sc, tc, a.Config.Encoding)
 		if err != nil {
 			if errors.Is(errors.Unwrap(err), config.ErrConfig) {
 				fmt.Fprintf(os.Stderr, "%v\n", err)
@@ -288,7 +289,7 @@ OUTER:
 				return err
 			case rsp := <-rspCh:
 				m := outputs.Meta{"source": t.Config.Name, "format": a.Config.Format, "subscription-name": sreq.name}
-				a.Export(ctx, rsp, m, t.Config.Outputs...)
+				a.export(ctx, rsp, m, t.Config.Outputs...)
 			}
 		}
 	}
