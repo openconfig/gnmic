@@ -34,7 +34,7 @@ topology:
 
     kafka-server:
       kind: linux
-      image: bitnami/kafka:latest
+      image: bitnami/kafka:3.5.2
       ports:
         - 9092:9092
         - 9093:9093
