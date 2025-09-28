@@ -15,7 +15,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 )
@@ -27,7 +26,7 @@ const (
 
 // overrideTS Overrides the message timestamp with the local time
 type overrideTS struct {
-	//formatters.EventProcessor
+	formatters.BaseProcessor
 
 	Precision string `mapstructure:"precision,omitempty" json:"precision,omitempty"`
 	Debug     bool   `mapstructure:"debug,omitempty" json:"debug,omitempty"`
@@ -43,7 +42,7 @@ func init() {
 	})
 }
 
-func (o *overrideTS) Init(cfg interface{}, opts ...formatters.Option) error {
+func (o *overrideTS) Init(cfg any, opts ...formatters.Option) error {
 	err := formatters.DecodeConfig(cfg, o)
 	if err != nil {
 		return err
@@ -93,9 +92,3 @@ func (o *overrideTS) WithLogger(l *log.Logger) {
 		o.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
 	}
 }
-
-func (o *overrideTS) WithTargets(tcs map[string]*types.TargetConfig) {}
-
-func (o *overrideTS) WithActions(act map[string]map[string]interface{}) {}
-
-func (o *overrideTS) WithProcessors(procs map[string]map[string]any) {}

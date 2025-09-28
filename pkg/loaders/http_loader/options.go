@@ -9,9 +9,8 @@
 package http_loader
 
 import (
-	"github.com/prometheus/client_golang/prometheus"
-
 	"github.com/openconfig/gnmic/pkg/api/types"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 func (h *httpLoader) RegisterMetrics(reg *prometheus.Registry) {

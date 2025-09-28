@@ -21,7 +21,6 @@ import (
 
 	units "github.com/bcicen/go-units"
 
-	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 )
@@ -35,6 +34,7 @@ var stringUnitRegex = regexp.MustCompile(`([+-]?([0-9]*[.])?[0-9]+)\s?(\S+)`)
 
 // dataConvert converts the value with key matching one of regexes, to the specified data unit
 type dataConvert struct {
+	formatters.BaseProcessor
 	Values []string `mapstructure:"value-names,omitempty" json:"value-names,omitempty"`
 	From   string   `mapstructure:"from,omitempty" json:"from,omitempty"`
 	To     string   `mapstructure:"to,omitempty" json:"to,omitempty"`
@@ -138,12 +138,6 @@ func (c *dataConvert) WithLogger(l *log.Logger) {
 		c.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
 	}
 }
-
-func (c *dataConvert) WithTargets(tcs map[string]*types.TargetConfig) {}
-
-func (c *dataConvert) WithActions(act map[string]map[string]interface{}) {}
-
-func (c *dataConvert) WithProcessors(procs map[string]map[string]any) {}
 
 func (c *dataConvert) convertData(k string, i interface{}, from *units.Unit) (float64, error) {
 	if from == nil && c.From == "" {

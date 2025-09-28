@@ -17,7 +17,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 )
@@ -30,6 +29,7 @@ const (
 // groupBy groups values from different event messages in the same event message
 // based on tags values
 type groupBy struct {
+	formatters.BaseProcessor
 	Tags   []string `mapstructure:"tags,omitempty" json:"tags,omitempty"`
 	ByName bool     `mapstructure:"by-name,omitempty" json:"by-name,omitempty"`
 	Debug  bool     `mapstructure:"debug,omitempty" json:"debug,omitempty"`
@@ -104,12 +104,6 @@ func (p *groupBy) WithLogger(l *log.Logger) {
 		p.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
 	}
 }
-
-func (p *groupBy) WithTargets(tcs map[string]*types.TargetConfig) {}
-
-func (p *groupBy) WithActions(act map[string]map[string]interface{}) {}
-
-func (p *groupBy) WithProcessors(procs map[string]map[string]any) {}
 
 func (p *groupBy) byTagsOld(es []*formatters.EventMsg) []*formatters.EventMsg {
 	if len(p.Tags) == 0 {

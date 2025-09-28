@@ -55,6 +55,7 @@ func init() {
 
 // NatsOutput //
 type NatsOutput struct {
+	outputs.BaseOutput
 	Cfg      *Config
 	ctx      context.Context
 	cancelFn context.CancelFunc
@@ -102,31 +103,6 @@ func (n *NatsOutput) String() string {
 	return string(b)
 }
 
-func (n *NatsOutput) SetLogger(logger *log.Logger) {
-	if logger != nil && n.logger != nil {
-		n.logger.SetOutput(logger.Writer())
-		n.logger.SetFlags(logger.Flags())
-	}
-}
-
-func (n *NatsOutput) SetEventProcessors(ps map[string]map[string]interface{},
-	logger *log.Logger,
-	tcs map[string]*types.TargetConfig,
-	acts map[string]map[string]interface{}) error {
-	var err error
-	n.evps, err = formatters.MakeEventProcessors(
-		logger,
-		n.Cfg.EventProcessors,
-		ps,
-		tcs,
-		acts,
-	)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 // Init //
 func (n *NatsOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
 	err := outputs.DecodeConfig(cfg, n.Cfg)
@@ -138,24 +114,48 @@ func (n *NatsOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	}
 	n.logger.SetPrefix(fmt.Sprintf(loggingPrefix, n.Cfg.Name))
 
+	options := &outputs.OutputOptions{}
 	for _, opt := range opts {
-		if err := opt(n); err != nil {
+		if err := opt(options); err != nil {
 			return err
 		}
 	}
+
+	// set defaults
+	n.setName(options.Name)
 	err = n.setDefaults()
 	if err != nil {
 		return err
 	}
+
+	// apply logger
+	if options.Logger != nil && n.logger != nil {
+		n.logger.SetOutput(options.Logger.Writer())
+		n.logger.SetFlags(options.Logger.Flags())
+	}
+
+	// initialize registry
+	n.reg = options.Registry
 	err = n.registerMetrics()
 	if err != nil {
 		return err
 	}
+
+	// initialize event processors
+	n.evps, err = formatters.MakeEventProcessors(options.Logger, n.Cfg.EventProcessors,
+		options.EventProcessors, options.TargetsConfig, options.Actions)
+	if err != nil {
+		return err
+	}
+
+	// initialize message channel
 	n.msgChan = make(chan *outputs.ProtoMsg, n.Cfg.BufferSize)
 	n.mo = &formatters.MarshalOptions{
 		Format:     n.Cfg.Format,
 		OverrideTS: n.Cfg.OverrideTimestamps,
 	}
+
+	// initialize target template
 	if n.Cfg.TargetTemplate == "" {
 		n.targetTpl = outputs.DefaultTargetTemplate
 	} else if n.Cfg.AddTarget != "" {
@@ -166,6 +166,7 @@ func (n *NatsOutput) Init(ctx context.Context, name string, cfg map[string]inter
 		n.targetTpl = n.targetTpl.Funcs(outputs.TemplateFuncs)
 	}
 
+	// initialize message template
 	if n.Cfg.MsgTemplate != "" {
 		n.msgTpl, err = gtemplate.CreateTemplate("msg-template", n.Cfg.MsgTemplate)
 		if err != nil {
@@ -174,6 +175,7 @@ func (n *NatsOutput) Init(ctx context.Context, name string, cfg map[string]inter
 		n.msgTpl = n.msgTpl.Funcs(outputs.TemplateFuncs)
 	}
 
+	// initialize context
 	n.ctx, n.cancelFn = context.WithCancel(ctx)
 	n.wg.Add(n.Cfg.NumWorkers)
 	for i := 0; i < n.Cfg.NumWorkers; i++ {
@@ -249,14 +251,6 @@ func (n *NatsOutput) Close() error {
 	n.cancelFn()
 	n.wg.Wait()
 	return nil
-}
-
-// Metrics //
-func (n *NatsOutput) RegisterMetrics(reg *prometheus.Registry) {
-	if !n.Cfg.EnableMetrics {
-		return
-	}
-	n.reg = reg
 }
 
 func (n *NatsOutput) createNATSConn(c *Config) (*nats.Conn, error) {
@@ -438,7 +432,7 @@ func (n *NatsOutput) subjectName(c *Config, meta outputs.Meta) string {
 	return strings.ReplaceAll(n.Cfg.Subject, " ", "_")
 }
 
-func (n *NatsOutput) SetName(name string) {
+func (n *NatsOutput) setName(name string) {
 	sb := strings.Builder{}
 	if name != "" {
 		sb.WriteString(name)
@@ -448,7 +442,3 @@ func (n *NatsOutput) SetName(name string) {
 	sb.WriteString("-nats-pub")
 	n.Cfg.Name = sb.String()
 }
-
-func (n *NatsOutput) SetClusterName(name string) {}
-
-func (n *NatsOutput) SetTargetsConfig(map[string]*types.TargetConfig) {}

@@ -31,8 +31,6 @@ func (a *App) InitInput(ctx context.Context, name string, tcs map[string]*types.
 						inputs.WithLogger(a.Logger),
 						inputs.WithEventProcessors(
 							a.Config.Processors,
-							a.Logger,
-							a.Config.Targets,
 							a.Config.Actions,
 						),
 						inputs.WithName(a.Config.InstanceName),

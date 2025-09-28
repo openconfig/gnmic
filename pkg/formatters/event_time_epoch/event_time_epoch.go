@@ -16,7 +16,6 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 )
@@ -28,6 +27,8 @@ const (
 
 // epoch converts a time string to epoch time
 type epoch struct {
+	formatters.BaseProcessor
+
 	Values    []string `mapstructure:"value-names,omitempty" json:"value-names,omitempty"`
 	Precision string   `mapstructure:"precision,omitempty" json:"precision,omitempty"`
 	Format    string   `mapstructure:"format,omitempty" json:"format,omitempty"`
@@ -123,9 +124,3 @@ func (d *epoch) WithLogger(l *log.Logger) {
 		d.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
 	}
 }
-
-func (d *epoch) WithTargets(tcs map[string]*types.TargetConfig) {}
-
-func (d *epoch) WithActions(act map[string]map[string]any) {}
-
-func (d *epoch) WithProcessors(procs map[string]map[string]any) {}

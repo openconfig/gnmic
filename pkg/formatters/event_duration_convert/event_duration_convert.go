@@ -17,7 +17,6 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 )
@@ -31,6 +30,7 @@ var durationRegex = regexp.MustCompile(`((?P<weeks>\d+)w)?((?P<days>\d+)d)?((?P<
 
 // durationConvert converts the value with key matching one of regexes, to the specified duration precision
 type durationConvert struct {
+	formatters.BaseProcessor
 	Values []string `mapstructure:"value-names,omitempty" json:"value-names,omitempty"`
 	Keep   bool     `mapstructure:"keep,omitempty" json:"keep,omitempty"`
 	Debug  bool     `mapstructure:"debug,omitempty" json:"debug,omitempty"`
@@ -116,12 +116,6 @@ func (c *durationConvert) WithLogger(l *log.Logger) {
 		c.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
 	}
 }
-
-func (c *durationConvert) WithTargets(tcs map[string]*types.TargetConfig) {}
-
-func (c *durationConvert) WithActions(act map[string]map[string]interface{}) {}
-
-func (c *durationConvert) WithProcessors(procs map[string]map[string]any) {}
 
 func (c *durationConvert) convertDuration(k string, i interface{}) (int64, error) {
 	switch i := i.(type) {

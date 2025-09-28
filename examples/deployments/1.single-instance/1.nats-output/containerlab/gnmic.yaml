@@ -16,7 +16,7 @@ loader:
   type: docker
   filters:
     - containers:
-      - label=clab-node-kind: srl
+      - label=clab-node-kind: nokia_srlinux
         label=containerlab: lab11
 
 subscriptions:

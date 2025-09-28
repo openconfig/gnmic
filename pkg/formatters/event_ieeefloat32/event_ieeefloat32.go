@@ -22,7 +22,6 @@ import (
 
 	"github.com/itchyny/gojq"
 
-	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 )
@@ -34,6 +33,7 @@ const (
 
 // ieeefloat32 converts values from a base64 encoded string into a float32
 type ieeefloat32 struct {
+	formatters.BaseProcessor
 	Condition  string   `mapstructure:"condition,omitempty"`
 	ValueNames []string `mapstructure:"value-names,omitempty" json:"value-names,omitempty"`
 	Debug      bool     `mapstructure:"debug,omitempty" json:"debug,omitempty"`
@@ -127,12 +127,6 @@ func (p *ieeefloat32) WithLogger(l *log.Logger) {
 		p.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
 	}
 }
-
-func (p *ieeefloat32) WithTargets(tcs map[string]*types.TargetConfig) {}
-
-func (p *ieeefloat32) WithActions(act map[string]map[string]interface{}) {}
-
-func (p *ieeefloat32) WithProcessors(procs map[string]map[string]any) {}
 
 func (p *ieeefloat32) decodeBase64String(e any) (float32, error) {
 	var err error

@@ -16,6 +16,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"sync"
 	"text/template"
 	"time"
 
@@ -23,7 +24,6 @@ import (
 	"golang.org/x/sync/semaphore"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
@@ -46,7 +46,8 @@ const (
 func init() {
 	outputs.Register(outputType, func() outputs.Output {
 		return &File{
-			cfg:    &Config{},
+			m:      new(sync.RWMutex),
+			cfg:    &config{},
 			logger: log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
 		}
 	})
@@ -54,7 +55,11 @@ func init() {
 
 // File //
 type File struct {
-	cfg    *Config
+	outputs.BaseOutput
+
+	m *sync.RWMutex
+
+	cfg    *config
 	file   file
 	logger *log.Logger
 	mo     *formatters.MarshalOptions
@@ -67,8 +72,8 @@ type File struct {
 	reg *prometheus.Registry
 }
 
-// Config //
-type Config struct {
+// config //
+type config struct {
 	Name               string          `mapstructure:"name,omitempty"`
 	FileName           string          `mapstructure:"filename,omitempty"`
 	FileType           string          `mapstructure:"file-type,omitempty"`
@@ -103,79 +108,18 @@ func (f *File) String() string {
 	return string(b)
 }
 
-func (f *File) SetEventProcessors(ps map[string]map[string]interface{},
-	logger *log.Logger,
-	tcs map[string]*types.TargetConfig,
-	acts map[string]map[string]interface{}) error {
-	var err error
-	f.evps, err = formatters.MakeEventProcessors(
-		logger,
-		f.cfg.EventProcessors,
-		ps,
-		tcs,
-		acts,
-	)
-	if err != nil {
-		return err
+func (f *File) setDefaults(cfg *config) error {
+	if cfg.Name == "" {
+		cfg.Name = f.cfg.Name
 	}
-	return nil
-}
-
-func (f *File) SetLogger(logger *log.Logger) {
-	if logger != nil && f.logger != nil {
-		f.logger.SetOutput(logger.Writer())
-		f.logger.SetFlags(logger.Flags())
-	}
-}
-
-// Init //
-func (f *File) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
-	err := outputs.DecodeConfig(cfg, f.cfg)
-	if err != nil {
-		return err
-	}
-	if f.cfg.Name == "" {
-		f.cfg.Name = name
-	}
-	f.logger.SetPrefix(fmt.Sprintf(loggingPrefix, name))
-
-	for _, opt := range opts {
-		if err := opt(f); err != nil {
-			return err
-		}
-	}
-
-	err = f.registerMetrics()
-	if err != nil {
-		return err
-	}
-	if f.cfg.Format == "proto" {
+	if cfg.Format == "proto" {
 		return fmt.Errorf("proto format not supported in output type 'file'")
 	}
-	if f.cfg.Separator == "" {
-		f.cfg.Separator = defaultSeparator
+	if cfg.Separator == "" {
+		cfg.Separator = defaultSeparator
 	}
-	if f.cfg.FileName == "" && f.cfg.FileType == "" {
-		f.cfg.FileType = fileType_STDOUT
-	}
-
-	switch f.cfg.FileType {
-	case fileType_STDOUT:
-		f.file = os.Stdout
-	case "stderr":
-		f.file = os.Stderr
-	default:
-	CRFILE:
-		if f.cfg.Rotation != nil {
-			f.file = newRotatingFile(f.cfg)
-		} else {
-			f.file, err = os.OpenFile(f.cfg.FileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-			if err != nil {
-				f.logger.Printf("failed to create file: %v", err)
-				time.Sleep(10 * time.Second)
-				goto CRFILE
-			}
-		}
+	if cfg.FileName == "" && cfg.FileType == "" {
+		cfg.FileType = fileType_STDOUT
 	}
 
 	if f.cfg.Format == "" {
@@ -197,6 +141,90 @@ func (f *File) Init(ctx context.Context, name string, cfg map[string]interface{}
 		}
 	}
 
+	return nil
+}
+
+// Init //
+func (f *File) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
+	f.m.Lock()
+	defer f.m.Unlock()
+
+	err := outputs.DecodeConfig(cfg, f.cfg)
+	if err != nil {
+		return err
+	}
+	if f.cfg.Name == "" {
+		f.cfg.Name = name
+	}
+	f.logger.SetPrefix(fmt.Sprintf(loggingPrefix, name))
+
+	options := &outputs.OutputOptions{}
+	for _, opt := range opts {
+		if err := opt(options); err != nil {
+			return err
+		}
+	}
+
+	// apply logger
+	if options.Logger != nil && f.logger != nil {
+		f.logger.SetOutput(options.Logger.Writer())
+		f.logger.SetFlags(options.Logger.Flags())
+	}
+
+	// initialize event processors
+	f.evps, err = formatters.MakeEventProcessors(
+		f.logger,
+		f.cfg.EventProcessors,
+		options.EventProcessors,
+		options.TargetsConfig,
+		options.Actions,
+	)
+	if err != nil {
+		return err
+	}
+
+	// initialize registry
+	f.reg = options.Registry
+	err = f.registerMetrics()
+	if err != nil {
+		return err
+	}
+
+	err = f.setDefaults(f.cfg)
+	if err != nil {
+		return err
+	}
+
+	err = f.init(name)
+	if err != nil {
+		return err
+	}
+
+	f.logger.Printf("initialized file output: %s", f.String())
+	return nil
+}
+
+func (f *File) init(name string) error {
+	var err error
+	switch f.cfg.FileType {
+	case fileType_STDOUT:
+		f.file = os.Stdout
+	case "stderr":
+		f.file = os.Stderr
+	default:
+	CRFILE:
+		if f.cfg.Rotation != nil {
+			f.file = newRotatingFile(f.cfg)
+		} else {
+			f.file, err = os.OpenFile(f.cfg.FileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+			if err != nil {
+				f.logger.Printf("failed to create file: %v", err)
+				time.Sleep(10 * time.Second)
+				goto CRFILE
+			}
+		}
+	}
+
 	f.sem = semaphore.NewWeighted(int64(f.cfg.ConcurrencyLimit))
 
 	f.mo = &formatters.MarshalOptions{
@@ -206,6 +234,8 @@ func (f *File) Init(ctx context.Context, name string, cfg map[string]interface{}
 		OverrideTS:       f.cfg.OverrideTimestamps,
 		CalculateLatency: f.cfg.CalculateLatency,
 	}
+
+	// create templates if any
 	if f.cfg.TargetTemplate == "" {
 		f.targetTpl = outputs.DefaultTargetTemplate
 	} else if f.cfg.AddTarget != "" {
@@ -224,16 +254,14 @@ func (f *File) Init(ctx context.Context, name string, cfg map[string]interface{}
 		f.msgTpl = f.msgTpl.Funcs(outputs.TemplateFuncs)
 	}
 
-	f.logger.Printf("initialized file output: %s", f.String())
-	go func() {
-		<-ctx.Done()
-		f.Close()
-	}()
 	return nil
 }
 
 // Write //
 func (f *File) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) {
+	f.m.RLock()
+	defer f.m.RUnlock()
+
 	if rsp == nil {
 		return
 	}
@@ -289,6 +317,9 @@ func (f *File) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) 
 }
 
 func (f *File) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {
+	f.m.RLock()
+	defer f.m.RUnlock()
+
 	select {
 	case <-ctx.Done():
 		return
@@ -345,18 +376,13 @@ func (f *File) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {
 
 // Close //
 func (f *File) Close() error {
+	f.m.Lock()
+	defer f.m.Unlock()
+
+	return f.close()
+}
+
+func (f *File) close() error {
 	f.logger.Printf("closing file '%s' output", f.file.Name())
 	return f.file.Close()
 }
-
-// Metrics //
-func (f *File) RegisterMetrics(reg *prometheus.Registry) {
-	if !f.cfg.EnableMetrics {
-		return
-	}
-	f.reg = reg
-}
-
-func (f *File) SetName(name string)                             {}
-func (f *File) SetClusterName(name string)                      {}
-func (f *File) SetTargetsConfig(map[string]*types.TargetConfig) {}

@@ -24,7 +24,6 @@ import (
 
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/openconfig/gnmi/proto/gnmi"
-	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
@@ -59,6 +58,7 @@ func init() {
 }
 
 type influxDBOutput struct {
+	outputs.BaseOutput
 	Cfg       *Config
 	client    influxdb2.Client
 	logger    *log.Logger
@@ -108,31 +108,6 @@ func (k *influxDBOutput) String() string {
 	return string(b)
 }
 
-func (i *influxDBOutput) SetLogger(logger *log.Logger) {
-	if logger != nil && i.logger != nil {
-		i.logger.SetOutput(logger.Writer())
-		i.logger.SetFlags(logger.Flags())
-	}
-}
-
-func (i *influxDBOutput) SetEventProcessors(ps map[string]map[string]interface{},
-	logger *log.Logger,
-	tcs map[string]*types.TargetConfig,
-	acts map[string]map[string]interface{}) error {
-	var err error
-	i.evps, err = formatters.MakeEventProcessors(
-		logger,
-		i.Cfg.EventProcessors,
-		ps,
-		tcs,
-		acts,
-	)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func (i *influxDBOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
 	err := outputs.DecodeConfig(cfg, i.Cfg)
 	if err != nil {
@@ -140,13 +115,30 @@ func (i *influxDBOutput) Init(ctx context.Context, name string, cfg map[string]i
 	}
 	i.logger.SetPrefix(fmt.Sprintf(loggingPrefix, name))
 
+	options := &outputs.OutputOptions{}
 	for _, opt := range opts {
-		if err := opt(i); err != nil {
+		if err := opt(options); err != nil {
 			return err
 		}
 	}
+
+	// apply logger
+	if options.Logger != nil && i.logger != nil {
+		i.logger.SetOutput(options.Logger.Writer())
+		i.logger.SetFlags(options.Logger.Flags())
+	}
+
+	// set defaults
 	i.setDefaults()
 
+	// initialize event processors
+	i.evps, err = formatters.MakeEventProcessors(i.logger, i.Cfg.EventProcessors,
+		options.EventProcessors, options.TargetsConfig, options.Actions)
+	if err != nil {
+		return err
+	}
+
+	// initialize cache
 	if i.Cfg.CacheConfig != nil {
 		err = i.initCache(ctx, name)
 		if err != nil {
@@ -276,7 +268,6 @@ func (i *influxDBOutput) Close() error {
 	i.logger.Printf("closed.")
 	return nil
 }
-func (i *influxDBOutput) RegisterMetrics(reg *prometheus.Registry) {}
 
 func (i *influxDBOutput) healthCheck(ctx context.Context) {
 	ticker := time.NewTicker(i.Cfg.HealthCheckPeriod)
@@ -393,10 +384,6 @@ START:
 		}
 	}
 }
-
-func (i *influxDBOutput) SetName(name string)                             {}
-func (i *influxDBOutput) SetClusterName(name string)                      {}
-func (i *influxDBOutput) SetTargetsConfig(map[string]*types.TargetConfig) {}
 
 func (i *influxDBOutput) convertUints(ev *formatters.EventMsg) {
 	if !strings.HasPrefix(i.dbVersion, "1.8") {

@@ -15,7 +15,6 @@ import (
 
 	"github.com/itchyny/gojq"
 	"github.com/mitchellh/mapstructure"
-
 	"github.com/openconfig/gnmic/pkg/api/types"
 )
 
@@ -54,6 +53,7 @@ func Register(name string, initFn Initializer) {
 }
 
 type Option func(EventProcessor)
+
 type EventProcessor interface {
 	Init(interface{}, ...Option) error
 	Apply(...*EventMsg) []*EventMsg
@@ -171,4 +171,29 @@ func MakeEventProcessors(
 		return nil, fmt.Errorf("%q event processor not found", epName)
 	}
 	return evps, nil
+}
+
+type BaseProcessor struct {
+	logger *log.Logger
+}
+
+func (p *BaseProcessor) WithLogger(l *log.Logger) {
+	p.logger = l
+}
+
+func (p *BaseProcessor) Init(interface{}, ...Option) error {
+	return nil
+}
+
+func (p *BaseProcessor) Apply(...*EventMsg) []*EventMsg {
+	return nil
+}
+
+func (p *BaseProcessor) WithTargets(map[string]*types.TargetConfig) {
+}
+
+func (p *BaseProcessor) WithActions(act map[string]map[string]interface{}) {
+}
+
+func (p *BaseProcessor) WithProcessors(procs map[string]map[string]any) {
 }

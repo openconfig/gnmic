@@ -14,7 +14,6 @@ import (
 	"log"
 	"os"
 
-	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 )
@@ -26,6 +25,7 @@ const (
 
 // merge merges a list of event messages into one or multiple messages based on some criteria
 type merge struct {
+	formatters.BaseProcessor
 	Always bool `mapstructure:"always,omitempty" json:"always,omitempty"`
 	Debug  bool `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 
@@ -98,12 +98,6 @@ func (p *merge) WithLogger(l *log.Logger) {
 		p.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
 	}
 }
-
-func (p *merge) WithTargets(tcs map[string]*types.TargetConfig) {}
-
-func (p *merge) WithActions(act map[string]map[string]interface{}) {}
-
-func (p *merge) WithProcessors(procs map[string]map[string]any) {}
 
 func mergeEvents(e1, e2 *formatters.EventMsg) {
 	if e1.Tags == nil {

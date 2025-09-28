@@ -13,7 +13,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"strings"
 	"text/template"
 
@@ -23,25 +22,17 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
-	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	_ "github.com/openconfig/gnmic/pkg/formatters/all"
 )
 
 type Output interface {
-	Init(context.Context, string, map[string]interface{}, ...Option) error
+	Init(context.Context, string, map[string]any, ...Option) error
 	Write(context.Context, proto.Message, Meta)
 	WriteEvent(context.Context, *formatters.EventMsg)
 	Close() error
-	RegisterMetrics(*prometheus.Registry)
 	String() string
-
-	SetLogger(*log.Logger)
-	SetEventProcessors(map[string]map[string]interface{}, *log.Logger, map[string]*types.TargetConfig, map[string]map[string]interface{}) error
-	SetName(string)
-	SetClusterName(string)
-	SetTargetsConfig(map[string]*types.TargetConfig)
 }
 
 type Initializer func() Output
@@ -215,4 +206,30 @@ func marshalSplit(pmsg protoreflect.ProtoMessage, meta map[string]string, mo *fo
 	default:
 		return nil, fmt.Errorf("unexpected message type: %T", msg)
 	}
+}
+
+type BaseOutput struct {
+}
+
+func (b *BaseOutput) Init(context.Context, string, map[string]any, ...Option) error {
+	return nil
+}
+
+func (b *BaseOutput) Write(context.Context, proto.Message, Meta) {
+}
+
+func (b *BaseOutput) WriteEvent(context.Context, *formatters.EventMsg) {
+
+}
+
+func (b *BaseOutput) Close() error {
+	return nil
+}
+
+func (b *BaseOutput) RegisterMetrics(*prometheus.Registry) {
+
+}
+
+func (b *BaseOutput) String() string {
+	return ""
 }

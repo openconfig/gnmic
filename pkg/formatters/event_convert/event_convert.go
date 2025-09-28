@@ -19,7 +19,6 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 )
@@ -31,6 +30,7 @@ const (
 
 // convert converts the value with key matching one of regexes, to the specified Type
 type convert struct {
+	formatters.BaseProcessor
 	Values []string `mapstructure:"value-names,omitempty" json:"value-names,omitempty"`
 	Type   string   `mapstructure:"type,omitempty" json:"type,omitempty"`
 	Debug  bool     `mapstructure:"debug,omitempty" json:"debug,omitempty"`
@@ -132,12 +132,6 @@ func (c *convert) WithLogger(l *log.Logger) {
 		c.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
 	}
 }
-
-func (c *convert) WithTargets(tcs map[string]*types.TargetConfig) {}
-
-func (c *convert) WithActions(act map[string]map[string]interface{}) {}
-
-func (c *convert) WithProcessors(procs map[string]map[string]any) {}
 
 func convertToInt(i interface{}) (int, error) {
 	switch i := i.(type) {

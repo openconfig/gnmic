@@ -65,6 +65,7 @@ func init() {
 
 // asciigraphOutput //
 type asciigraphOutput struct {
+	outputs.BaseOutput
 	cfg     *cfg
 	logger  *log.Logger
 	eventCh chan *formatters.EventMsg
@@ -164,12 +165,26 @@ func (a *asciigraphOutput) Init(ctx context.Context, name string, cfg map[string
 
 	a.logger.SetPrefix(fmt.Sprintf(loggingPrefix, name))
 
+	options := &outputs.OutputOptions{}
 	for _, opt := range opts {
-		if err := opt(a); err != nil {
+		if err := opt(options); err != nil {
 			return err
 		}
 	}
-
+	if options.Logger != nil && a.logger != nil {
+		a.logger.SetOutput(options.Logger.Writer())
+		a.logger.SetFlags(options.Logger.Flags())
+	}
+	a.evps, err = formatters.MakeEventProcessors(
+		a.logger,
+		a.cfg.EventProcessors,
+		options.EventProcessors,
+		options.TargetsConfig,
+		options.Actions,
+	)
+	if err != nil {
+		return err
+	}
 	if a.cfg.TargetTemplate == "" {
 		a.targetTpl = outputs.DefaultTargetTemplate
 	} else if a.cfg.AddTarget != "" {
