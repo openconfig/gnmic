@@ -60,3 +60,24 @@ loader:
   # values in this file will be overwritten by the ones defined in `vars`
   vars-file:
 ```
+
+#### Targets file format
+
+=== "JSON"
+    ```json
+    {
+        "10.10.10.10": {
+            "username": "admin",
+            "insecure": true
+        },
+         "10.10.10.11": {
+            "username": "admin",
+        },
+         "10.10.10.12": {},
+         "10.10.10.13": {},
+         "10.10.10.14": {}
+    }
+    ```
+
+Just like the targets in the main configuration file, the missing configuration fields get filled with the global flags,
+the ENV variables first, the config file main section next and then the default values.
