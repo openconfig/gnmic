@@ -17,12 +17,8 @@ import (
 )
 
 type Input interface {
-	Start(context.Context, string, map[string]interface{}, ...Option) error
+	Start(context.Context, string, map[string]any, ...Option) error
 	Close() error
-	SetLogger(*log.Logger)
-	SetOutputs(map[string]outputs.Output)
-	SetEventProcessors(map[string]map[string]interface{}, *log.Logger, map[string]*types.TargetConfig, map[string]map[string]interface{}) error
-	SetName(string)
 }
 
 type Initializer func() Input
@@ -40,31 +36,49 @@ func Register(name string, initFn Initializer) {
 	Inputs[name] = initFn
 }
 
-type Option func(Input) error
+type InputOptions struct {
+	Logger          *log.Logger
+	Outputs         map[string]outputs.Output
+	Name            string
+	EventProcessors map[string]map[string]any
+	Targets         map[string]*types.TargetConfig
+	Actions         map[string]map[string]any
+}
+
+type Option func(*InputOptions) error
 
 func WithLogger(logger *log.Logger) Option {
-	return func(i Input) error {
-		i.SetLogger(logger)
+	return func(i *InputOptions) error {
+		i.Logger = logger
 		return nil
 	}
 }
 
 func WithOutputs(outs map[string]outputs.Output) Option {
-	return func(i Input) error {
-		i.SetOutputs(outs)
+	return func(i *InputOptions) error {
+		i.Outputs = outs
 		return nil
 	}
 }
 
 func WithName(name string) Option {
-	return func(i Input) error {
-		i.SetName(name)
+	return func(i *InputOptions) error {
+		i.Name = name
 		return nil
 	}
 }
 
-func WithEventProcessors(eps map[string]map[string]interface{}, log *log.Logger, tcs map[string]*types.TargetConfig, acts map[string]map[string]interface{}) Option {
-	return func(i Input) error {
-		return i.SetEventProcessors(eps, log, tcs, acts)
+func WithEventProcessors(eps map[string]map[string]any, acts map[string]map[string]any) Option {
+	return func(i *InputOptions) error {
+		i.EventProcessors = eps
+		i.Actions = acts
+		return nil
+	}
+}
+
+func WithTargets(tcs map[string]*types.TargetConfig) Option {
+	return func(i *InputOptions) error {
+		i.Targets = tcs
+		return nil
 	}
 }

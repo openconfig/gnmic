@@ -14,7 +14,6 @@ import (
 
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
-
 	"github.com/openconfig/gnmic/pkg/api/types"
 )
 

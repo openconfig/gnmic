@@ -46,6 +46,9 @@ func (p *prometheusOutput) initMetrics() {
 }
 
 func (p *prometheusOutput) registerMetrics() error {
+	if !p.cfg.EnableMetrics {
+		return nil
+	}
 	if p.reg == nil {
 		return nil
 	}

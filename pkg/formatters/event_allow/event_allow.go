@@ -18,7 +18,6 @@ import (
 
 	"github.com/itchyny/gojq"
 
-	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 )
@@ -30,6 +29,7 @@ const (
 
 // allow Allows the msg if ANY of the Tags or Values regexes are matched
 type allow struct {
+	formatters.BaseProcessor
 	Condition  string   `mapstructure:"condition,omitempty"`
 	TagNames   []string `mapstructure:"tag-names,omitempty" json:"tag-names,omitempty"`
 	ValueNames []string `mapstructure:"value-names,omitempty" json:"value-names,omitempty"`
@@ -138,12 +138,6 @@ func (d *allow) WithLogger(l *log.Logger) {
 		d.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
 	}
 }
-
-func (d *allow) WithTargets(tcs map[string]*types.TargetConfig) {}
-
-func (d *allow) WithActions(act map[string]map[string]interface{}) {}
-
-func (d *allow) WithProcessors(procs map[string]map[string]any) {}
 
 func (d *allow) allow(e *formatters.EventMsg) bool {
 	if d.Condition != "" {

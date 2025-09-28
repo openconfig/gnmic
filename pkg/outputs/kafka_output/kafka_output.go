@@ -42,7 +42,7 @@ const (
 	defaultFormat           = "event"
 	defaultRecoveryWaitTime = 10 * time.Second
 	defaultAddress          = "localhost:9092"
-	loggingPrefix           = "[kafka_output:%s] "
+	loggingPrefixTpl        = "[kafka_output:%s] "
 	defaultCompressionCodec = sarama.CompressionNone
 
 	requiredAcksNoResponse   = "no-response"
@@ -55,13 +55,14 @@ func init() {
 		return &kafkaOutput{
 			cfg:    &config{},
 			wg:     new(sync.WaitGroup),
-			logger: log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
+			logger: log.New(io.Discard, loggingPrefixTpl, utils.DefaultLoggingFlags),
 		}
 	})
 }
 
 // kafkaOutput //
 type kafkaOutput struct {
+	outputs.BaseOutput
 	cfg      *config
 	logger   sarama.StdLogger
 	mo       *formatters.MarshalOptions
@@ -114,31 +115,6 @@ func (k *kafkaOutput) String() string {
 	return string(b)
 }
 
-func (k *kafkaOutput) SetLogger(logger *log.Logger) {
-	if logger != nil {
-		sarama.Logger = log.New(logger.Writer(), loggingPrefix, logger.Flags())
-		k.logger = sarama.Logger
-	}
-}
-
-func (k *kafkaOutput) SetEventProcessors(ps map[string]map[string]interface{},
-	logger *log.Logger,
-	tcs map[string]*types.TargetConfig,
-	acts map[string]map[string]interface{}) error {
-	var err error
-	k.evps, err = formatters.MakeEventProcessors(
-		logger,
-		k.cfg.EventProcessors,
-		ps,
-		tcs,
-		acts,
-	)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 // Init /
 func (k *kafkaOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
 	err := outputs.DecodeConfig(cfg, k.cfg)
@@ -148,16 +124,33 @@ func (k *kafkaOutput) Init(ctx context.Context, name string, cfg map[string]inte
 	if k.cfg.Name == "" {
 		k.cfg.Name = name
 	}
+	loggingPrefix := fmt.Sprintf(loggingPrefixTpl, k.cfg.Name)
+	options := &outputs.OutputOptions{}
 	for _, opt := range opts {
-		if err := opt(k); err != nil {
+		if err := opt(options); err != nil {
 			return err
 		}
 	}
+	if options.Logger != nil {
+		sarama.Logger = log.New(options.Logger.Writer(), loggingPrefix, options.Logger.Flags())
+		k.logger = sarama.Logger
+	}
+
+	k.setName(options.Name)
 	err = k.setDefaults()
 	if err != nil {
 		return err
 	}
+
+	// initialize registry
+	k.reg = options.Registry
 	err = k.registerMetrics()
+	if err != nil {
+		return err
+	}
+	// initialize event processors
+	k.evps, err = formatters.MakeEventProcessors(options.Logger, k.cfg.EventProcessors,
+		options.EventProcessors, options.TargetsConfig, options.Actions)
 	if err != nil {
 		return err
 	}
@@ -287,18 +280,6 @@ func (k *kafkaOutput) Close() error {
 	k.cancelFn()
 	k.wg.Wait()
 	return nil
-}
-
-// Metrics //
-func (k *kafkaOutput) RegisterMetrics(reg *prometheus.Registry) {
-	if !k.cfg.EnableMetrics {
-		return
-	}
-	if reg == nil {
-		k.logger.Printf("ERR: output metrics enabled but main registry is not initialized, enable main metrics under `api-server`")
-		return
-	}
-	k.reg = reg
 }
 
 func (k *kafkaOutput) worker(ctx context.Context, idx int, config *sarama.Config) {
@@ -496,7 +477,7 @@ CRPROD:
 	}
 }
 
-func (k *kafkaOutput) SetName(name string) {
+func (k *kafkaOutput) setName(name string) {
 	sb := strings.Builder{}
 	if name != "" {
 		sb.WriteString(name)
@@ -506,10 +487,6 @@ func (k *kafkaOutput) SetName(name string) {
 	sb.WriteString("-kafka-prod")
 	k.cfg.Name = sb.String()
 }
-
-func (k *kafkaOutput) SetClusterName(name string) {}
-
-func (k *kafkaOutput) SetTargetsConfig(map[string]*types.TargetConfig) {}
 
 func (k *kafkaOutput) createConfig() (*sarama.Config, error) {
 	cfg := sarama.NewConfig()

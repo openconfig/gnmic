@@ -52,6 +52,7 @@ func init() {
 
 // gNMIOutput //
 type gNMIOutput struct {
+	outputs.BaseOutput
 	cfg       *config
 	logger    *log.Logger
 	targetTpl *template.Template
@@ -59,7 +60,7 @@ type gNMIOutput struct {
 	srv     *server
 	grpcSrv *grpc.Server
 	c       *cache.Cache
-	//teardown func()
+	reg     *prometheus.Registry
 }
 
 type config struct {
@@ -81,12 +82,18 @@ func (g *gNMIOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	g.c = cache.New(nil)
 	g.srv = g.newServer()
 
+	options := &outputs.OutputOptions{}
 	for _, opt := range opts {
-		if err := opt(g); err != nil {
+		if err := opt(options); err != nil {
 			return err
 		}
 	}
-
+	if options.Logger != nil && g.logger != nil {
+		g.logger.SetOutput(options.Logger.Writer())
+		g.logger.SetFlags(options.Logger.Flags())
+	}
+	g.reg = options.Registry
+	g.registerMetrics()
 	err = g.setDefaults()
 	if err != nil {
 		return err
@@ -146,17 +153,17 @@ func (g *gNMIOutput) Close() error {
 	return nil
 }
 
-func (g *gNMIOutput) RegisterMetrics(reg *prometheus.Registry) {
+func (g *gNMIOutput) registerMetrics() {
 	if !g.cfg.EnableMetrics {
 		return
 	}
-	if reg == nil {
+	if g.reg == nil {
 		g.logger.Printf("ERR: output metrics enabled but main registry is not initialized, enable main metrics under `api-server`")
 		return
 	}
 	srvMetrics := grpc_prometheus.NewServerMetrics()
 	srvMetrics.InitializeMetrics(g.grpcSrv)
-	if err := reg.Register(srvMetrics); err != nil {
+	if err := g.reg.Register(srvMetrics); err != nil {
 		g.logger.Printf("failed to register prometheus metrics: %v", err)
 	}
 }
@@ -168,43 +175,6 @@ func (g *gNMIOutput) String() string {
 	}
 	return string(b)
 }
-
-func (g *gNMIOutput) SetLogger(logger *log.Logger) {
-	if logger != nil && g.logger != nil {
-		g.logger.SetOutput(logger.Writer())
-		g.logger.SetFlags(logger.Flags())
-	}
-}
-
-func (g *gNMIOutput) SetEventProcessors(map[string]map[string]interface{}, *log.Logger, map[string]*types.TargetConfig, map[string]map[string]interface{}) error {
-	return nil
-}
-
-func (g *gNMIOutput) SetName(string) {}
-
-func (g *gNMIOutput) SetClusterName(string) {}
-
-func (g *gNMIOutput) SetTargetsConfig(tcs map[string]*types.TargetConfig) {
-	if g.srv == nil {
-		return
-	}
-	g.srv.mu.Lock()
-	for n, tc := range tcs {
-		if tc.Name != "" {
-			g.srv.targets[tc.Name] = tc
-			continue
-		}
-		g.srv.targets[n] = tc
-	}
-	for n := range g.srv.targets {
-		if _, ok := tcs[n]; !ok {
-			delete(g.srv.targets, n)
-		}
-	}
-	g.srv.mu.Unlock()
-}
-
-//
 
 func (g *gNMIOutput) setDefaults() error {
 	if g.cfg.Address == "" {

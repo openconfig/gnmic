@@ -36,14 +36,12 @@ func (a *App) InitOutput(ctx context.Context, name string, tcs map[string]*types
 						outputs.WithLogger(a.Logger),
 						outputs.WithEventProcessors(
 							a.Config.Processors,
-							a.Logger,
-							a.Config.Targets,
 							a.Config.Actions,
 						),
 						outputs.WithRegistry(a.reg),
 						outputs.WithName(a.Config.InstanceName),
 						outputs.WithClusterName(a.Config.ClusterName),
-						outputs.WithTargetsConfig(tcs),
+						outputs.WithTargetsConfig(a.Config.Targets),
 					)
 					if err != nil {
 						a.Logger.Printf("failed to init output type %q: %v", outType, err)

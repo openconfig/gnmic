@@ -52,7 +52,11 @@ func (k *kafkaOutput) initMetrics() {
 }
 
 func (k *kafkaOutput) registerMetrics() error {
+	if !k.cfg.EnableMetrics {
+		return nil
+	}
 	if k.reg == nil {
+		k.logger.Printf("ERR: metrics enabled but main registry is not initialized, enable main metrics under `api-server`")
 		return nil
 	}
 	var err error

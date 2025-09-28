@@ -43,17 +43,17 @@ const (
 
 func init() {
 	inputs.Register("nats", func() inputs.Input {
-		return &NatsInput{
-			Cfg:    &Config{},
+		return &natsInput{
+			Cfg:    &config{},
 			logger: log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
 			wg:     new(sync.WaitGroup),
 		}
 	})
 }
 
-// NatsInput //
-type NatsInput struct {
-	Cfg    *Config
+// natsInput //
+type natsInput struct {
+	Cfg    *config
 	ctx    context.Context
 	cfn    context.CancelFunc
 	logger *log.Logger
@@ -63,8 +63,8 @@ type NatsInput struct {
 	evps    []formatters.EventProcessor
 }
 
-// Config //
-type Config struct {
+// config //
+type config struct {
 	Name            string           `mapstructure:"name,omitempty"`
 	Address         string           `mapstructure:"address,omitempty"`
 	Subject         string           `mapstructure:"subject,omitempty"`
@@ -82,7 +82,7 @@ type Config struct {
 }
 
 // Init //
-func (n *NatsInput) Start(ctx context.Context, name string, cfg map[string]interface{}, opts ...inputs.Option) error {
+func (n *natsInput) Start(ctx context.Context, name string, cfg map[string]any, opts ...inputs.Option) error {
 	err := outputs.DecodeConfig(cfg, n.Cfg)
 	if err != nil {
 		return err
@@ -90,10 +90,19 @@ func (n *NatsInput) Start(ctx context.Context, name string, cfg map[string]inter
 	if n.Cfg.Name == "" {
 		n.Cfg.Name = name
 	}
+	n.logger.SetPrefix(fmt.Sprintf("%s%s", loggingPrefix, n.Cfg.Name))
+	options := &inputs.InputOptions{}
 	for _, opt := range opts {
-		if err := opt(n); err != nil {
+		if err := opt(options); err != nil {
 			return err
 		}
+	}
+	n.setName(options.Name)
+	n.setLogger(options.Logger)
+	n.setOutputs(options.Outputs)
+	err = n.setEventProcessors(options.EventProcessors, options.Actions)
+	if err != nil {
+		return err
 	}
 	err = n.setDefaults()
 	if err != nil {
@@ -108,7 +117,7 @@ func (n *NatsInput) Start(ctx context.Context, name string, cfg map[string]inter
 	return nil
 }
 
-func (n *NatsInput) worker(ctx context.Context, idx int) {
+func (n *natsInput) worker(ctx context.Context, idx int) {
 	var nc *nats.Conn
 	var err error
 	var msgChan chan *nats.Msg
@@ -202,14 +211,14 @@ START:
 }
 
 // Close //
-func (n *NatsInput) Close() error {
+func (n *natsInput) Close() error {
 	n.cfn()
 	n.wg.Wait()
 	return nil
 }
 
 // SetLogger //
-func (n *NatsInput) SetLogger(logger *log.Logger) {
+func (n *natsInput) setLogger(logger *log.Logger) {
 	if logger != nil && n.logger != nil {
 		n.logger.SetOutput(logger.Writer())
 		n.logger.SetFlags(logger.Flags())
@@ -217,7 +226,7 @@ func (n *NatsInput) SetLogger(logger *log.Logger) {
 }
 
 // SetOutputs //
-func (n *NatsInput) SetOutputs(outs map[string]outputs.Output) {
+func (n *natsInput) setOutputs(outs map[string]outputs.Output) {
 	if len(n.Cfg.Outputs) == 0 {
 		for _, o := range outs {
 			n.outputs = append(n.outputs, o)
@@ -231,7 +240,7 @@ func (n *NatsInput) SetOutputs(outs map[string]outputs.Output) {
 	}
 }
 
-func (n *NatsInput) SetName(name string) {
+func (n *natsInput) setName(name string) {
 	sb := strings.Builder{}
 	if name != "" {
 		sb.WriteString(name)
@@ -242,13 +251,13 @@ func (n *NatsInput) SetName(name string) {
 	n.Cfg.Name = sb.String()
 }
 
-func (n *NatsInput) SetEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]*types.TargetConfig, acts map[string]map[string]interface{}) error {
+func (n *natsInput) setEventProcessors(ps map[string]map[string]interface{}, acts map[string]map[string]interface{}) error {
 	var err error
 	n.evps, err = formatters.MakeEventProcessors(
-		logger,
+		n.logger,
 		n.Cfg.EventProcessors,
 		ps,
-		tcs,
+		nil,
 		acts,
 	)
 	if err != nil {
@@ -259,7 +268,7 @@ func (n *NatsInput) SetEventProcessors(ps map[string]map[string]interface{}, log
 
 // helper functions
 
-func (n *NatsInput) setDefaults() error {
+func (n *natsInput) setDefaults() error {
 	if n.Cfg.Format == "" {
 		n.Cfg.Format = defaultFormat
 	}
@@ -290,7 +299,7 @@ func (n *NatsInput) setDefaults() error {
 	return nil
 }
 
-func (n *NatsInput) createNATSConn(c *Config) (*nats.Conn, error) {
+func (n *natsInput) createNATSConn(c *config) (*nats.Conn, error) {
 	opts := []nats.Option{
 		nats.Name(c.Name),
 		nats.SetCustomDialer(n),
@@ -328,7 +337,7 @@ func (n *NatsInput) createNATSConn(c *Config) (*nats.Conn, error) {
 }
 
 // Dial //
-func (n *NatsInput) Dial(network, address string) (net.Conn, error) {
+func (n *natsInput) Dial(network, address string) (net.Conn, error) {
 	ctx, cancel := context.WithCancel(n.ctx)
 	defer cancel()
 

@@ -22,7 +22,6 @@ import (
 	"go.starlark.net/starlark"
 	"go.starlark.net/syntax"
 
-	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 )
@@ -34,6 +33,8 @@ const (
 
 // starlarkProc runs a starlark script on the received events
 type starlarkProc struct {
+	formatters.BaseProcessor
+
 	Script string `mapstructure:"script,omitempty" json:"script,omitempty"`
 	Source string `mapstructure:"source,omitempty" json:"source,omitempty"`
 	Debug  bool   `mapstructure:"debug,omitempty" json:"debug,omitempty"`
@@ -189,12 +190,6 @@ func (p *starlarkProc) WithLogger(l *log.Logger) {
 		p.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
 	}
 }
-
-func (p *starlarkProc) WithTargets(tcs map[string]*types.TargetConfig) {}
-
-func (p *starlarkProc) WithActions(act map[string]map[string]interface{}) {}
-
-func (p *starlarkProc) WithProcessors(procs map[string]map[string]any) {}
 
 func (p *starlarkProc) sourceProgram(builtins starlark.StringDict) (*starlark.Program, error) {
 	var src any

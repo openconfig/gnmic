@@ -68,17 +68,17 @@ func toJSDeliverPolicy(dp deliverPolicy) jetstream.DeliverPolicy {
 
 func init() {
 	inputs.Register("jetstream", func() inputs.Input {
-		return &JetstreamInput{
-			Cfg:    &Config{},
+		return &jetstreamInput{
+			Cfg:    &config{},
 			logger: log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
 			wg:     new(sync.WaitGroup),
 		}
 	})
 }
 
-// JetstreamInput //
-type JetstreamInput struct {
-	Cfg    *Config
+// jetstreamInput //
+type jetstreamInput struct {
+	Cfg    *config
 	ctx    context.Context
 	cfn    context.CancelFunc
 	logger *log.Logger
@@ -96,8 +96,8 @@ const (
 	subjectFormat_SubTarget = "subscription.target"
 )
 
-// Config //
-type Config struct {
+// config //
+type config struct {
 	Name            string           `mapstructure:"name,omitempty"`
 	Address         string           `mapstructure:"address,omitempty"`
 	Stream          string           `mapstructure:"stream,omitempty"`
@@ -118,7 +118,7 @@ type Config struct {
 }
 
 // Init //
-func (n *JetstreamInput) Start(ctx context.Context, name string, cfg map[string]interface{}, opts ...inputs.Option) error {
+func (n *jetstreamInput) Start(ctx context.Context, name string, cfg map[string]any, opts ...inputs.Option) error {
 	err := outputs.DecodeConfig(cfg, n.Cfg)
 	if err != nil {
 		return err
@@ -126,11 +126,19 @@ func (n *JetstreamInput) Start(ctx context.Context, name string, cfg map[string]
 	if n.Cfg.Name == "" {
 		n.Cfg.Name = name
 	}
-	n.logger.SetPrefix(fmt.Sprintf(loggingPrefix, n.Cfg.Name))
+	n.logger.SetPrefix(fmt.Sprintf("%s%s", loggingPrefix, n.Cfg.Name))
+	options := &inputs.InputOptions{}
 	for _, opt := range opts {
-		if err := opt(n); err != nil {
+		if err := opt(options); err != nil {
 			return err
 		}
+	}
+	n.setLogger(options.Logger)
+	n.setName(options.Name)
+	n.setOutputs(options.Outputs)
+	err = n.setEventProcessors(options.EventProcessors, options.Targets, options.Actions)
+	if err != nil {
+		return err
 	}
 	err = n.setDefaults()
 	if err != nil {
@@ -145,7 +153,7 @@ func (n *JetstreamInput) Start(ctx context.Context, name string, cfg map[string]
 	return nil
 }
 
-func (n *JetstreamInput) worker(ctx context.Context, idx int) {
+func (n *jetstreamInput) worker(ctx context.Context, idx int) {
 	workerLogPrefix := fmt.Sprintf("worker-%d", idx)
 	n.logger.Printf("%s starting", workerLogPrefix)
 
@@ -163,7 +171,7 @@ func (n *JetstreamInput) worker(ctx context.Context, idx int) {
 	}
 }
 
-func (n *JetstreamInput) workerStart(ctx context.Context) error {
+func (n *jetstreamInput) workerStart(ctx context.Context) error {
 	nc, err := n.createNATSConn(n.Cfg)
 	if err != nil {
 		return fmt.Errorf("failed to create NATS connection: %v", err)
@@ -211,7 +219,7 @@ func (n *JetstreamInput) workerStart(ctx context.Context) error {
 	}
 }
 
-func (n *JetstreamInput) msgHandler(msg jetstream.Msg) {
+func (n *jetstreamInput) msgHandler(msg jetstream.Msg) {
 	msg.Ack()
 	if n.Cfg.Debug {
 		n.logger.Printf("received msg, subject=%s, len=%d, data=%s", msg.Subject(), len(msg.Data()), msg.Data())
@@ -259,7 +267,7 @@ func (n *JetstreamInput) msgHandler(msg jetstream.Msg) {
 	}
 }
 
-func (n *JetstreamInput) getMetaFromSubject(subject string) outputs.Meta {
+func (n *jetstreamInput) getMetaFromSubject(subject string) outputs.Meta {
 	meta := outputs.Meta{}
 	subjectSections := strings.SplitN(subject, ".", 3)
 	if len(subjectSections) < 3 {
@@ -279,14 +287,14 @@ func (n *JetstreamInput) getMetaFromSubject(subject string) outputs.Meta {
 }
 
 // Close //
-func (n *JetstreamInput) Close() error {
+func (n *jetstreamInput) Close() error {
 	n.cfn()
 	n.wg.Wait()
 	return nil
 }
 
 // SetLogger //
-func (n *JetstreamInput) SetLogger(logger *log.Logger) {
+func (n *jetstreamInput) setLogger(logger *log.Logger) {
 	if logger != nil && n.logger != nil {
 		n.logger.SetOutput(logger.Writer())
 		n.logger.SetFlags(logger.Flags())
@@ -294,7 +302,7 @@ func (n *JetstreamInput) SetLogger(logger *log.Logger) {
 }
 
 // SetOutputs //
-func (n *JetstreamInput) SetOutputs(outs map[string]outputs.Output) {
+func (n *jetstreamInput) setOutputs(outs map[string]outputs.Output) {
 	if len(n.Cfg.Outputs) == 0 {
 		for _, o := range outs {
 			n.outputs = append(n.outputs, o)
@@ -308,7 +316,7 @@ func (n *JetstreamInput) SetOutputs(outs map[string]outputs.Output) {
 	}
 }
 
-func (n *JetstreamInput) SetName(name string) {
+func (n *jetstreamInput) setName(name string) {
 	sb := strings.Builder{}
 	if name != "" {
 		sb.WriteString(name)
@@ -319,10 +327,10 @@ func (n *JetstreamInput) SetName(name string) {
 	n.Cfg.Name = sb.String()
 }
 
-func (n *JetstreamInput) SetEventProcessors(ps map[string]map[string]any, logger *log.Logger, tcs map[string]*types.TargetConfig, acts map[string]map[string]any) error {
+func (n *jetstreamInput) setEventProcessors(ps map[string]map[string]any, tcs map[string]*types.TargetConfig, acts map[string]map[string]any) error {
 	var err error
 	n.evps, err = formatters.MakeEventProcessors(
-		logger,
+		n.logger,
 		n.Cfg.EventProcessors,
 		ps,
 		tcs,
@@ -336,7 +344,7 @@ func (n *JetstreamInput) SetEventProcessors(ps map[string]map[string]any, logger
 
 // helper functions
 
-func (n *JetstreamInput) setDefaults() error {
+func (n *jetstreamInput) setDefaults() error {
 	if n.Cfg.Format == "" {
 		n.Cfg.Format = defaultFormat
 	}
@@ -370,7 +378,7 @@ func (n *JetstreamInput) setDefaults() error {
 	return nil
 }
 
-func (n *JetstreamInput) createNATSConn(c *Config) (*nats.Conn, error) {
+func (n *jetstreamInput) createNATSConn(c *config) (*nats.Conn, error) {
 	opts := []nats.Option{
 		nats.Name(c.Name),
 		nats.SetCustomDialer(n),
@@ -408,7 +416,7 @@ func (n *JetstreamInput) createNATSConn(c *Config) (*nats.Conn, error) {
 }
 
 // Dial //
-func (n *JetstreamInput) Dial(network, address string) (net.Conn, error) {
+func (n *jetstreamInput) Dial(network, address string) (net.Conn, error) {
 	ctx, cancel := context.WithCancel(n.ctx)
 	defer cancel()
 

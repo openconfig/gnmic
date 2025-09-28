@@ -14,11 +14,10 @@ import (
 
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
+	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/grpctunnel/tunnel"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-
-	"github.com/openconfig/gnmic/pkg/api/types"
 )
 
 func (a *App) CapPreRunE(cmd *cobra.Command, _ []string) error {

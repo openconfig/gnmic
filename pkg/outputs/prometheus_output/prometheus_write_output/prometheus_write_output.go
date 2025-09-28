@@ -65,6 +65,7 @@ func init() {
 }
 
 type promWriteOutput struct {
+	outputs.BaseOutput
 	cfg    *config
 	logger *log.Logger
 
@@ -146,17 +147,35 @@ func (p *promWriteOutput) Init(ctx context.Context, name string, cfg map[string]
 	}
 	p.logger.SetPrefix(fmt.Sprintf(loggingPrefix, p.cfg.Name))
 
+	options := &outputs.OutputOptions{}
 	for _, opt := range opts {
-		if err := opt(p); err != nil {
+		if err := opt(options); err != nil {
 			return err
 		}
 	}
 
+	// apply logger
+	if options.Logger != nil && p.logger != nil {
+		p.logger.SetOutput(options.Logger.Writer())
+		p.logger.SetFlags(options.Logger.Flags())
+	}
+
+	p.setName(options.Name)
+
+	// initialize event processors
+	err = p.setEventProcessors(options.EventProcessors, options.Logger, options.TargetsConfig, options.Actions)
+	if err != nil {
+		return err
+	}
+
+	// initialize registry
+	p.reg = options.Registry
 	err = p.registerMetrics()
 	if err != nil {
 		return err
 	}
 
+	// initialize target template
 	if p.cfg.TargetTemplate == "" {
 		p.targetTpl = outputs.DefaultTargetTemplate
 	} else if p.cfg.AddTarget != "" {
@@ -167,6 +186,7 @@ func (p *promWriteOutput) Init(ctx context.Context, name string, cfg map[string]
 		p.targetTpl = p.targetTpl.Funcs(outputs.TemplateFuncs)
 	}
 
+	// set defaults
 	err = p.setDefaults()
 	if err != nil {
 		return err
@@ -240,13 +260,6 @@ func (p *promWriteOutput) Close() error {
 	return nil
 }
 
-func (p *promWriteOutput) RegisterMetrics(reg *prometheus.Registry) {
-	if !p.cfg.EnableMetrics {
-		return
-	}
-	p.reg = reg
-}
-
 func (p *promWriteOutput) String() string {
 	b, err := json.Marshal(p.cfg)
 	if err != nil {
@@ -255,14 +268,7 @@ func (p *promWriteOutput) String() string {
 	return string(b)
 }
 
-func (p *promWriteOutput) SetLogger(logger *log.Logger) {
-	if logger != nil && p.logger != nil {
-		p.logger.SetOutput(logger.Writer())
-		p.logger.SetFlags(logger.Flags())
-	}
-}
-
-func (p *promWriteOutput) SetEventProcessors(ps map[string]map[string]interface{},
+func (p *promWriteOutput) setEventProcessors(ps map[string]map[string]interface{},
 	logger *log.Logger,
 	tcs map[string]*types.TargetConfig,
 	acts map[string]map[string]interface{}) error {
@@ -280,15 +286,11 @@ func (p *promWriteOutput) SetEventProcessors(ps map[string]map[string]interface{
 	return nil
 }
 
-func (p *promWriteOutput) SetName(name string) {
+func (p *promWriteOutput) setName(name string) {
 	if p.cfg.Name == "" {
 		p.cfg.Name = name
 	}
 }
-
-func (p *promWriteOutput) SetClusterName(_ string) {}
-
-func (p *promWriteOutput) SetTargetsConfig(map[string]*types.TargetConfig) {}
 
 //
 

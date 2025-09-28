@@ -15,9 +15,8 @@ import (
 	"reflect"
 
 	"github.com/mitchellh/mapstructure"
-	"github.com/prometheus/client_golang/prometheus"
-
 	"github.com/openconfig/gnmic/pkg/api/types"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // TargetLoader discovers a set of target configurations for gNMIc to run RPCs against.

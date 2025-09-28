@@ -145,8 +145,16 @@ func (a *App) getRequest(ctx context.Context, tc *types.TargetConfig, req *gnmi.
 	return response, nil
 }
 
+func (a *App) getModels(ctx context.Context, tc *types.TargetConfig) ([]*gnmi.ModelData, error) {
+	capRsp, err := a.ClientCapabilities(ctx, tc)
+	if err != nil {
+		return nil, err
+	}
+	return capRsp.GetSupportedModels(), nil
+}
+
 func (a *App) filterModels(ctx context.Context, tc *types.TargetConfig, modelsNames []string) (map[string]*gnmi.ModelData, []string, error) {
-	supModels, err := a.GetModels(ctx, tc)
+	supModels, err := a.getModels(ctx, tc)
 	if err != nil {
 		return nil, nil, err
 	}

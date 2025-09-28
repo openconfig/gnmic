@@ -109,7 +109,7 @@ func New(gApp *app.App) *cobra.Command {
 						out := initializer()
 						go out.Init(ctx, name, outConf,
 							outputs.WithLogger(gApp.Logger),
-							outputs.WithEventProcessors(procCfg, gApp.Logger, nil, actCfg),
+							outputs.WithEventProcessors(procCfg, actCfg),
 							outputs.WithName(gApp.Config.InstanceName),
 							outputs.WithClusterName(gApp.Config.ClusterName),
 							outputs.WithRegistry(server.reg),

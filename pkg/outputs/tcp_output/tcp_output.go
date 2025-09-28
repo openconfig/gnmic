@@ -20,8 +20,6 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/prometheus/client_golang/prometheus"
-
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
@@ -45,6 +43,7 @@ func init() {
 }
 
 type tcpOutput struct {
+	outputs.BaseOutput
 	cfg *config
 
 	cancelFn context.CancelFunc
@@ -75,14 +74,7 @@ type config struct {
 	EventProcessors    []string      `mapstructure:"event-processors,omitempty"`
 }
 
-func (t *tcpOutput) SetLogger(logger *log.Logger) {
-	if logger != nil && t.logger != nil {
-		t.logger.SetOutput(logger.Writer())
-		t.logger.SetFlags(logger.Flags())
-	}
-}
-
-func (t *tcpOutput) SetEventProcessors(ps map[string]map[string]interface{},
+func (t *tcpOutput) setEventProcessors(ps map[string]map[string]interface{},
 	logger *log.Logger,
 	tcs map[string]*types.TargetConfig,
 	acts map[string]map[string]interface{}) error {
@@ -107,10 +99,23 @@ func (t *tcpOutput) Init(ctx context.Context, name string, cfg map[string]interf
 	}
 	t.logger.SetPrefix(fmt.Sprintf(loggingPrefix, name))
 
+	options := &outputs.OutputOptions{}
 	for _, opt := range opts {
-		if err := opt(t); err != nil {
+		if err := opt(options); err != nil {
 			return err
 		}
+	}
+
+	// apply logger
+	if options.Logger != nil && t.logger != nil {
+		t.logger.SetOutput(options.Logger.Writer())
+		t.logger.SetFlags(options.Logger.Flags())
+	}
+
+	// initialize event processors
+	err = t.setEventProcessors(options.EventProcessors, options.Logger, options.TargetsConfig, options.Actions)
+	if err != nil {
+		return err
 	}
 	_, _, err = net.SplitHostPort(t.cfg.Address)
 	if err != nil {
@@ -187,7 +192,6 @@ func (t *tcpOutput) Close() error {
 	}
 	return nil
 }
-func (t *tcpOutput) RegisterMetrics(reg *prometheus.Registry) {}
 
 func (t *tcpOutput) String() string {
 	b, err := json.Marshal(t.cfg)
@@ -238,7 +242,3 @@ START:
 		}
 	}
 }
-
-func (t *tcpOutput) SetName(name string)                             {}
-func (t *tcpOutput) SetClusterName(name string)                      {}
-func (s *tcpOutput) SetTargetsConfig(map[string]*types.TargetConfig) {}

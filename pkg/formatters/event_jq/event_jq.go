@@ -17,7 +17,6 @@ import (
 
 	"github.com/itchyny/gojq"
 
-	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 )
@@ -31,6 +30,7 @@ const (
 
 // jq runs a jq expression on the received event messages
 type jq struct {
+	formatters.BaseProcessor
 	Condition  string `mapstructure:"condition,omitempty"`
 	Expression string `mapstructure:"expression,omitempty"`
 	Debug      bool   `mapstructure:"debug,omitempty"`
@@ -145,9 +145,6 @@ func (p *jq) applyExpression(input []interface{}) ([]*formatters.EventMsg, error
 	var err error
 	var evs = make([]*formatters.EventMsg, 0)
 	iter := p.expr.Run(input)
-	if err != nil {
-		return nil, err
-	}
 	for {
 		r, ok := iter.Next()
 		if !ok {
@@ -198,9 +195,3 @@ func (p *jq) WithLogger(l *log.Logger) {
 		p.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
 	}
 }
-
-func (p *jq) WithTargets(tcs map[string]*types.TargetConfig) {}
-
-func (p *jq) WithActions(act map[string]map[string]interface{}) {}
-
-func (p *jq) WithProcessors(procs map[string]map[string]any) {}

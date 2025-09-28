@@ -35,7 +35,7 @@ func (a *App) SubscribeRunPoll(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	go a.StartCollector(a.ctx)
+	go a.StartTargetsManager(a.ctx)
 
 	a.wg.Add(len(a.Config.Targets))
 	for _, tc := range a.Config.Targets {

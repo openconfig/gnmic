@@ -52,7 +52,11 @@ func (f *File) initMetrics() {
 }
 
 func (f *File) registerMetrics() error {
+	if !f.cfg.EnableMetrics {
+		return nil
+	}
 	if f.reg == nil {
+		f.logger.Printf("ERR: metrics enabled but main registry is not initialized, enable main metrics under `api-server`")
 		return nil
 	}
 	var err error
