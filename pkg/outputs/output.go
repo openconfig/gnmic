@@ -29,8 +29,12 @@ import (
 
 type Output interface {
 	Init(context.Context, string, map[string]any, ...Option) error
+	Update(context.Context, map[string]any) error
+	SetEventProcessors([]string) error
+	//
 	Write(context.Context, proto.Message, Meta)
 	WriteEvent(context.Context, *formatters.EventMsg)
+	//
 	Close() error
 	String() string
 }
@@ -46,7 +50,6 @@ var OutputTypes = map[string]struct{}{
 	"nats":             {},
 	"prometheus":       {},
 	"prometheus_write": {},
-	"stan":             {},
 	"tcp":              {},
 	"udp":              {},
 	"gnmi":             {},
@@ -61,7 +64,7 @@ func Register(name string, initFn Initializer) {
 
 type Meta map[string]string
 
-func DecodeConfig(src, dst interface{}) error {
+func DecodeConfig(src, dst any) error {
 	decoder, err := mapstructure.NewDecoder(
 		&mapstructure.DecoderConfig{
 			DecodeHook: mapstructure.StringToTimeDurationHookFunc(),
@@ -212,6 +215,14 @@ type BaseOutput struct {
 }
 
 func (b *BaseOutput) Init(context.Context, string, map[string]any, ...Option) error {
+	return nil
+}
+
+func (b *BaseOutput) Update(context.Context, map[string]any) error {
+	return nil
+}
+
+func (b *BaseOutput) SetEventProcessors([]string) error {
 	return nil
 }
 

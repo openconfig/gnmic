@@ -28,9 +28,11 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/cache"
+	"github.com/openconfig/gnmic/pkg/config/store"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
 	"github.com/openconfig/gnmic/pkg/outputs"
+	gutils "github.com/openconfig/gnmic/pkg/utils"
 )
 
 const (
@@ -75,6 +77,8 @@ type influxDBOutput struct {
 	gnmiCache   cache.Cache
 	cacheTicker *time.Ticker
 	done        chan struct{}
+
+	store store.Store[any]
 }
 
 type Config struct {
@@ -108,6 +112,32 @@ func (k *influxDBOutput) String() string {
 	return string(b)
 }
 
+func (i *influxDBOutput) setEventProcessors(logger *log.Logger) error {
+	tcs, ps, acts, err := gutils.GetConfigMaps(i.store)
+	if err != nil {
+		return err
+	}
+
+	i.evps, err = formatters.MakeEventProcessors(
+		logger,
+		i.Cfg.EventProcessors,
+		ps,
+		tcs,
+		acts,
+	)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (i *influxDBOutput) setLogger(logger *log.Logger) {
+	if logger != nil && i.logger != nil {
+		i.logger.SetOutput(logger.Writer())
+		i.logger.SetFlags(logger.Flags())
+	}
+}
+
 func (i *influxDBOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
 	err := outputs.DecodeConfig(cfg, i.Cfg)
 	if err != nil {
@@ -122,18 +152,16 @@ func (i *influxDBOutput) Init(ctx context.Context, name string, cfg map[string]i
 		}
 	}
 
+	i.store = options.Store
+
 	// apply logger
-	if options.Logger != nil && i.logger != nil {
-		i.logger.SetOutput(options.Logger.Writer())
-		i.logger.SetFlags(options.Logger.Flags())
-	}
+	i.setLogger(options.Logger)
 
 	// set defaults
 	i.setDefaults()
 
 	// initialize event processors
-	i.evps, err = formatters.MakeEventProcessors(i.logger, i.Cfg.EventProcessors,
-		options.EventProcessors, options.TargetsConfig, options.Actions)
+	err = i.setEventProcessors(options.Logger)
 	if err != nil {
 		return err
 	}

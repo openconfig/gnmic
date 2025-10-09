@@ -12,8 +12,11 @@ import (
 	"context"
 	"log"
 
-	"github.com/openconfig/gnmic/pkg/api/types"
+	"github.com/openconfig/gnmic/pkg/config/store"
+	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/outputs"
+	"github.com/openconfig/gnmic/pkg/pipeline"
+	"google.golang.org/protobuf/proto"
 )
 
 type Input interface {
@@ -25,7 +28,6 @@ type Initializer func() Input
 
 var InputTypes = []string{
 	"nats",
-	"stan",
 	"kafka",
 	"jetstream",
 }
@@ -37,12 +39,18 @@ func Register(name string, initFn Initializer) {
 }
 
 type InputOptions struct {
-	Logger          *log.Logger
-	Outputs         map[string]outputs.Output
-	Name            string
-	EventProcessors map[string]map[string]any
-	Targets         map[string]*types.TargetConfig
-	Actions         map[string]map[string]any
+	Logger   *log.Logger
+	Outputs  map[string]outputs.Output
+	Name     string
+	Store    store.Store[any]
+	Pipeline chan *pipeline.Msg
+}
+
+type PipeMessage interface {
+	Proto() proto.Message
+	Meta() outputs.Meta
+	Events() []*formatters.EventMsg
+	Outputs() map[string]struct{}
 }
 
 type Option func(*InputOptions) error
@@ -68,17 +76,16 @@ func WithName(name string) Option {
 	}
 }
 
-func WithEventProcessors(eps map[string]map[string]any, acts map[string]map[string]any) Option {
+func WithConfigStore(st store.Store[any]) Option {
 	return func(i *InputOptions) error {
-		i.EventProcessors = eps
-		i.Actions = acts
+		i.Store = st
 		return nil
 	}
 }
 
-func WithTargets(tcs map[string]*types.TargetConfig) Option {
+func WithPipeline(pipeline chan *pipeline.Msg) Option {
 	return func(i *InputOptions) error {
-		i.Targets = tcs
+		i.Pipeline = pipeline
 		return nil
 	}
 }

@@ -27,9 +27,12 @@ import (
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
+	"github.com/openconfig/gnmic/pkg/config/store"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/inputs"
 	"github.com/openconfig/gnmic/pkg/outputs"
+	"github.com/openconfig/gnmic/pkg/pipeline"
+	pkgutils "github.com/openconfig/gnmic/pkg/utils"
 )
 
 const (
@@ -70,9 +73,10 @@ func toJSDeliverPolicy(dp deliverPolicy) jetstream.DeliverPolicy {
 func init() {
 	inputs.Register("jetstream", func() inputs.Input {
 		return &jetstreamInput{
-			Cfg:    &config{},
-			logger: log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
-			wg:     new(sync.WaitGroup),
+			Cfg:        &config{},
+			logger:     log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
+			wg:         new(sync.WaitGroup),
+			outputsMap: make(map[string]struct{}),
 		}
 	})
 }
@@ -84,9 +88,12 @@ type jetstreamInput struct {
 	cfn    context.CancelFunc
 	logger *log.Logger
 
-	wg      *sync.WaitGroup
-	outputs []outputs.Output
-	evps    []formatters.EventProcessor
+	wg         *sync.WaitGroup
+	outputs    []outputs.Output
+	evps       []formatters.EventProcessor
+	store      store.Store[any]
+	pipeline   chan *pipeline.Msg
+	outputsMap map[string]struct{}
 }
 
 type subjectFormat string
@@ -135,16 +142,21 @@ func (n *jetstreamInput) Start(ctx context.Context, name string, cfg map[string]
 			return err
 		}
 	}
+	n.store = options.Store
+	n.pipeline = options.Pipeline
 	n.setLogger(options.Logger)
 	n.setName(options.Name)
 	n.setOutputs(options.Outputs)
-	err = n.setEventProcessors(options.EventProcessors, options.Targets, options.Actions)
+	err = n.setEventProcessors(options.Logger)
 	if err != nil {
 		return err
 	}
 	err = n.setDefaults()
 	if err != nil {
 		return err
+	}
+	for _, oname := range n.Cfg.Outputs {
+		n.outputsMap[oname] = struct{}{}
 	}
 	n.ctx, n.cfn = context.WithCancel(ctx)
 	n.logger.Printf("input starting with config: %+v", n.Cfg)
@@ -265,13 +277,20 @@ func (n *jetstreamInput) msgHandler(msg jetstream.Msg) {
 			evMsgs = p.Apply(evMsgs...)
 		}
 
-		go func() {
-			for _, o := range n.outputs {
-				for _, ev := range evMsgs {
-					o.WriteEvent(n.ctx, ev)
-				}
+		if n.pipeline != nil {
+			n.pipeline <- &pipeline.Msg{
+				Events:  evMsgs,
+				Outputs: n.outputsMap,
 			}
-		}()
+		} else {
+			go func() {
+				for _, o := range n.outputs {
+					for _, ev := range evMsgs {
+						o.WriteEvent(n.ctx, ev)
+					}
+				}
+			}()
+		}
 	case "proto":
 		var protoMsg = &gnmi.SubscribeResponse{}
 		err := proto.Unmarshal(msg.Data(), protoMsg)
@@ -281,12 +300,19 @@ func (n *jetstreamInput) msgHandler(msg jetstream.Msg) {
 			}
 			return
 		}
-
-		go func() {
-			for _, o := range n.outputs {
-				o.Write(n.ctx, protoMsg, n.getMetaFromSubject(msg.Subject()))
+		if n.pipeline != nil {
+			n.pipeline <- &pipeline.Msg{
+				Msg:     protoMsg,
+				Meta:    n.getMetaFromSubject(msg.Subject()),
+				Outputs: n.outputsMap,
 			}
-		}()
+		} else {
+			go func() {
+				for _, o := range n.outputs {
+					o.Write(n.ctx, protoMsg, n.getMetaFromSubject(msg.Subject()))
+				}
+			}()
+		}
 	default:
 		n.logger.Printf("unsupported format: %s", n.Cfg.Format)
 	}
@@ -352,8 +378,12 @@ func (n *jetstreamInput) setName(name string) {
 	n.Cfg.Name = sb.String()
 }
 
-func (n *jetstreamInput) setEventProcessors(ps map[string]map[string]any, tcs map[string]*types.TargetConfig, acts map[string]map[string]any) error {
-	var err error
+func (n *jetstreamInput) setEventProcessors(logger *log.Logger) error {
+	tcs, ps, acts, err := pkgutils.GetConfigMaps(n.store)
+	if err != nil {
+		return err
+	}
+
 	n.evps, err = formatters.MakeEventProcessors(
 		n.logger,
 		n.Cfg.EventProcessors,

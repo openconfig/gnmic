@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
@@ -151,12 +152,12 @@ type TargetConfig struct {
 	Metadata         map[string]string `mapstructure:"metadata,omitempty" yaml:"metadata,omitempty" json:"metadata,omitempty"`
 	CipherSuites     []string          `mapstructure:"cipher-suites,omitempty" yaml:"cipher-suites,omitempty" json:"cipher-suites,omitempty"`
 	TCPKeepalive     time.Duration     `mapstructure:"tcp-keepalive,omitempty" yaml:"tcp-keepalive,omitempty" json:"tcp-keepalive,omitempty"`
-	GRPCKeepalive    *clientKeepalive  `mapstructure:"grpc-keepalive,omitempty" yaml:"grpc-keepalive,omitempty" json:"grpc-keepalive,omitempty"`
+	GRPCKeepalive    *ClientKeepalive  `mapstructure:"grpc-keepalive,omitempty" yaml:"grpc-keepalive,omitempty" json:"grpc-keepalive,omitempty"`
 
 	tlsConfig *tls.Config
 }
 
-type clientKeepalive struct {
+type ClientKeepalive struct {
 	Time                time.Duration `mapstructure:"time,omitempty"`
 	Timeout             time.Duration `mapstructure:"timeout,omitempty"`
 	PermitWithoutStream bool          `mapstructure:"permit-without-stream,omitempty"`
@@ -250,7 +251,7 @@ func (tc *TargetConfig) DeepCopy() *TargetConfig {
 		tc.Metadata[k] = v
 	}
 	if tc.GRPCKeepalive != nil {
-		ntc.GRPCKeepalive = &clientKeepalive{
+		ntc.GRPCKeepalive = &ClientKeepalive{
 			Time:                tc.GRPCKeepalive.Time,
 			Timeout:             tc.GRPCKeepalive.Timeout,
 			PermitWithoutStream: tc.GRPCKeepalive.PermitWithoutStream,
@@ -456,4 +457,71 @@ func tlsVersionStringToUint(v string) uint16 {
 	case "1.0", "1":
 		return tls.VersionTLS10
 	}
+}
+
+func (tc *TargetConfig) Equal(other *TargetConfig) bool {
+	if tc == other {
+		return true
+	}
+	if tc == nil || other == nil {
+		return false
+	}
+
+	sliceEq := func(a, b []string) bool {
+		if len(a) == 0 && len(b) == 0 {
+			return true
+		}
+		return reflect.DeepEqual(a, b)
+	}
+
+	mapEq := func(a, b map[string]string) bool {
+		if len(a) == 0 && len(b) == 0 {
+			return true
+		}
+		return reflect.DeepEqual(a, b)
+	}
+
+	ptrEq := func(a, b any) bool {
+		if a == nil && b == nil {
+			return true
+		}
+		if a == nil || b == nil {
+			return false
+		}
+		return reflect.DeepEqual(a, b)
+	}
+
+	return tc.Name == other.Name &&
+		tc.Address == other.Address &&
+		ptrEq(tc.Username, other.Username) &&
+		ptrEq(tc.Password, other.Password) &&
+		tc.AuthScheme == other.AuthScheme &&
+		tc.Timeout == other.Timeout &&
+		ptrEq(tc.Insecure, other.Insecure) &&
+		ptrEq(tc.TLSCA, other.TLSCA) &&
+		ptrEq(tc.TLSCert, other.TLSCert) &&
+		ptrEq(tc.TLSKey, other.TLSKey) &&
+		ptrEq(tc.SkipVerify, other.SkipVerify) &&
+		tc.TLSServerName == other.TLSServerName &&
+		sliceEq(tc.Subscriptions, other.Subscriptions) &&
+		sliceEq(tc.Outputs, other.Outputs) &&
+		tc.BufferSize == other.BufferSize &&
+		tc.RetryTimer == other.RetryTimer &&
+		tc.TLSMinVersion == other.TLSMinVersion &&
+		tc.TLSMaxVersion == other.TLSMaxVersion &&
+		tc.TLSVersion == other.TLSVersion &&
+		ptrEq(tc.LogTLSSecret, other.LogTLSSecret) &&
+		sliceEq(tc.ProtoFiles, other.ProtoFiles) &&
+		sliceEq(tc.ProtoDirs, other.ProtoDirs) &&
+		sliceEq(tc.Tags, other.Tags) &&
+		mapEq(tc.EventTags, other.EventTags) &&
+		ptrEq(tc.Gzip, other.Gzip) &&
+		ptrEq(tc.Token, other.Token) &&
+		tc.Proxy == other.Proxy &&
+		tc.TunnelTargetType == other.TunnelTargetType &&
+		ptrEq(tc.Encoding, other.Encoding) &&
+		mapEq(tc.Metadata, other.Metadata) &&
+		sliceEq(tc.CipherSuites, other.CipherSuites) &&
+		tc.TCPKeepalive == other.TCPKeepalive &&
+		reflect.DeepEqual(tc.GRPCKeepalive, other.GRPCKeepalive)
 }

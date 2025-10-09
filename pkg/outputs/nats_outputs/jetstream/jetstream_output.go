@@ -31,9 +31,11 @@ import (
 
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
+	"github.com/openconfig/gnmic/pkg/config/store"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
 	"github.com/openconfig/gnmic/pkg/outputs"
+	gutils "github.com/openconfig/gnmic/pkg/utils"
 )
 
 const (
@@ -119,7 +121,8 @@ type jetstreamOutput struct {
 	targetTpl *template.Template
 	msgTpl    *template.Template
 
-	reg *prometheus.Registry
+	reg   *prometheus.Registry
+	store store.Store[any]
 }
 
 func (n *jetstreamOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
@@ -139,6 +142,8 @@ func (n *jetstreamOutput) Init(ctx context.Context, name string, cfg map[string]
 		}
 	}
 
+	n.store = options.Store
+
 	// set defaults
 	err = n.setDefaults()
 	if err != nil {
@@ -146,10 +151,7 @@ func (n *jetstreamOutput) Init(ctx context.Context, name string, cfg map[string]
 	}
 
 	// apply logger
-	if options.Logger != nil && n.logger != nil {
-		n.logger.SetOutput(options.Logger.Writer())
-		n.logger.SetFlags(options.Logger.Flags())
-	}
+	n.setLogger(options.Logger)
 
 	// initialize registry
 	n.reg = options.Registry
@@ -159,7 +161,7 @@ func (n *jetstreamOutput) Init(ctx context.Context, name string, cfg map[string]
 	}
 
 	// initialize event processors
-	err = n.setEventProcessors(options.EventProcessors, n.logger, options.TargetsConfig, options.Actions)
+	err = n.setEventProcessors(options.Logger)
 	if err != nil {
 		return err
 	}
@@ -309,11 +311,12 @@ func (n *jetstreamOutput) String() string {
 	return string(b)
 }
 
-func (n *jetstreamOutput) setEventProcessors(ps map[string]map[string]interface{},
-	logger *log.Logger,
-	tcs map[string]*types.TargetConfig,
-	acts map[string]map[string]interface{}) error {
-	var err error
+func (n *jetstreamOutput) setEventProcessors(logger *log.Logger) error {
+
+	tcs, ps, acts, err := gutils.GetConfigMaps(n.store)
+	if err != nil {
+		return err
+	}
 	n.evps, err = formatters.MakeEventProcessors(
 		logger,
 		n.Cfg.EventProcessors,
@@ -325,6 +328,13 @@ func (n *jetstreamOutput) setEventProcessors(ps map[string]map[string]interface{
 		return err
 	}
 	return nil
+}
+
+func (n *jetstreamOutput) setLogger(logger *log.Logger) {
+	if logger != nil && n.logger != nil {
+		n.logger.SetOutput(logger.Writer())
+		n.logger.SetFlags(logger.Flags())
+	}
 }
 
 func (n *jetstreamOutput) SetName(name string) {

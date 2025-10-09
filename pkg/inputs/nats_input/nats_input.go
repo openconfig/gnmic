@@ -25,9 +25,11 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
+	"github.com/openconfig/gnmic/pkg/config/store"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/inputs"
 	"github.com/openconfig/gnmic/pkg/outputs"
+	gutils "github.com/openconfig/gnmic/pkg/utils"
 )
 
 const (
@@ -61,6 +63,7 @@ type natsInput struct {
 	wg      *sync.WaitGroup
 	outputs []outputs.Output
 	evps    []formatters.EventProcessor
+	store   store.Store[any]
 }
 
 // config //
@@ -97,10 +100,12 @@ func (n *natsInput) Start(ctx context.Context, name string, cfg map[string]any, 
 			return err
 		}
 	}
+	n.store = options.Store
 	n.setName(options.Name)
 	n.setLogger(options.Logger)
 	n.setOutputs(options.Outputs)
-	err = n.setEventProcessors(options.EventProcessors, options.Actions)
+
+	err = n.setEventProcessors(options.Logger)
 	if err != nil {
 		return err
 	}
@@ -251,13 +256,16 @@ func (n *natsInput) setName(name string) {
 	n.Cfg.Name = sb.String()
 }
 
-func (n *natsInput) setEventProcessors(ps map[string]map[string]interface{}, acts map[string]map[string]interface{}) error {
-	var err error
+func (n *natsInput) setEventProcessors(logger *log.Logger) error {
+	tcs, ps, acts, err := gutils.GetConfigMaps(n.store)
+	if err != nil {
+		return err
+	}
 	n.evps, err = formatters.MakeEventProcessors(
 		n.logger,
 		n.Cfg.EventProcessors,
 		ps,
-		nil,
+		tcs,
 		acts,
 	)
 	if err != nil {

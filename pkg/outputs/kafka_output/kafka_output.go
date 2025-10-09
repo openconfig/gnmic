@@ -28,6 +28,7 @@ import (
 
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
+	"github.com/openconfig/gnmic/pkg/config/store"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
 	"github.com/openconfig/gnmic/pkg/outputs"
@@ -74,7 +75,8 @@ type kafkaOutput struct {
 	targetTpl *template.Template
 	msgTpl    *template.Template
 
-	reg *prometheus.Registry
+	reg   *prometheus.Registry
+	store store.Store[any]
 }
 
 // config //
@@ -115,6 +117,25 @@ func (k *kafkaOutput) String() string {
 	return string(b)
 }
 
+func (k *kafkaOutput) setEventProcessors(logger *log.Logger) error {
+	tcs, ps, acts, err := pkgutils.GetConfigMaps(k.store)
+	if err != nil {
+		return err
+	}
+
+	k.evps, err = formatters.MakeEventProcessors(
+		logger,
+		k.cfg.EventProcessors,
+		ps,
+		tcs,
+		acts,
+	)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // Init /
 func (k *kafkaOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
 	err := outputs.DecodeConfig(cfg, k.cfg)
@@ -131,6 +152,7 @@ func (k *kafkaOutput) Init(ctx context.Context, name string, cfg map[string]inte
 			return err
 		}
 	}
+	k.store = options.Store
 	if options.Logger != nil {
 		sarama.Logger = log.New(options.Logger.Writer(), loggingPrefix, options.Logger.Flags())
 		k.logger = sarama.Logger
@@ -149,8 +171,7 @@ func (k *kafkaOutput) Init(ctx context.Context, name string, cfg map[string]inte
 		return err
 	}
 	// initialize event processors
-	k.evps, err = formatters.MakeEventProcessors(options.Logger, k.cfg.EventProcessors,
-		options.EventProcessors, options.TargetsConfig, options.Actions)
+	err = k.setEventProcessors(options.Logger)
 	if err != nil {
 		return err
 	}

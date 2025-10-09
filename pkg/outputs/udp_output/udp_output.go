@@ -20,11 +20,12 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
+	"github.com/openconfig/gnmic/pkg/config/store"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
 	"github.com/openconfig/gnmic/pkg/outputs"
+	gutils "github.com/openconfig/gnmic/pkg/utils"
 )
 
 const (
@@ -34,14 +35,14 @@ const (
 
 func init() {
 	outputs.Register("udp", func() outputs.Output {
-		return &UDPSock{
+		return &udpSock{
 			Cfg:    &Config{},
 			logger: log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
 		}
 	})
 }
 
-type UDPSock struct {
+type udpSock struct {
 	outputs.BaseOutput
 	Cfg *Config
 
@@ -54,6 +55,7 @@ type UDPSock struct {
 	evps     []formatters.EventProcessor
 
 	targetTpl *template.Template
+	store     store.Store[any]
 }
 
 type Config struct {
@@ -70,11 +72,11 @@ type Config struct {
 	EventProcessors    []string      `mapstructure:"event-processors,omitempty"`
 }
 
-func (u *UDPSock) setEventProcessors(ps map[string]map[string]interface{},
-	logger *log.Logger,
-	tcs map[string]*types.TargetConfig,
-	acts map[string]map[string]interface{}) error {
-	var err error
+func (u *udpSock) setEventProcessors(logger *log.Logger) error {
+	tcs, ps, acts, err := gutils.GetConfigMaps(u.store)
+	if err != nil {
+		return err
+	}
 	u.evps, err = formatters.MakeEventProcessors(
 		logger,
 		u.Cfg.EventProcessors,
@@ -88,7 +90,7 @@ func (u *UDPSock) setEventProcessors(ps map[string]map[string]interface{},
 	return nil
 }
 
-func (u *UDPSock) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
+func (u *udpSock) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
 	err := outputs.DecodeConfig(cfg, u.Cfg)
 	if err != nil {
 		return err
@@ -102,6 +104,7 @@ func (u *UDPSock) Init(ctx context.Context, name string, cfg map[string]interfac
 		}
 	}
 
+	u.store = options.Store
 	// apply logger
 	if options.Logger != nil && u.logger != nil {
 		u.logger.SetOutput(options.Logger.Writer())
@@ -109,7 +112,7 @@ func (u *UDPSock) Init(ctx context.Context, name string, cfg map[string]interfac
 	}
 
 	// initialize event processors
-	err = u.setEventProcessors(options.EventProcessors, options.Logger, options.TargetsConfig, options.Actions)
+	err = u.setEventProcessors(options.Logger)
 	if err != nil {
 		return err
 	}
@@ -147,7 +150,7 @@ func (u *UDPSock) Init(ctx context.Context, name string, cfg map[string]interfac
 	return nil
 }
 
-func (u *UDPSock) Write(ctx context.Context, m proto.Message, meta outputs.Meta) {
+func (u *udpSock) Write(ctx context.Context, m proto.Message, meta outputs.Meta) {
 	if m == nil {
 		return
 	}
@@ -171,9 +174,9 @@ func (u *UDPSock) Write(ctx context.Context, m proto.Message, meta outputs.Meta)
 	}
 }
 
-func (u *UDPSock) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {}
+func (u *udpSock) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {}
 
-func (u *UDPSock) Close() error {
+func (u *udpSock) Close() error {
 	u.cancelFn()
 	if u.limiter != nil {
 		u.limiter.Stop()
@@ -181,7 +184,7 @@ func (u *UDPSock) Close() error {
 	return nil
 }
 
-func (u *UDPSock) String() string {
+func (u *udpSock) String() string {
 	b, err := json.Marshal(u)
 	if err != nil {
 		return ""
@@ -189,7 +192,7 @@ func (u *UDPSock) String() string {
 	return string(b)
 }
 
-func (u *UDPSock) start(ctx context.Context) {
+func (u *udpSock) start(ctx context.Context) {
 	var udpAddr *net.UDPAddr
 	var err error
 	defer u.Close()

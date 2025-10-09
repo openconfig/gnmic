@@ -29,12 +29,9 @@ func (a *App) InitInput(ctx context.Context, name string, tcs map[string]*types.
 				go func() {
 					err := in.Start(ctx, name, cfg,
 						inputs.WithLogger(a.Logger),
-						inputs.WithEventProcessors(
-							a.Config.Processors,
-							a.Config.Actions,
-						),
 						inputs.WithName(a.Config.InstanceName),
 						inputs.WithOutputs(a.Outputs),
+						inputs.WithConfigStore(a.Store),
 					)
 					if err != nil {
 						a.Logger.Printf("failed to init input type %q: %v", inputType, err)

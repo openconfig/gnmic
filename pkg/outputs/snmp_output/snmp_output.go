@@ -26,12 +26,13 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/openconfig/gnmic/pkg/api/path"
-	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/cache"
+	"github.com/openconfig/gnmic/pkg/config/store"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
 	"github.com/openconfig/gnmic/pkg/outputs"
+	gutils "github.com/openconfig/gnmic/pkg/utils"
 )
 
 const (
@@ -68,7 +69,8 @@ type snmpOutput struct {
 	cache     cache.Cache
 	startTime time.Time
 
-	reg *prometheus.Registry
+	reg   *prometheus.Registry
+	store store.Store[any]
 }
 
 type Config struct {
@@ -100,12 +102,13 @@ type trap struct {
 	Bindings  []*binding `mapstructure:"bindings,omitempty" json:"bindings,omitempty"`
 }
 
-func (s *snmpOutput) setEventProcessors(ps map[string]map[string]interface{},
-	tcs map[string]*types.TargetConfig,
-	acts map[string]map[string]interface{}) error {
-	var err error
+func (s *snmpOutput) setEventProcessors(logger *log.Logger) error {
+	tcs, ps, acts, err := gutils.GetConfigMaps(s.store)
+	if err != nil {
+		return err
+	}
 	s.evps, err = formatters.MakeEventProcessors(
-		s.logger,
+		logger,
 		s.cfg.EventProcessors,
 		ps,
 		tcs,
@@ -117,6 +120,12 @@ func (s *snmpOutput) setEventProcessors(ps map[string]map[string]interface{},
 	return nil
 }
 
+func (s *snmpOutput) setLogger(logger *log.Logger) {
+	if logger != nil && s.logger != nil {
+		s.logger.SetOutput(logger.Writer())
+		s.logger.SetFlags(logger.Flags())
+	}
+}
 func (s *snmpOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
 	s.name = name
 	err := outputs.DecodeConfig(cfg, s.cfg)
@@ -132,11 +141,10 @@ func (s *snmpOutput) Init(ctx context.Context, name string, cfg map[string]inter
 		}
 	}
 
+	s.store = options.Store
+
 	// apply logger
-	if options.Logger != nil && s.logger != nil {
-		s.logger.SetOutput(options.Logger.Writer())
-		s.logger.SetFlags(options.Logger.Flags())
-	}
+	s.setLogger(options.Logger)
 
 	s.setDefaults()
 
@@ -144,7 +152,7 @@ func (s *snmpOutput) Init(ctx context.Context, name string, cfg map[string]inter
 		return errors.New("missing traps definition")
 	}
 
-	err = s.setEventProcessors(options.EventProcessors, options.TargetsConfig, options.Actions)
+	err = s.setEventProcessors(options.Logger)
 	if err != nil {
 		return err
 	}
