@@ -34,10 +34,12 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/cache"
+	"github.com/openconfig/gnmic/pkg/config/store"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	promcom "github.com/openconfig/gnmic/pkg/outputs/prometheus_output"
+	gutils "github.com/openconfig/gnmic/pkg/utils"
 )
 
 const (
@@ -86,7 +88,8 @@ type prometheusOutput struct {
 	gnmiCache   cache.Cache
 	targetsMeta *ttlcache.Cache[string, outputs.Meta]
 
-	reg *prometheus.Registry
+	reg   *prometheus.Registry
+	store store.Store[any]
 }
 
 type config struct {
@@ -123,6 +126,31 @@ func (p *prometheusOutput) String() string {
 	return string(b)
 }
 
+func (p *prometheusOutput) setEventProcessors(logger *log.Logger) error {
+	tcs, ps, acts, err := gutils.GetConfigMaps(p.store)
+	if err != nil {
+		return err
+	}
+	p.evps, err = formatters.MakeEventProcessors(
+		logger,
+		p.cfg.EventProcessors,
+		ps,
+		tcs,
+		acts,
+	)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (p *prometheusOutput) setLogger(logger *log.Logger) {
+	if logger != nil && p.logger != nil {
+		p.logger.SetOutput(logger.Writer())
+		p.logger.SetFlags(logger.Flags())
+	}
+}
+
 func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
 	err := outputs.DecodeConfig(cfg, p.cfg)
 	if err != nil {
@@ -141,11 +169,10 @@ func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string
 		}
 	}
 
+	p.store = options.Store
+
 	// apply logger
-	if options.Logger != nil && p.logger != nil {
-		p.logger.SetOutput(options.Logger.Writer())
-		p.logger.SetFlags(options.Logger.Flags())
-	}
+	p.setLogger(options.Logger)
 
 	// initialize target template
 	if p.cfg.TargetTemplate == "" {
@@ -173,8 +200,7 @@ func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string
 	p.setName(options.Name)
 	p.setClusterName(options.ClusterName)
 	// initialize event processors
-	p.evps, err = formatters.MakeEventProcessors(options.Logger, p.cfg.EventProcessors,
-		options.EventProcessors, options.TargetsConfig, options.Actions)
+	err = p.setEventProcessors(options.Logger)
 	if err != nil {
 		return err
 	}
@@ -259,10 +285,6 @@ func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string
 	}()
 	go p.registerService(wctx)
 	p.logger.Printf("initialized prometheus output: %s", p.String())
-	go func() {
-		<-ctx.Done()
-		p.Close()
-	}()
 	return nil
 }
 

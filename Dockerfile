@@ -7,10 +7,18 @@
 # SPDX-License-Identifier: Apache-2.0
 
 FROM golang:1.24.7 AS builder
-ADD . /build
+
 WORKDIR /build
+
+COPY go.mod go.sum /build/
+COPY pkg/api/go.mod pkg/api/go.sum /build/pkg/api/
+COPY pkg/cache/go.mod pkg/cache/go.sum /build/pkg/cache/
+RUN go mod download
+
+ADD . /build
+
 #RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o gnmic .
-RUN CGO_ENABLED=0 go build -o gnmic .
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o gnmic .
 
 FROM alpine
 LABEL org.opencontainers.image.source=https://github.com/openconfig/gnmic

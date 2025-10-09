@@ -27,9 +27,11 @@ import (
 
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
+	"github.com/openconfig/gnmic/pkg/config/store"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
 	"github.com/openconfig/gnmic/pkg/outputs"
+	gutils "github.com/openconfig/gnmic/pkg/utils"
 )
 
 const (
@@ -68,7 +70,8 @@ type NatsOutput struct {
 	targetTpl *template.Template
 	msgTpl    *template.Template
 
-	reg *prometheus.Registry
+	reg   *prometheus.Registry
+	store store.Store[any]
 }
 
 // Config //
@@ -103,6 +106,31 @@ func (n *NatsOutput) String() string {
 	return string(b)
 }
 
+func (n *NatsOutput) setEventProcessors(logger *log.Logger) error {
+	tcs, ps, acts, err := gutils.GetConfigMaps(n.store)
+	if err != nil {
+		return err
+	}
+	n.evps, err = formatters.MakeEventProcessors(
+		logger,
+		n.Cfg.EventProcessors,
+		ps,
+		tcs,
+		acts,
+	)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (n *NatsOutput) setLogger(logger *log.Logger) {
+	if logger != nil && n.logger != nil {
+		n.logger.SetOutput(logger.Writer())
+		n.logger.SetFlags(logger.Flags())
+	}
+}
+
 // Init //
 func (n *NatsOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
 	err := outputs.DecodeConfig(cfg, n.Cfg)
@@ -120,7 +148,7 @@ func (n *NatsOutput) Init(ctx context.Context, name string, cfg map[string]inter
 			return err
 		}
 	}
-
+	n.store = options.Store
 	// set defaults
 	n.setName(options.Name)
 	err = n.setDefaults()
@@ -129,10 +157,7 @@ func (n *NatsOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	}
 
 	// apply logger
-	if options.Logger != nil && n.logger != nil {
-		n.logger.SetOutput(options.Logger.Writer())
-		n.logger.SetFlags(options.Logger.Flags())
-	}
+	n.setLogger(options.Logger)
 
 	// initialize registry
 	n.reg = options.Registry
@@ -142,8 +167,7 @@ func (n *NatsOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	}
 
 	// initialize event processors
-	n.evps, err = formatters.MakeEventProcessors(options.Logger, n.Cfg.EventProcessors,
-		options.EventProcessors, options.TargetsConfig, options.Actions)
+	err = n.setEventProcessors(options.Logger)
 	if err != nil {
 		return err
 	}

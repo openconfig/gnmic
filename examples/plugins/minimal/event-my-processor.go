@@ -18,6 +18,7 @@ const (
 )
 
 type myProcessor struct {
+	formatters.BaseProcessor
 	// TODO: Add your config struct fields here
 }
 
@@ -38,6 +39,10 @@ func (p *myProcessor) Init(cfg interface{}, opts ...formatters.Option) error {
 func (p *myProcessor) Apply(event ...*formatters.EventMsg) []*formatters.EventMsg {
 	// TODO: The processor's logic is applied here
 	return event
+}
+
+func (p *myProcessor) Close() error {
+	return nil
 }
 
 func (p *myProcessor) WithActions(act map[string]map[string]interface{}) {

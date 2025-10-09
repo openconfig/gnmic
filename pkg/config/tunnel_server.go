@@ -23,7 +23,7 @@ const (
 	defaultTargetWaitTime = 2 * time.Second
 )
 
-type tunnelServer struct {
+type TunnelServer struct {
 	Address string `mapstructure:"address,omitempty" json:"address,omitempty"`
 	// TLS
 	TLS *types.TLSConfig `mapstructure:"tls,omitempty"`
@@ -51,7 +51,7 @@ func (c *Config) GetTunnelServer() error {
 	if !c.FileConfig.IsSet("tunnel-server") {
 		return nil
 	}
-	c.TunnelServer = new(tunnelServer)
+	c.TunnelServer = new(TunnelServer)
 	c.TunnelServer.Address = os.ExpandEnv(c.FileConfig.GetString("tunnel-server/address"))
 
 	if c.FileConfig.IsSet("tunnel-server/tls") {

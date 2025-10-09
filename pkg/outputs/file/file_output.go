@@ -25,6 +25,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/openconfig/gnmic/pkg/api/utils"
+	"github.com/openconfig/gnmic/pkg/config/store"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
 	"github.com/openconfig/gnmic/pkg/outputs"
@@ -69,7 +70,8 @@ type File struct {
 	targetTpl *template.Template
 	msgTpl    *template.Template
 
-	reg *prometheus.Registry
+	reg   *prometheus.Registry
+	store store.Store[any]
 }
 
 // config //
@@ -145,7 +147,7 @@ func (f *File) setDefaults(cfg *config) error {
 }
 
 // Init //
-func (f *File) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
+func (f *File) Init(ctx context.Context, name string, cfg map[string]any, opts ...outputs.Option) error {
 	f.m.Lock()
 	defer f.m.Unlock()
 
@@ -165,20 +167,13 @@ func (f *File) Init(ctx context.Context, name string, cfg map[string]interface{}
 		}
 	}
 
+	f.store = options.Store
+
 	// apply logger
-	if options.Logger != nil && f.logger != nil {
-		f.logger.SetOutput(options.Logger.Writer())
-		f.logger.SetFlags(options.Logger.Flags())
-	}
+	f.setLogger(options.Logger)
 
 	// initialize event processors
-	f.evps, err = formatters.MakeEventProcessors(
-		f.logger,
-		f.cfg.EventProcessors,
-		options.EventProcessors,
-		options.TargetsConfig,
-		options.Actions,
-	)
+	err = f.setEventProcessors(options.Logger)
 	if err != nil {
 		return err
 	}
@@ -254,6 +249,34 @@ func (f *File) init(name string) error {
 		f.msgTpl = f.msgTpl.Funcs(outputs.TemplateFuncs)
 	}
 
+	return nil
+}
+
+func (f *File) Update(ctx context.Context, cfg map[string]any) error {
+	f.m.Lock()
+	defer f.m.Unlock()
+
+	err := outputs.DecodeConfig(cfg, f.cfg)
+	if err != nil {
+		return err
+	}
+
+	err = f.setDefaults(f.cfg)
+	if err != nil {
+		return err
+	}
+
+	err = f.close()
+	if err != nil {
+		return err
+	}
+
+	err = f.init(f.cfg.Name)
+	if err != nil {
+		return err
+	}
+
+	f.logger.Printf("updated file output: %s", f.String())
 	return nil
 }
 

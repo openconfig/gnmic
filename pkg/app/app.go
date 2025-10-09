@@ -43,6 +43,7 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/cache"
 	"github.com/openconfig/gnmic/pkg/config"
+	"github.com/openconfig/gnmic/pkg/config/store"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/formatters/plugin_manager"
 	"github.com/openconfig/gnmic/pkg/inputs"
@@ -67,6 +68,7 @@ type App struct {
 	//
 	configLock *sync.RWMutex
 	Config     *config.Config
+	Store      store.Store[any]
 	// collector
 	dialOpts      []grpc.DialOption
 	operLock      *sync.RWMutex
@@ -125,6 +127,7 @@ func New() *App {
 		RootCmd:    new(cobra.Command),
 		sem:        semaphore.NewWeighted(1),
 		configLock: new(sync.RWMutex),
+		Store:      store.NewMemStore[any](),
 		Config:     config.New(),
 		reg:        prometheus.NewRegistry(),
 		//
@@ -227,6 +230,13 @@ func (a *App) InitGlobalFlags() {
 }
 
 func (a *App) PreRunE(cmd *cobra.Command, args []string) error {
+	err := a.Config.ToStore(a.Store)
+	if err != nil {
+		return err
+	}
+	if a.Config.Debug {
+		fmt.Println(a.Store.Dump())
+	}
 	if a.Config.EnablePprof {
 		_, _, err := net.SplitHostPort(a.Config.GlobalFlags.PprofAddr)
 		if err != nil {

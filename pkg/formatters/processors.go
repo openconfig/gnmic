@@ -44,7 +44,11 @@ var EventProcessorTypes = []string{
 	"event-trigger",
 	"event-value-tag",
 	"event-value-tag-v2",
-	"event-write",
+	"event-starlark",
+	"event-combine",
+	"event-ieeefloat32",
+	"event-time-epoch",
+	"event-duration-convert",
 }
 
 type Initializer func() EventProcessor

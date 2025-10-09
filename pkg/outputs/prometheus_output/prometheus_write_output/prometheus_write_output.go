@@ -28,10 +28,12 @@ import (
 
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
+	"github.com/openconfig/gnmic/pkg/config/store"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	promcom "github.com/openconfig/gnmic/pkg/outputs/prometheus_output"
+	gutils "github.com/openconfig/gnmic/pkg/utils"
 )
 
 const (
@@ -83,7 +85,8 @@ type promWriteOutput struct {
 	targetTpl *template.Template
 	cfn       context.CancelFunc
 
-	reg *prometheus.Registry
+	reg   *prometheus.Registry
+	store store.Store[any]
 	// TODO:
 	// gnmiCache *cache.GnmiOutputCache
 }
@@ -130,6 +133,31 @@ type metadata struct {
 	MaxEntriesPerWrite int           `mapstructure:"max-entries-per-write,omitempty" json:"max-entries-per-write,omitempty"`
 }
 
+func (p *promWriteOutput) setEventProcessors(logger *log.Logger) error {
+	tcs, ps, acts, err := gutils.GetConfigMaps(p.store)
+	if err != nil {
+		return err
+	}
+	p.evps, err = formatters.MakeEventProcessors(
+		logger,
+		p.cfg.EventProcessors,
+		ps,
+		tcs,
+		acts,
+	)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (p *promWriteOutput) setLogger(logger *log.Logger) {
+	if logger != nil && p.logger != nil {
+		p.logger.SetOutput(logger.Writer())
+		p.logger.SetFlags(logger.Flags())
+	}
+}
+
 func (p *promWriteOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
 	err := outputs.DecodeConfig(cfg, p.cfg)
 	if err != nil {
@@ -154,16 +182,15 @@ func (p *promWriteOutput) Init(ctx context.Context, name string, cfg map[string]
 		}
 	}
 
+	p.store = options.Store
+
 	// apply logger
-	if options.Logger != nil && p.logger != nil {
-		p.logger.SetOutput(options.Logger.Writer())
-		p.logger.SetFlags(options.Logger.Flags())
-	}
+	p.setLogger(options.Logger)
 
 	p.setName(options.Name)
 
 	// initialize event processors
-	err = p.setEventProcessors(options.EventProcessors, options.Logger, options.TargetsConfig, options.Actions)
+	err = p.setEventProcessors(options.Logger)
 	if err != nil {
 		return err
 	}
@@ -266,24 +293,6 @@ func (p *promWriteOutput) String() string {
 		return ""
 	}
 	return string(b)
-}
-
-func (p *promWriteOutput) setEventProcessors(ps map[string]map[string]interface{},
-	logger *log.Logger,
-	tcs map[string]*types.TargetConfig,
-	acts map[string]map[string]interface{}) error {
-	var err error
-	p.evps, err = formatters.MakeEventProcessors(
-		logger,
-		p.cfg.EventProcessors,
-		ps,
-		tcs,
-		acts,
-	)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func (p *promWriteOutput) setName(name string) {

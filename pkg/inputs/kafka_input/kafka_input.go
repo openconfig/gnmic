@@ -24,6 +24,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
+	"github.com/openconfig/gnmic/pkg/config/store"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/inputs"
 	"github.com/openconfig/gnmic/pkg/outputs"
@@ -66,6 +67,7 @@ type KafkaInput struct {
 	wg      *sync.WaitGroup
 	outputs []outputs.Output
 	evps    []formatters.EventProcessor
+	store   store.Store[any]
 }
 
 // config //
@@ -103,10 +105,11 @@ func (k *KafkaInput) Start(ctx context.Context, name string, cfg map[string]inte
 			return err
 		}
 	}
+	k.store = options.Store
 	k.setLogger(options.Logger)
 	k.setName(options.Name)
 	k.setOutputs(options.Outputs)
-	err = k.setEventProcessors(options.EventProcessors, options.Logger, options.Targets, options.Actions)
+	err = k.setEventProcessors(options.Logger)
 	if err != nil {
 		return err
 	}
@@ -268,8 +271,11 @@ func (k *KafkaInput) setName(name string) {
 	k.Cfg.Name = sb.String()
 }
 
-func (k *KafkaInput) setEventProcessors(ps map[string]map[string]interface{}, logger *log.Logger, tcs map[string]*types.TargetConfig, acts map[string]map[string]interface{}) error {
-	var err error
+func (k *KafkaInput) setEventProcessors(logger *log.Logger) error {
+	tcs, ps, acts, err := pkgutils.GetConfigMaps(k.store)
+	if err != nil {
+		return err
+	}
 	k.evps, err = formatters.MakeEventProcessors(
 		logger,
 		k.Cfg.EventProcessors,

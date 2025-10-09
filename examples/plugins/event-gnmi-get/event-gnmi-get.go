@@ -18,12 +18,12 @@ import (
 	"github.com/openconfig/gnmi/proto/gnmi"
 
 	"github.com/openconfig/gnmic/pkg/api"
+	gpath "github.com/openconfig/gnmic/pkg/api/path"
 	"github.com/openconfig/gnmic/pkg/api/target"
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/formatters/event_plugin"
 	gtemplate "github.com/openconfig/gnmic/pkg/gtemplate"
-	gpath "github.com/openconfig/gnmic/pkg/api/path"
 )
 
 const (
@@ -33,6 +33,7 @@ const (
 )
 
 type gNMIGetProcessor struct {
+	formatters.BaseProcessor
 	Debug        bool          `mapstructure:"debug,omitempty" yaml:"debug,omitempty" json:"debug,omitempty"`
 	ReadPeriod   time.Duration `mapstructure:"read-period,omitempty" yaml:"read-period,omitempty" json:"read-period,omitempty"`
 	Target       string        `mapstructure:"target,omitempty" yaml:"target,omitempty" json:"target,omitempty"`
@@ -129,6 +130,10 @@ func (p *gNMIGetProcessor) Apply(event ...*formatters.EventMsg) []*formatters.Ev
 		}
 	}
 	return event
+}
+
+func (p *gNMIGetProcessor) Close() error {
+	return nil
 }
 
 func (p *gNMIGetProcessor) WithActions(act map[string]map[string]interface{}) {

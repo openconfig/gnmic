@@ -20,11 +20,12 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
+	"github.com/openconfig/gnmic/pkg/config/store"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
 	"github.com/openconfig/gnmic/pkg/outputs"
+	gutils "github.com/openconfig/gnmic/pkg/utils"
 )
 
 const (
@@ -55,6 +56,7 @@ type tcpOutput struct {
 
 	targetTpl *template.Template
 	delimiter []byte
+	store     store.Store[any]
 }
 
 type config struct {
@@ -74,11 +76,11 @@ type config struct {
 	EventProcessors    []string      `mapstructure:"event-processors,omitempty"`
 }
 
-func (t *tcpOutput) setEventProcessors(ps map[string]map[string]interface{},
-	logger *log.Logger,
-	tcs map[string]*types.TargetConfig,
-	acts map[string]map[string]interface{}) error {
-	var err error
+func (t *tcpOutput) setEventProcessors(logger *log.Logger) error {
+	tcs, ps, acts, err := gutils.GetConfigMaps(t.store)
+	if err != nil {
+		return err
+	}
 	t.evps, err = formatters.MakeEventProcessors(
 		logger,
 		t.cfg.EventProcessors,
@@ -106,6 +108,8 @@ func (t *tcpOutput) Init(ctx context.Context, name string, cfg map[string]interf
 		}
 	}
 
+	t.store = options.Store
+
 	// apply logger
 	if options.Logger != nil && t.logger != nil {
 		t.logger.SetOutput(options.Logger.Writer())
@@ -113,7 +117,7 @@ func (t *tcpOutput) Init(ctx context.Context, name string, cfg map[string]interf
 	}
 
 	// initialize event processors
-	err = t.setEventProcessors(options.EventProcessors, options.Logger, options.TargetsConfig, options.Actions)
+	err = t.setEventProcessors(options.Logger)
 	if err != nil {
 		return err
 	}
