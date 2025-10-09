@@ -20,6 +20,7 @@ import (
 	"github.com/openconfig/grpctunnel/tunnel"
 	"google.golang.org/grpc"
 
+	"github.com/openconfig/gnmic/pkg/api"
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/config"
 	"github.com/openconfig/gnmic/pkg/lockers"
@@ -169,7 +170,7 @@ func (a *App) clientSubscribe(ctx context.Context, tc *types.TargetConfig) error
 	for scName, sc := range subscriptionsConfigs {
 		req, err := utils.CreateSubscribeRequest(sc, tc, a.Config.Encoding)
 		if err != nil {
-			if errors.Is(errors.Unwrap(err), config.ErrConfig) {
+			if errors.Is(errors.Unwrap(err), config.ErrConfig) || errors.Is(errors.Unwrap(err), api.ErrInvalidValue) {
 				fmt.Fprintf(os.Stderr, "%v\n", err)
 				os.Exit(1)
 			}

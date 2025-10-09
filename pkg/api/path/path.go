@@ -179,6 +179,11 @@ func parseXPathKeys(s string) (map[string]string, error) {
 			}
 			kvs[escapedBracketsReplacer.Replace(k)] = escapedBracketsReplacer.Replace(v)
 			inKey = false
+
+		default:
+			if !inKey {
+				return nil, errMalformedXPathKey
+			}
 		}
 		prevRune = r
 	}
