@@ -24,9 +24,9 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	dtypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/network"
 	dClient "github.com/docker/docker/client"
 	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmic/pkg/actions"
@@ -307,7 +307,7 @@ func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*types.Target
 			dockerLoaderListRequestsTotal.WithLabelValues(loaderType).Add(1)
 			defer d.wg.Done()
 			// get networks
-			nrs, err := d.client.NetworkList(ctx, dtypes.NetworkListOptions{
+			nrs, err := d.client.NetworkList(ctx, network.ListOptions{
 				Filters: fl.nt,
 			})
 			if err != nil {
