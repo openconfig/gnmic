@@ -200,6 +200,35 @@ func tagsFromGNMIPath(p *gnmi.Path) (string, map[string]string) {
 	return sb.String(), tags
 }
 
+func normalizeEmptyRFC7951(v any) any {
+	switch t := v.(type) {
+	case nil:
+		// presence for 'empty'
+		return true
+
+	case []any:
+		// handle single null element
+		if len(t) == 1 && t[0] == nil {
+			return true
+		}
+		// recurse to catch nested cases
+		for i := range t {
+			t[i] = normalizeEmptyRFC7951(t[i])
+		}
+		return t
+
+	case map[string]any:
+		// recurse to catch nested cases
+		for k, vv := range t {
+			t[k] = normalizeEmptyRFC7951(vv)
+		}
+		return t
+
+	default:
+		return v
+	}
+}
+
 func getValueFlat(prefix string, updValue *gnmi.TypedValue) (map[string]interface{}, error) {
 	if updValue == nil {
 		return nil, nil
@@ -253,6 +282,9 @@ func getValueFlat(prefix string, updValue *gnmi.TypedValue) (map[string]interfac
 		if err != nil {
 			return nil, err
 		}
+
+		value = normalizeEmptyRFC7951(value)
+
 		switch value := value.(type) {
 		case map[string]interface{}:
 			f := flattener.NewFlattener()
