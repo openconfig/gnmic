@@ -41,6 +41,7 @@ const (
 	defaultNumWorkers       = 1
 	defaultBufferSize       = 500
 	defaultFetchBatchSize   = 500
+	defaultMaxAckPending    = 1000
 )
 
 type deliverPolicy string
@@ -113,6 +114,7 @@ type config struct {
 	NumWorkers      int              `mapstructure:"num-workers,omitempty"`
 	BufferSize      int              `mapstructure:"buffer-size,omitempty"`
 	FetchBatchSize  int              `mapstructure:"fetch-batch-size,omitempty"`
+	MaxAckPending   *int             `mapstructure:"max-ack-pending,omitempty"`
 	Outputs         []string         `mapstructure:"outputs,omitempty"`
 	EventProcessors []string         `mapstructure:"event-processors,omitempty"`
 }
@@ -195,6 +197,7 @@ func (n *jetstreamInput) workerStart(ctx context.Context) error {
 		AckPolicy:      jetstream.AckAllPolicy,
 		MemoryStorage:  true,
 		FilterSubjects: n.Cfg.Subjects,
+		MaxAckPending:  *n.Cfg.MaxAckPending,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create consumer: %v", err)
@@ -374,6 +377,10 @@ func (n *jetstreamInput) setDefaults() error {
 	}
 	if n.Cfg.FetchBatchSize <= 0 {
 		n.Cfg.FetchBatchSize = defaultFetchBatchSize
+	}
+	if n.Cfg.MaxAckPending == nil || *n.Cfg.MaxAckPending <= -2 {
+		v := defaultMaxAckPending
+		n.Cfg.MaxAckPending = &v
 	}
 	return nil
 }
