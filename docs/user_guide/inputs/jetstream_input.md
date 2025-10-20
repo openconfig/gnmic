@@ -64,6 +64,10 @@ inputs:
     # default: 500
     fetch-batch-size: 200
 
+    # integer, maximum number of allowed pending ack on the stream
+    # default: 1000
+    max-ack-pending: 5000
+
     # optional list of output names this input writes to
     # outputs must be configured at the root `outputs:` section
     outputs:
