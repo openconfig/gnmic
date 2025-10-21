@@ -210,6 +210,7 @@ func GnmiPathToXPath(p *gnmi.Path, noKeys bool) string {
 	}
 	elems := p.GetElem()
 	numElems := len(elems)
+	sb.WriteString("/")
 
 	for i, pe := range elems {
 		sb.WriteString(pe.GetName())
