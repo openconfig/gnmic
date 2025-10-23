@@ -55,6 +55,7 @@ require (
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.11.1
 	github.com/xdg/scram v1.0.5
+	go.opentelemetry.io/proto/otlp v1.8.0
 	go.starlark.net v0.0.0-20250906160240-bf296ed553ea
 	golang.org/x/crypto v0.45.0
 	golang.org/x/oauth2 v0.32.0
@@ -124,6 +125,7 @@ require (
 	github.com/googleapis/enterprise-certificate-proxy v0.3.6 // indirect
 	github.com/grafana/regexp v0.0.0-20240518133315-a468a5bfb3bc // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 // indirect
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.2 // indirect
 	github.com/hairyhenderson/go-fsimpl v0.0.0-20220529183339-9deae3e35047 // indirect
 	github.com/hairyhenderson/yaml v0.0.0-20220618171115-2d35fca545ce // indirect
 	github.com/hashicorp/go-msgpack v1.1.5 // indirect

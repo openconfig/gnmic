@@ -44,6 +44,7 @@ var OutputTypes = map[string]struct{}{
 	"influxdb":         {},
 	"kafka":            {},
 	"nats":             {},
+	"otlp":             {},
 	"prometheus":       {},
 	"prometheus_write": {},
 	"stan":             {},

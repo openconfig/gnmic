@@ -16,6 +16,7 @@ import (
 	_ "github.com/openconfig/gnmic/pkg/outputs/kafka_output"
 	_ "github.com/openconfig/gnmic/pkg/outputs/nats_outputs/jetstream"
 	_ "github.com/openconfig/gnmic/pkg/outputs/nats_outputs/nats"
+	_ "github.com/openconfig/gnmic/pkg/outputs/otlp_output"
 	_ "github.com/openconfig/gnmic/pkg/outputs/prometheus_output/prometheus_output"
 	_ "github.com/openconfig/gnmic/pkg/outputs/prometheus_output/prometheus_write_output"
 	_ "github.com/openconfig/gnmic/pkg/outputs/snmp_output"
