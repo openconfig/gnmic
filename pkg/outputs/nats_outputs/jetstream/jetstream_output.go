@@ -769,11 +769,10 @@ func (n *jetstreamOutput) createStream(js nats.JetStreamContext) error {
 func (n *jetstreamOutput) verifyExistingStream(js nats.JetStreamContext) error {
 	stream, err := js.StreamInfo(n.Cfg.Stream)
 	if err != nil {
+		if errors.Is(err, nats.ErrStreamNotFound) {
+			return fmt.Errorf("stream '%s' does not exist (use-existing-stream is true)", n.Cfg.Stream)
+		}
 		return fmt.Errorf("failed to get existing stream info for '%s': %v", n.Cfg.Stream, err)
-	}
-
-	if stream == nil {
-		return fmt.Errorf("stream '%s' does not exist (use-existing-stream is true)", n.Cfg.Stream)
 	}
 
 	// Log the stream configuration
