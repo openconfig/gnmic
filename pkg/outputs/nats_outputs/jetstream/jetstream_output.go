@@ -207,6 +207,12 @@ func (n *jetstreamOutput) setDefaults() error {
 	if n.Cfg.Stream == "" {
 		return errors.New("missing stream name")
 	}
+
+	// Validate mutual exclusivity
+	if n.Cfg.UseExistingStream && n.Cfg.CreateStream != nil {
+		return errors.New("use-existing-stream and create-stream are mutually exclusive")
+	}
+
 	if n.Cfg.Format == "" {
 		n.Cfg.Format = defaultFormat
 	}
@@ -249,6 +255,14 @@ func (n *jetstreamOutput) setDefaults() error {
 		}
 		if n.Cfg.CreateStream.Storage == "" {
 			n.Cfg.CreateStream.Storage = "memory"
+		}
+		if n.Cfg.CreateStream.Retention == "" {
+			n.Cfg.CreateStream.Retention = "limits"
+		}
+		// Validate retention policy value
+		if !isValidRetentionPolicy(n.Cfg.CreateStream.Retention) {
+			return fmt.Errorf("invalid retention-policy: %s (must be 'limits' or 'workqueue')",
+				n.Cfg.CreateStream.Retention)
 		}
 		return nil
 	}
@@ -698,6 +712,24 @@ func storageType(s string) nats.StorageType {
 		return nats.MemoryStorage
 	}
 	return nats.MemoryStorage
+}
+
+func isValidRetentionPolicy(policy string) bool {
+	switch strings.ToLower(policy) {
+	case "limits", "workqueue":
+		return true
+	}
+	return false
+}
+
+func retentionPolicy(s string) nats.RetentionPolicy {
+	switch strings.ToLower(s) {
+	case "workqueue":
+		return nats.WorkQueuePolicy
+	case "limits":
+		return nats.LimitsPolicy
+	}
+	return nats.LimitsPolicy
 }
 
 // var storageTypes = map[string]nats.StorageType{
