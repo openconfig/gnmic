@@ -738,25 +738,35 @@ func retentionPolicy(s string) nats.RetentionPolicy {
 // }
 
 func (n *jetstreamOutput) createStream(js nats.JetStreamContext) error {
+	// Handle use-existing-stream mode
+	if n.Cfg.UseExistingStream {
+		return n.verifyExistingStream(js)
+	}
+
+	// Handle create-stream mode
 	if n.Cfg.CreateStream == nil {
 		return nil
 	}
+
 	stream, err := js.StreamInfo(n.Cfg.Stream)
 	if err != nil {
 		if !errors.Is(err, nats.ErrStreamNotFound) {
 			return err
 		}
 	}
-	// stream exists
+
+	// Stream exists, nothing to do
 	if stream != nil {
 		return nil
 	}
-	// create stream
+
+	// Create stream with configured retention policy
 	streamConfig := &nats.StreamConfig{
 		Name:        n.Cfg.Stream,
 		Description: n.Cfg.CreateStream.Description,
 		Subjects:    n.Cfg.CreateStream.Subjects,
 		Storage:     storageType(n.Cfg.CreateStream.Storage),
+		Retention:   retentionPolicy(n.Cfg.CreateStream.Retention),
 		MaxMsgs:     n.Cfg.CreateStream.MaxMsgs,
 		MaxBytes:    n.Cfg.CreateStream.MaxBytes,
 		MaxAge:      n.Cfg.CreateStream.MaxAge,
