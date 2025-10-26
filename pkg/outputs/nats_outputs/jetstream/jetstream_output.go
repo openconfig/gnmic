@@ -765,3 +765,26 @@ func (n *jetstreamOutput) createStream(js nats.JetStreamContext) error {
 	_, err = js.AddStream(streamConfig)
 	return err
 }
+
+func (n *jetstreamOutput) verifyExistingStream(js nats.JetStreamContext) error {
+	stream, err := js.StreamInfo(n.Cfg.Stream)
+	if err != nil {
+		return fmt.Errorf("failed to get existing stream info for '%s': %v", n.Cfg.Stream, err)
+	}
+
+	if stream == nil {
+		return fmt.Errorf("stream '%s' does not exist (use-existing-stream is true)", n.Cfg.Stream)
+	}
+
+	// Log the stream configuration
+	n.logger.Printf("using existing stream: name=%s, subjects=%v, retention=%v, storage=%v, max_msgs=%d, max_bytes=%d, max_age=%v",
+		stream.Config.Name,
+		stream.Config.Subjects,
+		stream.Config.Retention,
+		stream.Config.Storage,
+		stream.Config.MaxMsgs,
+		stream.Config.MaxBytes,
+		stream.Config.MaxAge)
+
+	return nil
+}
