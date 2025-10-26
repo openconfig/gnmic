@@ -20,6 +20,9 @@ outputs:
     # if `create-stream` is set, it will be created
     # # may not contain spaces, tabs, period (.), greater than (>) or asterisk (*)
     stream: 
+    # boolean, if true, use an existing stream instead of creating one
+    # defaults to false
+    use-existing-stream: false
     # defines stream parameters that gNMIc will create on the target jetstream server(s)
     create-stream:
       # string, stream description
@@ -39,6 +42,11 @@ outputs:
       max-age:
       # int32, maximum message size
       max-msg-size:
+      # string, retention policy for the stream: `limits` or `workqueue`
+      # `limits`: messages are retained based on size, count, or age limits
+      # `workqueue`: messages are removed after being acknowledged by all consumers
+      # defaults to `limits`
+      retention-policy: limits
     # string, one of `static`, `subscription.target`, `subscription.target.path` 
     # or `subscription.target.pathKeys`.
     # Defines the subject format.
@@ -176,3 +184,79 @@ will be written to subject:
 ```text
 $stream_name.sub1.target1.interface.{name=ethernet-1/1}.statistics.in-octets
 ```
+
+### JetStream Queue Patterns
+
+JetStream streams support three retention policies that enable different message processing patterns: Limits, Workqueue and Interest-Based. Gnmic supports Limits by default, and optionally supports workqueue based. It does not currently support Interest-based. 
+
+#### Limits Retention (Default)
+
+Messages are retained based on configured limits (max-msgs, max-bytes, max-age). When these limits are exceeded, older messages are automatically removed, regardless of whether they have been consumed.
+
+**Use limits retention when:**
+- You don't have an better ideas :)
+- You want to have multiple consumers fetch the same metric asyncronously within the configured retention time.
+- You can accept losing messages that overfill the retention time, even when they were not acknoledged yet.
+
+**Example configuration:**
+
+```yaml
+outputs:
+  telemetry-output:
+    type: jetstream
+    address: localhost:4222
+    stream: telemetry-stream
+    create-stream:
+      retention-policy: limits  # default
+      storage: memory
+      max-msgs: 100000
+      max-bytes: 10737418240  # 10GB
+      max-age: 24h
+    subject-format: subscription.target
+```
+
+#### Workqueue Retention
+
+Messages are automatically removed from the stream after being acknowledged by the consumer of that subject. This enables exactly-once message processing, where each message is processed by only one consumer and then deleted.
+
+**Use workqueue retention when:**
+- You have 1:1 producer/consumer configuration
+- You want automatic cleanup of messages after successful processing
+- Message loss is unacceptable (e.g. using a file persistence)
+
+**Example configuration:**
+
+```yaml
+outputs:
+  task-output:
+    type: jetstream
+    address: localhost:4222
+    stream: telemetry-stream
+    create-stream:
+      retention-policy: workqueue
+      storage: file
+      max-msgs: 100000
+      max-bytes: 10737418240  # 10GB
+    subject-format: subscription.target
+```
+
+#### Using Existing Streams
+
+If a stream has already been created (e.g., by administrators or other applications), you can configure gnmic to use it without attempting to create it:
+
+```yaml
+outputs:
+  existing-output:
+    type: jetstream
+    address: localhost:4222
+    stream: existing-stream
+    use-existing-stream: true
+    subject-format: static
+    subject: telemetry
+```
+
+When `use-existing-stream` is set to `true`, gnmic will not attempt to create or modify the stream configuration. This is useful when:
+
+- Stream configuration is managed centrally
+- You don't have permissions to create streams
+- You want to ensure stream settings remain unchanged

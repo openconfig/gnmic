@@ -25,6 +25,18 @@ inputs:
     subjects:
       - telemetry.device.*
 
+    # enum string, consumer mode: "single" or "multi"
+    # single: all workers share a single consumer (backward compatible, default)
+    # multi: each worker creates its own filtered consumer (for workqueue streams)
+    # default: "single"
+    consumer-mode: single
+
+    # list of subject filters for multi-consumer mode
+    # ONLY used when consumer-mode is "multi"
+    # each worker creates a consumer with these filter subjects
+    filter-subjects:
+      - telemetry.device.router1.*
+
     # enum string, format of consumed message: "event" or "proto"
     # default: "event"
     format: event
@@ -114,6 +126,92 @@ When using proto format, gnmic uses the subject name to extract metadata:
 - `target.subscription` → subscription-name = second, source = first
 
 - `static` → no parsing; no additional metadata is extracted
+
+## JetStream Consumer Modes
+
+The JetStream input supports two consumer modes designed for different stream retention policies and processing patterns.
+
+### Single Consumer Mode (Default)
+
+In single consumer mode, all workers share the same durable consumer. This is the default and backward-compatible to gnmic prior to v0.42.
+
+**Characteristics:**
+- All workers connect to the same consumer using a shared durable name
+- Messages are distributed across workers for parallel processing
+- Works with both limits and workqueue retention policies
+- Suitable for most use cases where you want to scale message consumption
+
+**Example configuration:**
+
+```yaml
+inputs:
+  shared-consumer:
+    type: jetstream
+    address: localhost:4222
+    stream: telemetry-stream
+    subjects:
+      - telemetry.>
+    consumer-mode: single  # default
+    num-workers: 3
+    format: event
+```
+
+### Multi Consumer Mode
+
+In multi consumer mode, each gnmic instance creates its own filtered consumer. This mode is designed specifically for workqueue streams where you want different instances to process different subsets of messages based on subject filters.
+
+**Characteristics:**
+- Each gnmic instance creates a separate consumer with unique filter subjects
+- Each consumer receives only messages matching its filter-subjects
+- Requires workqueue retention policy on the stream
+- Enables message routing based on subject patterns
+
+**When to use multi consumer mode:**
+- You have a workqueue stream with messages on different subjects
+- You want different gnmic instances to process specific message subsets
+- You need subject-based routing for parallel processing pipelines
+
+**Example configuration:**
+
+```yaml
+inputs:
+  filtered-consumer:
+    type: jetstream
+    address: localhost:4222
+    stream: telemetry-stream
+    consumer-mode: multi
+    filter-subjects:
+      - subscription1.x.>
+      - subscription2.x.>
+    num-workers: 2
+    format: event
+```
+
+In this example, each of the 2 worker threads creates a consumer that receives only messages matching the filter subjects (subscription1.x.> or subscription2.x.>).
+
+### Using Filter Subjects
+
+The `filter-subjects` field is only used in multi consumer mode. It specifies which subjects each worker's consumer should filter for.
+
+**Key points:**
+- Only applies when `consumer-mode: multi`
+- Supports NATS wildcard patterns (* and >)
+- Each worker creates a consumer with the same filter subjects
+- Messages matching any of the filter subjects will be delivered
+
+
+### Choosing the Right Mode
+
+**Use single consumer mode when:**
+- You're using a limits retention stream for telemetry data
+- You don't need multiple gnmic instances for scale out
+- One gnmic instance can process all messages in the stream (limits or workqueue)
+- You need backward compatibility with existing NATS+gnmic deployments.
+
+**Use multi consumer mode when:**
+- You're consuming from a workqueue stream and need scale out performance
+- You need subject-based message routing
+- Different gnmic instances should process different message subsets
 
 
 ## Usage Notes
