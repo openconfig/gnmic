@@ -74,6 +74,7 @@ type config struct {
 	Subject            string              `mapstructure:"subject,omitempty" json:"subject,omitempty"`
 	SubjectFormat      subjectFormat       `mapstructure:"subject-format,omitempty" json:"subject-format,omitempty"`
 	CreateStream       *createStreamConfig `mapstructure:"create-stream,omitempty" json:"create-stream,omitempty"`
+	UseExistingStream  bool                `mapstructure:"use-existing-stream,omitempty" json:"use-existing-stream,omitempty"`
 	Username           string              `mapstructure:"username,omitempty" json:"username,omitempty"`
 	Password           string              `mapstructure:"password,omitempty" json:"password,omitempty"`
 	ConnectTimeWait    time.Duration       `mapstructure:"connect-time-wait,omitempty" json:"connect-time-wait,omitempty"`
@@ -96,6 +97,7 @@ type createStreamConfig struct {
 	Description string        `mapstructure:"description,omitempty" json:"description,omitempty"`
 	Subjects    []string      `mapstructure:"subjects,omitempty" json:"subjects,omitempty"`
 	Storage     string        `mapstructure:"storage,omitempty" json:"storage,omitempty"`
+	Retention   string        `mapstructure:"retention-policy,omitempty" json:"retention-policy,omitempty"`
 	MaxMsgs     int64         `mapstructure:"max-msgs,omitempty" json:"max-msgs,omitempty"`
 	MaxBytes    int64         `mapstructure:"max-bytes,omitempty" json:"max-bytes,omitempty"`
 	MaxAge      time.Duration `mapstructure:"max-age,omitempty" json:"max-age,omitempty"`
