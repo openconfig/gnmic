@@ -137,7 +137,7 @@ func (n *jetstreamInput) Start(ctx context.Context, name string, cfg map[string]
 	if n.Cfg.Name == "" {
 		n.Cfg.Name = name
 	}
-	n.logger.SetPrefix(fmt.Sprintf("%s%s", loggingPrefix, n.Cfg.Name))
+	n.logger.SetPrefix(fmt.Sprintf(loggingPrefix, n.Cfg.Name))
 	options := &inputs.InputOptions{}
 	for _, opt := range opts {
 		if err := opt(options); err != nil {
