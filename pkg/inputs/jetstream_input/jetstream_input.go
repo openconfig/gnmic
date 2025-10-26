@@ -372,6 +372,22 @@ func (n *jetstreamInput) setDefaults() error {
 	if n.Cfg.SubjectFormat == "" {
 		n.Cfg.SubjectFormat = subjectFormat_Static
 	}
+
+	// Consumer mode defaults
+	if n.Cfg.ConsumerMode == "" {
+		n.Cfg.ConsumerMode = consumerModeSingle
+	}
+
+	// Validate consumer mode
+	if n.Cfg.ConsumerMode != consumerModeSingle && n.Cfg.ConsumerMode != consumerModeMulti {
+		return fmt.Errorf("invalid consumer-mode: %s (must be 'single' or 'multi')", n.Cfg.ConsumerMode)
+	}
+
+	// Multi-consumer mode requires filter-subjects
+	if n.Cfg.ConsumerMode == consumerModeMulti && len(n.Cfg.FilterSubjects) == 0 {
+		return fmt.Errorf("consumer-mode 'multi' requires filter-subjects to be specified")
+	}
+
 	if n.Cfg.Address == "" {
 		n.Cfg.Address = defaultAddress
 	}
