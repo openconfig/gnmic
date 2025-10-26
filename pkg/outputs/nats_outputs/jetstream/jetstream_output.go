@@ -74,6 +74,7 @@ type config struct {
 	Subject            string              `mapstructure:"subject,omitempty" json:"subject,omitempty"`
 	SubjectFormat      subjectFormat       `mapstructure:"subject-format,omitempty" json:"subject-format,omitempty"`
 	CreateStream       *createStreamConfig `mapstructure:"create-stream,omitempty" json:"create-stream,omitempty"`
+	UseExistingStream  bool                `mapstructure:"use-existing-stream,omitempty" json:"use-existing-stream,omitempty"`
 	Username           string              `mapstructure:"username,omitempty" json:"username,omitempty"`
 	Password           string              `mapstructure:"password,omitempty" json:"password,omitempty"`
 	ConnectTimeWait    time.Duration       `mapstructure:"connect-time-wait,omitempty" json:"connect-time-wait,omitempty"`
@@ -96,6 +97,7 @@ type createStreamConfig struct {
 	Description string        `mapstructure:"description,omitempty" json:"description,omitempty"`
 	Subjects    []string      `mapstructure:"subjects,omitempty" json:"subjects,omitempty"`
 	Storage     string        `mapstructure:"storage,omitempty" json:"storage,omitempty"`
+	Retention   string        `mapstructure:"retention-policy,omitempty" json:"retention-policy,omitempty"`
 	MaxMsgs     int64         `mapstructure:"max-msgs,omitempty" json:"max-msgs,omitempty"`
 	MaxBytes    int64         `mapstructure:"max-bytes,omitempty" json:"max-bytes,omitempty"`
 	MaxAge      time.Duration `mapstructure:"max-age,omitempty" json:"max-age,omitempty"`
@@ -205,6 +207,12 @@ func (n *jetstreamOutput) setDefaults() error {
 	if n.Cfg.Stream == "" {
 		return errors.New("missing stream name")
 	}
+
+	// Validate mutual exclusivity
+	if n.Cfg.UseExistingStream && n.Cfg.CreateStream != nil {
+		return errors.New("use-existing-stream and create-stream are mutually exclusive")
+	}
+
 	if n.Cfg.Format == "" {
 		n.Cfg.Format = defaultFormat
 	}
@@ -247,6 +255,14 @@ func (n *jetstreamOutput) setDefaults() error {
 		}
 		if n.Cfg.CreateStream.Storage == "" {
 			n.Cfg.CreateStream.Storage = "memory"
+		}
+		if n.Cfg.CreateStream.Retention == "" {
+			n.Cfg.CreateStream.Retention = "limits"
+		}
+		// Validate retention policy value
+		if !isValidRetentionPolicy(n.Cfg.CreateStream.Retention) {
+			return fmt.Errorf("invalid retention-policy: %s (must be 'limits' or 'workqueue')",
+				n.Cfg.CreateStream.Retention)
 		}
 		return nil
 	}
@@ -698,31 +714,59 @@ func storageType(s string) nats.StorageType {
 	return nats.MemoryStorage
 }
 
+func isValidRetentionPolicy(policy string) bool {
+	switch strings.ToLower(policy) {
+	case "limits", "workqueue":
+		return true
+	}
+	return false
+}
+
+func retentionPolicy(s string) nats.RetentionPolicy {
+	switch strings.ToLower(s) {
+	case "workqueue":
+		return nats.WorkQueuePolicy
+	case "limits":
+		return nats.LimitsPolicy
+	}
+	return nats.LimitsPolicy
+}
+
 // var storageTypes = map[string]nats.StorageType{
 // 	"file":   nats.FileStorage,
 // 	"memory": nats.MemoryStorage,
 // }
 
 func (n *jetstreamOutput) createStream(js nats.JetStreamContext) error {
+	// Handle use-existing-stream mode
+	if n.Cfg.UseExistingStream {
+		return n.verifyExistingStream(js)
+	}
+
+	// Handle create-stream mode
 	if n.Cfg.CreateStream == nil {
 		return nil
 	}
+
 	stream, err := js.StreamInfo(n.Cfg.Stream)
 	if err != nil {
 		if !errors.Is(err, nats.ErrStreamNotFound) {
 			return err
 		}
 	}
-	// stream exists
+
+	// Stream exists, nothing to do
 	if stream != nil {
 		return nil
 	}
-	// create stream
+
+	// Create stream with configured retention policy
 	streamConfig := &nats.StreamConfig{
 		Name:        n.Cfg.Stream,
 		Description: n.Cfg.CreateStream.Description,
 		Subjects:    n.Cfg.CreateStream.Subjects,
 		Storage:     storageType(n.Cfg.CreateStream.Storage),
+		Retention:   retentionPolicy(n.Cfg.CreateStream.Retention),
 		MaxMsgs:     n.Cfg.CreateStream.MaxMsgs,
 		MaxBytes:    n.Cfg.CreateStream.MaxBytes,
 		MaxAge:      n.Cfg.CreateStream.MaxAge,
@@ -730,4 +774,26 @@ func (n *jetstreamOutput) createStream(js nats.JetStreamContext) error {
 	}
 	_, err = js.AddStream(streamConfig)
 	return err
+}
+
+func (n *jetstreamOutput) verifyExistingStream(js nats.JetStreamContext) error {
+	stream, err := js.StreamInfo(n.Cfg.Stream)
+	if err != nil {
+		if errors.Is(err, nats.ErrStreamNotFound) {
+			return fmt.Errorf("stream '%s' does not exist (use-existing-stream is true)", n.Cfg.Stream)
+		}
+		return fmt.Errorf("failed to get existing stream info for '%s': %v", n.Cfg.Stream, err)
+	}
+
+	// Log the stream configuration
+	n.logger.Printf("using existing stream: name=%s, subjects=%v, retention=%v, storage=%v, max_msgs=%d, max_bytes=%d, max_age=%v",
+		stream.Config.Name,
+		stream.Config.Subjects,
+		stream.Config.Retention,
+		stream.Config.Storage,
+		stream.Config.MaxMsgs,
+		stream.Config.MaxBytes,
+		stream.Config.MaxAge)
+
+	return nil
 }
