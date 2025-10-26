@@ -199,13 +199,24 @@ func (n *jetstreamInput) workerStart(ctx context.Context) error {
 		return fmt.Errorf("failed to get stream: %v", err)
 	}
 
+	// Determine filter subjects based on consumer mode
+	var filterSubjects []string
+	switch n.Cfg.ConsumerMode {
+	case consumerModeSingle:
+		// Use configured subjects as filter
+		filterSubjects = n.Cfg.Subjects
+	case consumerModeMulti:
+		// Use explicitly configured filter-subjects
+		filterSubjects = n.Cfg.FilterSubjects
+	}
+
 	c, err := s.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
 		Name:           n.Cfg.Name,
 		Durable:        n.Cfg.Name,
 		DeliverPolicy:  toJSDeliverPolicy(n.Cfg.DeliverPolicy),
 		AckPolicy:      jetstream.AckAllPolicy,
 		MemoryStorage:  true,
-		FilterSubjects: n.Cfg.Subjects,
+		FilterSubjects: filterSubjects,
 		MaxAckPending:  *n.Cfg.MaxAckPending,
 	})
 	if err != nil {
