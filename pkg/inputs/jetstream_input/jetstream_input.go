@@ -67,6 +67,13 @@ func toJSDeliverPolicy(dp deliverPolicy) jetstream.DeliverPolicy {
 	return 0
 }
 
+type consumerMode string
+
+const (
+	consumerModeSingle consumerMode = "single"
+	consumerModeMulti  consumerMode = "multi"
+)
+
 func init() {
 	inputs.Register("jetstream", func() inputs.Input {
 		return &jetstreamInput{
@@ -104,6 +111,8 @@ type config struct {
 	Stream          string           `mapstructure:"stream,omitempty"`
 	Subjects        []string         `mapstructure:"subjects,omitempty"`
 	SubjectFormat   subjectFormat    `mapstructure:"subject-format,omitempty" json:"subject-format,omitempty"`
+	ConsumerMode    consumerMode     `mapstructure:"consumer-mode,omitempty" json:"consumer-mode,omitempty"`
+	FilterSubjects  []string         `mapstructure:"filter-subjects,omitempty" json:"filter-subjects,omitempty"`
 	DeliverPolicy   deliverPolicy    `mapstructure:"deliver-policy,omitempty"`
 	Username        string           `mapstructure:"username,omitempty"`
 	Password        string           `mapstructure:"password,omitempty"`
