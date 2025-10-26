@@ -4,6 +4,8 @@ import (
 	"io"
 	"log"
 	"testing"
+
+	"github.com/nats-io/nats.go/jetstream"
 )
 
 func Test_setDefaults(t *testing.T) {
@@ -290,6 +292,53 @@ func Test_setDefaults(t *testing.T) {
 				if tt.check != nil {
 					tt.check(t, n.Cfg)
 				}
+			}
+		})
+	}
+}
+
+func Test_toJSDeliverPolicy(t *testing.T) {
+	tests := []struct {
+		name   string
+		policy deliverPolicy
+		want   jetstream.DeliverPolicy
+	}{
+		{
+			name:   "deliver policy all",
+			policy: deliverPolicyAll,
+			want:   jetstream.DeliverAllPolicy,
+		},
+		{
+			name:   "deliver policy last",
+			policy: deliverPolicyLast,
+			want:   jetstream.DeliverLastPolicy,
+		},
+		{
+			name:   "deliver policy new",
+			policy: deliverPolicyNew,
+			want:   jetstream.DeliverNewPolicy,
+		},
+		{
+			name:   "deliver policy last-per-subject",
+			policy: deliverPolicyLastPerSubject,
+			want:   jetstream.DeliverLastPerSubjectPolicy,
+		},
+		{
+			name:   "invalid deliver policy returns zero",
+			policy: "invalid",
+			want:   0,
+		},
+		{
+			name:   "empty deliver policy returns zero",
+			policy: "",
+			want:   0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := toJSDeliverPolicy(tt.policy)
+			if got != tt.want {
+				t.Errorf("toJSDeliverPolicy() = %v, want %v", got, tt.want)
 			}
 		})
 	}

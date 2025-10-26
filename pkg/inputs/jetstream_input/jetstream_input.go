@@ -205,11 +205,16 @@ func (n *jetstreamInput) workerStart(ctx context.Context) error {
 		return fmt.Errorf("failed to get stream info: %v", err)
 	}
 
-	// Determine ack policy based on stream retention
-	// Workqueue streams require explicit ack, limits-based can use ack all
+	// Determine ack policy and deliver policy based on stream retention
+	// Workqueue streams have specific requirements
 	ackPolicy := jetstream.AckAllPolicy
+	deliverPolicy := toJSDeliverPolicy(n.Cfg.DeliverPolicy)
+
 	if streamInfo.Config.Retention == jetstream.WorkQueuePolicy {
+		// Workqueue streams require explicit ack
 		ackPolicy = jetstream.AckExplicitPolicy
+		// Workqueue streams require deliver all policy
+		deliverPolicy = jetstream.DeliverAllPolicy
 	}
 
 	// Determine filter subjects based on consumer mode
@@ -226,7 +231,7 @@ func (n *jetstreamInput) workerStart(ctx context.Context) error {
 	c, err := s.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
 		Name:           n.Cfg.Name,
 		Durable:        n.Cfg.Name,
-		DeliverPolicy:  toJSDeliverPolicy(n.Cfg.DeliverPolicy),
+		DeliverPolicy:  deliverPolicy,
 		AckPolicy:      ackPolicy,
 		MemoryStorage:  true,
 		FilterSubjects: filterSubjects,
