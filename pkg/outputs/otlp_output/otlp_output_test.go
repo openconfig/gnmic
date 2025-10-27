@@ -1,6 +1,8 @@
-// © 2025 Drew Elliott
+// © 2025 NVIDIA Corporation
 //
-// This code is a Contribution to the gNMIc project ("Work") made under the Apache License 2.0.
+// This code is a Contribution to the gNMIc project ("Work") made under the Google Software Grant and Corporate Contributor License Agreement ("CLA") and governed by the Apache License 2.0.
+// No other rights or licenses in or to any of NVIDIA's intellectual property are granted for any other purpose.
+// This code is provided on an "as is" basis without any warranties of any kind.
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -8,6 +10,8 @@ package otlp_output
 
 import (
 	"context"
+	"io"
+	"log"
 	"net"
 	"testing"
 	"time"
@@ -15,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metricsv1 "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
+	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
 	"google.golang.org/grpc"
 
 	"github.com/openconfig/gnmic/pkg/formatters"
@@ -394,4 +399,204 @@ func (m *mockOTLPServer) ReceivedMetricsCount() int {
 func (m *mockOTLPServer) Stop() {
 	m.grpcServer.Stop()
 	m.listener.Close()
+}
+
+// Test 9: Event Tags as Data Point Attributes (NEW FEATURE)
+func TestOTLP_EventTagsAsAttributes(t *testing.T) {
+	tests := []struct {
+		name                     string
+		addEventTagsAsAttributes bool
+		eventTags                map[string]string
+		expectedInDataPoint      []string // Tags that should appear in data point attributes
+		expectedNotInDataPoint   []string // Tags that should NOT appear in data point attributes
+	}{
+		{
+			name:                     "enabled: all tags become data point attributes",
+			addEventTagsAsAttributes: true,
+			eventTags: map[string]string{
+				"device":            "nvswitch1-nvl9-gp1-jhb01",
+				"vendor":            "nvidia",
+				"model":             "nvos",
+				"interface_name":    "Ethernet1",
+				"subscription_name": "nvos",
+			},
+			expectedInDataPoint:    []string{"device", "vendor", "model", "interface_name", "subscription_name"},
+			expectedNotInDataPoint: []string{},
+		},
+		{
+			name:                     "disabled: device/vendor/model excluded from data point attributes",
+			addEventTagsAsAttributes: false,
+			eventTags: map[string]string{
+				"device":         "nvswitch1-nvl9-gp1-jhb01",
+				"vendor":         "nvidia",
+				"model":          "nvos",
+				"interface_name": "Ethernet1",
+			},
+			expectedInDataPoint:    []string{"interface_name"},
+			expectedNotInDataPoint: []string{"device", "vendor", "model"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: Event with various tags
+			event := &formatters.EventMsg{
+				Name:      "test_metric",
+				Timestamp: time.Now().UnixNano(),
+				Tags:      tt.eventTags,
+				Values: map[string]interface{}{
+					"value": int64(100),
+				},
+			}
+
+			// When: Converting to OTLP with add-event-tags-as-attributes setting
+			cfg := &config{
+				AddEventTagsAsAttributes: tt.addEventTagsAsAttributes,
+			}
+			output := &otlpOutput{
+				cfg:    cfg,
+				logger: log.New(io.Discard, "", 0),
+			}
+			otlpMetrics := output.convertToOTLP([]*formatters.EventMsg{event})
+
+			// Then: Verify data point attributes
+			require.NotNil(t, otlpMetrics)
+			require.Len(t, otlpMetrics.ResourceMetrics, 1)
+			require.Len(t, otlpMetrics.ResourceMetrics[0].ScopeMetrics, 1)
+			require.Len(t, otlpMetrics.ResourceMetrics[0].ScopeMetrics[0].Metrics, 1)
+
+			metric := otlpMetrics.ResourceMetrics[0].ScopeMetrics[0].Metrics[0]
+			var dataPointAttrs map[string]string
+
+			if metric.GetGauge() != nil {
+				dataPointAttrs = extractAttributesMap(metric.GetGauge().DataPoints[0].Attributes)
+			} else if metric.GetSum() != nil {
+				dataPointAttrs = extractAttributesMap(metric.GetSum().DataPoints[0].Attributes)
+			} else {
+				t.Fatal("Metric has neither Gauge nor Sum data")
+			}
+
+			// Verify expected tags are present
+			for _, key := range tt.expectedInDataPoint {
+				assert.Contains(t, dataPointAttrs, key, "Expected tag '%s' to be in data point attributes", key)
+				assert.Equal(t, tt.eventTags[key], dataPointAttrs[key], "Tag '%s' value mismatch", key)
+			}
+
+			// Verify excluded tags are NOT present
+			for _, key := range tt.expectedNotInDataPoint {
+				assert.NotContains(t, dataPointAttrs, key, "Tag '%s' should NOT be in data point attributes", key)
+			}
+		})
+	}
+}
+
+// Test 10: Resource Attributes Behavior with AddEventTagsAsAttributes
+func TestOTLP_ResourceAttributesBehavior(t *testing.T) {
+	tests := []struct {
+		name                     string
+		addEventTagsAsAttributes bool
+		eventTags                map[string]string
+		expectInResource         []string
+		expectNotInResource      []string
+	}{
+		{
+			name:                     "enabled: tags NOT duplicated in resource attributes",
+			addEventTagsAsAttributes: true,
+			eventTags: map[string]string{
+				"device": "nvswitch1",
+				"vendor": "nvidia",
+			},
+			expectInResource:    []string{},
+			expectNotInResource: []string{"device", "vendor"},
+		},
+		{
+			name:                     "disabled: tags in resource attributes (legacy)",
+			addEventTagsAsAttributes: false,
+			eventTags: map[string]string{
+				"device": "nvswitch1",
+				"vendor": "nvidia",
+			},
+			expectInResource:    []string{"device", "vendor"},
+			expectNotInResource: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			event := &formatters.EventMsg{
+				Name:      "test_metric",
+				Timestamp: time.Now().UnixNano(),
+				Tags:      tt.eventTags,
+				Values: map[string]interface{}{
+					"value": int64(100),
+				},
+			}
+
+			cfg := &config{
+				AddEventTagsAsAttributes: tt.addEventTagsAsAttributes,
+			}
+			output := &otlpOutput{
+				cfg:    cfg,
+				logger: log.New(io.Discard, "", 0),
+			}
+			otlpMetrics := output.convertToOTLP([]*formatters.EventMsg{event})
+
+			require.NotNil(t, otlpMetrics)
+			resource := otlpMetrics.ResourceMetrics[0].Resource
+			resourceAttrs := extractAttributesMap(resource.Attributes)
+
+			for _, key := range tt.expectInResource {
+				assert.Contains(t, resourceAttrs, key, "Expected tag '%s' in resource attributes", key)
+			}
+
+			for _, key := range tt.expectNotInResource {
+				assert.NotContains(t, resourceAttrs, key, "Tag '%s' should NOT be in resource attributes", key)
+			}
+		})
+	}
+}
+
+// Test 11: Configured Resource Attributes Always Included
+func TestOTLP_ConfiguredResourceAttributesAlwaysIncluded(t *testing.T) {
+	event := &formatters.EventMsg{
+		Name:      "test_metric",
+		Timestamp: time.Now().UnixNano(),
+		Tags: map[string]string{
+			"device": "nvswitch1",
+		},
+		Values: map[string]interface{}{
+			"value": int64(100),
+		},
+	}
+
+	cfg := &config{
+		AddEventTagsAsAttributes: true, // Even when this is true
+		ResourceAttributes: map[string]string{
+			"service.name":    "gnmic-collector",
+			"service.version": "0.42.0",
+		},
+	}
+	output := &otlpOutput{
+		cfg:    cfg,
+		logger: log.New(io.Discard, "", 0),
+	}
+	otlpMetrics := output.convertToOTLP([]*formatters.EventMsg{event})
+
+	resource := otlpMetrics.ResourceMetrics[0].Resource
+	resourceAttrs := extractAttributesMap(resource.Attributes)
+
+	// Configured resource attributes should always be present
+	assert.Equal(t, "gnmic-collector", resourceAttrs["service.name"])
+	assert.Equal(t, "0.42.0", resourceAttrs["service.version"])
+}
+
+// Helper to extract attributes map from KeyValue slice
+func extractAttributesMap(attrs []*commonpb.KeyValue) map[string]string {
+	result := make(map[string]string)
+	for _, attr := range attrs {
+		if strVal := attr.Value.GetStringValue(); strVal != "" {
+			result[attr.Key] = strVal
+		}
+	}
+	return result
 }

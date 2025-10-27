@@ -1,6 +1,8 @@
-// © 2025 Drew Elliott
+// © 2025 NVIDIA Corporation
 //
-// This code is a Contribution to the gNMIc project ("Work") made under the Apache License 2.0.
+// This code is a Contribution to the gNMIc project ("Work") made under the Google Software Grant and Corporate Contributor License Agreement ("CLA") and governed by the Apache License 2.0.
+// No other rights or licenses in or to any of NVIDIA's intellectual property are granted for any other purpose.
+// This code is provided on an "as is" basis without any warranties of any kind.
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -115,18 +117,22 @@ func (o *otlpOutput) groupByResource(events []*formatters.EventMsg) map[string][
 func (o *otlpOutput) createResource(event *formatters.EventMsg) *resourcepb.Resource {
 	attrs := make([]*commonpb.KeyValue, 0)
 
-	// Add device metadata as resource attributes
-	resourceKeys := []string{"device", "vendor", "site", "source", "subscription_name"}
-	for _, key := range resourceKeys {
-		if val, ok := event.Tags[key]; ok {
-			attrs = append(attrs, &commonpb.KeyValue{
-				Key:   key,
-				Value: &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: val}},
-			})
+	// When add-event-tags-as-attributes is enabled, don't duplicate tags in resource attributes
+	// Resource attributes don't become Prometheus labels, so we only add them for OTLP semantics
+	if !o.cfg.AddEventTagsAsAttributes {
+		// Add device metadata as resource attributes (legacy behavior)
+		resourceKeys := []string{"device", "vendor", "model", "site", "source", "subscription_name"}
+		for _, key := range resourceKeys {
+			if val, ok := event.Tags[key]; ok {
+				attrs = append(attrs, &commonpb.KeyValue{
+					Key:   key,
+					Value: &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: val}},
+				})
+			}
 		}
 	}
 
-	// Add configured resource attributes
+	// Always add configured resource attributes
 	for key, val := range o.cfg.ResourceAttributes {
 		attrs = append(attrs, &commonpb.KeyValue{
 			Key:   key,
@@ -258,10 +264,23 @@ func (o *otlpOutput) buildMetricName(event *formatters.EventMsg, valueKey string
 func (o *otlpOutput) extractAttributes(event *formatters.EventMsg) []*commonpb.KeyValue {
 	attrs := make([]*commonpb.KeyValue, 0)
 
-	// Resource-level tags that should not be in metric attributes
+	// When add-event-tags-as-attributes is enabled, include all event-tags as data point attributes
+	// This makes them appear as Prometheus labels
+	if o.cfg.AddEventTagsAsAttributes {
+		for key, val := range event.Tags {
+			attrs = append(attrs, &commonpb.KeyValue{
+				Key:   key,
+				Value: &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: val}},
+			})
+		}
+		return attrs
+	}
+
+	// Legacy behavior: exclude resource-level tags from metric attributes
 	resourceTags := map[string]bool{
 		"device":            true,
 		"vendor":            true,
+		"model":             true,
 		"site":              true,
 		"source":            true,
 		"subscription_name": !o.cfg.AppendSubscriptionName, // Only skip if not appending
