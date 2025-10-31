@@ -113,7 +113,7 @@ func (p *groupBy) byTagsOld(es []*formatters.EventMsg) []*formatters.EventMsg {
 	groups := make(map[string]*formatters.EventMsg)
 	keys := make([]string, 0)
 	for _, e := range es {
-		if e == nil || e.Tags == nil || e.Values == nil {
+		if e == nil || e.Tags == nil || (e.Values == nil && e.Deletes == nil) {
 			continue
 		}
 		exist := true
@@ -172,7 +172,7 @@ func (p *groupBy) byTags(es []*formatters.EventMsg) []*formatters.EventMsg {
 	groups := make(map[uint64]*formatters.EventMsg)
 
 	for _, e := range es {
-		if e == nil || e.Tags == nil || e.Values == nil {
+		if e == nil || e.Tags == nil || (e.Values == nil && e.Deletes == nil) {
 			continue
 		}
 
