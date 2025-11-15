@@ -75,6 +75,13 @@ func initMetrics(name string) {
 }
 
 func (p *promWriteOutput) registerMetrics() error {
+	cfg := p.cfg.Load()
+	if cfg == nil {
+		return nil
+	}
+	if !cfg.EnableMetrics {
+		return nil
+	}
 	if p.reg == nil {
 		return nil
 	}
@@ -105,6 +112,6 @@ func (p *promWriteOutput) registerMetrics() error {
 			return
 		}
 	})
-	initMetrics(p.cfg.Name)
+	initMetrics(cfg.Name)
 	return err
 }

@@ -11,6 +11,7 @@ package gnmi_output
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -111,6 +112,10 @@ func (g *gNMIOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	}
 	g.logger.Printf("started gnmi output: %v", g)
 	return nil
+}
+
+func (g *gNMIOutput) Update(ctx context.Context, cfg map[string]any) error {
+	return errors.New("not implemented for this output type")
 }
 
 func (g *gNMIOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) {

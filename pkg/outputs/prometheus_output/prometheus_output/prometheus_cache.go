@@ -15,6 +15,7 @@ import (
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/openconfig/gnmic/pkg/cache"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/outputs"
 )
@@ -25,8 +26,13 @@ func (p *prometheusOutput) collectFromCache(ch chan<- prometheus.Metric) {
 		p.logger.Printf("failed to read from cache: %v", err)
 		return
 	}
+	cfg := p.cfg.Load()
+	dc := p.dynCfg.Load()
+	if cfg == nil || dc == nil {
+		return
+	}
 	numNotifications := len(notifications)
-	prometheusNumberOfCachedMetrics.WithLabelValues(p.cfg.Name).Set(float64(numNotifications))
+	prometheusNumberOfCachedMetrics.WithLabelValues(cfg.Name).Set(float64(numNotifications))
 
 	p.targetsMeta.DeleteExpired()
 	events := make([]*formatters.EventMsg, 0, numNotifications)
@@ -52,21 +58,21 @@ func (p *prometheusOutput) collectFromCache(ch chan<- prometheus.Metric) {
 		}
 	}
 
-	if p.cfg.CacheConfig.Debug {
+	if cfg.CacheConfig.Debug {
 		p.logger.Printf("got %d events from cache pre processors", len(events))
 	}
-	for _, proc := range p.evps {
+	for _, proc := range dc.evps {
 		events = proc.Apply(events...)
 	}
-	if p.cfg.CacheConfig.Debug {
+	if cfg.CacheConfig.Debug {
 		p.logger.Printf("got %d events from cache post processors", len(events))
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), p.cfg.Timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.Timeout)
 	defer cancel()
 	now := time.Now()
 	for _, ev := range events {
-		for _, pm := range p.mb.MetricsFromEvent(ev, now) {
+		for _, pm := range dc.mb.MetricsFromEvent(ev, now) {
 			select {
 			case <-ctx.Done():
 				p.logger.Printf("collection context terminated: %v", ctx.Err())
@@ -75,4 +81,23 @@ func (p *prometheusOutput) collectFromCache(ch chan<- prometheus.Metric) {
 			}
 		}
 	}
+}
+
+func cacheEqual(a, b *cache.Config) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	return a != nil &&
+		b != nil &&
+		a.Expiration == b.Expiration &&
+		a.Debug == b.Debug &&
+		a.Address == b.Address &&
+		a.Timeout == b.Timeout &&
+		a.Type == b.Type &&
+		a.Username == b.Username &&
+		a.Password == b.Password &&
+		a.MaxBytes == b.MaxBytes &&
+		a.MaxMsgsPerSubscription == b.MaxMsgsPerSubscription &&
+		a.FetchBatchSize == b.FetchBatchSize &&
+		a.FetchWaitTime == b.FetchWaitTime
 }

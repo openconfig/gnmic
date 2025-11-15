@@ -45,14 +45,22 @@ var jetStreamSendDuration = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 }, []string{"publisher_id"})
 
 func (n *jetstreamOutput) initMetrics() {
-	jetStreamNumberOfSentMsgs.WithLabelValues(n.Cfg.Name, "").Add(0)
-	jetStreamNumberOfSentBytes.WithLabelValues(n.Cfg.Name, "").Add(0)
-	jetStreamNumberOfFailSendMsgs.WithLabelValues(n.Cfg.Name, "").Add(0)
-	jetStreamSendDuration.WithLabelValues(n.Cfg.Name).Set(0)
+	currCfg := n.cfg.Load()
+	if currCfg == nil {
+		return
+	}
+	jetStreamNumberOfSentMsgs.WithLabelValues(currCfg.Name, "").Add(0)
+	jetStreamNumberOfSentBytes.WithLabelValues(currCfg.Name, "").Add(0)
+	jetStreamNumberOfFailSendMsgs.WithLabelValues(currCfg.Name, "").Add(0)
+	jetStreamSendDuration.WithLabelValues(currCfg.Name).Set(0)
 }
 
 func (n *jetstreamOutput) registerMetrics() error {
-	if !n.Cfg.EnableMetrics {
+	currCfg := n.cfg.Load()
+	if currCfg == nil {
+		return nil
+	}
+	if !currCfg.EnableMetrics {
 		return nil
 	}
 	if n.reg == nil {

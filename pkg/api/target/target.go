@@ -44,18 +44,20 @@ type Target struct {
 	Config        *types.TargetConfig                  `json:"config,omitempty"`
 	Subscriptions map[string]*types.SubscriptionConfig `json:"subscriptions,omitempty"`
 
-	m                  *sync.Mutex
-	conn               *grpc.ClientConn
-	Client             gnmi.GNMIClient                      `json:"-"`
-	SubscribeClients   map[string]gnmi.GNMI_SubscribeClient `json:"-"` // subscription name to subscribeClient
-	subscribeCancelFn  map[string]context.CancelFunc
+	m                 *sync.Mutex
+	conn              *grpc.ClientConn
+	Client            gnmi.GNMIClient                      `json:"-"`
+	SubscribeClients  map[string]gnmi.GNMI_SubscribeClient `json:"-"` // subscription name to subscribeClient
+	subscribeCancelFn map[string]context.CancelFunc
+
 	pollChan           chan string // subscription name to be polled
 	subscribeResponses chan *SubscribeResponse
 	errors             chan *TargetError
-	stopped            bool
-	StopChan           chan struct{}      `json:"-"`
-	Cfn                context.CancelFunc `json:"-"`
-	RootDesc           desc.Descriptor    `json:"-"`
+
+	stopped  bool
+	StopChan chan struct{}      `json:"-"`
+	Cfn      context.CancelFunc `json:"-"`
+	RootDesc desc.Descriptor    `json:"-"`
 }
 
 // NewTarget //

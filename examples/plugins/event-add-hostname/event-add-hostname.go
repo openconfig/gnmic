@@ -23,6 +23,7 @@ const (
 )
 
 type addHostnameProcessor struct {
+	formatters.BaseProcessor
 	Debug           bool          `mapstructure:"debug,omitempty" yaml:"debug,omitempty" json:"debug,omitempty"`
 	ReadInterval    time.Duration `mapstructure:"read-interval,omitempty" yaml:"read-interval,omitempty" json:"read-interval,omitempty"`
 	HostnameTagName string        `mapstructure:"hostname-tag-name,omitempty" yaml:"hostname-tag-name,omitempty" json:"hostname-tag-name,omitempty"`
@@ -68,6 +69,10 @@ func (p *addHostnameProcessor) Apply(event ...*formatters.EventMsg) []*formatter
 		e.Tags[p.HostnameTagName] = p.hostname
 	}
 	return event
+}
+
+func (p *addHostnameProcessor) Close() error {
+	return nil
 }
 
 func (p *addHostnameProcessor) WithActions(act map[string]map[string]interface{}) {

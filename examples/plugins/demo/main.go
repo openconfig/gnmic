@@ -18,6 +18,7 @@ const (
 )
 
 type MyEventProcessor struct {
+	formatters.BaseProcessor
 	Debug bool `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 
 	targetsConfigs        map[string]*types.TargetConfig
@@ -46,6 +47,10 @@ func (p *MyEventProcessor) Apply(event ...*formatters.EventMsg) []*formatters.Ev
 
 	}
 	return event
+}
+
+func (p *MyEventProcessor) Close() error {
+	return nil
 }
 
 func (p *MyEventProcessor) WithActions(act map[string]map[string]interface{}) {
