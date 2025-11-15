@@ -24,10 +24,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
-	"github.com/openconfig/gnmic/pkg/config/store"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/inputs"
 	"github.com/openconfig/gnmic/pkg/outputs"
+	"github.com/openconfig/gnmic/pkg/store"
 	pkgutils "github.com/openconfig/gnmic/pkg/utils"
 	"google.golang.org/protobuf/proto"
 )

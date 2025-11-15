@@ -3,15 +3,14 @@ package targets_manager
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"hash/fnv"
 	"log"
 	"log/slog"
-	"math/rand"
 	"net"
 	"os"
 	"reflect"
+	"slices"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -20,17 +19,16 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/target"
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/config"
-	"github.com/openconfig/gnmic/pkg/config/store"
 	"github.com/openconfig/gnmic/pkg/loaders"
 	"github.com/openconfig/gnmic/pkg/lockers"
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	"github.com/openconfig/gnmic/pkg/pipeline"
+	"github.com/openconfig/gnmic/pkg/store"
 	"github.com/openconfig/gnmic/pkg/utils"
 	"github.com/openconfig/grpctunnel/tunnel"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type ManagedTarget struct {
@@ -46,25 +44,30 @@ type ManagedTarget struct {
 	// reader
 	readerCtx    context.Context
 	readerCancel context.CancelFunc
+	mu           *sync.Mutex
 	readersCfn   map[string]context.CancelFunc
 	readerWG     sync.WaitGroup
 
-	outputs map[string]struct{}
+	outputs              map[string]struct{}
+	appliedSubscriptions []string
 }
 
 type targetsStats struct {
-	msgCount *prometheus.CounterVec
+	msgCount                  *prometheus.CounterVec
+	subscribeResponseReceived *prometheus.CounterVec
 }
 
 func newManagedTarget(name string, cfg *types.TargetConfig, tunServer *tunnel.Server) *ManagedTarget {
 	nt := target.NewTarget(cfg)
 	mt := &ManagedTarget{
-		Name:       name,
-		cfg:        cfg,
-		T:          nt,
-		tunServer:  tunServer,
-		outputs:    make(map[string]struct{}, len(cfg.Outputs)),
-		readersCfn: make(map[string]context.CancelFunc),
+		Name:                 name,
+		cfg:                  cfg,
+		T:                    nt,
+		tunServer:            tunServer,
+		outputs:              make(map[string]struct{}, len(cfg.Outputs)),
+		mu:                   new(sync.Mutex),
+		readersCfn:           make(map[string]context.CancelFunc),
+		appliedSubscriptions: make([]string, 0, len(cfg.Subscriptions)),
 	}
 	for _, output := range cfg.Outputs {
 		mt.outputs[output] = struct{}{}
@@ -97,18 +100,16 @@ type TargetsManager struct {
 	reg         *prometheus.Registry
 }
 
-func NewTargetsManager(ctx context.Context, st store.Store[any], pipeline chan *pipeline.Msg, reg *prometheus.Registry) *TargetsManager {
-	logger := slog.With("component", "targets-manager")
+func NewTargetsManager(ctx context.Context, store store.Store[any], pipeline chan *pipeline.Msg, reg *prometheus.Registry) *TargetsManager {
 	ctx, cancel := context.WithCancel(ctx)
-	ts := newTunnelServer(st, reg)
+	ts := newTunnelServer(store, reg)
 	tm := &TargetsManager{
 		ctx:           ctx,
 		cancel:        cancel,
-		store:         st,
+		store:         store,
 		out:           pipeline,
 		targets:       map[string]*ManagedTarget{},
 		subscriptions: map[string]*types.SubscriptionConfig{},
-		logger:        logger,
 		ts:            ts,
 		stats:         newTargetsStats(),
 		mas:           new(sync.RWMutex),
@@ -127,10 +128,12 @@ func newTargetsStats() *targetsStats {
 			Name:      "gnmi_msg_receveid_count",
 			Help:      "Number of messages received by the targets",
 		}, []string{"target", "subscription"}),
+		subscribeResponseReceived: subscribeResponseReceivedCounter,
 	}
 }
 
 func (tm *TargetsManager) Start(locker lockers.Locker, wg *sync.WaitGroup) error {
+	tm.logger = logging.NewLogger(tm.store, "component", "targets-manager")
 	tm.logger.Info("starting targets manager")
 	tm.locker = locker
 	clustering, ok, err := tm.isClustering()
@@ -144,10 +147,12 @@ func (tm *TargetsManager) Start(locker lockers.Locker, wg *sync.WaitGroup) error
 	}
 
 	// start tunnel server
-	err = tm.ts.startTunnelServer(tm.ctx)
-	if err != nil {
-		return err
-	}
+	go func() {
+		err := tm.ts.startTunnelServer(tm.ctx)
+		if err != nil {
+			tm.logger.Error("failed to start tunnel server", "error", err)
+		}
+	}()
 	tm.logger.Info("starting targets watcher")
 	targetsCh, targetsCancel, err := tm.store.Watch("targets", store.WithInitialReplay[any]())
 	if err != nil {
@@ -223,12 +228,12 @@ func (tm *TargetsManager) Start(locker lockers.Locker, wg *sync.WaitGroup) error
 				if !ok {
 					return
 				}
-				tm.logger.Info("got target event", "eventType", ev.EventType, "name", ev.Name)
+				tm.logger.Debug("got target event", "eventType", ev.EventType, "name", ev.Name)
 				if !tm.amIAssigned(ev.Name) {
-					tm.logger.Info("target is not assigned to this instance", "target", ev.Name)
+					tm.logger.Debug("target is not assigned to this instance", "target", ev.Name)
 					continue
 				} else {
-					tm.logger.Info("target is assigned to this instance", "target", ev.Name)
+					tm.logger.Debug("target is assigned to this instance", "target", ev.Name)
 				}
 				switch ev.EventType {
 				case store.EventTypeCreate, store.EventTypeUpdate:
@@ -338,9 +343,11 @@ func (tm *TargetsManager) apply(name string, cfg *types.TargetConfig) {
 	tm.logger.Info("target config changed", "name", name, "old", mt.T.Config, "new", cfg)
 	if !shouldReconnect(mt.T.Config, cfg) {
 		// subscriptions
-		if !reflect.DeepEqual(mt.T.Config.Subscriptions, cfg.Subscriptions) {
+		// compare applied subscriptions with new subscriptions.
+		// !Do not mutate the current config subscriptions list!.
+		if !reflect.DeepEqual(mt.appliedSubscriptions, cfg.Subscriptions) {
 			tm.logger.Info("subscriptions changed", "name", name, "old", mt.T.Config.Subscriptions, "new", cfg.Subscriptions)
-			if added, removed := tm.compareSubscriptions(mt.T.Config, cfg); len(added) > 0 || len(removed) > 0 {
+			if added, removed := tm.compareSubscriptions(mt.T.Config.Subscriptions, cfg.Subscriptions); len(added) > 0 || len(removed) > 0 {
 				tm.logger.Info("subscriptions added", "name", name, "added", added)
 				tm.logger.Info("subscriptions removed", "name", name, "removed", removed)
 				for _, sub := range added {
@@ -356,6 +363,7 @@ func (tm *TargetsManager) apply(name string, cfg *types.TargetConfig) {
 					}
 					scfg := cfg.(*types.SubscriptionConfig)
 					scfg.Name = sub
+					mt.appliedSubscriptions = append(mt.appliedSubscriptions, sub)
 					err = tm.startTargetSubscription(mt, scfg)
 					if err != nil {
 						tm.logger.Error("failed to start target subscription", "name", sub, "target", name, "error", err)
@@ -363,9 +371,20 @@ func (tm *TargetsManager) apply(name string, cfg *types.TargetConfig) {
 					}
 				}
 				for _, sub := range removed {
+					mt.mu.Lock()
+					cfn, exists := mt.readersCfn[sub]
+					if exists {
+						cfn()
+						delete(mt.readersCfn, sub)
+					}
+					mt.mu.Unlock()
 					tm.logger.Info("stopping target subscription", "name", sub, "target", name)
 					mt.T.StopSubscription(sub)
 					delete(mt.T.Subscriptions, sub)
+					mt.appliedSubscriptions = slices.DeleteFunc(mt.appliedSubscriptions, func(s string) bool {
+						return s == sub
+					})
+					tm.logger.Info("target subscription stopped", "name", sub, "target", name)
 				}
 			} else {
 				tm.logger.Info("subscriptions unchanged", "name", name, "old", mt.T.Config.Subscriptions, "new", cfg.Subscriptions)
@@ -492,9 +511,8 @@ func (tm *TargetsManager) start(mt *ManagedTarget) error {
 			subs = append(subs, name)
 		}
 		tm.mu.RUnlock()
-
 		// reflect the effective subs into the target's config so future diffs see them
-		mt.T.Config.Subscriptions = append([]string(nil), subs...)
+		mt.appliedSubscriptions = append(mt.appliedSubscriptions, subs...)
 	}
 	for _, sub := range subs {
 		tm.logger.Info("starting target subscription", "name", sub, "target", mt.Name)
@@ -589,15 +607,15 @@ func (tm *TargetsManager) remove(name string) {
 	if mt != nil {
 		mt.Lock()
 		_ = tm.stop(mt)
+		mt.T = nil
+		mt.outputs = nil
+		mt.readerCtx = nil
+		mt.readerCancel = nil
 		mt.Unlock()
 	}
-	mt.T = nil
-	mt.outputs = nil
-	mt.readerCtx = nil
-	mt.readerCancel = nil
 }
 
-// TODO: apply subscription to all targets that reference it or to those that do not reference any subscription
+// apply subscription to all targets that reference it or to those that do not reference any subscription
 func (tm *TargetsManager) applySubscription(name string, cfg types.SubscriptionConfig) {
 	tm.logger.Info("applying subscription", "name", name, "cfg", cfg)
 	cfg.Name = name
@@ -605,12 +623,32 @@ func (tm *TargetsManager) applySubscription(name string, cfg types.SubscriptionC
 	tm.subscriptions[name] = &cfg
 	tm.logger.Info("subscriptions", "subscriptions", tm.subscriptions)
 	for _, mt := range tm.targets {
+		tm.logger.Info("target", "target", mt.Name, "subscriptions", mt.T.Config.Subscriptions)
+		if len(mt.T.Config.Subscriptions) > 0 {
+			if !slices.Contains(mt.T.Config.Subscriptions, name) {
+				tm.logger.Info("subscription not in target's explicit list", "subscription", name, "target", mt.Name)
+				continue
+			}
+		}
+		tm.logger.Info("(re)starting target subscription", "name", name, "target", mt.Name)
+		// Stop and WAIT for the old subscription to fully terminate
+		mt.mu.Lock()
+		cfn, exists := mt.readersCfn[name]
+		if exists {
+			tm.logger.Info("canceling subscription context", "name", name, "target", mt.Name)
+			cfn() // Cancel the context
+			tm.logger.Info("deleted subscription context", "name", name, "target", mt.Name)
+			delete(mt.readersCfn, name) // Remove from map
+		}
+		mt.mu.Unlock()
 		tm.logger.Info("stopping target subscription", "name", name, "target", mt.Name)
 		mt.T.StopSubscription(name)
+		tm.logger.Info("stopped target subscription", "name", name, "target", mt.Name)
+		// Wait for the reader goroutine to finish
 		mt.T.Subscriptions[name] = &cfg
 		err := tm.startTargetSubscription(mt, &cfg)
 		if err != nil {
-			tm.logger.Error("failed to start target subscription", "name", name, "target", mt.Name, "error", err)
+			tm.logger.Error("failed to start target subscription", "subscription", name, "target", mt.Name, "error", err)
 		}
 	}
 	tm.mu.Unlock()
@@ -621,6 +659,13 @@ func (tm *TargetsManager) removeSubscription(name string, _ types.SubscriptionCo
 	tm.mu.Lock()
 	delete(tm.subscriptions, name)
 	for _, mt := range tm.targets {
+		mt.mu.Lock()
+		cfn, exists := mt.readersCfn[name]
+		if exists {
+			cfn()
+			delete(mt.readersCfn, name)
+		}
+		mt.mu.Unlock()
 		mt.T.StopSubscription(name)
 		delete(mt.T.Subscriptions, name)
 	}
@@ -749,6 +794,7 @@ func (tm *TargetsManager) GetIntendedState(name string) string {
 }
 
 func (tm *TargetsManager) startTargetSubscription(mt *ManagedTarget, cfg *types.SubscriptionConfig) error {
+	tm.logger.Info("starting target subscription", "name", cfg.Name, "target", mt.Name)
 	var defaultEncoding = "json"
 	defaultEncodingVal, exists, err := tm.store.Get("globalConfig", "defaultEncoding")
 	if err != nil {
@@ -769,14 +815,17 @@ func (tm *TargetsManager) startTargetSubscription(mt *ManagedTarget, cfg *types.
 	}
 	tm.logger.Info("starting target Subscribe RPC", "name", cfg.Name, "target", mt.Name)
 
+	mt.T.Subscriptions[cfg.Name] = cfg
 	mt.readerWG.Add(1)
 	sctx, cfn := context.WithCancel(tm.ctx)
+	mt.mu.Lock()
 	mt.readersCfn[cfg.Name] = cfn
-	respCh, errCh := mt.T.SubscribeChan(sctx, subreq, cfg.Name)
+	mt.mu.Unlock()
 
+	respCh, errCh := mt.T.SubscribeChan(sctx, subreq, cfg.Name)
 	go func() {
 		defer mt.readerWG.Done()
-		defer cfn()
+		// defer cfn()
 		for {
 			select {
 			case <-sctx.Done():
@@ -811,45 +860,11 @@ func (tm *TargetsManager) startTargetSubscription(mt *ManagedTarget, cfg *types.
 				if !ok {
 					return
 				}
-				tm.logger.Error("failed to subscribe", "error", err)
-				return
+				tm.logger.Error("subscription error", "error", err)
 			}
 		}
 	}()
 	return nil
-}
-
-func (tm *TargetsManager) restartTargetSubscription(mt *ManagedTarget, cfg *types.SubscriptionConfig) error {
-	mt.T.StopSubscription(cfg.Name)
-	return tm.startTargetSubscription(mt, cfg)
-}
-
-// io.EOF, context.DeadlineExceeded, grpc codes.Unavailable, etc.
-func isTransientErr(err error) bool {
-	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) { // TODO: remove canceled
-		return true
-	}
-	st, ok := status.FromError(err)
-	if ok {
-		switch st.Code() {
-		case codes.Unavailable, codes.ResourceExhausted, codes.DeadlineExceeded, codes.Aborted:
-			return true
-		}
-	}
-	return false
-}
-
-func nextBackoff(prev, min, max time.Duration) time.Duration {
-	if prev <= 0 {
-		return min
-	}
-	n := prev * 2
-	if n > max {
-		n = max
-	}
-	// add a little jitter
-	jit := time.Duration(rand.Int63n(int64(n / 5)))
-	return n - jit
 }
 
 func shouldReconnect(old, new *types.TargetConfig) bool {
@@ -865,40 +880,40 @@ func shouldReconnect(old, new *types.TargetConfig) bool {
 	return ho != hn
 }
 
-func (tm *TargetsManager) compareSubscriptions(old, new *types.TargetConfig) (added, removed []string) {
-	if len(new.Subscriptions) == 0 {
+// TODO: optimize this
+func (tm *TargetsManager) compareSubscriptions(old, new []string) (added, removed []string) {
+	var subscriptionsList []string
+	var err error
+	if len(new) == 0 || len(old) == 0 {
 		// get all subscriptions from the store
-		subscriptions, err := tm.store.List("subscriptions")
+		subscriptionsList, err = tm.store.Keys("subscriptions")
 		if err != nil {
-			tm.logger.Error("failed to get subscriptions", "error", err)
+			tm.logger.Error("failed to get subscriptions from store", "error", err)
 			return nil, nil
 		}
-		new.Subscriptions = keys(subscriptions)
 	}
-	if len(old.Subscriptions) == 0 {
-		// get all subscriptions from the store
-		subscriptions, err := tm.store.List("subscriptions")
-		if err != nil {
-			tm.logger.Error("failed to get subscriptions", "error", err)
-			return nil, nil
-		}
-		old.Subscriptions = keys(subscriptions)
-		return nil, old.Subscriptions
+	sort.Strings(subscriptionsList)
+	if len(new) == 0 {
+		new = subscriptionsList
 	}
-	oldSubs := make(map[string]struct{}, len(old.Subscriptions))
-	newSubs := make(map[string]struct{}, len(new.Subscriptions))
-	for _, sub := range old.Subscriptions {
+	if len(old) == 0 {
+		old = subscriptionsList
+	}
+
+	oldSubs := make(map[string]struct{}, len(old))
+	newSubs := make(map[string]struct{}, len(new))
+	for _, sub := range old {
 		oldSubs[sub] = struct{}{}
 	}
-	for _, sub := range new.Subscriptions {
+	for _, sub := range new {
 		newSubs[sub] = struct{}{}
 	}
-	for _, sub := range old.Subscriptions {
+	for _, sub := range old {
 		if _, ok := newSubs[sub]; !ok {
 			removed = append(removed, sub)
 		}
 	}
-	for _, sub := range new.Subscriptions {
+	for _, sub := range new {
 		if _, ok := oldSubs[sub]; !ok {
 			added = append(added, sub)
 		}
@@ -1002,17 +1017,15 @@ func connSpecFrom(tc *types.TargetConfig) connSpec {
 	sort.Strings(cs)
 
 	spec := connSpec{
-		Address:    tc.Address,
-		Username:   val(tc.Username),
-		Password:   val(tc.Password),
-		AuthScheme: tc.AuthScheme,
-		Token:      val(tc.Token),
-		Proxy:      tc.Proxy,
-
+		Address:       tc.Address,
+		Username:      val(tc.Username),
+		Password:      val(tc.Password),
+		AuthScheme:    tc.AuthScheme,
+		Token:         val(tc.Token),
+		Proxy:         tc.Proxy,
 		Timeout:       tc.Timeout,
 		TCPKeepalive:  tc.TCPKeepalive,
 		GRPCKeepalive: tc.GRPCKeepalive,
-
 		Insecure:      val(tc.Insecure),
 		TLSCA:         val(tc.TLSCA),
 		TLSCert:       val(tc.TLSCert),
@@ -1023,9 +1036,8 @@ func connSpecFrom(tc *types.TargetConfig) connSpec {
 		TLSMaxVersion: tc.TLSMaxVersion,
 		TLSVersion:    tc.TLSVersion,
 		CipherSuites:  cs,
-
-		Encoding: val(tc.Encoding),
-		Gzip:     val(tc.Gzip),
+		Encoding:      val(tc.Encoding),
+		Gzip:          val(tc.Gzip),
 	}
 	return spec
 }

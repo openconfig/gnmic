@@ -11,12 +11,20 @@ import (
 	"github.com/openconfig/gnmic/pkg/lockers"
 )
 
+const (
+	// campaignPeriod        = 1 * time.Second
+	recampaignBackoff     = 200 * time.Millisecond
+	recampaignJitterRatio = 0.2
+)
+
 type Election interface {
 	// Blocks until this node becomes leader (i.e., acquires the leader lock) or ctx is done.
 	// Returns a monotonically increasing term for observability/metrics.
 	Campaign(ctx context.Context) (term int64, err error)
 	// Closes when leadership is lost (or returns nil if you don't need it).
 	Observe(ctx context.Context) <-chan struct{} // closes/receives when leadership is lost (optional; return nil if N/A)
+	// Withdraw withdraws from the leader position
+	Withdraw() error
 }
 
 type election struct {
@@ -63,26 +71,34 @@ func (e *election) Campaign(ctx context.Context) (term int64, err error) {
 	key := e.leaderKey()
 	// try lock
 	// keep trying until ctx canceled
-	ticker := time.NewTicker(200 * time.Millisecond)
+	ticker := time.NewTimer(0) // fire immediately first time
 	defer ticker.Stop()
 
 	for {
+		if !ticker.Stop() {
+			select {
+			case <-ticker.C:
+			default:
+			}
+		}
 		e.logger.Info("trying to acquire leader lock", "node", e.nodeID, "cluster", e.clusterName, "term", term)
 		// Try to acquire the leader lock
 		ok, release, err := tryAcquire(ctx, e.locker, key, []byte(e.nodeID), e.TTL)
 		if err != nil {
 			e.logger.Error("failed to acquire leader lock", "node", e.nodeID, "cluster", e.clusterName, "term", term, "error", err)
-			// backend error; backoff a bit
+			// locker error... backoff a bit
+			delay := jittered(recampaignBackoff)
+			ticker.Reset(delay)
 			select {
 			case <-ctx.Done():
 				return 0, ctx.Err()
-			case <-time.After(300 * time.Millisecond):
+			case <-ticker.C:
 				continue
 			}
 		}
-		e.logger.Info("acquired leader lock", "node", e.nodeID, "cluster", e.clusterName, "term", term)
 		if ok {
-			// We are leader now
+			e.logger.Info("acquired leader lock", "node", e.nodeID, "cluster", e.clusterName, "term", term)
+			// I'm the captain now!
 			e.mu.Lock()
 			e.releaseFn = release
 			e.mu.Unlock()
@@ -90,7 +106,7 @@ func (e *election) Campaign(ctx context.Context) (term int64, err error) {
 			e.held.Store(true)
 			term := e.term.Add(1)
 
-			// Start renew loop bound to this leadership session
+			// start keepalive loop bound to this leadership session
 			keepCtx, cancel := context.WithCancel(ctx)
 			e.cancelKeepAlive = cancel
 			go e.keepalive(keepCtx, key)
@@ -98,11 +114,14 @@ func (e *election) Campaign(ctx context.Context) (term int64, err error) {
 			return term, nil
 		}
 		e.logger.Info("not acquired leader lock", "node", e.nodeID, "cluster", e.clusterName, "term", term)
-		// Not acquired: wait or exit
+		// lock not acquired, add a jitter and retry
+		delay := jittered(recampaignBackoff)
+		ticker.Reset(delay)
 		select {
 		case <-ctx.Done():
 			return 0, ctx.Err()
 		case <-ticker.C:
+			continue
 		}
 	}
 }
@@ -114,6 +133,37 @@ func (e *election) Observe(ctx context.Context) <-chan struct{} {
 	ch := e.loseCh
 	e.mu.Unlock()
 	return ch
+}
+
+func (e *election) Withdraw() error {
+	if !e.held.Load() {
+		return nil
+	}
+
+	e.mu.Lock()
+	release := e.releaseFn
+	e.releaseFn = nil
+	cancel := e.cancelKeepAlive
+	e.cancelKeepAlive = nil
+	e.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	if release != nil {
+		_ = release() // ignore error
+	}
+
+	// signal loss
+	e.loseOnce.Do(func() {
+		e.held.Store(false)
+		if e.loseCh != nil {
+			close(e.loseCh)
+		}
+	})
+
+	e.logger.Info("leadership withdrawn", "term", e.term.Load(), "node", e.nodeID, "cluster", e.clusterName)
+
+	return nil
 }
 
 func (e *election) leaderKey() string {

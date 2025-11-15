@@ -11,7 +11,7 @@ package outputs
 import (
 	"log"
 
-	"github.com/openconfig/gnmic/pkg/config/store"
+	"github.com/openconfig/gnmic/pkg/store"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

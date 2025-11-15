@@ -10,6 +10,7 @@ package influxdb_output
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/openconfig/gnmi/proto/gnmi"
@@ -21,11 +22,15 @@ import (
 
 func (i *influxDBOutput) initCache(ctx context.Context, name string) error {
 	var err error
-	i.gnmiCache, err = cache.New(i.Cfg.CacheConfig, cache.WithLogger(i.logger))
+	cfg := i.cfg.Load()
+	if cfg == nil {
+		return fmt.Errorf("config is nil")
+	}
+	i.gnmiCache, err = cache.New(cfg.CacheConfig, cache.WithLogger(i.logger))
 	if err != nil {
 		return err
 	}
-	i.cacheTicker = time.NewTicker(i.Cfg.CacheFlushTimer)
+	i.cacheTicker = time.NewTicker(cfg.CacheFlushTimer)
 	i.done = make(chan struct{})
 	go i.runCache(ctx, name)
 	return nil
@@ -45,7 +50,11 @@ func (i *influxDBOutput) runCache(ctx context.Context, name string) {
 		case <-i.done:
 			return
 		case <-i.cacheTicker.C:
-			if i.Cfg.Debug {
+			cfg := i.cfg.Load()
+			if cfg == nil {
+				continue
+			}
+			if cfg.Debug {
 				i.logger.Printf("cache timer tick")
 			}
 			i.readCache(ctx)
@@ -59,7 +68,14 @@ func (i *influxDBOutput) readCache(ctx context.Context) {
 		i.logger.Printf("failed to read from cache: %v", err)
 		return
 	}
-	if i.Cfg.Debug {
+	cfg := i.cfg.Load()
+	dc := i.dynCfg.Load()
+
+	if cfg == nil || dc == nil {
+		return
+	}
+
+	if cfg.Debug {
 		i.logger.Printf("read notifications: %+v", notifications)
 	}
 
@@ -80,18 +96,42 @@ func (i *influxDBOutput) readCache(ctx context.Context) {
 		}
 	}
 
-	// apply processors if any
-	for _, proc := range i.evps {
+	for _, proc := range dc.evps {
 		events = proc.Apply(events...)
 	}
 
+	resetChan := i.reset.Load()
+	if resetChan == nil {
+		return
+	}
 	for _, ev := range events {
 		select {
 		case <-ctx.Done():
 			return
-		case <-i.reset:
+		case <-*resetChan:
 			return
 		case i.eventChan <- ev:
 		}
 	}
+}
+
+func cacheCfgEqual(a, b *cache.Config) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	// Compare the fields you actually use; example:
+	return a.Type == b.Type &&
+		a.Expiration == b.Expiration &&
+		a.Debug == b.Debug &&
+		a.Address == b.Address &&
+		a.Timeout == b.Timeout &&
+		a.Username == b.Username &&
+		a.Password == b.Password &&
+		a.MaxBytes == b.MaxBytes &&
+		a.MaxMsgsPerSubscription == b.MaxMsgsPerSubscription &&
+		a.FetchBatchSize == b.FetchBatchSize &&
+		a.FetchWaitTime == b.FetchWaitTime
 }

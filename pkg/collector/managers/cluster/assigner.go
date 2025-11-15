@@ -11,22 +11,22 @@ import (
 	"time"
 
 	apiconst "github.com/openconfig/gnmic/pkg/collector/api/const"
-	"github.com/openconfig/gnmic/pkg/config/store"
+	"github.com/openconfig/gnmic/pkg/store"
 )
 
 type Assignment struct {
 	Target string `json:"target,omitempty"`
 	Member string `json:"member,omitempty"`
-	// Epoch  int64  `json:"epoch,omitempty"`
 }
 
 type assignmentConfig struct {
-	Assignments []*Assignment `json:"assignments"`
+	Assignments   []*Assignment `json:"assignments"`
+	Unassignments []string      `json:"unassignments,omitempty"`
 }
 
 type Assigner interface {
 	Assign(ctx context.Context, targetToMember map[string]*Member) error
-	Unassign(ctx context.Context, target string, member *Member) error
+	Unassign(ctx context.Context, member *Member, target ...string) error
 }
 
 const (
@@ -52,7 +52,6 @@ func NewAssigner(store store.Store[any]) Assigner {
 }
 
 func (p *restAssigner) Assign(ctx context.Context, targetToMember map[string]*Member) error {
-	// epoch := time.Now().Unix()
 	// TODO: group by address
 	for targetName, member := range targetToMember {
 		if member == nil || member.Address == "" {
@@ -71,7 +70,6 @@ func (p *restAssigner) Assign(ctx context.Context, targetToMember map[string]*Me
 		if err != nil {
 			return err
 		}
-
 	}
 
 	return nil
@@ -100,23 +98,32 @@ func (p *restAssigner) assignOne(ctx context.Context, address string, assignment
 	return nil
 }
 
-func (p *restAssigner) Unassign(ctx context.Context, target string, member *Member) error {
+func (p *restAssigner) Unassign(ctx context.Context, member *Member, target ...string) error {
 	if member == nil || member.Address == "" {
 		return fmt.Errorf("member is nil or address is empty")
 	}
 	scheme := GetAPIScheme(member)
-	address := scheme + "://" + member.Address + apiconst.AssignmentsAPIv1URL + "/" + target
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, address, nil)
+	address := scheme + "://" + member.Address + apiconst.AssignmentsAPIv1URL
+	body, err := json.Marshal(&assignmentConfig{Unassignments: target})
 	if err != nil {
 		return err
 	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, address, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
 	resp, err := p.client.Do(req)
+	if err != nil {
+		return err
+	}
+	body, err = io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
-		return fmt.Errorf("unassign: %s", resp.Status)
+		return fmt.Errorf("unassign: %s: %s", resp.Status, string(body))
 	}
 	return nil
 }

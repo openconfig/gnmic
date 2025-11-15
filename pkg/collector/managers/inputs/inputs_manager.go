@@ -8,9 +8,10 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/openconfig/gnmic/pkg/config/store"
 	"github.com/openconfig/gnmic/pkg/inputs"
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/pipeline"
+	"github.com/openconfig/gnmic/pkg/store"
 )
 
 type ManagedInput struct {
@@ -40,11 +41,11 @@ func NewInputsManager(ctx context.Context, store store.Store[any], pipeline chan
 		pipeline:       pipeline,
 		inputFactories: inputs.Inputs,
 		inputs:         map[string]*ManagedInput{},
-		logger:         slog.With("component", "inputs-manager"),
 	}
 }
 
 func (im *InputsManager) Start(wg *sync.WaitGroup) error {
+	im.logger = logging.NewLogger(im.store, "component", "inputs-manager")
 	im.logger.Info("starting inputs manager")
 	inputsCh, inputsCancel, err := im.store.Watch("inputs", store.WithInitialReplay[any]())
 	if err != nil {
@@ -109,6 +110,7 @@ func (im *InputsManager) Stop() {
 		}
 	}
 }
+
 func (im *InputsManager) create(name string, cfg map[string]any) {
 	typ, _ := cfg["type"].(string)
 	f := im.inputFactories[typ]
@@ -145,36 +147,3 @@ func (im *InputsManager) delete(name string) {
 	defer im.mu.Unlock()
 	delete(im.inputs, name)
 }
-
-// func (im *InputsManager) addProcessor(name string, cfg map[string]any) {
-// 	im.mu.Lock()
-// 	defer im.mu.Unlock()
-// 	for _, mi := range im.inputs {
-// 		err := mi.Impl.AddEventProcessor(name, cfg)
-// 		if err != nil {
-// 			im.logger.Error("failed to add event processor to input", "name", name, "inputName", mi.Name, "error", err)
-// 		}
-// 	}
-// }
-
-// func (im *InputsManager) updateProcessor(name string, cfg map[string]any) {
-// 	im.mu.Lock()
-// 	defer im.mu.Unlock()
-// 	for _, mi := range im.inputs {
-// 		err := mi.Impl.UpdateEventProcessor(name, cfg)
-// 		if err != nil {
-// 			im.logger.Error("failed to update event processor for input", "name", name, "inputName", mi.Name, "error", err)
-// 		}
-// 	}
-// }
-
-// func (im *InputsManager) deleteProcessor(name string) {
-// 	im.mu.Lock()
-// 	defer im.mu.Unlock()
-// 	for _, mi := range im.inputs {
-// 		err := mi.Impl.RemoveEventProcessor(name)
-// 		if err != nil {
-// 			im.logger.Error("failed to remove event processor for input", "name", name, "inputName", mi.Name, "error", err)
-// 		}
-// 	}
-// }

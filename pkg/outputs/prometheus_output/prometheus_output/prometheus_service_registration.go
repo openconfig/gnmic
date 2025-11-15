@@ -11,6 +11,7 @@ package prometheus_output
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -49,23 +50,45 @@ type serviceRegistration struct {
 }
 
 func (p *prometheusOutput) registerService(ctx context.Context) {
-	if p.cfg.ServiceRegistration == nil {
+	cfg := p.cfg.Load()
+	if cfg == nil {
 		return
 	}
+	if cfg.ServiceRegistration == nil {
+		return
+	}
+	defer func() {
+		p.logger.Printf("deregistering service: %s", cfg.ServiceRegistration.Name)
+	}()
+	p.logger.Printf("registering service: %s", cfg.ServiceRegistration.Name)
 	var err error
 	clientConfig := &api.Config{
-		Address:    p.cfg.ServiceRegistration.Address,
+		Address:    cfg.ServiceRegistration.Address,
 		Scheme:     "http",
-		Datacenter: p.cfg.ServiceRegistration.Datacenter,
-		Token:      p.cfg.ServiceRegistration.Token,
+		Datacenter: cfg.ServiceRegistration.Datacenter,
+		Token:      cfg.ServiceRegistration.Token,
 	}
-	if p.cfg.ServiceRegistration.Username != "" && p.cfg.ServiceRegistration.Password != "" {
+	if cfg.ServiceRegistration.Username != "" && cfg.ServiceRegistration.Password != "" {
 		clientConfig.HttpAuth = &api.HttpBasicAuth{
-			Username: p.cfg.ServiceRegistration.Username,
-			Password: p.cfg.ServiceRegistration.Password,
+			Username: cfg.ServiceRegistration.Username,
+			Password: cfg.ServiceRegistration.Password,
 		}
 	}
+	doneCh := make(chan struct{})
 INITCONSUL:
+	if ctx.Err() != nil {
+		if errors.Is(ctx.Err(), context.Canceled) {
+			p.logger.Printf("context canceled: %v", ctx.Err())
+			close(doneCh)
+			if p.consulClient != nil {
+				err = p.consulClient.Agent().ServiceDeregister(cfg.ServiceRegistration.id)
+				if err != nil {
+					p.logger.Printf("failed to deregister service in consul: %v", err)
+				}
+			}
+			return
+		}
+	}
 	p.consulClient, err = api.NewClient(clientConfig)
 	if err != nil {
 		p.logger.Printf("failed to connect to consul: %v", err)
@@ -85,9 +108,8 @@ INITCONSUL:
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	doneCh := make(chan struct{})
-	if p.cfg.ServiceRegistration.UseLock {
-		doneCh, err = p.acquireAndKeepLock(ctx, "gnmic/"+p.cfg.clusterName+"/prometheus-output", []byte(p.cfg.ServiceRegistration.id))
+	if cfg.ServiceRegistration.UseLock {
+		doneCh, err = p.acquireAndKeepLock(ctx, "gnmic/"+cfg.clusterName+"/prometheus-output", []byte(cfg.ServiceRegistration.id))
 		if err != nil {
 			p.logger.Printf("failed to acquire lock: %v", err)
 			time.Sleep(1 * time.Second)
@@ -95,29 +117,30 @@ INITCONSUL:
 		}
 	}
 
+	ttlCheckID := "ttl:" + cfg.ServiceRegistration.id
 	service := &api.AgentServiceRegistration{
-		ID:      p.cfg.ServiceRegistration.id,
-		Name:    p.cfg.ServiceRegistration.Name,
-		Address: p.cfg.address,
-		Port:    p.cfg.port,
-		Tags:    p.cfg.ServiceRegistration.Tags,
+		ID:      cfg.ServiceRegistration.id,
+		Name:    cfg.ServiceRegistration.Name,
+		Address: cfg.address,
+		Port:    cfg.port,
+		Tags:    cfg.ServiceRegistration.Tags,
 		Checks: api.AgentServiceChecks{
 			{
-				TTL:                            p.cfg.ServiceRegistration.CheckInterval.String(),
-				DeregisterCriticalServiceAfter: p.cfg.ServiceRegistration.deregisterAfter,
+				CheckID:                        ttlCheckID,
+				TTL:                            cfg.ServiceRegistration.CheckInterval.String(),
+				DeregisterCriticalServiceAfter: cfg.ServiceRegistration.deregisterAfter,
 			},
 		},
 	}
-	ttlCheckID := "service:" + p.cfg.ServiceRegistration.id
-	if p.cfg.ServiceRegistration.EnableHTTPCheck {
+	if cfg.ServiceRegistration.EnableHTTPCheck {
 		service.Checks = append(service.Checks, &api.AgentServiceCheck{
-			HTTP:                           p.cfg.ServiceRegistration.httpCheckAddress,
+			CheckID:                        "http:" + cfg.ServiceRegistration.id,
+			HTTP:                           cfg.ServiceRegistration.httpCheckAddress,
 			Method:                         "GET",
-			Interval:                       p.cfg.ServiceRegistration.CheckInterval.String(),
+			Interval:                       cfg.ServiceRegistration.CheckInterval.String(),
 			TLSSkipVerify:                  true,
-			DeregisterCriticalServiceAfter: p.cfg.ServiceRegistration.deregisterAfter,
+			DeregisterCriticalServiceAfter: cfg.ServiceRegistration.deregisterAfter,
 		})
-		ttlCheckID = ttlCheckID + ":1"
 	}
 	b, _ := json.Marshal(service)
 	p.logger.Printf("registering service: %s", string(b))
@@ -131,7 +154,7 @@ INITCONSUL:
 	if err != nil {
 		p.logger.Printf("failed to pass TTL check: %v", err)
 	}
-	ticker := time.NewTicker(p.cfg.ServiceRegistration.CheckInterval / 2)
+	ticker := time.NewTicker(cfg.ServiceRegistration.CheckInterval / 2)
 	for {
 		select {
 		case <-ticker.C:
@@ -153,37 +176,41 @@ INITCONSUL:
 	}
 }
 
-func (p *prometheusOutput) setServiceRegistrationDefaults() {
-	if p.cfg.ServiceRegistration.Address == "" {
-		p.cfg.ServiceRegistration.Address = defaultServiceRegistrationAddress
+func (p *prometheusOutput) setServiceRegistrationDefaults(c *config) {
+	if c.ServiceRegistration.Address == "" {
+		c.ServiceRegistration.Address = defaultServiceRegistrationAddress
 	}
-	if p.cfg.ServiceRegistration.CheckInterval <= 5*time.Second {
-		p.cfg.ServiceRegistration.CheckInterval = defaultRegistrationCheckInterval
+	if c.ServiceRegistration.CheckInterval <= 5*time.Second {
+		c.ServiceRegistration.CheckInterval = defaultRegistrationCheckInterval
 	}
-	if p.cfg.ServiceRegistration.MaxFail <= 0 {
-		p.cfg.ServiceRegistration.MaxFail = defaultMaxServiceFail
+	if c.ServiceRegistration.MaxFail <= 0 {
+		c.ServiceRegistration.MaxFail = defaultMaxServiceFail
 	}
-	deregisterTimer := p.cfg.ServiceRegistration.CheckInterval * time.Duration(p.cfg.ServiceRegistration.MaxFail)
-	p.cfg.ServiceRegistration.deregisterAfter = deregisterTimer.String()
+	deregisterTimer := c.ServiceRegistration.CheckInterval * time.Duration(c.ServiceRegistration.MaxFail)
+	c.ServiceRegistration.deregisterAfter = deregisterTimer.String()
 
-	if !p.cfg.ServiceRegistration.EnableHTTPCheck {
+	if !c.ServiceRegistration.EnableHTTPCheck {
 		return
 	}
-	p.cfg.ServiceRegistration.httpCheckAddress = p.cfg.ServiceRegistration.HTTPCheckAddress
-	if p.cfg.ServiceRegistration.httpCheckAddress != "" {
-		p.cfg.ServiceRegistration.httpCheckAddress = filepath.Join(p.cfg.ServiceRegistration.httpCheckAddress, p.cfg.Path)
-		if !strings.HasPrefix(p.cfg.ServiceRegistration.httpCheckAddress, "http") {
-			p.cfg.ServiceRegistration.httpCheckAddress = "http://" + p.cfg.ServiceRegistration.httpCheckAddress
+	c.ServiceRegistration.httpCheckAddress = c.ServiceRegistration.HTTPCheckAddress
+	if c.ServiceRegistration.httpCheckAddress != "" {
+		c.ServiceRegistration.httpCheckAddress = filepath.Join(c.ServiceRegistration.httpCheckAddress, c.Path)
+		if !strings.HasPrefix(c.ServiceRegistration.httpCheckAddress, "http") {
+			c.ServiceRegistration.httpCheckAddress = "http://" + c.ServiceRegistration.httpCheckAddress
 		}
 		return
 	}
-	p.cfg.ServiceRegistration.httpCheckAddress = filepath.Join(p.cfg.Listen, p.cfg.Path)
-	if !strings.HasPrefix(p.cfg.ServiceRegistration.httpCheckAddress, "http") {
-		p.cfg.ServiceRegistration.httpCheckAddress = "http://" + p.cfg.ServiceRegistration.httpCheckAddress
+	c.ServiceRegistration.httpCheckAddress = filepath.Join(c.Listen, c.Path)
+	if !strings.HasPrefix(c.ServiceRegistration.httpCheckAddress, "http") {
+		c.ServiceRegistration.httpCheckAddress = "http://" + c.ServiceRegistration.httpCheckAddress
 	}
 }
 
 func (p *prometheusOutput) acquireLock(ctx context.Context, key string, val []byte) (string, error) {
+	cfg := p.cfg.Load()
+	if cfg == nil {
+		return "", fmt.Errorf("config not found")
+	}
 	var err error
 	var acquired = false
 	writeOpts := new(api.WriteOptions)
@@ -201,7 +228,7 @@ func (p *prometheusOutput) acquireLock(ctx context.Context, key string, val []by
 			kvPair.Session, _, err = p.consulClient.Session().Create(
 				&api.SessionEntry{
 					Behavior:  "delete",
-					TTL:       time.Duration(p.cfg.ServiceRegistration.CheckInterval * 2).String(),
+					TTL:       time.Duration(cfg.ServiceRegistration.CheckInterval * 2).String(),
 					LockDelay: 0,
 				},
 				writeOpts,
@@ -221,7 +248,7 @@ func (p *prometheusOutput) acquireLock(ctx context.Context, key string, val []by
 			if acquired {
 				return kvPair.Session, nil
 			}
-			if p.cfg.Debug {
+			if cfg.Debug {
 				p.logger.Printf("failed acquiring lock to %q: already locked", kvPair.Key)
 			}
 			time.Sleep(10 * time.Second)
@@ -230,6 +257,7 @@ func (p *prometheusOutput) acquireLock(ctx context.Context, key string, val []by
 }
 
 func (p *prometheusOutput) keepLock(ctx context.Context, sessionID string) (chan struct{}, chan error) {
+
 	writeOpts := new(api.WriteOptions)
 	writeOpts = writeOpts.WithContext(ctx)
 	doneChan := make(chan struct{})
@@ -240,8 +268,14 @@ func (p *prometheusOutput) keepLock(ctx context.Context, sessionID string) (chan
 			close(doneChan)
 			return
 		}
+		cfg := p.cfg.Load()
+		if cfg == nil {
+			errChan <- fmt.Errorf("config not found")
+			close(doneChan)
+			return
+		}
 		err := p.consulClient.Session().RenewPeriodic(
-			time.Duration(p.cfg.ServiceRegistration.CheckInterval/2).String(),
+			time.Duration(cfg.ServiceRegistration.CheckInterval/2).String(),
 			sessionID,
 			writeOpts,
 			doneChan,
@@ -269,6 +303,14 @@ func (p *prometheusOutput) acquireAndKeepLock(ctx context.Context, key string, v
 				close(doneCh)
 				return
 			case <-doneCh:
+				_, err := p.consulClient.KV().Delete(key, nil)
+				if err != nil {
+					p.logger.Printf("failed to delete lock from consul: %v", err)
+				}
+				_, err = p.consulClient.Session().Destroy(sessionID, nil)
+				if err != nil {
+					p.logger.Printf("failed to destroy session in consul: %v", err)
+				}
 				return
 			case err := <-errCh:
 				p.logger.Printf("failed maintaining the lock: %v", err)

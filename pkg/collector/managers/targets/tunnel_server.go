@@ -15,7 +15,8 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/config"
-	"github.com/openconfig/gnmic/pkg/config/store"
+	"github.com/openconfig/gnmic/pkg/logging"
+	"github.com/openconfig/gnmic/pkg/store"
 	tpb "github.com/openconfig/grpctunnel/proto/tunnel"
 	"github.com/openconfig/grpctunnel/tunnel"
 	"github.com/prometheus/client_golang/prometheus"
@@ -32,11 +33,8 @@ type tunnelServer struct {
 	grpcTunnelSrv *grpc.Server
 	tunServer     *tunnel.Server
 	store         store.Store[any]
-	// ttm           *sync.RWMutex
-	// tunTargets    map[tunnel.Target]struct{}
-	// tunTargetCfn  map[tunnel.Target]context.CancelFunc
-	logger *slog.Logger
-	reg    *prometheus.Registry
+	logger        *slog.Logger
+	reg           *prometheus.Registry
 }
 
 func newTunnelServer(s store.Store[any], reg *prometheus.Registry) *tunnelServer {
@@ -47,8 +45,7 @@ func newTunnelServer(s store.Store[any], reg *prometheus.Registry) *tunnelServer
 		// ttm:           new(sync.RWMutex),
 		// tunTargets:    make(map[tunnel.Target]struct{}),
 		// tunTargetCfn:  make(map[tunnel.Target]context.CancelFunc),
-		logger: slog.With("component", "tunnel-server"),
-		reg:    reg,
+		reg: reg,
 	}
 
 	return ts
@@ -101,6 +98,8 @@ func (ts *tunnelServer) startTunnelServer(ctx context.Context) error {
 	if tscfg == nil {
 		return nil
 	}
+	logger := logging.NewLogger(ts.store, "component", "tunnel-server")
+	ts.logger = logger
 	var ok bool
 	ts.config, ok = tscfg.(*config.TunnelServer)
 	if !ok {
@@ -109,6 +108,7 @@ func (ts *tunnelServer) startTunnelServer(ctx context.Context) error {
 	if ts.config == nil {
 		return nil
 	}
+	ts.logger.Info("building tunnel server")
 	ts.tunServer, err = tunnel.NewServer(tunnel.ServerConfig{
 		AddTargetHandler:    ts.tunServerAddTargetSubscribeHandler,
 		DeleteTargetHandler: ts.tunServerDeleteTargetHandler,
@@ -144,6 +144,7 @@ func (ts *tunnelServer) startTunnelServer(ctx context.Context) error {
 		break
 	}
 	go func() {
+		ts.logger.Info("starting gRPC tunnel server")
 		err := ts.grpcTunnelSrv.Serve(l)
 		if err != nil {
 			ts.logger.Error("gRPC tunnel server shutdown", "error", err)
@@ -165,6 +166,7 @@ func (ts *tunnelServer) tunServerAddTargetSubscribeHandler(tt tunnel.Target) err
 		ts.logger.Info("target ignored", "target", tt)
 		return nil
 	}
+	ts.logger.Info("target matched", "target", tc)
 	// ts.ttm.Lock()
 	// ts.tunTargets[tt] = struct{}{}
 	// ts.ttm.Unlock()

@@ -15,7 +15,10 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"slices"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"text/template"
 	"time"
 
@@ -28,10 +31,10 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/path"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/cache"
-	"github.com/openconfig/gnmic/pkg/config/store"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
 	"github.com/openconfig/gnmic/pkg/outputs"
+	"github.com/openconfig/gnmic/pkg/store"
 	gutils "github.com/openconfig/gnmic/pkg/utils"
 )
 
@@ -47,30 +50,31 @@ const (
 
 func init() {
 	outputs.Register("snmp", func() outputs.Output {
-		return &snmpOutput{
-			cfg:       &Config{},
-			logger:    log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
-			eventChan: make(chan *formatters.EventMsg, initialEventsBufferSize),
-		}
+		return &snmpOutput{}
 	})
 }
 
 type snmpOutput struct {
 	outputs.BaseOutput
 	name       string
-	cfg        *Config
+	cfg        *atomic.Pointer[Config]
+	dynCfg     *atomic.Pointer[dynConfig]
+	snmpClient *atomic.Pointer[g.Handler]
 	logger     *log.Logger
+	rootCtx    context.Context
 	cancelFn   context.CancelFunc
-	snmpClient g.Handler
 	eventChan  chan *formatters.EventMsg
-	evps       []formatters.EventProcessor
-	targetTpl  *template.Template
-
-	cache     cache.Cache
-	startTime time.Time
+	wg         *sync.WaitGroup
+	cache      cache.Cache
+	startTime  time.Time
 
 	reg   *prometheus.Registry
 	store store.Store[any]
+}
+
+type dynConfig struct {
+	targetTpl *template.Template
+	evps      []formatters.EventProcessor
 }
 
 type Config struct {
@@ -102,22 +106,22 @@ type trap struct {
 	Bindings  []*binding `mapstructure:"bindings,omitempty" json:"bindings,omitempty"`
 }
 
-func (s *snmpOutput) setEventProcessors(logger *log.Logger) error {
+func (s *snmpOutput) buildEventProcessors(logger *log.Logger, eventProcessors []string) ([]formatters.EventProcessor, error) {
 	tcs, ps, acts, err := gutils.GetConfigMaps(s.store)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	s.evps, err = formatters.MakeEventProcessors(
+	evps, err := formatters.MakeEventProcessors(
 		logger,
-		s.cfg.EventProcessors,
+		eventProcessors,
 		ps,
 		tcs,
 		acts,
 	)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return evps, nil
 }
 
 func (s *snmpOutput) setLogger(logger *log.Logger) {
@@ -126,12 +130,24 @@ func (s *snmpOutput) setLogger(logger *log.Logger) {
 		s.logger.SetFlags(logger.Flags())
 	}
 }
+
+func (s *snmpOutput) init() {
+	s.cfg = new(atomic.Pointer[Config])
+	s.dynCfg = new(atomic.Pointer[dynConfig])
+	s.logger = log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags)
+	s.eventChan = make(chan *formatters.EventMsg, initialEventsBufferSize)
+	s.snmpClient = new(atomic.Pointer[g.Handler])
+	s.wg = new(sync.WaitGroup)
+}
+
 func (s *snmpOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
-	s.name = name
-	err := outputs.DecodeConfig(cfg, s.cfg)
+	s.init() // init struct fields
+	newCfg := new(Config)
+	err := outputs.DecodeConfig(cfg, newCfg)
 	if err != nil {
 		return err
 	}
+	s.name = name //TODO: atomic ?
 	s.logger.SetPrefix(fmt.Sprintf(loggingPrefix, name))
 
 	options := &outputs.OutputOptions{}
@@ -145,17 +161,27 @@ func (s *snmpOutput) Init(ctx context.Context, name string, cfg map[string]inter
 
 	// apply logger
 	s.setLogger(options.Logger)
+	s.setDefaultsFor(newCfg)
 
-	s.setDefaults()
+	s.cfg.Store(newCfg)
 
-	if len(s.cfg.Traps) == 0 {
+	if len(newCfg.Traps) == 0 {
 		return errors.New("missing traps definition")
 	}
-
-	err = s.setEventProcessors(options.Logger)
+	dc := new(dynConfig)
+	dc.evps, err = s.buildEventProcessors(options.Logger, newCfg.EventProcessors)
 	if err != nil {
 		return err
 	}
+	dc.targetTpl = outputs.DefaultTargetTemplate
+	if newCfg.TargetTemplate != "" {
+		dc.targetTpl, err = gtemplate.CreateTemplate("target-template", newCfg.TargetTemplate)
+		if err != nil {
+			return err
+		}
+		dc.targetTpl = dc.targetTpl.Funcs(outputs.TemplateFuncs)
+	}
+	s.dynCfg.Store(dc)
 	// initialize registry
 	s.reg = options.Registry
 	err = s.registerMetrics()
@@ -164,7 +190,118 @@ func (s *snmpOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	}
 
 	// initialize traps
-	for i, trap := range s.cfg.Traps {
+	err = s.initializeTrapsFor(newCfg)
+	if err != nil {
+		return err
+	}
+
+	s.cache, err = cache.New(&cache.Config{Expiration: -1}, cache.WithLogger(s.logger))
+	if err != nil {
+		return err
+	}
+
+	s.rootCtx = ctx
+	ctx, s.cancelFn = context.WithCancel(s.rootCtx)
+	s.startTime = time.Now()
+	s.wg.Add(1)
+	go s.start(ctx)
+	s.logger.Printf("initialized SNMP output: %s", s.String())
+	return nil
+}
+
+func (s *snmpOutput) Validate(cfg map[string]any) error {
+	newCfg := new(Config)
+	err := outputs.DecodeConfig(cfg, newCfg)
+	if err != nil {
+		return err
+	}
+	if len(newCfg.Traps) == 0 {
+		return errors.New("missing traps definition")
+	}
+	return s.initializeTrapsFor(newCfg)
+}
+
+func (s *snmpOutput) Update(_ context.Context, cfg map[string]any) error {
+	newCfg := new(Config)
+	err := outputs.DecodeConfig(cfg, newCfg)
+	if err != nil {
+		return err
+	}
+	s.setDefaultsFor(newCfg)
+	err = s.initializeTrapsFor(newCfg)
+	if err != nil {
+		return err
+	}
+	currCfg := s.cfg.Load()
+	prevDC := s.dynCfg.Load()
+	dc := new(dynConfig)
+
+	processorsChanged := slices.Compare(currCfg.EventProcessors, newCfg.EventProcessors) != 0
+	if processorsChanged {
+		dc.evps, err = s.buildEventProcessors(s.logger, newCfg.EventProcessors)
+		if err != nil {
+			return err
+		}
+	} else if prevDC != nil {
+		dc.evps = prevDC.evps
+	}
+
+	if newCfg.TargetTemplate == "" {
+		dc.targetTpl = outputs.DefaultTargetTemplate
+	} else if newCfg.AddTarget != "" {
+		dc.targetTpl, err = gtemplate.CreateTemplate("target-template", newCfg.TargetTemplate)
+		if err != nil {
+			return err
+		}
+		dc.targetTpl = dc.targetTpl.Funcs(outputs.TemplateFuncs)
+	} else {
+		dc.targetTpl = outputs.DefaultTargetTemplate
+	}
+
+	s.dynCfg.Store(dc)
+	s.cfg.Store(newCfg)
+	// cancel old context if running
+	if s.cancelFn != nil {
+		s.cancelFn()
+		s.wg.Wait()
+	}
+
+	// create new context and start new loop
+	var ctx context.Context
+	ctx, s.cancelFn = context.WithCancel(s.rootCtx)
+	s.wg.Add(1)
+	go s.start(ctx)
+	s.logger.Printf("updated SNMP output: %s", s.String())
+	return nil
+}
+
+func (s *snmpOutput) UpdateProcessor(name string, pcfg map[string]any) error {
+	cfg := s.cfg.Load()
+	dc := s.dynCfg.Load()
+
+	newEvps, changed, err := outputs.UpdateProcessorInSlice(
+		s.logger,
+		s.store,
+		cfg.EventProcessors,
+		dc.evps,
+		name,
+		pcfg,
+	)
+	if err != nil {
+		return err
+	}
+	if changed {
+		newDC := *dc
+		newDC.evps = newEvps
+		s.dynCfg.Store(&newDC)
+		s.logger.Printf("updated event processor %s", name)
+	}
+	return nil
+}
+
+func (s *snmpOutput) initializeTrapsFor(cfg *Config) error {
+	var err error
+	for i, trap := range cfg.Traps {
 		if trap.Trigger == nil {
 			return fmt.Errorf("trap index %d missing \"trigger\"", i)
 		}
@@ -195,29 +332,6 @@ func (s *snmpOutput) Init(ctx context.Context, name string, cfg map[string]inter
 			}
 		}
 	}
-
-	if s.cfg.TargetTemplate == "" {
-		s.targetTpl = outputs.DefaultTargetTemplate
-	} else if s.cfg.AddTarget != "" {
-		s.targetTpl, err = gtemplate.CreateTemplate("target-template", s.cfg.TargetTemplate)
-		if err != nil {
-			return err
-		}
-		s.targetTpl = s.targetTpl.Funcs(outputs.TemplateFuncs)
-	}
-	s.cache, err = cache.New(&cache.Config{Expiration: -1}, cache.WithLogger(s.logger))
-	if err != nil {
-		return err
-	}
-
-	ctx, s.cancelFn = context.WithCancel(ctx)
-	go func() {
-		<-ctx.Done()
-		s.Close()
-	}()
-	s.startTime = time.Now()
-	go s.start(ctx)
-	s.logger.Printf("initialized SNMP output: %s", s.String())
 	return nil
 }
 
@@ -226,11 +340,20 @@ func (s *snmpOutput) Write(ctx context.Context, m proto.Message, meta outputs.Me
 		return
 	}
 
+	cfg := s.cfg.Load()
+	if cfg == nil {
+		return
+	}
+
 	select {
 	case <-ctx.Done():
 		return
 	default:
-		rsp, err := outputs.AddSubscriptionTarget(m, meta, "if-not-present", s.targetTpl)
+		dc := s.dynCfg.Load()
+		if dc == nil {
+			return
+		}
+		rsp, err := outputs.AddSubscriptionTarget(m, meta, "if-not-present", dc.targetTpl)
 		if err != nil {
 			s.logger.Printf("failed to add target to the response: %v", err)
 			return
@@ -243,7 +366,7 @@ func (s *snmpOutput) Write(ctx context.Context, m proto.Message, meta outputs.Me
 
 		s.cache.Write(ctx, measName, rsp)
 
-		events, err := formatters.ResponseToEventMsgs(measName, rsp, meta, s.evps...)
+		events, err := formatters.ResponseToEventMsgs(measName, rsp, meta, dc.evps...)
 		if err != nil {
 			s.logger.Printf("failed to convert message to event: %v", err)
 			return
@@ -262,11 +385,20 @@ func (s *snmpOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {}
 
 func (s *snmpOutput) Close() error {
 	s.cancelFn()
-	return s.snmpClient.Close()
+	s.wg.Wait()
+	snmpClient := s.snmpClient.Load()
+	if snmpClient != nil {
+		return (*snmpClient).Close()
+	}
+	return nil
 }
 
 func (s *snmpOutput) String() string {
-	b, err := json.Marshal(s.cfg)
+	cfg := s.cfg.Load()
+	if cfg == nil {
+		return ""
+	}
+	b, err := json.Marshal(cfg)
 	if err != nil {
 		return ""
 	}
@@ -274,6 +406,7 @@ func (s *snmpOutput) String() string {
 }
 
 func (s *snmpOutput) start(ctx context.Context) {
+	defer s.wg.Done()
 	s.createSNMPHandler()
 	var init = true
 	for {
@@ -284,12 +417,16 @@ func (s *snmpOutput) start(ctx context.Context) {
 			if ev == nil {
 				return
 			}
+			cfg := s.cfg.Load()
+			if cfg == nil {
+				continue
+			}
 			if init {
-				<-time.After(s.cfg.StartDelay)
+				<-time.After(cfg.StartDelay)
 				init = false
 			}
-			for idx := range s.cfg.Traps {
-				err := s.handleEvent(ev, idx)
+			for idx := range cfg.Traps {
+				err := s.handleEvent(cfg, ev, idx)
 				if err != nil {
 					s.logger.Printf("failed to handle event %+v : %v", ev, err)
 				}
@@ -298,32 +435,37 @@ func (s *snmpOutput) start(ctx context.Context) {
 	}
 }
 
-func (s *snmpOutput) setDefaults() {
-	if s.cfg.Port <= 0 {
-		s.cfg.Port = defaultPort
+func (s *snmpOutput) setDefaultsFor(cfg *Config) {
+	if cfg.Port <= 0 {
+		cfg.Port = defaultPort
 	}
-	if s.cfg.Community == "" {
-		s.cfg.Community = defaultCommunity
+	if cfg.Community == "" {
+		cfg.Community = defaultCommunity
 	}
-	if s.cfg.StartDelay < minStartDelay {
-		s.cfg.StartDelay = minStartDelay
+	if cfg.StartDelay < minStartDelay {
+		cfg.StartDelay = minStartDelay
 	}
 }
 
 func (s *snmpOutput) createSNMPHandler() {
-	s.snmpClient = g.NewHandler()
-	s.snmpClient.SetTarget(s.cfg.Address)
-	s.snmpClient.SetCommunity(s.cfg.Community)
-	s.snmpClient.SetPort(s.cfg.Port)
-	s.snmpClient.SetVersion(g.Version2c)
+	cfg := s.cfg.Load()
+	if cfg == nil {
+		return
+	}
+	snmpClient := g.NewHandler()
+	snmpClient.SetTarget(cfg.Address)
+	snmpClient.SetCommunity(cfg.Community)
+	snmpClient.SetPort(cfg.Port)
+	snmpClient.SetVersion(g.Version2c)
 CONN:
-	err := s.snmpClient.Connect()
+	err := snmpClient.Connect()
 	if err != nil {
 		s.logger.Printf("failed to connect: %v", err)
 		time.Sleep(time.Second)
 		goto CONN
 	}
 	s.logger.Print("SNMP connected")
+	s.snmpClient.Store(&snmpClient)
 }
 
 func pduType(typ string) g.Asn1BER {
@@ -391,8 +533,8 @@ func (s *snmpOutput) runJQ(code *gojq.Code, ev map[string]interface{}) (interfac
 	return nil, nil
 }
 
-func (s *snmpOutput) handleEvent(ev *formatters.EventMsg, idx int) error {
-	trap := *s.cfg.Traps[idx]
+func (s *snmpOutput) handleEvent(cfg *Config, ev *formatters.EventMsg, idx int) error {
+	trap := cfg.Traps[idx]
 	// trigger ?
 	if _, ok := ev.Values[trap.Trigger.Path]; !ok {
 		return nil
@@ -442,7 +584,11 @@ func (s *snmpOutput) handleEvent(ev *formatters.EventMsg, idx int) error {
 	}
 	//
 	snmpNumberOfSentTraps.WithLabelValues(s.name, fmt.Sprintf("%d", idx)).Add(1)
-	_, err = s.snmpClient.SendTrap(g.SnmpTrap{
+	snmpClient := s.snmpClient.Load()
+	if snmpClient == nil {
+		return fmt.Errorf("SNMP client not initialized")
+	}
+	_, err = (*snmpClient).SendTrap(g.SnmpTrap{
 		Variables: pdus,
 		IsInform:  trap.InformPDU,
 	})
@@ -456,7 +602,7 @@ func (s *snmpOutput) handleEvent(ev *formatters.EventMsg, idx int) error {
 
 func (s *snmpOutput) buildTriggerPDU(bd *binding, targetName string, ev *formatters.EventMsg) (g.SnmpPDU, error) {
 	var oid string
-	var val interface{}
+	var val any
 	input := ev.ToMap()
 	oidResult, err := s.runJQ(bd.oidTemplate, input)
 	if err != nil {

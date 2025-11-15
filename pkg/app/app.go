@@ -43,12 +43,12 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/cache"
 	"github.com/openconfig/gnmic/pkg/config"
-	"github.com/openconfig/gnmic/pkg/config/store"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/formatters/plugin_manager"
 	"github.com/openconfig/gnmic/pkg/inputs"
 	"github.com/openconfig/gnmic/pkg/lockers"
 	"github.com/openconfig/gnmic/pkg/outputs"
+	"github.com/openconfig/gnmic/pkg/store"
 )
 
 const (
@@ -127,7 +127,7 @@ func New() *App {
 		RootCmd:    new(cobra.Command),
 		sem:        semaphore.NewWeighted(1),
 		configLock: new(sync.RWMutex),
-		Store:      store.NewMemStore[any](),
+		Store:      store.NewMemStore(store.StoreOptions[any]{}),
 		Config:     config.New(),
 		reg:        prometheus.NewRegistry(),
 		//

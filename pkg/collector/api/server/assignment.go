@@ -2,6 +2,7 @@ package apiserver
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"sort"
@@ -10,7 +11,32 @@ import (
 )
 
 type assignmentConfig struct {
-	Assignments []*assignement `json:"assignments"`
+	Assignments   []*assignement `json:"assignments"`
+	Unassignments []string       `json:"unassignments,omitempty"`
+}
+
+func (a *assignmentConfig) validate() error {
+	if len(a.Assignments) == 0 && len(a.Unassignments) == 0 {
+		return fmt.Errorf("assignments or unassignments is required")
+	}
+	if len(a.Assignments) > 0 {
+		for _, assignment := range a.Assignments {
+			if assignment.Target == "" {
+				return fmt.Errorf("target is required")
+			}
+			if assignment.Member == "" {
+				return fmt.Errorf("member is required")
+			}
+		}
+	}
+	if len(a.Unassignments) > 0 {
+		for _, unassignment := range a.Unassignments {
+			if unassignment == "" {
+				return fmt.Errorf("unassignment is required")
+			}
+		}
+	}
+	return nil
 }
 
 type assignement struct {
@@ -33,33 +59,46 @@ type assignement struct {
 func (s *Server) handleAssignmentPost(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 	defer r.Body.Close()
+
 	cfg := new(assignmentConfig)
 	err = json.Unmarshal(body, &cfg)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 	if cfg == nil {
-		http.Error(w, "invalid assignment config", http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"invalid assignment config"}})
 		return
 	}
-	if len(cfg.Assignments) == 0 {
-		http.Error(w, "assignment list is required", http.StatusBadRequest)
+
+	err = cfg.validate()
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 
 	for _, assignment := range cfg.Assignments {
-		if assignment.Target == "" {
-			http.Error(w, "target name is required", http.StatusBadRequest)
-			return
-		}
 		_, err := s.configStore.Set("assignments", assignment.Target, assignment)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+			return
+		}
+	}
+
+	for _, unassignment := range cfg.Unassignments {
+		_, _, err = s.configStore.Delete("assignments", unassignment)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 			return
 		}
 	}
@@ -75,11 +114,13 @@ func (s *Server) handleAssignmentDelete(w http.ResponseWriter, r *http.Request) 
 	id := vars["id"]
 	ok, _, err := s.configStore.Delete("assignments", id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 	if !ok {
-		http.Error(w, "assignment not found", http.StatusNotFound)
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"assignment not found"}})
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -96,7 +137,8 @@ func (s *Server) handleAssignmentGet(w http.ResponseWriter, r *http.Request) {
 	if id == "" {
 		assignments, err := s.configStore.List("assignments")
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 			return
 		}
 		ar := &assignmentResponse{
@@ -114,24 +156,27 @@ func (s *Server) handleAssignmentGet(w http.ResponseWriter, r *http.Request) {
 		sort.Strings(ar.Targets)
 		err = json.NewEncoder(w).Encode(ar)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 			return
 		}
 		return
 	}
 	assignment, ok, err := s.configStore.Get("assignments", id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 	if !ok {
-		http.Error(w, "assignment not found", http.StatusNotFound)
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"assignment not found"}})
 		return
 	}
 	err = json.NewEncoder(w).Encode(assignment)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 }

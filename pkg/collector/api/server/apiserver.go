@@ -2,6 +2,7 @@ package apiserver
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"net"
@@ -9,13 +10,15 @@ import (
 	"sync"
 
 	"github.com/gorilla/mux"
+	"github.com/openconfig/gnmic/pkg/api/utils"
 	cluster_manager "github.com/openconfig/gnmic/pkg/collector/managers/cluster"
 	inputs_manager "github.com/openconfig/gnmic/pkg/collector/managers/inputs"
 	outputs_manager "github.com/openconfig/gnmic/pkg/collector/managers/outputs"
 	targets_manager "github.com/openconfig/gnmic/pkg/collector/managers/targets"
 	"github.com/openconfig/gnmic/pkg/config"
-	"github.com/openconfig/gnmic/pkg/config/store"
 	"github.com/openconfig/gnmic/pkg/lockers"
+	"github.com/openconfig/gnmic/pkg/logging"
+	"github.com/openconfig/gnmic/pkg/store"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -30,10 +33,11 @@ type Server struct {
 	clusterManager *cluster_manager.ClusterManager
 	srv            *http.Server
 	logger         *slog.Logger
+	reg            *prometheus.Registry
 }
 
 func NewServer(
-	configStore store.Store[any],
+	store store.Store[any],
 	targetManager *targets_manager.TargetsManager,
 	outputsManager *outputs_manager.OutputsManager,
 	inputsManager *inputs_manager.InputsManager,
@@ -42,19 +46,21 @@ func NewServer(
 ) *Server {
 	s := &Server{
 		router:         mux.NewRouter(),
-		configStore:    configStore,
+		configStore:    store,
 		targetsManager: targetManager,
 		outputsManager: outputsManager,
 		inputsManager:  inputsManager,
 		clusterManager: clusterManager,
-		logger:         slog.With("component", "api-server"),
+		reg:            reg,
 	}
 	s.routes()
+	s.registerMetrics()
 	return s
 }
 
 func (s *Server) Start(locker lockers.Locker, wg *sync.WaitGroup) error {
 	s.locker = locker
+	s.logger = logging.NewLogger(s.configStore, "component", "api-server")
 	s.logger.Info("starting API server")
 
 	apiServer, ok, err := s.configStore.Get("api-server", "api-server")
@@ -74,7 +80,7 @@ func (s *Server) Start(locker lockers.Locker, wg *sync.WaitGroup) error {
 	case *config.APIServer:
 		apiCfg = apiCfgImpl
 		// create listener
-		listener, err = net.Listen("tcp", apiCfg.Address)
+		listener, err = createListener(apiCfg)
 		if err != nil {
 			s.logger.Error("failed to create listener", "error", err)
 			return err
@@ -86,7 +92,9 @@ func (s *Server) Start(locker lockers.Locker, wg *sync.WaitGroup) error {
 	s.srv = &http.Server{
 		Addr:    apiCfg.Address,
 		Handler: s.router,
-		// TODO: rest of config and handlers
+		// ReadTimeout:  apiCfg.Timeout / 2,
+		// WriteTimeout: apiCfg.Timeout / 2,
+		// IdleTimeout:  apiCfg.Timeout / 2,
 	}
 	wg.Add(1)
 	go func() {
@@ -101,8 +109,30 @@ func (s *Server) Start(locker lockers.Locker, wg *sync.WaitGroup) error {
 
 func (s *Server) Stop() {
 	s.logger.Info("stopping API server")
-	err := s.srv.Shutdown(context.Background()) // change context ?
+	err := s.srv.Shutdown(context.Background()) // TODO: change context ?
 	if err != nil {
 		s.logger.Error("failed to shutdown API server", "error", err)
 	}
+}
+
+type APIErrors struct {
+	Errors []string `json:"errors,omitempty"`
+}
+
+func createListener(apiCfg *config.APIServer) (net.Listener, error) {
+	if apiCfg.TLS != nil {
+		tlsCfg, err := utils.NewTLSConfig(
+			apiCfg.TLS.CaFile,
+			apiCfg.TLS.CertFile,
+			apiCfg.TLS.KeyFile,
+			apiCfg.TLS.ClientAuth,
+			apiCfg.TLS.SkipVerify,
+			false, // genSelfSigned
+		)
+		if err != nil {
+			return nil, err
+		}
+		return tls.Listen("tcp", apiCfg.Address, tlsCfg)
+	}
+	return net.Listen("tcp", apiCfg.Address)
 }

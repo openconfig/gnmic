@@ -16,8 +16,11 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
+	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"text/template"
 	"time"
 
@@ -28,10 +31,10 @@ import (
 
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
-	"github.com/openconfig/gnmic/pkg/config/store"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
 	"github.com/openconfig/gnmic/pkg/outputs"
+	"github.com/openconfig/gnmic/pkg/store"
 	pkgutils "github.com/openconfig/gnmic/pkg/utils"
 )
 
@@ -51,32 +54,58 @@ const (
 	requiredAcksWaitForAll   = "wait-for-all"
 )
 
+var bytesBufferPool = sync.Pool{
+	New: func() any {
+		return new(bytes.Buffer)
+	},
+}
+
+var stringBuilderPool = sync.Pool{
+	New: func() any {
+		return new(strings.Builder)
+	},
+}
+
 func init() {
 	outputs.Register("kafka", func() outputs.Output {
-		return &kafkaOutput{
-			cfg:    &config{},
-			wg:     new(sync.WaitGroup),
-			logger: log.New(io.Discard, loggingPrefixTpl, utils.DefaultLoggingFlags),
-		}
+		return &kafkaOutput{}
 	})
+}
+
+func (k *kafkaOutput) init() {
+	k.cfg = new(atomic.Pointer[config])
+	k.dynCfg = new(atomic.Pointer[dynConfig])
+	k.msgChan = new(atomic.Pointer[chan *outputs.ProtoMsg])
+	k.wg = new(sync.WaitGroup)
+	k.logger = log.New(io.Discard, loggingPrefixTpl, utils.DefaultLoggingFlags)
+	k.closeOnce = sync.Once{}
+	k.closeSig = make(chan struct{})
 }
 
 // kafkaOutput //
 type kafkaOutput struct {
 	outputs.BaseOutput
-	cfg      *config
-	logger   sarama.StdLogger
-	mo       *formatters.MarshalOptions
-	cancelFn context.CancelFunc
-	msgChan  chan *outputs.ProtoMsg
-	wg       *sync.WaitGroup
-	evps     []formatters.EventProcessor
 
+	cfg       *atomic.Pointer[config]
+	dynCfg    *atomic.Pointer[dynConfig]
+	logger    sarama.StdLogger
+	srcLogger *log.Logger
+	msgChan   *atomic.Pointer[chan *outputs.ProtoMsg]
+	wg        *sync.WaitGroup
+
+	rootCtx   context.Context
+	cancelFn  context.CancelFunc
+	reg       *prometheus.Registry
+	store     store.Store[any]
+	closeOnce sync.Once
+	closeSig  chan struct{}
+}
+
+type dynConfig struct {
 	targetTpl *template.Template
 	msgTpl    *template.Template
-
-	reg   *prometheus.Registry
-	store store.Store[any]
+	evps      []formatters.EventProcessor
+	mo        *formatters.MarshalOptions
 }
 
 // config //
@@ -110,59 +139,68 @@ type config struct {
 }
 
 func (k *kafkaOutput) String() string {
-	b, err := json.Marshal(k.cfg)
+	cfg := k.cfg.Load()
+	if cfg == nil {
+		return ""
+	}
+	b, err := json.Marshal(cfg)
 	if err != nil {
 		return ""
 	}
 	return string(b)
 }
 
-func (k *kafkaOutput) setEventProcessors(logger *log.Logger) error {
+func (k *kafkaOutput) buildEventProcessors(logger *log.Logger, eventProcessors []string) ([]formatters.EventProcessor, error) {
 	tcs, ps, acts, err := pkgutils.GetConfigMaps(k.store)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	k.evps, err = formatters.MakeEventProcessors(
+	evps, err := formatters.MakeEventProcessors(
 		logger,
-		k.cfg.EventProcessors,
+		eventProcessors,
 		ps,
 		tcs,
 		acts,
 	)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return evps, nil
 }
 
 // Init /
 func (k *kafkaOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
-	err := outputs.DecodeConfig(cfg, k.cfg)
+	k.init() // init struct fields
+	newCfg := new(config)
+	err := outputs.DecodeConfig(cfg, newCfg)
 	if err != nil {
 		return err
 	}
-	if k.cfg.Name == "" {
-		k.cfg.Name = name
+	if newCfg.Name == "" {
+		newCfg.Name = name
 	}
-	loggingPrefix := fmt.Sprintf(loggingPrefixTpl, k.cfg.Name)
+	loggingPrefix := fmt.Sprintf(loggingPrefixTpl, newCfg.Name)
 	options := &outputs.OutputOptions{}
 	for _, opt := range opts {
 		if err := opt(options); err != nil {
 			return err
 		}
 	}
+
 	k.store = options.Store
 	if options.Logger != nil {
+		k.srcLogger = options.Logger
 		sarama.Logger = log.New(options.Logger.Writer(), loggingPrefix, options.Logger.Flags())
 		k.logger = sarama.Logger
 	}
 
-	k.setName(options.Name)
-	err = k.setDefaults()
+	err = k.setDefaultsFor(newCfg)
 	if err != nil {
 		return err
 	}
+	// store config
+	k.cfg.Store(newCfg)
 
 	// initialize registry
 	k.reg = options.Registry
@@ -170,125 +208,304 @@ func (k *kafkaOutput) Init(ctx context.Context, name string, cfg map[string]inte
 	if err != nil {
 		return err
 	}
+	dc := new(dynConfig)
 	// initialize event processors
-	err = k.setEventProcessors(options.Logger)
+	evps, err := k.buildEventProcessors(options.Logger, newCfg.EventProcessors)
 	if err != nil {
 		return err
 	}
-	k.msgChan = make(chan *outputs.ProtoMsg, uint(k.cfg.BufferSize))
-	k.mo = &formatters.MarshalOptions{
-		Format:     k.cfg.Format,
-		OverrideTS: k.cfg.OverrideTimestamps,
-	}
+	dc.evps = evps
+	newMsgChan := make(chan *outputs.ProtoMsg, uint(newCfg.BufferSize))
+	k.msgChan.Store(&newMsgChan)
 
-	if k.cfg.TargetTemplate == "" {
-		k.targetTpl = outputs.DefaultTargetTemplate
-	} else if k.cfg.AddTarget != "" {
-		k.targetTpl, err = gtemplate.CreateTemplate("target-template", k.cfg.TargetTemplate)
+	if newCfg.TargetTemplate == "" {
+		dc.targetTpl = outputs.DefaultTargetTemplate
+	} else if newCfg.AddTarget != "" {
+		dc.targetTpl, err = gtemplate.CreateTemplate("target-template", newCfg.TargetTemplate)
 		if err != nil {
 			return err
 		}
-		k.targetTpl = k.targetTpl.Funcs(outputs.TemplateFuncs)
+		dc.targetTpl = dc.targetTpl.Funcs(outputs.TemplateFuncs)
 	}
 
-	if k.cfg.MsgTemplate != "" {
-		k.msgTpl, err = gtemplate.CreateTemplate("msg-template", k.cfg.MsgTemplate)
+	if newCfg.MsgTemplate != "" {
+		dc.msgTpl, err = gtemplate.CreateTemplate("msg-template", newCfg.MsgTemplate)
 		if err != nil {
 			return err
 		}
-		k.msgTpl = k.msgTpl.Funcs(outputs.TemplateFuncs)
+		dc.msgTpl = dc.msgTpl.Funcs(outputs.TemplateFuncs)
 	}
 
-	config, err := k.createConfig()
+	dc.mo = &formatters.MarshalOptions{
+		Format:     newCfg.Format,
+		OverrideTS: newCfg.OverrideTimestamps,
+	}
+
+	k.dynCfg.Store(dc)
+	config, err := k.createConfigFor(newCfg)
 	if err != nil {
 		return err
 	}
-	ctx, k.cancelFn = context.WithCancel(ctx)
-	k.wg.Add(k.cfg.NumWorkers)
-	for i := 0; i < k.cfg.NumWorkers; i++ {
+	k.rootCtx = ctx
+	ctx, k.cancelFn = context.WithCancel(k.rootCtx)
+	k.wg.Add(newCfg.NumWorkers)
+	for i := 0; i < newCfg.NumWorkers; i++ {
 		cfg := *config
 		cfg.ClientID = fmt.Sprintf("%s-%d", config.ClientID, i)
-		go k.worker(ctx, i, &cfg)
+		go k.worker(ctx, i, &cfg, *k.msgChan.Load())
 	}
-	go func() {
-		<-ctx.Done()
-		k.Close()
-	}()
 	return nil
 }
 
-func (k *kafkaOutput) setDefaults() error {
-	if k.cfg.Format == "" {
-		k.cfg.Format = defaultFormat
+func (k *kafkaOutput) Validate(cfg map[string]any) error {
+	ncfg := new(config)
+	err := outputs.DecodeConfig(cfg, ncfg)
+	if err != nil {
+		return err
 	}
-	if !(k.cfg.Format == "event" || k.cfg.Format == "protojson" || k.cfg.Format == "prototext" || k.cfg.Format == "proto" || k.cfg.Format == "json") {
-		return fmt.Errorf("unsupported output format '%s' for output type kafka", k.cfg.Format)
+	err = k.setDefaultsFor(ncfg)
+	if err != nil {
+		return err
 	}
-	if k.cfg.Address == "" {
-		k.cfg.Address = defaultAddress
+	_, err = gtemplate.CreateTemplate("target-template", ncfg.TargetTemplate)
+	if err != nil {
+		return err
 	}
-	if k.cfg.Topic == "" {
-		k.cfg.Topic = defaultKafkaTopic
+	_, err = gtemplate.CreateTemplate("msg-template", ncfg.MsgTemplate)
+	if err != nil {
+		return err
 	}
-	if k.cfg.MaxRetry == 0 {
-		k.cfg.MaxRetry = defaultKafkaMaxRetry
+	return nil
+}
+
+func (k *kafkaOutput) Update(ctx context.Context, cfg map[string]any) error {
+	newCfg := new(config)
+	if err := outputs.DecodeConfig(cfg, newCfg); err != nil {
+		return err
 	}
-	if k.cfg.Timeout <= 0 {
-		k.cfg.Timeout = defaultKafkaTimeout
+	currCfg := k.cfg.Load()
+	if newCfg.Name == "" && currCfg != nil {
+		newCfg.Name = currCfg.Name
 	}
-	if k.cfg.RecoveryWaitTime <= 0 {
-		k.cfg.RecoveryWaitTime = defaultRecoveryWaitTime
+
+	err := k.setDefaultsFor(newCfg)
+	if err != nil {
+		return err
 	}
-	if k.cfg.NumWorkers <= 0 {
-		k.cfg.NumWorkers = defaultNumWorkers
+
+	swapChannel := channelNeedsSwap(currCfg, newCfg)
+	restartWorkers := needsWorkerRestart(currCfg, newCfg)
+	rebuildProcessors := slices.Compare(currCfg.EventProcessors, newCfg.EventProcessors) != 0
+
+	var targetTpl *template.Template
+	if newCfg.TargetTemplate == "" {
+		targetTpl = outputs.DefaultTargetTemplate
+	} else if newCfg.AddTarget != "" {
+		t, err := gtemplate.CreateTemplate("target-template", newCfg.TargetTemplate)
+		if err != nil {
+			return err
+		}
+		targetTpl = t.Funcs(outputs.TemplateFuncs)
+	} else {
+		targetTpl = outputs.DefaultTargetTemplate
 	}
-	if k.cfg.Name == "" {
-		k.cfg.Name = "gnmic-" + uuid.New().String()
+
+	var msgTpl *template.Template
+	if newCfg.MsgTemplate != "" {
+		t, err := gtemplate.CreateTemplate("msg-template", newCfg.MsgTemplate)
+		if err != nil {
+			return err
+		}
+		msgTpl = t.Funcs(outputs.TemplateFuncs)
 	}
-	if k.cfg.SASL == nil {
+
+	dc := &dynConfig{
+		targetTpl: targetTpl,
+		msgTpl:    msgTpl,
+		mo: &formatters.MarshalOptions{
+			Format:     newCfg.Format,
+			OverrideTS: newCfg.OverrideTimestamps,
+		},
+	}
+
+	prevDC := k.dynCfg.Load()
+	if rebuildProcessors {
+		dc.evps, err = k.buildEventProcessors(log.New(os.Stderr, fmt.Sprintf(loggingPrefixTpl, newCfg.Name), utils.DefaultLoggingFlags), newCfg.EventProcessors)
+		if err != nil {
+			return err
+		}
+	} else if prevDC != nil {
+		dc.evps = prevDC.evps
+	}
+
+	k.dynCfg.Store(dc)
+	k.cfg.Store(newCfg)
+
+	if swapChannel || restartWorkers {
+		var newChan chan *outputs.ProtoMsg
+		if swapChannel {
+			newChan = make(chan *outputs.ProtoMsg, newCfg.BufferSize)
+		} else {
+			newChan = *k.msgChan.Load()
+		}
+
+		baseCfg, err := k.createConfigFor(newCfg)
+		if err != nil {
+			return err
+		}
+		runCtx, cancel := context.WithCancel(k.rootCtx)
+		newWG := new(sync.WaitGroup)
+		// save old pointers
+		oldCancel := k.cancelFn
+		oldWG := k.wg
+		oldMsgChan := *k.msgChan.Load()
+
+		// swap
+		k.cancelFn = cancel
+		k.wg = newWG
+		k.msgChan.Store(&newChan)
+
+		k.wg.Add(currCfg.NumWorkers)
+		for i := 0; i < currCfg.NumWorkers; i++ {
+			cfgCopy := *baseCfg
+			cfgCopy.ClientID = fmt.Sprintf("%s-%d", baseCfg.ClientID, i)
+			go k.worker(runCtx, i, &cfgCopy, newChan)
+		}
+
+		drainDone := make(chan struct{})
+		go func() {
+			defer close(drainDone)
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case msg, ok := <-oldMsgChan:
+					if !ok {
+						return
+					}
+					select {
+					case newChan <- msg:
+					default:
+					}
+				default:
+					return
+				}
+			}
+		}()
+		// wait for drain to complete
+		<-drainDone
+		// cancel old workers and loops
+		if oldCancel != nil {
+			oldCancel()
+		}
+		if oldWG != nil {
+			oldWG.Wait()
+		}
+	}
+	k.logger.Printf("updated kafka output: %s", k.String())
+	return nil
+}
+
+func (k *kafkaOutput) setDefaultsFor(cfg *config) error {
+	if cfg.Format == "" {
+		cfg.Format = defaultFormat
+	}
+	if !(cfg.Format == "event" || cfg.Format == "protojson" || cfg.Format == "prototext" || cfg.Format == "proto" || cfg.Format == "json") {
+		return fmt.Errorf("unsupported output format '%s' for output type kafka", cfg.Format)
+	}
+	if cfg.Address == "" {
+		cfg.Address = defaultAddress
+	}
+	if cfg.Topic == "" {
+		cfg.Topic = defaultKafkaTopic
+	}
+	if cfg.MaxRetry == 0 {
+		cfg.MaxRetry = defaultKafkaMaxRetry
+	}
+	if cfg.Timeout <= 0 {
+		cfg.Timeout = defaultKafkaTimeout
+	}
+	if cfg.RecoveryWaitTime <= 0 {
+		cfg.RecoveryWaitTime = defaultRecoveryWaitTime
+	}
+	if cfg.NumWorkers <= 0 {
+		cfg.NumWorkers = defaultNumWorkers
+	}
+	if cfg.Name == "" {
+		cfg.Name = "gnmic-" + uuid.New().String()
+	}
+	if cfg.SASL == nil {
 		return nil
 	}
-	k.cfg.SASL.Mechanism = strings.ToUpper(k.cfg.SASL.Mechanism)
-	switch k.cfg.SASL.Mechanism {
+	cfg.SASL.Mechanism = strings.ToUpper(cfg.SASL.Mechanism)
+	switch cfg.SASL.Mechanism {
 	case "":
-		k.cfg.SASL.Mechanism = "PLAIN"
+		cfg.SASL.Mechanism = "PLAIN"
 	case "OAUTHBEARER":
-		if k.cfg.SASL.TokenURL == "" {
+		if cfg.SASL.TokenURL == "" {
 			return errors.New("missing token-url for kafka SASL mechanism OAUTHBEARER")
 		}
 	}
 
-	switch k.cfg.RequiredAcks {
+	switch cfg.RequiredAcks {
 	case requiredAcksNoResponse:
 	case requiredAcksWaitForLocal:
 	case requiredAcksWaitForAll:
 	case "":
-		k.cfg.RequiredAcks = requiredAcksWaitForLocal
+		cfg.RequiredAcks = requiredAcksWaitForLocal
 	default:
-		return fmt.Errorf("unknown `required-acks` value %s: must be one of %q, %q or %q", k.cfg.RequiredAcks, requiredAcksNoResponse, requiredAcksWaitForLocal, requiredAcksWaitForAll)
+		return fmt.Errorf("unknown `required-acks` value %s: must be one of %q, %q or %q", cfg.RequiredAcks, requiredAcksNoResponse, requiredAcksWaitForLocal, requiredAcksWaitForAll)
+	}
+	return nil
+}
+
+func (k *kafkaOutput) UpdateProcessor(name string, pcfg map[string]any) error {
+	cfg := k.cfg.Load()
+	dc := k.dynCfg.Load()
+
+	newEvps, changed, err := outputs.UpdateProcessorInSlice(
+		k.srcLogger,
+		k.store,
+		cfg.EventProcessors,
+		dc.evps,
+		name,
+		pcfg,
+	)
+	if err != nil {
+		return err
+	}
+	if changed {
+		newDC := *dc
+		newDC.evps = newEvps
+		k.dynCfg.Store(&newDC)
+		k.logger.Printf("updated event processor %s", name)
 	}
 	return nil
 }
 
 // Write //
 func (k *kafkaOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) {
+	currentCfg := k.cfg.Load()
 	if rsp == nil {
 		return
 	}
 
-	wctx, cancel := context.WithTimeout(ctx, k.cfg.Timeout)
+	msgChan := *k.msgChan.Load()
+	wctx, cancel := context.WithTimeout(ctx, currentCfg.Timeout)
 	defer cancel()
 
 	select {
 	case <-ctx.Done():
 		return
-	case k.msgChan <- outputs.NewProtoMsg(rsp, meta):
+	case msgChan <- outputs.NewProtoMsg(rsp, meta):
+	case <-k.closeSig:
+		return
 	case <-wctx.Done():
-		if k.cfg.Debug {
-			k.logger.Printf("writing expired after %s, Kafka output might not be initialized", k.cfg.Timeout)
+		if currentCfg.Debug {
+			k.logger.Printf("writing expired after %s, Kafka output might not be initialized", currentCfg.Timeout)
 		}
-		if k.cfg.EnableMetrics {
-			kafkaNumberOfFailSendMsgs.WithLabelValues(k.cfg.Name, k.cfg.Name, "timeout").Inc()
+		if currentCfg.EnableMetrics {
+			kafkaNumberOfFailSendMsgs.WithLabelValues(currentCfg.Name, currentCfg.Name, "timeout").Inc()
 		}
 		return
 	}
@@ -300,28 +517,37 @@ func (k *kafkaOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {
 func (k *kafkaOutput) Close() error {
 	k.cancelFn()
 	k.wg.Wait()
+	k.closeOnce.Do(func() {
+		close(k.closeSig)
+	})
+	k.logger.Printf("closed kafka output: %s", k.String())
 	return nil
 }
 
-func (k *kafkaOutput) worker(ctx context.Context, idx int, config *sarama.Config) {
-	if k.cfg.SyncProducer {
-		k.syncProducerWorker(ctx, idx, config)
+func (k *kafkaOutput) worker(ctx context.Context, idx int, kafkaCfg *sarama.Config, msgChan <-chan *outputs.ProtoMsg) {
+	currentCfg := k.cfg.Load()
+	if currentCfg.SyncProducer {
+		k.syncProducerWorker(ctx, idx, kafkaCfg, msgChan)
 		return
 	}
-	k.asyncProducerWorker(ctx, idx, config)
+	k.asyncProducerWorker(ctx, idx, kafkaCfg, msgChan)
 }
 
-func (k *kafkaOutput) asyncProducerWorker(ctx context.Context, idx int, config *sarama.Config) {
+func (k *kafkaOutput) asyncProducerWorker(ctx context.Context, idx int, kafkaCfg *sarama.Config, msgChan <-chan *outputs.ProtoMsg) {
 	var producer sarama.AsyncProducer
 	var err error
 	defer k.wg.Done()
 	workerLogPrefix := fmt.Sprintf("worker-%d", idx)
 	k.logger.Printf("%s starting", workerLogPrefix)
 CRPROD:
-	producer, err = sarama.NewAsyncProducer(strings.Split(k.cfg.Address, ","), config)
+	if ctx.Err() != nil {
+		return
+	}
+	cfg := k.cfg.Load()
+	producer, err = sarama.NewAsyncProducer(strings.Split(cfg.Address, ","), kafkaCfg)
 	if err != nil {
 		k.logger.Printf("%s failed to create kafka producer: %v", workerLogPrefix, err)
-		time.Sleep(k.cfg.RecoveryWaitTime)
+		time.Sleep(cfg.RecoveryWaitTime)
 		goto CRPROD
 	}
 	defer producer.Close()
@@ -336,23 +562,25 @@ CRPROD:
 				if !ok {
 					return
 				}
-				if k.cfg.EnableMetrics {
+				cfg := k.cfg.Load()
+				if cfg.EnableMetrics {
 					start, ok := msg.Metadata.(time.Time)
 					if ok {
-						kafkaSendDuration.WithLabelValues(k.cfg.Name, config.ClientID).Set(float64(time.Since(start).Nanoseconds()))
+						kafkaSendDuration.WithLabelValues(cfg.Name, kafkaCfg.ClientID).Set(float64(time.Since(start).Nanoseconds()))
 					}
-					kafkaNumberOfSentMsgs.WithLabelValues(k.cfg.Name, config.ClientID).Inc()
-					kafkaNumberOfSentBytes.WithLabelValues(k.cfg.Name, config.ClientID).Add(float64(msg.Value.Length()))
+					kafkaNumberOfSentMsgs.WithLabelValues(cfg.Name, kafkaCfg.ClientID).Inc()
+					kafkaNumberOfSentBytes.WithLabelValues(cfg.Name, kafkaCfg.ClientID).Add(float64(msg.Value.Length()))
 				}
 			case err, ok := <-producer.Errors():
 				if !ok {
 					return
 				}
-				if k.cfg.Debug {
+				cfg := k.cfg.Load()
+				if cfg.Debug {
 					k.logger.Printf("%s failed to send a kafka msg to topic '%s': %v", workerLogPrefix, err.Msg.Topic, err.Err)
 				}
-				if k.cfg.EnableMetrics {
-					kafkaNumberOfFailSendMsgs.WithLabelValues(k.cfg.Name, config.ClientID, "send_error").Inc()
+				if cfg.EnableMetrics {
+					kafkaNumberOfFailSendMsgs.WithLabelValues(cfg.Name, kafkaCfg.ClientID, "send_error").Inc()
 				}
 			}
 		}
@@ -363,19 +591,24 @@ CRPROD:
 		case <-ctx.Done():
 			k.logger.Printf("%s shutting down", workerLogPrefix)
 			return
-		case m := <-k.msgChan:
+		case m, ok := <-msgChan:
+			if !ok {
+				return
+			}
 			pmsg := m.GetMsg()
-			pmsg, err = outputs.AddSubscriptionTarget(pmsg, m.GetMeta(), k.cfg.AddTarget, k.targetTpl)
+			cfg := k.cfg.Load()
+			dc := k.dynCfg.Load()
+			pmsg, err = outputs.AddSubscriptionTarget(pmsg, m.GetMeta(), cfg.AddTarget, dc.targetTpl)
 			if err != nil {
 				k.logger.Printf("failed to add target to the response: %v", err)
 			}
-			bb, err := outputs.Marshal(pmsg, m.GetMeta(), k.mo, k.cfg.SplitEvents, k.evps...)
+			bb, err := outputs.Marshal(pmsg, m.GetMeta(), dc.mo, cfg.SplitEvents, dc.evps...)
 			if err != nil {
-				if k.cfg.Debug {
+				if cfg.Debug {
 					k.logger.Printf("%s failed marshaling proto msg: %v", workerLogPrefix, err)
 				}
-				if k.cfg.EnableMetrics {
-					kafkaNumberOfFailSendMsgs.WithLabelValues(k.cfg.Name, config.ClientID, "marshal_error").Inc()
+				if cfg.EnableMetrics {
+					kafkaNumberOfFailSendMsgs.WithLabelValues(cfg.Name, kafkaCfg.ClientID, "marshal_error").Inc()
 				}
 				continue
 			}
@@ -383,13 +616,13 @@ CRPROD:
 				continue
 			}
 			for _, b := range bb {
-				if k.msgTpl != nil {
-					b, err = outputs.ExecTemplate(b, k.msgTpl)
+				if dc.msgTpl != nil {
+					b, err = outputs.ExecTemplate(b, dc.msgTpl)
 					if err != nil {
-						if k.cfg.Debug {
+						if cfg.Debug {
 							log.Printf("failed to execute template: %v", err)
 						}
-						kafkaNumberOfFailSendMsgs.WithLabelValues(k.cfg.Name, config.ClientID, "template_error").Inc()
+						kafkaNumberOfFailSendMsgs.WithLabelValues(cfg.Name, kafkaCfg.ClientID, "template_error").Inc()
 						continue
 					}
 				}
@@ -399,11 +632,11 @@ CRPROD:
 					Topic: topic,
 					Value: sarama.ByteEncoder(b),
 				}
-				if k.cfg.InsertKey {
+				if cfg.InsertKey {
 					msg.Key = sarama.ByteEncoder(k.partitionKey(m.GetMeta()))
 				}
 				var start time.Time
-				if k.cfg.EnableMetrics {
+				if cfg.EnableMetrics {
 					start = time.Now()
 					msg.Metadata = start
 				}
@@ -413,17 +646,18 @@ CRPROD:
 	}
 }
 
-func (k *kafkaOutput) syncProducerWorker(ctx context.Context, idx int, config *sarama.Config) {
+func (k *kafkaOutput) syncProducerWorker(ctx context.Context, idx int, kafkaCfg *sarama.Config, msgChan <-chan *outputs.ProtoMsg) {
 	var producer sarama.SyncProducer
 	var err error
 	defer k.wg.Done()
 	workerLogPrefix := fmt.Sprintf("worker-%d", idx)
 	k.logger.Printf("%s starting", workerLogPrefix)
 CRPROD:
-	producer, err = sarama.NewSyncProducer(strings.Split(k.cfg.Address, ","), config)
+	cfg := k.cfg.Load()
+	producer, err = sarama.NewSyncProducer(strings.Split(cfg.Address, ","), kafkaCfg)
 	if err != nil {
 		k.logger.Printf("%s failed to create kafka producer: %v", workerLogPrefix, err)
-		time.Sleep(k.cfg.RecoveryWaitTime)
+		time.Sleep(cfg.RecoveryWaitTime)
 		goto CRPROD
 	}
 	defer producer.Close()
@@ -433,19 +667,24 @@ CRPROD:
 		case <-ctx.Done():
 			k.logger.Printf("%s shutting down", workerLogPrefix)
 			return
-		case m := <-k.msgChan:
+		case m, ok := <-msgChan:
+			if !ok {
+				return
+			}
 			pmsg := m.GetMsg()
-			pmsg, err = outputs.AddSubscriptionTarget(pmsg, m.GetMeta(), k.cfg.AddTarget, k.targetTpl)
+			cfg := k.cfg.Load()
+			dc := k.dynCfg.Load()
+			pmsg, err = outputs.AddSubscriptionTarget(pmsg, m.GetMeta(), cfg.AddTarget, dc.targetTpl)
 			if err != nil {
 				k.logger.Printf("failed to add target to the response: %v", err)
 			}
-			bb, err := outputs.Marshal(pmsg, m.GetMeta(), k.mo, k.cfg.SplitEvents, k.evps...)
+			bb, err := outputs.Marshal(pmsg, m.GetMeta(), dc.mo, cfg.SplitEvents, dc.evps...)
 			if err != nil {
-				if k.cfg.Debug {
+				if cfg.Debug {
 					k.logger.Printf("%s failed marshaling proto msg: %v", workerLogPrefix, err)
 				}
-				if k.cfg.EnableMetrics {
-					kafkaNumberOfFailSendMsgs.WithLabelValues(k.cfg.Name, config.ClientID, "marshal_error").Inc()
+				if cfg.EnableMetrics {
+					kafkaNumberOfFailSendMsgs.WithLabelValues(cfg.Name, kafkaCfg.ClientID, "marshal_error").Inc()
 				}
 				continue
 			}
@@ -453,13 +692,13 @@ CRPROD:
 				continue
 			}
 			for _, b := range bb {
-				if k.msgTpl != nil {
-					b, err = outputs.ExecTemplate(b, k.msgTpl)
+				if dc.msgTpl != nil {
+					b, err = outputs.ExecTemplate(b, dc.msgTpl)
 					if err != nil {
-						if k.cfg.Debug {
+						if cfg.Debug {
 							log.Printf("failed to execute template: %v", err)
 						}
-						kafkaNumberOfFailSendMsgs.WithLabelValues(k.cfg.Name, config.ClientID, "template_error").Inc()
+						kafkaNumberOfFailSendMsgs.WithLabelValues(cfg.Name, kafkaCfg.ClientID, "template_error").Inc()
 						continue
 					}
 				}
@@ -469,62 +708,51 @@ CRPROD:
 					Topic: topic,
 					Value: sarama.ByteEncoder(b),
 				}
-				if k.cfg.InsertKey {
+				if cfg.InsertKey {
 					msg.Key = sarama.ByteEncoder(k.partitionKey(m.GetMeta()))
 				}
 				var start time.Time
-				if k.cfg.EnableMetrics {
+				if cfg.EnableMetrics {
 					start = time.Now()
 				}
 				_, _, err = producer.SendMessage(msg)
 				if err != nil {
-					if k.cfg.Debug {
+					if cfg.Debug {
 						k.logger.Printf("%s failed to send a kafka msg to topic '%s': %v", workerLogPrefix, topic, err)
 					}
-					if k.cfg.EnableMetrics {
-						kafkaNumberOfFailSendMsgs.WithLabelValues(k.cfg.Name, config.ClientID, "send_error").Inc()
+					if cfg.EnableMetrics {
+						kafkaNumberOfFailSendMsgs.WithLabelValues(cfg.Name, kafkaCfg.ClientID, "send_error").Inc()
 					}
 					producer.Close()
-					time.Sleep(k.cfg.RecoveryWaitTime)
+					time.Sleep(cfg.RecoveryWaitTime)
 					goto CRPROD
 				}
-				if k.cfg.EnableMetrics {
-					kafkaSendDuration.WithLabelValues(k.cfg.Name, config.ClientID).Set(float64(time.Since(start).Nanoseconds()))
-					kafkaNumberOfSentMsgs.WithLabelValues(k.cfg.Name, config.ClientID).Inc()
-					kafkaNumberOfSentBytes.WithLabelValues(k.cfg.Name, config.ClientID).Add(float64(len(b)))
+				if cfg.EnableMetrics {
+					kafkaSendDuration.WithLabelValues(cfg.Name, kafkaCfg.ClientID).Set(float64(time.Since(start).Nanoseconds()))
+					kafkaNumberOfSentMsgs.WithLabelValues(cfg.Name, kafkaCfg.ClientID).Inc()
+					kafkaNumberOfSentBytes.WithLabelValues(cfg.Name, kafkaCfg.ClientID).Add(float64(len(b)))
 				}
 			}
 		}
 	}
 }
 
-func (k *kafkaOutput) setName(name string) {
-	sb := strings.Builder{}
-	if name != "" {
-		sb.WriteString(name)
-		sb.WriteString("-")
-	}
-	sb.WriteString(k.cfg.Name)
-	sb.WriteString("-kafka-prod")
-	k.cfg.Name = sb.String()
-}
-
-func (k *kafkaOutput) createConfig() (*sarama.Config, error) {
+func (k *kafkaOutput) createConfigFor(c *config) (*sarama.Config, error) {
 	cfg := sarama.NewConfig()
-	cfg.ClientID = k.cfg.Name
-	if k.cfg.KafkaVersion != "" {
+	cfg.ClientID = c.Name
+	if c.KafkaVersion != "" {
 		var err error
-		cfg.Version, err = sarama.ParseKafkaVersion(k.cfg.KafkaVersion)
+		cfg.Version, err = sarama.ParseKafkaVersion(c.KafkaVersion)
 		if err != nil {
 			return nil, err
 		}
 	}
 	// SASL_PLAINTEXT or SASL_SSL
-	if k.cfg.SASL != nil {
+	if c.SASL != nil {
 		cfg.Net.SASL.Enable = true
-		cfg.Net.SASL.User = k.cfg.SASL.User
-		cfg.Net.SASL.Password = k.cfg.SASL.Password
-		cfg.Net.SASL.Mechanism = sarama.SASLMechanism(k.cfg.SASL.Mechanism)
+		cfg.Net.SASL.User = c.SASL.User
+		cfg.Net.SASL.Password = c.SASL.Password
+		cfg.Net.SASL.Mechanism = sarama.SASLMechanism(c.SASL.Mechanism)
 		switch cfg.Net.SASL.Mechanism {
 		case sarama.SASLTypeSCRAMSHA256:
 			cfg.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient {
@@ -535,30 +763,30 @@ func (k *kafkaOutput) createConfig() (*sarama.Config, error) {
 				return &XDGSCRAMClient{HashGeneratorFcn: SHA512}
 			}
 		case sarama.SASLTypeOAuth:
-			cfg.Net.SASL.TokenProvider = pkgutils.NewTokenProvider(cfg.Net.SASL.User, cfg.Net.SASL.Password, k.cfg.SASL.TokenURL)
+			cfg.Net.SASL.TokenProvider = pkgutils.NewTokenProvider(cfg.Net.SASL.User, cfg.Net.SASL.Password, c.SASL.TokenURL)
 		}
 	}
 	// SSL or SASL_SSL
-	if k.cfg.TLS != nil {
+	if c.TLS != nil {
 		var err error
 		cfg.Net.TLS.Enable = true
 		cfg.Net.TLS.Config, err = utils.NewTLSConfig(
-			k.cfg.TLS.CaFile,
-			k.cfg.TLS.CertFile,
-			k.cfg.TLS.KeyFile,
+			c.TLS.CaFile,
+			c.TLS.CertFile,
+			c.TLS.KeyFile,
 			"",
-			k.cfg.TLS.SkipVerify,
+			c.TLS.SkipVerify,
 			false)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	cfg.Producer.Retry.Max = k.cfg.MaxRetry
+	cfg.Producer.Retry.Max = c.MaxRetry
 	cfg.Producer.Return.Successes = true
-	cfg.Producer.Timeout = k.cfg.Timeout
-	cfg.Producer.Flush.Frequency = k.cfg.FlushFrequency
-	switch k.cfg.RequiredAcks {
+	cfg.Producer.Timeout = c.Timeout
+	cfg.Producer.Flush.Frequency = c.FlushFrequency
+	switch c.RequiredAcks {
 	case requiredAcksNoResponse:
 	case requiredAcksWaitForLocal:
 		cfg.Producer.RequiredAcks = sarama.WaitForLocal
@@ -568,7 +796,7 @@ func (k *kafkaOutput) createConfig() (*sarama.Config, error) {
 
 	cfg.Metadata.Full = false
 
-	switch k.cfg.CompressionCodec {
+	switch c.CompressionCodec {
 	case "gzip":
 		cfg.Producer.Compression = sarama.CompressionGZIP
 	case "snappy":
@@ -585,26 +813,92 @@ func (k *kafkaOutput) createConfig() (*sarama.Config, error) {
 }
 
 func (k *kafkaOutput) partitionKey(m outputs.Meta) []byte {
-	b := new(bytes.Buffer)
+	b := bytesBufferPool.Get().(*bytes.Buffer)
+	defer func() {
+		b.Reset()
+		bytesBufferPool.Put(b)
+	}()
 	fmt.Fprintf(b, "%s_%s", m["source"], m["subscription-name"])
 	return b.Bytes()
 }
 
 func (k *kafkaOutput) selectTopic(m outputs.Meta) string {
-	if k.cfg.TopicPrefix == "" {
-		return k.cfg.Topic
+	cfg := k.cfg.Load()
+	if cfg.TopicPrefix == "" {
+		return cfg.Topic
 	}
 
-	sb := strings.Builder{}
-	sb.WriteString(k.cfg.TopicPrefix)
+	sb := stringBuilderPool.Get().(*strings.Builder)
+	defer func() {
+		sb.Reset()
+		stringBuilderPool.Put(sb)
+	}()
+	sb.WriteString(cfg.TopicPrefix)
 	if subname, ok := m["subscription-name"]; ok {
 		sb.WriteString("_")
 		sb.WriteString(subname)
 	}
 	if s, ok := m["source"]; ok {
-		source := strings.ReplaceAll(s, ":", "_")
 		sb.WriteString("_")
-		sb.WriteString(source)
+		for _, r := range s {
+			if r == ':' {
+				sb.WriteRune('_')
+			} else {
+				sb.WriteRune(r)
+			}
+		}
 	}
 	return sb.String()
+}
+
+// config swap requirements:
+
+// decides if we need to rebuild sarama.Config and producers
+func needsProducerRestart(old, nw *config) bool {
+	if old == nil || nw == nil {
+		return true
+	}
+	// anything that maps into sarama.Config or producer type
+	if old.Address != nw.Address ||
+		!old.TLS.Equal(nw.TLS) ||
+		!saslEq(old.SASL, nw.SASL) ||
+		old.KafkaVersion != nw.KafkaVersion ||
+		old.MaxRetry != nw.MaxRetry ||
+		old.Timeout != nw.Timeout ||
+		old.FlushFrequency != nw.FlushFrequency ||
+		old.RequiredAcks != nw.RequiredAcks ||
+		old.CompressionCodec != nw.CompressionCodec ||
+		old.SyncProducer != nw.SyncProducer ||
+		old.Name != nw.Name {
+		return true
+	}
+	return false
+}
+
+func needsWorkerRestart(old, nw *config) bool {
+	if old == nil || nw == nil {
+		return true
+	}
+	// producer dependencies OR worker count change
+	return needsProducerRestart(old, nw) || old.NumWorkers != nw.NumWorkers
+}
+
+func channelNeedsSwap(old, nw *config) bool {
+	if old != nil && nw != nil {
+		return old.BufferSize != nw.BufferSize
+	}
+	return true
+}
+
+func saslEq(a, b *types.SASL) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return a.User == b.User &&
+		a.Password == b.Password &&
+		strings.EqualFold(a.Mechanism, b.Mechanism) &&
+		a.TokenURL == b.TokenURL
 }

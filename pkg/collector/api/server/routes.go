@@ -4,9 +4,12 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func (s *Server) routes() {
+	s.router.Handle("/metrics", promhttp.HandlerFor(s.reg, promhttp.HandlerOpts{}))
+
 	apiV1 := s.router.PathPrefix("/api/v1").Subrouter()
 	s.clusterRoutes(apiV1)
 	s.configRoutes(apiV1)
@@ -76,10 +79,8 @@ func (s *Server) targetRoutes(r *mux.Router) {
 }
 
 func (s *Server) subscriptionRoutes(r *mux.Router) {
-	// r.HandleFunc("/subscriptions", c.handleSubscriptionsGet).Methods(http.MethodGet)
-	// r.HandleFunc("/subscriptions", c.handleSubscriptionsPost).Methods(http.MethodPost)
-	// r.HandleFunc("/subscriptions/{id}", c.handleSubscriptionsGet).Methods(http.MethodGet)
-	// r.HandleFunc("/subscriptions/{id}", c.handleSubscriptionsDelete).Methods(http.MethodDelete)
+	r.HandleFunc("/subscriptions", s.handleSubscriptionsGet).Methods(http.MethodGet)
+	r.HandleFunc("/subscriptions/{id}", s.handleSubscriptionsGet).Methods(http.MethodGet)
 }
 
 func (s *Server) outputsRoutes(r *mux.Router) {

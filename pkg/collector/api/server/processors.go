@@ -11,12 +11,14 @@ import (
 func (s *Server) handleConfigProcessorsGet(w http.ResponseWriter, r *http.Request) {
 	processors, err := s.configStore.List("processors")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 	err = json.NewEncoder(w).Encode(processors)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 }
@@ -31,25 +33,30 @@ func (s *Server) handleConfigProcessorsPost(w http.ResponseWriter, r *http.Reque
 	cfg := map[string]any{}
 	err = json.Unmarshal(body, &cfg)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 	if cfg == nil {
-		http.Error(w, "invalid processor config", http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"invalid processor config"}})
 		return
 	}
 	processorName, ok := cfg["name"].(string)
 	if !ok {
-		http.Error(w, "processor name is required", http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"processor name is required"}})
 		return
 	}
 	if processorName == "" {
-		http.Error(w, "processor name is required", http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"processor name is required"}})
 		return
 	}
 	_, err = s.configStore.Set("processors", processorName, cfg)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -60,11 +67,13 @@ func (s *Server) handleConfigProcessorsDelete(w http.ResponseWriter, r *http.Req
 	id := vars["id"]
 	ok, _, err := s.configStore.Delete("processors", id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 	if !ok {
-		http.Error(w, "processor not found", http.StatusNotFound)
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"processor not found"}})
 		return
 	}
 	w.WriteHeader(http.StatusOK)

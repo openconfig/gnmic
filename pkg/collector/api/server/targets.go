@@ -18,12 +18,14 @@ func (s *Server) handleConfigTargetsGet(w http.ResponseWriter, r *http.Request) 
 	if id == "" {
 		targets, err := s.configStore.List("targets")
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 			return
 		}
 		err = json.NewEncoder(w).Encode(targets)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 			return
 		}
 		return
@@ -31,15 +33,18 @@ func (s *Server) handleConfigTargetsGet(w http.ResponseWriter, r *http.Request) 
 	tc, ok, err := s.configStore.Get("targets", id)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{fmt.Sprintf("target %s not found", id)}})
 		return
 	}
 	err = json.NewEncoder(w).Encode(tc)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 }
@@ -60,14 +65,16 @@ func (s *Server) handleConfigTargetsGet(w http.ResponseWriter, r *http.Request) 
 func (s *Server) handleConfigTargetsPost(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 	defer r.Body.Close()
 	m := map[string]any{}
 	err = json.Unmarshal(body, &m)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 	tc := new(types.TargetConfig)
@@ -78,31 +85,62 @@ func (s *Server) handleConfigTargetsPost(w http.ResponseWriter, r *http.Request)
 			Result:     tc,
 		})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 	err = decoder.Decode(m)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 	if tc.Name == "" {
-		http.Error(w, "target name is required", http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"target name is required"}})
 		return
 	}
 	if tc.Address == "" {
-		http.Error(w, "target address is required", http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"target address is required"}})
 		return
 	}
-	ok, err := s.configStore.Set("targets", tc.Name, tc)
+	// validate subscriptions
+	for _, sub := range tc.Subscriptions {
+		_, ok, err := s.configStore.Get("subscriptions", sub)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+			return
+		}
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{fmt.Sprintf("subscription %s not found", sub)}})
+			return
+		}
+	}
+	// validate outputs
+	for _, out := range tc.Outputs {
+		_, ok, err := s.configStore.Get("outputs", out)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+			return
+		}
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{fmt.Sprintf("output %s not found", out)}})
+			return
+		}
+	}
+
+	_, err = s.configStore.Set("targets", tc.Name, tc)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
-	if !ok {
-		http.Error(w, "target already exists", http.StatusBadRequest)
-		return
-	}
+
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -122,7 +160,8 @@ func (s *Server) handleConfigTargetsSubscriptionsPatch(w http.ResponseWriter, r 
 	id := vars["id"]
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 
@@ -131,11 +170,25 @@ func (s *Server) handleConfigTargetsSubscriptionsPatch(w http.ResponseWriter, r 
 	if len(body) > 0 {
 		err = json.Unmarshal(body, &subs)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 			return
 		}
 	}
-	_, err = s.configStore.LoadAndSet("targets", id,
+	for _, sub := range subs {
+		_, ok, err := s.configStore.Get("subscriptions", sub)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+			return
+		}
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{fmt.Sprintf("subscription %s not found", sub)}})
+			return
+		}
+	}
+	_, err = s.configStore.SetFn("targets", id,
 		func(v any) (any, error) {
 			tc, ok := v.(*types.TargetConfig)
 			if !ok {
@@ -145,7 +198,8 @@ func (s *Server) handleConfigTargetsSubscriptionsPatch(w http.ResponseWriter, r 
 			return tc, nil
 		})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -160,14 +214,15 @@ func (s *Server) handleConfigTargetsSubscriptionsPatch(w http.ResponseWriter, r 
 //
 // sample curl command:
 // curl --request PATCH -H "Content-Type: application/json" \
-// -d '{"outputs": ["output1", "output2"]}' \
+// -d '["output1", "output2"]' \
 // http://localhost:8080/api/v1/config/targets/target1/outputs
 func (s *Server) handleConfigTargetsOutputsPatch(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 	defer r.Body.Close()
@@ -175,15 +230,25 @@ func (s *Server) handleConfigTargetsOutputsPatch(w http.ResponseWriter, r *http.
 	if len(body) > 0 {
 		err = json.Unmarshal(body, &outs)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 			return
 		}
 	}
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+	for _, out := range outs {
+		_, ok, err := s.configStore.Get("outputs", out)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+			return
+		}
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{fmt.Sprintf("output %s not found", out)}})
+			return
+		}
 	}
-	_, err = s.configStore.LoadAndSet("targets", id,
+	_, err = s.configStore.SetFn("targets", id,
 		func(v any) (any, error) {
 			tc, ok := v.(*types.TargetConfig)
 			if !ok {
@@ -193,7 +258,8 @@ func (s *Server) handleConfigTargetsOutputsPatch(w http.ResponseWriter, r *http.
 			return tc, nil
 		})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -202,16 +268,12 @@ func (s *Server) handleConfigTargetsOutputsPatch(w http.ResponseWriter, r *http.
 func (s *Server) handleConfigTargetsDelete(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
-	ok, prev, err := s.configStore.Delete("targets", id)
+	_, _, err := s.configStore.Delete("targets", id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
-	fmt.Printf("ok: %v, prev: %v\n", ok, prev)
-	// if !ok {
-	// 	http.Error(w, "target not found", http.StatusNotFound)
-	// 	return
-	// }
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -256,14 +318,16 @@ func (s *Server) handleTargetsGet(w http.ResponseWriter, r *http.Request) {
 		})
 		err := json.NewEncoder(w).Encode(response)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 			return
 		}
 		return
 	}
 	mt := s.targetsManager.Lookup(id)
 	if mt == nil {
-		http.Error(w, "target not found", http.StatusNotFound)
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"target not found"}})
 		return
 	}
 	subs := make(map[string]*SubscriptionResponse)
@@ -281,7 +345,8 @@ func (s *Server) handleTargetsGet(w http.ResponseWriter, r *http.Request) {
 	})
 	err := json.NewEncoder(w).Encode(response)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 }
@@ -291,22 +356,26 @@ func (s *Server) handleTargetsStatePost(w http.ResponseWriter, r *http.Request) 
 	vars := mux.Vars(r)
 	id := vars["id"]
 	if id == "" {
-		http.Error(w, "target id is required", http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"target id is required"}})
 		return
 	}
 	state := vars["state"]
 	if state == "" {
-		http.Error(w, "target state is required", http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"target state is required"}})
 		return
 	}
 	mt := s.targetsManager.Lookup(id)
 	if mt == nil {
-		http.Error(w, "target not found", http.StatusNotFound)
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"target not found"}})
 		return
 	}
 	ok := s.targetsManager.SetIntendedState(id, state)
 	if !ok {
-		http.Error(w, "target state not changed", http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"target state not changed"}})
 		return
 	}
 	w.WriteHeader(http.StatusOK)

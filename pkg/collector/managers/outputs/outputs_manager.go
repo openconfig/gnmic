@@ -2,15 +2,22 @@ package outputs_manager
 
 import (
 	"context"
+	"fmt"
+	"log"
 	"log/slog"
+	"os"
 	"sync"
 	"sync/atomic"
 
-	"github.com/openconfig/gnmic/pkg/api/types"
-	"github.com/openconfig/gnmic/pkg/config/store"
+	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/gnmic/pkg/api/utils"
+	"github.com/openconfig/gnmic/pkg/cache"
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	"github.com/openconfig/gnmic/pkg/pipeline"
+	"github.com/openconfig/gnmic/pkg/store"
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/protobuf/proto"
 )
 
 type ManagedOutput struct {
@@ -32,28 +39,35 @@ type OutputsManager struct {
 
 	mu      sync.RWMutex
 	outputs map[string]*ManagedOutput
+	cache   cache.Cache
 	logger  *slog.Logger
+	reg     *prometheus.Registry
+	stats   *outputStats
 }
 
 type outputStats struct {
-	msgCount    prometheus.CounterVec
-	msgCountErr prometheus.CounterVec
+	msgCount    *prometheus.CounterVec
+	msgCountErr *prometheus.CounterVec
 }
 
-func NewOutputsManager(ctx context.Context, st store.Store[any], pipe <-chan *pipeline.Msg) *OutputsManager {
-	logger := slog.With("component", "outputs-manager")
+func NewOutputsManager(ctx context.Context, store store.Store[any], pipe <-chan *pipeline.Msg, reg *prometheus.Registry) *OutputsManager {
 	return &OutputsManager{
 		ctx:            ctx,
-		store:          st,
+		store:          store,
 		OutputsFactory: outputs.Outputs,
 		in:             pipe,
 		outputs:        map[string]*ManagedOutput{},
-		logger:         logger,
+		stats:          newOutputStats(),
+		reg:            reg,
 	}
 }
 
-func (om *OutputsManager) Start(wg *sync.WaitGroup) error {
+func (om *OutputsManager) Start(cache cache.Cache, wg *sync.WaitGroup) error {
+	om.logger = logging.NewLogger(om.store, "component", "outputs-manager")
 	om.logger.Info("starting outputs manager")
+	om.cache = cache
+	// register metrics
+	om.registerMetrics()
 	// watch outputs config changes
 	outputCh, outputsCancel, err := om.store.Watch("outputs", store.WithInitialReplay[any]())
 	if err != nil {
@@ -64,6 +78,11 @@ func (om *OutputsManager) Start(wg *sync.WaitGroup) error {
 	if err != nil {
 		return err
 	}
+
+	wg.Add(1)
+	// forward incoming events to all running outputs
+	// that are in the list of outputs to write to.
+	go om.writeLoop(wg)
 
 	wg.Add(1)
 	go func() {
@@ -86,7 +105,7 @@ func (om *OutputsManager) Start(wg *sync.WaitGroup) error {
 				case store.EventTypeUpdate:
 					om.updateOutput(ev.Name, cfg)
 				case store.EventTypeDelete:
-					om.deleteOutput(ev.Name)
+					om.StopOutput(ev.Name)
 				}
 			case ev, ok := <-procsCh:
 				if !ok {
@@ -106,11 +125,6 @@ func (om *OutputsManager) Start(wg *sync.WaitGroup) error {
 		}
 	}()
 
-	wg.Add(1)
-	// Forward incoming events to all running outputs
-	// that are in the list of outputs to write to.
-	go om.writeLoop(wg)
-
 	return nil
 }
 
@@ -120,61 +134,59 @@ func (om *OutputsManager) writeLoop(wg *sync.WaitGroup) {
 		select {
 		case <-om.ctx.Done():
 			return
-		case e := <-om.in:
+		case e, ok := <-om.in:
+			if !ok {
+				om.logger.Debug("pipeline channel closed")
+				return
+			}
+			om.logger.Debug("got pipeline message", "message", e)
 			go om.write(e)
+			if om.cache != nil {
+				go om.cache.Write(om.ctx, e.Meta["subscription-name"], e.Msg)
+			}
 		}
 	}
 }
 
 func (om *OutputsManager) write(e *pipeline.Msg) {
 	outs := om.getOutputsForTarget(e.Outputs)
-	// om.logger.Info("writing to outputs", "outputs", outs)
+	om.logger.Debug("writing msg to outputs", "outputs", outs)
 	for _, mo := range outs {
+		om.stats.msgCount.WithLabelValues(mo.Name).Inc()
 		if len(e.Events) > 0 { // from inputs
 			for _, ev := range e.Events {
 				mo.Impl.WriteEvent(om.ctx, ev)
 			}
 		} else {
-			// from targets
+			// from targets or inputs
 			mo.Impl.Write(om.ctx, e.Msg, e.Meta)
 		}
 	}
 }
 
 func (om *OutputsManager) addProcessor(name string, cfg map[string]any) {
-	om.mu.Lock()
-	defer om.mu.Unlock()
-	for _, mo := range om.outputs {
-		_ = mo
-		// err := mo.Impl.AddEventProcessor(name, cfg)
-		// if err != nil {
-		// 	om.logger.Error("failed to add event processor", "name", name, "error", err)
-		// }
-	}
+	// noop
 }
 
 func (om *OutputsManager) updateProcessor(name string, cfg map[string]any) {
 	om.mu.Lock()
 	defer om.mu.Unlock()
 	for _, mo := range om.outputs {
-		_ = mo
-		// err := mo.Impl.UpdateEventProcessor(name, cfg)
-		// if err != nil {
-		// 	om.logger.Error("failed to update event processor for output", "processorName", name, "outputName", mo.Name, "error", err)
-		// }
+		err := mo.updateProcessor(name, cfg)
+		if err != nil {
+			om.logger.Error("failed to update event processor for output", "processorName", name, "outputName", mo.Name, "error", err)
+		}
 	}
 }
 
+func (mo *ManagedOutput) updateProcessor(name string, cfg map[string]any) error {
+	mo.Lock()
+	defer mo.Unlock()
+	return mo.Impl.UpdateProcessor(name, cfg)
+}
+
 func (om *OutputsManager) deleteProcessor(name string) {
-	om.mu.Lock()
-	defer om.mu.Unlock()
-	for _, mo := range om.outputs {
-		_ = mo
-		// 	err := mo.Impl.RemoveEventProcessor(name)
-		// if err != nil {
-		// 	om.logger.Error("failed to remove event processor for output", "processorName", name, "outputName", mo.Name, "error", err)
-		// }
-	}
+	// noop
 }
 
 func (om *OutputsManager) getOutputsForTarget(outputs map[string]struct{}) []*ManagedOutput {
@@ -214,6 +226,7 @@ func (om *OutputsManager) createOutput(name string, cfg map[string]any) {
 	opts = append(opts,
 		outputs.WithName(name),
 		outputs.WithConfigStore(om.store),
+		outputs.WithLogger(log.New(os.Stdout, "", log.LstdFlags)), // temporary logger
 	)
 
 	clustering, ok, err := om.store.Get("global", "clustering")
@@ -240,17 +253,6 @@ func (om *OutputsManager) createOutput(name string, cfg map[string]any) {
 	om.mu.Unlock()
 }
 
-// func getReferencedProcessors(cfg map[string]any) []string {
-// 	switch v := cfg["event-processors"].(type) {
-// 	case []string:
-// 		return v
-// 	case string:
-// 		return []string{v}
-// 	}
-// 	return nil
-
-// }
-
 func (om *OutputsManager) updateOutput(name string, cfg map[string]any) {
 	om.mu.Lock()
 	defer om.mu.Unlock()
@@ -272,19 +274,22 @@ func (om *OutputsManager) updateOutput(name string, cfg map[string]any) {
 	om.outputs[name] = mo
 }
 
-func (om *OutputsManager) deleteOutput(name string) {
+func (om *OutputsManager) StopOutput(name string) error {
 	om.mu.Lock()
 	defer om.mu.Unlock()
+	om.logger.Info("finding output", "name", name)
 	if mo, ok := om.outputs[name]; ok {
+		om.logger.Info("stopping output", "name", name)
 		mo.State.Store("stopping")
 		err := mo.Impl.Close()
 		if err != nil {
-			om.logger.Error("failed to stop output", "name", name, "error", err)
-			return
+			om.logger.Error("failed to close output", "name", name, "error", err)
+			return fmt.Errorf("failed to close output: %w", err)
 		}
 		mo.State.Store("stopped")
 		delete(om.outputs, name)
 	}
+	return nil
 }
 
 func (om *OutputsManager) Stop() {
@@ -299,60 +304,59 @@ func (om *OutputsManager) Stop() {
 	}
 }
 
-func (om *OutputsManager) getProcessors(ls ...string) (map[string]map[string]any, error) {
-	requested := map[string]struct{}{}
-	for _, l := range ls {
-		requested[l] = struct{}{}
+func newOutputStats() *outputStats {
+	return &outputStats{
+		msgCount: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "gnmic",
+			Subsystem: "outputs",
+			Name:      "msg_sent_to_output_count",
+			Help:      "Number of messages sent to the output",
+		}, []string{"name"}),
+		msgCountErr: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "gnmic",
+			Subsystem: "outputs",
+			Name:      "msg_failed_to_sent_to_output_count_error",
+			Help:      "Number of messages sent to the output with error",
+		}, []string{"name"}),
 	}
-	filterFunc := func(key string, val any) bool {
-		if len(requested) == 0 { // return all if none requested
-			return true
-		}
-		if _, ok := requested[key]; ok {
-			return true
-		}
-		return false
-	}
-	procsMap, err := om.store.List("processors", filterFunc)
-	if err != nil {
-		return nil, err
-	}
-	procs := make(map[string]map[string]any, len(procsMap))
-	for pn, proc := range procsMap {
-		switch proc := proc.(type) {
-		case map[string]any:
-			procs[pn] = proc
-		}
-	}
-	return procs, nil
 }
 
-func (om *OutputsManager) getTargets() (map[string]*types.TargetConfig, error) {
-	targetsMap, err := om.store.List("targets")
-	if err != nil {
-		return nil, err
+func (om *OutputsManager) registerMetrics() {
+	if om.reg == nil {
+		return
 	}
-	targets := make(map[string]*types.TargetConfig, len(targetsMap))
-	for tn, target := range targetsMap {
-		switch target := target.(type) {
-		case *types.TargetConfig:
-			targets[tn] = target
-		}
-	}
-	return targets, nil
+	om.reg.MustRegister(om.stats.msgCount)
+	om.reg.MustRegister(om.stats.msgCountErr)
 }
 
-func (om *OutputsManager) getActions() (map[string]map[string]any, error) {
-	actionsMap, err := om.store.List("actions")
-	if err != nil {
-		return nil, err
+func (om *OutputsManager) WriteToCache(ctx context.Context, msg *pipeline.Msg) {
+	if om.cache == nil {
+		return
 	}
-	actions := make(map[string]map[string]interface{}, len(actionsMap))
-	for an, action := range actionsMap {
-		switch action := action.(type) {
-		case map[string]interface{}:
-			actions[an] = action
+	if msg.Msg == nil {
+		return
+	}
+	switch msg.Msg.(type) {
+	case *gnmi.SubscribeResponse:
+		subName, ok := msg.Meta["subscription-name"]
+		if !ok || subName == "" {
+			subName = "default"
+		}
+		targetName := utils.GetHost(msg.Meta["source"])
+		om.cache.Write(ctx, subName, addTargetToMsg(msg.Msg, targetName))
+	}
+}
+
+func addTargetToMsg(msg proto.Message, targetName string) proto.Message {
+	switch msg := msg.(type) {
+	case *gnmi.SubscribeResponse:
+		switch rsp := msg.Response.(type) {
+		case *gnmi.SubscribeResponse_Update:
+			if rsp.Update.GetPrefix() == nil {
+				rsp.Update.Prefix = new(gnmi.Path)
+			}
+			rsp.Update.Prefix.Target = targetName
 		}
 	}
-	return actions, nil
+	return msg
 }
