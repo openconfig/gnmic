@@ -35,8 +35,8 @@ import (
 	"github.com/openconfig/gnmic/pkg/api"
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
-	"github.com/openconfig/gnmic/pkg/config/store"
 	gfile "github.com/openconfig/gnmic/pkg/file"
+	"github.com/openconfig/gnmic/pkg/store"
 )
 
 const (
@@ -348,7 +348,9 @@ func (c *Config) ToStore(s store.Store[any]) error {
 	actions := make(map[string]any)
 	_, err := c.GetTargets()
 	if err != nil {
-		return err
+		if !errors.Is(err, ErrNoTargetsFound) {
+			return err
+		}
 	}
 	// targets
 	for n, t := range c.Targets {

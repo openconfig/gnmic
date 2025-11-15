@@ -19,7 +19,7 @@ import (
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmic/pkg/api/types"
-	"github.com/openconfig/gnmic/pkg/config/store"
+	"github.com/openconfig/gnmic/pkg/store"
 )
 
 const (
@@ -363,7 +363,7 @@ func SetTargetConfigDefaults(s store.Store[any], tc *types.TargetConfig) error {
 	if !found {
 		return fmt.Errorf("global-flags not found")
 	}
-	gflags, ok := gf.(*GlobalFlags)
+	gflags, ok := gf.(GlobalFlags)
 	if !ok {
 		return fmt.Errorf("global-flags is not a *GlobalFlags")
 	}

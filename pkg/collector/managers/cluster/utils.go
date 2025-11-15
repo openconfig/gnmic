@@ -1,6 +1,19 @@
 package cluster_manager
 
-import "strings"
+import (
+	"fmt"
+	"math/rand"
+	"strings"
+	"time"
+)
+
+func targetsLockPrefix(clusterName string) string {
+	return fmt.Sprintf("gnmic/%s/targets", clusterName)
+}
+
+func targetLockKey(target, clusterName string) string {
+	return fmt.Sprintf("gnmic/%s/targets/%s", clusterName, target)
+}
 
 func GetAPIScheme(member *Member) string {
 	if member == nil {
@@ -21,4 +34,9 @@ func GetAPIScheme(member *Member) string {
 
 func getMemberAddress(member *Member) string {
 	return GetAPIScheme(member) + "://" + member.Address
+}
+
+func jittered(d time.Duration) time.Duration {
+	j := time.Duration(rand.Int63n(int64(float64(d) * recampaignJitterRatio)))
+	return d + j
 }

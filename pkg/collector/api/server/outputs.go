@@ -2,25 +2,51 @@ package apiserver
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"github.com/openconfig/gnmic/pkg/outputs"
 )
 
 // get all outputs
 // curl command:
 // curl http://localhost:8080/api/v1/outputs
 func (s *Server) handleConfigOutputsGet(w http.ResponseWriter, r *http.Request) {
-	outputs, err := s.configStore.List("outputs")
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	err = json.NewEncoder(w).Encode(outputs)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+	vars := mux.Vars(r)
+	id := vars["id"]
+	if id == "" {
+		outputs, err := s.configStore.List("outputs")
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+			return
+		}
+		err = json.NewEncoder(w).Encode(outputs)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+			return
+		}
+	} else {
+		output, ok, err := s.configStore.Get("outputs", id)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+			return
+		}
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{"output not found"}})
+			return
+		}
+		err = json.NewEncoder(w).Encode(output)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+			return
+		}
 	}
 }
 
@@ -39,7 +65,8 @@ func (s *Server) handleConfigOutputsGet(w http.ResponseWriter, r *http.Request) 
 func (s *Server) handleConfigOutputsPost(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 	defer r.Body.Close()
@@ -47,75 +74,86 @@ func (s *Server) handleConfigOutputsPost(w http.ResponseWriter, r *http.Request)
 	cfg := map[string]any{}
 	err = json.Unmarshal(body, &cfg)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 	if cfg == nil {
-		http.Error(w, "invalid output config", http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"invalid output config"}})
 		return
 	}
 	outputName, ok := cfg["name"].(string)
 	if !ok {
-		http.Error(w, "output name is required", http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"output name is required"}})
 		return
 	}
 	if outputName == "" {
-		http.Error(w, "output name is required", http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"output name is required"}})
 		return
 	}
-	ok, err = s.configStore.Set("outputs", outputName, cfg)
+	initializer := outputs.Outputs[cfg["type"].(string)]
+	if initializer == nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"unknown output type"}})
+		return
+	}
+	impl := initializer()
+	err = impl.Validate(cfg)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
-	if !ok {
-		http.Error(w, "output already exists", http.StatusBadRequest)
+	evps, ok := cfg["event-processors"].([]string)
+	if ok {
+		for _, ep := range evps {
+			_, ok, err := s.configStore.Get("processors", ep)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+				return
+			}
+			if !ok {
+				w.WriteHeader(http.StatusNotFound)
+				json.NewEncoder(w).Encode(APIErrors{Errors: []string{fmt.Sprintf("event processor %s not found", ep)}})
+				return
+			}
+		}
+	}
+	_, err = s.configStore.Set("outputs", outputName, cfg)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 	w.WriteHeader(http.StatusOK)
 }
 
 func (s *Server) handleConfigOutputsPatch(w http.ResponseWriter, r *http.Request) {
-	// vars := mux.Vars(r)
-	// id := vars["id"]
-	// body, err := io.ReadAll(r.Body)
-	// if err != nil {
-	// 	http.Error(w, err.Error(), http.StatusInternalServerError)
-	// 	return
-	// }
-	// defer r.Body.Close()
-	// cfg := map[string]any{}
-	// err = json.Unmarshal(body, &cfg)
-	// if err != nil {
-	// 	http.Error(w, err.Error(), http.StatusBadRequest)
-	// 	return
-	// }
-	// if cfg == nil {
-	// 	http.Error(w, "invalid output config", http.StatusBadRequest)
-	// 	return
-	// }
-	// _, err = c.configStore.Set("outputs", id, cfg)
-	// if err != nil {
-	// 	if errors.Is(err, store.ErrKeyNotFound) {
-	// 		http.Error(w, "output not found", http.StatusNotFound)
-	// 		return
-	// 	}
-	// 	http.Error(w, err.Error(), http.StatusInternalServerError)
-	// 	return
-	// }
-	// w.WriteHeader(http.StatusOK)
+	// TODO:
 }
 
 func (s *Server) handleConfigOutputsDelete(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
+	err := s.outputsManager.StopOutput(id)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		return
+	}
 	ok, _, err := s.configStore.Delete("outputs", id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 	if !ok {
-		http.Error(w, "output not found", http.StatusNotFound)
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"output not found"}})
 		return
 	}
 	w.WriteHeader(http.StatusOK)

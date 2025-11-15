@@ -12,10 +12,10 @@ import (
 	"context"
 	"log"
 
-	"github.com/openconfig/gnmic/pkg/config/store"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	"github.com/openconfig/gnmic/pkg/pipeline"
+	"github.com/openconfig/gnmic/pkg/store"
 	"google.golang.org/protobuf/proto"
 )
 

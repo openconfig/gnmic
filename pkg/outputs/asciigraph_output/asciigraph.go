@@ -32,10 +32,10 @@ import (
 
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
-	"github.com/openconfig/gnmic/pkg/config/store"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
 	"github.com/openconfig/gnmic/pkg/outputs"
+	"github.com/openconfig/gnmic/pkg/store"
 	gutils "github.com/openconfig/gnmic/pkg/utils"
 )
 
@@ -200,6 +200,10 @@ func (a *asciigraphOutput) Init(ctx context.Context, name string, cfg map[string
 	go a.graph(ctx)
 	a.logger.Printf("initialized asciigraph output: %s", a.String())
 	return nil
+}
+
+func (a *asciigraphOutput) Update(ctx context.Context, cfg map[string]any) error {
+	return errors.New("not implemented for this output type")
 }
 
 func (a *asciigraphOutput) setDefaults() error {

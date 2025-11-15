@@ -25,3 +25,17 @@ func (t *TLSConfig) Validate() error {
 	}
 	return nil
 }
+
+func (t *TLSConfig) Equal(other *TLSConfig) bool {
+	if t == nil && other == nil {
+		return true
+	}
+	if t == nil || other == nil {
+		return false
+	}
+	return t.CaFile == other.CaFile &&
+		t.CertFile == other.CertFile &&
+		t.KeyFile == other.KeyFile &&
+		t.SkipVerify == other.SkipVerify &&
+		t.ClientAuth == other.ClientAuth
+}

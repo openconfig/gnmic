@@ -18,21 +18,24 @@ import (
 	"sync"
 	"time"
 
+	"github.com/openconfig/gnmic/pkg/cache"
 	apiserver "github.com/openconfig/gnmic/pkg/collector/api/server"
+	"github.com/openconfig/gnmic/pkg/collector/gnmiserver"
 	cluster_manager "github.com/openconfig/gnmic/pkg/collector/managers/cluster"
 	inputs_manager "github.com/openconfig/gnmic/pkg/collector/managers/inputs"
 	outputs_manager "github.com/openconfig/gnmic/pkg/collector/managers/outputs"
 	targets_manager "github.com/openconfig/gnmic/pkg/collector/managers/targets"
 	"github.com/openconfig/gnmic/pkg/config"
-	"github.com/openconfig/gnmic/pkg/config/store"
 	"github.com/openconfig/gnmic/pkg/lockers"
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/pipeline"
+	"github.com/openconfig/gnmic/pkg/store"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 )
 
 const (
-	defaultPipelineBufferSize = 100_000
+	defaultPipelineBufferSize = 1_000_000
 	initLockerRetryTimer      = 1 * time.Second
 )
 
@@ -40,7 +43,10 @@ type Collector struct {
 	ctx         context.Context
 	configStore store.Store[any]
 
-	apiServer      *apiserver.Server
+	apiServer  *apiserver.Server
+	gnmiServer *gnmiserver.Server
+	cache      cache.Cache
+
 	locker         lockers.Locker
 	clusterManager *cluster_manager.ClusterManager
 	targetsManager *targets_manager.TargetsManager
@@ -53,37 +59,41 @@ type Collector struct {
 	reg    *prometheus.Registry
 }
 
-func New(ctx context.Context, cfgStore store.Store[any]) *Collector {
-	logger := slog.With("component", "collector")
+func New(ctx context.Context, store store.Store[any]) *Collector {
 
 	pipeline := make(chan *pipeline.Msg, defaultPipelineBufferSize)
 	reg := prometheus.NewRegistry()
 
-	clusterManager := cluster_manager.NewClusterManager(cfgStore)
-	targetsManager := targets_manager.NewTargetsManager(ctx, cfgStore, pipeline, reg)
-	outputsManager := outputs_manager.NewOutputsManager(ctx, cfgStore, pipeline)
-	inputsManager := inputs_manager.NewInputsManager(ctx, cfgStore, pipeline)
-	apiServer := apiserver.NewServer(cfgStore,
+	clusterManager := cluster_manager.NewClusterManager(store)
+	targetsManager := targets_manager.NewTargetsManager(ctx, store, pipeline, reg)
+	outputsManager := outputs_manager.NewOutputsManager(ctx, store, pipeline, reg)
+	inputsManager := inputs_manager.NewInputsManager(ctx, store, pipeline)
+	apiServer := apiserver.NewServer(
+		store,
 		targetsManager, outputsManager,
-		inputsManager, clusterManager, reg)
+		inputsManager, clusterManager,
+		reg,
+	)
+	gnmiServer := gnmiserver.NewServer(store, targetsManager, outputsManager, inputsManager, reg)
 
 	c := &Collector{
 		ctx:            ctx,
-		configStore:    cfgStore,
+		configStore:    store,
 		apiServer:      apiServer,
+		gnmiServer:     gnmiServer,
 		clusterManager: clusterManager,
 		targetsManager: targetsManager,
 		outputsManager: outputsManager,
 		inputsManager:  inputsManager,
 		pipeline:       pipeline,
 		wg:             new(sync.WaitGroup),
-		logger:         logger,
 		reg:            reg,
 	}
 	return c
 }
 
 func (c *Collector) Start() error {
+	c.logger = logging.NewLogger(c.configStore, "component", "collector")
 	var err error
 	c.logger.Info("starting collector")
 	// build locker
@@ -103,12 +113,14 @@ func (c *Collector) Start() error {
 			return err
 		}
 	}
+	// create cache
+	c.initCache()
 	// start managers
 	err = c.targetsManager.Start(c.locker, c.wg)
 	if err != nil {
 		return err
 	}
-	err = c.outputsManager.Start(c.wg)
+	err = c.outputsManager.Start(c.cache, c.wg)
 	if err != nil {
 		return err
 	}
@@ -121,7 +133,11 @@ func (c *Collector) Start() error {
 	if err != nil {
 		return err
 	}
-
+	// start gNMI server
+	err = c.gnmiServer.Start(c.ctx, c.cache, c.wg)
+	if err != nil {
+		return err
+	}
 	// wait for context done
 	<-c.ctx.Done()
 	// wait for all components to finish
@@ -179,4 +195,31 @@ func (c *Collector) CollectorRunE(cmd *cobra.Command, _ []string) error {
 // InitSubscribeFlags used to init or reset subscribeCmd flags for gnmic-prompt mode
 func (c *Collector) InitCollectorFlags(cmd *cobra.Command) {
 	cmd.ResetFlags()
+}
+
+func (c *Collector) initCache() error {
+	cfg, ok, err := c.configStore.Get("gnmi-server", "gnmi-server")
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return nil
+	}
+	if cfg == nil {
+		return nil
+	}
+	switch cfg := cfg.(type) {
+	case *config.GNMIServer:
+		if cfg == nil {
+			return nil
+		}
+		if cfg.Cache == nil {
+			return nil
+		}
+		c.cache, err = cache.New(cfg.Cache, cache.WithLogger(log.New(os.Stdout, "", log.LstdFlags)))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

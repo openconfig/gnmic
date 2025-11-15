@@ -1,10 +1,17 @@
+// © 2025 Nokia.
+//
+// This code is a Contribution to the gNMIc project (“Work”) made under the Google Software Grant and Corporate Contributor License Agreement (“CLA”) and governed by the Apache License 2.0.
+// No other rights or licenses in or to any of Nokia’s intellectual property are granted for any other purpose.
+// This code is provided on an “as is” basis without any warranties of any kind.
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package store
 
 import (
 	"errors"
 	"fmt"
 	"maps"
-	"reflect"
 	"strings"
 	"sync"
 
@@ -15,16 +22,29 @@ type memStore[T any] struct {
 	mu sync.RWMutex
 	// kind -> (key -> obj)
 	kinds map[string]map[string]T
+	// kind -> validation function
+	validationFns map[string]ValidationFunc[T]
 	// kind -> (watcherID -> chan)
 	watchers map[string]map[string]chan *Event[T]
-	closed   bool
+	// compare func
+	compareFn CompareFunc[T]
+	closed    bool
 }
 
-func NewMemStore[T any]() Store[T] {
-	return &memStore[T]{
-		kinds:    make(map[string]map[string]T),
-		watchers: make(map[string]map[string]chan *Event[T]),
+func NewMemStore[T any](opt StoreOptions[T]) Store[T] {
+	ms := &memStore[T]{
+		kinds:         make(map[string]map[string]T),
+		watchers:      make(map[string]map[string]chan *Event[T]),
+		validationFns: make(map[string]ValidationFunc[T]),
+		compareFn:     opt.compareFn,
 	}
+	if ms.compareFn == nil {
+		ms.compareFn = DefaultCompareFunc[T]
+	}
+	if opt.validateFns != nil {
+		maps.Copy(ms.validationFns, opt.validateFns)
+	}
+	return ms
 }
 
 func (s *memStore[T]) ensureKind(kind string) {
@@ -75,6 +95,41 @@ func (s *memStore[T]) List(kind string, filters ...FilterFunc[T]) (map[string]T,
 	return rs, nil
 }
 
+func (s *memStore[T]) Keys(kind string) ([]string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.closed {
+		return nil, errors.New("store closed")
+	}
+	keys := make([]string, 0, len(s.kinds[kind]))
+	for k := range s.kinds[kind] {
+		keys = append(keys, k)
+	}
+	return keys, nil
+}
+
+func (s *memStore[T]) Values(kind string) ([]KeyValue[T], error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.closed {
+		return nil, errors.New("store closed")
+	}
+	values := make([]KeyValue[T], 0, len(s.kinds[kind]))
+	for k, v := range s.kinds[kind] {
+		values = append(values, KeyValue[T]{Key: k, Value: v})
+	}
+	return values, nil
+}
+
+func (s *memStore[T]) Count(kind string) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return 0, errors.New("store closed")
+	}
+	return len(s.kinds[kind]), nil
+}
+
 func (s *memStore[T]) Set(kind, key string, value T) (bool, error) {
 	s.mu.Lock()
 	if s.closed {
@@ -83,10 +138,17 @@ func (s *memStore[T]) Set(kind, key string, value T) (bool, error) {
 	}
 	s.ensureKind(kind)
 
+	if fn, ok := s.validationFns[kind]; ok {
+		if err := fn(value); err != nil {
+			s.mu.Unlock()
+			return false, err
+		}
+	}
+
 	prev, existed := s.kinds[kind][key]
 	s.kinds[kind][key] = value
 
-	if reflect.DeepEqual(prev, value) {
+	if s.compareFn(prev, value) {
 		s.mu.Unlock()
 		return false, nil
 	}
@@ -176,7 +238,7 @@ func (s *memStore[T]) Delete(kind, key string) (bool, T, error) {
 	return existed, prev, nil
 }
 
-func (s *memStore[T]) LoadAndSet(kind, key string, fn func(v T) (T, error)) (bool, error) {
+func (s *memStore[T]) SetFn(kind, key string, fn func(v T) (T, error)) (bool, error) {
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
@@ -203,7 +265,12 @@ func (s *memStore[T]) LoadAndSet(kind, key string, fn func(v T) (T, error)) (boo
 	if !existed {
 		evType = EventTypeCreate
 	}
-	ev := &Event[T]{Kind: kind, Name: key, EventType: evType, Object: value}
+	ev := &Event[T]{
+		Kind:      kind,
+		Name:      key,
+		EventType: evType,
+		Object:    value,
+	}
 	for _, ch := range wchs {
 		select {
 		case ch <- ev:
