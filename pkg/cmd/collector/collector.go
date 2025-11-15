@@ -9,10 +9,16 @@
 package collector
 
 import (
+	"crypto/tls"
+	"fmt"
+	"net/http"
+
 	"github.com/spf13/cobra"
 
 	"github.com/openconfig/gnmic/pkg/app"
 	"github.com/openconfig/gnmic/pkg/collector"
+	"github.com/openconfig/gnmic/pkg/config"
+	"github.com/openconfig/gnmic/pkg/store"
 )
 
 // New create the collector command tree.
@@ -20,7 +26,7 @@ func New(gApp *app.App) *cobra.Command {
 	c := collector.New(gApp.Context(), gApp.Store)
 	cmd := &cobra.Command{
 		Use:     "collect",
-		Aliases: []string{"coll", "collector"},
+		Aliases: []string{"c", "coll", "collector"},
 		Short:   "collect gNMI telemetry from targets",
 		PreRunE: c.CollectorPreRunE,
 		RunE:    c.CollectorRunE,
@@ -29,5 +35,52 @@ func New(gApp *app.App) *cobra.Command {
 		},
 		SilenceUsage: true,
 	}
+	cmd.AddCommand(newCollectorTargetsCmd(gApp))
+	cmd.AddCommand(newCollectorSubscriptionsCmd(gApp))
+	cmd.AddCommand(newCollectorOutputsCmd(gApp))
 	return cmd
+}
+
+func getAPIServerURL(store store.Store[any]) (string, error) {
+	apiServerConfig, ok, err := store.Get("api-server", "api-server")
+	if err != nil {
+		return "", err
+	}
+	if !ok {
+		return "", fmt.Errorf("api-server config not found")
+	}
+	apiCfg, ok := apiServerConfig.(*config.APIServer)
+	if !ok {
+		return "", fmt.Errorf("address not found")
+	}
+	if apiCfg.TLS != nil {
+		return "https://" + apiCfg.Address, nil
+	}
+	return "http://" + apiCfg.Address, nil
+}
+
+func getAPIServerClient(store store.Store[any]) (*http.Client, error) {
+	apiServerConfig, ok, err := store.Get("api-server", "api-server")
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, fmt.Errorf("api-server config not found")
+	}
+	apiCfg, ok := apiServerConfig.(*config.APIServer)
+	if !ok {
+		return nil, fmt.Errorf("address not found")
+	}
+	if apiCfg.TLS != nil {
+		return &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true,
+				},
+			},
+		}, nil
+	}
+	return &http.Client{
+		Timeout: apiCfg.Timeout,
+	}, nil
 }
