@@ -75,6 +75,42 @@ var testset = map[string]struct {
 					},
 				},
 			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Deletes: []string{"value1"},
+						Tags:    map[string]string{"tag1": "1"},
+					},
+					{
+						Deletes: []string{"value2"},
+						Tags:    map[string]string{"tag1": "1"},
+					},
+					{
+						Deletes: []string{"value3"},
+						Tags:    map[string]string{"tag2": "2"},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Deletes: []string{
+							"value3",
+						},
+						Tags: map[string]string{
+							"tag2": "2",
+						},
+					},
+					{
+						Values: make(map[string]interface{}),
+						Deletes: []string{
+							"value1",
+							"value2",
+						},
+						Tags: map[string]string{
+							"tag1": "1",
+						},
+					},
+				},
+			},
 		},
 	},
 	"group_by_2_tags": {
@@ -137,6 +173,62 @@ var testset = map[string]struct {
 						Values: map[string]interface{}{
 							"value3": 3,
 							"value4": 4,
+						},
+						Tags: map[string]string{
+							"tag1": "1",
+							"tag2": "3",
+						},
+					},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Deletes: []string{"value1"},
+						Tags: map[string]string{
+							"tag1": "1",
+							"tag2": "2",
+						},
+					},
+					{
+						Deletes: []string{"value2"},
+						Tags: map[string]string{
+							"tag1": "1",
+							"tag2": "2",
+						},
+					},
+					{
+						Deletes: []string{"value3"},
+						Tags: map[string]string{
+							"tag1": "1",
+							"tag2": "3",
+						},
+					},
+					{
+						Deletes: []string{"value4"},
+						Tags: map[string]string{
+							"tag1": "1",
+							"tag2": "3",
+						},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Values: make(map[string]interface{}),
+						Deletes: []string{
+							"value1",
+							"value2",
+						},
+						Tags: map[string]string{
+							"tag1": "1",
+							"tag2": "2",
+						},
+					},
+					{
+						Values: make(map[string]interface{}),
+						Deletes: []string{
+							"value3",
+							"value4",
 						},
 						Tags: map[string]string{
 							"tag1": "1",
@@ -264,6 +356,52 @@ var testset = map[string]struct {
 			{
 				input: []*formatters.EventMsg{
 					{
+						Name:   "sub1",
+						Values: make(map[string]interface{}),
+						Deletes: []string{
+							"value1",
+						},
+						Tags: map[string]string{
+							"tag1": "1",
+						},
+					},
+					{
+						Name:   "sub1",
+						Values: make(map[string]interface{}),
+						Deletes: []string{
+							"value2",
+						},
+						Tags: map[string]string{
+							"tag2": "2",
+						},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Name:   "sub1",
+						Values: make(map[string]interface{}),
+						Deletes: []string{
+							"value1",
+						},
+						Tags: map[string]string{
+							"tag1": "1",
+						},
+					},
+					{
+						Name:   "sub1",
+						Values: make(map[string]interface{}),
+						Deletes: []string{
+							"value2",
+						},
+						Tags: map[string]string{
+							"tag2": "2",
+						},
+					},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
 						Name:   "sub2",
 						Values: map[string]interface{}{"value3": 3},
 						Tags: map[string]string{
@@ -359,6 +497,37 @@ var testset = map[string]struct {
 			{
 				input: []*formatters.EventMsg{
 					{
+						Name:    "sub1",
+						Deletes: []string{"value1"},
+						Tags: map[string]string{
+							"tag1": "1",
+						},
+					},
+					{
+						Name:    "sub1",
+						Deletes: []string{"value2"},
+						Tags: map[string]string{
+							"tag1": "1",
+						},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Name:   "sub1",
+						Values: make(map[string]interface{}),
+						Deletes: []string{
+							"value1",
+							"value2",
+						},
+						Tags: map[string]string{
+							"tag1": "1",
+						},
+					},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
 						Name:   "sub1",
 						Values: map[string]interface{}{"value1": 1},
 						Tags: map[string]string{
@@ -388,6 +557,42 @@ var testset = map[string]struct {
 						Values: map[string]interface{}{
 							"value2": 2,
 						},
+						Tags: map[string]string{
+							"tag1": "2",
+						},
+					},
+				},
+			},
+			{
+				input: []*formatters.EventMsg{
+					{
+						Name:    "sub1",
+						Deletes: []string{"value1"},
+						Tags: map[string]string{
+							"tag1": "1",
+						},
+					},
+					{
+						Name:    "sub1",
+						Deletes: []string{"value2"},
+						Tags: map[string]string{
+							"tag1": "2",
+						},
+					},
+				},
+				output: []*formatters.EventMsg{
+					{
+						Name:    "sub1",
+						Values:  make(map[string]interface{}),
+						Deletes: []string{"value1"},
+						Tags: map[string]string{
+							"tag1": "1",
+						},
+					},
+					{
+						Name:    "sub1",
+						Values:  make(map[string]interface{}),
+						Deletes: []string{"value2"},
 						Tags: map[string]string{
 							"tag1": "2",
 						},
