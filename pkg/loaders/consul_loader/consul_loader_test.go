@@ -9,13 +9,18 @@
 package consul_loader
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"log"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/hashicorp/consul/api"
+	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
+	"github.com/openconfig/gnmic/pkg/loaders"
 )
 
 // Test the specific bug scenario described in issue #706
@@ -131,4 +136,108 @@ func TestOldBuggyLogicWouldReject(t *testing.T) {
 
 	t.Logf("✓ Old logic would incorrectly reject: %v", oldLogicWouldReject)
 	t.Logf("✓ New logic correctly accepts: %v", newLogicShouldAccept)
+}
+
+// TestDuplicateServiceDefinitions ensures duplicate entries log an error and keep the first definition.
+func TestDuplicateServiceDefinitions(t *testing.T) {
+	logBuf := new(bytes.Buffer)
+	cl := &consulLoader{
+		logger: log.New(logBuf, loggingPrefix, utils.DefaultLoggingFlags),
+		cfg: &cfg{
+			Services: []*serviceDef{
+				{
+					Name: "gnmi",
+					Tags: []string{"profile=a"},
+					tags: map[string]struct{}{
+						"profile=a": {},
+					},
+				},
+				{
+					Name: "gnmi",
+					Tags: []string{"profile=a"},
+					tags: map[string]struct{}{
+						"profile=a": {},
+					},
+				},
+			},
+		},
+	}
+
+	err := cl.Init(context.Background(), nil, nil)
+	if err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	if got := len(cl.cfg.Services); got != 1 {
+		t.Fatalf("expected 1 unique service definition, got %d", got)
+	}
+	if cl.cfg.Services[0].id == "" {
+		t.Fatal("expected service identifier to be set")
+	}
+	logOutput := logBuf.String()
+	if !strings.Contains(logOutput, "duplicate consul service definition ignored") {
+		t.Fatalf("expected duplicate warning log, got %q", logBuf.String())
+	}
+}
+
+// TestUpdateTargetsUsesServiceID verifies that targets from different tag filters sharing the same service name do not collide.
+func TestUpdateTargetsUsesServiceID(t *testing.T) {
+	cl := &consulLoader{
+		logger:      log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
+		lastTargets: make(map[string]map[string]*types.TargetConfig),
+		m:           new(sync.Mutex),
+		cfg: &cfg{
+			Services: []*serviceDef{
+				{
+					Name: "gnmi",
+					Tags: []string{"profile=a"},
+					tags: map[string]struct{}{
+						"profile=a": {},
+					},
+				},
+				{
+					Name: "gnmi",
+					Tags: []string{"profile=b"},
+					tags: map[string]struct{}{
+						"profile=b": {},
+					},
+				},
+			},
+		},
+	}
+
+	if err := cl.Init(context.Background(), nil, nil); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	ctx := context.Background()
+	opChan := make(chan *loaders.TargetOperation, 2)
+
+	serviceIDA := cl.cfg.Services[0].id
+	serviceIDB := cl.cfg.Services[1].id
+
+	targetA := &types.TargetConfig{Name: "target-a"}
+	targetB := &types.TargetConfig{Name: "target-b"}
+
+	cl.updateTargets(ctx, cl.cfg.Services[0].Name, serviceIDA, map[string]*types.TargetConfig{targetA.Name: targetA}, opChan)
+	op := <-opChan
+	if len(op.Add) != 1 {
+		t.Fatalf("expected 1 addition for service %s, got %d", serviceIDA, len(op.Add))
+	}
+
+	cl.updateTargets(ctx, cl.cfg.Services[1].Name, serviceIDB, map[string]*types.TargetConfig{targetB.Name: targetB}, opChan)
+	op = <-opChan
+	if len(op.Add) != 1 {
+		t.Fatalf("expected 1 addition for service %s, got %d", serviceIDB, len(op.Add))
+	}
+
+	if len(cl.lastTargets) != 2 {
+		t.Fatalf("expected lastTargets to keep 2 services, got %d", len(cl.lastTargets))
+	}
+	if _, ok := cl.lastTargets[serviceIDA][targetA.Name]; !ok {
+		t.Fatalf("service %s missing target %s", serviceIDA, targetA.Name)
+	}
+	if _, ok := cl.lastTargets[serviceIDB][targetB.Name]; !ok {
+		t.Fatalf("service %s missing target %s", serviceIDB, targetB.Name)
+	}
 }

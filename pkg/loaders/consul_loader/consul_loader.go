@@ -18,6 +18,7 @@ import (
 	"log"
 	"net"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -115,9 +116,15 @@ type serviceDef struct {
 	Tags   []string               `mapstructure:"tags,omitempty" json:"tags,omitempty"`
 	Config map[string]interface{} `mapstructure:"config,omitempty" json:"config,omitempty"`
 
+	id                 string
 	tags               map[string]struct{}
 	targetNameTemplate *template.Template
 	targetTagsTemplate map[string]*template.Template
+}
+
+type serviceWatchEvent struct {
+	service *serviceDef
+	entries []*api.ServiceEntry
 }
 
 func (c *consulLoader) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger, opts ...loaders.Option) error {
@@ -137,12 +144,25 @@ func (c *consulLoader) Init(ctx context.Context, cfg map[string]interface{}, log
 		c.logger.SetFlags(logger.Flags())
 	}
 
+	uniqueServices := make([]*serviceDef, 0, len(c.cfg.Services))
+	seen := make(map[string]struct{})
 	for _, se := range c.cfg.Services {
-		se.tags = make(map[string]struct{})
+		if se == nil {
+			continue
+		}
+		se.tags = make(map[string]struct{}, len(se.Tags))
 		for _, t := range se.Tags {
 			se.tags[t] = struct{}{}
 		}
+		se.id = buildServiceIdentifier(se.Name, se.tags)
+		if _, ok := seen[se.id]; ok {
+			c.logger.Printf("duplicate consul service definition ignored: service=%q tags=%v", se.Name, se.Tags)
+			continue
+		}
+		seen[se.id] = struct{}{}
+		uniqueServices = append(uniqueServices, se)
 	}
+	c.cfg.Services = uniqueServices
 	// parse tempaltes if present
 	for i, se := range c.cfg.Services {
 		if se.Config == nil {
@@ -210,35 +230,42 @@ CLIENT:
 		time.Sleep(2 * time.Second)
 		goto CLIENT
 	}
-	sChan := make(chan []*api.ServiceEntry)
+	sChan := make(chan *serviceWatchEvent)
 	go func() {
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case ses, ok := <-sChan:
+			case evt, ok := <-sChan:
 				if !ok {
 					return
 				}
+				if evt == nil || len(evt.entries) == 0 {
+					continue
+				}
 				tcs := make(map[string]*types.TargetConfig)
-				srvName := ""
-				for _, se := range ses {
-					srvName = se.Service.Service
-					tc, err := c.serviceEntryToTargetConfig(se)
+				for _, se := range evt.entries {
+					tc, match, err := c.serviceEntryToTargetConfigForService(se, evt.service)
 					if err != nil {
 						c.logger.Printf("Failed to convert service entry %+v to a target config: %v", se, err)
+						continue
+					}
+					if !match {
+						if c.cfg.Debug {
+							c.logger.Printf("dropping service entry %+v for unmatched definition id=%q", se, evt.service.id)
+						}
 						continue
 					}
 					tcs[tc.Name] = tc
 				}
 
-				c.updateTargets(ctx, srvName, tcs, opChan)
+				c.updateTargets(ctx, evt.service.Name, evt.service.id, tcs, opChan)
 			}
 		}
 	}()
 	for _, s := range c.cfg.Services {
 		go func(s *serviceDef) {
-			err := c.startServicesWatch(ctx, s.Name, s.Tags, sChan, time.Minute)
+			err := c.startServicesWatch(ctx, s, sChan, time.Minute)
 			if err != nil {
 				c.logger.Printf("service %q watch stopped: %v", s.Name, err)
 			}
@@ -252,7 +279,7 @@ func (c *consulLoader) RunOnce(ctx context.Context) (map[string]*types.TargetCon
 		return nil, err
 	}
 	result := make(map[string]*types.TargetConfig)
-	rsChan := make(chan *api.ServiceEntry)
+	rsChan := make(chan *types.TargetConfig)
 	wg := new(sync.WaitGroup)
 
 	// fan-out queries
@@ -266,8 +293,16 @@ func (c *consulLoader) RunOnce(ctx context.Context) (map[string]*types.TargetCon
 				return
 			}
 			for _, se := range ses {
+				tc, match, err := c.serviceEntryToTargetConfigForService(se, s)
+				if err != nil {
+					c.logger.Printf("failed to convert service %+v to target config: %v", se, err)
+					continue
+				}
+				if !match || tc == nil {
+					continue
+				}
 				select {
-				case rsChan <- se:
+				case rsChan <- tc:
 				case <-ctx.Done():
 					return
 				}
@@ -283,18 +318,11 @@ func (c *consulLoader) RunOnce(ctx context.Context) (map[string]*types.TargetCon
 
 	for {
 		select {
-		case se, ok := <-rsChan:
+		case tc, ok := <-rsChan:
 			if !ok {
 				return result, nil
 			}
-			tc, err := c.serviceEntryToTargetConfig(se)
-			if err != nil {
-				c.logger.Printf("failed to convert service %+v to target config: %v", se, err)
-				continue
-			}
-			if tc != nil {
-				result[tc.Name] = tc
-			}
+			result[tc.Name] = tc
 		case <-ctx.Done():
 			return result, ctx.Err()
 		}
@@ -344,7 +372,7 @@ func (c *consulLoader) setDefaults() error {
 	return nil
 }
 
-func (c *consulLoader) startServicesWatch(ctx context.Context, serviceName string, tags []string, sChan chan<- []*api.ServiceEntry, watchTimeout time.Duration) error {
+func (c *consulLoader) startServicesWatch(ctx context.Context, srv *serviceDef, sChan chan<- *serviceWatchEvent, watchTimeout time.Duration) error {
 	if watchTimeout <= 0 {
 		watchTimeout = defaultWatchTimeout
 	}
@@ -361,11 +389,11 @@ func (c *consulLoader) startServicesWatch(ctx context.Context, serviceName strin
 			return ctx.Err()
 		default:
 			if c.cfg.Debug {
-				c.logger.Printf("(re)starting watch service=%q, index=%d", serviceName, qOpts.WaitIndex)
+				c.logger.Printf("(re)starting watch service=%q id=%q index=%d", srv.Name, srv.id, qOpts.WaitIndex)
 			}
-			index, err = c.watch(qOpts.WithContext(ctx), serviceName, tags, sChan)
+			index, err = c.watch(qOpts.WithContext(ctx), srv, sChan)
 			if err != nil {
-				c.logger.Printf("service %q watch failed: %v", serviceName, err)
+				c.logger.Printf("service %q watch failed: %v", srv.Name, err)
 			}
 			if index == 1 {
 				qOpts.WaitIndex = index
@@ -384,94 +412,104 @@ func (c *consulLoader) startServicesWatch(ctx context.Context, serviceName strin
 	}
 }
 
-func (c *consulLoader) watch(qOpts *api.QueryOptions, serviceName string, tags []string, sChan chan<- []*api.ServiceEntry) (uint64, error) {
-	se, meta, err := c.client.Health().ServiceMultipleTags(serviceName, tags, true, qOpts)
+func (c *consulLoader) watch(qOpts *api.QueryOptions, srv *serviceDef, sChan chan<- *serviceWatchEvent) (uint64, error) {
+	se, meta, err := c.client.Health().ServiceMultipleTags(srv.Name, srv.Tags, true, qOpts)
 	if err != nil {
 		return 0, err
 	}
 	if meta.LastIndex == qOpts.WaitIndex {
-		c.logger.Printf("service=%q did not change", serviceName)
+		c.logger.Printf("service=%q id=%q did not change", srv.Name, srv.id)
 		return meta.LastIndex, nil
 	}
 	if len(se) == 0 {
 		return 1, nil
 	}
-	sChan <- se
+	sChan <- &serviceWatchEvent{service: srv, entries: se}
 	return meta.LastIndex, nil
 }
 
 func (c *consulLoader) serviceEntryToTargetConfig(se *api.ServiceEntry) (*types.TargetConfig, error) {
-	tc := new(types.TargetConfig)
-	if se.Service == nil {
-		return tc, nil
-	}
-
-SRV:
 	for _, sd := range c.cfg.Services {
-		// match service name
-		if se.Service.Service != sd.Name {
-			continue
+		tc, match, err := c.serviceEntryToTargetConfigForService(se, sd)
+		if err != nil {
+			return nil, err
 		}
-
-		// match service tags
-		if len(sd.tags) > 0 {
-			for requiredTag := range sd.tags {
-				if !slices.Contains(se.Service.Tags, requiredTag) {
-					goto SRV
-				}
-			}
+		if match {
+			return tc, nil
 		}
-
-		// decode config if present
-		if sd.Config != nil {
-			err := mapstructure.Decode(sd.Config, tc)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		tc.Address = se.Service.Address
-		if tc.Address == "" {
-			tc.Address = se.Node.Address
-		}
-		tc.Address = net.JoinHostPort(tc.Address, strconv.Itoa(se.Service.Port))
-
-		var buffer bytes.Buffer
-
-		tc.Name = se.Service.ID
-
-		if sd.targetNameTemplate != nil {
-			buffer.Reset()
-			err := sd.targetNameTemplate.Execute(&buffer, se.Service)
-			if err != nil {
-				c.logger.Println("Could not execute nameTemplate")
-				continue
-			}
-			tc.Name = buffer.String()
-		}
-
-		// Create Event tags from Consul via templates
-		if len(sd.targetTagsTemplate) > 0 {
-			eventTags := make(map[string]string)
-			for tagName, tagTemplate := range sd.targetTagsTemplate {
-				buffer.Reset()
-				err := tagTemplate.Execute(&buffer, se.Service)
-				if err != nil {
-					c.logger.Println("Could not execute tagTemplate:", tagName)
-					return nil, err
-				}
-				eventTags[tagName] = buffer.String()
-			}
-			tc.EventTags = eventTags
-		}
-		return tc, nil
 	}
 
 	return nil, errors.New("unable to find a match in Consul service(s)")
 }
 
-func (c *consulLoader) updateTargets(ctx context.Context, srvName string, tcs map[string]*types.TargetConfig, opChan chan *loaders.TargetOperation) {
-	targetOp, err := c.runActions(ctx, tcs, loaders.Diff(c.lastTargets[srvName], tcs))
+func (c *consulLoader) serviceEntryToTargetConfigForService(se *api.ServiceEntry, sd *serviceDef) (*types.TargetConfig, bool, error) {
+	if sd == nil {
+		return nil, false, errors.New("missing service definition")
+	}
+	tc := new(types.TargetConfig)
+	if se.Service == nil {
+		return tc, true, nil
+	}
+
+	// match service name
+	if se.Service.Service != sd.Name {
+		return nil, false, nil
+	}
+
+	// match service tags
+	if len(sd.tags) > 0 {
+		for requiredTag := range sd.tags {
+			if !slices.Contains(se.Service.Tags, requiredTag) {
+				return nil, false, nil
+			}
+		}
+	}
+
+	// decode config if present
+	if sd.Config != nil {
+		err := mapstructure.Decode(sd.Config, tc)
+		if err != nil {
+			return nil, false, err
+		}
+	}
+
+	tc.Address = se.Service.Address
+	if tc.Address == "" {
+		tc.Address = se.Node.Address
+	}
+	tc.Address = net.JoinHostPort(tc.Address, strconv.Itoa(se.Service.Port))
+
+	var buffer bytes.Buffer
+
+	tc.Name = se.Service.ID
+
+	if sd.targetNameTemplate != nil {
+		buffer.Reset()
+		err := sd.targetNameTemplate.Execute(&buffer, se.Service)
+		if err != nil {
+			return nil, false, err
+		}
+		tc.Name = buffer.String()
+	}
+
+	// Create Event tags from Consul via templates
+	if len(sd.targetTagsTemplate) > 0 {
+		eventTags := make(map[string]string)
+		for tagName, tagTemplate := range sd.targetTagsTemplate {
+			buffer.Reset()
+			err := tagTemplate.Execute(&buffer, se.Service)
+			if err != nil {
+				return nil, false, err
+			}
+			eventTags[tagName] = buffer.String()
+		}
+		tc.EventTags = eventTags
+	}
+	return tc, true, nil
+}
+
+func (c *consulLoader) updateTargets(ctx context.Context, srvName, srvID string, tcs map[string]*types.TargetConfig, opChan chan *loaders.TargetOperation) {
+	targetOp, err := c.runActions(ctx, tcs, loaders.Diff(c.lastTargets[srvID], tcs))
 	if err != nil {
 		c.logger.Printf("failed to run actions: %v", err)
 		return
@@ -491,15 +529,15 @@ func (c *consulLoader) updateTargets(ctx context.Context, srvName string, tcs ma
 		return
 	}
 	c.m.Lock()
-	if _, ok := c.lastTargets[srvName]; !ok {
-		c.lastTargets[srvName] = make(map[string]*types.TargetConfig)
+	if _, ok := c.lastTargets[srvID]; !ok {
+		c.lastTargets[srvID] = make(map[string]*types.TargetConfig)
 	}
 	// do delete first since change is delete+add
 	for _, del := range targetOp.Del {
-		delete(c.lastTargets[srvName], del)
+		delete(c.lastTargets[srvID], del)
 	}
 	for _, add := range targetOp.Add {
-		c.lastTargets[srvName][add.Name] = add
+		c.lastTargets[srvID][add.Name] = add
 	}
 	c.m.Unlock()
 
@@ -665,4 +703,13 @@ func (c *consulLoader) runOnDeleteActions(ctx context.Context, tName string, _ m
 		env[act.NName()] = res
 	}
 	return nil
+}
+
+func buildServiceIdentifier(serviceName string, tags map[string]struct{}) string {
+	normalized := make([]string, 0, len(tags))
+	for tag := range tags {
+		normalized = append(normalized, tag)
+	}
+	sort.Strings(normalized)
+	return fmt.Sprintf("%s|%s", serviceName, strings.Join(normalized, ","))
 }
