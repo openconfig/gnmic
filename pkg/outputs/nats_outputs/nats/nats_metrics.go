@@ -45,10 +45,14 @@ var NatsSendDuration = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 }, []string{"publisher_id"})
 
 func (n *NatsOutput) initMetrics() {
-	NatsNumberOfSentMsgs.WithLabelValues(n.Cfg.Name, "").Add(0)
-	NatsNumberOfSentBytes.WithLabelValues(n.Cfg.Name, "").Add(0)
-	NatsNumberOfFailSendMsgs.WithLabelValues(n.Cfg.Name, "").Add(0)
-	NatsSendDuration.WithLabelValues(n.Cfg.Name).Set(0)
+	currCfg := n.cfg.Load()
+	if currCfg == nil {
+		return
+	}
+	NatsNumberOfSentMsgs.WithLabelValues(currCfg.Name, "").Add(0)
+	NatsNumberOfSentBytes.WithLabelValues(currCfg.Name, "").Add(0)
+	NatsNumberOfFailSendMsgs.WithLabelValues(currCfg.Name, "").Add(0)
+	NatsSendDuration.WithLabelValues(currCfg.Name).Set(0)
 }
 
 func (n *NatsOutput) registerMetrics() error {

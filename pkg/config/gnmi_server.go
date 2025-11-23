@@ -32,7 +32,7 @@ const (
 	defaultMaxServiceFail             = 3
 )
 
-type gnmiServer struct {
+type GNMIServer struct {
 	Address               string               `mapstructure:"address,omitempty" json:"address,omitempty"`
 	MinSampleInterval     time.Duration        `mapstructure:"min-sample-interval,omitempty" json:"min-sample-interval,omitempty"`
 	DefaultSampleInterval time.Duration        `mapstructure:"default-sample-interval,omitempty" json:"default-sample-interval,omitempty"`
@@ -111,7 +111,7 @@ func (c *Config) GetGNMIServer() error {
 	if !c.FileConfig.IsSet("gnmi-server") {
 		return nil
 	}
-	c.GnmiServer = new(gnmiServer)
+	c.GnmiServer = new(GNMIServer)
 	c.GnmiServer.Address = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/address"))
 
 	maxSubVal := os.ExpandEnv(c.FileConfig.GetString("gnmi-server/max-subscriptions"))
