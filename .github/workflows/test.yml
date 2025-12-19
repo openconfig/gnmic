@@ -20,13 +20,21 @@ env:
 
 jobs:
   test:
-    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GOVER }}
       - run: ./tests/run_tests.sh
+        if: runner.os != 'Windows'
+        env:
+          CGO_ENABLED: 0
+      - run: bash ./tests/run_tests.sh
+        if: runner.os == 'Windows'
         env:
           CGO_ENABLED: 0
       # run staticcheck
