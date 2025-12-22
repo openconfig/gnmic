@@ -61,6 +61,10 @@ START:
 				}
 				continue
 			}
+			// delete target from config
+			a.configLock.Lock()
+			delete(a.Config.Targets, del)
+			a.configLock.Unlock()
 			// clustered, delete target in all instances of the cluster
 			err = a.deleteTarget(ctx, del)
 			if err != nil {
