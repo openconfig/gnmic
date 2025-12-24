@@ -2,6 +2,7 @@ package inputs_manager
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"log/slog"
 	"os"
@@ -30,17 +31,19 @@ type InputsManager struct {
 	pipeline       chan *pipeline.Msg
 	logger         *slog.Logger
 
-	mu     sync.RWMutex
-	inputs map[string]*ManagedInput
+	mu              sync.RWMutex
+	inputs          map[string]*ManagedInput
+	processorsInUse map[string]map[string]struct{} // processor name -> input names
 }
 
 func NewInputsManager(ctx context.Context, store store.Store[any], pipeline chan *pipeline.Msg) *InputsManager {
 	return &InputsManager{
-		ctx:            ctx,
-		store:          store,
-		pipeline:       pipeline,
-		inputFactories: inputs.Inputs,
-		inputs:         map[string]*ManagedInput{},
+		ctx:             ctx,
+		store:           store,
+		pipeline:        pipeline,
+		inputFactories:  inputs.Inputs,
+		inputs:          map[string]*ManagedInput{},
+		processorsInUse: make(map[string]map[string]struct{}),
 	}
 }
 
@@ -70,14 +73,20 @@ func (im *InputsManager) Start(wg *sync.WaitGroup) error {
 				if !ok {
 					return
 				}
-				cfg := ev.Object.(map[string]any)
+				im.logger.Info("got input event", "event", ev)
+				cfg, ok := ev.Object.(map[string]any)
+				if !ok {
+					im.logger.Error("invalid input config", "event", ev)
+					continue
+				}
+
 				switch ev.EventType {
 				case store.EventTypeCreate:
-					im.create(ev.Name, cfg)
+					im.createInput(ev.Name, cfg)
 				case store.EventTypeUpdate:
-					im.update(ev.Name, cfg)
+					im.updateInput(ev.Name, cfg)
 				case store.EventTypeDelete:
-					im.delete(ev.Name)
+					im.DeleteInput(ev.Name)
 				}
 			case ev, ok := <-procsCh:
 				if !ok {
@@ -111,7 +120,7 @@ func (im *InputsManager) Stop() {
 	}
 }
 
-func (im *InputsManager) create(name string, cfg map[string]any) {
+func (im *InputsManager) createInput(name string, cfg map[string]any) {
 	typ, _ := cfg["type"].(string)
 	f := im.inputFactories[typ]
 	if f == nil {
@@ -125,25 +134,109 @@ func (im *InputsManager) create(name string, cfg map[string]any) {
 	); err != nil {
 		return
 	}
+	procs := extractProcessors(cfg)
 	mi := &ManagedInput{Name: name, Impl: impl, Cfg: cfg}
 	mi.State.Store("running")
 	im.mu.Lock()
+	im.trackProcessorsInUse(name, procs)
 	im.inputs[name] = mi
 	im.mu.Unlock()
 }
 
-func (im *InputsManager) update(name string, cfg map[string]any) {
-	im.mu.RLock()
-	mi, ok := im.inputs[name]
-	im.mu.RUnlock()
-	if !ok {
-		return
-	}
-	mi.Cfg = cfg
-}
-
-func (im *InputsManager) delete(name string) {
+func (im *InputsManager) updateInput(name string, cfg map[string]any) {
 	im.mu.Lock()
 	defer im.mu.Unlock()
-	delete(im.inputs, name)
+	mi, ok := im.inputs[name]
+	if !ok {
+		im.createInput(name, cfg)
+		return
+	}
+	im.logger.Info("updating input", "name", name, "cfg", cfg)
+	mi.Lock()
+	defer mi.Unlock()
+	// err := mi.Impl.Update(im.ctx, cfg) // TODO: implement input update method
+	// if err != nil {
+	// 	im.logger.Error("failed to update input", "name", name, "error", err)
+	// 	return
+	// }
+	oldProcs := extractProcessors(mi.Cfg)
+	newProcs := extractProcessors(cfg)
+	im.logger.Info("tracking input processors in use", "name", name, "oldProcs", oldProcs, "newProcs", newProcs)
+	im.untrackProcessorsInUse(name, oldProcs)
+	im.trackProcessorsInUse(name, newProcs)
+	im.logger.Info("updated input", "name", name, "cfg", cfg)
+	mi.Cfg = cfg
+	im.inputs[name] = mi
+}
+
+func (im *InputsManager) DeleteInput(name string) error {
+	im.mu.Lock()
+	defer im.mu.Unlock()
+	im.logger.Info("finding input", "name", name)
+	if mi, ok := im.inputs[name]; ok {
+		im.logger.Info("stopping input", "name", name)
+		mi.State.Store("stopping")
+		err := mi.Impl.Close()
+		if err != nil {
+			im.logger.Error("failed to close input", "name", name, "error", err)
+			return fmt.Errorf("failed to close input: %w", err)
+		}
+		procs := extractProcessors(mi.Cfg)
+		im.untrackProcessorsInUse(name, procs)
+		mi.State.Store("stopped")
+		delete(im.inputs, name)
+		im.store.Delete("inputs", name)
+	}
+	return nil
+}
+
+func extractProcessors(cfg map[string]any) []string {
+	v, ok := cfg["event-processors"]
+	if !ok {
+		return nil
+	}
+	switch v := v.(type) {
+	case []any:
+		out := make([]string, 0, len(v))
+		for _, it := range v {
+			if s, ok := it.(string); ok {
+				out = append(out, s)
+			}
+		}
+		return out
+	case []string:
+		return v
+	}
+
+	return nil
+}
+
+func (im *InputsManager) trackProcessorsInUse(in string, procs []string) {
+	for _, p := range procs {
+		if im.processorsInUse[p] == nil {
+			im.processorsInUse[p] = make(map[string]struct{})
+		}
+		im.processorsInUse[p][in] = struct{}{}
+	}
+}
+
+func (im *InputsManager) untrackProcessorsInUse(in string, procs []string) {
+	for _, p := range procs {
+		if users, ok := im.processorsInUse[p]; ok {
+			delete(users, in)
+			if len(users) == 0 {
+				delete(im.processorsInUse, p)
+			}
+		}
+	}
+}
+
+func (im *InputsManager) ProcessorInUse(name string) bool {
+	im.mu.RLock()
+	defer im.mu.RUnlock()
+	users, ok := im.processorsInUse[name]
+	if !ok {
+		return false
+	}
+	return len(users) > 0
 }

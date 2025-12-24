@@ -27,6 +27,7 @@ type Store[T any] interface {
 	Close() error
 	// to remove
 	Dump() string
+	GetAll() (map[string]map[string]T, error)
 }
 
 type KeyValue[T any] struct {

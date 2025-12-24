@@ -38,6 +38,7 @@ func (s *Server) clusterRoutes(r *mux.Router) {
 	r.HandleFunc("/cluster/leader", s.handleClusteringLeaderDelete).Methods(http.MethodDelete)
 	r.HandleFunc("/cluster/members", s.handleClusteringMembersGet).Methods(http.MethodGet)
 	r.HandleFunc("/cluster/members/{id}/drain", s.handleClusteringDrainInstance).Methods(http.MethodPost)
+	r.HandleFunc("/cluster/move", s.handleClusterMove).Methods(http.MethodPost) // TODO: implement move target
 }
 
 func (s *Server) configRoutes(r *mux.Router) {
@@ -58,7 +59,7 @@ func (s *Server) configRoutes(r *mux.Router) {
 	r.HandleFunc("/config/outputs", s.handleConfigOutputsGet).Methods(http.MethodGet)
 	r.HandleFunc("/config/outputs", s.handleConfigOutputsPost).Methods(http.MethodPost)
 	r.HandleFunc("/config/outputs/{id}", s.handleConfigOutputsGet).Methods(http.MethodGet)
-	r.HandleFunc("/config/outputs/{id}/", s.handleConfigOutputsPatch).Methods(http.MethodPatch)
+	r.HandleFunc("/config/outputs/{id}/processors", s.handleConfigOutputsPatch).Methods(http.MethodPatch)
 	r.HandleFunc("/config/outputs/{id}", s.handleConfigOutputsDelete).Methods(http.MethodDelete)
 	//
 	r.HandleFunc("/config/inputs", s.handleConfigInputsGet).Methods(http.MethodGet)

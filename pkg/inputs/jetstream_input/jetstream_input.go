@@ -83,6 +83,7 @@ func init() {
 
 // jetstreamInput //
 type jetstreamInput struct {
+	inputs.BaseInput
 	Cfg    *config
 	ctx    context.Context
 	cfn    context.CancelFunc

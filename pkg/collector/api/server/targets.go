@@ -153,7 +153,7 @@ func (s *Server) handleConfigTargetsPost(w http.ResponseWriter, r *http.Request)
 //
 // sample curl command:
 // curl --request PATCH -H "Content-Type: application/json" \
-// -d '{"subscriptions": ["sub1", "sub2"]}' \
+// -d '["sub1", "sub2"]' \
 // http://localhost:8080/api/v1/config/targets/target1/subscriptions
 func (s *Server) handleConfigTargetsSubscriptionsPatch(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
@@ -175,6 +175,7 @@ func (s *Server) handleConfigTargetsSubscriptionsPatch(w http.ResponseWriter, r 
 			return
 		}
 	}
+	// ensure subscriptions exist
 	for _, sub := range subs {
 		_, ok, err := s.configStore.Get("subscriptions", sub)
 		if err != nil {
@@ -198,6 +199,7 @@ func (s *Server) handleConfigTargetsSubscriptionsPatch(w http.ResponseWriter, r 
 			return tc, nil
 		})
 	if err != nil {
+		// TODO: handle key not found error
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
@@ -235,6 +237,7 @@ func (s *Server) handleConfigTargetsOutputsPatch(w http.ResponseWriter, r *http.
 			return
 		}
 	}
+	// ensure outputs exist
 	for _, out := range outs {
 		_, ok, err := s.configStore.Get("outputs", out)
 		if err != nil {
@@ -258,6 +261,7 @@ func (s *Server) handleConfigTargetsOutputsPatch(w http.ResponseWriter, r *http.
 			return tc, nil
 		})
 	if err != nil {
+		// TODO: handle key not found error
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
@@ -278,13 +282,13 @@ func (s *Server) handleConfigTargetsDelete(w http.ResponseWriter, r *http.Reques
 }
 
 type TargetResponse struct {
-	Name          string                           `json:"name"`
-	Config        *types.TargetConfig              `json:"config"`
-	Subscriptions map[string]*SubscriptionResponse `json:"subscriptions"`
-	State         string                           `json:"state"`
+	Name          string                                `json:"name"`
+	Config        *types.TargetConfig                   `json:"config"`
+	Subscriptions map[string]*SubscriptionStateResponse `json:"subscriptions"`
+	State         string                                `json:"state"`
 }
 
-type SubscriptionResponse struct {
+type SubscriptionStateResponse struct {
 	Name  string `json:"name"`
 	State string `json:"state"`
 }
@@ -295,15 +299,15 @@ func (s *Server) handleTargetsGet(w http.ResponseWriter, r *http.Request) {
 	response := make([]*TargetResponse, 0)
 	if id == "" {
 		s.targetsManager.ForEach(func(mt *targets_manager.ManagedTarget) {
-			subs := make(map[string]*SubscriptionResponse)
+			subs := make(map[string]*SubscriptionStateResponse)
 			for _, sub := range mt.T.Subscriptions {
 				if _, ok := mt.T.SubscribeClients[sub.Name]; ok {
-					subs[sub.Name] = &SubscriptionResponse{
+					subs[sub.Name] = &SubscriptionStateResponse{
 						Name:  sub.Name,
 						State: "running",
 					}
 				} else {
-					subs[sub.Name] = &SubscriptionResponse{
+					subs[sub.Name] = &SubscriptionStateResponse{
 						Name:  sub.Name,
 						State: "stopped",
 					}
@@ -330,9 +334,9 @@ func (s *Server) handleTargetsGet(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"target not found"}})
 		return
 	}
-	subs := make(map[string]*SubscriptionResponse)
+	subs := make(map[string]*SubscriptionStateResponse)
 	for name := range mt.T.SubscribeClients {
-		subs[name] = &SubscriptionResponse{
+		subs[name] = &SubscriptionStateResponse{
 			Name:  name,
 			State: "running",
 		}

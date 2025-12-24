@@ -130,8 +130,8 @@ func (s *Server) handleConfigSubscriptionsDelete(w http.ResponseWriter, r *http.
 	w.WriteHeader(http.StatusOK)
 }
 
-// RuntimeSubscriptionResponse represents a subscription with its targets and states
-type RuntimeSubscriptionResponse struct {
+// SubscriptionResponse represents a subscription with its targets and states
+type SubscriptionResponse struct {
 	Name    string                      `json:"name"`
 	Config  *types.SubscriptionConfig   `json:"config"`
 	Targets map[string]*TargetStateInfo `json:"targets"`
@@ -148,42 +148,54 @@ func (s *Server) handleSubscriptionsGet(w http.ResponseWriter, r *http.Request) 
 	vars := mux.Vars(r)
 	id := vars["id"]
 
-	// Collect all subscriptions from targets
-	subscriptionsMap := make(map[string]*RuntimeSubscriptionResponse)
-
-	s.targetsManager.ForEach(func(mt *targets_manager.ManagedTarget) {
-		fmt.Println("target", mt.Name, "subscriptions", mt.T.Subscriptions)
-		for _, sub := range mt.T.Subscriptions {
-			fmt.Println("subscription", sub.Name, "target", mt.Name)
-			if subscriptionsMap[sub.Name] == nil {
-				subscriptionsMap[sub.Name] = &RuntimeSubscriptionResponse{
+	if id == "" {
+		subscriptionsMap := make(map[string]*SubscriptionResponse)
+		// build current subscriptions map
+		_, err := s.configStore.List("subscriptions", func(name string, sub any) bool {
+			switch sub := sub.(type) {
+			case *types.SubscriptionConfig:
+				subscriptionsMap[sub.Name] = &SubscriptionResponse{
 					Name:    sub.Name,
 					Config:  sub,
 					Targets: make(map[string]*TargetStateInfo),
 				}
 			}
-
-			// Determine state for this subscription on this target
-			state := "stopped"
-			if _, ok := mt.T.SubscribeClients[sub.Name]; ok {
-				state = "running"
-			}
-
-			subscriptionsMap[sub.Name].Targets[mt.Name] = &TargetStateInfo{
-				Name:  mt.Name,
-				State: state,
-			}
+			return false
+		})
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+			return
 		}
-	})
+		// Collect all subscriptions from targets
+		s.targetsManager.ForEach(func(mt *targets_manager.ManagedTarget) {
+			for _, sub := range mt.T.Subscriptions {
+				if subscriptionsMap[sub.Name] == nil {
+					subscriptionsMap[sub.Name] = &SubscriptionResponse{
+						Name:    sub.Name,
+						Config:  sub,
+						Targets: make(map[string]*TargetStateInfo),
+					}
+				}
 
-	if id == "" {
+				// Determine state for this subscription on this target
+				state := "stopped"
+				if _, ok := mt.T.SubscribeClients[sub.Name]; ok {
+					state = "running"
+				}
+
+				subscriptionsMap[sub.Name].Targets[mt.Name] = &TargetStateInfo{
+					Name:  mt.Name,
+					State: state,
+				}
+			}
+		})
 		// Return all subscriptions
-		response := make([]*RuntimeSubscriptionResponse, 0, len(subscriptionsMap))
+		response := make([]*SubscriptionResponse, 0)
 		for _, sub := range subscriptionsMap {
 			response = append(response, sub)
 		}
-
-		err := json.NewEncoder(w).Encode(response)
+		err = json.NewEncoder(w).Encode(response)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -191,19 +203,48 @@ func (s *Server) handleSubscriptionsGet(w http.ResponseWriter, r *http.Request) 
 		}
 		return
 	}
-
-	// Return single subscription
-	sub, ok := subscriptionsMap[id]
+	sub, ok, err := s.configStore.Get("subscriptions", id)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		return
+	}
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"subscription not found"}})
 		return
 	}
+	switch sub := sub.(type) {
+	case *types.SubscriptionConfig:
+		response := &SubscriptionResponse{
+			Name:    sub.Name,
+			Config:  sub,
+			Targets: make(map[string]*TargetStateInfo),
+		}
+		s.targetsManager.ForEach(func(mt *targets_manager.ManagedTarget) {
+			for _, sub := range mt.T.Subscriptions {
+				if sub.Name != id {
+					continue
+				}
 
-	err := json.NewEncoder(w).Encode([]*RuntimeSubscriptionResponse{sub})
-	if err != nil {
+				// Determine state for this subscription on this target
+				state := "stopped"
+				if _, ok := mt.T.SubscribeClients[sub.Name]; ok {
+					state = "running"
+				}
+				response.Targets[mt.Name] = &TargetStateInfo{
+					Name:  mt.Name,
+					State: state,
+				}
+			}
+		})
+		err = json.NewEncoder(w).Encode(response)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	default:
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{fmt.Sprintf("unknown subscription type: %T", sub)}})
 		return
 	}
 }

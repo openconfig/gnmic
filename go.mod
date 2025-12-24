@@ -20,9 +20,11 @@ require (
 	github.com/gorilla/handlers v1.5.2
 	github.com/gorilla/mux v1.8.1
 	github.com/gosnmp/gosnmp v1.42.1
+	github.com/grafana/pyroscope-go v1.2.7
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/guptarohit/asciigraph v0.7.3
 	github.com/hairyhenderson/gomplate/v3 v3.11.8
+	github.com/hairyhenderson/yaml v0.0.0-20220618171115-2d35fca545ce
 	github.com/hashicorp/consul/api v1.32.0
 	github.com/hashicorp/go-plugin v1.7.0
 	github.com/hashicorp/golang-lru/v2 v2.0.7
@@ -122,10 +124,10 @@ require (
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.6 // indirect
+	github.com/grafana/pyroscope-go/godeltaprof v0.1.9 // indirect
 	github.com/grafana/regexp v0.0.0-20240518133315-a468a5bfb3bc // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 // indirect
 	github.com/hairyhenderson/go-fsimpl v0.0.0-20220529183339-9deae3e35047 // indirect
-	github.com/hairyhenderson/yaml v0.0.0-20220618171115-2d35fca545ce // indirect
 	github.com/hashicorp/go-msgpack v1.1.5 // indirect
 	github.com/hashicorp/go-secure-stdlib/mlock v0.1.2 // indirect
 	github.com/hashicorp/go-secure-stdlib/parseutil v0.1.7 // indirect

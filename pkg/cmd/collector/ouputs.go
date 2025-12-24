@@ -34,7 +34,7 @@ func newCollectorOutputsCmd(gApp *app.App) *cobra.Command {
 	cmd.AddCommand(
 		newCollectorOutputsListCmd(gApp),
 		newCollectorOutputsGetCmd(gApp),
-		newCollectorOutputsCreateCmd(gApp),
+		newCollectorOutputsSetCmd(gApp),
 		newCollectorOutputsDeleteCmd(gApp),
 	)
 	return cmd
@@ -74,10 +74,10 @@ func newCollectorOutputsListCmd(gApp *app.App) *cobra.Command {
 				return err
 			}
 
-			if len(outputsResponse) == 0 {
-				fmt.Println("No outputs found")
-				return nil
-			}
+			// if len(outputsResponse) == 0 {
+			// 	fmt.Println("No outputs found")
+			// 	return nil
+			// }
 			outputs := make([]map[string]interface{}, 0)
 			for name, output := range outputsResponse {
 				switch output := output.(type) {
@@ -156,6 +156,7 @@ func newCollectorOutputsGetCmd(gApp *app.App) *cobra.Command {
 
 			// Display as vertical table (key-value pairs)
 			table := tablewriter.NewWriter(os.Stdout)
+			table.SetHeader([]string{"PARAM", "VALUE"})
 			table.SetAutoWrapText(false)
 			table.SetAutoFormatHeaders(false)
 			table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
@@ -180,10 +181,11 @@ func newCollectorOutputsGetCmd(gApp *app.App) *cobra.Command {
 	return cmd
 }
 
-func newCollectorOutputsCreateCmd(gApp *app.App) *cobra.Command {
+func newCollectorOutputsSetCmd(gApp *app.App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "set",
-		Short: "create an output",
+		Use:     "set",
+		Aliases: []string{"create", "cr"},
+		Short:   "set an output",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			inputConfig, err := cmd.Flags().GetString("input")
 			if err != nil {
@@ -221,7 +223,7 @@ func newCollectorOutputsCreateCmd(gApp *app.App) *cobra.Command {
 			}
 
 			outputName := formatValue(outputConfig["name"])
-			fmt.Printf("Output '%s' created successfully\n", outputName)
+			fmt.Fprintf(os.Stderr, "Output '%s' created successfully\n", outputName)
 			return nil
 		},
 	}
@@ -265,7 +267,7 @@ func newCollectorOutputsDeleteCmd(gApp *app.App) *cobra.Command {
 				return fmt.Errorf("failed to delete output, status code: %d: %s", resp.StatusCode, string(tb))
 			}
 
-			fmt.Println("Output deleted successfully")
+			fmt.Fprintln(os.Stderr, "Output deleted successfully")
 			return nil
 		},
 	}
@@ -274,7 +276,7 @@ func newCollectorOutputsDeleteCmd(gApp *app.App) *cobra.Command {
 }
 
 // tableFormatOutputVertical formats a single output as vertical table (key-value pairs)
-func tableFormatOutputVertical(output map[string]interface{}) [][]string {
+func tableFormatOutputVertical(output map[string]any) [][]string {
 	data := make([][]string, 0)
 
 	// Sort keys for consistent output
@@ -295,7 +297,7 @@ func tableFormatOutputVertical(output map[string]interface{}) [][]string {
 }
 
 // tableFormatOutputsList formats multiple outputs as horizontal table (summary view)
-func tableFormatOutputsList(outputs []map[string]interface{}) [][]string {
+func tableFormatOutputsList(outputs []map[string]any) [][]string {
 	data := make([][]string, 0, len(outputs))
 
 	for _, output := range outputs {

@@ -15,9 +15,12 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
+	"github.com/hairyhenderson/yaml"
+	"github.com/mitchellh/mapstructure"
 	"github.com/olekukonko/tablewriter"
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/app"
@@ -27,9 +30,10 @@ import (
 
 func newCollectorTargetsCmd(gApp *app.App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "targets",
-		Aliases: []string{"target", "tg"},
-		Short:   "manage targets",
+		Use:          "targets",
+		Aliases:      []string{"target", "tg"},
+		Short:        "manage targets",
+		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return nil
 		},
@@ -43,15 +47,15 @@ func newCollectorTargetsCmd(gApp *app.App) *cobra.Command {
 
 func newCollectorTargetsListCmd(gApp *app.App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "list",
-		Aliases: []string{"ls"},
-		Short:   "list targets",
+		Use:          "list",
+		Aliases:      []string{"ls"},
+		Short:        "list targets",
+		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			apiURL, err := getAPIServerURL(gApp.Store)
 			if err != nil {
 				return err
 			}
-			// TODO: TLS
 			client, err := getAPIServerClient(gApp.Store)
 			if err != nil {
 				return err
@@ -76,10 +80,10 @@ func newCollectorTargetsListCmd(gApp *app.App) *cobra.Command {
 				return err
 			}
 
-			if len(tc) == 0 {
-				fmt.Println("No targets found")
-				return nil
-			}
+			// if len(tc) == 0 {
+			// 	fmt.Println("No targets found")
+			// 	return nil
+			// }
 
 			// Display as horizontal table
 			table := tablewriter.NewWriter(os.Stdout)
@@ -108,9 +112,10 @@ func newCollectorTargetsListCmd(gApp *app.App) *cobra.Command {
 
 func newCollectorTargetsGetCmd(gApp *app.App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "get",
-		Aliases: []string{"g", "show", "sh"},
-		Short:   "get a target",
+		Use:          "get",
+		Aliases:      []string{"g", "show", "sh"},
+		Short:        "get a target",
+		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name, err := cmd.Flags().GetString("name")
 			if err != nil {
@@ -177,19 +182,16 @@ func newCollectorTargetsGetCmd(gApp *app.App) *cobra.Command {
 
 func newCollectorTargetsSetCmd(gApp *app.App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "set",
-		Short: "set a target",
+		Use:          "set",
+		Aliases:      []string{"create", "cr"},
+		Short:        "set a target",
+		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			inputConfig, err := cmd.Flags().GetString("input-config")
+			inputConfig, err := cmd.Flags().GetString("input")
 			if err != nil {
 				return err
 			}
-			b, err := os.ReadFile(inputConfig)
-			if err != nil {
-				return err
-			}
-			var targetConfig *types.TargetConfig
-			err = json.Unmarshal(b, &targetConfig)
+			targetConfig, b, err := readTargetConfigFromFile(inputConfig)
 			if err != nil {
 				return err
 			}
@@ -201,18 +203,17 @@ func newCollectorTargetsSetCmd(gApp *app.App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			resp, err := client.Post(apiURL+"/api/v1/targets", "application/json", bytes.NewBuffer(b))
+			resp, err := client.Post(apiURL+"/api/v1/config/targets", "application/json", bytes.NewBuffer(b))
 			if err != nil {
 				return err
 			}
 			defer resp.Body.Close()
-			tb, err := io.ReadAll(resp.Body)
-			if err != nil {
-				return err
+			if resp.StatusCode != http.StatusOK {
+				tb, _ := io.ReadAll(resp.Body)
+				return fmt.Errorf("failed to create target, status code: %d: %s", resp.StatusCode, string(tb))
 			}
-			rs := bytes.NewBuffer(nil)
-			json.Indent(rs, tb, "", "  ")
-			fmt.Println(rs.String())
+
+			fmt.Fprintf(os.Stderr, "Target '%s' created successfully\n", targetConfig.Name)
 			return nil
 		},
 	}
@@ -241,7 +242,7 @@ func newCollectorTargetsDeleteCmd(gApp *app.App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			req, err := http.NewRequest(http.MethodDelete, apiURL+"/api/v1/targets/"+name, nil)
+			req, err := http.NewRequest(http.MethodDelete, apiURL+"/api/v1/config/targets/"+name, nil)
 			if err != nil {
 				return err
 			}
@@ -249,16 +250,13 @@ func newCollectorTargetsDeleteCmd(gApp *app.App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			resp.Body.Close()
-			fmt.Println("target deleted")
-			fmt.Println(resp.Status)
-			tb, err := io.ReadAll(resp.Body)
-			if err != nil {
-				return err
+			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				tb, _ := io.ReadAll(resp.Body)
+				return fmt.Errorf("failed to delete target, status code: %d: %s", resp.StatusCode, string(tb))
 			}
-			rs := bytes.NewBuffer(nil)
-			json.Indent(rs, tb, "", "  ")
-			fmt.Println(rs.String())
+
+			fmt.Fprintf(os.Stderr, "Target '%s' deleted successfully\n", name)
 			return nil
 		},
 	}
@@ -267,7 +265,7 @@ func newCollectorTargetsDeleteCmd(gApp *app.App) *cobra.Command {
 }
 
 // formatValue formats any value based on its type for table display
-func formatValue(v interface{}) string {
+func formatValue(v any) string {
 	if v == nil {
 		return "-"
 	}
@@ -323,7 +321,7 @@ func formatValue(v interface{}) string {
 		}
 		sort.Strings(parts)
 		return strings.Join(parts, ", ")
-	case map[string]*apiserver.SubscriptionResponse:
+	case map[string]*apiserver.SubscriptionStateResponse:
 		if len(val) == 0 {
 			return "-"
 		}
@@ -343,7 +341,7 @@ func formatValue(v interface{}) string {
 }
 
 // formatValueShort formats value for list view (shorter version)
-func formatValueShort(v interface{}) string {
+func formatValueShort(v any) string {
 	if v == nil {
 		return "-"
 	}
@@ -359,7 +357,7 @@ func formatValueShort(v interface{}) string {
 			return "-"
 		}
 		return fmt.Sprintf("%d", len(val))
-	case map[string]*apiserver.SubscriptionResponse:
+	case map[string]*apiserver.SubscriptionStateResponse:
 		if len(val) == 0 {
 			return "-"
 		}
@@ -431,4 +429,37 @@ func tableFormatTargetsList(targets []*apiserver.TargetResponse) [][]string {
 		return data[i][0] < data[j][0]
 	})
 	return data
+}
+
+func readTargetConfigFromFile(filename string) (*types.TargetConfig, []byte, error) {
+	b, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, nil, err
+	}
+	cfg := make(map[string]any)
+	switch strings.ToLower(filepath.Ext(filename)) {
+	case ".json":
+		err = json.Unmarshal(b, &cfg)
+	case ".yaml", ".yml":
+		err = yaml.Unmarshal(b, &cfg)
+	default:
+		return nil, nil, fmt.Errorf("unsupported file type: %s", filepath.Ext(filename))
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	targetConfig := new(types.TargetConfig)
+	decoder, err := mapstructure.NewDecoder(
+		&mapstructure.DecoderConfig{
+			DecodeHook: mapstructure.StringToTimeDurationHookFunc(),
+			Result:     targetConfig,
+		})
+	if err != nil {
+		return nil, nil, err
+	}
+	err = decoder.Decode(cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+	return targetConfig, b, nil
 }

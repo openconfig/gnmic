@@ -494,6 +494,8 @@ func (t *Target) ReadSubscriptions() (chan *SubscribeResponse, chan *TargetError
 
 func (t *Target) NumberOfOnceSubscriptions() int {
 	num := 0
+	t.m.Lock()
+	defer t.m.Unlock()
 	for _, sub := range t.Subscriptions {
 		if strings.ToUpper(sub.Mode) == "ONCE" {
 			num++

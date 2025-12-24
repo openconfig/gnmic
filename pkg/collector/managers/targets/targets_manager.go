@@ -52,11 +52,6 @@ type ManagedTarget struct {
 	appliedSubscriptions []string
 }
 
-type targetsStats struct {
-	msgCount                  *prometheus.CounterVec
-	subscribeResponseReceived *prometheus.CounterVec
-}
-
 func newManagedTarget(name string, cfg *types.TargetConfig, tunServer *tunnel.Server) *ManagedTarget {
 	nt := target.NewTarget(cfg)
 	mt := &ManagedTarget{
@@ -116,20 +111,8 @@ func NewTargetsManager(ctx context.Context, store store.Store[any], pipeline cha
 		assignments:   make(map[string]struct{}),
 		reg:           reg,
 	}
-	reg.MustRegister(tm.stats.msgCount)
+	tm.registerMetrics()
 	return tm
-}
-
-func newTargetsStats() *targetsStats {
-	return &targetsStats{
-		msgCount: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: "gnmic",
-			Subsystem: "targets",
-			Name:      "gnmi_msg_receveid_count",
-			Help:      "Number of messages received by the targets",
-		}, []string{"target", "subscription"}),
-		subscribeResponseReceived: subscribeResponseReceivedCounter,
-	}
 }
 
 func (tm *TargetsManager) Start(locker lockers.Locker, wg *sync.WaitGroup) error {
@@ -239,8 +222,11 @@ func (tm *TargetsManager) Start(locker lockers.Locker, wg *sync.WaitGroup) error
 				case store.EventTypeCreate, store.EventTypeUpdate:
 					cfg := ev.Object.(*types.TargetConfig)
 					tm.apply(ev.Name, cfg)
+					tm.stats.targetUPMetric.WithLabelValues(ev.Name).Set(1)
 				case store.EventTypeDelete:
 					tm.remove(ev.Name)
+					tm.stats.targetUPMetric.WithLabelValues(ev.Name).Set(0)
+					tm.stats.targetConnStateMetric.WithLabelValues(ev.Name).Set(0)
 				}
 			case op, ok := <-loaderTargetOpCh:
 				if !ok {
@@ -310,6 +296,9 @@ func (tm *TargetsManager) apply(name string, cfg *types.TargetConfig) {
 	var mt *ManagedTarget
 	created := false
 
+	defer func() {
+		tm.updateTargetMetrics(mt)
+	}()
 	tm.mu.Lock()
 	mt = tm.targets[name]
 	if mt == nil {
@@ -810,7 +799,8 @@ func (tm *TargetsManager) startTargetSubscription(mt *ManagedTarget, cfg *types.
 	}
 	subreq, err := utils.CreateSubscribeRequest(cfg, mt.T.Config, defaultEncoding)
 	if err != nil {
-		tm.logger.Error("failed to create subscribe request", "error", err)
+		tm.stats.subscriptionFailedCount.WithLabelValues(mt.Name, cfg.Name, subscriptionRequestErrorTypeCONFIG).Inc()
+		tm.logger.Error("failed to create subscribe request", "target", mt.Name, "subscription", cfg.Name, "error", err)
 		return err
 	}
 	tm.logger.Info("starting target Subscribe RPC", "name", cfg.Name, "target", mt.Name)
@@ -834,6 +824,7 @@ func (tm *TargetsManager) startTargetSubscription(mt *ManagedTarget, cfg *types.
 				if !ok {
 					return
 				}
+				tm.stats.subscribeResponseReceived.WithLabelValues(mt.Name, resp.SubscriptionName).Inc()
 				outs := func() map[string]struct{} {
 					mt.RLock()
 					defer mt.RUnlock()
@@ -853,6 +844,7 @@ func (tm *TargetsManager) startTargetSubscription(mt *ManagedTarget, cfg *types.
 					Outputs: outs,
 				}:
 				default:
+					tm.stats.droppedSubscribeResponses.WithLabelValues(mt.Name, resp.SubscriptionName).Inc()
 					// If downstream is slow, you can drop, count, or block; here we drop to keep reader healthy.
 					tm.logger.Warn("pipeline backpressure: dropping response", "target", mt.Name)
 				}
@@ -860,6 +852,7 @@ func (tm *TargetsManager) startTargetSubscription(mt *ManagedTarget, cfg *types.
 				if !ok {
 					return
 				}
+				tm.stats.subscriptionFailedCount.WithLabelValues(mt.Name, err.SubscriptionName, subscriptionRequestErrorTypeGRPC).Inc()
 				tm.logger.Error("subscription error", "error", err)
 			}
 		}

@@ -2,20 +2,95 @@ package apiserver
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/gorilla/mux"
 )
 
+type ProcessorConfigResponse struct {
+	Name   string `json:"name"`
+	Type   string `json:"type"`
+	Config any    `json:"config"`
+}
+
+type ProcessorConfigRequest struct {
+	Name   string `json:"name"`
+	Type   string `json:"type"`
+	Config any    `json:"config"`
+}
+
 func (s *Server) handleConfigProcessorsGet(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+	if id != "" {
+		processor, ok, err := s.configStore.Get("processors", id)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+			return
+		}
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{"processor not found"}})
+			return
+		}
+		processorConfig := ProcessorConfigResponse{
+			Name: id,
+		}
+		for k, v := range processor.(map[string]any) {
+			switch v.(type) {
+			case map[string]any:
+				processorConfig.Type = k
+				processorConfig.Config = v
+			default:
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(APIErrors{Errors: []string{fmt.Sprintf("unknown processor type: %T", v)}})
+				return
+			}
+		}
+		err = json.NewEncoder(w).Encode(processorConfig)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+			return
+		}
+		return
+	}
 	processors, err := s.configStore.List("processors")
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
-	err = json.NewEncoder(w).Encode(processors)
+	processorConfigs := make([]ProcessorConfigResponse, 0, len(processors))
+	for name, processor := range processors {
+		switch processor := processor.(type) {
+		case map[string]any:
+			processorConfig := ProcessorConfigResponse{
+				Name: name,
+			}
+			for k, v := range processor {
+				switch v.(type) {
+				case map[string]any:
+					processorConfig.Type = k
+					processorConfig.Config = v
+				default:
+					w.WriteHeader(http.StatusInternalServerError)
+					json.NewEncoder(w).Encode(APIErrors{Errors: []string{fmt.Sprintf("unknown processor type: %T", v)}})
+					return
+				}
+				break
+			}
+			processorConfigs = append(processorConfigs, processorConfig)
+		default:
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{fmt.Sprintf("unknown processor type: %T", processor)}})
+			return
+		}
+	}
+	err = json.NewEncoder(w).Encode(processorConfigs)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -26,11 +101,12 @@ func (s *Server) handleConfigProcessorsGet(w http.ResponseWriter, r *http.Reques
 func (s *Server) handleConfigProcessorsPost(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 	defer r.Body.Close()
-	cfg := map[string]any{}
+	cfg := new(ProcessorConfigRequest)
 	err = json.Unmarshal(body, &cfg)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -42,18 +118,20 @@ func (s *Server) handleConfigProcessorsPost(w http.ResponseWriter, r *http.Reque
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"invalid processor config"}})
 		return
 	}
-	processorName, ok := cfg["name"].(string)
-	if !ok {
+	if cfg.Name == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"processor name is required"}})
 		return
 	}
-	if processorName == "" {
+	if cfg.Type == "" {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"processor name is required"}})
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"processor type is required"}})
 		return
 	}
-	_, err = s.configStore.Set("processors", processorName, cfg)
+	storeCfg := map[string]any{
+		cfg.Type: cfg.Config,
+	}
+	_, err = s.configStore.Set("processors", cfg.Name, storeCfg)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -65,15 +143,20 @@ func (s *Server) handleConfigProcessorsPost(w http.ResponseWriter, r *http.Reque
 func (s *Server) handleConfigProcessorsDelete(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
-	ok, _, err := s.configStore.Delete("processors", id)
+	if s.outputsManager.ProcessorInUse(id) {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"processor is in use by outputs"}})
+		return
+	}
+	if s.inputsManager.ProcessorInUse(id) {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"processor is in use by inputs"}})
+		return
+	}
+	_, _, err := s.configStore.Delete("processors", id)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
-		return
-	}
-	if !ok {
-		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"processor not found"}})
 		return
 	}
 	w.WriteHeader(http.StatusOK)

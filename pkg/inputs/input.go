@@ -89,3 +89,14 @@ func WithPipeline(pipeline chan *pipeline.Msg) Option {
 		return nil
 	}
 }
+
+type BaseInput struct {
+}
+
+func (b *BaseInput) Start(context.Context, string, map[string]any, ...Option) error {
+	return nil
+}
+
+func (b *BaseInput) Close() error {
+	return nil
+}

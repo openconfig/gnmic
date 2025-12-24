@@ -72,15 +72,20 @@ func (s *Server) Start(locker lockers.Locker, wg *sync.WaitGroup) error {
 		return nil
 	}
 	if apiServer == nil {
+		s.logger.Info("api-server config not found, skipping API server")
 		return nil
 	}
 	var apiCfg *config.APIServer
 	var listener net.Listener
 	switch apiCfgImpl := apiServer.(type) {
 	case *config.APIServer:
+		if apiCfgImpl == nil {
+			s.logger.Info("api-server config is nil, skipping API server")
+			return nil
+		}
 		apiCfg = apiCfgImpl
 		// create listener
-		listener, err = createListener(apiCfg)
+		listener, err = createListener(apiCfgImpl)
 		if err != nil {
 			s.logger.Error("failed to create listener", "error", err)
 			return err

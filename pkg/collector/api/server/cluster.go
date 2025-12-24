@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -45,6 +46,9 @@ func (s *Server) handleClusteringGet(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"clustering config is not a config.Clustering"}})
+		return
+	}
+	if clustering == nil {
 		return
 	}
 	cr := &clusteringResponse{
@@ -164,7 +168,7 @@ func (s *Server) handleClusteringLeaderGet(w http.ResponseWriter, r *http.Reques
 		}
 		scheme := cluster_manager.GetAPIScheme(&cluster_manager.Member{Labels: s.Tags})
 		// add the leader as a member then break from loop
-		members[0].APIEndpoint = fmt.Sprintf("%s%s", scheme, s.Address)
+		members[0].APIEndpoint = fmt.Sprintf("%s://%s", scheme, s.Address)
 		members[0].Name = strings.TrimSuffix(s.ID, "-api")
 		members[0].IsLeader = true
 		members[0].NumberOfLockedTargets = len(instanceNodes[members[0].Name])
@@ -291,7 +295,92 @@ func (s *Server) handleClusteringDrainInstance(w http.ResponseWriter, r *http.Re
 	w.WriteHeader(http.StatusOK)
 }
 
+type moveRequest struct {
+	Target            string `json:"target,omitempty"`
+	DestinationMember string `json:"member,omitempty"`
+}
+
+func (s *Server) handleClusterMove(w http.ResponseWriter, r *http.Request) {
+	// read body
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		return
+	}
+	defer r.Body.Close()
+	var moveRequest moveRequest
+
+	err = json.Unmarshal(body, &moveRequest)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		return
+	}
+	if moveRequest.Target == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{"target is required"}})
+		return
+	}
+	if moveRequest.DestinationMember == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{"member is required"}})
+		return
+	}
+	// TODO: implement move target
+	// err = s.clusterManager.MoveTarget(r.Context(), moveRequest.Target, moveRequest.DestinationMember)
+	// if err != nil {
+	// 	w.WriteHeader(http.StatusInternalServerError)
+	// 	_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+	// 	return
+	// }
+	// w.WriteHeader(http.StatusOK)
+}
+
+// //
 func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
+	res, err := s.configStore.GetAll()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		return
+	}
+	configs := make(map[string]any)
+	for k, v := range res {
+		configs[k] = v
+	}
+	sanitizedRes := sanitizeConfig(configs)
+	err = json.NewEncoder(w).Encode(sanitizedRes)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		return
+	}
+}
+
+func sanitizeConfig(res map[string]any) map[string]any {
+	keys := []string{
+		"api-server",
+		"gnmi-server",
+		"loader",
+		"clustering",
+		"global-flags",
+		"tunnel-server",
+	}
+
+	for _, key := range keys {
+		val, ok := res[key]
+		if !ok {
+			continue
+		}
+		switch v := val.(type) {
+		case map[string]any:
+			res[key] = v[key]
+		default:
+		}
+	}
+
+	return res
 }
 
 func (s *Server) handleHealthzGet(w http.ResponseWriter, r *http.Request) {

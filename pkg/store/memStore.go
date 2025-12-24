@@ -247,6 +247,10 @@ func (s *memStore[T]) SetFn(kind, key string, fn func(v T) (T, error)) (bool, er
 	s.ensureKind(kind)
 
 	prev, existed := s.kinds[kind][key]
+	if !existed {
+		s.mu.Unlock()
+		return false, errors.New("key not found")
+	}
 	value, err := fn(prev)
 	if err != nil {
 		s.mu.Unlock()
@@ -371,4 +375,13 @@ func (s *memStore[T]) Dump() string {
 		}
 	}
 	return sb.String()
+}
+
+func (s *memStore[T]) GetAll() (map[string]map[string]T, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.closed {
+		return nil, errors.New("store closed")
+	}
+	return cloneMap(s.kinds), nil
 }

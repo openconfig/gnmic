@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/grafana/pyroscope-go"
 	"github.com/openconfig/gnmic/pkg/cache"
 	apiserver "github.com/openconfig/gnmic/pkg/collector/api/server"
 	"github.com/openconfig/gnmic/pkg/collector/gnmiserver"
@@ -55,8 +56,9 @@ type Collector struct {
 	pipeline       chan *pipeline.Msg
 	wg             *sync.WaitGroup
 
-	logger *slog.Logger
-	reg    *prometheus.Registry
+	logger   *slog.Logger
+	reg      *prometheus.Registry
+	profiler *pyroscope.Profiler
 }
 
 func New(ctx context.Context, store store.Store[any]) *Collector {
@@ -184,17 +186,51 @@ func (c *Collector) getLocker() error {
 	return errors.New("missing locker type field")
 }
 
-func (c *Collector) CollectorPreRunE(cmd *cobra.Command, _ []string) error {
+func (c *Collector) CollectorPreRunE(cmd *cobra.Command, args []string) error {
+	if len(args) > 0 {
+		return fmt.Errorf("unknown command %q", args[0])
+	}
+	pyroscopeServerAddress := cmd.Flag("pyroscope-server-address").Value.String()
+	pyroscopeApplicationName := cmd.Flag("pyroscope-application-name").Value.String()
+	if pyroscopeServerAddress == "" {
+		return nil
+	}
+	var err error
+	c.profiler, err = pyroscope.Start(
+		pyroscope.Config{
+			ApplicationName: pyroscopeApplicationName,
+			ServerAddress:   pyroscopeServerAddress,
+			ProfileTypes: []pyroscope.ProfileType{
+				pyroscope.ProfileInuseObjects,
+				pyroscope.ProfileAllocObjects,
+				pyroscope.ProfileInuseSpace,
+				pyroscope.ProfileAllocSpace,
+				pyroscope.ProfileGoroutines,
+				pyroscope.ProfileMutexCount,
+				pyroscope.ProfileMutexDuration,
+				pyroscope.ProfileBlockCount,
+				pyroscope.ProfileBlockDuration,
+			},
+		})
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
 func (c *Collector) CollectorRunE(cmd *cobra.Command, _ []string) error {
+	if c.profiler != nil {
+		defer c.profiler.Stop()
+	}
 	return c.Start()
 }
 
 // InitSubscribeFlags used to init or reset subscribeCmd flags for gnmic-prompt mode
 func (c *Collector) InitCollectorFlags(cmd *cobra.Command) {
 	cmd.ResetFlags()
+	cmd.Flags().String("pyroscope-server-address", "", "Pyroscope server address")
+	cmd.Flags().String("pyroscope-application-name", "gnmic-collector", "Pyroscope application name")
 }
 
 func (c *Collector) initCache() error {

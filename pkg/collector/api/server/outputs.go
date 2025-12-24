@@ -133,27 +133,16 @@ func (s *Server) handleConfigOutputsPost(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *Server) handleConfigOutputsPatch(w http.ResponseWriter, r *http.Request) {
-	// TODO:
+	// TODO: patch processors in place
 }
 
 func (s *Server) handleConfigOutputsDelete(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
-	err := s.outputsManager.StopOutput(id)
+	err := s.outputsManager.DeleteOutput(id)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
-		return
-	}
-	ok, _, err := s.configStore.Delete("outputs", id)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
-		return
-	}
-	if !ok {
-		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"output not found"}})
 		return
 	}
 	w.WriteHeader(http.StatusOK)

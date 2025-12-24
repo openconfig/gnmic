@@ -23,11 +23,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
+	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/inputs"
 	"github.com/openconfig/gnmic/pkg/outputs"
+	"github.com/openconfig/gnmic/pkg/pipeline"
 	"github.com/openconfig/gnmic/pkg/store"
 	gutils "github.com/openconfig/gnmic/pkg/utils"
 )
@@ -55,15 +57,18 @@ func init() {
 
 // natsInput //
 type natsInput struct {
+	inputs.BaseInput
 	Cfg    *config
 	ctx    context.Context
 	cfn    context.CancelFunc
 	logger *log.Logger
 
-	wg      *sync.WaitGroup
-	outputs []outputs.Output
-	evps    []formatters.EventProcessor
-	store   store.Store[any]
+	wg         *sync.WaitGroup
+	outputs    []outputs.Output
+	evps       []formatters.EventProcessor
+	store      store.Store[any]
+	pipeline   chan *pipeline.Msg
+	outputsMap map[string]struct{}
 }
 
 // config //
@@ -101,6 +106,7 @@ func (n *natsInput) Start(ctx context.Context, name string, cfg map[string]any, 
 		}
 	}
 	n.store = options.Store
+	n.pipeline = options.Pipeline
 	n.setName(options.Name)
 	n.setLogger(options.Logger)
 	n.setOutputs(options.Outputs)
@@ -117,12 +123,13 @@ func (n *natsInput) Start(ctx context.Context, name string, cfg map[string]any, 
 	n.logger.Printf("input starting with config: %+v", n.Cfg)
 	n.wg.Add(n.Cfg.NumWorkers)
 	for i := 0; i < n.Cfg.NumWorkers; i++ {
-		go n.worker(ctx, i)
+		go n.worker(n.ctx, i)
 	}
 	return nil
 }
 
 func (n *natsInput) worker(ctx context.Context, idx int) {
+	defer n.wg.Done()
 	var nc *nats.Conn
 	var err error
 	var msgChan chan *nats.Msg
@@ -183,6 +190,19 @@ START:
 				}
 
 				go func() {
+					if n.pipeline != nil {
+						n.logger.Printf("sending event to pipeline")
+						select {
+						case <-ctx.Done():
+							return
+						case n.pipeline <- &pipeline.Msg{
+							Events:  evMsgs,
+							Outputs: n.outputsMap,
+						}:
+						default:
+							n.logger.Printf("pipeline channel is full, dropping event")
+						}
+					}
 					for _, o := range n.outputs {
 						for _, ev := range evMsgs {
 							o.WriteEvent(ctx, ev)
@@ -190,12 +210,10 @@ START:
 					}
 				}()
 			case "proto":
-				var protoMsg proto.Message
+				var protoMsg = new(gnmi.SubscribeResponse)
 				err = proto.Unmarshal(m.Data, protoMsg)
 				if err != nil {
-					if n.Cfg.Debug {
-						n.logger.Printf("failed to unmarshal proto msg: %v", err)
-					}
+					n.logger.Printf("failed to unmarshal proto msg: %v", err)
 					continue
 				}
 				meta := outputs.Meta{}
@@ -205,20 +223,37 @@ START:
 					meta["subscription-name"] = subjectSections[2]
 				}
 				go func() {
+					if n.pipeline != nil {
+						n.logger.Printf("sending proto msg to pipeline")
+						select {
+						case <-ctx.Done():
+							return
+						case n.pipeline <- &pipeline.Msg{
+							Msg:     protoMsg,
+							Meta:    meta,
+							Outputs: n.outputsMap,
+						}:
+						default:
+							n.logger.Printf("pipeline channel is full, dropping message")
+						}
+					}
 					for _, o := range n.outputs {
 						o.Write(ctx, protoMsg, meta)
 					}
 				}()
 			}
-
 		}
 	}
 }
 
 // Close //
 func (n *natsInput) Close() error {
-	n.cfn()
-	n.wg.Wait()
+	if n.cfn != nil {
+		n.cfn()
+	}
+	if n.wg != nil {
+		n.wg.Wait()
+	}
 	return nil
 }
 
@@ -238,8 +273,10 @@ func (n *natsInput) setOutputs(outs map[string]outputs.Output) {
 		}
 		return
 	}
+	n.outputsMap = make(map[string]struct{})
 	for _, name := range n.Cfg.Outputs {
-		if o, ok := outs[name]; ok {
+		n.outputsMap[name] = struct{}{} // for collector
+		if o, ok := outs[name]; ok {    // for subscribe
 			n.outputs = append(n.outputs, o)
 		}
 	}

@@ -16,7 +16,7 @@ func GetConfigMaps(s store.Store[any]) (map[string]*types.TargetConfig, map[stri
 			tcs[n] = tc
 		}
 	}
-	egm, err := s.List("event-processors")
+	egm, err := s.List("processors")
 	if err != nil {
 		return nil, nil, nil, err
 	}

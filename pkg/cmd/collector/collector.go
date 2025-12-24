@@ -35,9 +35,12 @@ func New(gApp *app.App) *cobra.Command {
 		},
 		SilenceUsage: true,
 	}
+	c.InitCollectorFlags(cmd)
 	cmd.AddCommand(newCollectorTargetsCmd(gApp))
 	cmd.AddCommand(newCollectorSubscriptionsCmd(gApp))
 	cmd.AddCommand(newCollectorOutputsCmd(gApp))
+	cmd.AddCommand(newCollectorProcessorsCmd(gApp))
+	cmd.AddCommand(newCollectorInputsCmd(gApp))
 	return cmd
 }
 
@@ -73,6 +76,7 @@ func getAPIServerClient(store store.Store[any]) (*http.Client, error) {
 	}
 	if apiCfg.TLS != nil {
 		return &http.Client{
+			Timeout: apiCfg.Timeout,
 			Transport: &http.Transport{
 				TLSClientConfig: &tls.Config{
 					InsecureSkipVerify: true,

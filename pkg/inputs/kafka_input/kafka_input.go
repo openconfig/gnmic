@@ -61,6 +61,7 @@ func init() {
 
 // KafkaInput //
 type KafkaInput struct {
+	inputs.BaseInput
 	Cfg     *config
 	cfn     context.CancelFunc
 	logger  sarama.StdLogger

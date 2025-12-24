@@ -277,7 +277,7 @@ func UpdateProcessorInSlice(
 				return nil, false, fmt.Errorf("output processors are not properly initialized")
 			}
 
-			// Create new slice with updated processor
+			// create new slice with updated processor
 			newEvps := make([]formatters.EventProcessor, len(currentEvps))
 			copy(newEvps, currentEvps)
 			newEvps[i] = ep
@@ -287,6 +287,6 @@ func UpdateProcessorInSlice(
 		}
 	}
 
-	// Processor not found - return original slice
+	// processor not found - return currentEvps
 	return currentEvps, false, nil
 }
