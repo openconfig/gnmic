@@ -61,10 +61,6 @@ START:
 				}
 				continue
 			}
-			// delete target from config
-			a.configLock.Lock()
-			delete(a.Config.Targets, del)
-			a.configLock.Unlock()
 			// clustered, delete target in all instances of the cluster
 			err = a.deleteTarget(ctx, del)
 			if err != nil {
@@ -144,9 +140,6 @@ START:
 		// do deletes first since target change is delete+add
 		for _, del := range targetOp.Del {
 			// clustered, delete target in all instances of the cluster
-			a.configLock.Lock()
-			delete(a.Config.Targets, del)
-			a.configLock.Unlock()
 			a.operLock.Lock()
 			t, ok := a.Targets[del]
 			if ok {
