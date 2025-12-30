@@ -5,22 +5,46 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 
 	"github.com/gorilla/mux"
+	"github.com/openconfig/gnmic/pkg/inputs"
 )
 
 func (s *Server) handleConfigInputsGet(w http.ResponseWriter, r *http.Request) {
-	inputs, err := s.configStore.List("inputs")
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
-		return
-	}
-	err = json.NewEncoder(w).Encode(inputs)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
-		return
+	vars := mux.Vars(r)
+	id := vars["id"]
+	if id == "" {
+		inputs, err := s.configStore.List("inputs")
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+			return
+		}
+		err = json.NewEncoder(w).Encode(inputs)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+			return
+		}
+	} else {
+		input, ok, err := s.configStore.Get("inputs", id)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+			return
+		}
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{"input not found"}})
+			return
+		}
+		err = json.NewEncoder(w).Encode(input)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+			return
+		}
 	}
 }
 
@@ -33,15 +57,28 @@ func (s *Server) handleConfigInputsPost(w http.ResponseWriter, r *http.Request) 
 	}
 	defer r.Body.Close()
 	cfg := map[string]any{}
+	fmt.Println("body", string(body))
 	err = json.Unmarshal(body, &cfg)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
+		fmt.Println("err", err)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 	if cfg == nil {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"invalid input config"}})
+		return
+	}
+	inputType, ok := cfg["type"].(string)
+	if !ok {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"input type is required"}})
+		return
+	}
+	if !slices.Contains(inputs.InputTypes, inputType) {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{fmt.Sprintf("unknown input type: %q", inputType)}})
 		return
 	}
 	inputName, ok := cfg["name"].(string)
@@ -53,6 +90,19 @@ func (s *Server) handleConfigInputsPost(w http.ResponseWriter, r *http.Request) 
 	if inputName == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"input name is required"}})
+		return
+	}
+	initializer := inputs.Inputs[inputType]
+	if initializer == nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{fmt.Sprintf("unknown input type: %q", inputType)}})
+		return
+	}
+	impl := initializer()
+	err = impl.Validate(cfg)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
 	// validate event processors exist

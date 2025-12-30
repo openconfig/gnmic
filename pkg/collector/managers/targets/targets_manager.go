@@ -783,7 +783,6 @@ func (tm *TargetsManager) GetIntendedState(name string) string {
 }
 
 func (tm *TargetsManager) startTargetSubscription(mt *ManagedTarget, cfg *types.SubscriptionConfig) error {
-	tm.logger.Info("starting target subscription", "name", cfg.Name, "target", mt.Name)
 	var defaultEncoding = "json"
 	defaultEncodingVal, exists, err := tm.store.Get("globalConfig", "defaultEncoding")
 	if err != nil {

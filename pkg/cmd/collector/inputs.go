@@ -73,10 +73,6 @@ func newCollectorInputsListCmd(gApp *app.App) *cobra.Command {
 				return err
 			}
 
-			// if len(outputsResponse) == 0 {
-			// 	fmt.Println("No outputs found")
-			// 	return nil
-			// }
 			inputs := make([]map[string]interface{}, 0)
 			for name, input := range inputsResponse {
 				switch input := input.(type) {
@@ -148,7 +144,7 @@ func newCollectorInputsGetCmd(gApp *app.App) *cobra.Command {
 			}
 
 			// Parse the response as a map
-			input := make(map[string]interface{})
+			input := make(map[string]any)
 			err = json.Unmarshal(tb, &input)
 			if err != nil {
 				return err
@@ -280,7 +276,6 @@ func newCollectorInputsDeleteCmd(gApp *app.App) *cobra.Command {
 // tableFormatOutputVertical formats a single output as vertical table (key-value pairs)
 func tableFormatInputVertical(input map[string]any) [][]string {
 	data := make([][]string, 0)
-
 	// Sort keys for consistent output
 	keys := make([]string, 0, len(input))
 	for k := range input {

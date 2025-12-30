@@ -65,19 +65,21 @@ func NewOutputsManager(ctx context.Context, store store.Store[any], pipe <-chan 
 	}
 }
 
-func (om *OutputsManager) Start(cache cache.Cache, wg *sync.WaitGroup) error {
-	om.logger = logging.NewLogger(om.store, "component", "outputs-manager")
-	om.logger.Info("starting outputs manager")
-	om.cache = cache
+func (mgr *OutputsManager) Start(cache cache.Cache, wg *sync.WaitGroup) error {
+	mgr.logger = logging.NewLogger(mgr.store, "component", "outputs-manager")
+	mgr.logger.Info("starting outputs manager")
+	mgr.cache = cache
 	// register metrics
-	om.registerMetrics()
+	mgr.registerMetrics()
 	// watch outputs config changes
-	outputCh, outputsCancel, err := om.store.Watch("outputs", store.WithInitialReplay[any]())
+	outputCh, outputsCancel, err := mgr.store.Watch("outputs",
+		store.WithInitialReplay[any]())
 	if err != nil {
 		return err
 	}
-	// watch processors config changes
-	procsCh, processorsCancel, err := om.store.Watch("processors", store.WithInitialReplay[any]())
+	// watch processors config changes (update only)
+	procsCh, processorsCancel, err := mgr.store.Watch("processors",
+		store.WithEventTypes[any](store.EventTypeUpdate))
 	if err != nil {
 		return err
 	}
@@ -85,7 +87,7 @@ func (om *OutputsManager) Start(cache cache.Cache, wg *sync.WaitGroup) error {
 	wg.Add(1)
 	// forward incoming events to all running outputs
 	// that are in the list of outputs to write to.
-	go om.writeLoop(wg)
+	go mgr.writeLoop(wg)
 
 	wg.Add(1)
 	go func() {
@@ -94,39 +96,39 @@ func (om *OutputsManager) Start(cache cache.Cache, wg *sync.WaitGroup) error {
 		defer processorsCancel()
 		for {
 			select {
-			case <-om.ctx.Done():
+			case <-mgr.ctx.Done():
 				return
 			case ev, ok := <-outputCh:
 				if !ok {
 					return
 				}
-				om.logger.Info("got output event", "event", ev)
+				mgr.logger.Info("got output event", "event", ev)
 				cfg, ok := ev.Object.(map[string]any)
 				if !ok {
-					om.logger.Error("invalid output config", "event", ev)
+					mgr.logger.Error("invalid output config", "event", ev)
 					continue
 				}
 				switch ev.EventType {
 				case store.EventTypeCreate:
-					om.createOutput(ev.Name, cfg)
+					mgr.createOutput(ev.Name, cfg)
 				case store.EventTypeUpdate:
-					om.updateOutput(ev.Name, cfg)
+					mgr.updateOutput(ev.Name, cfg)
 				case store.EventTypeDelete:
-					om.DeleteOutput(ev.Name)
+					mgr.DeleteOutput(ev.Name)
 				}
 			case ev, ok := <-procsCh:
 				if !ok {
 					return
 				}
-				om.logger.Info("got processor event", "event", ev)
-				cfg := ev.Object.(map[string]any)
+				mgr.logger.Info("got processor event", "event", ev)
+				cfg, ok := ev.Object.(map[string]any)
+				if !ok {
+					mgr.logger.Error("invalid processor config", "event", ev)
+					continue
+				}
 				switch ev.EventType {
-				case store.EventTypeCreate:
-					om.addProcessor(ev.Name, cfg)
 				case store.EventTypeUpdate:
-					om.updateProcessor(ev.Name, cfg)
-				case store.EventTypeDelete:
-					om.deleteProcessor(ev.Name)
+					mgr.updateProcessor(ev.Name, cfg)
 				}
 			}
 		}
@@ -135,53 +137,55 @@ func (om *OutputsManager) Start(cache cache.Cache, wg *sync.WaitGroup) error {
 	return nil
 }
 
-func (om *OutputsManager) writeLoop(wg *sync.WaitGroup) {
+func (mgr *OutputsManager) writeLoop(wg *sync.WaitGroup) {
 	defer wg.Done()
 	for {
 		select {
-		case <-om.ctx.Done():
+		case <-mgr.ctx.Done():
 			return
-		case e, ok := <-om.in:
+		case e, ok := <-mgr.in:
 			if !ok {
-				om.logger.Debug("pipeline channel closed")
+				mgr.logger.Debug("pipeline channel closed")
 				return
 			}
-			om.logger.Info("got pipeline message", "message", e) // Debug
-			go om.write(e)
-			if om.cache != nil {
-				go om.cache.Write(om.ctx, e.Meta["subscription-name"], e.Msg)
+			mgr.logger.Debug("got pipeline message", "message", e) // Debug
+			go mgr.write(e)
+			if mgr.cache != nil {
+				go mgr.cache.Write(mgr.ctx, e.Meta["subscription-name"], e.Msg)
 			}
 		}
 	}
 }
 
-func (om *OutputsManager) write(e *pipeline.Msg) {
-	outs := om.getOutputsForTarget(e.Outputs)
-	om.logger.Info("writing msg to outputs", "outputs", outs) // Debug
+func (mgr *OutputsManager) write(e *pipeline.Msg) {
+	outs := mgr.getOutputsForTarget(e.Outputs)
+	outsNames := make([]string, 0, len(outs))
+	if mgr.logger.Enabled(mgr.ctx, slog.LevelDebug) {
+		for _, o := range outs {
+			outsNames = append(outsNames, o.Name)
+		}
+		mgr.logger.Debug("writing msg to outputs", "outputs", outsNames)
+	}
 	for _, mo := range outs {
-		om.stats.msgCount.WithLabelValues(mo.Name).Inc()
+		mgr.stats.msgCount.WithLabelValues(mo.Name).Inc()
 		if len(e.Events) > 0 { // from inputs
 			for _, ev := range e.Events {
-				mo.Impl.WriteEvent(om.ctx, ev)
+				mo.Impl.WriteEvent(mgr.ctx, ev)
 			}
 		} else {
 			// from targets or inputs
-			mo.Impl.Write(om.ctx, e.Msg, e.Meta)
+			mo.Impl.Write(mgr.ctx, e.Msg, e.Meta)
 		}
 	}
 }
 
-func (om *OutputsManager) addProcessor(name string, cfg map[string]any) {
-	// noop
-}
-
-func (om *OutputsManager) updateProcessor(name string, cfg map[string]any) {
-	om.mu.Lock()
-	defer om.mu.Unlock()
-	for _, mo := range om.outputs {
+func (mgr *OutputsManager) updateProcessor(name string, cfg map[string]any) {
+	mgr.mu.Lock()
+	defer mgr.mu.Unlock()
+	for _, mo := range mgr.outputs {
 		err := mo.updateProcessor(name, cfg)
 		if err != nil {
-			om.logger.Error("failed to update event processor for output", "processorName", name, "outputName", mo.Name, "error", err)
+			mgr.logger.Error("failed to update event processor for output", "processorName", name, "outputName", mo.Name, "error", err)
 		}
 	}
 }
@@ -192,17 +196,13 @@ func (mo *ManagedOutput) updateProcessor(name string, cfg map[string]any) error 
 	return mo.Impl.UpdateProcessor(name, cfg)
 }
 
-func (om *OutputsManager) deleteProcessor(name string) {
-	// noop
-}
-
-func (om *OutputsManager) getOutputsForTarget(outputs map[string]struct{}) []*ManagedOutput {
-	om.mu.RLock()
-	defer om.mu.RUnlock()
+func (mgr *OutputsManager) getOutputsForTarget(outputs map[string]struct{}) []*ManagedOutput {
+	mgr.mu.RLock()
+	defer mgr.mu.RUnlock()
 	// all outputs
 	if len(outputs) == 0 {
-		outs := make([]*ManagedOutput, 0, len(om.outputs))
-		for _, mo := range om.outputs {
+		outs := make([]*ManagedOutput, 0, len(mgr.outputs))
+		for _, mo := range mgr.outputs {
 			if mo.State.Load() == "running" {
 				outs = append(outs, mo)
 			}
@@ -211,7 +211,7 @@ func (om *OutputsManager) getOutputsForTarget(outputs map[string]struct{}) []*Ma
 	}
 	// specific outputs per target
 	outs := make([]*ManagedOutput, 0, len(outputs))
-	for name, mo := range om.outputs {
+	for name, mo := range mgr.outputs {
 		if _, ok := outputs[name]; !ok || mo.State.Load() != "running" {
 			continue
 		}
@@ -220,11 +220,11 @@ func (om *OutputsManager) getOutputsForTarget(outputs map[string]struct{}) []*Ma
 	return outs
 }
 
-func (om *OutputsManager) createOutput(name string, cfg map[string]any) {
+func (mgr *OutputsManager) createOutput(name string, cfg map[string]any) {
 	typ, _ := cfg["type"].(string)
-	f := om.OutputsFactory[typ]
+	f := mgr.OutputsFactory[typ]
 	if f == nil {
-		om.logger.Error("unknown output type", "name", name, "type", typ)
+		mgr.logger.Error("unknown output type", "name", name, "type", typ)
 		return
 	}
 	impl := f()
@@ -232,13 +232,13 @@ func (om *OutputsManager) createOutput(name string, cfg map[string]any) {
 	opts := make([]outputs.Option, 0, 2)
 	opts = append(opts,
 		outputs.WithName(name),
-		outputs.WithConfigStore(om.store),
+		outputs.WithConfigStore(mgr.store),
 		outputs.WithLogger(log.New(os.Stdout, "", log.LstdFlags)), // temporary logger
 	)
 
-	clustering, ok, err := om.store.Get("global", "clustering")
+	clustering, ok, err := mgr.store.Get("global", "clustering")
 	if err != nil {
-		om.logger.Error("failed to get clustering for output", "name", name, "error", err)
+		mgr.logger.Error("failed to get clustering for output", "name", name, "error", err)
 		return
 	}
 	if ok {
@@ -248,96 +248,96 @@ func (om *OutputsManager) createOutput(name string, cfg map[string]any) {
 		}
 	}
 
-	err = impl.Init(om.ctx, name, cfg, opts...)
+	err = impl.Init(mgr.ctx, name, cfg, opts...)
 	if err != nil {
-		om.logger.Error("failed to init output", "name", name, "error", err)
+		mgr.logger.Error("failed to init output", "name", name, "error", err)
 		return
 	}
 	procs := extractProcessors(cfg)
 	mo := &ManagedOutput{Name: name, Impl: impl, Cfg: cfg}
 	mo.State.Store("running")
-	om.mu.Lock()
-	om.trackProcessorsInUse(name, procs)
-	om.outputs[name] = mo
-	om.mu.Unlock()
+	mgr.mu.Lock()
+	mgr.trackProcessorsInUse(name, procs)
+	mgr.outputs[name] = mo
+	mgr.mu.Unlock()
 }
 
-func (om *OutputsManager) updateOutput(name string, cfg map[string]any) {
-	om.mu.Lock()
-	defer om.mu.Unlock()
-	mo, ok := om.outputs[name]
+func (mgr *OutputsManager) updateOutput(name string, cfg map[string]any) {
+	mgr.mu.Lock()
+	defer mgr.mu.Unlock()
+	mo, ok := mgr.outputs[name]
 	if !ok {
-		om.createOutput(name, cfg)
+		mgr.createOutput(name, cfg)
 		return
 	}
 
-	om.logger.Info("updating output", "name", name, "cfg", cfg)
+	mgr.logger.Info("updating output", "name", name, "cfg", cfg)
 	mo.Lock()
 	defer mo.Unlock()
-	err := mo.Impl.Update(om.ctx, cfg)
+	err := mo.Impl.Update(mgr.ctx, cfg)
 	if err != nil {
-		om.logger.Error("failed to update output", "name", name, "error", err)
+		mgr.logger.Error("failed to update output", "name", name, "error", err)
 		return
 	}
 	oldProcs := extractProcessors(mo.Cfg)
 	newProcs := extractProcessors(cfg)
-	om.logger.Info("tracking output processors in use", "name", name, "oldProcs", oldProcs, "newProcs", newProcs)
-	om.untrackProcessorsInUse(name, oldProcs)
-	om.trackProcessorsInUse(name, newProcs)
-	om.logger.Info("updated output", "name", name, "cfg", cfg)
+	mgr.logger.Info("tracking output processors in use", "name", name, "oldProcs", oldProcs, "newProcs", newProcs)
+	mgr.untrackProcessorsInUse(name, oldProcs)
+	mgr.trackProcessorsInUse(name, newProcs)
+	mgr.logger.Info("updated output", "name", name, "cfg", cfg)
 	mo.Cfg = cfg
-	om.outputs[name] = mo
+	mgr.outputs[name] = mo
 }
 
-func (om *OutputsManager) StopOutput(name string) error {
-	om.mu.Lock()
-	defer om.mu.Unlock()
-	om.logger.Info("finding output", "name", name)
-	if mo, ok := om.outputs[name]; ok {
-		om.logger.Info("stopping output", "name", name)
+func (mgr *OutputsManager) StopOutput(name string) error {
+	mgr.mu.Lock()
+	defer mgr.mu.Unlock()
+	mgr.logger.Info("finding output", "name", name)
+	if mo, ok := mgr.outputs[name]; ok {
+		mgr.logger.Info("stopping output", "name", name)
 		mo.State.Store("stopping")
 		err := mo.Impl.Close()
 		if err != nil {
-			om.logger.Error("failed to close output", "name", name, "error", err)
+			mgr.logger.Error("failed to close output", "name", name, "error", err)
 			return fmt.Errorf("failed to close output: %w", err)
 		}
 		procs := extractProcessors(mo.Cfg)
-		om.untrackProcessorsInUse(name, procs)
+		mgr.untrackProcessorsInUse(name, procs)
 		mo.State.Store("stopped")
-		delete(om.outputs, name)
+		delete(mgr.outputs, name)
 	}
 	return nil
 }
 
-func (om *OutputsManager) DeleteOutput(name string) error {
-	om.mu.Lock()
-	defer om.mu.Unlock()
-	om.logger.Info("deleting output", "name", name)
-	if mo, ok := om.outputs[name]; ok {
-		om.logger.Info("stopping output", "name", name)
+func (mgr *OutputsManager) DeleteOutput(name string) error {
+	mgr.mu.Lock()
+	defer mgr.mu.Unlock()
+	mgr.logger.Info("deleting output", "name", name)
+	if mo, ok := mgr.outputs[name]; ok {
+		mgr.logger.Info("stopping output", "name", name)
 		mo.State.Store("stopping")
 		err := mo.Impl.Close()
 		if err != nil {
-			om.logger.Error("failed to close output", "name", name, "error", err)
+			mgr.logger.Error("failed to close output", "name", name, "error", err)
 			return fmt.Errorf("failed to close output: %w", err)
 		}
 		procs := extractProcessors(mo.Cfg)
-		om.untrackProcessorsInUse(name, procs)
+		mgr.untrackProcessorsInUse(name, procs)
 		mo.State.Store("stopped")
-		delete(om.outputs, name)
-		om.store.Delete("outputs", name)
+		delete(mgr.outputs, name)
+		mgr.store.Delete("outputs", name)
 	}
 	return nil
 }
 
-func (om *OutputsManager) Stop() {
-	om.mu.Lock()
-	defer om.mu.Unlock()
-	for _, mo := range om.outputs {
+func (mgr *OutputsManager) Stop() {
+	mgr.mu.Lock()
+	defer mgr.mu.Unlock()
+	for _, mo := range mgr.outputs {
 		mo.State.Store("stopped")
 		err := mo.Impl.Close()
 		if err != nil {
-			om.logger.Error("failed to stop output", "name", mo.Name, "error", err)
+			mgr.logger.Error("failed to stop output", "name", mo.Name, "error", err)
 		}
 	}
 }
@@ -359,16 +359,16 @@ func newOutputStats() *outputStats {
 	}
 }
 
-func (om *OutputsManager) registerMetrics() {
-	if om.reg == nil {
+func (mgr *OutputsManager) registerMetrics() {
+	if mgr.reg == nil {
 		return
 	}
-	om.reg.MustRegister(om.stats.msgCount)
-	om.reg.MustRegister(om.stats.msgCountErr)
+	mgr.reg.MustRegister(mgr.stats.msgCount)
+	mgr.reg.MustRegister(mgr.stats.msgCountErr)
 }
 
-func (om *OutputsManager) WriteToCache(ctx context.Context, msg *pipeline.Msg) {
-	if om.cache == nil {
+func (mgr *OutputsManager) WriteToCache(ctx context.Context, msg *pipeline.Msg) {
+	if mgr.cache == nil {
 		return
 	}
 	if msg.Msg == nil {
@@ -381,7 +381,7 @@ func (om *OutputsManager) WriteToCache(ctx context.Context, msg *pipeline.Msg) {
 			subName = "default"
 		}
 		targetName := utils.GetHost(msg.Meta["source"])
-		om.cache.Write(ctx, subName, addTargetToMsg(msg.Msg, targetName))
+		mgr.cache.Write(ctx, subName, addTargetToMsg(msg.Msg, targetName))
 	}
 }
 
@@ -420,56 +420,30 @@ func extractProcessors(cfg map[string]any) []string {
 	return nil
 }
 
-func (om *OutputsManager) trackProcessorsInUse(out string, procs []string) {
+func (mgr *OutputsManager) trackProcessorsInUse(out string, procs []string) {
 	for _, p := range procs {
-		if om.processorsInUse[p] == nil {
-			om.processorsInUse[p] = make(map[string]struct{})
+		if mgr.processorsInUse[p] == nil {
+			mgr.processorsInUse[p] = make(map[string]struct{})
 		}
-		om.processorsInUse[p][out] = struct{}{}
+		mgr.processorsInUse[p][out] = struct{}{}
 	}
 }
 
-func (om *OutputsManager) untrackProcessorsInUse(out string, procs []string) {
+func (mgr *OutputsManager) untrackProcessorsInUse(out string, procs []string) {
 	for _, p := range procs {
-		if users, ok := om.processorsInUse[p]; ok {
+		if users, ok := mgr.processorsInUse[p]; ok {
 			delete(users, out)
 			if len(users) == 0 {
-				delete(om.processorsInUse, p)
+				delete(mgr.processorsInUse, p)
 			}
 		}
 	}
 }
 
-// func (om *OutputsManager) DeleteProcessor(name string) error {
-// 	om.mu.Lock()
-// 	defer om.mu.Unlock()
-
-// 	// check whether the processor is used by any output
-// 	users := om.processorsInUse[name]
-// 	if len(users) > 0 {
-// 		outputsNames := make([]string, 0, len(users))
-// 		for out := range users {
-// 			outputsNames = append(outputsNames, out)
-// 		}
-// 		return fmt.Errorf("processor is in use by outputs: %v", outputsNames)
-// 	}
-
-// 	delete(om.processorsInUse, name)
-// 	ok, _, err := om.store.Delete("processors", name)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	if !ok {
-// 		return fmt.Errorf("processor not found")
-// 	}
-// 	om.logger.Info("deleted processor", "name", name)
-// 	return nil
-// }
-
-func (om *OutputsManager) ProcessorInUse(name string) bool {
-	om.mu.RLock()
-	defer om.mu.RUnlock()
-	users, ok := om.processorsInUse[name]
+func (mgr *OutputsManager) ProcessorInUse(name string) bool {
+	mgr.mu.RLock()
+	defer mgr.mu.RUnlock()
+	users, ok := mgr.processorsInUse[name]
 	if !ok {
 		return false
 	}

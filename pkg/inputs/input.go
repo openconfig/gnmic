@@ -10,17 +10,30 @@ package inputs
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	"github.com/openconfig/gnmic/pkg/pipeline"
 	"github.com/openconfig/gnmic/pkg/store"
+	pkgutils "github.com/openconfig/gnmic/pkg/utils"
 	"google.golang.org/protobuf/proto"
 )
 
 type Input interface {
+	// Start initializes the input and starts it.
 	Start(context.Context, string, map[string]any, ...Option) error
+	// Validate validates the input configuration.
+	Validate(map[string]any) error
+	// Update updates the input configuration in place for
+	// a running input.
+	Update(map[string]any) error
+	// UpdateProcessor updates the named processor configuration
+	// for a running input.
+	// if the processor is not used by the Input, it will be ignored.
+	UpdateProcessor(string, map[string]any) error
+	// Close stops the input.
 	Close() error
 }
 
@@ -97,6 +110,56 @@ func (b *BaseInput) Start(context.Context, string, map[string]any, ...Option) er
 	return nil
 }
 
+func (b *BaseInput) Validate(map[string]any) error {
+	return nil
+}
+
+func (b *BaseInput) Update(map[string]any) error {
+	return nil
+}
+
+func (b *BaseInput) UpdateProcessor(string, map[string]any) error {
+	return nil
+}
+
 func (b *BaseInput) Close() error {
 	return nil
+}
+
+func UpdateProcessorInSlice(
+	logger *log.Logger,
+	storeObj store.Store[any],
+	eventProcessors []string,
+	currentEvps []formatters.EventProcessor,
+	processorName string,
+	pcfg map[string]any,
+) ([]formatters.EventProcessor, bool, error) {
+	tcs, ps, acts, err := pkgutils.GetConfigMaps(storeObj)
+	if err != nil {
+		return nil, false, err
+	}
+
+	for i, epName := range eventProcessors {
+		if epName == processorName {
+			ep, err := formatters.MakeProcessor(logger, processorName, pcfg, ps, tcs, acts)
+			if err != nil {
+				return nil, false, err
+			}
+
+			if i >= len(currentEvps) {
+				return nil, false, fmt.Errorf("output processors are not properly initialized")
+			}
+
+			// create new slice with updated processor
+			newEvps := make([]formatters.EventProcessor, len(currentEvps))
+			copy(newEvps, currentEvps)
+			newEvps[i] = ep
+
+			logger.Printf("updated event processor %s", processorName)
+			return newEvps, true, nil
+		}
+	}
+
+	// processor not found - return currentEvps
+	return currentEvps, false, nil
 }

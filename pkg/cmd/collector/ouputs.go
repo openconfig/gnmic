@@ -73,11 +73,6 @@ func newCollectorOutputsListCmd(gApp *app.App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-
-			// if len(outputsResponse) == 0 {
-			// 	fmt.Println("No outputs found")
-			// 	return nil
-			// }
 			outputs := make([]map[string]interface{}, 0)
 			for name, output := range outputsResponse {
 				switch output := output.(type) {
@@ -148,7 +143,7 @@ func newCollectorOutputsGetCmd(gApp *app.App) *cobra.Command {
 			}
 
 			// Parse the response as a map
-			output := make(map[string]interface{})
+			output := make(map[string]any)
 			err = json.Unmarshal(tb, &output)
 			if err != nil {
 				return err

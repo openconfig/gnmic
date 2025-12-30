@@ -2,6 +2,7 @@ _test/
 tests/clab-*
 tests/srl-*
 tests/.*clab.yaml
+tests/collector/suite/*/clab-*
 builds/
 dist
 *.log
@@ -9,3 +10,4 @@ gnmic
 *.tmp
 *.work*
 .idea
+tests/collector
