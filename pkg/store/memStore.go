@@ -25,16 +25,21 @@ type memStore[T any] struct {
 	// kind -> validation function
 	validationFns map[string]ValidationFunc[T]
 	// kind -> (watcherID -> chan)
-	watchers map[string]map[string]chan *Event[T]
+	watchers map[string]map[string]*watcher[T]
 	// compare func
 	compareFn CompareFunc[T]
 	closed    bool
 }
 
+type watcher[T any] struct {
+	ch         chan *Event[T]
+	eventTypes map[EventType]struct{}
+}
+
 func NewMemStore[T any](opt StoreOptions[T]) Store[T] {
 	ms := &memStore[T]{
 		kinds:         make(map[string]map[string]T),
-		watchers:      make(map[string]map[string]chan *Event[T]),
+		watchers:      make(map[string]map[string]*watcher[T]),
 		validationFns: make(map[string]ValidationFunc[T]),
 		compareFn:     opt.compareFn,
 	}
@@ -52,7 +57,7 @@ func (s *memStore[T]) ensureKind(kind string) {
 		s.kinds[kind] = make(map[string]T)
 	}
 	if _, ok := s.watchers[kind]; !ok {
-		s.watchers[kind] = make(map[string]chan *Event[T])
+		s.watchers[kind] = make(map[string]*watcher[T])
 	}
 }
 
@@ -154,7 +159,7 @@ func (s *memStore[T]) Set(kind, key string, value T) (bool, error) {
 	}
 
 	// copy watchers then unlock
-	wchs := make([]chan *Event[T], 0, len(s.watchers[kind]))
+	wchs := make([]*watcher[T], 0, len(s.watchers[kind]))
 	for _, ch := range s.watchers[kind] {
 		wchs = append(wchs, ch)
 	}
@@ -165,11 +170,17 @@ func (s *memStore[T]) Set(kind, key string, value T) (bool, error) {
 		evType = EventTypeCreate
 	}
 	ev := &Event[T]{Kind: kind, Name: key, EventType: evType, Object: value}
-	for _, ch := range wchs {
+	for _, wch := range wchs {
+		if wch.eventTypes != nil {
+			if _, ok := wch.eventTypes[evType]; !ok {
+				continue
+			}
+		}
 		select {
-		case ch <- ev:
+		case wch.ch <- ev:
 		default:
 		}
+
 	}
 	return !existed, nil
 }
@@ -184,16 +195,21 @@ func (s *memStore[T]) SetAll(kind string, values map[string]T) error {
 	maps.Copy(s.kinds[kind], values)
 
 	// copy watchers then unlock
-	wchs := make([]chan *Event[T], 0, len(s.watchers[kind]))
-	for _, ch := range s.watchers[kind] {
-		wchs = append(wchs, ch)
+	wchs := make([]*watcher[T], 0, len(s.watchers[kind]))
+	for _, wch := range s.watchers[kind] {
+		wchs = append(wchs, wch)
 	}
 	s.mu.Unlock()
 
-	for _, ch := range wchs {
+	for _, wch := range wchs {
+		if wch.eventTypes != nil {
+			if _, ok := wch.eventTypes[EventTypeCreate]; !ok {
+				continue
+			}
+		}
 		for k, v := range values {
 			select {
-			case ch <- &Event[T]{Kind: kind, Name: k, EventType: EventTypeCreate, Object: v}:
+			case wch.ch <- &Event[T]{Kind: kind, Name: k, EventType: EventTypeCreate, Object: v}:
 			default: // no blocking
 			}
 		}
@@ -222,16 +238,21 @@ func (s *memStore[T]) Delete(kind, key string) (bool, T, error) {
 	}
 
 	// copy watchers then unlock
-	wchs := make([]chan *Event[T], 0, len(s.watchers[kind]))
+	wchs := make([]*watcher[T], 0, len(s.watchers[kind]))
 	for _, ch := range s.watchers[kind] {
 		wchs = append(wchs, ch)
 	}
 	s.mu.Unlock()
 
 	ev := &Event[T]{Kind: kind, Name: key, EventType: EventTypeDelete, Object: prev}
-	for _, ch := range wchs {
+	for _, wch := range wchs {
+		if wch.eventTypes != nil {
+			if _, ok := wch.eventTypes[EventTypeDelete]; !ok {
+				continue
+			}
+		}
 		select {
-		case ch <- ev:
+		case wch.ch <- ev:
 		default:
 		}
 	}
@@ -259,7 +280,7 @@ func (s *memStore[T]) SetFn(kind, key string, fn func(v T) (T, error)) (bool, er
 	// update value
 	s.kinds[kind][key] = value
 	// copy watchers then unlock
-	wchs := make([]chan *Event[T], 0, len(s.watchers[kind]))
+	wchs := make([]*watcher[T], 0, len(s.watchers[kind]))
 	for _, ch := range s.watchers[kind] {
 		wchs = append(wchs, ch)
 	}
@@ -275,9 +296,14 @@ func (s *memStore[T]) SetFn(kind, key string, fn func(v T) (T, error)) (bool, er
 		EventType: evType,
 		Object:    value,
 	}
-	for _, ch := range wchs {
+	for _, wch := range wchs {
+		if wch.eventTypes != nil {
+			if _, ok := wch.eventTypes[evType]; !ok {
+				continue
+			}
+		}
 		select {
-		case ch <- ev:
+		case wch.ch <- ev:
 		default: // no blocking
 		}
 	}
@@ -301,8 +327,11 @@ func (s *memStore[T]) Watch(kind string, opts ...WatchOption[T]) (<-chan *Event[
 	s.ensureKind(kind)
 
 	id := uuid.NewString()
-	ch := make(chan *Event[T], 128) // buffered
-	s.watchers[kind][id] = ch
+	wch := &watcher[T]{
+		ch:         make(chan *Event[T], 128), // buffered, TODO: make it configurable ?
+		eventTypes: cfg.eventTypes,
+	}
+	s.watchers[kind][id] = wch
 
 	// capture snapshot for optional initial replay
 	var snap map[string]T
@@ -315,21 +344,25 @@ func (s *memStore[T]) Watch(kind string, opts ...WatchOption[T]) (<-chan *Event[
 	doneCh := make(chan struct{})
 	// send initial snapshot
 	if cfg.initial && len(snap) > 0 {
-		go func(m map[string]T) {
-			for k, v := range m {
-				ev := &Event[T]{
-					Kind:      kind,
-					Name:      k,
-					EventType: EventTypeCreate,
-					Object:    v,
-				}
-				select {
-				case ch <- ev:
-				case <-doneCh:
-					return
-				}
+		if wch.eventTypes != nil {
+			if _, ok := wch.eventTypes[EventTypeCreate]; ok {
+				go func(m map[string]T) {
+					for k, v := range m {
+						ev := &Event[T]{
+							Kind:      kind,
+							Name:      k,
+							EventType: EventTypeCreate,
+							Object:    v,
+						}
+						select {
+						case wch.ch <- ev:
+						case <-doneCh:
+							return
+						}
+					}
+				}(snap)
 			}
-		}(snap)
+		}
 	}
 
 	// build cancel function
@@ -337,14 +370,14 @@ func (s *memStore[T]) Watch(kind string, opts ...WatchOption[T]) (<-chan *Event[
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		if w, ok := s.watchers[kind]; ok {
-			if c, ok := w[id]; ok {
+			if wch, ok := w[id]; ok {
 				delete(w, id)
 				close(doneCh)
-				close(c)
+				close(wch.ch)
 			}
 		}
 	}
-	return ch, cancel, nil
+	return wch.ch, cancel, nil
 }
 
 func (s *memStore[T]) Close() error {
@@ -355,9 +388,9 @@ func (s *memStore[T]) Close() error {
 	}
 	s.closed = true
 	for _, m := range s.watchers {
-		for id, ch := range m {
+		for id, wch := range m {
 			delete(m, id)
-			close(ch)
+			close(wch.ch)
 		}
 	}
 	return nil

@@ -57,12 +57,26 @@ const (
 type WatchOption[T any] func(*watchCfg[T])
 
 type watchCfg[T any] struct {
-	initial bool // send current keys as create events immediately
+	// send current keys as create events immediately
+	initial bool
+	// only send events of the specified types
+	eventTypes map[EventType]struct{}
 }
 
 func WithInitialReplay[T any]() WatchOption[T] {
 	return func(w *watchCfg[T]) {
 		w.initial = true
+	}
+}
+
+func WithEventTypes[T any](eventTypes ...EventType) WatchOption[T] {
+	return func(w *watchCfg[T]) {
+		if w.eventTypes == nil {
+			w.eventTypes = make(map[EventType]struct{})
+		}
+		for _, eventType := range eventTypes {
+			w.eventTypes[eventType] = struct{}{}
+		}
 	}
 }
 
