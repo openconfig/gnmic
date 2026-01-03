@@ -43,6 +43,7 @@ func (s *Server) clusterRoutes(r *mux.Router) {
 
 func (s *Server) configRoutes(r *mux.Router) {
 	r.HandleFunc("/config", s.handleConfig).Methods(http.MethodGet)
+	r.HandleFunc("/config/apply", s.handleConfigApply).Methods(http.MethodPost)
 	r.HandleFunc("/config/targets", s.handleConfigTargetsGet).Methods(http.MethodGet)
 	r.HandleFunc("/config/targets/{id}", s.handleConfigTargetsGet).Methods(http.MethodGet)
 	r.HandleFunc("/config/targets", s.handleConfigTargetsPost).Methods(http.MethodPost)

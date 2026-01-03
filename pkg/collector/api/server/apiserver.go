@@ -34,6 +34,8 @@ type Server struct {
 	srv            *http.Server
 	logger         *slog.Logger
 	reg            *prometheus.Registry
+
+	applyLock *sync.Mutex
 }
 
 func NewServer(
@@ -52,6 +54,7 @@ func NewServer(
 		inputsManager:  inputsManager,
 		clusterManager: clusterManager,
 		reg:            reg,
+		applyLock:      new(sync.Mutex),
 	}
 	s.routes()
 	s.registerMetrics()
@@ -97,6 +100,7 @@ func (s *Server) Start(locker lockers.Locker, wg *sync.WaitGroup) error {
 	s.srv = &http.Server{
 		Addr:    apiCfg.Address,
 		Handler: s.router,
+		// TODO: add timeouts
 		// ReadTimeout:  apiCfg.Timeout / 2,
 		// WriteTimeout: apiCfg.Timeout / 2,
 		// IdleTimeout:  apiCfg.Timeout / 2,
