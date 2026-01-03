@@ -7,6 +7,7 @@ import (
 	"hash/fnv"
 	"log"
 	"log/slog"
+	"maps"
 	"net"
 	"os"
 	"reflect"
@@ -811,6 +812,10 @@ func (tm *TargetsManager) startTargetSubscription(mt *ManagedTarget, cfg *types.
 	mt.readersCfn[cfg.Name] = cfn
 	mt.mu.Unlock()
 
+	subscriptionOutputs := make(map[string]struct{}, len(cfg.Outputs))
+	for _, output := range cfg.Outputs {
+		subscriptionOutputs[output] = struct{}{}
+	}
 	respCh, errCh := mt.T.SubscribeChan(sctx, subreq, cfg.Name)
 	go func() {
 		defer mt.readerWG.Done()
@@ -825,6 +830,11 @@ func (tm *TargetsManager) startTargetSubscription(mt *ManagedTarget, cfg *types.
 				}
 				tm.stats.subscribeResponseReceived.WithLabelValues(mt.Name, resp.SubscriptionName).Inc()
 				outs := func() map[string]struct{} {
+					if len(subscriptionOutputs) > 0 {
+						cp := make(map[string]struct{}, len(subscriptionOutputs))
+						maps.Copy(cp, subscriptionOutputs)
+						return cp
+					}
 					mt.RLock()
 					defer mt.RUnlock()
 					cp := make(map[string]struct{}, len(mt.outputs))
