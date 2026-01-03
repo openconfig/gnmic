@@ -22,6 +22,7 @@ import (
 	"io"
 	"math/big"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 )
@@ -205,13 +206,43 @@ func readFromStdin(ctx context.Context) ([]byte, error) {
 
 // LoadCACertificates reads PEM-encoded CA certificates from a file and adds them to a CertPool.
 // It returns the CertPool and any error encountered.
-func LoadCACertificates(filePath string) (*x509.CertPool, error) {
+func LoadCACertificates(caPath string) (*x509.CertPool, error) {
+	st, err := os.Stat(caPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to stat the cert file: %s: %w", caPath, err)
+	}
+	if st.IsDir() {
+		files, err := os.ReadDir(caPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read the cert directory: %s: %w", caPath, err)
+		}
+		certPool := x509.NewCertPool()
+
+		for _, file := range files {
+			if file.IsDir() {
+				continue
+			}
+			err = loadCACertificatesToPool(filepath.Join(caPath, file.Name()), certPool)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load the cert file: %s: %w", filepath.Join(caPath, file.Name()), err)
+			}
+		}
+		return certPool, nil
+	}
+	// caPath is a single cert file
+	certPool := x509.NewCertPool()
+	err = loadCACertificatesToPool(caPath, certPool)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load the cert file: %s: %w", caPath, err)
+	}
+	return certPool, nil
+}
+
+func loadCACertificatesToPool(filePath string, certPool *x509.CertPool) error {
 	certPEMBlock, err := os.ReadFile(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read the cert file: %s: %w", filePath, err)
+		return fmt.Errorf("failed to read the cert file: %s: %w", filePath, err)
 	}
-
-	certPool := x509.NewCertPool()
 
 	for {
 		block, rest := pem.Decode(certPEMBlock)
@@ -222,14 +253,13 @@ func LoadCACertificates(filePath string) (*x509.CertPool, error) {
 
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse certificate: %w", err)
+			return fmt.Errorf("failed to parse certificate: %w", err)
 		}
 
 		if !cert.IsCA {
-			return nil, fmt.Errorf("file %s contains a certificate that is not a CA", filePath)
+			return fmt.Errorf("file %s contains a certificate that is not a CA", filePath)
 		}
 		certPool.AddCert(cert)
 	}
-
-	return certPool, nil
+	return nil
 }
