@@ -207,10 +207,9 @@ func (t *Target) attemptSubscription(ctx context.Context, req *gnmi.SubscribeReq
 	subscribeClient, err := t.Client.Subscribe(nctx, t.callOpts()...)
 	if err != nil {
 		// check if cancellation was intentional
-		if isCancellationError(err, nctx) {
+		if isCancellationError(err) {
 			return false
 		}
-
 		sendError(errCh, ctx, subscriptionName,
 			fmt.Errorf("failed to create subscribe client, target='%s', retry in %s: %w",
 				t.Config.Name, t.Config.RetryTimer, err))
@@ -260,7 +259,7 @@ func (t *Target) handleSTREAMMode(nctx, ctx context.Context, client gnmi.GNMI_Su
 
 	err := t.handleStreamSubscriptionRcv(nctx, client, subscriptionName, subConfig, responseCh)
 	if err != nil {
-		if isCancellationError(err, nctx) {
+		if isCancellationError(err) {
 			return false
 		}
 
@@ -278,7 +277,7 @@ func (t *Target) handleONCEMode(nctx, ctx context.Context, client gnmi.GNMI_Subs
 
 	err := t.handleONCESubscriptionRcv(nctx, client, subscriptionName, subConfig, responseCh)
 	if err != nil {
-		if isCancellationError(err, nctx) {
+		if isCancellationError(err) {
 			return false
 		}
 
@@ -311,7 +310,7 @@ func (t *Target) handlePOLLMode(nctx, ctx context.Context, client gnmi.GNMI_Subs
 
 	err := t.handlePollSubscriptionRcv(nctx, client, subscriptionName, subConfig, responseCh)
 	if err != nil {
-		if isCancellationError(err, nctx) {
+		if isCancellationError(err) {
 			return false
 		}
 
@@ -324,13 +323,12 @@ func (t *Target) handlePOLLMode(nctx, ctx context.Context, client gnmi.GNMI_Subs
 }
 
 // check if error is due to intentional cancellation
-func isCancellationError(err error, nctx context.Context) bool {
+func isCancellationError(err error) bool {
 	if errors.Is(err, context.Canceled) {
 		return true
 	}
-
 	st, ok := status.FromError(err)
-	return ok && st.Code() == codes.Canceled && nctx.Err() != nil
+	return ok && st.Code() == codes.Canceled
 }
 
 // send error to channel with context awareness
