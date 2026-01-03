@@ -476,6 +476,30 @@ func (p *prometheusOutput) Update(ctx context.Context, cfg map[string]any) error
 	return nil
 }
 
+func (p *prometheusOutput) UpdateProcessor(name string, pcfg map[string]any) error {
+	cfg := p.cfg.Load()
+	dc := p.dynCfg.Load()
+
+	newEvps, changed, err := outputs.UpdateProcessorInSlice(
+		p.logger,
+		p.store,
+		cfg.EventProcessors,
+		dc.evps,
+		name,
+		pcfg,
+	)
+	if err != nil {
+		return err
+	}
+	if changed {
+		newDC := *dc
+		newDC.evps = newEvps
+		p.dynCfg.Store(&newDC)
+		p.logger.Printf("updated event processor %s", name)
+	}
+	return nil
+}
+
 func (p *prometheusOutput) needHTTPRebuild(old, new *config) bool {
 	if p.server == nil || old == nil || new == nil {
 		return true
