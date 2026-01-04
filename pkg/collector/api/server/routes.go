@@ -72,6 +72,11 @@ func (s *Server) configRoutes(r *mux.Router) {
 	r.HandleFunc("/config/processors", s.handleConfigProcessorsPost).Methods(http.MethodPost)
 	r.HandleFunc("/config/processors/{id}", s.handleConfigProcessorsGet).Methods(http.MethodGet)
 	r.HandleFunc("/config/processors/{id}", s.handleConfigProcessorsDelete).Methods(http.MethodDelete)
+	//
+	r.HandleFunc("/config/tunnel-target-matches", s.handleConfigTunnelTargetMatchesGet).Methods(http.MethodGet)
+	r.HandleFunc("/config/tunnel-target-matches", s.handleConfigTunnelTargetMatchesPost).Methods(http.MethodPost)
+	r.HandleFunc("/config/tunnel-target-matches/{id}", s.handleConfigTunnelTargetMatchesGet).Methods(http.MethodGet)
+	r.HandleFunc("/config/tunnel-target-matches/{id}", s.handleConfigTunnelTargetMatchesDelete).Methods(http.MethodDelete)
 }
 
 func (s *Server) targetRoutes(r *mux.Router) {

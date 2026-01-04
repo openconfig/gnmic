@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"net"
 	"regexp"
+	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
@@ -24,11 +24,17 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
+// smaller scoped config than the one used when loading the config from the file
+type tunnelServerConfig struct {
+	Address       string           `mapstructure:"address,omitempty" json:"address,omitempty"`
+	TLS           *types.TLSConfig `mapstructure:"tls,omitempty"`
+	EnableMetrics bool             `mapstructure:"enable-metrics,omitempty" json:"enable-metrics,omitempty"`
+	Debug         bool             `mapstructure:"debug,omitempty" json:"debug,omitempty"`
+}
+
 // TODO: watch tunnel server config and reconcile
 type tunnelServer struct {
-	// config lock
-	m      *sync.RWMutex
-	config *config.TunnelServer
+	config *tunnelServerConfig
 
 	grpcTunnelSrv *grpc.Server
 	tunServer     *tunnel.Server
@@ -39,13 +45,9 @@ type tunnelServer struct {
 
 func newTunnelServer(s store.Store[any], reg *prometheus.Registry) *tunnelServer {
 	ts := &tunnelServer{
-		m:             new(sync.RWMutex),
 		grpcTunnelSrv: grpc.NewServer(),
 		store:         s,
-		// ttm:           new(sync.RWMutex),
-		// tunTargets:    make(map[tunnel.Target]struct{}),
-		// tunTargetCfn:  make(map[tunnel.Target]context.CancelFunc),
-		reg: reg,
+		reg:           reg,
 	}
 
 	return ts
@@ -100,20 +102,23 @@ func (ts *tunnelServer) startTunnelServer(ctx context.Context) error {
 	}
 	logger := logging.NewLogger(ts.store, "component", "tunnel-server")
 	ts.logger = logger
-	var ok bool
-	ts.config, ok = tscfg.(*config.TunnelServer)
+	originalConfig, ok := tscfg.(*config.TunnelServer)
 	if !ok {
 		return fmt.Errorf("tunnel-server config is malfomatted")
 	}
-	if ts.config == nil {
-		return nil
+	ts.config = &tunnelServerConfig{
+		Address:       originalConfig.Address,
+		TLS:           originalConfig.TLS,
+		EnableMetrics: originalConfig.EnableMetrics,
+		Debug:         originalConfig.Debug,
 	}
+
 	ts.logger.Info("building tunnel server")
 	ts.tunServer, err = tunnel.NewServer(tunnel.ServerConfig{
-		AddTargetHandler:    ts.tunServerAddTargetSubscribeHandler,
-		DeleteTargetHandler: ts.tunServerDeleteTargetHandler,
-		RegisterHandler:     ts.tunServerRegisterHandler,
-		Handler:             ts.tunServerHandler,
+		AddTargetHandler:    ts.addTargetHandler,
+		DeleteTargetHandler: ts.deleteTargetHandler,
+		RegisterHandler:     ts.registerHandler,
+		Handler:             ts.serverHandler,
 	})
 	if err != nil {
 		return err
@@ -157,9 +162,10 @@ func (ts *tunnelServer) startTunnelServer(ctx context.Context) error {
 	return ctx.Err()
 }
 
-// handlers
+// Tunnel Server handlers
+
 // subscribe handler
-func (ts *tunnelServer) tunServerAddTargetSubscribeHandler(tt tunnel.Target) error {
+func (ts *tunnelServer) addTargetHandler(tt tunnel.Target) error {
 	ts.logger.Info("tunnel server target register request", "target", tt)
 	tc := ts.getTunnelTargetMatch(tt)
 	if tc == nil {
@@ -167,30 +173,16 @@ func (ts *tunnelServer) tunServerAddTargetSubscribeHandler(tt tunnel.Target) err
 		return nil
 	}
 	ts.logger.Info("target matched", "target", tc)
-	// ts.ttm.Lock()
-	// ts.tunTargets[tt] = struct{}{}
-	// ts.ttm.Unlock()
-	_, err := ts.store.Set("targets", tt.ID, tc)
+	_, err := ts.store.Set("targets", tc.Name, tc)
 	if err != nil {
 		return err
-	} // TODO: more ?
+	}
 	return nil
 }
 
 // delete handler
-func (ts *tunnelServer) tunServerDeleteTargetHandler(tt tunnel.Target) error {
+func (ts *tunnelServer) deleteTargetHandler(tt tunnel.Target) error {
 	ts.logger.Info("tunnel server target deregister request", "target", tt)
-	// ts.ttm.Lock()
-	// defer ts.ttm.Unlock()
-	// if cfn, ok := ts.tunTargetCfn[tt]; ok {
-	// 	cfn()
-	// 	delete(ts.tunTargetCfn, tt)
-	// 	delete(ts.tunTargets, tt)
-	// 	_, _, err := ts.store.Delete("targets", tt.ID)
-	// 	if err != nil {
-	// 		ts.logger.Error("failed to delete tunneltarget from configStore", "error", err)
-	// 	}
-	// }
 	_, _, err := ts.store.Delete("targets", tt.ID)
 	if err != nil {
 		ts.logger.Error("failed to delete tunneltarget from configStore", "error", err)
@@ -198,62 +190,73 @@ func (ts *tunnelServer) tunServerDeleteTargetHandler(tt tunnel.Target) error {
 	return nil
 }
 
-func (ts *tunnelServer) tunServerRegisterHandler(ss tunnel.ServerSession) error {
+func (ts *tunnelServer) registerHandler(ss tunnel.ServerSession) error {
 	return nil
 }
 
-func (ts *tunnelServer) tunServerHandler(ss tunnel.ServerSession, rwc io.ReadWriteCloser) error {
+func (ts *tunnelServer) serverHandler(ss tunnel.ServerSession, rwc io.ReadWriteCloser) error {
 	return nil
 }
 
 func (ts *tunnelServer) getTunnelTargetMatch(tt tunnel.Target) *types.TargetConfig {
-	ts.m.RLock()
-	defer ts.m.RUnlock()
+	matchingConfigs, err := ts.store.List("tunnel-target-matches", func(key string, value any) bool {
+		switch tm := value.(type) {
+		case *config.TunnelTargetMatch:
+			// check if the registering target matches corresponding ID
+			ok, err := regexp.MatchString(tm.ID, tt.ID)
+			if err != nil {
+				ts.logger.Error("regex eval failed with string", "error", err, "id", tm.ID, "target", tt.ID)
+				return false
+			}
+			if !ok {
+				return false
+			}
+			// check if the registering target matches corresponding type
+			ok, err = regexp.MatchString(tm.Type, tt.Type)
+			if err != nil {
+				ts.logger.Error("regex eval failed with string", "error", err, "type", tm.Type, "target", tt.Type)
+				return false
+			}
+			if !ok {
+				return false
+			}
+			// target has a match,
+			tc := new(types.TargetConfig)
+			*tc = tm.Config
+			tc.Name = tt.ID
+			tc.TunnelTargetType = tt.Type
+			err = config.SetTargetConfigDefaults(ts.store, tc)
+			if err != nil {
+				ts.logger.Error("failed to set target config defaults", "error", err, "id", tt.ID, "type", tt.Type)
+				return false
+			}
+		}
+		return false
+	})
+	if err != nil {
+		ts.logger.Error("failed to list tunnel target matches", "error", err)
+		return nil
+	}
+	if len(matchingConfigs) == 0 {
+		return nil
+	}
+	// get keys and sort them
+	keys := make([]string, 0, len(matchingConfigs))
+	for key := range matchingConfigs {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	// take the first match and set the target config defaults
+	mconfig := matchingConfigs[keys[0]].(*config.TunnelTargetMatch)
+	tc := new(types.TargetConfig)
+	*tc = mconfig.Config
+	tc.Name = tt.ID
+	tc.TunnelTargetType = tt.Type
+	err = config.SetTargetConfigDefaults(ts.store, tc)
+	if err != nil {
+		ts.logger.Error("failed to set target config defaults", "error", err, "id", tt.ID, "type", tt.Type)
+		return nil
+	}
 
-	if len(ts.config.Targets) == 0 {
-		if tt.Type != "GNMI_GNOI" {
-			return nil
-		}
-		tc := &types.TargetConfig{Name: tt.ID, TunnelTargetType: tt.Type}
-		err := config.SetTargetConfigDefaults(ts.store, tc)
-		if err != nil {
-			ts.logger.Error("failed to set target %q config defaults", "error", err)
-			return nil
-		}
-		tc.Address = tc.Name
-		return tc
-	}
-	for _, tm := range ts.config.Targets {
-		// check if the discovered target matches one of the configured types
-		ok, err := regexp.MatchString(tm.Type, tt.Type)
-		if err != nil {
-			ts.logger.Error("regex eval failed with string", "error", err, "type", tm.Type, "target", tt.Type)
-			continue
-		}
-		if !ok {
-			continue
-		}
-		// check if the discovered target matches corresponding ID
-		ok, err = regexp.MatchString(tm.ID, tt.ID)
-		if err != nil {
-			ts.logger.Error("regex eval failed with string", "error", err, "id", tm.ID, "target", tt.ID)
-			continue
-		}
-		if !ok {
-			continue
-		}
-		// target has a match
-		tc := new(types.TargetConfig)
-		*tc = tm.Config
-		tc.Name = tt.ID
-		tc.TunnelTargetType = tt.Type
-		err = config.SetTargetConfigDefaults(ts.store, tc)
-		if err != nil {
-			ts.logger.Error("failed to set target config defaults", "error", err, "id", tt.ID, "type", tt.Type)
-			return nil
-		}
-		tc.Address = tc.Name
-		return tc
-	}
-	return nil
+	return tc
 }
