@@ -9,16 +9,18 @@ import (
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmic/pkg/api/types"
+	"github.com/openconfig/gnmic/pkg/config"
 )
 
 // Apply request is a request to apply the configuration to the collector.
 // Any object that is not provided in the request is deleted.
 type ConfigApplyRequest struct {
-	Targets       map[string]*types.TargetConfig       `json:"targets"`
-	Subscriptions map[string]*types.SubscriptionConfig `json:"subscriptions"`
-	Outputs       map[string]map[string]any            `json:"outputs"`
-	Inputs        map[string]map[string]any            `json:"inputs"`
-	Processors    map[string]map[string]any            `json:"processors"`
+	Targets             map[string]*types.TargetConfig       `json:"targets"`
+	Subscriptions       map[string]*types.SubscriptionConfig `json:"subscriptions"`
+	Outputs             map[string]map[string]any            `json:"outputs"`
+	Inputs              map[string]map[string]any            `json:"inputs"`
+	Processors          map[string]map[string]any            `json:"processors"`
+	TunnelTargetMatches map[string]*config.TunnelTargetMatch `json:"tunnel-target-matches"`
 }
 
 func validateApplyRequest(req *ConfigApplyRequest) error {
@@ -84,14 +86,20 @@ func (s *Server) handleConfigApply(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	// delete targets
-	existingTargets, err := s.configStore.Keys("targets")
+	// delete targets (skip tunnel-created targets which have TunnelTargetType set)
+	existingTargets, err := s.configStore.List("targets", func(_ string, val any) bool {
+		// only include non-tunnel targets (TunnelTargetType == "")
+		if tc, ok := val.(*types.TargetConfig); ok {
+			return tc.TunnelTargetType == ""
+		}
+		return true
+	})
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"get targets error: " + err.Error()}})
 		return
 	}
-	for _, name := range existingTargets {
+	for name := range existingTargets {
 		if _, ok := req.Targets[name]; !ok {
 			_, _, err := s.configStore.Delete("targets", name)
 			if err != nil {
@@ -152,6 +160,23 @@ func (s *Server) handleConfigApply(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	// delete tunnel-target-matches
+	existingTunnelTargetMatches, err := s.configStore.Keys("tunnel-target-matches")
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"get tunnel-target-matches error: " + err.Error()}})
+		return
+	}
+	for _, name := range existingTunnelTargetMatches {
+		if _, ok := req.TunnelTargetMatches[name]; !ok {
+			_, _, err := s.configStore.Delete("tunnel-target-matches", name)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(APIErrors{Errors: []string{"delete tunnel-target-match error: " + err.Error()}})
+				return
+			}
+		}
+	}
 	//
 	// apply subscriptions
 	for name, cfg := range req.Subscriptions {
@@ -195,6 +220,15 @@ func (s *Server) handleConfigApply(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(APIErrors{Errors: []string{"set input error: " + err.Error()}})
+			return
+		}
+	}
+	// apply tunnel-target-matches
+	for name, cfg := range req.TunnelTargetMatches {
+		_, err = s.configStore.Set("tunnel-target-matches", name, cfg)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{"set tunnel-target-match error: " + err.Error()}})
 			return
 		}
 	}
