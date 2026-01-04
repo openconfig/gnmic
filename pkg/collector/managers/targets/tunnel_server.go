@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
@@ -41,13 +42,19 @@ type tunnelServer struct {
 	store         store.Store[any]
 	logger        *slog.Logger
 	reg           *prometheus.Registry
+
+	// track currently connected tunnel targets so we can reconcile when
+	// tunnel-target-matches are created, updated, or deleted.
+	mu               sync.RWMutex
+	connectedTargets map[string]tunnel.Target // key = target ID
 }
 
 func newTunnelServer(s store.Store[any], reg *prometheus.Registry) *tunnelServer {
 	ts := &tunnelServer{
-		grpcTunnelSrv: grpc.NewServer(),
-		store:         s,
-		reg:           reg,
+		grpcTunnelSrv:    grpc.NewServer(),
+		store:            s,
+		reg:              reg,
+		connectedTargets: make(map[string]tunnel.Target),
 	}
 
 	return ts
@@ -106,6 +113,9 @@ func (ts *tunnelServer) startTunnelServer(ctx context.Context) error {
 	if !ok {
 		return fmt.Errorf("tunnel-server config is malfomatted")
 	}
+	if originalConfig == nil {
+		return nil
+	}
 	ts.config = &tunnelServerConfig{
 		Address:       originalConfig.Address,
 		TLS:           originalConfig.TLS,
@@ -148,6 +158,22 @@ func (ts *tunnelServer) startTunnelServer(ctx context.Context) error {
 		}
 		break
 	}
+
+	// watch tunnel-target-matches for CRUD operations and reconcile connected targets
+	var matchesCh <-chan *store.Event[any]
+	var matchesCancel func()
+	for {
+		var err error
+		matchesCh, matchesCancel, err = ts.store.Watch("tunnel-target-matches")
+		if err != nil {
+			ts.logger.Error("failed to watch tunnel-target-matches", "error", err)
+			time.Sleep(time.Second)
+			continue
+		}
+		break
+	}
+	go ts.watchTunnelTargetMatches(ctx, matchesCh, matchesCancel)
+
 	go func() {
 		ts.logger.Info("starting gRPC tunnel server")
 		err := ts.grpcTunnelSrv.Serve(l)
@@ -164,12 +190,18 @@ func (ts *tunnelServer) startTunnelServer(ctx context.Context) error {
 
 // Tunnel Server handlers
 
-// subscribe handler
+// addTargetHandler is called when a tunnel target connects (registers)
 func (ts *tunnelServer) addTargetHandler(tt tunnel.Target) error {
 	ts.logger.Info("tunnel server target register request", "target", tt)
+
+	// track the connected target so we can reconcile when matches change
+	ts.mu.Lock()
+	ts.connectedTargets[tt.ID] = tt
+	ts.mu.Unlock()
+
 	tc := ts.getTunnelTargetMatch(tt)
 	if tc == nil {
-		ts.logger.Info("target ignored", "target", tt)
+		ts.logger.Info("target ignored, not matching any rule", "target", tt)
 		return nil
 	}
 	ts.logger.Info("target matched", "target", tc)
@@ -180,12 +212,18 @@ func (ts *tunnelServer) addTargetHandler(tt tunnel.Target) error {
 	return nil
 }
 
-// delete handler
+// deleteTargetHandler is called when a tunnel target disconnects (deregisters)
 func (ts *tunnelServer) deleteTargetHandler(tt tunnel.Target) error {
 	ts.logger.Info("tunnel server target deregister request", "target", tt)
+
+	// remove from connected targets tracking
+	ts.mu.Lock()
+	delete(ts.connectedTargets, tt.ID)
+	ts.mu.Unlock()
+
 	_, _, err := ts.store.Delete("targets", tt.ID)
 	if err != nil {
-		ts.logger.Error("failed to delete tunneltarget from configStore", "error", err)
+		ts.logger.Error("failed to delete tunnel target from configStore", "error", err)
 	}
 	return nil
 }
@@ -259,4 +297,79 @@ func (ts *tunnelServer) getTunnelTargetMatch(tt tunnel.Target) *types.TargetConf
 	}
 
 	return tc
+}
+
+// watchTunnelTargetMatches watches for changes to tunnel-target-matches and
+// reconciles all connected tunnel targets when a match is created, updated, or deleted.
+func (ts *tunnelServer) watchTunnelTargetMatches(ctx context.Context, ch <-chan *store.Event[any], cancel func()) {
+	defer cancel()
+	ts.logger.Info("starting tunnel-target-matches watcher")
+	for {
+		select {
+		case <-ctx.Done():
+			ts.logger.Info("tunnel-target-matches watcher stopped")
+			return
+		case ev, ok := <-ch:
+			if !ok {
+				ts.logger.Info("tunnel-target-matches watch channel closed")
+				return
+			}
+			ts.logger.Info("tunnel-target-match changed, reconciling connected targets",
+				"eventType", ev.EventType,
+				"matchID", ev.Name,
+			)
+			ts.reconcileConnectedTargets()
+		}
+	}
+}
+
+// reconcileConnectedTargets re-evaluates all connected tunnel targets against
+// the current set of tunnel-target-matches. This is called when a match rule
+// is created, updated, or deleted.
+//
+// For each connected target:
+//   - If it matches a rule: upsert the target config (create or update)
+//   - If it doesn't match any rule: delete the target config
+//
+// We hold the lock for the entire reconciliation to prevent a race where a target
+// deregisters (and gets deleted from the store) while we're processing it, which
+// would cause us to recreate an orphaned target config.
+func (ts *tunnelServer) reconcileConnectedTargets() {
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
+
+	ts.logger.Info("reconciling connected tunnel targets", "count", len(ts.connectedTargets))
+
+	for _, tt := range ts.connectedTargets {
+		tc := ts.getTunnelTargetMatch(tt)
+		if tc != nil {
+			// target matches a rule ==> upsert the target config
+			ts.logger.Debug("tunnel target matches rule, upserting config",
+				"targetID", tt.ID,
+				"targetType", tt.Type,
+			)
+			_, err := ts.store.Set("targets", tc.Name, tc)
+			if err != nil {
+				ts.logger.Error("failed to upsert tunnel target config",
+					"targetID", tt.ID,
+					"error", err,
+				)
+			}
+		} else {
+			// target no longer matches any rule ==> delete the target config
+			ts.logger.Debug("tunnel target no longer matches any rule, deleting config",
+				"targetID", tt.ID,
+				"targetType", tt.Type,
+			)
+			_, _, err := ts.store.Delete("targets", tt.ID)
+			if err != nil {
+				ts.logger.Error("failed to delete tunnel target config",
+					"targetID", tt.ID,
+					"error", err,
+				)
+			}
+		}
+	}
+
+	ts.logger.Info("tunnel target reconciliation complete", "count", len(ts.connectedTargets))
 }
