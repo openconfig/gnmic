@@ -16,8 +16,8 @@ import (
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	"github.com/openconfig/gnmic/pkg/pipeline"
-	"github.com/openconfig/gnmic/pkg/store"
 	pkgutils "github.com/openconfig/gnmic/pkg/utils"
+	"github.com/zestor-dev/zestor/store"
 	"google.golang.org/protobuf/proto"
 )
 

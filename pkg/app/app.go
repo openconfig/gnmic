@@ -48,7 +48,8 @@ import (
 	"github.com/openconfig/gnmic/pkg/inputs"
 	"github.com/openconfig/gnmic/pkg/lockers"
 	"github.com/openconfig/gnmic/pkg/outputs"
-	"github.com/openconfig/gnmic/pkg/store"
+	"github.com/zestor-dev/zestor/store"
+	"github.com/zestor-dev/zestor/store/gomap"
 )
 
 const (
@@ -127,7 +128,7 @@ func New() *App {
 		RootCmd:    new(cobra.Command),
 		sem:        semaphore.NewWeighted(1),
 		configLock: new(sync.RWMutex),
-		Store:      store.NewMemStore(store.StoreOptions[any]{}),
+		Store:      gomap.NewMemStore(store.StoreOptions[any]{}),
 		Config:     config.New(),
 		reg:        prometheus.NewRegistry(),
 		//

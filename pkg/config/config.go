@@ -36,7 +36,7 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	gfile "github.com/openconfig/gnmic/pkg/file"
-	"github.com/openconfig/gnmic/pkg/store"
+	"github.com/zestor-dev/zestor/store"
 )
 
 const (

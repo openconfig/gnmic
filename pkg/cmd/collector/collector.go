@@ -18,7 +18,7 @@ import (
 	"github.com/openconfig/gnmic/pkg/app"
 	"github.com/openconfig/gnmic/pkg/collector"
 	"github.com/openconfig/gnmic/pkg/config"
-	"github.com/openconfig/gnmic/pkg/store"
+	"github.com/zestor-dev/zestor/store"
 )
 
 // New create the collector command tree.

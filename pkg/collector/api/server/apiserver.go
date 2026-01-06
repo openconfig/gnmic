@@ -18,8 +18,8 @@ import (
 	"github.com/openconfig/gnmic/pkg/config"
 	"github.com/openconfig/gnmic/pkg/lockers"
 	"github.com/openconfig/gnmic/pkg/logging"
-	"github.com/openconfig/gnmic/pkg/store"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/zestor-dev/zestor/store"
 )
 
 type Server struct {

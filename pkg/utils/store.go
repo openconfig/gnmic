@@ -2,7 +2,7 @@ package utils
 
 import (
 	"github.com/openconfig/gnmic/pkg/api/types"
-	"github.com/openconfig/gnmic/pkg/store"
+	"github.com/zestor-dev/zestor/store"
 )
 
 func GetConfigMaps(s store.Store[any]) (map[string]*types.TargetConfig, map[string]map[string]any, map[string]map[string]any, error) {

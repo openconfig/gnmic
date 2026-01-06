@@ -25,10 +25,10 @@ import (
 	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	"github.com/openconfig/gnmic/pkg/pipeline"
-	"github.com/openconfig/gnmic/pkg/store"
 	"github.com/openconfig/gnmic/pkg/utils"
 	"github.com/openconfig/grpctunnel/tunnel"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/zestor-dev/zestor/store"
 	"google.golang.org/grpc"
 )
 

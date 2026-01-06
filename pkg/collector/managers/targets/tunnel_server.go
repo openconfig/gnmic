@@ -17,10 +17,10 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/config"
 	"github.com/openconfig/gnmic/pkg/logging"
-	"github.com/openconfig/gnmic/pkg/store"
 	tpb "github.com/openconfig/grpctunnel/proto/tunnel"
 	"github.com/openconfig/grpctunnel/tunnel"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/zestor-dev/zestor/store"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )

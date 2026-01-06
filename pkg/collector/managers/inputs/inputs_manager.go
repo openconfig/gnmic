@@ -12,7 +12,7 @@ import (
 	"github.com/openconfig/gnmic/pkg/inputs"
 	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/pipeline"
-	"github.com/openconfig/gnmic/pkg/store"
+	"github.com/zestor-dev/zestor/store"
 )
 
 type ManagedInput struct {

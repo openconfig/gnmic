@@ -11,8 +11,8 @@ package outputs
 import (
 	"log"
 
-	"github.com/openconfig/gnmic/pkg/store"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/zestor-dev/zestor/store"
 )
 
 type OutputOptions struct {

@@ -11,7 +11,7 @@ import (
 	"time"
 
 	apiconst "github.com/openconfig/gnmic/pkg/collector/api/const"
-	"github.com/openconfig/gnmic/pkg/store"
+	"github.com/zestor-dev/zestor/store"
 )
 
 type Assignment struct {

@@ -15,7 +15,7 @@ import (
 	"reflect"
 
 	"github.com/openconfig/gnmic/pkg/config"
-	"github.com/openconfig/gnmic/pkg/store"
+	"github.com/zestor-dev/zestor/store"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
