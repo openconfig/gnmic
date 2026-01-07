@@ -2,7 +2,7 @@ module github.com/openconfig/gnmic
 
 go 1.24.7
 
-replace github.com/openconfig/gnmic/pkg/api v0.1.8 => ./pkg/api
+replace github.com/openconfig/gnmic/pkg/api v0.1.9 => ./pkg/api
 
 replace github.com/openconfig/gnmic/pkg/cache v0.1.3 => ./pkg/cache
 
@@ -41,7 +41,7 @@ require (
 	github.com/nsf/termbox-go v1.1.1
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/openconfig/gnmi v0.14.1
-	github.com/openconfig/gnmic/pkg/api v0.1.8
+	github.com/openconfig/gnmic/pkg/api v0.1.9
 	github.com/openconfig/gnmic/pkg/cache v0.1.3
 	github.com/openconfig/goyang v1.6.3
 	github.com/openconfig/ygot v0.34.0
