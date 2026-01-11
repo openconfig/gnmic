@@ -18,12 +18,11 @@ outputs:
     address: localhost:4222
     # string, stream name to write update to,
     # if `create-stream` is set, it will be created
-    # # may not contain spaces, tabs, period (.), greater than (>) or asterisk (*)
-    stream: 
-    # boolean, if true, use an existing stream instead of creating one
-    # defaults to false
-    use-existing-stream: false
+    # if `create-stream` is omitted, an existing stream with this name must be available
+    # may not contain spaces, tabs, period (.), greater than (>) or asterisk (*)
+    stream:
     # defines stream parameters that gNMIc will create on the target jetstream server(s)
+    # if omitted, gnmic will use an existing stream and will not attempt to create or modify it
     create-stream:
       # string, stream description
       description: created by gNMIc
@@ -242,7 +241,7 @@ outputs:
 
 #### Using Existing Streams
 
-If a stream has already been created (e.g., by administrators or other applications), you can configure gnmic to use it without attempting to create it:
+If a stream has already been created (e.g., by administrators or other applications), you can configure gnmic to use it by omitting the `create-stream` configuration:
 
 ```yaml
 outputs:
@@ -250,13 +249,14 @@ outputs:
     type: jetstream
     address: localhost:4222
     stream: existing-stream
-    use-existing-stream: true
     subject-format: static
     subject: telemetry
 ```
 
-When `use-existing-stream` is set to `true`, gnmic will not attempt to create or modify the stream configuration. This is useful when:
+When `create-stream` is omitted, gnmic will not attempt to create or modify the stream configuration. The stream with the specified name must already exist on the JetStream server. This is useful when:
 
 - Stream configuration is managed centrally
 - You don't have permissions to create streams
 - You want to ensure stream settings remain unchanged
+
+**Important:** When using an existing stream, ensure the stream's subjects configuration is compatible with your chosen `subject-format` and `subject` settings, otherwise messages may fail to publish.
