@@ -204,8 +204,12 @@ func (n *jetstreamInput) workerStart(ctx context.Context) error {
 	if streamInfo.Config.Retention == jetstream.WorkQueuePolicy {
 		// Workqueue streams require explicit ack
 		ackPolicy = jetstream.AckExplicitPolicy
-		// Workqueue streams require deliver all policy
-		deliverPolicy = jetstream.DeliverAllPolicy
+		// Workqueue streams allow DeliverAllPolicy or DeliverNewPolicy
+		// Use configured policy, but only if it's one of these two
+		if deliverPolicy != jetstream.DeliverAllPolicy && deliverPolicy != jetstream.DeliverNewPolicy {
+			// Default to DeliverAllPolicy for workqueue if configured policy is not compatible
+			deliverPolicy = jetstream.DeliverAllPolicy
+		}
 	}
 
 	c, err := s.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{

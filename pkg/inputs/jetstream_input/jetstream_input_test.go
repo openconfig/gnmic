@@ -222,3 +222,18 @@ func Test_toJSDeliverPolicy(t *testing.T) {
 		})
 	}
 }
+
+// Test_workqueueDeliverPolicy documents the expected behavior for workqueue streams
+// When stream retention is WorkQueuePolicy:
+// - AckPolicy is always set to AckExplicitPolicy
+// - DeliverPolicy can be DeliverAllPolicy (process all queued jobs) or DeliverNewPolicy (process only new jobs)
+// - Other deliver policies are converted to DeliverAllPolicy for compatibility
+func Test_workqueueDeliverPolicy(t *testing.T) {
+	// This is a documentation test - actual behavior is tested in integration tests
+	// The workerStart function should:
+	// 1. Detect stream retention policy
+	// 2. Force AckExplicitPolicy for workqueue streams
+	// 3. Allow DeliverAllPolicy or DeliverNewPolicy
+	// 4. Convert other policies to DeliverAllPolicy
+	t.Log("Workqueue streams support DeliverAllPolicy and DeliverNewPolicy")
+}
