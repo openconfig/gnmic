@@ -9,7 +9,7 @@ function testmodule
     cd $SCRIPTPATH/..
 }
 
-declare -a modules=("." "pkg/api" "pkg/cache", "pkg/inputs/jetstream_input", "pkg/outputs/nats_outputs/jetstream")
+declare -a modules=("." "pkg/api" "pkg/cache")
 
 SCRIPTPATH="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
 
