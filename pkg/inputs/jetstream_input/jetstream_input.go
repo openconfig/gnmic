@@ -67,13 +67,6 @@ func toJSDeliverPolicy(dp deliverPolicy) jetstream.DeliverPolicy {
 	return 0
 }
 
-type consumerMode string
-
-const (
-	consumerModeSingle consumerMode = "single"
-	consumerModeMulti  consumerMode = "multi"
-)
-
 func init() {
 	inputs.Register("jetstream", func() inputs.Input {
 		return &jetstreamInput{
@@ -111,8 +104,6 @@ type config struct {
 	Stream          string           `mapstructure:"stream,omitempty"`
 	Subjects        []string         `mapstructure:"subjects,omitempty"`
 	SubjectFormat   subjectFormat    `mapstructure:"subject-format,omitempty" json:"subject-format,omitempty"`
-	ConsumerMode    consumerMode     `mapstructure:"consumer-mode,omitempty" json:"consumer-mode,omitempty"`
-	FilterSubjects  []string         `mapstructure:"filter-subjects,omitempty" json:"filter-subjects,omitempty"`
 	DeliverPolicy   deliverPolicy    `mapstructure:"deliver-policy,omitempty"`
 	Username        string           `mapstructure:"username,omitempty"`
 	Password        string           `mapstructure:"password,omitempty"`
@@ -217,24 +208,13 @@ func (n *jetstreamInput) workerStart(ctx context.Context) error {
 		deliverPolicy = jetstream.DeliverAllPolicy
 	}
 
-	// Determine filter subjects based on consumer mode
-	var filterSubjects []string
-	switch n.Cfg.ConsumerMode {
-	case consumerModeSingle:
-		// Use configured subjects as filter
-		filterSubjects = n.Cfg.Subjects
-	case consumerModeMulti:
-		// Use explicitly configured filter-subjects
-		filterSubjects = n.Cfg.FilterSubjects
-	}
-
 	c, err := s.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
 		Name:           n.Cfg.Name,
 		Durable:        n.Cfg.Name,
 		DeliverPolicy:  deliverPolicy,
 		AckPolicy:      ackPolicy,
 		MemoryStorage:  true,
-		FilterSubjects: filterSubjects,
+		FilterSubjects: n.Cfg.Subjects,
 		MaxAckPending:  *n.Cfg.MaxAckPending,
 	})
 	if err != nil {
@@ -400,21 +380,6 @@ func (n *jetstreamInput) setDefaults() error {
 	}
 	if n.Cfg.SubjectFormat == "" {
 		n.Cfg.SubjectFormat = subjectFormat_Static
-	}
-
-	// Consumer mode defaults
-	if n.Cfg.ConsumerMode == "" {
-		n.Cfg.ConsumerMode = consumerModeSingle
-	}
-
-	// Validate consumer mode
-	if n.Cfg.ConsumerMode != consumerModeSingle && n.Cfg.ConsumerMode != consumerModeMulti {
-		return fmt.Errorf("invalid consumer-mode: %s (must be 'single' or 'multi')", n.Cfg.ConsumerMode)
-	}
-
-	// Multi-consumer mode requires filter-subjects
-	if n.Cfg.ConsumerMode == consumerModeMulti && len(n.Cfg.FilterSubjects) == 0 {
-		return fmt.Errorf("consumer-mode 'multi' requires filter-subjects to be specified")
 	}
 
 	if n.Cfg.Address == "" {
