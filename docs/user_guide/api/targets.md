@@ -194,41 +194,4 @@ Returns an empty body if successful.
         ]
     }
     ```
-    
-## `PATCH /api/v1/targets/{id}/subscriptions`
 
-Updates existing subscriptions for the target ID
-    
-Returns an empty body if successful.
-
-=== "Request"
-    ```bash
-    curl --request PATCH gnmic-api-address:port/api/v1/targets/192.168.1.131:57400/subscriptions -d '{"subscriptions": ["sub1", "sub2"]}'
-    ```
-=== "200 OK"
-    ```json
-    ```
-=== "404 Not found"
-    ```json
-    {
-        "errors": [
-            "target $target not found"
-        ]
-    }
-    ```
-=== "400 Bad Request"
-    ```json
-    {
-        "errors": [
-            "subscription $subscription does not exist"
-        ]
-    }
-    ```
-=== "500 Internal Server Error"
-    ```json
-    {
-        "errors": [
-            "Error Text"
-        ]
-    }
-    ```

@@ -40,6 +40,16 @@ func responseFlat(msg proto.Message) (map[string]interface{}, error) {
 			prefix := path.GnmiPathToXPath(n.GetPrefix(), false)
 			for _, u := range n.GetUpdate() {
 				p := path.GnmiPathToXPath(u.GetPath(), false)
+				// If there is no prefix whatsoever, prepend
+				// leading slash to the path
+				if prefix == "" {
+					p = filepath.Join("/", p)
+				}
+				// If a prefix is populated without an origin,
+				// prepend leading slash to the prefix
+				if n.GetPrefix().GetOrigin() == "" && n.GetPrefix().GetElem() != nil {
+					prefix = filepath.Join("/", prefix)
+				}
 				vmap, err := getValueFlat(filepath.Join(prefix, p), u.GetVal())
 				if err != nil {
 					return nil, err
@@ -61,6 +71,16 @@ func responseFlat(msg proto.Message) (map[string]interface{}, error) {
 			prefix := path.GnmiPathToXPath(n.GetPrefix(), false)
 			for _, u := range n.GetUpdate() {
 				p := path.GnmiPathToXPath(u.GetPath(), false)
+				// If there is no prefix whatsoever, prepend
+				// leading slash to the path
+				if prefix == "" {
+					p = filepath.Join("/", p)
+				}
+				// If a prefix is populated without an origin,
+				// prepend leading slash to the prefix
+				if n.GetPrefix().GetOrigin() == "" && n.GetPrefix().GetElem() != nil {
+					prefix = filepath.Join("/", prefix)
+				}
 				vmap, err := getValueFlat(filepath.Join(prefix, p), u.GetVal())
 				if err != nil {
 					return nil, err
