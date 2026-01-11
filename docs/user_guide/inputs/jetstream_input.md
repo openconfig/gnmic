@@ -1,6 +1,8 @@
 When using jetstream as an input, `gnmic` consumes data from a specified NATS JetStream stream using a durable consumer. Messages are fetched in batches and delivered to `gnmic` in either `event` or `proto` format.
 
-Multiple workers (subscribers) can be spawned using the `num-workers` option. Each worker independently connects to JetStream and fetches messages using the configured subject filters. All workers share the same durable consumer name to ensure coordinated message processing.
+Each gNMIc instance creates one durable consumer using the configured `subjects` field. Multiple workers (subscribers) can be spawned using the `num-workers` option to increase processing throughput. All workers within a single gNMIc instance share the same durable consumer to ensure coordinated message processing.
+
+For scaling across multiple consumers, deploy multiple gNMIc instances with different consumer names. Each instance will create its own durable consumer on the stream.
 
 The `jetstream` input will export received messages to the configured `outputs`. Optionally, `event-processors` can be applied when using event format.
 
@@ -22,20 +24,9 @@ inputs:
     stream: telemetry-stream
 
     # list of subject filters within the stream to consume from
+    # the consumer will receive messages matching any of these subjects
     subjects:
       - telemetry.device.*
-
-    # enum string, consumer mode: "single" or "multi"
-    # single: all workers share a single consumer (backward compatible, default)
-    # multi: each worker creates its own filtered consumer (for workqueue streams)
-    # default: "single"
-    consumer-mode: single
-
-    # list of subject filters for multi-consumer mode
-    # ONLY used when consumer-mode is "multi"
-    # each worker creates a consumer with these filter subjects
-    filter-subjects:
-      - telemetry.device.router1.*
 
     # enum string, format of consumed message: "event" or "proto"
     # default: "event"
@@ -127,92 +118,45 @@ When using proto format, gnmic uses the subject name to extract metadata:
 
 - `static` → no parsing; no additional metadata is extracted
 
-## JetStream Consumer Modes
+## Scaling with Multiple Consumers
 
-The JetStream input supports two consumer modes designed for different stream retention policies and processing patterns.
+Each gNMIc instance creates a single durable consumer on the stream. To scale message processing across multiple consumers:
 
-### Single Consumer Mode (Default)
+1. Deploy multiple gNMIc instances
+2. Give each instance a different consumer `name` in its configuration
+3. Configure each instance with appropriate `subjects` filters to partition work
 
-In single consumer mode, all workers share the same durable consumer. This is the default and backward-compatible to gnmic prior to v0.42.
+**Example - Two instances consuming different subjects:**
 
-**Characteristics:**
-- All workers connect to the same consumer using a shared durable name
-- Messages are distributed across workers for parallel processing
-- Works with both limits and workqueue retention policies
-- Suitable for most use cases where you want to scale message consumption
-
-**Example configuration:**
-
+Instance 1:
 ```yaml
 inputs:
-  shared-consumer:
+  js-consumer-1:
     type: jetstream
+    name: consumer-router-metrics
     address: localhost:4222
     stream: telemetry-stream
     subjects:
-      - telemetry.>
-    consumer-mode: single  # default
-    num-workers: 3
-    format: event
-```
-
-### Multi Consumer Mode
-
-In multi consumer mode, each gnmic instance creates its own filtered consumer. This mode is designed specifically for workqueue streams where you want different instances to process different subsets of messages based on subject filters.
-
-**Characteristics:**
-- Each gnmic instance creates a separate consumer with unique filter subjects
-- Each consumer receives only messages matching its filter-subjects
-- Requires workqueue retention policy on the stream
-- Enables message routing based on subject patterns
-
-**When to use multi consumer mode:**
-- You have a workqueue stream with messages on different subjects
-- You want different gnmic instances to process specific message subsets
-- You need subject-based routing for parallel processing pipelines
-
-**Example configuration:**
-
-```yaml
-inputs:
-  filtered-consumer:
-    type: jetstream
-    address: localhost:4222
-    stream: telemetry-stream
-    consumer-mode: multi
-    filter-subjects:
-      - subscription1.x.>
-      - subscription2.x.>
+      - telemetry.router.*
     num-workers: 2
     format: event
 ```
 
-In this example, each of the 2 worker threads creates a consumer that receives only messages matching the filter subjects (subscription1.x.> or subscription2.x.>).
+Instance 2:
+```yaml
+inputs:
+  js-consumer-2:
+    type: jetstream
+    name: consumer-switch-metrics
+    address: localhost:4222
+    stream: telemetry-stream
+    subjects:
+      - telemetry.switch.*
+    num-workers: 2
+    format: event
+```
 
-### Using Filter Subjects
-
-The `filter-subjects` field is only used in multi consumer mode. It specifies which subjects each worker's consumer should filter for.
-
-**Key points:**
-- Only applies when `consumer-mode: multi`
-- Supports NATS wildcard patterns (* and >)
-- Each worker creates a consumer with the same filter subjects
-- Messages matching any of the filter subjects will be delivered
-
-
-### Choosing the Right Mode
-
-**Use single consumer mode when:**
-- You're using a limits retention stream for telemetry data
-- You don't need multiple gnmic instances for scale out
-- One gnmic instance can process all messages in the stream (limits or workqueue)
-- You need backward compatibility with existing NATS+gnmic deployments.
-
-**Use multi consumer mode when:**
-- You're consuming from a workqueue stream and need scale out performance
-- You need subject-based message routing
-- Different gnmic instances should process different message subsets
-
+Each instance creates its own durable consumer with its configured subject filters. Within each instance, multiple workers share the same consumer for parallel processing.
 
 ## Usage Notes
 
