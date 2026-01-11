@@ -74,7 +74,6 @@ type config struct {
 	Subject            string              `mapstructure:"subject,omitempty" json:"subject,omitempty"`
 	SubjectFormat      subjectFormat       `mapstructure:"subject-format,omitempty" json:"subject-format,omitempty"`
 	CreateStream       *createStreamConfig `mapstructure:"create-stream,omitempty" json:"create-stream,omitempty"`
-	UseExistingStream  bool                `mapstructure:"use-existing-stream,omitempty" json:"use-existing-stream,omitempty"`
 	Username           string              `mapstructure:"username,omitempty" json:"username,omitempty"`
 	Password           string              `mapstructure:"password,omitempty" json:"password,omitempty"`
 	ConnectTimeWait    time.Duration       `mapstructure:"connect-time-wait,omitempty" json:"connect-time-wait,omitempty"`
@@ -206,11 +205,6 @@ func (n *jetstreamOutput) Init(ctx context.Context, name string, cfg map[string]
 func (n *jetstreamOutput) setDefaults() error {
 	if n.Cfg.Stream == "" {
 		return errors.New("missing stream name")
-	}
-
-	// Validate mutual exclusivity
-	if n.Cfg.UseExistingStream && n.Cfg.CreateStream != nil {
-		return errors.New("use-existing-stream and create-stream are mutually exclusive")
 	}
 
 	if n.Cfg.Format == "" {
@@ -738,12 +732,7 @@ func retentionPolicy(s string) nats.RetentionPolicy {
 // }
 
 func (n *jetstreamOutput) createStream(js nats.JetStreamContext) error {
-	// Handle use-existing-stream mode
-	if n.Cfg.UseExistingStream {
-		return n.verifyExistingStream(js)
-	}
-
-	// Handle create-stream mode
+	// If CreateStream is not configured, we're using an existing stream
 	if n.Cfg.CreateStream == nil {
 		return nil
 	}
@@ -774,26 +763,4 @@ func (n *jetstreamOutput) createStream(js nats.JetStreamContext) error {
 	}
 	_, err = js.AddStream(streamConfig)
 	return err
-}
-
-func (n *jetstreamOutput) verifyExistingStream(js nats.JetStreamContext) error {
-	stream, err := js.StreamInfo(n.Cfg.Stream)
-	if err != nil {
-		if errors.Is(err, nats.ErrStreamNotFound) {
-			return fmt.Errorf("stream '%s' does not exist (use-existing-stream is true)", n.Cfg.Stream)
-		}
-		return fmt.Errorf("failed to get existing stream info for '%s': %v", n.Cfg.Stream, err)
-	}
-
-	// Log the stream configuration
-	n.logger.Printf("using existing stream: name=%s, subjects=%v, retention=%v, storage=%v, max_msgs=%d, max_bytes=%d, max_age=%v",
-		stream.Config.Name,
-		stream.Config.Subjects,
-		stream.Config.Retention,
-		stream.Config.Storage,
-		stream.Config.MaxMsgs,
-		stream.Config.MaxBytes,
-		stream.Config.MaxAge)
-
-	return nil
 }

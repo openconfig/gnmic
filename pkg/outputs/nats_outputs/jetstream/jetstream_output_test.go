@@ -135,26 +135,6 @@ func Test_setDefaults(t *testing.T) {
 			errMsg:  "missing stream name",
 		},
 		{
-			name: "mutual exclusivity - both use-existing-stream and create-stream",
-			cfg: &config{
-				Stream:            "test-stream",
-				UseExistingStream: true,
-				CreateStream: &createStreamConfig{
-					Subjects: []string{"test.>"},
-				},
-			},
-			wantErr: true,
-			errMsg:  "use-existing-stream and create-stream are mutually exclusive",
-		},
-		{
-			name: "valid use-existing-stream",
-			cfg: &config{
-				Stream:            "test-stream",
-				UseExistingStream: true,
-			},
-			wantErr: false,
-		},
-		{
 			name: "valid create-stream with limits retention",
 			cfg: &config{
 				Stream: "test-stream",
