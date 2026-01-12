@@ -21,6 +21,7 @@ env:
 jobs:
   test:
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-22.04, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
@@ -29,6 +30,7 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GOVER }}
+          cache: true
       - run: ./tests/run_tests.sh
         if: runner.os != 'Windows'
         env:
