@@ -16,7 +16,7 @@ on:
       - "main"
       - "!releases/**"
 env:
-  GOVER: 1.24.7
+  GOVER: 1.24.x
 
 jobs:
   test:
@@ -41,7 +41,7 @@ jobs:
           CGO_ENABLED: 0
       # run staticcheck
       - uses: reviewdog/action-staticcheck@v1.27.0
-        if: runner.os != 'Windows'
+        if: runner.os == 'Linux'
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           # Change reviewdog reporter if you need [github-pr-check,github-check,github-pr-review].
