@@ -6,6 +6,7 @@ builds/
 dist
 *.log
 gnmic
+gnmic.exe
 *.tmp
 *.work*
 .idea
