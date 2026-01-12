@@ -16,14 +16,15 @@ import (
 	"strings"
 	"unicode"
 
-	goprompt "github.com/c-bata/go-prompt"
-	"github.com/c-bata/go-prompt/completer"
+	goprompt "github.com/elk-language/go-prompt"
+	"github.com/elk-language/go-prompt/completer"
+	istrings "github.com/elk-language/go-prompt/strings"
 	homedir "github.com/mitchellh/go-homedir"
-	"github.com/nsf/termbox-go"
 	"github.com/olekukonko/tablewriter"
 	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"golang.org/x/term"
 
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/cmd/get"
@@ -716,8 +717,8 @@ func subscriptionDescription(sub *types.SubscriptionConfig) string {
 	return sb.String()
 }
 
-func showCommandArguments(b *goprompt.Buffer) {
-	doc := b.Document()
+func showCommandArguments(p *goprompt.Prompt) bool {
+	doc := p.Buffer().Document()
 	showLocalFlags := false
 	command := gApp.RootCmd
 	args := strings.Fields(doc.CurrentLine())
@@ -756,13 +757,12 @@ func showCommandArguments(b *goprompt.Buffer) {
 	}
 	suggestions = goprompt.FilterHasPrefix(suggestions, doc.GetWordBeforeCursor(), true)
 	if len(suggestions) == 0 {
-		return
+		return false
 	}
-	if err := termbox.Init(); err != nil {
+	w, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
 		gApp.Logger.Fatalf("%v", err)
 	}
-	w, _ := termbox.Size()
-	termbox.Close()
 	fmt.Printf("\n")
 	maxDescLen := w - maxNameLen - 6
 	format := fmt.Sprintf("  %%-%ds : %%-%ds\n", maxNameLen, maxDescLen)
@@ -775,6 +775,7 @@ func showCommandArguments(b *goprompt.Buffer) {
 		}
 	}
 	fmt.Printf("\n")
+	return true
 }
 
 // ExecutePrompt load and run gnmic-prompt mode.
@@ -783,23 +784,22 @@ func ExecutePrompt() {
 	shell := &cmdPrompt{
 		RootCmd: gApp.RootCmd,
 		GoPromptOptions: []goprompt.Option{
-			goprompt.OptionTitle("gnmic-prompt"),
-			goprompt.OptionPrefix("gnmic> "),
-			goprompt.OptionHistory(gApp.PromptHistory),
-			goprompt.OptionMaxSuggestion(gApp.Config.LocalFlags.PromptMaxSuggestions),
-			goprompt.OptionPrefixTextColor(getColor("prefix-color")),
-			goprompt.OptionPreviewSuggestionTextColor(goprompt.Cyan),
-			goprompt.OptionSuggestionTextColor(goprompt.White),
-			goprompt.OptionSuggestionBGColor(getColor("suggestions-bg-color")),
-			goprompt.OptionSelectedSuggestionTextColor(goprompt.Black),
-			goprompt.OptionSelectedSuggestionBGColor(goprompt.White),
-			goprompt.OptionDescriptionTextColor(goprompt.LightGray),
-			goprompt.OptionDescriptionBGColor(getColor("description-bg-color")),
-			goprompt.OptionSelectedDescriptionTextColor(goprompt.Black),
-			goprompt.OptionSelectedDescriptionBGColor(goprompt.White),
-			goprompt.OptionScrollbarBGColor(goprompt.DarkGray),
-			goprompt.OptionScrollbarThumbColor(goprompt.Blue),
-			goprompt.OptionAddASCIICodeBind(
+			goprompt.WithTitle("gnmic-prompt"),
+			goprompt.WithPrefix("gnmic> "),
+			goprompt.WithHistory(gApp.PromptHistory),
+			goprompt.WithMaxSuggestion(uint16(gApp.Config.LocalFlags.PromptMaxSuggestions)),
+			goprompt.WithPrefixTextColor(getColor("prefix-color")),
+			goprompt.WithSuggestionTextColor(goprompt.White),
+			goprompt.WithSuggestionBGColor(getColor("suggestions-bg-color")),
+			goprompt.WithSelectedSuggestionTextColor(goprompt.Black),
+			goprompt.WithSelectedSuggestionBGColor(goprompt.White),
+			goprompt.WithDescriptionTextColor(goprompt.LightGray),
+			goprompt.WithDescriptionBGColor(getColor("description-bg-color")),
+			goprompt.WithSelectedDescriptionTextColor(goprompt.Black),
+			goprompt.WithSelectedDescriptionBGColor(goprompt.White),
+			goprompt.WithScrollbarBGColor(goprompt.DarkGray),
+			goprompt.WithScrollbarThumbColor(goprompt.Blue),
+			goprompt.WithASCIICodeBind(
 				// bind '?' character to show cmd args
 				goprompt.ASCIICodeBind{
 					ASCIICode: []byte{0x3f},
@@ -808,46 +808,68 @@ func ExecutePrompt() {
 				// bind OS X Option+Left key binding
 				goprompt.ASCIICodeBind{
 					ASCIICode: []byte{0x1b, 0x62},
-					Fn:        goprompt.GoLeftWord,
+					Fn: func(p *goprompt.Prompt) bool {
+						return p.CursorLeftRunes(
+							p.Buffer().Document().FindRuneNumberUntilStartOfPreviousWord(),
+						)
+					},
 				},
 				// bind OS X Option+Right key binding
 				goprompt.ASCIICodeBind{
 					ASCIICode: []byte{0x1b, 0x66},
-					Fn:        goprompt.GoRightWord,
+					Fn: func(p *goprompt.Prompt) bool {
+						return p.CursorRightRunes(
+							p.Buffer().Document().FindRuneNumberUntilEndOfCurrentWord(),
+						)
+					},
 				},
 			),
-			goprompt.OptionAddKeyBind(
+			goprompt.WithKeyBind(
 				// bind Linux CTRL+Left key binding
 				goprompt.KeyBind{
 					Key: goprompt.ControlLeft,
-					Fn:  goprompt.GoLeftWord,
+					Fn: func(p *goprompt.Prompt) bool {
+						return p.CursorLeftRunes(
+							p.Buffer().Document().FindRuneNumberUntilStartOfPreviousWord(),
+						)
+					},
 				},
 				// bind Linux CTRL+Right key binding
 				goprompt.KeyBind{
 					Key: goprompt.ControlRight,
-					Fn:  goprompt.GoRightWord,
+					Fn: func(p *goprompt.Prompt) bool {
+						return p.CursorRightRunes(
+							p.Buffer().Document().FindRuneNumberUntilEndOfCurrentWord(),
+						)
+					},
 				},
 				// bind CTRL+Z key to delete path elements
 				goprompt.KeyBind{
 					Key: goprompt.ControlZ,
-					Fn: func(buf *goprompt.Buffer) {
+					Fn: func(p *goprompt.Prompt) bool {
+						buf := p.Buffer()
 						// If the last word before the cursor does not contain a "/" return.
 						// This is needed to avoid deleting down to a previous flag value
 						if !strings.Contains(buf.Document().GetWordBeforeCursorWithSpace(), "/") {
-							return
+							return false
 						}
 						// Check if the last rune is a PathSeparator and is not the path root then delete it
 						if buf.Document().GetCharRelativeToCursor(0) == os.PathSeparator && buf.Document().GetCharRelativeToCursor(-1) != ' ' {
-							buf.DeleteBeforeCursor(1)
+							buf.DeleteBeforeCursor(1, p.TerminalColumns(), p.TerminalRows())
 						}
 						// Delete down until the next "/"
-						buf.DeleteBeforeCursor(len([]rune(buf.Document().GetWordBeforeCursorUntilSeparator("/"))))
+						buf.DeleteBeforeCursorRunes(
+							istrings.RuneCountInString(buf.Document().GetWordBeforeCursorUntilSeparator("/")),
+							p.TerminalColumns(),
+							p.TerminalRows(),
+						)
+						return true
 					},
 				},
 			),
-			goprompt.OptionCompletionWordSeparator(completer.FilePathCompletionSeparator),
-			// goprompt.OptionCompletionOnDown(),
-			goprompt.OptionShowCompletionAtStart(),
+			goprompt.WithCompletionWordSeparator(completer.FilePathCompletionSeparator),
+			// goprompt.WithCompletionOnDown(),
+			goprompt.WithShowCompletionAtStart(),
 		},
 	}
 	shell.Run()
@@ -879,13 +901,16 @@ type cmdPrompt struct {
 	RootCmd *cobra.Command
 
 	// GoPromptOptions is for customize go-prompt
-	// see https://github.com/c-bata/go-prompt/blob/master/option.go
+	// see https://github.com/elk-language/go-prompt/blob/master/option.go
 	GoPromptOptions []goprompt.Option
 }
 
 // Run will automatically generate suggestions for all cobra commands
 // and flags defined by RootCmd and execute the selected commands.
 func (co cmdPrompt) Run() {
+	options := append(co.GoPromptOptions, goprompt.WithCompleter(func(d goprompt.Document) (suggestions []goprompt.Suggest, startChar istrings.RuneNumber, endChar istrings.RuneNumber) {
+		return findSuggestions(co, d), d.CurrentRuneIndex() - istrings.RuneCountInString(d.GetWordBeforeCursor()), d.CurrentRuneIndex()
+	}))
 	p := goprompt.New(
 		func(in string) {
 			promptArgs, err := parsePromptArgs(in)
@@ -901,10 +926,7 @@ func (co cmdPrompt) Run() {
 				}
 			}
 		},
-		func(d goprompt.Document) []goprompt.Suggest {
-			return findSuggestions(co, d)
-		},
-		co.GoPromptOptions...,
+		options...,
 	)
 	p.Run()
 }

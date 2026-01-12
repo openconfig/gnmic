@@ -15,11 +15,15 @@ builds:
     goos:
       - linux
       - darwin
+      - windows
     goarch:
       - amd64
       - "386"
       - arm
       - arm64
+    ignore:
+      - goos: windows
+        goarch: arm
 dockers:
   - goos: linux
     goarch: amd64

@@ -20,17 +20,27 @@ env:
 
 jobs:
   test:
-    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GOVER }}
+          cache: true
       - run: ./tests/run_tests.sh
+        if: runner.os != 'Windows'
+        env:
+          CGO_ENABLED: 0
+      - run: bash ./tests/run_tests.sh
+        if: runner.os == 'Windows'
         env:
           CGO_ENABLED: 0
       # run staticcheck
-      - uses: reviewdog/action-staticcheck@73cfd0daa6fdbba9a858dcb0f62844012fa8317d
+      - uses: reviewdog/action-staticcheck@50f9bfcf3738839ddc95deac241b904d77469096
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           # Change reviewdog reporter if you need [github-pr-check,github-check,github-pr-review].
@@ -38,4 +48,4 @@ jobs:
           # Report all results.
           filter_mode: nofilter
           # Exit with 1 when it find at least one finding.
-          fail_on_error: true
+          fail_level: error
