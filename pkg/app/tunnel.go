@@ -174,9 +174,9 @@ func (a *App) tunServerDeleteTargetHandler(tt tunnel.Target) error {
 		cfn()
 		delete(a.tunTargetCfn, tt)
 		delete(a.tunTargets, tt)
-		a.configLock.Lock()
-		delete(a.Config.Targets, tt.ID)
-		a.configLock.Unlock()
+		if err := a.DeleteTarget(a.ctx, tt.ID); err != nil {
+			a.Logger.Printf("failed deleting tunnel target %q: %v", tt.ID, err)
+		}
 	}
 	return nil
 }
