@@ -128,7 +128,7 @@ func (n *jetstreamInput) Start(ctx context.Context, name string, cfg map[string]
 	if n.Cfg.Name == "" {
 		n.Cfg.Name = name
 	}
-	n.logger.SetPrefix(fmt.Sprintf("%s%s", loggingPrefix, n.Cfg.Name))
+	n.logger.SetPrefix(fmt.Sprintf(loggingPrefix, n.Cfg.Name))
 	options := &inputs.InputOptions{}
 	for _, opt := range opts {
 		if err := opt(options); err != nil {
@@ -190,11 +190,33 @@ func (n *jetstreamInput) workerStart(ctx context.Context) error {
 		return fmt.Errorf("failed to get stream: %v", err)
 	}
 
+	// Get stream info to determine retention policy
+	streamInfo, err := s.Info(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get stream info: %v", err)
+	}
+
+	// Determine ack policy and deliver policy based on stream retention
+	// Workqueue streams have specific requirements
+	ackPolicy := jetstream.AckAllPolicy
+	deliverPolicy := toJSDeliverPolicy(n.Cfg.DeliverPolicy)
+
+	if streamInfo.Config.Retention == jetstream.WorkQueuePolicy {
+		// Workqueue streams require explicit ack
+		ackPolicy = jetstream.AckExplicitPolicy
+		// Workqueue streams allow DeliverAllPolicy or DeliverNewPolicy
+		// Use configured policy, but only if it's one of these two
+		if deliverPolicy != jetstream.DeliverAllPolicy && deliverPolicy != jetstream.DeliverNewPolicy {
+			// Default to DeliverAllPolicy for workqueue if configured policy is not compatible
+			deliverPolicy = jetstream.DeliverAllPolicy
+		}
+	}
+
 	c, err := s.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
 		Name:           n.Cfg.Name,
 		Durable:        n.Cfg.Name,
-		DeliverPolicy:  toJSDeliverPolicy(n.Cfg.DeliverPolicy),
-		AckPolicy:      jetstream.AckAllPolicy,
+		DeliverPolicy:  deliverPolicy,
+		AckPolicy:      ackPolicy,
 		MemoryStorage:  true,
 		FilterSubjects: n.Cfg.Subjects,
 		MaxAckPending:  *n.Cfg.MaxAckPending,
@@ -363,6 +385,7 @@ func (n *jetstreamInput) setDefaults() error {
 	if n.Cfg.SubjectFormat == "" {
 		n.Cfg.SubjectFormat = subjectFormat_Static
 	}
+
 	if n.Cfg.Address == "" {
 		n.Cfg.Address = defaultAddress
 	}

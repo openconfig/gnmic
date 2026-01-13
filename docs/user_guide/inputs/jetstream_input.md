@@ -1,6 +1,8 @@
 When using jetstream as an input, `gnmic` consumes data from a specified NATS JetStream stream using a durable consumer. Messages are fetched in batches and delivered to `gnmic` in either `event` or `proto` format.
 
-Multiple workers (subscribers) can be spawned using the `num-workers` option. Each worker independently connects to JetStream and fetches messages using the configured subject filters. All workers share the same durable consumer name to ensure coordinated message processing.
+Each gNMIc instance creates one durable consumer using the configured `subjects` field. Multiple workers (subscribers) can be spawned using the `num-workers` option to increase processing throughput. All workers within a single gNMIc instance share the same durable consumer to ensure coordinated message processing.
+
+For scaling across multiple consumers, deploy multiple gNMIc instances with different consumer names. Each instance will create its own durable consumer on the stream.
 
 The `jetstream` input will export received messages to the configured `outputs`. Optionally, `event-processors` can be applied when using event format.
 
@@ -22,6 +24,7 @@ inputs:
     stream: telemetry-stream
 
     # list of subject filters within the stream to consume from
+    # the consumer will receive messages matching any of these subjects
     subjects:
       - telemetry.device.*
 
@@ -115,6 +118,45 @@ When using proto format, gnmic uses the subject name to extract metadata:
 
 - `static` → no parsing; no additional metadata is extracted
 
+## Scaling with Multiple Consumers
+
+Each gNMIc instance creates a single durable consumer on the stream. To scale message processing across multiple consumers:
+
+1. Deploy multiple gNMIc instances
+2. Give each instance a different consumer `name` in its configuration
+3. Configure each instance with appropriate `subjects` filters to partition work
+
+**Example - Two instances consuming different subjects:**
+
+Instance 1:
+```yaml
+inputs:
+  js-consumer-1:
+    type: jetstream
+    name: consumer-router-metrics
+    address: localhost:4222
+    stream: telemetry-stream
+    subjects:
+      - telemetry.router.*
+    num-workers: 2
+    format: event
+```
+
+Instance 2:
+```yaml
+inputs:
+  js-consumer-2:
+    type: jetstream
+    name: consumer-switch-metrics
+    address: localhost:4222
+    stream: telemetry-stream
+    subjects:
+      - telemetry.switch.*
+    num-workers: 2
+    format: event
+```
+
+Each instance creates its own durable consumer with its configured subject filters. Within each instance, multiple workers share the same consumer for parallel processing.
 
 ## Usage Notes
 
