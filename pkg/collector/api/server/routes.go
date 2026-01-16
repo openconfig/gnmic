@@ -60,12 +60,14 @@ func (s *Server) configRoutes(r *mux.Router) {
 	r.HandleFunc("/config/outputs", s.handleConfigOutputsGet).Methods(http.MethodGet)
 	r.HandleFunc("/config/outputs", s.handleConfigOutputsPost).Methods(http.MethodPost)
 	r.HandleFunc("/config/outputs/{id}", s.handleConfigOutputsGet).Methods(http.MethodGet)
-	r.HandleFunc("/config/outputs/{id}/processors", s.handleConfigOutputsPatch).Methods(http.MethodPatch)
+	r.HandleFunc("/config/outputs/{id}/processors", s.handleConfigOutputsProcessorsPatch).Methods(http.MethodPatch)
 	r.HandleFunc("/config/outputs/{id}", s.handleConfigOutputsDelete).Methods(http.MethodDelete)
 	//
 	r.HandleFunc("/config/inputs", s.handleConfigInputsGet).Methods(http.MethodGet)
 	r.HandleFunc("/config/inputs", s.handleConfigInputsPost).Methods(http.MethodPost)
 	r.HandleFunc("/config/inputs/{id}", s.handleConfigInputsGet).Methods(http.MethodGet)
+	r.HandleFunc("/config/inputs/{id}/processors", s.handleConfigInputsProcessorsPatch).Methods(http.MethodPatch)
+	r.HandleFunc("/config/inputs/{id}/outputs", s.handleConfigInputsOutputsPatch).Methods(http.MethodPatch)
 	r.HandleFunc("/config/inputs/{id}", s.handleConfigInputsDelete).Methods(http.MethodDelete)
 	//
 	r.HandleFunc("/config/processors", s.handleConfigProcessorsGet).Methods(http.MethodGet)

@@ -148,6 +148,16 @@ func (s *Server) handleConfigInputsPost(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusOK)
 }
 
+func (s *Server) handleConfigInputsProcessorsPatch(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+	json.NewEncoder(w).Encode(APIErrors{Errors: []string{"not implemented"}})
+}
+
+func (s *Server) handleConfigInputsOutputsPatch(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+	json.NewEncoder(w).Encode(APIErrors{Errors: []string{"not implemented"}})
+}
+
 func (s *Server) handleConfigInputsDelete(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]

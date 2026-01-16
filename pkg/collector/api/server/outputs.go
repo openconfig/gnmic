@@ -132,8 +132,9 @@ func (s *Server) handleConfigOutputsPost(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusOK)
 }
 
-func (s *Server) handleConfigOutputsPatch(w http.ResponseWriter, r *http.Request) {
-	// TODO: patch processors in place
+func (s *Server) handleConfigOutputsProcessorsPatch(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+	json.NewEncoder(w).Encode(APIErrors{Errors: []string{"not implemented"}})
 }
 
 func (s *Server) handleConfigOutputsDelete(w http.ResponseWriter, r *http.Request) {
