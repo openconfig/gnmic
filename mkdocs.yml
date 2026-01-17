@@ -119,7 +119,12 @@ nav:
               - Get: user_guide/golang_package/examples/get.md
               - Set: user_guide/golang_package/examples/set.md 
               - Subcribe: user_guide/golang_package/examples/subscribe.md
-
+      
+      - Collector Mode:
+          - Introduction: user_guide/collector/collector_intro.md
+          - Configuration: user_guide/collector/collector_configuration.md
+          - REST API: user_guide/collector/collector_api.md
+          
   - Command reference:
       - Capabilities: cmd/capabilities.md
       - Get: cmd/get.md
@@ -139,6 +144,7 @@ nav:
         - Generate Set-Request: cmd/generate/generate_set_request.md
       - Processor: cmd/processor.md
       - Proxy: cmd/proxy.md
+      - Collector: cmd/collector.md
     
   - Deployment examples:
       - Deployments: deployments/deployments_intro.md

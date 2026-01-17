@@ -80,11 +80,6 @@ func newCollectorTargetsListCmd(gApp *app.App) *cobra.Command {
 				return err
 			}
 
-			// if len(tc) == 0 {
-			// 	fmt.Println("No targets found")
-			// 	return nil
-			// }
-
 			// Display as horizontal table
 			table := tablewriter.NewWriter(os.Stdout)
 			table.SetHeader([]string{"Name", "Address", "Username", "State", "Subscriptions", "Outputs", "Insecure", "Skip Verify"})

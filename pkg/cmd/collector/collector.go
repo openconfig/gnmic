@@ -54,7 +54,10 @@ func getAPIServerURL(store store.Store[any]) (string, error) {
 	}
 	apiCfg, ok := apiServerConfig.(*config.APIServer)
 	if !ok {
-		return "", fmt.Errorf("address not found")
+		return "", fmt.Errorf("api-server config is required for collector command")
+	}
+	if apiCfg == nil {
+		return "", fmt.Errorf("api-server config is required for collector command")
 	}
 	if apiCfg.TLS != nil {
 		return "https://" + apiCfg.Address, nil
