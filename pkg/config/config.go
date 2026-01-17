@@ -272,6 +272,9 @@ type LocalFlags struct {
 	ProcessorInputDelimiter string   `mapstructure:"processor-input-delimiter,omitempty" yaml:"processor-input-delimiter,omitempty" json:"processor-input-delimiter,omitempty"`
 	ProcessorName           []string `mapstructure:"processor-name,omitempty" yaml:"processor-name,omitempty" json:"processor-name,omitempty"`
 	ProcessorOutput         string   `mapstructure:"processor-output,omitempty" yaml:"processor-output,omitempty" json:"processor-output,omitempty"`
+	// Tree
+	TreeFlat    bool `mapstructure:"tree-flat,omitempty" yaml:"tree-flat,omitempty" json:"tree-flat,omitempty"`
+	TreeDetails bool `mapstructure:"tree-details,omitempty" yaml:"tree-details,omitempty" json:"tree-details,omitempty"`
 }
 
 func New() *Config {
