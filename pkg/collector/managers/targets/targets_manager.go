@@ -261,7 +261,7 @@ func (tm *TargetsManager) Start(locker lockers.Locker, wg *sync.WaitGroup) error
 				case store.EventTypeUpdate:
 					tm.applySubscription(ev.Name, *cfg)
 				case store.EventTypeDelete:
-					tm.removeSubscription(ev.Name, *cfg) // TODO: in this case the config could be nil
+					tm.removeSubscription(ev.Name)
 				}
 			case ev, ok := <-assignmentsCh:
 				if !ok {
@@ -272,7 +272,7 @@ func (tm *TargetsManager) Start(locker lockers.Locker, wg *sync.WaitGroup) error
 				case store.EventTypeCreate:
 					tm.setAssigned(ev.Name, true)
 				case store.EventTypeUpdate:
-					tm.setAssigned(ev.Name, true) // can this happen? yes if I add epoch/term to assignments
+					tm.setAssigned(ev.Name, true) // can this happen? yes if we add epoch/term to assignments
 				case store.EventTypeDelete:
 					tm.setAssigned(ev.Name, false)
 				}
@@ -456,7 +456,7 @@ func (tm *TargetsManager) start(mt *ManagedTarget) error {
 			_ = tm.stop(mt)
 			return err
 		}
-		// TODO: keep lock
+		// keep lock
 		go func() {
 			doneCh, errCh := tm.locker.KeepLock(ctx, tm.targetLockKey(mt.Name))
 			for {
@@ -644,8 +644,8 @@ func (tm *TargetsManager) applySubscription(name string, cfg types.SubscriptionC
 	tm.mu.Unlock()
 }
 
-// TODO: remove subscription from targets that already reference it and have it running
-func (tm *TargetsManager) removeSubscription(name string, _ types.SubscriptionConfig) {
+// remove subscription from targets that already reference it and have it running
+func (tm *TargetsManager) removeSubscription(name string) {
 	tm.mu.Lock()
 	delete(tm.subscriptions, name)
 	for _, mt := range tm.targets {
@@ -894,7 +894,6 @@ func (tm *TargetsManager) compareSubscriptions(old, new []string) (added, remove
 			return nil, nil
 		}
 	}
-	sort.Strings(subscriptionsList)
 	if len(new) == 0 {
 		new = subscriptionsList
 	}

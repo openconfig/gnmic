@@ -2,6 +2,7 @@ package apiserver
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmic/pkg/api/types"
 	targets_manager "github.com/openconfig/gnmic/pkg/collector/managers/targets"
+	"github.com/zestor-dev/zestor/store"
 )
 
 func (s *Server) handleConfigTargetsGet(w http.ResponseWriter, r *http.Request) {
@@ -199,7 +201,11 @@ func (s *Server) handleConfigTargetsSubscriptionsPatch(w http.ResponseWriter, r 
 			return tc, nil
 		})
 	if err != nil {
-		// TODO: handle key not found error
+		if errors.Is(err, store.ErrKeyNotFound) {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{fmt.Sprintf("target %s not found", id)}})
+			return
+		}
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
@@ -261,7 +267,11 @@ func (s *Server) handleConfigTargetsOutputsPatch(w http.ResponseWriter, r *http.
 			return tc, nil
 		})
 	if err != nil {
-		// TODO: handle key not found error
+		if errors.Is(err, store.ErrKeyNotFound) {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(APIErrors{Errors: []string{fmt.Sprintf("target %s not found", id)}})
+			return
+		}
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return

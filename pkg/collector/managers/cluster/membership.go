@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/openconfig/gnmic/pkg/config"
 	"github.com/openconfig/gnmic/pkg/lockers"
 )
 
@@ -42,13 +43,14 @@ func (m *Member) String() string {
 }
 
 type membership struct {
-	locker      lockers.Locker
-	logger      *slog.Logger
-	clusterName string
+	locker lockers.Locker
+	logger *slog.Logger
+	// clusterName string
+	config *config.Clustering
 }
 
-func NewMembership(locker lockers.Locker, logger *slog.Logger, clusterName string) Membership {
-	return &membership{locker: locker, logger: logger, clusterName: clusterName}
+func NewMembership(locker lockers.Locker, config *config.Clustering, logger *slog.Logger) Membership {
+	return &membership{locker: locker, logger: logger, config: config}
 }
 
 func (m *membership) GetMembers(ctx context.Context) (map[string]*Member, error) {
@@ -72,7 +74,7 @@ func (m *membership) Watch(ctx context.Context) (<-chan map[string]*Member, func
 	ctx, cancel := context.WithCancel(ctx)
 	serviceName := m.serviceName()
 	m.logger.Info("watching services", "serviceName", serviceName)
-	go m.locker.WatchServices(ctx, serviceName, []string{}, lockerCh, 10*time.Second)
+	go m.locker.WatchServices(ctx, serviceName, []string{"cluster-name=" + m.config.ClusterName}, lockerCh, m.config.ServicesWatchTimer)
 
 	ch := make(chan map[string]*Member)
 
@@ -112,7 +114,7 @@ func (m *membership) Register(ctx context.Context, clusterName string, self *Reg
 		Address: self.Address,
 		Port:    self.Port,
 		Tags:    self.Labels,
-		TTL:     10 * time.Second, // TODO: make this configurable
+		TTL:     5 * time.Second, // TODO: make this configurable
 	})
 	return func() error {
 		cancel()
@@ -121,5 +123,5 @@ func (m *membership) Register(ctx context.Context, clusterName string, self *Reg
 }
 
 func (m *membership) serviceName() string {
-	return fmt.Sprintf("%s-%s", m.clusterName, apiServiceName)
+	return fmt.Sprintf("%s-%s", m.config.ClusterName, apiServiceName)
 }

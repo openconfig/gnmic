@@ -33,7 +33,8 @@ type tunnelServerConfig struct {
 	Debug         bool             `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 }
 
-// TODO: watch tunnel server config and reconcile
+// tunnelServer watches tunnel server config and reconciles
+// the connected targets when the config changes.
 type tunnelServer struct {
 	config *tunnelServerConfig
 

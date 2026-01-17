@@ -107,8 +107,11 @@ func (c *ClusterManager) Start(ctx context.Context, locker lockers.Locker, wg *s
 	c.apiConfig = api
 	c.logger.Info("starting cluster manager")
 
-	c.membership = NewMembership(c.locker, c.logger, clustering.ClusterName)
-	c.election = NewElection(c.locker, clustering.ClusterName, clustering.InstanceName, clustering.TargetsWatchTimer, clustering.TargetsWatchTimer/2, c.logger)
+	c.election, err = NewElection(c.locker, clustering, c.logger)
+	if err != nil {
+		return err
+	}
+	c.membership = NewMembership(c.locker, clustering, c.logger)
 	c.assigner = NewAssigner(c.store)
 
 	// start registration to register the api service
@@ -258,6 +261,13 @@ func (c *ClusterManager) startRegistration(ctx context.Context) error {
 // verifies ownership via locks, and updates assignments in the store.
 func (c *ClusterManager) runLeader(ctx context.Context) error {
 	c.logger.Info("starting leader duties")
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(c.clusteringConfig.LeaderWaitTimer):
+		break
+	}
 
 	// watch membership (other nodes joining/leaving)
 	membersCh, cancelMembers, err := c.membership.Watch(ctx)
@@ -473,6 +483,7 @@ func (c *ClusterManager) getAssignments(ctx context.Context) (map[string]*Member
 			res[targetName] = m
 		} else {
 			// TODO: unknwon member ?
+			c.logger.Warn("found unknown member in current assignments", "member", memberName)
 		}
 	}
 

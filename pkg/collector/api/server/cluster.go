@@ -399,5 +399,7 @@ func (s *Server) handleHealthzGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAdminShutdown(w http.ResponseWriter, r *http.Request) {
-	// TODO
+	// Not implemented yet
+	w.WriteHeader(http.StatusNotImplemented)
+	_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{"shutdown not implemented"}})
 }

@@ -2,12 +2,14 @@ package cluster_manager
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/openconfig/gnmic/pkg/config"
 	"github.com/openconfig/gnmic/pkg/lockers"
 )
 
@@ -22,7 +24,7 @@ type Election interface {
 	// Returns a monotonically increasing term for observability/metrics.
 	Campaign(ctx context.Context) (term int64, err error)
 	// Closes when leadership is lost (or returns nil if you don't need it).
-	Observe(ctx context.Context) <-chan struct{} // closes/receives when leadership is lost (optional; return nil if N/A)
+	Observe(ctx context.Context) <-chan struct{} // closes/receives when leadership is lost (optional: return nil if N/A)
 	// Withdraw withdraws from the leader position
 	Withdraw() error
 }
@@ -30,7 +32,6 @@ type Election interface {
 type election struct {
 	nodeID      string
 	clusterName string
-	TTL         time.Duration // lock TTL (e.g., 10s)
 	RenewEvery  time.Duration // renew every (e.g., 1/2 of TTL)
 	locker      lockers.Locker
 	logger      *slog.Logger
@@ -47,18 +48,35 @@ type election struct {
 	mu        sync.Mutex
 }
 
-func NewElection(locker lockers.Locker, clusterName, nodeID string, ttl, renewEvery time.Duration, logger *slog.Logger) Election {
-	if renewEvery <= 0 {
-		renewEvery = ttl / 2
+func NewElection(locker lockers.Locker, clustering *config.Clustering, logger *slog.Logger) (Election, error) {
+	var renewEvery time.Duration
+	sTTL, ok := clustering.Locker["session-ttl"]
+	if ok {
+		switch st := sTTL.(type) {
+		case string:
+			var err error
+			renewEvery, err = time.ParseDuration(st)
+			if err != nil {
+				return nil, err
+			}
+			if renewEvery <= 0 {
+				return nil, errors.New("session-ttl must be greater than 0")
+			}
+			renewEvery = renewEvery / 2
+		default:
+			return nil, errors.New("session-ttl must be a string")
+		}
+	} else {
+		renewEvery = 5 * time.Second
 	}
+
 	return &election{
 		locker:      locker,
-		nodeID:      nodeID,
-		clusterName: clusterName,
-		TTL:         ttl,
+		nodeID:      clustering.InstanceName,
+		clusterName: clustering.ClusterName,
 		RenewEvery:  renewEvery,
 		logger:      logger,
-	}
+	}, nil
 }
 
 func (e *election) Campaign(ctx context.Context) (term int64, err error) {
@@ -83,7 +101,7 @@ func (e *election) Campaign(ctx context.Context) (term int64, err error) {
 		}
 		e.logger.Info("trying to acquire leader lock", "node", e.nodeID, "cluster", e.clusterName, "term", term)
 		// Try to acquire the leader lock
-		ok, release, err := tryAcquire(ctx, e.locker, key, []byte(e.nodeID), e.TTL)
+		ok, release, err := tryAcquire(ctx, e.locker, key, []byte(e.nodeID))
 		if err != nil {
 			e.logger.Error("failed to acquire leader lock", "node", e.nodeID, "cluster", e.clusterName, "term", term, "error", err)
 			// locker error... backoff a bit
@@ -127,7 +145,7 @@ func (e *election) Campaign(ctx context.Context) (term int64, err error) {
 }
 
 // Observe closes when this node loses leadership.
-// (Safe to call multiple times; same channel is returned.)
+// (Safe to call multiple times, same channel is returned.)
 func (e *election) Observe(ctx context.Context) <-chan struct{} {
 	e.mu.Lock()
 	ch := e.loseCh
@@ -182,8 +200,8 @@ func (e *election) keepalive(ctx context.Context, key string) {
 			return
 		case <-t.C:
 			e.logger.Info("renewing leader lock", "node", e.nodeID, "cluster", e.clusterName, "term", e.term.Load())
-			// Renew our lease; if that fails or another node took over, we lost leadership.
-			if err := renew(ctx, e.locker, key, []byte(e.nodeID), e.TTL); err != nil {
+			// Renew our lease,if that fails or another node took over, we lost leadership.
+			if err := renew(ctx, e.locker, key, []byte(e.nodeID)); err != nil {
 				e.signalLoss()
 				return
 			}
@@ -204,7 +222,7 @@ func (e *election) signalLoss() {
 	e.releaseFn = nil
 	e.mu.Unlock()
 	if release != nil {
-		_ = release() // ignore error; we already lost
+		_ = release() // ignore error, we already lost
 	}
 
 	// stop renew loop
@@ -221,9 +239,9 @@ func (e *election) signalLoss() {
 }
 
 // tryAcquire tries to acquire key with value=holder and TTL.
-// Returns (true, releaseFn, nil) if acquired; (false, nil, nil) if not; or (false, nil, err) on backend error.
-func tryAcquire(ctx context.Context, lk lockers.Locker, key string, holder []byte, ttl time.Duration) (bool, func() error, error) {
-	// Lock() attempts to acquire the lock; it returns (true,nil) if successful,
+// Returns (true, releaseFn, nil) if acquired, (false, nil, nil) if not acquired, or (false, nil, err) on backend error.
+func tryAcquire(ctx context.Context, lk lockers.Locker, key string, holder []byte) (bool, func() error, error) {
+	// Lock() attempts to acquire the lock, it returns (true,nil) if successful,
 	// (false,nil) if already locked, or (false,err) if backend error.
 	ok, err := lk.Lock(ctx, key, holder)
 	if err != nil {
@@ -271,9 +289,9 @@ func tryAcquire(ctx context.Context, lk lockers.Locker, key string, holder []byt
 }
 
 // renew refreshes the TTL for a lock we hold.
-func renew(ctx context.Context, lk lockers.Locker, key string, holder []byte, ttl time.Duration) error {
+func renew(ctx context.Context, lk lockers.Locker, key string, holder []byte) error {
 	// In this Locker API, TTL renewals are managed by KeepLock().
-	// So "renew" doesn’t need to explicitly refresh; just check if lock is still held.
+	// So "renew" doesn’t need to explicitly refresh, just check if lock is still held.
 	held, err := lk.IsLocked(ctx, key)
 	if err != nil {
 		return err
