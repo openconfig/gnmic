@@ -967,11 +967,6 @@ func retentionPolicy(s string) nats.RetentionPolicy {
 	return nats.LimitsPolicy
 }
 
-// var storageTypes = map[string]nats.StorageType{
-// 	"file":   nats.FileStorage,
-// 	"memory": nats.MemoryStorage,
-// }
-
 func (n *jetstreamOutput) createStream(js nats.JetStreamContext, cfg *config) error {
 	// If CreateStream is not configured, we're using an existing stream
 	if cfg.CreateStream == nil {
@@ -1001,11 +996,6 @@ func (n *jetstreamOutput) createStream(js nats.JetStreamContext, cfg *config) er
 		MaxBytes:    cfg.CreateStream.MaxBytes,
 		MaxAge:      cfg.CreateStream.MaxAge,
 		MaxMsgSize:  cfg.CreateStream.MaxMsgSize,
-	}
-	// stream exists
-	if stream != nil {
-		_, err = js.UpdateStream(streamConfig)
-		return err
 	}
 
 	_, err = js.AddStream(streamConfig)
