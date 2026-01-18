@@ -331,17 +331,19 @@ func (n *natsInput) doWork(ctx context.Context, wCfg *config, workerLogPrefix st
 			if len(m.Data) == 0 {
 				continue
 			}
-			if wCfg.Debug {
+			// load current config for dynamic fields like Format
+			cfg := n.cfg.Load()
+			if cfg.Debug {
 				n.logger.Printf("received msg, subject=%s, queue=%s, len=%d, data=%s",
 					m.Subject, m.Sub.Queue, len(m.Data), string(m.Data))
 			}
 
 			dc := n.dynCfg.Load()
-			switch wCfg.Format {
+			switch cfg.Format {
 			case "event":
 				var evMsgs []*formatters.EventMsg
 				if err := json.Unmarshal(m.Data, &evMsgs); err != nil {
-					if wCfg.Debug {
+					if cfg.Debug {
 						n.logger.Printf("%s failed to unmarshal event msg: %v", workerLogPrefix, err)
 					}
 					continue
