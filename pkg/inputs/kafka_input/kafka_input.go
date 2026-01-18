@@ -350,12 +350,14 @@ func (k *KafkaInput) doWork(ctx context.Context, wCfg *config, workerLogPrefix s
 			if len(m.Value) == 0 {
 				continue
 			}
-			if wCfg.Debug {
+			// load current config for dynamic fields like Format
+			cfg := k.cfg.Load()
+			if cfg.Debug {
 				k.logger.Printf("%s client=%s received msg, topic=%s, partition=%d, key=%q, length=%d, value=%s", workerLogPrefix, saramaConfig.ClientID, m.Topic, m.Partition, string(m.Key), len(m.Value), string(m.Value))
 			}
 
 			dc := k.dynCfg.Load()
-			switch wCfg.Format {
+			switch cfg.Format {
 			case "event":
 				m.Value = bytes.TrimSpace(m.Value)
 				evMsgs := make([]*formatters.EventMsg, 1)
@@ -370,7 +372,7 @@ func (k *KafkaInput) doWork(ctx context.Context, wCfg *config, workerLogPrefix s
 					err = json.Unmarshal(m.Value, evMsgs[0])
 				}
 				if err != nil {
-					if wCfg.Debug {
+					if cfg.Debug {
 						k.logger.Printf("%s failed to unmarshal event msg: %v", workerLogPrefix, err)
 					}
 					continue
@@ -401,13 +403,14 @@ func (k *KafkaInput) doWork(ctx context.Context, wCfg *config, workerLogPrefix s
 			case "proto":
 				protoMsg := new(gnmi.SubscribeResponse)
 				if err := proto.Unmarshal(m.Value, protoMsg); err != nil {
-					if wCfg.Debug {
+					if cfg.Debug {
 						k.logger.Printf("%s failed to unmarshal proto msg: %v", workerLogPrefix, err)
 					}
 					continue
 				}
-				meta := outputs.Meta{}
-
+				fmt.Printf("m.Key: %s\n", string(m.Key))
+				meta := k.partitionKeyToMeta(m.Key)
+				fmt.Printf("meta: %+v\n", meta)
 				if k.pipeline != nil {
 					select {
 					case <-ctx.Done():
@@ -426,16 +429,17 @@ func (k *KafkaInput) doWork(ctx context.Context, wCfg *config, workerLogPrefix s
 				}
 			}
 		case err := <-consumerGrp.Errors():
-			k.logger.Printf("%s client=%s, consumer-group=%s error: %v", workerLogPrefix, saramaConfig.ClientID, wCfg.GroupID, err)
+			cfg := k.cfg.Load()
+			k.logger.Printf("%s client=%s, consumer-group=%s error: %v", workerLogPrefix, saramaConfig.ClientID, cfg.GroupID, err)
 
 			select {
 			case <-ctx.Done():
 				return nil
-			case <-time.After(wCfg.RecoveryWaitTime):
+			case <-time.After(cfg.RecoveryWaitTime):
 			}
 			close(stopConsume)
 			// restart worker in case of error
-			go k.doWork(ctx, wCfg, workerLogPrefix, idx)
+			go k.doWork(ctx, cfg, workerLogPrefix, idx)
 			return nil
 		}
 	}
@@ -449,6 +453,24 @@ func (k *KafkaInput) Close() error {
 		k.wg.Wait()
 	}
 	return nil
+}
+
+const (
+	partitionKeySeparator = ":::"
+)
+
+func (k *KafkaInput) partitionKeyToMeta(key []byte) outputs.Meta {
+	if len(key) == 0 {
+		return outputs.Meta{}
+	}
+	parts := strings.SplitN(string(key), partitionKeySeparator, 2)
+	if len(parts) != 2 {
+		return outputs.Meta{}
+	}
+	return outputs.Meta{
+		"source":            parts[0],
+		"subscription-name": parts[1],
+	}
 }
 
 func (k *KafkaInput) setLogger(logger *log.Logger) {
