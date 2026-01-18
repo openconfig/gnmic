@@ -812,13 +812,17 @@ func (k *kafkaOutput) createConfigFor(c *config) (*sarama.Config, error) {
 	return cfg, nil
 }
 
+const (
+	partitionKeyTemplate = "%s:::%s"
+)
+
 func (k *kafkaOutput) partitionKey(m outputs.Meta) []byte {
 	b := bytesBufferPool.Get().(*bytes.Buffer)
 	defer func() {
 		b.Reset()
 		bytesBufferPool.Put(b)
 	}()
-	fmt.Fprintf(b, "%s_%s", m["source"], m["subscription-name"])
+	fmt.Fprintf(b, partitionKeyTemplate, m["source"], m["subscription-name"])
 	return b.Bytes()
 }
 
