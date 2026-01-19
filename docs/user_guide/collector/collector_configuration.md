@@ -100,7 +100,7 @@ clustering:
     debug: false
 ```
 
-## gNMI Server
+<!-- ## gNMI Server
 
 The embedded gNMI server allows the collector to serve collected data to downstream gNMI clients.
 
@@ -193,7 +193,7 @@ gnmi-server:
     max-fail: 3
     name:
     tags: []
-```
+``` -->
 
 ## Tunnel Server
 

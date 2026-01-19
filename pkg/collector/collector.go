@@ -21,7 +21,6 @@ import (
 	"github.com/grafana/pyroscope-go"
 	"github.com/openconfig/gnmic/pkg/cache"
 	apiserver "github.com/openconfig/gnmic/pkg/collector/api/server"
-	"github.com/openconfig/gnmic/pkg/collector/gnmiserver"
 	cluster_manager "github.com/openconfig/gnmic/pkg/collector/managers/cluster"
 	inputs_manager "github.com/openconfig/gnmic/pkg/collector/managers/inputs"
 	outputs_manager "github.com/openconfig/gnmic/pkg/collector/managers/outputs"
@@ -44,9 +43,8 @@ type Collector struct {
 	ctx         context.Context
 	configStore store.Store[any]
 
-	apiServer  *apiserver.Server
-	gnmiServer *gnmiserver.Server
-	cache      cache.Cache
+	apiServer *apiserver.Server
+	cache     cache.Cache
 
 	locker         lockers.Locker
 	clusterManager *cluster_manager.ClusterManager
@@ -62,7 +60,6 @@ type Collector struct {
 }
 
 func New(ctx context.Context, store store.Store[any]) *Collector {
-
 	pipeline := make(chan *pipeline.Msg, defaultPipelineBufferSize)
 	reg := prometheus.NewRegistry()
 
@@ -76,13 +73,11 @@ func New(ctx context.Context, store store.Store[any]) *Collector {
 		inputsManager, clusterManager,
 		reg,
 	)
-	gnmiServer := gnmiserver.NewServer(store, targetsManager, outputsManager, inputsManager, reg)
 
 	c := &Collector{
 		ctx:            ctx,
 		configStore:    store,
 		apiServer:      apiServer,
-		gnmiServer:     gnmiServer,
 		clusterManager: clusterManager,
 		targetsManager: targetsManager,
 		outputsManager: outputsManager,
@@ -135,11 +130,6 @@ func (c *Collector) Start() error {
 	if err != nil {
 		return err
 	}
-	// start gNMI server
-	err = c.gnmiServer.Start(c.ctx, c.cache, c.wg)
-	if err != nil {
-		return err
-	}
 	// wait for context done
 	<-c.ctx.Done()
 	// wait for all components to finish
@@ -150,6 +140,7 @@ func (c *Collector) Start() error {
 func (c *Collector) Stop() {
 	c.logger.Info("stopping collector")
 	c.apiServer.Stop()
+	c.clusterManager.Stop()
 	c.targetsManager.Stop()
 	c.outputsManager.Stop()
 	c.inputsManager.Stop()
