@@ -243,7 +243,6 @@ func (o *otlpOutput) setName(name string) {
 func (o *otlpOutput) initGRPC() error {
 	var opts []grpc.DialOption
 
-	// TLS configuration
 	if o.cfg.TLS != nil {
 		tlsConfig, err := o.createTLSConfig()
 		if err != nil {
@@ -254,19 +253,15 @@ func (o *otlpOutput) initGRPC() error {
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
-	// Connect with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), o.cfg.Timeout)
-	defer cancel()
-
-	conn, err := grpc.DialContext(ctx, o.cfg.Endpoint, opts...)
+	conn, err := grpc.NewClient(o.cfg.Endpoint, opts...)
 	if err != nil {
-		return fmt.Errorf("failed to dial OTLP endpoint: %w", err)
+		return fmt.Errorf("failed to create OTLP client: %w", err)
 	}
 
 	o.grpcConn = conn
 	o.grpcClient = metricsv1.NewMetricsServiceClient(conn)
 
-	o.logger.Printf("connected to OTLP endpoint via gRPC: %s", o.cfg.Endpoint)
+	o.logger.Printf("initialized OTLP gRPC client for endpoint: %s", o.cfg.Endpoint)
 	return nil
 }
 

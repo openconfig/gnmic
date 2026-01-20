@@ -13,6 +13,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
@@ -183,30 +184,31 @@ func TestOTLP_MetricTypeDetection(t *testing.T) {
 
 // Test 5: gRPC Transport
 func TestOTLP_GRPCTransport(t *testing.T) {
-	t.Skip("Implementation pending")
-
-	// Test OTLP gRPC transport
-	// Given: Mock OTLP collector gRPC server
 	server, endpoint := startMockOTLPServer(t)
 	defer server.Stop()
 
-	// When: Sending metrics via gRPC
 	cfg := map[string]interface{}{
-		"endpoint": endpoint,
-		"protocol": "grpc",
-		"timeout":  "5s",
+		"endpoint":   endpoint,
+		"protocol":   "grpc",
+		"timeout":    "5s",
+		"batch-size": 1,
+		"interval":   "100ms",
 	}
-	output := &otlpOutput{}
+
+	output := &otlpOutput{
+		cfg:    &config{},
+		wg:     new(sync.WaitGroup),
+		logger: log.New(io.Discard, "", 0),
+	}
+
 	err := output.Init(context.Background(), "test-otlp", cfg)
 	require.NoError(t, err)
 	defer output.Close()
 
-	// Send test event
 	event := createTestEvent()
 	output.WriteEvent(context.Background(), event)
 
-	// Then: Metrics received by server
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 	assert.Greater(t, server.ReceivedMetricsCount(), 0)
 }
 
@@ -381,6 +383,22 @@ func startMockOTLPServer(t *testing.T) (*mockOTLPServer, string) {
 
 	metricsv1.RegisterMetricsServiceServer(server, mock)
 
+	go server.Serve(listener)
+
+	return mock, listener.Addr().String()
+}
+
+func startMockOTLPServerOnAddress(t *testing.T, addr string) (*mockOTLPServer, string) {
+	listener, err := net.Listen("tcp", addr)
+	require.NoError(t, err)
+
+	server := grpc.NewServer()
+	mock := &mockOTLPServer{
+		grpcServer: server,
+		listener:   listener,
+	}
+
+	metricsv1.RegisterMetricsServiceServer(server, mock)
 	go server.Serve(listener)
 
 	return mock, listener.Addr().String()
@@ -588,6 +606,98 @@ func TestOTLP_ConfiguredResourceAttributesAlwaysIncluded(t *testing.T) {
 	// Configured resource attributes should always be present
 	assert.Equal(t, "gnmic-collector", resourceAttrs["service.name"])
 	assert.Equal(t, "0.42.0", resourceAttrs["service.version"])
+}
+
+// Test 12: Init succeeds even when endpoint is unreachable
+func TestOTLP_InitSucceedsWithUnreachableEndpoint(t *testing.T) {
+	cfg := map[string]interface{}{
+		"endpoint": "unreachable-host:4317",
+		"protocol": "grpc",
+		"timeout":  "1s",
+	}
+
+	output := &otlpOutput{
+		cfg:    &config{},
+		wg:     new(sync.WaitGroup),
+		logger: log.New(io.Discard, "", 0),
+	}
+
+	err := output.Init(context.Background(), "test-otlp", cfg)
+	assert.NoError(t, err, "Init should succeed even with unreachable endpoint")
+	assert.NotNil(t, output.grpcConn, "gRPC connection should be created")
+	assert.NotNil(t, output.grpcClient, "gRPC client should be created")
+
+	output.Close()
+}
+
+// Test 13: Connection happens lazily on first RPC
+func TestOTLP_ConnectionOnFirstRPC(t *testing.T) {
+	server, endpoint := startMockOTLPServer(t)
+	defer server.Stop()
+
+	cfg := map[string]interface{}{
+		"endpoint":   endpoint,
+		"protocol":   "grpc",
+		"timeout":    "5s",
+		"batch-size": 1,
+		"interval":   "100ms",
+	}
+
+	output := &otlpOutput{
+		cfg:    &config{},
+		wg:     new(sync.WaitGroup),
+		logger: log.New(io.Discard, "", 0),
+	}
+
+	err := output.Init(context.Background(), "test-otlp", cfg)
+	require.NoError(t, err)
+	defer output.Close()
+
+	assert.Equal(t, 0, server.ReceivedMetricsCount(), "No metrics should be sent yet")
+
+	event := createTestEvent()
+	output.WriteEvent(context.Background(), event)
+
+	time.Sleep(200 * time.Millisecond)
+	assert.Greater(t, server.ReceivedMetricsCount(), 0, "Metrics should be sent on first RPC")
+}
+
+// Test 14: Retry behavior with delayed endpoint availability
+func TestOTLP_ReconnectWhenEndpointBecomesAvailable(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	endpoint := listener.Addr().String()
+	listener.Close()
+
+	cfg := map[string]interface{}{
+		"endpoint":    endpoint,
+		"protocol":    "grpc",
+		"timeout":     "2s",
+		"batch-size":  1,
+		"interval":    "200ms",
+		"max-retries": 10,
+	}
+
+	output := &otlpOutput{
+		cfg:    &config{},
+		wg:     new(sync.WaitGroup),
+		logger: log.New(io.Discard, "", 0),
+	}
+
+	err = output.Init(context.Background(), "test-otlp", cfg)
+	require.NoError(t, err)
+	defer output.Close()
+
+	server, newEndpoint := startMockOTLPServerOnAddress(t, endpoint)
+	defer server.Stop()
+	assert.Equal(t, endpoint, newEndpoint)
+
+	event := createTestEvent()
+	output.WriteEvent(context.Background(), event)
+
+	time.Sleep(500 * time.Millisecond)
+
+	assert.Greater(t, server.ReceivedMetricsCount(), 0, "Should successfully send after endpoint becomes available")
 }
 
 // Helper to extract attributes map from KeyValue slice
