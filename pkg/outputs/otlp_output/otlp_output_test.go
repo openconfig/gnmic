@@ -405,6 +405,9 @@ func startMockOTLPServerOnAddress(t *testing.T, addr string) (*mockOTLPServer, s
 }
 
 func (m *mockOTLPServer) Export(ctx context.Context, req *metricsv1.ExportMetricsServiceRequest) (*metricsv1.ExportMetricsServiceResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	m.receivedReqs = append(m.receivedReqs, req)
 	m.metricsCount += len(req.ResourceMetrics)
 	return &metricsv1.ExportMetricsServiceResponse{}, nil
@@ -698,6 +701,117 @@ func TestOTLP_ReconnectWhenEndpointBecomesAvailable(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 
 	assert.Greater(t, server.ReceivedMetricsCount(), 0, "Should successfully send after endpoint becomes available")
+}
+
+// Test 15: Graceful shutdown flushes remaining batch
+func TestOTLP_GracefulShutdownFlushes(t *testing.T) {
+	server, endpoint := startMockOTLPServer(t)
+	defer server.Stop()
+
+	cfg := map[string]interface{}{
+		"endpoint":   endpoint,
+		"protocol":   "grpc",
+		"timeout":    "5s",
+		"batch-size": 100,
+		"interval":   "10s",
+	}
+
+	output := &otlpOutput{
+		cfg:    &config{},
+		wg:     new(sync.WaitGroup),
+		logger: log.New(io.Discard, "", 0),
+	}
+
+	err := output.Init(context.Background(), "test-otlp", cfg)
+	require.NoError(t, err)
+
+	event := createTestEvent()
+	output.WriteEvent(context.Background(), event)
+	output.WriteEvent(context.Background(), event)
+
+	time.Sleep(100 * time.Millisecond)
+	assert.Equal(t, 0, server.ReceivedMetricsCount(), "Batch should not be sent yet (batch size not reached)")
+
+	output.Close()
+
+	time.Sleep(200 * time.Millisecond)
+	assert.Greater(t, server.ReceivedMetricsCount(), 0, "Remaining batch should be flushed on shutdown")
+}
+
+// Test 16: Context cancellation sends final batch with fresh context
+func TestOTLP_ContextCancellationFlushes(t *testing.T) {
+	server, endpoint := startMockOTLPServer(t)
+	defer server.Stop()
+
+	cfg := map[string]interface{}{
+		"endpoint":   endpoint,
+		"protocol":   "grpc",
+		"timeout":    "5s",
+		"batch-size": 100,
+		"interval":   "10s",
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	output := &otlpOutput{
+		cfg:    &config{},
+		wg:     new(sync.WaitGroup),
+		logger: log.New(io.Discard, "", 0),
+	}
+
+	err := output.Init(ctx, "test-otlp", cfg)
+	require.NoError(t, err)
+
+	event := createTestEvent()
+	output.WriteEvent(context.Background(), event)
+	output.WriteEvent(context.Background(), event)
+
+	time.Sleep(100 * time.Millisecond)
+	assert.Equal(t, 0, server.ReceivedMetricsCount(), "Batch should not be sent yet")
+
+	cancel()
+
+	time.Sleep(200 * time.Millisecond)
+	output.Close()
+
+	assert.Greater(t, server.ReceivedMetricsCount(), 0, "Batch should be flushed even after context cancellation")
+}
+
+// Test 17: Channel close flushes remaining batch
+func TestOTLP_ChannelCloseFlushes(t *testing.T) {
+	server, endpoint := startMockOTLPServer(t)
+	defer server.Stop()
+
+	cfg := map[string]interface{}{
+		"endpoint":   endpoint,
+		"protocol":   "grpc",
+		"timeout":    "5s",
+		"batch-size": 100,
+		"interval":   "10s",
+	}
+
+	output := &otlpOutput{
+		cfg:    &config{},
+		wg:     new(sync.WaitGroup),
+		logger: log.New(io.Discard, "", 0),
+	}
+
+	err := output.Init(context.Background(), "test-otlp", cfg)
+	require.NoError(t, err)
+
+	event := createTestEvent()
+	output.WriteEvent(context.Background(), event)
+	output.WriteEvent(context.Background(), event)
+	output.WriteEvent(context.Background(), event)
+
+	time.Sleep(100 * time.Millisecond)
+	assert.Equal(t, 0, server.ReceivedMetricsCount(), "Batch should not be sent yet")
+
+	close(output.eventCh)
+
+	time.Sleep(200 * time.Millisecond)
+
+	assert.Greater(t, server.ReceivedMetricsCount(), 0, "Remaining batch should be flushed when channel closes")
 }
 
 // Helper to extract attributes map from KeyValue slice

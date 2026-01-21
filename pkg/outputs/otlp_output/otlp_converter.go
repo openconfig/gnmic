@@ -493,7 +493,7 @@ func (o *otlpOutput) validateMetricData(rmIdx, smIdx, mIdx int, m *metricspb.Met
 }
 
 // sendGRPC sends the OTLP metrics via gRPC
-func (o *otlpOutput) sendGRPC(req *metricsv1.ExportMetricsServiceRequest) error {
+func (o *otlpOutput) sendGRPC(ctx context.Context, req *metricsv1.ExportMetricsServiceRequest) error {
 	if o.grpcClient == nil {
 		return fmt.Errorf("gRPC client not initialized")
 	}
@@ -503,10 +503,9 @@ func (o *otlpOutput) sendGRPC(req *metricsv1.ExportMetricsServiceRequest) error 
 		return fmt.Errorf("request validation failed: %w", err)
 	}
 
-	ctx := o.ctx
 	if o.cfg.Timeout > 0 {
 		var cancel func()
-		ctx, cancel = context.WithTimeout(o.ctx, o.cfg.Timeout)
+		ctx, cancel = context.WithTimeout(ctx, o.cfg.Timeout)
 		defer cancel()
 	}
 

@@ -385,9 +385,11 @@ func (o *otlpOutput) worker(ctx context.Context, id int) {
 	for {
 		select {
 		case <-ctx.Done():
-			// Flush remaining batch
+			// Flush remaining batch with fresh context to avoid sending with cancelled context
 			if len(batch) > 0 {
-				o.sendBatch(ctx, batch)
+				flushCtx, cancel := context.WithTimeout(context.Background(), o.cfg.Timeout)
+				defer cancel()
+				o.sendBatch(flushCtx, batch)
 			}
 			if o.cfg.Debug {
 				o.logger.Printf("worker %d stopped", id)
@@ -396,9 +398,11 @@ func (o *otlpOutput) worker(ctx context.Context, id int) {
 
 		case event, ok := <-o.eventCh:
 			if !ok {
-				// Channel closed, flush and exit
+				// Channel closed, flush and exit with fresh context
 				if len(batch) > 0 {
-					o.sendBatch(ctx, batch)
+					flushCtx, cancel := context.WithTimeout(context.Background(), o.cfg.Timeout)
+					defer cancel()
+					o.sendBatch(flushCtx, batch)
 				}
 				return
 			}
@@ -432,7 +436,7 @@ func (o *otlpOutput) sendBatch(ctx context.Context, events []*formatters.EventMs
 	// Send with retries
 	var err error
 	for attempt := 0; attempt <= o.cfg.MaxRetries; attempt++ {
-		err = o.sendGRPC(req)
+		err = o.sendGRPC(ctx, req)
 
 		if err == nil {
 			if o.cfg.Debug {
