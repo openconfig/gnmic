@@ -2,7 +2,7 @@ module github.com/openconfig/gnmic
 
 go 1.24.7
 
-replace github.com/openconfig/gnmic/pkg/api v0.1.8 => ./pkg/api
+replace github.com/openconfig/gnmic/pkg/api v0.1.9 => ./pkg/api
 
 replace github.com/openconfig/gnmic/pkg/cache v0.1.3 => ./pkg/cache
 
@@ -43,7 +43,7 @@ require (
 	github.com/nsf/termbox-go v1.1.1
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/openconfig/gnmi v0.14.1
-	github.com/openconfig/gnmic/pkg/api v0.1.8
+	github.com/openconfig/gnmic/pkg/api v0.1.9
 	github.com/openconfig/gnmic/pkg/cache v0.1.3
 	github.com/openconfig/goyang v1.6.3
 	github.com/openconfig/ygot v0.34.0
@@ -58,6 +58,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/xdg/scram v1.0.5
 	github.com/zestor-dev/zestor v0.0.2
+	go.opentelemetry.io/proto/otlp v1.8.0
 	go.starlark.net v0.0.0-20250906160240-bf296ed553ea
 	golang.org/x/crypto v0.45.0
 	golang.org/x/oauth2 v0.32.0
@@ -128,6 +129,7 @@ require (
 	github.com/grafana/pyroscope-go/godeltaprof v0.1.9 // indirect
 	github.com/grafana/regexp v0.0.0-20240518133315-a468a5bfb3bc // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 // indirect
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.2 // indirect
 	github.com/hairyhenderson/go-fsimpl v0.0.0-20220529183339-9deae3e35047 // indirect
 	github.com/hashicorp/go-msgpack v1.1.5 // indirect
 	github.com/hashicorp/go-secure-stdlib/mlock v0.1.2 // indirect
@@ -184,8 +186,8 @@ require (
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	golang.org/x/exp v0.0.0-20250218142911-aa4b98e5adaa // indirect
 	golang.org/x/term v0.37.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20250804133106-a7a43d27e69b // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250804133106-a7a43d27e69b // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20250825161204-c5933d9347a5 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250825161204-c5933d9347a5 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
