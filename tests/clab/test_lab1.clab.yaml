@@ -2,9 +2,9 @@ name: test1
 
 topology:
   defaults:
-    kind: srl
+    kind: nokia_srlinux
   kinds:
-    srl:
+    nokia_srlinux:
       image: ghcr.io/nokia/srlinux:23.10.3
   nodes:
     srl1:

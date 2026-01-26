@@ -140,38 +140,50 @@ func CheckCondition(code *gojq.Code, e *EventMsg) (bool, error) {
 func MakeEventProcessors(
 	logger *log.Logger,
 	processorNames []string,
-	ps map[string]map[string]interface{},
+	ps map[string]map[string]any,
 	tcs map[string]*types.TargetConfig,
-	acts map[string]map[string]interface{},
+	acts map[string]map[string]any,
 ) ([]EventProcessor, error) {
 	evps := make([]EventProcessor, len(processorNames))
 	for i, epName := range processorNames {
 		if epCfg, ok := ps[epName]; ok {
-			epType := ""
-			for k := range epCfg {
-				epType = k
-				break
+			ep, err := MakeProcessor(logger, epName, epCfg, ps, tcs, acts)
+			if err != nil {
+				return nil, err
 			}
-			if in, ok := EventProcessors[epType]; ok {
-				ep := in()
-				err := ep.Init(epCfg[epType],
-					WithLogger(logger),
-					WithTargets(tcs),
-					WithActions(acts),
-					WithProcessors(ps),
-				)
-				if err != nil {
-					return nil, fmt.Errorf("failed initializing event processor '%s' of type='%s': %w", epName, epType, err)
-				}
-				evps[i] = ep
-				logger.Printf("added event processor '%s' of type=%s to output", epName, epType)
-				continue
-			}
-			return nil, fmt.Errorf("%q event processor has an unknown type=%q", epName, epType)
+			evps[i] = ep
+			continue
 		}
 		return nil, fmt.Errorf("%q event processor not found", epName)
 	}
 	return evps, nil
+}
+
+func MakeProcessor(logger *log.Logger, name string,
+	cfg map[string]any,
+	ps map[string]map[string]any,
+	tcs map[string]*types.TargetConfig,
+	acts map[string]map[string]any) (EventProcessor, error) {
+	epType := ""
+	for k := range cfg {
+		epType = k
+		break
+	}
+	if in, ok := EventProcessors[epType]; ok {
+		ep := in()
+		err := ep.Init(cfg[epType],
+			WithLogger(logger),
+			WithTargets(tcs),
+			WithActions(acts),
+			WithProcessors(ps),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed initializing event processor '%s' of type='%s': %w", name, epType, err)
+		}
+		logger.Printf("added event processor '%s' of type=%s to output", name, epType)
+		return ep, nil
+	}
+	return nil, fmt.Errorf("%q event processor has an unknown type=%q", name, epType)
 }
 
 type BaseProcessor struct {

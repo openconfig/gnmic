@@ -48,6 +48,8 @@ import (
 	"github.com/openconfig/gnmic/pkg/inputs"
 	"github.com/openconfig/gnmic/pkg/lockers"
 	"github.com/openconfig/gnmic/pkg/outputs"
+	"github.com/zestor-dev/zestor/store"
+	"github.com/zestor-dev/zestor/store/gomap"
 )
 
 const (
@@ -67,6 +69,7 @@ type App struct {
 	//
 	configLock *sync.RWMutex
 	Config     *config.Config
+	Store      store.Store[any]
 	// collector
 	dialOpts      []grpc.DialOption
 	operLock      *sync.RWMutex
@@ -125,6 +128,7 @@ func New() *App {
 		RootCmd:    new(cobra.Command),
 		sem:        semaphore.NewWeighted(1),
 		configLock: new(sync.RWMutex),
+		Store:      gomap.NewMemStore(store.StoreOptions[any]{}),
 		Config:     config.New(),
 		reg:        prometheus.NewRegistry(),
 		//
@@ -227,6 +231,13 @@ func (a *App) InitGlobalFlags() {
 }
 
 func (a *App) PreRunE(cmd *cobra.Command, args []string) error {
+	err := a.Config.ToStore(a.Store)
+	if err != nil {
+		return err
+	}
+	if a.Config.Debug {
+		fmt.Println(a.Store.Dump())
+	}
 	if a.Config.EnablePprof {
 		_, _, err := net.SplitHostPort(a.Config.GlobalFlags.PprofAddr)
 		if err != nil {

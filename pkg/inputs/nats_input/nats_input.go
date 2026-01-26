@@ -15,19 +15,25 @@ import (
 	"io"
 	"log"
 	"net"
+	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"google.golang.org/protobuf/proto"
 
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
+	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/inputs"
 	"github.com/openconfig/gnmic/pkg/outputs"
+	"github.com/openconfig/gnmic/pkg/pipeline"
+	gutils "github.com/openconfig/gnmic/pkg/utils"
+	"github.com/zestor-dev/zestor/store"
 )
 
 const (
@@ -44,23 +50,38 @@ const (
 func init() {
 	inputs.Register("nats", func() inputs.Input {
 		return &natsInput{
-			Cfg:    &config{},
-			logger: log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
-			wg:     new(sync.WaitGroup),
+			confLock: new(sync.RWMutex),
+			cfg:      new(atomic.Pointer[config]),
+			dynCfg:   new(atomic.Pointer[dynConfig]),
+			logger:   log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
+			wg:       new(sync.WaitGroup),
 		}
 	})
 }
 
 // natsInput //
 type natsInput struct {
-	Cfg    *config
+	// ensure only one Update or UpdateProcessor operation
+	// are performed at a time
+	confLock *sync.RWMutex
+
+	inputs.BaseInput
+	cfg    *atomic.Pointer[config]
+	dynCfg *atomic.Pointer[dynConfig]
+
 	ctx    context.Context
 	cfn    context.CancelFunc
 	logger *log.Logger
 
-	wg      *sync.WaitGroup
-	outputs []outputs.Output
-	evps    []formatters.EventProcessor
+	wg       *sync.WaitGroup
+	outputs  []outputs.Output // used when the cmd is subscribe
+	store    store.Store[any]
+	pipeline chan *pipeline.Msg
+}
+
+type dynConfig struct {
+	evps       []formatters.EventProcessor
+	outputsMap map[string]struct{} // used when the cmd is collector
 }
 
 // config //
@@ -83,137 +104,314 @@ type config struct {
 
 // Init //
 func (n *natsInput) Start(ctx context.Context, name string, cfg map[string]any, opts ...inputs.Option) error {
-	err := outputs.DecodeConfig(cfg, n.Cfg)
+	n.confLock.Lock()
+	defer n.confLock.Unlock()
+
+	newCfg := new(config)
+	err := outputs.DecodeConfig(cfg, newCfg)
 	if err != nil {
 		return err
 	}
-	if n.Cfg.Name == "" {
-		n.Cfg.Name = name
+	if newCfg.Name == "" {
+		newCfg.Name = name
 	}
-	n.logger.SetPrefix(fmt.Sprintf("%s%s", loggingPrefix, n.Cfg.Name))
+	n.logger.SetPrefix(fmt.Sprintf("%s%s", loggingPrefix, newCfg.Name))
 	options := &inputs.InputOptions{}
 	for _, opt := range opts {
 		if err := opt(options); err != nil {
 			return err
 		}
 	}
-	n.setName(options.Name)
+	n.store = options.Store
+	n.pipeline = options.Pipeline
+
+	n.setName(options.Name, newCfg)
 	n.setLogger(options.Logger)
-	n.setOutputs(options.Outputs)
-	err = n.setEventProcessors(options.EventProcessors, options.Actions)
+	outputs, outputsMap := n.getOutputs(options.Outputs, newCfg)
+	n.outputs = outputs
+	evps, err := n.buildEventProcessors(options.Logger, newCfg.EventProcessors)
 	if err != nil {
 		return err
 	}
-	err = n.setDefaults()
+	err = n.setDefaultsFor(newCfg)
 	if err != nil {
 		return err
 	}
-	n.ctx, n.cfn = context.WithCancel(ctx)
-	n.logger.Printf("input starting with config: %+v", n.Cfg)
-	n.wg.Add(n.Cfg.NumWorkers)
-	for i := 0; i < n.Cfg.NumWorkers; i++ {
-		go n.worker(ctx, i)
+
+	n.cfg.Store(newCfg)
+
+	dc := &dynConfig{
+		evps:       evps,
+		outputsMap: outputsMap,
+	}
+
+	n.dynCfg.Store(dc)
+	n.ctx = ctx                // save context for worker restarts
+	var runCtx context.Context // create a run context for the workers
+	runCtx, n.cfn = context.WithCancel(ctx)
+	n.logger.Printf("input starting with config: %+v", newCfg)
+	n.wg.Add(newCfg.NumWorkers)
+	for i := 0; i < newCfg.NumWorkers; i++ {
+		go n.worker(runCtx, i)
 	}
 	return nil
 }
 
+func (n *natsInput) Validate(cfg map[string]any) error {
+	newCfg := new(config)
+	err := outputs.DecodeConfig(cfg, newCfg)
+	if err != nil {
+		return err
+	}
+	return n.setDefaultsFor(newCfg)
+}
+
+// Update updates the input configuration and restarts the workers if
+// necessary.
+// It works only when the command is collector (not subscribe).
+func (n *natsInput) Update(cfg map[string]any) error {
+	n.confLock.Lock()
+	defer n.confLock.Unlock()
+
+	newCfg := new(config)
+	err := outputs.DecodeConfig(cfg, newCfg)
+	if err != nil {
+		return err
+	}
+	n.setDefaultsFor(newCfg)
+	currCfg := n.cfg.Load()
+
+	restartWorkers := needsWorkerRestart(currCfg, newCfg)
+	rebuildProcessors := slices.Compare(currCfg.EventProcessors, newCfg.EventProcessors) != 0
+	// build new dynamic config
+	dc := &dynConfig{
+		outputsMap: make(map[string]struct{}),
+	}
+	for _, o := range newCfg.Outputs {
+		dc.outputsMap[o] = struct{}{}
+	}
+
+	prevDC := n.dynCfg.Load()
+
+	if rebuildProcessors {
+		dc.evps, err = n.buildEventProcessors(n.logger, newCfg.EventProcessors)
+		if err != nil {
+			return err
+		}
+	} else if prevDC != nil {
+		dc.evps = prevDC.evps
+	}
+
+	n.dynCfg.Store(dc)
+	n.cfg.Store(newCfg)
+
+	if restartWorkers {
+		runCtx, cancel := context.WithCancel(n.ctx)
+		newWG := new(sync.WaitGroup)
+		// save old pointers
+		oldCancel := n.cfn
+		oldWG := n.wg
+		// swap
+		n.cfn = cancel
+		n.wg = newWG
+
+		n.wg.Add(newCfg.NumWorkers)
+		for i := 0; i < newCfg.NumWorkers; i++ {
+			go n.worker(runCtx, i)
+		}
+		// cancel old workers and loops
+		if oldCancel != nil {
+			oldCancel()
+		}
+		if oldWG != nil {
+			oldWG.Wait()
+		}
+	}
+	return nil
+}
+
+func (n *natsInput) UpdateProcessor(name string, pcfg map[string]any) error {
+	n.confLock.Lock()
+	defer n.confLock.Unlock()
+
+	cfg := n.cfg.Load()
+	dc := n.dynCfg.Load()
+
+	newEvps, changed, err := inputs.UpdateProcessorInSlice(
+		n.logger,
+		n.store,
+		cfg.EventProcessors,
+		dc.evps,
+		name,
+		pcfg,
+	)
+	if err != nil {
+		return err
+	}
+	if changed {
+		newDC := *dc
+		newDC.evps = newEvps
+		n.dynCfg.Store(&newDC)
+		n.logger.Printf("updated event processor %s", name)
+	}
+	return nil
+}
+
+func needsWorkerRestart(old, nw *config) bool {
+	if old == nil || nw == nil {
+		return true
+	}
+	return old.NumWorkers != nw.NumWorkers ||
+		old.BufferSize != nw.BufferSize ||
+		old.Address != nw.Address ||
+		old.Subject != nw.Subject ||
+		old.Queue != nw.Queue ||
+		old.Username != nw.Username ||
+		old.Password != nw.Password ||
+		!old.TLS.Equal(nw.TLS) ||
+		old.ConnectTimeWait != nw.ConnectTimeWait
+}
+
 func (n *natsInput) worker(ctx context.Context, idx int) {
-	var nc *nats.Conn
-	var err error
-	var msgChan chan *nats.Msg
+	defer n.wg.Done()
+
 	workerLogPrefix := fmt.Sprintf("worker-%d", idx)
 	n.logger.Printf("%s starting", workerLogPrefix)
-	cfg := *n.Cfg
-	cfg.Name = fmt.Sprintf("%s-%d", cfg.Name, idx)
-START:
-	nc, err = n.createNATSConn(&cfg)
-	if err != nil {
-		n.logger.Printf("%s failed to create NATS connection: %v", workerLogPrefix, err)
-		time.Sleep(n.Cfg.ConnectTimeWait)
-		goto START
-	}
-	defer nc.Close()
-	msgChan = make(chan *nats.Msg, n.Cfg.BufferSize)
-	sub, err := nc.ChanQueueSubscribe(n.Cfg.Subject, n.Cfg.Queue, msgChan)
-	if err != nil {
-		n.logger.Printf("%s failed to create NATS subscription: %v", workerLogPrefix, err)
-		time.Sleep(n.Cfg.ConnectTimeWait)
-		nc.Close()
-		goto START
-	}
-	defer close(msgChan)
-	defer sub.Unsubscribe()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
+		default:
+		}
+		n.logger.Printf("worker %d loading config", idx)
+		cfg := n.cfg.Load()
+		wCfg := *cfg
+		wCfg.Name = fmt.Sprintf("%s-%d", wCfg.Name, idx)
+		fmt.Printf("worker %d starting with config: %+v", idx, wCfg)
+		// scoped connection, subscription and cleanup
+		err := n.doWork(ctx, &wCfg, workerLogPrefix)
+		if err != nil {
+			n.logger.Printf("%s NATS client failed: %v", workerLogPrefix, err)
+		}
+
+		// backoff before retry
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(wCfg.ConnectTimeWait):
+		}
+	}
+}
+
+// scoped connection, subscription and cleanup
+func (n *natsInput) doWork(ctx context.Context, wCfg *config, workerLogPrefix string) error {
+	nc, err := n.createNATSConn(wCfg)
+	if err != nil {
+		return fmt.Errorf("create NATS connection: %w", err)
+	}
+	defer nc.Close()
+
+	msgChan := make(chan *nats.Msg, wCfg.BufferSize)
+
+	sub, err := nc.ChanQueueSubscribe(wCfg.Subject, wCfg.Queue, msgChan)
+	if err != nil {
+		return fmt.Errorf("create subscription: %w", err)
+	}
+	defer sub.Unsubscribe()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
 		case m, ok := <-msgChan:
 			if !ok {
-				n.logger.Printf("%s channel closed, retrying...", workerLogPrefix)
-				time.Sleep(n.Cfg.ConnectTimeWait)
-				nc.Close()
-				goto START
+				return fmt.Errorf("msg channel closed")
 			}
 			if len(m.Data) == 0 {
 				continue
 			}
-			if n.Cfg.Debug {
-				n.logger.Printf("received msg, subject=%s, queue=%s, len=%d, data=%s", m.Subject, m.Sub.Queue, len(m.Data), string(m.Data))
+			// load current config for dynamic fields like Format
+			cfg := n.cfg.Load()
+			if cfg.Debug {
+				n.logger.Printf("received msg, subject=%s, queue=%s, len=%d, data=%s",
+					m.Subject, m.Sub.Queue, len(m.Data), string(m.Data))
 			}
 
-			switch n.Cfg.Format {
+			dc := n.dynCfg.Load()
+			switch cfg.Format {
 			case "event":
-				evMsgs := make([]*formatters.EventMsg, 1)
-				err = json.Unmarshal(m.Data, &evMsgs)
-				if err != nil {
-					if n.Cfg.Debug {
+				var evMsgs []*formatters.EventMsg
+				if err := json.Unmarshal(m.Data, &evMsgs); err != nil {
+					if cfg.Debug {
 						n.logger.Printf("%s failed to unmarshal event msg: %v", workerLogPrefix, err)
 					}
 					continue
 				}
-
-				for _, p := range n.evps {
+				for _, p := range dc.evps {
 					evMsgs = p.Apply(evMsgs...)
 				}
 
-				go func() {
-					for _, o := range n.outputs {
-						for _, ev := range evMsgs {
-							o.WriteEvent(ctx, ev)
-						}
+				if n.pipeline != nil {
+					select {
+					case <-ctx.Done():
+						return nil
+					case n.pipeline <- &pipeline.Msg{
+						Events:  evMsgs,
+						Outputs: dc.outputsMap,
+					}:
+					default:
+						n.logger.Printf("pipeline channel is full, dropping event")
 					}
-				}()
+				}
+				for _, o := range n.outputs {
+					for _, ev := range evMsgs {
+						o.WriteEvent(ctx, ev)
+					}
+				}
+
 			case "proto":
-				var protoMsg proto.Message
-				err = proto.Unmarshal(m.Data, protoMsg)
-				if err != nil {
-					if n.Cfg.Debug {
-						n.logger.Printf("failed to unmarshal proto msg: %v", err)
-					}
+				protoMsg := new(gnmi.SubscribeResponse)
+				if err := proto.Unmarshal(m.Data, protoMsg); err != nil {
+					n.logger.Printf("failed to unmarshal proto msg: %v", err)
 					continue
 				}
 				meta := outputs.Meta{}
-				subjectSections := strings.SplitN(m.Subject, ".", 3)
-				if len(subjectSections) == 3 {
-					meta["source"] = strings.ReplaceAll(subjectSections[1], "-", ".")
-					meta["subscription-name"] = subjectSections[2]
+				parts := strings.SplitN(m.Subject, ".", 3)
+				if len(parts) == 3 {
+					meta["source"] = strings.ReplaceAll(parts[1], "-", ".")
+					meta["subscription-name"] = parts[2]
 				}
-				go func() {
-					for _, o := range n.outputs {
-						o.Write(ctx, protoMsg, meta)
-					}
-				}()
-			}
 
+				if n.pipeline != nil {
+					select {
+					case <-ctx.Done():
+						return nil
+					case n.pipeline <- &pipeline.Msg{
+						Msg:     protoMsg,
+						Meta:    meta,
+						Outputs: dc.outputsMap,
+					}:
+					default:
+						n.logger.Printf("pipeline channel is full, dropping message")
+					}
+				}
+				for _, o := range n.outputs {
+					o.Write(ctx, protoMsg, meta)
+				}
+			}
 		}
 	}
 }
 
 // Close //
 func (n *natsInput) Close() error {
-	n.cfn()
-	n.wg.Wait()
+	if n.cfn != nil {
+		n.cfn()
+	}
+	if n.wg != nil {
+		n.wg.Wait()
+	}
 	return nil
 }
 
@@ -226,75 +424,80 @@ func (n *natsInput) setLogger(logger *log.Logger) {
 }
 
 // SetOutputs //
-func (n *natsInput) setOutputs(outs map[string]outputs.Output) {
-	if len(n.Cfg.Outputs) == 0 {
+func (n *natsInput) getOutputs(outs map[string]outputs.Output, cfg *config) ([]outputs.Output, map[string]struct{}) {
+	outputs := make([]outputs.Output, 0)
+
+	if len(cfg.Outputs) == 0 {
 		for _, o := range outs {
-			n.outputs = append(n.outputs, o)
+			outputs = append(outputs, o)
 		}
-		return
+		return outputs, nil
 	}
-	for _, name := range n.Cfg.Outputs {
-		if o, ok := outs[name]; ok {
-			n.outputs = append(n.outputs, o)
+	outputsMap := make(map[string]struct{})
+	for _, name := range cfg.Outputs {
+		outputsMap[name] = struct{}{} // for collector
+		if o, ok := outs[name]; ok {  // for subscribe
+			outputs = append(outputs, o)
 		}
 	}
+	return outputs, outputsMap
 }
 
-func (n *natsInput) setName(name string) {
+func (n *natsInput) setName(name string, cfg *config) {
 	sb := strings.Builder{}
 	if name != "" {
 		sb.WriteString(name)
 		sb.WriteString("-")
 	}
-	sb.WriteString(n.Cfg.Name)
+	sb.WriteString(cfg.Name)
 	sb.WriteString("-nats-sub")
-	n.Cfg.Name = sb.String()
+	cfg.Name = sb.String()
 }
 
-func (n *natsInput) setEventProcessors(ps map[string]map[string]interface{}, acts map[string]map[string]interface{}) error {
-	var err error
-	n.evps, err = formatters.MakeEventProcessors(
-		n.logger,
-		n.Cfg.EventProcessors,
+func (n *natsInput) buildEventProcessors(logger *log.Logger, eventProcessors []string) ([]formatters.EventProcessor, error) {
+	tcs, ps, acts, err := gutils.GetConfigMaps(n.store)
+	if err != nil {
+		return nil, err
+	}
+	return formatters.MakeEventProcessors(
+		logger,
+		eventProcessors,
 		ps,
-		nil,
+		tcs,
 		acts,
 	)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 // helper functions
 
-func (n *natsInput) setDefaults() error {
-	if n.Cfg.Format == "" {
-		n.Cfg.Format = defaultFormat
+func (n *natsInput) setDefaultsFor(cfg *config) error {
+	if cfg.Format == "" {
+		cfg.Format = defaultFormat
 	}
-	if !(strings.ToLower(n.Cfg.Format) == "event" || strings.ToLower(n.Cfg.Format) == "proto") {
+	if !(strings.ToLower(cfg.Format) == "event" || strings.ToLower(cfg.Format) == "proto") {
 		return fmt.Errorf("unsupported input format")
 	}
-	if n.Cfg.Name == "" {
-		n.Cfg.Name = "gnmic-" + uuid.New().String()
+	cfg.Format = strings.ToLower(cfg.Format)
+	if cfg.Name == "" {
+		cfg.Name = "gnmic-" + uuid.New().String()
 	}
-	if n.Cfg.Subject == "" {
-		n.Cfg.Subject = defaultSubject
+	if cfg.Subject == "" {
+		cfg.Subject = defaultSubject
 	}
-	if n.Cfg.Address == "" {
-		n.Cfg.Address = defaultAddress
+	if cfg.Address == "" {
+		cfg.Address = defaultAddress
 	}
-	if n.Cfg.ConnectTimeWait <= 0 {
-		n.Cfg.ConnectTimeWait = natsConnectWait
+	if cfg.ConnectTimeWait <= 0 {
+		cfg.ConnectTimeWait = natsConnectWait
 	}
-	if n.Cfg.Queue == "" {
-		n.Cfg.Queue = n.Cfg.Name
+	if cfg.Queue == "" {
+		cfg.Queue = cfg.Name
 	}
-	if n.Cfg.NumWorkers <= 0 {
-		n.Cfg.NumWorkers = defaultNumWorkers
+	if cfg.NumWorkers <= 0 {
+		cfg.NumWorkers = defaultNumWorkers
 	}
-	if n.Cfg.BufferSize <= 0 {
-		n.Cfg.BufferSize = defaultBufferSize
+	if cfg.BufferSize <= 0 {
+		cfg.BufferSize = defaultBufferSize
 	}
 	return nil
 }
@@ -303,7 +506,7 @@ func (n *natsInput) createNATSConn(c *config) (*nats.Conn, error) {
 	opts := []nats.Option{
 		nats.Name(c.Name),
 		nats.SetCustomDialer(n),
-		nats.ReconnectWait(n.Cfg.ConnectTimeWait),
+		nats.ReconnectWait(c.ConnectTimeWait),
 		nats.ReconnectBufSize(natsReconnectBufferSize),
 		nats.ErrorHandler(func(_ *nats.Conn, _ *nats.Subscription, err error) {
 			n.logger.Printf("NATS error: %v", err)
@@ -318,9 +521,9 @@ func (n *natsInput) createNATSConn(c *config) (*nats.Conn, error) {
 	if c.Username != "" && c.Password != "" {
 		opts = append(opts, nats.UserInfo(c.Username, c.Password))
 	}
-	if n.Cfg.TLS != nil {
+	if c.TLS != nil {
 		tlsConfig, err := utils.NewTLSConfig(
-			n.Cfg.TLS.CaFile, n.Cfg.TLS.CertFile, n.Cfg.TLS.KeyFile, "", n.Cfg.TLS.SkipVerify,
+			c.TLS.CaFile, c.TLS.CertFile, c.TLS.KeyFile, "", c.TLS.SkipVerify,
 			false)
 		if err != nil {
 			return nil, err
@@ -346,7 +549,7 @@ func (n *natsInput) Dial(network, address string) (net.Conn, error) {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-
+		cfg := n.cfg.Load()
 		select {
 		case <-n.ctx.Done():
 			return nil, n.ctx.Err()
@@ -356,7 +559,7 @@ func (n *natsInput) Dial(network, address string) (net.Conn, error) {
 				n.logger.Printf("successfully connected to NATS server %s", address)
 				return conn, nil
 			}
-			time.Sleep(n.Cfg.ConnectTimeWait)
+			time.Sleep(cfg.ConnectTimeWait)
 		}
 	}
 }

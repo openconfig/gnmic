@@ -96,7 +96,7 @@ func (c *ConsulLocker) WatchServices(ctx context.Context, serviceName string, ta
 			if c.Cfg.Debug {
 				c.logger.Printf("(re)starting watch service=%q, index=%d", serviceName, qOpts.WaitIndex)
 			}
-			index, err = c.watch(qOpts.WithContext(ctx), serviceName, tags, sChan)
+			index, err = c.watch(ctx, qOpts, serviceName, tags, sChan)
 			if err != nil {
 				c.logger.Printf("service %q watch failed: %v", serviceName, err)
 			}
@@ -117,7 +117,8 @@ func (c *ConsulLocker) WatchServices(ctx context.Context, serviceName string, ta
 	}
 }
 
-func (c *ConsulLocker) watch(qOpts *api.QueryOptions, serviceName string, tags []string, sChan chan<- []*lockers.Service) (uint64, error) {
+func (c *ConsulLocker) watch(ctx context.Context, qOpts *api.QueryOptions, serviceName string, tags []string, sChan chan<- []*lockers.Service) (uint64, error) {
+	qOpts = qOpts.WithContext(ctx)
 	se, meta, err := c.client.Health().ServiceMultipleTags(serviceName, tags, true, qOpts)
 	if err != nil {
 		return 0, err
@@ -144,7 +145,11 @@ func (c *ConsulLocker) watch(qOpts *api.QueryOptions, serviceName string, tags [
 			Tags:    srv.Service.Tags,
 		})
 	}
-	sChan <- newSrvs
+	select {
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	case sChan <- newSrvs:
+	}
 	return meta.LastIndex, nil
 }
 

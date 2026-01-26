@@ -151,25 +151,24 @@ func Test_setDefaults(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			n := &jetstreamInput{
-				Cfg:    tt.cfg,
 				logger: log.New(io.Discard, loggingPrefix, 0),
 			}
-			err := n.setDefaults()
+			err := n.setDefaultsFor(tt.cfg)
 			if tt.wantErr {
 				if err == nil {
-					t.Errorf("setDefaults() expected error but got nil")
+					t.Errorf("setDefaultsFor() expected error but got nil")
 					return
 				}
 				if tt.errMsg != "" && err.Error() != tt.errMsg {
-					t.Errorf("setDefaults() error = %v, want error containing %v", err.Error(), tt.errMsg)
+					t.Errorf("setDefaultsFor() error = %v, want error containing %v", err.Error(), tt.errMsg)
 				}
 			} else {
 				if err != nil {
-					t.Errorf("setDefaults() unexpected error = %v", err)
+					t.Errorf("setDefaultsFor() unexpected error = %v", err)
 					return
 				}
 				if tt.check != nil {
-					tt.check(t, n.Cfg)
+					tt.check(t, tt.cfg)
 				}
 			}
 		})

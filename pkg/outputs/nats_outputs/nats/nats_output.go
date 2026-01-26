@@ -15,8 +15,10 @@ import (
 	"io"
 	"log"
 	"net"
+	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"text/template"
 	"time"
 
@@ -30,6 +32,8 @@ import (
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
 	"github.com/openconfig/gnmic/pkg/outputs"
+	gutils "github.com/openconfig/gnmic/pkg/utils"
+	"github.com/zestor-dev/zestor/store"
 )
 
 const (
@@ -45,30 +49,40 @@ const (
 
 func init() {
 	outputs.Register("nats", func() outputs.Output {
-		return &NatsOutput{
-			Cfg:    &Config{},
-			wg:     new(sync.WaitGroup),
-			logger: log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
-		}
+		return &NatsOutput{}
 	})
+}
+
+func (n *NatsOutput) init() {
+	n.cfg = new(atomic.Pointer[Config])
+	n.dynCfg = new(atomic.Pointer[dynConfig])
+	n.msgChan = new(atomic.Pointer[chan *outputs.ProtoMsg])
+	n.wg = new(sync.WaitGroup)
+	n.logger = log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags)
 }
 
 // NatsOutput //
 type NatsOutput struct {
 	outputs.BaseOutput
-	Cfg      *Config
+	// Cfg *Config
+	cfg    *atomic.Pointer[Config]
+	dynCfg *atomic.Pointer[dynConfig]
+	// root context
 	ctx      context.Context
 	cancelFn context.CancelFunc
-	msgChan  chan *outputs.ProtoMsg
+	msgChan  *atomic.Pointer[chan *outputs.ProtoMsg] // atomic channel swaps
 	wg       *sync.WaitGroup
 	logger   *log.Logger
-	mo       *formatters.MarshalOptions
-	evps     []formatters.EventProcessor
 
+	reg   *prometheus.Registry
+	store store.Store[any]
+}
+
+type dynConfig struct {
 	targetTpl *template.Template
 	msgTpl    *template.Template
-
-	reg *prometheus.Registry
+	evps      []formatters.EventProcessor
+	mo        *formatters.MarshalOptions
 }
 
 // Config //
@@ -96,23 +110,51 @@ type Config struct {
 }
 
 func (n *NatsOutput) String() string {
-	b, err := json.Marshal(n)
+	cfg := n.cfg.Load()
+	b, err := json.Marshal(cfg)
 	if err != nil {
 		return ""
 	}
 	return string(b)
 }
 
+func (n *NatsOutput) buildEventProcessors(logger *log.Logger, eventProcessors []string) ([]formatters.EventProcessor, error) {
+	tcs, ps, acts, err := gutils.GetConfigMaps(n.store)
+	if err != nil {
+		return nil, err
+	}
+	evps, err := formatters.MakeEventProcessors(
+		logger,
+		eventProcessors,
+		ps,
+		tcs,
+		acts,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return evps, nil
+}
+
+func (n *NatsOutput) setLogger(logger *log.Logger) {
+	if logger != nil && n.logger != nil {
+		n.logger.SetOutput(logger.Writer())
+		n.logger.SetFlags(logger.Flags())
+	}
+}
+
 // Init //
 func (n *NatsOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
-	err := outputs.DecodeConfig(cfg, n.Cfg)
+	n.init() // init struct fields
+	newCfg := new(Config)
+	err := outputs.DecodeConfig(cfg, newCfg)
 	if err != nil {
 		return err
 	}
-	if n.Cfg.Name == "" {
-		n.Cfg.Name = name
+	if newCfg.Name == "" {
+		newCfg.Name = name
 	}
-	n.logger.SetPrefix(fmt.Sprintf(loggingPrefix, n.Cfg.Name))
+	n.logger.SetPrefix(fmt.Sprintf(loggingPrefix, newCfg.Name))
 
 	options := &outputs.OutputOptions{}
 	for _, opt := range opts {
@@ -120,19 +162,14 @@ func (n *NatsOutput) Init(ctx context.Context, name string, cfg map[string]inter
 			return err
 		}
 	}
-
+	n.store = options.Store
 	// set defaults
-	n.setName(options.Name)
-	err = n.setDefaults()
-	if err != nil {
-		return err
-	}
+	n.setDefaultsFor(newCfg)
+
+	n.cfg.Store(newCfg)
 
 	// apply logger
-	if options.Logger != nil && n.logger != nil {
-		n.logger.SetOutput(options.Logger.Writer())
-		n.logger.SetFlags(options.Logger.Flags())
-	}
+	n.setLogger(options.Logger)
 
 	// initialize registry
 	n.reg = options.Registry
@@ -141,103 +178,253 @@ func (n *NatsOutput) Init(ctx context.Context, name string, cfg map[string]inter
 		return err
 	}
 
+	// initialize message channel
+	msgChan := make(chan *outputs.ProtoMsg, newCfg.BufferSize)
+	n.msgChan.Store(&msgChan)
+
+	// prep dynamic config
+	dc := new(dynConfig)
+
+	dc.mo = &formatters.MarshalOptions{
+		Format:     newCfg.Format,
+		OverrideTS: newCfg.OverrideTimestamps,
+	}
 	// initialize event processors
-	n.evps, err = formatters.MakeEventProcessors(options.Logger, n.Cfg.EventProcessors,
-		options.EventProcessors, options.TargetsConfig, options.Actions)
+	dc.evps, err = n.buildEventProcessors(options.Logger, newCfg.EventProcessors)
 	if err != nil {
 		return err
 	}
 
-	// initialize message channel
-	n.msgChan = make(chan *outputs.ProtoMsg, n.Cfg.BufferSize)
-	n.mo = &formatters.MarshalOptions{
-		Format:     n.Cfg.Format,
-		OverrideTS: n.Cfg.OverrideTimestamps,
-	}
-
 	// initialize target template
-	if n.Cfg.TargetTemplate == "" {
-		n.targetTpl = outputs.DefaultTargetTemplate
-	} else if n.Cfg.AddTarget != "" {
-		n.targetTpl, err = gtemplate.CreateTemplate("target-template", n.Cfg.TargetTemplate)
+	if newCfg.TargetTemplate == "" {
+		dc.targetTpl = outputs.DefaultTargetTemplate
+	} else if newCfg.AddTarget != "" {
+		dc.targetTpl, err = gtemplate.CreateTemplate("target-template", newCfg.TargetTemplate)
 		if err != nil {
 			return err
 		}
-		n.targetTpl = n.targetTpl.Funcs(outputs.TemplateFuncs)
+		dc.targetTpl = dc.targetTpl.Funcs(outputs.TemplateFuncs)
 	}
 
 	// initialize message template
-	if n.Cfg.MsgTemplate != "" {
-		n.msgTpl, err = gtemplate.CreateTemplate("msg-template", n.Cfg.MsgTemplate)
+	if newCfg.MsgTemplate != "" {
+		dc.msgTpl, err = gtemplate.CreateTemplate("msg-template", newCfg.MsgTemplate)
 		if err != nil {
 			return err
 		}
-		n.msgTpl = n.msgTpl.Funcs(outputs.TemplateFuncs)
+		dc.msgTpl = dc.msgTpl.Funcs(outputs.TemplateFuncs)
 	}
+
+	n.dynCfg = new(atomic.Pointer[dynConfig])
+	n.dynCfg.Store(dc)
 
 	// initialize context
 	n.ctx, n.cancelFn = context.WithCancel(ctx)
-	n.wg.Add(n.Cfg.NumWorkers)
-	for i := 0; i < n.Cfg.NumWorkers; i++ {
-		cfg := *n.Cfg
-		cfg.Name = fmt.Sprintf("%s-%d", cfg.Name, i)
-		go n.worker(ctx, i, &cfg)
+	n.wg.Add(newCfg.NumWorkers)
+	for i := 0; i < newCfg.NumWorkers; i++ {
+		go n.worker(n.ctx, i)
 	}
 
-	go func() {
-		<-ctx.Done()
-		n.Close()
-	}()
 	return nil
 }
 
-func (n *NatsOutput) setDefaults() error {
-	if n.Cfg.Format == "" {
-		n.Cfg.Format = defaultFormat
+func (n *NatsOutput) setDefaultsFor(cfg *Config) {
+	if cfg.Format == "" {
+		cfg.Format = defaultFormat
 	}
-	if !(n.Cfg.Format == "event" || n.Cfg.Format == "protojson" || n.Cfg.Format == "proto" || n.Cfg.Format == "json") {
-		return fmt.Errorf("unsupported output format '%s' for output type NATS", n.Cfg.Format)
+	if cfg.Address == "" {
+		cfg.Address = defaultAddress
 	}
-	if n.Cfg.Address == "" {
-		n.Cfg.Address = defaultAddress
+	if cfg.ConnectTimeWait <= 0 {
+		cfg.ConnectTimeWait = natsConnectWait
 	}
-	if n.Cfg.ConnectTimeWait <= 0 {
-		n.Cfg.ConnectTimeWait = natsConnectWait
+	if cfg.Subject == "" && cfg.SubjectPrefix == "" {
+		cfg.Subject = defaultSubjectName
 	}
-	if n.Cfg.Subject == "" && n.Cfg.SubjectPrefix == "" {
-		n.Cfg.Subject = defaultSubjectName
+	if cfg.Name == "" {
+		cfg.Name = "gnmic-" + uuid.New().String()
 	}
-	if n.Cfg.Name == "" {
-		n.Cfg.Name = "gnmic-" + uuid.New().String()
+	if cfg.NumWorkers <= 0 {
+		cfg.NumWorkers = defaultNumWorkers
 	}
-	if n.Cfg.NumWorkers <= 0 {
-		n.Cfg.NumWorkers = defaultNumWorkers
+	if cfg.WriteTimeout <= 0 {
+		cfg.WriteTimeout = defaultWriteTimeout
 	}
-	if n.Cfg.WriteTimeout <= 0 {
-		n.Cfg.WriteTimeout = defaultWriteTimeout
+}
+
+func (n *NatsOutput) Validate(cfg map[string]any) error {
+	ncfg := new(Config)
+	err := outputs.DecodeConfig(cfg, ncfg)
+	if err != nil {
+		return err
+	}
+	_, err = gtemplate.CreateTemplate("target-template", ncfg.TargetTemplate)
+	if err != nil {
+		return err
+	}
+	_, err = gtemplate.CreateTemplate("msg-template", ncfg.MsgTemplate)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (n *NatsOutput) Update(ctx context.Context, cfg map[string]any) error {
+	newCfg := new(Config)
+	err := outputs.DecodeConfig(cfg, newCfg)
+	if err != nil {
+		return err
+	}
+	n.setDefaultsFor(newCfg)
+	currCfg := n.cfg.Load()
+
+	swapChannel := channelNeedsSwap(currCfg, newCfg)
+	restartWorkers := needsWorkerRestart(currCfg, newCfg)
+	rebuildProcessors := slices.Compare(currCfg.EventProcessors, newCfg.EventProcessors) != 0
+
+	var targetTpl *template.Template
+	if newCfg.TargetTemplate == "" {
+		targetTpl = outputs.DefaultTargetTemplate
+	} else if newCfg.AddTarget != "" {
+		t, err := gtemplate.CreateTemplate("target-template", newCfg.TargetTemplate)
+		if err != nil {
+			return err
+		}
+		targetTpl = t.Funcs(outputs.TemplateFuncs)
+	} else {
+		targetTpl = outputs.DefaultTargetTemplate
+	}
+
+	var msgTpl *template.Template
+	if newCfg.MsgTemplate != "" {
+		t, err := gtemplate.CreateTemplate("msg-template", newCfg.MsgTemplate)
+		if err != nil {
+			return err
+		}
+		msgTpl = t.Funcs(outputs.TemplateFuncs)
+	}
+
+	dc := &dynConfig{
+		targetTpl: targetTpl,
+		msgTpl:    msgTpl,
+		mo: &formatters.MarshalOptions{
+			Format:     newCfg.Format,
+			OverrideTS: newCfg.OverrideTimestamps,
+		},
+	}
+
+	prevDC := n.dynCfg.Load()
+	if rebuildProcessors {
+		dc.evps, err = n.buildEventProcessors(n.logger, newCfg.EventProcessors)
+		if err != nil {
+			return err
+		}
+	} else if prevDC != nil {
+		dc.evps = prevDC.evps
+	}
+	n.dynCfg.Store(dc)
+	n.cfg.Store(newCfg)
+
+	if swapChannel || restartWorkers {
+		var newMsgChan chan *outputs.ProtoMsg
+		if swapChannel {
+			newMsgChan = make(chan *outputs.ProtoMsg, newCfg.BufferSize)
+		} else {
+			newMsgChan = *n.msgChan.Load()
+		}
+
+		runCtx, cancel := context.WithCancel(n.ctx)
+		newWG := new(sync.WaitGroup)
+		// save old pointers
+		oldCancel := n.cancelFn
+		oldWG := n.wg
+		oldMsgChan := *n.msgChan.Load()
+		// swap
+		n.cancelFn = cancel
+		n.wg = newWG
+		n.msgChan.Store(&newMsgChan)
+
+		n.wg.Add(currCfg.NumWorkers)
+		for i := 0; i < currCfg.NumWorkers; i++ {
+			go n.worker(runCtx, i)
+		}
+		// cancel old workers and loops
+		if oldCancel != nil {
+			oldCancel()
+		}
+		if oldWG != nil {
+			oldWG.Wait()
+		}
+		if swapChannel {
+			// best effort drain old channel
+		OUTER_LOOP:
+			for {
+				select {
+				case msg, ok := <-oldMsgChan:
+					if !ok {
+						break
+					}
+					select {
+					case newMsgChan <- msg:
+					default:
+					}
+				default:
+					break OUTER_LOOP
+				}
+			}
+		}
+	}
+	n.logger.Printf("updated nats output: %s", n.String())
+	return nil
+
+}
+
+func (n *NatsOutput) UpdateProcessor(name string, pcfg map[string]any) error {
+	cfg := n.cfg.Load()
+	dc := n.dynCfg.Load()
+
+	newEvps, changed, err := outputs.UpdateProcessorInSlice(
+		n.logger,
+		n.store,
+		cfg.EventProcessors,
+		dc.evps,
+		name,
+		pcfg,
+	)
+	if err != nil {
+		return err
+	}
+	if changed {
+		newDC := *dc
+		newDC.evps = newEvps
+		n.dynCfg.Store(&newDC)
+		n.logger.Printf("updated event processor %s", name)
 	}
 	return nil
 }
 
 // Write //
 func (n *NatsOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) {
-	if rsp == nil || n.mo == nil {
+	dc := n.dynCfg.Load()
+	cfg := n.cfg.Load()
+	if rsp == nil || dc == nil || dc.mo == nil {
 		return
 	}
 
-	wctx, cancel := context.WithTimeout(ctx, n.Cfg.WriteTimeout)
+	wctx, cancel := context.WithTimeout(ctx, cfg.WriteTimeout)
 	defer cancel()
 
+	ch := n.msgChan.Load()
 	select {
 	case <-ctx.Done():
 		return
-	case n.msgChan <- outputs.NewProtoMsg(rsp, meta):
+	case *ch <- outputs.NewProtoMsg(rsp, meta):
 	case <-wctx.Done():
-		if n.Cfg.Debug {
-			n.logger.Printf("writing expired after %s, NATS output might not be initialized", n.Cfg.WriteTimeout)
+		if cfg.Debug {
+			n.logger.Printf("writing expired after %s, NATS output might not be initialized", cfg.WriteTimeout)
 		}
-		if n.Cfg.EnableMetrics {
-			NatsNumberOfFailSendMsgs.WithLabelValues(n.Cfg.Name, "timeout").Inc()
+		if cfg.EnableMetrics {
+			NatsNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "timeout").Inc()
 		}
 		return
 	}
@@ -247,17 +434,17 @@ func (n *NatsOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {}
 
 // Close //
 func (n *NatsOutput) Close() error {
-	//	n.conn.Close()
 	n.cancelFn()
 	n.wg.Wait()
+	n.logger.Printf("closed nats output: %s", n.String())
 	return nil
 }
 
-func (n *NatsOutput) createNATSConn(c *Config) (*nats.Conn, error) {
+func (n *NatsOutput) createNATSConn(c *Config, i int) (*nats.Conn, error) {
 	opts := []nats.Option{
-		nats.Name(c.Name),
+		nats.Name(fmt.Sprintf("%s-%d", c.Name, i)),
 		nats.SetCustomDialer(n),
-		nats.ReconnectWait(n.Cfg.ConnectTimeWait),
+		nats.ReconnectWait(c.ConnectTimeWait),
 		nats.ReconnectBufSize(natsReconnectBufferSize),
 		nats.ErrorHandler(func(_ *nats.Conn, _ *nats.Subscription, err error) {
 			n.logger.Printf("NATS error: %v", err)
@@ -272,13 +459,13 @@ func (n *NatsOutput) createNATSConn(c *Config) (*nats.Conn, error) {
 	if c.Username != "" && c.Password != "" {
 		opts = append(opts, nats.UserInfo(c.Username, c.Password))
 	}
-	if n.Cfg.TLS != nil {
+	if c.TLS != nil {
 		tlsConfig, err := utils.NewTLSConfig(
-			n.Cfg.TLS.CaFile,
-			n.Cfg.TLS.CertFile,
-			n.Cfg.TLS.KeyFile,
+			c.TLS.CaFile,
+			c.TLS.CertFile,
+			c.TLS.KeyFile,
 			"",
-			n.Cfg.TLS.SkipVerify,
+			c.TLS.SkipVerify,
 			false)
 		if err != nil {
 			return nil, err
@@ -300,6 +487,7 @@ func (n *NatsOutput) Dial(network, address string) (net.Conn, error) {
 	defer cancel()
 
 	for {
+		cfg := n.cfg.Load()
 		n.logger.Printf("attempting to connect to %s", address)
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
@@ -313,7 +501,7 @@ func (n *NatsOutput) Dial(network, address string) (net.Conn, error) {
 			conn, err := d.DialContext(ctx, network, address)
 			if err != nil {
 				n.logger.Printf("failed to connect to NATS server %s: %v", address, err)
-				time.Sleep(n.Cfg.ConnectTimeWait)
+				time.Sleep(cfg.ConnectTimeWait)
 				continue
 			}
 			n.logger.Printf("successfully connected to NATS server %s", address)
@@ -322,23 +510,26 @@ func (n *NatsOutput) Dial(network, address string) (net.Conn, error) {
 	}
 }
 
-func (n *NatsOutput) worker(ctx context.Context, i int, cfg *Config) {
+func (n *NatsOutput) worker(ctx context.Context, i int) {
 	defer n.wg.Done()
-
 	var natsConn *nats.Conn
 	var err error
 	workerLogPrefix := fmt.Sprintf("worker-%d", i)
 
 	defer n.logger.Printf("%s exited", workerLogPrefix)
 	n.logger.Printf("%s starting", workerLogPrefix)
+	msgChan := *n.msgChan.Load()
 CRCONN:
-	natsConn, err = n.createNATSConn(cfg)
+	if ctx.Err() != nil {
+		return
+	}
+	cfg := n.cfg.Load()
+	natsConn, err = n.createNATSConn(cfg, i)
 	if err != nil {
 		n.logger.Printf("%s failed to create connection: %v", workerLogPrefix, err)
-		time.Sleep(n.Cfg.ConnectTimeWait)
+		time.Sleep(cfg.ConnectTimeWait)
 		goto CRCONN
 	}
-	defer n.logger.Printf("%s initialized nats publisher: %+v", workerLogPrefix, cfg)
 	for {
 		select {
 		case <-ctx.Done():
@@ -347,19 +538,24 @@ CRCONN:
 			n.logger.Printf("%s shutting down", workerLogPrefix)
 			natsConn.Close()
 			return
-		case m := <-n.msgChan:
+		case m := <-msgChan:
 			pmsg := m.GetMsg()
-			pmsg, err = outputs.AddSubscriptionTarget(pmsg, m.GetMeta(), n.Cfg.AddTarget, n.targetTpl)
+			// get fresh config
+			cfg := n.cfg.Load()
+			// snapshot template and marshal options
+			dc := n.dynCfg.Load()
+			name := fmt.Sprintf("%s-%d", cfg.Name, i)
+			pmsg, err = outputs.AddSubscriptionTarget(pmsg, m.GetMeta(), cfg.AddTarget, dc.targetTpl)
 			if err != nil {
 				n.logger.Printf("failed to add target to the response: %v", err)
 			}
-			bb, err := outputs.Marshal(pmsg, m.GetMeta(), n.mo, n.Cfg.SplitEvents, n.evps...)
+			bb, err := outputs.Marshal(pmsg, m.GetMeta(), dc.mo, cfg.SplitEvents, dc.evps...)
 			if err != nil {
-				if n.Cfg.Debug {
+				if cfg.Debug {
 					n.logger.Printf("%s failed marshaling proto msg: %v", workerLogPrefix, err)
 				}
-				if n.Cfg.EnableMetrics {
-					NatsNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "marshal_error").Inc()
+				if cfg.EnableMetrics {
+					NatsNumberOfFailSendMsgs.WithLabelValues(name, "marshal_error").Inc()
 				}
 				continue
 			}
@@ -367,78 +563,111 @@ CRCONN:
 				continue
 			}
 			for _, b := range bb {
-				if n.msgTpl != nil {
-					b, err = outputs.ExecTemplate(b, n.msgTpl)
+				if dc.msgTpl != nil {
+					b, err = outputs.ExecTemplate(b, dc.msgTpl)
 					if err != nil {
-						if n.Cfg.Debug {
+						if cfg.Debug {
 							log.Printf("failed to execute template: %v", err)
 						}
-						NatsNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "template_error").Inc()
+						NatsNumberOfFailSendMsgs.WithLabelValues(name, "template_error").Inc()
 						continue
 					}
 				}
 
-				subject := n.subjectName(cfg, m.GetMeta())
+				subject := n.subjectName(m.GetMeta(), cfg)
 				var start time.Time
-				if n.Cfg.EnableMetrics {
+				if cfg.EnableMetrics {
 					start = time.Now()
 				}
 				err = natsConn.Publish(subject, b)
 				if err != nil {
-					if n.Cfg.Debug {
+					if cfg.Debug {
 						n.logger.Printf("%s failed to write to nats subject '%s': %v", workerLogPrefix, subject, err)
 					}
-					if n.Cfg.EnableMetrics {
+					if cfg.EnableMetrics {
 						NatsNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "publish_error").Inc()
 					}
-					if n.Cfg.Debug {
+					if cfg.Debug {
 						n.logger.Printf("%s closing connection to NATS '%s'", workerLogPrefix, subject)
 					}
 
 					natsConn.Close()
 					time.Sleep(cfg.ConnectTimeWait)
 
-					if n.Cfg.Debug {
+					if cfg.Debug {
 						n.logger.Printf("%s reconnecting to NATS", workerLogPrefix)
 					}
 					goto CRCONN
 				}
-				if n.Cfg.EnableMetrics {
-					NatsSendDuration.WithLabelValues(cfg.Name).Set(float64(time.Since(start).Nanoseconds()))
-					NatsNumberOfSentMsgs.WithLabelValues(cfg.Name, subject).Inc()
-					NatsNumberOfSentBytes.WithLabelValues(cfg.Name, subject).Add(float64(len(b)))
+				if cfg.EnableMetrics {
+					NatsSendDuration.WithLabelValues(name).Set(float64(time.Since(start).Nanoseconds()))
+					NatsNumberOfSentMsgs.WithLabelValues(name, subject).Inc()
+					NatsNumberOfSentBytes.WithLabelValues(name, subject).Add(float64(len(b)))
 				}
 			}
 		}
 	}
 }
 
-func (n *NatsOutput) subjectName(c *Config, meta outputs.Meta) string {
-	if c.SubjectPrefix != "" {
-		ssb := strings.Builder{}
-		ssb.WriteString(n.Cfg.SubjectPrefix)
-		if s, ok := meta["source"]; ok {
-			source := strings.ReplaceAll(s, ".", "-")
-			source = strings.ReplaceAll(source, " ", "_")
-			ssb.WriteString(".")
-			ssb.WriteString(source)
-		}
-		if subname, ok := meta["subscription-name"]; ok {
-			ssb.WriteString(".")
-			ssb.WriteString(subname)
-		}
-		return strings.ReplaceAll(ssb.String(), " ", "_")
-	}
-	return strings.ReplaceAll(n.Cfg.Subject, " ", "_")
+var stringBuilderPool = sync.Pool{
+	New: func() any {
+		return new(strings.Builder)
+	},
 }
 
-func (n *NatsOutput) setName(name string) {
-	sb := strings.Builder{}
-	if name != "" {
-		sb.WriteString(name)
-		sb.WriteString("-")
+func (n *NatsOutput) subjectName(meta outputs.Meta, cfg *Config) string {
+	if cfg.SubjectPrefix != "" {
+		ssb := stringBuilderPool.Get().(*strings.Builder)
+		defer func() {
+			ssb.Reset()
+			stringBuilderPool.Put(ssb)
+		}()
+		ssb.WriteString(cfg.SubjectPrefix)
+
+		if s, ok := meta["source"]; ok {
+			ssb.WriteString(".")
+			for _, r := range s {
+				switch r {
+				case '.':
+					ssb.WriteRune('-')
+				case ' ':
+					ssb.WriteRune('_')
+				default:
+					ssb.WriteRune(r)
+				}
+			}
+		}
+
+		if subname, ok := meta["subscription-name"]; ok {
+			ssb.WriteString(".")
+			for _, r := range subname {
+				if r == ' ' {
+					ssb.WriteRune('_')
+				} else {
+					ssb.WriteRune(r)
+				}
+			}
+		}
+
+		return ssb.String()
 	}
-	sb.WriteString(n.Cfg.Name)
-	sb.WriteString("-nats-pub")
-	n.Cfg.Name = sb.String()
+	return strings.ReplaceAll(cfg.Subject, " ", "_")
+}
+
+func channelNeedsSwap(old, nw *Config) bool {
+	if old == nil || nw == nil {
+		return true
+	}
+	return old.BufferSize != nw.BufferSize
+}
+
+func needsWorkerRestart(old, nw *Config) bool {
+	if old == nil || nw == nil {
+		return true
+	}
+	return old.NumWorkers != nw.NumWorkers ||
+		!old.TLS.Equal(nw.TLS) ||
+		old.Address != nw.Address ||
+		old.Username != nw.Username ||
+		old.Password != nw.Password
 }

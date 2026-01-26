@@ -16,10 +16,11 @@ import (
 	"io"
 	"log"
 	"net"
-	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"text/template"
 	"time"
 
@@ -34,6 +35,8 @@ import (
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
 	"github.com/openconfig/gnmic/pkg/outputs"
+	gutils "github.com/openconfig/gnmic/pkg/utils"
+	"github.com/zestor-dev/zestor/store"
 )
 
 const (
@@ -48,12 +51,7 @@ const (
 
 func init() {
 	outputs.Register("jetstream", func() outputs.Output {
-		return &jetstreamOutput{
-			Cfg:     &config{},
-			msgChan: make(chan *outputs.ProtoMsg),
-			wg:      new(sync.WaitGroup),
-			logger:  log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
-		}
+		return &jetstreamOutput{}
 	})
 }
 
@@ -79,7 +77,7 @@ type config struct {
 	ConnectTimeWait    time.Duration       `mapstructure:"connect-time-wait,omitempty" json:"connect-time-wait,omitempty"`
 	TLS                *types.TLSConfig    `mapstructure:"tls,omitempty" json:"tls,omitempty"`
 	Format             string              `mapstructure:"format,omitempty" json:"format,omitempty"`
-	SplitEvents        bool                `mapstructure:"split-events,omitempty"`
+	SplitEvents        bool                `mapstructure:"split-events,omitempty" json:"split-events,omitempty"`
 	AddTarget          string              `mapstructure:"add-target,omitempty" json:"add-target,omitempty"`
 	TargetTemplate     string              `mapstructure:"target-template,omitempty" json:"target-template,omitempty"`
 	MsgTemplate        string              `mapstructure:"msg-template,omitempty" json:"msg-template,omitempty"`
@@ -87,7 +85,7 @@ type config struct {
 	NumWorkers         int                 `mapstructure:"num-workers,omitempty" json:"num-workers,omitempty"`
 	WriteTimeout       time.Duration       `mapstructure:"write-timeout,omitempty" json:"write-timeout,omitempty"`
 	Debug              bool                `mapstructure:"debug,omitempty" json:"debug,omitempty"`
-	BufferSize         uint                `mapstructure:"buffer-size,omitempty"`
+	BufferSize         uint                `mapstructure:"buffer-size,omitempty" json:"buffer-size,omitempty"`
 	EnableMetrics      bool                `mapstructure:"enable-metrics,omitempty" json:"enable-metrics,omitempty"`
 	EventProcessors    []string            `mapstructure:"event-processors,omitempty" json:"event-processors,omitempty"`
 }
@@ -106,31 +104,54 @@ type createStreamConfig struct {
 // jetstreamOutput //
 type jetstreamOutput struct {
 	outputs.BaseOutput
-	Cfg      *config
-	ctx      context.Context
+
+	cfg      *atomic.Pointer[config]
+	rootCtx  context.Context
 	cancelFn context.CancelFunc
-	msgChan  chan *outputs.ProtoMsg
-	wg       *sync.WaitGroup
-	logger   *log.Logger
 
-	mo   *formatters.MarshalOptions
-	evps []formatters.EventProcessor
+	msgChan *atomic.Pointer[chan *outputs.ProtoMsg] // atomic channel swaps
+	// workers wait group
+	wg *sync.WaitGroup
+	// dynamic config items that don't need a worker restart
+	dynCfg *atomic.Pointer[dynConfig]
+	// metrics registry
+	reg *prometheus.Registry
+	// config store
+	store  store.Store[any]
+	logger *log.Logger
 
+	closeOnce sync.Once
+	closeSig  chan struct{}
+}
+
+type dynConfig struct {
 	targetTpl *template.Template
 	msgTpl    *template.Template
+	evps      []formatters.EventProcessor
+	mo        *formatters.MarshalOptions
+}
 
-	reg *prometheus.Registry
+func (n *jetstreamOutput) init() {
+	n.cfg = new(atomic.Pointer[config])
+	n.dynCfg = new(atomic.Pointer[dynConfig])
+	n.msgChan = new(atomic.Pointer[chan *outputs.ProtoMsg])
+	n.wg = new(sync.WaitGroup)
+	n.logger = log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags)
+	n.closeOnce = sync.Once{}
+	n.closeSig = make(chan struct{})
 }
 
 func (n *jetstreamOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
-	err := outputs.DecodeConfig(cfg, n.Cfg)
+	n.init() // init struct fields
+	ncfg := new(config)
+	err := outputs.DecodeConfig(cfg, ncfg)
 	if err != nil {
 		return err
 	}
-	if n.Cfg.Name == "" {
-		n.Cfg.Name = name
+	if ncfg.Name == "" {
+		ncfg.Name = name
 	}
-	n.logger.SetPrefix(fmt.Sprintf(loggingPrefix, n.Cfg.Name))
+	n.logger.SetPrefix(fmt.Sprintf(loggingPrefix, ncfg.Name))
 
 	options := &outputs.OutputOptions{}
 	for _, opt := range opts {
@@ -139,17 +160,17 @@ func (n *jetstreamOutput) Init(ctx context.Context, name string, cfg map[string]
 		}
 	}
 
+	n.store = options.Store
+
 	// set defaults
-	err = n.setDefaults()
+	err = n.setDefaultsFor(ncfg)
 	if err != nil {
 		return err
 	}
 
+	n.cfg.Store(ncfg)
 	// apply logger
-	if options.Logger != nil && n.logger != nil {
-		n.logger.SetOutput(options.Logger.Writer())
-		n.logger.SetFlags(options.Logger.Flags())
-	}
+	n.setLogger(options.Logger)
 
 	// initialize registry
 	n.reg = options.Registry
@@ -158,128 +179,301 @@ func (n *jetstreamOutput) Init(ctx context.Context, name string, cfg map[string]
 		return err
 	}
 
+	msgChan := make(chan *outputs.ProtoMsg, ncfg.BufferSize)
+	n.msgChan.Store(&msgChan)
+	// prep dynamic config
+	dc := new(dynConfig)
 	// initialize event processors
-	err = n.setEventProcessors(options.EventProcessors, n.logger, options.TargetsConfig, options.Actions)
+	evps, err := n.buildEventProcessors(options.Logger, ncfg.EventProcessors)
 	if err != nil {
 		return err
 	}
-	n.msgChan = make(chan *outputs.ProtoMsg, n.Cfg.BufferSize)
-	n.mo = &formatters.MarshalOptions{
-		Format:     n.Cfg.Format,
-		OverrideTS: n.Cfg.OverrideTimestamps,
+	dc.evps = evps
+
+	dc.mo = &formatters.MarshalOptions{
+		Format:     ncfg.Format,
+		OverrideTS: ncfg.OverrideTimestamps,
 	}
-	if n.Cfg.TargetTemplate == "" {
-		n.targetTpl = outputs.DefaultTargetTemplate
-	} else if n.Cfg.AddTarget != "" {
-		n.targetTpl, err = gtemplate.CreateTemplate("target-template", n.Cfg.TargetTemplate)
+	if ncfg.TargetTemplate == "" {
+		dc.targetTpl = outputs.DefaultTargetTemplate
+	} else if ncfg.AddTarget != "" {
+		dc.targetTpl, err = gtemplate.CreateTemplate("target-template", ncfg.TargetTemplate)
 		if err != nil {
 			return err
 		}
-		n.targetTpl = n.targetTpl.Funcs(outputs.TemplateFuncs)
+		dc.targetTpl = dc.targetTpl.Funcs(outputs.TemplateFuncs)
 	}
 
-	if n.Cfg.MsgTemplate != "" {
-		n.msgTpl, err = gtemplate.CreateTemplate("msg-template", n.Cfg.MsgTemplate)
+	if ncfg.MsgTemplate != "" {
+		dc.msgTpl, err = gtemplate.CreateTemplate("msg-template", ncfg.MsgTemplate)
 		if err != nil {
 			return err
 		}
-		n.msgTpl = n.msgTpl.Funcs(outputs.TemplateFuncs)
+		dc.msgTpl = dc.msgTpl.Funcs(outputs.TemplateFuncs)
 	}
 
-	n.ctx, n.cancelFn = context.WithCancel(ctx)
+	n.dynCfg.Store(dc)
 
-	n.wg.Add(n.Cfg.NumWorkers)
-	for i := 0; i < n.Cfg.NumWorkers; i++ {
-		cfg := *n.Cfg
-		cfg.Name = fmt.Sprintf("%s-%d", cfg.Name, i)
-		go n.worker(ctx, i, &cfg)
+	n.rootCtx = ctx // store root context
+	var wctx context.Context
+
+	wctx, n.cancelFn = context.WithCancel(n.rootCtx) // create worker context
+	n.wg.Add(ncfg.NumWorkers)
+	for i := 0; i < ncfg.NumWorkers; i++ {
+		go n.worker(wctx, i)
 	}
 
-	go func() {
-		<-ctx.Done()
-		n.Close()
-	}()
 	return nil
 }
 
-func (n *jetstreamOutput) setDefaults() error {
-	if n.Cfg.Stream == "" {
+func (n *jetstreamOutput) setDefaultsFor(cfg *config) error {
+	if cfg.Stream == "" {
 		return errors.New("missing stream name")
 	}
-
-	if n.Cfg.Format == "" {
-		n.Cfg.Format = defaultFormat
+	if cfg.Format == "" {
+		cfg.Format = defaultFormat
 	}
-	if n.Cfg.SubjectFormat == "" {
-		n.Cfg.SubjectFormat = subjectFormat_Static
+	if cfg.SubjectFormat == "" {
+		cfg.SubjectFormat = subjectFormat_Static
 	}
-	switch n.Cfg.SubjectFormat {
+	switch cfg.SubjectFormat {
 	case subjectFormat_Static,
 		subjectFormat_TargetSub,
 		subjectFormat_SubTarget,
 		subjectFormat_SubTargetPath,
 		subjectFormat_SubTargetPathWithKeys:
 	default:
-		return fmt.Errorf("unknown subject-format value: %v", n.Cfg.SubjectFormat)
+		return fmt.Errorf("unknown subject-format value: %v", cfg.SubjectFormat)
 	}
-	if n.Cfg.Subject == "" {
-		n.Cfg.Subject = defaultSubjectName
+	if cfg.Subject == "" {
+		cfg.Subject = defaultSubjectName
 	}
-	if n.Cfg.Address == "" {
-		n.Cfg.Address = defaultAddress
+	if cfg.Address == "" {
+		cfg.Address = defaultAddress
 	}
-	if n.Cfg.ConnectTimeWait <= 0 {
-		n.Cfg.ConnectTimeWait = natsConnectWait
+	if cfg.ConnectTimeWait <= 0 {
+		cfg.ConnectTimeWait = natsConnectWait
 	}
-	if n.Cfg.Name == "" {
-		n.Cfg.Name = "gnmic-" + uuid.New().String()
+	if cfg.Name == "" {
+		cfg.Name = "gnmic-" + uuid.New().String()
 	}
-	if n.Cfg.NumWorkers <= 0 {
-		n.Cfg.NumWorkers = defaultNumWorkers
+	if cfg.NumWorkers <= 0 {
+		cfg.NumWorkers = defaultNumWorkers
 	}
-	if n.Cfg.WriteTimeout <= 0 {
-		n.Cfg.WriteTimeout = defaultWriteTimeout
+	if cfg.WriteTimeout <= 0 {
+		cfg.WriteTimeout = defaultWriteTimeout
 	}
-	if n.Cfg.CreateStream != nil {
-		if len(n.Cfg.CreateStream.Subjects) == 0 {
-			n.Cfg.CreateStream.Subjects = []string{fmt.Sprintf("%s.>", n.Cfg.Stream)}
+	if cfg.CreateStream != nil {
+		if len(cfg.CreateStream.Subjects) == 0 {
+			cfg.CreateStream.Subjects = []string{fmt.Sprintf("%s.>", cfg.Stream)}
 		}
-		if n.Cfg.CreateStream.Description == "" {
-			n.Cfg.CreateStream.Description = "created by gNMIc"
+		if cfg.CreateStream.Description == "" {
+			cfg.CreateStream.Description = "created by gNMIc"
 		}
-		if n.Cfg.CreateStream.Storage == "" {
-			n.Cfg.CreateStream.Storage = "memory"
+		if cfg.CreateStream.Storage == "" {
+			cfg.CreateStream.Storage = "memory"
 		}
-		if n.Cfg.CreateStream.Retention == "" {
-			n.Cfg.CreateStream.Retention = "limits"
+		if cfg.CreateStream.Retention == "" {
+			cfg.CreateStream.Retention = "limits"
 		}
 		// Validate retention policy value
-		if !isValidRetentionPolicy(n.Cfg.CreateStream.Retention) {
+		if !isValidRetentionPolicy(cfg.CreateStream.Retention) {
 			return fmt.Errorf("invalid retention-policy: %s (must be 'limits' or 'workqueue')",
-				n.Cfg.CreateStream.Retention)
+				cfg.CreateStream.Retention)
 		}
 		return nil
 	}
 	return nil
 }
 
+func (n *jetstreamOutput) Validate(cfg map[string]any) error {
+	ncfg := new(config)
+	err := outputs.DecodeConfig(cfg, ncfg)
+	if err != nil {
+		return err
+	}
+	err = n.setDefaultsFor(ncfg)
+	if err != nil {
+		return err
+	}
+	_, err = gtemplate.CreateTemplate("target-template", ncfg.TargetTemplate)
+	if err != nil {
+		return err
+	}
+	_, err = gtemplate.CreateTemplate("msg-template", ncfg.MsgTemplate)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (n *jetstreamOutput) Update(ctx context.Context, cfg map[string]any) error {
+	newCfg := new(config)
+	err := outputs.DecodeConfig(cfg, newCfg)
+	if err != nil {
+		return err
+	}
+	err = n.setDefaultsFor(newCfg)
+	if err != nil {
+		return err
+	}
+	currCfg := n.cfg.Load()
+
+	swapChannel := channelNeedsSwap(currCfg, newCfg)
+	restartWorkers := needsWorkerRestart(currCfg, newCfg)
+	streamChanged := streamChanged(currCfg, newCfg)
+	rebuildProcessors := slices.Compare(currCfg.EventProcessors, newCfg.EventProcessors) != 0
+
+	//rebuild
+	var targetTpl *template.Template
+	if newCfg.TargetTemplate == "" {
+		targetTpl = outputs.DefaultTargetTemplate
+	} else if newCfg.AddTarget != "" {
+		t, err := gtemplate.CreateTemplate("target-template", newCfg.TargetTemplate)
+		if err != nil {
+			return err
+		}
+		targetTpl = t.Funcs(outputs.TemplateFuncs)
+	} else {
+		targetTpl = outputs.DefaultTargetTemplate
+	}
+
+	var msgTpl *template.Template
+	if newCfg.MsgTemplate != "" {
+		t, err := gtemplate.CreateTemplate("msg-template", newCfg.MsgTemplate)
+		if err != nil {
+			return err
+		}
+		msgTpl = t.Funcs(outputs.TemplateFuncs)
+	}
+
+	dc := &dynConfig{
+		targetTpl: targetTpl,
+		msgTpl:    msgTpl,
+		mo: &formatters.MarshalOptions{
+			Format:     newCfg.Format,
+			OverrideTS: newCfg.OverrideTimestamps,
+		},
+	}
+
+	// rebuild processors ?
+	prevDC := n.dynCfg.Load()
+	if rebuildProcessors {
+		dc.evps, err = n.buildEventProcessors(n.logger, newCfg.EventProcessors)
+		if err != nil {
+			return err
+		}
+	} else if prevDC != nil {
+		dc.evps = prevDC.evps
+	}
+	// store new dynamic config
+	n.dynCfg.Store(dc)
+	// store new config
+	n.cfg.Store(newCfg)
+
+	if swapChannel || restartWorkers || streamChanged {
+		var newChan chan *outputs.ProtoMsg
+		if swapChannel {
+			newChan = make(chan *outputs.ProtoMsg, newCfg.BufferSize)
+
+		} else {
+			newChan = *n.msgChan.Load()
+		}
+
+		runCtx, cancel := context.WithCancel(n.rootCtx)
+		newWG := new(sync.WaitGroup)
+		// save old pointers
+		oldCancel := n.cancelFn
+		oldWG := n.wg
+		oldMsgChan := *n.msgChan.Load()
+		// swap
+		n.cancelFn = cancel
+		n.wg = newWG
+		n.msgChan.Store(&newChan)
+
+		// restart workers
+		n.wg.Add(currCfg.NumWorkers)
+		for i := 0; i < currCfg.NumWorkers; i++ {
+			go n.worker(runCtx, i)
+		}
+		// cancel old workers
+		if oldCancel != nil {
+			oldCancel()
+		}
+		if oldWG != nil {
+			oldWG.Wait()
+		}
+		if swapChannel {
+			// best effort drain old channel
+		OUTER_LOOP: // break label
+			for {
+				select {
+				case msg, ok := <-oldMsgChan:
+					if !ok {
+						break
+					}
+					select {
+					case newChan <- msg:
+					default:
+						// new channel full, drop message
+					}
+				default:
+					break OUTER_LOOP // break out of the outer loop
+				}
+			}
+		}
+	}
+	n.logger.Printf("updated jetstream output: %s", n.String())
+	return nil
+
+}
+
+func (n *jetstreamOutput) UpdateProcessor(name string, pcfg map[string]any) error {
+	cfg := n.cfg.Load()
+	dc := n.dynCfg.Load()
+
+	newEvps, changed, err := outputs.UpdateProcessorInSlice(
+		n.logger,
+		n.store,
+		cfg.EventProcessors,
+		dc.evps,
+		name,
+		pcfg,
+	)
+	if err != nil {
+		return err
+	}
+	if changed {
+		newDC := *dc
+		newDC.evps = newEvps
+		n.dynCfg.Store(&newDC)
+		n.logger.Printf("updated event processor %s", name)
+	}
+	return nil
+}
+
 func (n *jetstreamOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) {
-	if rsp == nil || n.mo == nil {
+	dc := n.dynCfg.Load()
+	cfg := n.cfg.Load()
+	if rsp == nil || dc == nil || dc.mo == nil {
 		return
 	}
-	wctx, cancel := context.WithTimeout(ctx, n.Cfg.WriteTimeout)
+	wctx, cancel := context.WithTimeout(ctx, cfg.WriteTimeout)
 	defer cancel()
 
+	ch := n.msgChan.Load()
 	select {
 	case <-ctx.Done():
 		return
-	case n.msgChan <- outputs.NewProtoMsg(rsp, meta):
+	case *ch <- outputs.NewProtoMsg(rsp, meta):
+	case <-n.closeSig:
+		return
 	case <-wctx.Done():
-		if n.Cfg.Debug {
-			n.logger.Printf("writing expired after %s, JetStream output might not be initialized", n.Cfg.WriteTimeout)
+		if cfg.Debug {
+			n.logger.Printf("writing expired after %s, JetStream output might not be initialized", cfg.WriteTimeout)
 		}
-		if n.Cfg.EnableMetrics {
-			jetStreamNumberOfFailSendMsgs.WithLabelValues(n.Cfg.Name, "timeout").Inc()
+		if cfg.EnableMetrics {
+			jetStreamNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "timeout").Inc()
 		}
 		return
 	}
@@ -290,6 +484,10 @@ func (n *jetstreamOutput) WriteEvent(ctx context.Context, ev *formatters.EventMs
 func (n *jetstreamOutput) Close() error {
 	n.cancelFn()
 	n.wg.Wait()
+	n.closeOnce.Do(func() {
+		close(n.closeSig)
+	})
+	n.logger.Printf("closed jetstream output: %s", n.String())
 	return nil
 }
 
@@ -302,62 +500,67 @@ func (c *config) String() string {
 }
 
 func (n *jetstreamOutput) String() string {
-	b, err := json.Marshal(n)
+	cfg := n.cfg.Load()
+	b, err := json.Marshal(cfg)
 	if err != nil {
 		return ""
 	}
 	return string(b)
 }
 
-func (n *jetstreamOutput) setEventProcessors(ps map[string]map[string]interface{},
-	logger *log.Logger,
-	tcs map[string]*types.TargetConfig,
-	acts map[string]map[string]interface{}) error {
-	var err error
-	n.evps, err = formatters.MakeEventProcessors(
+func (n *jetstreamOutput) buildEventProcessors(logger *log.Logger, eventProcessors []string) ([]formatters.EventProcessor, error) {
+	tcs, ps, acts, err := gutils.GetConfigMaps(n.store)
+	if err != nil {
+		return nil, err
+	}
+	evps, err := formatters.MakeEventProcessors(
 		logger,
-		n.Cfg.EventProcessors,
+		eventProcessors,
 		ps,
 		tcs,
 		acts,
 	)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return evps, nil
 }
 
-func (n *jetstreamOutput) SetName(name string) {
-	sb := strings.Builder{}
-	if name != "" {
-		sb.WriteString(name)
-		sb.WriteString("-")
+func (n *jetstreamOutput) setLogger(logger *log.Logger) {
+	if logger != nil && n.logger != nil {
+		n.logger.SetOutput(logger.Writer())
+		n.logger.SetFlags(logger.Flags())
 	}
-	sb.WriteString(n.Cfg.Name)
-	n.Cfg.Name = sb.String()
 }
 
-func (n *jetstreamOutput) worker(ctx context.Context, i int, cfg *config) {
+func (n *jetstreamOutput) worker(ctx context.Context, i int) {
 	defer n.wg.Done()
 	var natsConn *nats.Conn
 	var err error
 	var subject string
 	workerLogPrefix := fmt.Sprintf("worker-%d", i)
 	n.logger.Printf("%s starting", workerLogPrefix)
+	// snapshot msgChan
+	msgChan := *n.msgChan.Load()
 CRCONN:
-	natsConn, err = n.createNATSConn(cfg)
+	if ctx.Err() != nil {
+		return
+	}
+	cfg := n.cfg.Load()
+	name := fmt.Sprintf("%s-%d", cfg.Name, i)
+	natsConn, err = n.createNATSConn(ctx, cfg, i)
 	if err != nil {
 		n.logger.Printf("%s failed to create connection: %v", workerLogPrefix, err)
-		time.Sleep(n.Cfg.ConnectTimeWait)
+		time.Sleep(cfg.ConnectTimeWait)
 		goto CRCONN
 	}
 	js, err := natsConn.JetStream()
 	if err != nil {
-		if n.Cfg.Debug {
+		if cfg.Debug {
 			n.logger.Printf("%s failed to create jetstream context: %v", workerLogPrefix, err)
 		}
-		if n.Cfg.EnableMetrics {
-			jetStreamNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "jetstream_context_error").Inc()
+		if cfg.EnableMetrics {
+			jetStreamNumberOfFailSendMsgs.WithLabelValues(name, "jetstream_context_error").Inc()
 		}
 		natsConn.Close()
 		time.Sleep(cfg.ConnectTimeWait)
@@ -366,33 +569,39 @@ CRCONN:
 	n.logger.Printf("%s initialized nats jetstream producer: %s", workerLogPrefix, cfg)
 	// worker-0 create stream if configured
 	if i == 0 {
-		err = n.createStream(js)
+		err = n.createStream(js, cfg)
 		if err != nil {
-			if n.Cfg.Debug {
+			if cfg.Debug {
 				n.logger.Printf("%s failed to create stream: %v", workerLogPrefix, err)
 			}
-			if n.Cfg.EnableMetrics {
-				jetStreamNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "create_stream_error").Inc()
+			if cfg.EnableMetrics {
+				jetStreamNumberOfFailSendMsgs.WithLabelValues(name, "create_stream_error").Inc()
 			}
 			natsConn.Close()
 			time.Sleep(cfg.ConnectTimeWait)
 			goto CRCONN
 		}
 	}
+
 	for {
 		select {
 		case <-ctx.Done():
 			natsConn.Close()
 			n.logger.Printf("%s shutting down", workerLogPrefix)
 			return
-		case m := <-n.msgChan:
+		case m := <-msgChan:
 			pmsg := m.GetMsg()
-			pmsg, err = outputs.AddSubscriptionTarget(pmsg, m.GetMeta(), n.Cfg.AddTarget, n.targetTpl)
+			// get fresh config
+			cfg := n.cfg.Load()
+			// snapshot template and marshal options
+			dc := n.dynCfg.Load()
+			name := fmt.Sprintf("%s-%d", cfg.Name, i)
+			pmsg, err = outputs.AddSubscriptionTarget(pmsg, m.GetMeta(), cfg.AddTarget, dc.targetTpl)
 			if err != nil {
 				n.logger.Printf("failed to add target to the response: %v", err)
 			}
 			var rs []proto.Message
-			switch n.Cfg.SubjectFormat {
+			switch cfg.SubjectFormat {
 			case subjectFormat_Static, subjectFormat_TargetSub, subjectFormat_SubTarget:
 				rs = []proto.Message{pmsg}
 			case subjectFormat_SubTargetPath, subjectFormat_SubTargetPathWithKeys:
@@ -405,13 +614,13 @@ CRCONN:
 				}
 			}
 			for _, r := range rs {
-				bb, err := outputs.Marshal(r, m.GetMeta(), n.mo, n.Cfg.SplitEvents, n.evps...)
+				bb, err := outputs.Marshal(r, m.GetMeta(), dc.mo, cfg.SplitEvents, dc.evps...)
 				if err != nil {
-					if n.Cfg.Debug {
+					if cfg.Debug {
 						n.logger.Printf("%s failed marshaling proto msg: %v", workerLogPrefix, err)
 					}
-					if n.Cfg.EnableMetrics {
-						jetStreamNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "marshal_error").Inc()
+					if cfg.EnableMetrics {
+						jetStreamNumberOfFailSendMsgs.WithLabelValues(name, "marshal_error").Inc()
 					}
 					continue
 				}
@@ -419,47 +628,47 @@ CRCONN:
 					continue
 				}
 				for _, b := range bb {
-					if n.msgTpl != nil {
-						b, err = outputs.ExecTemplate(b, n.msgTpl)
+					if dc.msgTpl != nil {
+						b, err = outputs.ExecTemplate(b, dc.msgTpl)
 						if err != nil {
-							if n.Cfg.Debug {
+							if cfg.Debug {
 								log.Printf("failed to execute template: %v", err)
 							}
-							jetStreamNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "template_error").Inc()
+							jetStreamNumberOfFailSendMsgs.WithLabelValues(name, "template_error").Inc()
 							continue
 						}
 					}
 
-					subject, err = n.subjectName(r, m.GetMeta())
+					subject, err = n.subjectName(r, m.GetMeta(), dc, cfg)
 					if err != nil {
-						if n.Cfg.Debug {
+						if cfg.Debug {
 							n.logger.Printf("%s failed to get subject name: %v", workerLogPrefix, err)
 						}
-						if n.Cfg.EnableMetrics {
-							jetStreamNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "subject_name_error").Inc()
+						if cfg.EnableMetrics {
+							jetStreamNumberOfFailSendMsgs.WithLabelValues(name, "subject_name_error").Inc()
 						}
 						continue
 					}
 					var start time.Time
-					if n.Cfg.EnableMetrics {
+					if cfg.EnableMetrics {
 						start = time.Now()
 					}
-					_, err = js.Publish(subject, b)
+					_, err = js.Publish(subject, b, nats.Context(ctx))
 					if err != nil {
-						if n.Cfg.Debug {
+						if cfg.Debug {
 							n.logger.Printf("%s failed to write to subject '%s': %v", workerLogPrefix, subject, err)
 						}
-						if n.Cfg.EnableMetrics {
-							jetStreamNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "publish_error").Inc()
+						if cfg.EnableMetrics {
+							jetStreamNumberOfFailSendMsgs.WithLabelValues(name, "publish_error").Inc()
 						}
 						natsConn.Close()
 						time.Sleep(cfg.ConnectTimeWait)
 						goto CRCONN
 					}
-					if n.Cfg.EnableMetrics {
-						jetStreamSendDuration.WithLabelValues(cfg.Name).Set(float64(time.Since(start).Nanoseconds()))
-						jetStreamNumberOfSentMsgs.WithLabelValues(cfg.Name, subject).Inc()
-						jetStreamNumberOfSentBytes.WithLabelValues(cfg.Name, subject).Add(float64(len(b)))
+					if cfg.EnableMetrics {
+						jetStreamSendDuration.WithLabelValues(name).Set(float64(time.Since(start).Nanoseconds()))
+						jetStreamNumberOfSentMsgs.WithLabelValues(name, subject).Inc()
+						jetStreamNumberOfSentBytes.WithLabelValues(name, subject).Add(float64(len(b)))
 					}
 				}
 			}
@@ -467,36 +676,39 @@ CRCONN:
 	}
 }
 
-// Dial //
-func (n *jetstreamOutput) Dial(network, address string) (net.Conn, error) {
-	ctx, cancel := context.WithCancel(n.ctx)
+type customDialer struct {
+	ctx    context.Context
+	logger *log.Logger
+}
+
+func (n *jetstreamOutput) newCustomDialer(ctx context.Context) *customDialer {
+	return &customDialer{ctx: ctx, logger: n.logger}
+}
+
+func (d *customDialer) Dial(network, address string) (net.Conn, error) {
+	ctx, cancel := context.WithCancel(d.ctx)
 	defer cancel()
 
-	for {
-		n.logger.Printf("attempting to connect to %s", address)
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
+	d.logger.Printf("attempting to connect to %s", address)
+	select {
+	case <-d.ctx.Done():
+		return nil, d.ctx.Err()
+	default:
+		nd := &net.Dialer{}
+		conn, err := nd.DialContext(ctx, network, address)
+		if err != nil {
+			return nil, err
 		}
-
-		select {
-		case <-n.ctx.Done():
-			return nil, n.ctx.Err()
-		default:
-			d := &net.Dialer{}
-			if conn, err := d.DialContext(ctx, network, address); err == nil {
-				n.logger.Printf("successfully connected to NATS server %s", address)
-				return conn, nil
-			}
-			time.Sleep(n.Cfg.ConnectTimeWait)
-		}
+		d.logger.Printf("successfully connected to NATS server %s", address)
+		return conn, nil
 	}
 }
 
-func (n *jetstreamOutput) createNATSConn(c *config) (*nats.Conn, error) {
+func (n *jetstreamOutput) createNATSConn(ctx context.Context, c *config, idx int) (*nats.Conn, error) {
 	opts := []nats.Option{
-		nats.Name(c.Name),
-		nats.SetCustomDialer(n),
-		nats.ReconnectWait(n.Cfg.ConnectTimeWait),
+		nats.Name(fmt.Sprintf("%s-%d", c.Name, idx)),
+		nats.SetCustomDialer(n.newCustomDialer(ctx)),
+		nats.ReconnectWait(c.ConnectTimeWait),
 		// nats.ReconnectBufSize(natsReconnectBufferSize),
 		nats.ErrorHandler(func(_ *nats.Conn, _ *nats.Subscription, err error) {
 			n.logger.Printf("NATS error: %v", err)
@@ -508,13 +720,13 @@ func (n *jetstreamOutput) createNATSConn(c *config) (*nats.Conn, error) {
 			n.logger.Println("NATS connection is closed")
 		}),
 	}
-	if n.Cfg.TLS != nil {
+	if c.TLS != nil {
 		tlsConfig, err := utils.NewTLSConfig(
-			n.Cfg.TLS.CaFile,
-			n.Cfg.TLS.CertFile,
-			n.Cfg.TLS.KeyFile,
+			c.TLS.CaFile,
+			c.TLS.CertFile,
+			c.TLS.KeyFile,
 			"",
-			n.Cfg.TLS.SkipVerify,
+			c.TLS.SkipVerify,
 			false)
 		if err != nil {
 			return nil, err
@@ -533,15 +745,19 @@ func (n *jetstreamOutput) createNATSConn(c *config) (*nats.Conn, error) {
 	return nc, nil
 }
 
-func (n *jetstreamOutput) subjectName(m proto.Message, meta outputs.Meta) (string, error) {
-	sb := new(strings.Builder)
-	sb.WriteString(n.Cfg.Stream)
+func (n *jetstreamOutput) subjectName(m proto.Message, meta outputs.Meta, dc *dynConfig, cfg *config) (string, error) {
+	sb := stringBuilderPool.Get().(*strings.Builder)
+	defer func() {
+		sb.Reset()
+		stringBuilderPool.Put(sb)
+	}()
+	sb.WriteString(cfg.Stream)
 	sb.WriteString(".")
-	switch n.Cfg.SubjectFormat {
+	switch cfg.SubjectFormat {
 	case subjectFormat_Static:
-		sb.WriteString(n.Cfg.Subject)
+		sb.WriteString(cfg.Subject)
 	case subjectFormat_TargetSub:
-		err := n.targetTpl.Execute(sb, meta)
+		err := dc.targetTpl.Execute(sb, meta)
 		if err != nil {
 			return "", err
 		}
@@ -554,7 +770,7 @@ func (n *jetstreamOutput) subjectName(m proto.Message, meta outputs.Meta) (strin
 			sb.WriteString(sub)
 			sb.WriteString(".")
 		}
-		err := n.targetTpl.Execute(sb, meta)
+		err := dc.targetTpl.Execute(sb, meta)
 		if err != nil {
 			return "", err
 		}
@@ -563,7 +779,7 @@ func (n *jetstreamOutput) subjectName(m proto.Message, meta outputs.Meta) (strin
 			sb.WriteString(sub)
 			sb.WriteString(".")
 		}
-		err := n.targetTpl.Execute(sb, meta)
+		err := dc.targetTpl.Execute(sb, meta)
 		if err != nil {
 			return "", err
 		}
@@ -594,7 +810,7 @@ func (n *jetstreamOutput) subjectName(m proto.Message, meta outputs.Meta) (strin
 			sb.WriteString(sub)
 			sb.WriteString(".")
 		}
-		err := n.targetTpl.Execute(sb, meta)
+		err := dc.targetTpl.Execute(sb, meta)
 		if err != nil {
 			return "", err
 		}
@@ -658,7 +874,11 @@ func gNMIPathToSubject(p *gnmi.Path, keys bool) string {
 	if p == nil {
 		return ""
 	}
-	sb := new(strings.Builder)
+	sb := stringBuilderPool.Get().(*strings.Builder)
+	defer func() {
+		sb.Reset()
+		stringBuilderPool.Put(sb)
+	}()
 	if p.GetOrigin() != "" {
 		fmt.Fprintf(sb, "%s.", p.GetOrigin())
 	}
@@ -685,17 +905,38 @@ func gNMIPathToSubject(p *gnmi.Path, keys bool) string {
 	return sb.String()
 }
 
-const (
-	dotReplChar   = "^"
-	spaceReplChar = "~"
-)
-
-var regDot = regexp.MustCompile(`\.`)
-var regSpace = regexp.MustCompile(`\s`)
+var stringBuilderPool = sync.Pool{
+	New: func() any {
+		return new(strings.Builder)
+	},
+}
 
 func sanitizeKey(k string) string {
-	s := regDot.ReplaceAllString(k, dotReplChar)
-	return regSpace.ReplaceAllString(s, spaceReplChar)
+	// Fast path: no special chars
+	if !strings.ContainsAny(k, ". ") {
+		return k
+	}
+
+	sb := stringBuilderPool.Get().(*strings.Builder)
+	defer func() {
+		sb.Reset()
+		stringBuilderPool.Put(sb)
+	}()
+
+	sb.Grow(len(k))
+
+	for _, r := range k {
+		switch r {
+		case '.':
+			sb.WriteRune('^')
+		case ' ':
+			sb.WriteRune('~')
+		default:
+			sb.WriteRune(r)
+		}
+	}
+
+	return sb.String()
 }
 
 func storageType(s string) nats.StorageType {
@@ -726,18 +967,13 @@ func retentionPolicy(s string) nats.RetentionPolicy {
 	return nats.LimitsPolicy
 }
 
-// var storageTypes = map[string]nats.StorageType{
-// 	"file":   nats.FileStorage,
-// 	"memory": nats.MemoryStorage,
-// }
-
-func (n *jetstreamOutput) createStream(js nats.JetStreamContext) error {
+func (n *jetstreamOutput) createStream(js nats.JetStreamContext, cfg *config) error {
 	// If CreateStream is not configured, we're using an existing stream
-	if n.Cfg.CreateStream == nil {
+	if cfg.CreateStream == nil {
 		return nil
 	}
 
-	stream, err := js.StreamInfo(n.Cfg.Stream)
+	stream, err := js.StreamInfo(cfg.Stream)
 	if err != nil {
 		if !errors.Is(err, nats.ErrStreamNotFound) {
 			return err
@@ -751,16 +987,77 @@ func (n *jetstreamOutput) createStream(js nats.JetStreamContext) error {
 
 	// Create stream with configured retention policy
 	streamConfig := &nats.StreamConfig{
-		Name:        n.Cfg.Stream,
-		Description: n.Cfg.CreateStream.Description,
-		Subjects:    n.Cfg.CreateStream.Subjects,
-		Storage:     storageType(n.Cfg.CreateStream.Storage),
-		Retention:   retentionPolicy(n.Cfg.CreateStream.Retention),
-		MaxMsgs:     n.Cfg.CreateStream.MaxMsgs,
-		MaxBytes:    n.Cfg.CreateStream.MaxBytes,
-		MaxAge:      n.Cfg.CreateStream.MaxAge,
-		MaxMsgSize:  n.Cfg.CreateStream.MaxMsgSize,
+		Name:        cfg.Stream,
+		Description: cfg.CreateStream.Description,
+		Retention:   retentionPolicy(cfg.CreateStream.Retention),
+		Subjects:    cfg.CreateStream.Subjects,
+		Storage:     storageType(cfg.CreateStream.Storage),
+		MaxMsgs:     cfg.CreateStream.MaxMsgs,
+		MaxBytes:    cfg.CreateStream.MaxBytes,
+		MaxAge:      cfg.CreateStream.MaxAge,
+		MaxMsgSize:  cfg.CreateStream.MaxMsgSize,
 	}
+
 	_, err = js.AddStream(streamConfig)
 	return err
+}
+
+func channelNeedsSwap(old, nw *config) bool {
+	if old == nil || nw == nil {
+		return true
+	}
+	return old.BufferSize != nw.BufferSize
+}
+
+func needsWorkerRestart(old, nw *config) bool {
+	if old == nil || nw == nil {
+		return true
+	}
+	return old.NumWorkers != nw.NumWorkers ||
+		!old.TLS.Equal(nw.TLS) ||
+		old.Address != nw.Address ||
+		old.Username != nw.Username ||
+		old.Password != nw.Password
+}
+
+func streamChanged(old, nw *config) bool {
+	if old == nil || nw == nil {
+		return true
+	}
+	// stream name changed?
+	if old.Stream != nw.Stream {
+		return true
+	}
+	// create stream presence changed?
+	if (old.CreateStream == nil) != (nw.CreateStream == nil) {
+		return true
+	}
+	// both nil: nothing else to compare
+	if old.CreateStream == nil && nw.CreateStream == nil {
+		return false
+	}
+	// compare contents
+	oc, nc := old.CreateStream, nw.CreateStream
+	if oc.Description != nc.Description {
+		return true
+	}
+	if !slices.Equal(oc.Subjects, nc.Subjects) {
+		return true
+	}
+	if storageType(oc.Storage) != storageType(nc.Storage) {
+		return true
+	}
+	if oc.MaxMsgs != nc.MaxMsgs {
+		return true
+	}
+	if oc.MaxBytes != nc.MaxBytes {
+		return true
+	}
+	if oc.MaxAge != nc.MaxAge {
+		return true
+	}
+	if oc.MaxMsgSize != nc.MaxMsgSize {
+		return true
+	}
+	return false
 }

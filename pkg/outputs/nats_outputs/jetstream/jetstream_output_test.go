@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"sync/atomic"
+
 	"github.com/nats-io/nats.go"
 )
 
@@ -215,10 +217,12 @@ func Test_setDefaults(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			cfg := new(atomic.Pointer[config])
+			cfg.Store(tt.cfg)
 			n := &jetstreamOutput{
-				Cfg: tt.cfg,
+				cfg: cfg,
 			}
-			err := n.setDefaults()
+			err := n.setDefaultsFor(tt.cfg)
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("setDefaults() expected error but got nil")
@@ -233,12 +237,13 @@ func Test_setDefaults(t *testing.T) {
 					return
 				}
 				// Verify defaults were set correctly
-				if n.Cfg.CreateStream != nil {
-					if n.Cfg.CreateStream.Retention == "" {
+				rcfg := cfg.Load()
+				if rcfg.CreateStream != nil {
+					if rcfg.CreateStream.Retention == "" {
 						t.Errorf("setDefaults() did not set default retention policy")
 					}
-					if n.Cfg.CreateStream.Retention != "" && n.Cfg.CreateStream.Retention != "limits" && n.Cfg.CreateStream.Retention != "workqueue" && n.Cfg.CreateStream.Retention != "LIMITS" && n.Cfg.CreateStream.Retention != "WORKQUEUE" {
-						t.Errorf("setDefaults() set invalid retention policy: %s", n.Cfg.CreateStream.Retention)
+					if rcfg.CreateStream.Retention != "" && rcfg.CreateStream.Retention != "limits" && rcfg.CreateStream.Retention != "workqueue" && rcfg.CreateStream.Retention != "LIMITS" && rcfg.CreateStream.Retention != "WORKQUEUE" {
+						t.Errorf("setDefaults() set invalid retention policy: %s", rcfg.CreateStream.Retention)
 					}
 				}
 			}

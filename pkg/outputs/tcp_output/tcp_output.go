@@ -11,20 +11,25 @@ package tcp_output
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net"
+	"slices"
+	"sync"
+	"sync/atomic"
 	"text/template"
 	"time"
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
 	"github.com/openconfig/gnmic/pkg/outputs"
+	gutils "github.com/openconfig/gnmic/pkg/utils"
+	"github.com/zestor-dev/zestor/store"
 )
 
 const (
@@ -35,26 +40,30 @@ const (
 
 func init() {
 	outputs.Register("tcp", func() outputs.Output {
-		return &tcpOutput{
-			cfg:    &config{},
-			logger: log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
-		}
+		return &tcpOutput{}
 	})
 }
 
 type tcpOutput struct {
 	outputs.BaseOutput
-	cfg *config
 
+	cfg      *atomic.Pointer[config]
+	dynCfg   *atomic.Pointer[dynConfig]
+	rootCtx  context.Context
 	cancelFn context.CancelFunc
-	buffer   chan []byte
-	limiter  *time.Ticker
+	wg       *sync.WaitGroup
+	buffer   *atomic.Pointer[chan []byte]
 	logger   *log.Logger
-	mo       *formatters.MarshalOptions
-	evps     []formatters.EventProcessor
 
+	store store.Store[any]
+}
+
+type dynConfig struct {
 	targetTpl *template.Template
+	evps      []formatters.EventProcessor
+	mo        *formatters.MarshalOptions
 	delimiter []byte
+	limiter   *time.Ticker
 }
 
 type config struct {
@@ -74,29 +83,41 @@ type config struct {
 	EventProcessors    []string      `mapstructure:"event-processors,omitempty"`
 }
 
-func (t *tcpOutput) setEventProcessors(ps map[string]map[string]interface{},
-	logger *log.Logger,
-	tcs map[string]*types.TargetConfig,
-	acts map[string]map[string]interface{}) error {
-	var err error
-	t.evps, err = formatters.MakeEventProcessors(
+func (t *tcpOutput) buildEventProcessors(logger *log.Logger, eventProcessors []string) ([]formatters.EventProcessor, error) {
+	tcs, ps, acts, err := gutils.GetConfigMaps(t.store)
+	if err != nil {
+		return nil, err
+	}
+	evps, err := formatters.MakeEventProcessors(
 		logger,
-		t.cfg.EventProcessors,
+		eventProcessors,
 		ps,
 		tcs,
 		acts,
 	)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return evps, nil
+}
+
+func (t *tcpOutput) init() {
+	t.cfg = new(atomic.Pointer[config])
+	t.dynCfg = new(atomic.Pointer[dynConfig])
+	t.buffer = new(atomic.Pointer[chan []byte])
+	t.wg = new(sync.WaitGroup)
+	t.logger = log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags)
 }
 
 func (t *tcpOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
-	err := outputs.DecodeConfig(cfg, t.cfg)
+	t.init()
+	newCfg := new(config)
+	err := outputs.DecodeConfig(cfg, newCfg)
 	if err != nil {
 		return err
 	}
+	setDefaultsFor(newCfg)
+	t.cfg.Store(newCfg)
 	t.logger.SetPrefix(fmt.Sprintf(loggingPrefix, name))
 
 	options := &outputs.OutputOptions{}
@@ -106,56 +127,218 @@ func (t *tcpOutput) Init(ctx context.Context, name string, cfg map[string]interf
 		}
 	}
 
+	t.store = options.Store
+
 	// apply logger
 	if options.Logger != nil && t.logger != nil {
 		t.logger.SetOutput(options.Logger.Writer())
 		t.logger.SetFlags(options.Logger.Flags())
 	}
 
+	dc := new(dynConfig)
 	// initialize event processors
-	err = t.setEventProcessors(options.EventProcessors, options.Logger, options.TargetsConfig, options.Actions)
+	dc.evps, err = t.buildEventProcessors(options.Logger, newCfg.EventProcessors)
 	if err != nil {
 		return err
 	}
-	_, _, err = net.SplitHostPort(t.cfg.Address)
-	if err != nil {
-		return fmt.Errorf("wrong address format: %v", err)
+	dc.mo = &formatters.MarshalOptions{
+		Format:     newCfg.Format,
+		OverrideTS: newCfg.OverrideTimestamps,
 	}
-	t.buffer = make(chan []byte, t.cfg.BufferSize)
-	if t.cfg.Rate > 0 {
-		t.limiter = time.NewTicker(t.cfg.Rate)
-	}
-	if t.cfg.RetryInterval == 0 {
-		t.cfg.RetryInterval = defaultRetryTimer
-	}
-	if t.cfg.NumWorkers < 1 {
-		t.cfg.NumWorkers = defaultNumWorkers
-	}
-	if len(t.cfg.Delimiter) > 0 {
-		t.delimiter = []byte(t.cfg.Delimiter)
-	}
-	t.mo = &formatters.MarshalOptions{
-		Format:     t.cfg.Format,
-		OverrideTS: t.cfg.OverrideTimestamps,
-	}
-
-	if t.cfg.TargetTemplate == "" {
-		t.targetTpl = outputs.DefaultTargetTemplate
-	} else if t.cfg.AddTarget != "" {
-		t.targetTpl, err = gtemplate.CreateTemplate("target-template", t.cfg.TargetTemplate)
+	if newCfg.TargetTemplate == "" {
+		dc.targetTpl = outputs.DefaultTargetTemplate
+	} else if newCfg.AddTarget != "" {
+		dc.targetTpl, err = gtemplate.CreateTemplate("target-template", newCfg.TargetTemplate)
 		if err != nil {
 			return err
 		}
-		t.targetTpl = t.targetTpl.Funcs(outputs.TemplateFuncs)
+		dc.targetTpl = dc.targetTpl.Funcs(outputs.TemplateFuncs)
 	}
-	go func() {
-		<-ctx.Done()
-		t.Close()
-	}()
 
-	ctx, t.cancelFn = context.WithCancel(ctx)
-	for i := 0; i < t.cfg.NumWorkers; i++ {
+	_, _, err = net.SplitHostPort(newCfg.Address)
+	if err != nil {
+		return fmt.Errorf("wrong address format: %v", err)
+	}
+	ch := make(chan []byte, newCfg.BufferSize)
+	t.buffer.Store(&ch)
+	if newCfg.Rate > 0 {
+		dc.limiter = time.NewTicker(newCfg.Rate)
+	}
+	if len(newCfg.Delimiter) > 0 {
+		dc.delimiter = []byte(newCfg.Delimiter)
+	}
+
+	t.dynCfg.Store(dc)
+	t.cfg.Store(newCfg)
+	t.rootCtx = ctx
+	ctx, t.cancelFn = context.WithCancel(t.rootCtx)
+	t.wg.Add(newCfg.NumWorkers)
+	for i := 0; i < newCfg.NumWorkers; i++ {
 		go t.start(ctx, i)
+	}
+	return nil
+}
+
+func setDefaultsFor(cfg *config) {
+	if cfg.RetryInterval == 0 {
+		cfg.RetryInterval = defaultRetryTimer
+	}
+	if cfg.NumWorkers < 1 {
+		cfg.NumWorkers = defaultNumWorkers
+	}
+}
+
+func validate(cfg *config) error {
+	if cfg.Address == "" {
+		return errors.New("address is required")
+	}
+	_, _, err := net.SplitHostPort(cfg.Address)
+	if err != nil {
+		return fmt.Errorf("wrong address format: %v", err)
+	}
+	if cfg.TargetTemplate == "" {
+		return errors.New("target-template is required")
+	}
+	return nil
+}
+
+func (t *tcpOutput) Validate(cfg map[string]any) error {
+	newCfg := new(config)
+	err := outputs.DecodeConfig(cfg, newCfg)
+	if err != nil {
+		return err
+	}
+	setDefaultsFor(newCfg)
+	return validate(newCfg)
+}
+
+func (t *tcpOutput) Update(_ context.Context, cfg map[string]any) error {
+	newCfg := new(config)
+	err := outputs.DecodeConfig(cfg, newCfg)
+	if err != nil {
+		return err
+	}
+	setDefaultsFor(newCfg)
+	currCfg := t.cfg.Load()
+
+	swapChannel := channelNeedsSwap(currCfg, newCfg)
+	restartWorkers := needsWorkerRestart(currCfg, newCfg)
+	rebuildProcessors := slices.Compare(currCfg.EventProcessors, newCfg.EventProcessors) != 0
+
+	dc := new(dynConfig)
+	prevDC := t.dynCfg.Load()
+	if rebuildProcessors {
+		dc.evps, err = t.buildEventProcessors(t.logger, newCfg.EventProcessors)
+		if err != nil {
+			return err
+		}
+	} else if prevDC != nil {
+		dc.evps = prevDC.evps
+	}
+	dc.delimiter = []byte(newCfg.Delimiter)
+	if newCfg.Rate > 0 {
+		// if rate changed
+		if currCfg.Rate != newCfg.Rate {
+			if prevDC != nil && prevDC.limiter != nil {
+				prevDC.limiter.Stop()
+			}
+			dc.limiter = time.NewTicker(newCfg.Rate)
+		} else {
+			dc.limiter = prevDC.limiter
+		}
+	} else if prevDC != nil && prevDC.limiter != nil { // stop old limiter if any
+		prevDC.limiter.Stop()
+	}
+	dc.mo = &formatters.MarshalOptions{
+		Format:     newCfg.Format,
+		OverrideTS: newCfg.OverrideTimestamps,
+	}
+
+	if newCfg.TargetTemplate == "" {
+		dc.targetTpl = outputs.DefaultTargetTemplate
+	} else if newCfg.AddTarget != "" {
+		dc.targetTpl, err = gtemplate.CreateTemplate("target-template", newCfg.TargetTemplate)
+		if err != nil {
+			return err
+		}
+		dc.targetTpl = dc.targetTpl.Funcs(outputs.TemplateFuncs)
+	} else {
+		dc.targetTpl = outputs.DefaultTargetTemplate
+	}
+	t.dynCfg.Store(dc)
+	t.cfg.Store(newCfg)
+	oldChan := *t.buffer.Load()
+	oldWg := t.wg
+	t.wg = new(sync.WaitGroup)
+	oldCancel := t.cancelFn
+	if swapChannel || restartWorkers {
+		var newChan chan []byte
+		if swapChannel {
+			newChan = make(chan []byte, newCfg.BufferSize)
+		} else {
+			newChan = oldChan
+		}
+		// swap channel
+		t.buffer.Store(&newChan)
+
+		var ctx context.Context
+		ctx, t.cancelFn = context.WithCancel(t.rootCtx)
+		t.wg.Add(newCfg.NumWorkers)
+		for i := 0; i < newCfg.NumWorkers; i++ {
+			go t.start(ctx, i)
+		}
+		if oldCancel != nil {
+			oldCancel()
+		}
+		if oldWg != nil {
+			oldWg.Wait()
+		}
+		if swapChannel {
+		DRAIN_LOOP:
+			for {
+				select {
+				case b, ok := <-oldChan:
+					if !ok {
+						break
+					}
+					select {
+					case newChan <- b:
+					default:
+						// new channel full, drop message
+					}
+				default:
+					break DRAIN_LOOP
+				}
+			}
+		}
+		t.logger.Printf("restarted TCP output workers")
+	} else {
+		t.logger.Printf("no changes to TCP output")
+	}
+	t.logger.Printf("updated TCP output: %s", t.String())
+	return nil
+}
+
+func (t *tcpOutput) UpdateProcessor(name string, pcfg map[string]any) error {
+	cfg := t.cfg.Load()
+	dc := t.dynCfg.Load()
+
+	newEvps, changed, err := outputs.UpdateProcessorInSlice(
+		t.logger,
+		t.store,
+		cfg.EventProcessors,
+		dc.evps,
+		name,
+		pcfg,
+	)
+	if err != nil {
+		return err
+	}
+	if changed {
+		newDC := *dc
+		newDC.evps = newEvps
+		t.dynCfg.Store(&newDC)
+		t.logger.Printf("updated event processor %s", name)
 	}
 	return nil
 }
@@ -168,17 +351,20 @@ func (t *tcpOutput) Write(ctx context.Context, m proto.Message, meta outputs.Met
 	case <-ctx.Done():
 		return
 	default:
-		rsp, err := outputs.AddSubscriptionTarget(m, meta, t.cfg.AddTarget, t.targetTpl)
+		cfg := t.cfg.Load()
+		dc := t.dynCfg.Load()
+		rsp, err := outputs.AddSubscriptionTarget(m, meta, cfg.AddTarget, dc.targetTpl)
 		if err != nil {
 			t.logger.Printf("failed to add target to the response: %v", err)
 		}
-		bb, err := outputs.Marshal(rsp, meta, t.mo, t.cfg.SplitEvents, t.evps...)
+		bb, err := outputs.Marshal(rsp, meta, dc.mo, cfg.SplitEvents, dc.evps...)
 		if err != nil {
 			t.logger.Printf("failed marshaling proto msg: %v", err)
 			return
 		}
+		buffer := t.buffer.Load()
 		for _, b := range bb {
-			t.buffer <- b
+			(*buffer) <- b
 		}
 	}
 }
@@ -187,14 +373,17 @@ func (t *tcpOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {}
 
 func (t *tcpOutput) Close() error {
 	t.cancelFn()
-	if t.limiter != nil {
-		t.limiter.Stop()
+	t.wg.Wait()
+	dc := t.dynCfg.Load()
+	if dc != nil && dc.limiter != nil {
+		dc.limiter.Stop()
 	}
 	return nil
 }
 
 func (t *tcpOutput) String() string {
-	b, err := json.Marshal(t.cfg)
+	cfg := t.cfg.Load()
+	b, err := json.Marshal(cfg)
 	if err != nil {
 		return ""
 	}
@@ -202,43 +391,65 @@ func (t *tcpOutput) String() string {
 }
 
 func (t *tcpOutput) start(ctx context.Context, idx int) {
+	defer t.wg.Done()
 	workerLogPrefix := fmt.Sprintf("worker-%d", idx)
 START:
-	tcpAddr, err := net.ResolveTCPAddr("tcp", t.cfg.Address)
+	if ctx.Err() != nil {
+		t.logger.Printf("context error: %v", ctx.Err())
+		return
+	}
+	cfg := t.cfg.Load()
+	dc := t.dynCfg.Load()
+	tcpAddr, err := net.ResolveTCPAddr("tcp", cfg.Address)
 	if err != nil {
 		t.logger.Printf("%s failed to resolve address: %v", workerLogPrefix, err)
-		time.Sleep(t.cfg.RetryInterval)
+		time.Sleep(cfg.RetryInterval)
 		goto START
 	}
 	conn, err := net.DialTCP("tcp", nil, tcpAddr)
 	if err != nil {
 		t.logger.Printf("%s failed to dial TCP: %v", workerLogPrefix, err)
-		time.Sleep(t.cfg.RetryInterval)
+		time.Sleep(cfg.RetryInterval)
 		goto START
 	}
 	defer conn.Close()
-	if t.cfg.KeepAlive > 0 {
+	if cfg.KeepAlive > 0 {
 		conn.SetKeepAlive(true)
-		conn.SetKeepAlivePeriod(t.cfg.KeepAlive)
+		conn.SetKeepAlivePeriod(cfg.KeepAlive)
 	}
-	defer t.Close()
+	buffer := *t.buffer.Load()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case b := <-t.buffer:
-			if t.limiter != nil {
-				<-t.limiter.C
+		case b := <-buffer:
+			delimiter := dc.delimiter
+			if dc.limiter != nil {
+				<-dc.limiter.C
 			}
 			// append delimiter
-			b = append(b, t.delimiter...)
+			b = append(b, delimiter...)
 			_, err = conn.Write(b)
 			if err != nil {
 				t.logger.Printf("%s failed sending tcp bytes: %v", workerLogPrefix, err)
 				conn.Close()
-				time.Sleep(t.cfg.RetryInterval)
+				time.Sleep(cfg.RetryInterval)
 				goto START
 			}
 		}
 	}
+}
+
+func channelNeedsSwap(old, nw *config) bool {
+	if old == nil || nw == nil {
+		return true
+	}
+	return old.BufferSize != nw.BufferSize
+}
+
+func needsWorkerRestart(old, nw *config) bool {
+	if old == nil || nw == nil {
+		return true
+	}
+	return old.NumWorkers != nw.NumWorkers
 }

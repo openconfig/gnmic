@@ -12,12 +12,13 @@ trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
 ### set replace with value
 #### single host
 ########################
+gnmic_base_cmd="./gnmic-rc1 -u admin -p NokiaSrl1! --skip-verify"
 $gnmic_base_cmd -a clab-test1-srl1 set \
                               -e json_ietf \
                               --replace /interface[name=ethernet-1/1]/description:::json_ietf:::e1-1_dummy_desc1
 out=$($gnmic_base_cmd -a clab-test1-srl1 get -e json_ietf \
                         --path /interface[name=ethernet-1/1]/description | 
-                        jq '.[].updates[].values."srl_nokia-interfaces:interface/description"')
+                        jq -r '.[].updates[].values."srl_nokia-interfaces:interface/description"')
 contains $out "e1-1_dummy_desc1"
 ########################
 $gnmic_base_cmd -a clab-test1-srl1 set \

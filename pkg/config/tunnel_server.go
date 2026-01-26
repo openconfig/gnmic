@@ -23,7 +23,7 @@ const (
 	defaultTargetWaitTime = 2 * time.Second
 )
 
-type tunnelServer struct {
+type TunnelServer struct {
 	Address string `mapstructure:"address,omitempty" json:"address,omitempty"`
 	// TLS
 	TLS *types.TLSConfig `mapstructure:"tls,omitempty"`
@@ -33,10 +33,10 @@ type tunnelServer struct {
 	EnableMetrics bool `mapstructure:"enable-metrics,omitempty" json:"enable-metrics,omitempty"`
 	Debug         bool `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 	// targets
-	Targets []*targetMatch `mapstructure:"targets,omitempty" json:"targets,omitempty"`
+	Targets []*TunnelTargetMatch `mapstructure:"targets,omitempty" json:"targets,omitempty"`
 }
 
-type targetMatch struct {
+type TunnelTargetMatch struct {
 	// target Type as reported by the tunnel.Target to the Tunnel Server
 	Type string `mapstructure:"type,omitempty" json:"type,omitempty"`
 	// a Regex pattern to check the target ID as reported by
@@ -51,7 +51,7 @@ func (c *Config) GetTunnelServer() error {
 	if !c.FileConfig.IsSet("tunnel-server") {
 		return nil
 	}
-	c.TunnelServer = new(tunnelServer)
+	c.TunnelServer = new(TunnelServer)
 	c.TunnelServer.Address = os.ExpandEnv(c.FileConfig.GetString("tunnel-server/address"))
 
 	if c.FileConfig.IsSet("tunnel-server/tls") {
@@ -69,12 +69,12 @@ func (c *Config) GetTunnelServer() error {
 	c.TunnelServer.Debug = os.ExpandEnv(c.FileConfig.GetString("tunnel-server/debug")) == trueString
 
 	var err error
-	c.TunnelServer.Targets = make([]*targetMatch, 0)
+	c.TunnelServer.Targets = make([]*TunnelTargetMatch, 0)
 	targetMatches := c.FileConfig.Get("tunnel-server/targets")
 	switch targetMatches := targetMatches.(type) {
 	case []interface{}:
 		for _, tmi := range targetMatches {
-			tm := new(targetMatch)
+			tm := new(TunnelTargetMatch)
 			err = mapstructure.Decode(utils.Convert(tmi), tm)
 			if err != nil {
 				return err

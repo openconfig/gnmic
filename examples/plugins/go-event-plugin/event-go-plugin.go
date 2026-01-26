@@ -18,6 +18,7 @@ const (
 )
 
 type goSampleProcessorPlugin struct {
+	formatters.BaseProcessor
 	Debug bool `mapstructure:"debug,omitempty" yaml:"debug,omitempty" json:"debug,omitempty"`
 
 	targetsConfigs        map[string]*types.TargetConfig
@@ -47,6 +48,10 @@ func (p *goSampleProcessorPlugin) Apply(event ...*formatters.EventMsg) []*format
 	// apply the processor's logic here
 	// return the new/modified event messages
 	return event
+}
+
+func (p *goSampleProcessorPlugin) Close() error {
+	return nil
 }
 
 func (p *goSampleProcessorPlugin) WithActions(act map[string]map[string]interface{}) {

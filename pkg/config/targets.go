@@ -19,6 +19,7 @@ import (
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmic/pkg/api/types"
+	"github.com/zestor-dev/zestor/store"
 )
 
 const (
@@ -352,4 +353,97 @@ func (c *Config) GetDiffTargets() (*types.TargetConfig, map[string]*types.Target
 		}
 	}
 	return refConfig, compareConfigs, nil
+}
+
+func SetTargetConfigDefaults(s store.Store[any], tc *types.TargetConfig) error {
+	gf, found, err := s.Get("global-flags", "global-flags")
+	if err != nil {
+		return err
+	}
+	if !found {
+		return fmt.Errorf("global-flags not found")
+	}
+	gflags, ok := gf.(GlobalFlags)
+	if !ok {
+		return fmt.Errorf("global-flags is not a *GlobalFlags")
+	}
+	if !strings.HasPrefix(tc.Address, "unix://") {
+		addrList := strings.Split(tc.Address, ",")
+		addrs := make([]string, 0, len(addrList))
+		for _, addr := range addrList {
+			addr = strings.TrimSpace(addr)
+			if !gflags.UseTunnelServer {
+				_, _, err := net.SplitHostPort(addr)
+				if err != nil {
+					if strings.Contains(err.Error(), "missing port in address") ||
+						strings.Contains(err.Error(), "too many colons in address") {
+						addr = net.JoinHostPort(addr, gflags.Port)
+					} else {
+						return fmt.Errorf("error parsing address '%s': %v", addr, err)
+					}
+				}
+			}
+			addrs = append(addrs, addr)
+		}
+		tc.Address = strings.Join(addrs, ",")
+	}
+	if tc.Username == nil {
+		tc.Username = &gflags.Username
+	}
+	if tc.Password == nil {
+		tc.Password = &gflags.Password
+	}
+	if tc.Token == nil {
+		tc.Token = &gflags.Token
+	}
+	if tc.AuthScheme == "" {
+		tc.AuthScheme = gflags.AuthScheme
+	}
+	if tc.Timeout == 0 {
+		tc.Timeout = gflags.Timeout
+	}
+	if tc.Insecure == nil {
+		tc.Insecure = &gflags.Insecure
+	}
+	if tc.SkipVerify == nil {
+		tc.SkipVerify = &gflags.SkipVerify
+	}
+	if tc.Insecure != nil && !*tc.Insecure {
+		if tc.TLSCA == nil {
+			if gflags.TLSCa != "" {
+				tc.TLSCA = &gflags.TLSCa
+			}
+		}
+		if tc.TLSCert == nil {
+			tc.TLSCert = &gflags.TLSCert
+		}
+		if tc.TLSKey == nil {
+			tc.TLSKey = &gflags.TLSKey
+		}
+	}
+	if tc.RetryTimer == 0 {
+		tc.RetryTimer = gflags.Retry
+	}
+	if tc.TLSVersion == "" {
+		tc.TLSVersion = gflags.TLSVersion
+	}
+	if tc.TLSMinVersion == "" {
+		tc.TLSMinVersion = gflags.TLSMinVersion
+	}
+	if tc.TLSMaxVersion == "" {
+		tc.TLSMaxVersion = gflags.TLSMaxVersion
+	}
+	if tc.TLSServerName == "" {
+		tc.TLSServerName = gflags.TLSServerName
+	}
+	if tc.LogTLSSecret == nil {
+		tc.LogTLSSecret = &gflags.LogTLSSecret
+	}
+	if tc.Gzip == nil {
+		tc.Gzip = &gflags.Gzip
+	}
+	if tc.BufferSize == 0 {
+		tc.BufferSize = defaultTargetBufferSize
+	}
+	return nil
 }

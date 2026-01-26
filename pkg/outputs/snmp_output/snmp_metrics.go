@@ -52,7 +52,11 @@ func (s *snmpOutput) initMetrics() {
 }
 
 func (s *snmpOutput) registerMetrics() error {
-	if !s.cfg.EnableMetrics {
+	cfg := s.cfg.Load()
+	if cfg == nil {
+		return nil
+	}
+	if !cfg.EnableMetrics {
 		return nil
 	}
 	if s.reg == nil {

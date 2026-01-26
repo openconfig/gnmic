@@ -13,13 +13,15 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"net/http"
+	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"text/template"
 	"time"
 
@@ -38,6 +40,8 @@ import (
 	"github.com/openconfig/gnmic/pkg/gtemplate"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	promcom "github.com/openconfig/gnmic/pkg/outputs/prometheus_output"
+	gutils "github.com/openconfig/gnmic/pkg/utils"
+	"github.com/zestor-dev/zestor/store"
 )
 
 const (
@@ -54,39 +58,40 @@ const (
 
 func init() {
 	outputs.Register(outputType, func() outputs.Output {
-		return &prometheusOutput{
-			cfg:       &config{},
-			eventChan: make(chan *formatters.EventMsg),
-			msgChan:   make(chan *outputs.ProtoMsg, 10_000),
-			wg:        new(sync.WaitGroup),
-			entries:   make(map[uint64]*promcom.PromMetric),
-			logger:    log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
-		}
+		return &prometheusOutput{}
 	})
 }
 
 type prometheusOutput struct {
 	outputs.BaseOutput
-	cfg       *config
+
+	cfg       *atomic.Pointer[config]
+	dynCfg    *atomic.Pointer[dynConfig]
 	logger    *log.Logger
 	eventChan chan *formatters.EventMsg
 	msgChan   chan *outputs.ProtoMsg
 
 	wg     *sync.WaitGroup
 	server *http.Server
+
 	sync.Mutex
 	entries map[uint64]*promcom.PromMetric
 
-	mb           *promcom.MetricBuilder
-	evps         []formatters.EventProcessor
 	consulClient *api.Client
-
-	targetTpl *template.Template
 
 	gnmiCache   cache.Cache
 	targetsMeta *ttlcache.Cache[string, outputs.Meta]
 
-	reg *prometheus.Registry
+	reg    *prometheus.Registry
+	store  store.Store[any]
+	runCfn context.CancelFunc
+	runCtx context.Context
+}
+
+type dynConfig struct {
+	targetTpl *template.Template
+	evps      []formatters.EventProcessor
+	mb        *promcom.MetricBuilder
 }
 
 type config struct {
@@ -116,23 +121,55 @@ type config struct {
 }
 
 func (p *prometheusOutput) String() string {
-	b, err := json.Marshal(p.cfg)
+	cfg := p.cfg.Load()
+	if cfg == nil {
+		return ""
+	}
+	b, err := json.Marshal(cfg)
 	if err != nil {
 		return ""
 	}
 	return string(b)
 }
 
-func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
-	err := outputs.DecodeConfig(cfg, p.cfg)
+func (p *prometheusOutput) buildEventProcessors(cfg *config) ([]formatters.EventProcessor, error) {
+	tcs, ps, acts, err := gutils.GetConfigMaps(p.store)
+	if err != nil {
+		return nil, err
+	}
+	return formatters.MakeEventProcessors(p.logger, cfg.EventProcessors, ps, tcs, acts)
+}
+
+func (p *prometheusOutput) setLogger(logger *log.Logger) {
+	if logger != nil && p.logger != nil {
+		p.logger.SetOutput(logger.Writer())
+		p.logger.SetFlags(logger.Flags())
+	}
+}
+
+func (p *prometheusOutput) init() {
+	p.cfg = new(atomic.Pointer[config])
+	p.dynCfg = new(atomic.Pointer[dynConfig])
+	p.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
+	p.eventChan = make(chan *formatters.EventMsg)
+	p.msgChan = make(chan *outputs.ProtoMsg, 10_000)
+	p.wg = new(sync.WaitGroup)
+	p.entries = make(map[uint64]*promcom.PromMetric)
+}
+
+func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string]any, opts ...outputs.Option) error {
+	p.init() // init struct fields
+	p.runCtx, p.runCfn = context.WithCancel(ctx)
+	newCfg := new(config)
+	err := outputs.DecodeConfig(cfg, newCfg)
 	if err != nil {
 		return err
 	}
-	if p.cfg.Name == "" {
-		p.cfg.Name = name
+	if newCfg.Name == "" {
+		newCfg.Name = name
 	}
 
-	p.logger.SetPrefix(fmt.Sprintf(loggingPrefix, p.cfg.Name))
+	p.logger.SetPrefix(fmt.Sprintf(loggingPrefix, newCfg.Name))
 
 	options := &outputs.OutputOptions{}
 	for _, opt := range opts {
@@ -141,25 +178,13 @@ func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string
 		}
 	}
 
-	// apply logger
-	if options.Logger != nil && p.logger != nil {
-		p.logger.SetOutput(options.Logger.Writer())
-		p.logger.SetFlags(options.Logger.Flags())
-	}
+	p.store = options.Store
 
-	// initialize target template
-	if p.cfg.TargetTemplate == "" {
-		p.targetTpl = outputs.DefaultTargetTemplate
-	} else if p.cfg.AddTarget != "" {
-		p.targetTpl, err = gtemplate.CreateTemplate("target-template", p.cfg.TargetTemplate)
-		if err != nil {
-			return err
-		}
-		p.targetTpl = p.targetTpl.Funcs(outputs.TemplateFuncs)
-	}
+	// apply logger
+	p.setLogger(options.Logger)
 
 	// set defaults
-	err = p.setDefaults()
+	err = p.setDefaultsFor(newCfg)
 	if err != nil {
 		return err
 	}
@@ -170,31 +195,48 @@ func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string
 	if err != nil {
 		return err
 	}
-	p.setName(options.Name)
-	p.setClusterName(options.ClusterName)
+	p.setName(options.Name, newCfg)
+	p.setClusterName(options.ClusterName, newCfg)
+
+	p.cfg.Store(newCfg)
+
+	dc := new(dynConfig)
+
+	// initialize target template
+	if newCfg.TargetTemplate == "" {
+		dc.targetTpl = outputs.DefaultTargetTemplate
+	} else if newCfg.AddTarget != "" {
+		dc.targetTpl, err = gtemplate.CreateTemplate("target-template", newCfg.TargetTemplate)
+		if err != nil {
+			return err
+		}
+		dc.targetTpl = dc.targetTpl.Funcs(outputs.TemplateFuncs)
+	}
 	// initialize event processors
-	p.evps, err = formatters.MakeEventProcessors(options.Logger, p.cfg.EventProcessors,
-		options.EventProcessors, options.TargetsConfig, options.Actions)
+	dc.evps, err = p.buildEventProcessors(newCfg)
 	if err != nil {
 		return err
 	}
-	p.mb = &promcom.MetricBuilder{
-		Prefix:                 p.cfg.MetricPrefix,
-		AppendSubscriptionName: p.cfg.AppendSubscriptionName,
-		StringsAsLabels:        p.cfg.StringsAsLabels,
-		OverrideTimestamps:     p.cfg.OverrideTimestamps,
-		ExportTimestamps:       p.cfg.ExportTimestamps,
+
+	dc.mb = &promcom.MetricBuilder{
+		Prefix:                 newCfg.MetricPrefix,
+		AppendSubscriptionName: newCfg.AppendSubscriptionName,
+		StringsAsLabels:        newCfg.StringsAsLabels,
+		OverrideTimestamps:     newCfg.OverrideTimestamps,
+		ExportTimestamps:       newCfg.ExportTimestamps,
 	}
 
-	if p.cfg.CacheConfig != nil {
+	p.dynCfg.Store(dc)
+
+	if newCfg.CacheConfig != nil {
 		p.gnmiCache, err = cache.New(
-			p.cfg.CacheConfig,
+			newCfg.CacheConfig,
 			cache.WithLogger(p.logger),
 		)
 		if err != nil {
 			return err
 		}
-		p.targetsMeta = ttlcache.New(ttlcache.WithTTL[string, outputs.Meta](p.cfg.Expiration))
+		p.targetsMeta = ttlcache.New(ttlcache.WithTTL[string, outputs.Meta](newCfg.Expiration))
 	}
 
 	// create prometheus registry
@@ -208,62 +250,276 @@ func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string
 	promHandler := promhttp.HandlerFor(registry, promhttp.HandlerOpts{ErrorHandling: promhttp.ContinueOnError})
 
 	mux := http.NewServeMux()
-	mux.Handle(p.cfg.Path, promHandler)
+	mux.Handle(newCfg.Path, promHandler)
 
 	p.server = &http.Server{
-		Addr:    p.cfg.Listen,
+		Addr:    newCfg.Listen,
 		Handler: mux,
 	}
 
 	// create tcp listener
-	var listener net.Listener
-	switch p.cfg.TLS {
-	case nil:
-		listener, err = net.Listen("tcp", p.cfg.Listen)
-	default:
-		var tlsConfig *tls.Config
-		tlsConfig, err = utils.NewTLSConfig(
-			p.cfg.TLS.CaFile,
-			p.cfg.TLS.CertFile,
-			p.cfg.TLS.KeyFile,
-			p.cfg.TLS.ClientAuth,
-			true,
-			true,
-		)
-		if err != nil {
-			return err
-		}
-		listener, err = tls.Listen("tcp", p.cfg.Listen, tlsConfig)
-	}
+	listener, err := p.createListenerFor(newCfg)
 	if err != nil {
 		return err
 	}
+
 	// start worker
-	p.wg.Add(1 + p.cfg.NumWorkers)
-	wctx, wcancel := context.WithCancel(ctx)
-	for i := 0; i < p.cfg.NumWorkers; i++ {
-		go p.worker(wctx)
+	p.wg.Add(newCfg.NumWorkers)
+	for i := 0; i < newCfg.NumWorkers; i++ {
+		go p.worker(p.runCtx)
 	}
 
-	if p.cfg.CacheConfig == nil {
-		go p.expireMetricsPeriodic(wctx)
+	if newCfg.CacheConfig == nil {
+		p.wg.Add(1)
+		go func() {
+			defer p.wg.Done()
+			p.expireMetricsPeriodic(p.runCtx)
+		}()
 	}
 
+	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
+		defer listener.Close()
 		err = p.server.Serve(listener)
 		if err != nil && err != http.ErrServerClosed {
 			p.logger.Printf("prometheus server error: %v", err)
 		}
-		wcancel()
 	}()
-	go p.registerService(wctx)
+	go p.registerService(p.runCtx)
 	p.logger.Printf("initialized prometheus output: %s", p.String())
-	go func() {
-		<-ctx.Done()
-		p.Close()
-	}()
 	return nil
+}
+
+func (p *prometheusOutput) Validate(cfg map[string]any) error {
+	ncfg := new(config)
+	err := outputs.DecodeConfig(cfg, ncfg)
+	if err != nil {
+		return err
+	}
+	err = p.setDefaultsFor(ncfg)
+	if err != nil {
+		return err
+	}
+	_, err = gtemplate.CreateTemplate("target-template", ncfg.TargetTemplate)
+	if err != nil {
+		return err
+	}
+	_, err = gtemplate.CreateTemplate("target-template", ncfg.TargetTemplate)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (p *prometheusOutput) Update(ctx context.Context, cfg map[string]any) error {
+	// decode new config
+	newCfg := new(config)
+	if err := outputs.DecodeConfig(cfg, newCfg); err != nil {
+		return err
+	}
+
+	currCfg := p.cfg.Load()
+	dc := new(dynConfig)
+	// apply defaults and derived fields for the new config
+	tmp := *newCfg    // copy for mutation
+	if p.cfg != nil { // init name and service registration name, id and tags
+		tmp.Name = currCfg.Name
+		if currCfg.ServiceRegistration != nil {
+			if tmp.ServiceRegistration.Name == "" {
+				tmp.ServiceRegistration.Name = currCfg.ServiceRegistration.Name
+			}
+			tmp.ServiceRegistration.id = fmt.Sprintf("%s-%s", tmp.ServiceRegistration.Name, tmp.Name)
+			tmp.ServiceRegistration.Tags = append(tmp.ServiceRegistration.Tags, fmt.Sprintf("gnmic-instance=%s", tmp.ServiceRegistration.Name))
+		}
+	}
+	if err := p.setDefaultsFor(&tmp); err != nil { // factor setDefaults to accept *config
+		return err
+	}
+
+	// rebuild objects that depend on config
+	dc.targetTpl = outputs.DefaultTargetTemplate
+	if tmp.TargetTemplate != "" {
+		t, err := gtemplate.CreateTemplate("target-template", tmp.TargetTemplate)
+		if err != nil {
+			return err
+		}
+		dc.targetTpl = t.Funcs(outputs.TemplateFuncs)
+	}
+
+	// event processors
+	var err error
+	prevDC := p.dynCfg.Load()
+	if slices.Compare(currCfg.EventProcessors, newCfg.EventProcessors) != 0 {
+		dc.evps, err = p.buildEventProcessors(&tmp)
+		if err != nil {
+			return err
+		}
+	} else if prevDC != nil {
+		dc.evps = prevDC.evps
+	}
+
+	// metric builder
+	dc.mb = &promcom.MetricBuilder{
+		Prefix:                 tmp.MetricPrefix,
+		AppendSubscriptionName: tmp.AppendSubscriptionName,
+		StringsAsLabels:        tmp.StringsAsLabels,
+		OverrideTimestamps:     tmp.OverrideTimestamps,
+		ExportTimestamps:       tmp.ExportTimestamps,
+	}
+
+	p.dynCfg.Store(dc)
+
+	// rebuild http objects if needed
+	rebuildHTTPServer := p.needHTTPRebuild(currCfg, &tmp)
+	var newServer *http.Server
+	var newListener net.Listener
+	if rebuildHTTPServer {
+		reg := prometheus.NewRegistry()
+		if err := reg.Register(p); err != nil {
+			return err
+		}
+		promHandler := promhttp.HandlerFor(reg, promhttp.HandlerOpts{ErrorHandling: promhttp.ContinueOnError})
+		mux := http.NewServeMux()
+		mux.Handle(tmp.Path, promHandler)
+
+		s := &http.Server{
+			Addr:    tmp.Listen,
+			Handler: mux,
+		}
+		l, err := p.createListenerFor(&tmp)
+		if err != nil {
+			return err
+		}
+		newServer = s
+		newListener = l
+	}
+
+	// cache rebuild if CacheConfig toggled or changed
+	var newCache cache.Cache
+	var newTargetsMeta *ttlcache.Cache[string, outputs.Meta]
+	if !cacheEqual(currCfg.CacheConfig, tmp.CacheConfig) {
+		if tmp.CacheConfig != nil {
+			c, err := cache.New(tmp.CacheConfig, cache.WithLogger(p.logger))
+			if err != nil {
+				return err
+			}
+			newCache = c
+			newTargetsMeta = ttlcache.New(ttlcache.WithTTL[string, outputs.Meta](tmp.Expiration))
+		}
+	} else {
+		// keep existing cache/meta if not changed
+		p.Lock()
+		newCache = p.gnmiCache
+		newTargetsMeta = p.targetsMeta
+		p.Unlock()
+	}
+
+	// swap under lock
+	p.Lock()
+	oldServer := p.server
+	oldRunCfn := p.runCfn
+	oldCache := p.gnmiCache
+
+	p.cfg.Store(&tmp)
+
+	if rebuildHTTPServer {
+		p.server = newServer
+	}
+	if newCache != nil || (oldCache != nil && tmp.CacheConfig == nil) {
+		p.gnmiCache = newCache
+		p.targetsMeta = newTargetsMeta
+	}
+	// create a new worker ctx
+	p.runCtx, p.runCfn = context.WithCancel(ctx)
+	p.Unlock()
+
+	// Start/Restart components that changed
+
+	// HTTP server
+	if rebuildHTTPServer {
+		if oldServer != nil {
+			_ = oldServer.Close() // stop old server; Serve will exit
+		}
+		// start the new one
+		p.wg.Add(1)
+		go func(srv *http.Server, l net.Listener) {
+			defer p.wg.Done()
+			defer l.Close()
+			if err := srv.Serve(l); err != nil && err != http.ErrServerClosed {
+				p.logger.Printf("prometheus server error: %v", err)
+			}
+		}(newServer, newListener)
+	}
+
+	// workers (stop old, start new)
+	if oldRunCfn != nil {
+		oldRunCfn()
+	}
+	// start workers with new num-workers
+	p.wg.Add(tmp.NumWorkers)
+	for i := 0; i < tmp.NumWorkers; i++ {
+		go p.worker(p.runCtx)
+	}
+	if tmp.CacheConfig == nil {
+		p.wg.Add(1)
+		go func() {
+			defer p.wg.Done()
+			p.expireMetricsPeriodic(p.runCtx)
+		}()
+	}
+
+	// restart service registration
+	go p.registerService(p.runCtx)
+
+	p.logger.Printf("updated prometheus output: %s", p.String())
+	return nil
+}
+
+func (p *prometheusOutput) UpdateProcessor(name string, pcfg map[string]any) error {
+	cfg := p.cfg.Load()
+	dc := p.dynCfg.Load()
+
+	newEvps, changed, err := outputs.UpdateProcessorInSlice(
+		p.logger,
+		p.store,
+		cfg.EventProcessors,
+		dc.evps,
+		name,
+		pcfg,
+	)
+	if err != nil {
+		return err
+	}
+	if changed {
+		newDC := *dc
+		newDC.evps = newEvps
+		p.dynCfg.Store(&newDC)
+		p.logger.Printf("updated event processor %s", name)
+	}
+	return nil
+}
+
+func (p *prometheusOutput) needHTTPRebuild(old, new *config) bool {
+	if p.server == nil || old == nil || new == nil {
+		return true
+	}
+	return old.Listen != new.Listen ||
+		old.Path != new.Path ||
+		!old.TLS.Equal(new.TLS)
+}
+
+func (p *prometheusOutput) createListenerFor(c *config) (net.Listener, error) {
+	if c.TLS == nil {
+		return net.Listen("tcp", c.Listen)
+	}
+	tlsConfig, err := utils.NewTLSConfig(
+		c.TLS.CaFile, c.TLS.CertFile, c.TLS.KeyFile, c.TLS.ClientAuth, true, true,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return tls.Listen("tcp", c.Listen, tlsConfig)
 }
 
 // Write implements the outputs.Output interface
@@ -272,7 +528,12 @@ func (p *prometheusOutput) Write(ctx context.Context, rsp proto.Message, meta ou
 		return
 	}
 
-	wctx, cancel := context.WithTimeout(ctx, p.cfg.Timeout)
+	cfg := p.cfg.Load()
+	if cfg == nil {
+		return
+	}
+
+	wctx, cancel := context.WithTimeout(ctx, cfg.Timeout)
 	defer cancel()
 
 	select {
@@ -280,20 +541,24 @@ func (p *prometheusOutput) Write(ctx context.Context, rsp proto.Message, meta ou
 		return
 	case p.msgChan <- outputs.NewProtoMsg(rsp, meta):
 	case <-wctx.Done():
-		if p.cfg.Debug {
-			p.logger.Printf("writing expired after %s", p.cfg.Timeout)
+		if cfg.Debug {
+			p.logger.Printf("writing expired after %s", cfg.Timeout)
 		}
 		return
 	}
 }
 
 func (p *prometheusOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {
+	dc := p.dynCfg.Load()
+	if dc == nil {
+		return
+	}
 	select {
 	case <-ctx.Done():
 		return
 	default:
 		var evs = []*formatters.EventMsg{ev}
-		for _, proc := range p.evps {
+		for _, proc := range dc.evps {
 			evs = proc.Apply(evs...)
 		}
 		for _, pev := range evs {
@@ -303,21 +568,37 @@ func (p *prometheusOutput) WriteEvent(ctx context.Context, ev *formatters.EventM
 }
 
 func (p *prometheusOutput) Close() error {
+	p.Lock()
+	consulClient := p.consulClient
+	gnmiCache := p.gnmiCache
+	server := p.server
+	cfg := p.cfg.Load()
+	p.Unlock()
+
 	var err error
-	if p.consulClient != nil {
-		err = p.consulClient.Agent().ServiceDeregister(p.cfg.ServiceRegistration.Name)
+	if consulClient != nil && cfg != nil && cfg.ServiceRegistration != nil {
+		err = consulClient.Agent().ServiceDeregister(cfg.ServiceRegistration.id)
 		if err != nil {
-			p.logger.Printf("failed to deregister consul service: %v", err)
+			// ignore 404 and unknown service ID errors
+			if !strings.Contains(err.Error(), "404") &&
+				!strings.Contains(err.Error(), "Unknown service ID") {
+				p.logger.Printf("failed to deregister consul service: %v", err)
+			}
 		}
 	}
-	if p.gnmiCache != nil {
-		p.gnmiCache.Stop()
+	if p.runCfn != nil {
+		p.runCfn()
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	err = p.server.Shutdown(ctx)
-	if err != nil {
-		p.logger.Printf("failed to shutdown http server: %v", err)
+	if gnmiCache != nil {
+		gnmiCache.Stop()
+	}
+	if server != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		err = server.Shutdown(ctx)
+		if err != nil {
+			p.logger.Printf("failed to shutdown http server: %v", err)
+		}
 	}
 	p.logger.Printf("closed.")
 	p.wg.Wait()
@@ -329,9 +610,14 @@ func (p *prometheusOutput) Describe(ch chan<- *prometheus.Desc) {}
 
 // Collect implements prometheus.Collector
 func (p *prometheusOutput) Collect(ch chan<- prometheus.Metric) {
+	cfg := p.cfg.Load()
+	if cfg == nil {
+		return
+	}
+
 	p.Lock()
 	defer p.Unlock()
-	if p.cfg.CacheConfig != nil {
+	if cfg.CacheConfig != nil {
 		p.collectFromCache(ch)
 		return
 	}
@@ -339,7 +625,7 @@ func (p *prometheusOutput) Collect(ch chan<- prometheus.Metric) {
 	// run expire before exporting metrics
 	p.expireMetrics()
 
-	ctx, cancel := context.WithTimeout(context.Background(), p.cfg.Timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.Timeout)
 	defer cancel()
 
 	for _, entry := range p.entries {
@@ -368,6 +654,17 @@ func (p *prometheusOutput) worker(ctx context.Context) {
 
 func (p *prometheusOutput) workerHandleProto(ctx context.Context, m *outputs.ProtoMsg) {
 	pmsg := m.GetMsg()
+	cfg := p.cfg.Load()
+	dc := p.dynCfg.Load()
+
+	if cfg == nil || dc == nil {
+		return
+	}
+	p.Lock()
+	gnmiCache := p.gnmiCache
+	targetsMeta := p.targetsMeta
+	p.Unlock()
+
 	switch pmsg := pmsg.(type) {
 	case *gnmi.SubscribeResponse:
 		meta := m.GetMeta()
@@ -376,17 +673,17 @@ func (p *prometheusOutput) workerHandleProto(ctx context.Context, m *outputs.Pro
 			measName = subName
 		}
 		var err error
-		pmsg, err = outputs.AddSubscriptionTarget(pmsg, m.GetMeta(), p.cfg.AddTarget, p.targetTpl)
+		pmsg, err = outputs.AddSubscriptionTarget(pmsg, m.GetMeta(), cfg.AddTarget, dc.targetTpl)
 		if err != nil {
 			p.logger.Printf("failed to add target to the response: %v", err)
 		}
-		if p.gnmiCache != nil {
-			p.gnmiCache.Write(ctx, measName, pmsg)
+		if gnmiCache != nil {
+			gnmiCache.Write(ctx, measName, pmsg)
 			target := utils.GetHost(meta["source"])
-			p.targetsMeta.Set(measName+"/"+target, meta, ttlcache.DefaultTTL)
+			targetsMeta.Set(measName+"/"+target, meta, ttlcache.DefaultTTL)
 			return
 		}
-		events, err := formatters.ResponseToEventMsgs(measName, pmsg, meta, p.evps...)
+		events, err := formatters.ResponseToEventMsgs(measName, pmsg, meta, dc.evps...)
 		if err != nil {
 			p.logger.Printf("failed to convert message to event: %v", err)
 			return
@@ -401,12 +698,17 @@ type metricAndKey struct {
 }
 
 func (p *prometheusOutput) workerHandleEvent(evs ...*formatters.EventMsg) {
-	if p.cfg.Debug {
+	cfg := p.cfg.Load()
+	dc := p.dynCfg.Load()
+	if cfg == nil || dc == nil {
+		return
+	}
+	if cfg.Debug {
 		p.logger.Printf("got event to store: %+v", evs)
 	}
 	mks := make([]*metricAndKey, 0, len(evs))
 	for _, ev := range evs {
-		for _, pm := range p.mb.MetricsFromEvent(ev, time.Now()) {
+		for _, pm := range dc.mb.MetricsFromEvent(ev, time.Now()) {
 			mks = append(mks, &metricAndKey{
 				m: pm,
 				k: pm.CalculateKey(),
@@ -424,7 +726,7 @@ func (p *prometheusOutput) workerHandleEvent(evs ...*formatters.EventMsg) {
 		// existing one.
 		if !ok || mk.m.Time == nil || (ok && mk.m.Time != nil && e.Time.Before(*mk.m.Time)) {
 			p.entries[mk.k] = mk.m
-			if p.cfg.Debug {
+			if cfg.Debug {
 				p.logger.Printf("saved key=%d, metric: %+v", mk.k, mk.m)
 			}
 		}
@@ -432,12 +734,13 @@ func (p *prometheusOutput) workerHandleEvent(evs ...*formatters.EventMsg) {
 }
 
 func (p *prometheusOutput) expireMetrics() {
-	if p.cfg.Expiration <= 0 {
+	cfg := p.cfg.Load()
+	if cfg == nil || cfg.Expiration <= 0 {
 		return
 	}
-	expiry := time.Now().Add(-p.cfg.Expiration)
+	expiry := time.Now().Add(-cfg.Expiration)
 	for k, e := range p.entries {
-		if p.cfg.ExportTimestamps {
+		if cfg.ExportTimestamps {
 			if e.Time.Before(expiry) {
 				delete(p.entries, k)
 			}
@@ -450,66 +753,74 @@ func (p *prometheusOutput) expireMetrics() {
 }
 
 func (p *prometheusOutput) expireMetricsPeriodic(ctx context.Context) {
-	if p.cfg.Expiration <= 0 {
+	cfg := p.cfg.Load()
+	if cfg == nil || cfg.Expiration <= 0 {
 		return
 	}
+
 	p.Lock()
-	prometheusNumberOfMetrics.WithLabelValues(p.cfg.Name).Set(float64(len(p.entries)))
+	prometheusNumberOfMetrics.WithLabelValues(cfg.Name).Set(float64(len(p.entries)))
 	p.Unlock()
-	ticker := time.NewTicker(p.cfg.Expiration)
+
+	ticker := time.NewTicker(cfg.Expiration)
 	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			cfg := p.cfg.Load()
+			if cfg == nil {
+				continue
+			}
 			p.Lock()
 			p.expireMetrics()
-			prometheusNumberOfMetrics.WithLabelValues(p.cfg.Name).Set(float64(len(p.entries)))
+			prometheusNumberOfMetrics.WithLabelValues(cfg.Name).Set(float64(len(p.entries)))
 			p.Unlock()
 		}
 	}
 }
 
-func (p *prometheusOutput) setDefaults() error {
-	if p.cfg.Listen == "" {
-		p.cfg.Listen = defaultListen
+func (p *prometheusOutput) setDefaultsFor(c *config) error {
+	if c.Listen == "" {
+		c.Listen = defaultListen
 	}
-	if p.cfg.Path == "" {
-		p.cfg.Path = defaultPath
+	if c.Path == "" {
+		c.Path = defaultPath
 	}
-	if p.cfg.Expiration == 0 {
-		p.cfg.Expiration = defaultExpiration
+	if c.Expiration == 0 {
+		c.Expiration = defaultExpiration
 	}
-	if p.cfg.CacheConfig != nil && p.cfg.AddTarget == "" {
-		p.cfg.AddTarget = "if-not-present"
+	if c.CacheConfig != nil && c.AddTarget == "" {
+		c.AddTarget = "if-not-present"
 	}
-	if p.cfg.Timeout <= 0 {
-		p.cfg.Timeout = defaultTimeout
+	if c.Timeout <= 0 {
+		c.Timeout = defaultTimeout
 	}
-	if p.cfg.NumWorkers <= 0 {
-		p.cfg.NumWorkers = defaultNumWorkers
+	if c.NumWorkers <= 0 {
+		c.NumWorkers = defaultNumWorkers
 	}
-	if p.cfg.ServiceRegistration == nil {
+	if c.ServiceRegistration == nil {
 		return nil
 	}
 
-	p.setServiceRegistrationDefaults()
+	p.setServiceRegistrationDefaults(c)
 	var err error
 	var port string
 	switch {
-	case p.cfg.ServiceRegistration.ServiceAddress != "":
-		p.cfg.address, port, err = net.SplitHostPort(p.cfg.ServiceRegistration.ServiceAddress)
+	case c.ServiceRegistration.ServiceAddress != "":
+		c.address, port, err = net.SplitHostPort(c.ServiceRegistration.ServiceAddress)
 		if err != nil {
 			// if service-address does not include a port number, use the port number from the listen field
 			if strings.Contains(err.Error(), "missing port in address") {
-				p.cfg.address = p.cfg.ServiceRegistration.ServiceAddress
-				_, port, err = net.SplitHostPort(p.cfg.Listen)
+				c.address = c.ServiceRegistration.ServiceAddress
+				_, port, err = net.SplitHostPort(c.Listen)
 				if err != nil {
 					p.logger.Printf("invalid 'listen' field format: %v", err)
 					return err
 				}
-				p.cfg.port, err = strconv.Atoi(port)
+				c.port, err = strconv.Atoi(port)
 				if err != nil {
 					p.logger.Printf("invalid 'listen' field format: %v", err)
 					return err
@@ -521,18 +832,18 @@ func (p *prometheusOutput) setDefaults() error {
 			return err
 		}
 		// the service-address contains both an address and a port number
-		p.cfg.port, err = strconv.Atoi(port)
+		c.port, err = strconv.Atoi(port)
 		if err != nil {
 			p.logger.Printf("invalid 'service-registration.service-address' field format: %v", err)
 			return err
 		}
 	default:
-		p.cfg.address, port, err = net.SplitHostPort(p.cfg.Listen)
+		c.address, port, err = net.SplitHostPort(c.Listen)
 		if err != nil {
 			p.logger.Printf("invalid 'listen' field format: %v", err)
 			return err
 		}
-		p.cfg.port, err = strconv.Atoi(port)
+		c.port, err = strconv.Atoi(port)
 		if err != nil {
 			p.logger.Printf("invalid 'listen' field format: %v", err)
 			return err
@@ -542,25 +853,25 @@ func (p *prometheusOutput) setDefaults() error {
 	return nil
 }
 
-func (p *prometheusOutput) setName(name string) {
-	if p.cfg.Name == "" {
-		p.cfg.Name = name
+func (p *prometheusOutput) setName(name string, cfg *config) {
+	if cfg.Name == "" {
+		cfg.Name = name
 	}
-	if p.cfg.ServiceRegistration != nil {
-		if p.cfg.ServiceRegistration.Name == "" {
-			p.cfg.ServiceRegistration.Name = fmt.Sprintf("prometheus-%s", p.cfg.Name)
+	if cfg.ServiceRegistration != nil {
+		if cfg.ServiceRegistration.Name == "" {
+			cfg.ServiceRegistration.Name = fmt.Sprintf("prometheus-%s", cfg.Name)
 		}
 		if name == "" {
 			name = uuid.New().String()
 		}
-		p.cfg.ServiceRegistration.id = fmt.Sprintf("%s-%s", p.cfg.ServiceRegistration.Name, name)
-		p.cfg.ServiceRegistration.Tags = append(p.cfg.ServiceRegistration.Tags, fmt.Sprintf("gnmic-instance=%s", name))
+		cfg.ServiceRegistration.id = fmt.Sprintf("%s-%s", cfg.ServiceRegistration.Name, name)
+		cfg.ServiceRegistration.Tags = append(cfg.ServiceRegistration.Tags, fmt.Sprintf("gnmic-instance=%s", name))
 	}
 }
 
-func (p *prometheusOutput) setClusterName(name string) {
-	p.cfg.clusterName = name
-	if p.cfg.ServiceRegistration != nil {
-		p.cfg.ServiceRegistration.Tags = append(p.cfg.ServiceRegistration.Tags, fmt.Sprintf("gnmic-cluster=%s", name))
+func (p *prometheusOutput) setClusterName(name string, cfg *config) {
+	cfg.clusterName = name
+	if cfg.ServiceRegistration != nil {
+		cfg.ServiceRegistration.Tags = append(cfg.ServiceRegistration.Tags, fmt.Sprintf("gnmic-cluster=%s", name))
 	}
 }

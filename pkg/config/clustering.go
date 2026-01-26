@@ -24,7 +24,7 @@ const (
 	defaultLeaderWaitTimer         = 5 * time.Second
 )
 
-type clustering struct {
+type Clustering struct {
 	ClusterName             string                 `mapstructure:"cluster-name,omitempty" json:"cluster-name,omitempty" yaml:"cluster-name,omitempty"`
 	InstanceName            string                 `mapstructure:"instance-name,omitempty" json:"instance-name,omitempty" yaml:"instance-name,omitempty"`
 	ServiceAddress          string                 `mapstructure:"service-address,omitempty" json:"service-address,omitempty" yaml:"service-address,omitempty"`
@@ -41,7 +41,7 @@ func (c *Config) GetClustering() error {
 	if !c.FileConfig.IsSet("clustering") {
 		return nil
 	}
-	c.Clustering = new(clustering)
+	c.Clustering = new(Clustering)
 	c.Clustering.ClusterName = os.ExpandEnv(c.FileConfig.GetString("clustering/cluster-name"))
 	c.Clustering.InstanceName = os.ExpandEnv(c.FileConfig.GetString("clustering/instance-name"))
 	c.Clustering.ServiceAddress = os.ExpandEnv(c.FileConfig.GetString("clustering/service-address"))

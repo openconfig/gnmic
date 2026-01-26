@@ -31,55 +31,59 @@ var (
 
 const backoff = 100 * time.Millisecond
 
-func (p *promWriteOutput) createHTTPClient() error {
-	c := &http.Client{
-		Timeout: p.cfg.Timeout,
+func (p *promWriteOutput) createHTTPClientFor(c *config) (*http.Client, error) {
+	cl := &http.Client{
+		Timeout: c.Timeout,
 	}
-	if p.cfg.TLS != nil {
+	if c.TLS != nil {
 		tlsCfg, err := utils.NewTLSConfig(
-			p.cfg.TLS.CaFile,
-			p.cfg.TLS.CertFile,
-			p.cfg.TLS.KeyFile,
+			c.TLS.CaFile,
+			c.TLS.CertFile,
+			c.TLS.KeyFile,
 			"",
-			p.cfg.TLS.SkipVerify,
+			c.TLS.SkipVerify,
 			false,
 		)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		c.Transport = &http.Transport{
+		cl.Transport = &http.Transport{
 			TLSClientConfig: tlsCfg,
 		}
 	}
-	p.httpClient = c
-	return nil
+	return cl, nil
 }
 
 func (p *promWriteOutput) writer(ctx context.Context) {
+	defer p.wg.Done()
+	defer p.logger.Printf("writer stopped")
+	cfg := p.cfg.Load()
 	p.logger.Printf("starting writer")
-	ticker := time.NewTicker(p.cfg.Interval)
+	ticker := time.NewTicker(cfg.Interval)
 	defer ticker.Stop()
 	for {
+		timeSeriesCh := *p.timeSeriesCh.Load()
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if p.cfg.Debug {
+			if cfg.Debug {
 				p.logger.Printf("write interval reached, writing to remote")
 			}
-			p.write(ctx)
+			p.write(ctx, timeSeriesCh)
 		case <-p.buffDrainCh:
-			if p.cfg.Debug {
+			if cfg.Debug {
 				p.logger.Printf("buffer full, writing to remote")
 			}
-			p.write(ctx)
+			p.write(ctx, timeSeriesCh)
 		}
 	}
 }
 
-func (p *promWriteOutput) write(ctx context.Context) {
-	buffSize := len(p.timeSeriesCh)
-	if p.cfg.Debug {
+func (p *promWriteOutput) write(ctx context.Context, timeSeriesCh <-chan *prompb.TimeSeries) {
+	cfg := p.cfg.Load()
+	buffSize := len(timeSeriesCh)
+	if cfg.Debug {
 		p.logger.Printf("write triggered, buffer size: %d", buffSize)
 	}
 	if buffSize == 0 {
@@ -90,7 +94,7 @@ func (p *promWriteOutput) write(ctx context.Context) {
 	// until we read a number of timeSeries equal to the buffer size
 	for {
 		select {
-		case ts := <-p.timeSeriesCh:
+		case ts := <-timeSeriesCh:
 			pts = append(pts, *ts)
 			if len(pts) == buffSize {
 				goto WRITE
@@ -108,35 +112,35 @@ WRITE:
 	sort.Slice(pts, func(i, j int) bool {
 		return pts[i].Samples[0].Timestamp < pts[j].Samples[0].Timestamp
 	})
-	chunk := make([]prompb.TimeSeries, 0, p.cfg.MaxTimeSeriesPerWrite)
+	chunk := make([]prompb.TimeSeries, 0, cfg.MaxTimeSeriesPerWrite)
 	for i, pt := range pts {
 		// append timeSeries to chunk
 		chunk = append(chunk, pt)
 		// if the chunk size reaches the configured max or
 		// we reach the max number of time series gathered, send.
 		chunkSize := len(chunk)
-		if chunkSize == p.cfg.MaxTimeSeriesPerWrite || i+1 == numTS {
-			if p.cfg.Debug {
+		if chunkSize == cfg.MaxTimeSeriesPerWrite || i+1 == numTS {
+			if cfg.Debug {
 				p.logger.Printf("writing a %d time series chunk", chunkSize)
 			}
 			start := time.Now()
 			err := p.writeRequest(ctx, &prompb.WriteRequest{
 				Timeseries: chunk,
-			})
+			}, cfg)
 			if err != nil {
-				if p.cfg.Debug {
+				if cfg.Debug {
 					p.logger.Print(err)
 				}
 				continue
 			}
-			prometheusWriteSendDuration.WithLabelValues(p.cfg.Name).Set(float64(time.Since(start).Nanoseconds()))
-			prometheusWriteNumberOfSentMsgs.WithLabelValues(p.cfg.Name).Add(float64(chunkSize))
+			prometheusWriteSendDuration.WithLabelValues(cfg.Name).Set(float64(time.Since(start).Nanoseconds()))
+			prometheusWriteNumberOfSentMsgs.WithLabelValues(cfg.Name).Add(float64(chunkSize))
 			// return if we are done with the gathered time series
 			if i+1 == numTS {
 				return
 			}
 			// reset chunk if we are not done yet
-			chunk = make([]prompb.TimeSeries, 0, p.cfg.MaxTimeSeriesPerWrite)
+			chunk = make([]prompb.TimeSeries, 0, cfg.MaxTimeSeriesPerWrite)
 		}
 	}
 }
@@ -145,7 +149,7 @@ WRITE:
 // creates an HTTP request with the proper configured options (Authentication, Headers,...),
 // sends the request and checks the returned response status code.
 // It returns an error if the status code is >=300.
-func (p *promWriteOutput) writeRequest(ctx context.Context, wr *prompb.WriteRequest) error {
+func (p *promWriteOutput) writeRequest(ctx context.Context, wr *prompb.WriteRequest, cfg *config) error {
 	httpReq, err := p.makeHTTPRequest(ctx, wr)
 	if err != nil {
 		return err
@@ -154,25 +158,27 @@ func (p *promWriteOutput) writeRequest(ctx context.Context, wr *prompb.WriteRequ
 	// send request with retries
 	retries := 0
 RETRY:
-	rsp, err := p.httpClient.Do(httpReq)
+	httpClient := p.httpClient.Load()
+	//cfg := p.cfg.Load()
+	rsp, err := httpClient.Do(httpReq)
 	if err != nil {
 		retries++
 		err = fmt.Errorf("failed to write to remote: %w", err)
 		p.logger.Print(err)
-		if retries < p.cfg.MaxRetries {
+		if retries < cfg.MaxRetries {
 			time.Sleep(backoff)
 			goto RETRY
 		}
-		prometheusWriteNumberOfFailSendMsgs.WithLabelValues(p.cfg.Name, "client_failure").Inc()
+		prometheusWriteNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "client_failure").Inc()
 		return err
 	}
 	defer rsp.Body.Close()
 
-	if p.cfg.Debug {
+	if cfg.Debug {
 		p.logger.Printf("got response from remote: status=%s", rsp.Status)
 	}
 	if rsp.StatusCode >= 300 {
-		prometheusWriteNumberOfFailSendMsgs.WithLabelValues(p.cfg.Name, fmt.Sprintf("status_code=%d", rsp.StatusCode)).Inc()
+		prometheusWriteNumberOfFailSendMsgs.WithLabelValues(cfg.Name, fmt.Sprintf("status_code=%d", rsp.StatusCode)).Inc()
 		msg, err := io.ReadAll(rsp.Body)
 		if err != nil {
 			return err
@@ -184,11 +190,14 @@ RETRY:
 
 // metadataWriter writes the cached metadata entries to the remote address each `metadata.interval`
 func (p *promWriteOutput) metadataWriter(ctx context.Context) {
-	if p.cfg.Metadata == nil || !p.cfg.Metadata.Include {
+	defer p.wg.Done()
+	defer p.logger.Printf("metadata writer stopped")
+	cfg := p.cfg.Load()
+	if cfg.Metadata == nil || !cfg.Metadata.Include {
 		return
 	}
 	p.writeMetadata(ctx)
-	ticker := time.NewTicker(p.cfg.Metadata.Interval)
+	ticker := time.NewTicker(cfg.Metadata.Interval)
 	defer ticker.Stop()
 	for {
 		select {
@@ -203,6 +212,7 @@ func (p *promWriteOutput) metadataWriter(ctx context.Context) {
 // writeMetadata writes the currently cached metadata entries to the remote address,
 // it will multiple prompb.WriteRequest with at most `metadata.max-entries` each until all entries are sent.
 func (p *promWriteOutput) writeMetadata(ctx context.Context) {
+	cfg := p.cfg.Load()
 	p.m.Lock()
 	defer p.m.Unlock()
 
@@ -210,35 +220,35 @@ func (p *promWriteOutput) writeMetadata(ctx context.Context) {
 		return
 	}
 
-	mds := make([]prompb.MetricMetadata, 0, p.cfg.Metadata.MaxEntriesPerWrite)
+	mds := make([]prompb.MetricMetadata, 0, cfg.Metadata.MaxEntriesPerWrite)
 	count := 0 // keep track of the number of entries in mds
 
 	for _, md := range p.metadataCache {
-		if count < p.cfg.Metadata.MaxEntriesPerWrite {
+		if count < cfg.Metadata.MaxEntriesPerWrite {
 			count++
 			mds = append(mds, md)
 			continue
 		}
 		// max entries reached, write accumulated entries
-		if p.cfg.Debug {
+		if cfg.Debug {
 			p.logger.Printf("writing %d metadata points", len(mds))
 		}
 		start := time.Now()
 		err := p.writeRequest(ctx, &prompb.WriteRequest{
 			Metadata: mds,
-		})
+		}, cfg)
 		if err != nil {
-			prometheusWriteNumberOfFailSendMetadataMsgs.WithLabelValues(p.cfg.Name).Add(1)
-			if p.cfg.Debug {
+			prometheusWriteNumberOfFailSendMetadataMsgs.WithLabelValues(cfg.Name).Add(1)
+			if cfg.Debug {
 				p.logger.Print(err)
 			}
 			return
 		}
-		prometheusWriteMetadataSendDuration.WithLabelValues(p.cfg.Name).Set(float64(time.Since(start).Nanoseconds()))
-		prometheusWriteNumberOfSentMetadataMsgs.WithLabelValues(p.cfg.Name).Add(float64(len(mds)))
+		prometheusWriteMetadataSendDuration.WithLabelValues(cfg.Name).Set(float64(time.Since(start).Nanoseconds()))
+		prometheusWriteNumberOfSentMetadataMsgs.WithLabelValues(cfg.Name).Add(float64(len(mds)))
 		// reset counter and array then continue with the loop
 		count = 0
-		mds = make([]prompb.MetricMetadata, 0, p.cfg.Metadata.MaxEntriesPerWrite)
+		mds = make([]prompb.MetricMetadata, 0, cfg.Metadata.MaxEntriesPerWrite)
 	}
 
 	// no metadata entries to write, return
@@ -247,31 +257,32 @@ func (p *promWriteOutput) writeMetadata(ctx context.Context) {
 	}
 
 	// loop done with some metadata entries left to write
-	if p.cfg.Debug {
+	if cfg.Debug {
 		p.logger.Printf("writing %d metadata points", len(mds))
 	}
 	start := time.Now()
 	err := p.writeRequest(ctx, &prompb.WriteRequest{
 		Metadata: mds,
-	})
+	}, cfg)
 	if err != nil {
-		if p.cfg.Debug {
+		if cfg.Debug {
 			p.logger.Print(err)
 		}
 		return
 	}
-	prometheusWriteMetadataSendDuration.WithLabelValues(p.cfg.Name).Set(float64(time.Since(start).Nanoseconds()))
-	prometheusWriteNumberOfSentMetadataMsgs.WithLabelValues(p.cfg.Name).Add(float64(len(mds)))
+	prometheusWriteMetadataSendDuration.WithLabelValues(cfg.Name).Set(float64(time.Since(start).Nanoseconds()))
+	prometheusWriteNumberOfSentMetadataMsgs.WithLabelValues(cfg.Name).Add(float64(len(mds)))
 }
 
 func (p *promWriteOutput) makeHTTPRequest(ctx context.Context, wr *prompb.WriteRequest) (*http.Request, error) {
+	cfg := p.cfg.Load()
 	b, err := gogoproto.Marshal(wr)
 	if err != nil {
-		prometheusWriteNumberOfFailSendMsgs.WithLabelValues(p.cfg.Name, "marshal_error").Inc()
+		prometheusWriteNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "marshal_error").Inc()
 		return nil, fmt.Errorf("marshal error: %w", err)
 	}
 	compBytes := snappy.Encode(nil, b)
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.cfg.URL, bytes.NewBuffer(compBytes))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.URL, bytes.NewBuffer(compBytes))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %v", err)
 	}
@@ -280,15 +291,15 @@ func (p *promWriteOutput) makeHTTPRequest(ctx context.Context, wr *prompb.WriteR
 	httpReq.Header.Set("User-Agent", userAgent)
 	httpReq.Header.Set("Content-Type", "application/x-protobuf")
 
-	if p.cfg.Authentication != nil {
-		httpReq.SetBasicAuth(p.cfg.Authentication.Username, p.cfg.Authentication.Password)
+	if cfg.Authentication != nil {
+		httpReq.SetBasicAuth(cfg.Authentication.Username, cfg.Authentication.Password)
 	}
 
-	if p.cfg.Authorization != nil && p.cfg.Authorization.Type != "" {
-		httpReq.Header.Set("Authorization", fmt.Sprintf("%s %s", p.cfg.Authorization.Type, p.cfg.Authorization.Credentials))
+	if cfg.Authorization != nil && cfg.Authorization.Type != "" {
+		httpReq.Header.Set("Authorization", fmt.Sprintf("%s %s", cfg.Authorization.Type, cfg.Authorization.Credentials))
 	}
 
-	for k, v := range p.cfg.Headers {
+	for k, v := range cfg.Headers {
 		httpReq.Header.Add(k, v)
 	}
 
