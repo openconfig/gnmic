@@ -24,6 +24,9 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/openconfig/gnmic/pkg/formatters"
+	"github.com/openconfig/gnmic/pkg/outputs"
+	"github.com/zestor-dev/zestor/store"
+	"github.com/zestor-dev/zestor/store/gomap"
 )
 
 // Test 1: OTLP Message Structure
@@ -201,7 +204,9 @@ func TestOTLP_GRPCTransport(t *testing.T) {
 		logger: log.New(io.Discard, "", 0),
 	}
 
-	err := output.Init(context.Background(), "test-otlp", cfg)
+	err := output.Init(context.Background(), "test-otlp", cfg,
+		outputs.WithConfigStore(gomap.NewMemStore(store.StoreOptions[any]{})),
+	)
 	require.NoError(t, err)
 	defer output.Close()
 
@@ -625,7 +630,9 @@ func TestOTLP_InitSucceedsWithUnreachableEndpoint(t *testing.T) {
 		logger: log.New(io.Discard, "", 0),
 	}
 
-	err := output.Init(context.Background(), "test-otlp", cfg)
+	err := output.Init(context.Background(), "test-otlp", cfg,
+		outputs.WithConfigStore(gomap.NewMemStore(store.StoreOptions[any]{})),
+	)
 	assert.NoError(t, err, "Init should succeed even with unreachable endpoint")
 	assert.NotNil(t, output.grpcConn, "gRPC connection should be created")
 	assert.NotNil(t, output.grpcClient, "gRPC client should be created")
@@ -652,7 +659,9 @@ func TestOTLP_ConnectionOnFirstRPC(t *testing.T) {
 		logger: log.New(io.Discard, "", 0),
 	}
 
-	err := output.Init(context.Background(), "test-otlp", cfg)
+	err := output.Init(context.Background(), "test-otlp", cfg,
+		outputs.WithConfigStore(gomap.NewMemStore(store.StoreOptions[any]{})),
+	)
 	require.NoError(t, err)
 	defer output.Close()
 
@@ -687,7 +696,9 @@ func TestOTLP_ReconnectWhenEndpointBecomesAvailable(t *testing.T) {
 		logger: log.New(io.Discard, "", 0),
 	}
 
-	err = output.Init(context.Background(), "test-otlp", cfg)
+	err = output.Init(context.Background(), "test-otlp", cfg,
+		outputs.WithConfigStore(gomap.NewMemStore(store.StoreOptions[any]{})),
+	)
 	require.NoError(t, err)
 	defer output.Close()
 
@@ -722,7 +733,9 @@ func TestOTLP_GracefulShutdownFlushes(t *testing.T) {
 		logger: log.New(io.Discard, "", 0),
 	}
 
-	err := output.Init(context.Background(), "test-otlp", cfg)
+	err := output.Init(context.Background(), "test-otlp", cfg,
+		outputs.WithConfigStore(gomap.NewMemStore(store.StoreOptions[any]{})),
+	)
 	require.NoError(t, err)
 
 	event := createTestEvent()
@@ -759,7 +772,9 @@ func TestOTLP_ContextCancellationFlushes(t *testing.T) {
 		logger: log.New(io.Discard, "", 0),
 	}
 
-	err := output.Init(ctx, "test-otlp", cfg)
+	err := output.Init(ctx, "test-otlp", cfg,
+		outputs.WithConfigStore(gomap.NewMemStore(store.StoreOptions[any]{})),
+	)
 	require.NoError(t, err)
 
 	event := createTestEvent()
@@ -796,7 +811,9 @@ func TestOTLP_ChannelCloseFlushes(t *testing.T) {
 		logger: log.New(io.Discard, "", 0),
 	}
 
-	err := output.Init(context.Background(), "test-otlp", cfg)
+	err := output.Init(context.Background(), "test-otlp", cfg,
+		outputs.WithConfigStore(gomap.NewMemStore(store.StoreOptions[any]{})),
+	)
 	require.NoError(t, err)
 
 	event := createTestEvent()
