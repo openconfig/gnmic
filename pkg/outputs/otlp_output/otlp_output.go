@@ -26,12 +26,14 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/openconfig/gnmi/proto/gnmi"
+	gutils "github.com/openconfig/gnmic/pkg/utils"
 	metricsv1 "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
 
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/outputs"
+	"github.com/zestor-dev/zestor/store"
 )
 
 const (
@@ -77,15 +79,22 @@ type otlpOutput struct {
 
 	// Metrics
 	reg *prometheus.Registry
+	// store
+	store store.Store[any]
 }
 
 // config holds the OTLP output configuration
 type config struct {
-	Name     string           `mapstructure:"name,omitempty"`
-	Endpoint string           `mapstructure:"endpoint,omitempty"`
-	Protocol string           `mapstructure:"protocol,omitempty"` // "grpc" or "http"
-	Timeout  time.Duration    `mapstructure:"timeout,omitempty"`
-	TLS      *types.TLSConfig `mapstructure:"tls,omitempty"`
+	// name of the output
+	Name string `mapstructure:"name,omitempty"`
+	// endpoint of the OTLP collector
+	Endpoint string `mapstructure:"endpoint,omitempty"`
+	// "grpc" or "http"
+	Protocol string `mapstructure:"protocol,omitempty"`
+	// RPC timeout
+	Timeout time.Duration `mapstructure:"timeout,omitempty"`
+	// TLS configuration
+	TLS *types.TLSConfig `mapstructure:"tls,omitempty"`
 
 	// Batching
 	BatchSize int           `mapstructure:"batch-size,omitempty"`
@@ -144,6 +153,7 @@ func (o *otlpOutput) Init(ctx context.Context, name string, cfg map[string]inter
 			return err
 		}
 	}
+	o.store = options.Store
 
 	// Set defaults
 	o.setName(options.Name)
@@ -166,21 +176,27 @@ func (o *otlpOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	}
 
 	// Initialize event processors
+	tcs, ps, acts, err := gutils.GetConfigMaps(o.store)
+	if err != nil {
+		return err
+	}
+
 	o.evps, err = formatters.MakeEventProcessors(options.Logger, o.cfg.EventProcessors,
-		options.EventProcessors, options.TargetsConfig, options.Actions)
+		ps, tcs, acts)
 	if err != nil {
 		return err
 	}
 
 	// Initialize transport
-	if o.cfg.Protocol == "grpc" {
+	switch o.cfg.Protocol {
+	case "grpc":
 		err = o.initGRPC()
 		if err != nil {
 			return fmt.Errorf("failed to initialize gRPC transport: %w", err)
 		}
-	} else if o.cfg.Protocol == "http" {
+	case "http":
 		return fmt.Errorf("HTTP transport not yet implemented")
-	} else {
+	default:
 		return fmt.Errorf("unsupported protocol '%s': must be 'grpc' or 'http'", o.cfg.Protocol)
 	}
 
