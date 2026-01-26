@@ -5,19 +5,19 @@ topology:
     kind: linux
     image: gnmic:0.0.0-rc1
   kinds:
-    srl:
+    nokia_srlinux:
       image: ghcr.io/nokia/srlinux:23.10.3
 
   nodes:
     srl1:
-      kind: srl
+      kind: nokia_srlinux
     srl2:
-      kind: srl
+      kind: nokia_srlinux
     srl3:
-      kind: srl
+      kind: nokia_srlinux
     
     consul-agent:
-      image: consul:latest
+      image: consul:1.15.4
       ports:
         - 8500:8500
         - 8600:8600/udp

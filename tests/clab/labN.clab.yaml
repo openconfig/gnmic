@@ -2,10 +2,10 @@ name: lab{{ (ds "data").ID }}
 
 topology:
   defaults:
-    kind: srl
+    kind: nokia_srlinux
 
   kinds:
-    srl:
+    nokia_srlinux:
       image: ghcr.io/nokia/srlinux:23.10.3
       labels:
         test: telemetry
