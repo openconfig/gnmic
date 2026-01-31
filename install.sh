@@ -115,13 +115,21 @@ setDesiredVersion() {
         else
             latest_release_url=$($cmd $LATEST_URL | grep "html_url.*releases/tag" | cut -d '"' -f 4)
         fi
-        if [ "x$latest_release_url" == "x" ]; then
-            echo "Could not determine the latest release"
+        # check for empty response or null (GitHub API may return null on rate limit or errors)
+        if [ "x$latest_release_url" == "x" ] || [ "$latest_release_url" == "null" ]; then
+            echo "Could not determine the latest release from GitHub API."
+            echo "This may be due to GitHub API rate limiting. Please try again later or specify a version with --version flag."
             exit 1
         fi
         TAG=$(echo $latest_release_url | cut -d '"' -f 2 | awk -F "/" '{print $NF}')
         # tag with stripped `v` prefix
         TAG_WO_VER=$(echo "${TAG}" | cut -c 2-)
+        # validate that TAG looks like a version (should start with 'v')
+        if [[ ! "$TAG" =~ ^v[0-9] ]]; then
+            echo "Error: Invalid version tag '$TAG' retrieved from GitHub API."
+            echo "Expected a version starting with 'v' (e.g., v0.1.0). Please try again later or specify a version with --version flag."
+            exit 1
+        fi
     else
         TAG=$DESIRED_VERSION
         TAG_WO_VER=$(echo "${TAG}" | cut -c 2-)
