@@ -1,5 +1,24 @@
 ## Changelog
 
+### v0.43.0 - January 30th 2026
+
+- Inputs:
+
+    - Jetstream:
+      - Added support for configuring `max-ack-pending` to limit the maximum number of unacknowledged messages on a NATS JetStream input.
+      - DeliverPolicy and AckPolicy are now fully configurable for greater flexibility and control.
+
+- Commands:
+
+    - Added the new `collector` command: Runs gNMIc in collector mode, enabling dynamic, live updates to all configuration objects including targets, subscriptions, outputs, inputs, and processors. Unlike the `subscribe` command, the `collector` command supports on-the-fly configuration changes via the REST API, without requiring a restart. gNMIc automatically reconciles changes to maintain the desired state.
+
+    - The `collector` command also includes a suite of subcommands, allowing you to configure the gNMIc collector directly from the CLI.
+
+- Outputs:
+
+    - Introduced support for OpenTelemetry as an output destination, enabling seamless integration with observability platforms.
+
+
 ### v0.42.0 - September 19th 2025
 
 - Inputs:
