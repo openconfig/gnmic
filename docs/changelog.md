@@ -1,6 +1,6 @@
 ## Changelog
 
-### v0.43.0 - January 30th 2026
+### v0.43.0 - February 1st 2026
 
 - Inputs:
 
