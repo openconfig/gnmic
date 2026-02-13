@@ -48,6 +48,7 @@ import (
 	"github.com/openconfig/gnmic/pkg/inputs"
 	"github.com/openconfig/gnmic/pkg/lockers"
 	"github.com/openconfig/gnmic/pkg/outputs"
+	"github.com/openconfig/gnmic/pkg/utils"
 	"github.com/zestor-dev/zestor/store"
 	"github.com/zestor-dev/zestor/store/gomap"
 )
@@ -212,6 +213,7 @@ func (a *App) InitGlobalFlags() {
 	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.API, "api", "", "", "gnmic api address")
 	a.RootCmd.PersistentFlags().StringArrayVarP(&a.Config.GlobalFlags.ProtoFile, "proto-file", "", nil, "proto file(s) name(s)")
 	a.RootCmd.PersistentFlags().StringArrayVarP(&a.Config.GlobalFlags.ProtoDir, "proto-dir", "", nil, "directory to look for proto files specified with --proto-file")
+	a.RootCmd.PersistentFlags().StringArrayVarP(&a.Config.GlobalFlags.RegisteredExtensions, "registered-extensions", "", nil, "registered (custom) extensions")
 	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.TargetsFile, "targets-file", "", "", "path to file with targets configuration")
 	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.Gzip, "gzip", "", false, "enable gzip compression on gRPC connections")
 	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.Token, "token", "", "", "token value, used for gRPC token based authentication")
@@ -337,12 +339,22 @@ func (a *App) PrintMsg(address string, msgName string, msg proto.Message) error 
 			return nil
 		}
 	}
+
+	registeredExtensions, err := utils.ParseRegisteredExtensions(a.Config.RegisteredExtensions)
+
+	if err != nil {
+		return err
+	}
+
 	mo := formatters.MarshalOptions{
-		Multiline:        true,
-		Indent:           "  ",
-		Format:           a.Config.Format,
-		ValuesOnly:       a.Config.GetValuesOnly,
-		CalculateLatency: a.Config.CalculateLatency,
+		Multiline:            true,
+		Indent:               "  ",
+		Format:               a.Config.Format,
+		ValuesOnly:           a.Config.GetValuesOnly,
+		CalculateLatency:     a.Config.CalculateLatency,
+		ProtoFiles:           a.Config.ProtoFile,
+		ProtoDir:             a.Config.ProtoDir,
+		RegisteredExtensions: registeredExtensions,
 	}
 	b, err := mo.Marshal(msg, map[string]string{"source": address})
 	if err != nil {

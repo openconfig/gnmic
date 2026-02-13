@@ -20,15 +20,19 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/gnmic/pkg/utils"
 )
 
 type MarshalOptions struct {
-	Multiline        bool
-	Indent           string
-	Format           string
-	OverrideTS       bool
-	ValuesOnly       bool
-	CalculateLatency bool
+	Multiline            bool
+	Indent               string
+	Format               string
+	OverrideTS           bool
+	ValuesOnly           bool
+	CalculateLatency     bool
+	RegisteredExtensions utils.RegisteredExtensions
+	ProtoFiles           []string
+	ProtoDir             []string
 }
 
 // Marshal //

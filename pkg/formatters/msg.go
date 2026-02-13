@@ -17,26 +17,28 @@ import (
 )
 
 type syncResponseMsg struct {
-	SyncResponse bool                  `json:"sync-response,omitempty"`
-	Extensions   []*gnmi_ext.Extension `json:"extensions,omitempty"`
+	SyncResponse      bool                       `json:"sync-response,omitempty"`
+	Extensions        []*gnmi_ext.Extension      `json:"extensions,omitempty"`
+	DecodedExtensions map[int32]decodedExtension `json:"decodedExtensions,omitempty"`
 }
 
 type notificationRspMsg struct {
-	Meta             map[string]interface{} `json:"meta,omitempty"`
-	Source           string                 `json:"source,omitempty"`
-	SystemName       string                 `json:"system-name,omitempty"`
-	SubscriptionName string                 `json:"subscription-name,omitempty"`
-	Timestamp        int64                  `json:"timestamp,omitempty"`
-	Time             *time.Time             `json:"time,omitempty"`
-	RecvTimestamp    int64                  `json:"recv-timestamp,omitempty"`
-	RecvTime         *time.Time             `json:"recv-time,omitempty"`
-	LatencyNano      int64                  `json:"latency-nano,omitempty"`
-	LatencyMilli     int64                  `json:"latency-milli,omitempty"`
-	Prefix           string                 `json:"prefix,omitempty"`
-	Target           string                 `json:"target,omitempty"`
-	Updates          []update               `json:"updates,omitempty"`
-	Deletes          []string               `json:"deletes,omitempty"`
-	Extensions       []*gnmi_ext.Extension  `json:"extensions,omitempty"`
+	Meta              map[string]interface{}     `json:"meta,omitempty"`
+	Source            string                     `json:"source,omitempty"`
+	SystemName        string                     `json:"system-name,omitempty"`
+	SubscriptionName  string                     `json:"subscription-name,omitempty"`
+	Timestamp         int64                      `json:"timestamp,omitempty"`
+	Time              *time.Time                 `json:"time,omitempty"`
+	RecvTimestamp     int64                      `json:"recv-timestamp,omitempty"`
+	RecvTime          *time.Time                 `json:"recv-time,omitempty"`
+	LatencyNano       int64                      `json:"latency-nano,omitempty"`
+	LatencyMilli      int64                      `json:"latency-milli,omitempty"`
+	Prefix            string                     `json:"prefix,omitempty"`
+	Target            string                     `json:"target,omitempty"`
+	Updates           []update                   `json:"updates,omitempty"`
+	Deletes           []string                   `json:"deletes,omitempty"`
+	Extensions        []*gnmi_ext.Extension      `json:"extensions,omitempty"`
+	DecodedExtensions map[int32]decodedExtension `json:"decodedExtensions,omitempty"`
 }
 type update struct {
 	Path   string
@@ -67,18 +69,22 @@ type getRqMsg struct {
 	Extensions []*gnmi_ext.Extension `json:"extensions,omitempty"`
 }
 
+type decodedExtension map[string]any
+
 type getRspMsg struct {
-	Notifications []notificationRspMsg  `json:"notifications,omitempty"`
-	Extensions    []*gnmi_ext.Extension `json:"extensions,omitempty"`
+	Notifications     []notificationRspMsg       `json:"notifications,omitempty"`
+	Extensions        []*gnmi_ext.Extension      `json:"extensions,omitempty"`
+	DecodedExtensions map[int32]decodedExtension `json:"decodedExtensions,omitempty"`
 }
 type setRspMsg struct {
-	Source     string                `json:"source,omitempty"`
-	Timestamp  int64                 `json:"timestamp,omitempty"`
-	Time       time.Time             `json:"time,omitempty"`
-	Prefix     string                `json:"prefix,omitempty"`
-	Target     string                `json:"target,omitempty"`
-	Results    []updateResultMsg     `json:"results,omitempty"`
-	Extensions []*gnmi_ext.Extension `json:"extensions,omitempty"`
+	Source            string                     `json:"source,omitempty"`
+	Timestamp         int64                      `json:"timestamp,omitempty"`
+	Time              time.Time                  `json:"time,omitempty"`
+	Prefix            string                     `json:"prefix,omitempty"`
+	Target            string                     `json:"target,omitempty"`
+	Results           []updateResultMsg          `json:"results,omitempty"`
+	Extensions        []*gnmi_ext.Extension      `json:"extensions,omitempty"`
+	DecodedExtensions map[int32]decodedExtension `json:"decodedExtensions,omitempty"`
 }
 
 type updateResultMsg struct {
