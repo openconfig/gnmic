@@ -18,6 +18,7 @@ import (
 	"golang.org/x/sync/semaphore"
 
 	apiconst "github.com/openconfig/gnmic/pkg/collector/api/const"
+	collstore "github.com/openconfig/gnmic/pkg/collector/store"
 	"github.com/openconfig/gnmic/pkg/config"
 	"github.com/openconfig/gnmic/pkg/lockers"
 	"github.com/openconfig/gnmic/pkg/logging"
@@ -30,7 +31,7 @@ const (
 )
 
 type ClusterManager struct {
-	store            store.Store[any]
+	store            *collstore.Store
 	clusteringConfig *config.Clustering
 	apiConfig        *config.APIServer
 
@@ -56,7 +57,7 @@ type ClusterManager struct {
 	cfn    context.CancelFunc
 }
 
-func NewClusterManager(store store.Store[any]) *ClusterManager {
+func NewClusterManager(store *collstore.Store) *ClusterManager {
 	return &ClusterManager{
 		store:            store,
 		mm:               new(sync.RWMutex),
@@ -70,12 +71,12 @@ func NewClusterManager(store store.Store[any]) *ClusterManager {
 
 func (c *ClusterManager) Start(ctx context.Context, locker lockers.Locker, wg *sync.WaitGroup) error {
 	c.locker = locker
-	c.logger = logging.NewLogger(c.store, "component", "cluster-manager")
+	c.logger = logging.NewLogger(c.store.Config, "component", "cluster-manager")
 	ctx, cfn := context.WithCancel(ctx)
 	c.cfn = cfn
 	c.wg = wg
 	//get clustring config from store
-	clusteringConfig, ok, err := c.store.Get("clustering", "clustering")
+	clusteringConfig, ok, err := c.store.Config.Get("clustering", "clustering")
 	if err != nil {
 		return err
 	}
@@ -90,7 +91,7 @@ func (c *ClusterManager) Start(ctx context.Context, locker lockers.Locker, wg *s
 		return nil
 	}
 	c.clusteringConfig = clustering
-	apiConfig, ok, err := c.store.Get("api-server", "api-server")
+	apiConfig, ok, err := c.store.Config.Get("api-server", "api-server")
 	if err != nil {
 		return err
 	}
@@ -277,7 +278,7 @@ func (c *ClusterManager) runLeader(ctx context.Context) error {
 	defer cancelMembers()
 
 	// watch targets
-	targetsCh, cancelTargets, err := c.store.Watch("targets") // no initial replay
+	targetsCh, cancelTargets, err := c.store.Config.Watch("targets") // no initial replay
 	if err != nil {
 		return fmt.Errorf("failed to watch targets: %w", err)
 	}
@@ -371,7 +372,7 @@ func (c *ClusterManager) snapshotMembers() map[string]*Member {
 
 func (c *ClusterManager) reconcileAssignments(ctx context.Context, members map[string]*Member) error {
 	// 1. List all known targets
-	targets, err := c.store.Keys("targets")
+	targets, err := c.store.Config.Keys("targets")
 	if err != nil {
 		return err
 	}

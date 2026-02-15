@@ -15,7 +15,7 @@ func (s *Server) handleConfigInputsGet(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
 	if id == "" {
-		inputs, err := s.configStore.List("inputs")
+		inputs, err := s.store.Config.List("inputs")
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -28,7 +28,7 @@ func (s *Server) handleConfigInputsGet(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		input, ok, err := s.configStore.Get("inputs", id)
+		input, ok, err := s.store.Config.Get("inputs", id)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -109,7 +109,7 @@ func (s *Server) handleConfigInputsPost(w http.ResponseWriter, r *http.Request) 
 	evps, ok := cfg["event-processors"].([]string)
 	if ok {
 		for _, ep := range evps {
-			_, ok, err := s.configStore.Get("processors", ep)
+			_, ok, err := s.store.Config.Get("processors", ep)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -126,7 +126,7 @@ func (s *Server) handleConfigInputsPost(w http.ResponseWriter, r *http.Request) 
 	outs, ok := cfg["outputs"].([]string)
 	if ok {
 		for _, out := range outs {
-			_, ok, err := s.configStore.Get("outputs", out)
+			_, ok, err := s.store.Config.Get("outputs", out)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -139,7 +139,7 @@ func (s *Server) handleConfigInputsPost(w http.ResponseWriter, r *http.Request) 
 			}
 		}
 	}
-	_, err = s.configStore.Set("inputs", inputName, cfg)
+	_, err = s.store.Config.Set("inputs", inputName, cfg)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -161,7 +161,7 @@ func (s *Server) handleConfigInputsOutputsPatch(w http.ResponseWriter, r *http.R
 func (s *Server) handleConfigInputsDelete(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
-	ok, _, err := s.configStore.Delete("inputs", id)
+	ok, _, err := s.store.Config.Delete("inputs", id)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})

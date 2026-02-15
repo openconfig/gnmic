@@ -25,7 +25,7 @@ func (s *Server) handleConfigProcessorsGet(w http.ResponseWriter, r *http.Reques
 	vars := mux.Vars(r)
 	id := vars["id"]
 	if id != "" {
-		processor, ok, err := s.configStore.Get("processors", id)
+		processor, ok, err := s.store.Config.Get("processors", id)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -58,7 +58,7 @@ func (s *Server) handleConfigProcessorsGet(w http.ResponseWriter, r *http.Reques
 		}
 		return
 	}
-	processors, err := s.configStore.List("processors")
+	processors, err := s.store.Config.List("processors")
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -131,7 +131,7 @@ func (s *Server) handleConfigProcessorsPost(w http.ResponseWriter, r *http.Reque
 	storeCfg := map[string]any{
 		cfg.Type: cfg.Config,
 	}
-	_, err = s.configStore.Set("processors", cfg.Name, storeCfg)
+	_, err = s.store.Config.Set("processors", cfg.Name, storeCfg)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -153,7 +153,7 @@ func (s *Server) handleConfigProcessorsDelete(w http.ResponseWriter, r *http.Req
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"processor is in use by inputs"}})
 		return
 	}
-	_, _, err := s.configStore.Delete("processors", id)
+	_, _, err := s.store.Config.Delete("processors", id)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})

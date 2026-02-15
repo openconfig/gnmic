@@ -11,7 +11,7 @@ import (
 	"time"
 
 	apiconst "github.com/openconfig/gnmic/pkg/collector/api/const"
-	"github.com/zestor-dev/zestor/store"
+	collstore "github.com/openconfig/gnmic/pkg/collector/store"
 )
 
 type Assignment struct {
@@ -37,11 +37,11 @@ const (
 
 type restAssigner struct {
 	client *http.Client
-	store  store.Store[any]
+	store  *collstore.Store
 	logger *slog.Logger
 }
 
-func NewAssigner(store store.Store[any]) Assigner {
+func NewAssigner(store *collstore.Store) Assigner {
 	return &restAssigner{
 		store:  store,
 		logger: slog.With("component", "assignment-pusher"),

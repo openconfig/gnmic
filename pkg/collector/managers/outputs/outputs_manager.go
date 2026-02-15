@@ -7,11 +7,12 @@ import (
 	"log/slog"
 	"os"
 	"sync"
-	"sync/atomic"
+	"time"
 
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/cache"
+	collstore "github.com/openconfig/gnmic/pkg/collector/store"
 	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	"github.com/openconfig/gnmic/pkg/pipeline"
@@ -22,17 +23,15 @@ import (
 
 type ManagedOutput struct {
 	sync.RWMutex
-	Name  string
-	Impl  outputs.Output
-	Cfg   map[string]any
-	State atomic.Value // "running|stopped|failed|paused"
-
+	Name string
+	Impl outputs.Output
+	Cfg  map[string]any
 }
 
 // OutputsManager runs outputs.
 type OutputsManager struct {
 	ctx   context.Context
-	store store.Store[any]
+	store *collstore.Store
 
 	OutputsFactory map[string]outputs.Initializer
 	in             <-chan *pipeline.Msg // pipe from targets and/or inputs
@@ -52,7 +51,7 @@ type outputStats struct {
 	msgCountErr *prometheus.CounterVec
 }
 
-func NewOutputsManager(ctx context.Context, store store.Store[any], pipe <-chan *pipeline.Msg, reg *prometheus.Registry) *OutputsManager {
+func NewOutputsManager(ctx context.Context, store *collstore.Store, pipe <-chan *pipeline.Msg, reg *prometheus.Registry) *OutputsManager {
 	return &OutputsManager{
 		ctx:             ctx,
 		store:           store,
@@ -66,19 +65,19 @@ func NewOutputsManager(ctx context.Context, store store.Store[any], pipe <-chan 
 }
 
 func (mgr *OutputsManager) Start(cache cache.Cache, wg *sync.WaitGroup) error {
-	mgr.logger = logging.NewLogger(mgr.store, "component", "outputs-manager")
+	mgr.logger = logging.NewLogger(mgr.store.Config, "component", "outputs-manager")
 	mgr.logger.Info("starting outputs manager")
 	mgr.cache = cache
 	// register metrics
 	mgr.registerMetrics()
 	// watch outputs config changes
-	outputCh, outputsCancel, err := mgr.store.Watch("outputs",
+	outputCh, outputsCancel, err := mgr.store.Config.Watch("outputs",
 		store.WithInitialReplay[any]())
 	if err != nil {
 		return err
 	}
 	// watch processors config changes (update only)
-	procsCh, processorsCancel, err := mgr.store.Watch("processors",
+	procsCh, processorsCancel, err := mgr.store.Config.Watch("processors",
 		store.WithEventTypes[any](store.EventTypeUpdate))
 	if err != nil {
 		return err
@@ -203,7 +202,7 @@ func (mgr *OutputsManager) getOutputsForTarget(outputs map[string]struct{}) []*M
 	if len(outputs) == 0 {
 		outs := make([]*ManagedOutput, 0, len(mgr.outputs))
 		for _, mo := range mgr.outputs {
-			if mo.State.Load() == "running" {
+			if mgr.getOutputStateStr(mo.Name) == collstore.StateRunning {
 				outs = append(outs, mo)
 			}
 		}
@@ -212,7 +211,7 @@ func (mgr *OutputsManager) getOutputsForTarget(outputs map[string]struct{}) []*M
 	// specific outputs per target
 	outs := make([]*ManagedOutput, 0, len(outputs))
 	for name, mo := range mgr.outputs {
-		if _, ok := outputs[name]; !ok || mo.State.Load() != "running" {
+		if _, ok := outputs[name]; !ok || mgr.getOutputStateStr(name) != collstore.StateRunning {
 			continue
 		}
 		outs = append(outs, mo)
@@ -225,6 +224,7 @@ func (mgr *OutputsManager) createOutput(name string, cfg map[string]any) {
 	f := mgr.OutputsFactory[typ]
 	if f == nil {
 		mgr.logger.Error("unknown output type", "name", name, "type", typ)
+		mgr.setOutputState(name, collstore.StateFailed, fmt.Sprintf("unknown output type: %s", typ))
 		return
 	}
 	impl := f()
@@ -232,11 +232,11 @@ func (mgr *OutputsManager) createOutput(name string, cfg map[string]any) {
 	opts := make([]outputs.Option, 0, 2)
 	opts = append(opts,
 		outputs.WithName(name),
-		outputs.WithConfigStore(mgr.store),
+		outputs.WithConfigStore(mgr.store.Config),
 		outputs.WithLogger(log.New(os.Stdout, "", log.LstdFlags)), // temporary logger
 	)
 
-	clustering, ok, err := mgr.store.Get("global", "clustering")
+	clustering, ok, err := mgr.store.Config.Get("global", "clustering")
 	if err != nil {
 		mgr.logger.Error("failed to get clustering for output", "name", name, "error", err)
 		return
@@ -251,15 +251,16 @@ func (mgr *OutputsManager) createOutput(name string, cfg map[string]any) {
 	err = impl.Init(mgr.ctx, name, cfg, opts...)
 	if err != nil {
 		mgr.logger.Error("failed to init output", "name", name, "error", err)
+		mgr.setOutputState(name, collstore.StateFailed, err.Error())
 		return
 	}
 	procs := extractProcessors(cfg)
 	mo := &ManagedOutput{Name: name, Impl: impl, Cfg: cfg}
-	mo.State.Store("running")
 	mgr.mu.Lock()
 	mgr.trackProcessorsInUse(name, procs)
 	mgr.outputs[name] = mo
 	mgr.mu.Unlock()
+	mgr.setOutputState(name, collstore.StateRunning, "")
 }
 
 func (mgr *OutputsManager) updateOutput(name string, cfg map[string]any) {
@@ -295,7 +296,7 @@ func (mgr *OutputsManager) StopOutput(name string) error {
 	mgr.logger.Info("finding output", "name", name)
 	if mo, ok := mgr.outputs[name]; ok {
 		mgr.logger.Info("stopping output", "name", name)
-		mo.State.Store("stopping")
+		mgr.setOutputState(name, collstore.StateStopping, "")
 		err := mo.Impl.Close()
 		if err != nil {
 			mgr.logger.Error("failed to close output", "name", name, "error", err)
@@ -303,7 +304,7 @@ func (mgr *OutputsManager) StopOutput(name string) error {
 		}
 		procs := extractProcessors(mo.Cfg)
 		mgr.untrackProcessorsInUse(name, procs)
-		mo.State.Store("stopped")
+		mgr.setOutputState(name, collstore.StateStopped, "")
 		delete(mgr.outputs, name)
 	}
 	return nil
@@ -315,7 +316,7 @@ func (mgr *OutputsManager) DeleteOutput(name string) error {
 	mgr.logger.Info("deleting output", "name", name)
 	if mo, ok := mgr.outputs[name]; ok {
 		mgr.logger.Info("stopping output", "name", name)
-		mo.State.Store("stopping")
+		mgr.setOutputState(name, collstore.StateStopping, "")
 		err := mo.Impl.Close()
 		if err != nil {
 			mgr.logger.Error("failed to close output", "name", name, "error", err)
@@ -323,10 +324,11 @@ func (mgr *OutputsManager) DeleteOutput(name string) error {
 		}
 		procs := extractProcessors(mo.Cfg)
 		mgr.untrackProcessorsInUse(name, procs)
-		mo.State.Store("stopped")
+		mgr.setOutputState(name, collstore.StateStopped, "")
 		delete(mgr.outputs, name)
-		mgr.store.Delete("outputs", name)
+		mgr.store.Config.Delete("outputs", name)
 	}
+	mgr.store.State.Delete(collstore.KindOutputs, name)
 	return nil
 }
 
@@ -334,7 +336,7 @@ func (mgr *OutputsManager) Stop() {
 	mgr.mu.Lock()
 	defer mgr.mu.Unlock()
 	for _, mo := range mgr.outputs {
-		mo.State.Store("stopped")
+		mgr.setOutputState(mo.Name, collstore.StateStopped, "")
 		err := mo.Impl.Close()
 		if err != nil {
 			mgr.logger.Error("failed to stop output", "name", mo.Name, "error", err)
@@ -448,4 +450,52 @@ func (mgr *OutputsManager) ProcessorInUse(name string) bool {
 		return false
 	}
 	return len(users) > 0
+}
+
+// State store helpers
+
+func (mgr *OutputsManager) setOutputState(name, state, failedReason string) {
+	os := &collstore.OutputState{
+		ComponentState: collstore.ComponentState{
+			// Name:          name,
+			IntendedState: collstore.IntendedStateEnabled,
+			State:         state,
+			FailedReason:  failedReason,
+			LastUpdated:   time.Now(),
+		},
+	}
+	mgr.store.State.Set(collstore.KindOutputs, name, os)
+}
+
+func (mgr *OutputsManager) getOutputStateStr(name string) string {
+	os := mgr.GetOutputState(name)
+	if os == nil {
+		return ""
+	}
+	return os.State
+}
+
+// GetOutputState returns the runtime state of an output from the state store.
+func (mgr *OutputsManager) GetOutputState(name string) *collstore.OutputState {
+	v, ok, err := mgr.store.State.Get(collstore.KindOutputs, name)
+	if err != nil || !ok {
+		return nil
+	}
+	os, ok := v.(*collstore.OutputState)
+	if !ok {
+		return nil
+	}
+	return os
+}
+
+// ListOutputStates returns all output states from the state store.
+func (mgr *OutputsManager) ListOutputStates() []*collstore.OutputState {
+	states := make([]*collstore.OutputState, 0)
+	mgr.store.State.List(collstore.KindOutputs, func(name string, v any) bool {
+		if os, ok := v.(*collstore.OutputState); ok {
+			states = append(states, os)
+		}
+		return false
+	})
+	return states
 }

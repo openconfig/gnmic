@@ -70,7 +70,7 @@ func (s *Server) handleConfigApply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// delete subscriptions
-	existingSubscriptions, err := s.configStore.Keys("subscriptions")
+	existingSubscriptions, err := s.store.Config.Keys("subscriptions")
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"get subscriptions error: " + err.Error()}})
@@ -78,7 +78,7 @@ func (s *Server) handleConfigApply(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, name := range existingSubscriptions {
 		if _, ok := req.Subscriptions[name]; !ok {
-			_, _, err := s.configStore.Delete("subscriptions", name)
+			_, _, err := s.store.Config.Delete("subscriptions", name)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -87,7 +87,7 @@ func (s *Server) handleConfigApply(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	// delete targets (skip tunnel-created targets which have TunnelTargetType set)
-	existingTargets, err := s.configStore.List("targets", func(_ string, val any) bool {
+	existingTargets, err := s.store.Config.List("targets", func(_ string, val any) bool {
 		// only include non-tunnel targets (TunnelTargetType == "")
 		if tc, ok := val.(*types.TargetConfig); ok {
 			return tc.TunnelTargetType == ""
@@ -101,7 +101,7 @@ func (s *Server) handleConfigApply(w http.ResponseWriter, r *http.Request) {
 	}
 	for name := range existingTargets {
 		if _, ok := req.Targets[name]; !ok {
-			_, _, err := s.configStore.Delete("targets", name)
+			_, _, err := s.store.Config.Delete("targets", name)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				json.NewEncoder(w).Encode(APIErrors{Errors: []string{"delete target error: " + err.Error()}})
@@ -110,7 +110,7 @@ func (s *Server) handleConfigApply(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	// delete inputs
-	existingInputs, err := s.configStore.Keys("inputs")
+	existingInputs, err := s.store.Config.Keys("inputs")
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"get inputs error: " + err.Error()}})
@@ -118,7 +118,7 @@ func (s *Server) handleConfigApply(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, name := range existingInputs {
 		if _, ok := req.Inputs[name]; !ok {
-			_, _, err := s.configStore.Delete("inputs", name)
+			_, _, err := s.store.Config.Delete("inputs", name)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				json.NewEncoder(w).Encode(APIErrors{Errors: []string{"delete input error: " + err.Error()}})
@@ -127,7 +127,7 @@ func (s *Server) handleConfigApply(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	// delete outputs
-	existingOutputs, err := s.configStore.Keys("outputs")
+	existingOutputs, err := s.store.Config.Keys("outputs")
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"get outputs error: " + err.Error()}})
@@ -135,7 +135,7 @@ func (s *Server) handleConfigApply(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, name := range existingOutputs {
 		if _, ok := req.Outputs[name]; !ok {
-			_, _, err := s.configStore.Delete("outputs", name)
+			_, _, err := s.store.Config.Delete("outputs", name)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				json.NewEncoder(w).Encode(APIErrors{Errors: []string{"delete output error: " + err.Error()}})
@@ -144,7 +144,7 @@ func (s *Server) handleConfigApply(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	// delete processors
-	existingProcessors, err := s.configStore.Keys("processors")
+	existingProcessors, err := s.store.Config.Keys("processors")
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"get processors error: " + err.Error()}})
@@ -152,7 +152,7 @@ func (s *Server) handleConfigApply(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, name := range existingProcessors {
 		if _, ok := req.Processors[name]; !ok {
-			_, _, err := s.configStore.Delete("processors", name)
+			_, _, err := s.store.Config.Delete("processors", name)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				json.NewEncoder(w).Encode(APIErrors{Errors: []string{"delete processor error: " + err.Error()}})
@@ -161,7 +161,7 @@ func (s *Server) handleConfigApply(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	// delete tunnel-target-matches
-	existingTunnelTargetMatches, err := s.configStore.Keys("tunnel-target-matches")
+	existingTunnelTargetMatches, err := s.store.Config.Keys("tunnel-target-matches")
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"get tunnel-target-matches error: " + err.Error()}})
@@ -169,7 +169,7 @@ func (s *Server) handleConfigApply(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, name := range existingTunnelTargetMatches {
 		if _, ok := req.TunnelTargetMatches[name]; !ok {
-			_, _, err := s.configStore.Delete("tunnel-target-matches", name)
+			_, _, err := s.store.Config.Delete("tunnel-target-matches", name)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				json.NewEncoder(w).Encode(APIErrors{Errors: []string{"delete tunnel-target-match error: " + err.Error()}})
@@ -180,7 +180,7 @@ func (s *Server) handleConfigApply(w http.ResponseWriter, r *http.Request) {
 	//
 	// apply subscriptions
 	for name, cfg := range req.Subscriptions {
-		_, err = s.configStore.Set("subscriptions", name, cfg)
+		_, err = s.store.Config.Set("subscriptions", name, cfg)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(APIErrors{Errors: []string{"set subscription error: " + err.Error()}})
@@ -189,7 +189,7 @@ func (s *Server) handleConfigApply(w http.ResponseWriter, r *http.Request) {
 	}
 	// apply processors
 	for name, cfg := range req.Processors {
-		_, err = s.configStore.Set("processors", name, cfg)
+		_, err = s.store.Config.Set("processors", name, cfg)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(APIErrors{Errors: []string{"set processor error: " + err.Error()}})
@@ -198,7 +198,7 @@ func (s *Server) handleConfigApply(w http.ResponseWriter, r *http.Request) {
 	}
 	// apply outputs
 	for name, cfg := range req.Outputs {
-		_, err = s.configStore.Set("outputs", name, cfg)
+		_, err = s.store.Config.Set("outputs", name, cfg)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(APIErrors{Errors: []string{"set output error: " + err.Error()}})
@@ -207,7 +207,7 @@ func (s *Server) handleConfigApply(w http.ResponseWriter, r *http.Request) {
 	}
 	// apply targets
 	for name, cfg := range req.Targets {
-		_, err = s.configStore.Set("targets", name, cfg)
+		_, err = s.store.Config.Set("targets", name, cfg)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(APIErrors{Errors: []string{"set target error: " + err.Error()}})
@@ -216,7 +216,7 @@ func (s *Server) handleConfigApply(w http.ResponseWriter, r *http.Request) {
 	}
 	// apply inputs
 	for name, cfg := range req.Inputs {
-		_, err = s.configStore.Set("inputs", name, cfg)
+		_, err = s.store.Config.Set("inputs", name, cfg)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(APIErrors{Errors: []string{"set input error: " + err.Error()}})
@@ -225,7 +225,7 @@ func (s *Server) handleConfigApply(w http.ResponseWriter, r *http.Request) {
 	}
 	// apply tunnel-target-matches
 	for name, cfg := range req.TunnelTargetMatches {
-		_, err = s.configStore.Set("tunnel-target-matches", name, cfg)
+		_, err = s.store.Config.Set("tunnel-target-matches", name, cfg)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(APIErrors{Errors: []string{"set tunnel-target-match error: " + err.Error()}})

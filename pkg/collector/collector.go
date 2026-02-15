@@ -25,6 +25,7 @@ import (
 	inputs_manager "github.com/openconfig/gnmic/pkg/collector/managers/inputs"
 	outputs_manager "github.com/openconfig/gnmic/pkg/collector/managers/outputs"
 	targets_manager "github.com/openconfig/gnmic/pkg/collector/managers/targets"
+	collstore "github.com/openconfig/gnmic/pkg/collector/store"
 	"github.com/openconfig/gnmic/pkg/config"
 	"github.com/openconfig/gnmic/pkg/lockers"
 	"github.com/openconfig/gnmic/pkg/logging"
@@ -40,8 +41,8 @@ const (
 )
 
 type Collector struct {
-	ctx         context.Context
-	configStore store.Store[any]
+	ctx   context.Context
+	store *collstore.Store
 
 	apiServer *apiserver.Server
 	cache     cache.Cache
@@ -59,24 +60,24 @@ type Collector struct {
 	profiler *pyroscope.Profiler
 }
 
-func New(ctx context.Context, store store.Store[any]) *Collector {
+func New(ctx context.Context, configStore store.Store[any]) *Collector {
+	s := collstore.NewStore(configStore)
 	pipeline := make(chan *pipeline.Msg, defaultPipelineBufferSize)
 	reg := prometheus.NewRegistry()
 
-	clusterManager := cluster_manager.NewClusterManager(store)
-	targetsManager := targets_manager.NewTargetsManager(ctx, store, pipeline, reg)
-	outputsManager := outputs_manager.NewOutputsManager(ctx, store, pipeline, reg)
-	inputsManager := inputs_manager.NewInputsManager(ctx, store, pipeline)
+	clusterManager := cluster_manager.NewClusterManager(s)
+	targetsManager := targets_manager.NewTargetsManager(ctx, s, pipeline, reg)
+	outputsManager := outputs_manager.NewOutputsManager(ctx, s, pipeline, reg)
+	inputsManager := inputs_manager.NewInputsManager(ctx, s, pipeline)
 	apiServer := apiserver.NewServer(
-		store,
+		s,
 		targetsManager, outputsManager,
 		inputsManager, clusterManager,
 		reg,
 	)
-
 	c := &Collector{
 		ctx:            ctx,
-		configStore:    store,
+		store:          s,
 		apiServer:      apiServer,
 		clusterManager: clusterManager,
 		targetsManager: targetsManager,
@@ -90,7 +91,7 @@ func New(ctx context.Context, store store.Store[any]) *Collector {
 }
 
 func (c *Collector) Start() error {
-	c.logger = logging.NewLogger(c.configStore, "component", "collector")
+	c.logger = logging.NewLogger(c.store.Config, "component", "collector")
 	var err error
 	c.logger.Info("starting collector")
 	// build locker
@@ -147,7 +148,7 @@ func (c *Collector) Stop() {
 }
 
 func (c *Collector) getLocker() error {
-	clusteringMap, ok, err := c.configStore.Get("clustering", "clustering")
+	clusteringMap, ok, err := c.store.Config.Get("clustering", "clustering")
 	if err != nil {
 		return err
 	}
@@ -225,7 +226,7 @@ func (c *Collector) InitCollectorFlags(cmd *cobra.Command) {
 }
 
 func (c *Collector) initCache() error {
-	cfg, ok, err := c.configStore.Get("gnmi-server", "gnmi-server")
+	cfg, ok, err := c.store.Config.Get("gnmi-server", "gnmi-server")
 	if err != nil {
 		return err
 	}

@@ -18,7 +18,7 @@ func (s *Server) handleConfigSubscriptionsGet(w http.ResponseWriter, r *http.Req
 
 	if id == "" {
 		// Get all subscriptions
-		subscriptions, err := s.configStore.List("subscriptions")
+		subscriptions, err := s.store.Config.List("subscriptions")
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -34,7 +34,7 @@ func (s *Server) handleConfigSubscriptionsGet(w http.ResponseWriter, r *http.Req
 	}
 
 	// Get single subscription by ID
-	sub, ok, err := s.configStore.Get("subscriptions", id)
+	sub, ok, err := s.store.Config.Get("subscriptions", id)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -103,7 +103,7 @@ func (s *Server) handleConfigSubscriptionsPost(w http.ResponseWriter, r *http.Re
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
-	_, err = s.configStore.Set("subscriptions", sub.Name, sub)
+	_, err = s.store.Config.Set("subscriptions", sub.Name, sub)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -116,7 +116,7 @@ func (s *Server) handleConfigSubscriptionsPost(w http.ResponseWriter, r *http.Re
 func (s *Server) handleConfigSubscriptionsDelete(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
-	ok, _, err := s.configStore.Delete("subscriptions", id)
+	ok, _, err := s.store.Config.Delete("subscriptions", id)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -151,7 +151,7 @@ func (s *Server) handleSubscriptionsGet(w http.ResponseWriter, r *http.Request) 
 	if id == "" {
 		subscriptionsMap := make(map[string]*SubscriptionResponse)
 		// build current subscriptions map
-		_, err := s.configStore.List("subscriptions", func(name string, sub any) bool {
+		_, err := s.store.Config.List("subscriptions", func(name string, sub any) bool {
 			switch sub := sub.(type) {
 			case *types.SubscriptionConfig:
 				subscriptionsMap[sub.Name] = &SubscriptionResponse{
@@ -203,7 +203,7 @@ func (s *Server) handleSubscriptionsGet(w http.ResponseWriter, r *http.Request) 
 		}
 		return
 	}
-	sub, ok, err := s.configStore.Get("subscriptions", id)
+	sub, ok, err := s.store.Config.Get("subscriptions", id)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})

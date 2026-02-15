@@ -23,6 +23,7 @@ import (
 	"golang.org/x/net/proxy"
 	"golang.org/x/oauth2"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/oauth"
 	"google.golang.org/grpc/metadata"
 )
@@ -282,4 +283,23 @@ func (t *Target) ConnState() string {
 		return ""
 	}
 	return t.conn.GetState().String()
+}
+
+// WaitForConnStateChange blocks until the gRPC connection state changes from
+// sourceState or ctx is done. Returns true if the state changed, false if
+// ctx expired. Returns false immediately if conn is nil.
+func (t *Target) WaitForConnStateChange(ctx context.Context, sourceState connectivity.State) bool {
+	if t.conn == nil {
+		return false
+	}
+	return t.conn.WaitForStateChange(ctx, sourceState)
+}
+
+// ConnectivityState returns the current gRPC connectivity state.
+// Returns connectivity.Shutdown if the connection is nil.
+func (t *Target) ConnectivityState() connectivity.State {
+	if t.conn == nil {
+		return connectivity.Shutdown
+	}
+	return t.conn.GetState()
 }

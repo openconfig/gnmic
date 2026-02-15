@@ -8,7 +8,7 @@ import (
 )
 
 func (tm *TargetsManager) isClustering() (*config.Clustering, bool, error) {
-	clusterCfg, ok, err := tm.store.Get("clustering", "clustering")
+	clusterCfg, ok, err := tm.store.Config.Get("clustering", "clustering")
 	if err != nil {
 		return nil, false, err
 	}
@@ -45,7 +45,7 @@ func (tm *TargetsManager) setAssigned(name string, v bool) {
 	tm.mas.Unlock()
 	//
 	if v {
-		cfg, ok, err := tm.store.Get("targets", name)
+		cfg, ok, err := tm.store.Config.Get("targets", name)
 		if err != nil {
 			tm.logger.Error("failed to get target", "target", name, "error", err)
 			return

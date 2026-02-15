@@ -31,7 +31,7 @@ type clusterMember struct {
 
 func (s *Server) handleClusteringGet(w http.ResponseWriter, r *http.Request) {
 	// clusteringResponse
-	clusteringCfg, ok, err := s.configStore.Get("clustering", "clustering")
+	clusteringCfg, ok, err := s.store.Config.Get("clustering", "clustering")
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -119,7 +119,7 @@ func (s *Server) handleClusterRebalance(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) handleClusteringLeaderGet(w http.ResponseWriter, r *http.Request) {
-	clusteringCfg, ok, err := s.configStore.Get("clustering", "clustering")
+	clusteringCfg, ok, err := s.store.Config.Get("clustering", "clustering")
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -206,7 +206,7 @@ func (s *Server) handleClusteringLeaderDelete(w http.ResponseWriter, r *http.Req
 
 func (s *Server) handleClusteringMembersGet(w http.ResponseWriter, r *http.Request) {
 	// clusteringResponse
-	clusteringCfg, ok, err := s.configStore.Get("clustering", "clustering")
+	clusteringCfg, ok, err := s.store.Config.Get("clustering", "clustering")
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -339,7 +339,7 @@ func (s *Server) handleClusterMove(w http.ResponseWriter, r *http.Request) {
 
 // //
 func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
-	res, err := s.configStore.GetAll()
+	res, err := s.store.Config.GetAll()
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
