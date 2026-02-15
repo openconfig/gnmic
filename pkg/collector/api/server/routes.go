@@ -21,6 +21,7 @@ func (s *Server) routes() {
 	s.inputsRoutes(apiV1)
 	s.processorsRoutes(apiV1)
 	s.assignmentRoutes(apiV1)
+	s.sseRoutes(apiV1)
 }
 
 func (s *Server) healthRoutes(r *mux.Router) {
@@ -119,4 +120,8 @@ func (s *Server) assignmentRoutes(r *mux.Router) {
 	r.HandleFunc("/assignments", s.handleAssignmentPost).Methods(http.MethodPost)
 	r.HandleFunc("/assignments/{id}", s.handleAssignmentGet).Methods(http.MethodGet)
 	r.HandleFunc("/assignments/{id}", s.handleAssignmentDelete).Methods(http.MethodDelete)
+}
+
+func (s *Server) sseRoutes(r *mux.Router) {
+	r.HandleFunc("/sse/{kind}", s.handleSSE).Methods(http.MethodGet)
 }

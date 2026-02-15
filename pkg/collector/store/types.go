@@ -25,10 +25,13 @@ const (
 
 // Kind names used in the state store.
 const (
-	KindTargets       = "targets"
-	KindOutputs       = "outputs"
-	KindInputs        = "inputs"
-	KindSubscriptions = "subscriptions"
+	KindTargets             = "targets"
+	KindOutputs             = "outputs"
+	KindInputs              = "inputs"
+	KindSubscriptions       = "subscriptions"
+	KindProcessors          = "processors"
+	KindAssignments         = "assignments"
+	KindTunnelTargetMatches = "tunnel-target-matches"
 )
 
 // ComponentState is the base state shared by all managed components.
