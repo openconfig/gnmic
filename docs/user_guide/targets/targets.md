@@ -309,6 +309,23 @@ targets:
       # If false, when there are no active RPCs, 
       # Time and Timeout will be ignored and no keepalive pings will be sent.
       permit-without-stream: false
+    # set how much data (in bytes) can be read at most for each read syscall.
+    # The default value for this buffer is 32KB. Zero or negative values will 
+    # disable read buffer for a connection so data framer can access the underlying conn directly.
+    grpc-read-buffer-size: 
+    # determines how much data (in bytes) can be batched before doing a write on the wire. 
+    # The default value for this buffer is 32KB.
+    # Zero or negative values will disable the write buffer such that each write will be on underlying connection. 
+    # Note: A Send call may not directly translate to a write.
+    grpc-write-buffer-size:
+    # sets the value for initial window size on a connection. The lower bound for window size is 64K and any value smaller than that will be ignored.
+    grpc-conn-window-size:
+    # sets the value for initial window size on a stream. The lower bound for window size is 64K and any value smaller than that will be ignored.
+    grpc-window-size:
+    # sets the initial connection window size to the value provided and disables dynamic flow control.
+    grpc-static-connec-window-size:
+    # sets the initial stream window size to the value provided and disables dynamic flow control.
+    grpc-static-stream-window-size:
 ```
 
 ### Example
