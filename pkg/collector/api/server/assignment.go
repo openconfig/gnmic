@@ -86,7 +86,7 @@ func (s *Server) handleAssignmentPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, assignment := range cfg.Assignments {
-		_, err := s.configStore.Set("assignments", assignment.Target, assignment)
+		_, err := s.store.Config.Set("assignments", assignment.Target, assignment)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -95,7 +95,7 @@ func (s *Server) handleAssignmentPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, unassignment := range cfg.Unassignments {
-		_, _, err = s.configStore.Delete("assignments", unassignment)
+		_, _, err = s.store.Config.Delete("assignments", unassignment)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -112,7 +112,7 @@ func (s *Server) handleAssignmentPost(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleAssignmentDelete(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
-	ok, _, err := s.configStore.Delete("assignments", id)
+	ok, _, err := s.store.Config.Delete("assignments", id)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -135,7 +135,7 @@ func (s *Server) handleAssignmentGet(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
 	if id == "" {
-		assignments, err := s.configStore.List("assignments")
+		assignments, err := s.store.Config.List("assignments")
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -162,7 +162,7 @@ func (s *Server) handleAssignmentGet(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	assignment, ok, err := s.configStore.Get("assignments", id)
+	assignment, ok, err := s.store.Config.Get("assignments", id)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})

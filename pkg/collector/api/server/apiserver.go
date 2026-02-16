@@ -15,16 +15,16 @@ import (
 	inputs_manager "github.com/openconfig/gnmic/pkg/collector/managers/inputs"
 	outputs_manager "github.com/openconfig/gnmic/pkg/collector/managers/outputs"
 	targets_manager "github.com/openconfig/gnmic/pkg/collector/managers/targets"
+	collstore "github.com/openconfig/gnmic/pkg/collector/store"
 	"github.com/openconfig/gnmic/pkg/config"
 	"github.com/openconfig/gnmic/pkg/lockers"
 	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/zestor-dev/zestor/store"
 )
 
 type Server struct {
-	router      *mux.Router
-	configStore store.Store[any]
+	router *mux.Router
+	store  *collstore.Store
 
 	locker         lockers.Locker
 	targetsManager *targets_manager.TargetsManager
@@ -39,7 +39,7 @@ type Server struct {
 }
 
 func NewServer(
-	store store.Store[any],
+	store *collstore.Store,
 	targetManager *targets_manager.TargetsManager,
 	outputsManager *outputs_manager.OutputsManager,
 	inputsManager *inputs_manager.InputsManager,
@@ -48,7 +48,7 @@ func NewServer(
 ) *Server {
 	s := &Server{
 		router:         mux.NewRouter(),
-		configStore:    store,
+		store:          store,
 		targetsManager: targetManager,
 		outputsManager: outputsManager,
 		inputsManager:  inputsManager,
@@ -63,10 +63,10 @@ func NewServer(
 
 func (s *Server) Start(locker lockers.Locker, wg *sync.WaitGroup) error {
 	s.locker = locker
-	s.logger = logging.NewLogger(s.configStore, "component", "api-server")
+	s.logger = logging.NewLogger(s.store.Config, "component", "api-server")
 	s.logger.Info("starting API server")
 
-	apiServer, ok, err := s.configStore.Get("api-server", "api-server")
+	apiServer, ok, err := s.store.Config.Get("api-server", "api-server")
 	if err != nil {
 		s.logger.Error("failed to get api-server config", "error", err)
 		return err

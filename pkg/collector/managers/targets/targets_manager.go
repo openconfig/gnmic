@@ -14,11 +14,11 @@ import (
 	"slices"
 	"sort"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/openconfig/gnmic/pkg/api/target"
 	"github.com/openconfig/gnmic/pkg/api/types"
+	collstore "github.com/openconfig/gnmic/pkg/collector/store"
 	"github.com/openconfig/gnmic/pkg/config"
 	"github.com/openconfig/gnmic/pkg/loaders"
 	"github.com/openconfig/gnmic/pkg/lockers"
@@ -34,12 +34,9 @@ import (
 
 type ManagedTarget struct {
 	sync.RWMutex
-	Name          string
-	cfg           *types.TargetConfig
-	T             *target.Target
-	IntendedState atomic.Value // "enabled|disabled"
-	State         atomic.Value // "running|stopped|starting|failed"
-	FailedReason  atomic.Value // "error message"
+	Name string
+	cfg  *types.TargetConfig
+	T    *target.Target
 
 	tunServer *tunnel.Server
 	// reader
@@ -68,7 +65,6 @@ func newManagedTarget(name string, cfg *types.TargetConfig, tunServer *tunnel.Se
 	for _, output := range cfg.Outputs {
 		mt.outputs[output] = struct{}{}
 	}
-	mt.State.Store("stopped")
 	return mt
 }
 
@@ -76,7 +72,7 @@ func newManagedTarget(name string, cfg *types.TargetConfig, tunServer *tunnel.Se
 type TargetsManager struct {
 	ctx    context.Context
 	cancel context.CancelFunc
-	store  store.Store[any]
+	store  *collstore.Store
 	// pipe to outputsManager
 	out chan *pipeline.Msg
 	// target state
@@ -96,9 +92,9 @@ type TargetsManager struct {
 	reg         *prometheus.Registry
 }
 
-func NewTargetsManager(ctx context.Context, store store.Store[any], pipeline chan *pipeline.Msg, reg *prometheus.Registry) *TargetsManager {
+func NewTargetsManager(ctx context.Context, store *collstore.Store, pipeline chan *pipeline.Msg, reg *prometheus.Registry) *TargetsManager {
 	ctx, cancel := context.WithCancel(ctx)
-	ts := newTunnelServer(store, reg)
+	ts := newTunnelServer(store.Config, reg)
 	tm := &TargetsManager{
 		ctx:           ctx,
 		cancel:        cancel,
@@ -117,7 +113,7 @@ func NewTargetsManager(ctx context.Context, store store.Store[any], pipeline cha
 }
 
 func (tm *TargetsManager) Start(locker lockers.Locker, wg *sync.WaitGroup) error {
-	tm.logger = logging.NewLogger(tm.store, "component", "targets-manager")
+	tm.logger = logging.NewLogger(tm.store.Config, "component", "targets-manager")
 	tm.logger.Info("starting targets manager")
 	tm.locker = locker
 	clustering, ok, err := tm.isClustering()
@@ -138,16 +134,16 @@ func (tm *TargetsManager) Start(locker lockers.Locker, wg *sync.WaitGroup) error
 		}
 	}()
 	tm.logger.Info("starting targets watcher")
-	targetsCh, targetsCancel, err := tm.store.Watch("targets", store.WithInitialReplay[any]())
+	targetsCh, targetsCancel, err := tm.store.Config.Watch("targets", store.WithInitialReplay[any]())
 	if err != nil {
 		return err
 	}
 	tm.logger.Info("starting subscriptions watcher")
-	subscriptionsCh, subscriptionsCancel, err := tm.store.Watch("subscriptions", store.WithInitialReplay[any]())
+	subscriptionsCh, subscriptionsCancel, err := tm.store.Config.Watch("subscriptions", store.WithInitialReplay[any]())
 	if err != nil {
 		return err
 	}
-	cfg, ok, err := tm.store.Get("loader", "loader")
+	cfg, ok, err := tm.store.Config.Get("loader", "loader")
 	if err != nil {
 		return fmt.Errorf("failed to get loader config: %w", err)
 	}
@@ -181,7 +177,7 @@ func (tm *TargetsManager) Start(locker lockers.Locker, wg *sync.WaitGroup) error
 	if clustering != nil {
 		tm.logger.Info("clustering is enabled", "clustering", clustering)
 		// watch assignments
-		assignmentsCh, assignmentsCancel, err = tm.store.Watch("assignments", store.WithInitialReplay[any]()) // TODO: no initial replay ?
+		assignmentsCh, assignmentsCancel, err = tm.store.Config.Watch("assignments", store.WithInitialReplay[any]()) // TODO: no initial replay ?
 		if err != nil {
 			if loaderCfn != nil {
 				loaderCfn()
@@ -235,13 +231,13 @@ func (tm *TargetsManager) Start(locker lockers.Locker, wg *sync.WaitGroup) error
 				}
 				tm.logger.Info("got loader target operation", "operation", op)
 				for _, add := range op.Add {
-					_, err := tm.store.Set("targets", add.Name, add)
+					_, err := tm.store.Config.Set("targets", add.Name, add)
 					if err != nil {
 						tm.logger.Error("failed to add target from loader", "error", err, "target", add.Name)
 					}
 				}
 				for _, del := range op.Del {
-					_, _, err := tm.store.Delete("targets", del)
+					_, _, err := tm.store.Config.Delete("targets", del)
 					if err != nil {
 						tm.logger.Error("failed to delete target from loader", "error", err, "target", del)
 					}
@@ -315,12 +311,10 @@ func (tm *TargetsManager) apply(name string, cfg *types.TargetConfig) {
 		defer mt.Unlock()
 		if err := tm.start(mt); err != nil {
 			tm.logger.Error("failed to start target", "name", name, "error", err)
-			mt.FailedReason.Store(err.Error())
-			mt.State.Store("failed")
+			tm.setTargetState(name, collstore.StateFailed, err.Error())
 			return
 		}
-		mt.State.Store("running")
-		mt.FailedReason.Store("")
+		tm.setTargetState(name, collstore.StateRunning, "")
 		return
 	}
 
@@ -342,7 +336,7 @@ func (tm *TargetsManager) apply(name string, cfg *types.TargetConfig) {
 				tm.logger.Info("subscriptions removed", "name", name, "removed", removed)
 				for _, sub := range added {
 					tm.logger.Info("starting target subscription", "name", sub, "target", name)
-					cfg, exists, err := tm.store.Get("subscriptions", sub)
+					cfg, exists, err := tm.store.Config.Get("subscriptions", sub)
 					if err != nil {
 						tm.logger.Error("failed to get subscription", "name", sub, "target", name, "error", err)
 						continue
@@ -409,25 +403,23 @@ func (tm *TargetsManager) apply(name string, cfg *types.TargetConfig) {
 	err := tm.stop(mt)
 	if err != nil {
 		tm.logger.Error("failed to stop target", "name", name, "error", err)
-		mt.FailedReason.Store(err.Error())
-		mt.State.Store("failed")
+		tm.setTargetState(name, collstore.StateFailed, err.Error())
 	}
 	mt.T.Config = cfg
 	err = tm.start(mt)
 	if err != nil {
 		tm.logger.Error("failed to start target", "name", name, "error", err)
-		mt.FailedReason.Store(err.Error())
-		mt.State.Store("failed")
+		tm.setTargetState(name, collstore.StateFailed, err.Error())
 	}
 }
 
 // assumes the managed target is locked
 func (tm *TargetsManager) start(mt *ManagedTarget) error {
 	tm.logger.Info("starting target", "name", mt.Name)
-	if mt.State.Load() == "running" {
+	if tm.getTargetStateStr(mt.Name) == collstore.StateRunning {
 		return nil
 	}
-	mt.State.Store("starting")
+	tm.setTargetState(mt.Name, collstore.StateStarting, "")
 	ctx, cfn := context.WithCancel(tm.ctx)
 	mt.T.Cfn = cfn
 
@@ -435,8 +427,7 @@ func (tm *TargetsManager) start(mt *ManagedTarget) error {
 	err := mt.T.CreateGNMIClient(ctx, tm.targetGRPCOpts(ctx, mt)...)
 	if err != nil {
 		tm.logger.Error("failed to create gNMI client", "name", mt.Name, "error", err)
-		mt.State.Store("failed")
-		mt.FailedReason.Store(err.Error())
+		tm.setTargetState(mt.Name, collstore.StateFailed, err.Error())
 		return err
 	}
 	if tm.locker != nil {
@@ -444,15 +435,13 @@ func (tm *TargetsManager) start(mt *ManagedTarget) error {
 		ok, err := tm.locker.Lock(ctx, tm.targetLockKey(mt.Name), []byte(tm.clustering.InstanceName))
 		if err != nil {
 			tm.logger.Error("failed to acquire lock for target", "name", mt.Name, "error", err)
-			mt.State.Store("failed")
-			mt.FailedReason.Store(err.Error())
+			tm.setTargetState(mt.Name, collstore.StateFailed, err.Error())
 			_ = tm.stop(mt)
 			return err
 		}
 		if !ok {
 			tm.logger.Error("failed to acquire lock for target", "name", mt.Name)
-			mt.State.Store("failed")
-			mt.FailedReason.Store("lock not acquired")
+			tm.setTargetState(mt.Name, collstore.StateFailed, "lock not acquired")
 			_ = tm.stop(mt)
 			return err
 		}
@@ -467,8 +456,7 @@ func (tm *TargetsManager) start(mt *ManagedTarget) error {
 				case err := <-errCh:
 					tm.logger.Error("failed to maintain lock for target", "name", mt.Name, "error", err)
 					_ = tm.stop(mt)
-					mt.State.Store("failed")
-					mt.FailedReason.Store(err.Error())
+					tm.setTargetState(mt.Name, collstore.StateFailed, err.Error())
 					return
 				case <-ctx.Done():
 					tm.logger.Info("lock for target released", "name", mt.Name)
@@ -479,14 +467,16 @@ func (tm *TargetsManager) start(mt *ManagedTarget) error {
 		}()
 	}
 	tm.logger.Info("gNMI client created", "name", mt.Name)
-	mt.State.Store("running")
-	mt.FailedReason.Store("")
+	tm.setTargetState(mt.Name, collstore.StateRunning, "")
+
+	// Watch gRPC connectivity state changes and keep the state store current.
+	go tm.watchConnState(ctx, mt)
+
 	tm.logger.Info("target started", "name", mt.Name)
 	_, err = mt.T.Capabilities(ctx)
 	if err != nil {
 		tm.logger.Error("failed capabilities request", "name", mt.Name, "error", err)
-		mt.State.Store("failed")
-		mt.FailedReason.Store(err.Error())
+		tm.setTargetState(mt.Name, collstore.StateFailed, err.Error())
 		return err
 	}
 	tm.logger.Info("capabilities request successful", "name", mt.Name)
@@ -510,7 +500,7 @@ func (tm *TargetsManager) start(mt *ManagedTarget) error {
 		cfg := tm.subscriptions[sub]
 		tm.mu.RUnlock()
 		if cfg == nil {
-			obj, exists, err := tm.store.Get("subscriptions", sub)
+			obj, exists, err := tm.store.Config.Get("subscriptions", sub)
 			if err != nil {
 				tm.logger.Error("failed to get subscription", "name", sub, "target", mt.Name, "error", err)
 				continue
@@ -529,6 +519,10 @@ func (tm *TargetsManager) start(mt *ManagedTarget) error {
 			continue
 		}
 	}
+	// Refresh state now that subscriptions have been kicked off.
+	// Individual subscription goroutines will update state again
+	// once their SubscribeClients are established.
+	tm.setTargetState(mt.Name, collstore.StateRunning, "")
 	return nil
 }
 
@@ -554,10 +548,10 @@ func (tm *TargetsManager) tunDialerFn(ctx context.Context, mt *ManagedTarget) fu
 }
 
 func (tm *TargetsManager) stop(mt *ManagedTarget) error {
-	if mt.State.Load() == "stopped" {
+	if tm.getTargetStateStr(mt.Name) == collstore.StateStopped {
 		return nil
 	}
-	mt.State.Store("stopping")
+	tm.setTargetState(mt.Name, collstore.StateStopping, "")
 
 	// stop reader loop
 	if mt.readerCancel != nil {
@@ -577,8 +571,7 @@ func (tm *TargetsManager) stop(mt *ManagedTarget) error {
 	} else {
 		tm.logger.Info("closed target", "name", mt.Name)
 	}
-	mt.State.Store("stopped")
-	mt.FailedReason.Store("")
+	tm.setTargetState(mt.Name, collstore.StateStopped, "")
 	if tm.locker != nil {
 		tm.logger.Info("releasing lock for target", "name", mt.Name)
 		err := tm.locker.Unlock(tm.ctx, tm.targetLockKey(mt.Name))
@@ -603,6 +596,7 @@ func (tm *TargetsManager) remove(name string) {
 		mt.readerCancel = nil
 		mt.Unlock()
 	}
+	tm.store.State.Delete(collstore.KindTargets, name)
 }
 
 // apply subscription to all targets that reference it or to those that do not reference any subscription
@@ -664,7 +658,7 @@ func (tm *TargetsManager) removeSubscription(name string) {
 
 func (tm *TargetsManager) reconcileAssignment(name string) {
 	if !tm.amIAssigned(name) {
-		if mt := tm.Lookup(name); mt != nil && mt.State.Load() == "running" {
+		if mt := tm.Lookup(name); mt != nil && tm.getTargetStateStr(name) == collstore.StateRunning {
 			_ = tm.stop(mt)
 		}
 		return
@@ -703,20 +697,18 @@ func (tm *TargetsManager) reconcileAssignment(name string) {
 	err := tm.stop(mt)
 	if err != nil {
 		tm.logger.Error("failed to stop target", "name", name, "error", err)
-		mt.FailedReason.Store(err.Error())
-		mt.State.Store("failed")
+		tm.setTargetState(name, collstore.StateFailed, err.Error())
 	}
 	mt.T.Config = cfg
 	err = tm.start(mt)
 	if err != nil {
 		tm.logger.Error("failed to start target", "name", name, "error", err)
-		mt.FailedReason.Store(err.Error())
-		mt.State.Store("failed")
+		tm.setTargetState(name, collstore.StateFailed, err.Error())
 	}
 }
 
 func (tm *TargetsManager) getConfig(name string) (*types.TargetConfig, bool) {
-	v, ok, err := tm.store.Get("targets", name)
+	v, ok, err := tm.store.Config.Get("targets", name)
 	if err != nil || !ok || v == nil {
 		return nil, false
 	}
@@ -748,44 +740,33 @@ func (tm *TargetsManager) SetIntendedState(name string, state string) bool {
 	mt.Lock()
 	defer mt.Unlock()
 
-	currentState := mt.State.Load()
+	currentState := tm.getTargetStateStr(name)
 	switch state {
-	case "enabled":
-		if currentState == "running" || currentState == "starting" {
+	case collstore.IntendedStateEnabled:
+		if currentState == collstore.StateRunning || currentState == collstore.StateStarting {
 			return false
-		} else {
-			_ = tm.start(mt)
-			mt.IntendedState.Store(state)
 		}
-	case "disabled":
-		if currentState == "stopped" || currentState == "stopping" {
+		_ = tm.start(mt)
+	case collstore.IntendedStateDisabled:
+		if currentState == collstore.StateStopped || currentState == collstore.StateStopping {
 			return false
-		} else {
-			_ = tm.stop(mt)
-			mt.IntendedState.Store(state)
 		}
+		_ = tm.stop(mt)
 	}
 	return true
 }
 
 func (tm *TargetsManager) GetIntendedState(name string) string {
-	tm.mu.RLock()
-	defer tm.mu.RUnlock()
-	mt := tm.targets[name]
-	if mt == nil {
+	ts := tm.GetTargetState(name)
+	if ts == nil {
 		return ""
 	}
-	v := mt.IntendedState.Load()
-	str, ok := v.(string)
-	if !ok {
-		return ""
-	}
-	return str
+	return ts.IntendedState
 }
 
 func (tm *TargetsManager) startTargetSubscription(mt *ManagedTarget, cfg *types.SubscriptionConfig) error {
 	var defaultEncoding = "json"
-	defaultEncodingVal, exists, err := tm.store.Get("globalConfig", "defaultEncoding")
+	defaultEncodingVal, exists, err := tm.store.Config.Get("globalConfig", "defaultEncoding")
 	if err != nil {
 		tm.logger.Error("failed to get default encoding", "error", err)
 		return err
@@ -819,7 +800,15 @@ func (tm *TargetsManager) startTargetSubscription(mt *ManagedTarget, cfg *types.
 	respCh, errCh := mt.T.SubscribeChan(sctx, subreq, cfg.Name)
 	go func() {
 		defer mt.readerWG.Done()
-		// defer cfn()
+		// When the goroutine exits (subscription stopped/cancelled), refresh
+		// the target state so the subscriptions map is up-to-date.
+		defer func() {
+			currentState := tm.getTargetStateStr(mt.Name)
+			if currentState != "" {
+				tm.setTargetState(mt.Name, currentState, "")
+			}
+		}()
+		firstResponse := true
 		for {
 			select {
 			case <-sctx.Done():
@@ -827,6 +816,12 @@ func (tm *TargetsManager) startTargetSubscription(mt *ManagedTarget, cfg *types.
 			case resp, ok := <-respCh:
 				if !ok {
 					return
+				}
+				// The first response confirms the subscription is connected.
+				// Refresh target state so the subscriptions map shows "running".
+				if firstResponse {
+					firstResponse = false
+					tm.setTargetState(mt.Name, collstore.StateRunning, "")
 				}
 				tm.stats.subscribeResponseReceived.WithLabelValues(mt.Name, resp.SubscriptionName).Inc()
 				outs := func() map[string]struct{} {
@@ -888,7 +883,7 @@ func (tm *TargetsManager) compareSubscriptions(old, new []string) (added, remove
 	var err error
 	if len(new) == 0 || len(old) == 0 {
 		// get all subscriptions from the store
-		subscriptionsList, err = tm.store.Keys("subscriptions")
+		subscriptionsList, err = tm.store.Config.Keys("subscriptions")
 		if err != nil {
 			tm.logger.Error("failed to get subscriptions from store", "error", err)
 			return nil, nil
@@ -925,7 +920,7 @@ func (tm *TargetsManager) compareSubscriptions(old, new []string) (added, remove
 func (tm *TargetsManager) compareOutputs(old, new *types.TargetConfig) (added, removed []string) {
 	if len(new.Outputs) == 0 {
 		// get all outputs from the store
-		outputs, err := tm.store.List("outputs")
+		outputs, err := tm.store.Config.List("outputs")
 		if err != nil {
 			tm.logger.Error("failed to get outputs", "error", err)
 			return nil, nil
@@ -934,7 +929,7 @@ func (tm *TargetsManager) compareOutputs(old, new *types.TargetConfig) (added, r
 	}
 	if len(old.Outputs) == 0 {
 		// get all outputs from the store
-		outputs, err := tm.store.List("outputs")
+		outputs, err := tm.store.Config.List("outputs")
 		if err != nil {
 			tm.logger.Error("failed to get outputs", "error", err)
 			return nil, nil
@@ -1049,4 +1044,107 @@ func val[T any](p *T) T {
 		return z
 	}
 	return *p
+}
+
+// watchConnState monitors the gRPC connectivity state of a target and updates
+// the state store whenever it changes. It runs until ctx is cancelled (i.e.
+// the target is stopped).
+func (tm *TargetsManager) watchConnState(ctx context.Context, mt *ManagedTarget) {
+	for {
+		currentState := mt.T.ConnectivityState()
+		// Block until the gRPC connection transitions away from currentState
+		// or the context is cancelled.
+		changed := mt.T.WaitForConnStateChange(ctx, currentState)
+		if !changed {
+			// ctx was cancelled — target is shutting down
+			return
+		}
+		newState := mt.T.ConnectivityState()
+		tm.logger.Debug("target connectivity state changed",
+			"name", mt.Name,
+			"from", currentState.String(),
+			"to", newState.String(),
+		)
+		// Refresh the full target state in the store (picks up the new
+		// ConnectionState via mt.T.ConnState()).
+		targetState := tm.getTargetStateStr(mt.Name)
+		if targetState != "" {
+			tm.setTargetState(mt.Name, targetState, "")
+		}
+	}
+}
+
+// State store helpers
+
+// setTargetState writes the full TargetState (including connection state and
+// per-subscription states) to the state store. The ManagedTarget may be nil
+// when the target is being removed; in that case only ComponentState fields
+// are populated.
+func (tm *TargetsManager) setTargetState(name, state, failedReason string) {
+	intended := collstore.IntendedStateEnabled
+	if state == collstore.StateStopped {
+		intended = collstore.IntendedStateDisabled
+	}
+	ts := &collstore.TargetState{
+		ComponentState: collstore.ComponentState{
+			// Name:          name,
+			IntendedState: intended,
+			State:         state,
+			FailedReason:  failedReason,
+			LastUpdated:   time.Now(),
+		},
+	}
+	// Enrich with live target data when available.
+	tm.mu.RLock()
+	mt := tm.targets[name]
+	tm.mu.RUnlock()
+	if mt != nil && mt.T != nil {
+		// gRPC connection state
+		ts.ConnectionState = mt.T.ConnState()
+		// Per-subscription states
+		if len(mt.T.Subscriptions) > 0 {
+			ts.Subscriptions = make(map[string]string, len(mt.T.Subscriptions))
+			for subName := range mt.T.Subscriptions {
+				if _, ok := mt.T.SubscribeClients[subName]; ok {
+					ts.Subscriptions[subName] = collstore.StateRunning
+				} else {
+					ts.Subscriptions[subName] = collstore.StateStopped
+				}
+			}
+		}
+	}
+	tm.store.State.Set(collstore.KindTargets, name, ts)
+}
+
+func (tm *TargetsManager) getTargetStateStr(name string) string {
+	ts := tm.GetTargetState(name)
+	if ts == nil {
+		return ""
+	}
+	return ts.State
+}
+
+// GetTargetState returns the runtime state of a target from the state store.
+func (tm *TargetsManager) GetTargetState(name string) *collstore.TargetState {
+	v, ok, err := tm.store.State.Get(collstore.KindTargets, name)
+	if err != nil || !ok {
+		return nil
+	}
+	ts, ok := v.(*collstore.TargetState)
+	if !ok {
+		return nil
+	}
+	return ts
+}
+
+// ListTargetStates returns all target states from the state store.
+func (tm *TargetsManager) ListTargetStates() []*collstore.TargetState {
+	states := make([]*collstore.TargetState, 0)
+	tm.store.State.List(collstore.KindTargets, func(name string, v any) bool {
+		if ts, ok := v.(*collstore.TargetState); ok {
+			states = append(states, ts)
+		}
+		return false
+	})
+	return states
 }

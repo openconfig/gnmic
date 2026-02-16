@@ -27,7 +27,7 @@ type APIServer struct {
 	Timeout               time.Duration    `mapstructure:"timeout,omitempty" json:"timeout,omitempty"`
 	TLS                   *types.TLSConfig `mapstructure:"tls,omitempty" json:"tls,omitempty"`
 	EnableMetrics         bool             `mapstructure:"enable-metrics,omitempty" json:"enable-metrics,omitempty"`
-	EnableProfiling			  bool						 `mapstructure:"enable-profiling,omitempty" json:"enable-profiling,omitempty"`
+	EnableProfiling       bool             `mapstructure:"enable-profiling,omitempty" json:"enable-profiling,omitempty"`
 	Debug                 bool             `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 	HealthzDisableLogging bool             `mapstructure:"healthz-disable-logging,omitempty" json:"healthz-disable-logging,omitempty"`
 }

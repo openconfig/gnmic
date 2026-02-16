@@ -34,13 +34,13 @@ func (tm *TargetsManager) startLoader(ctx context.Context, loader loaders.Target
 			return
 		case targetOp := <-ch:
 			for _, add := range targetOp.Add {
-				_, err := tm.store.Set("targets", add.Name, add)
+				_, err := tm.store.Config.Set("targets", add.Name, add)
 				if err != nil {
 					tm.logger.Error("failed to add target from loader", "error", err, "target", add.Name)
 				}
 			}
 			for _, del := range targetOp.Del {
-				_, _, err := tm.store.Delete("targets", del)
+				_, _, err := tm.store.Config.Delete("targets", del)
 				if err != nil {
 					tm.logger.Error("failed to delete target from loader", "error", err, "target", del)
 				}

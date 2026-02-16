@@ -7,8 +7,9 @@ import (
 	"log/slog"
 	"os"
 	"sync"
-	"sync/atomic"
+	"time"
 
+	collstore "github.com/openconfig/gnmic/pkg/collector/store"
 	"github.com/openconfig/gnmic/pkg/inputs"
 	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/pipeline"
@@ -17,16 +18,14 @@ import (
 
 type ManagedInput struct {
 	sync.RWMutex
-	Name          string
-	Impl          inputs.Input
-	Cfg           map[string]any
-	IntendedState atomic.Value // "enabled|disabled"
-	State         atomic.Value // "running|stopped|failed|paused"
+	Name string
+	Impl inputs.Input
+	Cfg  map[string]any
 }
 
 type InputsManager struct {
 	ctx            context.Context
-	store          store.Store[any]
+	store          *collstore.Store
 	inputFactories map[string]inputs.Initializer
 	pipeline       chan *pipeline.Msg
 	logger         *slog.Logger
@@ -36,7 +35,7 @@ type InputsManager struct {
 	processorsInUse map[string]map[string]struct{} // processor name -> input names
 }
 
-func NewInputsManager(ctx context.Context, store store.Store[any], pipeline chan *pipeline.Msg) *InputsManager {
+func NewInputsManager(ctx context.Context, store *collstore.Store, pipeline chan *pipeline.Msg) *InputsManager {
 	return &InputsManager{
 		ctx:             ctx,
 		store:           store,
@@ -48,16 +47,16 @@ func NewInputsManager(ctx context.Context, store store.Store[any], pipeline chan
 }
 
 func (mgr *InputsManager) Start(wg *sync.WaitGroup) error {
-	mgr.logger = logging.NewLogger(mgr.store, "component", "inputs-manager")
+	mgr.logger = logging.NewLogger(mgr.store.Config, "component", "inputs-manager")
 	mgr.logger.Info("starting inputs manager")
-	inputsCh, inputsCancel, err := mgr.store.Watch("inputs",
+	inputsCh, inputsCancel, err := mgr.store.Config.Watch("inputs",
 		store.WithInitialReplay[any]())
 	if err != nil {
 		return err
 	}
 
 	// watch processors config changes (update only)
-	procsCh, processorsCancel, err := mgr.store.Watch("processors",
+	procsCh, processorsCancel, err := mgr.store.Config.Watch("processors",
 		store.WithEventTypes[any](store.EventTypeUpdate))
 	if err != nil {
 		return err
@@ -113,7 +112,7 @@ func (mgr *InputsManager) Stop() {
 	mgr.mu.Lock()
 	defer mgr.mu.Unlock()
 	for _, mi := range mgr.inputs {
-		mi.State.Store("stopped")
+		mgr.setInputState(mi.Name, collstore.StateStopped, "")
 		err := mi.Impl.Close()
 		if err != nil {
 			mgr.logger.Error("failed to stop input", "name", mi.Name, "error", err)
@@ -125,23 +124,25 @@ func (mgr *InputsManager) createInput(name string, cfg map[string]any) {
 	typ, _ := cfg["type"].(string)
 	f := mgr.inputFactories[typ]
 	if f == nil {
+		mgr.setInputState(name, collstore.StateFailed, fmt.Sprintf("unknown input type: %s", typ))
 		return
 	}
 	impl := f()
 	if err := impl.Start(mgr.ctx, name, cfg,
 		inputs.WithLogger(log.New(os.Stdout, "", log.LstdFlags)),
-		inputs.WithConfigStore(mgr.store),
+		inputs.WithConfigStore(mgr.store.Config),
 		inputs.WithPipeline(mgr.pipeline),
 	); err != nil {
+		mgr.setInputState(name, collstore.StateFailed, err.Error())
 		return
 	}
 	procs := extractProcessors(cfg)
 	mi := &ManagedInput{Name: name, Impl: impl, Cfg: cfg}
-	mi.State.Store("running")
 	mgr.mu.Lock()
 	mgr.trackProcessorsInUse(name, procs)
 	mgr.inputs[name] = mi
 	mgr.mu.Unlock()
+	mgr.setInputState(name, collstore.StateRunning, "")
 }
 
 func (mgr *InputsManager) updateInput(name string, cfg map[string]any) {
@@ -176,7 +177,7 @@ func (mgr *InputsManager) DeleteInput(name string) error {
 	mgr.logger.Info("finding input", "name", name)
 	if mi, ok := mgr.inputs[name]; ok {
 		mgr.logger.Info("stopping input", "name", name)
-		mi.State.Store("stopping")
+		mgr.setInputState(name, collstore.StateStopping, "")
 		err := mi.Impl.Close()
 		if err != nil {
 			mgr.logger.Error("failed to close input", "name", name, "error", err)
@@ -184,10 +185,11 @@ func (mgr *InputsManager) DeleteInput(name string) error {
 		}
 		procs := extractProcessors(mi.Cfg)
 		mgr.untrackProcessorsInUse(name, procs)
-		mi.State.Store("stopped")
+		mgr.setInputState(name, collstore.StateStopped, "")
 		delete(mgr.inputs, name)
-		mgr.store.Delete("inputs", name)
+		mgr.store.Config.Delete("inputs", name)
 	}
+	mgr.store.State.Delete(collstore.KindInputs, name)
 	return nil
 }
 
@@ -257,4 +259,44 @@ func (mi *ManagedInput) updateProcessor(name string, cfg map[string]any) error {
 	mi.Lock()
 	defer mi.Unlock()
 	return mi.Impl.UpdateProcessor(name, cfg)
+}
+
+// State store helpers
+
+func (mgr *InputsManager) setInputState(name, state, failedReason string) {
+	is := &collstore.InputState{
+		ComponentState: collstore.ComponentState{
+			// Name:          name,
+			IntendedState: collstore.IntendedStateEnabled,
+			State:         state,
+			FailedReason:  failedReason,
+			LastUpdated:   time.Now(),
+		},
+	}
+	mgr.store.State.Set(collstore.KindInputs, name, is)
+}
+
+// GetInputState returns the runtime state of an input from the state store.
+func (mgr *InputsManager) GetInputState(name string) *collstore.InputState {
+	v, ok, err := mgr.store.State.Get(collstore.KindInputs, name)
+	if err != nil || !ok {
+		return nil
+	}
+	is, ok := v.(*collstore.InputState)
+	if !ok {
+		return nil
+	}
+	return is
+}
+
+// ListInputStates returns all input states from the state store.
+func (mgr *InputsManager) ListInputStates() []*collstore.InputState {
+	states := make([]*collstore.InputState, 0)
+	mgr.store.State.List(collstore.KindInputs, func(name string, v any) bool {
+		if is, ok := v.(*collstore.InputState); ok {
+			states = append(states, is)
+		}
+		return false
+	})
+	return states
 }

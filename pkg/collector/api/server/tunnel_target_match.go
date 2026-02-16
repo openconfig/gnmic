@@ -18,7 +18,7 @@ func (s *Server) handleConfigTunnelTargetMatchesGet(w http.ResponseWriter, r *ht
 	vars := mux.Vars(r)
 	id := vars["id"]
 	if id == "" {
-		targets, err := s.configStore.List(tunnelTargetMatchesPath)
+		targets, err := s.store.Config.List(tunnelTargetMatchesPath)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -32,7 +32,7 @@ func (s *Server) handleConfigTunnelTargetMatchesGet(w http.ResponseWriter, r *ht
 		}
 		return
 	}
-	tc, ok, err := s.configStore.Get(tunnelTargetMatchesPath, id)
+	tc, ok, err := s.store.Config.Get(tunnelTargetMatchesPath, id)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -66,7 +66,7 @@ func (s *Server) handleConfigTunnelTargetMatchesPost(w http.ResponseWriter, r *h
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
-	_, err := s.configStore.Set(tunnelTargetMatchesPath, tc.ID, tc)
+	_, err := s.store.Config.Set(tunnelTargetMatchesPath, tc.ID, tc)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -78,7 +78,7 @@ func (s *Server) handleConfigTunnelTargetMatchesPost(w http.ResponseWriter, r *h
 func (s *Server) handleConfigTunnelTargetMatchesDelete(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
-	ok, _, err := s.configStore.Delete(tunnelTargetMatchesPath, id)
+	ok, _, err := s.store.Config.Delete(tunnelTargetMatchesPath, id)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})

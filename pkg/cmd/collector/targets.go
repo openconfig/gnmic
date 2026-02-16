@@ -316,16 +316,6 @@ func formatValue(v any) string {
 		}
 		sort.Strings(parts)
 		return strings.Join(parts, ", ")
-	case map[string]*apiserver.SubscriptionStateResponse:
-		if len(val) == 0 {
-			return "-"
-		}
-		var parts []string
-		for k, v := range val {
-			parts = append(parts, fmt.Sprintf("%s(%s)", k, v.State))
-		}
-		sort.Strings(parts)
-		return strings.Join(parts, ", ")
 	default:
 		str := fmt.Sprintf("%v", val)
 		if str == "" || str == "0s" || str == "<nil>" {
@@ -352,11 +342,6 @@ func formatValueShort(v any) string {
 			return "-"
 		}
 		return fmt.Sprintf("%d", len(val))
-	case map[string]*apiserver.SubscriptionStateResponse:
-		if len(val) == 0 {
-			return "-"
-		}
-		return fmt.Sprintf("%d", len(val))
 	default:
 		return formatValue(val)
 	}
@@ -367,7 +352,7 @@ func tableFormatTargetVertical(target *apiserver.TargetResponse) [][]string {
 	cfg := target.Config
 	data := [][]string{
 		{"Name", target.Name},
-		{"State", target.State},
+		{"State", target.State.State},
 		{"Address", formatValue(cfg.Address)},
 		{"Username", formatValue(cfg.Username)},
 		{"Password", formatValue(cfg.Password)},
@@ -383,7 +368,7 @@ func tableFormatTargetVertical(target *apiserver.TargetResponse) [][]string {
 		{"TLS Max Version", formatValue(cfg.TLSMaxVersion)},
 		{"TLS Version", formatValue(cfg.TLSVersion)},
 		{"Log TLS Secret", formatValue(cfg.LogTLSSecret)},
-		{"Subscriptions", formatValue(target.Subscriptions)},
+		{"Subscriptions", formatValue(target.State.Subscriptions)},
 		{"Outputs", formatValue(cfg.Outputs)},
 		{"Buffer Size", formatValue(cfg.BufferSize)},
 		{"Retry Timer", formatValue(cfg.RetryTimer)},
@@ -412,8 +397,8 @@ func tableFormatTargetsList(targets []*apiserver.TargetResponse) [][]string {
 			target.Name,
 			formatValue(target.Config.Address),
 			formatValue(target.Config.Username),
-			target.State,
-			formatValueShort(target.Subscriptions),
+			target.State.State,
+			formatValueShort(target.State.Subscriptions),
 			formatValueShort(target.Config.Outputs),
 			formatValue(target.Config.Insecure),
 			formatValue(target.Config.SkipVerify),

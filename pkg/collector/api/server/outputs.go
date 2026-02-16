@@ -17,7 +17,7 @@ func (s *Server) handleConfigOutputsGet(w http.ResponseWriter, r *http.Request) 
 	vars := mux.Vars(r)
 	id := vars["id"]
 	if id == "" {
-		outputs, err := s.configStore.List("outputs")
+		outputs, err := s.store.Config.List("outputs")
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -30,7 +30,7 @@ func (s *Server) handleConfigOutputsGet(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 	} else {
-		output, ok, err := s.configStore.Get("outputs", id)
+		output, ok, err := s.store.Config.Get("outputs", id)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -110,7 +110,7 @@ func (s *Server) handleConfigOutputsPost(w http.ResponseWriter, r *http.Request)
 	evps, ok := cfg["event-processors"].([]string)
 	if ok {
 		for _, ep := range evps {
-			_, ok, err := s.configStore.Get("processors", ep)
+			_, ok, err := s.store.Config.Get("processors", ep)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -123,7 +123,7 @@ func (s *Server) handleConfigOutputsPost(w http.ResponseWriter, r *http.Request)
 			}
 		}
 	}
-	_, err = s.configStore.Set("outputs", outputName, cfg)
+	_, err = s.store.Config.Set("outputs", outputName, cfg)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})

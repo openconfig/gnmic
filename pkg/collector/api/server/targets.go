@@ -11,6 +11,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmic/pkg/api/types"
 	targets_manager "github.com/openconfig/gnmic/pkg/collector/managers/targets"
+	collstore "github.com/openconfig/gnmic/pkg/collector/store"
 	"github.com/zestor-dev/zestor/store"
 )
 
@@ -18,7 +19,7 @@ func (s *Server) handleConfigTargetsGet(w http.ResponseWriter, r *http.Request) 
 	vars := mux.Vars(r)
 	id := vars["id"]
 	if id == "" {
-		targets, err := s.configStore.List("targets")
+		targets, err := s.store.Config.List("targets")
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -32,7 +33,7 @@ func (s *Server) handleConfigTargetsGet(w http.ResponseWriter, r *http.Request) 
 		}
 		return
 	}
-	tc, ok, err := s.configStore.Get("targets", id)
+	tc, ok, err := s.store.Config.Get("targets", id)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -109,7 +110,7 @@ func (s *Server) handleConfigTargetsPost(w http.ResponseWriter, r *http.Request)
 	}
 	// validate subscriptions
 	for _, sub := range tc.Subscriptions {
-		_, ok, err := s.configStore.Get("subscriptions", sub)
+		_, ok, err := s.store.Config.Get("subscriptions", sub)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -123,7 +124,7 @@ func (s *Server) handleConfigTargetsPost(w http.ResponseWriter, r *http.Request)
 	}
 	// validate outputs
 	for _, out := range tc.Outputs {
-		_, ok, err := s.configStore.Get("outputs", out)
+		_, ok, err := s.store.Config.Get("outputs", out)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -136,7 +137,7 @@ func (s *Server) handleConfigTargetsPost(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	_, err = s.configStore.Set("targets", tc.Name, tc)
+	_, err = s.store.Config.Set("targets", tc.Name, tc)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -179,7 +180,7 @@ func (s *Server) handleConfigTargetsSubscriptionsPatch(w http.ResponseWriter, r 
 	}
 	// ensure subscriptions exist
 	for _, sub := range subs {
-		_, ok, err := s.configStore.Get("subscriptions", sub)
+		_, ok, err := s.store.Config.Get("subscriptions", sub)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -191,7 +192,7 @@ func (s *Server) handleConfigTargetsSubscriptionsPatch(w http.ResponseWriter, r 
 			return
 		}
 	}
-	_, err = s.configStore.SetFn("targets", id,
+	_, err = s.store.Config.SetFn("targets", id,
 		func(v any) (any, error) {
 			tc, ok := v.(*types.TargetConfig)
 			if !ok {
@@ -245,7 +246,7 @@ func (s *Server) handleConfigTargetsOutputsPatch(w http.ResponseWriter, r *http.
 	}
 	// ensure outputs exist
 	for _, out := range outs {
-		_, ok, err := s.configStore.Get("outputs", out)
+		_, ok, err := s.store.Config.Get("outputs", out)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -257,7 +258,7 @@ func (s *Server) handleConfigTargetsOutputsPatch(w http.ResponseWriter, r *http.
 			return
 		}
 	}
-	_, err = s.configStore.SetFn("targets", id,
+	_, err = s.store.Config.SetFn("targets", id,
 		func(v any) (any, error) {
 			tc, ok := v.(*types.TargetConfig)
 			if !ok {
@@ -282,7 +283,7 @@ func (s *Server) handleConfigTargetsOutputsPatch(w http.ResponseWriter, r *http.
 func (s *Server) handleConfigTargetsDelete(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
-	_, _, err := s.configStore.Delete("targets", id)
+	_, _, err := s.store.Config.Delete("targets", id)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -292,15 +293,9 @@ func (s *Server) handleConfigTargetsDelete(w http.ResponseWriter, r *http.Reques
 }
 
 type TargetResponse struct {
-	Name          string                                `json:"name"`
-	Config        *types.TargetConfig                   `json:"config"`
-	Subscriptions map[string]*SubscriptionStateResponse `json:"subscriptions"`
-	State         string                                `json:"state"`
-}
-
-type SubscriptionStateResponse struct {
-	Name  string `json:"name"`
-	State string `json:"state"`
+	Name   string                 `json:"name"`
+	Config *types.TargetConfig    `json:"config"`
+	State  *collstore.TargetState `json:"state,omitempty"`
 }
 
 func (s *Server) handleTargetsGet(w http.ResponseWriter, r *http.Request) {
@@ -309,26 +304,8 @@ func (s *Server) handleTargetsGet(w http.ResponseWriter, r *http.Request) {
 	response := make([]*TargetResponse, 0)
 	if id == "" {
 		s.targetsManager.ForEach(func(mt *targets_manager.ManagedTarget) {
-			subs := make(map[string]*SubscriptionStateResponse)
-			for _, sub := range mt.T.Subscriptions {
-				if _, ok := mt.T.SubscribeClients[sub.Name]; ok {
-					subs[sub.Name] = &SubscriptionStateResponse{
-						Name:  sub.Name,
-						State: "running",
-					}
-				} else {
-					subs[sub.Name] = &SubscriptionStateResponse{
-						Name:  sub.Name,
-						State: "stopped",
-					}
-				}
-			}
-			response = append(response, &TargetResponse{
-				Name:          mt.Name,
-				Config:        mt.T.Config,
-				Subscriptions: subs,
-				State:         mt.State.Load().(string),
-			})
+			ts := s.targetsManager.GetTargetState(mt.Name)
+			response = append(response, targetResponseFromState(mt.Name, mt.T.Config, ts))
 		})
 		err := json.NewEncoder(w).Encode(response)
 		if err != nil {
@@ -344,24 +321,22 @@ func (s *Server) handleTargetsGet(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"target not found"}})
 		return
 	}
-	subs := make(map[string]*SubscriptionStateResponse)
-	for name := range mt.T.SubscribeClients {
-		subs[name] = &SubscriptionStateResponse{
-			Name:  name,
-			State: "running",
-		}
-	}
-	response = append(response, &TargetResponse{
-		Name:          mt.Name,
-		Config:        mt.T.Config,
-		Subscriptions: subs,
-		State:         mt.State.Load().(string),
-	})
+	ts := s.targetsManager.GetTargetState(id)
+	response = append(response, targetResponseFromState(mt.Name, mt.T.Config, ts))
 	err := json.NewEncoder(w).Encode(response)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
+	}
+}
+
+// targetResponseFromState builds a TargetResponse from a TargetState.
+func targetResponseFromState(name string, cfg *types.TargetConfig, ts *collstore.TargetState) *TargetResponse {
+	return &TargetResponse{
+		Name:   name,
+		Config: cfg,
+		State:  ts,
 	}
 }
 
