@@ -134,6 +134,12 @@ type TargetConfig struct {
 	Subscriptions []string          `mapstructure:"subscriptions,omitempty" yaml:"subscriptions,omitempty" json:"subscriptions,omitempty"`
 	Outputs       []string          `mapstructure:"outputs,omitempty" yaml:"outputs,omitempty" json:"outputs,omitempty"`
 	BufferSize    uint              `mapstructure:"buffer-size,omitempty" yaml:"buffer-size,omitempty" json:"buffer-size,omitempty"`
+	GRPCReadBufferSize  *int        `mapstructure:"grpc-read-buffer-size,omitempty" yaml:"grpc-read-buffer-size,omitempty" json:"grpc-read-buffer-size,omitempty"`
+	GRPCWriteBufferSize *int        `mapstructure:"grpc-write-buffer-size,omitempty" yaml:"grpc-write-buffer-size,omitempty" json:"grpc-write-buffer-size,omitempty"`
+	GRPCConnWindowSize  *int        `mapstructure:"grpc-conn-window-size,omitempty" yaml:"grpc-conn-window-size,omitempty" json:"grpc-conn-window-size,omitempty"`
+	GRPCWindowSize      *int        `mapstructure:"grpc-window-size,omitempty" yaml:"grpc-window-size,omitempty" json:"grpc-window-size,omitempty"`
+	GRPCStaticConnWindowSize *int   `mapstructure:"grpc-static-conn-window-size,omitempty" yaml:"grpc-static-conn-window-size,omitempty" json:"grpc-static-conn-window-size,omitempty"`
+	GRPCStaticStreamWindowSize *int `mapstructure:"grpc-static-stream-window-size,omitempty" yaml:"grpc-static-stream-window-size,omitempty" json:"grpc-static-stream-window-size,omitempty"`
 	RetryTimer    time.Duration     `mapstructure:"retry,omitempty" yaml:"retry-timer,omitempty" json:"retry-timer,omitempty"`
 	TLSMinVersion string            `mapstructure:"tls-min-version,omitempty" yaml:"tls-min-version,omitempty" json:"tls-min-version,omitempty"`
 	TLSMaxVersion string            `mapstructure:"tls-max-version,omitempty" yaml:"tls-max-version,omitempty" json:"tls-max-version,omitempty"`
@@ -190,6 +196,12 @@ func (tc *TargetConfig) DeepCopy() *TargetConfig {
 		Subscriptions:    make([]string, 0, len(tc.Subscriptions)),
 		Outputs:          make([]string, 0, len(tc.Outputs)),
 		BufferSize:       tc.BufferSize,
+		GRPCReadBufferSize:  tc.GRPCReadBufferSize,
+		GRPCWriteBufferSize: tc.GRPCWriteBufferSize,
+		GRPCConnWindowSize:  tc.GRPCConnWindowSize,
+		GRPCWindowSize:      tc.GRPCWindowSize,
+		GRPCStaticConnWindowSize:   tc.GRPCStaticConnWindowSize,
+		GRPCStaticStreamWindowSize: tc.GRPCStaticStreamWindowSize,
 		RetryTimer:       tc.RetryTimer,
 		TLSMinVersion:    tc.TLSMinVersion,
 		TLSMaxVersion:    tc.TLSMaxVersion,
@@ -336,6 +348,37 @@ func (tc *TargetConfig) GrpcDialOptions() ([]grpc.DialOption, error) {
 			PermitWithoutStream: tc.GRPCKeepalive.PermitWithoutStream,
 		}))
 	}
+
+	if tc.GRPCReadBufferSize != nil {
+		tOpts = append(tOpts,
+		grpc.WithReadBufferSize(*tc.GRPCReadBufferSize))
+	}
+
+	if tc.GRPCWriteBufferSize != nil {
+		tOpts = append(tOpts,
+		grpc.WithWriteBufferSize(*tc.GRPCWriteBufferSize))
+	}
+
+	if tc.GRPCConnWindowSize != nil {
+		tOpts = append(tOpts,
+		grpc.WithInitialConnWindowSize(int32(*tc.GRPCConnWindowSize)))
+	}
+
+	if tc.GRPCWindowSize != nil {
+		tOpts = append(tOpts,
+		grpc.WithInitialWindowSize(int32(*tc.GRPCWindowSize)))
+	}
+
+	if tc.GRPCStaticConnWindowSize != nil {
+		tOpts = append(tOpts, 
+		grpc.WithStaticConnWindowSize(int32(*tc.GRPCStaticConnWindowSize)))
+	}
+
+	if tc.GRPCStaticStreamWindowSize != nil {
+		tOpts = append(tOpts, 
+		grpc.WithStaticStreamWindowSize(int32(*tc.GRPCStaticStreamWindowSize)))
+	}
+
 	// insecure
 	if tc.Insecure != nil && *tc.Insecure {
 		tOpts = append(tOpts,
