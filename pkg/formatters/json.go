@@ -13,11 +13,78 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fullstorydev/grpcurl"
+	"github.com/jhump/protoreflect/dynamic"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/gnmi/proto/gnmi_ext"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/openconfig/gnmic/pkg/api/path"
+	"github.com/openconfig/gnmic/pkg/utils"
 )
+
+func formatRegisteredExtensions(
+	extensions []*gnmi_ext.Extension,
+	protoDir,
+	protoFiles []string,
+	extensionDecodeMap utils.RegisteredExtensions,
+) (map[int32]decodedExtension, error) {
+	decodedExtensions := map[int32]decodedExtension{}
+
+	if len(extensions) == 0 {
+		return decodedExtensions, nil
+	}
+
+	if len(protoFiles) > 0 {
+		descSource, err := grpcurl.DescriptorSourceFromProtoFiles(protoDir, protoFiles...)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, ext := range extensions {
+			rext := ext.GetRegisteredExt()
+
+			if rext == nil {
+				continue
+			}
+
+			id := int32(rext.Id)
+			msg, exists := extensionDecodeMap[id]
+
+			if !exists {
+				continue
+			}
+
+			desc, err := descSource.FindSymbol(msg)
+
+			if err != nil {
+				return nil, err
+			}
+
+			pm := dynamic.NewMessage(desc.GetFile().FindMessage(msg))
+
+			if err = pm.Unmarshal(rext.Msg); err != nil {
+				return nil, err
+			}
+
+			jsondata, err := pm.MarshalJSON()
+
+			if err != nil {
+				return nil, err
+			}
+
+			msgJson := map[string]any{}
+
+			if err = json.Unmarshal(jsondata, &msgJson); err != nil {
+				return nil, err
+			}
+
+			decodedExtensions[id] = msgJson
+		}
+	}
+
+	return decodedExtensions, nil
+}
 
 // FormatJSON formats a proto.Message and returns a []byte and an error
 func (o *MarshalOptions) FormatJSON(m proto.Message, meta map[string]string) ([]byte, error) {
@@ -84,10 +151,20 @@ func (o *MarshalOptions) formatSubscribeRequest(m *gnmi.SubscribeRequest) ([]byt
 }
 
 func (o *MarshalOptions) formatSubscribeResponse(m *gnmi.SubscribeResponse, meta map[string]string) ([]byte, error) {
+	dext, err := formatRegisteredExtensions(m.GetExtension(), o.ProtoDir, o.ProtoFiles, o.RegisteredExtensions)
+
+	if err != nil {
+		return nil, err
+	}
+
 	switch mr := m.GetResponse().(type) {
 	default:
 		if len(m.GetExtension()) > 0 {
-			msg := notificationRspMsg{Extensions: m.GetExtension()}
+
+			msg := notificationRspMsg{
+				Extensions:        m.GetExtension(),
+				DecodedExtensions: dext,
+			}
 			if o.Multiline {
 				return json.MarshalIndent(msg, "", o.Indent)
 			}
@@ -95,8 +172,9 @@ func (o *MarshalOptions) formatSubscribeResponse(m *gnmi.SubscribeResponse, meta
 		}
 	case *gnmi.SubscribeResponse_SyncResponse:
 		msg := &syncResponseMsg{
-			SyncResponse: mr.SyncResponse,
-			Extensions:   m.GetExtension(),
+			SyncResponse:      mr.SyncResponse,
+			Extensions:        m.GetExtension(),
+			DecodedExtensions: dext,
 		}
 		if o.Multiline {
 			return json.MarshalIndent(msg, "", o.Indent)
@@ -153,6 +231,7 @@ func (o *MarshalOptions) formatSubscribeResponse(m *gnmi.SubscribeResponse, meta
 		}
 		if len(m.GetExtension()) > 0 {
 			msg.Extensions = m.GetExtension()
+			msg.DecodedExtensions = dext
 		}
 		if o.Multiline {
 			return json.MarshalIndent(msg, "", o.Indent)
@@ -221,9 +300,16 @@ func (o *MarshalOptions) formatGetRequest(m *gnmi.GetRequest) ([]byte, error) {
 }
 
 func (o *MarshalOptions) formatGetResponse(m *gnmi.GetResponse, meta map[string]string) ([]byte, error) {
+	dext, err := formatRegisteredExtensions(m.GetExtension(), o.ProtoDir, o.ProtoFiles, o.RegisteredExtensions)
+
+	if err != nil {
+		return nil, err
+	}
+
 	getRsp := getRspMsg{
-		Notifications: make([]notificationRspMsg, 0, len(m.GetNotification())),
-		Extensions:    m.GetExtension(),
+		Notifications:     make([]notificationRspMsg, 0, len(m.GetNotification())),
+		Extensions:        m.GetExtension(),
+		DecodedExtensions: dext,
 	}
 
 	for _, notif := range m.GetNotification() {
@@ -330,12 +416,19 @@ func (o *MarshalOptions) formatSetRequest(m *gnmi.SetRequest) ([]byte, error) {
 }
 
 func (o *MarshalOptions) formatSetResponse(m *gnmi.SetResponse, meta map[string]string) ([]byte, error) {
+	dext, err := formatRegisteredExtensions(m.GetExtension(), o.ProtoDir, o.ProtoFiles, o.RegisteredExtensions)
+
+	if err != nil {
+		return nil, err
+	}
+
 	msg := setRspMsg{
-		Prefix:     path.GnmiPathToXPath(m.GetPrefix(), false),
-		Target:     m.GetPrefix().GetTarget(),
-		Timestamp:  m.GetTimestamp(),
-		Time:       time.Unix(0, m.Timestamp),
-		Extensions: m.GetExtension(),
+		Prefix:            path.GnmiPathToXPath(m.GetPrefix(), false),
+		Target:            m.GetPrefix().GetTarget(),
+		Timestamp:         m.GetTimestamp(),
+		Time:              time.Unix(0, m.Timestamp),
+		Extensions:        m.GetExtension(),
+		DecodedExtensions: dext,
 	}
 	if meta == nil {
 		meta = make(map[string]string)
