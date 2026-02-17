@@ -6,6 +6,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+version: 2
 project_name: gnmic
 builds:
   - env:
@@ -33,6 +34,8 @@ dockers:
     use: buildx
     build_flag_templates:
       - "--platform=linux/amd64"
+      - "--provenance=false"
+      - "--sbom=false"
   - goos: linux
     goarch: arm64
     ids:
@@ -45,6 +48,8 @@ dockers:
     use: buildx
     build_flag_templates:
       - "--platform=linux/arm64"
+      - "--provenance=false"
+      - "--sbom=false"
   - goos: linux
     goarch: amd64
     ids:
@@ -54,6 +59,11 @@ dockers:
       - 'ghcr.io/openconfig/gnmic:{{ replace .Version "v" ""}}-scratch'
     dockerfile: goreleaser-scratch.dockerfile
     skip_push: false
+    use: buildx
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--provenance=false"
+      - "--sbom=false"
 docker_manifests:
   - name_template: 'ghcr.io/openconfig/gnmic:{{ replace .Version "v" "" }}'
     image_templates:
@@ -78,11 +88,7 @@ checksum:
 snapshot:
   name_template: "{{ .Tag }}"
 changelog:
-  sort: asc
-  filters:
-    exclude:
-      - "^docs:"
-      - "^test:"
+  use: github-native
 
 nfpms:
   - id: gnmic
