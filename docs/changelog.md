@@ -1,5 +1,21 @@
 ## Changelog
 
+### v0.44.0 - February 17th 2026
+
+- gNMI Extension:
+
+    - gNMI extension are not parsed and properly displayed given the corresponding Protobuf files
+
+- Collector mode:
+
+    - Collector mode now stores Targets state (gNMI connection and subscription(s) state) in a separate store.
+
+    - Collector mode supports an SSE endpoint streaming config and state for any object (Target, subscription, outputs, etc.)
+
+- Target
+
+   - Multiple gRPC level config knobs can now be set per target: gRPC read/write buffer, gRPC window size,...
+
 ### v0.43.0 - February 1st 2026
 
 - Inputs:
