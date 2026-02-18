@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"math"
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -170,7 +171,7 @@ func (m *MetricBuilder) GetLabels(ev *formatters.EventMsg) []prompb.Label {
 	labels := make([]prompb.Label, 0, len(ev.Tags))
 	addedLabels := make(map[string]struct{})
 	for k, v := range ev.Tags {
-		labelName := MetricNameRegex.ReplaceAllString(filepath.Base(k), "_")
+		labelName := MetricNameRegex.ReplaceAllString(path.Base(k), "_")
 		if _, ok := addedLabels[labelName]; ok {
 			continue
 		}
@@ -180,21 +181,8 @@ func (m *MetricBuilder) GetLabels(ev *formatters.EventMsg) []prompb.Label {
 	if !m.StringsAsLabels {
 		return labels
 	}
-
-	var err error
-	for k, v := range ev.Values {
-		_, err = toFloat(v)
-		if err == nil {
-			continue
-		}
-		if vs, ok := v.(string); ok {
-			labelName := MetricNameRegex.ReplaceAllString(filepath.Base(k), "_")
-			if _, ok := addedLabels[labelName]; ok {
-				continue
-			}
-			labels = append(labels, prompb.Label{Name: labelName, Value: vs})
-		}
-	}
+	labelsFromValues := buildUniqueLabelsFromValues(ev.Values, addedLabels)
+	labels = append(labels, labelsFromValues...)
 	return labels
 }
 
@@ -307,4 +295,96 @@ func (m *MetricBuilder) TimeSeriesFromEvent(ev *formatters.EventMsg) []*NamedTim
 		promTS = append(promTS, nts)
 	}
 	return promTS
+}
+
+type tempLabel struct {
+	path        string // xpath
+	name        string // label name
+	value       string // label value
+	suffixCount int    // suffix count to handle duplicates
+}
+
+func labelNameFromPath(path string, numElems int) string {
+	elems := strings.Split(path, "/")
+	nonEmpty := make([]string, 0, len(elems))
+	for _, e := range elems {
+		if e != "" {
+			nonEmpty = append(nonEmpty, e)
+		}
+	}
+	if numElems > len(nonEmpty) {
+		numElems = len(nonEmpty)
+	}
+	selected := nonEmpty[len(nonEmpty)-numElems:]
+	return MetricNameRegex.ReplaceAllString(strings.Join(selected, "_"), "_")
+}
+
+func buildUniqueLabelsFromValues(values map[string]any, addedLabels map[string]struct{}) []prompb.Label {
+	tempLabels := make([]tempLabel, 0, len(values))
+	var err error
+	// gather strings and booleans as labels
+	for k, v := range values {
+		_, err = toFloat(v)
+		if err == nil {
+			continue
+		}
+		val := ""
+		switch v := v.(type) {
+		case string:
+			val = v
+		case bool:
+			val = strconv.FormatBool(v)
+		}
+		labelName := MetricNameRegex.ReplaceAllString(filepath.Base(k), "_")
+		tempLabels = append(tempLabels, tempLabel{
+			path:        k,
+			name:        labelName,
+			value:       val,
+			suffixCount: 1,
+		})
+	}
+
+	// resolve duplicate label names by including more xpath elements
+	// from the end of the path until all names are unique and don't
+	// collide with already added label tags.
+	for {
+		groups := make(map[string][]int, len(tempLabels))
+		for idx, l := range tempLabels {
+			groups[l.name] = append(groups[l.name], idx)
+		}
+
+		changed := false
+		for name, indices := range groups {
+			_, alreadyAdded := addedLabels[name]
+			if len(indices) <= 1 && !alreadyAdded {
+				continue
+			}
+			for _, idx := range indices {
+				tempLabels[idx].suffixCount++
+				newName := labelNameFromPath(tempLabels[idx].path, tempLabels[idx].suffixCount)
+				if newName != tempLabels[idx].name {
+					tempLabels[idx].name = newName
+					changed = true
+				}
+			}
+		}
+		if !changed {
+			break
+		}
+	}
+
+	// drop any labels that still collide after exhausting path elements.
+	taken := make(map[string]struct{}, len(addedLabels)+len(tempLabels))
+	for k := range addedLabels {
+		taken[k] = struct{}{}
+	}
+	result := make([]prompb.Label, 0, len(tempLabels))
+	for _, l := range tempLabels {
+		if _, exists := taken[l.name]; exists {
+			continue
+		}
+		taken[l.name] = struct{}{}
+		result = append(result, prompb.Label{Name: l.name, Value: l.value})
+	}
+	return result
 }
