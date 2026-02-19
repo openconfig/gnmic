@@ -18,6 +18,7 @@ import (
 
 	"github.com/openconfig/gnmic/pkg/api/target"
 	"github.com/openconfig/gnmic/pkg/api/types"
+	apiutils "github.com/openconfig/gnmic/pkg/api/utils"
 	collstore "github.com/openconfig/gnmic/pkg/collector/store"
 	"github.com/openconfig/gnmic/pkg/config"
 	"github.com/openconfig/gnmic/pkg/loaders"
@@ -157,9 +158,11 @@ func (tm *TargetsManager) Start(locker lockers.Locker, wg *sync.WaitGroup) error
 				return err
 			}
 			err = loader.Init(tm.ctx, loaderCfg,
-				log.New(os.Stderr, "", 0), // TODO: use logger
+				log.New(os.Stderr, "", apiutils.DefaultLoggingFlags), // TODO: use logger
 				loaders.WithRegistry(tm.reg),
-				// loaders.WithActions(actionsCfg), // TODO: add actions ? or drop from collector
+				loaders.WithTargetsDefaults(func(tc *types.TargetConfig) error {
+					return config.SetTargetConfigDefaultsExpandEnv(tm.store.Config, tc)
+				}),
 			)
 			if err != nil {
 				return err

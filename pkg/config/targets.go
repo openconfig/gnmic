@@ -43,9 +43,6 @@ func (c *Config) GetTargets() (map[string]*types.TargetConfig, error) {
 			}
 			c.Targets[tc.Name] = tc
 		}
-		if c.Debug {
-			c.logger.Printf("targets: %v", c.Targets)
-		}
 		return c.Targets, nil
 	}
 	// case targets is defined in config file
@@ -99,9 +96,6 @@ func (c *Config) GetTargets() (map[string]*types.TargetConfig, error) {
 		if err != nil {
 			return nil, err
 		}
-		if c.Debug {
-			c.logger.Printf("read target config: %s", tc)
-		}
 		err = expandCertPaths(tc)
 		if err != nil {
 			return nil, err
@@ -121,251 +115,21 @@ func (c *Config) GetTargets() (map[string]*types.TargetConfig, error) {
 
 	subNames := c.FileConfig.GetStringSlice("subscribe-name")
 	if len(subNames) == 0 {
-		if c.Debug {
-			c.logger.Printf("targets: %v", c.Targets)
-		}
 		return c.Targets, nil
 	}
 	for n := range c.Targets {
 		c.Targets[n].Subscriptions = subNames
 	}
-	if c.Debug {
-		c.logger.Printf("targets: %v", c.Targets)
-	}
 	return c.Targets, nil
 }
 
-func (c *Config) SetTargetConfigDefaultsExpandEnv(tc *types.TargetConfig) error {
-	er := c.SetTargetConfigDefaults(tc)
-	if er != nil {
-		return er
-	}
-	// we can also expand cert paths if needed
-	expandTargetEnv(tc)
-
-	return nil
-}
-
 func (c *Config) SetTargetConfigDefaults(tc *types.TargetConfig) error {
-	defGrpcPort := c.FileConfig.GetString("port")
-	if !strings.HasPrefix(tc.Address, "unix://") {
-		addrList := strings.Split(tc.Address, ",")
-		addrs := make([]string, 0, len(addrList))
-		for _, addr := range addrList {
-			addr = strings.TrimSpace(addr)
-			if !c.UseTunnelServer {
-				_, _, err := net.SplitHostPort(addr)
-				if err != nil {
-					if strings.Contains(err.Error(), "missing port in address") ||
-						strings.Contains(err.Error(), "too many colons in address") {
-						addr = net.JoinHostPort(addr, defGrpcPort)
-					} else {
-						c.logger.Printf("error parsing address '%s': %v", addr, err)
-						return fmt.Errorf("error parsing address '%s': %v", addr, err)
-					}
-				}
-			}
-			addrs = append(addrs, addr)
-		}
-		tc.Address = strings.Join(addrs, ",")
-	}
-	if tc.Username == nil {
-		tc.Username = &c.Username
-	}
-	if tc.Password == nil {
-		tc.Password = &c.Password
-	}
-	if tc.Token == nil {
-		tc.Token = &c.Token
-	}
-	if tc.AuthScheme == "" {
-		tc.AuthScheme = c.AuthScheme
-	}
-	if tc.Timeout == 0 {
-		tc.Timeout = c.Timeout
-	}
-	if tc.Insecure == nil {
-		tc.Insecure = &c.Insecure
-	}
-	if tc.SkipVerify == nil {
-		tc.SkipVerify = &c.SkipVerify
-	}
-	if tc.Insecure != nil && !*tc.Insecure {
-		if tc.TLSCA == nil {
-			if c.TLSCa != "" {
-				tc.TLSCA = &c.TLSCa
-			}
-		}
-		if tc.TLSCert == nil {
-			tc.TLSCert = &c.TLSCert
-		}
-		if tc.TLSKey == nil {
-			tc.TLSKey = &c.TLSKey
-		}
-	}
-	if tc.RetryTimer == 0 {
-		tc.RetryTimer = c.Retry
-	}
-	if tc.TLSVersion == "" {
-		tc.TLSVersion = c.TLSVersion
-	}
-	if tc.TLSMinVersion == "" {
-		tc.TLSMinVersion = c.TLSMinVersion
-	}
-	if tc.TLSMaxVersion == "" {
-		tc.TLSMaxVersion = c.TLSMaxVersion
-	}
-	if tc.TLSServerName == "" {
-		tc.TLSServerName = c.TLSServerName
-	}
-	if tc.LogTLSSecret == nil {
-		tc.LogTLSSecret = &c.LogTLSSecret
-	}
-	if tc.Gzip == nil {
-		tc.Gzip = &c.Gzip
-	}
-	if tc.BufferSize == 0 {
-		tc.BufferSize = defaultTargetBufferSize
-	}
-	if tc.Metadata == nil && c.Metadata != nil {
-		tc.Metadata = make(map[string]string)
-		maps.Copy(tc.Metadata, c.Metadata)
-	}
-	return nil
+	return setTargetConfigDefaultsFromGlobalFlags(tc, &c.GlobalFlags, c.FileConfig.GetString("port"))
 }
 
-func (c *Config) TargetsList() []*types.TargetConfig {
-	targets := make([]*types.TargetConfig, 0, len(c.Targets))
-	for _, tc := range c.Targets {
-		targets = append(targets, tc)
-	}
-	sort.Slice(targets, func(i, j int) bool {
-		return targets[i].Name < targets[j].Name
-	})
-	return targets
-}
-
-func expandCertPaths(tc *types.TargetConfig) error {
-	if tc.Insecure != nil && !*tc.Insecure {
-		var err error
-		if tc.TLSCA != nil && *tc.TLSCA != "" {
-			*tc.TLSCA, err = expandOSPath(*tc.TLSCA)
-			if err != nil {
-				return err
-			}
-
-		}
-		if tc.TLSCert != nil && *tc.TLSCert != "" {
-			*tc.TLSCert, err = expandOSPath(*tc.TLSCert)
-			if err != nil {
-				return err
-			}
-
-		}
-		if tc.TLSKey != nil && *tc.TLSKey != "" {
-			*tc.TLSKey, err = expandOSPath(*tc.TLSKey)
-			if err != nil {
-				return err
-			}
-
-		}
-	}
-	return nil
-}
-
-func expandTargetEnv(tc *types.TargetConfig) {
-	tc.Name = os.ExpandEnv(tc.Name)
-	tc.Address = os.ExpandEnv(tc.Address)
-	if tc.Username != nil {
-		*tc.Username = os.ExpandEnv(*tc.Username)
-	}
-	// expandEnv for the pasword field only if it starts with $
-	// https://github.com/karimra/gnmic/issues/496
-	if tc.Password != nil && strings.HasPrefix(*tc.Password, "$") {
-		*tc.Password = os.ExpandEnv(*tc.Password)
-	}
-	if tc.Token != nil {
-		*tc.Token = os.ExpandEnv(*tc.Token)
-	}
-	if tc.TLSCA != nil {
-		*tc.TLSCA = os.ExpandEnv(*tc.TLSCA)
-	}
-	if tc.TLSCert != nil {
-		*tc.TLSCert = os.ExpandEnv(*tc.TLSCert)
-	}
-	if tc.TLSKey != nil {
-		*tc.TLSKey = os.ExpandEnv(*tc.TLSKey)
-	}
-	for i := range tc.Subscriptions {
-		tc.Subscriptions[i] = os.ExpandEnv(tc.Subscriptions[i])
-	}
-	for i := range tc.Outputs {
-		tc.Outputs[i] = os.ExpandEnv(tc.Outputs[i])
-	}
-	tc.TLSMinVersion = os.ExpandEnv(tc.TLSMinVersion)
-	tc.TLSMaxVersion = os.ExpandEnv(tc.TLSMaxVersion)
-	tc.TLSVersion = os.ExpandEnv(tc.TLSVersion)
-	for i := range tc.ProtoFiles {
-		tc.ProtoFiles[i] = os.ExpandEnv(tc.ProtoFiles[i])
-	}
-	for i := range tc.ProtoDirs {
-		tc.ProtoDirs[i] = os.ExpandEnv(tc.ProtoDirs[i])
-	}
-	for i := range tc.Tags {
-		tc.Tags[i] = os.ExpandEnv(tc.Tags[i])
-	}
-}
-
-func (c *Config) GetDiffTargets() (*types.TargetConfig, map[string]*types.TargetConfig, error) {
-	targetsConfig, err := c.GetTargets()
-	if err != nil {
-		if err != ErrNoTargetsFound {
-			return nil, nil, err
-		}
-	}
-	var refConfig *types.TargetConfig
-	if rc, ok := targetsConfig[c.DiffRef]; ok {
-		refConfig = rc
-	} else {
-		refConfig = &types.TargetConfig{
-			Name:    c.DiffRef,
-			Address: c.DiffRef,
-		}
-		err = c.SetTargetConfigDefaults(refConfig)
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-	compareConfigs := make(map[string]*types.TargetConfig)
-	for _, cmp := range c.DiffCompare {
-		if cc, ok := targetsConfig[cmp]; ok {
-			compareConfigs[cmp] = cc
-		} else {
-			compConfig := &types.TargetConfig{
-				Name:    cmp,
-				Address: cmp,
-			}
-			err = c.SetTargetConfigDefaults(compConfig)
-			if err != nil {
-				return nil, nil, err
-			}
-			compareConfigs[compConfig.Name] = compConfig
-		}
-	}
-	return refConfig, compareConfigs, nil
-}
-
-func SetTargetConfigDefaults(s store.Store[any], tc *types.TargetConfig) error {
-	gf, found, err := s.Get("global-flags", "global-flags")
-	if err != nil {
-		return err
-	}
-	if !found {
-		return fmt.Errorf("global-flags not found")
-	}
-	gflags, ok := gf.(GlobalFlags)
-	if !ok {
-		return fmt.Errorf("global-flags is not a *GlobalFlags")
+func setTargetConfigDefaultsFromGlobalFlags(tc *types.TargetConfig, gflags *GlobalFlags, defaultGRPCPort string) error {
+	if gflags.Port == "" {
+		gflags.Port = defaultGRPCPort
 	}
 	if !strings.HasPrefix(tc.Address, "unix://") {
 		addrList := strings.Split(tc.Address, ",")
@@ -445,5 +209,161 @@ func SetTargetConfigDefaults(s store.Store[any], tc *types.TargetConfig) error {
 	if tc.BufferSize == 0 {
 		tc.BufferSize = defaultTargetBufferSize
 	}
+	if tc.Metadata == nil && gflags.Metadata != nil {
+		tc.Metadata = make(map[string]string)
+		maps.Copy(tc.Metadata, gflags.Metadata)
+	}
+	return nil
+}
+
+func (c *Config) SetTargetConfigDefaultsExpandEnv(tc *types.TargetConfig) error {
+	err := c.SetTargetConfigDefaults(tc)
+	if err != nil {
+		return err
+	}
+	expandTargetEnv(tc)
+
+	return nil
+}
+
+func (c *Config) TargetsList() []*types.TargetConfig {
+	targets := make([]*types.TargetConfig, 0, len(c.Targets))
+	for _, tc := range c.Targets {
+		targets = append(targets, tc)
+	}
+	sort.Slice(targets, func(i, j int) bool {
+		return targets[i].Name < targets[j].Name
+	})
+	return targets
+}
+
+func expandCertPaths(tc *types.TargetConfig) error {
+	if tc.Insecure != nil && !*tc.Insecure {
+		var err error
+		if tc.TLSCA != nil && *tc.TLSCA != "" {
+			*tc.TLSCA, err = expandOSPath(*tc.TLSCA)
+			if err != nil {
+				return err
+			}
+		}
+		if tc.TLSCert != nil && *tc.TLSCert != "" {
+			*tc.TLSCert, err = expandOSPath(*tc.TLSCert)
+			if err != nil {
+				return err
+			}
+		}
+		if tc.TLSKey != nil && *tc.TLSKey != "" {
+			*tc.TLSKey, err = expandOSPath(*tc.TLSKey)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func expandTargetEnv(tc *types.TargetConfig) {
+	tc.Name = os.ExpandEnv(tc.Name)
+	tc.Address = os.ExpandEnv(tc.Address)
+	if tc.Username != nil {
+		*tc.Username = os.ExpandEnv(*tc.Username)
+	}
+	// expandEnv for the pasword field only if it starts with $
+	// https://github.com/karimra/gnmic/issues/496
+	if tc.Password != nil && strings.HasPrefix(*tc.Password, "$") {
+		*tc.Password = os.ExpandEnv(*tc.Password)
+	}
+	if tc.Token != nil {
+		*tc.Token = os.ExpandEnv(*tc.Token)
+	}
+	if tc.TLSCA != nil {
+		*tc.TLSCA = os.ExpandEnv(*tc.TLSCA)
+	}
+	if tc.TLSCert != nil {
+		*tc.TLSCert = os.ExpandEnv(*tc.TLSCert)
+	}
+	if tc.TLSKey != nil {
+		*tc.TLSKey = os.ExpandEnv(*tc.TLSKey)
+	}
+	for i := range tc.Subscriptions {
+		tc.Subscriptions[i] = os.ExpandEnv(tc.Subscriptions[i])
+	}
+	for i := range tc.Outputs {
+		tc.Outputs[i] = os.ExpandEnv(tc.Outputs[i])
+	}
+	tc.TLSMinVersion = os.ExpandEnv(tc.TLSMinVersion)
+	tc.TLSMaxVersion = os.ExpandEnv(tc.TLSMaxVersion)
+	tc.TLSVersion = os.ExpandEnv(tc.TLSVersion)
+	for i := range tc.ProtoFiles {
+		tc.ProtoFiles[i] = os.ExpandEnv(tc.ProtoFiles[i])
+	}
+	for i := range tc.ProtoDirs {
+		tc.ProtoDirs[i] = os.ExpandEnv(tc.ProtoDirs[i])
+	}
+	for i := range tc.Tags {
+		tc.Tags[i] = os.ExpandEnv(tc.Tags[i])
+	}
+}
+
+func (c *Config) GetDiffTargets() (*types.TargetConfig, map[string]*types.TargetConfig, error) {
+	targetsConfig, err := c.GetTargets()
+	if err != nil {
+		if !errors.Is(err, ErrNoTargetsFound) {
+			return nil, nil, err
+		}
+	}
+	var refConfig *types.TargetConfig
+	if rc, ok := targetsConfig[c.DiffRef]; ok {
+		refConfig = rc
+	} else {
+		refConfig = &types.TargetConfig{
+			Name:    c.DiffRef,
+			Address: c.DiffRef,
+		}
+		err = c.SetTargetConfigDefaults(refConfig)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+	compareConfigs := make(map[string]*types.TargetConfig)
+	for _, cmp := range c.DiffCompare {
+		if cc, ok := targetsConfig[cmp]; ok {
+			compareConfigs[cmp] = cc
+		} else {
+			compConfig := &types.TargetConfig{
+				Name:    cmp,
+				Address: cmp,
+			}
+			err = c.SetTargetConfigDefaults(compConfig)
+			if err != nil {
+				return nil, nil, err
+			}
+			compareConfigs[compConfig.Name] = compConfig
+		}
+	}
+	return refConfig, compareConfigs, nil
+}
+
+func SetTargetConfigDefaults(s store.Store[any], tc *types.TargetConfig) error {
+	gf, found, err := s.Get("global-flags", "global-flags")
+	if err != nil {
+		return err
+	}
+	if !found {
+		return fmt.Errorf("global-flags not found")
+	}
+	gflags, ok := gf.(GlobalFlags)
+	if !ok {
+		return fmt.Errorf("global-flags is not a *GlobalFlags")
+	}
+	return setTargetConfigDefaultsFromGlobalFlags(tc, &gflags, "")
+}
+
+func SetTargetConfigDefaultsExpandEnv(s store.Store[any], tc *types.TargetConfig) error {
+	err := SetTargetConfigDefaults(s, tc)
+	if err != nil {
+		return err
+	}
+	expandTargetEnv(tc)
 	return nil
 }
