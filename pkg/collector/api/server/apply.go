@@ -24,19 +24,23 @@ type ConfigApplyRequest struct {
 }
 
 func validateApplyRequest(req *ConfigApplyRequest) error {
-	if len(req.Targets) == 0 && len(req.Subscriptions) == 0 && len(req.Outputs) == 0 && len(req.Inputs) == 0 && len(req.Processors) == 0 {
+	if len(req.Targets) == 0 && len(req.Subscriptions) == 0 &&
+		len(req.Outputs) == 0 && len(req.Inputs) == 0 &&
+		len(req.Processors) == 0 &&
+		len(req.TunnelTargetMatches) == 0 {
 		return nil // valid reset request
-	}
-	if len(req.Targets) == 0 && len(req.Inputs) == 0 {
-		return errors.New("at least one of targets or inputs is required")
 	}
 	if len(req.Targets) > 0 && len(req.Subscriptions) == 0 {
 		return errors.New("if targets are provided, at least one subscription is required")
+	}
+	if len(req.TunnelTargetMatches) > 0 && len(req.Subscriptions) == 0 {
+		return errors.New("if tunnel-target-matches are provided, at least one subscription is required")
 	}
 	if len(req.Inputs) > 0 && len(req.Outputs) == 0 {
 		return errors.New("if inputs are provided, at least one output is required")
 	}
 	// TODO: validate each config
+	// TODO: validate references
 	return nil
 }
 
