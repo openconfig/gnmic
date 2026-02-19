@@ -1,5 +1,5 @@
 
-The package `github.com/openconfig/gnmic/api` exposes a set of `api.TargetOption` that can be used with 
+The package `github.com/openconfig/gnmic/pkg/api` exposes a set of `api.TargetOption` that can be used with 
 `api.NewTarget(...api.TargetOption) TargetOption` to create `target.Target`.
 
 ```golang

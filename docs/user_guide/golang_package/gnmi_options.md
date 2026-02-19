@@ -1,5 +1,5 @@
 
-The package `github.com/openconfig/gnmic/api` exposes a set of `api.GNMIOption` that can be used with 
+The package `github.com/openconfig/gnmic/pkg/api` exposes a set of `api.GNMIOption` that can be used with 
 `api.NewGetRequest(...api.GNMIOption) GNMIOption`, `api.NewSetRequest(...api.GNMIOption) GNMIOption` or `api.NewSubscribeRequest(...api.GNMIOption) GNMIOption` to create a gNMI Request.
 
 ```golang
