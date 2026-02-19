@@ -161,7 +161,7 @@ func (tm *TargetsManager) Start(locker lockers.Locker, wg *sync.WaitGroup) error
 				log.New(os.Stderr, "", apiutils.DefaultLoggingFlags), // TODO: use logger
 				loaders.WithRegistry(tm.reg),
 				loaders.WithTargetsDefaults(func(tc *types.TargetConfig) error {
-					return config.SetTargetConfigDefaults(tm.store.Config, tc)
+					return config.SetTargetConfigDefaultsExpandEnv(tm.store.Config, tc)
 				}),
 			)
 			if err != nil {

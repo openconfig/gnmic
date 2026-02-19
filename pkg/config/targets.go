@@ -447,3 +447,12 @@ func SetTargetConfigDefaults(s store.Store[any], tc *types.TargetConfig) error {
 	}
 	return nil
 }
+
+func SetTargetConfigDefaultsExpandEnv(s store.Store[any], tc *types.TargetConfig) error {
+	err := SetTargetConfigDefaults(s, tc)
+	if err != nil {
+		return err
+	}
+	expandTargetEnv(tc)
+	return nil
+}
