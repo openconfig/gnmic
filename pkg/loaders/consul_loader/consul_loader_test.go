@@ -10,8 +10,13 @@ package consul_loader
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/hashicorp/consul/api"
@@ -59,7 +64,7 @@ func TestIssue706_ServicesWithExtraTagsFiltered(t *testing.T) {
 		},
 	}
 
-	result, err := cl.serviceEntryToTargetConfig(serviceEntry)
+	result, err := cl.serviceEntryToTargetConfig(cl.cfg.Services[0], serviceEntry)
 
 	if err != nil {
 		t.Fatalf("Expected service with extra tags to be accepted, but got error: %v", err)
@@ -131,4 +136,47 @@ func TestOldBuggyLogicWouldReject(t *testing.T) {
 
 	t.Logf("✓ Old logic would incorrectly reject: %v", oldLogicWouldReject)
 	t.Logf("✓ New logic correctly accepts: %v", newLogicShouldAccept)
+}
+
+func TestRunOnceAppliesServiceFilter(t *testing.T) {
+	filterExpr := `Service.Meta.profile == "arista"`
+	var filterChecked bool
+	hs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/v1/agent/self":
+			fmt.Fprint(w, `{"Member":{"Tags":{}}}`)
+		case strings.HasPrefix(r.URL.Path, "/v1/health/service/gnmi"):
+			if got := r.URL.Query().Get("filter"); got != filterExpr {
+				t.Fatalf("expected filter %q, got %q", filterExpr, got)
+			}
+			filterChecked = true
+			fmt.Fprint(w, `[{"Node":{"Address":"10.0.0.1"},"Service":{"ID":"target-1","Service":"gnmi","Address":"10.0.0.1","Port":6030}}]`)
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer hs.Close()
+	addr := strings.TrimPrefix(hs.URL, "http://")
+	cl := &consulLoader{
+		cfg: &cfg{
+			Address:    addr,
+			Datacenter: "dc1",
+			Services: []*serviceDef{
+				{Name: "gnmi", Filter: filterExpr},
+			},
+		},
+		logger: log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
+		m:      new(sync.Mutex),
+	}
+	res, err := cl.RunOnce(context.Background())
+	if err != nil {
+		t.Fatalf("RunOnce returned error: %v", err)
+	}
+	if !filterChecked {
+		t.Fatalf("expected health query to include filter parameter")
+	}
+	if _, ok := res["target-1"]; !ok {
+		t.Fatalf("expected target-1 in results, got %v", res)
+	}
 }
