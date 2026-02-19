@@ -74,7 +74,7 @@ START:
 		for _, add := range targetOp.Add {
 			err = fnTargetsDefaults(add)
 			if err != nil {
-				a.Logger.Printf("failed parsing new target configuration %#v: %v", add, err)
+				a.Logger.Printf("failed parsing new target configuration %s: %v", add, err)
 				continue
 			}
 			// not clustered, add target and subscribe
@@ -154,7 +154,7 @@ START:
 		for _, add := range targetOp.Add {
 			err = fnTargetsDefaults(add)
 			if err != nil {
-				a.Logger.Printf("failed parsing new target configuration %#v: %v", add, err)
+				a.Logger.Printf("failed parsing new target configuration %s: %v", add, err)
 				continue
 			}
 

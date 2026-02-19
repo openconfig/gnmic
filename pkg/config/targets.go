@@ -43,9 +43,6 @@ func (c *Config) GetTargets() (map[string]*types.TargetConfig, error) {
 			}
 			c.Targets[tc.Name] = tc
 		}
-		if c.Debug {
-			c.logger.Printf("targets: %v", c.Targets)
-		}
 		return c.Targets, nil
 	}
 	// case targets is defined in config file
@@ -99,9 +96,6 @@ func (c *Config) GetTargets() (map[string]*types.TargetConfig, error) {
 		if err != nil {
 			return nil, err
 		}
-		if c.Debug {
-			c.logger.Printf("read target config: %s", tc)
-		}
 		err = expandCertPaths(tc)
 		if err != nil {
 			return nil, err
@@ -121,16 +115,10 @@ func (c *Config) GetTargets() (map[string]*types.TargetConfig, error) {
 
 	subNames := c.FileConfig.GetStringSlice("subscribe-name")
 	if len(subNames) == 0 {
-		if c.Debug {
-			c.logger.Printf("targets: %v", c.Targets)
-		}
 		return c.Targets, nil
 	}
 	for n := range c.Targets {
 		c.Targets[n].Subscriptions = subNames
-	}
-	if c.Debug {
-		c.logger.Printf("targets: %v", c.Targets)
 	}
 	return c.Targets, nil
 }

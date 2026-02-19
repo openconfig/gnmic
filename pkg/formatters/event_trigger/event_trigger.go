@@ -150,9 +150,6 @@ func (p *trigger) WithLogger(l *log.Logger) {
 }
 
 func (p *trigger) WithTargets(tcs map[string]*types.TargetConfig) {
-	if p.Debug {
-		p.logger.Printf("with targets: %+v", tcs)
-	}
 	p.targets = tcs
 }
 
