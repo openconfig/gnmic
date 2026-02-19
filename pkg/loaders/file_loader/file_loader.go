@@ -270,10 +270,12 @@ func (f *fileLoader) getTargets(ctx context.Context) (map[string]*types.TargetCo
 
 func (f *fileLoader) updateTargets(ctx context.Context, tcs map[string]*types.TargetConfig, opChan chan *loaders.TargetOperation) {
 	var err error
-	for _, tc := range tcs {
-		err = f.targetConfigFn(tc)
-		if err != nil {
-			f.logger.Printf("failed running target config fn on target %q", tc.Name)
+	if f.targetConfigFn != nil {
+		for _, tc := range tcs {
+			err = f.targetConfigFn(tc)
+			if err != nil {
+				f.logger.Printf("failed running target config fn on target %q", tc.Name)
+			}
 		}
 	}
 	targetOp, err := f.runActions(ctx, tcs, loaders.Diff(f.lastTargets, tcs))
