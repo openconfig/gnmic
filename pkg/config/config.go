@@ -114,6 +114,7 @@ type GlobalFlags struct {
 	ProtoFile            []string      `mapstructure:"proto-file,omitempty" json:"proto-file,omitempty" yaml:"proto-file,omitempty"`
 	ProtoDir             []string      `mapstructure:"proto-dir,omitempty" json:"proto-dir,omitempty" yaml:"proto-dir,omitempty"`
 	RegisteredExtensions []string      `mapstructure:"registered-extensions,omitempty" json:"registered-extensions,omitempty" yaml:"registered-extensions,omitempty"`
+	AddRequestExtensions string        `mapstructure:"add-request-extensions,omitempty" json:"add-request-extensions,omitempty" yaml:"add-request-extensions,omitempty"`
 	TargetsFile          string        `mapstructure:"targets-file,omitempty" json:"targets-file,omitempty" yaml:"targets-file,omitempty"`
 	Gzip                 bool          `mapstructure:"gzip,omitempty" json:"gzip,omitempty" yaml:"gzip,omitempty"`
 	File                 []string      `mapstructure:"file,omitempty" json:"file,omitempty" yaml:"file,omitempty"`
@@ -567,6 +568,17 @@ func (c *Config) CreateGetRequest(tc *types.TargetConfig) (*gnmi.GetRequest, err
 	if c.LocalFlags.GetDepth > 0 {
 		gnmiOpts = append(gnmiOpts, api.Extension_Depth(c.LocalFlags.GetDepth))
 	}
+
+	exts, err := c.parseAdditionalRequestExtensions()
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, ext := range exts {
+		gnmiOpts = append(gnmiOpts, api.Extension(ext))
+	}
+
 	return api.NewGetRequest(gnmiOpts...)
 }
 
@@ -930,6 +942,17 @@ func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error)
 				))
 		}
 	}
+
+	exts, err := c.parseAdditionalRequestExtensions()
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, ext := range exts {
+		gnmiOpts = append(gnmiOpts, api.Extension(ext))
+	}
+
 	//
 	req, err := api.NewSetRequest(gnmiOpts...)
 	return []*gnmi.SetRequest{req}, err

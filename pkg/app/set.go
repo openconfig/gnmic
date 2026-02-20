@@ -132,7 +132,7 @@ func (a *App) InitSetFlags(cmd *cobra.Command) {
 	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.SetRequestFile, "request-file", "", []string{}, "set request template file(s)")
 	cmd.Flags().StringVarP(&a.Config.LocalFlags.SetRequestVars, "request-vars", "", "", "set request variables file")
 	cmd.Flags().BoolVarP(&a.Config.LocalFlags.SetDryRun, "dry-run", "", false, "prints the set request without initiating a gRPC connection")
-	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.SetRequestProtoFile, "proto-file", "", []string{}, "set request from prototext file")
+	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.SetRequestProtoFile, "set-proto-request-file", "", []string{}, "set request from prototext file")
 	cmd.Flags().BoolVarP(&a.Config.LocalFlags.SetNoTrim, "no-trim", "", false, "won't trim the input files")
 	//
 	cmd.Flags().StringArrayVarP(&a.Config.LocalFlags.SetReplaceCli, "replace-cli", "", []string{}, "a cli command to be sent as a set replace request")
