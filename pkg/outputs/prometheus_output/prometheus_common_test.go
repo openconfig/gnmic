@@ -11,7 +11,9 @@ package prometheus_output
 import (
 	"cmp"
 	"slices"
+	"sort"
 	"testing"
+	"time"
 
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/prometheus/prometheus/model/labels"
@@ -143,6 +145,282 @@ func BenchmarkMetricName(b *testing.B) {
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
 				tc.p.MetricName(tc.measName, tc.valueName)
+			}
+		})
+	}
+}
+
+func Test_buildUniqueLabelsFromValues(t *testing.T) {
+	tests := []struct {
+		name        string
+		values      map[string]any
+		addedLabels map[string]struct{}
+		want        []prompb.Label
+	}{
+		{
+			name: "no_duplicates",
+			values: map[string]any{
+				"a/b/c": "a",
+				"a/b/d": "b",
+				"a/b/e": "c",
+			},
+			want: []prompb.Label{
+				{Name: "c", Value: "a"},
+				{Name: "d", Value: "b"},
+				{Name: "e", Value: "c"},
+			},
+		},
+		{
+			name: "with_duplicates",
+			values: map[string]any{
+				"a/a/name": "a",
+				"a/b/name": "b",
+				"a/c/name": "c",
+			},
+			want: []prompb.Label{
+				{Name: "a_name", Value: "a"},
+				{Name: "b_name", Value: "b"},
+				{Name: "c_name", Value: "c"},
+			},
+		},
+		{
+			name: "with_duplicates_3_elements",
+			values: map[string]any{
+				"a/a/name": "a",
+				"b/a/name": "b",
+				"c/a/name": "c",
+			},
+			want: []prompb.Label{
+				{Name: "a_a_name", Value: "a"},
+				{Name: "b_a_name", Value: "b"},
+				{Name: "c_a_name", Value: "c"},
+			},
+		},
+		{
+			name: "with_duplicates_and_floats",
+			values: map[string]any{
+				"a/a/name": "a",
+				"a/b/name": "b",
+				"a/c/name": "1",
+			},
+			want: []prompb.Label{
+				{Name: "a_name", Value: "a"},
+				{Name: "b_name", Value: "b"},
+			},
+		},
+		{
+			name: "collision_with_added_labels",
+			values: map[string]any{
+				"a/b/name": "val",
+			},
+			addedLabels: map[string]struct{}{
+				"name": {},
+			},
+			want: []prompb.Label{
+				{Name: "b_name", Value: "val"},
+			},
+		},
+		{
+			name: "collision_with_added_labels_and_duplicates",
+			values: map[string]any{
+				"a/b/name": "v1",
+				"a/c/name": "v2",
+			},
+			addedLabels: map[string]struct{}{
+				"name": {},
+			},
+			want: []prompb.Label{
+				{Name: "b_name", Value: "v1"},
+				{Name: "c_name", Value: "v2"},
+			},
+		},
+		{
+			name: "collision_with_added_labels_and_duplicates_2",
+			values: map[string]any{
+				"a/b/name": "v1",
+				"a/c/name": "v2",
+			},
+			addedLabels: map[string]struct{}{
+				"b_name": {},
+			},
+			want: []prompb.Label{
+				{Name: "a_b_name", Value: "v1"},
+				{Name: "c_name", Value: "v2"},
+			},
+		},
+		{
+			name: "collision_with_added_labels_full_path_exhausted",
+			values: map[string]any{
+				"a/b/name": "val",
+			},
+			addedLabels: map[string]struct{}{
+				"name":     {},
+				"b_name":   {},
+				"a_b_name": {},
+			},
+			want: []prompb.Label{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			addedLabels := tt.addedLabels
+			if addedLabels == nil {
+				addedLabels = make(map[string]struct{})
+			}
+			got := buildUniqueLabelsFromValues(tt.values, addedLabels)
+			if len(got) != len(tt.want) {
+				t.Errorf("buildUniqueLabelsFromValues() length = %d, want %d", len(got), len(tt.want))
+				return
+			}
+			sort.Slice(got, func(i, j int) bool {
+				return got[i].Name < got[j].Name
+			})
+			sort.Slice(tt.want, func(i, j int) bool {
+				return tt.want[i].Name < tt.want[j].Name
+			})
+			for i, label := range got {
+				expected := tt.want[i]
+				if label.Name != expected.Name || label.Value != expected.Value {
+					t.Errorf("Label mismatch at index %d: got %+v, want %+v", i, label, expected)
+				}
+			}
+		})
+	}
+}
+
+func TestMetricBuilder_MetricsFromEvent(t *testing.T) {
+	tests := []struct {
+		name string // description of this test case
+		// Named input parameters for target function.
+		ev   *formatters.EventMsg
+		now  time.Time
+		want []*PromMetric
+	}{
+		{
+			name: "no_duplicates",
+			ev: &formatters.EventMsg{
+				Name:      "eventName",
+				Timestamp: 42,
+				Tags: map[string]string{
+					"t1": "v1",
+					"t2": "v2",
+				},
+				Values: map[string]any{
+					"a/b/c": "1",
+				},
+			},
+			now: time.Unix(0, 42),
+			want: []*PromMetric{
+				{
+					Name:  "a_b_c",
+					value: 1,
+					labels: []prompb.Label{
+						{Name: "t1", Value: "v1"},
+						{Name: "t2", Value: "v2"},
+					},
+				},
+			},
+		},
+		{
+			name: "no_duplicates_strings_as_labels",
+			ev: &formatters.EventMsg{
+				Name:      "eventName",
+				Timestamp: 42,
+				Tags: map[string]string{
+					"t1": "v1",
+					"t2": "v2",
+				},
+				Values: map[string]any{
+					"a/b/c": "a",
+				},
+			},
+			now: time.Unix(0, 42),
+			want: []*PromMetric{
+				{
+					Name:  "a_b_c",
+					value: 1,
+					labels: []prompb.Label{
+						{Name: "t1", Value: "v1"},
+						{Name: "t2", Value: "v2"},
+						{Name: "c", Value: "a"},
+					},
+				},
+			},
+		},
+		{
+			name: "duplicates_strings_as_labels",
+			ev: &formatters.EventMsg{
+				Name:      "eventName",
+				Timestamp: 42,
+				Tags: map[string]string{
+					"t1": "v1",
+					"t2": "v2",
+				},
+				Values: map[string]any{
+					"a/a/c": "a",
+					"a/b/c": "b",
+				},
+			},
+			now: time.Unix(0, 42),
+			want: []*PromMetric{
+				{
+					Name:  "a_a_c",
+					value: 1,
+					labels: []prompb.Label{
+						{Name: "t1", Value: "v1"},
+						{Name: "t2", Value: "v2"},
+						{Name: "a_c", Value: "a"},
+						{Name: "b_c", Value: "b"},
+					},
+				},
+				{
+					Name:  "a_b_c",
+					value: 1,
+					labels: []prompb.Label{
+						{Name: "t1", Value: "v1"},
+						{Name: "t2", Value: "v2"},
+						{Name: "a_c", Value: "a"},
+						{Name: "b_c", Value: "b"},
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mb := &MetricBuilder{
+				StringsAsLabels: true,
+			}
+			got := mb.MetricsFromEvent(tt.ev, tt.now)
+			if len(got) != len(tt.want) {
+				t.Errorf("MetricsFromEvent() = %v, want %v", got, tt.want)
+			}
+			sort.Slice(got, func(i, j int) bool {
+				return got[i].Name < got[j].Name
+			})
+			sort.Slice(tt.want, func(i, j int) bool {
+				return tt.want[i].Name < tt.want[j].Name
+			})
+			for i, pm := range got {
+				expected := tt.want[i]
+				if pm.Name != expected.Name || pm.value != expected.value {
+					t.Errorf("Metric mismatch at index %d: got %+v, want %+v", i, pm, expected)
+				}
+				if len(pm.labels) != len(expected.labels) {
+					t.Errorf("Metric labels mismatch at index %d: got %+v, want %+v", i, pm.labels, expected.labels)
+				}
+				sort.Slice(pm.labels, func(i, j int) bool {
+					return pm.labels[i].Name < pm.labels[j].Name
+				})
+				sort.Slice(expected.labels, func(i, j int) bool {
+					return expected.labels[i].Name < expected.labels[j].Name
+				})
+				for j, label := range pm.labels {
+					expectedLabel := expected.labels[j]
+					if label.Name != expectedLabel.Name || label.Value != expectedLabel.Value {
+						t.Errorf("Metric label mismatch at index %d: got %+v, want %+v", j, label, expectedLabel)
+					}
+				}
 			}
 		})
 	}
