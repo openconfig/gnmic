@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 	"text/template"
 
 	"github.com/mitchellh/mapstructure"
@@ -80,6 +81,18 @@ func Register(name string, initFn Initializer) {
 	Outputs[name] = initFn
 }
 
+var bytesBufferPool = sync.Pool{
+	New: func() any {
+		return new(bytes.Buffer)
+	},
+}
+
+var stringBuilderPool = sync.Pool{
+	New: func() any {
+		return new(strings.Builder)
+	},
+}
+
 type Meta map[string]string
 
 func DecodeConfig(src, dst any) error {
@@ -112,7 +125,11 @@ func AddSubscriptionTarget(msg proto.Message, meta Meta, addTarget string, tpl *
 			}
 			switch addTarget {
 			case "overwrite":
-				sb := new(strings.Builder)
+				sb := stringBuilderPool.Get().(*strings.Builder)
+				defer func() {
+					sb.Reset()
+					stringBuilderPool.Put(sb)
+				}()
 				err := tpl.Execute(sb, meta)
 				if err != nil {
 					return nil, err
@@ -121,7 +138,11 @@ func AddSubscriptionTarget(msg proto.Message, meta Meta, addTarget string, tpl *
 				return trsp, nil
 			case "if-not-present":
 				if rrsp.Update.Prefix.Target == "" {
-					sb := new(strings.Builder)
+					sb := stringBuilderPool.Get().(*strings.Builder)
+					defer func() {
+						sb.Reset()
+						stringBuilderPool.Put(sb)
+					}()
 					err := tpl.Execute(sb, meta)
 					if err != nil {
 						return nil, err
@@ -141,12 +162,19 @@ func ExecTemplate(content []byte, tpl *template.Template) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal input: %v", err)
 	}
-	bf := new(bytes.Buffer)
+	bf := bytesBufferPool.Get().(*bytes.Buffer)
+	defer func() {
+		bf.Reset()
+		bytesBufferPool.Put(bf)
+	}()
 	err = tpl.Execute(bf, input)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute msg template: %v", err)
 	}
-	return bf.Bytes(), nil
+	result := bf.Bytes()
+	out := make([]byte, len(result))
+	copy(out, result)
+	return out, nil
 }
 
 var (

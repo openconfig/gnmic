@@ -13,10 +13,17 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"sync"
 
 	flattener "github.com/karimra/go-map-flattener"
 	"github.com/openconfig/gnmi/proto/gnmi"
 )
+
+var stringBuilderPool = sync.Pool{
+	New: func() any {
+		return new(strings.Builder)
+	},
+}
 
 // EventMsg represents a gNMI update message,
 // The name is derived from the subscription in case the update was received in a subscribeResponse
@@ -110,7 +117,11 @@ func updateToEvent(name, prefix string, ts int64, upd *gnmi.Update, tags map[str
 		e.Tags[k] = v
 	}
 	pathName, pTags := tagsFromGNMIPath(upd.GetPath())
-	psb := strings.Builder{}
+	psb := stringBuilderPool.Get().(*strings.Builder)
+	defer func() {
+		psb.Reset()
+		stringBuilderPool.Put(psb)
+	}()
 	psb.WriteString(strings.TrimRight(prefix, "/"))
 	psb.WriteString("/")
 	psb.WriteString(strings.TrimLeft(pathName, "/"))
@@ -143,7 +154,11 @@ func deleteToEvent(name, prefix string, ts int64, del *gnmi.Path, tags map[strin
 		e.Tags[k] = v
 	}
 	pathName, pTags := tagsFromGNMIPath(del)
-	psb := strings.Builder{}
+	psb := stringBuilderPool.Get().(*strings.Builder)
+	defer func() {
+		psb.Reset()
+		stringBuilderPool.Put(psb)
+	}()
 	psb.WriteString(strings.TrimRight(prefix, "/"))
 	psb.WriteString("/")
 	psb.WriteString(strings.TrimLeft(pathName, "/"))
@@ -169,7 +184,11 @@ func tagsFromGNMIPath(p *gnmi.Path) (string, map[string]string) {
 		return "", nil
 	}
 	tags := make(map[string]string)
-	sb := strings.Builder{}
+	sb := stringBuilderPool.Get().(*strings.Builder)
+	defer func() {
+		sb.Reset()
+		stringBuilderPool.Put(sb)
+	}()
 	if p.Origin != "" {
 		sb.WriteString(p.Origin)
 		sb.WriteString(":")
@@ -180,18 +199,20 @@ func tagsFromGNMIPath(p *gnmi.Path) (string, map[string]string) {
 			sb.WriteString(e.Name)
 		}
 		if e.Key != nil {
+			ksb := stringBuilderPool.Get().(*strings.Builder)
 			for k, v := range e.Key {
 				if e.Name == "" {
 					tags[k] = v
 					continue
 				}
 				elems := strings.Split(e.Name, ":")
-				ksb := strings.Builder{}
 				ksb.WriteString(elems[len(elems)-1])
 				ksb.WriteString("_")
 				ksb.WriteString(k)
 				tags[ksb.String()] = v
+				ksb.Reset()
 			}
+			stringBuilderPool.Put(ksb)
 		}
 	}
 	if p.GetTarget() != "" {

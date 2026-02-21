@@ -447,8 +447,18 @@ func splitEvent(e *formatters.EventMsg) []*formatters.EventMsg {
 	return evs
 }
 
+var stringBuilderPool = sync.Pool{
+	New: func() any {
+		return new(strings.Builder)
+	},
+}
+
 func (a *asciigraphOutput) buildSeriesName(e *formatters.EventMsg) string {
-	sb := &strings.Builder{}
+	sb := stringBuilderPool.Get().(*strings.Builder)
+	defer func() {
+		sb.Reset()
+		stringBuilderPool.Put(sb)
+	}()
 	sb.WriteString(e.Name)
 	sb.WriteString(":")
 	for k := range e.Values {

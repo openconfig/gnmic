@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/fullstorydev/grpcurl"
@@ -24,27 +25,47 @@ import (
 	"github.com/openconfig/gnmic/pkg/utils"
 )
 
+var bytesBufferPool = sync.Pool{
+	New: func() any {
+		return new(bytes.Buffer)
+	},
+}
+
 // jsonMarshal encodes v to JSON without HTML-escaping '<', '>', or '&'.
 func jsonMarshal(v any) ([]byte, error) {
-	buf := new(bytes.Buffer)
+	buf := bytesBufferPool.Get().(*bytes.Buffer)
+	defer func() {
+		buf.Reset()
+		bytesBufferPool.Put(buf)
+	}()
 	enc := json.NewEncoder(buf)
 	enc.SetEscapeHTML(false)
 	if err := enc.Encode(v); err != nil {
 		return nil, err
 	}
-	return bytes.TrimRight(buf.Bytes(), "\n"), nil
+	result := bytes.TrimRight(buf.Bytes(), "\n")
+	out := make([]byte, len(result))
+	copy(out, result)
+	return out, nil
 }
 
 // jsonMarshalIndent is like jsonMarshal but applies indented formatting.
 func jsonMarshalIndent(v any, prefix, indent string) ([]byte, error) {
-	buf := new(bytes.Buffer)
+	buf := bytesBufferPool.Get().(*bytes.Buffer)
+	defer func() {
+		buf.Reset()
+		bytesBufferPool.Put(buf)
+	}()
 	enc := json.NewEncoder(buf)
 	enc.SetEscapeHTML(false)
 	enc.SetIndent(prefix, indent)
 	if err := enc.Encode(v); err != nil {
 		return nil, err
 	}
-	return bytes.TrimRight(buf.Bytes(), "\n"), nil
+	result := bytes.TrimRight(buf.Bytes(), "\n")
+	out := make([]byte, len(result))
+	copy(out, result)
+	return out, nil
 }
 
 func formatRegisteredExtensions(
