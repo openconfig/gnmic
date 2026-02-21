@@ -9,6 +9,7 @@
 package formatters
 
 import (
+	"bytes"
 	"encoding/json"
 	"strings"
 	"time"
@@ -22,6 +23,29 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/path"
 	"github.com/openconfig/gnmic/pkg/utils"
 )
+
+// jsonMarshal encodes v to JSON without HTML-escaping '<', '>', or '&'.
+func jsonMarshal(v any) ([]byte, error) {
+	buf := new(bytes.Buffer)
+	enc := json.NewEncoder(buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(v); err != nil {
+		return nil, err
+	}
+	return bytes.TrimRight(buf.Bytes(), "\n"), nil
+}
+
+// jsonMarshalIndent is like jsonMarshal but applies indented formatting.
+func jsonMarshalIndent(v any, prefix, indent string) ([]byte, error) {
+	buf := new(bytes.Buffer)
+	enc := json.NewEncoder(buf)
+	enc.SetEscapeHTML(false)
+	enc.SetIndent(prefix, indent)
+	if err := enc.Encode(v); err != nil {
+		return nil, err
+	}
+	return bytes.TrimRight(buf.Bytes(), "\n"), nil
+}
 
 func formatRegisteredExtensions(
 	extensions []*gnmi_ext.Extension,
@@ -145,9 +169,9 @@ func (o *MarshalOptions) formatSubscribeRequest(m *gnmi.SubscribeRequest) ([]byt
 		msg.Extensions = m.GetExtension()
 	}
 	if o.Multiline {
-		return json.MarshalIndent(msg, "", o.Indent)
+		return jsonMarshalIndent(msg, "", o.Indent)
 	}
-	return json.Marshal(msg)
+	return jsonMarshal(msg)
 }
 
 func (o *MarshalOptions) formatSubscribeResponse(m *gnmi.SubscribeResponse, meta map[string]string) ([]byte, error) {
@@ -166,9 +190,9 @@ func (o *MarshalOptions) formatSubscribeResponse(m *gnmi.SubscribeResponse, meta
 				DecodedExtensions: dext,
 			}
 			if o.Multiline {
-				return json.MarshalIndent(msg, "", o.Indent)
+				return jsonMarshalIndent(msg, "", o.Indent)
 			}
-			return json.Marshal(msg)
+			return jsonMarshal(msg)
 		}
 	case *gnmi.SubscribeResponse_SyncResponse:
 		msg := &syncResponseMsg{
@@ -177,9 +201,9 @@ func (o *MarshalOptions) formatSubscribeResponse(m *gnmi.SubscribeResponse, meta
 			DecodedExtensions: dext,
 		}
 		if o.Multiline {
-			return json.MarshalIndent(msg, "", o.Indent)
+			return jsonMarshalIndent(msg, "", o.Indent)
 		}
-		return json.Marshal(msg)
+		return jsonMarshal(msg)
 	case *gnmi.SubscribeResponse_Update:
 		msg := notificationRspMsg{
 			Timestamp: mr.Update.Timestamp,
@@ -234,9 +258,9 @@ func (o *MarshalOptions) formatSubscribeResponse(m *gnmi.SubscribeResponse, meta
 			msg.DecodedExtensions = dext
 		}
 		if o.Multiline {
-			return json.MarshalIndent(msg, "", o.Indent)
+			return jsonMarshalIndent(msg, "", o.Indent)
 		}
-		return json.Marshal(msg)
+		return jsonMarshal(msg)
 	}
 	return nil, nil
 }
@@ -246,9 +270,9 @@ func (o *MarshalOptions) formatCapabilitiesRequest(m *gnmi.CapabilityRequest) ([
 		Extensions: m.Extension,
 	}
 	if o.Multiline {
-		return json.MarshalIndent(capReq, "", o.Indent)
+		return jsonMarshalIndent(capReq, "", o.Indent)
 	}
-	return json.Marshal(capReq)
+	return jsonMarshal(capReq)
 }
 
 func (o *MarshalOptions) formatCapabilitiesResponse(m *gnmi.CapabilityResponse) ([]byte, error) {
@@ -268,9 +292,9 @@ func (o *MarshalOptions) formatCapabilitiesResponse(m *gnmi.CapabilityResponse) 
 		capRspMsg.Encodings = append(capRspMsg.Encodings, se.String())
 	}
 	if o.Multiline {
-		return json.MarshalIndent(capRspMsg, "", o.Indent)
+		return jsonMarshalIndent(capRspMsg, "", o.Indent)
 	}
-	return json.Marshal(capRspMsg)
+	return jsonMarshal(capRspMsg)
 }
 
 func (o *MarshalOptions) formatGetRequest(m *gnmi.GetRequest) ([]byte, error) {
@@ -294,9 +318,9 @@ func (o *MarshalOptions) formatGetRequest(m *gnmi.GetRequest) ([]byte, error) {
 			})
 	}
 	if o.Multiline {
-		return json.MarshalIndent(msg, "", o.Indent)
+		return jsonMarshalIndent(msg, "", o.Indent)
 	}
-	return json.Marshal(msg)
+	return jsonMarshal(msg)
 }
 
 func (o *MarshalOptions) formatGetResponse(m *gnmi.GetResponse, meta map[string]string) ([]byte, error) {
@@ -367,7 +391,7 @@ func (o *MarshalOptions) formatGetResponse(m *gnmi.GetResponse, meta map[string]
 				}
 			}
 		}
-		return json.MarshalIndent(result, "", "  ")
+		return jsonMarshalIndent(result, "", "  ")
 	}
 	var data any
 	if len(getRsp.Extensions) > 0 {
@@ -376,9 +400,9 @@ func (o *MarshalOptions) formatGetResponse(m *gnmi.GetResponse, meta map[string]
 		data = getRsp.Notifications
 	}
 	if o.Multiline {
-		return json.MarshalIndent(data, "", o.Indent)
+		return jsonMarshalIndent(data, "", o.Indent)
 	}
-	return json.Marshal(data)
+	return jsonMarshal(data)
 }
 
 func (o *MarshalOptions) formatSetRequest(m *gnmi.SetRequest) ([]byte, error) {
@@ -410,9 +434,9 @@ func (o *MarshalOptions) formatSetRequest(m *gnmi.SetRequest) ([]byte, error) {
 		})
 	}
 	if o.Multiline {
-		return json.MarshalIndent(req, "", o.Indent)
+		return jsonMarshalIndent(req, "", o.Indent)
 	}
-	return json.Marshal(req)
+	return jsonMarshal(req)
 }
 
 func (o *MarshalOptions) formatSetResponse(m *gnmi.SetResponse, meta map[string]string) ([]byte, error) {
@@ -445,7 +469,7 @@ func (o *MarshalOptions) formatSetResponse(m *gnmi.SetResponse, meta map[string]
 		})
 	}
 	if o.Multiline {
-		return json.MarshalIndent(msg, "", o.Indent)
+		return jsonMarshalIndent(msg, "", o.Indent)
 	}
-	return json.Marshal(msg)
+	return jsonMarshal(msg)
 }
