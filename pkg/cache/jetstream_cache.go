@@ -347,8 +347,18 @@ func (c *jetStreamCache) DeleteTarget(name string) {
 	c.oc.DeleteTarget(name)
 }
 
+var stringBuilderPool = sync.Pool{
+	New: func() any {
+		return new(strings.Builder)
+	},
+}
+
 func subjectName(streamName, target string, m proto.Message) (string, error) {
-	sb := &strings.Builder{}
+	sb := stringBuilderPool.Get().(*strings.Builder)
+	defer func() {
+		sb.Reset()
+		stringBuilderPool.Put(sb)
+	}()
 	sb.WriteString(streamName)
 	sb.WriteString(".")
 	if target != "" {
@@ -389,7 +399,11 @@ func gNMIPathToSubject(p *gnmi.Path, opts subjectOpts) []string {
 	if p == nil {
 		return []string{""}
 	}
-	sb := new(strings.Builder)
+	sb := stringBuilderPool.Get().(*strings.Builder)
+	defer func() {
+		sb.Reset()
+		stringBuilderPool.Put(sb)
+	}()
 	if p.GetOrigin() != "" {
 		fmt.Fprintf(sb, "%s.", p.GetOrigin())
 	}

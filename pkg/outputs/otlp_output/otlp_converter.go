@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 
 	metricsv1 "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
@@ -21,6 +22,12 @@ import (
 
 	"github.com/openconfig/gnmic/pkg/formatters"
 )
+
+var stringBuilderPool = sync.Pool{
+	New: func() any {
+		return new(strings.Builder)
+	},
+}
 
 // convertToOTLP converts gNMI EventMsg slice to OTLP ExportMetricsServiceRequest
 func (o *otlpOutput) convertToOTLP(events []*formatters.EventMsg) *metricsv1.ExportMetricsServiceRequest {
@@ -233,7 +240,11 @@ func (o *otlpOutput) convertEvent(event *formatters.EventMsg) (*metricspb.Metric
 // event.Name contains the subscription name (e.g., "nvos", "arista")
 // valueKey contains the metric path (e.g., "interfaces/interface/state/counters/in-octets")
 func (o *otlpOutput) buildMetricName(event *formatters.EventMsg, valueKey string) string {
-	var sb strings.Builder
+	sb := stringBuilderPool.Get().(*strings.Builder)
+	defer func() {
+		sb.Reset()
+		stringBuilderPool.Put(sb)
+	}()
 
 	// Add global prefix if configured
 	if o.cfg.MetricPrefix != "" {

@@ -9,7 +9,6 @@
 package kafka_output
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -53,12 +52,6 @@ const (
 	requiredAcksWaitForLocal = "wait-for-local"
 	requiredAcksWaitForAll   = "wait-for-all"
 )
-
-var bytesBufferPool = sync.Pool{
-	New: func() any {
-		return new(bytes.Buffer)
-	},
-}
 
 var stringBuilderPool = sync.Pool{
 	New: func() any {
@@ -812,18 +805,16 @@ func (k *kafkaOutput) createConfigFor(c *config) (*sarama.Config, error) {
 	return cfg, nil
 }
 
-const (
-	partitionKeyTemplate = "%s:::%s"
-)
-
 func (k *kafkaOutput) partitionKey(m outputs.Meta) []byte {
-	b := bytesBufferPool.Get().(*bytes.Buffer)
+	b := stringBuilderPool.Get().(*strings.Builder)
 	defer func() {
 		b.Reset()
-		bytesBufferPool.Put(b)
+		stringBuilderPool.Put(b)
 	}()
-	fmt.Fprintf(b, partitionKeyTemplate, m["source"], m["subscription-name"])
-	return b.Bytes()
+	b.WriteString(m["source"])
+	b.WriteString(":::")
+	b.WriteString(m["subscription-name"])
+	return []byte(b.String())
 }
 
 func (k *kafkaOutput) selectTopic(m outputs.Meta) string {

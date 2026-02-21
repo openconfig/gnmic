@@ -21,6 +21,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/openconfig/gnmi/proto/gnmi"
@@ -39,6 +40,12 @@ const (
 var (
 	MetricNameRegex = regexp.MustCompile(metricNameRegex)
 )
+
+var stringBuilderPool = sync.Pool{
+	New: func() any {
+		return new(strings.Builder)
+	},
+}
 
 type PromMetric struct {
 	Name string
@@ -74,7 +81,11 @@ func (p *PromMetric) String() string {
 	if p == nil {
 		return ""
 	}
-	sb := strings.Builder{}
+	sb := stringBuilderPool.Get().(*strings.Builder)
+	defer func() {
+		sb.Reset()
+		stringBuilderPool.Put(sb)
+	}()
 	sb.WriteString("name=")
 	sb.WriteString(p.Name)
 	sb.WriteString(",")
@@ -235,7 +246,11 @@ func toFloat(v interface{}) (float64, error) {
 // the measurement name and the value name.
 // it makes sure the name matches the regex "[^a-zA-Z0-9_]+"
 func (m *MetricBuilder) MetricName(measName, valueName string) string {
-	sb := strings.Builder{}
+	sb := stringBuilderPool.Get().(*strings.Builder)
+	defer func() {
+		sb.Reset()
+		stringBuilderPool.Put(sb)
+	}()
 	if m.Prefix != "" {
 		sb.WriteString(MetricNameRegex.ReplaceAllString(m.Prefix, "_"))
 		sb.WriteString("_")

@@ -12,6 +12,7 @@ import (
 	"errors"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/openconfig/gnmi/proto/gnmi"
 )
@@ -20,6 +21,12 @@ var errMalformedXPath = errors.New("malformed xpath")
 var errMalformedXPathKey = errors.New("malformed xpath key")
 
 var escapedBracketsReplacer = strings.NewReplacer(`\]`, `]`, `\[`, `[`)
+
+var stringBuilderPool = sync.Pool{
+	New: func() any {
+		return new(strings.Builder)
+	},
+}
 
 // CreatePrefix //
 func CreatePrefix(prefix, target string) (*gnmi.Path, error) {
@@ -203,7 +210,11 @@ func GnmiPathToXPath(p *gnmi.Path, noKeys bool) string {
 	if p == nil {
 		return ""
 	}
-	sb := &strings.Builder{}
+	sb := stringBuilderPool.Get().(*strings.Builder)
+	defer func() {
+		sb.Reset()
+		stringBuilderPool.Put(sb)
+	}()
 	if p.Origin != "" {
 		sb.WriteString(p.Origin)
 		sb.WriteString(":/")
