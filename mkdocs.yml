@@ -64,6 +64,7 @@ nav:
           - Prometheus:  
             - Scrape Based (Pull): user_guide/outputs/prometheus_output.md
             - Remote Write (Push): user_guide/outputs/prometheus_write_output.md
+          - OpenTelemetry: user_guide/outputs/otlp_output.md
           - gNMI Server: user_guide/outputs/gnmi_output.md
           - TCP: user_guide/outputs/tcp_output.md
           - UDP: user_guide/outputs/udp_output.md
