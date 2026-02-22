@@ -21,27 +21,27 @@ import (
 	resourcepb "go.opentelemetry.io/proto/otlp/resource/v1"
 
 	"github.com/openconfig/gnmic/pkg/formatters"
+	"github.com/openconfig/gnmic/pkg/version"
 )
 
-var stringBuilderPool = sync.Pool{
+var stringsBuilderPool = sync.Pool{
 	New: func() any {
-		return new(strings.Builder)
+		return &strings.Builder{}
 	},
 }
 
 // convertToOTLP converts gNMI EventMsg slice to OTLP ExportMetricsServiceRequest
 func (o *otlpOutput) convertToOTLP(events []*formatters.EventMsg) *metricsv1.ExportMetricsServiceRequest {
-	// Always log conversion start (not just debug mode)
-	o.logger.Printf("convertToOTLP called with %d events, debug=%v", len(events), o.cfg.Debug)
+	cfg := o.cfg.Load()
 
-	if o.cfg.Debug {
+	if cfg.Debug {
 		o.logger.Printf("DEBUG: convertToOTLP called with %d events", len(events))
 	}
 
 	// Group events by resource (source)
 	resourceGroups := o.groupByResource(events)
 
-	if o.cfg.Debug {
+	if cfg.Debug {
 		o.logger.Printf("DEBUG: Grouped into %d resource groups", len(resourceGroups))
 	}
 
@@ -54,12 +54,12 @@ func (o *otlpOutput) convertToOTLP(events []*formatters.EventMsg) *metricsv1.Exp
 
 	for _, groupedEvents := range resourceGroups {
 		rm := &metricspb.ResourceMetrics{
-			Resource: o.createResource(groupedEvents[0]),
+			Resource: o.createResource(cfg, groupedEvents[0]),
 			ScopeMetrics: []*metricspb.ScopeMetrics{
 				{
 					Scope: &commonpb.InstrumentationScope{
-						Name:    "gnmic",
-						Version: "0.42.0", // TODO: Get from build info
+						Name:    "gNMIc",
+						Version: version.Version,
 					},
 					Metrics: make([]*metricspb.Metric, 0, len(groupedEvents)),
 				},
@@ -68,23 +68,23 @@ func (o *otlpOutput) convertToOTLP(events []*formatters.EventMsg) *metricsv1.Exp
 
 		// Convert each event to OTLP metric
 		for _, event := range groupedEvents {
-			metric, err := o.convertEvent(event)
+			metrics, err := o.convertEventToMetrics(cfg, event)
 			if err != nil {
-				if o.cfg.Debug {
+				if cfg.Debug {
 					o.logger.Printf("DEBUG: failed to convert event %s: %v", event.Name, err)
 				}
 				skippedEvents++
 				continue
 			}
-			if metric == nil {
-				if o.cfg.Debug {
+			if len(metrics) == 0 {
+				if cfg.Debug {
 					o.logger.Printf("DEBUG: convertEvent returned nil for event: name=%s, values=%v", event.Name, event.Values)
 				}
 				skippedEvents++
 				continue
 			}
-			rm.ScopeMetrics[0].Metrics = append(rm.ScopeMetrics[0].Metrics, metric)
-			totalMetrics++
+			rm.ScopeMetrics[0].Metrics = append(rm.ScopeMetrics[0].Metrics, metrics...)
+			totalMetrics += len(metrics)
 		}
 
 		if len(rm.ScopeMetrics[0].Metrics) > 0 {
@@ -92,11 +92,7 @@ func (o *otlpOutput) convertToOTLP(events []*formatters.EventMsg) *metricsv1.Exp
 		}
 	}
 
-	// Always log conversion results (not just debug mode)
-	o.logger.Printf("Converted %d metrics, skipped %d events, %d ResourceMetrics",
-		totalMetrics, skippedEvents, len(req.ResourceMetrics))
-
-	if o.cfg.Debug {
+	if cfg.Debug {
 		o.logger.Printf("DEBUG: Converted %d metrics, skipped %d events, %d ResourceMetrics",
 			totalMetrics, skippedEvents, len(req.ResourceMetrics))
 	}
@@ -120,27 +116,21 @@ func (o *otlpOutput) groupByResource(events []*formatters.EventMsg) map[string][
 	return groups
 }
 
-// createResource creates OTLP Resource from event metadata
-func (o *otlpOutput) createResource(event *formatters.EventMsg) *resourcepb.Resource {
-	attrs := make([]*commonpb.KeyValue, 0)
+// createResource creates OTLP Resource from event metadata.
+// Tags listed in cfg.ResourceTagKeys are placed as resource attributes.
+func (o *otlpOutput) createResource(cfg *config, event *formatters.EventMsg) *resourcepb.Resource {
+	attrs := make([]*commonpb.KeyValue, 0, len(cfg.ResourceTagKeys)+len(cfg.ResourceAttributes))
 
-	// When add-event-tags-as-attributes is enabled, don't duplicate tags in resource attributes
-	// Resource attributes don't become Prometheus labels, so we only add them for OTLP semantics
-	if !o.cfg.AddEventTagsAsAttributes {
-		// Add device metadata as resource attributes (legacy behavior)
-		resourceKeys := []string{"device", "vendor", "model", "site", "source", "subscription_name"}
-		for _, key := range resourceKeys {
-			if val, ok := event.Tags[key]; ok {
-				attrs = append(attrs, &commonpb.KeyValue{
-					Key:   key,
-					Value: &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: val}},
-				})
-			}
+	for _, key := range cfg.ResourceTagKeys {
+		if val, ok := event.Tags[key]; ok {
+			attrs = append(attrs, &commonpb.KeyValue{
+				Key:   key,
+				Value: &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: val}},
+			})
 		}
 	}
 
-	// Always add configured resource attributes
-	for key, val := range o.cfg.ResourceAttributes {
+	for key, val := range cfg.ResourceAttributes {
 		attrs = append(attrs, &commonpb.KeyValue{
 			Key:   key,
 			Value: &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: val}},
@@ -152,108 +142,89 @@ func (o *otlpOutput) createResource(event *formatters.EventMsg) *resourcepb.Reso
 	}
 }
 
-// convertEvent converts a single gNMI event to OTLP metrics
-// Returns nil if the event has no valid values to convert
-func (o *otlpOutput) convertEvent(event *formatters.EventMsg) (*metricspb.Metric, error) {
+// convertEventToMetrics converts a single gNMI event to OTLP metrics.
+// Returns nil if the event has no valid values to convert.
+func (o *otlpOutput) convertEventToMetrics(cfg *config, event *formatters.EventMsg) ([]*metricspb.Metric, error) {
 	if len(event.Values) == 0 {
-		if o.cfg.Debug {
+		if cfg.Debug {
 			o.logger.Printf("DEBUG: event has no values (event: %s)", event.Name)
 		}
 		return nil, nil
 	}
 
-	// gNMI events typically have only ONE value per event
-	// If there are multiple values, we'll only process the first one
-	// and log a warning (this is unexpected but we'll handle it gracefully)
-	if len(event.Values) > 1 && o.cfg.Debug {
-		o.logger.Printf("DEBUG: event has multiple values (%d), using first (event: %s)", len(event.Values), event.Name)
-	}
+	attributes := o.extractAttributesForMetric(cfg, event)
 
-	// Get the first (and typically only) value from the event
-	var value interface{}
-	var valueKey string
+	result := make([]*metricspb.Metric, 0, len(event.Values))
 	for k, v := range event.Values {
-		value = v
-		valueKey = k
-		break // Take first value
-	}
+		metricName := o.buildMetricName(cfg, event, k)
 
-	// Build metric name from subscription name + value key
-	metricName := o.buildMetricName(event, valueKey)
+		metric := &metricspb.Metric{
+			Name: metricName,
+		}
 
-	// Extract path keys as attributes
-	attributes := o.extractAttributes(event)
-
-	// Determine metric type and create appropriate OTLP metric
-	metric := &metricspb.Metric{
-		Name:        metricName,
-		Description: "", // Could extract from event metadata if available
-		Unit:        "", // Could extract from event metadata if available
-	}
-
-	// Handle string values
-	if strVal, isString := value.(string); isString {
-		if !o.cfg.StringsAsAttributes {
-			// Skip string values if not configured to handle them
-			if o.cfg.Debug {
-				o.logger.Printf("DEBUG: skipping string value (strings-as-attributes=false): %s", event.Name)
+		// Handle string values
+		switch v := v.(type) {
+		case string:
+			if !cfg.StringsAsAttributes {
+				if cfg.Debug {
+					o.logger.Printf("DEBUG: skipping string value (strings-as-attributes=false): %s", event.Name)
+				}
+				continue
 			}
-			return nil, nil
+			metric.Data = &metricspb.Metric_Gauge{
+				Gauge: o.createGaugeWithString(event, attributes, v),
+			}
+			result = append(result, metric)
+			continue
 		}
-		// Convert string to gauge with value=1 and string as attribute
-		metric.Data = &metricspb.Metric_Gauge{
-			Gauge: o.createGaugeWithString(event, attributes, strVal),
+
+		dataPoint := o.createNumberDataPointWithValue(cfg, event, attributes, v)
+		if dataPoint == nil {
+			if cfg.Debug {
+				o.logger.Printf("DEBUG: failed to create data point for value type %T (event: %s)", v, event.Name)
+			}
+			continue
 		}
-		return metric, nil
+
+		if o.isCounter(cfg, k) {
+			metric.Data = &metricspb.Metric_Sum{
+				Sum: &metricspb.Sum{
+					AggregationTemporality: metricspb.AggregationTemporality_AGGREGATION_TEMPORALITY_CUMULATIVE,
+					IsMonotonic:            true,
+					DataPoints:             []*metricspb.NumberDataPoint{dataPoint},
+				},
+			}
+		} else {
+			metric.Data = &metricspb.Metric_Gauge{
+				Gauge: &metricspb.Gauge{
+					DataPoints: []*metricspb.NumberDataPoint{dataPoint},
+				},
+			}
+		}
+		result = append(result, metric)
 	}
 
-	// Create data point with the value
-	dataPoint := o.createNumberDataPointWithValue(event, attributes, value)
-	if dataPoint == nil {
-		if o.cfg.Debug {
-			o.logger.Printf("DEBUG: failed to create data point for value type %T (event: %s)", value, event.Name)
-		}
-		return nil, nil
-	}
-
-	// Detect metric type from path and value
-	if o.isCounter(event) {
-		metric.Data = &metricspb.Metric_Sum{
-			Sum: &metricspb.Sum{
-				AggregationTemporality: metricspb.AggregationTemporality_AGGREGATION_TEMPORALITY_CUMULATIVE,
-				IsMonotonic:            true,
-				DataPoints:             []*metricspb.NumberDataPoint{dataPoint},
-			},
-		}
-	} else {
-		metric.Data = &metricspb.Metric_Gauge{
-			Gauge: &metricspb.Gauge{
-				DataPoints: []*metricspb.NumberDataPoint{dataPoint},
-			},
-		}
-	}
-
-	return metric, nil
+	return result, nil
 }
 
 // buildMetricName creates metric name from event and value key
 // event.Name contains the subscription name (e.g., "nvos", "arista")
 // valueKey contains the metric path (e.g., "interfaces/interface/state/counters/in-octets")
-func (o *otlpOutput) buildMetricName(event *formatters.EventMsg, valueKey string) string {
-	sb := stringBuilderPool.Get().(*strings.Builder)
+func (o *otlpOutput) buildMetricName(cfg *config, event *formatters.EventMsg, valueKey string) string {
+	sb := stringsBuilderPool.Get().(*strings.Builder)
 	defer func() {
 		sb.Reset()
-		stringBuilderPool.Put(sb)
+		stringsBuilderPool.Put(sb)
 	}()
 
 	// Add global prefix if configured
-	if o.cfg.MetricPrefix != "" {
-		sb.WriteString(o.cfg.MetricPrefix)
+	if cfg.MetricPrefix != "" {
+		sb.WriteString(cfg.MetricPrefix)
 		sb.WriteString("_")
 	}
 
 	// Append subscription name if configured (for vendor-specific prefixes)
-	if o.cfg.AppendSubscriptionName {
+	if cfg.AppendSubscriptionName {
 		sb.WriteString(event.Name) // subscription name (nvos, arista, etc.)
 		sb.WriteString("_")
 	}
@@ -271,73 +242,36 @@ func (o *otlpOutput) buildMetricName(event *formatters.EventMsg, valueKey string
 	return name
 }
 
-// extractAttributes extracts attributes from event tags
-func (o *otlpOutput) extractAttributes(event *formatters.EventMsg) []*commonpb.KeyValue {
-	attrs := make([]*commonpb.KeyValue, 0)
-
-	// When add-event-tags-as-attributes is enabled, include all event-tags as data point attributes
-	// This makes them appear as Prometheus labels
-	if o.cfg.AddEventTagsAsAttributes {
-		for key, val := range event.Tags {
-			attrs = append(attrs, &commonpb.KeyValue{
-				Key:   key,
-				Value: &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: val}},
-			})
-		}
-		return attrs
-	}
-
-	// Legacy behavior: exclude resource-level tags from metric attributes
-	resourceTags := map[string]bool{
-		"device":            true,
-		"vendor":            true,
-		"model":             true,
-		"site":              true,
-		"source":            true,
-		"subscription_name": !o.cfg.AppendSubscriptionName, // Only skip if not appending
-	}
+// extractAttributesForMetric extracts data point attributes from event tags.
+// Tags listed in cfg.ResourceTagKeys are excluded (they live on the Resource).
+func (o *otlpOutput) extractAttributesForMetric(cfg *config, event *formatters.EventMsg) []*commonpb.KeyValue {
+	attrs := make([]*commonpb.KeyValue, 0, len(event.Tags))
 
 	for key, val := range event.Tags {
-		if resourceTags[key] {
+		if cfg.resourceTagSet[key] {
 			continue
 		}
-
 		attrs = append(attrs, &commonpb.KeyValue{
 			Key:   key,
 			Value: &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: val}},
 		})
 	}
 
-	// Add subscription name as attribute if configured
-	if o.cfg.AppendSubscriptionName {
-		if sub, ok := event.Tags["subscription_name"]; ok {
-			attrs = append(attrs, &commonpb.KeyValue{
-				Key:   "subscription_name",
-				Value: &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: sub}},
-			})
-		}
-	}
-
 	return attrs
 }
 
-// isCounter detects if metric is a monotonic counter based on name
-func (o *otlpOutput) isCounter(event *formatters.EventMsg) bool {
-	// Heuristics: path contains counter-related keywords
-	counterKeywords := []string{"counter", "octets", "packets", "bytes", "errors", "discards", "drops"}
-
-	path := strings.ToLower(event.Name)
-	for _, keyword := range counterKeywords {
-		if strings.Contains(path, keyword) {
+// isCounter returns true if any of the configured counter-patterns match the value key.
+func (o *otlpOutput) isCounter(cfg *config, valueName string) bool {
+	for _, re := range cfg.counterRegexes {
+		if re.MatchString(valueName) {
 			return true
 		}
 	}
-
 	return false
 }
 
 // createNumberDataPointWithValue creates OTLP data point from event with a specific value
-func (o *otlpOutput) createNumberDataPointWithValue(event *formatters.EventMsg, attrs []*commonpb.KeyValue, value interface{}) *metricspb.NumberDataPoint {
+func (o *otlpOutput) createNumberDataPointWithValue(cfg *config, event *formatters.EventMsg, attrs []*commonpb.KeyValue, value interface{}) *metricspb.NumberDataPoint {
 	dp := &metricspb.NumberDataPoint{
 		Attributes:   attrs,
 		TimeUnixNano: uint64(event.Timestamp),
@@ -376,8 +310,7 @@ func (o *otlpOutput) createNumberDataPointWithValue(event *formatters.EventMsg, 
 			return nil
 		}
 	default:
-		// Unknown type
-		if o.cfg.Debug {
+		if cfg.Debug {
 			o.logger.Printf("unsupported value type %T for metric %s", v, event.Name)
 		}
 		return nil
@@ -386,16 +319,18 @@ func (o *otlpOutput) createNumberDataPointWithValue(event *formatters.EventMsg, 
 	return dp
 }
 
-// createGaugeWithString creates OTLP Gauge with string value as attribute
+// createGaugeWithString creates OTLP Gauge with string value as attribute.
+// It copies attrs to avoid mutating the caller's shared slice.
 func (o *otlpOutput) createGaugeWithString(event *formatters.EventMsg, attrs []*commonpb.KeyValue, strVal string) *metricspb.Gauge {
-	// Add string value as attribute
-	attrs = append(attrs, &commonpb.KeyValue{
+	dpAttrs := make([]*commonpb.KeyValue, len(attrs), len(attrs)+1)
+	copy(dpAttrs, attrs)
+	dpAttrs = append(dpAttrs, &commonpb.KeyValue{
 		Key:   "value",
 		Value: &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: strVal}},
 	})
 
 	dp := &metricspb.NumberDataPoint{
-		Attributes:   attrs,
+		Attributes:   dpAttrs,
 		TimeUnixNano: uint64(event.Timestamp),
 		Value:        &metricspb.NumberDataPoint_AsDouble{AsDouble: 1.0},
 	}
@@ -505,7 +440,10 @@ func (o *otlpOutput) validateMetricData(rmIdx, smIdx, mIdx int, m *metricspb.Met
 
 // sendGRPC sends the OTLP metrics via gRPC
 func (o *otlpOutput) sendGRPC(ctx context.Context, req *metricsv1.ExportMetricsServiceRequest) error {
-	if o.grpcClient == nil {
+	cfg := o.cfg.Load()
+	gs := o.grpcState.Load()
+
+	if gs == nil || gs.client == nil {
 		return fmt.Errorf("gRPC client not initialized")
 	}
 
@@ -514,28 +452,28 @@ func (o *otlpOutput) sendGRPC(ctx context.Context, req *metricsv1.ExportMetricsS
 		return fmt.Errorf("request validation failed: %w", err)
 	}
 
-	if o.cfg.Timeout > 0 {
+	if cfg.Timeout > 0 {
 		var cancel func()
-		ctx, cancel = context.WithTimeout(ctx, o.cfg.Timeout)
+		ctx, cancel = context.WithTimeout(ctx, cfg.Timeout)
 		defer cancel()
 	}
 
-	if o.cfg.Debug {
+	if cfg.Debug {
 		o.logger.Printf("DEBUG: Sending OTLP request with %d ResourceMetrics", len(req.ResourceMetrics))
 		if len(req.ResourceMetrics) > 0 && len(req.ResourceMetrics[0].ScopeMetrics) > 0 {
 			o.logger.Printf("DEBUG: First ScopeMetric has %d Metrics", len(req.ResourceMetrics[0].ScopeMetrics[0].Metrics))
 		}
 	}
 
-	response, err := o.grpcClient.Export(ctx, req)
+	response, err := gs.client.Export(ctx, req)
 	if err != nil {
-		if o.cfg.Debug {
+		if cfg.Debug {
 			o.logger.Printf("DEBUG: gRPC Export returned error: %v", err)
 		}
 		return fmt.Errorf("grpc export failed: %w", err)
 	}
 
-	if o.cfg.Debug {
+	if cfg.Debug {
 		o.logger.Printf("DEBUG: gRPC Export succeeded")
 	}
 
@@ -544,8 +482,8 @@ func (o *otlpOutput) sendGRPC(ctx context.Context, req *metricsv1.ExportMetricsS
 			response.PartialSuccess.RejectedDataPoints,
 			response.PartialSuccess.ErrorMessage)
 		o.logger.Printf("ERROR: %s", errMsg)
-		if o.cfg.EnableMetrics {
-			otlpRejectedDataPoints.WithLabelValues(o.cfg.Name).Add(float64(response.PartialSuccess.RejectedDataPoints))
+		if cfg.EnableMetrics {
+			otlpRejectedDataPoints.WithLabelValues(cfg.Name).Add(float64(response.PartialSuccess.RejectedDataPoints))
 		}
 		return fmt.Errorf("%s", errMsg)
 	}

@@ -13,7 +13,9 @@ import (
 	"io"
 	"log"
 	"net"
+	"regexp"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -28,6 +30,23 @@ import (
 	"github.com/zestor-dev/zestor/store"
 	"github.com/zestor-dev/zestor/store/gomap"
 )
+
+// newTestOutput creates an otlpOutput suitable for converter tests (no Init required).
+func newTestOutput(cfg *config) *otlpOutput {
+	cfg.resourceTagSet = make(map[string]bool, len(cfg.ResourceTagKeys))
+	for _, k := range cfg.ResourceTagKeys {
+		cfg.resourceTagSet[k] = true
+	}
+	cfg.counterRegexes = make([]*regexp.Regexp, 0, len(cfg.CounterPatterns))
+	for _, p := range cfg.CounterPatterns {
+		cfg.counterRegexes = append(cfg.counterRegexes, regexp.MustCompile(p))
+	}
+	o := &otlpOutput{}
+	o.cfg = new(atomic.Pointer[config])
+	o.cfg.Store(cfg)
+	o.logger = log.New(io.Discard, "", 0)
+	return o
+}
 
 // Test 1: OTLP Message Structure
 func TestOTLP_MessageStructure(t *testing.T) {
@@ -48,10 +67,9 @@ func TestOTLP_MessageStructure(t *testing.T) {
 	}
 
 	// When: Converting to OTLP
-	cfg := &config{
+	output := newTestOutput(&config{
 		Endpoint: "localhost:4317",
-	}
-	output := &otlpOutput{cfg: cfg}
+	})
 	otlpMetrics := output.convertToOTLP([]*formatters.EventMsg{event})
 
 	// Then: Should have proper OTLP structure
@@ -88,7 +106,7 @@ func TestOTLP_ResourceAttributes(t *testing.T) {
 	}
 
 	// When: Converting to OTLP
-	output := &otlpOutput{cfg: &config{}}
+	output := newTestOutput(&config{})
 	otlpMetrics := output.convertToOTLP([]*formatters.EventMsg{event})
 
 	// Then: Resource attributes should match metadata
@@ -118,7 +136,7 @@ func TestOTLP_PathKeysAsAttributes(t *testing.T) {
 	}
 
 	// When: Converting to OTLP
-	output := &otlpOutput{cfg: &config{}}
+	output := newTestOutput(&config{})
 	otlpMetrics := output.convertToOTLP([]*formatters.EventMsg{event})
 
 	// Then: Path key becomes attribute
@@ -170,7 +188,7 @@ func TestOTLP_MetricTypeDetection(t *testing.T) {
 				},
 			}
 
-			output := &otlpOutput{cfg: &config{}}
+			output := newTestOutput(&config{})
 			otlpMetrics := output.convertToOTLP([]*formatters.EventMsg{event})
 			metric := otlpMetrics.ResourceMetrics[0].ScopeMetrics[0].Metrics[0]
 
@@ -198,11 +216,7 @@ func TestOTLP_GRPCTransport(t *testing.T) {
 		"interval":   "100ms",
 	}
 
-	output := &otlpOutput{
-		cfg:    &config{},
-		wg:     new(sync.WaitGroup),
-		logger: log.New(io.Discard, "", 0),
-	}
+	output := &otlpOutput{}
 
 	err := output.Init(context.Background(), "test-otlp", cfg,
 		outputs.WithConfigStore(gomap.NewMemStore(store.StoreOptions[any]{})),
@@ -298,8 +312,7 @@ func TestOTLP_StringValuesAsAttributes(t *testing.T) {
 	}
 
 	// When: Converting with strings-as-attributes enabled
-	cfg := &config{StringsAsAttributes: true}
-	output := &otlpOutput{cfg: cfg}
+	output := newTestOutput(&config{StringsAsAttributes: true})
 	otlpMetrics := output.convertToOTLP([]*formatters.EventMsg{event})
 
 	// Then: Should create gauge with value=1 and status as attribute
@@ -331,8 +344,7 @@ func TestOTLP_SubscriptionNameMapping(t *testing.T) {
 	}
 
 	// When: Converting with append-subscription-name enabled
-	cfg := &config{AppendSubscriptionName: true}
-	output := &otlpOutput{cfg: cfg}
+	output := newTestOutput(&config{AppendSubscriptionName: true})
 	otlpMetrics := output.convertToOTLP([]*formatters.EventMsg{event})
 
 	// Then: subscription_name should be in attributes
@@ -370,8 +382,10 @@ func getDataPointAttribute(dataPoint interface{}, key string) string {
 // Mock OTLP server for testing
 type mockOTLPServer struct {
 	metricsv1.UnimplementedMetricsServiceServer
-	grpcServer   *grpc.Server
-	listener     net.Listener
+	grpcServer *grpc.Server
+	listener   net.Listener
+
+	m            sync.Mutex
 	metricsCount int
 	receivedReqs []*metricsv1.ExportMetricsServiceRequest
 }
@@ -413,12 +427,16 @@ func (m *mockOTLPServer) Export(ctx context.Context, req *metricsv1.ExportMetric
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	m.m.Lock()
+	defer m.m.Unlock()
 	m.receivedReqs = append(m.receivedReqs, req)
 	m.metricsCount += len(req.ResourceMetrics)
 	return &metricsv1.ExportMetricsServiceResponse{}, nil
 }
 
 func (m *mockOTLPServer) ReceivedMetricsCount() int {
+	m.m.Lock()
+	defer m.m.Unlock()
 	return m.metricsCount
 }
 
@@ -427,18 +445,18 @@ func (m *mockOTLPServer) Stop() {
 	m.listener.Close()
 }
 
-// Test 9: Event Tags as Data Point Attributes (NEW FEATURE)
-func TestOTLP_EventTagsAsAttributes(t *testing.T) {
+// Test 9: Resource Tag Keys control data point vs resource attribute placement
+func TestOTLP_ResourceTagKeys(t *testing.T) {
 	tests := []struct {
-		name                     string
-		addEventTagsAsAttributes bool
-		eventTags                map[string]string
-		expectedInDataPoint      []string // Tags that should appear in data point attributes
-		expectedNotInDataPoint   []string // Tags that should NOT appear in data point attributes
+		name                   string
+		resourceTagKeys        []string
+		eventTags              map[string]string
+		expectedInDataPoint    []string
+		expectedNotInDataPoint []string
 	}{
 		{
-			name:                     "enabled: all tags become data point attributes",
-			addEventTagsAsAttributes: true,
+			name:            "empty resource-tag-keys: all tags become data point attributes",
+			resourceTagKeys: []string{},
 			eventTags: map[string]string{
 				"device":            "nvswitch1-nvl9-gp1-jhb01",
 				"vendor":            "nvidia",
@@ -450,8 +468,8 @@ func TestOTLP_EventTagsAsAttributes(t *testing.T) {
 			expectedNotInDataPoint: []string{},
 		},
 		{
-			name:                     "disabled: device/vendor/model excluded from data point attributes",
-			addEventTagsAsAttributes: false,
+			name:            "default resource-tag-keys: device/vendor/model/site/source excluded from data point",
+			resourceTagKeys: []string{"device", "vendor", "model", "site", "source"},
 			eventTags: map[string]string{
 				"device":         "nvswitch1-nvl9-gp1-jhb01",
 				"vendor":         "nvidia",
@@ -461,11 +479,22 @@ func TestOTLP_EventTagsAsAttributes(t *testing.T) {
 			expectedInDataPoint:    []string{"interface_name"},
 			expectedNotInDataPoint: []string{"device", "vendor", "model"},
 		},
+		{
+			name:            "custom resource-tag-keys: only specified keys excluded",
+			resourceTagKeys: []string{"source"},
+			eventTags: map[string]string{
+				"device":         "nvswitch1",
+				"vendor":         "nvidia",
+				"source":         "10.0.0.1",
+				"interface_name": "Ethernet1",
+			},
+			expectedInDataPoint:    []string{"device", "vendor", "interface_name"},
+			expectedNotInDataPoint: []string{"source"},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Given: Event with various tags
 			event := &formatters.EventMsg{
 				Name:      "test_metric",
 				Timestamp: time.Now().UnixNano(),
@@ -475,17 +504,11 @@ func TestOTLP_EventTagsAsAttributes(t *testing.T) {
 				},
 			}
 
-			// When: Converting to OTLP with add-event-tags-as-attributes setting
-			cfg := &config{
-				AddEventTagsAsAttributes: tt.addEventTagsAsAttributes,
-			}
-			output := &otlpOutput{
-				cfg:    cfg,
-				logger: log.New(io.Discard, "", 0),
-			}
+			output := newTestOutput(&config{
+				ResourceTagKeys: tt.resourceTagKeys,
+			})
 			otlpMetrics := output.convertToOTLP([]*formatters.EventMsg{event})
 
-			// Then: Verify data point attributes
 			require.NotNil(t, otlpMetrics)
 			require.Len(t, otlpMetrics.ResourceMetrics, 1)
 			require.Len(t, otlpMetrics.ResourceMetrics[0].ScopeMetrics, 1)
@@ -502,13 +525,11 @@ func TestOTLP_EventTagsAsAttributes(t *testing.T) {
 				t.Fatal("Metric has neither Gauge nor Sum data")
 			}
 
-			// Verify expected tags are present
 			for _, key := range tt.expectedInDataPoint {
 				assert.Contains(t, dataPointAttrs, key, "Expected tag '%s' to be in data point attributes", key)
 				assert.Equal(t, tt.eventTags[key], dataPointAttrs[key], "Tag '%s' value mismatch", key)
 			}
 
-			// Verify excluded tags are NOT present
 			for _, key := range tt.expectedNotInDataPoint {
 				assert.NotContains(t, dataPointAttrs, key, "Tag '%s' should NOT be in data point attributes", key)
 			}
@@ -516,18 +537,18 @@ func TestOTLP_EventTagsAsAttributes(t *testing.T) {
 	}
 }
 
-// Test 10: Resource Attributes Behavior with AddEventTagsAsAttributes
+// Test 10: Resource Attributes Behavior with ResourceTagKeys
 func TestOTLP_ResourceAttributesBehavior(t *testing.T) {
 	tests := []struct {
-		name                     string
-		addEventTagsAsAttributes bool
-		eventTags                map[string]string
-		expectInResource         []string
-		expectNotInResource      []string
+		name                string
+		resourceTagKeys     []string
+		eventTags           map[string]string
+		expectInResource    []string
+		expectNotInResource []string
 	}{
 		{
-			name:                     "enabled: tags NOT duplicated in resource attributes",
-			addEventTagsAsAttributes: true,
+			name:            "empty resource-tag-keys: no tags in resource",
+			resourceTagKeys: []string{},
 			eventTags: map[string]string{
 				"device": "nvswitch1",
 				"vendor": "nvidia",
@@ -536,14 +557,25 @@ func TestOTLP_ResourceAttributesBehavior(t *testing.T) {
 			expectNotInResource: []string{"device", "vendor"},
 		},
 		{
-			name:                     "disabled: tags in resource attributes (legacy)",
-			addEventTagsAsAttributes: false,
+			name:            "default resource-tag-keys: device/vendor in resource",
+			resourceTagKeys: []string{"device", "vendor", "model", "site", "source"},
 			eventTags: map[string]string{
 				"device": "nvswitch1",
 				"vendor": "nvidia",
 			},
 			expectInResource:    []string{"device", "vendor"},
 			expectNotInResource: []string{},
+		},
+		{
+			name:            "custom resource-tag-keys: only source in resource",
+			resourceTagKeys: []string{"source"},
+			eventTags: map[string]string{
+				"device": "nvswitch1",
+				"vendor": "nvidia",
+				"source": "10.0.0.1",
+			},
+			expectInResource:    []string{"source"},
+			expectNotInResource: []string{"device", "vendor"},
 		},
 	}
 
@@ -558,13 +590,9 @@ func TestOTLP_ResourceAttributesBehavior(t *testing.T) {
 				},
 			}
 
-			cfg := &config{
-				AddEventTagsAsAttributes: tt.addEventTagsAsAttributes,
-			}
-			output := &otlpOutput{
-				cfg:    cfg,
-				logger: log.New(io.Discard, "", 0),
-			}
+			output := newTestOutput(&config{
+				ResourceTagKeys: tt.resourceTagKeys,
+			})
 			otlpMetrics := output.convertToOTLP([]*formatters.EventMsg{event})
 
 			require.NotNil(t, otlpMetrics)
@@ -595,17 +623,13 @@ func TestOTLP_ConfiguredResourceAttributesAlwaysIncluded(t *testing.T) {
 		},
 	}
 
-	cfg := &config{
-		AddEventTagsAsAttributes: true, // Even when this is true
+	output := newTestOutput(&config{
+		ResourceTagKeys: []string{},
 		ResourceAttributes: map[string]string{
 			"service.name":    "gnmic-collector",
 			"service.version": "0.42.0",
 		},
-	}
-	output := &otlpOutput{
-		cfg:    cfg,
-		logger: log.New(io.Discard, "", 0),
-	}
+	})
 	otlpMetrics := output.convertToOTLP([]*formatters.EventMsg{event})
 
 	resource := otlpMetrics.ResourceMetrics[0].Resource
@@ -624,18 +648,17 @@ func TestOTLP_InitSucceedsWithUnreachableEndpoint(t *testing.T) {
 		"timeout":  "1s",
 	}
 
-	output := &otlpOutput{
-		cfg:    &config{},
-		wg:     new(sync.WaitGroup),
-		logger: log.New(io.Discard, "", 0),
-	}
+	output := &otlpOutput{}
 
 	err := output.Init(context.Background(), "test-otlp", cfg,
 		outputs.WithConfigStore(gomap.NewMemStore(store.StoreOptions[any]{})),
 	)
 	assert.NoError(t, err, "Init should succeed even with unreachable endpoint")
-	assert.NotNil(t, output.grpcConn, "gRPC connection should be created")
-	assert.NotNil(t, output.grpcClient, "gRPC client should be created")
+
+	gs := output.grpcState.Load()
+	assert.NotNil(t, gs, "gRPC state should be created")
+	assert.NotNil(t, gs.conn, "gRPC connection should be created")
+	assert.NotNil(t, gs.client, "gRPC client should be created")
 
 	output.Close()
 }
@@ -653,11 +676,7 @@ func TestOTLP_ConnectionOnFirstRPC(t *testing.T) {
 		"interval":   "100ms",
 	}
 
-	output := &otlpOutput{
-		cfg:    &config{},
-		wg:     new(sync.WaitGroup),
-		logger: log.New(io.Discard, "", 0),
-	}
+	output := &otlpOutput{}
 
 	err := output.Init(context.Background(), "test-otlp", cfg,
 		outputs.WithConfigStore(gomap.NewMemStore(store.StoreOptions[any]{})),
@@ -690,11 +709,7 @@ func TestOTLP_ReconnectWhenEndpointBecomesAvailable(t *testing.T) {
 		"max-retries": 10,
 	}
 
-	output := &otlpOutput{
-		cfg:    &config{},
-		wg:     new(sync.WaitGroup),
-		logger: log.New(io.Discard, "", 0),
-	}
+	output := &otlpOutput{}
 
 	err = output.Init(context.Background(), "test-otlp", cfg,
 		outputs.WithConfigStore(gomap.NewMemStore(store.StoreOptions[any]{})),
@@ -727,11 +742,7 @@ func TestOTLP_GracefulShutdownFlushes(t *testing.T) {
 		"interval":   "10s",
 	}
 
-	output := &otlpOutput{
-		cfg:    &config{},
-		wg:     new(sync.WaitGroup),
-		logger: log.New(io.Discard, "", 0),
-	}
+	output := &otlpOutput{}
 
 	err := output.Init(context.Background(), "test-otlp", cfg,
 		outputs.WithConfigStore(gomap.NewMemStore(store.StoreOptions[any]{})),
@@ -766,11 +777,7 @@ func TestOTLP_ContextCancellationFlushes(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	output := &otlpOutput{
-		cfg:    &config{},
-		wg:     new(sync.WaitGroup),
-		logger: log.New(io.Discard, "", 0),
-	}
+	output := &otlpOutput{}
 
 	err := output.Init(ctx, "test-otlp", cfg,
 		outputs.WithConfigStore(gomap.NewMemStore(store.StoreOptions[any]{})),
@@ -805,11 +812,7 @@ func TestOTLP_ChannelCloseFlushes(t *testing.T) {
 		"interval":   "10s",
 	}
 
-	output := &otlpOutput{
-		cfg:    &config{},
-		wg:     new(sync.WaitGroup),
-		logger: log.New(io.Discard, "", 0),
-	}
+	output := &otlpOutput{}
 
 	err := output.Init(context.Background(), "test-otlp", cfg,
 		outputs.WithConfigStore(gomap.NewMemStore(store.StoreOptions[any]{})),
@@ -824,7 +827,7 @@ func TestOTLP_ChannelCloseFlushes(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	assert.Equal(t, 0, server.ReceivedMetricsCount(), "Batch should not be sent yet")
 
-	close(output.eventCh)
+	close(*output.eventCh.Load())
 
 	time.Sleep(200 * time.Millisecond)
 

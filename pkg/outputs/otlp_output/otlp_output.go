@@ -15,7 +15,10 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"regexp"
+	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -48,39 +51,37 @@ const (
 
 func init() {
 	outputs.Register(outputType, func() outputs.Output {
-		return &otlpOutput{
-			cfg:    &config{},
-			wg:     new(sync.WaitGroup),
-			logger: log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
-		}
+		return &otlpOutput{}
 	})
 }
 
 // otlpOutput implements the Output interface for OTLP metrics export
 type otlpOutput struct {
 	outputs.BaseOutput
-	cfg      *config
+
+	cfg       *atomic.Pointer[config]
+	dynCfg    *atomic.Pointer[dynConfig]
+	grpcState *atomic.Pointer[grpcClientState]
+	eventCh   *atomic.Pointer[chan *formatters.EventMsg]
+
 	logger   *log.Logger
-	ctx      context.Context
+	rootCtx  context.Context
 	cancelFn context.CancelFunc
-	mo       *formatters.MarshalOptions
-	evps     []formatters.EventProcessor
-
-	// gRPC client
-	grpcConn   *grpc.ClientConn
-	grpcClient metricsv1.MetricsServiceClient
-
-	// HTTP client (for future HTTP support)
-	// httpClient *http.Client
-
-	// Worker management
-	eventCh chan *formatters.EventMsg
-	wg      *sync.WaitGroup
+	wg       *sync.WaitGroup
 
 	// Metrics
 	reg *prometheus.Registry
 	// store
 	store store.Store[any]
+}
+
+type dynConfig struct {
+	evps []formatters.EventProcessor
+}
+
+type grpcClientState struct {
+	conn   *grpc.ClientConn
+	client metricsv1.MetricsServiceClient
 }
 
 // config holds the OTLP output configuration
@@ -90,6 +91,7 @@ type config struct {
 	// endpoint of the OTLP collector
 	Endpoint string `mapstructure:"endpoint,omitempty"`
 	// "grpc" or "http"
+	// defaults to "grpc"
 	Protocol string `mapstructure:"protocol,omitempty"`
 	// RPC timeout
 	Timeout time.Duration `mapstructure:"timeout,omitempty"`
@@ -97,26 +99,43 @@ type config struct {
 	TLS *types.TLSConfig `mapstructure:"tls,omitempty"`
 
 	// Batching
-	BatchSize int           `mapstructure:"batch-size,omitempty"`
-	Interval  time.Duration `mapstructure:"interval,omitempty"`
+	BatchSize  int           `mapstructure:"batch-size,omitempty"`
+	Interval   time.Duration `mapstructure:"interval,omitempty"`
+	BufferSize int           `mapstructure:"buffer-size,omitempty"`
 
 	// Retry
 	MaxRetries int `mapstructure:"max-retries,omitempty"`
 
 	// Metric naming
-	MetricPrefix           string `mapstructure:"metric-prefix,omitempty"`
-	AppendSubscriptionName bool   `mapstructure:"append-subscription-name,omitempty"`
-	StringsAsAttributes    bool   `mapstructure:"strings-as-attributes,omitempty"`
+	// string, to be used as the metric namespace
+	MetricPrefix string `mapstructure:"metric-prefix,omitempty"`
+	// boolean, if true the subscription name will be prepended to the metric name after the prefix.
+	AppendSubscriptionName bool `mapstructure:"append-subscription-name,omitempty"`
+	// boolean, if true, string type values are exported as gauge metrics with value=1
+	// and the string stored as an attribute named "value".
+	// if false, string values are dropped.
+	StringsAsAttributes bool `mapstructure:"strings-as-attributes,omitempty"`
 
-	// Event tags behavior
-	AddEventTagsAsAttributes bool `mapstructure:"add-event-tags-as-attributes,omitempty"`
+	// Tags whose values are placed as OTLP Resource attributes and excluded
+	// from data point attributes.
+	// Set to an empty list to put all tags on data points (useful for Prometheus compatibility).
+	ResourceTagKeys []string `mapstructure:"resource-tag-keys,omitempty"`
+
+	// Regex patterns matched against the value key to classify a metric as a
+	// monotonic cumulative counter (Sum). Unmatched metrics become Gauges.
+	// If empty, all metrics are exported as Gauges.
+	CounterPatterns []string `mapstructure:"counter-patterns,omitempty"`
 
 	// Resource attributes
 	ResourceAttributes map[string]string `mapstructure:"resource-attributes,omitempty"`
 
+	// Precomputed lookup set for ResourceTagKeys (not from config file).
+	resourceTagSet map[string]bool
+	// Compiled regexes from CounterPatterns.
+	counterRegexes []*regexp.Regexp
+
 	// Performance
 	NumWorkers int `mapstructure:"num-workers,omitempty"`
-	BufferSize int `mapstructure:"buffer-size,omitempty"`
 
 	// Debugging
 	Debug         bool `mapstructure:"debug,omitempty"`
@@ -126,8 +145,18 @@ type config struct {
 	EventProcessors []string `mapstructure:"event-processors,omitempty"`
 }
 
+func (o *otlpOutput) initFields() {
+	o.cfg = new(atomic.Pointer[config])
+	o.dynCfg = new(atomic.Pointer[dynConfig])
+	o.grpcState = new(atomic.Pointer[grpcClientState])
+	o.eventCh = new(atomic.Pointer[chan *formatters.EventMsg])
+	o.wg = new(sync.WaitGroup)
+	o.logger = log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags)
+}
+
 func (o *otlpOutput) String() string {
-	b, err := json.Marshal(o.cfg)
+	cfg := o.cfg.Load()
+	b, err := json.Marshal(cfg)
 	if err != nil {
 		return ""
 	}
@@ -136,17 +165,18 @@ func (o *otlpOutput) String() string {
 
 // Init initializes the OTLP output
 func (o *otlpOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
-	err := outputs.DecodeConfig(cfg, o.cfg)
+	o.initFields()
+
+	ncfg := new(config)
+	err := outputs.DecodeConfig(cfg, ncfg)
 	if err != nil {
 		return err
 	}
-
-	if o.cfg.Name == "" {
-		o.cfg.Name = name
+	if ncfg.Name == "" {
+		ncfg.Name = name
 	}
-	o.logger.SetPrefix(fmt.Sprintf(loggingPrefix, o.cfg.Name))
+	o.logger.SetPrefix(fmt.Sprintf(loggingPrefix, ncfg.Name))
 
-	// Apply options
 	options := &outputs.OutputOptions{}
 	for _, opt := range opts {
 		if err := opt(options); err != nil {
@@ -156,17 +186,18 @@ func (o *otlpOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	o.store = options.Store
 
 	// Set defaults
-	o.setName(options.Name)
-	err = o.setDefaults()
-	if err != nil {
-		return err
+	if options.Name != "" {
+		ncfg.Name = options.Name
 	}
+	o.setDefaultsFor(ncfg)
 
 	// Apply logger
 	if options.Logger != nil {
 		o.logger.SetOutput(options.Logger.Writer())
 		o.logger.SetFlags(options.Logger.Flags())
 	}
+
+	o.cfg.Store(ncfg)
 
 	// Initialize registry
 	o.reg = options.Registry
@@ -176,128 +207,176 @@ func (o *otlpOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	}
 
 	// Initialize event processors
-	tcs, ps, acts, err := gutils.GetConfigMaps(o.store)
+	dc := new(dynConfig)
+	dc.evps, err = o.buildEventProcessors(ncfg)
 	if err != nil {
 		return err
 	}
-
-	o.evps, err = formatters.MakeEventProcessors(options.Logger, o.cfg.EventProcessors,
-		ps, tcs, acts)
-	if err != nil {
-		return err
-	}
+	o.dynCfg.Store(dc)
 
 	// Initialize transport
-	switch o.cfg.Protocol {
+	switch ncfg.Protocol {
 	case "grpc":
-		err = o.initGRPC()
+		gs, err := o.initGRPCFor(ncfg)
 		if err != nil {
 			return fmt.Errorf("failed to initialize gRPC transport: %w", err)
 		}
+		o.grpcState.Store(gs)
 	case "http":
 		return fmt.Errorf("HTTP transport not yet implemented")
 	default:
-		return fmt.Errorf("unsupported protocol '%s': must be 'grpc' or 'http'", o.cfg.Protocol)
+		return fmt.Errorf("unsupported protocol '%s': must be 'grpc' or 'http'", ncfg.Protocol)
 	}
 
 	// Initialize worker channels
-	bufferSize := o.cfg.BufferSize
-	if bufferSize == 0 {
-		bufferSize = o.cfg.BatchSize * 2
-	}
-	o.eventCh = make(chan *formatters.EventMsg, bufferSize)
+	eventCh := make(chan *formatters.EventMsg, ncfg.BufferSize)
+	o.eventCh.Store(&eventCh)
 
 	// Start workers
-	o.ctx, o.cancelFn = context.WithCancel(ctx)
-	o.wg.Add(o.cfg.NumWorkers)
-	for i := 0; i < o.cfg.NumWorkers; i++ {
-		go o.worker(o.ctx, i)
+	o.rootCtx = ctx
+	var wctx context.Context
+	wctx, o.cancelFn = context.WithCancel(o.rootCtx)
+	o.wg.Add(ncfg.NumWorkers)
+	for i := 0; i < ncfg.NumWorkers; i++ {
+		go o.worker(wctx, i)
 	}
 
 	o.logger.Printf("initialized OTLP output: endpoint=%s, protocol=%s, batch-size=%d, workers=%d",
-		o.cfg.Endpoint, o.cfg.Protocol, o.cfg.BatchSize, o.cfg.NumWorkers)
+		ncfg.Endpoint, ncfg.Protocol, ncfg.BatchSize, ncfg.NumWorkers)
 
 	return nil
 }
 
-func (o *otlpOutput) setDefaults() error {
-	if o.cfg.Timeout == 0 {
-		o.cfg.Timeout = defaultTimeout
-	}
-	if o.cfg.BatchSize == 0 {
-		o.cfg.BatchSize = defaultBatchSize
-	}
-	if o.cfg.NumWorkers == 0 {
-		o.cfg.NumWorkers = defaultNumWorkers
-	}
-	if o.cfg.MaxRetries == 0 {
-		o.cfg.MaxRetries = defaultMaxRetries
-	}
-	if o.cfg.Protocol == "" {
-		o.cfg.Protocol = defaultProtocol
-	}
-	if o.cfg.Endpoint == "" {
-		return fmt.Errorf("endpoint is required")
-	}
-	if o.cfg.Name == "" {
-		o.cfg.Name = "gnmic-otlp-" + uuid.New().String()
-	}
-	if o.cfg.Interval == 0 {
-		o.cfg.Interval = 5 * time.Second
-	}
-
-	return nil
-}
-
-func (o *otlpOutput) setName(name string) {
-	if name != "" {
-		o.cfg.Name = name
-	}
-}
-
-// initGRPC initializes the gRPC connection to the OTLP collector
-func (o *otlpOutput) initGRPC() error {
-	var opts []grpc.DialOption
-
-	if o.cfg.TLS != nil {
-		tlsConfig, err := o.createTLSConfig()
-		if err != nil {
-			return fmt.Errorf("failed to create TLS config: %w", err)
-		}
-		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
-	} else {
-		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	}
-
-	conn, err := grpc.NewClient(o.cfg.Endpoint, opts...)
+func (o *otlpOutput) Update(ctx context.Context, cfg map[string]any) error {
+	newCfg := new(config)
+	err := outputs.DecodeConfig(cfg, newCfg)
 	if err != nil {
-		return fmt.Errorf("failed to create OTLP client: %w", err)
+		return err
 	}
 
-	o.grpcConn = conn
-	o.grpcClient = metricsv1.NewMetricsServiceClient(conn)
+	o.setDefaultsFor(newCfg)
+	if err := o.validateConfig(newCfg); err != nil {
+		return err
+	}
 
-	o.logger.Printf("initialized OTLP gRPC client for endpoint: %s", o.cfg.Endpoint)
+	currCfg := o.cfg.Load()
+
+	swapChannel := channelNeedsSwap(currCfg, newCfg)
+	restartWorkers := needsWorkerRestart(currCfg, newCfg)
+	rebuildGRPC := needsGRPCRebuild(currCfg, newCfg)
+	rebuildProcessors := slices.Compare(currCfg.EventProcessors, newCfg.EventProcessors) != 0
+
+	dc := new(dynConfig)
+	prevDC := o.dynCfg.Load()
+	if rebuildProcessors {
+		dc.evps, err = o.buildEventProcessors(newCfg)
+		if err != nil {
+			return err
+		}
+	} else if prevDC != nil {
+		dc.evps = prevDC.evps
+	}
+	o.dynCfg.Store(dc)
+
+	if rebuildGRPC {
+		gs, err := o.initGRPCFor(newCfg)
+		if err != nil {
+			return fmt.Errorf("failed to rebuild gRPC transport: %w", err)
+		}
+		oldState := o.grpcState.Swap(gs)
+		if oldState != nil && oldState.conn != nil {
+			oldState.conn.Close()
+		}
+	}
+
+	o.cfg.Store(newCfg)
+
+	if swapChannel || restartWorkers {
+		var newChan chan *formatters.EventMsg
+		if swapChannel {
+			newChan = make(chan *formatters.EventMsg, newCfg.BufferSize)
+		} else {
+			newChan = *o.eventCh.Load()
+		}
+
+		runCtx, cancel := context.WithCancel(o.rootCtx)
+		newWG := new(sync.WaitGroup)
+
+		oldCancel := o.cancelFn
+		oldWG := o.wg
+		oldEventCh := *o.eventCh.Load()
+
+		o.cancelFn = cancel
+		o.wg = newWG
+		o.eventCh.Store(&newChan)
+
+		o.wg.Add(newCfg.NumWorkers)
+		for i := 0; i < newCfg.NumWorkers; i++ {
+			go o.worker(runCtx, i)
+		}
+
+		if oldCancel != nil {
+			oldCancel()
+		}
+		if oldWG != nil {
+			oldWG.Wait()
+		}
+
+		if swapChannel {
+		OUTER_LOOP:
+			for {
+				select {
+				case ev, ok := <-oldEventCh:
+					if !ok {
+						break OUTER_LOOP
+					}
+					select {
+					case newChan <- ev:
+					default:
+					}
+				default:
+					break OUTER_LOOP
+				}
+			}
+		}
+	}
+
+	o.logger.Printf("updated OTLP output: %s", o.String())
 	return nil
 }
 
-func (o *otlpOutput) createTLSConfig() (*tls.Config, error) {
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: o.cfg.TLS.SkipVerify,
+func (o *otlpOutput) Validate(cfg map[string]any) error {
+	ncfg := new(config)
+	err := outputs.DecodeConfig(cfg, ncfg)
+	if err != nil {
+		return err
 	}
+	o.setDefaultsFor(ncfg)
+	return o.validateConfig(ncfg)
+}
 
-	if o.cfg.TLS.CaFile != "" || o.cfg.TLS.CertFile != "" {
-		return utils.NewTLSConfig(
-			o.cfg.TLS.CaFile,
-			o.cfg.TLS.CertFile,
-			o.cfg.TLS.KeyFile,
-			"", // client auth
-			o.cfg.TLS.SkipVerify,
-			false,
-		)
+func (o *otlpOutput) UpdateProcessor(name string, pcfg map[string]any) error {
+	cfg := o.cfg.Load()
+	dc := o.dynCfg.Load()
+
+	newEvps, changed, err := outputs.UpdateProcessorInSlice(
+		o.logger,
+		o.store,
+		cfg.EventProcessors,
+		dc.evps,
+		name,
+		pcfg,
+	)
+	if err != nil {
+		return err
 	}
-
-	return tlsConfig, nil
+	if changed {
+		newDC := *dc
+		newDC.evps = newEvps
+		o.dynCfg.Store(&newDC)
+		o.logger.Printf("updated event processor %s", name)
+	}
+	return nil
 }
 
 // Write handles incoming gNMI messages
@@ -306,10 +385,16 @@ func (o *otlpOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.
 		return
 	}
 
+	cfg := o.cfg.Load()
+	dc := o.dynCfg.Load()
+	if dc == nil {
+		return
+	}
+
 	// Type assert to gNMI SubscribeResponse
 	subsResp, ok := rsp.(*gnmi.SubscribeResponse)
 	if !ok {
-		if o.cfg.Debug {
+		if cfg.Debug {
 			o.logger.Printf("received non-SubscribeResponse message, ignoring")
 		}
 		return
@@ -321,26 +406,27 @@ func (o *otlpOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.
 		subscriptionName = "default"
 	}
 
-	events, err := formatters.ResponseToEventMsgs(subscriptionName, subsResp, meta, o.evps...)
+	events, err := formatters.ResponseToEventMsgs(subscriptionName, subsResp, meta, dc.evps...)
 	if err != nil {
-		if o.cfg.Debug {
+		if cfg.Debug {
 			o.logger.Printf("failed to convert response to events: %v", err)
 		}
 		return
 	}
 
 	// Send events to worker channel
+	eventCh := *o.eventCh.Load()
 	for _, event := range events {
 		select {
-		case o.eventCh <- event:
+		case eventCh <- event:
 		case <-ctx.Done():
 			return
 		default:
-			if o.cfg.Debug {
+			if cfg.Debug {
 				o.logger.Printf("event channel full, dropping event")
 			}
-			if o.cfg.EnableMetrics {
-				otlpNumberOfFailedEvents.WithLabelValues(o.cfg.Name, "channel_full").Inc()
+			if cfg.EnableMetrics {
+				otlpNumberOfFailedEvents.WithLabelValues(cfg.Name, "channel_full").Inc()
 			}
 		}
 	}
@@ -352,16 +438,19 @@ func (o *otlpOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {
 		return
 	}
 
+	cfg := o.cfg.Load()
+	eventCh := *o.eventCh.Load()
+
 	select {
-	case o.eventCh <- ev:
+	case eventCh <- ev:
 	case <-ctx.Done():
 		return
 	default:
-		if o.cfg.Debug {
+		if cfg.Debug {
 			o.logger.Printf("event channel full, dropping event")
 		}
-		if o.cfg.EnableMetrics {
-			otlpNumberOfFailedEvents.WithLabelValues(o.cfg.Name, "channel_full").Inc()
+		if cfg.EnableMetrics {
+			otlpNumberOfFailedEvents.WithLabelValues(cfg.Name, "channel_full").Inc()
 		}
 	}
 }
@@ -373,14 +462,18 @@ func (o *otlpOutput) Close() error {
 	}
 
 	// Close event channel
-	close(o.eventCh)
+	eventCh := o.eventCh.Load()
+	if eventCh != nil {
+		close(*eventCh)
+	}
 
 	// Wait for workers to finish
 	o.wg.Wait()
 
 	// Close gRPC connection
-	if o.grpcConn != nil {
-		return o.grpcConn.Close()
+	gs := o.grpcState.Load()
+	if gs != nil && gs.conn != nil {
+		return gs.conn.Close()
 	}
 
 	return nil
@@ -390,33 +483,34 @@ func (o *otlpOutput) Close() error {
 func (o *otlpOutput) worker(ctx context.Context, id int) {
 	defer o.wg.Done()
 
-	if o.cfg.Debug {
+	cfg := o.cfg.Load()
+	if cfg.Debug {
 		o.logger.Printf("worker %d started", id)
 	}
 
-	batch := make([]*formatters.EventMsg, 0, o.cfg.BatchSize)
-	ticker := time.NewTicker(o.cfg.Interval)
+	batch := make([]*formatters.EventMsg, 0, cfg.BatchSize)
+	ticker := time.NewTicker(cfg.Interval)
 	defer ticker.Stop()
+
+	eventCh := *o.eventCh.Load()
 
 	for {
 		select {
 		case <-ctx.Done():
-			// Flush remaining batch with fresh context to avoid sending with cancelled context
 			if len(batch) > 0 {
-				flushCtx, cancel := context.WithTimeout(context.Background(), o.cfg.Timeout)
+				flushCtx, cancel := context.WithTimeout(context.Background(), cfg.Timeout)
 				defer cancel()
 				o.sendBatch(flushCtx, batch)
 			}
-			if o.cfg.Debug {
+			if cfg.Debug {
 				o.logger.Printf("worker %d stopped", id)
 			}
 			return
 
-		case event, ok := <-o.eventCh:
+		case event, ok := <-eventCh:
 			if !ok {
-				// Channel closed, flush and exit with fresh context
 				if len(batch) > 0 {
-					flushCtx, cancel := context.WithTimeout(context.Background(), o.cfg.Timeout)
+					flushCtx, cancel := context.WithTimeout(context.Background(), cfg.Timeout)
 					defer cancel()
 					o.sendBatch(flushCtx, batch)
 				}
@@ -424,61 +518,157 @@ func (o *otlpOutput) worker(ctx context.Context, id int) {
 			}
 
 			batch = append(batch, event)
-			if len(batch) >= o.cfg.BatchSize {
+			if len(batch) >= cfg.BatchSize {
 				o.sendBatch(ctx, batch)
-				batch = make([]*formatters.EventMsg, 0, o.cfg.BatchSize)
+				batch = make([]*formatters.EventMsg, 0, cfg.BatchSize)
 			}
 
 		case <-ticker.C:
 			if len(batch) > 0 {
 				o.sendBatch(ctx, batch)
-				batch = make([]*formatters.EventMsg, 0, o.cfg.BatchSize)
+				batch = make([]*formatters.EventMsg, 0, cfg.BatchSize)
 			}
 		}
 	}
 }
 
-// sendBatch sends a batch of events to the OTLP collector
 func (o *otlpOutput) sendBatch(ctx context.Context, events []*formatters.EventMsg) {
 	if len(events) == 0 {
 		return
 	}
 
+	cfg := o.cfg.Load()
 	start := time.Now()
 
-	// Convert to OTLP format
 	req := o.convertToOTLP(events)
 
-	// Send with retries
 	var err error
-	for attempt := 0; attempt <= o.cfg.MaxRetries; attempt++ {
+	for attempt := 0; attempt <= cfg.MaxRetries; attempt++ {
 		err = o.sendGRPC(ctx, req)
 
 		if err == nil {
-			if o.cfg.Debug {
+			if cfg.Debug {
 				o.logger.Printf("successfully sent %d events (attempt %d)", len(events), attempt+1)
 			}
-			if o.cfg.EnableMetrics {
-				otlpNumberOfSentEvents.WithLabelValues(o.cfg.Name).Add(float64(len(events)))
-				otlpSendDuration.WithLabelValues(o.cfg.Name).Observe(time.Since(start).Seconds())
+			if cfg.EnableMetrics {
+				otlpNumberOfSentEvents.WithLabelValues(cfg.Name).Add(float64(len(events)))
+				otlpSendDuration.WithLabelValues(cfg.Name).Observe(time.Since(start).Seconds())
 			}
 			return
 		}
 
-		if attempt < o.cfg.MaxRetries {
+		if attempt < cfg.MaxRetries {
 			time.Sleep(time.Duration(attempt+1) * 100 * time.Millisecond)
 		}
 	}
 
-	o.logger.Printf("failed to send batch after %d retries: %v", o.cfg.MaxRetries, err)
-	if o.cfg.EnableMetrics {
-		otlpNumberOfFailedEvents.WithLabelValues(o.cfg.Name, "send_failed").Add(float64(len(events)))
+	o.logger.Printf("failed to send batch after %d retries: %v", cfg.MaxRetries, err)
+	if cfg.EnableMetrics {
+		otlpNumberOfFailedEvents.WithLabelValues(cfg.Name, "send_failed").Add(float64(len(events)))
 	}
 }
 
-// registerMetrics registers Prometheus metrics for the OTLP output
+func (o *otlpOutput) setDefaultsFor(c *config) {
+	if c.Timeout == 0 {
+		c.Timeout = defaultTimeout
+	}
+	if c.BatchSize == 0 {
+		c.BatchSize = defaultBatchSize
+	}
+	if c.NumWorkers == 0 {
+		c.NumWorkers = defaultNumWorkers
+	}
+	if c.MaxRetries == 0 {
+		c.MaxRetries = defaultMaxRetries
+	}
+	if c.Protocol == "" {
+		c.Protocol = defaultProtocol
+	}
+	if c.Name == "" {
+		c.Name = "gnmic-otlp-" + uuid.New().String()
+	}
+	if c.Interval == 0 {
+		c.Interval = 5 * time.Second
+	}
+	if c.BufferSize == 0 {
+		c.BufferSize = c.BatchSize * 2
+	}
+	c.resourceTagSet = make(map[string]bool, len(c.ResourceTagKeys))
+	for _, k := range c.ResourceTagKeys {
+		c.resourceTagSet[k] = true
+	}
+}
+
+func (o *otlpOutput) validateConfig(c *config) error {
+	if c.Endpoint == "" {
+		return fmt.Errorf("endpoint is required")
+	}
+	c.counterRegexes = make([]*regexp.Regexp, 0, len(c.CounterPatterns))
+	for _, p := range c.CounterPatterns {
+		re, err := regexp.Compile(p)
+		if err != nil {
+			return fmt.Errorf("invalid counter-pattern %q: %w", p, err)
+		}
+		c.counterRegexes = append(c.counterRegexes, re)
+	}
+	return nil
+}
+
+func (o *otlpOutput) buildEventProcessors(cfg *config) ([]formatters.EventProcessor, error) {
+	tcs, ps, acts, err := gutils.GetConfigMaps(o.store)
+	if err != nil {
+		return nil, err
+	}
+	return formatters.MakeEventProcessors(o.logger, cfg.EventProcessors, ps, tcs, acts)
+}
+
+func (o *otlpOutput) initGRPCFor(cfg *config) (*grpcClientState, error) {
+	var opts []grpc.DialOption
+
+	if cfg.TLS != nil {
+		tlsConfig, err := o.createTLSConfigFor(cfg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create TLS config: %w", err)
+		}
+		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+	} else {
+		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	}
+
+	conn, err := grpc.NewClient(cfg.Endpoint, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create OTLP client: %w", err)
+	}
+
+	o.logger.Printf("initialized OTLP gRPC client for endpoint: %s", cfg.Endpoint)
+	return &grpcClientState{
+		conn:   conn,
+		client: metricsv1.NewMetricsServiceClient(conn),
+	}, nil
+}
+
+func (o *otlpOutput) createTLSConfigFor(cfg *config) (*tls.Config, error) {
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: cfg.TLS.SkipVerify,
+	}
+
+	if cfg.TLS.CaFile != "" || cfg.TLS.CertFile != "" {
+		return utils.NewTLSConfig(
+			cfg.TLS.CaFile,
+			cfg.TLS.CertFile,
+			cfg.TLS.KeyFile,
+			"",
+			cfg.TLS.SkipVerify,
+			false,
+		)
+	}
+
+	return tlsConfig, nil
+}
+
 func (o *otlpOutput) registerMetrics() error {
-	if !o.cfg.EnableMetrics {
+	cfg := o.cfg.Load()
+	if !cfg.EnableMetrics {
 		return nil
 	}
 
@@ -500,4 +690,31 @@ func (o *otlpOutput) registerMetrics() error {
 	}
 
 	return nil
+}
+
+// Helper functions for detecting config changes
+
+func channelNeedsSwap(old, nw *config) bool {
+	if old == nil || nw == nil {
+		return true
+	}
+	return old.BufferSize != nw.BufferSize
+}
+
+func needsWorkerRestart(old, nw *config) bool {
+	if old == nil || nw == nil {
+		return true
+	}
+	return old.NumWorkers != nw.NumWorkers ||
+		old.BatchSize != nw.BatchSize ||
+		old.Interval != nw.Interval
+}
+
+func needsGRPCRebuild(old, nw *config) bool {
+	if old == nil || nw == nil {
+		return true
+	}
+	return old.Endpoint != nw.Endpoint ||
+		old.Protocol != nw.Protocol ||
+		!old.TLS.Equal(nw.TLS)
 }

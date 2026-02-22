@@ -49,6 +49,7 @@ import (
 	"github.com/openconfig/gnmic/pkg/lockers"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	"github.com/openconfig/gnmic/pkg/utils"
+	"github.com/openconfig/gnmic/pkg/version"
 	"github.com/zestor-dev/zestor/store"
 	"github.com/zestor-dev/zestor/store/gomap"
 )
@@ -263,7 +264,7 @@ func (a *App) PreRunE(cmd *cobra.Command, args []string) error {
 	a.Logger.SetOutput(logOutput)
 	a.Logger.SetFlags(flags)
 	a.Config.Address = config.ParseAddressField(a.Config.Address)
-	a.Logger.Printf("version=%s, commit=%s, date=%s, gitURL=%s, docs=https://gnmic.openconfig.net", version, commit, date, gitURL)
+	a.Logger.Printf("version=%s, commit=%s, date=%s, gitURL=%s, docs=https://gnmic.openconfig.net", version.Version, version.Commit, version.Date, version.GitURL)
 
 	if a.Config.Debug {
 		grpclog.SetLogger(a.Logger) //lint:ignore SA1019 see https://github.com/karimra/gnmic/issues/59
@@ -372,7 +373,7 @@ func (a *App) PrintMsg(address string, msgName string, msg proto.Message) error 
 
 func (a *App) createCollectorDialOpts() {
 	// append gRPC userAgent name
-	opts := []grpc.DialOption{grpc.WithUserAgent(fmt.Sprintf("gNMIc/%s", version))}
+	opts := []grpc.DialOption{grpc.WithUserAgent(fmt.Sprintf("gNMIc/%s", version.Version))}
 	// add maxMsgSize
 	if a.Config.MaxMsgSize > 0 {
 		opts = append(opts, grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(a.Config.MaxMsgSize)))
