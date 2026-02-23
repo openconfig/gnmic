@@ -18,32 +18,26 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/openconfig/gnmic/pkg/version"
 	"github.com/spf13/cobra"
-)
-
-var (
-	version = "dev"
-	commit  = "none"
-	date    = "unknown"
-	gitURL  = ""
 )
 
 var downloadURL = "https://github.com/openconfig/gnmic/raw/main/install.sh"
 
 func (a *App) VersionRun(cmd *cobra.Command, args []string) {
 	if a.Config.Format != "json" {
-		fmt.Printf("version : %s\n", version)
-		fmt.Printf(" commit : %s\n", commit)
-		fmt.Printf("   date : %s\n", date)
-		fmt.Printf(" gitURL : %s\n", gitURL)
+		fmt.Printf("version : %s\n", version.Version)
+		fmt.Printf(" commit : %s\n", version.Commit)
+		fmt.Printf("   date : %s\n", version.Date)
+		fmt.Printf(" gitURL : %s\n", version.GitURL)
 		fmt.Printf("   docs : https://gnmic.openconfig.net\n")
 		return
 	}
 	b, err := json.Marshal(map[string]string{
-		"version": version,
-		"commit":  commit,
-		"date":    date,
-		"gitURL":  gitURL,
+		"version": version.Version,
+		"commit":  version.Commit,
+		"date":    version.Date,
+		"gitURL":  version.GitURL,
 		"docs":    "https://gnmic.openconfig.net",
 	}) // need indent? use jq
 	if err != nil {
