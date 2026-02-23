@@ -395,7 +395,7 @@ func Extension_CommitSetRollbackDuration(id string, dur time.Duration) func(msg 
 			)
 			return fn(msg)
 		default:
-			return fmt.Errorf("option Extension_CommitCancel: %w: %T", ErrInvalidMsgType, msg)
+			return fmt.Errorf("option Extension_CommitSetRollbackDuration: %w: %T", ErrInvalidMsgType, msg)
 		}
 	}
 }
