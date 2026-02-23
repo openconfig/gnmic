@@ -51,7 +51,7 @@ SUBSC_NODELAY:
 		if err != nil {
 			t.errors <- &TargetError{
 				SubscriptionName: subscriptionName,
-				Err:              fmt.Errorf("failed to create a subscribe client, target='%s', retry in %d. err=%v", t.Config.Name, t.Config.RetryTimer, err),
+				Err:              fmt.Errorf("failed to create a subscribe client, target='%s', retry in %s. err=%v", t.Config.Name, t.Config.RetryTimer, err),
 			}
 			cancel()
 			goto SUBSC
@@ -71,7 +71,7 @@ SUBSC_NODELAY:
 		select {
 		case t.errors <- &TargetError{
 			SubscriptionName: subscriptionName,
-			Err:              fmt.Errorf("target '%s' send error, retry in %d. err=%v", t.Config.Name, t.Config.RetryTimer, err),
+			Err:              fmt.Errorf("target '%s' send error, retry in %s. err=%v", t.Config.Name, t.Config.RetryTimer, err),
 		}:
 		case <-ctx.Done():
 			cancel()
@@ -125,7 +125,7 @@ SUBSC_NODELAY:
 			select {
 			case t.errors <- &TargetError{
 				SubscriptionName: subscriptionName,
-				Err:              fmt.Errorf("retrying in %d", t.Config.RetryTimer),
+				Err:              fmt.Errorf("retrying in %s", t.Config.RetryTimer),
 			}:
 			case <-ctx.Done():
 				cancel()
@@ -380,7 +380,7 @@ func (t *Target) SubscribeStreamChan(ctx context.Context, req *gnmi.SubscribeReq
 			nctx = t.appendRequestMetadata(nctx)
 			subscribeClient, err = t.Client.Subscribe(nctx, t.callOpts()...)
 			if err != nil {
-				errCh <- fmt.Errorf("failed to create a subscribe client, target='%s', retry in %d. err=%v", t.Config.Name, t.Config.RetryTimer, err)
+				errCh <- fmt.Errorf("failed to create a subscribe client, target='%s', retry in %s. err=%v", t.Config.Name, t.Config.RetryTimer, err)
 				cancel()
 				goto SUBSC
 			}
@@ -395,14 +395,14 @@ func (t *Target) SubscribeStreamChan(ctx context.Context, req *gnmi.SubscribeReq
 
 		err = subscribeClient.Send(req)
 		if err != nil {
-			errCh <- fmt.Errorf("target '%s' send error, retry in %d. err=%v", t.Config.Name, t.Config.RetryTimer, err)
+			errCh <- fmt.Errorf("target '%s' send error, retry in %s. err=%v", t.Config.Name, t.Config.RetryTimer, err)
 			cancel()
 			goto SUBSC
 		}
 
 		for {
 			if ctx.Err() != nil {
-				errCh <- err
+				errCh <- ctx.Err()
 				cancel()
 				goto SUBSC
 			}
@@ -530,7 +530,9 @@ func (t *Target) DecodeProtoBytes(resp *gnmi.SubscribeResponse) error {
 func (t *Target) DeleteSubscription(name string) {
 	t.m.Lock()
 	defer t.m.Unlock()
-	t.subscribeCancelFn[name]()
+	if _, ok := t.subscribeCancelFn[name]; ok {
+		t.subscribeCancelFn[name]()
+	}
 	delete(t.subscribeCancelFn, name)
 	delete(t.SubscribeClients, name)
 	delete(t.Subscriptions, name)
@@ -594,11 +596,15 @@ func (t *Target) handleONCESubscriptionRcv(ctx context.Context, stream gnmi.GNMI
 		if err != nil {
 			return err
 		}
-		ch <- &SubscribeResponse{
+		select {
+		case <-ctx.Done():
+		case ch <- &SubscribeResponse{
 			SubscriptionName:   subscriptionName,
 			SubscriptionConfig: subConfig,
 			Response:           response,
+		}:
 		}
+
 		switch response.Response.(type) {
 		case *gnmi.SubscribeResponse_SyncResponse:
 			return nil
@@ -616,10 +622,14 @@ func (t *Target) handlePollSubscriptionRcv(ctx context.Context, stream gnmi.GNMI
 			if err != nil {
 				return err
 			}
-			ch <- &SubscribeResponse{
+			select {
+			case <-ctx.Done():
+				return nil
+			case ch <- &SubscribeResponse{
 				SubscriptionName:   subscriptionName,
 				SubscriptionConfig: subConfig,
 				Response:           response,
+			}:
 			}
 		}
 	}
