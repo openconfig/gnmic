@@ -94,14 +94,17 @@ func (t *Target) CreateGNMIClient(ctx context.Context, opts ...grpc.DialOption) 
 	defer cancel()
 	for _, addr := range addrs {
 		go func(addr string) {
+			// copy opts
+			optsCopy := make([]grpc.DialOption, len(opts))
+			copy(optsCopy, opts)
 			timeoutCtx, cancel := context.WithTimeout(ctx, t.Config.Timeout)
 			defer cancel()
 
 			// add the local custom dialer only if the target is a not tunneled.
 			if t.Config.TunnelTargetType == "" {
-				opts = append(opts, grpc.WithContextDialer(t.createDialer(addr)))
+				optsCopy = append(optsCopy, grpc.WithContextDialer(t.createDialer(addr)))
 			}
-			conn, err := grpc.DialContext(timeoutCtx, addr, opts...)
+			conn, err := grpc.DialContext(timeoutCtx, addr, optsCopy...)
 			if err != nil {
 				errC <- fmt.Errorf("%s: %v", addr, err)
 				return
@@ -148,7 +151,7 @@ func (t *Target) createDialer(addr string) func(context.Context, string) (net.Co
 }
 
 func (t *Target) createProxyDialer(addr string) func(context.Context, string) (net.Conn, error) {
-	return func(context.Context, string) (net.Conn, error) {
+	return func(_ context.Context, targetAddr string) (net.Conn, error) {
 		dialer, err := proxy.SOCKS5("tcp", addr, nil,
 			&net.Dialer{
 				Timeout:   t.Config.Timeout,
@@ -158,7 +161,7 @@ func (t *Target) createProxyDialer(addr string) func(context.Context, string) (n
 		if err != nil {
 			return nil, err
 		}
-		return dialer.Dial("tcp", addr)
+		return dialer.Dial("tcp", targetAddr)
 	}
 }
 
