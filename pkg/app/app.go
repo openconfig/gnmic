@@ -215,6 +215,7 @@ func (a *App) InitGlobalFlags() {
 	a.RootCmd.PersistentFlags().StringArrayVarP(&a.Config.GlobalFlags.ProtoFile, "proto-file", "", nil, "proto file(s) name(s)")
 	a.RootCmd.PersistentFlags().StringArrayVarP(&a.Config.GlobalFlags.ProtoDir, "proto-dir", "", nil, "directory to look for proto files specified with --proto-file")
 	a.RootCmd.PersistentFlags().StringArrayVarP(&a.Config.GlobalFlags.RegisteredExtensions, "registered-extensions", "", nil, "registered (custom) extensions")
+	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.RequestExtensions, "request-extensions", "", "", "add registered (custom) extensions to request")
 	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.TargetsFile, "targets-file", "", "", "path to file with targets configuration")
 	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.Gzip, "gzip", "", false, "enable gzip compression on gRPC connections")
 	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.Token, "token", "", "", "token value, used for gRPC token based authentication")

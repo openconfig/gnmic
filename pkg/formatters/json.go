@@ -80,52 +80,55 @@ func formatRegisteredExtensions(
 		return decodedExtensions, nil
 	}
 
-	if len(protoFiles) > 0 {
-		descSource, err := grpcurl.DescriptorSourceFromProtoFiles(protoDir, protoFiles...)
+	if len(protoFiles) == 0 {
+		return decodedExtensions, nil
+	}
+
+	descSource, err := grpcurl.DescriptorSourceFromProtoFiles(protoDir, protoFiles...)
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, ext := range extensions {
+		rext := ext.GetRegisteredExt()
+
+		if rext == nil {
+			continue
+		}
+
+		id := int32(rext.Id)
+		msg, exists := extensionDecodeMap[id]
+
+		if !exists {
+			continue
+		}
+
+		desc, err := descSource.FindSymbol(msg)
+
 		if err != nil {
 			return nil, err
 		}
 
-		for _, ext := range extensions {
-			rext := ext.GetRegisteredExt()
+		pm := dynamic.NewMessage(desc.GetFile().FindMessage(msg))
 
-			if rext == nil {
-				continue
-			}
-
-			id := int32(rext.Id)
-			msg, exists := extensionDecodeMap[id]
-
-			if !exists {
-				continue
-			}
-
-			desc, err := descSource.FindSymbol(msg)
-
-			if err != nil {
-				return nil, err
-			}
-
-			pm := dynamic.NewMessage(desc.GetFile().FindMessage(msg))
-
-			if err = pm.Unmarshal(rext.Msg); err != nil {
-				return nil, err
-			}
-
-			jsondata, err := pm.MarshalJSON()
-
-			if err != nil {
-				return nil, err
-			}
-
-			msgJson := map[string]any{}
-
-			if err = json.Unmarshal(jsondata, &msgJson); err != nil {
-				return nil, err
-			}
-
-			decodedExtensions[id] = msgJson
+		if err = pm.Unmarshal(rext.Msg); err != nil {
+			return nil, err
 		}
+
+		jsondata, err := pm.MarshalJSON()
+
+		if err != nil {
+			return nil, err
+		}
+
+		msgJson := map[string]any{}
+
+		if err = json.Unmarshal(jsondata, &msgJson); err != nil {
+			return nil, err
+		}
+
+		decodedExtensions[id] = msgJson
 	}
 
 	return decodedExtensions, nil
