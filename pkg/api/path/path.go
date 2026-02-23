@@ -19,6 +19,7 @@ import (
 
 var errMalformedXPath = errors.New("malformed xpath")
 var errMalformedXPathKey = errors.New("malformed xpath key")
+var errEmptyPathElemName = errors.New("empty path element name")
 
 var escapedBracketsReplacer = strings.NewReplacer(`\]`, `]`, `\[`, `[`)
 
@@ -143,6 +144,11 @@ func toPathElem(s string) (*gnmi.PathElem, error) {
 			return nil, err
 		}
 		s = s[:idx]
+	} else if idx == 0 {
+		return nil, errEmptyPathElemName
+	}
+	if s == "" {
+		return nil, errEmptyPathElemName
 	}
 	return &gnmi.PathElem{Name: s, Key: kvs}, nil
 }

@@ -567,3 +567,83 @@ func BenchmarkParsePath(b *testing.B) {
 		})
 	}
 }
+
+func TestGnmiPathToXPath(t *testing.T) {
+	tests := []struct {
+		name string // description of this test case
+		// Named input parameters for target function.
+		p      *gnmi.Path
+		noKeys bool
+		want   string
+	}{
+		{
+			name:   "nil",
+			p:      nil,
+			noKeys: false,
+			want:   "",
+		},
+		{
+			name:   "empty_path",
+			p:      &gnmi.Path{},
+			noKeys: false,
+			want:   "",
+		},
+		{
+			name:   "path_with_one_path_element",
+			p:      &gnmi.Path{Elem: []*gnmi.PathElem{{Name: "e1"}}},
+			noKeys: false,
+			want:   "e1",
+		},
+		{
+			name:   "path_with_one_path_element_with_key",
+			p:      &gnmi.Path{Elem: []*gnmi.PathElem{{Name: "e1", Key: map[string]string{"k": "v"}}}},
+			noKeys: false,
+			want:   "e1[k=v]",
+		},
+		{
+			name:   "path_with_two_path_elements",
+			p:      &gnmi.Path{Elem: []*gnmi.PathElem{{Name: "e1"}, {Name: "e2"}}},
+			noKeys: false,
+			want:   "e1/e2",
+		},
+		{
+			name:   "path_with_two_path_elements_with_key",
+			p:      &gnmi.Path{Elem: []*gnmi.PathElem{{Name: "e1", Key: map[string]string{"k": "v"}}, {Name: "e2", Key: map[string]string{"k1": "v1"}}}},
+			noKeys: false,
+			want:   "e1[k=v]/e2[k1=v1]",
+		},
+		{
+			name:   "path_with_origin",
+			p:      &gnmi.Path{Origin: "origin", Elem: []*gnmi.PathElem{{Name: "e1"}, {Name: "e2"}}},
+			noKeys: false,
+			want:   "origin:/e1/e2",
+		},
+		{
+			name:   "path_with_origin_and_key",
+			p:      &gnmi.Path{Origin: "origin", Elem: []*gnmi.PathElem{{Name: "e1", Key: map[string]string{"k": "v"}}}},
+			noKeys: false,
+			want:   "origin:/e1[k=v]",
+		},
+		{
+			name:   "path_with_origin_and_multiple_keys",
+			p:      &gnmi.Path{Origin: "origin", Elem: []*gnmi.PathElem{{Name: "e1", Key: map[string]string{"k": "v"}}, {Name: "e2", Key: map[string]string{"k1": "v1"}}}},
+			noKeys: false,
+			want:   "origin:/e1[k=v]/e2[k1=v1]",
+		},
+		{
+			name:   "path_with_multiple_keys_in_one_path_element",
+			p:      &gnmi.Path{Elem: []*gnmi.PathElem{{Name: "e1", Key: map[string]string{"k": "v", "k1": "v1"}}}},
+			noKeys: false,
+			want:   "e1[k=v][k1=v1]",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := GnmiPathToXPath(tt.p, tt.noKeys)
+			// TODO: update the condition below to compare got with tt.want.
+			if got != tt.want {
+				t.Errorf("GnmiPathToXPath() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
