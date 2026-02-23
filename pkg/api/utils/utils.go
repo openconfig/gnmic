@@ -18,7 +18,13 @@ const (
 	DefaultLoggingFlags = log.LstdFlags | log.Lmicroseconds | log.Lmsgprefix
 )
 
-func MergeMaps(dst, src map[string]interface{}) map[string]interface{} {
+func MergeMaps(dst, src map[string]any) map[string]any {
+	if dst == nil {
+		dst = make(map[string]any)
+	}
+	if src == nil {
+		return dst
+	}
 	for key, srcVal := range src {
 		if dstVal, ok := dst[key]; ok {
 			srcMap, srcMapOk := mapify(srcVal)
