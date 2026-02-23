@@ -76,6 +76,9 @@ func (sc *SubscriptionConfig) ModeString() string {
 
 func (sc *SubscriptionConfig) SampleIntervalString() string {
 	if strings.ToLower(sc.Mode) == "stream" && strings.ToLower(sc.StreamMode) == "sample" {
+		if sc.SampleInterval == nil {
+			return "0s"
+		}
 		return sc.SampleInterval.String()
 	}
 	return notApplicable
@@ -93,6 +96,9 @@ func (sc *SubscriptionConfig) QosString() string {
 }
 
 func (sc *SubscriptionConfig) HeartbeatIntervalString() string {
+	if sc.HeartbeatInterval == nil {
+		return "0s"
+	}
 	return sc.HeartbeatInterval.String()
 }
 
