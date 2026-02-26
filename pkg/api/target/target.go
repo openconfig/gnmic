@@ -281,6 +281,22 @@ func (t *Target) Close() error {
 	return nil
 }
 
+// SubscribeClientStates returns current subscription states.
+// based on the SubscribeClients map.
+func (t *Target) SubscribeClientStates() map[string]bool {
+	t.m.Lock()
+	defer t.m.Unlock()
+	if len(t.Subscriptions) == 0 {
+		return nil
+	}
+	states := make(map[string]bool, len(t.Subscriptions))
+	for name := range t.Subscriptions {
+		_, ok := t.SubscribeClients[name]
+		states[name] = ok
+	}
+	return states
+}
+
 func (t *Target) ConnState() string {
 	if t.conn == nil {
 		return ""

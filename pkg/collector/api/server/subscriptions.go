@@ -169,22 +169,19 @@ func (s *Server) handleSubscriptionsGet(w http.ResponseWriter, r *http.Request) 
 		}
 		// Collect all subscriptions from targets
 		s.targetsManager.ForEach(func(mt *targets_manager.ManagedTarget) {
-			for _, sub := range mt.T.Subscriptions {
-				if subscriptionsMap[sub.Name] == nil {
-					subscriptionsMap[sub.Name] = &SubscriptionResponse{
-						Name:    sub.Name,
-						Config:  sub,
+			subStates := mt.T.SubscribeClientStates()
+			for name, active := range subStates {
+				if subscriptionsMap[name] == nil {
+					subscriptionsMap[name] = &SubscriptionResponse{
+						Name:    name,
 						Targets: make(map[string]*TargetStateInfo),
 					}
 				}
-
-				// Determine state for this subscription on this target
 				state := "stopped"
-				if _, ok := mt.T.SubscribeClients[sub.Name]; ok {
+				if active {
 					state = "running"
 				}
-
-				subscriptionsMap[sub.Name].Targets[mt.Name] = &TargetStateInfo{
+				subscriptionsMap[name].Targets[mt.Name] = &TargetStateInfo{
 					Name:  mt.Name,
 					State: state,
 				}
@@ -222,20 +219,18 @@ func (s *Server) handleSubscriptionsGet(w http.ResponseWriter, r *http.Request) 
 			Targets: make(map[string]*TargetStateInfo),
 		}
 		s.targetsManager.ForEach(func(mt *targets_manager.ManagedTarget) {
-			for _, sub := range mt.T.Subscriptions {
-				if sub.Name != id {
-					continue
-				}
-
-				// Determine state for this subscription on this target
-				state := "stopped"
-				if _, ok := mt.T.SubscribeClients[sub.Name]; ok {
-					state = "running"
-				}
-				response.Targets[mt.Name] = &TargetStateInfo{
-					Name:  mt.Name,
-					State: state,
-				}
+			subStates := mt.T.SubscribeClientStates()
+			active, exists := subStates[id]
+			if !exists {
+				return
+			}
+			state := "stopped"
+			if active {
+				state = "running"
+			}
+			response.Targets[mt.Name] = &TargetStateInfo{
+				Name:  mt.Name,
+				State: state,
 			}
 		})
 		err = json.NewEncoder(w).Encode(response)

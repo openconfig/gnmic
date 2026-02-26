@@ -210,9 +210,7 @@ func (t *Target) attemptSubscription(ctx context.Context, req *gnmi.SubscribeReq
 		if isCancellationError(err) {
 			return false
 		}
-		sendError(errCh, ctx, subscriptionName,
-			fmt.Errorf("failed to create subscribe client, target='%s', retry in %s: %w",
-				t.Config.Name, t.Config.RetryTimer, err))
+		sendError(errCh, ctx, subscriptionName, err)
 		return true
 	}
 
@@ -264,8 +262,6 @@ func (t *Target) handleSTREAMMode(nctx, ctx context.Context, client gnmi.GNMI_Su
 		}
 
 		sendError(errCh, ctx, subscriptionName, err)
-		sendError(errCh, ctx, subscriptionName,
-			fmt.Errorf("retrying in %s", t.Config.RetryTimer))
 		return true
 	}
 	return false
@@ -288,8 +284,6 @@ func (t *Target) handleONCEMode(nctx, ctx context.Context, client gnmi.GNMI_Subs
 			return false
 		}
 
-		sendError(errCh, ctx, subscriptionName,
-			fmt.Errorf("retrying in %s", t.Config.RetryTimer))
 		return true
 	}
 	return false
@@ -315,8 +309,8 @@ func (t *Target) handlePOLLMode(nctx, ctx context.Context, client gnmi.GNMI_Subs
 		}
 
 		sendError(errCh, ctx, subscriptionName, err)
-		sendError(errCh, ctx, subscriptionName,
-			fmt.Errorf("retrying in %s", t.Config.RetryTimer))
+		// sendError(errCh, ctx, subscriptionName,
+		// 	fmt.Errorf("retrying in %s", t.Config.RetryTimer))
 		return true
 	}
 	return false
