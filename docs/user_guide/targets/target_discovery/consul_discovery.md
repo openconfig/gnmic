@@ -17,6 +17,7 @@ loader:
   type: consul
   services:
     - name: cluster1-gnmi-server
+      filter: Service.Meta.environment == "production"
       config:
         insecure: true
         username: admin
@@ -71,6 +72,8 @@ loader:
     - name:
       # a list of strings to further filter the service instances
       tags: 
+      # optional go-bexpr filter evaluated by Consul in addition to tags
+      filter:
       # configuration map to apply to target discovered from this service
       config:
   # list of actions to run on target discovery
@@ -82,4 +85,19 @@ loader:
   # path to variable file, the variables defined will be passed to the actions to be run
   # values in this file will be overwritten by the ones defined in `vars`
   vars-file:
+
+### Filtering services
+
+Each service entry can also define a [`filter`](https://developer.hashicorp.com/consul/api-docs/features/filtering) that Consul evaluates before returning results. Filters use [go-bexpr syntax](https://github.com/HashiCorp/go-bexpr) and are applied in addition to the `tags` list (both conditions must match).
+
+```yaml
+loader:
+  type: consul
+  services:
+    - name: cluster1-gnmi-server
+      tags: ["gnmic", "network-device"]
+      filter: Service.Meta.environment == "production" && Node.Datacenter == "dc1"
+```
+
+Use filters to keep existing tag-based configs working while narrowing the results with metadata such as health status, service meta fields, or node attributes.
 ```
