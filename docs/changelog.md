@@ -1,10 +1,46 @@
 ## Changelog
 
+### v0.45.0 - March 2nd 2026
+
+- Prometheus and Prometheus RemoteWrite outputs:
+
+    - When converting values to labels, duplicate label names are now resolved by prepending parent path elements until uniqueness is achieved, preventing metrics from being dropped.
+
+- Get/Set commands:
+
+    - Custom gNMI extensions can be included in requests via `--registered-extensions` and a JSON payload; use `--proto-dir` and `--proto-file` to specify the extension Protobuf definitions.
+
+- Formatters:
+
+    - JSON output no longer escapes HTML characters (`<`, `>`, `&`), producing more readable output for values such as path prefixes containing `->`.
+
+- Outputs:
+
+    - OTLP: Implemented dynamic config via `Update()` and `UpdateProcessor()`, configurable Resource vs DataPoint level attributes, support for multiple metrics per gNMI message, and include gNMIc version in OTLP resource scope.
+
+- Target:
+
+    - Target last error is now reflected in a consistent way across collector state and API responses.
+
+- gNMI API:
+
+    - Improved error formatting and added tests for the `pkg/api` package.
+
+- Performance:
+
+    - Pool bytes buffers and strings builders where it makes sense to reduce allocations.
+
+- Dependencies:
+
+    - Bumped `github.com/cloudflare/circl` from 1.6.1 to 1.6.3.
+    - Bumped `github.com/go-git/go-git/v5` from 5.13.0 to 5.16.5.
+    - Bumped `go.opentelemetry.io/otel/sdk` from 1.38.0 to 1.40.0.
+
 ### v0.44.0 - February 17th 2026
 
-- gNMI Extension:
+- gNMI Extensions:
 
-    - gNMI extension are not parsed and properly displayed given the corresponding Protobuf files
+    - gNMI extensions in get, set, and subscribe responses are now parsed and displayed as JSON when using `--proto-dir`, `--proto-file`, and `--registered-extensions` with the corresponding Protobuf files.
 
 - Collector mode:
 
@@ -12,9 +48,9 @@
 
     - Collector mode supports an SSE endpoint streaming config and state for any object (Target, subscription, outputs, etc.)
 
-- Target
+- Target:
 
-   - Multiple gRPC level config knobs can now be set per target: gRPC read/write buffer, gRPC window size,...
+    - Multiple gRPC level config knobs can now be set per target: gRPC read/write buffer, gRPC window size, and other dial options. Configuration is documented in the target configuration reference.
 
 ### v0.43.0 - February 1st 2026
 
@@ -23,6 +59,15 @@
     - Jetstream:
       - Added support for configuring `max-ack-pending` to limit the maximum number of unacknowledged messages on a NATS JetStream input.
       - DeliverPolicy and AckPolicy are now fully configurable for greater flexibility and control.
+      - Added NATS JetStream workqueue retention pattern support for exactly-once message processing in task distribution scenarios.
+
+- Outputs:
+
+    - Jetstream:
+      - Added `retention-policy` configuration option with support for `limits` (default) and `workqueue` retention policies.
+      - Stream existence verification with detailed logging; omit `create-stream` to use existing streams.
+
+    - Introduced support for OpenTelemetry Protocol (OTLP) as an output destination, enabling direct export of telemetry data to OTLP-compatible backends with full metric conversion (gauges, counters, histograms) and custom resource attributes.
 
 - Commands:
 
@@ -30,10 +75,26 @@
 
     - The `collector` command also includes a suite of subcommands, allowing you to configure the gNMIc collector directly from the CLI.
 
-- Outputs:
+- Formatters:
 
-    - Introduced support for OpenTelemetry as an output destination, enabling seamless integration with observability platforms.
+    - Flat format: Fixed leading slash handling when origin is not included in prefix or prefix is non-existent, ensuring consistent path formatting across all notification types.
 
+- Processors:
+
+    - `event_group_by` processor now correctly handles delete events.
+
+- API:
+
+    - Fixed the API path to patch subscriptions for a target ID.
+
+- Target:
+
+    - When a target is removed, it is now also removed from the configuration.
+
+- Dependencies:
+
+    - Fixed `gnmic/pkg/api` module version mismatch in go.mod for consumers building gNMIc as a dependency.
+    - Bumped `golang.org/x/crypto` to v0.45.0.
 
 ### v0.42.0 - September 19th 2025
 
@@ -41,28 +102,88 @@
 
     - Add support for NATS Jetstream input type.
 
+    - Kafka: Fixed event parsing when `eventMsg` was not initialized, preventing nil pointer dereference.
+
 - Loader:
 
-    - Loaded targets subscribe requests are now subject the `subscribe-backoff` timer.
-    - Loaded target configuration now supports ENV variables when `expand-env` is set to true.
+    - Loaded targets subscribe requests are now subject to the `subscribe-backoff` timer when new targets are added via loaders (HTTP, file, etc.) or config change events.
+
+    - Loaded target configuration now supports environment variable expansion when `expand-env` is set to true, enabling per-target credentials via env vars.
+
+    - Consul loader: Fixed tag matching logic to allow services with extra metadata tags (subset matching); services with required tags plus additional tags are no longer incorrectly rejected.
+
+    - Consul loader: Improved Go template parsing for target name and event-tags.
+
+    - HTTP loader: Various fixes and added tests (fixes #712).
+
+- Outputs:
+
+    - Kafka: Fixed missing label in error metric that could cause panics when error reason was unavailable.
 
 - gNMI server:
 
-    - The unary RPCs timeout is now configurable.
+    - The unary RPCs timeout is now configurable via `gnmi-server.timeout` in the config (default remains 2 minutes).
+
+- Get command:
+
+    - Added optional organization and version for model selection: prepend `/` for organization, append `:` for version when specifying models.
+
+- Subscribe:
+
+    - Fixed `sync_response` output being suppressed for ONCE mode subscriptions; behavior now matches STREAM mode.
 
 - Targets:
 
-    - A new internal prometheus metric was added `gnmic_target_connection_state`. It reflect the gRPC client connection state with values: 0(UNKNOWN), 1 (IDLE), 2 (CONNECTING), 3 (READY), 4 (TRANSIENT_FAILURE), or 5 (SHUTDOWN).
-    
+    - A new internal Prometheus metric `gnmic_target_connection_state` reflects the gRPC client connection state with values: 0 (UNKNOWN), 1 (IDLE), 2 (CONNECTING), 3 (READY), 4 (TRANSIENT_FAILURE), or 5 (SHUTDOWN). The `target_up` metric now correctly reflects connection failures (e.g., auth issues).
+
+- Bug fixes:
+
+    - Fixed memory leak when subscription fails: `cancel()` reference was kept alive indefinitely.
+
+    - Fixed OS environment variable values being incorrectly lowercased (fixes #663).
+
+- API:
+
+    - Documentation updated for `POST /api/v1/config/targets` to reflect that the `name` field is required for proper target identification.
+
+- Dependencies:
+
+    - Bumped `golang.org/x/crypto` to v0.41.0.
+    - Bumped `golang.org/x/oauth2` to v0.31.0.
+
 ### v0.41.0 - April 6th 2025
 
 - Processors:
 
-    - Added `event-time-epoch` processor, enabling converting string-based time values into epoch timestamps
+    - Added `event-time-epoch` processor, enabling converting string-based time values into epoch timestamps.
+
+    - Fixed `ieeefloat32` processor for correct handling of binary IEEE float32 values.
 
 - Target Discovery:
 
-    - Consul loader: Adds the ability to use Go Templates on Consul targets to set target name as well as event-tags
+    - Consul loader: Adds the ability to use Go Templates on Consul targets to set target name as well as event-tags (e.g., `target-name`, `target-tags` with `{{.Meta.*}}`).
+
+- Loader:
+
+    - When a target configuration changes, loaders now generate delete and add actions so the subscription is restarted to apply the new parameters (fixes #563).
+
+- Outputs:
+
+    - Messages are now exported to outputs in sequence to avoid sync responses being sent before initial notifications (fixes #612).
+
+    - Output internal metrics are now registered only once, preventing duplicate registration errors (fixes #586).
+
+- Path generation:
+
+    - Fixed xpath generation with prefix: module prefix is now replaced with module name when generating xpaths (fixes #633).
+
+- Targets:
+
+    - `target_up` metric now resets before creating metrics so deleted targets (e.g., via Consul) no longer show as still up (fixes #604).
+
+- Dependencies:
+
+    - Bumped `github.com/golang/glog` to v1.2.4.
 
 ### v0.40.0 - January 27th 2025
 
