@@ -268,7 +268,7 @@ targets:
     # the target outputs
     buffer-size:
     # target retry period
-    retry:
+    retry-timer:
     # list of tags, relevant when clustering is enabled.
     tags:
     # a mapping of static tags to add to all events from this target.
@@ -323,7 +323,7 @@ targets:
     # sets the value for initial window size on a stream. The lower bound for window size is 64K and any value smaller than that will be ignored.
     grpc-window-size:
     # sets the initial connection window size to the value provided and disables dynamic flow control.
-    grpc-static-connec-window-size:
+    grpc-static-conn-window-size:
     # sets the initial stream window size to the value provided and disables dynamic flow control.
     grpc-static-stream-window-size:
 ```
