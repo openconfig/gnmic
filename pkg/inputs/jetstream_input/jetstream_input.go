@@ -337,9 +337,8 @@ func (n *jetstreamInput) worker(ctx context.Context, idx int) {
 		n.logger.Printf("worker %d loading config", idx)
 		cfg := n.cfg.Load()
 		wCfg := *cfg
-		wCfg.Name = fmt.Sprintf("%s-%d", wCfg.Name, idx)
 		// scoped connection, subscription and cleanup
-		err := n.doWork(ctx, &wCfg, workerLogPrefix)
+		err := n.doWork(ctx, idx, &wCfg, workerLogPrefix)
 		if err != nil {
 			n.logger.Printf("%s JetStream client failed: %v", workerLogPrefix, err)
 		}
@@ -354,7 +353,7 @@ func (n *jetstreamInput) worker(ctx context.Context, idx int) {
 }
 
 // scoped connection, subscription and cleanup
-func (n *jetstreamInput) doWork(ctx context.Context, wCfg *config, workerLogPrefix string) error {
+func (n *jetstreamInput) doWork(ctx context.Context, workerIdx int, wCfg *config, workerLogPrefix string) error {
 	nc, err := n.createNATSConn(wCfg)
 	if err != nil {
 		return fmt.Errorf("create NATS connection: %w", err)
@@ -382,6 +381,7 @@ func (n *jetstreamInput) doWork(ctx context.Context, wCfg *config, workerLogPref
 	ackPolicy := jetstream.AckAllPolicy
 	deliverPolicy := toJSDeliverPolicy(wCfg.DeliverPolicy)
 
+	consumerName := wCfg.Name
 	if streamInfo.Config.Retention == jetstream.WorkQueuePolicy {
 		// Workqueue streams require explicit ack
 		ackPolicy = jetstream.AckExplicitPolicy
@@ -391,11 +391,19 @@ func (n *jetstreamInput) doWork(ctx context.Context, wCfg *config, workerLogPref
 			// Default to DeliverAllPolicy for workqueue if configured policy is not compatible
 			deliverPolicy = jetstream.DeliverAllPolicy
 		}
+		// WorkQueue streams only allow one consumer per unfiltered subject set.
+		// All workers must share the same durable consumer so that concurrent
+		// Fetch() calls distribute work correctly instead of each worker
+		// failing to create its own overlapping consumer.
+	} else {
+		// For non-WorkQueue streams each worker gets its own independent
+		// consumer cursor so that all workers see all messages.
+		consumerName = fmt.Sprintf("%s-%d", wCfg.Name, workerIdx)
 	}
 
 	c, err := s.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
-		Name:           wCfg.Name,
-		Durable:        wCfg.Name,
+		Name:           consumerName,
+		Durable:        consumerName,
 		DeliverPolicy:  deliverPolicy,
 		AckPolicy:      ackPolicy,
 		MemoryStorage:  true,
