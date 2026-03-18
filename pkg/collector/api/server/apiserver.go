@@ -11,6 +11,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/openconfig/gnmic/pkg/api/utils"
+	"github.com/openconfig/gnmic/pkg/collector/env"
 	cluster_manager "github.com/openconfig/gnmic/pkg/collector/managers/cluster"
 	inputs_manager "github.com/openconfig/gnmic/pkg/collector/managers/inputs"
 	outputs_manager "github.com/openconfig/gnmic/pkg/collector/managers/outputs"
@@ -87,8 +88,9 @@ func (s *Server) Start(locker lockers.Locker, wg *sync.WaitGroup) error {
 			return nil
 		}
 		apiCfg = apiCfgImpl
+		env.ExpandAPIEnv(apiCfg)
 		// create listener
-		listener, err = createListener(apiCfgImpl)
+		listener, err = createListener(apiCfg)
 		if err != nil {
 			s.logger.Error("failed to create listener", "error", err)
 			return err

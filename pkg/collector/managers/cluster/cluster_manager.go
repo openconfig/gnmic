@@ -18,6 +18,7 @@ import (
 	"golang.org/x/sync/semaphore"
 
 	apiconst "github.com/openconfig/gnmic/pkg/collector/api/const"
+	"github.com/openconfig/gnmic/pkg/collector/env"
 	collstore "github.com/openconfig/gnmic/pkg/collector/store"
 	"github.com/openconfig/gnmic/pkg/config"
 	"github.com/openconfig/gnmic/pkg/lockers"
@@ -91,6 +92,8 @@ func (c *ClusterManager) Start(ctx context.Context, locker lockers.Locker, wg *s
 		return nil
 	}
 	c.clusteringConfig = clustering
+	env.ExpandClusterEnv(c.clusteringConfig)
+
 	apiConfig, ok, err := c.store.Config.Get("api-server", "api-server")
 	if err != nil {
 		return err
@@ -106,6 +109,8 @@ func (c *ClusterManager) Start(ctx context.Context, locker lockers.Locker, wg *s
 		return errors.New("missing api-server config when clustring is enabled")
 	}
 	c.apiConfig = api
+	env.ExpandAPIEnv(c.apiConfig)
+
 	c.logger.Info("starting cluster manager")
 
 	c.election, err = NewElection(c.locker, clustering, c.logger)
