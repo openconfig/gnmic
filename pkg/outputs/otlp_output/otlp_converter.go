@@ -15,6 +15,8 @@ import (
 	"strings"
 	"sync"
 
+	"google.golang.org/grpc/metadata"
+
 	metricsv1 "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
 	metricspb "go.opentelemetry.io/proto/otlp/metrics/v1"
@@ -450,6 +452,11 @@ func (o *otlpOutput) sendGRPC(ctx context.Context, req *metricsv1.ExportMetricsS
 	if err := o.validateRequest(req); err != nil {
 		o.logger.Printf("VALIDATION ERROR: %v", err)
 		return fmt.Errorf("request validation failed: %w", err)
+	}
+
+	if len(cfg.Headers) > 0 {
+		md := metadata.New(cfg.Headers)
+		ctx = metadata.NewOutgoingContext(ctx, md)
 	}
 
 	if cfg.Timeout > 0 {
