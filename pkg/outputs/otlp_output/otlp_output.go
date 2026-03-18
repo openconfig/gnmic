@@ -129,6 +129,10 @@ type config struct {
 	// Resource attributes
 	ResourceAttributes map[string]string `mapstructure:"resource-attributes,omitempty"`
 
+	// Headers to include with every export request (gRPC metadata / HTTP headers).
+	// Use this to set e.g. "X-Scope-OrgID" for Grafana Mimir, Loki, Tempo, etc.
+	Headers map[string]string `mapstructure:"headers,omitempty"`
+
 	// Precomputed lookup set for ResourceTagKeys (not from config file).
 	resourceTagSet map[string]bool
 	// Compiled regexes from CounterPatterns.

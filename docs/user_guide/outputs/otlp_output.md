@@ -1,6 +1,6 @@
 `gnmic` supports exporting subscription updates as [OpenTelemetry](https://opentelemetry.io/) metrics using the [OTLP](https://opentelemetry.io/docs/specs/otlp/) protocol.
 
-This output can be used to push metrics to any OTLP-compatible backend such as [Grafana Alloy](https://grafana.com/docs/alloy/latest/), [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/), [Datadog](https://www.datadoghq.com/), [Dynatrace](https://www.dynatrace.com/), or any system that accepts OTLP metrics over gRPC.
+This output can be used to push metrics to any OTLP-compatible backend such as [Grafana Alloy](https://grafana.com/docs/alloy/latest/), [Grafana Mimir](https://grafana.com/docs/mimir/latest/), [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/), [Datadog](https://www.datadoghq.com/), [Dynatrace](https://www.dynatrace.com/), or any system that accepts OTLP metrics over gRPC.
 
 ## Configuration
 
@@ -72,6 +72,11 @@ outputs:
     # map of string:string, additional static attributes to add to the OTLP Resource.
     resource-attributes:
       # key: value
+    # map of string:string, HTTP headers (or gRPC metadata) to include with every export request.
+    # Use this to set tenant/org identifiers required by multi-tenant backends such as
+    # Grafana Mimir, Loki, or Tempo.
+    headers:
+      # X-Scope-OrgID: my-tenant
     # integer, defaults to 1.
     # number of workers processing events.
     num-workers: 1
@@ -151,6 +156,29 @@ resource-attributes:
 ## OTLP Resource Grouping
 
 Events are grouped by their `source` tag (the target device address). Each unique source becomes a separate OTLP `ResourceMetrics` entry with its own set of resource attributes.
+
+## Custom Headers
+
+The `headers` field attaches key/value pairs to every export request — as gRPC metadata when using the `grpc` protocol, or as HTTP headers when using `http`.
+
+This is required by multi-tenant Grafana backends (Mimir, Loki, Tempo) which use the `X-Scope-OrgID` header to route data to the correct tenant:
+
+```yaml
+outputs:
+  mimir-output:
+    type: otlp
+    endpoint: mimir.example.com:4317
+    headers:
+      X-Scope-OrgID: my-tenant-id
+```
+
+Multiple headers can be set simultaneously:
+
+```yaml
+headers:
+  X-Scope-OrgID: my-tenant-id
+  X-Custom-Header: some-value
+```
 
 ## OTLP Output Metrics
 
