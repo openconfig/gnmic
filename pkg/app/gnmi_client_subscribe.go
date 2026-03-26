@@ -214,9 +214,21 @@ CRCLIENT:
 	a.Logger.Printf("target %q gNMI client created", t.Config.Name)
 
 	for _, sreq := range subRequests {
+		if a.Config.GlobalFlags.PrintRequest || a.Config.LocalFlags.SubscribeDryRun {
+			err := a.PrintMsg(tc.Name, "Subscribe Request:", sreq.req)
+			if err != nil {
+				a.logError(fmt.Errorf("target %q Subscribe Request printing failed: %v", tc.Name, err))
+			}
+		}
+		if a.Config.LocalFlags.SubscribeDryRun {
+			continue
+		}
 		a.Logger.Printf("sending gNMI SubscribeRequest: subscribe='%+v', mode='%+v', encoding='%+v', to %s",
 			sreq.req, sreq.req.GetSubscribe().GetMode(), sreq.req.GetSubscribe().GetEncoding(), t.Config.Name)
 		go t.Subscribe(gnmiCtx, sreq.req, sreq.name)
+	}
+	if a.Config.LocalFlags.SubscribeDryRun {
+		os.Exit(0)
 	}
 	return nil
 }
@@ -275,6 +287,15 @@ CRCLIENT:
 	a.Logger.Printf("target %q gNMI client created", t.Config.Name)
 OUTER:
 	for _, sreq := range subRequests {
+		if a.Config.GlobalFlags.PrintRequest || a.Config.LocalFlags.SubscribeDryRun {
+			err := a.PrintMsg(tc.Name, "Subscribe Request:", sreq.req)
+			if err != nil {
+				a.logError(fmt.Errorf("target %q Subscribe Request printing failed: %v", tc.Name, err))
+			}
+		}
+		if a.Config.LocalFlags.SubscribeDryRun {
+			continue
+		}
 		a.Logger.Printf("sending gNMI SubscribeRequest: subscribe='%+v', mode='%+v', encoding='%+v', to %s",
 			sreq.req, sreq.req.GetSubscribe().GetMode(), sreq.req.GetSubscribe().GetEncoding(), t.Config.Name)
 		rspCh, errCh := t.SubscribeOnceChan(gnmiCtx, sreq.req)
