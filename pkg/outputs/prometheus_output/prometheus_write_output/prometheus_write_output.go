@@ -103,7 +103,8 @@ type config struct {
 	AppendSubscriptionName bool     `mapstructure:"append-subscription-name,omitempty" json:"append-subscription-name,omitempty"`
 	AddTarget              string   `mapstructure:"add-target,omitempty" json:"add-target,omitempty"`
 	TargetTemplate         string   `mapstructure:"target-template,omitempty" json:"target-template,omitempty"`
-	StringsAsLabels        bool     `mapstructure:"strings-as-labels,omitempty" json:"strings-as-labels,omitempty"`
+	StringsAsLabels             bool     `mapstructure:"strings-as-labels,omitempty" json:"strings-as-labels,omitempty"`
+	StringsAsSingleMetricLabels bool     `mapstructure:"strings-as-single-metric-labels,omitempty" json:"strings-as-single-metric-labels,omitempty"`
 	EventProcessors        []string `mapstructure:"event-processors,omitempty" json:"event-processors,omitempty"`
 	NumWorkers             int      `mapstructure:"num-workers,omitempty" json:"num-workers,omitempty"`
 	NumWriters             int      `mapstructure:"num-writers,omitempty" json:"num-writers,omitempty"`
@@ -226,9 +227,10 @@ func (p *promWriteOutput) Init(ctx context.Context, name string, cfg map[string]
 	}
 
 	dc.mb = &promcom.MetricBuilder{
-		Prefix:                 ncfg.MetricPrefix,
-		AppendSubscriptionName: ncfg.AppendSubscriptionName,
-		StringsAsLabels:        ncfg.StringsAsLabels,
+		Prefix:                      ncfg.MetricPrefix,
+		AppendSubscriptionName:      ncfg.AppendSubscriptionName,
+		StringsAsLabels:             ncfg.StringsAsLabels,
+		StringsAsSingleMetricLabels: ncfg.StringsAsSingleMetricLabels,
 	}
 
 	p.dynCfg.Store(dc)
@@ -304,9 +306,10 @@ func (p *promWriteOutput) Update(ctx context.Context, cfg map[string]any) error 
 
 	// metric builder
 	dc.mb = &promcom.MetricBuilder{
-		Prefix:                 newCfg.MetricPrefix,
-		AppendSubscriptionName: newCfg.AppendSubscriptionName,
-		StringsAsLabels:        newCfg.StringsAsLabels,
+		Prefix:                      newCfg.MetricPrefix,
+		AppendSubscriptionName:      newCfg.AppendSubscriptionName,
+		StringsAsLabels:             newCfg.StringsAsLabels,
+		StringsAsSingleMetricLabels: newCfg.StringsAsSingleMetricLabels,
 	}
 
 	// rebuild processors ?

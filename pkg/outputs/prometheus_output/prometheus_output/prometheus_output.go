@@ -106,7 +106,8 @@ type config struct {
 	OverrideTimestamps     bool                 `mapstructure:"override-timestamps,omitempty" json:"override-timestamps,omitempty"`
 	AddTarget              string               `mapstructure:"add-target,omitempty" json:"add-target,omitempty"`
 	TargetTemplate         string               `mapstructure:"target-template,omitempty" json:"target-template,omitempty"`
-	StringsAsLabels        bool                 `mapstructure:"strings-as-labels,omitempty" json:"strings-as-labels,omitempty"`
+	StringsAsLabels             bool                 `mapstructure:"strings-as-labels,omitempty" json:"strings-as-labels,omitempty"`
+	StringsAsSingleMetricLabels bool                 `mapstructure:"strings-as-single-metric-labels,omitempty" json:"strings-as-single-metric-labels,omitempty"`
 	Debug                  bool                 `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 	EventProcessors        []string             `mapstructure:"event-processors,omitempty" json:"event-processors,omitempty"`
 	ServiceRegistration    *serviceRegistration `mapstructure:"service-registration,omitempty" json:"service-registration,omitempty"`
@@ -219,11 +220,12 @@ func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string
 	}
 
 	dc.mb = &promcom.MetricBuilder{
-		Prefix:                 newCfg.MetricPrefix,
-		AppendSubscriptionName: newCfg.AppendSubscriptionName,
-		StringsAsLabels:        newCfg.StringsAsLabels,
-		OverrideTimestamps:     newCfg.OverrideTimestamps,
-		ExportTimestamps:       newCfg.ExportTimestamps,
+		Prefix:                      newCfg.MetricPrefix,
+		AppendSubscriptionName:      newCfg.AppendSubscriptionName,
+		StringsAsLabels:             newCfg.StringsAsLabels,
+		StringsAsSingleMetricLabels: newCfg.StringsAsSingleMetricLabels,
+		OverrideTimestamps:          newCfg.OverrideTimestamps,
+		ExportTimestamps:            newCfg.ExportTimestamps,
 	}
 
 	p.dynCfg.Store(dc)
@@ -361,11 +363,12 @@ func (p *prometheusOutput) Update(ctx context.Context, cfg map[string]any) error
 
 	// metric builder
 	dc.mb = &promcom.MetricBuilder{
-		Prefix:                 tmp.MetricPrefix,
-		AppendSubscriptionName: tmp.AppendSubscriptionName,
-		StringsAsLabels:        tmp.StringsAsLabels,
-		OverrideTimestamps:     tmp.OverrideTimestamps,
-		ExportTimestamps:       tmp.ExportTimestamps,
+		Prefix:                      tmp.MetricPrefix,
+		AppendSubscriptionName:      tmp.AppendSubscriptionName,
+		StringsAsLabels:             tmp.StringsAsLabels,
+		StringsAsSingleMetricLabels: tmp.StringsAsSingleMetricLabels,
+		OverrideTimestamps:          tmp.OverrideTimestamps,
+		ExportTimestamps:            tmp.ExportTimestamps,
 	}
 
 	p.dynCfg.Store(dc)
