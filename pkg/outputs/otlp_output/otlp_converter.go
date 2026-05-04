@@ -317,6 +317,12 @@ func (o *otlpOutput) createNumberDataPointWithValue(cfg *config, event *formatte
 		} else {
 			return nil
 		}
+	case bool:
+		if v {
+			dp.Value = &metricspb.NumberDataPoint_AsInt{AsInt: 1}
+		} else {
+			dp.Value = &metricspb.NumberDataPoint_AsInt{AsInt: 0}
+		}
 	default:
 		if cfg.Debug {
 			o.logger.Printf("unsupported value type %T for metric %s", v, event.Name)
