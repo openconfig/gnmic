@@ -39,6 +39,11 @@ api-server:
   enable-metrics: false
   # boolean, enable debug logging for API requests
   debug: false
+  # boolean, include real target password and OAuth token in REST JSON responses.
+  # Defaults to false: password and token are returned as "****" in responses such as
+  # GET /api/v1/targets, GET /api/v1/config/targets, and similar.
+  # Set to true only when debugging and clients are fully trusted.
+  expose-target-secrets: false
 ```
 
 ## Clustering

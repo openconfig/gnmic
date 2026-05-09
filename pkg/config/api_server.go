@@ -30,6 +30,7 @@ type APIServer struct {
 	EnableProfiling       bool             `mapstructure:"enable-profiling,omitempty" json:"enable-profiling,omitempty"`
 	Debug                 bool             `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 	HealthzDisableLogging bool             `mapstructure:"healthz-disable-logging,omitempty" json:"healthz-disable-logging,omitempty"`
+	ExposeTargetSecrets   bool             `mapstructure:"expose-target-secrets,omitempty" json:"expose-target-secrets,omitempty"`
 }
 
 func (c *Config) GetAPIServer() error {
@@ -57,6 +58,7 @@ func (c *Config) GetAPIServer() error {
 	c.APIServer.EnableProfiling = os.ExpandEnv(c.FileConfig.GetString("api-server/enable-profiling")) == trueString
 	c.APIServer.Debug = os.ExpandEnv(c.FileConfig.GetString("api-server/debug")) == trueString
 	c.APIServer.HealthzDisableLogging = os.ExpandEnv(c.FileConfig.GetString("api-server/healthz-disable-logging")) == trueString
+	c.APIServer.ExposeTargetSecrets = os.ExpandEnv(c.FileConfig.GetString("api-server/expose-target-secrets")) == trueString
 	c.setAPIServerDefaults()
 	return nil
 }

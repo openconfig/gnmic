@@ -37,6 +37,7 @@ func ExpandAPIEnv(apiConfig *config.APIServer) {
 	apiConfig.EnableProfiling = os.ExpandEnv(strings.ToLower(strconv.FormatBool(apiConfig.EnableProfiling))) == "true"
 	apiConfig.Debug = os.ExpandEnv(strings.ToLower(strconv.FormatBool(apiConfig.Debug))) == "true"
 	apiConfig.HealthzDisableLogging = os.ExpandEnv(strings.ToLower(strconv.FormatBool(apiConfig.HealthzDisableLogging))) == "true"
+	apiConfig.ExposeTargetSecrets = os.ExpandEnv(strings.ToLower(strconv.FormatBool(apiConfig.ExposeTargetSecrets))) == "true"
 }
 
 func expandLockerEnv(locker map[string]any) {

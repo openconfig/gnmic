@@ -25,7 +25,19 @@ func (s *Server) handleConfigTargetsGet(w http.ResponseWriter, r *http.Request) 
 			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 			return
 		}
-		err = json.NewEncoder(w).Encode(targets)
+		if !s.exposeTargetSecrets {
+			out := make(map[string]*types.TargetConfig, len(targets))
+			for n, t := range targets {
+				tc, ok := t.(*types.TargetConfig)
+				if !ok {
+					continue
+				}
+				out[n] = tc.RedactedDeepCopy()
+			}
+			err = json.NewEncoder(w).Encode(out)
+		} else {
+			err = json.NewEncoder(w).Encode(targets)
+		}
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -44,7 +56,15 @@ func (s *Server) handleConfigTargetsGet(w http.ResponseWriter, r *http.Request) 
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{fmt.Sprintf("target %s not found", id)}})
 		return
 	}
-	err = json.NewEncoder(w).Encode(tc)
+	switch tc := tc.(type) {
+	case *types.TargetConfig:
+		if !s.exposeTargetSecrets {
+			tc = tc.RedactedDeepCopy()
+		}
+		err = json.NewEncoder(w).Encode(tc)
+	default:
+		err = json.NewEncoder(w).Encode(tc)
+	}
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
@@ -305,7 +325,7 @@ func (s *Server) handleTargetsGet(w http.ResponseWriter, r *http.Request) {
 	if id == "" {
 		s.targetsManager.ForEach(func(mt *targets_manager.ManagedTarget) {
 			ts := s.targetsManager.GetTargetState(mt.Name)
-			response = append(response, targetResponseFromState(mt.Name, mt.T.Config, ts))
+			response = append(response, s.targetResponseFromState(mt.Name, mt.T.Config, ts))
 		})
 		err := json.NewEncoder(w).Encode(response)
 		if err != nil {
@@ -322,7 +342,7 @@ func (s *Server) handleTargetsGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ts := s.targetsManager.GetTargetState(id)
-	response = append(response, targetResponseFromState(mt.Name, mt.T.Config, ts))
+	response = append(response, s.targetResponseFromState(mt.Name, mt.T.Config, ts))
 	err := json.NewEncoder(w).Encode(response)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -332,12 +352,16 @@ func (s *Server) handleTargetsGet(w http.ResponseWriter, r *http.Request) {
 }
 
 // targetResponseFromState builds a TargetResponse from a TargetState.
-func targetResponseFromState(name string, cfg *types.TargetConfig, ts *collstore.TargetState) *TargetResponse {
-	return &TargetResponse{
-		Name:   name,
-		Config: cfg,
-		State:  ts,
+func (s *Server) targetResponseFromState(name string, cfg *types.TargetConfig, ts *collstore.TargetState) *TargetResponse {
+	resp := &TargetResponse{Name: name, State: ts}
+	if s.exposeTargetSecrets {
+		resp.Config = cfg
+		return resp
 	}
+	if cfg != nil {
+		resp.Config = cfg.RedactedDeepCopy()
+	}
+	return resp
 }
 
 // change target state to running/stopped by sending a POST request to the target id

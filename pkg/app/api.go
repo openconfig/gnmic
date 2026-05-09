@@ -20,12 +20,12 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/AlekSi/pointer"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"github.com/openconfig/gnmic/pkg/api/target"
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/config"
@@ -92,6 +92,32 @@ type APIErrors struct {
 	Errors []string `json:"errors,omitempty"`
 }
 
+func (a *App) apiExposeTargetSecrets() bool {
+	return a.Config.APIServer != nil && a.Config.APIServer.ExposeTargetSecrets
+}
+
+// runtimeTargetAPIView is a JSON-serializable snapshot of target.Target for the REST API.
+type runtimeTargetAPIView struct {
+	Config        *types.TargetConfig                  `json:"config,omitempty"`
+	Subscriptions map[string]*types.SubscriptionConfig `json:"subscriptions,omitempty"`
+}
+
+func (a *App) runtimeTargetAPIView(t *target.Target) *runtimeTargetAPIView {
+	if t == nil {
+		return nil
+	}
+	v := &runtimeTargetAPIView{Subscriptions: t.Subscriptions}
+	if t.Config == nil {
+		return v
+	}
+	if a.apiExposeTargetSecrets() {
+		v.Config = t.Config.DeepCopy()
+	} else {
+		v.Config = t.Config.RedactedDeepCopy()
+	}
+	return v
+}
+
 func (a *App) handleConfigTargetsGet(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
@@ -99,12 +125,13 @@ func (a *App) handleConfigTargetsGet(w http.ResponseWriter, r *http.Request) {
 	a.configLock.RLock()
 	defer a.configLock.RUnlock()
 	if id == "" {
-		// copy targets map
 		targets := make(map[string]*types.TargetConfig, len(a.Config.Targets))
 		for n, tc := range a.Config.Targets {
-			ntc := tc.DeepCopy()
-			ntc.Password = pointer.ToString("****")
-			targets[n] = ntc
+			if a.apiExposeTargetSecrets() {
+				targets[n] = tc.DeepCopy()
+			} else {
+				targets[n] = tc.RedactedDeepCopy()
+			}
 		}
 		err = json.NewEncoder(w).Encode(targets)
 		if err != nil {
@@ -114,8 +141,12 @@ func (a *App) handleConfigTargetsGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if t, ok := a.Config.Targets[id]; ok {
-		tc := t.DeepCopy()
-		tc.Password = pointer.ToString("****")
+		var tc *types.TargetConfig
+		if a.apiExposeTargetSecrets() {
+			tc = t.DeepCopy()
+		} else {
+			tc = t.RedactedDeepCopy()
+		}
 		err = json.NewEncoder(w).Encode(tc)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -239,9 +270,11 @@ func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {
 		TunnelServer:  a.Config.TunnelServer,
 	}
 	for n, t := range a.Config.Targets {
-		tc := t.DeepCopy()
-		tc.Password = pointer.ToString("****")
-		nc.Targets[n] = tc
+		if a.apiExposeTargetSecrets() {
+			nc.Targets[n] = t.DeepCopy()
+		} else {
+			nc.Targets[n] = t.RedactedDeepCopy()
+		}
 	}
 	a.handlerCommonGet(w, nc)
 }
@@ -250,11 +283,15 @@ func (a *App) handleTargetsGet(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
 	if id == "" {
-		a.handlerCommonGet(w, a.Targets)
+		out := make(map[string]*runtimeTargetAPIView, len(a.Targets))
+		for k, t := range a.Targets {
+			out[k] = a.runtimeTargetAPIView(t)
+		}
+		a.handlerCommonGet(w, out)
 		return
 	}
 	if t, ok := a.Targets[id]; ok {
-		a.handlerCommonGet(w, t)
+		a.handlerCommonGet(w, a.runtimeTargetAPIView(t))
 		return
 	}
 	w.WriteHeader(http.StatusNotFound)
