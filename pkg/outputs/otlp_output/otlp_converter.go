@@ -55,8 +55,9 @@ func (o *otlpOutput) convertToOTLP(events []*formatters.EventMsg) *metricsv1.Exp
 	skippedEvents := 0
 
 	for _, groupedEvents := range resourceGroups {
+		resource, divergent := o.createResource(cfg, groupedEvents)
 		rm := &metricspb.ResourceMetrics{
-			Resource: o.createResource(cfg, groupedEvents[0]),
+			Resource: resource,
 			ScopeMetrics: []*metricspb.ScopeMetrics{
 				{
 					Scope: &commonpb.InstrumentationScope{
@@ -70,7 +71,7 @@ func (o *otlpOutput) convertToOTLP(events []*formatters.EventMsg) *metricsv1.Exp
 
 		// Convert each event to OTLP metric
 		for _, event := range groupedEvents {
-			metrics, err := o.convertEventToMetrics(cfg, event)
+			metrics, err := o.convertEventToMetrics(cfg, divergent, event)
 			if err != nil {
 				if cfg.Debug {
 					o.logger.Printf("DEBUG: failed to convert event %s: %v", event.Name, err)
@@ -102,34 +103,76 @@ func (o *otlpOutput) convertToOTLP(events []*formatters.EventMsg) *metricsv1.Exp
 	return req
 }
 
-// groupByResource groups events by their source (device) for resource attribution
+// groupByResource groups events by a stable identifier of the producing
+// entity so that each group becomes one OTLP Resource. The key is taken from
+// the first non-empty tag in the preference chain device -> target -> source,
+// falling back to the literal "unknown" only when all three are absent.
+// Preferring device over source prevents cross-target contamination in
+// deployments that legitimately strip source (e.g., because it duplicates
+// device), which previously collapsed every target into a single "unknown"
+// bucket.
 func (o *otlpOutput) groupByResource(events []*formatters.EventMsg) map[string][]*formatters.EventMsg {
 	groups := make(map[string][]*formatters.EventMsg)
 
 	for _, event := range events {
-		// Use source as resource key
-		source := event.Tags["source"]
-		if source == "" {
-			source = "unknown"
+		key := event.Tags["device"]
+		if key == "" {
+			key = event.Tags["target"]
 		}
-		groups[source] = append(groups[source], event)
+		if key == "" {
+			key = event.Tags["source"]
+		}
+		if key == "" {
+			key = "unknown"
+		}
+		groups[key] = append(groups[key], event)
 	}
 
 	return groups
 }
 
-// createResource creates OTLP Resource from event metadata.
-// Tags listed in cfg.ResourceTagKeys are placed as resource attributes.
-func (o *otlpOutput) createResource(cfg *config, event *formatters.EventMsg) *resourcepb.Resource {
+// createResource creates an OTLP Resource from the metadata shared by every
+// event in a group. For each key in cfg.ResourceTagKeys, the value is promoted
+// to Resource only if every event that carries the tag agrees on the value
+// (absence is lenient — an event that does not carry the tag does not
+// constrain the group). Keys whose values diverge across the group are
+// returned in the divergent map so that the caller can route them to
+// per-datapoint attributes instead. This enforces the OTel Resource spec,
+// which requires Resource attributes to be immutable identifiers of the
+// entity producing the telemetry.
+func (o *otlpOutput) createResource(cfg *config, groupedEvents []*formatters.EventMsg) (*resourcepb.Resource, map[string]bool) {
 	attrs := make([]*commonpb.KeyValue, 0, len(cfg.ResourceTagKeys)+len(cfg.ResourceAttributes))
+	divergent := make(map[string]bool)
 
 	for _, key := range cfg.ResourceTagKeys {
-		if val, ok := event.Tags[key]; ok {
-			attrs = append(attrs, &commonpb.KeyValue{
-				Key:   key,
-				Value: &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: val}},
-			})
+		var chosen string
+		var seen, diverges bool
+		for _, ev := range groupedEvents {
+			v, ok := ev.Tags[key]
+			if !ok {
+				continue
+			}
+			if !seen {
+				chosen = v
+				seen = true
+				continue
+			}
+			if v != chosen {
+				diverges = true
+				break
+			}
 		}
+		if !seen {
+			continue
+		}
+		if diverges {
+			divergent[key] = true
+			continue
+		}
+		attrs = append(attrs, &commonpb.KeyValue{
+			Key:   key,
+			Value: &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: chosen}},
+		})
 	}
 
 	for key, val := range cfg.ResourceAttributes {
@@ -139,14 +182,15 @@ func (o *otlpOutput) createResource(cfg *config, event *formatters.EventMsg) *re
 		})
 	}
 
-	return &resourcepb.Resource{
-		Attributes: attrs,
-	}
+	return &resourcepb.Resource{Attributes: attrs}, divergent
 }
 
 // convertEventToMetrics converts a single gNMI event to OTLP metrics.
-// Returns nil if the event has no valid values to convert.
-func (o *otlpOutput) convertEventToMetrics(cfg *config, event *formatters.EventMsg) ([]*metricspb.Metric, error) {
+// Returns nil if the event has no valid values to convert. The divergent map
+// carries the per-group set of resource-tag-keys whose values varied across
+// the group; those keys are kept as per-datapoint attributes instead of being
+// excluded in favor of the Resource.
+func (o *otlpOutput) convertEventToMetrics(cfg *config, divergent map[string]bool, event *formatters.EventMsg) ([]*metricspb.Metric, error) {
 	if len(event.Values) == 0 {
 		if cfg.Debug {
 			o.logger.Printf("DEBUG: event has no values (event: %s)", event.Name)
@@ -154,7 +198,7 @@ func (o *otlpOutput) convertEventToMetrics(cfg *config, event *formatters.EventM
 		return nil, nil
 	}
 
-	attributes := o.extractAttributesForMetric(cfg, event)
+	attributes := o.extractAttributesForMetric(cfg, divergent, event)
 
 	result := make([]*metricspb.Metric, 0, len(event.Values))
 	for k, v := range event.Values {
@@ -251,12 +295,15 @@ func (o *otlpOutput) buildMetricName(cfg *config, event *formatters.EventMsg, va
 }
 
 // extractAttributesForMetric extracts data point attributes from event tags.
-// Tags listed in cfg.ResourceTagKeys are excluded (they live on the Resource).
-func (o *otlpOutput) extractAttributesForMetric(cfg *config, event *formatters.EventMsg) []*commonpb.KeyValue {
+// Tags listed in cfg.ResourceTagKeys are excluded (they live on the Resource)
+// unless the group-level divergence map marks them as divergent, in which case
+// the value could not be promoted to Resource and must flow through to the
+// datapoint with its correct per-event value.
+func (o *otlpOutput) extractAttributesForMetric(cfg *config, divergent map[string]bool, event *formatters.EventMsg) []*commonpb.KeyValue {
 	attrs := make([]*commonpb.KeyValue, 0, len(event.Tags))
 
 	for key, val := range event.Tags {
-		if cfg.resourceTagSet[key] {
+		if cfg.resourceTagSet[key] && !divergent[key] {
 			continue
 		}
 		attrs = append(attrs, &commonpb.KeyValue{
