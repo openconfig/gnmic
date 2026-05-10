@@ -64,7 +64,7 @@ func (n *jetstreamOutput) registerMetrics() error {
 		return nil
 	}
 	if n.reg == nil {
-		n.logger.Printf("ERR: metrics enabled but main registry is not initialized, enable main metrics under `api-server`")
+		n.logger.Error("metrics enabled but main registry is not initialized, enable main metrics under `api-server`")
 		return nil
 	}
 

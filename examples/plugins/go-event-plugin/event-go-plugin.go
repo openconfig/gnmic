@@ -1,7 +1,7 @@
 package main
 
 import (
-	"log"
+	"log/slog"
 	"os"
 
 	"github.com/hashicorp/go-hclog"
@@ -14,7 +14,6 @@ import (
 
 const (
 	processorType = "event-go-plugin"
-	loggingPrefix = "[" + processorType + "] "
 )
 
 type goSampleProcessorPlugin struct {
@@ -66,7 +65,7 @@ func (p *goSampleProcessorPlugin) WithProcessors(procs map[string]map[string]any
 	p.processorsDefinitions = procs
 }
 
-func (p *goSampleProcessorPlugin) WithLogger(l *log.Logger) {
+func (p *goSampleProcessorPlugin) WithLogger(l *slog.Logger) {
 }
 
 func main() {

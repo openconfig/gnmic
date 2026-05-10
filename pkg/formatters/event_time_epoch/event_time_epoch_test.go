@@ -9,7 +9,7 @@
 package event_time_epoch
 
 import (
-	"log"
+	"log/slog"
 	"os"
 	"reflect"
 	"testing"
@@ -203,7 +203,7 @@ func Test_epoch_Apply(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &epoch{}
-			err := c.Init(tt.fields, formatters.WithLogger(log.New(os.Stderr, "[event-epoch-test]", log.Flags())))
+			err := c.Init(tt.fields, formatters.WithLogger(slog.New(slog.NewTextHandler(os.Stderr, nil))))
 			if err != nil {
 				t.Errorf("failed to init processor in test %q: %v", tt.name, err)
 				t.Fail()

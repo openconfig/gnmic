@@ -11,20 +11,17 @@ package event_date_string
 import (
 	"encoding/json"
 	"errors"
-	"io"
-	"log"
-	"os"
+	"log/slog"
 	"regexp"
 	"strconv"
 	"time"
 
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 const (
 	processorType = "event-date-string"
-	loggingPrefix = "[" + processorType + "] "
 )
 
 // dateString converts Tags and/or Values of unix timestamp to a human readable format.
@@ -42,14 +39,11 @@ type dateString struct {
 	tags     []*regexp.Regexp
 	values   []*regexp.Regexp
 	location *time.Location
-	logger   *log.Logger
 }
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &dateString{
-			logger: log.New(io.Discard, "", 0),
-		}
+		return &dateString{}
 	})
 }
 
@@ -61,6 +55,10 @@ func (d *dateString) Init(cfg interface{}, opts ...formatters.Option) error {
 	for _, opt := range opts {
 		opt(d)
 	}
+	if d.Logger == nil {
+		d.Logger = logging.DiscardLogger()
+	}
+	d.Logger = d.Logger.With("processor", processorType)
 	// init values regex
 	d.values = make([]*regexp.Regexp, 0, len(d.Values))
 	for _, reg := range d.Values {
@@ -88,13 +86,12 @@ func (d *dateString) Init(cfg interface{}, opts ...formatters.Option) error {
 		}
 		d.location = loc
 	}
-	if d.logger.Writer() != io.Discard {
-		b, err := json.Marshal(d)
-		if err != nil {
-			d.logger.Printf("initialized processor '%s': %+v", processorType, d)
-			return nil
+	if d.Debug {
+		if b, err := json.Marshal(d); err == nil {
+			d.Logger.Debug("initialized processor", "config", string(b))
+		} else {
+			d.Logger.Debug("initialized processor", "config", d)
 		}
-		d.logger.Printf("initialized processor '%s': %s", processorType, string(b))
 	}
 	return nil
 }
@@ -107,10 +104,10 @@ func (d *dateString) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		for k, v := range e.Values {
 			for _, re := range d.values {
 				if re.MatchString(k) {
-					d.logger.Printf("key '%s' matched regex '%s'", k, re.String())
+					d.Logger.Debug("key matched regex", "key", k, "regex", re.String())
 					iv, err := convertToInt(v)
 					if err != nil {
-						d.logger.Printf("failed to convert '%v' to date string: %v", v, err)
+						d.Logger.Warn("failed to convert value to date string", "value", v, "err", err)
 						continue
 					}
 					var td time.Time
@@ -135,10 +132,10 @@ func (d *dateString) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		for k, v := range e.Tags {
 			for _, re := range d.tags {
 				if re.MatchString(k) {
-					d.logger.Printf("key '%s' matched regex '%s'", k, re.String())
+					d.Logger.Debug("key matched regex", "key", k, "regex", re.String())
 					iv, err := strconv.Atoi(v)
 					if err != nil {
-						log.Printf("failed to convert %s to int: %v", v, err)
+						d.Logger.Warn("failed to convert value to int", "value", v, "err", err)
 					}
 					var td time.Time
 					switch d.Precision {
@@ -163,12 +160,11 @@ func (d *dateString) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	return es
 }
 
-func (d *dateString) WithLogger(l *log.Logger) {
-	if d.Debug && l != nil {
-		d.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
-	} else if d.Debug {
-		d.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
+func (d *dateString) WithLogger(l *slog.Logger) {
+	if !d.Debug {
+		l = nil
 	}
+	d.BaseProcessor.WithLogger(l)
 }
 
 func convertToInt(i interface{}) (int, error) {

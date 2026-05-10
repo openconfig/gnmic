@@ -9,15 +9,17 @@
 package event_trigger
 
 import (
-	"log"
+	"log/slog"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/openconfig/gnmic/pkg/api/utils"
+
 	"github.com/openconfig/gnmic/pkg/formatters"
 )
+
+var testLogger = slog.New(slog.NewTextHandler(os.Stderr, nil))
 
 type item struct {
 	input  []*formatters.EventMsg
@@ -178,7 +180,7 @@ var triggerOccWindowTestSet = map[string]struct {
 }{
 	"defaults_0_occurrences": {
 		t: &trigger{
-			logger:           log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags),
+			BaseProcessor:    formatters.BaseProcessor{Logger: testLogger},
 			Debug:            true,
 			MinOccurrences:   1,
 			MaxOccurrences:   1,
@@ -190,7 +192,7 @@ var triggerOccWindowTestSet = map[string]struct {
 	},
 	"defaults_with_1_occurrence_in_window": {
 		t: &trigger{
-			logger:         log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags),
+			BaseProcessor:  formatters.BaseProcessor{Logger: testLogger},
 			Debug:          true,
 			MinOccurrences: 1,
 			MaxOccurrences: 1,
@@ -205,7 +207,7 @@ var triggerOccWindowTestSet = map[string]struct {
 	},
 	"defaults_with_1_occurrence_out_of_window": {
 		t: &trigger{
-			logger:         log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags),
+			BaseProcessor:  formatters.BaseProcessor{Logger: testLogger},
 			Debug:          true,
 			MinOccurrences: 1,
 			MaxOccurrences: 1,
@@ -219,7 +221,7 @@ var triggerOccWindowTestSet = map[string]struct {
 	},
 	"2max_1min_without_occurrences": {
 		t: &trigger{
-			logger:           log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags),
+			BaseProcessor:    formatters.BaseProcessor{Logger: testLogger},
 			Debug:            true,
 			MinOccurrences:   1,
 			MaxOccurrences:   2,
@@ -231,7 +233,7 @@ var triggerOccWindowTestSet = map[string]struct {
 	},
 	"2max_1min_with_1occurrence_in_window": {
 		t: &trigger{
-			logger:         log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags),
+			BaseProcessor:  formatters.BaseProcessor{Logger: testLogger},
 			Debug:          true,
 			MinOccurrences: 1,
 			MaxOccurrences: 2,
@@ -245,7 +247,7 @@ var triggerOccWindowTestSet = map[string]struct {
 	},
 	"2max_1min_with_2occurrences_in_window": {
 		t: &trigger{
-			logger:         log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags),
+			BaseProcessor:  formatters.BaseProcessor{Logger: testLogger},
 			Debug:          true,
 			MinOccurrences: 1,
 			MaxOccurrences: 2,
@@ -261,7 +263,7 @@ var triggerOccWindowTestSet = map[string]struct {
 	},
 	"2max_2min_without_occurrences": {
 		t: &trigger{
-			logger:           log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags),
+			BaseProcessor:    formatters.BaseProcessor{Logger: testLogger},
 			Debug:            true,
 			MinOccurrences:   2,
 			MaxOccurrences:   2,
@@ -273,7 +275,7 @@ var triggerOccWindowTestSet = map[string]struct {
 	},
 	"2max_2min_with_1occurrence_in_window": {
 		t: &trigger{
-			logger:         log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags),
+			BaseProcessor:  formatters.BaseProcessor{Logger: testLogger},
 			Debug:          true,
 			MinOccurrences: 2,
 			MaxOccurrences: 2,
@@ -287,7 +289,7 @@ var triggerOccWindowTestSet = map[string]struct {
 	},
 	"2max_2min_with_2occurrences_in_window": {
 		t: &trigger{
-			logger:         log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags),
+			BaseProcessor:  formatters.BaseProcessor{Logger: testLogger},
 			Debug:          true,
 			MinOccurrences: 2,
 			MaxOccurrences: 2,
@@ -303,7 +305,7 @@ var triggerOccWindowTestSet = map[string]struct {
 	},
 	"2max_2min_with_2occurrences_in_window_lastTrigger_out_of_window": {
 		t: &trigger{
-			logger:         log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags),
+			BaseProcessor:  formatters.BaseProcessor{Logger: testLogger},
 			Debug:          true,
 			MinOccurrences: 2,
 			MaxOccurrences: 2,
@@ -325,7 +327,7 @@ func TestEventTrigger(t *testing.T) {
 			t.Log("found processor")
 			p := pi()
 			err := p.Init(ts.processor,
-				formatters.WithLogger(log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)),
+				formatters.WithLogger(testLogger),
 				formatters.WithActions(actionsCfg),
 			)
 			if err != nil {

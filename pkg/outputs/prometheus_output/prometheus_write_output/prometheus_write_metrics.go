@@ -88,27 +88,27 @@ func (p *promWriteOutput) registerMetrics() error {
 	var err error
 	registerMetricsOnce.Do(func() {
 		if err = p.reg.Register(prometheusWriteNumberOfSentMsgs); err != nil {
-			p.logger.Printf("failed to register metric: %v", err)
+			p.logger.Error("failed to register metric", "err", err)
 			return
 		}
 		if err = p.reg.Register(prometheusWriteNumberOfFailSendMsgs); err != nil {
-			p.logger.Printf("failed to register metric: %v", err)
+			p.logger.Error("failed to register metric", "err", err)
 			return
 		}
 		if err = p.reg.Register(prometheusWriteSendDuration); err != nil {
-			p.logger.Printf("failed to register metric: %v", err)
+			p.logger.Error("failed to register metric", "err", err)
 			return
 		}
 		if err = p.reg.Register(prometheusWriteNumberOfSentMetadataMsgs); err != nil {
-			p.logger.Printf("failed to register metric: %v", err)
+			p.logger.Error("failed to register metric", "err", err)
 			return
 		}
 		if err = p.reg.Register(prometheusWriteNumberOfFailSendMetadataMsgs); err != nil {
-			p.logger.Printf("failed to register metric: %v", err)
+			p.logger.Error("failed to register metric", "err", err)
 			return
 		}
 		if err = p.reg.Register(prometheusWriteMetadataSendDuration); err != nil {
-			p.logger.Printf("failed to register metric: %v", err)
+			p.logger.Error("failed to register metric", "err", err)
 			return
 		}
 	})

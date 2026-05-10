@@ -36,16 +36,12 @@ var stringsBuilderPool = sync.Pool{
 func (o *otlpOutput) convertToOTLP(events []*formatters.EventMsg) *metricsv1.ExportMetricsServiceRequest {
 	cfg := o.cfg.Load()
 
-	if cfg.Debug {
-		o.logger.Printf("DEBUG: convertToOTLP called with %d events", len(events))
-	}
+	o.logger.Debug("convertToOTLP called", "events", len(events))
 
 	// Group events by resource (source)
 	resourceGroups := o.groupByResource(events)
 
-	if cfg.Debug {
-		o.logger.Printf("DEBUG: Grouped into %d resource groups", len(resourceGroups))
-	}
+	o.logger.Debug("grouped into resource groups", "count", len(resourceGroups))
 
 	req := &metricsv1.ExportMetricsServiceRequest{
 		ResourceMetrics: make([]*metricspb.ResourceMetrics, 0, len(resourceGroups)),
@@ -73,16 +69,12 @@ func (o *otlpOutput) convertToOTLP(events []*formatters.EventMsg) *metricsv1.Exp
 		for _, event := range groupedEvents {
 			metrics, err := o.convertEventToMetrics(cfg, divergent, event)
 			if err != nil {
-				if cfg.Debug {
-					o.logger.Printf("DEBUG: failed to convert event %s: %v", event.Name, err)
-				}
+				o.logger.Debug("failed to convert event", "event", event.Name, "err", err)
 				skippedEvents++
 				continue
 			}
 			if len(metrics) == 0 {
-				if cfg.Debug {
-					o.logger.Printf("DEBUG: convertEvent returned nil for event: name=%s, values=%v", event.Name, event.Values)
-				}
+				o.logger.Debug("convertEvent returned nil", "event", event.Name, "values", event.Values)
 				skippedEvents++
 				continue
 			}
@@ -95,10 +87,7 @@ func (o *otlpOutput) convertToOTLP(events []*formatters.EventMsg) *metricsv1.Exp
 		}
 	}
 
-	if cfg.Debug {
-		o.logger.Printf("DEBUG: Converted %d metrics, skipped %d events, %d ResourceMetrics",
-			totalMetrics, skippedEvents, len(req.ResourceMetrics))
-	}
+	o.logger.Debug("converted metrics", "metrics", totalMetrics, "skipped", skippedEvents, "resource-metrics", len(req.ResourceMetrics))
 
 	return req
 }
@@ -192,9 +181,7 @@ func (o *otlpOutput) createResource(cfg *config, groupedEvents []*formatters.Eve
 // excluded in favor of the Resource.
 func (o *otlpOutput) convertEventToMetrics(cfg *config, divergent map[string]bool, event *formatters.EventMsg) ([]*metricspb.Metric, error) {
 	if len(event.Values) == 0 {
-		if cfg.Debug {
-			o.logger.Printf("DEBUG: event has no values (event: %s)", event.Name)
-		}
+		o.logger.Debug("event has no values", "event", event.Name)
 		return nil, nil
 	}
 
@@ -212,9 +199,7 @@ func (o *otlpOutput) convertEventToMetrics(cfg *config, divergent map[string]boo
 		switch v := v.(type) {
 		case string:
 			if !cfg.StringsAsAttributes {
-				if cfg.Debug {
-					o.logger.Printf("DEBUG: skipping string value (strings-as-attributes=false): %s", event.Name)
-				}
+				o.logger.Debug("skipping string value (strings-as-attributes=false)", "event", event.Name)
 				continue
 			}
 			metric.Data = &metricspb.Metric_Gauge{
@@ -226,9 +211,7 @@ func (o *otlpOutput) convertEventToMetrics(cfg *config, divergent map[string]boo
 
 		dataPoint := o.createNumberDataPointWithValue(cfg, event, attributes, v)
 		if dataPoint == nil {
-			if cfg.Debug {
-				o.logger.Printf("DEBUG: failed to create data point for value type %T (event: %s)", v, event.Name)
-			}
+			o.logger.Debug("failed to create data point", "type", fmt.Sprintf("%T", v), "event", event.Name)
 			continue
 		}
 
@@ -365,9 +348,7 @@ func (o *otlpOutput) createNumberDataPointWithValue(cfg *config, event *formatte
 			return nil
 		}
 	default:
-		if cfg.Debug {
-			o.logger.Printf("unsupported value type %T for metric %s", v, event.Name)
-		}
+		o.logger.Debug("unsupported value type", "type", fmt.Sprintf("%T", v), "metric", event.Name)
 		return nil
 	}
 
@@ -503,7 +484,7 @@ func (o *otlpOutput) sendGRPC(ctx context.Context, req *metricsv1.ExportMetricsS
 	}
 
 	if err := o.validateRequest(req); err != nil {
-		o.logger.Printf("VALIDATION ERROR: %v", err)
+		o.logger.Error("validation error", "err", err)
 		return fmt.Errorf("request validation failed: %w", err)
 	}
 
@@ -519,29 +500,25 @@ func (o *otlpOutput) sendGRPC(ctx context.Context, req *metricsv1.ExportMetricsS
 	}
 
 	if cfg.Debug {
-		o.logger.Printf("DEBUG: Sending OTLP request with %d ResourceMetrics", len(req.ResourceMetrics))
+		o.logger.Debug("sending OTLP request", "resource-metrics", len(req.ResourceMetrics))
 		if len(req.ResourceMetrics) > 0 && len(req.ResourceMetrics[0].ScopeMetrics) > 0 {
-			o.logger.Printf("DEBUG: First ScopeMetric has %d Metrics", len(req.ResourceMetrics[0].ScopeMetrics[0].Metrics))
+			o.logger.Debug("first ScopeMetric metrics", "count", len(req.ResourceMetrics[0].ScopeMetrics[0].Metrics))
 		}
 	}
 
 	response, err := gs.client.Export(ctx, req)
 	if err != nil {
-		if cfg.Debug {
-			o.logger.Printf("DEBUG: gRPC Export returned error: %v", err)
-		}
+		o.logger.Debug("gRPC Export returned error", "err", err)
 		return fmt.Errorf("grpc export failed: %w", err)
 	}
 
-	if cfg.Debug {
-		o.logger.Printf("DEBUG: gRPC Export succeeded")
-	}
+	o.logger.Debug("gRPC Export succeeded")
 
 	if response.PartialSuccess != nil && response.PartialSuccess.RejectedDataPoints > 0 {
 		errMsg := fmt.Sprintf("OTEL rejected %d data points: %s",
 			response.PartialSuccess.RejectedDataPoints,
 			response.PartialSuccess.ErrorMessage)
-		o.logger.Printf("ERROR: %s", errMsg)
+		o.logger.Error(errMsg)
 		if cfg.EnableMetrics {
 			otlpRejectedDataPoints.WithLabelValues(cfg.Name).Add(float64(response.PartialSuccess.RejectedDataPoints))
 		}

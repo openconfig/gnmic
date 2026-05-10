@@ -10,7 +10,7 @@ func (a *App) initPluginManager() error {
 	if pc == nil {
 		return nil
 	}
-	a.pm = plugin_manager.New(pc, a.Logger.Writer())
+	a.pm = plugin_manager.New(pc, a.logWriter)
 	return a.pm.Load()
 }
 

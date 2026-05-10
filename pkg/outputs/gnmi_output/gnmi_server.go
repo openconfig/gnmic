@@ -18,8 +18,9 @@ package gnmi_output
 
 import (
 	"errors"
+	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"sync"
 
 	"golang.org/x/sync/semaphore"
@@ -48,7 +49,7 @@ type streamClient struct {
 type server struct {
 	gnmi.UnimplementedGNMIServer
 	//
-	l               *log.Logger
+	l               *slog.Logger
 	c               *cache.Cache
 	m               *match.Match
 	subscribeRPCsem *semaphore.Weighted
@@ -80,11 +81,11 @@ func (m *matchClient) Update(n interface{}) {
 
 func (g *gNMIOutput) newServer() *server {
 	return &server{
-		l:       g.logger,
-		c:       g.c,
-		m:       match.New(),
-		mu:      new(sync.RWMutex),
-		targets: make(map[string]*types.TargetConfig),
+		l:         g.logger,
+		c:         g.c,
+		m:         match.New(),
+		mu:        new(sync.RWMutex),
+		targets:   make(map[string]*types.TargetConfig),
 	}
 }
 
@@ -93,7 +94,7 @@ func (s *server) Update(n *ctree.Leaf) {
 	case *gnmi.Notification:
 		subscribe.UpdateNotification(s.m, n, v, path.ToStrings(v.Prefix, true))
 	default:
-		s.l.Printf("unexpected update type: %T", v)
+		s.l.Warn("unexpected update type", "type", fmt.Sprintf("%T", v))
 	}
 }
 
@@ -117,15 +118,15 @@ func addSubscription(m *match.Match, s *gnmi.SubscriptionList, c *matchClient) f
 
 func (s *server) handleSubscriptionRequest(sc *streamClient) {
 	var err error
-	s.l.Printf("processing subscription to target %q", sc.target)
+	s.l.Info("processing subscription", "target", sc.target)
 	defer func() {
 		if err != nil {
-			s.l.Printf("error processing subscription to target %q: %v", sc.target, err)
+			s.l.Error("error processing subscription", "target", sc.target, "err", err)
 			sc.queue.Close()
 			sc.errChan <- err
 			return
 		}
-		s.l.Printf("subscription request to target %q processed", sc.target)
+		s.l.Info("subscription request processed", "target", sc.target)
 	}()
 
 	if !sc.req.GetSubscribe().GetUpdatesOnly() {
@@ -144,7 +145,7 @@ func (s *server) handleSubscriptionRequest(sc *streamClient) {
 					return nil
 				})
 			if err != nil {
-				s.l.Printf("target %q failed internal cache query: %v", sc.target, err)
+				s.l.Error("target failed internal cache query", "target", sc.target, "err", err)
 				return
 			}
 		}
@@ -155,7 +156,7 @@ func (s *server) handleSubscriptionRequest(sc *streamClient) {
 func (s *server) sendStreamingResults(sc *streamClient) {
 	ctx := sc.stream.Context()
 	peer, _ := peer.FromContext(ctx)
-	s.l.Printf("sending streaming results from target %q to peer %q", sc.target, peer.Addr)
+	s.l.Info("sending streaming results", "target", sc.target, "peer", peer.Addr)
 	defer s.subscribeRPCsem.Release(1)
 	for {
 		item, dup, err := sc.queue.Next(ctx)
@@ -190,7 +191,7 @@ func (s *server) sendStreamingResults(sc *streamClient) {
 			dup:    dup,
 		}, sc)
 		if err != nil {
-			s.l.Printf("target %q: failed sending subscribeResponse: %v", sc.target, err)
+			s.l.Error("failed sending subscribeResponse", "target", sc.target, "err", err)
 			sc.errChan <- err
 			return
 		}
@@ -210,13 +211,13 @@ func (s *server) handlePolledSubscription(sc *streamClient) {
 			return
 		}
 		if err != nil {
-			s.l.Printf("target %q: failed poll subscription rcv: %v", sc.target, err)
+			s.l.Error("failed poll subscription rcv", "target", sc.target, "err", err)
 			sc.errChan <- err
 			return
 		}
-		s.l.Printf("target %q: repoll", sc.target)
+		s.l.Info("repoll", "target", sc.target)
 		s.handleSubscriptionRequest(sc)
-		s.l.Printf("target %q: repoll done", sc.target)
+		s.l.Info("repoll done", "target", sc.target)
 	}
 }
 

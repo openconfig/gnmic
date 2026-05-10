@@ -12,8 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"log"
+	"log/slog"
 	"os"
 	"strings"
 	"sync"
@@ -28,14 +27,13 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/lockers"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 const (
 	defaultLeaseDuration = 10 * time.Second
 	defaultRetryTimer    = 2 * time.Second
-	loggingPrefix        = "[k8s_locker] "
 	defaultNamespace     = "default"
 	origKeyName          = "original-key"
 )
@@ -47,7 +45,7 @@ func init() {
 			m:               new(sync.RWMutex),
 			acquiredlocks:   make(map[string]*lock),
 			attemptinglocks: make(map[string]*lock),
-			logger:          log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
+			logger:          logging.DiscardLogger(),
 		}
 	})
 }
@@ -55,7 +53,7 @@ func init() {
 type k8sLocker struct {
 	Cfg             *config
 	clientset       *kubernetes.Clientset
-	logger          *log.Logger
+	logger          *slog.Logger
 	m               *sync.RWMutex
 	acquiredlocks   map[string]*lock
 	attemptinglocks map[string]*lock
@@ -150,7 +148,7 @@ func (k *k8sLocker) Lock(ctx context.Context, key string, val []byte) (bool, err
 					return false, err
 				}
 				// create lease
-				k.logger.Printf("lease %q not found, creating it: %+v", nkey, l.String())
+				k.logger.Info("lease not found, creating it", "lease", nkey, "spec", l.String())
 				l.Spec.AcquireTime = &now
 				l.Spec.RenewTime = &now
 				ol, err = k.clientset.CoordinationV1().Leases(k.Cfg.Namespace).Create(ctx, l, metav1.CreateOptions{})
@@ -168,33 +166,33 @@ func (k *k8sLocker) Lock(ctx context.Context, key string, val []byte) (bool, err
 			// obtained, compare
 			if ol != nil && ol.Spec.HolderIdentity != nil && *ol.Spec.HolderIdentity != "" {
 				if k.Cfg.Debug {
-					k.logger.Printf("%q held by other instance: %v", ol.Name, *ol.Spec.HolderIdentity != k.identity)
-					k.logger.Printf("%q lease has renewTime: %v", ol.Name, ol.Spec.RenewTime != nil)
+					k.logger.Debug("lease held check", "lease", ol.Name, "held_by_other", *ol.Spec.HolderIdentity != k.identity)
+					k.logger.Debug("lease renew time presence", "lease", ol.Name, "has_renew_time", ol.Spec.RenewTime != nil)
 				}
 				if *ol.Spec.HolderIdentity != k.identity && ol.Spec.RenewTime != nil {
 					expectedRenewTime := ol.Spec.RenewTime.Add(time.Duration(*ol.Spec.LeaseDurationSeconds) * time.Second)
 					if k.Cfg.Debug {
-						k.logger.Printf("%q existing lease renew time %v", ol.Name, ol.Spec.RenewTime)
-						k.logger.Printf("%q expected lease renew time %v", ol.Name, expectedRenewTime)
-						k.logger.Printf("%q renew time passed: %v", ol.Name, expectedRenewTime.Before(now.Time))
+						k.logger.Debug("existing lease renew time", "lease", ol.Name, "renew_time", ol.Spec.RenewTime)
+						k.logger.Debug("expected lease renew time", "lease", ol.Name, "expected_renew_time", expectedRenewTime)
+						k.logger.Debug("renew time passed", "lease", ol.Name, "passed", expectedRenewTime.Before(now.Time))
 					}
 					if !expectedRenewTime.Before(now.Time) {
 						if k.Cfg.Debug {
-							k.logger.Printf("%q is currently held by %s", ol.Name, *ol.Spec.HolderIdentity)
+							k.logger.Debug("lease currently held", "lease", ol.Name, "holder", *ol.Spec.HolderIdentity)
 						}
 						time.Sleep(k.Cfg.RenewPeriod)
 						continue
 					}
 				}
 			}
-			k.logger.Printf("taking over lease %q", nkey)
+			k.logger.Info("taking over lease", "lease", nkey)
 			// update the lease
 			now = metav1.NowMicro()
 			l.Spec.AcquireTime = &now
 			l.Spec.RenewTime = &now
 			// set resource version to the latest value known
 			l.SetResourceVersion(ol.GetResourceVersion())
-			k.logger.Printf("%q updating with %+v", l.Name, l)
+			k.logger.Debug("updating lease", "lease", l.Name, "spec", l)
 			ol, err = k.clientset.CoordinationV1().Leases(k.Cfg.Namespace).Update(ctx, l, metav1.UpdateOptions{})
 			if err != nil {
 				return false, err
@@ -299,11 +297,8 @@ func (k *k8sLocker) Stop() error {
 	return nil
 }
 
-func (k *k8sLocker) SetLogger(logger *log.Logger) {
-	if logger != nil && k.logger != nil {
-		k.logger.SetOutput(logger.Writer())
-		k.logger.SetFlags(logger.Flags())
-	}
+func (k *k8sLocker) SetLogger(logger *slog.Logger) {
+	k.logger = lockers.BindLogger(logger, "k8s")
 }
 
 // helpers

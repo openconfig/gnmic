@@ -9,7 +9,7 @@
 package outputs
 
 import (
-	"log"
+	"log/slog"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/zestor-dev/zestor/store"
@@ -18,14 +18,14 @@ import (
 type OutputOptions struct {
 	Name        string
 	ClusterName string
-	Logger      *log.Logger
+	Logger      *slog.Logger
 	Registry    *prometheus.Registry
 	Store       store.Store[any]
 }
 
 type Option func(*OutputOptions) error
 
-func WithLogger(logger *log.Logger) Option {
+func WithLogger(logger *slog.Logger) Option {
 	return func(o *OutputOptions) error {
 		o.Logger = logger
 		return nil

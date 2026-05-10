@@ -11,7 +11,7 @@ package cache
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -48,7 +48,17 @@ type Cache interface {
 	// DeleteTarget deletes the target from the cache by name
 	DeleteTarget(name string)
 	// SetLogger sets a logger for the cache
-	SetLogger(l *log.Logger)
+	SetLogger(l *slog.Logger)
+}
+
+// BindLogger returns a non-nil *slog.Logger annotated with the cache type. If
+// parent is nil, a discarding logger is returned so callers never need a nil
+// check.
+func BindLogger(parent *slog.Logger, cacheType string) *slog.Logger {
+	if parent == nil {
+		return slog.New(slog.DiscardHandler)
+	}
+	return parent.With("cache", cacheType)
 }
 
 type Config struct {
@@ -66,6 +76,25 @@ type Config struct {
 	MaxMsgsPerSubscription int64         `mapstructure:"max-msgs-per-subscription,omitempty" json:"max-msgs-per-subscription,omitempty"`
 	FetchBatchSize         int           `mapstructure:"fetch-batch-size,omitempty" json:"fetch-batch-size,omitempty"`
 	FetchWaitTime          time.Duration `mapstructure:"fetch-wait-time,omitempty" json:"fetch-wait-time,omitempty"`
+}
+
+func (c *Config) LogValue() slog.Value {
+	if c == nil {
+		return slog.StringValue("<nil>")
+	}
+	attrs := []slog.Attr{
+		slog.String("type", string(c.Type)),
+		slog.String("address", c.Address),
+		slog.Duration("timeout", c.Timeout),
+		slog.Duration("expiration", c.Expiration),
+		slog.Bool("debug", c.Debug),
+		slog.String("username", c.Username),
+		slog.Int64("max-bytes", c.MaxBytes),
+		slog.Int64("max-msgs-per-subscription", c.MaxMsgsPerSubscription),
+		slog.Int("fetch-batch-size", c.FetchBatchSize),
+		slog.Duration("fetch-wait-time", c.FetchWaitTime),
+	}
+	return slog.GroupValue(attrs...)
 }
 
 func (c *Config) setDefaults() {

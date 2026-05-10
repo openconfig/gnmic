@@ -10,9 +10,7 @@ package event_strings
 
 import (
 	"encoding/json"
-	"io"
-	"log"
-	"os"
+	"log/slog"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -20,13 +18,12 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 const (
 	processorType = "event-strings"
-	loggingPrefix = "[" + processorType + "] "
 	nameField     = "name"
 	valueField    = "value"
 )
@@ -46,8 +43,6 @@ type stringsp struct {
 	values    []*regexp.Regexp
 	tagKeys   []*regexp.Regexp
 	valueKeys []*regexp.Regexp
-
-	logger *log.Logger
 }
 
 type transform struct {
@@ -79,9 +74,7 @@ type transform struct {
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &stringsp{
-			logger: log.New(io.Discard, "", 0),
-		}
+		return &stringsp{}
 	})
 }
 
@@ -93,6 +86,10 @@ func (s *stringsp) Init(cfg interface{}, opts ...formatters.Option) error {
 	for _, opt := range opts {
 		opt(s)
 	}
+	if s.Logger == nil {
+		s.Logger = logging.DiscardLogger()
+	}
+	s.Logger = s.Logger.With("processor", processorType)
 	for i := range s.Transforms {
 		for k := range s.Transforms[i] {
 			s.Transforms[i][k].op = k
@@ -141,13 +138,12 @@ func (s *stringsp) Init(cfg interface{}, opts ...formatters.Option) error {
 		}
 		s.valueKeys = append(s.valueKeys, re)
 	}
-	if s.logger.Writer() != io.Discard {
-		b, err := json.Marshal(s)
-		if err != nil {
-			s.logger.Printf("initialized processor '%s': %+v", processorType, s)
-			return nil
+	if s.Debug {
+		if b, err := json.Marshal(s); err == nil {
+			s.Logger.Debug("initialized processor", "config", string(b))
+		} else {
+			s.Logger.Debug("initialized processor", "config", s)
 		}
-		s.logger.Printf("initialized processor '%s': %s", processorType, string(b))
 	}
 	return nil
 }
@@ -160,14 +156,14 @@ func (s *stringsp) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		for k, v := range e.Values {
 			for _, re := range s.valueKeys {
 				if re.MatchString(k) {
-					s.logger.Printf("value name '%s' matched regex '%s'", k, re.String())
+					s.Logger.Debug("value name matched regex", "name", k, "regex", re.String())
 					s.applyValueTransformations(e, k, v)
 				}
 			}
 			for _, re := range s.values {
 				if vs, ok := v.(string); ok {
 					if re.MatchString(vs) {
-						s.logger.Printf("value '%s' matched regex '%s'", vs, re.String())
+						s.Logger.Debug("value matched regex", "value", vs, "regex", re.String())
 						s.applyValueTransformations(e, k, vs)
 					}
 				}
@@ -176,13 +172,13 @@ func (s *stringsp) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		for k, v := range e.Tags {
 			for _, re := range s.tagKeys {
 				if re.MatchString(k) {
-					s.logger.Printf("tag name '%s' matched regex '%s'", k, re.String())
+					s.Logger.Debug("tag name matched regex", "name", k, "regex", re.String())
 					s.applyTagTransformations(e, k, v)
 				}
 			}
 			for _, re := range s.tags {
 				if re.MatchString(v) {
-					s.logger.Printf("tag '%s' matched regex '%s'", k, re.String())
+					s.Logger.Debug("tag matched regex", "tag", k, "regex", re.String())
 					s.applyTagTransformations(e, k, v)
 				}
 			}
@@ -191,12 +187,11 @@ func (s *stringsp) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	return es
 }
 
-func (s *stringsp) WithLogger(l *log.Logger) {
-	if s.Debug && l != nil {
-		s.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
-	} else if s.Debug {
-		s.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
+func (s *stringsp) WithLogger(l *slog.Logger) {
+	if !s.Debug {
+		l = nil
 	}
+	s.BaseProcessor.WithLogger(l)
 }
 
 func (s *stringsp) applyValueTransformations(e *formatters.EventMsg, k string, v interface{}) {
@@ -224,7 +219,7 @@ func (s *stringsp) applyTagTransformations(e *formatters.EventMsg, k, v string) 
 				v = vs // change the original value in case it's used in the next transform
 				continue
 			}
-			s.logger.Printf("failed to assert %v type as string", vi)
+			s.Logger.Warn("failed to assert value type as string", "value", vi)
 		}
 	}
 }

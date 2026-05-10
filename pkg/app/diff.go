@@ -169,8 +169,12 @@ func (a *App) subscribeBasedDiff(ctx context.Context, cmd *cobra.Command, ref *t
 			a.logError(err)
 			return
 		}
-		a.Logger.Printf("sending gNMI SubscribeRequest: subscribe='%+v', mode='%+v', encoding='%+v', to %s",
-			subReq.Request, subReq.GetSubscribe().GetMode(), subReq.GetSubscribe().GetEncoding(), ref)
+		a.Logger.Info("sending gNMI SubscribeRequest",
+			"target", ref,
+			"subscribe", subReq.Request,
+			"mode", subReq.GetSubscribe().GetMode(),
+			"encoding", subReq.GetSubscribe().GetEncoding(),
+		)
 		rspChan, errChan := refTarget.SubscribeOnceChan(ctx, subReq)
 		for {
 			select {
@@ -205,8 +209,12 @@ func (a *App) subscribeBasedDiff(ctx context.Context, cmd *cobra.Command, ref *t
 				return
 			}
 			responses := make([]proto.Message, 0)
-			a.Logger.Printf("sending gNMI SubscribeRequest: subscribe='%+v', mode='%+v', encoding='%+v', to %s",
-				subReq.Request, subReq.GetSubscribe().GetMode(), subReq.GetSubscribe().GetEncoding(), tName)
+			a.Logger.Info("sending gNMI SubscribeRequest",
+				"target", tName,
+				"subscribe", subReq.Request,
+				"mode", subReq.GetSubscribe().GetMode(),
+				"encoding", subReq.GetSubscribe().GetEncoding(),
+			)
 			subRspChan, errChan := t.SubscribeOnceChan(ctx, subReq)
 			for {
 				select {
@@ -244,7 +252,7 @@ func (a *App) subscribeBasedDiff(ctx context.Context, cmd *cobra.Command, ref *t
 		rsps = append(rsps, r)
 	}
 	if len(rsps) == 0 {
-		a.Logger.Printf("missing response(s)")
+		a.Logger.Info("missing response(s)")
 		return fmt.Errorf("missing response(s)")
 	}
 
@@ -271,8 +279,15 @@ func (a *App) getBasedDiff(ctx context.Context, ref *types.TargetConfig, compare
 
 	go func() {
 		defer a.wg.Done()
-		a.Logger.Printf("sending gNMI GetRequest: prefix='%v', path='%v', type='%v', encoding='%v', models='%+v', extension='%+v' to %s",
-			getReq.Prefix, getReq.Path, getReq.Type, getReq.Encoding, getReq.UseModels, getReq.Extension, ref)
+		a.Logger.Info("sending gNMI GetRequest",
+			"target", ref,
+			"prefix", getReq.Prefix,
+			"path", getReq.Path,
+			"type", getReq.Type,
+			"encoding", getReq.Encoding,
+			"models", getReq.UseModels,
+			"extension", getReq.Extension,
+		)
 		refResponse, err = a.ClientGet(ctx, ref, getReq)
 		if err != nil {
 			a.logError(fmt.Errorf("target %q get request failed: %v", ref, err))
@@ -283,8 +298,15 @@ func (a *App) getBasedDiff(ctx context.Context, ref *types.TargetConfig, compare
 	for _, tc := range compare {
 		go func(tc *types.TargetConfig) {
 			defer a.wg.Done()
-			a.Logger.Printf("sending gNMI GetRequest: prefix='%v', path='%v', type='%v', encoding='%v', models='%+v', extension='%+v' to %s",
-				getReq.Prefix, getReq.Path, getReq.Type, getReq.Encoding, getReq.UseModels, getReq.Extension, tc.Name)
+			a.Logger.Info("sending gNMI GetRequest",
+				"target", tc.Name,
+				"prefix", getReq.Prefix,
+				"path", getReq.Path,
+				"type", getReq.Type,
+				"encoding", getReq.Encoding,
+				"models", getReq.UseModels,
+				"extension", getReq.Extension,
+			)
 			response, err := a.ClientGet(ctx, tc, getReq)
 			if err != nil {
 				a.logError(fmt.Errorf("target %q get request failed: %v", tc.Name, err))

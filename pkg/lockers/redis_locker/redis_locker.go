@@ -6,8 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
-	"log"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -15,15 +14,14 @@ import (
 	"github.com/go-redsync/redsync/v4/redis/goredis/v9"
 	goredislib "github.com/redis/go-redis/v9"
 
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/lockers"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 const (
 	defaultLeaseDuration = 10 * time.Second
 	defaultRetryTimer    = 2 * time.Second
 	defaultPollTimer     = 10 * time.Second
-	loggingPrefix        = "[redis_locker] "
 )
 
 func init() {
@@ -34,14 +32,14 @@ func init() {
 			acquiredLocks:   make(map[string]*redsync.Mutex),
 			attemptingLocks: make(map[string]*redsync.Mutex),
 			registerLock:    make(map[string]context.CancelFunc),
-			logger:          log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
+			logger:          logging.DiscardLogger(),
 		}
 	})
 }
 
 type redisLocker struct {
 	Cfg             *config
-	logger          *log.Logger
+	logger          *slog.Logger
 	m               *sync.RWMutex
 	acquiredLocks   map[string]*redsync.Mutex
 	attemptingLocks map[string]*redsync.Mutex
@@ -88,7 +86,7 @@ func (k *redisLocker) Init(ctx context.Context, cfg map[string]interface{}, opts
 
 func (k *redisLocker) Lock(ctx context.Context, key string, val []byte) (bool, error) {
 	if k.Cfg.Debug {
-		k.logger.Printf("attempting to lock=%s", key)
+		k.logger.Debug("attempting to lock", "key", key)
 	}
 	mu := k.redisLocker.NewMutex(
 		key,
@@ -120,7 +118,7 @@ func (k *redisLocker) Lock(ctx context.Context, key string, val []byte) (bool, e
 				switch err.(type) {
 				case *redsync.ErrTaken:
 					if k.Cfg.Debug {
-						k.logger.Printf("lock already taken lock=%s: %v", key, err)
+						k.logger.Debug("lock already taken", "key", key, "err", err)
 					}
 					return false, nil
 				default:
@@ -212,11 +210,8 @@ func (k *redisLocker) Stop() error {
 	return k.Deregister("")
 }
 
-func (k *redisLocker) SetLogger(logger *log.Logger) {
-	if logger != nil && k.logger != nil {
-		k.logger.SetOutput(logger.Writer())
-		k.logger.SetFlags(logger.Flags())
-	}
+func (k *redisLocker) SetLogger(logger *slog.Logger) {
+	k.logger = lockers.BindLogger(logger, "redis")
 }
 
 // helpers

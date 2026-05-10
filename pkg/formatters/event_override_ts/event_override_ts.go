@@ -10,18 +10,15 @@ package event_override_ts
 
 import (
 	"encoding/json"
-	"io"
-	"log"
-	"os"
+	"log/slog"
 	"time"
 
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 const (
 	processorType = "event-override-ts"
-	loggingPrefix = "[" + processorType + "] "
 )
 
 // overrideTS Overrides the message timestamp with the local time
@@ -30,15 +27,11 @@ type overrideTS struct {
 
 	Precision string `mapstructure:"precision,omitempty" json:"precision,omitempty"`
 	Debug     bool   `mapstructure:"debug,omitempty" json:"debug,omitempty"`
-
-	logger *log.Logger
 }
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &overrideTS{
-			logger: log.New(io.Discard, "", 0),
-		}
+		return &overrideTS{}
 	})
 }
 
@@ -50,16 +43,19 @@ func (o *overrideTS) Init(cfg any, opts ...formatters.Option) error {
 	for _, opt := range opts {
 		opt(o)
 	}
+	if o.Logger == nil {
+		o.Logger = logging.DiscardLogger()
+	}
+	o.Logger = o.Logger.With("processor", processorType)
 	if o.Precision == "" {
 		o.Precision = "ns"
 	}
-	if o.logger.Writer() != io.Discard {
-		b, err := json.Marshal(o)
-		if err != nil {
-			o.logger.Printf("initialized processor '%s': %+v", processorType, o)
-			return nil
+	if o.Debug {
+		if b, err := json.Marshal(o); err == nil {
+			o.Logger.Debug("initialized processor", "config", string(b))
+		} else {
+			o.Logger.Debug("initialized processor", "config", o)
 		}
-		o.logger.Printf("initialized processor '%s': %s", processorType, string(b))
 	}
 	return nil
 }
@@ -70,7 +66,7 @@ func (o *overrideTS) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 			continue
 		}
 		now := time.Now()
-		o.logger.Printf("setting timestamp to %d with precision %s", now.UnixNano(), o.Precision)
+		o.Logger.Debug("setting timestamp", "timestamp", now.UnixNano(), "precision", o.Precision)
 		switch o.Precision {
 		case "s":
 			e.Timestamp = now.Unix()
@@ -85,10 +81,9 @@ func (o *overrideTS) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	return es
 }
 
-func (o *overrideTS) WithLogger(l *log.Logger) {
-	if o.Debug && l != nil {
-		o.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
-	} else if o.Debug {
-		o.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
+func (o *overrideTS) WithLogger(l *slog.Logger) {
+	if !o.Debug {
+		l = nil
 	}
+	o.BaseProcessor.WithLogger(l)
 }

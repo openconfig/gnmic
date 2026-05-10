@@ -9,19 +9,14 @@
 package script_action
 
 import (
-	"log"
-	"os"
+	"log/slog"
 
+	"github.com/openconfig/gnmic/pkg/actions"
 	"github.com/openconfig/gnmic/pkg/api/types"
-	"github.com/openconfig/gnmic/pkg/api/utils"
 )
 
 func (s *scriptAction) WithTargets(map[string]*types.TargetConfig) {}
 
-func (s *scriptAction) WithLogger(logger *log.Logger) {
-	if s.Debug && logger != nil {
-		s.logger = log.New(logger.Writer(), loggingPrefix, logger.Flags())
-	} else if s.Debug {
-		s.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
-	}
+func (s *scriptAction) WithLogger(l *slog.Logger) {
+	s.logger = actions.BindLogger(l, actionType, s.Name)
 }

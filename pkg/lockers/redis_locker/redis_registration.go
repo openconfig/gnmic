@@ -33,7 +33,7 @@ func (k *redisLocker) Register(ctx context.Context, s *lockers.ServiceRegistrati
 	k.registerLock[s.ID] = cancel
 	k.m.Unlock()
 	if k.Cfg.Debug {
-		k.logger.Printf("locking service=%s", s.ID)
+		k.logger.Debug("locking service", "service", s.ID)
 	}
 	mutex := k.redisLocker.NewMutex(
 		fmt.Sprintf("%s-%s", s.Name, s.ID),
@@ -87,7 +87,7 @@ func (k *redisLocker) Deregister(s string) error {
 	defer k.m.Unlock()
 	for sid, lockCancel := range k.registerLock {
 		if k.Cfg.Debug {
-			k.logger.Printf("unlocking service=%s", sid)
+			k.logger.Debug("unlocking service", "service", sid)
 		}
 		lockCancel()
 		delete(k.registerLock, sid)
@@ -106,11 +106,11 @@ func (k *redisLocker) WatchServices(ctx context.Context, serviceName string, tag
 			return ctx.Err()
 		default:
 			if k.Cfg.Debug {
-				k.logger.Printf("(re)starting watch service=%q", serviceName)
+				k.logger.Debug("(re)starting watch service", "service", serviceName)
 			}
 			err = k.watch(ctx, serviceName, tags, sChan, watchTimeout)
 			if err != nil {
-				k.logger.Printf("watch ended with error: %s", err)
+				k.logger.Warn("watch ended with error", "err", err)
 				time.Sleep(k.Cfg.RetryTimer)
 				continue
 			}
@@ -203,7 +203,7 @@ func (k *redisLocker) GetServices(ctx context.Context, serviceName string, tags 
 			// termination condition for redis scan
 			if cursor == 0 {
 				if k.Cfg.Debug {
-					k.logger.Printf("got %d services from redis", len(discoveredServiceRegistrations))
+					k.logger.Debug("discovered services from redis", "count", len(discoveredServiceRegistrations))
 				}
 				// convert discovered servicesRegistrations to services
 				discoveredServices := make([]*lockers.Service, len(discoveredServiceRegistrations))
@@ -261,11 +261,7 @@ func (k *redisLocker) List(ctx context.Context, prefix string) (map[string]strin
 			return nil, fmt.Errorf("failed to fetch from redis: %w", err)
 		}
 		if k.Cfg.Debug {
-			k.logger.Printf(
-				"got %d keys from redis for prefix=%s",
-				len(cmds),
-				prefix,
-			)
+			k.logger.Debug("got keys from redis", "count", len(cmds), "prefix", prefix)
 		}
 		for key, cmd := range cmds {
 			bytesVal, err := cmd.Bytes()

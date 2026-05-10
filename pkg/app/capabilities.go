@@ -72,7 +72,7 @@ func (a *App) ReqCapabilities(ctx context.Context, tc *types.TargetConfig) {
 		}
 	}
 
-	a.Logger.Printf("sending gNMI CapabilityRequest: gnmi_ext.Extension='%v' to %s", ext, tc.Name)
+	a.Logger.Info("sending gNMI CapabilityRequest", "target", tc.Name, "extension", ext)
 	response, err := a.ClientCapabilities(ctx, tc, ext...)
 	if err != nil {
 		a.logError(fmt.Errorf("target %q, capabilities request failed: %v", tc.Name, err))

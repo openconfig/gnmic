@@ -19,7 +19,7 @@ func (c *Config) GetEventProcessors() (map[string]map[string]interface{}, error)
 	for name, epc := range eps {
 		switch epc := epc.(type) {
 		case map[string]interface{}:
-			c.logger.Printf("validating processor %q config", name)
+			c.log().Info("validating processor config", "processor", name)
 			err := c.validateProcessorConfig(epc)
 			if err != nil {
 				return nil, err
@@ -28,7 +28,7 @@ func (c *Config) GetEventProcessors() (map[string]map[string]interface{}, error)
 		case nil:
 			return nil, fmt.Errorf("empty processor %q config", name)
 		default:
-			c.logger.Printf("malformed processors config, %+v", epc)
+			c.log().Info("malformed processors config", "config", epc)
 			return nil, fmt.Errorf("malformed processors config, got %T", epc)
 		}
 	}
@@ -48,9 +48,7 @@ func (c *Config) GetEventProcessors() (map[string]map[string]interface{}, error)
 			"source", // starlark
 		))
 	}
-	if c.Debug {
-		c.logger.Printf("processors: %+v", c.Processors)
-	}
+	c.log().Debug("processors", "processors", c.Processors)
 	return c.Processors, nil
 }
 

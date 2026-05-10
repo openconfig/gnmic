@@ -13,8 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"log"
+	"log/slog"
 	"net"
 	"slices"
 	"sync"
@@ -24,9 +23,9 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	gutils "github.com/openconfig/gnmic/pkg/utils"
 	"github.com/zestor-dev/zestor/store"
@@ -34,7 +33,7 @@ import (
 
 const (
 	defaultRetryTimer = 2 * time.Second
-	loggingPrefix     = "[udp_output:%s] "
+	outputType        = "udp"
 )
 
 func init() {
@@ -50,10 +49,10 @@ type udpSock struct {
 	dynCfg *atomic.Pointer[dynConfig]
 	buffer *atomic.Pointer[chan []byte]
 
-	rootCtx  context.Context
-	cancelFn context.CancelFunc
-	wg       *sync.WaitGroup
-	logger   *log.Logger
+	rootCtx   context.Context
+	cancelFn  context.CancelFunc
+	wg     *sync.WaitGroup
+	logger *slog.Logger
 
 	store store.Store[any]
 }
@@ -79,7 +78,7 @@ type Config struct {
 	EventProcessors    []string      `mapstructure:"event-processors,omitempty"`
 }
 
-func (u *udpSock) buildEventProcessors(logger *log.Logger, eventProcessors []string) ([]formatters.EventProcessor, error) {
+func (u *udpSock) buildEventProcessors(logger *slog.Logger, eventProcessors []string) ([]formatters.EventProcessor, error) {
 	tcs, ps, acts, err := gutils.GetConfigMaps(u.store)
 	if err != nil {
 		return nil, err
@@ -102,7 +101,7 @@ func (u *udpSock) init() {
 	u.dynCfg = new(atomic.Pointer[dynConfig])
 	u.buffer = new(atomic.Pointer[chan []byte])
 	u.wg = new(sync.WaitGroup)
-	u.logger = log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags)
+	u.logger = logging.DiscardLogger()
 }
 
 func (u *udpSock) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
@@ -115,8 +114,6 @@ func (u *udpSock) Init(ctx context.Context, name string, cfg map[string]interfac
 	}
 	setDefaultsFor(newCfg)
 
-	u.logger.SetPrefix(fmt.Sprintf(loggingPrefix, name))
-
 	options := &outputs.OutputOptions{}
 	for _, opt := range opts {
 		if err := opt(options); err != nil {
@@ -126,15 +123,11 @@ func (u *udpSock) Init(ctx context.Context, name string, cfg map[string]interfac
 
 	u.store = options.Store
 
-	// apply logger
-	if options.Logger != nil && u.logger != nil {
-		u.logger.SetOutput(options.Logger.Writer())
-		u.logger.SetFlags(options.Logger.Flags())
-	}
+	u.logger = outputs.BindLogger(options.Logger, outputType, name)
 
 	dc := new(dynConfig)
 	// initialize event processors
-	dc.evps, err = u.buildEventProcessors(options.Logger, newCfg.EventProcessors)
+	dc.evps, err = u.buildEventProcessors(u.logger, newCfg.EventProcessors)
 	if err != nil {
 		return err
 	}
@@ -174,7 +167,7 @@ func (u *udpSock) Init(ctx context.Context, name string, cfg map[string]interfac
 	u.wg.Add(1)
 	go u.start(u.rootCtx)
 
-	u.logger.Printf("initialized UDP output: %s", u.String())
+	u.logger.Info("initialized UDP output", slog.Any("config", u.String()))
 	return nil
 }
 
@@ -328,10 +321,10 @@ func (u *udpSock) Update(_ context.Context, cfg map[string]any) error {
 			}
 		}
 
-		u.logger.Printf("restarted UDP output worker")
+		u.logger.Info("restarted UDP output worker")
 	}
 
-	u.logger.Printf("updated UDP output: %s", u.String())
+	u.logger.Info("updated UDP output", slog.Any("config", u.String()))
 	return nil
 }
 
@@ -354,7 +347,7 @@ func (u *udpSock) UpdateProcessor(name string, pcfg map[string]any) error {
 		newDC := *dc
 		newDC.evps = newEvps
 		u.dynCfg.Store(&newDC)
-		u.logger.Printf("updated event processor %s", name)
+		u.logger.Info("updated event processor", "name", name)
 	}
 	return nil
 }
@@ -376,11 +369,11 @@ func (u *udpSock) Write(ctx context.Context, m proto.Message, meta outputs.Meta)
 
 		rsp, err := outputs.AddSubscriptionTarget(m, meta, cfg.AddTarget, dc.targetTpl)
 		if err != nil {
-			u.logger.Printf("failed to add target to the response: %v", err)
+			u.logger.Warn("failed to add target to response", "err", err)
 		}
 		bb, err := outputs.Marshal(rsp, meta, dc.mo, cfg.SplitEvents, dc.evps...)
 		if err != nil {
-			u.logger.Printf("failed marshaling proto msg: %v", err)
+			u.logger.Warn("failed marshaling proto msg", "err", err)
 			return
 		}
 		buffer := u.buffer.Load()
@@ -430,33 +423,33 @@ func (u *udpSock) start(ctx context.Context) {
 
 DIAL:
 	if ctx.Err() != nil {
-		u.logger.Printf("context error: %v", ctx.Err())
+		u.logger.Warn("context error", "err", ctx.Err())
 		return
 	}
 
 	cfg := u.cfg.Load()
 	dc := u.dynCfg.Load()
 	if cfg == nil || dc == nil {
-		u.logger.Printf("config not loaded")
+		u.logger.Warn("config not loaded")
 		return
 	}
 
 	udpAddr, err := net.ResolveUDPAddr("udp", cfg.Address)
 	if err != nil {
-		u.logger.Printf("failed to resolve UDP address: %v", err)
+		u.logger.Error("failed to resolve UDP address", "err", err)
 		time.Sleep(cfg.RetryInterval)
 		goto DIAL
 	}
 
 	conn, err := net.DialUDP("udp", nil, udpAddr)
 	if err != nil {
-		u.logger.Printf("failed to dial UDP: %v", err)
+		u.logger.Error("failed to dial UDP", "err", err)
 		time.Sleep(cfg.RetryInterval)
 		goto DIAL
 	}
 	defer conn.Close()
 
-	u.logger.Printf("connected to %s", cfg.Address)
+	u.logger.Info("connected", "address", cfg.Address)
 
 	// Snapshot buffer and limiter at connection time
 	buffer := *u.buffer.Load()
@@ -465,11 +458,11 @@ DIAL:
 	for {
 		select {
 		case <-ctx.Done():
-			u.logger.Printf("UDP worker shutting down")
+			u.logger.Info("UDP worker shutting down")
 			return
 		case b, ok := <-buffer:
 			if !ok {
-				u.logger.Printf("buffer channel closed")
+				u.logger.Warn("buffer channel closed")
 				return
 			}
 
@@ -483,7 +476,7 @@ DIAL:
 
 			_, err = conn.Write(b)
 			if err != nil {
-				u.logger.Printf("failed sending UDP bytes: %v", err)
+				u.logger.Error("failed sending UDP bytes", "err", err)
 				conn.Close()
 				time.Sleep(cfg.RetryInterval)
 				goto DIAL

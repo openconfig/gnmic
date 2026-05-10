@@ -12,9 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"log"
-	"os"
+	"log/slog"
 	"sync"
 
 	"go.starlark.net/lib/math"
@@ -22,13 +20,12 @@ import (
 	"go.starlark.net/starlark"
 	"go.starlark.net/syntax"
 
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 const (
 	processorType = "event-starlark"
-	loggingPrefix = "[" + processorType + "] "
 )
 
 // starlarkProc runs a starlark script on the received events
@@ -43,14 +40,11 @@ type starlarkProc struct {
 	m       sync.Mutex
 	thread  *starlark.Thread
 	applyFn starlark.Value
-	logger  *log.Logger
 }
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &starlarkProc{
-			logger: log.New(io.Discard, "", 0),
-		}
+		return &starlarkProc{}
 	})
 }
 
@@ -62,6 +56,10 @@ func (p *starlarkProc) Init(cfg interface{}, opts ...formatters.Option) error {
 	for _, opt := range opts {
 		opt(p)
 	}
+	if p.Logger == nil {
+		p.Logger = logging.DiscardLogger()
+	}
+	p.Logger = p.Logger.With("processor", processorType)
 
 	err = p.validate()
 	if err != nil {
@@ -70,7 +68,7 @@ func (p *starlarkProc) Init(cfg interface{}, opts ...formatters.Option) error {
 
 	p.thread = &starlark.Thread{
 		Print: func(_ *starlark.Thread, msg string) {
-			p.logger.Printf("print(): %v", msg)
+			p.Logger.Info("starlark print", "msg", msg)
 		},
 		Load: func(_ *starlark.Thread, module string) (starlark.StringDict, error) {
 			return loadModule(module)
@@ -96,13 +94,12 @@ func (p *starlarkProc) Init(cfg interface{}, opts ...formatters.Option) error {
 	globals["cache"] = starlark.NewDict(0)
 
 	globals.Freeze()
-	if p.logger.Writer() != io.Discard {
-		b, err := json.Marshal(p)
-		if err != nil {
-			p.logger.Printf("initialized processor '%s': %+v", processorType, p)
-			return nil
+	if p.Debug {
+		if b, err := json.Marshal(p); err == nil {
+			p.Logger.Debug("initialized processor", "config", string(b))
+		} else {
+			p.Logger.Debug("initialized processor", "config", p)
 		}
-		p.logger.Printf("initialized processor '%s': %s", processorType, string(b))
 	}
 	return nil
 }
@@ -140,21 +137,17 @@ func (p *starlarkProc) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg 
 	if len(sevs) == 0 {
 		return es
 	}
-	if p.Debug {
-		p.logger.Printf("events input: %v", sevs)
-	}
+	p.Logger.Debug("events input", "events", sevs)
 	r, err := starlark.Call(p.thread, p.applyFn, sevs, nil)
 	if err != nil {
 		if p.Debug {
-			p.logger.Printf("failed to run script with input %v: %v", sevs, err)
+			p.Logger.Error("failed to run script", "input", sevs, "err", err)
 		} else {
-			p.logger.Printf("failed to run script: %v", err)
+			p.Logger.Error("failed to run script", "err", err)
 		}
 		return es
 	}
-	if p.Debug {
-		p.logger.Printf("script output: %+v", r)
-	}
+	p.Logger.Debug("script output", "result", r)
 	// r must implement .Iterate() and .Len()
 	if r, ok := r.(starlark.Sequence); ok {
 		res := make([]*formatters.EventMsg, 0, r.Len())
@@ -170,25 +163,22 @@ func (p *starlarkProc) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg 
 			case *event:
 				res = append(res, toEvent(v))
 			default:
-				p.logger.Printf("unexpected return type: %T", v)
+				p.Logger.Warn("unexpected return type", "type", fmt.Sprintf("%T", v))
 				continue
 			}
 		}
-		if p.Debug {
-			p.logger.Printf("resulting events: %v", res)
-		}
+		p.Logger.Debug("resulting events", "events", res)
 		return res
 	}
-	p.logger.Printf("unexpected script output format, expecting a Sequence of Event, got %T", r)
+	p.Logger.Warn("unexpected script output format, expecting a Sequence of Event", "type", fmt.Sprintf("%T", r))
 	return es
 }
 
-func (p *starlarkProc) WithLogger(l *log.Logger) {
-	if l != nil {
-		p.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
-	} else if p.Debug {
-		p.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
+func (p *starlarkProc) WithLogger(l *slog.Logger) {
+	if !p.Debug {
+		l = nil
 	}
+	p.BaseProcessor.WithLogger(l)
 }
 
 func (p *starlarkProc) sourceProgram(builtins starlark.StringDict) (*starlark.Program, error) {

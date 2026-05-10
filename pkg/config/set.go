@@ -69,9 +69,7 @@ func (c *Config) ReadSetRequestTemplate() error {
 		if err != nil {
 			return err
 		}
-		if c.Debug {
-			c.logger.Printf("set request file %d content: %s", i, string(b))
-		}
+		c.log().Debug("set request file content", "index", i, "content", string(b))
 		// read template
 		c.setRequestTemplate[i], err = gtemplate.CreateTemplate(fmt.Sprintf("set-request-%d", i), string(b))
 		if err != nil {
@@ -85,7 +83,7 @@ func (c *Config) readTemplateVarsFile() error {
 	if c.SetRequestVars == "" {
 		ext := filepath.Ext(c.SetRequestFile[0])
 		c.SetRequestVars = fmt.Sprintf("%s%s%s", c.SetRequestFile[0][0:len(c.SetRequestFile[0])-len(ext)], varFileSuffix, ext)
-		c.logger.Printf("trying to find variable file %q", c.SetRequestVars)
+		c.log().Info("trying to find variable file", "path", c.SetRequestVars)
 		_, err := os.Stat(c.SetRequestVars)
 		if os.IsNotExist(err) {
 			c.SetRequestVars = ""
@@ -112,9 +110,7 @@ func (c *Config) readTemplateVarsFile() error {
 	default:
 		return errors.New("unexpected variables file format")
 	}
-	if c.Debug {
-		c.logger.Printf("request vars content: %v", c.setRequestVars)
-	}
+	c.log().Debug("request vars content", "vars", c.setRequestVars)
 	return nil
 }
 
@@ -133,9 +129,7 @@ func (c *Config) CreateSetRequestFromFile(targetName string) ([]*gnmi.SetRequest
 		if err != nil {
 			return nil, err
 		}
-		if c.Debug {
-			c.logger.Printf("target %q template result:\n%s", targetName, buf.String())
-		}
+		c.log().Debug("target template result", "target", targetName, "result", buf.String())
 		//
 		reqFile := new(SetRequestFile)
 		err = yaml.Unmarshal(buf.Bytes(), reqFile)

@@ -54,9 +54,7 @@ func (i *influxDBOutput) runCache(ctx context.Context, name string) {
 			if cfg == nil {
 				continue
 			}
-			if cfg.Debug {
-				i.logger.Printf("cache timer tick")
-			}
+			i.logger.Debug("cache timer tick")
 			i.readCache(ctx)
 		}
 	}
@@ -65,7 +63,7 @@ func (i *influxDBOutput) runCache(ctx context.Context, name string) {
 func (i *influxDBOutput) readCache(ctx context.Context) {
 	notifications, err := i.gnmiCache.ReadAll()
 	if err != nil {
-		i.logger.Printf("failed to read from cache: %v", err)
+		i.logger.Error("failed to read from cache", "err", err)
 		return
 	}
 	cfg := i.cfg.Load()
@@ -75,9 +73,7 @@ func (i *influxDBOutput) readCache(ctx context.Context) {
 		return
 	}
 
-	if cfg.Debug {
-		i.logger.Printf("read notifications: %+v", notifications)
-	}
+	i.logger.Debug("read notifications", "notifications", notifications)
 
 	events := make([]*formatters.EventMsg, 0, len(notifications))
 	for subName, notifs := range notifications {
@@ -89,7 +85,7 @@ func (i *influxDBOutput) readCache(ctx context.Context) {
 				},
 				outputs.Meta{"subscription-name": subName})
 			if err != nil {
-				i.logger.Printf("failed to convert gNMI notifications to events: %v", err)
+				i.logger.Warn("failed to convert gNMI notifications to events", "err", err)
 				return
 			}
 			events = append(events, ievents...)

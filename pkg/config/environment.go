@@ -55,7 +55,7 @@ func mergeMap(m map[string]any, items []string, v any) {
 func (c *Config) mergeEnvVars() {
 	envs := envToMap()
 	if c.GlobalFlags.Debug {
-		c.logger.Printf("merging env vars: %+v", envs)
+		c.log().Debug("merging env vars", "envs", envs)
 	}
 	c.FileConfig.MergeConfigMap(envs)
 }

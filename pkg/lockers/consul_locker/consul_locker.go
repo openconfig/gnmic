@@ -12,22 +12,20 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"log"
+	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/hashicorp/consul/api"
 
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/lockers"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 const (
 	defaultSessionTTL = 10 * time.Second
 	defaultRetryTimer = 2 * time.Second
 	defaultDelay      = 5 * time.Second
-	loggingPrefix     = "[consul_locker] "
 )
 
 func init() {
@@ -37,7 +35,7 @@ func init() {
 			m:               new(sync.Mutex),
 			acquiredlocks:   make(map[string]*locks),
 			attemptinglocks: make(map[string]*locks),
-			logger:          log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
+			logger:          logging.DiscardLogger(),
 			services:        make(map[string]context.CancelFunc),
 		}
 	})
@@ -46,7 +44,7 @@ func init() {
 type ConsulLocker struct {
 	Cfg             *config
 	client          *api.Client
-	logger          *log.Logger
+	logger          *slog.Logger
 	m               *sync.Mutex
 	acquiredlocks   map[string]*locks
 	attemptinglocks map[string]*locks
@@ -100,7 +98,7 @@ func (c *ConsulLocker) Init(ctx context.Context, cfg map[string]interface{}, opt
 		return err
 	}
 	b, _ := json.Marshal(c.Cfg)
-	c.logger.Printf("initialized consul locker with cfg=%s", string(b))
+	c.logger.Debug("initialized consul locker", "config", string(b))
 	return nil
 }
 
@@ -133,7 +131,7 @@ func (c *ConsulLocker) Lock(ctx context.Context, key string, val []byte) (bool, 
 				writeOpts,
 			)
 			if err != nil {
-				c.logger.Printf("failed creating session: %v", err)
+				c.logger.Warn("failed creating session", "err", err)
 				time.Sleep(c.Cfg.RetryTimer)
 				continue
 			}
@@ -142,7 +140,7 @@ func (c *ConsulLocker) Lock(ctx context.Context, key string, val []byte) (bool, 
 			c.m.Unlock()
 			acquired, _, err = c.client.KV().Acquire(kvPair, writeOpts)
 			if err != nil {
-				c.logger.Printf("failed acquiring lock to %q: %v", kvPair.Key, err)
+				c.logger.Warn("failed acquiring lock", "key", kvPair.Key, "err", err)
 				time.Sleep(c.Cfg.RetryTimer)
 				continue
 			}
@@ -154,7 +152,7 @@ func (c *ConsulLocker) Lock(ctx context.Context, key string, val []byte) (bool, 
 				return true, nil
 			}
 			if c.Cfg.Debug {
-				c.logger.Printf("failed acquiring lock to %q: already locked", kvPair.Key)
+				c.logger.Debug("failed acquiring lock: already locked", "key", kvPair.Key)
 			}
 			time.Sleep(c.Cfg.RetryTimer)
 		}
@@ -229,11 +227,8 @@ func (c *ConsulLocker) Stop() error {
 	return nil
 }
 
-func (c *ConsulLocker) SetLogger(logger *log.Logger) {
-	if logger != nil && c.logger != nil {
-		c.logger.SetOutput(logger.Writer())
-		c.logger.SetFlags(logger.Flags())
-	}
+func (c *ConsulLocker) SetLogger(logger *slog.Logger) {
+	c.logger = lockers.BindLogger(logger, "consul")
 }
 
 // helpers

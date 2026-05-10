@@ -6,27 +6,24 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package event_combine_test
+package event_combine
 
 import (
 	"encoding/json"
 	"fmt"
-	"io"
-	"log"
-	"os"
+	"log/slog"
 	"sort"
 	"strings"
 
 	"github.com/itchyny/gojq"
 
 	"github.com/openconfig/gnmic/pkg/api/types"
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 const (
 	processorType = "event-combine"
-	loggingPrefix = "[" + processorType + "] "
 )
 
 // combine allows running multiple processors together based on conditions
@@ -38,8 +35,6 @@ type combine struct {
 	processorsDefinitions map[string]map[string]any
 	targetsConfigs        map[string]*types.TargetConfig
 	actionsDefinitions    map[string]map[string]any
-
-	logger *log.Logger
 }
 
 type procseq struct {
@@ -52,9 +47,7 @@ type procseq struct {
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &combine{
-			logger: log.New(io.Discard, "", 0),
-		}
+		return &combine{}
 	})
 }
 
@@ -66,6 +59,10 @@ func (p *combine) Init(cfg any, opts ...formatters.Option) error {
 	for _, opt := range opts {
 		opt(p)
 	}
+	if p.Logger == nil {
+		p.Logger = logging.DiscardLogger()
+	}
+	p.Logger = p.Logger.With("processor", processorType)
 	if len(p.Processors) == 0 {
 		return fmt.Errorf("missing processors definition")
 	}
@@ -98,7 +95,7 @@ func (p *combine) Init(cfg any, opts ...formatters.Option) error {
 			if in, ok := formatters.EventProcessors[epType]; ok {
 				proc.proc = in()
 				err := proc.proc.Init(epCfg[epType],
-					formatters.WithLogger(p.logger),
+					formatters.WithLogger(p.Logger),
 					formatters.WithTargets(p.targetsConfigs),
 					formatters.WithActions(p.actionsDefinitions),
 					formatters.WithProcessors(p.processorsDefinitions),
@@ -106,20 +103,19 @@ func (p *combine) Init(cfg any, opts ...formatters.Option) error {
 				if err != nil {
 					return fmt.Errorf("failed initializing event processor '%s' of type='%s': %v", proc.Name, epType, err)
 				}
-				p.logger.Printf("added event processor '%s' of type=%s to combine processor", proc.Name, epType)
+				p.Logger.Info("added event processor to combine processor", "name", proc.Name, "type", epType)
 				continue
 			}
 			return fmt.Errorf("%q event processor has an unknown type=%q", proc.Name, epType)
 		}
 		return fmt.Errorf("%q event processor not found", proc.Name)
 	}
-	if p.logger.Writer() != io.Discard {
-		b, err := json.Marshal(p)
-		if err != nil {
-			p.logger.Printf("initialized processor '%s': %+v", processorType, p)
-			return nil
+	if p.Debug {
+		if b, err := json.Marshal(p); err == nil {
+			p.Logger.Debug("initialized processor", "config", string(b))
+		} else {
+			p.Logger.Debug("initialized processor", "config", p)
 		}
-		p.logger.Printf("initialized processor '%s': %s", processorType, string(b))
 	}
 	return nil
 }
@@ -136,18 +132,14 @@ func (p *combine) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		for i, e := range es {
 			ok, err := formatters.CheckCondition(proc.condition, e)
 			if err != nil {
-				p.logger.Printf("condition check failed: %v", err)
+				p.Logger.Warn("condition check failed", "err", err)
 			}
 			if ok {
-				if p.Debug {
-					p.logger.Printf("processor #%d include: %s", i, e)
-				}
+				p.Logger.Debug("processor include", "index", i, "event", e)
 				in = append(in, e)
 				continue
 			}
-			if p.Debug {
-				p.logger.Printf("processor #%d exclude: %s", i, e)
-			}
+			p.Logger.Debug("processor exclude", "index", i, "event", e)
 			out = append(out, e)
 		}
 
@@ -164,12 +156,11 @@ func (p *combine) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	return es
 }
 
-func (s *combine) WithLogger(l *log.Logger) {
-	if s.Debug && l != nil {
-		s.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
-	} else if s.Debug {
-		s.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
+func (s *combine) WithLogger(l *slog.Logger) {
+	if !s.Debug {
+		l = nil
 	}
+	s.BaseProcessor.WithLogger(l)
 }
 
 func (s *combine) WithTargets(tcs map[string]*types.TargetConfig) {

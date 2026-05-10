@@ -2,7 +2,7 @@ package main
 
 import (
 	"bytes"
-	"log"
+	"log/slog"
 	"os"
 	"os/exec"
 	"sync"
@@ -18,7 +18,6 @@ import (
 
 const (
 	processorType = "event-add-hostname"
-	loggingPrefix = "[" + processorType + "] "
 	hostnameCmd   = "hostname"
 )
 
@@ -87,7 +86,7 @@ func (p *addHostnameProcessor) WithProcessors(procs map[string]map[string]any) {
 	p.processorsDefinitions = procs
 }
 
-func (p *addHostnameProcessor) WithLogger(l *log.Logger) {
+func (p *addHostnameProcessor) WithLogger(l *slog.Logger) {
 }
 
 func (p *addHostnameProcessor) setupLogger() {

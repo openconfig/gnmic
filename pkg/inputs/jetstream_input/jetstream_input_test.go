@@ -1,11 +1,11 @@
 package jetstream_input
 
 import (
-	"io"
-	"log"
 	"testing"
 
 	"github.com/nats-io/nats.go/jetstream"
+
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 func Test_setDefaults(t *testing.T) {
@@ -151,7 +151,7 @@ func Test_setDefaults(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			n := &jetstreamInput{
-				logger: log.New(io.Discard, loggingPrefix, 0),
+				logger: logging.DiscardLogger(),
 			}
 			err := n.setDefaultsFor(tt.cfg)
 			if tt.wantErr {

@@ -9,7 +9,7 @@
 package event_data_convert
 
 import (
-	"log"
+	"log/slog"
 	"os"
 	"testing"
 
@@ -236,7 +236,7 @@ func Test_durationConvert_Apply(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &durationConvert{}
-			err := c.Init(tt.fields, formatters.WithLogger(log.New(os.Stderr, "[event-duration-convert-test]", log.Flags())))
+			err := c.Init(tt.fields, formatters.WithLogger(slog.New(slog.NewTextHandler(os.Stderr, nil))))
 			if err != nil {
 				t.Errorf("failed to init processor in test %q: %v", tt.name, err)
 				t.Fail()

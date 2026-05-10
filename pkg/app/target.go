@@ -55,7 +55,7 @@ func (a *App) stopTarget(ctx context.Context, name string) error {
 		return fmt.Errorf("target %q does not exist", name)
 	}
 
-	a.Logger.Printf("stopping target %q", name)
+	a.Logger.Info("stopping target", "target", name)
 	t := a.Targets[name]
 	t.StopSubscriptions()
 	delete(a.Targets, name)
@@ -75,7 +75,7 @@ func (a *App) DeleteTarget(ctx context.Context, name string) error {
 	a.configLock.Lock()
 	delete(a.Config.Targets, name)
 	a.configLock.Unlock()
-	a.Logger.Printf("target %q deleted from config", name)
+	a.Logger.Info("target deleted from config", "target", name)
 	// delete from oper map
 	a.operLock.Lock()
 	defer a.operLock.Unlock()
@@ -118,7 +118,7 @@ func (a *App) UpdateTargetSubscription(ctx context.Context, name string, subs []
 
 // AddTargetConfig adds a *TargetConfig to the configuration map
 func (a *App) AddTargetConfig(tc *types.TargetConfig) {
-	a.Logger.Printf("adding target %s", tc)
+	a.Logger.Info("adding target", "target", tc)
 	_, ok := a.Config.Targets[tc.Name]
 	if ok {
 		return
@@ -140,18 +140,18 @@ func (a *App) parseProtoFiles(t *target.Target) error {
 		t.RootDesc = a.rootDesc
 		return nil
 	}
-	a.Logger.Printf("target %q loading proto files...", t.Config.Name)
+	a.Logger.Info("target loading proto files", "target", t.Config.Name)
 	descSource, err := grpcurl.DescriptorSourceFromProtoFiles(t.Config.ProtoDirs, t.Config.ProtoFiles...)
 	if err != nil {
-		a.Logger.Printf("failed to load proto files: %v", err)
+		a.Logger.Info("failed to load proto files", "err", err)
 		return err
 	}
 	t.RootDesc, err = descSource.FindSymbol("Nokia.SROS.root")
 	if err != nil {
-		a.Logger.Printf("target %q could not get symbol 'Nokia.SROS.root': %v", t.Config.Name, err)
+		a.Logger.Info("could not get symbol 'Nokia.SROS.root'", "target", t.Config.Name, "err", err)
 		return err
 	}
-	a.Logger.Printf("target %q loaded proto files", t.Config.Name)
+	a.Logger.Info("target loaded proto files", "target", t.Config.Name)
 	return nil
 }
 

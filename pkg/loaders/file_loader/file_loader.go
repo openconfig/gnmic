@@ -14,8 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"log"
+	"log/slog"
 	"os"
 	"sync"
 	"text/template"
@@ -29,10 +28,10 @@ import (
 	gfile "github.com/openconfig/gnmic/pkg/file"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
 	"github.com/openconfig/gnmic/pkg/loaders"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 const (
-	loggingPrefix = "[file_loader] "
 	watchInterval = 30 * time.Second
 	loaderType    = "file"
 )
@@ -43,7 +42,7 @@ func init() {
 			cfg:         &cfg{},
 			m:           new(sync.RWMutex),
 			lastTargets: make(map[string]*types.TargetConfig),
-			logger:      log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
+			logger:      logging.DiscardLogger(),
 		}
 	})
 }
@@ -57,7 +56,7 @@ type fileLoader struct {
 	m              *sync.RWMutex
 	lastTargets    map[string]*types.TargetConfig
 	targetConfigFn func(*types.TargetConfig) error
-	logger         *log.Logger
+	logger         *slog.Logger
 	//
 	tpl           *template.Template
 	vars          map[string]interface{}
@@ -95,7 +94,7 @@ type cfg struct {
 	OnDelete []string `json:"on-delete,omitempty" mapstructure:"on-delete,omitempty"`
 }
 
-func (f *fileLoader) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger, opts ...loaders.Option) error {
+func (f *fileLoader) Init(ctx context.Context, cfg map[string]interface{}, logger *slog.Logger, opts ...loaders.Option) error {
 	err := loaders.DecodeConfig(cfg, f.cfg)
 	if err != nil {
 		return err
@@ -109,10 +108,7 @@ func (f *fileLoader) Init(ctx context.Context, cfg map[string]interface{}, logge
 	if f.cfg.Interval <= 0 {
 		f.cfg.Interval = watchInterval
 	}
-	if logger != nil {
-		f.logger.SetOutput(logger.Writer())
-		f.logger.SetFlags(logger.Flags())
-	}
+	f.logger = loaders.BindLogger(logger, loaderType)
 	if f.cfg.Template != "" {
 		f.tpl, err = gtemplate.CreateTemplate("file-loader-template", f.cfg.Template)
 		if err != nil {
@@ -147,16 +143,12 @@ func (f *fileLoader) Init(ctx context.Context, cfg map[string]interface{}, logge
 		return fmt.Errorf("unknown action name %q", actName)
 	}
 	f.numActions = len(f.addActions) + len(f.delActions)
-	f.logger.Printf("initialized loader type %q: %s", loaderType, f)
+	f.logger.Info("initialized loader", "type", loaderType, slog.Any("config", f))
 	return nil
 }
 
 func (f *fileLoader) String() string {
-	b, err := json.Marshal(f.cfg)
-	if err != nil {
-		return fmt.Sprintf("%+v", f.cfg)
-	}
-	return string(b)
+	return logging.RedactedJSON(f.cfg)
 }
 
 func (f *fileLoader) Start(ctx context.Context) chan *loaders.TargetOperation {
@@ -170,7 +162,7 @@ func (f *fileLoader) Start(ctx context.Context) chan *loaders.TargetOperation {
 		for {
 			select {
 			case <-ctx.Done():
-				f.logger.Printf("%q context done: %v", loaderType, ctx.Err())
+				f.logger.Info("context done", "loader", loaderType, "err", ctx.Err())
 				return
 			case <-ticker.C:
 				f.update(ctx, opChan)
@@ -186,7 +178,7 @@ func (f *fileLoader) RunOnce(ctx context.Context) (map[string]*types.TargetConfi
 		return nil, err
 	}
 	if f.cfg.Debug {
-		f.logger.Printf("file loader discovered %d target(s)", len(readTargets))
+		f.logger.Info("file loader discovered targets", "count", len(readTargets))
 	}
 	return readTargets, nil
 }
@@ -194,18 +186,18 @@ func (f *fileLoader) RunOnce(ctx context.Context) (map[string]*types.TargetConfi
 func (f *fileLoader) update(ctx context.Context, opChan chan *loaders.TargetOperation) {
 	readTargets, err := f.RunOnce(ctx)
 	if _, ok := err.(*os.PathError); ok {
-		f.logger.Printf("path err: %v", err)
+		f.logger.Error("path error", "err", err)
 		return
 	}
 	if err != nil {
-		f.logger.Printf("failed to read targets file: %v", err)
+		f.logger.Error("failed to read targets file:", "err", err)
 		return
 	}
 	select {
 	// check if the context is done before
 	// updating the targets to the channel
 	case <-ctx.Done():
-		f.logger.Printf("context done: %v", ctx.Err())
+		f.logger.Info("context done", "err", ctx.Err())
 		return
 	default:
 		f.updateTargets(ctx, readTargets, opChan)
@@ -263,7 +255,7 @@ func (f *fileLoader) getTargets(ctx context.Context) (map[string]*types.TargetCo
 		}
 	}
 	if f.cfg.Debug {
-		f.logger.Printf("result: %s", result)
+		f.logger.Debug("discovery diff result", "result", result)
 	}
 	return result, nil
 }
@@ -274,13 +266,13 @@ func (f *fileLoader) updateTargets(ctx context.Context, tcs map[string]*types.Ta
 		for _, tc := range tcs {
 			err = f.targetConfigFn(tc)
 			if err != nil {
-				f.logger.Printf("failed running target config fn on target %q", tc.Name)
+				f.logger.Error("failed running target config fn", "target", tc.Name)
 			}
 		}
 	}
 	targetOp, err := f.runActions(ctx, tcs, loaders.Diff(f.lastTargets, tcs))
 	if err != nil {
-		f.logger.Printf("failed to run actions: %v", err)
+		f.logger.Error("failed to run actions:", "err", err)
 		return
 	}
 	numAdds := len(targetOp.Add)
@@ -387,7 +379,7 @@ func (f *fileLoader) runActions(ctx context.Context, tcs map[string]*types.Targe
 			defer wg.Done()
 			err := f.runOnAddActions(ctx, tc.Name, tcs)
 			if err != nil {
-				f.logger.Printf("failed running OnAdd actions: %v", err)
+				f.logger.Error("failed running OnAdd actions", "err", err)
 				return
 			}
 			opChan <- &loaders.TargetOperation{Add: map[string]*types.TargetConfig{n: tc}}
@@ -399,7 +391,7 @@ func (f *fileLoader) runActions(ctx context.Context, tcs map[string]*types.Targe
 			defer wg.Done()
 			err := f.runOnDeleteActions(ctx, name, tcs)
 			if err != nil {
-				f.logger.Printf("failed running OnDelete actions: %v", err)
+				f.logger.Error("failed running OnDelete actions", "err", err)
 				return
 			}
 			opChan <- &loaders.TargetOperation{Del: []string{name}}
@@ -411,38 +403,38 @@ func (f *fileLoader) runActions(ctx context.Context, tcs map[string]*types.Targe
 	return result, nil
 }
 
-func (d *fileLoader) runOnAddActions(ctx context.Context, tName string, tcs map[string]*types.TargetConfig) error {
+func (f *fileLoader) runOnAddActions(ctx context.Context, tName string, tcs map[string]*types.TargetConfig) error {
 	aCtx := &actions.Context{
 		Input:   tName,
 		Env:     make(map[string]interface{}),
-		Vars:    d.vars,
+		Vars:    f.vars,
 		Targets: tcs,
 	}
-	for _, act := range d.addActions {
-		d.logger.Printf("running action %q for target %q", act.NName(), tName)
+	for _, act := range f.addActions {
+		f.logger.Info("running action", "action", act.NName(), "target", tName)
 		res, err := act.Run(ctx, aCtx)
 		if err != nil {
 			// delete target from known targets map
-			d.m.Lock()
-			delete(d.lastTargets, tName)
-			d.m.Unlock()
+			f.m.Lock()
+			delete(f.lastTargets, tName)
+			f.m.Unlock()
 			return fmt.Errorf("action %q for target %q failed: %v", act.NName(), tName, err)
 		}
 
 		aCtx.Env[act.NName()] = utils.Convert(res)
-		if d.cfg.Debug {
-			d.logger.Printf("action %q, target %q result: %+v", act.NName(), tName, res)
+		if f.cfg.Debug {
+			f.logger.Debug("action result", "action", act.NName(), "target", tName, "result", res)
 			b, _ := json.MarshalIndent(aCtx, "", "  ")
-			d.logger.Printf("action %q context:\n%s", act.NName(), string(b))
+			f.logger.Debug("action context", "action", act.NName(), "context", string(b))
 		}
 	}
 	return nil
 }
 
-func (d *fileLoader) runOnDeleteActions(ctx context.Context, tName string, tcs map[string]*types.TargetConfig) error {
+func (f *fileLoader) runOnDeleteActions(ctx context.Context, tName string, tcs map[string]*types.TargetConfig) error {
 	env := make(map[string]interface{})
-	for _, act := range d.delActions {
-		res, err := act.Run(ctx, &actions.Context{Input: tName, Env: env, Vars: d.vars})
+	for _, act := range f.delActions {
+		res, err := act.Run(ctx, &actions.Context{Input: tName, Env: env, Vars: f.vars})
 		if err != nil {
 			return fmt.Errorf("action %q for target %q failed: %v", act.NName(), tName, err)
 		}

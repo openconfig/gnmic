@@ -110,7 +110,7 @@ func (a *App) startGNMIProxyServer(ctx context.Context) error {
 func (a *App) proxyGetHandler(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetResponse, error) {
 	targetName := req.GetPrefix().GetTarget()
 	pr, _ := peer.FromContext(ctx)
-	a.Logger.Printf("received Get request from %q to target %q", pr.Addr, targetName)
+	a.Logger.Info("received Get request", "peer", pr.Addr, "target", targetName)
 
 	targets, err := a.selectTargets(ctx, targetName)
 	if err != nil {
@@ -163,7 +163,7 @@ func (a *App) proxyGetHandler(ctx context.Context, req *gnmi.GetRequest) (*gnmi.
 			}
 			res, err := t.Get(ctx, creq)
 			if err != nil {
-				a.Logger.Printf("target %q err: %v", name, err)
+				a.Logger.Info("target Get error", "target", name, "err", err)
 				errChan <- fmt.Errorf("target %q err: %v", name, err)
 				return
 			}
@@ -189,7 +189,7 @@ func (a *App) proxyGetHandler(ctx context.Context, req *gnmi.GetRequest) (*gnmi.
 	}
 	<-done
 	if a.Config.Debug {
-		a.Logger.Printf("sending GetResponse to %q: %+v", pr.Addr, response)
+		a.Logger.Debug("sending GetResponse", "peer", pr.Addr, "response", response)
 	}
 	return response, nil
 }
@@ -205,7 +205,7 @@ func (a *App) proxySetHandler(ctx context.Context, req *gnmi.SetRequest) (*gnmi.
 
 	targetName := req.GetPrefix().GetTarget()
 	pr, _ := peer.FromContext(ctx)
-	a.Logger.Printf("received Set request from %q to target %q", pr.Addr, targetName)
+	a.Logger.Info("received Set request", "peer", pr.Addr, "target", targetName)
 
 	targets, err := a.selectTargets(ctx, targetName)
 	if err != nil {
@@ -255,7 +255,7 @@ func (a *App) proxySetHandler(ctx context.Context, req *gnmi.SetRequest) (*gnmi.
 			}
 			res, err := t.Set(ctx, creq)
 			if err != nil {
-				a.Logger.Printf("target %q err: %v", name, err)
+				a.Logger.Info("target Get error", "target", name, "err", err)
 				errChan <- fmt.Errorf("target %q err: %v", name, err)
 				return
 			}
@@ -274,7 +274,7 @@ func (a *App) proxySetHandler(ctx context.Context, req *gnmi.SetRequest) (*gnmi.
 		}
 	}
 	<-done
-	a.Logger.Printf("sending SetResponse to %q: %+v", pr.Addr, response)
+	a.Logger.Info("sending SetResponse", "peer", pr.Addr, "response", response)
 	return response, nil
 }
 
@@ -346,7 +346,7 @@ func (a *App) proxySubscribeONCEHandler(req *gnmi.SubscribeRequest, stream gnmi.
 					err := stream.Send(r.rsp)
 					if err != nil {
 						close(stop)
-						a.Logger.Printf("proxy stream send failed: %v", err)
+						a.Logger.Info("proxy stream send failed", "err", err)
 						return
 					}
 				case *gnmi.SubscribeResponse_SyncResponse:
@@ -355,7 +355,7 @@ func (a *App) proxySubscribeONCEHandler(req *gnmi.SubscribeRequest, stream gnmi.
 						// send a single sync and stop
 						err := stream.Send(&gnmi.SubscribeResponse{Response: &gnmi.SubscribeResponse_SyncResponse{SyncResponse: true}})
 						if err != nil {
-							a.Logger.Printf("proxy stream send Sync response failed: %v", err)
+							a.Logger.Info("proxy stream send Sync response failed", "err", err)
 						}
 						return
 					}
@@ -400,7 +400,7 @@ func (a *App) proxySubscribeONCEHandler(req *gnmi.SubscribeRequest, stream gnmi.
 					}
 				case err := <-errCh:
 					if errors.Is(err, io.EOF) {
-						a.Logger.Printf("target %q: closed stream(EOF)", t.Config.Name)
+						a.Logger.Info("target closed stream (EOF)", "target", t.Config.Name)
 					} else {
 						errChan <- err
 					}
@@ -454,7 +454,7 @@ func (a *App) proxySubscribeSTREAMHandler(req *gnmi.SubscribeRequest, stream gnm
 				err := stream.Send(r.rsp)
 				if err != nil {
 					close(stop)
-					a.Logger.Printf("proxy stream send failed: %v", err)
+					a.Logger.Info("proxy stream send failed", "err", err)
 					return
 				}
 			}

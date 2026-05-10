@@ -18,7 +18,7 @@ func (c *Config) GetActions() (map[string]map[string]interface{}, error) {
 	for name, actc := range c.FileConfig.GetStringMap("actions") {
 		switch actc := actc.(type) {
 		case map[string]interface{}:
-			c.logger.Printf("validating action %q config", name)
+			c.log().Info("validating action config", "action", name)
 			err := c.validateActionsConfig(actc)
 			if err != nil {
 				return nil, err
@@ -34,7 +34,7 @@ func (c *Config) GetActions() (map[string]map[string]interface{}, error) {
 		case nil:
 			return nil, fmt.Errorf("empty action %q config", name)
 		default:
-			c.logger.Printf("malformed action config, %+v", actc)
+			c.log().Info("malformed action config", "config", actc)
 			return nil, fmt.Errorf("malformed action config, got %T", actc)
 		}
 	}
@@ -46,9 +46,7 @@ func (c *Config) GetActions() (map[string]map[string]interface{}, error) {
 				"template", // template action templates
 			))
 	}
-	if c.Debug {
-		c.logger.Printf("actions: %+v", c.Actions)
-	}
+	c.log().Debug("actions", "actions", c.Actions)
 	return c.Actions, nil
 }
 

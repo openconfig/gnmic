@@ -120,7 +120,7 @@ func (a *App) SubscribeRunE(cmd *cobra.Command, args []string) error {
 	for {
 		err := a.InitLocker()
 		if err != nil {
-			a.Logger.Printf("failed to init locker: %v", err)
+			a.Logger.Info("failed to init locker", "err", err)
 			time.Sleep(initLockerRetryTimer)
 			continue
 		}
@@ -233,7 +233,7 @@ func (a *App) StartTargetsManager(ctx context.Context) {
 
 	for t := range a.targetsChan {
 		if a.Config.Debug {
-			a.Logger.Printf("starting target %+v", t)
+			a.Logger.Debug("starting target", "target", t)
 		}
 		if t == nil {
 			continue
@@ -243,7 +243,7 @@ func (a *App) StartTargetsManager(ctx context.Context) {
 		a.operLock.RUnlock()
 		if ok {
 			if a.Config.Debug {
-				a.Logger.Printf("target %q listener already active", t.Config.Name)
+				a.Logger.Debug("target listener already active", "target", t.Config.Name)
 			}
 			continue
 		}
@@ -251,7 +251,7 @@ func (a *App) StartTargetsManager(ctx context.Context) {
 		a.activeTargets[t.Config.Name] = struct{}{}
 		a.operLock.Unlock()
 
-		a.Logger.Printf("starting target %q listener", t.Config.Name)
+		a.Logger.Info("starting target listener", "target", t.Config.Name)
 		go func(t *target.Target) {
 			numOnceSubscriptions := t.NumberOfOnceSubscriptions()
 			remainingOnceSubscriptions := numOnceSubscriptions
@@ -262,11 +262,11 @@ func (a *App) StartTargetsManager(ctx context.Context) {
 				case rsp := <-rspChan:
 					subscribeResponseReceivedCounter.WithLabelValues(t.Config.Name, rsp.SubscriptionConfig.Name).Add(1)
 					if a.Config.Debug {
-						a.Logger.Printf("target %q: gNMI Subscribe Response: %+v", t.Config.Name, rsp)
+						a.Logger.Debug("gNMI Subscribe Response", "target", t.Config.Name, "response", rsp)
 					}
 					err := t.DecodeProtoBytes(rsp.Response)
 					if err != nil {
-						a.Logger.Printf("target %q: failed to decode proto bytes: %v", t.Config.Name, err)
+						a.Logger.Info("failed to decode proto bytes", "target", t.Config.Name, "err", err)
 						continue
 					}
 					m := outputs.Meta{
@@ -307,10 +307,10 @@ func (a *App) StartTargetsManager(ctx context.Context) {
 					}
 				case tErr := <-errChan:
 					if errors.Is(tErr.Err, io.EOF) {
-						a.Logger.Printf("target %q: subscription %s closed stream(EOF)", t.Config.Name, tErr.SubscriptionName)
+						a.Logger.Info("subscription closed stream (EOF)", "target", t.Config.Name, "subscription", tErr.SubscriptionName)
 					} else {
 						subscribeResponseFailedCounter.WithLabelValues(t.Config.Name, tErr.SubscriptionName).Inc()
-						a.Logger.Printf("target %q: subscription %s rcv error: %v", t.Config.Name, tErr.SubscriptionName, tErr.Err)
+						a.Logger.Info("subscription receive error", "target", t.Config.Name, "subscription", tErr.SubscriptionName, "err", tErr.Err)
 					}
 					if remainingOnceSubscriptions > 0 {
 						if a.subscriptionMode(tErr.SubscriptionName) == subscriptionModeONCE {
@@ -327,7 +327,7 @@ func (a *App) StartTargetsManager(ctx context.Context) {
 					a.operLock.Lock()
 					delete(a.activeTargets, t.Config.Name)
 					a.operLock.Unlock()
-					a.Logger.Printf("target %q: listener stopped", t.Config.Name)
+					a.Logger.Info("target listener stopped", "target", t.Config.Name)
 					return
 				case <-ctx.Done():
 					a.operLock.Lock()
@@ -393,11 +393,11 @@ func (a *App) updateCache(ctx context.Context, rsp *gnmi.SubscribeResponse, m ou
 		}
 		target := r.Update.GetPrefix().GetTarget()
 		if target == "" {
-			a.Logger.Printf("response missing target")
+			a.Logger.Info("response missing target")
 			return
 		}
 		if a.Config.Debug {
-			a.Logger.Printf("updating target %q cache", target)
+			a.Logger.Debug("updating target cache", "target", target)
 		}
 		sub := m["subscription-name"]
 		a.c.Write(ctx, sub, &gnmi.SubscribeResponse{Response: &gnmi.SubscribeResponse_Update{Update: r.Update}})

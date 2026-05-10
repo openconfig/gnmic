@@ -60,7 +60,7 @@ func (s *snmpOutput) registerMetrics() error {
 		return nil
 	}
 	if s.reg == nil {
-		s.logger.Printf("ERR: metrics enabled but main registry is not initialized, enable main metrics under `api-server`")
+		s.logger.Error("metrics enabled but main registry is not initialized, enable main metrics under `api-server`")
 		return nil
 	}
 

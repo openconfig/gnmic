@@ -14,8 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"log"
+	"log/slog"
 	"slices"
 	"strings"
 	"sync"
@@ -29,6 +28,7 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/inputs"
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	"github.com/openconfig/gnmic/pkg/pipeline"
 	pkgutils "github.com/openconfig/gnmic/pkg/utils"
@@ -37,7 +37,6 @@ import (
 )
 
 const (
-	loggingPrefix            = "[kafka_input] "
 	defaultFormat            = "event"
 	defaultTopic             = "telemetry"
 	defaultNumWorkers        = 1
@@ -59,7 +58,7 @@ func init() {
 			confLock: new(sync.RWMutex),
 			cfg:      new(atomic.Pointer[config]),
 			dynCfg:   new(atomic.Pointer[dynConfig]),
-			logger:   log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
+			logger:   logging.DiscardLogger(),
 			wg:       new(sync.WaitGroup),
 		}
 	})
@@ -77,7 +76,7 @@ type KafkaInput struct {
 
 	ctx    context.Context
 	cfn    context.CancelFunc
-	logger *log.Logger
+	logger *slog.Logger
 
 	wg       *sync.WaitGroup
 	outputs  []outputs.Output // used when the cmd is subscribe
@@ -111,6 +110,10 @@ type config struct {
 	kafkaVersion sarama.KafkaVersion
 }
 
+func (c *config) LogValue() slog.Value {
+	return logging.RedactedValue(c)
+}
+
 func (k *KafkaInput) Start(ctx context.Context, name string, cfg map[string]interface{}, opts ...inputs.Option) error {
 	k.confLock.Lock()
 	defer k.confLock.Unlock()
@@ -133,10 +136,10 @@ func (k *KafkaInput) Start(ctx context.Context, name string, cfg map[string]inte
 	k.pipeline = options.Pipeline
 
 	k.setName(options.Name, newCfg)
-	k.setLogger(options.Logger)
-	outputs, outputsMap := k.getOutputs(options.Outputs, newCfg)
-	k.outputs = outputs
-	evps, err := k.buildEventProcessors(options.Logger, newCfg.EventProcessors)
+	k.setLogger(options.Logger, newCfg.Name)
+	outs, outputsMap := k.getOutputs(options.Outputs, newCfg)
+	k.outputs = outs
+	evps, err := k.buildEventProcessors(k.logger, newCfg.EventProcessors)
 	if err != nil {
 		return err
 	}
@@ -156,7 +159,7 @@ func (k *KafkaInput) Start(ctx context.Context, name string, cfg map[string]inte
 	k.ctx = ctx                // save context for worker restarts
 	var runCtx context.Context // create a run context for the workers
 	runCtx, k.cfn = context.WithCancel(ctx)
-	k.logger.Printf("input starting with config: %+v", newCfg)
+	k.logger.Info("input starting", slog.Any("config", logging.RedactedJSON(newCfg)))
 	k.wg.Add(newCfg.NumWorkers)
 	for i := 0; i < newCfg.NumWorkers; i++ {
 		go k.worker(runCtx, i)
@@ -259,7 +262,7 @@ func (k *KafkaInput) UpdateProcessor(name string, pcfg map[string]any) error {
 		newDC := *dc
 		newDC.evps = newEvps
 		k.dynCfg.Store(&newDC)
-		k.logger.Printf("updated event processor %s", name)
+		k.logger.Info("updated event processor", "name", name)
 	}
 	return nil
 }
@@ -268,7 +271,7 @@ func (k *KafkaInput) worker(ctx context.Context, idx int) {
 	defer k.wg.Done()
 
 	workerLogPrefix := fmt.Sprintf("worker-%d", idx)
-	k.logger.Printf("%s starting", workerLogPrefix)
+	k.logger.Info("worker starting", "worker", workerLogPrefix)
 
 	for {
 		select {
@@ -276,14 +279,14 @@ func (k *KafkaInput) worker(ctx context.Context, idx int) {
 			return
 		default:
 		}
-		k.logger.Printf("worker %d loading config", idx)
+		k.logger.Debug("worker loading config", "index", idx)
 		cfg := k.cfg.Load()
 		wCfg := *cfg
 		wCfg.Name = fmt.Sprintf("%s-%d", wCfg.Name, idx)
 		// scoped connection, subscription and cleanup
 		err := k.doWork(ctx, &wCfg, workerLogPrefix, idx)
 		if err != nil {
-			k.logger.Printf("%s Kafka client failed: %v", workerLogPrefix, err)
+			k.logger.Error("Kafka client failed", "worker", workerLogPrefix, "err", err)
 		}
 
 		// backoff before retry
@@ -327,7 +330,7 @@ func (k *KafkaInput) doWork(ctx context.Context, wCfg *config, workerLogPrefix s
 			err = consumerGrp.Consume(ctx, strings.Split(wCfg.Topics, ","), cons)
 			if err != nil {
 				if wCfg.Debug {
-					k.logger.Printf("%s failed to start consumer, topics=%q, group=%q : %v", workerLogPrefix, wCfg.Topics, wCfg.GroupID, err)
+					k.logger.Warn("failed to start consumer", "worker", workerLogPrefix, "topics", wCfg.Topics, "group", wCfg.GroupID, "err", err)
 				}
 				continue
 			}
@@ -339,7 +342,7 @@ func (k *KafkaInput) doWork(ctx context.Context, wCfg *config, workerLogPrefix s
 	case <-ctx.Done():
 		return nil
 	case <-cons.ready:
-		k.logger.Printf("%s kafka consumer ready", workerLogPrefix)
+		k.logger.Info("kafka consumer ready", "worker", workerLogPrefix)
 	}
 
 	for {
@@ -352,9 +355,7 @@ func (k *KafkaInput) doWork(ctx context.Context, wCfg *config, workerLogPrefix s
 			}
 			// load current config for dynamic fields like Format
 			cfg := k.cfg.Load()
-			if cfg.Debug {
-				k.logger.Printf("%s client=%s received msg, topic=%s, partition=%d, key=%q, length=%d, value=%s", workerLogPrefix, saramaConfig.ClientID, m.Topic, m.Partition, string(m.Key), len(m.Value), string(m.Value))
-			}
+			k.logger.Debug("received msg", "worker", workerLogPrefix, "client", saramaConfig.ClientID, "topic", m.Topic, "partition", m.Partition, "key", string(m.Key), "len", len(m.Value), "value", string(m.Value))
 
 			dc := k.dynCfg.Load()
 			switch cfg.Format {
@@ -373,7 +374,7 @@ func (k *KafkaInput) doWork(ctx context.Context, wCfg *config, workerLogPrefix s
 				}
 				if err != nil {
 					if cfg.Debug {
-						k.logger.Printf("%s failed to unmarshal event msg: %v", workerLogPrefix, err)
+						k.logger.Warn("failed to unmarshal event msg", "worker", workerLogPrefix, "err", err)
 					}
 					continue
 				}
@@ -391,7 +392,7 @@ func (k *KafkaInput) doWork(ctx context.Context, wCfg *config, workerLogPrefix s
 						Outputs: dc.outputsMap,
 					}:
 					default:
-						k.logger.Printf("pipeline channel is full, dropping event")
+						k.logger.Warn("pipeline channel is full, dropping event")
 					}
 				}
 				for _, o := range k.outputs {
@@ -404,7 +405,7 @@ func (k *KafkaInput) doWork(ctx context.Context, wCfg *config, workerLogPrefix s
 				protoMsg := new(gnmi.SubscribeResponse)
 				if err := proto.Unmarshal(m.Value, protoMsg); err != nil {
 					if cfg.Debug {
-						k.logger.Printf("%s failed to unmarshal proto msg: %v", workerLogPrefix, err)
+						k.logger.Warn("failed to unmarshal proto msg", "worker", workerLogPrefix, "err", err)
 					}
 					continue
 				}
@@ -421,7 +422,7 @@ func (k *KafkaInput) doWork(ctx context.Context, wCfg *config, workerLogPrefix s
 						Outputs: dc.outputsMap,
 					}:
 					default:
-						k.logger.Printf("pipeline channel is full, dropping message")
+						k.logger.Warn("pipeline channel is full, dropping message")
 					}
 				}
 				for _, o := range k.outputs {
@@ -430,7 +431,7 @@ func (k *KafkaInput) doWork(ctx context.Context, wCfg *config, workerLogPrefix s
 			}
 		case err := <-consumerGrp.Errors():
 			cfg := k.cfg.Load()
-			k.logger.Printf("%s client=%s, consumer-group=%s error: %v", workerLogPrefix, saramaConfig.ClientID, cfg.GroupID, err)
+			k.logger.Error("consumer-group error", "worker", workerLogPrefix, "client", saramaConfig.ClientID, "group", cfg.GroupID, "err", err)
 
 			select {
 			case <-ctx.Done():
@@ -473,11 +474,9 @@ func (k *KafkaInput) partitionKeyToMeta(key []byte) outputs.Meta {
 	}
 }
 
-func (k *KafkaInput) setLogger(logger *log.Logger) {
-	if logger != nil {
-		k.logger = log.New(logger.Writer(), loggingPrefix, logger.Flags())
-		sarama.Logger = k.logger
-	}
+func (k *KafkaInput) setLogger(logger *slog.Logger, name string) {
+	k.logger = inputs.BindLogger(logger, "kafka", name)
+	pkgutils.SetSaramaLoggerOnce(k.logger, slog.LevelWarn)
 }
 
 func (k *KafkaInput) getOutputs(outs map[string]outputs.Output, cfg *config) ([]outputs.Output, map[string]struct{}) {
@@ -510,7 +509,7 @@ func (k *KafkaInput) setName(name string, cfg *config) {
 	cfg.Name = sb.String()
 }
 
-func (k *KafkaInput) buildEventProcessors(logger *log.Logger, eventProcessors []string) ([]formatters.EventProcessor, error) {
+func (k *KafkaInput) buildEventProcessors(logger *slog.Logger, eventProcessors []string) ([]formatters.EventProcessor, error) {
 	tcs, ps, acts, err := pkgutils.GetConfigMaps(k.store)
 	if err != nil {
 		return nil, err

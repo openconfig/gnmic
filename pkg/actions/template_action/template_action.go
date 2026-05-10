@@ -12,17 +12,16 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
-	"log"
+	"log/slog"
 	"os"
 	"text/template"
 
 	"github.com/openconfig/gnmic/pkg/actions"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 const (
-	loggingPrefix   = "[template_action] "
 	actionType      = "template"
 	defaultTemplate = "{{ . }}"
 )
@@ -30,7 +29,7 @@ const (
 func init() {
 	actions.Register(actionType, func() actions.Action {
 		return &templateAction{
-			logger: log.New(io.Discard, "", 0),
+			logger: logging.DiscardLogger(),
 		}
 	})
 }
@@ -43,7 +42,7 @@ type templateAction struct {
 	Debug        bool   `mapstructure:"debug,omitempty"`
 
 	tpl    *template.Template
-	logger *log.Logger
+	logger *slog.Logger
 }
 
 func (t *templateAction) Init(cfg map[string]interface{}, opts ...actions.Option) error {
@@ -75,7 +74,7 @@ func (t *templateAction) Init(cfg map[string]interface{}, opts ...actions.Option
 		t.tpl = t.tpl.Funcs(gtemplate.NewTemplateEngine().CreateFuncs()).
 			Option("missingkey=zero")
 	}
-	t.logger.Printf("action name %q of type %q initialized: %v", t.Name, actionType, t)
+	t.logger.Debug("action initialized", "config", t)
 	return nil
 }
 
@@ -91,9 +90,7 @@ func (t *templateAction) Run(_ context.Context, aCtx *actions.Context) (interfac
 		return nil, err
 	}
 	out := b.String()
-	if t.Debug {
-		t.logger.Printf("template output: %s", out)
-	}
+	t.logger.Debug("template output", "output", out)
 	switch t.Output {
 	case "stdout":
 		fmt.Fprint(os.Stdout, out)

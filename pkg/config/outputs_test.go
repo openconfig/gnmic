@@ -79,7 +79,7 @@ func TestGetOutputs(t *testing.T) {
 			}
 			cfg := New()
 			cfg.Debug = true
-			cfg.SetLogger()
+			_, _, _ = cfg.InitAppLogging()
 			cfg.FileConfig.SetConfigType("yaml")
 			err := cfg.FileConfig.ReadConfig(bytes.NewBuffer(data.in))
 			if err != nil {

@@ -12,22 +12,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"log"
-	"os"
+	"log/slog"
 	"regexp"
 	"strconv"
 	"strings"
 
 	units "github.com/bcicen/go-units"
 
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 const (
 	processorType = "event-data-convert"
-	loggingPrefix = "[" + processorType + "] "
 )
 
 var stringUnitRegex = regexp.MustCompile(`([+-]?([0-9]*[.])?[0-9]+)\s?(\S+)`)
@@ -45,14 +42,11 @@ type dataConvert struct {
 
 	values      []*regexp.Regexp
 	renameRegex *regexp.Regexp
-	logger      *log.Logger
 }
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &dataConvert{
-			logger: log.New(io.Discard, "", 0),
-		}
+		return &dataConvert{}
 	})
 }
 
@@ -64,6 +58,10 @@ func (c *dataConvert) Init(cfg interface{}, opts ...formatters.Option) error {
 	for _, opt := range opts {
 		opt(c)
 	}
+	if c.Logger == nil {
+		c.Logger = logging.DiscardLogger()
+	}
+	c.Logger = c.Logger.With("processor", processorType)
 	c.values = make([]*regexp.Regexp, 0, len(c.Values))
 	for _, reg := range c.Values {
 		re, err := regexp.Compile(reg)
@@ -78,13 +76,12 @@ func (c *dataConvert) Init(cfg interface{}, opts ...formatters.Option) error {
 			return err
 		}
 	}
-	if c.logger.Writer() != io.Discard {
-		b, err := json.Marshal(c)
-		if err != nil {
-			c.logger.Printf("initialized processor '%s': %+v", processorType, c)
-			return nil
+	if c.Debug {
+		if b, err := json.Marshal(c); err == nil {
+			c.Logger.Debug("initialized processor", "config", string(b))
+		} else {
+			c.Logger.Debug("initialized processor", "config", c)
 		}
-		c.logger.Printf("initialized processor '%s': %s", processorType, string(b))
 	}
 
 	return nil
@@ -100,13 +97,13 @@ func (c *dataConvert) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		for k, v := range e.Values {
 			for _, re := range c.values {
 				if re.MatchString(k) {
-					c.logger.Printf("key '%s' matched regex '%s'", k, re.String())
+					c.Logger.Debug("key matched regex", "key", k, "regex", re.String())
 					iv, err := c.convertData(k, v, nil)
 					if err != nil {
-						c.logger.Printf("data convert error: %v", err)
+						c.Logger.Warn("data convert error", "err", err)
 						break
 					}
-					c.logger.Printf("key '%s', value %v converted to %s: %f", k, v, c.To, iv)
+					c.Logger.Debug("converted value", "key", k, "value", v, "to", c.To, "result", iv)
 					if c.renameRegex != nil {
 						newValues[c.getNewName(k)] = iv
 						if !c.Keep {
@@ -131,12 +128,11 @@ func (c *dataConvert) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	return es
 }
 
-func (c *dataConvert) WithLogger(l *log.Logger) {
-	if c.Debug && l != nil {
-		c.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
-	} else if c.Debug {
-		c.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
+func (c *dataConvert) WithLogger(l *slog.Logger) {
+	if !c.Debug {
+		l = nil
 	}
+	c.BaseProcessor.WithLogger(l)
 }
 
 func (c *dataConvert) convertData(k string, i interface{}, from *units.Unit) (float64, error) {
