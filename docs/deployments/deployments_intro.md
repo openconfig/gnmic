@@ -11,7 +11,7 @@ Each deployment comes with:
 - one or multiple `gnmic` configuration file(s)
 - extra configuration files if required by the use case (e.g: prometheus, grafana,...)
 
-The [containerlab](https://containerlab.srlinux.dev/) examples come with a fabric deployed using Nokia's [SR Linux](https://learn.srlinux.dev)
+The [containerlab](https://containerlab.dev/) examples come with a fabric deployed using Nokia's [SR Linux](https://learn.srlinux.dev)
 
 If you don't find an example that fits your needs, feel free to open an issue on [github](https://github.com/openconfig/gnmic/issues/new)
 
