@@ -49,9 +49,7 @@ func (c *Config) GetSubscriptions(cmd *cobra.Command) (map[string]*types.Subscri
 	}
 	// subscriptions from file
 	subDef := c.FileConfig.GetStringMap("subscriptions")
-	if c.Debug {
-		c.logger.Printf("subscriptions map: %#v", subDef)
-	}
+	c.log().Debug("subscriptions map", "subscriptions", subDef)
 	// decode subscription config
 	for sn, s := range subDef {
 		switch s := s.(type) {
@@ -68,9 +66,7 @@ func (c *Config) GetSubscriptions(cmd *cobra.Command) (map[string]*types.Subscri
 
 	// named subscription
 	if len(c.LocalFlags.SubscribeName) == 0 {
-		if c.Debug {
-			c.logger.Printf("subscriptions: %s", c.Subscriptions)
-		}
+		c.log().Debug("subscriptions", "subscriptions", c.Subscriptions)
 		err := validateSubscriptionsConfig(c.Subscriptions)
 		if err != nil {
 			return nil, err
@@ -89,9 +85,7 @@ func (c *Config) GetSubscriptions(cmd *cobra.Command) (map[string]*types.Subscri
 	if len(notFound) > 0 {
 		return nil, fmt.Errorf("named subscription(s) not found in config file: %v", notFound)
 	}
-	if c.Debug {
-		c.logger.Printf("subscriptions: %s", filteredSubscriptions)
-	}
+	c.log().Debug("subscriptions", "subscriptions", filteredSubscriptions)
 	err := validateSubscriptionsConfig(filteredSubscriptions)
 	if err != nil {
 		return nil, err
@@ -150,9 +144,7 @@ func (c *Config) subscriptionConfigFromFlags(cmd *cobra.Command) (map[string]*ty
 		}
 	}
 	c.Subscriptions[sub.Name] = sub
-	if c.Debug {
-		c.logger.Printf("subscriptions: %s", c.Subscriptions)
-	}
+	c.log().Debug("subscriptions", "subscriptions", c.Subscriptions)
 	return c.Subscriptions, nil
 }
 

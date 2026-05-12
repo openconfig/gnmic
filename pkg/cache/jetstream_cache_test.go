@@ -10,7 +10,7 @@ package cache
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -147,7 +147,7 @@ func Test_natsCache_Write(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c, err := New(tt.fields.cfg, WithLogger(log.Default()))
+			c, err := New(tt.fields.cfg, WithLogger(slog.Default()))
 			if err != nil {
 				t.Fatal(err)
 			}

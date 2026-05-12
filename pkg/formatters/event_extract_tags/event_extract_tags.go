@@ -10,18 +10,15 @@ package event_extract_tags
 
 import (
 	"encoding/json"
-	"io"
-	"log"
-	"os"
+	"log/slog"
 	"regexp"
 
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 const (
 	processorType = "event-extract-tags"
-	loggingPrefix = "[" + processorType + "] "
 )
 
 // extractTags extracts tags from a value, a value name, a tag name or a tag value using regex named groups
@@ -38,14 +35,11 @@ type extractTags struct {
 	values     []*regexp.Regexp
 	tagNames   []*regexp.Regexp
 	valueNames []*regexp.Regexp
-	logger     *log.Logger
 }
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &extractTags{
-			logger: log.New(io.Discard, "", 0),
-		}
+		return &extractTags{}
 	})
 }
 
@@ -57,6 +51,10 @@ func (p *extractTags) Init(cfg interface{}, opts ...formatters.Option) error {
 	for _, opt := range opts {
 		opt(p)
 	}
+	if p.Logger == nil {
+		p.Logger = logging.DiscardLogger()
+	}
+	p.Logger = p.Logger.With("processor", processorType)
 	// init tags regex
 	p.tags = make([]*regexp.Regexp, 0, len(p.Tags))
 	for _, reg := range p.Tags {
@@ -94,13 +92,12 @@ func (p *extractTags) Init(cfg interface{}, opts ...formatters.Option) error {
 		p.valueNames = append(p.valueNames, re)
 	}
 
-	if p.logger.Writer() != io.Discard {
-		b, err := json.Marshal(p)
-		if err != nil {
-			p.logger.Printf("initialized processor '%s': %+v", processorType, p)
-			return nil
+	if p.Debug {
+		if b, err := json.Marshal(p); err == nil {
+			p.Logger.Debug("initialized processor", "config", string(b))
+		} else {
+			p.Logger.Debug("initialized processor", "config", p)
 		}
-		p.logger.Printf("initialized processor '%s': %s", processorType, string(b))
 	}
 	return nil
 }
@@ -132,12 +129,11 @@ func (p *extractTags) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	return es
 }
 
-func (p *extractTags) WithLogger(l *log.Logger) {
-	if p.Debug && l != nil {
-		p.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
-	} else if p.Debug {
-		p.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
+func (p *extractTags) WithLogger(l *slog.Logger) {
+	if !p.Debug {
+		l = nil
 	}
+	p.BaseProcessor.WithLogger(l)
 }
 
 func (p *extractTags) addTags(e *formatters.EventMsg, re *regexp.Regexp, s string) {
@@ -146,17 +142,13 @@ func (p *extractTags) addTags(e *formatters.EventMsg, re *regexp.Regexp, s strin
 	}
 
 	matches := re.FindStringSubmatch(s)
-	if p.Debug {
-		p.logger.Printf("matches: %+v", matches)
-	}
+	p.Logger.Debug("regex matches", "matches", matches)
 	if len(matches) != len(re.SubexpNames()) {
 		return
 	}
 	for i, name := range re.SubexpNames() {
 		if i != 0 && name != "" {
-			if p.Debug {
-				p.logger.Printf("adding: name=%s, value=%s", name, matches[i])
-			}
+			p.Logger.Debug("adding extracted tag", "name", name, "value", matches[i])
 			if p.Overwrite {
 				e.Tags[name] = matches[i]
 				continue

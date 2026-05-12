@@ -9,19 +9,14 @@
 package template_action
 
 import (
-	"log"
-	"os"
+	"log/slog"
 
+	"github.com/openconfig/gnmic/pkg/actions"
 	"github.com/openconfig/gnmic/pkg/api/types"
-	"github.com/openconfig/gnmic/pkg/api/utils"
 )
 
 func (t *templateAction) WithTargets(map[string]*types.TargetConfig) {}
 
-func (t *templateAction) WithLogger(logger *log.Logger) {
-	if t.Debug && logger != nil {
-		t.logger = log.New(logger.Writer(), loggingPrefix, logger.Flags())
-	} else if t.Debug {
-		t.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
-	}
+func (t *templateAction) WithLogger(l *slog.Logger) {
+	t.logger = actions.BindLogger(l, actionType, t.Name)
 }

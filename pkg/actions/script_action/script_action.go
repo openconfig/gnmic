@@ -12,25 +12,24 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
-	"log"
+	"log/slog"
 	"os"
 	"os/exec"
 	"strings"
 
 	"github.com/openconfig/gnmic/pkg/actions"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 const (
-	loggingPrefix = "[script_action] "
-	actionType    = "script"
-	defaultShell  = "/bin/bash"
+	actionType   = "script"
+	defaultShell = "/bin/bash"
 )
 
 func init() {
 	actions.Register(actionType, func() actions.Action {
 		return &scriptAction{
-			logger: log.New(io.Discard, "", 0),
+			logger: logging.DiscardLogger(),
 		}
 	})
 }
@@ -42,7 +41,7 @@ type scriptAction struct {
 	File    string `mapstructure:"file,omitempty"`
 	Debug   bool   `mapstructure:"debug,omitempty"`
 
-	logger *log.Logger
+	logger *slog.Logger
 }
 
 func (s *scriptAction) Init(cfg map[string]interface{}, opts ...actions.Option) error {
@@ -61,7 +60,7 @@ func (s *scriptAction) Init(cfg map[string]interface{}, opts ...actions.Option) 
 	if err != nil {
 		return err
 	}
-	s.logger.Printf("action name %q of type %q initialized: %v", s.Name, actionType, s)
+	s.logger.Debug("action initialized", "config", s)
 	return nil
 }
 

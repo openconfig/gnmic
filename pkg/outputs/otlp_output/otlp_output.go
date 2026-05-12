@@ -13,8 +13,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io"
-	"log"
+	"log/slog"
 	"regexp"
 	"slices"
 	"sync"
@@ -35,6 +34,7 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	"github.com/zestor-dev/zestor/store"
 )
@@ -46,7 +46,6 @@ const (
 	defaultNumWorkers = 1
 	defaultMaxRetries = 3
 	defaultProtocol   = "grpc"
-	loggingPrefix     = "[otlp_output:%s] "
 )
 
 func init() {
@@ -64,10 +63,10 @@ type otlpOutput struct {
 	grpcState *atomic.Pointer[grpcClientState]
 	eventCh   *atomic.Pointer[chan *formatters.EventMsg]
 
-	logger   *log.Logger
+	logger   *slog.Logger
 	rootCtx  context.Context
-	cancelFn context.CancelFunc
-	wg       *sync.WaitGroup
+	cancelFn  context.CancelFunc
+	wg        *sync.WaitGroup
 
 	// Metrics
 	reg *prometheus.Registry
@@ -160,7 +159,7 @@ func (o *otlpOutput) initFields() {
 	o.grpcState = new(atomic.Pointer[grpcClientState])
 	o.eventCh = new(atomic.Pointer[chan *formatters.EventMsg])
 	o.wg = new(sync.WaitGroup)
-	o.logger = log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags)
+	o.logger = logging.DiscardLogger()
 }
 
 func (o *otlpOutput) String() string {
@@ -184,7 +183,6 @@ func (o *otlpOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	if ncfg.Name == "" {
 		ncfg.Name = name
 	}
-	o.logger.SetPrefix(fmt.Sprintf(loggingPrefix, ncfg.Name))
 
 	options := &outputs.OutputOptions{}
 	for _, opt := range opts {
@@ -201,10 +199,7 @@ func (o *otlpOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	o.setDefaultsFor(ncfg)
 
 	// Apply logger
-	if options.Logger != nil {
-		o.logger.SetOutput(options.Logger.Writer())
-		o.logger.SetFlags(options.Logger.Flags())
-	}
+	o.logger = outputs.BindLogger(options.Logger, outputType, ncfg.Name)
 
 	o.cfg.Store(ncfg)
 
@@ -250,8 +245,7 @@ func (o *otlpOutput) Init(ctx context.Context, name string, cfg map[string]inter
 		go o.worker(wctx, i)
 	}
 
-	o.logger.Printf("initialized OTLP output: endpoint=%s, protocol=%s, batch-size=%d, workers=%d",
-		ncfg.Endpoint, ncfg.Protocol, ncfg.BatchSize, ncfg.NumWorkers)
+	o.logger.Info("initialized OTLP output", "endpoint", ncfg.Endpoint, "protocol", ncfg.Protocol, "batch-size", ncfg.BatchSize, "workers", ncfg.NumWorkers)
 
 	return nil
 }
@@ -350,7 +344,7 @@ func (o *otlpOutput) Update(ctx context.Context, cfg map[string]any) error {
 		}
 	}
 
-	o.logger.Printf("updated OTLP output: %s", o.String())
+	o.logger.Info("updated OTLP output", slog.Any("config", o.String()))
 	return nil
 }
 
@@ -383,7 +377,7 @@ func (o *otlpOutput) UpdateProcessor(name string, pcfg map[string]any) error {
 		newDC := *dc
 		newDC.evps = newEvps
 		o.dynCfg.Store(&newDC)
-		o.logger.Printf("updated event processor %s", name)
+		o.logger.Info("updated event processor", "name", name)
 	}
 	return nil
 }
@@ -403,9 +397,7 @@ func (o *otlpOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.
 	// Type assert to gNMI SubscribeResponse
 	subsResp, ok := rsp.(*gnmi.SubscribeResponse)
 	if !ok {
-		if cfg.Debug {
-			o.logger.Printf("received non-SubscribeResponse message, ignoring")
-		}
+		o.logger.Debug("received non-SubscribeResponse message, ignoring")
 		return
 	}
 
@@ -417,9 +409,7 @@ func (o *otlpOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.
 
 	events, err := formatters.ResponseToEventMsgs(subscriptionName, subsResp, meta, dc.evps...)
 	if err != nil {
-		if cfg.Debug {
-			o.logger.Printf("failed to convert response to events: %v", err)
-		}
+		o.logger.Debug("failed to convert response to events", "err", err)
 		return
 	}
 
@@ -431,9 +421,7 @@ func (o *otlpOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.
 		case <-ctx.Done():
 			return
 		default:
-			if cfg.Debug {
-				o.logger.Printf("event channel full, dropping event")
-			}
+			o.logger.Debug("event channel full, dropping event")
 			if cfg.EnableMetrics {
 				otlpNumberOfFailedEvents.WithLabelValues(cfg.Name, "channel_full").Inc()
 			}
@@ -455,9 +443,7 @@ func (o *otlpOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {
 	case <-ctx.Done():
 		return
 	default:
-		if cfg.Debug {
-			o.logger.Printf("event channel full, dropping event")
-		}
+		o.logger.Debug("event channel full, dropping event")
 		if cfg.EnableMetrics {
 			otlpNumberOfFailedEvents.WithLabelValues(cfg.Name, "channel_full").Inc()
 		}
@@ -493,9 +479,7 @@ func (o *otlpOutput) worker(ctx context.Context, id int) {
 	defer o.wg.Done()
 
 	cfg := o.cfg.Load()
-	if cfg.Debug {
-		o.logger.Printf("worker %d started", id)
-	}
+	o.logger.Debug("worker started", "worker", id)
 
 	batch := make([]*formatters.EventMsg, 0, cfg.BatchSize)
 	ticker := time.NewTicker(cfg.Interval)
@@ -511,9 +495,7 @@ func (o *otlpOutput) worker(ctx context.Context, id int) {
 				defer cancel()
 				o.sendBatch(flushCtx, batch)
 			}
-			if cfg.Debug {
-				o.logger.Printf("worker %d stopped", id)
-			}
+			o.logger.Debug("worker stopped", "worker", id)
 			return
 
 		case event, ok := <-eventCh:
@@ -556,9 +538,7 @@ func (o *otlpOutput) sendBatch(ctx context.Context, events []*formatters.EventMs
 		err = o.sendGRPC(ctx, req)
 
 		if err == nil {
-			if cfg.Debug {
-				o.logger.Printf("successfully sent %d events (attempt %d)", len(events), attempt+1)
-			}
+			o.logger.Debug("successfully sent events", "count", len(events), "attempt", attempt+1)
 			if cfg.EnableMetrics {
 				otlpNumberOfSentEvents.WithLabelValues(cfg.Name).Add(float64(len(events)))
 				otlpSendDuration.WithLabelValues(cfg.Name).Observe(time.Since(start).Seconds())
@@ -571,7 +551,7 @@ func (o *otlpOutput) sendBatch(ctx context.Context, events []*formatters.EventMs
 		}
 	}
 
-	o.logger.Printf("failed to send batch after %d retries: %v", cfg.MaxRetries, err)
+	o.logger.Error("failed to send batch", "retries", cfg.MaxRetries, "err", err)
 	if cfg.EnableMetrics {
 		otlpNumberOfFailedEvents.WithLabelValues(cfg.Name, "send_failed").Add(float64(len(events)))
 	}
@@ -649,7 +629,7 @@ func (o *otlpOutput) initGRPCFor(cfg *config) (*grpcClientState, error) {
 		return nil, fmt.Errorf("failed to create OTLP client: %w", err)
 	}
 
-	o.logger.Printf("initialized OTLP gRPC client for endpoint: %s", cfg.Endpoint)
+	o.logger.Info("initialized OTLP gRPC client", "endpoint", cfg.Endpoint)
 	return &grpcClientState{
 		conn:   conn,
 		client: metricsv1.NewMetricsServiceClient(conn),

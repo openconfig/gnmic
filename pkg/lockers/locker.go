@@ -11,10 +11,11 @@ package lockers
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/mitchellh/mapstructure"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 var ErrCanceled = errors.New("canceled")
@@ -24,7 +25,7 @@ type Locker interface {
 	Init(context.Context, map[string]any, ...Option) error
 	// Stop is called when the locker instance is called. It should unlock all acquired locks.
 	Stop() error
-	SetLogger(*log.Logger)
+	SetLogger(*slog.Logger)
 
 	// This is the Target locking logic.
 
@@ -63,7 +64,7 @@ var Lockers = map[string]Initializer{}
 
 type Option func(Locker)
 
-func WithLogger(logger *log.Logger) Option {
+func WithLogger(logger *slog.Logger) Option {
 	return func(i Locker) {
 		i.SetLogger(logger)
 	}
@@ -77,6 +78,13 @@ var LockerTypes = []string{
 
 func Register(name string, initFn Initializer) {
 	Lockers[name] = initFn
+}
+
+// BindLogger returns a non-nil *slog.Logger annotated with the locker type.
+// If parent is nil, a discarding logger is returned so callers never need a
+// nil check.
+func BindLogger(parent *slog.Logger, lockerType string) *slog.Logger {
+	return logging.Component(parent, "locker", lockerType, "")
 }
 
 func DecodeConfig(src, dst interface{}) error {

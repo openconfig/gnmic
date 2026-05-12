@@ -10,10 +10,8 @@ package nats_output
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
-	"log"
+	"log/slog"
 	"net"
 	"slices"
 	"strings"
@@ -31,6 +29,7 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	gutils "github.com/openconfig/gnmic/pkg/utils"
 	"github.com/zestor-dev/zestor/store"
@@ -44,7 +43,7 @@ const (
 	defaultNumWorkers       = 1
 	defaultWriteTimeout     = 5 * time.Second
 	defaultAddress          = "localhost:4222"
-	loggingPrefix           = "[nats_output:%s] "
+	outputType              = "nats"
 )
 
 func init() {
@@ -58,7 +57,7 @@ func (n *NatsOutput) init() {
 	n.dynCfg = new(atomic.Pointer[dynConfig])
 	n.msgChan = new(atomic.Pointer[chan *outputs.ProtoMsg])
 	n.wg = new(sync.WaitGroup)
-	n.logger = log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags)
+	n.logger = logging.DiscardLogger()
 }
 
 // NatsOutput //
@@ -72,7 +71,7 @@ type NatsOutput struct {
 	cancelFn context.CancelFunc
 	msgChan  *atomic.Pointer[chan *outputs.ProtoMsg] // atomic channel swaps
 	wg       *sync.WaitGroup
-	logger   *log.Logger
+	logger   *slog.Logger
 
 	reg   *prometheus.Registry
 	store store.Store[any]
@@ -109,16 +108,16 @@ type Config struct {
 	EventProcessors    []string         `mapstructure:"event-processors,omitempty"`
 }
 
-func (n *NatsOutput) String() string {
-	cfg := n.cfg.Load()
-	b, err := json.Marshal(cfg)
-	if err != nil {
-		return ""
-	}
-	return string(b)
+func (c *Config) LogValue() slog.Value {
+	return logging.RedactedValue(c)
 }
 
-func (n *NatsOutput) buildEventProcessors(logger *log.Logger, eventProcessors []string) ([]formatters.EventProcessor, error) {
+func (n *NatsOutput) String() string {
+	cfg := n.cfg.Load()
+	return logging.RedactedJSON(cfg)
+}
+
+func (n *NatsOutput) buildEventProcessors(logger *slog.Logger, eventProcessors []string) ([]formatters.EventProcessor, error) {
 	tcs, ps, acts, err := gutils.GetConfigMaps(n.store)
 	if err != nil {
 		return nil, err
@@ -136,11 +135,8 @@ func (n *NatsOutput) buildEventProcessors(logger *log.Logger, eventProcessors []
 	return evps, nil
 }
 
-func (n *NatsOutput) setLogger(logger *log.Logger) {
-	if logger != nil && n.logger != nil {
-		n.logger.SetOutput(logger.Writer())
-		n.logger.SetFlags(logger.Flags())
-	}
+func (n *NatsOutput) setLogger(logger *slog.Logger, name string) {
+	n.logger = outputs.BindLogger(logger, outputType, name)
 }
 
 // Init //
@@ -154,7 +150,6 @@ func (n *NatsOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	if newCfg.Name == "" {
 		newCfg.Name = name
 	}
-	n.logger.SetPrefix(fmt.Sprintf(loggingPrefix, newCfg.Name))
 
 	options := &outputs.OutputOptions{}
 	for _, opt := range opts {
@@ -169,7 +164,7 @@ func (n *NatsOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	n.cfg.Store(newCfg)
 
 	// apply logger
-	n.setLogger(options.Logger)
+	n.setLogger(options.Logger, newCfg.Name)
 
 	// initialize registry
 	n.reg = options.Registry
@@ -190,7 +185,7 @@ func (n *NatsOutput) Init(ctx context.Context, name string, cfg map[string]inter
 		OverrideTS: newCfg.OverrideTimestamps,
 	}
 	// initialize event processors
-	dc.evps, err = n.buildEventProcessors(options.Logger, newCfg.EventProcessors)
+	dc.evps, err = n.buildEventProcessors(n.logger, newCfg.EventProcessors)
 	if err != nil {
 		return err
 	}
@@ -374,7 +369,7 @@ func (n *NatsOutput) Update(ctx context.Context, cfg map[string]any) error {
 			}
 		}
 	}
-	n.logger.Printf("updated nats output: %s", n.String())
+	n.logger.Info("updated nats output", slog.Any("config", n.String()))
 	return nil
 
 }
@@ -398,7 +393,7 @@ func (n *NatsOutput) UpdateProcessor(name string, pcfg map[string]any) error {
 		newDC := *dc
 		newDC.evps = newEvps
 		n.dynCfg.Store(&newDC)
-		n.logger.Printf("updated event processor %s", name)
+		n.logger.Info("updated event processor", "name", name)
 	}
 	return nil
 }
@@ -421,7 +416,7 @@ func (n *NatsOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.
 	case *ch <- outputs.NewProtoMsg(rsp, meta):
 	case <-wctx.Done():
 		if cfg.Debug {
-			n.logger.Printf("writing expired after %s, NATS output might not be initialized", cfg.WriteTimeout)
+			n.logger.Warn("write expired, NATS output might not be initialized", "timeout", cfg.WriteTimeout)
 		}
 		if cfg.EnableMetrics {
 			NatsNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "timeout").Inc()
@@ -436,7 +431,7 @@ func (n *NatsOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {}
 func (n *NatsOutput) Close() error {
 	n.cancelFn()
 	n.wg.Wait()
-	n.logger.Printf("closed nats output: %s", n.String())
+	n.logger.Info("closed nats output", slog.Any("config", n.String()))
 	return nil
 }
 
@@ -447,13 +442,13 @@ func (n *NatsOutput) createNATSConn(c *Config, i int) (*nats.Conn, error) {
 		nats.ReconnectWait(c.ConnectTimeWait),
 		nats.ReconnectBufSize(natsReconnectBufferSize),
 		nats.ErrorHandler(func(_ *nats.Conn, _ *nats.Subscription, err error) {
-			n.logger.Printf("NATS error: %v", err)
+			n.logger.Error("NATS error", "err", err)
 		}),
 		nats.DisconnectErrHandler(func(_ *nats.Conn, err error) {
-			n.logger.Printf("Disconnected from NATS err=%v", err)
+			n.logger.Warn("disconnected from NATS", "err", err)
 		}),
 		nats.ClosedHandler(func(*nats.Conn) {
-			n.logger.Println("NATS connection is closed")
+			n.logger.Info("NATS connection is closed")
 		}),
 	}
 	if c.Username != "" && c.Password != "" {
@@ -488,7 +483,7 @@ func (n *NatsOutput) Dial(network, address string) (net.Conn, error) {
 
 	for {
 		cfg := n.cfg.Load()
-		n.logger.Printf("attempting to connect to %s", address)
+		n.logger.Debug("attempting to connect", "address", address)
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
@@ -500,11 +495,11 @@ func (n *NatsOutput) Dial(network, address string) (net.Conn, error) {
 			d := &net.Dialer{}
 			conn, err := d.DialContext(ctx, network, address)
 			if err != nil {
-				n.logger.Printf("failed to connect to NATS server %s: %v", address, err)
+				n.logger.Warn("failed to connect to NATS server", "address", address, "err", err)
 				time.Sleep(cfg.ConnectTimeWait)
 				continue
 			}
-			n.logger.Printf("successfully connected to NATS server %s", address)
+			n.logger.Info("connected to NATS server", "address", address)
 			return conn, nil
 		}
 	}
@@ -516,8 +511,8 @@ func (n *NatsOutput) worker(ctx context.Context, i int) {
 	var err error
 	workerLogPrefix := fmt.Sprintf("worker-%d", i)
 
-	defer n.logger.Printf("%s exited", workerLogPrefix)
-	n.logger.Printf("%s starting", workerLogPrefix)
+	defer n.logger.Info("worker exited", "worker", workerLogPrefix)
+	n.logger.Info("worker starting", "worker", workerLogPrefix)
 	msgChan := *n.msgChan.Load()
 CRCONN:
 	if ctx.Err() != nil {
@@ -526,16 +521,16 @@ CRCONN:
 	cfg := n.cfg.Load()
 	natsConn, err = n.createNATSConn(cfg, i)
 	if err != nil {
-		n.logger.Printf("%s failed to create connection: %v", workerLogPrefix, err)
+		n.logger.Error("failed to create connection", "worker", workerLogPrefix, "err", err)
 		time.Sleep(cfg.ConnectTimeWait)
 		goto CRCONN
 	}
 	for {
 		select {
 		case <-ctx.Done():
-			n.logger.Printf("%s flushing", workerLogPrefix)
+			n.logger.Info("worker flushing", "worker", workerLogPrefix)
 			natsConn.FlushTimeout(time.Second)
-			n.logger.Printf("%s shutting down", workerLogPrefix)
+			n.logger.Info("worker shutting down", "worker", workerLogPrefix)
 			natsConn.Close()
 			return
 		case m := <-msgChan:
@@ -547,12 +542,12 @@ CRCONN:
 			name := fmt.Sprintf("%s-%d", cfg.Name, i)
 			pmsg, err = outputs.AddSubscriptionTarget(pmsg, m.GetMeta(), cfg.AddTarget, dc.targetTpl)
 			if err != nil {
-				n.logger.Printf("failed to add target to the response: %v", err)
+				n.logger.Warn("failed to add target to response", "err", err)
 			}
 			bb, err := outputs.Marshal(pmsg, m.GetMeta(), dc.mo, cfg.SplitEvents, dc.evps...)
 			if err != nil {
 				if cfg.Debug {
-					n.logger.Printf("%s failed marshaling proto msg: %v", workerLogPrefix, err)
+					n.logger.Warn("failed marshaling proto msg", "worker", workerLogPrefix, "err", err)
 				}
 				if cfg.EnableMetrics {
 					NatsNumberOfFailSendMsgs.WithLabelValues(name, "marshal_error").Inc()
@@ -567,7 +562,7 @@ CRCONN:
 					b, err = outputs.ExecTemplate(b, dc.msgTpl)
 					if err != nil {
 						if cfg.Debug {
-							log.Printf("failed to execute template: %v", err)
+							n.logger.Warn("failed to execute template", "err", err)
 						}
 						NatsNumberOfFailSendMsgs.WithLabelValues(name, "template_error").Inc()
 						continue
@@ -582,21 +577,17 @@ CRCONN:
 				err = natsConn.Publish(subject, b)
 				if err != nil {
 					if cfg.Debug {
-						n.logger.Printf("%s failed to write to nats subject '%s': %v", workerLogPrefix, subject, err)
+						n.logger.Warn("failed to write to nats subject", "worker", workerLogPrefix, "subject", subject, "err", err)
 					}
 					if cfg.EnableMetrics {
 						NatsNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "publish_error").Inc()
 					}
-					if cfg.Debug {
-						n.logger.Printf("%s closing connection to NATS '%s'", workerLogPrefix, subject)
-					}
+					n.logger.Debug("closing connection to NATS", "worker", workerLogPrefix, "subject", subject)
 
 					natsConn.Close()
 					time.Sleep(cfg.ConnectTimeWait)
 
-					if cfg.Debug {
-						n.logger.Printf("%s reconnecting to NATS", workerLogPrefix)
-					}
+					n.logger.Debug("reconnecting to NATS", "worker", workerLogPrefix)
 					goto CRCONN
 				}
 				if cfg.EnableMetrics {

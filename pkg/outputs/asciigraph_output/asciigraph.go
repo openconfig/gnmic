@@ -13,8 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"log"
+	"log/slog"
 	"math"
 	"os"
 	"sort"
@@ -31,16 +30,16 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/openconfig/gnmic/pkg/api/types"
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	gutils "github.com/openconfig/gnmic/pkg/utils"
 	"github.com/zestor-dev/zestor/store"
 )
 
 const (
-	loggingPrefix       = "[asciigraph_output:%s] "
+	outputType          = "asciigraph"
 	defaultRefreshTimer = time.Second
 	defaultPrecision    = 2
 	defaultTimeout      = 10 * time.Second
@@ -56,7 +55,7 @@ func init() {
 	outputs.Register("asciigraph", func() outputs.Output {
 		return &asciigraphOutput{
 			cfg:     &cfg{},
-			logger:  log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
+			logger:  logging.DiscardLogger(),
 			eventCh: make(chan *formatters.EventMsg, 100),
 			m:       new(sync.RWMutex),
 			data:    make(map[string]*series),
@@ -69,7 +68,7 @@ func init() {
 type asciigraphOutput struct {
 	outputs.BaseOutput
 	cfg     *cfg
-	logger  *log.Logger
+	logger  *slog.Logger
 	eventCh chan *formatters.EventMsg
 
 	m       *sync.RWMutex
@@ -134,7 +133,7 @@ func (a *asciigraphOutput) String() string {
 	return string(b)
 }
 
-func (a *asciigraphOutput) setEventProcessors(logger *log.Logger) error {
+func (a *asciigraphOutput) setEventProcessors(logger *slog.Logger) error {
 	tcs, ps, acts, err := gutils.GetConfigMaps(a.store)
 	if err != nil {
 		return err
@@ -152,11 +151,8 @@ func (a *asciigraphOutput) setEventProcessors(logger *log.Logger) error {
 	return nil
 }
 
-func (a *asciigraphOutput) setLogger(logger *log.Logger) {
-	if logger != nil && a.logger != nil {
-		a.logger.SetOutput(logger.Writer())
-		a.logger.SetFlags(logger.Flags())
-	}
+func (a *asciigraphOutput) setLogger(logger *slog.Logger, name string) {
+	a.logger = outputs.BindLogger(logger, outputType, name)
 }
 
 // Init //
@@ -166,8 +162,6 @@ func (a *asciigraphOutput) Init(ctx context.Context, name string, cfg map[string
 		return err
 	}
 
-	a.logger.SetPrefix(fmt.Sprintf(loggingPrefix, name))
-
 	options := &outputs.OutputOptions{}
 	for _, opt := range opts {
 		if err := opt(options); err != nil {
@@ -176,9 +170,9 @@ func (a *asciigraphOutput) Init(ctx context.Context, name string, cfg map[string
 	}
 	a.store = options.Store
 
-	a.setLogger(options.Logger)
+	a.setLogger(options.Logger, name)
 
-	err = a.setEventProcessors(options.Logger)
+	err = a.setEventProcessors(a.logger)
 	if err != nil {
 		return err
 	}
@@ -198,7 +192,7 @@ func (a *asciigraphOutput) Init(ctx context.Context, name string, cfg map[string
 	}
 	//
 	go a.graph(ctx)
-	a.logger.Printf("initialized asciigraph output: %s", a.String())
+	a.logger.Info("initialized asciigraph output", slog.Any("config", a.String()))
 	return nil
 }
 
@@ -253,12 +247,12 @@ func (a *asciigraphOutput) Write(ctx context.Context, rsp proto.Message, meta ou
 
 	subRsp, err := outputs.AddSubscriptionTarget(rsp, meta, a.cfg.AddTarget, a.targetTpl)
 	if err != nil {
-		a.logger.Printf("failed to add target to the response: %v", err)
+		a.logger.Warn("failed to add target to response", "err", err)
 		return
 	}
 	evs, err := formatters.ResponseToEventMsgs(meta["subscription-name"], subRsp, meta, a.evps...)
 	if err != nil {
-		a.logger.Printf("failed to convert messages to events: %v", err)
+		a.logger.Warn("failed to convert messages to events", "err", err)
 		return
 	}
 	for _, ev := range evs {
@@ -271,7 +265,7 @@ func (a *asciigraphOutput) WriteEvent(ctx context.Context, ev *formatters.EventM
 	defer cancel()
 	select {
 	case <-ctx.Done():
-		a.logger.Printf("write timeout: %v", ctx.Err())
+		a.logger.Warn("write timeout", "err", ctx.Err())
 	case a.eventCh <- ev:
 	}
 }

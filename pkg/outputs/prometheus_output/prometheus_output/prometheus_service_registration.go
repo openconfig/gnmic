@@ -58,9 +58,9 @@ func (p *prometheusOutput) registerService(ctx context.Context) {
 		return
 	}
 	defer func() {
-		p.logger.Printf("deregistering service: %s", cfg.ServiceRegistration.Name)
+		p.logger.Info("deregistering service", "service", cfg.ServiceRegistration.Name)
 	}()
-	p.logger.Printf("registering service: %s", cfg.ServiceRegistration.Name)
+	p.logger.Info("registering service", "service", cfg.ServiceRegistration.Name)
 	var err error
 	clientConfig := &api.Config{
 		Address:    cfg.ServiceRegistration.Address,
@@ -78,12 +78,12 @@ func (p *prometheusOutput) registerService(ctx context.Context) {
 INITCONSUL:
 	if ctx.Err() != nil {
 		if errors.Is(ctx.Err(), context.Canceled) {
-			p.logger.Printf("context canceled: %v", ctx.Err())
+			p.logger.Info("context canceled", "err", ctx.Err())
 			close(doneCh)
 			if p.consulClient != nil {
 				err = p.consulClient.Agent().ServiceDeregister(cfg.ServiceRegistration.id)
 				if err != nil {
-					p.logger.Printf("failed to deregister service in consul: %v", err)
+					p.logger.Warn("failed to deregister service in consul", "err", err)
 				}
 			}
 			return
@@ -91,19 +91,19 @@ INITCONSUL:
 	}
 	p.consulClient, err = api.NewClient(clientConfig)
 	if err != nil {
-		p.logger.Printf("failed to connect to consul: %v", err)
+		p.logger.Warn("failed to connect to consul", "err", err)
 		time.Sleep(1 * time.Second)
 		goto INITCONSUL
 	}
 	self, err := p.consulClient.Agent().Self()
 	if err != nil {
-		p.logger.Printf("failed to connect to consul: %v", err)
+		p.logger.Warn("failed to connect to consul", "err", err)
 		time.Sleep(1 * time.Second)
 		goto INITCONSUL
 	}
 	if cfg, ok := self["Config"]; ok {
 		b, _ := json.Marshal(cfg)
-		p.logger.Printf("consul agent config: %s", string(b))
+		p.logger.Debug("consul agent config", "config", string(b))
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -111,7 +111,7 @@ INITCONSUL:
 	if cfg.ServiceRegistration.UseLock {
 		doneCh, err = p.acquireAndKeepLock(ctx, "gnmic/"+cfg.clusterName+"/prometheus-output", []byte(cfg.ServiceRegistration.id))
 		if err != nil {
-			p.logger.Printf("failed to acquire lock: %v", err)
+			p.logger.Warn("failed to acquire lock", "err", err)
 			time.Sleep(1 * time.Second)
 			goto INITCONSUL
 		}
@@ -143,16 +143,16 @@ INITCONSUL:
 		})
 	}
 	b, _ := json.Marshal(service)
-	p.logger.Printf("registering service: %s", string(b))
+	p.logger.Debug("registering service", "spec", string(b))
 	err = p.consulClient.Agent().ServiceRegister(service)
 	if err != nil {
-		p.logger.Printf("failed to register service in consul: %v", err)
+		p.logger.Error("failed to register service in consul", "err", err)
 		return
 	}
 
 	err = p.consulClient.Agent().UpdateTTL(ttlCheckID, "", api.HealthPassing)
 	if err != nil {
-		p.logger.Printf("failed to pass TTL check: %v", err)
+		p.logger.Warn("failed to pass TTL check", "err", err)
 	}
 	ticker := time.NewTicker(cfg.ServiceRegistration.CheckInterval / 2)
 	for {
@@ -160,12 +160,12 @@ INITCONSUL:
 		case <-ticker.C:
 			err = p.consulClient.Agent().UpdateTTL(ttlCheckID, "", api.HealthPassing)
 			if err != nil {
-				p.logger.Printf("failed to update TTL check to Passing: %v", err)
+				p.logger.Warn("failed to update TTL check to Passing", "err", err)
 			}
 		case <-ctx.Done():
 			err = p.consulClient.Agent().UpdateTTL(ttlCheckID, ctx.Err().Error(), api.HealthCritical)
 			if err != nil {
-				p.logger.Printf("failed to update TTL check to Critical: %v", err)
+				p.logger.Warn("failed to update TTL check to Critical", "err", err)
 			}
 			ticker.Stop()
 			goto INITCONSUL
@@ -234,13 +234,13 @@ func (p *prometheusOutput) acquireLock(ctx context.Context, key string, val []by
 				writeOpts,
 			)
 			if err != nil {
-				p.logger.Printf("failed creating session: %v", err)
+				p.logger.Warn("failed creating session", "err", err)
 				time.Sleep(time.Second)
 				continue
 			}
 			acquired, _, err = p.consulClient.KV().Acquire(kvPair, writeOpts)
 			if err != nil {
-				p.logger.Printf("failed acquiring lock to %q: %v", kvPair.Key, err)
+				p.logger.Warn("failed acquiring lock", "key", kvPair.Key, "err", err)
 				time.Sleep(time.Second)
 				continue
 			}
@@ -248,9 +248,7 @@ func (p *prometheusOutput) acquireLock(ctx context.Context, key string, val []by
 			if acquired {
 				return kvPair.Session, nil
 			}
-			if cfg.Debug {
-				p.logger.Printf("failed acquiring lock to %q: already locked", kvPair.Key)
-			}
+			p.logger.Debug("failed acquiring lock: already locked", "key", kvPair.Key)
 			time.Sleep(10 * time.Second)
 		}
 	}
@@ -291,7 +289,7 @@ func (p *prometheusOutput) keepLock(ctx context.Context, sessionID string) (chan
 func (p *prometheusOutput) acquireAndKeepLock(ctx context.Context, key string, val []byte) (chan struct{}, error) {
 	sessionID, err := p.acquireLock(ctx, key, val)
 	if err != nil {
-		p.logger.Printf("failed to acquire lock: %v", err)
+		p.logger.Warn("failed to acquire lock", "err", err)
 		return nil, err
 	}
 
@@ -305,15 +303,15 @@ func (p *prometheusOutput) acquireAndKeepLock(ctx context.Context, key string, v
 			case <-doneCh:
 				_, err := p.consulClient.KV().Delete(key, nil)
 				if err != nil {
-					p.logger.Printf("failed to delete lock from consul: %v", err)
+					p.logger.Warn("failed to delete lock from consul", "err", err)
 				}
 				_, err = p.consulClient.Session().Destroy(sessionID, nil)
 				if err != nil {
-					p.logger.Printf("failed to destroy session in consul: %v", err)
+					p.logger.Warn("failed to destroy session in consul", "err", err)
 				}
 				return
 			case err := <-errCh:
-				p.logger.Printf("failed maintaining the lock: %v", err)
+				p.logger.Warn("failed maintaining the lock", "err", err)
 				close(doneCh)
 			}
 		}

@@ -10,8 +10,6 @@ package otlp_output
 
 import (
 	"context"
-	"io"
-	"log"
 	"net"
 	"regexp"
 	"sync"
@@ -26,6 +24,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/openconfig/gnmic/pkg/formatters"
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	"github.com/zestor-dev/zestor/store"
 	"github.com/zestor-dev/zestor/store/gomap"
@@ -44,7 +43,7 @@ func newTestOutput(cfg *config) *otlpOutput {
 	o := &otlpOutput{}
 	o.cfg = new(atomic.Pointer[config])
 	o.cfg.Store(cfg)
-	o.logger = log.New(io.Discard, "", 0)
+	o.logger = logging.DiscardLogger()
 	return o
 }
 
@@ -427,9 +426,9 @@ func TestBuildMetricName_StripLeadingUnderscore(t *testing.T) {
 // getResourceAttr returns the value of an attribute on a Resource, and whether it was present.
 func getResourceAttr(r interface{ GetAttributes() []*commonpb.KeyValue }, key string) (string, bool) {
 	for _, a := range r.GetAttributes() {
-	    if a.Key == key {
-	        return a.Value.GetStringValue(), true
-	    }
+		if a.Key == key {
+			return a.Value.GetStringValue(), true
+		}
 	}
 	return "", false
 }

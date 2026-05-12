@@ -11,17 +11,14 @@ package event_value_tag
 import (
 	"encoding/json"
 	"fmt"
-	"io"
-	"log"
-	"os"
+	"log/slog"
 
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 const (
 	processorType = "event-value-tag"
-	loggingPrefix = "[" + processorType + "] "
 )
 
 type valueTag struct {
@@ -30,12 +27,11 @@ type valueTag struct {
 	ValueName string `mapstructure:"value-name,omitempty" json:"value-name,omitempty"`
 	Consume   bool   `mapstructure:"consume,omitempty" json:"consume,omitempty"`
 	Debug     bool   `mapstructure:"debug,omitempty" json:"debug,omitempty"`
-	logger    *log.Logger
 }
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &valueTag{logger: log.New(io.Discard, "", 0)}
+		return &valueTag{}
 	})
 }
 
@@ -50,14 +46,17 @@ func (vt *valueTag) Init(cfg interface{}, opts ...formatters.Option) error {
 	for _, opt := range opts {
 		opt(vt)
 	}
+	if vt.Logger == nil {
+		vt.Logger = logging.DiscardLogger()
+	}
+	vt.Logger = vt.Logger.With("processor", processorType)
 
-	if vt.logger.Writer() != io.Discard {
-		b, err := json.Marshal(vt)
-		if err != nil {
-			vt.logger.Printf("initialized processor '%s': %+v", processorType, vt)
-			return nil
+	if vt.Debug {
+		if b, err := json.Marshal(vt); err == nil {
+			vt.Logger.Debug("initialized processor", "config", string(b))
+		} else {
+			vt.Logger.Debug("initialized processor", "config", vt)
 		}
-		vt.logger.Printf("initialized processor '%s': %s", processorType, string(b))
 	}
 	return nil
 }
@@ -85,12 +84,11 @@ func (vt *valueTag) Apply(evs ...*formatters.EventMsg) []*formatters.EventMsg {
 	return evs
 }
 
-func (vt *valueTag) WithLogger(l *log.Logger) {
-	if vt.Debug && l != nil {
-		vt.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
-	} else if vt.Debug {
-		vt.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
+func (vt *valueTag) WithLogger(l *slog.Logger) {
+	if !vt.Debug {
+		l = nil
 	}
+	vt.BaseProcessor.WithLogger(l)
 }
 
 // returns true if all keys match, false otherwise.

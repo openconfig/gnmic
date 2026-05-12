@@ -13,9 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"log"
-	"os"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -29,11 +27,11 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	gfile "github.com/openconfig/gnmic/pkg/file"
 	"github.com/openconfig/gnmic/pkg/formatters"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 const (
 	processorType    = "event-trigger"
-	loggingPrefix    = "[" + processorType + "] "
 	defaultCondition = "any([true])"
 )
 
@@ -59,14 +57,11 @@ type trigger struct {
 
 	targets map[string]*types.TargetConfig
 	acts    map[string]map[string]interface{}
-	logger  *log.Logger
 }
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &trigger{
-			logger: log.New(io.Discard, "", 0),
-		}
+		return &trigger{}
 	})
 }
 
@@ -78,6 +73,10 @@ func (p *trigger) Init(cfg interface{}, opts ...formatters.Option) error {
 	for _, opt := range opts {
 		opt(p)
 	}
+	if p.Logger == nil {
+		p.Logger = logging.DiscardLogger()
+	}
+	p.Logger = p.Logger.With("processor", processorType)
 
 	err = p.setDefaults()
 	if err != nil {
@@ -109,7 +108,7 @@ func (p *trigger) Init(cfg interface{}, opts ...formatters.Option) error {
 		return err
 	}
 
-	p.logger.Printf("%q initialized: %+v", processorType, p)
+	p.Logger.Debug("initialized processor", "config", p)
 
 	return nil
 }
@@ -122,12 +121,10 @@ func (p *trigger) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		}
 		res, err := formatters.CheckCondition(p.code, e)
 		if err != nil {
-			p.logger.Printf("failed evaluating condition %q: %v", p.Condition, err)
+			p.Logger.Warn("failed evaluating condition", "condition", p.Condition, "err", err)
 			continue
 		}
-		if p.Debug {
-			p.logger.Printf("msg=%+v, condition %q result: (%T)%v", e, p.Condition, res, res)
-		}
+		p.Logger.Debug("condition result", "msg", e, "condition", p.Condition, "result_type", fmt.Sprintf("%T", res), "result", res)
 		if res {
 			if p.evalOccurrencesWithinWindow(now) {
 				if p.Async {
@@ -141,12 +138,11 @@ func (p *trigger) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	return es
 }
 
-func (p *trigger) WithLogger(l *log.Logger) {
-	if p.Debug && l != nil {
-		p.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
-	} else if p.Debug {
-		p.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
+func (p *trigger) WithLogger(l *slog.Logger) {
+	if !p.Debug {
+		l = nil
 	}
+	p.BaseProcessor.WithLogger(l)
 }
 
 func (p *trigger) WithTargets(tcs map[string]*types.TargetConfig) {
@@ -154,9 +150,7 @@ func (p *trigger) WithTargets(tcs map[string]*types.TargetConfig) {
 }
 
 func (p *trigger) WithActions(acts map[string]map[string]interface{}) {
-	if p.Debug {
-		p.logger.Printf("with actions: %+v", acts)
-	}
+	p.Logger.Debug("with actions", "actions", acts)
 	p.acts = acts
 }
 
@@ -169,7 +163,7 @@ func (p *trigger) initializeAction(cfg map[string]interface{}) error {
 		case string:
 			if in, ok := actions.Actions[actType]; ok {
 				act := in()
-				err := act.Init(cfg, actions.WithLogger(p.logger), actions.WithTargets(p.targets))
+				err := act.Init(cfg, actions.WithLogger(p.Logger), actions.WithTargets(p.targets))
 				if err != nil {
 					return err
 				}
@@ -234,11 +228,11 @@ func (p *trigger) triggerActions(e *formatters.EventMsg) {
 	for _, act := range p.actions {
 		res, err := act.Run(context.TODO(), actx)
 		if err != nil {
-			p.logger.Printf("trigger action %q failed: %+v", act.NName(), err)
+			p.Logger.Error("trigger action failed", "action", act.NName(), "err", err)
 			return
 		}
 		actx.Env[act.NName()] = res
-		p.logger.Printf("action %q result: %+v", act.NName(), res)
+		p.Logger.Debug("action result", "action", act.NName(), "result", res)
 	}
 }
 
@@ -247,14 +241,10 @@ func (p *trigger) evalOccurrencesWithinWindow(now time.Time) bool {
 		p.occurrencesTimes = make([]time.Time, 0)
 	}
 	occurrencesInWindow := make([]time.Time, 0, len(p.occurrencesTimes))
-	if p.Debug {
-		p.logger.Printf("occurrencesTimes: %v", p.occurrencesTimes)
-	}
+	p.Logger.Debug("occurrence times", "times", p.occurrencesTimes)
 	for _, t := range p.occurrencesTimes {
 		if t.Add(p.Window).After(now) {
-			if p.Debug {
-				p.logger.Printf("time=%s + %s is after now=%s", t, p.Window, now)
-			}
+			p.Logger.Debug("time + window is after now", "time", t, "window", p.Window, "now", now)
 			occurrencesInWindow = append(occurrencesInWindow, t)
 		}
 	}
@@ -265,9 +255,7 @@ func (p *trigger) evalOccurrencesWithinWindow(now time.Time) bool {
 		numOccurrences = len(p.occurrencesTimes)
 	}
 
-	if p.Debug {
-		p.logger.Printf("numOccurrences: %d", numOccurrences)
-	}
+	p.Logger.Debug("num occurrences", "count", numOccurrences)
 
 	if numOccurrences >= p.MinOccurrences && numOccurrences <= p.MaxOccurrences {
 		p.lastTrigger = now

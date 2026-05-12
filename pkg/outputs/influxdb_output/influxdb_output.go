@@ -13,11 +13,10 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"maps"
 	"math"
 	"net/url"
-	"os"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -34,6 +33,7 @@ import (
 	"github.com/openconfig/gnmic/pkg/cache"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	gutils "github.com/openconfig/gnmic/pkg/utils"
 	"github.com/zestor-dev/zestor/store"
@@ -47,7 +47,7 @@ const (
 	defaultCacheFlushTimer = 5 * time.Second
 
 	numWorkers     = 1
-	loggingPrefix  = "[influxdb_output:%s] "
+	outputType     = "influxdb"
 	deleteTagValue = "true"
 )
 
@@ -64,7 +64,7 @@ type influxDBOutput struct {
 	dynCfg *atomic.Pointer[dynConfig]
 	client *atomic.Pointer[influxdb2.Client]
 
-	logger    *log.Logger
+	logger    *slog.Logger
 	cancelFn  context.CancelFunc
 	eventChan chan *formatters.EventMsg
 
@@ -89,7 +89,7 @@ func (i *influxDBOutput) init() {
 	i.eventChan = make(chan *formatters.EventMsg)
 	i.reset = new(atomic.Pointer[chan struct{}])
 	i.startSig = new(atomic.Pointer[chan struct{}])
-	i.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
+	i.logger = logging.DiscardLogger()
 }
 
 type dynConfig struct {
@@ -121,19 +121,19 @@ type Config struct {
 	DeleteTag          string           `mapstructure:"delete-tag,omitempty"`
 }
 
+func (c *Config) LogValue() slog.Value {
+	return logging.RedactedValue(c)
+}
+
 func (k *influxDBOutput) String() string {
 	cfg := k.cfg.Load()
 	if cfg == nil {
 		return ""
 	}
-	b, err := json.Marshal(cfg)
-	if err != nil {
-		return ""
-	}
-	return string(b)
+	return logging.RedactedJSON(cfg)
 }
 
-func (i *influxDBOutput) buildEventProcessors(logger *log.Logger, eventProcessors []string) ([]formatters.EventProcessor, error) {
+func (i *influxDBOutput) buildEventProcessors(logger *slog.Logger, eventProcessors []string) ([]formatters.EventProcessor, error) {
 	tcs, ps, acts, err := gutils.GetConfigMaps(i.store)
 	if err != nil {
 		return nil, err
@@ -152,11 +152,8 @@ func (i *influxDBOutput) buildEventProcessors(logger *log.Logger, eventProcessor
 	return evps, nil
 }
 
-func (i *influxDBOutput) setLogger(logger *log.Logger) {
-	if logger != nil && i.logger != nil {
-		i.logger.SetOutput(logger.Writer())
-		i.logger.SetFlags(logger.Flags())
-	}
+func (i *influxDBOutput) setLogger(logger *slog.Logger, name string) {
+	i.logger = outputs.BindLogger(logger, outputType, name)
 }
 
 func (i *influxDBOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
@@ -166,8 +163,6 @@ func (i *influxDBOutput) Init(ctx context.Context, name string, cfg map[string]i
 	if err != nil {
 		return err
 	}
-	i.logger.SetPrefix(fmt.Sprintf(loggingPrefix, name))
-
 	options := &outputs.OutputOptions{}
 	for _, opt := range opts {
 		if err := opt(options); err != nil {
@@ -182,7 +177,7 @@ func (i *influxDBOutput) Init(ctx context.Context, name string, cfg map[string]i
 	}
 
 	// apply logger
-	i.setLogger(options.Logger)
+	i.setLogger(options.Logger, newCfg.Name)
 
 	// set defaults
 	i.setDefaultsFor(newCfg)
@@ -198,7 +193,7 @@ func (i *influxDBOutput) Init(ctx context.Context, name string, cfg map[string]i
 	dc := new(dynConfig)
 
 	// initialize event processors
-	dc.evps, err = i.buildEventProcessors(options.Logger, newCfg.EventProcessors)
+	dc.evps, err = i.buildEventProcessors(i.logger, newCfg.EventProcessors)
 	if err != nil {
 		return err
 	}
@@ -248,7 +243,7 @@ CRCLIENT:
 	if newCfg.HealthCheckPeriod > 0 {
 		err = i.health(ctx)
 		if err != nil {
-			i.logger.Printf("failed to check influxdb health: %v", err)
+			i.logger.Error("failed to check influxdb health", "err", err)
 			time.Sleep(2 * time.Second)
 			goto CRCLIENT
 		}
@@ -258,7 +253,7 @@ CRCLIENT:
 	}
 
 	i.wasUP.Store(true)
-	i.logger.Printf("initialized influxdb client: %s", i.String())
+	i.logger.Info("initialized influxdb client", slog.Any("config", i.String()))
 
 	for k := 0; k < numWorkers; k++ {
 		go i.worker(ctx, k)
@@ -415,7 +410,7 @@ func (i *influxDBOutput) Update(ctx context.Context, cfg map[string]any) error {
 		if newCfg.HealthCheckPeriod > 0 {
 			if _, err := newClient.Health(ctx); err != nil {
 				// do not return error, continue
-				i.logger.Printf("update: influx health probe failed (continuing): %v", err)
+				i.logger.Warn("update: influx health probe failed (continuing)", "err", err)
 			}
 		}
 
@@ -489,7 +484,7 @@ func (i *influxDBOutput) Update(ctx context.Context, cfg map[string]any) error {
 		}
 	}
 
-	i.logger.Printf("updated influxdb output: %s", i.String())
+	i.logger.Info("updated influxdb output", slog.Any("config", i.String()))
 	return nil
 }
 
@@ -512,7 +507,7 @@ func (i *influxDBOutput) UpdateProcessor(name string, pcfg map[string]any) error
 		newDC := *dc
 		newDC.evps = newEvps
 		i.dynCfg.Store(&newDC)
-		i.logger.Printf("updated event processor %s", name)
+		i.logger.Info("updated event processor", "name", name)
 	}
 	return nil
 }
@@ -533,7 +528,7 @@ func (i *influxDBOutput) Write(ctx context.Context, rsp proto.Message, meta outp
 	var err error
 	rsp, err = outputs.AddSubscriptionTarget(rsp, meta, cfg.AddTarget, dc.targetTpl)
 	if err != nil {
-		i.logger.Printf("failed to add target to the response: %v", err)
+		i.logger.Warn("failed to add target to response", "err", err)
 	}
 
 	switch rsp := rsp.(type) {
@@ -548,7 +543,7 @@ func (i *influxDBOutput) Write(ctx context.Context, rsp proto.Message, meta outp
 		}
 		events, err := formatters.ResponseToEventMsgs(measName, rsp, meta, dc.evps...)
 		if err != nil {
-			i.logger.Printf("failed to convert message to event: %v", err)
+			i.logger.Warn("failed to convert message to event", "err", err)
 			return
 		}
 		for _, ev := range events {
@@ -588,7 +583,7 @@ func (i *influxDBOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg
 }
 
 func (i *influxDBOutput) Close() error {
-	i.logger.Printf("closing client...")
+	i.logger.Info("closing client")
 
 	cfg := i.cfg.Load()
 	if cfg != nil && cfg.CacheConfig != nil {
@@ -612,7 +607,7 @@ func (i *influxDBOutput) Close() error {
 			close(*reset) // unblock Write() and WriteEvent()
 		}
 	}
-	i.logger.Printf("closed.")
+	i.logger.Info("closed")
 	return nil
 }
 
@@ -642,7 +637,7 @@ func (i *influxDBOutput) health(ctx context.Context) error {
 
 	res, err := (*clientPtr).Health(ctx)
 	if err != nil {
-		i.logger.Printf("failed health check: %v", err)
+		i.logger.Warn("failed health check", "err", err)
 		if i.wasUP.Load() {
 			oldReset := i.reset.Load()
 			newResetChan := make(chan struct{})
@@ -658,8 +653,8 @@ func (i *influxDBOutput) health(ctx context.Context) error {
 		}
 		b, err := json.Marshal(res)
 		if err != nil {
-			i.logger.Printf("failed to marshal health check result: %v", err)
-			i.logger.Printf("health check result: %+v", res)
+			i.logger.Warn("failed to marshal health check result", "err", err)
+			i.logger.Debug("health check result", "result", res)
 			if i.wasUP.Load() {
 				oldReset := i.reset.Load()
 				newResetChan := make(chan struct{})
@@ -673,7 +668,7 @@ func (i *influxDBOutput) health(ctx context.Context) error {
 		newStartSigChan := make(chan struct{})
 		i.startSig.Store(&newStartSigChan)
 		close(*oldStartSig)
-		i.logger.Printf("health check result: %s", string(b))
+		i.logger.Debug("health check result", "result", string(b))
 		return nil
 	}
 
@@ -682,7 +677,7 @@ func (i *influxDBOutput) health(ctx context.Context) error {
 	newStartSigChan := make(chan struct{})
 	i.startSig.Store(&newStartSigChan)
 	close(*oldStartSig)
-	i.logger.Print("health check result is nil")
+	i.logger.Debug("health check result is nil")
 	return nil
 }
 
@@ -690,29 +685,29 @@ func (i *influxDBOutput) worker(ctx context.Context, idx int) {
 	firstStart := true
 START:
 	if ctx.Err() != nil {
-		i.logger.Printf("worker-%d err=%v", idx, ctx.Err())
+		i.logger.Warn("worker err", "worker", idx, "err", ctx.Err())
 		return
 	}
 
 	cfg := i.cfg.Load()
 	if cfg == nil {
-		i.logger.Printf("worker-%d: config not initialized", idx)
+		i.logger.Warn("worker: config not initialized", "worker", idx)
 		return
 	}
 
 	if !firstStart && cfg.HealthCheckPeriod > 0 {
-		i.logger.Printf("worker-%d waiting for client recovery", idx)
+		i.logger.Info("worker waiting for client recovery", "worker", idx)
 		startSigChan := i.startSig.Load()
 		if startSigChan != nil {
 			<-*startSigChan
 		}
 	}
 
-	i.logger.Printf("starting worker-%d", idx)
+	i.logger.Info("starting worker", "worker", idx)
 
 	clientPtr := i.client.Load()
 	if clientPtr == nil || *clientPtr == nil {
-		i.logger.Printf("worker-%d: client not initialized", idx)
+		i.logger.Error("worker: client not initialized", "worker", idx)
 		return
 	}
 	client := *clientPtr
@@ -723,9 +718,9 @@ START:
 		select {
 		case <-ctx.Done():
 			if ctx.Err() != nil {
-				i.logger.Printf("worker-%d err=%v", idx, ctx.Err())
+				i.logger.Warn("worker err", "worker", idx, "err", ctx.Err())
 			}
-			i.logger.Printf("worker-%d terminating...", idx)
+			i.logger.Info("worker terminating", "worker", idx)
 			return
 		case ev := <-i.eventChan:
 			// Reload config for each event to get fresh values
@@ -777,10 +772,10 @@ START:
 			}
 		case <-*resetChan:
 			firstStart = false
-			i.logger.Printf("resetting worker-%d...", idx)
+			i.logger.Info("resetting worker", "worker", idx)
 			goto START
 		case err := <-client.WriteAPI(cfg.Org, cfg.Bucket).Errors():
-			i.logger.Printf("worker-%d write error: %v", idx, err)
+			i.logger.Error("worker write error", "worker", idx, "err", err)
 		}
 	}
 }

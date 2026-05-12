@@ -1,8 +1,7 @@
 package main
 
 import (
-	"io"
-	"log"
+	"log/slog"
 	"os"
 
 	"github.com/hashicorp/go-plugin"
@@ -14,7 +13,6 @@ import (
 
 const (
 	processorType = "event-add-device_function"
-	loggingPrefix = "[" + processorType + "] "
 )
 
 type MyEventProcessor struct {
@@ -24,7 +22,7 @@ type MyEventProcessor struct {
 	targetsConfigs        map[string]*types.TargetConfig
 	actionsDefinitions    map[string]map[string]interface{}
 	processorsDefinitions map[string]map[string]any
-	logger                *log.Logger
+	logger                *slog.Logger
 }
 
 func (p *MyEventProcessor) Init(cfg interface{}, opts ...formatters.Option) error {
@@ -65,18 +63,19 @@ func (p *MyEventProcessor) WithProcessors(procs map[string]map[string]any) {
 	p.processorsDefinitions = procs
 }
 
-func (p *MyEventProcessor) WithLogger(l *log.Logger) {
+func (p *MyEventProcessor) WithLogger(l *slog.Logger) {
+	p.logger = l
 }
 
 func (p *MyEventProcessor) setupLogger() {
 	if !p.Debug {
-		p.logger = log.New(io.Discard, "", 0)
+		p.logger = slog.New(slog.DiscardHandler)
 	}
 }
 
 func main() {
-	logger := log.New(os.Stderr, "", log.Flags()&^log.Ldate&^log.Ltime&^log.Lmsgprefix)
-	logger.Printf("starting plugin")
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	logger.Info("starting plugin")
 	plug := &MyEventProcessor{logger: logger}
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: plugin.HandshakeConfig{

@@ -56,9 +56,9 @@ func (p *promWriteOutput) createHTTPClientFor(c *config) (*http.Client, error) {
 
 func (p *promWriteOutput) writer(ctx context.Context) {
 	defer p.wg.Done()
-	defer p.logger.Printf("writer stopped")
+	defer p.logger.Info("writer stopped")
 	cfg := p.cfg.Load()
-	p.logger.Printf("starting writer")
+	p.logger.Info("starting writer")
 	ticker := time.NewTicker(cfg.Interval)
 	defer ticker.Stop()
 	for {
@@ -67,14 +67,10 @@ func (p *promWriteOutput) writer(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if cfg.Debug {
-				p.logger.Printf("write interval reached, writing to remote")
-			}
+			p.logger.Debug("write interval reached, writing to remote")
 			p.write(ctx, timeSeriesCh)
 		case <-p.buffDrainCh:
-			if cfg.Debug {
-				p.logger.Printf("buffer full, writing to remote")
-			}
+			p.logger.Debug("buffer full, writing to remote")
 			p.write(ctx, timeSeriesCh)
 		}
 	}
@@ -83,9 +79,7 @@ func (p *promWriteOutput) writer(ctx context.Context) {
 func (p *promWriteOutput) write(ctx context.Context, timeSeriesCh <-chan *prompb.TimeSeries) {
 	cfg := p.cfg.Load()
 	buffSize := len(timeSeriesCh)
-	if cfg.Debug {
-		p.logger.Printf("write triggered, buffer size: %d", buffSize)
-	}
+	p.logger.Debug("write triggered", "buffer-size", buffSize)
 	if buffSize == 0 {
 		return
 	}
@@ -120,16 +114,14 @@ WRITE:
 		// we reach the max number of time series gathered, send.
 		chunkSize := len(chunk)
 		if chunkSize == cfg.MaxTimeSeriesPerWrite || i+1 == numTS {
-			if cfg.Debug {
-				p.logger.Printf("writing a %d time series chunk", chunkSize)
-			}
+			p.logger.Debug("writing time series chunk", "size", chunkSize)
 			start := time.Now()
 			err := p.writeRequest(ctx, &prompb.WriteRequest{
 				Timeseries: chunk,
 			}, cfg)
 			if err != nil {
 				if cfg.Debug {
-					p.logger.Print(err)
+					p.logger.Warn("write error", "err", err)
 				}
 				continue
 			}
@@ -164,7 +156,7 @@ RETRY:
 	if err != nil {
 		retries++
 		err = fmt.Errorf("failed to write to remote: %w", err)
-		p.logger.Print(err)
+		p.logger.Error("write error", "err", err)
 		if retries < cfg.MaxRetries {
 			time.Sleep(backoff)
 			goto RETRY
@@ -174,9 +166,7 @@ RETRY:
 	}
 	defer rsp.Body.Close()
 
-	if cfg.Debug {
-		p.logger.Printf("got response from remote: status=%s", rsp.Status)
-	}
+	p.logger.Debug("got response from remote", "status", rsp.Status)
 	if rsp.StatusCode >= 300 {
 		prometheusWriteNumberOfFailSendMsgs.WithLabelValues(cfg.Name, fmt.Sprintf("status_code=%d", rsp.StatusCode)).Inc()
 		msg, err := io.ReadAll(rsp.Body)
@@ -191,7 +181,7 @@ RETRY:
 // metadataWriter writes the cached metadata entries to the remote address each `metadata.interval`
 func (p *promWriteOutput) metadataWriter(ctx context.Context) {
 	defer p.wg.Done()
-	defer p.logger.Printf("metadata writer stopped")
+	defer p.logger.Info("metadata writer stopped")
 	cfg := p.cfg.Load()
 	if cfg.Metadata == nil || !cfg.Metadata.Include {
 		return
@@ -230,9 +220,7 @@ func (p *promWriteOutput) writeMetadata(ctx context.Context) {
 			continue
 		}
 		// max entries reached, write accumulated entries
-		if cfg.Debug {
-			p.logger.Printf("writing %d metadata points", len(mds))
-		}
+		p.logger.Debug("writing metadata points", "count", len(mds))
 		start := time.Now()
 		err := p.writeRequest(ctx, &prompb.WriteRequest{
 			Metadata: mds,
@@ -240,7 +228,7 @@ func (p *promWriteOutput) writeMetadata(ctx context.Context) {
 		if err != nil {
 			prometheusWriteNumberOfFailSendMetadataMsgs.WithLabelValues(cfg.Name).Add(1)
 			if cfg.Debug {
-				p.logger.Print(err)
+				p.logger.Warn("write error", "err", err)
 			}
 			return
 		}
@@ -257,16 +245,14 @@ func (p *promWriteOutput) writeMetadata(ctx context.Context) {
 	}
 
 	// loop done with some metadata entries left to write
-	if cfg.Debug {
-		p.logger.Printf("writing %d metadata points", len(mds))
-	}
+	p.logger.Debug("writing metadata points", "count", len(mds))
 	start := time.Now()
 	err := p.writeRequest(ctx, &prompb.WriteRequest{
 		Metadata: mds,
 	}, cfg)
 	if err != nil {
 		if cfg.Debug {
-			p.logger.Print(err)
+			p.logger.Warn("write error", "err", err)
 		}
 		return
 	}

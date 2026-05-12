@@ -271,7 +271,7 @@ func targetTable(targetConfigs map[string]*types.TargetConfig, list bool) [][]st
 		return tabData
 	}
 	if len(targetConfigs) > 1 {
-		gApp.Logger.Printf("cannot show multiple targets")
+		gApp.Logger.Info("cannot show multiple targets")
 		return nil
 	}
 	for _, tc := range targetConfigs {
@@ -320,7 +320,7 @@ func subscriptionTable(scs map[string]*types.SubscriptionConfig, list bool) [][]
 		return tabData
 	}
 	if len(scs) > 1 {
-		gApp.Logger.Printf("cannot show multiple subscriptions")
+		gApp.Logger.Info("cannot show multiple subscriptions")
 		return nil
 	}
 	for _, sub := range scs {
@@ -759,7 +759,8 @@ func showCommandArguments(b *goprompt.Buffer) {
 		return
 	}
 	if err := termbox.Init(); err != nil {
-		gApp.Logger.Fatalf("%v", err)
+		gApp.Logger.Info("termbox init failed", "err", err)
+		os.Exit(1)
 	}
 	w, _ := termbox.Size()
 	termbox.Close()

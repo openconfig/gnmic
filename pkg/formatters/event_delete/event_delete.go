@@ -10,18 +10,15 @@ package event_delete
 
 import (
 	"encoding/json"
-	"io"
-	"log"
-	"os"
+	"log/slog"
 	"regexp"
 
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 const (
 	processorType = "event-delete"
-	loggingPrefix = "[" + processorType + "] "
 )
 
 // deletep, deletes ALL the tags or values matching one of the regexes
@@ -38,15 +35,11 @@ type deletep struct {
 
 	tagNames   []*regexp.Regexp
 	valueNames []*regexp.Regexp
-
-	logger *log.Logger
 }
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &deletep{
-			logger: log.New(io.Discard, "", 0),
-		}
+		return &deletep{}
 	})
 }
 
@@ -58,6 +51,10 @@ func (d *deletep) Init(cfg interface{}, opts ...formatters.Option) error {
 	for _, opt := range opts {
 		opt(d)
 	}
+	if d.Logger == nil {
+		d.Logger = logging.DiscardLogger()
+	}
+	d.Logger = d.Logger.With("processor", processorType)
 	// init tags regex
 	d.tags = make([]*regexp.Regexp, 0, len(d.Tags))
 	for _, reg := range d.Tags {
@@ -94,13 +91,12 @@ func (d *deletep) Init(cfg interface{}, opts ...formatters.Option) error {
 		}
 		d.valueNames = append(d.valueNames, re)
 	}
-	if d.logger.Writer() != io.Discard {
-		b, err := json.Marshal(d)
-		if err != nil {
-			d.logger.Printf("initialized processor '%s': %+v", processorType, d)
-			return nil
+	if d.Debug {
+		if b, err := json.Marshal(d); err == nil {
+			d.Logger.Debug("initialized processor", "config", string(b))
+		} else {
+			d.Logger.Debug("initialized processor", "config", d)
 		}
-		d.logger.Printf("initialized processor '%s': %s", processorType, string(b))
 	}
 	return nil
 }
@@ -113,14 +109,14 @@ func (d *deletep) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		for k, v := range e.Values {
 			for _, re := range d.valueNames {
 				if re.MatchString(k) {
-					d.logger.Printf("key '%s' matched regex '%s'", k, re.String())
+					d.Logger.Debug("key matched regex", "key", k, "regex", re.String())
 					delete(e.Values, k)
 				}
 			}
 			for _, re := range d.values {
 				if vs, ok := v.(string); ok {
 					if re.MatchString(vs) {
-						d.logger.Printf("key '%s' matched regex '%s'", k, re.String())
+						d.Logger.Debug("key matched regex", "key", k, "regex", re.String())
 						delete(e.Values, k)
 					}
 				}
@@ -129,13 +125,13 @@ func (d *deletep) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		for k, v := range e.Tags {
 			for _, re := range d.tagNames {
 				if re.MatchString(k) {
-					d.logger.Printf("key '%s' matched regex '%s'", k, re.String())
+					d.Logger.Debug("key matched regex", "key", k, "regex", re.String())
 					delete(e.Tags, k)
 				}
 			}
 			for _, re := range d.tags {
 				if re.MatchString(v) {
-					d.logger.Printf("key '%s' matched regex '%s'", k, re.String())
+					d.Logger.Debug("key matched regex", "key", k, "regex", re.String())
 					delete(e.Tags, k)
 				}
 			}
@@ -144,10 +140,9 @@ func (d *deletep) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	return es
 }
 
-func (d *deletep) WithLogger(l *log.Logger) {
-	if d.Debug && l != nil {
-		d.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
-	} else if d.Debug {
-		d.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
+func (d *deletep) WithLogger(l *slog.Logger) {
+	if !d.Debug {
+		l = nil
 	}
+	d.BaseProcessor.WithLogger(l)
 }

@@ -13,8 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"log"
+	"log/slog"
 	"slices"
 	"strings"
 	"sync"
@@ -29,17 +28,17 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/openconfig/gnmic/pkg/api/path"
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/cache"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	gutils "github.com/openconfig/gnmic/pkg/utils"
 	"github.com/zestor-dev/zestor/store"
 )
 
 const (
-	loggingPrefix           = "[snmp_output:%s] "
+	outputType              = "snmp"
 	defaultPort             = 162
 	defaultCommunity        = "public"
 	minStartDelay           = 5 * time.Second
@@ -60,8 +59,8 @@ type snmpOutput struct {
 	cfg        *atomic.Pointer[Config]
 	dynCfg     *atomic.Pointer[dynConfig]
 	snmpClient *atomic.Pointer[g.Handler]
-	logger     *log.Logger
-	rootCtx    context.Context
+	logger    *slog.Logger
+	rootCtx   context.Context
 	cancelFn   context.CancelFunc
 	eventChan  chan *formatters.EventMsg
 	wg         *sync.WaitGroup
@@ -106,7 +105,7 @@ type trap struct {
 	Bindings  []*binding `mapstructure:"bindings,omitempty" json:"bindings,omitempty"`
 }
 
-func (s *snmpOutput) buildEventProcessors(logger *log.Logger, eventProcessors []string) ([]formatters.EventProcessor, error) {
+func (s *snmpOutput) buildEventProcessors(logger *slog.Logger, eventProcessors []string) ([]formatters.EventProcessor, error) {
 	tcs, ps, acts, err := gutils.GetConfigMaps(s.store)
 	if err != nil {
 		return nil, err
@@ -124,17 +123,14 @@ func (s *snmpOutput) buildEventProcessors(logger *log.Logger, eventProcessors []
 	return evps, nil
 }
 
-func (s *snmpOutput) setLogger(logger *log.Logger) {
-	if logger != nil && s.logger != nil {
-		s.logger.SetOutput(logger.Writer())
-		s.logger.SetFlags(logger.Flags())
-	}
+func (s *snmpOutput) setLogger(logger *slog.Logger, name string) {
+	s.logger = outputs.BindLogger(logger, outputType, name)
 }
 
 func (s *snmpOutput) init() {
 	s.cfg = new(atomic.Pointer[Config])
 	s.dynCfg = new(atomic.Pointer[dynConfig])
-	s.logger = log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags)
+	s.logger = logging.DiscardLogger()
 	s.eventChan = make(chan *formatters.EventMsg, initialEventsBufferSize)
 	s.snmpClient = new(atomic.Pointer[g.Handler])
 	s.wg = new(sync.WaitGroup)
@@ -148,7 +144,6 @@ func (s *snmpOutput) Init(ctx context.Context, name string, cfg map[string]inter
 		return err
 	}
 	s.name = name //TODO: atomic ?
-	s.logger.SetPrefix(fmt.Sprintf(loggingPrefix, name))
 
 	options := &outputs.OutputOptions{}
 	for _, opt := range opts {
@@ -160,7 +155,7 @@ func (s *snmpOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	s.store = options.Store
 
 	// apply logger
-	s.setLogger(options.Logger)
+	s.setLogger(options.Logger, name)
 	s.setDefaultsFor(newCfg)
 
 	s.cfg.Store(newCfg)
@@ -169,7 +164,7 @@ func (s *snmpOutput) Init(ctx context.Context, name string, cfg map[string]inter
 		return errors.New("missing traps definition")
 	}
 	dc := new(dynConfig)
-	dc.evps, err = s.buildEventProcessors(options.Logger, newCfg.EventProcessors)
+	dc.evps, err = s.buildEventProcessors(s.logger, newCfg.EventProcessors)
 	if err != nil {
 		return err
 	}
@@ -205,7 +200,7 @@ func (s *snmpOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	s.startTime = time.Now()
 	s.wg.Add(1)
 	go s.start(ctx)
-	s.logger.Printf("initialized SNMP output: %s", s.String())
+	s.logger.Info("initialized SNMP output", slog.Any("config", s.String()))
 	return nil
 }
 
@@ -271,7 +266,7 @@ func (s *snmpOutput) Update(_ context.Context, cfg map[string]any) error {
 	ctx, s.cancelFn = context.WithCancel(s.rootCtx)
 	s.wg.Add(1)
 	go s.start(ctx)
-	s.logger.Printf("updated SNMP output: %s", s.String())
+	s.logger.Info("updated SNMP output", slog.Any("config", s.String()))
 	return nil
 }
 
@@ -294,7 +289,7 @@ func (s *snmpOutput) UpdateProcessor(name string, pcfg map[string]any) error {
 		newDC := *dc
 		newDC.evps = newEvps
 		s.dynCfg.Store(&newDC)
-		s.logger.Printf("updated event processor %s", name)
+		s.logger.Info("updated event processor", "name", name)
 	}
 	return nil
 }
@@ -355,7 +350,7 @@ func (s *snmpOutput) Write(ctx context.Context, m proto.Message, meta outputs.Me
 		}
 		rsp, err := outputs.AddSubscriptionTarget(m, meta, "if-not-present", dc.targetTpl)
 		if err != nil {
-			s.logger.Printf("failed to add target to the response: %v", err)
+			s.logger.Warn("failed to add target to response", "err", err)
 			return
 		}
 
@@ -368,7 +363,7 @@ func (s *snmpOutput) Write(ctx context.Context, m proto.Message, meta outputs.Me
 
 		events, err := formatters.ResponseToEventMsgs(measName, rsp, meta, dc.evps...)
 		if err != nil {
-			s.logger.Printf("failed to convert message to event: %v", err)
+			s.logger.Warn("failed to convert message to event", "err", err)
 			return
 		}
 		for _, ev := range events {
@@ -428,7 +423,7 @@ func (s *snmpOutput) start(ctx context.Context) {
 			for idx := range cfg.Traps {
 				err := s.handleEvent(cfg, ev, idx)
 				if err != nil {
-					s.logger.Printf("failed to handle event %+v : %v", ev, err)
+					s.logger.Warn("failed to handle event", "event", ev, "err", err)
 				}
 			}
 		}
@@ -460,11 +455,11 @@ func (s *snmpOutput) createSNMPHandler() {
 CONN:
 	err := snmpClient.Connect()
 	if err != nil {
-		s.logger.Printf("failed to connect: %v", err)
+		s.logger.Error("failed to connect", "err", err)
 		time.Sleep(time.Second)
 		goto CONN
 	}
-	s.logger.Print("SNMP connected")
+	s.logger.Info("SNMP connected")
 	s.snmpClient.Store(&snmpClient)
 }
 
@@ -575,7 +570,7 @@ func (s *snmpOutput) handleEvent(cfg *Config, ev *formatters.EventMsg, idx int) 
 		pdu, err := s.buildPDUFromCache(bd, target, ev)
 		if err != nil {
 			err = fmt.Errorf("failed to build PDU from binding index %d: %v", i, err)
-			s.logger.Printf("%v", err)
+			s.logger.Warn("trap binding error", "err", err)
 			snmpNumberOfFailedTrapGeneration.WithLabelValues(s.name, fmt.Sprintf("%d", idx), err.Error()).Inc()
 			continue
 		}

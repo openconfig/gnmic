@@ -50,7 +50,7 @@ func (a *App) startGnmiServer() error {
 	var err error
 	a.c, err = cache.New(a.Config.GnmiServer.Cache, cache.WithLogger(a.Logger))
 	if err != nil {
-		a.Logger.Printf("failed to initialize gNMI cache: %v", err)
+		a.Logger.Info("failed to initialize gNMI cache", "err", err)
 		return err
 	}
 
@@ -84,7 +84,7 @@ func (a *App) startGnmiServer() error {
 		defer cancel()
 		err := s.Start(ctx)
 		if err != nil {
-			a.Logger.Print(err)
+			a.Logger.Info("gNMI server exited", "err", err)
 		}
 	}()
 	return nil
@@ -110,26 +110,26 @@ func (a *App) registerGNMIServer(ctx context.Context, defaultTags ...string) {
 INITCONSUL:
 	consulClient, err := api.NewClient(clientConfig)
 	if err != nil {
-		a.Logger.Printf("failed to connect to consul: %v", err)
+		a.Logger.Info("failed to connect to consul", "err", err)
 		time.Sleep(1 * time.Second)
 		goto INITCONSUL
 	}
 	self, err := consulClient.Agent().Self()
 	if err != nil {
-		a.Logger.Printf("failed to connect to consul: %v", err)
+		a.Logger.Info("failed to connect to consul", "err", err)
 		time.Sleep(1 * time.Second)
 		goto INITCONSUL
 	}
 	if cfg, ok := self["Config"]; ok {
 		b, _ := json.Marshal(cfg)
-		a.Logger.Printf("consul agent config: %s", string(b))
+		a.Logger.Info("consul agent config", "config", string(b))
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	h, p, err := net.SplitHostPort(a.Config.GnmiServer.Address)
 	if err != nil {
-		a.Logger.Printf("failed to split host and port from gNMI server address %q: %v", a.Config.GnmiServer.Address, err)
+		a.Logger.Info("failed to split host and port from gNMI server address", "address", a.Config.GnmiServer.Address, "err", err)
 		return
 	}
 	pi, _ := strconv.Atoi(p)
@@ -162,16 +162,16 @@ INITCONSUL:
 	service.Tags = append(service.Tags, fmt.Sprintf("instance-name=%s", service.ID))
 	ttlCheckID := "service:" + service.ID
 	b, _ := json.Marshal(service)
-	a.Logger.Printf("registering service: %s", string(b))
+	a.Logger.Info("registering service", "service", string(b))
 	err = consulClient.Agent().ServiceRegister(service)
 	if err != nil {
-		a.Logger.Printf("failed to register service in consul: %v", err)
+		a.Logger.Info("failed to register service in consul", "err", err)
 		return
 	}
 
 	err = consulClient.Agent().UpdateTTL(ttlCheckID, "", api.HealthPassing)
 	if err != nil {
-		a.Logger.Printf("failed to update TTL check to Passing: %v", err)
+		a.Logger.Info("failed to update TTL check to Passing", "err", err)
 	}
 	ticker := time.NewTicker(a.Config.GnmiServer.ServiceRegistration.CheckInterval / 2)
 	for {
@@ -179,12 +179,12 @@ INITCONSUL:
 		case <-ticker.C:
 			err = consulClient.Agent().UpdateTTL(ttlCheckID, "", api.HealthPassing)
 			if err != nil {
-				a.Logger.Printf("failed to update TTL check to Passing: %v", err)
+				a.Logger.Info("failed to update TTL check to Passing", "err", err)
 			}
 		case <-ctx.Done():
 			err = consulClient.Agent().UpdateTTL(ttlCheckID, ctx.Err().Error(), api.HealthCritical)
 			if err != nil {
-				a.Logger.Printf("failed to update TTL check to Critical: %v", err)
+				a.Logger.Info("failed to update TTL check to Critical", "err", err)
 			}
 			ticker.Stop()
 			goto INITCONSUL
@@ -194,7 +194,7 @@ INITCONSUL:
 
 func (a *App) handleONCESubscriptionRequest(sc *streamClient) {
 	var err error
-	a.Logger.Printf("processing subscription to target %q", sc.target)
+	a.Logger.Info("processing subscription to target", "target", sc.target)
 	paths := make([]*gnmi.Path, 0)
 
 	switch req := sc.req.GetRequest().(type) {
@@ -219,11 +219,11 @@ func (a *App) handleONCESubscriptionRequest(sc *streamClient) {
 
 	defer func() {
 		if err != nil {
-			a.Logger.Printf("error processing subscription to target %q: %v", sc.target, err)
+			a.Logger.Info("error processing subscription to target", "target", sc.target, "err", err)
 			sc.errChan <- err
 			return
 		}
-		a.Logger.Printf("subscription request to target %q processed", sc.target)
+		a.Logger.Info("subscription request to target processed", "target", sc.target)
 	}()
 
 	for n := range a.c.Subscribe(sc.stream.Context(), ro) {
@@ -250,20 +250,20 @@ func (a *App) handleStreamSubscriptionRequest(sc *streamClient) {
 
 	// this context is required to signal this goroutine and `handleSampledQuery` goroutine that error has happened in cache
 	ctx, cancel := context.WithCancel(sc.stream.Context())
-	a.Logger.Printf("processing STREAM subscription from %q to target %q", peer.Addr, sc.target)
+	a.Logger.Info("processing STREAM subscription", "peer", peer.Addr, "target", sc.target)
 
 	go func() {
 		defer close(sc.errChan)
 
 		for err := range errChan {
 			if err == nil {
-				a.Logger.Printf("subscription request from %q to target %q processed", peer.Addr, sc.target)
+				a.Logger.Info("subscription request processed", "peer", peer.Addr, "target", sc.target)
 			} else if errors.Is(err, context.Canceled) {
-				a.Logger.Printf("subscription to target %q canceled", sc.target)
+				a.Logger.Info("subscription to target canceled", "target", sc.target)
 				sc.errChan <- err
 				cancel()
 			} else {
-				a.Logger.Printf("error processing STREAM subscription to target %q: %v", sc.target, err)
+				a.Logger.Info("error processing STREAM subscription to target", "target", sc.target, "err", err)
 				sc.errChan <- err
 				cancel()
 			}
@@ -291,7 +291,7 @@ func (a *App) handleStreamSubscriptionRequest(sc *streamClient) {
 	wg.Add(len(subs))
 
 	for i, sub := range subs {
-		a.Logger.Printf("handling subscriptionList item[%d]: target %q, %q", i, sc.target, sub.String())
+		a.Logger.Info("handling subscription list item", "index", i, "target", sc.target, "subscription", sub.String())
 
 		go func(sub *gnmi.Subscription) {
 			defer wg.Done()
@@ -336,14 +336,14 @@ func (a *App) handleStreamSubscriptionRequest(sc *streamClient) {
 				}
 			}
 
-			a.Logger.Printf("cache subscribe: %+v", ro)
+			a.Logger.Info("cache subscribe", "opts", ro)
 
 			for n := range a.c.Subscribe(ctx, ro) {
 				// `errChan <- n.Err` should trigger the gnmi-server side cleanup
 				// only wait would be for the cache to close the channel
 				if n.Err != nil {
 					errChan <- n.Err
-					a.Logger.Printf("cache subscribe failed: %+v: %v", ro, n.Err)
+					a.Logger.Info("cache subscribe failed", "opts", ro, "err", n.Err)
 
 					// reader should only stop once the channel is closed by sender or otherwise
 					// it coould block the senders who doesn't know that error has happened
@@ -387,21 +387,21 @@ func (a *App) handlePolledSubscription(sc *streamClient) {
 		case *gnmi.SubscribeRequest_Poll:
 		default:
 			err = fmt.Errorf("unexpected request type: expecting a Poll request, rcvd: %v", req)
-			a.Logger.Print(err)
+			a.Logger.Info("unexpected poll subscription request", "err", err)
 			sc.errChan <- err
 			return
 		}
 		if err != nil {
-			a.Logger.Printf("target %q: failed poll subscription rcv: %v", sc.target, err)
+			a.Logger.Info("failed poll subscription receive", "target", sc.target, "err", err)
 			sc.errChan <- err
 			return
 		}
-		a.Logger.Printf("target %q: repoll", sc.target)
+		a.Logger.Info("repoll", "target", sc.target)
 		a.handleONCESubscriptionRequest(sc)
 		sc.errChan <- sc.stream.Send(&gnmi.SubscribeResponse{Response: &gnmi.SubscribeResponse_SyncResponse{
 			SyncResponse: true,
 		}})
-		a.Logger.Printf("target %q: repoll done", sc.target)
+		a.Logger.Info("repoll done", "target", sc.target)
 	}
 }
 
@@ -861,7 +861,7 @@ func (a *App) serverGetHandler(ctx context.Context, req *gnmi.GetRequest) (*gnmi
 
 	targetName := req.GetPrefix().GetTarget()
 	pr, _ := peer.FromContext(ctx)
-	a.Logger.Printf("received Get request from %q to target %q", pr.Addr, targetName)
+	a.Logger.Info("received Get request", "peer", pr.Addr, "target", targetName)
 
 	targets, err := a.selectTargets(ctx, targetName)
 	if err != nil {
@@ -910,7 +910,7 @@ func (a *App) serverGetHandler(ctx context.Context, req *gnmi.GetRequest) (*gnmi
 			}
 			res, err := t.Get(ctx, creq)
 			if err != nil {
-				a.Logger.Printf("target %q err: %v", name, err)
+				a.Logger.Info("target Get error", "target", name, "err", err)
 				errChan <- fmt.Errorf("target %q err: %v", name, err)
 				return
 			}
@@ -936,7 +936,7 @@ func (a *App) serverGetHandler(ctx context.Context, req *gnmi.GetRequest) (*gnmi
 	}
 	<-done
 	if a.Config.Debug {
-		a.Logger.Printf("sending GetResponse to %q: %+v", pr.Addr, response)
+		a.Logger.Debug("sending GetResponse", "peer", pr.Addr, "response", response)
 	}
 	return response, nil
 }
@@ -952,7 +952,7 @@ func (a *App) serverSetHandler(ctx context.Context, req *gnmi.SetRequest) (*gnmi
 
 	targetName := req.GetPrefix().GetTarget()
 	pr, _ := peer.FromContext(ctx)
-	a.Logger.Printf("received Set request from %q to target %q", pr.Addr, targetName)
+	a.Logger.Info("received Set request", "peer", pr.Addr, "target", targetName)
 
 	targets, err := a.selectTargets(ctx, targetName)
 	if err != nil {
@@ -1002,7 +1002,7 @@ func (a *App) serverSetHandler(ctx context.Context, req *gnmi.SetRequest) (*gnmi
 			}
 			res, err := t.Set(ctx, creq)
 			if err != nil {
-				a.Logger.Printf("target %q err: %v", name, err)
+				a.Logger.Info("target Get error", "target", name, "err", err)
 				errChan <- fmt.Errorf("target %q err: %v", name, err)
 				return
 			}
@@ -1021,7 +1021,7 @@ func (a *App) serverSetHandler(ctx context.Context, req *gnmi.SetRequest) (*gnmi
 		}
 	}
 	<-done
-	a.Logger.Printf("sending SetResponse to %q: %+v", pr.Addr, response)
+	a.Logger.Info("sending SetResponse", "peer", pr.Addr, "response", response)
 	return response, nil
 }
 
@@ -1042,8 +1042,14 @@ func (a *App) serverSubscribeHandler(req *gnmi.SubscribeRequest, stream gnmi.GNM
 		}
 	}
 
-	a.Logger.Printf("received a subscribe request mode=%v from %q for target %q", sc.req.GetSubscribe().GetMode(), pr.Addr, sc.target)
-	defer a.Logger.Printf("subscription from peer %q terminated", pr.Addr)
+	a.Logger.Info("received subscribe request",
+		"mode", sc.req.GetSubscribe().GetMode(),
+		"peer", pr.Addr,
+		"target", sc.target,
+	)
+	defer func() {
+		a.Logger.Info("subscription from peer terminated", "peer", pr.Addr)
+	}()
 
 	// closing of this channel is handled by respective goroutines that are going to send error on this channel
 	errChan := make(chan error, len(sc.req.GetSubscribe().GetSubscription()))
@@ -1069,7 +1075,7 @@ func (a *App) serverSubscribeHandler(req *gnmi.SubscribeRequest, stream gnmi.GNM
 
 	// flushing the errChan
 	defer func() {
-		a.Logger.Printf("flushing subscription errChan")
+		a.Logger.Info("flushing subscription errChan")
 		for range errChan {
 		}
 	}()

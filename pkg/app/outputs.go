@@ -26,7 +26,7 @@ func (a *App) InitOutput(ctx context.Context, name string, tcs map[string]*types
 	wg := new(sync.WaitGroup)
 	if cfg, ok := a.Config.Outputs[name]; ok {
 		if outType, ok := cfg["type"]; ok {
-			a.Logger.Printf("starting output type %s", outType)
+			a.Logger.Info("starting output", "type", outType)
 			if initializer, ok := outputs.Outputs[outType.(string)]; ok {
 				out := initializer()
 				wg.Add(1)
@@ -40,7 +40,7 @@ func (a *App) InitOutput(ctx context.Context, name string, tcs map[string]*types
 						outputs.WithConfigStore(a.Store),
 					)
 					if err != nil {
-						a.Logger.Printf("failed to init output type %q: %v", outType, err)
+						a.Logger.Info("failed to init output", "type", outType, "err", err)
 					}
 				}()
 				a.operLock.Lock()
@@ -87,7 +87,7 @@ func (a *App) DeleteOutput(name string) error {
 	o := a.Outputs[name]
 	err := o.Close()
 	if err != nil {
-		a.Logger.Printf("failed to close output %q: %v", name, err)
+		a.Logger.Info("failed to close output", "name", name, "err", err)
 	}
 	delete(a.Outputs, name)
 	return nil

@@ -12,7 +12,7 @@ import (
 	"context"
 	"crypto/tls"
 	"io"
-	"log"
+	"log/slog"
 	"net"
 	"strings"
 	"sync"
@@ -77,7 +77,7 @@ type gNMIServer struct {
 	gnmi.UnimplementedGNMIServer
 
 	config Config
-	logger *log.Logger
+	logger *slog.Logger
 	reg    *prometheus.Registry
 	//
 	unarySem  *semaphore.Weighted
@@ -160,8 +160,7 @@ func (s *gNMIServer) Start(ctx context.Context) error {
 	for {
 		l, err = lc.Listen(ctx, networkType, addr)
 		if err != nil {
-			err = errors.Wrap(err, "cannot listen")
-			s.logger.Print(err)
+			s.logger.Error("cannot listen", "error", err)
 			time.Sleep(time.Second)
 			continue
 		}
@@ -184,10 +183,10 @@ func (s *gNMIServer) Start(ctx context.Context) error {
 		hs.SetServingStatus("gNMI", healthpb.HealthCheckResponse_SERVING)
 	}
 
-	s.logger.Printf("starting gRPC server...")
+	s.logger.Info("starting gRPC server...")
 	err = gs.Serve(l)
 	if err != nil {
-		s.logger.Printf("gRPC serve failed: %v", err)
+		s.logger.Error("gRPC serve failed", "err", err)
 		return err
 	}
 	return nil
@@ -247,7 +246,7 @@ func (s *gNMIServer) Subscribe(stream gnmi.GNMI_SubscribeServer) error {
 	defer s.releaseStreamSem()
 	//
 	pr, _ := peer.FromContext(ctx)
-	s.logger.Printf("received subscribe request from peer %s", pr.Addr)
+	s.logger.Info("received subscribe request", "peer", pr.Addr)
 
 	req, err := stream.Recv()
 	switch {
@@ -300,7 +299,7 @@ func (s *gNMIServer) releaseStreamSem() {
 }
 
 // opts
-func WithLogger(l *log.Logger) func(*gNMIServer) {
+func WithLogger(l *slog.Logger) func(*gNMIServer) {
 	return func(s *gNMIServer) {
 		s.logger = l
 	}

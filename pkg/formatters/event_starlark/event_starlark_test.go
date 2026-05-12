@@ -9,7 +9,7 @@
 package event_starlark
 
 import (
-	"log"
+	"log/slog"
 	"os"
 	"reflect"
 	"testing"
@@ -720,7 +720,7 @@ def apply(*events):
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p := &starlarkProc{}
-			err := p.Init(tt.fields.cfg, formatters.WithLogger(log.New(os.Stderr, "test", log.Default().Flags())))
+			err := p.Init(tt.fields.cfg, formatters.WithLogger(slog.New(slog.NewTextHandler(os.Stderr, nil))))
 			if err != nil {
 				t.Errorf("%q failed to init processor: %v", tt.name, err)
 				t.Fail()

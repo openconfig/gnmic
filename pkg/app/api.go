@@ -424,7 +424,7 @@ func (a *App) handleHealthzGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleAdminShutdown(w http.ResponseWriter, r *http.Request) {
-	a.Logger.Printf("shutting down due to user request")
+	a.Logger.Info("shutting down due to user request")
 	a.Cfn()
 }
 
@@ -595,17 +595,17 @@ func (a *App) handleClusteringDrainInstance(w http.ResponseWriter, r *http.Reque
 		for _, t := range targets {
 			err = a.unassignTarget(a.ctx, t, services[0].ID)
 			if err != nil {
-				a.Logger.Printf("failed to unassign target %s: %v", t, err)
+				a.Logger.Info("failed to unassign target", "target", t, "err", err)
 				continue
 			}
 			tc, ok := a.Config.Targets[t]
 			if !ok {
-				a.Logger.Printf("could not find target %s config", t)
+				a.Logger.Info("could not find target config", "target", t)
 				continue
 			}
 			err = a.dispatchTarget(a.ctx, tc, id+"-api")
 			if err != nil {
-				a.Logger.Printf("failed to dispatch target %s: %v", t, err)
+				a.Logger.Info("failed to dispatch target", "target", t, "err", err)
 				continue
 			}
 		}
@@ -626,7 +626,7 @@ func (a *App) handleClusterRebalance(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		err := a.clusterRebalanceTargets()
 		if err != nil {
-			a.Logger.Printf("failed to rebalance: %v", err)
+			a.Logger.Info("failed to rebalance", "err", err)
 		}
 	}()
 }
@@ -642,7 +642,7 @@ func headersMiddleware(next http.Handler) http.Handler {
 func (a *App) loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if (!a.Config.APIServer.HealthzDisableLogging && r.URL.Path == "/api/v1/healthz") || r.URL.Path != "/api/v1/healthz" {
-			next = handlers.LoggingHandler(a.Logger.Writer(), next)
+			next = handlers.LoggingHandler(a.logWriter, next)
 		}
 		next.ServeHTTP(w, r)
 	})
@@ -679,7 +679,7 @@ func (a *App) getInstanceTargets(ctx context.Context, instance string) ([]string
 		return nil, err
 	}
 	if a.Config.Debug {
-		a.Logger.Println("current locks:", locks)
+		a.Logger.Debug("current locks", "locks", locks)
 	}
 	targets := make([]string, 0)
 	for k, v := range locks {

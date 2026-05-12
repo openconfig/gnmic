@@ -11,11 +11,12 @@ package formatters
 import (
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/itchyny/gojq"
 	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmic/pkg/api/types"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 var EventProcessors = map[string]Initializer{}
@@ -60,7 +61,7 @@ type EventProcessor interface {
 	Apply(...*EventMsg) []*EventMsg
 
 	WithTargets(map[string]*types.TargetConfig)
-	WithLogger(l *log.Logger)
+	WithLogger(l *slog.Logger)
 	WithActions(act map[string]map[string]interface{})
 	WithProcessors(procs map[string]map[string]any)
 }
@@ -78,7 +79,7 @@ func DecodeConfig(src, dst interface{}) error {
 	return decoder.Decode(src)
 }
 
-func WithLogger(l *log.Logger) Option {
+func WithLogger(l *slog.Logger) Option {
 	return func(p EventProcessor) {
 		p.WithLogger(l)
 	}
@@ -138,12 +139,15 @@ func CheckCondition(code *gojq.Code, e *EventMsg) (bool, error) {
 }
 
 func MakeEventProcessors(
-	logger *log.Logger,
+	logger *slog.Logger,
 	processorNames []string,
 	ps map[string]map[string]any,
 	tcs map[string]*types.TargetConfig,
 	acts map[string]map[string]any,
 ) ([]EventProcessor, error) {
+	if logger == nil {
+		logger = logging.DiscardLogger()
+	}
 	evps := make([]EventProcessor, len(processorNames))
 	for i, epName := range processorNames {
 		if epCfg, ok := ps[epName]; ok {
@@ -159,11 +163,14 @@ func MakeEventProcessors(
 	return evps, nil
 }
 
-func MakeProcessor(logger *log.Logger, name string,
+func MakeProcessor(logger *slog.Logger, name string,
 	cfg map[string]any,
 	ps map[string]map[string]any,
 	tcs map[string]*types.TargetConfig,
 	acts map[string]map[string]any) (EventProcessor, error) {
+	if logger == nil {
+		logger = logging.DiscardLogger()
+	}
 	epType := ""
 	for k := range cfg {
 		epType = k
@@ -180,18 +187,22 @@ func MakeProcessor(logger *log.Logger, name string,
 		if err != nil {
 			return nil, fmt.Errorf("failed initializing event processor '%s' of type='%s': %w", name, epType, err)
 		}
-		logger.Printf("added event processor '%s' of type=%s to output", name, epType)
+		logger.Info("added event processor to output", "name", name, "type", epType)
 		return ep, nil
 	}
 	return nil, fmt.Errorf("%q event processor has an unknown type=%q", name, epType)
 }
 
 type BaseProcessor struct {
-	logger *log.Logger
+	Logger *slog.Logger
 }
 
-func (p *BaseProcessor) WithLogger(l *log.Logger) {
-	p.logger = l
+func (p *BaseProcessor) WithLogger(l *slog.Logger) {
+	if l == nil {
+		p.Logger = logging.DiscardLogger()
+		return
+	}
+	p.Logger = l
 }
 
 func (p *BaseProcessor) Init(interface{}, ...Option) error {

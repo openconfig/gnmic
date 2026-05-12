@@ -9,6 +9,7 @@
 package file_loader
 
 import (
+
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -18,11 +19,11 @@ func (f *fileLoader) RegisterMetrics(reg *prometheus.Registry) {
 		return
 	}
 	if reg == nil {
-		f.logger.Printf("ERR: metrics enabled but main registry is not initialized, enable main metrics under `api-server`")
+		f.logger.Info("ERR: metrics enabled but main registry is not initialized, enable main metrics under `api-server`")
 		return
 	}
 	if err := registerMetrics(reg); err != nil {
-		f.logger.Printf("failed to register metrics: %v", err)
+		f.logger.Error("failed to register metrics:", "err", err)
 	}
 }
 

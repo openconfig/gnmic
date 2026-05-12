@@ -3,9 +3,7 @@ package outputs_manager
 import (
 	"context"
 	"fmt"
-	"log"
 	"log/slog"
-	"os"
 	"sync"
 	"time"
 
@@ -233,7 +231,7 @@ func (mgr *OutputsManager) createOutput(name string, cfg map[string]any) {
 	opts = append(opts,
 		outputs.WithName(name),
 		outputs.WithConfigStore(mgr.store.Config),
-		outputs.WithLogger(log.New(os.Stdout, "", log.LstdFlags)), // temporary logger
+		outputs.WithLogger(mgr.logger),
 	)
 
 	clustering, ok, err := mgr.store.Config.Get("global", "clustering")

@@ -74,18 +74,18 @@ func New(gApp *app.App) *cobra.Command {
 			}
 
 			if len(gApp.Config.ProtoFile) > 0 {
-				gApp.Logger.Printf("loading proto files...")
+				gApp.Logger.Info("loading proto files")
 				descSource, err := grpcurl.DescriptorSourceFromProtoFiles(gApp.Config.ProtoDir, gApp.Config.ProtoFile...)
 				if err != nil {
-					gApp.Logger.Printf("failed to load proto files: %v", err)
+					gApp.Logger.Info("failed to load proto files", "err", err)
 					return err
 				}
 				server.rootDesc, err = descSource.FindSymbol("Nokia.SROS.root")
 				if err != nil {
-					gApp.Logger.Printf("could not get symbol 'Nokia.SROS.root': %v", err)
+					gApp.Logger.Info("could not get proto symbol", "symbol", "Nokia.SROS.root", "err", err)
 					return err
 				}
-				gApp.Logger.Printf("loaded proto files")
+				gApp.Logger.Info("loaded proto files")
 			}
 
 			server.Outputs = make(map[string]outputs.Output)
@@ -120,7 +120,7 @@ func New(gApp *app.App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			gApp.Logger.Printf("waiting for connections on %s", gApp.Config.Address[0])
+			gApp.Logger.Info("waiting for connections", "address", gApp.Config.Address[0])
 
 			if gApp.Config.TLSKey != "" && gApp.Config.TLSCert != "" {
 				tlsConfig, err := utils.NewTLSConfig(
@@ -149,7 +149,7 @@ func New(gApp *app.App) *cobra.Command {
 				}
 				go func() {
 					if err := httpServer.ListenAndServe(); err != nil {
-						gApp.Logger.Printf("Unable to start prometheus http server.")
+						gApp.Logger.Info("unable to start prometheus HTTP server", "err", err)
 					}
 				}()
 				defer httpServer.Close()
@@ -186,18 +186,18 @@ func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_Publi
 	if ok && s.gApp.Config.Debug {
 		b, err := json.Marshal(peer)
 		if err != nil {
-			s.gApp.Logger.Printf("failed to marshal peer data: %v", err)
+			s.gApp.Logger.Debug("failed to marshal peer data", "err", err)
 		} else {
-			s.gApp.Logger.Printf("received Publish RPC from peer=%s", string(b))
+			s.gApp.Logger.Debug("received Publish RPC", "peer", string(b))
 		}
 	}
 	md, ok := metadata.FromIncomingContext(stream.Context())
 	if ok && s.gApp.Config.Debug {
 		b, err := json.Marshal(md)
 		if err != nil {
-			s.gApp.Logger.Printf("failed to marshal context metadata: %v", err)
+			s.gApp.Logger.Debug("failed to marshal context metadata", "err", err)
 		} else {
-			s.gApp.Logger.Printf("received http2_header=%s", string(b))
+			s.gApp.Logger.Debug("received http2 headers", "headers", string(b))
 		}
 	}
 	outMeta := outputs.Meta{}
@@ -206,7 +206,7 @@ func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_Publi
 			outMeta["subscription-name"] = sn[0]
 		}
 	} else {
-		s.gApp.Logger.Println("could not find subscription-name in http2 headers")
+		s.gApp.Logger.Info("could not find subscription-name in http2 headers")
 	}
 	outMeta["source"] = peer.Addr.String()
 	if systemName, ok := md["system-name"]; ok {
@@ -214,19 +214,19 @@ func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_Publi
 			outMeta["system-name"] = systemName[0]
 		}
 	} else {
-		s.gApp.Logger.Println("could not find system-name in http2 headers")
+		s.gApp.Logger.Info("could not find system-name in http2 headers")
 	}
 	for {
 		subResp, err := stream.Recv()
 		if err != nil {
 			if err != io.EOF {
-				s.gApp.Logger.Printf("gRPC dialout receive error: %v", err)
+				s.gApp.Logger.Info("gRPC dialout receive error", "err", err)
 			}
 			break
 		}
 		err = stream.Send(&nokiasros.PublishResponse{})
 		if err != nil {
-			s.gApp.Logger.Printf("error sending publish response to server: %v", err)
+			s.gApp.Logger.Info("error sending publish response to server", "err", err)
 		}
 		switch resp := subResp.Response.(type) {
 		case *gnmi.SubscribeResponse_Update:
@@ -237,15 +237,15 @@ func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_Publi
 						m := dynamic.NewMessage(s.rootDesc.GetFile().FindMessage("Nokia.SROS.root"))
 						err := m.Unmarshal(update.Val.GetProtoBytes())
 						if err != nil {
-							s.gApp.Logger.Printf("failed to unmarshal m: %v", err)
+							s.gApp.Logger.Info("failed to unmarshal dynamic proto message", "err", err)
 						}
 						jsondata, err := m.MarshalJSON()
 						if err != nil {
-							s.gApp.Logger.Printf("failed to marshal dynamic proto msg: %v", err)
+							s.gApp.Logger.Info("failed to marshal dynamic proto message", "err", err)
 							continue
 						}
 						if s.gApp.Config.Debug {
-							s.gApp.Logger.Printf("json format=%s", string(jsondata))
+							s.gApp.Logger.Debug("dynamic proto JSON", "json", string(jsondata))
 						}
 						update.Val.Value = &gnmi.TypedValue_JsonVal{JsonVal: jsondata}
 					}
@@ -256,7 +256,7 @@ func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_Publi
 			}
 
 		case *gnmi.SubscribeResponse_SyncResponse:
-			s.gApp.Logger.Printf("received sync response=%+v from %s", resp.SyncResponse, outMeta["source"])
+			s.gApp.Logger.Info("received sync response", "sync_response", resp.SyncResponse, "source", outMeta["source"])
 		}
 	}
 	return nil

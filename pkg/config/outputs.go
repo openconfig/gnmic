@@ -11,6 +11,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"sort"
 
 	"github.com/openconfig/gnmic/pkg/outputs"
@@ -48,9 +49,12 @@ func (c *Config) GetOutputs() (map[string]map[string]any, error) {
 				c.Outputs[name] = outCfg
 				continue
 			}
-			c.logger.Printf("missing output 'type' under %v", outCfg)
+			c.log().Info("missing output type", "output", outCfg)
 		default:
-			c.logger.Printf("unknown configuration format expecting a map[string]interface{}: got %T : %v", outCfg, outCfg)
+			c.log().Info("unknown output configuration format",
+				"expect", "map[string]interface{}",
+				"got_type", reflect.TypeOf(outCfg).String(),
+				"value", outCfg)
 		}
 	}
 	for n := range c.Outputs {
@@ -58,9 +62,7 @@ func (c *Config) GetOutputs() (map[string]map[string]any, error) {
 	}
 	namedOutputs := c.FileConfig.GetStringSlice("subscribe-output")
 	if len(namedOutputs) == 0 {
-		if c.Debug {
-			c.logger.Printf("outputs: %+v", c.Outputs)
-		}
+		c.log().Debug("outputs", "outputs", c.Outputs)
 		return c.Outputs, nil
 	}
 	filteredOutputs := make(map[string]map[string]interface{})
@@ -75,9 +77,7 @@ func (c *Config) GetOutputs() (map[string]map[string]any, error) {
 	if len(notFound) > 0 {
 		return nil, fmt.Errorf("named output(s) not found in config file: %v", notFound)
 	}
-	if c.Debug {
-		c.logger.Printf("outputs: %+v", filteredOutputs)
-	}
+	c.log().Debug("outputs", "outputs", filteredOutputs)
 	return filteredOutputs, nil
 }
 
@@ -140,7 +140,7 @@ func (c *Config) GetOutputsConfigs() [][]string {
 	for name, outputCfg := range outDef {
 		b, err := json.Marshal(outputCfg)
 		if err != nil {
-			c.logger.Printf("could not marshal output config: %v", err)
+			c.log().Info("could not marshal output config", "err", err)
 			return nil
 		}
 		outList = append(outList, []string{name, string(b)})

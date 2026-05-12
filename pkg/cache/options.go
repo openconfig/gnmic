@@ -8,11 +8,11 @@
 
 package cache
 
-import "log"
+import "log/slog"
 
 type Option func(Cache)
 
-func WithLogger(logger *log.Logger) Option {
+func WithLogger(logger *slog.Logger) Option {
 	return func(c Cache) {
 		c.SetLogger(logger)
 	}

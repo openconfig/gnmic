@@ -10,8 +10,7 @@ package cache
 
 import (
 	"context"
-	"io"
-	"log"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -23,21 +22,17 @@ import (
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/subscribe"
 	gpath "github.com/openconfig/gnmic/pkg/api/path"
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	"google.golang.org/protobuf/proto"
 )
 
-const (
-	loggingPrefixOC = "[cache:oc] "
-	defaultTimeout  = 10 * time.Second
-)
+const defaultTimeout = 10 * time.Second
 
 type gnmiCache struct {
 	m      *sync.Mutex
 	caches map[string]*subCache
 	// match  *match.Match
 
-	logger     *log.Logger
+	logger     *slog.Logger
 	expiration time.Duration
 	debug      bool
 }
@@ -49,11 +44,11 @@ type subCache struct {
 
 func (gc *gnmiCache) loadConfig(gcc *Config) {
 	gc.expiration = gcc.Expiration
-	gc.logger = log.New(io.Discard, loggingPrefixOC, utils.DefaultLoggingFlags)
+	gc.logger = slog.New(slog.DiscardHandler)
 	gc.debug = gcc.Debug
 }
 
-func newGNMICache(cfg *Config, loggingPrefix string, opts ...Option) *gnmiCache {
+func newGNMICache(cfg *Config, _ string, opts ...Option) *gnmiCache {
 	if cfg == nil {
 		cfg = new(Config)
 	}
@@ -68,12 +63,6 @@ func newGNMICache(cfg *Config, loggingPrefix string, opts ...Option) *gnmiCache 
 	for _, opt := range opts {
 		opt(gc)
 	}
-	if gc.logger != nil {
-		if loggingPrefix == "" {
-			loggingPrefix = "oc"
-		}
-		gc.logger.SetPrefix(loggingPrefixOC)
-	}
 	return gc
 }
 
@@ -87,11 +76,8 @@ func (gc *subCache) update(n *ctree.Leaf) {
 	}
 }
 
-func (gc *gnmiCache) SetLogger(logger *log.Logger) {
-	if logger != nil && gc.logger != nil {
-		gc.logger.SetOutput(logger.Writer())
-		gc.logger.SetFlags(logger.Flags())
-	}
+func (gc *gnmiCache) SetLogger(logger *slog.Logger) {
+	gc.logger = BindLogger(logger, "oc")
 }
 
 func (gc *gnmiCache) Write(ctx context.Context, measName string, m proto.Message) {
@@ -102,7 +88,7 @@ func (gc *gnmiCache) Write(ctx context.Context, measName string, m proto.Message
 		case *gnmi.SubscribeResponse_Update:
 			target := rsp.Update.GetPrefix().GetTarget()
 			if target == "" {
-				gc.logger.Printf("subscription=%q: response missing target: %v", measName, rsp)
+				gc.logger.Warn("response missing target", "subscription", measName, "response", rsp)
 				return
 			}
 
@@ -111,7 +97,7 @@ func (gc *gnmiCache) Write(ctx context.Context, measName string, m proto.Message
 			if len(rsp.Update.GetPrefix().GetElem()) == 0 {
 				for _, upd := range rsp.Update.GetUpdate() {
 					if len(upd.GetPath().GetElem()) == 0 {
-						gc.logger.Printf("write fail: received an update with en empty path: %v", upd)
+						gc.logger.Warn("write failed: update has empty path", "update", upd)
 						return
 					}
 				}
@@ -125,12 +111,12 @@ func (gc *gnmiCache) Write(ctx context.Context, measName string, m proto.Message
 				}
 				sCache.c.SetClient(sCache.update)
 				sCache.c.Add(target)
-				gc.logger.Printf("target %q added to local cache %q", target, measName)
+				gc.logger.Info("target added to local cache", "target", target, "subscription", measName)
 				gc.caches[measName] = sCache
 			}
 			if !sCache.c.HasTarget(target) {
 				sCache.c.Add(target)
-				gc.logger.Printf("target %q added to local cache %q", target, measName)
+				gc.logger.Info("target added to local cache", "target", target, "subscription", measName)
 			}
 			gc.m.Unlock()
 			// do not write updates with nil values to cache.
@@ -152,7 +138,7 @@ func (gc *gnmiCache) Write(ctx context.Context, measName string, m proto.Message
 			}
 			err = sCache.c.GnmiUpdate(notif)
 			if err != nil {
-				gc.logger.Printf("failed to update gNMI cache: %v", err)
+				gc.logger.Error("failed to update gNMI cache", "err", err)
 				return
 			}
 			return
@@ -195,13 +181,13 @@ func (gc *gnmiCache) subscribe(ctx context.Context, ro *ReadOpts, ch chan *Notif
 
 func (gc *gnmiCache) handleSingleQuery(ctx context.Context, ro *ReadOpts, ch chan *Notification) {
 	if gc.debug {
-		gc.logger.Printf("running single query for target %q", ro.Target)
+		gc.logger.Debug("running single query", "target", ro.Target)
 	}
 
 	caches := gc.getCaches(ro.Subscription)
 
 	if gc.debug {
-		gc.logger.Printf("single query got %d caches", len(caches))
+		gc.logger.Debug("single query got caches", "count", len(caches))
 	}
 	wg := new(sync.WaitGroup)
 	wg.Add(len(caches))
@@ -211,14 +197,14 @@ func (gc *gnmiCache) handleSingleQuery(ctx context.Context, ro *ReadOpts, ch cha
 			defer wg.Done()
 			if !c.c.HasTarget(ro.Target) {
 				if gc.debug {
-					gc.logger.Printf("subscription-cache %q doesn't have target: %q", name, ro.Target)
+					gc.logger.Debug("subscription-cache does not have target", "subscription", name, "target", ro.Target)
 				}
 				return
 			}
 			for _, p := range ro.Paths {
 				fp, err := path.CompletePath(p, nil)
 				if err != nil {
-					gc.logger.Printf("failed to generate CompletePath from %v", p)
+					gc.logger.Error("failed to generate CompletePath", "path", p)
 					ch <- &Notification{Name: name, Err: err}
 					return
 				}
@@ -283,7 +269,7 @@ func (gc *gnmiCache) handleSingleQuery(ctx context.Context, ro *ReadOpts, ch cha
 						return nil
 					})
 				if err != nil {
-					gc.logger.Printf("target %q failed internal cache query: %v", ro.Target, err)
+					gc.logger.Error("target failed internal cache query", "target", ro.Target, "err", err)
 					ch <- &Notification{Name: name, Err: err}
 					return
 				}
@@ -303,7 +289,7 @@ func (gc *gnmiCache) handleSampledQuery(ctx context.Context, ro *ReadOpts, ch ch
 	for {
 		select {
 		case <-ctx.Done():
-			gc.logger.Printf("periodic query to target %q stopped: %v", ro.Target, ctx.Err())
+			gc.logger.Info("periodic query stopped", "target", ro.Target, "err", ctx.Err())
 			return
 		case <-ticker.C:
 			gc.handleSingleQuery(ctx, ro, ch)
@@ -314,7 +300,7 @@ func (gc *gnmiCache) handleSampledQuery(ctx context.Context, ro *ReadOpts, ch ch
 func (gc *gnmiCache) handleOnChangeQuery(ctx context.Context, ro *ReadOpts, ch chan *Notification) {
 	caches := gc.getCaches(ro.Subscription)
 	numCaches := len(caches)
-	gc.logger.Printf("on-change query got %d cache(s)", numCaches)
+	gc.logger.Debug("on-change query got caches", "count", numCaches)
 
 	wg := new(sync.WaitGroup)
 	wg.Add(numCaches)
@@ -324,14 +310,14 @@ func (gc *gnmiCache) handleOnChangeQuery(ctx context.Context, ro *ReadOpts, ch c
 			defer wg.Done()
 			if !c.c.HasTarget(ro.Target) {
 				if gc.debug {
-					gc.logger.Printf("subscription-cache %q doesn't have target: %q", name, ro.Target)
+					gc.logger.Debug("subscription-cache does not have target", "subscription", name, "target", ro.Target)
 				}
 				return
 			}
 			for _, p := range ro.Paths {
 				cp, err := path.CompletePath(p, nil)
 				if err != nil {
-					gc.logger.Printf("failed to generate CompletePath from %v", p)
+					gc.logger.Error("failed to generate CompletePath", "path", p)
 					ch <- &Notification{Name: name, Err: err}
 					return
 				}
@@ -346,7 +332,7 @@ func (gc *gnmiCache) handleOnChangeQuery(ctx context.Context, ro *ReadOpts, ch c
 							return nil
 						})
 					if err != nil {
-						gc.logger.Printf("failed to run cache query for target %q and path %q: %v", ro.Target, cp, err)
+						gc.logger.Error("failed to run cache query", "target", ro.Target, "path", cp, "err", err)
 						ch <- &Notification{Name: name, Err: err}
 						return
 					}
@@ -411,7 +397,7 @@ func (gc *gnmiCache) read(sub, target string, p *gnmi.Path) map[string][]*gnmi.N
 			defer wg.Done()
 			cp, err := path.CompletePath(p, nil)
 			if err != nil {
-				gc.logger.Printf("failed to generate CompletePath from %v", p)
+				gc.logger.Error("failed to generate CompletePath", "path", p)
 				return
 			}
 			err = c.c.Query(target, cp,
@@ -433,7 +419,7 @@ func (gc *gnmiCache) read(sub, target string, p *gnmi.Path) map[string][]*gnmi.N
 					return nil
 				})
 			if err != nil {
-				gc.logger.Printf("failed cache query:%v", err)
+				gc.logger.Error("failed cache query", "err", err)
 				return
 			}
 		}(c, name)

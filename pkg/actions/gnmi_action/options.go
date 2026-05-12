@@ -9,11 +9,10 @@
 package gnmi_action
 
 import (
-	"log"
-	"os"
+	"log/slog"
 
+	"github.com/openconfig/gnmic/pkg/actions"
 	"github.com/openconfig/gnmic/pkg/api/types"
-	"github.com/openconfig/gnmic/pkg/api/utils"
 )
 
 func (g *gnmiAction) WithTargets(tcs map[string]*types.TargetConfig) {
@@ -23,10 +22,6 @@ func (g *gnmiAction) WithTargets(tcs map[string]*types.TargetConfig) {
 	g.targetsConfigs = tcs
 }
 
-func (g *gnmiAction) WithLogger(logger *log.Logger) {
-	if g.Debug && logger != nil {
-		g.logger = log.New(logger.Writer(), loggingPrefix, logger.Flags())
-	} else if g.Debug {
-		g.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
-	}
+func (g *gnmiAction) WithLogger(l *slog.Logger) {
+	g.logger = actions.BindLogger(l, actionType, g.Name)
 }

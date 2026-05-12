@@ -9,7 +9,7 @@
 package event_value_tag_v2
 
 import (
-	"log"
+	"log/slog"
 	"os"
 	"reflect"
 	"sync"
@@ -473,7 +473,7 @@ func TestEventValueTag(t *testing.T) {
 			for i, item := range ts.tests {
 				// a processor per test item
 				p := pi()
-				err := p.Init(ts.processor, formatters.WithLogger(log.New(os.Stderr, "test", log.Flags())))
+				err := p.Init(ts.processor, formatters.WithLogger(slog.New(slog.NewTextHandler(os.Stderr, nil))))
 				if err != nil {
 					t.Errorf("failed to initialize processors: %v", err)
 					return
@@ -506,9 +506,9 @@ func TestValueTagApplySubsequentRuns(t *testing.T) {
 				Consume:   true,
 			},
 		},
-		Debug:  true,
-		logger: log.Default(),
-		m:      new(sync.RWMutex),
+		Debug:         true,
+		BaseProcessor: formatters.BaseProcessor{Logger: slog.New(slog.NewTextHandler(os.Stderr, nil))},
+		m:             new(sync.RWMutex),
 		applyRules: []map[uint64]*applyRule{
 			make(map[uint64]*applyRule),
 		},

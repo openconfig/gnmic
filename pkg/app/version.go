@@ -41,7 +41,7 @@ func (a *App) VersionRun(cmd *cobra.Command, args []string) {
 		"docs":    "https://gnmic.openconfig.net",
 	}) // need indent? use jq
 	if err != nil {
-		a.Logger.Printf("failed: %v", err)
+		a.Logger.Info("failed", "err", err)
 		if !a.Config.Log {
 			fmt.Printf("failed: %v\n", err)
 		}

@@ -10,11 +10,9 @@ package jetstream_output
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"log"
+	"log/slog"
 	"net"
 	"slices"
 	"sort"
@@ -34,13 +32,14 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	gutils "github.com/openconfig/gnmic/pkg/utils"
 	"github.com/zestor-dev/zestor/store"
 )
 
 const (
-	loggingPrefix       = "[jetstream_output:%s] "
+	outputType          = "jetstream"
 	defaultSubjectName  = "telemetry"
 	defaultFormat       = "event"
 	defaultAddress      = "localhost:4222"
@@ -90,6 +89,10 @@ type config struct {
 	EventProcessors    []string            `mapstructure:"event-processors,omitempty" json:"event-processors,omitempty"`
 }
 
+func (c *config) LogValue() slog.Value {
+	return logging.RedactedValue(c)
+}
+
 type createStreamConfig struct {
 	Description string        `mapstructure:"description,omitempty" json:"description,omitempty"`
 	Subjects    []string      `mapstructure:"subjects,omitempty" json:"subjects,omitempty"`
@@ -118,7 +121,7 @@ type jetstreamOutput struct {
 	reg *prometheus.Registry
 	// config store
 	store  store.Store[any]
-	logger *log.Logger
+	logger *slog.Logger
 
 	closeOnce sync.Once
 	closeSig  chan struct{}
@@ -136,7 +139,7 @@ func (n *jetstreamOutput) init() {
 	n.dynCfg = new(atomic.Pointer[dynConfig])
 	n.msgChan = new(atomic.Pointer[chan *outputs.ProtoMsg])
 	n.wg = new(sync.WaitGroup)
-	n.logger = log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags)
+	n.logger = logging.DiscardLogger()
 	n.closeOnce = sync.Once{}
 	n.closeSig = make(chan struct{})
 }
@@ -151,7 +154,6 @@ func (n *jetstreamOutput) Init(ctx context.Context, name string, cfg map[string]
 	if ncfg.Name == "" {
 		ncfg.Name = name
 	}
-	n.logger.SetPrefix(fmt.Sprintf(loggingPrefix, ncfg.Name))
 
 	options := &outputs.OutputOptions{}
 	for _, opt := range opts {
@@ -170,7 +172,7 @@ func (n *jetstreamOutput) Init(ctx context.Context, name string, cfg map[string]
 
 	n.cfg.Store(ncfg)
 	// apply logger
-	n.setLogger(options.Logger)
+	n.setLogger(options.Logger, ncfg.Name)
 
 	// initialize registry
 	n.reg = options.Registry
@@ -184,7 +186,7 @@ func (n *jetstreamOutput) Init(ctx context.Context, name string, cfg map[string]
 	// prep dynamic config
 	dc := new(dynConfig)
 	// initialize event processors
-	evps, err := n.buildEventProcessors(options.Logger, ncfg.EventProcessors)
+	evps, err := n.buildEventProcessors(n.logger, ncfg.EventProcessors)
 	if err != nil {
 		return err
 	}
@@ -423,7 +425,7 @@ func (n *jetstreamOutput) Update(ctx context.Context, cfg map[string]any) error 
 			}
 		}
 	}
-	n.logger.Printf("updated jetstream output: %s", n.String())
+	n.logger.Info("updated jetstream output", slog.Any("config", n.String()))
 	return nil
 
 }
@@ -447,7 +449,7 @@ func (n *jetstreamOutput) UpdateProcessor(name string, pcfg map[string]any) erro
 		newDC := *dc
 		newDC.evps = newEvps
 		n.dynCfg.Store(&newDC)
-		n.logger.Printf("updated event processor %s", name)
+		n.logger.Info("updated event processor", "name", name)
 	}
 	return nil
 }
@@ -470,7 +472,7 @@ func (n *jetstreamOutput) Write(ctx context.Context, rsp proto.Message, meta out
 		return
 	case <-wctx.Done():
 		if cfg.Debug {
-			n.logger.Printf("writing expired after %s, JetStream output might not be initialized", cfg.WriteTimeout)
+			n.logger.Warn("write expired, JetStream output might not be initialized", "timeout", cfg.WriteTimeout)
 		}
 		if cfg.EnableMetrics {
 			jetStreamNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "timeout").Inc()
@@ -487,28 +489,20 @@ func (n *jetstreamOutput) Close() error {
 	n.closeOnce.Do(func() {
 		close(n.closeSig)
 	})
-	n.logger.Printf("closed jetstream output: %s", n.String())
+	n.logger.Info("closed jetstream output", slog.Any("config", n.String()))
 	return nil
 }
 
 func (c *config) String() string {
-	b, err := json.Marshal(c)
-	if err != nil {
-		return ""
-	}
-	return string(b)
+	return logging.RedactedJSON(c)
 }
 
 func (n *jetstreamOutput) String() string {
 	cfg := n.cfg.Load()
-	b, err := json.Marshal(cfg)
-	if err != nil {
-		return ""
-	}
-	return string(b)
+	return logging.RedactedJSON(cfg)
 }
 
-func (n *jetstreamOutput) buildEventProcessors(logger *log.Logger, eventProcessors []string) ([]formatters.EventProcessor, error) {
+func (n *jetstreamOutput) buildEventProcessors(logger *slog.Logger, eventProcessors []string) ([]formatters.EventProcessor, error) {
 	tcs, ps, acts, err := gutils.GetConfigMaps(n.store)
 	if err != nil {
 		return nil, err
@@ -526,11 +520,8 @@ func (n *jetstreamOutput) buildEventProcessors(logger *log.Logger, eventProcesso
 	return evps, nil
 }
 
-func (n *jetstreamOutput) setLogger(logger *log.Logger) {
-	if logger != nil && n.logger != nil {
-		n.logger.SetOutput(logger.Writer())
-		n.logger.SetFlags(logger.Flags())
-	}
+func (n *jetstreamOutput) setLogger(logger *slog.Logger, name string) {
+	n.logger = outputs.BindLogger(logger, outputType, name)
 }
 
 func (n *jetstreamOutput) worker(ctx context.Context, i int) {
@@ -539,7 +530,7 @@ func (n *jetstreamOutput) worker(ctx context.Context, i int) {
 	var err error
 	var subject string
 	workerLogPrefix := fmt.Sprintf("worker-%d", i)
-	n.logger.Printf("%s starting", workerLogPrefix)
+	n.logger.Info("worker starting", "worker", workerLogPrefix)
 	// snapshot msgChan
 	msgChan := *n.msgChan.Load()
 CRCONN:
@@ -550,14 +541,14 @@ CRCONN:
 	name := fmt.Sprintf("%s-%d", cfg.Name, i)
 	natsConn, err = n.createNATSConn(ctx, cfg, i)
 	if err != nil {
-		n.logger.Printf("%s failed to create connection: %v", workerLogPrefix, err)
+		n.logger.Error("failed to create connection", "worker", workerLogPrefix, "err", err)
 		time.Sleep(cfg.ConnectTimeWait)
 		goto CRCONN
 	}
 	js, err := natsConn.JetStream()
 	if err != nil {
 		if cfg.Debug {
-			n.logger.Printf("%s failed to create jetstream context: %v", workerLogPrefix, err)
+			n.logger.Error("failed to create jetstream context", "worker", workerLogPrefix, "err", err)
 		}
 		if cfg.EnableMetrics {
 			jetStreamNumberOfFailSendMsgs.WithLabelValues(name, "jetstream_context_error").Inc()
@@ -566,13 +557,13 @@ CRCONN:
 		time.Sleep(cfg.ConnectTimeWait)
 		goto CRCONN
 	}
-	n.logger.Printf("%s initialized nats jetstream producer: %s", workerLogPrefix, cfg)
+	n.logger.Info("initialized nats jetstream producer", "worker", workerLogPrefix, "config", cfg)
 	// worker-0 create stream if configured
 	if i == 0 {
 		err = n.createStream(js, cfg)
 		if err != nil {
 			if cfg.Debug {
-				n.logger.Printf("%s failed to create stream: %v", workerLogPrefix, err)
+				n.logger.Error("failed to create stream", "worker", workerLogPrefix, "err", err)
 			}
 			if cfg.EnableMetrics {
 				jetStreamNumberOfFailSendMsgs.WithLabelValues(name, "create_stream_error").Inc()
@@ -587,7 +578,7 @@ CRCONN:
 		select {
 		case <-ctx.Done():
 			natsConn.Close()
-			n.logger.Printf("%s shutting down", workerLogPrefix)
+			n.logger.Info("worker shutting down", "worker", workerLogPrefix)
 			return
 		case m := <-msgChan:
 			pmsg := m.GetMsg()
@@ -598,7 +589,7 @@ CRCONN:
 			name := fmt.Sprintf("%s-%d", cfg.Name, i)
 			pmsg, err = outputs.AddSubscriptionTarget(pmsg, m.GetMeta(), cfg.AddTarget, dc.targetTpl)
 			if err != nil {
-				n.logger.Printf("failed to add target to the response: %v", err)
+				n.logger.Warn("failed to add target to response", "err", err)
 			}
 			var rs []proto.Message
 			switch cfg.SubjectFormat {
@@ -617,7 +608,7 @@ CRCONN:
 				bb, err := outputs.Marshal(r, m.GetMeta(), dc.mo, cfg.SplitEvents, dc.evps...)
 				if err != nil {
 					if cfg.Debug {
-						n.logger.Printf("%s failed marshaling proto msg: %v", workerLogPrefix, err)
+						n.logger.Warn("failed marshaling proto msg", "worker", workerLogPrefix, "err", err)
 					}
 					if cfg.EnableMetrics {
 						jetStreamNumberOfFailSendMsgs.WithLabelValues(name, "marshal_error").Inc()
@@ -632,7 +623,7 @@ CRCONN:
 						b, err = outputs.ExecTemplate(b, dc.msgTpl)
 						if err != nil {
 							if cfg.Debug {
-								log.Printf("failed to execute template: %v", err)
+								n.logger.Warn("failed to execute template", "err", err)
 							}
 							jetStreamNumberOfFailSendMsgs.WithLabelValues(name, "template_error").Inc()
 							continue
@@ -642,7 +633,7 @@ CRCONN:
 					subject, err = n.subjectName(r, m.GetMeta(), dc, cfg)
 					if err != nil {
 						if cfg.Debug {
-							n.logger.Printf("%s failed to get subject name: %v", workerLogPrefix, err)
+							n.logger.Warn("failed to get subject name", "worker", workerLogPrefix, "err", err)
 						}
 						if cfg.EnableMetrics {
 							jetStreamNumberOfFailSendMsgs.WithLabelValues(name, "subject_name_error").Inc()
@@ -656,7 +647,7 @@ CRCONN:
 					_, err = js.Publish(subject, b, nats.Context(ctx))
 					if err != nil {
 						if cfg.Debug {
-							n.logger.Printf("%s failed to write to subject '%s': %v", workerLogPrefix, subject, err)
+							n.logger.Warn("failed to write to subject", "worker", workerLogPrefix, "subject", subject, "err", err)
 						}
 						if cfg.EnableMetrics {
 							jetStreamNumberOfFailSendMsgs.WithLabelValues(name, "publish_error").Inc()
@@ -678,7 +669,7 @@ CRCONN:
 
 type customDialer struct {
 	ctx    context.Context
-	logger *log.Logger
+	logger *slog.Logger
 }
 
 func (n *jetstreamOutput) newCustomDialer(ctx context.Context) *customDialer {
@@ -689,7 +680,7 @@ func (d *customDialer) Dial(network, address string) (net.Conn, error) {
 	ctx, cancel := context.WithCancel(d.ctx)
 	defer cancel()
 
-	d.logger.Printf("attempting to connect to %s", address)
+	d.logger.Debug("attempting to connect", "address", address)
 	select {
 	case <-d.ctx.Done():
 		return nil, d.ctx.Err()
@@ -699,7 +690,7 @@ func (d *customDialer) Dial(network, address string) (net.Conn, error) {
 		if err != nil {
 			return nil, err
 		}
-		d.logger.Printf("successfully connected to NATS server %s", address)
+		d.logger.Info("connected to NATS server", "address", address)
 		return conn, nil
 	}
 }
@@ -711,13 +702,13 @@ func (n *jetstreamOutput) createNATSConn(ctx context.Context, c *config, idx int
 		nats.ReconnectWait(c.ConnectTimeWait),
 		// nats.ReconnectBufSize(natsReconnectBufferSize),
 		nats.ErrorHandler(func(_ *nats.Conn, _ *nats.Subscription, err error) {
-			n.logger.Printf("NATS error: %v", err)
+			n.logger.Error("NATS error", "err", err)
 		}),
 		nats.DisconnectErrHandler(func(_ *nats.Conn, err error) {
-			n.logger.Printf("Disconnected from NATS err=%v", err)
+			n.logger.Warn("disconnected from NATS", "err", err)
 		}),
 		nats.ClosedHandler(func(*nats.Conn) {
-			n.logger.Println("NATS connection is closed")
+			n.logger.Info("NATS connection is closed")
 		}),
 	}
 	if c.TLS != nil {

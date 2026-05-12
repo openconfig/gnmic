@@ -135,8 +135,15 @@ func (a *App) getRequest(ctx context.Context, tc *types.TargetConfig, req *gnmi.
 	if a.Config.GetDryRun {
 		return nil, nil
 	}
-	a.Logger.Printf("sending gNMI GetRequest: prefix='%v', path='%v', type='%v', encoding='%v', models='%+v', extension='%+v' to %s",
-		xreq.Prefix, xreq.Path, xreq.Type, xreq.Encoding, xreq.UseModels, xreq.Extension, tc.Name)
+	a.Logger.Info("sending gNMI GetRequest",
+		"target", tc.Name,
+		"prefix", xreq.Prefix,
+		"path", xreq.Path,
+		"type", xreq.Type,
+		"encoding", xreq.Encoding,
+		"models", xreq.UseModels,
+		"extension", xreq.Extension,
+	)
 
 	response, err := a.ClientGet(ctx, tc, xreq)
 	if err != nil {

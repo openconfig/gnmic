@@ -11,8 +11,7 @@ package cache
 import (
 	"context"
 	"fmt"
-	"log"
-	"os"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -21,11 +20,9 @@ import (
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/openconfig/gnmi/proto/gnmi"
-	"github.com/openconfig/gnmic/pkg/api/utils"
 )
 
 const (
-	loggingPrefixNATS       = "[cache:nats] "
 	cacheSubjects           = "gnmic.cache.subjects"
 	subjectCacheResetPeriod = 30 * time.Second
 )
@@ -45,7 +42,7 @@ type natsCache struct {
 
 	m        *sync.RWMutex
 	subjects map[string]struct{}
-	logger   *log.Logger
+	logger   *slog.Logger
 }
 
 func newNATSCache(cfg *Config, opts ...Option) (*natsCache, error) {
@@ -79,7 +76,7 @@ func newNATSCache(cfg *Config, opts ...Option) (*natsCache, error) {
 		}
 	}
 	if c.logger == nil {
-		c.logger = log.New(os.Stderr, loggingPrefixNATS, utils.DefaultLoggingFlags)
+		c.logger = slog.New(slog.DiscardHandler)
 	}
 	c.start()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -94,7 +91,7 @@ START:
 		go c.ns.Start()
 		if !c.ns.ReadyForConnections(reconnectTimer) {
 			c.ns.Shutdown()
-			c.logger.Printf("failed to start cache, retrying")
+			c.logger.Warn("failed to start cache, retrying")
 			goto START
 		}
 	}
@@ -107,13 +104,13 @@ START:
 	var err error
 	opts := []nats.Option{
 		nats.ErrorHandler(func(_ *nats.Conn, _ *nats.Subscription, err error) {
-			c.logger.Printf("NATS error: %v", err)
+			c.logger.Error("NATS error", "err", err)
 		}),
 		nats.DisconnectHandler(func(_ *nats.Conn) {
-			c.logger.Println("Disconnected from NATS")
+			c.logger.Info("disconnected from NATS")
 		}),
 		nats.ClosedHandler(func(_ *nats.Conn) {
-			c.logger.Println("NATS connection is closed")
+			c.logger.Info("NATS connection is closed")
 		}),
 		nats.Timeout(c.cfg.Timeout),
 	}
@@ -127,14 +124,14 @@ CONNECT:
 
 	c.nc, err = nats.Connect(c.addr, opts...)
 	if err != nil {
-		c.logger.Printf("failed to connect: %v", err)
+		c.logger.Error("failed to connect to NATS", "err", err)
 		time.Sleep(reconnectTimer)
 		goto CONNECT
 	}
 }
 
 func (c *natsCache) sync(ctx context.Context) {
-	c.logger.Printf("start NATS sync")
+	c.logger.Info("start NATS sync")
 	// this map keeps track of subjects already queued
 	subjects := make(map[string]struct{})
 	go func() {
@@ -167,7 +164,7 @@ func (c *natsCache) sync(ctx context.Context) {
 			return
 		case cc := <-c.subjectChan:
 			if _, ok := subjects[cc]; !ok {
-				c.logger.Printf("start NATS topic %q sync", cc)
+				c.logger.Info("start NATS topic sync", "topic", cc)
 				subjects[cc] = struct{}{}
 				go c.syncSubject(ctx, cc)
 			}
@@ -182,7 +179,7 @@ START:
 			m := new(gnmi.SubscribeResponse)
 			err := proto.Unmarshal([]byte(msg.Data), m)
 			if err != nil {
-				c.logger.Printf("failed to unmarshal proto msg: %v", err)
+				c.logger.Warn("failed to unmarshal proto msg", "err", err)
 				return
 			}
 			c.oc.Write(ctx, subject, m)
@@ -221,14 +218,14 @@ func (c *natsCache) writeRemoteNATS(ctx context.Context, subscriptionName string
 		case *gnmi.SubscribeResponse_Update:
 			targetName := rsp.Update.GetPrefix().GetTarget()
 			if targetName == "" {
-				c.logger.Printf("subscription=%q: response missing target: %v", subscriptionName, rsp)
+				c.logger.Warn("response missing target", "subscription", subscriptionName, "response", rsp)
 				return
 			}
 			c.subjectChan <- subscriptionName
 			var err error
 			err = c.publishNotificationNATS(ctx, subscriptionName, targetName, m)
 			if err != nil {
-				c.logger.Print(err)
+				c.logger.Error("NATS publish error", "err", err)
 			}
 		}
 	}
@@ -268,12 +265,9 @@ func (c *natsCache) Stop() {
 	}
 }
 
-func (c *natsCache) SetLogger(logger *log.Logger) {
-	if logger != nil && c.logger != nil {
-		c.logger.SetOutput(logger.Writer())
-		c.logger.SetFlags(logger.Flags())
-		c.logger.SetPrefix(loggingPrefixNATS)
-	}
+func (c *natsCache) SetLogger(logger *slog.Logger) {
+	c.logger = BindLogger(logger, "nats")
+	c.oc.SetLogger(logger)
 }
 
 func (c *natsCache) DeleteTarget(name string) {

@@ -15,23 +15,21 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
-	"os"
 	"strings"
 	"text/template"
 	"time"
 
 	"github.com/openconfig/gnmic/pkg/actions"
 	"github.com/openconfig/gnmic/pkg/api/types"
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 const (
 	defaultMethod       = "GET"
 	defaultTimeout      = 5 * time.Second
-	loggingPrefix       = "[http_action] "
 	actionType          = "http"
 	defaultBodyTemplate = "{{ json . }}"
 )
@@ -39,7 +37,7 @@ const (
 func init() {
 	actions.Register(actionType, func() actions.Action {
 		return &httpAction{
-			logger: log.New(io.Discard, "", 0),
+			logger: logging.DiscardLogger(),
 		}
 	})
 }
@@ -55,7 +53,7 @@ type httpAction struct {
 
 	url    *template.Template
 	body   *template.Template
-	logger *log.Logger
+	logger *slog.Logger
 }
 
 func (h *httpAction) Init(cfg map[string]interface{}, opts ...actions.Option) error {
@@ -112,8 +110,7 @@ func (h *httpAction) Run(ctx context.Context, aCtx *actions.Context) (interface{
 	if err != nil {
 		return nil, err
 	}
-	h.logger.Printf("url: %s", url.String())
-	h.logger.Printf("body: %s", b.String())
+	h.logger.Debug("http request", "url", url.String(), "body", b.String())
 
 	req, err := http.NewRequest(h.Method, url.String(), b)
 	if err != nil {
@@ -186,12 +183,8 @@ func (h *httpAction) setDefaults() error {
 
 func (h *httpAction) WithTargets(map[string]*types.TargetConfig) {}
 
-func (h *httpAction) WithLogger(logger *log.Logger) {
-	if h.Debug && logger != nil {
-		h.logger = log.New(logger.Writer(), loggingPrefix, logger.Flags())
-	} else if h.Debug {
-		h.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
-	}
+func (h *httpAction) WithLogger(l *slog.Logger) {
+	h.logger = actions.BindLogger(l, actionType, h.Name)
 }
 
 var funcMap = template.FuncMap{

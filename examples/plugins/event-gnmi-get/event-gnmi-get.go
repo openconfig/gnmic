@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"math"
 	"os"
 	"strconv"
@@ -28,7 +28,6 @@ import (
 
 const (
 	processorType = "event-gnmi-get"
-	loggingPrefix = "[" + processorType + "] "
 	defaultTarget = `{{ index .Tags "source" }}`
 )
 
@@ -148,7 +147,7 @@ func (p *gNMIGetProcessor) WithProcessors(procs map[string]map[string]any) {
 	p.processorsDefinitions = procs
 }
 
-func (p *gNMIGetProcessor) WithLogger(l *log.Logger) {
+func (p *gNMIGetProcessor) WithLogger(l *slog.Logger) {
 }
 
 func (p *gNMIGetProcessor) setupLogger() {

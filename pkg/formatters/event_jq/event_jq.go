@@ -10,20 +10,18 @@ package event_jq
 
 import (
 	"errors"
-	"io"
-	"log"
-	"os"
+	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/itchyny/gojq"
 
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 const (
 	processorType     = "event-jq"
-	loggingPrefix     = "[" + processorType + "] "
 	defaultCondition  = "all([true])"
 	defaultExpression = "."
 )
@@ -35,16 +33,13 @@ type jq struct {
 	Expression string `mapstructure:"expression,omitempty"`
 	Debug      bool   `mapstructure:"debug,omitempty"`
 
-	cond   *gojq.Code
-	expr   *gojq.Code
-	logger *log.Logger
+	cond *gojq.Code
+	expr *gojq.Code
 }
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &jq{
-			logger: log.New(io.Discard, "", 0),
-		}
+		return &jq{}
 	})
 }
 
@@ -56,6 +51,10 @@ func (p *jq) Init(cfg interface{}, opts ...formatters.Option) error {
 	for _, opt := range opts {
 		opt(p)
 	}
+	if p.Logger == nil {
+		p.Logger = logging.DiscardLogger()
+	}
+	p.Logger = p.Logger.With("processor", processorType)
 	p.setDefaults()
 	p.Condition = strings.TrimSpace(p.Condition)
 	q, err := gojq.Parse(p.Condition)
@@ -99,7 +98,7 @@ func (p *jq) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		input := e.ToMap()
 		ok, err := p.evaluateCondition(input)
 		if err != nil {
-			p.logger.Printf("failed to evaluate condition: %v", err)
+			p.Logger.Warn("failed to evaluate condition", "err", err)
 			continue
 		}
 		if ok {
@@ -110,7 +109,7 @@ func (p *jq) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	}
 	evs, err := p.applyExpression(inputs)
 	if err != nil {
-		p.logger.Printf("failed to apply jq expression: %v", err)
+		p.Logger.Warn("failed to apply jq expression", "err", err)
 		return nil
 	}
 	return append(res, evs...)
@@ -130,7 +129,7 @@ func (p *jq) evaluateCondition(input map[string]interface{}) (bool, error) {
 		if err, ok = res.(error); ok {
 			return false, err
 		}
-		p.logger.Printf("condition jq result: (%T)%v for input %+v", res, res, input)
+		p.Logger.Debug("condition jq result", "result_type", fmt.Sprintf("%T", res), "result", res, "input", input)
 	}
 	switch res := res.(type) {
 	case bool:
@@ -148,15 +147,15 @@ func (p *jq) applyExpression(input []interface{}) ([]*formatters.EventMsg, error
 	for {
 		r, ok := iter.Next()
 		if !ok {
-			p.logger.Printf("iter done? %v | r=%v", ok, r)
+			p.Logger.Debug("iter status", "done", ok, "r", r)
 			break
 		}
-		p.logger.Printf("iter result: (%T)%+v\n", r, r)
+		p.Logger.Debug("iter result", "type", fmt.Sprintf("%T", r), "value", r)
 		switch r := r.(type) {
 		case error:
 			return nil, err
 		default:
-			p.logger.Printf("adding %+v\n", r)
+			p.Logger.Debug("adding result", "value", r)
 			res = append(res, r)
 		}
 	}
@@ -172,7 +171,7 @@ func (p *jq) applyExpression(input []interface{}) ([]*formatters.EventMsg, error
 					}
 					evs = append(evs, ev)
 				default:
-					p.logger.Printf("unexpected type (%T)%+v", ee, ee)
+					p.Logger.Warn("unexpected type", "type", fmt.Sprintf("%T", ee), "value", ee)
 				}
 			}
 		case map[string]interface{}:
@@ -182,16 +181,15 @@ func (p *jq) applyExpression(input []interface{}) ([]*formatters.EventMsg, error
 			}
 			evs = append(evs, ev)
 		default:
-			p.logger.Printf("unexpected type (%T)%+v", e, e)
+			p.Logger.Warn("unexpected type", "type", fmt.Sprintf("%T", e), "value", e)
 		}
 	}
 	return evs, nil
 }
 
-func (p *jq) WithLogger(l *log.Logger) {
-	if p.Debug && l != nil {
-		p.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
-	} else if p.Debug {
-		p.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
+func (p *jq) WithLogger(l *slog.Logger) {
+	if !p.Debug {
+		l = nil
 	}
+	p.BaseProcessor.WithLogger(l)
 }

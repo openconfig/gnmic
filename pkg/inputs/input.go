@@ -11,9 +11,10 @@ package inputs
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/openconfig/gnmic/pkg/formatters"
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	"github.com/openconfig/gnmic/pkg/pipeline"
 	pkgutils "github.com/openconfig/gnmic/pkg/utils"
@@ -52,7 +53,7 @@ func Register(name string, initFn Initializer) {
 }
 
 type InputOptions struct {
-	Logger   *log.Logger
+	Logger   *slog.Logger
 	Outputs  map[string]outputs.Output
 	Name     string
 	Store    store.Store[any]
@@ -68,7 +69,7 @@ type PipeMessage interface {
 
 type Option func(*InputOptions) error
 
-func WithLogger(logger *log.Logger) Option {
+func WithLogger(logger *slog.Logger) Option {
 	return func(i *InputOptions) error {
 		i.Logger = logger
 		return nil
@@ -103,6 +104,13 @@ func WithPipeline(pipeline chan *pipeline.Msg) Option {
 	}
 }
 
+// BindLogger returns a non-nil *slog.Logger annotated with the input kind
+// and instance name. If parent is nil, a discarding logger is returned so
+// callers never need a nil check.
+func BindLogger(parent *slog.Logger, inputType, name string) *slog.Logger {
+	return logging.Component(parent, "input", inputType, name)
+}
+
 type BaseInput struct {
 }
 
@@ -127,7 +135,7 @@ func (b *BaseInput) Close() error {
 }
 
 func UpdateProcessorInSlice(
-	logger *log.Logger,
+	logger *slog.Logger,
 	storeObj store.Store[any],
 	eventProcessors []string,
 	currentEvps []formatters.EventProcessor,
@@ -155,7 +163,7 @@ func UpdateProcessorInSlice(
 			copy(newEvps, currentEvps)
 			newEvps[i] = ep
 
-			logger.Printf("updated event processor %s", processorName)
+			logger.Info("updated event processor", "processor", processorName)
 			return newEvps, true, nil
 		}
 	}

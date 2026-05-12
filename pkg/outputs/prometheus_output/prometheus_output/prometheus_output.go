@@ -11,12 +11,10 @@ package prometheus_output
 import (
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
-	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -38,6 +36,7 @@ import (
 	"github.com/openconfig/gnmic/pkg/cache"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	promcom "github.com/openconfig/gnmic/pkg/outputs/prometheus_output"
 	gutils "github.com/openconfig/gnmic/pkg/utils"
@@ -49,7 +48,6 @@ const (
 	defaultListen     = ":9804"
 	defaultPath       = "/metrics"
 	defaultExpiration = time.Minute
-	loggingPrefix     = "[prometheus_output:%s] "
 	// this is used to timeout the collection method
 	// in case it drags for too long
 	defaultTimeout    = 10 * time.Second
@@ -68,7 +66,7 @@ type prometheusOutput struct {
 
 	cfg       *atomic.Pointer[config]
 	dynCfg    *atomic.Pointer[dynConfig]
-	logger    *log.Logger
+	logger    *slog.Logger
 	eventChan *atomic.Pointer[chan *formatters.EventMsg]
 	msgChan   *atomic.Pointer[chan *outputs.ProtoMsg]
 
@@ -122,16 +120,16 @@ type config struct {
 	port        int
 }
 
+func (c *config) LogValue() slog.Value {
+	return logging.RedactedValue(c)
+}
+
 func (p *prometheusOutput) String() string {
 	cfg := p.cfg.Load()
 	if cfg == nil {
 		return ""
 	}
-	b, err := json.Marshal(cfg)
-	if err != nil {
-		return ""
-	}
-	return string(b)
+	return logging.RedactedJSON(cfg)
 }
 
 func (p *prometheusOutput) buildEventProcessors(cfg *config) ([]formatters.EventProcessor, error) {
@@ -142,17 +140,14 @@ func (p *prometheusOutput) buildEventProcessors(cfg *config) ([]formatters.Event
 	return formatters.MakeEventProcessors(p.logger, cfg.EventProcessors, ps, tcs, acts)
 }
 
-func (p *prometheusOutput) setLogger(logger *log.Logger) {
-	if logger != nil && p.logger != nil {
-		p.logger.SetOutput(logger.Writer())
-		p.logger.SetFlags(logger.Flags())
-	}
+func (p *prometheusOutput) setLogger(logger *slog.Logger, name string) {
+	p.logger = outputs.BindLogger(logger, outputType, name)
 }
 
 func (p *prometheusOutput) init() {
 	p.cfg = new(atomic.Pointer[config])
 	p.dynCfg = new(atomic.Pointer[dynConfig])
-	p.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
+	p.logger = logging.DiscardLogger()
 	p.msgChan = new(atomic.Pointer[chan *outputs.ProtoMsg])
 	p.eventChan = new(atomic.Pointer[chan *formatters.EventMsg])
 	p.wg = new(sync.WaitGroup)
@@ -171,8 +166,6 @@ func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string
 		newCfg.Name = name
 	}
 
-	p.logger.SetPrefix(fmt.Sprintf(loggingPrefix, newCfg.Name))
-
 	options := &outputs.OutputOptions{}
 	for _, opt := range opts {
 		if err := opt(options); err != nil {
@@ -183,7 +176,7 @@ func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string
 	p.store = options.Store
 
 	// apply logger
-	p.setLogger(options.Logger)
+	p.setLogger(options.Logger, newCfg.Name)
 
 	// set defaults
 	err = p.setDefaultsFor(newCfg)
@@ -290,11 +283,11 @@ func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string
 		defer listener.Close()
 		err = p.server.Serve(listener)
 		if err != nil && err != http.ErrServerClosed {
-			p.logger.Printf("prometheus server error: %v", err)
+			p.logger.Error("prometheus server error", "err", err)
 		}
 	}()
 	go p.registerService(p.runCtx)
-	p.logger.Printf("initialized prometheus output: %s", p.String())
+	p.logger.Info("initialized prometheus output", slog.Any("config", p.String()))
 	return nil
 }
 
@@ -466,7 +459,7 @@ func (p *prometheusOutput) Update(ctx context.Context, cfg map[string]any) error
 			defer p.wg.Done()
 			defer newListener.Close()
 			if err := newServer.Serve(newListener); err != nil && err != http.ErrServerClosed {
-				p.logger.Printf("prometheus server error: %v", err)
+				p.logger.Error("prometheus server error", "err", err)
 			}
 		}()
 	}
@@ -500,7 +493,7 @@ func (p *prometheusOutput) Update(ctx context.Context, cfg map[string]any) error
 	// restart service registration
 	go p.registerService(p.runCtx)
 
-	p.logger.Printf("updated prometheus output: %s", p.String())
+	p.logger.Info("updated prometheus output", slog.Any("config", p.String()))
 	return nil
 }
 
@@ -523,7 +516,7 @@ func (p *prometheusOutput) UpdateProcessor(name string, pcfg map[string]any) err
 		newDC := *dc
 		newDC.evps = newEvps
 		p.dynCfg.Store(&newDC)
-		p.logger.Printf("updated event processor %s", name)
+		p.logger.Info("updated event processor", "name", name)
 	}
 	return nil
 }
@@ -571,7 +564,7 @@ func (p *prometheusOutput) Write(ctx context.Context, rsp proto.Message, meta ou
 	case msgChan <- outputs.NewProtoMsg(rsp, meta):
 	case <-wctx.Done():
 		if cfg.Debug {
-			p.logger.Printf("writing expired after %s", cfg.Timeout)
+			p.logger.Warn("write expired", "timeout", cfg.Timeout)
 		}
 		return
 	}
@@ -612,7 +605,7 @@ func (p *prometheusOutput) Close() error {
 			// ignore 404 and unknown service ID errors
 			if !strings.Contains(err.Error(), "404") &&
 				!strings.Contains(err.Error(), "Unknown service ID") {
-				p.logger.Printf("failed to deregister consul service: %v", err)
+				p.logger.Warn("failed to deregister consul service", "err", err)
 			}
 		}
 	}
@@ -627,10 +620,10 @@ func (p *prometheusOutput) Close() error {
 		defer cancel()
 		err = server.Shutdown(ctx)
 		if err != nil {
-			p.logger.Printf("failed to shutdown http server: %v", err)
+			p.logger.Error("failed to shutdown http server", "err", err)
 		}
 	}
-	p.logger.Printf("closed.")
+	p.logger.Info("closed")
 	p.wg.Wait()
 	return nil
 }
@@ -670,7 +663,7 @@ func (p *prometheusOutput) Collect(ch chan<- prometheus.Metric) {
 	for _, entry := range entries {
 		select {
 		case <-ctx.Done():
-			p.logger.Printf("collection context terminated: %v", ctx.Err())
+			p.logger.Warn("collection context terminated", "err", ctx.Err())
 			return
 		case ch <- entry:
 		}
@@ -714,7 +707,7 @@ func (p *prometheusOutput) workerHandleProto(ctx context.Context, m *outputs.Pro
 		var err error
 		pmsg, err = outputs.AddSubscriptionTarget(pmsg, m.GetMeta(), cfg.AddTarget, dc.targetTpl)
 		if err != nil {
-			p.logger.Printf("failed to add target to the response: %v", err)
+			p.logger.Warn("failed to add target to response", "err", err)
 		}
 		if gnmiCache != nil {
 			gnmiCache.Write(ctx, measName, pmsg)
@@ -724,7 +717,7 @@ func (p *prometheusOutput) workerHandleProto(ctx context.Context, m *outputs.Pro
 		}
 		events, err := formatters.ResponseToEventMsgs(measName, pmsg, meta, dc.evps...)
 		if err != nil {
-			p.logger.Printf("failed to convert message to event: %v", err)
+			p.logger.Warn("failed to convert message to event", "err", err)
 			return
 		}
 		p.workerHandleEvent(events...)
@@ -742,9 +735,7 @@ func (p *prometheusOutput) workerHandleEvent(evs ...*formatters.EventMsg) {
 	if cfg == nil || dc == nil {
 		return
 	}
-	if cfg.Debug {
-		p.logger.Printf("got event to store: %+v", evs)
-	}
+	p.logger.Debug("got event to store", "events", evs)
 	mks := make([]*metricAndKey, 0, len(evs))
 	for _, ev := range evs {
 		for _, pm := range dc.mb.MetricsFromEvent(ev, time.Now()) {
@@ -765,9 +756,7 @@ func (p *prometheusOutput) workerHandleEvent(evs ...*formatters.EventMsg) {
 		// existing one.
 		if !ok || mk.m.Time == nil || (ok && mk.m.Time != nil && e.Time.Before(*mk.m.Time)) {
 			p.entries[mk.k] = mk.m
-			if cfg.Debug {
-				p.logger.Printf("saved key=%d, metric: %+v", mk.k, mk.m)
-			}
+			p.logger.Debug("saved metric", "key", mk.k, "metric", mk.m)
 		}
 	}
 }
@@ -886,35 +875,35 @@ func (p *prometheusOutput) setDefaultsFor(c *config) error {
 				c.address = c.ServiceRegistration.ServiceAddress
 				_, port, err = net.SplitHostPort(c.Listen)
 				if err != nil {
-					p.logger.Printf("invalid 'listen' field format: %v", err)
+					p.logger.Error("invalid 'listen' field format", "err", err)
 					return err
 				}
 				c.port, err = strconv.Atoi(port)
 				if err != nil {
-					p.logger.Printf("invalid 'listen' field format: %v", err)
+					p.logger.Error("invalid 'listen' field format", "err", err)
 					return err
 				}
 				return nil
 			}
 			// if the error is not related to a missing port, fail
-			p.logger.Printf("invalid 'service-registration.service-address' field format: %v", err)
+			p.logger.Error("invalid 'service-registration.service-address' field format", "err", err)
 			return err
 		}
 		// the service-address contains both an address and a port number
 		c.port, err = strconv.Atoi(port)
 		if err != nil {
-			p.logger.Printf("invalid 'service-registration.service-address' field format: %v", err)
+			p.logger.Error("invalid 'service-registration.service-address' field format", "err", err)
 			return err
 		}
 	default:
 		c.address, port, err = net.SplitHostPort(c.Listen)
 		if err != nil {
-			p.logger.Printf("invalid 'listen' field format: %v", err)
+			p.logger.Error("invalid 'listen' field format", "err", err)
 			return err
 		}
 		c.port, err = strconv.Atoi(port)
 		if err != nil {
-			p.logger.Printf("invalid 'listen' field format: %v", err)
+			p.logger.Error("invalid 'listen' field format", "err", err)
 			return err
 		}
 	}

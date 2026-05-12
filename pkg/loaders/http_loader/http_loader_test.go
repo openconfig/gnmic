@@ -12,8 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -28,6 +27,7 @@ import (
 	"github.com/openconfig/gnmic/pkg/actions"
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/loaders"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 // fakeAction is a minimal implementation of actions.Action for testing.
@@ -57,7 +57,7 @@ func (f *fakeAction) Run(ctx context.Context, aCtx *actions.Context) (interface{
 }
 func (f *fakeAction) NName() string                              { return f.name }
 func (f *fakeAction) WithTargets(map[string]*types.TargetConfig) {}
-func (f *fakeAction) WithLogger(*log.Logger)                     {}
+func (f *fakeAction) WithLogger(*slog.Logger)                    {}
 
 func newTestLoader(t *testing.T) *httpLoader {
 	t.Helper()
@@ -66,7 +66,7 @@ func newTestLoader(t *testing.T) *httpLoader {
 		m:              new(sync.RWMutex),
 		lastTargets:    make(map[string]*types.TargetConfig),
 		targetConfigFn: func(tc *types.TargetConfig) error { return nil },
-		logger:         log.New(io.Discard, "", 0),
+		logger:         logging.DiscardLogger(),
 	}
 }
 

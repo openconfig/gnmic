@@ -10,10 +10,11 @@ package actions
 
 import (
 	"context"
-	"log"
+	"log/slog"
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmic/pkg/api/types"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 type Action interface {
@@ -32,7 +33,7 @@ type Action interface {
 	// WithTargets passes the known configured targets to the action when initialized
 	WithTargets(map[string]*types.TargetConfig)
 	// WithLogger passes the configured logger to the action
-	WithLogger(*log.Logger)
+	WithLogger(*slog.Logger)
 }
 
 // Context defines an action execution context
@@ -64,6 +65,13 @@ func Register(name string, initFn Initializer) {
 	Actions[name] = initFn
 }
 
+// BindLogger returns a non-nil *slog.Logger annotated with the action type and
+// instance name. If parent is nil, a discarding logger is returned so callers
+// never need a nil check.
+func BindLogger(parent *slog.Logger, actionType, name string) *slog.Logger {
+	return logging.Component(parent, "action", actionType, name)
+}
+
 func DecodeConfig(src, dst interface{}) error {
 	decoder, err := mapstructure.NewDecoder(
 		&mapstructure.DecoderConfig{
@@ -83,7 +91,7 @@ func WithTargets(tcs map[string]*types.TargetConfig) Option {
 	}
 }
 
-func WithLogger(l *log.Logger) Option {
+func WithLogger(l *slog.Logger) Option {
 	return func(a Action) {
 		a.WithLogger(l)
 	}

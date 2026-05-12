@@ -14,8 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"log"
+	"log/slog"
 	"net"
 	"slices"
 	"strconv"
@@ -34,10 +33,10 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	gfile "github.com/openconfig/gnmic/pkg/file"
 	"github.com/openconfig/gnmic/pkg/loaders"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 const (
-	loggingPrefix  = "[consul_loader] "
 	loaderType     = "consul"
 	defaultAddress = "localhost:8500"
 	defaultPrefix  = "gnmic/config/targets"
@@ -54,7 +53,7 @@ func init() {
 			cfg:         &cfg{},
 			m:           new(sync.Mutex),
 			lastTargets: make(map[string]map[string]*types.TargetConfig),
-			logger:      log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
+			logger:      logging.DiscardLogger(),
 		}
 	})
 }
@@ -67,7 +66,7 @@ type consulLoader struct {
 	// map of targets per service
 	lastTargets    map[string]map[string]*types.TargetConfig
 	targetConfigFn func(*types.TargetConfig) error
-	logger         *log.Logger
+	logger         *slog.Logger
 	//
 	vars          map[string]interface{}
 	actionsConfig map[string]map[string]interface{}
@@ -110,6 +109,10 @@ type cfg struct {
 	ActionsTimeout time.Duration `mapstructure:"actions-timeout,omitempty" json:"actions-timeout,omitempty"`
 }
 
+func (c *cfg) LogValue() slog.Value {
+	return logging.RedactedValue(c)
+}
+
 type serviceDef struct {
 	Name   string                 `mapstructure:"name,omitempty" json:"name,omitempty"`
 	Tags   []string               `mapstructure:"tags,omitempty" json:"tags,omitempty"`
@@ -120,7 +123,7 @@ type serviceDef struct {
 	targetTagsTemplate map[string]*template.Template
 }
 
-func (c *consulLoader) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger, opts ...loaders.Option) error {
+func (c *consulLoader) Init(ctx context.Context, cfg map[string]interface{}, logger *slog.Logger, opts ...loaders.Option) error {
 	err := loaders.DecodeConfig(cfg, c.cfg)
 	if err != nil {
 		return err
@@ -132,10 +135,7 @@ func (c *consulLoader) Init(ctx context.Context, cfg map[string]interface{}, log
 	for _, opt := range opts {
 		opt(c)
 	}
-	if logger != nil {
-		c.logger.SetOutput(logger.Writer())
-		c.logger.SetFlags(logger.Flags())
-	}
+	c.logger = loaders.BindLogger(logger, loaderType)
 
 	for _, se := range c.cfg.Services {
 		se.tags = make(map[string]struct{})
@@ -195,7 +195,7 @@ func (c *consulLoader) Init(ctx context.Context, cfg map[string]interface{}, log
 		return fmt.Errorf("unknown action name %q", actName)
 	}
 	c.numActions = len(c.addActions) + len(c.delActions)
-	c.logger.Printf("initialized consul loader: %+v", c.cfg)
+	c.logger.Info("initialized consul loader", slog.Any("config", c.cfg))
 	return nil
 }
 
@@ -205,7 +205,7 @@ func (c *consulLoader) Start(ctx context.Context) chan *loaders.TargetOperation 
 CLIENT:
 	err = c.initClient()
 	if err != nil {
-		c.logger.Printf("Failed to create a Consul client:%v", err)
+		c.logger.Error("failed to create a consul client:", "err", err)
 		consulLoaderWatchError.WithLabelValues(loaderType, fmt.Sprintf("%v", err)).Add(1)
 		time.Sleep(2 * time.Second)
 		goto CLIENT
@@ -226,7 +226,7 @@ CLIENT:
 					srvName = se.Service.Service
 					tc, err := c.serviceEntryToTargetConfig(se)
 					if err != nil {
-						c.logger.Printf("Failed to convert service entry %+v to a target config: %v", se, err)
+						c.logger.Error("failed to convert service entry to a target config", "service", se, "err", err)
 						continue
 					}
 					tcs[tc.Name] = tc
@@ -240,7 +240,7 @@ CLIENT:
 		go func(s *serviceDef) {
 			err := c.startServicesWatch(ctx, s.Name, s.Tags, sChan, time.Minute)
 			if err != nil {
-				c.logger.Printf("service %q watch stopped: %v", s.Name, err)
+				c.logger.Info("service watch stopped", "service", s.Name, "err", err)
 			}
 		}(s)
 	}
@@ -262,7 +262,7 @@ func (c *consulLoader) RunOnce(ctx context.Context) (map[string]*types.TargetCon
 			defer wg.Done()
 			ses, _, err := c.client.Health().ServiceMultipleTags(s.Name, s.Tags, true, &api.QueryOptions{})
 			if err != nil {
-				c.logger.Printf("failed to get service %q instances: %v", s.Name, err)
+				c.logger.Error("failed to get service instances", "service", s.Name, "err", err)
 				return
 			}
 			for _, se := range ses {
@@ -289,7 +289,7 @@ func (c *consulLoader) RunOnce(ctx context.Context) (map[string]*types.TargetCon
 			}
 			tc, err := c.serviceEntryToTargetConfig(se)
 			if err != nil {
-				c.logger.Printf("failed to convert service %+v to target config: %v", se, err)
+				c.logger.Error("failed to convert service to target config", "service", se, "err", err)
 				continue
 			}
 			if tc != nil {
@@ -361,11 +361,11 @@ func (c *consulLoader) startServicesWatch(ctx context.Context, serviceName strin
 			return ctx.Err()
 		default:
 			if c.cfg.Debug {
-				c.logger.Printf("(re)starting watch service=%q, index=%d", serviceName, qOpts.WaitIndex)
+				c.logger.Info("starting watch", "service", serviceName, "index", qOpts.WaitIndex)
 			}
 			index, err = c.watch(qOpts.WithContext(ctx), serviceName, tags, sChan)
 			if err != nil {
-				c.logger.Printf("service %q watch failed: %v", serviceName, err)
+				c.logger.Error("service watch failed", "service", serviceName, "err", err)
 			}
 			if index == 1 {
 				qOpts.WaitIndex = index
@@ -390,7 +390,7 @@ func (c *consulLoader) watch(qOpts *api.QueryOptions, serviceName string, tags [
 		return 0, err
 	}
 	if meta.LastIndex == qOpts.WaitIndex {
-		c.logger.Printf("service=%q did not change", serviceName)
+		c.logger.Debug("service did not change", "service", serviceName)
 		return meta.LastIndex, nil
 	}
 	if len(se) == 0 {
@@ -444,7 +444,7 @@ SRV:
 			buffer.Reset()
 			err := sd.targetNameTemplate.Execute(&buffer, se.Service)
 			if err != nil {
-				c.logger.Println("Could not execute nameTemplate")
+				c.logger.Info("Could not execute nameTemplate")
 				continue
 			}
 			tc.Name = buffer.String()
@@ -457,7 +457,7 @@ SRV:
 				buffer.Reset()
 				err := tagTemplate.Execute(&buffer, se.Service)
 				if err != nil {
-					c.logger.Println("Could not execute tagTemplate:", tagName)
+					c.logger.Error("could not execute tag template", "tag", tagName)
 					return nil, err
 				}
 				eventTags[tagName] = buffer.String()
@@ -473,14 +473,14 @@ SRV:
 func (c *consulLoader) updateTargets(ctx context.Context, srvName string, tcs map[string]*types.TargetConfig, opChan chan *loaders.TargetOperation) {
 	targetOp, err := c.runActions(ctx, tcs, loaders.Diff(c.lastTargets[srvName], tcs))
 	if err != nil {
-		c.logger.Printf("failed to run actions: %v", err)
+		c.logger.Error("failed to run actions:", "err", err)
 		return
 	}
 	numAdds := len(targetOp.Add)
 	numDels := len(targetOp.Del)
 	if c.cfg.Debug {
-		c.logger.Printf("updating service %s with targets=%v", srvName, tcs)
-		c.logger.Printf("updating service %s with op=%v", srvName, targetOp)
+		c.logger.Debug("updating service targets", "service", srvName, "targets", tcs)
+		c.logger.Debug("updating service operation", "service", srvName, "operation", targetOp)
 	}
 	defer func() {
 		consulLoaderLoadedTargets.WithLabelValues(loaderType).Set(float64(numAdds))
@@ -559,7 +559,7 @@ func (c *consulLoader) runActions(ctx context.Context, tcs map[string]*types.Tar
 	for _, tc := range tcs {
 		err = c.targetConfigFn(tc)
 		if err != nil {
-			c.logger.Printf("failed running target config fn on target %q", tc.Name)
+			c.logger.Error("failed running target config fn", "target", tc.Name)
 		}
 	}
 
@@ -607,7 +607,7 @@ func (c *consulLoader) runActions(ctx context.Context, tcs map[string]*types.Tar
 			defer wg.Done()
 			err := c.runOnAddActions(ctx, tc.Name, tcs)
 			if err != nil {
-				c.logger.Printf("failed running OnAdd actions: %v", err)
+				c.logger.Error("failed running OnAdd actions", "err", err)
 				return
 			}
 			opChan <- &loaders.TargetOperation{Add: map[string]*types.TargetConfig{n: tc}}
@@ -619,7 +619,7 @@ func (c *consulLoader) runActions(ctx context.Context, tcs map[string]*types.Tar
 			defer wg.Done()
 			err := c.runOnDeleteActions(ctx, name, tcs)
 			if err != nil {
-				c.logger.Printf("failed running OnDelete actions: %v", err)
+				c.logger.Error("failed running OnDelete actions", "err", err)
 				return
 			}
 			opChan <- &loaders.TargetOperation{Del: []string{name}}
@@ -639,7 +639,7 @@ func (c *consulLoader) runOnAddActions(ctx context.Context, tName string, tcs ma
 		Targets: tcs,
 	}
 	for _, act := range c.addActions {
-		c.logger.Printf("running action %q for target %q", act.NName(), tName)
+		c.logger.Info("running action", "action", act.NName(), "target", tName)
 		res, err := act.Run(ctx, aCtx)
 		if err != nil {
 			return fmt.Errorf("action %q for target %q failed: %v", act.NName(), tName, err)
@@ -647,9 +647,9 @@ func (c *consulLoader) runOnAddActions(ctx context.Context, tName string, tcs ma
 
 		aCtx.Env[act.NName()] = utils.Convert(res)
 		if c.cfg.Debug {
-			c.logger.Printf("action %q, target %q result: %+v", act.NName(), tName, res)
+			c.logger.Debug("action result", "action", act.NName(), "target", tName, "result", res)
 			b, _ := json.MarshalIndent(aCtx, "", "  ")
-			c.logger.Printf("action %q context:\n%s", act.NName(), string(b))
+			c.logger.Debug("action context", "action", act.NName(), "context", string(b))
 		}
 	}
 	return nil

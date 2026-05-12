@@ -23,7 +23,7 @@ func (a *App) InitInput(ctx context.Context, name string, tcs map[string]*types.
 	}
 	if cfg, ok := a.Config.Inputs[name]; ok {
 		if inputType, ok := cfg["type"]; ok {
-			a.Logger.Printf("starting input type %s", inputType)
+			a.Logger.Info("starting input", "type", inputType)
 			if initializer, ok := inputs.Inputs[inputType.(string)]; ok {
 				in := initializer()
 				go func() {
@@ -34,7 +34,7 @@ func (a *App) InitInput(ctx context.Context, name string, tcs map[string]*types.
 						inputs.WithConfigStore(a.Store),
 					)
 					if err != nil {
-						a.Logger.Printf("failed to init input type %q: %v", inputType, err)
+						a.Logger.Info("failed to init input", "type", inputType, "err", err)
 					}
 				}()
 				a.operLock.Lock()
