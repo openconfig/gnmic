@@ -257,6 +257,24 @@ func (tc *TargetConfig) DeepCopy() *TargetConfig {
 	return ntc
 }
 
+// RedactedDeepCopy returns a deep copy of tc with sensitive credential fields
+// replaced by placeholder values suitable for REST API responses (same as String()).
+func (tc *TargetConfig) RedactedDeepCopy() *TargetConfig {
+	if tc == nil {
+		return nil
+	}
+	out := tc.DeepCopy()
+	if out.Password != nil {
+		v := "****"
+		out.Password = &v
+	}
+	if out.Token != nil {
+		v := "****"
+		out.Token = &v
+	}
+	return out
+}
+
 func (tc *TargetConfig) SetTLSConfig(tlsConfig *tls.Config) {
 	tc.tlsConfig = tlsConfig
 }

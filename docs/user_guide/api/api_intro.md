@@ -60,6 +60,12 @@ api-server:
   debug: false
   # boolean, disables creating log messages when accessing the `healthz` path
   healthz-disable-logging: false
+  # boolean, include real target password and OAuth token in REST JSON responses.
+  # Defaults to false: sensitive fields are replaced with "****" in GET responses
+  # that return target configuration (e.g. /api/v1/targets, /api/v1/config/targets,
+  # and the targets section of GET /api/v1/config).
+  # Enable only on trusted networks or with TLS client authentication.
+  expose-target-secrets: false
 ```
 
 ## API Endpoints

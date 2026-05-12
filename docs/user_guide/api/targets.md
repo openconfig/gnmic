@@ -2,7 +2,9 @@
 
 Request all active targets details.
 
-Returns all active targets as json
+Returns all active targets as json.
+
+By default, target **`password`** and **`token`** in each `config` object are redacted to **`****`**. To include real values, set `expose-target-secrets: true` under `api-server` in your configuration (use only on trusted networks).
 
 === "Request"
     ```bash
@@ -16,7 +18,7 @@ Returns all active targets as json
                 "name": "192.168.1.131:57400",
                 "address": "192.168.1.131:57400",
                 "username": "admin",
-                "password": "admin",
+                "password": "****",
                 "timeout": 10000000000,
                 "insecure": true,
                 "skip-verify": false,
@@ -41,7 +43,7 @@ Returns all active targets as json
                 "name": "192.168.1.131:57401",
                 "address": "192.168.1.131:57401",
                 "username": "admin",
-                "password": "admin",
+                "password": "****",
                 "timeout": 10000000000,
                 "insecure": true,
                 "skip-verify": false,
@@ -84,11 +86,11 @@ Returns all active targets as json
 
 Query a single target details, if active.
 
-Returns a single target if active as json, where {id} is the target ID
+Returns a single target if active as json, where {id} is the target ID. Values of `config.password` and `config.token` follow the same redaction behavior as the list-all-targets endpoint above.
 
 === "Request"
     ```bash
-    curl --request GET gnmic-api-address:port/targets/192.168.1.131:57400
+    curl --request GET gnmic-api-address:port/api/v1/targets/192.168.1.131:57400
     ```
 === "200 OK"
     ```json
@@ -97,7 +99,7 @@ Returns a single target if active as json, where {id} is the target ID
             "name": "192.168.1.131:57400",
             "address": "192.168.1.131:57400",
             "username": "admin",
-            "password": "admin",
+            "password": "****",
             "timeout": 10000000000,
             "insecure": true,
             "skip-verify": false,
