@@ -9,11 +9,12 @@
 package gtemplate
 
 import (
-	"context"
+	"encoding/json"
+	"path/filepath"
+	"strings"
 	"text/template"
 
-	"github.com/hairyhenderson/gomplate/v3"
-	"github.com/hairyhenderson/gomplate/v3/data"
+	"gopkg.in/yaml.v2"
 )
 
 type templateEngine interface {
@@ -27,5 +28,77 @@ func NewTemplateEngine() templateEngine {
 type gmplt struct{}
 
 func (*gmplt) CreateFuncs() template.FuncMap {
-	return gomplate.CreateFuncs(context.TODO(), new(data.Data))
+	return template.FuncMap{
+		"fromJSON":   fromJSON,
+		"toJSON":     toJSON,
+		"fromYAML":   fromYAML,
+		"toYAML":     toYAML,
+		"split":      split,
+		"join":       join,
+		"replace":    replace,
+		"trimPrefix": trimPrefix,
+		"trimSuffix": trimSuffix,
+		"toTitle":    toTitle,
+		"toLower":    toLower,
+		"toUpper":    toUpper,
+		"pathBase":   pathBase,
+	}
+}
+
+func fromJSON(v any) string {
+	a, _ := json.Marshal(v)
+	return string(a)
+}
+
+func toJSON(v string) any {
+	var result any
+	json.Unmarshal([]byte(v), &result)
+	return result
+}
+
+func fromYAML(v any) string {
+	a, _ := yaml.Marshal(v)
+	return string(a)
+}
+
+func toYAML(v string) any {
+	var result any
+	yaml.Unmarshal([]byte(v), &result)
+	return result
+}
+
+func split(v string, sep string) []string {
+	return strings.Split(v, sep)
+}
+
+func join(v []string, sep string) string {
+	return strings.Join(v, sep)
+}
+
+func replace(v string, old string, new string) string {
+	return strings.ReplaceAll(v, old, new)
+}
+
+func trimPrefix(v string, prefix string) string {
+	return strings.TrimPrefix(v, prefix)
+}
+
+func trimSuffix(v string, suffix string) string {
+	return strings.TrimSuffix(v, suffix)
+}
+
+func toTitle(v string) string {
+	return strings.Title(v)
+}
+
+func toLower(v string) string {
+	return strings.ToLower(v)
+}
+
+func toUpper(v string) string {
+	return strings.ToUpper(v)
+}
+
+func pathBase(v string) string {
+	return filepath.Base(v)
 }
