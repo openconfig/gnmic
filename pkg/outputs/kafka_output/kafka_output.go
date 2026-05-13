@@ -238,7 +238,7 @@ func (k *kafkaOutput) Init(ctx context.Context, name string, cfg map[string]inte
 	for i := 0; i < newCfg.NumWorkers; i++ {
 		cfg := *config
 		cfg.ClientID = fmt.Sprintf("%s-%d", config.ClientID, i)
-		go k.worker(ctx, i, &cfg, *k.msgChan.Load())
+		go k.worker(ctx, i, &cfg, *k.msgChan.Load(), k.wg)
 	}
 	return nil
 }
@@ -355,7 +355,7 @@ func (k *kafkaOutput) Update(ctx context.Context, cfg map[string]any) error {
 		for i := 0; i < currCfg.NumWorkers; i++ {
 			cfgCopy := *baseCfg
 			cfgCopy.ClientID = fmt.Sprintf("%s-%d", baseCfg.ClientID, i)
-			go k.worker(runCtx, i, &cfgCopy, newChan)
+			go k.worker(runCtx, i, &cfgCopy, newChan, k.wg)
 		}
 
 		drainDone := make(chan struct{})
@@ -420,16 +420,15 @@ func (k *kafkaOutput) setDefaultsFor(cfg *config) error {
 	if cfg.Name == "" {
 		cfg.Name = "gnmic-" + uuid.New().String()
 	}
-	if cfg.SASL == nil {
-		return nil
-	}
-	cfg.SASL.Mechanism = strings.ToUpper(cfg.SASL.Mechanism)
-	switch cfg.SASL.Mechanism {
-	case "":
-		cfg.SASL.Mechanism = "PLAIN"
-	case "OAUTHBEARER":
-		if cfg.SASL.TokenURL == "" {
-			return errors.New("missing token-url for kafka SASL mechanism OAUTHBEARER")
+	if cfg.SASL != nil {
+		cfg.SASL.Mechanism = strings.ToUpper(cfg.SASL.Mechanism)
+		switch cfg.SASL.Mechanism {
+		case "":
+			cfg.SASL.Mechanism = "PLAIN"
+		case "OAUTHBEARER":
+			if cfg.SASL.TokenURL == "" {
+				return errors.New("missing token-url for kafka SASL mechanism OAUTHBEARER")
+			}
 		}
 	}
 
@@ -510,19 +509,19 @@ func (k *kafkaOutput) Close() error {
 	return nil
 }
 
-func (k *kafkaOutput) worker(ctx context.Context, idx int, kafkaCfg *sarama.Config, msgChan <-chan *outputs.ProtoMsg) {
+func (k *kafkaOutput) worker(ctx context.Context, idx int, kafkaCfg *sarama.Config, msgChan <-chan *outputs.ProtoMsg, wg *sync.WaitGroup) {
 	currentCfg := k.cfg.Load()
 	if currentCfg.SyncProducer {
-		k.syncProducerWorker(ctx, idx, kafkaCfg, msgChan)
+		k.syncProducerWorker(ctx, idx, kafkaCfg, msgChan, wg)
 		return
 	}
-	k.asyncProducerWorker(ctx, idx, kafkaCfg, msgChan)
+	k.asyncProducerWorker(ctx, idx, kafkaCfg, msgChan, wg)
 }
 
-func (k *kafkaOutput) asyncProducerWorker(ctx context.Context, idx int, kafkaCfg *sarama.Config, msgChan <-chan *outputs.ProtoMsg) {
+func (k *kafkaOutput) asyncProducerWorker(ctx context.Context, idx int, kafkaCfg *sarama.Config, msgChan <-chan *outputs.ProtoMsg, wg *sync.WaitGroup) {
 	var producer sarama.AsyncProducer
 	var err error
-	defer k.wg.Done()
+	defer wg.Done()
 	workerLogPrefix := fmt.Sprintf("worker-%d", idx)
 	k.logger.Info("worker starting", "worker", workerLogPrefix)
 CRPROD:
@@ -632,10 +631,10 @@ CRPROD:
 	}
 }
 
-func (k *kafkaOutput) syncProducerWorker(ctx context.Context, idx int, kafkaCfg *sarama.Config, msgChan <-chan *outputs.ProtoMsg) {
+func (k *kafkaOutput) syncProducerWorker(ctx context.Context, idx int, kafkaCfg *sarama.Config, msgChan <-chan *outputs.ProtoMsg, wg *sync.WaitGroup) {
 	var producer sarama.SyncProducer
 	var err error
-	defer k.wg.Done()
+	defer wg.Done()
 	workerLogPrefix := fmt.Sprintf("worker-%d", idx)
 	k.logger.Info("worker starting", "worker", workerLogPrefix)
 CRPROD:

@@ -16,6 +16,7 @@ import (
 	"io"
 	"net/http"
 	"sort"
+	"sync"
 	"time"
 
 	gogoproto "github.com/gogo/protobuf/proto"
@@ -54,8 +55,8 @@ func (p *promWriteOutput) createHTTPClientFor(c *config) (*http.Client, error) {
 	return cl, nil
 }
 
-func (p *promWriteOutput) writer(ctx context.Context) {
-	defer p.wg.Done()
+func (p *promWriteOutput) writer(ctx context.Context, wg *sync.WaitGroup) {
+	defer wg.Done()
 	defer p.logger.Info("writer stopped")
 	cfg := p.cfg.Load()
 	p.logger.Info("starting writer")
@@ -179,8 +180,8 @@ RETRY:
 }
 
 // metadataWriter writes the cached metadata entries to the remote address each `metadata.interval`
-func (p *promWriteOutput) metadataWriter(ctx context.Context) {
-	defer p.wg.Done()
+func (p *promWriteOutput) metadataWriter(ctx context.Context, wg *sync.WaitGroup) {
+	defer wg.Done()
 	defer p.logger.Info("metadata writer stopped")
 	cfg := p.cfg.Load()
 	if cfg.Metadata == nil || !cfg.Metadata.Include {

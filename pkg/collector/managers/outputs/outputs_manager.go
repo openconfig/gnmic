@@ -59,6 +59,7 @@ func NewOutputsManager(ctx context.Context, store *collstore.Store, pipe <-chan 
 		processorsInUse: make(map[string]map[string]struct{}),
 		stats:           newOutputStats(),
 		reg:             reg,
+		logger:          logging.DiscardLogger(),
 	}
 }
 

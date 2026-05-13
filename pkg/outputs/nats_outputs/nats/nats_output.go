@@ -217,7 +217,7 @@ func (n *NatsOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	n.ctx, n.cancelFn = context.WithCancel(ctx)
 	n.wg.Add(newCfg.NumWorkers)
 	for i := 0; i < newCfg.NumWorkers; i++ {
-		go n.worker(n.ctx, i)
+		go n.worker(n.ctx, i, n.wg)
 	}
 
 	return nil
@@ -341,7 +341,7 @@ func (n *NatsOutput) Update(ctx context.Context, cfg map[string]any) error {
 
 		n.wg.Add(currCfg.NumWorkers)
 		for i := 0; i < currCfg.NumWorkers; i++ {
-			go n.worker(runCtx, i)
+			go n.worker(runCtx, i, n.wg)
 		}
 		// cancel old workers and loops
 		if oldCancel != nil {
@@ -505,8 +505,8 @@ func (n *NatsOutput) Dial(network, address string) (net.Conn, error) {
 	}
 }
 
-func (n *NatsOutput) worker(ctx context.Context, i int) {
-	defer n.wg.Done()
+func (n *NatsOutput) worker(ctx context.Context, i int, wg *sync.WaitGroup) {
+	defer wg.Done()
 	var natsConn *nats.Conn
 	var err error
 	workerLogPrefix := fmt.Sprintf("worker-%d", i)

@@ -222,7 +222,7 @@ func (n *jetstreamOutput) Init(ctx context.Context, name string, cfg map[string]
 	wctx, n.cancelFn = context.WithCancel(n.rootCtx) // create worker context
 	n.wg.Add(ncfg.NumWorkers)
 	for i := 0; i < ncfg.NumWorkers; i++ {
-		go n.worker(wctx, i)
+		go n.worker(wctx, i, n.wg)
 	}
 
 	return nil
@@ -396,7 +396,7 @@ func (n *jetstreamOutput) Update(ctx context.Context, cfg map[string]any) error 
 		// restart workers
 		n.wg.Add(currCfg.NumWorkers)
 		for i := 0; i < currCfg.NumWorkers; i++ {
-			go n.worker(runCtx, i)
+			go n.worker(runCtx, i, n.wg)
 		}
 		// cancel old workers
 		if oldCancel != nil {
@@ -524,8 +524,8 @@ func (n *jetstreamOutput) setLogger(logger *slog.Logger, name string) {
 	n.logger = outputs.BindLogger(logger, outputType, name)
 }
 
-func (n *jetstreamOutput) worker(ctx context.Context, i int) {
-	defer n.wg.Done()
+func (n *jetstreamOutput) worker(ctx context.Context, i int, wg *sync.WaitGroup) {
+	defer wg.Done()
 	var natsConn *nats.Conn
 	var err error
 	var subject string
