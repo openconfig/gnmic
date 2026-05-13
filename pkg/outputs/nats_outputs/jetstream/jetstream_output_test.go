@@ -1,3 +1,7 @@
+// © 2026 Nokia.
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package jetstream_output
 
 import (
@@ -8,6 +12,54 @@ import (
 
 	"github.com/nats-io/nats.go"
 )
+
+func TestJetstreamOutput_Validate(t *testing.T) {
+	tests := []struct {
+		name    string
+		cfg     map[string]any
+		wantErr bool
+	}{
+		{
+			name:    "decode buffer-size",
+			cfg:     map[string]any{"buffer-size": "x"},
+			wantErr: true,
+		},
+		{
+			name:    "unknown subject-format",
+			cfg:     map[string]any{"stream": "s", "subject-format": "unknown"},
+			wantErr: true,
+		},
+		{
+			name: "invalid retention-policy",
+			cfg: map[string]any{
+				"stream":         "telemetry",
+				"subject-format": "static",
+				"create-stream":  map[string]any{"retention-policy": "invalid"},
+			},
+			wantErr: true,
+		},
+		{
+			name: "valid minimal",
+			cfg: map[string]any{
+				"stream":         "telemetry",
+				"subject-format": "static",
+			},
+			wantErr: false,
+		},
+	}
+	n := &jetstreamOutput{}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := n.Validate(tt.cfg)
+			if tt.wantErr && err == nil {
+				t.Fatal("expected error")
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
 
 func Test_isValidRetentionPolicy(t *testing.T) {
 	tests := []struct {

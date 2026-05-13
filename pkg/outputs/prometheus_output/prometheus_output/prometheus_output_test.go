@@ -427,3 +427,27 @@ func TestDrainChanRespectsContext(t *testing.T) {
 		t.Fatal("drainChan did not return after context cancellation")
 	}
 }
+
+func TestPrometheusOutputValidate(t *testing.T) {
+	tests := []struct {
+		name    string
+		cfg     map[string]any
+		wantErr bool
+	}{
+		{name: "decode buffer-size", cfg: map[string]any{"buffer-size": "x"}, wantErr: true},
+		{name: "bad target-template", cfg: map[string]any{"target-template": "{{"}, wantErr: true},
+		{name: "valid listen", cfg: map[string]any{"listen": ":0"}, wantErr: false},
+	}
+	p := &prometheusOutput{}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := p.Validate(tt.cfg)
+			if tt.wantErr && err == nil {
+				t.Fatal("expected error")
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}

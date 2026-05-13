@@ -246,16 +246,16 @@ func (p *promWriteOutput) Init(ctx context.Context, name string, cfg map[string]
 
 	p.wg.Add(ncfg.NumWorkers)
 	for i := 0; i < ncfg.NumWorkers; i++ {
-		go p.worker(wctx)
+		go p.worker(wctx, p.wg)
 	}
 
 	p.wg.Add(ncfg.NumWriters)
 	for i := 0; i < ncfg.NumWriters; i++ {
-		go p.writer(wctx)
+		go p.writer(wctx, p.wg)
 	}
 
 	p.wg.Add(1)
-	go p.metadataWriter(wctx)
+	go p.metadataWriter(wctx, p.wg)
 
 	p.logger.Info("initialized prometheus write output", slog.Any("config", p.String()))
 	return nil
@@ -359,16 +359,16 @@ func (p *promWriteOutput) Update(ctx context.Context, cfg map[string]any) error 
 		// restart workers
 		p.wg.Add(newCfg.NumWorkers)
 		for i := 0; i < newCfg.NumWorkers; i++ {
-			go p.worker(runCtx)
+			go p.worker(runCtx, p.wg)
 		}
 
 		p.wg.Add(newCfg.NumWriters)
 		for i := 0; i < newCfg.NumWriters; i++ {
-			go p.writer(runCtx)
+			go p.writer(runCtx, p.wg)
 		}
 
 		p.wg.Add(1)
-		go p.metadataWriter(runCtx)
+		go p.metadataWriter(runCtx, p.wg)
 
 		// cancel old workers
 		if oldCancel != nil {
@@ -481,8 +481,8 @@ func (p *promWriteOutput) String() string {
 	return logging.RedactedJSON(cfg)
 }
 
-func (p *promWriteOutput) worker(ctx context.Context) {
-	defer p.wg.Done()
+func (p *promWriteOutput) worker(ctx context.Context, wg *sync.WaitGroup) {
+	defer wg.Done()
 	defer p.logger.Info("worker stopped")
 	for {
 		select {

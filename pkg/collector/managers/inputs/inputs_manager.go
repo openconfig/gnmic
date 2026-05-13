@@ -41,6 +41,7 @@ func NewInputsManager(ctx context.Context, store *collstore.Store, pipeline chan
 		inputFactories:  inputs.Inputs,
 		inputs:          map[string]*ManagedInput{},
 		processorsInUse: make(map[string]map[string]struct{}),
+		logger:          logging.DiscardLogger(),
 	}
 }
 

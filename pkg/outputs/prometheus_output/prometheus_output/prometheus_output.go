@@ -305,10 +305,6 @@ func (p *prometheusOutput) Validate(cfg map[string]any) error {
 	if err != nil {
 		return err
 	}
-	_, err = gtemplate.CreateTemplate("target-template", ncfg.TargetTemplate)
-	if err != nil {
-		return err
-	}
 	return nil
 }
 

@@ -168,7 +168,7 @@ func (t *tcpOutput) Init(ctx context.Context, name string, cfg map[string]interf
 	ctx, t.cancelFn = context.WithCancel(t.rootCtx)
 	t.wg.Add(newCfg.NumWorkers)
 	for i := 0; i < newCfg.NumWorkers; i++ {
-		go t.start(ctx, i)
+		go t.start(ctx, t.wg, i)
 	}
 	return nil
 }
@@ -261,11 +261,16 @@ func (t *tcpOutput) Update(_ context.Context, cfg map[string]any) error {
 	}
 	t.dynCfg.Store(dc)
 	t.cfg.Store(newCfg)
-	oldChan := *t.buffer.Load()
-	oldWg := t.wg
-	t.wg = new(sync.WaitGroup)
-	oldCancel := t.cancelFn
 	if swapChannel || restartWorkers {
+		// only reassign wg/cancelFn when actually restarting workers,
+		// and pass the new wg into the new goroutines so each Done()
+		// targets the wg it was started with.
+		oldChan := *t.buffer.Load()
+		oldWg := t.wg
+		oldCancel := t.cancelFn
+		newWg := new(sync.WaitGroup)
+		t.wg = newWg
+
 		var newChan chan []byte
 		if swapChannel {
 			newChan = make(chan []byte, newCfg.BufferSize)
@@ -277,9 +282,9 @@ func (t *tcpOutput) Update(_ context.Context, cfg map[string]any) error {
 
 		var ctx context.Context
 		ctx, t.cancelFn = context.WithCancel(t.rootCtx)
-		t.wg.Add(newCfg.NumWorkers)
+		newWg.Add(newCfg.NumWorkers)
 		for i := 0; i < newCfg.NumWorkers; i++ {
-			go t.start(ctx, i)
+			go t.start(ctx, newWg, i)
 		}
 		if oldCancel != nil {
 			oldCancel()
@@ -384,8 +389,8 @@ func (t *tcpOutput) String() string {
 	return string(b)
 }
 
-func (t *tcpOutput) start(ctx context.Context, idx int) {
-	defer t.wg.Done()
+func (t *tcpOutput) start(ctx context.Context, wg *sync.WaitGroup, idx int) {
+	defer wg.Done()
 	workerLogPrefix := fmt.Sprintf("worker-%d", idx)
 START:
 	if ctx.Err() != nil {
