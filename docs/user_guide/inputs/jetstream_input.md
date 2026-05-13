@@ -4,6 +4,8 @@ Each gNMIc instance creates one durable consumer using the configured `subjects`
 
 For scaling across multiple consumers, deploy multiple gNMIc instances with different consumer names. Each instance will create its own durable consumer on the stream.
 
+With JetStream **workqueue** retention, only one consumer may deliver a given message. When `num-workers` is greater than `1`, gNMIc still uses a single underlying durable consumer shared by all workers on that instance so the stream is not accidentally configured with multiple competing consumers.
+
 The `jetstream` input will export received messages to the configured `outputs`. Optionally, `event-processors` can be applied when using event format.
 
 ```yaml

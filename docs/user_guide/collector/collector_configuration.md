@@ -46,6 +46,10 @@ api-server:
   expose-target-secrets: false
 ```
 
+Before the collector API server listens, string fields in `api-server` (listen address, TLS file paths, `client-auth`, and similar) are expanded with [`os.ExpandEnv`](https://pkg.go.dev/os#ExpandEnv), so you can use `$VAR` or `${VAR}` in the configuration file.
+
+When clustering is enabled, the same expansion is applied to `clustering` string fields (for example `cluster-name`, `instance-name`, `service-address`, tags, and nested locker settings).
+
 ## Clustering
 
 Clustering enables multiple collector instances to work together for high availability and load distribution.

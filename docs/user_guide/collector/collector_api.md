@@ -549,6 +549,8 @@ DELETE /api/v1/config/tunnel-target-matches/{name}
 
 ## Cluster Endpoints
 
+These routes are only active when clustering is configured with a locker. If clustering is not enabled, requests under `/api/v1/cluster` receive HTTP `503` with a JSON body explaining that clustering is not enabled.
+
 ### Get Cluster Status
 
 ```
