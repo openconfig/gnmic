@@ -165,7 +165,7 @@ func (u *udpSock) Init(ctx context.Context, name string, cfg map[string]interfac
 	u.rootCtx, u.cancelFn = context.WithCancel(u.rootCtx)
 
 	u.wg.Add(1)
-	go u.start(u.rootCtx)
+	go u.start(u.rootCtx, u.wg)
 
 	u.logger.Info("initialized UDP output", slog.Any("config", u.String()))
 	return nil
@@ -289,9 +289,10 @@ func (u *udpSock) Update(_ context.Context, cfg map[string]any) error {
 		u.wg = newWG
 		u.buffer.Store(&newChan)
 
-		// start new worker
+		// start new worker; pass the new wg so the goroutine's Done targets
+		// the wg it was started with, even if u.wg is later reassigned.
 		u.wg.Add(1)
-		go u.start(runCtx)
+		go u.start(runCtx, u.wg)
 
 		// cancel old worker and wait
 		if oldCancel != nil {
@@ -418,8 +419,8 @@ func (u *udpSock) String() string {
 	return string(b)
 }
 
-func (u *udpSock) start(ctx context.Context) {
-	defer u.wg.Done()
+func (u *udpSock) start(ctx context.Context, wg *sync.WaitGroup) {
+	defer wg.Done()
 
 DIAL:
 	if ctx.Err() != nil {

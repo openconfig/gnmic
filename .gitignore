@@ -11,3 +11,4 @@ gnmic
 *.work*
 .idea
 tests/collector
+private
