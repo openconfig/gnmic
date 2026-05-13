@@ -23,10 +23,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/filters"
-	"github.com/docker/docker/api/types/network"
-	dClient "github.com/docker/docker/client"
+	dClient "github.com/moby/moby/client"
 	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmic/pkg/actions"
 	"github.com/openconfig/gnmic/pkg/api/types"
@@ -72,8 +69,8 @@ type dockerLoader struct {
 }
 
 type targetFilterComp struct {
-	fl   []filters.Args
-	nt   filters.Args
+	fl   []dClient.Filters
+	nt   dClient.Filters
 	port string
 	cfg  map[string]interface{}
 }
@@ -124,17 +121,14 @@ func (d *dockerLoader) Init(ctx context.Context, cfg map[string]interface{}, log
 	d.fl = make([]*targetFilterComp, 0, len(d.cfg.Filters))
 	for _, fm := range d.cfg.Filters {
 		// network filter
-		nflt := filters.NewArgs()
+		nflt := make(dClient.Filters)
 		for k, v := range fm.Network {
 			nflt.Add(k, v)
 		}
 		// container filters
-		cflt := make([]filters.Args, 0, len(fm.Containers))
+		cflt := make([]dClient.Filters, 0, len(fm.Containers))
 		for _, sfm := range fm.Containers {
-			flt := filters.NewArgs(filters.KeyValuePair{
-				Key:   "status",
-				Value: "running",
-			})
+			flt := make(dClient.Filters).Add("status", "running")
 			for k, v := range sfm {
 				if strings.Contains(k, "=") {
 					ks := strings.SplitN(k, "=", 2)
@@ -161,7 +155,7 @@ func (d *dockerLoader) Init(ctx context.Context, cfg map[string]interface{}, log
 		return err
 	}
 
-	ping, err := d.client.Ping(ctx)
+	ping, err := d.client.Ping(ctx, dClient.PingOptions{})
 	if err != nil {
 		return err
 	}
@@ -303,22 +297,24 @@ func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*types.Target
 			dockerLoaderListRequestsTotal.WithLabelValues(loaderType).Add(1)
 			defer d.wg.Done()
 			// get networks
-			nrs, err := d.client.NetworkList(ctx, network.ListOptions{
+			nrsRes, err := d.client.NetworkList(ctx, dClient.NetworkListOptions{
 				Filters: fl.nt,
 			})
 			if err != nil {
 				errChan <- fmt.Errorf("failed getting networks list using filter %+v: %v", fl.nt, err)
 				return
 			}
+			nrs := nrsRes.Items
 			// get containers for each defined filter
 			for _, cfl := range fl.fl {
-				conts, err := d.client.ContainerList(ctx, container.ListOptions{
+				contsRes, err := d.client.ContainerList(ctx, dClient.ContainerListOptions{
 					Filters: cfl,
 				})
 				if err != nil {
 					errChan <- fmt.Errorf("failed getting containers list using filter %+v: %v", cfl, err)
 					continue
 				}
+				conts := contsRes.Items
 				for _, cont := range conts {
 					d.logger.Debug("building target from container", "container", cont.Names)
 					tc := new(types.TargetConfig)
@@ -359,11 +355,13 @@ func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*types.Target
 						if strings.HasPrefix(d.cfg.Address, "unix:///") {
 							for _, nr := range nrs {
 								if n, ok := cont.NetworkSettings.Networks[nr.Name]; ok {
-									if n.IPAddress != "" {
-										tc.Address = n.IPAddress
+									if n.IPAddress.IsValid() {
+										tc.Address = n.IPAddress.String()
 										break
 									}
-									tc.Address = n.GlobalIPv6Address
+									if n.GlobalIPv6Address.IsValid() {
+										tc.Address = n.GlobalIPv6Address.String()
+									}
 									break
 								}
 							}
@@ -388,11 +386,14 @@ func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*types.Target
 							for _, p := range cont.Ports {
 								// the container private port matches the port from the docker label
 								if p.PrivatePort == port && p.Type == "tcp" {
-									ipAddr := p.IP
-									if ipAddr == "0.0.0.0" || ipAddr == "::" {
+									var ipAddrStr string
+									if p.IP.IsValid() {
+										ipAddrStr = p.IP.String()
+									}
+									if p.IP.IsUnspecified() {
 										if d.cfg.Address == "" {
 											// if docker daemon is empty use localhost as target address
-											ipAddr = "localhost"
+											ipAddrStr = "localhost"
 										} else {
 											// derive target address from daemon address if not empty
 											u, err := url.Parse(d.cfg.Address)
@@ -400,11 +401,11 @@ func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*types.Target
 												d.logger.Info("failed to parse docker daemon address")
 												continue
 											}
-											ipAddr, _, _ = net.SplitHostPort(u.Host)
+											ipAddrStr, _, _ = net.SplitHostPort(u.Host)
 										}
 									}
-									if ipAddr != "" && p.PublicPort != 0 {
-										tc.Address = fmt.Sprintf("%s:%d", ipAddr, p.PublicPort)
+									if ipAddrStr != "" && p.PublicPort != 0 {
+										tc.Address = fmt.Sprintf("%s:%d", ipAddrStr, p.PublicPort)
 									}
 								}
 							}
@@ -413,11 +414,13 @@ func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*types.Target
 							if tc.Address == "" {
 								for _, nr := range nrs {
 									if n, ok := cont.NetworkSettings.Networks[nr.Name]; ok {
-										if n.IPAddress != "" {
-											tc.Address = n.IPAddress
+										if n.IPAddress.IsValid() {
+											tc.Address = n.IPAddress.String()
 											break
 										}
-										tc.Address = n.GlobalIPv6Address
+										if n.GlobalIPv6Address.IsValid() {
+											tc.Address = n.GlobalIPv6Address.String()
+										}
 										break
 									}
 								}
