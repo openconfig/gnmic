@@ -363,7 +363,9 @@ func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*types.Target
 										tc.Address = n.IPAddress.String()
 										break
 									}
-									tc.Address = n.GlobalIPv6Address.String()
+									if n.GlobalIPv6Address.IsValid() {
+										tc.Address = n.GlobalIPv6Address.String()
+									}
 									break
 								}
 							}
@@ -420,7 +422,9 @@ func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*types.Target
 											tc.Address = n.IPAddress.String()
 											break
 										}
-										tc.Address = n.GlobalIPv6Address.String()
+										if n.GlobalIPv6Address.IsValid() {
+											tc.Address = n.GlobalIPv6Address.String()
+										}
 										break
 									}
 								}
