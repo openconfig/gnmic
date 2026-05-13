@@ -13,8 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"log"
+	"log/slog"
 	"net"
 	"strings"
 	"text/template"
@@ -32,11 +31,12 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/outputs"
 )
 
 const (
-	loggingPrefix           = "[gnmi_output:%s] "
+	outputType              = "gnmi"
 	defaultMaxSubscriptions = 64
 	defaultMaxGetRPC        = 64
 	defaultAddress          = ":57400"
@@ -46,7 +46,7 @@ func init() {
 	outputs.Register("gnmi", func() outputs.Output {
 		return &gNMIOutput{
 			cfg:    new(config),
-			logger: log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
+			logger: logging.DiscardLogger(),
 		}
 	})
 }
@@ -55,7 +55,7 @@ func init() {
 type gNMIOutput struct {
 	outputs.BaseOutput
 	cfg       *config
-	logger    *log.Logger
+	logger    *slog.Logger
 	targetTpl *template.Template
 	//
 	srv     *server
@@ -81,7 +81,6 @@ func (g *gNMIOutput) Init(ctx context.Context, name string, cfg map[string]inter
 		return err
 	}
 	g.c = cache.New(nil)
-	g.srv = g.newServer()
 
 	options := &outputs.OutputOptions{}
 	for _, opt := range opts {
@@ -89,17 +88,14 @@ func (g *gNMIOutput) Init(ctx context.Context, name string, cfg map[string]inter
 			return err
 		}
 	}
-	if options.Logger != nil && g.logger != nil {
-		g.logger.SetOutput(options.Logger.Writer())
-		g.logger.SetFlags(options.Logger.Flags())
-	}
+	g.logger = outputs.BindLogger(options.Logger, outputType, name)
+	g.srv = g.newServer()
 	g.reg = options.Registry
 	g.registerMetrics()
 	err = g.setDefaults()
 	if err != nil {
 		return err
 	}
-	g.logger.SetPrefix(fmt.Sprintf(loggingPrefix, name))
 	if g.targetTpl == nil {
 		g.targetTpl, err = gtemplate.CreateTemplate(fmt.Sprintf("%s-target-template", name), g.cfg.TargetTemplate)
 		if err != nil {
@@ -110,7 +106,7 @@ func (g *gNMIOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	if err != nil {
 		return err
 	}
-	g.logger.Printf("started gnmi output: %v", g)
+	g.logger.Info("started gnmi output", "config", g)
 	return nil
 }
 
@@ -122,7 +118,7 @@ func (g *gNMIOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.
 	var err error
 	rsp, err = outputs.AddSubscriptionTarget(rsp, meta, "if-not-present", g.targetTpl)
 	if err != nil {
-		g.logger.Printf("failed to add target to the response: %v", err)
+		g.logger.Warn("failed to add target to response", "err", err)
 	}
 	switch rsp := rsp.(type) {
 	case *gnmi.SubscribeResponse:
@@ -130,19 +126,19 @@ func (g *gNMIOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.
 		case *gnmi.SubscribeResponse_Update:
 			target := rsp.Update.GetPrefix().GetTarget()
 			if target == "" {
-				g.logger.Printf("response missing target")
+				g.logger.Warn("response missing target")
 				return
 			}
 			if !g.c.HasTarget(target) {
 				g.c.Add(target)
-				g.logger.Printf("target %q added to the local cache", target)
+				g.logger.Info("target added to local cache", "target", target)
 			}
 			if g.cfg.Debug {
-				g.logger.Printf("updating target %q local cache", target)
+				g.logger.Debug("updating target local cache", "target", target)
 			}
 			err = g.c.GnmiUpdate(rsp.Update)
 			if err != nil {
-				g.logger.Printf("failed to update gNMI cache: %v", err)
+				g.logger.Error("failed to update gNMI cache", "err", err)
 				return
 			}
 		case *gnmi.SubscribeResponse_SyncResponse:
@@ -163,13 +159,13 @@ func (g *gNMIOutput) registerMetrics() {
 		return
 	}
 	if g.reg == nil {
-		g.logger.Printf("ERR: output metrics enabled but main registry is not initialized, enable main metrics under `api-server`")
+		g.logger.Error("output metrics enabled but main registry is not initialized, enable main metrics under `api-server`")
 		return
 	}
 	srvMetrics := grpc_prometheus.NewServerMetrics()
 	srvMetrics.InitializeMetrics(g.grpcSrv)
 	if err := g.reg.Register(srvMetrics); err != nil {
-		g.logger.Printf("failed to register prometheus metrics: %v", err)
+		g.logger.Warn("failed to register prometheus metrics", "err", err)
 	}
 }
 

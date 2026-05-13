@@ -84,6 +84,10 @@ outputs:
     event-processors: 
     # an integer, sets the number of worker handling messages to be converted into Prometheus metrics
     num-workers: 1
+    # an integer, sets the buffer size of the internal message channels.
+    # increase this value if messages are being dropped under high ingest rates.
+    # defaults to 10000
+    buffer-size: 10000
     # Enables Consul service registration
     service-registration:
       # Consul server address, default to localhost:8500
@@ -260,6 +264,14 @@ outputs:
 ### **event-processors**
 
   A string list. List of processors to apply on the message before writing
+
+### **num-workers**
+
+  An integer, sets the number of workers handling messages to be converted into Prometheus metrics. Defaults to `1`.
+
+### **buffer-size**
+
+  An integer, sets the buffer size of the internal message channels. Incoming gNMI messages are queued in these channels before workers process them into Prometheus metrics. If the ingest rate exceeds the processing rate, messages may be dropped once the buffer is full. Increase this value when operating under high message rates. Defaults to `10000`.
 
 ### **service-registration**
   

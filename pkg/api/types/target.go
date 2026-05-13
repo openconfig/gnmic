@@ -12,6 +12,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"maps"
 	"os"
 	"reflect"
@@ -176,6 +177,10 @@ func (tc TargetConfig) String() string {
 		pwd := "****"
 		tc.Password = &pwd
 	}
+	if tc.Token != nil && *tc.Token != "" {
+		tok := "****"
+		tc.Token = &tok
+	}
 
 	b, err := json.Marshal(tc)
 	if err != nil {
@@ -183,6 +188,29 @@ func (tc TargetConfig) String() string {
 	}
 
 	return string(b)
+}
+
+// LogValue implements slog.LogValuer. When a *TargetConfig is logged with
+// slog.Any, only the safe fields are emitted instead of the entire struct.
+// Secrets (password, token) are never included.
+func (tc *TargetConfig) LogValue() slog.Value {
+	if tc == nil {
+		return slog.StringValue("<nil>")
+	}
+	attrs := []slog.Attr{
+		slog.String("name", tc.Name),
+		slog.String("address", tc.Address),
+	}
+	if tc.Username != nil {
+		attrs = append(attrs, slog.String("username", *tc.Username))
+	}
+	if tc.Insecure != nil {
+		attrs = append(attrs, slog.Bool("insecure", *tc.Insecure))
+	}
+	if tc.SkipVerify != nil {
+		attrs = append(attrs, slog.Bool("skip-verify", *tc.SkipVerify))
+	}
+	return slog.GroupValue(attrs...)
 }
 
 func clonePtr[T any](p *T) *T {
@@ -255,6 +283,24 @@ func (tc *TargetConfig) DeepCopy() *TargetConfig {
 		}
 	}
 	return ntc
+}
+
+// RedactedDeepCopy returns a deep copy of tc with sensitive credential fields
+// replaced by placeholder values suitable for REST API responses (same as String()).
+func (tc *TargetConfig) RedactedDeepCopy() *TargetConfig {
+	if tc == nil {
+		return nil
+	}
+	out := tc.DeepCopy()
+	if out.Password != nil {
+		v := "****"
+		out.Password = &v
+	}
+	if out.Token != nil {
+		v := "****"
+		out.Token = &v
+	}
+	return out
 }
 
 func (tc *TargetConfig) SetTLSConfig(tlsConfig *tls.Config) {

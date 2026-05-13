@@ -10,22 +10,17 @@ package event_add_tag
 
 import (
 	"encoding/json"
-	"io"
-	"log"
-	"os"
+	"log/slog"
 	"regexp"
 	"strings"
 
 	"github.com/itchyny/gojq"
 
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
-const (
-	processorType = "event-add-tag"
-	loggingPrefix = "[" + processorType + "] "
-)
+const processorType = "event-add-tag"
 
 // addTag adds a set of tags to the event message if certain criteria's are met.
 type addTag struct {
@@ -46,14 +41,11 @@ type addTag struct {
 	valueNames []*regexp.Regexp
 	deletes    []*regexp.Regexp
 	code       *gojq.Code
-	logger     *log.Logger
 }
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &addTag{
-			logger: log.New(io.Discard, "", 0),
-		}
+		return &addTag{}
 	})
 }
 
@@ -65,6 +57,10 @@ func (p *addTag) Init(cfg interface{}, opts ...formatters.Option) error {
 	for _, opt := range opts {
 		opt(p)
 	}
+	if p.Logger == nil {
+		p.Logger = logging.DiscardLogger()
+	}
+	p.Logger = p.Logger.With("processor", processorType)
 	if p.Condition != "" {
 		p.Condition = strings.TrimSpace(p.Condition)
 		q, err := gojq.Parse(p.Condition)
@@ -101,13 +97,12 @@ func (p *addTag) Init(cfg interface{}, opts ...formatters.Option) error {
 	if err != nil {
 		return err
 	}
-	if p.logger.Writer() != io.Discard {
-		b, err := json.Marshal(p)
-		if err != nil {
-			p.logger.Printf("initialized processor '%s': %+v", processorType, p)
-			return nil
+	if p.Debug {
+		if b, err := json.Marshal(p); err == nil {
+			p.Logger.Debug("initialized processor", "config", string(b))
+		} else {
+			p.Logger.Debug("initialized processor", "config", p)
 		}
-		p.logger.Printf("initialized processor '%s': %s", processorType, string(b))
 	}
 	return nil
 }
@@ -121,7 +116,7 @@ func (p *addTag) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		if p.code != nil && p.Condition != "" {
 			ok, err := formatters.CheckCondition(p.code, e)
 			if err != nil {
-				p.logger.Printf("condition check failed: %v", err)
+				p.Logger.Warn("condition check failed", "err", err)
 			}
 			if ok {
 				p.addTags(e)
@@ -171,12 +166,11 @@ func (p *addTag) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	return es
 }
 
-func (p *addTag) WithLogger(l *log.Logger) {
-	if p.Debug && l != nil {
-		p.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
-	} else if p.Debug {
-		p.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
+func (p *addTag) WithLogger(l *slog.Logger) {
+	if !p.Debug {
+		l = nil
 	}
+	p.BaseProcessor.WithLogger(l)
 }
 
 func (p *addTag) addTags(e *formatters.EventMsg) {

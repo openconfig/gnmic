@@ -10,7 +10,7 @@ package config
 
 import (
 	"errors"
-	"log"
+	"log/slog"
 	"os"
 	"strings"
 	"testing"
@@ -627,7 +627,7 @@ func TestCreateSetRequest(t *testing.T) {
 func TestExecPathTemplate(t *testing.T) {
 	c := New()
 	c.Debug = true
-	c.logger = log.New(os.Stderr, "", log.LstdFlags)
+	c.internalLog = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	for name, data := range execPathTemplateTestSet {
 		t.Run(name, func(t *testing.T) {
 			o, err := c.execPathTemplate(data.tpl, data.input)

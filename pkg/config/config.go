@@ -15,9 +15,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"text/template"
 	"time"
@@ -34,16 +35,39 @@ import (
 
 	"github.com/openconfig/gnmic/pkg/api"
 	"github.com/openconfig/gnmic/pkg/api/types"
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	gfile "github.com/openconfig/gnmic/pkg/file"
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/zestor-dev/zestor/store"
 )
 
+// log returns c.internalLog, falling back to a discarding logger when
+// callers (typically tests) build a Config struct directly without going
+// through New().
+func (c *Config) log() *slog.Logger {
+	if c == nil || c.internalLog == nil {
+		return slog.New(slog.DiscardHandler)
+	}
+	return c.internalLog
+}
+
+// LoggingFlags returns the subset of GlobalFlags relevant to constructing
+// the application logger. It implements logging.FlagsProvider so the
+// pkg/logging package can build a logger without importing pkg/config.
+func (g GlobalFlags) LoggingFlags() logging.Flags {
+	return logging.Flags{
+		Log:           g.Log,
+		Debug:         g.Debug,
+		LogFile:       g.LogFile,
+		LogMaxSize:    g.LogMaxSize,
+		LogMaxBackups: g.LogMaxBackups,
+		LogCompress:   g.LogCompress,
+	}
+}
+
 const (
-	configName      = ".gnmic"
-	configLogPrefix = "[config] "
-	envPrefix       = "GNMIC"
-	trimChars       = " \r\n\t"
+	configName = ".gnmic"
+	envPrefix  = "GNMIC"
+	trimChars  = " \r\n\t"
 )
 
 var ErrInvalidConfig = errors.New("invalid configuration")
@@ -67,7 +91,7 @@ type Config struct {
 	Actions       map[string]map[string]any            `mapstructure:"actions,omitempty" json:"actions,omitempty" yaml:"actions,omitempty"`
 	TunnelServer  *TunnelServer                        `mapstructure:"tunnel-server,omitempty" json:"tunnel-server,omitempty" yaml:"tunnel-server,omitempty"`
 	//
-	logger             *log.Logger
+	internalLog        *slog.Logger
 	setRequestTemplate []*template.Template
 	setRequestVars     map[string]any
 }
@@ -295,7 +319,7 @@ func New() *Config {
 		nil,
 		nil,
 		nil,
-		log.New(io.Discard, configLogPrefix, utils.DefaultLoggingFlags),
+		slog.New(slog.DiscardHandler),
 		nil,
 		make(map[string]interface{}),
 	}
@@ -440,39 +464,54 @@ func (c *Config) ToStore(s store.Store[any]) error {
 	return nil
 }
 
-func (c *Config) SetLogger() (io.Writer, int, error) {
-	var f io.Writer = io.Discard
-	var loggingFlags = c.logger.Flags()
+// InitAppLogging configures application logging and returns the slog logger, the underlying
+// io.Writer used for structured logs (for adapters such as HTTP access logs), and any error
+// opening log files.
+func (c *Config) InitAppLogging() (*slog.Logger, io.Writer, error) {
+	var w io.Writer = io.Discard
 	var err error
 
 	if c.LogFile != "" {
 		if c.LogMaxSize > 0 {
-			f = &lumberjack.Logger{
+			w = &lumberjack.Logger{
 				Filename:   c.LogFile,
 				MaxSize:    c.LogMaxSize,
 				MaxBackups: c.LogMaxBackups,
 				Compress:   c.LogCompress,
 			}
 		} else {
+			var f *os.File
 			f, err = os.OpenFile(c.LogFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 			if err != nil {
-				return nil, 0, err
+				return nil, nil, err
 			}
+			w = f
 		}
 	} else {
 		if c.Debug {
 			c.Log = true
 		}
 		if c.Log {
-			f = os.Stderr
+			w = os.Stderr
 		}
 	}
-	if c.Debug {
-		loggingFlags |= log.Llongfile
+
+	var lg *slog.Logger
+	if w == io.Discard {
+		lg = slog.New(slog.DiscardHandler)
+	} else {
+		level := slog.LevelInfo
+		if c.Debug {
+			level = slog.LevelDebug
+		}
+		opts := &slog.HandlerOptions{
+			Level:     level,
+			AddSource: c.Debug,
+		}
+		lg = slog.New(slog.NewTextHandler(w, opts))
 	}
-	c.logger.SetOutput(f)
-	c.logger.SetFlags(loggingFlags)
-	return f, loggingFlags, nil
+	c.internalLog = lg
+	return lg, w, nil
 }
 
 func (c *Config) SetPersistentFlagsFromFile(cmd *cobra.Command) {
@@ -490,8 +529,11 @@ func (c *Config) SetPersistentFlagsFromFile(cmd *cobra.Command) {
 			return
 		}
 		if c.Debug {
-			c.logger.Printf("cmd=%s, flagName=%s, changed=%v, isSetInFile=%v",
-				cmd.Name(), f.Name, f.Changed, c.FileConfig.IsSet(f.Name))
+			c.log().Debug("persistent flag visit",
+				"cmd", cmd.Name(),
+				"flag_name", f.Name,
+				"changed", f.Changed,
+				"is_set_in_file", c.FileConfig.IsSet(f.Name))
 		}
 		if !f.Changed && c.FileConfig.IsSet(f.Name) {
 			c.setFlagValue(cmd, f.Name, c.FileConfig.Get(f.Name))
@@ -503,8 +545,11 @@ func (c *Config) SetLocalFlagsFromFile(cmd *cobra.Command) {
 	cmd.LocalFlags().VisitAll(func(f *pflag.Flag) {
 		flagName := fmt.Sprintf("%s-%s", cmd.Name(), f.Name)
 		if c.Debug {
-			c.logger.Printf("cmd=%s, flagName=%s, changed=%v, isSetInFile=%v",
-				cmd.Name(), f.Name, f.Changed, c.FileConfig.IsSet(flagName))
+			c.log().Debug("local flag visit",
+				"cmd", cmd.Name(),
+				"flag_name", f.Name,
+				"changed", f.Changed,
+				"is_set_in_file", c.FileConfig.IsSet(flagName))
 		}
 		if !f.Changed && c.FileConfig.IsSet(flagName) {
 			c.setFlagValue(cmd, f.Name, c.FileConfig.Get(flagName))
@@ -516,8 +561,12 @@ func (c *Config) setFlagValue(cmd *cobra.Command, fName string, val interface{})
 	switch val := val.(type) {
 	case []interface{}:
 		if c.Debug {
-			c.logger.Printf("cmd=%s, flagName=%s, valueType=%T, length=%d, value=%#v",
-				cmd.Name(), fName, val, len(val), val)
+			c.log().Debug("set flag value",
+				"cmd", cmd.Name(),
+				"flag_name", fName,
+				"value_type", reflect.TypeOf(val).String(),
+				"length", len(val),
+				"value", val)
 		}
 		nVal := make([]string, 0, len(val))
 		for _, v := range val {
@@ -526,8 +575,11 @@ func (c *Config) setFlagValue(cmd *cobra.Command, fName string, val interface{})
 		cmd.Flags().Set(fName, strings.Join(nVal, ","))
 	default:
 		if c.Debug {
-			c.logger.Printf("cmd=%s, flagName=%s, valueType=%T, value=%#v",
-				cmd.Name(), fName, val, val)
+			c.log().Debug("set flag value",
+				"cmd", cmd.Name(),
+				"flag_name", fName,
+				"value_type", reflect.TypeOf(val).String(),
+				"value", val)
 		}
 		cmd.Flags().Set(fName, fmt.Sprintf("%v", val))
 	}
@@ -653,23 +705,17 @@ func (c *Config) execPathTemplate(tplString string, input interface{}) (string, 
 
 	res, ok = iter.Next()
 	if !ok {
-		if c.Debug {
-			c.logger.Printf("jq input: %+v", input)
-			c.logger.Printf("jq result: %+v", res)
-		}
+		c.log().Debug("jq path template", "input", input, "result", res)
 		return "", fmt.Errorf("unexpected jq result type: %T", res)
 	}
 	switch v := res.(type) {
 	case error:
 		return "", v
 	case string:
-		c.logger.Printf("path jq expression result: %s", v)
+		c.log().Info("path jq expression result", "result", v)
 		return v, nil
 	default:
-		if c.Debug {
-			c.logger.Printf("jq input: %+v", input)
-			c.logger.Printf("jq result: %+v", v)
-		}
+		c.log().Debug("jq path template", "input", input, "result", v)
 		return "", fmt.Errorf("unexpected jq result type: %T", v)
 	}
 }
@@ -693,23 +739,17 @@ func (c *Config) execValueTemplate(tplString string, input interface{}) (string,
 
 	res, ok = iter.Next()
 	if !ok {
-		if c.Debug {
-			c.logger.Printf("jq input: %+v", input)
-			c.logger.Printf("jq result: %+v", res)
-		}
+		c.log().Debug("jq value template", "input", input, "result", res)
 		return "", fmt.Errorf("unexpected jq result type: %T", res)
 	}
 	switch v := res.(type) {
 	case error:
 		return "", v
 	case string:
-		c.logger.Printf("path jq expression result: %s", v)
+		c.log().Info("value jq expression result", "result", v)
 		return trimQuotes(v), nil
 	default:
-		if c.Debug {
-			c.logger.Printf("jq input: %+v", input)
-			c.logger.Printf("jq result: %+v", v)
-		}
+		c.log().Debug("jq value template", "input", input, "result", v)
 		return "", fmt.Errorf("unexpected jq result type: %T", v)
 	}
 }
@@ -722,18 +762,18 @@ func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error)
 		return c.CreateSetRequestFromFile(targetName)
 	}
 	if c.Debug {
-		c.logger.Printf("Set input delete: %+v", &c.LocalFlags.SetDelete)
-		c.logger.Printf("Set input update: %+v", &c.LocalFlags.SetUpdate)
-		c.logger.Printf("Set input update path(s): %+v", &c.LocalFlags.SetUpdatePath)
-		c.logger.Printf("Set input update value(s): %+v", &c.LocalFlags.SetUpdateValue)
-		c.logger.Printf("Set input update file(s): %+v", &c.LocalFlags.SetUpdateFile)
-		c.logger.Printf("Set input replace: %+v", &c.LocalFlags.SetReplace)
-		c.logger.Printf("Set input replace path(s): %+v", &c.LocalFlags.SetReplacePath)
-		c.logger.Printf("Set input replace value(s): %+v", &c.LocalFlags.SetReplaceValue)
-		c.logger.Printf("Set input replace file(s): %+v", &c.LocalFlags.SetReplaceFile)
-		c.logger.Printf("Set input union replace path(s): %+v", &c.LocalFlags.SetUnionReplacePath)
-		c.logger.Printf("Set input union replace value(s): %+v", &c.LocalFlags.SetUnionReplaceValue)
-		c.logger.Printf("Set input union replace file(s): %+v", &c.LocalFlags.SetUnionReplaceFile)
+		c.log().Debug("Set input delete", "value", &c.LocalFlags.SetDelete)
+		c.log().Debug("Set input update", "value", &c.LocalFlags.SetUpdate)
+		c.log().Debug("Set input update paths", "value", &c.LocalFlags.SetUpdatePath)
+		c.log().Debug("Set input update values", "value", &c.LocalFlags.SetUpdateValue)
+		c.log().Debug("Set input update files", "value", &c.LocalFlags.SetUpdateFile)
+		c.log().Debug("Set input replace", "value", &c.LocalFlags.SetReplace)
+		c.log().Debug("Set input replace paths", "value", &c.LocalFlags.SetReplacePath)
+		c.log().Debug("Set input replace values", "value", &c.LocalFlags.SetReplaceValue)
+		c.log().Debug("Set input replace files", "value", &c.LocalFlags.SetReplaceFile)
+		c.log().Debug("Set input union replace paths", "value", &c.LocalFlags.SetUnionReplacePath)
+		c.log().Debug("Set input union replace values", "value", &c.LocalFlags.SetUnionReplaceValue)
+		c.log().Debug("Set input union replace files", "value", &c.LocalFlags.SetUnionReplaceFile)
 	}
 
 	gnmiOpts := make([]api.GNMIOption, 0, 2+ // prefix+target
@@ -798,7 +838,7 @@ func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error)
 		if useUpdateFiles {
 			updateData, err := readFile(c.LocalFlags.SetUpdateFile[i])
 			if err != nil {
-				c.logger.Printf("error reading data from file '%s': %v", c.LocalFlags.SetUpdateFile[i], err)
+				c.log().Info("error reading data from file", "file", c.LocalFlags.SetUpdateFile[i], "err", err)
 				return nil, err
 			}
 			trim := ""
@@ -824,7 +864,7 @@ func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error)
 		if useReplaceFiles {
 			replaceData, err := readFile(c.LocalFlags.SetReplaceFile[i])
 			if err != nil {
-				c.logger.Printf("error reading data from file '%s': %v", c.LocalFlags.SetReplaceFile[i], err)
+				c.log().Info("error reading data from file", "file", c.LocalFlags.SetReplaceFile[i], "err", err)
 				return nil, err
 			}
 			trim := ""
@@ -850,7 +890,7 @@ func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error)
 		if useUnionReplaceFiles {
 			replaceData, err := readFile(c.LocalFlags.SetUnionReplaceFile[i])
 			if err != nil {
-				c.logger.Printf("error reading data from file '%s': %v", c.LocalFlags.SetUnionReplaceFile[i], err)
+				c.log().Info("error reading data from file", "file", c.LocalFlags.SetUnionReplaceFile[i], "err", err)
 				return nil, err
 			}
 			trim := ""

@@ -12,12 +12,29 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"reflect"
 
-	"github.com/openconfig/gnmic/pkg/config"
 	"github.com/zestor-dev/zestor/store"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
+
+// Flags carries the subset of configuration values needed to build the
+// application logger. It is a value type so callers can construct it
+// directly without sharing pointers.
+type Flags struct {
+	Log           bool
+	Debug         bool
+	LogFile       string
+	LogMaxSize    int
+	LogMaxBackups int
+	LogCompress   bool
+}
+
+// FlagsProvider is implemented by types that expose logging Flags.
+// Configuration types implement this interface so the logging package
+// can construct a logger without depending on the config package.
+type FlagsProvider interface {
+	LoggingFlags() Flags
+}
 
 func GetLogger(level slog.Level, args ...any) *slog.Logger {
 	handlerOptions := &slog.HandlerOptions{Level: level}
@@ -31,25 +48,21 @@ func NewLogger(store store.Store[any], args ...any) *slog.Logger {
 		return GetLogger(slog.LevelInfo, args...)
 	}
 	if !ok {
-		fmt.Fprintf(os.Stderr, "globalFlags is of an unexpected type: %T. Building a default logger.\n", reflect.TypeOf(cfg))
+		fmt.Fprintf(os.Stderr, "global flags entry not found in store. Building a default logger.\n")
 		return GetLogger(slog.LevelInfo, args...)
 	}
-	flags := config.GlobalFlags{}
-	switch i := cfg.(type) {
-	case config.GlobalFlags:
-		flags = i
-	default:
-		fmt.Fprintf(os.Stderr, "globalFlags is of an unexpected type: %T. Building a default logger.\n", reflect.TypeOf(cfg))
+	provider, ok := cfg.(FlagsProvider)
+	if !ok {
+		fmt.Fprintf(os.Stderr, "stored global flags type %T does not implement logging.FlagsProvider. Building a default logger.\n", cfg)
 		return GetLogger(slog.LevelInfo, args...)
 	}
+	flags := provider.LoggingFlags()
 	if !flags.Log {
 		return slog.New(slog.DiscardHandler)
 	}
-	var level slog.Level
+	level := slog.LevelInfo
 	if flags.Debug {
 		level = slog.LevelDebug
-	} else {
-		level = slog.LevelInfo
 	}
 
 	handlerOptions := &slog.HandlerOptions{Level: level}
@@ -57,8 +70,8 @@ func NewLogger(store store.Store[any], args ...any) *slog.Logger {
 		if flags.LogMaxSize > 0 {
 			lj := &lumberjack.Logger{
 				Filename:   flags.LogFile,
-				MaxSize:    flags.LogMaxSize,
-				MaxBackups: flags.LogMaxBackups,
+				MaxSize:    clampMaxSize(flags.LogMaxSize),
+				MaxBackups: clampMaxBackups(flags.LogMaxBackups),
 				Compress:   flags.LogCompress,
 			}
 			return slog.New(slog.NewTextHandler(lj, handlerOptions)).With(args...)
@@ -71,4 +84,26 @@ func NewLogger(store store.Store[any], args ...any) *slog.Logger {
 		return slog.New(slog.NewTextHandler(f, handlerOptions)).With(args...)
 	}
 	return slog.New(slog.NewTextHandler(os.Stderr, handlerOptions)).With(args...)
+}
+
+// minLogMaxSize is the smallest log-file size (MiB) we accept before
+// rotating. Anything smaller thrashes the rotator on busy systems.
+const minLogMaxSize = 5
+
+// clampMaxSize ensures the configured rotation size is at least
+// minLogMaxSize MiB.
+func clampMaxSize(v int) int {
+	if v < minLogMaxSize {
+		return minLogMaxSize
+	}
+	return v
+}
+
+// clampMaxBackups guards against negative inputs (lumberjack treats 0 as
+// "keep all backups", which is a valid choice and left untouched).
+func clampMaxBackups(v int) int {
+	if v < 0 {
+		return 0
+	}
+	return v
 }

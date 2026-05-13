@@ -10,11 +10,9 @@ package prometheus_write_output
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"slices"
@@ -29,9 +27,9 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/openconfig/gnmic/pkg/api/types"
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	promcom "github.com/openconfig/gnmic/pkg/outputs/prometheus_output"
 	gutils "github.com/openconfig/gnmic/pkg/utils"
@@ -40,7 +38,6 @@ import (
 
 const (
 	outputType                        = "prometheus_write"
-	loggingPrefix                     = "[prometheus_write_output:%s] "
 	defaultTimeout                    = 10 * time.Second
 	defaultWriteInterval              = 10 * time.Second
 	defaultMetadataWriteInterval      = time.Minute
@@ -68,7 +65,7 @@ type promWriteOutput struct {
 	httpClient   *atomic.Pointer[http.Client]
 	timeSeriesCh *atomic.Pointer[chan *prompb.TimeSeries]
 
-	logger      *log.Logger
+	logger      *slog.Logger
 	eventChan   chan *formatters.EventMsg
 	msgChan     chan *outputs.ProtoMsg
 	buffDrainCh chan struct{}
@@ -110,6 +107,10 @@ type config struct {
 	EnableMetrics          bool     `mapstructure:"enable-metrics,omitempty" json:"enable-metrics,omitempty"`
 }
 
+func (c *config) LogValue() slog.Value {
+	return logging.RedactedValue(c)
+}
+
 type dynConfig struct {
 	targetTpl *template.Template
 	evps      []formatters.EventProcessor
@@ -139,7 +140,7 @@ func (p *promWriteOutput) init() {
 	p.timeSeriesCh = new(atomic.Pointer[chan *prompb.TimeSeries])
 	p.wg = new(sync.WaitGroup)
 	p.m = new(sync.Mutex)
-	p.logger = log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags)
+	p.logger = logging.DiscardLogger()
 	p.eventChan = make(chan *formatters.EventMsg)
 	p.msgChan = make(chan *outputs.ProtoMsg)
 	p.buffDrainCh = make(chan struct{}, 1)
@@ -154,11 +155,8 @@ func (p *promWriteOutput) buildEventProcessors(cfg *config) ([]formatters.EventP
 	return formatters.MakeEventProcessors(p.logger, cfg.EventProcessors, ps, tcs, acts)
 }
 
-func (p *promWriteOutput) setLogger(logger *log.Logger) {
-	if logger != nil && p.logger != nil {
-		p.logger.SetOutput(logger.Writer())
-		p.logger.SetFlags(logger.Flags())
-	}
+func (p *promWriteOutput) setLogger(logger *slog.Logger, name string) {
+	p.logger = outputs.BindLogger(logger, outputType, name)
 }
 
 func (p *promWriteOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
@@ -179,7 +177,6 @@ func (p *promWriteOutput) Init(ctx context.Context, name string, cfg map[string]
 	if ncfg.Name == "" {
 		ncfg.Name = name
 	}
-	p.logger.SetPrefix(fmt.Sprintf(loggingPrefix, ncfg.Name))
 
 	options := &outputs.OutputOptions{}
 	for _, opt := range opts {
@@ -191,7 +188,7 @@ func (p *promWriteOutput) Init(ctx context.Context, name string, cfg map[string]
 	p.store = options.Store
 
 	// apply logger
-	p.setLogger(options.Logger)
+	p.setLogger(options.Logger, ncfg.Name)
 
 	// set defaults
 	p.setDefaultsFor(ncfg)
@@ -260,7 +257,7 @@ func (p *promWriteOutput) Init(ctx context.Context, name string, cfg map[string]
 	p.wg.Add(1)
 	go p.metadataWriter(wctx)
 
-	p.logger.Printf("initialized prometheus write output %s: %s", ncfg.Name, p.String())
+	p.logger.Info("initialized prometheus write output", slog.Any("config", p.String()))
 	return nil
 }
 
@@ -402,7 +399,7 @@ func (p *promWriteOutput) Update(ctx context.Context, cfg map[string]any) error 
 		}
 	}
 
-	p.logger.Printf("updated prometheus write output: %s", p.String())
+	p.logger.Info("updated prometheus write output", slog.Any("config", p.String()))
 	return nil
 }
 
@@ -440,7 +437,7 @@ func (p *promWriteOutput) Write(ctx context.Context, rsp proto.Message, meta out
 	case p.msgChan <- outputs.NewProtoMsg(rsp, meta):
 	case <-wctx.Done():
 		if cfg.Debug {
-			p.logger.Printf("writing expired after %s", cfg.Timeout)
+			p.logger.Warn("write expired", "timeout", cfg.Timeout)
 		}
 		return
 	}
@@ -475,22 +472,18 @@ func (p *promWriteOutput) Close() error {
 	if client != nil {
 		client.CloseIdleConnections()
 	}
-	p.logger.Printf("closed prometheus write output: %s", p.String())
+	p.logger.Info("closed prometheus write output", slog.Any("config", p.String()))
 	return nil
 }
 
 func (p *promWriteOutput) String() string {
 	cfg := p.cfg.Load()
-	b, err := json.Marshal(cfg)
-	if err != nil {
-		return ""
-	}
-	return string(b)
+	return logging.RedactedJSON(cfg)
 }
 
 func (p *promWriteOutput) worker(ctx context.Context) {
 	defer p.wg.Done()
-	defer p.logger.Printf("worker stopped")
+	defer p.logger.Info("worker stopped")
 	for {
 		select {
 		case <-ctx.Done():
@@ -518,11 +511,11 @@ func (p *promWriteOutput) workerHandleProto(_ context.Context, m *outputs.ProtoM
 		var err error
 		pmsg, err = outputs.AddSubscriptionTarget(pmsg, m.GetMeta(), cfg.AddTarget, dc.targetTpl)
 		if err != nil {
-			p.logger.Printf("failed to add target to the response: %v", err)
+			p.logger.Warn("failed to add target to response", "err", err)
 		}
 		events, err := formatters.ResponseToEventMsgs(measName, pmsg, meta, dc.evps...)
 		if err != nil {
-			p.logger.Printf("failed to convert message to event: %v", err)
+			p.logger.Warn("failed to convert message to event", "err", err)
 			return
 		}
 		for _, ev := range events {
@@ -536,21 +529,15 @@ func (p *promWriteOutput) workerHandleEvent(ev *formatters.EventMsg) {
 	dc := p.dynCfg.Load()
 	tsCh := p.timeSeriesCh.Load()
 
-	if cfg.Debug {
-		p.logger.Printf("got event to buffer: %+v", ev)
-	}
+	p.logger.Debug("got event to buffer", "event", ev)
 	for _, pts := range dc.mb.TimeSeriesFromEvent(ev) {
 		if len(*tsCh) >= cfg.BufferSize {
-			if cfg.Debug {
-				p.logger.Printf("buffer size reached, triggering write")
-			}
+			p.logger.Debug("buffer size reached, triggering write")
 			p.buffDrainCh <- struct{}{}
 		}
 		// populate metadata cache
 		p.m.Lock()
-		if cfg.Debug {
-			p.logger.Printf("saving metrics metadata")
-		}
+		p.logger.Debug("saving metrics metadata")
 		p.metadataCache[pts.Name] = prompb.MetricMetadata{
 			Type:             prompb.MetricMetadata_COUNTER,
 			MetricFamilyName: pts.Name,
@@ -558,9 +545,7 @@ func (p *promWriteOutput) workerHandleEvent(ev *formatters.EventMsg) {
 		}
 		p.m.Unlock()
 		// write time series to buffer
-		if cfg.Debug {
-			p.logger.Printf("writing TimeSeries to buffer")
-		}
+		p.logger.Debug("writing TimeSeries to buffer")
 		*tsCh <- pts.TS
 	}
 }

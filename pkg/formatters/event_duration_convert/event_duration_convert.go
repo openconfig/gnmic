@@ -11,19 +11,16 @@ package event_data_convert
 import (
 	"encoding/json"
 	"fmt"
-	"io"
-	"log"
-	"os"
+	"log/slog"
 	"regexp"
 	"strconv"
 
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 const (
 	processorType = "event-duration-convert"
-	loggingPrefix = "[" + processorType + "] "
 )
 
 var durationRegex = regexp.MustCompile(`((?P<weeks>\d+)w)?((?P<days>\d+)d)?((?P<hours>\d+)h)?((?P<minutes>\d+)m)?((?P<seconds>\d+)s)?`)
@@ -36,14 +33,11 @@ type durationConvert struct {
 	Debug  bool     `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 
 	values []*regexp.Regexp
-	logger *log.Logger
 }
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &durationConvert{
-			logger: log.New(io.Discard, "", 0),
-		}
+		return &durationConvert{}
 	})
 }
 
@@ -55,6 +49,10 @@ func (c *durationConvert) Init(cfg interface{}, opts ...formatters.Option) error
 	for _, opt := range opts {
 		opt(c)
 	}
+	if c.Logger == nil {
+		c.Logger = logging.DiscardLogger()
+	}
+	c.Logger = c.Logger.With("processor", processorType)
 	c.values = make([]*regexp.Regexp, 0, len(c.Values))
 	for _, reg := range c.Values {
 		re, err := regexp.Compile(reg)
@@ -63,13 +61,12 @@ func (c *durationConvert) Init(cfg interface{}, opts ...formatters.Option) error
 		}
 		c.values = append(c.values, re)
 	}
-	if c.logger.Writer() != io.Discard {
-		b, err := json.Marshal(c)
-		if err != nil {
-			c.logger.Printf("initialized processor '%s': %+v", processorType, c)
-			return nil
+	if c.Debug {
+		if b, err := json.Marshal(c); err == nil {
+			c.Logger.Debug("initialized processor", "config", string(b))
+		} else {
+			c.Logger.Debug("initialized processor", "config", c)
 		}
-		c.logger.Printf("initialized processor '%s': %s", processorType, string(b))
 	}
 
 	return nil
@@ -85,13 +82,13 @@ func (c *durationConvert) Apply(es ...*formatters.EventMsg) []*formatters.EventM
 		for k, v := range e.Values {
 			for _, re := range c.values {
 				if re.MatchString(k) {
-					c.logger.Printf("key '%s' matched regex '%s'", k, re.String())
+					c.Logger.Debug("key matched regex", "key", k, "regex", re.String())
 					dur, err := c.convertDuration(k, v)
 					if err != nil {
-						c.logger.Printf("duration convert error: %v", err)
+						c.Logger.Warn("duration convert error", "err", err)
 						break
 					}
-					c.logger.Printf("key '%s', value %v converted to seconds: %d", k, v, dur)
+					c.Logger.Debug("converted value to seconds", "key", k, "value", v, "seconds", dur)
 					if c.Keep {
 						newValues[fmt.Sprintf("%s_seconds", k)] = dur
 						break
@@ -109,12 +106,11 @@ func (c *durationConvert) Apply(es ...*formatters.EventMsg) []*formatters.EventM
 	return es
 }
 
-func (c *durationConvert) WithLogger(l *log.Logger) {
-	if c.Debug && l != nil {
-		c.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
-	} else if c.Debug {
-		c.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
+func (c *durationConvert) WithLogger(l *slog.Logger) {
+	if !c.Debug {
+		l = nil
 	}
+	c.BaseProcessor.WithLogger(l)
 }
 
 func (c *durationConvert) convertDuration(k string, i interface{}) (int64, error) {

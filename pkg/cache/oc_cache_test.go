@@ -10,7 +10,7 @@ package cache
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -335,7 +335,7 @@ func Test_gnmiCache_read(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gc := newGNMICache(&Config{}, "oc", WithLogger(log.Default()))
+			gc := newGNMICache(&Config{}, "oc", WithLogger(slog.Default()))
 			for _, in := range tt.fields.inputs {
 				gc.Write(context.TODO(), in.measName, in.m)
 			}

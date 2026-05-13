@@ -10,8 +10,6 @@ package otlp_output
 
 import (
 	"context"
-	"io"
-	"log"
 	"net"
 	"regexp"
 	"sync"
@@ -26,6 +24,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/openconfig/gnmic/pkg/formatters"
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	"github.com/zestor-dev/zestor/store"
 	"github.com/zestor-dev/zestor/store/gomap"
@@ -44,7 +43,7 @@ func newTestOutput(cfg *config) *otlpOutput {
 	o := &otlpOutput{}
 	o.cfg = new(atomic.Pointer[config])
 	o.cfg.Store(cfg)
-	o.logger = log.New(io.Discard, "", 0)
+	o.logger = logging.DiscardLogger()
 	return o
 }
 
@@ -422,6 +421,297 @@ func TestBuildMetricName_StripLeadingUnderscore(t *testing.T) {
 			assert.Equal(t, tt.expected, got)
 		})
 	}
+}
+
+// getResourceAttr returns the value of an attribute on a Resource, and whether it was present.
+func getResourceAttr(r interface{ GetAttributes() []*commonpb.KeyValue }, key string) (string, bool) {
+	for _, a := range r.GetAttributes() {
+		if a.Key == key {
+			return a.Value.GetStringValue(), true
+		}
+	}
+	return "", false
+}
+
+// getAttr returns the value of an attribute in a KeyValue slice, and whether it was present.
+func getAttr(attrs []*commonpb.KeyValue, key string) (string, bool) {
+	for _, a := range attrs {
+		if a.Key == key {
+			return a.Value.GetStringValue(), true
+		}
+	}
+	return "", false
+}
+
+// TestCreateResource_UniformTagsPromoted pins the backward-compatible path:
+// when every event in the group agrees on a resource-tag-keys value, that tag
+// is promoted to the Resource and not flagged as divergent.
+func TestCreateResource_UniformTagsPromoted(t *testing.T) {
+	cfg := &config{
+		ResourceTagKeys: []string{"device", "model", "vendor"},
+	}
+	output := newTestOutput(cfg)
+
+	events := []*formatters.EventMsg{
+		{Tags: map[string]string{"device": "bbr2", "model": "junos", "vendor": "juniper", "component_name": "RE0"}},
+		{Tags: map[string]string{"device": "bbr2", "model": "junos", "vendor": "juniper", "component_name": "FPC0"}},
+	}
+
+	resource, divergent := output.createResource(cfg, events)
+
+	device, ok := getResourceAttr(resource, "device")
+	require.True(t, ok, "device should be on Resource")
+	assert.Equal(t, "bbr2", device)
+
+	model, ok := getResourceAttr(resource, "model")
+	require.True(t, ok)
+	assert.Equal(t, "junos", model)
+
+	assert.Empty(t, divergent, "no divergent keys expected when all events agree")
+}
+
+// TestCreateResource_DivergentTagsInDivergenceSet is the spec-violation fix:
+// when a resource-tag-keys value varies across events in the group, the tag
+// is omitted from Resource and reported in the divergence set so that the
+// per-datapoint attribute extraction can route it correctly.
+func TestCreateResource_DivergentTagsInDivergenceSet(t *testing.T) {
+	cfg := &config{
+		ResourceTagKeys: []string{"device", "serial_no"},
+	}
+	output := newTestOutput(cfg)
+
+	events := []*formatters.EventMsg{
+		{Tags: map[string]string{"device": "bbr2", "serial_no": "BUILTIN"}},
+		{Tags: map[string]string{"device": "bbr2", "serial_no": "1W1CUPAA04012"}},
+	}
+
+	resource, divergent := output.createResource(cfg, events)
+
+	device, ok := getResourceAttr(resource, "device")
+	require.True(t, ok)
+	assert.Equal(t, "bbr2", device, "uniform tag still promoted")
+
+	_, ok = getResourceAttr(resource, "serial_no")
+	assert.False(t, ok, "divergent tag must not appear on Resource")
+
+	assert.True(t, divergent["serial_no"], "serial_no must be flagged as divergent")
+	assert.False(t, divergent["device"], "device should not be flagged")
+}
+
+// TestCreateResource_MissingFromSomeEventsIsLenient pins the lenient semantic:
+// a tag present in some events and absent in others, where the present events
+// all agree, is still promoted to Resource. Absence does not count as divergence.
+func TestCreateResource_MissingFromSomeEventsIsLenient(t *testing.T) {
+	cfg := &config{
+		ResourceTagKeys: []string{"model"},
+	}
+	output := newTestOutput(cfg)
+
+	events := []*formatters.EventMsg{
+		{Tags: map[string]string{"model": "junos"}},
+		{Tags: map[string]string{}}, // model absent
+		{Tags: map[string]string{"model": "junos"}},
+	}
+
+	resource, divergent := output.createResource(cfg, events)
+
+	model, ok := getResourceAttr(resource, "model")
+	require.True(t, ok, "model should be promoted when present events agree")
+	assert.Equal(t, "junos", model)
+	assert.False(t, divergent["model"])
+}
+
+// TestCreateResource_MissingFromAllEventsSkipped verifies that a resource-tag-key
+// absent from every event in the group is neither promoted nor flagged as divergent.
+func TestCreateResource_MissingFromAllEventsSkipped(t *testing.T) {
+	cfg := &config{
+		ResourceTagKeys: []string{"vendor"},
+	}
+	output := newTestOutput(cfg)
+
+	events := []*formatters.EventMsg{
+		{Tags: map[string]string{"device": "bbr2"}},
+		{Tags: map[string]string{"device": "bbr2"}},
+	}
+
+	resource, divergent := output.createResource(cfg, events)
+
+	_, ok := getResourceAttr(resource, "vendor")
+	assert.False(t, ok, "absent tag not promoted")
+	assert.False(t, divergent["vendor"], "absent tag not divergent either")
+}
+
+// TestCreateResource_ResourceAttributesStillAppended verifies that the static
+// cfg.ResourceAttributes map continues to be merged into the Resource regardless
+// of divergence handling for resource-tag-keys.
+func TestCreateResource_ResourceAttributesStillAppended(t *testing.T) {
+	cfg := &config{
+		ResourceTagKeys:    []string{"device"},
+		ResourceAttributes: map[string]string{"telemetry.source": "gnmi"},
+	}
+	output := newTestOutput(cfg)
+
+	events := []*formatters.EventMsg{
+		{Tags: map[string]string{"device": "bbr2"}},
+	}
+
+	resource, _ := output.createResource(cfg, events)
+
+	v, ok := getResourceAttr(resource, "telemetry.source")
+	require.True(t, ok)
+	assert.Equal(t, "gnmi", v)
+}
+
+// TestExtractAttributesForMetric_DivergentKeysIncluded verifies that when a
+// resource-tag-key is flagged as divergent for the current group, the event's
+// own value for that key flows through to datapoint attributes with its correct
+// per-event value instead of being excluded as a resource-only tag.
+func TestExtractAttributesForMetric_DivergentKeysIncluded(t *testing.T) {
+	cfg := &config{
+		ResourceTagKeys: []string{"device", "serial_no"},
+	}
+	output := newTestOutput(cfg)
+
+	event := &formatters.EventMsg{Tags: map[string]string{
+		"device":         "bbr2",
+		"serial_no":      "BUILTIN",
+		"component_name": "RE0",
+	}}
+	divergent := map[string]bool{"serial_no": true}
+
+	attrs := output.extractAttributesForMetric(cfg, divergent, event)
+
+	v, ok := getAttr(attrs, "serial_no")
+	require.True(t, ok, "divergent resource-tag-key must appear on datapoint attrs")
+	assert.Equal(t, "BUILTIN", v, "with this event's correct value")
+
+	_, ok = getAttr(attrs, "device")
+	assert.False(t, ok, "non-divergent resource-tag-key still excluded from datapoint attrs")
+
+	v, ok = getAttr(attrs, "component_name")
+	require.True(t, ok, "non-resource tag still on datapoint attrs")
+	assert.Equal(t, "RE0", v)
+}
+
+// TestExtractAttributesForMetric_NoDivergenceMatchesOriginalBehavior is a
+// regression pin: when no keys are divergent, datapoint attrs exclude every
+// resource-tag-key — matching behavior prior to this change.
+func TestExtractAttributesForMetric_NoDivergenceMatchesOriginalBehavior(t *testing.T) {
+	cfg := &config{
+		ResourceTagKeys: []string{"device", "model"},
+	}
+	output := newTestOutput(cfg)
+
+	event := &formatters.EventMsg{Tags: map[string]string{
+		"device":         "bbr2",
+		"model":          "junos",
+		"component_name": "RE0",
+	}}
+
+	attrs := output.extractAttributesForMetric(cfg, map[string]bool{}, event)
+
+	_, ok := getAttr(attrs, "device")
+	assert.False(t, ok)
+	_, ok = getAttr(attrs, "model")
+	assert.False(t, ok)
+	v, ok := getAttr(attrs, "component_name")
+	require.True(t, ok)
+	assert.Equal(t, "RE0", v)
+}
+
+// TestGroupByResource_PrefersDeviceOverTargetAndSource pins the preference
+// order: when device is present, it is used as the group key regardless of
+// whether target or source is also present. device is the most stable and
+// human-readable identifier of the producing entity, so it leads the chain.
+func TestGroupByResource_PrefersDeviceOverTargetAndSource(t *testing.T) {
+	output := newTestOutput(&config{})
+
+	events := []*formatters.EventMsg{
+		{Tags: map[string]string{"device": "bbr2", "target": "bbr2-t", "source": "10.1.1.1:6030"}},
+		{Tags: map[string]string{"device": "bbr2", "target": "bbr2-t", "source": "10.1.1.1:6030"}},
+		{Tags: map[string]string{"device": "fnx5", "target": "fnx5-t", "source": "10.2.2.2:6030"}},
+	}
+
+	groups := output.groupByResource(events)
+
+	assert.Len(t, groups["bbr2"], 2, "device leads the preference chain")
+	assert.Len(t, groups["fnx5"], 1)
+	_, ok := groups["10.1.1.1:6030"]
+	assert.False(t, ok, "source must not be used when device is present")
+}
+
+// TestGroupByResource_UsesSourceWhenDeviceAndTargetAbsent verifies that when
+// only source is present, it is still used as the group key — matching
+// behavior prior to this change for deployments that have not set device or
+// target tags.
+func TestGroupByResource_UsesSourceWhenDeviceAndTargetAbsent(t *testing.T) {
+	output := newTestOutput(&config{})
+
+	events := []*formatters.EventMsg{
+		{Tags: map[string]string{"source": "10.1.1.1:6030"}},
+		{Tags: map[string]string{"source": "10.2.2.2:6030"}},
+	}
+
+	groups := output.groupByResource(events)
+
+	assert.Len(t, groups["10.1.1.1:6030"], 1)
+	assert.Len(t, groups["10.2.2.2:6030"], 1)
+}
+
+// TestGroupByResource_FallsBackToDeviceWhenSourceAbsent verifies that when
+// events have no source tag (e.g., stripped by a processor because it
+// duplicates device), grouping falls back to device so per-target Resource
+// isolation is preserved.
+func TestGroupByResource_FallsBackToDeviceWhenSourceAbsent(t *testing.T) {
+	output := newTestOutput(&config{})
+
+	events := []*formatters.EventMsg{
+		{Tags: map[string]string{"device": "bbr2"}},
+		{Tags: map[string]string{"device": "bbr2"}},
+		{Tags: map[string]string{"device": "fnx5"}},
+	}
+
+	groups := output.groupByResource(events)
+
+	assert.Len(t, groups["bbr2"], 2)
+	assert.Len(t, groups["fnx5"], 1)
+	_, ok := groups["unknown"]
+	assert.False(t, ok, "unknown bucket must not be populated when device is present")
+}
+
+// TestGroupByResource_FallsBackToTargetWhenSourceAndDeviceAbsent verifies the
+// third step of the fallback chain: when both source and device are absent,
+// fall back to target.
+func TestGroupByResource_FallsBackToTargetWhenSourceAndDeviceAbsent(t *testing.T) {
+	output := newTestOutput(&config{})
+
+	events := []*formatters.EventMsg{
+		{Tags: map[string]string{"target": "bbr2-logical"}},
+		{Tags: map[string]string{"target": "bbr2-logical"}},
+	}
+
+	groups := output.groupByResource(events)
+
+	assert.Len(t, groups["bbr2-logical"], 2)
+	_, ok := groups["unknown"]
+	assert.False(t, ok)
+}
+
+// TestGroupByResource_FallsBackToUnknownAsLastResort documents that when the
+// whole fallback chain is empty, events collapse into a literal "unknown"
+// bucket. This is the same landmine behavior as before the fallback chain —
+// preserved as a last resort.
+func TestGroupByResource_FallsBackToUnknownAsLastResort(t *testing.T) {
+	output := newTestOutput(&config{})
+
+	events := []*formatters.EventMsg{
+		{Tags: map[string]string{"unrelated": "x"}},
+		{Tags: map[string]string{"unrelated": "y"}},
+	}
+
+	groups := output.groupByResource(events)
+
+	assert.Len(t, groups["unknown"], 2)
 }
 
 // Helper functions

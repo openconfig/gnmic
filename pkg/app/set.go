@@ -82,8 +82,14 @@ func (a *App) SetRequest(ctx context.Context, tc *types.TargetConfig) {
 }
 
 func (a *App) setRequest(ctx context.Context, tc *types.TargetConfig, req *gnmi.SetRequest) {
-	a.Logger.Printf("sending gNMI SetRequest: prefix='%v', delete='%v', replace='%v', update='%v', extension='%v' to %s",
-		req.Prefix, req.Delete, req.Replace, req.Update, req.Extension, tc.Name)
+	a.Logger.Info("sending gNMI SetRequest",
+		"target", tc.Name,
+		"prefix", req.Prefix,
+		"delete", req.Delete,
+		"replace", req.Replace,
+		"update", req.Update,
+		"extension", req.Extension,
+	)
 	if a.Config.PrintRequest || a.Config.SetDryRun {
 		err := a.PrintMsg(tc.Name, "Set Request:", req)
 		if err != nil {

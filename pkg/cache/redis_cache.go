@@ -11,8 +11,7 @@ package cache
 import (
 	"context"
 	"fmt"
-	"log"
-	"os"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -20,12 +19,9 @@ import (
 
 	redis "github.com/go-redis/redis/v8"
 	"github.com/openconfig/gnmi/proto/gnmi"
-
-	"github.com/openconfig/gnmic/pkg/api/utils"
 )
 
 const (
-	loggingPrefixRedis   = "[cache:redis] "
 	cacheChannelsChannel = "gnmic_cache_channels"
 	defaultRedisAddress  = "127.0.0.1:6379"
 )
@@ -39,7 +35,7 @@ type redisCache struct {
 	channelChan chan string
 	m           *sync.RWMutex
 	channels    map[string]struct{}
-	logger      *log.Logger
+	logger      *slog.Logger
 }
 
 func newRedisCache(cfg *Config, opts ...Option) (*redisCache, error) {
@@ -63,7 +59,7 @@ func newRedisCache(cfg *Config, opts ...Option) (*redisCache, error) {
 		opt(c)
 	}
 	if c.logger == nil {
-		c.logger = log.New(os.Stderr, loggingPrefixRedis, utils.DefaultLoggingFlags)
+		c.logger = slog.New(slog.DiscardHandler)
 	}
 CLIENT:
 	c.c = redis.NewClient(&redis.Options{
@@ -78,22 +74,19 @@ CLIENT:
 
 	pong, err := c.c.Ping(ctx).Result()
 	if err != nil {
-		c.logger.Printf("failed to connect to redis: %v", err)
+		c.logger.Error("failed to connect to redis", "err", err)
 		time.Sleep(time.Second)
 		goto CLIENT
 	}
 
-	c.logger.Printf("ping result: %s", pong)
+	c.logger.Debug("ping result", "result", pong)
 	go c.sync(ctx)
 	return c, nil
 }
 
-func (c *redisCache) SetLogger(logger *log.Logger) {
-	if logger != nil && c.logger != nil {
-		c.logger.SetOutput(logger.Writer())
-		c.logger.SetFlags(logger.Flags())
-		c.logger.SetPrefix(loggingPrefixRedis)
-	}
+func (c *redisCache) SetLogger(logger *slog.Logger) {
+	c.logger = BindLogger(logger, "redis")
+	c.oc.SetLogger(logger)
 }
 
 func (c *redisCache) Write(ctx context.Context, subscriptionName string, m proto.Message) {
@@ -121,14 +114,14 @@ func (c *redisCache) writeRemoteREDIS(ctx context.Context, subscriptionName stri
 		case *gnmi.SubscribeResponse_Update:
 			targetName := rsp.Update.GetPrefix().GetTarget()
 			if targetName == "" {
-				c.logger.Printf("subscription=%q: response missing target: %v", subscriptionName, rsp)
+				c.logger.Warn("response missing target", "subscription", subscriptionName, "response", rsp)
 				return
 			}
 			c.channelChan <- subscriptionName
 			var err error
 			err = c.publishNotificationREDIS(ctx, subscriptionName, targetName, m)
 			if err != nil {
-				c.logger.Print(err)
+				c.logger.Error("redis publish error", "err", err)
 			}
 		}
 	}
@@ -145,13 +138,13 @@ func (c *redisCache) publishNotificationREDIS(ctx context.Context, subscriptionN
 	status := c.c.Publish(ctx, fmt.Sprintf("%s.%s", subscriptionName, targetName), b)
 	if status.Err() != nil {
 		err = fmt.Errorf("failed to publish statusErr: %v", status.Err())
-		c.logger.Print(err)
+		c.logger.Error("redis publish error", "err", err)
 		return err
 	}
 	_, err = status.Result()
 	if err != nil {
 		err = fmt.Errorf("failed to publish resultErr: %v", err)
-		c.logger.Print(err)
+		c.logger.Error("redis publish error", "err", err)
 	}
 	return nil
 }
@@ -165,7 +158,7 @@ func (c *redisCache) Read(sub, target string, p *gnmi.Path) (map[string][]*gnmi.
 }
 
 func (c *redisCache) sync(ctx context.Context) {
-	c.logger.Printf("start redis sync")
+	c.logger.Info("start redis sync")
 	// subscribe to cache channel updates
 	// and periodically reset the local channels map.
 	go func() {
@@ -199,7 +192,7 @@ func (c *redisCache) sync(ctx context.Context) {
 			c.m.Lock()
 			if _, ok := channels[cc]; !ok {
 				channels[cc] = struct{}{}
-				c.logger.Printf("starting redis channel %q sync", cc)
+				c.logger.Info("starting redis channel sync", "channel", cc)
 				go c.syncChannel(ctx, cc)
 			}
 			c.m.Unlock()
@@ -221,7 +214,7 @@ func (c *redisCache) syncChannel(ctx context.Context, channel string) {
 			m := new(gnmi.SubscribeResponse)
 			err := proto.Unmarshal([]byte(msg.Payload), m)
 			if err != nil {
-				c.logger.Printf("failed to unmarshal proto msg: %v", err)
+				c.logger.Warn("failed to unmarshal proto msg", "err", err)
 				continue
 			}
 			c.oc.Write(ctx, channel, m)

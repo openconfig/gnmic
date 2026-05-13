@@ -10,19 +10,16 @@ package event_time_epoch
 
 import (
 	"encoding/json"
-	"io"
-	"log"
-	"os"
+	"log/slog"
 	"regexp"
 	"time"
 
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 const (
 	processorType = "event-time-epoch"
-	loggingPrefix = "[" + processorType + "] "
 )
 
 // epoch converts a time string to epoch time
@@ -35,14 +32,11 @@ type epoch struct {
 	Debug     bool     `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 
 	values []*regexp.Regexp
-	logger *log.Logger
 }
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &epoch{
-			logger: log.New(io.Discard, "", 0),
-		}
+		return &epoch{}
 	})
 }
 
@@ -54,6 +48,10 @@ func (d *epoch) Init(cfg any, opts ...formatters.Option) error {
 	for _, opt := range opts {
 		opt(d)
 	}
+	if d.Logger == nil {
+		d.Logger = logging.DiscardLogger()
+	}
+	d.Logger = d.Logger.With("processor", processorType)
 	if d.Format == "" {
 		d.Format = time.RFC3339
 	}
@@ -66,13 +64,12 @@ func (d *epoch) Init(cfg any, opts ...formatters.Option) error {
 		}
 		d.values = append(d.values, re)
 	}
-	if d.logger.Writer() != io.Discard {
-		b, err := json.Marshal(d)
-		if err != nil {
-			d.logger.Printf("initialized processor '%s': %+v", processorType, d)
-			return nil
+	if d.Debug {
+		if b, err := json.Marshal(d); err == nil {
+			d.Logger.Debug("initialized processor", "config", string(b))
+		} else {
+			d.Logger.Debug("initialized processor", "config", d)
 		}
-		d.logger.Printf("initialized processor '%s': %s", processorType, string(b))
 	}
 	return nil
 }
@@ -85,12 +82,12 @@ func (d *epoch) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		for k, v := range e.Values {
 			for _, re := range d.values {
 				if re.MatchString(k) {
-					d.logger.Printf("key '%s' matched regex '%s'", k, re.String())
+					d.Logger.Debug("key matched regex", "key", k, "regex", re.String())
 					switch v := v.(type) {
 					case string:
 						td, err := time.Parse(d.Format, v)
 						if err != nil {
-							d.logger.Printf("failed to convert '%v' to time: %v", v, err)
+							d.Logger.Warn("failed to convert value to time", "value", v, "err", err)
 							continue
 						}
 						var ts int64
@@ -117,10 +114,9 @@ func (d *epoch) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	return es
 }
 
-func (d *epoch) WithLogger(l *log.Logger) {
-	if d.Debug && l != nil {
-		d.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
-	} else if d.Debug {
-		d.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
+func (d *epoch) WithLogger(l *slog.Logger) {
+	if !d.Debug {
+		l = nil
 	}
+	d.BaseProcessor.WithLogger(l)
 }

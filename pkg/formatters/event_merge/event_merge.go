@@ -10,33 +10,24 @@ package event_merge
 
 import (
 	"encoding/json"
-	"io"
-	"log"
-	"os"
+	"log/slog"
 
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
-const (
-	processorType = "event-merge"
-	loggingPrefix = "[" + processorType + "] "
-)
+const processorType = "event-merge"
 
 // merge merges a list of event messages into one or multiple messages based on some criteria
 type merge struct {
 	formatters.BaseProcessor
 	Always bool `mapstructure:"always,omitempty" json:"always,omitempty"`
 	Debug  bool `mapstructure:"debug,omitempty" json:"debug,omitempty"`
-
-	logger *log.Logger
 }
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &merge{
-			logger: log.New(io.Discard, "", 0),
-		}
+		return &merge{}
 	})
 }
 
@@ -48,14 +39,17 @@ func (p *merge) Init(cfg interface{}, opts ...formatters.Option) error {
 	for _, opt := range opts {
 		opt(p)
 	}
+	if p.Logger == nil {
+		p.Logger = logging.DiscardLogger()
+	}
+	p.Logger = p.Logger.With("processor", processorType)
 
-	if p.logger.Writer() != io.Discard {
-		b, err := json.Marshal(p)
-		if err != nil {
-			p.logger.Printf("initialized processor '%s': %+v", processorType, p)
-			return nil
+	if p.Debug {
+		if b, err := json.Marshal(p); err == nil {
+			p.Logger.Debug("initialized processor", "config", string(b))
+		} else {
+			p.Logger.Debug("initialized processor", "config", p)
 		}
-		p.logger.Printf("initialized processor '%s': %s", processorType, string(b))
 	}
 	return nil
 }
@@ -91,12 +85,11 @@ func (p *merge) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	return result
 }
 
-func (p *merge) WithLogger(l *log.Logger) {
-	if p.Debug && l != nil {
-		p.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
-	} else if p.Debug {
-		p.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
+func (p *merge) WithLogger(l *slog.Logger) {
+	if !p.Debug {
+		l = nil
 	}
+	p.BaseProcessor.WithLogger(l)
 }
 
 func mergeEvents(e1, e2 *formatters.EventMsg) {

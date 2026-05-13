@@ -10,11 +10,10 @@ package event_write
 
 import (
 	"bytes"
-	"io"
-	"log"
 	"testing"
 
 	"github.com/openconfig/gnmic/pkg/formatters"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 type item struct {
@@ -216,7 +215,7 @@ var testset = map[string]struct {
 
 func TestEventWrite(t *testing.T) {
 	for name, ts := range testset {
-		p := &write{logger: log.New(io.Discard, "", 0)}
+		p := &write{BaseProcessor: formatters.BaseProcessor{Logger: logging.DiscardLogger()}}
 		err := p.Init(ts.processor)
 		if err != nil {
 			t.Errorf("failed to initialize processors: %v", err)

@@ -13,8 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"log"
+	"log/slog"
 	"net"
 	"net/url"
 	"strconv"
@@ -31,10 +30,10 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	gfile "github.com/openconfig/gnmic/pkg/file"
 	"github.com/openconfig/gnmic/pkg/loaders"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 const (
-	loggingPrefix = "[docker_loader] "
 	watchInterval = 30 * time.Second
 	loaderType    = "docker"
 )
@@ -46,7 +45,7 @@ func init() {
 			wg:          new(sync.WaitGroup),
 			m:           new(sync.Mutex),
 			lastTargets: make(map[string]*types.TargetConfig),
-			logger:      log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
+			logger:      logging.DiscardLogger(),
 		}
 	})
 }
@@ -59,7 +58,7 @@ type dockerLoader struct {
 	m              *sync.Mutex
 	lastTargets    map[string]*types.TargetConfig
 	targetConfigFn func(*types.TargetConfig) error
-	logger         *log.Logger
+	logger         *slog.Logger
 	fl             []*targetFilterComp
 	//
 	vars          map[string]interface{}
@@ -110,7 +109,7 @@ type targetFilter struct {
 	Config     map[string]interface{} `json:"config,omitempty" mapstructure:"config,omitempty"`
 }
 
-func (d *dockerLoader) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger, opts ...loaders.Option) error {
+func (d *dockerLoader) Init(ctx context.Context, cfg map[string]interface{}, logger *slog.Logger, opts ...loaders.Option) error {
 	err := loaders.DecodeConfig(cfg, d.cfg)
 	if err != nil {
 		return err
@@ -149,10 +148,7 @@ func (d *dockerLoader) Init(ctx context.Context, cfg map[string]interface{}, log
 		})
 	}
 
-	if logger != nil {
-		d.logger.SetOutput(logger.Writer())
-		d.logger.SetFlags(logger.Flags())
-	}
+	d.logger = loaders.BindLogger(logger, loaderType)
 
 	d.client, err = d.createDockerClient()
 	if err != nil {
@@ -192,8 +188,8 @@ func (d *dockerLoader) Init(ctx context.Context, cfg map[string]interface{}, log
 		return fmt.Errorf("unknown action name %q", actName)
 	}
 	d.numActions = len(d.addActions) + len(d.delActions)
-	d.logger.Printf("connected to docker daemon: %+v", ping)
-	d.logger.Printf("initialized loader type %q: %s", loaderType, d)
+	d.logger.Info("connected to docker daemon", "ping", ping)
+	d.logger.Info("initialized loader", "type", loaderType, slog.Any("config", d))
 	return nil
 }
 
@@ -245,7 +241,7 @@ func (d *dockerLoader) Start(ctx context.Context) chan *loaders.TargetOperation 
 		for {
 			select {
 			case <-ctx.Done():
-				d.logger.Printf("%q context done: %v", loaderType, ctx.Err())
+				d.logger.Info("context done", "loader", loaderType, "err", ctx.Err())
 				return
 			case <-ticker.C:
 				d.update(ctx, opChan)
@@ -256,13 +252,13 @@ func (d *dockerLoader) Start(ctx context.Context) chan *loaders.TargetOperation 
 }
 
 func (d *dockerLoader) RunOnce(ctx context.Context) (map[string]*types.TargetConfig, error) {
-	d.logger.Printf("querying %q targets", loaderType)
+	d.logger.Debug("querying targets", "loader", loaderType)
 	readTargets, err := d.getTargets(ctx)
 	if err != nil {
 		return nil, err
 	}
 	if d.cfg.Debug {
-		d.logger.Printf("docker loader discovered %d target(s)", len(readTargets))
+		d.logger.Info("docker loader discovered targets", "count", len(readTargets))
 	}
 	return readTargets, nil
 }
@@ -271,7 +267,7 @@ func (d *dockerLoader) RunOnce(ctx context.Context) (map[string]*types.TargetCon
 func (d *dockerLoader) update(ctx context.Context, opChan chan *loaders.TargetOperation) {
 	readTargets, err := d.RunOnce(ctx)
 	if err != nil {
-		d.logger.Printf("failed to read targets from docker daemon: %v", err)
+		d.logger.Error("failed to read targets from docker daemon:", "err", err)
 		return
 	}
 	select {
@@ -320,12 +316,12 @@ func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*types.Target
 				}
 				conts := contsRes.Items
 				for _, cont := range conts {
-					d.logger.Printf("building target from container %q", cont.Names)
+					d.logger.Debug("building target from container", "container", cont.Names)
 					tc := new(types.TargetConfig)
 					if fl.cfg != nil {
 						err = mapstructure.Decode(fl.cfg, tc)
 						if err != nil {
-							d.logger.Printf("failed to decode config map: %v", err)
+							d.logger.Error("failed to decode config map:", "err", err)
 						}
 					}
 					// set target name
@@ -370,7 +366,7 @@ func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*types.Target
 								}
 							}
 							if tc.Address == "" {
-								d.logger.Printf("%q no address found", tc.Name)
+								d.logger.Warn("no address found", "target", tc.Name)
 								continue
 							}
 							if fl.port != "" {
@@ -402,7 +398,7 @@ func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*types.Target
 											// derive target address from daemon address if not empty
 											u, err := url.Parse(d.cfg.Address)
 											if err != nil {
-												d.logger.Printf("failed to parse docker daemon address")
+												d.logger.Info("failed to parse docker daemon address")
 												continue
 											}
 											ipAddrStr, _, _ = net.SplitHostPort(u.Host)
@@ -429,7 +425,7 @@ func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*types.Target
 									}
 								}
 								if tc.Address == "" {
-									d.logger.Printf("%q no address found", tc.Name)
+									d.logger.Warn("no address found", "target", tc.Name)
 									continue
 								}
 								if port != 0 {
@@ -440,7 +436,7 @@ func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*types.Target
 					}
 					//
 					if d.cfg.Debug {
-						d.logger.Printf("discovered target config %s with filter: %v", tc, cfl)
+						d.logger.Debug("discovered target config", "target", tc, "filter", cfl)
 					}
 					m.Lock()
 					readTargets[tc.Name] = tc
@@ -460,7 +456,7 @@ func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*types.Target
 	if len(errors) > 0 {
 		for _, err := range errors {
 			dockerLoaderFailedListRequests.WithLabelValues(loaderType, fmt.Sprintf("%v", err)).Add(1)
-			d.logger.Printf("%v", err)
+			d.logger.Error("docker loader error", "err", err)
 		}
 		return nil, fmt.Errorf("there was %d error(s)", len(errors))
 	}
@@ -484,20 +480,16 @@ func (d *dockerLoader) diff(m map[string]*types.TargetConfig) *loaders.TargetOpe
 	if d.cfg.Debug {
 		b, err := json.MarshalIndent(result, "", "  ")
 		if err != nil {
-			d.logger.Printf("discovery diff result: %v", result)
+			d.logger.Debug("discovery diff result", "result", result)
 		} else {
-			d.logger.Printf("discovery diff result:\n%s", string(b))
+			d.logger.Debug("discovery diff result", "result", string(b))
 		}
 	}
 	return result
 }
 
 func (d *dockerLoader) String() string {
-	b, err := json.Marshal(d.cfg)
-	if err != nil {
-		return fmt.Sprintf("%+v", d.cfg)
-	}
-	return string(b)
+	return logging.RedactedJSON(d.cfg)
 }
 
 func (d *dockerLoader) updateTargets(ctx context.Context, tcs map[string]*types.TargetConfig, opChan chan *loaders.TargetOperation) {
@@ -505,12 +497,12 @@ func (d *dockerLoader) updateTargets(ctx context.Context, tcs map[string]*types.
 	for _, tc := range tcs {
 		err = d.targetConfigFn(tc)
 		if err != nil {
-			d.logger.Printf("failed running target config fn on target %q", tc.Name)
+			d.logger.Error("failed running target config fn", "target", tc.Name)
 		}
 	}
 	targetOp, err := d.runActions(ctx, tcs, d.diff(tcs))
 	if err != nil {
-		d.logger.Printf("failed to run actions: %v", err)
+		d.logger.Error("failed to run actions:", "err", err)
 		return
 	}
 	numAdds := len(targetOp.Add)
@@ -617,7 +609,7 @@ func (d *dockerLoader) runActions(ctx context.Context, tcs map[string]*types.Tar
 			defer wg.Done()
 			err := d.runOnAddActions(ctx, tc.Name, tcs)
 			if err != nil {
-				d.logger.Printf("failed running OnAdd actions: %v", err)
+				d.logger.Error("failed running OnAdd actions", "err", err)
 				return
 			}
 			opChan <- &loaders.TargetOperation{Add: map[string]*types.TargetConfig{n: tc}}
@@ -629,7 +621,7 @@ func (d *dockerLoader) runActions(ctx context.Context, tcs map[string]*types.Tar
 			defer wg.Done()
 			err := d.runOnDeleteActions(ctx, name)
 			if err != nil {
-				d.logger.Printf("failed running OnDelete actions: %v", err)
+				d.logger.Error("failed running OnDelete actions", "err", err)
 				return
 			}
 			opChan <- &loaders.TargetOperation{Del: []string{name}}
@@ -649,7 +641,7 @@ func (d *dockerLoader) runOnAddActions(ctx context.Context, tName string, tcs ma
 		Targets: tcs,
 	}
 	for _, act := range d.addActions {
-		d.logger.Printf("running action %q for target %q", act.NName(), tName)
+		d.logger.Info("running action", "action", act.NName(), "target", tName)
 		res, err := act.Run(ctx, aCtx)
 		if err != nil {
 			// delete target from known targets map
@@ -661,9 +653,9 @@ func (d *dockerLoader) runOnAddActions(ctx context.Context, tName string, tcs ma
 
 		aCtx.Env[act.NName()] = utils.Convert(res)
 		if d.cfg.Debug {
-			d.logger.Printf("action %q, target %q result: %+v", act.NName(), tName, res)
+			d.logger.Debug("action result", "action", act.NName(), "target", tName, "result", res)
 			b, _ := json.MarshalIndent(aCtx, "", "  ")
-			d.logger.Printf("action %q context:\n%s", act.NName(), string(b))
+			d.logger.Debug("action context", "action", act.NName(), "context", string(b))
 		}
 	}
 	return nil

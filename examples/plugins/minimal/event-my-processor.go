@@ -1,7 +1,7 @@
 package main
 
 import (
-	"log"
+	"log/slog"
 	"os"
 
 	"github.com/hashicorp/go-hclog"
@@ -54,7 +54,7 @@ func (p *myProcessor) WithTargets(tcs map[string]*types.TargetConfig) {
 func (p *myProcessor) WithProcessors(procs map[string]map[string]any) {
 }
 
-func (p *myProcessor) WithLogger(l *log.Logger) {
+func (p *myProcessor) WithLogger(l *slog.Logger) {
 }
 
 func main() {

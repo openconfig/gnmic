@@ -49,19 +49,19 @@ func (s *server) Subscribe(stream gnmi.GNMI_SubscribeServer) error {
 		return status.Errorf(codes.NotFound, "target %q not found", sc.target)
 	}
 	peer, _ := peer.FromContext(stream.Context())
-	s.l.Printf("received a subscribe request mode=%v from %q for target %q", sc.req.GetSubscribe().GetMode(), peer.Addr, sc.target)
-	defer s.l.Printf("subscription from peer %q terminated", peer.Addr)
+	s.l.Info("received subscribe request", "mode", sc.req.GetSubscribe().GetMode(), "peer", peer.Addr, "target", sc.target)
+	defer s.l.Info("subscription terminated", "peer", peer.Addr)
 
 	sc.queue = coalesce.NewQueue()
 	errChan := make(chan error, 3)
 	sc.errChan = errChan
 
-	s.l.Printf("acquiring subscription spot for target %q", sc.target)
+	s.l.Debug("acquiring subscription spot", "target", sc.target)
 	ok := s.subscribeRPCsem.TryAcquire(1)
 	if !ok {
 		return status.Errorf(codes.ResourceExhausted, "could not acquire a subscription spot")
 	}
-	s.l.Printf("acquired subscription spot for target %q", sc.target)
+	s.l.Debug("acquired subscription spot", "target", sc.target)
 
 	switch sc.req.GetSubscribe().GetMode() {
 	case gnmi.SubscriptionList_ONCE:

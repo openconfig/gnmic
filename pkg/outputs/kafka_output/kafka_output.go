@@ -10,12 +10,9 @@ package kafka_output
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"log"
-	"os"
+	"log/slog"
 	"slices"
 	"strings"
 	"sync"
@@ -32,6 +29,7 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	pkgutils "github.com/openconfig/gnmic/pkg/utils"
 	"github.com/zestor-dev/zestor/store"
@@ -45,7 +43,7 @@ const (
 	defaultFormat           = "event"
 	defaultRecoveryWaitTime = 10 * time.Second
 	defaultAddress          = "localhost:9092"
-	loggingPrefixTpl        = "[kafka_output:%s] "
+	outputType              = "kafka"
 	defaultCompressionCodec = sarama.CompressionNone
 
 	requiredAcksNoResponse   = "no-response"
@@ -70,7 +68,7 @@ func (k *kafkaOutput) init() {
 	k.dynCfg = new(atomic.Pointer[dynConfig])
 	k.msgChan = new(atomic.Pointer[chan *outputs.ProtoMsg])
 	k.wg = new(sync.WaitGroup)
-	k.logger = log.New(io.Discard, loggingPrefixTpl, utils.DefaultLoggingFlags)
+	k.logger = logging.DiscardLogger()
 	k.closeOnce = sync.Once{}
 	k.closeSig = make(chan struct{})
 }
@@ -79,12 +77,11 @@ func (k *kafkaOutput) init() {
 type kafkaOutput struct {
 	outputs.BaseOutput
 
-	cfg       *atomic.Pointer[config]
-	dynCfg    *atomic.Pointer[dynConfig]
-	logger    sarama.StdLogger
-	srcLogger *log.Logger
-	msgChan   *atomic.Pointer[chan *outputs.ProtoMsg]
-	wg        *sync.WaitGroup
+	cfg     *atomic.Pointer[config]
+	dynCfg  *atomic.Pointer[dynConfig]
+	logger  *slog.Logger
+	msgChan *atomic.Pointer[chan *outputs.ProtoMsg]
+	wg      *sync.WaitGroup
 
 	rootCtx   context.Context
 	cancelFn  context.CancelFunc
@@ -131,19 +128,19 @@ type config struct {
 	EventProcessors    []string         `mapstructure:"event-processors,omitempty"`
 }
 
+func (c *config) LogValue() slog.Value {
+	return logging.RedactedValue(c)
+}
+
 func (k *kafkaOutput) String() string {
 	cfg := k.cfg.Load()
 	if cfg == nil {
 		return ""
 	}
-	b, err := json.Marshal(cfg)
-	if err != nil {
-		return ""
-	}
-	return string(b)
+	return logging.RedactedJSON(cfg)
 }
 
-func (k *kafkaOutput) buildEventProcessors(logger *log.Logger, eventProcessors []string) ([]formatters.EventProcessor, error) {
+func (k *kafkaOutput) buildEventProcessors(logger *slog.Logger, eventProcessors []string) ([]formatters.EventProcessor, error) {
 	tcs, ps, acts, err := pkgutils.GetConfigMaps(k.store)
 	if err != nil {
 		return nil, err
@@ -173,7 +170,6 @@ func (k *kafkaOutput) Init(ctx context.Context, name string, cfg map[string]inte
 	if newCfg.Name == "" {
 		newCfg.Name = name
 	}
-	loggingPrefix := fmt.Sprintf(loggingPrefixTpl, newCfg.Name)
 	options := &outputs.OutputOptions{}
 	for _, opt := range opts {
 		if err := opt(options); err != nil {
@@ -182,11 +178,8 @@ func (k *kafkaOutput) Init(ctx context.Context, name string, cfg map[string]inte
 	}
 
 	k.store = options.Store
-	if options.Logger != nil {
-		k.srcLogger = options.Logger
-		sarama.Logger = log.New(options.Logger.Writer(), loggingPrefix, options.Logger.Flags())
-		k.logger = sarama.Logger
-	}
+	k.logger = outputs.BindLogger(options.Logger, outputType, newCfg.Name)
+	pkgutils.SetSaramaLoggerOnce(k.logger, slog.LevelWarn)
 
 	err = k.setDefaultsFor(newCfg)
 	if err != nil {
@@ -203,7 +196,7 @@ func (k *kafkaOutput) Init(ctx context.Context, name string, cfg map[string]inte
 	}
 	dc := new(dynConfig)
 	// initialize event processors
-	evps, err := k.buildEventProcessors(options.Logger, newCfg.EventProcessors)
+	evps, err := k.buildEventProcessors(k.logger, newCfg.EventProcessors)
 	if err != nil {
 		return err
 	}
@@ -323,7 +316,7 @@ func (k *kafkaOutput) Update(ctx context.Context, cfg map[string]any) error {
 
 	prevDC := k.dynCfg.Load()
 	if rebuildProcessors {
-		dc.evps, err = k.buildEventProcessors(log.New(os.Stderr, fmt.Sprintf(loggingPrefixTpl, newCfg.Name), utils.DefaultLoggingFlags), newCfg.EventProcessors)
+		dc.evps, err = k.buildEventProcessors(k.logger, newCfg.EventProcessors)
 		if err != nil {
 			return err
 		}
@@ -395,7 +388,7 @@ func (k *kafkaOutput) Update(ctx context.Context, cfg map[string]any) error {
 			oldWG.Wait()
 		}
 	}
-	k.logger.Printf("updated kafka output: %s", k.String())
+	k.logger.Info("updated kafka output", slog.Any("config", k.String()))
 	return nil
 }
 
@@ -457,7 +450,7 @@ func (k *kafkaOutput) UpdateProcessor(name string, pcfg map[string]any) error {
 	dc := k.dynCfg.Load()
 
 	newEvps, changed, err := outputs.UpdateProcessorInSlice(
-		k.srcLogger,
+		k.logger,
 		k.store,
 		cfg.EventProcessors,
 		dc.evps,
@@ -471,7 +464,7 @@ func (k *kafkaOutput) UpdateProcessor(name string, pcfg map[string]any) error {
 		newDC := *dc
 		newDC.evps = newEvps
 		k.dynCfg.Store(&newDC)
-		k.logger.Printf("updated event processor %s", name)
+		k.logger.Info("updated event processor", "name", name)
 	}
 	return nil
 }
@@ -495,7 +488,7 @@ func (k *kafkaOutput) Write(ctx context.Context, rsp proto.Message, meta outputs
 		return
 	case <-wctx.Done():
 		if currentCfg.Debug {
-			k.logger.Printf("writing expired after %s, Kafka output might not be initialized", currentCfg.Timeout)
+			k.logger.Warn("write expired, Kafka output might not be initialized", "timeout", currentCfg.Timeout)
 		}
 		if currentCfg.EnableMetrics {
 			kafkaNumberOfFailSendMsgs.WithLabelValues(currentCfg.Name, currentCfg.Name, "timeout").Inc()
@@ -513,7 +506,7 @@ func (k *kafkaOutput) Close() error {
 	k.closeOnce.Do(func() {
 		close(k.closeSig)
 	})
-	k.logger.Printf("closed kafka output: %s", k.String())
+	k.logger.Info("closed kafka output", slog.Any("config", k.String()))
 	return nil
 }
 
@@ -531,7 +524,7 @@ func (k *kafkaOutput) asyncProducerWorker(ctx context.Context, idx int, kafkaCfg
 	var err error
 	defer k.wg.Done()
 	workerLogPrefix := fmt.Sprintf("worker-%d", idx)
-	k.logger.Printf("%s starting", workerLogPrefix)
+	k.logger.Info("worker starting", "worker", workerLogPrefix)
 CRPROD:
 	if ctx.Err() != nil {
 		return
@@ -539,12 +532,12 @@ CRPROD:
 	cfg := k.cfg.Load()
 	producer, err = sarama.NewAsyncProducer(strings.Split(cfg.Address, ","), kafkaCfg)
 	if err != nil {
-		k.logger.Printf("%s failed to create kafka producer: %v", workerLogPrefix, err)
+		k.logger.Error("failed to create kafka producer", "worker", workerLogPrefix, "err", err)
 		time.Sleep(cfg.RecoveryWaitTime)
 		goto CRPROD
 	}
 	defer producer.Close()
-	k.logger.Printf("%s initialized kafka producer: %s", workerLogPrefix, k.String())
+	k.logger.Info("initialized kafka producer", "worker", workerLogPrefix, slog.Any("config", k.String()))
 
 	go func() {
 		for {
@@ -570,7 +563,7 @@ CRPROD:
 				}
 				cfg := k.cfg.Load()
 				if cfg.Debug {
-					k.logger.Printf("%s failed to send a kafka msg to topic '%s': %v", workerLogPrefix, err.Msg.Topic, err.Err)
+					k.logger.Warn("failed to send kafka msg", "worker", workerLogPrefix, "topic", err.Msg.Topic, "err", err.Err)
 				}
 				if cfg.EnableMetrics {
 					kafkaNumberOfFailSendMsgs.WithLabelValues(cfg.Name, kafkaCfg.ClientID, "send_error").Inc()
@@ -582,7 +575,7 @@ CRPROD:
 	for {
 		select {
 		case <-ctx.Done():
-			k.logger.Printf("%s shutting down", workerLogPrefix)
+			k.logger.Info("worker shutting down", "worker", workerLogPrefix)
 			return
 		case m, ok := <-msgChan:
 			if !ok {
@@ -593,12 +586,12 @@ CRPROD:
 			dc := k.dynCfg.Load()
 			pmsg, err = outputs.AddSubscriptionTarget(pmsg, m.GetMeta(), cfg.AddTarget, dc.targetTpl)
 			if err != nil {
-				k.logger.Printf("failed to add target to the response: %v", err)
+				k.logger.Warn("failed to add target to response", "err", err)
 			}
 			bb, err := outputs.Marshal(pmsg, m.GetMeta(), dc.mo, cfg.SplitEvents, dc.evps...)
 			if err != nil {
 				if cfg.Debug {
-					k.logger.Printf("%s failed marshaling proto msg: %v", workerLogPrefix, err)
+					k.logger.Warn("failed marshaling proto msg", "worker", workerLogPrefix, "err", err)
 				}
 				if cfg.EnableMetrics {
 					kafkaNumberOfFailSendMsgs.WithLabelValues(cfg.Name, kafkaCfg.ClientID, "marshal_error").Inc()
@@ -613,7 +606,7 @@ CRPROD:
 					b, err = outputs.ExecTemplate(b, dc.msgTpl)
 					if err != nil {
 						if cfg.Debug {
-							log.Printf("failed to execute template: %v", err)
+							k.logger.Warn("failed to execute template", "err", err)
 						}
 						kafkaNumberOfFailSendMsgs.WithLabelValues(cfg.Name, kafkaCfg.ClientID, "template_error").Inc()
 						continue
@@ -644,21 +637,21 @@ func (k *kafkaOutput) syncProducerWorker(ctx context.Context, idx int, kafkaCfg 
 	var err error
 	defer k.wg.Done()
 	workerLogPrefix := fmt.Sprintf("worker-%d", idx)
-	k.logger.Printf("%s starting", workerLogPrefix)
+	k.logger.Info("worker starting", "worker", workerLogPrefix)
 CRPROD:
 	cfg := k.cfg.Load()
 	producer, err = sarama.NewSyncProducer(strings.Split(cfg.Address, ","), kafkaCfg)
 	if err != nil {
-		k.logger.Printf("%s failed to create kafka producer: %v", workerLogPrefix, err)
+		k.logger.Error("failed to create kafka producer", "worker", workerLogPrefix, "err", err)
 		time.Sleep(cfg.RecoveryWaitTime)
 		goto CRPROD
 	}
 	defer producer.Close()
-	k.logger.Printf("%s initialized kafka producer: %s", workerLogPrefix, k.String())
+	k.logger.Info("initialized kafka producer", "worker", workerLogPrefix, slog.Any("config", k.String()))
 	for {
 		select {
 		case <-ctx.Done():
-			k.logger.Printf("%s shutting down", workerLogPrefix)
+			k.logger.Info("worker shutting down", "worker", workerLogPrefix)
 			return
 		case m, ok := <-msgChan:
 			if !ok {
@@ -669,12 +662,12 @@ CRPROD:
 			dc := k.dynCfg.Load()
 			pmsg, err = outputs.AddSubscriptionTarget(pmsg, m.GetMeta(), cfg.AddTarget, dc.targetTpl)
 			if err != nil {
-				k.logger.Printf("failed to add target to the response: %v", err)
+				k.logger.Warn("failed to add target to response", "err", err)
 			}
 			bb, err := outputs.Marshal(pmsg, m.GetMeta(), dc.mo, cfg.SplitEvents, dc.evps...)
 			if err != nil {
 				if cfg.Debug {
-					k.logger.Printf("%s failed marshaling proto msg: %v", workerLogPrefix, err)
+					k.logger.Warn("failed marshaling proto msg", "worker", workerLogPrefix, "err", err)
 				}
 				if cfg.EnableMetrics {
 					kafkaNumberOfFailSendMsgs.WithLabelValues(cfg.Name, kafkaCfg.ClientID, "marshal_error").Inc()
@@ -689,7 +682,7 @@ CRPROD:
 					b, err = outputs.ExecTemplate(b, dc.msgTpl)
 					if err != nil {
 						if cfg.Debug {
-							log.Printf("failed to execute template: %v", err)
+							k.logger.Warn("failed to execute template", "err", err)
 						}
 						kafkaNumberOfFailSendMsgs.WithLabelValues(cfg.Name, kafkaCfg.ClientID, "template_error").Inc()
 						continue
@@ -711,7 +704,7 @@ CRPROD:
 				_, _, err = producer.SendMessage(msg)
 				if err != nil {
 					if cfg.Debug {
-						k.logger.Printf("%s failed to send a kafka msg to topic '%s': %v", workerLogPrefix, topic, err)
+						k.logger.Warn("failed to send kafka msg", "worker", workerLogPrefix, "topic", topic, "err", err)
 					}
 					if cfg.EnableMetrics {
 						kafkaNumberOfFailSendMsgs.WithLabelValues(cfg.Name, kafkaCfg.ClientID, "send_error").Inc()

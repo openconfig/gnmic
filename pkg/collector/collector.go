@@ -12,9 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"log/slog"
-	"os"
 	"sync"
 	"time"
 
@@ -166,7 +164,7 @@ func (c *Collector) getLocker() error {
 		c.logger.Info("starting locker", "type", lockerType)
 		if initializer, ok := lockers.Lockers[lockerType.(string)]; ok {
 			lock := initializer()
-			err := lock.Init(c.ctx, clustering.Locker, lockers.WithLogger(log.New(os.Stdout, "", log.LstdFlags)))
+			err := lock.Init(c.ctx, clustering.Locker, lockers.WithLogger(c.logger))
 			if err != nil {
 				return err
 			}
@@ -244,7 +242,7 @@ func (c *Collector) initCache() error {
 		if cfg.Cache == nil {
 			return nil
 		}
-		c.cache, err = cache.New(cfg.Cache, cache.WithLogger(log.New(os.Stdout, "", log.LstdFlags)))
+		c.cache, err = cache.New(cfg.Cache, cache.WithLogger(c.logger))
 		if err != nil {
 			return err
 		}

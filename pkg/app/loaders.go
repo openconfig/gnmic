@@ -32,7 +32,7 @@ func (a *App) startLoader(ctx context.Context) {
 	}
 	ldTypeS := a.Config.Loader["type"].(string)
 START:
-	a.Logger.Printf("initializing loader type %q", ldTypeS)
+	a.Logger.Info("initializing loader", "type", ldTypeS)
 	var fnTargetsDefaults func(tc *types.TargetConfig) error
 	if expandEnv, ok := a.Config.Loader["expand-env"].(bool); ok && expandEnv {
 		fnTargetsDefaults = a.Config.SetTargetConfigDefaultsExpandEnv
@@ -46,10 +46,10 @@ START:
 		loaders.WithTargetsDefaults(fnTargetsDefaults),
 	)
 	if err != nil {
-		a.Logger.Printf("failed to init loader type %q: %v", ldTypeS, err)
+		a.Logger.Info("failed to init loader", "type", ldTypeS, "err", err)
 		return
 	}
-	a.Logger.Printf("starting loader type %q", ldTypeS)
+	a.Logger.Info("starting loader", "type", ldTypeS)
 	for targetOp := range ld.Start(ctx) {
 		// do deletes first, since target change equates to delete+add
 		for _, del := range targetOp.Del {
@@ -57,14 +57,14 @@ START:
 			if !a.inCluster() {
 				err = a.DeleteTarget(ctx, del)
 				if err != nil {
-					a.Logger.Printf("failed deleting target %q: %v", del, err)
+					a.Logger.Info("failed deleting target", "target", del, "err", err)
 				}
 				continue
 			}
 			// clustered, delete target in all instances of the cluster
 			err = a.deleteTarget(ctx, del)
 			if err != nil {
-				a.Logger.Printf("failed to delete target %q: %v", del, err)
+				a.Logger.Info("failed to delete target", "target", del, "err", err)
 			}
 		}
 		var limiter *time.Ticker
@@ -74,7 +74,7 @@ START:
 		for _, add := range targetOp.Add {
 			err = fnTargetsDefaults(add)
 			if err != nil {
-				a.Logger.Printf("failed parsing new target configuration %s: %v", add, err)
+				a.Logger.Info("failed parsing new target configuration", "config", add, "err", err)
 				continue
 			}
 			// not clustered, add target and subscribe
@@ -93,7 +93,7 @@ START:
 			a.Config.Targets[add.Name] = add
 			err = a.dispatchTarget(ctx, add)
 			if err != nil {
-				a.Logger.Printf("failed dispatching target %q: %v", add.Name, err)
+				a.Logger.Info("failed dispatching target", "target", add.Name, "err", err)
 			}
 			a.configLock.Unlock()
 		}
@@ -101,7 +101,7 @@ START:
 			limiter.Stop()
 		}
 	}
-	a.Logger.Printf("target loader stopped")
+	a.Logger.Info("target loader stopped")
 	select {
 	case <-ctx.Done():
 		return
@@ -116,7 +116,7 @@ func (a *App) startLoaderProxy(ctx context.Context) {
 	}
 	ldTypeS := a.Config.Loader["type"].(string)
 START:
-	a.Logger.Printf("initializing loader type %q", ldTypeS)
+	a.Logger.Info("initializing loader", "type", ldTypeS)
 
 	var fnTargetsDefaults func(tc *types.TargetConfig) error
 	if expandEnv, ok := a.Config.Loader["expand-env"].(bool); ok && expandEnv {
@@ -132,10 +132,10 @@ START:
 		loaders.WithTargetsDefaults(fnTargetsDefaults),
 	)
 	if err != nil {
-		a.Logger.Printf("failed to init loader type %q: %v", ldTypeS, err)
+		a.Logger.Info("failed to init loader", "type", ldTypeS, "err", err)
 		return
 	}
-	a.Logger.Printf("starting loader type %q", ldTypeS)
+	a.Logger.Info("starting loader", "type", ldTypeS)
 	for targetOp := range ld.Start(ctx) {
 		// do deletes first since target change is delete+add
 		for _, del := range targetOp.Del {
@@ -145,7 +145,7 @@ START:
 			if ok {
 				err = t.Close()
 				if err != nil {
-					a.Logger.Printf("failed to stop target %s: %v", del, err)
+					a.Logger.Info("failed to stop target", "target", del, "err", err)
 				}
 				delete(a.Targets, del)
 			}
@@ -154,7 +154,7 @@ START:
 		for _, add := range targetOp.Add {
 			err = fnTargetsDefaults(add)
 			if err != nil {
-				a.Logger.Printf("failed parsing new target configuration %s: %v", add, err)
+				a.Logger.Info("failed parsing new target configuration", "config", add, "err", err)
 				continue
 			}
 
@@ -163,7 +163,7 @@ START:
 			a.configLock.Unlock()
 		}
 	}
-	a.Logger.Printf("target loader stopped")
+	a.Logger.Info("target loader stopped")
 	select {
 	case <-ctx.Done():
 		return

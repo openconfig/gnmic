@@ -11,20 +11,19 @@ package event_write
 import (
 	"encoding/json"
 	"io"
-	"log"
+	"log/slog"
 	"os"
 	"regexp"
 	"strings"
 
 	"github.com/itchyny/gojq"
 
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 const (
 	processorType = "event-write"
-	loggingPrefix = "[" + processorType + "] "
 )
 
 type write struct {
@@ -46,14 +45,11 @@ type write struct {
 	dst        io.Writer
 	sep        []byte
 	code       *gojq.Code
-	logger     *log.Logger
 }
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &write{
-			logger: log.New(io.Discard, "", 0),
-		}
+		return &write{}
 	})
 }
 
@@ -65,6 +61,10 @@ func (p *write) Init(cfg interface{}, opts ...formatters.Option) error {
 	for _, opt := range opts {
 		opt(p)
 	}
+	if p.Logger == nil {
+		p.Logger = logging.DiscardLogger()
+	}
+	p.Logger = p.Logger.With("processor", processorType)
 	p.Condition = strings.TrimSpace(p.Condition)
 	q, err := gojq.Parse(p.Condition)
 	if err != nil {
@@ -128,10 +128,10 @@ func (p *write) Init(cfg interface{}, opts ...formatters.Option) error {
 
 	b, err := json.Marshal(p)
 	if err != nil {
-		p.logger.Printf("initialized processor '%s': %+v", processorType, p)
+		p.Logger.Debug("initialized processor", "config", p)
 		return nil
 	}
-	p.logger.Printf("initialized processor '%s': %s", processorType, string(b))
+	p.Logger.Debug("initialized processor", "config", string(b))
 	return nil
 }
 
@@ -145,12 +145,12 @@ OUTER:
 
 		ok, err := formatters.CheckCondition(p.code, e)
 		if err != nil {
-			p.logger.Printf("condition check failed: %v", err)
+			p.Logger.Warn("condition check failed", "err", err)
 		}
 		if ok {
 			err := p.write(e)
 			if err != nil {
-				p.logger.Printf("failed to write to destination: %v", err)
+				p.Logger.Warn("failed to write to destination", "err", err)
 				continue OUTER
 			}
 		}
@@ -160,7 +160,7 @@ OUTER:
 					if re.MatchString(vs) {
 						err := p.write(e)
 						if err != nil {
-							p.logger.Printf("failed to write to destination: %v", err)
+							p.Logger.Warn("failed to write to destination", "err", err)
 							continue OUTER
 						}
 						continue OUTER
@@ -171,7 +171,7 @@ OUTER:
 				if re.MatchString(k) {
 					err := p.write(e)
 					if err != nil {
-						p.logger.Printf("failed to write to destination: %v", err)
+						p.Logger.Warn("failed to write to destination", "err", err)
 						continue OUTER
 					}
 					continue OUTER
@@ -183,7 +183,7 @@ OUTER:
 				if re.MatchString(k) {
 					err := p.write(e)
 					if err != nil {
-						p.logger.Printf("failed to write to destination: %v", err)
+						p.Logger.Warn("failed to write to destination", "err", err)
 						continue OUTER
 					}
 					continue OUTER
@@ -193,7 +193,7 @@ OUTER:
 				if re.MatchString(v) {
 					err := p.write(e)
 					if err != nil {
-						p.logger.Printf("failed to write to destination: %v", err)
+						p.Logger.Warn("failed to write to destination", "err", err)
 						continue OUTER
 					}
 					continue OUTER
@@ -204,12 +204,11 @@ OUTER:
 	return es
 }
 
-func (p *write) WithLogger(l *log.Logger) {
-	if p.Debug && l != nil {
-		p.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
-	} else if p.Debug {
-		p.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
+func (p *write) WithLogger(l *slog.Logger) {
+	if !p.Debug {
+		l = nil
 	}
+	p.BaseProcessor.WithLogger(l)
 }
 
 func (p *write) write(e *formatters.EventMsg) error {

@@ -13,7 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -47,6 +47,7 @@ import (
 	"github.com/openconfig/gnmic/pkg/formatters/plugin_manager"
 	"github.com/openconfig/gnmic/pkg/inputs"
 	"github.com/openconfig/gnmic/pkg/lockers"
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	"github.com/openconfig/gnmic/pkg/utils"
 	"github.com/openconfig/gnmic/pkg/version"
@@ -61,6 +62,8 @@ const (
 var obscuredAttrs = []string{
 	"password",
 }
+
+var grpcLoggerOnce sync.Once
 
 type App struct {
 	ctx     context.Context
@@ -93,8 +96,9 @@ type App struct {
 	// prometheus registry
 	reg *prometheus.Registry
 	//
-	Logger *log.Logger
-	out    io.Writer
+	Logger    *slog.Logger
+	logWriter io.Writer
+	out       io.Writer
 	// prompt mode
 	PromptMode    bool
 	PromptHistory []string
@@ -146,7 +150,8 @@ func New() *App {
 		apiServices:  make(map[string]*lockers.Service),
 		dispatchLock: new(sync.Mutex),
 
-		Logger:        log.New(io.Discard, "[gnmic] ", log.LstdFlags|log.Lmsgprefix),
+		Logger:        slog.New(slog.DiscardHandler),
+		logWriter:     io.Discard,
 		out:           os.Stdout,
 		PromptHistory: make([]string, 0, 128),
 		SchemaTree: &yang.Entry{
@@ -198,6 +203,9 @@ func (a *App) InitGlobalFlags() {
 	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.Format, "format", "", "", fmt.Sprintf("output format, one of: %q", formatNames))
 	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.LogFile, "log-file", "", "", "log file path")
 	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.Log, "log", "", false, "write log messages to stderr")
+	a.RootCmd.PersistentFlags().IntVarP(&a.Config.GlobalFlags.LogMaxSize, "log-max-size", "", 0, "enable log rotation when > 0; maximum log file size in MiB before rotation")
+	a.RootCmd.PersistentFlags().IntVarP(&a.Config.GlobalFlags.LogMaxBackups, "log-max-backups", "", 0, "maximum number of old rotated log files to retain (0 means retain all)")
+	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.LogCompress, "log-compress", "", false, "compress rotated log files with gzip")
 	a.RootCmd.PersistentFlags().IntVarP(&a.Config.GlobalFlags.MaxMsgSize, "max-msg-size", "", msgSize, "max grpc msg size")
 	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.PrintRequest, "print-request", "", false, "print request as well as the response(s)")
 	a.RootCmd.PersistentFlags().DurationVarP(&a.Config.GlobalFlags.Retry, "retry", "", defaultRetryTimer, "retry timer for RPCs")
@@ -248,29 +256,37 @@ func (a *App) PreRunE(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("pprof error %v", err)
 		}
 		a.pprof.Start(a.Config.GlobalFlags.PprofAddr)
-		a.Logger.Printf("pprof server started at %s/debug/pprof", a.Config.GlobalFlags.PprofAddr)
+		a.Logger.Info("pprof server started", "path", fmt.Sprintf("%s/debug/pprof", a.Config.GlobalFlags.PprofAddr))
 		go func() {
 			err := <-a.pprof.ErrChan()
-			a.Logger.Printf("pprof server failed: %v", err)
+			a.Logger.Info("pprof server failed", "err", err)
 		}()
 	}
 
 	a.Config.SetGlobalsFromEnv(a.RootCmd)
 	a.Config.SetPersistentFlagsFromFile(a.RootCmd)
 
-	logOutput, flags, err := a.Config.SetLogger()
+	lg, logWriter, err := a.Config.InitAppLogging()
 	if err != nil {
 		return err
 	}
-	a.Logger.SetOutput(logOutput)
-	a.Logger.SetFlags(flags)
+	a.Logger = lg
+	a.logWriter = logWriter
 	a.Config.Address = config.ParseAddressField(a.Config.Address)
-	a.Logger.Printf("version=%s, commit=%s, date=%s, gitURL=%s, docs=https://gnmic.openconfig.net", version.Version, version.Commit, version.Date, version.GitURL)
+	a.Logger.Info("gnmic version",
+		"version", version.Version,
+		"commit", version.Commit,
+		"date", version.Date,
+		"gitURL", version.GitURL,
+		"docs", "https://gnmic.openconfig.net",
+	)
 
 	if a.Config.Debug {
-		grpclog.SetLogger(a.Logger) //lint:ignore SA1019 see https://github.com/karimra/gnmic/issues/59
+		grpcLoggerOnce.Do(func() {
+			grpclog.SetLogger(logging.StdLogger(a.Logger, slog.LevelWarn)) //lint:ignore SA1019 see https://github.com/karimra/gnmic/issues/59
+		})
 	}
-	a.Logger.Printf("using config file %q", a.Config.FileConfig.ConfigFileUsed())
+	a.Logger.Info("using config file", "path", a.Config.FileConfig.ConfigFileUsed())
 	a.logConfigKVs()
 	return a.validateGlobals()
 }
@@ -317,7 +333,7 @@ func (a *App) logConfigKVs() {
 					v = "***"
 				}
 			}
-			a.Logger.Printf("%s='%v'(%T)", k, v, v)
+			a.Logger.Debug("config entry", "key", k, "value", v, "type", fmt.Sprintf("%T", v))
 		}
 	}
 }
@@ -360,7 +376,7 @@ func (a *App) PrintMsg(address string, msgName string, msg proto.Message) error 
 	}
 	b, err := mo.Marshal(msg, map[string]string{"source": address})
 	if err != nil {
-		a.Logger.Printf("error marshaling message: %v", err)
+		a.Logger.Info("error marshaling message", "err", err)
 		if !a.Config.Log {
 			fmt.Printf("error marshaling message: %v", err)
 		}
@@ -400,18 +416,18 @@ func (a *App) createCollectorDialOpts() {
 }
 
 func (a *App) watchConfig() {
-	a.Logger.Printf("watching config...")
+	a.Logger.Info("watching config...")
 	a.Config.FileConfig.OnConfigChange(a.loadTargets)
 	a.Config.FileConfig.WatchConfig()
 }
 
 func (a *App) loadTargets(e fsnotify.Event) {
-	a.Logger.Printf("got config change notification: %v", e)
+	a.Logger.Info("got config change notification", "op", e.Op.String(), "name", e.Name)
 	ctx, cancel := context.WithCancel(a.ctx)
 	defer cancel()
 	err := a.sem.Acquire(ctx, 1)
 	if err != nil {
-		a.Logger.Printf("failed to acquire target loading semaphore: %v", err)
+		a.Logger.Info("failed to acquire target loading semaphore", "err", err)
 		return
 	}
 	defer a.sem.Release(1)
@@ -419,7 +435,7 @@ func (a *App) loadTargets(e fsnotify.Event) {
 	case fsnotify.Write, fsnotify.Create:
 		newTargets, err := a.Config.GetTargets()
 		if err != nil && !errors.Is(err, config.ErrNoTargetsFound) {
-			a.Logger.Printf("failed getting targets from new config: %v", err)
+			a.Logger.Info("failed getting targets from new config", "err", err)
 			return
 		}
 		if !a.inCluster() {
@@ -428,11 +444,11 @@ func (a *App) loadTargets(e fsnotify.Event) {
 			for n := range currentTargets {
 				if _, ok := newTargets[n]; !ok {
 					if a.Config.Debug {
-						a.Logger.Printf("target %q deleted from config", n)
+						a.Logger.Debug("target deleted from config", "target", n)
 					}
 					err = a.DeleteTarget(a.ctx, n)
 					if err != nil {
-						a.Logger.Printf("failed to delete target %q: %v", n, err)
+						a.Logger.Info("failed to delete target", "target", n, "err", err)
 					}
 				}
 			}
@@ -444,7 +460,7 @@ func (a *App) loadTargets(e fsnotify.Event) {
 			for n, tc := range newTargets {
 				if _, ok := currentTargets[n]; !ok {
 					if a.Config.Debug {
-						a.Logger.Printf("target %q added to config", n)
+						a.Logger.Debug("target added to config", "target", n)
 					}
 					a.AddTargetConfig(tc)
 					a.wg.Add(1)
@@ -466,7 +482,7 @@ func (a *App) loadTargets(e fsnotify.Event) {
 		// in cluster && leader
 		dist, err := a.getTargetToInstanceMapping(a.ctx)
 		if err != nil {
-			a.Logger.Printf("failed to get target to instance mapping: %v", err)
+			a.Logger.Info("failed to get target to instance mapping", "err", err)
 			return
 		}
 		// delete targets
@@ -474,7 +490,7 @@ func (a *App) loadTargets(e fsnotify.Event) {
 			if _, ok := newTargets[t]; !ok {
 				err = a.deleteTarget(ctx, t)
 				if err != nil {
-					a.Logger.Printf("failed to delete target %q: %v", t, err)
+					a.Logger.Info("failed to delete target", "target", t, "err", err)
 					continue
 				}
 			}
@@ -485,7 +501,7 @@ func (a *App) loadTargets(e fsnotify.Event) {
 			if _, ok := dist[tc.Name]; !ok {
 				err = a.dispatchTarget(a.ctx, tc)
 				if err != nil {
-					a.Logger.Printf("failed to add target %q: %v", tc.Name, err)
+					a.Logger.Info("failed to add target", "target", tc.Name, "err", err)
 				}
 			}
 		}
@@ -499,7 +515,7 @@ func (a *App) startAPIServer() {
 	}
 	s, err := a.newAPIServer()
 	if err != nil {
-		a.Logger.Printf("failed to create a new API server: %v", err)
+		a.Logger.Info("failed to create a new API server", "err", err)
 		return
 	}
 	go func() {
@@ -507,13 +523,13 @@ func (a *App) startAPIServer() {
 		if s.TLSConfig != nil {
 			err = s.ListenAndServeTLS("", "")
 			if err != nil {
-				a.Logger.Printf("API server err: %v", err)
+				a.Logger.Info("API server error", "err", err)
 				return
 			}
 		} else {
 			err = s.ListenAndServe()
 			if err != nil {
-				a.Logger.Printf("API server err: %v", err)
+				a.Logger.Info("API server error", "err", err)
 				return
 			}
 		}
@@ -524,18 +540,18 @@ func (a *App) LoadProtoFiles() (desc.Descriptor, error) {
 	if len(a.Config.ProtoFile) == 0 {
 		return nil, nil
 	}
-	a.Logger.Printf("loading proto files...")
+	a.Logger.Info("loading proto files...")
 	descSource, err := grpcurl.DescriptorSourceFromProtoFiles(a.Config.ProtoDir, a.Config.ProtoFile...)
 	if err != nil {
-		a.Logger.Printf("failed to load proto files: %v", err)
+		a.Logger.Info("failed to load proto files", "err", err)
 		return nil, err
 	}
 	rootDesc, err := descSource.FindSymbol("Nokia.SROS.root")
 	if err != nil {
-		a.Logger.Printf("could not get symbol 'Nokia.SROS.root': %v", err)
+		a.Logger.Info("could not get symbol 'Nokia.SROS.root'", "err", err)
 		return nil, err
 	}
-	a.Logger.Printf("loaded proto files")
+	a.Logger.Info("loaded proto files")
 	a.rootDesc = rootDesc
 	return rootDesc, nil
 }
@@ -546,7 +562,7 @@ func (a *App) GetTargets() (map[string]*types.TargetConfig, error) {
 	targetsConfig, err := a.Config.GetTargets()
 	if errors.Is(err, config.ErrNoTargetsFound) {
 		if a.Config.UseTunnelServer {
-			a.Logger.Printf("waiting %s for targets to register with the tunnel server...", a.Config.TunnelServer.TargetWaitTime)
+			a.Logger.Info("waiting for targets to register with the tunnel server", "duration", a.Config.TunnelServer.TargetWaitTime)
 			time.Sleep(a.Config.TunnelServer.TargetWaitTime)
 			a.ttm.RLock()
 			defer a.ttm.RUnlock()
@@ -583,7 +599,7 @@ func (a *App) CreateGNMIClient(ctx context.Context, t *target.Target) error {
 		)
 		t.Config.Address = t.Config.Name
 	}
-	a.Logger.Printf("creating gRPC client for target %q", t.Config.Name)
+	a.Logger.Info("creating gRPC client for target", "target", t.Config.Name)
 	if err := t.CreateGNMIClient(ctx, targetDialOpts...); err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			return fmt.Errorf("failed to create a gRPC client for target %q, timeout (%s) reached", t.Config.Name, t.Config.Timeout)

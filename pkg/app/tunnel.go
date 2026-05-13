@@ -38,7 +38,7 @@ func (a *App) initTunnelServer(tsc tunnel.ServerConfig) error {
 	go func() {
 		err = a.startTunnelServer(tsc)
 		if err != nil {
-			a.Logger.Printf("failed to start tunnel server: %v", err)
+			a.Logger.Info("failed to start tunnel server", "err", err)
 		}
 	}()
 	return nil
@@ -51,14 +51,14 @@ func (a *App) startTunnelServer(tsc tunnel.ServerConfig) error {
 	var err error
 	a.tunServer, err = tunnel.NewServer(tsc)
 	if err != nil {
-		a.Logger.Printf("failed to create a tunnel server: %v", err)
+		a.Logger.Info("failed to create a tunnel server", "err", err)
 		return err
 
 	}
 	// create tunnel server options
 	opts, err := a.gRPCTunnelServerOpts()
 	if err != nil {
-		a.Logger.Printf("failed to build gRPC tunnel server options: %v", err)
+		a.Logger.Info("failed to build gRPC tunnel server options", "err", err)
 		return err
 	}
 	a.grpcTunnelSrv = grpc.NewServer(opts...)
@@ -77,7 +77,7 @@ func (a *App) startTunnelServer(tsc tunnel.ServerConfig) error {
 	for {
 		l, err = net.Listen(network, addr)
 		if err != nil {
-			a.Logger.Printf("failed to start gRPC tunnel server listener: %v", err)
+			a.Logger.Info("failed to start gRPC tunnel server listener", "err", err)
 			time.Sleep(time.Second)
 			continue
 		}
@@ -86,7 +86,7 @@ func (a *App) startTunnelServer(tsc tunnel.ServerConfig) error {
 	go func() {
 		err = a.grpcTunnelSrv.Serve(l)
 		if err != nil {
-			a.Logger.Printf("gRPC tunnel server shutdown: %v", err)
+			a.Logger.Info("gRPC tunnel server shutdown", "err", err)
 		}
 		cancel()
 	}()
@@ -130,10 +130,10 @@ func (a *App) gRPCTunnelServerOpts() ([]grpc.ServerOption, error) {
 }
 
 func (a *App) tunServerAddTargetHandler(tt tunnel.Target) error {
-	a.Logger.Printf("tunnel server discovered target %+v", tt)
+	a.Logger.Info("tunnel server discovered target", "target", tt)
 	tc := a.getTunnelTargetMatch(tt)
 	if tc == nil {
-		a.Logger.Printf("target %+v ignored", tt)
+		a.Logger.Info("tunnel target ignored", "target", tt)
 		return nil
 	}
 	a.ttm.Lock()
@@ -143,10 +143,10 @@ func (a *App) tunServerAddTargetHandler(tt tunnel.Target) error {
 }
 
 func (a *App) tunServerAddTargetSubscribeHandler(tt tunnel.Target) error {
-	a.Logger.Printf("tunnel server discovered target %+v", tt)
+	a.Logger.Info("tunnel server discovered target", "target", tt)
 	tc := a.getTunnelTargetMatch(tt)
 	if tc == nil {
-		a.Logger.Printf("target %+v ignored", tt)
+		a.Logger.Info("tunnel target ignored", "target", tt)
 		return nil
 	}
 	a.ttm.Lock()
@@ -167,7 +167,7 @@ func (a *App) tunServerAddTargetSubscribeHandler(tt tunnel.Target) error {
 }
 
 func (a *App) tunServerDeleteTargetHandler(tt tunnel.Target) error {
-	a.Logger.Printf("tunnel server target %+v deregister request", tt)
+	a.Logger.Info("tunnel server target deregister request", "target", tt)
 	a.ttm.Lock()
 	defer a.ttm.Unlock()
 	if cfn, ok := a.tunTargetCfn[tt]; ok {
@@ -175,7 +175,7 @@ func (a *App) tunServerDeleteTargetHandler(tt tunnel.Target) error {
 		delete(a.tunTargetCfn, tt)
 		delete(a.tunTargets, tt)
 		if err := a.DeleteTarget(a.ctx, tt.ID); err != nil {
-			a.Logger.Printf("failed deleting tunnel target %q: %v", tt.ID, err)
+			a.Logger.Info("failed deleting tunnel target", "id", tt.ID, "err", err)
 		}
 	}
 	return nil
@@ -199,10 +199,10 @@ func (a *App) tunDialerFn(ctx context.Context, tc *types.TargetConfig) func(cont
 		if !ok {
 			return nil, fmt.Errorf("unknown tunnel target %+v", tt)
 		}
-		a.Logger.Printf("dialing tunnel connection for tunnel target %q", tc.Name)
+		a.Logger.Info("dialing tunnel connection for tunnel target", "target", tc.Name)
 		conn, err := tunnel.ServerConn(ctx, a.tunServer, &tt)
 		if err != nil {
-			a.Logger.Printf("failed dialing tunnel connection for target %q: %v", tc.Name, err)
+			a.Logger.Info("failed dialing tunnel connection for target", "target", tc.Name, "err", err)
 		}
 		return conn, err
 	}
@@ -216,7 +216,7 @@ func (a *App) getTunnelTargetMatch(tt tunnel.Target) *types.TargetConfig {
 			tc := &types.TargetConfig{Name: tt.ID, TunnelTargetType: tt.Type}
 			err := a.Config.SetTargetConfigDefaults(tc)
 			if err != nil {
-				a.Logger.Printf("failed to set target %q config defaults: %v", tt.ID, err)
+				a.Logger.Info("failed to set target config defaults", "target", tt.ID, "err", err)
 				return nil
 			}
 			tc.Address = tc.Name
@@ -228,7 +228,7 @@ func (a *App) getTunnelTargetMatch(tt tunnel.Target) *types.TargetConfig {
 		// check if the discovered target matches one of the configured types
 		ok, err := regexp.MatchString(tm.Type, tt.Type)
 		if err != nil {
-			a.Logger.Printf("regex %q eval failed with string %q: %v", tm.Type, tt.Type, err)
+			a.Logger.Info("regex eval failed", "pattern", tm.Type, "value", tt.Type, "err", err)
 			continue
 		}
 		if !ok {
@@ -237,7 +237,7 @@ func (a *App) getTunnelTargetMatch(tt tunnel.Target) *types.TargetConfig {
 		// check if the discovered target matches one of the configured IDs
 		ok, err = regexp.MatchString(tm.ID, tt.ID)
 		if err != nil {
-			a.Logger.Printf("regex %q eval failed with string %q: %v", tm.ID, tt.ID, err)
+			a.Logger.Info("regex eval failed", "pattern", tm.ID, "value", tt.ID, "err", err)
 			continue
 		}
 		if !ok {
@@ -245,7 +245,7 @@ func (a *App) getTunnelTargetMatch(tt tunnel.Target) *types.TargetConfig {
 		}
 		// target has a match
 		if a.Config.Debug {
-			a.Logger.Printf("target %+v matches %+v", tt, tm)
+			a.Logger.Debug("tunnel target matched rule", "target", tt, "rule", tm)
 		}
 		tc := new(types.TargetConfig)
 		*tc = tm.Config
@@ -253,7 +253,7 @@ func (a *App) getTunnelTargetMatch(tt tunnel.Target) *types.TargetConfig {
 		tc.TunnelTargetType = tt.Type
 		err = a.Config.SetTargetConfigDefaults(tc)
 		if err != nil {
-			a.Logger.Printf("failed to set target %q config defaults: %v", tt.ID, err)
+			a.Logger.Info("failed to set target config defaults", "target", tt.ID, "err", err)
 			continue
 		}
 		tc.Address = tc.Name

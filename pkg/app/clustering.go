@@ -51,7 +51,7 @@ func (a *App) InitLocker() error {
 	}
 
 	if lockerType, ok := a.Config.Clustering.Locker["type"]; ok {
-		a.Logger.Printf("starting locker type %q", lockerType)
+		a.Logger.Info("starting locker", "type", lockerType)
 		if initializer, ok := lockers.Lockers[lockerType.(string)]; ok {
 			lock := initializer()
 			err := lock.Init(a.ctx, a.Config.Clustering.Locker, lockers.WithLogger(a.Logger))
@@ -103,7 +103,7 @@ func (a *App) apiServiceRegistration() {
 		serviceReg.Address = addr
 	}
 	var err error
-	a.Logger.Printf("registering service %+v", serviceReg)
+	a.Logger.Info("registering service", "service", serviceReg)
 	for {
 		select {
 		case <-a.ctx.Done():
@@ -111,7 +111,7 @@ func (a *App) apiServiceRegistration() {
 		default:
 			err = a.locker.Register(a.ctx, serviceReg)
 			if err != nil {
-				a.Logger.Printf("api service registration failed: %v", err)
+				a.Logger.Info("api service registration failed", "err", err)
 				time.Sleep(retryTimer)
 				continue
 			}
@@ -137,7 +137,7 @@ START:
 		err = nil
 		a.isLeader, err = a.locker.Lock(a.ctx, leaderKey, []byte(a.Config.Clustering.InstanceName))
 		if err != nil {
-			a.Logger.Printf("failed to acquire leader lock: %v", err)
+			a.Logger.Info("failed to acquire leader lock", "err", err)
 			time.Sleep(retryTimer)
 			continue
 		}
@@ -146,16 +146,16 @@ START:
 			continue
 		}
 		a.isLeader = true
-		a.Logger.Printf("%q became the leader", a.Config.Clustering.InstanceName)
+		a.Logger.Info("became the leader", "instance", a.Config.Clustering.InstanceName)
 		break
 	}
 	ctx, cancel := context.WithCancel(a.ctx)
 	defer cancel()
 	go func() {
 		go a.watchMembers(ctx)
-		a.Logger.Printf("leader waiting %s before dispatching targets", a.Config.Clustering.LeaderWaitTimer)
+		a.Logger.Info("leader waiting before dispatching targets", "duration", a.Config.Clustering.LeaderWaitTimer)
 		time.Sleep(a.Config.Clustering.LeaderWaitTimer)
-		a.Logger.Printf("leader done waiting, starting loader and dispatching targets")
+		a.Logger.Info("leader done waiting, starting loader and dispatching targets")
 		go a.startLoader(ctx)
 		go a.dispatchTargets(ctx)
 	}()
@@ -163,13 +163,13 @@ START:
 	doneCh, errCh := a.locker.KeepLock(ctx, leaderKey)
 	select {
 	case <-doneCh:
-		a.Logger.Printf("%q lost leader role", a.Config.Clustering.InstanceName)
+		a.Logger.Info("lost leader role", "instance", a.Config.Clustering.InstanceName)
 		cancel()
 		a.isLeader = false
 		time.Sleep(retryTimer)
 		goto START
 	case err := <-errCh:
-		a.Logger.Printf("%q failed to maintain the leader key: %v", a.Config.Clustering.InstanceName, err)
+		a.Logger.Info("failed to maintain the leader key", "instance", a.Config.Clustering.InstanceName, "err", err)
 		cancel()
 		a.isLeader = false
 		time.Sleep(retryTimer)
@@ -202,7 +202,7 @@ START:
 		}()
 		err := a.locker.WatchServices(ctx, serviceName, []string{"cluster-name=" + a.Config.Clustering.ClusterName}, membersChan, a.Config.Clustering.ServicesWatchTimer)
 		if err != nil {
-			a.Logger.Printf("failed getting services: %v", err)
+			a.Logger.Info("failed getting services", "err", err)
 			time.Sleep(retryTimer)
 			goto START
 		}
@@ -216,7 +216,7 @@ func (a *App) updateServices(srvs []*lockers.Service) {
 	numNewSrv := len(srvs)
 	numCurrentSrv := len(a.apiServices)
 
-	a.Logger.Printf("received service update with %d service(s)", numNewSrv)
+	a.Logger.Info("received service update", "num_services", numNewSrv)
 	// no new services and no current services, continue
 	if numNewSrv == 0 && numCurrentSrv == 0 {
 		return
@@ -224,14 +224,14 @@ func (a *App) updateServices(srvs []*lockers.Service) {
 
 	// no new services and having some services, delete all
 	if numNewSrv == 0 && numCurrentSrv != 0 {
-		a.Logger.Printf("deleting all services")
+		a.Logger.Info("deleting all services")
 		a.apiServices = make(map[string]*lockers.Service)
 		return
 	}
 	// no current services, add all new services
 	if numCurrentSrv == 0 {
 		for _, s := range srvs {
-			a.Logger.Printf("adding service id %q", s.ID)
+			a.Logger.Info("adding service", "id", s.ID)
 			a.apiServices[s.ID] = s
 		}
 		return
@@ -244,13 +244,13 @@ func (a *App) updateServices(srvs []*lockers.Service) {
 	// delete removed services
 	for n := range a.apiServices {
 		if _, ok := newSrvs[n]; !ok {
-			a.Logger.Printf("deleting service id %q", n)
+			a.Logger.Info("deleting service", "id", n)
 			delete(a.apiServices, n)
 		}
 	}
 	// add new services
 	for n, s := range newSrvs {
-		a.Logger.Printf("adding service id %q", n)
+		a.Logger.Info("adding service", "id", n)
 		a.apiServices[n] = s
 	}
 }
@@ -262,7 +262,7 @@ func (a *App) dispatchTargets(ctx context.Context) {
 			return
 		default:
 			if len(a.apiServices) == 0 {
-				a.Logger.Printf("no services found, waiting...")
+				a.Logger.Info("no services found, waiting...")
 				time.Sleep(a.Config.Clustering.TargetsWatchTimer)
 				continue
 			}
@@ -285,7 +285,7 @@ func (a *App) dispatchTargetsOnce(ctx context.Context) {
 	for _, tc := range a.Config.Targets {
 		err := a.dispatchTarget(dctx, tc)
 		if err != nil {
-			a.Logger.Printf("failed to dispatch target %q: %v", tc.Name, err)
+			a.Logger.Info("failed to dispatch target", "target", tc.Name, "err", err)
 		}
 		if err == errNotFound {
 			// no registered services,
@@ -303,7 +303,7 @@ func (a *App) dispatchTargetsOnce(ctx context.Context) {
 
 func (a *App) dispatchTarget(ctx context.Context, tc *types.TargetConfig, denied ...string) error {
 	if a.Config.Debug {
-		a.Logger.Printf("checking if %q is locked", tc.Name)
+		a.Logger.Debug("checking if target is locked", "target", tc.Name)
 	}
 	key := fmt.Sprintf("gnmic/%s/targets/%s", a.Config.Clustering.ClusterName, tc.Name)
 	locked, err := a.locker.IsLocked(ctx, key)
@@ -311,12 +311,12 @@ func (a *App) dispatchTarget(ctx context.Context, tc *types.TargetConfig, denied
 		return err
 	}
 	if a.Config.Debug {
-		a.Logger.Printf("target %q is locked: %v", tc.Name, locked)
+		a.Logger.Debug("target lock status", "target", tc.Name, "locked", locked)
 	}
 	if locked {
 		return nil
 	}
-	a.Logger.Printf("dispatching target %q", tc.Name)
+	a.Logger.Info("dispatching target", "target", tc.Name)
 	if denied == nil {
 		denied = make([]string, 0)
 	}
@@ -328,12 +328,12 @@ SELECTSERVICE:
 	if service == nil {
 		goto SELECTSERVICE
 	}
-	a.Logger.Printf("selected service %+v", service)
+	a.Logger.Info("selected service", "service", service)
 	// assign target to selected service
 	err = a.assignTarget(ctx, tc, service)
 	if err != nil {
 		// add service to denied list and reselect
-		a.Logger.Printf("failed assigning target %q to service %q: %v", tc.Name, service.ID, err)
+		a.Logger.Info("failed assigning target to service", "target", tc.Name, "service", service.ID, "err", err)
 		denied = append(denied, service.ID)
 		goto SELECTSERVICE
 	}
@@ -345,22 +345,22 @@ SELECTSERVICE:
 			instanceName = splitTag[1]
 		}
 	}
-	a.Logger.Printf("[cluster-leader] waiting for lock %q to be acquired by %q", key, instanceName)
+	a.Logger.Info("[cluster-leader] waiting for lock to be acquired", "lock", key, "instance", instanceName)
 	retries := 0
 WAIT:
 	values, err := a.locker.List(ctx, key)
 	if err != nil {
-		a.Logger.Printf("failed getting value of %q: %v", key, err)
+		a.Logger.Info("failed getting lock key value", "key", key, "err", err)
 		time.Sleep(lockWaitTime)
 		goto WAIT
 	}
 	if len(values) == 0 {
 		retries++
 		if (retries+1)*int(lockWaitTime) >= int(a.Config.Clustering.TargetAssignmentTimeout) {
-			a.Logger.Printf("[cluster-leader] max retries reached for target %q and service %q, reselecting...", tc.Name, service.ID)
+			a.Logger.Info("[cluster-leader] max retries reached, reselecting", "target", tc.Name, "service", service.ID)
 			err = a.unassignTarget(ctx, tc.Name, service.ID)
 			if err != nil {
-				a.Logger.Printf("failed to unassign target %q from %q", tc.Name, service.ID)
+				a.Logger.Info("failed to unassign target from service", "target", tc.Name, "service", service.ID)
 			}
 			goto SELECTSERVICE
 		}
@@ -369,16 +369,16 @@ WAIT:
 	}
 	if instance, ok := values[key]; ok {
 		if instance == instanceName {
-			a.Logger.Printf("[cluster-leader] lock %q acquired by %q", key, instanceName)
+			a.Logger.Info("[cluster-leader] lock acquired", "lock", key, "instance", instanceName)
 			return nil
 		}
 	}
 	retries++
 	if (retries+1)*int(lockWaitTime) >= int(a.Config.Clustering.TargetAssignmentTimeout) {
-		a.Logger.Printf("[cluster-leader] max retries reached for target %q and service %q, reselecting...", tc.Name, service.ID)
+		a.Logger.Info("[cluster-leader] max retries reached, reselecting", "target", tc.Name, "service", service.ID)
 		err = a.unassignTarget(ctx, tc.Name, service.ID)
 		if err != nil {
-			a.Logger.Printf("failed to unassign target %q from %q", tc.Name, service.ID)
+			a.Logger.Info("failed to unassign target from service", "target", tc.Name, "service", service.ID)
 		}
 		goto SELECTSERVICE
 	}
@@ -401,7 +401,7 @@ func (a *App) selectService(tags []string, denied ...string) (*lockers.Service, 
 		tagCount := a.getInstancesTagsMatches(tags)
 		if len(tagCount) > 0 {
 			matchingInstances = a.getHighestTagsMatches(tagCount)
-			a.Logger.Printf("current instances with tags=%v: %+v", tags, matchingInstances)
+			a.Logger.Info("current instances with tags", "tags", tags, "matching", matchingInstances)
 		} else {
 			for n := range a.apiServices {
 				matchingInstances = append(matchingInstances, strings.TrimSuffix(n, "-api"))
@@ -415,24 +415,24 @@ func (a *App) selectService(tags []string, denied ...string) (*lockers.Service, 
 		if err != nil {
 			return nil, err
 		}
-		a.Logger.Printf("current instances load: %+v", load)
+		a.Logger.Info("current instances load", "load", load)
 		// if there are no locks in place, return a random service
 		if len(load) == 0 {
 			for _, n := range matchingInstances {
-				a.Logger.Printf("selected service name: %s", n)
+				a.Logger.Info("selected service name", "name", n)
 				return a.apiServices[fmt.Sprintf("%s-api", n)], nil
 			}
 		}
 		for _, d := range denied {
 			delete(load, strings.TrimSuffix(d, "-api"))
 		}
-		a.Logger.Printf("current instances load after filtering: %+v", load)
+		a.Logger.Info("current instances load after filtering", "load", load)
 		// all services were denied
 		if len(load) == 0 {
 			return nil, errNoMoreSuitableServices
 		}
 		ss := a.getLowLoadInstance(load)
-		a.Logger.Printf("selected service name: %s", ss)
+		a.Logger.Info("selected service name", "name", ss)
 		if srv, ok := a.apiServices[fmt.Sprintf("%s-api", ss)]; ok {
 			return srv, nil
 		}
@@ -448,7 +448,7 @@ func (a *App) getInstancesLoad(instances ...string) (map[string]int, error) {
 		return nil, err
 	}
 	if a.Config.Debug {
-		a.Logger.Println("current locks:", locks)
+		a.Logger.Debug("current locks", "locks", locks)
 	}
 	load := make(map[string]int)
 	// using the read locks, calculate the number of targets each instance has locked
@@ -519,7 +519,7 @@ func (a *App) getTargetToInstanceMapping(ctx context.Context) (map[string]string
 		return nil, err
 	}
 	if a.Config.Debug {
-		a.Logger.Println("current locks:", locks)
+		a.Logger.Debug("current locks", "locks", locks)
 	}
 	for k, v := range locks {
 		delete(locks, k)
@@ -534,7 +534,7 @@ func (a *App) getInstanceToTargetsMapping(ctx context.Context) (map[string][]str
 		return nil, err
 	}
 	if a.Config.Debug {
-		a.Logger.Println("current locks:", locks)
+		a.Logger.Debug("current locks", "locks", locks)
 	}
 	rs := make(map[string][]string)
 	for k, v := range locks {
@@ -601,7 +601,7 @@ func (a *App) deleteTarget(ctx context.Context, name string) error {
 		url := fmt.Sprintf("%s://%s/api/v1/config/targets/%s", scheme, s.Address, name)
 		req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
 		if err != nil {
-			a.Logger.Printf("failed to create a delete request: %v", err)
+			a.Logger.Info("failed to create a delete request", "err", err)
 			errs = append(errs, err)
 			continue
 		}
@@ -609,12 +609,12 @@ func (a *App) deleteTarget(ctx context.Context, name string) error {
 		rsp, err := a.clusteringClient.Do(req)
 		if err != nil {
 			rsp.Body.Close()
-			a.Logger.Printf("failed deleting target %q: %v", name, err)
+			a.Logger.Info("failed deleting target", "target", name, "err", err)
 			errs = append(errs, err)
 			continue
 		}
 		rsp.Body.Close()
-		a.Logger.Printf("received response code=%d, for DELETE %s", rsp.StatusCode, url)
+		a.Logger.Info("received DELETE response", "status", rsp.StatusCode, "url", url)
 	}
 	if len(errs) == 0 {
 		return nil
@@ -644,7 +644,7 @@ func (a *App) assignTarget(ctx context.Context, tc *types.TargetConfig, service 
 		return err
 	}
 	defer resp.Body.Close()
-	a.Logger.Printf("got response code=%d for target %q config add from %q", resp.StatusCode, tc.Name, service.Address)
+	a.Logger.Info("got response for target config add", "status", resp.StatusCode, "target", tc.Name, "from", service.Address)
 	if resp.StatusCode > 200 {
 		return fmt.Errorf("status code=%d", resp.StatusCode)
 	}
@@ -658,7 +658,7 @@ func (a *App) assignTarget(ctx context.Context, tc *types.TargetConfig, service 
 		return err
 	}
 	defer resp.Body.Close()
-	a.Logger.Printf("got response code=%d for target %q assignment from %q", resp.StatusCode, tc.Name, service.Address)
+	a.Logger.Info("got response for target assignment", "status", resp.StatusCode, "target", tc.Name, "from", service.Address)
 	if resp.StatusCode > 200 {
 		return fmt.Errorf("status code=%d", resp.StatusCode)
 	}
@@ -684,7 +684,7 @@ func (a *App) unassignTarget(ctx context.Context, name string, serviceID string)
 			return err
 		}
 		defer rsp.Body.Close()
-		a.Logger.Printf("received response code=%d, for DELETE %s", rsp.StatusCode, url)
+		a.Logger.Info("received DELETE response", "status", rsp.StatusCode, "url", url)
 	}
 	return nil
 }
@@ -757,7 +757,10 @@ func (a *App) clusterRebalanceTargets() error {
 				maxIter = maxRebalanceLoop
 			}
 		}
-		a.Logger.Printf("rebalancing: high instance: %s=%d, low instance %s=%d", highest, highLoad, lowest, lowLoad)
+		a.Logger.Info("rebalancing",
+			"high_instance", highest, "high_load", highLoad,
+			"low_instance", lowest, "low_load", lowLoad,
+		)
 		// nothing to do
 		if delta < 2 {
 			return nil

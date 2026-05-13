@@ -21,7 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 	"sync"
 	"text/template"
@@ -34,9 +34,21 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	_ "github.com/openconfig/gnmic/pkg/formatters/all"
+	"github.com/openconfig/gnmic/pkg/logging"
 	pkgutils "github.com/openconfig/gnmic/pkg/utils"
 	"github.com/zestor-dev/zestor/store"
 )
+
+// BindLogger returns a non-nil *slog.Logger annotated with the output kind
+// and instance name. Centralises the
+//
+//	if options.Logger != nil { o.logger = options.Logger.With(...) }
+//
+// boilerplate that every output used to repeat. When parent is nil, a
+// discarding logger is returned so callers never need a nil check.
+func BindLogger(parent *slog.Logger, outputType, name string) *slog.Logger {
+	return logging.Component(parent, "output", outputType, name)
+}
 
 type Output interface {
 	// initialize the output
@@ -291,7 +303,7 @@ func (b *BaseOutput) String() string {
 // update processor helper
 
 func UpdateProcessorInSlice(
-	logger *log.Logger,
+	logger *slog.Logger,
 	storeObj store.Store[any],
 	eventProcessors []string,
 	currentEvps []formatters.EventProcessor,
@@ -319,7 +331,7 @@ func UpdateProcessorInSlice(
 			copy(newEvps, currentEvps)
 			newEvps[i] = ep
 
-			logger.Printf("updated event processor %s", processorName)
+			logger.Info("updated event processor", "processor", processorName)
 			return newEvps, true, nil
 		}
 	}

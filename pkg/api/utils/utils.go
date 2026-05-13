@@ -9,13 +9,8 @@
 package utils
 
 import (
-	"log"
 	"net"
 	"reflect"
-)
-
-const (
-	DefaultLoggingFlags = log.LstdFlags | log.Lmicroseconds | log.Lmsgprefix
 )
 
 func MergeMaps(dst, src map[string]any) map[string]any {

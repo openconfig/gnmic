@@ -94,11 +94,11 @@ func (c *ConsulLocker) WatchServices(ctx context.Context, serviceName string, ta
 			return ctx.Err()
 		default:
 			if c.Cfg.Debug {
-				c.logger.Printf("(re)starting watch service=%q, index=%d", serviceName, qOpts.WaitIndex)
+				c.logger.Debug("(re)starting watch service", "service", serviceName, "index", qOpts.WaitIndex)
 			}
 			index, err = c.watch(ctx, qOpts, serviceName, tags, sChan)
 			if err != nil {
-				c.logger.Printf("service %q watch failed: %v", serviceName, err)
+				c.logger.Warn("service watch failed", "service", serviceName, "err", err)
 			}
 			if index == 1 {
 				qOpts.WaitIndex = index
@@ -127,7 +127,7 @@ func (c *ConsulLocker) watch(ctx context.Context, qOpts *api.QueryOptions, servi
 		meta = new(api.QueryMeta)
 	}
 	if meta.LastIndex == qOpts.WaitIndex {
-		c.logger.Printf("service=%q did not change, lastIndex=%d", serviceName, meta.LastIndex)
+		c.logger.Debug("service did not change", "service", serviceName, "last_index", meta.LastIndex)
 		return meta.LastIndex, nil
 	}
 	if len(se) == 0 {

@@ -14,8 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"log"
+	"log/slog"
 	"sync"
 	"text/template"
 	"time"
@@ -30,10 +29,10 @@ import (
 	gfile "github.com/openconfig/gnmic/pkg/file"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
 	"github.com/openconfig/gnmic/pkg/loaders"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 const (
-	loggingPrefix   = "[http_loader] "
 	loaderType      = "http"
 	defaultInterval = 1 * time.Minute
 	defaultTimeout  = 50 * time.Second
@@ -45,7 +44,7 @@ func init() {
 			cfg:         &cfg{},
 			m:           new(sync.RWMutex),
 			lastTargets: make(map[string]*types.TargetConfig),
-			logger:      log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
+			logger:      logging.DiscardLogger(),
 		}
 	})
 }
@@ -55,7 +54,7 @@ type httpLoader struct {
 	m              *sync.RWMutex
 	lastTargets    map[string]*types.TargetConfig
 	targetConfigFn func(*types.TargetConfig) error
-	logger         *log.Logger
+	logger         *slog.Logger
 	//
 	tpl           *template.Template
 	vars          map[string]interface{}
@@ -109,7 +108,11 @@ type cfg struct {
 	OnDelete []string `json:"on-delete,omitempty" mapstructure:"on-delete,omitempty"`
 }
 
-func (h *httpLoader) Init(ctx context.Context, cfg map[string]interface{}, logger *log.Logger, opts ...loaders.Option) error {
+func (c *cfg) LogValue() slog.Value {
+	return logging.RedactedValue(c)
+}
+
+func (h *httpLoader) Init(ctx context.Context, cfg map[string]interface{}, logger *slog.Logger, opts ...loaders.Option) error {
 	err := loaders.DecodeConfig(cfg, h.cfg)
 	if err != nil {
 		return err
@@ -121,10 +124,7 @@ func (h *httpLoader) Init(ctx context.Context, cfg map[string]interface{}, logge
 	for _, o := range opts {
 		o(h)
 	}
-	if logger != nil {
-		h.logger.SetOutput(logger.Writer())
-		h.logger.SetFlags(logger.Flags())
-	}
+	h.logger = loaders.BindLogger(logger, loaderType)
 	if h.cfg.Template != "" {
 		h.tpl, err = gtemplate.CreateTemplate("http-loader-template", h.cfg.Template)
 		if err != nil {
@@ -179,7 +179,7 @@ func (h *httpLoader) Start(ctx context.Context) chan *loaders.TargetOperation {
 		for {
 			select {
 			case <-ctx.Done():
-				h.logger.Printf("%q context done: %v", loaderType, ctx.Err())
+				h.logger.Info("context done", "loader", loaderType, "err", ctx.Err())
 				return
 			case <-ticker.C:
 				h.update(ctx, opChan)
@@ -195,7 +195,7 @@ func (h *httpLoader) RunOnce(ctx context.Context) (map[string]*types.TargetConfi
 		return nil, err
 	}
 	if h.cfg.Debug {
-		h.logger.Printf("http loader discovered %d target(s)", len(readTargets))
+		h.logger.Info("http loader discovered targets", "count", len(readTargets))
 	}
 	return readTargets, nil
 }
@@ -203,7 +203,7 @@ func (h *httpLoader) RunOnce(ctx context.Context) (map[string]*types.TargetConfi
 func (h *httpLoader) update(ctx context.Context, opChan chan *loaders.TargetOperation) {
 	readTargets, err := h.getTargets()
 	if err != nil {
-		h.logger.Printf("failed to read targets from HTTP server: %v", err)
+		h.logger.Error("failed to read targets from HTTP server:", "err", err)
 		return
 	}
 	select {
@@ -302,7 +302,7 @@ func (h *httpLoader) getTargets() (map[string]*types.TargetConfig, error) {
 		}
 	}
 	if h.cfg.Debug {
-		h.logger.Printf("result: %+v", result)
+		h.logger.Debug("discovery diff result", "result", result)
 	}
 	return result, nil
 }
@@ -312,12 +312,12 @@ func (h *httpLoader) updateTargets(ctx context.Context, tcs map[string]*types.Ta
 	for _, tc := range tcs {
 		err = h.targetConfigFn(tc)
 		if err != nil {
-			h.logger.Printf("failed running target config fn on target %q", tc.Name)
+			h.logger.Error("failed running target config fn", "target", tc.Name)
 		}
 	}
 	targetOp, err := h.runActions(ctx, tcs, loaders.Diff(h.lastTargets, tcs))
 	if err != nil {
-		h.logger.Printf("failed to run actions: %v", err)
+		h.logger.Error("failed to run actions:", "err", err)
 		return
 	}
 	numAdds := len(targetOp.Add)
@@ -388,8 +388,8 @@ func (h *httpLoader) initializeAction(cfg map[string]interface{}) (actions.Actio
 	return nil, errors.New("missing type field under action")
 }
 
-func (f *httpLoader) runActions(ctx context.Context, tcs map[string]*types.TargetConfig, targetOp *loaders.TargetOperation) (*loaders.TargetOperation, error) {
-	if f.numActions == 0 {
+func (h *httpLoader) runActions(ctx context.Context, tcs map[string]*types.TargetConfig, targetOp *loaders.TargetOperation) (*loaders.TargetOperation, error) {
+	if h.numActions == 0 {
 		return targetOp, nil
 	}
 	result := &loaders.TargetOperation{
@@ -397,7 +397,7 @@ func (f *httpLoader) runActions(ctx context.Context, tcs map[string]*types.Targe
 		Del: make([]string, 0, len(targetOp.Del)),
 	}
 	var resultMu sync.Mutex
-	ctx, cancel := context.WithTimeout(ctx, f.cfg.Interval)
+	ctx, cancel := context.WithTimeout(ctx, h.cfg.Interval)
 	defer cancel()
 	// create waitGroup and add the number of target operations to it
 	wgDelete := new(sync.WaitGroup)
@@ -406,9 +406,9 @@ func (f *httpLoader) runActions(ctx context.Context, tcs map[string]*types.Targe
 	for _, tDel := range targetOp.Del {
 		go func(name string) {
 			defer wgDelete.Done()
-			err := f.runOnDeleteActions(ctx, name, tcs)
+			err := h.runOnDeleteActions(ctx, name, tcs)
 			if err != nil {
-				f.logger.Printf("failed running OnDelete actions: %v", err)
+				h.logger.Error("failed running OnDelete actions", "err", err)
 				return
 			}
 			resultMu.Lock()
@@ -425,9 +425,9 @@ func (f *httpLoader) runActions(ctx context.Context, tcs map[string]*types.Targe
 	for n, tAdd := range targetOp.Add {
 		go func(n string, tc *types.TargetConfig) {
 			defer wgAdd.Done()
-			err := f.runOnAddActions(ctx, tc.Name, tcs)
+			err := h.runOnAddActions(ctx, tc.Name, tcs)
 			if err != nil {
-				f.logger.Printf("failed running OnAdd actions: %v", err)
+				h.logger.Error("failed running OnAdd actions", "err", err)
 				return
 			}
 			resultMu.Lock()
@@ -440,38 +440,38 @@ func (f *httpLoader) runActions(ctx context.Context, tcs map[string]*types.Targe
 	return result, nil
 }
 
-func (d *httpLoader) runOnAddActions(ctx context.Context, tName string, tcs map[string]*types.TargetConfig) error {
+func (h *httpLoader) runOnAddActions(ctx context.Context, tName string, tcs map[string]*types.TargetConfig) error {
 	aCtx := &actions.Context{
 		Input:   tName,
 		Env:     make(map[string]interface{}),
-		Vars:    d.vars,
+		Vars:    h.vars,
 		Targets: tcs,
 	}
-	for _, act := range d.addActions {
-		d.logger.Printf("running action %q for target %q", act.NName(), tName)
+	for _, act := range h.addActions {
+		h.logger.Info("running action", "action", act.NName(), "target", tName)
 		res, err := act.Run(ctx, aCtx)
 		if err != nil {
 			// delete target from known targets map
-			d.m.Lock()
-			delete(d.lastTargets, tName)
-			d.m.Unlock()
+			h.m.Lock()
+			delete(h.lastTargets, tName)
+			h.m.Unlock()
 			return fmt.Errorf("action %q for target %q failed: %v", act.NName(), tName, err)
 		}
 
 		aCtx.Env[act.NName()] = utils.Convert(res)
-		if d.cfg.Debug {
-			d.logger.Printf("action %q, target %q result: %+v", act.NName(), tName, res)
+		if h.cfg.Debug {
+			h.logger.Debug("action result", "action", act.NName(), "target", tName, "result", res)
 			b, _ := json.MarshalIndent(aCtx, "", "  ")
-			d.logger.Printf("action %q context:\n%s", act.NName(), string(b))
+			h.logger.Debug("action context", "action", act.NName(), "context", string(b))
 		}
 	}
 	return nil
 }
 
-func (d *httpLoader) runOnDeleteActions(ctx context.Context, tName string, _ map[string]*types.TargetConfig) error {
+func (h *httpLoader) runOnDeleteActions(ctx context.Context, tName string, _ map[string]*types.TargetConfig) error {
 	env := make(map[string]any)
-	for _, act := range d.delActions {
-		res, err := act.Run(ctx, &actions.Context{Input: tName, Env: env, Vars: d.vars})
+	for _, act := range h.delActions {
+		res, err := act.Run(ctx, &actions.Context{Input: tName, Env: env, Vars: h.vars})
 		if err != nil {
 			return fmt.Errorf("action %q for target %q failed: %v", act.NName(), tName, err)
 		}

@@ -3,9 +3,7 @@ package inputs_manager
 import (
 	"context"
 	"fmt"
-	"log"
 	"log/slog"
-	"os"
 	"sync"
 	"time"
 
@@ -129,7 +127,7 @@ func (mgr *InputsManager) createInput(name string, cfg map[string]any) {
 	}
 	impl := f()
 	if err := impl.Start(mgr.ctx, name, cfg,
-		inputs.WithLogger(log.New(os.Stdout, "", log.LstdFlags)),
+		inputs.WithLogger(mgr.logger),
 		inputs.WithConfigStore(mgr.store.Config),
 		inputs.WithPipeline(mgr.pipeline),
 	); err != nil {

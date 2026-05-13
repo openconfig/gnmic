@@ -129,7 +129,7 @@ func (a *App) yangFilesPreProcessing() error {
 		}
 		if a.Config.Debug {
 			for _, fdir := range expanded {
-				a.Logger.Printf("adding %s to YANG paths", fdir)
+				a.Logger.Debug("adding directory to YANG paths", "dir", fdir)
 			}
 		}
 		a.modules.AddPath(expanded...)
@@ -142,7 +142,7 @@ func (a *App) yangFilesPreProcessing() error {
 	a.Config.GlobalFlags.File = append(a.Config.GlobalFlags.File, yfiles...)
 	if a.Config.Debug {
 		for _, file := range a.Config.GlobalFlags.File {
-			a.Logger.Printf("loading %s file", file)
+			a.Logger.Debug("loading file", "file", file)
 		}
 	}
 	return nil
@@ -271,7 +271,7 @@ func (a *App) generateYangSchema(files, excludes []string) error {
 		skip := false
 		for _, r := range excludeRegexes {
 			if r.MatchString(entry.Name) {
-				a.Logger.Printf("skipping %s", entry.Name)
+				a.Logger.Info("skipping entry", "name", entry.Name)
 				skip = true
 				break
 			}

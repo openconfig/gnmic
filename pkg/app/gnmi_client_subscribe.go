@@ -47,7 +47,7 @@ START:
 	t, err := a.initTarget(tc)
 	a.operLock.Unlock()
 	if err != nil {
-		a.Logger.Printf("failed to initialize target %q: %v", tc.Name, err)
+		a.Logger.Info("failed to initialize target", "target", tc.Name, "err", err)
 		return
 	}
 	select {
@@ -56,14 +56,14 @@ START:
 		return
 	default:
 		if a.locker != nil {
-			a.Logger.Printf("acquiring lock for target %q", tc.Name)
+			a.Logger.Info("acquiring lock for target", "target", tc.Name)
 			ok, err := a.locker.Lock(nctx, lockKey, []byte(a.Config.Clustering.InstanceName))
 			if err == lockers.ErrCanceled {
-				a.Logger.Printf("lock attempt for target %q canceled", tc.Name)
+				a.Logger.Info("lock attempt for target canceled", "target", tc.Name)
 				return
 			}
 			if err != nil {
-				a.Logger.Printf("failed to lock target %q: %v", tc.Name, err)
+				a.Logger.Info("failed to lock target", "target", tc.Name, "err", err)
 				time.Sleep(a.Config.LocalFlags.SubscribeLockRetry)
 				goto START
 			}
@@ -71,15 +71,15 @@ START:
 				time.Sleep(a.Config.LocalFlags.SubscribeLockRetry)
 				goto START
 			}
-			a.Logger.Printf("acquired lock for target %q", tc.Name)
+			a.Logger.Info("acquired lock for target", "target", tc.Name)
 		}
-		a.Logger.Printf("queuing target %q", tc.Name)
+		a.Logger.Info("queuing target", "target", tc.Name)
 		a.targetsChan <- t
-		a.Logger.Printf("subscribing to target: %q", tc.Name)
+		a.Logger.Info("subscribing to target", "target", tc.Name)
 		go func() {
 			err := a.clientSubscribe(nctx, tc)
 			if err != nil {
-				a.Logger.Printf("failed to subscribe: %v", err)
+				a.Logger.Info("failed to subscribe", "err", err)
 				return
 			}
 		}()
@@ -88,16 +88,16 @@ START:
 			for {
 				select {
 				case <-nctx.Done():
-					a.Logger.Printf("target %q stopped: %v", tc.Name, nctx.Err())
+					a.Logger.Info("target stopped", "target", tc.Name, "err", nctx.Err())
 					// drain errChan
 					err := <-errChan
-					a.Logger.Printf("target %q keepLock returned: %v", tc.Name, err)
+					a.Logger.Info("target keepLock returned", "target", tc.Name, "err", err)
 					return
 				case <-doneChan:
-					a.Logger.Printf("target lock %q removed", tc.Name)
+					a.Logger.Info("target lock removed", "target", tc.Name)
 					return
 				case err := <-errChan:
-					a.Logger.Printf("failed to maintain target %q lock: %v", tc.Name, err)
+					a.Logger.Info("failed to maintain target lock", "target", tc.Name, "err", err)
 					a.stopTarget(ctx, tc.Name)
 					if errors.Is(err, context.Canceled) {
 						return
@@ -117,13 +117,13 @@ func (a *App) TargetSubscribeOnce(ctx context.Context, tc *types.TargetConfig) e
 	_, err := a.initTarget(tc)
 	a.operLock.Unlock()
 	if err != nil {
-		a.Logger.Printf("failed to initialize target %q: %v", tc.Name, err)
+		a.Logger.Info("failed to initialize target", "target", tc.Name, "err", err)
 		return err
 	}
-	a.Logger.Printf("subscribing to target: %q", tc.Name)
+	a.Logger.Info("subscribing to target", "target", tc.Name)
 	err = a.clientSubscribeOnce(nctx, tc)
 	if err != nil {
-		a.Logger.Printf("failed to subscribe: %v", err)
+		a.Logger.Info("failed to subscribe", "err", err)
 		return err
 	}
 	return nil
@@ -139,13 +139,13 @@ func (a *App) TargetSubscribePoll(ctx context.Context, tc *types.TargetConfig) {
 	_, err := a.initTarget(tc)
 	a.operLock.Unlock()
 	if err != nil {
-		a.Logger.Printf("failed to initialize target %q: %v", tc.Name, err)
+		a.Logger.Info("failed to initialize target", "target", tc.Name, "err", err)
 		return
 	}
-	a.Logger.Printf("subscribing to target: %q", tc.Name)
+	a.Logger.Info("subscribing to target", "target", tc.Name)
 	err = a.clientSubscribe(nctx, tc)
 	if err != nil {
-		a.Logger.Printf("failed to subscribe: %v", err)
+		a.Logger.Info("failed to subscribe", "err", err)
 		return
 	}
 }
@@ -202,20 +202,24 @@ CRCLIENT:
 		err := t.CreateGNMIClient(ctx, targetDialOpts...)
 		if err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
-				a.Logger.Printf("failed to initialize target %q timeout (%s) reached", tc.Name, t.Config.Timeout)
+				a.Logger.Info("failed to initialize target: timeout reached", "target", tc.Name, "timeout", t.Config.Timeout)
 			} else {
-				a.Logger.Printf("failed to initialize target %q: %v", tc.Name, err)
+				a.Logger.Info("failed to initialize target", "target", tc.Name, "err", err)
 			}
-			a.Logger.Printf("retrying target %q in %s", tc.Name, t.Config.RetryTimer)
+			a.Logger.Info("retrying target", "target", tc.Name, "after", t.Config.RetryTimer)
 			time.Sleep(t.Config.RetryTimer)
 			goto CRCLIENT
 		}
 	}
-	a.Logger.Printf("target %q gNMI client created", t.Config.Name)
+	a.Logger.Info("target gNMI client created", "target", t.Config.Name)
 
 	for _, sreq := range subRequests {
-		a.Logger.Printf("sending gNMI SubscribeRequest: subscribe='%+v', mode='%+v', encoding='%+v', to %s",
-			sreq.req, sreq.req.GetSubscribe().GetMode(), sreq.req.GetSubscribe().GetEncoding(), t.Config.Name)
+		a.Logger.Info("sending gNMI SubscribeRequest",
+			"target", t.Config.Name,
+			"subscribe", sreq.req,
+			"mode", sreq.req.GetSubscribe().GetMode(),
+			"encoding", sreq.req.GetSubscribe().GetEncoding(),
+		)
 		go t.Subscribe(gnmiCtx, sreq.req, sreq.name)
 	}
 	return nil
@@ -263,26 +267,30 @@ CRCLIENT:
 	}
 	if err := t.CreateGNMIClient(ctx, targetDialOpts...); err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			a.Logger.Printf("failed to initialize target %q timeout (%s) reached", tc.Name, t.Config.Timeout)
+			a.Logger.Info("failed to initialize target: timeout reached", "target", tc.Name, "timeout", t.Config.Timeout)
 		} else {
-			a.Logger.Printf("failed to initialize target %q: %v", tc.Name, err)
+			a.Logger.Info("failed to initialize target", "target", tc.Name, "err", err)
 		}
-		a.Logger.Printf("retrying target %q in %s", tc.Name, t.Config.RetryTimer)
+		a.Logger.Info("retrying target", "target", tc.Name, "after", t.Config.RetryTimer)
 		time.Sleep(t.Config.RetryTimer)
 		goto CRCLIENT
 
 	}
-	a.Logger.Printf("target %q gNMI client created", t.Config.Name)
+	a.Logger.Info("target gNMI client created", "target", t.Config.Name)
 OUTER:
 	for _, sreq := range subRequests {
-		a.Logger.Printf("sending gNMI SubscribeRequest: subscribe='%+v', mode='%+v', encoding='%+v', to %s",
-			sreq.req, sreq.req.GetSubscribe().GetMode(), sreq.req.GetSubscribe().GetEncoding(), t.Config.Name)
+		a.Logger.Info("sending gNMI SubscribeRequest",
+			"target", t.Config.Name,
+			"subscribe", sreq.req,
+			"mode", sreq.req.GetSubscribe().GetMode(),
+			"encoding", sreq.req.GetSubscribe().GetEncoding(),
+		)
 		rspCh, errCh := t.SubscribeOnceChan(gnmiCtx, sreq.req)
 		for {
 			select {
 			case err := <-errCh:
 				if errors.Is(err, io.EOF) {
-					a.Logger.Printf("target %q, subscription %q closed stream(EOF)", t.Config.Name, sreq.name)
+					a.Logger.Info("subscription closed stream (EOF)", "target", t.Config.Name, "subscription", sreq.name)
 					close(rspCh)
 					// next subscription or end
 					continue OUTER

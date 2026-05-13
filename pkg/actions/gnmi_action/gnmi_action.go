@@ -14,8 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"log"
+	"log/slog"
 	"strings"
 	"sync"
 	"text/template"
@@ -31,11 +30,11 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 const (
 	defaultRPC      = "get"
-	loggingPrefix   = "[gnmi_action] "
 	actionType      = "gnmi"
 	defaultDataType = "ALL"
 	defaultTarget   = `{{ index .Input.Tags "source" }}`
@@ -57,7 +56,7 @@ const (
 func init() {
 	actions.Register(actionType, func() actions.Action {
 		return &gnmiAction{
-			logger:         log.New(io.Discard, "", 0),
+			logger:         logging.DiscardLogger(),
 			m:              new(sync.RWMutex),
 			targetsConfigs: make(map[string]*types.TargetConfig),
 		}
@@ -96,7 +95,7 @@ type gnmiAction struct {
 	paths  []*template.Template
 	values []*template.Template
 
-	logger *log.Logger
+	logger *slog.Logger
 
 	m              *sync.RWMutex
 	targetsConfigs map[string]*types.TargetConfig
@@ -122,7 +121,7 @@ func (g *gnmiAction) Init(cfg map[string]interface{}, opts ...actions.Option) er
 	if err != nil {
 		return err
 	}
-	g.logger.Printf("action name %q of type %q initialized: %v", g.Name, actionType, g)
+	g.logger.Debug("action initialized", "config", g)
 	return nil
 }
 
@@ -192,7 +191,7 @@ func (g *gnmiAction) Run(ctx context.Context, aCtx *actions.Context) (interface{
 				}
 				result[resp.name] = res
 			case err := <-errCh:
-				g.logger.Printf("gnmi action error: %v", err)
+				g.logger.Error("gnmi action error", "err", err)
 				errs = append(errs, err)
 			case <-ctx.Done():
 				return

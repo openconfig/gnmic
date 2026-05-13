@@ -12,19 +12,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
-	"io"
-	"log"
-	"os"
+	"log/slog"
 	"slices"
 	"sync"
 
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 const (
 	processorType = "event-value-tag-v2"
-	loggingPrefix = "[" + processorType + "] "
 )
 
 var (
@@ -35,9 +32,8 @@ var (
 
 type valueTag struct {
 	formatters.BaseProcessor
-	Rules  []*rule `mapstructure:"rules,omitempty" json:"rules,omitempty"`
-	Debug  bool    `mapstructure:"debug,omitempty" json:"debug,omitempty"`
-	logger *log.Logger
+	Rules []*rule `mapstructure:"rules,omitempty" json:"rules,omitempty"`
+	Debug bool    `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 
 	m          *sync.RWMutex
 	applyRules []map[uint64]*applyRule
@@ -51,7 +47,7 @@ type rule struct {
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &valueTag{m: new(sync.RWMutex), logger: log.New(io.Discard, "", 0)}
+		return &valueTag{m: new(sync.RWMutex)}
 	})
 }
 
@@ -63,6 +59,10 @@ func (vt *valueTag) Init(cfg interface{}, opts ...formatters.Option) error {
 	for _, opt := range opts {
 		opt(vt)
 	}
+	if vt.Logger == nil {
+		vt.Logger = logging.DiscardLogger()
+	}
+	vt.Logger = vt.Logger.With("processor", processorType)
 	for _, r := range vt.Rules {
 		if r.TagName == "" {
 			r.TagName = r.ValueName
@@ -74,13 +74,12 @@ func (vt *valueTag) Init(cfg interface{}, opts ...formatters.Option) error {
 		vt.applyRules[i] = make(map[uint64]*applyRule, 0)
 	}
 
-	if vt.logger.Writer() != io.Discard {
-		b, err := json.Marshal(vt)
-		if err != nil {
-			vt.logger.Printf("initialized processor '%s': %+v", processorType, vt)
-			return nil
+	if vt.Debug {
+		if b, err := json.Marshal(vt); err == nil {
+			vt.Logger.Debug("initialized processor", "config", string(b))
+		} else {
+			vt.Logger.Debug("initialized processor", "config", vt)
 		}
-		vt.logger.Printf("initialized processor '%s': %s", processorType, string(b))
 	}
 	return nil
 }
@@ -126,12 +125,11 @@ func (vt *valueTag) Apply(evs ...*formatters.EventMsg) []*formatters.EventMsg {
 	return evs
 }
 
-func (vt *valueTag) WithLogger(l *log.Logger) {
-	if vt.Debug && l != nil {
-		vt.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
-	} else if vt.Debug {
-		vt.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
+func (vt *valueTag) WithLogger(l *slog.Logger) {
+	if !vt.Debug {
+		l = nil
 	}
+	vt.BaseProcessor.WithLogger(l)
 }
 
 // comparison logic for maps

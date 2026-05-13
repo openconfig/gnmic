@@ -13,8 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"log"
+	"log/slog"
 	"os"
 	"slices"
 	"sync/atomic"
@@ -25,9 +24,9 @@ import (
 	"golang.org/x/sync/semaphore"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	gutils "github.com/openconfig/gnmic/pkg/utils"
 	"github.com/zestor-dev/zestor/store"
@@ -37,7 +36,6 @@ const (
 	defaultFormat           = "json"
 	defaultWriteConcurrency = 1000
 	defaultSeparator        = "\n"
-	loggingPrefix           = "[file_output:%s] "
 )
 
 const (
@@ -56,7 +54,7 @@ func (f *File) init() {
 	f.cfg = new(atomic.Pointer[config])
 	f.dynCfg = new(atomic.Pointer[dynConfig])
 	f.file = new(atomic.Pointer[file])
-	f.logger = log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags)
+	f.logger = logging.DiscardLogger()
 }
 
 // File //
@@ -67,7 +65,7 @@ type File struct {
 	dynCfg *atomic.Pointer[dynConfig]
 	file   *atomic.Pointer[file]
 
-	logger *log.Logger
+	logger *slog.Logger
 	sem    *semaphore.Weighted
 
 	reg   *prometheus.Registry
@@ -163,7 +161,6 @@ func (f *File) Init(ctx context.Context, name string, cfg map[string]any, opts .
 	if newCfg.Name == "" {
 		newCfg.Name = name
 	}
-	f.logger.SetPrefix(fmt.Sprintf(loggingPrefix, name))
 
 	options := &outputs.OutputOptions{}
 	for _, opt := range opts {
@@ -175,7 +172,7 @@ func (f *File) Init(ctx context.Context, name string, cfg map[string]any, opts .
 	f.store = options.Store
 
 	// apply logger
-	f.setLogger(options.Logger)
+	f.setLogger(options.Logger, newCfg.Name)
 
 	err = f.setDefaults(newCfg)
 	if err != nil {
@@ -199,7 +196,7 @@ func (f *File) Init(ctx context.Context, name string, cfg map[string]any, opts .
 	dc := new(dynConfig)
 
 	// initialize event processors
-	dc.evps, err = f.buildEventProcessors(options.Logger, newCfg.EventProcessors)
+	dc.evps, err = f.buildEventProcessors(f.logger, newCfg.EventProcessors)
 	if err != nil {
 		return err
 	}
@@ -240,7 +237,7 @@ func (f *File) Init(ctx context.Context, name string, cfg map[string]any, opts .
 	}
 	f.file.Store(&newFile)
 
-	f.logger.Printf("initialized file output: %s", f.String())
+	f.logger.Info("initialized file output", slog.Any("config", f.String()))
 	return nil
 }
 
@@ -272,7 +269,7 @@ func (f *File) openFile(cfg *config) (file, error) {
 		} else {
 			fileHandle, err = os.OpenFile(cfg.FileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 			if err != nil {
-				f.logger.Printf("failed to create file: %v", err)
+				f.logger.Error("failed to create file", "err", err)
 				time.Sleep(10 * time.Second)
 				goto CRFILE
 			}
@@ -376,7 +373,7 @@ func (f *File) Update(ctx context.Context, cfgMap map[string]any) error {
 	// store new config
 	f.cfg.Store(newCfg)
 
-	f.logger.Printf("updated file output: %s", f.String())
+	f.logger.Info("updated file output", slog.Any("config", f.String()))
 	return nil
 }
 
@@ -399,7 +396,7 @@ func (f *File) UpdateProcessor(name string, pcfg map[string]any) error {
 		newDC := *dc
 		newDC.evps = newEvps
 		f.dynCfg.Store(&newDC)
-		f.logger.Printf("updated event processor %s", name)
+		f.logger.Info("updated event processor", "name", name)
 	}
 	return nil
 }
@@ -424,7 +421,7 @@ func (f *File) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) 
 		return
 	}
 	if err != nil {
-		f.logger.Printf("failed acquiring semaphore: %v", err)
+		f.logger.Warn("failed acquiring semaphore", "err", err)
 		return
 	}
 	defer f.sem.Release(1)
@@ -433,13 +430,13 @@ func (f *File) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) 
 
 	rsp, err = outputs.AddSubscriptionTarget(rsp, meta, cfg.AddTarget, dc.targetTpl)
 	if err != nil {
-		f.logger.Printf("failed to add target to the response: %v", err)
+		f.logger.Warn("failed to add target to response", "err", err)
 	}
 
 	bb, err := outputs.Marshal(rsp, meta, dc.mo, cfg.SplitEvents, dc.evps...)
 	if err != nil {
 		if cfg.Debug {
-			f.logger.Printf("failed marshaling proto msg: %v", err)
+			f.logger.Warn("failed marshaling proto msg", "err", err)
 		}
 		numberOfFailWriteMsgs.WithLabelValues(cfg.Name, (*fileHandle).Name(), "marshal_error").Inc()
 		return
@@ -453,7 +450,7 @@ func (f *File) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) 
 			b, err = outputs.ExecTemplate(b, dc.msgTpl)
 			if err != nil {
 				if cfg.Debug {
-					log.Printf("failed to execute template: %v", err)
+					f.logger.Warn("failed to execute template", "err", err)
 				}
 				numberOfFailWriteMsgs.WithLabelValues(cfg.Name, (*fileHandle).Name(), "template_error").Inc()
 				continue
@@ -463,7 +460,7 @@ func (f *File) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) 
 		n, err := (*fileHandle).Write(append(b, []byte(cfg.Separator)...))
 		if err != nil {
 			if cfg.Debug {
-				f.logger.Printf("failed to write to file '%s': %v", (*fileHandle).Name(), err)
+				f.logger.Error("failed to write to file", "file", (*fileHandle).Name(), "err", err)
 			}
 			numberOfFailWriteMsgs.WithLabelValues(cfg.Name, (*fileHandle).Name(), "write_error").Inc()
 			return
@@ -545,11 +542,11 @@ func (f *File) Close() error {
 	if fileHandle == nil {
 		return nil
 	}
-	f.logger.Printf("closing file '%s' output", (*fileHandle).Name())
+	f.logger.Info("closing file output", "file", (*fileHandle).Name())
 	return (*fileHandle).Close()
 }
 
-func (f *File) buildEventProcessors(logger *log.Logger, eventProcessors []string) ([]formatters.EventProcessor, error) {
+func (f *File) buildEventProcessors(logger *slog.Logger, eventProcessors []string) ([]formatters.EventProcessor, error) {
 	tcs, ps, acts, err := gutils.GetConfigMaps(f.store)
 	if err != nil {
 		return nil, err
@@ -567,11 +564,8 @@ func (f *File) buildEventProcessors(logger *log.Logger, eventProcessors []string
 	return evps, nil
 }
 
-func (f *File) setLogger(logger *log.Logger) {
-	if logger != nil && f.logger != nil {
-		f.logger.SetOutput(logger.Writer())
-		f.logger.SetFlags(logger.Flags())
-	}
+func (f *File) setLogger(logger *slog.Logger, name string) {
+	f.logger = outputs.BindLogger(logger, outputType, name)
 }
 
 func fileNeedsReopen(old, new *config) bool {

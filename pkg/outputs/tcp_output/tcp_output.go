@@ -13,8 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"log"
+	"log/slog"
 	"net"
 	"slices"
 	"sync"
@@ -24,9 +23,9 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	gutils "github.com/openconfig/gnmic/pkg/utils"
 	"github.com/zestor-dev/zestor/store"
@@ -35,7 +34,7 @@ import (
 const (
 	defaultRetryTimer = 2 * time.Second
 	defaultNumWorkers = 1
-	loggingPrefix     = "[tcp_output:%s] "
+	outputType        = "tcp"
 )
 
 func init() {
@@ -47,13 +46,13 @@ func init() {
 type tcpOutput struct {
 	outputs.BaseOutput
 
-	cfg      *atomic.Pointer[config]
-	dynCfg   *atomic.Pointer[dynConfig]
-	rootCtx  context.Context
-	cancelFn context.CancelFunc
-	wg       *sync.WaitGroup
-	buffer   *atomic.Pointer[chan []byte]
-	logger   *log.Logger
+	cfg       *atomic.Pointer[config]
+	dynCfg    *atomic.Pointer[dynConfig]
+	rootCtx   context.Context
+	cancelFn  context.CancelFunc
+	wg        *sync.WaitGroup
+	buffer *atomic.Pointer[chan []byte]
+	logger *slog.Logger
 
 	store store.Store[any]
 }
@@ -83,7 +82,7 @@ type config struct {
 	EventProcessors    []string      `mapstructure:"event-processors,omitempty"`
 }
 
-func (t *tcpOutput) buildEventProcessors(logger *log.Logger, eventProcessors []string) ([]formatters.EventProcessor, error) {
+func (t *tcpOutput) buildEventProcessors(logger *slog.Logger, eventProcessors []string) ([]formatters.EventProcessor, error) {
 	tcs, ps, acts, err := gutils.GetConfigMaps(t.store)
 	if err != nil {
 		return nil, err
@@ -106,7 +105,7 @@ func (t *tcpOutput) init() {
 	t.dynCfg = new(atomic.Pointer[dynConfig])
 	t.buffer = new(atomic.Pointer[chan []byte])
 	t.wg = new(sync.WaitGroup)
-	t.logger = log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags)
+	t.logger = logging.DiscardLogger()
 }
 
 func (t *tcpOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
@@ -118,7 +117,6 @@ func (t *tcpOutput) Init(ctx context.Context, name string, cfg map[string]interf
 	}
 	setDefaultsFor(newCfg)
 	t.cfg.Store(newCfg)
-	t.logger.SetPrefix(fmt.Sprintf(loggingPrefix, name))
 
 	options := &outputs.OutputOptions{}
 	for _, opt := range opts {
@@ -129,15 +127,11 @@ func (t *tcpOutput) Init(ctx context.Context, name string, cfg map[string]interf
 
 	t.store = options.Store
 
-	// apply logger
-	if options.Logger != nil && t.logger != nil {
-		t.logger.SetOutput(options.Logger.Writer())
-		t.logger.SetFlags(options.Logger.Flags())
-	}
+	t.logger = outputs.BindLogger(options.Logger, outputType, name)
 
 	dc := new(dynConfig)
 	// initialize event processors
-	dc.evps, err = t.buildEventProcessors(options.Logger, newCfg.EventProcessors)
+	dc.evps, err = t.buildEventProcessors(t.logger, newCfg.EventProcessors)
 	if err != nil {
 		return err
 	}
@@ -311,11 +305,11 @@ func (t *tcpOutput) Update(_ context.Context, cfg map[string]any) error {
 				}
 			}
 		}
-		t.logger.Printf("restarted TCP output workers")
+		t.logger.Info("restarted TCP output workers")
 	} else {
-		t.logger.Printf("no changes to TCP output")
+		t.logger.Debug("no changes to TCP output")
 	}
-	t.logger.Printf("updated TCP output: %s", t.String())
+	t.logger.Info("updated TCP output", slog.Any("config", t.String()))
 	return nil
 }
 
@@ -338,7 +332,7 @@ func (t *tcpOutput) UpdateProcessor(name string, pcfg map[string]any) error {
 		newDC := *dc
 		newDC.evps = newEvps
 		t.dynCfg.Store(&newDC)
-		t.logger.Printf("updated event processor %s", name)
+		t.logger.Info("updated event processor", "name", name)
 	}
 	return nil
 }
@@ -355,11 +349,11 @@ func (t *tcpOutput) Write(ctx context.Context, m proto.Message, meta outputs.Met
 		dc := t.dynCfg.Load()
 		rsp, err := outputs.AddSubscriptionTarget(m, meta, cfg.AddTarget, dc.targetTpl)
 		if err != nil {
-			t.logger.Printf("failed to add target to the response: %v", err)
+			t.logger.Warn("failed to add target to response", "err", err)
 		}
 		bb, err := outputs.Marshal(rsp, meta, dc.mo, cfg.SplitEvents, dc.evps...)
 		if err != nil {
-			t.logger.Printf("failed marshaling proto msg: %v", err)
+			t.logger.Warn("failed marshaling proto msg", "err", err)
 			return
 		}
 		buffer := t.buffer.Load()
@@ -395,20 +389,20 @@ func (t *tcpOutput) start(ctx context.Context, idx int) {
 	workerLogPrefix := fmt.Sprintf("worker-%d", idx)
 START:
 	if ctx.Err() != nil {
-		t.logger.Printf("context error: %v", ctx.Err())
+		t.logger.Warn("context error", "err", ctx.Err())
 		return
 	}
 	cfg := t.cfg.Load()
 	dc := t.dynCfg.Load()
 	tcpAddr, err := net.ResolveTCPAddr("tcp", cfg.Address)
 	if err != nil {
-		t.logger.Printf("%s failed to resolve address: %v", workerLogPrefix, err)
+		t.logger.Error("failed to resolve address", "worker", workerLogPrefix, "err", err)
 		time.Sleep(cfg.RetryInterval)
 		goto START
 	}
 	conn, err := net.DialTCP("tcp", nil, tcpAddr)
 	if err != nil {
-		t.logger.Printf("%s failed to dial TCP: %v", workerLogPrefix, err)
+		t.logger.Error("failed to dial TCP", "worker", workerLogPrefix, "err", err)
 		time.Sleep(cfg.RetryInterval)
 		goto START
 	}
@@ -431,7 +425,7 @@ START:
 			b = append(b, delimiter...)
 			_, err = conn.Write(b)
 			if err != nil {
-				t.logger.Printf("%s failed sending tcp bytes: %v", workerLogPrefix, err)
+				t.logger.Error("failed sending tcp bytes", "worker", workerLogPrefix, "err", err)
 				conn.Close()
 				time.Sleep(cfg.RetryInterval)
 				goto START

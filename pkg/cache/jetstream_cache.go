@@ -12,8 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
-	"os"
+	"log/slog"
 	"regexp"
 	"sort"
 	"strings"
@@ -25,19 +24,17 @@ import (
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/openconfig/gnmi/proto/gnmi"
-	"github.com/openconfig/gnmic/pkg/api/utils"
 )
 
 const (
-	loggingPrefixJetStream = "[cache:jetstream] "
-	reconnectTimer         = 5 * time.Second
-	defaultFetchBatchSize  = 100
-	defaultFetchWaitTime   = 100 * time.Millisecond
-	defaultExpiration      = time.Minute
-	defaultMaxMsgs         = 1024 * 1024
-	defaultMaxBytes        = 1024 * 1024 * 1024
-	defaultNATSAddress     = "127.0.0.1"
-	jetStreamSyncName      = "gnmic-jetstream-cache"
+	reconnectTimer        = 5 * time.Second
+	defaultFetchBatchSize = 100
+	defaultFetchWaitTime  = 100 * time.Millisecond
+	defaultExpiration     = time.Minute
+	defaultMaxMsgs        = 1024 * 1024
+	defaultMaxBytes       = 1024 * 1024 * 1024
+	defaultNATSAddress    = "127.0.0.1"
+	jetStreamSyncName     = "gnmic-jetstream-cache"
 )
 
 type jetStreamCache struct {
@@ -54,7 +51,7 @@ type jetStreamCache struct {
 
 	m       *sync.RWMutex
 	streams map[string]struct{}
-	logger  *log.Logger
+	logger  *slog.Logger
 }
 
 func newJetStreamCache(cfg *Config, opts ...Option) (*jetStreamCache, error) {
@@ -88,7 +85,7 @@ func newJetStreamCache(cfg *Config, opts ...Option) (*jetStreamCache, error) {
 		}
 	}
 	if c.logger == nil {
-		c.logger = log.New(os.Stderr, loggingPrefixJetStream, utils.DefaultLoggingFlags)
+		c.logger = slog.New(slog.DiscardHandler)
 	}
 	c.start()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -97,12 +94,9 @@ func newJetStreamCache(cfg *Config, opts ...Option) (*jetStreamCache, error) {
 	return c, nil
 }
 
-func (c *jetStreamCache) SetLogger(logger *log.Logger) {
-	if logger != nil && c.logger != nil {
-		c.logger.SetOutput(logger.Writer())
-		c.logger.SetFlags(logger.Flags())
-		c.logger.SetPrefix(loggingPrefixJetStream)
-	}
+func (c *jetStreamCache) SetLogger(logger *slog.Logger) {
+	c.logger = BindLogger(logger, "jetstream")
+	c.oc.SetLogger(logger)
 }
 
 func (c *jetStreamCache) start() {
@@ -111,7 +105,7 @@ START:
 		go c.ns.Start()
 		if !c.ns.ReadyForConnections(reconnectTimer) {
 			c.ns.Shutdown()
-			c.logger.Printf("failed to start cache, retrying")
+			c.logger.Warn("failed to start cache, retrying")
 			goto START
 		}
 	}
@@ -124,13 +118,13 @@ START:
 	var err error
 	opts := []nats.Option{
 		nats.ErrorHandler(func(_ *nats.Conn, _ *nats.Subscription, err error) {
-			c.logger.Printf("NATS error: %v", err)
+			c.logger.Error("NATS error", "err", err)
 		}),
 		nats.DisconnectHandler(func(_ *nats.Conn) {
-			c.logger.Println("Disconnected from NATS")
+			c.logger.Info("disconnected from NATS")
 		}),
 		nats.ClosedHandler(func(_ *nats.Conn) {
-			c.logger.Println("NATS connection is closed")
+			c.logger.Info("NATS connection is closed")
 		}),
 	}
 	if c.cfg.Username != "" && c.cfg.Password != "" {
@@ -143,14 +137,14 @@ CONNECT:
 
 	c.nc, err = nats.Connect(c.addr, opts...)
 	if err != nil {
-		c.logger.Printf("failed to connect: %v", err)
+		c.logger.Error("failed to connect to NATS", "err", err)
 		time.Sleep(reconnectTimer)
 		goto CONNECT
 	}
 
 	c.js, err = c.nc.JetStream()
 	if err != nil {
-		c.logger.Printf("failed to create stream: %v", err)
+		c.logger.Error("failed to create stream", "err", err)
 		time.Sleep(reconnectTimer)
 		goto CONNECT
 	}
@@ -164,10 +158,10 @@ func (c *jetStreamCache) createStream(streamName string, subjects []string) erro
 		}
 	}
 	if c.cfg.Debug {
-		c.logger.Printf("found stream %q: %v", streamName, stream != nil)
+		c.logger.Debug("stream lookup", "stream", streamName, "exists", stream != nil)
 	}
 	if stream == nil {
-		c.logger.Printf("creating stream %q and subjects %q", streamName, subjects)
+		c.logger.Info("creating stream", "stream", streamName, "subjects", subjects)
 		_, err = c.js.AddStream(
 			&nats.StreamConfig{
 				Name:     streamName,
@@ -207,7 +201,7 @@ func (c *jetStreamCache) writeRemoteJS(ctx context.Context, subscriptionName str
 		case *gnmi.SubscribeResponse_Update:
 			targetName := rsp.Update.GetPrefix().GetTarget()
 			if targetName == "" {
-				c.logger.Printf("subscription=%q: response missing target: %v", subscriptionName, rsp)
+				c.logger.Warn("response missing target", "subscription", subscriptionName, "response", rsp)
 				return
 			}
 
@@ -223,7 +217,7 @@ func (c *jetStreamCache) writeRemoteJS(ctx context.Context, subscriptionName str
 				if err != nil {
 					delete(c.streams, subscriptionName)
 					c.m.Unlock()
-					c.logger.Printf("failed to create stream: %v", err)
+					c.logger.Error("failed to create stream", "err", err)
 					return
 				}
 				c.m.Unlock()
@@ -235,7 +229,7 @@ func (c *jetStreamCache) writeRemoteJS(ctx context.Context, subscriptionName str
 			defer c.m.RUnlock()
 			err := c.publishNotificationJS(ctx, subscriptionName, targetName, m)
 			if err != nil {
-				c.logger.Print(err)
+				c.logger.Error("JetStream publish error", "err", err)
 			}
 
 		}
@@ -264,7 +258,7 @@ func (c *jetStreamCache) publishNotificationJS(ctx context.Context, subscription
 }
 
 func (c *jetStreamCache) sync(ctx context.Context) {
-	c.logger.Printf("start JetStream sync")
+	c.logger.Info("start JetStream sync")
 	// this map keeps track of streams already queued
 	streams := make(map[string]struct{})
 	go func() {
@@ -287,7 +281,7 @@ func (c *jetStreamCache) sync(ctx context.Context) {
 			return
 		case cc := <-c.streamChan:
 			if _, ok := streams[cc]; !ok {
-				c.logger.Printf("start JetStream stream %q sync", cc)
+				c.logger.Info("start JetStream stream sync", "stream", cc)
 				streams[cc] = struct{}{}
 				go c.syncStream(ctx, cc)
 			}
@@ -302,7 +296,7 @@ START:
 			m := new(gnmi.SubscribeResponse)
 			err := proto.Unmarshal([]byte(msg.Data), m)
 			if err != nil {
-				c.logger.Printf("failed to unmarshal proto msg: %v", err)
+				c.logger.Warn("failed to unmarshal proto msg", "err", err)
 				return
 			}
 			_ = msg.Ack()

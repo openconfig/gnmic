@@ -5,21 +5,18 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
-	"log"
-	"os"
+	"log/slog"
 	"sort"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 const (
 	processorType          = "event-rate-limit"
-	loggingPrefix          = "[" + processorType + "] "
 	defaultCacheSize       = 1000
 	oneSecond        int64 = int64(time.Second)
 )
@@ -43,14 +40,11 @@ type rateLimit struct {
 	// We need some form of control over the size of the cache to contain RAM usage
 	// so LRU is good in that respect also.
 	eventIndex *lru.Cache[string, int64]
-	logger     *log.Logger
 }
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &rateLimit{
-			logger: log.New(io.Discard, "", 0),
-		}
+		return &rateLimit{}
 	})
 }
 
@@ -62,21 +56,24 @@ func (o *rateLimit) Init(cfg interface{}, opts ...formatters.Option) error {
 	for _, opt := range opts {
 		opt(o)
 	}
+	if o.Logger == nil {
+		o.Logger = logging.DiscardLogger()
+	}
+	o.Logger = o.Logger.With("processor", processorType)
 	if o.CacheSize <= 0 {
-		o.logger.Printf("using default value for lru size %d", defaultCacheSize)
+		o.Logger.Info("using default value for lru size", "size", defaultCacheSize)
 		o.CacheSize = defaultCacheSize
 
 	}
 	if o.PerSecondLimit <= 0 {
 		return fmt.Errorf("provided limit is %f, must be greater than 0", o.PerSecondLimit)
 	}
-	if o.logger.Writer() != io.Discard {
-		b, err := json.Marshal(o)
-		if err != nil {
-			o.logger.Printf("initialized processor '%s': %+v", processorType, o)
-			return nil
+	if o.Debug {
+		if b, err := json.Marshal(o); err == nil {
+			o.Logger.Debug("initialized processor", "config", string(b))
+		} else {
+			o.Logger.Debug("initialized processor", "config", o)
 		}
-		o.logger.Printf("initialized processor '%s': %s", processorType, string(b))
 	}
 
 	o.eventIndex, err = lru.New[string, int64](o.CacheSize)
@@ -98,7 +95,7 @@ func (o *rateLimit) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		// we check that we have the event hash in the map, if not, it's the first time we see the event
 		if val := float64(e.Timestamp-ts) * o.PerSecondLimit; has && e.Timestamp != ts && int64(val) < oneSecond {
 			// reject event
-			o.logger.Printf("dropping event val %.2f lower than configured rate", val)
+			o.Logger.Debug("dropping event, value lower than configured rate", "value", val)
 			continue
 		}
 		// retain the last event that passed through
@@ -129,10 +126,9 @@ func hashEvent(e *formatters.EventMsg) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-func (o *rateLimit) WithLogger(l *log.Logger) {
-	if o.Debug && l != nil {
-		o.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
-	} else if o.Debug {
-		o.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
+func (o *rateLimit) WithLogger(l *slog.Logger) {
+	if !o.Debug {
+		l = nil
 	}
+	o.BaseProcessor.WithLogger(l)
 }

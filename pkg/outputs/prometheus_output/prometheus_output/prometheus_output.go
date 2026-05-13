@@ -11,12 +11,10 @@ package prometheus_output
 import (
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
-	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -38,6 +36,7 @@ import (
 	"github.com/openconfig/gnmic/pkg/cache"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/gtemplate"
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	promcom "github.com/openconfig/gnmic/pkg/outputs/prometheus_output"
 	gutils "github.com/openconfig/gnmic/pkg/utils"
@@ -49,11 +48,11 @@ const (
 	defaultListen     = ":9804"
 	defaultPath       = "/metrics"
 	defaultExpiration = time.Minute
-	loggingPrefix     = "[prometheus_output:%s] "
 	// this is used to timeout the collection method
 	// in case it drags for too long
 	defaultTimeout    = 10 * time.Second
 	defaultNumWorkers = 1
+	defaultBufferSize = 10_000
 )
 
 func init() {
@@ -67,9 +66,9 @@ type prometheusOutput struct {
 
 	cfg       *atomic.Pointer[config]
 	dynCfg    *atomic.Pointer[dynConfig]
-	logger    *log.Logger
-	eventChan chan *formatters.EventMsg
-	msgChan   chan *outputs.ProtoMsg
+	logger    *slog.Logger
+	eventChan *atomic.Pointer[chan *formatters.EventMsg]
+	msgChan   *atomic.Pointer[chan *outputs.ProtoMsg]
 
 	wg     *sync.WaitGroup
 	server *http.Server
@@ -113,6 +112,7 @@ type config struct {
 	Timeout                time.Duration        `mapstructure:"timeout,omitempty" json:"timeout,omitempty"`
 	CacheConfig            *cache.Config        `mapstructure:"cache,omitempty" json:"cache-config,omitempty"`
 	NumWorkers             int                  `mapstructure:"num-workers,omitempty" json:"num-workers,omitempty"`
+	BufferSize             int                  `mapstructure:"buffer-size,omitempty" json:"buffer-size,omitempty"`
 	EnableMetrics          bool                 `mapstructure:"enable-metrics,omitempty" json:"enable-metrics,omitempty"`
 
 	clusterName string
@@ -120,16 +120,16 @@ type config struct {
 	port        int
 }
 
+func (c *config) LogValue() slog.Value {
+	return logging.RedactedValue(c)
+}
+
 func (p *prometheusOutput) String() string {
 	cfg := p.cfg.Load()
 	if cfg == nil {
 		return ""
 	}
-	b, err := json.Marshal(cfg)
-	if err != nil {
-		return ""
-	}
-	return string(b)
+	return logging.RedactedJSON(cfg)
 }
 
 func (p *prometheusOutput) buildEventProcessors(cfg *config) ([]formatters.EventProcessor, error) {
@@ -140,19 +140,16 @@ func (p *prometheusOutput) buildEventProcessors(cfg *config) ([]formatters.Event
 	return formatters.MakeEventProcessors(p.logger, cfg.EventProcessors, ps, tcs, acts)
 }
 
-func (p *prometheusOutput) setLogger(logger *log.Logger) {
-	if logger != nil && p.logger != nil {
-		p.logger.SetOutput(logger.Writer())
-		p.logger.SetFlags(logger.Flags())
-	}
+func (p *prometheusOutput) setLogger(logger *slog.Logger, name string) {
+	p.logger = outputs.BindLogger(logger, outputType, name)
 }
 
 func (p *prometheusOutput) init() {
 	p.cfg = new(atomic.Pointer[config])
 	p.dynCfg = new(atomic.Pointer[dynConfig])
-	p.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
-	p.eventChan = make(chan *formatters.EventMsg)
-	p.msgChan = make(chan *outputs.ProtoMsg, 10_000)
+	p.logger = logging.DiscardLogger()
+	p.msgChan = new(atomic.Pointer[chan *outputs.ProtoMsg])
+	p.eventChan = new(atomic.Pointer[chan *formatters.EventMsg])
 	p.wg = new(sync.WaitGroup)
 	p.entries = make(map[uint64]*promcom.PromMetric)
 }
@@ -169,8 +166,6 @@ func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string
 		newCfg.Name = name
 	}
 
-	p.logger.SetPrefix(fmt.Sprintf(loggingPrefix, newCfg.Name))
-
 	options := &outputs.OutputOptions{}
 	for _, opt := range opts {
 		if err := opt(options); err != nil {
@@ -181,13 +176,18 @@ func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string
 	p.store = options.Store
 
 	// apply logger
-	p.setLogger(options.Logger)
+	p.setLogger(options.Logger, newCfg.Name)
 
 	// set defaults
 	err = p.setDefaultsFor(newCfg)
 	if err != nil {
 		return err
 	}
+
+	eventChan := make(chan *formatters.EventMsg, newCfg.BufferSize)
+	p.eventChan.Store(&eventChan)
+	msgChan := make(chan *outputs.ProtoMsg, newCfg.BufferSize)
+	p.msgChan.Store(&msgChan)
 
 	// initialize registry
 	p.reg = options.Registry
@@ -266,7 +266,7 @@ func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string
 	// start worker
 	p.wg.Add(newCfg.NumWorkers)
 	for i := 0; i < newCfg.NumWorkers; i++ {
-		go p.worker(p.runCtx)
+		go p.worker(p.runCtx, msgChan, eventChan)
 	}
 
 	if newCfg.CacheConfig == nil {
@@ -283,11 +283,11 @@ func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string
 		defer listener.Close()
 		err = p.server.Serve(listener)
 		if err != nil && err != http.ErrServerClosed {
-			p.logger.Printf("prometheus server error: %v", err)
+			p.logger.Error("prometheus server error", "err", err)
 		}
 	}()
 	go p.registerService(p.runCtx)
-	p.logger.Printf("initialized prometheus output: %s", p.String())
+	p.logger.Info("initialized prometheus output", slog.Any("config", p.String()))
 	return nil
 }
 
@@ -372,27 +372,15 @@ func (p *prometheusOutput) Update(ctx context.Context, cfg map[string]any) error
 
 	// rebuild http objects if needed
 	rebuildHTTPServer := p.needHTTPRebuild(currCfg, &tmp)
-	var newServer *http.Server
-	var newListener net.Listener
+	var newMux *http.ServeMux
 	if rebuildHTTPServer {
 		reg := prometheus.NewRegistry()
 		if err := reg.Register(p); err != nil {
 			return err
 		}
 		promHandler := promhttp.HandlerFor(reg, promhttp.HandlerOpts{ErrorHandling: promhttp.ContinueOnError})
-		mux := http.NewServeMux()
-		mux.Handle(tmp.Path, promHandler)
-
-		s := &http.Server{
-			Addr:    tmp.Listen,
-			Handler: mux,
-		}
-		l, err := p.createListenerFor(&tmp)
-		if err != nil {
-			return err
-		}
-		newServer = s
-		newListener = l
+		newMux = http.NewServeMux()
+		newMux.Handle(tmp.Path, promHandler)
 	}
 
 	// cache rebuild if CacheConfig toggled or changed
@@ -415,6 +403,8 @@ func (p *prometheusOutput) Update(ctx context.Context, cfg map[string]any) error
 		p.Unlock()
 	}
 
+	swapChannels := channelNeedsSwap(currCfg, &tmp)
+
 	// swap under lock
 	p.Lock()
 	oldServer := p.server
@@ -423,44 +413,75 @@ func (p *prometheusOutput) Update(ctx context.Context, cfg map[string]any) error
 
 	p.cfg.Store(&tmp)
 
-	if rebuildHTTPServer {
-		p.server = newServer
-	}
 	if newCache != nil || (oldCache != nil && tmp.CacheConfig == nil) {
 		p.gnmiCache = newCache
 		p.targetsMeta = newTargetsMeta
 	}
+
+	var newMsgChan, oldMsgChan chan *outputs.ProtoMsg
+	var newEventChan, oldEventChan chan *formatters.EventMsg
+	if swapChannels {
+		newMsgChan = make(chan *outputs.ProtoMsg, tmp.BufferSize)
+		newEventChan = make(chan *formatters.EventMsg, tmp.BufferSize)
+		oldMsgChan = *p.msgChan.Load()
+		oldEventChan = *p.eventChan.Load()
+		p.msgChan.Store(&newMsgChan)
+		p.eventChan.Store(&newEventChan)
+	} else {
+		newMsgChan = *p.msgChan.Load()
+		newEventChan = *p.eventChan.Load()
+	}
+
 	// create a new worker ctx
 	p.runCtx, p.runCfn = context.WithCancel(ctx)
 	p.Unlock()
 
 	// Start/Restart components that changed
 
-	// HTTP server
+	// HTTP server: close old first to release the port, then bind + start new.
 	if rebuildHTTPServer {
 		if oldServer != nil {
-			_ = oldServer.Close() // stop old server; Serve will exit
+			_ = oldServer.Close()
 		}
-		// start the new one
+		newListener, err := p.createListenerFor(&tmp)
+		if err != nil {
+			return err
+		}
+		newServer := &http.Server{
+			Addr:    tmp.Listen,
+			Handler: newMux,
+		}
+		p.Lock()
+		p.server = newServer
+		p.Unlock()
 		p.wg.Add(1)
-		go func(srv *http.Server, l net.Listener) {
+		go func() {
 			defer p.wg.Done()
-			defer l.Close()
-			if err := srv.Serve(l); err != nil && err != http.ErrServerClosed {
-				p.logger.Printf("prometheus server error: %v", err)
+			defer newListener.Close()
+			if err := newServer.Serve(newListener); err != nil && err != http.ErrServerClosed {
+				p.logger.Error("prometheus server error", "err", err)
 			}
-		}(newServer, newListener)
+		}()
 	}
 
-	// workers (stop old, start new)
+	// 1. Start new workers so new channels have consumers immediately.
+	p.wg.Add(tmp.NumWorkers)
+	for i := 0; i < tmp.NumWorkers; i++ {
+		go p.worker(p.runCtx, newMsgChan, newEventChan)
+	}
+	// 2. Drain buffered messages from old channels into new ones.
+	//    Old workers may still be running and consuming from old channels
+	//    concurrently -- that is safe because those messages get processed
+	//    into p.entries by the old workers.
+	if swapChannels {
+		drainChan(ctx, oldMsgChan, newMsgChan)
+		drainChan(ctx, oldEventChan, newEventChan)
+	}
+	// 3. Cancel old workers last, after drain is complete.
 	if oldRunCfn != nil {
 		oldRunCfn()
 	}
-	// start workers with new num-workers
-	p.wg.Add(tmp.NumWorkers)
-	for i := 0; i < tmp.NumWorkers; i++ {
-		go p.worker(p.runCtx)
-	}
+
 	if tmp.CacheConfig == nil {
 		p.wg.Add(1)
 		go func() {
@@ -472,7 +493,7 @@ func (p *prometheusOutput) Update(ctx context.Context, cfg map[string]any) error
 	// restart service registration
 	go p.registerService(p.runCtx)
 
-	p.logger.Printf("updated prometheus output: %s", p.String())
+	p.logger.Info("updated prometheus output", slog.Any("config", p.String()))
 	return nil
 }
 
@@ -495,7 +516,7 @@ func (p *prometheusOutput) UpdateProcessor(name string, pcfg map[string]any) err
 		newDC := *dc
 		newDC.evps = newEvps
 		p.dynCfg.Store(&newDC)
-		p.logger.Printf("updated event processor %s", name)
+		p.logger.Info("updated event processor", "name", name)
 	}
 	return nil
 }
@@ -533,16 +554,17 @@ func (p *prometheusOutput) Write(ctx context.Context, rsp proto.Message, meta ou
 		return
 	}
 
+	msgChan := *p.msgChan.Load()
 	wctx, cancel := context.WithTimeout(ctx, cfg.Timeout)
 	defer cancel()
 
 	select {
 	case <-ctx.Done():
 		return
-	case p.msgChan <- outputs.NewProtoMsg(rsp, meta):
+	case msgChan <- outputs.NewProtoMsg(rsp, meta):
 	case <-wctx.Done():
 		if cfg.Debug {
-			p.logger.Printf("writing expired after %s", cfg.Timeout)
+			p.logger.Warn("write expired", "timeout", cfg.Timeout)
 		}
 		return
 	}
@@ -561,8 +583,9 @@ func (p *prometheusOutput) WriteEvent(ctx context.Context, ev *formatters.EventM
 		for _, proc := range dc.evps {
 			evs = proc.Apply(evs...)
 		}
+		eventChan := *p.eventChan.Load()
 		for _, pev := range evs {
-			p.eventChan <- pev
+			eventChan <- pev
 		}
 	}
 }
@@ -582,7 +605,7 @@ func (p *prometheusOutput) Close() error {
 			// ignore 404 and unknown service ID errors
 			if !strings.Contains(err.Error(), "404") &&
 				!strings.Contains(err.Error(), "Unknown service ID") {
-				p.logger.Printf("failed to deregister consul service: %v", err)
+				p.logger.Warn("failed to deregister consul service", "err", err)
 			}
 		}
 	}
@@ -597,10 +620,10 @@ func (p *prometheusOutput) Close() error {
 		defer cancel()
 		err = server.Shutdown(ctx)
 		if err != nil {
-			p.logger.Printf("failed to shutdown http server: %v", err)
+			p.logger.Error("failed to shutdown http server", "err", err)
 		}
 	}
-	p.logger.Printf("closed.")
+	p.logger.Info("closed")
 	p.wg.Wait()
 	return nil
 }
@@ -615,12 +638,13 @@ func (p *prometheusOutput) Collect(ch chan<- prometheus.Metric) {
 		return
 	}
 
-	p.Lock()
-	defer p.Unlock()
 	if cfg.CacheConfig != nil {
+		p.Lock()
+		defer p.Unlock()
 		p.collectFromCache(ch)
 		return
 	}
+	p.Lock()
 	// No cache
 	// run expire before exporting metrics
 	p.expireMetrics()
@@ -628,25 +652,33 @@ func (p *prometheusOutput) Collect(ch chan<- prometheus.Metric) {
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.Timeout)
 	defer cancel()
 
-	for _, entry := range p.entries {
+	// snapshot the entries map
+	entries := make([]*promcom.PromMetric, 0, len(p.entries))
+	for _, e := range p.entries {
+		entries = append(entries, e)
+	}
+
+	p.Unlock()
+
+	for _, entry := range entries {
 		select {
 		case <-ctx.Done():
-			p.logger.Printf("collection context terminated: %v", ctx.Err())
+			p.logger.Warn("collection context terminated", "err", ctx.Err())
 			return
 		case ch <- entry:
 		}
 	}
 }
 
-func (p *prometheusOutput) worker(ctx context.Context) {
+func (p *prometheusOutput) worker(ctx context.Context, msgChan <-chan *outputs.ProtoMsg, eventChan <-chan *formatters.EventMsg) {
 	defer p.wg.Done()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case ev := <-p.eventChan:
+		case ev := <-eventChan:
 			p.workerHandleEvent(ev)
-		case m := <-p.msgChan:
+		case m := <-msgChan:
 			p.workerHandleProto(ctx, m)
 		}
 	}
@@ -675,7 +707,7 @@ func (p *prometheusOutput) workerHandleProto(ctx context.Context, m *outputs.Pro
 		var err error
 		pmsg, err = outputs.AddSubscriptionTarget(pmsg, m.GetMeta(), cfg.AddTarget, dc.targetTpl)
 		if err != nil {
-			p.logger.Printf("failed to add target to the response: %v", err)
+			p.logger.Warn("failed to add target to response", "err", err)
 		}
 		if gnmiCache != nil {
 			gnmiCache.Write(ctx, measName, pmsg)
@@ -685,7 +717,7 @@ func (p *prometheusOutput) workerHandleProto(ctx context.Context, m *outputs.Pro
 		}
 		events, err := formatters.ResponseToEventMsgs(measName, pmsg, meta, dc.evps...)
 		if err != nil {
-			p.logger.Printf("failed to convert message to event: %v", err)
+			p.logger.Warn("failed to convert message to event", "err", err)
 			return
 		}
 		p.workerHandleEvent(events...)
@@ -703,9 +735,7 @@ func (p *prometheusOutput) workerHandleEvent(evs ...*formatters.EventMsg) {
 	if cfg == nil || dc == nil {
 		return
 	}
-	if cfg.Debug {
-		p.logger.Printf("got event to store: %+v", evs)
-	}
+	p.logger.Debug("got event to store", "events", evs)
 	mks := make([]*metricAndKey, 0, len(evs))
 	for _, ev := range evs {
 		for _, pm := range dc.mb.MetricsFromEvent(ev, time.Now()) {
@@ -726,9 +756,7 @@ func (p *prometheusOutput) workerHandleEvent(evs ...*formatters.EventMsg) {
 		// existing one.
 		if !ok || mk.m.Time == nil || (ok && mk.m.Time != nil && e.Time.Before(*mk.m.Time)) {
 			p.entries[mk.k] = mk.m
-			if cfg.Debug {
-				p.logger.Printf("saved key=%d, metric: %+v", mk.k, mk.m)
-			}
+			p.logger.Debug("saved metric", "key", mk.k, "metric", mk.m)
 		}
 	}
 }
@@ -782,6 +810,33 @@ func (p *prometheusOutput) expireMetricsPeriodic(ctx context.Context) {
 	}
 }
 
+func channelNeedsSwap(old, nw *config) bool {
+	if old == nil || nw == nil {
+		return true
+	}
+	return old.BufferSize != nw.BufferSize
+}
+
+func drainChan[T any](ctx context.Context, old <-chan T, new chan<- T) {
+	for {
+		select {
+		case msg, ok := <-old:
+			if !ok {
+				return
+			}
+			select {
+			case new <- msg:
+			case <-ctx.Done():
+				return
+			}
+		case <-ctx.Done():
+			return
+		default:
+			return
+		}
+	}
+}
+
 func (p *prometheusOutput) setDefaultsFor(c *config) error {
 	if c.Listen == "" {
 		c.Listen = defaultListen
@@ -801,6 +856,9 @@ func (p *prometheusOutput) setDefaultsFor(c *config) error {
 	if c.NumWorkers <= 0 {
 		c.NumWorkers = defaultNumWorkers
 	}
+	if c.BufferSize <= 0 {
+		c.BufferSize = defaultBufferSize
+	}
 	if c.ServiceRegistration == nil {
 		return nil
 	}
@@ -817,35 +875,35 @@ func (p *prometheusOutput) setDefaultsFor(c *config) error {
 				c.address = c.ServiceRegistration.ServiceAddress
 				_, port, err = net.SplitHostPort(c.Listen)
 				if err != nil {
-					p.logger.Printf("invalid 'listen' field format: %v", err)
+					p.logger.Error("invalid 'listen' field format", "err", err)
 					return err
 				}
 				c.port, err = strconv.Atoi(port)
 				if err != nil {
-					p.logger.Printf("invalid 'listen' field format: %v", err)
+					p.logger.Error("invalid 'listen' field format", "err", err)
 					return err
 				}
 				return nil
 			}
 			// if the error is not related to a missing port, fail
-			p.logger.Printf("invalid 'service-registration.service-address' field format: %v", err)
+			p.logger.Error("invalid 'service-registration.service-address' field format", "err", err)
 			return err
 		}
 		// the service-address contains both an address and a port number
 		c.port, err = strconv.Atoi(port)
 		if err != nil {
-			p.logger.Printf("invalid 'service-registration.service-address' field format: %v", err)
+			p.logger.Error("invalid 'service-registration.service-address' field format", "err", err)
 			return err
 		}
 	default:
 		c.address, port, err = net.SplitHostPort(c.Listen)
 		if err != nil {
-			p.logger.Printf("invalid 'listen' field format: %v", err)
+			p.logger.Error("invalid 'listen' field format", "err", err)
 			return err
 		}
 		c.port, err = strconv.Atoi(port)
 		if err != nil {
-			p.logger.Printf("invalid 'listen' field format: %v", err)
+			p.logger.Error("invalid 'listen' field format", "err", err)
 			return err
 		}
 	}

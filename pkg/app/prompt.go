@@ -23,7 +23,7 @@ import (
 func (a *App) PromptRunE(cmd *cobra.Command, args []string) error {
 	err := a.generateYangSchema(a.Config.GlobalFlags.File, a.Config.GlobalFlags.Exclude)
 	if err != nil {
-		a.Logger.Printf("failed to load paths from yang: %v", err)
+		a.Logger.Info("failed to load paths from yang", "err", err)
 		if !a.Config.Log {
 			fmt.Fprintf(os.Stderr, "ERR: failed to load paths from yang: %v\n", err)
 		}
@@ -34,14 +34,14 @@ func (a *App) PromptRunE(cmd *cobra.Command, args []string) error {
 	home, err := homedir.Dir()
 	if err != nil {
 		if a.Config.Debug {
-			a.Logger.Printf("failed to get home directory: %v", err)
+			a.Logger.Debug("failed to get home directory", "err", err)
 		}
 		return nil
 	}
 	content, err := os.ReadFile(filepath.Join(home, ".gnmic.history"))
 	if err != nil {
 		if a.Config.Debug {
-			a.Logger.Printf("failed to read history file: %v", err)
+			a.Logger.Debug("failed to read history file", "err", err)
 		}
 		return nil
 	}

@@ -58,7 +58,7 @@ func (s *server) Get(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetRespon
 
 	targetName := req.GetPrefix().GetTarget()
 	peer, _ := peer.FromContext(ctx)
-	s.l.Printf("received Get request from %q to target %q", peer.Addr, targetName)
+	s.l.InfoContext(ctx, "received Get request", "peer", peer.Addr, "target", targetName)
 
 	targets, err := s.selectTargets(targetName)
 	if err != nil {
@@ -103,7 +103,7 @@ func (s *server) Get(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetRespon
 			defer cancel()
 			err := t.CreateGNMIClient(ctx)
 			if err != nil {
-				s.l.Printf("target %q err: %v", name, err)
+				s.l.WarnContext(ctx, "target error", "target", name, "err", err)
 				errChan <- fmt.Errorf("target %q err: %v", name, err)
 				return
 			}
@@ -116,7 +116,7 @@ func (s *server) Get(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetRespon
 			}
 			res, err := t.Get(ctx, creq)
 			if err != nil {
-				s.l.Printf("target %q err: %v", name, err)
+				s.l.WarnContext(ctx, "target error", "target", name, "err", err)
 				errChan <- fmt.Errorf("target %q err: %v", name, err)
 				return
 			}
@@ -141,7 +141,7 @@ func (s *server) Get(ctx context.Context, req *gnmi.GetRequest) (*gnmi.GetRespon
 		}
 	}
 	<-done
-	s.l.Printf("sending GetResponse to %q: %+v", peer.Addr, response)
+	s.l.InfoContext(ctx, "sending GetResponse", "peer", peer.Addr, "response", response)
 	return response, nil
 }
 

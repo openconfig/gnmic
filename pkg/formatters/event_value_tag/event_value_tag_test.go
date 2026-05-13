@@ -10,7 +10,8 @@ package event_value_tag
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
+	"os"
 	"reflect"
 	"testing"
 
@@ -389,7 +390,7 @@ func TestEventValueTag(t *testing.T) {
 		if pi, ok := formatters.EventProcessors[ts.processorType]; ok {
 			t.Log("found processor")
 			p := pi()
-			err := p.Init(ts.processor, formatters.WithLogger(log.Default()))
+			err := p.Init(ts.processor, formatters.WithLogger(slog.New(slog.NewTextHandler(os.Stderr, nil))))
 			if err != nil {
 				t.Errorf("failed to initialize processors: %v", err)
 				return

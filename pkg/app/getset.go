@@ -92,8 +92,15 @@ func (a *App) GetSetRequest(ctx context.Context, tc *types.TargetConfig, req *gn
 			a.logError(fmt.Errorf("target %q Get Request printing failed: %v", tc.Name, err))
 		}
 	}
-	a.Logger.Printf("sending gNMI GetRequest: prefix='%v', path='%v', type='%v', encoding='%v', models='%+v', extension='%+v' to %s",
-		xreq.Prefix, xreq.Path, xreq.Type, xreq.Encoding, xreq.UseModels, xreq.Extension, tc.Name)
+	a.Logger.Info("sending gNMI GetRequest",
+		"target", tc.Name,
+		"prefix", xreq.Prefix,
+		"path", xreq.Path,
+		"type", xreq.Type,
+		"encoding", xreq.Encoding,
+		"models", xreq.UseModels,
+		"extension", xreq.Extension,
+	)
 	response, err := a.ClientGet(ctx, tc, xreq)
 	if err != nil {
 		a.logError(fmt.Errorf("target %q get request failed: %v", tc.Name, err))
@@ -142,7 +149,7 @@ func (a *App) GetSetRequest(ctx context.Context, tc *types.TargetConfig, req *gn
 	}
 	switch res := res.(type) {
 	case bool:
-		a.Logger.Printf("GetSet condition evaluated to %v", res)
+		a.Logger.Info("GetSet condition evaluated", "result", res)
 		if res {
 			setReq, err := a.Config.CreateGASSetRequest(input)
 			if err != nil {
@@ -150,7 +157,7 @@ func (a *App) GetSetRequest(ctx context.Context, tc *types.TargetConfig, req *gn
 				return
 			}
 			if len(setReq.Delete) == 0 && len(setReq.Replace) == 0 && len(setReq.Update) == 0 {
-				a.Logger.Printf("empty set request")
+				a.Logger.Info("empty set request")
 				return
 			}
 			a.setRequest(ctx, tc, setReq)

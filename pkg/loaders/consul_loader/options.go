@@ -9,6 +9,7 @@
 package consul_loader
 
 import (
+
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/openconfig/gnmic/pkg/api/types"
@@ -19,11 +20,11 @@ func (c *consulLoader) RegisterMetrics(reg *prometheus.Registry) {
 		return
 	}
 	if reg == nil {
-		c.logger.Printf("ERR: metrics enabled but main registry is not initialized, enable main metrics under `api-server`")
+		c.logger.Info("ERR: metrics enabled but main registry is not initialized, enable main metrics under `api-server`")
 		return
 	}
 	if err := registerMetrics(reg); err != nil {
-		c.logger.Printf("failed to register metrics: %v", err)
+		c.logger.Error("failed to register metrics:", "err", err)
 	}
 }
 

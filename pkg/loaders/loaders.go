@@ -10,12 +10,13 @@ package loaders
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"maps"
 	"reflect"
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmic/pkg/api/types"
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -25,7 +26,7 @@ import (
 // returned channel.
 type TargetLoader interface {
 	// Init initializes the target loader given the config, logger and options
-	Init(ctx context.Context, cfg map[string]interface{}, l *log.Logger, opts ...Option) error
+	Init(ctx context.Context, cfg map[string]interface{}, l *slog.Logger, opts ...Option) error
 	// RunOnce runs the loader only once, returning a map of target configs
 	RunOnce(ctx context.Context) (map[string]*types.TargetConfig, error)
 	// Start starts the target loader, running periodic polls or a long watch.
@@ -53,6 +54,13 @@ var LoadersTypes = []string{
 
 func Register(name string, initFn Initializer) {
 	Loaders[name] = initFn
+}
+
+// BindLogger returns a non-nil *slog.Logger annotated with the loader type.
+// If parent is nil, a discarding logger is returned so callers never need a
+// nil check.
+func BindLogger(parent *slog.Logger, loaderType string) *slog.Logger {
+	return logging.Component(parent, "loader", loaderType, "")
 }
 
 type TargetOperation struct {

@@ -7,7 +7,9 @@
 
 Request all gnmic configuration
 
-Returns the whole configuration as json
+Returns the whole configuration as json.
+
+Entries under **`targets`** redact each target's **`password`** and **`token`** to **`****`** by default. Set `api-server/expose-target-secrets: true` to include real credential values in API responses.
 
 === "Request"
     ```bash
@@ -43,7 +45,7 @@ Returns the whole configuration as json
                 "name": "192.168.1.131:57400",
                 "address": "192.168.1.131:57400",
                 "username": "admin",
-                "password": "admin",
+                "password": "****",
                 "timeout": 10000000000,
                 "insecure": true,
                 "skip-verify": false,
@@ -54,7 +56,7 @@ Returns the whole configuration as json
                 "name": "192.168.1.132:57400",
                 "address": "192.168.1.131:57400",
                 "username": "admin",
-                "password": "admin",
+                "password": "****",
                 "timeout": 10000000000,
                 "insecure": true,
                 "skip-verify": false,
@@ -114,7 +116,7 @@ Returns the whole configuration as json
 
 Request all targets configuration
 
-returns the targets configuration as json
+Returns the targets configuration as json. By default, **`password`** and **`token`** are returned as **`****`**; set `api-server/expose-target-secrets: true` to disable redaction.
 
 === "Request"
     ```bash
@@ -127,7 +129,7 @@ returns the targets configuration as json
             "name": "192.168.1.131:57400",
             "address": "192.168.1.131:57400",
             "username": "admin",
-            "password": "admin",
+            "password": "****",
             "timeout": 10000000000,
             "insecure": true,
             "skip-verify": false,
@@ -138,7 +140,7 @@ returns the targets configuration as json
             "name": "192.168.1.132:57400",
             "address": "192.168.1.131:57400",
             "username": "admin",
-            "password": "admin",
+            "password": "****",
             "timeout": 10000000000,
             "insecure": true,
             "skip-verify": false,
@@ -168,7 +170,7 @@ returns the targets configuration as json
 
 Request a single target configuration
 
-Returns a single target configuration as json, where {id} is the target ID
+Returns a single target configuration as json, where {id} is the target ID. **`password`** and **`token`** use the same redaction rules as `GET /api/v1/config/targets`.
 
 === "Request"
     ```bash
@@ -180,7 +182,7 @@ Returns a single target configuration as json, where {id} is the target ID
         "name": "192.168.1.131:57400",
         "address": "192.168.1.131:57400",
         "username": "admin",
-        "password": "admin",
+        "password": "****",
         "timeout": 10000000000,
         "insecure": true,
         "skip-verify": false,

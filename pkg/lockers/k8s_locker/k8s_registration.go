@@ -46,10 +46,10 @@ func (k *k8sLocker) WatchServices(ctx context.Context, serviceName string, tags 
 		default:
 			resourceVersion, err = k.watch(ctx, serviceName, tags, sChan, watchTimeout, resourceVersion)
 			if err != nil {
-				k.logger.Printf("watch ended with error: %s", err)
+				k.logger.Warn("watch ended with error", "err", err)
 				time.Sleep(k.Cfg.RetryTimer)
 			} else if k.Cfg.Debug {
-				k.logger.Print("watch timed out")
+				k.logger.Debug("watch timed out")
 			}
 		}
 	}
@@ -64,9 +64,9 @@ func (k *k8sLocker) watch(ctx context.Context, serviceName string, _ []string, s
 	}
 	if k.Cfg.Debug {
 		if resourceVersion == "" {
-			k.logger.Print("starting watch beginning with unspecified resource version")
+			k.logger.Debug("starting watch beginning with unspecified resource version")
 		} else {
-			k.logger.Printf("starting watch beginning with resource version %s", resourceVersion)
+			k.logger.Debug("starting watch", "resource_version", resourceVersion)
 		}
 	}
 	watched, err := k.clientset.CoreV1().Endpoints(k.Cfg.Namespace).Watch(ctx, listopts)
@@ -92,7 +92,7 @@ func (k *k8sLocker) watch(ctx context.Context, serviceName string, _ []string, s
 				}
 				resourceVersion = endpoints.ResourceVersion
 				if k.Cfg.Debug {
-					k.logger.Printf("received watch event %s for resource version %s", event.Type, resourceVersion)
+					k.logger.Debug("received watch event", "event_type", event.Type, "resource_version", resourceVersion)
 				}
 				svcs, err := parseEndpoint(endpoints)
 				if err != nil {

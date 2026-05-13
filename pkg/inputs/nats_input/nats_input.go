@@ -12,8 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"log"
+	"log/slog"
 	"net"
 	"slices"
 	"strings"
@@ -30,6 +29,7 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/inputs"
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	"github.com/openconfig/gnmic/pkg/pipeline"
 	gutils "github.com/openconfig/gnmic/pkg/utils"
@@ -37,7 +37,6 @@ import (
 )
 
 const (
-	loggingPrefix           = "[nats_input] "
 	natsReconnectBufferSize = 100 * 1024 * 1024
 	defaultAddress          = "localhost:4222"
 	natsConnectWait         = 2 * time.Second
@@ -53,7 +52,7 @@ func init() {
 			confLock: new(sync.RWMutex),
 			cfg:      new(atomic.Pointer[config]),
 			dynCfg:   new(atomic.Pointer[dynConfig]),
-			logger:   log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
+			logger:   logging.DiscardLogger(),
 			wg:       new(sync.WaitGroup),
 		}
 	})
@@ -71,7 +70,7 @@ type natsInput struct {
 
 	ctx    context.Context
 	cfn    context.CancelFunc
-	logger *log.Logger
+	logger *slog.Logger
 
 	wg       *sync.WaitGroup
 	outputs  []outputs.Output // used when the cmd is subscribe
@@ -102,6 +101,10 @@ type config struct {
 	EventProcessors []string         `mapstructure:"event-processors,omitempty"`
 }
 
+func (c *config) LogValue() slog.Value {
+	return logging.RedactedValue(c)
+}
+
 // Init //
 func (n *natsInput) Start(ctx context.Context, name string, cfg map[string]any, opts ...inputs.Option) error {
 	n.confLock.Lock()
@@ -115,7 +118,6 @@ func (n *natsInput) Start(ctx context.Context, name string, cfg map[string]any, 
 	if newCfg.Name == "" {
 		newCfg.Name = name
 	}
-	n.logger.SetPrefix(fmt.Sprintf("%s%s", loggingPrefix, newCfg.Name))
 	options := &inputs.InputOptions{}
 	for _, opt := range opts {
 		if err := opt(options); err != nil {
@@ -126,10 +128,10 @@ func (n *natsInput) Start(ctx context.Context, name string, cfg map[string]any, 
 	n.pipeline = options.Pipeline
 
 	n.setName(options.Name, newCfg)
-	n.setLogger(options.Logger)
-	outputs, outputsMap := n.getOutputs(options.Outputs, newCfg)
-	n.outputs = outputs
-	evps, err := n.buildEventProcessors(options.Logger, newCfg.EventProcessors)
+	n.setLogger(options.Logger, newCfg.Name)
+	outs, outputsMap := n.getOutputs(options.Outputs, newCfg)
+	n.outputs = outs
+	evps, err := n.buildEventProcessors(n.logger, newCfg.EventProcessors)
 	if err != nil {
 		return err
 	}
@@ -149,7 +151,7 @@ func (n *natsInput) Start(ctx context.Context, name string, cfg map[string]any, 
 	n.ctx = ctx                // save context for worker restarts
 	var runCtx context.Context // create a run context for the workers
 	runCtx, n.cfn = context.WithCancel(ctx)
-	n.logger.Printf("input starting with config: %+v", newCfg)
+	n.logger.Info("input starting", slog.Any("config", logging.RedactedJSON(newCfg)))
 	n.wg.Add(newCfg.NumWorkers)
 	for i := 0; i < newCfg.NumWorkers; i++ {
 		go n.worker(runCtx, i)
@@ -252,7 +254,7 @@ func (n *natsInput) UpdateProcessor(name string, pcfg map[string]any) error {
 		newDC := *dc
 		newDC.evps = newEvps
 		n.dynCfg.Store(&newDC)
-		n.logger.Printf("updated event processor %s", name)
+		n.logger.Info("updated event processor", "name", name)
 	}
 	return nil
 }
@@ -276,7 +278,7 @@ func (n *natsInput) worker(ctx context.Context, idx int) {
 	defer n.wg.Done()
 
 	workerLogPrefix := fmt.Sprintf("worker-%d", idx)
-	n.logger.Printf("%s starting", workerLogPrefix)
+	n.logger.Info("worker starting", "worker", workerLogPrefix)
 
 	for {
 		select {
@@ -284,7 +286,7 @@ func (n *natsInput) worker(ctx context.Context, idx int) {
 			return
 		default:
 		}
-		n.logger.Printf("worker %d loading config", idx)
+		n.logger.Debug("worker loading config", "index", idx)
 		cfg := n.cfg.Load()
 		wCfg := *cfg
 		wCfg.Name = fmt.Sprintf("%s-%d", wCfg.Name, idx)
@@ -292,7 +294,7 @@ func (n *natsInput) worker(ctx context.Context, idx int) {
 		// scoped connection, subscription and cleanup
 		err := n.doWork(ctx, &wCfg, workerLogPrefix)
 		if err != nil {
-			n.logger.Printf("%s NATS client failed: %v", workerLogPrefix, err)
+			n.logger.Error("NATS client failed", "worker", workerLogPrefix, "err", err)
 		}
 
 		// backoff before retry
@@ -333,10 +335,7 @@ func (n *natsInput) doWork(ctx context.Context, wCfg *config, workerLogPrefix st
 			}
 			// load current config for dynamic fields like Format
 			cfg := n.cfg.Load()
-			if cfg.Debug {
-				n.logger.Printf("received msg, subject=%s, queue=%s, len=%d, data=%s",
-					m.Subject, m.Sub.Queue, len(m.Data), string(m.Data))
-			}
+			n.logger.Debug("received msg", "subject", m.Subject, "queue", m.Sub.Queue, "len", len(m.Data), "data", string(m.Data))
 
 			dc := n.dynCfg.Load()
 			switch cfg.Format {
@@ -344,7 +343,7 @@ func (n *natsInput) doWork(ctx context.Context, wCfg *config, workerLogPrefix st
 				var evMsgs []*formatters.EventMsg
 				if err := json.Unmarshal(m.Data, &evMsgs); err != nil {
 					if cfg.Debug {
-						n.logger.Printf("%s failed to unmarshal event msg: %v", workerLogPrefix, err)
+						n.logger.Warn("failed to unmarshal event msg", "worker", workerLogPrefix, "err", err)
 					}
 					continue
 				}
@@ -361,7 +360,7 @@ func (n *natsInput) doWork(ctx context.Context, wCfg *config, workerLogPrefix st
 						Outputs: dc.outputsMap,
 					}:
 					default:
-						n.logger.Printf("pipeline channel is full, dropping event")
+						n.logger.Warn("pipeline channel is full, dropping event")
 					}
 				}
 				for _, o := range n.outputs {
@@ -373,7 +372,7 @@ func (n *natsInput) doWork(ctx context.Context, wCfg *config, workerLogPrefix st
 			case "proto":
 				protoMsg := new(gnmi.SubscribeResponse)
 				if err := proto.Unmarshal(m.Data, protoMsg); err != nil {
-					n.logger.Printf("failed to unmarshal proto msg: %v", err)
+					n.logger.Warn("failed to unmarshal proto msg", "err", err)
 					continue
 				}
 				meta := outputs.Meta{}
@@ -393,7 +392,7 @@ func (n *natsInput) doWork(ctx context.Context, wCfg *config, workerLogPrefix st
 						Outputs: dc.outputsMap,
 					}:
 					default:
-						n.logger.Printf("pipeline channel is full, dropping message")
+						n.logger.Warn("pipeline channel is full, dropping message")
 					}
 				}
 				for _, o := range n.outputs {
@@ -415,12 +414,10 @@ func (n *natsInput) Close() error {
 	return nil
 }
 
-// SetLogger //
-func (n *natsInput) setLogger(logger *log.Logger) {
-	if logger != nil && n.logger != nil {
-		n.logger.SetOutput(logger.Writer())
-		n.logger.SetFlags(logger.Flags())
-	}
+// setLogger binds component and instance attributes onto the logger so all
+// subsequent emits carry consistent, structured identification.
+func (n *natsInput) setLogger(logger *slog.Logger, name string) {
+	n.logger = inputs.BindLogger(logger, "nats", name)
 }
 
 // SetOutputs //
@@ -454,7 +451,7 @@ func (n *natsInput) setName(name string, cfg *config) {
 	cfg.Name = sb.String()
 }
 
-func (n *natsInput) buildEventProcessors(logger *log.Logger, eventProcessors []string) ([]formatters.EventProcessor, error) {
+func (n *natsInput) buildEventProcessors(logger *slog.Logger, eventProcessors []string) ([]formatters.EventProcessor, error) {
 	tcs, ps, acts, err := gutils.GetConfigMaps(n.store)
 	if err != nil {
 		return nil, err
@@ -509,13 +506,13 @@ func (n *natsInput) createNATSConn(c *config) (*nats.Conn, error) {
 		nats.ReconnectWait(c.ConnectTimeWait),
 		nats.ReconnectBufSize(natsReconnectBufferSize),
 		nats.ErrorHandler(func(_ *nats.Conn, _ *nats.Subscription, err error) {
-			n.logger.Printf("NATS error: %v", err)
+			n.logger.Error("NATS error", "err", err)
 		}),
 		nats.DisconnectHandler(func(*nats.Conn) {
-			n.logger.Println("Disconnected from NATS")
+			n.logger.Info("disconnected from NATS")
 		}),
 		nats.ClosedHandler(func(*nats.Conn) {
-			n.logger.Println("NATS connection is closed")
+			n.logger.Info("NATS connection is closed")
 		}),
 	}
 	if c.Username != "" && c.Password != "" {
@@ -545,7 +542,7 @@ func (n *natsInput) Dial(network, address string) (net.Conn, error) {
 	defer cancel()
 
 	for {
-		n.logger.Printf("attempting to connect to %s", address)
+		n.logger.Info("attempting to connect", "address", address)
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
@@ -556,7 +553,7 @@ func (n *natsInput) Dial(network, address string) (net.Conn, error) {
 		default:
 			d := &net.Dialer{}
 			if conn, err := d.DialContext(ctx, network, address); err == nil {
-				n.logger.Printf("successfully connected to NATS server %s", address)
+				n.logger.Info("connected to NATS server", "address", address)
 				return conn, nil
 			}
 			time.Sleep(cfg.ConnectTimeWait)

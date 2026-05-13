@@ -37,6 +37,8 @@ type Server struct {
 	reg            *prometheus.Registry
 
 	applyLock *sync.Mutex
+
+	exposeTargetSecrets bool
 }
 
 func NewServer(
@@ -99,6 +101,7 @@ func (s *Server) Start(locker lockers.Locker, wg *sync.WaitGroup) error {
 		s.logger.Error("invalid api-server config", "config", apiServer)
 		return fmt.Errorf("invalid api-server config: %v", apiServer)
 	}
+	s.exposeTargetSecrets = apiCfg.ExposeTargetSecrets
 	s.srv = &http.Server{
 		Addr:    apiCfg.Address,
 		Handler: s.router,

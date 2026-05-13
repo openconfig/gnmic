@@ -14,6 +14,19 @@ http://localhost:7890/api/v1/targets
 
 If TLS is configured with client authentication, requests must include valid client certificates.
 
+## Target credential redaction
+
+By default, target **`password`** and OAuth **`token`** fields are **not** returned as plain text in JSON responses. They appear as **`****`** anywhere the API returns target configuration (for example `GET /api/v1/targets`, `GET /api/v1/config/targets`, and related endpoints).
+
+To return real credentials (for example when debugging), set in your collector configuration:
+
+```yaml
+api-server:
+  expose-target-secrets: true
+```
+
+Leave `expose-target-secrets` unset or `false` in production unless every caller that can reach the API server is trusted.
+
 ## Common Response Formats
 
 ### Success Response
@@ -125,7 +138,7 @@ Applies a complete configuration to the collector. Resources not included in the
 GET /api/v1/targets
 ```
 
-Returns all targets with their runtime state (connection status, active subscriptions).
+Returns all targets with their runtime state (connection status, active subscriptions). The embedded **`config`** object redacts **`password`** and **`token`** by default ([details](#target-credential-redaction)).
 
 **Response:**
 
@@ -137,6 +150,7 @@ Returns all targets with their runtime state (connection status, active subscrip
     "config": {
       "address": "10.0.0.1:57400",
       "username": "admin",
+      "password": "****",
       "skip-verify": true
     },
     "subscriptions": {
@@ -162,13 +176,15 @@ Returns a specific target with its runtime state.
 GET /api/v1/config/targets
 ```
 
-Returns target configurations (without runtime state).
+Returns target configurations (without runtime state). **`password`** and **`token`** are redacted unless `api-server/expose-target-secrets` is `true` (see [Target credential redaction](#target-credential-redaction)).
 
 ### Get Target Configuration
 
 ```
 GET /api/v1/config/targets/{name}
 ```
+
+Same credential redaction rules as the list endpoint.
 
 ### Create/Update Target
 

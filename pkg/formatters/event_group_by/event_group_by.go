@@ -11,19 +11,16 @@ package event_group_by
 import (
 	"encoding/json"
 	"hash/fnv"
-	"io"
-	"log"
-	"os"
+	"log/slog"
 	"slices"
 	"strings"
 
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 const (
 	processorType = "event-group-by"
-	loggingPrefix = "[" + processorType + "] "
 )
 
 // groupBy groups values from different event messages in the same event message
@@ -33,15 +30,11 @@ type groupBy struct {
 	Tags   []string `mapstructure:"tags,omitempty" json:"tags,omitempty"`
 	ByName bool     `mapstructure:"by-name,omitempty" json:"by-name,omitempty"`
 	Debug  bool     `mapstructure:"debug,omitempty" json:"debug,omitempty"`
-
-	logger *log.Logger
 }
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &groupBy{
-			logger: log.New(io.Discard, "", 0),
-		}
+		return &groupBy{}
 	})
 }
 
@@ -53,28 +46,27 @@ func (p *groupBy) Init(cfg interface{}, opts ...formatters.Option) error {
 	for _, opt := range opts {
 		opt(p)
 	}
+	if p.Logger == nil {
+		p.Logger = logging.DiscardLogger()
+	}
+	p.Logger = p.Logger.With("processor", processorType)
 
-	if p.logger.Writer() != io.Discard {
-		b, err := json.Marshal(p)
-		if err != nil {
-			p.logger.Printf("initialized processor '%s': %+v", processorType, p)
-			return nil
+	if p.Debug {
+		if b, err := json.Marshal(p); err == nil {
+			p.Logger.Debug("initialized processor", "config", string(b))
+		} else {
+			p.Logger.Debug("initialized processor", "config", p)
 		}
-		p.logger.Printf("initialized processor '%s': %s", processorType, string(b))
 	}
 	return nil
 }
 
 func (p *groupBy) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	result := make([]*formatters.EventMsg, 0, len(es))
-	if p.Debug {
-		p.logger.Printf("before: %+v", es)
-	}
+	p.Logger.Debug("group_by input", "events", es)
 	if !p.ByName {
 		result = p.byTags(es)
-		if p.Debug {
-			p.logger.Printf("after: %+v", result)
-		}
+		p.Logger.Debug("group_by result", "events", result)
 		return result
 	}
 	groups := make(map[string][]*formatters.EventMsg)
@@ -91,18 +83,15 @@ func (p *groupBy) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	for _, n := range names {
 		result = append(result, p.byTags(groups[n])...)
 	}
-	if p.Debug {
-		p.logger.Printf("after: %+v", result)
-	}
+	p.Logger.Debug("group_by result", "events", result)
 	return result
 }
 
-func (p *groupBy) WithLogger(l *log.Logger) {
-	if p.Debug && l != nil {
-		p.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
-	} else if p.Debug {
-		p.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
+func (p *groupBy) WithLogger(l *slog.Logger) {
+	if !p.Debug {
+		l = nil
 	}
+	p.BaseProcessor.WithLogger(l)
 }
 
 func (p *groupBy) byTagsOld(es []*formatters.EventMsg) []*formatters.EventMsg {

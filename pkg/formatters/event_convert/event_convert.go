@@ -12,20 +12,17 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"io"
-	"log"
+	"log/slog"
 	"math"
-	"os"
 	"regexp"
 	"strconv"
 
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 const (
 	processorType = "event-convert"
-	loggingPrefix = "[" + processorType + "] "
 )
 
 // convert converts the value with key matching one of regexes, to the specified Type
@@ -36,14 +33,11 @@ type convert struct {
 	Debug  bool     `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 
 	values []*regexp.Regexp
-	logger *log.Logger
 }
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &convert{
-			logger: log.New(io.Discard, "", 0),
-		}
+		return &convert{}
 	})
 }
 
@@ -55,6 +49,10 @@ func (c *convert) Init(cfg interface{}, opts ...formatters.Option) error {
 	for _, opt := range opts {
 		opt(c)
 	}
+	if c.Logger == nil {
+		c.Logger = logging.DiscardLogger()
+	}
+	c.Logger = c.Logger.With("processor", processorType)
 	c.values = make([]*regexp.Regexp, 0, len(c.Values))
 	for _, reg := range c.Values {
 		re, err := regexp.Compile(reg)
@@ -63,13 +61,12 @@ func (c *convert) Init(cfg interface{}, opts ...formatters.Option) error {
 		}
 		c.values = append(c.values, re)
 	}
-	if c.logger.Writer() != io.Discard {
-		b, err := json.Marshal(c)
-		if err != nil {
-			c.logger.Printf("initialized processor '%s': %+v", processorType, c)
-			return nil
+	if c.Debug {
+		if b, err := json.Marshal(c); err == nil {
+			c.Logger.Debug("initialized processor", "config", string(b))
+		} else {
+			c.Logger.Debug("initialized processor", "config", c)
 		}
-		c.logger.Printf("initialized processor '%s': %s", processorType, string(b))
 	}
 	return nil
 }
@@ -82,39 +79,39 @@ func (c *convert) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 		for k, v := range e.Values {
 			for _, re := range c.values {
 				if re.MatchString(k) {
-					c.logger.Printf("key '%s' matched regex '%s'", k, re.String())
+					c.Logger.Debug("key matched regex", "key", k, "regex", re.String())
 					switch c.Type {
 					case "int":
 						iv, err := convertToInt(v)
 						if err != nil {
-							c.logger.Printf("convert error: %v", err)
+							c.Logger.Warn("convert error", "err", err)
 							break
 						}
-						c.logger.Printf("key '%s', value %v converted to %s: %d", k, v, c.Type, iv)
+						c.Logger.Debug("converted value", "key", k, "value", v, "type", c.Type, "result", iv)
 						e.Values[k] = iv
 					case "uint":
 						iv, err := convertToUint(v)
 						if err != nil {
-							c.logger.Printf("convert error: %v", err)
+							c.Logger.Warn("convert error", "err", err)
 							break
 						}
-						c.logger.Printf("key '%s', value %v converted to %s: %d", k, v, c.Type, iv)
+						c.Logger.Debug("converted value", "key", k, "value", v, "type", c.Type, "result", iv)
 						e.Values[k] = iv
 					case "string":
 						iv, err := convertToString(v)
 						if err != nil {
-							c.logger.Printf("convert error: %v", err)
+							c.Logger.Warn("convert error", "err", err)
 							break
 						}
-						c.logger.Printf("key '%s', value %v converted to %s: %s", k, v, c.Type, iv)
+						c.Logger.Debug("converted value", "key", k, "value", v, "type", c.Type, "result", iv)
 						e.Values[k] = iv
 					case "float":
 						iv, err := convertToFloat(v)
 						if err != nil {
-							c.logger.Printf("convert error: %v", err)
+							c.Logger.Warn("convert error", "err", err)
 							break
 						}
-						c.logger.Printf("key '%s', value %v converted to %s: %f", k, v, c.Type, iv)
+						c.Logger.Debug("converted value", "key", k, "value", v, "type", c.Type, "result", iv)
 						e.Values[k] = iv
 					}
 					break
@@ -125,12 +122,11 @@ func (c *convert) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	return es
 }
 
-func (c *convert) WithLogger(l *log.Logger) {
-	if c.Debug && l != nil {
-		c.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
-	} else if c.Debug {
-		c.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
+func (c *convert) WithLogger(l *slog.Logger) {
+	if !c.Debug {
+		l = nil
 	}
+	c.BaseProcessor.WithLogger(l)
 }
 
 func convertToInt(i interface{}) (int, error) {

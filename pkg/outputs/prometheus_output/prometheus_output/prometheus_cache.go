@@ -23,7 +23,7 @@ import (
 func (p *prometheusOutput) collectFromCache(ch chan<- prometheus.Metric) {
 	notifications, err := p.gnmiCache.ReadAll()
 	if err != nil {
-		p.logger.Printf("failed to read from cache: %v", err)
+		p.logger.Error("failed to read from cache", "err", err)
 		return
 	}
 	cfg := p.cfg.Load()
@@ -51,7 +51,7 @@ func (p *prometheusOutput) collectFromCache(ch chan<- prometheus.Metric) {
 				},
 				meta)
 			if err != nil {
-				p.logger.Printf("failed to convert gNMI notifications to events: %v", err)
+				p.logger.Warn("failed to convert gNMI notifications to events", "err", err)
 				return
 			}
 			events = append(events, ievents...)
@@ -59,13 +59,13 @@ func (p *prometheusOutput) collectFromCache(ch chan<- prometheus.Metric) {
 	}
 
 	if cfg.CacheConfig.Debug {
-		p.logger.Printf("got %d events from cache pre processors", len(events))
+		p.logger.Debug("got events from cache pre processors", "count", len(events))
 	}
 	for _, proc := range dc.evps {
 		events = proc.Apply(events...)
 	}
 	if cfg.CacheConfig.Debug {
-		p.logger.Printf("got %d events from cache post processors", len(events))
+		p.logger.Debug("got events from cache post processors", "count", len(events))
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.Timeout)
@@ -75,7 +75,7 @@ func (p *prometheusOutput) collectFromCache(ch chan<- prometheus.Metric) {
 		for _, pm := range dc.mb.MetricsFromEvent(ev, now) {
 			select {
 			case <-ctx.Done():
-				p.logger.Printf("collection context terminated: %v", ctx.Err())
+				p.logger.Warn("collection context terminated", "err", ctx.Err())
 				return
 			case ch <- pm:
 			}

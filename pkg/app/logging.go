@@ -18,7 +18,7 @@ func (a *App) logError(err error) {
 	if err == nil {
 		return
 	}
-	a.Logger.Print(err)
+	a.Logger.Info("error", "err", err)
 	if !a.Config.Log {
 		fmt.Fprintln(os.Stderr, err)
 	}

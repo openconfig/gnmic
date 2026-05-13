@@ -20,12 +20,12 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/AlekSi/pointer"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"github.com/openconfig/gnmic/pkg/api/target"
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/config"
@@ -92,6 +92,32 @@ type APIErrors struct {
 	Errors []string `json:"errors,omitempty"`
 }
 
+func (a *App) apiExposeTargetSecrets() bool {
+	return a.Config.APIServer != nil && a.Config.APIServer.ExposeTargetSecrets
+}
+
+// runtimeTargetAPIView is a JSON-serializable snapshot of target.Target for the REST API.
+type runtimeTargetAPIView struct {
+	Config        *types.TargetConfig                  `json:"config,omitempty"`
+	Subscriptions map[string]*types.SubscriptionConfig `json:"subscriptions,omitempty"`
+}
+
+func (a *App) runtimeTargetAPIView(t *target.Target) *runtimeTargetAPIView {
+	if t == nil {
+		return nil
+	}
+	v := &runtimeTargetAPIView{Subscriptions: t.Subscriptions}
+	if t.Config == nil {
+		return v
+	}
+	if a.apiExposeTargetSecrets() {
+		v.Config = t.Config.DeepCopy()
+	} else {
+		v.Config = t.Config.RedactedDeepCopy()
+	}
+	return v
+}
+
 func (a *App) handleConfigTargetsGet(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
@@ -99,12 +125,13 @@ func (a *App) handleConfigTargetsGet(w http.ResponseWriter, r *http.Request) {
 	a.configLock.RLock()
 	defer a.configLock.RUnlock()
 	if id == "" {
-		// copy targets map
 		targets := make(map[string]*types.TargetConfig, len(a.Config.Targets))
 		for n, tc := range a.Config.Targets {
-			ntc := tc.DeepCopy()
-			ntc.Password = pointer.ToString("****")
-			targets[n] = ntc
+			if a.apiExposeTargetSecrets() {
+				targets[n] = tc.DeepCopy()
+			} else {
+				targets[n] = tc.RedactedDeepCopy()
+			}
 		}
 		err = json.NewEncoder(w).Encode(targets)
 		if err != nil {
@@ -114,8 +141,12 @@ func (a *App) handleConfigTargetsGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if t, ok := a.Config.Targets[id]; ok {
-		tc := t.DeepCopy()
-		tc.Password = pointer.ToString("****")
+		var tc *types.TargetConfig
+		if a.apiExposeTargetSecrets() {
+			tc = t.DeepCopy()
+		} else {
+			tc = t.RedactedDeepCopy()
+		}
 		err = json.NewEncoder(w).Encode(tc)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -239,9 +270,11 @@ func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {
 		TunnelServer:  a.Config.TunnelServer,
 	}
 	for n, t := range a.Config.Targets {
-		tc := t.DeepCopy()
-		tc.Password = pointer.ToString("****")
-		nc.Targets[n] = tc
+		if a.apiExposeTargetSecrets() {
+			nc.Targets[n] = t.DeepCopy()
+		} else {
+			nc.Targets[n] = t.RedactedDeepCopy()
+		}
 	}
 	a.handlerCommonGet(w, nc)
 }
@@ -250,11 +283,15 @@ func (a *App) handleTargetsGet(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
 	if id == "" {
-		a.handlerCommonGet(w, a.Targets)
+		out := make(map[string]*runtimeTargetAPIView, len(a.Targets))
+		for k, t := range a.Targets {
+			out[k] = a.runtimeTargetAPIView(t)
+		}
+		a.handlerCommonGet(w, out)
 		return
 	}
 	if t, ok := a.Targets[id]; ok {
-		a.handlerCommonGet(w, t)
+		a.handlerCommonGet(w, a.runtimeTargetAPIView(t))
 		return
 	}
 	w.WriteHeader(http.StatusNotFound)
@@ -387,7 +424,7 @@ func (a *App) handleHealthzGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleAdminShutdown(w http.ResponseWriter, r *http.Request) {
-	a.Logger.Printf("shutting down due to user request")
+	a.Logger.Info("shutting down due to user request")
 	a.Cfn()
 }
 
@@ -558,17 +595,17 @@ func (a *App) handleClusteringDrainInstance(w http.ResponseWriter, r *http.Reque
 		for _, t := range targets {
 			err = a.unassignTarget(a.ctx, t, services[0].ID)
 			if err != nil {
-				a.Logger.Printf("failed to unassign target %s: %v", t, err)
+				a.Logger.Info("failed to unassign target", "target", t, "err", err)
 				continue
 			}
 			tc, ok := a.Config.Targets[t]
 			if !ok {
-				a.Logger.Printf("could not find target %s config", t)
+				a.Logger.Info("could not find target config", "target", t)
 				continue
 			}
 			err = a.dispatchTarget(a.ctx, tc, id+"-api")
 			if err != nil {
-				a.Logger.Printf("failed to dispatch target %s: %v", t, err)
+				a.Logger.Info("failed to dispatch target", "target", t, "err", err)
 				continue
 			}
 		}
@@ -589,7 +626,7 @@ func (a *App) handleClusterRebalance(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		err := a.clusterRebalanceTargets()
 		if err != nil {
-			a.Logger.Printf("failed to rebalance: %v", err)
+			a.Logger.Info("failed to rebalance", "err", err)
 		}
 	}()
 }
@@ -605,7 +642,7 @@ func headersMiddleware(next http.Handler) http.Handler {
 func (a *App) loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if (!a.Config.APIServer.HealthzDisableLogging && r.URL.Path == "/api/v1/healthz") || r.URL.Path != "/api/v1/healthz" {
-			next = handlers.LoggingHandler(a.Logger.Writer(), next)
+			next = handlers.LoggingHandler(a.logWriter, next)
 		}
 		next.ServeHTTP(w, r)
 	})
@@ -642,7 +679,7 @@ func (a *App) getInstanceTargets(ctx context.Context, instance string) ([]string
 		return nil, err
 	}
 	if a.Config.Debug {
-		a.Logger.Println("current locks:", locks)
+		a.Logger.Debug("current locks", "locks", locks)
 	}
 	targets := make([]string, 0)
 	for k, v := range locks {

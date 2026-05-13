@@ -14,7 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/openconfig/gnmic/pkg/actions"
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
 )
 
@@ -456,7 +455,7 @@ func TestHTTPAction(t *testing.T) {
 		if ai, ok := actions.Actions[ts.actionType]; ok {
 			t.Log("found action")
 			a := ai()
-			err := a.Init(ts.action, actions.WithLogger(log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)))
+			err := a.Init(ts.action, actions.WithLogger(slog.New(slog.NewTextHandler(os.Stderr, nil))))
 			if err != nil {
 				t.Errorf("failed to initialize action: %v", err)
 				return

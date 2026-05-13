@@ -10,12 +10,11 @@ package consul_loader
 
 import (
 	"context"
-	"io"
-	"log"
 	"testing"
 
 	"github.com/hashicorp/consul/api"
-	"github.com/openconfig/gnmic/pkg/api/utils"
+
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 // Test the specific bug scenario described in issue #706
@@ -23,7 +22,7 @@ import (
 // were being silently filtered out by the old logic
 func TestIssue706_ServicesWithExtraTagsFiltered(t *testing.T) {
 	cl := &consulLoader{
-		logger: log.New(io.Discard, loggingPrefix, utils.DefaultLoggingFlags),
+		logger: logging.DiscardLogger(),
 		cfg: &cfg{
 			Services: []*serviceDef{
 				{

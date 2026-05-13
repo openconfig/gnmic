@@ -11,18 +11,15 @@ package event_to_tag
 import (
 	"encoding/json"
 	"fmt"
-	"io"
-	"log"
-	"os"
+	"log/slog"
 	"regexp"
 
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 const (
 	processorType = "event-to-tag"
-	loggingPrefix = "[" + processorType + "] "
 )
 
 // toTag moves ALL values matching any of the regex in .Values to the EventMsg.Tags map.
@@ -37,15 +34,11 @@ type toTag struct {
 
 	valueNames []*regexp.Regexp
 	values     []*regexp.Regexp
-
-	logger *log.Logger
 }
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &toTag{
-			logger: log.New(io.Discard, "", 0),
-		}
+		return &toTag{}
 	})
 }
 
@@ -57,6 +50,10 @@ func (t *toTag) Init(cfg interface{}, opts ...formatters.Option) error {
 	for _, opt := range opts {
 		opt(t)
 	}
+	if t.Logger == nil {
+		t.Logger = logging.DiscardLogger()
+	}
+	t.Logger = t.Logger.With("processor", processorType)
 	t.valueNames = make([]*regexp.Regexp, 0, len(t.ValueNames))
 	for _, reg := range t.ValueNames {
 		re, err := regexp.Compile(reg)
@@ -73,13 +70,12 @@ func (t *toTag) Init(cfg interface{}, opts ...formatters.Option) error {
 		}
 		t.values = append(t.values, re)
 	}
-	if t.logger.Writer() != io.Discard {
-		b, err := json.Marshal(t)
-		if err != nil {
-			t.logger.Printf("initialized processor '%s': %+v", processorType, t)
-			return nil
+	if t.Debug {
+		if b, err := json.Marshal(t); err == nil {
+			t.Logger.Debug("initialized processor", "config", string(b))
+		} else {
+			t.Logger.Debug("initialized processor", "config", t)
 		}
-		t.logger.Printf("initialized processor '%s': %s", processorType, string(b))
 	}
 	return nil
 }
@@ -153,10 +149,9 @@ func (t *toTag) Apply2(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	return es
 }
 
-func (t *toTag) WithLogger(l *log.Logger) {
-	if t.Debug && l != nil {
-		t.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
-	} else if t.Debug {
-		t.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
+func (t *toTag) WithLogger(l *slog.Logger) {
+	if !t.Debug {
+		l = nil
 	}
+	t.BaseProcessor.WithLogger(l)
 }

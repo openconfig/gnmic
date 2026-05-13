@@ -10,22 +10,17 @@ package event_allow
 
 import (
 	"encoding/json"
-	"io"
-	"log"
-	"os"
+	"log/slog"
 	"regexp"
 	"strings"
 
 	"github.com/itchyny/gojq"
 
-	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/formatters"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
-const (
-	processorType = "event-allow"
-	loggingPrefix = "[" + processorType + "] "
-)
+const processorType = "event-allow"
 
 // allow Allows the msg if ANY of the Tags or Values regexes are matched
 type allow struct {
@@ -42,14 +37,11 @@ type allow struct {
 	tags       []*regexp.Regexp
 	values     []*regexp.Regexp
 	code       *gojq.Code
-	logger     *log.Logger
 }
 
 func init() {
 	formatters.Register(processorType, func() formatters.EventProcessor {
-		return &allow{
-			logger: log.New(io.Discard, "", 0),
-		}
+		return &allow{}
 	})
 }
 
@@ -61,6 +53,10 @@ func (d *allow) Init(cfg interface{}, opts ...formatters.Option) error {
 	for _, opt := range opts {
 		opt(d)
 	}
+	if d.Logger == nil {
+		d.Logger = logging.DiscardLogger()
+	}
+	d.Logger = d.Logger.With("processor", processorType)
 	d.Condition = strings.TrimSpace(d.Condition)
 	q, err := gojq.Parse(d.Condition)
 	if err != nil {
@@ -105,13 +101,12 @@ func (d *allow) Init(cfg interface{}, opts ...formatters.Option) error {
 		}
 		d.values = append(d.values, re)
 	}
-	if d.logger.Writer() != io.Discard {
-		b, err := json.Marshal(d)
-		if err != nil {
-			d.logger.Printf("initialized processor '%s': %+v", processorType, d)
-			return nil
+	if d.Debug {
+		if b, err := json.Marshal(d); err == nil {
+			d.Logger.Debug("initialized processor", "config", string(b))
+		} else {
+			d.Logger.Debug("initialized processor", "config", d)
 		}
-		d.logger.Printf("initialized processor '%s': %s", processorType, string(b))
 	}
 	return nil
 }
@@ -131,19 +126,18 @@ func (d *allow) Apply(es ...*formatters.EventMsg) []*formatters.EventMsg {
 	return es
 }
 
-func (d *allow) WithLogger(l *log.Logger) {
-	if d.Debug && l != nil {
-		d.logger = log.New(l.Writer(), loggingPrefix, l.Flags())
-	} else if d.Debug {
-		d.logger = log.New(os.Stderr, loggingPrefix, utils.DefaultLoggingFlags)
+func (d *allow) WithLogger(l *slog.Logger) {
+	if !d.Debug {
+		l = nil
 	}
+	d.BaseProcessor.WithLogger(l)
 }
 
 func (d *allow) allow(e *formatters.EventMsg) bool {
 	if d.Condition != "" {
 		ok, err := formatters.CheckCondition(d.code, e)
 		if err != nil {
-			d.logger.Printf("condition check failed: %v", err)
+			d.Logger.Warn("condition check failed", "err", err)
 			return false
 		}
 		return ok
@@ -151,14 +145,14 @@ func (d *allow) allow(e *formatters.EventMsg) bool {
 	for k, v := range e.Values {
 		for _, re := range d.valueNames {
 			if re.MatchString(k) {
-				d.logger.Printf("value name '%s' matched regex '%s'", k, re.String())
+				d.Logger.Debug("value name matched regex", "name", k, "regex", re.String())
 				return true
 			}
 		}
 		for _, re := range d.values {
 			if vs, ok := v.(string); ok {
 				if re.MatchString(vs) {
-					d.logger.Printf("value '%s' matched regex '%s'", v, re.String())
+					d.Logger.Debug("value matched regex", "value", vs, "regex", re.String())
 					return true
 				}
 			}
@@ -167,13 +161,13 @@ func (d *allow) allow(e *formatters.EventMsg) bool {
 	for k, v := range e.Tags {
 		for _, re := range d.tagNames {
 			if re.MatchString(k) {
-				d.logger.Printf("tag name '%s' matched regex '%s'", k, re.String())
+				d.Logger.Debug("tag name matched regex", "name", k, "regex", re.String())
 				return true
 			}
 		}
 		for _, re := range d.tags {
 			if re.MatchString(v) {
-				d.logger.Printf("tag '%s' matched regex '%s'", v, re.String())
+				d.Logger.Debug("tag matched regex", "tag", v, "regex", re.String())
 				return true
 			}
 		}
