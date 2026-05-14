@@ -17,7 +17,7 @@ on:
   #     - "!releases/**"
   
 env:
-  GOVER: 1.25.9
+  GOVER: 1.25.10
 
 jobs:
   lint:
