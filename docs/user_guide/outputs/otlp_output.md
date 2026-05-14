@@ -52,6 +52,10 @@ outputs:
     # and the string stored as an attribute named "value".
     # if false, string values are dropped.
     strings-as-attributes: false
+    # boolean, defaults to false.
+    # if true, the leading "/" on the gNMI path is stripped before "/" -> "_" conversion,
+    # so metric names do not start with "_" (see Metric naming below).
+    strip-leading-underscore: false
     # list of tag keys to place as OTLP Resource attributes.
     # these tags are excluded from data point attributes.
     # defaults to empty (all tags become data point attributes).
@@ -109,6 +113,10 @@ with `metric-prefix: gnmic` and `append-subscription-name: true`, produces a met
 ```
 gnmic_port_stats_interfaces_interface_state_counters_in_octets
 ```
+
+With `strip-leading-underscore: true`, a value key that begins with `/` has that slash removed before `/` is converted to `_`, so you do not get an extra `_` at the join between the configured prefixes and the path-derived segment (absolute paths otherwise contribute a leading `_` from the first `/`).
+
+Boolean gNMI values are exported as numeric data points with `0` or `1` (integer), classified as a Gauge or Sum according to `counter-patterns` like other numeric types.
 
 ## Metric Type Detection
 

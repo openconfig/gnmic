@@ -379,7 +379,7 @@ The `value` can be any arbitrary data format that the target accepts, it will be
 
 The file `--request-file` can be written as a [Go Text template](https://golang.org/pkg/text/template/).
 
-The parsed template is loaded with additional functions from [gomplate](https://docs.gomplate.ca/).
+The parsed template includes a small set of helper functions shared with other gNMIc templates: `fromJSON`, `toJSON`, `fromYAML`, `toYAML`, `split`, `join`, `replace`, `trimPrefix`, `trimSuffix`, `toTitle`, `toLower`, `toUpper`, and `pathBase`. Templates that relied on the wider [gomplate](https://docs.gomplate.ca/) function library must be rewritten using these helpers or plain Go template actions.
 
 `gnmic` generates one gNMI Set request per target.
 
