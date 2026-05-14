@@ -12,6 +12,10 @@ on:
   push:
     tags:
       - v*
+
+permissions:
+  contents: read
+
 env:
   GOVER: 1.25.10
   GORELEASER_VER: v2.13.3
