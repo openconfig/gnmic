@@ -1,5 +1,68 @@
 ## Changelog
 
+### v0.46.0 - May 14th 2026
+
+- Templates:
+
+    - Removed the `gomplate` dependency. All Go templates (Set request files, loaders, outputs, actions, and so on) now use `text/template` plus a fixed helper set: `fromJSON`, `toJSON`, `fromYAML`, `toYAML`, `split`, `join`, `replace`, `trimPrefix`, `trimSuffix`, `toTitle`, `toLower`, `toUpper`, and `pathBase`. Templates that depended on other gomplate functions need to be updated.
+
+- Logging:
+
+    - Internal logging was refactored to use the standard library [`log/slog`](https://pkg.go.dev/log/slog) package, including JSON redaction helpers so structured config logs omit common secret field values by default.
+
+- Collector mode:
+
+    - `api-server` and `clustering` string settings are expanded with environment variables (`os.ExpandEnv`) when the API server and cluster manager start.
+
+    - REST routes under `/api/v1/cluster/...` return HTTP `503` when clustering is not enabled, instead of exposing partial or misleading cluster state.
+
+    - New `api-server` flag `expose-target-secrets`: when `true`, target `password` and OAuth `token` values are returned unredacted in configuration and target API responses (default remains redacted); intended only for trusted debugging environments.
+
+- Inputs:
+
+    - JetStream: fixed creation of multiple durable consumers when the stream uses workqueue retention and `num-workers` is greater than `1`.
+
+- Outputs:
+
+    - Prometheus: added configurable internal channel buffer size (`buffer-size`, default `10000`) for gNMI events and proto messages before worker processing.
+
+    - OTLP: optional `strip-leading-underscore` avoids an extra leading `_` in metric names when the gNMI path starts with `/`.
+
+    - OTLP: boolean values are exported as integer data points `0` or `1`.
+
+    - OTLP: `resource-tag-keys` values must be uniform within each source group; divergent keys fall back to data point attributes. Resource attribute fallbacks for the source identity prefer device and target tags before using `unknown`.
+
+    - OTLP: `headers` on the output adds static gRPC metadata or HTTP headers on every export (for example `X-Scope-OrgID` for multi-tenant backends).
+
+- Loaders:
+
+    - Docker Engine loader now uses the `moby/moby` client module instead of `github.com/docker/docker`.
+
+    - Docker Engine loader: ignore invalid IPv6 endpoint values from the Docker API so discovered targets do not receive the non-routable host string `invalid IP`.
+
+- Build and security:
+
+    - Official Docker image and GitHub Actions workflows use Go **1.25.10**.
+
+    - Bumped `github.com/prometheus/prometheus` to **v0.311.3** to address [CVE-2026-42151](https://www.cve.org/CVERecord?id=CVE-2026-42151) / [GHSA-wg65-39gg-5wfj](https://github.com/advisories/GHSA-wg65-39gg-5wfj). gNMIc uses Prometheus as a library for the Prometheus output and does not expose the Prometheus HTTP config API affected by that issue; the upgrade keeps the dependency current and satisfies SBOM-style scanners.
+
+- Testing:
+
+    - Expanded automated tests for the collector pipeline and outputs.
+
+- Dependencies:
+
+    - Bumped `google.golang.org/grpc` from 1.78.0 to 1.79.3 (root module and `pkg/api`).
+    - Bumped `github.com/prometheus/prometheus` to v0.311.3.
+    - Bumped `go.opentelemetry.io/otel` from 1.40.0 to 1.41.0 and `go.opentelemetry.io/otel/sdk` from 1.42.0 to 1.43.0.
+    - Bumped `github.com/go-git/go-git/v5` from 5.16.5 to 5.19.0.
+    - Bumped `github.com/go-jose/go-jose/v4` from 4.1.3 to 4.1.4.
+    - Bumped `github.com/nats-io/nats-server/v2` from 2.12.4 to 2.12.6.
+    - Bumped `github.com/hashicorp/consul/api` from 1.32.0 to 1.32.1.
+    - Bumped `github.com/go-resty/resty/v2` from 2.16.5 to 2.17.2.
+    - Bumped `golang.org/x/crypto` from 0.48.0 to 0.50.0.
+    - Bumped `k8s.io/api` and `k8s.io/apimachinery` from 0.32.3 to 0.35.3.
+
 ### v0.45.0 - March 2nd 2026
 
 - Prometheus and Prometheus RemoteWrite outputs:
