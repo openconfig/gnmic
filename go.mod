@@ -7,6 +7,7 @@ replace github.com/openconfig/gnmic/pkg/api v0.1.11 => ./pkg/api
 replace github.com/openconfig/gnmic/pkg/cache v0.1.3 => ./pkg/cache
 
 require (
+	github.com/ClickHouse/clickhouse-go/v2 v2.46.0
 	github.com/IBM/sarama v1.46.3
 	github.com/adrg/xdg v0.5.3
 	github.com/c-bata/go-prompt v0.2.6
@@ -74,7 +75,9 @@ require (
 require (
 	bitbucket.org/creachadair/stringset v0.0.14 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
+	github.com/ClickHouse/ch-go v0.71.0 // indirect
 	github.com/Knetic/govaluate v3.0.0+incompatible // indirect
+	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/antithesishq/antithesis-sdk-go v0.6.0-default-no-op // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/bcicen/bfstree v1.0.0 // indirect
@@ -92,6 +95,8 @@ require (
 	github.com/envoyproxy/go-control-plane/envoy v1.37.0 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.3.3 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
+	github.com/go-faster/city v1.0.1 // indirect
+	github.com/go-faster/errors v0.7.1 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -137,12 +142,15 @@ require (
 	github.com/nats-io/jwt/v2 v2.8.1 // indirect
 	github.com/oapi-codegen/runtime v1.0.0 // indirect
 	github.com/oklog/run v1.2.0 // indirect
+	github.com/paulmach/orb v0.12.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
-	github.com/pierrec/lz4/v4 v4.1.22 // indirect
+	github.com/pierrec/lz4/v4 v4.1.25 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/sagikazarmark/locafero v0.7.0 // indirect
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
+	github.com/segmentio/asm v1.2.1 // indirect
+	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.6.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
@@ -206,7 +214,7 @@ require (
 	github.com/jcmturner/gofork v1.7.6 // indirect
 	github.com/klauspost/compress v1.18.5 // indirect
 	github.com/kr/fs v0.1.0 // indirect
-	github.com/magiconair/properties v1.8.9 // indirect
+	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.19 // indirect

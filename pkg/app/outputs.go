@@ -40,7 +40,7 @@ func (a *App) InitOutput(ctx context.Context, name string, tcs map[string]*types
 						outputs.WithConfigStore(a.Store),
 					)
 					if err != nil {
-						a.Logger.Info("failed to init output", "type", outType, "err", err)
+						a.Logger.Error("failed to init output", "type", outType, "err", err)
 					}
 				}()
 				a.operLock.Lock()

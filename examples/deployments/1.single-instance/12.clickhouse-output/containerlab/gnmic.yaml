@@ -1,0 +1,40 @@
+# © 2022 Nokia.
+#
+# This code is a Contribution to the gNMIc project ("Work") made under the Google Software Grant and Corporate Contributor License Agreement ("CLA") and governed by the Apache License 2.0.
+# No other rights or licenses in or to any of Nokia's intellectual property are granted for any other purpose.
+# This code is provided on an "as is" basis without any warranties of any kind.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+username: admin
+password: NokiaSrl1!
+skip-verify: true
+encoding: ascii
+log: true
+
+loader:
+  type: docker
+  filters:
+    - containers:
+      - label=clab-node-kind: nokia_srlinux
+        label=containerlab: lab20
+
+subscriptions:
+  sub1:
+    paths:
+      - /interface/statistics
+    stream-mode: sample
+    sample-interval: 10s
+
+outputs:
+  clickhouse-output:
+    type: clickhouse
+    address: clab-lab20-clickhouse:9000
+    database: telemetry
+    table: gnmic_telemetry
+    username: default
+    password: default
+    batch-size: 1000
+    flush-timer: 10s
+    create-table: true
+    enable-metrics: false

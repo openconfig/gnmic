@@ -1,0 +1,67 @@
+# © 2022 Nokia.
+#
+# This code is a Contribution to the gNMIc project ("Work") made under the Google Software Grant and Corporate Contributor License Agreement ("CLA") and governed by the Apache License 2.0.
+# No other rights or licenses in or to any of Nokia's intellectual property are granted for any other purpose.
+# This code is provided on an "as is" basis without any warranties of any kind.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+name: lab20
+
+topology:
+  defaults:
+    kind: nokia_srlinux
+
+  kinds:
+    nokia_srlinux:
+      image: ghcr.io/nokia/srlinux
+
+  nodes:
+    spine1:
+    spine2:
+    leaf1:
+    leaf2:
+    leaf3:
+    leaf4:
+
+    gnmic:
+      kind: linux
+      # image: ghcr.io/openconfig/gnmic:latest
+      image: gnmic:0.0.0-rc1
+      binds:
+        - ./gnmic.yaml:/app/gnmic.yaml:ro
+        - /var/run/docker.sock:/var/run/docker.sock
+      cmd: '--config /app/gnmic.yaml --log subscribe'
+
+    clickhouse:
+      kind: linux
+      image: clickhouse/clickhouse-server:24.8
+      ports:
+        - 8123:8123
+        - 9000:9000
+      env:
+        CLICKHOUSE_DB: telemetry
+        CLICKHOUSE_USER: default
+        CLICKHOUSE_PASSWORD: default
+
+    grafana:
+      kind: linux
+      image: grafana/grafana:latest
+      env:
+        GF_INSTALL_PLUGINS: grafana-clickhouse-datasource
+      binds:
+        - grafana/datasources/datasource.yaml:/etc/grafana/provisioning/datasources/datasource.yaml:ro
+      ports:
+        - 3000:3000
+
+  links:
+    # spine1 links
+    - endpoints: ["spine1:e1-1", "leaf1:e1-1"]
+    - endpoints: ["spine1:e1-2", "leaf2:e1-1"]
+    - endpoints: ["spine1:e1-3", "leaf3:e1-1"]
+    - endpoints: ["spine1:e1-4", "leaf4:e1-1"]
+    # spine2 links
+    - endpoints: ["spine2:e1-1", "leaf1:e1-2"]
+    - endpoints: ["spine2:e1-2", "leaf2:e1-2"]
+    - endpoints: ["spine2:e1-3", "leaf3:e1-2"]
+    - endpoints: ["spine2:e1-4", "leaf4:e1-2"]
