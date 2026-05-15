@@ -16,6 +16,7 @@ import (
 
 	"github.com/mitchellh/go-homedir"
 	"github.com/nsf/termbox-go"
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -23,7 +24,7 @@ import (
 func (a *App) PromptRunE(cmd *cobra.Command, args []string) error {
 	err := a.generateYangSchema(a.Config.GlobalFlags.File, a.Config.GlobalFlags.Exclude)
 	if err != nil {
-		a.Logger.Info("failed to load paths from yang", "err", err)
+		logging.LogErrUnlessCanceled(a.Logger, err, "failed to load paths from yang")
 		if !a.Config.Log {
 			fmt.Fprintf(os.Stderr, "ERR: failed to load paths from yang: %v\n", err)
 		}

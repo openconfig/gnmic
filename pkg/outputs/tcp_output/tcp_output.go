@@ -46,13 +46,13 @@ func init() {
 type tcpOutput struct {
 	outputs.BaseOutput
 
-	cfg       *atomic.Pointer[config]
-	dynCfg    *atomic.Pointer[dynConfig]
-	rootCtx   context.Context
-	cancelFn  context.CancelFunc
-	wg        *sync.WaitGroup
-	buffer *atomic.Pointer[chan []byte]
-	logger *slog.Logger
+	cfg      *atomic.Pointer[config]
+	dynCfg   *atomic.Pointer[dynConfig]
+	rootCtx  context.Context
+	cancelFn context.CancelFunc
+	wg       *sync.WaitGroup
+	buffer   *atomic.Pointer[chan []byte]
+	logger   *slog.Logger
 
 	store store.Store[any]
 }

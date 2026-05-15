@@ -18,6 +18,7 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/version"
 	"github.com/spf13/cobra"
 )
@@ -41,7 +42,7 @@ func (a *App) VersionRun(cmd *cobra.Command, args []string) {
 		"docs":    "https://gnmic.openconfig.net",
 	}) // need indent? use jq
 	if err != nil {
-		a.Logger.Info("failed", "err", err)
+		logging.LogErrUnlessCanceled(a.Logger, err, "failed")
 		if !a.Config.Log {
 			fmt.Printf("failed: %v\n", err)
 		}

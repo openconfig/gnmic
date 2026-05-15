@@ -28,6 +28,7 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/cmd/get"
 	"github.com/openconfig/gnmic/pkg/cmd/subscribe"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 var colorMapping = map[string]goprompt.Color{
@@ -759,7 +760,7 @@ func showCommandArguments(b *goprompt.Buffer) {
 		return
 	}
 	if err := termbox.Init(); err != nil {
-		gApp.Logger.Info("termbox init failed", "err", err)
+		logging.LogErrUnlessCanceled(gApp.Logger, err, "termbox init failed")
 		os.Exit(1)
 	}
 	w, _ := termbox.Size()

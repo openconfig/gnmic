@@ -31,6 +31,7 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/target"
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/cache"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 type streamClient struct {
@@ -50,7 +51,7 @@ func (a *App) startGnmiServer() error {
 	var err error
 	a.c, err = cache.New(a.Config.GnmiServer.Cache, cache.WithLogger(a.Logger))
 	if err != nil {
-		a.Logger.Info("failed to initialize gNMI cache", "err", err)
+		logging.LogErrUnlessCanceled(a.Logger, err, "failed to initialize gNMI cache")
 		return err
 	}
 
@@ -84,7 +85,7 @@ func (a *App) startGnmiServer() error {
 		defer cancel()
 		err := s.Start(ctx)
 		if err != nil {
-			a.Logger.Info("gNMI server exited", "err", err)
+			logging.LogErrUnlessCanceled(a.Logger, err, "gNMI server exited")
 		}
 	}()
 	return nil
@@ -110,13 +111,13 @@ func (a *App) registerGNMIServer(ctx context.Context, defaultTags ...string) {
 INITCONSUL:
 	consulClient, err := api.NewClient(clientConfig)
 	if err != nil {
-		a.Logger.Info("failed to connect to consul", "err", err)
+		logging.LogErrUnlessCanceled(a.Logger, err, "failed to connect to consul")
 		time.Sleep(1 * time.Second)
 		goto INITCONSUL
 	}
 	self, err := consulClient.Agent().Self()
 	if err != nil {
-		a.Logger.Info("failed to connect to consul", "err", err)
+		logging.LogErrUnlessCanceled(a.Logger, err, "failed to connect to consul")
 		time.Sleep(1 * time.Second)
 		goto INITCONSUL
 	}
@@ -129,7 +130,7 @@ INITCONSUL:
 
 	h, p, err := net.SplitHostPort(a.Config.GnmiServer.Address)
 	if err != nil {
-		a.Logger.Info("failed to split host and port from gNMI server address", "address", a.Config.GnmiServer.Address, "err", err)
+		logging.LogErrUnlessCanceled(a.Logger, err, "failed to split host and port from gNMI server address", "address", a.Config.GnmiServer.Address)
 		return
 	}
 	pi, _ := strconv.Atoi(p)
@@ -165,13 +166,13 @@ INITCONSUL:
 	a.Logger.Info("registering service", "service", string(b))
 	err = consulClient.Agent().ServiceRegister(service)
 	if err != nil {
-		a.Logger.Info("failed to register service in consul", "err", err)
+		logging.LogErrUnlessCanceled(a.Logger, err, "failed to register service in consul")
 		return
 	}
 
 	err = consulClient.Agent().UpdateTTL(ttlCheckID, "", api.HealthPassing)
 	if err != nil {
-		a.Logger.Info("failed to update TTL check to Passing", "err", err)
+		logging.LogErrUnlessCanceled(a.Logger, err, "failed to update TTL check to Passing")
 	}
 	ticker := time.NewTicker(a.Config.GnmiServer.ServiceRegistration.CheckInterval / 2)
 	for {
@@ -179,12 +180,12 @@ INITCONSUL:
 		case <-ticker.C:
 			err = consulClient.Agent().UpdateTTL(ttlCheckID, "", api.HealthPassing)
 			if err != nil {
-				a.Logger.Info("failed to update TTL check to Passing", "err", err)
+				logging.LogErrUnlessCanceled(a.Logger, err, "failed to update TTL check to Passing")
 			}
 		case <-ctx.Done():
 			err = consulClient.Agent().UpdateTTL(ttlCheckID, ctx.Err().Error(), api.HealthCritical)
 			if err != nil {
-				a.Logger.Info("failed to update TTL check to Critical", "err", err)
+				logging.LogErrUnlessCanceled(a.Logger, err, "failed to update TTL check to Critical")
 			}
 			ticker.Stop()
 			goto INITCONSUL
@@ -219,7 +220,7 @@ func (a *App) handleONCESubscriptionRequest(sc *streamClient) {
 
 	defer func() {
 		if err != nil {
-			a.Logger.Info("error processing subscription to target", "target", sc.target, "err", err)
+			logging.LogErrUnlessCanceled(a.Logger, err, "error processing subscription to target", "target", sc.target)
 			sc.errChan <- err
 			return
 		}
@@ -263,7 +264,7 @@ func (a *App) handleStreamSubscriptionRequest(sc *streamClient) {
 				sc.errChan <- err
 				cancel()
 			} else {
-				a.Logger.Info("error processing STREAM subscription to target", "target", sc.target, "err", err)
+				logging.LogErrUnlessCanceled(a.Logger, err, "error processing STREAM subscription to target", "target", sc.target)
 				sc.errChan <- err
 				cancel()
 			}
@@ -343,7 +344,7 @@ func (a *App) handleStreamSubscriptionRequest(sc *streamClient) {
 				// only wait would be for the cache to close the channel
 				if n.Err != nil {
 					errChan <- n.Err
-					a.Logger.Info("cache subscribe failed", "opts", ro, "err", n.Err)
+					logging.LogErrUnlessCanceled(a.Logger, n.Err, "cache subscribe failed", "opts", ro)
 
 					// reader should only stop once the channel is closed by sender or otherwise
 					// it coould block the senders who doesn't know that error has happened
@@ -387,12 +388,12 @@ func (a *App) handlePolledSubscription(sc *streamClient) {
 		case *gnmi.SubscribeRequest_Poll:
 		default:
 			err = fmt.Errorf("unexpected request type: expecting a Poll request, rcvd: %v", req)
-			a.Logger.Info("unexpected poll subscription request", "err", err)
+			logging.LogErrUnlessCanceled(a.Logger, err, "unexpected poll subscription request")
 			sc.errChan <- err
 			return
 		}
 		if err != nil {
-			a.Logger.Info("failed poll subscription receive", "target", sc.target, "err", err)
+			logging.LogErrUnlessCanceled(a.Logger, err, "failed poll subscription receive", "target", sc.target)
 			sc.errChan <- err
 			return
 		}
@@ -910,7 +911,7 @@ func (a *App) serverGetHandler(ctx context.Context, req *gnmi.GetRequest) (*gnmi
 			}
 			res, err := t.Get(ctx, creq)
 			if err != nil {
-				a.Logger.Info("target Get error", "target", name, "err", err)
+				logging.LogErrUnlessCanceled(a.Logger, err, "target Get error", "target", name)
 				errChan <- fmt.Errorf("target %q err: %v", name, err)
 				return
 			}
@@ -1002,7 +1003,7 @@ func (a *App) serverSetHandler(ctx context.Context, req *gnmi.SetRequest) (*gnmi
 			}
 			res, err := t.Set(ctx, creq)
 			if err != nil {
-				a.Logger.Info("target Get error", "target", name, "err", err)
+				logging.LogErrUnlessCanceled(a.Logger, err, "target Get error", "target", name)
 				errChan <- fmt.Errorf("target %q err: %v", name, err)
 				return
 			}

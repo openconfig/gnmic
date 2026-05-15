@@ -30,6 +30,7 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/config"
 	"github.com/openconfig/gnmic/pkg/lockers"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 func (a *App) newAPIServer() (*http.Server, error) {
@@ -595,7 +596,7 @@ func (a *App) handleClusteringDrainInstance(w http.ResponseWriter, r *http.Reque
 		for _, t := range targets {
 			err = a.unassignTarget(a.ctx, t, services[0].ID)
 			if err != nil {
-				a.Logger.Info("failed to unassign target", "target", t, "err", err)
+				logging.LogErrUnlessCanceled(a.Logger, err, "failed to unassign target", "target", t)
 				continue
 			}
 			tc, ok := a.Config.Targets[t]
@@ -605,7 +606,7 @@ func (a *App) handleClusteringDrainInstance(w http.ResponseWriter, r *http.Reque
 			}
 			err = a.dispatchTarget(a.ctx, tc, id+"-api")
 			if err != nil {
-				a.Logger.Info("failed to dispatch target", "target", t, "err", err)
+				logging.LogErrUnlessCanceled(a.Logger, err, "failed to dispatch target", "target", t)
 				continue
 			}
 		}
@@ -626,7 +627,7 @@ func (a *App) handleClusterRebalance(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		err := a.clusterRebalanceTargets()
 		if err != nil {
-			a.Logger.Info("failed to rebalance", "err", err)
+			logging.LogErrUnlessCanceled(a.Logger, err, "failed to rebalance")
 		}
 	}()
 }

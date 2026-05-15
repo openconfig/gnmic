@@ -838,7 +838,7 @@ func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error)
 		if useUpdateFiles {
 			updateData, err := readFile(c.LocalFlags.SetUpdateFile[i])
 			if err != nil {
-				c.log().Info("error reading data from file", "file", c.LocalFlags.SetUpdateFile[i], "err", err)
+				logging.LogErrUnlessCanceled(c.log(), err, "error reading data from file", "file", c.LocalFlags.SetUpdateFile[i])
 				return nil, err
 			}
 			trim := ""
@@ -864,7 +864,7 @@ func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error)
 		if useReplaceFiles {
 			replaceData, err := readFile(c.LocalFlags.SetReplaceFile[i])
 			if err != nil {
-				c.log().Info("error reading data from file", "file", c.LocalFlags.SetReplaceFile[i], "err", err)
+				logging.LogErrUnlessCanceled(c.log(), err, "error reading data from file", "file", c.LocalFlags.SetReplaceFile[i])
 				return nil, err
 			}
 			trim := ""
@@ -890,7 +890,7 @@ func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error)
 		if useUnionReplaceFiles {
 			replaceData, err := readFile(c.LocalFlags.SetUnionReplaceFile[i])
 			if err != nil {
-				c.log().Info("error reading data from file", "file", c.LocalFlags.SetUnionReplaceFile[i], "err", err)
+				logging.LogErrUnlessCanceled(c.log(), err, "error reading data from file", "file", c.LocalFlags.SetUnionReplaceFile[i])
 				return nil, err
 			}
 			trim := ""

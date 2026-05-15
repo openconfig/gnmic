@@ -14,6 +14,7 @@ import (
 
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/loaders"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 func (a *App) startLoader(ctx context.Context) {
@@ -46,7 +47,7 @@ START:
 		loaders.WithTargetsDefaults(fnTargetsDefaults),
 	)
 	if err != nil {
-		a.Logger.Info("failed to init loader", "type", ldTypeS, "err", err)
+		logging.LogErrUnlessCanceled(a.Logger, err, "failed to init loader", "type", ldTypeS)
 		return
 	}
 	a.Logger.Info("starting loader", "type", ldTypeS)
@@ -57,14 +58,14 @@ START:
 			if !a.inCluster() {
 				err = a.DeleteTarget(ctx, del)
 				if err != nil {
-					a.Logger.Info("failed deleting target", "target", del, "err", err)
+					logging.LogErrUnlessCanceled(a.Logger, err, "failed deleting target", "target", del)
 				}
 				continue
 			}
 			// clustered, delete target in all instances of the cluster
 			err = a.deleteTarget(ctx, del)
 			if err != nil {
-				a.Logger.Info("failed to delete target", "target", del, "err", err)
+				logging.LogErrUnlessCanceled(a.Logger, err, "failed to delete target", "target", del)
 			}
 		}
 		var limiter *time.Ticker
@@ -74,7 +75,7 @@ START:
 		for _, add := range targetOp.Add {
 			err = fnTargetsDefaults(add)
 			if err != nil {
-				a.Logger.Info("failed parsing new target configuration", "config", add, "err", err)
+				logging.LogErrUnlessCanceled(a.Logger, err, "failed parsing new target configuration", "config", add)
 				continue
 			}
 			// not clustered, add target and subscribe
@@ -93,7 +94,7 @@ START:
 			a.Config.Targets[add.Name] = add
 			err = a.dispatchTarget(ctx, add)
 			if err != nil {
-				a.Logger.Info("failed dispatching target", "target", add.Name, "err", err)
+				logging.LogErrUnlessCanceled(a.Logger, err, "failed dispatching target", "target", add.Name)
 			}
 			a.configLock.Unlock()
 		}
@@ -132,7 +133,7 @@ START:
 		loaders.WithTargetsDefaults(fnTargetsDefaults),
 	)
 	if err != nil {
-		a.Logger.Info("failed to init loader", "type", ldTypeS, "err", err)
+		logging.LogErrUnlessCanceled(a.Logger, err, "failed to init loader", "type", ldTypeS)
 		return
 	}
 	a.Logger.Info("starting loader", "type", ldTypeS)
@@ -145,7 +146,7 @@ START:
 			if ok {
 				err = t.Close()
 				if err != nil {
-					a.Logger.Info("failed to stop target", "target", del, "err", err)
+					logging.LogErrUnlessCanceled(a.Logger, err, "failed to stop target", "target", del)
 				}
 				delete(a.Targets, del)
 			}
@@ -154,7 +155,7 @@ START:
 		for _, add := range targetOp.Add {
 			err = fnTargetsDefaults(add)
 			if err != nil {
-				a.Logger.Info("failed parsing new target configuration", "config", add, "err", err)
+				logging.LogErrUnlessCanceled(a.Logger, err, "failed parsing new target configuration", "config", add)
 				continue
 			}
 

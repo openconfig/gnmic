@@ -22,6 +22,7 @@ import (
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/subscribe"
 	gpath "github.com/openconfig/gnmic/pkg/api/path"
+	"github.com/openconfig/gnmic/pkg/logging"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -289,7 +290,7 @@ func (gc *gnmiCache) handleSampledQuery(ctx context.Context, ro *ReadOpts, ch ch
 	for {
 		select {
 		case <-ctx.Done():
-			gc.logger.Info("periodic query stopped", "target", ro.Target, "err", ctx.Err())
+			logging.LogErrUnlessCanceled(gc.logger, ctx.Err(), "periodic query stopped", "target", ro.Target)
 			return
 		case <-ticker.C:
 			gc.handleSingleQuery(ctx, ro, ch)

@@ -9,7 +9,6 @@
 package docker_loader
 
 import (
-
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/prometheus/client_golang/prometheus"
 )

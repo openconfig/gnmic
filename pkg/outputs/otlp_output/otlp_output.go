@@ -65,8 +65,8 @@ type otlpOutput struct {
 
 	logger   *slog.Logger
 	rootCtx  context.Context
-	cancelFn  context.CancelFunc
-	wg        *sync.WaitGroup
+	cancelFn context.CancelFunc
+	wg       *sync.WaitGroup
 
 	// Metrics
 	reg *prometheus.Registry

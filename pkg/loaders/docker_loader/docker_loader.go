@@ -23,8 +23,8 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	dClient "github.com/moby/moby/client"
 	"github.com/mitchellh/mapstructure"
+	dClient "github.com/moby/moby/client"
 	"github.com/openconfig/gnmic/pkg/actions"
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
@@ -241,7 +241,7 @@ func (d *dockerLoader) Start(ctx context.Context) chan *loaders.TargetOperation 
 		for {
 			select {
 			case <-ctx.Done():
-				d.logger.Info("context done", "loader", loaderType, "err", ctx.Err())
+				logging.LogErrUnlessCanceled(d.logger, ctx.Err(), "context done", "loader", loaderType)
 				return
 			case <-ticker.C:
 				d.update(ctx, opChan)

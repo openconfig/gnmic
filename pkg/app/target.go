@@ -16,6 +16,7 @@ import (
 
 	"github.com/openconfig/gnmic/pkg/api/target"
 	"github.com/openconfig/gnmic/pkg/api/types"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 // initTarget initializes a new target given its name.
@@ -143,12 +144,12 @@ func (a *App) parseProtoFiles(t *target.Target) error {
 	a.Logger.Info("target loading proto files", "target", t.Config.Name)
 	descSource, err := grpcurl.DescriptorSourceFromProtoFiles(t.Config.ProtoDirs, t.Config.ProtoFiles...)
 	if err != nil {
-		a.Logger.Info("failed to load proto files", "err", err)
+		logging.LogErrUnlessCanceled(a.Logger, err, "failed to load proto files")
 		return err
 	}
 	t.RootDesc, err = descSource.FindSymbol("Nokia.SROS.root")
 	if err != nil {
-		a.Logger.Info("could not get symbol 'Nokia.SROS.root'", "target", t.Config.Name, "err", err)
+		logging.LogErrUnlessCanceled(a.Logger, err, "could not get symbol 'Nokia.SROS.root'", "target", t.Config.Name)
 		return err
 	}
 	a.Logger.Info("target loaded proto files", "target", t.Config.Name)

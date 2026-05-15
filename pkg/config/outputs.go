@@ -14,6 +14,7 @@ import (
 	"reflect"
 	"sort"
 
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	_ "github.com/openconfig/gnmic/pkg/outputs/all"
 )
@@ -140,7 +141,7 @@ func (c *Config) GetOutputsConfigs() [][]string {
 	for name, outputCfg := range outDef {
 		b, err := json.Marshal(outputCfg)
 		if err != nil {
-			c.log().Info("could not marshal output config", "err", err)
+			logging.LogErrUnlessCanceled(c.log(), err, "could not marshal output config")
 			return nil
 		}
 		outList = append(outList, []string{name, string(b)})

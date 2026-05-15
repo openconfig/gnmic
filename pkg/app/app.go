@@ -259,7 +259,7 @@ func (a *App) PreRunE(cmd *cobra.Command, args []string) error {
 		a.Logger.Info("pprof server started", "path", fmt.Sprintf("%s/debug/pprof", a.Config.GlobalFlags.PprofAddr))
 		go func() {
 			err := <-a.pprof.ErrChan()
-			a.Logger.Info("pprof server failed", "err", err)
+			logging.LogErrUnlessCanceled(a.Logger, err, "pprof server failed")
 		}()
 	}
 
@@ -376,7 +376,7 @@ func (a *App) PrintMsg(address string, msgName string, msg proto.Message) error 
 	}
 	b, err := mo.Marshal(msg, map[string]string{"source": address})
 	if err != nil {
-		a.Logger.Info("error marshaling message", "err", err)
+		logging.LogErrUnlessCanceled(a.Logger, err, "error marshaling message")
 		if !a.Config.Log {
 			fmt.Printf("error marshaling message: %v", err)
 		}
@@ -427,7 +427,7 @@ func (a *App) loadTargets(e fsnotify.Event) {
 	defer cancel()
 	err := a.sem.Acquire(ctx, 1)
 	if err != nil {
-		a.Logger.Info("failed to acquire target loading semaphore", "err", err)
+		logging.LogErrUnlessCanceled(a.Logger, err, "failed to acquire target loading semaphore")
 		return
 	}
 	defer a.sem.Release(1)
@@ -435,7 +435,7 @@ func (a *App) loadTargets(e fsnotify.Event) {
 	case fsnotify.Write, fsnotify.Create:
 		newTargets, err := a.Config.GetTargets()
 		if err != nil && !errors.Is(err, config.ErrNoTargetsFound) {
-			a.Logger.Info("failed getting targets from new config", "err", err)
+			logging.LogErrUnlessCanceled(a.Logger, err, "failed getting targets from new config")
 			return
 		}
 		if !a.inCluster() {
@@ -448,7 +448,7 @@ func (a *App) loadTargets(e fsnotify.Event) {
 					}
 					err = a.DeleteTarget(a.ctx, n)
 					if err != nil {
-						a.Logger.Info("failed to delete target", "target", n, "err", err)
+						logging.LogErrUnlessCanceled(a.Logger, err, "failed to delete target", "target", n)
 					}
 				}
 			}
@@ -482,7 +482,7 @@ func (a *App) loadTargets(e fsnotify.Event) {
 		// in cluster && leader
 		dist, err := a.getTargetToInstanceMapping(a.ctx)
 		if err != nil {
-			a.Logger.Info("failed to get target to instance mapping", "err", err)
+			logging.LogErrUnlessCanceled(a.Logger, err, "failed to get target to instance mapping")
 			return
 		}
 		// delete targets
@@ -490,7 +490,7 @@ func (a *App) loadTargets(e fsnotify.Event) {
 			if _, ok := newTargets[t]; !ok {
 				err = a.deleteTarget(ctx, t)
 				if err != nil {
-					a.Logger.Info("failed to delete target", "target", t, "err", err)
+					logging.LogErrUnlessCanceled(a.Logger, err, "failed to delete target", "target", t)
 					continue
 				}
 			}
@@ -501,7 +501,7 @@ func (a *App) loadTargets(e fsnotify.Event) {
 			if _, ok := dist[tc.Name]; !ok {
 				err = a.dispatchTarget(a.ctx, tc)
 				if err != nil {
-					a.Logger.Info("failed to add target", "target", tc.Name, "err", err)
+					logging.LogErrUnlessCanceled(a.Logger, err, "failed to add target", "target", tc.Name)
 				}
 			}
 		}
@@ -515,7 +515,7 @@ func (a *App) startAPIServer() {
 	}
 	s, err := a.newAPIServer()
 	if err != nil {
-		a.Logger.Info("failed to create a new API server", "err", err)
+		logging.LogErrUnlessCanceled(a.Logger, err, "failed to create a new API server")
 		return
 	}
 	go func() {
@@ -523,13 +523,13 @@ func (a *App) startAPIServer() {
 		if s.TLSConfig != nil {
 			err = s.ListenAndServeTLS("", "")
 			if err != nil {
-				a.Logger.Info("API server error", "err", err)
+				logging.LogErrUnlessCanceled(a.Logger, err, "API server error")
 				return
 			}
 		} else {
 			err = s.ListenAndServe()
 			if err != nil {
-				a.Logger.Info("API server error", "err", err)
+				logging.LogErrUnlessCanceled(a.Logger, err, "API server error")
 				return
 			}
 		}
@@ -543,12 +543,12 @@ func (a *App) LoadProtoFiles() (desc.Descriptor, error) {
 	a.Logger.Info("loading proto files...")
 	descSource, err := grpcurl.DescriptorSourceFromProtoFiles(a.Config.ProtoDir, a.Config.ProtoFile...)
 	if err != nil {
-		a.Logger.Info("failed to load proto files", "err", err)
+		logging.LogErrUnlessCanceled(a.Logger, err, "failed to load proto files")
 		return nil, err
 	}
 	rootDesc, err := descSource.FindSymbol("Nokia.SROS.root")
 	if err != nil {
-		a.Logger.Info("could not get symbol 'Nokia.SROS.root'", "err", err)
+		logging.LogErrUnlessCanceled(a.Logger, err, "could not get symbol 'Nokia.SROS.root'")
 		return nil, err
 	}
 	a.Logger.Info("loaded proto files")

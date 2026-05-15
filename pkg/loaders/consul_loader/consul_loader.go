@@ -240,7 +240,7 @@ CLIENT:
 		go func(s *serviceDef) {
 			err := c.startServicesWatch(ctx, s.Name, s.Tags, sChan, time.Minute)
 			if err != nil {
-				c.logger.Info("service watch stopped", "service", s.Name, "err", err)
+				logging.LogErrUnlessCanceled(c.logger, err, "service watch stopped", "service", s.Name)
 			}
 		}(s)
 	}

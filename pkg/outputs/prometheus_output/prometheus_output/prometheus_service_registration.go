@@ -20,6 +20,7 @@ import (
 	"github.com/hashicorp/consul/api"
 
 	"github.com/openconfig/gnmic/pkg/lockers"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 const (
@@ -78,7 +79,7 @@ func (p *prometheusOutput) registerService(ctx context.Context) {
 INITCONSUL:
 	if ctx.Err() != nil {
 		if errors.Is(ctx.Err(), context.Canceled) {
-			p.logger.Info("context canceled", "err", ctx.Err())
+			logging.LogErrUnlessCanceled(p.logger, ctx.Err(), "context canceled")
 			close(doneCh)
 			if p.consulClient != nil {
 				err = p.consulClient.Agent().ServiceDeregister(cfg.ServiceRegistration.id)

@@ -33,6 +33,7 @@ import (
 
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/app"
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/outputs"
 )
 
@@ -77,12 +78,12 @@ func New(gApp *app.App) *cobra.Command {
 				gApp.Logger.Info("loading proto files")
 				descSource, err := grpcurl.DescriptorSourceFromProtoFiles(gApp.Config.ProtoDir, gApp.Config.ProtoFile...)
 				if err != nil {
-					gApp.Logger.Info("failed to load proto files", "err", err)
+					logging.LogErrUnlessCanceled(gApp.Logger, err, "failed to load proto files")
 					return err
 				}
 				server.rootDesc, err = descSource.FindSymbol("Nokia.SROS.root")
 				if err != nil {
-					gApp.Logger.Info("could not get proto symbol", "symbol", "Nokia.SROS.root", "err", err)
+					logging.LogErrUnlessCanceled(gApp.Logger, err, "could not get proto symbol", "symbol", "Nokia.SROS.root")
 					return err
 				}
 				gApp.Logger.Info("loaded proto files")
@@ -149,7 +150,7 @@ func New(gApp *app.App) *cobra.Command {
 				}
 				go func() {
 					if err := httpServer.ListenAndServe(); err != nil {
-						gApp.Logger.Info("unable to start prometheus HTTP server", "err", err)
+						logging.LogErrUnlessCanceled(gApp.Logger, err, "unable to start prometheus HTTP server")
 					}
 				}()
 				defer httpServer.Close()
@@ -220,13 +221,13 @@ func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_Publi
 		subResp, err := stream.Recv()
 		if err != nil {
 			if err != io.EOF {
-				s.gApp.Logger.Info("gRPC dialout receive error", "err", err)
+				logging.LogErrUnlessCanceled(s.gApp.Logger, err, "gRPC dialout receive error")
 			}
 			break
 		}
 		err = stream.Send(&nokiasros.PublishResponse{})
 		if err != nil {
-			s.gApp.Logger.Info("error sending publish response to server", "err", err)
+			logging.LogErrUnlessCanceled(s.gApp.Logger, err, "error sending publish response to server")
 		}
 		switch resp := subResp.Response.(type) {
 		case *gnmi.SubscribeResponse_Update:
@@ -237,11 +238,11 @@ func (s *dialoutTelemetryServer) Publish(stream nokiasros.DialoutTelemetry_Publi
 						m := dynamic.NewMessage(s.rootDesc.GetFile().FindMessage("Nokia.SROS.root"))
 						err := m.Unmarshal(update.Val.GetProtoBytes())
 						if err != nil {
-							s.gApp.Logger.Info("failed to unmarshal dynamic proto message", "err", err)
+							logging.LogErrUnlessCanceled(s.gApp.Logger, err, "failed to unmarshal dynamic proto message")
 						}
 						jsondata, err := m.MarshalJSON()
 						if err != nil {
-							s.gApp.Logger.Info("failed to marshal dynamic proto message", "err", err)
+							logging.LogErrUnlessCanceled(s.gApp.Logger, err, "failed to marshal dynamic proto message")
 							continue
 						}
 						if s.gApp.Config.Debug {
