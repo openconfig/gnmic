@@ -9,6 +9,7 @@
 package event_ieeefloat32
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
@@ -74,7 +75,7 @@ func (p *ieeefloat32) Init(cfg interface{}, opts ...formatters.Option) error {
 	if err != nil {
 		return err
 	}
-	if p.Debug {
+	if p.Logger.Enabled(context.Background(), slog.LevelDebug) {
 		if b, err := json.Marshal(p); err == nil {
 			p.Logger.Debug("initialized processor", "config", string(b))
 		} else {

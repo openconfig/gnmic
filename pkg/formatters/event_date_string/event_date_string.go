@@ -9,6 +9,7 @@
 package event_date_string
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -86,7 +87,7 @@ func (d *dateString) Init(cfg interface{}, opts ...formatters.Option) error {
 		}
 		d.location = loc
 	}
-	if d.Debug {
+	if d.Logger.Enabled(context.Background(), slog.LevelDebug) {
 		if b, err := json.Marshal(d); err == nil {
 			d.Logger.Debug("initialized processor", "config", string(b))
 		} else {

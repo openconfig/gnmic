@@ -9,6 +9,7 @@
 package event_extract_tags
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"regexp"
@@ -92,7 +93,7 @@ func (p *extractTags) Init(cfg interface{}, opts ...formatters.Option) error {
 		p.valueNames = append(p.valueNames, re)
 	}
 
-	if p.Debug {
+	if p.Logger.Enabled(context.Background(), slog.LevelDebug) {
 		if b, err := json.Marshal(p); err == nil {
 			p.Logger.Debug("initialized processor", "config", string(b))
 		} else {

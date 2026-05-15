@@ -9,6 +9,7 @@
 package event_write
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -126,12 +127,14 @@ func (p *write) Init(cfg interface{}, opts ...formatters.Option) error {
 		}
 	}
 
-	b, err := json.Marshal(p)
-	if err != nil {
-		p.Logger.Debug("initialized processor", "config", p)
-		return nil
+	if p.Logger.Enabled(context.Background(), slog.LevelDebug) {
+		b, err := json.Marshal(p)
+		if err != nil {
+			p.Logger.Debug("initialized processor", "config", p)
+			return nil
+		}
+		p.Logger.Debug("initialized processor", "config", string(b))
 	}
-	p.Logger.Debug("initialized processor", "config", string(b))
 	return nil
 }
 

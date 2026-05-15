@@ -9,6 +9,7 @@
 package event_starlark
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -94,7 +95,7 @@ func (p *starlarkProc) Init(cfg interface{}, opts ...formatters.Option) error {
 	globals["cache"] = starlark.NewDict(0)
 
 	globals.Freeze()
-	if p.Debug {
+	if p.Logger.Enabled(context.Background(), slog.LevelDebug) {
 		if b, err := json.Marshal(p); err == nil {
 			p.Logger.Debug("initialized processor", "config", string(b))
 		} else {

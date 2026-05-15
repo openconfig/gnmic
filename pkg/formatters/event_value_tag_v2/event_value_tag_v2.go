@@ -9,6 +9,7 @@
 package event_value_tag_v2
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
@@ -74,7 +75,7 @@ func (vt *valueTag) Init(cfg interface{}, opts ...formatters.Option) error {
 		vt.applyRules[i] = make(map[uint64]*applyRule, 0)
 	}
 
-	if vt.Debug {
+	if vt.Logger.Enabled(context.Background(), slog.LevelDebug) {
 		if b, err := json.Marshal(vt); err == nil {
 			vt.Logger.Debug("initialized processor", "config", string(b))
 		} else {

@@ -9,6 +9,7 @@
 package event_to_tag
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -70,7 +71,7 @@ func (t *toTag) Init(cfg interface{}, opts ...formatters.Option) error {
 		}
 		t.values = append(t.values, re)
 	}
-	if t.Debug {
+	if t.Logger.Enabled(context.Background(), slog.LevelDebug) {
 		if b, err := json.Marshal(t); err == nil {
 			t.Logger.Debug("initialized processor", "config", string(b))
 		} else {

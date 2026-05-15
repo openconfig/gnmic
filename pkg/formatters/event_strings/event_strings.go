@@ -9,6 +9,7 @@
 package event_strings
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"path/filepath"
@@ -138,7 +139,7 @@ func (s *stringsp) Init(cfg interface{}, opts ...formatters.Option) error {
 		}
 		s.valueKeys = append(s.valueKeys, re)
 	}
-	if s.Debug {
+	if s.Logger.Enabled(context.Background(), slog.LevelDebug) {
 		if b, err := json.Marshal(s); err == nil {
 			s.Logger.Debug("initialized processor", "config", string(b))
 		} else {
