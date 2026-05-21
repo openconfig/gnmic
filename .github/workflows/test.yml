@@ -15,6 +15,12 @@ on:
     branches:
       - "main"
       - "!releases/**"
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
 env:
   GOVER: 1.25.10
 
