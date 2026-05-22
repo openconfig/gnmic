@@ -6,6 +6,7 @@ In the context of gnmi subscriptions (on top of terminal output) `gnmic` support
 * [NATS JetStream](jetstream_output.md)
 * [Kafka messaging bus](kafka_output.md)
 * [InfluxDB Time Series Database](influxdb_output.md)
+* [ClickHouse](clickhouse_output.md)
 * [Prometheus Server](prometheus_output.md)
 * [Prometheus Remote Write](prometheus_write_output.md)
 * [UDP Server](udp_output.md)
@@ -76,6 +77,7 @@ Different formats are supported for all outputs
 **Kafka**         | <span>:heavy_check_mark:</span>    | <span>:heavy_check_mark:</span> | <span style="color:red">:x: </span> |<span>:heavy_check_mark:</span> |<span>:heavy_check_mark:</span>
 **UDP / TCP**     | <span>:heavy_check_mark:</span>    | <span>:heavy_check_mark:</span> | <span>:heavy_check_mark:</span>     |<span>:heavy_check_mark:</span> |<span>:heavy_check_mark:</span>
 **InfluxDB**      | <span>NA</span>                    | <span>NA</span>                 | <span>NA</span>                     |<span>NA</span>                 |<span>NA</span>                    
+**ClickHouse**    | <span>NA</span>                    | <span>NA</span>                 | <span>NA</span>                     |<span>NA</span>                 |<span>NA</span>                    
 **Prometheus**    | <span>NA</span>                    | <span>NA</span>                 | <span>NA</span>                     |<span>NA</span>                 |<span>NA</span>                    
 
 #### Formats examples

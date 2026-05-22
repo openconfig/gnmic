@@ -18,6 +18,7 @@ package all
 
 import (
 	_ "github.com/openconfig/gnmic/pkg/outputs/asciigraph_output"
+	_ "github.com/openconfig/gnmic/pkg/outputs/clickhouse_output"
 	_ "github.com/openconfig/gnmic/pkg/outputs/file"
 	_ "github.com/openconfig/gnmic/pkg/outputs/gnmi_output"
 	_ "github.com/openconfig/gnmic/pkg/outputs/influxdb_output"

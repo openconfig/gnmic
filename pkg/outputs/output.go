@@ -74,6 +74,8 @@ type Initializer func() Output
 var Outputs = map[string]Initializer{}
 
 var OutputTypes = map[string]struct{}{
+	"asciigraph":       {},
+	"clickhouse":       {},
 	"file":             {},
 	"influxdb":         {},
 	"kafka":            {},
@@ -86,7 +88,6 @@ var OutputTypes = map[string]struct{}{
 	"gnmi":             {},
 	"jetstream":        {},
 	"snmp":             {},
-	"asciigraph":       {},
 }
 
 func Register(name string, initFn Initializer) {

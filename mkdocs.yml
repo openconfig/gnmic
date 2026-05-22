@@ -61,6 +61,7 @@ nav:
             - Jetstream: user_guide/outputs/jetstream_output.md
           - Kafka: user_guide/outputs/kafka_output.md
           - InfluxDB: user_guide/outputs/influxdb_output.md
+          - ClickHouse: user_guide/outputs/clickhouse_output.md
           - Prometheus:  
             - Scrape Based (Pull): user_guide/outputs/prometheus_output.md
             - Remote Write (Push): user_guide/outputs/prometheus_write_output.md
