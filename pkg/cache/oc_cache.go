@@ -10,6 +10,7 @@ package cache
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"strings"
 	"sync"
@@ -289,7 +290,13 @@ func (gc *gnmiCache) handleSampledQuery(ctx context.Context, ro *ReadOpts, ch ch
 	for {
 		select {
 		case <-ctx.Done():
-			gc.logger.Info("periodic query stopped", "target", ro.Target, "err", ctx.Err())
+			if err := ctx.Err(); gc.logger != nil && err != nil {
+				if errors.Is(err, context.Canceled) {
+					gc.logger.Info("periodic query stopped", "target", ro.Target, "err", err)
+				} else {
+					gc.logger.Error("periodic query stopped", "target", ro.Target, "err", err)
+				}
+			}
 			return
 		case <-ticker.C:
 			gc.handleSingleQuery(ctx, ro, ch)

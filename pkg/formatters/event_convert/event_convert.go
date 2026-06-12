@@ -9,6 +9,7 @@
 package event_convert
 
 import (
+	"context"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -61,7 +62,7 @@ func (c *convert) Init(cfg interface{}, opts ...formatters.Option) error {
 		}
 		c.values = append(c.values, re)
 	}
-	if c.Debug {
+	if c.Logger.Enabled(context.Background(), slog.LevelDebug) {
 		if b, err := json.Marshal(c); err == nil {
 			c.Logger.Debug("initialized processor", "config", string(b))
 		} else {

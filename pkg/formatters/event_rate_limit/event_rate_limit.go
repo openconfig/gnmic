@@ -1,6 +1,7 @@
 package event_rate_limit
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -68,7 +69,7 @@ func (o *rateLimit) Init(cfg interface{}, opts ...formatters.Option) error {
 	if o.PerSecondLimit <= 0 {
 		return fmt.Errorf("provided limit is %f, must be greater than 0", o.PerSecondLimit)
 	}
-	if o.Debug {
+	if o.Logger.Enabled(context.Background(), slog.LevelDebug) {
 		if b, err := json.Marshal(o); err == nil {
 			o.Logger.Debug("initialized processor", "config", string(b))
 		} else {

@@ -26,6 +26,7 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/lockers"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 const (
@@ -111,7 +112,7 @@ func (a *App) apiServiceRegistration() {
 		default:
 			err = a.locker.Register(a.ctx, serviceReg)
 			if err != nil {
-				a.Logger.Info("api service registration failed", "err", err)
+				logging.LogErrUnlessCanceled(a.Logger, err, "api service registration failed")
 				time.Sleep(retryTimer)
 				continue
 			}
@@ -137,7 +138,7 @@ START:
 		err = nil
 		a.isLeader, err = a.locker.Lock(a.ctx, leaderKey, []byte(a.Config.Clustering.InstanceName))
 		if err != nil {
-			a.Logger.Info("failed to acquire leader lock", "err", err)
+			logging.LogErrUnlessCanceled(a.Logger, err, "failed to acquire leader lock")
 			time.Sleep(retryTimer)
 			continue
 		}
@@ -169,7 +170,7 @@ START:
 		time.Sleep(retryTimer)
 		goto START
 	case err := <-errCh:
-		a.Logger.Info("failed to maintain the leader key", "instance", a.Config.Clustering.InstanceName, "err", err)
+		logging.LogErrUnlessCanceled(a.Logger, err, "failed to maintain the leader key", "instance", a.Config.Clustering.InstanceName)
 		cancel()
 		a.isLeader = false
 		time.Sleep(retryTimer)
@@ -202,7 +203,7 @@ START:
 		}()
 		err := a.locker.WatchServices(ctx, serviceName, []string{"cluster-name=" + a.Config.Clustering.ClusterName}, membersChan, a.Config.Clustering.ServicesWatchTimer)
 		if err != nil {
-			a.Logger.Info("failed getting services", "err", err)
+			logging.LogErrUnlessCanceled(a.Logger, err, "failed getting services")
 			time.Sleep(retryTimer)
 			goto START
 		}
@@ -285,7 +286,7 @@ func (a *App) dispatchTargetsOnce(ctx context.Context) {
 	for _, tc := range a.Config.Targets {
 		err := a.dispatchTarget(dctx, tc)
 		if err != nil {
-			a.Logger.Info("failed to dispatch target", "target", tc.Name, "err", err)
+			logging.LogErrUnlessCanceled(a.Logger, err, "failed to dispatch target", "target", tc.Name)
 		}
 		if err == errNotFound {
 			// no registered services,
@@ -333,7 +334,7 @@ SELECTSERVICE:
 	err = a.assignTarget(ctx, tc, service)
 	if err != nil {
 		// add service to denied list and reselect
-		a.Logger.Info("failed assigning target to service", "target", tc.Name, "service", service.ID, "err", err)
+		logging.LogErrUnlessCanceled(a.Logger, err, "failed assigning target to service", "target", tc.Name, "service", service.ID)
 		denied = append(denied, service.ID)
 		goto SELECTSERVICE
 	}
@@ -350,7 +351,7 @@ SELECTSERVICE:
 WAIT:
 	values, err := a.locker.List(ctx, key)
 	if err != nil {
-		a.Logger.Info("failed getting lock key value", "key", key, "err", err)
+		logging.LogErrUnlessCanceled(a.Logger, err, "failed getting lock key value", "key", key)
 		time.Sleep(lockWaitTime)
 		goto WAIT
 	}
@@ -601,7 +602,7 @@ func (a *App) deleteTarget(ctx context.Context, name string) error {
 		url := fmt.Sprintf("%s://%s/api/v1/config/targets/%s", scheme, s.Address, name)
 		req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
 		if err != nil {
-			a.Logger.Info("failed to create a delete request", "err", err)
+			logging.LogErrUnlessCanceled(a.Logger, err, "failed to create a delete request")
 			errs = append(errs, err)
 			continue
 		}
@@ -609,7 +610,7 @@ func (a *App) deleteTarget(ctx context.Context, name string) error {
 		rsp, err := a.clusteringClient.Do(req)
 		if err != nil {
 			rsp.Body.Close()
-			a.Logger.Info("failed deleting target", "target", name, "err", err)
+			logging.LogErrUnlessCanceled(a.Logger, err, "failed deleting target", "target", name)
 			errs = append(errs, err)
 			continue
 		}

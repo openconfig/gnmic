@@ -9,6 +9,7 @@
 package event_delete
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"regexp"
@@ -91,7 +92,7 @@ func (d *deletep) Init(cfg interface{}, opts ...formatters.Option) error {
 		}
 		d.valueNames = append(d.valueNames, re)
 	}
-	if d.Debug {
+	if d.Logger.Enabled(context.Background(), slog.LevelDebug) {
 		if b, err := json.Marshal(d); err == nil {
 			d.Logger.Debug("initialized processor", "config", string(b))
 		} else {

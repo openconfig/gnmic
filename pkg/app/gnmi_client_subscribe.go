@@ -24,6 +24,7 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/config"
 	"github.com/openconfig/gnmic/pkg/lockers"
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	"github.com/openconfig/gnmic/pkg/utils"
 )
@@ -47,7 +48,7 @@ START:
 	t, err := a.initTarget(tc)
 	a.operLock.Unlock()
 	if err != nil {
-		a.Logger.Info("failed to initialize target", "target", tc.Name, "err", err)
+		logging.LogErrUnlessCanceled(a.Logger, err, "failed to initialize target", "target", tc.Name)
 		return
 	}
 	select {
@@ -63,7 +64,7 @@ START:
 				return
 			}
 			if err != nil {
-				a.Logger.Info("failed to lock target", "target", tc.Name, "err", err)
+				logging.LogErrUnlessCanceled(a.Logger, err, "failed to lock target", "target", tc.Name)
 				time.Sleep(a.Config.LocalFlags.SubscribeLockRetry)
 				goto START
 			}
@@ -79,7 +80,7 @@ START:
 		go func() {
 			err := a.clientSubscribe(nctx, tc)
 			if err != nil {
-				a.Logger.Info("failed to subscribe", "err", err)
+				logging.LogErrUnlessCanceled(a.Logger, err, "failed to subscribe")
 				return
 			}
 		}()
@@ -88,16 +89,16 @@ START:
 			for {
 				select {
 				case <-nctx.Done():
-					a.Logger.Info("target stopped", "target", tc.Name, "err", nctx.Err())
+					logging.LogErrUnlessCanceled(a.Logger, nctx.Err(), "target stopped", "target", tc.Name)
 					// drain errChan
 					err := <-errChan
-					a.Logger.Info("target keepLock returned", "target", tc.Name, "err", err)
+					logging.LogErrUnlessCanceled(a.Logger, err, "target keepLock returned", "target", tc.Name)
 					return
 				case <-doneChan:
 					a.Logger.Info("target lock removed", "target", tc.Name)
 					return
 				case err := <-errChan:
-					a.Logger.Info("failed to maintain target lock", "target", tc.Name, "err", err)
+					logging.LogErrUnlessCanceled(a.Logger, err, "failed to maintain target lock", "target", tc.Name)
 					a.stopTarget(ctx, tc.Name)
 					if errors.Is(err, context.Canceled) {
 						return
@@ -117,13 +118,13 @@ func (a *App) TargetSubscribeOnce(ctx context.Context, tc *types.TargetConfig) e
 	_, err := a.initTarget(tc)
 	a.operLock.Unlock()
 	if err != nil {
-		a.Logger.Info("failed to initialize target", "target", tc.Name, "err", err)
+		logging.LogErrUnlessCanceled(a.Logger, err, "failed to initialize target", "target", tc.Name)
 		return err
 	}
 	a.Logger.Info("subscribing to target", "target", tc.Name)
 	err = a.clientSubscribeOnce(nctx, tc)
 	if err != nil {
-		a.Logger.Info("failed to subscribe", "err", err)
+		logging.LogErrUnlessCanceled(a.Logger, err, "failed to subscribe")
 		return err
 	}
 	return nil
@@ -139,13 +140,13 @@ func (a *App) TargetSubscribePoll(ctx context.Context, tc *types.TargetConfig) {
 	_, err := a.initTarget(tc)
 	a.operLock.Unlock()
 	if err != nil {
-		a.Logger.Info("failed to initialize target", "target", tc.Name, "err", err)
+		logging.LogErrUnlessCanceled(a.Logger, err, "failed to initialize target", "target", tc.Name)
 		return
 	}
 	a.Logger.Info("subscribing to target", "target", tc.Name)
 	err = a.clientSubscribe(nctx, tc)
 	if err != nil {
-		a.Logger.Info("failed to subscribe", "err", err)
+		logging.LogErrUnlessCanceled(a.Logger, err, "failed to subscribe")
 		return
 	}
 }
@@ -204,7 +205,7 @@ CRCLIENT:
 			if errors.Is(err, context.DeadlineExceeded) {
 				a.Logger.Info("failed to initialize target: timeout reached", "target", tc.Name, "timeout", t.Config.Timeout)
 			} else {
-				a.Logger.Info("failed to initialize target", "target", tc.Name, "err", err)
+				logging.LogErrUnlessCanceled(a.Logger, err, "failed to initialize target", "target", tc.Name)
 			}
 			a.Logger.Info("retrying target", "target", tc.Name, "after", t.Config.RetryTimer)
 			time.Sleep(t.Config.RetryTimer)
@@ -269,7 +270,7 @@ CRCLIENT:
 		if errors.Is(err, context.DeadlineExceeded) {
 			a.Logger.Info("failed to initialize target: timeout reached", "target", tc.Name, "timeout", t.Config.Timeout)
 		} else {
-			a.Logger.Info("failed to initialize target", "target", tc.Name, "err", err)
+			logging.LogErrUnlessCanceled(a.Logger, err, "failed to initialize target", "target", tc.Name)
 		}
 		a.Logger.Info("retrying target", "target", tc.Name, "after", t.Config.RetryTimer)
 		time.Sleep(t.Config.RetryTimer)

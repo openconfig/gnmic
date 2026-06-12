@@ -13,6 +13,7 @@ import (
 
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/inputs"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 func (a *App) InitInput(ctx context.Context, name string, tcs map[string]*types.TargetConfig) {
@@ -34,7 +35,7 @@ func (a *App) InitInput(ctx context.Context, name string, tcs map[string]*types.
 						inputs.WithConfigStore(a.Store),
 					)
 					if err != nil {
-						a.Logger.Info("failed to init input", "type", inputType, "err", err)
+						logging.LogErrUnlessCanceled(a.Logger, err, "failed to init input", "type", inputType)
 					}
 				}()
 				a.operLock.Lock()

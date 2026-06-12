@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -68,11 +69,11 @@ var clusterIsLeader = prometheus.NewGauge(prometheus.GaugeOpts{
 func (a *App) registerTargetMetrics() {
 	err := a.reg.Register(targetUPMetric)
 	if err != nil {
-		a.Logger.Info("failed to register target metric", "err", err)
+		logging.LogErrUnlessCanceled(a.Logger, err, "failed to register target metric")
 	}
 	err = a.reg.Register(targetConnStateMetric)
 	if err != nil {
-		a.Logger.Info("failed to register target connection state metric", "err", err)
+		logging.LogErrUnlessCanceled(a.Logger, err, "failed to register target connection state metric")
 	}
 	a.configLock.RLock()
 	for _, t := range a.Config.Targets {
@@ -95,7 +96,7 @@ func (a *App) registerTargetMetrics() {
 					lockedNodes, err := a.locker.List(ctx, lockedNodesPrefix)
 					cancel()
 					if err != nil {
-						a.Logger.Info("failed to get locked nodes key", "err", err)
+						logging.LogErrUnlessCanceled(a.Logger, err, "failed to get locked nodes key")
 					}
 					for k, v := range lockedNodes {
 						ownTargets[strings.TrimPrefix(k, lockedNodesPrefix+"/")] = v
@@ -154,11 +155,11 @@ func (a *App) startClusterMetrics() {
 	var err error
 	err = a.reg.Register(clusterNumberOfLockedTargets)
 	if err != nil {
-		a.Logger.Info("failed to register metric", "err", err)
+		logging.LogErrUnlessCanceled(a.Logger, err, "failed to register metric")
 	}
 	err = a.reg.Register(clusterIsLeader)
 	if err != nil {
-		a.Logger.Info("failed to register metric", "err", err)
+		logging.LogErrUnlessCanceled(a.Logger, err, "failed to register metric")
 	}
 	ticker := time.NewTicker(clusterMetricsUpdatePeriod)
 	defer ticker.Stop()
@@ -172,7 +173,7 @@ func (a *App) startClusterMetrics() {
 			leader, err := a.locker.List(ctx, leaderKey)
 			cancel()
 			if err != nil {
-				a.Logger.Info("failed to get leader key", "err", err)
+				logging.LogErrUnlessCanceled(a.Logger, err, "failed to get leader key")
 			}
 			if leader[leaderKey] == a.Config.Clustering.InstanceName {
 				clusterIsLeader.Set(1)
@@ -185,7 +186,7 @@ func (a *App) startClusterMetrics() {
 			lockedNodes, err := a.locker.List(ctx, lockedNodesPrefix)
 			cancel()
 			if err != nil {
-				a.Logger.Info("failed to get locked nodes key", "err", err)
+				logging.LogErrUnlessCanceled(a.Logger, err, "failed to get locked nodes key")
 			}
 			numLockedNodes := 0
 			for _, v := range lockedNodes {

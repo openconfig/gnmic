@@ -14,6 +14,7 @@ import (
 	"sync"
 
 	"github.com/openconfig/gnmic/pkg/api/types"
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/outputs"
 )
 
@@ -40,7 +41,7 @@ func (a *App) InitOutput(ctx context.Context, name string, tcs map[string]*types
 						outputs.WithConfigStore(a.Store),
 					)
 					if err != nil {
-						a.Logger.Error("failed to init output", "type", outType, "err", err)
+						logging.LogErrUnlessCanceled(a.Logger, err, "failed to init output", "type", outType)
 					}
 				}()
 				a.operLock.Lock()
@@ -87,7 +88,7 @@ func (a *App) DeleteOutput(name string) error {
 	o := a.Outputs[name]
 	err := o.Close()
 	if err != nil {
-		a.Logger.Info("failed to close output", "name", name, "err", err)
+		logging.LogErrUnlessCanceled(a.Logger, err, "failed to close output", "name", name)
 	}
 	delete(a.Outputs, name)
 	return nil

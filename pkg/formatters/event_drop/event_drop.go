@@ -9,6 +9,7 @@
 package event_drop
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"regexp"
@@ -103,7 +104,7 @@ func (d *drop) Init(cfg interface{}, opts ...formatters.Option) error {
 		}
 		d.values = append(d.values, re)
 	}
-	if d.Debug {
+	if d.Logger.Enabled(context.Background(), slog.LevelDebug) {
 		if b, err := json.Marshal(d); err == nil {
 			d.Logger.Debug("initialized processor", "config", string(b))
 		} else {

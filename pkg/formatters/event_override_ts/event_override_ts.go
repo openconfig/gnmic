@@ -9,6 +9,7 @@
 package event_override_ts
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"time"
@@ -50,7 +51,7 @@ func (o *overrideTS) Init(cfg any, opts ...formatters.Option) error {
 	if o.Precision == "" {
 		o.Precision = "ns"
 	}
-	if o.Debug {
+	if o.Logger.Enabled(context.Background(), slog.LevelDebug) {
 		if b, err := json.Marshal(o); err == nil {
 			o.Logger.Debug("initialized processor", "config", string(b))
 		} else {

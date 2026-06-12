@@ -59,8 +59,8 @@ type snmpOutput struct {
 	cfg        *atomic.Pointer[Config]
 	dynCfg     *atomic.Pointer[dynConfig]
 	snmpClient *atomic.Pointer[g.Handler]
-	logger    *slog.Logger
-	rootCtx   context.Context
+	logger     *slog.Logger
+	rootCtx    context.Context
 	cancelFn   context.CancelFunc
 	eventChan  chan *formatters.EventMsg
 	wg         *sync.WaitGroup

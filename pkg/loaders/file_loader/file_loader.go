@@ -162,7 +162,7 @@ func (f *fileLoader) Start(ctx context.Context) chan *loaders.TargetOperation {
 		for {
 			select {
 			case <-ctx.Done():
-				f.logger.Info("context done", "loader", loaderType, "err", ctx.Err())
+				logging.LogErrUnlessCanceled(f.logger, ctx.Err(), "context done", "loader", loaderType)
 				return
 			case <-ticker.C:
 				f.update(ctx, opChan)
@@ -197,7 +197,7 @@ func (f *fileLoader) update(ctx context.Context, opChan chan *loaders.TargetOper
 	// check if the context is done before
 	// updating the targets to the channel
 	case <-ctx.Done():
-		f.logger.Info("context done", "err", ctx.Err())
+		logging.LogErrUnlessCanceled(f.logger, ctx.Err(), "context done")
 		return
 	default:
 		f.updateTargets(ctx, readTargets, opChan)

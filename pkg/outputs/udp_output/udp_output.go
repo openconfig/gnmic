@@ -49,10 +49,10 @@ type udpSock struct {
 	dynCfg *atomic.Pointer[dynConfig]
 	buffer *atomic.Pointer[chan []byte]
 
-	rootCtx   context.Context
-	cancelFn  context.CancelFunc
-	wg     *sync.WaitGroup
-	logger *slog.Logger
+	rootCtx  context.Context
+	cancelFn context.CancelFunc
+	wg       *sync.WaitGroup
+	logger   *slog.Logger
 
 	store store.Store[any]
 }

@@ -30,6 +30,7 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/config"
 	"github.com/openconfig/gnmic/pkg/formatters"
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/outputs"
 )
 
@@ -120,7 +121,7 @@ func (a *App) SubscribeRunE(cmd *cobra.Command, args []string) error {
 	for {
 		err := a.InitLocker()
 		if err != nil {
-			a.Logger.Info("failed to init locker", "err", err)
+			logging.LogErrUnlessCanceled(a.Logger, err, "failed to init locker")
 			time.Sleep(initLockerRetryTimer)
 			continue
 		}
@@ -266,7 +267,7 @@ func (a *App) StartTargetsManager(ctx context.Context) {
 					}
 					err := t.DecodeProtoBytes(rsp.Response)
 					if err != nil {
-						a.Logger.Info("failed to decode proto bytes", "target", t.Config.Name, "err", err)
+						logging.LogErrUnlessCanceled(a.Logger, err, "failed to decode proto bytes", "target", t.Config.Name)
 						continue
 					}
 					m := outputs.Meta{
@@ -310,7 +311,7 @@ func (a *App) StartTargetsManager(ctx context.Context) {
 						a.Logger.Info("subscription closed stream (EOF)", "target", t.Config.Name, "subscription", tErr.SubscriptionName)
 					} else {
 						subscribeResponseFailedCounter.WithLabelValues(t.Config.Name, tErr.SubscriptionName).Inc()
-						a.Logger.Info("subscription receive error", "target", t.Config.Name, "subscription", tErr.SubscriptionName, "err", tErr.Err)
+						logging.LogErrUnlessCanceled(a.Logger, tErr.Err, "subscription receive error", "target", t.Config.Name, "subscription", tErr.SubscriptionName)
 					}
 					if remainingOnceSubscriptions > 0 {
 						if a.subscriptionMode(tErr.SubscriptionName) == subscriptionModeONCE {

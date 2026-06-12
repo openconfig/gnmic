@@ -24,6 +24,7 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/config"
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/grpctunnel/tunnel"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
@@ -163,7 +164,7 @@ func (a *App) proxyGetHandler(ctx context.Context, req *gnmi.GetRequest) (*gnmi.
 			}
 			res, err := t.Get(ctx, creq)
 			if err != nil {
-				a.Logger.Info("target Get error", "target", name, "err", err)
+				logging.LogErrUnlessCanceled(a.Logger, err, "target Get error", "target", name)
 				errChan <- fmt.Errorf("target %q err: %v", name, err)
 				return
 			}
@@ -255,7 +256,7 @@ func (a *App) proxySetHandler(ctx context.Context, req *gnmi.SetRequest) (*gnmi.
 			}
 			res, err := t.Set(ctx, creq)
 			if err != nil {
-				a.Logger.Info("target Get error", "target", name, "err", err)
+				logging.LogErrUnlessCanceled(a.Logger, err, "target Get error", "target", name)
 				errChan <- fmt.Errorf("target %q err: %v", name, err)
 				return
 			}
@@ -346,7 +347,7 @@ func (a *App) proxySubscribeONCEHandler(req *gnmi.SubscribeRequest, stream gnmi.
 					err := stream.Send(r.rsp)
 					if err != nil {
 						close(stop)
-						a.Logger.Info("proxy stream send failed", "err", err)
+						logging.LogErrUnlessCanceled(a.Logger, err, "proxy stream send failed")
 						return
 					}
 				case *gnmi.SubscribeResponse_SyncResponse:
@@ -355,7 +356,7 @@ func (a *App) proxySubscribeONCEHandler(req *gnmi.SubscribeRequest, stream gnmi.
 						// send a single sync and stop
 						err := stream.Send(&gnmi.SubscribeResponse{Response: &gnmi.SubscribeResponse_SyncResponse{SyncResponse: true}})
 						if err != nil {
-							a.Logger.Info("proxy stream send Sync response failed", "err", err)
+							logging.LogErrUnlessCanceled(a.Logger, err, "proxy stream send Sync response failed")
 						}
 						return
 					}
@@ -454,7 +455,7 @@ func (a *App) proxySubscribeSTREAMHandler(req *gnmi.SubscribeRequest, stream gnm
 				err := stream.Send(r.rsp)
 				if err != nil {
 					close(stop)
-					a.Logger.Info("proxy stream send failed", "err", err)
+					logging.LogErrUnlessCanceled(a.Logger, err, "proxy stream send failed")
 					return
 				}
 			}

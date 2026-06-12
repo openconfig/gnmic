@@ -9,6 +9,7 @@
 package event_merge
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 
@@ -44,7 +45,7 @@ func (p *merge) Init(cfg interface{}, opts ...formatters.Option) error {
 	}
 	p.Logger = p.Logger.With("processor", processorType)
 
-	if p.Debug {
+	if p.Logger.Enabled(context.Background(), slog.LevelDebug) {
 		if b, err := json.Marshal(p); err == nil {
 			p.Logger.Debug("initialized processor", "config", string(b))
 		} else {

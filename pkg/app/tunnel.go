@@ -25,6 +25,7 @@ import (
 
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 func (a *App) initTunnelServer(tsc tunnel.ServerConfig) error {
@@ -38,7 +39,7 @@ func (a *App) initTunnelServer(tsc tunnel.ServerConfig) error {
 	go func() {
 		err = a.startTunnelServer(tsc)
 		if err != nil {
-			a.Logger.Info("failed to start tunnel server", "err", err)
+			logging.LogErrUnlessCanceled(a.Logger, err, "failed to start tunnel server")
 		}
 	}()
 	return nil
@@ -51,14 +52,14 @@ func (a *App) startTunnelServer(tsc tunnel.ServerConfig) error {
 	var err error
 	a.tunServer, err = tunnel.NewServer(tsc)
 	if err != nil {
-		a.Logger.Info("failed to create a tunnel server", "err", err)
+		logging.LogErrUnlessCanceled(a.Logger, err, "failed to create a tunnel server")
 		return err
 
 	}
 	// create tunnel server options
 	opts, err := a.gRPCTunnelServerOpts()
 	if err != nil {
-		a.Logger.Info("failed to build gRPC tunnel server options", "err", err)
+		logging.LogErrUnlessCanceled(a.Logger, err, "failed to build gRPC tunnel server options")
 		return err
 	}
 	a.grpcTunnelSrv = grpc.NewServer(opts...)
@@ -77,7 +78,7 @@ func (a *App) startTunnelServer(tsc tunnel.ServerConfig) error {
 	for {
 		l, err = net.Listen(network, addr)
 		if err != nil {
-			a.Logger.Info("failed to start gRPC tunnel server listener", "err", err)
+			logging.LogErrUnlessCanceled(a.Logger, err, "failed to start gRPC tunnel server listener")
 			time.Sleep(time.Second)
 			continue
 		}
@@ -86,7 +87,7 @@ func (a *App) startTunnelServer(tsc tunnel.ServerConfig) error {
 	go func() {
 		err = a.grpcTunnelSrv.Serve(l)
 		if err != nil {
-			a.Logger.Info("gRPC tunnel server shutdown", "err", err)
+			logging.LogErrUnlessCanceled(a.Logger, err, "gRPC tunnel server shutdown")
 		}
 		cancel()
 	}()
@@ -175,7 +176,7 @@ func (a *App) tunServerDeleteTargetHandler(tt tunnel.Target) error {
 		delete(a.tunTargetCfn, tt)
 		delete(a.tunTargets, tt)
 		if err := a.DeleteTarget(a.ctx, tt.ID); err != nil {
-			a.Logger.Info("failed deleting tunnel target", "id", tt.ID, "err", err)
+			logging.LogErrUnlessCanceled(a.Logger, err, "failed deleting tunnel target", "id", tt.ID)
 		}
 	}
 	return nil
@@ -202,7 +203,7 @@ func (a *App) tunDialerFn(ctx context.Context, tc *types.TargetConfig) func(cont
 		a.Logger.Info("dialing tunnel connection for tunnel target", "target", tc.Name)
 		conn, err := tunnel.ServerConn(ctx, a.tunServer, &tt)
 		if err != nil {
-			a.Logger.Info("failed dialing tunnel connection for target", "target", tc.Name, "err", err)
+			logging.LogErrUnlessCanceled(a.Logger, err, "failed dialing tunnel connection for target", "target", tc.Name)
 		}
 		return conn, err
 	}
@@ -216,7 +217,7 @@ func (a *App) getTunnelTargetMatch(tt tunnel.Target) *types.TargetConfig {
 			tc := &types.TargetConfig{Name: tt.ID, TunnelTargetType: tt.Type}
 			err := a.Config.SetTargetConfigDefaults(tc)
 			if err != nil {
-				a.Logger.Info("failed to set target config defaults", "target", tt.ID, "err", err)
+				logging.LogErrUnlessCanceled(a.Logger, err, "failed to set target config defaults", "target", tt.ID)
 				return nil
 			}
 			tc.Address = tc.Name
@@ -228,7 +229,7 @@ func (a *App) getTunnelTargetMatch(tt tunnel.Target) *types.TargetConfig {
 		// check if the discovered target matches one of the configured types
 		ok, err := regexp.MatchString(tm.Type, tt.Type)
 		if err != nil {
-			a.Logger.Info("regex eval failed", "pattern", tm.Type, "value", tt.Type, "err", err)
+			logging.LogErrUnlessCanceled(a.Logger, err, "regex eval failed", "pattern", tm.Type, "value", tt.Type)
 			continue
 		}
 		if !ok {
@@ -237,7 +238,7 @@ func (a *App) getTunnelTargetMatch(tt tunnel.Target) *types.TargetConfig {
 		// check if the discovered target matches one of the configured IDs
 		ok, err = regexp.MatchString(tm.ID, tt.ID)
 		if err != nil {
-			a.Logger.Info("regex eval failed", "pattern", tm.ID, "value", tt.ID, "err", err)
+			logging.LogErrUnlessCanceled(a.Logger, err, "regex eval failed", "pattern", tm.ID, "value", tt.ID)
 			continue
 		}
 		if !ok {
@@ -253,7 +254,7 @@ func (a *App) getTunnelTargetMatch(tt tunnel.Target) *types.TargetConfig {
 		tc.TunnelTargetType = tt.Type
 		err = a.Config.SetTargetConfigDefaults(tc)
 		if err != nil {
-			a.Logger.Info("failed to set target config defaults", "target", tt.ID, "err", err)
+			logging.LogErrUnlessCanceled(a.Logger, err, "failed to set target config defaults", "target", tt.ID)
 			continue
 		}
 		tc.Address = tc.Name

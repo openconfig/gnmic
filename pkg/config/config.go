@@ -528,13 +528,11 @@ func (c *Config) SetPersistentFlagsFromFile(cmd *cobra.Command) {
 		if f.Name == "debug" || f.Name == "log" {
 			return
 		}
-		if c.Debug {
-			c.log().Debug("persistent flag visit",
-				"cmd", cmd.Name(),
-				"flag_name", f.Name,
-				"changed", f.Changed,
-				"is_set_in_file", c.FileConfig.IsSet(f.Name))
-		}
+		c.log().Debug("persistent flag visit",
+			"cmd", cmd.Name(),
+			"flag_name", f.Name,
+			"changed", f.Changed,
+			"is_set_in_file", c.FileConfig.IsSet(f.Name))
 		if !f.Changed && c.FileConfig.IsSet(f.Name) {
 			c.setFlagValue(cmd, f.Name, c.FileConfig.Get(f.Name))
 		}
@@ -544,13 +542,11 @@ func (c *Config) SetPersistentFlagsFromFile(cmd *cobra.Command) {
 func (c *Config) SetLocalFlagsFromFile(cmd *cobra.Command) {
 	cmd.LocalFlags().VisitAll(func(f *pflag.Flag) {
 		flagName := fmt.Sprintf("%s-%s", cmd.Name(), f.Name)
-		if c.Debug {
-			c.log().Debug("local flag visit",
-				"cmd", cmd.Name(),
-				"flag_name", f.Name,
-				"changed", f.Changed,
-				"is_set_in_file", c.FileConfig.IsSet(flagName))
-		}
+		c.log().Debug("local flag visit",
+			"cmd", cmd.Name(),
+			"flag_name", f.Name,
+			"changed", f.Changed,
+			"is_set_in_file", c.FileConfig.IsSet(flagName))
 		if !f.Changed && c.FileConfig.IsSet(flagName) {
 			c.setFlagValue(cmd, f.Name, c.FileConfig.Get(flagName))
 		}
@@ -560,27 +556,23 @@ func (c *Config) SetLocalFlagsFromFile(cmd *cobra.Command) {
 func (c *Config) setFlagValue(cmd *cobra.Command, fName string, val interface{}) {
 	switch val := val.(type) {
 	case []interface{}:
-		if c.Debug {
-			c.log().Debug("set flag value",
-				"cmd", cmd.Name(),
-				"flag_name", fName,
-				"value_type", reflect.TypeOf(val).String(),
-				"length", len(val),
-				"value", val)
-		}
+		c.log().Debug("set flag value",
+			"cmd", cmd.Name(),
+			"flag_name", fName,
+			"value_type", reflect.TypeOf(val).String(),
+			"length", len(val),
+			"value", val)
 		nVal := make([]string, 0, len(val))
 		for _, v := range val {
 			nVal = append(nVal, fmt.Sprintf("%v", v))
 		}
 		cmd.Flags().Set(fName, strings.Join(nVal, ","))
 	default:
-		if c.Debug {
-			c.log().Debug("set flag value",
-				"cmd", cmd.Name(),
-				"flag_name", fName,
-				"value_type", reflect.TypeOf(val).String(),
-				"value", val)
-		}
+		c.log().Debug("set flag value",
+			"cmd", cmd.Name(),
+			"flag_name", fName,
+			"value_type", reflect.TypeOf(val).String(),
+			"value", val)
 		cmd.Flags().Set(fName, fmt.Sprintf("%v", val))
 	}
 }
@@ -761,20 +753,18 @@ func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error)
 	if len(c.SetRequestFile) > 0 {
 		return c.CreateSetRequestFromFile(targetName)
 	}
-	if c.Debug {
-		c.log().Debug("Set input delete", "value", &c.LocalFlags.SetDelete)
-		c.log().Debug("Set input update", "value", &c.LocalFlags.SetUpdate)
-		c.log().Debug("Set input update paths", "value", &c.LocalFlags.SetUpdatePath)
-		c.log().Debug("Set input update values", "value", &c.LocalFlags.SetUpdateValue)
-		c.log().Debug("Set input update files", "value", &c.LocalFlags.SetUpdateFile)
-		c.log().Debug("Set input replace", "value", &c.LocalFlags.SetReplace)
-		c.log().Debug("Set input replace paths", "value", &c.LocalFlags.SetReplacePath)
-		c.log().Debug("Set input replace values", "value", &c.LocalFlags.SetReplaceValue)
-		c.log().Debug("Set input replace files", "value", &c.LocalFlags.SetReplaceFile)
-		c.log().Debug("Set input union replace paths", "value", &c.LocalFlags.SetUnionReplacePath)
-		c.log().Debug("Set input union replace values", "value", &c.LocalFlags.SetUnionReplaceValue)
-		c.log().Debug("Set input union replace files", "value", &c.LocalFlags.SetUnionReplaceFile)
-	}
+	c.log().Debug("Set input delete", "value", &c.LocalFlags.SetDelete)
+	c.log().Debug("Set input update", "value", &c.LocalFlags.SetUpdate)
+	c.log().Debug("Set input update paths", "value", &c.LocalFlags.SetUpdatePath)
+	c.log().Debug("Set input update values", "value", &c.LocalFlags.SetUpdateValue)
+	c.log().Debug("Set input update files", "value", &c.LocalFlags.SetUpdateFile)
+	c.log().Debug("Set input replace", "value", &c.LocalFlags.SetReplace)
+	c.log().Debug("Set input replace paths", "value", &c.LocalFlags.SetReplacePath)
+	c.log().Debug("Set input replace values", "value", &c.LocalFlags.SetReplaceValue)
+	c.log().Debug("Set input replace files", "value", &c.LocalFlags.SetReplaceFile)
+	c.log().Debug("Set input union replace paths", "value", &c.LocalFlags.SetUnionReplacePath)
+	c.log().Debug("Set input union replace values", "value", &c.LocalFlags.SetUnionReplaceValue)
+	c.log().Debug("Set input union replace files", "value", &c.LocalFlags.SetUnionReplaceFile)
 
 	gnmiOpts := make([]api.GNMIOption, 0, 2+ // prefix+target
 		len(c.LocalFlags.SetDelete)+len(c.LocalFlags.SetUpdate)+len(c.LocalFlags.SetReplace)+len(c.LocalFlags.SetUnionReplace)+
@@ -838,7 +828,7 @@ func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error)
 		if useUpdateFiles {
 			updateData, err := readFile(c.LocalFlags.SetUpdateFile[i])
 			if err != nil {
-				c.log().Info("error reading data from file", "file", c.LocalFlags.SetUpdateFile[i], "err", err)
+				logging.LogErrUnlessCanceled(c.log(), err, "error reading data from file", "file", c.LocalFlags.SetUpdateFile[i])
 				return nil, err
 			}
 			trim := ""
@@ -864,7 +854,7 @@ func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error)
 		if useReplaceFiles {
 			replaceData, err := readFile(c.LocalFlags.SetReplaceFile[i])
 			if err != nil {
-				c.log().Info("error reading data from file", "file", c.LocalFlags.SetReplaceFile[i], "err", err)
+				logging.LogErrUnlessCanceled(c.log(), err, "error reading data from file", "file", c.LocalFlags.SetReplaceFile[i])
 				return nil, err
 			}
 			trim := ""
@@ -890,7 +880,7 @@ func (c *Config) CreateSetRequest(targetName string) ([]*gnmi.SetRequest, error)
 		if useUnionReplaceFiles {
 			replaceData, err := readFile(c.LocalFlags.SetUnionReplaceFile[i])
 			if err != nil {
-				c.log().Info("error reading data from file", "file", c.LocalFlags.SetUnionReplaceFile[i], "err", err)
+				logging.LogErrUnlessCanceled(c.log(), err, "error reading data from file", "file", c.LocalFlags.SetUnionReplaceFile[i])
 				return nil, err
 			}
 			trim := ""

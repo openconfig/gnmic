@@ -9,6 +9,7 @@
 package event_data_convert
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -61,7 +62,7 @@ func (c *durationConvert) Init(cfg interface{}, opts ...formatters.Option) error
 		}
 		c.values = append(c.values, re)
 	}
-	if c.Debug {
+	if c.Logger.Enabled(context.Background(), slog.LevelDebug) {
 		if b, err := json.Marshal(c); err == nil {
 			c.Logger.Debug("initialized processor", "config", string(b))
 		} else {

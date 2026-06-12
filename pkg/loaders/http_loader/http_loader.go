@@ -179,7 +179,7 @@ func (h *httpLoader) Start(ctx context.Context) chan *loaders.TargetOperation {
 		for {
 			select {
 			case <-ctx.Done():
-				h.logger.Info("context done", "loader", loaderType, "err", ctx.Err())
+				logging.LogErrUnlessCanceled(h.logger, ctx.Err(), "context done", "loader", loaderType)
 				return
 			case <-ticker.C:
 				h.update(ctx, opChan)

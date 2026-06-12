@@ -81,11 +81,11 @@ func (m *matchClient) Update(n interface{}) {
 
 func (g *gNMIOutput) newServer() *server {
 	return &server{
-		l:         g.logger,
-		c:         g.c,
-		m:         match.New(),
-		mu:        new(sync.RWMutex),
-		targets:   make(map[string]*types.TargetConfig),
+		l:       g.logger,
+		c:       g.c,
+		m:       match.New(),
+		mu:      new(sync.RWMutex),
+		targets: make(map[string]*types.TargetConfig),
 	}
 }
 

@@ -9,6 +9,7 @@
 package event_combine
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -110,7 +111,7 @@ func (p *combine) Init(cfg any, opts ...formatters.Option) error {
 		}
 		return fmt.Errorf("%q event processor not found", proc.Name)
 	}
-	if p.Debug {
+	if p.Logger.Enabled(context.Background(), slog.LevelDebug) {
 		if b, err := json.Marshal(p); err == nil {
 			p.Logger.Debug("initialized processor", "config", string(b))
 		} else {

@@ -9,6 +9,7 @@
 package event_time_epoch
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"regexp"
@@ -64,7 +65,7 @@ func (d *epoch) Init(cfg any, opts ...formatters.Option) error {
 		}
 		d.values = append(d.values, re)
 	}
-	if d.Debug {
+	if d.Logger.Enabled(context.Background(), slog.LevelDebug) {
 		if b, err := json.Marshal(d); err == nil {
 			d.Logger.Debug("initialized processor", "config", string(b))
 		} else {

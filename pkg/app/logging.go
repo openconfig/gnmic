@@ -12,13 +12,15 @@ import (
 	"errors"
 	"fmt"
 	"os"
+
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 func (a *App) logError(err error) {
 	if err == nil {
 		return
 	}
-	a.Logger.Info("error", "err", err)
+	logging.LogErrUnlessCanceled(a.Logger, err, "error")
 	if !a.Config.Log {
 		fmt.Fprintln(os.Stderr, err)
 	}

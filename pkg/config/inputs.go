@@ -14,6 +14,7 @@ import (
 
 	"github.com/openconfig/gnmic/pkg/inputs"
 	_ "github.com/openconfig/gnmic/pkg/inputs/all"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 func (c *Config) GetInputs() (map[string]map[string]interface{}, error) {
@@ -36,12 +37,12 @@ func (c *Config) GetInputs() (map[string]map[string]interface{}, error) {
 					continue
 				}
 				err := fmt.Errorf("unknown input type '%s'", outType)
-				c.log().Info("unknown input type", "type", outType, "err", err)
+				logging.LogErrUnlessCanceled(c.log(), err, "unknown input type", "type", outType)
 				errs = append(errs, err)
 				continue
 			}
 			err := fmt.Errorf("missing input 'type' under %v", inputCfg)
-			c.log().Info("missing input type", "config", inputCfg, "err", err)
+			logging.LogErrUnlessCanceled(c.log(), err, "missing input type", "config", inputCfg)
 			errs = append(errs, err)
 		default:
 			c.log().Info("unknown inputs configuration format",
