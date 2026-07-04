@@ -269,6 +269,7 @@ func (ts *tunnelServer) getTunnelTargetMatch(tt tunnel.Target) *types.TargetConf
 				ts.logger.Error("failed to set target config defaults", "error", err, "id", tt.ID, "type", tt.Type)
 				return false
 			}
+			return true
 		}
 		return false
 	})
