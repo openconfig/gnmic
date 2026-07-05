@@ -202,6 +202,47 @@ func TestOTLP_MetricTypeDetection(t *testing.T) {
 	}
 }
 
+func TestOTLP_InitCompilesCounterPatterns(t *testing.T) {
+	server, endpoint := startMockOTLPServer(t)
+	defer server.Stop()
+
+	cfg := map[string]interface{}{
+		"endpoint":         endpoint,
+		"protocol":         "grpc",
+		"timeout":          "5s",
+		"batch-size":       1,
+		"interval":         "100ms",
+		"counter-patterns": []string{"counters", "octets"},
+	}
+
+	output := &otlpOutput{}
+	err := output.Init(context.Background(), "test-otlp", cfg,
+		outputs.WithConfigStore(gomap.NewMemStore(store.StoreOptions[any]{})),
+	)
+	require.NoError(t, err)
+	defer output.Close()
+
+	stored := output.cfg.Load()
+	require.Len(t, stored.counterRegexes, 2)
+
+	event := &formatters.EventMsg{
+		Name:      "interfaces",
+		Timestamp: time.Now().UnixNano(),
+		Tags: map[string]string{
+			"source": "10.0.0.1:57400",
+		},
+		Values: map[string]interface{}{
+			"/interfaces/interface/state/counters/out-octets": int64(1000),
+		},
+	}
+	otlpMetrics := output.convertToOTLP([]*formatters.EventMsg{event})
+	require.NotNil(t, otlpMetrics)
+	require.Len(t, otlpMetrics.ResourceMetrics, 1)
+	metric := otlpMetrics.ResourceMetrics[0].ScopeMetrics[0].Metrics[0]
+	require.NotNil(t, metric.GetSum(), "counter-patterns should classify matching values as Sum after Init")
+	assert.True(t, metric.GetSum().IsMonotonic)
+}
+
 // Test 5: gRPC Transport
 func TestOTLP_GRPCTransport(t *testing.T) {
 	server, endpoint := startMockOTLPServer(t)

@@ -11,6 +11,7 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/utils"
 	"github.com/openconfig/gnmic/pkg/cache"
 	collstore "github.com/openconfig/gnmic/pkg/collector/store"
+	"github.com/openconfig/gnmic/pkg/config"
 	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	"github.com/openconfig/gnmic/pkg/pipeline"
@@ -228,22 +229,21 @@ func (mgr *OutputsManager) createOutput(name string, cfg map[string]any) {
 	}
 	impl := f()
 
-	opts := make([]outputs.Option, 0, 2)
-	opts = append(opts,
+	opts := []outputs.Option{
 		outputs.WithName(name),
 		outputs.WithConfigStore(mgr.store.Config),
 		outputs.WithLogger(mgr.logger),
-	)
+		outputs.WithRegistry(mgr.reg),
+	}
 
-	clustering, ok, err := mgr.store.Config.Get("global", "clustering")
+	clustering, ok, err := mgr.store.Config.Get("clustering", "clustering")
 	if err != nil {
 		mgr.logger.Error("failed to get clustering for output", "name", name, "error", err)
 		return
 	}
 	if ok {
-		clus, ok := clustering.(map[string]any)
-		if cname, cOk := clus["cluster-name"].(string); cOk && ok {
-			opts = append(opts, outputs.WithClusterName(cname))
+		if clus, ok := clustering.(*config.Clustering); ok && clus.ClusterName != "" {
+			opts = append(opts, outputs.WithClusterName(clus.ClusterName))
 		}
 	}
 
@@ -264,12 +264,13 @@ func (mgr *OutputsManager) createOutput(name string, cfg map[string]any) {
 
 func (mgr *OutputsManager) updateOutput(name string, cfg map[string]any) {
 	mgr.mu.Lock()
-	defer mgr.mu.Unlock()
 	mo, ok := mgr.outputs[name]
 	if !ok {
+		mgr.mu.Unlock()
 		mgr.createOutput(name, cfg)
 		return
 	}
+	mgr.mu.Unlock()
 
 	mgr.logger.Info("updating output", "name", name, "cfg", cfg)
 	mo.Lock()
@@ -282,11 +283,12 @@ func (mgr *OutputsManager) updateOutput(name string, cfg map[string]any) {
 	oldProcs := extractProcessors(mo.Cfg)
 	newProcs := extractProcessors(cfg)
 	mgr.logger.Info("tracking output processors in use", "name", name, "oldProcs", oldProcs, "newProcs", newProcs)
+	mgr.mu.Lock()
 	mgr.untrackProcessorsInUse(name, oldProcs)
 	mgr.trackProcessorsInUse(name, newProcs)
+	mgr.mu.Unlock()
 	mgr.logger.Info("updated output", "name", name, "cfg", cfg)
 	mo.Cfg = cfg
-	mgr.outputs[name] = mo
 }
 
 func (mgr *OutputsManager) StopOutput(name string) error {

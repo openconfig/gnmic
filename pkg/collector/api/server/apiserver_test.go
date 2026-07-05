@@ -116,6 +116,11 @@ func TestCreateListener_TCP(t *testing.T) {
 	}
 }
 
+func TestServer_StopWithoutStart(t *testing.T) {
+	s := newTestServer(t)
+	s.Stop() // must not panic when API server was never started
+}
+
 func TestServer_Routes_HealthzAndMetrics(t *testing.T) {
 	s := newTestServer(t)
 	ts := httptest.NewServer(s.router)

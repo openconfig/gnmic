@@ -15,12 +15,12 @@ import (
 // Apply request is a request to apply the configuration to the collector.
 // Any object that is not provided in the request is deleted.
 type ConfigApplyRequest struct {
-	Targets             map[string]*types.TargetConfig       `json:"targets"`
-	Subscriptions       map[string]*types.SubscriptionConfig `json:"subscriptions"`
-	Outputs             map[string]map[string]any            `json:"outputs"`
-	Inputs              map[string]map[string]any            `json:"inputs"`
-	Processors          map[string]map[string]any            `json:"processors"`
-	TunnelTargetMatches map[string]*config.TunnelTargetMatch `json:"tunnel-target-matches"`
+	Targets             map[string]*types.TargetConfig       `json:"targets" mapstructure:"targets"`
+	Subscriptions       map[string]*types.SubscriptionConfig `json:"subscriptions" mapstructure:"subscriptions"`
+	Outputs             map[string]map[string]any            `json:"outputs" mapstructure:"outputs"`
+	Inputs              map[string]map[string]any            `json:"inputs" mapstructure:"inputs"`
+	Processors          map[string]map[string]any            `json:"processors" mapstructure:"processors"`
+	TunnelTargetMatches map[string]*config.TunnelTargetMatch `json:"tunnel-target-matches" mapstructure:"tunnel-target-matches"`
 }
 
 func validateApplyRequest(req *ConfigApplyRequest) error {

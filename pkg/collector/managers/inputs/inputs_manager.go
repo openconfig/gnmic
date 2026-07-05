@@ -146,12 +146,14 @@ func (mgr *InputsManager) createInput(name string, cfg map[string]any) {
 
 func (mgr *InputsManager) updateInput(name string, cfg map[string]any) {
 	mgr.mu.Lock()
-	defer mgr.mu.Unlock()
 	mi, ok := mgr.inputs[name]
 	if !ok {
+		mgr.mu.Unlock()
 		mgr.createInput(name, cfg)
 		return
 	}
+	mgr.mu.Unlock()
+
 	mgr.logger.Info("updating input", "name", name, "cfg", cfg)
 	mi.Lock()
 	defer mi.Unlock()
@@ -163,11 +165,12 @@ func (mgr *InputsManager) updateInput(name string, cfg map[string]any) {
 	oldProcs := extractProcessors(mi.Cfg)
 	newProcs := extractProcessors(cfg)
 	mgr.logger.Info("tracking input processors in use", "name", name, "oldProcs", oldProcs, "newProcs", newProcs)
+	mgr.mu.Lock()
 	mgr.untrackProcessorsInUse(name, oldProcs)
 	mgr.trackProcessorsInUse(name, newProcs)
+	mgr.mu.Unlock()
 	mgr.logger.Info("updated input", "name", name, "cfg", cfg)
 	mi.Cfg = cfg
-	mgr.inputs[name] = mi
 }
 
 func (mgr *InputsManager) DeleteInput(name string) error {

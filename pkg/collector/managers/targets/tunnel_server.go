@@ -239,39 +239,26 @@ func (ts *tunnelServer) serverHandler(ss tunnel.ServerSession, rwc io.ReadWriteC
 
 func (ts *tunnelServer) getTunnelTargetMatch(tt tunnel.Target) *types.TargetConfig {
 	matchingConfigs, err := ts.store.List("tunnel-target-matches", func(key string, value any) bool {
-		switch tm := value.(type) {
-		case *config.TunnelTargetMatch:
-			// check if the registering target matches corresponding ID
-			ok, err := regexp.MatchString(tm.ID, tt.ID)
-			if err != nil {
-				ts.logger.Error("regex eval failed with string", "error", err, "id", tm.ID, "target", tt.ID)
-				return false
-			}
-			if !ok {
-				return false
-			}
-			// check if the registering target matches corresponding type
-			ok, err = regexp.MatchString(tm.Type, tt.Type)
-			if err != nil {
-				ts.logger.Error("regex eval failed with string", "error", err, "type", tm.Type, "target", tt.Type)
-				return false
-			}
-			if !ok {
-				return false
-			}
-			// target has a match,
-			tc := new(types.TargetConfig)
-			*tc = tm.Config
-			tc.Name = tt.ID
-			tc.TunnelTargetType = tt.Type
-			err = config.SetTargetConfigDefaults(ts.store, tc)
-			if err != nil {
-				ts.logger.Error("failed to set target config defaults", "error", err, "id", tt.ID, "type", tt.Type)
-				return false
-			}
-			return true
+		tm, ok := value.(*config.TunnelTargetMatch)
+		if !ok {
+			return false
 		}
-		return false
+		// check if the registering target matches corresponding ID
+		ok, err := regexp.MatchString(tm.ID, tt.ID)
+		if err != nil {
+			ts.logger.Error("regex eval failed with string", "error", err, "id", tm.ID, "target", tt.ID)
+			return false
+		}
+		if !ok {
+			return false
+		}
+		// check if the registering target matches corresponding type
+		ok, err = regexp.MatchString(tm.Type, tt.Type)
+		if err != nil {
+			ts.logger.Error("regex eval failed with string", "error", err, "type", tm.Type, "target", tt.Type)
+			return false
+		}
+		return ok
 	})
 	if err != nil {
 		ts.logger.Error("failed to list tunnel target matches", "error", err)

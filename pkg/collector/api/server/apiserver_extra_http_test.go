@@ -419,7 +419,7 @@ func TestServer_RuntimeTargetsHTTP(t *testing.T) {
 		}
 	})
 	t.Run("state post missing target", func(t *testing.T) {
-		req, err := http.NewRequest(http.MethodPost, ts.URL+"/api/v1/targets/nope/state/running", nil)
+		req, err := http.NewRequest(http.MethodPost, ts.URL+"/api/v1/targets/nope/state/enabled", nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -430,6 +430,36 @@ func TestServer_RuntimeTargetsHTTP(t *testing.T) {
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusNotFound {
 			t.Fatalf("status %d", resp.StatusCode)
+		}
+	})
+	t.Run("config state post missing target", func(t *testing.T) {
+		resp, err := http.Post(
+			ts.URL+"/api/v1/config/targets/nope/state",
+			"application/json",
+			strings.NewReader(`{"state":"enabled"}`),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusNotFound {
+			b, _ := io.ReadAll(resp.Body)
+			t.Fatalf("status %d: %s", resp.StatusCode, b)
+		}
+	})
+	t.Run("config state post missing state", func(t *testing.T) {
+		resp, err := http.Post(
+			ts.URL+"/api/v1/config/targets/t1/state",
+			"application/json",
+			strings.NewReader(`{}`),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusBadRequest {
+			b, _ := io.ReadAll(resp.Body)
+			t.Fatalf("status %d: %s", resp.StatusCode, b)
 		}
 	})
 }
@@ -471,6 +501,18 @@ func TestServer_ConfigTunnelTargetMatchesHTTP(t *testing.T) {
 	})
 	t.Run("post minimal", func(t *testing.T) {
 		body := `{"id":"ttm1","type":"regex"}`
+		resp, err := http.Post(ts.URL+"/api/v1/config/tunnel-target-matches", "application/json", strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			b, _ := io.ReadAll(resp.Body)
+			t.Fatalf("status %d: %s", resp.StatusCode, b)
+		}
+	})
+	t.Run("post config timeout duration string", func(t *testing.T) {
+		body := `{"id":"ttm-dur","type":"GNMI_GNOI","config":{"timeout":"10s","username":"admin"}}`
 		resp, err := http.Post(ts.URL+"/api/v1/config/tunnel-target-matches", "application/json", strings.NewReader(body))
 		if err != nil {
 			t.Fatal(err)
