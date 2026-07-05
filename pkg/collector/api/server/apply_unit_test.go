@@ -5,12 +5,93 @@
 package apiserver
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/openconfig/gnmic/pkg/api/types"
+	collstore "github.com/openconfig/gnmic/pkg/collector/store"
 	"github.com/openconfig/gnmic/pkg/config"
+	"github.com/prometheus/client_golang/prometheus"
+	zstore "github.com/zestor-dev/zestor/store"
+	"github.com/zestor-dev/zestor/store/gomap"
 )
+
+func newApplyTestServer(t *testing.T) *Server {
+	t.Helper()
+	st := collstore.NewStore(gomap.NewMemStore(zstore.StoreOptions[any]{}))
+	return NewServer(st, nil, nil, nil, nil, prometheus.NewRegistry())
+}
+
+func postConfigApply(t *testing.T, s *Server, body string) *http.Response {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/config/apply", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.handleConfigApply(w, req)
+	return w.Result()
+}
+
+// Regression: /config/apply must not delete tunnel-managed targets when the
+// request body omits targets (Go apply.go skips entries with TunnelTargetType set).
+func TestHandleConfigApply_preservesTunnelTargets(t *testing.T) {
+	s := newApplyTestServer(t)
+
+	static := &types.TargetConfig{
+		Name:    "router1",
+		Address: "10.0.0.1:57400",
+	}
+	if _, err := s.store.Config.Set("targets", static.Name, static); err != nil {
+		t.Fatalf("seed static target: %v", err)
+	}
+
+	tunnel := &types.TargetConfig{
+		Name:             "srl1",
+		TunnelTargetType: "GNMI_GNOI",
+		Subscriptions:    []string{"ifaces"},
+	}
+	if _, err := s.store.Config.Set("targets", tunnel.Name, tunnel); err != nil {
+		t.Fatalf("seed tunnel target: %v", err)
+	}
+
+	applyBody := `{
+		"subscriptions": {
+			"ifaces": {
+				"name": "ifaces",
+				"paths": ["/interfaces/interface/state/counters"],
+				"mode": "STREAM",
+				"stream-mode": "TARGET_DEFINED"
+			}
+		}
+	}`
+	resp := postConfigApply(t, s, applyBody)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("apply status %d", resp.StatusCode)
+	}
+
+	if _, ok, err := s.store.Config.Get("targets", "router1"); err != nil {
+		t.Fatalf("get static target: %v", err)
+	} else if ok {
+		t.Fatal("expected static target router1 to be deleted when omitted from apply body")
+	}
+
+	got, ok, err := s.store.Config.Get("targets", "srl1")
+	if err != nil {
+		t.Fatalf("get tunnel target: %v", err)
+	}
+	if !ok {
+		t.Fatal("expected tunnel target srl1 to be preserved when omitted from apply body")
+	}
+	tc, ok := got.(*types.TargetConfig)
+	if !ok {
+		t.Fatalf("tunnel target type: %T", got)
+	}
+	if tc.TunnelTargetType != "GNMI_GNOI" {
+		t.Fatalf("tunnel-target-type: got %q want GNMI_GNOI", tc.TunnelTargetType)
+	}
+}
 
 func TestValidateApplyRequest(t *testing.T) {
 	tests := []struct {

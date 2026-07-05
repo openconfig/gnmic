@@ -364,16 +364,36 @@ func (s *Server) targetResponseFromState(name string, cfg *types.TargetConfig, t
 	return resp
 }
 
-// change target state to running/stopped by sending a POST request to the target id
+// change target state to enabled/disabled.
 func (s *Server) handleTargetsStatePost(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
+	state := vars["state"]
+	s.setTargetIntendedState(w, id, state)
+}
+
+func (s *Server) handleConfigTargetsStatePost(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+	defer r.Body.Close()
+
+	var req struct {
+		State string `json:"state"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		return
+	}
+	s.setTargetIntendedState(w, id, req.State)
+}
+
+func (s *Server) setTargetIntendedState(w http.ResponseWriter, id, state string) {
 	if id == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"target id is required"}})
 		return
 	}
-	state := vars["state"]
 	if state == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"target state is required"}})

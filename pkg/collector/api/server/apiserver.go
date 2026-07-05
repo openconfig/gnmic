@@ -122,6 +122,9 @@ func (s *Server) Start(locker lockers.Locker, wg *sync.WaitGroup) error {
 }
 
 func (s *Server) Stop() {
+	if s.srv == nil {
+		return
+	}
 	s.logger.Info("stopping API server")
 	err := s.srv.Shutdown(context.Background()) // TODO: change context ?
 	if err != nil {

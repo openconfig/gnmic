@@ -291,7 +291,6 @@ func (tm *TargetsManager) Start(locker lockers.Locker, wg *sync.WaitGroup) error
 				case store.EventTypeDelete:
 					tm.setAssigned(ev.Name, false)
 				}
-				go tm.reconcileAssignment(ev.Name)
 			}
 		}
 	}()
@@ -455,7 +454,7 @@ func (tm *TargetsManager) start(mt *ManagedTarget) error {
 		tm.setTargetState(mt.Name, collstore.StateFailed)
 		return err
 	}
-	if tm.locker != nil {
+	if tm.locker != nil && tm.incluster {
 		tm.logger.Info("acquiring lock for target", "name", mt.Name)
 		ok, err := tm.locker.Lock(ctx, tm.targetLockKey(mt.Name), []byte(tm.clustering.InstanceName))
 		if err != nil {
@@ -470,7 +469,7 @@ func (tm *TargetsManager) start(mt *ManagedTarget) error {
 			mt.setLastError("lock not acquired")
 			tm.setTargetState(mt.Name, collstore.StateFailed)
 			_ = tm.stop(mt)
-			return err
+			return fmt.Errorf("lock not acquired for target %s", mt.Name)
 		}
 		// keep lock
 		go func() {
@@ -602,7 +601,7 @@ func (tm *TargetsManager) stop(mt *ManagedTarget) error {
 		tm.logger.Info("closed target", "name", mt.Name)
 	}
 	tm.setTargetState(mt.Name, collstore.StateStopped)
-	if tm.locker != nil {
+	if tm.locker != nil && tm.incluster {
 		tm.logger.Info("releasing lock for target", "name", mt.Name)
 		err := tm.locker.Unlock(tm.ctx, tm.targetLockKey(mt.Name))
 		if err != nil {
@@ -959,39 +958,39 @@ func (tm *TargetsManager) compareSubscriptions(old, new []string) (added, remove
 }
 
 func (tm *TargetsManager) compareOutputs(old, new *types.TargetConfig) (added, removed []string) {
-	if len(new.Outputs) == 0 {
-		// get all outputs from the store
+	var outputsList []string
+	if len(new.Outputs) == 0 || len(old.Outputs) == 0 {
 		outputs, err := tm.store.Config.List("outputs")
 		if err != nil {
 			tm.logger.Error("failed to get outputs", "error", err)
 			return nil, nil
 		}
-		new.Outputs = keys(outputs)
+		outputsList = keys(outputs)
 	}
-	if len(old.Outputs) == 0 {
-		// get all outputs from the store
-		outputs, err := tm.store.Config.List("outputs")
-		if err != nil {
-			tm.logger.Error("failed to get outputs", "error", err)
-			return nil, nil
-		}
-		old.Outputs = keys(outputs)
-		return nil, old.Outputs
+
+	oldOuts := append([]string(nil), old.Outputs...)
+	newOuts := append([]string(nil), new.Outputs...)
+	if len(newOuts) == 0 {
+		newOuts = outputsList
 	}
-	oldOutputs := make(map[string]struct{}, len(old.Outputs))
-	newOutputs := make(map[string]struct{}, len(new.Outputs))
-	for _, output := range old.Outputs {
+	if len(oldOuts) == 0 {
+		oldOuts = outputsList
+	}
+
+	oldOutputs := make(map[string]struct{}, len(oldOuts))
+	newOutputs := make(map[string]struct{}, len(newOuts))
+	for _, output := range oldOuts {
 		oldOutputs[output] = struct{}{}
 	}
-	for _, output := range new.Outputs {
+	for _, output := range newOuts {
 		newOutputs[output] = struct{}{}
 	}
-	for _, output := range old.Outputs {
+	for _, output := range oldOuts {
 		if _, ok := newOutputs[output]; !ok {
 			removed = append(removed, output)
 		}
 	}
-	for _, output := range new.Outputs {
+	for _, output := range newOuts {
 		if _, ok := oldOutputs[output]; !ok {
 			added = append(added, output)
 		}
