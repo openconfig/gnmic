@@ -542,6 +542,10 @@ func (f *File) Close() error {
 	if fileHandle == nil {
 		return nil
 	}
+	// Do not close the shared process stdout/stderr.
+	if *fileHandle == os.Stdout || *fileHandle == os.Stderr {
+		return nil
+	}
 	f.logger.Info("closing file output", "file", (*fileHandle).Name())
 	return (*fileHandle).Close()
 }

@@ -228,12 +228,12 @@ func (mgr *OutputsManager) createOutput(name string, cfg map[string]any) {
 	}
 	impl := f()
 
-	opts := make([]outputs.Option, 0, 2)
-	opts = append(opts,
+	opts := []outputs.Option{
 		outputs.WithName(name),
 		outputs.WithConfigStore(mgr.store.Config),
 		outputs.WithLogger(mgr.logger),
-	)
+		outputs.WithRegistry(mgr.reg),
+	}
 
 	clustering, ok, err := mgr.store.Config.Get("global", "clustering")
 	if err != nil {

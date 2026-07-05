@@ -61,12 +61,21 @@ func (s *Server) handleConfigTunnelTargetMatchesPost(w http.ResponseWriter, r *h
 		return
 	}
 	tc := new(config.TunnelTargetMatch)
-	if err := mapstructure.Decode(m, tc); err != nil {
+	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+		DecodeHook: mapstructure.StringToTimeDurationHookFunc(),
+		Result:     tc,
+	})
+	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
-	_, err := s.store.Config.Set(tunnelTargetMatchesPath, tc.ID, tc)
+	if err := decoder.Decode(m); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		return
+	}
+	_, err = s.store.Config.Set(tunnelTargetMatchesPath, tc.ID, tc)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})

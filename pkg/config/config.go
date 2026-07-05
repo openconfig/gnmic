@@ -461,6 +461,25 @@ func (c *Config) ToStore(s store.Store[any]) error {
 	if err != nil {
 		return err
 	}
+	// tunnel-server.targets from file config are match rules; mirror them into the
+	// tunnel-target-matches store kind used by the collector tunnel server at runtime.
+	if c.TunnelServer != nil {
+		for _, tm := range c.TunnelServer.Targets {
+			if tm == nil {
+				continue
+			}
+			key := tm.ID
+			if key == "" {
+				key = tm.Type
+			}
+			if key == "" {
+				continue
+			}
+			if _, err = s.Set("tunnel-target-matches", key, tm); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 

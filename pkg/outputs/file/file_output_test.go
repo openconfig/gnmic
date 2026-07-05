@@ -10,6 +10,7 @@ package file
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -127,8 +128,37 @@ func TestFile_InitStdoutLifecycle(t *testing.T) {
 	if err := f.Update(context.Background(), map[string]any{"concurrency-limit": "x"}); err == nil {
 		t.Errorf("expected decode error")
 	}
-	// Note: not calling Close() because the file handle is os.Stdout which
-	// would actually close stdout for the rest of the test process.
+	// Note: not calling Close() here; see TestFile_CloseStdoutIsNoop which
+	// asserts closing a stdout output is a safe no-op.
+}
+
+// TestFile_CloseStdoutIsNoop is a regression test: Close() on a file output
+// backed by os.Stdout/os.Stderr must not close the shared process fd. Otherwise
+// deleting one stdout output would break the collector's logging and cause a
+// "file already closed" error when a second stdout output is closed.
+func TestFile_CloseStdoutIsNoop(t *testing.T) {
+	cfg := map[string]any{"file-type": "stdout", "format": "json"}
+
+	f1 := &File{}
+	if err := f1.Init(context.Background(), "out1", cfg, outputs.WithConfigStore(newStore())); err != nil {
+		t.Fatalf("Init out1: %v", err)
+	}
+	f2 := &File{}
+	if err := f2.Init(context.Background(), "out2", cfg, outputs.WithConfigStore(newStore())); err != nil {
+		t.Fatalf("Init out2: %v", err)
+	}
+
+	if err := f1.Close(); err != nil {
+		t.Fatalf("Close out1: %v", err)
+	}
+	// Before the fix this second close returned "file already closed".
+	if err := f2.Close(); err != nil {
+		t.Fatalf("Close out2: %v", err)
+	}
+	// os.Stdout must still be open/usable.
+	if _, err := os.Stdout.Stat(); err != nil {
+		t.Fatalf("os.Stdout was closed by File.Close(): %v", err)
+	}
 }
 
 func TestFile_InitRegularFile(t *testing.T) {

@@ -481,6 +481,18 @@ func TestServer_ConfigTunnelTargetMatchesHTTP(t *testing.T) {
 			t.Fatalf("status %d: %s", resp.StatusCode, b)
 		}
 	})
+	t.Run("post config timeout duration string", func(t *testing.T) {
+		body := `{"id":"ttm-dur","type":"GNMI_GNOI","config":{"timeout":"10s","username":"admin"}}`
+		resp, err := http.Post(ts.URL+"/api/v1/config/tunnel-target-matches", "application/json", strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			b, _ := io.ReadAll(resp.Body)
+			t.Fatalf("status %d: %s", resp.StatusCode, b)
+		}
+	})
 	t.Run("delete", func(t *testing.T) {
 		req, err := http.NewRequest(http.MethodDelete, ts.URL+"/api/v1/config/tunnel-target-matches/ttm1", nil)
 		if err != nil {
