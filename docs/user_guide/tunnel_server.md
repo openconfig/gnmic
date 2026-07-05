@@ -221,3 +221,12 @@ $ gnmic -a localhost:57400 --insecure \
 ```
 
 For detailed configuration of the `gnmi-server` check this [page](./gnmi_server.md)
+
+## Collector mode
+
+In [collector mode](./collector/collector_intro.md), the tunnel server runs continuously and match rules are stored in the `tunnel-target-matches` config store.
+
+- **Startup file**: define rules under `tunnel-server.targets`; they are mirrored into the store when the collector loads the configuration file.
+- **Runtime**: manage rules via the [Collector REST API](./collector/collector_api.md#tunnel-target-matches).
+
+The rule schema (`id`, `type`, nested `config`) is the same as shown in [Combining Tunnel server with a gNMI server](#combining-tunnel-server-with-a-gnmi-server) above.

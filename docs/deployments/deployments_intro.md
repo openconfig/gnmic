@@ -22,6 +22,7 @@ These examples showcase single `gnmic` instance deployments with the most common
 - NATS output: [clab](single-instance/containerlab/nats-output.md), [docker-compose](single-instance/docker-compose/nats-output.md) 
 - Kafka output: [clab](single-instance/containerlab/kafka-output.md), [docker-compose](single-instance/docker-compose/kafka-output.md)
 - InfluxDB output: [clab](single-instance/containerlab/influxdb-output.md), [docker-compose](single-instance/docker-compose/influxdb-output.md)
+- ClickHouse output: [clab](single-instance/containerlab/clickhouse-output.md)
 - Prometheus output: [clab](single-instance/containerlab/prometheus-output.md), [docker-compose](single-instance/docker-compose/prometheus-output.md)
 - Multiple outputs: [clab](single-instance/containerlab/multiple-outputs.md), [docker-compose](single-instance/docker-compose/multiple-outputs.md)
 

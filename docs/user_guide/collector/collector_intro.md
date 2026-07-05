@@ -26,8 +26,18 @@ The cluster uses a distributed locker, such as **Consul**, for:
 
 ## Tunnel Target Support
 
-The collector supports gRPC tunnel, it will accept connections from gNMI tunnel targets.
-The tunnel target configutation is done using tunnel-target-matches.
+The collector supports gRPC tunnel and accepts connections from gNMI dial-out targets.
+
+Match rules are stored in the `tunnel-target-matches` config store at runtime:
+
+- **Startup file**: define rules under `tunnel-server.targets`; they are mirrored into the store when the collector loads the configuration file.
+- **Runtime**: add, update, or remove rules via the [REST API](./collector_api.md#tunnel-target-matches) or `POST /api/v1/config/apply`.
+
+When a target registers over the tunnel, the collector matches its ID and type against these rules and creates a managed target with the subscriptions and outputs from the rule's `config` block.
+
+Targets created by the tunnel server are preserved when omitted from a `/config/apply` request (see [Apply Configuration](./collector_api.md#apply-configuration)).
+
+For subscribe-mode tunnel server behavior, see [Tunnel Server](../tunnel_server.md).
 
 ## Comparison with Subscribe Command
 
