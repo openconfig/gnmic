@@ -197,6 +197,9 @@ func (o *otlpOutput) Init(ctx context.Context, name string, cfg map[string]inter
 		ncfg.Name = options.Name
 	}
 	o.setDefaultsFor(ncfg)
+	if err := o.validateConfig(ncfg); err != nil {
+		return err
+	}
 
 	// Apply logger
 	o.logger = outputs.BindLogger(options.Logger, outputType, ncfg.Name)

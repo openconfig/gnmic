@@ -1196,6 +1196,76 @@ func TestOTLP_ChannelCloseFlushes(t *testing.T) {
 	assert.Greater(t, server.ReceivedMetricsCount(), 0, "Remaining batch should be flushed when channel closes")
 }
 
+// TestOTLP_InitCompilesCounterPatterns verifies that Init (the subscribe path)
+// compiles counter-patterns into counterRegexes so that isCounter honors them at
+// runtime. Before the fix, Init only called setDefaultsFor and stored the config
+// without validateConfig, leaving counterRegexes nil so every metric exported as a
+// Gauge in subscribe mode.
+func TestOTLP_InitCompilesCounterPatterns(t *testing.T) {
+	cfg := map[string]interface{}{
+		"endpoint":         "unreachable-host:4317",
+		"protocol":         "grpc",
+		"timeout":          "1s",
+		"counter-patterns": []string{"counters", "octets|packets"},
+	}
+
+	output := &otlpOutput{}
+	err := output.Init(context.Background(), "test-otlp", cfg,
+		outputs.WithConfigStore(gomap.NewMemStore(store.StoreOptions[any]{})),
+	)
+	require.NoError(t, err, "Init should succeed with valid counter-patterns")
+	defer output.Close()
+
+	stored := output.cfg.Load()
+	require.NotNil(t, stored)
+	require.NotNil(t, stored.counterRegexes, "counterRegexes should be compiled by Init")
+	assert.Len(t, stored.counterRegexes, 2)
+
+	assert.True(t, output.isCounter(stored, "out-octets"), "matching key should be treated as a counter")
+	assert.False(t, output.isCounter(stored, "oper-status"), "non-matching key should not be a counter")
+}
+
+// TestOTLP_InitEmptyCounterPatterns verifies the default behavior is preserved:
+// with no counter-patterns, counterRegexes is non-nil but empty and every key is a
+// Gauge.
+func TestOTLP_InitEmptyCounterPatterns(t *testing.T) {
+	cfg := map[string]interface{}{
+		"endpoint": "unreachable-host:4317",
+		"protocol": "grpc",
+		"timeout":  "1s",
+	}
+
+	output := &otlpOutput{}
+	err := output.Init(context.Background(), "test-otlp", cfg,
+		outputs.WithConfigStore(gomap.NewMemStore(store.StoreOptions[any]{})),
+	)
+	require.NoError(t, err)
+	defer output.Close()
+
+	stored := output.cfg.Load()
+	require.NotNil(t, stored)
+	require.NotNil(t, stored.counterRegexes)
+	assert.Len(t, stored.counterRegexes, 0)
+	assert.False(t, output.isCounter(stored, "out-octets"))
+}
+
+// TestOTLP_InitInvalidCounterPattern verifies that an invalid regex in
+// counter-patterns causes Init to fail cleanly, matching the Update/Validate paths.
+func TestOTLP_InitInvalidCounterPattern(t *testing.T) {
+	cfg := map[string]interface{}{
+		"endpoint":         "unreachable-host:4317",
+		"protocol":         "grpc",
+		"timeout":          "1s",
+		"counter-patterns": []string{"["},
+	}
+
+	output := &otlpOutput{}
+	err := output.Init(context.Background(), "test-otlp", cfg,
+		outputs.WithConfigStore(gomap.NewMemStore(store.StoreOptions[any]{})),
+	)
+	assert.Error(t, err, "Init should fail on an invalid counter-pattern")
+}
+
 // Helper to extract attributes map from KeyValue slice
 func extractAttributesMap(attrs []*commonpb.KeyValue) map[string]string {
 	result := make(map[string]string)
