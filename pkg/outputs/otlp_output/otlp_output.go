@@ -14,8 +14,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net"
+	"net/http"
 	"regexp"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -40,12 +43,17 @@ import (
 )
 
 const (
-	outputType        = "otlp"
-	defaultTimeout    = 10 * time.Second
-	defaultBatchSize  = 1000
-	defaultNumWorkers = 1
-	defaultMaxRetries = 3
-	defaultProtocol   = "grpc"
+	outputType             = "otlp"
+	defaultTimeout         = 10 * time.Second
+	defaultBatchSize       = 1000
+	defaultNumWorkers      = 1
+	defaultMaxRetries      = 3
+	defaultProtocol        = "grpc"
+	defaultCompressionHTTP = "gzip" // default-on for protocol: http; gRPC unaffected
+	// maxRetryAfter caps a server-supplied Retry-After to prevent a single bad
+	// response from pinning a worker for arbitrarily long. Operators rebalancing
+	// or upgrading Panoptes occasionally emit large values.
+	maxRetryAfter = 30 * time.Second
 )
 
 func init() {
@@ -58,10 +66,14 @@ func init() {
 type otlpOutput struct {
 	outputs.BaseOutput
 
-	cfg       *atomic.Pointer[config]
-	dynCfg    *atomic.Pointer[dynConfig]
-	grpcState *atomic.Pointer[grpcClientState]
-	eventCh   *atomic.Pointer[chan *formatters.EventMsg]
+	state *atomic.Pointer[outputState]
+	// stateMu serializes the (Load, state.transport.inFlight.Add(1)) pair in
+	// sendBatch with Update's (Swap, start Wait) so we never Add to a
+	// WaitGroup whose Wait has already returned 0. Held briefly — no
+	// contention at gnmic batching rates (1-10 Hz).
+	stateMu sync.Mutex
+	dynCfg  *atomic.Pointer[dynConfig]
+	eventCh *atomic.Pointer[chan *formatters.EventMsg]
 
 	logger   *slog.Logger
 	rootCtx  context.Context
@@ -69,9 +81,68 @@ type otlpOutput struct {
 	wg       *sync.WaitGroup
 
 	// Metrics
-	reg *prometheus.Registry
+	reg               *prometheus.Registry
+	registeredMetrics []prometheus.Collector // collectors this instance successfully registered
 	// store
 	store store.Store[any]
+}
+
+// transportState owns the protocol-level connection (gRPC conn or HTTP
+// Transport) and the inFlight WaitGroup that tracks every batch currently
+// using it. It is held by outputState through a pointer so a config-only
+// reload can publish a new outputState that shares the same transportState
+// — every concurrent batch, regardless of which outputState revision it
+// captured, increments the same inFlight. A subsequent rebuild reload
+// allocates a new transportState; cleanup of the old transportState
+// blocks on its inFlight before closing the underlying conn/Transport,
+// so an active batch can never observe a torn-down transport.
+//
+// transportState contains a sync.WaitGroup, so it must never be copied —
+// only passed/stored as *transportState.
+type transportState struct {
+	grpcState *grpcClientState // nil when protocol != grpc
+	httpState *httpClientState // nil when protocol != http
+
+	// inFlight tracks every concurrent user of this transport, across all
+	// outputStates that share this *transportState. sendBatch increments
+	// under stateMu before unlocking; Done() fires from a defer. Cleanup
+	// (in Update's rebuild path and Close) Waits on this before closing
+	// conn/Transport.
+	inFlight sync.WaitGroup
+}
+
+// cleanup releases the transport-level resources held here.
+// Safe on a nil receiver and on a transportState whose protocol-specific
+// fields are already nil.
+func (t *transportState) cleanup() {
+	if t == nil {
+		return
+	}
+	if t.grpcState != nil && t.grpcState.conn != nil {
+		_ = t.grpcState.conn.Close()
+	}
+	if t.httpState != nil && t.httpState.client != nil {
+		if tr, ok := t.httpState.client.Transport.(*http.Transport); ok {
+			tr.CloseIdleConnections()
+		}
+	}
+}
+
+// outputState bundles the consistent (cfg, transport) tuple. Workers Load()
+// this once at the top of sendBatch and dispatch against the snapshot — a
+// concurrent Update() that swaps protocol cannot tear the pair, eliminating
+// the "X client not initialized" race when a worker raced cfg.Load against
+// transport-pointer Swap.
+//
+// Config-only reloads share the same *transportState pointer with the
+// previous outputState; only a transport-rebuild reload allocates a new
+// transportState. This guarantees that the inFlight WaitGroup which
+// cleanup waits on really does account for every batch in flight on
+// that transport, regardless of how many config-only reloads were layered
+// on top of it.
+type outputState struct {
+	cfg       *config
+	transport *transportState
 }
 
 type dynConfig struct {
@@ -101,6 +172,11 @@ type config struct {
 	BatchSize  int           `mapstructure:"batch-size,omitempty"`
 	Interval   time.Duration `mapstructure:"interval,omitempty"`
 	BufferSize int           `mapstructure:"buffer-size,omitempty"`
+
+	// Compression applied to the HTTP request body. Only honored when protocol: http.
+	// Valid values: "none", "gzip". Defaults to "gzip" when protocol is "http".
+	// The gRPC path ignores this field.
+	Compression string `mapstructure:"compression,omitempty"`
 
 	// Retry
 	MaxRetries int `mapstructure:"max-retries,omitempty"`
@@ -154,21 +230,68 @@ type config struct {
 }
 
 func (o *otlpOutput) initFields() {
-	o.cfg = new(atomic.Pointer[config])
+	o.state = new(atomic.Pointer[outputState])
 	o.dynCfg = new(atomic.Pointer[dynConfig])
-	o.grpcState = new(atomic.Pointer[grpcClientState])
 	o.eventCh = new(atomic.Pointer[chan *formatters.EventMsg])
 	o.wg = new(sync.WaitGroup)
 	o.logger = logging.DiscardLogger()
 }
 
+// loadCfg returns the currently-published config, or nil if state was never
+// stored. Centralizing the deref protects against a nil state.Load() in
+// places (such as String) that may be called pre-Init in tests.
+func (o *otlpOutput) loadCfg() *config {
+	if s := o.state.Load(); s != nil {
+		return s.cfg
+	}
+	return nil
+}
+
 func (o *otlpOutput) String() string {
-	cfg := o.cfg.Load()
+	cfg := o.loadCfg()
+	// Redact header values: operators put credentials in Headers (the docs
+	// recommend "Authorization: Bearer <token>"), and String() output lands
+	// in the reload log at Info level. Key names stay visible for debugging;
+	// values never do. The copy leaves the live config untouched.
+	if cfg != nil && len(cfg.Headers) > 0 {
+		redacted := *cfg
+		redacted.Headers = make(map[string]string, len(cfg.Headers))
+		for k := range cfg.Headers {
+			redacted.Headers[k] = "***"
+		}
+		cfg = &redacted
+	}
 	b, err := json.Marshal(cfg)
 	if err != nil {
 		return ""
 	}
 	return string(b)
+}
+
+// buildOutputState constructs an outputState for the given config. The error
+// path is exclusively transport-init failures; callers handle protocol-level
+// validation upstream via validateConfig.
+func (o *otlpOutput) buildOutputState(cfg *config) (*outputState, error) {
+	t := &transportState{}
+	switch cfg.Protocol {
+	case "grpc":
+		gs, err := o.initGRPCFor(cfg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize gRPC transport: %w", err)
+		}
+		t.grpcState = gs
+	case "http":
+		hs, err := o.initHTTPFor(cfg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize HTTP transport: %w", err)
+		}
+		t.httpState = hs
+	default:
+		// unreachable: validateConfig rejects this earlier. Kept as a
+		// defensive belt-and-suspenders to mirror Init's old switch.
+		return nil, fmt.Errorf("unsupported protocol %q: must be 'grpc' or 'http'", cfg.Protocol)
+	}
+	return &outputState{cfg: cfg, transport: t}, nil
 }
 
 // Init initializes the OTLP output
@@ -204,16 +327,22 @@ func (o *otlpOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	// Apply logger
 	o.logger = outputs.BindLogger(options.Logger, outputType, ncfg.Name)
 
-	o.cfg.Store(ncfg)
-
-	// Initialize registry
+	// Initialize registry and register metrics (no transport open yet).
 	o.reg = options.Registry
-	err = o.registerMetrics()
-	if err != nil {
+	if err := o.registerMetrics(ncfg); err != nil {
 		return err
 	}
 
-	// Initialize event processors
+	// From this point on, any error must unregister the collectors we just
+	// registered; otherwise a retry of Init will hit "duplicate registration".
+	initSucceeded := false
+	defer func() {
+		if !initSucceeded {
+			o.unregisterMetrics()
+		}
+	}()
+
+	// Build event processors (no transport open yet).
 	dc := new(dynConfig)
 	dc.evps, err = o.buildEventProcessors(ncfg)
 	if err != nil {
@@ -221,21 +350,16 @@ func (o *otlpOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	}
 	o.dynCfg.Store(dc)
 
-	// Initialize transport
-	switch ncfg.Protocol {
-	case "grpc":
-		gs, err := o.initGRPCFor(ncfg)
-		if err != nil {
-			return fmt.Errorf("failed to initialize gRPC transport: %w", err)
-		}
-		o.grpcState.Store(gs)
-	case "http":
-		return fmt.Errorf("HTTP transport not yet implemented")
-	default:
-		return fmt.Errorf("unsupported protocol '%s': must be 'grpc' or 'http'", ncfg.Protocol)
+	// Build and publish the outputState (cfg + transport). This is the last
+	// resource-allocating step that can fail; if buildOutputState succeeds,
+	// Init succeeds (worker startup below cannot fail).
+	state, err := o.buildOutputState(ncfg)
+	if err != nil {
+		return err
 	}
+	o.state.Store(state)
 
-	// Initialize worker channels
+	// Initialize worker channels and start workers.
 	eventCh := make(chan *formatters.EventMsg, ncfg.BufferSize)
 	o.eventCh.Store(&eventCh)
 
@@ -245,11 +369,12 @@ func (o *otlpOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	wctx, o.cancelFn = context.WithCancel(o.rootCtx)
 	o.wg.Add(ncfg.NumWorkers)
 	for i := 0; i < ncfg.NumWorkers; i++ {
-		go o.worker(wctx, i)
+		go o.worker(wctx, i, o.wg)
 	}
 
 	o.logger.Info("initialized OTLP output", "endpoint", ncfg.Endpoint, "protocol", ncfg.Protocol, "batch-size", ncfg.BatchSize, "workers", ncfg.NumWorkers)
 
+	initSucceeded = true
 	return nil
 }
 
@@ -265,13 +390,18 @@ func (o *otlpOutput) Update(ctx context.Context, cfg map[string]any) error {
 		return err
 	}
 
-	currCfg := o.cfg.Load()
+	currState := o.state.Load()
+	var currCfg *config
+	if currState != nil {
+		currCfg = currState.cfg
+	}
 
 	swapChannel := channelNeedsSwap(currCfg, newCfg)
 	restartWorkers := needsWorkerRestart(currCfg, newCfg)
-	rebuildGRPC := needsGRPCRebuild(currCfg, newCfg)
-	rebuildProcessors := slices.Compare(currCfg.EventProcessors, newCfg.EventProcessors) != 0
+	rebuildTransport := needsTransportRebuild(currCfg, newCfg)
+	rebuildProcessors := currCfg == nil || slices.Compare(currCfg.EventProcessors, newCfg.EventProcessors) != 0
 
+	// Build the new dynamic config into a local — do NOT publish yet.
 	dc := new(dynConfig)
 	prevDC := o.dynCfg.Load()
 	if rebuildProcessors {
@@ -282,20 +412,63 @@ func (o *otlpOutput) Update(ctx context.Context, cfg map[string]any) error {
 	} else if prevDC != nil {
 		dc.evps = prevDC.evps
 	}
-	o.dynCfg.Store(dc)
 
-	if rebuildGRPC {
-		gs, err := o.initGRPCFor(newCfg)
+	// Build the new transport into a local if a rebuild is needed — also do
+	// NOT publish yet. All fallible work must complete before any state is
+	// applied so that no error path leaves dynCfg or state mid-update.
+	//
+	// Publish the new outputState atomically. Two paths:
+	//   1) needsTransportRebuild → build a fresh transport and Swap. Workers
+	//      holding the old state reference can finish their batches; we
+	//      Wait() on the old state's inFlight WaitGroup before cleanup so
+	//      teardown happens after the last in-flight user — regardless of
+	//      Timeout × (MaxRetries+1) + maxRetryAfter.
+	//   2) Otherwise (e.g. batch-size, resource-tag-keys) → reuse the
+	//      transport pointers from the old state. No close, no rebuild.
+	var newState *outputState
+	if rebuildTransport {
+		newState, err = o.buildOutputState(newCfg)
 		if err != nil {
-			return fmt.Errorf("failed to rebuild gRPC transport: %w", err)
-		}
-		oldState := o.grpcState.Swap(gs)
-		if oldState != nil && oldState.conn != nil {
-			oldState.conn.Close()
+			return fmt.Errorf("failed to build new transport state: %w", err)
 		}
 	}
 
-	o.cfg.Store(newCfg)
+	// All fallible work is done. Publish dynCfg first, then the new outputState.
+	o.dynCfg.Store(dc)
+
+	if rebuildTransport {
+		o.stateMu.Lock()
+		oldState := o.state.Swap(newState)
+		o.stateMu.Unlock()
+		// Cleanup waits for actual in-flight users to drain — no wall-clock
+		// guess. inFlight lives on transportState, so it accounts for every
+		// batch using this transport across any config-only reloads that
+		// were layered on top of it. After they all complete (Done fires),
+		// the WaitGroup unblocks and we close the underlying transport.
+		// Run async so Update returns promptly. Swap returns nil if Update
+		// races Init (defensive — reachable through some test paths).
+		if oldState != nil {
+			go func() {
+				oldState.transport.inFlight.Wait()
+				oldState.transport.cleanup()
+			}()
+		}
+	} else {
+		// Cfg-only change. Share the *transportState pointer with the
+		// previous state so a single inFlight WaitGroup tracks every batch
+		// using this transport across all config-only reloads.
+		// nil-currState is unreachable in practice (needsTransportRebuild
+		// returns true on nil, taking the rebuild branch above); the guard
+		// below is defensive.
+		nextState := &outputState{cfg: newCfg}
+		if currState != nil {
+			nextState.transport = currState.transport
+		}
+		o.stateMu.Lock()
+		o.state.Store(nextState)
+		o.stateMu.Unlock()
+		// No cleanup — the transport is still live and shared with nextState.
+	}
 
 	if swapChannel || restartWorkers {
 		var newChan chan *formatters.EventMsg
@@ -316,9 +489,9 @@ func (o *otlpOutput) Update(ctx context.Context, cfg map[string]any) error {
 		o.wg = newWG
 		o.eventCh.Store(&newChan)
 
-		o.wg.Add(newCfg.NumWorkers)
+		newWG.Add(newCfg.NumWorkers)
 		for i := 0; i < newCfg.NumWorkers; i++ {
-			go o.worker(runCtx, i)
+			go o.worker(runCtx, i, newWG)
 		}
 
 		if oldCancel != nil {
@@ -362,7 +535,7 @@ func (o *otlpOutput) Validate(cfg map[string]any) error {
 }
 
 func (o *otlpOutput) UpdateProcessor(name string, pcfg map[string]any) error {
-	cfg := o.cfg.Load()
+	cfg := o.loadCfg()
 	dc := o.dynCfg.Load()
 
 	newEvps, changed, err := outputs.UpdateProcessorInSlice(
@@ -391,9 +564,12 @@ func (o *otlpOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.
 		return
 	}
 
-	cfg := o.cfg.Load()
+	cfg := o.loadCfg()
 	dc := o.dynCfg.Load()
-	if dc == nil {
+	if cfg == nil || dc == nil {
+		// nil cfg means Close already ran (state swapped to nil) or Init
+		// never did — either way this write has nowhere to go. Drop it
+		// rather than dereferencing nil on the channel-full path below.
 		return
 	}
 
@@ -438,7 +614,11 @@ func (o *otlpOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {
 		return
 	}
 
-	cfg := o.cfg.Load()
+	cfg := o.loadCfg()
+	if cfg == nil {
+		// Close already ran (or Init never did) — drop, see Write.
+		return
+	}
 	eventCh := *o.eventCh.Load()
 
 	select {
@@ -453,42 +633,64 @@ func (o *otlpOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {
 	}
 }
 
-// Close closes the OTLP output
+// Close closes the OTLP output. Safe to call multiple times.
 func (o *otlpOutput) Close() error {
 	if o.cancelFn != nil {
 		o.cancelFn()
+		o.cancelFn = nil
 	}
 
-	// Close event channel
-	eventCh := o.eventCh.Load()
-	if eventCh != nil {
-		close(*eventCh)
-	}
+	// Deliberately do NOT close the event channel: the outputs manager
+	// dispatches Write/WriteEvent goroutines without synchronizing against
+	// Close, and a send on a closed channel panics the whole process (a
+	// select with a default case does not protect against that). Workers
+	// exit via the context cancellation above; the channel stays live so a
+	// straggling producer just fills the buffer and falls into the
+	// non-blocking drop path in Write/WriteEvent.
 
 	// Wait for workers to finish
 	o.wg.Wait()
 
-	// Close gRPC connection
-	gs := o.grpcState.Load()
-	if gs != nil && gs.conn != nil {
-		return gs.conn.Close()
+	// Cleanup transport state. By this point all workers have exited
+	// (wg.Wait returned), so no goroutine holds an outputState reference —
+	// the transport's inFlight has already drained to zero. The lock around
+	// the Swap preserves the same invariant Update relies on (no Add can
+	// race a Wait), protecting any future code path that holds state
+	// without going through sendBatch. cleanup() handles a nil receiver
+	// and a transportState whose protocol-specific fields are already nil,
+	// so the post-initFields pre-Init shape is also safe.
+	o.stateMu.Lock()
+	oldState := o.state.Swap(nil)
+	o.stateMu.Unlock()
+	if oldState != nil {
+		oldState.transport.inFlight.Wait()
+		oldState.transport.cleanup()
 	}
 
+	o.unregisterMetrics()
 	return nil
 }
 
-// worker processes events in batches
-func (o *otlpOutput) worker(ctx context.Context, id int) {
-	defer o.wg.Done()
+// worker processes events in batches.
+// wg is passed explicitly (rather than read from o.wg) so each goroutine
+// captures its own WaitGroup pointer at spawn time. Update swaps o.wg when
+// num-workers/batch-size/interval change; reading o.wg from the worker
+// would race that swap and could land Done() on the wrong WaitGroup.
+func (o *otlpOutput) worker(ctx context.Context, id int, wg *sync.WaitGroup) {
+	defer wg.Done()
 
-	cfg := o.cfg.Load()
+	cfg := o.loadCfg()
 	o.logger.Debug("worker started", "worker", id)
 
 	batch := make([]*formatters.EventMsg, 0, cfg.BatchSize)
 	ticker := time.NewTicker(cfg.Interval)
 	defer ticker.Stop()
 
-	eventCh := *o.eventCh.Load()
+	chPtr := o.eventCh.Load()
+	if chPtr == nil {
+		return
+	}
+	eventCh := *chPtr
 
 	for {
 		select {
@@ -531,26 +733,80 @@ func (o *otlpOutput) sendBatch(ctx context.Context, events []*formatters.EventMs
 		return
 	}
 
-	cfg := o.cfg.Load()
+	// Single Load() at the top of the batch — workers dispatch against this
+	// snapshot for every retry attempt. A concurrent Update() that swaps
+	// protocol cannot tear the (cfg, transport) pair: this batch finishes
+	// against the captured state, and the old transport stays alive until
+	// the in-flight WaitGroup drains (see Update's rebuild path).
+	//
+	// The (Load, Add) pair must be serialized against Update's (Swap, Wait)
+	// via stateMu so we never Add to a WaitGroup whose Wait has already
+	// returned 0 (which would panic per sync.WaitGroup contract).
+	o.stateMu.Lock()
+	state := o.state.Load()
+	state.transport.inFlight.Add(1)
+	o.stateMu.Unlock()
+	defer state.transport.inFlight.Done()
+	cfg := state.cfg
 	start := time.Now()
 
-	req := o.convertToOTLP(events)
+	req := o.convertToOTLP(cfg, events)
 
 	var err error
+retry:
 	for attempt := 0; attempt <= cfg.MaxRetries; attempt++ {
-		err = o.sendGRPC(ctx, req)
+		switch cfg.Protocol {
+		case "grpc":
+			err = o.sendGRPC(ctx, state, req)
+		case "http":
+			err = o.sendHTTP(ctx, state, req)
+		default:
+			// Init's transport switch rejects unsupported protocols at startup,
+			// and Task 8 adds the same guard to validateConfig (so reload is also
+			// covered). This default is the last line of defense — log and abort
+			// immediately rather than spinning MaxRetries on an error that
+			// cannot resolve itself.
+			o.logger.Error("unsupported protocol, aborting batch", "protocol", cfg.Protocol)
+			err = fmt.Errorf("unsupported protocol %q", cfg.Protocol)
+			break retry
+		}
 
 		if err == nil {
 			o.logger.Debug("successfully sent events", "count", len(events), "attempt", attempt+1)
-			if cfg.EnableMetrics {
-				otlpNumberOfSentEvents.WithLabelValues(cfg.Name).Add(float64(len(events)))
-				otlpSendDuration.WithLabelValues(cfg.Name).Observe(time.Since(start).Seconds())
-			}
+			o.recordBatchSent(cfg, len(events), start)
 			return
 		}
 
+		// PartialSuccess means the server accepted the request and durably
+		// stored everything except the rejected points, which were already
+		// counted in otlpRejectedDataPoints and logged at the response site.
+		// The batch counts as sent (request-level accounting); retrying would
+		// duplicate the accepted points. Data-loss monitoring belongs on the
+		// rejected-data-points counter, not the sent/failed pair.
+		if isPartialSuccessError(err) {
+			o.recordBatchSent(cfg, len(events), start)
+			return
+		}
+
+		// Permanent HTTP errors (non-retryable status codes) abort the loop.
+		if isPermanentHTTPError(err) {
+			o.logger.Debug("permanent error, not retrying", "err", err)
+			break
+		}
+
 		if attempt < cfg.MaxRetries {
-			time.Sleep(time.Duration(attempt+1) * 100 * time.Millisecond)
+			sleep := effectiveRetrySleep(cfg.Protocol, attempt, retryAfterFromError(err), maxRetryAfter)
+			// Use a select on ctx.Done so Close()/cancellation can interrupt a long
+			// Retry-After or backoff sleep instead of pinning the worker.
+			select {
+			case <-time.After(sleep):
+			case <-ctx.Done():
+				// Cancelled mid-retry (worker restart or Close). Fall through
+				// to the failure path so the dropped batch is logged and
+				// counted rather than silently lost from the accounting.
+				err = ctx.Err()
+				break retry
+			}
 		}
 	}
 
@@ -558,6 +814,18 @@ func (o *otlpOutput) sendBatch(ctx context.Context, events []*formatters.EventMs
 	if cfg.EnableMetrics {
 		otlpNumberOfFailedEvents.WithLabelValues(cfg.Name, "send_failed").Add(float64(len(events)))
 	}
+}
+
+// recordBatchSent counts a batch as delivered and observes the send duration.
+// Shared by the full-success and partial-success paths in sendBatch so the
+// two cannot drift apart; in the partial case the loss is accounted
+// separately in otlpRejectedDataPoints.
+func (o *otlpOutput) recordBatchSent(cfg *config, count int, start time.Time) {
+	if !cfg.EnableMetrics {
+		return
+	}
+	otlpNumberOfSentEvents.WithLabelValues(cfg.Name).Add(float64(count))
+	otlpSendDuration.WithLabelValues(cfg.Name).Observe(time.Since(start).Seconds())
 }
 
 func (o *otlpOutput) setDefaultsFor(c *config) {
@@ -576,6 +844,9 @@ func (o *otlpOutput) setDefaultsFor(c *config) {
 	if c.Protocol == "" {
 		c.Protocol = defaultProtocol
 	}
+	if c.Protocol == "http" && c.Compression == "" {
+		c.Compression = defaultCompressionHTTP
+	}
 	if c.Name == "" {
 		c.Name = "gnmic-otlp-" + uuid.New().String()
 	}
@@ -592,8 +863,46 @@ func (o *otlpOutput) setDefaultsFor(c *config) {
 }
 
 func (o *otlpOutput) validateConfig(c *config) error {
+	switch c.Protocol {
+	case "grpc", "http":
+		// ok — setDefaultsFor populates "" → "grpc" before we get here
+	default:
+		return fmt.Errorf("unsupported protocol %q: must be 'grpc' or 'http'", c.Protocol)
+	}
+	switch c.Compression {
+	case "", "none", "gzip":
+		// ok ("" remains valid for grpc protocol where the field is ignored)
+	default:
+		return fmt.Errorf("invalid compression %q: must be one of 'none' or 'gzip'", c.Compression)
+	}
 	if c.Endpoint == "" {
 		return fmt.Errorf("endpoint is required")
+	}
+	// Numeric bounds. validateConfig runs after setDefaultsFor, so zero
+	// values have already been replaced by defaults — anything non-positive
+	// here is an explicit operator error. Without these checks a negative
+	// value panics at runtime: buffer-size in make(chan) and num-workers in
+	// wg.Add at Init; batch-size in make([]) and interval in time.NewTicker
+	// inside the worker goroutine, where an unrecovered panic kills the
+	// whole process. Negative timeout silently disables deadlines and
+	// negative max-retries silently drops every batch.
+	if c.Timeout <= 0 {
+		return fmt.Errorf("invalid timeout %s: must be positive", c.Timeout)
+	}
+	if c.BatchSize <= 0 {
+		return fmt.Errorf("invalid batch-size %d: must be positive", c.BatchSize)
+	}
+	if c.Interval <= 0 {
+		return fmt.Errorf("invalid interval %s: must be positive", c.Interval)
+	}
+	if c.BufferSize <= 0 {
+		return fmt.Errorf("invalid buffer-size %d: must be positive", c.BufferSize)
+	}
+	if c.NumWorkers <= 0 {
+		return fmt.Errorf("invalid num-workers %d: must be positive", c.NumWorkers)
+	}
+	if c.MaxRetries < 0 {
+		return fmt.Errorf("invalid max-retries %d: must not be negative", c.MaxRetries)
 	}
 	c.counterRegexes = make([]*regexp.Regexp, 0, len(c.CounterPatterns))
 	for _, p := range c.CounterPatterns {
@@ -615,6 +924,23 @@ func (o *otlpOutput) buildEventProcessors(cfg *config) ([]formatters.EventProces
 }
 
 func (o *otlpOutput) initGRPCFor(cfg *config) (*grpcClientState, error) {
+	endpoint := strings.TrimSpace(cfg.Endpoint)
+
+	// Reject bare host-only endpoints with no port. Forms with an explicit
+	// scheme like "dns:///host:port" or "unix:///path" pass through to
+	// grpc.NewClient, which has its own resolver semantics. The bare form is
+	// strictly host:port — silent fall-through to grpc's default resolver
+	// behavior on a missing port surprises operators who omitted it.
+	if !strings.Contains(endpoint, "://") {
+		host, port, err := net.SplitHostPort(endpoint)
+		if err != nil {
+			return nil, fmt.Errorf("bare gRPC endpoint %q must be host:port: %w", endpoint, err)
+		}
+		if host == "" || port == "" {
+			return nil, fmt.Errorf("bare gRPC endpoint %q must be host:port (e.g. host:4317)", endpoint)
+		}
+	}
+
 	var opts []grpc.DialOption
 
 	if cfg.TLS != nil {
@@ -627,7 +953,7 @@ func (o *otlpOutput) initGRPCFor(cfg *config) (*grpcClientState, error) {
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
-	conn, err := grpc.NewClient(cfg.Endpoint, opts...)
+	conn, err := grpc.NewClient(endpoint, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create OTLP client: %w", err)
 	}
@@ -658,8 +984,23 @@ func (o *otlpOutput) createTLSConfigFor(cfg *config) (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
-func (o *otlpOutput) registerMetrics() error {
-	cfg := o.cfg.Load()
+// unregisterMetrics removes only the collectors this instance successfully
+// registered. Safe on partial registration and safe to call when EnableMetrics
+// is false or o.reg is nil. Used both:
+//   - inside registerMetrics to roll back a partial registration on failure
+//   - in Init's deferred cleanup path when a later step fails after registerMetrics succeeded
+//   - in Close to free the collectors so a future Init on the same registry works
+func (o *otlpOutput) unregisterMetrics() {
+	if o.reg == nil {
+		return
+	}
+	for _, c := range o.registeredMetrics {
+		o.reg.Unregister(c)
+	}
+	o.registeredMetrics = nil
+}
+
+func (o *otlpOutput) registerMetrics(cfg *config) error {
 	if !cfg.EnableMetrics {
 		return nil
 	}
@@ -668,19 +1009,27 @@ func (o *otlpOutput) registerMetrics() error {
 		return nil
 	}
 
-	if err := o.reg.Register(otlpNumberOfSentEvents); err != nil {
-		return err
+	success := false
+	defer func() {
+		if !success {
+			o.unregisterMetrics()
+		}
+	}()
+
+	collectors := []prometheus.Collector{
+		otlpNumberOfSentEvents,
+		otlpNumberOfFailedEvents,
+		otlpSendDuration,
+		otlpRejectedDataPoints,
 	}
-	if err := o.reg.Register(otlpNumberOfFailedEvents); err != nil {
-		return err
-	}
-	if err := o.reg.Register(otlpSendDuration); err != nil {
-		return err
-	}
-	if err := o.reg.Register(otlpRejectedDataPoints); err != nil {
-		return err
+	for _, c := range collectors {
+		if err := o.reg.Register(c); err != nil {
+			return err
+		}
+		o.registeredMetrics = append(o.registeredMetrics, c)
 	}
 
+	success = true
 	return nil
 }
 
@@ -702,11 +1051,12 @@ func needsWorkerRestart(old, nw *config) bool {
 		old.Interval != nw.Interval
 }
 
-func needsGRPCRebuild(old, nw *config) bool {
+func needsTransportRebuild(old, nw *config) bool {
 	if old == nil || nw == nil {
 		return true
 	}
 	return old.Endpoint != nw.Endpoint ||
 		old.Protocol != nw.Protocol ||
+		old.Compression != nw.Compression ||
 		!old.TLS.Equal(nw.TLS)
 }

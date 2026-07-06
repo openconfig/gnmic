@@ -33,9 +33,7 @@ var stringsBuilderPool = sync.Pool{
 }
 
 // convertToOTLP converts gNMI EventMsg slice to OTLP ExportMetricsServiceRequest
-func (o *otlpOutput) convertToOTLP(events []*formatters.EventMsg) *metricsv1.ExportMetricsServiceRequest {
-	cfg := o.cfg.Load()
-
+func (o *otlpOutput) convertToOTLP(cfg *config, events []*formatters.EventMsg) *metricsv1.ExportMetricsServiceRequest {
 	o.logger.Debug("convertToOTLP called", "events", len(events))
 
 	// Group events by resource (source)
@@ -481,11 +479,14 @@ func (o *otlpOutput) validateMetricData(rmIdx, smIdx, mIdx int, m *metricspb.Met
 }
 
 // sendGRPC sends the OTLP metrics via gRPC
-func (o *otlpOutput) sendGRPC(ctx context.Context, req *metricsv1.ExportMetricsServiceRequest) error {
-	cfg := o.cfg.Load()
-	gs := o.grpcState.Load()
+func (o *otlpOutput) sendGRPC(ctx context.Context, state *outputState, req *metricsv1.ExportMetricsServiceRequest) error {
+	cfg := state.cfg
+	gs := state.transport.grpcState
 
 	if gs == nil || gs.client == nil {
+		// Belt-and-suspenders: when Protocol == "grpc", buildOutputState
+		// guarantees grpcState is populated. See sendHTTP for the same
+		// rationale.
 		return fmt.Errorf("gRPC client not initialized")
 	}
 
@@ -521,14 +522,16 @@ func (o *otlpOutput) sendGRPC(ctx context.Context, req *metricsv1.ExportMetricsS
 	o.logger.Debug("gRPC Export succeeded")
 
 	if response.PartialSuccess != nil && response.PartialSuccess.RejectedDataPoints > 0 {
-		errMsg := fmt.Sprintf("OTEL rejected %d data points: %s",
-			response.PartialSuccess.RejectedDataPoints,
-			response.PartialSuccess.ErrorMessage)
-		o.logger.Error(errMsg)
+		o.logger.Error("OTEL rejected data points",
+			"rejected", response.PartialSuccess.RejectedDataPoints,
+			"message", response.PartialSuccess.ErrorMessage)
 		if cfg.EnableMetrics {
 			otlpRejectedDataPoints.WithLabelValues(cfg.Name).Add(float64(response.PartialSuccess.RejectedDataPoints))
 		}
-		return fmt.Errorf("%s", errMsg)
+		return &partialSuccessError{
+			rejected:     response.PartialSuccess.RejectedDataPoints,
+			errorMessage: response.PartialSuccess.ErrorMessage,
+		}
 	}
 
 	return nil
