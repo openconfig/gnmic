@@ -1,4 +1,4 @@
-// © 2025 NVIDIA Corporation
+// © 2025-2026 NVIDIA Corporation
 //
 // This code is a Contribution to the gNMIc project ("Work") made under the Google Software Grant and Corporate Contributor License Agreement ("CLA") and governed by the Apache License 2.0.
 // No other rights or licenses in or to any of NVIDIA's intellectual property are granted for any other purpose.
@@ -38,4 +38,11 @@ var otlpRejectedDataPoints = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Subsystem: "otlp_output",
 	Name:      "rejected_data_points_total",
 	Help:      "Number of data points rejected by OTLP collector (PartialSuccess)",
+}, []string{"output_name"})
+
+var otlpMalformedResponses = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Namespace: "gnmic",
+	Subsystem: "otlp_output",
+	Name:      "malformed_responses_total",
+	Help:      "Number of 2xx HTTP export responses whose body failed to unmarshal as an OTLP response",
 }, []string{"output_name"})

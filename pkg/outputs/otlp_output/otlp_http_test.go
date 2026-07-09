@@ -43,7 +43,9 @@ import (
 	"github.com/zestor-dev/zestor/store"
 	"github.com/zestor-dev/zestor/store/gomap"
 	metricsv1 "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
+	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
 	metricspb "go.opentelemetry.io/proto/otlp/metrics/v1"
+	resourcepb "go.opentelemetry.io/proto/otlp/resource/v1"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -303,7 +305,7 @@ func TestInitHTTPFor_WithMTLS(t *testing.T) {
 
 	// Headers are built per-request now, so verify they arrive at the server.
 	o.state.Store(&outputState{cfg: cfg, transport: &transportState{httpState: hs}})
-	require.NoError(t, o.sendHTTP(context.Background(), o.state.Load(), &metricsv1.ExportMetricsServiceRequest{}))
+	require.NoError(t, o.sendHTTP(context.Background(), o.state.Load(), validExportRequest()))
 	require.Equal(t, "application/x-protobuf", gotContentType)
 	require.Equal(t, "tenant-1", gotOrgID)
 }
@@ -385,14 +387,14 @@ func TestSendHTTP_HeaderReloadTakesEffect(t *testing.T) {
 	withCfg(o, func(c *config) {
 		c.Headers = map[string]string{"X-Scope-OrgID": "tenant-old"}
 	})
-	require.NoError(t, o.sendHTTP(context.Background(), o.state.Load(), &metricsv1.ExportMetricsServiceRequest{}))
+	require.NoError(t, o.sendHTTP(context.Background(), o.state.Load(), validExportRequest()))
 	require.Equal(t, "tenant-old", gotOrgID)
 
 	// Simulate a header-only reload — same transport, new headers.
 	withCfg(o, func(c *config) {
 		c.Headers = map[string]string{"X-Scope-OrgID": "tenant-new"}
 	})
-	require.NoError(t, o.sendHTTP(context.Background(), o.state.Load(), &metricsv1.ExportMetricsServiceRequest{}))
+	require.NoError(t, o.sendHTTP(context.Background(), o.state.Load(), validExportRequest()))
 	require.Equal(t, "tenant-new", gotOrgID, "header-only reload must take effect on the next batch")
 }
 
@@ -410,7 +412,7 @@ func TestSendHTTP_UserHeadersCannotOverrideProtocolHeaders(t *testing.T) {
 	withCfg(o, func(c *config) {
 		c.Headers = map[string]string{"Content-Type": "application/json"} // bogus override attempt
 	})
-	require.NoError(t, o.sendHTTP(context.Background(), o.state.Load(), &metricsv1.ExportMetricsServiceRequest{}))
+	require.NoError(t, o.sendHTTP(context.Background(), o.state.Load(), validExportRequest()))
 	require.Equal(t, "application/x-protobuf", gotContentType, "user Headers must not override Content-Type")
 }
 
@@ -449,7 +451,7 @@ func TestSendHTTP_SuccessfulExport(t *testing.T) {
 	o.state.Store(&outputState{cfg: cfg, transport: &transportState{httpState: hs}})
 
 	// Minimal valid ExportMetricsServiceRequest.
-	req := &metricsv1.ExportMetricsServiceRequest{}
+	req := validExportRequest()
 	require.NoError(t, o.sendHTTP(context.Background(), o.state.Load(), req))
 
 	require.Equal(t, "application/x-protobuf", gotContentType)
@@ -530,7 +532,7 @@ func TestSendHTTP_NoTimeoutConfigured(t *testing.T) {
 	o := newHTTPTestOutput(t, srv)
 	withCfg(o, func(c *config) { c.Timeout = 0 })
 
-	require.NoError(t, o.sendHTTP(context.Background(), o.state.Load(), &metricsv1.ExportMetricsServiceRequest{}))
+	require.NoError(t, o.sendHTTP(context.Background(), o.state.Load(), validExportRequest()))
 }
 
 // Decision-path: client.Do failure (transport error). Stop the server first so
@@ -541,7 +543,7 @@ func TestSendHTTP_DialFailure(t *testing.T) {
 	o := newHTTPTestOutput(t, srv)
 	srv.Close() // close before the call so dial fails
 
-	err := o.sendHTTP(context.Background(), o.state.Load(), &metricsv1.ExportMetricsServiceRequest{})
+	err := o.sendHTTP(context.Background(), o.state.Load(), validExportRequest())
 	require.Error(t, err)
 }
 
@@ -556,19 +558,10 @@ func TestSendHTTP_MarshalRejectsInvalidUTF8(t *testing.T) {
 
 	o := newHTTPTestOutput(t, srv)
 	invalid := string([]byte{0xff, 0xfe, 0xfd}) // not valid UTF-8
-	req := &metricsv1.ExportMetricsServiceRequest{
-		ResourceMetrics: []*metricspb.ResourceMetrics{
-			{
-				ScopeMetrics: []*metricspb.ScopeMetrics{
-					{
-						Metrics: []*metricspb.Metric{
-							{Name: invalid},
-						},
-					},
-				},
-			},
-		},
-	}
+	// Structurally valid (validateRequest doesn't check UTF-8) so the
+	// failure is isolated to the marshal step.
+	req := validExportRequest()
+	req.ResourceMetrics[0].ScopeMetrics[0].Metrics[0].Name = invalid
 	err := o.sendHTTP(context.Background(), o.state.Load(), req)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "marshal OTLP request")
@@ -623,7 +616,7 @@ func TestSendHTTP_PermanentErrorNotRetried(t *testing.T) {
 	defer srv.Close()
 
 	o := newHTTPTestOutput(t, srv)
-	err := o.sendHTTP(context.Background(), o.state.Load(), &metricsv1.ExportMetricsServiceRequest{})
+	err := o.sendHTTP(context.Background(), o.state.Load(), validExportRequest())
 	require.Error(t, err)
 	require.True(t, isPermanentHTTPError(err))
 	require.Equal(t, 1, calls, "sendHTTP itself should not retry")
@@ -636,7 +629,7 @@ func TestSendHTTP_RetryableError(t *testing.T) {
 	defer srv.Close()
 
 	o := newHTTPTestOutput(t, srv)
-	err := o.sendHTTP(context.Background(), o.state.Load(), &metricsv1.ExportMetricsServiceRequest{})
+	err := o.sendHTTP(context.Background(), o.state.Load(), validExportRequest())
 	require.Error(t, err)
 	require.False(t, isPermanentHTTPError(err))
 }
@@ -690,7 +683,7 @@ func TestSendHTTP_PartialSuccessReturnsError(t *testing.T) {
 	defer srv.Close()
 
 	o := newHTTPTestOutput(t, srv)
-	err := o.sendHTTP(context.Background(), o.state.Load(), &metricsv1.ExportMetricsServiceRequest{})
+	err := o.sendHTTP(context.Background(), o.state.Load(), validExportRequest())
 	require.Error(t, err, "PartialSuccess with rejected points must surface as an error (parity with gRPC)")
 	require.Contains(t, err.Error(), "rejected 7")
 }
@@ -714,7 +707,7 @@ func TestSendHTTP_PartialSuccessZeroRejected(t *testing.T) {
 	defer srv.Close()
 
 	o := newHTTPTestOutput(t, srv)
-	require.NoError(t, o.sendHTTP(context.Background(), o.state.Load(), &metricsv1.ExportMetricsServiceRequest{}))
+	require.NoError(t, o.sendHTTP(context.Background(), o.state.Load(), validExportRequest()))
 }
 
 // Decision-path: empty 200 body must succeed (the early-return short-circuit).
@@ -725,12 +718,12 @@ func TestSendHTTP_EmptyResponseBody(t *testing.T) {
 	defer srv.Close()
 
 	o := newHTTPTestOutput(t, srv)
-	require.NoError(t, o.sendHTTP(context.Background(), o.state.Load(), &metricsv1.ExportMetricsServiceRequest{}))
+	require.NoError(t, o.sendHTTP(context.Background(), o.state.Load(), validExportRequest()))
 }
 
-// Decision-path (debug off): malformed (non-protobuf) 200 body must NOT cause
-// an error; the transport-level success is authoritative. The Debug branch
-// is silent in this variant.
+// Decision-path: malformed (non-protobuf) 200 body must NOT cause an error;
+// the transport-level success is authoritative. EnableMetrics is off in this
+// variant, so the malformed-responses counter branch is skipped.
 func TestSendHTTP_MalformedResponseBody_DebugOff(t *testing.T) {
 	srv := newMTLSTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -740,12 +733,12 @@ func TestSendHTTP_MalformedResponseBody_DebugOff(t *testing.T) {
 
 	o := newHTTPTestOutput(t, srv)
 	require.False(t, o.state.Load().cfg.Debug, "precondition: debug must be off for this variant")
-	require.NoError(t, o.sendHTTP(context.Background(), o.state.Load(), &metricsv1.ExportMetricsServiceRequest{}))
+	require.NoError(t, o.sendHTTP(context.Background(), o.state.Load(), validExportRequest()))
 }
 
-// Decision-path (debug on): same scenario but Debug enabled — exercises the
-// `if cfg.Debug { o.logger.Printf(...) }` branch. Captures log output via a
-// buffer to verify the warning was emitted.
+// Same scenario with log capture: the unmarshal failure must be logged.
+// Level and metric assertions live in
+// TestSendHTTP_MalformedResponseWarnsAndIncrementsMetric.
 func TestSendHTTP_MalformedResponseBody_DebugOn(t *testing.T) {
 	srv := newMTLSTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -758,7 +751,72 @@ func TestSendHTTP_MalformedResponseBody_DebugOn(t *testing.T) {
 	o.logger = slog.New(slog.NewTextHandler(&logbuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	withCfg(o, func(c *config) { c.Debug = true })
 
-	require.NoError(t, o.sendHTTP(context.Background(), o.state.Load(), &metricsv1.ExportMetricsServiceRequest{}))
+	require.NoError(t, o.sendHTTP(context.Background(), o.state.Load(), validExportRequest()))
+	require.Contains(t, logbuf.String(), "failed to unmarshal OTLP response body")
+}
+
+// validExportRequest returns the smallest request that passes validateRequest,
+// for tests exercising transport behavior rather than payload content.
+func validExportRequest() *metricsv1.ExportMetricsServiceRequest {
+	return &metricsv1.ExportMetricsServiceRequest{
+		ResourceMetrics: []*metricspb.ResourceMetrics{{
+			Resource: &resourcepb.Resource{},
+			ScopeMetrics: []*metricspb.ScopeMetrics{{
+				Scope: &commonpb.InstrumentationScope{},
+				Metrics: []*metricspb.Metric{{
+					Name: "test_metric",
+					Data: &metricspb.Metric_Gauge{Gauge: &metricspb.Gauge{
+						DataPoints: []*metricspb.NumberDataPoint{{
+							TimeUnixNano: 1,
+							Value:        &metricspb.NumberDataPoint_AsDouble{AsDouble: 1},
+						}},
+					}},
+				}},
+			}},
+		}},
+	}
+}
+
+// Parity with sendGRPC: structurally invalid requests must be rejected by
+// validateRequest before anything goes on the wire.
+func TestSendHTTP_InvalidRequestRejectedBeforeSend(t *testing.T) {
+	var serverHit atomic.Bool
+	srv := newMTLSTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		serverHit.Store(true)
+		w.WriteHeader(http.StatusOK)
+	})
+	defer srv.Close()
+
+	o := newHTTPTestOutput(t, srv)
+	err := o.sendHTTP(context.Background(), o.state.Load(), &metricsv1.ExportMetricsServiceRequest{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "request validation failed")
+	require.False(t, serverHit.Load(), "invalid request must not reach the collector")
+}
+
+// A 2xx response whose body doesn't unmarshal as an OTLP response is still
+// accepted (transport-level success is authoritative, retrying would duplicate
+// data), but must be visible to operators: Warn log + malformed-responses counter.
+func TestSendHTTP_MalformedResponseWarnsAndIncrementsMetric(t *testing.T) {
+	srv := newMTLSTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("not a protobuf"))
+	})
+	defer srv.Close()
+
+	var logbuf bytes.Buffer
+	o := newHTTPTestOutput(t, srv)
+	o.logger = slog.New(slog.NewTextHandler(&logbuf, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	withCfg(o, func(c *config) {
+		c.EnableMetrics = true
+		c.Name = "test-malformed-output"
+	})
+
+	before := testutil.ToFloat64(otlpMalformedResponses.WithLabelValues("test-malformed-output"))
+	require.NoError(t, o.sendHTTP(context.Background(), o.state.Load(), validExportRequest()))
+	after := testutil.ToFloat64(otlpMalformedResponses.WithLabelValues("test-malformed-output"))
+	require.Equal(t, float64(1), after-before, "malformed response must increment the counter")
+	require.Contains(t, logbuf.String(), "level=WARN", "unmarshal failure must be logged at Warn")
 	require.Contains(t, logbuf.String(), "failed to unmarshal OTLP response body")
 }
 
@@ -787,7 +845,7 @@ func TestSendHTTP_PartialSuccessIncrementsMetric(t *testing.T) {
 
 	cfgName := o.state.Load().cfg.Name
 	before := testutil.ToFloat64(otlpRejectedDataPoints.WithLabelValues(cfgName))
-	err := o.sendHTTP(context.Background(), o.state.Load(), &metricsv1.ExportMetricsServiceRequest{})
+	err := o.sendHTTP(context.Background(), o.state.Load(), validExportRequest())
 	require.Error(t, err)
 	after := testutil.ToFloat64(otlpRejectedDataPoints.WithLabelValues(cfgName))
 	require.Equal(t, float64(3), after-before, "metric must advance by RejectedDataPoints")
@@ -1238,7 +1296,7 @@ func TestSendHTTP_GzipCompression(t *testing.T) {
 	require.NoError(t, err)
 	o.state.Store(&outputState{cfg: cfg, transport: &transportState{httpState: hs}})
 
-	require.NoError(t, o.sendHTTP(context.Background(), o.state.Load(), &metricsv1.ExportMetricsServiceRequest{}))
+	require.NoError(t, o.sendHTTP(context.Background(), o.state.Load(), validExportRequest()))
 	require.Equal(t, "gzip", gotEncoding)
 
 	var roundtrip metricsv1.ExportMetricsServiceRequest
@@ -1275,7 +1333,7 @@ func TestSendHTTP_GzipIsDefaultForHTTP(t *testing.T) {
 	defer o.Close()
 
 	require.Equal(t, "gzip", o.state.Load().cfg.Compression, "default must populate Compression for http")
-	require.NoError(t, o.sendHTTP(context.Background(), o.state.Load(), &metricsv1.ExportMetricsServiceRequest{}))
+	require.NoError(t, o.sendHTTP(context.Background(), o.state.Load(), validExportRequest()))
 	require.Equal(t, "gzip", gotEncoding)
 }
 
@@ -1306,7 +1364,7 @@ func TestSendHTTP_CompressionNoneOptOut(t *testing.T) {
 	))
 	defer o.Close()
 
-	require.NoError(t, o.sendHTTP(context.Background(), o.state.Load(), &metricsv1.ExportMetricsServiceRequest{}))
+	require.NoError(t, o.sendHTTP(context.Background(), o.state.Load(), validExportRequest()))
 	require.Equal(t, "", gotEncoding, "compression: none must produce no Content-Encoding header")
 }
 
@@ -1407,7 +1465,7 @@ func TestUpdate_TransportNotClosedWhileBatchInFlight(t *testing.T) {
 	sendDone := make(chan error, 1)
 	go func() {
 		defer state.transport.inFlight.Done()
-		sendDone <- o.sendHTTP(context.Background(), state, &metricsv1.ExportMetricsServiceRequest{})
+		sendDone <- o.sendHTTP(context.Background(), state, validExportRequest())
 	}()
 
 	// Wait until the server has received the request (so the goroutine is
@@ -1568,7 +1626,7 @@ func TestSendHTTP_RedirectNotFollowed(t *testing.T) {
 	defer srv.Close()
 
 	o := newHTTPTestOutput(t, srv)
-	err := o.sendHTTP(context.Background(), o.state.Load(), &metricsv1.ExportMetricsServiceRequest{})
+	err := o.sendHTTP(context.Background(), o.state.Load(), validExportRequest())
 	require.Error(t, err)
 
 	var hee *httpExportError
@@ -1600,7 +1658,7 @@ func TestSendHTTP_UserContentEncodingStrippedWhenNoCompression(t *testing.T) {
 		c.Headers = map[string]string{"content-encoding": "gzip"}
 	})
 
-	require.NoError(t, o.sendHTTP(context.Background(), o.state.Load(), &metricsv1.ExportMetricsServiceRequest{}))
+	require.NoError(t, o.sendHTTP(context.Background(), o.state.Load(), validExportRequest()))
 	require.Empty(t, gotEncoding, "user Content-Encoding must be stripped when compression is none")
 	var roundtrip metricsv1.ExportMetricsServiceRequest
 	require.NoError(t, proto.Unmarshal(gotBody, &roundtrip), "body must be raw (uncompressed) protobuf")

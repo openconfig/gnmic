@@ -1726,7 +1726,7 @@ func TestInit_FailureAfterRegisterMetrics_UnregistersCleanly(t *testing.T) {
 	reg := prometheus.NewRegistry()
 
 	// A bad TLS path causes buildOutputState→initHTTPFor to fail after
-	// registerMetrics has already registered the four collectors.
+	// registerMetrics has already registered the collectors.
 	badCfg := map[string]interface{}{
 		"endpoint": "http://127.0.0.1:9999",
 		"protocol": "http",
@@ -1889,7 +1889,7 @@ func TestClose_UnregistersMetrics(t *testing.T) {
 
 	require.NoError(t, o.Close())
 
-	// After Close, all four collectors must be unregistered.
+	// After Close, all collectors must be unregistered.
 	require.NoError(t, reg.Register(otlpNumberOfSentEvents),
 		"otlpNumberOfSentEvents must be unregistered after Close")
 	require.NoError(t, reg.Register(otlpNumberOfFailedEvents),
@@ -1898,11 +1898,14 @@ func TestClose_UnregistersMetrics(t *testing.T) {
 		"otlpSendDuration must be unregistered after Close")
 	require.NoError(t, reg.Register(otlpRejectedDataPoints),
 		"otlpRejectedDataPoints must be unregistered after Close")
+	require.NoError(t, reg.Register(otlpMalformedResponses),
+		"otlpMalformedResponses must be unregistered after Close")
 	// Cleanup.
 	reg.Unregister(otlpNumberOfSentEvents)
 	reg.Unregister(otlpNumberOfFailedEvents)
 	reg.Unregister(otlpSendDuration)
 	reg.Unregister(otlpRejectedDataPoints)
+	reg.Unregister(otlpMalformedResponses)
 }
 
 // TestUpdate_TransportRebuildFailure_DoesNotApplyProcessors verifies that when

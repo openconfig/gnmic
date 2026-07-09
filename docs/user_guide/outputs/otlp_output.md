@@ -249,3 +249,4 @@ When `enable-metrics` is set to `true`, the OTLP output exposes the following Pr
 | `gnmic_otlp_output_number_of_failed_events_total` | Counter | Number of events that failed to send. |
 | `gnmic_otlp_output_send_duration_seconds` | Histogram | Duration of sending batches to the OTLP endpoint. |
 | `gnmic_otlp_output_rejected_data_points_total` | Counter | Number of data points rejected by the OTLP endpoint in `PartialSuccess` responses. |
+| `gnmic_otlp_output_malformed_responses_total` | Counter | Number of successful (2xx) OTLP/HTTP export responses whose body could not be parsed as an OTLP response. |

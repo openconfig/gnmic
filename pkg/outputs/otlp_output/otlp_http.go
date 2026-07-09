@@ -267,6 +267,11 @@ func (o *otlpOutput) sendHTTP(ctx context.Context, state *outputState, req *metr
 	}
 	cfg := state.cfg
 
+	if err := o.validateRequest(req); err != nil {
+		o.logger.Error("validation error", "err", err)
+		return fmt.Errorf("request validation failed: %w", err)
+	}
+
 	raw, err := proto.Marshal(req)
 	if err != nil {
 		// proto.Marshal can fail for requests containing invalid UTF-8 in string
@@ -339,8 +344,13 @@ func (o *otlpOutput) sendHTTP(ctx context.Context, state *outputState, req *metr
 		}
 		var respProto metricsv1.ExportMetricsServiceResponse
 		if err := proto.Unmarshal(respBody, &respProto); err != nil {
-			// Malformed response body but transport-level success — log and accept.
-			o.logger.Debug("failed to unmarshal OTLP response body", "err", err)
+			// Malformed response body but transport-level success — accept (retrying
+			// would duplicate data) but surface it: a collector answering 2xx with a
+			// non-OTLP body is misconfigured or broken.
+			o.logger.Warn("failed to unmarshal OTLP response body", "err", err)
+			if cfg.EnableMetrics {
+				otlpMalformedResponses.WithLabelValues(cfg.Name).Inc()
+			}
 			return nil
 		}
 		if respProto.PartialSuccess != nil && respProto.PartialSuccess.RejectedDataPoints > 0 {

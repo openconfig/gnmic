@@ -1021,6 +1021,7 @@ func (o *otlpOutput) registerMetrics(cfg *config) error {
 		otlpNumberOfFailedEvents,
 		otlpSendDuration,
 		otlpRejectedDataPoints,
+		otlpMalformedResponses,
 	}
 	for _, c := range collectors {
 		if err := o.reg.Register(c); err != nil {
