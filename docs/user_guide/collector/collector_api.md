@@ -85,6 +85,8 @@ POST /api/v1/config/apply
 
 Applies a complete configuration to the collector. Resources not included in the request are deleted.
 
+Tunnel-managed targets (those with `tunnel-target-type` set in the store) are **preserved** when omitted from the `targets` map in the apply body. Only statically configured targets are removed if not listed.
+
 **Request Body:**
 
 ```json
@@ -248,6 +250,22 @@ POST /api/v1/targets/{name}/state/{state}
 ```
 
 Enable or disable a target. State can be `enabled` or `disabled`.
+
+**Config route** (`POST /api/v1/config/targets/{name}/state`) — JSON body:
+
+```json
+{
+  "state": "enabled"
+}
+```
+
+```bash
+curl -X POST http://localhost:7890/api/v1/config/targets/router1/state \
+  -H "Content-Type: application/json" \
+  -d '{"state": "disabled"}'
+```
+
+**Runtime route** (`POST /api/v1/targets/{name}/state/{state}`) — state in the URL path (`enabled` or `disabled`); no request body.
 
 ---
 
@@ -532,12 +550,39 @@ POST /api/v1/config/tunnel-target-matches
 
 ```json
 {
-  "name": "srl-devices",
-  "target-type": "srlinux",
-  "subscriptions": ["interfaces"],
-  "outputs": ["prometheus"]
+  "id": "^router1$",
+  "type": "GNMI_GNOI",
+  "config": {
+    "subscriptions": ["interfaces"],
+    "outputs": ["prometheus"],
+    "timeout": "10s",
+    "username": "admin"
+  }
 }
 ```
+
+- `id` — regex matched against the tunnel target ID from the Register RPC. Also used as the config store key for this rule (unless `id` is empty, in which case `type` is used).
+- `type` — regex matched against the tunnel target type.
+- `config` — optional target settings (`subscriptions`, `outputs`, credentials, timeouts, ...). Duration fields accept Go duration strings (e.g. `"10s"`).
+
+When using `POST /api/v1/config/apply`, rules are keyed by name in the `tunnel-target-matches` map; that map key becomes the store key:
+
+```json
+{
+  "tunnel-target-matches": {
+    "srl-devices": {
+      "id": ".*",
+      "type": "GNMI_GNOI",
+      "config": {
+        "subscriptions": ["interfaces"],
+        "outputs": ["prometheus"]
+      }
+    }
+  }
+}
+```
+
+At startup from a YAML file, define rules under `tunnel-server.targets` instead; see [Collector Configuration](./collector_configuration.md#tunnel-target-matches).
 
 ### Delete Tunnel Target Match
 

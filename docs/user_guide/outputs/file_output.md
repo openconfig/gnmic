@@ -68,3 +68,5 @@ The file output can be used to write to file on the disk, to stdout or to stderr
 For a disk file, a file name is required.
 
 For stdout or stderr, only file-type is required.
+
+Closing a file output that writes to stdout or stderr does **not** close the process-wide standard streams.

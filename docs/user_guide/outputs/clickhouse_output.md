@@ -231,4 +231,4 @@ When `enable-metrics: true`, the output registers Prometheus metrics (received/i
 ## See also
 
 * [Event format and processors](../event_processors/intro.md)
-* Example lab: `examples/deployments/1.single-instance/12.clickhouse-output/containerlab/`
+* Example lab: [ClickHouse output deployment](../../deployments/single-instance/containerlab/clickhouse-output.md) (`examples/deployments/1.single-instance/12.clickhouse-output/containerlab/`)

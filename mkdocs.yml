@@ -161,6 +161,8 @@ nav:
         - InfluxDB output: 
           - Containerlab: deployments/single-instance/containerlab/influxdb-output.md
           - Docker Compose: deployments/single-instance/docker-compose/influxdb-output.md
+        - ClickHouse output:
+          - Containerlab: deployments/single-instance/containerlab/clickhouse-output.md
         - Prometheus output: 
           - Containerlab: deployments/single-instance/containerlab/prometheus-output.md
           - Docker Compose: deployments/single-instance/docker-compose/prometheus-output.md

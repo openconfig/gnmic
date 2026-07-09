@@ -242,7 +242,7 @@ func (mgr *OutputsManager) createOutput(name string, cfg map[string]any) {
 		return
 	}
 	if ok {
-		if clus, ok := clustering.(*config.Clustering); ok && clus.ClusterName != "" {
+		if clus, ok := clustering.(*config.Clustering); ok && clus != nil && clus.ClusterName != "" {
 			opts = append(opts, outputs.WithClusterName(clus.ClusterName))
 		}
 	}

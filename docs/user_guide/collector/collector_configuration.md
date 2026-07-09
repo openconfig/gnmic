@@ -222,32 +222,42 @@ tunnel-server:
   
   # boolean, enable debug logging
   debug: false
+
+  # match rules for dial-out tunnel targets (see Tunnel Target Matches below)
+  targets:
+    - id: ".*"
+      type: GNMI_GNOI
+      config:
+        subscriptions:
+          - interfaces
+          - system
+        outputs:
+          - prometheus
 ```
 
 ## Tunnel Target Matches
 
-Define rules for handling tunnel target connections.
+Match rules control how dial-out tunnel targets are accepted and which subscriptions and outputs they receive when they register with the collector tunnel server.
 
-```yaml
-tunnel-target-matches:
-  # match rule name
-  match-all:
-    # string, target id to match (from tunnel target Register RPC)
-    id: "*"
-    # string, target type to match, typically GNOI_GNMI (from tunnel target Register RPC)
-    type: "GNMMI_GNOI"
-    
-    # list of subscription names to apply
-    subscriptions:
-      - interfaces
-      - system
-    
-    # list of output names to send data to
-    outputs:
-      - prometheus
-```
+### From the startup configuration file
 
-Note that tunnel-target-matches are not processed in any specific order. It's adviced to make sure there is no overlap between the rules `type` and `id`.
+Define rules under `tunnel-server.targets` (see example above). On collector startup, each rule is copied into the runtime `tunnel-target-matches` config store. The store key is the rule's `id` value, or `type` if `id` is empty.
+
+Each rule has:
+
+- `id` — regex matched against the tunnel target ID from the Register RPC
+- `type` — regex matched against the tunnel target type (typically `GNMI_GNOI`)
+- `config` — optional target settings (`subscriptions`, `outputs`, `username`, `timeout`, ...)
+
+A top-level `tunnel-target-matches:` key in the YAML file is **not** loaded at startup. Use `tunnel-server.targets` in the file, or manage rules at runtime via the [REST API](./collector_api.md#tunnel-target-matches).
+
+### At runtime
+
+Create, update, or delete rules with `POST /api/v1/config/tunnel-target-matches`, `POST /api/v1/config/apply`, or the CRUD routes in [Collector REST API](./collector_api.md#tunnel-target-matches).
+
+Rules are not evaluated in a defined order. Avoid overlapping `id` and `type` patterns across rules.
+
+For subscribe-mode tunnel server usage (non-collector), see [Tunnel Server](../tunnel_server.md).
 
 ## Complete Example
 
@@ -275,19 +285,17 @@ gnmi-server:
     type: oc
     expiration: 60s
 
-# Tunnel server
+# Tunnel server (match rules under targets are mirrored into tunnel-target-matches at startup)
 tunnel-server:
   address: :57401
-
-# Tunnel target matches
-tunnel-target-matches:
-  srl-devices:
-    id: router1
-    type: "GNMI_GNOI"
-    subscriptions:
-      - interfaces
-    outputs:
-      - prometheus
+  targets:
+    - id: router1
+      type: GNMI_GNOI
+      config:
+        subscriptions:
+          - interfaces
+        outputs:
+          - prometheus
 
 # Targets
 targets:
