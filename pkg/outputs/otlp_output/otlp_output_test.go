@@ -9,19 +9,26 @@
 package otlp_output
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
+	"io"
 	"net"
+	"net/http"
 	"regexp"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metricsv1 "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/logging"
@@ -41,8 +48,8 @@ func newTestOutput(cfg *config) *otlpOutput {
 		cfg.counterRegexes = append(cfg.counterRegexes, regexp.MustCompile(p))
 	}
 	o := &otlpOutput{}
-	o.cfg = new(atomic.Pointer[config])
-	o.cfg.Store(cfg)
+	o.state = new(atomic.Pointer[outputState])
+	o.state.Store(&outputState{cfg: cfg, transport: &transportState{}})
 	o.logger = logging.DiscardLogger()
 	return o
 }
@@ -69,7 +76,7 @@ func TestOTLP_MessageStructure(t *testing.T) {
 	output := newTestOutput(&config{
 		Endpoint: "localhost:4317",
 	})
-	otlpMetrics := output.convertToOTLP([]*formatters.EventMsg{event})
+	otlpMetrics := output.convertToOTLP(output.state.Load().cfg, []*formatters.EventMsg{event})
 
 	// Then: Should have proper OTLP structure
 	require.NotNil(t, otlpMetrics)
@@ -106,7 +113,7 @@ func TestOTLP_ResourceAttributes(t *testing.T) {
 
 	// When: Converting to OTLP
 	output := newTestOutput(&config{})
-	otlpMetrics := output.convertToOTLP([]*formatters.EventMsg{event})
+	otlpMetrics := output.convertToOTLP(output.state.Load().cfg, []*formatters.EventMsg{event})
 
 	// Then: Resource attributes should match metadata
 	resource := otlpMetrics.ResourceMetrics[0].Resource
@@ -136,7 +143,7 @@ func TestOTLP_PathKeysAsAttributes(t *testing.T) {
 
 	// When: Converting to OTLP
 	output := newTestOutput(&config{})
-	otlpMetrics := output.convertToOTLP([]*formatters.EventMsg{event})
+	otlpMetrics := output.convertToOTLP(output.state.Load().cfg, []*formatters.EventMsg{event})
 
 	// Then: Path key becomes attribute
 	dataPoint := otlpMetrics.ResourceMetrics[0].ScopeMetrics[0].Metrics[0].GetSum().DataPoints[0]
@@ -188,7 +195,7 @@ func TestOTLP_MetricTypeDetection(t *testing.T) {
 			}
 
 			output := newTestOutput(&config{})
-			otlpMetrics := output.convertToOTLP([]*formatters.EventMsg{event})
+			otlpMetrics := output.convertToOTLP(output.state.Load().cfg, []*formatters.EventMsg{event})
 			metric := otlpMetrics.ResourceMetrics[0].ScopeMetrics[0].Metrics[0]
 
 			switch tt.expectedType {
@@ -200,6 +207,51 @@ func TestOTLP_MetricTypeDetection(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Renamed from TestOTLP_InitCompilesCounterPatterns: upstream carries two
+// tests with that name (one here, one near the end of the file) from the
+// #886/#887 merge; this one keeps the end-to-end conversion angle under a
+// distinct name.
+func TestOTLP_InitCounterPatternsClassifyAsSum(t *testing.T) {
+	server, endpoint := startMockOTLPServer(t)
+	defer server.Stop()
+
+	cfg := map[string]interface{}{
+		"endpoint":         endpoint,
+		"protocol":         "grpc",
+		"timeout":          "5s",
+		"batch-size":       1,
+		"interval":         "100ms",
+		"counter-patterns": []string{"counters", "octets"},
+	}
+
+	output := &otlpOutput{}
+	err := output.Init(context.Background(), "test-otlp", cfg,
+		outputs.WithConfigStore(gomap.NewMemStore(store.StoreOptions[any]{})),
+	)
+	require.NoError(t, err)
+	defer output.Close()
+
+	stored := output.loadCfg()
+	require.Len(t, stored.counterRegexes, 2)
+
+	event := &formatters.EventMsg{
+		Name:      "interfaces",
+		Timestamp: time.Now().UnixNano(),
+		Tags: map[string]string{
+			"source": "10.0.0.1:57400",
+		},
+		Values: map[string]interface{}{
+			"/interfaces/interface/state/counters/out-octets": int64(1000),
+		},
+	}
+	otlpMetrics := output.convertToOTLP(stored, []*formatters.EventMsg{event})
+	require.NotNil(t, otlpMetrics)
+	require.Len(t, otlpMetrics.ResourceMetrics, 1)
+	metric := otlpMetrics.ResourceMetrics[0].ScopeMetrics[0].Metrics[0]
+	require.NotNil(t, metric.GetSum(), "counter-patterns should classify matching values as Sum after Init")
+	assert.True(t, metric.GetSum().IsMonotonic)
 }
 
 // Test 5: gRPC Transport
@@ -312,7 +364,7 @@ func TestOTLP_StringValuesAsAttributes(t *testing.T) {
 
 	// When: Converting with strings-as-attributes enabled
 	output := newTestOutput(&config{StringsAsAttributes: true})
-	otlpMetrics := output.convertToOTLP([]*formatters.EventMsg{event})
+	otlpMetrics := output.convertToOTLP(output.state.Load().cfg, []*formatters.EventMsg{event})
 
 	// Then: Should create gauge with value=1 and status as attribute
 	metric := otlpMetrics.ResourceMetrics[0].ScopeMetrics[0].Metrics[0]
@@ -344,7 +396,7 @@ func TestOTLP_SubscriptionNameMapping(t *testing.T) {
 
 	// When: Converting with append-subscription-name enabled
 	output := newTestOutput(&config{AppendSubscriptionName: true})
-	otlpMetrics := output.convertToOTLP([]*formatters.EventMsg{event})
+	otlpMetrics := output.convertToOTLP(output.state.Load().cfg, []*formatters.EventMsg{event})
 
 	// Then: subscription_name should be in attributes
 	dataPoint := otlpMetrics.ResourceMetrics[0].ScopeMetrics[0].Metrics[0].GetSum().DataPoints[0]
@@ -869,7 +921,7 @@ func TestOTLP_ResourceTagKeys(t *testing.T) {
 			output := newTestOutput(&config{
 				ResourceTagKeys: tt.resourceTagKeys,
 			})
-			otlpMetrics := output.convertToOTLP([]*formatters.EventMsg{event})
+			otlpMetrics := output.convertToOTLP(output.state.Load().cfg, []*formatters.EventMsg{event})
 
 			require.NotNil(t, otlpMetrics)
 			require.Len(t, otlpMetrics.ResourceMetrics, 1)
@@ -955,7 +1007,7 @@ func TestOTLP_ResourceAttributesBehavior(t *testing.T) {
 			output := newTestOutput(&config{
 				ResourceTagKeys: tt.resourceTagKeys,
 			})
-			otlpMetrics := output.convertToOTLP([]*formatters.EventMsg{event})
+			otlpMetrics := output.convertToOTLP(output.state.Load().cfg, []*formatters.EventMsg{event})
 
 			require.NotNil(t, otlpMetrics)
 			resource := otlpMetrics.ResourceMetrics[0].Resource
@@ -992,7 +1044,7 @@ func TestOTLP_ConfiguredResourceAttributesAlwaysIncluded(t *testing.T) {
 			"service.version": "0.42.0",
 		},
 	})
-	otlpMetrics := output.convertToOTLP([]*formatters.EventMsg{event})
+	otlpMetrics := output.convertToOTLP(output.state.Load().cfg, []*formatters.EventMsg{event})
 
 	resource := otlpMetrics.ResourceMetrics[0].Resource
 	resourceAttrs := extractAttributesMap(resource.Attributes)
@@ -1017,7 +1069,9 @@ func TestOTLP_InitSucceedsWithUnreachableEndpoint(t *testing.T) {
 	)
 	assert.NoError(t, err, "Init should succeed even with unreachable endpoint")
 
-	gs := output.grpcState.Load()
+	state := output.state.Load()
+	require.NotNil(t, state, "outputState should be created")
+	gs := state.transport.grpcState
 	assert.NotNil(t, gs, "gRPC state should be created")
 	assert.NotNil(t, gs.conn, "gRPC connection should be created")
 	assert.NotNil(t, gs.client, "gRPC client should be created")
@@ -1216,7 +1270,7 @@ func TestOTLP_InitCompilesCounterPatterns(t *testing.T) {
 	require.NoError(t, err, "Init should succeed with valid counter-patterns")
 	defer output.Close()
 
-	stored := output.cfg.Load()
+	stored := output.loadCfg()
 	require.NotNil(t, stored)
 	require.NotNil(t, stored.counterRegexes, "counterRegexes should be compiled by Init")
 	assert.Len(t, stored.counterRegexes, 2)
@@ -1242,7 +1296,7 @@ func TestOTLP_InitEmptyCounterPatterns(t *testing.T) {
 	require.NoError(t, err)
 	defer output.Close()
 
-	stored := output.cfg.Load()
+	stored := output.loadCfg()
 	require.NotNil(t, stored)
 	require.NotNil(t, stored.counterRegexes)
 	assert.Len(t, stored.counterRegexes, 0)
@@ -1266,6 +1320,76 @@ func TestOTLP_InitInvalidCounterPattern(t *testing.T) {
 	assert.Error(t, err, "Init should fail on an invalid counter-pattern")
 }
 
+// Decision-path: PartialSuccess on gRPC must NOT be retried (parity with HTTP).
+// Drives the public sendBatch path through the gRPC mock server.
+func TestSendBatch_GRPCPartialSuccessNotRetried(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	server := grpc.NewServer()
+	mock := &mockPartialSuccessServer{rejected: 5}
+	metricsv1.RegisterMetricsServiceServer(server, mock)
+	go server.Serve(listener)
+	defer server.Stop()
+
+	o := &otlpOutput{}
+	cfgMap := map[string]interface{}{
+		"type":        "otlp",
+		"endpoint":    listener.Addr().String(),
+		"protocol":    "grpc",
+		"max-retries": 5,
+		"timeout":     "2s",
+		"batch-size":  1,
+		"interval":    "50ms",
+	}
+	require.NoError(t, o.Init(context.Background(), "test-otlp", cfgMap,
+		outputs.WithLogger(logging.DiscardLogger()),
+		outputs.WithConfigStore(gomap.NewMemStore(store.StoreOptions[any]{})),
+	))
+	defer o.Close()
+
+	event := &formatters.EventMsg{
+		Name:      "test",
+		Timestamp: time.Now().UnixNano(),
+		Tags:      map[string]string{"source": "10.1.1.1:6030"},
+		Values:    map[string]interface{}{"value": int64(1)},
+	}
+	o.WriteEvent(context.Background(), event)
+
+	// Poll up to 1s for at least one Export call.
+	deadline := time.Now().Add(1 * time.Second)
+	for time.Now().Before(deadline) {
+		if mock.callCount() > 0 {
+			break
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	// Give a generous additional 200ms to detect any retry.
+	time.Sleep(200 * time.Millisecond)
+
+	require.Equal(t, int32(1), mock.callCount(), "gRPC PartialSuccess must not retry")
+}
+
+type mockPartialSuccessServer struct {
+	metricsv1.UnimplementedMetricsServiceServer
+	rejected int64
+	calls    atomic.Int32
+}
+
+func (m *mockPartialSuccessServer) Export(ctx context.Context, req *metricsv1.ExportMetricsServiceRequest) (*metricsv1.ExportMetricsServiceResponse, error) {
+	m.calls.Add(1)
+	return &metricsv1.ExportMetricsServiceResponse{
+		PartialSuccess: &metricsv1.ExportMetricsPartialSuccess{
+			RejectedDataPoints: m.rejected,
+			ErrorMessage:       "schema validation failed",
+		},
+	}, nil
+}
+
+func (m *mockPartialSuccessServer) callCount() int32 {
+	return m.calls.Load()
+}
+
 // Helper to extract attributes map from KeyValue slice
 func extractAttributesMap(attrs []*commonpb.KeyValue) map[string]string {
 	result := make(map[string]string)
@@ -1275,4 +1399,719 @@ func extractAttributesMap(attrs []*commonpb.KeyValue) map[string]string {
 		}
 	}
 	return result
+}
+
+// ---------------------------------------------------------------------------
+// Public Update() reload-path tests (Tasks 16c)
+//
+// These tests drive the real Update(ctx, cfg) API end-to-end. The existing
+// reload tests use withCfg / direct state.Swap shortcuts that bypass Update.
+// ---------------------------------------------------------------------------
+
+// TestUpdate_EndpointChange_RebuildsTransport verifies the rebuild path
+// (needsTransportRebuild == true). The endpoint change forces a new transport
+// to be allocated; the old transport pointer must differ from the new one, and
+// data sent after the Update reaches server2, not server1.
+func TestUpdate_EndpointChange_RebuildsTransport(t *testing.T) {
+	server1, endpoint1 := startMockOTLPServer(t)
+	defer server1.Stop()
+	server2, endpoint2 := startMockOTLPServer(t)
+	defer server2.Stop()
+
+	cfg1 := map[string]interface{}{
+		"endpoint":   endpoint1,
+		"protocol":   "grpc",
+		"timeout":    "2s",
+		"batch-size": 1,
+		"interval":   "50ms",
+	}
+	o := &otlpOutput{}
+	require.NoError(t, o.Init(context.Background(), "test-rebuild", cfg1,
+		outputs.WithLogger(logging.DiscardLogger()),
+		outputs.WithConfigStore(gomap.NewMemStore(store.StoreOptions[any]{})),
+	))
+	defer o.Close()
+
+	s1 := o.state.Load()
+	require.NotNil(t, s1)
+	transport1 := s1.transport
+
+	cfg2 := map[string]interface{}{
+		"endpoint":   endpoint2,
+		"protocol":   "grpc",
+		"timeout":    "2s",
+		"batch-size": 1,
+		"interval":   "50ms",
+	}
+	require.NoError(t, o.Update(context.Background(), cfg2))
+
+	s2 := o.state.Load()
+	require.NotNil(t, s2)
+	require.NotSame(t, s1, s2, "Update must publish a new outputState")
+	require.NotSame(t, transport1, s2.transport, "endpoint change must allocate a new transportState")
+
+	// A batch sent after the Update must reach server2.
+	o.WriteEvent(context.Background(), &formatters.EventMsg{
+		Name: "test", Timestamp: time.Now().UnixNano(),
+		Tags: map[string]string{"source": "x"}, Values: map[string]interface{}{"value": int64(1)},
+	})
+	require.Eventually(t, func() bool {
+		return server2.ReceivedMetricsCount() > 0
+	}, 2*time.Second, 20*time.Millisecond, "data must reach server2 after endpoint Update")
+
+	// server1 must not have received the post-reload batch.
+	require.Equal(t, 0, server1.ReceivedMetricsCount(), "server1 must not receive data after endpoint Update")
+}
+
+// TestUpdate_TwoStepReload_RealUpdateRespectsInFlightAcrossConfigOnly is the
+// regression test for the WaitGroup-on-fresh-state bug (Tasks 15d/16a), driven
+// via the public Update() API rather than direct state.Swap shortcuts. This
+// ensures Update's branch logic, its Swap block, and its async cleanup goroutine
+// are all exercised together.
+//
+// Step 1: cfg-only reload (no transport rebuild) → new outputState, same transport.
+// Step 2: endpoint change (rebuild) → new transport. The cleanup goroutine for
+// the original transport must block on inFlight until we release it.
+func TestUpdate_TwoStepReload_RealUpdateRespectsInFlightAcrossConfigOnly(t *testing.T) {
+	server1, endpoint1 := startMockOTLPServer(t)
+	defer server1.Stop()
+	server2, endpoint2 := startMockOTLPServer(t)
+	defer server2.Stop()
+
+	cfg1 := map[string]interface{}{
+		"endpoint":   endpoint1,
+		"protocol":   "grpc",
+		"timeout":    "2s",
+		"batch-size": 1,
+		"interval":   "50ms",
+	}
+	o := &otlpOutput{}
+	require.NoError(t, o.Init(context.Background(), "test-two-step", cfg1,
+		outputs.WithLogger(logging.DiscardLogger()),
+		outputs.WithConfigStore(gomap.NewMemStore(store.StoreOptions[any]{})),
+	))
+	defer o.Close()
+
+	s1 := o.state.Load()
+	T1 := s1.transport
+
+	// Simulate an in-flight batch holding T1's WaitGroup counter.
+	o.stateMu.Lock()
+	T1.inFlight.Add(1)
+	o.stateMu.Unlock()
+
+	// Step 1: cfg-only reload (header change only → needsTransportRebuild == false).
+	cfgOnly := map[string]interface{}{
+		"endpoint":   endpoint1,
+		"protocol":   "grpc",
+		"timeout":    "2s",
+		"batch-size": 1,
+		"interval":   "50ms",
+		"headers":    map[string]interface{}{"X-Scope-OrgID": "step1"},
+	}
+	require.NoError(t, o.Update(context.Background(), cfgOnly))
+
+	s2 := o.state.Load()
+	require.NotSame(t, s1, s2, "cfg-only reload must publish a new outputState")
+	require.Same(t, T1, s2.transport, "cfg-only reload must share the original transport")
+
+	// Step 2: rebuild reload (endpoint changes → needsTransportRebuild == true).
+	cfg2 := map[string]interface{}{
+		"endpoint":   endpoint2,
+		"protocol":   "grpc",
+		"timeout":    "2s",
+		"batch-size": 1,
+		"interval":   "50ms",
+	}
+	require.NoError(t, o.Update(context.Background(), cfg2))
+
+	s3 := o.state.Load()
+	require.NotSame(t, T1, s3.transport, "rebuild reload must allocate a new transport")
+
+	// T1 is being cleaned up asynchronously, but inFlight is still 1.
+	// Give the cleanup goroutine a brief window to start, then assert the
+	// connection is NOT yet closed (blocked on inFlight.Wait).
+	time.Sleep(100 * time.Millisecond)
+	connState := T1.grpcState.conn.GetState()
+	require.NotEqual(t, connectivity.Shutdown, connState,
+		"T1 conn must not be closed while inFlight > 0")
+
+	// Release the in-flight hold — cleanup goroutine should now drain.
+	T1.inFlight.Done()
+
+	// Poll for Shutdown with a generous timeout.
+	require.Eventually(t, func() bool {
+		return T1.grpcState.conn.GetState() == connectivity.Shutdown
+	}, 2*time.Second, 25*time.Millisecond, "T1 conn must transition to Shutdown after inFlight drains")
+}
+
+// TestUpdate_BufferSizeChange_SwapsEventChannel verifies that
+// channelNeedsSwap == true when buffer-size changes: the event channel must be
+// replaced with one of the new capacity.
+func TestUpdate_BufferSizeChange_SwapsEventChannel(t *testing.T) {
+	server, endpoint := startMockOTLPServer(t)
+	defer server.Stop()
+
+	cfg1 := map[string]interface{}{
+		"endpoint":    endpoint,
+		"protocol":    "grpc",
+		"timeout":     "2s",
+		"batch-size":  1,
+		"interval":    "50ms",
+		"buffer-size": 10,
+	}
+	o := &otlpOutput{}
+	require.NoError(t, o.Init(context.Background(), "test-buf-swap", cfg1,
+		outputs.WithLogger(logging.DiscardLogger()),
+		outputs.WithConfigStore(gomap.NewMemStore(store.StoreOptions[any]{})),
+	))
+	defer o.Close()
+
+	oldCh := *o.eventCh.Load()
+	require.Equal(t, 10, cap(oldCh), "initial channel capacity must match buffer-size")
+
+	cfg2 := map[string]interface{}{
+		"endpoint":    endpoint,
+		"protocol":    "grpc",
+		"timeout":     "2s",
+		"batch-size":  1,
+		"interval":    "50ms",
+		"buffer-size": 32,
+	}
+	require.NoError(t, o.Update(context.Background(), cfg2))
+
+	newCh := *o.eventCh.Load()
+	require.Equal(t, 32, cap(newCh), "channel capacity must update to new buffer-size")
+	// Capacity change is the load-bearing assertion; different cap guarantees
+	// a new channel was allocated.
+	require.NotEqual(t, cap(oldCh), cap(newCh), "Update must allocate a new channel when buffer-size changes")
+}
+
+// TestUpdate_NumWorkersChange_RestartsWorkers verifies needsWorkerRestart == true
+// when num-workers changes. After the Update the pipeline must still be
+// functional (data flows end-to-end).
+func TestUpdate_NumWorkersChange_RestartsWorkers(t *testing.T) {
+	server, endpoint := startMockOTLPServer(t)
+	defer server.Stop()
+
+	cfg1 := map[string]interface{}{
+		"endpoint":    endpoint,
+		"protocol":    "grpc",
+		"timeout":     "2s",
+		"batch-size":  1,
+		"interval":    "50ms",
+		"num-workers": 2,
+	}
+	o := &otlpOutput{}
+	require.NoError(t, o.Init(context.Background(), "test-worker-restart", cfg1,
+		outputs.WithLogger(logging.DiscardLogger()),
+		outputs.WithConfigStore(gomap.NewMemStore(store.StoreOptions[any]{})),
+	))
+	defer o.Close()
+
+	cfg2 := map[string]interface{}{
+		"endpoint":    endpoint,
+		"protocol":    "grpc",
+		"timeout":     "2s",
+		"batch-size":  1,
+		"interval":    "50ms",
+		"num-workers": 4,
+	}
+	require.NoError(t, o.Update(context.Background(), cfg2))
+
+	// cancelFn must not be nil after worker restart.
+	require.NotNil(t, o.cancelFn, "cancelFn must not be nil after worker restart")
+
+	// Pipeline must still work after the restart — data flows end-to-end.
+	countBefore := server.ReceivedMetricsCount()
+	o.WriteEvent(context.Background(), &formatters.EventMsg{
+		Name: "test", Timestamp: time.Now().UnixNano(),
+		Tags: map[string]string{"source": "x"}, Values: map[string]interface{}{"value": int64(1)},
+	})
+	require.Eventually(t, func() bool {
+		return server.ReceivedMetricsCount() > countBefore
+	}, 2*time.Second, 20*time.Millisecond, "data must flow end-to-end after worker-count Update")
+}
+
+// TestOTLP_HTTPTransport_EndToEnd verifies that configuring protocol: http
+// results in a working mTLS-authenticated POST to /v1/metrics carrying a
+// valid ExportMetricsServiceRequest built from a real gnmi Event.
+//
+// Default-on gzip is exercised: the body arrives Content-Encoding: gzip and
+// the test decompresses before unmarshal — same path real receivers use.
+func TestOTLP_HTTPTransport_EndToEnd(t *testing.T) {
+	var (
+		mu          sync.Mutex
+		gotBody     []byte
+		gotEncoding string
+	)
+	srv := newMTLSTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v1/metrics", r.URL.Path)
+		require.Equal(t, "application/x-protobuf", r.Header.Get("Content-Type"))
+		mu.Lock()
+		defer mu.Unlock()
+		gotEncoding = r.Header.Get("Content-Encoding")
+		b, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		gotBody = b
+		w.WriteHeader(http.StatusOK)
+	})
+	defer srv.Close()
+
+	o := &otlpOutput{}
+	cfgMap := map[string]interface{}{
+		"type":       "otlp",
+		"endpoint":   srv.URL,
+		"protocol":   "http",
+		"batch-size": 1,
+		"interval":   "50ms",
+		"timeout":    "2s",
+		"tls": map[string]interface{}{
+			"ca-file":   srv.CAPath(),
+			"cert-file": srv.ClientCertPath(),
+			"key-file":  srv.ClientKeyPath(),
+		},
+	}
+	require.NoError(t, o.Init(context.Background(), "test-otlp", cfgMap,
+		outputs.WithLogger(logging.DiscardLogger()),
+		outputs.WithConfigStore(gomap.NewMemStore(store.StoreOptions[any]{})),
+	))
+	defer o.Close()
+
+	event := &formatters.EventMsg{
+		Name:      "interfaces_interface_state_counters_in_octets",
+		Timestamp: time.Now().UnixNano(),
+		Tags:      map[string]string{"interface_name": "Ethernet1", "source": "10.1.1.1:6030"},
+		Values:    map[string]interface{}{"value": int64(1234567890)},
+	}
+	// WriteEvent (not Write) — Write takes proto.Message and handles SubscribeResponse;
+	// EventMsg is the input form for the batching pipeline.
+	o.WriteEvent(context.Background(), event)
+
+	// Poll up to 2 seconds for the body to arrive.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		mu.Lock()
+		got := gotBody != nil
+		mu.Unlock()
+		if got {
+			break
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	mu.Lock()
+	body := gotBody
+	encoding := gotEncoding
+	mu.Unlock()
+	require.NotNil(t, body, "server did not receive a request within deadline")
+
+	// Default compression for protocol:http is gzip — decompress before unmarshal.
+	if encoding == "gzip" {
+		gr, err := gzip.NewReader(bytes.NewReader(body))
+		require.NoError(t, err)
+		body, err = io.ReadAll(gr)
+		require.NoError(t, err)
+	}
+
+	var req metricsv1.ExportMetricsServiceRequest
+	require.NoError(t, proto.Unmarshal(body, &req))
+	require.NotEmpty(t, req.ResourceMetrics, "ResourceMetrics must be populated")
+}
+
+// TestInit_FailureAfterRegisterMetrics_UnregistersCleanly verifies that when
+// Init fails after registerMetrics succeeds, the collectors are unregistered so
+// that a subsequent Init retry on the same *otlpOutput and same registry does
+// not collide.
+func TestInit_FailureAfterRegisterMetrics_UnregistersCleanly(t *testing.T) {
+	reg := prometheus.NewRegistry()
+
+	// A bad TLS path causes buildOutputState→initHTTPFor to fail after
+	// registerMetrics has already registered the collectors.
+	badCfg := map[string]interface{}{
+		"endpoint": "http://127.0.0.1:9999",
+		"protocol": "http",
+		"tls": map[string]interface{}{
+			"ca-file": "/nonexistent/ca.pem", // guaranteed to fail
+		},
+		"enable-metrics": true,
+	}
+
+	o := &otlpOutput{}
+
+	// First Init: must fail (bad TLS).
+	err := o.Init(context.Background(), "test-cleanup", badCfg,
+		outputs.WithRegistry(reg),
+		outputs.WithConfigStore(gomap.NewMemStore(store.StoreOptions[any]{})),
+	)
+	require.Error(t, err, "first Init must fail (bad TLS path)")
+
+	// After failure the collectors must NOT still be registered.
+	// If they are, reg.Register would return an AlreadyRegisteredError.
+	require.NoError(t, reg.Register(otlpNumberOfSentEvents),
+		"otlpNumberOfSentEvents must be unregistered after Init failure")
+	// Clean up so the package-level variable is not left registered in this registry.
+	reg.Unregister(otlpNumberOfSentEvents)
+
+	// Second Init with a valid config on the same *otlpOutput must succeed.
+	server, endpoint := startMockOTLPServer(t)
+	defer server.Stop()
+
+	goodCfg := map[string]interface{}{
+		"endpoint":       endpoint,
+		"protocol":       "grpc",
+		"enable-metrics": true,
+	}
+	reg2 := prometheus.NewRegistry()
+	err = o.Init(context.Background(), "test-cleanup", goodCfg,
+		outputs.WithRegistry(reg2),
+		outputs.WithConfigStore(gomap.NewMemStore(store.StoreOptions[any]{})),
+	)
+	require.NoError(t, err, "second Init retry must succeed without duplicate-registration error")
+	defer o.Close()
+}
+
+// TestRegisterMetrics_PartialFailure_DoesNotRemoveExternallyOwnedCollectors
+// verifies that the per-instance ownership tracking means rollback only removes
+// collectors this instance registered — not the externally pre-registered one
+// that caused the failure.
+func TestRegisterMetrics_PartialFailure_DoesNotRemoveExternallyOwnedCollectors(t *testing.T) {
+	reg := prometheus.NewRegistry()
+
+	// Pre-register otlpSendDuration (the third collector in registerMetrics order)
+	// to simulate another owner having registered it before us.
+	require.NoError(t, reg.Register(otlpSendDuration))
+
+	o := &otlpOutput{}
+	o.reg = reg
+
+	err := o.registerMetrics(&config{EnableMetrics: true, Name: "x"})
+	require.Error(t, err, "registerMetrics must fail because otlpSendDuration is pre-registered")
+
+	// 1. The first two collectors (which this instance registered) must have been
+	//    rolled back — re-registering them must succeed.
+	require.NoError(t, reg.Register(otlpNumberOfSentEvents),
+		"otlpNumberOfSentEvents must be unregistered after partial failure (owned by this instance)")
+	require.NoError(t, reg.Register(otlpNumberOfFailedEvents),
+		"otlpNumberOfFailedEvents must be unregistered after partial failure (owned by this instance)")
+
+	// 2. otlpSendDuration was NOT registered by this instance, so the rollback
+	//    must NOT have removed it — re-registering it must return AlreadyRegisteredError.
+	err = reg.Register(otlpSendDuration)
+	require.Error(t, err, "otlpSendDuration must still be registered (externally owned, rollback must not touch it)")
+	var alreadyErr prometheus.AlreadyRegisteredError
+	require.ErrorAs(t, err, &alreadyErr,
+		"error must be AlreadyRegisteredError — otlpSendDuration survived the rollback")
+
+	// 3. registeredMetrics must be nil after rollback (drained).
+	require.Nil(t, o.registeredMetrics, "registeredMetrics must be nil after rollback")
+
+	// Cleanup.
+	reg.Unregister(otlpNumberOfSentEvents)
+	reg.Unregister(otlpNumberOfFailedEvents)
+	reg.Unregister(otlpSendDuration)
+}
+
+// TestClose_WaitsForInFlightBatchBeforeCleanup verifies that Close blocks on
+// transport.inFlight.Wait() before calling cleanup(). This ensures a future
+// sendBatch caller outside the worker path cannot observe a torn-down transport.
+func TestClose_WaitsForInFlightBatchBeforeCleanup(t *testing.T) {
+	server, endpoint := startMockOTLPServer(t)
+	defer server.Stop()
+
+	cfg := map[string]interface{}{
+		"endpoint":   endpoint,
+		"protocol":   "grpc",
+		"timeout":    "2s",
+		"batch-size": 1,
+		"interval":   "50ms",
+	}
+
+	o := &otlpOutput{}
+	require.NoError(t, o.Init(context.Background(), "test-close-inflight", cfg,
+		outputs.WithLogger(logging.DiscardLogger()),
+		outputs.WithConfigStore(gomap.NewMemStore(store.StoreOptions[any]{})),
+	))
+
+	// Simulate an in-flight batch by manually incrementing inFlight under stateMu
+	// (the same protocol sendBatch uses).
+	o.stateMu.Lock()
+	state := o.state.Load()
+	state.transport.inFlight.Add(1)
+	o.stateMu.Unlock()
+
+	// Call Close in a goroutine; it should block on inFlight.Wait().
+	closeDone := make(chan struct{})
+	go func() {
+		defer close(closeDone)
+		o.Close()
+	}()
+
+	// Assert Close has NOT returned within 50 ms (it must be blocked on Wait).
+	select {
+	case <-closeDone:
+		t.Fatal("Close returned before inFlight was drained — Wait is not load-bearing")
+	case <-time.After(50 * time.Millisecond):
+		// expected: Close is still blocked
+	}
+
+	// Release the in-flight hold — Close must now proceed.
+	state.transport.inFlight.Done()
+
+	// Assert Close returns within 2 s.
+	select {
+	case <-closeDone:
+		// expected
+	case <-time.After(2 * time.Second):
+		t.Fatal("Close did not return within 2s after inFlight was drained")
+	}
+}
+
+// TestClose_UnregistersMetrics verifies that after a successful Init+Close cycle
+// the collectors are unregistered, so a subsequent Init does not hit a
+// duplicate-registration error.
+func TestClose_UnregistersMetrics(t *testing.T) {
+	server, endpoint := startMockOTLPServer(t)
+	defer server.Stop()
+
+	reg := prometheus.NewRegistry()
+
+	cfg := map[string]interface{}{
+		"endpoint":       endpoint,
+		"protocol":       "grpc",
+		"enable-metrics": true,
+	}
+
+	o := &otlpOutput{}
+	require.NoError(t, o.Init(context.Background(), "test-close-metrics", cfg,
+		outputs.WithRegistry(reg),
+		outputs.WithConfigStore(gomap.NewMemStore(store.StoreOptions[any]{})),
+	))
+
+	require.NoError(t, o.Close())
+
+	// After Close, all collectors must be unregistered.
+	require.NoError(t, reg.Register(otlpNumberOfSentEvents),
+		"otlpNumberOfSentEvents must be unregistered after Close")
+	require.NoError(t, reg.Register(otlpNumberOfFailedEvents),
+		"otlpNumberOfFailedEvents must be unregistered after Close")
+	require.NoError(t, reg.Register(otlpSendDuration),
+		"otlpSendDuration must be unregistered after Close")
+	require.NoError(t, reg.Register(otlpRejectedDataPoints),
+		"otlpRejectedDataPoints must be unregistered after Close")
+	require.NoError(t, reg.Register(otlpMalformedResponses),
+		"otlpMalformedResponses must be unregistered after Close")
+	// Cleanup.
+	reg.Unregister(otlpNumberOfSentEvents)
+	reg.Unregister(otlpNumberOfFailedEvents)
+	reg.Unregister(otlpSendDuration)
+	reg.Unregister(otlpRejectedDataPoints)
+	reg.Unregister(otlpMalformedResponses)
+}
+
+// TestUpdate_TransportRebuildFailure_DoesNotApplyProcessors verifies that when
+// Update's buildOutputState fails, o.dynCfg is NOT updated. In the buggy code,
+// o.dynCfg.Store(dc) ran before buildOutputState, so a new dc pointer was always
+// published regardless of whether the transport build succeeded.
+//
+// We test with a protocol change (grpc → http) and an ftp:// endpoint that passes
+// validateConfig but is rejected by initHTTPFor's resolveMetricsURL (unsupported
+// scheme). Event-processors remain unchanged so rebuildProcessors is false — the
+// test focuses on the transport-failure branch.
+func TestUpdate_TransportRebuildFailure_DoesNotApplyProcessors(t *testing.T) {
+	server, endpoint := startMockOTLPServer(t)
+	defer server.Stop()
+
+	cfg1 := map[string]interface{}{
+		"endpoint":   endpoint,
+		"protocol":   "grpc",
+		"timeout":    "2s",
+		"batch-size": 1,
+		"interval":   "50ms",
+	}
+
+	o := &otlpOutput{}
+	require.NoError(t, o.Init(context.Background(), "test-dynCfg-no-apply", cfg1,
+		outputs.WithLogger(logging.DiscardLogger()),
+		outputs.WithConfigStore(gomap.NewMemStore(store.StoreOptions[any]{})),
+	))
+	defer o.Close()
+
+	// Capture baseline state pointer and dynCfg pointer.
+	s1 := o.state.Load()
+	prevDC := o.dynCfg.Load()
+	require.NotNil(t, s1)
+	require.NotNil(t, prevDC)
+
+	// Attempt Update: switch to http with an ftp:// endpoint.
+	// This passes validateConfig (protocol "http" is valid) but fails in
+	// initHTTPFor → resolveMetricsURL with "unsupported endpoint scheme".
+	badCfg := map[string]interface{}{
+		"endpoint":   "ftp://127.0.0.1:4318",
+		"protocol":   "http",
+		"timeout":    "2s",
+		"batch-size": 1,
+		"interval":   "50ms",
+	}
+	err := o.Update(context.Background(), badCfg)
+
+	// 1. Update must return an error.
+	require.Error(t, err, "Update must fail on ftp:// endpoint scheme")
+	require.Contains(t, err.Error(), "unsupported endpoint scheme")
+
+	// 2. dynCfg must NOT have been updated — pointer identity must be preserved.
+	require.Same(t, prevDC, o.dynCfg.Load(),
+		"dynCfg must not be updated when transport rebuild fails")
+
+	// 3. state must NOT have been updated — original state pointer must be preserved.
+	require.Same(t, s1, o.state.Load(),
+		"state must not be updated when transport rebuild fails")
+}
+
+// TestInit_GRPCBareEndpointWithoutPortRejected verifies that gRPC's bare-endpoint
+// form requires an explicit port, mirroring the HTTP path's resolveMetricsURL
+// discipline. A bare host like "panoptes" with no scheme and no port is rejected
+// at Init rather than passed through to grpc.NewClient where it would silently
+// resolve via the default resolver and dial the wrong port.
+func TestInit_GRPCBareEndpointWithoutPortRejected(t *testing.T) {
+	cases := []struct {
+		name     string
+		endpoint string
+	}{
+		{"no_port", "panoptes"},
+		{"trailing_colon", "panoptes:"},
+		{"port_only", ":4317"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			o := &otlpOutput{}
+			err := o.Init(context.Background(), "test-grpc-bare", map[string]any{
+				"endpoint": tc.endpoint,
+				"protocol": "grpc",
+			},
+				outputs.WithLogger(logging.DiscardLogger()),
+				outputs.WithConfigStore(gomap.NewMemStore(store.StoreOptions[any]{})),
+			)
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "must be host:port")
+		})
+	}
+}
+
+// Security: String() feeds the reload log (Update logs the marshaled config
+// at Info level), and Headers carries credentials such as Authorization
+// bearer tokens. Values must be redacted — for every header, not just a
+// blocklist — while key names stay visible for debugging. The live config
+// must not be mutated by the redaction.
+func TestString_RedactsHeaderValues(t *testing.T) {
+	o := &otlpOutput{}
+	o.initFields()
+	headers := map[string]string{
+		"Authorization": "Bearer super-secret-token",
+		"X-Api-Key":     "another-secret-value",
+		"X-Scope-OrgID": "tenant-1",
+	}
+	cfg := &config{Name: "redaction-test", Endpoint: "collector:4318", Headers: headers}
+	o.state.Store(&outputState{cfg: cfg})
+
+	s := o.String()
+	require.NotEmpty(t, s)
+	for k := range headers {
+		require.Contains(t, s, k, "header names must stay visible")
+	}
+	for _, v := range headers {
+		require.NotContains(t, s, v, "header values must never appear in String()")
+	}
+	require.Contains(t, s, "***")
+
+	// The redaction must operate on a copy.
+	require.Equal(t, "Bearer super-secret-token", cfg.Headers["Authorization"],
+		"live config must not be mutated")
+}
+
+// Config guard: a negative numeric value would otherwise panic at runtime —
+// buffer-size in make(chan) and num-workers in wg.Add at Init; batch-size in
+// make([]) and interval in time.NewTicker inside the worker goroutine, where
+// an unrecovered panic kills the process. Negative timeout disables deadlines
+// and negative max-retries silently drops every batch. All must be rejected
+// at validation time. Zero is not covered here: setDefaultsFor replaces zero
+// with the default before validateConfig runs.
+func TestValidateConfig_RejectsInvalidNumerics(t *testing.T) {
+	cases := []struct {
+		name   string
+		mutate func(*config)
+		want   string
+	}{
+		{"negative batch-size", func(c *config) { c.BatchSize = -1 }, "batch-size"},
+		{"negative buffer-size", func(c *config) { c.BufferSize = -1 }, "buffer-size"},
+		{"negative num-workers", func(c *config) { c.NumWorkers = -1 }, "num-workers"},
+		{"negative interval", func(c *config) { c.Interval = -time.Second }, "interval"},
+		{"negative timeout", func(c *config) { c.Timeout = -time.Second }, "timeout"},
+		{"negative max-retries", func(c *config) { c.MaxRetries = -1 }, "max-retries"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			o := &otlpOutput{}
+			c := &config{Endpoint: "collector:4317"}
+			tc.mutate(c)
+			o.setDefaultsFor(c)
+			err := o.validateConfig(c)
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tc.want)
+		})
+	}
+
+	// Sanity: defaults alone validate cleanly.
+	o := &otlpOutput{}
+	c := &config{Endpoint: "collector:4317"}
+	o.setDefaultsFor(c)
+	require.NoError(t, o.validateConfig(c))
+}
+
+// Race regression: the outputs manager dispatches Write/WriteEvent goroutines
+// without synchronizing against Close (go mgr.write(e) in outputs_manager.go),
+// so producers can still be sending while — and after — Close runs. Close
+// must not close the event channel (send on closed channel panics the whole
+// process even inside a select) and Write/WriteEvent must tolerate the
+// post-Close nil state. Run under -race, this also proves the paths are
+// data-race free.
+func TestClose_ConcurrentWriteEventDoesNotPanic(t *testing.T) {
+	server, endpoint := startMockOTLPServer(t)
+	defer server.Stop()
+
+	cfg := map[string]interface{}{
+		"endpoint": endpoint,
+		"protocol": "grpc",
+		"interval": "50ms",
+	}
+	o := &otlpOutput{}
+	require.NoError(t, o.Init(context.Background(), "close-race", cfg,
+		outputs.WithConfigStore(gomap.NewMemStore(store.StoreOptions[any]{})),
+	))
+
+	var wg sync.WaitGroup
+	stop := make(chan struct{})
+	for i := 0; i < 4; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ev := createTestEvent()
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+					o.WriteEvent(context.Background(), ev)
+				}
+			}
+		}()
+	}
+
+	time.Sleep(50 * time.Millisecond)
+	require.NoError(t, o.Close())
+	// Producers keep hammering after Close — must neither panic nor race.
+	time.Sleep(50 * time.Millisecond)
+	close(stop)
+	wg.Wait()
+
+	require.NoError(t, o.Close(), "Close must stay idempotent")
 }

@@ -9,6 +9,7 @@ In the context of gnmi subscriptions (on top of terminal output) `gnmic` support
 * [ClickHouse](clickhouse_output.md)
 * [Prometheus Server](prometheus_output.md)
 * [Prometheus Remote Write](prometheus_write_output.md)
+* [OpenTelemetry](otlp_output.md)
 * [UDP Server](udp_output.md)
 * [TCP Server](tcp_output.md)
 
@@ -68,7 +69,7 @@ outputs:
 
 #### Output formats
 
-Different formats are supported for all outputs
+Some outputs support the generic `format` option:
 
 **Format/output** | **proto**                          | **protojson**                   |  **prototext**                      | **json**                       | **event**
 ----------------- | ---------------------------------- | --------------------------------| ------------------------------------|--------------------------------|--------------------------------:
@@ -79,6 +80,7 @@ Different formats are supported for all outputs
 **InfluxDB**      | <span>NA</span>                    | <span>NA</span>                 | <span>NA</span>                     |<span>NA</span>                 |<span>NA</span>                    
 **ClickHouse**    | <span>NA</span>                    | <span>NA</span>                 | <span>NA</span>                     |<span>NA</span>                 |<span>NA</span>                    
 **Prometheus**    | <span>NA</span>                    | <span>NA</span>                 | <span>NA</span>                     |<span>NA</span>                 |<span>NA</span>                    
+**OpenTelemetry** | <span>NA</span>                    | <span>NA</span>                 | <span>NA</span>                     |<span>NA</span>                 |<span>NA</span>
 
 #### Formats examples
 
