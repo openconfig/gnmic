@@ -60,7 +60,7 @@ require (
 	github.com/zestor-dev/zestor v0.0.2
 	go.opentelemetry.io/proto/otlp v1.9.0
 	go.starlark.net v0.0.0-20260102030733-3fee463870c9
-	golang.org/x/crypto v0.51.0
+	golang.org/x/crypto v0.52.0
 	golang.org/x/oauth2 v0.36.0
 	golang.org/x/sync v0.20.0
 	google.golang.org/grpc v1.79.3
