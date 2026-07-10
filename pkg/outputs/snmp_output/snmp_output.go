@@ -43,6 +43,7 @@ const (
 	defaultCommunity        = "public"
 	minStartDelay           = 5 * time.Second
 	initialEventsBufferSize = 1000
+	defaultWriteTimeout     = 5 * time.Second
 	//
 	sysUpTimeInstanceOID = "1.3.6.1.2.1.1.3.0"
 )
@@ -66,6 +67,7 @@ type snmpOutput struct {
 	wg         *sync.WaitGroup
 	cache      cache.Cache
 	startTime  time.Time
+	shutdown   *outputs.ShutdownGate
 
 	reg   *prometheus.Registry
 	store store.Store[any]
@@ -134,6 +136,7 @@ func (s *snmpOutput) init() {
 	s.eventChan = make(chan *formatters.EventMsg, initialEventsBufferSize)
 	s.snmpClient = new(atomic.Pointer[g.Handler])
 	s.wg = new(sync.WaitGroup)
+	s.shutdown = outputs.NewShutdownGate()
 }
 
 func (s *snmpOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
@@ -367,10 +370,19 @@ func (s *snmpOutput) Write(ctx context.Context, m proto.Message, meta outputs.Me
 			return
 		}
 		for _, ev := range events {
+			wctx, cancel := context.WithTimeout(ctx, defaultWriteTimeout)
 			select {
+			case <-s.shutdown.C():
+				cancel()
+				return
 			case <-ctx.Done():
+				cancel()
 				return
 			case s.eventChan <- ev:
+				cancel()
+			case <-wctx.Done():
+				cancel()
+				return
 			}
 		}
 	}
@@ -379,6 +391,9 @@ func (s *snmpOutput) Write(ctx context.Context, m proto.Message, meta outputs.Me
 func (s *snmpOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {}
 
 func (s *snmpOutput) Close() error {
+	if s.shutdown != nil {
+		s.shutdown.Signal()
+	}
 	s.cancelFn()
 	s.wg.Wait()
 	snmpClient := s.snmpClient.Load()

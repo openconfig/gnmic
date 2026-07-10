@@ -85,6 +85,8 @@ type prometheusOutput struct {
 	store  store.Store[any]
 	runCfn context.CancelFunc
 	runCtx context.Context
+
+	shutdown *outputs.ShutdownGate
 }
 
 type dynConfig struct {
@@ -152,6 +154,7 @@ func (p *prometheusOutput) init() {
 	p.eventChan = new(atomic.Pointer[chan *formatters.EventMsg])
 	p.wg = new(sync.WaitGroup)
 	p.entries = make(map[uint64]*promcom.PromMetric)
+	p.shutdown = outputs.NewShutdownGate()
 }
 
 func (p *prometheusOutput) Init(ctx context.Context, name string, cfg map[string]any, opts ...outputs.Option) error {
@@ -555,6 +558,8 @@ func (p *prometheusOutput) Write(ctx context.Context, rsp proto.Message, meta ou
 	defer cancel()
 
 	select {
+	case <-p.shutdown.C():
+		return
 	case <-ctx.Done():
 		return
 	case msgChan <- outputs.NewProtoMsg(rsp, meta):
@@ -568,25 +573,39 @@ func (p *prometheusOutput) Write(ctx context.Context, rsp proto.Message, meta ou
 
 func (p *prometheusOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {
 	dc := p.dynCfg.Load()
-	if dc == nil {
+	cfg := p.cfg.Load()
+	if dc == nil || cfg == nil {
 		return
 	}
-	select {
-	case <-ctx.Done():
-		return
-	default:
-		var evs = []*formatters.EventMsg{ev}
-		for _, proc := range dc.evps {
-			evs = proc.Apply(evs...)
-		}
-		eventChan := *p.eventChan.Load()
-		for _, pev := range evs {
-			eventChan <- pev
+
+	wctx, cancel := context.WithTimeout(ctx, cfg.Timeout)
+	defer cancel()
+
+	var evs = []*formatters.EventMsg{ev}
+	for _, proc := range dc.evps {
+		evs = proc.Apply(evs...)
+	}
+	eventChan := *p.eventChan.Load()
+	for _, pev := range evs {
+		select {
+		case <-p.shutdown.C():
+			return
+		case <-ctx.Done():
+			return
+		case eventChan <- pev:
+		case <-wctx.Done():
+			if cfg.Debug {
+				p.logger.Warn("write expired", "timeout", cfg.Timeout)
+			}
+			return
 		}
 	}
 }
 
 func (p *prometheusOutput) Close() error {
+	if p.shutdown != nil {
+		p.shutdown.Signal()
+	}
 	p.Lock()
 	consulClient := p.consulClient
 	gnmiCache := p.gnmiCache

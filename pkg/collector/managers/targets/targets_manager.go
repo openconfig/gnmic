@@ -763,11 +763,12 @@ func (tm *TargetsManager) ForEach(fn func(*ManagedTarget)) {
 
 func (tm *TargetsManager) SetIntendedState(name string, state string) bool {
 	tm.mu.Lock()
-	defer tm.mu.Unlock()
 	mt := tm.targets[name]
+	tm.mu.Unlock()
 	if mt == nil {
 		return false
 	}
+
 	mt.Lock()
 	defer mt.Unlock()
 

@@ -547,7 +547,9 @@ func (f *File) Close() error {
 		return nil
 	}
 	f.logger.Info("closing file output", "file", (*fileHandle).Name())
-	return (*fileHandle).Close()
+	err := (*fileHandle).Close()
+	f.file.Store(nil)
+	return err
 }
 
 func (f *File) buildEventProcessors(logger *slog.Logger, eventProcessors []string) ([]formatters.EventProcessor, error) {

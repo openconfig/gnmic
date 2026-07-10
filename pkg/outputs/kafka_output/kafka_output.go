@@ -471,7 +471,7 @@ func (k *kafkaOutput) UpdateProcessor(name string, pcfg map[string]any) error {
 // Write //
 func (k *kafkaOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) {
 	currentCfg := k.cfg.Load()
-	if rsp == nil {
+	if rsp == nil || currentCfg == nil {
 		return
 	}
 

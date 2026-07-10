@@ -32,8 +32,9 @@ import (
 )
 
 const (
-	defaultRetryTimer = 2 * time.Second
-	outputType        = "udp"
+	defaultRetryTimer   = 2 * time.Second
+	defaultWriteTimeout = 5 * time.Second
+	outputType          = "udp"
 )
 
 func init() {
@@ -53,6 +54,7 @@ type udpSock struct {
 	cancelFn context.CancelFunc
 	wg       *sync.WaitGroup
 	logger   *slog.Logger
+	shutdown *outputs.ShutdownGate
 
 	store store.Store[any]
 }
@@ -102,6 +104,7 @@ func (u *udpSock) init() {
 	u.buffer = new(atomic.Pointer[chan []byte])
 	u.wg = new(sync.WaitGroup)
 	u.logger = logging.DiscardLogger()
+	u.shutdown = outputs.NewShutdownGate()
 }
 
 func (u *udpSock) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
@@ -382,10 +385,19 @@ func (u *udpSock) Write(ctx context.Context, m proto.Message, meta outputs.Meta)
 			return
 		}
 		for _, b := range bb {
+			wctx, cancel := context.WithTimeout(ctx, defaultWriteTimeout)
 			select {
+			case <-u.shutdown.C():
+				cancel()
+				return
 			case <-ctx.Done():
+				cancel()
 				return
 			case (*buffer) <- b:
+				cancel()
+			case <-wctx.Done():
+				cancel()
+				return
 			}
 		}
 	}
@@ -394,6 +406,9 @@ func (u *udpSock) Write(ctx context.Context, m proto.Message, meta outputs.Meta)
 func (u *udpSock) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {}
 
 func (u *udpSock) Close() error {
+	if u.shutdown != nil {
+		u.shutdown.Signal()
+	}
 	if u.cancelFn != nil {
 		u.cancelFn()
 	}

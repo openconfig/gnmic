@@ -58,6 +58,8 @@ func (n *NatsOutput) init() {
 	n.msgChan = new(atomic.Pointer[chan *outputs.ProtoMsg])
 	n.wg = new(sync.WaitGroup)
 	n.logger = logging.DiscardLogger()
+	n.closeOnce = sync.Once{}
+	n.closeSig = make(chan struct{})
 }
 
 // NatsOutput //
@@ -72,6 +74,9 @@ type NatsOutput struct {
 	msgChan  *atomic.Pointer[chan *outputs.ProtoMsg] // atomic channel swaps
 	wg       *sync.WaitGroup
 	logger   *slog.Logger
+
+	closeOnce sync.Once
+	closeSig  chan struct{}
 
 	reg   *prometheus.Registry
 	store store.Store[any]
@@ -413,6 +418,8 @@ func (n *NatsOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.
 	select {
 	case <-ctx.Done():
 		return
+	case <-n.closeSig:
+		return
 	case *ch <- outputs.NewProtoMsg(rsp, meta):
 	case <-wctx.Done():
 		if cfg.Debug {
@@ -431,6 +438,9 @@ func (n *NatsOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {}
 func (n *NatsOutput) Close() error {
 	n.cancelFn()
 	n.wg.Wait()
+	n.closeOnce.Do(func() {
+		close(n.closeSig)
+	})
 	n.logger.Info("closed nats output", slog.Any("config", n.String()))
 	return nil
 }

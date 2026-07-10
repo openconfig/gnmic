@@ -77,6 +77,8 @@ type promWriteOutput struct {
 	cancelFn context.CancelFunc
 	wg       *sync.WaitGroup
 
+	shutdown *outputs.ShutdownGate
+
 	reg   *prometheus.Registry
 	store store.Store[any]
 }
@@ -145,6 +147,7 @@ func (p *promWriteOutput) init() {
 	p.msgChan = make(chan *outputs.ProtoMsg)
 	p.buffDrainCh = make(chan struct{}, 1)
 	p.metadataCache = make(map[string]prompb.MetricMetadata)
+	p.shutdown = outputs.NewShutdownGate()
 }
 
 func (p *promWriteOutput) buildEventProcessors(cfg *config) ([]formatters.EventProcessor, error) {
@@ -427,11 +430,16 @@ func (p *promWriteOutput) Write(ctx context.Context, rsp proto.Message, meta out
 		return
 	}
 	cfg := p.cfg.Load()
+	if cfg == nil {
+		return
+	}
 
 	wctx, cancel := context.WithTimeout(ctx, cfg.Timeout)
 	defer cancel()
 
 	select {
+	case <-p.shutdown.C():
+		return
 	case <-ctx.Done():
 		return
 	case p.msgChan <- outputs.NewProtoMsg(rsp, meta):
@@ -445,24 +453,38 @@ func (p *promWriteOutput) Write(ctx context.Context, rsp proto.Message, meta out
 
 func (p *promWriteOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {
 	dc := p.dynCfg.Load()
-	if dc == nil {
+	cfg := p.cfg.Load()
+	if dc == nil || cfg == nil {
 		return
 	}
-	select {
-	case <-ctx.Done():
-		return
-	default:
-		var evs = []*formatters.EventMsg{ev}
-		for _, proc := range dc.evps {
-			evs = proc.Apply(evs...)
-		}
-		for _, pev := range evs {
-			p.eventChan <- pev
+
+	wctx, cancel := context.WithTimeout(ctx, cfg.Timeout)
+	defer cancel()
+
+	var evs = []*formatters.EventMsg{ev}
+	for _, proc := range dc.evps {
+		evs = proc.Apply(evs...)
+	}
+	for _, pev := range evs {
+		select {
+		case <-p.shutdown.C():
+			return
+		case <-ctx.Done():
+			return
+		case p.eventChan <- pev:
+		case <-wctx.Done():
+			if cfg.Debug {
+				p.logger.Warn("write expired", "timeout", cfg.Timeout)
+			}
+			return
 		}
 	}
 }
 
 func (p *promWriteOutput) Close() error {
+	if p.shutdown != nil {
+		p.shutdown.Signal()
+	}
 	if p.cancelFn != nil {
 		p.cancelFn()
 	}

@@ -83,6 +83,9 @@ type asciigraphOutput struct {
 
 	targetTpl *template.Template
 	store     store.Store[any]
+
+	cancelFn context.CancelFunc
+	shutdown *outputs.ShutdownGate
 }
 
 type series struct {
@@ -191,7 +194,10 @@ func (a *asciigraphOutput) Init(ctx context.Context, name string, cfg map[string
 		return err
 	}
 	//
-	go a.graph(ctx)
+	graphCtx, cancel := context.WithCancel(ctx)
+	a.cancelFn = cancel
+	a.shutdown = outputs.NewShutdownGate()
+	go a.graph(graphCtx)
 	a.logger.Info("initialized asciigraph output", slog.Any("config", a.String()))
 	return nil
 }
@@ -264,6 +270,8 @@ func (a *asciigraphOutput) WriteEvent(ctx context.Context, ev *formatters.EventM
 	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 	select {
+	case <-a.shutdown.C():
+		return
 	case <-ctx.Done():
 		a.logger.Warn("write timeout", "err", ctx.Err())
 	case a.eventCh <- ev:
@@ -272,6 +280,12 @@ func (a *asciigraphOutput) WriteEvent(ctx context.Context, ev *formatters.EventM
 
 // Close //
 func (a *asciigraphOutput) Close() error {
+	if a.shutdown != nil {
+		a.shutdown.Signal()
+	}
+	if a.cancelFn != nil {
+		a.cancelFn()
+	}
 	return nil
 }
 

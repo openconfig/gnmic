@@ -32,9 +32,10 @@ import (
 )
 
 const (
-	defaultRetryTimer = 2 * time.Second
-	defaultNumWorkers = 1
-	outputType        = "tcp"
+	defaultRetryTimer  = 2 * time.Second
+	defaultNumWorkers  = 1
+	defaultWriteTimeout = 5 * time.Second
+	outputType         = "tcp"
 )
 
 func init() {
@@ -53,6 +54,7 @@ type tcpOutput struct {
 	wg       *sync.WaitGroup
 	buffer   *atomic.Pointer[chan []byte]
 	logger   *slog.Logger
+	shutdown *outputs.ShutdownGate
 
 	store store.Store[any]
 }
@@ -106,6 +108,7 @@ func (t *tcpOutput) init() {
 	t.buffer = new(atomic.Pointer[chan []byte])
 	t.wg = new(sync.WaitGroup)
 	t.logger = logging.DiscardLogger()
+	t.shutdown = outputs.NewShutdownGate()
 }
 
 func (t *tcpOutput) Init(ctx context.Context, name string, cfg map[string]interface{}, opts ...outputs.Option) error {
@@ -352,6 +355,9 @@ func (t *tcpOutput) Write(ctx context.Context, m proto.Message, meta outputs.Met
 	default:
 		cfg := t.cfg.Load()
 		dc := t.dynCfg.Load()
+		if cfg == nil || dc == nil {
+			return
+		}
 		rsp, err := outputs.AddSubscriptionTarget(m, meta, cfg.AddTarget, dc.targetTpl)
 		if err != nil {
 			t.logger.Warn("failed to add target to response", "err", err)
@@ -362,8 +368,24 @@ func (t *tcpOutput) Write(ctx context.Context, m proto.Message, meta outputs.Met
 			return
 		}
 		buffer := t.buffer.Load()
+		if buffer == nil {
+			return
+		}
 		for _, b := range bb {
-			(*buffer) <- b
+			wctx, cancel := context.WithTimeout(ctx, defaultWriteTimeout)
+			select {
+			case <-t.shutdown.C():
+				cancel()
+				return
+			case <-ctx.Done():
+				cancel()
+				return
+			case (*buffer) <- b:
+				cancel()
+			case <-wctx.Done():
+				cancel()
+				return
+			}
 		}
 	}
 }
@@ -371,6 +393,9 @@ func (t *tcpOutput) Write(ctx context.Context, m proto.Message, meta outputs.Met
 func (t *tcpOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {}
 
 func (t *tcpOutput) Close() error {
+	if t.shutdown != nil {
+		t.shutdown.Signal()
+	}
 	t.cancelFn()
 	t.wg.Wait()
 	dc := t.dynCfg.Load()
