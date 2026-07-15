@@ -41,13 +41,19 @@ type restAssigner struct {
 	logger *slog.Logger
 }
 
-func NewAssigner(store *collstore.Store) Assigner {
+// NewAssigner returns an Assigner that pushes assignments to cluster members.
+// client is the HTTP client built from clustering.tls (see
+// newClusteringHTTPClient); if nil, a plain client is used as a fallback.
+func NewAssigner(store *collstore.Store, client *http.Client) Assigner {
+	if client == nil {
+		client = &http.Client{
+			Timeout: 10 * time.Second,
+		}
+	}
 	return &restAssigner{
 		store:  store,
 		logger: slog.With("component", "assignment-pusher"),
-		client: &http.Client{
-			Timeout: 10 * time.Second,
-		},
+		client: client,
 	}
 }
 

@@ -2,6 +2,7 @@ package cluster_manager
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -17,6 +18,7 @@ import (
 
 	"golang.org/x/sync/semaphore"
 
+	"github.com/openconfig/gnmic/pkg/api/utils"
 	apiconst "github.com/openconfig/gnmic/pkg/collector/api/const"
 	"github.com/openconfig/gnmic/pkg/collector/env"
 	collstore "github.com/openconfig/gnmic/pkg/collector/store"
@@ -26,9 +28,43 @@ import (
 	"github.com/zestor-dev/zestor/store"
 )
 
+// newClusteringHTTPClient builds the HTTP client used for leader->member API
+// calls (target assignment/unassignment/deletion), honoring clustering.tls.
+// It mirrors (*App).createAPIClient in pkg/app/clustering.go so that collector
+// mode has the same inter-member TLS behavior as subscribe mode.
+func newClusteringHTTPClient(cfg *config.Clustering) (*http.Client, error) {
+	if cfg == nil || cfg.TLS == nil {
+		return &http.Client{
+			Timeout: defaultClusteringHTTPTimeout,
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true,
+				},
+			},
+		}, nil
+	}
+	tlsConfig, err := utils.NewTLSConfig(
+		cfg.TLS.CaFile,
+		cfg.TLS.CertFile,
+		cfg.TLS.KeyFile, "",
+		cfg.TLS.SkipVerify,
+		false)
+	if err != nil {
+		return nil, err
+	}
+	return &http.Client{
+		Timeout: defaultClusteringHTTPTimeout,
+		Transport: &http.Transport{
+			TLSClientConfig: tlsConfig,
+		},
+	}, nil
+}
+
 const (
 	protocolTagName          = "__protocol"
 	retryRegistrationBackoff = 2 * time.Second
+
+	defaultClusteringHTTPTimeout = 10 * time.Second
 )
 
 type ClusterManager struct {
@@ -66,7 +102,8 @@ func NewClusterManager(store *collstore.Store) *ClusterManager {
 		locker:           nil,
 		lockCheckLimiter: make(chan struct{}, 64), // TODO: make this configurable
 		rebalancingSem:   semaphore.NewWeighted(1),
-		apiClient:        &http.Client{Timeout: 10 * time.Second}, // TODO:
+		// replaced in Start() with a client built from clustering.tls
+		apiClient: &http.Client{Timeout: defaultClusteringHTTPTimeout},
 	}
 }
 
@@ -94,6 +131,13 @@ func (c *ClusterManager) Start(ctx context.Context, locker lockers.Locker, wg *s
 	c.clusteringConfig = clustering
 	env.ExpandClusterEnv(c.clusteringConfig)
 
+	// build the inter-member API client from clustering.tls so that
+	// leader->member calls work over a TLS-secured API (private CA / mTLS).
+	c.apiClient, err = newClusteringHTTPClient(c.clusteringConfig)
+	if err != nil {
+		return fmt.Errorf("failed to build clustering API client: %w", err)
+	}
+
 	apiConfig, ok, err := c.store.Config.Get("api-server", "api-server")
 	if err != nil {
 		return err
@@ -118,7 +162,7 @@ func (c *ClusterManager) Start(ctx context.Context, locker lockers.Locker, wg *s
 		return err
 	}
 	c.membership = NewMembership(c.locker, clustering, c.logger)
-	c.assigner = NewAssigner(c.store)
+	c.assigner = NewAssigner(c.store, c.apiClient)
 
 	// start registration to register the api service
 	wg.Add(1)
