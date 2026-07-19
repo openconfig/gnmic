@@ -67,7 +67,7 @@ func TestRestAssigner_postsAssignments(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	st := testutil.NewTestStore(t)
-	assigner := NewAssigner(st).(*restAssigner)
+	assigner := NewAssigner(st, nil).(*restAssigner)
 	assigner.client = srv.Client()
 
 	addr := strings.TrimPrefix(srv.URL, "http://")
