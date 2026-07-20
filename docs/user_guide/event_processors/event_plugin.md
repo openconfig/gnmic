@@ -127,3 +127,19 @@ func main() {
 	})
 }
 ```
+
+#### Return value
+
+The data model of the return event is:
+
+```go
+type EventMsg struct {
+	Name      string                 `json:"name,omitempty"`
+	Timestamp int64                  `json:"timestamp,omitempty"`
+	Tags      map[string]string      `json:"tags,omitempty"`
+	Values    map[string]interface{} `json:"values,omitempty"`
+	Deletes   []string               `json:"deletes,omitempty"`
+}
+```
+
+However `Value` only support based type as value.
