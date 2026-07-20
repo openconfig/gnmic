@@ -61,7 +61,7 @@ outputs:
 | `metric-prefix` | unset | Prefix added to generated metric names. |
 | `append-subscription-name` | `false` | Adds the subscription name to generated metric names. |
 | `strip-leading-underscore` | `false` | Removes a leading `/` from the gNMI path before `/` is converted to `_`. |
-| `strings-as-attributes` | `false` | Exports string values as gauge metrics with value `1` and a `value` data point attribute. If false, string values are dropped. |
+| `strings-as-attributes` | `false` | Exports **non-numeric** string values as gauge metrics with value `1` and a `value` data point attribute. Numeric strings (RFC 7951 encodes `uint64`/`int64`/`decimal64` as JSON strings under `json_ietf`) are always emitted as numeric datapoints. If false, non-numeric string values are dropped. |
 | `resource-tag-keys` | unset | Tags to place on the OTLP Resource instead of the data point. |
 | `counter-patterns` | unset | Regex patterns matched against value names. Matching values are exported as monotonic cumulative Sums. |
 | `resource-attributes` | unset | Static attributes added to every OTLP Resource. |
