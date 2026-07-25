@@ -3,8 +3,10 @@ package targets_manager
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hash/fnv"
+	"io"
 	"log/slog"
 	"maps"
 	"net"
@@ -28,6 +30,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/zestor-dev/zestor/store"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/status"
 )
 
 type ManagedTarget struct {
@@ -625,6 +628,7 @@ func (tm *TargetsManager) remove(name string) {
 		mt.readerCancel = nil
 		mt.Unlock()
 	}
+	tm.stats.targetGrpcStateMetric.DeleteLabelValues(name)
 	tm.store.State.Delete(collstore.KindTargets, name)
 }
 
@@ -855,6 +859,7 @@ func (tm *TargetsManager) startTargetSubscription(mt *ManagedTarget, cfg *types.
 					mt.clearLastError()
 					tm.setTargetState(mt.Name, collstore.StateRunning)
 				}
+				tm.stats.targetGrpcStateMetric.WithLabelValues(mt.Name).Set(2) // start with 2 = UNKNOWN
 				tm.stats.subscribeResponseReceived.WithLabelValues(mt.Name, resp.SubscriptionName).Inc()
 				outs := func() map[string]struct{} {
 					if len(subscriptionOutputs) > 0 {
@@ -891,17 +896,31 @@ func (tm *TargetsManager) startTargetSubscription(mt *ManagedTarget, cfg *types.
 				// Reset so the next successful response after retry
 				// triggers a state update back to "running".
 				initialResponse = true
-				mt.setLastError(err.Err.Error())
-				currentState := tm.getTargetStateStr(mt.Name)
-				if currentState != "" {
-					tm.setTargetState(mt.Name, currentState)
-				}
-				tm.stats.subscriptionFailedCount.WithLabelValues(mt.Name, err.SubscriptionName, subscriptionRequestErrorTypeGRPC).Inc()
-				tm.logger.Error("subscription error", "error", err)
+				tm.handleSubscriptionError(mt, err)
 			}
 		}
 	}()
 	return nil
+}
+
+func (tm *TargetsManager) handleSubscriptionError(mt *ManagedTarget, err *target.TargetError) {
+	if errors.Is(err.Err, io.EOF) {
+		tm.stats.targetGrpcStateMetric.WithLabelValues(mt.Name).Set(0) // OK
+		tm.logger.Info("subscription closed stream (EOF)", "target", mt.Name, "subscription", err.SubscriptionName)
+		return
+	}
+
+	mt.setLastError(err.Err.Error())
+	if currentState := tm.getTargetStateStr(mt.Name); currentState != "" {
+		tm.setTargetState(mt.Name, currentState)
+	}
+	tm.stats.subscriptionFailedCount.WithLabelValues(mt.Name, err.SubscriptionName, subscriptionRequestErrorTypeGRPC).Inc()
+
+	if st, ok := status.FromError(err.Err); ok {
+		grpcCode := float64(st.Code())
+		tm.stats.targetGrpcStateMetric.WithLabelValues(mt.Name).Set(grpcCode)
+	}
+	tm.logger.Error("subscription error", "error", err)
 }
 
 func shouldReconnect(old, new *types.TargetConfig) bool {
