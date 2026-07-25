@@ -100,32 +100,33 @@ type dynConfig struct {
 
 // config //
 type config struct {
-	Address            string           `mapstructure:"address,omitempty"`
-	Topic              string           `mapstructure:"topic,omitempty"`
-	TopicPrefix        string           `mapstructure:"topic-prefix,omitempty"`
-	Name               string           `mapstructure:"name,omitempty"`
-	SASL               *types.SASL      `mapstructure:"sasl,omitempty"`
-	TLS                *types.TLSConfig `mapstructure:"tls,omitempty"`
-	MaxRetry           int              `mapstructure:"max-retry,omitempty"`
-	Timeout            time.Duration    `mapstructure:"timeout,omitempty"`
-	RecoveryWaitTime   time.Duration    `mapstructure:"recovery-wait-time,omitempty"`
-	FlushFrequency     time.Duration    `mapstructure:"flush-frequency,omitempty"`
-	SyncProducer       bool             `mapstructure:"sync-producer,omitempty"`
-	RequiredAcks       string           `mapstructure:"required-acks,omitempty"`
-	Format             string           `mapstructure:"format,omitempty"`
-	InsertKey          bool             `mapstructure:"insert-key,omitempty"`
-	AddTarget          string           `mapstructure:"add-target,omitempty"`
-	TargetTemplate     string           `mapstructure:"target-template,omitempty"`
-	MsgTemplate        string           `mapstructure:"msg-template,omitempty"`
-	SplitEvents        bool             `mapstructure:"split-events,omitempty"`
-	NumWorkers         int              `mapstructure:"num-workers,omitempty"`
-	CompressionCodec   string           `mapstructure:"compression-codec,omitempty"`
-	KafkaVersion       string           `mapstructure:"kafka-version,omitempty"`
-	Debug              bool             `mapstructure:"debug,omitempty"`
-	BufferSize         int              `mapstructure:"buffer-size,omitempty"`
-	OverrideTimestamps bool             `mapstructure:"override-timestamps,omitempty"`
-	EnableMetrics      bool             `mapstructure:"enable-metrics,omitempty"`
-	EventProcessors    []string         `mapstructure:"event-processors,omitempty"`
+	Address            string            `mapstructure:"address,omitempty"`
+	Topic              string            `mapstructure:"topic,omitempty"`
+	TopicPrefix        string            `mapstructure:"topic-prefix,omitempty"`
+	Name               string            `mapstructure:"name,omitempty"`
+	SASL               *types.SASL       `mapstructure:"sasl,omitempty"`
+	TLS                *types.TLSConfig  `mapstructure:"tls,omitempty"`
+	MaxRetry           int               `mapstructure:"max-retry,omitempty"`
+	Timeout            time.Duration     `mapstructure:"timeout,omitempty"`
+	RecoveryWaitTime   time.Duration     `mapstructure:"recovery-wait-time,omitempty"`
+	FlushFrequency     time.Duration     `mapstructure:"flush-frequency,omitempty"`
+	SyncProducer       bool              `mapstructure:"sync-producer,omitempty"`
+	RequiredAcks       string            `mapstructure:"required-acks,omitempty"`
+	Format             string            `mapstructure:"format,omitempty"`
+	InsertKey          bool              `mapstructure:"insert-key,omitempty"`
+	AddTarget          string            `mapstructure:"add-target,omitempty"`
+	TargetTemplate     string            `mapstructure:"target-template,omitempty"`
+	MsgTemplate        string            `mapstructure:"msg-template,omitempty"`
+	SplitEvents        bool              `mapstructure:"split-events,omitempty"`
+	NumWorkers         int               `mapstructure:"num-workers,omitempty"`
+	CompressionCodec   string            `mapstructure:"compression-codec,omitempty"`
+	KafkaVersion       string            `mapstructure:"kafka-version,omitempty"`
+	Debug              bool              `mapstructure:"debug,omitempty"`
+	BufferSize         int               `mapstructure:"buffer-size,omitempty"`
+	OverrideTimestamps bool              `mapstructure:"override-timestamps,omitempty"`
+	EnableMetrics      bool              `mapstructure:"enable-metrics,omitempty"`
+	EventProcessors    []string          `mapstructure:"event-processors,omitempty"`
+	AddHeaders         map[string]string `mapstructure:"add-headers,omitempty"`
 }
 
 func (c *config) LogValue() slog.Value {
@@ -612,10 +613,25 @@ CRPROD:
 					}
 				}
 
+				var headers []sarama.RecordHeader
+				for k, v := range cfg.AddHeaders {
+					headers = append(headers, sarama.RecordHeader{
+						Key:   []byte(k),
+						Value: []byte(v),
+					})
+				}
+
+				headers = append(headers, sarama.RecordHeader{
+					Key:   []byte("sub"),
+					Value: []byte(m.GetMeta()["subscription-name"]),
+				})
+
 				topic := k.selectTopic(m.GetMeta())
 				msg := &sarama.ProducerMessage{
-					Topic: topic,
-					Value: sarama.ByteEncoder(b),
+					Topic:     topic,
+					Value:     sarama.ByteEncoder(b),
+					Headers:   headers,
+					Timestamp: time.Now(),
 				}
 				if cfg.InsertKey {
 					msg.Key = sarama.ByteEncoder(k.partitionKey(m.GetMeta()))
@@ -688,10 +704,25 @@ CRPROD:
 					}
 				}
 
+				var headers []sarama.RecordHeader
+				for k, v := range cfg.AddHeaders {
+					headers = append(headers, sarama.RecordHeader{
+						Key:   []byte(k),
+						Value: []byte(v),
+					})
+				}
+
+				headers = append(headers, sarama.RecordHeader{
+					Key:   []byte("sub"),
+					Value: []byte(m.GetMeta()["subscription-name"]),
+				})
+
 				topic := k.selectTopic(m.GetMeta())
 				msg := &sarama.ProducerMessage{
-					Topic: topic,
-					Value: sarama.ByteEncoder(b),
+					Topic:     topic,
+					Value:     sarama.ByteEncoder(b),
+					Headers:   headers,
+					Timestamp: time.Now(),
 				}
 				if cfg.InsertKey {
 					msg.Key = sarama.ByteEncoder(k.partitionKey(m.GetMeta()))
