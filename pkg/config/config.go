@@ -361,12 +361,13 @@ func (c *Config) Load(ctx context.Context) error {
 		}
 	}
 
+	c.mergeEnvVars()
+
 	err := c.FileConfig.Unmarshal(c)
 	if err != nil {
 		return err
 	}
 
-	c.mergeEnvVars()
 	return c.expandOSPathFlagValues()
 }
 
