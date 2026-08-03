@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"slices"
@@ -21,6 +22,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/openconfig/gnmic/pkg/formatters"
@@ -34,6 +36,7 @@ import (
 const (
 	defaultRetryTimer = 2 * time.Second
 	defaultNumWorkers = 1
+	defaultMaxRetries = 3
 	outputType        = "tcp"
 )
 
@@ -53,6 +56,8 @@ type tcpOutput struct {
 	wg       *sync.WaitGroup
 	buffer   *atomic.Pointer[chan []byte]
 	logger   *slog.Logger
+	name     string
+	reg      *prometheus.Registry
 
 	store store.Store[any]
 }
@@ -77,6 +82,7 @@ type config struct {
 	Delimiter          string        `mapstructure:"delimiter,omitempty"`
 	KeepAlive          time.Duration `mapstructure:"keep-alive,omitempty"`
 	RetryInterval      time.Duration `mapstructure:"retry-interval,omitempty"`
+	MaxRetries         int           `mapstructure:"max-retries,omitempty"`
 	NumWorkers         int           `mapstructure:"num-workers,omitempty"`
 	EnableMetrics      bool          `mapstructure:"enable-metrics,omitempty"`
 	EventProcessors    []string      `mapstructure:"event-processors,omitempty"`
@@ -126,6 +132,8 @@ func (t *tcpOutput) Init(ctx context.Context, name string, cfg map[string]interf
 	}
 
 	t.store = options.Store
+	t.name = name
+	t.reg = options.Registry
 
 	t.logger = outputs.BindLogger(options.Logger, outputType, name)
 
@@ -152,6 +160,9 @@ func (t *tcpOutput) Init(ctx context.Context, name string, cfg map[string]interf
 	_, _, err = net.SplitHostPort(newCfg.Address)
 	if err != nil {
 		return fmt.Errorf("wrong address format: %v", err)
+	}
+	if err := t.registerMetrics(newCfg); err != nil {
+		return err
 	}
 	ch := make(chan []byte, newCfg.BufferSize)
 	t.buffer.Store(&ch)
@@ -180,9 +191,15 @@ func setDefaultsFor(cfg *config) {
 	if cfg.NumWorkers < 1 {
 		cfg.NumWorkers = defaultNumWorkers
 	}
+	if cfg.MaxRetries == 0 {
+		cfg.MaxRetries = defaultMaxRetries
+	}
 }
 
 func validate(cfg *config) error {
+	if cfg.MaxRetries < 0 {
+		return errors.New("max-retries must be non-negative")
+	}
 	if cfg.Address == "" {
 		return errors.New("address is required")
 	}
@@ -214,6 +231,12 @@ func (t *tcpOutput) Update(_ context.Context, cfg map[string]any) error {
 	}
 	setDefaultsFor(newCfg)
 	currCfg := t.cfg.Load()
+
+	if newCfg.EnableMetrics && (currCfg == nil || !currCfg.EnableMetrics) {
+		if err := t.registerMetrics(newCfg); err != nil {
+			return err
+		}
+	}
 
 	swapChannel := channelNeedsSwap(currCfg, newCfg)
 	restartWorkers := needsWorkerRestart(currCfg, newCfg)
@@ -389,53 +412,199 @@ func (t *tcpOutput) String() string {
 	return string(b)
 }
 
+type tcpDialFunc func(context.Context, string) (net.Conn, error)
+
+func tcpDialContext(ctx context.Context, address string) (net.Conn, error) {
+	// Keep keepalive disabled unless the output configuration enables it.
+	dialer := net.Dialer{KeepAlive: -1}
+	return dialer.DialContext(ctx, "tcp", address)
+}
+
+func waitTCPRetry(ctx context.Context, interval time.Duration) bool {
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
+}
+
+func writeTCPPayload(w io.Writer, payload []byte) error {
+	for len(payload) > 0 {
+		n, err := w.Write(payload)
+		if n > 0 {
+			payload = payload[n:]
+		}
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return io.ErrNoProgress
+		}
+	}
+	return nil
+}
+
+func (t *tcpOutput) recordTCPError(cfg *config, reason string) {
+	if cfg.EnableMetrics {
+		tcpOutputErrors.WithLabelValues(t.name, reason).Inc()
+	}
+}
+
+func (t *tcpOutput) pendingRetryExhausted(
+	cfg *config,
+	worker string,
+	reason string,
+	retries *int,
+) bool {
+	(*retries)++
+	if *retries <= cfg.MaxRetries {
+		return false
+	}
+
+	t.logger.Error(
+		"dropping TCP message after retry limit",
+		"worker",
+		worker,
+		"attempts",
+		*retries,
+		"max-retries",
+		cfg.MaxRetries,
+		"reason",
+		reason,
+	)
+	if cfg.EnableMetrics {
+		tcpOutputDroppedMessages.WithLabelValues(t.name, "max_retries").Inc()
+	}
+	return true
+}
+
 func (t *tcpOutput) start(ctx context.Context, wg *sync.WaitGroup, idx int) {
+	t.startWithDialer(ctx, wg, idx, tcpDialContext)
+}
+
+func (t *tcpOutput) startWithDialer(
+	ctx context.Context,
+	wg *sync.WaitGroup,
+	idx int,
+	dial tcpDialFunc,
+) {
 	defer wg.Done()
+
 	workerLogPrefix := fmt.Sprintf("worker-%d", idx)
-START:
-	if ctx.Err() != nil {
-		t.logger.Warn("context error", "err", ctx.Err())
-		return
-	}
-	cfg := t.cfg.Load()
-	dc := t.dynCfg.Load()
-	tcpAddr, err := net.ResolveTCPAddr("tcp", cfg.Address)
-	if err != nil {
-		t.logger.Error("failed to resolve address", "worker", workerLogPrefix, "err", err)
-		time.Sleep(cfg.RetryInterval)
-		goto START
-	}
-	conn, err := net.DialTCP("tcp", nil, tcpAddr)
-	if err != nil {
-		t.logger.Error("failed to dial TCP", "worker", workerLogPrefix, "err", err)
-		time.Sleep(cfg.RetryInterval)
-		goto START
-	}
-	defer conn.Close()
-	if cfg.KeepAlive > 0 {
-		conn.SetKeepAlive(true)
-		conn.SetKeepAlivePeriod(cfg.KeepAlive)
-	}
 	buffer := *t.buffer.Load()
+
+	var (
+		conn           net.Conn
+		pending        []byte
+		pendingRetries int
+	)
+	defer func() {
+		if conn != nil {
+			_ = conn.Close()
+		}
+	}()
+
 	for {
-		select {
-		case <-ctx.Done():
+		if ctx.Err() != nil {
 			return
-		case b := <-buffer:
-			delimiter := dc.delimiter
-			if dc.limiter != nil {
-				<-dc.limiter.C
-			}
-			// append delimiter
-			b = append(b, delimiter...)
-			_, err = conn.Write(b)
+		}
+
+		cfg := t.cfg.Load()
+		if conn == nil {
+			var err error
+			conn, err = dial(ctx, cfg.Address)
 			if err != nil {
-				t.logger.Error("failed sending tcp bytes", "worker", workerLogPrefix, "err", err)
-				conn.Close()
-				time.Sleep(cfg.RetryInterval)
-				goto START
+				if ctx.Err() != nil {
+					return
+				}
+				t.logger.Error(
+					"failed to dial TCP",
+					"worker",
+					workerLogPrefix,
+					"err",
+					err,
+				)
+				t.recordTCPError(cfg, "dial")
+				if pending != nil && t.pendingRetryExhausted(
+					cfg,
+					workerLogPrefix,
+					"dial",
+					&pendingRetries,
+				) {
+					pending = nil
+					pendingRetries = 0
+				}
+				if !waitTCPRetry(ctx, cfg.RetryInterval) {
+					return
+				}
+				continue
+			}
+
+			if tcpConn, ok := conn.(*net.TCPConn); ok && cfg.KeepAlive > 0 {
+				_ = tcpConn.SetKeepAlive(true)
+				_ = tcpConn.SetKeepAlivePeriod(cfg.KeepAlive)
 			}
 		}
+
+		if pending == nil {
+			select {
+			case <-ctx.Done():
+				return
+			case b := <-buffer:
+				dc := t.dynCfg.Load()
+				if dc.limiter != nil {
+					select {
+					case <-ctx.Done():
+						return
+					case <-dc.limiter.C:
+					}
+				}
+
+				pending = make(
+					[]byte,
+					0,
+					len(b)+len(dc.delimiter),
+				)
+				pending = append(pending, b...)
+				pending = append(pending, dc.delimiter...)
+				pendingRetries = 0
+			}
+		}
+
+		if err := writeTCPPayload(conn, pending); err != nil {
+			t.logger.Error(
+				"failed sending tcp bytes",
+				"worker",
+				workerLogPrefix,
+				"err",
+				err,
+			)
+			t.recordTCPError(cfg, "write")
+
+			_ = conn.Close()
+			conn = nil
+
+			if t.pendingRetryExhausted(
+				cfg,
+				workerLogPrefix,
+				"write",
+				&pendingRetries,
+			) {
+				pending = nil
+				pendingRetries = 0
+			}
+			if !waitTCPRetry(ctx, cfg.RetryInterval) {
+				return
+			}
+			continue
+		}
+
+		pending = nil
+		pendingRetries = 0
 	}
 }
 
