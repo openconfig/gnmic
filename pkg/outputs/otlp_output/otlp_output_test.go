@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 	metricsv1 "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
+	metricspb "go.opentelemetry.io/proto/otlp/metrics/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/protobuf/proto"
@@ -347,10 +348,7 @@ func TestOTLP_ConfigValidation(t *testing.T) {
 
 // Test 7: String Values as Attributes
 func TestOTLP_StringValuesAsAttributes(t *testing.T) {
-	t.Skip("Implementation pending")
-
-	// Test strings-as-attributes conversion
-	// Given: String value metric
+	// Non-numeric enums stay on the value=1 + "value" attribute path.
 	event := &formatters.EventMsg{
 		Name:      "interfaces_interface_state_oper_status",
 		Timestamp: time.Now().UnixNano(),
@@ -362,11 +360,9 @@ func TestOTLP_StringValuesAsAttributes(t *testing.T) {
 		},
 	}
 
-	// When: Converting with strings-as-attributes enabled
 	output := newTestOutput(&config{StringsAsAttributes: true})
 	otlpMetrics := output.convertToOTLP(output.state.Load().cfg, []*formatters.EventMsg{event})
 
-	// Then: Should create gauge with value=1 and status as attribute
 	metric := otlpMetrics.ResourceMetrics[0].ScopeMetrics[0].Metrics[0]
 	gauge := metric.GetGauge()
 	require.NotNil(t, gauge)
@@ -374,6 +370,66 @@ func TestOTLP_StringValuesAsAttributes(t *testing.T) {
 	dataPoint := gauge.DataPoints[0]
 	assert.Equal(t, float64(1), dataPoint.GetAsDouble())
 	assert.Equal(t, "up", getDataPointAttribute(dataPoint, "value"))
+}
+
+// TestOTLP_NumericStringValues_RFC7951 verifies that JSON_IETF-style numeric
+// strings (YANG uint64/int64/decimal64) become real numeric datapoints, matching
+// prometheus_output behavior, instead of value=1 + a cardinality-exploding label.
+func TestOTLP_NumericStringValues_RFC7951(t *testing.T) {
+	event := &formatters.EventMsg{
+		Name:      "interface_stats",
+		Timestamp: time.Now().UnixNano(),
+		Tags: map[string]string{
+			"interface_name": "ethernet-1/1",
+			"source":         "leaf1",
+		},
+		Values: map[string]interface{}{
+			"interface/statistics/in-octets":  "4597",
+			"interface/statistics/out-octets": "144925",
+			"platform/control/memory/free":    "9625336000",
+		},
+	}
+
+	output := newTestOutput(&config{StringsAsAttributes: true})
+	otlpMetrics := output.convertToOTLP(output.state.Load().cfg, []*formatters.EventMsg{event})
+	require.Len(t, otlpMetrics.ResourceMetrics, 1)
+	metrics := otlpMetrics.ResourceMetrics[0].ScopeMetrics[0].Metrics
+	require.Len(t, metrics, 3)
+
+	got := map[string]float64{}
+	for _, m := range metrics {
+		gauge := m.GetGauge()
+		require.NotNil(t, gauge, "metric %s should be a gauge", m.Name)
+		require.Len(t, gauge.DataPoints, 1)
+		assert.Empty(t, getDataPointAttribute(gauge.DataPoints[0], "value"),
+			"numeric string must not use value attribute: %s", m.Name)
+		got[m.Name] = gauge.DataPoints[0].GetAsDouble()
+	}
+
+	assert.Equal(t, 4597.0, got["interface_statistics_in_octets"])
+	assert.Equal(t, 144925.0, got["interface_statistics_out_octets"])
+	assert.Equal(t, 9625336000.0, got["platform_control_memory_free"])
+}
+
+// TestOTLP_NumericStringValues_WithoutStringsAsAttributes ensures RFC7951
+// numeric strings are still emitted when strings-as-attributes is false.
+func TestOTLP_NumericStringValues_WithoutStringsAsAttributes(t *testing.T) {
+	event := &formatters.EventMsg{
+		Name:      "system_resources",
+		Timestamp: time.Now().UnixNano(),
+		Values: map[string]interface{}{
+			"memory/free": "1000",
+			"state":       "enabled", // non-numeric; should be dropped
+		},
+	}
+
+	output := newTestOutput(&config{StringsAsAttributes: false})
+	otlpMetrics := output.convertToOTLP(output.state.Load().cfg, []*formatters.EventMsg{event})
+	require.Len(t, otlpMetrics.ResourceMetrics, 1)
+	metrics := otlpMetrics.ResourceMetrics[0].ScopeMetrics[0].Metrics
+	require.Len(t, metrics, 1)
+	assert.Equal(t, "memory_free", metrics[0].Name)
+	assert.Equal(t, 1000.0, metrics[0].GetGauge().DataPoints[0].GetAsDouble())
 }
 
 // Test 8: Subscription Name Mapping
@@ -787,9 +843,13 @@ func getAttributeValue(resource interface{}, key string) string {
 	return ""
 }
 
-func getDataPointAttribute(dataPoint interface{}, key string) string {
-	// Helper to extract attribute value from data point
-	// Will implement when we have the actual OTLP structures
+func getDataPointAttribute(dataPoint *metricspb.NumberDataPoint, key string) string {
+	if dataPoint == nil {
+		return ""
+	}
+	if v, ok := getAttr(dataPoint.Attributes, key); ok {
+		return v
+	}
 	return ""
 }
 
