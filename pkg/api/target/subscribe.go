@@ -49,10 +49,18 @@ SUBSC_NODELAY:
 		nctx = t.appendRequestMetadata(nctx)
 		subscribeClient, err = t.Client.Subscribe(nctx, t.callOpts()...)
 		if err != nil {
-			t.errors <- &TargetError{
-				SubscriptionName: subscriptionName,
-				Err:              fmt.Errorf("failed to create a subscribe client, target='%s', retry in %s. err=%v", t.Config.Name, t.Config.RetryTimer, err),
+			if isLocalCancellation(nctx, err) {
+				cancel()
+				return
 			}
+			if !isRetryableSubscribeError(err) {
+				sendError(t.errors, ctx, subscriptionName,
+					fmt.Errorf("failed to create a subscribe client, target='%s': %w", t.Config.Name, err))
+				cancel()
+				return
+			}
+			sendError(t.errors, ctx, subscriptionName,
+				fmt.Errorf("failed to create a subscribe client, target='%s', retry in %s: %w", t.Config.Name, t.Config.RetryTimer, err))
 			cancel()
 			goto SUBSC
 		}
@@ -68,12 +76,18 @@ SUBSC_NODELAY:
 
 	err = subscribeClient.Send(req)
 	if err != nil {
-		select {
-		case t.errors <- &TargetError{
-			SubscriptionName: subscriptionName,
-			Err:              fmt.Errorf("target '%s' send error, retry in %s. err=%v", t.Config.Name, t.Config.RetryTimer, err),
-		}:
-		case <-ctx.Done():
+		if isLocalCancellation(nctx, err) {
+			cancel()
+			return
+		}
+		if !isRetryableSubscribeError(err) {
+			sendError(t.errors, ctx, subscriptionName,
+				fmt.Errorf("target '%s' send error: %w", t.Config.Name, err))
+			cancel()
+			return
+		}
+		if !sendError(t.errors, ctx, subscriptionName,
+			fmt.Errorf("target '%s' send error, retry in %s: %w", t.Config.Name, t.Config.RetryTimer, err)) {
 			cancel()
 			return
 		}
@@ -85,21 +99,19 @@ SUBSC_NODELAY:
 	case gnmi.SubscriptionList_STREAM:
 		err = t.handleStreamSubscriptionRcv(nctx, subscribeClient, subscriptionName, subConfig, t.subscribeResponses)
 		if err != nil {
-			select {
-			case t.errors <- &TargetError{
-				SubscriptionName: subscriptionName,
-				Err:              err,
-			}:
-			case <-ctx.Done():
+			if isLocalCancellation(nctx, err) {
 				cancel()
 				return
 			}
-			select {
-			case t.errors <- &TargetError{
-				SubscriptionName: subscriptionName,
-				Err:              fmt.Errorf("retrying in %s", t.Config.RetryTimer),
-			}:
-			case <-ctx.Done():
+			if !sendError(t.errors, ctx, subscriptionName, err) {
+				cancel()
+				return
+			}
+			if !isRetryableSubscribeError(err) {
+				cancel()
+				return
+			}
+			if !sendError(t.errors, ctx, subscriptionName, fmt.Errorf("retrying in %s", t.Config.RetryTimer)) {
 				cancel()
 				return
 			}
@@ -109,25 +121,20 @@ SUBSC_NODELAY:
 	case gnmi.SubscriptionList_ONCE:
 		err = t.handleONCESubscriptionRcv(nctx, subscribeClient, subscriptionName, subConfig, t.subscribeResponses)
 		if err != nil {
-			select {
-			case t.errors <- &TargetError{
-				SubscriptionName: subscriptionName,
-				Err:              err,
-			}:
-			case <-ctx.Done():
+			if isLocalCancellation(nctx, err) {
 				cancel()
 				return
 			}
-			if errors.Is(err, io.EOF) {
+			if !sendError(t.errors, ctx, subscriptionName, err) {
 				cancel()
 				return
 			}
-			select {
-			case t.errors <- &TargetError{
-				SubscriptionName: subscriptionName,
-				Err:              fmt.Errorf("retrying in %s", t.Config.RetryTimer),
-			}:
-			case <-ctx.Done():
+			// ONCE mode doesn't retry on EOF or terminal gRPC errors
+			if errors.Is(err, io.EOF) || !isRetryableSubscribeError(err) {
+				cancel()
+				return
+			}
+			if !sendError(t.errors, ctx, subscriptionName, fmt.Errorf("retrying in %s", t.Config.RetryTimer)) {
 				cancel()
 				return
 			}
@@ -140,12 +147,15 @@ SUBSC_NODELAY:
 		go t.listenPolls(nctx)
 		err = t.handlePollSubscriptionRcv(nctx, subscribeClient, subscriptionName, subConfig, t.subscribeResponses)
 		if err != nil {
-			select {
-			case t.errors <- &TargetError{
-				SubscriptionName: subscriptionName,
-				Err:              err,
-			}:
-			case <-ctx.Done():
+			if isLocalCancellation(nctx, err) {
+				cancel()
+				return
+			}
+			if !sendError(t.errors, ctx, subscriptionName, err) {
+				cancel()
+				return
+			}
+			if !isRetryableSubscribeError(err) {
 				cancel()
 				return
 			}
@@ -207,11 +217,11 @@ func (t *Target) attemptSubscription(ctx context.Context, req *gnmi.SubscribeReq
 	subscribeClient, err := t.Client.Subscribe(nctx, t.callOpts()...)
 	if err != nil {
 		// check if cancellation was intentional
-		if isCancellationError(err) {
+		if isLocalCancellation(nctx, err) {
 			return false
 		}
 		sendError(errCh, ctx, subscriptionName, err)
-		return true
+		return isRetryableSubscribeError(err)
 	}
 
 	// store subscription state and register cleanup
@@ -230,6 +240,14 @@ func (t *Target) attemptSubscription(ctx context.Context, req *gnmi.SubscribeReq
 	// send initial subscribe request
 	err = subscribeClient.Send(req)
 	if err != nil {
+		if isLocalCancellation(nctx, err) {
+			return false
+		}
+		if !isRetryableSubscribeError(err) {
+			sendError(errCh, ctx, subscriptionName,
+				fmt.Errorf("target '%s' send error: %w", t.Config.Name, err))
+			return false
+		}
 		sendError(errCh, ctx, subscriptionName,
 			fmt.Errorf("target '%s' send error, retry in %s: %w",
 				t.Config.Name, t.Config.RetryTimer, err))
@@ -257,12 +275,12 @@ func (t *Target) handleSTREAMMode(nctx, ctx context.Context, client gnmi.GNMI_Su
 
 	err := t.handleStreamSubscriptionRcv(nctx, client, subscriptionName, subConfig, responseCh)
 	if err != nil {
-		if isCancellationError(err) {
+		if isLocalCancellation(nctx, err) {
 			return false
 		}
 
 		sendError(errCh, ctx, subscriptionName, err)
-		return true
+		return isRetryableSubscribeError(err)
 	}
 	return false
 }
@@ -273,18 +291,18 @@ func (t *Target) handleONCEMode(nctx, ctx context.Context, client gnmi.GNMI_Subs
 
 	err := t.handleONCESubscriptionRcv(nctx, client, subscriptionName, subConfig, responseCh)
 	if err != nil {
-		if isCancellationError(err) {
+		if isLocalCancellation(nctx, err) {
 			return false
 		}
 
 		sendError(errCh, ctx, subscriptionName, err)
 
-		// ONCE mode doesn't retry on EOF
+		// ONCE mode doesn't retry on EOF or terminal gRPC errors
 		if errors.Is(err, io.EOF) {
 			return false
 		}
 
-		return true
+		return isRetryableSubscribeError(err)
 	}
 	return false
 }
@@ -304,25 +322,65 @@ func (t *Target) handlePOLLMode(nctx, ctx context.Context, client gnmi.GNMI_Subs
 
 	err := t.handlePollSubscriptionRcv(nctx, client, subscriptionName, subConfig, responseCh)
 	if err != nil {
-		if isCancellationError(err) {
+		if isLocalCancellation(nctx, err) {
 			return false
 		}
 
 		sendError(errCh, ctx, subscriptionName, err)
-		// sendError(errCh, ctx, subscriptionName,
-		// 	fmt.Errorf("retrying in %s", t.Config.RetryTimer))
-		return true
+		return isRetryableSubscribeError(err)
 	}
 	return false
 }
 
 // check if error is due to intentional cancellation
-func isCancellationError(err error) bool {
+func isLocalCancellation(ctx context.Context, err error) bool {
+	if ctx.Err() == nil {
+		return false
+	}
+	return errors.Is(err, context.Canceled) ||
+		status.Code(err) == codes.Canceled
+}
+
+// isRetryableSubscribeError reports whether a Subscribe-related error should
+// trigger another attempt. It classifies err by its canonical gRPC status
+// code (status.FromError unwraps wrapped errors, so callers may use %w).
+//
+// Errors without a canonical gRPC status, UNKNOWN, and INTERNAL are treated
+// as retryable: many gNMI targets return generic/incomplete errors instead
+// of a proper status, and retrying preserves gNMIc's existing behavior for
+// them. Recognized terminal request/authentication errors are not retried.
+// This includes PERMISSION_DENIED and RESOURCE_EXHAUSTED as requested by
+// issue #834, preventing an explicitly rejected subscription from looping
+// indefinitely.
+func isRetryableSubscribeError(err error) bool {
+	if err == nil {
+		return false
+	}
 	if errors.Is(err, context.Canceled) {
-		return true
+		return false
 	}
 	st, ok := status.FromError(err)
-	return ok && st.Code() == codes.Canceled
+	if !ok {
+		return true
+	}
+	switch st.Code() {
+	case codes.Canceled,
+		codes.InvalidArgument,
+		codes.NotFound,
+		codes.AlreadyExists,
+		codes.PermissionDenied,
+		codes.ResourceExhausted,
+		codes.FailedPrecondition,
+		codes.OutOfRange,
+		codes.Unimplemented,
+		codes.DataLoss,
+		codes.Unauthenticated:
+		return false
+	default:
+		// codes.DeadlineExceeded, codes.Aborted, codes.Unavailable,
+		// codes.Unknown, and codes.Internal all remain retryable.
+		return true
+	}
 }
 
 // send error to channel with context awareness
@@ -374,7 +432,16 @@ func (t *Target) SubscribeStreamChan(ctx context.Context, req *gnmi.SubscribeReq
 			nctx = t.appendRequestMetadata(nctx)
 			subscribeClient, err = t.Client.Subscribe(nctx, t.callOpts()...)
 			if err != nil {
-				errCh <- fmt.Errorf("failed to create a subscribe client, target='%s', retry in %s. err=%v", t.Config.Name, t.Config.RetryTimer, err)
+				if isLocalCancellation(nctx, err) {
+					cancel()
+					return
+				}
+				if !isRetryableSubscribeError(err) {
+					errCh <- fmt.Errorf("failed to create a subscribe client, target='%s': %w", t.Config.Name, err)
+					cancel()
+					return
+				}
+				errCh <- fmt.Errorf("failed to create a subscribe client, target='%s', retry in %s: %w", t.Config.Name, t.Config.RetryTimer, err)
 				cancel()
 				goto SUBSC
 			}
@@ -389,7 +456,16 @@ func (t *Target) SubscribeStreamChan(ctx context.Context, req *gnmi.SubscribeReq
 
 		err = subscribeClient.Send(req)
 		if err != nil {
-			errCh <- fmt.Errorf("target '%s' send error, retry in %s. err=%v", t.Config.Name, t.Config.RetryTimer, err)
+			if isLocalCancellation(nctx, err) {
+				cancel()
+				return
+			}
+			if !isRetryableSubscribeError(err) {
+				errCh <- fmt.Errorf("target '%s' send error: %w", t.Config.Name, err)
+				cancel()
+				return
+			}
+			errCh <- fmt.Errorf("target '%s' send error, retry in %s: %w", t.Config.Name, t.Config.RetryTimer, err)
 			cancel()
 			goto SUBSC
 		}
@@ -402,7 +478,15 @@ func (t *Target) SubscribeStreamChan(ctx context.Context, req *gnmi.SubscribeReq
 			}
 			response, err := subscribeClient.Recv()
 			if err != nil {
+				if isLocalCancellation(nctx, err) {
+					cancel()
+					return
+				}
 				errCh <- err
+				if !isRetryableSubscribeError(err) {
+					cancel()
+					return
+				}
 				cancel()
 				goto SUBSC
 			}
