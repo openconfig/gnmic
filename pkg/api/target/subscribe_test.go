@@ -29,7 +29,7 @@ func TestSubscriptionsConcurrentAccess(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < iterations; i++ {
-			tg.SetSubscriptionConfig(&types.SubscriptionConfig{Name: fmt.Sprintf("sub%d", i%10)})
+			tg.DeleteSubscriptionConfig(fmt.Sprintf("sub%d", i%10))
 		}
 	}()
 	go func() {
