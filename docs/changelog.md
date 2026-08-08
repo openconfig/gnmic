@@ -1,5 +1,45 @@
 ## Changelog
 
+### v0.47.0 - August 8th 2026
+
+- Outputs:
+
+    - **New ClickHouse output.** Writes gNMI events to a ClickHouse MergeTree table with typed value columns (`value_int`, `value_uint`, `value_float`, `value_bool`, `value_string`), a `tags` map, and `is_delete` for path deletions. Supports async inserts (`batch-size`, `flush-timer`, `max-in-flight`, `num-workers`), optional table creation via `create-table`, and configurable `table-engine`, `partition-by`, and `ttl`. The MergeTree key is fixed as `ORDER BY (target, path, timestamp)`. See [ClickHouse output](user_guide/outputs/clickhouse_output.md) and the [containerlab deployment example](deployments/single-instance/containerlab/clickhouse-output.md).
+
+    - OTLP: added an **HTTP transport**. Set `protocol: http` to export over OTLP/HTTP to a `/v1/metrics` endpoint; `grpc` remains the default. The output lifecycle was hardened, and `batch-size`, `interval`, and `buffer-size` are now documented. Changing `buffer-size` on a live config reload swaps the channel and may drop events still buffered in the old one.
+
+    - OTLP: fixed `counter-patterns` being ignored in subscribe mode. `Init` did not compile the patterns, leaving `counterRegexes` nil, so **every metric was exported as a Gauge instead of a Sum**. Counters are now identified in subscribe mode as they already were in collector mode.
+
+    - TCP: fixed the first message after a connection failure being silently dropped. A pending message is now retried after reconnecting, bounded by the new `max-retries` option (default `3`), after which it is dropped so the worker can continue. Adds `gnmic_tcp_output_errors_total{name,reason}` (`reason` is `dial` or `write`) and `gnmic_tcp_output_dropped_messages_total{name,reason}` when `enable-metrics` is set.
+
+- Collector mode:
+
+    - Leader-to-member API calls now honor the `clustering.tls` configuration, so target assignment, unassignment, and deletion work against a TLS-secured member API (private CA or mTLS). Previously these calls always used a plain HTTP client and failed in TLS-enabled clusters.
+
+    - Fixed a `concurrent map read and map write` crash. The targets manager wrote `Target.Subscriptions` without holding the target's lock, racing the subscription goroutines that read it under that lock. Applying a configuration change while existing subscriptions were retrying could crash the process. Subscription configs are now set and deleted through locked accessors.
+
+    - Fixed a deadlock in `SetIntendedState`. It held the targets-manager write lock while calling into `start`/`stop`, which re-acquire the same non-reentrant `sync.RWMutex` for reading, so enabling or disabling a target hung indefinitely.
+
+    - Fixed the tunnel server retrying a failing listener or `tunnel-target-matches` watch forever without honoring context cancellation. A permanent failure (bad address, permission denied, address already in use) left an unstoppable goroutine that hung shutdown and configuration reload.
+
+    - Fixed `getTunnelTargetMatch` never reporting a match, which prevented `tunnel-target-matches` from ever selecting a tunnel target.
+
+- Logging:
+
+    - Errors are routed through `LogErrUnlessCanceled` across the app, clustering, and cache packages, so context cancellation during shutdown no longer surfaces as an error and the configured log level is respected.
+
+- Build and security:
+
+    - GitHub Actions workflows use least-privilege permissions.
+
+- Dependencies:
+
+    - Bumped `google.golang.org/grpc` from 1.79.3 to 1.82.1 (root module and `pkg/api`).
+    - Bumped `golang.org/x/net` from 0.53.0 to 0.55.0 (root module) and from 0.48.0 to 0.55.0 (`pkg/api`).
+    - Bumped `golang.org/x/crypto` from 0.50.0 to 0.52.0.
+    - Bumped `github.com/redis/go-redis/v9` from 9.14.0 to 9.19.0.
+    - Added `github.com/ClickHouse/clickhouse-go/v2` v2.46.0 for the ClickHouse output.
+
 ### v0.46.0 - May 14th 2026
 
 - Templates:
