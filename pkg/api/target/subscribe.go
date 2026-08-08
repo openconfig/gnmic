@@ -532,6 +532,26 @@ func (t *Target) DeleteSubscription(name string) {
 	delete(t.Subscriptions, name)
 }
 
+// SetSubscriptionConfig stores a subscription config under the target's lock.
+// Callers outside this package must use this method instead of writing to
+// t.Subscriptions directly: the map is read concurrently (under the same
+// lock) by SubscribeClientStates and the subscription goroutines.
+func (t *Target) SetSubscriptionConfig(cfg *types.SubscriptionConfig) {
+	t.m.Lock()
+	defer t.m.Unlock()
+	t.Subscriptions[cfg.Name] = cfg
+}
+
+// DeleteSubscriptionConfig removes only the subscription config entry under
+// the target's lock. Unlike DeleteSubscription, it does not cancel the
+// running subscription or remove the subscribe client; use it when the
+// caller manages the subscription lifecycle itself.
+func (t *Target) DeleteSubscriptionConfig(name string) {
+	t.m.Lock()
+	defer t.m.Unlock()
+	delete(t.Subscriptions, name)
+}
+
 func (t *Target) StopSubscription(name string) {
 	t.m.Lock()
 	defer t.m.Unlock()
