@@ -384,7 +384,7 @@ func (tm *TargetsManager) apply(name string, cfg *types.TargetConfig) {
 					mt.mu.Unlock()
 					tm.logger.Info("stopping target subscription", "name", sub, "target", name)
 					mt.T.StopSubscription(sub)
-					delete(mt.T.Subscriptions, sub)
+					mt.T.DeleteSubscriptionConfig(sub)
 					mt.appliedSubscriptions = slices.DeleteFunc(mt.appliedSubscriptions, func(s string) bool {
 						return s == sub
 					})
@@ -658,7 +658,7 @@ func (tm *TargetsManager) applySubscription(name string, cfg types.SubscriptionC
 		mt.T.StopSubscription(name)
 		tm.logger.Info("stopped target subscription", "name", name, "target", mt.Name)
 		// Wait for the reader goroutine to finish
-		mt.T.Subscriptions[name] = &cfg
+		mt.T.SetSubscriptionConfig(&cfg)
 		err := tm.startTargetSubscription(mt, &cfg)
 		if err != nil {
 			tm.logger.Error("failed to start target subscription", "subscription", name, "target", mt.Name, "error", err)
@@ -680,7 +680,7 @@ func (tm *TargetsManager) removeSubscription(name string) {
 		}
 		mt.mu.Unlock()
 		mt.T.StopSubscription(name)
-		delete(mt.T.Subscriptions, name)
+		mt.T.DeleteSubscriptionConfig(name)
 	}
 	tm.mu.Unlock()
 }
@@ -818,7 +818,7 @@ func (tm *TargetsManager) startTargetSubscription(mt *ManagedTarget, cfg *types.
 	}
 	tm.logger.Info("starting target Subscribe RPC", "name", cfg.Name, "target", mt.Name)
 
-	mt.T.Subscriptions[cfg.Name] = cfg
+	mt.T.SetSubscriptionConfig(cfg)
 	mt.readerWG.Add(1)
 	sctx, cfn := context.WithCancel(tm.ctx)
 	mt.mu.Lock()
