@@ -27,7 +27,7 @@ outputs:
     # MergeTree DDL knobs (defaults match the built-in DDL)
     table-engine: MergeTree
     partition-by: toYYYYMMDD(timestamp)
-    order-by: ["target", "path", "timestamp"]
+    # ORDER BY is fixed to (target, path, timestamp)
     # TTL on the MergeTree table. Shorthand like "30 DAY" is expanded for ClickHouse.
     # Omit from config for default retention; set ttl: "" explicitly in YAML to disable TTL.
     ttl: 30 DAY
@@ -67,7 +67,6 @@ outputs:
 | `max-in-flight` | `1` |
 | `table-engine` | `MergeTree` |
 | `partition-by` | `toYYYYMMDD(timestamp)` |
-| `order-by` | `["target", "path", "timestamp"]` |
 | `ttl` | `30 DAY` (unless `ttl` is set to empty in YAML to disable) |
 | `create-table` | `true` (unless `create-table` appears in YAML) |
 
@@ -83,11 +82,13 @@ When `create-table: true`, `gnmic` creates a MergeTree table roughly equivalent 
 | `ingest_ts` | Insert time (`DateTime64(9,'UTC')`, default `now64(9)`) |
 | `target`, `source`, `subscription`, `name` | Dimensions |
 | `path` | gNMI path string |
-| `tags` | `Map(LowCardinality(String), String)` from event tags |
+| `tags` | `Map(String, String)` from event tags |
 | `value_type` | `int`, `uint`, `float`, `bool`, `string`, `bytes`, `json`, … |
 | `value_int`, `value_uint`, `value_float`, `value_bool` | Typed nullable columns (only one meaningful for a row) |
 | `value_string` | String / JSON / base64 for bytes |
 | `is_delete` | `true` when the row represents a path delete |
+
+The MergeTree key is fixed as `ORDER BY (target, path, timestamp)` (not configurable). Partitioning defaults to `toYYYYMMDD(timestamp)`.
 
 You can add **regular views** for ad hoc projections (no storage):
 
@@ -117,7 +118,7 @@ CREATE TABLE IF NOT EXISTS default.iface_counters
     target      LowCardinality(String),
     path        String,
     value_uint  Nullable(UInt64),
-    tags        Map(LowCardinality(String), String)
+    tags        Map(String, String)
 )
 ENGINE = MergeTree
 PARTITION BY toYYYYMMDD(timestamp)
@@ -183,7 +184,7 @@ CREATE TABLE IF NOT EXISTS default.gnmic_flat_values
     path        String,
     value_text  String,
     value_type  LowCardinality(String),
-    tags        Map(LowCardinality(String), String),
+    tags        Map(String, String),
     ingest_ts   DateTime64(9, 'UTC')
 )
 ENGINE = MergeTree

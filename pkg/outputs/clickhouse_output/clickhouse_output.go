@@ -114,7 +114,6 @@ type config struct {
 	CreateTable        bool             `mapstructure:"create-table,omitempty"`
 	TableEngine        string           `mapstructure:"table-engine,omitempty"`
 	PartitionBy        string           `mapstructure:"partition-by,omitempty"`
-	OrderBy            []string         `mapstructure:"order-by,omitempty"`
 	TTL                string           `mapstructure:"ttl,omitempty"`
 	Debug              bool             `mapstructure:"debug,omitempty"`
 	EnableMetrics      bool             `mapstructure:"enable-metrics,omitempty"`
@@ -191,9 +190,6 @@ func setDefaults(c *config) error {
 	}
 	if strings.TrimSpace(c.PartitionBy) == "" {
 		c.PartitionBy = defaultPartitionBy
-	}
-	if len(c.OrderBy) == 0 {
-		c.OrderBy = []string{"target", "path", "timestamp"}
 	}
 	return nil
 }
@@ -535,7 +531,6 @@ func (o *clickhouseOutput) Update(ctx context.Context, cfg map[string]any) error
 		curr.CreateTable != newCfg.CreateTable ||
 		curr.TableEngine != newCfg.TableEngine ||
 		curr.PartitionBy != newCfg.PartitionBy ||
-		!slices.Equal(curr.OrderBy, newCfg.OrderBy) ||
 		curr.TTL != newCfg.TTL
 
 	o.cfg.Store(newCfg)
