@@ -44,10 +44,20 @@ outputs:
     keep-alive: 
     # time duration to wait before re-dial in case there is a failure
     retry-interval: 
-    # NOT IMPLEMENTED boolean, enables the collection and export (via prometheus) of output specific metricss
+    # maximum number of retries for a pending message after its initial failed delivery attempt.
+    # defaults to 3. Once exhausted, the message is dropped so the worker can continue.
+    max-retries: 3
+    # boolean, enables the collection and export (via prometheus) of output-specific metrics
     enable-metrics: false 
     # list of processors to apply on the message before writing
     event-processors: 
 ```
+
+When `enable-metrics` is set to `true`, the TCP output exposes:
+
+- `gnmic_tcp_output_errors_total{name,reason}` for delivery errors. The `reason` label is `dial` or `write`.
+- `gnmic_tcp_output_dropped_messages_total{name,reason}` for messages dropped after the retry budget is exhausted.
+
+`max-retries` applies only after a message has been dequeued for delivery. Dial failures while a message is pending count against its retry budget.
 
 A TCP output can be used to export data to an ELK stack, using [Logstash TCP input](https://www.elastic.co/guide/en/logstash/current/plugins-inputs-tcp.html)
