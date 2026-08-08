@@ -23,13 +23,13 @@ func TestSubscriptionsConcurrentAccess(t *testing.T) {
 		defer wg.Done()
 		for i := 0; i < iterations; i++ {
 			name := fmt.Sprintf("sub%d", i%10)
-			tg.SetSubscription(name, &types.SubscriptionConfig{Name: name})
+			tg.SetSubscriptionConfig(&types.SubscriptionConfig{Name: name})
 		}
 	}()
 	go func() {
 		defer wg.Done()
 		for i := 0; i < iterations; i++ {
-			tg.SetSubscription(fmt.Sprintf("sub%d", i%10), nil)
+			tg.SetSubscriptionConfig(&types.SubscriptionConfig{Name: fmt.Sprintf("sub%d", i%10)})
 		}
 	}()
 	go func() {
