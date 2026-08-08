@@ -97,6 +97,19 @@ func (ts *tunnelServer) gRPCTunnelServerOpts() ([]grpc.ServerOption, error) {
 	return opts, nil
 }
 
+// waitRetry sleeps for one second before the next retry attempt, returning
+// false if ctx was canceled while waiting.
+func (ts *tunnelServer) waitRetry(ctx context.Context) bool {
+	timer := time.NewTimer(time.Second)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
+}
+
 func (ts *tunnelServer) startTunnelServer(ctx context.Context) error {
 	tscfg, found, err := ts.store.Get("tunnel-server", "tunnel-server")
 	if err != nil {
@@ -149,12 +162,18 @@ func (ts *tunnelServer) startTunnelServer(ctx context.Context) error {
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	for {
 		var err error
 		l, err = net.Listen(network, addr)
 		if err != nil {
 			ts.logger.Error("failed to start gRPC tunnel server listener", "error", err)
-			time.Sleep(time.Second)
+			// the failure can be permanent (bad address, permission denied,
+			// address in use, unix path too long), so the retry has to remain
+			// cancellable.
+			if !ts.waitRetry(ctx) {
+				return ctx.Err()
+			}
 			continue
 		}
 		break
@@ -168,7 +187,10 @@ func (ts *tunnelServer) startTunnelServer(ctx context.Context) error {
 		matchesCh, matchesCancel, err = ts.store.Watch("tunnel-target-matches")
 		if err != nil {
 			ts.logger.Error("failed to watch tunnel-target-matches", "error", err)
-			time.Sleep(time.Second)
+			if !ts.waitRetry(ctx) {
+				l.Close()
+				return ctx.Err()
+			}
 			continue
 		}
 		break

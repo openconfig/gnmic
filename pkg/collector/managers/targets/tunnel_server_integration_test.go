@@ -2,6 +2,8 @@ package targets_manager
 
 import (
 	"context"
+	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -12,9 +14,51 @@ import (
 	"github.com/openconfig/grpctunnel/tunnel"
 )
 
+// startTunnelServer retries a failing listener every second. That retry must
+// stay cancellable: a permanent bind failure previously spun forever and the
+// goroutine could not be stopped, hanging shutdown and config reload.
+func TestTunnelServer_startReturnsOnCancelWhenListenFails(t *testing.T) {
+	st := testutil.NewTestStore(t)
+
+	// a path that can never bind
+	if _, err := st.Config.Set("tunnel-server", "tunnel-server", &config.TunnelServer{
+		Address: "unix:///nonexistent-dir/tunnel.sock",
+	}); err != nil {
+		t.Fatalf("seed tunnel-server: %v", err)
+	}
+
+	ts := newTunnelServer(st.Config, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	errCh := make(chan error, 1)
+	go func() { errCh <- ts.startTunnelServer(ctx) }()
+
+	// let the retry loop iterate at least once, then cancel
+	time.Sleep(100 * time.Millisecond)
+	cancel()
+
+	select {
+	case err := <-errCh:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("err = %v, want context.Canceled", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("startTunnelServer did not return after cancellation")
+	}
+}
+
 func TestTunnelServer_startAndRegisterTarget(t *testing.T) {
 	st := testutil.NewTestStore(t)
-	sock := filepath.Join(t.TempDir(), "tunnel.sock")
+
+	// Not t.TempDir(): it embeds the test name, and the resulting path exceeds
+	// the sockaddr_un limit (104 bytes on darwin, 108 on linux), so the bind
+	// fails with "invalid argument".
+	sockDir, err := os.MkdirTemp("", "gnmic")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(sockDir) })
+	sock := filepath.Join(sockDir, "tunnel.sock")
 
 	if _, err := st.Config.Set("tunnel-server", "tunnel-server", &config.TunnelServer{
 		Address: "unix://" + sock,
