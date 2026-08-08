@@ -1338,7 +1338,13 @@ func TestSetGlobalsFromEnv(t *testing.T) {
 }
 
 func TestLoadReadsExplicitConfigAndExpandsPaths(t *testing.T) {
-	dir := t.TempDir()
+	// expandOSPath resolves relative paths against os.Getwd(), which returns a
+	// symlink-resolved path. On darwin t.TempDir() is under /var, a symlink to
+	// /private/var, so the expected value has to be resolved the same way.
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	ca := filepath.Join(dir, "ca.pem")
 	if err := os.WriteFile(ca, []byte("ca"), 0o600); err != nil {
 		t.Fatal(err)
