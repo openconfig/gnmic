@@ -53,10 +53,12 @@ const (
 	defaultPartitionBy      = "toYYYYMMDD(timestamp)"
 )
 
-// insertBatchHook is set by tests only to mock batch inserts.
+// insertBatchHook is set by tests only to mock batch inserts. It is read once,
+// by Init, into the output instance -- see clickhouseOutput.insertBatch.
 var insertBatchHook func(ctx context.Context, conn driver.Conn, cfg *config, rows []telemetryRow) error
 
-// openConnHook is set by tests only to mock TCP dial / client construction.
+// openConnHook is set by tests only to mock TCP dial / client construction. It
+// is read once, by Init, into the output instance -- see clickhouseOutput.openConn.
 var openConnHook func(*config) (driver.Conn, error)
 
 func init() {
@@ -85,6 +87,29 @@ type clickhouseOutput struct {
 
 	insertMu  sync.Mutex
 	rowSendMu sync.Mutex // serializes channel close/drain in Update with enqueue sends
+
+	// Test hooks, snapshotted from the package-level vars by Init. Background
+	// goroutines (runBootstrapDial, the insert workers) outlive the test that
+	// started them, so they must not read the package vars directly: the next
+	// test reassigning one would race them.
+	openConnHookFn    func(*config) (driver.Conn, error)
+	insertBatchHookFn func(ctx context.Context, conn driver.Conn, cfg *config, rows []telemetryRow) error
+}
+
+// openConn dials clickhouse, honouring this instance's test hook.
+func (o *clickhouseOutput) openConn(cfg *config) (driver.Conn, error) {
+	if o.openConnHookFn != nil {
+		return o.openConnHookFn(cfg)
+	}
+	return tryOpenConn(cfg)
+}
+
+// insertBatch writes a batch, honouring this instance's test hook.
+func (o *clickhouseOutput) insertBatch(ctx context.Context, conn driver.Conn, cfg *config, rows []telemetryRow) error {
+	if o.insertBatchHookFn != nil {
+		return o.insertBatchHookFn(ctx, conn, cfg, rows)
+	}
+	return insertBatchCH(ctx, conn, cfg, rows)
 }
 
 type dynConfig struct {
@@ -131,6 +156,10 @@ func (o *clickhouseOutput) init() {
 	o.wg = new(sync.WaitGroup)
 	o.logger = logging.DiscardLogger()
 	o.closeSig = make(chan struct{})
+	// Snapshot the test hooks once, on the caller's goroutine, so the workers
+	// started below never read the package-level vars.
+	o.openConnHookFn = openConnHook
+	o.insertBatchHookFn = insertBatchHook
 	var nilConn driver.Conn
 	o.conn.Store(&nilConn)
 }
@@ -312,9 +341,6 @@ func openConn(c *config) (driver.Conn, error) {
 }
 
 func tryOpenConn(cfg *config) (driver.Conn, error) {
-	if openConnHook != nil {
-		return openConnHook(cfg)
-	}
 	return openConn(cfg)
 }
 
@@ -355,7 +381,7 @@ func (o *clickhouseOutput) dialUntilReady(ctx context.Context) (driver.Conn, err
 			return nil, fmt.Errorf("clickhouse: no config loaded")
 		}
 
-		conn, err := tryOpenConn(cfg)
+		conn, err := o.openConn(cfg)
 		if err != nil {
 			lastErr = err
 			o.logger.Warn("clickhouse connect failed, will retry", "err", err, "wait", cfg.RecoveryWaitTime)
@@ -855,7 +881,7 @@ func (o *clickhouseOutput) flushBatch(ctx context.Context, batch []telemetryRow)
 			}
 			insertCtx, cancel := context.WithTimeout(ctx, cfg.Timeout)
 			o.insertMu.Lock()
-			err := insertBatchCH(insertCtx, *connPtr, cfg, chunk)
+			err := o.insertBatch(insertCtx, *connPtr, cfg, chunk)
 			o.insertMu.Unlock()
 			cancel()
 			if err == nil {
@@ -864,7 +890,7 @@ func (o *clickhouseOutput) flushBatch(ctx context.Context, batch []telemetryRow)
 			o.logger.Error("clickhouse batch insert failed", "err", err)
 			o.logger.Warn("reconnecting to clickhouse after insert failure", "wait", cfg.RecoveryWaitTime)
 			time.Sleep(cfg.RecoveryWaitTime)
-			newConn, cerr := tryOpenConn(cfg)
+			newConn, cerr := o.openConn(cfg)
 			if cerr != nil {
 				o.logger.Error("clickhouse reconnect failed", "err", cerr)
 				continue
@@ -891,9 +917,6 @@ func (o *clickhouseOutput) flushBatch(ctx context.Context, batch []telemetryRow)
 }
 
 func insertBatchCH(ctx context.Context, conn driver.Conn, cfg *config, rows []telemetryRow) error {
-	if insertBatchHook != nil {
-		return insertBatchHook(ctx, conn, cfg, rows)
-	}
 	if len(rows) == 0 {
 		return nil
 	}

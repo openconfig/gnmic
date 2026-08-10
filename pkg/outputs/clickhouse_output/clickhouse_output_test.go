@@ -215,16 +215,16 @@ func TestResolveTargetOrder(t *testing.T) {
 
 func TestInsertBatchHook(t *testing.T) {
 	var calls int
-	insertBatchHook = func(context.Context, driver.Conn, *config, []telemetryRow) error {
+	o := &clickhouseOutput{}
+	o.insertBatchHookFn = func(context.Context, driver.Conn, *config, []telemetryRow) error {
 		calls++
 		return errors.New("boom")
 	}
-	defer func() { insertBatchHook = nil }()
 
 	cfg := &config{Name: "t", Database: "d", Table: "t", BatchSize: 10}
 	rows := []telemetryRow{{path: "/x", valueType: "int", valueInt: ptrInt64(1)}}
 
-	err := insertBatchCH(context.Background(), nil, cfg, rows)
+	err := o.insertBatch(context.Background(), nil, cfg, rows)
 	require.Error(t, err)
 	require.Equal(t, 1, calls)
 }
