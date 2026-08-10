@@ -345,9 +345,9 @@ func TestEnqueueRows_ctxCancelled(t *testing.T) {
 }
 
 func TestTryOpenConn_hookError(t *testing.T) {
-	openConnHook = func(*config) (driver.Conn, error) { return nil, errors.New("hooked") }
-	defer func() { openConnHook = nil }()
-	_, err := tryOpenConn(&config{Address: "x:1"})
+	o := &clickhouseOutput{}
+	o.openConnHookFn = func(*config) (driver.Conn, error) { return nil, errors.New("hooked") }
+	_, err := o.openConn(&config{Address: "x:1"})
 	require.Error(t, err)
 }
 
