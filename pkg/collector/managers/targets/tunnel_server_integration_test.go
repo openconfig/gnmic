@@ -87,12 +87,10 @@ func TestTunnelServer_startAndRegisterTarget(t *testing.T) {
 		errCh <- ts.startTunnelServer(ctx)
 	}()
 
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		if ts.tunServer != nil && ts.grpcTunnelSrv != nil {
-			break
-		}
-		time.Sleep(20 * time.Millisecond)
+	readyCtx, readyCancel := context.WithTimeout(ctx, 3*time.Second)
+	defer readyCancel()
+	if !ts.waitReady(readyCtx) {
+		t.Fatal("tunnel gRPC server did not start")
 	}
 	if ts.tunServer == nil || ts.grpcTunnelSrv == nil {
 		t.Fatal("tunnel gRPC server did not start")
