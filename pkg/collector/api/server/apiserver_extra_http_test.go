@@ -125,6 +125,59 @@ func TestServer_ConfigSubscriptionsHTTP(t *testing.T) {
 			t.Fatalf("status %d: %s", resp.StatusCode, b)
 		}
 	})
+	t.Run("post invalid config", func(t *testing.T) {
+		for _, tc := range []struct {
+			name string
+			body string
+		}{
+			{"missing name", `{"paths":["/"],"stream-mode":"sample","sample-interval":"5s"}`},
+			{"empty paths", `{"name":"bad-empty-paths","paths":[],"stream-mode":"sample","sample-interval":"5s"}`},
+			{"no paths", `{"name":"bad-no-paths","stream-mode":"sample","sample-interval":"5s"}`},
+			{"unknown mode", `{"name":"bad-mode","paths":["/"],"mode":"not-a-mode"}`},
+			{"unknown stream mode", `{"name":"bad-stream-mode","paths":["/"],"stream-mode":"not-a-mode"}`},
+			{"unknown encoding", `{"name":"bad-encoding","paths":["/"],"encoding":"not-an-encoding"}`},
+			{"paths and stream-subscriptions", `{"name":"bad-both","paths":["/"],"stream-subscriptions":[{"paths":["/"]}]}`},
+			{"stream sub without paths", `{"name":"bad-stream-sub","stream-subscriptions":[{"stream-mode":"sample"}]}`},
+			{"stream sub unknown stream mode", `{"name":"bad-stream-sub-mode","stream-subscriptions":[{"paths":["/"],"stream-mode":"not-a-mode"}]}`},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				resp, err := http.Post(ts.URL+"/api/v1/config/subscriptions", "application/json", strings.NewReader(tc.body))
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer resp.Body.Close()
+				if resp.StatusCode != http.StatusBadRequest {
+					b, _ := io.ReadAll(resp.Body)
+					t.Fatalf("status %d: %s", resp.StatusCode, b)
+				}
+			})
+		}
+	})
+	t.Run("post valid config", func(t *testing.T) {
+		for _, tc := range []struct {
+			name string
+			body string
+		}{
+			{"prefix only", `{"name":"ok-prefix","prefix":"/interfaces"}`},
+			{"defaulted mode and stream-mode", `{"name":"ok-defaults","paths":["/"]}`},
+			{"hyphenated stream mode", `{"name":"ok-on-change","paths":["/"],"stream-mode":"on-change"}`},
+			{"numeric encoding", `{"name":"ok-encoding","paths":["/"],"encoding":"2"}`},
+			{"poll mode", `{"name":"ok-poll","paths":["/"],"mode":"poll"}`},
+			{"stream subscriptions", `{"name":"ok-stream-subs","stream-subscriptions":[{"paths":["/"],"stream-mode":"sample","sample-interval":"10s"}]}`},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				resp, err := http.Post(ts.URL+"/api/v1/config/subscriptions", "application/json", strings.NewReader(tc.body))
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer resp.Body.Close()
+				if resp.StatusCode != http.StatusOK {
+					b, _ := io.ReadAll(resp.Body)
+					t.Fatalf("status %d: %s", resp.StatusCode, b)
+				}
+			})
+		}
+	})
 	t.Run("delete missing", func(t *testing.T) {
 		req, err := http.NewRequest(http.MethodDelete, ts.URL+"/api/v1/config/subscriptions/ghost-sub", nil)
 		if err != nil {

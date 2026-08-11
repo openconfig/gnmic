@@ -10,6 +10,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmic/pkg/api/types"
 	targets_manager "github.com/openconfig/gnmic/pkg/collector/managers/targets"
+	"github.com/openconfig/gnmic/pkg/utils"
 )
 
 func (s *Server) handleConfigSubscriptionsGet(w http.ResponseWriter, r *http.Request) {
@@ -98,6 +99,19 @@ func (s *Server) handleConfigSubscriptionsPost(w http.ResponseWriter, r *http.Re
 		return
 	}
 	err = decoder.Decode(m)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
+		return
+	}
+	if sub.Name == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"subscription name is required"}})
+		return
+	}
+	// reject semantically invalid subscriptions here rather than when the
+	// subscribe request is built, i.e once the subscription is already stored.
+	err = utils.ValidateSubscriptionConfig(sub)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
