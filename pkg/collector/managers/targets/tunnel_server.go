@@ -48,6 +48,32 @@ type tunnelServer struct {
 	// tunnel-target-matches are created, updated, or deleted.
 	mu               sync.RWMutex
 	connectedTargets map[string]tunnel.Target // key = target ID
+
+	// ready is closed by startTunnelServer once config, logger, tunServer and
+	// grpcTunnelSrv are set and the listener is bound. startTunnelServer runs
+	// in its own goroutine, so anything observing those fields from outside
+	// must wait on this first -- there is no other happens-before edge.
+	ready chan struct{}
+}
+
+// waitReady blocks until the tunnel server has finished starting, or ctx is
+// done. It reports whether the server became ready.
+func (ts *tunnelServer) waitReady(ctx context.Context) bool {
+	select {
+	case <-ts.ready:
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
+
+// signalReady closes the ready channel exactly once.
+func (ts *tunnelServer) signalReady() {
+	select {
+	case <-ts.ready:
+	default:
+		close(ts.ready)
+	}
 }
 
 func newTunnelServer(s store.Store[any], reg *prometheus.Registry) *tunnelServer {
@@ -56,6 +82,7 @@ func newTunnelServer(s store.Store[any], reg *prometheus.Registry) *tunnelServer
 		store:            s,
 		reg:              reg,
 		connectedTargets: make(map[string]tunnel.Target),
+		ready:            make(chan struct{}),
 	}
 
 	return ts
@@ -111,6 +138,11 @@ func (ts *tunnelServer) waitRetry(ctx context.Context) bool {
 }
 
 func (ts *tunnelServer) startTunnelServer(ctx context.Context) error {
+	// Backstop: every return path unblocks waitReady, including the ones that
+	// bail out before the server is built. Callers must still check whether the
+	// server actually came up.
+	defer ts.signalReady()
+
 	tscfg, found, err := ts.store.Get("tunnel-server", "tunnel-server")
 	if err != nil {
 		return err
@@ -196,6 +228,9 @@ func (ts *tunnelServer) startTunnelServer(ctx context.Context) error {
 		break
 	}
 	go ts.watchTunnelTargetMatches(ctx, matchesCh, matchesCancel)
+
+	// Everything observable from outside is now set and the listener is bound.
+	ts.signalReady()
 
 	go func() {
 		ts.logger.Info("starting gRPC tunnel server")
