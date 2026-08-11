@@ -22,7 +22,7 @@ permissions:
   pull-requests: read
 
 env:
-  GOVER: 1.25.10
+  GOVER: 1.26.5
 
 jobs:
   lint:

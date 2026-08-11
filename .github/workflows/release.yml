@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 env:
-  GOVER: 1.25.10
+  GOVER: 1.26.5
   GORELEASER_VER: v2.13.3
 
 jobs:
