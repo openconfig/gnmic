@@ -11,7 +11,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"io/fs"
 	"os"
 	"os/signal"
 	"syscall"
@@ -105,11 +104,7 @@ func init() {
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
-	err := gApp.Config.Load(gApp.Context())
-	if err == nil {
-		return
-	}
-	if _, ok := err.(*fs.PathError); !ok {
+	if err := gApp.Config.Load(gApp.Context()); err != nil {
 		fmt.Fprintf(os.Stderr, "failed loading config file: %v\n", err)
 	}
 }
