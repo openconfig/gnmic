@@ -61,6 +61,7 @@ func (g GlobalFlags) LoggingFlags() logging.Flags {
 		LogMaxSize:    g.LogMaxSize,
 		LogMaxBackups: g.LogMaxBackups,
 		LogCompress:   g.LogCompress,
+		LogFormat:     g.LogFormat,
 	}
 }
 
@@ -124,6 +125,7 @@ type GlobalFlags struct {
 	Format        string        `mapstructure:"format,omitempty" json:"format,omitempty" yaml:"format,omitempty"`
 	LogFile       string        `mapstructure:"log-file,omitempty" json:"log-file,omitempty" yaml:"log-file,omitempty"`
 	Log           bool          `mapstructure:"log,omitempty" json:"log,omitempty" yaml:"log,omitempty"`
+	LogFormat     string        `mapstructure:"log-format,omitempty" json:"log-format,omitempty" yaml:"log-format,omitempty"`
 	LogMaxSize    int           `mapstructure:"log-max-size,omitempty" json:"log-max-size,omitempty" yaml:"log-max-size,omitempty"`
 	LogMaxBackups int           `mapstructure:"log-max-backups,omitempty" json:"log-max-backups,omitempty" yaml:"log-max-backups,omitempty"`
 	LogCompress   bool          `mapstructure:"log-compress,omitempty" json:"log-compress,omitempty" yaml:"log-compress,omitempty"`
@@ -527,7 +529,7 @@ func (c *Config) InitAppLogging() (*slog.Logger, io.Writer, error) {
 			Level:     level,
 			AddSource: c.Debug,
 		}
-		lg = slog.New(slog.NewTextHandler(w, opts))
+		lg = slog.New(logging.NewHandler(w, opts, c.LogFormat))
 	}
 	c.internalLog = lg
 	return lg, w, nil

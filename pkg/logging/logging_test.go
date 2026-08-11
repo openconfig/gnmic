@@ -122,3 +122,38 @@ func TestClampRotationValues(t *testing.T) {
 		t.Fatalf("clampMaxBackups(3) = %d, want 3", got)
 	}
 }
+
+func TestNewHandlerJSON(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(NewHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo}, LogFormatJSON))
+	logger.Info("ready", "target", "10.0.0.1:57344")
+
+	var got map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+		t.Fatalf("JSON log is invalid: %v\nraw=%q", err, buf.String())
+	}
+	if got["msg"] != "ready" {
+		t.Fatalf("msg = %v, want ready", got["msg"])
+	}
+	if got["level"] != "INFO" {
+		t.Fatalf("level = %v, want INFO", got["level"])
+	}
+	if _, ok := got["time"]; !ok {
+		t.Fatalf("time missing: %v", got)
+	}
+	if got["target"] != "10.0.0.1:57344" {
+		t.Fatalf("target = %v", got["target"])
+	}
+}
+
+func TestNormalizeLogFormat(t *testing.T) {
+	if got := normalizeLogFormat(""); got != LogFormatText {
+		t.Fatalf("empty = %q", got)
+	}
+	if got := normalizeLogFormat("JSON"); got != LogFormatJSON {
+		t.Fatalf("JSON = %q", got)
+	}
+	if got := normalizeLogFormat("weird"); got != LogFormatText {
+		t.Fatalf("unsupported = %q", got)
+	}
+}
