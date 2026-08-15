@@ -103,6 +103,15 @@ outputs:
     enable-metrics: false 
     # list of processors to apply on the message before writing
     event-processors: 
+    # optional Kafka record headers.
+    # Static values are added as-is.
+    # Values containing Go templates are compiled once
+    # and evaluated for every message.
+    # The template context exposes message metadata under .Meta.
+    add-headers:
+      env: prod
+      sub: '{{ index .Meta "subscription-name" }}'
+      source: '{{ index .Meta "source" }}'
 ```
 
 Currently all subscriptions updates (all targets and all subscriptions) are published to the defined topic name unless the `topic-prefix` configuration option is set.
@@ -259,3 +268,57 @@ When a Prometheus server is enabled, `gnmic` kafka output exposes 4 prometheus m
 * `number_of_written_kafka_bytes_total`: Number of bytes written by gnmic kafka output. This Counter is labeled with the kafka producerID
 * `number_of_kafka_msgs_sent_fail_total`: Number of failed msgs sent by gnmic kafka output. This Counter is labeled with the kafka producerID as well as the failure reason
 * `msg_send_duration_ns`: gnmic kafka output send duration in nanoseconds. This Gauge is labeled with the kafka producerID
+
+### Kafka headers
+
+The `add-headers` field can be used to add Kafka record headers to produced messages.
+
+Header values can be either static strings or Go templates. Static values are computed once when the output is initialized or updated. Template values are compiled once and evaluated for each message.
+
+Header templates use the same Go template syntax and helper functions as `msg-template` and `target-template`.
+
+The template context exposes message metadata under `.Meta`.
+
+Example:
+
+```yaml
+outputs:
+  kafka-output:
+    type: kafka
+    address: localhost:9092
+    topic: telemetry
+    add-headers:
+      env: prod
+      sub: '{{ index .Meta "subscription-name" }}'
+      source: '{{ index .Meta "source" }}'
+```
+
+For a message with metadata:
+
+```text
+subscription-name=interfaces
+source=router01
+```
+
+the resulting Kafka record headers will be:
+
+```text
+env=prod
+sub=interfaces
+source=router01
+```
+
+Static and dynamic headers can be combined:
+
+```yaml
+outputs:
+  kafka-output:
+    type: kafka
+    add-headers:
+      env: prod
+      region: us-east-1
+      sub: '{{ index .Meta "subscription-name" }}'
+      source: '{{ index .Meta "source" }}'
+```
+
+If a header template fails during execution, the failed header is skipped and the Kafka message is still sent.
