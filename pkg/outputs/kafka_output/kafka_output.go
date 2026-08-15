@@ -9,6 +9,7 @@
 package kafka_output
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -92,10 +93,11 @@ type kafkaOutput struct {
 }
 
 type dynConfig struct {
-	targetTpl *template.Template
-	msgTpl    *template.Template
-	evps      []formatters.EventProcessor
-	mo        *formatters.MarshalOptions
+	targetTpl  *template.Template
+	msgTpl     *template.Template
+	evps       []formatters.EventProcessor
+	mo         *formatters.MarshalOptions
+	headerTpls map[string]*template.Template
 }
 
 // config //
@@ -158,6 +160,60 @@ func (k *kafkaOutput) buildEventProcessors(logger *slog.Logger, eventProcessors 
 		return nil, err
 	}
 	return evps, nil
+}
+
+func buildKafkaHeaders(headers map[string]string) (map[string]*template.Template, error) {
+	if len(headers) == 0 {
+		return nil, nil
+	}
+
+	result := make(map[string]*template.Template, len(headers))
+
+	for k, v := range headers {
+		tpl, err := gtemplate.CreateTemplate(
+			fmt.Sprintf("header-%s", k),
+			v,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		result[k] = tpl.Funcs(outputs.TemplateFuncs)
+	}
+
+	return result, nil
+}
+
+func (k *kafkaOutput) getHeaders(dc *dynConfig, meta outputs.Meta) []sarama.RecordHeader {
+	if len(dc.headerTpls) == 0 {
+		return nil
+	}
+
+	headers := make([]sarama.RecordHeader, 0, len(dc.headerTpls))
+
+	data := map[string]any{
+		"Meta": meta,
+	}
+
+	for hk, tpl := range dc.headerTpls {
+		var buf bytes.Buffer
+
+		if err := tpl.Execute(&buf, data); err != nil {
+			k.logger.Warn(
+				"failed to execute kafka header template",
+				"header", hk,
+				"err", err,
+			)
+			continue
+		}
+
+		headers = append(headers, sarama.RecordHeader{
+			Key:   []byte(hk),
+			Value: buf.Bytes(),
+		})
+	}
+
+	return headers
 }
 
 // Init /
@@ -228,6 +284,11 @@ func (k *kafkaOutput) Init(ctx context.Context, name string, cfg map[string]inte
 		OverrideTS: newCfg.OverrideTimestamps,
 	}
 
+	dc.headerTpls, err = buildKafkaHeaders(newCfg.AddHeaders)
+	if err != nil {
+		return err
+	}
+
 	k.dynCfg.Store(dc)
 	config, err := k.createConfigFor(newCfg)
 	if err != nil {
@@ -259,6 +320,11 @@ func (k *kafkaOutput) Validate(cfg map[string]any) error {
 		return err
 	}
 	_, err = gtemplate.CreateTemplate("msg-template", ncfg.MsgTemplate)
+	if err != nil {
+		return err
+	}
+
+	_, err = buildKafkaHeaders(ncfg.AddHeaders)
 	if err != nil {
 		return err
 	}
@@ -313,6 +379,11 @@ func (k *kafkaOutput) Update(ctx context.Context, cfg map[string]any) error {
 			Format:     newCfg.Format,
 			OverrideTS: newCfg.OverrideTimestamps,
 		},
+	}
+
+	dc.headerTpls, err = buildKafkaHeaders(newCfg.AddHeaders)
+	if err != nil {
+		return err
 	}
 
 	prevDC := k.dynCfg.Load()
@@ -613,25 +684,12 @@ CRPROD:
 					}
 				}
 
-				var headers []sarama.RecordHeader
-				for k, v := range cfg.AddHeaders {
-					headers = append(headers, sarama.RecordHeader{
-						Key:   []byte(k),
-						Value: []byte(v),
-					})
-				}
-
-				headers = append(headers, sarama.RecordHeader{
-					Key:   []byte("sub"),
-					Value: []byte(m.GetMeta()["subscription-name"]),
-				})
-
+				headers := k.getHeaders(dc, m.GetMeta())
 				topic := k.selectTopic(m.GetMeta())
 				msg := &sarama.ProducerMessage{
-					Topic:     topic,
-					Value:     sarama.ByteEncoder(b),
-					Headers:   headers,
-					Timestamp: time.Now(),
+					Topic:   topic,
+					Value:   sarama.ByteEncoder(b),
+					Headers: headers,
 				}
 				if cfg.InsertKey {
 					msg.Key = sarama.ByteEncoder(k.partitionKey(m.GetMeta()))
@@ -704,25 +762,13 @@ CRPROD:
 					}
 				}
 
-				var headers []sarama.RecordHeader
-				for k, v := range cfg.AddHeaders {
-					headers = append(headers, sarama.RecordHeader{
-						Key:   []byte(k),
-						Value: []byte(v),
-					})
-				}
-
-				headers = append(headers, sarama.RecordHeader{
-					Key:   []byte("sub"),
-					Value: []byte(m.GetMeta()["subscription-name"]),
-				})
+				headers := k.getHeaders(dc, m.GetMeta())
 
 				topic := k.selectTopic(m.GetMeta())
 				msg := &sarama.ProducerMessage{
-					Topic:     topic,
-					Value:     sarama.ByteEncoder(b),
-					Headers:   headers,
-					Timestamp: time.Now(),
+					Topic:   topic,
+					Value:   sarama.ByteEncoder(b),
+					Headers: headers,
 				}
 				if cfg.InsertKey {
 					msg.Key = sarama.ByteEncoder(k.partitionKey(m.GetMeta()))
