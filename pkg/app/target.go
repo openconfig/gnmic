@@ -138,8 +138,10 @@ func (a *App) UpdateTargetSubscription(ctx context.Context, name string, subs []
 // AddTargetConfig adds a *TargetConfig to the configuration map
 func (a *App) AddTargetConfig(tc *types.TargetConfig) {
 	a.Logger.Info("adding target", "target", tc)
-	_, ok := a.Config.Targets[tc.Name]
-	if ok {
+	a.configLock.Lock()
+	defer a.configLock.Unlock()
+
+	if _, ok := a.Config.Targets[tc.Name]; ok {
 		return
 	}
 	if tc.BufferSize <= 0 {
@@ -149,8 +151,6 @@ func (a *App) AddTargetConfig(tc *types.TargetConfig) {
 		tc.RetryTimer = a.Config.Retry
 	}
 
-	a.configLock.Lock()
-	defer a.configLock.Unlock()
 	a.Config.Targets[tc.Name] = tc
 }
 
