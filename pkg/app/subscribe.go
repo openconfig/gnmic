@@ -23,6 +23,7 @@ import (
 	"github.com/openconfig/grpctunnel/tunnel"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/openconfig/gnmic/pkg/api/target"
@@ -292,6 +293,7 @@ func (a *App) StartTargetsManager(ctx context.Context) {
 					}
 
 					a.export(ctx, rsp.Response, m, outs...)
+					targetGrpcStateMetric.WithLabelValues(t.Config.Name).Set(0)
 					if remainingOnceSubscriptions > 0 {
 						if a.subscriptionMode(rsp.SubscriptionName) == subscriptionModeONCE {
 							switch rsp.Response.Response.(type) {
@@ -309,9 +311,13 @@ func (a *App) StartTargetsManager(ctx context.Context) {
 				case tErr := <-errChan:
 					if errors.Is(tErr.Err, io.EOF) {
 						a.Logger.Info("subscription closed stream (EOF)", "target", t.Config.Name, "subscription", tErr.SubscriptionName)
+						targetGrpcStateMetric.WithLabelValues(t.Config.Name).Set(0) // OK
 					} else {
 						subscribeResponseFailedCounter.WithLabelValues(t.Config.Name, tErr.SubscriptionName).Inc()
 						logging.LogErrUnlessCanceled(a.Logger, tErr.Err, "subscription receive error", "target", t.Config.Name, "subscription", tErr.SubscriptionName)
+						if st, ok := status.FromError(tErr.Err); ok {
+							targetGrpcStateMetric.WithLabelValues(t.Config.Name).Set(float64(st.Code()))
+						}
 					}
 					if remainingOnceSubscriptions > 0 {
 						if a.subscriptionMode(tErr.SubscriptionName) == subscriptionModeONCE {
