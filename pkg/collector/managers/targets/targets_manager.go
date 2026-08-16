@@ -625,6 +625,7 @@ func (tm *TargetsManager) remove(name string) {
 		mt.readerCancel = nil
 		mt.Unlock()
 	}
+	tm.deleteTargetMetrics(mt)
 	tm.store.State.Delete(collstore.KindTargets, name)
 }
 
