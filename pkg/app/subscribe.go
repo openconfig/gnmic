@@ -575,7 +575,13 @@ func (a *App) startIO() {
 		}
 
 		if !a.Config.UseTunnelServer {
+			a.configLock.RLock()
+			targets := make([]*types.TargetConfig, 0, len(a.Config.Targets))
 			for _, tc := range a.Config.Targets {
+				targets = append(targets, tc)
+			}
+			a.configLock.RUnlock()
+			for _, tc := range targets {
 				a.wg.Add(1)
 				go a.subscribeStream(a.ctx, tc)
 				if limiter != nil {
