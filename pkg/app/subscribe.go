@@ -240,7 +240,7 @@ func (a *App) StartTargetsManager(ctx context.Context) {
 			continue
 		}
 		a.operLock.RLock()
-		_, ok := a.activeTargets[t.Config.Name]
+		_, ok := a.activeTargets[t.GetID()]
 		a.operLock.RUnlock()
 		if ok {
 			if a.Config.Debug {
@@ -249,7 +249,7 @@ func (a *App) StartTargetsManager(ctx context.Context) {
 			continue
 		}
 		a.operLock.Lock()
-		a.activeTargets[t.Config.Name] = struct{}{}
+		a.activeTargets[t.GetID()] = struct{}{}
 		a.operLock.Unlock()
 
 		a.Logger.Info("starting target listener", "target", t.Config.Name)
@@ -302,7 +302,7 @@ func (a *App) StartTargetsManager(ctx context.Context) {
 					}
 					if remainingOnceSubscriptions == 0 && numSubscriptions == numOnceSubscriptions {
 						a.operLock.Lock()
-						delete(a.activeTargets, t.Config.Name)
+						delete(a.activeTargets, t.GetID())
 						a.operLock.Unlock()
 						return
 					}
@@ -320,19 +320,19 @@ func (a *App) StartTargetsManager(ctx context.Context) {
 					}
 					if remainingOnceSubscriptions == 0 && numSubscriptions == numOnceSubscriptions {
 						a.operLock.Lock()
-						delete(a.activeTargets, t.Config.Name)
+						delete(a.activeTargets, t.GetID())
 						a.operLock.Unlock()
 						return
 					}
 				case <-t.StopChan:
 					a.operLock.Lock()
-					delete(a.activeTargets, t.Config.Name)
+					delete(a.activeTargets, t.GetID())
 					a.operLock.Unlock()
 					a.Logger.Info("target listener stopped", "target", t.Config.Name)
 					return
 				case <-ctx.Done():
 					a.operLock.Lock()
-					delete(a.activeTargets, t.Config.Name)
+					delete(a.activeTargets, t.GetID())
 					a.operLock.Unlock()
 					return
 				}
