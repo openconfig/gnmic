@@ -106,6 +106,57 @@ func TestShouldReconnect(t *testing.T) {
 	if shouldReconnect(base, unchanged) {
 		t.Fatal("subscription-only change should not reconnect")
 	}
+
+	tagsOnly := base.DeepCopy()
+	tagsOnly.EventTags = map[string]string{"site": "alpha"}
+	if shouldReconnect(base, tagsOnly) {
+		t.Fatal("event-tags-only change should not reconnect")
+	}
+}
+
+func TestPipelineMetaIncludesEventTags(t *testing.T) {
+	got := pipelineMeta("dut-1", "sub1", map[string]string{"site": "alpha", "role": "edge"})
+	want := map[string]string{
+		"source":            "dut-1",
+		"subscription-name": "sub1",
+		"site":              "alpha",
+		"role":              "edge",
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Fatalf("meta[%q] = %q, want %q (meta=%v)", k, got[k], v, got)
+		}
+	}
+	if got = pipelineMeta("dut-1", "sub1", nil); got["source"] != "dut-1" || got["subscription-name"] != "sub1" {
+		t.Fatalf("nil event-tags meta = %v", got)
+	}
+}
+
+func TestApply_eventTagsInPlace(t *testing.T) {
+	tm := newTargetsTestManager(t)
+	cfg := &types.TargetConfig{
+		Name:      "t1",
+		Address:   "10.0.0.1:57400",
+		EventTags: map[string]string{"site": "alpha"},
+	}
+	mt := newManagedTarget("t1", cfg.DeepCopy(), nil)
+	tm.mu.Lock()
+	tm.targets["t1"] = mt
+	tm.mu.Unlock()
+
+	updated := cfg.DeepCopy()
+	updated.EventTags = map[string]string{"site": "gamma"}
+	tm.apply("t1", updated)
+
+	if mt.T.Config.EventTags["site"] != "gamma" {
+		t.Fatalf("event-tags not applied in place: %#v", mt.T.Config.EventTags)
+	}
+	if mt.eventTags["site"] != "gamma" {
+		t.Fatalf("event-tags snapshot not replaced: %#v", mt.eventTags)
+	}
+	if st := tm.getTargetStateStr("t1"); st == collstore.StateFailed {
+		t.Fatal("event-tags update reconnected (start failed against a dummy address)")
+	}
 }
 
 func TestAmIAssigned_standaloneAndCluster(t *testing.T) {

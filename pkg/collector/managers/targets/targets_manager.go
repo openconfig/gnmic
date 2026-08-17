@@ -52,6 +52,9 @@ type ManagedTarget struct {
 	lastError            string // last error message, protected by mu
 	outputs              map[string]struct{}
 	appliedSubscriptions []string
+	// Immutable event-tags snapshot. Replaced (never mutated) under mt.Lock
+	// when the target is created, reconnected, or tags are updated in place.
+	eventTags map[string]string
 }
 
 func (mt *ManagedTarget) setLastError(msg string) {
@@ -88,7 +91,19 @@ func newManagedTarget(name string, cfg *types.TargetConfig, tunServer *tunnel.Se
 	for _, output := range cfg.Outputs {
 		mt.outputs[output] = struct{}{}
 	}
+	mt.setEventTags(cfg.EventTags)
 	return mt
+}
+
+// setEventTags clones tags once and installs the snapshot on both the live
+// config and the reader-facing field. Callers must hold mt.Lock, except
+// newManagedTarget which is not yet published.
+func (mt *ManagedTarget) setEventTags(tags map[string]string) {
+	cloned := maps.Clone(tags)
+	if mt.T != nil && mt.T.Config != nil {
+		mt.T.Config.EventTags = cloned
+	}
+	mt.eventTags = cloned
 }
 
 // TargetsManager owns target lifecycle (connect/stop) and per-target subscriptions hookups (started by SubscriptionsManager).
@@ -415,6 +430,13 @@ func (tm *TargetsManager) apply(name string, cfg *types.TargetConfig) {
 		} else {
 			tm.logger.Info("outputs unchanged", "name", name, "old", mt.T.Config.Outputs, "new", cfg.Outputs)
 		}
+		// event-tags are not part of the connection spec: replace the
+		// snapshot in place so live readers pick up the new tags without a
+		// reconnect or a per-response clone.
+		if !maps.Equal(mt.eventTags, cfg.EventTags) {
+			tm.logger.Info("event-tags changed", "name", name)
+			mt.setEventTags(cfg.EventTags)
+		}
 		return
 	}
 
@@ -426,6 +448,7 @@ func (tm *TargetsManager) apply(name string, cfg *types.TargetConfig) {
 		tm.setTargetState(name, collstore.StateFailed)
 	}
 	mt.T.Config = cfg
+	mt.setEventTags(cfg.EventTags)
 	err = tm.start(mt)
 	if err != nil {
 		tm.logger.Error("failed to start target", "name", name, "error", err)
@@ -760,6 +783,7 @@ func (tm *TargetsManager) reconcileAssignment(name string) {
 		tm.setTargetState(name, collstore.StateFailed)
 	}
 	mt.T.Config = cfg
+	mt.setEventTags(cfg.EventTags)
 	err = tm.start(mt)
 	if err != nil {
 		tm.logger.Error("failed to start target", "name", name, "error", err)
@@ -909,13 +933,13 @@ func (tm *TargetsManager) startTargetSubscription(mt *ManagedTarget, cfg *types.
 					}
 					return cp
 				}()
+				mt.RLock()
+				eventTags := mt.eventTags
+				mt.RUnlock()
 				select {
 				case tm.out <- &pipeline.Msg{
-					Msg: resp.Response,
-					Meta: outputs.Meta{
-						"source":            mt.Name,
-						"subscription-name": resp.SubscriptionName,
-					},
+					Msg:     resp.Response,
+					Meta:    pipelineMeta(mt.Name, resp.SubscriptionName, eventTags),
 					Outputs: outs,
 				}:
 				default:
@@ -945,6 +969,21 @@ func (tm *TargetsManager) startTargetSubscription(mt *ManagedTarget, cfg *types.
 		}
 	}()
 	return nil
+}
+
+// pipelineMeta builds collector pipeline metadata the same way the CLI
+// subscribe path does: source and subscription-name first, then the target's
+// event-tags (which may override those keys). formatters.addMetaTags copies
+// every meta entry onto the event as a tag.
+func pipelineMeta(targetName, subscriptionName string, eventTags map[string]string) outputs.Meta {
+	meta := outputs.Meta{
+		"source":            targetName,
+		"subscription-name": subscriptionName,
+	}
+	for k, v := range eventTags {
+		meta[k] = v
+	}
+	return meta
 }
 
 func shouldReconnect(old, new *types.TargetConfig) bool {
