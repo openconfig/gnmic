@@ -72,6 +72,7 @@ type targetsStats struct {
 	subscriptionFailedCount   *prometheus.CounterVec
 	targetUPMetric            *prometheus.GaugeVec
 	targetConnStateMetric     *prometheus.GaugeVec
+	targetGrpcStateMetric     *prometheus.GaugeVec
 }
 
 const (
@@ -112,6 +113,18 @@ func newTargetsStats() *targetsStats {
 			Name:      "connection_state",
 			Help:      "The current gRPC connection state to the target. The value can be one of the following: 0(UNKNOWN), 1 (IDLE), 2 (CONNECTING), 3 (READY), 4 (TRANSIENT_FAILURE), or 5 (SHUTDOWN).",
 		}, []string{"name"}),
+		// targetGrpcStateMetric tracks the last gRPC status code received from each target.
+		// See https://pkg.go.dev/google.golang.org/grpc/codes for the full reference.
+		targetGrpcStateMetric: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: "gnmic",
+			Subsystem: "target",
+			Name:      "grpc_status_code",
+			Help: "The last gRPC status code received from the target. Default is 2 (Unknown) until the first response is received. " +
+				"See https://pkg.go.dev/google.golang.org/grpc/codes. " +
+				"Values: 0=OK, 1=Canceled, 2=Unknown, 3=InvalidArgument, 4=DeadlineExceeded, 5=NotFound, " +
+				"6=AlreadyExists, 7=PermissionDenied, 8=ResourceExhausted, 9=FailedPrecondition, 10=Aborted, " +
+				"11=OutOfRange, 12=Unimplemented, 13=Internal, 14=Unavailable, 15=DataLoss, 16=Unauthenticated.",
+		}, []string{"name"}),
 	}
 }
 
@@ -121,6 +134,7 @@ func (tm *TargetsManager) registerMetrics() {
 	tm.reg.MustRegister(tm.stats.subscribeResponseReceived)
 	tm.reg.MustRegister(tm.stats.droppedSubscribeResponses)
 	tm.reg.MustRegister(tm.stats.subscriptionFailedCount)
+	tm.reg.MustRegister(tm.stats.targetGrpcStateMetric)
 
 	tm.mu.RLock()
 	for _, mt := range tm.targets {
@@ -150,6 +164,7 @@ func (tm *TargetsManager) updateTargetMetrics(mt *ManagedTarget) {
 	if mt.T == nil {
 		tm.stats.targetUPMetric.WithLabelValues(mt.Name).Set(0)
 		tm.stats.targetConnStateMetric.WithLabelValues(mt.Name).Set(0)
+		tm.stats.targetGrpcStateMetric.WithLabelValues(mt.Name).Set(2) // Unknown until first response
 		return
 	}
 	tm.stats.targetUPMetric.WithLabelValues(mt.Name).Set(1)

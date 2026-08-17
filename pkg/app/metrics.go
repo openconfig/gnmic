@@ -52,6 +52,19 @@ var targetConnStateMetric = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 	Help:      "The current gRPC connection state to the target. The value can be one of the following: 0(UNKNOWN), 1 (IDLE), 2 (CONNECTING), 3 (READY), 4 (TRANSIENT_FAILURE), or 5 (SHUTDOWN).",
 }, []string{"name"})
 
+// targetGrpcStateMetric tracks the last gRPC status code received from each target.
+// See https://pkg.go.dev/google.golang.org/grpc/codes for the full reference.
+var targetGrpcStateMetric = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	Namespace: "gnmic",
+	Subsystem: "target",
+	Name:      "grpc_status_code",
+	Help: "The last gRPC status code received from the target. Default is 2 (Unknown) until the first response is received. " +
+		"See https://pkg.go.dev/google.golang.org/grpc/codes. " +
+		"Values: 0=OK, 1=Canceled, 2=Unknown, 3=InvalidArgument, 4=DeadlineExceeded, 5=NotFound, " +
+		"6=AlreadyExists, 7=PermissionDenied, 8=ResourceExhausted, 9=FailedPrecondition, 10=Aborted, " +
+		"11=OutOfRange, 12=Unimplemented, 13=Internal, 14=Unavailable, 15=DataLoss, 16=Unauthenticated.",
+}, []string{"name"})
+
 // cluster
 var clusterNumberOfLockedTargets = prometheus.NewGauge(prometheus.GaugeOpts{
 	Namespace: "gnmic",
@@ -75,10 +88,15 @@ func (a *App) registerTargetMetrics() {
 	if err != nil {
 		logging.LogErrUnlessCanceled(a.Logger, err, "failed to register target connection state metric")
 	}
+	err = a.reg.Register(targetGrpcStateMetric)
+	if err != nil {
+		a.Logger.Info("failed to register target grpc state metric", "err", err)
+	}
 	a.configLock.RLock()
 	for _, t := range a.Config.Targets {
 		targetUPMetric.WithLabelValues(t.Name).Set(0)
 		targetConnStateMetric.WithLabelValues(t.Name).Set(0)
+		targetGrpcStateMetric.WithLabelValues(t.Name).Set(2) // Unknown until first response
 	}
 	a.configLock.RUnlock()
 	go func() {
