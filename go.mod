@@ -23,7 +23,7 @@ require (
 	github.com/grafana/pyroscope-go v1.2.7
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/guptarohit/asciigraph v0.7.3
-	github.com/hairyhenderson/yaml v0.0.0-20220618171115-2d35fca545ce
+	github.com/hairyhenderson/yaml v2.1.0+incompatible
 	github.com/hashicorp/consul/api v1.32.1
 	github.com/hashicorp/go-plugin v1.7.0
 	github.com/hashicorp/golang-lru/v2 v2.0.7
