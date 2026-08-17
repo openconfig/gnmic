@@ -1,12 +1,14 @@
 package targets_manager
 
 import (
+	"context"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/openconfig/gnmic/pkg/api/types"
-	"github.com/openconfig/gnmic/pkg/config"
 	collstore "github.com/openconfig/gnmic/pkg/collector/store"
+	"github.com/openconfig/gnmic/pkg/config"
 	"github.com/openconfig/gnmic/pkg/pipeline"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/zestor-dev/zestor/store"
@@ -200,5 +202,78 @@ func TestKeys_helper(t *testing.T) {
 	got := keys(map[string]int{"b": 1, "a": 2})
 	if len(got) != 2 {
 		t.Fatalf("keys len = %d", len(got))
+	}
+}
+
+func TestStopTargetSubscription_waitsForReader(t *testing.T) {
+	tm := newTargetsTestManager(t)
+	mt := newManagedTarget("t1", &types.TargetConfig{Name: "t1", Address: "10.0.0.1:57400"}, nil)
+
+	sctx, cfn := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	mt.mu.Lock()
+	mt.readersCfn["sub1"] = cfn
+	mt.readersDone["sub1"] = done
+	mt.mu.Unlock()
+
+	go func() {
+		<-sctx.Done()
+		// The reader also refreshes target state on exit; this must not
+		// deadlock with stopTargetSubscription.
+		tm.setTargetState("t1", collstore.StateRunning)
+		time.Sleep(80 * time.Millisecond)
+		close(done)
+	}()
+
+	started := time.Now()
+	tm.stopTargetSubscription(mt, "sub1")
+	if elapsed := time.Since(started); elapsed < 80*time.Millisecond {
+		t.Fatalf("stopTargetSubscription returned after %s, want to wait for reader", elapsed)
+	}
+	select {
+	case <-done:
+	default:
+		t.Fatal("reader still running after stopTargetSubscription")
+	}
+}
+
+func TestStopTargetSubscription_noReader(t *testing.T) {
+	tm := newTargetsTestManager(t)
+	mt := newManagedTarget("t1", &types.TargetConfig{Name: "t1", Address: "10.0.0.1:57400"}, nil)
+	tm.stopTargetSubscription(mt, "missing")
+}
+
+func TestApplySubscription_doesNotHoldWriteLockWhileWaiting(t *testing.T) {
+	tm := newTargetsTestManager(t)
+	mt := newManagedTarget("t1", &types.TargetConfig{Name: "t1", Address: "10.0.0.1:57400", Subscriptions: []string{"sub1"}}, nil)
+	tm.mu.Lock()
+	tm.targets["t1"] = mt
+	tm.mu.Unlock()
+
+	sctx, cfn := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	mt.mu.Lock()
+	mt.readersCfn["sub1"] = cfn
+	mt.readersDone["sub1"] = done
+	mt.mu.Unlock()
+
+	go func() {
+		<-sctx.Done()
+		tm.setTargetState("t1", collstore.StateRunning)
+		close(done)
+	}()
+
+	finished := make(chan struct{})
+	go func() {
+		defer close(finished)
+		// CreateSubscribeRequest fails (no paths), so we never reach SubscribeChan.
+		// The important part is that waiting for the old reader does not deadlock
+		// with setTargetState (which takes tm.mu.RLock).
+		tm.applySubscription("sub1", types.SubscriptionConfig{Name: "sub1"})
+	}()
+	select {
+	case <-finished:
+	case <-time.After(2 * time.Second):
+		t.Fatal("applySubscription deadlocked waiting for the old reader")
 	}
 }
