@@ -80,7 +80,6 @@ START:
 			}
 			// not clustered, add target and subscribe
 			if !a.inCluster() {
-				a.Config.Targets[add.Name] = add
 				a.AddTargetConfig(add)
 				a.wg.Add(1)
 				go a.TargetSubscribeStream(ctx, add)
