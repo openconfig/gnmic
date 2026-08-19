@@ -11,7 +11,8 @@ outputs:
     address: IPAddress:Port 
     # maximum sending rate, e.g: 1ns, 10ms
     rate: 10ms 
-    # number of messages to buffer in case of sending failure
+    # number of messages to buffer in case of sending failure.
+    # New messages are dropped when the buffer is full.
     buffer-size:
     # export format. json, protobuf, prototext, protojson, event
     format: json 
@@ -56,8 +57,10 @@ outputs:
 When `enable-metrics` is set to `true`, the TCP output exposes:
 
 - `gnmic_tcp_output_errors_total{name,reason}` for delivery errors. The `reason` label is `dial` or `write`.
-- `gnmic_tcp_output_dropped_messages_total{name,reason}` for messages dropped after the retry budget is exhausted.
+- `gnmic_tcp_output_dropped_messages_total{name,reason}` for dropped messages. The `reason` label is `buffer_full` or `max_retries`.
 
 `max-retries` applies only after a message has been dequeued for delivery. Dial failures while a message is pending count against its retry budget.
+
+When the TCP output buffer is full, new messages are dropped instead of blocking subscription processing. Increase `buffer-size` or `num-workers` when `reason="buffer_full"` increases.
 
 A TCP output can be used to export data to an ELK stack, using [Logstash TCP input](https://www.elastic.co/guide/en/logstash/current/plugins-inputs-tcp.html)
