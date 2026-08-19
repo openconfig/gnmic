@@ -68,6 +68,7 @@ func (t *tcpOutput) registerMetrics(cfg *config) error {
 
 	tcpOutputErrors.WithLabelValues(t.name, "dial").Add(0)
 	tcpOutputErrors.WithLabelValues(t.name, "write").Add(0)
+	tcpOutputDroppedMessages.WithLabelValues(t.name, "buffer_full").Add(0)
 	tcpOutputDroppedMessages.WithLabelValues(t.name, "max_retries").Add(0)
 	return nil
 }
