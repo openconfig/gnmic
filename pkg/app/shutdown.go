@@ -4,13 +4,13 @@ package app
 // to lease expiry. It is safe to call more than once.
 func (a *App) Shutdown() error {
 	a.shutdownOnce.Do(func() {
+		a.CleanupPlugins()
 		if a.Cfn != nil {
 			a.Cfn()
 		}
 		if a.locker != nil {
 			a.shutdownErr = a.locker.Stop()
 		}
-		a.CleanupPlugins()
 	})
 	return a.shutdownErr
 }
