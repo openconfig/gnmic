@@ -9,7 +9,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"os/signal"
@@ -88,7 +87,7 @@ func newRootCmd() *cobra.Command {
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	setupCloseHandler(gApp.Cfn)
+	setupCloseHandler(gApp.Shutdown)
 	if err := newRootCmd().Execute(); err != nil {
 		//fmt.Println(err)
 		os.Exit(1)
@@ -109,14 +108,15 @@ func initConfig() {
 	}
 }
 
-func setupCloseHandler(cancelFn context.CancelFunc) {
+func setupCloseHandler(shutdownFn func() error) {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 	go func() {
 		sig := <-c
 		fmt.Printf("\nreceived signal '%s'. terminating...\n", sig.String())
-		gApp.CleanupPlugins()
-		cancelFn()
+		if err := shutdownFn(); err != nil {
+			fmt.Fprintf(os.Stderr, "shutdown failed: %v\n", err)
+		}
 		os.Exit(0)
 	}()
 }
