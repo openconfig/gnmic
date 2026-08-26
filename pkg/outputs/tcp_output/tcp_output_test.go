@@ -392,6 +392,31 @@ func TestTCP_WriteDoesNotBlockWhenBufferIsFull(t *testing.T) {
 	}
 }
 
+func TestTCP_EnqueueReturnsWhenContextIsCanceled(t *testing.T) {
+	o := &tcpOutput{}
+	o.init()
+	o.name = t.Name()
+	cfg := &config{EnableMetrics: true}
+	buffer := make(chan []byte, 1)
+	buffer <- []byte("queued")
+	droppedBefore := testutil.ToFloat64(
+		tcpOutputDroppedMessages.WithLabelValues(o.name, "buffer_full"),
+	)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	o.enqueue(ctx, cfg, buffer, []byte("new"))
+
+	if got := len(buffer); got != 1 {
+		t.Fatalf("buffer length = %d, want 1", got)
+	}
+	if got := testutil.ToFloat64(
+		tcpOutputDroppedMessages.WithLabelValues(o.name, "buffer_full"),
+	) - droppedBefore; got != 0 {
+		t.Fatalf("buffer-full dropped metric delta = %v, want 0", got)
+	}
+}
+
 func TestTCP_UpdateEnablesMetrics(t *testing.T) {
 	addr, stop := freeTCPListener(t)
 	defer stop()
