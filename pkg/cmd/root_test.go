@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/openconfig/gnmic/pkg/config"
 )
@@ -35,39 +34,6 @@ func captureStderr(t *testing.T, f func()) string {
 	}
 	r.Close()
 	return buf.String()
-}
-
-func TestWaitForShutdown(t *testing.T) {
-	t.Run("not started", func(t *testing.T) {
-		if waitForShutdown(make(chan struct{}), make(chan struct{})) {
-			t.Fatal("waitForShutdown() = true before shutdown started")
-		}
-	})
-
-	t.Run("waits for completion", func(t *testing.T) {
-		started := make(chan struct{})
-		done := make(chan struct{})
-		close(started)
-		returned := make(chan bool, 1)
-		go func() {
-			returned <- waitForShutdown(started, done)
-		}()
-
-		select {
-		case <-returned:
-			t.Fatal("waitForShutdown returned before shutdown completed")
-		case <-time.After(20 * time.Millisecond):
-		}
-		close(done)
-		select {
-		case waited := <-returned:
-			if !waited {
-				t.Fatal("waitForShutdown() = false after shutdown started")
-			}
-		case <-time.After(time.Second):
-			t.Fatal("waitForShutdown did not return after shutdown completed")
-		}
-	})
 }
 
 // TestInitConfigReportsExplicitMissingConfig is a regression test for

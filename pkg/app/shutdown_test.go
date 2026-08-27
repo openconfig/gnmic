@@ -1,11 +1,8 @@
 package app
 
 import (
-	"context"
 	"errors"
-	"log/slog"
 	"testing"
-	"time"
 
 	"github.com/openconfig/gnmic/pkg/lockers"
 )
@@ -38,58 +35,15 @@ func TestShutdownCancelsContextAndStopsLockerOnce(t *testing.T) {
 }
 
 type shutdownTestLocker struct {
+	lockers.Locker
 	app                   *App
 	stopErr               error
 	stopCalls             int
 	contextCanceledAtStop bool
 }
 
-func (*shutdownTestLocker) Init(context.Context, map[string]any, ...lockers.Option) error {
-	return nil
-}
-
 func (l *shutdownTestLocker) Stop() error {
 	l.stopCalls++
 	l.contextCanceledAtStop = l.app.Context().Err() != nil
 	return l.stopErr
-}
-
-func (*shutdownTestLocker) SetLogger(*slog.Logger) {}
-
-func (*shutdownTestLocker) Lock(context.Context, string, []byte) (bool, error) {
-	return false, nil
-}
-
-func (*shutdownTestLocker) KeepLock(context.Context, string) (chan struct{}, chan error) {
-	return make(chan struct{}), make(chan error)
-}
-
-func (*shutdownTestLocker) IsLocked(context.Context, string) (bool, error) {
-	return false, nil
-}
-
-func (*shutdownTestLocker) Unlock(context.Context, string) error { return nil }
-
-func (*shutdownTestLocker) Register(context.Context, *lockers.ServiceRegistration) error {
-	return nil
-}
-
-func (*shutdownTestLocker) Deregister(string) error { return nil }
-
-func (*shutdownTestLocker) GetServices(context.Context, string, []string) ([]*lockers.Service, error) {
-	return nil, nil
-}
-
-func (*shutdownTestLocker) WatchServices(
-	context.Context,
-	string,
-	[]string,
-	chan<- []*lockers.Service,
-	time.Duration,
-) error {
-	return nil
-}
-
-func (*shutdownTestLocker) List(context.Context, string) (map[string]string, error) {
-	return nil, nil
 }

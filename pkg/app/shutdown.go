@@ -1,7 +1,7 @@
 package app
 
-// Shutdown stops application work and releases resources that must not be left
-// to lease expiry. It is safe to call more than once.
+// Shutdown stops application work and releases leased resources.
+// Calls are serialized and idempotent.
 func (a *App) Shutdown() error {
 	a.shutdownOnce.Do(func() {
 		a.CleanupPlugins()

@@ -87,10 +87,13 @@ func newRootCmd() *cobra.Command {
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	shutdownStarted, shutdownDone := setupCloseHandler(gApp.Shutdown)
+	shutdownStarted := setupCloseHandler(gApp.Shutdown)
 	err := newRootCmd().Execute()
-	if waitForShutdown(shutdownStarted, shutdownDone) {
+	select {
+	case <-shutdownStarted:
+		_ = gApp.Shutdown()
 		return
+	default:
 	}
 	if err != nil {
 		//fmt.Println(err)
@@ -112,10 +115,9 @@ func initConfig() {
 	}
 }
 
-func setupCloseHandler(shutdownFn func() error) (<-chan struct{}, <-chan struct{}) {
+func setupCloseHandler(shutdownFn func() error) <-chan struct{} {
 	c := make(chan os.Signal, 1)
 	started := make(chan struct{})
-	done := make(chan struct{})
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 	go func() {
 		sig := <-c
@@ -124,18 +126,7 @@ func setupCloseHandler(shutdownFn func() error) (<-chan struct{}, <-chan struct{
 		if err := shutdownFn(); err != nil {
 			fmt.Fprintf(os.Stderr, "shutdown failed: %v\n", err)
 		}
-		close(done)
 		os.Exit(0)
 	}()
-	return started, done
-}
-
-func waitForShutdown(started, done <-chan struct{}) bool {
-	select {
-	case <-started:
-		<-done
-		return true
-	default:
-		return false
-	}
+	return started
 }
