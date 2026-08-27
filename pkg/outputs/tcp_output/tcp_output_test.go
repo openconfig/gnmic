@@ -23,6 +23,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
+	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	"github.com/zestor-dev/zestor/store"
 	"github.com/zestor-dev/zestor/store/gomap"
@@ -345,6 +347,73 @@ func TestTCP_RegisterMetrics(t *testing.T) {
 		if !got[want] {
 			t.Errorf("registered metrics missing %q", want)
 		}
+	}
+}
+
+func TestTCP_WriteDoesNotBlockWhenBufferIsFull(t *testing.T) {
+	o := &tcpOutput{}
+	o.init()
+	o.name = t.Name()
+	cfg := &config{EnableMetrics: true, Format: "protojson"}
+	o.cfg.Store(cfg)
+	o.dynCfg.Store(&dynConfig{
+		mo: &formatters.MarshalOptions{Format: cfg.Format},
+	})
+	buffer := make(chan []byte, 1)
+	buffer <- []byte("queued")
+	o.buffer.Store(&buffer)
+	droppedBefore := testutil.ToFloat64(
+		tcpOutputDroppedMessages.WithLabelValues(o.name, "buffer_full"),
+	)
+
+	done := make(chan struct{})
+	go func() {
+		o.Write(context.Background(), &gnmi.SubscribeResponse{
+			Response: &gnmi.SubscribeResponse_SyncResponse{SyncResponse: true},
+		}, nil)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		<-buffer
+		<-done
+		t.Fatal("full TCP output buffer blocked the caller")
+	}
+	if got := len(buffer); got != 1 {
+		t.Fatalf("buffer length = %d, want 1", got)
+	}
+
+	if got := testutil.ToFloat64(
+		tcpOutputDroppedMessages.WithLabelValues(o.name, "buffer_full"),
+	) - droppedBefore; got != 1 {
+		t.Fatalf("buffer-full dropped metric delta = %v, want 1", got)
+	}
+}
+
+func TestTCP_EnqueueReturnsWhenContextIsCanceled(t *testing.T) {
+	o := &tcpOutput{}
+	o.init()
+	o.name = t.Name()
+	cfg := &config{EnableMetrics: true}
+	buffer := make(chan []byte, 1)
+	buffer <- []byte("queued")
+	droppedBefore := testutil.ToFloat64(
+		tcpOutputDroppedMessages.WithLabelValues(o.name, "buffer_full"),
+	)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	o.enqueue(ctx, cfg, buffer, []byte("new"))
+
+	if got := len(buffer); got != 1 {
+		t.Fatalf("buffer length = %d, want 1", got)
+	}
+	if got := testutil.ToFloat64(
+		tcpOutputDroppedMessages.WithLabelValues(o.name, "buffer_full"),
+	) - droppedBefore; got != 0 {
+		t.Fatalf("buffer-full dropped metric delta = %v, want 0", got)
 	}
 }
 

@@ -386,7 +386,20 @@ func (t *tcpOutput) Write(ctx context.Context, m proto.Message, meta outputs.Met
 		}
 		buffer := t.buffer.Load()
 		for _, b := range bb {
-			(*buffer) <- b
+			t.enqueue(ctx, cfg, *buffer, b)
+		}
+	}
+}
+
+func (t *tcpOutput) enqueue(ctx context.Context, cfg *config, buffer chan<- []byte, payload []byte) {
+	select {
+	case <-ctx.Done():
+		return
+	case buffer <- payload:
+	default:
+		t.logger.Warn("dropping TCP message because output buffer is full")
+		if cfg.EnableMetrics {
+			tcpOutputDroppedMessages.WithLabelValues(t.name, "buffer_full").Inc()
 		}
 	}
 }
