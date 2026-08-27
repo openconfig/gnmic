@@ -122,6 +122,9 @@ type App struct {
 	// processors plugin manager
 	pm *plugin_manager.PluginManager
 
+	shutdownOnce sync.Once
+	shutdownErr  error
+
 	// pprof
 	pprof *pprofServer
 }
