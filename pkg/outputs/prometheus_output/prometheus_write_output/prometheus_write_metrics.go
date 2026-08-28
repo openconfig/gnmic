@@ -11,12 +11,15 @@ package prometheus_write_output
 import (
 	"sync"
 
+	"github.com/openconfig/gnmic/pkg/outputs"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
-	namespace = "gnmic"
-	subsystem = "prometheus_write_output"
+	namespace                   = "gnmic"
+	subsystem                   = "prometheus_write_output"
+	inputDropReasonBufferFull   = "buffer_full"
+	inputDropReasonBufferResize = "buffer_resize"
 )
 
 var registerMetricsOnce sync.Once
@@ -63,6 +66,27 @@ var prometheusWriteMetadataSendDuration = prometheus.NewGaugeVec(prometheus.Gaug
 	Help:      "gnmic prometheus_write output metadata send duration in ns",
 }, []string{"name"})
 
+var prometheusWriteInputQueueDepth = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	Namespace: namespace,
+	Subsystem: subsystem,
+	Name:      "input_queue_depth",
+	Help:      "Number of gNMI messages waiting for prometheus_write workers",
+}, []string{"name"})
+
+var prometheusWriteInputQueueCapacity = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	Namespace: namespace,
+	Subsystem: subsystem,
+	Name:      "input_queue_capacity",
+	Help:      "Maximum number of gNMI messages waiting for prometheus_write workers",
+}, []string{"name"})
+
+var prometheusWriteInputMessagesDropped = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Namespace: namespace,
+	Subsystem: subsystem,
+	Name:      "input_messages_dropped_total",
+	Help:      "Number of gNMI messages dropped before prometheus_write processing",
+}, []string{"name", "reason"})
+
 func initMetrics(name string) {
 	// data msgs metrics
 	prometheusWriteNumberOfSentMsgs.WithLabelValues(name).Add(0)
@@ -72,6 +96,10 @@ func initMetrics(name string) {
 	prometheusWriteNumberOfSentMetadataMsgs.WithLabelValues(name).Add(0)
 	prometheusWriteNumberOfFailSendMetadataMsgs.WithLabelValues(name, "").Add(0)
 	prometheusWriteMetadataSendDuration.WithLabelValues(name).Set(0)
+	prometheusWriteInputQueueDepth.WithLabelValues(name).Set(0)
+	prometheusWriteInputQueueCapacity.WithLabelValues(name).Set(0)
+	prometheusWriteInputMessagesDropped.WithLabelValues(name, inputDropReasonBufferFull).Add(0)
+	prometheusWriteInputMessagesDropped.WithLabelValues(name, inputDropReasonBufferResize).Add(0)
 }
 
 func (p *promWriteOutput) registerMetrics() error {
@@ -111,7 +139,24 @@ func (p *promWriteOutput) registerMetrics() error {
 			p.logger.Error("failed to register metric", "err", err)
 			return
 		}
+		if err = p.reg.Register(prometheusWriteInputQueueDepth); err != nil {
+			p.logger.Error("failed to register metric", "err", err)
+			return
+		}
+		if err = p.reg.Register(prometheusWriteInputQueueCapacity); err != nil {
+			p.logger.Error("failed to register metric", "err", err)
+			return
+		}
+		if err = p.reg.Register(prometheusWriteInputMessagesDropped); err != nil {
+			p.logger.Error("failed to register metric", "err", err)
+			return
+		}
 	})
 	initMetrics(cfg.Name)
 	return err
+}
+
+func setInputQueueMetrics(name string, ch chan *outputs.ProtoMsg) {
+	prometheusWriteInputQueueDepth.WithLabelValues(name).Set(float64(len(ch)))
+	prometheusWriteInputQueueCapacity.WithLabelValues(name).Set(float64(cap(ch)))
 }

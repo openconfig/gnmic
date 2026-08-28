@@ -39,6 +39,11 @@ outputs:
     # duration, defaults to 10s, time interval between write requests
     interval: 10s
     # integer, defaults to 1000.
+    # Maximum number of gNMI messages waiting to be converted into metrics.
+    # The queue is shared by all targets using this output. New messages are
+    # dropped and counted when the queue is full.
+    input-buffer-size: 1000
+    # integer, defaults to 1000.
     # Buffer size for time series to be sent to the remote system.
     # metrics are sent to the remote system every `.interval` or when the buffer is full. Whichever one is reached first.
     buffer-size: 1000
@@ -95,6 +100,8 @@ outputs:
     num-workers: 1
     # an integer, sets the number of writers draining the buffer and writing to Prometheus
     num-writers: 1
+    # boolean, exposes prometheus_write internal metrics when the gNMI API is enabled
+    enable-metrics: false
 ```
 
 `gnmic` creates the prometheus metric name and its labels from the subscription name, the gnmic path and the value name.
@@ -145,7 +152,7 @@ For the previous example the labels would be:
 
 ## Prometheus Write Metrics
 
-When a Prometheus server (gNMI API) is enabled, `gnmic` prometheus write output exposes 4 prometheus counters and 2 prometheus Gauges:
+When the gNMI API and `enable-metrics` are enabled, the Prometheus write output exposes these internal metrics:
 
 * `number_of_prometheus_write_msgs_sent_success_total`: Number of msgs successfully sent by gnmic prometheus_write output.
 * `number_of_prometheus_write_msgs_sent_fail_total`: Number of failed msgs sent by gnmic prometheus_write output.
@@ -154,3 +161,8 @@ When a Prometheus server (gNMI API) is enabled, `gnmic` prometheus write output 
 * `number_of_prometheus_write_metadata_msgs_sent_success_total`: Number of metadata msgs successfully sent by gnmic prometheus_write output.
 * `number_of_prometheus_write_metadata_msgs_sent_fail_total`: Number of failed metadata msgs sent by gnmic prometheus_write output.
 * `metadata_msg_send_duration_ns`: gnmic prometheus_write output metadata send duration in ns.
+* `input_queue_depth`: Number of gNMI messages waiting for a prometheus_write worker.
+* `input_queue_capacity`: Maximum number of gNMI messages that can wait for prometheus_write workers.
+* `input_messages_dropped_total`: Number of gNMI messages dropped before conversion. The `reason` label distinguishes a full queue from drops while shrinking the queue during an output update.
+
+`input-buffer-size` bounds the protobuf backlog before event conversion. `buffer-size` bounds the generated time-series backlog before Remote Write. These queues represent different stages and should be monitored independently. A non-zero `input_messages_dropped_total` means input exceeds the configured processing capacity even if HTTP Remote Write failure counters remain zero.
