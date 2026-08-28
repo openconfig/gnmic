@@ -9,6 +9,7 @@
 package formatters
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -42,6 +43,30 @@ var testset = map[string]struct {
 		},
 		result: true,
 	},
+	"event_fields": {
+		condition: `.name == "port-counters" and .timestamp == 42 and .tags.resource_id == "device-1" and .values["/COUNTERS/oid:1/packets"] == 7`,
+		input: []*EventMsg{
+			{
+				Name:      "port-counters",
+				Timestamp: 42,
+				Tags:      map[string]string{"resource_id": "device-1"},
+				Values: map[string]interface{}{
+					"/COUNTERS/oid:1/packets": 7,
+				},
+			},
+		},
+		result: true,
+	},
+	"event_fields_no_match": {
+		condition: `.name == "port-counters" and .tags.resource_id == "device-2"`,
+		input: []*EventMsg{
+			{
+				Name: "port-counters",
+				Tags: map[string]string{"resource_id": "device-1"},
+			},
+		},
+		result: false,
+	},
 }
 
 func TestCheckCondition(t *testing.T) {
@@ -72,5 +97,41 @@ func TestCheckCondition(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func BenchmarkCheckConditionLargeEvent(b *testing.B) {
+	query, err := gojq.Parse(`.name == "port-counters"`)
+	if err != nil {
+		b.Fatal(err)
+	}
+	condition, err := gojq.Compile(query)
+	if err != nil {
+		b.Fatal(err)
+	}
+	values := make(map[string]interface{}, 34_014)
+	for index := range 34_014 {
+		values[fmt.Sprintf("/COUNTERS/oid:0x%016x/SAI_PORT_STAT_IF_IN_OCTETS", index)] = index
+	}
+	event := &EventMsg{
+		Name:      "port-counters",
+		Timestamp: time.Now().UnixNano(),
+		Tags: map[string]string{
+			"resource_id":       "network-device-001",
+			"subscription-name": "port-counters",
+		},
+		Values: values,
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		matched, err := CheckCondition(condition, event)
+		if err != nil {
+			b.Fatal(err)
+		}
+		if !matched {
+			b.Fatal("condition did not match")
+		}
 	}
 }
