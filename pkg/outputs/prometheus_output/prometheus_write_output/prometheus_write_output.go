@@ -64,6 +64,7 @@ type promWriteOutput struct {
 	dynCfg       *atomic.Pointer[dynConfig]
 	httpClient   *atomic.Pointer[http.Client]
 	timeSeriesCh *atomic.Pointer[chan *prompb.TimeSeries]
+	sampler      *atomic.Pointer[subscriptionSampler]
 
 	logger      *slog.Logger
 	eventChan   chan *formatters.EventMsg
@@ -96,15 +97,16 @@ type config struct {
 	Metadata              *metadata         `mapstructure:"metadata,omitempty" json:"metadata,omitempty"`
 	Debug                 bool              `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 	//
-	MetricPrefix           string   `mapstructure:"metric-prefix,omitempty" json:"metric-prefix,omitempty"`
-	AppendSubscriptionName bool     `mapstructure:"append-subscription-name,omitempty" json:"append-subscription-name,omitempty"`
-	AddTarget              string   `mapstructure:"add-target,omitempty" json:"add-target,omitempty"`
-	TargetTemplate         string   `mapstructure:"target-template,omitempty" json:"target-template,omitempty"`
-	StringsAsLabels        bool     `mapstructure:"strings-as-labels,omitempty" json:"strings-as-labels,omitempty"`
-	EventProcessors        []string `mapstructure:"event-processors,omitempty" json:"event-processors,omitempty"`
-	NumWorkers             int      `mapstructure:"num-workers,omitempty" json:"num-workers,omitempty"`
-	NumWriters             int      `mapstructure:"num-writers,omitempty" json:"num-writers,omitempty"`
-	EnableMetrics          bool     `mapstructure:"enable-metrics,omitempty" json:"enable-metrics,omitempty"`
+	MetricPrefix           string                 `mapstructure:"metric-prefix,omitempty" json:"metric-prefix,omitempty"`
+	AppendSubscriptionName bool                   `mapstructure:"append-subscription-name,omitempty" json:"append-subscription-name,omitempty"`
+	AddTarget              string                 `mapstructure:"add-target,omitempty" json:"add-target,omitempty"`
+	TargetTemplate         string                 `mapstructure:"target-template,omitempty" json:"target-template,omitempty"`
+	StringsAsLabels        bool                   `mapstructure:"strings-as-labels,omitempty" json:"strings-as-labels,omitempty"`
+	EventProcessors        []string               `mapstructure:"event-processors,omitempty" json:"event-processors,omitempty"`
+	NumWorkers             int                    `mapstructure:"num-workers,omitempty" json:"num-workers,omitempty"`
+	NumWriters             int                    `mapstructure:"num-writers,omitempty" json:"num-writers,omitempty"`
+	EnableMetrics          bool                   `mapstructure:"enable-metrics,omitempty" json:"enable-metrics,omitempty"`
+	MessageSampling        *messageSamplingConfig `mapstructure:"message-sampling,omitempty" json:"message-sampling,omitempty"`
 }
 
 func (c *config) LogValue() slog.Value {
@@ -138,6 +140,7 @@ func (p *promWriteOutput) init() {
 	p.dynCfg = new(atomic.Pointer[dynConfig])
 	p.httpClient = new(atomic.Pointer[http.Client])
 	p.timeSeriesCh = new(atomic.Pointer[chan *prompb.TimeSeries])
+	p.sampler = new(atomic.Pointer[subscriptionSampler])
 	p.wg = new(sync.WaitGroup)
 	p.m = new(sync.Mutex)
 	p.logger = logging.DiscardLogger()
@@ -192,6 +195,11 @@ func (p *promWriteOutput) Init(ctx context.Context, name string, cfg map[string]
 
 	// set defaults
 	p.setDefaultsFor(ncfg)
+	sampler, err := newSubscriptionSampler(ncfg.MessageSampling)
+	if err != nil {
+		return err
+	}
+	p.sampler.Store(sampler)
 
 	p.cfg.Store(ncfg)
 
@@ -275,6 +283,10 @@ func (p *promWriteOutput) Update(ctx context.Context, cfg map[string]any) error 
 	}
 
 	p.setDefaultsFor(newCfg)
+	newSampler, err := newSubscriptionSampler(newCfg.MessageSampling)
+	if err != nil {
+		return err
+	}
 
 	currCfg := p.cfg.Load()
 
@@ -334,6 +346,7 @@ func (p *promWriteOutput) Update(ctx context.Context, cfg map[string]any) error 
 
 	// store new config
 	p.cfg.Store(newCfg)
+	p.sampler.Store(newSampler)
 
 	if swapChannel || restartWorkers {
 		var newChan chan *prompb.TimeSeries
@@ -419,7 +432,9 @@ func (p *promWriteOutput) Validate(cfg map[string]any) error {
 	if err != nil {
 		return err
 	}
-	return nil
+	p.setDefaultsFor(ncfg)
+	_, err = newSubscriptionSampler(ncfg.MessageSampling)
+	return err
 }
 
 func (p *promWriteOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) {
@@ -427,15 +442,32 @@ func (p *promWriteOutput) Write(ctx context.Context, rsp proto.Message, meta out
 		return
 	}
 	cfg := p.cfg.Load()
+	if cfg == nil {
+		return
+	}
+	acceptedAt := time.Now()
+	sampler := p.sampler.Load()
+	if sampler != nil {
+		if !sampler.Allow(meta, proto.Size(rsp), acceptedAt) {
+			prometheusWriteMessagesSkipped.WithLabelValues(cfg.Name, meta["subscription-name"]).Inc()
+			return
+		}
+	}
 
 	wctx, cancel := context.WithTimeout(ctx, cfg.Timeout)
 	defer cancel()
 
 	select {
 	case <-ctx.Done():
+		if sampler != nil {
+			sampler.Rollback(meta, acceptedAt)
+		}
 		return
 	case p.msgChan <- outputs.NewProtoMsg(rsp, meta):
 	case <-wctx.Done():
+		if sampler != nil {
+			sampler.Rollback(meta, acceptedAt)
+		}
 		if cfg.Debug {
 			p.logger.Warn("write expired", "timeout", cfg.Timeout)
 		}

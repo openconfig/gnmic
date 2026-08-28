@@ -95,9 +95,42 @@ outputs:
     num-workers: 1
     # an integer, sets the number of writers draining the buffer and writing to Prometheus
     num-writers: 1
+    # optional source/subscription sampling performed before event conversion.
+    # A size floor allows narrow incremental updates to bypass sampling.
+    message-sampling:
+      by-subscription:
+        port-counters:
+          interval: 15s
+          minimum-bytes: 262144
+      cache-size: 100000
+      spread: true
 ```
 
 `gnmic` creates the prometheus metric name and its labels from the subscription name, the gnmic path and the value name.
+
+## Message Sampling
+
+`message-sampling.by-subscription` maps subscription names to an interval and an optional
+protobuf message size floor. Matching messages at or above `minimum-bytes` are sampled per
+source and subscription before event conversion and processing. Smaller messages bypass
+sampling and do not consume the sampling window, which preserves narrow incremental updates
+from streams that also emit wide snapshots. A zero `minimum-bytes` samples every matching
+message.
+
+Choose the size floor from observed message sizes and keep it below the smallest wide
+snapshot that must be sampled. Sampling all messages is appropriate only when every message
+is independently complete; partial update streams require a non-zero size floor or must not
+use this option.
+`cache-size` bounds the number of source/subscription timestamps retained in memory and
+defaults to `100000`. Skipped messages are reported by
+`gnmic_prometheus_write_output_messages_skipped_total`.
+
+`spread: true` assigns each source/subscription stream a stable phase inside its interval.
+The first matching wide message is always accepted because it may be the stream's only
+complete baseline. Later wide messages align to the stable phase, avoiding synchronized
+conversion and write bursts. Enforcing the interval while moving to that phase can delay
+the second accepted wide message by less than two intervals; narrow messages still bypass
+sampling throughout that period.
 
 ## Metric Generation
 
@@ -145,7 +178,7 @@ For the previous example the labels would be:
 
 ## Prometheus Write Metrics
 
-When a Prometheus server (gNMI API) is enabled, `gnmic` prometheus write output exposes 4 prometheus counters and 2 prometheus Gauges:
+When a Prometheus server (gNMI API) is enabled, `gnmic` prometheus write output exposes 5 Prometheus counters and 2 Prometheus gauges:
 
 * `number_of_prometheus_write_msgs_sent_success_total`: Number of msgs successfully sent by gnmic prometheus_write output.
 * `number_of_prometheus_write_msgs_sent_fail_total`: Number of failed msgs sent by gnmic prometheus_write output.
@@ -154,3 +187,4 @@ When a Prometheus server (gNMI API) is enabled, `gnmic` prometheus write output 
 * `number_of_prometheus_write_metadata_msgs_sent_success_total`: Number of metadata msgs successfully sent by gnmic prometheus_write output.
 * `number_of_prometheus_write_metadata_msgs_sent_fail_total`: Number of failed metadata msgs sent by gnmic prometheus_write output.
 * `metadata_msg_send_duration_ns`: gnmic prometheus_write output metadata send duration in ns.
+* `messages_skipped_total`: Number of protobuf messages skipped by subscription sampling, labeled by output and subscription.
