@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	"github.com/zestor-dev/zestor/store"
 	"github.com/zestor-dev/zestor/store/gomap"
@@ -89,15 +88,21 @@ func TestPromWriteOutput_InitUpdateClose(t *testing.T) {
 	}))
 	defer srv.Close()
 
+	messageSampling := map[string]any{
+		"by-subscription": map[string]any{
+			"counters": map[string]any{"interval": "1m"},
+		},
+	}
 	p := &promWriteOutput{}
 	cfg := map[string]any{
-		"url":         srv.URL + "/api/v1/write",
-		"interval":    "1h",
-		"buffer-size": 8,
-		"num-workers": 1,
-		"num-writers": 1,
-		"max-retries": 1,
-		"timeout":     "500ms",
+		"url":              srv.URL + "/api/v1/write",
+		"interval":         "1h",
+		"buffer-size":      8,
+		"num-workers":      1,
+		"num-writers":      1,
+		"max-retries":      1,
+		"timeout":          "500ms",
+		"message-sampling": messageSampling,
 	}
 	if err := p.Init(context.Background(), "pw1", cfg, outputs.WithConfigStore(memStore())); err != nil {
 		t.Fatalf("Init: %v", err)
@@ -105,26 +110,32 @@ func TestPromWriteOutput_InitUpdateClose(t *testing.T) {
 	if s := p.String(); !strings.Contains(s, srv.URL) {
 		t.Fatalf("String: %s", s)
 	}
+	initialSampler := p.sampler.Load()
 	cfg2 := map[string]any{
-		"url":         srv.URL + "/api/v1/write",
-		"interval":    "2h",
-		"buffer-size": 8,
-		"num-workers": 1,
-		"num-writers": 1,
-		"max-retries": 1,
-		"timeout":     "500ms",
+		"url":              srv.URL + "/api/v1/write",
+		"interval":         "2h",
+		"buffer-size":      8,
+		"num-workers":      1,
+		"num-writers":      1,
+		"max-retries":      1,
+		"timeout":          "500ms",
+		"message-sampling": messageSampling,
 	}
 	if err := p.Update(context.Background(), cfg2); err != nil {
 		t.Fatalf("Update: %v", err)
 	}
+	if p.sampler.Load() != initialSampler {
+		t.Fatal("unchanged message-sampling configuration reset sampler state")
+	}
 	cfg3 := map[string]any{
-		"url":         srv.URL + "/api/v1/write",
-		"interval":    "2h",
-		"buffer-size": 16,
-		"num-workers": 1,
-		"num-writers": 1,
-		"max-retries": 1,
-		"timeout":     "500ms",
+		"url":              srv.URL + "/api/v1/write",
+		"interval":         "2h",
+		"buffer-size":      16,
+		"num-workers":      1,
+		"num-writers":      1,
+		"max-retries":      1,
+		"timeout":          "500ms",
+		"message-sampling": messageSampling,
 	}
 	if err := p.Update(context.Background(), cfg3); err != nil {
 		t.Fatalf("Update swap: %v", err)
@@ -162,13 +173,19 @@ func TestPromWriteOutputSamplingSkipsBeforeInputQueue(t *testing.T) {
 	}
 	p.sampler.Store(sampler)
 	meta := outputs.Meta{"source": "leaf-1", "subscription-name": "counters"}
-	if !sampler.Allow(meta, 0, time.Now()) {
+	info := streamInfo("stream-1")
+	now := time.Now()
+	if allowed, _ := sampler.Allow(info, meta, syncResponse(), now); !allowed {
+		t.Fatal("failed to observe sync response")
+	}
+	if allowed, _ := sampler.Allow(info, meta, updateResponse(nil), now); !allowed {
 		t.Fatal("failed to seed sampler")
 	}
+	ctx := outputs.WithSubscriptionInfo(context.Background(), info)
 
 	done := make(chan struct{})
 	go func() {
-		p.Write(context.Background(), &gnmi.SubscribeResponse{}, meta)
+		p.Write(ctx, updateResponse(nil), meta)
 		close(done)
 	}()
 	select {
@@ -192,7 +209,12 @@ func TestPromWriteOutputSamplingPreservesNarrowMessages(t *testing.T) {
 	}
 	p.sampler.Store(sampler)
 	meta := outputs.Meta{"source": "leaf-1", "subscription-name": "counters"}
-	if !sampler.Allow(meta, 2048, time.Now()) {
+	info := streamInfo("stream-1")
+	now := time.Now()
+	if allowed, _ := sampler.Allow(info, meta, syncResponse(), now); !allowed {
+		t.Fatal("failed to observe sync response")
+	}
+	if allowed, _ := sampler.Allow(info, meta, updateResponse(make([]byte, 2048)), now); !allowed {
 		t.Fatal("failed to seed sampler")
 	}
 
@@ -201,7 +223,7 @@ func TestPromWriteOutputSamplingPreservesNarrowMessages(t *testing.T) {
 		<-p.msgChan
 		close(received)
 	}()
-	p.Write(context.Background(), &gnmi.SubscribeResponse{}, meta)
+	p.Write(outputs.WithSubscriptionInfo(context.Background(), info), updateResponse(nil), meta)
 	select {
 	case <-received:
 	case <-time.After(100 * time.Millisecond):

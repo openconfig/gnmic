@@ -283,12 +283,14 @@ func (p *promWriteOutput) Update(ctx context.Context, cfg map[string]any) error 
 	}
 
 	p.setDefaultsFor(newCfg)
-	newSampler, err := newSubscriptionSampler(newCfg.MessageSampling)
-	if err != nil {
-		return err
-	}
-
 	currCfg := p.cfg.Load()
+	newSampler := p.sampler.Load()
+	if currCfg == nil || !messageSamplingConfigsEqual(currCfg.MessageSampling, newCfg.MessageSampling) {
+		newSampler, err = newSubscriptionSampler(newCfg.MessageSampling)
+		if err != nil {
+			return err
+		}
+	}
 
 	swapChannel := channelNeedsSwap(currCfg, newCfg)
 	restartWorkers := needsWorkerRestart(currCfg, newCfg)
@@ -447,11 +449,15 @@ func (p *promWriteOutput) Write(ctx context.Context, rsp proto.Message, meta out
 	}
 	acceptedAt := time.Now()
 	sampler := p.sampler.Load()
+	var acceptance *sampleAcceptance
 	if sampler != nil {
-		if !sampler.Allow(meta, proto.Size(rsp), acceptedAt) {
+		info, _ := outputs.SubscriptionInfoFromContext(ctx)
+		allowed, recorded := sampler.Allow(info, meta, rsp, acceptedAt)
+		if !allowed {
 			prometheusWriteMessagesSkipped.WithLabelValues(cfg.Name, meta["subscription-name"]).Inc()
 			return
 		}
+		acceptance = recorded
 	}
 
 	wctx, cancel := context.WithTimeout(ctx, cfg.Timeout)
@@ -459,15 +465,11 @@ func (p *promWriteOutput) Write(ctx context.Context, rsp proto.Message, meta out
 
 	select {
 	case <-ctx.Done():
-		if sampler != nil {
-			sampler.Rollback(meta, acceptedAt)
-		}
+		sampler.Rollback(acceptance)
 		return
 	case p.msgChan <- outputs.NewProtoMsg(rsp, meta):
 	case <-wctx.Done():
-		if sampler != nil {
-			sampler.Rollback(meta, acceptedAt)
-		}
+		sampler.Rollback(acceptance)
 		if cfg.Debug {
 			p.logger.Warn("write expired", "timeout", cfg.Timeout)
 		}

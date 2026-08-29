@@ -13,7 +13,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/jhump/protoreflect/dynamic"
@@ -22,6 +24,12 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+var subscriptionInstanceCounter atomic.Uint64
+
+func newSubscriptionInstance() string {
+	return strconv.FormatUint(subscriptionInstanceCounter.Add(1), 10)
+}
 
 // Subscribe sends a gnmi.SubscribeRequest to the target *t, responses and error are sent to the target channels
 func (t *Target) Subscribe(ctx context.Context, req *gnmi.SubscribeRequest, subscriptionName string) {
@@ -581,6 +589,8 @@ func (t *Target) listenPolls(ctx context.Context) {
 }
 
 func (t *Target) handleStreamSubscriptionRcv(ctx context.Context, stream gnmi.GNMI_SubscribeClient, subscriptionName string, subConfig *types.SubscriptionConfig, ch chan *SubscribeResponse) error {
+	subscriptionInstance := newSubscriptionInstance()
+	initialSyncComplete := false
 	for {
 		if ctx.Err() != nil {
 			return nil
@@ -589,11 +599,17 @@ func (t *Target) handleStreamSubscriptionRcv(ctx context.Context, stream gnmi.GN
 		if err != nil {
 			return err
 		}
+		if response.GetSyncResponse() {
+			initialSyncComplete = true
+		}
 		select {
 		case ch <- &SubscribeResponse{
-			SubscriptionName:   subscriptionName,
-			SubscriptionConfig: subConfig,
-			Response:           response,
+			SubscriptionName:     subscriptionName,
+			SubscriptionConfig:   subConfig,
+			SubscriptionInstance: subscriptionInstance,
+			SubscriptionMode:     gnmi.SubscriptionList_STREAM,
+			InitialSyncComplete:  initialSyncComplete,
+			Response:             response,
 		}:
 		case <-ctx.Done():
 			return nil
@@ -602,6 +618,8 @@ func (t *Target) handleStreamSubscriptionRcv(ctx context.Context, stream gnmi.GN
 }
 
 func (t *Target) handleONCESubscriptionRcv(ctx context.Context, stream gnmi.GNMI_SubscribeClient, subscriptionName string, subConfig *types.SubscriptionConfig, ch chan *SubscribeResponse) error {
+	subscriptionInstance := newSubscriptionInstance()
+	initialSyncComplete := false
 	for {
 		if ctx.Err() != nil {
 			return nil
@@ -610,12 +628,18 @@ func (t *Target) handleONCESubscriptionRcv(ctx context.Context, stream gnmi.GNMI
 		if err != nil {
 			return err
 		}
+		if response.GetSyncResponse() {
+			initialSyncComplete = true
+		}
 		select {
 		case <-ctx.Done():
 		case ch <- &SubscribeResponse{
-			SubscriptionName:   subscriptionName,
-			SubscriptionConfig: subConfig,
-			Response:           response,
+			SubscriptionName:     subscriptionName,
+			SubscriptionConfig:   subConfig,
+			SubscriptionInstance: subscriptionInstance,
+			SubscriptionMode:     gnmi.SubscriptionList_ONCE,
+			InitialSyncComplete:  initialSyncComplete,
+			Response:             response,
 		}:
 		}
 
@@ -627,6 +651,8 @@ func (t *Target) handleONCESubscriptionRcv(ctx context.Context, stream gnmi.GNMI
 }
 
 func (t *Target) handlePollSubscriptionRcv(ctx context.Context, stream gnmi.GNMI_SubscribeClient, subscriptionName string, subConfig *types.SubscriptionConfig, ch chan *SubscribeResponse) error {
+	subscriptionInstance := newSubscriptionInstance()
+	initialSyncComplete := false
 	for {
 		select {
 		case <-ctx.Done():
@@ -636,13 +662,19 @@ func (t *Target) handlePollSubscriptionRcv(ctx context.Context, stream gnmi.GNMI
 			if err != nil {
 				return err
 			}
+			if response.GetSyncResponse() {
+				initialSyncComplete = true
+			}
 			select {
 			case <-ctx.Done():
 				return nil
 			case ch <- &SubscribeResponse{
-				SubscriptionName:   subscriptionName,
-				SubscriptionConfig: subConfig,
-				Response:           response,
+				SubscriptionName:     subscriptionName,
+				SubscriptionConfig:   subConfig,
+				SubscriptionInstance: subscriptionInstance,
+				SubscriptionMode:     gnmi.SubscriptionList_POLL,
+				InitialSyncComplete:  initialSyncComplete,
+				Response:             response,
 			}:
 			}
 		}

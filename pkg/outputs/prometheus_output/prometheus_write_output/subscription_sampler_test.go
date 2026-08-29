@@ -10,92 +10,131 @@ import (
 	"testing"
 	"time"
 
+	"github.com/openconfig/gnmi/proto/gnmi"
+	"google.golang.org/protobuf/proto"
+
 	"github.com/openconfig/gnmic/pkg/outputs"
 )
 
 func TestSubscriptionSampler(t *testing.T) {
-	sampler, err := newSubscriptionSampler(&messageSamplingConfig{
+	sampler := mustSubscriptionSampler(t, &messageSamplingConfig{
 		BySubscription: map[string]messageSamplingRule{
 			"counters": {Interval: 10 * time.Second},
 		},
 		CacheSize: 2,
 	})
-	if err != nil {
-		t.Fatalf("newSubscriptionSampler() error = %v", err)
-	}
 	now := time.Unix(100, 0)
+	leaf1 := outputs.Meta{"source": "leaf-1", "subscription-name": "counters"}
+	leaf2 := outputs.Meta{"source": "leaf-2", "subscription-name": "counters"}
+	info := streamInfo("stream-1")
 
-	tests := []struct {
-		name string
-		meta outputs.Meta
-		at   time.Time
-		want bool
-	}{
-		{
-			name: "unconfigured subscription",
-			meta: outputs.Meta{"source": "leaf-1", "subscription-name": "state"},
-			at:   now,
-			want: true,
-		},
-		{
-			name: "missing source",
-			meta: outputs.Meta{"subscription-name": "counters"},
-			at:   now,
-			want: true,
-		},
-		{
-			name: "first message",
-			meta: outputs.Meta{"source": "leaf-1", "subscription-name": "counters"},
-			at:   now,
-			want: true,
-		},
-		{
-			name: "same stream inside interval",
-			meta: outputs.Meta{"source": "leaf-1", "subscription-name": "counters"},
-			at:   now.Add(9 * time.Second),
-			want: false,
-		},
-		{
-			name: "different source",
-			meta: outputs.Meta{"source": "leaf-2", "subscription-name": "counters"},
-			at:   now.Add(9 * time.Second),
-			want: true,
-		},
-		{
-			name: "interval elapsed",
-			meta: outputs.Meta{"source": "leaf-1", "subscription-name": "counters"},
-			at:   now.Add(10 * time.Second),
-			want: true,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			if got := sampler.Allow(test.meta, 0, test.at); got != test.want {
-				t.Fatalf("Allow() = %v, want %v", got, test.want)
-			}
-		})
-	}
+	assertSampleDecision(t, sampler, info, leaf1, syncResponse(), now, true, false)
+	assertSampleDecision(t, sampler, info, leaf1, updateResponse(nil), now, true, true)
+	assertSampleDecision(t, sampler, info, leaf1, updateResponse(nil), now.Add(9*time.Second), false, false)
+	assertSampleDecision(t, sampler, info, leaf1, updateResponse(nil), now.Add(10*time.Second), true, true)
+
+	assertSampleDecision(t, sampler, info, leaf2, syncResponse(), now, true, false)
+	assertSampleDecision(t, sampler, info, leaf2, updateResponse(nil), now.Add(time.Second), true, true)
+	assertSampleDecision(t, sampler, info, outputs.Meta{
+		"source": "leaf-1", "subscription-name": "state",
+	}, updateResponse(nil), now, true, false)
+	assertSampleDecision(t, sampler, info, outputs.Meta{
+		"subscription-name": "counters",
+	}, updateResponse(nil), now, true, false)
 }
 
-func TestSubscriptionSamplerAllowsOneConcurrentMessage(t *testing.T) {
-	sampler, err := newSubscriptionSampler(&messageSamplingConfig{
+func TestSubscriptionSamplerPreservesInitialSync(t *testing.T) {
+	sampler := mustSubscriptionSampler(t, &messageSamplingConfig{
 		BySubscription: map[string]messageSamplingRule{
 			"counters": {Interval: time.Minute},
 		},
 	})
-	if err != nil {
-		t.Fatalf("newSubscriptionSampler() error = %v", err)
-	}
+	meta := outputs.Meta{"source": "leaf-1", "subscription-name": "counters"}
+	initialInfo := initialStreamInfo("stream-1")
+	info := streamInfo("stream-1")
+	now := time.Unix(100, 0)
+
+	assertSampleDecision(t, sampler, initialInfo, meta, updateResponse(nil), now, true, false)
+	assertSampleDecision(t, sampler, initialInfo, meta, updateResponse(nil), now.Add(time.Second), true, false)
+	assertSampleDecision(t, sampler, initialInfo, meta, syncResponse(), now.Add(2*time.Second), true, false)
+	assertSampleDecision(t, sampler, info, meta, updateResponse(nil), now.Add(3*time.Second), true, true)
+	assertSampleDecision(t, sampler, info, meta, updateResponse(nil), now.Add(4*time.Second), false, false)
+}
+
+func TestSubscriptionSamplerResetsAfterReconnect(t *testing.T) {
+	sampler := mustSubscriptionSampler(t, &messageSamplingConfig{
+		BySubscription: map[string]messageSamplingRule{
+			"counters": {Interval: time.Minute},
+		},
+	})
 	meta := outputs.Meta{"source": "leaf-1", "subscription-name": "counters"}
 	now := time.Unix(100, 0)
+
+	assertSampleDecision(t, sampler, streamInfo("stream-1"), meta, syncResponse(), now, true, false)
+	assertSampleDecision(t, sampler, streamInfo("stream-1"), meta, updateResponse(nil), now, true, true)
+	assertSampleDecision(t, sampler, initialStreamInfo("stream-2"), meta, updateResponse(nil), now.Add(time.Second), true, false)
+	assertSampleDecision(t, sampler, initialStreamInfo("stream-2"), meta, updateResponse(nil), now.Add(2*time.Second), true, false)
+	assertSampleDecision(t, sampler, initialStreamInfo("stream-2"), meta, syncResponse(), now.Add(3*time.Second), true, false)
+	assertSampleDecision(t, sampler, streamInfo("stream-2"), meta, updateResponse(nil), now.Add(4*time.Second), true, true)
+}
+
+func TestSubscriptionSamplerControlMessagesDoNotConsumeWindow(t *testing.T) {
+	sampler := mustSubscriptionSampler(t, &messageSamplingConfig{
+		BySubscription: map[string]messageSamplingRule{
+			"counters": {Interval: time.Minute},
+		},
+	})
+	meta := outputs.Meta{"source": "leaf-1", "subscription-name": "counters"}
+	info := streamInfo("stream-1")
+	now := time.Unix(100, 0)
+
+	assertSampleDecision(t, sampler, info, meta, syncResponse(), now, true, false)
+	assertSampleDecision(t, sampler, info, meta, updateResponse(nil), now, true, true)
+	assertSampleDecision(t, sampler, info, meta, updateResponse(nil), now.Add(time.Second), false, false)
+}
+
+func TestSubscriptionSamplerOnlySamplesKnownStreamUpdates(t *testing.T) {
+	sampler := mustSubscriptionSampler(t, &messageSamplingConfig{
+		BySubscription: map[string]messageSamplingRule{
+			"counters": {Interval: time.Minute},
+		},
+	})
+	meta := outputs.Meta{"source": "leaf-1", "subscription-name": "counters"}
+	now := time.Unix(100, 0)
+
+	assertSampleDecision(t, sampler, outputs.SubscriptionInfo{}, meta, updateResponse(nil), now, true, false)
+	assertSampleDecision(t, sampler, outputs.SubscriptionInfo{
+		Instance: "once-1", Mode: gnmi.SubscriptionList_ONCE,
+	}, meta, updateResponse(nil), now, true, false)
+	assertSampleDecision(t, sampler, outputs.SubscriptionInfo{
+		Instance: "poll-1", Mode: gnmi.SubscriptionList_POLL,
+	}, meta, updateResponse(nil), now, true, false)
+	assertSampleDecision(t, sampler, streamInfo("stream-1"), meta, &gnmi.GetResponse{}, now, true, false)
+}
+
+func TestSubscriptionSamplerAllowsOneConcurrentMessage(t *testing.T) {
+	sampler := mustSubscriptionSampler(t, &messageSamplingConfig{
+		BySubscription: map[string]messageSamplingRule{
+			"counters": {Interval: time.Minute},
+		},
+	})
+	meta := outputs.Meta{"source": "leaf-1", "subscription-name": "counters"}
+	info := streamInfo("stream-1")
+	now := time.Unix(100, 0)
+	assertSampleDecision(t, sampler, info, meta, syncResponse(), now, true, false)
+
 	var accepted atomic.Int64
 	var wg sync.WaitGroup
 	for range 100 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if sampler.Allow(meta, 0, now) {
+			allowed, acceptance := sampler.Allow(info, meta, updateResponse(nil), now)
+			if allowed {
 				accepted.Add(1)
+				if acceptance == nil {
+					t.Error("accepted sampled message did not return rollback state")
+				}
 			}
 		}()
 	}
@@ -147,109 +186,155 @@ func TestNewSubscriptionSamplerValidation(t *testing.T) {
 	}
 }
 
+func TestMessageSamplingConfigsEqual(t *testing.T) {
+	rules := map[string]messageSamplingRule{"counters": {Interval: time.Minute}}
+	if !messageSamplingConfigsEqual(nil, &messageSamplingConfig{}) {
+		t.Fatal("disabled configurations should be equivalent")
+	}
+	if !messageSamplingConfigsEqual(
+		&messageSamplingConfig{BySubscription: rules},
+		&messageSamplingConfig{BySubscription: rules, CacheSize: defaultMessageSamplingCacheSize},
+	) {
+		t.Fatal("default and explicit cache sizes should be equivalent")
+	}
+	if messageSamplingConfigsEqual(
+		&messageSamplingConfig{BySubscription: rules},
+		&messageSamplingConfig{BySubscription: rules, Spread: true},
+	) {
+		t.Fatal("different spread settings should not be equivalent")
+	}
+}
+
 func TestSubscriptionSamplerRollback(t *testing.T) {
-	sampler, err := newSubscriptionSampler(&messageSamplingConfig{
+	sampler := mustSubscriptionSampler(t, &messageSamplingConfig{
 		BySubscription: map[string]messageSamplingRule{
 			"counters": {Interval: time.Minute},
 		},
 	})
-	if err != nil {
-		t.Fatalf("newSubscriptionSampler() error = %v", err)
-	}
 	meta := outputs.Meta{"source": "leaf-1", "subscription-name": "counters"}
-	acceptedAt := time.Unix(100, 0)
-	if !sampler.Allow(meta, 0, acceptedAt) {
-		t.Fatal("first message was not accepted")
+	info := streamInfo("stream-1")
+	now := time.Unix(100, 0)
+	assertSampleDecision(t, sampler, info, meta, syncResponse(), now, true, false)
+
+	allowed, acceptance := sampler.Allow(info, meta, updateResponse(nil), now)
+	if !allowed || acceptance == nil {
+		t.Fatal("first post-sync update was not sampled")
 	}
-	sampler.Rollback(meta, acceptedAt)
-	if !sampler.Allow(meta, 0, acceptedAt.Add(time.Second)) {
+	sampler.Rollback(acceptance)
+	allowed, newer := sampler.Allow(info, meta, updateResponse(nil), now.Add(time.Second))
+	if !allowed || newer == nil {
 		t.Fatal("message after rollback was not accepted")
 	}
 
 	// A stale rollback must not remove a newer acceptance.
-	sampler.Rollback(meta, acceptedAt)
-	if sampler.Allow(meta, 0, acceptedAt.Add(2*time.Second)) {
-		t.Fatal("stale rollback removed newer acceptance")
-	}
+	sampler.Rollback(acceptance)
+	assertSampleDecision(t, sampler, info, meta, updateResponse(nil), now.Add(2*time.Second), false, false)
 }
 
-func TestSubscriptionSamplerSpreadAcceptsInitialBaseline(t *testing.T) {
+func TestSubscriptionSamplerSpread(t *testing.T) {
 	const interval = 10 * time.Second
-	sampler, err := newSubscriptionSampler(&messageSamplingConfig{
+	sampler := mustSubscriptionSampler(t, &messageSamplingConfig{
 		BySubscription: map[string]messageSamplingRule{
 			"counters": {Interval: interval},
 		},
 		Spread: true,
 	})
-	if err != nil {
-		t.Fatalf("newSubscriptionSampler() error = %v", err)
-	}
 	meta := outputs.Meta{"source": "leaf-1", "subscription-name": "counters"}
+	info := streamInfo("stream-1")
 	key := "leaf-1\x00counters"
 	now := time.Unix(123, 456)
 	next := nextSpreadTime(key, now.Add(interval), interval)
+	assertSampleDecision(t, sampler, info, meta, syncResponse(), now, true, false)
 
-	if !sampler.Allow(meta, 0, now) {
-		t.Fatal("initial baseline was not accepted")
+	allowed, acceptance := sampler.Allow(info, meta, updateResponse(nil), now)
+	if !allowed || acceptance == nil {
+		t.Fatal("first post-sync update was not accepted")
 	}
-	if sampler.Allow(meta, 0, next.Add(-time.Nanosecond)) {
-		t.Fatal("second message before stable phase was accepted")
-	}
-	if !sampler.Allow(meta, 0, next) {
-		t.Fatal("message at stable phase was not accepted")
-	}
-	if sampler.Allow(meta, 0, next.Add(interval-time.Nanosecond)) {
-		t.Fatal("second message inside interval was accepted")
-	}
-	if !sampler.Allow(meta, 0, next.Add(interval)) {
-		t.Fatal("message in next stable phase was not accepted")
-	}
-}
+	assertSampleDecision(t, sampler, info, meta, updateResponse(nil), next.Add(-time.Nanosecond), false, false)
+	assertSampleDecision(t, sampler, info, meta, updateResponse(nil), next, true, true)
+	assertSampleDecision(t, sampler, info, meta, updateResponse(nil), next.Add(interval-time.Nanosecond), false, false)
+	assertSampleDecision(t, sampler, info, meta, updateResponse(nil), next.Add(interval), true, true)
 
-func TestSubscriptionSamplerSpreadRollbackRetriesInitialBaseline(t *testing.T) {
-	sampler, err := newSubscriptionSampler(&messageSamplingConfig{
-		BySubscription: map[string]messageSamplingRule{
-			"counters": {Interval: time.Minute},
-		},
-		Spread: true,
+	sampler = mustSubscriptionSampler(t, &messageSamplingConfig{
+		BySubscription: map[string]messageSamplingRule{"counters": {Interval: interval}},
+		Spread:         true,
 	})
-	if err != nil {
-		t.Fatalf("newSubscriptionSampler() error = %v", err)
-	}
-	meta := outputs.Meta{"source": "leaf-1", "subscription-name": "counters"}
-	acceptedAt := time.Unix(100, 0)
-	if !sampler.Allow(meta, 0, acceptedAt) {
-		t.Fatal("initial baseline was not accepted")
-	}
-
-	sampler.Rollback(meta, acceptedAt)
-	if !sampler.Allow(meta, 0, acceptedAt.Add(time.Second)) {
-		t.Fatal("initial baseline was not accepted after enqueue rollback")
-	}
+	assertSampleDecision(t, sampler, info, meta, syncResponse(), now, true, false)
+	allowed, acceptance = sampler.Allow(info, meta, updateResponse(nil), now)
+	sampler.Rollback(acceptance)
+	assertSampleDecision(t, sampler, info, meta, updateResponse(nil), now.Add(time.Second), true, true)
 }
 
 func TestSubscriptionSamplerPreservesNarrowUpdates(t *testing.T) {
-	sampler, err := newSubscriptionSampler(&messageSamplingConfig{
+	sampler := mustSubscriptionSampler(t, &messageSamplingConfig{
 		BySubscription: map[string]messageSamplingRule{
 			"counters": {Interval: 10 * time.Second, MinimumBytes: 1024},
 		},
 	})
+	meta := outputs.Meta{"source": "leaf-1", "subscription-name": "counters"}
+	info := streamInfo("stream-1")
+	now := time.Unix(100, 0)
+	assertSampleDecision(t, sampler, info, meta, syncResponse(), now, true, false)
+
+	assertSampleDecision(t, sampler, info, meta, updateResponse(nil), now, true, false)
+	assertSampleDecision(t, sampler, info, meta, updateResponse(nil), now.Add(time.Second), true, false)
+	wide := updateResponse(make([]byte, 2048))
+	assertSampleDecision(t, sampler, info, meta, wide, now.Add(2*time.Second), true, true)
+	assertSampleDecision(t, sampler, info, meta, wide, now.Add(3*time.Second), false, false)
+	assertSampleDecision(t, sampler, info, meta, updateResponse(nil), now.Add(4*time.Second), true, false)
+}
+
+func mustSubscriptionSampler(t *testing.T, cfg *messageSamplingConfig) *subscriptionSampler {
+	t.Helper()
+	sampler, err := newSubscriptionSampler(cfg)
 	if err != nil {
 		t.Fatalf("newSubscriptionSampler() error = %v", err)
 	}
-	meta := outputs.Meta{"source": "leaf-1", "subscription-name": "counters"}
-	now := time.Unix(100, 0)
+	return sampler
+}
 
-	if !sampler.Allow(meta, 512, now) || !sampler.Allow(meta, 512, now.Add(time.Second)) {
-		t.Fatal("narrow incremental update was sampled")
+func streamInfo(instance string) outputs.SubscriptionInfo {
+	return outputs.SubscriptionInfo{
+		Instance:            instance,
+		Mode:                gnmi.SubscriptionList_STREAM,
+		InitialSyncComplete: true,
 	}
-	if !sampler.Allow(meta, 2048, now.Add(2*time.Second)) {
-		t.Fatal("first wide message was not accepted")
+}
+
+func initialStreamInfo(instance string) outputs.SubscriptionInfo {
+	return outputs.SubscriptionInfo{Instance: instance, Mode: gnmi.SubscriptionList_STREAM}
+}
+
+func syncResponse() *gnmi.SubscribeResponse {
+	return &gnmi.SubscribeResponse{Response: &gnmi.SubscribeResponse_SyncResponse{SyncResponse: true}}
+}
+
+func updateResponse(value []byte) *gnmi.SubscribeResponse {
+	notification := &gnmi.Notification{}
+	if value != nil {
+		notification.Update = []*gnmi.Update{{Val: &gnmi.TypedValue{
+			Value: &gnmi.TypedValue_BytesVal{BytesVal: value},
+		}}}
 	}
-	if sampler.Allow(meta, 2048, now.Add(3*time.Second)) {
-		t.Fatal("second wide message inside interval was accepted")
+	return &gnmi.SubscribeResponse{Response: &gnmi.SubscribeResponse_Update{Update: notification}}
+}
+
+func assertSampleDecision(
+	t *testing.T,
+	sampler *subscriptionSampler,
+	info outputs.SubscriptionInfo,
+	meta outputs.Meta,
+	message proto.Message,
+	now time.Time,
+	wantAllowed bool,
+	wantRecorded bool,
+) {
+	t.Helper()
+	allowed, acceptance := sampler.Allow(info, meta, message, now)
+	if allowed != wantAllowed {
+		t.Fatalf("Allow() = %v, want %v", allowed, wantAllowed)
 	}
-	if !sampler.Allow(meta, 512, now.Add(4*time.Second)) {
-		t.Fatal("narrow update inside wide-message interval was sampled")
+	if gotRecorded := acceptance != nil; gotRecorded != wantRecorded {
+		t.Fatalf("Allow() recorded acceptance = %v, want %v", gotRecorded, wantRecorded)
 	}
 }

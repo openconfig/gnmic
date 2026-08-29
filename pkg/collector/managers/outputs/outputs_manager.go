@@ -173,7 +173,7 @@ func (mgr *OutputsManager) write(e *pipeline.Msg) {
 			}
 		} else {
 			// from targets or inputs
-			mo.Impl.Write(mgr.ctx, e.Msg, e.Meta)
+			mo.Impl.Write(outputs.WithSubscriptionInfo(mgr.ctx, e.Subscription), e.Msg, e.Meta)
 		}
 	}
 }

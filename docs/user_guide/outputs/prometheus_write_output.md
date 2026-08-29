@@ -110,27 +110,32 @@ outputs:
 
 ## Message Sampling
 
-`message-sampling.by-subscription` maps subscription names to an interval and an optional
-protobuf message size floor. Matching messages at or above `minimum-bytes` are sampled per
-source and subscription before event conversion and processing. Smaller messages bypass
-sampling and do not consume the sampling window, which preserves narrow incremental updates
-from streams that also emit wide snapshots. A zero `minimum-bytes` samples every matching
-message.
+`message-sampling.by-subscription` maps STREAM subscription names to an interval and an
+optional protobuf message size floor. Matching Update responses at or above
+`minimum-bytes` are sampled per source and subscription before event conversion and
+processing. Smaller updates bypass sampling and do not consume the sampling window, which
+preserves narrow incremental updates from streams that also emit wide snapshots. A zero
+`minimum-bytes` samples every matching post-sync Update response.
+
+The initial snapshot is never sampled: all Update responses are accepted until the stream's
+first successful SyncResponse. A reconnect starts a new initial snapshot. Control messages,
+ONCE and POLL subscriptions, and messages that did not originate from a managed subscription
+stream also bypass sampling.
 
 Choose the size floor from observed message sizes and keep it below the smallest wide
-snapshot that must be sampled. Sampling all messages is appropriate only when every message
-is independently complete; partial update streams require a non-zero size floor or must not
-use this option.
+snapshot that should be sampled. Every matching post-sync response at or above that floor
+must be independently discardable. Do not enable sampling for a stream whose later snapshot
+is split across multiple responses, because a message sampler cannot preserve the group as
+one unit.
 `cache-size` bounds the number of source/subscription timestamps retained in memory and
 defaults to `100000`. Skipped messages are reported by
 `gnmic_prometheus_write_output_messages_skipped_total`.
 
 `spread: true` assigns each source/subscription stream a stable phase inside its interval.
-The first matching wide message is always accepted because it may be the stream's only
-complete baseline. Later wide messages align to the stable phase, avoiding synchronized
-conversion and write bursts. Enforcing the interval while moving to that phase can delay
-the second accepted wide message by less than two intervals; narrow messages still bypass
-sampling throughout that period.
+The first matching post-sync response is accepted immediately. Later matching responses
+align to the stable phase, avoiding synchronized conversion and write bursts. Enforcing the
+interval while moving to that phase can delay the second accepted response by less than two
+intervals; narrow messages still bypass sampling throughout that period.
 
 ## Metric Generation
 
