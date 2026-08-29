@@ -38,11 +38,11 @@ outputs:
       skip-verify: false
     # duration, defaults to 10s, time interval between write requests
     interval: 10s
-    # integer, defaults to 1000.
+    # integer, defaults to 1.
     # Maximum number of gNMI messages waiting to be converted into metrics.
-    # The queue is shared by all targets using this output. New messages are
-    # dropped and counted when the queue is full.
-    input-buffer-size: 1000
+    # The queue is shared by all targets using this output. Producers wait
+    # when it is full, propagating backpressure without dropping messages.
+    input-buffer-size: 1
     # integer, defaults to 1000.
     # Buffer size for time series to be sent to the remote system.
     # metrics are sent to the remote system every `.interval` or when the buffer is full. Whichever one is reached first.
@@ -163,6 +163,10 @@ When the gNMI API and `enable-metrics` are enabled, the Prometheus write output 
 * `metadata_msg_send_duration_ns`: gnmic prometheus_write output metadata send duration in ns.
 * `input_queue_depth`: Number of gNMI messages waiting for a prometheus_write worker.
 * `input_queue_capacity`: Maximum number of gNMI messages that can wait for prometheus_write workers.
-* `input_messages_dropped_total`: Number of gNMI messages dropped before conversion. The `reason` label distinguishes a full queue from drops while shrinking the queue during an output update.
+* `input_backpressure_total`: Number of gNMI messages that had to wait for input queue capacity.
+* `input_backpressure_duration_seconds`: Time spent waiting for input queue capacity.
 
-`input-buffer-size` bounds the protobuf backlog before event conversion. `buffer-size` bounds the generated time-series backlog before Remote Write. These queues represent different stages and should be monitored independently. A non-zero `input_messages_dropped_total` means input exceeds the configured processing capacity even if HTTP Remote Write failure counters remain zero.
+`input-buffer-size` bounds the protobuf backlog before event conversion. Producers block when
+the queue is full and resume when a worker has capacity or their context is canceled. The
+value cannot be changed by a runtime output update; restart the output to resize it.
+`buffer-size` independently bounds the generated time-series backlog before Remote Write.

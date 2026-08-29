@@ -16,10 +16,8 @@ import (
 )
 
 const (
-	namespace                   = "gnmic"
-	subsystem                   = "prometheus_write_output"
-	inputDropReasonBufferFull   = "buffer_full"
-	inputDropReasonBufferResize = "buffer_resize"
+	namespace = "gnmic"
+	subsystem = "prometheus_write_output"
 )
 
 var registerMetricsOnce sync.Once
@@ -80,12 +78,20 @@ var prometheusWriteInputQueueCapacity = prometheus.NewGaugeVec(prometheus.GaugeO
 	Help:      "Maximum number of gNMI messages waiting for prometheus_write workers",
 }, []string{"name"})
 
-var prometheusWriteInputMessagesDropped = prometheus.NewCounterVec(prometheus.CounterOpts{
+var prometheusWriteInputBackpressure = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Namespace: namespace,
 	Subsystem: subsystem,
-	Name:      "input_messages_dropped_total",
-	Help:      "Number of gNMI messages dropped before prometheus_write processing",
-}, []string{"name", "reason"})
+	Name:      "input_backpressure_total",
+	Help:      "Number of gNMI messages that waited for prometheus_write input capacity",
+}, []string{"name"})
+
+var prometheusWriteInputBackpressureDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	Namespace: namespace,
+	Subsystem: subsystem,
+	Name:      "input_backpressure_duration_seconds",
+	Help:      "Time spent waiting for prometheus_write input capacity",
+	Buckets:   []float64{0.001, 0.01, 0.1, 1, 10, 60},
+}, []string{"name"})
 
 func initMetrics(name string) {
 	// data msgs metrics
@@ -98,8 +104,8 @@ func initMetrics(name string) {
 	prometheusWriteMetadataSendDuration.WithLabelValues(name).Set(0)
 	prometheusWriteInputQueueDepth.WithLabelValues(name).Set(0)
 	prometheusWriteInputQueueCapacity.WithLabelValues(name).Set(0)
-	prometheusWriteInputMessagesDropped.WithLabelValues(name, inputDropReasonBufferFull).Add(0)
-	prometheusWriteInputMessagesDropped.WithLabelValues(name, inputDropReasonBufferResize).Add(0)
+	prometheusWriteInputBackpressure.WithLabelValues(name).Add(0)
+	prometheusWriteInputBackpressureDuration.WithLabelValues(name)
 }
 
 func (p *promWriteOutput) registerMetrics() error {
@@ -147,7 +153,11 @@ func (p *promWriteOutput) registerMetrics() error {
 			p.logger.Error("failed to register metric", "err", err)
 			return
 		}
-		if err = p.reg.Register(prometheusWriteInputMessagesDropped); err != nil {
+		if err = p.reg.Register(prometheusWriteInputBackpressure); err != nil {
+			p.logger.Error("failed to register metric", "err", err)
+			return
+		}
+		if err = p.reg.Register(prometheusWriteInputBackpressureDuration); err != nil {
 			p.logger.Error("failed to register metric", "err", err)
 			return
 		}
@@ -156,7 +166,11 @@ func (p *promWriteOutput) registerMetrics() error {
 	return err
 }
 
-func setInputQueueMetrics(name string, ch chan *outputs.ProtoMsg) {
-	prometheusWriteInputQueueDepth.WithLabelValues(name).Set(float64(len(ch)))
+func initInputQueueMetrics(name string, ch <-chan *outputs.ProtoMsg) {
+	setInputQueueDepth(name, ch)
 	prometheusWriteInputQueueCapacity.WithLabelValues(name).Set(float64(cap(ch)))
+}
+
+func setInputQueueDepth(name string, ch <-chan *outputs.ProtoMsg) {
+	prometheusWriteInputQueueDepth.WithLabelValues(name).Set(float64(len(ch)))
 }
