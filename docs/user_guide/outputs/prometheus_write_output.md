@@ -166,7 +166,10 @@ When the gNMI API and `enable-metrics` are enabled, the Prometheus write output 
 * `input_backpressure_total`: Number of gNMI messages that had to wait for input queue capacity.
 * `input_backpressure_duration_seconds`: Time spent waiting for input queue capacity.
 
-`input-buffer-size` bounds the protobuf backlog before event conversion. Producers block when
-the queue is full and resume when a worker has capacity or their context is canceled. The
-value cannot be changed by a runtime output update; restart the output to resize it.
-`buffer-size` independently bounds the generated time-series backlog before Remote Write.
+`input-buffer-size` bounds the output-local protobuf backlog before event conversion.
+Producers block when the queue is full and resume when a worker has capacity or their
+context is canceled. Target `buffer-size` independently bounds responses already received
+from each gNMI stream and defaults to `1`; both bounds are required for end-to-end
+backpressure. The input queue value cannot be changed by a runtime output update; restart
+the output to resize it. `buffer-size` on this output independently bounds the generated
+time-series backlog before Remote Write.

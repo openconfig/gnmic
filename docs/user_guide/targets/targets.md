@@ -265,7 +265,9 @@ targets:
     # the main level `outputs` field
     outputs:
     # number of subscribe responses to keep in buffer before writing
-    # the target outputs
+    # the target outputs. Defaults to 1 so slow outputs propagate
+    # backpressure to the gNMI stream without retaining a large
+    # per-target protobuf backlog.
     buffer-size:
     # target retry period
     retry-timer:
