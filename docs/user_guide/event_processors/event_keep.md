@@ -2,6 +2,9 @@ The `event-keep` processor removes tags or values that do not match the configur
 
 Selectors for names and values use OR semantics. Tags are filtered only when `tag-names` or `tags` is configured; values are filtered only when `value-names` or `values` is configured. An unconfigured category is left unchanged.
 
+`values` regular expressions match string values only. Retain numeric, boolean, structured,
+or other non-string values with `value-names`.
+
 ```yaml
 processors:
   keep-interface-counters:

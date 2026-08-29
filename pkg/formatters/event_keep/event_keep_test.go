@@ -65,6 +65,16 @@ func TestKeepApply(t *testing.T) {
 				"status": "UP",
 			}},
 		},
+		"value selectors match strings only": {
+			config: map[string]any{"values": []string{"^2$"}},
+			event: &formatters.EventMsg{Values: map[string]any{
+				"string": "2",
+				"number": 2,
+			}},
+			want: &formatters.EventMsg{Values: map[string]any{
+				"string": "2",
+			}},
+		},
 		"tag selectors do not filter values": {
 			config: map[string]any{
 				"tag-names": []string{"^resource_id$"},
