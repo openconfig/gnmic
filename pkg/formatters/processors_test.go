@@ -10,6 +10,8 @@ package formatters
 
 import (
 	"fmt"
+	"math"
+	"reflect"
 	"testing"
 	"time"
 
@@ -97,6 +99,48 @@ func TestCheckCondition(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestCheckConditionDoesNotMutateEvent(t *testing.T) {
+	query, err := gojq.Parse(`.name == "port-counters" and .values.counter > 0`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	condition, err := gojq.Compile(query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	event := &EventMsg{
+		Name: "port-counters",
+		Values: map[string]interface{}{
+			"counter": uint64(math.MaxUint64),
+			"nested": []interface{}{
+				int64(1),
+				map[string]interface{}{"value": float32(2)},
+			},
+		},
+	}
+	want := &EventMsg{
+		Name: "port-counters",
+		Values: map[string]interface{}{
+			"counter": uint64(math.MaxUint64),
+			"nested": []interface{}{
+				int64(1),
+				map[string]interface{}{"value": float32(2)},
+			},
+		},
+	}
+
+	matched, err := CheckCondition(condition, event)
+	if err != nil {
+		t.Fatalf("CheckCondition() error = %v", err)
+	}
+	if !matched {
+		t.Fatal("CheckCondition() = false, want true")
+	}
+	if !reflect.DeepEqual(event, want) {
+		t.Fatalf("CheckCondition() mutated event:\n got: %#v\nwant: %#v", event, want)
 	}
 }
 
