@@ -141,7 +141,6 @@ func (p *jq) evaluateCondition(input map[string]interface{}) (bool, error) {
 
 func (p *jq) applyExpression(input []interface{}) ([]*formatters.EventMsg, error) {
 	var res []interface{}
-	var err error
 	var evs = make([]*formatters.EventMsg, 0)
 	iter := p.expr.Run(input)
 	for {
@@ -153,7 +152,7 @@ func (p *jq) applyExpression(input []interface{}) ([]*formatters.EventMsg, error
 		p.Logger.Debug("iter result", "type", fmt.Sprintf("%T", r), "value", r)
 		switch r := r.(type) {
 		case error:
-			return nil, err
+			return nil, r
 		default:
 			p.Logger.Debug("adding result", "value", r)
 			res = append(res, r)
