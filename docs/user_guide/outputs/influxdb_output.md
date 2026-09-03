@@ -69,7 +69,14 @@ outputs:
     # which will set the target to the value configured under `subscription.$subscription-name.target` if any,
     # otherwise it will set it to the target name stripped of the port number (if present)
     target-template:
-    # NOT IMPLEMENTED boolean, enables the collection and export (via prometheus) of output specific metrics
+    # boolean, enables the collection and export (via prometheus) of output specific metrics.
+    # requires main metrics to be enabled under `api-server`.
+    # exports:
+    #   gnmic_influxdb_output_non_finite_values_dropped_total{name,measurement}
+    #     float fields dropped because their value was NaN or +/-Inf, which cannot be
+    #     represented in InfluxDB line protocol (e.g. a dark optical lane reporting
+    #     -Inf dBm for received power). The field is dropped; other fields on the
+    #     same point are still written.
     enable-metrics: false 
     # list of processors to apply on the message before writing
     event-processors: []
