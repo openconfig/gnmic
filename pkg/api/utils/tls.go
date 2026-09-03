@@ -27,16 +27,173 @@ import (
 	"time"
 )
 
-// NewTLSConfig generates a *tls.Config based on given CA, certificate, key files and skipVerify flag
-// if certificate and key are missing a self signed key pair is generated.
+// certReloader holds a cached TLS certificate loaded from a cert/key file pair.
+// It reloads the certificate from disk only when the files' modification times
+// have changed since the last load, enabling zero-downtime certificate rotation.
+type certReloader struct {
+	mu        sync.Mutex
+	cert      *tls.Certificate
+	lastMtime time.Time
+	certFile  string
+	keyFile   string
+}
+
+func newCertReloader(certFile, keyFile string) (*certReloader, error) {
+	r := &certReloader{
+		certFile: certFile,
+		keyFile:  keyFile,
+	}
+	// Eagerly validate: fail fast if files are missing or malformed.
+	if err := r.reload(); err != nil {
+		return nil, err
+	}
+	return r, nil
+}
+
+// reload reads cert and key from disk, parses the key pair, and updates the
+// cache. It records the max mtime of the two files for future change detection.
+// Callers that hold r.mu must not call this; it acquires no lock itself.
+func (r *certReloader) reload() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	errCh := make(chan error, 2)
+	var certBytes, keyBytes []byte
+
+	wg := new(sync.WaitGroup)
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		var err error
+		certBytes, err = ReadLocalFile(ctx, r.certFile)
+		if err != nil {
+			errCh <- err
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		var err error
+		keyBytes, err = ReadLocalFile(ctx, r.keyFile)
+		if err != nil {
+			errCh <- err
+		}
+	}()
+	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		return err
+	}
+
+	cert, err := tls.X509KeyPair(certBytes, keyBytes)
+	if err != nil {
+		return err
+	}
+	r.cert = &cert
+
+	// Record max mtime so we can skip reloads when nothing has changed.
+	if certStat, err := os.Stat(r.certFile); err == nil {
+		r.lastMtime = certStat.ModTime()
+	}
+	if keyStat, err := os.Stat(r.keyFile); err == nil && keyStat.ModTime().After(r.lastMtime) {
+		r.lastMtime = keyStat.ModTime()
+	}
+	return nil
+}
+
+// getCertificate returns a cached or freshly loaded certificate. It performs
+// two cheap os.Stat calls on every invocation; a full file read only happens
+// when one of the files has been modified since the last load.
+func (r *certReloader) getCertificate() (*tls.Certificate, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	certStat, certErr := os.Stat(r.certFile)
+	keyStat, keyErr := os.Stat(r.keyFile)
+
+	if certErr != nil || keyErr != nil {
+		// Stat failed; fall back to the cached certificate if one exists.
+		if r.cert != nil {
+			return r.cert, nil
+		}
+		if certErr != nil {
+			return nil, certErr
+		}
+		return nil, keyErr
+	}
+
+	latestMtime := certStat.ModTime()
+	if keyStat.ModTime().After(latestMtime) {
+		latestMtime = keyStat.ModTime()
+	}
+
+	// Nothing changed since the last load — return the cached certificate.
+	if r.cert != nil && !latestMtime.After(r.lastMtime) {
+		return r.cert, nil
+	}
+
+	// A file has changed — reload from disk.
+	if err := r.reload(); err != nil {
+		// Reload failed (e.g. file is mid-write). Return the cached certificate
+		// so that the current TLS handshake can still proceed.
+		if r.cert != nil {
+			return r.cert, nil
+		}
+		return nil, err
+	}
+	return r.cert, nil
+}
+
+// caReloader holds a cached *x509.CertPool loaded from a CA file or directory.
+// It reloads only when the path's modification time has changed.
+type caReloader struct {
+	mu        sync.Mutex
+	pool      *x509.CertPool
+	lastMtime time.Time
+	caPath    string
+}
+
+// getPool returns a cached or freshly loaded CA cert pool.
+func (r *caReloader) getPool() *x509.CertPool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	stat, err := os.Stat(r.caPath)
+	if err != nil {
+		// Stat failed; fall back to the last known-good pool.
+		return r.pool
+	}
+
+	mtime := stat.ModTime()
+	if r.pool != nil && !mtime.After(r.lastMtime) {
+		return r.pool
+	}
+
+	pool, err := LoadCACertificates(r.caPath)
+	if err != nil {
+		// Reload failed (e.g. file is mid-write); use the cached pool.
+		return r.pool
+	}
+	r.pool = pool
+	r.lastMtime = mtime
+	return r.pool
+}
+
+// NewTLSConfig generates a *tls.Config based on given CA, certificate, key files and skipVerify flag.
+// If certificate and key are missing a self signed key pair is generated.
 // The certificates paths can be local or remote, http(s) and (s)ftp are supported for remote files.
-func NewTLSConfig(ca, cert, key, clientAuth string, skipVerify, genSelfSigned bool) (*tls.Config, error) {
+// When hotReload is true and file paths are provided, the returned *tls.Config installs
+// GetCertificate / GetClientCertificate callbacks that re-read the cert/key pair from
+// disk on each TLS handshake — but only when the files' modification times have changed.
+// A VerifyPeerCertificate callback is likewise installed to re-validate the server
+// certificate against the current CA bundle on disk. This enables zero-downtime
+// rotation of client certificates and CA bundles without restarting the process.
+func NewTLSConfig(ca, cert, key, clientAuth string, skipVerify, genSelfSigned, hotReload bool) (*tls.Config, error) {
 	if !(skipVerify || ca != "" || (cert != "" && key != "")) {
 		return nil, nil
 	}
 
 	tlsConfig := &tls.Config{
-		InsecureSkipVerify: skipVerify,
+		InsecureSkipVerify: skipVerify, //nolint:gosec
 	}
 
 	// set clientAuth
@@ -56,51 +213,71 @@ func NewTLSConfig(ca, cert, key, clientAuth string, skipVerify, genSelfSigned bo
 	default:
 		return nil, fmt.Errorf("unknown client-auth mode: %s", clientAuth)
 	}
+
 	if cert != "" && key != "" {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		var certBytes, keyBytes []byte
-
-		errCh := make(chan error, 2)
-		wg := new(sync.WaitGroup)
-		wg.Add(2)
-		go func() {
-			defer wg.Done()
-			var err error
-			certBytes, err = ReadLocalFile(ctx, cert)
+		if hotReload {
+			// Install callbacks that re-read cert/key from disk on each TLS handshake,
+			// but only when the files' modification times have changed. This allows
+			// certificate rotation without restarting the collector.
+			r, err := newCertReloader(cert, key)
 			if err != nil {
-				errCh <- err
-				return
+				return nil, err
 			}
-		}()
-		go func() {
-			defer wg.Done()
-			var err error
-			keyBytes, err = ReadLocalFile(ctx, key)
-			if err != nil {
-				errCh <- err
-				return
+			// GetCertificate is invoked when gnmic acts as a TLS server.
+			tlsConfig.GetCertificate = func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+				return r.getCertificate()
 			}
-		}()
-		wg.Wait()
-		close(errCh)
-		for err := range errCh {
-			return nil, err
-		}
-		certificate, err := tls.X509KeyPair(certBytes, keyBytes)
-		if err != nil {
-			return nil, err
-		}
+			// GetClientCertificate is invoked when gnmic acts as a TLS client
+			// and the server requests a client certificate (mTLS).
+			tlsConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+				return r.getCertificate()
+			}
+		} else {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
 
-		tlsConfig.Certificates = []tls.Certificate{certificate}
+			var certBytes, keyBytes []byte
+
+			errCh := make(chan error, 2)
+			wg := new(sync.WaitGroup)
+			wg.Add(2)
+			go func() {
+				defer wg.Done()
+				var err error
+				certBytes, err = ReadLocalFile(ctx, cert)
+				if err != nil {
+					errCh <- err
+					return
+				}
+			}()
+			go func() {
+				defer wg.Done()
+				var err error
+				keyBytes, err = ReadLocalFile(ctx, key)
+				if err != nil {
+					errCh <- err
+					return
+				}
+			}()
+			wg.Wait()
+			close(errCh)
+			for err := range errCh {
+				return nil, err
+			}
+			certificate, err := tls.X509KeyPair(certBytes, keyBytes)
+			if err != nil {
+				return nil, err
+			}
+			tlsConfig.Certificates = []tls.Certificate{certificate}
+		}
 	} else if genSelfSigned {
-		cert, err := SelfSignedCerts()
+		c, err := SelfSignedCerts()
 		if err != nil {
 			return nil, err
 		}
-		tlsConfig.Certificates = []tls.Certificate{cert}
+		tlsConfig.Certificates = []tls.Certificate{c}
 	}
+
 	if ca != "" {
 		certPool, err := LoadCACertificates(ca)
 		if err != nil {
@@ -108,6 +285,44 @@ func NewTLSConfig(ca, cert, key, clientAuth string, skipVerify, genSelfSigned bo
 		}
 		tlsConfig.RootCAs = certPool
 		tlsConfig.ClientCAs = certPool
+
+		if hotReload && !skipVerify {
+			// Install a VerifyPeerCertificate callback that re-validates the
+			// server's leaf certificate against the current CA pool on disk.
+			// Standard chain verification against the initial RootCAs pool
+			// still runs first; this is a supplemental check that enforces
+			// CA bundle changes without restarting.
+			caR := &caReloader{
+				caPath:    ca,
+				pool:      certPool,
+				lastMtime: func() time.Time {
+					if st, err := os.Stat(ca); err == nil {
+						return st.ModTime()
+					}
+					return time.Time{}
+				}(),
+			}
+			tlsConfig.VerifyPeerCertificate = func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
+				if len(rawCerts) == 0 {
+					return nil
+				}
+				leaf, err := x509.ParseCertificate(rawCerts[0])
+				if err != nil {
+					return err
+				}
+				opts := x509.VerifyOptions{Roots: caR.getPool()}
+				if len(rawCerts) > 1 {
+					opts.Intermediates = x509.NewCertPool()
+					for _, rawCert := range rawCerts[1:] {
+						if c, err := x509.ParseCertificate(rawCert); err == nil {
+							opts.Intermediates.AddCert(c)
+						}
+					}
+				}
+				_, err = leaf.Verify(opts)
+				return err
+			}
+		}
 	}
 	return tlsConfig, nil
 }
