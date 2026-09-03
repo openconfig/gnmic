@@ -319,6 +319,7 @@ func clientOptsFor(c *Config) (*influxdb2.Options, error) {
 			"",
 			c.TLS.SkipVerify,
 			false,
+			false,
 		)
 		if err != nil {
 			return nil, err

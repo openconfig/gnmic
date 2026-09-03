@@ -521,7 +521,7 @@ func (n *natsInput) createNATSConn(c *config) (*nats.Conn, error) {
 	if c.TLS != nil {
 		tlsConfig, err := utils.NewTLSConfig(
 			c.TLS.CaFile, c.TLS.CertFile, c.TLS.KeyFile, "", c.TLS.SkipVerify,
-			false)
+			false, false)
 		if err != nil {
 			return nil, err
 		}

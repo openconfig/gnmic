@@ -723,7 +723,7 @@ func (a *App) createAPIClient() error {
 		a.Config.Clustering.TLS.CertFile,
 		a.Config.Clustering.TLS.KeyFile, "",
 		a.Config.Clustering.TLS.SkipVerify,
-		false)
+		false, false)
 	if err != nil {
 		return err
 	}

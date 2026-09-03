@@ -718,7 +718,7 @@ func (n *jetstreamOutput) createNATSConn(ctx context.Context, c *config, idx int
 			c.TLS.KeyFile,
 			"",
 			c.TLS.SkipVerify,
-			false)
+			false, false)
 		if err != nil {
 			return nil, err
 		}

@@ -236,6 +236,7 @@ func (g *gNMIOutput) serverOpts() ([]grpc.ServerOption, error) {
 		g.cfg.TLS.ClientAuth,
 		false,
 		true,
+		false,
 	)
 	if err != nil {
 		return nil, err

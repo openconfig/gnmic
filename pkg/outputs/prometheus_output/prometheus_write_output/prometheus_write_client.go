@@ -44,6 +44,7 @@ func (p *promWriteOutput) createHTTPClientFor(c *config) (*http.Client, error) {
 			"",
 			c.TLS.SkipVerify,
 			false,
+			false,
 		)
 		if err != nil {
 			return nil, err
