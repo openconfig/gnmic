@@ -28,6 +28,7 @@ import (
 
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
@@ -91,6 +92,9 @@ type influxDBOutput struct {
 
 	store        store.Store[any]
 	healthCancel context.CancelFunc
+	reg          *prometheus.Registry
+
+	nonFiniteLog nonFiniteLogState
 }
 
 func (i *influxDBOutput) init() {
@@ -183,6 +187,7 @@ func (i *influxDBOutput) Init(ctx context.Context, name string, cfg map[string]i
 	}
 
 	i.store = options.Store
+	i.reg = options.Registry
 
 	if newCfg.Name == "" {
 		newCfg.Name = name
@@ -200,6 +205,11 @@ func (i *influxDBOutput) Init(ctx context.Context, name string, cfg map[string]i
 
 	// store config
 	i.cfg.Store(newCfg)
+
+	if err := i.registerMetrics(); err != nil {
+		return err
+	}
+	i.initMetricLabels()
 
 	// build dynamic config
 	dc := new(dynConfig)
@@ -521,6 +531,13 @@ func (i *influxDBOutput) Update(ctx context.Context, cfg map[string]any) error {
 		}
 	}
 
+	// enable-metrics may have been switched on by this reload, in which case the
+	// collector was never registered at Init.
+	if err := i.registerMetrics(); err != nil {
+		return err
+	}
+	i.initMetricLabels()
+
 	i.logger.Info("updated influxdb output", slog.Any("config", i.String()))
 	return nil
 }
@@ -770,6 +787,22 @@ START:
 
 	resetChan := i.reset.Load()
 
+	// Resolved here, not in the drainer: WriteAPI() mutates client state.
+	writeAPI := client.WriteAPI(cfg.Org, cfg.Bucket)
+	errCh := writeAPI.Errors()
+
+	// Not tied to ctx: the drainer must outlive cancellation until the worker is
+	// clear of WritePoint, or a pending error strands the worker there.
+	stopErrDrain := make(chan struct{})
+	drainDone := make(chan struct{})
+	go i.drainWriteErrors(stopErrDrain, errCh, idx, drainDone)
+	var stopOnce sync.Once
+	stopDrain := func() {
+		stopOnce.Do(func() { close(stopErrDrain) })
+		<-drainDone
+	}
+	defer stopDrain()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -800,6 +833,19 @@ START:
 				}
 			}
 
+			if dropped := dropNonFinite(ev); len(dropped) > 0 {
+				if cfg.EnableMetrics {
+					influxNonFiniteDropped.
+						WithLabelValues(cfg.Name, ev.Name).
+						Add(float64(len(dropped)))
+				}
+				i.logNonFinite(idx, ev.Name, dropped)
+			}
+
+			if len(ev.Values) == 0 && len(ev.Deletes) == 0 {
+				continue
+			}
+
 			if ev.Timestamp == 0 || cfg.OverrideTimestamps {
 				ev.Timestamp = time.Now().UnixNano()
 			}
@@ -811,7 +857,7 @@ START:
 
 			if len(ev.Values) > 0 {
 				i.convertUints(ev)
-				client.WriteAPI(cfg.Org, cfg.Bucket).
+				writeAPI.
 					WritePoint(influxdb2.NewPoint(ev.Name, ev.Tags, ev.Values, time.Unix(0, ev.Timestamp)))
 			}
 
@@ -823,17 +869,130 @@ START:
 				for _, del := range ev.Deletes {
 					values[del] = ""
 				}
-				client.WriteAPI(cfg.Org, cfg.Bucket).
+				writeAPI.
 					WritePoint(influxdb2.NewPoint(ev.Name, tags, values, time.Unix(0, ev.Timestamp)))
 			}
 		case <-*resetChan:
 			firstStart = false
 			i.logger.Info("resetting worker", "worker", idx)
+			stopDrain() // else goto START leaks a drainer per reset
 			goto START
-		case err := <-client.WriteAPI(cfg.Org, cfg.Bucket).Errors():
+		}
+	}
+}
+
+// drainWriteErrors consumes the client's async error channel for one worker
+// generation. It must not run on the goroutine that calls WritePoint: the
+// client's encoding-error path blocks sending on this single-slot channel.
+//
+// stop is closed by the worker only once it is no longer inside WritePoint.
+// Waiting on that rather than on ctx matters: if the worker is blocked
+// delivering an error and this goroutine returned on ctx cancellation, the
+// error would go undrained and the worker would never leave WritePoint, so
+// Close()'s WaitGroup wait would hang.
+func (i *influxDBOutput) drainWriteErrors(stop <-chan struct{}, errCh <-chan error, idx int, done chan struct{}) {
+	defer close(done)
+	for {
+		// Prefer a pending error over shutdown: a queued error means a producer
+		// is blocked on it.
+		select {
+		case err, ok := <-errCh:
+			if !ok {
+				return
+			}
+			i.logger.Error("worker write error", "worker", idx, "err", err)
+			continue
+		default:
+		}
+		select {
+		case <-stop:
+			return
+		case err, ok := <-errCh:
+			if !ok {
+				return
+			}
 			i.logger.Error("worker write error", "worker", idx, "err", err)
 		}
 	}
+}
+
+// nonFiniteLogState rate-limits the "dropped non-finite values" log: a dark lane
+// reports -Inf on every sample, so per-event logging runs to thousands of lines
+// a day. Exact counts live in the metric.
+type nonFiniteLogState struct {
+	mu         sync.Mutex
+	first      bool
+	nextLog    time.Time
+	suppressed int
+	// keyed "measurement/field": the summary spans measurements, so an
+	// unqualified field name would be attributed to the wrong one.
+	fields map[string]struct{}
+}
+
+const nonFiniteLogInterval = 5 * time.Minute
+
+func (i *influxDBOutput) logNonFinite(idx int, measurement string, dropped []string) {
+	st := &i.nonFiniteLog
+	st.mu.Lock()
+	if st.fields == nil {
+		st.fields = make(map[string]struct{})
+	}
+	for _, f := range dropped {
+		st.fields[measurement+"/"+f] = struct{}{}
+	}
+	st.suppressed += len(dropped)
+
+	now := time.Now()
+	if st.first && now.Before(st.nextLog) {
+		st.mu.Unlock()
+		return
+	}
+	firstTime := !st.first
+	st.first = true
+	st.nextLog = now.Add(nonFiniteLogInterval)
+	count := st.suppressed
+	st.suppressed = 0
+	fields := slices.Sorted(maps.Keys(st.fields))
+	clear(st.fields)
+	st.mu.Unlock()
+
+	if firstTime {
+		i.logger.Warn("dropping non-finite values (NaN/Inf) that cannot be encoded in line protocol; "+
+			"further occurrences are summarized every "+nonFiniteLogInterval.String()+
+			" -- see gnmic_influxdb_output_non_finite_values_dropped_total for exact counts",
+			"worker", idx,
+			"measurement", measurement,
+			"fields", strings.Join(dropped, ","),
+		)
+		return
+	}
+	i.logger.Warn("dropped non-finite values",
+		"worker", idx,
+		"fields", strings.Join(fields, ","),
+		"count", count,
+		"interval", nonFiniteLogInterval.String(),
+	)
+}
+
+// dropNonFinite removes NaN/±Inf float fields, which line protocol cannot
+// encode, and returns their names. Other fields on the point are kept.
+func dropNonFinite(ev *formatters.EventMsg) []string {
+	var dropped []string
+	for k, v := range ev.Values {
+		switch f := v.(type) {
+		case float64:
+			if math.IsNaN(f) || math.IsInf(f, 0) {
+				delete(ev.Values, k)
+				dropped = append(dropped, k)
+			}
+		case float32:
+			if f64 := float64(f); math.IsNaN(f64) || math.IsInf(f64, 0) {
+				delete(ev.Values, k)
+				dropped = append(dropped, k)
+			}
+		}
+	}
+	return dropped
 }
 
 func (i *influxDBOutput) convertUints(ev *formatters.EventMsg) {
@@ -866,7 +1025,12 @@ func clientNeedsRebuild(old, new *Config) bool {
 	if old == nil || new == nil {
 		return true
 	}
+	// Org/Bucket select the client's WriteAPI, and each WriteAPI has its own
+	// error channel. Workers bind one for their lifetime, so a change here must
+	// restart them or the new API's errors go undrained.
 	return old.URL != new.URL ||
+		old.Org != new.Org ||
+		old.Bucket != new.Bucket ||
 		old.Token != new.Token ||
 		old.BatchSize != new.BatchSize ||
 		old.FlushTimer != new.FlushTimer ||
