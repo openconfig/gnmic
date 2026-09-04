@@ -169,7 +169,7 @@ When the gNMI API and `enable-metrics` are enabled, the Prometheus write output 
 `input-buffer-size` bounds the output-local protobuf backlog before event conversion.
 Producers block when the queue is full and resume when a worker has capacity or their
 context is canceled. Target `buffer-size` independently bounds responses already received
-from each gNMI stream and defaults to `1`; both bounds are required for end-to-end
-backpressure. The input queue value cannot be changed by a runtime output update; restart
-the output to resize it. `buffer-size` on this output independently bounds the generated
-time-series backlog before Remote Write.
+from each gNMI stream and is shared by every output assigned to that target. Set it
+explicitly when a smaller upstream burst buffer is required. The input queue value cannot
+be changed by a runtime output update; restart the output to resize it. `buffer-size` on
+this output independently bounds the generated time-series backlog before Remote Write.

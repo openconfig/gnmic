@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	defaultTargetBufferSize = 1
+	defaultTargetBufferSize = 100
 )
 
 var ErrNoTargetsFound = errors.New("no targets found")
