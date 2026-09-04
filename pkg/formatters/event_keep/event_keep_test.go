@@ -122,6 +122,35 @@ func TestKeepApplyNil(t *testing.T) {
 	}
 }
 
+func TestKeepApplyFiltersEmptyEvents(t *testing.T) {
+	processor := &keep{}
+	if err := processor.Init(map[string]any{
+		"value-names": []string{"^keep$"},
+		"tag-names":   []string{"^keep$"},
+	}); err != nil {
+		t.Fatalf("Init() error = %v", err)
+	}
+
+	empty := &formatters.EventMsg{
+		Values: map[string]any{"drop": 1},
+		Tags:   map[string]string{"drop": "tag"},
+	}
+	deleted := &formatters.EventMsg{
+		Tags:    map[string]string{"drop": "tag"},
+		Deletes: []string{"/interfaces/interface[name=ethernet-1]"},
+	}
+	retained := &formatters.EventMsg{
+		Values: map[string]any{"keep": 1},
+		Tags:   map[string]string{"drop": "tag"},
+	}
+
+	got := processor.Apply(empty, deleted, retained)
+	want := []*formatters.EventMsg{deleted, retained}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("Apply() = %#v, want %#v", got, want)
+	}
+}
+
 func TestKeepInitRejectsInvalidPattern(t *testing.T) {
 	processor := &keep{}
 	err := processor.Init(map[string]any{"value-names": []string{"["}})

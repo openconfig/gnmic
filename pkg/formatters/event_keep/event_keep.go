@@ -95,8 +95,13 @@ func compilePatterns(field string, patterns []string) ([]*regexp.Regexp, error) 
 func (p *keep) Apply(events ...*formatters.EventMsg) []*formatters.EventMsg {
 	filterValues := len(p.valueNames) > 0 || len(p.values) > 0
 	filterTags := len(p.tagNames) > 0 || len(p.tags) > 0
+	if !filterValues && !filterTags {
+		return events
+	}
+	kept := events[:0]
 	for _, event := range events {
 		if event == nil {
+			kept = append(kept, event)
 			continue
 		}
 		removedValues, removedTags := 0, 0
@@ -121,8 +126,14 @@ func (p *keep) Apply(events ...*formatters.EventMsg) []*formatters.EventMsg {
 		if removedValues > 0 || removedTags > 0 {
 			p.Logger.Debug("removed unmatched event fields", "values", removedValues, "tags", removedTags)
 		}
+		if len(event.Values) == 0 && len(event.Tags) == 0 && len(event.Deletes) == 0 {
+			p.Logger.Debug("removed empty event")
+			continue
+		}
+		kept = append(kept, event)
 	}
-	return events
+	clear(events[len(kept):])
+	return kept
 }
 
 func matchesString(value any, patterns []*regexp.Regexp) bool {
