@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/itchyny/gojq"
 	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/logging"
@@ -99,64 +98,6 @@ func WithActions(acts map[string]map[string]interface{}) Option {
 func WithProcessors(procs map[string]map[string]interface{}) Option {
 	return func(p EventProcessor) {
 		p.WithProcessors(procs)
-	}
-}
-
-func CheckCondition(code *gojq.Code, e *EventMsg) (bool, error) {
-	if code == nil {
-		return true, nil
-	}
-
-	var res interface{}
-
-	iter := code.Run(conditionInput(e))
-	var ok bool
-	res, ok = iter.Next()
-	// iterator not done, so the final result won't be a boolean
-	if !ok {
-		return false, nil
-	}
-	if err, ok := res.(error); ok {
-		return false, err
-	}
-
-	switch res := res.(type) {
-	case bool:
-		return res, nil
-	default:
-		return false, fmt.Errorf("unexpected condition return type: %T | %v", res, res)
-	}
-}
-
-func conditionInput(e *EventMsg) map[string]interface{} {
-	input := e.ToMap()
-	if input == nil {
-		return nil
-	}
-	// gojq normalizes maps and slices in place before evaluation. Conditions
-	// must not change the event observed by subsequent processors or outputs.
-	if values, ok := input["values"].(map[string]interface{}); ok {
-		input["values"] = cloneConditionValue(values)
-	}
-	return input
-}
-
-func cloneConditionValue(value interface{}) interface{} {
-	switch value := value.(type) {
-	case map[string]interface{}:
-		cloned := make(map[string]interface{}, len(value))
-		for key, child := range value {
-			cloned[key] = cloneConditionValue(child)
-		}
-		return cloned
-	case []interface{}:
-		cloned := make([]interface{}, len(value))
-		for index, child := range value {
-			cloned[index] = cloneConditionValue(child)
-		}
-		return cloned
-	default:
-		return value
 	}
 }
 

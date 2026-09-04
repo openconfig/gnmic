@@ -9,6 +9,7 @@
 package formatters
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"reflect"
@@ -141,6 +142,71 @@ func TestCheckConditionDoesNotMutateEvent(t *testing.T) {
 	}
 	if !reflect.DeepEqual(event, want) {
 		t.Fatalf("CheckCondition() mutated event:\n got: %#v\nwant: %#v", event, want)
+	}
+}
+
+func TestConditionInputMatchesJSONRoundTrip(t *testing.T) {
+	event := &EventMsg{
+		Name: "binary-state",
+		Tags: map[string]string{"source": "leaf-1"},
+		Values: map[string]interface{}{
+			"bytes":       []byte{0x01, 0x02, 0x03},
+			"nil-bytes":   []byte(nil),
+			"nil-map":     map[string]interface{}(nil),
+			"nil-slice":   []interface{}(nil),
+			"empty-slice": []interface{}{},
+			"nested": []interface{}{
+				[]byte{0xff, 0x00},
+				map[string]interface{}{"labels": map[string]string{"state": "up"}},
+			},
+		},
+		Deletes: []string{"/interfaces/interface[name=ethernet-1]"},
+	}
+
+	b, err := json.Marshal(event)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := make(map[string]interface{})
+	if err := json.Unmarshal(b, &want); err != nil {
+		t.Fatal(err)
+	}
+	got, err := conditionInput(event)
+	if err != nil {
+		t.Fatalf("conditionInput() error = %v", err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("conditionInput() = %#v, want JSON round trip %#v", got, want)
+	}
+}
+
+func TestCheckConditionBytesUseBase64(t *testing.T) {
+	query, err := gojq.Parse(`.values.bytes == "AQID" and .values.nested[0] == "/wA="`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	condition, err := gojq.Compile(query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	event := &EventMsg{Values: map[string]interface{}{
+		"bytes":  []byte{0x01, 0x02, 0x03},
+		"nested": []interface{}{[]byte{0xff, 0x00}},
+	}}
+
+	matched, err := CheckCondition(condition, event)
+	if err != nil {
+		t.Fatalf("CheckCondition() error = %v", err)
+	}
+	if !matched {
+		t.Fatal("CheckCondition() = false, want true")
+	}
+}
+
+func TestConditionInputRejectsUnsupportedValue(t *testing.T) {
+	_, err := conditionInput(&EventMsg{Values: map[string]interface{}{"invalid": math.NaN()}})
+	if err == nil {
+		t.Fatal("conditionInput() error = nil, want unsupported value error")
 	}
 }
 
