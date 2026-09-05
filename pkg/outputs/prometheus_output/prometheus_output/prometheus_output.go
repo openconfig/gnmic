@@ -531,7 +531,7 @@ func (p *prometheusOutput) createListenerFor(c *config) (net.Listener, error) {
 		return net.Listen("tcp", c.Listen)
 	}
 	tlsConfig, err := utils.NewTLSConfig(
-		c.TLS.CaFile, c.TLS.CertFile, c.TLS.KeyFile, c.TLS.ClientAuth, true, true,
+		c.TLS.CaFile, c.TLS.CertFile, c.TLS.KeyFile, c.TLS.ClientAuth, true, true, false,
 	)
 	if err != nil {
 		return nil, err

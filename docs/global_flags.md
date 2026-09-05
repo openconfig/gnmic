@@ -276,6 +276,10 @@ The TLS cert flag `[--tls-cert]` specifies the public key for the client encoded
 
 The TLS key flag `[--tls-key]` specifies the private key for the client encoded in PEM format.
 
+### tls-reload
+
+The TLS reload flag `[--tls-reload]` (default: true) controls whether `gnmic` automatically reloads the `tls-cert`, `tls-key`, and `tls-ca` files from disk when their modification times change. The updated certificates are applied on the next TLS reconnect.
+
 ### tls-max-version
 
 The TLS max version flag `[--tls-max-version]` specifies the maximum supported TLS version supported by gNMIc when creating a secure gRPC connection.

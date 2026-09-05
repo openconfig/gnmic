@@ -196,6 +196,7 @@ func (a *App) InitGlobalFlags() {
 	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.TLSCa, "tls-ca", "", "", "tls certificate authority")
 	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.TLSCert, "tls-cert", "", "", "tls certificate")
 	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.TLSKey, "tls-key", "", "", "tls key")
+	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.TLSReload, "tls-reload", "", true, "reload TLS certificates from disk on reconnect when the cert file changes")
 	a.RootCmd.PersistentFlags().DurationVarP(&a.Config.GlobalFlags.Timeout, "timeout", "", 10*time.Second, "grpc timeout, valid formats: 10s, 1m30s, 1h")
 	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.Debug, "debug", "d", false, "debug mode")
 	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.EnablePprof, "enable-pprof", "", false, "enable go pprof")

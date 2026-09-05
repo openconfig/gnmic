@@ -162,6 +162,10 @@ type TargetConfig struct {
 	CipherSuites     []string          `mapstructure:"cipher-suites,omitempty" yaml:"cipher-suites,omitempty" json:"cipher-suites,omitempty"`
 	TCPKeepalive     time.Duration     `mapstructure:"tcp-keepalive,omitempty" yaml:"tcp-keepalive,omitempty" json:"tcp-keepalive,omitempty"`
 	GRPCKeepalive    *ClientKeepalive  `mapstructure:"grpc-keepalive,omitempty" yaml:"grpc-keepalive,omitempty" json:"grpc-keepalive,omitempty"`
+	// TLSReload controls whether TLS certificates and CA bundles are reloaded
+	// from disk on each TLS handshake when their modification times change.
+	// When nil the value is inherited from the global --tls-reload flag (default: true).
+	TLSReload *bool `mapstructure:"tls-reload,omitempty" yaml:"tls-reload,omitempty" json:"tls-reload,omitempty"`
 
 	tlsConfig *tls.Config
 }
@@ -252,6 +256,7 @@ func (tc *TargetConfig) DeepCopy() *TargetConfig {
 		TLSMaxVersion:              tc.TLSMaxVersion,
 		TLSVersion:                 tc.TLSVersion,
 		LogTLSSecret:               clonePtr(tc.LogTLSSecret),
+		TLSReload:                  clonePtr(tc.TLSReload),
 		ProtoFiles:                 make([]string, 0, len(tc.ProtoFiles)),
 		ProtoDirs:                  make([]string, 0, len(tc.ProtoDirs)),
 		Tags:                       make([]string, 0, len(tc.Tags)),
@@ -326,7 +331,11 @@ func (tc *TargetConfig) NewTLSConfig() (*tls.Config, error) {
 	if tc.SkipVerify != nil {
 		skipVerify = *tc.SkipVerify
 	}
-	tlsConfig, err := utils.NewTLSConfig(ca, cert, key, "", skipVerify, false)
+	var hotReload bool
+	if tc.TLSReload != nil {
+		hotReload = *tc.TLSReload
+	}
+	tlsConfig, err := utils.NewTLSConfig(ca, cert, key, "", skipVerify, false, hotReload)
 	if err != nil {
 		return nil, err
 	}
@@ -582,6 +591,7 @@ func (tc *TargetConfig) Equal(other *TargetConfig) bool {
 		maps.Equal(tc.EventTags, other.EventTags) &&
 		ptrEq(tc.Gzip, other.Gzip) &&
 		ptrEq(tc.Token, other.Token) &&
+		ptrEq(tc.TLSReload, other.TLSReload) &&
 		tc.Proxy == other.Proxy &&
 		tc.TunnelTargetType == other.TunnelTargetType &&
 		ptrEq(tc.Encoding, other.Encoding) &&
