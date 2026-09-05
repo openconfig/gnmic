@@ -284,14 +284,15 @@ func (a *App) handleTargetsGet(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
 	if id == "" {
-		out := make(map[string]*runtimeTargetAPIView, len(a.Targets))
-		for k, t := range a.Targets {
+		targets := a.targetsSnapshot()
+		out := make(map[string]*runtimeTargetAPIView, len(targets))
+		for k, t := range targets {
 			out[k] = a.runtimeTargetAPIView(t)
 		}
 		a.handlerCommonGet(w, out)
 		return
 	}
-	if t, ok := a.Targets[id]; ok {
+	if t, ok := a.targetByName(id); ok {
 		a.handlerCommonGet(w, a.runtimeTargetAPIView(t))
 		return
 	}
@@ -322,7 +323,7 @@ func (a *App) handleTargetsDelete(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	if _, ok := a.Targets[id]; !ok {
+	if _, ok := a.targetByName(id); !ok {
 		w.WriteHeader(http.StatusNotFound)
 		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{fmt.Sprintf("target %q not found", id)}})
 		return

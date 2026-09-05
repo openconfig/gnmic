@@ -443,7 +443,7 @@ func (a *App) loadTargets(e fsnotify.Event) {
 			return
 		}
 		if !a.inCluster() {
-			currentTargets := a.Targets
+			currentTargets := a.targetsSnapshot()
 			// delete targets
 			for n := range currentTargets {
 				if _, ok := newTargets[n]; !ok {
