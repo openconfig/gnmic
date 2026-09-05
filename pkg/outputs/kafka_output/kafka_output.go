@@ -9,6 +9,7 @@
 package kafka_output
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -92,40 +93,42 @@ type kafkaOutput struct {
 }
 
 type dynConfig struct {
-	targetTpl *template.Template
-	msgTpl    *template.Template
-	evps      []formatters.EventProcessor
-	mo        *formatters.MarshalOptions
+	targetTpl  *template.Template
+	msgTpl     *template.Template
+	evps       []formatters.EventProcessor
+	mo         *formatters.MarshalOptions
+	headerTpls map[string]*template.Template
 }
 
 // config //
 type config struct {
-	Address            string           `mapstructure:"address,omitempty"`
-	Topic              string           `mapstructure:"topic,omitempty"`
-	TopicPrefix        string           `mapstructure:"topic-prefix,omitempty"`
-	Name               string           `mapstructure:"name,omitempty"`
-	SASL               *types.SASL      `mapstructure:"sasl,omitempty"`
-	TLS                *types.TLSConfig `mapstructure:"tls,omitempty"`
-	MaxRetry           int              `mapstructure:"max-retry,omitempty"`
-	Timeout            time.Duration    `mapstructure:"timeout,omitempty"`
-	RecoveryWaitTime   time.Duration    `mapstructure:"recovery-wait-time,omitempty"`
-	FlushFrequency     time.Duration    `mapstructure:"flush-frequency,omitempty"`
-	SyncProducer       bool             `mapstructure:"sync-producer,omitempty"`
-	RequiredAcks       string           `mapstructure:"required-acks,omitempty"`
-	Format             string           `mapstructure:"format,omitempty"`
-	InsertKey          bool             `mapstructure:"insert-key,omitempty"`
-	AddTarget          string           `mapstructure:"add-target,omitempty"`
-	TargetTemplate     string           `mapstructure:"target-template,omitempty"`
-	MsgTemplate        string           `mapstructure:"msg-template,omitempty"`
-	SplitEvents        bool             `mapstructure:"split-events,omitempty"`
-	NumWorkers         int              `mapstructure:"num-workers,omitempty"`
-	CompressionCodec   string           `mapstructure:"compression-codec,omitempty"`
-	KafkaVersion       string           `mapstructure:"kafka-version,omitempty"`
-	Debug              bool             `mapstructure:"debug,omitempty"`
-	BufferSize         int              `mapstructure:"buffer-size,omitempty"`
-	OverrideTimestamps bool             `mapstructure:"override-timestamps,omitempty"`
-	EnableMetrics      bool             `mapstructure:"enable-metrics,omitempty"`
-	EventProcessors    []string         `mapstructure:"event-processors,omitempty"`
+	Address            string            `mapstructure:"address,omitempty"`
+	Topic              string            `mapstructure:"topic,omitempty"`
+	TopicPrefix        string            `mapstructure:"topic-prefix,omitempty"`
+	Name               string            `mapstructure:"name,omitempty"`
+	SASL               *types.SASL       `mapstructure:"sasl,omitempty"`
+	TLS                *types.TLSConfig  `mapstructure:"tls,omitempty"`
+	MaxRetry           int               `mapstructure:"max-retry,omitempty"`
+	Timeout            time.Duration     `mapstructure:"timeout,omitempty"`
+	RecoveryWaitTime   time.Duration     `mapstructure:"recovery-wait-time,omitempty"`
+	FlushFrequency     time.Duration     `mapstructure:"flush-frequency,omitempty"`
+	SyncProducer       bool              `mapstructure:"sync-producer,omitempty"`
+	RequiredAcks       string            `mapstructure:"required-acks,omitempty"`
+	Format             string            `mapstructure:"format,omitempty"`
+	InsertKey          bool              `mapstructure:"insert-key,omitempty"`
+	AddTarget          string            `mapstructure:"add-target,omitempty"`
+	TargetTemplate     string            `mapstructure:"target-template,omitempty"`
+	MsgTemplate        string            `mapstructure:"msg-template,omitempty"`
+	SplitEvents        bool              `mapstructure:"split-events,omitempty"`
+	NumWorkers         int               `mapstructure:"num-workers,omitempty"`
+	CompressionCodec   string            `mapstructure:"compression-codec,omitempty"`
+	KafkaVersion       string            `mapstructure:"kafka-version,omitempty"`
+	Debug              bool              `mapstructure:"debug,omitempty"`
+	BufferSize         int               `mapstructure:"buffer-size,omitempty"`
+	OverrideTimestamps bool              `mapstructure:"override-timestamps,omitempty"`
+	EnableMetrics      bool              `mapstructure:"enable-metrics,omitempty"`
+	EventProcessors    []string          `mapstructure:"event-processors,omitempty"`
+	AddHeaders         map[string]string `mapstructure:"add-headers,omitempty"`
 }
 
 func (c *config) LogValue() slog.Value {
@@ -157,6 +160,60 @@ func (k *kafkaOutput) buildEventProcessors(logger *slog.Logger, eventProcessors 
 		return nil, err
 	}
 	return evps, nil
+}
+
+func buildKafkaHeaders(headers map[string]string) (map[string]*template.Template, error) {
+	if len(headers) == 0 {
+		return nil, nil
+	}
+
+	result := make(map[string]*template.Template, len(headers))
+
+	for k, v := range headers {
+		tpl, err := gtemplate.CreateTemplate(
+			fmt.Sprintf("header-%s", k),
+			v,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		result[k] = tpl.Funcs(outputs.TemplateFuncs)
+	}
+
+	return result, nil
+}
+
+func (k *kafkaOutput) getHeaders(dc *dynConfig, meta outputs.Meta) []sarama.RecordHeader {
+	if len(dc.headerTpls) == 0 {
+		return nil
+	}
+
+	headers := make([]sarama.RecordHeader, 0, len(dc.headerTpls))
+
+	data := map[string]any{
+		"Meta": meta,
+	}
+
+	for hk, tpl := range dc.headerTpls {
+		var buf bytes.Buffer
+
+		if err := tpl.Execute(&buf, data); err != nil {
+			k.logger.Warn(
+				"failed to execute kafka header template",
+				"header", hk,
+				"err", err,
+			)
+			continue
+		}
+
+		headers = append(headers, sarama.RecordHeader{
+			Key:   []byte(hk),
+			Value: buf.Bytes(),
+		})
+	}
+
+	return headers
 }
 
 // Init /
@@ -227,6 +284,11 @@ func (k *kafkaOutput) Init(ctx context.Context, name string, cfg map[string]inte
 		OverrideTS: newCfg.OverrideTimestamps,
 	}
 
+	dc.headerTpls, err = buildKafkaHeaders(newCfg.AddHeaders)
+	if err != nil {
+		return err
+	}
+
 	k.dynCfg.Store(dc)
 	config, err := k.createConfigFor(newCfg)
 	if err != nil {
@@ -258,6 +320,11 @@ func (k *kafkaOutput) Validate(cfg map[string]any) error {
 		return err
 	}
 	_, err = gtemplate.CreateTemplate("msg-template", ncfg.MsgTemplate)
+	if err != nil {
+		return err
+	}
+
+	_, err = buildKafkaHeaders(ncfg.AddHeaders)
 	if err != nil {
 		return err
 	}
@@ -312,6 +379,11 @@ func (k *kafkaOutput) Update(ctx context.Context, cfg map[string]any) error {
 			Format:     newCfg.Format,
 			OverrideTS: newCfg.OverrideTimestamps,
 		},
+	}
+
+	dc.headerTpls, err = buildKafkaHeaders(newCfg.AddHeaders)
+	if err != nil {
+		return err
 	}
 
 	prevDC := k.dynCfg.Load()
@@ -612,10 +684,12 @@ CRPROD:
 					}
 				}
 
+				headers := k.getHeaders(dc, m.GetMeta())
 				topic := k.selectTopic(m.GetMeta())
 				msg := &sarama.ProducerMessage{
-					Topic: topic,
-					Value: sarama.ByteEncoder(b),
+					Topic:   topic,
+					Value:   sarama.ByteEncoder(b),
+					Headers: headers,
 				}
 				if cfg.InsertKey {
 					msg.Key = sarama.ByteEncoder(k.partitionKey(m.GetMeta()))
@@ -688,10 +762,13 @@ CRPROD:
 					}
 				}
 
+				headers := k.getHeaders(dc, m.GetMeta())
+
 				topic := k.selectTopic(m.GetMeta())
 				msg := &sarama.ProducerMessage{
-					Topic: topic,
-					Value: sarama.ByteEncoder(b),
+					Topic:   topic,
+					Value:   sarama.ByteEncoder(b),
+					Headers: headers,
 				}
 				if cfg.InsertKey {
 					msg.Key = sarama.ByteEncoder(k.partitionKey(m.GetMeta()))
