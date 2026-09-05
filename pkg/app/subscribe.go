@@ -275,6 +275,13 @@ func (a *App) StartTargetsManager(ctx context.Context) {
 						"format":            a.Config.Format,
 						"subscription-name": rsp.SubscriptionName,
 					}
+					exportCtx := outputs.WithSubscriptionInfo(ctx, outputs.SubscriptionInfo{
+						Source:              t.Config.Name,
+						Name:                rsp.SubscriptionName,
+						Instance:            rsp.SubscriptionInstance,
+						Mode:                rsp.SubscriptionMode,
+						InitialSyncComplete: rsp.InitialSyncComplete,
+					})
 					if rsp.SubscriptionConfig.Target != "" {
 						m["subscription-target"] = rsp.SubscriptionConfig.Target
 					}
@@ -291,7 +298,7 @@ func (a *App) StartTargetsManager(ctx context.Context) {
 						outs = t.Config.Outputs
 					}
 
-					a.export(ctx, rsp.Response, m, outs...)
+					a.export(exportCtx, rsp.Response, m, outs...)
 					if remainingOnceSubscriptions > 0 {
 						if a.subscriptionMode(rsp.SubscriptionName) == subscriptionModeONCE {
 							switch rsp.Response.Response.(type) {
