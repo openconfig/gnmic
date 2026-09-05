@@ -290,8 +290,6 @@ func (n *natsInput) worker(ctx context.Context, idx int) {
 		cfg := n.cfg.Load()
 		wCfg := *cfg
 		wCfg.Name = fmt.Sprintf("%s-%d", wCfg.Name, idx)
-		fmt.Printf("worker %d starting with config: %+v", idx, wCfg)
-		// scoped connection, subscription and cleanup
 		err := n.doWork(ctx, &wCfg, workerLogPrefix)
 		if err != nil {
 			n.logger.Error("NATS client failed", "worker", workerLogPrefix, "err", err)
@@ -308,7 +306,7 @@ func (n *natsInput) worker(ctx context.Context, idx int) {
 
 // scoped connection, subscription and cleanup
 func (n *natsInput) doWork(ctx context.Context, wCfg *config, workerLogPrefix string) error {
-	nc, err := n.createNATSConn(wCfg)
+	nc, err := n.createNATSConn(ctx, wCfg)
 	if err != nil {
 		return fmt.Errorf("create NATS connection: %w", err)
 	}
@@ -340,33 +338,8 @@ func (n *natsInput) doWork(ctx context.Context, wCfg *config, workerLogPrefix st
 			dc := n.dynCfg.Load()
 			switch cfg.Format {
 			case "event":
-				var evMsgs []*formatters.EventMsg
-				if err := json.Unmarshal(m.Data, &evMsgs); err != nil {
-					if cfg.Debug {
-						n.logger.Warn("failed to unmarshal event msg", "worker", workerLogPrefix, "err", err)
-					}
-					continue
-				}
-				for _, p := range dc.evps {
-					evMsgs = p.Apply(evMsgs...)
-				}
-
-				if n.pipeline != nil {
-					select {
-					case <-ctx.Done():
-						return nil
-					case n.pipeline <- &pipeline.Msg{
-						Events:  evMsgs,
-						Outputs: dc.outputsMap,
-					}:
-					default:
-						n.logger.Warn("pipeline channel is full, dropping event")
-					}
-				}
-				for _, o := range n.outputs {
-					for _, ev := range evMsgs {
-						o.WriteEvent(ctx, ev)
-					}
+				if err := n.ingestEventPayload(ctx, workerLogPrefix, m.Data, dc); err != nil {
+					return err
 				}
 
 			case "proto":
@@ -401,6 +374,44 @@ func (n *natsInput) doWork(ctx context.Context, wCfg *config, workerLogPrefix st
 			}
 		}
 	}
+}
+
+func (n *natsInput) ingestEventPayload(ctx context.Context, workerLogPrefix string, data []byte, dc *dynConfig) error {
+	var evMsgs []*formatters.EventMsg
+	if err := json.Unmarshal(data, &evMsgs); err != nil {
+		n.logger.Warn("failed to unmarshal event msg", "worker", workerLogPrefix, "err", err)
+		return nil
+	}
+	if dc != nil {
+		for _, p := range dc.evps {
+			evMsgs = p.Apply(evMsgs...)
+		}
+	}
+	if n.pipeline != nil {
+		select {
+		case <-ctx.Done():
+			return nil
+		case n.pipeline <- &pipeline.Msg{
+			Events:  evMsgs,
+			Outputs: outputsMap(dc),
+		}:
+		default:
+			n.logger.Warn("pipeline channel is full, dropping event")
+		}
+	}
+	for _, o := range n.outputs {
+		for _, ev := range evMsgs {
+			o.WriteEvent(ctx, ev)
+		}
+	}
+	return nil
+}
+
+func outputsMap(dc *dynConfig) map[string]struct{} {
+	if dc == nil {
+		return nil
+	}
+	return dc.outputsMap
 }
 
 // Close //
@@ -499,10 +510,10 @@ func (n *natsInput) setDefaultsFor(cfg *config) error {
 	return nil
 }
 
-func (n *natsInput) createNATSConn(c *config) (*nats.Conn, error) {
+func (n *natsInput) createNATSConn(ctx context.Context, c *config) (*nats.Conn, error) {
 	opts := []nats.Option{
 		nats.Name(c.Name),
-		nats.SetCustomDialer(n),
+		nats.SetCustomDialer(&natsCtxDialer{ctx: ctx, n: n}),
 		nats.ReconnectWait(c.ConnectTimeWait),
 		nats.ReconnectBufSize(natsReconnectBufferSize),
 		nats.ErrorHandler(func(_ *nats.Conn, _ *nats.Subscription, err error) {
@@ -536,27 +547,45 @@ func (n *natsInput) createNATSConn(c *config) (*nats.Conn, error) {
 	return nc, nil
 }
 
-// Dial //
-func (n *natsInput) Dial(network, address string) (net.Conn, error) {
-	ctx, cancel := context.WithCancel(n.ctx)
-	defer cancel()
+// natsCtxDialer binds a worker/run context to nats.CustomDialer so Connect
+// and reconnects abort when Close (or a worker restart) cancels that context.
+type natsCtxDialer struct {
+	ctx context.Context
+	n   *natsInput
+}
 
+func (d *natsCtxDialer) Dial(network, address string) (net.Conn, error) {
+	return d.n.dial(d.ctx, network, address)
+}
+
+func (n *natsInput) Dial(network, address string) (net.Conn, error) {
+	ctx := n.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return n.dial(ctx, network, address)
+}
+
+func (n *natsInput) dial(ctx context.Context, network, address string) (net.Conn, error) {
+	d := &net.Dialer{}
 	for {
-		n.logger.Info("attempting to connect", "address", address)
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
+		if err := ctx.Err(); err != nil {
+			return nil, err
 		}
-		cfg := n.cfg.Load()
+		n.logger.Info("attempting to connect", "address", address)
+		conn, err := d.DialContext(ctx, network, address)
+		if err == nil {
+			n.logger.Info("connected to NATS server", "address", address)
+			return conn, nil
+		}
+		wait := natsConnectWait
+		if cfg := n.cfg.Load(); cfg != nil && cfg.ConnectTimeWait > 0 {
+			wait = cfg.ConnectTimeWait
+		}
 		select {
-		case <-n.ctx.Done():
-			return nil, n.ctx.Err()
-		default:
-			d := &net.Dialer{}
-			if conn, err := d.DialContext(ctx, network, address); err == nil {
-				n.logger.Info("connected to NATS server", "address", address)
-				return conn, nil
-			}
-			time.Sleep(cfg.ConnectTimeWait)
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(wait):
 		}
 	}
 }
