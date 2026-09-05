@@ -16,7 +16,9 @@ import (
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	promcom "github.com/openconfig/gnmic/pkg/outputs/prometheus_output"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/zestor-dev/zestor/store"
 	"github.com/zestor-dev/zestor/store/gomap"
@@ -174,6 +176,11 @@ func TestPromWriteOutput_WritePropagatesBackpressure(t *testing.T) {
 		t.Fatalf("input queue depth metric = %v, want 1", got)
 	}
 
+	histogram := prometheusWriteInputBackpressureDuration.WithLabelValues(t.Name()).(prometheus.Histogram)
+	beforeMetric := &dto.Metric{}
+	if err := histogram.Write(beforeMetric); err != nil {
+		t.Fatal(err)
+	}
 	blocked := prometheusWriteInputBackpressure.WithLabelValues(t.Name())
 	before := testutil.ToFloat64(blocked)
 	done := make(chan struct{})
@@ -188,6 +195,7 @@ func TestPromWriteOutput_WritePropagatesBackpressure(t *testing.T) {
 	default:
 	}
 
+	time.Sleep(25 * time.Millisecond)
 	<-p.msgChan
 	select {
 	case <-done:
@@ -196,6 +204,14 @@ func TestPromWriteOutput_WritePropagatesBackpressure(t *testing.T) {
 	}
 	if got := len(p.msgChan); got != 1 {
 		t.Fatalf("input queue depth = %d, want 1", got)
+	}
+	afterMetric := &dto.Metric{}
+	if err := histogram.Write(afterMetric); err != nil {
+		t.Fatal(err)
+	}
+	elapsed := afterMetric.GetHistogram().GetSampleSum() - beforeMetric.GetHistogram().GetSampleSum()
+	if elapsed < 0.020 {
+		t.Fatalf("backpressure duration = %fs, want at least 0.020s", elapsed)
 	}
 }
 

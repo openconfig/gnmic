@@ -467,8 +467,10 @@ func (p *promWriteOutput) Write(ctx context.Context, rsp proto.Message, meta out
 
 	prometheusWriteInputBackpressure.WithLabelValues(cfg.Name).Inc()
 	started := time.Now()
-	defer prometheusWriteInputBackpressureDuration.WithLabelValues(cfg.Name).
-		Observe(time.Since(started).Seconds())
+	defer func() {
+		prometheusWriteInputBackpressureDuration.WithLabelValues(cfg.Name).
+			Observe(time.Since(started).Seconds())
+	}()
 	select {
 	case <-ctx.Done():
 	case <-p.done:
