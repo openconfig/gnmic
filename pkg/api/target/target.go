@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/google/uuid"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
@@ -42,6 +43,7 @@ type SubscribeResponse struct {
 
 // Target represents a gNMI enabled box
 type Target struct {
+	id            string                               // unique internal identifier
 	Config        *types.TargetConfig                  `json:"config,omitempty"`
 	Subscriptions map[string]*types.SubscriptionConfig `json:"subscriptions,omitempty"`
 
@@ -64,6 +66,7 @@ type Target struct {
 // NewTarget //
 func NewTarget(c *types.TargetConfig) *Target {
 	t := &Target{
+		id:                 uuid.New().String(),
 		Config:             c,
 		Subscriptions:      make(map[string]*types.SubscriptionConfig),
 		m:                  new(sync.Mutex),
@@ -75,6 +78,10 @@ func NewTarget(c *types.TargetConfig) *Target {
 		StopChan:           make(chan struct{}),
 	}
 	return t
+}
+
+func (t *Target) GetID() string {
+	return t.id
 }
 
 // CreateGNMIClient //
