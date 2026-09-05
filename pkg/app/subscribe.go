@@ -254,6 +254,8 @@ func (a *App) StartTargetsManager(ctx context.Context) {
 
 		a.Logger.Info("starting target listener", "target", t.Config.Name)
 		go func(t *target.Target) {
+			targetCtx, cancel := targetListenerContext(ctx, t.StopChan)
+			defer cancel()
 			numOnceSubscriptions := t.NumberOfOnceSubscriptions()
 			remainingOnceSubscriptions := numOnceSubscriptions
 			numSubscriptions := len(t.Subscriptions)
@@ -291,7 +293,7 @@ func (a *App) StartTargetsManager(ctx context.Context) {
 						outs = t.Config.Outputs
 					}
 
-					a.export(ctx, rsp.Response, m, outs...)
+					a.export(targetCtx, rsp.Response, m, outs...)
 					if remainingOnceSubscriptions > 0 {
 						if a.subscriptionMode(rsp.SubscriptionName) == subscriptionModeONCE {
 							switch rsp.Response.Response.(type) {
@@ -342,6 +344,18 @@ func (a *App) StartTargetsManager(ctx context.Context) {
 	for range ctx.Done() {
 		return
 	}
+}
+
+func targetListenerContext(parent context.Context, stopped <-chan struct{}) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(parent)
+	go func() {
+		select {
+		case <-ctx.Done():
+		case <-stopped:
+			cancel()
+		}
+	}()
+	return ctx, cancel
 }
 
 func (a *App) export(ctx context.Context, rsp *gnmi.SubscribeResponse, m outputs.Meta, outs ...string) {

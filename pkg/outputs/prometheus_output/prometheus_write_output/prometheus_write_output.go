@@ -42,6 +42,7 @@ const (
 	defaultWriteInterval              = 10 * time.Second
 	defaultMetadataWriteInterval      = time.Minute
 	defaultBufferSize                 = 1000
+	defaultInputBufferSize            = 1
 	defaultMaxTSPerWrite              = 500
 	defaultMaxMetaDataEntriesPerWrite = 500
 	defaultMetricHelp                 = "gNMIc generated metric"
@@ -69,6 +70,8 @@ type promWriteOutput struct {
 	eventChan   chan *formatters.EventMsg
 	msgChan     chan *outputs.ProtoMsg
 	buffDrainCh chan struct{}
+	done        chan struct{}
+	closeOnce   sync.Once
 
 	m             *sync.Mutex
 	metadataCache map[string]prompb.MetricMetadata
@@ -91,6 +94,7 @@ type config struct {
 	TLS                   *types.TLSConfig  `mapstructure:"tls,omitempty" json:"tls,omitempty"`
 	Interval              time.Duration     `mapstructure:"interval,omitempty" json:"interval,omitempty"`
 	BufferSize            int               `mapstructure:"buffer-size,omitempty" json:"buffer-size,omitempty"`
+	InputBufferSize       int               `mapstructure:"input-buffer-size,omitempty" json:"input-buffer-size,omitempty"`
 	MaxTimeSeriesPerWrite int               `mapstructure:"max-time-series-per-write,omitempty" json:"max-time-series-per-write,omitempty"`
 	MaxRetries            int               `mapstructure:"max-retries,omitempty" json:"max-retries,omitempty"`
 	Metadata              *metadata         `mapstructure:"metadata,omitempty" json:"metadata,omitempty"`
@@ -142,8 +146,9 @@ func (p *promWriteOutput) init() {
 	p.m = new(sync.Mutex)
 	p.logger = logging.DiscardLogger()
 	p.eventChan = make(chan *formatters.EventMsg)
-	p.msgChan = make(chan *outputs.ProtoMsg)
 	p.buffDrainCh = make(chan struct{}, 1)
+	p.done = make(chan struct{})
+	p.closeOnce = sync.Once{}
 	p.metadataCache = make(map[string]prompb.MetricMetadata)
 }
 
@@ -233,6 +238,8 @@ func (p *promWriteOutput) Init(ctx context.Context, name string, cfg map[string]
 	// initialize buffer chan
 	timeSeriesCh := make(chan *prompb.TimeSeries, ncfg.BufferSize)
 	p.timeSeriesCh.Store(&timeSeriesCh)
+	p.msgChan = make(chan *outputs.ProtoMsg, ncfg.InputBufferSize)
+	initInputQueueMetrics(ncfg.Name, p.msgChan)
 
 	cl, err := p.createHTTPClientFor(ncfg)
 	if err != nil {
@@ -274,9 +281,17 @@ func (p *promWriteOutput) Update(ctx context.Context, cfg map[string]any) error 
 		return fmt.Errorf("invalid url: %w", err)
 	}
 
-	p.setDefaultsFor(newCfg)
-
 	currCfg := p.cfg.Load()
+	if newCfg.Name == "" && currCfg != nil {
+		newCfg.Name = currCfg.Name
+	}
+	if newCfg.InputBufferSize <= 0 && currCfg != nil {
+		newCfg.InputBufferSize = currCfg.InputBufferSize
+	}
+	p.setDefaultsFor(newCfg)
+	if currCfg != nil && newCfg.InputBufferSize != currCfg.InputBufferSize {
+		return errors.New("input-buffer-size cannot be changed at runtime")
+	}
 
 	swapChannel := channelNeedsSwap(currCfg, newCfg)
 	restartWorkers := needsWorkerRestart(currCfg, newCfg)
@@ -350,7 +365,6 @@ func (p *promWriteOutput) Update(ctx context.Context, cfg map[string]any) error 
 		oldCancel := p.cancelFn
 		oldWG := p.wg
 		oldTSCh := *p.timeSeriesCh.Load()
-
 		// swap
 		p.cancelFn = cancel
 		p.wg = newWG
@@ -427,19 +441,41 @@ func (p *promWriteOutput) Write(ctx context.Context, rsp proto.Message, meta out
 		return
 	}
 	cfg := p.cfg.Load()
-
-	wctx, cancel := context.WithTimeout(ctx, cfg.Timeout)
-	defer cancel()
+	if cfg == nil {
+		return
+	}
+	if ctx.Err() != nil {
+		return
+	}
+	select {
+	case <-p.done:
+		return
+	default:
+	}
+	msg := outputs.NewProtoMsg(rsp, meta)
 
 	select {
 	case <-ctx.Done():
 		return
-	case p.msgChan <- outputs.NewProtoMsg(rsp, meta):
-	case <-wctx.Done():
-		if cfg.Debug {
-			p.logger.Warn("write expired", "timeout", cfg.Timeout)
-		}
+	case <-p.done:
 		return
+	case p.msgChan <- msg:
+		setInputQueueDepth(cfg.Name, p.msgChan)
+		return
+	default:
+	}
+
+	prometheusWriteInputBackpressure.WithLabelValues(cfg.Name).Inc()
+	started := time.Now()
+	defer func() {
+		prometheusWriteInputBackpressureDuration.WithLabelValues(cfg.Name).
+			Observe(time.Since(started).Seconds())
+	}()
+	select {
+	case <-ctx.Done():
+	case <-p.done:
+	case p.msgChan <- msg:
+		setInputQueueDepth(cfg.Name, p.msgChan)
 	}
 }
 
@@ -448,24 +484,36 @@ func (p *promWriteOutput) WriteEvent(ctx context.Context, ev *formatters.EventMs
 	if dc == nil {
 		return
 	}
+	if ctx.Err() != nil {
+		return
+	}
 	select {
-	case <-ctx.Done():
+	case <-p.done:
 		return
 	default:
-		var evs = []*formatters.EventMsg{ev}
-		for _, proc := range dc.evps {
-			evs = proc.Apply(evs...)
-		}
-		for _, pev := range evs {
-			p.eventChan <- pev
+	}
+	var evs = []*formatters.EventMsg{ev}
+	for _, proc := range dc.evps {
+		evs = proc.Apply(evs...)
+	}
+	for _, pev := range evs {
+		select {
+		case <-ctx.Done():
+			return
+		case <-p.done:
+			return
+		case p.eventChan <- pev:
 		}
 	}
 }
 
 func (p *promWriteOutput) Close() error {
-	if p.cancelFn != nil {
-		p.cancelFn()
-	}
+	p.closeOnce.Do(func() {
+		close(p.done)
+		if p.cancelFn != nil {
+			p.cancelFn()
+		}
+	})
 	p.wg.Wait()
 
 	client := p.httpClient.Load()
@@ -489,14 +537,18 @@ func (p *promWriteOutput) worker(ctx context.Context, wg *sync.WaitGroup) {
 		case <-ctx.Done():
 			return
 		case ev := <-p.eventChan:
-			p.workerHandleEvent(ev)
+			p.workerHandleEvent(ctx, ev)
 		case m := <-p.msgChan:
+			cfg := p.cfg.Load()
+			if cfg != nil {
+				setInputQueueDepth(cfg.Name, p.msgChan)
+			}
 			p.workerHandleProto(ctx, m)
 		}
 	}
 }
 
-func (p *promWriteOutput) workerHandleProto(_ context.Context, m *outputs.ProtoMsg) {
+func (p *promWriteOutput) workerHandleProto(ctx context.Context, m *outputs.ProtoMsg) {
 	cfg := p.cfg.Load()
 	dc := p.dynCfg.Load()
 
@@ -519,12 +571,12 @@ func (p *promWriteOutput) workerHandleProto(_ context.Context, m *outputs.ProtoM
 			return
 		}
 		for _, ev := range events {
-			p.workerHandleEvent(ev)
+			p.workerHandleEvent(ctx, ev)
 		}
 	}
 }
 
-func (p *promWriteOutput) workerHandleEvent(ev *formatters.EventMsg) {
+func (p *promWriteOutput) workerHandleEvent(ctx context.Context, ev *formatters.EventMsg) {
 	cfg := p.cfg.Load()
 	dc := p.dynCfg.Load()
 	tsCh := p.timeSeriesCh.Load()
@@ -533,7 +585,13 @@ func (p *promWriteOutput) workerHandleEvent(ev *formatters.EventMsg) {
 	for _, pts := range dc.mb.TimeSeriesFromEvent(ev) {
 		if len(*tsCh) >= cfg.BufferSize {
 			p.logger.Debug("buffer size reached, triggering write")
-			p.buffDrainCh <- struct{}{}
+			select {
+			case <-ctx.Done():
+				return
+			case <-p.done:
+				return
+			case p.buffDrainCh <- struct{}{}:
+			}
 		}
 		// populate metadata cache
 		p.m.Lock()
@@ -546,7 +604,13 @@ func (p *promWriteOutput) workerHandleEvent(ev *formatters.EventMsg) {
 		p.m.Unlock()
 		// write time series to buffer
 		p.logger.Debug("writing TimeSeries to buffer")
-		*tsCh <- pts.TS
+		select {
+		case <-ctx.Done():
+			return
+		case <-p.done:
+			return
+		case *tsCh <- pts.TS:
+		}
 	}
 }
 
@@ -559,6 +623,9 @@ func (p *promWriteOutput) setDefaultsFor(c *config) {
 	}
 	if c.BufferSize <= 0 {
 		c.BufferSize = defaultBufferSize
+	}
+	if c.InputBufferSize <= 0 {
+		c.InputBufferSize = defaultInputBufferSize
 	}
 	if c.NumWorkers <= 0 {
 		c.NumWorkers = defaultNumWorkers
