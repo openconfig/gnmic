@@ -13,6 +13,7 @@ import (
 	"fmt"
 
 	"github.com/fullstorydev/grpcurl"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/openconfig/gnmic/pkg/api/target"
 	"github.com/openconfig/gnmic/pkg/api/types"
@@ -66,6 +67,21 @@ func (a *App) stopTarget(ctx context.Context, name string) error {
 	return a.locker.Unlock(ctx, a.targetLockKey(name))
 }
 
+func (a *App) deleteTargetMetrics(name string) {
+	c := subscribeResponseReceivedCounter.DeletePartialMatch(prometheus.Labels{
+		"source": name,
+	})
+	a.Logger.Info("deleted `gnmic_subscribe_number_of_received_subscribe_response_messages_total` metrics for target", "target", name, "counter_deleted", c)
+	// Also delete any other metrics for this target
+	c = subscribeResponseFailedCounter.DeletePartialMatch(prometheus.Labels{
+		"source": name,
+	})
+	a.Logger.Info("deleted `gnmic_subscribe_number_of_failed_subscribe_request_messages_total` metrics for target", "target", name, "counter_deleted", c)
+	// Delete target-level metrics for this target as well.
+	targetUPMetric.DeleteLabelValues(name)
+	targetConnStateMetric.DeleteLabelValues(name)
+}
+
 func (a *App) DeleteTarget(ctx context.Context, name string) error {
 	if a.Targets == nil {
 		return nil
@@ -88,6 +104,7 @@ func (a *App) DeleteTarget(ctx context.Context, name string) error {
 	}
 	if t, ok := a.Targets[name]; ok {
 		delete(a.Targets, name)
+		defer a.deleteTargetMetrics(name)
 		t.Close()
 		if a.locker != nil {
 			return a.locker.Unlock(ctx, a.targetLockKey(name))
