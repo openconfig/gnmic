@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openconfig/gnmic/pkg/config"
+	"github.com/openconfig/gnmi/proto/gnmi"
 	collstore "github.com/openconfig/gnmic/pkg/collector/store"
+	"github.com/openconfig/gnmic/pkg/config"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	"github.com/openconfig/gnmic/pkg/pipeline"
@@ -18,20 +19,28 @@ import (
 )
 
 type mockOutput struct {
-	mu          sync.Mutex
-	name        string
-	clusterName string
-	initCount   int
-	updateCount int
-	writeCount  int
-	eventCount  int
-	closed      bool
+	mu              sync.Mutex
+	name            string
+	clusterName     string
+	initCount       int
+	updateCount     int
+	writeCount      int
+	eventCount      int
+	closed          bool
+	subscription    outputs.SubscriptionInfo
+	hasSubscription bool
 }
 
 func (m *mockOutput) eventCountSnapshot() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.eventCount
+}
+
+func (m *mockOutput) subscriptionSnapshot() (outputs.SubscriptionInfo, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.subscription, m.hasSubscription
 }
 
 func (m *mockOutput) Init(_ context.Context, name string, _ map[string]any, opts ...outputs.Option) error {
@@ -54,8 +63,9 @@ func (m *mockOutput) Update(_ context.Context, _ map[string]any) error {
 
 func (m *mockOutput) UpdateProcessor(string, map[string]any) error { return nil }
 
-func (m *mockOutput) Write(context.Context, proto.Message, outputs.Meta) {
+func (m *mockOutput) Write(ctx context.Context, _ proto.Message, _ outputs.Meta) {
 	m.mu.Lock()
+	m.subscription, m.hasSubscription = outputs.SubscriptionInfoFromContext(ctx)
 	m.writeCount++
 	m.mu.Unlock()
 }
@@ -284,6 +294,35 @@ func TestOutputsManager_writeDispatchesToOutputs(t *testing.T) {
 	}
 	if b.eventCountSnapshot() != 0 {
 		t.Fatalf("out-b events = %d, want 0", b.eventCountSnapshot())
+	}
+}
+
+func TestOutputsManager_writePropagatesSubscriptionInfo(t *testing.T) {
+	mgr, _, _, cancel := newOutputsTestManager(t)
+	defer cancel()
+
+	mgr.createOutput("out1", map[string]any{"type": "mock"})
+	waitForOutputState(t, mgr, "out1", collstore.StateRunning)
+	want := outputs.SubscriptionInfo{
+		Source:              "leaf-1",
+		Name:                "counters",
+		Instance:            "stream-1",
+		Mode:                gnmi.SubscriptionList_STREAM,
+		InitialSyncComplete: true,
+	}
+	mgr.write(&pipeline.Msg{
+		Msg:          &gnmi.SubscribeResponse{},
+		Meta:         outputs.Meta{"source": "event-tag-source", "subscription-name": "event-tag-subscription"},
+		Subscription: want,
+		Outputs:      map[string]struct{}{"out1": {}},
+	})
+
+	mgr.mu.RLock()
+	impl := mgr.outputs["out1"].Impl.(*mockOutput)
+	mgr.mu.RUnlock()
+	got, ok := impl.subscriptionSnapshot()
+	if !ok || got != want {
+		t.Fatalf("subscription info = (%v, %v), want (%v, true)", got, ok, want)
 	}
 }
 

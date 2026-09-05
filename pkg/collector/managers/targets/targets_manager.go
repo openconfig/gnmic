@@ -941,6 +941,8 @@ func (tm *TargetsManager) startTargetSubscription(mt *ManagedTarget, cfg *types.
 					Msg:  resp.Response,
 					Meta: pipelineMeta(mt.Name, resp.SubscriptionName, eventTags),
 					Subscription: outputs.SubscriptionInfo{
+						Source:              mt.Name,
+						Name:                resp.SubscriptionName,
 						Instance:            resp.SubscriptionInstance,
 						Mode:                resp.SubscriptionMode,
 						InitialSyncComplete: resp.InitialSyncComplete,

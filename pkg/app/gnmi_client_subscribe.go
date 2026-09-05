@@ -289,6 +289,8 @@ OUTER:
 		)
 		rspCh, errCh := t.SubscribeOnceChan(gnmiCtx, sreq.req)
 		subscriptionInfo := outputs.SubscriptionInfo{
+			Source:   t.Config.Name,
+			Name:     sreq.name,
 			Instance: uuid.NewString(),
 			Mode:     sreq.req.GetSubscribe().GetMode(),
 		}

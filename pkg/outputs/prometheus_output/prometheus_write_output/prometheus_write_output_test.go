@@ -172,15 +172,10 @@ func TestPromWriteOutputSamplingSkipsBeforeInputQueue(t *testing.T) {
 		t.Fatalf("newSubscriptionSampler() error = %v", err)
 	}
 	p.sampler.Store(sampler)
-	meta := outputs.Meta{"source": "leaf-1", "subscription-name": "counters"}
+	meta := outputs.Meta{"source": "event-tag-source", "subscription-name": "event-tag-subscription"}
 	info := streamInfo("stream-1")
 	now := time.Now()
-	if allowed, _ := sampler.Allow(info, meta, syncResponse(), now); !allowed {
-		t.Fatal("failed to observe sync response")
-	}
-	if allowed, _ := sampler.Allow(info, meta, updateResponse(nil), now); !allowed {
-		t.Fatal("failed to seed sampler")
-	}
+	assertSampleDecision(t, sampler, info, updateResponse(nil), now, true, true)
 	ctx := outputs.WithSubscriptionInfo(context.Background(), info)
 
 	done := make(chan struct{})
@@ -211,12 +206,7 @@ func TestPromWriteOutputSamplingPreservesNarrowMessages(t *testing.T) {
 	meta := outputs.Meta{"source": "leaf-1", "subscription-name": "counters"}
 	info := streamInfo("stream-1")
 	now := time.Now()
-	if allowed, _ := sampler.Allow(info, meta, syncResponse(), now); !allowed {
-		t.Fatal("failed to observe sync response")
-	}
-	if allowed, _ := sampler.Allow(info, meta, updateResponse(make([]byte, 2048)), now); !allowed {
-		t.Fatal("failed to seed sampler")
-	}
+	assertSampleDecision(t, sampler, info, updateResponse(make([]byte, 2048)), now, true, true)
 
 	received := make(chan struct{})
 	go func() {
@@ -228,5 +218,34 @@ func TestPromWriteOutputSamplingPreservesNarrowMessages(t *testing.T) {
 	case <-received:
 	case <-time.After(100 * time.Millisecond):
 		t.Fatal("narrow message did not bypass sampling")
+	}
+}
+
+func TestPromWriteOutputSamplingRollsBackExpiredWrite(t *testing.T) {
+	p := &promWriteOutput{}
+	p.init()
+	p.cfg.Store(&config{Name: "pw1", Timeout: 10 * time.Millisecond})
+	sampler, err := newSubscriptionSampler(&messageSamplingConfig{
+		BySubscription: map[string]messageSamplingRule{
+			"counters": {Interval: time.Minute},
+		},
+	})
+	if err != nil {
+		t.Fatalf("newSubscriptionSampler() error = %v", err)
+	}
+	p.sampler.Store(sampler)
+	info := streamInfo("stream-1")
+	ctx := outputs.WithSubscriptionInfo(context.Background(), info)
+	message := updateResponse(nil)
+	meta := outputs.Meta{"source": "leaf-1", "subscription-name": "counters"}
+
+	p.Write(ctx, message, meta)
+
+	p.msgChan = make(chan *outputs.ProtoMsg, 1)
+	p.Write(ctx, message, meta)
+	select {
+	case <-p.msgChan:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("message after expired write was still sampled")
 	}
 }

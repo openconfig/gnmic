@@ -32,24 +32,28 @@ type messageSamplingRule struct {
 	MinimumBytes int           `mapstructure:"minimum-bytes,omitempty" json:"minimum-bytes,omitempty"`
 }
 
+type sampleKey struct {
+	source       string
+	subscription string
+	instance     string
+}
+
 type sampleState struct {
-	instance   string
 	acceptedAt time.Time
 	next       time.Time
 }
 
-type sampleAcceptance struct {
-	key        string
-	instance   string
-	acceptedAt time.Time
-	previous   sampleState
+type sampleReservation struct {
+	key   sampleKey
+	state sampleState
 }
 
 type subscriptionSampler struct {
 	mu       sync.Mutex
 	rules    map[string]messageSamplingRule
 	spread   bool
-	accepted *lru.Cache[string, sampleState]
+	accepted *lru.Cache[sampleKey, sampleState]
+	pending  map[sampleKey]*sampleReservation
 }
 
 func newSubscriptionSampler(cfg *messageSamplingConfig) (*subscriptionSampler, error) {
@@ -71,7 +75,7 @@ func newSubscriptionSampler(cfg *messageSamplingConfig) (*subscriptionSampler, e
 	if cacheSize < 0 {
 		return nil, errors.New("message-sampling cache-size cannot be negative")
 	}
-	accepted, err := lru.New[string, sampleState](cacheSize)
+	accepted, err := lru.New[sampleKey, sampleState](cacheSize)
 	if err != nil {
 		return nil, fmt.Errorf("create message-sampling cache: %w", err)
 	}
@@ -79,6 +83,7 @@ func newSubscriptionSampler(cfg *messageSamplingConfig) (*subscriptionSampler, e
 		rules:    maps.Clone(cfg.BySubscription),
 		spread:   cfg.Spread,
 		accepted: accepted,
+		pending:  make(map[sampleKey]*sampleReservation),
 	}, nil
 }
 
@@ -101,31 +106,41 @@ func messageSamplingCacheSize(cfg *messageSamplingConfig) int {
 	return cfg.CacheSize
 }
 
-func (s *subscriptionSampler) Rollback(acceptance *sampleAcceptance) {
-	if s == nil || acceptance == nil {
+func (s *subscriptionSampler) Commit(reservation *sampleReservation) {
+	if s == nil || reservation == nil {
 		return
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	state, ok := s.accepted.Peek(acceptance.key)
-	if !ok || state.instance != acceptance.instance || !state.acceptedAt.Equal(acceptance.acceptedAt) {
+	if s.pending[reservation.key] != reservation {
 		return
 	}
-	s.accepted.Add(acceptance.key, acceptance.previous)
+	delete(s.pending, reservation.key)
+	s.accepted.Add(reservation.key, reservation.state)
 }
 
-func (s *subscriptionSampler) Allow(
+func (s *subscriptionSampler) Rollback(reservation *sampleReservation) {
+	if s == nil || reservation == nil {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.pending[reservation.key] == reservation {
+		delete(s.pending, reservation.key)
+	}
+}
+
+func (s *subscriptionSampler) Reserve(
 	info outputs.SubscriptionInfo,
-	meta outputs.Meta,
 	message proto.Message,
 	now time.Time,
-) (bool, *sampleAcceptance) {
-	if s == nil || info.Instance == "" || info.Mode != gnmi.SubscriptionList_STREAM {
+) (bool, *sampleReservation) {
+	if s == nil || info.Source == "" || info.Name == "" || info.Instance == "" || info.Mode != gnmi.SubscriptionList_STREAM {
 		return true, nil
 	}
-	subscription := meta["subscription-name"]
-	rule, ok := s.rules[subscription]
+	rule, ok := s.rules[info.Name]
 	if !ok {
 		return true, nil
 	}
@@ -141,23 +156,21 @@ func (s *subscriptionSampler) Allow(
 	if !info.InitialSyncComplete {
 		return true, nil
 	}
-	source := meta["source"]
-	if source == "" {
-		return true, nil
-	}
 	if proto.Size(message) < rule.MinimumBytes {
 		return true, nil
 	}
-	key := source + "\x00" + subscription
+	key := sampleKey{
+		source:       info.Source,
+		subscription: info.Name,
+		instance:     info.Instance,
+	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	state, ok := s.accepted.Get(key)
-	if !ok || state.instance != info.Instance {
-		state = sampleState{instance: info.Instance}
+	if _, ok := s.pending[key]; ok {
+		return false, nil
 	}
-
-	previous := state
+	state, _ := s.accepted.Peek(key)
 	if s.spread {
 		if state.acceptedAt.IsZero() {
 			state.next = nextSpreadTime(key, now.Add(rule.Interval), rule.Interval)
@@ -170,18 +183,19 @@ func (s *subscriptionSampler) Allow(
 		return false, nil
 	}
 	state.acceptedAt = now
-	s.accepted.Add(key, state)
-	return true, &sampleAcceptance{
-		key:        key,
-		instance:   info.Instance,
-		acceptedAt: now,
-		previous:   previous,
+	reservation := &sampleReservation{
+		key:   key,
+		state: state,
 	}
+	s.pending[key] = reservation
+	return true, reservation
 }
 
-func nextSpreadTime(key string, now time.Time, interval time.Duration) time.Time {
+func nextSpreadTime(key sampleKey, now time.Time, interval time.Duration) time.Time {
 	hash := fnv.New64a()
-	_, _ = hash.Write([]byte(key))
+	_, _ = hash.Write([]byte(key.source))
+	_, _ = hash.Write([]byte{0})
+	_, _ = hash.Write([]byte(key.subscription))
 	phase := time.Duration(hash.Sum64() % uint64(interval))
 	remainder := time.Duration(now.UnixNano() % int64(interval))
 	if remainder < 0 {

@@ -276,6 +276,8 @@ func (a *App) StartTargetsManager(ctx context.Context) {
 						"subscription-name": rsp.SubscriptionName,
 					}
 					exportCtx := outputs.WithSubscriptionInfo(ctx, outputs.SubscriptionInfo{
+						Source:              t.Config.Name,
+						Name:                rsp.SubscriptionName,
 						Instance:            rsp.SubscriptionInstance,
 						Mode:                rsp.SubscriptionMode,
 						InitialSyncComplete: rsp.InitialSyncComplete,

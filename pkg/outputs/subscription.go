@@ -13,6 +13,8 @@ import (
 // SubscriptionInfo identifies one managed subscription attempt and its
 // initial synchronization state.
 type SubscriptionInfo struct {
+	Source              string
+	Name                string
 	Instance            string
 	Mode                gnmi.SubscriptionList_Mode
 	InitialSyncComplete bool

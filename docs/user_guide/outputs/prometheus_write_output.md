@@ -127,8 +127,8 @@ snapshot that should be sampled. Every matching post-sync response at or above t
 must be independently discardable. Do not enable sampling for a stream whose later snapshot
 is split across multiple responses, because a message sampler cannot preserve the group as
 one unit.
-`cache-size` bounds the number of source/subscription timestamps retained in memory and
-defaults to `100000`. Skipped messages are reported by
+`cache-size` bounds the number of source/subscription stream-attempt states retained in
+memory and defaults to `100000`. Skipped messages are reported by
 `gnmic_prometheus_write_output_messages_skipped_total`.
 
 `spread: true` assigns each source/subscription stream a stable phase inside its interval.

@@ -12,7 +12,12 @@ import (
 )
 
 func TestSubscriptionInfoContext(t *testing.T) {
-	want := SubscriptionInfo{Instance: "stream-1", Mode: gnmi.SubscriptionList_STREAM}
+	want := SubscriptionInfo{
+		Source:   "leaf-1",
+		Name:     "counters",
+		Instance: "stream-1",
+		Mode:     gnmi.SubscriptionList_STREAM,
+	}
 	ctx := WithSubscriptionInfo(context.Background(), want)
 	got, ok := SubscriptionInfoFromContext(ctx)
 	if !ok || got != want {

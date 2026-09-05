@@ -447,17 +447,16 @@ func (p *promWriteOutput) Write(ctx context.Context, rsp proto.Message, meta out
 	if cfg == nil {
 		return
 	}
-	acceptedAt := time.Now()
 	sampler := p.sampler.Load()
-	var acceptance *sampleAcceptance
+	var reservation *sampleReservation
 	if sampler != nil {
 		info, _ := outputs.SubscriptionInfoFromContext(ctx)
-		allowed, recorded := sampler.Allow(info, meta, rsp, acceptedAt)
+		allowed, recorded := sampler.Reserve(info, rsp, time.Now())
 		if !allowed {
-			prometheusWriteMessagesSkipped.WithLabelValues(cfg.Name, meta["subscription-name"]).Inc()
+			prometheusWriteMessagesSkipped.WithLabelValues(cfg.Name, info.Name).Inc()
 			return
 		}
-		acceptance = recorded
+		reservation = recorded
 	}
 
 	wctx, cancel := context.WithTimeout(ctx, cfg.Timeout)
@@ -465,11 +464,12 @@ func (p *promWriteOutput) Write(ctx context.Context, rsp proto.Message, meta out
 
 	select {
 	case <-ctx.Done():
-		sampler.Rollback(acceptance)
+		sampler.Rollback(reservation)
 		return
 	case p.msgChan <- outputs.NewProtoMsg(rsp, meta):
+		sampler.Commit(reservation)
 	case <-wctx.Done():
-		sampler.Rollback(acceptance)
+		sampler.Rollback(reservation)
 		if cfg.Debug {
 			p.logger.Warn("write expired", "timeout", cfg.Timeout)
 		}
