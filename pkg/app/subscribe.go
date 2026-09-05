@@ -415,7 +415,7 @@ func (a *App) subscriptionMode(name string) string {
 // polledSubscriptionsTargets returns a map of target name to a list of subscription names that have Mode == POLL
 func (a *App) polledSubscriptionsTargets() map[string][]string {
 	result := make(map[string][]string)
-	for tn, target := range a.Targets {
+	for tn, target := range a.targetsSnapshot() {
 		for _, sub := range target.Subscriptions {
 			if strings.ToUpper(sub.Mode) == subscriptionModePOLL {
 				if result[tn] == nil {
