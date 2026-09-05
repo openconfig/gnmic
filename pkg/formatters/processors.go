@@ -35,6 +35,7 @@ var EventProcessorTypes = []string{
 	"event-group-by",
 	"event-ieeefloat32",
 	"event-jq",
+	"event-keep",
 	"event-merge",
 	"event-override-ts",
 	"event-rate-limit",
