@@ -9,11 +9,9 @@
 package formatters
 
 import (
-	"encoding/json"
 	"fmt"
 	"log/slog"
 
-	"github.com/itchyny/gojq"
 	"github.com/mitchellh/mapstructure"
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/logging"
@@ -101,41 +99,6 @@ func WithActions(acts map[string]map[string]interface{}) Option {
 func WithProcessors(procs map[string]map[string]interface{}) Option {
 	return func(p EventProcessor) {
 		p.WithProcessors(procs)
-	}
-}
-
-func CheckCondition(code *gojq.Code, e *EventMsg) (bool, error) {
-	if code == nil {
-		return true, nil
-	}
-
-	var res interface{}
-
-	input := make(map[string]interface{})
-	b, err := json.Marshal(e)
-	if err != nil {
-		return false, err
-	}
-	err = json.Unmarshal(b, &input)
-	if err != nil {
-		return false, err
-	}
-	iter := code.Run(input)
-	var ok bool
-	res, ok = iter.Next()
-	// iterator not done, so the final result won't be a boolean
-	if !ok {
-		return false, nil
-	}
-	if err, ok = res.(error); ok {
-		return false, err
-	}
-
-	switch res := res.(type) {
-	case bool:
-		return res, nil
-	default:
-		return false, fmt.Errorf("unexpected condition return type: %T | %v", res, res)
 	}
 }
 

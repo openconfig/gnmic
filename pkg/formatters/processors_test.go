@@ -9,6 +9,10 @@
 package formatters
 
 import (
+	"encoding/json"
+	"fmt"
+	"math"
+	"reflect"
 	"testing"
 	"time"
 
@@ -42,6 +46,30 @@ var testset = map[string]struct {
 		},
 		result: true,
 	},
+	"event_fields": {
+		condition: `.name == "port-counters" and .timestamp == 42 and .tags.resource_id == "device-1" and .values["/COUNTERS/oid:1/packets"] == 7`,
+		input: []*EventMsg{
+			{
+				Name:      "port-counters",
+				Timestamp: 42,
+				Tags:      map[string]string{"resource_id": "device-1"},
+				Values: map[string]interface{}{
+					"/COUNTERS/oid:1/packets": 7,
+				},
+			},
+		},
+		result: true,
+	},
+	"event_fields_no_match": {
+		condition: `.name == "port-counters" and .tags.resource_id == "device-2"`,
+		input: []*EventMsg{
+			{
+				Name: "port-counters",
+				Tags: map[string]string{"resource_id": "device-1"},
+			},
+		},
+		result: false,
+	},
 }
 
 func TestCheckCondition(t *testing.T) {
@@ -72,5 +100,148 @@ func TestCheckCondition(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestCheckConditionDoesNotMutateEvent(t *testing.T) {
+	query, err := gojq.Parse(`.name == "port-counters" and .values.counter > 0`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	condition, err := gojq.Compile(query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	event := &EventMsg{
+		Name: "port-counters",
+		Values: map[string]interface{}{
+			"counter": uint64(math.MaxUint64),
+			"nested": []interface{}{
+				int64(1),
+				map[string]interface{}{"value": float32(2)},
+			},
+		},
+	}
+	want := &EventMsg{
+		Name: "port-counters",
+		Values: map[string]interface{}{
+			"counter": uint64(math.MaxUint64),
+			"nested": []interface{}{
+				int64(1),
+				map[string]interface{}{"value": float32(2)},
+			},
+		},
+	}
+
+	matched, err := CheckCondition(condition, event)
+	if err != nil {
+		t.Fatalf("CheckCondition() error = %v", err)
+	}
+	if !matched {
+		t.Fatal("CheckCondition() = false, want true")
+	}
+	if !reflect.DeepEqual(event, want) {
+		t.Fatalf("CheckCondition() mutated event:\n got: %#v\nwant: %#v", event, want)
+	}
+}
+
+func TestConditionInputMatchesJSONRoundTrip(t *testing.T) {
+	event := &EventMsg{
+		Name: "binary-state",
+		Tags: map[string]string{"source": "leaf-1"},
+		Values: map[string]interface{}{
+			"bytes":       []byte{0x01, 0x02, 0x03},
+			"nil-bytes":   []byte(nil),
+			"nil-map":     map[string]interface{}(nil),
+			"nil-slice":   []interface{}(nil),
+			"empty-slice": []interface{}{},
+			"nested": []interface{}{
+				[]byte{0xff, 0x00},
+				map[string]interface{}{"labels": map[string]string{"state": "up"}},
+			},
+		},
+		Deletes: []string{"/interfaces/interface[name=ethernet-1]"},
+	}
+
+	b, err := json.Marshal(event)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := make(map[string]interface{})
+	if err := json.Unmarshal(b, &want); err != nil {
+		t.Fatal(err)
+	}
+	got, err := conditionInput(event)
+	if err != nil {
+		t.Fatalf("conditionInput() error = %v", err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("conditionInput() = %#v, want JSON round trip %#v", got, want)
+	}
+}
+
+func TestCheckConditionBytesUseBase64(t *testing.T) {
+	query, err := gojq.Parse(`.values.bytes == "AQID" and .values.nested[0] == "/wA="`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	condition, err := gojq.Compile(query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	event := &EventMsg{Values: map[string]interface{}{
+		"bytes":  []byte{0x01, 0x02, 0x03},
+		"nested": []interface{}{[]byte{0xff, 0x00}},
+	}}
+
+	matched, err := CheckCondition(condition, event)
+	if err != nil {
+		t.Fatalf("CheckCondition() error = %v", err)
+	}
+	if !matched {
+		t.Fatal("CheckCondition() = false, want true")
+	}
+}
+
+func TestConditionInputRejectsUnsupportedValue(t *testing.T) {
+	_, err := conditionInput(&EventMsg{Values: map[string]interface{}{"invalid": math.NaN()}})
+	if err == nil {
+		t.Fatal("conditionInput() error = nil, want unsupported value error")
+	}
+}
+
+func BenchmarkCheckConditionLargeEvent(b *testing.B) {
+	query, err := gojq.Parse(`.name == "port-counters"`)
+	if err != nil {
+		b.Fatal(err)
+	}
+	condition, err := gojq.Compile(query)
+	if err != nil {
+		b.Fatal(err)
+	}
+	values := make(map[string]interface{}, 34_014)
+	for index := range 34_014 {
+		values[fmt.Sprintf("/COUNTERS/oid:0x%016x/SAI_PORT_STAT_IF_IN_OCTETS", index)] = index
+	}
+	event := &EventMsg{
+		Name:      "port-counters",
+		Timestamp: time.Now().UnixNano(),
+		Tags: map[string]string{
+			"resource_id":       "network-device-001",
+			"subscription-name": "port-counters",
+		},
+		Values: values,
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		matched, err := CheckCondition(condition, event)
+		if err != nil {
+			b.Fatal(err)
+		}
+		if !matched {
+			b.Fatal("condition did not match")
+		}
 	}
 }
