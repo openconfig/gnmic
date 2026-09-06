@@ -366,12 +366,16 @@ func (a *App) export(ctx context.Context, rsp *gnmi.SubscribeResponse, m outputs
 	wg := new(sync.WaitGroup)
 	// target has no explicitly defined outputs
 	if len(outs) == 0 {
-		wg.Add(len(a.Outputs))
+		a.operLock.RLock()
+		all := make([]outputs.Output, 0, len(a.Outputs))
 		for _, o := range a.Outputs {
+			all = append(all, o)
+		}
+		a.operLock.RUnlock()
+		wg.Add(len(all))
+		for _, o := range all {
 			go func(o outputs.Output) {
 				defer wg.Done()
-				defer a.operLock.RUnlock()
-				a.operLock.RLock()
 				o.Write(ctx, rsp, m)
 			}(o)
 		}
@@ -589,7 +593,13 @@ func (a *App) startIO() {
 		}
 
 		if !a.Config.UseTunnelServer {
+			a.configLock.RLock()
+			targets := make([]*types.TargetConfig, 0, len(a.Config.Targets))
 			for _, tc := range a.Config.Targets {
+				targets = append(targets, tc)
+			}
+			a.configLock.RUnlock()
+			for _, tc := range targets {
 				a.wg.Add(1)
 				go a.subscribeStream(a.ctx, tc)
 				if limiter != nil {

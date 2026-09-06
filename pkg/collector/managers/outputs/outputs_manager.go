@@ -148,7 +148,7 @@ func (mgr *OutputsManager) writeLoop(wg *sync.WaitGroup) {
 				return
 			}
 			mgr.logger.Debug("got pipeline message", "message", e) // Debug
-			go mgr.write(e)
+			mgr.write(e)
 			if mgr.cache != nil {
 				go mgr.cache.Write(mgr.ctx, e.Meta["subscription-name"], e.Msg)
 			}
