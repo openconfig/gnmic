@@ -86,7 +86,11 @@ func TestTargetsManager_Start_appliesTargetFromStore(t *testing.T) {
 
 	tm, _, _ := startTargetsManager(t, st)
 
-	waitForTargetState(t, tm, "router1", collstore.StateFailed, collstore.StateStarting)
+	// StateRunning is accepted too: CreateGNMIClient uses a non-blocking gRPC
+	// dial, so start() reaches StateRunning even for an unreachable target and
+	// only transitions to StateFailed once the subscription errors. The poll
+	// below can sample any point in starting -> running -> failed.
+	waitForTargetState(t, tm, "router1", collstore.StateFailed, collstore.StateStarting, collstore.StateRunning)
 	if tm.Lookup("router1") == nil {
 		t.Fatal("expected managed target after config apply")
 	}
@@ -148,7 +152,11 @@ func TestTargetsManager_Start_removesTargetOnDelete(t *testing.T) {
 	seedTarget(t, st, "router1", "127.0.0.1:1")
 
 	tm, _, _ := startTargetsManager(t, st)
-	waitForTargetState(t, tm, "router1", collstore.StateFailed, collstore.StateStarting)
+	// StateRunning is accepted too: CreateGNMIClient uses a non-blocking gRPC
+	// dial, so start() reaches StateRunning even for an unreachable target and
+	// only transitions to StateFailed once the subscription errors. The poll
+	// below can sample any point in starting -> running -> failed.
+	waitForTargetState(t, tm, "router1", collstore.StateFailed, collstore.StateStarting, collstore.StateRunning)
 
 	if _, _, err := st.Config.Delete("targets", "router1"); err != nil {
 		t.Fatalf("delete target: %v", err)

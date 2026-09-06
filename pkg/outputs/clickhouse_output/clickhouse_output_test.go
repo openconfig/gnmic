@@ -34,7 +34,6 @@ func TestSetDefaults(t *testing.T) {
 	require.Equal(t, defaultBufferSize, c.BufferSize)
 	require.Equal(t, defaultTableEngine, c.TableEngine)
 	require.Equal(t, defaultPartitionBy, c.PartitionBy)
-	require.Equal(t, []string{"target", "path", "timestamp"}, c.OrderBy)
 }
 
 func TestApplyTTLDefault(t *testing.T) {
@@ -81,12 +80,12 @@ func TestBuildCreateTableSQLTTL(t *testing.T) {
 		Table:       "gnmic_telemetry",
 		TableEngine: "MergeTree",
 		PartitionBy: "toYYYYMMDD(timestamp)",
-		OrderBy:     []string{"target", "path", "timestamp"},
 		TTL:         "",
 	}
 	sql, err := buildCreateTableSQL(cfg)
 	require.NoError(t, err)
 	require.NotContains(t, sql, "TTL")
+	require.Contains(t, sql, "ORDER BY (`target`, `path`, `timestamp`)")
 
 	cfg.TTL = "30 DAY"
 	sql, err = buildCreateTableSQL(cfg)
@@ -101,7 +100,6 @@ func TestBuildCreateTableSQLRejectInjection(t *testing.T) {
 		Table:       "gnmic_telemetry",
 		TableEngine: "MergeTree",
 		PartitionBy: "toYYYYMMDD(timestamp); DROP TABLE x",
-		OrderBy:     []string{"target"},
 	}
 	_, err := buildCreateTableSQL(cfg)
 	require.Error(t, err)
@@ -217,16 +215,16 @@ func TestResolveTargetOrder(t *testing.T) {
 
 func TestInsertBatchHook(t *testing.T) {
 	var calls int
-	insertBatchHook = func(context.Context, driver.Conn, *config, []telemetryRow) error {
+	o := &clickhouseOutput{}
+	o.insertBatchHookFn = func(context.Context, driver.Conn, *config, []telemetryRow) error {
 		calls++
 		return errors.New("boom")
 	}
-	defer func() { insertBatchHook = nil }()
 
 	cfg := &config{Name: "t", Database: "d", Table: "t", BatchSize: 10}
 	rows := []telemetryRow{{path: "/x", valueType: "int", valueInt: ptrInt64(1)}}
 
-	err := insertBatchCH(context.Background(), nil, cfg, rows)
+	err := o.insertBatch(context.Background(), nil, cfg, rows)
 	require.Error(t, err)
 	require.Equal(t, 1, calls)
 }

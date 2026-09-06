@@ -217,7 +217,7 @@ func (a *App) updateServices(srvs []*lockers.Service) {
 	numNewSrv := len(srvs)
 	numCurrentSrv := len(a.apiServices)
 
-	a.Logger.Info("received service update", "num_services", numNewSrv)
+	a.Logger.Debug("received service update", "num_services", numNewSrv)
 	// no new services and no current services, continue
 	if numNewSrv == 0 && numCurrentSrv == 0 {
 		return
@@ -251,7 +251,9 @@ func (a *App) updateServices(srvs []*lockers.Service) {
 	}
 	// add new services
 	for n, s := range newSrvs {
-		a.Logger.Info("adding service", "id", n)
+		if _, exists := a.apiServices[n]; !exists {
+			a.Logger.Info("adding service", "id", n)
+		}
 		a.apiServices[n] = s
 	}
 }

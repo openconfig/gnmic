@@ -10,11 +10,20 @@ package logging
 
 import (
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/zestor-dev/zestor/store"
 	"gopkg.in/natefinch/lumberjack.v2"
+)
+
+const (
+	// LogFormatText is the default slog text handler output.
+	LogFormatText = "text"
+	// LogFormatJSON selects slog JSONHandler output.
+	LogFormatJSON = "json"
 )
 
 // Flags carries the subset of configuration values needed to build the
@@ -27,6 +36,7 @@ type Flags struct {
 	LogMaxSize    int
 	LogMaxBackups int
 	LogCompress   bool
+	LogFormat     string
 }
 
 // FlagsProvider is implemented by types that expose logging Flags.
@@ -38,7 +48,13 @@ type FlagsProvider interface {
 
 func GetLogger(level slog.Level, args ...any) *slog.Logger {
 	handlerOptions := &slog.HandlerOptions{Level: level}
-	return slog.New(slog.NewTextHandler(os.Stderr, handlerOptions)).With(args...)
+	return slog.New(NewHandler(os.Stderr, handlerOptions, LogFormatText)).With(args...)
+}
+
+// NewHandler returns a slog handler for the requested log format.
+// Unknown formats fall back to text.
+func NewHandler(w io.Writer, opts *slog.HandlerOptions, format string) slog.Handler {
+	return newHandler(w, opts, normalizeLogFormat(format))
 }
 
 func NewLogger(store store.Store[any], args ...any) *slog.Logger {
@@ -66,6 +82,7 @@ func NewLogger(store store.Store[any], args ...any) *slog.Logger {
 	}
 
 	handlerOptions := &slog.HandlerOptions{Level: level}
+	format := normalizeLogFormat(flags.LogFormat)
 	if flags.LogFile != "" {
 		if flags.LogMaxSize > 0 {
 			lj := &lumberjack.Logger{
@@ -74,16 +91,38 @@ func NewLogger(store store.Store[any], args ...any) *slog.Logger {
 				MaxBackups: clampMaxBackups(flags.LogMaxBackups),
 				Compress:   flags.LogCompress,
 			}
-			return slog.New(slog.NewTextHandler(lj, handlerOptions)).With(args...)
+			return slog.New(newHandler(lj, handlerOptions, format)).With(args...)
 		}
 		f, err := os.OpenFile(flags.LogFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error opening log file: %v\n", err)
 			return GetLogger(slog.LevelInfo, args...)
 		}
-		return slog.New(slog.NewTextHandler(f, handlerOptions)).With(args...)
+		return slog.New(newHandler(f, handlerOptions, format)).With(args...)
 	}
-	return slog.New(slog.NewTextHandler(os.Stderr, handlerOptions)).With(args...)
+	return slog.New(newHandler(os.Stderr, handlerOptions, format)).With(args...)
+}
+
+func normalizeLogFormat(format string) string {
+	switch strings.ToLower(strings.TrimSpace(format)) {
+	case "", LogFormatText:
+		return LogFormatText
+	case LogFormatJSON:
+		return LogFormatJSON
+	default:
+		fmt.Fprintf(os.Stderr, "unsupported log-format %q; using %q\n", format, LogFormatText)
+		return LogFormatText
+	}
+}
+
+func newHandler(w io.Writer, opts *slog.HandlerOptions, format string) slog.Handler {
+	if opts == nil {
+		opts = &slog.HandlerOptions{}
+	}
+	if format == LogFormatJSON {
+		return slog.NewJSONHandler(w, opts)
+	}
+	return slog.NewTextHandler(w, opts)
 }
 
 // minLogMaxSize is the smallest log-file size (MiB) we accept before

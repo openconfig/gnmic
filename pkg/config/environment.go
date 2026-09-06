@@ -28,7 +28,14 @@ func envToMap() map[string]any {
 		}
 		pair[0] = strings.ToLower(strings.TrimPrefix(pair[0], envPrefix+"_"))
 		items := strings.Split(pair[0], "_")
-		mergeMap(m, items, pair[1])
+
+		// Only free-form configuration sections need underscore-separated
+		// environment variables materialized as nested maps. Known struct
+		// fields are handled by Viper's AutomaticEnv and key replacer.
+		switch items[0] {
+		case "clustering", "outputs", "inputs", "processors", "loader", "actions":
+			mergeMap(m, items, pair[1])
+		}
 	}
 	return m
 }

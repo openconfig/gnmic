@@ -36,6 +36,16 @@ var eventMsgtestSet = map[string][]item{
 	"filled": {
 		{
 			ev: &EventMsg{
+				Name:    "sub1",
+				Deletes: []string{"/interfaces/interface[name=eth0]"},
+			},
+			m: map[string]interface{}{
+				"name":    "sub1",
+				"deletes": []interface{}{`/interfaces/interface[name=eth0]`},
+			},
+		},
+		{
+			ev: &EventMsg{
 				Timestamp: 100,
 				Values:    map[string]interface{}{"value1": int64(1)},
 				Tags:      map[string]string{"tag1": "1"},

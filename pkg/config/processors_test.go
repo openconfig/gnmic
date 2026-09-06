@@ -39,6 +39,11 @@ processors:
     event-delete:
       value-names:
         - ".*out-unicast-packets"
+
+  proc-keep-value-name:
+    event-keep:
+      value-names:
+        - ".*in-octets"
 `),
 		out: map[string]map[string]interface{}{
 			"proc-convert-integer": {
@@ -55,6 +60,11 @@ processors:
 			"proc-delete-value-name": {
 				"event-delete": map[string]interface{}{
 					"value-names": []interface{}{".*out-unicast-packets"},
+				},
+			},
+			"proc-keep-value-name": {
+				"event-keep": map[string]interface{}{
+					"value-names": []interface{}{".*in-octets"},
 				},
 			},
 		},
@@ -80,6 +90,11 @@ processors:
     event-delete:
       value-names:
         - ".*out-unicast-packets"
+
+  proc-keep-value-name:
+    event-keep:
+      value-names:
+        - ".*in-octets"
 `),
 		out: map[string]map[string]interface{}{
 			"proc-convert-integer": {
@@ -96,6 +111,11 @@ processors:
 			"proc-delete-value-name": {
 				"event-delete": map[string]interface{}{
 					"value-names": []interface{}{".*out-unicast-packets"},
+				},
+			},
+			"proc-keep-value-name": {
+				"event-keep": map[string]interface{}{
+					"value-names": []interface{}{".*in-octets"},
 				},
 			},
 		},

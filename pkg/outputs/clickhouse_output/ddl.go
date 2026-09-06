@@ -46,11 +46,6 @@ func buildCreateTableSQL(cfg *config) (string, error) {
 	if err := validateIdent(cfg.TableEngine); err != nil {
 		return "", fmt.Errorf("table-engine: %w", err)
 	}
-	for _, col := range cfg.OrderBy {
-		if err := validateIdent(col); err != nil {
-			return "", fmt.Errorf("order-by column %q: %w", col, err)
-		}
-	}
 
 	if err := validateSQLExpr("partition-by", cfg.PartitionBy); err != nil {
 		return "", err
@@ -61,7 +56,6 @@ func buildCreateTableSQL(cfg *config) (string, error) {
 	}
 
 	fullName := quoteIdent(cfg.Database) + "." + quoteIdent(cfg.Table)
-	orderExpr := strings.Join(quoteIdents(cfg.OrderBy), ", ")
 
 	var sb strings.Builder
 	sb.WriteString("CREATE TABLE IF NOT EXISTS ")
@@ -76,7 +70,7 @@ func buildCreateTableSQL(cfg *config) (string, error) {
     name          LowCardinality(String),
 
     path          String CODEC(ZSTD(3)),
-    tags          Map(LowCardinality(String), String),
+    tags          Map(String, String),
 
     value_type    LowCardinality(String),
     value_int     Nullable(Int64)   CODEC(DoubleDelta, ZSTD),
@@ -94,9 +88,7 @@ ENGINE = `)
 	sb.WriteString(cfg.TableEngine)
 	sb.WriteString("\nPARTITION BY ")
 	sb.WriteString(cfg.PartitionBy)
-	sb.WriteString("\nORDER BY (")
-	sb.WriteString(orderExpr)
-	sb.WriteString(")")
+	sb.WriteString("\nORDER BY (`target`, `path`, `timestamp`)")
 	if strings.TrimSpace(ttlExpr) != "" {
 		sb.WriteString("\nTTL ")
 		sb.WriteString(strings.TrimSpace(ttlExpr))
@@ -151,12 +143,4 @@ func expandTelemetryTTL(ttl string) string {
 
 func quoteIdent(s string) string {
 	return "`" + strings.ReplaceAll(s, "`", "``") + "`"
-}
-
-func quoteIdents(cols []string) []string {
-	out := make([]string, len(cols))
-	for i, c := range cols {
-		out[i] = quoteIdent(c)
-	}
-	return out
 }

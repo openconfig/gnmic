@@ -142,7 +142,7 @@ func TestExpandTelemetryTTL_passthrough(t *testing.T) {
 func TestBuildCreateTableSQL_partitionByForbidden(t *testing.T) {
 	_, err := buildCreateTableSQL(&config{
 		Database: "d", Table: "t", TableEngine: "MergeTree",
-		PartitionBy: "bad;expr", OrderBy: []string{"target"},
+		PartitionBy: "bad;expr",
 	})
 	require.Error(t, err)
 }
@@ -150,8 +150,8 @@ func TestBuildCreateTableSQL_partitionByForbidden(t *testing.T) {
 func TestBuildCreateTableSQL_ttlForbidden(t *testing.T) {
 	_, err := buildCreateTableSQL(&config{
 		Database: "d", Table: "t", TableEngine: "MergeTree",
-		PartitionBy: "toYYYYMMDD(timestamp)", OrderBy: []string{"target"},
-		TTL: "bad;\n",
+		PartitionBy: "toYYYYMMDD(timestamp)",
+		TTL:         "bad;\n",
 	})
 	require.Error(t, err)
 }
@@ -345,9 +345,9 @@ func TestEnqueueRows_ctxCancelled(t *testing.T) {
 }
 
 func TestTryOpenConn_hookError(t *testing.T) {
-	openConnHook = func(*config) (driver.Conn, error) { return nil, errors.New("hooked") }
-	defer func() { openConnHook = nil }()
-	_, err := tryOpenConn(&config{Address: "x:1"})
+	o := &clickhouseOutput{}
+	o.openConnHookFn = func(*config) (driver.Conn, error) { return nil, errors.New("hooked") }
+	_, err := o.openConn(&config{Address: "x:1"})
 	require.Error(t, err)
 }
 
@@ -462,10 +462,10 @@ func TestUpdate_noRestartDebugToggle(t *testing.T) {
 	require.NoError(t, o.Close())
 }
 
-func TestValidate_badOrderByIdent(t *testing.T) {
+func TestValidate_badPartitionBy(t *testing.T) {
 	o := &clickhouseOutput{}
 	err := o.Validate(map[string]any{
-		"database": "d", "table": "t", "order-by": []string{"bad-col!"},
+		"database": "d", "table": "t", "partition-by": "bad;drop",
 	})
 	require.Error(t, err)
 }

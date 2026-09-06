@@ -343,7 +343,11 @@ func (e *EventMsg) ToMap() map[string]interface{} {
 		m["values"] = e.Values
 	}
 	if len(e.Deletes) > 0 {
-		m["deletes"] = e.Deletes
+		deletes := make([]interface{}, len(e.Deletes))
+		for index, path := range e.Deletes {
+			deletes[index] = path
+		}
+		m["deletes"] = deletes
 	}
 	return m
 }

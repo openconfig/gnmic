@@ -18,6 +18,7 @@ Global flags to env variable name mapping:
 | --insecure           | GNMIC_INSECURE           |
 | --log                | GNMIC_LOG                |
 | --log-file           | GNMIC_LOG_FILE           |
+| --log-format         | GNMIC_LOG_FORMAT         |
 | --no-prefix          | GNMIC_NO_PREFIX          |
 | --password           | GNMIC_PASSWORD           |
 | --prometheus-address | GNMIC_PROMETHEUS_ADDRESS |
