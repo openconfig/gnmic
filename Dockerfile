@@ -6,7 +6,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-FROM golang:1.26.5 AS builder
+# Use scripts/docker-build.sh (or make build-docker) to supply versions.env.
+ARG GO_VERSION
+ARG ALPINE_VERSION
+FROM golang:${GO_VERSION} AS builder
 
 WORKDIR /build
 
@@ -20,7 +23,7 @@ ADD . /build
 #RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o gnmic .
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o gnmic .
 
-FROM alpine
+FROM alpine:${ALPINE_VERSION}
 LABEL org.opencontainers.image.source=https://github.com/openconfig/gnmic
 COPY --from=builder /build/gnmic /app/
 WORKDIR /app

@@ -12,6 +12,57 @@
 
 Documentation available at [https://gnmic.openconfig.net](https://gnmic.openconfig.net)
 
+## Development tool versions
+
+[`versions.env`](versions.env) is the shared source for Go, uv, Python,
+golangci-lint, GoReleaser, the Alpine base image, and integration-test image tags.
+Edit versions there when upgrading tooling. Any POSIX shell script can load and
+export all versions with:
+
+```sh
+. ./versions.env  # Run from the repository root, or use an absolute path.
+```
+
+Make includes this file, and CI loads its exports into `GITHUB_ENV` after checkout.
+Keep entries in the form `export NAME=value`, without quotes, spaces in values,
+or inline comments, so the file works in all three places.
+
+The tracked [`.python-version`](.python-version) file lets direct `uv` commands
+and other Python tools discover the same Python version. It is generated from
+`PYTHON_VERSION` in `versions.env`: after changing that setting, run
+`make sync-versions` and commit both files. `make check-versions`, the docs wrapper,
+and CI reject an out-of-date or missing generated file.
+
+```sh
+make build         # Build gnmic with the selected Go toolchain
+make test          # Run tests in all Go modules with the same toolchain
+make build-docker  # Build the integration-test image with shared build arguments
+sh scripts/go.sh version
+sh scripts/docker-build.sh -t gnmic:dev
+```
+
+The Go wrapper requires an installed Go 1.21+ and selects `GO_VERSION` through
+`GOTOOLCHAIN`, downloading that toolchain if needed. Docker builds require the
+`GO_VERSION` and `ALPINE_VERSION` build arguments; the wrapper supplies both.
+For a local GoReleaser invocation, source `versions.env` first so its Docker
+builds receive `ALPINE_VERSION` too.
+
+Integration-test scripts use `scripts/containerlab.sh`, which loads versions
+after `sudo` so containerlab can expand image tags in the topology files. For a
+manual lab operation from the repository root, use, for example:
+
+```sh
+sh scripts/containerlab.sh deploy -t tests/clab/test_lab1.clab.yaml
+```
+
+Existing `latest` tags and partial versions are preserved in `versions.env`;
+they still track releases until changed to exact versions. Go module requirements
+in `go.mod` and Python compatibility requirements in `pyproject.toml` remain
+package metadata; resolved library dependencies stay in their native manifests
+and lockfiles. GitHub Action references stay pinned in workflow `uses:` fields,
+which require literal references. Host utilities such as Docker and containerlab
+are prerequisites; these scripts do not install them.
+
 ## Documentation development
 
 The site uses [Zensical](https://zensical.org/) with its modern theme and the
@@ -38,8 +89,9 @@ make update-docs                      # Update the locked documentation dependen
 
 Commit `uv.lock` after reviewing an upgrade with `make build-docs` and the local
 preview. Normal builds use `uv run --locked` so local development and CI use the
-same dependency versions. The Python version is selected by `.python-version`;
-the uv version is pinned in `scripts/docs.sh`.
+same dependency versions. The uv and Python versions come from `versions.env`;
+`scripts/docs.sh` checks `.python-version` is synchronized and passes the Python
+selection to uv through `UV_PYTHON`. Direct `uv` commands read `.python-version`.
 
 The documentation workflow runs `make deploy-docs`, which builds with Zensical
 and publishes `site/` to `gh-pages` using `ghp-import` through the same uv wrapper.

@@ -3,10 +3,10 @@ name: metrics
 topology:
   defaults:
     kind: linux
-    image: gnmic:0.0.0-rc1
+    image: gnmic:${GNMIC_TEST_VERSION}
   kinds:
     srl:
-      image: ghcr.io/nokia/srlinux
+      image: ghcr.io/nokia/srlinux:${SRLINUX_ROLLING_VERSION}
   nodes:
   {{- range $id := seq 1 9}}
     srl{{ $id }}:
@@ -61,14 +61,14 @@ topology:
         GNMIC_OUTPUTS_COLLECTOR_LISTEN: clab-metrics-gnmic3:9806
         
     consul-agent:
-      image: consul:latest
+      image: consul:${CONSUL_VERSION}
       ports:
         - 8500:8500
         - 8600:8600/udp
       cmd: 'agent -server -ui -bind=127.0.0.1 -node=server-1 -bootstrap-expect=1 -client=0.0.0.0'
 
     prometheus:
-      image: prom/prometheus:latest
+      image: prom/prometheus:${PROMETHEUS_VERSION}
       user: 65534:65534
       ports:
         - 9090:9090
@@ -81,7 +81,7 @@ topology:
         --log.level=debug
 
     grafana:
-      image: grafana/grafana:latest
+      image: grafana/grafana:${GRAFANA_VERSION}
       binds:
         - grafana/datasources/datasource.yaml:/etc/grafana/provisioning/datasources/datasource.yaml:ro
         - grafana/dashboards.yaml:/etc/grafana/provisioning/dashboards/dashboards.yaml:ro

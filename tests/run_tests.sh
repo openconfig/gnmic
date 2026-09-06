@@ -5,7 +5,7 @@ set -e
 function testmodule
 {
     cd $1
-    go test -cover ./... -v -count=1
+    sh "$SCRIPTPATH/../scripts/go.sh" test -cover ./... -v -count=1
     cd $SCRIPTPATH/..
 }
 

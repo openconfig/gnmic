@@ -21,17 +21,18 @@ permissions:
   checks: write
   pull-requests: write
 
-env:
-  GOVER: 1.26.5
-
 jobs:
   test:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - name: Load software versions
+        run: sed -n 's/^export //p' versions.env >> "$GITHUB_ENV"
+      - name: Check generated version files
+        run: make check-versions
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: ${{ env.GOVER }}
+          go-version: ${{ env.GO_VERSION }}
       - run: ./tests/run_tests.sh
         env:
           CGO_ENABLED: 0

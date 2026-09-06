@@ -29,6 +29,8 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
+      - name: Load software versions
+        run: sed -n 's/^export //p' versions.env >> "$GITHUB_ENV"
       - name: Configure deployment author
         run: |
           git config user.name 'github-actions[bot]'

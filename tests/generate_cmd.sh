@@ -1,11 +1,14 @@
 #!/bin/bash
 
+project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+. "$project_dir/versions.env"
+
 trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
 
 DIR_NAME="$(pwd)/srl-latest-yang-models"
 
-docker pull ghcr.io/nokia/srlinux
-id=$(docker create ghcr.io/nokia/srlinux)
+docker pull "ghcr.io/nokia/srlinux:$SRLINUX_ROLLING_VERSION"
+id=$(docker create "ghcr.io/nokia/srlinux:$SRLINUX_ROLLING_VERSION")
 mkdir -p $DIR_NAME
 sudo docker cp $id:/opt/srlinux/models/. $DIR_NAME
 sudo docker rm $id

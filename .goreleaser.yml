@@ -34,6 +34,7 @@ dockers:
     use: buildx
     build_flag_templates:
       - "--platform=linux/amd64"
+      - "--build-arg=ALPINE_VERSION={{ .Env.ALPINE_VERSION }}"
       - "--provenance=false"
       - "--sbom=false"
   - goos: linux
@@ -48,6 +49,7 @@ dockers:
     use: buildx
     build_flag_templates:
       - "--platform=linux/arm64"
+      - "--build-arg=ALPINE_VERSION={{ .Env.ALPINE_VERSION }}"
       - "--provenance=false"
       - "--sbom=false"
   - goos: linux
