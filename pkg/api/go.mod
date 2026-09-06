@@ -5,6 +5,7 @@ go 1.24.12
 require (
 	github.com/AlekSi/pointer v1.2.0
 	github.com/google/go-cmp v0.7.0
+	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/jhump/protoreflect v1.17.0
