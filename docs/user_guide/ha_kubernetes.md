@@ -15,13 +15,11 @@ clustering:
   locker:
     type: k8s
     namespace: telemetry
-    lease-duration: 10s
-    renew-period: 5s
-    retry-timer: 2s
 ```
 
 Set `POD_NAME` from the Pod's `metadata.name` using the downward API. The instance
-name must match the Pod name so that discovered peers match their Lease holders.
+name must match the Pod name so that discovered peers match the instance names
+stored with their Leases.
 The API Service name is `<cluster-name>-gnmic-api`; its selector must match the
 collector Pods. Expose a single TCP API port on this Service:
 
@@ -70,7 +68,7 @@ rules:
     verbs: [get, list, watch]
   - apiGroups: [coordination.k8s.io]
     resources: [leases]
-    verbs: [get, list, create, update, delete]
+    verbs: [get, list, watch, create, update, delete]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
