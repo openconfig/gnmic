@@ -91,7 +91,7 @@ clustering:
   # locker is used to configure the KV store used for 
   # service registration, service discovery, leader election and targets locks
   locker:
-    # type of locker, only consul is supported currently
+    # type of locker: consul, k8s, or redis
     type: consul
     # address of the locker server
     address: localhost:8500
