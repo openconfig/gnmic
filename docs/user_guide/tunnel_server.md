@@ -1,3 +1,9 @@
+---
+tags:
+  - Dial-out
+  - Target
+---
+
 # Tunnel Server
 
 ## Introduction

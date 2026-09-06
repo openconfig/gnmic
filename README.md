@@ -48,6 +48,42 @@ manual workflow runs. GitHub Pages continues to serve the root of `gh-pages`.
 `make deploy-docs` also works locally with repository push access and a configured
 Git author; it force-pushes the generated site to `origin/gh-pages`.
 
+### Search tags
+
+Pages use Zensical's native [search tags](https://zensical.org/docs/setup/tags/),
+following [containerlab's approach](https://github.com/srl-labs/containerlab/blob/main/mkdocs.yml).
+Tag filters connect related guides and examples: search for `Prometheus`, then
+select `Output` for configuration reference or `Deployment` for runnable examples.
+Search results also highlight matching terms when you open a page.
+
+When adding a page, include YAML front matter with a category and the relevant
+topics or integrations, for example:
+
+```yaml
+---
+tags:
+  - Output
+  - Prometheus
+  - Remote write
+---
+```
+
+Reuse the spelling and capitalization listed in `extra.tags` in `mkdocs.yml`.
+Use `Command` for CLI reference, `Input` or `Output` for integration reference,
+`Event processor` for processors, and `Deployment` for deployment examples.
+Examples also carry their platform (`Containerlab`, `Docker Compose`, or
+`Kubernetes`) and any applicable `Clustering` or `Pipeline` tags. Add integration
+tags to both their reference pages and the examples that use them. Keep tags
+focused on the page's subject; mentions of a feature do not need their own tag.
+If a new topic needs a tag, register it in `extra.tags` and reuse an appropriate
+icon identifier from `theme.icon.tag`.
+
+Tags are indexed automatically, including on pages with `hide: [tags]`. No
+additional plugin is needed. The unfinished blog is excluded with
+`search: {exclude: true}`; remove that front matter when it has useful content.
+After editing tags, run `make build-docs` and check the search filters in the
+local preview.
+
 ## Features
 
 * **Full support for gNMI RPCs**  

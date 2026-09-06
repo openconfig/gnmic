@@ -1,3 +1,9 @@
+---
+tags:
+  - Command
+  - YANG
+---
+
 Starting with `gnmic v0.4.0` release the users can enjoy the interactive prompt mode which can be enabled with the [`prompt`](../cmd/prompt.md) command.
 
 <script id="asciicast-QaJRqrLSOGvgcAavybsMRzD7c" data-autoplay="true" data-loop="true" src="https://asciinema.org/a/QaJRqrLSOGvgcAavybsMRzD7c.js" async></script>

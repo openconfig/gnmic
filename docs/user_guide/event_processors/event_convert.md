@@ -1,3 +1,8 @@
+---
+tags:
+  - Event processor
+---
+
 The `event-convert` processor converts the values matching one of the regular expressions to a specific type: `uint`, `int`, `string`, `float` or `bool`
 
 ### Examples

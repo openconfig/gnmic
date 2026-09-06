@@ -1,3 +1,8 @@
+---
+tags:
+  - Go API
+---
+
 
 The below snippet shows how to create a target, send a Capabilities Request and print the response.
 

@@ -1,3 +1,8 @@
+---
+tags:
+  - Configuration
+---
+
 `gnmic` can be configured using environment variables, it will read the environment variables starting with `GNMIC_`.
 
 The Env variable names are inline with the flag names as well as the configuration hierarchy.

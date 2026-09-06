@@ -1,3 +1,8 @@
+---
+tags:
+  - Go API
+---
+
 `gnmic` (`github.com/openconfig/gnmic/pkg/api`) can be imported as a dependency in your Golang programs.
 
 It acts as a wrapper around the `openconfig/gnmi` package providing a user friendly API to create a target and easily craft gNMI requests.

@@ -4,6 +4,8 @@ template: home.html
 hide:
   - navigation
   - toc
+tags:
+  - Getting started
 ---
 
 <div class="gnmic-home" markdown>

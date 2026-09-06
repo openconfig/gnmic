@@ -1,3 +1,9 @@
+---
+tags:
+  - Input
+  - NATS
+---
+
 When using NATS as input, `gnmic` consumes data from a specific NATS subject in `event` or `proto` format.
 
 Multiple consumers can be created per `gnmic` instance (`num-workers`).

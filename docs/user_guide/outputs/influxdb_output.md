@@ -1,3 +1,9 @@
+---
+tags:
+  - Output
+  - InfluxDB
+---
+
 `gnmic` supports exporting subscription updates to [influxDB](https://www.influxdata.com/products/influxdb-overview/) time series database
 
 ## Configuration

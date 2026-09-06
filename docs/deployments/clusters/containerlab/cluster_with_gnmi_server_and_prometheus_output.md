@@ -1,3 +1,12 @@
+---
+tags:
+  - Deployment
+  - Clustering
+  - Containerlab
+  - Prometheus
+  - gNMI server
+---
+
 The purpose of this deployment is to achieve __redundancy__, __high-availability__ and __data aggregation__ via clustering.
 
 This deployment example includes:

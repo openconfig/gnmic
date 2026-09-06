@@ -1,3 +1,9 @@
+---
+tags:
+  - REST API
+  - Clustering
+---
+
 # Cluster
 
 ## /api/v1/cluster

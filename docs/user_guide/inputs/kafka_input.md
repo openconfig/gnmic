@@ -1,3 +1,9 @@
+---
+tags:
+  - Input
+  - Kafka
+---
+
 When using Kafka as input, `gnmic` consumes data from a specific Kafka topic in `event` or `proto` format.
 
 Multiple consumers can be created per `gnmic` instance (`num-workers`).

@@ -1,3 +1,12 @@
+---
+tags:
+  - Deployment
+  - Pipeline
+  - Docker Compose
+  - NATS
+  - InfluxDB
+---
+
 The purpose of this deployment is to create data pipeline using `NATS` and `InfluxDB`
 
 The example includes 2 `gnmic` instances.

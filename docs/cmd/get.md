@@ -1,3 +1,9 @@
+---
+tags:
+  - Command
+  - Getting started
+---
+
 ### Description
 
 The `get` command represents the gNMI [Get RPC](https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto#L57).

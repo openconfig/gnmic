@@ -1,3 +1,10 @@
+---
+tags:
+  - Output
+  - NATS
+  - JetStream
+---
+
 `gnmic` supports exporting subscription updates [NATS Jetstream](https://docs.nats.io/nats-concepts/jetstream) servers.
 
 A [Jetstream](https://docs.nats.io/nats-concepts/jetstream) output can be defined using the below format in `gnmic` config file under `outputs` section:

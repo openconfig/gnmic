@@ -1,3 +1,10 @@
+---
+tags:
+  - Output
+  - NATS
+  - STAN
+---
+
 `gnmic` supports exporting subscription updates to multiple NATS Streaming (STAN) servers/clusters simultaneously
 
 A STAN output can be defined using the below format in `gnmic` config file under `outputs` section:

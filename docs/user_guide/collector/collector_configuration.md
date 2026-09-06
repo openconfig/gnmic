@@ -1,3 +1,9 @@
+---
+tags:
+  - Collector
+  - Configuration
+---
+
 # Collector Configuration
 
 This page describes the configuration options specific to the collector mode. For general configuration options (targets, subscriptions, outputs, inputs, processors), refer to their respective documentation pages.

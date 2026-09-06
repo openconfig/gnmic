@@ -1,3 +1,9 @@
+---
+tags:
+  - Subscription
+  - Configuration
+---
+
 
 Defining subscriptions with [`subscribe`](../cmd/subscribe.md) command's CLI flags is a quick&easy way to work with gNMI subscriptions. 
 

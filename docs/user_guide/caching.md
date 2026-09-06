@@ -1,3 +1,8 @@
+---
+tags:
+  - Caching
+---
+
 
 `Caching` refers to the process of storing the collected gNMI updates before sending them out to the intended output(s).
 

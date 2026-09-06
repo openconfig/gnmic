@@ -1,3 +1,13 @@
+---
+tags:
+  - Deployment
+  - Containerlab
+  - Prometheus
+  - NATS
+  - InfluxDB
+  - Kafka
+---
+
 The purpose of this deployment is to collect gNMI data and write it to multiple outputs.
 
 This deployment example includes:

@@ -1,3 +1,10 @@
+---
+tags:
+  - Deployment
+  - Docker Compose
+  - Prometheus
+---
+
 The purpose of this deployment is to collect gNMI data and make it available for scraping by a `Prometheus` client.
 
 This deployment example includes a single `gnmic` instance and a single [Prometheus output](../../../user_guide/outputs/prometheus_output.md)

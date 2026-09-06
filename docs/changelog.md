@@ -1,3 +1,8 @@
+---
+tags:
+  - Release notes
+---
+
 ## Changelog
 
 ### v0.47.0 - August 8th 2026

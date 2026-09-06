@@ -1,3 +1,8 @@
+---
+tags:
+  - Output
+---
+
 `gnmic` supports exporting subscription updates to a TCP server
 
 A TCP output can be defined using the below format in `gnmic` config file under `outputs` section:

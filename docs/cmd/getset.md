@@ -1,3 +1,9 @@
+---
+tags:
+  - Command
+  - Configuration
+---
+
 ### Description
 
 The `getset` command is a combination of the gNMI [Get RPC](https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto#L57) and the gNMI [Set RPC](https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto#L62).

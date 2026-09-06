@@ -1,3 +1,8 @@
+---
+tags:
+  - Event processor
+---
+
 The `event-strings` processor exposes a few of Golang strings transformation functions, there functions can be applied to tags, tag names, values or value names. 
 
 Supported functions:

@@ -212,6 +212,7 @@ theme:
 
   features:
     - content.code.copy
+    - search.highlight
     - navigation.tabs
     #- navigation.expand
     - navigation.top
@@ -249,18 +250,81 @@ theme:
     text: Manrope
     code: Fira Mono
   favicon: images/pulse.svg
+  icon:
+    tag:
+      default: material/tag-outline
+      getting-started: material/rocket-launch-outline
+      command: material/console-line
+      configuration: material/cog-outline
+      target: material/router-network
+      subscription: material/access-point
+      input: material/import
+      output: material/export
+      processor: material/filter-outline
+      deployment: material/flask-outline
+      cluster: material/server-network
+      pipeline: material/transit-connection-variant
+      api: material/code-braces
+      security: material/shield-lock-outline
+      monitoring: material/chart-line
+      messaging: material/message-processing-outline
+      database: material/database-outline
+      container: material/docker
+      kubernetes: material/kubernetes
+      release: material/history
 
 extra_css:
   - stylesheets/header.css
 
 # Plugins
 plugins:
+  # Use Zensical's default tokenizer, which also splits gNMI paths and CLI flags.
   - search
   - minify:
       minify_html: true
 
 # Customization
 extra:
+  # Reuse these names in page front matter to keep search filters consistent.
+  tags:
+    Getting started: getting-started
+    Installation: getting-started
+    Command: command
+    Configuration: configuration
+    Target: target
+    Target discovery: target
+    Subscription: subscription
+    Input: input
+    Output: output
+    Event processor: processor
+    Actions: processor
+    Deployment: deployment
+    Clustering: cluster
+    Collector: cluster
+    Pipeline: pipeline
+    Go API: api
+    REST API: api
+    YANG: api
+    gNMI server: target
+    Dial-out: target
+    Security: security
+    Caching: database
+    Prometheus: monitoring
+    Remote write: monitoring
+    OpenTelemetry: monitoring
+    SNMP: monitoring
+    NATS: messaging
+    JetStream: messaging
+    STAN: messaging
+    Kafka: messaging
+    InfluxDB: database
+    ClickHouse: database
+    Containerlab: container
+    Docker: container
+    Docker Compose: container
+    Kubernetes: kubernetes
+    Consul: cluster
+    Release notes: release
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/karimra

@@ -1,3 +1,8 @@
+---
+tags:
+  - Event processor
+---
+
 The `event-combine` processor combines multiple processors together. 
 This allows to declare processors once and reuse them to build more complex processors.
 

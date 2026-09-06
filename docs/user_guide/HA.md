@@ -1,3 +1,9 @@
+---
+tags:
+  - Clustering
+  - Consul
+---
+
 
 Multiple instances of`gnmic` can be run in clustered mode in order to load share the targets connections and protect against failures.
 

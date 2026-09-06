@@ -1,3 +1,9 @@
+---
+tags:
+  - Command
+  - YANG
+---
+
 ### Description
 
 With `path` command it is possible to generate and search through the XPATH style paths extracted from a YANG file.

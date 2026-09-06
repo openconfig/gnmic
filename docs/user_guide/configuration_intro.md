@@ -1,3 +1,9 @@
+---
+tags:
+  - Configuration
+  - Getting started
+---
+
 `gnmic` reads configuration from three different sources,
 [Global and local flags](configuration_flags.md), [environment variables](configuration_env.md) and [local system file](configuration_file.md).
 

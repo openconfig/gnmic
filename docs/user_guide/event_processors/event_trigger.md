@@ -1,3 +1,9 @@
+---
+tags:
+  - Event processor
+  - Actions
+---
+
 
 The `event-trigger` processor takes event messages as input and triggers a list of actions (sequentially) if a configured condition evaluates to `true`.
 

@@ -1,3 +1,10 @@
+---
+tags:
+  - Deployment
+  - Containerlab
+  - Prometheus
+---
+
 The purpose of this deployment is to collect gNMI data and make it available for scraping by a `Prometheus` client.
 
 This deployment example includes a single `gnmic` instance, a [Prometheus Server](https://prometheus.io/), a [Consul agent](https://www.consul.io/docs/agent) used by Prometheus to discover gNMIc's [Prometheus output](../../../user_guide/outputs/prometheus_output.md) and a [Grafana](https://grafana.com/docs/) server.

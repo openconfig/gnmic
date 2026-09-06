@@ -1,3 +1,9 @@
+---
+tags:
+  - Output
+  - ClickHouse
+---
+
 `gnmic` can export subscription updates to [ClickHouse](https://clickhouse.com/) using the native protocol (`clickhouse-go`). Rows are derived from the same [event](../event_processors/intro.md#the-event-format) pipeline as other database outputs: each path/value (or delete) becomes one row in a typed telemetry table.
 
 ## Configuration

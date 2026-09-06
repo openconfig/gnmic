@@ -1,3 +1,8 @@
+---
+tags:
+  - Event processor
+---
+
 The `event-add-tag` processor adds a set of tags to an event message if one of the configured regular expressions in the values, value names, tags or tag names sections matches.
 
 It is possible to overwrite a tag if it's name already exists.
