@@ -207,6 +207,8 @@ edit_uri: ""
 theme:
   name: material
   variant: modern
+  custom_dir: overrides
+  logo: images/gnmic-wordmark.svg
 
   features:
     - content.code.copy
@@ -246,9 +248,10 @@ theme:
   font:
     text: Manrope
     code: Fira Mono
-  icon:
-    logo: octicons/pulse-24
   favicon: images/pulse.svg
+
+extra_css:
+  - stylesheets/header.css
 
 # Plugins
 plugins:

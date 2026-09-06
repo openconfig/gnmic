@@ -1,0 +1,24 @@
+/* Show the wordmark in place of the site title, including on small screens. */
+.md-header__button.md-logo {
+    display: block;
+}
+
+.md-header__topic:first-child {
+    display: none;
+}
+
+/* Override the theme's explicit display rule for header and drawer logos. */
+[data-md-color-scheme="default"] :is(.md-header, .md-nav) .md-logo img[src$="#only-dark"],
+[data-md-color-scheme="slate"] :is(.md-header, .md-nav) .md-logo img[src$="#only-light"] {
+    display: none;
+}
+
+/* Keep the mobile menu before the homepage link. */
+.md-header__button[for="__drawer"] {
+    order: -1;
+}
+
+.md-nav .md-nav__title[for="__drawer"] .md-logo {
+    width: 5rem;
+    height: 1.2rem;
+}
