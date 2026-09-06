@@ -30,6 +30,10 @@ import (
 	"google.golang.org/grpc"
 )
 
+const (
+	subscriptionReaderStopTimeout = 5 * time.Second
+)
+
 type ManagedTarget struct {
 	sync.RWMutex
 	Name string
@@ -43,10 +47,14 @@ type ManagedTarget struct {
 
 	mu                   *sync.Mutex
 	readersCfn           map[string]context.CancelFunc
+	readersDone          map[string]chan struct{}
 	readerWG             sync.WaitGroup
 	lastError            string // last error message, protected by mu
 	outputs              map[string]struct{}
 	appliedSubscriptions []string
+	// Immutable event-tags snapshot. Replaced (never mutated) under mt.Lock
+	// when the target is created, reconnected, or tags are updated in place.
+	eventTags map[string]string
 }
 
 func (mt *ManagedTarget) setLastError(msg string) {
@@ -77,12 +85,25 @@ func newManagedTarget(name string, cfg *types.TargetConfig, tunServer *tunnel.Se
 		outputs:              make(map[string]struct{}, len(cfg.Outputs)),
 		mu:                   new(sync.Mutex),
 		readersCfn:           make(map[string]context.CancelFunc),
+		readersDone:          make(map[string]chan struct{}),
 		appliedSubscriptions: make([]string, 0, len(cfg.Subscriptions)),
 	}
 	for _, output := range cfg.Outputs {
 		mt.outputs[output] = struct{}{}
 	}
+	mt.setEventTags(cfg.EventTags)
 	return mt
+}
+
+// setEventTags clones tags once and installs the snapshot on both the live
+// config and the reader-facing field. Callers must hold mt.Lock, except
+// newManagedTarget which is not yet published.
+func (mt *ManagedTarget) setEventTags(tags map[string]string) {
+	cloned := maps.Clone(tags)
+	if mt.T != nil && mt.T.Config != nil {
+		mt.T.Config.EventTags = cloned
+	}
+	mt.eventTags = cloned
 }
 
 // TargetsManager owns target lifecycle (connect/stop) and per-target subscriptions hookups (started by SubscriptionsManager).
@@ -375,16 +396,9 @@ func (tm *TargetsManager) apply(name string, cfg *types.TargetConfig) {
 					}
 				}
 				for _, sub := range removed {
-					mt.mu.Lock()
-					cfn, exists := mt.readersCfn[sub]
-					if exists {
-						cfn()
-						delete(mt.readersCfn, sub)
-					}
-					mt.mu.Unlock()
 					tm.logger.Info("stopping target subscription", "name", sub, "target", name)
-					mt.T.StopSubscription(sub)
-					delete(mt.T.Subscriptions, sub)
+					tm.stopTargetSubscription(mt, sub)
+					mt.T.DeleteSubscriptionConfig(sub)
 					mt.appliedSubscriptions = slices.DeleteFunc(mt.appliedSubscriptions, func(s string) bool {
 						return s == sub
 					})
@@ -416,6 +430,13 @@ func (tm *TargetsManager) apply(name string, cfg *types.TargetConfig) {
 		} else {
 			tm.logger.Info("outputs unchanged", "name", name, "old", mt.T.Config.Outputs, "new", cfg.Outputs)
 		}
+		// event-tags are not part of the connection spec: replace the
+		// snapshot in place so live readers pick up the new tags without a
+		// reconnect or a per-response clone.
+		if !maps.Equal(mt.eventTags, cfg.EventTags) {
+			tm.logger.Info("event-tags changed", "name", name)
+			mt.setEventTags(cfg.EventTags)
+		}
 		return
 	}
 
@@ -427,6 +448,7 @@ func (tm *TargetsManager) apply(name string, cfg *types.TargetConfig) {
 		tm.setTargetState(name, collstore.StateFailed)
 	}
 	mt.T.Config = cfg
+	mt.setEventTags(cfg.EventTags)
 	err = tm.start(mt)
 	if err != nil {
 		tm.logger.Error("failed to start target", "name", name, "error", err)
@@ -636,54 +658,85 @@ func (tm *TargetsManager) applySubscription(name string, cfg types.SubscriptionC
 	tm.mu.Lock()
 	tm.subscriptions[name] = &cfg
 	tm.logger.Info("subscriptions", "subscriptions", tm.subscriptions)
+	targets := make([]*ManagedTarget, 0, len(tm.targets))
 	for _, mt := range tm.targets {
 		tm.logger.Info("target", "target", mt.Name, "subscriptions", mt.T.Config.Subscriptions)
-		if len(mt.T.Config.Subscriptions) > 0 {
-			if !slices.Contains(mt.T.Config.Subscriptions, name) {
-				tm.logger.Info("subscription not in target's explicit list", "subscription", name, "target", mt.Name)
-				continue
-			}
+		if len(mt.T.Config.Subscriptions) > 0 && !slices.Contains(mt.T.Config.Subscriptions, name) {
+			tm.logger.Info("subscription not in target's explicit list", "subscription", name, "target", mt.Name)
+			continue
+		}
+		targets = append(targets, mt)
+	}
+	tm.mu.Unlock()
+
+	for _, mt := range targets {
+		// Hold a read lock so remove() cannot nil mt.T until this restart
+		// finishes. The old reader may call setTargetState (also RLock) while
+		// we wait for it; a write lock here would deadlock.
+		tm.mu.RLock()
+		if tm.targets[mt.Name] != mt || mt.T == nil {
+			tm.mu.RUnlock()
+			continue
 		}
 		tm.logger.Info("(re)starting target subscription", "name", name, "target", mt.Name)
-		// Stop and WAIT for the old subscription to fully terminate
-		mt.mu.Lock()
-		cfn, exists := mt.readersCfn[name]
-		if exists {
-			tm.logger.Info("canceling subscription context", "name", name, "target", mt.Name)
-			cfn() // Cancel the context
-			tm.logger.Info("deleted subscription context", "name", name, "target", mt.Name)
-			delete(mt.readersCfn, name) // Remove from map
-		}
-		mt.mu.Unlock()
-		tm.logger.Info("stopping target subscription", "name", name, "target", mt.Name)
-		mt.T.StopSubscription(name)
-		tm.logger.Info("stopped target subscription", "name", name, "target", mt.Name)
-		// Wait for the reader goroutine to finish
-		mt.T.Subscriptions[name] = &cfg
+		tm.stopTargetSubscription(mt, name)
+		mt.T.SetSubscriptionConfig(&cfg)
 		err := tm.startTargetSubscription(mt, &cfg)
+		tm.mu.RUnlock()
 		if err != nil {
 			tm.logger.Error("failed to start target subscription", "subscription", name, "target", mt.Name, "error", err)
 		}
 	}
-	tm.mu.Unlock()
+}
+
+// stopTargetSubscription cancels the per-subscription reader and waits for it
+// to exit so a replacement Subscribe RPC cannot start while the old
+// SubscribeChan goroutine is still unwinding.
+func (tm *TargetsManager) stopTargetSubscription(mt *ManagedTarget, name string) {
+	mt.mu.Lock()
+	cfn := mt.readersCfn[name]
+	done := mt.readersDone[name]
+	delete(mt.readersCfn, name)
+	delete(mt.readersDone, name)
+	mt.mu.Unlock()
+
+	if cfn != nil {
+		tm.logger.Info("canceling subscription context", "name", name, "target", mt.Name)
+		cfn()
+	}
+	if mt.T != nil {
+		mt.T.StopSubscription(name)
+	}
+	if done == nil {
+		return
+	}
+	timer := time.NewTimer(subscriptionReaderStopTimeout)
+	defer timer.Stop()
+	select {
+	case <-done:
+		tm.logger.Info("stopped target subscription", "name", name, "target", mt.Name)
+	case <-timer.C:
+		tm.logger.Warn("timed out waiting for subscription reader to exit", "subscription", name, "target", mt.Name)
+	}
 }
 
 // remove subscription from targets that already reference it and have it running
 func (tm *TargetsManager) removeSubscription(name string) {
 	tm.mu.Lock()
 	delete(tm.subscriptions, name)
+	targets := make([]*ManagedTarget, 0, len(tm.targets))
 	for _, mt := range tm.targets {
-		mt.mu.Lock()
-		cfn, exists := mt.readersCfn[name]
-		if exists {
-			cfn()
-			delete(mt.readersCfn, name)
-		}
-		mt.mu.Unlock()
-		mt.T.StopSubscription(name)
-		delete(mt.T.Subscriptions, name)
+		targets = append(targets, mt)
 	}
 	tm.mu.Unlock()
+	for _, mt := range targets {
+		tm.mu.RLock()
+		tm.stopTargetSubscription(mt, name)
+		if mt.T != nil {
+			mt.T.DeleteSubscriptionConfig(name)
+		}
+		tm.mu.RUnlock()
+	}
 }
 
 func (tm *TargetsManager) reconcileAssignment(name string) {
@@ -731,6 +784,7 @@ func (tm *TargetsManager) reconcileAssignment(name string) {
 		tm.setTargetState(name, collstore.StateFailed)
 	}
 	mt.T.Config = cfg
+	mt.setEventTags(cfg.EventTags)
 	err = tm.start(mt)
 	if err != nil {
 		tm.logger.Error("failed to start target", "name", name, "error", err)
@@ -764,11 +818,12 @@ func (tm *TargetsManager) ForEach(fn func(*ManagedTarget)) {
 
 func (tm *TargetsManager) SetIntendedState(name string, state string) bool {
 	tm.mu.Lock()
-	defer tm.mu.Unlock()
 	mt := tm.targets[name]
+	tm.mu.Unlock()
 	if mt == nil {
 		return false
 	}
+
 	mt.Lock()
 	defer mt.Unlock()
 
@@ -818,11 +873,13 @@ func (tm *TargetsManager) startTargetSubscription(mt *ManagedTarget, cfg *types.
 	}
 	tm.logger.Info("starting target Subscribe RPC", "name", cfg.Name, "target", mt.Name)
 
-	mt.T.Subscriptions[cfg.Name] = cfg
+	mt.T.SetSubscriptionConfig(cfg)
 	mt.readerWG.Add(1)
 	sctx, cfn := context.WithCancel(tm.ctx)
+	done := make(chan struct{})
 	mt.mu.Lock()
 	mt.readersCfn[cfg.Name] = cfn
+	mt.readersDone[cfg.Name] = done
 	mt.mu.Unlock()
 
 	subscriptionOutputs := make(map[string]struct{}, len(cfg.Outputs))
@@ -832,6 +889,7 @@ func (tm *TargetsManager) startTargetSubscription(mt *ManagedTarget, cfg *types.
 	respCh, errCh := mt.T.SubscribeChan(sctx, subreq, cfg.Name)
 	go func() {
 		defer mt.readerWG.Done()
+		defer close(done)
 		// When the goroutine exits (subscription stopped/cancelled), refresh
 		// the target state so the subscriptions map is up-to-date.
 		defer func() {
@@ -841,13 +899,18 @@ func (tm *TargetsManager) startTargetSubscription(mt *ManagedTarget, cfg *types.
 			}
 		}()
 		initialResponse := true
-		for {
+		// Stay in the loop until SubscribeChan closes both channels. Returning
+		// on sctx.Done() alone would let a replacement Subscribe RPC start
+		// while attemptSubscription's defer StopSubscription is still running.
+		for respCh != nil || errCh != nil {
 			select {
-			case <-sctx.Done():
-				return
 			case resp, ok := <-respCh:
 				if !ok {
-					return
+					respCh = nil
+					continue
+				}
+				if sctx.Err() != nil {
+					continue
 				}
 				// The first response confirms the subscription is connected.
 				// Refresh target state so the subscriptions map shows "running".
@@ -871,13 +934,13 @@ func (tm *TargetsManager) startTargetSubscription(mt *ManagedTarget, cfg *types.
 					}
 					return cp
 				}()
+				mt.RLock()
+				eventTags := mt.eventTags
+				mt.RUnlock()
 				select {
 				case tm.out <- &pipeline.Msg{
-					Msg: resp.Response,
-					Meta: outputs.Meta{
-						"source":            mt.Name,
-						"subscription-name": resp.SubscriptionName,
-					},
+					Msg:     resp.Response,
+					Meta:    pipelineMeta(mt.Name, resp.SubscriptionName, eventTags),
 					Outputs: outs,
 				}:
 				default:
@@ -887,7 +950,11 @@ func (tm *TargetsManager) startTargetSubscription(mt *ManagedTarget, cfg *types.
 				}
 			case err, ok := <-errCh:
 				if !ok {
-					return
+					errCh = nil
+					continue
+				}
+				if sctx.Err() != nil {
+					continue
 				}
 				// Reset so the next successful response after retry
 				// triggers a state update back to "running".
@@ -903,6 +970,21 @@ func (tm *TargetsManager) startTargetSubscription(mt *ManagedTarget, cfg *types.
 		}
 	}()
 	return nil
+}
+
+// pipelineMeta builds collector pipeline metadata the same way the CLI
+// subscribe path does: source and subscription-name first, then the target's
+// event-tags (which may override those keys). formatters.addMetaTags copies
+// every meta entry onto the event as a tag.
+func pipelineMeta(targetName, subscriptionName string, eventTags map[string]string) outputs.Meta {
+	meta := outputs.Meta{
+		"source":            targetName,
+		"subscription-name": subscriptionName,
+	}
+	for k, v := range eventTags {
+		meta[k] = v
+	}
+	return meta
 }
 
 func shouldReconnect(old, new *types.TargetConfig) bool {

@@ -122,6 +122,9 @@ type App struct {
 	// processors plugin manager
 	pm *plugin_manager.PluginManager
 
+	shutdownOnce sync.Once
+	shutdownErr  error
+
 	// pprof
 	pprof *pprofServer
 }
@@ -203,6 +206,7 @@ func (a *App) InitGlobalFlags() {
 	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.Format, "format", "", "", fmt.Sprintf("output format, one of: %q", formatNames))
 	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.LogFile, "log-file", "", "", "log file path")
 	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.Log, "log", "", false, "write log messages to stderr")
+	a.RootCmd.PersistentFlags().StringVarP(&a.Config.GlobalFlags.LogFormat, "log-format", "", "text", "log format, one of: text, json")
 	a.RootCmd.PersistentFlags().IntVarP(&a.Config.GlobalFlags.LogMaxSize, "log-max-size", "", 0, "enable log rotation when > 0; maximum log file size in MiB before rotation")
 	a.RootCmd.PersistentFlags().IntVarP(&a.Config.GlobalFlags.LogMaxBackups, "log-max-backups", "", 0, "maximum number of old rotated log files to retain (0 means retain all)")
 	a.RootCmd.PersistentFlags().BoolVarP(&a.Config.GlobalFlags.LogCompress, "log-compress", "", false, "compress rotated log files with gzip")
@@ -439,7 +443,7 @@ func (a *App) loadTargets(e fsnotify.Event) {
 			return
 		}
 		if !a.inCluster() {
-			currentTargets := a.Targets
+			currentTargets := a.targetsSnapshot()
 			// delete targets
 			for n := range currentTargets {
 				if _, ok := newTargets[n]; !ok {

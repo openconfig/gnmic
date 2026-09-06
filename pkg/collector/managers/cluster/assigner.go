@@ -8,7 +8,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"time"
 
 	apiconst "github.com/openconfig/gnmic/pkg/collector/api/const"
 	collstore "github.com/openconfig/gnmic/pkg/collector/store"
@@ -42,12 +41,19 @@ type restAssigner struct {
 }
 
 func NewAssigner(store *collstore.Store) Assigner {
+	return newAssigner(store, nil)
+}
+
+func newAssigner(store *collstore.Store, client *http.Client) Assigner {
+	if client == nil {
+		client = &http.Client{
+			Timeout: apiClientTimeout,
+		}
+	}
 	return &restAssigner{
 		store:  store,
 		logger: slog.With("component", "assignment-pusher"),
-		client: &http.Client{
-			Timeout: 10 * time.Second,
-		},
+		client: client,
 	}
 }
 

@@ -41,6 +41,17 @@ func CreateSubscribeRequest(cfg *types.SubscriptionConfig, tc *types.TargetConfi
 }
 
 func validateAndSetDefaults(sc *types.SubscriptionConfig) error {
+	if err := ValidateSubscriptionConfig(sc); err != nil {
+		return err
+	}
+	setSubscriptionDefaults(sc)
+	return nil
+}
+
+// ValidateSubscriptionConfig reports semantic errors in a subscription config
+// without modifying it. An empty mode, stream-mode or encoding is accepted:
+// those take their default value when the subscribe request is built.
+func ValidateSubscriptionConfig(sc *types.SubscriptionConfig) error {
 	numPaths := len(sc.Paths)
 	numStreamSubs := len(sc.StreamSubscriptions)
 	if sc.Prefix == "" && numPaths == 0 && numStreamSubs == 0 {
@@ -52,14 +63,15 @@ func validateAndSetDefaults(sc *types.SubscriptionConfig) error {
 	}
 
 	// validate subscription Mode
-	switch strings.ToUpper(sc.Mode) {
+	mode := strings.ToUpper(sc.Mode)
+	switch mode {
 	case "":
-		sc.Mode = subscriptionDefaultMode
-	case "ONCE", "POLL":
+		mode = subscriptionDefaultMode
+	case SubscriptionMode_ONCE, SubscriptionMode_POLL:
 		if numStreamSubs > 0 {
 			return fmt.Errorf("%w: subscription %q: cannot set 'stream-subscriptions' and 'mode'", ErrConfig, sc.Name)
 		}
-	case "STREAM":
+	case SubscriptionMode_STREAM:
 	default:
 		return fmt.Errorf("%w: subscription %s: unknown subscription mode %q", ErrConfig, sc.Name, sc.Mode)
 	}
@@ -67,7 +79,6 @@ func validateAndSetDefaults(sc *types.SubscriptionConfig) error {
 	if sc.Encoding != nil {
 		switch strings.ToUpper(strings.ReplaceAll(*sc.Encoding, "-", "_")) {
 		case "":
-			sc.Encoding = pointer.ToString(subscriptionDefaultEncoding)
 		case "JSON":
 		case "BYTES":
 		case "PROTO":
@@ -83,65 +94,90 @@ func validateAndSetDefaults(sc *types.SubscriptionConfig) error {
 	}
 
 	// validate subscription stream mode
-	if strings.ToUpper(sc.Mode) == "STREAM" {
-		if len(sc.StreamSubscriptions) == 0 {
-			switch strings.ToUpper(strings.ReplaceAll(sc.StreamMode, "-", "_")) {
-			case "":
-				sc.StreamMode = subscriptionDefaultStreamMode
-			case "TARGET_DEFINED":
-			case "SAMPLE":
-			case "ON_CHANGE":
-			default:
-				return fmt.Errorf("%w: subscription %s: unknown stream-mode type %q", ErrConfig, sc.Name, sc.StreamMode)
-			}
-			return nil
+	if mode != SubscriptionMode_STREAM {
+		return nil
+	}
+	if numStreamSubs == 0 {
+		if !knownStreamMode(sc.StreamMode) {
+			return fmt.Errorf("%w: subscription %s: unknown stream-mode type %q", ErrConfig, sc.Name, sc.StreamMode)
 		}
+		return nil
+	}
 
-		// stream subscriptions
-		for i, scs := range sc.StreamSubscriptions {
-			if scs.Mode != "" {
-				return fmt.Errorf("%w: subscription %s/%d: 'mode' attribute cannot be set", ErrConfig, sc.Name, i)
-			}
-			if scs.Prefix != "" {
-				return fmt.Errorf("%w: subscription %s/%d: 'prefix' attribute cannot be set", ErrConfig, sc.Name, i)
-			}
-			if scs.Target != "" {
-				return fmt.Errorf("%w: subscription %s/%d: 'target' attribute cannot be set", ErrConfig, sc.Name, i)
-			}
-			if scs.SetTarget {
-				return fmt.Errorf("%w: subscription %s/%d: 'set-target' attribute cannot be set", ErrConfig, sc.Name, i)
-			}
-			if scs.Encoding != nil {
-				return fmt.Errorf("%w: subscription %s/%d: 'encoding' attribute cannot be set", ErrConfig, sc.Name, i)
-			}
-			if scs.History != nil {
-				return fmt.Errorf("%w: subscription %s/%d: 'history' attribute cannot be set", ErrConfig, sc.Name, i)
-			}
-			if scs.Models != nil {
-				return fmt.Errorf("%w: subscription %s/%d: 'models' attribute cannot be set", ErrConfig, sc.Name, i)
-			}
-			if scs.UpdatesOnly {
-				return fmt.Errorf("%w: subscription %s/%d: 'updates-only' attribute cannot be set", ErrConfig, sc.Name, i)
-			}
-			if scs.StreamSubscriptions != nil {
-				return fmt.Errorf("%w: subscription %s/%d: 'subscriptions' attribute cannot be set", ErrConfig, sc.Name, i)
-			}
-			if scs.Qos != nil {
-				return fmt.Errorf("%w: subscription %s/%d: 'qos' attribute cannot be set", ErrConfig, sc.Name, i)
-			}
-
-			switch strings.ReplaceAll(strings.ToUpper(scs.StreamMode), "-", "_") {
-			case "":
-				scs.StreamMode = subscriptionDefaultStreamMode
-			case "TARGET_DEFINED":
-			case "SAMPLE":
-			case "ON_CHANGE":
-			default:
-				return fmt.Errorf("%w: subscription %s/%d: unknown subscription stream mode %q", ErrConfig, sc.Name, i, scs.StreamMode)
-			}
+	// stream subscriptions
+	for i, scs := range sc.StreamSubscriptions {
+		if scs.Mode != "" {
+			return fmt.Errorf("%w: subscription %s/%d: 'mode' attribute cannot be set", ErrConfig, sc.Name, i)
+		}
+		if scs.Prefix != "" {
+			return fmt.Errorf("%w: subscription %s/%d: 'prefix' attribute cannot be set", ErrConfig, sc.Name, i)
+		}
+		if scs.Target != "" {
+			return fmt.Errorf("%w: subscription %s/%d: 'target' attribute cannot be set", ErrConfig, sc.Name, i)
+		}
+		if scs.SetTarget {
+			return fmt.Errorf("%w: subscription %s/%d: 'set-target' attribute cannot be set", ErrConfig, sc.Name, i)
+		}
+		if scs.Encoding != nil {
+			return fmt.Errorf("%w: subscription %s/%d: 'encoding' attribute cannot be set", ErrConfig, sc.Name, i)
+		}
+		if scs.History != nil {
+			return fmt.Errorf("%w: subscription %s/%d: 'history' attribute cannot be set", ErrConfig, sc.Name, i)
+		}
+		if scs.Models != nil {
+			return fmt.Errorf("%w: subscription %s/%d: 'models' attribute cannot be set", ErrConfig, sc.Name, i)
+		}
+		if scs.UpdatesOnly {
+			return fmt.Errorf("%w: subscription %s/%d: 'updates-only' attribute cannot be set", ErrConfig, sc.Name, i)
+		}
+		if scs.StreamSubscriptions != nil {
+			return fmt.Errorf("%w: subscription %s/%d: 'subscriptions' attribute cannot be set", ErrConfig, sc.Name, i)
+		}
+		if scs.Qos != nil {
+			return fmt.Errorf("%w: subscription %s/%d: 'qos' attribute cannot be set", ErrConfig, sc.Name, i)
+		}
+		if len(scs.Paths) == 0 {
+			return fmt.Errorf("%w: missing path(s) in subscription %s/%d", ErrConfig, sc.Name, i)
+		}
+		if !knownStreamMode(scs.StreamMode) {
+			return fmt.Errorf("%w: subscription %s/%d: unknown subscription stream mode %q", ErrConfig, sc.Name, i, scs.StreamMode)
 		}
 	}
 	return nil
+}
+
+// knownStreamMode reports whether m is a gNMI stream mode. The empty string is
+// accepted since it selects the default stream mode.
+func knownStreamMode(m string) bool {
+	switch strings.ToUpper(strings.ReplaceAll(m, "-", "_")) {
+	case "", SubscriptionStreamMode_TARGET_DEFINED, SubscriptionStreamMode_SAMPLE, SubscriptionStreamMode_ON_CHANGE:
+		return true
+	default:
+		return false
+	}
+}
+
+func setSubscriptionDefaults(sc *types.SubscriptionConfig) {
+	if sc.Mode == "" {
+		sc.Mode = subscriptionDefaultMode
+	}
+	if sc.Encoding != nil && *sc.Encoding == "" {
+		sc.Encoding = pointer.ToString(subscriptionDefaultEncoding)
+	}
+	if strings.ToUpper(sc.Mode) != SubscriptionMode_STREAM {
+		return
+	}
+	if len(sc.StreamSubscriptions) == 0 {
+		if sc.StreamMode == "" {
+			sc.StreamMode = subscriptionDefaultStreamMode
+		}
+		return
+	}
+	for _, scs := range sc.StreamSubscriptions {
+		if scs.StreamMode == "" {
+			scs.StreamMode = subscriptionDefaultStreamMode
+		}
+	}
 }
 
 func SubscriptionOpts(sc *types.SubscriptionConfig, tc *types.TargetConfig, defaultEncoding string) ([]api.GNMIOption, error) {

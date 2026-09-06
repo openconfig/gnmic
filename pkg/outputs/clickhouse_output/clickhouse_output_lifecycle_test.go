@@ -185,7 +185,7 @@ func TestDialUntilReady_execRetryThenSuccess(t *testing.T) {
 	o.logger = slog.Default()
 	o.cfg.Store(&config{
 		Name: "n", Address: "x:1", Database: "default", Table: "t", TableEngine: "MergeTree",
-		PartitionBy: "toYYYYMMDD(timestamp)", OrderBy: []string{"target"},
+		PartitionBy:      "toYYYYMMDD(timestamp)",
 		RecoveryWaitTime: time.Millisecond, Timeout: 100 * time.Millisecond,
 		CreateTable: true,
 	})
@@ -430,7 +430,7 @@ func TestValidate_errors(t *testing.T) {
 	o := &clickhouseOutput{}
 	require.Error(t, o.Validate(map[string]any{"batch-size": "x"}))
 	require.Error(t, o.Validate(map[string]any{
-		"database": "d", "table": "t", "partition-by": "x;y", "order-by": []string{"target"},
+		"database": "d", "table": "t", "partition-by": "x;y",
 	}))
 }
 
@@ -492,7 +492,6 @@ func TestBuildCreateTableSQL_badDatabase(t *testing.T) {
 		Table:       "t",
 		TableEngine: "MergeTree",
 		PartitionBy: "toYYYYMMDD(timestamp)",
-		OrderBy:     []string{"target"},
 	})
 	require.Error(t, err)
 }
