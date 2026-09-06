@@ -26,16 +26,18 @@ const processorType = "event-keep"
 type keep struct {
 	formatters.BaseProcessor
 
-	Tags       []string `mapstructure:"tags,omitempty" json:"tags,omitempty"`
-	Values     []string `mapstructure:"values,omitempty" json:"values,omitempty"`
-	TagNames   []string `mapstructure:"tag-names,omitempty" json:"tag-names,omitempty"`
-	ValueNames []string `mapstructure:"value-names,omitempty" json:"value-names,omitempty"`
-	Debug      bool     `mapstructure:"debug,omitempty" json:"debug,omitempty"`
+	Tags           []string `mapstructure:"tags,omitempty" json:"tags,omitempty"`
+	Values         []string `mapstructure:"values,omitempty" json:"values,omitempty"`
+	TagNames       []string `mapstructure:"tag-names,omitempty" json:"tag-names,omitempty"`
+	ValueNames     []string `mapstructure:"value-names,omitempty" json:"value-names,omitempty"`
+	ValueNamePaths []string `mapstructure:"value-name-paths,omitempty" json:"value-name-paths,omitempty"`
+	Debug          bool     `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 
-	tags       []*regexp.Regexp
-	values     []*regexp.Regexp
-	tagNames   []*regexp.Regexp
-	valueNames []*regexp.Regexp
+	tags           []*regexp.Regexp
+	values         []*regexp.Regexp
+	tagNames       []*regexp.Regexp
+	valueNames     []*regexp.Regexp
+	valueNamePaths *pathMatcher
 }
 
 func init() {
@@ -69,6 +71,9 @@ func (p *keep) Init(cfg any, opts ...formatters.Option) error {
 	if p.valueNames, err = compilePatterns("value-names", p.ValueNames); err != nil {
 		return err
 	}
+	if p.valueNamePaths, err = compilePathMatcher(p.ValueNamePaths); err != nil {
+		return err
+	}
 
 	if p.Logger.Enabled(context.Background(), slog.LevelDebug) {
 		if b, err := json.Marshal(p); err == nil {
@@ -93,7 +98,7 @@ func compilePatterns(field string, patterns []string) ([]*regexp.Regexp, error) 
 }
 
 func (p *keep) Apply(events ...*formatters.EventMsg) []*formatters.EventMsg {
-	filterValues := len(p.valueNames) > 0 || len(p.values) > 0
+	filterValues := len(p.valueNames) > 0 || p.valueNamePaths != nil || len(p.values) > 0
 	filterTags := len(p.tagNames) > 0 || len(p.tags) > 0
 	if !filterValues && !filterTags {
 		return events
@@ -107,7 +112,7 @@ func (p *keep) Apply(events ...*formatters.EventMsg) []*formatters.EventMsg {
 		removedValues, removedTags := 0, 0
 		if filterValues {
 			for name, value := range event.Values {
-				if matchesAny(name, p.valueNames) || matchesString(value, p.values) {
+				if matchesAny(name, p.valueNames) || p.valueNamePaths.Match(name) || matchesString(value, p.values) {
 					continue
 				}
 				delete(event.Values, name)
