@@ -1,0 +1,549 @@
+/* This stylesheet is loaded only by the homepage template. */
+.md-main__inner {
+  margin-top: 0;
+}
+
+.md-content__inner {
+  margin: 0 1.2rem 2rem;
+  padding-top: 0;
+}
+
+.md-content__inner::before {
+  display: none;
+}
+
+.gnmic-home {
+  --gnmic-accent: #007caa;
+  --gnmic-tint: #f2faff;
+  --gnmic-surface: #fff;
+  --gnmic-border: #dce7ed;
+  --gnmic-muted: #52616e;
+  --gnmic-glow: #00c9ff19;
+  --md-typeset-a-color: var(--gnmic-accent);
+  --gnmic-heading: #17232c;
+}
+
+[data-md-color-scheme="slate"] .gnmic-home {
+  --gnmic-accent: #53d4f6;
+  --gnmic-tint: #101e27;
+  --gnmic-surface: #10151b;
+  --gnmic-border: #263742;
+  --gnmic-muted: #a4b2be;
+  --gnmic-glow: #00c9ff12;
+  --gnmic-heading: #f4f7fb;
+}
+
+.gnmic-home .gnmic-eyebrow {
+  margin: 0 0 .8rem;
+  color: var(--gnmic-accent);
+  font-size: .6rem;
+  font-weight: 700;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+}
+
+.gnmic-hero {
+  position: relative;
+  isolation: isolate;
+  padding: 3.8rem 1rem 3.2rem;
+  text-align: center;
+}
+
+.gnmic-hero::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0 -1.2rem;
+  background: radial-gradient(ellipse at 50% 28%, var(--gnmic-glow), transparent 65%);
+  content: "";
+  pointer-events: none;
+}
+
+.gnmic-hero-logo {
+  margin: 1.4rem auto 1.8rem;
+  max-width: 19.5rem;
+}
+
+.gnmic-hero-logo img {
+  width: 100%;
+  height: auto;
+}
+
+.gnmic-home .gnmic-hero-title {
+  margin: 0 0 1rem;
+  color: var(--gnmic-heading);
+  font-size: clamp(1.8rem, 4.3vw, 2.8rem);
+  font-weight: 750;
+  letter-spacing: -.045em;
+  line-height: 1.15;
+}
+
+.gnmic-hero-title span {
+  color: var(--gnmic-accent);
+}
+
+.gnmic-home .gnmic-hero-lead {
+  max-width: 33rem;
+  margin: 0 auto;
+  color: var(--gnmic-muted);
+  font-size: .95rem;
+  line-height: 1.8;
+}
+
+.gnmic-hero-actions > p,
+.gnmic-hero-meta > p,
+.gnmic-output-links > p,
+.gnmic-community > p:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: .7rem 1.2rem;
+}
+
+.gnmic-hero-actions {
+  margin-top: 1.6rem;
+}
+
+.gnmic-home .md-button {
+  border-radius: .45rem;
+  font-size: .75rem;
+  padding: .7em 1.4em;
+}
+
+.gnmic-home .md-button--primary {
+  border-color: var(--gnmic-accent);
+  background-color: var(--gnmic-accent);
+  color: var(--gnmic-surface);
+}
+
+.gnmic-home .md-button:hover,
+.gnmic-home .md-button:focus-visible {
+  border-color: var(--md-accent-fg-color);
+  background-color: var(--md-accent-fg-color);
+  color: var(--md-accent-bg-color);
+}
+
+.gnmic-hero-meta {
+  margin-top: 1.4rem;
+  font-size: .65rem;
+}
+
+.gnmic-hero-meta a,
+.gnmic-community a {
+  color: var(--gnmic-muted);
+}
+
+.gnmic-home .gnmic-platforms {
+  margin-top: .9rem;
+  color: var(--gnmic-muted);
+  font-size: .6rem;
+}
+
+.gnmic-platforms span {
+  margin: 0 .4rem;
+  color: var(--gnmic-accent);
+}
+
+.gnmic-section {
+  padding: 3rem 0;
+  border-top: 1px solid var(--gnmic-border);
+}
+
+.gnmic-home h2 {
+  margin: 0 0 .8rem;
+  font-size: clamp(1.25rem, 2.8vw, 1.7rem);
+  font-weight: 700;
+  letter-spacing: -.025em;
+  line-height: 1.3;
+}
+
+.gnmic-home .gnmic-section-lead {
+  max-width: 36rem;
+  margin: 0 0 1.8rem;
+  color: var(--gnmic-muted);
+}
+
+.gnmic-home .gnmic-paths {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0;
+}
+
+.md-typeset .gnmic-home .gnmic-paths > ul > li {
+  display: flex;
+  flex-direction: column;
+  padding: 1.3rem;
+  border: 1px solid var(--gnmic-border);
+  border-radius: .6rem;
+  background: var(--gnmic-surface);
+  transition: border-color .2s, transform .2s, box-shadow .2s;
+}
+
+.gnmic-home .gnmic-paths > ul > li:hover {
+  transform: translateY(-3px);
+  border-color: var(--gnmic-accent);
+  box-shadow: 0 .5rem 1.5rem var(--gnmic-glow);
+}
+
+.gnmic-home .gnmic-card-icon {
+  display: block;
+  width: 1.4rem;
+  height: 1.4rem;
+  margin-bottom: .8rem;
+  color: var(--gnmic-accent);
+}
+
+.gnmic-paths hr {
+  border-color: var(--gnmic-border);
+}
+
+.md-typeset .gnmic-home .gnmic-paths > ul > li > p:last-child {
+  margin-top: auto;
+  padding-top: .7rem;
+  font-size: .7rem;
+}
+
+.gnmic-section-heading {
+  text-align: center;
+}
+
+.gnmic-section-heading .gnmic-section-lead {
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.gnmic-pipeline {
+  display: grid;
+  grid-template-columns: 1fr .65fr 1.25fr .65fr 1fr;
+  align-items: center;
+  gap: .7rem;
+  padding: 2rem 1.5rem;
+  border: 1px solid var(--gnmic-border);
+  border-radius: .8rem;
+  background: radial-gradient(ellipse at center, var(--gnmic-glow), transparent 70%), var(--gnmic-tint);
+  text-align: center;
+}
+
+.gnmic-pipeline-stage,
+.gnmic-collector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .9rem;
+  min-width: 0;
+}
+
+.gnmic-stage-label {
+  color: var(--gnmic-accent);
+  font-size: .6rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.gnmic-stage-caption {
+  color: var(--gnmic-muted);
+  font-size: .6rem;
+  line-height: 1.5;
+}
+
+.gnmic-devices {
+  display: grid;
+  gap: .3rem;
+  width: 6rem;
+}
+
+.gnmic-device {
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  height: 1.3rem;
+  padding: 0 .5rem;
+  border: 1px solid var(--gnmic-border);
+  border-radius: .25rem;
+  background: var(--gnmic-surface);
+  box-shadow: 0 .15rem .3rem var(--gnmic-glow);
+}
+
+.gnmic-device i {
+  width: .65rem;
+  height: .4rem;
+  border: 1px solid var(--gnmic-muted);
+  border-radius: .05rem;
+}
+
+.gnmic-device b {
+  width: .2rem;
+  height: .2rem;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--gnmic-accent);
+}
+
+.gnmic-connection {
+  display: flex;
+  flex-direction: column;
+  gap: .6rem;
+  color: var(--gnmic-muted);
+  font-size: .55rem;
+}
+
+.gnmic-connection i {
+  position: relative;
+  display: block;
+  height: 1px;
+  background: var(--gnmic-accent);
+}
+
+.gnmic-connection i::after {
+  position: absolute;
+  top: -.15rem;
+  right: 0;
+  width: .3rem;
+  height: .3rem;
+  transform: rotate(-45deg);
+  border-right: 1px solid var(--gnmic-accent);
+  border-bottom: 1px solid var(--gnmic-accent);
+  content: "";
+}
+
+.gnmic-collector {
+  gap: 1.2rem;
+  padding: 1.4rem .8rem;
+  border: 1px solid var(--gnmic-accent);
+  border-radius: .6rem;
+  background: var(--gnmic-surface);
+  box-shadow: 0 0 2rem var(--gnmic-glow);
+}
+
+.gnmic-collector img {
+  max-width: 100%;
+  height: auto;
+}
+
+.gnmic-collector-steps {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: .3rem;
+  color: var(--gnmic-muted);
+  font-size: .55rem;
+}
+
+.gnmic-collector-steps span + span::before {
+  margin-right: .3rem;
+  color: var(--gnmic-accent);
+  content: "/";
+}
+
+.gnmic-destinations {
+  display: grid;
+  gap: .3rem;
+  width: 100%;
+}
+
+.gnmic-destinations span {
+  padding: .3rem .5rem;
+  border: 1px solid var(--gnmic-border);
+  border-radius: .25rem;
+  background: var(--gnmic-surface);
+  font-size: .65rem;
+}
+
+.gnmic-output-links {
+  margin-top: 1rem;
+  font-size: .65rem;
+}
+
+.gnmic-features {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem 3rem;
+}
+
+.gnmic-features h3 {
+  margin-top: 1.2rem;
+  font-size: .95rem;
+  font-weight: 650;
+}
+
+.gnmic-features h3 .twemoji {
+  margin-right: .4rem;
+  color: var(--gnmic-accent);
+}
+
+.gnmic-features p,
+.gnmic-quickstart-intro p,
+.gnmic-next p {
+  color: var(--gnmic-muted);
+}
+
+.gnmic-features p:last-child,
+.gnmic-quickstart-intro p:has(a) {
+  font-size: .7rem;
+}
+
+.gnmic-quickstart {
+  display: grid;
+  grid-template-columns: .8fr 1.2fr;
+  align-items: center;
+  gap: 2.5rem;
+}
+
+.gnmic-quickstart-examples {
+  min-width: 0;
+  padding: .7rem 1.2rem;
+  border: 1px solid var(--gnmic-border);
+  border-radius: .6rem;
+  background: var(--gnmic-surface);
+}
+
+.gnmic-quickstart-examples .tabbed-set {
+  margin: 0;
+}
+
+.gnmic-quickstart-examples .tabbed-block > p {
+  color: var(--gnmic-muted);
+  font-size: .65rem;
+}
+
+.gnmic-next {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  padding: 2rem;
+  border: 1px solid var(--gnmic-border);
+  border-radius: .8rem;
+  background: var(--gnmic-tint);
+}
+
+.gnmic-next > div {
+  flex: 1;
+}
+
+.gnmic-next p:last-child {
+  margin-bottom: 0;
+}
+
+.gnmic-next > p {
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.gnmic-community {
+  padding: 2.4rem 0 .5rem;
+  color: var(--gnmic-muted);
+  font-size: .65rem;
+  text-align: center;
+}
+
+@media (max-width: 60em) {
+  .gnmic-home .gnmic-paths {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .gnmic-quickstart {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .gnmic-next {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+}
+
+@media (max-width: 40em) {
+  .md-content__inner {
+    margin-right: .8rem;
+    margin-left: .8rem;
+  }
+
+  .gnmic-hero {
+    padding: 2.5rem 0 2rem;
+  }
+
+  .gnmic-home .gnmic-hero-lead {
+    font-size: .8rem;
+  }
+
+  .gnmic-hero-actions > p {
+    gap: .6rem;
+  }
+
+  .gnmic-hero-meta > p {
+    gap: .7rem;
+  }
+
+  .gnmic-platforms span {
+    margin: 0 .15rem;
+  }
+
+  .gnmic-section {
+    padding: 2rem 0;
+  }
+
+  .gnmic-home .gnmic-paths,
+  .gnmic-features,
+  .gnmic-pipeline {
+    grid-template-columns: 1fr;
+  }
+
+  .gnmic-features {
+    gap: 0;
+  }
+
+  .gnmic-pipeline {
+    gap: 1.2rem;
+    padding: 1.5rem 1rem;
+  }
+
+  .gnmic-connection {
+    position: relative;
+    height: 2rem;
+    justify-content: center;
+  }
+
+  .gnmic-connection span {
+    position: absolute;
+    left: calc(50% + .7rem);
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .gnmic-connection i {
+    width: 2rem;
+    margin: auto;
+    transform: rotate(90deg);
+  }
+
+  .gnmic-collector {
+    width: 100%;
+    max-width: 13rem;
+    justify-self: center;
+  }
+
+  .gnmic-destinations {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: 15rem;
+  }
+
+  .gnmic-quickstart-examples {
+    padding: .5rem .7rem;
+  }
+
+  .gnmic-next {
+    padding: 1.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gnmic-home .gnmic-paths > ul > li {
+    transition: none;
+  }
+
+  .gnmic-home .gnmic-paths > ul > li:hover {
+    transform: none;
+  }
+}
