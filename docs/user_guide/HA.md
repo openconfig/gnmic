@@ -29,6 +29,10 @@ at each iteration the leader tries to determine if all configured targets are ha
 this is done by checking if there is a lock maintained for each configured target.
 
 The instances which failed to become the leader, continue to try to acquire the leader lock.
+
+For Kubernetes Lease configuration, permissions and upgrade requirements, see
+[Kubernetes Lease locker](ha_kubernetes_locker.md).
+
 ### Target distribution process
 
 If the leader detects that a target does not have a lock, it triggers the target distribution process:
