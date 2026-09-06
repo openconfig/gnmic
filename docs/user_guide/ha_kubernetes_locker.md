@@ -33,7 +33,9 @@ The Kubernetes API server must also have capacity for this aggregate write load.
 When renewal exceeds its deadline, the locker reports ownership loss through
 `KeepLock` so the collector stops the target and retries acquisition. Leases are
 released explicitly by `Unlock` or shutdown, using holder identity and Kubernetes
-UID/resourceVersion preconditions. The underlying
+UID/resourceVersion preconditions. Release requests are bounded by `retry-period`;
+subscription cancellation and other targets' cleanup proceed independently of
+release I/O. The underlying
 [client-go election algorithm](https://pkg.go.dev/k8s.io/client-go/tools/leaderelection)
 does not provide fencing against arbitrary process pauses or clock-rate skew.
 

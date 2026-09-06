@@ -51,8 +51,8 @@ func (a *App) stopTarget(ctx context.Context, name string) error {
 		return nil
 	}
 	a.operLock.Lock()
-	defer a.operLock.Unlock()
 	if _, ok := a.Targets[name]; !ok {
+		a.operLock.Unlock()
 		return fmt.Errorf("target %q does not exist", name)
 	}
 
@@ -60,6 +60,7 @@ func (a *App) stopTarget(ctx context.Context, name string) error {
 	t := a.Targets[name]
 	t.StopSubscriptions()
 	delete(a.Targets, name)
+	a.operLock.Unlock()
 	if a.locker == nil {
 		return nil
 	}
