@@ -18,6 +18,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -287,11 +288,12 @@ func NewTLSConfig(ca, cert, key, clientAuth string, skipVerify, genSelfSigned, h
 		tlsConfig.ClientCAs = certPool
 
 		if hotReload && !skipVerify {
-			// Install a VerifyPeerCertificate callback that re-validates the
-			// server's leaf certificate against the current CA pool on disk.
-			// Standard chain verification against the initial RootCAs pool
-			// still runs first; this is a supplemental check that enforces
-			// CA bundle changes without restarting.
+			// Disable the standard internal verification so it doesn't instantly reject
+			// a valid certificate signed by a CA that was recently added to the CA file.
+			// This field must NOT be used to check if verification is disabled; it is
+			// strictly a bypass to allow VerifyConnection to take full ownership.
+			tlsConfig.InsecureSkipVerify = true
+
 			caR := &caReloader{
 				caPath:    ca,
 				pool:      certPool,
@@ -302,24 +304,23 @@ func NewTLSConfig(ca, cert, key, clientAuth string, skipVerify, genSelfSigned, h
 					return time.Time{}
 				}(),
 			}
-			tlsConfig.VerifyPeerCertificate = func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
-				if len(rawCerts) == 0 {
-					return nil
+			
+			// VerifyConnection replaces the built-in check, ensuring we verify
+			// against the dynamically hot-reloaded CA pool on every handshake
+			// (including session ticket resumptions).
+			tlsConfig.VerifyConnection = func(cs tls.ConnectionState) error {
+				if len(cs.PeerCertificates) == 0 {
+					return errors.New("no peer certificate")
 				}
-				leaf, err := x509.ParseCertificate(rawCerts[0])
-				if err != nil {
-					return err
+				opts := x509.VerifyOptions{
+					Roots:         caR.getPool(),
+					DNSName:       cs.ServerName,
+					Intermediates: x509.NewCertPool(),
 				}
-				opts := x509.VerifyOptions{Roots: caR.getPool()}
-				if len(rawCerts) > 1 {
-					opts.Intermediates = x509.NewCertPool()
-					for _, rawCert := range rawCerts[1:] {
-						if c, err := x509.ParseCertificate(rawCert); err == nil {
-							opts.Intermediates.AddCert(c)
-						}
-					}
+				for _, c := range cs.PeerCertificates[1:] {
+					opts.Intermediates.AddCert(c)
 				}
-				_, err = leaf.Verify(opts)
+				_, err := cs.PeerCertificates[0].Verify(opts)
 				return err
 			}
 		}
