@@ -217,7 +217,7 @@ func (a *App) updateServices(srvs []*lockers.Service) {
 	numNewSrv := len(srvs)
 	numCurrentSrv := len(a.apiServices)
 
-	a.Logger.Info("received service update", "num_services", numNewSrv)
+	a.Logger.Debug("received service update", "num_services", numNewSrv)
 	// no new services and no current services, continue
 	if numNewSrv == 0 && numCurrentSrv == 0 {
 		return
@@ -251,7 +251,9 @@ func (a *App) updateServices(srvs []*lockers.Service) {
 	}
 	// add new services
 	for n, s := range newSrvs {
-		a.Logger.Info("adding service", "id", n)
+		if _, exists := a.apiServices[n]; !exists {
+			a.Logger.Info("adding service", "id", n)
+		}
 		a.apiServices[n] = s
 	}
 }
@@ -322,6 +324,9 @@ func (a *App) dispatchTarget(ctx context.Context, tc *types.TargetConfig, denied
 		denied = make([]string, 0)
 	}
 SELECTSERVICE:
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	service, err := a.selectService(tc.Tags, denied...)
 	if err != nil {
 		return err
@@ -352,10 +357,10 @@ WAIT:
 	values, err := a.locker.List(ctx, key)
 	if err != nil {
 		logging.LogErrUnlessCanceled(a.Logger, err, "failed getting lock key value", "key", key)
-		time.Sleep(lockWaitTime)
-		goto WAIT
-	}
-	if len(values) == 0 {
+	} else if instance, ok := values[key]; ok && instance != "" {
+		a.Logger.Info("[cluster-leader] lock acquired", "lock", key, "instance", instance)
+		return nil
+	} else {
 		retries++
 		if (retries+1)*int(lockWaitTime) >= int(a.Config.Clustering.TargetAssignmentTimeout) {
 			a.Logger.Info("[cluster-leader] max retries reached, reselecting", "target", tc.Name, "service", service.ID)
@@ -365,25 +370,12 @@ WAIT:
 			}
 			goto SELECTSERVICE
 		}
-		time.Sleep(lockWaitTime)
-		goto WAIT
 	}
-	if instance, ok := values[key]; ok {
-		if instance == instanceName {
-			a.Logger.Info("[cluster-leader] lock acquired", "lock", key, "instance", instanceName)
-			return nil
-		}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(lockWaitTime):
 	}
-	retries++
-	if (retries+1)*int(lockWaitTime) >= int(a.Config.Clustering.TargetAssignmentTimeout) {
-		a.Logger.Info("[cluster-leader] max retries reached, reselecting", "target", tc.Name, "service", service.ID)
-		err = a.unassignTarget(ctx, tc.Name, service.ID)
-		if err != nil {
-			a.Logger.Info("failed to unassign target from service", "target", tc.Name, "service", service.ID)
-		}
-		goto SELECTSERVICE
-	}
-	time.Sleep(lockWaitTime)
 	goto WAIT
 }
 

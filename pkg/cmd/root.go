@@ -9,9 +9,7 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
-	"io/fs"
 	"os"
 	"os/signal"
 	"syscall"
@@ -89,8 +87,15 @@ func newRootCmd() *cobra.Command {
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	setupCloseHandler(gApp.Cfn)
-	if err := newRootCmd().Execute(); err != nil {
+	shutdownStarted := setupCloseHandler(gApp.Shutdown)
+	err := newRootCmd().Execute()
+	select {
+	case <-shutdownStarted:
+		_ = gApp.Shutdown()
+		return
+	default:
+	}
+	if err != nil {
 		//fmt.Println(err)
 		os.Exit(1)
 	}
@@ -105,23 +110,23 @@ func init() {
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
-	err := gApp.Config.Load(gApp.Context())
-	if err == nil {
-		return
-	}
-	if _, ok := err.(*fs.PathError); !ok {
+	if err := gApp.Config.Load(gApp.Context()); err != nil {
 		fmt.Fprintf(os.Stderr, "failed loading config file: %v\n", err)
 	}
 }
 
-func setupCloseHandler(cancelFn context.CancelFunc) {
+func setupCloseHandler(shutdownFn func() error) <-chan struct{} {
 	c := make(chan os.Signal, 1)
+	started := make(chan struct{})
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 	go func() {
 		sig := <-c
+		close(started)
 		fmt.Printf("\nreceived signal '%s'. terminating...\n", sig.String())
-		gApp.CleanupPlugins()
-		cancelFn()
+		if err := shutdownFn(); err != nil {
+			fmt.Fprintf(os.Stderr, "shutdown failed: %v\n", err)
+		}
 		os.Exit(0)
 	}()
+	return started
 }

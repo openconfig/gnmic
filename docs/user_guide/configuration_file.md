@@ -19,6 +19,8 @@ password: NokiaSrl1!
 insecure: true
 # log file location; CLI flag `--log-file`
 log-file: /tmp/gnmic.log
+# application log encoding; CLI flag `--log-format` (text|json)
+log-format: json
 ```
 With such a file located at a default path the gNMI requests can be made in a very short and concise form:
 

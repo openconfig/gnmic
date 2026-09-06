@@ -254,6 +254,8 @@ func (a *App) StartTargetsManager(ctx context.Context) {
 
 		a.Logger.Info("starting target listener", "target", t.Config.Name)
 		go func(t *target.Target) {
+			targetCtx, cancel := targetListenerContext(ctx, t.StopChan)
+			defer cancel()
 			numOnceSubscriptions := t.NumberOfOnceSubscriptions()
 			remainingOnceSubscriptions := numOnceSubscriptions
 			numSubscriptions := len(t.Subscriptions)
@@ -291,7 +293,7 @@ func (a *App) StartTargetsManager(ctx context.Context) {
 						outs = t.Config.Outputs
 					}
 
-					a.export(ctx, rsp.Response, m, outs...)
+					a.export(targetCtx, rsp.Response, m, outs...)
 					if remainingOnceSubscriptions > 0 {
 						if a.subscriptionMode(rsp.SubscriptionName) == subscriptionModeONCE {
 							switch rsp.Response.Response.(type) {
@@ -342,6 +344,18 @@ func (a *App) StartTargetsManager(ctx context.Context) {
 	for range ctx.Done() {
 		return
 	}
+}
+
+func targetListenerContext(parent context.Context, stopped <-chan struct{}) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(parent)
+	go func() {
+		select {
+		case <-ctx.Done():
+		case <-stopped:
+			cancel()
+		}
+	}()
+	return ctx, cancel
 }
 
 func (a *App) export(ctx context.Context, rsp *gnmi.SubscribeResponse, m outputs.Meta, outs ...string) {
@@ -415,7 +429,7 @@ func (a *App) subscriptionMode(name string) string {
 // polledSubscriptionsTargets returns a map of target name to a list of subscription names that have Mode == POLL
 func (a *App) polledSubscriptionsTargets() map[string][]string {
 	result := make(map[string][]string)
-	for tn, target := range a.Targets {
+	for tn, target := range a.targetsSnapshot() {
 		for _, sub := range target.Subscriptions {
 			if strings.ToUpper(sub.Mode) == subscriptionModePOLL {
 				if result[tn] == nil {
@@ -575,7 +589,13 @@ func (a *App) startIO() {
 		}
 
 		if !a.Config.UseTunnelServer {
+			a.configLock.RLock()
+			targets := make([]*types.TargetConfig, 0, len(a.Config.Targets))
 			for _, tc := range a.Config.Targets {
+				targets = append(targets, tc)
+			}
+			a.configLock.RUnlock()
+			for _, tc := range targets {
 				a.wg.Add(1)
 				go a.subscribeStream(a.ctx, tc)
 				if limiter != nil {

@@ -66,7 +66,7 @@ func NewClusterManager(store *collstore.Store) *ClusterManager {
 		locker:           nil,
 		lockCheckLimiter: make(chan struct{}, 64), // TODO: make this configurable
 		rebalancingSem:   semaphore.NewWeighted(1),
-		apiClient:        &http.Client{Timeout: 10 * time.Second}, // TODO:
+		apiClient:        &http.Client{Timeout: apiClientTimeout},
 	}
 }
 
@@ -94,6 +94,11 @@ func (c *ClusterManager) Start(ctx context.Context, locker lockers.Locker, wg *s
 	c.clusteringConfig = clustering
 	env.ExpandClusterEnv(c.clusteringConfig)
 
+	c.apiClient, err = newAPIClient(c.clusteringConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create cluster API client: %w", err)
+	}
+
 	apiConfig, ok, err := c.store.Config.Get("api-server", "api-server")
 	if err != nil {
 		return err
@@ -118,7 +123,7 @@ func (c *ClusterManager) Start(ctx context.Context, locker lockers.Locker, wg *s
 		return err
 	}
 	c.membership = NewMembership(c.locker, clustering, c.logger)
-	c.assigner = NewAssigner(c.store)
+	c.assigner = newAssigner(c.store, c.apiClient)
 
 	// start registration to register the api service
 	wg.Add(1)

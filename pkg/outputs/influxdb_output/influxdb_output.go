@@ -19,6 +19,7 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"text/template"
 	"time"
@@ -27,6 +28,7 @@ import (
 
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/api/utils"
@@ -65,8 +67,18 @@ type influxDBOutput struct {
 	client *atomic.Pointer[influxdb2.Client]
 
 	logger    *slog.Logger
-	cancelFn  context.CancelFunc
 	eventChan chan *formatters.EventMsg
+
+	// rootCtx is the context Init was called with. Each worker generation runs
+	// under a context derived from it, so a client rebuild can cancel and wait
+	// for the previous generation without tearing down the output.
+	rootCtx  context.Context
+	cancelFn context.CancelFunc
+	// wg tracks the current worker generation. It is replaced together with
+	// cancelFn whenever workers are restarted; each worker is handed the wg it
+	// was started with so Done() always targets the right generation.
+	wg        *sync.WaitGroup
+	closeOnce sync.Once
 
 	reset    *atomic.Pointer[chan struct{}]
 	startSig *atomic.Pointer[chan struct{}]
@@ -80,6 +92,9 @@ type influxDBOutput struct {
 
 	store        store.Store[any]
 	healthCancel context.CancelFunc
+	reg          *prometheus.Registry
+
+	nonFiniteLog nonFiniteLogState
 }
 
 func (i *influxDBOutput) init() {
@@ -89,6 +104,7 @@ func (i *influxDBOutput) init() {
 	i.eventChan = make(chan *formatters.EventMsg)
 	i.reset = new(atomic.Pointer[chan struct{}])
 	i.startSig = new(atomic.Pointer[chan struct{}])
+	i.wg = new(sync.WaitGroup)
 	i.logger = logging.DiscardLogger()
 }
 
@@ -171,6 +187,7 @@ func (i *influxDBOutput) Init(ctx context.Context, name string, cfg map[string]i
 	}
 
 	i.store = options.Store
+	i.reg = options.Registry
 
 	if newCfg.Name == "" {
 		newCfg.Name = name
@@ -188,6 +205,11 @@ func (i *influxDBOutput) Init(ctx context.Context, name string, cfg map[string]i
 
 	// store config
 	i.cfg.Store(newCfg)
+
+	if err := i.registerMetrics(); err != nil {
+		return err
+	}
+	i.initMetricLabels()
 
 	// build dynamic config
 	dc := new(dynConfig)
@@ -225,27 +247,29 @@ func (i *influxDBOutput) Init(ctx context.Context, name string, cfg map[string]i
 	startSigChan := make(chan struct{})
 	i.startSig.Store(&startSigChan)
 
+	i.rootCtx = ctx
 	ctx, i.cancelFn = context.WithCancel(ctx)
 
 	influxOpts, err := clientOptsFor(newCfg)
 	if err != nil {
 		return err
 	}
-	// initialize influxdb client
-CRCLIENT:
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
+	// initialize influxdb client. NewClientWithOptions performs no I/O, so it
+	// cannot fail because the server is unreachable.
 	newClient := influxdb2.NewClientWithOptions(newCfg.URL, newCfg.Token, influxOpts)
 	i.client.Store(&newClient)
 
 	// start influx health check
 	if newCfg.HealthCheckPeriod > 0 {
-		err = i.health(ctx)
-		if err != nil {
-			i.logger.Error("failed to check influxdb health", "err", err)
-			time.Sleep(2 * time.Second)
-			goto CRCLIENT
+		// Probe once so an unreachable server is visible in the logs at
+		// startup, but do not block on it: Init previously retried here
+		// forever, so gnmic never finished starting while influx was down.
+		// Recovery is the health check goroutine's job, matching Update().
+		if err := i.health(ctx); err != nil {
+			i.logger.Warn("influxdb health probe failed at init (continuing)", "err", err)
 		}
 		hcCtx, hcCancel := context.WithCancel(ctx)
 		i.healthCancel = hcCancel
@@ -255,11 +279,15 @@ CRCLIENT:
 	i.wasUP.Store(true)
 	i.logger.Info("initialized influxdb client", slog.Any("config", i.String()))
 
+	i.wg.Add(numWorkers)
 	for k := 0; k < numWorkers; k++ {
-		go i.worker(ctx, k)
+		go i.worker(ctx, i.wg, k)
 	}
+	// Watch the root context, not the worker-generation context: Update()
+	// cancels the latter to drain the previous worker generation, which must
+	// not be mistaken for the output shutting down.
 	go func() {
-		<-ctx.Done()
+		<-i.rootCtx.Done()
 		i.Close()
 	}()
 	return nil
@@ -414,20 +442,39 @@ func (i *influxDBOutput) Update(ctx context.Context, cfg map[string]any) error {
 			}
 		}
 
-		// swap client
+		// Publish the new client before starting the new workers so they pick
+		// it up at their START label.
 		oldClientPtr := i.client.Swap(&newClient)
-		oldClient := *oldClientPtr
 
-		// close old client
-		if oldClient != nil {
-			oldClient.Close()
+		// Restart the workers rather than signalling them through the reset
+		// channel. Workers capture the client once and hold it for the whole
+		// select loop, so the old client cannot be closed until every worker
+		// that captured it has exited -- closing it first is a use-after-close.
+		oldWG := i.wg
+		oldCancel := i.cancelFn
+
+		newWG := new(sync.WaitGroup)
+		i.wg = newWG
+		runCtx, cancel := context.WithCancel(i.rootCtx)
+		i.cancelFn = cancel
+
+		// Start the new generation first so eventChan always has a consumer and
+		// Write() never blocks during the swap.
+		newWG.Add(numWorkers)
+		for k := 0; k < numWorkers; k++ {
+			go i.worker(runCtx, newWG, k)
 		}
 
-		// signal workers to rebuild their write APIs
-		oldReset := i.reset.Load()
-		newResetChan := make(chan struct{})
-		i.reset.Store(&newResetChan)
-		close(*oldReset)
+		// Now drain the old generation, and only then close the client it held.
+		if oldCancel != nil {
+			oldCancel()
+		}
+		if oldWG != nil {
+			oldWG.Wait()
+		}
+		if oldClientPtr != nil && *oldClientPtr != nil {
+			(*oldClientPtr).Close()
+		}
 	}
 
 	// cache toggle
@@ -483,6 +530,13 @@ func (i *influxDBOutput) Update(ctx context.Context, cfg map[string]any) error {
 			go i.healthCheck(hcCtx)
 		}
 	}
+
+	// enable-metrics may have been switched on by this reload, in which case the
+	// collector was never registered at Init.
+	if err := i.registerMetrics(); err != nil {
+		return err
+	}
+	i.initMetricLabels()
 
 	i.logger.Info("updated influxdb output", slog.Any("config", i.String()))
 	return nil
@@ -583,31 +637,41 @@ func (i *influxDBOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg
 }
 
 func (i *influxDBOutput) Close() error {
-	i.logger.Info("closing client")
+	i.closeOnce.Do(func() {
+		i.logger.Info("closing client")
 
-	cfg := i.cfg.Load()
-	if cfg != nil && cfg.CacheConfig != nil {
-		i.stopCache()
-	}
-	if i.healthCancel != nil {
-		i.healthCancel()
-		i.healthCancel = nil
-	}
-	i.cancelFn()
-
-	clientPtr := i.client.Load()
-	if *clientPtr != nil {
-		(*clientPtr).Close()
-	}
-	reset := i.reset.Load()
-	if reset != nil {
-		select {
-		case <-*reset:
-		default:
-			close(*reset) // unblock Write() and WriteEvent()
+		cfg := i.cfg.Load()
+		if cfg != nil && cfg.CacheConfig != nil {
+			i.stopCache()
 		}
-	}
-	i.logger.Info("closed")
+		if i.healthCancel != nil {
+			i.healthCancel()
+			i.healthCancel = nil
+		}
+		if i.cancelFn != nil {
+			i.cancelFn()
+		}
+
+		reset := i.reset.Load()
+		if reset != nil {
+			select {
+			case <-*reset:
+			default:
+				close(*reset) // unblock Write() and WriteEvent()
+			}
+		}
+
+		// Wait for the workers to release the client before closing it.
+		if i.wg != nil {
+			i.wg.Wait()
+		}
+
+		clientPtr := i.client.Load()
+		if clientPtr != nil && *clientPtr != nil {
+			(*clientPtr).Close()
+		}
+		i.logger.Info("closed")
+	})
 	return nil
 }
 
@@ -681,7 +745,8 @@ func (i *influxDBOutput) health(ctx context.Context) error {
 	return nil
 }
 
-func (i *influxDBOutput) worker(ctx context.Context, idx int) {
+func (i *influxDBOutput) worker(ctx context.Context, wg *sync.WaitGroup, idx int) {
+	defer wg.Done()
 	firstStart := true
 START:
 	if ctx.Err() != nil {
@@ -699,7 +764,15 @@ START:
 		i.logger.Info("worker waiting for client recovery", "worker", idx)
 		startSigChan := i.startSig.Load()
 		if startSigChan != nil {
-			<-*startSigChan
+			// Must stay cancellable: Close() waits on the worker WaitGroup, so a
+			// worker parked here while influx is down would otherwise hang
+			// shutdown until the health check recovers.
+			select {
+			case <-ctx.Done():
+				i.logger.Info("worker terminating", "worker", idx)
+				return
+			case <-*startSigChan:
+			}
 		}
 	}
 
@@ -713,6 +786,22 @@ START:
 	client := *clientPtr
 
 	resetChan := i.reset.Load()
+
+	// Resolved here, not in the drainer: WriteAPI() mutates client state.
+	writeAPI := client.WriteAPI(cfg.Org, cfg.Bucket)
+	errCh := writeAPI.Errors()
+
+	// Not tied to ctx: the drainer must outlive cancellation until the worker is
+	// clear of WritePoint, or a pending error strands the worker there.
+	stopErrDrain := make(chan struct{})
+	drainDone := make(chan struct{})
+	go i.drainWriteErrors(stopErrDrain, errCh, idx, drainDone)
+	var stopOnce sync.Once
+	stopDrain := func() {
+		stopOnce.Do(func() { close(stopErrDrain) })
+		<-drainDone
+	}
+	defer stopDrain()
 
 	for {
 		select {
@@ -744,6 +833,19 @@ START:
 				}
 			}
 
+			if dropped := dropNonFinite(ev); len(dropped) > 0 {
+				if cfg.EnableMetrics {
+					influxNonFiniteDropped.
+						WithLabelValues(cfg.Name, ev.Name).
+						Add(float64(len(dropped)))
+				}
+				i.logNonFinite(idx, ev.Name, dropped)
+			}
+
+			if len(ev.Values) == 0 && len(ev.Deletes) == 0 {
+				continue
+			}
+
 			if ev.Timestamp == 0 || cfg.OverrideTimestamps {
 				ev.Timestamp = time.Now().UnixNano()
 			}
@@ -755,7 +857,7 @@ START:
 
 			if len(ev.Values) > 0 {
 				i.convertUints(ev)
-				client.WriteAPI(cfg.Org, cfg.Bucket).
+				writeAPI.
 					WritePoint(influxdb2.NewPoint(ev.Name, ev.Tags, ev.Values, time.Unix(0, ev.Timestamp)))
 			}
 
@@ -767,17 +869,130 @@ START:
 				for _, del := range ev.Deletes {
 					values[del] = ""
 				}
-				client.WriteAPI(cfg.Org, cfg.Bucket).
+				writeAPI.
 					WritePoint(influxdb2.NewPoint(ev.Name, tags, values, time.Unix(0, ev.Timestamp)))
 			}
 		case <-*resetChan:
 			firstStart = false
 			i.logger.Info("resetting worker", "worker", idx)
+			stopDrain() // else goto START leaks a drainer per reset
 			goto START
-		case err := <-client.WriteAPI(cfg.Org, cfg.Bucket).Errors():
+		}
+	}
+}
+
+// drainWriteErrors consumes the client's async error channel for one worker
+// generation. It must not run on the goroutine that calls WritePoint: the
+// client's encoding-error path blocks sending on this single-slot channel.
+//
+// stop is closed by the worker only once it is no longer inside WritePoint.
+// Waiting on that rather than on ctx matters: if the worker is blocked
+// delivering an error and this goroutine returned on ctx cancellation, the
+// error would go undrained and the worker would never leave WritePoint, so
+// Close()'s WaitGroup wait would hang.
+func (i *influxDBOutput) drainWriteErrors(stop <-chan struct{}, errCh <-chan error, idx int, done chan struct{}) {
+	defer close(done)
+	for {
+		// Prefer a pending error over shutdown: a queued error means a producer
+		// is blocked on it.
+		select {
+		case err, ok := <-errCh:
+			if !ok {
+				return
+			}
+			i.logger.Error("worker write error", "worker", idx, "err", err)
+			continue
+		default:
+		}
+		select {
+		case <-stop:
+			return
+		case err, ok := <-errCh:
+			if !ok {
+				return
+			}
 			i.logger.Error("worker write error", "worker", idx, "err", err)
 		}
 	}
+}
+
+// nonFiniteLogState rate-limits the "dropped non-finite values" log: a dark lane
+// reports -Inf on every sample, so per-event logging runs to thousands of lines
+// a day. Exact counts live in the metric.
+type nonFiniteLogState struct {
+	mu         sync.Mutex
+	first      bool
+	nextLog    time.Time
+	suppressed int
+	// keyed "measurement/field": the summary spans measurements, so an
+	// unqualified field name would be attributed to the wrong one.
+	fields map[string]struct{}
+}
+
+const nonFiniteLogInterval = 5 * time.Minute
+
+func (i *influxDBOutput) logNonFinite(idx int, measurement string, dropped []string) {
+	st := &i.nonFiniteLog
+	st.mu.Lock()
+	if st.fields == nil {
+		st.fields = make(map[string]struct{})
+	}
+	for _, f := range dropped {
+		st.fields[measurement+"/"+f] = struct{}{}
+	}
+	st.suppressed += len(dropped)
+
+	now := time.Now()
+	if st.first && now.Before(st.nextLog) {
+		st.mu.Unlock()
+		return
+	}
+	firstTime := !st.first
+	st.first = true
+	st.nextLog = now.Add(nonFiniteLogInterval)
+	count := st.suppressed
+	st.suppressed = 0
+	fields := slices.Sorted(maps.Keys(st.fields))
+	clear(st.fields)
+	st.mu.Unlock()
+
+	if firstTime {
+		i.logger.Warn("dropping non-finite values (NaN/Inf) that cannot be encoded in line protocol; "+
+			"further occurrences are summarized every "+nonFiniteLogInterval.String()+
+			" -- see gnmic_influxdb_output_non_finite_values_dropped_total for exact counts",
+			"worker", idx,
+			"measurement", measurement,
+			"fields", strings.Join(dropped, ","),
+		)
+		return
+	}
+	i.logger.Warn("dropped non-finite values",
+		"worker", idx,
+		"fields", strings.Join(fields, ","),
+		"count", count,
+		"interval", nonFiniteLogInterval.String(),
+	)
+}
+
+// dropNonFinite removes NaN/±Inf float fields, which line protocol cannot
+// encode, and returns their names. Other fields on the point are kept.
+func dropNonFinite(ev *formatters.EventMsg) []string {
+	var dropped []string
+	for k, v := range ev.Values {
+		switch f := v.(type) {
+		case float64:
+			if math.IsNaN(f) || math.IsInf(f, 0) {
+				delete(ev.Values, k)
+				dropped = append(dropped, k)
+			}
+		case float32:
+			if f64 := float64(f); math.IsNaN(f64) || math.IsInf(f64, 0) {
+				delete(ev.Values, k)
+				dropped = append(dropped, k)
+			}
+		}
+	}
+	return dropped
 }
 
 func (i *influxDBOutput) convertUints(ev *formatters.EventMsg) {
@@ -810,7 +1025,12 @@ func clientNeedsRebuild(old, new *Config) bool {
 	if old == nil || new == nil {
 		return true
 	}
+	// Org/Bucket select the client's WriteAPI, and each WriteAPI has its own
+	// error channel. Workers bind one for their lifetime, so a change here must
+	// restart them or the new API's errors go undrained.
 	return old.URL != new.URL ||
+		old.Org != new.Org ||
+		old.Bucket != new.Bucket ||
 		old.Token != new.Token ||
 		old.BatchSize != new.BatchSize ||
 		old.FlushTimer != new.FlushTimer ||

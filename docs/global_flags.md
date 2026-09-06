@@ -201,6 +201,13 @@ The `--log` flag enables log messages to appear on stderr output. By default log
 
 The log-file flag `[--log-file <path>]` sets the log output to a file referenced by the path. This flag supersede the `--log` flag
 
+### log-format
+
+The `[--log-format]` flag sets the application log encoding. Supported values:
+
+- `text` (default): structured key=value text logs
+- `json`: structured JSON logs (`time`, `level`, `msg`, plus any attributes)
+
 ### log-max-size
 
 The `[--log-max-size]` flag enables log rotation and sets the maximum size of the log file in megabytes before it gets rotated.

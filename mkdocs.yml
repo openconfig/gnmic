@@ -87,6 +87,7 @@ nav:
           - Group by: user_guide/event_processors/event_group_by.md
           - IEEE Float32: user_guide/event_processors/event_ieeefloat32.md
           - JQ: user_guide/event_processors/event_jq.md
+          - Keep: user_guide/event_processors/event_keep.md
           - Merge: user_guide/event_processors/event_merge.md
           - Override TS: user_guide/event_processors/event_override_ts.md
           - Plugin: user_guide/event_processors/event_plugin.md

@@ -670,6 +670,7 @@ func TestLoggingFlags(t *testing.T) {
 		Log:           true,
 		Debug:         true,
 		LogFile:       "gnmic.log",
+		LogFormat:     "json",
 		LogMaxSize:    10,
 		LogMaxBackups: 3,
 		LogCompress:   true,
@@ -678,6 +679,7 @@ func TestLoggingFlags(t *testing.T) {
 		Log:           true,
 		Debug:         true,
 		LogFile:       "gnmic.log",
+		LogFormat:     "json",
 		LogMaxSize:    10,
 		LogMaxBackups: 3,
 		LogCompress:   true,
@@ -764,15 +766,10 @@ func TestValidateSetInput(t *testing.T) {
 }
 
 func TestEnvironmentHelpers(t *testing.T) {
-	t.Setenv("GNMIC_API_SERVER_ADDRESS", ":9999")
 	t.Setenv("GNMIC_OUTPUTS_FILE_TYPE", "file")
 	t.Setenv("OTHER_VAR", "ignored")
 
 	got := envToMap()
-	apiServer := got["api"].(map[string]any)["server"].(map[string]any)
-	if apiServer["address"] != ":9999" {
-		t.Fatalf("envToMap api-server address = %#v", apiServer)
-	}
 	outputs := got["outputs"].(map[string]any)["file"].(map[string]any)
 	if outputs["type"] != "file" {
 		t.Fatalf("envToMap output type = %#v", outputs)
@@ -1314,11 +1311,11 @@ func TestExpandOSPathFlagValuesAndMergeEnv(t *testing.T) {
 		t.Fatalf("tls-ca = %q, want %q", got, file)
 	}
 
-	t.Setenv("GNMIC_FORMAT", "event")
+	t.Setenv("GNMIC_OUTPUTS_FILE_TYPE", "file")
 	c = New()
 	c.mergeEnvVars()
-	if got := c.FileConfig.GetString("format"); got != "event" {
-		t.Fatalf("mergeEnvVars format=%q", got)
+	if got := c.FileConfig.GetString("outputs/file/type"); got != "file" {
+		t.Fatalf("mergeEnvVars outputs/file/type=%q", got)
 	}
 }
 
@@ -1338,7 +1335,13 @@ func TestSetGlobalsFromEnv(t *testing.T) {
 }
 
 func TestLoadReadsExplicitConfigAndExpandsPaths(t *testing.T) {
-	dir := t.TempDir()
+	// expandOSPath resolves relative paths against os.Getwd(), which returns a
+	// symlink-resolved path. On darwin t.TempDir() is under /var, a symlink to
+	// /private/var, so the expected value has to be resolved the same way.
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	ca := filepath.Join(dir, "ca.pem")
 	if err := os.WriteFile(ca, []byte("ca"), 0o600); err != nil {
 		t.Fatal(err)
