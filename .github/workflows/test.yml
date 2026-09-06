@@ -16,10 +16,7 @@ on:
       - "main"
       - "!releases/**"
 
-permissions:
-  contents: read
-  checks: write
-  pull-requests: write
+permissions: {}
 
 env:
   GOVER: 1.26.5
@@ -27,6 +24,11 @@ env:
 jobs:
   test:
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      # reviewdog (staticcheck) posts review comments
+      checks: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -48,6 +50,8 @@ jobs:
 
   race:
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
