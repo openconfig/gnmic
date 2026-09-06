@@ -26,4 +26,4 @@ jobs:
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - run: docker run -v $(pwd):/docs -v RUNNER_TEMP:$RUNNER_TEMP --entrypoint ash squidfunk/mkdocs-material:${MKDOCS_MATERIAL_VER} -c 'git config --global --add safe.directory /docs; mkdocs gh-deploy --force --strict'
+      - run: docker run -v $(pwd):/docs -v $RUNNER_TEMP:$RUNNER_TEMP --entrypoint ash squidfunk/mkdocs-material:${MKDOCS_MATERIAL_VER} -c 'git config --global --add safe.directory /docs; mkdocs gh-deploy --force --strict'
