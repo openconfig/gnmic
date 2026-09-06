@@ -37,12 +37,14 @@ jobs:
         env:
           CGO_ENABLED: 0
       # run staticcheck
-      - uses: reviewdog/action-staticcheck@73cfd0daa6fdbba9a858dcb0f62844012fa8317d
+      - uses: reviewdog/action-staticcheck@8628bbf0797ad63e854c120a9e59a7100ae25ff0 # v1.31.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           # Change reviewdog reporter if you need [github-pr-check,github-check,github-pr-review].
           reporter: github-pr-review
           # Report all results.
           filter_mode: nofilter
-          # Exit with 1 when it find at least one finding.
-          fail_on_error: true
+          # Exit with 1 when it finds at least one finding.
+          fail_level: error
+          # Build with the configured Go version, which supports this project's Go version.
+          use_go_install: true
