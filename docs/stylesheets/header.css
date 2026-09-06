@@ -22,3 +22,95 @@
     width: 5rem;
     height: 1.2rem;
 }
+
+/* A two-position slider with the search field's height and squared corners. */
+.md-header .gnmic-theme-switch {
+    position: relative;
+    width: 3.2rem;
+    height: 1.6rem;
+    margin: .2rem;
+    color: var(--md-default-fg-color);
+    background-color: var(--md-default-fg-color--lightest);
+    border-radius: .4rem;
+    transition: background-color .4s, color .4s;
+}
+
+.md-header .gnmic-theme-switch:hover {
+    background-color: var(--md-default-fg-color--lighter);
+}
+
+/* The visible native label remains the click target over the whole track. */
+.md-header .gnmic-theme-switch .md-header__button {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    padding: 0;
+    border-radius: inherit;
+    opacity: 1;
+}
+
+.md-header .gnmic-theme-switch:has(.md-option:focus-visible) .md-header__button {
+    outline: 2px solid var(--md-accent-fg-color);
+    outline-offset: 2px;
+}
+
+.gnmic-theme-switch__track {
+    display: block;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.gnmic-theme-switch__thumb {
+    position: absolute;
+    top: .15rem;
+    left: .15rem;
+    display: grid;
+    place-items: center;
+    width: 1.3rem;
+    height: 1.3rem;
+    background-color: var(--md-default-bg-color);
+    border-radius: .25rem;
+    box-shadow: 0 1px 3px rgb(0 0 0 / 18%);
+    transform: translateX(0);
+    transition: transform .4s cubic-bezier(.4, 0, .2, 1), background-color .4s;
+}
+
+/* Only the active icon is visible at rest; crossfade while the thumb slides. */
+.gnmic-theme-switch__thumb svg {
+    grid-area: 1 / 1;
+    opacity: 1;
+    transform: rotate(0) scale(1);
+    transition: opacity .4s, transform .4s cubic-bezier(.4, 0, .2, 1);
+}
+
+.gnmic-theme-switch__thumb .lucide-moon,
+[data-md-color-scheme="slate"] .gnmic-theme-switch__thumb .lucide-sun {
+    opacity: 0;
+    transform: rotate(-90deg) scale(.5);
+}
+
+[data-md-color-scheme="slate"] .gnmic-theme-switch__thumb {
+    transform: translateX(1.6rem);
+}
+
+[data-md-color-scheme="slate"] .gnmic-theme-switch__thumb .lucide-moon {
+    opacity: 1;
+    transform: rotate(0) scale(1);
+}
+
+/* The theme disables transitions while changing palettes; keep this slider moving. */
+@media (prefers-reduced-motion: no-preference) {
+    [data-md-color-switching] .gnmic-theme-switch__thumb,
+    [data-md-color-switching] .gnmic-theme-switch__thumb svg {
+        transition-duration: .4s !important;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .md-header .gnmic-theme-switch,
+    .gnmic-theme-switch__thumb,
+    .gnmic-theme-switch__thumb svg {
+        transition: none;
+    }
+}

@@ -235,7 +235,7 @@ theme:
       primary: blue
       accent: indigo
       toggle:
-        icon: material/toggle-switch-off-outline
+        icon: lucide/moon
         name: Switch to dark mode
     # Dark mode
     - media: "(prefers-color-scheme: dark)"
@@ -243,7 +243,7 @@ theme:
       primary: black
       accent: cyan
       toggle:
-        icon: material/toggle-switch
+        icon: lucide/sun
         name: Switch to light mode
 
   font:
