@@ -26,4 +26,15 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - run: docker run -v $(pwd):/docs -v $RUNNER_TEMP:$RUNNER_TEMP --entrypoint ash squidfunk/mkdocs-material:${MKDOCS_MATERIAL_VER} -c 'git config --global --add safe.directory /docs; mkdocs gh-deploy --force --strict'
+      # actions/checkout >= v6 keeps the git token in a file under $RUNNER_TEMP and
+      # references it from .git/config with conditional includes keyed on the git
+      # directory: the host path, and the container path /github/workspace/.git with the
+      # token at /github/runner_temp. Mounting the checkout and RUNNER_TEMP at those
+      # container paths is what lets `git push` inside the image authenticate.
+      - run: >
+          docker run
+          -v "$GITHUB_WORKSPACE:/github/workspace"
+          -v "$RUNNER_TEMP:/github/runner_temp"
+          -w /github/workspace
+          --entrypoint ash squidfunk/mkdocs-material:${MKDOCS_MATERIAL_VER}
+          -c 'git config --global --add safe.directory /github/workspace; mkdocs gh-deploy --force --strict'
