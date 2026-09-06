@@ -53,7 +53,8 @@
   position: absolute;
   z-index: -1;
   inset: 0 -1.2rem;
-  background: radial-gradient(ellipse at 50% 28%, var(--gnmic-glow), transparent 65%);
+  /* Keep the glow around the logo and fully faded before the navigation. */
+  background: radial-gradient(ellipse 35% 6rem at 50% 8rem, var(--gnmic-glow), transparent 100%);
   content: "";
   pointer-events: none;
 }
@@ -462,6 +463,10 @@
 
   .gnmic-hero {
     padding: 2.5rem 0 2rem;
+  }
+
+  .gnmic-hero::before {
+    background: radial-gradient(ellipse 50% 5rem at 50% 6rem, var(--gnmic-glow), transparent 100%);
   }
 
   .gnmic-home .gnmic-hero-lead {
