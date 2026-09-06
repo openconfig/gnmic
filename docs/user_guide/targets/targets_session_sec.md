@@ -1,4 +1,4 @@
-# Targets session security
+﻿# Targets session security
 
 In line with the guidelines detailed in the [gNMI Specification](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#31-session-security-authentication-and-rpc-authorization), it is mandatory to establish an encrypted TLS session between the client and the server. This measure is essential to ensure secure communication within the gNMI protocol.
 
@@ -179,13 +179,13 @@ Decryption of TLS traffic is particularly useful for network troubleshooting, pe
 
 gNMIc supports reloading TLS certificates (`tls-cert`, `tls-key`, `tls-ca`) from disk when their modification times change. The new certificates are applied on the next TLS handshake without restarting the process.
 
-This feature is enabled globally by default.
+This feature is disabled globally by default.
 
 ### Global Configuration
 
 ```yaml
-# Disable TLS hot reload for all targets
-tls-reload: false
+# Enable TLS hot reload for all targets
+tls-reload: true
 ```
 
 ### Target Configuration
@@ -199,5 +199,5 @@ targets:
     tls-ca: ./ca.pem
     tls-cert: ./router1.cert
     tls-key: ./router1.key
-    tls-reload: false
+    tls-reload: true
 ```

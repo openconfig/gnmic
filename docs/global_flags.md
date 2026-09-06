@@ -278,7 +278,7 @@ The TLS key flag `[--tls-key]` specifies the private key for the client encoded 
 
 ### tls-reload
 
-The TLS reload flag `[--tls-reload]` (default: true) controls whether `gnmic` automatically reloads the `tls-cert`, `tls-key`, and `tls-ca` files from disk when their modification times change. The updated certificates are applied on the next TLS reconnect.
+The TLS reload flag `[--tls-reload]` (default: false) controls whether `gnmic` automatically reloads the `tls-cert`, `tls-key`, and `tls-ca` files from disk when their modification times change. The updated certificates are applied on the next TLS reconnect.
 
 ### tls-max-version
 
