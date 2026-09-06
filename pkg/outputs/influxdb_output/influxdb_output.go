@@ -1001,7 +1001,7 @@ func (i *influxDBOutput) convertUints(ev *formatters.EventMsg) {
 		return
 	}
 	dbVersion, ok := dbVer.(string)
-	if !ok || !strings.HasPrefix(dbVersion, "1.8") {
+	if !ok || !isInfluxDB1(dbVersion) {
 		return
 	}
 
@@ -1019,6 +1019,15 @@ func (i *influxDBOutput) convertUints(ev *formatters.EventMsg) {
 			ev.Values[k] = int(v)
 		}
 	}
+}
+
+// isInfluxDB1 reports whether version is InfluxDB 1.x. 1.x line protocol
+// rejects the unsigned suffix the v2 client writes, so uints must be
+// converted to int. Matching only "1.8" skipped later 1.x releases.
+func isInfluxDB1(version string) bool {
+	v := strings.TrimPrefix(strings.TrimSpace(version), "v")
+	v = strings.TrimPrefix(v, "V")
+	return v == "1" || strings.HasPrefix(v, "1.")
 }
 
 func clientNeedsRebuild(old, new *Config) bool {
