@@ -82,6 +82,21 @@ func TestRenewalUsesUpdateFastPath(t *testing.T) {
 	}
 }
 
+func TestUnlockBoundsAPIRequests(t *testing.T) {
+	client := fake.NewClientset()
+	faults := &blockingLeases{LeaseInterface: client.CoordinationV1().Leases("test")}
+	k := testLocker(t, interceptedClient{Clientset: client, leases: faults})
+	ok, err := k.Lock(t.Context(), "key", []byte("pod"))
+	require.NoError(t, err)
+	require.True(t, ok)
+	faults.blockGet.Store(true)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	started := time.Now()
+	require.ErrorIs(t, k.Unlock(ctx, "key"), context.DeadlineExceeded)
+	require.Less(t, time.Since(started), time.Second, "release must not depend on the caller's long-lived context")
+}
+
 func TestCancelPendingAcquisitionPreservesForeignLease(t *testing.T) {
 	foreign := testLease("key", "foreign-pod", time.Now())
 	client := fake.NewClientset(foreign)
@@ -190,8 +205,17 @@ func (c interceptedCoordination) Leases(string) coordinationclient.LeaseInterfac
 
 type blockingLeases struct {
 	coordinationclient.LeaseInterface
-	block   atomic.Bool
-	entered chan time.Time
+	block    atomic.Bool
+	blockGet atomic.Bool
+	entered  chan time.Time
+}
+
+func (l *blockingLeases) Get(ctx context.Context, name string, opts metav1.GetOptions) (*coordinationv1.Lease, error) {
+	if l.blockGet.Load() {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	return l.LeaseInterface.Get(ctx, name, opts)
 }
 
 func (l *blockingLeases) Update(ctx context.Context, lease *coordinationv1.Lease, opts metav1.UpdateOptions) (*coordinationv1.Lease, error) {

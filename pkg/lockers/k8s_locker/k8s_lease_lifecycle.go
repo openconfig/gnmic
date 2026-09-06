@@ -125,6 +125,8 @@ func (k *k8sLocker) forgetSession(key string, session *leaseSession) {
 }
 
 func (k *k8sLocker) release(ctx context.Context, key string, session *leaseSession) error {
+	ctx, cancel := context.WithTimeout(ctx, k.Cfg.RetryPeriod)
+	defer cancel()
 	session.cancel(context.Canceled)
 	select {
 	case <-session.stopped:
