@@ -45,3 +45,15 @@ jobs:
           filter_mode: nofilter
           # Exit with 1 when it find at least one finding.
           fail_on_error: true
+
+  race:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GOVER }}
+      # the race detector needs cgo; the coverage job above runs with CGO_ENABLED=0
+      - run: ./tests/run_tests.sh --race
+        env:
+          CGO_ENABLED: 1
