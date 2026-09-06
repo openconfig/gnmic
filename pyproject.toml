@@ -1,0 +1,11 @@
+[project]
+name = "gnmic-docs"
+version = "0.0.0"
+requires-python = ">=3.12"
+dependencies = [
+    "ghp-import>=2.1.0",
+    "zensical>=0.0.59",
+]
+
+[tool.uv]
+package = false

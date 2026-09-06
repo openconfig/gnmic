@@ -1,5 +1,8 @@
 <nbsp/>
-<p style="text-align:center;"><img src=https://raw.githubusercontent.com/openconfig/gnmic/main/docs/images/gnmic-headline.svg?sanitize=true/></p>
+<p style="text-align:center;">
+  <img src="images/gnmic-headline.svg#only-light" alt="gNMIc" width="390" height="98">
+  <img src="images/gnmic-headline-for-dark-bg.svg#only-dark" alt="gNMIc" width="390" height="98">
+</p>
 
 [![github release](https://img.shields.io/github/release/openconfig/gnmic.svg?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://github.com/openconfig/gnmic/releases/)
 [![Github all releases](https://img.shields.io/github/downloads/openconfig/gnmic/total.svg?style=flat-square&color=00c9ff&labelColor=bec8d2)](https://github.com/openconfig/gnmic/releases/)

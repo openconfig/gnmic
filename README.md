@@ -12,6 +12,42 @@
 
 Documentation available at [https://gnmic.openconfig.net](https://gnmic.openconfig.net)
 
+## Documentation development
+
+The site uses [Zensical](https://zensical.org/) with its modern theme and the
+existing [`mkdocs.yml`](mkdocs.yml) configuration. To start a live-reloading
+preview at <http://127.0.0.1:8000>, run:
+
+```sh
+make serve-docs
+```
+
+On Linux, macOS, or Windows via WSL, you need `make` and either `curl` or `wget`.
+The first run downloads a pinned version of [uv](https://docs.astral.sh/uv/),
+automatically detects your OS and architecture, and installs Python if needed.
+The uv binary, downloaded Python, dependencies, and package cache stay under
+the git-ignored `.tools/docs/` directory; shell profiles are left untouched.
+Internet access is required for the initial setup. Later runs reuse these files.
+Zensical's build cache (`.cache/`) and output (`site/`) are also git-ignored.
+
+```sh
+make serve-docs DOCS_ADDR=0.0.0.0:8000  # Listen on all interfaces, e.g. in a dev container
+make build-docs                       # Clean, strict production build in site/
+make update-docs                      # Update the locked documentation dependencies
+```
+
+Commit `uv.lock` after reviewing an upgrade with `make build-docs` and the local
+preview. Normal builds use `uv run --locked` so local development and CI use the
+same dependency versions. The Python version is selected by `.python-version`;
+the uv version is pinned in `scripts/docs.sh`.
+
+The documentation workflow runs `make deploy-docs`, which builds with Zensical
+and publishes `site/` to `gh-pages` using `ghp-import` through the same uv wrapper.
+It retains `docs/CNAME` and publishes on `docs-*` branch pushes, `v*` tags, and
+manual workflow runs. GitHub Pages continues to serve the root of `gh-pages`.
+`make deploy-docs` also works locally with repository push access and a configured
+Git author; it force-pushes the generated site to `origin/gh-pages`.
+
 ## Features
 
 * **Full support for gNMI RPCs**  

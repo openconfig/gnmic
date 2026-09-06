@@ -61,7 +61,7 @@ With **YANG-completions** feature embedded in `gnmic` what used to be a dream is
 
 Let us explain what just happened there.
 
-In the demonstration above, we called the `gnmic` with the well-known flags defining the gNMI target (`address`, `username`, `password`). But this time we also added a few YANG specific flags ([`--file`](../cmd/prompt.md#file) and [`--dir`](../cmd/prompt.md#dir)) that load the full set of Nokia SR OS YANG models and the 3rd party models SR OS rely on.
+In the demonstration above, we called the `gnmic` with the well-known flags defining the gNMI target (`address`, `username`, `password`). But this time we also added a few YANG specific flags ([`--file`](../global_flags.md#file) and [`--dir`](../global_flags.md#dir)) that load the full set of Nokia SR OS YANG models and the 3rd party models SR OS rely on.
 
 ```
 gnmic --address 10.1.0.11 --insecure --username admin --password admin \
@@ -80,7 +80,7 @@ By using the auto-suggestion hints, a user navigated the `/state` tree of a rout
 ### YANG processing
 For the YANG-completion feature to work its absolutely imperative for `gnmic` to successfully parse and compile the YANG models.
 
-The [`prompt`](../cmd/prompt.md) command leverages the [`--file`](../cmd/prompt.md#file) and [`--dir`](../cmd/prompt.md#dir) flags to select the YANG models for processing.
+The [`prompt`](../cmd/prompt.md) command leverages the [`--file`](../global_flags.md#file) and [`--dir`](../global_flags.md#dir) flags to select the YANG models for processing.
 
 
 With the `--file` flag a user specifies a file path to a YANG file or a directory of them that `gnmic` will read and process. If it points to a directory it will be visited recursively reading in all `*.yang` files it finds.

@@ -9,7 +9,7 @@ The `generate` command takes the target's YANG models as input and generates:
 
 - Paths in `xpath` or `gNMI` formats.
 - Configuration payloads that can be used as [update](../cmd/set.md#3-update-with-a-value-from-json-or-yaml-file) or [replace](../cmd/set.md#3-replace-with-a-value-from-json-or-yaml-file) input files for the Set command.
-- A Set request file that can be used as a [template](../cmd/set.md#template-based-set-request) with the Set command.
+- A Set request file that can be used as a [template](../cmd/set.md#templated-set-request-file) with the Set command.
 
 Aliases: `gen`
 

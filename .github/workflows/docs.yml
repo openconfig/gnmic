@@ -15,8 +15,9 @@ on:
     tags:
       - "v*"
 
-env:
-  MKDOCS_MATERIAL_VER: 8.3.4
+concurrency:
+  group: docs-pages
+  cancel-in-progress: false
 
 jobs:
   publish:
@@ -26,4 +27,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - run: docker run -v $(pwd):/docs --entrypoint ash squidfunk/mkdocs-material:${MKDOCS_MATERIAL_VER} -c 'git config --global --add safe.directory /docs; mkdocs gh-deploy --force --strict'
+        with:
+          fetch-depth: 0
+      - name: Configure deployment author
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+      - name: Build and publish documentation
+        # Installs project-local uv and uses the same locked environment as local development.
+        run: make deploy-docs

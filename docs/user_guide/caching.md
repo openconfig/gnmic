@@ -52,7 +52,7 @@ outputs:
     cache: {}
 ```
 
-This enables `output1` to use a cache of type [`oc`](#gnmi-cache).
+This enables `output1` to use a cache of type [`oc`](#gnmi-cache-local).
 
 Each output has its own cache.
 Using a single global cache will be implemented in a future release.
