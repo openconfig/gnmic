@@ -249,7 +249,7 @@ theme:
   font:
     text: Manrope
     code: Fira Mono
-  favicon: images/pulse.svg
+  favicon: images/favicon.svg
   icon:
     tag:
       default: material/tag-outline
