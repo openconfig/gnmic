@@ -964,7 +964,7 @@ func (tm *TargetsManager) startTargetSubscription(mt *ManagedTarget, cfg *types.
 					tm.setTargetState(mt.Name, currentState)
 				}
 				tm.stats.subscriptionFailedCount.WithLabelValues(mt.Name, err.SubscriptionName, subscriptionRequestErrorTypeGRPC).Inc()
-				tm.logger.Error("subscription error", "error", err)
+				tm.logger.Error("subscription error", "target", mt.Name, "subscription", err.SubscriptionName, "error", err.Err)
 			}
 		}
 	}()
