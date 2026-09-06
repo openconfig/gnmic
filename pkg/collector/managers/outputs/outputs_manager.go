@@ -158,6 +158,7 @@ func (mgr *OutputsManager) writeLoop(wg *sync.WaitGroup) {
 
 func (mgr *OutputsManager) write(e *pipeline.Msg) {
 	outs := mgr.getOutputsForTarget(e.Outputs)
+	writeCtx := outputs.WithSubscriptionInfo(mgr.ctx, e.Subscription)
 	outsNames := make([]string, 0, len(outs))
 	if mgr.logger.Enabled(mgr.ctx, slog.LevelDebug) {
 		for _, o := range outs {
@@ -173,7 +174,7 @@ func (mgr *OutputsManager) write(e *pipeline.Msg) {
 			}
 		} else {
 			// from targets or inputs
-			mo.Impl.Write(mgr.ctx, e.Msg, e.Meta)
+			mo.Impl.Write(writeCtx, e.Msg, e.Meta)
 		}
 	}
 }

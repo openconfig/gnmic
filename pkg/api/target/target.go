@@ -35,9 +35,12 @@ type TargetError struct {
 
 // SubscribeResponse //
 type SubscribeResponse struct {
-	SubscriptionName   string
-	SubscriptionConfig *types.SubscriptionConfig
-	Response           *gnmi.SubscribeResponse
+	SubscriptionName     string
+	SubscriptionConfig   *types.SubscriptionConfig
+	SubscriptionInstance string
+	SubscriptionMode     gnmi.SubscriptionList_Mode
+	InitialSyncComplete  bool
+	Response             *gnmi.SubscribeResponse
 }
 
 // Target represents a gNMI enabled box

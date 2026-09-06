@@ -938,8 +938,15 @@ func (tm *TargetsManager) startTargetSubscription(mt *ManagedTarget, cfg *types.
 				mt.RUnlock()
 				select {
 				case tm.out <- &pipeline.Msg{
-					Msg:     resp.Response,
-					Meta:    pipelineMeta(mt.Name, resp.SubscriptionName, eventTags),
+					Msg:  resp.Response,
+					Meta: pipelineMeta(mt.Name, resp.SubscriptionName, eventTags),
+					Subscription: outputs.SubscriptionInfo{
+						Source:              mt.Name,
+						Name:                resp.SubscriptionName,
+						Instance:            resp.SubscriptionInstance,
+						Mode:                resp.SubscriptionMode,
+						InitialSyncComplete: resp.InitialSyncComplete,
+					},
 					Outputs: outs,
 				}:
 				default:

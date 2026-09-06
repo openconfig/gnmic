@@ -63,6 +63,13 @@ var prometheusWriteMetadataSendDuration = prometheus.NewGaugeVec(prometheus.Gaug
 	Help:      "gnmic prometheus_write output metadata send duration in ns",
 }, []string{"name"})
 
+var prometheusWriteMessagesSkipped = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Namespace: namespace,
+	Subsystem: subsystem,
+	Name:      "messages_skipped_total",
+	Help:      "Number of protobuf messages skipped by configured subscription sampling",
+}, []string{"name", "subscription"})
+
 func initMetrics(name string) {
 	// data msgs metrics
 	prometheusWriteNumberOfSentMsgs.WithLabelValues(name).Add(0)
@@ -111,7 +118,16 @@ func (p *promWriteOutput) registerMetrics() error {
 			p.logger.Error("failed to register metric", "err", err)
 			return
 		}
+		if err = p.reg.Register(prometheusWriteMessagesSkipped); err != nil {
+			p.logger.Error("failed to register metric", "err", err)
+			return
+		}
 	})
 	initMetrics(cfg.Name)
+	if cfg.MessageSampling != nil {
+		for subscription := range cfg.MessageSampling.BySubscription {
+			prometheusWriteMessagesSkipped.WithLabelValues(cfg.Name, subscription).Add(0)
+		}
+	}
 	return err
 }

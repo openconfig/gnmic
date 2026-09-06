@@ -16,6 +16,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/grpctunnel/tunnel"
 	"google.golang.org/grpc"
@@ -287,6 +288,12 @@ OUTER:
 			"encoding", sreq.req.GetSubscribe().GetEncoding(),
 		)
 		rspCh, errCh := t.SubscribeOnceChan(gnmiCtx, sreq.req)
+		subscriptionInfo := outputs.SubscriptionInfo{
+			Source:   t.Config.Name,
+			Name:     sreq.name,
+			Instance: uuid.NewString(),
+			Mode:     sreq.req.GetSubscribe().GetMode(),
+		}
 		for {
 			select {
 			case err := <-errCh:
@@ -298,8 +305,11 @@ OUTER:
 				}
 				return err
 			case rsp := <-rspCh:
+				if rsp.GetSyncResponse() {
+					subscriptionInfo.InitialSyncComplete = true
+				}
 				m := outputs.Meta{"source": t.Config.Name, "format": a.Config.Format, "subscription-name": sreq.name}
-				a.export(ctx, rsp, m, t.Config.Outputs...)
+				a.export(outputs.WithSubscriptionInfo(ctx, subscriptionInfo), rsp, m, t.Config.Outputs...)
 			}
 		}
 	}
