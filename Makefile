@@ -1,4 +1,5 @@
-.DEFAULT_GOAL := serve-docs
+# CodeQL's Go autobuilder invokes make without a target.
+.DEFAULT_GOAL := build
 
 include versions.env
 

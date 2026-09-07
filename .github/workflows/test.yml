@@ -37,13 +37,13 @@ jobs:
         env:
           CGO_ENABLED: 0
       # run staticcheck
-      - uses: reviewdog/action-staticcheck@8628bbf0797ad63e854c120a9e59a7100ae25ff0 # v1.31.0
+      - uses: reviewdog/action-staticcheck@53efac7da6eead83fb445fc490fef0b7ea57eeb1 # v1.31.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           # Change reviewdog reporter if you need [github-pr-check,github-check,github-pr-review].
           reporter: github-pr-review
-          # Report all results.
-          filter_mode: nofilter
+          # PRs fail on findings in changed lines; other runs report all results.
+          filter_mode: ${{ github.event_name == 'pull_request' && 'added' || 'nofilter' }}
           # Exit with 1 when it finds at least one finding.
           fail_level: error
           # Build with the configured Go version, which supports this project's Go version.
