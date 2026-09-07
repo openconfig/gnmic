@@ -243,3 +243,39 @@ func TestInfluxDBOutput_InitDoesNotBlockOnDeadServer(t *testing.T) {
 		t.Fatal("Init blocked while the influx server was unreachable")
 	}
 }
+
+func TestConvertUintsAppliesToInfluxDB1(t *testing.T) {
+	const counter uint64 = 42580201
+	tests := []struct {
+		name    string
+		version string
+		convert bool
+	}{
+		{name: "1.8.10", version: "1.8.10", convert: true},
+		{name: "1.13.0", version: "1.13.0", convert: true},
+		{name: "v1.13.0", version: "v1.13.0", convert: true},
+		{name: "2.7.4", version: "2.7.4", convert: false},
+		{name: "v2.0.0", version: "v2.0.0", convert: false},
+		{name: "unset", convert: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			i := &influxDBOutput{}
+			if tt.version != "" {
+				i.dbVersion.Store(tt.version)
+			}
+			ev := &formatters.EventMsg{Values: map[string]any{"n": counter}}
+			i.convertUints(ev)
+			got := ev.Values["n"]
+			if tt.convert {
+				if _, ok := got.(int); !ok {
+					t.Fatalf("got %T (%v), want int", got, got)
+				}
+				return
+			}
+			if _, ok := got.(uint64); !ok {
+				t.Fatalf("got %T (%v), want uint64", got, got)
+			}
+		})
+	}
+}

@@ -16,16 +16,18 @@ on:
       - "main"
       - "!releases/**"
 
-permissions:
-  contents: read
-  checks: write
-  pull-requests: write
+permissions: {}
 
 jobs:
   test:
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      # reviewdog (staticcheck) posts review comments
+      checks: write
+      pull-requests: write
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Load software versions
         run: sed -n 's/^export //p' versions.env >> "$GITHUB_ENV"
       - name: Check generated version files
@@ -48,3 +50,19 @@ jobs:
           fail_level: error
           # Build with the configured Go version, which supports this project's Go version.
           use_go_install: true
+
+  race:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - name: Load software versions
+        run: sed -n 's/^export //p' versions.env >> "$GITHUB_ENV"
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      # the race detector needs cgo; the coverage job above runs with CGO_ENABLED=0
+      - run: ./tests/run_tests.sh --race
+        env:
+          CGO_ENABLED: 1

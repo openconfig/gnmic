@@ -65,6 +65,12 @@ var clusterIsLeader = prometheus.NewGauge(prometheus.GaugeOpts{
 	Name:      "is_leader",
 	Help:      "Has value 1 if this gnmic instance is the cluster leader, 0 otherwise",
 })
+var clusterLockerListFailed = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Namespace: "gnmic",
+	Subsystem: "cluster",
+	Name:      "locker_list_failed_total",
+	Help:      "Number of failed locker List queries while updating cluster gauges",
+}, []string{"query"})
 
 func (a *App) registerTargetMetrics() {
 	err := a.reg.Register(targetUPMetric)
@@ -161,6 +167,10 @@ func (a *App) startClusterMetrics() {
 	if err != nil {
 		logging.LogErrUnlessCanceled(a.Logger, err, "failed to register metric")
 	}
+	err = a.reg.Register(clusterLockerListFailed)
+	if err != nil {
+		logging.LogErrUnlessCanceled(a.Logger, err, "failed to register metric")
+	}
 	ticker := time.NewTicker(clusterMetricsUpdatePeriod)
 	defer ticker.Stop()
 	for {
@@ -168,33 +178,40 @@ func (a *App) startClusterMetrics() {
 		case <-a.ctx.Done():
 			return
 		case <-ticker.C:
-			ctx, cancel := context.WithTimeout(a.ctx, clusterMetricsUpdatePeriod/2)
-			leaderKey := fmt.Sprintf("gnmic/%s/leader", a.Config.ClusterName)
-			leader, err := a.locker.List(ctx, leaderKey)
-			cancel()
-			if err != nil {
-				logging.LogErrUnlessCanceled(a.Logger, err, "failed to get leader key")
-			}
-			if leader[leaderKey] == a.Config.Clustering.InstanceName {
-				clusterIsLeader.Set(1)
-			} else {
-				clusterIsLeader.Set(0)
-			}
-
-			lockedNodesPrefix := fmt.Sprintf("gnmic/%s/targets", a.Config.ClusterName)
-			ctx, cancel = context.WithTimeout(a.ctx, clusterMetricsUpdatePeriod/2)
-			lockedNodes, err := a.locker.List(ctx, lockedNodesPrefix)
-			cancel()
-			if err != nil {
-				logging.LogErrUnlessCanceled(a.Logger, err, "failed to get locked nodes key")
-			}
-			numLockedNodes := 0
-			for _, v := range lockedNodes {
-				if v == a.Config.Clustering.InstanceName {
-					numLockedNodes++
-				}
-			}
-			clusterNumberOfLockedTargets.Set(float64(numLockedNodes))
+			a.updateClusterMetrics(a.ctx)
 		}
 	}
+}
+
+func (a *App) updateClusterMetrics(ctx context.Context) {
+	timeout := clusterMetricsUpdatePeriod / 2
+	leaderKey := fmt.Sprintf("gnmic/%s/leader", a.Config.ClusterName)
+	leaderCtx, cancel := context.WithTimeout(ctx, timeout)
+	leader, err := a.locker.List(leaderCtx, leaderKey)
+	cancel()
+	if err != nil {
+		logging.LogErrUnlessCanceled(a.Logger, err, "failed to get leader key")
+		clusterLockerListFailed.WithLabelValues("leader").Inc()
+	} else if leader[leaderKey] == a.Config.Clustering.InstanceName {
+		clusterIsLeader.Set(1)
+	} else {
+		clusterIsLeader.Set(0)
+	}
+
+	lockedNodesPrefix := fmt.Sprintf("gnmic/%s/targets", a.Config.ClusterName)
+	lockedCtx, cancel := context.WithTimeout(ctx, timeout)
+	lockedNodes, err := a.locker.List(lockedCtx, lockedNodesPrefix)
+	cancel()
+	if err != nil {
+		logging.LogErrUnlessCanceled(a.Logger, err, "failed to get locked nodes key")
+		clusterLockerListFailed.WithLabelValues("targets").Inc()
+		return
+	}
+	numLockedNodes := 0
+	for _, v := range lockedNodes {
+		if v == a.Config.Clustering.InstanceName {
+			numLockedNodes++
+		}
+	}
+	clusterNumberOfLockedTargets.Set(float64(numLockedNodes))
 }

@@ -4,11 +4,12 @@ import (
 	"context"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/openconfig/gnmic/pkg/config"
 	collstore "github.com/openconfig/gnmic/pkg/collector/store"
+	"github.com/openconfig/gnmic/pkg/config"
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	"github.com/openconfig/gnmic/pkg/pipeline"
@@ -329,4 +330,82 @@ func TestOutputsManager_writeLoopConcurrentMessages(t *testing.T) {
 	waitForMockEventCount(t, mgr, "out1", n)
 	cancel()
 	wg.Wait()
+}
+
+type blockingMockOutput struct {
+	mockOutput
+	started   chan struct{}
+	unblock   chan struct{}
+	inFlight  atomic.Int32
+	maxFlight atomic.Int32
+}
+
+func (m *blockingMockOutput) Write(ctx context.Context, msg proto.Message, meta outputs.Meta) {
+	n := m.inFlight.Add(1)
+	for {
+		old := m.maxFlight.Load()
+		if n <= old || m.maxFlight.CompareAndSwap(old, n) {
+			break
+		}
+	}
+	select {
+	case <-m.started:
+	default:
+		close(m.started)
+	}
+	<-m.unblock
+	m.inFlight.Add(-1)
+	m.mockOutput.Write(ctx, msg, meta)
+}
+
+func TestOutputsManager_writeLoopWaitsForWrite(t *testing.T) {
+	mgr, _, pipe, cancel := newOutputsTestManager(t)
+	defer cancel()
+
+	blocked := &blockingMockOutput{
+		started: make(chan struct{}),
+		unblock: make(chan struct{}),
+	}
+	mgr.OutputsFactory["mock"] = func() outputs.Output { return blocked }
+	mgr.createOutput("out1", map[string]any{"type": "mock"})
+	waitForOutputState(t, mgr, "out1", collstore.StateRunning)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go mgr.writeLoop(&wg)
+
+	const n = 8
+	for i := 0; i < n; i++ {
+		pipe <- &pipeline.Msg{
+			Meta: outputs.Meta{"subscription-name": "sub"},
+			Msg:  nil,
+		}
+	}
+
+	select {
+	case <-blocked.started:
+	case <-time.After(time.Second):
+		t.Fatal("writeLoop did not call Write")
+	}
+	if got := blocked.maxFlight.Load(); got != 1 {
+		t.Fatalf("concurrent Write calls = %d, want 1", got)
+	}
+
+	close(blocked.unblock)
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		blocked.mu.Lock()
+		got := blocked.writeCount
+		blocked.mu.Unlock()
+		if got == n {
+			cancel()
+			wg.Wait()
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	blocked.mu.Lock()
+	got := blocked.writeCount
+	blocked.mu.Unlock()
+	t.Fatalf("writeCount = %d, want %d", got, n)
 }

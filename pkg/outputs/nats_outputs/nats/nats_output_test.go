@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	"github.com/zestor-dev/zestor/store"
 	"github.com/zestor-dev/zestor/store/gomap"
@@ -91,5 +92,39 @@ func TestNatsOutput_InitUpdateClose(t *testing.T) {
 	case <-done:
 	case <-time.After(20 * time.Second):
 		t.Fatal("Close timed out")
+	}
+}
+
+func TestNatsOutput_WriteEventEnqueues(t *testing.T) {
+	n := &NatsOutput{}
+	cfg := map[string]any{
+		"address":           "127.0.0.1:1",
+		"subject":           "stage2",
+		"format":            "event",
+		"buffer-size":       8,
+		"connect-time-wait": "1ms",
+		"num-workers":       1,
+		"write-timeout":     "200ms",
+	}
+	if err := n.Init(context.Background(), "n1", cfg, outputs.WithConfigStore(memStore())); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	t.Cleanup(func() { _ = n.Close() })
+
+	ev := &formatters.EventMsg{Name: "ok", Timestamp: 1, Values: map[string]any{"v": 1}}
+	// Drain the worker out of the way: it is blocked in Dial, so the event
+	// stays on the channel for us to observe.
+	n.WriteEvent(context.Background(), ev)
+	ptr := n.eventChan.Load()
+	if ptr == nil || *ptr == nil {
+		t.Fatal("event channel was not initialized")
+	}
+	select {
+	case got := <-*ptr:
+		if got.Name != "ok" {
+			t.Fatalf("event: %+v", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("WriteEvent did not enqueue the event")
 	}
 }

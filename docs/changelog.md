@@ -855,7 +855,7 @@ tags:
 
 - [Deployment Examples](deployments/deployments_intro.md):
 
-    Add [containerlab](https://containerlab.srlinux.dev) based deployment examples.
+    Add [containerlab](https://containerlab.dev) based deployment examples.
     These deployment come with a router fabric built using Nokia's [SRL](https://learn.srlinux.dev)
 
 - [API server](user_guide/api/api_intro.md):
