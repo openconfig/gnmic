@@ -1,3 +1,8 @@
+---
+tags:
+  - Output
+---
+
 `gnmic` supports displaying collected metrics as an ASCII graph on the terminal.
 The graph is generated using the [asciigraph](https://github.com/guptarohit/asciigraph) package.
 

@@ -1,3 +1,11 @@
+---
+tags:
+  - Deployment
+  - Clustering
+  - Docker Compose
+  - InfluxDB
+---
+
 The purpose of this deployment is to achieve __redundancy__, __high-availability__ via clustering.
 
 This deployment example includes:

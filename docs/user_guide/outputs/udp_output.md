@@ -1,3 +1,8 @@
+---
+tags:
+  - Output
+---
+
 `gnmic` supports exporting subscription updates to a UDP server
 
 A UDP output can be defined using the below format in `gnmic` config file under `outputs` section:

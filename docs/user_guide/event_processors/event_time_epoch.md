@@ -1,3 +1,8 @@
+---
+tags:
+  - Event processor
+---
+
 The event-time-epoch processor is a plugin for gNMIc that converts string-based time values in event messages into epoch timestamps.
 This is particularly useful when input data includes timestamps in human-readable formats (like RFC3339) and you want to normalize them for downstream systems.
 

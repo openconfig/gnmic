@@ -1,3 +1,8 @@
+---
+tags:
+  - REST API
+---
+
 # Other
 
 ## /api/v1/healthz

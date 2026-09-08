@@ -6,7 +6,7 @@ topology:
 
   kinds:
     nokia_srlinux:
-      image: ghcr.io/nokia/srlinux:23.10.3
+      image: ghcr.io/nokia/srlinux:${SRLINUX_VERSION}
       labels:
         test: telemetry
 

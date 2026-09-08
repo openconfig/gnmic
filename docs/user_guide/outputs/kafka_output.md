@@ -1,3 +1,9 @@
+---
+tags:
+  - Output
+  - Kafka
+---
+
 `gnmic` supports exporting subscription updates to multiple Apache Kafka brokers/clusters simultaneously
 
 ### Configuration sample

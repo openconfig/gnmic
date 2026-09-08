@@ -1,3 +1,10 @@
+---
+tags:
+  - Target
+  - Target discovery
+  - Docker
+---
+
 
 The Docker target loader allows discovering gNMI targets from [Docker Engine](https://docs.docker.com/engine/) hosts.
 

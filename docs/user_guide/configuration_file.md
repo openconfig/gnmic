@@ -1,3 +1,8 @@
+---
+tags:
+  - Configuration
+---
+
 `gnmic` configuration by means of the command line flags is both consistent and reliable. But sometimes its not the best way forward.
 
 With lots of configuration options that `gnmic` supports it might get tedious to pass them all via CLI flags. In cases like that the file-based configuration comes handy.

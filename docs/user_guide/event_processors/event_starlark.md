@@ -1,3 +1,8 @@
+---
+tags:
+  - Event processor
+---
+
 ### Intro
 
 The `event-starlark` processor applies a [`Starlark`](https://github.com/google/starlark-go/blob/master/doc/spec.md) function on a list of `event` messages before returning them to the processors pipeline and then to the output.

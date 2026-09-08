@@ -1,3 +1,9 @@
+---
+tags:
+  - Target
+  - Configuration
+---
+
 # Targets
 
 Sometimes it is needed to perform an operation on multiple devices; be it getting the same leaf value from a given set of the network elements or setting a certain configuration element to some value.

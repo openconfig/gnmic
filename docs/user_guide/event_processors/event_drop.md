@@ -1,3 +1,8 @@
+---
+tags:
+  - Event processor
+---
+
 The `event-drop` processor drops the whole message if it matches the configured `condition` or one of the regexes under`tags`, `tag-names`, `values` or `value-names`.
 
 ```yaml

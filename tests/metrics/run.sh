@@ -1,11 +1,14 @@
 #!/bin/bash
 
+project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
+. "$project_dir/versions.env"
+
 case "$1" in
   "build")
-     docker build -t gnmic:0.0.0-rc1 ../../
+     sh "$project_dir/scripts/docker-build.sh" -t "gnmic:$GNMIC_TEST_VERSION"
 esac
 
-sudo clab dep -t metrics.clab.yaml --reconfigure
+sh "$project_dir/scripts/containerlab.sh" dep -t metrics.clab.yaml --reconfigure
 
 sleep 60
 

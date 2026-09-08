@@ -1,3 +1,13 @@
+---
+tags:
+  - Deployment
+  - Pipeline
+  - Docker Compose
+  - NATS
+  - InfluxDB
+  - Prometheus
+---
+
 
 The purpose of this deployment is to create a forked data pipeline using `NATS` , `Influxdb` and `Prometheus`
 

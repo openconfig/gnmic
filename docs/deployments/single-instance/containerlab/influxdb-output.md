@@ -1,3 +1,10 @@
+---
+tags:
+  - Deployment
+  - Containerlab
+  - InfluxDB
+---
+
 The purpose of this deployment is to collect gNMI data and write it to an `InfluxDB` instance.
 
 This deployment example includes a single `gnmic` instance, a single [InfluxDB](https://www.influxdata.com/) server acting as an [InfluxDB output](../../../user_guide/outputs/influxdb_output.md) and a [Grafana](https://grafana.com/docs/) server

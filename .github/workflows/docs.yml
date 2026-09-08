@@ -15,8 +15,9 @@ on:
     tags:
       - "v*"
 
-env:
-  MKDOCS_MATERIAL_VER: 8.3.4
+concurrency:
+  group: docs-pages
+  cancel-in-progress: false
 
 jobs:
   publish:
@@ -26,15 +27,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      # actions/checkout >= v6 keeps the git token in a file under $RUNNER_TEMP and
-      # references it from .git/config with conditional includes keyed on the git
-      # directory: the host path, and the container path /github/workspace/.git with the
-      # token at /github/runner_temp. Mounting the checkout and RUNNER_TEMP at those
-      # container paths is what lets `git push` inside the image authenticate.
-      - run: >
-          docker run
-          -v "$GITHUB_WORKSPACE:/github/workspace"
-          -v "$RUNNER_TEMP:/github/runner_temp"
-          -w /github/workspace
-          --entrypoint ash squidfunk/mkdocs-material:${MKDOCS_MATERIAL_VER}
-          -c 'git config --global --add safe.directory /github/workspace; mkdocs gh-deploy --force --strict'
+        with:
+          fetch-depth: 0
+      - name: Load software versions
+        run: sed -n 's/^export //p' versions.env >> "$GITHUB_ENV"
+      - name: Configure deployment author
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+      - name: Build and publish documentation
+        # Installs project-local uv and uses the same locked environment as local development.
+        run: make deploy-docs

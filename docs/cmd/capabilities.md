@@ -1,3 +1,9 @@
+---
+tags:
+  - Command
+  - Getting started
+---
+
 ## Description
 
 The `[cap | capabilities]` command represents the [gNMI Capabilities RPC](https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto#L51).

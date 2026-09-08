@@ -1,3 +1,10 @@
+---
+tags:
+  - Deployment
+  - Containerlab
+  - ClickHouse
+---
+
 The purpose of this deployment is to collect gNMI data and write it to a [ClickHouse](https://clickhouse.com/) instance.
 
 This deployment example includes a single `gnmic` instance, a ClickHouse server acting as a [ClickHouse output](../../../user_guide/outputs/clickhouse_output.md), and a [Grafana](https://grafana.com/docs/) server for visualization.

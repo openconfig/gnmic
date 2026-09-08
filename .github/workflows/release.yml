@@ -16,18 +16,16 @@ on:
 permissions:
   contents: read
 
-env:
-  GOVER: 1.26.5
-  GORELEASER_VER: v2.13.3
-
 jobs:
   test:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Load software versions
+        run: sed -n 's/^export //p' versions.env >> "$GITHUB_ENV"
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: ${{ env.GOVER }}
+          go-version: ${{ env.GO_VERSION }}
       - run: ./tests/run_tests.sh
         env:
           CGO_ENABLED: 0
@@ -45,9 +43,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Load software versions
+        run: sed -n 's/^export //p' versions.env >> "$GITHUB_ENV"
+
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: ${{ env.GOVER }}
+          go-version: ${{ env.GO_VERSION }}
 
       - name: Login to github container registry
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -62,7 +63,7 @@ jobs:
       - name: Release with goreleaser
         uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
-          version: ${{ env.GORELEASER_VER }}
+          version: ${{ env.GORELEASER_VERSION }}
           args: release --clean --verbose
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

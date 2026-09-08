@@ -1,3 +1,8 @@
+---
+tags:
+  - REST API
+---
+
 A limited set of REST endpoints are supported, these are mainly used to allow for a clustered deployment for multiple `gnmic` instances.
 
 The API can be used to automate (to a certain extent) the targets configuration loading and starting/stopping subscriptions.

@@ -1,3 +1,9 @@
+---
+tags:
+  - Command
+  - Dial-out
+---
+
 ### Description
 `gnmic` can be used in a "dial-out telemetry" mode by means of the `listen` command. In the dial-out mode:
 

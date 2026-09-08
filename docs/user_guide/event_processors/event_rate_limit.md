@@ -1,3 +1,8 @@
+---
+tags:
+  - Event processor
+---
+
 The `event-rate-limit` processor rate-limits each event with matching tags to the configured amount per-seconds.
 
 All the tags for each event is hashed, and if the hash matches a previously seen event, then the timestamp 

@@ -3,10 +3,10 @@ name: loaders
 topology:
   defaults:
     kind: linux
-    image: gnmic:0.0.0-rc1
+    image: gnmic:${GNMIC_TEST_VERSION}
   kinds:
     nokia_srlinux:
-      image: ghcr.io/nokia/srlinux:23.10.3
+      image: ghcr.io/nokia/srlinux:${SRLINUX_VERSION}
 
   nodes:
     srl1:
@@ -17,7 +17,7 @@ topology:
       kind: nokia_srlinux
     
     consul-agent:
-      image: consul:1.15.4
+      image: consul:${CONSUL_LOADERS_VERSION}
       ports:
         - 8500:8500
         - 8600:8600/udp

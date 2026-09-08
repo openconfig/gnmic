@@ -1,3 +1,10 @@
+---
+tags:
+  - Input
+  - NATS
+  - JetStream
+---
+
 When using jetstream as an input, `gnmic` consumes data from a specified NATS JetStream stream using a durable consumer. Messages are fetched in batches and delivered to `gnmic` in either `event` or `proto` format.
 
 Each gNMIc instance creates one durable consumer using the configured `subjects` field. Multiple workers (subscribers) can be spawned using the `num-workers` option to increase processing throughput. All workers within a single gNMIc instance share the same durable consumer to ensure coordinated message processing.

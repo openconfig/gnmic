@@ -1,3 +1,8 @@
+---
+tags:
+  - Event processor
+---
+
 
 The event processors provide an easy way to configure a set of functions in order to transform an event message that will be be written to a specific output.
 

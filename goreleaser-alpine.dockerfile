@@ -6,7 +6,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-FROM alpine
+ARG ALPINE_VERSION
+FROM alpine:${ALPINE_VERSION}
 
 LABEL maintainer="Karim Radhouani <medkarimrdi@gmail.com>, Roman Dodin <dodin.roman@gmail.com>"
 LABEL documentation="https://gnmic.openconfig.net"

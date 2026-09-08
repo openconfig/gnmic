@@ -1,0 +1,19 @@
+{# Keep the native palette inputs and labels so theme preferences and keyboard controls still work. #}
+<form class="md-header__option gnmic-theme-switch" data-md-component="palette">
+  {% for option in config.theme.palette %}
+    {% set scheme  = option.scheme  | d("default", true) %}
+    {% set primary = option.primary | d("indigo", true) %}
+    {% set accent  = option.accent  | d("indigo", true) %}
+    <input class="md-option" data-md-color-media="{{ option.media }}" data-md-color-scheme="{{ scheme | replace(' ', '-') }}" data-md-color-primary="{{ primary | replace(' ', '-') }}" data-md-color-accent="{{ accent | replace(' ', '-') }}" {% if option.toggle %} aria-label="{{ option.toggle.name }}" {% else %} aria-hidden="true" {% endif %} type="radio" name="__palette" id="__palette_{{ loop.index0 }}">
+    {% if option.toggle %}
+      <label class="md-header__button" title="{{ option.toggle.name }}" for="__palette_{{ loop.index % loop.length }}" hidden></label>
+    {% endif %}
+  {% endfor %}
+  {# One persistent track lets the thumb slide while the native labels switch. #}
+  <span class="gnmic-theme-switch__track md-icon" aria-hidden="true">
+    <span class="gnmic-theme-switch__thumb">
+      {% include ".icons/lucide/sun.svg" %}
+      {% include ".icons/lucide/moon.svg" %}
+    </span>
+  </span>
+</form>

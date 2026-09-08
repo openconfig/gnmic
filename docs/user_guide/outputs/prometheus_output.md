@@ -1,3 +1,9 @@
+---
+tags:
+  - Output
+  - Prometheus
+---
+
 ## Introduction
 
 gNMIc offers the capability to present gNMI updates on a Prometheus server, allowing a Prometheus system to perform scrapes.

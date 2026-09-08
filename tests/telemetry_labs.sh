@@ -3,6 +3,9 @@
 export SHELLOPTS
 set -eET
 
+project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+. "$project_dir/versions.env"
+
 failure() {
   local lineno=$1
   local msg=$2
@@ -17,13 +20,13 @@ export -f failure
 function cleanup() {
     printf "cleaning up...\n"
     cd clab/telemetry
-    sudo clab destroy -t telemetry.clab.yaml --cleanup
+    sh "$project_dir/scripts/containerlab.sh" destroy -t telemetry.clab.yaml --cleanup
     cd ../..
     #
     for i in `seq 1 $NUM_LABS`
     do
       printf "destroying lab clab/lab%s.clab.yaml\n" $i
-      sudo clab destroy -t clab/lab$i.clab.yaml --cleanup
+      sh "$project_dir/scripts/containerlab.sh" destroy -t clab/lab$i.clab.yaml --cleanup
       rm clab/lab$i.clab.yaml
       rm -rf .lab$i.clab.yaml
     done
@@ -45,17 +48,17 @@ for i in `seq 1 $NUM_LABS`
 # destroy labs if they are still up.
 for i in `seq 1 $NUM_LABS`
   do
-    sudo clab destroy -t clab/lab${i}.clab.yaml --cleanup 
+    sh "$project_dir/scripts/containerlab.sh" destroy -t clab/lab${i}.clab.yaml --cleanup
   done
 
 
 # build docker image
-docker build -t gnmic:0.0.0-rc1 ../
+sh "$project_dir/scripts/docker-build.sh" -t "gnmic:$GNMIC_TEST_VERSION"
 
 # deploy telemetry lab
 echo ""
 cd clab/telemetry
-sudo clab deploy -t telemetry.clab.yaml --reconfigure
+sh "$project_dir/scripts/containerlab.sh" deploy -t telemetry.clab.yaml --reconfigure
 cd ../..
 
 echo ""
@@ -93,7 +96,7 @@ sleep 10
 for i in `seq 1 $NUM_LABS`
   do
     echo "Deploying lab" $i
-    sudo clab deploy -t clab/lab${i}.clab.yaml --reconfigure
+    sh "$project_dir/scripts/containerlab.sh" deploy -t clab/lab${i}.clab.yaml --reconfigure
   done
 echo ""
 
@@ -120,8 +123,8 @@ echo ""
 echo "Waiting a bit before starting to add and remove labs..."
 sleep 10
 ## remove 2 labs
-sudo clab destroy -t clab/lab1.clab.yaml --cleanup
-sudo clab destroy -t clab/lab5.clab.yaml --cleanup
+sh "$project_dir/scripts/containerlab.sh" destroy -t clab/lab1.clab.yaml --cleanup
+sh "$project_dir/scripts/containerlab.sh" destroy -t clab/lab5.clab.yaml --cleanup
 sleep 60
 
 check_num_locked_targets $(($NUM_NODES_PER_LAB * ((${NUM_LABS} - 2))))
@@ -129,7 +132,7 @@ check_num_locked_targets $(($NUM_NODES_PER_LAB * ((${NUM_LABS} - 2))))
 sleep 60
 ## add 1 lab
 echo "Re Deploying lab1"
-sudo clab deploy -t clab/lab1.clab.yaml --reconfigure
+sh "$project_dir/scripts/containerlab.sh" deploy -t clab/lab1.clab.yaml --reconfigure
 sleep 60
 
 check_num_locked_targets $(($NUM_NODES_PER_LAB * ((${NUM_LABS} - 1))))
@@ -137,8 +140,8 @@ sleep 60
 
 ## add 1 lab and remove 1
 echo "Destroying lab2, Adding back lab5"
-sudo clab deploy -t clab/lab5.clab.yaml --reconfigure
-sudo clab destroy -t clab/lab2.clab.yaml --cleanup
+sh "$project_dir/scripts/containerlab.sh" deploy -t clab/lab5.clab.yaml --reconfigure
+sh "$project_dir/scripts/containerlab.sh" destroy -t clab/lab2.clab.yaml --cleanup
 sleep 60
 
 check_num_locked_targets $(($NUM_NODES_PER_LAB * ((${NUM_LABS} - 1))))
@@ -153,14 +156,14 @@ echo "Running API calls..."
 ./api.sh clab-telemetry-agg-gnmic3:7895
 
 echo "Re Deploying lab2"
-sudo clab deploy -t clab/lab2.clab.yaml --reconfigure
+sh "$project_dir/scripts/containerlab.sh" deploy -t clab/lab2.clab.yaml --reconfigure
 sleep 60
 check_num_locked_targets $(($NUM_NODES_PER_LAB * $NUM_LABS))
 
 for i in `seq 1 $NUM_LABS`
     do
       printf "destroying lab clab/lab%s.clab.yaml\n" $i
-      sudo clab destroy -t clab/lab$i.clab.yaml --cleanup
+      sh "$project_dir/scripts/containerlab.sh" destroy -t clab/lab$i.clab.yaml --cleanup
       # rm clab/lab$i.clab.yaml
       # rm -rf .lab$i.clab.yaml
     done

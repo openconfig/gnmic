@@ -1,3 +1,8 @@
+---
+tags:
+  - Event processor
+---
+
 The `event-keep` processor removes tags or values that do not match the configured selectors. It complements `event-delete` and is useful when an event contains many fields but only a small allow-list is needed.
 
 Selectors for names and values use OR semantics. Tags are filtered only when `tag-names` or `tags` is configured; values are filtered only when `value-names`, `value-name-paths`, or `values` is configured. An unconfigured category is left unchanged.

@@ -1,3 +1,8 @@
+---
+tags:
+  - Output
+---
+
 In the context of gnmi subscriptions (on top of terminal output) `gnmic` supports multiple output options:
 
 * [Local file](file_output.md)

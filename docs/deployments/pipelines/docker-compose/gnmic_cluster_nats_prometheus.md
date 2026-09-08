@@ -1,3 +1,13 @@
+---
+tags:
+  - Deployment
+  - Clustering
+  - Pipeline
+  - Docker Compose
+  - NATS
+  - Prometheus
+---
+
 
 The purpose of this deployment is to create a clustered data pipeline using `NATS` and `Prometheus`.
 Achieving __redundancy__, __high-availability__ and __data replication__, all in clustered data pipeline.

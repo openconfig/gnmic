@@ -1,3 +1,12 @@
+---
+tags:
+  - Deployment
+  - Clustering
+  - Containerlab
+  - NATS
+  - Prometheus
+---
+
 The purpose of this deployment is to achieve __redundancy__, __high-availability__ as well as __data replication__.
 
 The redundancy and high-availability are guaranteed by deploying a `gnmic` cluster.

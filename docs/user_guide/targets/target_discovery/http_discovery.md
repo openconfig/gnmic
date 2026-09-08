@@ -1,3 +1,9 @@
+---
+tags:
+  - Target
+  - Target discovery
+---
+
 
 The HTTP target loader can be used to query targets configurations from a remote HTTP server.
 

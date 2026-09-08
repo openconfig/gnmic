@@ -1,3 +1,10 @@
+---
+tags:
+  - Deployment
+  - Containerlab
+  - Kafka
+---
+
 The purpose of this deployment is to collect gNMI data and write it to a `Kafka` broker.
 
 Multiple 3rd Party systems (acting as a Kafka consumers) can then read the data from the `Kafka` broker for further processing.

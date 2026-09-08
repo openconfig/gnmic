@@ -1,3 +1,8 @@
+---
+tags:
+  - Deployment
+---
+
 There are numerous ways `gnmic` can be deployed, each fulfilling a specific use case. 
 
 Whether it is gNMI telemetry collection and export to a single output, 

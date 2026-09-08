@@ -1,3 +1,9 @@
+---
+tags:
+  - Command
+  - Event processor
+---
+
 ### Description
 
 The `[processor | proc]` command allows running a set of event processor offline given an input of event messages.

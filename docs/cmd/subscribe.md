@@ -1,3 +1,9 @@
+---
+tags:
+  - Command
+  - Subscription
+---
+
 ### Description
 
 The `[subscribe | sub]` command represents the [gNMI Subscribe RPC](https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto#L68).

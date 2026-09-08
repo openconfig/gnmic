@@ -1,3 +1,11 @@
+---
+tags:
+  - Deployment
+  - Clustering
+  - Kubernetes
+  - Prometheus
+---
+
 The purpose of this deployment is to achieve __redundancy__, __high-availability__ using Kubernetes and `gnmic`'s internal clustering mechanism.
 
 This deployment example includes:

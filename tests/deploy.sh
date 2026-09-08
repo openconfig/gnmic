@@ -1,10 +1,10 @@
 #!/bin/bash
 
+project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+
 trap 'failure ${LINENO} "$BASH_COMMAND"' ERR
 
-# printf "Installing containerlab...\n"
-# bash -c "$(curl -sL https://get-clab.srlinux.dev)"
-sudo clab version
+sh "$project_dir/scripts/containerlab.sh" version
 printf "\n"
 printf "Deploying lab $1\n"
-sudo clab deploy -t clab/$1.clab.yaml --reconfigure
+sh "$project_dir/scripts/containerlab.sh" deploy -t clab/$1.clab.yaml --reconfigure

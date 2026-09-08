@@ -1,3 +1,8 @@
+---
+tags:
+  - Event processor
+---
+
 The `event-delete` processor deletes all tags or values matching a set of regular expressions from the event message.
 
 ### Examples

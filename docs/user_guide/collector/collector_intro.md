@@ -1,3 +1,8 @@
+---
+tags:
+  - Collector
+---
+
 # Collector Mode
 
 ## Introduction

@@ -1,3 +1,9 @@
+---
+tags:
+  - Actions
+  - Event processor
+---
+
 # Actions
 
 `gNMIc` supports running actions as result of an event, possible triggering events are:

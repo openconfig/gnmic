@@ -1,3 +1,10 @@
+---
+tags:
+  - Deployment
+  - Docker Compose
+  - NATS
+---
+
 The purpose of this deployment is to collect gNMI data and write it to a `NATS` server.
 
 Multiple 3rd Party systems (acting as a NATS clients) can then read the data from the `NATS` server for further processing.

@@ -29,7 +29,7 @@ fi
 function testmodule
 {
     cd "$1"
-    go test "${GOTEST_FLAGS[@]}" ./...
+    sh "$SCRIPTPATH/../scripts/go.sh" test "${GOTEST_FLAGS[@]}" ./...
     cd "$SCRIPTPATH/.."
 }
 

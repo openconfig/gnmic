@@ -1,3 +1,8 @@
+---
+tags:
+  - Event processor
+---
+
 The `event-data-convert` processor converts data values matching one of the regular expressions from/to a specific data unit:
 
 | Symbol | Unit    | Symbol | Unit      | Symbol  | Unit     |

@@ -1,3 +1,10 @@
+---
+tags:
+  - Input
+  - NATS
+  - STAN
+---
+
 When using STAN as input, `gnmic` consumes data from a specific STAN subject in `event` or `proto` format.
 
 Multiple consumers can be created per `gnmic` instance (`num-workers`).

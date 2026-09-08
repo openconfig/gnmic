@@ -1,3 +1,9 @@
+---
+tags:
+  - Output
+  - SNMP
+---
+
 `gnmic` supports generating SNMP traps based on received gNMI updates.
 
 This output type is useful when trying to integrate legacy systems that ingest SNMP traps with more modern telemetry/alarms stacks.

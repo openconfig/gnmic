@@ -1,3 +1,9 @@
+---
+tags:
+  - Target
+  - Security
+---
+
 # Targets session security
 
 In line with the guidelines detailed in the [gNMI Specification](https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#31-session-security-authentication-and-rpc-authorization), it is mandatory to establish an encrypted TLS session between the client and the server. This measure is essential to ensure secure communication within the gNMI protocol.
