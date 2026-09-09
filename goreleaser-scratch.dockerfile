@@ -12,6 +12,7 @@ LABEL maintainer="Karim Radhouani <medkarimrdi@gmail.com>, Roman Dodin <dodin.ro
 LABEL documentation="https://gnmic.openconfig.net"
 LABEL repo="https://github.com/openconfig/gnmic"
 
-COPY gnmic /app/gnmic
+ARG TARGETPLATFORM
+COPY $TARGETPLATFORM/gnmic /app/gnmic
 ENTRYPOINT [ "/app/gnmic" ]
 CMD [ "help" ]
