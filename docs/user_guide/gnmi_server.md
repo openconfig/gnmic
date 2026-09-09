@@ -25,7 +25,7 @@ The unary RPCs, Get and Set, are relayed to known targets based on the `Prefix.T
 ## Supported features
 
 - Supports gNMI RPCs, Get, Set, Subscribe
-- Acts as a gNMI gateway for Get and Set RPCs.
+- Acts as a gNMI gateway for Get and Set RPCs (Set is disabled by default, see [read-only](#read-only)).
 - Supports Service registration with Consul server.
 - Supports all types of gNMI subscriptions, `once`, `poll`, `stream`.
 - Supports all types of `stream` subscriptions, `on-change`, `target-defined` and `sample`.
@@ -65,6 +65,10 @@ gnmic -a gnmic-server:57400 get --path gnmic:/subscriptions
 ## Set RPC
 
 This `gNMI` server supports the gNMI `Set` RPC, it allows a client to run a single `Set` RPC against multiple targets.
+
+!!! note
+    The Set RPC is **disabled by default**: the server runs in read-only mode and rejects Set requests with an `Unimplemented` status code.
+    Set `read-only: false` under the `gnmi-server` section to enable it.
 
 Just like in the case of `Get` RPC, the server relies on the `Prefix.Target` field to select the target(s) against which it will run the `Set` RPC.
 
@@ -242,6 +246,9 @@ gnmi-server:
   enable-metrics: false
   # enable additional debug logs
   debug: false
+  # when true, the server rejects Set RPCs with an `Unimplemented` status code.
+  # set to false to allow clients to run Set RPCs against the known targets.
+  read-only: true
   # Enables Consul service registration
   service-registration:
     # Consul server address, default to localhost:8500
@@ -405,6 +412,14 @@ Defaults to `1s`
 #### enable-metrics
 
 Enables the collection of Prometheus gRPC server metrics.
+
+#### read-only
+
+When `true`, the server runs in read-only mode: Set RPCs are rejected with an `Unimplemented` status code.
+
+Set it to `false` to allow clients to run Set RPCs against the known targets.
+
+Defaults to `true`.
 
 #### debug
 

@@ -8,6 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/openconfig/gnmi/proto/gnmi"
+
+	"github.com/openconfig/gnmic/pkg/cache"
 	collstore "github.com/openconfig/gnmic/pkg/collector/store"
 	"github.com/openconfig/gnmic/pkg/config"
 	"github.com/openconfig/gnmic/pkg/formatters"
@@ -408,4 +411,94 @@ func TestOutputsManager_writeLoopWaitsForWrite(t *testing.T) {
 	got := blocked.writeCount
 	blocked.mu.Unlock()
 	t.Fatalf("writeCount = %d, want %d", got, n)
+}
+
+// captureCache is a cache.Cache stub recording Write calls.
+type captureCache struct {
+	mu   sync.Mutex
+	subs []string
+	msgs []proto.Message
+}
+
+func (c *captureCache) Write(_ context.Context, sub string, m proto.Message) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.subs = append(c.subs, sub)
+	c.msgs = append(c.msgs, m)
+}
+
+func (c *captureCache) ReadAll() (map[string][]*gnmi.Notification, error) { return nil, nil }
+func (c *captureCache) Read(string, string, *gnmi.Path) (map[string][]*gnmi.Notification, error) {
+	return nil, nil
+}
+func (c *captureCache) Subscribe(context.Context, *cache.ReadOpts) chan *cache.Notification {
+	return nil
+}
+func (c *captureCache) Stop()                  {}
+func (c *captureCache) DeleteTarget(string)    {}
+func (c *captureCache) SetLogger(*slog.Logger) {}
+
+// TestWriteToCache verifies that pipeline messages written to the cache carry
+// a prefix target (defaulted from the source metadata) so the cache can index
+// them, and that the original message is not mutated.
+func TestWriteToCache(t *testing.T) {
+	cc := &captureCache{}
+	mgr := &OutputsManager{
+		logger: slog.New(slog.DiscardHandler),
+		cache:  cc,
+	}
+
+	rsp := &gnmi.SubscribeResponse{
+		Response: &gnmi.SubscribeResponse_Update{
+			Update: &gnmi.Notification{
+				Update: []*gnmi.Update{{
+					Path: &gnmi.Path{Elem: []*gnmi.PathElem{{Name: "system"}}},
+					Val:  &gnmi.TypedValue{Value: &gnmi.TypedValue_StringVal{StringVal: "x"}},
+				}},
+			},
+		},
+	}
+	mgr.WriteToCache(context.Background(), &pipeline.Msg{
+		Msg:  rsp,
+		Meta: map[string]string{"subscription-name": "sub1", "source": "dut-1"},
+	})
+
+	if len(cc.msgs) != 1 {
+		t.Fatalf("expected 1 cache write, got %d", len(cc.msgs))
+	}
+	if cc.subs[0] != "sub1" {
+		t.Errorf("expected subscription sub1, got %q", cc.subs[0])
+	}
+	written := cc.msgs[0].(*gnmi.SubscribeResponse)
+	if tg := written.GetUpdate().GetPrefix().GetTarget(); tg != "dut-1" {
+		t.Errorf("expected cache write target dut-1, got %q", tg)
+	}
+	// the original message must not be mutated.
+	if rsp.GetUpdate().GetPrefix().GetTarget() != "" {
+		t.Error("original pipeline message was mutated")
+	}
+
+	// an existing target is preserved.
+	rsp.GetUpdate().Prefix = &gnmi.Path{Target: "explicit"}
+	mgr.WriteToCache(context.Background(), &pipeline.Msg{
+		Msg:  rsp,
+		Meta: map[string]string{"source": "dut-1"},
+	})
+	if len(cc.msgs) != 2 {
+		t.Fatalf("expected 2 cache writes, got %d", len(cc.msgs))
+	}
+	if cc.subs[1] != "default" {
+		t.Errorf("expected default subscription name, got %q", cc.subs[1])
+	}
+	written = cc.msgs[1].(*gnmi.SubscribeResponse)
+	if tg := written.GetUpdate().GetPrefix().GetTarget(); tg != "explicit" {
+		t.Errorf("expected preserved target explicit, got %q", tg)
+	}
+
+	// no resolvable target: nothing is written.
+	rsp.GetUpdate().Prefix = nil
+	mgr.WriteToCache(context.Background(), &pipeline.Msg{Msg: rsp, Meta: map[string]string{}})
+	if len(cc.msgs) != 2 {
+		t.Fatalf("expected no cache write without a target, got %d", len(cc.msgs))
+	}
 }

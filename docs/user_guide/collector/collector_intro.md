@@ -53,6 +53,7 @@ For subscribe-mode tunnel server behavior, see [Tunnel Server](../tunnel_server.
 | Subscription management | Fixed at startup, can be modified using the REST API but requires a target restart to get applied | Add/update/remove at runtime using REST API |
 | Output management | Fixed at startup | Add/update/remove at runtime using REST API |
 | Tunnel targets | Fixed at startup | dynamic using target tunnel matching rules |
+| gNMI server | Supported | Supported, serves the collector cache and relays Get/Set RPCs |
 
 ## Getting Started
 

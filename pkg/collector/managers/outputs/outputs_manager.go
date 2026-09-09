@@ -150,7 +150,7 @@ func (mgr *OutputsManager) writeLoop(wg *sync.WaitGroup) {
 			mgr.logger.Debug("got pipeline message", "message", e) // Debug
 			mgr.write(e)
 			if mgr.cache != nil {
-				go mgr.cache.Write(mgr.ctx, e.Meta["subscription-name"], e.Msg)
+				go mgr.WriteToCache(mgr.ctx, e)
 			}
 		}
 	}
@@ -370,36 +370,39 @@ func (mgr *OutputsManager) registerMetrics() {
 	mgr.reg.MustRegister(mgr.stats.msgCountErr)
 }
 
+// WriteToCache writes a pipeline message to the collector cache. The cache
+// indexes updates by subscription name and prefix target; responses without a
+// target are dropped by the cache, so the target defaults to the source
+// (target name) carried in the message metadata. The message is cloned before
+// mutation because outputs may still be serializing it concurrently.
 func (mgr *OutputsManager) WriteToCache(ctx context.Context, msg *pipeline.Msg) {
-	if mgr.cache == nil {
+	if mgr.cache == nil || msg.Msg == nil {
 		return
 	}
-	if msg.Msg == nil {
+	rsp, ok := msg.Msg.(*gnmi.SubscribeResponse)
+	if !ok {
 		return
 	}
-	switch msg.Msg.(type) {
-	case *gnmi.SubscribeResponse:
-		subName, ok := msg.Meta["subscription-name"]
-		if !ok || subName == "" {
-			subName = "default"
-		}
-		targetName := utils.GetHost(msg.Meta["source"])
-		mgr.cache.Write(ctx, subName, addTargetToMsg(msg.Msg, targetName))
+	if _, ok := rsp.GetResponse().(*gnmi.SubscribeResponse_Update); !ok {
+		return
 	}
-}
-
-func addTargetToMsg(msg proto.Message, targetName string) proto.Message {
-	switch msg := msg.(type) {
-	case *gnmi.SubscribeResponse:
-		switch rsp := msg.Response.(type) {
-		case *gnmi.SubscribeResponse_Update:
-			if rsp.Update.GetPrefix() == nil {
-				rsp.Update.Prefix = new(gnmi.Path)
-			}
-			rsp.Update.Prefix.Target = targetName
-		}
+	subName := msg.Meta["subscription-name"]
+	if subName == "" {
+		subName = "default"
 	}
-	return msg
+	r := proto.Clone(rsp).(*gnmi.SubscribeResponse)
+	upd := r.GetResponse().(*gnmi.SubscribeResponse_Update)
+	if upd.Update.GetPrefix() == nil {
+		upd.Update.Prefix = new(gnmi.Path)
+	}
+	if upd.Update.GetPrefix().GetTarget() == "" {
+		upd.Update.Prefix.Target = utils.GetHost(msg.Meta["source"])
+	}
+	if upd.Update.GetPrefix().GetTarget() == "" {
+		mgr.logger.Warn("cache write: response missing target", "subscription", subName)
+		return
+	}
+	mgr.cache.Write(ctx, subName, r)
 }
 
 func extractProcessors(cfg map[string]any) []string {
