@@ -156,3 +156,17 @@ func (tm *TargetsManager) updateTargetMetrics(mt *ManagedTarget) {
 	targetConnState := targetConnectionStateFromStr(mt.T.ConnState())
 	tm.stats.targetConnStateMetric.WithLabelValues(mt.Name).Set(float64(targetConnState))
 }
+
+func (tm *TargetsManager) deleteTargetMetrics(mt *ManagedTarget) {
+	tm.stats.subscribeResponseReceived.DeletePartialMatch(prometheus.Labels{
+		"target": mt.Name,
+	})
+	tm.stats.droppedSubscribeResponses.DeletePartialMatch(prometheus.Labels{
+		"target": mt.Name,
+	})
+	tm.stats.subscriptionFailedCount.DeletePartialMatch(prometheus.Labels{
+		"target": mt.Name,
+	})
+	tm.stats.targetUPMetric.DeleteLabelValues(mt.Name)
+	tm.stats.targetConnStateMetric.DeleteLabelValues(mt.Name)
+}
