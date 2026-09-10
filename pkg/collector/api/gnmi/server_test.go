@@ -1,9 +1,4 @@
-// © 2026 Nokia.
-//
-// This code is a Contribution to the gNMIc project ("Work") made under the Google Software Grant and Corporate Contributor License Agreement ("CLA") and governed by the Apache License 2.0.
-// No other rights or licenses in or to any of Nokia's intellectual property are granted for any other purpose.
-// This code is provided on an "as is" basis without any warranties of any kind.
-//
+
 // SPDX-License-Identifier: Apache-2.0
 
 package gnmiserver
@@ -23,6 +18,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 
@@ -460,21 +456,22 @@ func freeAddr(t *testing.T) string {
 
 func dialWithRetry(t *testing.T, ctx context.Context, addr string) *grpc.ClientConn {
 	t.Helper()
-	var conn *grpc.ClientConn
-	var err error
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
-		dialCtx, dialCancel := context.WithTimeout(ctx, time.Second)
-		conn, err = grpc.DialContext(dialCtx, addr,
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithBlock(),
-		)
-		dialCancel()
-		if err == nil {
-			return conn
-		}
-		time.Sleep(100 * time.Millisecond)
+	conn, err := grpc.NewClient(addr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		t.Fatalf("failed to create a gRPC client for %s: %v", addr, err)
 	}
-	t.Fatalf("failed to connect to gNMI server at %s: %v", addr, err)
-	return nil
+	// NewClient connects lazily, wait until the connection is
+	// ready so the tests don't race with the server startup.
+	waitCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	for state := conn.GetState(); state != connectivity.Ready; state = conn.GetState() {
+		conn.Connect()
+		if !conn.WaitForStateChange(waitCtx, state) {
+			conn.Close()
+			t.Fatalf("failed to connect to gNMI server at %s: last state %v", addr, state)
+		}
+	}
+	return conn
 }
