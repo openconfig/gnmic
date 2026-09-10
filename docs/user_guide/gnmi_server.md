@@ -1,3 +1,9 @@
+---
+tags:
+  - gNMI server
+  - Caching
+---
+
 # gNMI Server
 
 ## Introduction

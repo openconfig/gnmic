@@ -1,3 +1,9 @@
+---
+tags:
+  - Getting started
+  - Installation
+---
+
 `gnmic` is a single binary built for the Linux, Mac OS and Windows operating systems distributed via [Github releases](https://github.com/openconfig/gnmic/releases).
 
 ### Linux/Mac OS

@@ -1,3 +1,8 @@
+---
+tags:
+  - Event processor
+---
+
 The `event-ieeefloat32` processor allows converting binary data received from a router with the type IEEE 32-bit floating point number.
 
 

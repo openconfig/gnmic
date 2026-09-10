@@ -10,6 +10,7 @@ package nats_output
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
@@ -56,6 +57,7 @@ func (n *NatsOutput) init() {
 	n.cfg = new(atomic.Pointer[Config])
 	n.dynCfg = new(atomic.Pointer[dynConfig])
 	n.msgChan = new(atomic.Pointer[chan *outputs.ProtoMsg])
+	n.eventChan = new(atomic.Pointer[chan *formatters.EventMsg])
 	n.wg = new(sync.WaitGroup)
 	n.logger = logging.DiscardLogger()
 }
@@ -67,11 +69,12 @@ type NatsOutput struct {
 	cfg    *atomic.Pointer[Config]
 	dynCfg *atomic.Pointer[dynConfig]
 	// root context
-	ctx      context.Context
-	cancelFn context.CancelFunc
-	msgChan  *atomic.Pointer[chan *outputs.ProtoMsg] // atomic channel swaps
-	wg       *sync.WaitGroup
-	logger   *slog.Logger
+	ctx       context.Context
+	cancelFn  context.CancelFunc
+	msgChan   *atomic.Pointer[chan *outputs.ProtoMsg]    // atomic channel swaps
+	eventChan *atomic.Pointer[chan *formatters.EventMsg] // event-format input path
+	wg        *sync.WaitGroup
+	logger    *slog.Logger
 
 	reg   *prometheus.Registry
 	store store.Store[any]
@@ -176,6 +179,8 @@ func (n *NatsOutput) Init(ctx context.Context, name string, cfg map[string]inter
 	// initialize message channel
 	msgChan := make(chan *outputs.ProtoMsg, newCfg.BufferSize)
 	n.msgChan.Store(&msgChan)
+	eventChan := make(chan *formatters.EventMsg, newCfg.BufferSize)
+	n.eventChan.Store(&eventChan)
 
 	// prep dynamic config
 	dc := new(dynConfig)
@@ -322,10 +327,17 @@ func (n *NatsOutput) Update(ctx context.Context, cfg map[string]any) error {
 
 	if swapChannel || restartWorkers {
 		var newMsgChan chan *outputs.ProtoMsg
+		var newEventChan chan *formatters.EventMsg
 		if swapChannel {
 			newMsgChan = make(chan *outputs.ProtoMsg, newCfg.BufferSize)
+			newEventChan = make(chan *formatters.EventMsg, newCfg.BufferSize)
 		} else {
 			newMsgChan = *n.msgChan.Load()
+			if ptr := n.eventChan.Load(); ptr != nil {
+				newEventChan = *ptr
+			} else {
+				newEventChan = make(chan *formatters.EventMsg, newCfg.BufferSize)
+			}
 		}
 
 		runCtx, cancel := context.WithCancel(n.ctx)
@@ -334,10 +346,15 @@ func (n *NatsOutput) Update(ctx context.Context, cfg map[string]any) error {
 		oldCancel := n.cancelFn
 		oldWG := n.wg
 		oldMsgChan := *n.msgChan.Load()
+		var oldEventChan chan *formatters.EventMsg
+		if ptr := n.eventChan.Load(); ptr != nil {
+			oldEventChan = *ptr
+		}
 		// swap
 		n.cancelFn = cancel
 		n.wg = newWG
 		n.msgChan.Store(&newMsgChan)
+		n.eventChan.Store(&newEventChan)
 
 		n.wg.Add(currCfg.NumWorkers)
 		for i := 0; i < currCfg.NumWorkers; i++ {
@@ -361,6 +378,15 @@ func (n *NatsOutput) Update(ctx context.Context, cfg map[string]any) error {
 					}
 					select {
 					case newMsgChan <- msg:
+					default:
+					}
+				case ev, ok := <-oldEventChan:
+					if !ok {
+						oldEventChan = nil
+						continue
+					}
+					select {
+					case newEventChan <- ev:
 					default:
 					}
 				default:
@@ -425,7 +451,30 @@ func (n *NatsOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.
 	}
 }
 
-func (n *NatsOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {}
+func (n *NatsOutput) WriteEvent(ctx context.Context, ev *formatters.EventMsg) {
+	if ev == nil {
+		return
+	}
+	cfg := n.cfg.Load()
+	ptr := n.eventChan.Load()
+	if cfg == nil || ptr == nil || *ptr == nil {
+		return
+	}
+	wctx, cancel := context.WithTimeout(ctx, cfg.WriteTimeout)
+	defer cancel()
+	select {
+	case <-ctx.Done():
+		return
+	case *ptr <- ev:
+	case <-wctx.Done():
+		if cfg.Debug {
+			n.logger.Warn("write expired, NATS output might not be initialized", "timeout", cfg.WriteTimeout)
+		}
+		if cfg.EnableMetrics {
+			NatsNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "timeout").Inc()
+		}
+	}
+}
 
 // Close //
 func (n *NatsOutput) Close() error {
@@ -514,6 +563,10 @@ func (n *NatsOutput) worker(ctx context.Context, i int, wg *sync.WaitGroup) {
 	defer n.logger.Info("worker exited", "worker", workerLogPrefix)
 	n.logger.Info("worker starting", "worker", workerLogPrefix)
 	msgChan := *n.msgChan.Load()
+	var eventChan chan *formatters.EventMsg
+	if ptr := n.eventChan.Load(); ptr != nil {
+		eventChan = *ptr
+	}
 CRCONN:
 	if ctx.Err() != nil {
 		return
@@ -533,6 +586,14 @@ CRCONN:
 			n.logger.Info("worker shutting down", "worker", workerLogPrefix)
 			natsConn.Close()
 			return
+		case ev := <-eventChan:
+			if err := n.publishEvent(natsConn, ev, i); err != nil {
+				n.logger.Debug("closing connection to NATS", "worker", workerLogPrefix)
+				natsConn.Close()
+				time.Sleep(n.cfg.Load().ConnectTimeWait)
+				n.logger.Debug("reconnecting to NATS", "worker", workerLogPrefix)
+				goto CRCONN
+			}
 		case m := <-msgChan:
 			pmsg := m.GetMsg()
 			// get fresh config
@@ -598,6 +659,87 @@ CRCONN:
 			}
 		}
 	}
+}
+
+func (n *NatsOutput) publishEvent(nc *nats.Conn, ev *formatters.EventMsg, workerIdx int) error {
+	if ev == nil || nc == nil {
+		return nil
+	}
+	cfg := n.cfg.Load()
+	dc := n.dynCfg.Load()
+	if cfg == nil || dc == nil {
+		return nil
+	}
+	evs := []*formatters.EventMsg{ev}
+	for _, proc := range dc.evps {
+		evs = proc.Apply(evs...)
+	}
+	var payloads [][]byte
+	if cfg.SplitEvents {
+		for _, e := range evs {
+			b, err := json.Marshal(e)
+			if err != nil {
+				if cfg.Debug {
+					n.logger.Warn("failed marshaling event", "err", err)
+				}
+				if cfg.EnableMetrics {
+					NatsNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "marshal_error").Inc()
+				}
+				return nil
+			}
+			payloads = append(payloads, b)
+		}
+	} else {
+		b, err := json.Marshal(evs)
+		if err != nil {
+			if cfg.Debug {
+				n.logger.Warn("failed marshaling event", "err", err)
+			}
+			if cfg.EnableMetrics {
+				NatsNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "marshal_error").Inc()
+			}
+			return nil
+		}
+		payloads = [][]byte{b}
+	}
+	meta := outputs.Meta{}
+	if ev.Tags != nil {
+		if s := ev.Tags["source"]; s != "" {
+			meta["source"] = s
+		}
+		if s := ev.Tags["subscription-name"]; s != "" {
+			meta["subscription-name"] = s
+		}
+	}
+	subject := n.subjectName(meta, cfg)
+	name := fmt.Sprintf("%s-%d", cfg.Name, workerIdx)
+	for _, b := range payloads {
+		if dc.msgTpl != nil {
+			nb, err := outputs.ExecTemplate(b, dc.msgTpl)
+			if err != nil {
+				if cfg.Debug {
+					n.logger.Warn("failed to execute template", "err", err)
+				}
+				NatsNumberOfFailSendMsgs.WithLabelValues(name, "template_error").Inc()
+				continue
+			}
+			b = nb
+		}
+		if err := nc.Publish(subject, b); err != nil {
+			if cfg.Debug {
+				n.logger.Warn("failed to write to nats subject", "worker", name, "subject", subject, "err", err)
+			}
+			if cfg.EnableMetrics {
+				NatsNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "publish_error").Inc()
+			}
+			return err
+		}
+		if cfg.EnableMetrics {
+			NatsNumberOfSentMsgs.WithLabelValues(name, subject).Inc()
+			NatsNumberOfSentBytes.WithLabelValues(name, subject).Add(float64(len(b)))
+		}
+	}
+	return nil
 }
 
 var stringBuilderPool = sync.Pool{

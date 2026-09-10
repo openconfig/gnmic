@@ -1,3 +1,10 @@
+---
+tags:
+  - Target
+  - Target discovery
+  - Consul
+---
+
 The Consul target loader discovers gNMI targets registered as service instances in a Consul Server.
 
 The loader watches services registered in Consul defined by a service name and optionally a set of tags.

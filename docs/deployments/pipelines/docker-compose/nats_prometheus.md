@@ -1,3 +1,12 @@
+---
+tags:
+  - Deployment
+  - Pipeline
+  - Docker Compose
+  - NATS
+  - Prometheus
+---
+
 
 The purpose of this deployment is to create data pipeline using `NATS` and `Prometheus`
 

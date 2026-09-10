@@ -13,8 +13,10 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"text/template"
 	"time"
 
+	"github.com/openconfig/gnmic/pkg/logging"
 	"github.com/openconfig/gnmic/pkg/outputs"
 	"github.com/zestor-dev/zestor/store"
 	"github.com/zestor-dev/zestor/store/gomap"
@@ -42,8 +44,48 @@ func TestKafkaOutput_Validate(t *testing.T) {
 		},
 		{name: "bad target-template", cfg: map[string]any{"target-template": "{{"}, wantErr: true},
 		{name: "bad msg-template", cfg: map[string]any{"msg-template": "{{"}, wantErr: true},
+
+		{
+			name: "static headers",
+			cfg: map[string]any{
+				"add-headers": map[string]any{
+					"env": "prod",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "templated headers",
+			cfg: map[string]any{
+				"add-headers": map[string]any{
+					"sub": `{{ index .Meta "subscription-name" }}`,
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "mixed headers",
+			cfg: map[string]any{
+				"add-headers": map[string]any{
+					"env": "prod",
+					"sub": `{{ index .Meta "subscription-name" }}`,
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid header template",
+			cfg: map[string]any{
+				"add-headers": map[string]any{
+					"sub": "{{",
+				},
+			},
+			wantErr: true,
+		},
+
 		{name: "valid event format", cfg: map[string]any{"format": "event"}, wantErr: false},
 	}
+
 	k := &kafkaOutput{}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -124,5 +166,233 @@ func TestKafkaOutput_InitUpdateClose(t *testing.T) {
 	case <-done:
 	case <-time.After(15 * time.Second):
 		t.Fatal("Close timed out")
+	}
+}
+
+func TestBuildKafkaHeaders(t *testing.T) {
+	tests := []struct {
+		name         string
+		headers      map[string]string
+		wantTplCount int
+		wantErr      bool
+	}{
+		{
+			name:         "empty headers",
+			headers:      nil,
+			wantTplCount: 0,
+			wantErr:      false,
+		},
+		{
+			name: "static headers only",
+			headers: map[string]string{
+				"env":    "prod",
+				"region": "us-east-1",
+			},
+			wantTplCount: 2,
+			wantErr:      false,
+		},
+		{
+			name: "templated headers only",
+			headers: map[string]string{
+				"sub":    `{{ index .Meta "subscription-name" }}`,
+				"source": `{{ index .Meta "source" }}`,
+			},
+			wantTplCount: 2,
+			wantErr:      false,
+		},
+		{
+			name: "mixed static and templated headers",
+			headers: map[string]string{
+				"env": "prod",
+				"sub": `{{ index .Meta "subscription-name" }}`,
+			},
+			wantTplCount: 2,
+			wantErr:      false,
+		},
+		{
+			name: "invalid header template",
+			headers: map[string]string{
+				"sub": "{{",
+			},
+			wantTplCount: 0,
+			wantErr:      true,
+		},
+		{
+			name: "literal header value",
+			headers: map[string]string{
+				"literal": "subscription-name",
+			},
+			wantTplCount: 1,
+			wantErr:      false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			headerTpls, err := buildKafkaHeaders(tt.headers)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if len(headerTpls) != tt.wantTplCount {
+				t.Fatalf("expected %d header templates, got %d", tt.wantTplCount, len(headerTpls))
+			}
+		})
+	}
+}
+
+func TestGetHeaders(t *testing.T) {
+	tests := []struct {
+		name          string
+		addHeaders    map[string]string
+		meta          outputs.Meta
+		wantHeaders   map[string]string
+		runtimeBadTpl bool
+	}{
+		{
+			name:       "empty headers",
+			addHeaders: nil,
+			meta: outputs.Meta{
+				"subscription-name": "interfaces",
+				"source":            "router01",
+			},
+			wantHeaders: map[string]string{},
+		},
+		{
+			name: "static headers only",
+			addHeaders: map[string]string{
+				"env":    "prod",
+				"region": "us-east-1",
+			},
+			meta: outputs.Meta{
+				"subscription-name": "interfaces",
+			},
+			wantHeaders: map[string]string{
+				"env":    "prod",
+				"region": "us-east-1",
+			},
+		},
+		{
+			name: "templated headers only",
+			addHeaders: map[string]string{
+				"sub":    `{{ index .Meta "subscription-name" }}`,
+				"source": `{{ index .Meta "source" }}`,
+			},
+			meta: outputs.Meta{
+				"subscription-name": "interfaces",
+				"source":            "router01",
+			},
+			wantHeaders: map[string]string{
+				"sub":    "interfaces",
+				"source": "router01",
+			},
+		},
+		{
+			name: "mixed static and templated headers",
+			addHeaders: map[string]string{
+				"env": "prod",
+				"sub": `{{ index .Meta "subscription-name" }}`,
+			},
+			meta: outputs.Meta{
+				"subscription-name": "interfaces",
+			},
+			wantHeaders: map[string]string{
+				"env": "prod",
+				"sub": "interfaces",
+			},
+		},
+		{
+			name: "missing metadata renders empty value",
+			addHeaders: map[string]string{
+				"sub": `{{ index .Meta "subscription-name" }}`,
+			},
+			meta: outputs.Meta{},
+			wantHeaders: map[string]string{
+				"sub": "",
+			},
+		},
+		{
+			name: "missing key renders empty value",
+			addHeaders: map[string]string{
+				"sub": `{{ index .Meta "subscription-name" }}`,
+			},
+			meta: outputs.Meta{
+				"source": "router01",
+			},
+			wantHeaders: map[string]string{
+				"sub": "",
+			},
+		},
+		{
+			name: "runtime template error skips failed header",
+			addHeaders: map[string]string{
+				"env": "prod",
+			},
+			meta: outputs.Meta{
+				"subscription-name": "interfaces",
+			},
+			wantHeaders: map[string]string{
+				"env": "prod",
+			},
+			runtimeBadTpl: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			k := &kafkaOutput{
+				logger: logging.DiscardLogger(),
+			}
+
+			headerTpls, err := buildKafkaHeaders(tt.addHeaders)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if tt.runtimeBadTpl {
+				if headerTpls == nil {
+					headerTpls = make(map[string]*template.Template)
+				}
+
+				// Parses successfully, but fails during execution because .Meta is not callable.
+				headerTpls["bad"] = template.Must(
+					template.New("bad").Parse(`{{ call .Meta }}`),
+				)
+			}
+
+			dc := &dynConfig{
+				headerTpls: headerTpls,
+			}
+
+			gotHeaders := k.getHeaders(dc, tt.meta)
+
+			if len(gotHeaders) != len(tt.wantHeaders) {
+				t.Fatalf("expected %d headers, got %d: %#v", len(tt.wantHeaders), len(gotHeaders), gotHeaders)
+			}
+
+			got := make(map[string]string, len(gotHeaders))
+			for _, h := range gotHeaders {
+				got[string(h.Key)] = string(h.Value)
+			}
+
+			for key, wantValue := range tt.wantHeaders {
+				gotValue, ok := got[key]
+				if !ok {
+					t.Fatalf("expected header %q to exist, got headers %#v", key, got)
+				}
+
+				if gotValue != wantValue {
+					t.Fatalf("header %q: expected value %q, got %q", key, wantValue, gotValue)
+				}
+			}
+		})
 	}
 }

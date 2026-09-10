@@ -1,3 +1,8 @@
+---
+tags:
+  - Output
+---
+
 `gnmic` supports exporting subscription updates to multiple local files
 
 A file output can be defined using the below format in `gnmic` config file under `outputs` section:

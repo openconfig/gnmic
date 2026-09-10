@@ -1,3 +1,9 @@
+---
+tags:
+  - Target
+  - Target discovery
+---
+
 ## Introduction
 
 `gnmic` supports dynamic loading of gNMI targets from external systems.

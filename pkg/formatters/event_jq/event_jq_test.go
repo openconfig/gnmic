@@ -782,3 +782,33 @@ func TestEventJQ(t *testing.T) {
 		}
 	}
 }
+
+func TestEventJQPreservesDeleteEvents(t *testing.T) {
+	p := &jq{}
+	err := p.Init(map[string]interface{}{
+		"expression": `.[] | select(((.deletes // []) | length) > 0)`,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	input := &formatters.EventMsg{
+		Name:    "sub1",
+		Deletes: []string{"/interfaces/interface[name=eth0]"},
+	}
+	got := p.Apply(input)
+	if !reflect.DeepEqual(got, []*formatters.EventMsg{input}) {
+		t.Fatalf("Apply() = %#v, want delete event", got)
+	}
+}
+
+func TestApplyExpressionReturnsIteratorError(t *testing.T) {
+	p := &jq{}
+	if err := p.Init(map[string]interface{}{"expression": `.[] | .name + 1`}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := p.applyExpression([]interface{}{map[string]interface{}{"name": "sub1"}}); err == nil {
+		t.Fatal("applyExpression() error = nil")
+	}
+}

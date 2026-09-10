@@ -1,3 +1,9 @@
+---
+tags:
+  - Command
+  - gNMI server
+---
+
 ### Description
 
 The `[proxy]` command start a gNMI proxy server. That relays gNMI messages to know targets (either configured or discovered).

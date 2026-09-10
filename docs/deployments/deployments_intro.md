@@ -1,17 +1,22 @@
+---
+tags:
+  - Deployment
+---
+
 There are numerous ways `gnmic` can be deployed, each fulfilling a specific use case. 
 
 Whether it is gNMI telemetry collection and export to a single output, 
 or clustered data pipelines with high availability and redundancy, 
 the below examples should cover the most common use cases.
 
-In this section you will find multiple deployment examples, using [docker-compose](https://docs.docker.com/compose/) or [containerlab](https://containerlab.srlinux.dev/).
+In this section you will find multiple deployment examples, using [docker-compose](https://docs.docker.com/compose/) or [containerlab](https://containerlab.dev/).
 Each deployment comes with:
 
 - a `docker-compose` or `clab` file 
 - one or multiple `gnmic` configuration file(s)
 - extra configuration files if required by the use case (e.g: prometheus, grafana,...)
 
-The [containerlab](https://containerlab.srlinux.dev/) examples come with a fabric deployed using Nokia's [SR Linux](https://learn.srlinux.dev)
+The [containerlab](https://containerlab.dev/) examples come with a fabric deployed using Nokia's [SR Linux](https://learn.srlinux.dev)
 
 If you don't find an example that fits your needs, feel free to open an issue on [github](https://github.com/openconfig/gnmic/issues/new)
 

@@ -1,3 +1,9 @@
+---
+tags:
+  - Target
+  - Target discovery
+---
+
 
 `gnmic` is able to watch changes happening to a file that contains the gNMI targets configuration.
 

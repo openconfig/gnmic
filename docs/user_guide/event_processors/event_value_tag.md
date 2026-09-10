@@ -1,3 +1,8 @@
+---
+tags:
+  - Event processor
+---
+
 The `event-value-tag` processor applies specific values from event messages to tags of other messages, if event tag names match.
 
 Each [gNMI subscribe Response Update](https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto#L95) in a [gNMI subscribe Response Notification](https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto#L79) is transformed into an [Event Message](intro.md)  Additionally, if you are using an output cache, all [gNMI subscribe Response Update](https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto#L95) messages are converted to Events on flush.

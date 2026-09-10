@@ -1,3 +1,9 @@
+---
+tags:
+  - Output
+  - gNMI server
+---
+
 `gnmic` supports acting as a `gNMI Server` to expose the subscribed telemetry data to a `gNMI Client` using the `Subcribe` RPC, or to act as a gateway for `Get` and `Set` RPCs.
 
 <div class="mxgraph" style="max-width:100%;border:1px solid transparent;margin:0 auto; display:block;" data-mxgraph="{&quot;page&quot;:0,&quot;zoom&quot;:1.4,&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&quot;check-visible-state&quot;:true,&quot;resize&quot;:true,&quot;url&quot;:&quot;https://raw.githubusercontent.com/openconfig/gnmic/diagrams/diagrams/gnmi_server.drawio&quot;}"></div>

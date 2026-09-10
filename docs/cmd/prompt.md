@@ -1,3 +1,9 @@
+---
+tags:
+  - Command
+  - YANG
+---
+
 ## Description
 The `prompt` command starts `gnmic` in an interactive prompt mode with the following auto-completion features:
 

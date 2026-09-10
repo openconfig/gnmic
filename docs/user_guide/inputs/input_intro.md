@@ -1,3 +1,8 @@
+---
+tags:
+  - Input
+---
+
 `gnmic` supports various Inputs to consume gnmi data, transform it and ultimately export it to one or multiple Outputs.
 
 The purpose of `gnmic`'s Inputs is to build a gnmi data pipeline by enabling the ingestion and export of gnmi data that was exported by `gnmic`'s outputs upstream.

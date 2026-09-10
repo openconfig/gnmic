@@ -1,3 +1,9 @@
+---
+tags:
+  - Go API
+  - Subscription
+---
+
 
 The below snippet shows how to create a target and a Subscribe Request.
 It then starts a Stream subscription with 10s interval and listens to Responses and errors.

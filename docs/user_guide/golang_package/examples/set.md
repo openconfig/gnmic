@@ -1,3 +1,8 @@
+---
+tags:
+  - Go API
+---
+
 
 The below snippet shows how to create a target, send a Set Request and print the reponse.
 

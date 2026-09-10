@@ -1,3 +1,10 @@
+---
+tags:
+  - Command
+  - YANG
+  - Configuration
+---
+
 
 ### Description
 
@@ -19,13 +26,13 @@ Aliases: `sreq`, `srq`, `sr`
 
 #### update
 
-The `--update` flag specifies a valid xpath, used to generate an __updates__ section of the [set request file](../set.md#template-based-set-request).
+The `--update` flag specifies a valid xpath, used to generate an __updates__ section of the [set request file](../set.md#templated-set-request-file).
 
 Multiple `--update` flags can be supplied.
 
 #### replace
 
-The `--replace` flag specifies a valid xpath, used to generate a __replaces__ section of the [set request file](../set.md#template-based-set-request).
+The `--replace` flag specifies a valid xpath, used to generate a __replaces__ section of the [set request file](../set.md#templated-set-request-file).
 
 Multiple `--replace` flags can be supplied.
 

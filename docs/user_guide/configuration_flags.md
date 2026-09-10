@@ -1,3 +1,9 @@
+---
+tags:
+  - Configuration
+  - Command
+---
+
 `gnmic` supports a set of global flags, applicable to all sub commands, as well as local flags which are specific to each sub command.
 
 - [Global flags](../global_flags.md)

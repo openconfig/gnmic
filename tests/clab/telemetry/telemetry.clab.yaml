@@ -3,7 +3,7 @@ name: telemetry
 topology:
   defaults:
     kind: linux
-    image: gnmic:0.0.0-rc1
+    image: gnmic:${GNMIC_TEST_VERSION}
     
   nodes:
     gnmic1:
@@ -98,13 +98,13 @@ topology:
 
     nats:
       kind: linux
-      image: nats:latest
+      image: nats:${NATS_VERSION}
       ports:
          - 4222:4222        
     
     kafka-server:
       kind: linux
-      image: bitnami/kafka:latest
+      image: bitnami/kafka:${KAFKA_VERSION}
       ports:
         - 9092:9092
       env:
@@ -115,7 +115,7 @@ topology:
 
     zookeeper-server:
       kind: linux
-      image: bitnami/zookeeper:latest
+      image: bitnami/zookeeper:${ZOOKEEPER_VERSION}
       ports:
         - 2181:2181
       env:
@@ -123,7 +123,7 @@ topology:
 
     influxdb:
       kind: linux
-      image: influxdb:1.8.10
+      image: influxdb:${INFLUXDB_VERSION}
       ports:
         - 8086:8086
       env:
@@ -134,14 +134,14 @@ topology:
         INFLUXDB_DB: telemetry
 
     consul-agent:
-      image: consul:latest
+      image: consul:${CONSUL_VERSION}
       ports:
         - 8500:8500
         - 8600:8600/udp
       cmd: 'agent -server -ui -bind=127.0.0.1 -node=server-1 -bootstrap-expect=1 -client=0.0.0.0'
     
     prometheus:
-      image: prom/prometheus:latest
+      image: prom/prometheus:${PROMETHEUS_VERSION}
       user: 65534:65534
       ports:
         - 9090:9090
@@ -154,7 +154,7 @@ topology:
         --log.level=debug
 
     grafana:
-      image: grafana/grafana:latest
+      image: grafana/grafana:${GRAFANA_VERSION}
       binds:
         - grafana/datasources/datasource.yaml:/etc/grafana/provisioning/datasources/datasource.yaml:ro
         - grafana/dashboards.yaml:/etc/grafana/provisioning/dashboards/dashboards.yaml:ro

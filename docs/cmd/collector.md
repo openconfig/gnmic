@@ -1,3 +1,9 @@
+---
+tags:
+  - Command
+  - Collector
+---
+
 ### Description
 
 The `[collect | collector | coll | c]` command starts gNMIc as a long-running telemetry collector service. Unlike the `subscribe` command which is designed for interactive use, the collector command is optimized for production deployments with dynamic configuration capabilities via REST API.

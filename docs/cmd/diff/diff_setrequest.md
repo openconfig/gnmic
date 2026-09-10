@@ -1,3 +1,9 @@
+---
+tags:
+  - Command
+  - Configuration
+---
+
 ### Description
 
 The `diff setrequest` command is used to compare the intent between two

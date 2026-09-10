@@ -1,3 +1,8 @@
+---
+tags:
+  - Event processor
+---
+
 The `event-jq` processor applies a [`jq`](https://stedolan.github.io/jq/) expression on the received event messages.
 
 `jq` expressions are a powerful tool that can be used to slice, filter, map, transform JSON object.

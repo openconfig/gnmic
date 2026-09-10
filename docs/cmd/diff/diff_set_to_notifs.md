@@ -1,3 +1,9 @@
+---
+tags:
+  - Command
+  - Configuration
+---
+
 ### Description
 
 The `diff set-to-notifs` command is used to verify whether a set of

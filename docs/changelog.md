@@ -1,4 +1,101 @@
+---
+tags:
+  - Release notes
+---
+
 ## Changelog
+
+### v0.48.0 - 09 September 2026
+
+- Event processors:
+
+    - **New `event-keep` processor.** Removes tags or values that do not match the configured selectors, complementing `event-delete` when only a small allow-list of fields is needed. Selectors are `tag-names`/`tags` for tags and `value-names`/`values`/`value-name-paths` for values, with OR semantics; an unconfigured category is left unchanged. `value-name-paths` matches absolute slash-separated paths without regular expressions (`*` matches one segment), making large structured allow-lists cheap to evaluate. Events left without values, tags, or delete paths are discarded; delete-only events are preserved. See [event-keep](user_guide/event_processors/event_keep.md).
+
+    - `event-jq`: delete events are preserved instead of being dropped when the jq filter produces no output for them.
+
+    - Processor condition evaluation (`condition` on processors) no longer round-trips events through JSON, reducing allocations, and no longer mutates event values as a side effect of evaluating a condition.
+
+- Outputs:
+
+    - Kafka: new `add-headers` option adds Kafka record headers to produced messages. Header values are Go templates evaluated per message with metadata exposed under `.Meta`, using the same syntax and helpers as `msg-template`. See [Kafka output](user_guide/outputs/kafka_output.md).
+
+    - InfluxDB: non-finite float values (`NaN`, `+/-Inf`), which cannot be represented in InfluxDB line protocol, are now dropped per field instead of poisoning the whole write; other fields on the same point are still written. When `enable-metrics` is set, drops are counted in `gnmic_influxdb_output_non_finite_values_dropped_total{name,measurement}`. Client errors are drained off the write goroutine so an error burst cannot stall writes.
+
+    - InfluxDB: unsigned integer values are converted for **all** 1.x server versions, not only 1.8, fixing `unable to parse ... type unsigned` write errors against 1.11.x ([#958](https://github.com/openconfig/gnmic/issues/958)).
+
+    - InfluxDB: fixed a use-after-close race when the client is rebuilt on config update.
+
+    - Prometheus remote write: the input queue is now bounded, backpressure is cancellable (a blocked write no longer ignores shutdown), and the backpressure metric observes the elapsed time when the write returns.
+
+    - TCP: writes honor a canceled context and no longer block indefinitely on a full output buffer.
+
+    - NATS input and output: reworked event handling and connection management, fixing reconnect and shutdown edge cases.
+
+    - Output write lifecycle: for targets without explicitly assigned outputs, the outputs list is snapshotted before writing, so a slow or blocked output no longer holds the app lock and can no longer wedge configuration changes. In collector mode, the outputs manager writes pipeline messages synchronously instead of spawning a goroutine per message, bounding goroutine growth under load.
+
+- Collector mode:
+
+    - Graceful shutdown: cluster locks are released before process exit, the process waits for shutdown to complete, and plugin cleanup is serialized before context cancellation, so a restarting instance no longer leaves stale target locks behind.
+
+    - Clustering: concurrent target dispatch converges instead of ping-ponging targets between members, and dispatch honors context cancellation ([#965](https://github.com/openconfig/gnmic/issues/965)).
+
+    - Clustering: service discovery logs additions only for new members instead of re-logging every known service on each poll ([#967](https://github.com/openconfig/gnmic/issues/967)).
+
+    - Cluster metrics: a failed locker `List` query no longer updates gauges with bogus zero values; failures are counted in the new `gnmic_cluster_locker_list_failed_total{query}` metric ([#955](https://github.com/openconfig/gnmic/issues/955)).
+
+    - API: fixed a fatal `concurrent map iteration and map write` crash when reading targets through the REST API while targets were being added or removed ([#969](https://github.com/openconfig/gnmic/issues/969)).
+
+    - API: subscription create requests are validated (paths, modes, encodings) before being applied.
+
+    - Targets manager: fixed data races around subscription stop/wait and event tag handling when targets are updated at runtime.
+
+    - Tunnel server startup is synchronized with its observers, fixing a race where registrations could be missed right after start.
+
+- Subscribe:
+
+    - Fixed a fatal `concurrent map iteration and map write` crash when a loader updated targets while subscriptions were being established ([#929](https://github.com/openconfig/gnmic/issues/929)).
+
+    - Fixed a race where the gRPC tunnel listener could be used before it was created.
+
+    - The default subscription response backlog is now bounded, and the shared buffer default is preserved when unset.
+
+    - Subscription error logs include the target and subscription names ([#961](https://github.com/openconfig/gnmic/issues/961)).
+
+- Logging:
+
+    - New `--log-format` flag (config: `log-format`, env: `GNMIC_LOG_FORMAT`): `text` (default) keeps structured key=value logs, `json` emits structured JSON logs.
+
+- Configuration:
+
+    - Environment variable overrides (`GNMIC_*`) are applied before the configuration is unmarshaled, so they are honored in collector mode and by clustering settings ([#833](https://github.com/openconfig/gnmic/issues/833)).
+
+    - An explicitly passed `--config` file that does not exist is now reported as an error instead of being silently ignored ([#772](https://github.com/openconfig/gnmic/issues/772)).
+
+- Build and security:
+
+    - Go toolchain bumped to **1.26.5**; tool versions are centralized in `versions.env`.
+
+    - Docker images are now built and pushed with GoReleaser `dockers_v2` as multi-platform manifests. `ghcr.io/openconfig/gnmic:<version>` and `latest` are multi-arch (linux/amd64 + linux/arm64). The per-architecture tags (`<version>-amd64`, `<version>-arm64`, `latest-amd64`, `latest-arm64`) are **no longer published**; pull the manifest tag instead. The `-scratch` tags are unchanged (linux/amd64).
+
+    - GitHub Actions are pinned to commit SHAs and workflows use least-privilege permissions; tests run with the Go race detector in CI.
+
+- Documentation:
+
+    - New site styling with dark mode support, a redesigned home page, and tags metadata on documentation pages for improved search.
+
+- Dependencies:
+
+    - Bumped `google.golang.org/grpc` from 1.82.1 to 1.83.2 (root module and `pkg/api`).
+    - Bumped `github.com/openconfig/grpctunnel` from 0.1.0 to 0.2.0.
+    - Bumped `github.com/openconfig/ygot` from 0.34.0 to 0.35.0.
+    - Bumped `github.com/gosnmp/gosnmp` from 1.42.1 to 1.44.0.
+    - Bumped `github.com/redis/go-redis/v9` from 9.19.0 to 9.22.0.
+    - Bumped `github.com/grafana/pyroscope-go` from 1.2.7 to 1.4.2.
+    - Bumped `github.com/fullstorydev/grpcurl` from 1.9.3 to 1.9.4.
+    - Bumped `github.com/stretchr/testify` from 1.11.1 to 1.12.1.
+    - Bumped `k8s.io/client-go`, `k8s.io/api`, and `k8s.io/apimachinery` to 0.37.0.
+    - Switched to `github.com/hairyhenderson/yaml` v2.1.0.
+    - Added `github.com/google/uuid` v1.6.0.
 
 ### v0.47.0 - August 8th 2026
 
@@ -850,7 +947,7 @@
 
 - [Deployment Examples](deployments/deployments_intro.md):
 
-    Add [containerlab](https://containerlab.srlinux.dev) based deployment examples.
+    Add [containerlab](https://containerlab.dev) based deployment examples.
     These deployment come with a router fabric built using Nokia's [SRL](https://learn.srlinux.dev)
 
 - [API server](user_guide/api/api_intro.md):

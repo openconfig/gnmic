@@ -1,3 +1,11 @@
+---
+tags:
+  - Deployment
+  - Containerlab
+  - Prometheus
+  - Remote write
+---
+
 The purpose of this deployment is to collect gNMI data and use [Prometheus remote write API](https://grafana.com/blog/2019/03/25/whats-new-in-prometheus-2.8-wal-based-remote-write/) to push it to different monitoring systems like [Prometheus](https://prometheus.io), [Mimir](https://grafana.com/oss/mimir/), [CortexMetrics](https://cortexmetrics.io/), [VictoriaMetrics](https://victoriametrics.com/), [Thanos](https://thanos.io/)...
 
 This deployment example includes a single `gnmic` instance, a [Prometheus Server](https://prometheus.io/), and a [Grafana](https://grafana.com/docs/) server.

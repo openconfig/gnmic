@@ -1,3 +1,9 @@
+---
+tags:
+  - Output
+  - OpenTelemetry
+---
+
 `gnmic` can export subscription updates as [OpenTelemetry](https://opentelemetry.io/) metrics using the [OpenTelemetry Protocol (OTLP)](https://opentelemetry.io/docs/specs/otlp/).
 
 The OTLP output supports both OTLP/gRPC and OTLP/HTTP. OTLP/gRPC commonly uses port `4317`; OTLP/HTTP commonly uses port `4318` and the `/v1/metrics` path.

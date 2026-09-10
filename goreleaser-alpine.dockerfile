@@ -6,12 +6,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-FROM alpine
+ARG ALPINE_VERSION=latest
+FROM alpine:${ALPINE_VERSION}
 
 LABEL maintainer="Karim Radhouani <medkarimrdi@gmail.com>, Roman Dodin <dodin.roman@gmail.com>"
 LABEL documentation="https://gnmic.openconfig.net"
 LABEL repo="https://github.com/openconfig/gnmic"
 
-COPY gnmic /app/gnmic
+ARG TARGETPLATFORM
+COPY $TARGETPLATFORM/gnmic /app/gnmic
 ENTRYPOINT [ "/app/gnmic" ]
 CMD [ "help" ]

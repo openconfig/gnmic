@@ -1,3 +1,9 @@
+---
+tags:
+  - Command
+  - Configuration
+---
+
 ## Description
 
 The `set` command represents the [gNMI Set RPC](https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto#L62).

@@ -1,3 +1,9 @@
+---
+tags:
+  - Event processor
+  - Actions
+---
+
 
 The `event-trigger` processor takes event messages as input and triggers a list of actions (sequentially) if a configured condition evaluates to `true`.
 
@@ -124,7 +130,7 @@ actions:
 
 #### Clone a network topology and deploy it using containerlab
 
-Using lldp neighbor information it's possible to build a [containerlab](https://containerlab.srlinux.dev) topology using `gnmic` actions.
+Using lldp neighbor information it's possible to build a [containerlab](https://containerlab.dev) topology using `gnmic` actions.
 
 In the below configuration file, an event processor called `clone-topology` is defined.
 

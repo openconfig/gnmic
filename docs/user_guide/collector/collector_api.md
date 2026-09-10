@@ -1,3 +1,9 @@
+---
+tags:
+  - Collector
+  - REST API
+---
+
 # Collector REST API
 
 The collector exposes a REST API for dynamic configuration management and status queries. This API is specific to the collector mode and differs from the API available in subscribe mode.

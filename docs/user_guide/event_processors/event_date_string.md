@@ -1,3 +1,8 @@
+---
+tags:
+  - Event processor
+---
+
 The `event-date-string` processor converts a specific timestamp value (under tags or values) to a string representation. The format and location can be configured.
 
 ### Examples

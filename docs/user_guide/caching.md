@@ -1,3 +1,8 @@
+---
+tags:
+  - Caching
+---
+
 
 `Caching` refers to the process of storing the collected gNMI updates before sending them out to the intended output(s).
 
@@ -52,7 +57,7 @@ outputs:
     cache: {}
 ```
 
-This enables `output1` to use a cache of type [`oc`](#gnmi-cache).
+This enables `output1` to use a cache of type [`oc`](#gnmi-cache-local).
 
 Each output has its own cache.
 Using a single global cache will be implemented in a future release.

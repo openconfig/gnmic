@@ -12,3 +12,8 @@ gnmic
 .idea
 tests/collector
 private
+
+# Documentation tooling, caches, and generated site
+/.tools/
+/.cache/
+/site/

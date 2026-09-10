@@ -1,3 +1,9 @@
+---
+tags:
+  - Output
+  - NATS
+---
+
 `gnmic` supports exporting subscription updates to multiple NATS servers/clusters simultaneously
 
 A [NATS](https://docs.nats.io/) output can be defined using the below format in `gnmic` config file under `outputs` section:

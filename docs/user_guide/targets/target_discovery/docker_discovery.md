@@ -1,3 +1,10 @@
+---
+tags:
+  - Target
+  - Target discovery
+  - Docker
+---
+
 
 The Docker target loader allows discovering gNMI targets from [Docker Engine](https://docs.docker.com/engine/) hosts.
 
@@ -111,7 +118,7 @@ loader:
 
 A simple docker loader with a single docker container filter.
 
-It loads all containers deployed with [containerlab](https://containerlab.srlinux.dev/), in lab called `lab1`.
+It loads all containers deployed with [containerlab](https://containerlab.dev/), in lab called `lab1`.
 
 ```yaml
 loader:
@@ -131,7 +138,7 @@ Default configuration applies to those added targets
 
 A simple docker loader with a single docker container filter.
 
-It loads all containers deployed with [containerlab](https://containerlab.srlinux.dev/), having kind `srl`.
+It loads all containers deployed with [containerlab](https://containerlab.dev/), having kind `srl`.
 
 ```yaml
 loader:

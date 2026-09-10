@@ -1,3 +1,9 @@
+---
+tags:
+  - Command
+  - Configuration
+---
+
 ### address
 
 The address flag `[-a | --address]` is used to specify the target's gNMI server address in address:port format, for e.g: `192.168.113.11:57400`

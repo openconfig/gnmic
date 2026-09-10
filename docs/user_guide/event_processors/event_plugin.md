@@ -1,3 +1,8 @@
+---
+tags:
+  - Event processor
+---
+
 The `event-plugin` processor initializes a processor that gNMIc loaded from the configured path under the `plugins:` section.
 
 ```yaml

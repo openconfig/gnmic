@@ -1,3 +1,9 @@
+---
+tags:
+  - REST API
+  - Target
+---
+
 ## `GET /api/v1/targets`
 
 Request all active targets details.

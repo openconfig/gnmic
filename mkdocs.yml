@@ -7,16 +7,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 site_name: gNMIc
+# Keep pages unique in nav so each page activates its own section's sidebar.
 nav:
   - Home: index.md
 
   - Getting started:
       - Installation: install.md
       - Basic usage: basic_usage.md
-      - User guide: user_guide/configuration_intro.md
-      - Command reference: cmd/capabilities.md
-      - Deployment examples: deployments/deployments_intro.md
-      - Changelog: changelog.md
 
   - User guide:
       - Configuration:
@@ -87,6 +84,7 @@ nav:
           - Group by: user_guide/event_processors/event_group_by.md
           - IEEE Float32: user_guide/event_processors/event_ieeefloat32.md
           - JQ: user_guide/event_processors/event_jq.md
+          - Keep: user_guide/event_processors/event_keep.md
           - Merge: user_guide/event_processors/event_merge.md
           - Override TS: user_guide/event_processors/event_override_ts.md
           - Plugin: user_guide/event_processors/event_plugin.md
@@ -208,8 +206,13 @@ repo_url: https://github.com/openconfig/gnmic
 edit_uri: ""
 theme:
   name: material
+  variant: modern
+  custom_dir: overrides
+  logo: images/gnmic-wordmark.svg
 
   features:
+    - content.code.copy
+    - search.highlight
     - navigation.tabs
     #- navigation.expand
     - navigation.top
@@ -232,7 +235,7 @@ theme:
       primary: blue
       accent: indigo
       toggle:
-        icon: material/toggle-switch-off-outline
+        icon: lucide/moon
         name: Switch to dark mode
     # Dark mode
     - media: "(prefers-color-scheme: dark)"
@@ -240,27 +243,88 @@ theme:
       primary: black
       accent: cyan
       toggle:
-        icon: material/toggle-switch
+        icon: lucide/sun
         name: Switch to light mode
 
   font:
     text: Manrope
     code: Fira Mono
+  favicon: images/favicon.svg
   icon:
-    logo: octicons/pulse-24
-  favicon: images/pulse.svg
+    tag:
+      default: material/tag-outline
+      getting-started: material/rocket-launch-outline
+      command: material/console-line
+      configuration: material/cog-outline
+      target: material/router-network
+      subscription: material/access-point
+      input: material/import
+      output: material/export
+      processor: material/filter-outline
+      deployment: material/flask-outline
+      cluster: material/server-network
+      pipeline: material/transit-connection-variant
+      api: material/code-braces
+      security: material/shield-lock-outline
+      monitoring: material/chart-line
+      messaging: material/message-processing-outline
+      database: material/database-outline
+      container: material/docker
+      kubernetes: material/kubernetes
+      release: material/history
 
 extra_css:
-  - stylesheets/extra.css
+  - stylesheets/header.css
 
 # Plugins
 plugins:
+  # Use Zensical's default tokenizer, which also splits gNMI paths and CLI flags.
   - search
   - minify:
       minify_html: true
 
 # Customization
 extra:
+  # Reuse these names in page front matter to keep search filters consistent.
+  tags:
+    Getting started: getting-started
+    Installation: getting-started
+    Command: command
+    Configuration: configuration
+    Target: target
+    Target discovery: target
+    Subscription: subscription
+    Input: input
+    Output: output
+    Event processor: processor
+    Actions: processor
+    Deployment: deployment
+    Clustering: cluster
+    Collector: cluster
+    Pipeline: pipeline
+    Go API: api
+    REST API: api
+    YANG: api
+    gNMI server: target
+    Dial-out: target
+    Security: security
+    Caching: database
+    Prometheus: monitoring
+    Remote write: monitoring
+    OpenTelemetry: monitoring
+    SNMP: monitoring
+    NATS: messaging
+    JetStream: messaging
+    STAN: messaging
+    Kafka: messaging
+    InfluxDB: database
+    ClickHouse: database
+    Containerlab: container
+    Docker: container
+    Docker Compose: container
+    Kubernetes: kubernetes
+    Consul: cluster
+    Release notes: release
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/karimra
@@ -277,6 +341,7 @@ markdown_extensions:
   - markdown.extensions.def_list
   - markdown.extensions.footnotes
   - markdown.extensions.meta
+  - markdown.extensions.md_in_html
   - markdown.extensions.toc:
       permalink: "#"
   - pymdownx.arithmatex

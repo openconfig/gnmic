@@ -3,6 +3,9 @@
 export SHELLOPTS
 set -eET
 
+project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+. "$project_dir/versions.env"
+
 failure() {
   local lineno=$1
   local msg=$2
@@ -13,7 +16,7 @@ export -f failure
 
 function cleanup() {
   echo "gnmic_config_file: gnmic-docker-loader.yaml" > clab/loaders/loaders.clab_vars.yaml
-  sudo clab des --cleanup -t clab/loaders/loaders.clab.yaml
+  sh "$project_dir/scripts/containerlab.sh" des --cleanup -t clab/loaders/loaders.clab.yaml
   docker image prune -f
 }
 
@@ -22,15 +25,15 @@ trap cleanup EXIT
 trap cleanup SIGINT
 
 # build docker image
-docker build -t gnmic:0.0.0-rc1 ../
+sh "$project_dir/scripts/docker-build.sh" -t "gnmic:$GNMIC_TEST_VERSION"
 
 start=`date +%s`
 
 # docker loader
 echo "gnmic_config_file: gnmic-docker-loader.yaml" > clab/loaders/loaders.clab_vars.yaml
-sudo clab dep -t clab/loaders/loaders.clab.yaml --reconfigure
+sh "$project_dir/scripts/containerlab.sh" dep -t clab/loaders/loaders.clab.yaml --reconfigure
 sleep 45
-sudo clab des -t clab/loaders/loaders.clab.yaml --cleanup
+sh "$project_dir/scripts/containerlab.sh" des -t clab/loaders/loaders.clab.yaml --cleanup
 
 # file loader
 # change gnmic config file
@@ -41,7 +44,7 @@ echo "clab-loaders-srl1:" > ./clab/loaders/targets/targets.yaml
 echo "clab-loaders-srl2:" >> ./clab/loaders/targets/targets.yaml
 echo "clab-loaders-srl3:" >> ./clab/loaders/targets/targets.yaml
 
-sudo clab dep -t clab/loaders/loaders.clab.yaml --reconfigure
+sh "$project_dir/scripts/containerlab.sh" dep -t clab/loaders/loaders.clab.yaml --reconfigure
 sleep 45
 ./api.sh clab-loaders-gnmic1:7890
 ./api.sh clab-loaders-gnmic2:7891
@@ -70,4 +73,4 @@ sleep 45
 ./api.sh clab-loaders-agg-gnmic2:7894
 ./api.sh clab-loaders-agg-gnmic3:7895
 
-sudo clab des -t clab/loaders/loaders.clab.yaml --cleanup
+sh "$project_dir/scripts/containerlab.sh" des -t clab/loaders/loaders.clab.yaml --cleanup
