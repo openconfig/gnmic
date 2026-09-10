@@ -245,7 +245,11 @@ func (a *asciigraphOutput) Write(ctx context.Context, rsp proto.Message, meta ou
 		return
 	}
 
-	subRsp, err := outputs.AddSubscriptionTarget(rsp, meta, a.cfg.AddTarget, a.targetTpl)
+	subRsp, ok := rsp.(*gnmi.SubscribeResponse)
+	if !ok {
+		return
+	}
+	subRsp, err := outputs.AddSubscribeResponseTarget(subRsp, meta, a.cfg.AddTarget, a.targetTpl)
 	if err != nil {
 		a.logger.Warn("failed to add target to response", "err", err)
 		return

@@ -17,6 +17,7 @@ limitations under the License.
 package gnmi_output
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -79,6 +80,15 @@ func (m *matchClient) Update(n interface{}) {
 	_, m.err = m.queue.Insert(n)
 }
 
+// peerAddr returns the address of the RPC peer for logging,
+// or "unknown" when the context carries no peer.
+func peerAddr(ctx context.Context) string {
+	if p, ok := peer.FromContext(ctx); ok && p != nil && p.Addr != nil {
+		return p.Addr.String()
+	}
+	return "unknown"
+}
+
 func (g *gNMIOutput) newServer() *server {
 	return &server{
 		l:       g.logger,
@@ -122,8 +132,10 @@ func (s *server) handleSubscriptionRequest(sc *streamClient) {
 	defer func() {
 		if err != nil {
 			s.l.Error("error processing subscription", "target", sc.target, "err", err)
-			sc.queue.Close()
+			// report before closing the queue: closing the queue ends
+			// sendStreamingResults and, with it, the RPC.
 			sc.errChan <- err
+			sc.queue.Close()
 			return
 		}
 		s.l.Info("subscription request processed", "target", sc.target)
@@ -155,8 +167,7 @@ func (s *server) handleSubscriptionRequest(sc *streamClient) {
 
 func (s *server) sendStreamingResults(sc *streamClient) {
 	ctx := sc.stream.Context()
-	peer, _ := peer.FromContext(ctx)
-	s.l.Info("sending streaming results", "target", sc.target, "peer", peer.Addr)
+	s.l.Info("sending streaming results", "target", sc.target, "peer", peerAddr(ctx))
 	defer s.subscribeRPCsem.Release(1)
 	for {
 		item, dup, err := sc.queue.Next(ctx)

@@ -701,7 +701,7 @@ func (p *prometheusOutput) workerHandleProto(ctx context.Context, m *outputs.Pro
 			measName = subName
 		}
 		var err error
-		pmsg, err = outputs.AddSubscriptionTarget(pmsg, m.GetMeta(), cfg.AddTarget, dc.targetTpl)
+		pmsg, err = outputs.AddSubscribeResponseTarget(pmsg, m.GetMeta(), cfg.AddTarget, dc.targetTpl)
 		if err != nil {
 			p.logger.Warn("failed to add target to response", "err", err)
 		}

@@ -598,7 +598,7 @@ CRCONN:
 			case subjectFormat_SubTargetPath, subjectFormat_SubTargetPathWithKeys:
 				switch rsp := pmsg.(type) {
 				case *gnmi.SubscribeResponse:
-					switch rsp := rsp.Response.(type) {
+					switch rsp := rsp.GetResponse().(type) {
 					case *gnmi.SubscribeResponse_Update:
 						rs = splitSubscribeResponse(rsp)
 					}

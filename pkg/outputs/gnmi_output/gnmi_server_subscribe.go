@@ -9,12 +9,10 @@
 package gnmi_output
 
 import (
-	"fmt"
+	"errors"
 	"io"
-	"strings"
 
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
 	"github.com/openconfig/gnmi/coalesce"
@@ -48,9 +46,19 @@ func (s *server) Subscribe(stream gnmi.GNMI_SubscribeServer) error {
 	if !s.c.HasTarget(sc.target) {
 		return status.Errorf(codes.NotFound, "target %q not found", sc.target)
 	}
-	peer, _ := peer.FromContext(stream.Context())
-	s.l.Info("received subscribe request", "mode", sc.req.GetSubscribe().GetMode(), "peer", peer.Addr, "target", sc.target)
-	defer s.l.Info("subscription terminated", "peer", peer.Addr)
+	peerAddr := peerAddr(stream.Context())
+	s.l.Info("received subscribe request", "mode", sc.req.GetSubscribe().GetMode(), "peer", peerAddr, "target", sc.target)
+	defer s.l.Info("subscription terminated", "peer", peerAddr)
+
+	// validate the request before acquiring a subscription spot:
+	// the spot is only released by sendStreamingResults, which must
+	// then be started on every path past the acquisition.
+	mode := sc.req.GetSubscribe().GetMode()
+	switch mode {
+	case gnmi.SubscriptionList_ONCE, gnmi.SubscriptionList_POLL, gnmi.SubscriptionList_STREAM:
+	default:
+		return status.Errorf(codes.InvalidArgument, "unrecognized subscription mode: %v", mode)
+	}
 
 	sc.queue = coalesce.NewQueue()
 	errChan := make(chan error, 3)
@@ -63,7 +71,7 @@ func (s *server) Subscribe(stream gnmi.GNMI_SubscribeServer) error {
 	}
 	s.l.Debug("acquired subscription spot", "target", sc.target)
 
-	switch sc.req.GetSubscribe().GetMode() {
+	switch mode {
 	case gnmi.SubscriptionList_ONCE:
 		go func() {
 			s.handleSubscriptionRequest(sc)
@@ -80,23 +88,27 @@ func (s *server) Subscribe(stream gnmi.GNMI_SubscribeServer) error {
 		if !sc.req.GetSubscribe().GetUpdatesOnly() {
 			go s.handleSubscriptionRequest(sc)
 		}
-	default:
-		return status.Errorf(codes.InvalidArgument, "unrecognized subscription mode: %v", sc.req.GetSubscribe().GetMode())
 	}
-	// send all nodes added to queue
-	go s.sendStreamingResults(sc)
+	// send all nodes added to queue.
+	// sendStreamingResults owns the subscription spot and the stream:
+	// the RPC is over once it returns, whether because the queue was
+	// closed (ONCE), the client went away or a send failed.
+	s.sendStreamingResults(sc)
 
-	var errs = make([]error, 0)
-	for err := range errChan {
-		errs = append(errs, err)
-	}
-	if len(errs) > 0 {
-		sb := strings.Builder{}
-		sb.WriteString("multiple errors occurred:\n")
-		for _, err := range errs {
-			sb.WriteString(fmt.Sprintf("- %v\n", err))
+	// collect the errors reported by the subscription goroutines.
+	// errChan is buffered for one error per goroutine so none of them
+	// blocks on send, and no error is reported after this point.
+	var errs []error
+drain:
+	for {
+		select {
+		case err := <-errChan:
+			if err != nil {
+				errs = append(errs, err)
+			}
+		default:
+			break drain
 		}
-		return fmt.Errorf("%v", sb)
 	}
-	return nil
+	return errors.Join(errs...)
 }

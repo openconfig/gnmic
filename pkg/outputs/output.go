@@ -108,6 +108,12 @@ var stringBuilderPool = sync.Pool{
 
 type Meta map[string]string
 
+// DecodeConfig decodes an output configuration map into dst.
+//
+// On top of the mapstructure decoding, it validates the fields shared by
+// several output types (currently `add-target`), so that a typo in one of
+// them is rejected at load time instead of silently changing the output
+// behavior at runtime.
 func DecodeConfig(src, dst any) error {
 	decoder, err := mapstructure.NewDecoder(
 		&mapstructure.DecoderConfig{
@@ -118,55 +124,102 @@ func DecodeConfig(src, dst any) error {
 	if err != nil {
 		return err
 	}
-	return decoder.Decode(src)
+	err = decoder.Decode(src)
+	if err != nil {
+		return err
+	}
+	if m, ok := src.(map[string]any); ok {
+		if v, ok := m["add-target"]; ok {
+			return ValidateAddTarget(v)
+		}
+	}
+	return nil
 }
 
-func AddSubscriptionTarget(msg proto.Message, meta Meta, addTarget string, tpl *template.Template) (*gnmi.SubscribeResponse, error) {
-	if addTarget == "" {
-		if message, ok := msg.(*gnmi.SubscribeResponse); ok {
-			return message, nil
+const (
+	// AddTargetOverwrite always sets Prefix.Target from the target template.
+	AddTargetOverwrite = "overwrite"
+	// AddTargetIfNotPresent sets Prefix.Target from the target template only
+	// when the received message has an empty target.
+	AddTargetIfNotPresent = "if-not-present"
+)
+
+// ValidateAddTarget checks the value of an output `add-target` field.
+// An empty string (or nil) disables the feature and is valid.
+func ValidateAddTarget(v any) error {
+	switch v := v.(type) {
+	case nil:
+		return nil
+	case string:
+		switch v {
+		case "", AddTargetOverwrite, AddTargetIfNotPresent:
+			return nil
 		}
-		return nil, nil
+		return fmt.Errorf("invalid add-target value %q: expected %q or %q", v, AddTargetOverwrite, AddTargetIfNotPresent)
+	default:
+		return fmt.Errorf("invalid add-target value %v of type %T: expected %q or %q", v, v, AddTargetOverwrite, AddTargetIfNotPresent)
 	}
-	msg = proto.Clone(msg)
-	switch trsp := msg.(type) {
-	case *gnmi.SubscribeResponse:
-		switch rrsp := trsp.Response.(type) {
-		case *gnmi.SubscribeResponse_Update:
-			if rrsp.Update.Prefix == nil {
-				rrsp.Update.Prefix = new(gnmi.Path)
-			}
-			switch addTarget {
-			case "overwrite":
-				sb := stringBuilderPool.Get().(*strings.Builder)
-				defer func() {
-					sb.Reset()
-					stringBuilderPool.Put(sb)
-				}()
-				err := tpl.Execute(sb, meta)
-				if err != nil {
-					return nil, err
-				}
-				rrsp.Update.Prefix.Target = sb.String()
-				return trsp, nil
-			case "if-not-present":
-				if rrsp.Update.Prefix.Target == "" {
-					sb := stringBuilderPool.Get().(*strings.Builder)
-					defer func() {
-						sb.Reset()
-						stringBuilderPool.Put(sb)
-					}()
-					err := tpl.Execute(sb, meta)
-					if err != nil {
-						return nil, err
-					}
-					rrsp.Update.Prefix.Target = sb.String()
-				}
-				return trsp, nil
-			}
+}
+
+// AddSubscriptionTarget is the proto.Message form of AddSubscribeResponseTarget.
+// Messages that are not a *gnmi.SubscribeResponse are returned as they were
+// received: the function never returns a nil message for a non-nil input.
+func AddSubscriptionTarget(msg proto.Message, meta Meta, addTarget string, tpl *template.Template) (proto.Message, error) {
+	rsp, ok := msg.(*gnmi.SubscribeResponse)
+	if !ok || rsp == nil {
+		return msg, nil
+	}
+	return AddSubscribeResponseTarget(rsp, meta, addTarget, tpl)
+}
+
+// AddSubscribeResponseTarget sets the Prefix.Target of a SubscribeResponse update
+// according to addTarget (see AddTargetOverwrite and AddTargetIfNotPresent),
+// using tpl rendered with meta as the target value.
+//
+// Responses that need no change (addTarget empty or unknown, sync-responses,
+// updates that already carry a target with AddTargetIfNotPresent) are returned
+// as they were received: the function never returns nil for a non-nil input.
+// When the response is modified, the input is left untouched and a modified
+// copy is returned. On template error the original response is returned along
+// with the error.
+func AddSubscribeResponseTarget(rsp *gnmi.SubscribeResponse, meta Meta, addTarget string, tpl *template.Template) (*gnmi.SubscribeResponse, error) {
+	if rsp == nil || addTarget == "" {
+		return rsp, nil
+	}
+	upd := rsp.GetUpdate()
+	if upd == nil {
+		// sync-response or error: nothing to add a target to
+		return rsp, nil
+	}
+	switch addTarget {
+	case AddTargetOverwrite:
+	case AddTargetIfNotPresent:
+		if upd.GetPrefix().GetTarget() != "" {
+			return rsp, nil
 		}
+	default:
+		// unknown value, rejected by ValidateAddTarget at config time
+		return rsp, nil
 	}
-	return nil, nil
+	if tpl == nil {
+		return rsp, fmt.Errorf("add-target is set to %q but no target template is configured", addTarget)
+	}
+	sb := stringBuilderPool.Get().(*strings.Builder)
+	defer func() {
+		sb.Reset()
+		stringBuilderPool.Put(sb)
+	}()
+	err := tpl.Execute(sb, meta)
+	if err != nil {
+		return rsp, err
+	}
+	rsp = proto.Clone(rsp).(*gnmi.SubscribeResponse)
+	upd = rsp.GetUpdate()
+	if upd.Prefix == nil {
+		upd.Prefix = new(gnmi.Path)
+	}
+	upd.Prefix.Target = sb.String()
+	return rsp, nil
 }
 
 func ExecTemplate(content []byte, tpl *template.Template) ([]byte, error) {
