@@ -24,7 +24,11 @@ func TestKeepLockCancellationCompletesWithoutErrorReceiver(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("KeepLock retained a goroutine waiting for the canceled caller")
 	}
-	require.ErrorIs(t, <-errs, context.Canceled)
+	select {
+	case err := <-errs:
+		t.Fatalf("caller cancellation reported as renewal failure: %v", err)
+	default:
+	}
 	require.NoError(t, k.Unlock(t.Context(), "key"))
 }
 

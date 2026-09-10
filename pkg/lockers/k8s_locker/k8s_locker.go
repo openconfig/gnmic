@@ -19,6 +19,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	coordinationlisters "k8s.io/client-go/listers/coordination/v1"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/leaderelection"
 
 	"github.com/openconfig/gnmic/pkg/lockers"
@@ -38,15 +39,16 @@ func init() {
 }
 
 type k8sLocker struct {
-	Cfg       *config
-	clientset kubernetes.Interface
-	logger    *slog.Logger
-	leases    coordinationlisters.LeaseNamespaceLister
-	stopCache context.CancelFunc
-	cacheDone chan struct{}
-	mu        sync.Mutex
-	locks     map[string]*leaseSession
-	stopped   bool
+	Cfg        *config
+	clientset  kubernetes.Interface
+	logger     *slog.Logger
+	leases     coordinationlisters.LeaseNamespaceLister
+	leaseIndex cache.Indexer
+	stopCache  context.CancelFunc
+	cacheDone  chan struct{}
+	mu         sync.Mutex
+	locks      map[string]*leaseSession
+	stopped    bool
 }
 
 type config struct {
@@ -54,17 +56,14 @@ type config struct {
 	LeaseDuration time.Duration `mapstructure:"lease-duration" json:"lease-duration"`
 	RenewDeadline time.Duration `mapstructure:"renew-deadline" json:"renew-deadline"`
 	RetryPeriod   time.Duration `mapstructure:"retry-period" json:"retry-period"`
+	RenewPeriod   time.Duration `mapstructure:"renew-period" json:"-"`
+	RetryTimer    time.Duration `mapstructure:"retry-timer" json:"-"`
 	QPS           float32       `mapstructure:"qps" json:"qps"`
 	Burst         int           `mapstructure:"burst" json:"burst"`
 	Debug         bool          `mapstructure:"debug" json:"debug,omitempty"`
 }
 
 func (k *k8sLocker) Init(ctx context.Context, cfg map[string]interface{}, opts ...lockers.Option) error {
-	for _, field := range []string{"renew-period", "retry-timer"} {
-		if _, exists := cfg[field]; exists {
-			return fmt.Errorf("k8s locker %q was replaced by renew-deadline and retry-period", field)
-		}
-	}
 	if err := lockers.DecodeConfig(cfg, k.Cfg); err != nil {
 		return err
 	}
@@ -87,6 +86,18 @@ func (k *k8sLocker) Init(ctx context.Context, cfg map[string]interface{}, opts .
 }
 
 func (k *k8sLocker) setDefaults() error {
+	if k.Cfg.RenewPeriod != 0 {
+		if k.Cfg.RenewDeadline != 0 && k.Cfg.RenewDeadline != k.Cfg.RenewPeriod {
+			return fmt.Errorf("renew-period and renew-deadline must match when both are set")
+		}
+		k.Cfg.RenewDeadline = k.Cfg.RenewPeriod
+	}
+	if k.Cfg.RetryTimer != 0 {
+		if k.Cfg.RetryPeriod != 0 && k.Cfg.RetryPeriod != k.Cfg.RetryTimer {
+			return fmt.Errorf("retry-timer and retry-period must match when both are set")
+		}
+		k.Cfg.RetryPeriod = k.Cfg.RetryTimer
+	}
 	if k.Cfg.Namespace == "" {
 		k.Cfg.Namespace = defaultNamespace
 	}

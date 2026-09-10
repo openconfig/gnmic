@@ -5,18 +5,34 @@ package k8s_locker
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	coordinationv1 "k8s.io/api/coordination/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	coordinationlisters "k8s.io/client-go/listers/coordination/v1"
 	"k8s.io/client-go/tools/cache"
 )
+
+const leaseKeyPrefixIndex = "original-key-prefix"
+
+func leaseKeyPrefixes(obj any) ([]string, error) {
+	lease, ok := obj.(*coordinationv1.Lease)
+	if !ok {
+		return nil, fmt.Errorf("expected Kubernetes Lease, got %T", obj)
+	}
+	key, ok := lease.Annotations[origKeyName]
+	if !ok {
+		return nil, nil
+	}
+	prefixes := make([]string, len(key)+1)
+	for i := range prefixes {
+		prefixes[i] = key[:i]
+	}
+	return prefixes, nil
+}
 
 func (k *k8sLocker) startLeaseCache(ctx context.Context) error {
 	client := k.clientset.CoordinationV1().Leases(k.Cfg.Namespace)
@@ -30,8 +46,12 @@ func (k *k8sLocker) startLeaseCache(ctx context.Context) error {
 			return client.Watch(ctx, opts)
 		},
 	}
-	informer := cache.NewSharedIndexInformer(cache.ToListWatcherWithWatchListSemantics(source, k.clientset), &coordinationv1.Lease{}, 0, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+	informer := cache.NewSharedIndexInformer(cache.ToListWatcherWithWatchListSemantics(source, k.clientset), &coordinationv1.Lease{}, 0, cache.Indexers{
+		cache.NamespaceIndex: cache.MetaNamespaceIndexFunc,
+		leaseKeyPrefixIndex:  leaseKeyPrefixes,
+	})
 	k.leases = coordinationlisters.NewLeaseLister(informer.GetIndexer()).Leases(k.Cfg.Namespace)
+	k.leaseIndex = informer.GetIndexer()
 	ctx, k.stopCache = context.WithCancel(ctx)
 	k.cacheDone = make(chan struct{})
 	go func() {
@@ -73,16 +93,17 @@ func (k *k8sLocker) List(ctx context.Context, prefix string) (map[string]string,
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	leases, err := k.leases.List(labels.Everything())
+	objects, err := k.leaseIndex.ByIndex(leaseKeyPrefixIndex, prefix)
 	if err != nil {
 		return nil, err
 	}
-	result := make(map[string]string, len(leases))
+	result := make(map[string]string, len(objects))
 	now := time.Now()
-	for _, lease := range leases {
+	for _, object := range objects {
+		lease := object.(*coordinationv1.Lease)
 		key, present := lease.Annotations[origKeyName]
-		value, hasValue := lease.Annotations[origValueName]
-		if present && hasValue && strings.HasPrefix(key, prefix) && validLease(lease, now) {
+		value, hasValue := leaseValue(lease)
+		if present && hasValue && validLease(lease, now) {
 			result[key] = value
 		}
 	}
