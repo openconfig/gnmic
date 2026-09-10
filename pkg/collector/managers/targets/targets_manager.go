@@ -738,69 +738,6 @@ func (tm *TargetsManager) removeSubscription(name string) {
 	}
 }
 
-func (tm *TargetsManager) reconcileAssignment(name string) {
-	if !tm.amIAssigned(name) {
-		if mt := tm.Lookup(name); mt != nil && tm.getTargetStateStr(name) == collstore.StateRunning {
-			_ = tm.stop(mt)
-		}
-		return
-	}
-	// get targetConfig
-	cfg, ok := tm.getConfig(name)
-	if !ok {
-		tm.logger.Info("assigned but config not present yet; will retry on next event", "target", name)
-		return
-	}
-	// Ensure ManagedTarget exists
-	tm.mu.Lock()
-	mt := tm.targets[name]
-	if mt == nil {
-		mt = newManagedTarget(name, cfg, tm.ts.tunServer)
-		tm.targets[name] = mt
-	}
-	tm.mu.Unlock()
-
-	// lock managed target
-	mt.Lock()
-	defer mt.Unlock()
-
-	// check if config has changed
-	if reflect.DeepEqual(mt.T.Config, cfg) {
-		return
-	}
-
-	// check if should reconnect
-	shouldReconnect := shouldReconnect(mt.T.Config, cfg)
-	if !shouldReconnect {
-		return
-	}
-
-	// simply reconnect
-	err := tm.stop(mt)
-	if err != nil {
-		tm.logger.Error("failed to stop target", "name", name, "error", err)
-		mt.setLastError(err.Error())
-		tm.setTargetState(name, collstore.StateFailed)
-	}
-	mt.T.Config = cfg
-	mt.setEventTags(cfg.EventTags)
-	err = tm.start(mt)
-	if err != nil {
-		tm.logger.Error("failed to start target", "name", name, "error", err)
-		mt.setLastError(err.Error())
-		tm.setTargetState(name, collstore.StateFailed)
-	}
-}
-
-func (tm *TargetsManager) getConfig(name string) (*types.TargetConfig, bool) {
-	v, ok, err := tm.store.Config.Get("targets", name)
-	if err != nil || !ok || v == nil {
-		return nil, false
-	}
-	cfg, ok := v.(*types.TargetConfig)
-	return cfg, ok
-}
-
 func (tm *TargetsManager) Lookup(name string) *ManagedTarget {
 	tm.mu.RLock()
 	defer tm.mu.RUnlock()

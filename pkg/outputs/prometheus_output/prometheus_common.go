@@ -28,7 +28,7 @@ import (
 	"github.com/openconfig/gnmic/pkg/formatters"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
-	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/prompb"
 )
 
@@ -285,7 +285,7 @@ func (m *MetricBuilder) TimeSeriesFromEvent(ev *formatters.EventMsg) []*NamedTim
 		tsLabelsWithName = append(tsLabelsWithName, tsLabels...)
 		tsLabelsWithName = append(tsLabelsWithName,
 			prompb.Label{
-				Name:  labels.MetricName,
+				Name:  model.MetricNameLabel,
 				Value: tsName,
 			})
 

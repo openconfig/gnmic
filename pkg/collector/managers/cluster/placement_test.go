@@ -37,10 +37,12 @@ func TestTieBreak_deterministic(t *testing.T) {
 }
 
 func TestFnv64_stable(t *testing.T) {
-	if fnv64("x") != fnv64("x") {
+	first := fnv64("x")
+	second := fnv64("x")
+	if first != second {
 		t.Fatal("fnv64 not stable")
 	}
-	if fnv64("x") == fnv64("y") {
+	if first == fnv64("y") {
 		t.Fatal("fnv64 collision on distinct inputs")
 	}
 }

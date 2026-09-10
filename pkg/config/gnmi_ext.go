@@ -10,7 +10,6 @@ import (
 	"github.com/openconfig/gnmi/proto/gnmi_ext"
 	"github.com/openconfig/gnmic/pkg/api"
 	"github.com/openconfig/gnmic/pkg/utils"
-	pkgUtils "github.com/openconfig/gnmic/pkg/utils"
 )
 
 func createAdditionalRequestExtensions(
@@ -95,7 +94,7 @@ func (c *Config) parseAdditionalRequestExtensions() ([]api.GNMIOption, error) {
 		return gnmiOpts, nil
 	}
 
-	registeredExtensions, err := pkgUtils.ParseRegisteredExtensions(c.GlobalFlags.RegisteredExtensions)
+	registeredExtensions, err := utils.ParseRegisteredExtensions(c.GlobalFlags.RegisteredExtensions)
 
 	if err != nil {
 		return nil, err

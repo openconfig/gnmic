@@ -220,12 +220,11 @@ func (d *dockerLoader) createDockerClient() (*dClient.Client, error) {
 		}
 	} else {
 		opts = []dClient.Opt{
-			dClient.WithAPIVersionNegotiation(),
 			dClient.WithHost(d.cfg.Address),
 			dClient.WithTimeout(d.cfg.Timeout),
 		}
 	}
-	return dClient.NewClientWithOpts(opts...)
+	return dClient.New(opts...)
 }
 
 func (d *dockerLoader) Start(ctx context.Context) chan *loaders.TargetOperation {

@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/openconfig/gnmic/pkg/formatters"
-	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/prompb"
 )
 
@@ -95,7 +95,7 @@ func TestTimeSeriesFromEvent(t *testing.T) {
 	}
 	for _, nts := range metricBuilder.TimeSeriesFromEvent(event) {
 		for _, label := range nts.TS.Labels {
-			if label.Name == labels.MetricName && label.Value != nts.Name {
+			if label.Name == model.MetricNameLabel && label.Value != nts.Name {
 				t.Errorf("__name__ label wrong, expected '%s', got '%s'", nts.Name, label.Value)
 			}
 		}

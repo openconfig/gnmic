@@ -31,11 +31,6 @@ const (
 	SubscriptionStreamMode_ON_CHANGE      = "ON_CHANGE"
 	SubscriptionStreamMode_SAMPLE         = "SAMPLE"
 )
-const (
-	subscriptionDefaultMode       = SubscriptionMode_STREAM
-	subscriptionDefaultStreamMode = SubscriptionStreamMode_TARGET_DEFINED
-	subscriptionDefaultEncoding   = "JSON"
-)
 
 var ErrConfig = errors.New("config error")
 
