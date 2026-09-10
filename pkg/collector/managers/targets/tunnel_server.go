@@ -113,6 +113,7 @@ func (ts *tunnelServer) gRPCTunnelServerOpts() ([]grpc.ServerOption, error) {
 		ts.config.TLS.ClientAuth,
 		false,
 		true,
+		false,
 	)
 	if err != nil {
 		return nil, err

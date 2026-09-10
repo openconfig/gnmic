@@ -119,6 +119,7 @@ func (a *App) gRPCTunnelServerOpts() ([]grpc.ServerOption, error) {
 		a.Config.TunnelServer.TLS.ClientAuth,
 		false,
 		true,
+		false,
 	)
 	if err != nil {
 		return nil, err

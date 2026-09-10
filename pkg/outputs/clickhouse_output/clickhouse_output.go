@@ -328,6 +328,7 @@ func openConn(c *config) (driver.Conn, error) {
 			"",
 			c.TLS.SkipVerify,
 			false,
+			false,
 		)
 		if err != nil {
 			return nil, err

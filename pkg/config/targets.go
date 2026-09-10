@@ -203,6 +203,9 @@ func setTargetConfigDefaultsFromGlobalFlags(tc *types.TargetConfig, gflags *Glob
 	if tc.LogTLSSecret == nil {
 		tc.LogTLSSecret = &gflags.LogTLSSecret
 	}
+	if tc.TLSReload == nil {
+		tc.TLSReload = &gflags.TLSReload
+	}
 	if tc.Gzip == nil {
 		tc.Gzip = &gflags.Gzip
 	}

@@ -180,3 +180,30 @@ Decryption of TLS traffic is particularly useful for network troubleshooting, pe
         tls-cert: ./router1.cert
         tls-key: ./router1.key
     ```
+
+## TLS Certificate Hot Reload
+
+gNMIc supports reloading TLS certificates (`tls-cert`, `tls-key`, `tls-ca`) from disk when their modification times change. The new certificates are applied on the next TLS handshake without restarting the process.
+
+This feature is disabled globally by default.
+
+### Global Configuration
+
+```yaml
+# Enable TLS hot reload for all targets
+tls-reload: true
+```
+
+### Target Configuration
+
+You can override the global behavior on a per-target basis:
+
+```yaml
+targets:
+  router1:
+    address: router1
+    tls-ca: ./ca.pem
+    tls-cert: ./router1.cert
+    tls-key: ./router1.key
+    tls-reload: true
+```

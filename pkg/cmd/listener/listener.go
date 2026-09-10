@@ -131,6 +131,7 @@ func New(gApp *app.App) *cobra.Command {
 					"request",
 					false,
 					true,
+					false,
 				)
 				if err != nil {
 					return err

@@ -838,7 +838,7 @@ func (k *kafkaOutput) createConfigFor(c *config) (*sarama.Config, error) {
 			c.TLS.KeyFile,
 			"",
 			c.TLS.SkipVerify,
-			false)
+			false, false)
 		if err != nil {
 			return nil, err
 		}

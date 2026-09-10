@@ -230,7 +230,7 @@ func (h *httpLoader) setDefaults() error {
 func (h *httpLoader) getTargets() (map[string]*types.TargetConfig, error) {
 	c := resty.New()
 	if h.cfg.TLS != nil {
-		tlsCfg, err := utils.NewTLSConfig(h.cfg.TLS.CaFile, h.cfg.TLS.CertFile, h.cfg.TLS.KeyFile, "", h.cfg.TLS.SkipVerify, false)
+		tlsCfg, err := utils.NewTLSConfig(h.cfg.TLS.CaFile, h.cfg.TLS.CertFile, h.cfg.TLS.KeyFile, "", h.cfg.TLS.SkipVerify, false, false)
 		if err != nil {
 			httpLoaderFailedGetRequests.WithLabelValues(loaderType, fmt.Sprintf("%v", err)).Add(1)
 			return nil, err

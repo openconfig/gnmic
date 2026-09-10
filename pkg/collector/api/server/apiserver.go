@@ -145,6 +145,7 @@ func createListener(apiCfg *config.APIServer) (net.Listener, error) {
 			apiCfg.TLS.ClientAuth,
 			apiCfg.TLS.SkipVerify,
 			false, // genSelfSigned
+			false,
 		)
 		if err != nil {
 			return nil, err

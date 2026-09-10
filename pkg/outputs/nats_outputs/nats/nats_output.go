@@ -510,7 +510,7 @@ func (n *NatsOutput) createNATSConn(c *Config, i int) (*nats.Conn, error) {
 			c.TLS.KeyFile,
 			"",
 			c.TLS.SkipVerify,
-			false)
+			false, false)
 		if err != nil {
 			return nil, err
 		}

@@ -115,6 +115,7 @@ type GlobalFlags struct {
 	TLSVersion    string        `mapstructure:"tls-version,omitempty" json:"tls-version,omitempty" yaml:"tls-version,omitempty"`
 	TLSServerName string        `mapstructure:"tls-server-name,omitempty" json:"tls-server-name,omitempty" yaml:"tls-server-name,omitempty"`
 	LogTLSSecret  bool          `mapstructure:"log-tls-secret,omitempty" json:"log-tls-secret,omitempty" yaml:"log-tls-secret,omitempty"`
+	TLSReload     bool          `mapstructure:"tls-reload,omitempty" json:"tls-reload,omitempty" yaml:"tls-reload,omitempty"`
 	Timeout       time.Duration `mapstructure:"timeout,omitempty" json:"timeout,omitempty" yaml:"timeout,omitempty"`
 	Debug         bool          `mapstructure:"debug,omitempty" json:"debug,omitempty" yaml:"debug,omitempty"`
 	EnablePprof   bool          `mapstructure:"enable-pprof,omitempty" json:"enable-pprof,omitempty" yaml:"enable-pprof,omitempty"`

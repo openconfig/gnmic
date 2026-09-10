@@ -978,6 +978,7 @@ func (o *otlpOutput) createTLSConfigFor(cfg *config) (*tls.Config, error) {
 			"",
 			cfg.TLS.SkipVerify,
 			false,
+			false,
 		)
 	}
 

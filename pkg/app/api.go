@@ -45,6 +45,7 @@ func (a *App) newAPIServer() (*http.Server, error) {
 			a.Config.APIServer.TLS.ClientAuth,
 			false, // skip-verify
 			true,  // genSelfSigned
+			false, // hotReload
 		)
 		if err != nil {
 			return nil, err

@@ -21,7 +21,7 @@ func newAPIClient(clusteringConfig *config.Clustering) (*http.Client, error) {
 		clusteringConfig.TLS.CertFile,
 		clusteringConfig.TLS.KeyFile, "",
 		clusteringConfig.TLS.SkipVerify,
-		false)
+		false, false)
 	if err != nil {
 		return nil, err
 	}

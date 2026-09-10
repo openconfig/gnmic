@@ -242,6 +242,8 @@ targets:
     tls-cert:
     # path to tls key
     tls-key:
+    # reload tls certs on modification
+    tls-reload:
     # max tls version to use during negotiation
     tls-max-version:
     # min tls version to use during negotiation
