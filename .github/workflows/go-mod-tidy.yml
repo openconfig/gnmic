@@ -31,7 +31,7 @@ concurrency:
 
 jobs:
   tidy:
-    if: github.event_name == 'workflow_dispatch' || github.actor == 'dependabot[bot]'
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: ubuntu-22.04
     permissions:
       contents: write
