@@ -269,3 +269,32 @@ func TestStreamReadOpts(t *testing.T) {
 		})
 	}
 }
+
+func TestMergedPathDoesNotMutatePrefix(t *testing.T) {
+	h := New(Config{}, nil, nil, nil, nil)
+	prefix := &gnmi.Path{
+		Elem: make([]*gnmi.PathElem, 1, 8),
+	}
+	prefix.Elem[0] = &gnmi.PathElem{Name: "interfaces"}
+	sub := &gnmi.Subscription{
+		Path: &gnmi.Path{Elem: []*gnmi.PathElem{{Name: "interface"}, {Name: "state"}}},
+		Mode: gnmi.SubscriptionMode_ON_CHANGE,
+	}
+
+	ro := h.streamReadOpts("target1", prefix, sub)
+	if len(prefix.Elem) != 1 || prefix.Elem[0].Name != "interfaces" {
+		t.Fatalf("request prefix was mutated: %+v", prefix.Elem)
+	}
+	got := ro.Paths[0].GetElem()
+	if len(got) != 3 || got[0].Name != "interfaces" || got[1].Name != "interface" || got[2].Name != "state" {
+		t.Fatalf("merged path elems: %+v", got)
+	}
+
+	once := mergedPath(prefix, sub)
+	if len(prefix.Elem) != 1 {
+		t.Fatalf("ONCE mergedPath mutated prefix: %+v", prefix.Elem)
+	}
+	if len(once.GetElem()) != 3 {
+		t.Fatalf("ONCE merged path elems: %+v", once.GetElem())
+	}
+}

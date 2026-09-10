@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"slices"
 	"strconv"
 	"time"
 
@@ -115,7 +116,7 @@ func (s *Server) buildServiceRegistration(defaultTags []string) (*api.AgentServi
 		Name:    s.cfg.ServiceRegistration.Name,
 		Address: h,
 		Port:    pi,
-		Tags:    append(defaultTags, s.cfg.ServiceRegistration.Tags...),
+		Tags:    slices.Concat(defaultTags, s.cfg.ServiceRegistration.Tags),
 		Checks: api.AgentServiceChecks{
 			{
 				TTL:                            s.cfg.ServiceRegistration.CheckInterval.String(),

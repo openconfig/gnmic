@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"sync"
 	"time"
 
@@ -104,12 +105,7 @@ func (h *Handlers) handleONCESubscriptionRequest(sc *streamClient) {
 	case *gnmi.SubscribeRequest_Subscribe:
 		pr := req.Subscribe.GetPrefix()
 		for _, sub := range req.Subscribe.GetSubscription() {
-			paths = append(paths,
-				&gnmi.Path{
-					Origin: pr.GetOrigin(),
-					Target: pr.GetTarget(),
-					Elem:   append(pr.GetElem(), sub.GetPath().GetElem()...),
-				})
+			paths = append(paths, mergedPath(pr, sub))
 		}
 	}
 	//
@@ -270,13 +266,7 @@ func (h *Handlers) handleStreamSubscriptionRequest(sc *streamClient) {
 // list item, applying the configured sample and heartbeat interval bounds.
 // Unknown subscription modes are treated as TARGET_DEFINED (on-change).
 func (h *Handlers) streamReadOpts(target string, prefix *gnmi.Path, sub *gnmi.Subscription) *cache.ReadOpts {
-	paths := []*gnmi.Path{
-		{
-			Origin: prefix.GetOrigin(),
-			Target: prefix.GetTarget(),
-			Elem:   append(prefix.GetElem(), sub.GetPath().GetElem()...),
-		},
-	}
+	paths := []*gnmi.Path{mergedPath(prefix, sub)}
 	heartbeat := time.Duration(sub.GetHeartbeatInterval())
 	if heartbeat > 0 && heartbeat < h.cfg.MinHeartbeatInterval {
 		heartbeat = h.cfg.MinHeartbeatInterval
@@ -305,6 +295,16 @@ func (h *Handlers) streamReadOpts(target string, prefix *gnmi.Path, sub *gnmi.Su
 			Mode:              cache.ReadMode_StreamOnChange,
 			HeartbeatInterval: heartbeat,
 		}
+	}
+}
+
+// mergedPath joins the subscription list prefix with one subscription path.
+// The result is a new Elem slice so the request prefix is not mutated.
+func mergedPath(prefix *gnmi.Path, sub *gnmi.Subscription) *gnmi.Path {
+	return &gnmi.Path{
+		Origin: prefix.GetOrigin(),
+		Target: prefix.GetTarget(),
+		Elem:   slices.Concat(prefix.GetElem(), sub.GetPath().GetElem()),
 	}
 }
 

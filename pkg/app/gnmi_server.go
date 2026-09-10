@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"slices"
 	"strconv"
 	"time"
 
@@ -153,7 +154,7 @@ INITCONSUL:
 		Name:    a.Config.GnmiServer.ServiceRegistration.Name,
 		Address: h,
 		Port:    pi,
-		Tags:    append(defaultTags, a.Config.GnmiServer.ServiceRegistration.Tags...),
+		Tags:    slices.Concat(defaultTags, a.Config.GnmiServer.ServiceRegistration.Tags),
 		Checks: api.AgentServiceChecks{
 			{
 				TTL:                            a.Config.GnmiServer.ServiceRegistration.CheckInterval.String(),

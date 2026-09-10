@@ -196,7 +196,12 @@ func (h *Handlers) Set(ctx context.Context, req *gnmi.SetRequest) (*gnmi.SetResp
 				return
 			}
 			for _, upd := range res.GetResponse() {
-				upd.Path.Target = name
+				if upd.Path == nil {
+					upd.Path = new(gnmi.Path)
+				}
+				if upd.Path.Target == "" {
+					upd.Path.Target = name
+				}
 				results <- upd
 			}
 		}(name, t)

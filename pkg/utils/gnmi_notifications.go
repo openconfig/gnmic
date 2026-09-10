@@ -25,7 +25,7 @@ import (
 func TargetConfigToNotification(tc *types.TargetConfig, e gnmi.Encoding) *gnmi.Notification {
 	switch e {
 	case gnmi.Encoding_JSON, gnmi.Encoding_JSON_IETF:
-		b, _ := json.Marshal(tc)
+		b, _ := json.Marshal(tc.RedactedDeepCopy())
 		n := &gnmi.Notification{
 			Timestamp: time.Now().UnixNano(),
 			Update: []*gnmi.Update{
