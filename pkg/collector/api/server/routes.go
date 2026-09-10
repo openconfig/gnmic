@@ -1,13 +1,19 @@
 package apiserver
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/openconfig/gnmic/pkg/utils"
 )
 
 func (s *Server) routes() {
+	// recover handler panics into a 500 instead of a reset connection.
+	// The logger is set in Start, hence the indirection.
+	s.router.Use(utils.RecoverMiddleware(func() *slog.Logger { return s.logger }))
 	s.router.Handle("/metrics", promhttp.HandlerFor(s.reg, promhttp.HandlerOpts{}))
 
 	apiV1 := s.router.PathPrefix("/api/v1").Subrouter()
