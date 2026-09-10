@@ -31,7 +31,7 @@ this is done by checking if there is a lock maintained for each configured targe
 The instances which failed to become the leader, continue to try to acquire the leader lock.
 
 For Kubernetes Lease configuration, permissions and upgrade requirements, see
-[Kubernetes Lease locker](ha_kubernetes_locker.md).
+[Kubernetes locker](ha_kubernetes.md).
 
 ### Target distribution process
 

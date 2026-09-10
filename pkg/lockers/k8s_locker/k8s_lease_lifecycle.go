@@ -6,10 +6,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/leaderelection"
@@ -18,6 +18,10 @@ import (
 
 	"github.com/openconfig/gnmic/pkg/lockers"
 )
+
+const maxConcurrentReleases = 16
+
+var errLeaseRenewalFailed = errors.New("kubernetes lease renewal failed")
 
 type leaseSession struct {
 	ctx      context.Context
@@ -31,11 +35,12 @@ func (k *k8sLocker) Lock(ctx context.Context, key string, value []byte) (bool, e
 	ctx = klog.NewContext(ctx, logr.FromSlogHandler(k.logger.Handler()))
 	ctx, cancel := context.WithCancelCause(ctx)
 	session := &leaseSession{ctx: ctx, cancel: cancel, identity: uuid.NewString(), acquired: make(chan struct{}), stopped: make(chan struct{})}
+	name := leaseName(key)
 	elector, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
 		Lock: &resourcelock.LeaseLock{
-			LeaseMeta:  metav1.ObjectMeta{Name: leaseName(key), Namespace: k.Cfg.Namespace},
+			LeaseMeta:  metav1.ObjectMeta{Name: name, Namespace: k.Cfg.Namespace},
 			Client:     annotatedLeaseGetter{LeasesGetter: k.clientset.CoordinationV1(), annotations: map[string]string{origKeyName: key, origValueName: string(value)}},
-			Labels:     map[string]string{"app": "gnmic"},
+			Labels:     leaseLabels(key, value),
 			LockConfig: resourcelock.ResourceLockConfig{Identity: session.identity},
 		},
 		LeaseDuration: k.Cfg.LeaseDuration,
@@ -45,7 +50,7 @@ func (k *k8sLocker) Lock(ctx context.Context, key string, value []byte) (bool, e
 			OnStartedLeading: func(context.Context) { close(session.acquired) },
 			OnStoppedLeading: func() {},
 		},
-		Name: leaseName(key),
+		Name: name,
 	})
 	if err != nil {
 		cancel(context.Canceled)
@@ -67,7 +72,9 @@ func (k *k8sLocker) Lock(ctx context.Context, key string, value []byte) (bool, e
 	go func() {
 		defer close(session.stopped)
 		elector.Run(ctx)
-		cancel(fmt.Errorf("kubernetes lease %q renewal deadline exceeded: %w", key, context.DeadlineExceeded))
+		if ctx.Err() == nil {
+			cancel(fmt.Errorf("%w for %q: %w", errLeaseRenewalFailed, key, context.DeadlineExceeded))
+		}
 	}()
 	select {
 	case <-session.acquired:
@@ -102,16 +109,16 @@ func (k *k8sLocker) KeepLock(ctx context.Context, key string) (chan struct{}, ch
 		}
 		select {
 		case <-ctx.Done():
-			session.cancel(ctx.Err())
-		case <-session.stopped:
-		}
-		if err := ctx.Err(); err != nil {
-			errs <- err
+			session.cancel(context.Cause(ctx))
 			close(done)
-			return
+		case <-session.stopped:
+			cause := context.Cause(session.ctx)
+			if errors.Is(cause, errLeaseRenewalFailed) {
+				errs <- cause
+				return
+			}
+			close(done)
 		}
-		// Loss is reported only through errs: the subscriber's done path skips stopping collection.
-		errs <- context.Cause(session.ctx)
 	}()
 	return done, errs
 }
@@ -125,16 +132,20 @@ func (k *k8sLocker) forgetSession(key string, session *leaseSession) {
 }
 
 func (k *k8sLocker) release(ctx context.Context, key string, session *leaseSession) error {
-	ctx, cancel := context.WithTimeout(ctx, k.Cfg.RetryPeriod)
-	defer cancel()
 	session.cancel(context.Canceled)
+	stopCtx, cancel := context.WithTimeout(ctx, k.Cfg.RetryPeriod)
 	select {
 	case <-session.stopped:
-	case <-ctx.Done():
-		return ctx.Err()
+		cancel()
+	case <-stopCtx.Done():
+		err := stopCtx.Err()
+		cancel()
+		return err
 	}
 	client := k.clientset.CoordinationV1().Leases(k.Cfg.Namespace)
-	lease, err := client.Get(ctx, leaseName(key), metav1.GetOptions{})
+	getCtx, cancel := context.WithTimeout(ctx, k.Cfg.RetryPeriod)
+	lease, err := client.Get(getCtx, leaseName(key), metav1.GetOptions{})
+	cancel()
 	if apierrors.IsNotFound(err) {
 		return nil
 	}
@@ -144,7 +155,9 @@ func (k *k8sLocker) release(ctx context.Context, key string, session *leaseSessi
 	if lease.Spec.HolderIdentity == nil || *lease.Spec.HolderIdentity != session.identity {
 		return nil
 	}
-	err = client.Delete(ctx, lease.Name, metav1.DeleteOptions{Preconditions: &metav1.Preconditions{UID: &lease.UID, ResourceVersion: &lease.ResourceVersion}})
+	deleteCtx, cancel := context.WithTimeout(ctx, k.Cfg.RetryPeriod)
+	defer cancel()
+	err = client.Delete(deleteCtx, lease.Name, metav1.DeleteOptions{Preconditions: &metav1.Preconditions{UID: &lease.UID, ResourceVersion: &lease.ResourceVersion}})
 	if apierrors.IsNotFound(err) || apierrors.IsConflict(err) {
 		return nil
 	}
@@ -175,13 +188,22 @@ func (k *k8sLocker) Stop() error {
 		k.stopCache()
 		<-k.cacheDone
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	var errs []error
+	var group errgroup.Group
+	group.SetLimit(maxConcurrentReleases)
+	errCh := make(chan error, len(sessions))
 	for key, session := range sessions {
-		if err := k.release(ctx, key, session); err != nil {
-			errs = append(errs, err)
-		}
+		group.Go(func() error {
+			if err := k.release(context.Background(), key, session); err != nil {
+				errCh <- fmt.Errorf("release lock %q: %w", key, err)
+			}
+			return nil
+		})
+	}
+	_ = group.Wait()
+	close(errCh)
+	var errs []error
+	for err := range errCh {
+		errs = append(errs, err)
 	}
 	return errors.Join(errs...)
 }
