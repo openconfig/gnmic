@@ -52,7 +52,7 @@ func init() {
 
 type k8sLocker struct {
 	Cfg             *config
-	clientset       *kubernetes.Clientset
+	clientset       kubernetes.Interface
 	logger          *slog.Logger
 	m               *sync.RWMutex
 	acquiredlocks   map[string]*lock

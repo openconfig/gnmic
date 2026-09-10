@@ -102,6 +102,7 @@ nav:
       - Caching: user_guide/caching.md
 
       - Clustering: user_guide/HA.md
+      - Kubernetes locker: user_guide/ha_kubernetes.md
 
       - REST API: 
           - Introduction: user_guide/api/api_intro.md

@@ -10,20 +10,14 @@ package k8s_locker
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/apimachinery/pkg/watch"
 
 	"github.com/openconfig/gnmic/pkg/lockers"
 )
-
-const defaultWatchTimeout = 10 * time.Second
 
 func (k *k8sLocker) Register(ctx context.Context, s *lockers.ServiceRegistration) error {
 	return nil
@@ -31,128 +25,6 @@ func (k *k8sLocker) Register(ctx context.Context, s *lockers.ServiceRegistration
 
 func (k *k8sLocker) Deregister(s string) error {
 	return nil
-}
-
-func (k *k8sLocker) WatchServices(ctx context.Context, serviceName string, tags []string, sChan chan<- []*lockers.Service, watchTimeout time.Duration) error {
-	if watchTimeout <= 0 {
-		watchTimeout = defaultWatchTimeout
-	}
-	resourceVersion := ""
-	var err error
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			resourceVersion, err = k.watch(ctx, serviceName, tags, sChan, watchTimeout, resourceVersion)
-			if err != nil {
-				k.logger.Warn("watch ended with error", "err", err)
-				time.Sleep(k.Cfg.RetryTimer)
-			} else if k.Cfg.Debug {
-				k.logger.Debug("watch timed out")
-			}
-		}
-	}
-}
-
-func (k *k8sLocker) watch(ctx context.Context, serviceName string, _ []string, sChan chan<- []*lockers.Service, watchTimeout time.Duration, resourceVersion string) (string, error) {
-	timeoutSeconds := int64(watchTimeout.Seconds())
-	listopts := metav1.ListOptions{
-		FieldSelector:   fields.OneTermEqualSelector(metav1.ObjectNameField, serviceName).String(),
-		ResourceVersion: resourceVersion,
-		TimeoutSeconds:  &timeoutSeconds,
-	}
-	if k.Cfg.Debug {
-		if resourceVersion == "" {
-			k.logger.Debug("starting watch beginning with unspecified resource version")
-		} else {
-			k.logger.Debug("starting watch", "resource_version", resourceVersion)
-		}
-	}
-	watched, err := k.clientset.CoreV1().Endpoints(k.Cfg.Namespace).Watch(ctx, listopts)
-	if err != nil {
-		return "", err
-	}
-	defer watched.Stop()
-
-	watchChan := watched.ResultChan()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return "", ctx.Err()
-		case event := <-watchChan:
-			switch event.Type {
-			case watch.Modified, watch.Added:
-				endpoints, ok := event.Object.(*corev1.Endpoints)
-				if !ok {
-					// this ought not to happen, but we should probably
-					// start from scratch next time in case it does
-					return "", fmt.Errorf("error converting watch result to an endpoint")
-				}
-				resourceVersion = endpoints.ResourceVersion
-				if k.Cfg.Debug {
-					k.logger.Debug("received watch event", "event_type", event.Type, "resource_version", resourceVersion)
-				}
-				svcs, err := parseEndpoint(endpoints)
-				if err != nil {
-					return "", err
-				}
-				sChan <- svcs
-			case "":
-				// reached the timeout. return the version we last saw so
-				// we can resume watching
-				return resourceVersion, nil
-			default:
-				// something else happened, including maybe the object we
-				// were watching being deleted. we'll need to start the
-				// next watch from scratch, so don't return the resource
-				// version
-				return "", fmt.Errorf("unexpected watch event: %s", event.Type)
-			}
-		}
-	}
-}
-
-func parseEndpoint(endpoint *corev1.Endpoints) ([]*lockers.Service, error) {
-	// the service should only have a single port number assigned, so
-	// all subsets should have the port number we're looking for
-	if len(endpoint.Subsets) <= 0 {
-		return nil, fmt.Errorf("no subsets found in endpoint for service %s", endpoint.Name)
-	}
-	if len(endpoint.Subsets[0].Ports) <= 0 {
-		return nil, fmt.Errorf("no ports found for service %s", endpoint.Name)
-	}
-	port := endpoint.Subsets[0].Ports[0].Port
-
-	services := make([]*lockers.Service, 0, len(endpoint.Subsets[0].Addresses))
-	for _, subset := range endpoint.Subsets {
-		for _, addr := range subset.Addresses {
-			targetName := addr.IP
-			if addr.TargetRef != nil {
-				targetName = addr.TargetRef.Name
-			}
-			ls := &lockers.Service{
-				ID:      fmt.Sprintf("%s-api", targetName),
-				Address: fmt.Sprintf("%s:%d", addr.IP, port),
-				Tags: []string{
-					fmt.Sprintf("instance-name=%s", targetName),
-				},
-			}
-			services = append(services, ls)
-		}
-	}
-
-	return services, nil
-}
-
-func (k *k8sLocker) GetServices(ctx context.Context, serviceName string, tags []string) ([]*lockers.Service, error) {
-	ep, err := k.clientset.CoreV1().Endpoints(k.Cfg.Namespace).Get(ctx, serviceName, metav1.GetOptions{})
-	if err != nil {
-		return nil, err
-	}
-
-	return parseEndpoint(ep)
 }
 
 func (k *k8sLocker) IsLocked(ctx context.Context, key string) (bool, error) {
