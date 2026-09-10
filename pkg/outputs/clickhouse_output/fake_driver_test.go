@@ -11,6 +11,7 @@ package clickhouse_output
 import (
 	"context"
 	"errors"
+	"io"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/column"
 	chd "github.com/ClickHouse/clickhouse-go/v2/lib/driver"
@@ -108,3 +109,13 @@ type fakeBatchColumn struct{}
 func (f *fakeBatchColumn) Append(any) error { return nil }
 
 func (f *fakeBatchColumn) AppendRow(any) error { return nil }
+
+// clickhouse-go v2.48.0 added HTTP-only format streaming to driver.Conn.
+// The output uses the native protocol, so the fake refuses both.
+func (f *fakeConn) InsertFormat(context.Context, string, string, io.Reader) error {
+	return errors.ErrUnsupported
+}
+
+func (f *fakeConn) QueryFormat(context.Context, string, string, ...any) (io.ReadCloser, error) {
+	return nil, errors.ErrUnsupported
+}
