@@ -1,0 +1,101 @@
+# © 2026 Nokia.
+#
+# This code is a Contribution to the gNMIc project (“Work”) made under the Google Software Grant and Corporate Contributor License Agreement (“CLA”) and governed by the Apache License 2.0.
+# No other rights or licenses in or to any of Nokia’s intellectual property are granted for any other purpose.
+# This code is provided on an “as is” basis without any warranties of any kind.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Run `go mod tidy` in every module:
+#   - on demand from the Actions tab (workflow_dispatch)
+#   - automatically on Dependabot PRs that touch go.mod / go.sum
+#
+# Dependabot updates go.mod in place and often leaves indirect requires
+# (and nested modules) out of date. This workflow tidies them and pushes
+# the result back. On the default branch, it opens a PR instead of pushing.
+#
+# Pushes with GITHUB_TOKEN do not start new workflows. Set repository
+# secret DEPENDABOT_TIDY_TOKEN to a PAT (contents + pull-requests) if
+# the follow-up commit must retrigger CI.
+
+name: Go mod tidy
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - go.mod
+      - go.sum
+      - "**/go.mod"
+      - "**/go.sum"
+
+permissions: {}
+
+concurrency:
+  group: go-mod-tidy-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tidy:
+    if: github.event_name == 'workflow_dispatch' || github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.head_ref || github.ref }}
+          persist-credentials: false
+
+      - name: Load software versions
+        run: sed -n 's/^export //p' versions.env >> "$GITHUB_ENV"
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Tidy every Go module
+        run: |
+          set -eu
+          for dir in . pkg/api pkg/cache; do
+            echo "::group::go mod tidy in ${dir}"
+            ( cd "$dir" && go mod tidy )
+            echo "::endgroup::"
+          done
+
+      - name: Commit tidy result
+        env:
+          GH_TOKEN: ${{ secrets.DEPENDABOT_TIDY_TOKEN || secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -eu
+          if git diff --quiet -- go.mod go.sum pkg/api/go.mod pkg/api/go.sum pkg/cache/go.mod pkg/cache/go.sum; then
+            echo "all modules already tidy"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add go.mod go.sum pkg/api/go.mod pkg/api/go.sum pkg/cache/go.mod pkg/cache/go.sum
+          git commit -m "chore: go mod tidy"
+
+          ref="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+
+          if [ "$EVENT_NAME" = "pull_request" ] || [ "$ref" != "$DEFAULT_BRANCH" ]; then
+            git push "$remote" "HEAD:${ref}"
+            exit 0
+          fi
+
+          branch="ci/go-mod-tidy"
+          git checkout -b "$branch"
+          git push -u "$remote" "$branch"
+          gh pr create \
+            --repo "$REPO" \
+            --base "$DEFAULT_BRANCH" \
+            --head "$branch" \
+            --title "chore: go mod tidy" \
+            --body "Automated \`go mod tidy\` from the on-demand Go mod tidy workflow."
