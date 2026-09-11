@@ -94,10 +94,16 @@ func (s *Server) handleConfigOutputsPost(w http.ResponseWriter, r *http.Request)
 		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"output name is required"}})
 		return
 	}
-	initializer := outputs.Outputs[cfg["type"].(string)]
+	outputType, ok := cfg["type"].(string)
+	if !ok || outputType == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"output type is required"}})
+		return
+	}
+	initializer := outputs.Outputs[outputType]
 	if initializer == nil {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(APIErrors{Errors: []string{"unknown output type"}})
+		json.NewEncoder(w).Encode(APIErrors{Errors: []string{fmt.Sprintf("unknown output type: %q", outputType)}})
 		return
 	}
 	impl := initializer()

@@ -172,7 +172,9 @@ func New() *App {
 		pprof: newPprofServer(),
 	}
 	a.router.StrictSlash(true)
-	a.router.Use(headersMiddleware, a.loggingMiddleware)
+	// recover handler panics into a 500 instead of a reset connection;
+	// registered first so it wraps the other middlewares too.
+	a.router.Use(utils.RecoverMiddleware(func() *slog.Logger { return a.Logger }), headersMiddleware, a.loggingMiddleware)
 	return a
 }
 
