@@ -18,6 +18,7 @@ import (
 
 	"github.com/grafana/pyroscope-go"
 	"github.com/openconfig/gnmic/pkg/cache"
+	gnmiserver "github.com/openconfig/gnmic/pkg/collector/api/gnmi"
 	apiserver "github.com/openconfig/gnmic/pkg/collector/api/server"
 	cluster_manager "github.com/openconfig/gnmic/pkg/collector/managers/cluster"
 	inputs_manager "github.com/openconfig/gnmic/pkg/collector/managers/inputs"
@@ -42,8 +43,9 @@ type Collector struct {
 	ctx   context.Context
 	store *collstore.Store
 
-	apiServer *apiserver.Server
-	cache     cache.Cache
+	apiServer  *apiserver.Server
+	gnmiServer *gnmiserver.Server
+	cache      cache.Cache
 
 	locker         lockers.Locker
 	clusterManager *cluster_manager.ClusterManager
@@ -73,10 +75,12 @@ func New(ctx context.Context, configStore store.Store[any]) *Collector {
 		inputsManager, clusterManager,
 		reg,
 	)
+	gnmiServer := gnmiserver.NewServer(ctx, s, targetsManager, reg)
 	c := &Collector{
 		ctx:            ctx,
 		store:          s,
 		apiServer:      apiServer,
+		gnmiServer:     gnmiServer,
 		clusterManager: clusterManager,
 		targetsManager: targetsManager,
 		outputsManager: outputsManager,
@@ -110,7 +114,10 @@ func (c *Collector) Start() error {
 		}
 	}
 	// create cache
-	c.initCache()
+	err = c.initCache()
+	if err != nil {
+		return err
+	}
 	// start managers
 	err = c.targetsManager.Start(c.locker, c.wg)
 	if err != nil {
@@ -129,6 +136,11 @@ func (c *Collector) Start() error {
 	if err != nil {
 		return err
 	}
+	// start northbound gNMI server
+	err = c.gnmiServer.Start(c.cache, c.wg)
+	if err != nil {
+		return err
+	}
 	// wait for context done
 	<-c.ctx.Done()
 	// wait for all components to finish
@@ -139,6 +151,7 @@ func (c *Collector) Start() error {
 func (c *Collector) Stop() {
 	c.logger.Info("stopping collector")
 	c.apiServer.Stop()
+	c.gnmiServer.Stop()
 	c.clusterManager.Stop()
 	c.targetsManager.Stop()
 	c.outputsManager.Stop()
@@ -239,9 +252,8 @@ func (c *Collector) initCache() error {
 		if cfg == nil {
 			return nil
 		}
-		if cfg.Cache == nil {
-			return nil
-		}
+		// create a cache whenever a gNMI server is configured;
+		// a nil cache config yields the default in-memory `oc` cache.
 		c.cache, err = cache.New(cfg.Cache, cache.WithLogger(c.logger))
 		if err != nil {
 			return err

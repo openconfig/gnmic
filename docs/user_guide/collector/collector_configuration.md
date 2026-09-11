@@ -115,9 +115,15 @@ clustering:
     debug: false
 ```
 
-<!-- ## gNMI Server
+## gNMI Server
 
 The embedded gNMI server allows the collector to serve collected data to downstream gNMI clients.
+
+It behaves like the `subscribe` command's [gNMI server](../gnmi_server.md):
+
+- `Subscribe` RPCs are served from the collector cache, which is kept in sync with the configured subscriptions.
+- `Get` and `Set` RPCs are relayed to the target(s) selected with the request `Prefix.Target` field. Set is disabled by default, see `read-only` below.
+- `Get` requests with paths under origin `gnmic` return the collector's own `targets` and `subscriptions` configuration.
 
 ```yaml
 gnmi-server:
@@ -177,9 +183,15 @@ gnmi-server:
   # boolean, enable debug logging
   debug: false
   
-  # cache configuration for the gNMI server
+  # boolean, when true the server rejects Set RPCs
+  # with an `Unimplemented` status code.
+  # defaults to true
+  read-only: true
+  
+  # cache configuration for the gNMI server,
+  # if not set, a default in-memory `oc` cache is used.
   cache:
-    # string, cache type: "oc" (OpenConfig) or "redis"
+    # string, cache type: "oc" (OpenConfig), "redis", "nats" or "jetstream"
     type: oc
     
     # string, address (for redis type)
@@ -208,7 +220,7 @@ gnmi-server:
     max-fail: 3
     name:
     tags: []
-``` -->
+```
 
 ## Tunnel Server
 
@@ -286,7 +298,6 @@ clustering:
 # gNMI server
 gnmi-server:
   address: :57400
-  skip-verify: true
   cache:
     type: oc
     expiration: 60s

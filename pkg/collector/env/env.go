@@ -40,6 +40,32 @@ func ExpandAPIEnv(apiConfig *config.APIServer) {
 	apiConfig.ExposeTargetSecrets = os.ExpandEnv(strings.ToLower(strconv.FormatBool(apiConfig.ExposeTargetSecrets))) == "true"
 }
 
+func ExpandGNMIServerEnv(gnmiServerConfig *config.GNMIServer) {
+	gnmiServerConfig.Address = os.ExpandEnv(gnmiServerConfig.Address)
+	if gnmiServerConfig.TLS != nil {
+		gnmiServerConfig.TLS.CaFile = os.ExpandEnv(gnmiServerConfig.TLS.CaFile)
+		gnmiServerConfig.TLS.CertFile = os.ExpandEnv(gnmiServerConfig.TLS.CertFile)
+		gnmiServerConfig.TLS.KeyFile = os.ExpandEnv(gnmiServerConfig.TLS.KeyFile)
+		gnmiServerConfig.TLS.ClientAuth = os.ExpandEnv(gnmiServerConfig.TLS.ClientAuth)
+	}
+	if gnmiServerConfig.ServiceRegistration != nil {
+		gnmiServerConfig.ServiceRegistration.Address = os.ExpandEnv(gnmiServerConfig.ServiceRegistration.Address)
+		gnmiServerConfig.ServiceRegistration.Datacenter = os.ExpandEnv(gnmiServerConfig.ServiceRegistration.Datacenter)
+		gnmiServerConfig.ServiceRegistration.Username = os.ExpandEnv(gnmiServerConfig.ServiceRegistration.Username)
+		gnmiServerConfig.ServiceRegistration.Password = os.ExpandEnv(gnmiServerConfig.ServiceRegistration.Password)
+		gnmiServerConfig.ServiceRegistration.Token = os.ExpandEnv(gnmiServerConfig.ServiceRegistration.Token)
+		gnmiServerConfig.ServiceRegistration.Name = os.ExpandEnv(gnmiServerConfig.ServiceRegistration.Name)
+		for i := range gnmiServerConfig.ServiceRegistration.Tags {
+			gnmiServerConfig.ServiceRegistration.Tags[i] = os.ExpandEnv(gnmiServerConfig.ServiceRegistration.Tags[i])
+		}
+	}
+	if gnmiServerConfig.Cache != nil {
+		gnmiServerConfig.Cache.Address = os.ExpandEnv(gnmiServerConfig.Cache.Address)
+		gnmiServerConfig.Cache.Username = os.ExpandEnv(gnmiServerConfig.Cache.Username)
+		gnmiServerConfig.Cache.Password = os.ExpandEnv(gnmiServerConfig.Cache.Password)
+	}
+}
+
 func expandLockerEnv(locker map[string]any) {
 	expandMapEnv(locker)
 }

@@ -49,6 +49,9 @@ type GNMIServer struct {
 	TLS                   *types.TLSConfig     `mapstructure:"tls,omitempty" json:"tls,omitempty"`
 	EnableMetrics         bool                 `mapstructure:"enable-metrics,omitempty" json:"enable-metrics,omitempty"`
 	Debug                 bool                 `mapstructure:"debug,omitempty" json:"debug,omitempty"`
+	// ReadOnly disables the Set RPC when true, defaults to true.
+	// A pointer is used to distinguish an unset value from an explicit false.
+	ReadOnly *bool `mapstructure:"read-only,omitempty" json:"read-only,omitempty"`
 	// ServiceRegistration
 	ServiceRegistration *serviceRegistration `mapstructure:"service-registration,omitempty" json:"service-registration,omitempty"`
 	// cache config
@@ -144,6 +147,10 @@ func (c *Config) GetGNMIServer() error {
 	c.GnmiServer.EnableMetrics = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/enable-metrics")) == trueString
 	c.GnmiServer.Debug = os.ExpandEnv(c.FileConfig.GetString("gnmi-server/debug")) == trueString
 	c.GnmiServer.Timeout = c.FileConfig.GetDuration("gnmi-server/timeout")
+	if c.FileConfig.IsSet("gnmi-server/read-only") {
+		readOnly := os.ExpandEnv(c.FileConfig.GetString("gnmi-server/read-only")) == trueString
+		c.GnmiServer.ReadOnly = &readOnly
+	}
 
 	c.setGnmiServerDefaults()
 
@@ -181,36 +188,61 @@ func (c *Config) GetGNMIServer() error {
 }
 
 func (c *Config) setGnmiServerDefaults() {
-	if c.GnmiServer.Address == "" {
-		c.GnmiServer.Address = defaultAddress
-	}
-	if c.GnmiServer.MaxSubscriptions <= 0 {
-		c.GnmiServer.MaxSubscriptions = defaultMaxSubscriptions
-	}
-	if c.GnmiServer.MaxUnaryRPC <= 0 {
-		c.GnmiServer.MaxUnaryRPC = defaultMaxUnaryRPC
-	}
-	if c.GnmiServer.MinSampleInterval <= 0 {
-		c.GnmiServer.MinSampleInterval = minimumSampleInterval
-	}
-	if c.GnmiServer.DefaultSampleInterval <= 0 {
-		c.GnmiServer.DefaultSampleInterval = defaultSampleInterval
-	}
-	if c.GnmiServer.MinHeartbeatInterval <= 0 {
-		c.GnmiServer.MinHeartbeatInterval = minimumHeartbeatInterval
-	}
+	c.GnmiServer.SetDefaults()
 }
 
 func (c *Config) setGnmiServerServiceRegistrationDefaults() {
-	if c.GnmiServer.ServiceRegistration.Address == "" {
-		c.GnmiServer.ServiceRegistration.Address = defaultServiceRegistrationAddress
+	c.GnmiServer.ServiceRegistration.setDefaults()
+}
+
+// SetDefaults applies the default values to the unset gNMI server attributes.
+// It is used both by the config file reader (GetGNMIServer) and by consumers
+// that obtain a *GNMIServer through means that bypass GetGNMIServer, such as
+// the collector command which reads the unmarshaled struct from the store.
+func (s *GNMIServer) SetDefaults() {
+	if s.Address == "" {
+		s.Address = defaultAddress
 	}
-	if c.GnmiServer.ServiceRegistration.CheckInterval <= 5*time.Second {
-		c.GnmiServer.ServiceRegistration.CheckInterval = defaultRegistrationCheckInterval
+	if s.MaxSubscriptions <= 0 {
+		s.MaxSubscriptions = defaultMaxSubscriptions
 	}
-	if c.GnmiServer.ServiceRegistration.MaxFail <= 0 {
-		c.GnmiServer.ServiceRegistration.MaxFail = defaultMaxServiceFail
+	if s.MaxUnaryRPC <= 0 {
+		s.MaxUnaryRPC = defaultMaxUnaryRPC
 	}
-	deregisterTimer := c.GnmiServer.ServiceRegistration.CheckInterval * time.Duration(c.GnmiServer.ServiceRegistration.MaxFail)
-	c.GnmiServer.ServiceRegistration.DeregisterAfter = deregisterTimer.String()
+	if s.MinSampleInterval <= 0 {
+		s.MinSampleInterval = minimumSampleInterval
+	}
+	if s.DefaultSampleInterval <= 0 {
+		s.DefaultSampleInterval = defaultSampleInterval
+	}
+	if s.MinHeartbeatInterval <= 0 {
+		s.MinHeartbeatInterval = minimumHeartbeatInterval
+	}
+	if s.ReadOnly == nil {
+		readOnly := true
+		s.ReadOnly = &readOnly
+	}
+	if s.ServiceRegistration != nil {
+		s.ServiceRegistration.setDefaults()
+	}
+}
+
+// IsReadOnly reports whether the Set RPC should be disabled.
+// An unset value defaults to true (read-only).
+func (s *GNMIServer) IsReadOnly() bool {
+	return s.ReadOnly == nil || *s.ReadOnly
+}
+
+func (sr *serviceRegistration) setDefaults() {
+	if sr.Address == "" {
+		sr.Address = defaultServiceRegistrationAddress
+	}
+	if sr.CheckInterval <= 5*time.Second {
+		sr.CheckInterval = defaultRegistrationCheckInterval
+	}
+	if sr.MaxFail <= 0 {
+		sr.MaxFail = defaultMaxServiceFail
+	}
+	deregisterTimer := sr.CheckInterval * time.Duration(sr.MaxFail)
+	sr.DeregisterAfter = deregisterTimer.String()
 }

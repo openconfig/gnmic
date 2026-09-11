@@ -160,6 +160,9 @@ func (s *gNMIServer) Start(ctx context.Context) error {
 	for {
 		l, err = lc.Listen(ctx, networkType, addr)
 		if err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 			s.logger.Error("cannot listen", "error", err)
 			time.Sleep(time.Second)
 			continue
@@ -182,6 +185,13 @@ func (s *gNMIServer) Start(ctx context.Context) error {
 		healthpb.RegisterHealthServer(gs, hs)
 		hs.SetServingStatus("gNMI", healthpb.HealthCheckResponse_SERVING)
 	}
+
+	// stop the gRPC server when the context is done,
+	// this makes Serve return.
+	go func() {
+		<-ctx.Done()
+		gs.Stop()
+	}()
 
 	s.logger.Info("starting gRPC server...")
 	err = gs.Serve(l)
