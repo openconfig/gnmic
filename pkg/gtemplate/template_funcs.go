@@ -14,6 +14,8 @@ import (
 	"strings"
 	"text/template"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"gopkg.in/yaml.v2"
 )
 
@@ -88,7 +90,9 @@ func trimSuffix(v string, suffix string) string {
 }
 
 func toTitle(v string) string {
-	return strings.Title(v)
+	// NoLower keeps strings.Title's behavior of not lowercasing
+	// the rest of each word.
+	return cases.Title(language.Und, cases.NoLower).String(v)
 }
 
 func toLower(v string) string {
