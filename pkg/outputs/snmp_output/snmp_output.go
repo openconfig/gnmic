@@ -348,7 +348,11 @@ func (s *snmpOutput) Write(ctx context.Context, m proto.Message, meta outputs.Me
 		if dc == nil {
 			return
 		}
-		rsp, err := outputs.AddSubscriptionTarget(m, meta, "if-not-present", dc.targetTpl)
+		subRsp, ok := m.(*gnmi.SubscribeResponse)
+		if !ok {
+			return
+		}
+		rsp, err := outputs.AddSubscribeResponseTarget(subRsp, meta, outputs.AddTargetIfNotPresent, dc.targetTpl)
 		if err != nil {
 			s.logger.Warn("failed to add target to response", "err", err)
 			return

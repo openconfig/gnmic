@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 
@@ -43,8 +42,8 @@ func (s *server) Set(ctx context.Context, req *gnmi.SetRequest) (*gnmi.SetRespon
 	defer s.mu.RUnlock()
 
 	targetName := req.GetPrefix().GetTarget()
-	peer, _ := peer.FromContext(ctx)
-	s.l.InfoContext(ctx, "received Set request", "peer", peer.Addr, "target", targetName)
+	peerAddr := peerAddr(ctx)
+	s.l.InfoContext(ctx, "received Set request", "peer", peerAddr, "target", targetName)
 
 	targets, err := s.selectTargets(targetName)
 	if err != nil {
@@ -120,6 +119,6 @@ func (s *server) Set(ctx context.Context, req *gnmi.SetRequest) (*gnmi.SetRespon
 		}
 	}
 	<-done
-	s.l.InfoContext(ctx, "sending SetResponse", "peer", peer.Addr, "response", response)
+	s.l.InfoContext(ctx, "sending SetResponse", "peer", peerAddr, "response", response)
 	return response, nil
 }
