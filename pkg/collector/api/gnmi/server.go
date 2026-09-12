@@ -4,10 +4,11 @@
 //
 // It exposes the same gNMI interface as the `subscribe` command's gNMI
 // server (see pkg/app/gnmi_server.go):
-//   - Subscribe RPCs are served from the collector cache, which is kept in
-//     sync with the configured targets/subscriptions by the outputs manager.
-//   - Get and Set RPCs are relayed to the target(s) selected via the request
-//     Prefix.Target field.
+//   - Subscribe and Get RPCs are served from the collector cache, which is
+//     kept in sync with the configured targets/subscriptions by the outputs
+//     manager.
+//   - Set RPCs are relayed to the target(s) selected via the request
+//     Prefix.Target field (disabled by default, see `read-only`).
 //   - Get requests with origin `gnmic` are served from the collector's
 //     configuration store (`targets` and `subscriptions` paths).
 //

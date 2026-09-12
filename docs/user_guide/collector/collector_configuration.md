@@ -121,8 +121,9 @@ The embedded gNMI server allows the collector to serve collected data to downstr
 
 It behaves like the `subscribe` command's [gNMI server](../gnmi_server.md):
 
-- `Subscribe` RPCs are served from the collector cache, which is kept in sync with the configured subscriptions.
-- `Get` and `Set` RPCs are relayed to the target(s) selected with the request `Prefix.Target` field. Set is disabled by default, see `read-only` below.
+- `Subscribe` and `Get` RPCs are served from the collector cache, which is kept in sync with the configured subscriptions.
+- `Set` RPCs are relayed to the target(s) selected with the request `Prefix.Target` field. Set is disabled by default, see `read-only` below.
+- To relay every RPC to the targets, use the [`proxy`](../../cmd/proxy.md) command.
 - `Get` requests with paths under origin `gnmic` return the collector's own `targets` and `subscriptions` configuration.
 
 ```yaml
