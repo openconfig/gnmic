@@ -3,11 +3,12 @@
 // Package gnmiserver implements the gNMI RPC handlers shared by the
 // `subscribe` and `collect` commands' northbound gNMI servers:
 //
-//   - Subscribe RPCs are served from a cache kept in sync with the
+//   - Subscribe and Get RPCs are served from a cache kept in sync with the
 //     configured subscriptions.
-//   - Get and Set RPCs are relayed to the target(s) selected via the request
+//   - Set RPCs are relayed to the target(s) selected via the request
 //     Prefix.Target field. Target resolution is command specific and is
-//     provided by the caller as a TargetSelectFn.
+//     provided by the caller as a TargetSelectFn. Relaying every RPC to the
+//     targets is what the `proxy` command does.
 //   - Get requests with paths under the `gnmic` origin are served by the
 //     caller provided InternalGetFn, typically from the command's own
 //     configuration.
@@ -60,8 +61,8 @@ type Handlers struct {
 }
 
 // New creates gNMI RPC handlers.
-// c may be nil, in which case Subscribe RPCs are rejected with an
-// `Unimplemented` status code.
+// c may be nil, in which case Subscribe RPCs and Get RPCs outside the `gnmic`
+// origin are rejected with an `Unimplemented` status code.
 func New(cfg Config, c cache.Cache, logger *slog.Logger, selectTargets TargetSelectFn, internalGet InternalGetFn) *Handlers {
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)

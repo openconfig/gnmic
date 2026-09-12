@@ -18,14 +18,17 @@ Using this gNMI server feature it is possible to build `gNMI` based clusters and
 
 <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/hellt/drawio-js@main/embed2.js?&fetch=https%3A%2F%2Fraw.githubusercontent.com%2Fkarimra%2Fgnmic%2Fdiagrams%2Fgnmi_server.drawio" async></script>
 
-The server keeps a cache of the gNMI notifications received from the defined subscriptions and utilizes it to build the `Subscribe` RPC responses.
+The server keeps a cache of the gNMI notifications received from the defined subscriptions and serves the `Subscribe` and `Get` RPCs from it.
 
-The unary RPCs, Get and Set, are relayed to known targets based on the `Prefix.Target` field.
+The `Set` RPC is relayed to known targets based on the `Prefix.Target` field, when enabled with [`read-only: false`](#read-only).
+
+To relay every RPC to the targets instead of serving the cache, use the [`proxy`](../cmd/proxy.md) command.
 
 ## Supported features
 
 - Supports gNMI RPCs, Get, Set, Subscribe
-- Acts as a gNMI gateway for Get and Set RPCs (Set is disabled by default, see [read-only](#read-only)).
+- Serves `Get` RPCs from the cache.
+- Acts as a gNMI gateway for Set RPCs (disabled by default, see [read-only](#read-only)).
 - Supports Service registration with Consul server.
 - Supports all types of gNMI subscriptions, `once`, `poll`, `stream`.
 - Supports all types of `stream` subscriptions, `on-change`, `target-defined` and `sample`.
@@ -35,24 +38,27 @@ The unary RPCs, Get and Set, are relayed to known targets based on the `Prefix.T
 
 ## Get RPC
 
-The server supports the gNMI `Get` RPC, it allows a client to retrieve `gNMI` notifications from multiple targets into a single `GetResponse`.
+The server supports the gNMI `Get` RPC and answers it from its cache: the notifications stored for the selected target(s) under the requested path(s) are returned in a single `GetResponse`, as they were received from the targets, with their original timestamps and encoding.
 
-It relies on the `GetRequest` `Prefix.Target` field to select the target(s) against which it will run the Get RPC.
+It relies on the `GetRequest` `Prefix.Target` field to select the target(s).
 
-If `Prefix.Target` is left empty or is equal to `*`, the Get RPC is performed against all known targets.
-The received GetRequest is cloned, enriched with each target name and sent to the corresponding destination.
+If `Prefix.Target` is left empty or is equal to `*`, the notifications of all cached targets are returned.
 
-Comma separated target names are also supported and allow to select a list of specific targets to send the Get RPC to.
+Comma separated target names are also supported and allow to select a list of specific targets.
 
 ```bash
 gnmic -a gnmic-server:57400 get --path /interfaces \
                                 --target router1,router2,router3
 ```
 
-Once all GetResponses are received back successfully, the notifications contained in each GetResponse are combined into a single GetResponse with each notification's `Prefix.Target` populated, if empty.
+The request `Prefix` path elements are prepended to each requested path. Wildcards (`*`) are supported in path keys.
 
-The resulting GetResponse is then returned to the gNMI client.
-If one of the RPCs fails, an error with status code `Internal(13)` is returned to the client.
+Only data received through the configured subscriptions is present in the cache: a path that is not subscribed, or a target that has not sent any data yet, yields an empty `GetResponse`, not an error. Entries older than the cache [`expiration`](#caching) are not returned.
+
+Since the values come from the cache, the `GetRequest` `type` and `encoding` fields are accepted but ignored: the values are returned in the encoding the targets produced.
+
+!!! note
+    Prior to v0.49.0 the Get RPC was relayed to the targets. To relay Get RPCs to the targets, use the [`proxy`](../cmd/proxy.md) command.
 
 If the GetRequest Path has the `Origin` field set to `gnmic`, the request is performed against the internal `gNMIc` server configuration.
 Currently only the paths `targets` and `subscriptions` are supported.
