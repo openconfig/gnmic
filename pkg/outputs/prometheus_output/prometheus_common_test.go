@@ -292,9 +292,10 @@ func TestMetricBuilder_MetricsFromEvent(t *testing.T) {
 	tests := []struct {
 		name string // description of this test case
 		// Named input parameters for target function.
-		ev   *formatters.EventMsg
-		now  time.Time
-		want []*PromMetric
+		ev                          *formatters.EventMsg
+		now                         time.Time
+		stringsAsSingleMetricLabels bool
+		want                        []*PromMetric
 	}{
 		{
 			name: "no_duplicates",
@@ -385,11 +386,58 @@ func TestMetricBuilder_MetricsFromEvent(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:                        "string_value_label_only_on_own_metric",
+			stringsAsSingleMetricLabels: true,
+			ev: &formatters.EventMsg{
+				Name:      "sub1",
+				Timestamp: 1777889507942770536,
+				Tags: map[string]string{
+					"interface_name": "onu 1/1/95",
+					"source":         "lab-olt",
+				},
+				Values: map[string]any{
+					"/interfaces-state/interface/admin-status":  "1",
+					"/interfaces-state/interface/name":          "onu 1/1/95",
+					"/interfaces-state/interface/onu/clei-code": "CLEI-1234",
+				},
+			},
+			now: time.Unix(0, 1777889507942770536),
+			want: []*PromMetric{
+				{
+					Name:  "interfaces_state_interface_admin_status",
+					value: 1,
+					labels: []prompb.Label{
+						{Name: "interface_name", Value: "onu 1/1/95"},
+						{Name: "source", Value: "lab-olt"},
+					},
+				},
+				{
+					Name:  "interfaces_state_interface_name",
+					value: 1,
+					labels: []prompb.Label{
+						{Name: "interface_name", Value: "onu 1/1/95"},
+						{Name: "source", Value: "lab-olt"},
+						{Name: "name", Value: "onu 1/1/95"},
+					},
+				},
+				{
+					Name:  "interfaces_state_interface_onu_clei_code",
+					value: 1,
+					labels: []prompb.Label{
+						{Name: "interface_name", Value: "onu 1/1/95"},
+						{Name: "source", Value: "lab-olt"},
+						{Name: "clei_code", Value: "CLEI-1234"},
+					},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mb := &MetricBuilder{
-				StringsAsLabels: true,
+				StringsAsLabels:             !tt.stringsAsSingleMetricLabels,
+				StringsAsSingleMetricLabels: tt.stringsAsSingleMetricLabels,
 			}
 			got := mb.MetricsFromEvent(tt.ev, tt.now)
 			if len(got) != len(tt.want) {
