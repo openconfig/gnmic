@@ -90,14 +90,13 @@ START:
 				select {
 				case <-nctx.Done():
 					logging.LogErrUnlessCanceled(a.Logger, nctx.Err(), "target stopped", "target", tc.Name)
-					// drain errChan
-					err := <-errChan
-					logging.LogErrUnlessCanceled(a.Logger, err, "target keepLock returned", "target", tc.Name)
 					return
 				case <-doneChan:
+					cancel()
 					a.Logger.Info("target lock removed", "target", tc.Name)
 					return
 				case err := <-errChan:
+					cancel()
 					logging.LogErrUnlessCanceled(a.Logger, err, "failed to maintain target lock", "target", tc.Name)
 					a.stopTarget(ctx, tc.Name)
 					if errors.Is(err, context.Canceled) {
