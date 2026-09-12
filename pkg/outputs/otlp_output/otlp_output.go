@@ -186,9 +186,11 @@ type config struct {
 	MetricPrefix string `mapstructure:"metric-prefix,omitempty"`
 	// boolean, if true the subscription name will be prepended to the metric name after the prefix.
 	AppendSubscriptionName bool `mapstructure:"append-subscription-name,omitempty"`
-	// boolean, if true, string type values are exported as gauge metrics with value=1
-	// and the string stored as an attribute named "value".
-	// if false, string values are dropped.
+	// boolean, if true, non-numeric string values are exported as gauge metrics
+	// with value=1 and the string stored as an attribute named "value".
+	// Numeric strings (RFC 7951 encodes uint64/int64/decimal64 as JSON strings)
+	// are always exported as numeric datapoints regardless of this setting.
+	// if false, non-numeric string values are dropped.
 	StringsAsAttributes bool `mapstructure:"strings-as-attributes,omitempty"`
 	// boolean, if true, the leading "/" of the metric path is trimmed before the
 	// slash-to-underscore conversion, so a path like "/interfaces/..." becomes
