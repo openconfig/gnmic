@@ -22,7 +22,7 @@ require (
 	github.com/gosnmp/gosnmp v1.44.0
 	github.com/grafana/pyroscope-go v1.4.2
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
-	github.com/guptarohit/asciigraph v0.7.3
+	github.com/guptarohit/asciigraph v0.10.0
 	github.com/hairyhenderson/yaml v2.1.0+incompatible
 	github.com/hashicorp/consul/api v1.32.1
 	github.com/hashicorp/go-plugin v1.7.0
