@@ -589,8 +589,8 @@ github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9dec
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
 github.com/zeebo/xxh3 v1.1.0 h1:s7DLGDK45Dyfg7++yxI0khrfwq9661w9EN78eP/UZVs=
 github.com/zeebo/xxh3 v1.1.0/go.mod h1:IisAie1LELR4xhVinxWS5+zf1lA4p0MW4T+w+W07F5s=
-github.com/zestor-dev/zestor v0.0.2 h1:UyM7G7QPwDRThgCWxm3DUCaAkKte6s7fVhOWBVvDH3Y=
-github.com/zestor-dev/zestor v0.0.2/go.mod h1:gffTEDJU8OE+V1gewC+yL1x6MpZOeNsys5jMQPv0S3k=
+github.com/zestor-dev/zestor v0.0.3 h1:zSYXF75fJNtaY5R9fiO7ILWRjoFm7nkghmzQGB80pE8=
+github.com/zestor-dev/zestor v0.0.3/go.mod h1:gffTEDJU8OE+V1gewC+yL1x6MpZOeNsys5jMQPv0S3k=
 go.opentelemetry.io/auto/sdk v1.2.1 h1:jXsnJ4Lmnqd11kwkBV2LgLoFMZKizbCi5fNZ/ipaZ64=
 go.opentelemetry.io/auto/sdk v1.2.1/go.mod h1:KRTj+aOaElaLi+wW1kO/DZRXwkF4C5xPbEe3ZiIhN7Y=
 go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0 h1:8tvICD4vSTOOsNrsI4Ljf6C+6UKvpTEH5XY3JMoyPoo=

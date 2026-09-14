@@ -57,7 +57,7 @@ require (
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.12.1
 	github.com/xdg/scram v1.0.5
-	github.com/zestor-dev/zestor v0.0.2
+	github.com/zestor-dev/zestor v0.0.3
 	go.opentelemetry.io/proto/otlp v1.9.0
 	go.starlark.net v0.0.0-20260102030733-3fee463870c9
 	golang.org/x/crypto v0.55.0
