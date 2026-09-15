@@ -13,7 +13,7 @@ require (
 	github.com/c-bata/go-prompt v0.2.6
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/fullstorydev/grpcurl v1.9.4
-	github.com/go-redsync/redsync/v4 v4.13.0
+	github.com/go-redsync/redsync/v4 v4.17.0
 	github.com/go-resty/resty/v2 v2.17.2
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
