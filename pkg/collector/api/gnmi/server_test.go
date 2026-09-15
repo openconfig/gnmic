@@ -1,4 +1,3 @@
-
 // SPDX-License-Identifier: Apache-2.0
 
 package gnmiserver
@@ -367,6 +366,35 @@ func TestServer_EndToEnd(t *testing.T) {
 	}
 	if len(rsp.GetNotification()) != 1 {
 		t.Fatalf("expected 1 notification, got %d", len(rsp.GetNotification()))
+	}
+
+	// Get served from the cache
+	cacheRsp, err := client.Get(getCtx, &gnmi.GetRequest{
+		Prefix: &gnmi.Path{Target: "router1"},
+		Path: []*gnmi.Path{
+			{Elem: []*gnmi.PathElem{{Name: "system"}, {Name: "name"}, {Name: "host-name"}}},
+		},
+		Encoding: gnmi.Encoding_JSON,
+	})
+	if err != nil {
+		t.Fatalf("cache Get failed: %v", err)
+	}
+	if len(cacheRsp.GetNotification()) != 1 {
+		t.Fatalf("cache Get: expected 1 notification, got %d: %v", len(cacheRsp.GetNotification()), cacheRsp)
+	}
+	if got := cacheRsp.GetNotification()[0].GetUpdate()[0].GetVal().GetAsciiVal(); got != "router1" {
+		t.Fatalf("cache Get: value %q, want router1", got)
+	}
+	// unknown target: empty response, no error
+	emptyRsp, err := client.Get(getCtx, &gnmi.GetRequest{
+		Prefix: &gnmi.Path{Target: "nope"},
+		Path:   []*gnmi.Path{{Elem: []*gnmi.PathElem{{Name: "system"}}}},
+	})
+	if err != nil {
+		t.Fatalf("cache Get for an unknown target failed: %v", err)
+	}
+	if len(emptyRsp.GetNotification()) != 0 {
+		t.Fatalf("cache Get for an unknown target returned %d notifications", len(emptyRsp.GetNotification()))
 	}
 
 	// Capabilities
