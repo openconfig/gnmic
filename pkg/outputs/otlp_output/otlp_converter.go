@@ -193,15 +193,21 @@ func (o *otlpOutput) convertEventToMetrics(cfg *config, divergent map[string]boo
 			Name: metricName,
 		}
 
-		// Handle string values
-		switch v := v.(type) {
-		case string:
+		// RFC 7951 (JSON_IETF) encodes YANG uint64/int64/decimal64 as JSON
+		// strings. Prefer a numeric datapoint whenever the string parses as a
+		// number; only fall back to value=1 + "value" attribute for true enums.
+		if strVal, ok := v.(string); ok {
+			if dataPoint := o.createNumberDataPointWithValue(cfg, event, attributes, strVal); dataPoint != nil {
+				o.assignDataPoint(cfg, metric, k, dataPoint)
+				result = append(result, metric)
+				continue
+			}
 			if !cfg.StringsAsAttributes {
-				o.logger.Debug("skipping string value (strings-as-attributes=false)", "event", event.Name)
+				o.logger.Debug("skipping non-numeric string value (strings-as-attributes=false)", "event", event.Name)
 				continue
 			}
 			metric.Data = &metricspb.Metric_Gauge{
-				Gauge: o.createGaugeWithString(event, attributes, v),
+				Gauge: o.createGaugeWithString(event, attributes, strVal),
 			}
 			result = append(result, metric)
 			continue
@@ -213,25 +219,30 @@ func (o *otlpOutput) convertEventToMetrics(cfg *config, divergent map[string]boo
 			continue
 		}
 
-		if o.isCounter(cfg, k) {
-			metric.Data = &metricspb.Metric_Sum{
-				Sum: &metricspb.Sum{
-					AggregationTemporality: metricspb.AggregationTemporality_AGGREGATION_TEMPORALITY_CUMULATIVE,
-					IsMonotonic:            true,
-					DataPoints:             []*metricspb.NumberDataPoint{dataPoint},
-				},
-			}
-		} else {
-			metric.Data = &metricspb.Metric_Gauge{
-				Gauge: &metricspb.Gauge{
-					DataPoints: []*metricspb.NumberDataPoint{dataPoint},
-				},
-			}
-		}
+		o.assignDataPoint(cfg, metric, k, dataPoint)
 		result = append(result, metric)
 	}
 
 	return result, nil
+}
+
+// assignDataPoint sets metric.Data to either a Sum or Gauge based on counter-patterns.
+func (o *otlpOutput) assignDataPoint(cfg *config, metric *metricspb.Metric, valueKey string, dataPoint *metricspb.NumberDataPoint) {
+	if o.isCounter(cfg, valueKey) {
+		metric.Data = &metricspb.Metric_Sum{
+			Sum: &metricspb.Sum{
+				AggregationTemporality: metricspb.AggregationTemporality_AGGREGATION_TEMPORALITY_CUMULATIVE,
+				IsMonotonic:            true,
+				DataPoints:             []*metricspb.NumberDataPoint{dataPoint},
+			},
+		}
+		return
+	}
+	metric.Data = &metricspb.Metric_Gauge{
+		Gauge: &metricspb.Gauge{
+			DataPoints: []*metricspb.NumberDataPoint{dataPoint},
+		},
+	}
 }
 
 // buildMetricName creates metric name from event and value key
