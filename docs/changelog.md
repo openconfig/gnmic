@@ -5,6 +5,56 @@ tags:
 
 ## Changelog
 
+### v0.49.0 - 16 September 2026
+
+- gNMI server:
+
+    - **The `collector` command now runs the northbound gNMI server.** It is configured under `gnmi-server`, like the `subscribe` command's server, and behaves the same way:
+         - `Subscribe` and `Get` are served from the collector cache, which is kept in sync with the configured subscriptions. 
+         - `Set` is relayed to the target(s) selected with the request `Prefix.Target` field: `Get` requests with paths under origin `gnmic` return the collector's own `targets` and `subscriptions` configuration. 
+         - TLS and Consul service registration are supported, and the `gnmi-server` settings are expanded with environment variables. 
+         - A cache is created whenever a gNMI server is configured (an unset `cache` section yields the default in-memory `oc` cache. `redis`, `nats` and `jetstream` are also accepted), and a cache initialization failure now aborts startup instead of being silently ignored. 
+         - The RPC handlers are shared with the `subscribe` command's server. See [collector configuration](user_guide/collector/collector_configuration.md#gnmi-server).
+
+    - **Breaking: `Get` is served from the cache and no longer relayed to the targets.** The notifications cached for the target(s) selected by `Prefix.Target` (empty or `*` for all targets, comma separated names for several) under the requested path(s) are returned in a single `GetResponse`, as they were received from the targets, with their original timestamps and encoding. The request `Prefix` path elements are prepended to each requested path. A path that is not subscribed, or a target that has not sent any data yet, yields an empty `GetResponse` rather than an error. Entries older than the cache `expiration` are not returned. The request `type` and `encoding` fields are accepted and ignored. To relay Get RPCs to the targets, use the [`proxy`](cmd/proxy.md) command. See [gNMI server](user_guide/gnmi_server.md#get-rpc).
+
+    - **Breaking: `Set` is disabled by default.** The new `gnmi-server` option `read-only` (default `true`) makes the server reject Set RPCs with an `Unimplemented` status code. Set `read-only: false` to relay Set RPCs to the targets as before. See [read-only](user_guide/gnmi_server.md#read-only).
+
+    - On-change `Subscribe` requests are resolved dynamically. A STREAM subscription registers its query before any data exists, so an open RPC picks up subscriptions and targets that appear later, and targets that are removed and re-added, without re-subscribing. This includes a wildcard-target subscribe issued against an empty cache. The on-change heartbeat no longer resends the initial state on its first tick.
+
+    - `Capabilities` now advertises the supported encodings (`JSON`, `BYTES`, `PROTO`, `ASCII`, `JSON_IETF`) together with the gNMI version. Previously the encodings list was empty.
+
+- Targets:
+
+    - **TLS certificate hot reload for target connections.** New global flag `--tls-reload` (config: `tls-reload`, default `false`) and per-target `tls-reload` option. When enabled, `tls-cert`, `tls-key` and `tls-ca` are re-read from disk when their modification time changes and applied on the next TLS handshake or reconnect, without restarting the process. A file that is unreadable or malformed while being rotated is ignored and the last known-good material is kept. Outputs, inputs, loaders and the API and tunnel servers keep their static TLS configuration. See [TLS certificate hot reload](user_guide/targets/targets_session_sec.md#tls-certificate-hot-reload). Contributed by @bradrevans ([#964](https://github.com/openconfig/gnmic/pull/964)).
+
+- Collector mode:
+
+    - Kubernetes locker: peer discovery uses `discovery.k8s.io/v1` EndpointSlices selected by Service name instead of the deprecated `core/v1` Endpoints API. The slice set is maintained by a client-go informer across watch reconnects and expired resource versions. Discovered peers are deduplicated (one API address per Pod, including dual-stack Pods), endpoints marked not ready, not serving or terminating are excluded, and an empty result removes previously discovered peers. **RBAC change:** the ServiceAccount needs `get`, `list` and `watch` on `endpointslices` in the cluster namespace; the `endpoints` permission is no longer used. Lease acquisition, renewal and leader election are unchanged. The new [Kubernetes locker](user_guide/ha_kubernetes.md) guide documents the Service contract and RBAC ([#962](https://github.com/openconfig/gnmic/issues/962)).
+
+    - REST API: a panic in a handler is recovered into a `500 Internal Server Error` JSON response, logged with the request method, path and route, instead of a reset connection that could leave a lock held. Applies to both the `subscribe` and `collector` API servers. `POST /api/v1/config/outputs` with a missing `type` returns `400` instead of panicking, and unknown output types are named in the error.
+
+- Outputs:
+
+    - gNMI output: fixed a panic when a `sync_response` message was written to the output. Sync responses are now skipped, as the output's server generates its own for each subscriber. A `Subscribe` request with an unrecognized mode no longer leaks a subscription slot, which could exhaust `max-subscriptions` over time. The RPC now ends together with its streaming goroutine, and errors from concurrent subscriptions are joined rather than formatted into one string.
+
+    - The `add-target` option of the outputs that support it is validated when the configuration is decoded: only `overwrite` and `if-not-present` are accepted, so a typo is rejected at load time instead of silently changing the output behavior.
+
+- Build and maintenance:
+
+    - Deprecated gRPC dial functions were replaced and `staticcheck` findings were cleaned up across the code base.
+
+    - New `Go mod tidy` GitHub workflow tidies `go.mod`/`go.sum` on Dependabot pull requests and on demand.
+
+- Dependencies:
+
+    - Bumped `github.com/ClickHouse/clickhouse-go/v2` from 2.46.0 to 2.48.0 (`ch-go` 0.71.0 to 0.74.0).
+    - Bumped `github.com/nats-io/nats.go` from 1.49.0 to 1.53.1.
+    - Bumped `github.com/go-redsync/redsync/v4` from 4.13.0 to 4.17.0.
+    - Bumped `github.com/guptarohit/asciigraph` from 0.7.3 to 0.10.0.
+    - Bumped `github.com/nsf/termbox-go` from 1.1.1 to 1.1.2.
+    - Bumped `github.com/moby/moby/client` from 0.4.1 to 0.5.1.
+
 ### v0.48.0 - 09 September 2026
 
 - Event processors:
