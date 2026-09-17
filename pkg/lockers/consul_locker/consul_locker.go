@@ -171,7 +171,12 @@ func (c *ConsulLocker) KeepLock(ctx context.Context, key string) (chan struct{},
 		doneChan = l.doneChan
 	}
 	c.m.Unlock()
-	errChan := make(chan error)
+	// errChan is buffered so the goroutine below can always deliver its (single)
+	// error and return, even after the consumer has stopped reading errChan
+	// (e.g. once the target it belongs to is deleted and its context is canceled).
+	// With an unbuffered channel the send blocks forever and the goroutine leaks,
+	// accumulating one leaked goroutine per deleted target over time.
+	errChan := make(chan error, 1)
 	go func() {
 		if sessionID == "" {
 			errChan <- fmt.Errorf("unknown key")

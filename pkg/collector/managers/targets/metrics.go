@@ -156,3 +156,21 @@ func (tm *TargetsManager) updateTargetMetrics(mt *ManagedTarget) {
 	targetConnState := targetConnectionStateFromStr(mt.T.ConnState())
 	tm.stats.targetConnStateMetric.WithLabelValues(mt.Name).Set(float64(targetConnState))
 }
+
+// deleteTargetMetrics removes every per-target metric series belonging to the
+// named target from the registry. It is called when a target is removed from
+// this instance (deleted, or reassigned to another cluster member) so that a
+// decommissioned target does not linger forever as a phantom series (e.g.
+// gnmic_target_up == 0, indistinguishable from a live-but-down target) and so
+// that per-target metric cardinality does not grow unbounded with add/delete
+// churn.
+func (tm *TargetsManager) deleteTargetMetrics(name string) {
+	// Gauges keyed by the single "name" label.
+	tm.stats.targetUPMetric.DeleteLabelValues(name)
+	tm.stats.targetConnStateMetric.DeleteLabelValues(name)
+	// Counters keyed by "target" plus additional labels (subscription,
+	// error_type); delete every series that matches the target label.
+	tm.stats.subscribeResponseReceived.DeletePartialMatch(prometheus.Labels{"target": name})
+	tm.stats.droppedSubscribeResponses.DeletePartialMatch(prometheus.Labels{"target": name})
+	tm.stats.subscriptionFailedCount.DeletePartialMatch(prometheus.Labels{"target": name})
+}
