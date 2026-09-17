@@ -39,8 +39,9 @@ const (
 )
 
 var (
-	errNoMoreSuitableServices = errors.New("no more suitable services for this target")
-	errNotFound               = errors.New("not found")
+	errNoMoreSuitableServices  = errors.New("no more suitable services for this target")
+	errNotFound                = errors.New("not found")
+	errTargetAssignmentTimeout = errors.New("target assignment not observed before timeout")
 )
 
 func (a *App) InitLocker() error {
@@ -352,31 +353,28 @@ SELECTSERVICE:
 		}
 	}
 	a.Logger.Info("[cluster-leader] waiting for lock to be acquired", "lock", key, "instance", instanceName)
-	retries := 0
-WAIT:
-	values, err := a.locker.List(ctx, key)
-	if err != nil {
-		logging.LogErrUnlessCanceled(a.Logger, err, "failed getting lock key value", "key", key)
-	} else if instance, ok := values[key]; ok && instance != "" {
-		a.Logger.Info("[cluster-leader] lock acquired", "lock", key, "instance", instance)
-		return nil
-	} else {
-		retries++
-		if (retries+1)*int(lockWaitTime) >= int(a.Config.Clustering.TargetAssignmentTimeout) {
-			a.Logger.Info("[cluster-leader] max retries reached, reselecting", "target", tc.Name, "service", service.ID)
-			err = a.unassignTarget(ctx, tc.Name, service.ID)
-			if err != nil {
-				a.Logger.Info("failed to unassign target from service", "target", tc.Name, "service", service.ID)
+	timeoutErr := fmt.Errorf("%w: target %q on service %q", errTargetAssignmentTimeout, tc.Name, service.ID)
+	waitCtx, cancel := context.WithTimeoutCause(ctx, a.Config.Clustering.TargetAssignmentTimeout, timeoutErr)
+	defer cancel()
+	ticker := time.NewTicker(lockWaitTime)
+	defer ticker.Stop()
+	for {
+		values, err := a.locker.List(waitCtx, key)
+		if err != nil {
+			if waitCtx.Err() != nil {
+				return context.Cause(waitCtx)
 			}
-			goto SELECTSERVICE
+			logging.LogErrUnlessCanceled(a.Logger, err, "failed getting lock key value", "key", key)
+		} else if instance, ok := values[key]; ok && instance != "" {
+			a.Logger.Info("[cluster-leader] lock acquired", "lock", key, "instance", instance)
+			return nil
+		}
+		select {
+		case <-waitCtx.Done():
+			return context.Cause(waitCtx)
+		case <-ticker.C:
 		}
 	}
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-time.After(lockWaitTime):
-	}
-	goto WAIT
 }
 
 func (a *App) selectService(tags []string, denied ...string) (*lockers.Service, error) {
