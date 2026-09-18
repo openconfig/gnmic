@@ -89,13 +89,23 @@ START:
 				continue
 			}
 			// clustered, dispatch
+			//
+			// The lock is released before dispatching. dispatchTarget POSTs the
+			// target config to the selected instance's API server, and the leader
+			// can select itself: the handler for that POST calls AddTargetConfig,
+			// which takes configLock. Holding it across the dispatch deadlocks the
+			// leader against its own API server until the HTTP client times out,
+			// and with a single matching instance the reselect keeps landing on
+			// the same one, so the loader never makes progress. The lock only
+			// needs to guard the map write.
 			a.configLock.Lock()
 			a.Config.Targets[add.Name] = add
+			a.configLock.Unlock()
+
 			err = a.dispatchTarget(ctx, add)
 			if err != nil {
 				logging.LogErrUnlessCanceled(a.Logger, err, "failed dispatching target", "target", add.Name)
 			}
-			a.configLock.Unlock()
 		}
 		if limiter != nil {
 			limiter.Stop()

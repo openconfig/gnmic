@@ -379,13 +379,29 @@ WAIT:
 	goto WAIT
 }
 
+// serviceDenied reports whether a service was already tried for the target
+// being dispatched. dispatchTarget reselects on a failed assignment and spins
+// until selectService stops handing back a service in this list, so every
+// return path has to honour it.
+func serviceDenied(id string, denied []string) bool {
+	for _, d := range denied {
+		if d == id {
+			return true
+		}
+	}
+	return false
+}
+
 func (a *App) selectService(tags []string, denied ...string) (*lockers.Service, error) {
 	numServices := len(a.apiServices)
 	switch numServices {
 	case 0:
 		return nil, errNotFound
 	case 1:
-		for _, s := range a.apiServices {
+		for id, s := range a.apiServices {
+			if serviceDenied(id, denied) {
+				return nil, errNoMoreSuitableServices
+			}
 			return s, nil
 		}
 	default:
@@ -401,7 +417,11 @@ func (a *App) selectService(tags []string, denied ...string) (*lockers.Service, 
 			}
 		}
 		if len(matchingInstances) == 1 {
-			return a.apiServices[fmt.Sprintf("%s-api", matchingInstances[0])], nil
+			id := fmt.Sprintf("%s-api", matchingInstances[0])
+			if serviceDenied(id, denied) {
+				return nil, errNoMoreSuitableServices
+			}
+			return a.apiServices[id], nil
 		}
 		// select instance by load
 		load, err := a.getInstancesLoad(matchingInstances...)
@@ -412,9 +432,14 @@ func (a *App) selectService(tags []string, denied ...string) (*lockers.Service, 
 		// if there are no locks in place, return a random service
 		if len(load) == 0 {
 			for _, n := range matchingInstances {
+				id := fmt.Sprintf("%s-api", n)
+				if serviceDenied(id, denied) {
+					continue
+				}
 				a.Logger.Info("selected service name", "name", n)
-				return a.apiServices[fmt.Sprintf("%s-api", n)], nil
+				return a.apiServices[id], nil
 			}
+			return nil, errNoMoreSuitableServices
 		}
 		for _, d := range denied {
 			delete(load, strings.TrimSuffix(d, "-api"))
