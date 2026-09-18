@@ -770,14 +770,38 @@ func (a *App) clusterRebalanceTargets() error {
 		if len(highInstanceTargets) == 0 {
 			return nil
 		}
-		// pick one and move it to the lowest load instance
-		err = a.unassignTarget(a.ctx, highInstanceTargets[0], highest+"-api")
+		// Pick the first target that still has a known config.
+		//
+		// The lookup has to happen before unassigning. A target whose config is
+		// gone cannot be re-dispatched, so unassigning it first strands it: no
+		// instance holds its lock and there is nothing left to hand on. It stays
+		// stranded, because the next rebalance reads the instance load rather
+		// than the loader's target list and never revisits it.
+		//
+		// A missing config must not abort the rebalance either. Returning here
+		// leaves every remaining imbalance in place, so one unresolvable target
+		// is enough to stop redistribution for the whole cluster.
+		var (
+			targetName string
+			tc         *types.TargetConfig
+		)
+		for _, name := range highInstanceTargets {
+			if cfg, ok := a.Config.Targets[name]; ok {
+				targetName, tc = name, cfg
+				break
+			}
+			a.Logger.Info("skipping target with no known config during rebalance",
+				"target", name, "instance", highest)
+		}
+		if tc == nil {
+			a.Logger.Info("no target with a known config to rebalance",
+				"instance", highest, "num_targets", len(highInstanceTargets))
+			return nil
+		}
+		// move it to the lowest load instance
+		err = a.unassignTarget(a.ctx, targetName, highest+"-api")
 		if err != nil {
 			return err
-		}
-		tc, ok := a.Config.Targets[highInstanceTargets[0]]
-		if !ok {
-			return fmt.Errorf("could not find target %s config", highInstanceTargets[0])
 		}
 		err = a.dispatchTarget(a.ctx, tc)
 		if err != nil {
