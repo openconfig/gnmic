@@ -32,7 +32,7 @@ require (
 	github.com/itchyny/gojq v0.12.14
 	github.com/jellydator/ttlcache/v3 v3.4.0
 	github.com/jhump/protoreflect v1.18.1
-	github.com/jlaffaye/ftp v0.2.0
+	github.com/jlaffaye/ftp v0.2.4
 	github.com/karimra/go-map-flattener v0.0.1
 	github.com/karimra/sros-dialout v0.0.0-20260117201857-18e893af823c
 	github.com/manifoldco/promptui v0.9.0
