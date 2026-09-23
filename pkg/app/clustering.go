@@ -285,7 +285,10 @@ func (a *App) dispatchTargets(ctx context.Context) {
 func (a *App) dispatchTargetsOnce(ctx context.Context) {
 	dctx, cancel := context.WithTimeout(ctx, a.Config.Clustering.TargetsWatchTimer)
 	defer cancel()
-	for _, tc := range a.Config.Targets {
+	for _, tc := range a.targetConfigsSnapshot() {
+		if !a.targetConfigExists(tc.Name) {
+			continue
+		}
 		err := a.dispatchTarget(dctx, tc)
 		if err != nil {
 			logging.LogErrUnlessCanceled(a.Logger, err, "failed to dispatch target", "target", tc.Name)
@@ -302,6 +305,16 @@ func (a *App) dispatchTargetsOnce(ctx context.Context) {
 			continue
 		}
 	}
+}
+
+func (a *App) targetConfigsSnapshot() []*types.TargetConfig {
+	a.configLock.RLock()
+	defer a.configLock.RUnlock()
+	targets := make([]*types.TargetConfig, 0, len(a.Config.Targets))
+	for _, target := range a.Config.Targets {
+		targets = append(targets, target)
+	}
+	return targets
 }
 
 func (a *App) dispatchTarget(ctx context.Context, tc *types.TargetConfig, denied ...string) error {
@@ -582,32 +595,12 @@ func (a *App) getHighestTagsMatches(tagsCount map[string]int) []string {
 }
 
 func (a *App) deleteTarget(ctx context.Context, name string) error {
-	err := a.createAPIClient()
-	if err != nil {
-		return err
-	}
-	errs := make([]error, 0, len(a.apiServices))
-	for _, s := range a.apiServices {
-		scheme := a.getServiceScheme(s)
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
-		url := fmt.Sprintf("%s://%s/api/v1/config/targets/%s", scheme, s.Address, name)
-		req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
-		if err != nil {
-			logging.LogErrUnlessCanceled(a.Logger, err, "failed to create a delete request")
+	services := a.apiServicesSnapshot()
+	errs := make([]error, 0, len(services))
+	for _, service := range services {
+		if err := a.deleteTargetConfigFromService(ctx, name, service); err != nil {
 			errs = append(errs, err)
-			continue
 		}
-
-		rsp, err := a.clusteringClient.Do(req)
-		if err != nil {
-			rsp.Body.Close()
-			logging.LogErrUnlessCanceled(a.Logger, err, "failed deleting target", "target", name)
-			errs = append(errs, err)
-			continue
-		}
-		rsp.Body.Close()
-		a.Logger.Info("received DELETE response", "status", rsp.StatusCode, "url", url)
 	}
 	if len(errs) == 0 {
 		return nil

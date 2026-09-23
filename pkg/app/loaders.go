@@ -52,6 +52,10 @@ START:
 	}
 	a.Logger.Info("starting loader", "type", ldTypeS)
 	for targetOp := range ld.Start(ctx) {
+		if a.inCluster() && targetOp.Snapshot != nil {
+			a.reconcileLoaderSnapshot(ctx, targetOp.Snapshot)
+			continue
+		}
 		// do deletes first, since target change equates to delete+add
 		for _, del := range targetOp.Del {
 			// not clustered, delete local target
@@ -108,6 +112,29 @@ START:
 	default:
 		goto START
 	}
+}
+
+func (a *App) reconcileLoaderSnapshot(ctx context.Context, snapshot map[string]*types.TargetConfig) {
+	a.applyLoaderSnapshot(snapshot)
+	reconcileCtx, cancel := context.WithTimeout(ctx, a.Config.Clustering.TargetsWatchTimer)
+	defer cancel()
+	a.reconcileDeletedTargets(reconcileCtx)
+}
+
+func (a *App) applyLoaderSnapshot(snapshot map[string]*types.TargetConfig) {
+	a.configLock.Lock()
+	defer a.configLock.Unlock()
+	for name := range a.loaderTargets {
+		if _, exists := snapshot[name]; !exists {
+			delete(a.Config.Targets, name)
+		}
+	}
+	a.loaderTargets = make(map[string]struct{}, len(snapshot))
+	for name, target := range snapshot {
+		a.Config.Targets[name] = target
+		a.loaderTargets[name] = struct{}{}
+	}
+	a.loaderSnapshotReady = true
 }
 
 func (a *App) startLoaderProxy(ctx context.Context) {
