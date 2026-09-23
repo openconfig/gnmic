@@ -15,6 +15,10 @@ import (
 	"github.com/hashicorp/consul/api"
 
 	"github.com/openconfig/gnmic/pkg/logging"
+	"sync"
+	"github.com/openconfig/gnmic/pkg/api/types"
+	"github.com/openconfig/gnmic/pkg/loaders"
+
 )
 
 // Test the specific bug scenario described in issue #706
@@ -130,4 +134,56 @@ func TestOldBuggyLogicWouldReject(t *testing.T) {
 
 	t.Logf("✓ Old logic would incorrectly reject: %v", oldLogicWouldReject)
 	t.Logf("✓ New logic correctly accepts: %v", newLogicShouldAccept)
+}
+
+func TestUpdateSubscriptions(t *testing.T) {
+	cl := &consulLoader{
+		m:                 new(sync.Mutex),
+		lastSubscriptions: make(map[string]*types.SubscriptionConfig),
+	}
+
+	opChan := make(chan *loaders.LoaderOperation, 1)
+
+	// 1. Initial Add
+	subs1 := map[string]*types.SubscriptionConfig{
+		"sub1": {Name: "sub1", Paths: []string{"/interfaces/interface"}},
+	}
+	cl.updateSubscriptions(subs1, opChan)
+
+	op1 := <-opChan
+	if len(op1.SubAdd) != 1 || op1.SubAdd["sub1"] == nil {
+		t.Fatalf("Expected 1 SubAdd, got %v", op1.SubAdd)
+	}
+	if len(op1.SubDel) != 0 {
+		t.Fatalf("Expected 0 SubDel, got %v", op1.SubDel)
+	}
+
+	// 2. Modify existing and add new
+	subs2 := map[string]*types.SubscriptionConfig{
+		"sub1": {Name: "sub1", Paths: []string{"/interfaces/interface/state"}}, // modified
+		"sub2": {Name: "sub2", Paths: []string{"/system"}},                      // new
+	}
+	cl.updateSubscriptions(subs2, opChan)
+
+	op2 := <-opChan
+	if len(op2.SubAdd) != 2 || op2.SubAdd["sub1"].Paths[0] != "/interfaces/interface/state" {
+		t.Fatalf("Expected 2 SubAdds with modified paths, got %v", op2.SubAdd)
+	}
+	if len(op2.SubDel) != 1 || op2.SubDel[0] != "sub1" {
+		t.Fatalf("Expected sub1 in SubDel due to modification, got %v", op2.SubDel)
+	}
+
+	// 3. Delete sub1, keep sub2 untouched
+	subs3 := map[string]*types.SubscriptionConfig{
+		"sub2": {Name: "sub2", Paths: []string{"/system"}},
+	}
+	cl.updateSubscriptions(subs3, opChan)
+
+	op3 := <-opChan
+	if len(op3.SubAdd) != 0 {
+		t.Fatalf("Expected 0 SubAdds, got %v", op3.SubAdd)
+	}
+	if len(op3.SubDel) != 1 || op3.SubDel[0] != "sub1" {
+		t.Fatalf("Expected 1 SubDel (sub1), got %v", op3.SubDel)
+	}
 }
