@@ -92,6 +92,36 @@ func TestReconcileDeletedRuntimeTargetWithoutConfig(t *testing.T) {
 	}
 }
 
+func TestLoaderSnapshotWaitsForDispatch(t *testing.T) {
+	a := New()
+	t.Cleanup(a.Cfn)
+	a.Config.Clustering = &config.Clustering{ClusterName: "test", TargetsWatchTimer: time.Second}
+	a.applyLoaderSnapshot(map[string]*types.TargetConfig{"stale": {Name: "stale"}})
+	a.dispatchLock.Lock()
+	a.configLock.Lock()
+	delete(a.Config.Targets, "stale")
+	a.configLock.Unlock()
+	done := make(chan struct{})
+	go func() {
+		a.reconcileLoaderSnapshot(context.Background(), map[string]*types.TargetConfig{})
+		close(done)
+	}()
+	select {
+	case <-done:
+		a.dispatchLock.Unlock()
+		t.Fatal("snapshot advanced while a dispatch was still running")
+	case <-time.After(20 * time.Millisecond):
+	}
+	a.configLock.Lock()
+	a.Config.Targets["stale"] = &types.TargetConfig{Name: "stale"}
+	a.configLock.Unlock()
+	a.dispatchLock.Unlock()
+	<-done
+	if a.targetConfigExists("stale") {
+		t.Fatal("late dispatched target remains after snapshot")
+	}
+}
+
 func TestReconcileDeletedTargetsBatch(t *testing.T) {
 	a := New()
 	t.Cleanup(a.Cfn)

@@ -115,7 +115,9 @@ START:
 }
 
 func (a *App) reconcileLoaderSnapshot(ctx context.Context, snapshot map[string]*types.TargetConfig) {
+	a.dispatchLock.Lock()
 	a.applyLoaderSnapshot(snapshot)
+	a.dispatchLock.Unlock()
 	reconcileCtx, cancel := context.WithTimeout(ctx, a.Config.Clustering.TargetsWatchTimer)
 	defer cancel()
 	a.reconcileDeletedTargets(reconcileCtx)
