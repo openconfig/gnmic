@@ -261,9 +261,10 @@ func (tm *TargetsManager) Start(locker lockers.Locker, wg *sync.WaitGroup) error
 					tm.apply(ev.Name, cfg)
 					tm.stats.targetUPMetric.WithLabelValues(ev.Name).Set(1)
 				case store.EventTypeDelete:
+					// remove() drops the target and deletes its metric series;
+					// previously the series were merely set to 0 here and left in
+					// the registry forever (phantom series + unbounded cardinality).
 					tm.remove(ev.Name)
-					tm.stats.targetUPMetric.WithLabelValues(ev.Name).Set(0)
-					tm.stats.targetConnStateMetric.WithLabelValues(ev.Name).Set(0)
 				}
 			case op, ok := <-loaderTargetOpCh:
 				if !ok {
@@ -648,6 +649,9 @@ func (tm *TargetsManager) remove(name string) {
 		mt.Unlock()
 	}
 	tm.store.State.Delete(collstore.KindTargets, name)
+	// The target is gone from tm.targets, so the periodic metrics updater will
+	// not recreate its series; drop them now instead of leaving phantom series.
+	tm.deleteTargetMetrics(name)
 }
 
 // apply subscription to all targets that reference it or to those that do not reference any subscription
