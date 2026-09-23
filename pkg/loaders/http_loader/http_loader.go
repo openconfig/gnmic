@@ -326,9 +326,6 @@ func (h *httpLoader) updateTargets(ctx context.Context, tcs map[string]*types.Ta
 		httpLoaderLoadedTargets.WithLabelValues(loaderType).Set(float64(numAdds))
 		httpLoaderDeletedTargets.WithLabelValues(loaderType).Set(float64(numDels))
 	}()
-	if numAdds+numDels == 0 {
-		return
-	}
 	h.m.Lock()
 	// do delete first, since target change
 	// consists of delete and add
@@ -340,8 +337,15 @@ func (h *httpLoader) updateTargets(ctx context.Context, tcs map[string]*types.Ta
 			h.lastTargets[n] = t
 		}
 	}
+	targetOp.Snapshot = make(map[string]*types.TargetConfig, len(h.lastTargets))
+	for n, t := range h.lastTargets {
+		targetOp.Snapshot[n] = t
+	}
 	h.m.Unlock()
-	opChan <- targetOp
+	select {
+	case opChan <- targetOp:
+	case <-ctx.Done():
+	}
 }
 
 func (h *httpLoader) readVars(ctx context.Context) error {

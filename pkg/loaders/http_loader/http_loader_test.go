@@ -301,7 +301,7 @@ func TestRunOnAddActions_ErrorRemovesTarget(t *testing.T) {
 	}
 }
 
-func TestUpdateTargets_NoChange_NoOp(t *testing.T) {
+func TestUpdateTargets_NoChange_EmitsSnapshot(t *testing.T) {
 	hl := newTestLoader(t)
 	hl.numActions = 0
 	// two identical targets in lastTargets and tcs
@@ -315,9 +315,11 @@ func TestUpdateTargets_NoChange_NoOp(t *testing.T) {
 	hl.updateTargets(context.Background(), map[string]*types.TargetConfig{"t1": t1, "t2": t2}, ch)
 	select {
 	case op := <-ch:
-		t.Fatalf("unexpected op received: %+v", op)
+		if len(op.Add) != 0 || len(op.Del) != 0 || len(op.Snapshot) != 2 {
+			t.Fatalf("unexpected snapshot: %+v", op)
+		}
 	default:
-		// ok, no op expected
+		t.Fatal("expected an authoritative snapshot on unchanged discovery")
 	}
 	if called != 2 {
 		t.Fatalf("expected targetConfigFn to be called twice, got %d", called)
