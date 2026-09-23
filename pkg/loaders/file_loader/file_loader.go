@@ -37,7 +37,7 @@ const (
 )
 
 func init() {
-	loaders.Register(loaderType, func() loaders.TargetLoader {
+	loaders.Register(loaderType, func() loaders.Loader {
 		return &fileLoader{
 			cfg:         &cfg{},
 			m:           new(sync.RWMutex),
@@ -151,8 +151,8 @@ func (f *fileLoader) String() string {
 	return logging.RedactedJSON(f.cfg)
 }
 
-func (f *fileLoader) Start(ctx context.Context) chan *loaders.TargetOperation {
-	opChan := make(chan *loaders.TargetOperation)
+func (f *fileLoader) Start(ctx context.Context) chan *loaders.LoaderOperation {
+	opChan := make(chan *loaders.LoaderOperation)
 	ticker := time.NewTicker(f.cfg.Interval)
 	go func() {
 		defer close(opChan)
@@ -183,7 +183,7 @@ func (f *fileLoader) RunOnce(ctx context.Context) (map[string]*types.TargetConfi
 	return readTargets, nil
 }
 
-func (f *fileLoader) update(ctx context.Context, opChan chan *loaders.TargetOperation) {
+func (f *fileLoader) update(ctx context.Context, opChan chan *loaders.LoaderOperation) {
 	readTargets, err := f.RunOnce(ctx)
 	if _, ok := err.(*os.PathError); ok {
 		f.logger.Error("path error", "err", err)
@@ -260,7 +260,7 @@ func (f *fileLoader) getTargets(ctx context.Context) (map[string]*types.TargetCo
 	return result, nil
 }
 
-func (f *fileLoader) updateTargets(ctx context.Context, tcs map[string]*types.TargetConfig, opChan chan *loaders.TargetOperation) {
+func (f *fileLoader) updateTargets(ctx context.Context, tcs map[string]*types.TargetConfig, opChan chan *loaders.LoaderOperation) {
 	var err error
 	if f.targetConfigFn != nil {
 		for _, tc := range tcs {
@@ -338,14 +338,14 @@ func (f *fileLoader) initializeAction(cfg map[string]interface{}) (actions.Actio
 	return nil, errors.New("missing type field under action")
 }
 
-func (f *fileLoader) runActions(ctx context.Context, tcs map[string]*types.TargetConfig, targetOp *loaders.TargetOperation) (*loaders.TargetOperation, error) {
+func (f *fileLoader) runActions(ctx context.Context, tcs map[string]*types.TargetConfig, targetOp *loaders.LoaderOperation) (*loaders.LoaderOperation, error) {
 	if f.numActions == 0 {
 		return targetOp, nil
 	}
-	opChan := make(chan *loaders.TargetOperation)
+	opChan := make(chan *loaders.LoaderOperation)
 	// some actions are defined,
 	doneCh := make(chan struct{})
-	result := &loaders.TargetOperation{
+	result := &loaders.LoaderOperation{
 		Add: make(map[string]*types.TargetConfig, len(targetOp.Add)),
 		Del: make([]string, 0, len(targetOp.Del)),
 	}
@@ -382,7 +382,7 @@ func (f *fileLoader) runActions(ctx context.Context, tcs map[string]*types.Targe
 				f.logger.Error("failed running OnAdd actions", "err", err)
 				return
 			}
-			opChan <- &loaders.TargetOperation{Add: map[string]*types.TargetConfig{n: tc}}
+			opChan <- &loaders.LoaderOperation{Add: map[string]*types.TargetConfig{n: tc}}
 		}(n, tAdd)
 	}
 	// run OnDelete actions
@@ -394,7 +394,7 @@ func (f *fileLoader) runActions(ctx context.Context, tcs map[string]*types.Targe
 				f.logger.Error("failed running OnDelete actions", "err", err)
 				return
 			}
-			opChan <- &loaders.TargetOperation{Del: []string{name}}
+			opChan <- &loaders.LoaderOperation{Del: []string{name}}
 		}(tDel)
 	}
 	wg.Wait()

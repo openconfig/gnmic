@@ -163,7 +163,7 @@ func TestFileLoader_StartProducesOps(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 	ch := f.Start(ctx)
-	var got *loaders.TargetOperation
+	var got *loaders.LoaderOperation
 	select {
 	case got = <-ch:
 	case <-time.After(2 * time.Second):
