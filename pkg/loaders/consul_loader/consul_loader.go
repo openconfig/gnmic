@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -48,12 +49,13 @@ const (
 var templateFunctions = template.FuncMap{"join": strings.Join}
 
 func init() {
-	loaders.Register(loaderType, func() loaders.TargetLoader {
+	loaders.Register(loaderType, func() loaders.Loader {
 		return &consulLoader{
-			cfg:         &cfg{},
-			m:           new(sync.Mutex),
-			lastTargets: make(map[string]map[string]*types.TargetConfig),
-			logger:      logging.DiscardLogger(),
+			cfg:               &cfg{},
+			m:                 new(sync.Mutex),
+			lastTargets:       make(map[string]map[string]*types.TargetConfig),
+			lastSubscriptions: make(map[string]*types.SubscriptionConfig),
+			logger:            logging.DiscardLogger(),
 		}
 	})
 }
@@ -64,8 +66,9 @@ type consulLoader struct {
 	client *api.Client
 	m      *sync.Mutex
 	// map of targets per service
-	lastTargets    map[string]map[string]*types.TargetConfig
-	targetConfigFn func(*types.TargetConfig) error
+	lastTargets       map[string]map[string]*types.TargetConfig
+	lastSubscriptions map[string]*types.SubscriptionConfig
+	targetConfigFn    func(*types.TargetConfig) error
 	logger         *slog.Logger
 	//
 	vars          map[string]interface{}
@@ -89,7 +92,11 @@ type cfg struct {
 	// enable debug
 	Debug bool `mapstructure:"debug,omitempty" json:"debug,omitempty"`
 	// KV based target config loading
+	TargetKeyPrefix string `mapstructure:"target-key-prefix,omitempty" json:"target-key-prefix,omitempty"`
+	// (Deprecated) KV based target config loading
 	KeyPrefix string `mapstructure:"key-prefix,omitempty" json:"key-prefix,omitempty"`
+	// KV based subscription config loading
+	SubscriptionsKeyPrefix string `mapstructure:"subscriptions-key-prefix,omitempty" json:"subscriptions-key-prefix,omitempty"`
 	// Service based target config loading
 	Services []*serviceDef `mapstructure:"services,omitempty" json:"services,omitempty"`
 	// if true, registers consulLoader prometheus metrics with the provided
@@ -199,8 +206,8 @@ func (c *consulLoader) Init(ctx context.Context, cfg map[string]interface{}, log
 	return nil
 }
 
-func (c *consulLoader) Start(ctx context.Context) chan *loaders.TargetOperation {
-	opChan := make(chan *loaders.TargetOperation)
+func (c *consulLoader) Start(ctx context.Context) chan *loaders.LoaderOperation {
+	opChan := make(chan *loaders.LoaderOperation)
 	var err error
 CLIENT:
 	err = c.initClient()
@@ -244,6 +251,89 @@ CLIENT:
 			}
 		}(s)
 	}
+
+	if c.cfg.TargetKeyPrefix != "" {
+		kvChan := make(chan api.KVPairs)
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case kvPairs, ok := <-kvChan:
+					if !ok {
+						return
+					}
+					tcs := make(map[string]*types.TargetConfig)
+					for _, kv := range kvPairs {
+						if len(kv.Value) == 0 {
+							continue
+						}
+						tc := new(types.TargetConfig)
+						err := yaml.Unmarshal(kv.Value, tc)
+						if err != nil {
+							c.logger.Error("failed to unmarshal target config", "key", kv.Key, "err", err)
+							continue
+						}
+						if tc.Name == "" {
+							parts := strings.Split(kv.Key, "/")
+							tc.Name = parts[len(parts)-1]
+						}
+						tcs[tc.Name] = tc
+					}
+					c.updateTargets(ctx, c.cfg.TargetKeyPrefix, tcs, opChan)
+				}
+			}
+		}()
+		go func() {
+			err := c.startKVWatch(ctx, c.cfg.TargetKeyPrefix, kvChan, time.Minute)
+			if err != nil {
+				logging.LogErrUnlessCanceled(c.logger, err, "kv watch stopped", "prefix", c.cfg.TargetKeyPrefix)
+			}
+		}()
+	}
+
+	if c.cfg.SubscriptionsKeyPrefix != "" {
+		kvChan := make(chan api.KVPairs)
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case kvPairs, ok := <-kvChan:
+					if !ok {
+						return
+					}
+					subs := make(map[string]*types.SubscriptionConfig)
+					for _, kv := range kvPairs {
+						if len(kv.Value) == 0 {
+							continue
+						}
+						subCfg := new(types.SubscriptionConfig)
+						// attempt to unmarshal value as JSON or YAML
+						err := yaml.Unmarshal(kv.Value, subCfg)
+						if err != nil {
+							c.logger.Error("failed to unmarshal subscription config", "key", kv.Key, "err", err)
+							continue
+						}
+						// If name is not provided, use the key's base name
+						if subCfg.Name == "" {
+							parts := strings.Split(kv.Key, "/")
+							subCfg.Name = parts[len(parts)-1]
+						}
+						subs[subCfg.Name] = subCfg
+					}
+					c.updateSubscriptions(subs, opChan)
+				}
+			}
+		}()
+		go func() {
+			err := c.startKVWatch(ctx, c.cfg.SubscriptionsKeyPrefix, kvChan, time.Minute)
+			if err != nil {
+				logging.LogErrUnlessCanceled(c.logger, err, "kv watch stopped", "prefix", c.cfg.SubscriptionsKeyPrefix)
+			}
+		}()
+	}
+
 	return opChan
 }
 
@@ -335,8 +425,11 @@ func (c *consulLoader) setDefaults() error {
 	if c.cfg.Datacenter == "" {
 		c.cfg.Datacenter = "dc1"
 	}
-	if c.cfg.KeyPrefix == "" && len(c.cfg.Services) == 0 {
-		c.cfg.KeyPrefix = defaultPrefix
+	if c.cfg.TargetKeyPrefix == "" && c.cfg.KeyPrefix != "" {
+		c.cfg.TargetKeyPrefix = c.cfg.KeyPrefix
+	}
+	if c.cfg.TargetKeyPrefix == "" && len(c.cfg.Services) == 0 {
+		c.cfg.TargetKeyPrefix = defaultPrefix
 	}
 	if c.cfg.ActionsTimeout <= 0 {
 		c.cfg.ActionsTimeout = defaultActionTimeout
@@ -399,6 +492,61 @@ func (c *consulLoader) watch(qOpts *api.QueryOptions, serviceName string, tags [
 	sChan <- se
 	return meta.LastIndex, nil
 }
+
+func (c *consulLoader) startKVWatch(ctx context.Context, prefix string, kvChan chan<- api.KVPairs, watchTimeout time.Duration) error {
+	if watchTimeout <= 0 {
+		watchTimeout = defaultWatchTimeout
+	}
+	var index uint64
+	qOpts := &api.QueryOptions{
+		WaitIndex: index,
+		WaitTime:  watchTimeout,
+	}
+	var err error
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			if c.cfg.Debug {
+				c.logger.Info("starting kv watch", "prefix", prefix, "index", qOpts.WaitIndex)
+			}
+			index, err = c.watchKV(qOpts.WithContext(ctx), prefix, kvChan)
+			if err != nil {
+				c.logger.Error("kv watch failed", "prefix", prefix, "err", err)
+			}
+			if index == 1 {
+				qOpts.WaitIndex = index
+				time.Sleep(2 * time.Second)
+				continue
+			}
+			if index > qOpts.WaitIndex {
+				qOpts.WaitIndex = index
+			}
+			if index < qOpts.WaitIndex {
+				qOpts.WaitIndex = 0
+			}
+		}
+	}
+}
+
+func (c *consulLoader) watchKV(qOpts *api.QueryOptions, prefix string, kvChan chan<- api.KVPairs) (uint64, error) {
+	pairs, meta, err := c.client.KV().List(prefix, qOpts)
+	if err != nil {
+		return 0, err
+	}
+	if meta.LastIndex == qOpts.WaitIndex {
+		c.logger.Debug("kv did not change", "prefix", prefix)
+		return meta.LastIndex, nil
+	}
+	if len(pairs) == 0 {
+		kvChan <- pairs
+		return 1, nil
+	}
+	kvChan <- pairs
+	return meta.LastIndex, nil
+}
+
 
 func (c *consulLoader) serviceEntryToTargetConfig(se *api.ServiceEntry) (*types.TargetConfig, error) {
 	tc := new(types.TargetConfig)
@@ -470,7 +618,7 @@ SRV:
 	return nil, errors.New("unable to find a match in Consul service(s)")
 }
 
-func (c *consulLoader) updateTargets(ctx context.Context, srvName string, tcs map[string]*types.TargetConfig, opChan chan *loaders.TargetOperation) {
+func (c *consulLoader) updateTargets(ctx context.Context, srvName string, tcs map[string]*types.TargetConfig, opChan chan *loaders.LoaderOperation) {
 	targetOp, err := c.runActions(ctx, tcs, loaders.Diff(c.lastTargets[srvName], tcs))
 	if err != nil {
 		c.logger.Error("failed to run actions:", "err", err)
@@ -504,6 +652,46 @@ func (c *consulLoader) updateTargets(ctx context.Context, srvName string, tcs ma
 	c.m.Unlock()
 
 	opChan <- targetOp
+}
+
+func (c *consulLoader) updateSubscriptions(subs map[string]*types.SubscriptionConfig, opChan chan *loaders.LoaderOperation) {
+	c.m.Lock()
+	defer c.m.Unlock()
+	
+	op := &loaders.LoaderOperation{
+		Add:    make(map[string]*types.TargetConfig),
+		Del:    make([]string, 0),
+		SubAdd: make(map[string]*types.SubscriptionConfig),
+		SubDel: make([]string, 0),
+	}
+
+	for n, s := range subs {
+		if _, ok := c.lastSubscriptions[n]; !ok {
+			op.SubAdd[n] = s
+		} else if !reflect.DeepEqual(c.lastSubscriptions[n], s) {
+			op.SubDel = append(op.SubDel, n)
+			op.SubAdd[n] = s
+		}
+	}
+	for n := range c.lastSubscriptions {
+		if _, ok := subs[n]; !ok {
+			op.SubDel = append(op.SubDel, n)
+		}
+	}
+
+	if len(op.SubAdd) == 0 && len(op.SubDel) == 0 {
+		return
+	}
+
+	// Update state
+	for _, del := range op.SubDel {
+		delete(c.lastSubscriptions, del)
+	}
+	for n, add := range op.SubAdd {
+		c.lastSubscriptions[n] = add
+	}
+
+	opChan <- op
 }
 
 //
@@ -550,7 +738,7 @@ func (c *consulLoader) initializeAction(cfg map[string]interface{}) (actions.Act
 	return nil, errors.New("missing type field under action")
 }
 
-func (c *consulLoader) runActions(ctx context.Context, tcs map[string]*types.TargetConfig, targetOp *loaders.TargetOperation) (*loaders.TargetOperation, error) {
+func (c *consulLoader) runActions(ctx context.Context, tcs map[string]*types.TargetConfig, targetOp *loaders.LoaderOperation) (*loaders.LoaderOperation, error) {
 	if c.numActions == 0 {
 		return targetOp, nil
 	}
@@ -572,9 +760,9 @@ func (c *consulLoader) runActions(ctx context.Context, tcs map[string]*types.Tar
 		targetOp.Add[i] = tAdd
 	}
 
-	opChan := make(chan *loaders.TargetOperation)
+	opChan := make(chan *loaders.LoaderOperation)
 	doneCh := make(chan struct{})
-	result := &loaders.TargetOperation{
+	result := &loaders.LoaderOperation{
 		Add: make(map[string]*types.TargetConfig, len(targetOp.Add)),
 		Del: make([]string, 0, len(targetOp.Del)),
 	}
@@ -610,7 +798,7 @@ func (c *consulLoader) runActions(ctx context.Context, tcs map[string]*types.Tar
 				c.logger.Error("failed running OnAdd actions", "err", err)
 				return
 			}
-			opChan <- &loaders.TargetOperation{Add: map[string]*types.TargetConfig{n: tc}}
+			opChan <- &loaders.LoaderOperation{Add: map[string]*types.TargetConfig{n: tc}}
 		}(n, tAdd)
 	}
 	// run OnDelete actions
@@ -622,7 +810,7 @@ func (c *consulLoader) runActions(ctx context.Context, tcs map[string]*types.Tar
 				c.logger.Error("failed running OnDelete actions", "err", err)
 				return
 			}
-			opChan <- &loaders.TargetOperation{Del: []string{name}}
+			opChan <- &loaders.LoaderOperation{Del: []string{name}}
 		}(tDel)
 	}
 	wg.Wait()

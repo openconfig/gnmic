@@ -185,7 +185,7 @@ func (tm *TargetsManager) Start(locker lockers.Locker, wg *sync.WaitGroup) error
 	if err != nil {
 		return fmt.Errorf("failed to get loader config: %w", err)
 	}
-	var loaderTargetOpCh <-chan *loaders.TargetOperation
+	var loaderTargetOpCh <-chan *loaders.LoaderOperation
 	var loaderCfn context.CancelFunc
 	if ok && cfg != nil {
 		loaderCfg, ok := cfg.(map[string]any)

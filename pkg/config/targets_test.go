@@ -369,7 +369,7 @@ func TestGetTargets(t *testing.T) {
 	}
 }
 
-var setTargetLoaderConfigDefaultsTest = map[string]struct {
+var setLoaderConfigDefaultsTest = map[string]struct {
 	envs   []string
 	in     []byte
 	out    *types.TargetConfig
@@ -409,8 +409,8 @@ test1:
 	},
 }
 
-func TestSetTargetLoaderConfigDefaults(t *testing.T) {
-	for name, data := range setTargetLoaderConfigDefaultsTest {
+func TestSetLoaderConfigDefaults(t *testing.T) {
+	for name, data := range setLoaderConfigDefaultsTest {
 		t.Run(name, func(t *testing.T) {
 			for _, e := range data.envs {
 				p := strings.SplitN(e, "=", 2)
@@ -430,7 +430,7 @@ func TestSetTargetLoaderConfigDefaults(t *testing.T) {
 			cfg := New()
 			err = cfg.SetTargetConfigDefaultsExpandEnv(input)
 			if err != nil {
-				t.Logf("SetTargetLoaderConfigDefaults error: %v", err)
+				t.Logf("SetLoaderConfigDefaults error: %v", err)
 				t.Fail()
 			}
 			if !reflect.DeepEqual(input, data.out) {
