@@ -65,6 +65,33 @@ func TestReconcileDeletedTargetsRetriesFailedDeletion(t *testing.T) {
 	}
 }
 
+func TestReconcileDeletedRuntimeTargetWithoutConfig(t *testing.T) {
+	a := New()
+	t.Cleanup(a.Cfn)
+	a.Config.Clustering = &config.Clustering{ClusterName: "test", TargetsWatchTimer: time.Second}
+	runtime := map[string]json.RawMessage{"stale": json.RawMessage(`{}`)}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			if r.URL.Path == "/api/v1/config/targets" {
+				_, _ = w.Write([]byte(`{}`))
+				return
+			}
+			_ = json.NewEncoder(w).Encode(runtime)
+		case http.MethodDelete:
+			delete(runtime, strings.TrimPrefix(r.URL.Path, "/api/v1/config/targets/"))
+			w.WriteHeader(http.StatusNoContent)
+		}
+	}))
+	t.Cleanup(server.Close)
+	a.clusteringClient = server.Client()
+	a.apiServices["collector-a-api"] = &lockers.Service{ID: "collector-a-api", Address: strings.TrimPrefix(server.URL, "http://")}
+	a.reconcileLoaderSnapshot(context.Background(), map[string]*types.TargetConfig{})
+	if len(runtime) != 0 {
+		t.Fatalf("runtime targets remain: %v", runtime)
+	}
+}
+
 func TestReconcileDeletedTargetsBatch(t *testing.T) {
 	a := New()
 	t.Cleanup(a.Cfn)

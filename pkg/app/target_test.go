@@ -1,15 +1,54 @@
 package app
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 
+	"github.com/gorilla/mux"
 	"github.com/openconfig/gnmic/pkg/api/target"
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/config"
+	"github.com/openconfig/gnmic/pkg/lockers"
 )
+
+func TestDeleteTargetRemovesRuntimeWithoutConfig(t *testing.T) {
+	a := New()
+	t.Cleanup(a.Cfn)
+	a.Targets["orphan"] = target.NewTarget(&types.TargetConfig{Name: "orphan"})
+	if err := a.DeleteTarget(context.Background(), "orphan"); err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := a.targetByName("orphan"); exists {
+		t.Fatal("orphan runtime target remains")
+	}
+}
+
+type failingUnlockLocker struct{ lockers.Locker }
+
+func (*failingUnlockLocker) Unlock(context.Context, string) error {
+	return errors.New("lease deletion failed")
+}
+
+func TestHandleConfigTargetsDeleteReportsUnlockFailure(t *testing.T) {
+	a := New()
+	t.Cleanup(a.Cfn)
+	targetConfig := &types.TargetConfig{Name: "device-a"}
+	a.Config.Targets[targetConfig.Name] = targetConfig
+	a.Targets[targetConfig.Name] = target.NewTarget(targetConfig)
+	a.locker = &failingUnlockLocker{}
+	request := mux.SetURLVars(httptest.NewRequest(http.MethodDelete, "/api/v1/config/targets/device-a", nil), map[string]string{"id": targetConfig.Name})
+	recorder := httptest.NewRecorder()
+	a.handleConfigTargetsDelete(recorder, request)
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("delete status = %d, want %d", recorder.Code, http.StatusInternalServerError)
+	}
+}
 
 // TestAddTargetConfig_ConcurrentRace detects the concurrent map read/write
 // that caused fatal crashes in production (exit code 2).
