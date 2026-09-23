@@ -90,23 +90,31 @@ func (a *App) reconcileDeletedTargets(ctx context.Context) {
 	workers.Wait()
 }
 
-func (a *App) targetNamesOnService(ctx context.Context, service *lockers.Service) (map[string]json.RawMessage, error) {
-	endpoint := fmt.Sprintf("%s://%s/api/v1/config/targets", a.getServiceScheme(service), service.Address)
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return nil, err
-	}
-	response, err := a.clusteringClient.Do(request)
-	if err != nil {
-		return nil, err
-	}
-	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("read targets on %s: HTTP %d", service.ID, response.StatusCode)
-	}
-	var names map[string]json.RawMessage
-	if err := json.NewDecoder(response.Body).Decode(&names); err != nil {
-		return nil, err
+func (a *App) targetNamesOnService(ctx context.Context, service *lockers.Service) (map[string]struct{}, error) {
+	names := make(map[string]struct{})
+	for _, resource := range []string{"config/targets", "targets"} {
+		endpoint := fmt.Sprintf("%s://%s/api/v1/%s", a.getServiceScheme(service), service.Address, resource)
+		request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+		if err != nil {
+			return nil, err
+		}
+		response, err := a.clusteringClient.Do(request)
+		if err != nil {
+			return nil, err
+		}
+		if response.StatusCode != http.StatusOK {
+			response.Body.Close()
+			return nil, fmt.Errorf("read %s on %s: HTTP %d", resource, service.ID, response.StatusCode)
+		}
+		var targets map[string]json.RawMessage
+		err = json.NewDecoder(response.Body).Decode(&targets)
+		response.Body.Close()
+		if err != nil {
+			return nil, err
+		}
+		for name := range targets {
+			names[name] = struct{}{}
+		}
 	}
 	return names, nil
 }
