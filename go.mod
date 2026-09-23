@@ -49,7 +49,7 @@ require (
 	github.com/openconfig/ygot v0.35.0
 	github.com/pkg/sftp v1.13.9
 	github.com/prometheus/client_golang v1.23.2
-	github.com/prometheus/client_model v0.6.2
+	github.com/prometheus/client_model v0.6.3
 	github.com/prometheus/prometheus v0.311.3
 	github.com/redis/go-redis/v9 v9.22.0
 	github.com/spf13/cobra v1.10.1
