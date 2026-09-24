@@ -135,11 +135,12 @@ func (a *App) promFormat(rrevs [][]*formatters.EventMsg, outName string) ([]byte
 		return nil, fmt.Errorf("output %q must be of type 'prometheus' or 'remote_write'", outName)
 	}
 	mb := &promcom.MetricBuilder{
-		Prefix:                 a.Config.FileConfig.GetString(outputPath + "/metric-prefix"),
-		AppendSubscriptionName: a.Config.FileConfig.GetBool(outputPath + "/append-subscription-name"),
-		StringsAsLabels:        a.Config.FileConfig.GetBool(outputPath + "/strings-as-labels"),
-		OverrideTimestamps:     a.Config.FileConfig.GetBool(outputPath + "/override-timestamps"),
-		ExportTimestamps:       a.Config.FileConfig.GetBool(outputPath + "/export-timestamps"),
+		Prefix:                      a.Config.FileConfig.GetString(outputPath + "/metric-prefix"),
+		AppendSubscriptionName:      a.Config.FileConfig.GetBool(outputPath + "/append-subscription-name"),
+		StringsAsLabels:             a.Config.FileConfig.GetBool(outputPath + "/strings-as-labels"),
+		StringsAsSingleMetricLabels: a.Config.FileConfig.GetBool(outputPath + "/strings-as-single-metric-labels"),
+		OverrideTimestamps:          a.Config.FileConfig.GetBool(outputPath + "/override-timestamps"),
+		ExportTimestamps:            a.Config.FileConfig.GetBool(outputPath + "/export-timestamps"),
 	}
 
 	b := new(bytes.Buffer)

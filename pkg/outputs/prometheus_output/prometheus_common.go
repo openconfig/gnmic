@@ -146,15 +146,24 @@ func (mb *MetricBuilder) MetricsFromEvent(ev *formatters.EventMsg, now time.Time
 	labels := mb.GetLabels(ev)
 	for vName, val := range ev.Values {
 		v, err := toFloat(val)
+		metricLabels := labels
 		if err != nil {
-			if !mb.StringsAsLabels {
+			if !mb.StringsAsLabels && !mb.StringsAsSingleMetricLabels {
 				continue
 			}
 			v = 1.0
+			if mb.StringsAsSingleMetricLabels {
+				if s, ok := val.(string); ok {
+					labelName := MetricNameRegex.ReplaceAllString(path.Base(vName), "_")
+					metricLabels = make([]prompb.Label, 0, len(labels)+1)
+					metricLabels = append(metricLabels, labels...)
+					metricLabels = append(metricLabels, prompb.Label{Name: labelName, Value: s})
+				}
+			}
 		}
 		pm := &PromMetric{
 			Name:    mb.MetricName(ev.Name, vName),
-			labels:  labels,
+			labels:  metricLabels,
 			value:   v,
 			AddedAt: now,
 		}
@@ -171,11 +180,12 @@ func (mb *MetricBuilder) MetricsFromEvent(ev *formatters.EventMsg, now time.Time
 }
 
 type MetricBuilder struct {
-	Prefix                 string
-	AppendSubscriptionName bool
-	StringsAsLabels        bool
-	OverrideTimestamps     bool
-	ExportTimestamps       bool
+	Prefix                      string
+	AppendSubscriptionName      bool
+	StringsAsLabels             bool
+	StringsAsSingleMetricLabels bool
+	OverrideTimestamps          bool
+	ExportTimestamps            bool
 }
 
 func (m *MetricBuilder) GetLabels(ev *formatters.EventMsg) []prompb.Label {
