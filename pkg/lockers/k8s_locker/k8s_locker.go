@@ -10,10 +10,13 @@ package k8s_locker
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -21,6 +24,7 @@ import (
 	coordinationv1 "k8s.io/api/coordination/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/ptr"
@@ -37,6 +41,42 @@ const (
 	defaultNamespace     = "default"
 	origKeyName          = "original-key"
 )
+
+// leaseNameFor derives a Kubernetes Lease name, and label key, from a locker key.
+//
+// A Lease name has to be a DNS subdomain and a label key a qualified name, but a
+// gNMIc target name is whatever the user called it, so it may contain uppercase
+// characters, underscores or dots. Replacing only "/" produced names the API
+// server rejects, and the target could then never take its lock.
+//
+// Lowercase the key, replace every character a DNS subdomain does not allow with
+// "-", and append a short digest of the original key so that two names which
+// sanitise to the same string still get distinct Leases.
+//
+// The original key is kept in the Lease's "original-key" annotation, so this only
+// affects the object name, never the identity gNMIc works with.
+func leaseNameFor(key string) string {
+	name := strings.ToLower(key)
+	// Sanitising can collapse distinct keys onto one name, for example
+	// "Router-A" and "router_a", so keep a short digest of the original key.
+	// Two targets must never share a Lease.
+	sum := sha256.Sum256([]byte(key))
+	suffix := hex.EncodeToString(sum[:])[:8]
+	name = invalidDNS1123Chars.ReplaceAllString(name, "-")
+	name = strings.Trim(name, "-.")
+	if name == "" {
+		return "lease-" + suffix
+	}
+	// Reserve room for the separator and the digest.
+	const digestLen = 9
+	if len(name) > validation.DNS1123SubdomainMaxLength-digestLen {
+		name = name[:validation.DNS1123SubdomainMaxLength-digestLen]
+		name = strings.TrimRight(name, "-.")
+	}
+	return name + "-" + suffix
+}
+
+var invalidDNS1123Chars = regexp.MustCompile(`[^a-z0-9.-]+`)
 
 func init() {
 	lockers.Register("k8s", func() lockers.Locker {
@@ -100,7 +140,7 @@ func (k *k8sLocker) Init(ctx context.Context, cfg map[string]interface{}, opts .
 }
 
 func (k *k8sLocker) Lock(ctx context.Context, key string, val []byte) (bool, error) {
-	nkey := strings.ReplaceAll(key, "/", "-")
+	nkey := leaseNameFor(key)
 	doneChan := make(chan struct{})
 	l := &coordinationv1.Lease{
 		ObjectMeta: metav1.ObjectMeta{
@@ -212,7 +252,7 @@ func (k *k8sLocker) Lock(ctx context.Context, key string, val []byte) (bool, err
 func (k *k8sLocker) KeepLock(ctx context.Context, key string) (chan struct{}, chan error) {
 	doneChan := make(chan struct{})
 	errChan := make(chan error)
-	nkey := strings.ReplaceAll(key, "/", "-")
+	nkey := leaseNameFor(key)
 
 	go func() {
 		defer close(doneChan)
@@ -265,7 +305,7 @@ func (k *k8sLocker) KeepLock(ctx context.Context, key string) (chan struct{}, ch
 }
 
 func (k *k8sLocker) Unlock(ctx context.Context, key string) error {
-	nkey := strings.ReplaceAll(key, "/", "-")
+	nkey := leaseNameFor(key)
 	k.m.Lock()
 	defer k.m.Unlock()
 	k.unlock(ctx, nkey)

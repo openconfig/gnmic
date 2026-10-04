@@ -56,7 +56,12 @@ func (k *k8sLocker) List(ctx context.Context, prefix string) (map[string]string,
 		return nil, err
 	}
 
-	prefix = strings.ReplaceAll(prefix, "/", "-")
+	// The label key is the sanitised Lease name plus a digest of the original
+	// key, so it starts with the sanitised prefix but has a suffix. Match on the
+	// sanitised prefix and let the "original-key" annotation recover the real
+	// key, rather than assuming the label key equals the Lease name.
+	prefix = strings.Trim(invalidDNS1123Chars.ReplaceAllString(
+		strings.ToLower(prefix), "-"), "-.")
 	rs := make(map[string]string, len(ll.Items))
 	for _, l := range ll.Items {
 		for key, v := range l.Labels {
