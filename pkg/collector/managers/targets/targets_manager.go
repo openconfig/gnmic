@@ -647,6 +647,16 @@ func (tm *TargetsManager) remove(name string) {
 		mt.readerCtx = nil
 		mt.readerCancel = nil
 		mt.Unlock()
+	} else if tm.locker != nil && tm.incluster {
+		// The target is no longer known here - typically because the config
+		// reloaded empty after a restart - but the locker can still hold its
+		// lock from before the restart. Release it here, otherwise the lock
+		// outlives the target and no later DELETE can clear it.
+		tm.logger.Info("releasing lock for unknown target", "name", name)
+		err := tm.locker.Unlock(tm.ctx, tm.targetLockKey(name))
+		if err != nil {
+			tm.logger.Error("failed to release lock for target", "name", name, "error", err)
+		}
 	}
 	tm.store.State.Delete(collstore.KindTargets, name)
 	// The target is gone from tm.targets, so the periodic metrics updater will
