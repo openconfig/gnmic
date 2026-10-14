@@ -411,8 +411,11 @@ func TestOTLP_NumericStringValues_RFC7951(t *testing.T) {
 	assert.Equal(t, 9625336000.0, got["platform_control_memory_free"])
 }
 
+func boolPtr(v bool) *bool { return &v }
+
 // TestOTLP_NumericStringValues_WithoutStringsAsAttributes ensures RFC7951
 // numeric strings are still emitted when strings-as-attributes is false.
+// parse-numeric-strings defaults to true when unset.
 func TestOTLP_NumericStringValues_WithoutStringsAsAttributes(t *testing.T) {
 	event := &formatters.EventMsg{
 		Name:      "system_resources",
@@ -430,6 +433,65 @@ func TestOTLP_NumericStringValues_WithoutStringsAsAttributes(t *testing.T) {
 	require.Len(t, metrics, 1)
 	assert.Equal(t, "memory_free", metrics[0].Name)
 	assert.Equal(t, 1000.0, metrics[0].GetGauge().DataPoints[0].GetAsDouble())
+}
+
+// TestOTLP_ParseNumericStringsDisabled restores the pre-fix path: with the
+// option off, a numeric JSON string is just a string. Dropped when
+// strings-as-attributes is false, value=1 plus a value attribute when true.
+func TestOTLP_ParseNumericStringsDisabled(t *testing.T) {
+	event := &formatters.EventMsg{
+		Name:      "interface_stats",
+		Timestamp: time.Now().UnixNano(),
+		Values: map[string]interface{}{
+			"interface/statistics/in-octets": "4597",
+			"state":                          "up",
+		},
+	}
+
+	dropped := newTestOutput(&config{ParseNumericStrings: boolPtr(false)})
+	otlpMetrics := dropped.convertToOTLP(dropped.state.Load().cfg, []*formatters.EventMsg{event})
+	require.Empty(t, otlpMetrics.ResourceMetrics)
+
+	asAttr := newTestOutput(&config{
+		ParseNumericStrings: boolPtr(false),
+		StringsAsAttributes: true,
+	})
+	otlpMetrics = asAttr.convertToOTLP(asAttr.state.Load().cfg, []*formatters.EventMsg{event})
+	require.Len(t, otlpMetrics.ResourceMetrics, 1)
+	metrics := otlpMetrics.ResourceMetrics[0].ScopeMetrics[0].Metrics
+	require.Len(t, metrics, 2)
+
+	got := map[string]string{}
+	for _, m := range metrics {
+		gauge := m.GetGauge()
+		require.NotNil(t, gauge, "metric %s should be a gauge", m.Name)
+		require.Len(t, gauge.DataPoints, 1)
+		assert.Equal(t, float64(1), gauge.DataPoints[0].GetAsDouble())
+		got[m.Name] = getDataPointAttribute(gauge.DataPoints[0], "value")
+	}
+	assert.Equal(t, "4597", got["interface_statistics_in_octets"])
+	assert.Equal(t, "up", got["state"])
+}
+
+func TestSetDefaults_ParseNumericStrings(t *testing.T) {
+	o := &otlpOutput{}
+
+	unset := &config{}
+	require.NoError(t, outputs.DecodeConfig(map[string]any{}, unset))
+	o.setDefaultsFor(unset)
+	require.NotNil(t, unset.ParseNumericStrings)
+	require.True(t, *unset.ParseNumericStrings)
+
+	off := &config{}
+	require.NoError(t, outputs.DecodeConfig(map[string]any{"parse-numeric-strings": false}, off))
+	o.setDefaultsFor(off)
+	require.NotNil(t, off.ParseNumericStrings)
+	require.False(t, *off.ParseNumericStrings)
+
+	on := &config{}
+	require.NoError(t, outputs.DecodeConfig(map[string]any{"parse-numeric-strings": true}, on))
+	o.setDefaultsFor(on)
+	require.True(t, *on.ParseNumericStrings)
 }
 
 // Test 8: Subscription Name Mapping

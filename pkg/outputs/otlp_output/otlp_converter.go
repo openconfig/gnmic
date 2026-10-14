@@ -194,16 +194,22 @@ func (o *otlpOutput) convertEventToMetrics(cfg *config, divergent map[string]boo
 		}
 
 		// RFC 7951 (JSON_IETF) encodes YANG uint64/int64/decimal64 as JSON
-		// strings. Prefer a numeric datapoint whenever the string parses as a
-		// number; only fall back to value=1 + "value" attribute for true enums.
+		// strings. When parse-numeric-strings is on (the default), a string
+		// that parses as a number becomes a numeric datapoint before
+		// strings-as-attributes is consulted. That flag only applies to
+		// strings that do not parse: dropped, or value=1 plus a "value"
+		// attribute. Set parse-numeric-strings false to skip the parse and
+		// send every string through strings-as-attributes.
 		if strVal, ok := v.(string); ok {
-			if dataPoint := o.createNumberDataPointWithValue(cfg, event, attributes, strVal); dataPoint != nil {
-				o.assignDataPoint(cfg, metric, k, dataPoint)
-				result = append(result, metric)
-				continue
+			if cfg.parseNumericStringsEnabled() {
+				if dataPoint := o.createNumberDataPointWithValue(cfg, event, attributes, strVal); dataPoint != nil {
+					o.assignDataPoint(cfg, metric, k, dataPoint)
+					result = append(result, metric)
+					continue
+				}
 			}
 			if !cfg.StringsAsAttributes {
-				o.logger.Debug("skipping non-numeric string value (strings-as-attributes=false)", "event", event.Name)
+				o.logger.Debug("skipping string value (parse-numeric-strings did not apply, strings-as-attributes=false)", "event", event.Name)
 				continue
 			}
 			metric.Data = &metricspb.Metric_Gauge{
