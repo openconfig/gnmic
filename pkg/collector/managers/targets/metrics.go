@@ -70,6 +70,7 @@ type targetsStats struct {
 	subscribeResponseReceived *prometheus.CounterVec
 	droppedSubscribeResponses *prometheus.CounterVec
 	subscriptionFailedCount   *prometheus.CounterVec
+	targetStartRetries        *prometheus.CounterVec
 	targetUPMetric            *prometheus.GaugeVec
 	targetConnStateMetric     *prometheus.GaugeVec
 }
@@ -100,6 +101,12 @@ func newTargetsStats() *targetsStats {
 			Name:      "number_of_failed_subscribe_request_messages_total",
 			Help:      "Total number of failed subscribe requests",
 		}, []string{"target", "subscription", "error_type"}),
+		targetStartRetries: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "gnmic",
+			Subsystem: "target",
+			Name:      "start_retries_total",
+			Help:      "Number of attempts to start a target whose start failed.",
+		}, []string{"name"}),
 		targetUPMetric: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: "gnmic",
 			Subsystem: "target",
@@ -121,6 +128,7 @@ func (tm *TargetsManager) registerMetrics() {
 	tm.reg.MustRegister(tm.stats.subscribeResponseReceived)
 	tm.reg.MustRegister(tm.stats.droppedSubscribeResponses)
 	tm.reg.MustRegister(tm.stats.subscriptionFailedCount)
+	tm.reg.MustRegister(tm.stats.targetStartRetries)
 
 	tm.mu.RLock()
 	for _, mt := range tm.targets {
@@ -168,6 +176,7 @@ func (tm *TargetsManager) deleteTargetMetrics(name string) {
 	// Gauges keyed by the single "name" label.
 	tm.stats.targetUPMetric.DeleteLabelValues(name)
 	tm.stats.targetConnStateMetric.DeleteLabelValues(name)
+	tm.stats.targetStartRetries.DeleteLabelValues(name)
 	// Counters keyed by "target" plus additional labels (subscription,
 	// error_type); delete every series that matches the target label.
 	tm.stats.subscribeResponseReceived.DeletePartialMatch(prometheus.Labels{"target": name})
