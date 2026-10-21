@@ -10,6 +10,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/fullstorydev/grpcurl"
@@ -18,6 +19,8 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/logging"
 )
+
+var errTargetNotFound = errors.New("target not found")
 
 // initTarget initializes a new target given its name.
 // it assumes that the configLock as well as the operLock
@@ -71,7 +74,9 @@ func (a *App) DeleteTarget(ctx context.Context, name string) error {
 		return nil
 	}
 	if !a.targetConfigExists(name) {
-		return fmt.Errorf("target %q does not exist", name)
+		if _, exists := a.targetByName(name); !exists {
+			return fmt.Errorf("%w: %q", errTargetNotFound, name)
+		}
 	}
 	a.configLock.Lock()
 	delete(a.Config.Targets, name)
