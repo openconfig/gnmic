@@ -285,7 +285,13 @@ func (a *App) dispatchTargets(ctx context.Context) {
 func (a *App) dispatchTargetsOnce(ctx context.Context) {
 	dctx, cancel := context.WithTimeout(ctx, a.Config.Clustering.TargetsWatchTimer)
 	defer cancel()
+	a.configLock.RLock()
+	targets := make([]*types.TargetConfig, 0, len(a.Config.Targets))
 	for _, tc := range a.Config.Targets {
+		targets = append(targets, tc)
+	}
+	a.configLock.RUnlock()
+	for _, tc := range targets {
 		err := a.dispatchTarget(dctx, tc)
 		if err != nil {
 			logging.LogErrUnlessCanceled(a.Logger, err, "failed to dispatch target", "target", tc.Name)
@@ -811,12 +817,16 @@ func (a *App) clusterRebalanceTargets() error {
 			tc         *types.TargetConfig
 		)
 		for _, name := range highInstanceTargets {
-			if cfg, ok := a.Config.Targets[name]; ok {
-				targetName, tc = name, cfg
-				break
+			a.configLock.RLock()
+			cfg, ok := a.Config.Targets[name]
+			a.configLock.RUnlock()
+			if !ok {
+				a.Logger.Info("skipping target with no known config during rebalance",
+					"target", name, "instance", highest)
+				continue
 			}
-			a.Logger.Info("skipping target with no known config during rebalance",
-				"target", name, "instance", highest)
+			targetName, tc = name, cfg
+			break
 		}
 		if tc == nil {
 			a.Logger.Info("no target with a known config to rebalance",
