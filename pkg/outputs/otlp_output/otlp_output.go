@@ -186,10 +186,20 @@ type config struct {
 	MetricPrefix string `mapstructure:"metric-prefix,omitempty"`
 	// boolean, if true the subscription name will be prepended to the metric name after the prefix.
 	AppendSubscriptionName bool `mapstructure:"append-subscription-name,omitempty"`
-	// boolean, if true, string type values are exported as gauge metrics with value=1
-	// and the string stored as an attribute named "value".
-	// if false, string values are dropped.
+	// boolean, if true, string values that were not parsed as numbers are
+	// exported as gauge metrics with value=1 and the string stored as an
+	// attribute named "value". If false, those strings are dropped.
+	// Numeric JSON strings are handled by parse-numeric-strings first.
 	StringsAsAttributes bool `mapstructure:"strings-as-attributes,omitempty"`
+	// ParseNumericStrings controls whether a JSON string that parses as a
+	// number is exported as a numeric datapoint. Nil means the default, true.
+	// RFC 7951 encodes YANG uint64/int64/decimal64 as JSON strings under
+	// json_ietf; with the default, those counters are numeric samples even
+	// when strings-as-attributes is false. Set to false to subject every
+	// string only to strings-as-attributes (the previous OTLP behavior).
+	// A YANG string leaf whose text happens to be numeric is also exported
+	// as a number; the leaf type is not available after JSON decode.
+	ParseNumericStrings *bool `mapstructure:"parse-numeric-strings,omitempty"`
 	// boolean, if true, the leading "/" of the metric path is trimmed before the
 	// slash-to-underscore conversion, so a path like "/interfaces/..." becomes
 	// "interfaces_..." instead of "_interfaces_...". Defaults to false for
@@ -828,6 +838,16 @@ func (o *otlpOutput) recordBatchSent(cfg *config, count int, start time.Time) {
 	otlpSendDuration.WithLabelValues(cfg.Name).Observe(time.Since(start).Seconds())
 }
 
+// parseNumericStringsEnabled reports whether JSON strings that parse as
+// numbers should become numeric datapoints. A nil pointer is the default,
+// which is true, including for tests that build a config without Init.
+func (c *config) parseNumericStringsEnabled() bool {
+	if c == nil || c.ParseNumericStrings == nil {
+		return true
+	}
+	return *c.ParseNumericStrings
+}
+
 func (o *otlpOutput) setDefaultsFor(c *config) {
 	if c.Timeout == 0 {
 		c.Timeout = defaultTimeout
@@ -855,6 +875,10 @@ func (o *otlpOutput) setDefaultsFor(c *config) {
 	}
 	if c.BufferSize == 0 {
 		c.BufferSize = c.BatchSize * 2
+	}
+	if c.ParseNumericStrings == nil {
+		v := true
+		c.ParseNumericStrings = &v
 	}
 	c.resourceTagSet = make(map[string]bool, len(c.ResourceTagKeys))
 	for _, k := range c.ResourceTagKeys {

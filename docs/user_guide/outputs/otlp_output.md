@@ -67,7 +67,8 @@ outputs:
 | `metric-prefix` | unset | Prefix added to generated metric names. |
 | `append-subscription-name` | `false` | Adds the subscription name to generated metric names. |
 | `strip-leading-underscore` | `false` | Removes a leading `/` from the gNMI path before `/` is converted to `_`. |
-| `strings-as-attributes` | `false` | Exports string values as gauge metrics with value `1` and a `value` data point attribute. If false, string values are dropped. |
+| `strings-as-attributes` | `false` | Exports string values that were not parsed as numbers as gauge metrics with value `1` and a `value` data point attribute. If false, those strings are dropped. Numeric JSON strings are handled by `parse-numeric-strings`. |
+| `parse-numeric-strings` | `true` | When true, a JSON string that parses as a number is exported as a numeric datapoint, independent of `strings-as-attributes`. RFC 7951 encodes YANG `uint64`, `int64`, and `decimal64` as JSON strings under `json_ietf`, so this is what makes those counters appear on the default config. Set to `false` to subject every string only to `strings-as-attributes`. A YANG string leaf whose text happens to be numeric is also exported as a number; the leaf type is not available after JSON decode. |
 | `resource-tag-keys` | unset | Tags to place on the OTLP Resource instead of the data point. |
 | `counter-patterns` | unset | Regex patterns matched against value names. Matching values are exported as monotonic cumulative Sums. |
 | `resource-attributes` | unset | Static attributes added to every OTLP Resource. |
@@ -176,6 +177,18 @@ gnmic_port_stats_interfaces_interface_state_counters_in_octets
 With `strip-leading-underscore: true`, a value key that begins with `/` has that slash removed before `/` is converted to `_`, so you do not get an extra `_` at the join between the configured prefixes and the path-derived segment (absolute paths otherwise contribute a leading `_` from the first `/`).
 
 Boolean gNMI values are exported as numeric data points with `0` or `1` (integer), classified as a Gauge or Sum according to `counter-patterns` like other numeric types.
+
+## Numeric strings
+
+`json_ietf` encodes YANG `uint64`, `int64`, and `decimal64` as JSON strings ([RFC 7951](https://www.rfc-editor.org/rfc/rfc7951)). With `parse-numeric-strings` left at its default (`true`), those values are exported as numeric datapoints. This matches the Prometheus output, which parses numeric strings before applying `strings-as-labels`.
+
+Enums and other non-numeric strings are unchanged: dropped when `strings-as-attributes` is false, or exported as a gauge of `1` with a `value` attribute when it is true.
+
+Set `parse-numeric-strings: false` to restore the previous OTLP behavior, where every string is subject only to `strings-as-attributes`. On that setting, 64-bit counters from a `json_ietf` subscription are dropped, or stored as the attribute `value` with a datapoint of `1` when `strings-as-attributes` is true.
+
+A string-typed YANG leaf whose text is numeric (for example `"100"`) is also exported as a number when parsing is enabled. Distinguishing that case requires the YANG type, which is not present after the value has been decoded from JSON.
+
+This default is a behavior change for existing `json_ietf` users: series that were previously absent will appear.
 
 ## Metric Types
 
