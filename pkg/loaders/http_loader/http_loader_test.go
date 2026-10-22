@@ -81,7 +81,7 @@ func TestRunActions_AddAndDelete_NoDeadlock(t *testing.T) {
 		"t-add": {Name: "t-add", Address: "10.0.0.1"},
 		"t-del": {Name: "t-del", Address: "10.0.0.2"},
 	}
-	op := &loaders.TargetOperation{
+	op := &loaders.LoaderOperation{
 		Add: map[string]*types.TargetConfig{
 			"t-add": tcs["t-add"],
 		},
@@ -91,7 +91,7 @@ func TestRunActions_AddAndDelete_NoDeadlock(t *testing.T) {
 	ctx := context.Background()
 
 	done := make(chan struct{})
-	var res *loaders.TargetOperation
+	var res *loaders.LoaderOperation
 	var err error
 	go func() {
 		res, err = hl.runActions(ctx, tcs, op)
@@ -126,7 +126,7 @@ func TestRunActions_ReplaceSameName_NoDeadlock(t *testing.T) {
 	tcs := map[string]*types.TargetConfig{
 		"t1": newTC,
 	}
-	op := &loaders.TargetOperation{
+	op := &loaders.LoaderOperation{
 		Add: map[string]*types.TargetConfig{
 			"t1": newTC,
 		},
@@ -138,7 +138,7 @@ func TestRunActions_ReplaceSameName_NoDeadlock(t *testing.T) {
 	ctx := context.Background()
 
 	done := make(chan struct{})
-	var res *loaders.TargetOperation
+	var res *loaders.LoaderOperation
 	var err error
 	go func() {
 		res, err = hl.runActions(ctx, tcs, op)
@@ -311,7 +311,7 @@ func TestUpdateTargets_NoChange_NoOp(t *testing.T) {
 	hl.lastTargets["t2"] = &types.TargetConfig{Name: "t2", Address: "2.2.2.2"}
 	called := 0
 	hl.targetConfigFn = func(tc *types.TargetConfig) error { called++; return nil }
-	ch := make(chan *loaders.TargetOperation, 1)
+	ch := make(chan *loaders.LoaderOperation, 1)
 	hl.updateTargets(context.Background(), map[string]*types.TargetConfig{"t1": t1, "t2": t2}, ch)
 	select {
 	case op := <-ch:
@@ -328,7 +328,7 @@ func TestUpdateTargets_Add(t *testing.T) {
 	hl := newTestLoader(t)
 	hl.numActions = 0
 	t1 := &types.TargetConfig{Name: "t1", Address: "1.1.1.1"}
-	ch := make(chan *loaders.TargetOperation, 1)
+	ch := make(chan *loaders.LoaderOperation, 1)
 	hl.updateTargets(context.Background(), map[string]*types.TargetConfig{"t1": t1}, ch)
 	select {
 	case op := <-ch:
@@ -347,7 +347,7 @@ func TestUpdateTargets_Delete(t *testing.T) {
 	hl := newTestLoader(t)
 	hl.numActions = 0
 	hl.lastTargets["t1"] = &types.TargetConfig{Name: "t1", Address: "1.1.1.1"}
-	ch := make(chan *loaders.TargetOperation, 1)
+	ch := make(chan *loaders.LoaderOperation, 1)
 	hl.updateTargets(context.Background(), map[string]*types.TargetConfig{}, ch)
 	select {
 	case op := <-ch:
@@ -367,7 +367,7 @@ func TestUpdateTargets_Change_TriggersDelAndAdd(t *testing.T) {
 	hl.numActions = 0
 	hl.lastTargets["t1"] = &types.TargetConfig{Name: "t1", Address: "1.1.1.1"}
 	newT1 := &types.TargetConfig{Name: "t1", Address: "1.1.1.2"}
-	ch := make(chan *loaders.TargetOperation, 1)
+	ch := make(chan *loaders.LoaderOperation, 1)
 	hl.updateTargets(context.Background(), map[string]*types.TargetConfig{"t1": newT1}, ch)
 	select {
 	case op := <-ch:
@@ -387,7 +387,7 @@ func TestUpdateTargets_Change_TriggersRename(t *testing.T) {
 	hl.numActions = 0
 	hl.lastTargets["t1"] = &types.TargetConfig{Name: "t1", Address: "1.1.1.1"}
 	newT2 := &types.TargetConfig{Name: "t2", Address: "1.1.1.1"}
-	ch := make(chan *loaders.TargetOperation, 1)
+	ch := make(chan *loaders.LoaderOperation, 1)
 	hl.updateTargets(context.Background(), map[string]*types.TargetConfig{"t2": newT2}, ch)
 	select {
 	case op := <-ch:
