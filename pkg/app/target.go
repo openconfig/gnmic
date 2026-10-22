@@ -82,18 +82,27 @@ func (a *App) DeleteTarget(ctx context.Context, name string) error {
 	defer a.operLock.Unlock()
 	if cfn, ok := a.targetsLockFn[name]; ok {
 		cfn()
+		// Drop the cancel func too, or the entry is still reported as an
+		// assignment for a target that no longer exists.
+		delete(a.targetsLockFn, name)
 	}
 	if a.c != nil {
 		a.c.DeleteTarget(name)
 	}
+	// The lock is held against the config, not against the runtime target, so it
+	// has to be released even when the target is not in the runtime map. A
+	// restarted instance holds locks for targets it has not recreated yet, and
+	// leaving those locked means no later DELETE against the same config can
+	// clear them.
+	var unlockErr error
 	if t, ok := a.Targets[name]; ok {
 		delete(a.Targets, name)
 		t.Close()
-		if a.locker != nil {
-			return a.locker.Unlock(ctx, a.targetLockKey(name))
-		}
 	}
-	return nil
+	if a.locker != nil {
+		unlockErr = a.locker.Unlock(ctx, a.targetLockKey(name))
+	}
+	return unlockErr
 }
 
 // UpdateTargetConfig updates the subscriptions for an existing target
