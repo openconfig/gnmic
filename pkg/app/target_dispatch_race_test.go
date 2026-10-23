@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,6 +18,7 @@ import (
 type assignmentRaceLocker struct {
 	lockers.Locker
 	cancelOnWait bool
+	pending      bool
 }
 
 func (l *assignmentRaceLocker) IsLocked(context.Context, string) (bool, error) {
@@ -28,7 +30,51 @@ func (l *assignmentRaceLocker) List(ctx context.Context, prefix string) (map[str
 		<-ctx.Done()
 		return nil, ctx.Err()
 	}
+	if l.pending {
+		return map[string]string{}, nil
+	}
 	return map[string]string{"gnmic/test/targets/device-a": "collector-b"}, nil
+}
+
+func TestDispatchTimeoutPreservesPendingAssignment(t *testing.T) {
+	leader := New()
+	t.Cleanup(leader.Cfn)
+	leader.Config.Clustering = &config.Clustering{
+		ClusterName:             "test",
+		TargetAssignmentTimeout: 250 * time.Millisecond,
+	}
+	leader.locker = &assignmentRaceLocker{pending: true}
+
+	var starts, deletes atomic.Int32
+	member := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodDelete:
+			deletes.Add(1)
+		case r.URL.Path == "/api/v1/targets/device-a":
+			starts.Add(1)
+		}
+	}))
+	t.Cleanup(member.Close)
+	leader.clusteringClient = member.Client()
+	leader.apiServices["collector-a-api"] = &lockers.Service{
+		ID:      "collector-a-api",
+		Address: strings.TrimPrefix(member.URL, "http://"),
+		Tags:    []string{"instance-name=collector-a"},
+	}
+
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	started := time.Now()
+	err := leader.dispatchTarget(ctx, &types.TargetConfig{Name: "device-a"})
+	if !errors.Is(err, errTargetAssignmentTimeout) {
+		t.Fatalf("dispatchTarget() error = %v, want assignment observation timeout", err)
+	}
+	if elapsed := time.Since(started); elapsed >= 750*time.Millisecond {
+		t.Fatalf("dispatchTarget() returned after %s, want bounded assignment timeout", elapsed)
+	}
+	if starts.Load() != 1 || deletes.Load() != 0 {
+		t.Fatalf("pending assignment churned: starts=%d deletes=%d", starts.Load(), deletes.Load())
+	}
 }
 
 func TestDispatchAcceptsConcurrentOwnerAndHonorsCancellation(t *testing.T) {
@@ -40,7 +86,7 @@ func TestDispatchAcceptsConcurrentOwnerAndHonorsCancellation(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			leader := New()
 			t.Cleanup(leader.Cfn)
-			leader.Config.Clustering = &config.Clustering{ClusterName: "test", TargetAssignmentTimeout: time.Millisecond}
+			leader.Config.Clustering = &config.Clustering{ClusterName: "test", TargetAssignmentTimeout: time.Second}
 			leader.locker = &assignmentRaceLocker{cancelOnWait: canceled}
 			var starts, deletes, reconciles atomic.Int32
 			selected := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
