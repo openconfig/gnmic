@@ -67,6 +67,8 @@ type config struct {
 	RenewPeriod   time.Duration `mapstructure:"renew-period,omitempty" json:"renew-period,omitempty"`
 	RetryTimer    time.Duration `mapstructure:"retry-timer,omitempty" json:"retry-timer,omitempty"`
 	Debug         bool          `mapstructure:"debug,omitempty" json:"debug,omitempty"`
+	QPS           float32       `mapstructure:"qps,omitempty" json:"qps,omitempty"`
+	Burst         int           `mapstructure:"burst,omitempty" json:"burst,omitempty"`
 }
 
 type lock struct {
@@ -89,6 +91,13 @@ func (k *k8sLocker) Init(ctx context.Context, cfg map[string]interface{}, opts .
 	inClusterConfig, err := rest.InClusterConfig()
 	if err != nil {
 		return err
+	}
+
+	if k.Cfg.QPS > 0 {
+		inClusterConfig.QPS = k.Cfg.QPS
+	}
+	if k.Cfg.Burst > 0 {
+		inClusterConfig.Burst = k.Cfg.Burst
 	}
 
 	k.clientset, err = kubernetes.NewForConfig(inClusterConfig)

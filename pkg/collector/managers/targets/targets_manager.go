@@ -7,6 +7,7 @@ import (
 	"hash/fnv"
 	"log/slog"
 	"maps"
+	"math/rand/v2"
 	"net"
 	"reflect"
 	"slices"
@@ -32,6 +33,10 @@ import (
 
 const (
 	subscriptionReaderStopTimeout = 5 * time.Second
+	// defaultTargetRetryTimer is how long a target that failed to start waits
+	// before the next attempt when its config sets no retry-timer, the same
+	// default the classic (non-collector) target loop uses.
+	defaultTargetRetryTimer = 10 * time.Second
 )
 
 type ManagedTarget struct {
@@ -55,6 +60,9 @@ type ManagedTarget struct {
 	// Immutable event-tags snapshot. Replaced (never mutated) under mt.Lock
 	// when the target is created, reconnected, or tags are updated in place.
 	eventTags map[string]string
+	// retryCancel stops the pending retry of a target whose start failed;
+	// nil when no retry is scheduled. Protected by mt.Lock.
+	retryCancel context.CancelFunc
 }
 
 func (mt *ManagedTarget) setLastError(msg string) {
@@ -353,6 +361,7 @@ func (tm *TargetsManager) apply(name string, cfg *types.TargetConfig) {
 			tm.logger.Error("failed to start target", "name", name, "error", err)
 			mt.setLastError(err.Error())
 			tm.setTargetState(name, collstore.StateFailed)
+			tm.scheduleRetry(mt)
 			return
 		}
 		mt.clearLastError()
@@ -455,6 +464,148 @@ func (tm *TargetsManager) apply(name string, cfg *types.TargetConfig) {
 		tm.logger.Error("failed to start target", "name", name, "error", err)
 		mt.setLastError(err.Error())
 		tm.setTargetState(name, collstore.StateFailed)
+		tm.scheduleRetry(mt)
+	}
+}
+
+// scheduleRetry restarts a target whose start failed, every retry-timer
+// until it starts. Without it a target whose first dial fails (a device still
+// booting) stays Failed for good: apply returns early on an unchanged config,
+// so nothing would start it again. The retry ends when the target starts, is
+// removed, is disabled, is no longer assigned to this member, or is no longer
+// Failed. Callers hold mt.Lock.
+func (tm *TargetsManager) scheduleRetry(mt *ManagedTarget) {
+	if mt.retryCancel != nil {
+		return
+	}
+	ctx, cancel := context.WithCancel(tm.ctx)
+	mt.retryCancel = cancel
+	go func() {
+		defer cancel()
+		tm.retryLoop(ctx, mt)
+	}()
+}
+
+// retryLoop probes the device without holding mt.Lock, so a slow or
+// half-open device never blocks the config loop, the API or remove(), and
+// the target stays Failed, with its last error, while the device is down.
+// Only once a probe succeeds does it take mt.Lock and start the target.
+func (tm *TargetsManager) retryLoop(ctx context.Context, mt *ManagedTarget) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(tm.retryDelay(mt)):
+		}
+		if !tm.retryWanted(ctx, mt) {
+			tm.endRetry(ctx, mt)
+			return
+		}
+		tm.stats.targetStartRetries.WithLabelValues(mt.Name).Inc()
+		if err := tm.probe(ctx, mt); err != nil {
+			if ctx.Err() != nil {
+				return
+			}
+			tm.logger.Debug("target still unreachable", "name", mt.Name, "error", err)
+			mt.setLastError(err.Error())
+			tm.setTargetState(mt.Name, collstore.StateFailed)
+			continue
+		}
+
+		mt.Lock()
+		if ctx.Err() != nil {
+			mt.Unlock()
+			return
+		}
+		if tm.getTargetStateStr(mt.Name) != collstore.StateFailed {
+			mt.retryCancel = nil
+			mt.Unlock()
+			return
+		}
+		tm.logger.Info("retrying failed target", "name", mt.Name)
+		// close the half-open client a failed start leaves behind
+		tm.closeClient(mt)
+		if err := tm.start(mt); err != nil {
+			tm.logger.Error("failed to start target", "name", mt.Name, "error", err)
+			mt.setLastError(err.Error())
+			tm.setTargetState(mt.Name, collstore.StateFailed)
+			mt.Unlock()
+			continue
+		}
+		tm.logger.Info("target started after retry", "name", mt.Name)
+		mt.retryCancel = nil
+		mt.Unlock()
+		return
+	}
+}
+
+// retryWanted reports whether mt still needs a retry. It takes no lock of mt's.
+func (tm *TargetsManager) retryWanted(ctx context.Context, mt *ManagedTarget) bool {
+	if ctx.Err() != nil {
+		return false
+	}
+	tm.mu.RLock()
+	current := tm.targets[mt.Name]
+	tm.mu.RUnlock()
+	if current != mt {
+		return false // removed
+	}
+	if !tm.amIAssigned(mt.Name) {
+		return false
+	}
+	return tm.getTargetStateStr(mt.Name) == collstore.StateFailed
+}
+
+// endRetry clears mt.retryCancel when it still belongs to this loop. A
+// cancelled loop leaves it alone: cancelRetry already cleared it and a newer
+// loop may own it since.
+func (tm *TargetsManager) endRetry(ctx context.Context, mt *ManagedTarget) {
+	mt.Lock()
+	if ctx.Err() == nil {
+		mt.retryCancel = nil
+	}
+	mt.Unlock()
+}
+
+// retryDelay is the target's retry-timer plus up to 20% jitter, so targets
+// that went down together do not retry in lockstep.
+func (tm *TargetsManager) retryDelay(mt *ManagedTarget) time.Duration {
+	mt.RLock()
+	delay := defaultTargetRetryTimer
+	if mt.T != nil && mt.T.Config != nil && mt.T.Config.RetryTimer > 0 {
+		delay = mt.T.Config.RetryTimer
+	}
+	mt.RUnlock()
+	return delay + rand.N(delay/5+1)
+}
+
+// probe dials the target and asks for its capabilities with a throwaway
+// client, bounded by the target's timeout and by ctx, so a cancelled retry
+// stops at once. It holds no lock while it waits on the network.
+func (tm *TargetsManager) probe(ctx context.Context, mt *ManagedTarget) error {
+	mt.RLock()
+	cfg := mt.T.Config
+	mt.RUnlock()
+	timeout := cfg.Timeout
+	if timeout <= 0 {
+		timeout = defaultTargetRetryTimer
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	pt := target.NewTarget(cfg)
+	defer pt.Close()
+	if err := pt.CreateGNMIClient(ctx, tm.targetGRPCOpts(ctx, mt)...); err != nil {
+		return err
+	}
+	_, err := pt.Capabilities(ctx)
+	return err
+}
+
+// cancelRetry stops a pending retry. Callers hold mt.Lock.
+func (mt *ManagedTarget) cancelRetry() {
+	if mt.retryCancel != nil {
+		mt.retryCancel()
+		mt.retryCancel = nil
 	}
 }
 
@@ -517,7 +668,6 @@ func (tm *TargetsManager) start(mt *ManagedTarget) error {
 		}()
 	}
 	tm.logger.Info("gNMI client created", "name", mt.Name)
-	tm.setTargetState(mt.Name, collstore.StateRunning)
 
 	// Watch gRPC connectivity state changes and keep the state store current.
 	go tm.watchConnState(ctx, mt)
@@ -531,6 +681,7 @@ func (tm *TargetsManager) start(mt *ManagedTarget) error {
 		return err
 	}
 	tm.logger.Info("capabilities request successful", "name", mt.Name)
+	tm.setTargetState(mt.Name, collstore.StateRunning)
 
 	// start subscriptions
 	subs := mt.T.Config.Subscriptions
@@ -604,25 +755,7 @@ func (tm *TargetsManager) stop(mt *ManagedTarget) error {
 	}
 	mt.clearLastError()
 	tm.setTargetState(mt.Name, collstore.StateStopping)
-
-	// stop reader loop
-	if mt.readerCancel != nil {
-		mt.readerCancel()
-		mt.readerWG.Wait()
-		mt.readerCancel = nil
-	}
-
-	// stop all per-target subscriptions and locker if any
-	if mt.T.Cfn != nil {
-		mt.T.Cfn()
-	}
-	tm.logger.Info("closing target", "name", mt.Name)
-	err := mt.T.Close()
-	if err != nil {
-		tm.logger.Error("failed to close target", "name", mt.Name, "error", err)
-	} else {
-		tm.logger.Info("closed target", "name", mt.Name)
-	}
+	tm.closeClient(mt)
 	tm.setTargetState(mt.Name, collstore.StateStopped)
 	if tm.locker != nil && tm.incluster {
 		tm.logger.Info("releasing lock for target", "name", mt.Name)
@@ -634,6 +767,27 @@ func (tm *TargetsManager) stop(mt *ManagedTarget) error {
 	return nil
 }
 
+// closeClient stops the target's reader loop, its subscriptions and locker
+// goroutine, and closes its gRPC client. It publishes no state, so a retry can
+// close a failed attempt's client while the target stays Failed. Callers hold
+// mt.Lock.
+func (tm *TargetsManager) closeClient(mt *ManagedTarget) {
+	if mt.readerCancel != nil {
+		mt.readerCancel()
+		mt.readerWG.Wait()
+		mt.readerCancel = nil
+	}
+	if mt.T.Cfn != nil {
+		mt.T.Cfn()
+	}
+	tm.logger.Info("closing target", "name", mt.Name)
+	if err := mt.T.Close(); err != nil {
+		tm.logger.Error("failed to close target", "name", mt.Name, "error", err)
+	} else {
+		tm.logger.Info("closed target", "name", mt.Name)
+	}
+}
+
 func (tm *TargetsManager) remove(name string) {
 	tm.mu.Lock()
 	mt := tm.targets[name]
@@ -641,11 +795,11 @@ func (tm *TargetsManager) remove(name string) {
 	tm.mu.Unlock()
 	if mt != nil {
 		mt.Lock()
+		mt.cancelRetry()
 		_ = tm.stop(mt)
-		mt.T = nil
-		mt.outputs = nil
-		mt.readerCtx = nil
-		mt.readerCancel = nil
+		// mt.T and the reader fields stay set: goroutines of the stopped
+		// target (watchConnState) may still read them, and nothing reaches mt
+		// once it is out of tm.targets.
 		mt.Unlock()
 	}
 	tm.store.State.Delete(collstore.KindTargets, name)
@@ -773,8 +927,17 @@ func (tm *TargetsManager) SetIntendedState(name string, state string) bool {
 		if currentState == collstore.StateRunning || currentState == collstore.StateStarting {
 			return false
 		}
-		_ = tm.start(mt)
+		if currentState == collstore.StateFailed {
+			// close the client the failed start left, as a retry does
+			mt.cancelRetry()
+			tm.closeClient(mt)
+		}
+		if err := tm.start(mt); err != nil {
+			mt.setLastError(err.Error())
+			tm.scheduleRetry(mt)
+		}
 	case collstore.IntendedStateDisabled:
+		mt.cancelRetry()
 		if currentState == collstore.StateStopped || currentState == collstore.StateStopping {
 			return false
 		}
