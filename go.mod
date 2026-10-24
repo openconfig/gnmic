@@ -1,6 +1,6 @@
 module github.com/openconfig/gnmic
 
-go 1.26.0
+go 1.26.9
 
 replace github.com/openconfig/gnmic/pkg/api v0.1.11 => ./pkg/api
 
@@ -24,7 +24,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/guptarohit/asciigraph v0.10.0
 	github.com/hairyhenderson/yaml v2.1.0+incompatible
-	github.com/hashicorp/consul/api v1.34.4
+	github.com/hashicorp/consul/api v1.35.0
 	github.com/hashicorp/go-plugin v1.7.0
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/huandu/xstrings v1.5.0
@@ -60,7 +60,7 @@ require (
 	github.com/zestor-dev/zestor v0.0.3
 	go.opentelemetry.io/proto/otlp v1.11.0
 	go.starlark.net v0.0.0-20260102030733-3fee463870c9
-	golang.org/x/crypto v0.56.0
+	golang.org/x/crypto v0.57.0
 	golang.org/x/oauth2 v0.36.0
 	golang.org/x/sync v0.23.0
 	google.golang.org/grpc v1.83.2
@@ -161,7 +161,7 @@ require (
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/exp v0.0.0-20260709172345-9ea1abe57597 // indirect
-	golang.org/x/term v0.45.0 // indirect
+	golang.org/x/term v0.46.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260904194346-d0f1323225a4 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260825221802-da73d73af1c5 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
@@ -228,8 +228,8 @@ require (
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/xdg/stringprep v1.0.0 // indirect
-	golang.org/x/net v0.58.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.42.0
 	golang.org/x/time v0.15.0 // indirect
 	k8s.io/client-go v0.37.0
