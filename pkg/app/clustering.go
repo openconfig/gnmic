@@ -633,6 +633,19 @@ func (a *App) deleteTarget(ctx context.Context, name string) error {
 		}
 		rsp.Body.Close()
 		a.Logger.Info("received DELETE response", "status", rsp.StatusCode, "url", url)
+		// A non-2xx response means the member did not delete the target. Report it so
+		// the loader keeps the deletion in its diff and retries it, instead of treating
+		// a failed deletion as applied. A 404 is not a failure: the member no longer
+		// has the target, so the desired state already holds.
+		if rsp.StatusCode == http.StatusNotFound {
+			continue
+		}
+		if rsp.StatusCode < http.StatusOK || rsp.StatusCode >= http.StatusMultipleChoices {
+			err := fmt.Errorf("member %s returned status %d while deleting target %q",
+				s.Address, rsp.StatusCode, name)
+			logging.LogErrUnlessCanceled(a.Logger, err, "failed deleting target", "target", name)
+			errs = append(errs, err)
+		}
 	}
 	if len(errs) == 0 {
 		return nil
