@@ -66,6 +66,9 @@ func BindLogger(parent *slog.Logger, loaderType string) *slog.Logger {
 type TargetOperation struct {
 	Add map[string]*types.TargetConfig
 	Del []string
+	// Snapshot is the complete desired target set after a successful discovery.
+	// Nil means the loader only provides changes.
+	Snapshot map[string]*types.TargetConfig
 }
 
 func DecodeConfig(src, dst interface{}) error {

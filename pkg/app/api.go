@@ -12,6 +12,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -220,7 +221,11 @@ func (a *App) handleConfigTargetsDelete(w http.ResponseWriter, r *http.Request) 
 	id := vars["id"]
 	err := a.DeleteTarget(r.Context(), id)
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
+		status := http.StatusInternalServerError
+		if errors.Is(err, errTargetNotFound) {
+			status = http.StatusNotFound
+		}
+		w.WriteHeader(status)
 		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{err.Error()}})
 		return
 	}
