@@ -52,6 +52,46 @@ loader:
             boring-static-tag: "hello"
 ```
 
+
+### Key-Value (KV) Watch
+
+In addition to watching Consul Services, the Consul loader can also dynamically discover **Targets** and **Subscriptions** by watching specific prefixes in the Consul KV store. This is particularly useful for configuration payloads that do not have a corresponding IP address or port (like Subscriptions).
+
+When a JSON or YAML configuration is added, modified, or deleted under these prefixes, `gnmic` will automatically parse it and hot-reload the changes without dropping existing connections.
+
+#### Example KV Payloads
+
+To configure a target using KV, you can push a JSON payload like this to your Consul KV store under `gnmic/config/targets/router-1`:
+
+```json
+{
+  "address": "10.0.0.1:830",
+  "username": "admin",
+  "password": "password123",
+  "insecure": true
+}
+```
+
+Similarly, to define a dynamic subscription, push a JSON payload under `gnmic/config/subscriptions/sub-1`:
+
+```json
+{
+  "paths": ["/interfaces/interface/state/counters"],
+  "mode": "stream",
+  "stream-mode": "sample",
+  "sample-interval": "10s"
+}
+```
+
+```yaml
+loader:
+  type: consul
+  target-key-prefix: gnmic/config/targets
+  subscriptions-key-prefix: gnmic/config/subscriptions
+```
+
+> **Note:** The `key-prefix` field is still supported as a fallback for `target-key-prefix` to maintain backwards compatibility, but it is deprecated.
+
 ### Configuration
 
 ```yaml
