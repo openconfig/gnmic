@@ -25,7 +25,7 @@ require (
 	github.com/guptarohit/asciigraph v0.10.0
 	github.com/hairyhenderson/yaml v2.1.0+incompatible
 	github.com/hashicorp/consul/api v1.35.0
-	github.com/hashicorp/go-plugin v1.7.0
+	github.com/hashicorp/go-plugin v1.8.0
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/huandu/xstrings v1.5.0
 	github.com/influxdata/influxdb-client-go/v2 v2.14.0
