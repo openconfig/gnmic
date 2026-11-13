@@ -124,6 +124,9 @@ type TargetsManager struct {
 	// target state
 	mu      sync.RWMutex
 	targets map[string]*ManagedTarget
+	// stateMu serializes writes to the targets' state store entries, so
+	// refreshTargetState's read and write of a state are one step.
+	stateMu sync.Mutex
 	// subscriptions
 	subscriptions map[string]*types.SubscriptionConfig
 	ts            *tunnelServer
@@ -399,6 +402,10 @@ func (tm *TargetsManager) apply(name string, cfg *types.TargetConfig) {
 					scfg := cfg.(*types.SubscriptionConfig)
 					scfg.Name = sub
 					mt.appliedSubscriptions = append(mt.appliedSubscriptions, sub)
+					if !tm.acceptsSubscriptions(name) {
+						tm.logger.Info("target not connected, subscription starts with the target", "name", sub, "target", name)
+						continue
+					}
 					err = tm.startTargetSubscription(mt, scfg)
 					if err != nil {
 						tm.logger.Error("failed to start target subscription", "name", sub, "target", name, "error", err)
@@ -835,15 +842,34 @@ func (tm *TargetsManager) applySubscription(name string, cfg types.SubscriptionC
 			tm.mu.RUnlock()
 			continue
 		}
-		tm.logger.Info("(re)starting target subscription", "name", name, "target", mt.Name)
 		tm.stopTargetSubscription(mt, name)
 		mt.T.SetSubscriptionConfig(&cfg)
+		if !tm.acceptsSubscriptions(mt.Name) {
+			tm.logger.Info("target not connected, subscription starts with the target", "name", name, "target", mt.Name)
+			tm.mu.RUnlock()
+			continue
+		}
+		tm.logger.Info("(re)starting target subscription", "name", name, "target", mt.Name)
 		err := tm.startTargetSubscription(mt, &cfg)
 		tm.mu.RUnlock()
 		if err != nil {
 			tm.logger.Error("failed to start target subscription", "subscription", name, "target", mt.Name, "error", err)
 		}
 	}
+}
+
+// acceptsSubscriptions reports whether a subscription may start on the target
+// now. A Failed, Stopped or Stopping target has no connection to subscribe
+// on; its next start() starts every subscription it lists. A subscription
+// started on it instead retries on its own, and its first response marks the
+// target Running, which ends the target's retry before start() has run, so
+// the target's other subscriptions would never start.
+func (tm *TargetsManager) acceptsSubscriptions(name string) bool {
+	switch tm.getTargetStateStr(name) {
+	case collstore.StateRunning, collstore.StateStarting:
+		return true
+	}
+	return false
 }
 
 // stopTargetSubscription cancels the per-subscription reader and waits for it
@@ -995,12 +1021,7 @@ func (tm *TargetsManager) startTargetSubscription(mt *ManagedTarget, cfg *types.
 		defer close(done)
 		// When the goroutine exits (subscription stopped/cancelled), refresh
 		// the target state so the subscriptions map is up-to-date.
-		defer func() {
-			currentState := tm.getTargetStateStr(mt.Name)
-			if currentState != "" {
-				tm.setTargetState(mt.Name, currentState)
-			}
-		}()
+		defer tm.refreshTargetState(mt.Name)
 		initialResponse := true
 		// Stay in the loop until SubscribeChan closes both channels. Returning
 		// on sctx.Done() alone would let a replacement Subscribe RPC start
@@ -1063,10 +1084,7 @@ func (tm *TargetsManager) startTargetSubscription(mt *ManagedTarget, cfg *types.
 				// triggers a state update back to "running".
 				initialResponse = true
 				mt.setLastError(err.Err.Error())
-				currentState := tm.getTargetStateStr(mt.Name)
-				if currentState != "" {
-					tm.setTargetState(mt.Name, currentState)
-				}
+				tm.refreshTargetState(mt.Name)
 				tm.stats.subscriptionFailedCount.WithLabelValues(mt.Name, err.SubscriptionName, subscriptionRequestErrorTypeGRPC).Inc()
 				tm.logger.Error("subscription error", "target", mt.Name, "subscription", err.SubscriptionName, "error", err.Err)
 			}
@@ -1293,10 +1311,7 @@ func (tm *TargetsManager) watchConnState(ctx context.Context, mt *ManagedTarget)
 		)
 		// Refresh the full target state in the store (picks up the new
 		// ConnectionState via mt.T.ConnState()).
-		targetState := tm.getTargetStateStr(mt.Name)
-		if targetState != "" {
-			tm.setTargetState(mt.Name, targetState)
-		}
+		tm.refreshTargetState(mt.Name)
 	}
 }
 
@@ -1309,19 +1324,43 @@ func (tm *TargetsManager) watchConnState(ctx context.Context, mt *ManagedTarget)
 // When the ManagedTarget is not found (e.g. after removal), failedReason
 // defaults to empty.
 func (tm *TargetsManager) setTargetState(name, state string) {
-	intended := collstore.IntendedStateEnabled
+	ts := tm.liveTargetState(name)
+	tm.stateMu.Lock()
+	defer tm.stateMu.Unlock()
+	tm.publishTargetState(name, ts, state)
+}
+
+// refreshTargetState re-publishes name's current state with its live
+// connection and subscription states. It reads the current state under
+// stateMu, so it cannot write back a state that another writer replaced after
+// the read: a Failed overwritten that way would end the target's retry.
+func (tm *TargetsManager) refreshTargetState(name string) {
+	ts := tm.liveTargetState(name)
+	tm.stateMu.Lock()
+	defer tm.stateMu.Unlock()
+	state := tm.getTargetStateStr(name)
+	if state == "" {
+		return
+	}
+	tm.publishTargetState(name, ts, state)
+}
+
+// publishTargetState stores ts as name's state. Callers hold stateMu.
+func (tm *TargetsManager) publishTargetState(name string, ts *collstore.TargetState, state string) {
+	ts.IntendedState = collstore.IntendedStateEnabled
 	if state == collstore.StateStopped {
-		intended = collstore.IntendedStateDisabled
+		ts.IntendedState = collstore.IntendedStateDisabled
 	}
-	ts := &collstore.TargetState{
-		ComponentState: collstore.ComponentState{
-			// Name:          name,
-			IntendedState: intended,
-			State:         state,
-			LastUpdated:   time.Now(),
-		},
-	}
-	// Enrich with live target data when available.
+	ts.State = state
+	ts.LastUpdated = time.Now()
+	tm.store.State.Set(collstore.KindTargets, name, ts)
+}
+
+// liveTargetState reads name's failed reason, connection state and
+// per-subscription states. It takes no stateMu: it locks tm.mu and the
+// target, and stateMu wraps only the state store's read and write.
+func (tm *TargetsManager) liveTargetState(name string) *collstore.TargetState {
+	ts := &collstore.TargetState{}
 	tm.mu.RLock()
 	mt := tm.targets[name]
 	tm.mu.RUnlock()
@@ -1342,7 +1381,7 @@ func (tm *TargetsManager) setTargetState(name, state string) {
 			}
 		}
 	}
-	tm.store.State.Set(collstore.KindTargets, name, ts)
+	return ts
 }
 
 func (tm *TargetsManager) getTargetStateStr(name string) string {
