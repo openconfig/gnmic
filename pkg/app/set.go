@@ -27,6 +27,10 @@ func (a *App) SetPreRunE(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	err = a.Config.ValidateCommitInput(cmd)
+	if err != nil {
+		return err
+	}
 
 	a.createCollectorDialOpts()
 	return a.initTunnelServer(tunnel.ServerConfig{

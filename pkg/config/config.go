@@ -1135,6 +1135,14 @@ func (c *Config) ValidateSetInput() error {
 	return nil
 }
 
+func (c *Config) ValidateCommitInput(cmd *cobra.Command) error {
+	if !cmd.Flags().Changed("commit-id") && (c.LocalFlags.SetCommitConfirm || c.LocalFlags.SetCommitCancel || c.LocalFlags.SetCommitRequest || cmd.Flags().Changed("rollback-duration")) {
+		return errors.New("missing commit-id for commit action")
+	}
+
+	return nil
+}
+
 func ExpandOSPaths(paths []string) ([]string, error) {
 	var err error
 	for i := range paths {
