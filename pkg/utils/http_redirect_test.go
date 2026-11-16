@@ -20,6 +20,46 @@ func newCanonicalTestRouter(strictSlash bool) *mux.Router {
 	return r
 }
 
+func TestCanonicalPathRedirectStaysOnHost(t *testing.T) {
+	r := newCanonicalTestRouter(true)
+	r.HandleFunc("/{any}", func(http.ResponseWriter, *http.Request) {})
+	tests := []struct {
+		target       string
+		wantLocation string
+	}{
+		{target: "http://evil.example/api/v1/targets/rack%2Frouter/?x=1", wantLocation: "/api/v1/targets/rack%2Frouter?x=1"},
+		{target: "//evil.example/", wantLocation: "/evil.example"},
+		{target: "///evil.example", wantLocation: "/evil.example"},
+		{target: `/\evil.example/`, wantLocation: "/%5Cevil.example"},
+		{target: "/%2F%2Fevil.example/", wantLocation: "/%2F%2Fevil.example"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.target, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.target, nil))
+			if rec.Code != http.StatusMovedPermanently || rec.Header().Get("Location") != tt.wantLocation {
+				t.Fatalf("status %d, Location %q, want %q", rec.Code, rec.Header().Get("Location"), tt.wantLocation)
+			}
+		})
+	}
+}
+
+func TestIsLocalPath(t *testing.T) {
+	for p, want := range map[string]bool{
+		"/":              true,
+		"/api/v1":        true,
+		"/%2F%2Fevil":    true,
+		"":               false,
+		"api":            false,
+		"//evil.example": false,
+		`/\evil.example`: false,
+	} {
+		if got := isLocalPath(p); got != want {
+			t.Errorf("isLocalPath(%q) = %v, want %v", p, got, want)
+		}
+	}
+}
+
 func TestCanonicalPathRedirect(t *testing.T) {
 	tests := []struct {
 		name         string

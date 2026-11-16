@@ -34,15 +34,16 @@ func CanonicalPathRedirect(router *mux.Router, strictSlash bool) http.Handler {
 			}
 		}
 		for _, p := range candidates {
-			if p == escaped {
+			if p == escaped || !isLocalPath(p) {
 				continue
 			}
 			decoded, err := url.PathUnescape(p)
 			if err != nil {
 				continue
 			}
-			u := *r.URL
-			u.Path, u.RawPath = decoded, p
+			// scheme and host are left out: an absolute-form request
+			// target would otherwise redirect to a client-supplied host.
+			u := url.URL{Path: decoded, RawPath: p, RawQuery: r.URL.RawQuery}
 			probe := r.Clone(r.Context())
 			probe.URL = &u
 			var match mux.RouteMatch
@@ -54,6 +55,12 @@ func CanonicalPathRedirect(router *mux.Router, strictSlash bool) http.Handler {
 		}
 		http.NotFound(w, r)
 	})
+}
+
+// isLocalPath reports whether p is a path on the same host: browsers treat
+// a leading "//" or "/\" as a scheme-relative URL to another host.
+func isLocalPath(p string) bool {
+	return len(p) > 0 && p[0] == '/' && (len(p) == 1 || (p[1] != '/' && p[1] != '\\'))
 }
 
 // cleanPath mirrors mux's path cleaning: it returns the canonical form of p,
