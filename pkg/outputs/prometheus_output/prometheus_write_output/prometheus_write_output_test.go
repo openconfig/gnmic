@@ -5,7 +5,9 @@
 package prometheus_write_output
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -139,6 +141,30 @@ func TestPromWriteOutput_InitErrors(t *testing.T) {
 	p := &promWriteOutput{}
 	if err := p.Init(context.Background(), "pw1", map[string]any{}, outputs.WithConfigStore(memStore())); err == nil {
 		t.Fatal("expected missing url")
+	}
+}
+
+func TestPromWriteOutput_LogsHTTPFailureWithoutDebug(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte("private response detail"))
+	}))
+	defer srv.Close()
+
+	p := &promWriteOutput{}
+	p.init()
+	var logs bytes.Buffer
+	p.logger = slog.New(slog.NewTextHandler(&logs, nil))
+	cfg := &config{Name: t.Name(), URL: srv.URL}
+	p.cfg.Store(cfg)
+	p.httpClient.Store(srv.Client())
+
+	err := p.writeRequest(context.Background(), &prompb.WriteRequest{}, cfg)
+	if err == nil || !strings.Contains(err.Error(), "code=401") {
+		t.Fatalf("writeRequest error = %v, want HTTP 401", err)
+	}
+	if got := logs.String(); !strings.Contains(got, "level=ERROR") || !strings.Contains(got, "status_code=401") || strings.Contains(got, "private response detail") {
+		t.Fatalf("unexpected write log: %s", got)
 	}
 }
 

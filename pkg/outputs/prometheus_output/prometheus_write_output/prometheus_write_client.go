@@ -171,6 +171,7 @@ RETRY:
 	p.logger.Debug("got response from remote", "status", rsp.Status)
 	if rsp.StatusCode >= 300 {
 		prometheusWriteNumberOfFailSendMsgs.WithLabelValues(cfg.Name, fmt.Sprintf("status_code=%d", rsp.StatusCode)).Inc()
+		p.logger.Error("write response failed", "status_code", rsp.StatusCode)
 		msg, err := io.ReadAll(rsp.Body)
 		if err != nil {
 			return err
