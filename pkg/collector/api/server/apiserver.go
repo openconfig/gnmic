@@ -51,8 +51,9 @@ func NewServer(
 ) *Server {
 	s := &Server{
 		// match on the escaped path so that names containing "/" can be
-		// addressed as a single, percent-encoded path segment.
-		router:         mux.NewRouter().UseEncodedPath(),
+		// addressed as a single, percent-encoded path segment. mux's own
+		// path cleaning redirect does not preserve escapes.
+		router:         mux.NewRouter().UseEncodedPath().SkipClean(true),
 		store:          store,
 		targetsManager: targetManager,
 		outputsManager: outputsManager,

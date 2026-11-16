@@ -93,6 +93,24 @@ func TestServer_TargetNamesWithSlash(t *testing.T) {
 		}
 	})
 
+	t.Run("path cleaning redirect keeps the escaped name", func(t *testing.T) {
+		client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+		for _, path := range []string{"//api/v1/config/targets/rack%2Frouter", "/api/v1/./config/targets/rack%2Frouter"} {
+			resp, err := client.Get(ts.URL + path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp.Body.Close()
+			if want := "/api/v1/config/targets/rack%2Frouter"; resp.StatusCode != http.StatusMovedPermanently || resp.Header.Get("Location") != want {
+				t.Fatalf("%s: status %d, Location %q, want %q", path, resp.StatusCode, resp.Header.Get("Location"), want)
+			}
+		}
+		// the collector router has never redirected trailing slashes.
+		if code, _ := doRequest(t, http.MethodGet, base+"/config/targets/rack%2Frouter/", ""); code != http.StatusNotFound {
+			t.Fatalf("trailing slash: status %d", code)
+		}
+	})
+
 	t.Run("unescaped slash is not a target id", func(t *testing.T) {
 		for _, method := range []string{http.MethodGet, http.MethodDelete} {
 			code, body := doRequest(t, method, base+"/config/targets/rack/router", "")

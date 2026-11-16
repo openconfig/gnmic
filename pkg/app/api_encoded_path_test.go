@@ -74,6 +74,37 @@ func TestAPITargetNamesWithSlash(t *testing.T) {
 		}
 	})
 
+	t.Run("redirects keep the escaped name", func(t *testing.T) {
+		client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+		for path, want := range map[string]string{
+			"/api/v1/config/targets/rack%2Frouter/":                "/api/v1/config/targets/rack%2Frouter",
+			"//api/v1/config/targets/rack%2Frouter":                "/api/v1/config/targets/rack%2Frouter",
+			"/api/v1/./config/targets/rack%2Frouter/subscriptions": "/api/v1/config/targets/rack%2Frouter/subscriptions",
+			"/api/v1/config/targets/router1/":                      "/api/v1/config/targets/router1",
+		} {
+			method := http.MethodGet
+			if strings.HasSuffix(want, "/subscriptions") {
+				method = http.MethodPatch
+			}
+			req, err := http.NewRequest(method, ts.URL+path, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp, err := client.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusMovedPermanently || resp.Header.Get("Location") != want {
+				t.Fatalf("%s: status %d, Location %q, want %q", path, resp.StatusCode, resp.Header.Get("Location"), want)
+			}
+		}
+		code, body := doAPIRequest(t, http.MethodGet, base+"/config/targets/rack%2Frouter/", "")
+		if code != http.StatusOK || !strings.Contains(body, `"name":"rack/router"`) {
+			t.Fatalf("followed redirect: status %d: %s", code, body)
+		}
+	})
+
 	t.Run("unescaped slash is not a target id", func(t *testing.T) {
 		code, body := doAPIRequest(t, http.MethodGet, base+"/config/targets/rack/router", "")
 		if code != http.StatusNotFound || strings.Contains(body, "errors") {
