@@ -667,7 +667,6 @@ CRPROD:
 				if cfg.EnableMetrics {
 					kafkaNumberOfFailSendMsgs.WithLabelValues(cfg.Name, kafkaCfg.ClientID, "marshal_error").Inc()
 				}
-				continue
 			}
 			if len(bb) == 0 {
 				continue
@@ -745,7 +744,6 @@ CRPROD:
 				if cfg.EnableMetrics {
 					kafkaNumberOfFailSendMsgs.WithLabelValues(cfg.Name, kafkaCfg.ClientID, "marshal_error").Inc()
 				}
-				continue
 			}
 			if len(bb) == 0 {
 				continue

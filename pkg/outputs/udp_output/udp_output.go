@@ -375,7 +375,6 @@ func (u *udpSock) Write(ctx context.Context, m proto.Message, meta outputs.Meta)
 		bb, err := outputs.Marshal(rsp, meta, dc.mo, cfg.SplitEvents, dc.evps...)
 		if err != nil {
 			u.logger.Warn("failed marshaling proto msg", "err", err)
-			return
 		}
 		buffer := u.buffer.Load()
 		if buffer == nil {

@@ -52,7 +52,6 @@ func (p *prometheusOutput) collectFromCache(ch chan<- prometheus.Metric) {
 				meta)
 			if err != nil {
 				p.logger.Warn("failed to convert gNMI notifications to events", "err", err)
-				return
 			}
 			events = append(events, ievents...)
 		}

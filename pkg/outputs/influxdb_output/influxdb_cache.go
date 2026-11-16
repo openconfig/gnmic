@@ -86,7 +86,6 @@ func (i *influxDBOutput) readCache(ctx context.Context) {
 				outputs.Meta{"subscription-name": subName})
 			if err != nil {
 				i.logger.Warn("failed to convert gNMI notifications to events", "err", err)
-				return
 			}
 			events = append(events, ievents...)
 		}

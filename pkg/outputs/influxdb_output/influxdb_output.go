@@ -599,7 +599,6 @@ func (i *influxDBOutput) Write(ctx context.Context, rsp proto.Message, meta outp
 		events, err := formatters.ResponseToEventMsgs(measName, rsp, meta, dc.evps...)
 		if err != nil {
 			i.logger.Warn("failed to convert message to event", "err", err)
-			return
 		}
 		for _, ev := range events {
 			select {

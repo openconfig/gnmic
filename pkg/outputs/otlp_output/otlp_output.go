@@ -589,7 +589,6 @@ func (o *otlpOutput) Write(ctx context.Context, rsp proto.Message, meta outputs.
 	events, err := formatters.ResponseToEventMsgs(subscriptionName, subsResp, meta, dc.evps...)
 	if err != nil {
 		o.logger.Debug("failed to convert response to events", "err", err)
-		return
 	}
 
 	// Send events to worker channel
