@@ -13,7 +13,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"sort"
 	"sync"
@@ -29,8 +28,6 @@ import (
 var (
 	ErrMarshal = errors.New("marshal error")
 )
-
-const backoff = 100 * time.Millisecond
 
 func (p *promWriteOutput) createHTTPClientFor(c *config) (*http.Client, error) {
 	cl := &http.Client{
@@ -90,6 +87,8 @@ func (p *promWriteOutput) write(ctx context.Context, timeSeriesCh <-chan *prompb
 	// until we read a number of timeSeries equal to the buffer size
 	for {
 		select {
+		case <-ctx.Done():
+			return
 		case ts := <-timeSeriesCh:
 			pts = append(pts, *ts)
 			if len(pts) == buffSize {
@@ -108,76 +107,21 @@ WRITE:
 	sort.Slice(pts, func(i, j int) bool {
 		return pts[i].Samples[0].Timestamp < pts[j].Samples[0].Timestamp
 	})
-	chunk := make([]prompb.TimeSeries, 0, cfg.MaxTimeSeriesPerWrite)
-	for i, pt := range pts {
-		// append timeSeries to chunk
-		chunk = append(chunk, pt)
-		// if the chunk size reaches the configured max or
-		// we reach the max number of time series gathered, send.
-		chunkSize := len(chunk)
-		if chunkSize == cfg.MaxTimeSeriesPerWrite || i+1 == numTS {
-			p.logger.Debug("writing time series chunk", "size", chunkSize)
-			start := time.Now()
-			err := p.writeRequest(ctx, &prompb.WriteRequest{
-				Timeseries: chunk,
-			}, cfg)
-			if err != nil {
-				if cfg.Debug {
-					p.logger.Warn("write error", "err", err)
-				}
-				continue
+	for offset := 0; offset < numTS; offset += cfg.MaxTimeSeriesPerWrite {
+		if ctx.Err() != nil {
+			return
+		}
+		chunk := pts[offset:min(offset+cfg.MaxTimeSeriesPerWrite, numTS)]
+		start := time.Now()
+		if err := p.writeRequest(ctx, &prompb.WriteRequest{Timeseries: chunk}, cfg); err != nil {
+			if cfg.Debug {
+				p.logger.Warn("remote write chunk failed", "err", err, "series", len(chunk))
 			}
-			prometheusWriteSendDuration.WithLabelValues(cfg.Name).Set(float64(time.Since(start).Nanoseconds()))
-			prometheusWriteNumberOfSentMsgs.WithLabelValues(cfg.Name).Add(float64(chunkSize))
-			// return if we are done with the gathered time series
-			if i+1 == numTS {
-				return
-			}
-			// reset chunk if we are not done yet
-			chunk = make([]prompb.TimeSeries, 0, cfg.MaxTimeSeriesPerWrite)
+			continue
 		}
+		prometheusWriteSendDuration.WithLabelValues(cfg.Name).Set(float64(time.Since(start).Nanoseconds()))
+		prometheusWriteNumberOfSentMsgs.WithLabelValues(cfg.Name).Add(float64(len(chunk)))
 	}
-}
-
-// writeRequest marshals the supplied prompb.WriteRequest,
-// creates an HTTP request with the proper configured options (Authentication, Headers,...),
-// sends the request and checks the returned response status code.
-// It returns an error if the status code is >=300.
-func (p *promWriteOutput) writeRequest(ctx context.Context, wr *prompb.WriteRequest, cfg *config) error {
-	httpReq, err := p.makeHTTPRequest(ctx, wr)
-	if err != nil {
-		return err
-	}
-
-	// send request with retries
-	retries := 0
-RETRY:
-	httpClient := p.httpClient.Load()
-	//cfg := p.cfg.Load()
-	rsp, err := httpClient.Do(httpReq)
-	if err != nil {
-		retries++
-		err = fmt.Errorf("failed to write to remote: %w", err)
-		p.logger.Error("write error", "err", err)
-		if retries < cfg.MaxRetries {
-			time.Sleep(backoff)
-			goto RETRY
-		}
-		prometheusWriteNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "client_failure").Inc()
-		return err
-	}
-	defer rsp.Body.Close()
-
-	p.logger.Debug("got response from remote", "status", rsp.Status)
-	if rsp.StatusCode >= 300 {
-		prometheusWriteNumberOfFailSendMsgs.WithLabelValues(cfg.Name, fmt.Sprintf("status_code=%d", rsp.StatusCode)).Inc()
-		msg, err := io.ReadAll(rsp.Body)
-		if err != nil {
-			return err
-		}
-		return fmt.Errorf("write response failed, code=%d, body=%s", rsp.StatusCode, string(msg))
-	}
-	return nil
 }
 
 // metadataWriter writes the cached metadata entries to the remote address each `metadata.interval`
@@ -262,8 +206,7 @@ func (p *promWriteOutput) writeMetadata(ctx context.Context) {
 	prometheusWriteNumberOfSentMetadataMsgs.WithLabelValues(cfg.Name).Add(float64(len(mds)))
 }
 
-func (p *promWriteOutput) makeHTTPRequest(ctx context.Context, wr *prompb.WriteRequest) (*http.Request, error) {
-	cfg := p.cfg.Load()
+func (p *promWriteOutput) makeHTTPRequest(ctx context.Context, wr *prompb.WriteRequest, cfg *config) (*http.Request, error) {
 	b, err := gogoproto.Marshal(wr)
 	if err != nil {
 		prometheusWriteNumberOfFailSendMsgs.WithLabelValues(cfg.Name, "marshal_error").Inc()
