@@ -19,8 +19,7 @@ import (
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmic/pkg/api/types"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
+	"google.golang.org/grpc/connectivity"
 )
 
 // Subscribe sends a gnmi.SubscribeRequest to the target *t, responses and error are sent to the target channels
@@ -206,8 +205,7 @@ func (t *Target) attemptSubscription(ctx context.Context, req *gnmi.SubscribeReq
 	// create subscribe client
 	subscribeClient, err := t.Client.Subscribe(nctx, t.callOpts()...)
 	if err != nil {
-		// check if cancellation was intentional
-		if isCancellationError(err) {
+		if t.subscriptionStopped(nctx) {
 			return false
 		}
 		sendError(errCh, ctx, subscriptionName, err)
@@ -219,17 +217,24 @@ func (t *Target) attemptSubscription(ctx context.Context, req *gnmi.SubscribeReq
 	if oldCancel, ok := t.subscribeCancelFn[subscriptionName]; ok {
 		oldCancel() // cancel previous attempt
 	}
+	t.subscribeAttemptSeq++
+	attemptID := t.subscribeAttemptSeq
 	t.SubscribeClients[subscriptionName] = subscribeClient
 	t.subscribeCancelFn[subscriptionName] = cancel
+	t.subscribeAttempts[subscriptionName] = attemptID
 	subConfig := t.Subscriptions[subscriptionName]
 	t.m.Unlock()
 
-	// cleanup on exit (registered after state is stored)
-	defer t.StopSubscription(subscriptionName)
+	// cleanup on exit (registered after state is stored).
+	// A replacement attempt may own the entry by then; leave it in place.
+	defer t.releaseSubscriptionAttempt(subscriptionName, attemptID)
 
 	// send initial subscribe request
 	err = subscribeClient.Send(req)
 	if err != nil {
+		if t.subscriptionStopped(nctx) {
+			return false
+		}
 		sendError(errCh, ctx, subscriptionName,
 			fmt.Errorf("target '%s' send error, retry in %s: %w",
 				t.Config.Name, t.Config.RetryTimer, err))
@@ -257,7 +262,7 @@ func (t *Target) handleSTREAMMode(nctx, ctx context.Context, client gnmi.GNMI_Su
 
 	err := t.handleStreamSubscriptionRcv(nctx, client, subscriptionName, subConfig, responseCh)
 	if err != nil {
-		if isCancellationError(err) {
+		if t.subscriptionStopped(nctx) {
 			return false
 		}
 
@@ -273,7 +278,7 @@ func (t *Target) handleONCEMode(nctx, ctx context.Context, client gnmi.GNMI_Subs
 
 	err := t.handleONCESubscriptionRcv(nctx, client, subscriptionName, subConfig, responseCh)
 	if err != nil {
-		if isCancellationError(err) {
+		if t.subscriptionStopped(nctx) {
 			return false
 		}
 
@@ -304,7 +309,7 @@ func (t *Target) handlePOLLMode(nctx, ctx context.Context, client gnmi.GNMI_Subs
 
 	err := t.handlePollSubscriptionRcv(nctx, client, subscriptionName, subConfig, responseCh)
 	if err != nil {
-		if isCancellationError(err) {
+		if t.subscriptionStopped(nctx) {
 			return false
 		}
 
@@ -316,13 +321,34 @@ func (t *Target) handlePOLLMode(nctx, ctx context.Context, client gnmi.GNMI_Subs
 	return false
 }
 
-// check if error is due to intentional cancellation
-func isCancellationError(err error) bool {
-	if errors.Is(err, context.Canceled) {
-		return true
+// subscriptionStopped reports whether an attempt ended because the caller no
+// longer wants it, rather than because the server or transport terminated it.
+// The error code alone cannot tell them apart: a server may return CANCELED,
+// and grpc-go maps a remote RST_STREAM CANCEL to CANCELED as well.
+// nctx is cancelled by the parent context, StopSubscription and by a
+// replacement attempt for the same subscription name.
+func (t *Target) subscriptionStopped(nctx context.Context) bool {
+	return nctx.Err() != nil || t.connClosing()
+}
+
+func (t *Target) connClosing() bool {
+	return t.conn != nil && t.conn.GetState() == connectivity.Shutdown
+}
+
+// releaseSubscriptionAttempt cancels and unregisters a subscription attempt,
+// unless a newer attempt has replaced it under the same name.
+func (t *Target) releaseSubscriptionAttempt(name string, attemptID uint64) {
+	t.m.Lock()
+	defer t.m.Unlock()
+	if t.subscribeAttempts[name] != attemptID {
+		return
 	}
-	st, ok := status.FromError(err)
-	return ok && st.Code() == codes.Canceled
+	if cfn, ok := t.subscribeCancelFn[name]; ok {
+		cfn()
+	}
+	delete(t.subscribeCancelFn, name)
+	delete(t.SubscribeClients, name)
+	delete(t.subscribeAttempts, name)
 }
 
 // send error to channel with context awareness
@@ -529,6 +555,7 @@ func (t *Target) DeleteSubscription(name string) {
 	}
 	delete(t.subscribeCancelFn, name)
 	delete(t.SubscribeClients, name)
+	delete(t.subscribeAttempts, name)
 	delete(t.Subscriptions, name)
 }
 
@@ -561,6 +588,7 @@ func (t *Target) StopSubscription(name string) {
 	}
 	delete(t.subscribeCancelFn, name)
 	delete(t.SubscribeClients, name)
+	delete(t.subscribeAttempts, name)
 }
 
 func (t *Target) listenPolls(ctx context.Context) {
