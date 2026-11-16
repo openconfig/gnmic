@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -137,7 +138,7 @@ func newCollectorSubscriptionsGetCmd(gApp *app.App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			resp, err := client.Get(apiURL + "/api/v1/subscriptions/" + name)
+			resp, err := client.Get(apiURL + "/api/v1/subscriptions/" + url.PathEscape(name))
 			if err != nil {
 				return err
 			}
@@ -247,7 +248,7 @@ func newCollectorSubscriptionsDeleteCmd(gApp *app.App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			req, err := http.NewRequest(http.MethodDelete, apiURL+"/api/v1/config/subscriptions/"+name, nil)
+			req, err := http.NewRequest(http.MethodDelete, apiURL+"/api/v1/config/subscriptions/"+url.PathEscape(name), nil)
 			if err != nil {
 				return err
 			}

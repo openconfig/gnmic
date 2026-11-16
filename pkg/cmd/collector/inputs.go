@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"sort"
 
@@ -130,7 +131,7 @@ func newCollectorInputsGetCmd(gApp *app.App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			resp, err := client.Get(apiURL + "/api/v1/config/inputs/" + name)
+			resp, err := client.Get(apiURL + "/api/v1/config/inputs/" + url.PathEscape(name))
 			if err != nil {
 				return err
 			}
@@ -250,7 +251,7 @@ func newCollectorInputsDeleteCmd(gApp *app.App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			req, err := http.NewRequest(http.MethodDelete, apiURL+"/api/v1/config/inputs/"+name, nil)
+			req, err := http.NewRequest(http.MethodDelete, apiURL+"/api/v1/config/inputs/"+url.PathEscape(name), nil)
 			if err != nil {
 				return err
 			}
