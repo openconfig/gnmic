@@ -150,6 +150,37 @@ func recvResponse(t *testing.T, rspCh chan *SubscribeResponse, errCh chan *Targe
 	return nil
 }
 
+// recvRemoteCanceled expects the next event to be the CANCELED error of a
+// remotely cancelled attempt.
+func recvRemoteCanceled(t *testing.T, rspCh chan *SubscribeResponse, errCh chan *TargetError) {
+	t.Helper()
+	select {
+	case terr, ok := <-errCh:
+		if !ok {
+			t.Fatal("subscription stopped without reporting the remote cancellation")
+		}
+		if code := status.Code(terr.Err); code != codes.Canceled {
+			t.Fatalf("expected a CANCELED error, got %v: %v", code, terr.Err)
+		}
+		if terr.SubscriptionName != "sub1" {
+			t.Fatalf("unexpected subscription name %q", terr.SubscriptionName)
+		}
+	case _, ok := <-rspCh:
+		t.Fatalf("expected an error before any response (channel open=%v)", ok)
+	case <-time.After(testWait):
+		t.Fatal("timed out waiting for the remote cancellation error")
+	}
+}
+
+// cancelFirstAttempt returns CANCELED on the first Subscribe RPC and then
+// serves updateAndHold.
+func cancelFirstAttempt(n int32, stream gnmi.GNMI_SubscribeServer) error {
+	if n == 1 {
+		return status.Error(codes.Canceled, "cancelled by server")
+	}
+	return updateAndHold(n, stream)
+}
+
 // waitClosed waits for both channels to close and fails on any error
 // reported meanwhile.
 func waitClosed(t *testing.T, rspCh chan *SubscribeResponse, errCh chan *TargetError) {
@@ -213,22 +244,7 @@ func TestSubscribeChanRetriesRemoteCanceled(t *testing.T) {
 			start := time.Now()
 			rspCh, errCh := tg.SubscribeChan(ctx, subscribeRequest(tt.mode), "sub1")
 
-			select {
-			case terr, ok := <-errCh:
-				if !ok {
-					t.Fatal("subscription stopped without reporting the remote cancellation")
-				}
-				if code := status.Code(terr.Err); code != codes.Canceled {
-					t.Fatalf("expected a CANCELED error, got %v: %v", code, terr.Err)
-				}
-				if terr.SubscriptionName != "sub1" {
-					t.Fatalf("unexpected subscription name %q", terr.SubscriptionName)
-				}
-			case _, ok := <-rspCh:
-				t.Fatalf("expected an error before any response (channel open=%v)", ok)
-			case <-time.After(testWait):
-				t.Fatal("timed out waiting for the remote cancellation error")
-			}
+			recvRemoteCanceled(t, rspCh, errCh)
 
 			rsp := recvResponse(t, rspCh, errCh)
 			if ts := rsp.Response.GetUpdate().GetTimestamp(); ts != 2 {
@@ -329,4 +345,75 @@ func TestSubscribeChanReplacementKeepsNewAttempt(t *testing.T) {
 	if got := srv.calls.Load(); got != 2 {
 		t.Fatalf("expected no retry after StopSubscription, got %d Subscribe RPCs", got)
 	}
+}
+
+const testBackoff = 300 * time.Millisecond
+
+func TestSubscribeChanStopDuringRetryDelay(t *testing.T) {
+	srv := &fakeGNMIServer{handler: cancelFirstAttempt}
+	tg, _ := newBufconnTarget(t, srv)
+	tg.Config.RetryTimer = testBackoff
+	tg.SetSubscriptionConfig(&types.SubscriptionConfig{Name: "sub1"})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	rspCh, errCh := tg.SubscribeChan(ctx, subscribeRequest(gnmi.SubscriptionList_STREAM), "sub1")
+	recvRemoteCanceled(t, rspCh, errCh)
+	failedAt := time.Now()
+
+	tg.StopSubscription("sub1")
+	waitClosed(t, rspCh, errCh)
+
+	if elapsed := time.Since(failedAt); elapsed >= testBackoff {
+		t.Fatalf("subscription stopped after %s, not during the %s retry delay", elapsed, testBackoff)
+	}
+	if got := srv.calls.Load(); got != 1 {
+		t.Fatalf("expected no retry after StopSubscription, got %d Subscribe RPCs", got)
+	}
+}
+
+func TestSubscribeChanReplaceDuringRetryDelay(t *testing.T) {
+	srv := &fakeGNMIServer{handler: cancelFirstAttempt}
+	tg, _ := newBufconnTarget(t, srv)
+	tg.Config.RetryTimer = testBackoff
+	tg.SetSubscriptionConfig(&types.SubscriptionConfig{Name: "sub1"})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	req := subscribeRequest(gnmi.SubscriptionList_STREAM)
+	oldRspCh, oldErrCh := tg.SubscribeChan(ctx, req, "sub1")
+	recvRemoteCanceled(t, oldRspCh, oldErrCh)
+	failedAt := time.Now()
+
+	newRspCh, newErrCh := tg.SubscribeChan(ctx, req, "sub1")
+	waitClosed(t, oldRspCh, oldErrCh)
+	if elapsed := time.Since(failedAt); elapsed >= testBackoff {
+		t.Fatalf("replaced subscription stopped after %s, not during the %s retry delay", elapsed, testBackoff)
+	}
+
+	rsp := recvResponse(t, newRspCh, newErrCh)
+	if ts := rsp.Response.GetUpdate().GetTimestamp(); ts != 2 {
+		t.Fatalf("expected the replacement's update, got timestamp %d", ts)
+	}
+
+	// outlast the replaced subscription's retry delay
+	select {
+	case _, ok := <-newRspCh:
+		t.Fatalf("replacement subscription disturbed (response channel open=%v)", ok)
+	case terr, ok := <-newErrCh:
+		if ok {
+			t.Fatalf("replacement subscription reported an error: %v", terr.Err)
+		}
+		t.Fatal("replacement subscription stopped")
+	case <-time.After(2 * testBackoff):
+	}
+	if got := srv.calls.Load(); got != 2 {
+		t.Fatalf("expected only the replacement's Subscribe RPC after the replaced one, got %d", got)
+	}
+	if states := tg.SubscribeClientStates(); !states["sub1"] {
+		t.Fatal("replacement subscribe client is not registered")
+	}
+
+	tg.StopSubscription("sub1")
+	waitClosed(t, newRspCh, newErrCh)
 }
