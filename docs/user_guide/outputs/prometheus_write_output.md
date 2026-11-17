@@ -57,7 +57,9 @@ outputs:
     # integer, defaults to 500, sets the maximum number of timeSeries per write request to remote.
     max-time-series-per-write: 500
     # integer, defaults to 0
-    # number of retries per write, retries will have a back off of 100ms.
+    # total attempts per write; 0 and 1 both make one attempt.
+    # HTTP 5xx, HTTP 429 and transport errors use cancelable exponential backoff,
+    # starting at 100ms and capped at 6.4s. Other HTTP 4xx end the current chunk.
     max-retries: 0
     # metadata configuration
     metadata:
