@@ -859,17 +859,16 @@ func (tm *TargetsManager) applySubscription(name string, cfg types.SubscriptionC
 }
 
 // acceptsSubscriptions reports whether a subscription may start on the target
-// now. A Failed, Stopped or Stopping target has no connection to subscribe
-// on; its next start() starts every subscription it lists. A subscription
-// started on it instead retries on its own, and its first response marks the
-// target Running, which ends the target's retry before start() has run, so
-// the target's other subscriptions would never start.
+// now: only a Running target has a connection to subscribe on. Any other
+// target's next start() starts every subscription it lists, reading the
+// config applySubscription stored, and a Starting target's start() is already
+// in flight. A subscription started on a target that is not Running retries
+// on its own, and its first response marks the target Running, which ends
+// the target's retry before start() has run, so the target's other
+// subscriptions would never start; on a Starting target whose start()
+// succeeds, start() would also start it a second time.
 func (tm *TargetsManager) acceptsSubscriptions(name string) bool {
-	switch tm.getTargetStateStr(name) {
-	case collstore.StateRunning, collstore.StateStarting:
-		return true
-	}
-	return false
+	return tm.getTargetStateStr(name) == collstore.StateRunning
 }
 
 // stopTargetSubscription cancels the per-subscription reader and waits for it
