@@ -568,7 +568,6 @@ func (p *promWriteOutput) workerHandleProto(ctx context.Context, m *outputs.Prot
 		events, err := formatters.ResponseToEventMsgs(measName, pmsg, meta, dc.evps...)
 		if err != nil {
 			p.logger.Warn("failed to convert message to event", "err", err)
-			return
 		}
 		for _, ev := range events {
 			p.workerHandleEvent(ctx, ev)

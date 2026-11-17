@@ -709,13 +709,11 @@ func (o *clickhouseOutput) Write(ctx context.Context, rsp proto.Message, meta ou
 		events, err = formatters.ResponseToEventMsgs(sub, m, meta, dc.evps...)
 		if err != nil {
 			o.logger.Warn("failed to convert subscribe response to events", "err", err)
-			return
 		}
 	case *gnmi.GetResponse:
 		events, err = formatters.GetResponseToEventMsgs(m, meta, dc.evps...)
 		if err != nil {
 			o.logger.Warn("failed to convert get response to events", "err", err)
-			return
 		}
 	default:
 		return

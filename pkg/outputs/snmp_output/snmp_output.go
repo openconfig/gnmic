@@ -368,7 +368,6 @@ func (s *snmpOutput) Write(ctx context.Context, m proto.Message, meta outputs.Me
 		events, err := formatters.ResponseToEventMsgs(measName, rsp, meta, dc.evps...)
 		if err != nil {
 			s.logger.Warn("failed to convert message to event", "err", err)
-			return
 		}
 		for _, ev := range events {
 			select {
@@ -654,7 +653,7 @@ func (s *snmpOutput) buildPDUFromCache(bd *binding, targetName string, ev *forma
 				},
 			}, map[string]string{"subscription-name": subName})
 			if err != nil {
-				return g.SnmpPDU{}, err
+				s.logger.Warn("cached notification partially decoded", "err", err)
 			}
 			evs = append(evs, revs...)
 		}

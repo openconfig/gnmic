@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -474,9 +475,14 @@ func (a *App) handlePolledSubscriptions() error {
 				case rsp := <-rspCh:
 					b, err := mo.Marshal(rsp.Response, nil)
 					if err != nil {
-						return fmt.Errorf("target '%s', subscription '%s': poll response formatting error: %v", targetName, rsp.SubscriptionName, err)
+						fmt.Fprintf(os.Stderr, "target '%s', subscription '%s': poll response formatting error: %v\n", targetName, rsp.SubscriptionName, err)
+						if mo.Format != "event" {
+							b = nil
+						}
 					}
-					fmt.Println(string(b))
+					if len(b) > 0 {
+						fmt.Println(string(b))
+					}
 					switch rsp := rsp.Response.Response.(type) {
 					case *gnmi.SubscribeResponse_SyncResponse:
 						fmt.Printf("received sync response '%t' from '%s'\n", rsp.SyncResponse, targetName)
@@ -566,11 +572,14 @@ OUTER:
 					}
 					b, err := mo.Marshal(rsp.Response, nil)
 					if err != nil {
-						fmt.Printf("target '%s', subscription '%s': poll response formatting error:%v\n", name, subName, err)
-						fmt.Println(rsp.Response)
-						continue
+						fmt.Fprintf(os.Stderr, "target '%s', subscription '%s': poll response formatting error: %v\n", name, subName, err)
+						if mo.Format != "event" {
+							b = nil
+						}
 					}
-					fmt.Println(string(b))
+					if len(b) > 0 {
+						fmt.Println(string(b))
+					}
 				}
 			}
 		case <-a.ctx.Done():

@@ -439,7 +439,6 @@ func (f *File) Write(ctx context.Context, rsp proto.Message, meta outputs.Meta) 
 			f.logger.Warn("failed marshaling proto msg", "err", err)
 		}
 		numberOfFailWriteMsgs.WithLabelValues(cfg.Name, (*fileHandle).Name(), "marshal_error").Inc()
-		return
 	}
 	if len(bb) == 0 {
 		return

@@ -714,7 +714,6 @@ func (p *prometheusOutput) workerHandleProto(ctx context.Context, m *outputs.Pro
 		events, err := formatters.ResponseToEventMsgs(measName, pmsg, meta, dc.evps...)
 		if err != nil {
 			p.logger.Warn("failed to convert message to event", "err", err)
-			return
 		}
 		p.workerHandleEvent(events...)
 	}

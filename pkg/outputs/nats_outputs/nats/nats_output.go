@@ -613,7 +613,6 @@ CRCONN:
 				if cfg.EnableMetrics {
 					NatsNumberOfFailSendMsgs.WithLabelValues(name, "marshal_error").Inc()
 				}
-				continue
 			}
 			if len(bb) == 0 {
 				continue

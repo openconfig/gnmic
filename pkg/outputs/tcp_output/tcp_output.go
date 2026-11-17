@@ -382,7 +382,6 @@ func (t *tcpOutput) Write(ctx context.Context, m proto.Message, meta outputs.Met
 		bb, err := outputs.Marshal(rsp, meta, dc.mo, cfg.SplitEvents, dc.evps...)
 		if err != nil {
 			t.logger.Warn("failed marshaling proto msg", "err", err)
-			return
 		}
 		buffer := t.buffer.Load()
 		for _, b := range bb {

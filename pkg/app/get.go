@@ -287,12 +287,12 @@ func (a *App) handleGetRequestEvent(ctx context.Context, evps []formatters.Event
 		responses[r.name] = r.rsp
 	}
 	err := a.checkErrors()
-	if err != nil {
-		return err
-	}
 	//
 	sb := strings.Builder{}
 	for name, r := range responses {
+		if err != nil && len(r) == 0 {
+			continue
+		}
 		sb.Reset()
 		printPrefix := ""
 		if len(a.Config.TargetsList()) > 1 && !a.Config.NoPrefix {
@@ -306,7 +306,7 @@ func (a *App) handleGetRequestEvent(ctx context.Context, evps []formatters.Event
 		fmt.Fprintf(a.out, "%s\n", indent(printPrefix, sb.String()))
 	}
 
-	return nil
+	return err
 }
 
 type getResponseEvents struct {

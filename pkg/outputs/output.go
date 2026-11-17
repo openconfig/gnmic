@@ -263,6 +263,7 @@ const (
 {{- end -}}`
 )
 
+// Marshal preserves valid event payloads alongside partial decode diagnostics.
 func Marshal(pmsg protoreflect.ProtoMessage, meta map[string]string, mo *formatters.MarshalOptions, splitEvents bool, evps ...formatters.EventProcessor) ([][]byte, error) {
 	switch mo.Format {
 	case "event":
@@ -272,13 +273,13 @@ func Marshal(pmsg protoreflect.ProtoMessage, meta map[string]string, mo *formatt
 		fallthrough
 	default:
 		b, err := mo.Marshal(pmsg, meta, evps...)
-		if err != nil {
+		if err != nil && mo.Format != "event" {
 			return nil, err
 		}
 		if len(b) == 0 {
-			return nil, nil
+			return nil, err
 		}
-		return [][]byte{b}, nil
+		return [][]byte{b}, err
 	}
 }
 
@@ -292,13 +293,10 @@ func marshalSplit(pmsg protoreflect.ProtoMessage, meta map[string]string, mo *fo
 	case *gnmi.SubscribeResponse:
 		switch msg.GetResponse().(type) {
 		case *gnmi.SubscribeResponse_Update:
-			events, err := formatters.ResponseToEventMsgs(subscriptionName, msg, meta, evps...)
-			if err != nil {
-				return nil, fmt.Errorf("failed converting response to events: %v", err)
-			}
+			events, decodeErr := formatters.ResponseToEventMsgs(subscriptionName, msg, meta, evps...)
 			numEvents := len(events)
 			if numEvents == 0 {
-				return nil, nil
+				return nil, decodeErr
 			}
 			rs := make([][]byte, 0, numEvents)
 			marshalFn := json.Marshal
@@ -314,7 +312,7 @@ func marshalSplit(pmsg protoreflect.ProtoMessage, meta map[string]string, mo *fo
 				}
 				rs = append(rs, b)
 			}
-			return rs, nil
+			return rs, decodeErr
 		default:
 			return nil, fmt.Errorf("unexpected message type: %T", msg)
 		}

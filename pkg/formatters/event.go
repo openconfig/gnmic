@@ -10,6 +10,7 @@ package formatters
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -41,69 +42,83 @@ func (e *EventMsg) String() string {
 	return string(b)
 }
 
-// ResponseToEventMsgs //
+// ResponseToEventMsgs returns valid events alongside any update decode errors.
+// Atomic notifications are accepted or rejected as a unit before processing.
 func ResponseToEventMsgs(name string, rsp *gnmi.SubscribeResponse, meta map[string]string, eps ...EventProcessor) ([]*EventMsg, error) {
 	if rsp == nil {
 		return nil, nil
 	}
-	evs := make([]*EventMsg, 0, len(rsp.GetUpdate().GetUpdate())+len(rsp.GetUpdate().GetDelete()))
+	evs := make([]*EventMsg, 0)
 	switch rsp := rsp.Response.(type) {
 	case *gnmi.SubscribeResponse_Update:
-		namePrefix, prefixTags := tagsFromGNMIPath(rsp.Update.GetPrefix())
-		// notification updates
-		uevs, err := updatesToEvent(name, namePrefix, rsp.Update.GetTimestamp(), rsp.Update.GetUpdate(), prefixTags, meta)
-		if err != nil {
-			return nil, err
-		}
-		evs = append(evs, uevs...)
-		// notification deletes
-		for _, del := range rsp.Update.GetDelete() {
-			e := deleteToEvent(name, namePrefix, rsp.Update.GetTimestamp(), del, prefixTags)
-			addMetaTags(e, meta)
-			if (e != nil && e != &EventMsg{}) {
-				evs = append(evs, e)
+		var err error
+		evs, err = notificationToEvents(name, rsp.Update, meta)
+		if err == nil || len(evs) > 0 {
+			for _, ep := range eps {
+				evs = ep.Apply(evs...)
 			}
 		}
-
-		for _, ep := range eps {
-			evs = ep.Apply(evs...)
-		}
+		return evs, err
 	}
 	return evs, nil
 }
 
+// GetResponseToEventMsgs preserves valid notifications alongside decode errors.
 func GetResponseToEventMsgs(rsp *gnmi.GetResponse, meta map[string]string, eps ...EventProcessor) ([]*EventMsg, error) {
 	if rsp == nil {
 		return nil, nil
 	}
 	evs := make([]*EventMsg, 0, len(rsp.GetNotification()))
+	var errs []error
 	for _, notif := range rsp.GetNotification() {
-		namePrefix, prefixTags := tagsFromGNMIPath(notif.GetPrefix())
-		uevs, err := updatesToEvent("get-request", namePrefix, notif.GetTimestamp(), notif.GetUpdate(), prefixTags, meta)
+		uevs, err := notificationToEvents("get-request", notif, meta)
 		if err != nil {
-			return nil, err
+			errs = append(errs, err)
 		}
 		evs = append(evs, uevs...)
 	}
-	for _, ep := range eps {
-		evs = ep.Apply(evs...)
+	err := errors.Join(errs...)
+	if err == nil || len(evs) > 0 {
+		for _, ep := range eps {
+			evs = ep.Apply(evs...)
+		}
 	}
-	return evs, nil
+	return evs, err
+}
+
+func notificationToEvents(name string, notification *gnmi.Notification, meta map[string]string) ([]*EventMsg, error) {
+	prefix, tags := tagsFromGNMIPath(notification.GetPrefix())
+	events, err := updatesToEvent(name, prefix, notification.GetTimestamp(), notification.GetUpdate(), tags, meta)
+	if err != nil {
+		err = fmt.Errorf("decode %q notification from %q (target %q): %w", name, meta["source"], notification.GetPrefix().GetTarget(), err)
+	}
+	if err != nil && notification.GetAtomic() {
+		return nil, err
+	}
+	for _, path := range notification.GetDelete() {
+		event := deleteToEvent(name, prefix, notification.GetTimestamp(), path, tags)
+		addMetaTags(event, meta)
+		events = append(events, event)
+	}
+	return events, err
 }
 
 func updatesToEvent(name, prefix string, ts int64, upds []*gnmi.Update, tags, meta map[string]string) ([]*EventMsg, error) {
 	evs := make([]*EventMsg, 0, len(upds))
+	var errs []error
 	for _, upd := range upds {
 		e, err := updateToEvent(name, prefix, ts, upd, tags)
 		if err != nil {
-			return nil, err
+			path, _ := tagsFromGNMIPath(upd.GetPath())
+			errs = append(errs, fmt.Errorf("decode update %s/%s for %q: %w", strings.TrimRight(prefix, "/"), strings.TrimLeft(path, "/"), name, err))
+			continue
 		}
 		addMetaTags(e, meta)
 		if (e != nil && e != &EventMsg{}) {
 			evs = append(evs, e)
 		}
 	}
-	return evs, nil
+	return evs, errors.Join(errs...)
 }
 
 func updateToEvent(name, prefix string, ts int64, upd *gnmi.Update, tags map[string]string) (*EventMsg, error) {

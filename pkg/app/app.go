@@ -389,14 +389,16 @@ func (a *App) PrintMsg(address string, msgName string, msg proto.Message) error 
 	if err != nil {
 		logging.LogErrUnlessCanceled(a.Logger, err, "error marshaling message")
 		if !a.Config.Log {
-			fmt.Printf("error marshaling message: %v", err)
+			fmt.Fprintf(os.Stderr, "error marshaling message: %v\n", err)
 		}
-		return err
+		if a.Config.Format != "event" || len(b) == 0 {
+			return err
+		}
 	}
 	sb := strings.Builder{}
 	sb.Write(b)
 	fmt.Fprintf(a.out, "%s\n", indent(printPrefix, sb.String()))
-	return nil
+	return err
 }
 
 func (a *App) createCollectorDialOpts() {

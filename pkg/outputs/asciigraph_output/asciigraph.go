@@ -257,7 +257,6 @@ func (a *asciigraphOutput) Write(ctx context.Context, rsp proto.Message, meta ou
 	evs, err := formatters.ResponseToEventMsgs(meta["subscription-name"], subRsp, meta, a.evps...)
 	if err != nil {
 		a.logger.Warn("failed to convert messages to events", "err", err)
-		return
 	}
 	for _, ev := range evs {
 		a.WriteEvent(ctx, ev)

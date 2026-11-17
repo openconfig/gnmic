@@ -10,6 +10,7 @@ package formatters
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -34,7 +35,8 @@ type MarshalOptions struct {
 	ProtoDir             []string
 }
 
-// Marshal //
+// Marshal returns encoded data and any decode diagnostics. Partial event data
+// remains available alongside errors from rejected updates.
 func (o *MarshalOptions) Marshal(msg proto.Message, meta map[string]string, eps ...EventProcessor) ([]byte, error) {
 	msg = o.OverrideTimestamp(msg)
 	switch o.Format {
@@ -48,6 +50,7 @@ func (o *MarshalOptions) Marshal(msg proto.Message, meta map[string]string, eps 
 		return prototext.MarshalOptions{Multiline: o.Multiline, Indent: o.Indent}.Marshal(msg)
 	case "event":
 		b := make([]byte, 0)
+		var decodeErr error
 		switch msg := msg.ProtoReflect().Interface().(type) {
 		case *gnmi.SubscribeResponse:
 			var subscriptionName string
@@ -58,11 +61,9 @@ func (o *MarshalOptions) Marshal(msg proto.Message, meta map[string]string, eps 
 			switch msg.GetResponse().(type) {
 			case *gnmi.SubscribeResponse_Update:
 				events, err := ResponseToEventMsgs(subscriptionName, msg, meta, eps...)
-				if err != nil {
-					return nil, fmt.Errorf("failed converting response to events: %v", err)
-				}
+				decodeErr = err
 				if len(events) == 0 {
-					return nil, nil
+					return nil, decodeErr
 				}
 				if o.Multiline {
 					b, err = jsonMarshalIndent(events, "", o.Indent)
@@ -70,14 +71,15 @@ func (o *MarshalOptions) Marshal(msg proto.Message, meta map[string]string, eps 
 					b, err = jsonMarshal(events)
 				}
 				if err != nil {
-					return nil, fmt.Errorf("failed marshaling format 'event': %v", err)
+					return nil, errors.Join(decodeErr, fmt.Errorf("marshal events: %w", err))
 				}
 			}
-			return b, nil
+			return b, decodeErr
 		case *gnmi.GetResponse:
 			events, err := GetResponseToEventMsgs(msg, meta, eps...)
-			if err != nil {
-				return nil, fmt.Errorf("failed converting response to events: %v", err)
+			decodeErr = err
+			if len(events) == 0 && decodeErr != nil {
+				return nil, decodeErr
 			}
 
 			if o.Multiline {
@@ -86,9 +88,9 @@ func (o *MarshalOptions) Marshal(msg proto.Message, meta map[string]string, eps 
 				b, err = jsonMarshal(events)
 			}
 			if err != nil {
-				return nil, fmt.Errorf("failed marshaling format 'event': %v", err)
+				return nil, errors.Join(decodeErr, fmt.Errorf("marshal events: %w", err))
 			}
-			return b, nil
+			return b, decodeErr
 		default:
 			return nil, fmt.Errorf("format 'event' not supported for msg type %T", msg.ProtoReflect().Interface())
 		}
