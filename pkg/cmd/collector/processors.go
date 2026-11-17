@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 
 	"github.com/hairyhenderson/yaml"
@@ -116,7 +117,7 @@ func newCollectorProcessorsGetCmd(gApp *app.App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			resp, err := client.Get(apiURL + "/api/v1/config/processors/" + name)
+			resp, err := client.Get(apiURL + "/api/v1/config/processors/" + url.PathEscape(name))
 			if err != nil {
 				return err
 			}

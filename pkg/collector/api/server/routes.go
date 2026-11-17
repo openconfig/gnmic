@@ -13,7 +13,8 @@ import (
 func (s *Server) routes() {
 	// recover handler panics into a 500 instead of a reset connection.
 	// The logger is set in Start, hence the indirection.
-	s.router.Use(utils.RecoverMiddleware(func() *slog.Logger { return s.logger }))
+	s.router.Use(utils.RecoverMiddleware(func() *slog.Logger { return s.logger }), utils.DecodePathVarsMiddleware)
+	s.router.NotFoundHandler = utils.CanonicalPathRedirect(s.router, false)
 	s.router.Handle("/metrics", promhttp.HandlerFor(s.reg, promhttp.HandlerOpts{}))
 
 	apiV1 := s.router.PathPrefix("/api/v1").Subrouter()

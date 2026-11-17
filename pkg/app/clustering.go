@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -616,8 +617,8 @@ func (a *App) deleteTarget(ctx context.Context, name string) error {
 		scheme := a.getServiceScheme(s)
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
-		url := fmt.Sprintf("%s://%s/api/v1/config/targets/%s", scheme, s.Address, name)
-		req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+		reqURL := fmt.Sprintf("%s://%s/api/v1/config/targets/%s", scheme, s.Address, url.PathEscape(name))
+		req, err := http.NewRequestWithContext(ctx, http.MethodDelete, reqURL, nil)
 		if err != nil {
 			logging.LogErrUnlessCanceled(a.Logger, err, "failed to create a delete request")
 			errs = append(errs, err)
@@ -632,7 +633,7 @@ func (a *App) deleteTarget(ctx context.Context, name string) error {
 			continue
 		}
 		rsp.Body.Close()
-		a.Logger.Info("received DELETE response", "status", rsp.StatusCode, "url", url)
+		a.Logger.Info("received DELETE response", "status", rsp.StatusCode, "url", reqURL)
 	}
 	if len(errs) == 0 {
 		return nil
@@ -667,7 +668,7 @@ func (a *App) assignTarget(ctx context.Context, tc *types.TargetConfig, service 
 		return fmt.Errorf("status code=%d", resp.StatusCode)
 	}
 	// send target start
-	req, err = http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%s://%s/api/v1/targets/%s", scheme, service.Address, tc.Name), new(bytes.Buffer))
+	req, err = http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%s://%s/api/v1/targets/%s", scheme, service.Address, url.PathEscape(tc.Name)), new(bytes.Buffer))
 	if err != nil {
 		return err
 	}
@@ -690,10 +691,10 @@ func (a *App) unassignTarget(ctx context.Context, name string, serviceID string)
 	}
 	if s, ok := a.apiServices[serviceID]; ok {
 		scheme := a.getServiceScheme(s)
-		url := fmt.Sprintf("%s://%s/api/v1/targets/%s", scheme, s.Address, name)
+		reqURL := fmt.Sprintf("%s://%s/api/v1/targets/%s", scheme, s.Address, url.PathEscape(name))
 		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
-		req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodDelete, reqURL, nil)
 		if err != nil {
 			return err
 		}
@@ -702,7 +703,7 @@ func (a *App) unassignTarget(ctx context.Context, name string, serviceID string)
 			return err
 		}
 		defer rsp.Body.Close()
-		a.Logger.Info("received DELETE response", "status", rsp.StatusCode, "url", url)
+		a.Logger.Info("received DELETE response", "status", rsp.StatusCode, "url", reqURL)
 	}
 	return nil
 }

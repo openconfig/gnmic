@@ -8,6 +8,7 @@ import (
 	"maps"
 	"net"
 	"net/http"
+	"net/url"
 	"path"
 	"sort"
 	"strconv"
@@ -635,8 +636,8 @@ func (c *ClusterManager) handleTargetDelete(ctx context.Context, target string) 
 func (c *ClusterManager) deleteTargetFromMembers(ctx context.Context, target string, members map[string]*Member) error {
 	for _, member := range members {
 		address := getMemberAddress(member)
-		url := address + apiconst.TargetsConfigAPIv1URL + "/" + target
-		req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+		reqURL := address + apiconst.TargetsConfigAPIv1URL + "/" + url.PathEscape(target)
+		req, err := http.NewRequestWithContext(ctx, http.MethodDelete, reqURL, nil)
 		if err != nil {
 			c.logger.Error("failed to create request", "error", err)
 			return err

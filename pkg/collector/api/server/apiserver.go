@@ -50,7 +50,10 @@ func NewServer(
 	reg *prometheus.Registry,
 ) *Server {
 	s := &Server{
-		router:         mux.NewRouter(),
+		// match on the escaped path so that names containing "/" can be
+		// addressed as a single, percent-encoded path segment. mux's own
+		// path cleaning redirect does not preserve escapes.
+		router:         mux.NewRouter().UseEncodedPath().SkipClean(true),
 		store:          store,
 		targetsManager: targetManager,
 		outputsManager: outputsManager,

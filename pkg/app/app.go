@@ -171,10 +171,14 @@ func New() *App {
 		// pprof
 		pprof: newPprofServer(),
 	}
-	a.router.StrictSlash(true)
+	// match on the escaped path so that names containing "/" can be
+	// addressed as a single, percent-encoded path segment. mux's own
+	// cleaning and trailing slash redirects do not preserve escapes.
+	a.router.UseEncodedPath().SkipClean(true)
+	a.router.NotFoundHandler = utils.CanonicalPathRedirect(a.router, true)
 	// recover handler panics into a 500 instead of a reset connection;
 	// registered first so it wraps the other middlewares too.
-	a.router.Use(utils.RecoverMiddleware(func() *slog.Logger { return a.Logger }), headersMiddleware, a.loggingMiddleware)
+	a.router.Use(utils.RecoverMiddleware(func() *slog.Logger { return a.Logger }), headersMiddleware, a.loggingMiddleware, utils.DecodePathVarsMiddleware)
 	return a
 }
 
