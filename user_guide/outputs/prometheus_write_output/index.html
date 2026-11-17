@@ -43,7 +43,9 @@
 <span class=w>    </span><span class=c1># integer, defaults to 500, sets the maximum number of timeSeries per write request to remote.</span>
 <span class=w>    </span><span class=nt>max-time-series-per-write</span><span class=p>:</span><span class=w> </span><span class="l l-Scalar l-Scalar-Plain">500</span>
 <span class=w>    </span><span class=c1># integer, defaults to 0</span>
-<span class=w>    </span><span class=c1># number of retries per write, retries will have a back off of 100ms.</span>
+<span class=w>    </span><span class=c1># total attempts per write; 0 and 1 both make one attempt.</span>
+<span class=w>    </span><span class=c1># HTTP 5xx, HTTP 429 and transport errors use cancelable exponential backoff,</span>
+<span class=w>    </span><span class=c1># starting at 100ms and capped at 6.4s. Other HTTP 4xx end the current chunk.</span>
 <span class=w>    </span><span class=nt>max-retries</span><span class=p>:</span><span class=w> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
 <span class=w>    </span><span class=c1># metadata configuration</span>
 <span class=w>    </span><span class=nt>metadata</span><span class=p>:</span>
