@@ -46,6 +46,9 @@ type generatedPath struct {
 	IsState        bool     `json:"is-state,omitempty"`
 	Namespace      string   `json:"namespace,omitempty"`
 	FeatureList    []string `json:"if-features,omitempty"`
+	IsNotification bool     `json:"is-notification,omitempty"`
+	IsRpc          bool     `json:"is-rpc,omitempty"`
+	IsAction       bool     `json:"is-action,omitempty"`
 }
 
 func (a *App) PathCmdRun(d, f, e []string, pgo pathGenOpts) error {
@@ -215,6 +218,33 @@ func collectSchemaNodes(e *yang.Entry, leafOnly bool) []*yang.Entry {
 			collectSchemaNodes(child, leafOnly)...)
 	}
 
+	// Support for Notification
+	if e.Node.Kind() == "notification" {
+		if e.Extra == nil {
+			e.Extra = make(map[string][]interface{})
+		}
+		e.Extra["notification"] = []interface{}{true}
+	}
+
+	// Support for RPC & Action
+	if e.RPC != nil {
+		kind := e.Node.Kind()
+		if e.RPC.Input != nil {
+			if e.RPC.Input.Extra == nil {
+				e.RPC.Input.Extra = make(map[string][]interface{})
+			}
+			e.RPC.Input.Extra[kind] = []interface{}{true}
+			collected = append(collected, collectSchemaNodes(e.RPC.Input, leafOnly)...)
+		}
+		if e.RPC.Output != nil {
+			if e.RPC.Output.Extra == nil {
+				e.RPC.Output.Extra = make(map[string][]interface{})
+			}
+			e.RPC.Output.Extra[kind] = []interface{}{true}
+			collected = append(collected, collectSchemaNodes(e.RPC.Output, leafOnly)...)
+		}
+	}
+
 	if e.Parent != nil {
 		switch {
 		case e.Dir == nil && e.ListAttr != nil: // leaf-list
@@ -272,6 +302,30 @@ func collectSchemaNodes(e *yang.Entry, leafOnly bool) []*yang.Entry {
 					}
 				}
 			}
+			// Support for Notification
+			if len(e.Extra["notification"]) > 0 {
+				for _, myleaf := range collected {
+					if myleaf.Extra["notification"] == nil {
+						myleaf.Extra["notification"] = e.Extra["notification"]
+					}
+				}
+			}
+			// Support for RPC
+			if len(e.Extra["rpc"]) > 0 {
+				for _, myleaf := range collected {
+					if myleaf.Extra["rpc"] == nil {
+						myleaf.Extra["rpc"] = e.Extra["rpc"]
+					}
+				}
+			}
+			// Support for Action
+			if len(e.Extra["action"]) > 0 {
+				for _, myleaf := range collected {
+					if myleaf.Extra["action"] == nil {
+						myleaf.Extra["action"] = e.Extra["action"]
+					}
+				}
+			}
 		}
 	}
 	return collected
@@ -317,6 +371,19 @@ func (a *App) generatePath(entry *yang.Entry, pType string) *generatedPath {
 			}
 			gp.FeatureList = append(gp.FeatureList, strings.Split(f.Source.Argument, " and ")...)
 		}
+	}
+
+	// Support for Notification
+	if len(entry.Extra["notification"]) == 1 {
+		gp.IsNotification = true
+	}
+	// Support for RPC
+	if len(entry.Extra["rpc"]) == 1 {
+		gp.IsRpc = true
+	}
+	// Support for Action
+	if len(entry.Extra["action"]) == 1 {
+		gp.IsAction = true
 	}
 
 	gp.Description = entry.Description
