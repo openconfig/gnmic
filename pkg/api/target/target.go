@@ -52,6 +52,9 @@ type Target struct {
 	Client            gnmi.GNMIClient                      `json:"-"`
 	SubscribeClients  map[string]gnmi.GNMI_SubscribeClient `json:"-"` // subscription name to subscribeClient
 	subscribeCancelFn map[string]context.CancelFunc
+	// subscription name to the SubscribeChan call owning its entries
+	subscribeOwners map[string]uint64
+	subscribeSeq    uint64
 
 	pollChan           chan string // subscription name to be polled
 	subscribeResponses chan *SubscribeResponse
@@ -72,6 +75,7 @@ func NewTarget(c *types.TargetConfig) *Target {
 		m:                  new(sync.Mutex),
 		SubscribeClients:   make(map[string]gnmi.GNMI_SubscribeClient),
 		subscribeCancelFn:  make(map[string]context.CancelFunc),
+		subscribeOwners:    make(map[string]uint64),
 		pollChan:           make(chan string),
 		subscribeResponses: make(chan *SubscribeResponse, c.BufferSize),
 		errors:             make(chan *TargetError, c.BufferSize),

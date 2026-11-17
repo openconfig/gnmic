@@ -19,8 +19,7 @@ import (
 	"github.com/jhump/protoreflect/dynamic"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/gnmic/pkg/api/types"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
+	"google.golang.org/grpc/connectivity"
 )
 
 // Subscribe sends a gnmi.SubscribeRequest to the target *t, responses and error are sent to the target channels
@@ -160,9 +159,16 @@ func (t *Target) SubscribeChan(ctx context.Context, req *gnmi.SubscribeRequest, 
 	responseCh := make(chan *SubscribeResponse, 1)
 	errCh := make(chan *TargetError, 1)
 
+	// The subscription context spans all attempts, including the retry
+	// delays between them, so StopSubscription and a replacement
+	// SubscribeChan for the same name can stop it at any point.
+	sctx, cancel := context.WithCancel(ctx)
+	ownerID := t.registerSubscription(subscriptionName, cancel)
+
 	go func() {
 		defer close(responseCh)
 		defer close(errCh)
+		defer t.releaseSubscription(subscriptionName, ownerID)
 
 		firstAttempt := true
 		for {
@@ -170,7 +176,7 @@ func (t *Target) SubscribeChan(ctx context.Context, req *gnmi.SubscribeRequest, 
 			if !firstAttempt {
 				timer := time.NewTimer(t.Config.RetryTimer)
 				select {
-				case <-ctx.Done():
+				case <-sctx.Done():
 					timer.Stop()
 					return
 				case <-timer.C:
@@ -178,14 +184,14 @@ func (t *Target) SubscribeChan(ctx context.Context, req *gnmi.SubscribeRequest, 
 			}
 			firstAttempt = false
 
-			// check if parent context is done
-			if ctx.Err() != nil {
+			// check if the subscription is stopped
+			if sctx.Err() != nil {
 				return
 			}
 
 			// attempt subscription
 			// return true if retry is needed
-			shouldRetry := t.attemptSubscription(ctx, req, subscriptionName, responseCh, errCh)
+			shouldRetry := t.attemptSubscription(sctx, ownerID, req, subscriptionName, responseCh, errCh)
 			if !shouldRetry {
 				return
 			}
@@ -195,7 +201,9 @@ func (t *Target) SubscribeChan(ctx context.Context, req *gnmi.SubscribeRequest, 
 	return responseCh, errCh
 }
 
-func (t *Target) attemptSubscription(ctx context.Context, req *gnmi.SubscribeRequest,
+// attemptSubscription runs a single Subscribe RPC. ctx is the subscription
+// context owned by ownerID.
+func (t *Target) attemptSubscription(ctx context.Context, ownerID uint64, req *gnmi.SubscribeRequest,
 	subscriptionName string, responseCh chan *SubscribeResponse, errCh chan *TargetError) bool {
 	// create child context for this attempt
 	nctx, cancel := context.WithCancel(ctx)
@@ -206,30 +214,31 @@ func (t *Target) attemptSubscription(ctx context.Context, req *gnmi.SubscribeReq
 	// create subscribe client
 	subscribeClient, err := t.Client.Subscribe(nctx, t.callOpts()...)
 	if err != nil {
-		// check if cancellation was intentional
-		if isCancellationError(err) {
+		if t.subscriptionStopped(nctx) {
 			return false
 		}
 		sendError(errCh, ctx, subscriptionName, err)
 		return true
 	}
 
-	// store subscription state and register cleanup
+	// store the client while this subscription still owns the name
 	t.m.Lock()
-	if oldCancel, ok := t.subscribeCancelFn[subscriptionName]; ok {
-		oldCancel() // cancel previous attempt
+	if t.subscribeOwners[subscriptionName] != ownerID {
+		t.m.Unlock()
+		return false
 	}
 	t.SubscribeClients[subscriptionName] = subscribeClient
-	t.subscribeCancelFn[subscriptionName] = cancel
 	subConfig := t.Subscriptions[subscriptionName]
 	t.m.Unlock()
 
-	// cleanup on exit (registered after state is stored)
-	defer t.StopSubscription(subscriptionName)
+	defer t.clearSubscribeClient(subscriptionName, ownerID)
 
 	// send initial subscribe request
 	err = subscribeClient.Send(req)
 	if err != nil {
+		if t.subscriptionStopped(nctx) {
+			return false
+		}
 		sendError(errCh, ctx, subscriptionName,
 			fmt.Errorf("target '%s' send error, retry in %s: %w",
 				t.Config.Name, t.Config.RetryTimer, err))
@@ -257,7 +266,7 @@ func (t *Target) handleSTREAMMode(nctx, ctx context.Context, client gnmi.GNMI_Su
 
 	err := t.handleStreamSubscriptionRcv(nctx, client, subscriptionName, subConfig, responseCh)
 	if err != nil {
-		if isCancellationError(err) {
+		if t.subscriptionStopped(nctx) {
 			return false
 		}
 
@@ -273,7 +282,7 @@ func (t *Target) handleONCEMode(nctx, ctx context.Context, client gnmi.GNMI_Subs
 
 	err := t.handleONCESubscriptionRcv(nctx, client, subscriptionName, subConfig, responseCh)
 	if err != nil {
-		if isCancellationError(err) {
+		if t.subscriptionStopped(nctx) {
 			return false
 		}
 
@@ -304,7 +313,7 @@ func (t *Target) handlePOLLMode(nctx, ctx context.Context, client gnmi.GNMI_Subs
 
 	err := t.handlePollSubscriptionRcv(nctx, client, subscriptionName, subConfig, responseCh)
 	if err != nil {
-		if isCancellationError(err) {
+		if t.subscriptionStopped(nctx) {
 			return false
 		}
 
@@ -316,13 +325,59 @@ func (t *Target) handlePOLLMode(nctx, ctx context.Context, client gnmi.GNMI_Subs
 	return false
 }
 
-// check if error is due to intentional cancellation
-func isCancellationError(err error) bool {
-	if errors.Is(err, context.Canceled) {
-		return true
+// subscriptionStopped reports whether an attempt ended because the caller no
+// longer wants it, rather than because the server or transport terminated it.
+// The error code alone cannot tell them apart: a server may return CANCELED,
+// and grpc-go maps a remote RST_STREAM CANCEL to CANCELED as well.
+// nctx is cancelled by the parent context, StopSubscription and by a
+// replacement subscription for the same name.
+func (t *Target) subscriptionStopped(nctx context.Context) bool {
+	return nctx.Err() != nil || t.connClosing()
+}
+
+func (t *Target) connClosing() bool {
+	return t.conn != nil && t.conn.GetState() == connectivity.Shutdown
+}
+
+// registerSubscription makes cancel the cancellation of subscription name,
+// stopping the subscription it replaces, and returns the new owner ID.
+func (t *Target) registerSubscription(name string, cancel context.CancelFunc) uint64 {
+	t.m.Lock()
+	defer t.m.Unlock()
+	if oldCancel, ok := t.subscribeCancelFn[name]; ok {
+		oldCancel()
 	}
-	st, ok := status.FromError(err)
-	return ok && st.Code() == codes.Canceled
+	delete(t.SubscribeClients, name)
+	t.subscribeSeq++
+	t.subscribeCancelFn[name] = cancel
+	t.subscribeOwners[name] = t.subscribeSeq
+	return t.subscribeSeq
+}
+
+// releaseSubscription cancels and unregisters subscription name, unless it
+// was stopped or replaced under the same name since ownerID registered it.
+func (t *Target) releaseSubscription(name string, ownerID uint64) {
+	t.m.Lock()
+	defer t.m.Unlock()
+	if t.subscribeOwners[name] != ownerID {
+		return
+	}
+	if cfn, ok := t.subscribeCancelFn[name]; ok {
+		cfn()
+	}
+	delete(t.subscribeCancelFn, name)
+	delete(t.SubscribeClients, name)
+	delete(t.subscribeOwners, name)
+}
+
+// clearSubscribeClient unregisters the client of a finished attempt while
+// keeping the subscription registered for its retry delay.
+func (t *Target) clearSubscribeClient(name string, ownerID uint64) {
+	t.m.Lock()
+	defer t.m.Unlock()
+	if t.subscribeOwners[name] == ownerID {
+		delete(t.SubscribeClients, name)
+	}
 }
 
 // send error to channel with context awareness
@@ -529,6 +584,7 @@ func (t *Target) DeleteSubscription(name string) {
 	}
 	delete(t.subscribeCancelFn, name)
 	delete(t.SubscribeClients, name)
+	delete(t.subscribeOwners, name)
 	delete(t.Subscriptions, name)
 }
 
@@ -561,6 +617,7 @@ func (t *Target) StopSubscription(name string) {
 	}
 	delete(t.subscribeCancelFn, name)
 	delete(t.SubscribeClients, name)
+	delete(t.subscribeOwners, name)
 }
 
 func (t *Target) listenPolls(ctx context.Context) {
