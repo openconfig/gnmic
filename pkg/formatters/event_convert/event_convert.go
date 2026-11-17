@@ -261,6 +261,8 @@ func convertToFloat(i interface{}) (float64, error) {
 		return float64(i), nil
 	case uint64:
 		return float64(i), nil
+	case float32:
+		return float64(i), nil
 	case float64:
 		return i, nil
 	default:
@@ -292,6 +294,8 @@ func convertToString(i interface{}) (string, error) {
 		return strconv.FormatUint(uint64(i), 10), nil
 	case uint64:
 		return strconv.FormatUint(uint64(i), 10), nil
+	case float32:
+		return strconv.FormatFloat(float64(i), 'f', -1, 32), nil
 	case float64:
 		return strconv.FormatFloat(i, 'f', -1, 64), nil
 	case bool:
