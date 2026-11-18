@@ -97,6 +97,7 @@ type Config struct {
 	Password           string           `mapstructure:"password,omitempty"`
 	ConnectTimeWait    time.Duration    `mapstructure:"connect-time-wait,omitempty"`
 	TLS                *types.TLSConfig `mapstructure:"tls,omitempty" json:"tls,omitempty"`
+	TLSFirst           bool             `mapstructure:"tls-first,omitempty"`
 	Format             string           `mapstructure:"format,omitempty"`
 	SplitEvents        bool             `mapstructure:"split-events,omitempty"`
 	AddTarget          string           `mapstructure:"add-target,omitempty"`
@@ -516,6 +517,11 @@ func (n *NatsOutput) createNATSConn(c *Config, i int) (*nats.Conn, error) {
 		}
 		if tlsConfig != nil {
 			opts = append(opts, nats.Secure(tlsConfig))
+			// Add TLSHandshakeFirst NATS TLS-first mode or other endpoints requiring immediate TLS handshake
+			if c.TLSFirst {
+				opts = append(opts, nats.TLSHandshakeFirst())
+				n.logger.Debug("TLS-first mode enabled for NATS connection")
+			}
 		}
 	}
 	nc, err := nats.Connect(c.Address, opts...)
