@@ -222,11 +222,18 @@ func (c *ConsulLocker) Unlock(ctx context.Context, key string) error {
 }
 
 func (c *ConsulLocker) Stop() error {
-	c.m.Lock()
-	defer c.m.Unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	// Snapshot the acquired keys, then release the mutex before calling
+	// Unlock: Unlock acquires c.m itself and sync.Mutex is not reentrant,
+	// so calling it while holding c.m self-deadlocks the caller.
+	keys := make([]string, 0, len(c.acquiredlocks))
+	c.m.Lock()
 	for k := range c.acquiredlocks {
+		keys = append(keys, k)
+	}
+	c.m.Unlock()
+	for _, k := range keys {
 		c.Unlock(ctx, k)
 	}
 	return nil
