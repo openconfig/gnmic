@@ -13,10 +13,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-type Option func(TargetLoader)
+type Option func(Loader)
 
 func WithRegistry(reg *prometheus.Registry) Option {
-	return func(l TargetLoader) {
+	return func(l Loader) {
 		if reg == nil {
 			return
 		}
@@ -25,7 +25,7 @@ func WithRegistry(reg *prometheus.Registry) Option {
 }
 
 func WithActions(acts map[string]map[string]interface{}) Option {
-	return func(l TargetLoader) {
+	return func(l Loader) {
 		if len(acts) == 0 {
 			return
 		}
@@ -34,7 +34,7 @@ func WithActions(acts map[string]map[string]interface{}) Option {
 }
 
 func WithTargetsDefaults(fn func(tc *types.TargetConfig) error) Option {
-	return func(l TargetLoader) {
+	return func(l Loader) {
 		l.WithTargetsDefaults(fn)
 	}
 }

@@ -17,12 +17,12 @@ import (
 
 var testSet = map[string]struct {
 	m1, m2 map[string]*types.TargetConfig
-	output *TargetOperation
+	output *LoaderOperation
 }{
 	"t1": {
 		m1: nil,
 		m2: nil,
-		output: &TargetOperation{
+		output: &LoaderOperation{
 			Add: make(map[string]*types.TargetConfig, 0),
 			Del: make([]string, 0),
 		},
@@ -32,7 +32,7 @@ var testSet = map[string]struct {
 		m2: map[string]*types.TargetConfig{
 			"target1": {Name: "target1"},
 		},
-		output: &TargetOperation{
+		output: &LoaderOperation{
 			Add: map[string]*types.TargetConfig{
 				"target1": {
 					Name: "target1",
@@ -48,7 +48,7 @@ var testSet = map[string]struct {
 		m2: map[string]*types.TargetConfig{
 			"target1": {Name: "target1"},
 		},
-		output: &TargetOperation{
+		output: &LoaderOperation{
 			Add: make(map[string]*types.TargetConfig, 0),
 			Del: make([]string, 0),
 		},
@@ -62,7 +62,7 @@ var testSet = map[string]struct {
 			"target1": {Name: "target1"},
 			"target2": {Name: "target2"},
 		},
-		output: &TargetOperation{
+		output: &LoaderOperation{
 			Add: make(map[string]*types.TargetConfig, 0),
 			Del: make([]string, 0),
 		},
@@ -72,7 +72,7 @@ var testSet = map[string]struct {
 			"target1": {Name: "target1"},
 		},
 		m2: nil,
-		output: &TargetOperation{
+		output: &LoaderOperation{
 			Add: make(map[string]*types.TargetConfig, 0),
 			Del: []string{"target1"},
 		},
@@ -85,7 +85,7 @@ var testSet = map[string]struct {
 			"target1": {Name: "target1"},
 			"target2": {Name: "target2"},
 		},
-		output: &TargetOperation{
+		output: &LoaderOperation{
 			Add: map[string]*types.TargetConfig{
 				"target2": {
 					Name: "target2",
@@ -101,7 +101,7 @@ var testSet = map[string]struct {
 		m2: map[string]*types.TargetConfig{
 			"target2": {Name: "target2"},
 		},
-		output: &TargetOperation{
+		output: &LoaderOperation{
 			Add: map[string]*types.TargetConfig{
 				"target2": {
 					Name: "target2",
@@ -118,7 +118,7 @@ var testSet = map[string]struct {
 			"target2": {Name: "target2"},
 			"target3": {Name: "target3"},
 		},
-		output: &TargetOperation{
+		output: &LoaderOperation{
 			Add: map[string]*types.TargetConfig{
 				"target2": {
 					Name: "target2",
@@ -139,7 +139,7 @@ var testSet = map[string]struct {
 			"target2": {Name: "target2"},
 			"target3": {Name: "target3"},
 		},
-		output: &TargetOperation{
+		output: &LoaderOperation{
 			Add: map[string]*types.TargetConfig{
 				"target3": {
 					Name: "target3",
@@ -157,7 +157,7 @@ var testSet = map[string]struct {
 			"target1": {Address: "ip1"},
 			"target2": {Address: "ip2new"},
 		},
-		output: &TargetOperation{
+		output: &LoaderOperation{
 			Add: map[string]*types.TargetConfig{
 				"target2": {
 					Address: "ip2new",
@@ -173,7 +173,7 @@ var testSet = map[string]struct {
 		m2: map[string]*types.TargetConfig{
 			"target1": {Name: "target1", Tags: []string{"a", "b"}},
 		},
-		output: &TargetOperation{
+		output: &LoaderOperation{
 			Add: map[string]*types.TargetConfig{
 				"target1": {Name: "target1", Tags: []string{"a", "b"}},
 			},
@@ -183,7 +183,7 @@ var testSet = map[string]struct {
 	"t12-both-empty": {
 		m1: map[string]*types.TargetConfig{},
 		m2: map[string]*types.TargetConfig{},
-		output: &TargetOperation{
+		output: &LoaderOperation{
 			Add: make(map[string]*types.TargetConfig, 0),
 			Del: make([]string, 0),
 		},
@@ -195,7 +195,7 @@ var testSet = map[string]struct {
 		m2: map[string]*types.TargetConfig{
 			"target1": {Name: "target1", Tags: []string{"b", "a"}},
 		},
-		output: &TargetOperation{
+		output: &LoaderOperation{
 			Add: map[string]*types.TargetConfig{
 				"target1": {Name: "target1", Tags: []string{"b", "a"}},
 			},

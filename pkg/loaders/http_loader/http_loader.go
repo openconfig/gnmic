@@ -39,7 +39,7 @@ const (
 )
 
 func init() {
-	loaders.Register(loaderType, func() loaders.TargetLoader {
+	loaders.Register(loaderType, func() loaders.Loader {
 		return &httpLoader{
 			cfg:         &cfg{},
 			m:           new(sync.RWMutex),
@@ -168,8 +168,8 @@ func (h *httpLoader) Init(ctx context.Context, cfg map[string]interface{}, logge
 	return nil
 }
 
-func (h *httpLoader) Start(ctx context.Context) chan *loaders.TargetOperation {
-	opChan := make(chan *loaders.TargetOperation)
+func (h *httpLoader) Start(ctx context.Context) chan *loaders.LoaderOperation {
+	opChan := make(chan *loaders.LoaderOperation)
 	ticker := time.NewTicker(h.cfg.Interval)
 	go func() {
 		defer close(opChan)
@@ -200,7 +200,7 @@ func (h *httpLoader) RunOnce(ctx context.Context) (map[string]*types.TargetConfi
 	return readTargets, nil
 }
 
-func (h *httpLoader) update(ctx context.Context, opChan chan *loaders.TargetOperation) {
+func (h *httpLoader) update(ctx context.Context, opChan chan *loaders.LoaderOperation) {
 	readTargets, err := h.getTargets()
 	if err != nil {
 		h.logger.Error("failed to read targets from HTTP server:", "err", err)
@@ -307,7 +307,7 @@ func (h *httpLoader) getTargets() (map[string]*types.TargetConfig, error) {
 	return result, nil
 }
 
-func (h *httpLoader) updateTargets(ctx context.Context, tcs map[string]*types.TargetConfig, opChan chan *loaders.TargetOperation) {
+func (h *httpLoader) updateTargets(ctx context.Context, tcs map[string]*types.TargetConfig, opChan chan *loaders.LoaderOperation) {
 	var err error
 	for _, tc := range tcs {
 		err = h.targetConfigFn(tc)
@@ -388,11 +388,11 @@ func (h *httpLoader) initializeAction(cfg map[string]interface{}) (actions.Actio
 	return nil, errors.New("missing type field under action")
 }
 
-func (h *httpLoader) runActions(ctx context.Context, tcs map[string]*types.TargetConfig, targetOp *loaders.TargetOperation) (*loaders.TargetOperation, error) {
+func (h *httpLoader) runActions(ctx context.Context, tcs map[string]*types.TargetConfig, targetOp *loaders.LoaderOperation) (*loaders.LoaderOperation, error) {
 	if h.numActions == 0 {
 		return targetOp, nil
 	}
-	result := &loaders.TargetOperation{
+	result := &loaders.LoaderOperation{
 		Add: make(map[string]*types.TargetConfig, len(targetOp.Add)),
 		Del: make([]string, 0, len(targetOp.Del)),
 	}
