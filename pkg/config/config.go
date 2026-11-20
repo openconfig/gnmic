@@ -11,6 +11,7 @@ package config
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -196,6 +197,7 @@ type LocalFlags struct {
 	SetUpdateCli              []string      `mapstructure:"set-update-cli,omitempty" yaml:"set-update-cli,omitempty" json:"set-update-cli,omitempty"`
 	SetUpdateCliFile          string        `mapstructure:"set-update-cli-file,omitempty" yaml:"set-update-cli-file,omitempty" json:"set-update-cli-file,omitempty"`
 	SetCommitId               string        `mapstructure:"set-commit-id,omitempty" yaml:"set-commit-id,omitempty" json:"set-commit-id,omitempty"`
+	SetCommitGenerateId       bool          `mapstructure:"set-commit-generate-id,omitempty" yaml:"set-commit-generate-id,omitempty" json:"set-commit-generate-id,omitempty"`
 	SetCommitRequest          bool          `mapstructure:"set-commit-request,omitempty" yaml:"set-commit-request,omitempty" json:"set-commit-request,omitempty"`
 	SetCommitRollbackDuration time.Duration `mapstructure:"set-commit-rollback-duration,omitempty" yaml:"set-commit-rollback-duration,omitempty" json:"set-commit-rollback-duration,omitempty"`
 	SetCommitCancel           bool          `mapstructure:"set-commit-cancel,omitempty" yaml:"set-commit-cancel,omitempty" json:"set-commit-cancel,omitempty"`
@@ -1111,7 +1113,7 @@ func (c *Config) ValidateSetInput() error {
 		len(c.LocalFlags.SetReplaceCliFile) == 0 &&
 		len(c.LocalFlags.SetUpdateCliFile) == 0 &&
 		len(c.LocalFlags.SetRequestProtoFile) == 0 &&
-		c.LocalFlags.SetCommitId == "" {
+		(c.LocalFlags.SetCommitId == "" || c.LocalFlags.SetCommitGenerateId) {
 		return errors.New("no paths or request file provided")
 	}
 	if len(c.LocalFlags.SetUpdateFile) > 0 && len(c.LocalFlags.SetUpdateValue) > 0 {
@@ -1132,6 +1134,33 @@ func (c *Config) ValidateSetInput() error {
 	if len(c.LocalFlags.SetUnionReplacePath) != len(c.LocalFlags.SetUnionReplaceValue) && len(c.LocalFlags.SetUnionReplacePath) != len(c.LocalFlags.SetUnionReplaceFile) {
 		return errors.New("missing union-replace value/file or path")
 	}
+	return nil
+}
+
+func (c *Config) ValidateCommitInput(cmd *cobra.Command) error {
+	var err error
+
+	if !cmd.Flags().Changed("commit-id") && (c.LocalFlags.SetCommitConfirm || c.LocalFlags.SetCommitCancel || (!c.LocalFlags.SetCommitRequest && cmd.Flags().Changed("rollback-duration"))) {
+		return errors.New("missing commit-id for commit action")
+	}
+
+	if c.LocalFlags.SetCommitRequest {
+		if cmd.Flags().Changed("commit-id") {
+			return nil
+		}
+		if c.LocalFlags.SetCommitGenerateId {
+			var commitId = rand.Text()[:8]
+			err = cmd.Flags().Set("commit-id", commitId)
+			cmd.Printf("generated commit-id: %s\n", commitId) // ToDo: find a way to put the commit-id inside response JSON
+			if err != nil {
+				return err
+			}
+			return nil
+		}
+	} else {
+		return errors.New("commit-id or commit-generate-id have to be provided to request commit")
+	}
+
 	return nil
 }
 
