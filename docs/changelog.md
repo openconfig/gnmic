@@ -5,6 +5,62 @@ tags:
 
 ## Changelog
 
+### v0.50.0 - 20 November 2026
+
+- Collector mode:
+
+    - **Targets whose start failed are retried.** A target added while its device is unreachable, or re-enabled while it is still down, no longer stays `failed` until the collector restarts. A per-target retry loop probes the device every `retry-timer` (10s if unset, plus up to 20% jitter) without holding the target lock, so removing, disabling or reconfiguring the target is never blocked by a slow device. While the device is down the target stays `failed`, `enabled`, with its failure reason. The loop stops once the target starts, is removed or disabled, or is reassigned to another cluster member. Attempts are counted in the new `gnmic_target_start_retries_total{name}` metric. Contributed by @git-cricardez ([#1042](https://github.com/openconfig/gnmic/pull/1042)).
+
+    - A target that was unreachable at its first start now starts all of its subscriptions together once it comes up. Previously, a subscription re-applied while the target was down could start on its own and mark the target `running`, which ended the retry and left the target's other subscriptions stopped until it was recreated. Subscriptions applied to a target that is not `running` are now started with the target. A target that rejects `Capabilities` therefore gets no subscriptions, as on its first start. Target state refreshes from the connection watcher no longer overwrite a concurrent `failed` state with a stale `starting`. Contributed by @abachir ([#1061](https://github.com/openconfig/gnmic/pull/1061)).
+
+    - Fixed a goroutine leak and a metric-series leak when a target is deleted or reassigned to another member. The Consul locker no longer leaves one goroutine blocked per deleted target, and every per-target series is removed from the registry. **Metrics change:** a deleted target's series disappear instead of remaining with `gnmic_target_up` set to `0`. Contributed by @vuthinh0301 ([#1009](https://github.com/openconfig/gnmic/issues/1009), [#1010](https://github.com/openconfig/gnmic/pull/1010)).
+
+    - Kubernetes locker: new optional `qps` and `burst` settings for the Kubernetes API client used for lease renewal and peer discovery. The client defaults (5 requests/s, burst 10) can delay requests in larger or busier deployments and cause `k8s_locker watch ended with error` messages. Unset or zero values keep the defaults. Contributed by @valleedelisle ([#1043](https://github.com/openconfig/gnmic/pull/1043)).
+
+- REST API:
+
+    - **Target names containing `/` can be addressed.** Escape the name as a single path segment, for example `GET /api/v1/targets/rack%2Frouter` or `PATCH /api/v1/config/targets/rack%2Frouter/subscriptions`. Path parameters are decoded exactly once, so `rack%252Frouter` addresses a target literally named `rack%2Frouter`. An unescaped `/api/v1/targets/rack/router` still returns `404`. This applies to every route with a name parameter, on both the `subscribe` and `collector` API servers. The clustering requests between instances and the `gnmic collector` CLI commands escape names automatically ([#1066](https://github.com/openconfig/gnmic/pull/1066)).
+
+    - Trailing-slash and path-cleaning redirects (`//`, `/./`) keep escaped names intact, and always redirect to a path on the same host. A redirect is only sent when its target is a valid route; other requests return `404` ([#1066](https://github.com/openconfig/gnmic/pull/1066)).
+
+- Clustering (`subscribe` command):
+
+    - Fixed a deadlock where the leader held the configuration lock while dispatching a loaded target to itself, which wedged single-instance clusters on their first target. Contributed by @nlgotz ([#1018](https://github.com/openconfig/gnmic/issues/1018), [#1019](https://github.com/openconfig/gnmic/pull/1019)).
+
+    - Rebalancing no longer loses a target whose lock outlived its configuration, and one such lock no longer aborts the whole rebalance. Contributed by @nlgotz ([#1020](https://github.com/openconfig/gnmic/issues/1020), [#1021](https://github.com/openconfig/gnmic/pull/1021)).
+
+- Proxy:
+
+    - A target deleted by the loader is forgotten. Get requests naming it return `target "<name>" is not known` instead of being sent to its old address, and it is no longer listed by `GET /api/v1/config/targets`. Contributed by @olitez ([#1058](https://github.com/openconfig/gnmic/pull/1058)).
+
+- Subscriptions:
+
+    - Subscription restarts are tracked per attempt, so a cancelled earlier attempt can no longer clear or cancel the attempt that replaced it. A `Canceled` status sent by the target is now retried like other stream errors; only a stop requested by gNMIc, or a closed connection, ends the subscription ([#1065](https://github.com/openconfig/gnmic/pull/1065)).
+
+- Event formatting and outputs:
+
+    - **A malformed update no longer drops the whole notification.** Non-atomic notifications are decoded update by update: valid values and deletes are kept and the failing update is reported with its context. Atomic notifications are still accepted or rejected as a whole, and each notification in a Get response is handled on its own. Partial results are written by the outputs and printed by the `get` and `subscribe` commands. Contributed by @pood1e ([#1067](https://github.com/openconfig/gnmic/pull/1067)).
+
+    - Prometheus remote write: each chunk of up to `max-time-series-per-write` series is written independently, so a rejected chunk no longer contaminates the following ones. The request body is rebuilt for every retry; previously a retry could send an empty body. HTTP 5xx, HTTP 429 and transport errors are retried with cancelable exponential backoff (100ms up to 6.4s), within the `max-retries` budget of total attempts. See [Prometheus remote write output](user_guide/outputs/prometheus_write_output.md). Contributed by @pood1e ([#1068](https://github.com/openconfig/gnmic/pull/1068)).
+
+- Build and security:
+
+    - Go toolchain bumped to **1.26.10**, which adds the `crypto/x509` distrust list for CVE-2026-111943. Binaries and container images built from this release include the fix. Contributed by @drewelliott ([#1047](https://github.com/openconfig/gnmic/issues/1047), [#1048](https://github.com/openconfig/gnmic/pull/1048)).
+
+- Dependencies:
+
+    - Bumped `google.golang.org/grpc` from 1.83.2 to 1.85.0.
+    - Bumped `github.com/prometheus/client_golang` from 1.23.2 to 1.24.1 and `github.com/prometheus/client_model` from 0.6.2 to 0.6.3.
+    - Bumped `github.com/prometheus/prometheus` from 0.311.3 to 0.315.0.
+    - Bumped `github.com/hashicorp/consul/api` from 1.32.1 to 1.35.0.
+    - Bumped `github.com/hashicorp/go-plugin` from 1.7.0 to 1.8.0.
+    - Bumped `k8s.io/api` and `k8s.io/apimachinery` from 0.37.0 to 0.37.1.
+    - Bumped `github.com/gosnmp/gosnmp` from 1.44.0 to 1.45.0.
+    - Bumped `github.com/moby/moby/client` from 0.5.1 to 0.6.0.
+    - Bumped `github.com/jlaffaye/ftp` from 0.2.0 to 0.2.4.
+    - Bumped `github.com/zestor-dev/zestor` from 0.0.2 to 0.0.3.
+    - Bumped `golang.org/x/text` from 0.41.0 to 0.43.0 and `golang.org/x/sync` from 0.22.0 to 0.25.0.
+
 ### v0.49.0 - 16 September 2026
 
 - gNMI server:
