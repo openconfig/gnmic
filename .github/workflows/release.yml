@@ -67,3 +67,7 @@ jobs:
           args: release --clean --verbose
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # release the pushed tag: goreleaser otherwise picks the highest
+          # version-sorted tag on the commit, and git sorts v0.50.0-rc1
+          # above v0.50.0.
+          GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
