@@ -487,3 +487,10 @@ gnmic 2020/07/06 22:03:35.593082 target 'router1.lab.com' initialized
 ^C
 received signal 'interrupt'. terminating...
 ```
+## Dynamic Subscription Discovery
+
+In addition to static configuration files, subscriptions can also be dynamically discovered at runtime using `gnmic`'s loader subsystem. 
+
+For example, using the [Consul Loader](targets/target_discovery/consul_discovery.md), `gnmic` can watch a specific Consul KV prefix for new or modified subscriptions. When a new subscription payload is added to Consul, `gnmic` will instantly parse the payload and hot-reload the subscriptions for all active targets without dropping existing connections.
+
+To configure dynamic subscription discovery, refer to the loader-specific documentation (e.g., [`subscriptions-key-prefix` in Consul Loader](targets/target_discovery/consul_discovery.md#key-value-kv-watch)).

@@ -20,19 +20,19 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// TargetLoader discovers a set of target configurations for gNMIc to run RPCs against.
+// Loader discovers a set of target configurations for gNMIc to run RPCs against.
 // RunOnce should return a map of target configs and is meant to be used with Unary RPCs.
 // Start runs a goroutine in the background that updates added/removed target configs on the
 // returned channel.
-type TargetLoader interface {
+type Loader interface {
 	// Init initializes the target loader given the config, logger and options
 	Init(ctx context.Context, cfg map[string]interface{}, l *slog.Logger, opts ...Option) error
 	// RunOnce runs the loader only once, returning a map of target configs
 	RunOnce(ctx context.Context) (map[string]*types.TargetConfig, error)
 	// Start starts the target loader, running periodic polls or a long watch.
-	// It returns a channel of TargetOperation from which the function caller can
-	// receive the added/removed target configs
-	Start(context.Context) chan *TargetOperation
+	// It returns a channel of LoaderOperation from which the function caller can
+	// receive the added/removed configs
+	Start(context.Context) chan *LoaderOperation
 	// RegsiterMetrics registers the loader metrics with the provided registry
 	RegisterMetrics(*prometheus.Registry)
 	// WithActions passes the actions configuration to the target loader
@@ -41,7 +41,7 @@ type TargetLoader interface {
 	WithTargetsDefaults(func(tc *types.TargetConfig) error)
 }
 
-type Initializer func() TargetLoader
+type Initializer func() Loader
 
 var Loaders = map[string]Initializer{}
 
@@ -63,9 +63,11 @@ func BindLogger(parent *slog.Logger, loaderType string) *slog.Logger {
 	return logging.Component(parent, "loader", loaderType, "")
 }
 
-type TargetOperation struct {
-	Add map[string]*types.TargetConfig
-	Del []string
+type LoaderOperation struct {
+	Add    map[string]*types.TargetConfig
+	Del    []string
+	SubAdd map[string]*types.SubscriptionConfig
+	SubDel []string
 }
 
 func DecodeConfig(src, dst interface{}) error {
@@ -81,10 +83,12 @@ func DecodeConfig(src, dst interface{}) error {
 	return decoder.Decode(src)
 }
 
-func Diff(currentMap, newMap map[string]*types.TargetConfig) *TargetOperation {
-	result := &TargetOperation{
-		Add: make(map[string]*types.TargetConfig, 0),
-		Del: make([]string, 0),
+func Diff(currentMap, newMap map[string]*types.TargetConfig) *LoaderOperation {
+	result := &LoaderOperation{
+		Add:    make(map[string]*types.TargetConfig, 0),
+		Del:    make([]string, 0),
+		SubAdd: make(map[string]*types.SubscriptionConfig, 0),
+		SubDel: make([]string, 0),
 	}
 	// handle removed and added targets
 	if len(currentMap) == 0 {

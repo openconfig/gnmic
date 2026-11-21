@@ -39,7 +39,7 @@ const (
 )
 
 func init() {
-	loaders.Register(loaderType, func() loaders.TargetLoader {
+	loaders.Register(loaderType, func() loaders.Loader {
 		return &dockerLoader{
 			cfg:         new(cfg),
 			wg:          new(sync.WaitGroup),
@@ -227,8 +227,8 @@ func (d *dockerLoader) createDockerClient() (*dClient.Client, error) {
 	return dClient.New(opts...)
 }
 
-func (d *dockerLoader) Start(ctx context.Context) chan *loaders.TargetOperation {
-	opChan := make(chan *loaders.TargetOperation)
+func (d *dockerLoader) Start(ctx context.Context) chan *loaders.LoaderOperation {
+	opChan := make(chan *loaders.LoaderOperation)
 	ticker := time.NewTicker(d.cfg.Interval)
 	go func() {
 		defer close(opChan)
@@ -263,7 +263,7 @@ func (d *dockerLoader) RunOnce(ctx context.Context) (map[string]*types.TargetCon
 }
 
 // update runs the docker loader once and updates the added/remove target to the opChan
-func (d *dockerLoader) update(ctx context.Context, opChan chan *loaders.TargetOperation) {
+func (d *dockerLoader) update(ctx context.Context, opChan chan *loaders.LoaderOperation) {
 	readTargets, err := d.RunOnce(ctx)
 	if err != nil {
 		d.logger.Error("failed to read targets from docker daemon:", "err", err)
@@ -462,7 +462,7 @@ func (d *dockerLoader) getTargets(ctx context.Context) (map[string]*types.Target
 	return readTargets, nil
 }
 
-func (d *dockerLoader) diff(m map[string]*types.TargetConfig) *loaders.TargetOperation {
+func (d *dockerLoader) diff(m map[string]*types.TargetConfig) *loaders.LoaderOperation {
 	d.m.Lock()
 	defer d.m.Unlock()
 	result := loaders.Diff(d.lastTargets, m)
@@ -491,7 +491,7 @@ func (d *dockerLoader) String() string {
 	return logging.RedactedJSON(d.cfg)
 }
 
-func (d *dockerLoader) updateTargets(ctx context.Context, tcs map[string]*types.TargetConfig, opChan chan *loaders.TargetOperation) {
+func (d *dockerLoader) updateTargets(ctx context.Context, tcs map[string]*types.TargetConfig, opChan chan *loaders.LoaderOperation) {
 	var err error
 	for _, tc := range tcs {
 		err = d.targetConfigFn(tc)
@@ -567,14 +567,14 @@ func (d *dockerLoader) initializeAction(cfg map[string]interface{}) (actions.Act
 	return nil, errors.New("missing type field under action")
 }
 
-func (d *dockerLoader) runActions(ctx context.Context, tcs map[string]*types.TargetConfig, targetOp *loaders.TargetOperation) (*loaders.TargetOperation, error) {
+func (d *dockerLoader) runActions(ctx context.Context, tcs map[string]*types.TargetConfig, targetOp *loaders.LoaderOperation) (*loaders.LoaderOperation, error) {
 	if d.numActions == 0 {
 		return targetOp, nil
 	}
-	opChan := make(chan *loaders.TargetOperation)
+	opChan := make(chan *loaders.LoaderOperation)
 	// some actions are defined,
 	doneCh := make(chan struct{})
-	result := &loaders.TargetOperation{
+	result := &loaders.LoaderOperation{
 		Add: make(map[string]*types.TargetConfig, len(targetOp.Add)),
 		Del: make([]string, 0, len(targetOp.Del)),
 	}
@@ -611,7 +611,7 @@ func (d *dockerLoader) runActions(ctx context.Context, tcs map[string]*types.Tar
 				d.logger.Error("failed running OnAdd actions", "err", err)
 				return
 			}
-			opChan <- &loaders.TargetOperation{Add: map[string]*types.TargetConfig{n: tc}}
+			opChan <- &loaders.LoaderOperation{Add: map[string]*types.TargetConfig{n: tc}}
 		}(n, tAdd)
 	}
 	// run OnDelete actions
@@ -623,7 +623,7 @@ func (d *dockerLoader) runActions(ctx context.Context, tcs map[string]*types.Tar
 				d.logger.Error("failed running OnDelete actions", "err", err)
 				return
 			}
-			opChan <- &loaders.TargetOperation{Del: []string{name}}
+			opChan <- &loaders.LoaderOperation{Del: []string{name}}
 		}(tDel)
 	}
 	wg.Wait()
