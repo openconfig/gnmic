@@ -30,7 +30,7 @@ dockers_v2:
       - ghcr.io/openconfig/gnmic
     tags:
       - '{{ replace .Version "v" "" }}'
-      - "{{ if not .IsSnapshot }}latest{{ end }}"
+      - "{{ if and (not .IsSnapshot) (not .Prerelease) }}latest{{ end }}"
     platforms:
       - linux/amd64
       - linux/arm64
@@ -47,7 +47,7 @@ dockers_v2:
       - ghcr.io/openconfig/gnmic
     tags:
       - '{{ replace .Version "v" "" }}-scratch'
-      - "{{ if not .IsSnapshot }}latest-scratch{{ end }}"
+      - "{{ if and (not .IsSnapshot) (not .Prerelease) }}latest-scratch{{ end }}"
     platforms:
       - linux/amd64
     sbom: false
@@ -69,6 +69,10 @@ snapshot:
   version_template: "{{ .Tag }}"
 changelog:
   use: github-native
+release:
+  # tags with a pre-release suffix, such as vX.Y.X-rc1, are published as
+  # GitHub pre-releases.
+  prerelease: auto
 
 nfpms:
   - id: gnmic
