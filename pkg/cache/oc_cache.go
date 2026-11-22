@@ -236,6 +236,11 @@ func (gc *gnmiCache) handleSingleQuery(ctx context.Context, ro *ReadOpts, ch cha
 						}
 						switch gl := l.Value().(type) {
 						case *gnmi.Notification:
+							// Get drops these in read(). ONCE and SAMPLE share this
+							// query, so a stale leaf must not be replayed here either.
+							if gc.expired(gl.GetTimestamp(), time.Now()) {
+								return nil
+							}
 							if ro.OverrideTS {
 								// override timestamp
 								gl = proto.Clone(gl).(*gnmi.Notification)
@@ -398,6 +403,12 @@ func (gc *gnmiCache) handleOnChangeQuery(ctx context.Context, ro *ReadOpts, ch c
 
 func (gc *gnmiCache) Stop() {}
 
+// expired reports whether ts is older than the cache expiration.
+// A non-positive expiration disables the check.
+func (gc *gnmiCache) expired(ts int64, now time.Time) bool {
+	return gc.expiration > 0 && time.Unix(0, ts).Before(now.Add(-gc.expiration))
+}
+
 func (gc *gnmiCache) read(sub, target string, p *gnmi.Path) map[string][]*gnmi.Notification {
 	notificationChan := make(chan *Notification)
 	notifications := make(map[string][]*gnmi.Notification, 0)
@@ -436,8 +447,7 @@ func (gc *gnmiCache) read(sub, target string, p *gnmi.Path) map[string][]*gnmi.N
 					}
 					switch notif := v.(type) {
 					case *gnmi.Notification:
-						if gc.expiration > 0 &&
-							time.Unix(0, notif.Timestamp).Before(now.Add(time.Duration(-gc.expiration))) {
+						if gc.expired(notif.Timestamp, now) {
 							return nil
 						}
 						notificationChan <- &Notification{
