@@ -37,6 +37,16 @@ const (
 	// before the next attempt when its config sets no retry-timer, the same
 	// default the classic (non-collector) target loop uses.
 	defaultTargetRetryTimer = 10 * time.Second
+	// defaultTargetLockTimeout bounds the wait for a target's cluster lock
+	// when its config sets no timeout. Lockers retry until the key is free,
+	// and start runs on the event loop, so an unbounded wait on a lock held
+	// by another member stops every later target event.
+	defaultTargetLockTimeout = 10 * time.Second
+	// defaultReconcileInterval is how often running targets are checked
+	// against the config store and this member's assignments. The store's
+	// watch channels drop events when full, so an event alone cannot be
+	// relied on to stop a deleted target and release its lock.
+	defaultReconcileInterval = 30 * time.Second
 )
 
 type ManagedTarget struct {
@@ -63,6 +73,11 @@ type ManagedTarget struct {
 	// retryCancel stops the pending retry of a target whose start failed;
 	// nil when no retry is scheduled. Protected by mt.Lock.
 	retryCancel context.CancelFunc
+	// lockCancel aborts start's wait for the target's cluster lock; nil
+	// when no wait is in flight. lockAborted makes every later wait fail at
+	// once. Protected by mu, not mt.Lock, which start holds while it waits.
+	lockCancel  context.CancelFunc
+	lockAborted bool
 }
 
 func (mt *ManagedTarget) setLastError(msg string) {
@@ -80,6 +95,26 @@ func (mt *ManagedTarget) getLastError() string {
 func (mt *ManagedTarget) clearLastError() {
 	mt.mu.Lock()
 	mt.lastError = ""
+	mt.mu.Unlock()
+}
+
+func (mt *ManagedTarget) setLockCancel(cancel context.CancelFunc) {
+	mt.mu.Lock()
+	mt.lockCancel = cancel
+	if cancel != nil && mt.lockAborted {
+		cancel()
+	}
+	mt.mu.Unlock()
+}
+
+// abortLockWait stops the in-flight and every later wait for the target's
+// cluster lock, so remove does not wait out the lock timeout for mt.Lock.
+func (mt *ManagedTarget) abortLockWait() {
+	mt.mu.Lock()
+	mt.lockAborted = true
+	if mt.lockCancel != nil {
+		mt.lockCancel()
+	}
 	mt.mu.Unlock()
 }
 
@@ -139,6 +174,8 @@ type TargetsManager struct {
 	mas         *sync.RWMutex
 	assignments map[string]struct{}
 	reg         *prometheus.Registry
+
+	reconcileInterval time.Duration
 }
 
 func NewTargetsManager(ctx context.Context, store *collstore.Store, pipeline chan *pipeline.Msg, reg *prometheus.Registry) *TargetsManager {
@@ -156,6 +193,8 @@ func NewTargetsManager(ctx context.Context, store *collstore.Store, pipeline cha
 		mas:           new(sync.RWMutex),
 		assignments:   make(map[string]struct{}),
 		reg:           reg,
+
+		reconcileInterval: defaultReconcileInterval,
 	}
 	tm.registerMetrics()
 	return tm
@@ -251,6 +290,8 @@ func (tm *TargetsManager) Start(locker lockers.Locker, wg *sync.WaitGroup) error
 		if clustering != nil {
 			defer assignmentsCancel()
 		}
+		reconcileTicker := time.NewTicker(tm.reconcileInterval)
+		defer reconcileTicker.Stop()
 		for {
 			select {
 			case <-tm.ctx.Done():
@@ -324,6 +365,8 @@ func (tm *TargetsManager) Start(locker lockers.Locker, wg *sync.WaitGroup) error
 				case store.EventTypeDelete:
 					tm.setAssigned(ev.Name, false)
 				}
+			case <-reconcileTicker.C:
+				tm.reconcile()
 			}
 		}
 	}()
@@ -637,7 +680,11 @@ func (tm *TargetsManager) start(mt *ManagedTarget) error {
 	}
 	if tm.locker != nil && tm.incluster {
 		tm.logger.Info("acquiring lock for target", "name", mt.Name)
-		ok, err := tm.locker.Lock(ctx, tm.targetLockKey(mt.Name), []byte(tm.clustering.InstanceName))
+		lockCtx, lockCancel := context.WithTimeout(ctx, tm.lockTimeout(mt))
+		mt.setLockCancel(lockCancel)
+		ok, err := tm.locker.Lock(lockCtx, tm.targetLockKey(mt.Name), []byte(tm.clustering.InstanceName))
+		mt.setLockCancel(nil)
+		lockCancel()
 		if err != nil {
 			tm.logger.Error("failed to acquire lock for target", "name", mt.Name, "error", err)
 			mt.setLastError(err.Error())
@@ -735,6 +782,15 @@ func (tm *TargetsManager) start(mt *ManagedTarget) error {
 	return nil
 }
 
+// lockTimeout is how long start waits for the target's cluster lock. Callers
+// hold mt.Lock.
+func (tm *TargetsManager) lockTimeout(mt *ManagedTarget) time.Duration {
+	if mt.T != nil && mt.T.Config != nil && mt.T.Config.Timeout > 0 {
+		return mt.T.Config.Timeout
+	}
+	return defaultTargetLockTimeout
+}
+
 func (tm *TargetsManager) targetGRPCOpts(ctx context.Context, mt *ManagedTarget) []grpc.DialOption {
 	if mt.cfg.TunnelTargetType != "" {
 		return []grpc.DialOption{grpc.WithContextDialer(tm.tunDialerFn(ctx, mt))}
@@ -801,6 +857,8 @@ func (tm *TargetsManager) remove(name string) {
 	delete(tm.targets, name)
 	tm.mu.Unlock()
 	if mt != nil {
+		// a retry may hold mt.Lock while it waits for the cluster lock
+		mt.abortLockWait()
 		mt.Lock()
 		mt.cancelRetry()
 		_ = tm.stop(mt)
@@ -813,6 +871,53 @@ func (tm *TargetsManager) remove(name string) {
 	// The target is gone from tm.targets, so the periodic metrics updater will
 	// not recreate its series; drop them now instead of leaving phantom series.
 	tm.deleteTargetMetrics(name)
+}
+
+// reconcile stops running targets that are no longer configured or assigned
+// to this member and starts configured, assigned targets that are not
+// running. It catches up on target and assignment events the store's watch
+// channels dropped. It runs on the event loop.
+func (tm *TargetsManager) reconcile() {
+	cfgs, err := tm.store.Config.List("targets")
+	if err != nil {
+		tm.logger.Error("reconcile: failed to list targets", "error", err)
+		return
+	}
+	if tm.incluster {
+		assigned, err := tm.store.Config.Keys("assignments")
+		if err != nil {
+			tm.logger.Error("reconcile: failed to list assignments", "error", err)
+			return
+		}
+		tm.mas.Lock()
+		tm.assignments = make(map[string]struct{}, len(assigned))
+		for _, name := range assigned {
+			tm.assignments[name] = struct{}{}
+		}
+		tm.mas.Unlock()
+	}
+	tm.mu.RLock()
+	running := make([]string, 0, len(tm.targets))
+	for name := range tm.targets {
+		running = append(running, name)
+	}
+	tm.mu.RUnlock()
+	for _, name := range running {
+		if _, ok := cfgs[name]; ok && tm.amIAssigned(name) {
+			continue
+		}
+		tm.logger.Info("reconcile: removing target no longer configured or assigned", "name", name)
+		tm.remove(name)
+	}
+	for name, obj := range cfgs {
+		cfg, ok := obj.(*types.TargetConfig)
+		if !ok || !tm.amIAssigned(name) || tm.Lookup(name) != nil {
+			continue
+		}
+		tm.logger.Info("reconcile: starting configured target", "name", name)
+		tm.apply(name, cfg)
+		tm.stats.targetUPMetric.WithLabelValues(name).Set(1)
+	}
 }
 
 // apply subscription to all targets that reference it or to those that do not reference any subscription

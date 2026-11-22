@@ -156,6 +156,54 @@ func TestClusterManager_reconcileAssignments_assignsTargets(t *testing.T) {
 	}
 }
 
+// The leader deletes a target's config from every other member, the
+// assignee included, whether or not the target is assigned.
+func TestClusterManager_handleTargetDelete_deletesFromOtherMembers(t *testing.T) {
+	for _, assignee := range []string{"", "node1", "node2"} {
+		t.Run("assignee="+assignee, func(t *testing.T) {
+			var mu sync.Mutex
+			deletes := map[string]int{}
+			newMember := func(id string) *Member {
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if r.Method != http.MethodDelete || r.URL.Path != apiconst.TargetsConfigAPIv1URL+"/router1" {
+						t.Errorf("%s: unexpected %s %s", id, r.Method, r.URL.Path)
+					}
+					mu.Lock()
+					deletes[id]++
+					mu.Unlock()
+				}))
+				t.Cleanup(srv.Close)
+				return &Member{ID: id, Address: strings.TrimPrefix(srv.URL, "http://")}
+			}
+
+			fl := testutil.NewFakeLocker()
+			if assignee != "" {
+				fl.SetLock(targetLockKey("router1", "lab"), assignee)
+			}
+			cm := NewClusterManager(testutil.NewTestStore(t))
+			cm.logger = slog.Default()
+			cm.clusteringConfig = &config.Clustering{ClusterName: "lab", InstanceName: "node1"}
+			cm.locker = fl
+			cm.assigner = &captureAssigner{}
+			cm.members = map[string]*Member{
+				"node1": newMember("node1"),
+				"node2": newMember("node2"),
+				"node3": newMember("node3"),
+			}
+
+			if err := cm.handleTargetDelete(context.Background(), "router1"); err != nil {
+				t.Fatalf("handleTargetDelete: %v", err)
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			want := map[string]int{"node2": 1, "node3": 1}
+			if len(deletes) != len(want) || deletes["node2"] != 1 || deletes["node3"] != 1 {
+				t.Fatalf("deletes = %v, want %v", deletes, want)
+			}
+		})
+	}
+}
+
 func TestCalculateMembersQuota_distributesRemainder(t *testing.T) {
 	members := map[string]*Member{
 		"m1": {ID: "m1"},

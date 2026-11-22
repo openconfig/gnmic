@@ -607,15 +607,14 @@ func (c *ClusterManager) getMostLoadedMember(members map[string]*Member) *Member
 }
 
 func (c *ClusterManager) handleTargetDelete(ctx context.Context, target string) error {
-	// find target assignment
-	assignedTo := c.getAssignment(ctx, target)
-	if assignedTo == nil {
-		return fmt.Errorf("target is not assigned to any member")
-	}
-	err := c.assigner.Unassign(ctx, assignedTo, target)
-	if err != nil {
-		c.logger.Error("failed to unassign target", "target", target, "error", err)
-		return err
+	// an unassigned target, e.g. one whose start failed, is still in the
+	// other members' configs
+	if assignedTo := c.getAssignment(ctx, target); assignedTo != nil {
+		err := c.assigner.Unassign(ctx, assignedTo, target)
+		if err != nil {
+			c.logger.Error("failed to unassign target", "target", target, "error", err)
+			return err
+		}
 	}
 	// delete from other instances
 	c.mm.RLock()
@@ -623,8 +622,8 @@ func (c *ClusterManager) handleTargetDelete(ctx context.Context, target string) 
 	maps.Copy(members, c.members)
 	c.mm.RUnlock()
 	// delete self from members since the initial trigger for this function is the target delete event
-	delete(members, assignedTo.ID)
-	err = c.deleteTargetFromMembers(ctx, target, members)
+	delete(members, c.clusteringConfig.InstanceName)
+	err := c.deleteTargetFromMembers(ctx, target, members)
 	if err != nil {
 		c.logger.Error("failed to delete target from members", "target", target, "error", err)
 		return err
