@@ -15,6 +15,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/google/uuid"
 	"github.com/jhump/protoreflect/desc"
@@ -48,7 +49,7 @@ type Target struct {
 	Subscriptions map[string]*types.SubscriptionConfig `json:"subscriptions,omitempty"`
 
 	m                 *sync.Mutex
-	conn              *grpc.ClientConn
+	conn              atomic.Pointer[grpc.ClientConn]
 	Client            gnmi.GNMIClient                      `json:"-"`
 	SubscribeClients  map[string]gnmi.GNMI_SubscribeClient `json:"-"` // subscription name to subscribeClient
 	subscribeCancelFn map[string]context.CancelFunc
@@ -134,7 +135,7 @@ func (t *Target) CreateGNMIClient(ctx context.Context, opts ...grpc.DialOption) 
 		select {
 		case conn := <-connC:
 			close(done)
-			t.conn = conn
+			t.conn.Store(conn)
 			t.Client = gnmi.NewGNMIClient(conn)
 			return nil
 		case err := <-errC:
@@ -286,8 +287,8 @@ func (t *Target) StopSubscriptions() {
 
 func (t *Target) Close() error {
 	t.StopSubscriptions()
-	if t.conn != nil {
-		return t.conn.Close()
+	if conn := t.conn.Load(); conn != nil {
+		return conn.Close()
 	}
 	return nil
 }
@@ -308,28 +309,37 @@ func (t *Target) SubscribeClientStates() map[string]bool {
 	return states
 }
 
+// Conn returns the target's current gRPC connection, or nil before
+// CreateGNMIClient succeeds. CreateGNMIClient replaces it on every call.
+func (t *Target) Conn() *grpc.ClientConn {
+	return t.conn.Load()
+}
+
 func (t *Target) ConnState() string {
-	if t.conn == nil {
+	conn := t.conn.Load()
+	if conn == nil {
 		return ""
 	}
-	return t.conn.GetState().String()
+	return conn.GetState().String()
 }
 
 // WaitForConnStateChange blocks until the gRPC connection state changes from
 // sourceState or ctx is done. Returns true if the state changed, false if
 // ctx expired. Returns false immediately if conn is nil.
 func (t *Target) WaitForConnStateChange(ctx context.Context, sourceState connectivity.State) bool {
-	if t.conn == nil {
+	conn := t.conn.Load()
+	if conn == nil {
 		return false
 	}
-	return t.conn.WaitForStateChange(ctx, sourceState)
+	return conn.WaitForStateChange(ctx, sourceState)
 }
 
 // ConnectivityState returns the current gRPC connectivity state.
 // Returns connectivity.Shutdown if the connection is nil.
 func (t *Target) ConnectivityState() connectivity.State {
-	if t.conn == nil {
+	conn := t.conn.Load()
+	if conn == nil {
 		return connectivity.Shutdown
 	}
-	return t.conn.GetState()
+	return conn.GetState()
 }
