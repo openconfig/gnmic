@@ -6,9 +6,9 @@ import (
 
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/config"
+	"github.com/openconfig/grpctunnel/tunnel"
 	"github.com/zestor-dev/zestor/store"
 	"github.com/zestor-dev/zestor/store/gomap"
-	"github.com/openconfig/grpctunnel/tunnel"
 )
 
 // getTunnelTargetMatch must return a non-nil TargetConfig when a connecting
@@ -82,7 +82,7 @@ func TestReconcileConnectedTargets_deletesUnmatchedTarget(t *testing.T) {
 	}
 
 	ts := &tunnelServer{
-		store: s,
+		store:  s,
 		logger: slog.Default(),
 		connectedTargets: map[string]tunnel.Target{
 			"srl1": {ID: "srl1", Type: "GNMI_GNOI"},
@@ -121,7 +121,7 @@ func TestReconcileConnectedTargets_upsertsMatchedTarget(t *testing.T) {
 	}
 
 	ts := &tunnelServer{
-		store: s,
+		store:  s,
 		logger: slog.Default(),
 		connectedTargets: map[string]tunnel.Target{
 			"srl1": {ID: "srl1", Type: "GNMI_GNOI"},
@@ -139,5 +139,152 @@ func TestReconcileConnectedTargets_upsertsMatchedTarget(t *testing.T) {
 	cfg, ok := got.(*types.TargetConfig)
 	if !ok || cfg.TunnelTargetType != "GNMI_GNOI" {
 		t.Fatalf("target config: %#v", got)
+	}
+}
+
+func TestAddTargetHandler_preservesOperatorTarget(t *testing.T) {
+	s := gomap.NewMemStore[any](store.StoreOptions[any]{})
+	defer s.Close()
+
+	if _, err := s.Set("global-flags", "global-flags", config.GlobalFlags{}); err != nil {
+		t.Fatalf("seed global-flags: %v", err)
+	}
+	user := "operator-static"
+	if _, err := s.Set("targets", "srl1", &types.TargetConfig{
+		Name:     "srl1",
+		Address:  "127.0.0.1:1",
+		Username: &user,
+	}); err != nil {
+		t.Fatalf("seed target: %v", err)
+	}
+	matchUser := "gnmic"
+	if _, err := s.Set("tunnel-target-matches", ".*", &config.TunnelTargetMatch{
+		ID:   ".*",
+		Type: ".*",
+		Config: types.TargetConfig{
+			Address:  "tunnel:1",
+			Username: &matchUser,
+		},
+	}); err != nil {
+		t.Fatalf("seed match: %v", err)
+	}
+
+	ts := &tunnelServer{
+		store:            s,
+		logger:           slog.Default(),
+		connectedTargets: map[string]tunnel.Target{},
+	}
+	if err := ts.addTargetHandler(tunnel.Target{ID: "srl1", Type: "GNMI_GNOI"}); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+
+	got, ok, err := s.Get("targets", "srl1")
+	if err != nil || !ok {
+		t.Fatalf("get target: ok=%v err=%v", ok, err)
+	}
+	cfg, ok := got.(*types.TargetConfig)
+	if !ok {
+		t.Fatalf("target config: %#v", got)
+	}
+	if cfg.TunnelTargetType != "" {
+		t.Fatalf("tunnel-target-type: %q", cfg.TunnelTargetType)
+	}
+	if cfg.Username == nil || *cfg.Username != "operator-static" {
+		t.Fatalf("username: %v", cfg.Username)
+	}
+	if cfg.Address != "127.0.0.1:1" {
+		t.Fatalf("address: %q", cfg.Address)
+	}
+}
+
+func TestDeleteTargetHandler_preservesOperatorTarget(t *testing.T) {
+	s := gomap.NewMemStore[any](store.StoreOptions[any]{})
+	defer s.Close()
+
+	user := "operator-static"
+	if _, err := s.Set("targets", "srl1", &types.TargetConfig{
+		Name:     "srl1",
+		Address:  "127.0.0.1:1",
+		Username: &user,
+	}); err != nil {
+		t.Fatalf("seed target: %v", err)
+	}
+
+	ts := &tunnelServer{
+		store:  s,
+		logger: slog.Default(),
+		connectedTargets: map[string]tunnel.Target{
+			"srl1": {ID: "srl1", Type: "GNMI_GNOI"},
+		},
+	}
+	if err := ts.deleteTargetHandler(tunnel.Target{ID: "srl1", Type: "GNMI_GNOI"}); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+
+	got, ok, err := s.Get("targets", "srl1")
+	if err != nil || !ok {
+		t.Fatalf("operator target deleted: ok=%v err=%v", ok, err)
+	}
+	cfg := got.(*types.TargetConfig)
+	if cfg.Username == nil || *cfg.Username != "operator-static" {
+		t.Fatalf("username: %v", cfg.Username)
+	}
+}
+
+func TestReconcileConnectedTargets_preservesOperatorTarget(t *testing.T) {
+	s := gomap.NewMemStore[any](store.StoreOptions[any]{})
+	defer s.Close()
+
+	if _, err := s.Set("global-flags", "global-flags", config.GlobalFlags{}); err != nil {
+		t.Fatalf("seed global-flags: %v", err)
+	}
+	user := "operator-static"
+	if _, err := s.Set("targets", "srl1", &types.TargetConfig{
+		Name:     "srl1",
+		Address:  "127.0.0.1:1",
+		Username: &user,
+	}); err != nil {
+		t.Fatalf("seed target: %v", err)
+	}
+	matchUser := "gnmic"
+	if _, err := s.Set("tunnel-target-matches", ".*", &config.TunnelTargetMatch{
+		ID:   ".*",
+		Type: ".*",
+		Config: types.TargetConfig{
+			Address:  "tunnel:1",
+			Username: &matchUser,
+		},
+	}); err != nil {
+		t.Fatalf("seed match: %v", err)
+	}
+
+	ts := &tunnelServer{
+		store:  s,
+		logger: slog.Default(),
+		connectedTargets: map[string]tunnel.Target{
+			"srl1": {ID: "srl1", Type: "GNMI_GNOI"},
+		},
+	}
+	ts.reconcileConnectedTargets()
+
+	got, ok, err := s.Get("targets", "srl1")
+	if err != nil || !ok {
+		t.Fatalf("get target: ok=%v err=%v", ok, err)
+	}
+	cfg := got.(*types.TargetConfig)
+	if cfg.TunnelTargetType != "" || cfg.Address != "127.0.0.1:1" {
+		t.Fatalf("operator target overwritten: %#v", cfg)
+	}
+	if cfg.Username == nil || *cfg.Username != "operator-static" {
+		t.Fatalf("username: %v", cfg.Username)
+	}
+
+	if _, _, err := s.Delete("tunnel-target-matches", ".*"); err != nil {
+		t.Fatalf("delete match: %v", err)
+	}
+	ts.reconcileConnectedTargets()
+
+	if _, ok, err := s.Get("targets", "srl1"); err != nil || !ok {
+		t.Fatalf("operator target deleted after match removal: ok=%v err=%v", ok, err)
 	}
 }
