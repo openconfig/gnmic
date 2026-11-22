@@ -11,6 +11,7 @@ package consul_locker
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -195,30 +196,37 @@ func (c *ConsulLocker) KeepLock(ctx context.Context, key string) (chan struct{},
 func (c *ConsulLocker) Unlock(ctx context.Context, key string) error {
 	c.m.Lock()
 	defer c.m.Unlock()
+	wrOpts := new(api.WriteOptions).WithContext(ctx)
+	// The entry is removed before calling consul so that a failed call
+	// cannot leave behind an entry whose doneChan is already closed.
 	if lock, ok := c.acquiredlocks[key]; ok {
-		close(lock.doneChan)
-		wrOpts := new(api.WriteOptions)
-		_, err := c.client.KV().Delete(key, wrOpts.WithContext(ctx))
-		if err != nil {
-			return err
-		}
-		_, err = c.client.Session().Destroy(lock.sessionID, nil)
-		if err != nil {
-			return err
-		}
 		delete(c.acquiredlocks, key)
-		return nil
+		closeDone(lock.doneChan)
+		_, kvErr := c.client.KV().Delete(key, wrOpts)
+		// Destroying the session also releases the key (Behavior "delete"),
+		// so it is attempted even if the key delete failed.
+		_, sErr := c.client.Session().Destroy(lock.sessionID, wrOpts)
+		return errors.Join(kvErr, sErr)
 	}
 	if lock, ok := c.attemptinglocks[key]; ok {
-		close(lock.doneChan)
-		_, err := c.client.Session().Destroy(lock.sessionID, nil)
-		if err != nil {
-			return err
-		}
-		delete(c.acquiredlocks, key)
-		return nil
+		delete(c.attemptinglocks, key)
+		closeDone(lock.doneChan)
+		_, err := c.client.Session().Destroy(lock.sessionID, wrOpts)
+		return err
 	}
 	return fmt.Errorf("unlock failed: unknown key %q", key)
+}
+
+// closeDone closes ch if it hasn't already been closed.
+//
+// ch must be non-nil and used exclusively for close-based signaling.
+// All callers must hold c.m to serialize attempts to close ch.
+func closeDone(ch chan struct{}) {
+	select {
+	case <-ch:
+	default:
+		close(ch)
+	}
 }
 
 func (c *ConsulLocker) Stop() error {
