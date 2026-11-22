@@ -234,7 +234,9 @@ func (c *ConsulLocker) Stop() error {
 	}
 	c.m.Unlock()
 	for _, k := range keys {
-		c.Unlock(ctx, k)
+		if err := c.Unlock(ctx, k); err != nil {
+			c.logger.Warn("failed to release lock on stop", "key", k, "err", err)
+		}
 	}
 	return nil
 }
