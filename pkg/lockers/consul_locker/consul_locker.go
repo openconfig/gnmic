@@ -227,8 +227,8 @@ func (c *ConsulLocker) Stop() error {
 	// Snapshot the acquired keys, then release the mutex before calling
 	// Unlock: Unlock acquires c.m itself and sync.Mutex is not reentrant,
 	// so calling it while holding c.m self-deadlocks the caller.
-	keys := make([]string, 0, len(c.acquiredlocks))
 	c.m.Lock()
+	keys := make([]string, 0, len(c.acquiredlocks))
 	for k := range c.acquiredlocks {
 		keys = append(keys, k)
 	}
