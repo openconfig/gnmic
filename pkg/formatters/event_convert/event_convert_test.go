@@ -638,3 +638,37 @@ func TestEventConvertToFloat(t *testing.T) {
 		}
 	}
 }
+
+// float32 values come from the deprecated gNMI float_val and from the
+// event-ieeefloat32 processor.
+func TestEventConvertFloat32(t *testing.T) {
+	tests := []struct {
+		typ  string
+		in   float32
+		want interface{}
+	}{
+		{typ: "string", in: 41.5, want: "41.5"},
+		{typ: "string", in: 1.1, want: "1.1"},
+		{typ: "string", in: -0.25, want: "-0.25"},
+		{typ: "float", in: 41.5, want: float64(41.5)},
+		{typ: "float", in: -0.25, want: float64(-0.25)},
+		{typ: "int", in: 41.5, want: int(41)},
+		{typ: "uint", in: 41.5, want: uint(41)},
+	}
+	for _, tt := range tests {
+		p := formatters.EventProcessors[processorType]()
+		err := p.Init(map[string]interface{}{
+			"value-names": []string{"^value$"},
+			"type":        tt.typ,
+		})
+		if err != nil {
+			t.Fatalf("failed to initialize processor: %v", err)
+		}
+		e := &formatters.EventMsg{Values: map[string]interface{}{"value": tt.in}}
+		p.Apply(e)
+		if got := e.Values["value"]; !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("type %s: float32(%v) converted to %T(%v), want %T(%v)",
+				tt.typ, tt.in, got, got, tt.want, tt.want)
+		}
+	}
+}
