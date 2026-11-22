@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"sync"
 	"testing"
@@ -13,15 +14,17 @@ import (
 )
 
 // deleteLockLocker records the keys passed to Unlock so a test can assert the lock
-// was released. The embedded interface absorbs the methods these tests do not use.
+// was released, and returns err from Unlock. The embedded interface absorbs the
+// methods these tests do not use.
 type deleteLockLocker struct {
 	lockers.Locker
 	unlocked []string
+	err      error
 }
 
 func (l *deleteLockLocker) Unlock(_ context.Context, key string) error {
 	l.unlocked = append(l.unlocked, key)
-	return nil
+	return l.err
 }
 
 func newDeleteTestApp(l lockers.Locker) *App {
@@ -36,11 +39,8 @@ func newDeleteTestApp(l lockers.Locker) *App {
 	}
 }
 
-// A target present in the config but absent from the runtime map is the state a
-// collector is in after a restart: it holds locks for targets it has not
-// recreated yet. Deleting such a target must still release the lock, otherwise the
-// lock is a ghost that no later DELETE against the same config can clear, since
-// the fresh runtime map is empty.
+// A target this instance started locking but is not running must still have
+// its lock released when it is deleted.
 func TestDeleteTargetUnlocksWhenTargetNotRunning(t *testing.T) {
 	l := new(deleteLockLocker)
 	a := newDeleteTestApp(l)
@@ -62,8 +62,7 @@ func TestDeleteTargetUnlocksWhenTargetNotRunning(t *testing.T) {
 	}
 }
 
-// The assignment is keyed by target name and is reported as live, so deleting the
-// target has to drop the entry as well as cancel it.
+// Deleting a target drops its lock cancel func instead of keeping it forever.
 func TestDeleteTargetRemovesLockAssignment(t *testing.T) {
 	l := new(deleteLockLocker)
 	a := newDeleteTestApp(l)
@@ -100,6 +99,61 @@ func TestDeleteTargetClosesRunningTarget(t *testing.T) {
 	}
 	if len(l.unlocked) != 1 {
 		t.Fatalf("unlock calls = %v, want exactly 1", l.unlocked)
+	}
+}
+
+// A configured target this instance neither runs nor locks has no lock here to
+// release. Deleting it succeeds without calling Unlock, which the consul locker
+// would answer with an unknown-key error.
+func TestDeleteTargetWithoutLocalLockSucceeds(t *testing.T) {
+	l := &deleteLockLocker{err: errors.New(`unlock failed: unknown key "gnmic/targets/remote"`)}
+	a := newDeleteTestApp(l)
+
+	name := "remote"
+	a.Config.Targets[name] = &types.TargetConfig{Name: name}
+
+	if err := a.DeleteTarget(context.Background(), name); err != nil {
+		t.Fatalf("DeleteTarget: %v", err)
+	}
+	if a.targetConfigExists(name) {
+		t.Fatal("target still in the config after DeleteTarget")
+	}
+	if len(l.unlocked) != 0 {
+		t.Fatalf("unlock called for a target this instance does not lock: %v", l.unlocked)
+	}
+}
+
+// Once the config entry is deleted, a failed unlock must not turn the delete
+// into an error: the API handler would answer 404 for a target it removed.
+func TestDeleteTargetUnlockFailureDoesNotFailDelete(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		running bool
+	}{
+		{name: "running", running: true},
+		{name: "lock-pending", running: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			l := &deleteLockLocker{err: errors.New("unlock failed: unknown key")}
+			a := newDeleteTestApp(l)
+			a.Config.Targets[tc.name] = &types.TargetConfig{Name: tc.name}
+			if tc.running {
+				a.Targets[tc.name] = target.NewTarget(&types.TargetConfig{Name: tc.name})
+			} else {
+				_, cancel := context.WithCancel(context.Background())
+				a.targetsLockFn[tc.name] = cancel
+			}
+
+			if err := a.DeleteTarget(context.Background(), tc.name); err != nil {
+				t.Fatalf("DeleteTarget returned %v after deleting the target", err)
+			}
+			if a.targetConfigExists(tc.name) {
+				t.Fatal("target still in the config after DeleteTarget")
+			}
+			if len(l.unlocked) != 1 {
+				t.Fatalf("unlock calls = %v, want exactly 1", l.unlocked)
+			}
+		})
 	}
 }
 

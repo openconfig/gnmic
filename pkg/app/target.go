@@ -80,29 +80,32 @@ func (a *App) DeleteTarget(ctx context.Context, name string) error {
 	// delete from oper map
 	a.operLock.Lock()
 	defer a.operLock.Unlock()
-	if cfn, ok := a.targetsLockFn[name]; ok {
+	cfn, lockTracked := a.targetsLockFn[name]
+	if lockTracked {
 		cfn()
-		// Drop the cancel func too, or the entry is still reported as an
-		// assignment for a target that no longer exists.
 		delete(a.targetsLockFn, name)
 	}
 	if a.c != nil {
 		a.c.DeleteTarget(name)
 	}
-	// The lock is held against the config, not against the runtime target, so it
-	// has to be released even when the target is not in the runtime map. A
-	// restarted instance holds locks for targets it has not recreated yet, and
-	// leaving those locked means no later DELETE against the same config can
-	// clear them.
-	var unlockErr error
-	if t, ok := a.Targets[name]; ok {
+	t, running := a.Targets[name]
+	if running {
 		delete(a.Targets, name)
 		t.Close()
 	}
-	if a.locker != nil {
-		unlockErr = a.locker.Unlock(ctx, a.targetLockKey(name))
+	// Only release a lock this instance may hold: it ran the target or
+	// started locking it. Other members' targets are left alone.
+	if a.locker == nil || (!running && !lockTracked) {
+		return nil
 	}
-	return unlockErr
+	// The target is already gone from the config, so a failed unlock does not
+	// fail the delete. Canceling the lock attempt above can also make the
+	// locker forget the key before this call, which is then reported as an
+	// unknown key.
+	if err := a.locker.Unlock(ctx, a.targetLockKey(name)); err != nil {
+		a.Logger.Warn("failed to release target lock", "target", name, "error", err)
+	}
+	return nil
 }
 
 // UpdateTargetConfig updates the subscriptions for an existing target
