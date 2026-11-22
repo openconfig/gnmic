@@ -94,7 +94,7 @@ func newBufconnTarget(t *testing.T, srv *fakeGNMIServer) (*Target, *grpc.ClientC
 	t.Cleanup(func() { conn.Close() })
 
 	tg := NewTarget(&types.TargetConfig{Name: "t1", RetryTimer: testRetryTimer})
-	tg.conn = conn
+	tg.conn.Store(conn)
 	tg.Client = gnmi.NewGNMIClient(conn)
 	return tg, conn
 }

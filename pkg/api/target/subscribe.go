@@ -336,7 +336,8 @@ func (t *Target) subscriptionStopped(nctx context.Context) bool {
 }
 
 func (t *Target) connClosing() bool {
-	return t.conn != nil && t.conn.GetState() == connectivity.Shutdown
+	conn := t.conn.Load()
+	return conn != nil && conn.GetState() == connectivity.Shutdown
 }
 
 // registerSubscription makes cancel the cancellation of subscription name,

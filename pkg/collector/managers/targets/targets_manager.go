@@ -29,6 +29,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/zestor-dev/zestor/store"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 )
 
 const (
@@ -677,7 +678,7 @@ func (tm *TargetsManager) start(mt *ManagedTarget) error {
 	tm.logger.Info("gNMI client created", "name", mt.Name)
 
 	// Watch gRPC connectivity state changes and keep the state store current.
-	go tm.watchConnState(ctx, mt)
+	go tm.watchConnState(ctx, mt, mt.T.Conn())
 
 	tm.logger.Info("target started", "name", mt.Name)
 	_, err = mt.T.Capabilities(ctx)
@@ -1289,20 +1290,27 @@ func val[T any](p *T) T {
 	return *p
 }
 
-// watchConnState monitors the gRPC connectivity state of a target and updates
-// the state store whenever it changes. It runs until ctx is cancelled (i.e.
-// the target is stopped).
-func (tm *TargetsManager) watchConnState(ctx context.Context, mt *ManagedTarget) {
+// watchConnState monitors conn, the gRPC connection of one start of a target,
+// and updates the state store whenever its state changes. It runs until ctx
+// is cancelled (i.e. the target is stopped) or conn shuts down. It watches
+// conn rather than mt.T's current connection: closing conn wakes it after the
+// target may already be starting again with a new connection.
+func (tm *TargetsManager) watchConnState(ctx context.Context, mt *ManagedTarget, conn *grpc.ClientConn) {
+	if conn == nil {
+		return
+	}
 	for {
-		currentState := mt.T.ConnectivityState()
-		// Block until the gRPC connection transitions away from currentState
-		// or the context is cancelled.
-		changed := mt.T.WaitForConnStateChange(ctx, currentState)
-		if !changed {
-			// ctx was cancelled — target is shutting down
+		currentState := conn.GetState()
+		if currentState == connectivity.Shutdown {
 			return
 		}
-		newState := mt.T.ConnectivityState()
+		// Block until the gRPC connection transitions away from currentState
+		// or the context is cancelled.
+		if !conn.WaitForStateChange(ctx, currentState) || ctx.Err() != nil {
+			// target is shutting down
+			return
+		}
+		newState := conn.GetState()
 		tm.logger.Debug("target connectivity state changed",
 			"name", mt.Name,
 			"from", currentState.String(),
