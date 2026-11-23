@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -10,6 +11,18 @@ import (
 	"github.com/openconfig/gnmic/pkg/api/types"
 	"github.com/openconfig/gnmic/pkg/config"
 )
+
+func TestDeleteTargetRemovesRuntimeWithoutConfig(t *testing.T) {
+	a := New()
+	t.Cleanup(a.Cfn)
+	a.Targets["orphan"] = target.NewTarget(&types.TargetConfig{Name: "orphan"})
+	if err := a.DeleteTarget(context.Background(), "orphan"); err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := a.targetByName("orphan"); exists {
+		t.Fatal("orphan runtime target remains")
+	}
+}
 
 // TestAddTargetConfig_ConcurrentRace detects the concurrent map read/write
 // that caused fatal crashes in production (exit code 2).

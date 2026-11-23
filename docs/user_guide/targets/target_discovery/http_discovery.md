@@ -87,3 +87,16 @@ loader:
 
 Just like the targets in the main configuration file, the missing configuration fields get filled with the global flags,
 the ENV variables first, the config file main section next and then the default values.
+
+#### Clustering
+
+In a cluster, the leader runs the loader and dispatches the discovered targets. After
+each successful query, the leader removes the targets that left the response from
+every cluster member, and retries failed removals after the next successful query.
+Targets that the leader's loader never reported, such as targets added through a
+member's REST API or configuration file, stay in place.
+
+A new leader removes only the targets its own loader has reported. A target that left
+the response before the new leader's first successful query, or whose removal the
+previous leader had not completed, stays on its member until it is deleted with
+`DELETE /api/v1/config/targets/{name}` on that member.

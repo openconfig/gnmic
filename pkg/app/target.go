@@ -71,7 +71,9 @@ func (a *App) DeleteTarget(ctx context.Context, name string) error {
 		return nil
 	}
 	if !a.targetConfigExists(name) {
-		return fmt.Errorf("target %q does not exist", name)
+		if _, exists := a.targetByName(name); !exists {
+			return fmt.Errorf("target %q does not exist", name)
+		}
 	}
 	a.configLock.Lock()
 	delete(a.Config.Targets, name)

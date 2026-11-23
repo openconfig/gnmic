@@ -74,7 +74,11 @@ type App struct {
 	//
 	configLock *sync.RWMutex
 	Config     *config.Config
-	Store      store.Store[any]
+	// loaderTargets holds the names in the latest loader snapshot, and
+	// loaderRemoved the names that have since left it.
+	loaderTargets map[string]struct{}
+	loaderRemoved map[string]struct{}
+	Store         store.Store[any]
 	// collector
 	dialOpts      []grpc.DialOption
 	operLock      *sync.RWMutex
@@ -132,14 +136,16 @@ type App struct {
 func New() *App {
 	ctx, cancel := context.WithCancel(context.Background())
 	a := &App{
-		ctx:        ctx,
-		Cfn:        cancel,
-		RootCmd:    new(cobra.Command),
-		sem:        semaphore.NewWeighted(1),
-		configLock: new(sync.RWMutex),
-		Store:      gomap.NewMemStore(store.StoreOptions[any]{}),
-		Config:     config.New(),
-		reg:        prometheus.NewRegistry(),
+		ctx:           ctx,
+		Cfn:           cancel,
+		RootCmd:       new(cobra.Command),
+		sem:           semaphore.NewWeighted(1),
+		configLock:    new(sync.RWMutex),
+		loaderTargets: make(map[string]struct{}),
+		loaderRemoved: make(map[string]struct{}),
+		Store:         gomap.NewMemStore(store.StoreOptions[any]{}),
+		Config:        config.New(),
+		reg:           prometheus.NewRegistry(),
 		//
 		operLock:      new(sync.RWMutex),
 		Targets:       make(map[string]*target.Target),
