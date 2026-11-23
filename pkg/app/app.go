@@ -72,11 +72,13 @@ type App struct {
 
 	sem *semaphore.Weighted
 	//
-	configLock          *sync.RWMutex
-	Config              *config.Config
-	loaderTargets       map[string]struct{}
-	loaderSnapshotReady bool
-	Store               store.Store[any]
+	configLock *sync.RWMutex
+	Config     *config.Config
+	// loaderTargets holds the names in the latest loader snapshot, and
+	// loaderRemoved the names that have since left it.
+	loaderTargets map[string]struct{}
+	loaderRemoved map[string]struct{}
+	Store         store.Store[any]
 	// collector
 	dialOpts      []grpc.DialOption
 	operLock      *sync.RWMutex
@@ -140,6 +142,7 @@ func New() *App {
 		sem:           semaphore.NewWeighted(1),
 		configLock:    new(sync.RWMutex),
 		loaderTargets: make(map[string]struct{}),
+		loaderRemoved: make(map[string]struct{}),
 		Store:         gomap.NewMemStore(store.StoreOptions[any]{}),
 		Config:        config.New(),
 		reg:           prometheus.NewRegistry(),

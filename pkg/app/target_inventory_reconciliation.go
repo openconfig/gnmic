@@ -31,15 +31,18 @@ func (a *App) apiServicesSnapshot() map[string]*lockers.Service {
 	return services
 }
 
+// reconcileDeletedTargets removes the targets that left the loader snapshots from
+// every member. Only names provided by the loader are removed.
 func (a *App) reconcileDeletedTargets(ctx context.Context) {
 	a.configLock.RLock()
-	ready := a.loaderSnapshotReady
-	desired := make(map[string]struct{}, len(a.Config.Targets))
-	for name := range a.Config.Targets {
-		desired[name] = struct{}{}
+	removed := make(map[string]struct{}, len(a.loaderRemoved))
+	for name := range a.loaderRemoved {
+		if _, configured := a.Config.Targets[name]; !configured {
+			removed[name] = struct{}{}
+		}
 	}
 	a.configLock.RUnlock()
-	if !ready {
+	if len(removed) == 0 {
 		return
 	}
 	if err := a.createAPIClient(); err != nil {
@@ -75,7 +78,7 @@ func (a *App) reconcileDeletedTargets(ctx context.Context) {
 				return
 			}
 			for name := range names {
-				if _, exists := desired[name]; exists {
+				if _, exists := removed[name]; !exists {
 					continue
 				}
 				select {
