@@ -258,6 +258,40 @@ func TestOnChange_MultiplePathsWithHeartbeat(t *testing.T) {
 	expect(t, got, received{sub: "s1", target: "t1"})
 }
 
+// ONCE must omit leaves older than cache.expiration and still return fresh ones.
+func TestOnce_OmitsExpiredLeaves(t *testing.T) {
+	c := newGNMICache(&Config{Type: "oc", Expiration: 3 * time.Second}, "")
+	now := time.Now()
+	stale := now.Add(-8 * time.Second).UnixNano()
+	fresh := now.UnixNano()
+	c.Write(context.Background(), "sub-exp", subUpdate("DUT-1", stale, "name"))
+	c.Write(context.Background(), "sub-exp", subUpdate("DUT-1", fresh, "hostname"))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	var got []string
+	for n := range c.Subscribe(ctx, &ReadOpts{
+		Subscription: "sub-exp",
+		Target:       "DUT-1",
+		Mode:         ReadMode_Once,
+		Paths:        []*gnmi.Path{{Elem: []*gnmi.PathElem{{Name: "system"}}}},
+	}) {
+		if n.Err != nil {
+			t.Fatal(n.Err)
+		}
+		if n.Notification == nil {
+			continue
+		}
+		for _, upd := range n.Notification.GetUpdate() {
+			got = append(got, upd.GetVal().GetStringVal())
+		}
+	}
+	want := fmt.Sprintf("DUT-1-%d", fresh)
+	if len(got) != 1 || got[0] != want {
+		t.Fatalf("ONCE updates %v, want [%s]", got, want)
+	}
+}
+
 // the read ends when the context does, and the query is removed from the tree.
 func TestOnChange_ContextCancelClosesAndUnregisters(t *testing.T) {
 	c := newTestCache()
