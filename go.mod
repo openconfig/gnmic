@@ -231,7 +231,7 @@ require (
 	github.com/xdg/stringprep v1.0.0 // indirect
 	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
-	golang.org/x/text v0.43.0
+	golang.org/x/text v0.44.0
 	golang.org/x/time v0.15.0 // indirect
 	k8s.io/client-go v0.37.0
 )
