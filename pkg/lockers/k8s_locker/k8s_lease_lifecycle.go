@@ -62,13 +62,21 @@ func (k *k8sLocker) Lock(ctx context.Context, key string, value []byte) (bool, e
 		cancel(context.Canceled)
 		return false, lockers.ErrCanceled
 	}
-	if previous, exists := k.locks[key]; exists && previous.ctx.Err() == nil {
+	previous, exists := k.locks[key]
+	if exists && previous.ctx.Err() == nil {
 		k.mu.Unlock()
 		cancel(context.Canceled)
 		return false, fmt.Errorf("lock %q is already active in this instance", key)
 	}
 	k.locks[key] = session
 	k.mu.Unlock()
+	// A session canceled through KeepLock still holds its Lease. Releasing it lets the
+	// new identity acquire immediately instead of waiting for the Lease to expire.
+	if exists {
+		if err := k.release(ctx, key, previous); err != nil && ctx.Err() == nil {
+			k.logger.Warn("failed to release previous lease session", "key", key, "error", err)
+		}
+	}
 	go func() {
 		defer close(session.stopped)
 		elector.Run(ctx)
@@ -188,12 +196,15 @@ func (k *k8sLocker) Stop() error {
 		k.stopCache()
 		<-k.cacheDone
 	}
+	// Unreleased Leases expire after lease-duration, so shutdown does not wait longer.
+	ctx, cancel := context.WithTimeout(context.Background(), k.Cfg.LeaseDuration)
+	defer cancel()
 	var group errgroup.Group
 	group.SetLimit(maxConcurrentReleases)
 	errCh := make(chan error, len(sessions))
 	for key, session := range sessions {
 		group.Go(func() error {
-			if err := k.release(context.Background(), key, session); err != nil {
+			if err := k.release(ctx, key, session); err != nil {
 				errCh <- fmt.Errorf("release lock %q: %w", key, err)
 			}
 			return nil

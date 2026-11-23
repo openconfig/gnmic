@@ -27,9 +27,13 @@ import (
 )
 
 const (
-	defaultNamespace = "default"
-	origKeyName      = "original-key"
-	origValueName    = "original-value"
+	defaultNamespace     = "default"
+	defaultLeaseDuration = 15 * time.Second
+	defaultRetryPeriod   = 2 * time.Second
+	defaultQPS           = 100
+	defaultBurst         = 200
+	origKeyName          = "original-key"
+	origValueName        = "original-value"
 )
 
 func init() {
@@ -52,15 +56,16 @@ type k8sLocker struct {
 }
 
 type config struct {
-	Namespace     string        `mapstructure:"namespace" json:"namespace"`
-	LeaseDuration time.Duration `mapstructure:"lease-duration" json:"lease-duration"`
-	RenewDeadline time.Duration `mapstructure:"renew-deadline" json:"renew-deadline"`
-	RetryPeriod   time.Duration `mapstructure:"retry-period" json:"retry-period"`
-	RenewPeriod   time.Duration `mapstructure:"renew-period" json:"-"`
-	RetryTimer    time.Duration `mapstructure:"retry-timer" json:"-"`
-	QPS           float32       `mapstructure:"qps" json:"qps"`
-	Burst         int           `mapstructure:"burst" json:"burst"`
-	Debug         bool          `mapstructure:"debug" json:"debug,omitempty"`
+	Namespace     string        `mapstructure:"namespace,omitempty" json:"namespace,omitempty"`
+	LeaseDuration time.Duration `mapstructure:"lease-duration,omitempty" json:"lease-duration,omitempty"`
+	RenewDeadline time.Duration `mapstructure:"renew-deadline,omitempty" json:"renew-deadline,omitempty"`
+	RetryPeriod   time.Duration `mapstructure:"retry-period,omitempty" json:"retry-period,omitempty"`
+	// Deprecated aliases of RenewDeadline and RetryPeriod.
+	RenewPeriod time.Duration `mapstructure:"renew-period,omitempty" json:"-"`
+	RetryTimer  time.Duration `mapstructure:"retry-timer,omitempty" json:"-"`
+	Debug       bool          `mapstructure:"debug,omitempty" json:"debug,omitempty"`
+	QPS         float32       `mapstructure:"qps,omitempty" json:"qps,omitempty"`
+	Burst       int           `mapstructure:"burst,omitempty" json:"burst,omitempty"`
 }
 
 func (k *k8sLocker) Init(ctx context.Context, cfg map[string]interface{}, opts ...lockers.Option) error {
@@ -77,7 +82,7 @@ func (k *k8sLocker) Init(ctx context.Context, cfg map[string]interface{}, opts .
 	if err != nil {
 		return err
 	}
-	cfgREST.QPS, cfgREST.Burst = k.Cfg.QPS, k.Cfg.Burst
+	cfgREST.QPS, cfgREST.Burst = k.Cfg.clientLimits()
 	k.clientset, err = kubernetes.NewForConfig(cfgREST)
 	if err != nil {
 		return err
@@ -85,50 +90,100 @@ func (k *k8sLocker) Init(ctx context.Context, cfg map[string]interface{}, opts .
 	return k.startLeaseCache(ctx)
 }
 
+// setDefaults fills in defaults and validates the Lease timings. A fractional
+// lease-duration is rounded down, and deprecated renew-period or retry-timer values
+// that violate the timing constraints fall back to the defaults, with a warning.
 func (k *k8sLocker) setDefaults() error {
-	if k.Cfg.RenewPeriod != 0 {
-		if k.Cfg.RenewDeadline != 0 && k.Cfg.RenewDeadline != k.Cfg.RenewPeriod {
-			return fmt.Errorf("renew-period and renew-deadline must match when both are set")
+	c := k.Cfg
+	if c.Namespace == "" {
+		c.Namespace = defaultNamespace
+	}
+	if c.LeaseDuration <= 0 {
+		c.LeaseDuration = defaultLeaseDuration
+	}
+	if whole := c.LeaseDuration.Truncate(time.Second); whole != c.LeaseDuration {
+		if whole == 0 {
+			return fmt.Errorf("lease-duration (%s) must be at least 1s", c.LeaseDuration)
 		}
-		k.Cfg.RenewDeadline = k.Cfg.RenewPeriod
+		k.logger.Warn("lease-duration rounded down to whole seconds", "configured", c.LeaseDuration, "lease-duration", whole)
+		c.LeaseDuration = whole
 	}
-	if k.Cfg.RetryTimer != 0 {
-		if k.Cfg.RetryPeriod != 0 && k.Cfg.RetryPeriod != k.Cfg.RetryTimer {
-			return fmt.Errorf("retry-timer and retry-period must match when both are set")
-		}
-		k.Cfg.RetryPeriod = k.Cfg.RetryTimer
+	renewAlias, err := applyAlias(&c.RenewDeadline, &c.RenewPeriod, "renew-deadline", "renew-period")
+	if err != nil {
+		return err
 	}
-	if k.Cfg.Namespace == "" {
-		k.Cfg.Namespace = defaultNamespace
+	retryAlias, err := applyAlias(&c.RetryPeriod, &c.RetryTimer, "retry-period", "retry-timer")
+	if err != nil {
+		return err
 	}
-	if k.Cfg.LeaseDuration == 0 {
-		k.Cfg.LeaseDuration = 15 * time.Second
+	c.defaultTimings()
+	err = c.validateTimings()
+	if err == nil || !(renewAlias || retryAlias) {
+		return err
 	}
-	if k.Cfg.RenewDeadline == 0 {
-		k.Cfg.RenewDeadline = k.Cfg.LeaseDuration * 2 / 3
+	if renewAlias {
+		c.RenewDeadline = 0
 	}
-	if k.Cfg.RetryPeriod == 0 {
-		k.Cfg.RetryPeriod = 2 * time.Second
+	if retryAlias {
+		c.RetryPeriod = 0
 	}
-	if k.Cfg.QPS == 0 {
-		k.Cfg.QPS = 100
+	c.defaultTimings()
+	if fallbackErr := c.validateTimings(); fallbackErr != nil {
+		return fallbackErr
 	}
-	if k.Cfg.Burst == 0 {
-		k.Cfg.Burst = 200
+	k.logger.Warn("deprecated renew-period or retry-timer value replaced by its default",
+		"reason", err, "renew-deadline", c.RenewDeadline, "retry-period", c.RetryPeriod)
+	return nil
+}
+
+// applyAlias moves a deprecated setting to its unset replacement and reports whether it did.
+func applyAlias(value, alias *time.Duration, name, aliasName string) (bool, error) {
+	deprecated := *alias
+	*alias = 0
+	if deprecated == 0 || *value == deprecated {
+		return false, nil
 	}
-	if k.Cfg.LeaseDuration < time.Second || k.Cfg.LeaseDuration%time.Second != 0 {
-		return fmt.Errorf("lease-duration must be a positive whole number of seconds")
+	if *value != 0 {
+		return false, fmt.Errorf("%s and %s must match when both are set", aliasName, name)
 	}
-	if k.Cfg.RetryPeriod <= 0 || k.Cfg.RenewDeadline <= 0 || k.Cfg.RenewDeadline+k.Cfg.RetryPeriod >= k.Cfg.LeaseDuration {
-		return fmt.Errorf("positive renew-deadline and retry-period must sum to less than lease-duration")
+	*value = deprecated
+	return true, nil
+}
+
+func (c *config) defaultTimings() {
+	if c.RenewDeadline == 0 {
+		c.RenewDeadline = c.LeaseDuration * 2 / 3
 	}
-	if k.Cfg.RenewDeadline <= time.Duration(leaderelection.JitterFactor*float64(k.Cfg.RetryPeriod)) {
-		return fmt.Errorf("renew-deadline must be greater than retry-period * %g", leaderelection.JitterFactor)
+	if c.RetryPeriod == 0 {
+		c.RetryPeriod = min(defaultRetryPeriod, c.LeaseDuration/4)
 	}
-	if k.Cfg.QPS < 0 || k.Cfg.Burst < 1 {
-		return fmt.Errorf("qps and burst must be positive")
+}
+
+// validateTimings applies the client-go leader election constraints, and requires
+// renewal to give up before other candidates can consider the Lease expired.
+func (c *config) validateTimings() error {
+	if c.RenewDeadline <= 0 || c.RetryPeriod <= 0 || c.RenewDeadline+c.RetryPeriod >= c.LeaseDuration {
+		return fmt.Errorf("positive renew-deadline (%s) and retry-period (%s) must sum to less than lease-duration (%s)",
+			c.RenewDeadline, c.RetryPeriod, c.LeaseDuration)
+	}
+	if c.RenewDeadline <= time.Duration(leaderelection.JitterFactor*float64(c.RetryPeriod)) {
+		return fmt.Errorf("renew-deadline (%s) must be greater than retry-period (%s) * %g",
+			c.RenewDeadline, c.RetryPeriod, leaderelection.JitterFactor)
 	}
 	return nil
+}
+
+// clientLimits returns the client-go request budget. Each owned Lease is renewed
+// once per retry period, so the defaults exceed the client-go defaults of 5 and 10.
+func (c *config) clientLimits() (float32, int) {
+	qps, burst := float32(defaultQPS), defaultBurst
+	if c.QPS > 0 {
+		qps = c.QPS
+	}
+	if c.Burst > 0 {
+		burst = c.Burst
+	}
+	return qps, burst
 }
 
 func (k *k8sLocker) SetLogger(logger *slog.Logger) {

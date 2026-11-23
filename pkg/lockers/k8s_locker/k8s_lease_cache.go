@@ -5,6 +5,7 @@ package k8s_locker
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	coordinationv1 "k8s.io/api/coordination/v1"
@@ -16,22 +17,22 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-const leaseKeyPrefixIndex = "original-key-prefix"
+const leaseKeyDirIndex = "original-key-dir"
 
-func leaseKeyPrefixes(obj any) ([]string, error) {
+// leaseKeyDirs indexes a Lease under each prefix of its original key that ends before a "/".
+func leaseKeyDirs(obj any) ([]string, error) {
 	lease, ok := obj.(*coordinationv1.Lease)
 	if !ok {
 		return nil, fmt.Errorf("expected Kubernetes Lease, got %T", obj)
 	}
-	key, ok := lease.Annotations[origKeyName]
-	if !ok {
-		return nil, nil
+	key := lease.Annotations[origKeyName]
+	var dirs []string
+	for i := range len(key) {
+		if key[i] == '/' {
+			dirs = append(dirs, key[:i])
+		}
 	}
-	prefixes := make([]string, len(key)+1)
-	for i := range prefixes {
-		prefixes[i] = key[:i]
-	}
-	return prefixes, nil
+	return dirs, nil
 }
 
 func (k *k8sLocker) startLeaseCache(ctx context.Context) error {
@@ -48,7 +49,7 @@ func (k *k8sLocker) startLeaseCache(ctx context.Context) error {
 	}
 	informer := cache.NewSharedIndexInformer(cache.ToListWatcherWithWatchListSemantics(source, k.clientset), &coordinationv1.Lease{}, 0, cache.Indexers{
 		cache.NamespaceIndex: cache.MetaNamespaceIndexFunc,
-		leaseKeyPrefixIndex:  leaseKeyPrefixes,
+		leaseKeyDirIndex:     leaseKeyDirs,
 	})
 	k.leases = coordinationlisters.NewLeaseLister(informer.GetIndexer()).Leases(k.Cfg.Namespace)
 	k.leaseIndex = informer.GetIndexer()
@@ -93,19 +94,32 @@ func (k *k8sLocker) List(ctx context.Context, prefix string) (map[string]string,
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	objects, err := k.leaseIndex.ByIndex(leaseKeyPrefixIndex, prefix)
+	objects, err := k.leaseCandidates(prefix)
 	if err != nil {
 		return nil, err
 	}
-	result := make(map[string]string, len(objects))
+	result := make(map[string]string)
 	now := time.Now()
 	for _, object := range objects {
 		lease := object.(*coordinationv1.Lease)
 		key, present := lease.Annotations[origKeyName]
-		value, hasValue := leaseValue(lease)
-		if present && hasValue && validLease(lease, now) {
+		if !present || !strings.HasPrefix(key, prefix) {
+			continue
+		}
+		if value, ok := leaseValue(lease); ok && validLease(lease, now) {
 			result[key] = value
 		}
 	}
 	return result, nil
+}
+
+// leaseCandidates returns the cached Leases that may match prefix. Every key that starts
+// with prefix is indexed under the part of prefix before its last "/"; a prefix without
+// a "/" scans the cache.
+func (k *k8sLocker) leaseCandidates(prefix string) ([]any, error) {
+	dir := strings.LastIndexByte(prefix, '/')
+	if dir < 0 {
+		return k.leaseIndex.List(), nil
+	}
+	return k.leaseIndex.ByIndex(leaseKeyDirIndex, prefix[:dir])
 }

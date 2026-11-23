@@ -68,6 +68,26 @@ func TestTargetLockLossCancelsAllSubscriptionsBeforeBlockedRelease(t *testing.T)
 	require.Empty(t, a.targetsSnapshot(), "release I/O must not hold the operational mutex")
 }
 
+func TestDeleteTargetReleasesLockOutsideOperationalMutex(t *testing.T) {
+	locker := &blockedReleaseLocker{releases: make(chan struct{}, 1)}
+	a := newDeleteTestApp(locker)
+	a.Config.Targets["target"] = &types.TargetConfig{Name: "target"}
+	a.Targets["target"] = target.NewTarget(&types.TargetConfig{Name: "target"})
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	result := make(chan error, 1)
+	go func() { result <- a.DeleteTarget(ctx, "target") }()
+	select {
+	case <-locker.releases:
+	case <-time.After(time.Second):
+		t.Fatal("target lock release did not start")
+	}
+	require.True(t, a.operLock.TryLock(), "release I/O must not hold the operational mutex")
+	a.operLock.Unlock()
+	cancel()
+	require.NoError(t, <-result)
+}
+
 type lockLossSession struct {
 	ctx  context.Context
 	errs chan error

@@ -80,7 +80,6 @@ func (a *App) DeleteTarget(ctx context.Context, name string) error {
 	a.Logger.Info("target deleted from config", "target", name)
 	// delete from oper map
 	a.operLock.Lock()
-	defer a.operLock.Unlock()
 	cfn, lockTracked := a.targetsLockFn[name]
 	if lockTracked {
 		cfn()
@@ -94,6 +93,7 @@ func (a *App) DeleteTarget(ctx context.Context, name string) error {
 		delete(a.Targets, name)
 		t.Close()
 	}
+	a.operLock.Unlock()
 	// Only release a lock this instance may hold: it ran the target or
 	// started locking it. Other members' targets are left alone.
 	if a.locker == nil || (!running && !lockTracked) {

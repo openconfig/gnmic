@@ -69,7 +69,7 @@ func TestStopBoundsConcurrentReleases(t *testing.T) {
 		sessions[fmt.Sprintf("key-%d", i)] = &leaseSession{ctx: ctx, cancel: cancel, identity: "owner", stopped: stopped}
 	}
 	k := &k8sLocker{
-		Cfg:       &config{Namespace: "test", RetryPeriod: time.Second},
+		Cfg:       &config{Namespace: "test", LeaseDuration: 10 * time.Second, RetryPeriod: time.Second},
 		clientset: interceptedClient{Clientset: client, leases: leases},
 		locks:     sessions,
 	}
@@ -96,6 +96,27 @@ func TestStopBoundsConcurrentReleases(t *testing.T) {
 		t.Fatal("stop did not wait for every release worker")
 	}
 	require.Zero(t, active.Load())
+}
+
+func TestStopEndsAtLeaseDuration(t *testing.T) {
+	client := fake.NewClientset()
+	leases := &blockingLeases{LeaseInterface: client.CoordinationV1().Leases("test")}
+	leases.blockGet.Store(true)
+	sessions := make(map[string]*leaseSession)
+	for i := range maxConcurrentReleases * 10 {
+		ctx, cancel := context.WithCancelCause(t.Context())
+		stopped := make(chan struct{})
+		close(stopped)
+		sessions[fmt.Sprintf("key-%d", i)] = &leaseSession{ctx: ctx, cancel: cancel, identity: "owner", stopped: stopped}
+	}
+	k := &k8sLocker{
+		Cfg:       &config{Namespace: "test", LeaseDuration: time.Second, RetryPeriod: 500 * time.Millisecond},
+		clientset: interceptedClient{Clientset: client, leases: leases},
+		locks:     sessions,
+	}
+	started := time.Now()
+	require.ErrorIs(t, k.Stop(), context.DeadlineExceeded)
+	require.Less(t, time.Since(started), 2*time.Second, "unreachable API releases must end when the Leases expire")
 }
 
 type releaseBudgetLeases struct {

@@ -3,7 +3,9 @@
 package k8s_locker
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +19,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/openconfig/gnmic/pkg/lockers"
+	"github.com/openconfig/gnmic/pkg/logging"
 )
 
 func testLocker(t *testing.T, client kubernetes.Interface) *k8sLocker {
@@ -108,20 +111,34 @@ func TestLegacyLeaseMetadataCompatibility(t *testing.T) {
 func TestLeaseCacheFiltersAndTracksOwnership(t *testing.T) {
 	now := time.Now()
 	active := testLease("cluster/target", "pod-a", now)
+	nested := testLease("cluster/target-2/sub", "pod-e", now)
 	expired := testLease("cluster/expired", "pod-b", now.Add(-time.Minute))
 	missing := testLease("cluster/missing", "pod-c", now)
 	missing.Spec.LeaseDurationSeconds = nil
 	other := testLease("other/target", "pod-d", now)
-	client := fake.NewClientset(active, expired, missing, other)
+	client := fake.NewClientset(active, nested, expired, missing, other)
 	k := testLocker(t, client)
-	indexed, err := k.leaseIndex.ByIndex(leaseKeyPrefixIndex, "cluster/")
+	dirs, err := leaseKeyDirs(nested)
 	require.NoError(t, err)
-	require.Len(t, indexed, 3)
+	require.Equal(t, []string{"cluster", "cluster/target-2"}, dirs)
+	indexed, err := k.leaseIndex.ByIndex(leaseKeyDirIndex, "cluster")
+	require.NoError(t, err)
+	require.Len(t, indexed, 4)
+	cluster := map[string]string{"cluster/target": "pod-a", "cluster/target-2/sub": "pod-e"}
 	before := len(client.Actions())
 	for range 100 {
-		values, err := k.List(t.Context(), "cluster/")
-		require.NoError(t, err)
-		require.Equal(t, map[string]string{"cluster/target": "pod-a"}, values)
+		for prefix, want := range map[string]map[string]string{
+			"cluster/":         cluster,
+			"cluster/target":   cluster,
+			"cluster/tar":      cluster,
+			"clu":              cluster,
+			"cluster/target-2": {"cluster/target-2/sub": "pod-e"},
+			"":                 {"cluster/target": "pod-a", "cluster/target-2/sub": "pod-e", "other/target": "pod-d"},
+		} {
+			values, err := k.List(t.Context(), prefix)
+			require.NoError(t, err)
+			require.Equal(t, want, values, prefix)
+		}
 		for key, want := range map[string]bool{"cluster/target": true, "cluster/expired": false, "cluster/missing": false, "unknown": false} {
 			locked, err := k.IsLocked(t.Context(), key)
 			require.NoError(t, err)
@@ -171,30 +188,52 @@ func TestLeaseValidity(t *testing.T) {
 func TestKubernetesLockerConfig(t *testing.T) {
 	k := lockers.Lockers["k8s"]().(*k8sLocker)
 	require.NoError(t, k.setDefaults())
-	require.Equal(t, 15*time.Second, k.Cfg.LeaseDuration)
-	require.Equal(t, 10*time.Second, k.Cfg.RenewDeadline)
-	require.Equal(t, 2*time.Second, k.Cfg.RetryPeriod)
-	require.Equal(t, float32(100), k.Cfg.QPS)
-	require.Equal(t, 200, k.Cfg.Burst)
-	for _, mutate := range []func(*config){
-		func(c *config) { c.LeaseDuration = 1500 * time.Millisecond },
-		func(c *config) { c.LeaseDuration = -time.Second },
-		func(c *config) { c.RenewDeadline = 15 * time.Second },
-		func(c *config) { c.RenewDeadline = time.Second },
-		func(c *config) { c.RetryPeriod = -time.Second },
-		func(c *config) { c.QPS = -1 },
-		func(c *config) { c.Burst = -1 },
-	} {
-		cfg := *k.Cfg
-		mutate(&cfg)
-		require.Error(t, (&k8sLocker{Cfg: &cfg}).setDefaults())
-	}
-	legacy := &k8sLocker{Cfg: &config{LeaseDuration: 10 * time.Second, RenewPeriod: 5 * time.Second, RetryTimer: 2 * time.Second}}
-	require.NoError(t, legacy.setDefaults())
-	require.Equal(t, 5*time.Second, legacy.Cfg.RenewDeadline)
-	require.Equal(t, 2*time.Second, legacy.Cfg.RetryPeriod)
-	require.NoError(t, legacy.setDefaults())
+	require.Equal(t, config{Namespace: "default", LeaseDuration: 15 * time.Second, RenewDeadline: 10 * time.Second, RetryPeriod: 2 * time.Second}, *k.Cfg)
+	require.NotContains(t, k.String(), "qps")
+	qps, burst := k.Cfg.clientLimits()
+	require.Equal(t, float32(100), qps)
+	require.Equal(t, 200, burst)
+	qps, burst = (&config{QPS: 20, Burst: -1}).clientLimits()
+	require.Equal(t, float32(20), qps)
+	require.Equal(t, 200, burst)
 
-	require.Error(t, (&k8sLocker{Cfg: &config{RenewDeadline: 4 * time.Second, RenewPeriod: 5 * time.Second}}).setDefaults())
-	require.Error(t, (&k8sLocker{Cfg: &config{RetryPeriod: time.Second, RetryTimer: 2 * time.Second}}).setDefaults())
+	for name, cfg := range map[string]config{
+		"sub-second lease":             {LeaseDuration: 500 * time.Millisecond},
+		"renew deadline reaches lease": {RenewDeadline: 15 * time.Second},
+		"renew deadline within jitter": {RenewDeadline: time.Second, RetryPeriod: time.Second},
+		"negative retry period":        {RetryPeriod: -time.Second},
+		"conflicting renew alias":      {RenewDeadline: 4 * time.Second, RenewPeriod: 5 * time.Second},
+		"conflicting retry alias":      {RetryPeriod: time.Second, RetryTimer: 2 * time.Second},
+		"alias fallback conflicts":     {RenewPeriod: 14 * time.Second, RetryPeriod: 10 * time.Second},
+	} {
+		require.Error(t, (&k8sLocker{Cfg: &cfg, logger: logging.DiscardLogger()}).setDefaults(), name)
+	}
+}
+
+func TestKubernetesLockerCorrectsLegacyTimings(t *testing.T) {
+	const second = time.Second
+	for name, tc := range map[string]struct {
+		cfg                 config
+		lease, renew, retry time.Duration
+		warning             bool
+	}{
+		"short lease":         {cfg: config{LeaseDuration: 5 * second}, lease: 5 * second, renew: 5 * second * 2 / 3, retry: 1250 * time.Millisecond},
+		"fractional lease":    {cfg: config{LeaseDuration: 2500 * time.Millisecond}, lease: 2 * second, renew: 2 * second * 2 / 3, retry: 500 * time.Millisecond, warning: true},
+		"valid aliases":       {cfg: config{LeaseDuration: 10 * second, RenewPeriod: 5 * second, RetryTimer: 2 * second}, lease: 10 * second, renew: 5 * second, retry: 2 * second},
+		"alias reaches lease": {cfg: config{LeaseDuration: 10 * second, RenewPeriod: 8 * second}, lease: 10 * second, renew: 10 * second * 2 / 3, retry: 2 * second, warning: true},
+		"alias above lease":   {cfg: config{LeaseDuration: 10 * second, RenewPeriod: 12 * second}, lease: 10 * second, renew: 10 * second * 2 / 3, retry: 2 * second, warning: true},
+		"alias within jitter": {cfg: config{LeaseDuration: 10 * second, RenewPeriod: 2 * second, RetryTimer: 2 * second}, lease: 10 * second, renew: 10 * second * 2 / 3, retry: 2 * second, warning: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var logs bytes.Buffer
+			k := &k8sLocker{Cfg: &tc.cfg, logger: slog.New(slog.NewTextHandler(&logs, nil))}
+			for range 2 {
+				require.NoError(t, k.setDefaults())
+				require.Equal(t, tc.lease, k.Cfg.LeaseDuration)
+				require.Equal(t, tc.renew, k.Cfg.RenewDeadline)
+				require.Equal(t, tc.retry, k.Cfg.RetryPeriod)
+			}
+			require.Equal(t, tc.warning, strings.Contains(logs.String(), "level=WARN"), logs.String())
+		})
+	}
 }
