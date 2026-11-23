@@ -263,6 +263,10 @@ func (ts *tunnelServer) addTargetHandler(tt tunnel.Target) error {
 		ts.logger.Info("target ignored, not matching any rule", "target", tt)
 		return nil
 	}
+	if ts.operatorOwned(tc.Name) {
+		ts.logger.Info("tunnel registration left operator target unchanged", "target", tc.Name)
+		return nil
+	}
 	ts.logger.Info("target matched", "target", tc)
 	_, err := ts.store.Set("targets", tc.Name, tc)
 	if err != nil {
@@ -280,11 +284,31 @@ func (ts *tunnelServer) deleteTargetHandler(tt tunnel.Target) error {
 	delete(ts.connectedTargets, tt.ID)
 	ts.mu.Unlock()
 
+	if ts.operatorOwned(tt.ID) {
+		ts.logger.Info("tunnel deregistration left operator target unchanged", "target", tt.ID)
+		return nil
+	}
+
 	_, _, err := ts.store.Delete("targets", tt.ID)
 	if err != nil {
 		ts.logger.Error("failed to delete tunnel target from configStore", "error", err)
 	}
 	return nil
+}
+
+// operatorOwned reports whether name is a target the operator configured.
+// Tunnel-created targets set TunnelTargetType; operator targets leave it empty.
+// A missing target is not operator-owned, so the tunnel server may create it.
+func (ts *tunnelServer) operatorOwned(name string) bool {
+	v, ok, err := ts.store.Get("targets", name)
+	if err != nil || !ok || v == nil {
+		return false
+	}
+	tc, ok := v.(*types.TargetConfig)
+	if !ok || tc == nil {
+		return false
+	}
+	return tc.TunnelTargetType == ""
 }
 
 func (ts *tunnelServer) registerHandler(ss tunnel.ServerSession) error {
@@ -375,8 +399,10 @@ func (ts *tunnelServer) watchTunnelTargetMatches(ctx context.Context, ch <-chan 
 // is created, updated, or deleted.
 //
 // For each connected target:
-//   - If it matches a rule: upsert the target config (create or update)
-//   - If it doesn't match any rule: delete the target config
+//   - If it matches a rule: upsert the target config, unless an operator
+//     target already uses that name.
+//   - If it doesn't match any rule: delete the tunnel-created target config.
+//     Operator targets are left in place.
 //
 // We hold the lock for the entire reconciliation to prevent a race where a target
 // deregisters (and gets deleted from the store) while we're processing it, which
@@ -390,6 +416,13 @@ func (ts *tunnelServer) reconcileConnectedTargets() {
 	for _, tt := range ts.connectedTargets {
 		tc := ts.getTunnelTargetMatch(tt)
 		if tc != nil {
+			if ts.operatorOwned(tc.Name) {
+				ts.logger.Debug("tunnel target matches rule, leaving operator target unchanged",
+					"targetID", tt.ID,
+					"targetType", tt.Type,
+				)
+				continue
+			}
 			// target matches a rule ==> upsert the target config
 			ts.logger.Debug("tunnel target matches rule, upserting config",
 				"targetID", tt.ID,
@@ -403,6 +436,13 @@ func (ts *tunnelServer) reconcileConnectedTargets() {
 				)
 			}
 		} else {
+			if ts.operatorOwned(tt.ID) {
+				ts.logger.Debug("tunnel target no longer matches any rule, leaving operator target unchanged",
+					"targetID", tt.ID,
+					"targetType", tt.Type,
+				)
+				continue
+			}
 			// target no longer matches any rule ==> delete the target config
 			ts.logger.Debug("tunnel target no longer matches any rule, deleting config",
 				"targetID", tt.ID,
