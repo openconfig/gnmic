@@ -197,7 +197,6 @@ func (tm *TargetsManager) Start(locker lockers.Locker, wg *sync.WaitGroup) error
 	if err != nil {
 		return fmt.Errorf("failed to get loader config: %w", err)
 	}
-	var loaderTargetOpCh <-chan *loaders.TargetOperation
 	var loaderCfn context.CancelFunc
 	if ok && cfg != nil {
 		loaderCfg, ok := cfg.(map[string]any)
@@ -277,23 +276,6 @@ func (tm *TargetsManager) Start(locker lockers.Locker, wg *sync.WaitGroup) error
 					// previously the series were merely set to 0 here and left in
 					// the registry forever (phantom series + unbounded cardinality).
 					tm.remove(ev.Name)
-				}
-			case op, ok := <-loaderTargetOpCh:
-				if !ok {
-					return
-				}
-				tm.logger.Info("got loader target operation", "operation", op)
-				for _, add := range op.Add {
-					_, err := tm.store.Config.Set("targets", add.Name, add)
-					if err != nil {
-						tm.logger.Error("failed to add target from loader", "error", err, "target", add.Name)
-					}
-				}
-				for _, del := range op.Del {
-					_, _, err := tm.store.Config.Delete("targets", del)
-					if err != nil {
-						tm.logger.Error("failed to delete target from loader", "error", err, "target", del)
-					}
 				}
 			case ev, ok := <-subscriptionsCh:
 				if !ok {
