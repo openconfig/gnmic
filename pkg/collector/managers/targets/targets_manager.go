@@ -177,6 +177,15 @@ type TargetsManager struct {
 	reg         *prometheus.Registry
 
 	reconcileInterval time.Duration
+	// cache is the collector cache served by the northbound gNMI server.
+	// Removing a target drops its leaves so a later target of the same name
+	// does not answer Get with data from the previous one.
+	cache targetCache
+}
+
+// targetCache is the subset of the collector cache that target removal needs.
+type targetCache interface {
+	DeleteTarget(name string)
 }
 
 func NewTargetsManager(ctx context.Context, store *collstore.Store, pipeline chan *pipeline.Msg, reg *prometheus.Registry) *TargetsManager {
@@ -199,6 +208,12 @@ func NewTargetsManager(ctx context.Context, store *collstore.Store, pipeline cha
 	}
 	tm.registerMetrics()
 	return tm
+}
+
+// SetCache attaches the collector cache. remove drops the named target from
+// it. A nil cache leaves removal as a no-op for the cache.
+func (tm *TargetsManager) SetCache(cache targetCache) {
+	tm.cache = cache
 }
 
 func (tm *TargetsManager) Start(locker lockers.Locker, wg *sync.WaitGroup) error {
@@ -854,6 +869,12 @@ func (tm *TargetsManager) remove(name string) {
 	// The target is gone from tm.targets, so the periodic metrics updater will
 	// not recreate its series; drop them now instead of leaving phantom series.
 	tm.deleteTargetMetrics(name)
+	// Stop has finished, so no reader is still publishing this target. Drop
+	// its cached leaves; a subscription delete must not do this, because
+	// cache.expiration is measured against data that outlives the feed.
+	if tm.cache != nil {
+		tm.cache.DeleteTarget(name)
+	}
 }
 
 // reconcile stops running targets that are no longer configured or assigned
