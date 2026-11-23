@@ -118,6 +118,7 @@ func (c *Collector) Start() error {
 	if err != nil {
 		return err
 	}
+	c.targetsManager.SetCache(c.cache)
 	// start managers
 	err = c.targetsManager.Start(c.locker, c.wg)
 	if err != nil {
