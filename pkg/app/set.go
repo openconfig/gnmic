@@ -27,6 +27,10 @@ func (a *App) SetPreRunE(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	err = a.Config.ValidateCommitInput(cmd)
+	if err != nil {
+		return err
+	}
 
 	a.createCollectorDialOpts()
 	return a.initTunnelServer(tunnel.ServerConfig{
@@ -147,6 +151,7 @@ func (a *App) InitSetFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&a.Config.LocalFlags.SetUpdateCliFile, "update-cli-file", "", "", "path to a file containing a list of commands that will be sent as a set update request")
 
 	cmd.Flags().StringVarP(&a.Config.LocalFlags.SetCommitId, "commit-id", "", "", "commit ID value")
+	cmd.Flags().BoolVarP(&a.Config.LocalFlags.SetCommitGenerateId, "commit-generate-id", "", false, "autogenerate commit ID")
 	cmd.Flags().BoolVarP(&a.Config.LocalFlags.SetCommitRequest, "commit-request", "", false, "start a commit confirmed transaction")
 	cmd.Flags().BoolVarP(&a.Config.LocalFlags.SetCommitConfirm, "commit-confirm", "", false, "confirm the commit ID")
 	cmd.Flags().BoolVarP(&a.Config.LocalFlags.SetCommitCancel, "commit-cancel", "", false, "cancel the commit")

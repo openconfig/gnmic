@@ -103,6 +103,10 @@ See [this section](#templated-set-request-file) below.
 
 The `--commit-id` flag sets the commit ID when the client needs to perform a commit confirmed set request as per: https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-commit-confirmed.md
 
+### commit-generate-id
+
+The `--commit-generate-id` flag generates a 8 character random string as the commit id and prints it as info message.
+
 ### commit-request
 
 The `--commit-request` flag is used together with the `--commit-id` flag to set the commit action to `Request`, essentially starting a commit request.
