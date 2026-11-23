@@ -255,6 +255,7 @@ func (a *App) handleConfigProcessors(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {
+	a.configLock.RLock()
 	nc := &config.Config{
 		GlobalFlags:   a.Config.GlobalFlags,
 		LocalFlags:    a.Config.LocalFlags,
@@ -278,6 +279,7 @@ func (a *App) handleConfig(w http.ResponseWriter, r *http.Request) {
 			nc.Targets[n] = t.RedactedDeepCopy()
 		}
 	}
+	a.configLock.RUnlock()
 	a.handlerCommonGet(w, nc)
 }
 
@@ -308,7 +310,9 @@ func (a *App) handleTargetsPost(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+	a.configLock.RLock()
 	tc, ok := a.Config.Targets[id]
+	a.configLock.RUnlock()
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		_ = json.NewEncoder(w).Encode(APIErrors{Errors: []string{fmt.Sprintf("target %q not found", id)}})
@@ -601,7 +605,9 @@ func (a *App) handleClusteringDrainInstance(w http.ResponseWriter, r *http.Reque
 				logging.LogErrUnlessCanceled(a.Logger, err, "failed to unassign target", "target", t)
 				continue
 			}
+			a.configLock.RLock()
 			tc, ok := a.Config.Targets[t]
+			a.configLock.RUnlock()
 			if !ok {
 				a.Logger.Info("could not find target config", "target", t)
 				continue
